@@ -1,9 +1,9 @@
 #!/usr/bin/env bats
 # Tests for ~/.dotfiles/claude-kit/hooks/stop-checks.sh.
 #
-# stop-checks.sh calls run-checks.sh via its absolute $HOME-prefixed path, so
-# each test fakes $HOME with a stub that passes or fails on demand. The repo
-# is a real git init so the tree-hash logic is exercised for real.
+# stop-checks.sh calls run-checks.sh via $CLAUDE_PLUGIN_ROOT, so each test
+# fakes it with a stub that passes or fails on demand. Each test writes a
+# transcript JSONL describing the turn the hook inspects.
 #
 # Run with: bats tests/
 
@@ -12,9 +12,11 @@ setup() {
   FAKE_HOME="$BATS_TEST_TMPDIR/home"
   export CLAUDE_PLUGIN_ROOT="$FAKE_HOME/.claude"
   REPO="$BATS_TEST_TMPDIR/repo"
+  TRANSCRIPT="$BATS_TEST_TMPDIR/transcript.jsonl"
   mkdir -p "$FAKE_HOME/.claude/bin" "$REPO"
   git -C "$REPO" init -q
   git -C "$REPO" -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
+  echo x >"$REPO/a"
   set_checks pass
 }
 
@@ -27,34 +29,45 @@ set_checks() {
   chmod +x "$FAKE_HOME/.claude/bin/run-checks.sh"
 }
 
+# turn <tool>...  appends a real user prompt, then one assistant tool_use per arg.
+turn() {
+  jq -nc '{type:"user", message:{content:"do it"}}' >>"$TRANSCRIPT"
+  local tool
+  for tool in "$@"; do
+    jq -nc --arg n "$tool" '{type:"assistant", message:{content:[{type:"tool_use", name:$n}]}}' >>"$TRANSCRIPT"
+    jq -nc '{type:"user", message:{content:[{type:"tool_result"}]}}' >>"$TRANSCRIPT"
+  done
+}
+
 stop() {
   local active="${1:-false}"
-  jq -nc --arg cwd "$REPO" --argjson active "$active" \
-    '{hook_event_name:"Stop", session_id:"s1", cwd:$cwd, stop_hook_active:$active}' |
+  jq -nc --arg cwd "$REPO" --arg t "$TRANSCRIPT" --argjson active "$active" \
+    '{hook_event_name:"Stop", session_id:"s1", cwd:$cwd, transcript_path:$t, stop_hook_active:$active}' |
     HOME="$FAKE_HOME" "$HOOK"
 }
 
-@test "clean tree on first stop runs nothing" {
+@test "missing transcript runs nothing" {
   set_checks fail
   run stop
   [ "$status" -eq 0 ]
 }
 
 @test "stop_hook_active lets the stop through even when checks would fail" {
-  echo x >"$REPO/a"
+  turn Edit
   set_checks fail
   run stop true
   [ "$status" -eq 0 ]
 }
 
-@test "changed tree with passing checks allows the stop" {
-  echo x >"$REPO/a"
+@test "an edit with passing checks allows the stop" {
+  turn Read Edit
   run stop
   [ "$status" -eq 0 ]
+  [[ "$output" == *"PASS lint"* ]]
 }
 
-@test "changed tree with failing checks blocks with the FAIL lines only" {
-  echo x >"$REPO/a"
+@test "an edit with failing checks blocks with the FAIL lines only" {
+  turn Write
   set_checks fail
   run stop
   [ "$status" -eq 2 ]
@@ -62,37 +75,42 @@ stop() {
   [[ "$output" != *"noise"* ]]
 }
 
-@test "unchanged tree since the last stop skips the checks" {
-  echo x >"$REPO/a"
-  run stop
-  [ "$status" -eq 0 ]
+@test "edits committed in the turn skip the checks" {
+  turn Edit Bash
+  git -C "$REPO" add a
+  git -C "$REPO" -c user.email=t@t -c user.name=t commit -q -m edit
   set_checks fail
   run stop
   [ "$status" -eq 0 ]
 }
 
-@test "a further change after a stop reruns the checks" {
-  echo x >"$REPO/a"
-  run stop
-  echo y >>"$REPO/a"
+@test "a turn without edit tools skips the checks" {
+  turn Read Bash
   set_checks fail
   run stop
-  [ "$status" -eq 2 ]
+  [ "$status" -eq 0 ]
 }
 
-@test "an untracked symlink to a directory still runs the checks" {
-  mkdir -p "$REPO/target"
-  echo x >"$REPO/target/f"
-  ln -s target "$REPO/link"
+@test "an edit in an earlier turn does not count" {
+  turn Edit
+  turn Read
+  set_checks fail
+  run stop
+  [ "$status" -eq 0 ]
+}
+
+@test "a meta user entry does not start a new turn" {
+  turn Edit
+  jq -nc '{type:"user", isMeta:true, message:{content:"skill loaded"}}' >>"$TRANSCRIPT"
   set_checks fail
   run stop
   [ "$status" -eq 2 ]
-  [[ "$output" != *"failing open"* ]]
 }
 
 @test "outside a git worktree exits clean" {
   REPO="$BATS_TEST_TMPDIR/plain"
   mkdir -p "$REPO"
+  turn Edit
   set_checks fail
   run stop
   [ "$status" -eq 0 ]
