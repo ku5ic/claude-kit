@@ -22,10 +22,31 @@ make_fixture() {
   printf 'em dash \xe2\x80\x94 here\n' >"$WORK/$rel"
 }
 
-# run_hook <rel-path>  feeds the Write-payload shape to the hook.
+# run_hook <rel-path>  feeds the Write-payload shape to the hook, with the
+# typography rewrite enabled so the em dash marker exercises the exclusions.
 run_hook() {
   local rel="$1"
-  jq -n --arg fp "$WORK/$rel" '{tool_input: {file_path: $fp}}' | "$HOOK"
+  jq -n --arg fp "$WORK/$rel" '{tool_input: {file_path: $fp}}' |
+    CLAUDE_SANITIZE_TYPOGRAPHY=1 "$HOOK"
+}
+
+# run_hook_default <rel-path>  same payload, typography flag unset.
+run_hook_default() {
+  local rel="$1"
+  jq -n --arg fp "$WORK/$rel" '{tool_input: {file_path: $fp}}' |
+    env -u CLAUDE_SANITIZE_TYPOGRAPHY "$HOOK"
+}
+
+# make_bidi_fixture <rel-path>  creates a file holding an em dash and a
+# right-to-left override (U+202E).
+make_bidi_fixture() {
+  local rel="$1"
+  mkdir -p "$WORK/$(dirname "$rel")"
+  printf 'em dash \xe2\x80\x94 rlo \xe2\x80\xae here\n' >"$WORK/$rel"
+}
+
+bidi_present() {
+  grep -q $'\xe2\x80\xae' "$WORK/$1"
 }
 
 # em_dash_present <rel-path>  true (0) when the raw em dash bytes are still
@@ -38,7 +59,33 @@ em_dash_present() {
   make_fixture "src/app.ts"
   run run_hook "src/app.ts"
   [ "$status" -eq 0 ]
+  [ -z "$output" ]
   ! em_dash_present "src/app.ts"
+}
+
+@test "default: typography is kept, bidi control characters are stripped" {
+  make_bidi_fixture "src/app.ts"
+  run run_hook_default "src/app.ts"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+  em_dash_present "src/app.ts"
+  ! bidi_present "src/app.ts"
+}
+
+@test "typography flag on: bidi control characters are stripped too" {
+  make_bidi_fixture "src/app.ts"
+  run run_hook "src/app.ts"
+  [ "$status" -eq 0 ]
+  ! em_dash_present "src/app.ts"
+  ! bidi_present "src/app.ts"
+}
+
+@test "typography flag on: quotes, ellipsis, and arrows become ASCII" {
+  mkdir -p "$WORK/src"
+  printf '\xe2\x80\x9cq\xe2\x80\x9d \xe2\x80\x98s\xe2\x80\x99 \xe2\x80\xa6 \xe2\x86\x92 \xe2\x86\x90 \xe2\x87\x92 \xe2\x80\x93\n' >"$WORK/src/q.md"
+  run run_hook "src/q.md"
+  [ "$status" -eq 0 ]
+  [ "$(cat "$WORK/src/q.md")" = "\"q\" 's' ... -> <- => -" ]
 }
 
 @test "skip: */locales/* directory is not rewritten" {
