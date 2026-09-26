@@ -4,9 +4,7 @@ Surface technical debt and architectural risks with severity and remediation pat
 
 ## Procedure
 
-0. Resolve external context (`rules/workflow.md` section 4). Then dispatch the auditor agent (subagent_type: auditor, foreground) with steps 1 onward and the resolved arguments; it writes the report, you relay its summary.
-
-1. Stack is in the repo context your startup produced (`agent-context.sh`). Get the scratch directory via `scratch-dir.sh`.
+1. Stack is in the `<repo-context>` block from the `SubagentStart` hook. Get the scratch directory via `scratch-dir.sh`.
 2. Load the patterns skill for the detected stack (react-patterns, django-patterns, etc.) for the anti-pattern reference.
 3. Read the target.
    1. If $ARGUMENTS is a directory, run `tokei --sort code <path>` to get accurate line counts per language and per file.
@@ -37,12 +35,12 @@ Surface technical debt and architectural risks with severity and remediation pat
 
 - What it is
 - Why it is a problem (scale, maintainability, correctness, security, performance, or operability)
-- Severity: failure / warning / info (per `rules/markdown-report.md` rubric; "failure" here means active liability, not future risk)
+- Severity: failure / warning / info (per the report-format skill's rubric; "failure" here means active liability, not future risk)
 - Effort to remediate: small (hours), medium (days), large (weeks)
 - Remediation: concrete first step
 
 ## Output file
 
-Use the `rules/markdown-report.md` format. Write to `$(scratch-dir.sh)/debt-<target-slug>-<YYYYMMDD-HHMM>.md`. Print the path.
+Load the report-format skill and use its format. Write to the path `scratch-dir.sh debt <target-slug>` prints. Print the path.
 
 Sort findings by severity, then by effort (smallest first within each severity) so the quick wins are visible at the top.

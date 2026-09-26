@@ -32,4 +32,4 @@ Repo context and the `<required-skills>`/`<suggested-skills>` blocks arrive via 
 
 ## Output
 
-Use the `rules/markdown-report.md` format. Write to `$(scratch-dir.sh)/plan-critique-<plan-task-slug>-<YYYYMMDD-HHMM>.md`, referencing the plan path you critiqued. Return a digest plus that path.
+Load the report-format skill and use its format. Write to the path `scratch-dir.sh plan-critique <plan-task-slug>` prints, referencing the plan path you critiqued. Return a digest plus that path.

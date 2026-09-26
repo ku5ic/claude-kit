@@ -2,6 +2,8 @@
 
 Subagent shells live under `$HOME/.claude/agents/`. The canonical inventory is `/agents` output.
 
+Installed as a plugin, the kit's agents are namespaced: `subagent_type: auditor` in a skill means `claude-kit:auditor` there. Use whichever form the Agent tool lists.
+
 ## Spawn discipline
 
 A subagent costs its own request budget, so default to doing the work directly. Spawn one only when the task matches an agent's specialty, needs isolation from the main context (a broad sweep, a read-only audit), or genuinely parallelizes across independent items. Spawn `Explore` only past 5 unresolved queries, not 3.

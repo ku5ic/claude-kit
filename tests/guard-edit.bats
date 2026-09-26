@@ -6,6 +6,8 @@
 #
 # Run with: bats tests/
 
+load helper
+
 setup() {
   HOOK="$BATS_TEST_DIRNAME/../hooks/guard-edit.sh"
 }
@@ -13,7 +15,7 @@ setup() {
 # Builds an Edit/Write/MultiEdit payload from a path string and pipes it to
 # the hook. Uses jq -R so the path can contain any character.
 run_guard_edit() {
-  printf '%s' "$1" | jq -R '{tool_input: {file_path: .}}' | "$HOOK"
+  hook_payload Edit "$1" | "$HOOK"
 }
 
 # positive cases (must allow)
@@ -106,5 +108,59 @@ run_guard_edit() {
 @test "block: ~/.bashrc" {
   run run_guard_edit "$HOME/.bashrc"
   [ "$status" -eq 2 ]
+}
+
+# Guarded lockfiles come from kit.yml's package_managers and extra_lockfiles.
+
+@test "block: bun.lock (a package_managers lockfile the old list missed)" {
+  run run_guard_edit '/tmp/project/bun.lock'
+  [ "$status" -eq 2 ]
+}
+
+@test "block: Pipfile.lock" {
+  run run_guard_edit '/tmp/project/Pipfile.lock'
+  [ "$status" -eq 2 ]
+}
+
+@test "block: Cargo.lock (extra_lockfiles)" {
+  run run_guard_edit '/tmp/project/Cargo.lock'
+  [ "$status" -eq 2 ]
+}
+
+@test "allow: requirements.txt is hand-edited" {
+  run run_guard_edit '/tmp/project/requirements.txt'
+  [ "$status" -eq 0 ]
+}
+
+# The kit overlay: a write gets a prompt through either path to it.
+
+# Fake HOME whose overlay link points at a file in a fake dotfiles tree.
+setup_overlay() {
+  kit_test_home
+  OVERLAY_SRC="$BATS_TEST_TMPDIR/dotfiles/claude/claude-kit.local.yml"
+  mkdir -p "${OVERLAY_SRC%/*}"
+  touch "$OVERLAY_SRC"
+  ln -s "$OVERLAY_SRC" "$FAKE_HOME/.claude/claude-kit.local.yml"
+}
+
+@test "ask: Write to the overlay through its ~/.claude link" {
+  setup_overlay
+  HOME="$FAKE_HOME" run run_guard_edit "$FAKE_HOME/.claude/claude-kit.local.yml"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: Write to the overlay's source file in the dotfiles tree" {
+  setup_overlay
+  HOME="$FAKE_HOME" run run_guard_edit "$OVERLAY_SRC"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "allow: a same-named file that is not the overlay" {
+  setup_overlay
+  HOME="$FAKE_HOME" run run_guard_edit "$BATS_TEST_TMPDIR/elsewhere/claude-kit.local.yml"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
 }
 

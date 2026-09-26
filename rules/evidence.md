@@ -16,7 +16,7 @@ Do not state, as fact, any of these without having read them this session:
 
 - File paths not seen via Read or Glob.
 - API shapes not read from source or fetched from authoritative docs.
-- Version numbers - read the lockfile or `--version` output.
+- Version numbers - the `versions` lines in `<repo-context>` first, else the lockfile or `--version` output.
 - Test results - if a test was not run, say "not run".
 - Browser, runtime, or library behavior - verify, or say "would need to check at runtime".
 

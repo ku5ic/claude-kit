@@ -2,8 +2,9 @@
 # PreToolUse hook: inspects git commit commands for AI signatures and,
 # per rules/output.md section 1, an unchunked wall of text in the body.
 HOOK_NAME="guard-commit.sh"
-# shellcheck source=_lib.sh
-source "$(dirname "$0")/_lib.sh"
+# shellcheck source=../bin/_lib.sh
+source "$(dirname "$0")/../bin/_lib.sh"
+kit_hook_init
 
 read_payload
 require_jq

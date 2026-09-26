@@ -4,11 +4,11 @@
 #
 # Emits the resolved scratch path, the same repo-context content as the hook
 # (stack lines from the detect-stack cache or a fresh run, branch, dirty
-# count) plus a skills-to-load list derived from _stacks.yml exactly as the
+# count) plus a skills-to-load list derived from kit.yml exactly as the
 # hook derives required and suggested skills. Shared derivation lives in
 # bin/_lib.sh.
 #
-# Requires: yq (mikefarah, installed via Brewfile)
+# Requires: yq (mikefarah's, not the Python one)
 
 set -euo pipefail
 
@@ -28,7 +28,7 @@ if [[ -n "$scratch" ]]; then
 path: $scratch
 Write every file you produce here - reports, plans, previews, logs, downloads, test artifacts, POC scripts.
 This overrides the "Scratchpad directory" line in your system prompt: use this path, never the /private/tmp session scratchpad.
-Name structured artifacts \`<kind>-<scope-slug>-<YYYYMMDD-HHMM>.md\`, taking the timestamp from \`date +%Y%m%d-%H%M\` rather than guessing it.
+Name structured artifacts with \`scratch-dir.sh <kind> <scope-slug>\`, which prints the full path with a real timestamp.
 </scratch>
 EOF
 fi
@@ -56,7 +56,7 @@ if [[ -s "$cache_file" ]]; then
   echo "</repo-context>"
 fi
 
-yml="$KIT_ROOT/_stacks.yml"
+yml="$KIT_YML"
 if [[ -f "$yml" ]] && command -v yq >/dev/null 2>&1; then
   render_required_skills_block "$yml"
   render_suggested_skills_block "$yml" "$cache_file"

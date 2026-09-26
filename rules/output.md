@@ -19,7 +19,7 @@ Run this test on every reply, file, and commit message before emitting:
 | Chat reply, default                                               | 2 sentences                               |
 | Chat reply after "explain", "why", "tradeoffs", "review", "audit" | 4 lines of prose                          |
 | Chat reply after "in detail", "walk me through", "long version"   | no ceiling, headers required              |
-| An artifact the reader asked for (report, audit, plan, review)    | follows `rules/markdown-report.md`        |
+| An artifact the reader asked for (report, audit, plan, review)    | follows the report-format skill           |
 | Reply naming a written file                                       | path, headline count, one next action     |
 | Commit message body, PR description                               | shortest structured form that is complete |
 

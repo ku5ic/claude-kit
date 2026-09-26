@@ -10,8 +10,9 @@
 # not hookSpecificOutput (unlike SessionStart) - see the doc excerpt fetched
 # 2026-08-28. agent-context.sh prints plain text; wrap it in that JSON shape.
 HOOK_NAME="inject-subagent-context.sh"
-# shellcheck source=_lib.sh
-source "$(dirname "$0")/_lib.sh"
+# shellcheck source=../bin/_lib.sh
+source "$(dirname "$0")/../bin/_lib.sh"
+kit_hook_init
 
 payload=""
 read_payload

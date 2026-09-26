@@ -8,6 +8,11 @@
 set -euo pipefail
 trap 'exit 0' ERR
 
+# Not _lib.sh: its bash 4.4 gate exits for non-hook callers, and `env bash`
+# can resolve to macOS bash 3.2 here. Same derivation as the lib's KIT_HOME.
+KIT_HOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+KIT_CACHE_DIR="$KIT_HOME/cache"
+
 # Seconds the git-status cache is reused. 1 matches statusLine.refreshInterval
 # in settings.json, so the git segment can't be more than one render stale.
 # Overridable so tests can pin a wide window and assert cache reuse without
@@ -163,7 +168,7 @@ fi
 dir_name="$(basename "${cwd:-.}")"
 
 safe_session_id="${session_id//[^a-zA-Z0-9_-]/}"
-cache_dir="$HOME/.claude/cache/statusline"
+cache_dir="$KIT_CACHE_DIR/statusline"
 git_cache_file="$cache_dir/git-${safe_session_id:-nosession}"
 
 git_segment=""
@@ -195,7 +200,7 @@ fi
 # instead of shelling out to the plugin's own (versioned-path, so fragile to
 # depend on) hook script.
 mode_segment=""
-ponytail_flag="$HOME/.claude/.ponytail-active"
+ponytail_flag="$KIT_HOME/.ponytail-active"
 if [[ -f "$ponytail_flag" ]]; then
   ponytail_mode="$(head -n1 "$ponytail_flag" | tr -d '[:space:]')"
   # Matches the ponytail plugin's own statusline snippet: amber for the

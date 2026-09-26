@@ -1,10 +1,6 @@
----
-description: Turn a fuzzy ask into a sharp Claude Code prompt with context and acceptance criteria
-argument-hint: <the fuzzy ask, or a file containing it>
-model: haiku
-disable-model-invocation: true
-context: fork
----
+# /meta prompt
+
+Turn a fuzzy ask into a sharp Claude Code prompt with context and acceptance criteria. Arguments: `<the fuzzy ask, or a file containing it>`.
 
 ## When to use
 
@@ -32,7 +28,7 @@ context: fork
 
 ## Output file
 
-Write to `$(scratch-dir.sh)/prompt-<slug>-<YYYYMMDD-HHMM>.md`. Print the path.
+Write to the path `scratch-dir.sh prompt <slug>` prints. Print the path.
 
 Structure:
 

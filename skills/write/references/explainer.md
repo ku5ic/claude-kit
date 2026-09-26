@@ -4,7 +4,7 @@ Explain a bug, feature, module, or section of code to someone new to the codebas
 
 ## When to use this
 
-The subject is already understood well enough to explain - root cause from `explore-patterns`, a feature just built or reviewed, or a module/section of code someone needs oriented to - and the goal is understanding, not a change. Produces a citation-heavy walkthrough for a reader unfamiliar with the code. Use `/write devnote` instead for a short peer-to-peer note on a completed change. Use a direct edit or `/plan` instead when the goal is to change code, not explain it.
+The subject is already understood well enough to explain - root cause from `investigate`, a feature just built or reviewed, or a module/section of code someone needs oriented to - and the goal is understanding, not a change. Produces a citation-heavy walkthrough for a reader unfamiliar with the code. Use `/write devnote` instead for a short peer-to-peer note on a completed change. Use a direct edit or `/plan` instead when the goal is to change code, not explain it.
 
 ## Procedure
 
@@ -35,7 +35,7 @@ Format:
 Where it goes:
 
 - Default to terminal. Only write to a file when asked - honor an exact location if one is given (e.g. "on desktop").
-- Otherwise use `$(scratch-dir.sh)/<kind>-<scope-slug>-<YYYYMMDD-HHMM>.md` per the scratch convention.
+- Otherwise use the path `scratch-dir.sh <kind> <scope-slug>` prints.
 
 Invoking this skill lifts the `rules/output.md` section 0 ceiling, like "in detail" does - full sentences, full depth. That covers how much gets said, not how it's structured: within each header's section, still short paragraphs (no more than 4 prose lines, per rules/output.md section 1) and one hop or one point per paragraph, never one long undifferentiated block under a header.
 

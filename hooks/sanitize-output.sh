@@ -4,8 +4,9 @@
 # CLAUDE_SANITIZE_TYPOGRAPHY=1 it also rewrites em dashes, smart quotes, etc.
 # to ASCII.
 HOOK_NAME="sanitize-output.sh"
-# shellcheck source=_lib.sh
-source "$(dirname "$0")/_lib.sh"
+# shellcheck source=../bin/_lib.sh
+source "$(dirname "$0")/../bin/_lib.sh"
+kit_hook_init
 
 read_payload
 require_jq

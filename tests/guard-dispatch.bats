@@ -8,16 +8,16 @@
 # set -e/errtrace/ERR trap so one check's fail-open never masks a different
 # check's genuine violation.
 #
-# Each test fakes $HOME so guard-skills.sh's _stacks.yml/skills.jsonl/cache
+# Each test fakes $HOME so guard-skills.sh's kit.yml/skills.jsonl/cache
 # reads never touch real machine state, same convention as guard-skills.bats.
 #
 # Run with: bats tests/
 
+load helper
+
 setup() {
   HOOK="$BATS_TEST_DIRNAME/../hooks/guard-dispatch.sh"
-  FAKE_HOME="$BATS_TEST_TMPDIR/home"
-  export CLAUDE_PLUGIN_ROOT="$FAKE_HOME/.claude"
-  mkdir -p "$FAKE_HOME/.claude/logs"
+  kit_test_home --plugin-root
   export CLAUDE_GUARD_SKILLS=1
 }
 
@@ -31,19 +31,23 @@ run_dispatch() {
     HOME="$FAKE_HOME" "$HOOK"
 }
 
-@test "clean write with no _stacks.yml and no risky path passes both checks" {
+@test "clean write with no kit.yml and no risky path passes both checks" {
   run run_dispatch '/tmp/project/notes.md' 'A normal sentence with nothing wrong.'
   [ "$status" -eq 0 ]
 }
 
 @test "guard-edit's check fires first and blocks a lockfile edit" {
+  # The guarded lockfile list comes from kit.yml.
+  cat >"$FAKE_HOME/.claude/kit.yml" <<'YAML'
+extra_lockfiles: [package-lock.json]
+YAML
   run run_dispatch '/tmp/project/package-lock.json' 'harmless content'
   [ "$status" -eq 2 ]
   [[ "$output" == *"Blocked by guard-edit.sh"* ]]
 }
 
 @test "guard-skills' check blocks when a required skill has not been loaded" {
-  cat >"$FAKE_HOME/.claude/_stacks.yml" <<'YAML'
+  cat >"$FAKE_HOME/.claude/kit.yml" <<'YAML'
 skill_file_map:
   - on: basename
     globs: ["*.sh"]
@@ -56,7 +60,7 @@ YAML
 }
 
 @test "guard-skills' check is skipped unless CLAUDE_GUARD_SKILLS=1" {
-  cat >"$FAKE_HOME/.claude/_stacks.yml" <<'YAML'
+  cat >"$FAKE_HOME/.claude/kit.yml" <<'YAML'
 skill_file_map:
   - on: basename
     globs: ["*.sh"]
@@ -68,7 +72,8 @@ YAML
 }
 
 @test "ordering: a lockfile edit that would also trip the skills-gate surfaces only guard-edit's message" {
-  cat >"$FAKE_HOME/.claude/_stacks.yml" <<'YAML'
+  cat >"$FAKE_HOME/.claude/kit.yml" <<'YAML'
+extra_lockfiles: [yarn.lock]
 skill_file_map:
   - on: basename
     globs: ["*.lock"]
@@ -84,7 +89,7 @@ YAML
 }
 
 @test "a required skill already loaded this session allows a clean write through both checks" {
-  cat >"$FAKE_HOME/.claude/_stacks.yml" <<'YAML'
+  cat >"$FAKE_HOME/.claude/kit.yml" <<'YAML'
 skill_file_map:
   - on: basename
     globs: ["*.sh"]
@@ -124,8 +129,10 @@ YAML
 # the same bypass). Both must leave guard-skills.sh running
 # against the untouched implementation.
 
+# bin/ comes along because every hook sources ../bin/_lib.sh.
 setup_isolated_hooks() {
   cp -r "$BATS_TEST_DIRNAME/../hooks" "$BATS_TEST_TMPDIR/hooks"
+  cp -r "$BATS_TEST_DIRNAME/../bin" "$BATS_TEST_TMPDIR/bin"
   chmod +x "$BATS_TEST_TMPDIR"/hooks/*.sh
 }
 
@@ -145,7 +152,7 @@ inject_fault() {
 
 # A skills-gate that must block: *.sh requires bash-patterns, nothing loaded.
 setup_skills_gate() {
-  cat >"$FAKE_HOME/.claude/_stacks.yml" <<'YAML'
+  cat >"$FAKE_HOME/.claude/kit.yml" <<'YAML'
 skill_file_map:
   - on: basename
     globs: ["*.sh"]
@@ -178,4 +185,72 @@ run_dispatch_isolated() {
   run run_dispatch_isolated '/tmp/project/deploy.sh' 'harmless content'
   [ "$status" -eq 2 ]
   [[ "$output" == *"bash-patterns"* ]]
+}
+
+# Read: guard-edit's credential check applies; the skills gate does not.
+
+# sensitive_paths plus a skill map that gates *.tsx and *.sh edits.
+setup_read_guards() {
+  cat >"$FAKE_HOME/.claude/kit.yml" <<'YAML'
+sensitive_paths: [".env", ".env.*", "~/.ssh/"]
+extra_lockfiles: [package-lock.json]
+skill_file_map:
+  - on: basename
+    globs: ["*.tsx", "*.sh"]
+    skills: [react-patterns]
+YAML
+  : >"$FAKE_HOME/.claude/logs/skills.jsonl"
+}
+
+@test "Read of .env is blocked" {
+  setup_read_guards
+  run run_dispatch '/tmp/project/.env' '' s1 Read
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"reading a credential or key file"* ]]
+}
+
+@test "Read of .env.local is blocked" {
+  setup_read_guards
+  run run_dispatch '/tmp/project/.env.local' '' s1 Read
+  [ "$status" -eq 2 ]
+}
+
+@test "Read under ~/.ssh is blocked" {
+  setup_read_guards
+  run run_dispatch "$FAKE_HOME/.ssh/id_ed25519" '' s1 Read
+  [ "$status" -eq 2 ]
+}
+
+@test "Write of .env is blocked" {
+  setup_read_guards
+  run run_dispatch '/tmp/project/.env' 'KEY=1' s1 Write
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"writing a credential or key file"* ]]
+}
+
+@test "Read of a .tsx passes with the skills gate on and no skills loaded" {
+  setup_read_guards
+  run run_dispatch '/tmp/project/App.tsx' '' s1 Read
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "the same .tsx is still gated for an Edit" {
+  setup_read_guards
+  run run_dispatch '/tmp/project/App.tsx' 'x' s1 Edit
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"react-patterns"* ]]
+}
+
+@test "Read of a lockfile passes; the lockfile check guards writes only" {
+  setup_read_guards
+  run run_dispatch '/tmp/project/package-lock.json' '' s1 Read
+  [ "$status" -eq 0 ]
+}
+
+@test "disabling sensitive-read lets the Read through" {
+  setup_read_guards
+  printf 'disabled_rules: [sensitive-read]\n' >"$FAKE_HOME/.claude/claude-kit.local.yml"
+  run run_dispatch '/tmp/project/.env' '' s1 Read
+  [ "$status" -eq 0 ]
 }

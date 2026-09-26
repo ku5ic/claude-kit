@@ -8,9 +8,11 @@
 #
 # Run with: bats tests/
 
+load helper
+
 setup() {
   SCRIPT="$BATS_TEST_DIRNAME/../bin/scratch-rotate.sh"
-  FAKE_HOME="$BATS_TEST_TMPDIR/home"
+  kit_test_home
   SCRATCH="$FAKE_HOME/.claude/scratch"
   REGISTRY="$FAKE_HOME/.claude/logs/scratch-registry.txt"
   mkdir -p "$SCRATCH"
@@ -227,4 +229,19 @@ run_rotate() {
   run run_rotate
   [ "$status" -eq 0 ]
   [[ "$output" != *"skill-loaded marker"* ]]
+}
+
+@test "trims every JSONL log to log_max_lines from the overlay" {
+  local logs="$FAKE_HOME/.claude/logs"
+  mkdir -p "$logs"
+  printf 'log_max_lines: 2\n' >"$FAKE_HOME/.claude/claude-kit.local.yml"
+  printf '{"n":%s}\n' 1 2 3 4 >"$logs/skills.jsonl"
+  printf '{"n":%s}\n' 1 2 3 >"$logs/guards.jsonl"
+
+  run run_rotate
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"trimmed skills.jsonl from 4 to 2 lines"* ]]
+  [[ "$output" == *"trimmed guards.jsonl from 3 to 2 lines"* ]]
+  [ "$(cat "$logs/guards.jsonl")" = '{"n":2}
+{"n":3}' ]
 }

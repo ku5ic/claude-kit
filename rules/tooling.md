@@ -4,7 +4,7 @@ Which CLI to reach for, how to call the bin scripts, and where temporary files g
 
 ## 1. Reach for the CLI first
 
-When a deterministic CLI can answer the question, call it before reading files and reasoning. Fewer tokens wins: one CLI call beats a targeted read beats a broad grep beats reasoning from memory. Authoritative inventory of what is installed: `~/.dotfiles/Brewfile`.
+When a deterministic CLI can answer the question, call it before reading files and reasoning. Fewer tokens wins: one CLI call beats a targeted read beats a broad grep beats reasoning from memory. The `<tooling>` block's `available:` and `missing:` lines say which of these are on PATH; don't reach for a missing one.
 
 | Question                           | Tool                               | Over                               |
 | ---------------------------------- | ---------------------------------- | ---------------------------------- |
@@ -77,16 +77,11 @@ Never default to `.`, a bare filename, or whatever directory the tool picks. A s
 - After any download, and after any subagent that has Bash returns, run `git status --short`. A new untracked file you didn't intend to create gets moved to scratch or flagged before you do anything else.
 - A subagent prompt that may write files names `$(scratch-dir.sh)` as the only place it may write.
 
-`guard-bash.sh` blocks `curl -O`/`-J` and bare `wget` outright, and forces a prompt on an explicit relative target. Tool-driven writes (a browser screenshot's `out_dir`, an MCP server's download path) are invisible to the hook and rely on this rule.
+**Hard rule: `curl` and `wget` download only into scratch.** `guard-bash.sh` blocks any output file, output directory, or `>` redirect that isn't stdout, `/dev/null`, `"$(scratch-dir.sh)/..."`, or a path inside a `.claude/scratch` directory, plus `curl -O`/`-J` without a scratch `--output-dir` and `wget` with no output flag. A shell alias expands after the hook runs, so an alias that adds `-O` would slip past it; keep such aliases out of Claude Code sessions (`CLAUDECODE=1`). Tool-driven writes (a browser screenshot's `out_dir`, an MCP server's download path) are invisible to the hook and rely on this rule.
 
 ### Naming
 
-Structured artifacts (reports, reviews, audits):
-
-```
-$(scratch-dir.sh)/<kind>-<scope-slug>-<YYYYMMDD-HHMM>.md
-$(scratch-dir.sh)/<kind>-<YYYYMMDD-HHMM>.md        # no scope slug
-```
+Structured artifacts (reports, reviews, audits) go to the path `scratch-dir.sh <kind> [slug]` prints: `<kind>-<slug>-<YYYYMMDD-HHMM>.md` in the scratch directory.
 
 Test artifacts and POC files need no fixed shape - name them sensibly, but keep them under the resolved directory.
 

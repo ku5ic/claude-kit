@@ -1,37 +1,54 @@
 #!/usr/bin/env bash
-# Runs a project's declared check scripts through its package manager. Scans the
-# repo root and each immediate subdirectory (one level deep), so monorepos that
-# keep package.json/pyproject.toml/etc. under app subdirs (frontend/, backend/)
-# are covered, not only single-package repos rooted at the git top level.
-# Discovery is script-based: run-checks.sh runs the scripts/tasks a project
-# declares (package.json scripts, Makefile targets, pdm/poe tasks, rake tasks)
-# via the package manager, plus the build tool's own check subcommands
-# (cargo, go). It never
-# invokes a third-party linter binary directly off a config file. A check with
-# no declared script is skipped, not synthesized. Subdirectory checks are
-# labeled with the subdir name, e.g. "PASS js: lint [frontend]".
-# Each section is independent: failures are reported, not aborted.
+# Runs a project's declared checks in every subproject kit_subprojects finds:
+# the repo root, directories holding a tracked anchor sentinel, and workspace
+# members. What counts as a task, and how it runs, is kit.yml data:
+#   task_providers    where each runner declares tasks, and its run form
+#   checks            which task names count as typecheck, lint, format-check,
+#                     and test
+#   toolchain_checks  a stack's own check commands (cargo, go), run where that
+#                     stack is detected
+# It never invokes a third-party linter binary directly off a config file. A
+# check with no declared task is skipped, not synthesized.
+#
+# Output contract, parsed by hooks/stop-checks.sh: one PASS, FAIL, or SKIP
+# line per check, labeled "<stack>: <check> (<task>) [<subproject>]" (a
+# provider without a stack labels with its own name; the root has no
+# [<subproject>]), then a final "checks: N passed, N failed, N skipped" line.
+# Exit status is the failure count. Each check is independent: failures are
+# reported, not aborted.
+#
+#   run-checks.sh                      every subproject
+#   run-checks.sh --only . services/api  only these (as kit_subprojects names
+#                                        them; "." is the root)
 set -uo pipefail
-shopt -s nullglob
+
+only=()
+if [[ "${1:-}" == --only ]]; then
+  shift
+  only=("$@")
+fi
+
+# Before the cd: a relative script path only resolves from the caller's cwd.
+# shellcheck source=_lib.sh
+source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh"
 
 root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd "$root" || exit 1
-
-# shellcheck source=_lib.sh
-source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh"
+kit_stacks_load
 
 pass=0
 fail=0
 skip=0
 
+# run <label> <dir> <command...>: runs the command in <dir>.
 run() {
-  local label="$1"
-  shift
+  local label="$1" dir="$2"
+  shift 2
   local out
   # Portable template: `mktemp -t <prefix>` differs between BSD (macOS) and GNU
   # (Linux CI); an explicit path template with X's behaves the same on both.
   out="$(mktemp "${TMPDIR:-/tmp}/run-checks.XXXXXX")"
-  if "$@" >"$out" 2>&1; then
+  if (cd "$dir" && "$@") >"$out" 2>&1; then
     echo "PASS $label"
     pass=$((pass + 1))
   else
@@ -47,153 +64,139 @@ skip_msg() {
   skip=$((skip + 1))
 }
 
-# True when a Makefile in the current dir declares a <target>. Checks the three
-# filenames GNU make looks for, in its precedence order.
-make_has_target() {
-  local target="$1" mf
-  for mf in GNUmakefile makefile Makefile; do
-    [[ -f "$mf" ]] && grep -qE "^${target}:" "$mf" && return 0
+# True when task name $2 matches any glob in the space-separated list $1.
+matches_any() {
+  local glob
+  local -a globs
+  read -ra globs <<<"$1"
+  for glob in "${globs[@]}"; do
+    # shellcheck disable=SC2053  # a glob on purpose
+    [[ "$2" == $glob ]] && return 0
   done
   return 1
 }
 
-# Prints the command that runs a declared Python task <name>, or returns 1 when
-# no supported task runner declares it. Python has no single scripts table, so
-# the common task runners are supported, in this precedence:
-#   Makefile <name> target    -> make <name>
-#   [tool.pdm.scripts.<name>] -> pdm run <name>
-#   [tool.poe.tasks.<name>]   -> poe <name> (through poetry when available)
-py_task_cmd() {
-  local name="$1"
-  if make_has_target "$name"; then
-    printf 'make %s' "$name"
-    return 0
-  fi
-  [[ -f pyproject.toml ]] || return 1
-  if yq -p toml -e ".tool.pdm.scripts.\"$name\"" pyproject.toml >/dev/null 2>&1; then
-    printf 'pdm run %s' "$name"
-    return 0
-  fi
-  if yq -p toml -e ".tool.poe.tasks.\"$name\"" pyproject.toml >/dev/null 2>&1; then
-    if command -v poetry >/dev/null 2>&1; then
-      printf 'poetry run poe %s' "$name"
-    else
-      printf 'poe %s' "$name"
-    fi
-    return 0
-  fi
-  return 1
+# True when task name $2 counts as check index $1: it matches the check's
+# task globs and none of its exclude globs.
+task_matches_check() {
+  matches_any "${KIT_CHECK_TASKS[$1]}" "$2" || return 1
+  [[ "${KIT_CHECK_EXCLUDES[$1]}" == - ]] && return 0
+  ! matches_any "${KIT_CHECK_EXCLUDES[$1]}" "$2"
 }
 
-# Runs the declared Python task <name> under <label> via the package manager,
-# or skips when no supported script table declares it.
-run_py_task() {
-  local name="$1" label="$2" cmd
-  if cmd="$(py_task_cmd "$name")"; then
-    local -a parts
-    read -ra parts <<<"$cmd"
-    run "$label" "${parts[@]}"
-  else
-    skip_msg "$label (no $name task)"
-  fi
-}
+# Checks an orchestrator ran; their JS provider tasks are skipped per package.
+declare -A orchestrated=()
 
-# Runs every language's checks in <dir>, appending <sfx> to each label so a
-# monorepo's per-package results are distinguishable. Changes the working
-# directory to <dir> (absolute) so relative manifest paths and tool invocations
-# resolve there; counters stay in the caller because this runs in the main shell.
-check_dir() {
-  local dir="$1" sfx="$2"
-  cd "$dir" || return
-
-  # JS/TS: run declared package.json scripts through the package manager.
-  if [[ -f package.json ]]; then
-    local pm
-    pm="$(resolve_package_manager ".")"
-    pm="${pm:-npm}"
-
-    if jq -e '.scripts.typecheck' package.json >/dev/null 2>&1; then
-      run "ts: typecheck$sfx" "$pm" run typecheck
-    elif jq -e '.scripts["type-check"]' package.json >/dev/null 2>&1; then
-      run "ts: typecheck$sfx" "$pm" run type-check
-    else
-      skip_msg "ts: typecheck$sfx (no typecheck script)"
-    fi
-
-    # Projects commonly split linting across multiple scripts (eslint,
-    # stylelint) instead of a single `lint` alias. Run every declared
-    # lint-like script, not just the first match; skip `:fix` variants since
-    # those mutate files rather than check them.
-    local -a lint_scripts=()
-    while IFS= read -r script; do
-      lint_scripts+=("$script")
-    done < <(jq -r '.scripts | keys[] | select(test("^(lint|eslint|stylelint)(:|$)") and (test(":fix$") | not))' package.json)
-
-    if [[ ${#lint_scripts[@]} -gt 0 ]]; then
-      for script in "${lint_scripts[@]}"; do
-        run "js: lint ($script)$sfx" "$pm" run "$script"
+# Runs each check the first usable orchestrator declares a task for, once, at
+# the root: its signal file is there and its binary (named after it) is in
+# the root's node_modules/.bin. None usable: providers cover JS as usual.
+run_orchestrator() {
+  local i c bin path task check cmd
+  local -a paths tasks parts
+  for ((i = 0; i < ${#KIT_ORCH_NAMES[@]}; i++)); do
+    [[ -f "$root/${KIT_ORCH_SIGNALS[i]}" ]] || continue
+    bin="$root/node_modules/.bin/${KIT_ORCH_NAMES[i]}"
+    [[ -x "$bin" ]] || continue
+    tasks=()
+    read -ra paths <<<"${KIT_ORCH_TASK_PATHS[i]}"
+    for path in "${paths[@]}"; do
+      mapfile -t -O "${#tasks[@]}" tasks < <(json_keys "$root/${KIT_ORCH_SIGNALS[i]}" "$path")
+    done
+    for ((c = 0; c < ${#KIT_CHECK_NAMES[@]}; c++)); do
+      check="${KIT_CHECK_NAMES[c]}"
+      for task in "${tasks[@]}"; do
+        task_matches_check "$c" "$task" || continue
+        orchestrated[$check]=1
+        cmd="${KIT_ORCH_RUNS[i]//\{bin\}/$bin}"
+        read -ra parts <<<"${cmd//\{task\}/$task}"
+        run "js: $check (${KIT_ORCH_NAMES[i]} affected: $task)" "$root" "${parts[@]}"
       done
-    else
-      skip_msg "js: lint$sfx (no lint script)"
-    fi
-
-    if jq -e '.scripts["format:check"]' package.json >/dev/null 2>&1; then
-      run "js: format-check$sfx" "$pm" run format:check
-    elif jq -e '.scripts.format' package.json >/dev/null 2>&1; then
-      skip_msg "js: format-check$sfx (no format:check script; format would mutate)"
-    else
-      skip_msg "js: format-check$sfx (no format:check script)"
-    fi
-
-    if jq -e '.scripts.test' package.json >/dev/null 2>&1; then
-      run "js: test$sfx" "$pm" run test
-    else
-      skip_msg "js: test$sfx (no test script)"
-    fi
-  fi
-
-  # Python: run declared pdm/poe tasks through the package manager.
-  if [[ -f pyproject.toml || -f requirements.txt ]]; then
-    run_py_task lint "py: lint$sfx"
-    run_py_task typecheck "py: typecheck$sfx"
-    run_py_task test "py: test$sfx"
-  fi
-
-  # Ruby: run declared rake tasks through bundler.
-  if [[ -f Gemfile ]]; then
-    if [[ -f Rakefile ]] && grep -q "task.*:lint" Rakefile 2>/dev/null; then
-      run "rb: lint$sfx" bundle exec rake lint
-    else
-      skip_msg "rb: lint$sfx (no rake lint task)"
-    fi
-    if [[ -f Rakefile ]] && grep -q "task.*:test\|RSpec" Rakefile 2>/dev/null; then
-      run "rb: test$sfx" bundle exec rake test
-    elif [[ -d spec ]]; then
-      run "rb: test (rspec)$sfx" bundle exec rspec --no-color
-    else
-      skip_msg "rb: test$sfx (no rake test task or spec/)"
-    fi
-  fi
-
-  # Rust: cargo's own check subcommands are the package-manager-native checks.
-  if [[ -f Cargo.toml ]]; then
-    run "rs: check$sfx" cargo check --quiet
-    run "rs: clippy$sfx" cargo clippy --quiet -- -D warnings
-    run "rs: fmt-check$sfx" cargo fmt --check
-    run "rs: test$sfx" cargo test --quiet
-  fi
-
-  # Go: the go toolchain's own check subcommands.
-  if [[ -f go.mod ]]; then
-    run "go: vet$sfx" go vet ./...
-    run "go: test$sfx" go test ./...
-  fi
+    done
+    return 0
+  done
 }
 
-check_dir "$root" ""
-for sub in "$root"/*/; do
-  check_dir "$sub" " [$(basename "$sub")]"
-done
+check_subproject() {
+  local sub="$1" dir="$root" sfx="" i
+  if [[ "$sub" != . ]]; then
+    dir="$root/$sub"
+    sfx=" [$sub]"
+  fi
+
+  local -a task_labels=() task_names=() task_cmds=()
+  local provider stack task cmd
+  while IFS=$'\t' read -r provider stack task cmd; do
+    [[ "$stack" == - ]] && stack="$provider"
+    task_labels+=("$stack")
+    task_names+=("$task")
+    task_cmds+=("$cmd")
+  done < <(kit_tasks "$dir")
+
+  # SKIP lines take the first present provider's stack (else its name), so a
+  # package.json with no scripts still reports what it lacks.
+  local skip_label=""
+  while IFS=$'\t' read -r provider stack; do
+    if [[ "$stack" != - ]]; then
+      skip_label="$stack"
+      break
+    fi
+    [[ -n "$skip_label" ]] || skip_label="$provider"
+  done < <(kit_providers "$dir")
+
+  local check j matched
+  local -a parts
+  for ((i = 0; i < ${#KIT_CHECK_NAMES[@]}; i++)); do
+    check="${KIT_CHECK_NAMES[i]}"
+    matched=0
+    for ((j = 0; j < ${#task_names[@]}; j++)); do
+      task_matches_check "$i" "${task_names[j]}" || continue
+      [[ -n "${orchestrated[$check]:-}" && "${task_labels[j]}" == js ]] && continue
+      matched=1
+      read -ra parts <<<"${task_cmds[j]}"
+      run "${task_labels[j]}: $check (${task_names[j]})$sfx" "$dir" "${parts[@]}"
+    done
+    if ((! matched)) && [[ -n "$skip_label" ]]; then
+      [[ -n "${orchestrated[$check]:-}" && "$skip_label" == js ]] && continue
+      skip_msg "$skip_label: $check$sfx (no $check task)"
+    fi
+  done
+
+  for ((i = 0; i < ${#KIT_TC_STACKS[@]}; i++)); do
+    kit_dir_has_stack "$dir" "${KIT_TC_STACKS[i]}" || continue
+    local label="${KIT_TC_STACKS[i]}: ${KIT_TC_NAMES[i]}$sfx"
+    if ! kit_toolchain_cmd "$i" "$dir"; then
+      skip_msg "$label ($KIT_TC_SKIP)"
+      continue
+    fi
+    read -ra parts <<<"$KIT_TC_CMD"
+    run "$label" "$dir" "${parts[@]}"
+  done
+}
+
+# The orchestrator only when a JS subproject is in scope: a stop hook scoped
+# to a Python service has nothing for turbo or nx to do.
+wants_js=1
+if ((${#only[@]} > 0)); then
+  wants_js=0
+  for sub in "${only[@]}"; do
+    dir="$root"
+    [[ "$sub" == . ]] || dir="$root/$sub"
+    # A string test, not `| grep -q`: grep exiting early SIGPIPEs cut, and
+    # pipefail would turn the match into a failure.
+    if [[ $'\n'"$(kit_providers "$dir" | cut -f2)"$'\n' == *$'\n'js$'\n'* ]]; then
+      wants_js=1
+      break
+    fi
+  done
+fi
+((wants_js)) && run_orchestrator
+
+while IFS= read -r sub; do
+  if ((${#only[@]} > 0)) && [[ " ${only[*]} " != *" $sub "* ]]; then
+    continue
+  fi
+  check_subproject "$sub"
+done < <(kit_subprojects "$root")
 
 echo ""
 echo "checks: $pass passed, $fail failed, $skip skipped"

@@ -13,12 +13,7 @@
 
 set -euo pipefail
 
-project_root="$(dirname "${BASH_SOURCE[0]}")/project-root.sh"
-if "$project_root" --check; then
-  dir="$("$project_root")/.claude/plans"
-else
-  dir="$HOME/.claude/plans"
-fi
+# shellcheck source=_lib.sh
+source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh"
 
-mkdir -p "$dir"
-echo "$dir"
+kit_dir plans

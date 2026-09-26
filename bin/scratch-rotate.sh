@@ -3,7 +3,7 @@
 # project-scoped scratch/ dir registered in scratch-registry.txt (see
 # scratch-dir.sh - this run has no project cwd of its own, only $HOME, so
 # the registry is the only way it finds those directories).
-# Also trims ~/.claude/logs/skills.jsonl to the last N lines (default 10000).
+# Also trims every ~/.claude/logs/*.jsonl to kit.yml's log_max_lines.
 # Run manually or wire to launchd. Safe to run repeatedly; idempotent.
 #
 #   scratch-rotate.sh             # 30 days (default)
@@ -22,11 +22,14 @@
 
 set -euo pipefail
 
-scratch_dir="$HOME/.claude/scratch"
-skills_log="$HOME/.claude/logs/skills.jsonl"
-registry="$HOME/.claude/logs/scratch-registry.txt"
-log_file="$HOME/.claude/logs/scratch-rotate.log"
-max_lines=10000
+# shellcheck source=_lib.sh
+source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh"
+
+scratch_dir="$KIT_SCRATCH_HOME"
+registry="$KIT_LOG_DIR/scratch-registry.txt"
+log_file="$KIT_LOG_DIR/scratch-rotate.log"
+kit_stacks_load
+max_lines="$KIT_LOG_MAX_LINES"
 
 dry_run=false
 days=30
@@ -93,7 +96,7 @@ if [[ -d "$scratch_dir" ]]; then
   echo "scratch-rotate: pruned $markers_removed session marker(s) older than 1d from $scratch_dir"
 fi
 
-skills_loaded_cache="$HOME/.claude/cache/skills-loaded"
+skills_loaded_cache="$KIT_CACHE_DIR/skills-loaded"
 if [[ -d "$skills_loaded_cache" ]]; then
   loaded_removed="$(prune "$skills_loaded_cache" 1)"
   echo "scratch-rotate: pruned $loaded_removed skill-loaded marker(s) older than 1d from $skills_loaded_cache"
@@ -121,18 +124,22 @@ if [[ -f "$registry" ]]; then
   $dry_run || mv "$tmp_registry" "$registry"
 fi
 
-if [[ -f "$skills_log" ]]; then
-  total="$(wc -l <"$skills_log" | tr -d ' ')"
+# Every JSONL log the kit writes (skills.jsonl, guards.jsonl) is capped here;
+# the hooks that append to them never trim.
+for jsonl in "$KIT_LOG_DIR"/*.jsonl; do
+  [[ -f "$jsonl" ]] || continue
+  name="${jsonl##*/}"
+  total="$(wc -l <"$jsonl" | tr -d ' ')"
   if ((total > max_lines)); then
     if $dry_run; then
-      echo "scratch-rotate: would trim skills.jsonl from $total to $max_lines lines"
+      echo "scratch-rotate: would trim $name from $total to $max_lines lines"
     else
       tmp="$(mktemp)"
-      tail -n "$max_lines" "$skills_log" >"$tmp"
-      mv "$tmp" "$skills_log"
-      echo "scratch-rotate: trimmed skills.jsonl from $total to $max_lines lines"
+      tail -n "$max_lines" "$jsonl" >"$tmp"
+      mv "$tmp" "$jsonl"
+      echo "scratch-rotate: trimmed $name from $total to $max_lines lines"
     fi
   else
-    echo "scratch-rotate: skills.jsonl has $total lines, no trim needed"
+    echo "scratch-rotate: $name has $total lines, no trim needed"
   fi
-fi
+done

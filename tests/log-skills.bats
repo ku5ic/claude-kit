@@ -14,10 +14,11 @@
 #
 # Run with: bats tests/
 
+load helper
+
 setup() {
   HOOK="$BATS_TEST_DIRNAME/../hooks/log-skills.sh"
-  FAKE_HOME="$BATS_TEST_TMPDIR/home"
-  mkdir -p "$FAKE_HOME/.claude/logs"
+  kit_test_home
   LOG="$FAKE_HOME/.claude/logs/skills.jsonl"
 }
 

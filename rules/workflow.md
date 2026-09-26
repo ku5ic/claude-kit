@@ -40,12 +40,12 @@ Procedures are skills under the kit's `skills/<name>/SKILL.md`, invoked as `/<na
 | --------------- | -------------------------------------------------------------------- |
 | `/audit <kind>` | Targeted audits: a11y, debt, doc-drift, perf, verify.                |
 | `/write <kind>` | Outward-facing text: commit, pr, release-notes, devnote, and others. |
-| `/meta-*`       | Authoring and reflection.                                            |
+| `/meta <kind>`  | Authoring: prompt, refresh, skill, conventions, retro.               |
 | `/deps`         | Dependabot PRs and security alerts.                                  |
 
 Every one is user-only (`disable-model-invocation: true`). They run when typed, never on model initiative. The canonical inventory is `/skills` output, not any UI label.
 
-Explore, plan, implement, and verify use the built-ins: `explore-patterns` (model-invocable, read-only), `/plan`, approving the plan, and the `Stop` hook running `run-checks.sh` plus `/code-review`.
+Explore, plan, implement, and verify use the built-ins: `investigate` (model-invocable, read-only), `/plan`, approving the plan, and the `Stop` hook running `run-checks.sh` plus `/code-review`.
 
 **Hard rules:**
 
@@ -56,7 +56,7 @@ Explore, plan, implement, and verify use the built-ins: `explore-patterns` (mode
 
 ## 4. Resolve external context first
 
-Step 0 for `explore-patterns` and `/audit`: if `$ARGUMENTS` contains a URL with little inline description, resolve it before anything else.
+Step 0 for `investigate` and `/audit`: if `$ARGUMENTS` contains a URL with little inline description, resolve it before anything else.
 
 Identify the service from the domain, use ToolSearch to find the matching fetch tool (`app.clickup.com` -> ClickUp tools, `notion.so` -> Notion, `github.com` -> `gh` or the GitHub tools), and call it. Extract the scope and requirements from what comes back.
 

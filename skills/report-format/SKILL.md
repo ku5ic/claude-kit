@@ -1,11 +1,12 @@
 ---
-paths:
-  - "**/scratch/**/*.md"
+name: report-format
+description: Load before writing an audit, review, or dependency report.
+user-invocable: false
 ---
 
 # Markdown report format
 
-Consistent format for findings reports: audits, reviews, dependency runs, and any other structured list of problems found. A skill that defines its own report template (`explore-patterns`) owns its shape; only the file-naming, path-printing, and ASCII rules below apply to those.
+Consistent format for findings reports: audits, reviews, dependency runs, and any other structured list of problems found. A skill that defines its own report template (`investigate`) owns its shape; only the file-naming, path-printing, and ASCII rules below apply to those.
 
 ## Required sections
 
@@ -51,7 +52,7 @@ Stack: <line from $HOME/.claude/bin/detect-stack.sh, if applicable>
 - Code snippets use fenced blocks with language tag.
 - No ASCII decoration, no banner comments, no emoji.
 - Use straight quotes, plain ASCII punctuation.
-- File naming and location: per `rules/tooling.md` - resolve the directory via `scratch-dir.sh`, then name it `<kind>-<target-slug>-<YYYYMMDD-HHMM>.md`.
+- File naming and location: the path `scratch-dir.sh <kind> <target-slug>` prints.
 - Always print the absolute path at the end of execution so the user can open it.
 - Does not govern `/write` output (commit messages, PR descriptions, release notes, stakeholder summaries) - those have their own formats per `rules/output.md`.
 

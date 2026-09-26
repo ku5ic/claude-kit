@@ -33,6 +33,7 @@ if root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
   exit 0
 fi
 
+kit_stacks_load
 dir="$PWD"
 depth=0
 while [[ "$dir" != "/" && $depth -lt 3 ]]; do

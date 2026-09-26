@@ -28,7 +28,7 @@ Before running a script, check the project defines it: `scripts` in `package.jso
 
 Before changing a shared component, utility, hook, type, or API contract, identify the consumers and state the impact. A one-line change to a widely imported module is a wide change wearing a small diff.
 
-If consumers cannot be enumerated quickly with `rg` or editor references, that difficulty is itself a finding to surface before proceeding.
+Enumerate them with `blast-radius.sh <file> [symbol]` (JS/TS and Python imports, test and source counted apart); fall back to `rg` for other languages. If consumers cannot be enumerated quickly, that difficulty is itself a finding to surface before proceeding.
 
 ## 4. Dead code does not land
 

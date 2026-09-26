@@ -12,7 +12,7 @@ Target: WCAG 2.2 Level AA. Includes all Level A. Does not include AAA unless exp
 1. Go through the references in order.
 2. Skip criteria that do not apply to the scope (e.g. no forms -> skip form labeling).
 3. Record what was checked, what passed, what failed.
-4. Note items that require runtime or user testing.
+4. Note items that require runtime or user testing. For those axe can settle against a running page, such as contrast (1.4.3), run `a11y-check.sh <url>`; screen reader and keyboard behavior still need a person.
 
 For accessibility work, validate against WCAG 2.2 AA explicitly. Do not claim compliance without checking it against this list; an unaudited claim of conformance is a fabrication.
 

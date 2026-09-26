@@ -7,10 +7,10 @@ setup() {
   HOOK="$BATS_TEST_DIRNAME/../hooks/plan-mode-context.sh"
 }
 
-@test "plan mode prints the explore-patterns pointer" {
+@test "plan mode prints the investigate pointer" {
   run bash -c "printf '%s' '{\"permission_mode\":\"plan\"}' | '$HOOK'"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"explore-patterns"* ]]
+  [[ "$output" == *"investigate"* ]]
 }
 
 @test "default mode prints nothing" {

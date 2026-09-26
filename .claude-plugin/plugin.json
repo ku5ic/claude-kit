@@ -1,6 +1,6 @@
 {
   "name": "claude-kit",
-  "description": "Guard hooks, a formatter and sanitizer, stack-aware context injection, read-only explore-patterns, /audit and /write dispatchers, 22 stack pattern skills, and review agents for Claude Code.",
+  "description": "Guard hooks, a formatter and sanitizer, stack-aware context injection, a read-only investigate skill, /audit and /write dispatchers, 22 stack pattern skills, and review agents for Claude Code.",
   "author": {
     "name": "Sinisa Kusic"
   },

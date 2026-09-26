@@ -42,7 +42,7 @@ For each comment, once investigated:
 
 ## Output
 
-Write to `$(scratch-dir.sh)/pr-<pr-number>-<reviewer>-review-replies-<YYYYMMDD-HHMM>.md`. Print the path.
+Write to the path `scratch-dir.sh pr <pr-number>-<reviewer>-review-replies` prints. Print the path.
 
 Structure:
 

@@ -1,0 +1,578 @@
+# kit.yml
+#
+# Single source of truth for stack detection. Consumed by:
+#   bin/_lib.sh          -> STACK_SENTINELS_FULL, STACK_SENTINELS_PROJECT_ROOT
+#   bin/detect-stack.sh  -> stack names, sentinels, extras detection
+#   hooks/inject-context.sh -> required skills (from global_skills) + suggested skills (via detect-stack.sh cache)
+#
+# Replaces: bin/_lib.sh hand-written arrays, detect-stack.sh declare -A blocks,
+#           per-stack *_extras() functions, skill-map.conf
+#
+# ADDING A NEW STACK
+# ------------------
+# Add one stanza here. Nothing else needs editing.
+#
+#   mystack:
+#     sentinels:
+#       - name: mystack.lock
+#         anchor: true          # include in project-root.sh ancestor walk
+#     skills: [mystack-patterns]
+#     extras:
+#       - name: myframework
+#         dep: myframework      # found in package.json dependencies
+#         skills: [myframework-patterns]
+#
+# DETECTION RULE TYPES (extras)
+# --------------------------------
+# dep: <pkg>                   package.json dep or devDep key match (js only)
+# file: <path>                 file exists relative to stack root
+# grep: <pattern>              ERE grep across files listed in `in:`
+#   in: [file1, file2, ...]
+# any_of:                      OR of any of the above rule types
+#   - file: <path>
+#   - grep: <pattern>
+#     in: [...]
+#
+# SKILLS
+# ------
+# skills: at the stack level  -> loaded for bare stack signal (js, python)
+# skills: at the extra level  -> loaded when that extra is detected
+# Skills are deduplicated in first-seen order across all matched signals.
+#
+# NEVER AUTO-LOAD (no skills: entry; invoke manually when the task warrants)
+#   security-patterns, wcag-audit
+#
+# SENTINEL FIELDS
+# ---------------
+# name: <filename>    the sentinel file, looked for in every subproject
+#                     (kit_subprojects in bin/_lib.sh)
+# anchor: true        include in the fast ancestor walk (project-root.sh)
+#                     keep this list minimal; every entry slows the walk
+
+# Skills loaded for every project regardless of detected stack.
+# Empty by design: an always-blocking skill is paid for before the task is
+# known. engineering-fundamentals loads through its own model-invocable
+# description, and skill_file_map requires it on source edits when
+# CLAUDE_GUARD_SKILLS=1.
+global_skills: []
+
+# File-to-skills map consumed by hooks/guard-skills.sh.
+# Evaluated against every Edit/Write/MultiEdit target; matching is
+# cumulative (a single file can satisfy multiple entries). Order matters:
+# test entries precede extension entries so a .test.tsx file picks up
+# test-patterns first.
+#
+# on: basename  -> match against basename only
+# on: path      -> match against the full file path
+# globs: [...]  -> shell globs, tested with bash [[ $target == $glob ]]
+skill_file_map:
+  - on: basename
+    globs: ["*.ts", "*.tsx", "*.js", "*.jsx", "*.mjs", "*.cjs", "*.py", "*.rb", "*.go", "*.rs", "*.java", "*.sh", "*.vue"]
+    skills: [engineering-fundamentals]
+  - on: basename
+    globs: ["*.test.*", "*.spec.*", "test_*.py", "*_test.py"]
+    skills: [test-patterns]
+  - on: basename
+    globs: ["*.tsx"]
+    skills: [typescript-patterns, react-patterns]
+  - on: basename
+    globs: ["*.ts"]
+    skills: [typescript-patterns]
+  - on: basename
+    globs: ["*.jsx"]
+    skills: [javascript-patterns, react-patterns]
+  - on: basename
+    globs: ["*.js", "*.mjs", "*.cjs"]
+    skills: [javascript-patterns]
+  - on: basename
+    globs: ["*.vue"]
+    skills: [vue-patterns]
+  - on: basename
+    globs: ["*.py"]
+    skills: [python-patterns]
+  - on: basename
+    globs: ["*.sh", "*.bash", "*.zsh"]
+    skills: [bash-patterns]
+  - on: basename
+    globs: ["Dockerfile", "docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"]
+    skills: [docker-patterns]
+  - on: basename
+    globs: ["tailwind.config.js", "tailwind.config.ts"]
+    skills: [tailwind-patterns]
+  - on: basename
+    globs: ["next.config.js", "next.config.mjs", "next.config.ts"]
+    skills: [next-app-router-patterns]
+  - on: basename
+    globs: ["nuxt.config.js", "nuxt.config.ts"]
+    skills: [nuxt-patterns]
+  - on: basename
+    globs: ["manage.py"]
+    skills: [django-patterns]
+  - on: basename
+    globs: ["*.graphql", "*.gql"]
+    skills: [graphql-patterns]
+  - on: basename
+    globs: ["*.stories.*"]
+    skills: [storybook-patterns]
+  - on: basename
+    globs: ["*.go"]
+    skills: [go-patterns]
+  - on: basename
+    globs: ["*.tf", "*.tfvars"]
+    skills: [opentofu-patterns]
+
+# Action-conditioned trigger phrases for every skill any stack/extra maps to.
+# Consumed by hooks/inject-context.sh to build the <suggested-skills> block.
+# Phrases name a concrete action, not a topic, so the reader knows when to load.
+# global_skills entries, if any, are excluded; they are required, not
+# suggested. fix-sizing, root-cause-diagnosis, and
+# context-gathering moved to rules/*.md - unconditional, no invocation step.
+skill_triggers:
+  javascript-patterns: "before writing or restructuring JavaScript modules, functions, or async flow"
+  typescript-patterns: "before adding or changing types, generics, or type-level APIs"
+  react-patterns: "before building or restructuring React components, hooks, or state"
+  next-app-router-patterns: "before creating or restructuring routes, layouts, or server components in app/"
+  vue-patterns: "before building or restructuring Vue components, composables, or reactivity"
+  nuxt-patterns: "before working on Nuxt routing, server routes, or module config"
+  tailwind-patterns: "before utility-class styling or design-token work"
+  graphql-patterns: "before writing GraphQL operations or fragments, or changing the Apollo cache or codegen config"
+  storybook-patterns: "before writing or changing stories, play functions, or Storybook config"
+  go-patterns: "before writing or changing Go packages, error handling, goroutines, or tests"
+  test-patterns: "before writing or restructuring tests, fixtures, or assertions"
+  python-patterns: "before writing or restructuring Python modules, classes, or packaging"
+  django-patterns: "before modeling, migrations, or view work in a Django app"
+  drf-patterns: "before building serializers, viewsets, or API endpoints with Django REST Framework"
+  fastapi-patterns: "before defining FastAPI routes, dependencies, or Pydantic models"
+  docker-patterns: "before authoring or changing Dockerfiles or compose services"
+  opentofu-patterns: "before writing or changing OpenTofu/Terraform resources, modules, variables, or state moves"
+  bash-patterns: "before writing or modifying shell scripts"
+
+# Ordered lockfile-to-manager table. First match wins.
+# Consumed through the cached arrays in bin/_lib.sh: resolve_package_manager,
+# and hooks/guard-bash.sh's PM mismatch guard, which only compares managers
+# sharing an ecosystem.
+package_managers:
+  - lockfile: bun.lockb
+    manager: bun
+    ecosystem: js
+  - lockfile: bun.lock
+    manager: bun
+    ecosystem: js
+  - lockfile: pnpm-lock.yaml
+    manager: pnpm
+    ecosystem: js
+  - lockfile: yarn.lock
+    manager: yarn
+    ecosystem: js
+  - lockfile: package-lock.json
+    manager: npm
+    ecosystem: js
+  - lockfile: uv.lock
+    manager: uv
+    ecosystem: python
+  - lockfile: poetry.lock
+    manager: poetry
+    ecosystem: python
+  - lockfile: Pipfile.lock
+    manager: pipenv
+    ecosystem: python
+  - lockfile: requirements.txt
+    manager: pip
+    ecosystem: python
+    # Hand-maintained, so edits to it are normal; every other lockfile here is
+    # tool-generated and guard-edit.sh blocks direct edits to it.
+    hand_edited: true
+
+# Guard lists, read through the cached arrays in bin/_lib.sh. An overlay can
+# append to any of them.
+
+# Lockfiles guard-edit.sh blocks on top of the package_managers ones.
+extra_lockfiles: [Gemfile.lock, Cargo.lock, composer.lock, pdm.lock]
+
+# Branches git push, and git reset --hard to, are blocked for.
+protected_branches: [main, master, develop, production, release]
+
+# Shell rc files: direct writes are blocked, the dotfiles repo is the source.
+rc_files: ["~/.zshrc", "~/.zprofile", "~/.bashrc", "~/.bash_profile", "~/.profile"]
+
+# Credential and key files guard-bash.sh refuses to read. A "~/" entry is a
+# path under $HOME, a directory when it ends in "/"; any other entry is a
+# basename glob. settings.json's deny rules mirror these (doctor.sh checks).
+sensitive_paths:
+  - ".env"
+  - ".env.*"
+  - "*.pem"
+  - "*.key"
+  - "*.p12"
+  - "*.pfx"
+  - id_rsa
+  - id_ed25519
+  - id_ecdsa
+  - "~/.ssh/"
+  - "~/.gnupg/"
+  - "~/Library/Keychains/"
+  - "~/.aws/credentials"
+  - "~/.aws/config"
+  - "~/.docker/config.json"
+  - "~/.config/gh/hosts.yml"
+  - "~/.netrc"
+  - "~/.pgpass"
+  - "~/.npmrc"
+  - "~/.pypirc"
+  - "~/.cargo/credentials"
+  - "~/.gem/credentials"
+
+# Line cap for the kit's JSONL logs.
+log_max_lines: 10000
+
+# Rule slugs, as logged in guards.jsonl, that block() lets through. Meant for
+# the overlay: a disabled rule is still logged, as "disabled".
+disabled_rules: []
+
+# Task runners and where their task names live. Consumed through the cached
+# arrays in bin/_lib.sh (kit_tasks); nothing here reaches eval.
+#   manifests: file names checked in order; the first that exists is read
+#   extractor: one of json_keys, json_array, toml_keys, toml_array,
+#              yaml_array, make_targets, just_recipes, regex_lines
+#   arg:       the extractor's argument: a dotted path, or an ERE whose last
+#              capture group is the task name (regex_lines)
+#   run:       command template; {task} is the task, {pm} the package manager
+#              resolved for the directory (npm when none)
+#   run_by_pm: run templates that replace run under a given package manager
+task_providers:
+  - name: package-scripts
+    stack: js
+    manifests: [package.json]
+    extractor: json_keys
+    arg: .scripts
+    run: "{pm} run {task}"
+  - name: make
+    manifests: [Makefile, makefile, GNUmakefile]
+    extractor: make_targets
+    run: "make {task}"
+  - name: just
+    manifests: [justfile, Justfile, .justfile]
+    extractor: just_recipes
+    run: "just {task}"
+  - name: pdm
+    stack: python
+    manifests: [pyproject.toml]
+    extractor: toml_keys
+    arg: .tool.pdm.scripts
+    run: "pdm run {task}"
+  - name: poe
+    stack: python
+    manifests: [pyproject.toml]
+    extractor: toml_keys
+    arg: .tool.poe.tasks
+    run: "poe {task}"
+    run_by_pm: {poetry: "poetry run poe {task}"}
+  - name: rake
+    stack: ruby
+    manifests: [Rakefile]
+    extractor: regex_lines
+    arg: '^[[:space:]]*task[[:space:]]+:?"?([A-Za-z0-9_:]+)'
+    run: "bundle exec rake {task}"
+
+# Canonical checks and the task names that count as each, as globs. A task
+# matching an exclude glob never counts.
+checks:
+  - name: typecheck
+    tasks: [typecheck, type-check]
+  - name: lint
+    tasks: [lint, eslint, stylelint, "lint:*", "eslint:*", "stylelint:*"]
+    exclude: ["*:fix"]
+  - name: format-check
+    tasks: ["format:check", "fmt:check", format-check]
+  - name: test
+    tasks: [test]
+
+# Checks a stack's own toolchain provides, run where that stack is detected.
+#   bin:      candidate binaries; the first found fills {bin}
+#   when_dir: a directory that must exist first, else the check is skipped
+toolchain_checks:
+  - {stack: rust, name: check, cmd: "cargo check"}
+  - {stack: rust, name: clippy, cmd: "cargo clippy -- -D warnings"}
+  - {stack: rust, name: fmt, cmd: "cargo fmt --check"}
+  - {stack: rust, name: test, cmd: "cargo test"}
+  - {stack: go, name: vet, cmd: "go vet ./..."}
+  - {stack: go, name: test, cmd: "go test ./..."}
+  # validate needs the providers `init` installs, so it waits for .terraform/.
+  - {stack: opentofu, name: fmt, cmd: "{bin} fmt -check -recursive", bin: [tofu, terraform]}
+  - {stack: opentofu, name: validate, cmd: "{bin} validate", bin: [tofu, terraform], when_dir: .terraform}
+
+# How deep below the repo root a tracked anchor sentinel still makes its
+# directory a subproject (kit_subprojects).
+subproject_max_depth: 4
+
+# Formatters run on each edited file by hooks/format-dispatch.sh, only where
+# the project opts in. A formatter is a candidate for a file when its ext
+# lists the file's extension and one of its signals is found walking up from
+# the file to the project root (never above it):
+#   signal_files     a config file by name
+#   signal_toml      a table in a TOML file ("<file> <dotted path>")
+#   signal_prettier  Prettier's own config lookup, accepted only when the
+#                    config it finds is inside the project root
+# Exactly one candidate formats the file; none, or two (a Biome/Prettier
+# migration mid-way), leaves it alone. {bin} is the nearest
+# node_modules/.bin, .venv/bin, or venv/bin copy inside the project, else
+# PATH; never npx, pnpm dlx, or uv run, which can install packages.
+# disabled_formatters in the overlay turns an entry off by name.
+formatters:
+  - name: biome
+    ext: [js, jsx, ts, tsx, json, jsonc, css]
+    signal_files: [biome.json, biome.jsonc]
+    bin: biome
+    cmd: "{bin} format --write {file}"
+  - name: prettier
+    ext: [js, jsx, ts, tsx, css, scss, json, md, mdx, yaml, yml, html]
+    signal_prettier: true
+    bin: prettier
+    cmd: "{bin} --write {file}"
+  - name: dprint
+    ext: [js, jsx, ts, tsx, json, jsonc, md, toml]
+    signal_files: [dprint.json, .dprint.json]
+    bin: dprint
+    cmd: "{bin} fmt {file}"
+  - name: ruff
+    ext: [py]
+    signal_files: [ruff.toml, .ruff.toml]
+    signal_toml: "pyproject.toml .tool.ruff"
+    bin: ruff
+    cmd: "{bin} format {file}"
+  - name: black
+    ext: [py]
+    signal_toml: "pyproject.toml .tool.black"
+    bin: black
+    cmd: "{bin} --quiet {file}"
+  - name: shfmt
+    ext: [sh, bash]
+    signal_files: [.editorconfig]
+    bin: shfmt
+    cmd: "{bin} -w {file}"
+  - name: stylua
+    ext: [lua]
+    signal_files: [stylua.toml, .stylua.toml]
+    bin: stylua
+    cmd: "{bin} {file}"
+  - name: gofmt
+    ext: [go]
+    signal_files: [go.mod]
+    bin: gofmt
+    cmd: "{bin} -w {file}"
+
+disabled_formatters: []
+
+# The CLIs rules/tooling.md steers toward. <tooling> reports which of them
+# are on PATH as available: and missing: lines, so a rule never sends Claude
+# to a binary this machine lacks.
+tools: [rg, sg, fd, tokei, gitleaks, trufflehog, hyperfine, jq, gron, yq, qsv, sd, sponge, git-absorb, actionlint]
+
+# JS monorepo task runners that know package dependents and cache results.
+# When a signal file is at the repo root and {bin} resolves from the root's
+# node_modules/.bin (never npx), run-checks.sh runs each JS check matching one
+# of task_paths' task names once through the orchestrator, instead of per
+# package. Flags checked against the docs on 2026-09-26, no local install:
+# turbo 2.x (`--filter=...[ref]` is changed packages plus dependents; 1.x
+# named tasks `pipeline`) and nx.dev's current `nx affected` reference.
+# `--uncommitted` misses brand-new untracked files.
+orchestrators:
+  - name: turbo
+    signal: turbo.json
+    task_paths: [.tasks, .pipeline]
+    run: "{bin} run {task} --filter=...[HEAD]"
+  - name: nx
+    signal: nx.json
+    task_paths: [.targetDefaults]
+    run: "{bin} affected -t {task} --uncommitted"
+
+# Key package versions for <repo-context>, one "versions" line per subproject
+# holding the stack. For each name, version_sources for that stack are tried
+# in order and the first hit is shown with its label. {name} fills file and
+# arg; up: true walks from the subproject to the root for the file (a
+# workspace-root lockfile). Matching ignores case: pip names do.
+versions:
+  js: [react, next, typescript, tailwindcss, vue, nuxt, storybook, graphql]
+  python: [django, djangorestframework, fastapi, pydantic]
+version_sources:
+  js:
+    - {file: "node_modules/{name}/package.json", extractor: json_value, arg: .version, label: installed}
+    - {file: package.json, extractor: json_value, arg: ".dependencies.{name}", label: declared}
+    - {file: package.json, extractor: json_value, arg: ".devDependencies.{name}", label: declared}
+  python:
+    - {file: uv.lock, extractor: toml_package_version, arg: "{name}", label: locked, up: true}
+    - {file: poetry.lock, extractor: toml_package_version, arg: "{name}", label: locked, up: true}
+    - {file: requirements.txt, extractor: regex_lines, arg: "^{name}==([^[:space:];#]+)", label: pinned}
+
+stacks:
+  js:
+    sentinels:
+      - name: package.json
+        anchor: true
+    skills: [javascript-patterns]
+    extras:
+      - name: typescript
+        file: tsconfig.json
+        skills: [typescript-patterns]
+      # next implies react: Next IS React; react rarely appears as a direct dep
+      - name: next
+        dep: next
+        skills: [react-patterns, next-app-router-patterns]
+      - name: react
+        dep: react
+        skills: [react-patterns]
+      # nuxt implies vue: Nuxt bundles Vue; vue rarely appears as a direct dep
+      - name: nuxt
+        dep: nuxt
+        skills: [vue-patterns, nuxt-patterns]
+      - name: vue
+        dep: vue
+        skills: [vue-patterns]
+      - name: tailwindcss
+        dep: tailwindcss
+        skills: [tailwind-patterns]
+      - name: graphql
+        any_of:
+          - file: codegen.ts
+          - grep: '"(graphql|@apollo/client|urql|graphql-request)"[[:space:]]*:'
+            in: [package.json]
+        skills: [graphql-patterns]
+      # The grep also matches a "storybook" script; either way Storybook is in use.
+      - name: storybook
+        any_of:
+          - file: .storybook/main.ts
+          - file: .storybook/main.js
+          - grep: '"storybook"[[:space:]]*:'
+            in: [package.json]
+        skills: [storybook-patterns]
+      - name: vitest
+        dep: vitest
+        skills: [test-patterns]
+      - name: jest
+        dep: jest
+        skills: [test-patterns]
+      - name: playwright
+        dep: "@playwright/test"
+        skills: [test-patterns]
+        rename: playwright
+      - name: cypress
+        dep: cypress
+        skills: [test-patterns]
+      - name: express
+        dep: express
+      - name: fastify
+        dep: fastify
+      - name: nestjs
+        dep: "@nestjs/core"
+        rename: nestjs
+      - name: angular
+        dep: "@angular/core"
+        rename: angular
+      - name: svelte
+        dep: svelte
+      - name: biome
+        dep: "@biomejs/biome"
+        rename: biome
+      - name: eslint
+        dep: eslint
+      - name: prettier
+        dep: prettier
+
+  python:
+    sentinels:
+      - name: pyproject.toml
+        anchor: true
+      - name: requirements.txt
+      - name: Pipfile
+      - name: manage.py
+      - name: uv.lock
+      - name: pdm.lock
+    skills: [python-patterns]
+    extras:
+      - name: django
+        any_of:
+          - file: manage.py
+          - grep: '^[[:space:]"]*[Dd]jango'
+            in: [pyproject.toml, requirements.txt, Pipfile]
+        skills: [django-patterns]
+      - name: drf
+        grep: '^[[:space:]"]*djangorestframework'
+        in: [pyproject.toml, requirements.txt, Pipfile]
+        skills: [drf-patterns]
+      - name: fastapi
+        grep: '^[[:space:]"]*fastapi'
+        in: [pyproject.toml, requirements.txt, Pipfile]
+        skills: [fastapi-patterns]
+      - name: flask
+        grep: '^[[:space:]"]*flask'
+        in: [pyproject.toml, requirements.txt, Pipfile]
+      - name: pytest
+        any_of:
+          - file: pytest.ini
+          - file: conftest.py
+          - grep: '^[[:space:]"]*pytest'
+            in: [pyproject.toml, requirements.txt, Pipfile]
+        skills: [test-patterns]
+      - name: ruff
+        grep: '^[[:space:]"]*ruff'
+        in: [pyproject.toml, requirements.txt, Pipfile]
+      - name: mypy
+        grep: '^[[:space:]"]*mypy'
+        in: [pyproject.toml, requirements.txt, Pipfile]
+
+  ruby:
+    sentinels:
+      - name: Gemfile
+        anchor: true
+    skills: []
+    extras:
+      - name: rails
+        any_of:
+          - file: config/routes.rb
+          - file: app/controllers/application_controller.rb
+
+  rust:
+    sentinels:
+      - name: Cargo.toml
+        anchor: true
+    skills: []
+
+  go:
+    sentinels:
+      - name: go.mod
+        anchor: true
+    skills: [go-patterns]
+
+  # OpenTofu, and Terraform where the two share syntax. The committed
+  # dependency lock file marks a root module.
+  opentofu:
+    sentinels:
+      - name: .terraform.lock.hcl
+        anchor: true
+    skills: [opentofu-patterns]
+
+  docker:
+    sentinels:
+      - name: Dockerfile
+      - name: docker-compose.yml
+      - name: docker-compose.yaml
+      - name: compose.yml
+      - name: compose.yaml
+    skills: [docker-patterns]
+
+  monorepo:
+    sentinels:
+      - name: pnpm-workspace.yaml
+      - name: turbo.json
+      - name: nx.json
+      - name: lerna.json
+    skills: []
+    extras:
+      - name: pnpm-workspaces
+        file: pnpm-workspace.yaml
+      - name: turbo
+        file: turbo.json
+      - name: nx
+        file: nx.json
+      - name: lerna
+        file: lerna.json

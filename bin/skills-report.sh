@@ -10,17 +10,19 @@
 #      required-skill/suggested-skill synthetic markers inject-context.sh
 #      writes (those mean "shown to the model", not "confirmed loaded", and
 #      are never folded into the three real-activation counts above)
-#   3. Skills referenced anywhere in _stacks.yml (global_skills, per-stack
+#   3. Skills referenced anywhere in kit.yml (global_skills, per-stack
 #      skills, per-extra skills, skill_file_map) with zero activations in
 #      the window
 #   4. Skills with activations in the window that appear nowhere in
-#      _stacks.yml (expected for audit, write, meta-*, deps, and
-#      explore-patterns procedure skills, which _stacks.yml never maps -- not a defect)
+#      kit.yml (expected for audit, write, meta, deps, and
+#      investigate procedure skills, which kit.yml never maps -- not a defect)
 #   5. Sessions where a stack-suggested skill was surfaced (a
 #      "suggested-skill" log entry) but never activated in that same
 #      session -- only measurable for entries after inject-context.sh started
 #      emitting suggested-skill markers; earlier sessions have no marker and
 #      are silently excluded here, not counted as followed
+#   6. Guard rules that blocked (or would have, when disabled) per
+#      guards.jsonl: count, disabled count, last seen
 #
 # log-skills.sh logs one PostToolUse+Skill entry per Skill-tool invocation;
 # that entry is the Skill-tool activation count.
@@ -31,9 +33,12 @@
 
 set -euo pipefail
 
+# shellcheck source=_lib.sh
+source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh"
+
 days="${1:-30}"
-log_file="$HOME/.claude/logs/skills.jsonl"
-stacks_yml="${CLAUDE_PLUGIN_ROOT:-$(dirname "${BASH_SOURCE[0]}")/..}/_stacks.yml"
+log_file="$KIT_LOG_DIR/skills.jsonl"
+stacks_yml="$KIT_YML"
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "skills-report: jq not found, cannot generate report"
@@ -143,7 +148,7 @@ if command -v yq >/dev/null 2>&1 && [[ -f "$stacks_yml" ]]; then
   referenced_json="$(printf '%s\n' "${referenced_skills[@]}" | jq -R -s 'split("\n") | map(select(length > 0)) | unique')"
 
   echo
-  echo "== 3: _stacks.yml-referenced skills with zero activations in the window =="
+  echo "== 3: kit.yml-referenced skills with zero activations in the window =="
   zero_activation="$(jq -r --argjson referenced "$referenced_json" '
     ([.[] | select(.category=="slash_command" or .category=="skill_tool" or .category=="read_fallback") | .skill] | unique) as $active
     | ($referenced - $active) | sort | .[]
@@ -155,8 +160,8 @@ if command -v yq >/dev/null 2>&1 && [[ -f "$stacks_yml" ]]; then
   fi
 
   echo
-  echo "== 4: activations for skills not referenced anywhere in _stacks.yml =="
-  echo "(expected for audit, write, meta-*, deps, and explore-patterns procedure skills -- _stacks.yml only maps pattern/reference skills to stacks, not this group)"
+  echo "== 4: activations for skills not referenced anywhere in kit.yml =="
+  echo "(expected for audit, write, meta, deps, and investigate procedure skills -- kit.yml only maps pattern/reference skills to stacks, not this group)"
   unreferenced="$(jq -r --argjson referenced "$referenced_json" '
     ([.[] | select(.category=="slash_command" or .category=="skill_tool" or .category=="read_fallback") | .skill] | unique) as $active
     | ($active - $referenced) | sort | .[]
@@ -168,7 +173,7 @@ if command -v yq >/dev/null 2>&1 && [[ -f "$stacks_yml" ]]; then
   fi
 else
   echo
-  echo "== 3+4: skipped (yq or _stacks.yml not available) =="
+  echo "== 3+4: skipped (yq or kit.yml not available) =="
 fi
 
 echo
@@ -190,3 +195,24 @@ else
   printf '%s\n' "$unfollowed"
 fi
 echo "(sessions before suggested-skill logging landed have no marker and are excluded above, not counted as followed)"
+
+echo
+echo "== 6: guard rules fired in the window (guards.jsonl) =="
+guards_log="$KIT_LOG_DIR/guards.jsonl"
+guards=""
+if [[ -s "$guards_log" ]]; then
+  guards="$(jq -R -c 'select(length > 0) | try fromjson catch empty' "$guards_log" | jq -rs --arg cutoff "$cutoff" '
+    [.[] | select(.ts >= $cutoff)]
+    | group_by(.rule)
+    | map({rule: (.[0].rule // "(no slug)"), count: length,
+           disabled: ([.[] | select(.event == "disabled")] | length),
+           last: (map(.ts) | max)})
+    | sort_by(-.count)
+    | .[] | "\(.count)  \(.rule)  (disabled=\(.disabled) last=\(.last))"
+  ')"
+fi
+if [[ -z "$guards" ]]; then
+  echo "(none in the window)"
+else
+  printf '%s\n' "$guards"
+fi

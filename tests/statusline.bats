@@ -8,11 +8,13 @@
 #
 # Run with: bats tests/
 
+load helper
+
 setup() {
   SCRIPT="$BATS_TEST_DIRNAME/../bin/statusline.sh"
-  FAKE_HOME="$BATS_TEST_TMPDIR/home"
+  kit_test_home
   REPO="$BATS_TEST_TMPDIR/repo"
-  mkdir -p "$FAKE_HOME" "$REPO"
+  mkdir -p "$REPO"
   git -C "$REPO" init -q -b main
   git -C "$REPO" config user.email "test@example.com"
   git -C "$REPO" config user.name "Test"

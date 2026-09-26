@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Idempotent symlink installer for the Claude config layout.
-# Maps ~/.dotfiles/claude-kit/{hooks,skills,agents,bin,_stacks.yml} and the
-# personal ~/.dotfiles/claude/{settings.json,CLAUDE.md,rules} onto
+# Maps ~/.dotfiles/claude-kit/{hooks,skills,agents,bin,kit.yml} and the
+# personal ~/.dotfiles/claude/{settings.json,CLAUDE.md,rules,claude-kit.local.yml} onto
 # ~/.claude/<same>. Dotfiles-specific: other adopters install claude-kit as a
 # plugin instead (see claude-kit/README.md). Refuses to clobber non-symlinks unless --force, and
 # never auto-removes a non-symlink directory (would destroy user data).
@@ -15,11 +15,13 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 SOURCE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd -P)"
 PERSONAL_ROOT="$(cd "$SOURCE_ROOT/../claude" && pwd -P)"
-TARGET_ROOT="$HOME/.claude"
+# shellcheck source=_lib.sh
+source "$SCRIPT_DIR/_lib.sh"
+TARGET_ROOT="$KIT_HOME"
 
 root_for() {
   case "$1" in
-  settings.json | CLAUDE.md | rules) echo "$PERSONAL_ROOT" ;;
+  settings.json | CLAUDE.md | rules | claude-kit.local.yml) echo "$PERSONAL_ROOT" ;;
   *) echo "$SOURCE_ROOT" ;;
   esac
 }
@@ -46,7 +48,7 @@ EOF
   esac
 done
 
-ENTRIES=(settings.json CLAUDE.md hooks skills agents rules bin _stacks.yml)
+ENTRIES=(settings.json CLAUDE.md hooks skills agents rules bin kit.yml claude-kit.local.yml)
 
 mkdir -p "$TARGET_ROOT"
 
@@ -116,6 +118,14 @@ for entry in "${ENTRIES[@]}"; do
     echo "created  $dst"
   fi
 done
+
+# kit.yml was _stacks.yml. Remove the old link only when it points into this
+# kit; anything else there is the user's, same as the refuse-to-clobber rule.
+legacy="$TARGET_ROOT/_stacks.yml"
+if [[ -L "$legacy" && "$(readlink "$legacy")" == "$SOURCE_ROOT/_stacks.yml" ]]; then
+  rm "$legacy"
+  echo "removed  $legacy (renamed to kit.yml)"
+fi
 
 setup_mcps() {
   if ! command -v claude >/dev/null 2>&1; then

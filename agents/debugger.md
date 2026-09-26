@@ -22,4 +22,4 @@ Repo context and the `<required-skills>`/`<suggested-skills>` blocks arrive via 
 
 ## Output
 
-Return the root cause, the evidence, and the proposed fix location. When the trace runs long, write it to `$(scratch-dir.sh)/debug-<scope-slug>-<YYYYMMDD-HHMM>.md` and return a digest plus that path.
+Return the root cause, the evidence, and the proposed fix location. When the trace runs long, write it to the path `scratch-dir.sh debug <scope-slug>` prints and return a digest plus that path.

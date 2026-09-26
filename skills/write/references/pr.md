@@ -21,13 +21,14 @@ Generate a pull request description from the current diff. Arguments: `<optional
    If one exists, read it: its sections replace the default Structure below - this is mandatory, not a preference, even for a one-line diff. Never substitute the default Structure when a project template exists. If none exists, fall back to the default Structure.
 
 3. Resolve the base: !`git-base.sh`. Falls through upstream / origin HEAD / main / master / develop / trunk. If $ARGUMENTS is a valid single-word git ref (no spaces, not a sentence), use it as the explicit base instead by running `git-base.sh "$ARGUMENTS"` via Bash.
-4. Pull the diff: !`git-diff-from-base.sh`
-5. Pull the log (last 20): !`git-log-from-base.sh`
+4. Pull the diff: !`git-base.sh --diff`
+5. Pull the log (last 20): !`git-base.sh --log -20`
 6. Read any referenced issue number in recent commit messages, but do not fetch external data.
+7. Build the risk map. List the changed files with `git-base.sh --diff --name-only` (plus the explicit base from step 3, if any). Run `blast-radius.sh <file>` on each one that isn't a test file; it exits 2 for a file type it can't scan, so skip those. A file qualifies when it has 5 or more consumers, or when it has consumers and none of them is a test (`test 0`).
 
 ## Output
 
-Write the PR description to `$(scratch-dir.sh)/pr-<branch-slug>-<YYYYMMDD-HHMM>.md`. Print the path.
+Write the PR description to the path `scratch-dir.sh pr <branch-slug>` prints. Print the path.
 
 ### If step 2 found a project PR template
 
@@ -38,6 +39,7 @@ Reproduce the template verbatim and fill it in. This branch is mandatory and exc
 - No heading is removed. A section with nothing to say gets `N/A` or the template's own placeholder, never deletion.
 - Non-heading template scaffolding - checklists, HTML comments, instructional italics, blockquotes - is preserved as-is. Tick a checkbox only when the diff establishes it; otherwise leave it unticked.
 - The Rules below govern the prose you write _inside_ a section. They never govern which sections exist.
+- Risk-map lines from step 7 go in the section closest to reviewer notes, never under a new heading.
 
 ### Only if step 2 found no template
 
@@ -59,6 +61,10 @@ Use this default structure:
 ## Testing
 
 <Only manual verification the reviewer cannot already see from the diff or the test files themselves - e.g. env-dependent behavior, a step that needs prod-like data. If the tests in the diff already cover it, omit this section.>
+
+## Risk
+
+<One bullet per file step 7 qualified: `path` - N consumers (S source, T test), and "no test imports it" when T is 0. Omit when nothing qualifies.>
 
 ## Notes for reviewer
 

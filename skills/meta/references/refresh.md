@@ -1,12 +1,10 @@
----
-description: Check reference skills against the current language or framework release and update their guidance, keeping a capped history of prior versions
-argument-hint: "<skill name(s)>, --all, or blank to pick from the stale list"
-disable-model-invocation: true
----
+# /meta refresh
+
+Check reference skills against the current language or framework release and update their guidance, keeping a capped history of prior versions. Arguments: `<skill name(s)>, --all, or blank to pick from the stale list`.
 
 ## What this maintains
 
-Reference skills are every `skills/*/SKILL.md` except the procedure skills `audit`, `write`, `deps`, `explore-patterns`, and `meta-*`. Each carries a `## Version notes` section that this skill owns:
+Reference skills are every `skills/*/SKILL.md` except the procedure skills `audit`, `write`, `deps`, `investigate`, `report-format`, and `meta`. Each carries a `## Version notes` section that this skill owns:
 
 ```
 ## Version notes
@@ -42,7 +40,7 @@ Retention: at most 3 version entries, newest first. A pattern that changed moves
    - Enforce the caps from "What this maintains". Prune oldest first.
    - Add the Version notes entry naming the source URL or library id from step 3.
    - Do not touch guidance the research did not contradict. Do not delete a reference file. Do not reword for style.
-6. Report. Write `$(scratch-dir.sh)/refresh-<YYYYMMDD-HHMM>.md` in the `rules/markdown-report.md` format:
+6. Report. Write the path `scratch-dir.sh refresh` prints, in the report-format skill's format (load it first):
    - Summary: skills checked, per-classification counts.
    - One finding per `guidance changed` skill: severity `warning`, what changed, files edited, source.
    - One finding per `version bump`: severity `info`.

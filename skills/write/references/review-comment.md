@@ -6,8 +6,8 @@ Convert a structured review report into a peer-to-peer GitHub PR comment. Argume
 
 1. Get the scratch directory: `!`scratch-dir.sh``.
 2. Parse $ARGUMENTS. If the first token resolves to an existing file, treat it as the report path and any remaining token as the PR author username. Otherwise treat the whole of $ARGUMENTS as the PR author username and leave the report path unset.
-3. If no report path was resolved, stop and ask for one: any `rules/markdown-report.md`-shaped file, e.g. saved `/code-review` output or an `/audit` report (forked: follow the forked decision protocol in `rules/agents.md` instead of guessing).
-4. Read the review report. It follows the `rules/markdown-report.md` format: a severity rubric (failure/warning/info), each finding with file, line, "What", "Why it matters", and "Fix".
+3. If no report path was resolved, stop and ask for one: any file in the report-format skill's shape, e.g. saved `/code-review` output or an `/audit` report (forked: follow the forked decision protocol in `rules/agents.md` instead of guessing).
+4. Read the review report. It follows the report-format skill's format: a severity rubric (failure/warning/info), each finding with file, line, "What", "Why it matters", and "Fix".
 5. Look for a PR number in the report's `Scope:` line, its filename, or body (patterns like `pr-123`, `PR #123`, `PR: 123`). If found, run `gh pr view <n> --json author,headRefOid`. Use `.author.login` as the auto-detected author and `.headRefOid` as the ref for links.
 6. Resolve the repo slug: `gh repo view --json nameWithOwner -q .nameWithOwner`. If this fails (no remote, no auth), fall back to plain backticked `path:line` text for every finding - no links - and say so at the top of the comment.
 7. Resolve the ref for links: the PR's head sha from step 5 if a PR was found; otherwise the current commit, `git rev-parse HEAD`.
@@ -29,7 +29,7 @@ For every finding, build a real link instead of relying on GitHub to auto-linkif
 
 ## Output file
 
-Write to `$(scratch-dir.sh)/review-comment-<scope-slug>-<YYYYMMDD-HHMM>.md`. Print the path. `<scope-slug>` comes from the input report's `Scope:` line if present, otherwise from the input filename.
+Write to the path `scratch-dir.sh review-comment <scope-slug>` prints. Print the path. `<scope-slug>` comes from the input report's `Scope:` line if present, otherwise from the input filename.
 
 Structure (GitHub markdown, no frontmatter, no metadata - copy-paste ready as a single PR comment):
 
@@ -53,4 +53,4 @@ Hey @<author>, <genuine one-line compliment about the work>.
 - Describe the problem and point at the fix; do not rewrite the actual code fix.
 - Do not re-run the review or invent findings not present in the source report.
 - The latest-report fallback in step 3 only ever searches the resolved scratch directory for the current project; never fall back to another project's file.
-- If the resolved input file does not exist or does not match the `rules/markdown-report.md` format, say so and stop.
+- If the resolved input file does not exist or does not match the report-format skill's format, say so and stop.

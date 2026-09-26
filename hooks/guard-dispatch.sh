@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
-# PreToolUse hook for Edit, Write, MultiEdit. Runs guard-edit's and
+# PreToolUse hook for Edit, Write, MultiEdit, Read. Runs guard-edit's and
 # guard-skills' checks in one process against one payload read, instead of
 # two processes each re-parsing it. Mirrors format-dispatch.sh's role on
-# the PostToolUse side.
+# the PostToolUse side. On Read only guard-edit's credential check applies.
 #
 # Order matches the old settings.json registration: edit-safety, skills-gate.
 # A call violating both checks surfaces only the first violation's message
 # instead of one per hook - the call is still correctly blocked either way.
 HOOK_NAME="guard-dispatch.sh"
-# shellcheck source=_lib.sh
-source "$(dirname "$0")/_lib.sh"
+# shellcheck source=../bin/_lib.sh
+source "$(dirname "$0")/../bin/_lib.sh"
+kit_hook_init
 
 read_payload
 require_jq

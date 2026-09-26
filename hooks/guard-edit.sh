@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
-# PreToolUse hook for Edit, Write, MultiEdit: blocks writes to risky paths
-# regardless of permission rules. Callable standalone or sourced by
-# guard-dispatch.sh, which reads the payload once for all three checks.
+# PreToolUse hook for Read, Edit, Write, MultiEdit: blocks reads and writes of
+# credential files (kit.yml's sensitive_paths) and writes to other risky
+# paths, regardless of permission rules. Plugins can't ship settings.json
+# deny rules, so for a plugin install this is the only credential-read
+# protection. Callable standalone or sourced by guard-dispatch.sh, which
+# reads the payload once for every check.
 HOOK_NAME="guard-edit.sh"
-# shellcheck source=_lib.sh
-source "$(dirname "$0")/_lib.sh"
+# shellcheck source=../bin/_lib.sh
+source "$(dirname "$0")/../bin/_lib.sh"
+kit_hook_init
 
 run_guard_edit() {
   # Shadows the file-scope HOOK_NAME via bash's dynamic scoping - without
@@ -14,35 +18,38 @@ run_guard_edit() {
   local HOOK_NAME="guard-edit.sh"
   path="$(extract_path)"
   [[ -z "$path" ]] && return 0
+  local KIT_BLOCK_CONTEXT="Path: $path"
 
-  block() {
-    echo "Blocked by ${HOOK_NAME}: $1" >&2
-    echo "Path: $path" >&2
-    exit 2
-  }
+  local tool
+  tool="$(printf '%s' "$payload" | jq -r '.tool_name // empty')"
 
-  case "$(basename "$path")" in
-  package-lock.json | pnpm-lock.yaml | yarn.lock | bun.lockb | Gemfile.lock | Cargo.lock | composer.lock | poetry.lock | uv.lock | pdm.lock | requirements.txt.lock)
+  if kit_is_sensitive_path "$path"; then
+    if [[ "$tool" == Read ]]; then
+      block "reading a credential or key file is not permitted" "sensitive-read"
+    else
+      block "writing a credential or key file is not permitted" "sensitive-write"
+    fi
+  fi
+
+  # Everything below guards writes only.
+  [[ "$tool" == Read ]] && return 0
+
+  if kit_is_guarded_lockfile "$path"; then
     block "lockfile edit. Use the package manager." "lockfile-edit"
-    ;;
-  esac
+  fi
 
   [[ "$path" =~ /\.git/ ]] && block "edit inside .git/" "git-dir-edit"
 
-  case "$path" in
-  "$HOME/.zshrc" | "$HOME/.zprofile" | "$HOME/.bashrc" | "$HOME/.bash_profile" | "$HOME/.profile")
+  if kit_is_rc_file "$path"; then
     block "direct edit to a shell rc file. Use the dotfiles repo." "rc-edit"
-    ;;
-  esac
-
-  # Credential and key paths are not repeated here: settings.json's deny
-  # rules fire before any hook runs (verified 2026-09-12 by writing to a
-  # scratch .env: the permission layer refused it and this hook never saw
-  # the call). guard-bash.sh keeps its own copy because permissions cannot
-  # express `cat ~/.ssh/id_rsa`.
+  fi
 
   if [[ "$path" =~ \.github/workflows/.*\.ya?ml$ ]]; then
     echo "guard-edit: editing CI workflow $path" >&2
+  fi
+
+  if kit_is_overlay_path "$path"; then
+    emit_decision ask "this is the claude-kit overlay, which can switch the kit's own guards off; confirm the change"
   fi
 
   return 0

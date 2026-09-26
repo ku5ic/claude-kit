@@ -2,6 +2,14 @@
 description: Draft outward-facing text - commit message, PR description, release notes, devnote, explainer, review comment or reply, stakeholder summary
 argument-hint: <commit|pr|release-notes|devnote|explainer|review-comment|review-reply|stakeholder> [kind arguments]
 disable-model-invocation: true
+allowed-tools:
+  - Bash(git status *)
+  - Bash(git diff *)
+  - Bash(git log *)
+  - Bash(git branch --show-current)
+  - Bash(git rev-parse *)
+  - Bash(gh repo view *)
+  - Bash(gh pr view *)
 ---
 
 ## Dispatch

@@ -3,14 +3,21 @@
 # types until the required patterns skill is loaded for this session - one
 # extra round trip per skill-set per session, by design. Reads are not
 # gated: reading a file is not writing it. Callable standalone or sourced by
-# guard-dispatch.sh for the Edit|Write|MultiEdit path.
+# guard-dispatch.sh, which also runs on Read.
 HOOK_NAME="guard-skills.sh"
-# shellcheck source=_lib.sh
-source "$(dirname "$0")/_lib.sh"
+# shellcheck source=../bin/_lib.sh
+source "$(dirname "$0")/../bin/_lib.sh"
+kit_hook_init
 
 run_guard_skills() {
   # See run_guard_edit.sh - same HOOK_NAME shadowing need.
   local HOOK_NAME="guard-skills.sh"
+  # guard-dispatch.sh also runs on Read, for guard-edit's credential check;
+  # this gate only ever meant writes.
+  case "$(printf '%s' "$payload" | jq -r '.tool_name // empty')" in
+  Edit | Write | MultiEdit) ;;
+  *) return 0 ;;
+  esac
   path="$(extract_path)"
   [[ -z "$path" ]] && return 0
 
@@ -21,13 +28,13 @@ run_guard_skills() {
   session_id="$(printf '%s' "$payload" | jq -r '.session_id // empty')"
   [[ -z "$session_id" ]] && return 0
 
-  stacks_yml="$KIT_ROOT/_stacks.yml"
+  stacks_yml="$KIT_YML"
   command -v yq >/dev/null 2>&1 || return 0
   [[ -f "$stacks_yml" ]] || return 0
 
-  # Full skill_file_map in one yq call, cached to disk while _stacks.yml is
+  # Full skill_file_map in one yq call, cached to disk while kit.yml is
   # unchanged. Each line: on<TAB>globs-space-separated<TAB>skills-space-separated
-  map_cache="$HOME/.claude/cache/skill-map"
+  map_cache="$KIT_CACHE_DIR/skill-map.$KIT_YML_TAG"
   if [[ -s "$map_cache" && "$map_cache" -nt "$stacks_yml" ]]; then
     mapfile -t map_entries <"$map_cache"
   else
@@ -75,7 +82,7 @@ run_guard_skills() {
 
   [[ ${#required_skills[@]} -eq 0 ]] && return 0
 
-  cache_dir="$HOME/.claude/cache/skills-loaded"
+  cache_dir="$KIT_CACHE_DIR/skills-loaded"
 
   declare -a to_check=()
   for sk in "${required_skills[@]}"; do
@@ -84,7 +91,7 @@ run_guard_skills() {
 
   [[ ${#to_check[@]} -eq 0 ]] && return 0
 
-  skills_log="$HOME/.claude/logs/skills.jsonl"
+  skills_log="$KIT_LOG_DIR/skills.jsonl"
   # Missing or unreadable log: fail open rather than block on uncertainty.
   [[ -r "$skills_log" ]] || return 0
 

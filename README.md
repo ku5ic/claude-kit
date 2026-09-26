@@ -19,10 +19,10 @@ Requires bash 4+, `git`, `jq`, and `yq` (mikefarah). Formatters and linters (`pr
 | Part                      | What it does                                                                                                       |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | `hooks/`                  | Block risky shell and commit patterns, sanitize and format edited files, inject repo context, run checks on `Stop` |
-| `skills/explore-patterns` | Read-only answer to a question or symptom; loads on its own, and in plan mode its findings feed the plan           |
+| `skills/investigate`      | Read-only answer to a question or symptom; loads on its own, and in plan mode its findings feed the plan           |
 | `skills/audit`            | `/audit a11y\|debt\|doc-drift\|perf\|verify`                                                                       |
 | `skills/write`            | `/write commit\|pr\|release-notes\|devnote\|explainer\|review-comment\|review-reply\|stakeholder`                  |
-| `skills/*-patterns`       | Stack knowledge packs, suggested per repo by `_stacks.yml`                                                         |
+| `skills/*-patterns`       | Stack knowledge packs, suggested per repo by `kit.yml`                                                             |
 | `agents/`                 | `auditor`, `checker`, `debugger`, `plan-critic`, `researcher`, `tester`                                            |
 | `rules/`                  | Output, evidence, change, workflow, tooling, and agent rules                                                       |
 | `bin/`                    | Helpers on PATH: `run-checks.sh`, `scratch-dir.sh`, `git-base.sh`, and others                                      |

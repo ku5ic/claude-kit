@@ -11,7 +11,7 @@ Reframe a technical finding or proposal for a non-technical audience. Arguments:
 
 ## Output file
 
-Write to `$(scratch-dir.sh)/stakeholder-<topic-slug>-<YYYYMMDD-HHMM>.md`. Print the path.
+Write to the path `scratch-dir.sh stakeholder <topic-slug>` prints. Print the path.
 
 Structure:
 
