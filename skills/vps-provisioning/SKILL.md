@@ -28,7 +28,10 @@ Targeting Debian 12 (Bookworm) and Ubuntu 24.04 LTS. Commands and package names 
 
 ## Version notes
 
+Checked: 2026-09-26 against https://ubuntu.com/about/release-cycle and https://eff-certbot.readthedocs.io/en/latest/using.html
+
 Check distribution LTS support windows before provisioning.
 
-- Ubuntu 24.04 LTS support ends April 2029 (standard), April 2034 (ESM).
+- Ubuntu 24.04 LTS support ends May 2029 (standard), May 2034 (ESM), May 2039 (Legacy add-on). Corrected from April.
+- Certbot 4.0.0: renewal threshold moved from a fixed 30 days to 1/3 of certificate lifetime; see ssl-tls.md.
 - Certbot version and plugin names change; verify `certbot --version` and available plugins.

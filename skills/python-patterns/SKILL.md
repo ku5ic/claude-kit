@@ -36,7 +36,7 @@ Default assumption: Python 3.11 or later, type hints required on public function
 
 ## Version notes
 
-Checked: 2026-09-12 against https://www.python.org/downloads/ and https://docs.python.org/3/whatsnew/
+Checked: 2026-09-26 against https://www.python.org/downloads/ and https://docs.python.org/3/whatsnew/
 
 - 3.15 (pre-release, planned 2026-10-01): typing additions PEP 747 `TypeForm`, PEP 728 `TypedDict(closed=True, extra_items=...)`, PEP 800 disjoint bases. Not yet guidance here.
 - 3.14 (2025-10-07, latest 3.14.7 on 2026-08-05): deferred annotation evaluation by default (PEP 649); `from __future__ import annotations` on a deprecation path (PEP 749); free-threaded build officially supported (PEP 779), 5-10% single-threaded penalty, not the default build.

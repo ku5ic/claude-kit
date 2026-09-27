@@ -44,7 +44,7 @@ export const dynamic = "auto";
 
 ## On-demand revalidation
 
-`revalidateTag(tag)` and `revalidatePath(path)` from `next/cache` invalidate cached entries by tag or by path. Both are safe to call inside Server Functions and Route Handlers. With Cache Components, `updateTag(tag)` is the equivalent for `cacheTag`-marked content.
+`revalidateTag(tag, profile)` and `revalidatePath(path)` from `next/cache` invalidate cached entries by tag or by path. `revalidateTag` takes a `cacheLife` profile as its second argument (`"max"` for stale-while-revalidate); the one-argument form is deprecated in 16. Both are safe to call inside Server Functions and Route Handlers. With Cache Components, `updateTag(tag)` is the equivalent for `cacheTag`-marked content.
 
 ```ts
 "use server";
@@ -52,7 +52,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 
 export async function publishPost(id: string) {
   // mutate
-  revalidateTag("posts");
+  revalidateTag("posts", "max");
   revalidatePath(`/posts/${id}`);
 }
 ```
@@ -73,3 +73,7 @@ export async function publishPost(id: string) {
 - `cacheComponents` config: https://nextjs.org/docs/app/api-reference/config/next-config-js/cacheComponents
 - `revalidatePath`: https://nextjs.org/docs/app/api-reference/functions/revalidatePath
 - `revalidateTag`: https://nextjs.org/docs/app/api-reference/functions/revalidateTag
+
+### Legacy (Next.js 15)
+
+`revalidateTag(tag)` with a single argument expired the tag immediately. On 16 it is deprecated and a TypeScript error; use `revalidateTag(tag, "max")` for stale-while-revalidate or `updateTag(tag)` in a Server Action for read-your-writes. The one-argument form is still correct on projects pinned to 15.

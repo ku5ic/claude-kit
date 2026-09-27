@@ -33,7 +33,7 @@ Default assumption: a TypeScript project with `strict` mode enabled.
 
 ## Version notes
 
-Checked: 2026-09-12 against https://devblogs.microsoft.com/typescript/ and Context7 /microsoft/typescript
+Checked: 2026-09-26 against https://devblogs.microsoft.com/typescript/ and Context7 /microsoft/typescript
 
 - 7.0 (2026-07, latest 7.0.2): native Go compiler. Removed the options 6.0 deprecated: `module` none/amd/umd/system, `moduleResolution` node10/classic, `baseUrl`, `outFile`, `downlevelIteration`, `target: ES5`, `alwaysStrict: false`, `esModuleInterop: false`, `allowSyntheticDefaultImports: false`. A tsconfig using any of these does not compile on 7.
 - 6.0: last JavaScript-based compiler; deprecated the options above.

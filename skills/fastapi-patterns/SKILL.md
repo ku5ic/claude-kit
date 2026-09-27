@@ -31,7 +31,7 @@ Install: `pip install "fastapi[standard]"`
 
 ## Version notes
 
-Checked: 2026-09-12 against https://pypi.org/project/fastapi/ and https://fastapi.tiangolo.com/release-notes/
+Checked: 2026-09-26 against https://pypi.org/project/fastapi/ and https://fastapi.tiangolo.com/release-notes/
 
 - 0.141.1 (2026-07-29) with Pydantic 2.13.5 (2026-08-28): no guidance change. FastAPI stays on 0.x by design; there is no 1.x and no Pydantic 3.
 - 0.128.0: Pydantic v1 compatibility (`pydantic.v1` models) removed; unsupported on Python 3.14+.

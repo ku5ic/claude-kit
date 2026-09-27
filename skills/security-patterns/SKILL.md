@@ -32,3 +32,11 @@ Apply the references that match the detected stack. Severity rubric below applie
 - MDN Web Security: https://developer.mozilla.org/en-US/docs/Web/Security
 - MDN CSP: https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP
 - WHATWG Fetch (CORS): https://fetch.spec.whatwg.org/
+
+## Version notes
+
+Checked: 2026-09-26 against https://slsa.dev/spec/v1.2/build-track-basics, https://docs.djangoproject.com/en/stable/ref/csp/, https://docs.npmjs.com/cli/v12/commands/npm-audit
+
+- SLSA 1.2: current spec; 1.0 retired. Build track is L0 (no requirements) through L3.
+- Django 6.0: built-in CSP middleware (`SECURE_CSP`, `csp_nonce`); 6.1 adds the `{% csp_nonce_attr %}` tag.
+- npm 12 (12.1.0): current CLI docs; v10 and v11 docs marked Legacy.

@@ -33,7 +33,7 @@ Default assumption: React 19 with the modern (concurrent) renderer.
 
 ## Version notes
 
-Checked: 2026-09-12 against https://react.dev/blog and Context7 /react/react
+Checked: 2026-09-26 against https://react.dev/blog and Context7 /react/react
 
 - 19.3 (2026-09-09): patch-level; no guidance change. `use()` may be called in conditionals and loops (https://react.dev/reference/react/use); do not branch on the promise's own status before calling it.
 - 19.0 (2024-12-05): Actions, `use`, `useActionState`, `useFormStatus`, `useOptimistic`. Verify against the per-hook page on react.dev, not older blog posts.

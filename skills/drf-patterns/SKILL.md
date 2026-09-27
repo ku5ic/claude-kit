@@ -29,7 +29,7 @@ DRF 3.18.x. Supports Django 5.2, 6.0, and 6.1; 3.18.0 dropped Django 4.2, 5.0, a
 
 ## Version notes
 
-Checked: 2026-09-12 against https://pypi.org/project/djangorestframework/ and https://www.django-rest-framework.org/community/release-notes/
+Checked: 2026-09-26 against https://pypi.org/project/djangorestframework/ and https://www.django-rest-framework.org/community/release-notes/
 
 - 3.18.1 (2026-09-07): 3.18.0 dropped Django 4.2, 5.0, 5.1. A project pinned to one of those stays on 3.17.
 - 3.14: `NullBooleanField` removed; use `BooleanField(allow_null=True)`.

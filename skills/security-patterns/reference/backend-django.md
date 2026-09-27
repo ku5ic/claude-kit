@@ -13,6 +13,7 @@
 - `SECRET_KEY`, DB credentials, API keys in repo: `failure`. Check `.env` handling, `env.example` vs `.env`.
 - `ALLOWED_HOSTS` wildcard in production settings: `failure`.
 - Middleware order: `SecurityMiddleware` first, `SessionMiddleware` before `AuthenticationMiddleware`, `CsrfViewMiddleware` before views that mutate.
+- CSP on Django 6.0+: built in via `django.middleware.csp.ContentSecurityPolicyMiddleware` with `SECURE_CSP` / `SECURE_CSP_REPORT_ONLY`; nonces reach templates through the `csp()` context processor as `{{ csp_nonce }}`. Prefer it over a third-party CSP package on 6.0+.
 
 ## Auth and permissions
 

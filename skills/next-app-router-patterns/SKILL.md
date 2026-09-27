@@ -43,8 +43,8 @@ Default assumption: Next.js 16 (current stable as of writing) with the App Route
 
 ## Version notes
 
-Checked: 2026-09-12 against https://nextjs.org/blog and https://nextjs.org/docs/app/api-reference/file-conventions/proxy
+Checked: 2026-09-26 against https://nextjs.org/blog, https://nextjs.org/docs/app/api-reference/file-conventions/proxy and https://nextjs.org/docs/app/guides/upgrading/version-16
 
 - 16.3 (2026-08-03): no guidance change. Proxy runs on Node.js only; a project that needs the Edge runtime keeps `middleware.ts` (proxy docs).
-- 16.0: `middleware` renamed to `proxy` (types `NextMiddleware` -> `NextProxy`, `MiddlewareConfig` -> `ProxyConfig`, `skipMiddlewareUrlNormalize` -> `skipProxyUrlNormalize`); PPR stable and default under Cache Components.
+- 16.0: `middleware` renamed to `proxy` (types `NextMiddleware` -> `NextProxy`, `MiddlewareConfig` -> `ProxyConfig`, `skipMiddlewareUrlNormalize` -> `skipProxyUrlNormalize`); PPR stable and default under Cache Components; one-argument `revalidateTag(tag)` deprecated, pass a `cacheLife` profile (upgrade guide; examples fixed 2026-09-26).
 - 15.0: `fetch()` and Route Handler `GET` no longer cached by default; 15.5 gave the middleware file stable Node.js runtime support.

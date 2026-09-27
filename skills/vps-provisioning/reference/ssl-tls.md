@@ -61,7 +61,7 @@ If not present, add to cron:
 0 */12 * * * root certbot renew --quiet
 ```
 
-certbot renew only acts if a certificate expires within 30 days.
+certbot renew only acts once less than 1/3 of the certificate's lifetime remains (1/2 for certificates valid 10 days or less), so the twice-daily timer keeps working as Let's Encrypt shortens lifetimes.
 
 ## Renewal hooks
 
@@ -118,3 +118,7 @@ ssl_prefer_server_ciphers off;
 
 - https://eff-certbot.readthedocs.io/using.html
 - https://letsencrypt.org/docs/
+
+### Legacy (certbot < 4.0.0)
+
+Before 4.0.0 the renewal threshold was a fixed 30 days before expiry. Older distro-packaged certbot builds still behave this way; check `certbot --version` before relying on the lifetime-fraction rule.

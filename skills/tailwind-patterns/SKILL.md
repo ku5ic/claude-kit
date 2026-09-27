@@ -13,7 +13,7 @@ Default assumption in this dotfiles project: Tailwind v4 with CSS-first config. 
 - v4 config: lives in CSS via the `@theme` directive. No `tailwind.config.js`. Theme tokens become CSS custom properties automatically.
 - v4 content detection: automatic. The compiler scans the project for class names; you do not configure `content` paths.
 - v4 plugins: still work. Container queries are built in; typography and forms remain separate `@tailwindcss/*` plugins. Check before installing.
-- v4 build: ~5x faster. The Oxide engine replaces PostCSS for the core compile step.
+- v4 build: full builds ~3.8x and incremental rebuilds 8.8x faster than v3.4; `@import` bundling and vendor prefixing are built in (Lightning CSS under the hood).
 
 ## Setting up v4 correctly
 
@@ -51,7 +51,7 @@ Default assumption in this dotfiles project: Tailwind v4 with CSS-first config. 
 - v4 variant order: `hover:focus:bg-blue-500` applies hover AND focus, just like v3. No change.
 - New in v4:
   - `not-` variant prefix (`not-hover:opacity-50`)
-  - `nth-child(n)` shorthand (`*:rounded-md`)
+  - `nth-*` variants (`nth-3:`, `nth-[3n+1]:`); the `*:` direct-children variant predates v4 (3.4)
   - starting-style variants (`starting:opacity-0` for entry animations)
 - Container queries are built in: `@container` on the parent, `@sm:flex` etc. on children. No plugin install.
 
@@ -98,8 +98,8 @@ If both `tailwind.config.js` and `@import "tailwindcss"` are present, the projec
 
 ## Version notes
 
-Checked: 2026-09-12 against https://tailwindcss.com/blog and https://tailwindcss.com/docs/theme
+Checked: 2026-09-26 against https://tailwindcss.com/blog, https://tailwindcss.com/blog/tailwindcss-v4, https://tailwindcss.com/blog/tailwindcss-v3-4 and https://tailwindcss.com/docs/theme
 
 - 4.3 (2026-05-08): no directive or function syntax change; no v5 exists.
-- 4.0: CSS-first config (`@import "tailwindcss"`, `@theme`, `@utility`, `--alpha()`), automatic content detection, `not-`, `*:`, and `starting:` variants. Theme values are read with `var(--*)`, not a `--theme()` function (corrected 2026-09-12).
+- 4.0: CSS-first config (`@import "tailwindcss"`, `@theme`, `@utility`, `--alpha()`), automatic content detection, `not-`, `nth-*`, and `starting:` variants (`*:` is 3.4; build-speed figures and the `*:` example corrected 2026-09-26). Theme values are read with `var(--*)`, not a `--theme()` function (corrected 2026-09-12).
 - 3.x: `tailwind.config.js`, `@tailwind base/components/utilities`, `theme()` helper. See "v3 patterns to avoid in v4".

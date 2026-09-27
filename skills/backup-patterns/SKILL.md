@@ -23,7 +23,7 @@ Three copies, two media, one offsite. A backup that lives only on the same serve
 
 - **`pg_dump -F c`** (custom) or **`-F d`** (directory) for anything over a few hundred MB. Only these support `-j` parallel restore; `-F p` plain SQL is the slowest both ways.
 - **`pg_dumpall`** when you need roles and tablespaces, not just one database's contents.
-- **Pipe rather than stage**: `pg_dump -F c mydb | restic -r <repo> backup --stdin --stdin-filename mydb.dump` avoids a plaintext temp file entirely.
+- **Stream rather than stage**: `restic -r <repo> backup --stdin-filename mydb.dump --stdin-from-command -- pg_dump -F c mydb` avoids a plaintext temp file, and restic cancels the backup if `pg_dump` exits non-zero. A plain `pg_dump | restic backup --stdin` pipe cannot detect a truncated dump.
 - **`rsync --delete`** mirrors exactly - it deletes destination files missing from the source. Dry-run with `-n` before the first real run.
 - **restic retention** is `forget --keep-daily/--keep-weekly/--keep-monthly --prune`. Without it, storage grows unboundedly. `--dry-run` first.
 
@@ -66,3 +66,13 @@ Without `forget`/`prune`, backup storage grows unboundedly. Define and automate 
 - https://www.postgresql.org/docs/current/app-pgrestore.html
 
 > Verify restic flags against the version you have installed; restic self-update keeps the binary current.
+
+## Version notes
+
+Checked: 2026-09-26 against https://restic.readthedocs.io/en/stable/040_backup.html, https://github.com/restic/restic/releases, https://www.postgresql.org/support/versioning/
+
+- restic 0.19.1 (2026-07-05): docs warn `--stdin` "cannot detect if data read from stdin is complete"; streaming example switched to `--stdin-from-command`. PostgreSQL 18.6 current, 14 oldest supported.
+
+### Legacy (restic without --stdin-from-command)
+
+The earlier example piped `pg_dump -F c mydb | restic backup --stdin --stdin-filename mydb.dump`. Only use it on a restic build that lacks `--stdin-from-command`, and add `set -o pipefail` plus a post-backup size or `pg_restore --list` check, since restic records whatever arrived on stdin.

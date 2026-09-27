@@ -20,7 +20,7 @@ Review checklist for Prometheus instrumentation. Constructor signatures are in t
 | Counter   | Requests, errors, bytes - totals that only increase                                 | No         |
 | Gauge     | Queue depth, active connections, memory - current state                             | Yes        |
 | Histogram | Latency, payload size - distribution matters                                        | No         |
-| Summary   | Avoid; quantiles are computed client-side and cannot be aggregated across instances | No         |
+| Summary   | Avoid; the Python client exposes only count and sum, no quantiles                   | No         |
 
 Default to Histogram over Summary. Review the default buckets (.005 through 10, tuned for HTTP latency) against the operation's real distribution rather than accepting them.
 
@@ -79,3 +79,9 @@ The defaults suit general HTTP latency. For faster or slower operations, define 
 - https://prometheus.io/docs/practices/naming/
 
 > prometheus-client's API surface is stable but check the GitHub release notes before upgrading across minor versions.
+
+## Version notes
+
+Checked: 2026-09-26 against Context7 `/prometheus/client_python`, https://prometheus.github.io/client_python/instrumenting/summary/, https://prometheus.io/download/
+
+- prometheus-client 0.26.0 (2026-07-24), Prometheus 3.15.0 (2026-09-24): Summary row corrected; the Python client "does not compute quantiles locally".

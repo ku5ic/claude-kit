@@ -1,6 +1,6 @@
 ---
 name: nuxt-patterns
-description: Nuxt 3+ patterns - rendering modes, data fetching (useFetch, useAsyncData, $fetch), server routes, SSR-safe state, file-based routing, the Nitro runtime, and review checklist. Use whenever the project contains a `nuxt.config.*`, `nuxt` in `package.json`, or root-level `pages/`/`server/`/`composables/` directories, OR the user asks about Nuxt, its data-fetching composables, its server routes, or its SSR behavior, even if Nuxt is not mentioned by name.
+description: Nuxt 3+ patterns - rendering modes, data fetching (useFetch, useAsyncData, $fetch), server routes, SSR-safe state, file-based routing, the Nitro runtime, and review checklist. Use whenever the project contains a `nuxt.config.*`, `nuxt` in `package.json`, or `app/pages/`/`app/composables/` (Nuxt 4 `srcDir`), root-level `pages/`/`composables/` (Nuxt 3), or a root `server/` directory, OR the user asks about Nuxt, its data-fetching composables, its server routes, or its SSR behavior, even if Nuxt is not mentioned by name.
 ---
 
 # Nuxt patterns
@@ -36,7 +36,7 @@ Default assumption: Nuxt 4 (current stable, latest 4.5.x) with Universal Renderi
 
 ## Version notes
 
-Checked: 2026-09-12 against https://nuxt.com/blog and https://github.com/nuxt/nuxt/releases
+Checked: 2026-09-26 against https://nuxt.com/blog, https://github.com/nuxt/nuxt/releases and https://nuxt.com/docs/4.x/api/nuxt-config#srcdir
 
 - 4.5 (2026-07): `enabled` option on `useFetch`/`useAsyncData`, `useLayout` composable, stable error codes, named views by filename. No pattern here changed.
 - 4.4 (2026-03): custom `useFetch`/`useAsyncData` factories (unverified on 2026-09-12; release notes not reachable).

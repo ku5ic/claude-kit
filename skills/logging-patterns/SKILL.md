@@ -76,3 +76,9 @@ Plain string messages like `"payment failed"` are hard to aggregate. Add identif
 - https://www.structlog.org/en/stable/getting-started.html
 
 > Verify structlog processor names and configuration shape against the structlog docs when upgrading, as the processor API evolves between minor versions.
+
+## Version notes
+
+Checked: 2026-09-26 against https://pypi.org/project/structlog/, https://www.structlog.org/en/stable/api.html, https://docs.python.org/3/library/logging.html
+
+- structlog 26.1.0 (2026-06-06): requires Python >= 3.10; no change to the processors used here. Python 3.14.7 current.

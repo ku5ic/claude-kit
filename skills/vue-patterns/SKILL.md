@@ -7,7 +7,7 @@ description: Vue 3 patterns - the Composition API, reactivity, single-file compo
 
 Default assumption: Vue 3 with the Composition API and `<script setup>` syntax.
 
-- Current stable is Vue 3.5; deltas in 3.5+ (Reactive Props Destructure, `onWatcherCleanup`, `defineModel`) are called out where they matter.
+- Current stable is Vue 3.5; deltas in 3.4+ (`defineModel`) and 3.5+ (Reactive Props Destructure, `onWatcherCleanup`) are called out where they matter.
 - Options API is acceptable for legacy code; flag as legacy when reviewed.
 - Adapt advice to the version in the project's `package.json` or lockfile.
 
@@ -38,7 +38,7 @@ Default assumption: Vue 3 with the Composition API and `<script setup>` syntax.
 
 ## Version notes
 
-Checked: 2026-09-12 against Context7 /vuejs/vue (3.5.42) and https://vuejs.org/api/sfc-script-setup.html
+Checked: 2026-09-26 against https://github.com/vuejs/core/releases/latest (3.5.43, 2026-09-17), Context7 /vuejs/vue and https://vuejs.org/api/sfc-script-setup.html
 
 - 3.5 (2024-09-01): Reactive Props Destructure is the recommended default-value form over `withDefaults` (which still works); `onWatcherCleanup`.
 - 3.4: `defineModel`; watcher `once: true`.

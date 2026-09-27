@@ -7,7 +7,7 @@ description: Bash and shell script patterns - safety flags, quoting, conditional
 
 - Default assumption: bash 5.x targeting macOS (via Homebrew bash) and Linux.
 - Scripts use `#!/usr/bin/env bash`, so the resolved binary is whatever is first on PATH -- on the user's machine that's the Homebrew 5.x build, not the stock macOS `/bin/bash` 3.2.
-- Anything that requires bash 4.0+ (case modification, `mapfile`, `${parameter@op}`) is unsafe under stock macOS bash; flagged here when the version cut matters.
+- Anything that requires bash 4.0+ (case modification, `mapfile`) or 4.4+ (`${parameter@op}`) is unsafe under stock macOS bash; flagged here when the version cut matters.
 
 ## Reference files
 
@@ -34,7 +34,7 @@ description: Bash and shell script patterns - safety flags, quoting, conditional
 
 ## Version notes
 
-Checked: 2026-09-12 against https://ftp.gnu.org/gnu/bash/ and https://formulae.brew.sh/formula/bash
+Checked: 2026-09-26 against https://ftp.gnu.org/gnu/bash/, https://tiswww.case.edu/php/chet/bash/NEWS, https://github.com/koalaman/shellcheck/releases
 
-- 5.3 (2025-07-30; Homebrew 5.3.15): no guidance change; no 6.0 release exists.
-- 4.4: `shopt -s inherit_errexit`. 4.0: case modification, `mapfile`, `${parameter@op}`. Both cuts unverified on 2026-09-12 (NEWS file unreachable); left as written.
+- 5.3 (2025-07-30; Homebrew 5.3.20): no guidance change; no 6.0 release exists. ShellCheck 0.11.0 (2025-08-04) current.
+- 4.4: `shopt -s inherit_errexit`, `${parameter@op}` (corrected from 4.0 per NEWS). 4.0: case modification, `mapfile`.

@@ -5,7 +5,7 @@ description: Docker patterns - Dockerfile best practices, multi-stage builds, Co
 
 # Docker patterns
 
-Docker Engine 29.4.2. Compose Specification (current format, supersedes 2.x and 3.x). Verify at https://docs.docker.com/engine/release-notes/ and https://docs.docker.com/compose/compose-file/.
+Docker Engine 29.8.1. Compose Specification (current format, supersedes 2.x and 3.x). Verify at https://docs.docker.com/engine/release-notes/ and https://docs.docker.com/compose/compose-file/.
 
 ## Reference files
 
@@ -28,4 +28,9 @@ Docker Engine 29.4.2. Compose Specification (current format, supersedes 2.x and 
 
 ## Version notes
 
-Docker Engine and Docker Compose release independently. The Compose Specification supersedes the versioned format (version: "3") -- the `version` top-level key is now ignored. Check https://docs.docker.com/engine/release-notes/ for current versions.
+Checked: 2026-09-26 against https://docs.docker.com/engine/release-notes/ and https://docs.docker.com/compose/compose-file/04-version-and-name/
+
+Docker Engine and Docker Compose release independently. The Compose Specification supersedes the versioned format (version: "3") -- the `version` top-level key is now ignored.
+
+- 29.8.1 (2026-09-15): bug fixes only (containerd image store, logging, networking); no guidance change.
+- 29.4.2 (2026-05-01): previous baseline.

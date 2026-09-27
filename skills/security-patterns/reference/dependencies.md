@@ -12,7 +12,7 @@ OSV-Scanner (https://google.github.io/osv-scanner/) queries the OSV federated da
 
 ## SLSA basics
 
-SLSA (Supply-chain Levels for Software Artifacts, https://slsa.dev/spec/v1.0/levels) is a framework for grading the trustworthiness of build provenance. v1.0 defines three build levels:
+SLSA (Supply-chain Levels for Software Artifacts, https://slsa.dev/spec/v1.2/build-track-basics) is a framework for grading the trustworthiness of build provenance. v1.2 defines Build L0 (no requirements, the absence of SLSA) plus three graded build levels:
 
 - **Build L1**: provenance exists. The package documents how it was built. Trivial to bypass or forge; useful for catching mistakes, not for adversarial defense.
 - **Build L2**: hosted build platform with signed provenance. Forging the provenance requires an explicit attack on the build platform.
@@ -23,7 +23,7 @@ For first-party application code, the practical question is whether the build ru
 ## References
 
 - OSV-Scanner: https://google.github.io/osv-scanner/
-- SLSA spec: https://slsa.dev/spec/v1.0/levels
-- npm audit: https://docs.npmjs.com/cli/v10/commands/npm-audit
+- SLSA spec: https://slsa.dev/spec/v1.2/build-track-basics
+- npm audit: https://docs.npmjs.com/cli/v12/commands/npm-audit
 - pip-audit: https://pypi.org/project/pip-audit/
 - bundler-audit: https://github.com/rubysec/bundler-audit

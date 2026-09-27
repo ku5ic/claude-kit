@@ -61,7 +61,7 @@ import { redirect } from "next/navigation";
 export async function publishPost(id: string) {
   // auth + validate
   // mutate
-  revalidateTag("posts");
+  revalidateTag("posts", "max");
   redirect(`/posts/${id}`);
 }
 ```

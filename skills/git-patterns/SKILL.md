@@ -81,7 +81,7 @@ An `.env` or `*.key` file not listed in `.gitignore` will eventually be committe
 
 ## Version notes
 
-Checked: 2026-09-12 against https://git-scm.com and https://www.conventionalcommits.org/en/v1.0.0/
+Checked: 2026-09-26 against https://git-scm.com, https://github.com/git/git/blob/master/Documentation/RelNotes/2.30.0.adoc and https://www.conventionalcommits.org/en/v1.0.0/
 
 - git 2.55.0 (2026-06-29): no guidance change. `git switch` / `git restore` are the documented replacements for branch and file `checkout`; `checkout` still works.
 - `--force-if-includes` (2.30+): pairs with `--force-with-lease` against the background-fetch gap; added to the force-push guidance 2026-09-12.

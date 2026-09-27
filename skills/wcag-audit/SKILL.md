@@ -45,6 +45,10 @@ For accessibility work, validate against WCAG 2.2 AA explicitly. Do not claim co
 
 ## Version notes
 
+Checked: 2026-09-26 against https://www.w3.org/TR/WCAG22/ and https://www.w3.org/TR/using-aria/
+
+- WCAG 2.2 (Recommendation, updated 2024-12-12): current target; 4.1.1 Parsing obsolete; WAI-ARIA 1.2 still current. WCAG 3.0 remains a Working Draft.
+
 WCAG evolves:
 
 - WCAG 3 is in early-draft form at the time of writing and will not replace WCAG 2.2 conformance until after a long sunset period.

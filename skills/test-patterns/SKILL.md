@@ -36,8 +36,8 @@ Apply the runner-specific reference matching the detected test runner. Principle
 
 ## Version notes
 
-Checked: 2026-09-12 against the migration and release pages listed above
+Checked: 2026-09-26 against https://pypi.org/project/pytest/ and the migration and release pages listed above
 
 - Vitest 4.x (Context7 /vitest-dev/vitest); the migration guide at vitest.dev lists for the next major: `vi.mock` / `vi.unmock` / `vi.hoisted` must be module-scoped, `clearMocks` defaults to true, automocked modules return `undefined` in browser mode. None of the patterns in `reference/vitest-and-jest.md` depend on the old behavior.
-- Jest 30 (2025-06): `--testPathPattern` renamed `--testPathPatterns`; `expect` aliases removed. pytest 9 (2026-06): fixture visibility now decides precedence over registration order; `PytestRemovedIn9Warning` is an error.
+- Jest 30 (2025-06): `--testPathPattern` renamed `--testPathPatterns`; `expect` aliases removed. pytest 9 (2025-11; 9.1.1 current): fixture visibility now decides precedence over registration order; `PytestRemovedIn9Warning` is an error.
 - MSW 2: `http` / `HttpResponse` replace `rest` and the `req, res, ctx` signature. Unchanged.
