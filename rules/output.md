@@ -47,7 +47,7 @@ Numbered steps, a restated state line, and a time estimate belong to a multi-ste
 
 A deliverable is anything the user copies out and uses elsewhere: PR descriptions, commit drafts, emails, chat messages, specs, code files, prompts, docs, reports.
 
-- Deliverables go to a file via Write or Edit, at an absolute path. Print that path as the first line. Never write one with a shell redirect, and never `cd` to the destination and redirect to a bare filename - `guard-bash.sh` reads a bare target as a write into the repo root and prompts, which is a false positive in a scratch or memory directory.
+- Deliverables go to a file via Write or Edit, at an absolute path. Print that path as the first line. Never write one with a shell redirect: it skips the sanitizer and formatter that Write and Edit fire, and a bare target inside a git work tree makes `guard-bash.sh` prompt.
 - Default location: the directory `scratch-dir.sh` resolves (see `rules/tooling.md`).
 - Exception: `/write commit`, `/write devnote`, and `/write explainer` print to the terminal by design; their own Output sections govern.
 - **A written artifact replaces its own summary.** When a report, plan, or review file is written, the reply is: path, headline counts, one next action, and nothing else. Never restate findings the file already contains.

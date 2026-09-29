@@ -8,12 +8,10 @@
 # files are not on scratch-rotate.sh's prune. They accumulate until cleared by
 # hand, which is the point - a plan outlives the 30-day scratch window.
 #
-# Creates the directory if missing, for the same reason scratch-dir.sh does:
-# a caller using a bare `>` redirect has no other chance to mkdir first.
-
-set -euo pipefail
-
-# shellcheck source=_lib.sh
-source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh"
-
-kit_dir plans
+# Creates the directory if missing, for the same reason scratch-dir.sh does.
+#
+# Implemented by `kit plans-dir` (go/internal/project).
+dir=${BASH_SOURCE[0]%/*}
+[[ $dir == "${BASH_SOURCE[0]}" ]] && dir=.
+# shellcheck source=kit
+source "$dir/kit" plans-dir "$@"

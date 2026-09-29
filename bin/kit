@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Runs the prebuilt kit binary for this OS and CPU (bin/kit-<os>-<arch>).
+# Builtins only: every hook call pays for this, and uname or dirname forks
+# cost more than the binary itself. Runs under the stock macOS bash 3.2.
+# Shims source it rather than exec it, saving a second bash startup (~10 ms).
+# Without a binary, a hook fails open (exit 0, as a hook without jq does)
+# and any other command fails with the reason.
+case $OSTYPE in
+darwin*) os=darwin ;;
+linux*) os=linux ;;
+*) os=$OSTYPE ;;
+esac
+case $HOSTTYPE in
+arm64 | aarch64) arch=arm64 ;;
+x86_64 | amd64) arch=amd64 ;;
+*) arch=$HOSTTYPE ;;
+esac
+self=${BASH_SOURCE[0]}
+# A symlink to this file itself (not to its directory) needs its target's dir.
+while [[ -L $self ]]; do
+  link=$(readlink "$self")
+  [[ $link == /* ]] || link=${self%/*}/$link
+  self=$link
+done
+dir=${self%/*}
+[[ $dir == "$self" ]] && dir=.
+bin="$dir/kit-$os-$arch"
+if [[ -x $bin ]]; then
+  exec "$bin" "$@"
+fi
+echo "kit: no binary for $os-$arch at $bin; build it with claude-kit/go/build.sh" >&2
+[[ ${1:-} == hook ]] && exit 0
+exit 127

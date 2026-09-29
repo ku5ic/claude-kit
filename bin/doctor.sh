@@ -10,15 +10,15 @@
 #      guard-bash.sh reads the same list for what permissions cannot express
 #      (cat, cp of a key file).
 #   3. Agent-context / inject-context derivation parity: both consumers share
-#      the yq derivation queries via bin/_lib.sh instead of holding private
-#      copies.
+#      the skill derivation in go/internal/stackctx instead of holding
+#      private copies.
 #   4. Skill and agent frontmatter lint: every procedure SKILL.md and
 #      agents/*.md has a valid model field, no dated model pin, a matching
 #      effort field, and no pin that just restates the session default in
 #      settings.json.
 #   5. Skill map validation: skill_file_map and skill_triggers reference only
 #      skills that exist, and every stack/extra skill has a trigger entry.
-#   6. Skills-log field parity: log-skills.sh and skills-report.sh reference
+#   6. Skills-log field parity: the Go log-skills hook and skills-report.sh reference
 #      the same skills.jsonl field names, so a rename in the emitter cannot
 #      silently break the report.
 #   7. Audit-verify field parity: audit/references/verify.md's per-finding parser
@@ -40,6 +40,9 @@
 #       .mcp.json, which `claude mcp list` never shows. The tool segment is
 #       not validated at all; the CLI exposes no way to enumerate a server's
 #       tools.
+#   11. Plugin hooks.json parity: hooks/hooks.json matches settings.json.
+#   12. kit.yml schema: kit.yml and the overlay hold only keys the Go
+#       loader knows (`kit config --check`).
 #
 # Adding a credential pattern: add it to kit.yml's sensitive_paths AND to
 # settings.json's deny array.
@@ -52,9 +55,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 SOURCE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # Dotfiles layout: personal settings, CLAUDE.md, and rules live beside the kit.
 PERSONAL_ROOT="$(cd "$SOURCE_ROOT/../claude" && pwd)"
-# shellcheck source=_lib.sh
-source "$SCRIPT_DIR/_lib.sh"
-TARGET_ROOT="$KIT_HOME"
+# Claude Code's config dir, relocatable with CLAUDE_CONFIG_DIR.
+TARGET_ROOT="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
 ENTRIES=(settings.json CLAUDE.md hooks skills agents rules bin kit.yml claude-kit.local.yml)
 
@@ -69,9 +71,19 @@ exit_code=0
 
 # Every check below needs these; without them, stop here instead of reporting
 # a pile of downstream failures.
+# doctor's own checks read JSON and YAML; the kit itself needs neither.
 echo "== prerequisites =="
-if ! check_prereqs; then
-  echo "missing        $KIT_PREREQ_MISSING"
+missing=()
+if ((BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 4))); then
+  missing+=("bash 4.4+ (found ${BASH_VERSION}; brew install bash, and put it first on PATH)")
+fi
+command -v jq >/dev/null 2>&1 || missing+=("jq (brew install jq)")
+yq --version 2>/dev/null | grep -q mikefarah || missing+=("mikefarah yq (brew install yq)")
+if ((${#missing[@]})); then
+  (
+    IFS=';'
+    echo "missing        ${missing[*]//;/; }"
+  )
   exit 1
 fi
 echo "ok             bash 4.4+, jq, and mikefarah yq present"
@@ -139,50 +151,40 @@ fi
 echo
 echo "== agent-context / inject-context derivation parity =="
 
-AGENT_CONTEXT="$SOURCE_ROOT/bin/agent-context.sh"
-INJECT_CONTEXT="$SOURCE_ROOT/hooks/inject-context.sh"
+# Both consumers live in one Go file and must derive skills through
+# go/internal/stackctx, never read the kit.yml fields themselves.
+CONTEXT_GO="$SOURCE_ROOT/go/internal/hooks/context.go"
 derivation_failed=0
 
-if [[ ! -f "$AGENT_CONTEXT" ]]; then
-  echo "missing        $AGENT_CONTEXT"
+if [[ ! -f "$CONTEXT_GO" ]]; then
+  echo "missing        $CONTEXT_GO"
   derivation_failed=1
-elif ! grep -qF '_lib.sh' "$AGENT_CONTEXT"; then
-  echo "no-source      agent-context.sh does not source bin/_lib.sh"
-  derivation_failed=1
-fi
-
-if [[ ! -f "$INJECT_CONTEXT" ]]; then
-  echo "missing        $INJECT_CONTEXT"
-  derivation_failed=1
-elif ! grep -qF '_lib.sh' "$INJECT_CONTEXT"; then
-  echo "no-source      inject-context.sh does not source bin/_lib.sh"
-  derivation_failed=1
-fi
-
-# Neither consumer may hold a private copy of the shared yq derivation
-# queries; those must live only in bin/_lib.sh (global_skills_list,
-# stacks_signals_from_cache, suggested_skills_from_signals).
-# These are literal grep -qF patterns: the \$ is escaped so the string holds
-# the verbatim ${stack}/${sig} text to search for, not a value to expand.
-private_copy_patterns=(
-  ".global_skills"
-  ".stacks.\${stack}.extras"
-  ".stacks.\${sig}.skills"
-)
-for pat in "${private_copy_patterns[@]}"; do
-  for f in "$AGENT_CONTEXT" "$INJECT_CONTEXT"; do
-    [[ -f "$f" ]] || continue
-    if grep -qF "$pat" "$f"; then
-      echo "private-copy   $f queries '$pat' directly instead of using bin/_lib.sh"
+else
+  for fn in InjectContext AgentContext; do
+    grep -q "^func ${fn}(" "$CONTEXT_GO" || {
+      echo "missing        $fn in context.go"
+      derivation_failed=1
+    }
+  done
+  # Each consumer calls the shared derivation once.
+  for call in 'stackctx.Required(' 'stackctx.Suggested(' 'stackctx.Signals('; do
+    if (($(grep -cF "$call" "$CONTEXT_GO") < 2)); then
+      echo "not-shared     $call is not used by both InjectContext and AgentContext"
       derivation_failed=1
     fi
   done
-done
+  for field in 'cfg.GlobalSkills' 'cfg.Stacks' 'cfg.SkillTriggers'; do
+    if grep -qF "$field" "$CONTEXT_GO"; then
+      echo "private-copy   context.go reads $field directly instead of using stackctx"
+      derivation_failed=1
+    fi
+  done
+fi
 
 if ((derivation_failed)); then
   exit_code=1
 else
-  echo "ok             agent-context.sh and inject-context.sh share derivation via bin/_lib.sh"
+  echo "ok             agent-context and inject-context share derivation via go/internal/stackctx"
 fi
 
 echo
@@ -374,14 +376,15 @@ fi
 echo
 echo "== skills-log field parity =="
 
-LOG_SKILLS="$SOURCE_ROOT/hooks/log-skills.sh"
-LIB="$SOURCE_ROOT/bin/_lib.sh"
-SKILLS_REPORT="$SOURCE_ROOT/bin/skills-report.sh"
+# The emitter is Go: hook.Log writes ts/event/session_id for every row, and
+# the log-skills hook passes the rest.
+LOG_SKILLS="$SOURCE_ROOT/go/internal/hooks/misc.go"
+LIB="$SOURCE_ROOT/go/internal/hook/hook.go"
+SKILLS_REPORT="$SOURCE_ROOT/go/internal/report/skills.go"
 field_parity_failed=0
 
 # Field subset of skills.jsonl that skills-report.sh consumes for
-# classification. bin/_lib.sh's log_event emits ts/event/session_id for
-# every row; log-skills.sh passes the rest. Not the full emitted set --
+# classification. Not the full emitted set --
 # hook/cwd are emitted but never read by the report, so a rename there
 # carries no drift risk worth checking.
 # skills-report.sh must reference each field below verbatim in its jq
@@ -396,11 +399,11 @@ skills_log_fields=(
 # this check even after the real field reference was renamed away.
 for field in "${skills_log_fields[@]}"; do
   if ! cat "$LIB" "$LOG_SKILLS" 2>/dev/null | grep -qE "\\b${field}\\b"; then
-    echo "missing-field  neither _lib.sh's log_event nor log-skills.sh emits '$field' -- update the canonical list"
+    echo "missing-field  neither hook.Log nor the log-skills hook emits '$field' -- update the canonical list"
     field_parity_failed=1
   fi
   if [[ -f "$SKILLS_REPORT" ]] && ! grep -qE "\\b${field}\\b" "$SKILLS_REPORT"; then
-    echo "missing-field  skills-report.sh: '$field'"
+    echo "missing-field  the skills-report reader: '$field'"
     field_parity_failed=1
   fi
 done
@@ -596,6 +599,20 @@ if [[ "$expected_hooks" == "$(jq -S . "$HOOKS_JSON")" ]]; then
   echo "ok             hooks/hooks.json matches settings.json hooks"
 else
   echo "drift          hooks/hooks.json differs from settings.json hooks; regenerate it"
+  exit_code=1
+fi
+
+echo
+echo "== kit.yml schema =="
+
+# The bash loader drops a key it doesn't know; the Go loader decodes
+# strictly, so a misspelled key in kit.yml or the overlay shows up here.
+if schema_warnings="$("$SCRIPT_DIR/kit" config --check 2>&1)"; then
+  echo "ok             kit.yml and the overlay hold only known keys"
+elif [[ "$schema_warnings" == *"no binary for"* ]]; then
+  echo "skip           no kit binary for this platform (claude-kit/go/build.sh)"
+else
+  printf 'invalid        %s\n' "${schema_warnings//kit: warning: /}"
   exit_code=1
 fi
 

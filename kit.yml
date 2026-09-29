@@ -1,12 +1,10 @@
 # kit.yml
 #
-# Single source of truth for stack detection. Consumed by:
-#   bin/_lib.sh          -> STACK_SENTINELS_FULL, STACK_SENTINELS_PROJECT_ROOT
-#   bin/detect-stack.sh  -> stack names, sentinels, extras detection
-#   hooks/inject-context.sh -> required skills (from global_skills) + suggested skills (via detect-stack.sh cache)
-#
-# Replaces: bin/_lib.sh hand-written arrays, detect-stack.sh declare -A blocks,
-#           per-stack *_extras() functions, skill-map.conf
+# Single source of truth for the kit's data: stacks, guards, checks,
+# formatters, and tools. Read by the kit binary (go/internal/config), which
+# decodes it strictly: `bin/kit config --check` reports an unknown key.
+# The overlay at ~/.claude/claude-kit.local.yml merges over it (maps merge,
+# lists append); `bin/kit config` prints the result.
 #
 # ADDING A NEW STACK
 # ------------------
@@ -45,7 +43,7 @@
 # SENTINEL FIELDS
 # ---------------
 # name: <filename>    the sentinel file, looked for in every subproject
-#                     (kit_subprojects in bin/_lib.sh)
+#                     (`bin/kit subprojects`)
 # anchor: true        include in the fast ancestor walk (project-root.sh)
 #                     keep this list minimal; every entry slows the walk
 
@@ -148,9 +146,8 @@ skill_triggers:
   bash-patterns: "before writing or modifying shell scripts"
 
 # Ordered lockfile-to-manager table. First match wins.
-# Consumed through the cached arrays in bin/_lib.sh: resolve_package_manager,
-# and hooks/guard-bash.sh's PM mismatch guard, which only compares managers
-# sharing an ecosystem.
+# Read by package-manager resolution and guard-bash's PM mismatch guard,
+# which only compares managers sharing an ecosystem.
 package_managers:
   - lockfile: bun.lockb
     manager: bun
@@ -183,8 +180,7 @@ package_managers:
     # tool-generated and guard-edit.sh blocks direct edits to it.
     hand_edited: true
 
-# Guard lists, read through the cached arrays in bin/_lib.sh. An overlay can
-# append to any of them.
+# Guard lists. An overlay can append to any of them.
 
 # Lockfiles guard-edit.sh blocks on top of the package_managers ones.
 extra_lockfiles: [Gemfile.lock, Cargo.lock, composer.lock, pdm.lock]
@@ -229,8 +225,8 @@ log_max_lines: 10000
 # the overlay: a disabled rule is still logged, as "disabled".
 disabled_rules: []
 
-# Task runners and where their task names live. Consumed through the cached
-# arrays in bin/_lib.sh (kit_tasks); nothing here reaches eval.
+# Task runners and where their task names live (`bin/kit tasks`); nothing
+# here reaches eval.
 #   manifests: file names checked in order; the first that exists is read
 #   extractor: one of json_keys, json_array, toml_keys, toml_array,
 #              yaml_array, make_targets, just_recipes, regex_lines
@@ -315,7 +311,8 @@ subproject_max_depth: 4
 #                    config it finds is inside the project root
 # Exactly one candidate formats the file; none, or two (a Biome/Prettier
 # migration mid-way), leaves it alone. {bin} is the nearest
-# node_modules/.bin, .venv/bin, or venv/bin copy inside the project, else
+# node_modules/.bin, .venv/bin, or venv/bin copy inside the project, then its
+# package manager's environment (poetry, pipenv, Yarn PnP, bundler), else
 # PATH; never npx, pnpm dlx, or uv run, which can install packages.
 # disabled_formatters in the overlay turns an entry off by name.
 formatters:
@@ -362,6 +359,39 @@ formatters:
     cmd: "{bin} -w {file}"
 
 disabled_formatters: []
+
+# The Stop hook runs file-scoped checks on only the files the turn edited.
+# The built-in ones (eslint, biome, stylelint, vitest, jest, ruff, mypy,
+# pyright, golangci-lint, go vet, rubocop, markdownlint, yamllint, tofu fmt,
+# shellcheck) live in go/internal/tools: each claims a file by its config
+# file, a pyproject table, or the tool declared as a dependency, runs from
+# that directory, and never writes. Linters block only on findings on lines
+# the working tree changed against HEAD; type checkers, test runners, and
+# your own file_checks block on any failure. `bin/kit explain stop <file>...`
+# shows what claims a file, the exact command, and what blocks.
+#
+# file_checks adds your own; an entry named like a built-in replaces it.
+#   name, ext, bin, cmd   cmd: {bin} (a whole word) is the resolved binary, a
+#                         word holding {files} repeats once per edited file,
+#                         {dirs} once per their directories as ./<relative>
+#   signal_files          a config file by name, walking up to the root
+#   signal_toml           "<file> <dotted path>": a table in a TOML file
+#   exclude_toml          "<file> <dotted path>" to a regex or regex list;
+#                         matching files (relative to the run dir) are dropped
+#   local_only            don't fall back to a PATH copy
+# {bin} resolves from the project (node_modules/.bin, .venv/bin, venv/bin),
+# then its package manager's environment (poetry, pipenv, Yarn PnP,
+# bundler), then PATH. disabled_file_checks turns any check off by name.
+# Whole-project checks (typecheck, the full test suite) are run-checks.sh's
+# job, run with /code-review.
+
+file_checks: []
+
+disabled_file_checks: []
+
+# The checks run in parallel, each killed after this many seconds and
+# reported as a SKIP, never a block. The Stop hook itself allows 300.
+check_timeout: 90
 
 # The CLIs rules/tooling.md steers toward. <tooling> reports which of them
 # are on PATH as available: and missing: lines, so a rule never sends Claude

@@ -2,17 +2,9 @@
 # UserPromptSubmit hook: in plan mode, points Claude at investigate so the
 # read-only investigation procedure feeds the plan. Plain stdout on this event
 # becomes context. Must stay fast: a timed-out hook's context is discarded.
-
-HOOK_NAME="plan-mode-context.sh"
-# shellcheck source=../bin/_lib.sh
-source "$(dirname "$0")/../bin/_lib.sh"
-kit_hook_init
-
-read_payload
-require_jq
-
-mode="$(printf '%s' "$payload" | jq -r '.permission_mode // empty' 2>/dev/null || true)"
-if [[ "$mode" == "plan" ]]; then
-  echo "Plan mode: load the investigate skill and follow it; its findings feed the plan."
-fi
-exit 0
+#
+# Implemented by `kit hook plan-mode-context` (go/internal/hooks).
+dir=${BASH_SOURCE[0]%/*}
+[[ $dir == "${BASH_SOURCE[0]}" ]] && dir=.
+# shellcheck source=../bin/kit
+source "$dir/../bin/kit" hook plan-mode-context "$@"

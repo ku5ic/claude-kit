@@ -44,7 +44,8 @@ setup() {
 == CLAUDE.md rules pointer parity ==
 == settings.json machine-local leak ==
 == mcp allow-list server parity ==
-== plugin hooks.json parity ==" ]
+== plugin hooks.json parity ==
+== kit.yml schema ==" ]
 }
 
 @test "missing jq is reported by the prerequisite check, and nothing else runs" {

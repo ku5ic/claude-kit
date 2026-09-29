@@ -12,7 +12,7 @@ setup() {
   DOT="$BATS_TEST_TMPDIR/dotfiles"
   mkdir -p "$DOT/claude-kit/bin" "$DOT/claude-kit/hooks" "$DOT/claude-kit/skills" "$DOT/claude-kit/agents" "$DOT/claude/rules"
   touch "$DOT/claude-kit/kit.yml" "$DOT/claude/settings.json" "$DOT/claude/CLAUDE.md" "$DOT/claude/claude-kit.local.yml"
-  cp "$BATS_TEST_DIRNAME/../bin/bootstrap.sh" "$BATS_TEST_DIRNAME/../bin/_lib.sh" "$DOT/claude-kit/bin/"
+  cp "$BATS_TEST_DIRNAME/../bin/bootstrap.sh" "$DOT/claude-kit/bin/"
   DOT="$(cd -P "$DOT" && pwd)"
   SCRIPT="$DOT/claude-kit/bin/bootstrap.sh"
 
