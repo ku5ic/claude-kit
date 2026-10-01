@@ -1,8 +1,8 @@
 name: release
 
 # Every push to main whose .claude-plugin/plugin.json version has no tag yet
-# publishes v<version> with the four binaries. main only moves by merging a
-# PR from dev, so a release is: bump the version on dev, merge the PR.
+# publishes v<version> with the four binaries, so a release is a PR that
+# bumps the version, squash-merged into main.
 # Installs track main, so for the minute this runs a freshly updated client
 # finds no binary; bin/kit fails open and retries on the next call.
 on:
