@@ -83,6 +83,7 @@ Side trips when you need them:
 
 - **Session start:** stack, package manager, the check commands to use, the CLI tools on PATH, and which pattern skills to load.
 - **Subagents:** every subagent gets the same repo context and its scratch path.
+- **Plans:** in plan mode, Claude is pointed at `investigate`. Once a plan is approved, each prompt holds Claude to the next unchecked step until every step is ticked.
 
 ### Commands
 
@@ -92,7 +93,7 @@ Side trips when you need them:
 | `/audit <kind>` | `a11y`, `debt`, `doc-drift`, `perf`, or `verify`. Writes a report to scratch |
 | `/write <kind>` | `commit`, `pr`, `release-notes`, `devnote`, `explainer`, `review-comment`, `review-reply`, `stakeholder` |
 | `/deps` | Dependabot PRs and security alerts |
-| `/meta <kind>` | Sharpen a prompt, refresh the pattern skills, draft a new skill, write a repo's conventions |
+| `/meta <kind>` | Sharpen a prompt, refresh the pattern skills, draft a new skill, write a repo's conventions, run a retrospective |
 
 ### Agents
 
@@ -142,7 +143,7 @@ Defaults live in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml
 | `disabled_file_checks`, `disabled_formatters` | Turn a built-in check or formatter off |
 | `check_timeout` | Seconds before a Stop check is killed and skipped (default 90) |
 
-`kit config` prints the merged result, and `kit config --check` flags unknown keys and wrong types. `bin_lookups`, `test_script`, and `needs_files` are gone: package-manager environments (poetry, pipenv, Yarn PnP, bundler) are built in.
+`kit config` prints the merged result, and `kit config --check` flags unknown keys and wrong types. Package-manager environments (poetry, pipenv, Yarn PnP, bundler) are built in.
 
 Two opt-in switches go in your settings `env`:
 

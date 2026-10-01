@@ -14,12 +14,12 @@ import (
 func TestLauncher(t *testing.T) {
 	k := New(t)
 	shim := func(name string) string { return filepath.Join(kitRoot, name) }
-	t.Run("a hook shim blocks through the committed binary", func(t *testing.T) {
+	t.Run("a hook shim blocks through the built binary", func(t *testing.T) {
 		r := k.exec(shim("hooks/guard-bash.sh"), `{"tool_name":"Bash","tool_input":{"command":"git push --force origin main"}}`)
 		r.Want(t, 2)
 		r.Has(t, "Blocked by guard-bash.sh")
 	})
-	t.Run("a bin shim prints through the committed binary", func(t *testing.T) {
+	t.Run("a bin shim prints through the built binary", func(t *testing.T) {
 		r := k.exec(shim("bin/plans-dir.sh"), "")
 		r.Want(t, 0)
 		if r.Stdout == "" {

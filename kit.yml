@@ -123,8 +123,7 @@ skill_file_map:
 # Consumed by hooks/inject-context.sh to build the <suggested-skills> block.
 # Phrases name a concrete action, not a topic, so the reader knows when to load.
 # global_skills entries, if any, are excluded; they are required, not
-# suggested. fix-sizing, root-cause-diagnosis, and
-# context-gathering moved to rules/*.md - unconditional, no invocation step.
+# suggested.
 skill_triggers:
   javascript-patterns: "before writing or restructuring JavaScript modules, functions, or async flow"
   typescript-patterns: "before adding or changing types, generics, or type-level APIs"
