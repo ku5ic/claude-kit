@@ -75,7 +75,7 @@ func StopChecks(h *hook.Hook) error {
 	enc := json.NewEncoder(&buf)
 	enc.SetEscapeHTML(false)
 	enc.SetIndent("", "  ")
-	enc.Encode(map[string]string{"systemMessage": h.Name + ": " + report + summary})
+	enc.Encode(map[string]string{"systemMessage": h.Name + ":\n" + report + summary})
 	h.Stdout.Write(buf.Bytes())
 	return nil
 }

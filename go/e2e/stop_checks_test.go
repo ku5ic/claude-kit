@@ -180,6 +180,8 @@ func TestStopChecks(t *testing.T) {
 		r := e.stop(false)
 		r.Want(t, 0)
 		r.Has(t, "PASS fakelint (1 file)")
+		// The hook name gets its own line, so every check starts one.
+		r.Has(t, `stop-checks.sh:\nPASS fakelint`)
 		e.callsIs(e.repo + "|--check " + e.path("a.ts"))
 	})
 
