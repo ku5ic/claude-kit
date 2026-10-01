@@ -11,7 +11,8 @@ Surface technical debt and architectural risks with severity and remediation pat
    2. Read the 5 files with the highest code-line counts (excluding tests, generated files, and lockfiles).
    3. Read any `index.ts`, `main.py`, `urls.py`, `routes.ts` equivalents.
 4. Run `git log --oneline -20` on the target to see recent churn. High-churn files are candidates for higher-priority debt.
-5. Evaluate across these categories. Skip categories with no findings. Do not pad.
+5. Collect deliberate shortcuts: `rg -n 'shortcut:' <target>`. Each is a finding in its own right: its stated ceiling is the problem and its upgrade path is the remediation. A shortcut in a high-churn file, or one whose ceiling the code already exceeds, ranks higher.
+6. Evaluate across these categories. Skip categories with no findings. Do not pad.
 
 ### Categories
 

@@ -57,7 +57,7 @@ For anything bigger than a one-line fix:
 
 Side trips when you need them:
 
-- `/audit a11y|debt|doc-drift|perf` for a read-only audit report, and `/audit verify` to re-check one.
+- `/audit a11y|debt|doc-drift|perf|simplify` for a read-only audit report, and `/audit verify` to re-check one.
 - `/deps` to merge Dependabot PRs and reconcile security alerts.
 
 ## Features
@@ -90,7 +90,7 @@ Side trips when you need them:
 | Command | What it does |
 | --- | --- |
 | `investigate` | Read-only answer to "how", "why", or "where". Loads on its own; never edits |
-| `/audit <kind>` | `a11y`, `debt`, `doc-drift`, `perf`, or `verify`. Writes a report to scratch |
+| `/audit <kind>` | `a11y`, `debt`, `doc-drift`, `perf`, `simplify` (what to delete or replace with stdlib), or `verify`. Writes a report to scratch |
 | `/write <kind>` | `commit`, `pr`, `release-notes`, `devnote`, `explainer`, `review-comment`, `review-reply`, `stakeholder` |
 | `/deps` | Dependabot PRs and security alerts |
 | `/meta <kind>` | Sharpen a prompt, refresh the pattern skills, draft a new skill, write a repo's conventions, run a retrospective |
