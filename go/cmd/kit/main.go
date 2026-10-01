@@ -51,6 +51,7 @@ const usage = `usage: kit <command> [args]
   statusline                 the statusLine rows; payload on stdin
   subagent-statusline        subagentStatusLine JSON lines; payload on stdin
   version                    the plugin version this binary was built for
+  completion bash|zsh        a shell completion script for kit
 `
 
 // version is stamped by go/build.sh from .claude-plugin/plugin.json.
@@ -113,6 +114,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 	case "version":
 		fmt.Fprintln(stdout, version)
 		return 0
+	case "completion":
+		return cmdCompletion(rest, stdout, stderr)
 	case "config":
 		return cmdConfig(e, rest)
 	case "git-base":

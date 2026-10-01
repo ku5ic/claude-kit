@@ -29,6 +29,26 @@ The last line links the always-on rules into `~/.claude/rules/claude-kit` (plugi
 
 Needs `git` and any bash, macOS or Linux. Formatters and linters are used when installed and skipped when not. Claude Code only: claude.ai and Cowork don't install a plugin with a top-level `bin/`.
 
+### Shell completion (optional)
+
+Claude Code puts `kit` on PATH only inside its own sessions. To run it and tab-complete it in your terminal, add the kit's `bin/` to PATH, then load the completion script.
+
+zsh, in `~/.zshrc` after the `compinit` line:
+
+```sh
+export PATH="$HOME/.claude/plugins/marketplaces/ku5ic/bin:$PATH"
+eval "$(kit completion zsh)"
+```
+
+bash, in `~/.bashrc`:
+
+```sh
+export PATH="$HOME/.claude/plugins/marketplaces/ku5ic/bin:$PATH"
+eval "$(kit completion bash)"
+```
+
+Open a new terminal, type `kit ` and press Tab: you get the commands, then hook names after `kit hook`, flags such as `--dry-run` after `kit scratch-rotate`, and file paths after `kit blast-radius`.
+
 ## What changes after you install it
 
 Nothing to learn up front. The hooks work on their own:

@@ -1,0 +1,48 @@
+package e2e
+
+import "testing"
+
+// `kit completion bash|zsh` prints a completion script built from the
+// usage text and the hook table.
+func TestCompletion(t *testing.T) {
+	// complete prints COMPREPLY for the words after `kit`, as readline
+	// would call _kit with the cursor on the last one.
+	const complete = `source <("$KIT" completion bash)
+complete_words() {
+  COMP_WORDS=(kit "$@"); COMP_CWORD=$#; COMPREPLY=(); _kit
+  echo "${COMPREPLY[*]}"
+}
+`
+
+	t.Run("bash: completes commands, hook names, and per-command flags", func(t *testing.T) {
+		k := New(t)
+		r := k.Shell("", complete+`
+complete_words sc
+complete_words hook guard-
+complete_words scratch-rotate --
+complete_words hook guard-bash x`)
+		r.Want(t, 0)
+		if want := "scratch-dir scratch-rotate\nguard-bash guard-commit guard-dispatch guard-edit guard-skills\n--dry-run\n\n"; r.Stdout != want {
+			t.Errorf("stdout %q, want %q", r.Stdout, want)
+		}
+	})
+
+	t.Run("zsh: describes every command, wrapped descriptions joined", func(t *testing.T) {
+		k := New(t)
+		r := k.Run("", "completion", "zsh")
+		r.Want(t, 0)
+		r.Has(t, "#compdef kit", "compdef _kit kit",
+			"'explain:why a guard or the Stop hook decides what it does; logs, blocks, and runs nothing'",
+			"'agent-context:a subagent'\\''s startup context'",
+			"'git-base'\n",
+			"blast-radius) _files ;;")
+	})
+
+	t.Run("a missing or unknown shell is a usage error", func(t *testing.T) {
+		k := New(t)
+		k.Run("", "completion").Want(t, 2)
+		r := k.Run("", "completion", "fish")
+		r.Want(t, 2)
+		r.Has(t, "usage: kit completion bash|zsh")
+	})
+}
