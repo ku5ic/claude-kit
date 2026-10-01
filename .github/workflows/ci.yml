@@ -2,7 +2,7 @@ name: ci
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main]
   pull_request:
 
 jobs:
@@ -42,6 +42,11 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y shellcheck bats
+
+      # The release workflow rejects a non-semver version after merge, when
+      # installs already see it; catch it on the PR instead.
+      - name: plugin version is semver
+        run: jq -re .version .claude-plugin/plugin.json | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'
 
       - name: shellcheck
         run: shellcheck -x -P SCRIPTDIR bin/*.sh bin/kit hooks/*.sh install-rules.sh go/build.sh

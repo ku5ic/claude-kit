@@ -37,15 +37,24 @@ const usage = `usage: kit <command> [args]
   plans-dir                  plans directory
   detect-stack               compact stack report
   agent-context              a subagent's startup context
-  run-checks [--only sub...] every declared check, in every subproject;
+  run-checks [--only sub...]
+                             every declared check, in every subproject;
                              exits with the failure count
   git-base [--diff|--log] [base] [flags] [-- paths]
-  explain bash|edit|stop ... why a guard or the Stop hook decides what it
+  explain bash|edit|stop ...
+                             why a guard or the Stop hook decides what it
                              does; logs, blocks, and runs nothing
+  blast-radius <file> [symbol]
+                             the files that import <file>
+  a11y-check <url>           digest of axe violations on a running page
+  skills-report [days]       skill activation telemetry from skills.jsonl
+  scratch-rotate [days] [--dry-run]
+                             prune old scratch artifacts, trim the logs
   hook <name>                run a Claude Code hook; payload on stdin
   statusline                 the statusLine rows; payload on stdin
   subagent-statusline        subagentStatusLine JSON lines; payload on stdin
   version                    the plugin version this binary was built for
+  completion bash|zsh        a shell completion script for kit
 `
 
 // version is stamped by go/build.sh from .claude-plugin/plugin.json.
@@ -108,6 +117,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 	case "version":
 		fmt.Fprintln(stdout, version)
 		return 0
+	case "completion":
+		return cmdCompletion(rest, stdout, stderr)
 	case "config":
 		return cmdConfig(e, rest)
 	case "git-base":

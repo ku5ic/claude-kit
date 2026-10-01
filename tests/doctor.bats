@@ -3,28 +3,24 @@
 # its exit code and section headers.
 #
 # It runs on a copy of the files git sees (tracked plus untracked, minus
-# ignored) from claude-kit/ and claude/, like a CI checkout would. The live
-# tree can hold ignored machine-local content, such as the desktop app's
-# skills/synced/, that doctor would flag.
+# ignored) from the kit and from CLAUDE_KIT_PERSONAL when set, like a CI
+# checkout would. The live tree can hold ignored machine-local content, such
+# as the desktop app's skills/synced/, that doctor would flag.
 #
 # A stub `claude` on PATH lists no MCP servers, so the advisory MCP section
 # skips instead of reading the machine's real connector set.
 
 setup() {
-  local kit dir tree="$BATS_TEST_TMPDIR/tree"
+  local kit tree="$BATS_TEST_TMPDIR/tree"
   kit="$(cd -P "$BATS_TEST_DIRNAME/.." && pwd)"
-  # The personal claude/ sits beside the kit only in the dotfiles layout.
-  for dir in "$kit" "$kit/../claude"; do
-    [[ -d "$dir" ]] || continue
-    mkdir -p "$tree/${dir##*/}"
-    git -C "$dir" ls-files -z -co --exclude-standard -- . |
-      tar -C "$dir" --null -T - -cf - | tar -C "$tree/${dir##*/}" -xf -
-  done
-  mv "$tree/${kit##*/}" "$tree/claude-kit" 2>/dev/null || true
+  copy_tree "$kit" "$tree/claude-kit"
+  if [[ -d "${CLAUDE_KIT_PERSONAL:-}" ]]; then
+    copy_tree "$CLAUDE_KIT_PERSONAL" "$tree/claude"
+  fi
   SCRIPT="$tree/claude-kit/bin/doctor.sh"
   export HOME="$BATS_TEST_TMPDIR/home"
   mkdir -p "$HOME"
-  unset CLAUDE_PLUGIN_ROOT CLAUDE_CONFIG_DIR
+  unset CLAUDE_PLUGIN_ROOT CLAUDE_CONFIG_DIR CLAUDE_KIT_PERSONAL
   local stubs="$BATS_TEST_TMPDIR/stubs"
   mkdir -p "$stubs"
   printf '#!/bin/sh\nexit 0\n' >"$stubs/claude"
@@ -32,9 +28,15 @@ setup() {
   export PATH="$stubs:$PATH"
 }
 
+copy_tree() {
+  mkdir -p "$2"
+  git -C "$1" ls-files -z -co --exclude-standard -- . |
+    tar -C "$1" --null -T - -cf - | tar -C "$2" -xf -
+}
+
 @test "CI run passes and prints every section header in order" {
-  [[ -d "$BATS_TEST_TMPDIR/tree/claude" ]] || skip "no personal claude/ beside the kit"
-  CI=true run "$SCRIPT"
+  [[ -d "$BATS_TEST_TMPDIR/tree/claude" ]] || skip "CLAUDE_KIT_PERSONAL not set"
+  CI=true CLAUDE_KIT_PERSONAL="$BATS_TEST_TMPDIR/tree/claude" run "$SCRIPT"
   [ "$status" -eq 0 ]
   local headers
   headers="$(printf '%s\n' "$output" | grep '^== ')"
@@ -46,6 +48,7 @@ setup() {
 == skills-log field parity ==
 == audit-verify field parity ==
 == kit.yml schema ==
+== personal config ==
 == credential pattern parity ==
 == skill directory / allow-list parity ==
 == CLAUDE.md rules pointer parity ==
@@ -55,11 +58,37 @@ setup() {
 }
 
 @test "a standalone kit checkout skips the personal-config sections and passes" {
-  rm -rf "$BATS_TEST_TMPDIR/tree/claude"
   CI=true run "$SCRIPT"
   [ "$status" -eq 0 ]
   [[ "$output" == *"== credential pattern parity == (skipped: no personal config"* ]]
   [[ "$output" == *"== plugin hooks.json parity == (skipped: no personal config"* ]]
+}
+
+@test "a personal dir without settings.json or CLAUDE.md fails and skips the personal sections" {
+  mkdir -p "$BATS_TEST_TMPDIR/bare"
+  CI=true CLAUDE_KIT_PERSONAL="$BATS_TEST_TMPDIR/bare" run "$SCRIPT"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"== personal config ==
+missing        $BATS_TEST_TMPDIR/bare/settings.json"* ]]
+  [[ "$output" == *"missing        $BATS_TEST_TMPDIR/bare/CLAUDE.md"* ]]
+  [[ "$output" == *"== plugin hooks.json parity == (skipped: incomplete personal config)"* ]]
+  [[ "$output" != *"No such file"* ]]
+}
+
+@test "a personal dir that doesn't exist fails and skips the personal sections" {
+  CI=true CLAUDE_KIT_PERSONAL="$BATS_TEST_TMPDIR/absent" run "$SCRIPT"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"== prerequisites =="* ]]
+  [[ "$output" == *"missing        $BATS_TEST_TMPDIR/absent/settings.json"* ]]
+  [[ "$output" == *"== plugin hooks.json parity == (skipped: incomplete personal config)"* ]]
+  [[ "$output" != *"No such file"* ]]
+}
+
+@test "a personal dir that doesn't exist skips the symlinks section instead of reporting wrong targets" {
+  mkdir -p "$BATS_TEST_TMPDIR/claude"
+  CI=false CLAUDE_CONFIG_DIR="$BATS_TEST_TMPDIR/claude" CLAUDE_KIT_PERSONAL="$BATS_TEST_TMPDIR/absent" run "$SCRIPT"
+  [[ "$output" == *"== symlinks == (skipped: $BATS_TEST_TMPDIR/absent does not exist)"* ]]
+  [[ "$output" != *"wrong-target"* ]]
 }
 
 @test "missing jq is reported by the prerequisite check, and nothing else runs" {

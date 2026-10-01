@@ -50,7 +50,7 @@ func answers(url string) bool {
 //	<rule id>  <impact>  <wcag tags>  nodes=<n>  <first selector>
 func Run(cfg *config.Config, paths config.Paths, cwd string, args []string, stdout, stderr io.Writer) int {
 	if len(args) != 1 {
-		fmt.Fprintln(stderr, "usage: a11y-check.sh <url>")
+		fmt.Fprintln(stderr, "usage: kit a11y-check <url>")
 		return 2
 	}
 	url := args[0]

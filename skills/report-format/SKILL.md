@@ -15,7 +15,7 @@ Consistent format for findings reports: audits, reviews, dependency runs, and an
 
 Generated: <ISO timestamp>
 Scope: <file, component, or module>
-Stack: <line from $HOME/.claude/bin/detect-stack.sh, if applicable>
+Stack: <line from detect-stack.sh, if applicable>
 
 ## Summary
 

@@ -1,16 +1,23 @@
 name: release
 
-# Run on dev after committing the .claude-plugin/plugin.json version bump.
-# Publishes v<version> with the four binaries, then fast-forwards main to
-# that commit. main moving last is what makes the release visible: the
-# marketplace clone tracks main, so no client sees a version before its
-# binaries exist.
+# Every push to main whose .claude-plugin/plugin.json version has no tag yet
+# publishes v<version> with the four binaries, so a release is a PR that
+# bumps the version, squash-merged into main. It waits for ci on the same
+# commit, so a direct push that skips branch protection can't ship red code.
+# Installs track main, so until this finishes a freshly updated client finds
+# no binary; bin/kit fails open and retries on the next call. A failed run
+# leaves that state in place: rerun it, the tag only exists once it publishes.
 on:
-  workflow_dispatch:
+  push:
+    branches: [main]
 
 permissions:
   contents: write
-  actions: read # gh run list, for the CI-passed precondition
+  actions: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   release:
@@ -20,36 +27,44 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Check version
+        id: pre
+        run: |
+          version="$(jq -r .version .claude-plugin/plugin.json)"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "plugin.json version '$version' is not semver"; exit 1; }
+          if git ls-remote --exit-code --tags origin "v$version" >/dev/null; then
+            echo "v$version already released; nothing to do"
+          else
+            echo "version=$version" >>"$GITHUB_OUTPUT"
+          fi
+
+      - name: Wait for CI
+        if: steps.pre.outputs.version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_id=
+          for _ in $(seq 30); do
+            run_id="$(gh run list --commit "$GITHUB_SHA" --workflow ci.yml --event push --json databaseId --jq '.[0].databaseId // empty')"
+            [[ -n "$run_id" ]] && break
+            sleep 10
+          done
+          [[ -n "$run_id" ]] || { echo "no ci run for $GITHUB_SHA after 5 minutes"; exit 1; }
+          gh run watch "$run_id" --exit-status --interval 10 >/dev/null || { echo "ci on $GITHUB_SHA did not succeed"; exit 1; }
+
       - uses: actions/setup-go@v7
+        if: steps.pre.outputs.version
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
 
-      - name: Check preconditions
-        id: pre
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          [[ "$GITHUB_REF_NAME" == dev ]] || { echo "run this on dev, not $GITHUB_REF_NAME"; exit 1; }
-          version="$(jq -r .version .claude-plugin/plugin.json)"
-          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "plugin.json version '$version' is not semver"; exit 1; }
-          if git ls-remote --exit-code --tags origin "v$version" >/dev/null; then
-            echo "v$version already exists; bump plugin.json first"
-            exit 1
-          fi
-          conclusion="$(gh run list --commit "$GITHUB_SHA" --workflow ci.yml --json conclusion --jq '.[0].conclusion')"
-          [[ "$conclusion" == success ]] || { echo "ci on $GITHUB_SHA is '$conclusion', not success"; exit 1; }
-          git merge-base --is-ancestor origin/main "$GITHUB_SHA" || { echo "main is not an ancestor of dev; can't fast-forward"; exit 1; }
-          echo "version=$version" >>"$GITHUB_OUTPUT"
-
       - name: Build
+        if: steps.pre.outputs.version
         run: go/build.sh
 
       - name: Publish release
+        if: steps.pre.outputs.version
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.pre.outputs.version }}
         run: gh release create "v$VERSION" --target "$GITHUB_SHA" --generate-notes bin/kit-"$VERSION"-*
-
-      - name: Fast-forward main
-        run: git push origin "$GITHUB_SHA:refs/heads/main"

@@ -38,7 +38,7 @@ Factual question (how big, what secrets, how fast, what is in this JSON): reach 
 
 ## 2. Call bin scripts by bare name
 
-The kit's `bin/` is on PATH (the plugin's `bin/`, or `~/.claude/bin` in a symlinked install). Call every script there by bare name, never by path.
+The plugin's `bin/` is on PATH. Call every script there by bare name, never by path.
 
 - Correct: `project-name.sh`, `run-checks.sh`, `git-base.sh main`, `scratch-dir.sh`
 - Wrong: `$HOME/.claude/bin/run-checks.sh`, `./bin/run-checks.sh`, `bash run-checks.sh`
@@ -85,7 +85,7 @@ Structured artifacts (reports, reviews, audits) go to the path `scratch-dir.sh <
 
 Test artifacts and POC files need no fixed shape - name them sensibly, but keep them under the resolved directory.
 
-Plans are the exception to the timestamp. `.claude/plans/` is browsed by eye and shares a directory with the harness's own plan-mode files, so a plan is `plan-<task-slug>.md` - no date, slug capped at four words. Its age comes from the file's birth time (`stat -f %B`), which beats a filename date anyway: editing a plan no longer hides how old it is.
+Plans are the exception to the timestamp. `.claude/plans/` is browsed by eye and shares a directory with the harness's own plan-mode files, so a plan is `plan-<task-slug>.md` - no date, slug capped at four words. Its age comes from the file's birth time (`stat -f %B` on macOS, `stat -c %W` on Linux).
 
 Reading the most recent artifact of a kind, always filtered to the resolved directory:
 

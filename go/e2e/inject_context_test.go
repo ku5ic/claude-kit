@@ -234,16 +234,7 @@ stacks:
 		os.Remove(filepath.Join(e.Claude, "rules", "kit"))
 		r := e.run("s1", "")
 		r.Want(t, 0)
-		r.Has(t, "run install-rules.sh")
-	})
-
-	t.Run("prereqs: outside a plugin, unlinked rules name bootstrap.sh", func(t *testing.T) {
-		e := injectContextSetup(t, tree)
-		os.Remove(filepath.Join(e.Claude, "rules", "kit"))
-		e.Setenv("CLAUDE_PLUGIN_ROOT", "")
-		r := e.run("s1", "")
-		r.Want(t, 0)
-		r.Has(t, "run bootstrap.sh")
+		r.Has(t, "run "+filepath.Join(e.Root, "install-rules.sh"))
 	})
 
 	t.Run("prereqs: a missing kit.yml gets a warning naming the plugin fix", func(t *testing.T) {

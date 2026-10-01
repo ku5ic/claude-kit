@@ -93,19 +93,6 @@ func Statusline(stdin io.Reader, stdout io.Writer, home string) {
 	}
 	gitSegment := gitStatus(home, cwd, sessionID)
 
-	modeSegment := ""
-	if data, err := os.ReadFile(filepath.Join(home, ".ponytail-active")); err == nil {
-		mode := strings.Join(strings.Fields(strings.SplitN(string(data), "\n", 2)[0]), "")
-		color := "\033[38;5;108m"
-		if mode == "ultra" {
-			color = "\033[38;5;173m"
-		}
-		if mode == "" {
-			mode = "full"
-		}
-		modeSegment = " " + color + "[PONYTAIL:" + strings.ToUpper(mode) + "]" + reset
-	}
-
 	row1 := modelColor + modelName + reset
 	switch {
 	case declaredShort != "":
@@ -131,7 +118,6 @@ func Statusline(stdin io.Reader, stdout io.Writer, home string) {
 		}
 		row1 += "  " + branchColor + parts[0] + reset + " " + addColor + "+" + parts[1] + reset + " " + delColor + "~" + parts[2] + reset
 	}
-	row1 += modeSegment
 
 	ctx, _ := strconv.Atoi(strings.SplitN(ctxPct, ".", 2)[0])
 	ctx = min(max(ctx, 0), 100)

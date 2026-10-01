@@ -59,6 +59,15 @@ func TestScratchRotate(t *testing.T) {
 		r.Has(t, "pruned 1 artifact(s)")
 		gone(t, filepath.Join(scratch, "old.md"))
 	})
+	t.Run("--dry-run reports what would go and deletes nothing", func(t *testing.T) {
+		k, scratch, _ := setup(t)
+		touch(t, filepath.Join(scratch, "old.md"), 40*day)
+		r := k.Run("", "scratch-rotate", "--dry-run")
+		r.Want(t, 0)
+		r.Has(t, "would prune 1 artifact(s)")
+		r.Lacks(t, "scratch-rotate: pruned")
+		kept(t, filepath.Join(scratch, "old.md"))
+	})
 	t.Run("keeps an .md artifact newer than the retention window", func(t *testing.T) {
 		k, scratch, _ := setup(t)
 		touch(t, filepath.Join(scratch, "fresh.md"), 3600)
@@ -150,6 +159,15 @@ func TestScratchRotate(t *testing.T) {
 		if Read(t, registry) != "" {
 			t.Errorf("registry not emptied: %q", Read(t, registry))
 		}
+	})
+	t.Run("--dry-run keeps a stale registry entry and says it would drop it", func(t *testing.T) {
+		k, _, registry := setup(t)
+		proj := filepath.Join(Physical(t, t.TempDir()), "proj/scratch")
+		Write(t, registry, proj+"\n")
+		r := k.Run("", "scratch-rotate", "--dry-run")
+		r.Want(t, 0)
+		r.Has(t, "would drop stale registry entry "+proj)
+		registryIs(t, registry, proj)
 	})
 	t.Run("prunes multiple registered project dirs and keeps existing entries", func(t *testing.T) {
 		k, _, registry := setup(t)

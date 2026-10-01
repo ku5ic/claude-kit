@@ -7,11 +7,12 @@ Surface technical debt and architectural risks with severity and remediation pat
 1. Stack is in the `<repo-context>` block from the `SubagentStart` hook. Get the scratch directory via `scratch-dir.sh`.
 2. Load the patterns skill for the detected stack (react-patterns, django-patterns, etc.) for the anti-pattern reference.
 3. Read the target.
-   1. If $ARGUMENTS is a directory, run `tokei --sort code <path>` to get accurate line counts per language and per file.
+   1. If $ARGUMENTS is a directory, run `tokei --files --sort code <path>` to get accurate line counts per language and per file.
    2. Read the 5 files with the highest code-line counts (excluding tests, generated files, and lockfiles).
    3. Read any `index.ts`, `main.py`, `urls.py`, `routes.ts` equivalents.
 4. Run `git log --oneline -20` on the target to see recent churn. High-churn files are candidates for higher-priority debt.
-5. Evaluate across these categories. Skip categories with no findings. Do not pad.
+5. Collect deliberate shortcuts: `rg -n 'shortcut:' <target>`. Each is a finding in its own right: its stated ceiling is the problem and its upgrade path is the remediation. A shortcut in a high-churn file, or one whose ceiling the code already exceeds, ranks higher.
+6. Evaluate across these categories. Skip categories with no findings. Do not pad.
 
 ### Categories
 

@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Verifies the Claude config: symlink layout AND cross-file consistency.
-# Used by .github/workflows/lint.yml and runnable locally.
+# Used by .github/workflows/ci.yml (shell job) and runnable locally.
 #
 # Checks:
-#   1. Symlinks: each top-level claude/ entry is symlinked to the dotfiles
-#      source. Verifies link existence and target path.
+#   1. Personal links: settings.json, CLAUDE.md, rules and
+#      claude-kit.local.yml in CLAUDE_KIT_PERSONAL are symlinked into the
+#      Claude config dir.
 #   2. Credential pattern parity: settings.json's deny rules mention every
 #      kit.yml sensitive_paths entry. The deny rules cover Read/Edit;
 #      guard-bash.sh reads the same list for what permissions cannot express
@@ -43,6 +44,10 @@
 #   11. Plugin hooks.json parity: hooks/hooks.json matches settings.json.
 #   12. kit.yml schema: kit.yml and the overlay hold only keys the Go
 #       loader knows (`kit config --check`).
+#   13. Skill allow-list parity: every skills/ directory has a matching
+#       Skill(<name>) allow entry in settings.json.
+#
+# Checks 1, 2, 8-11 and 13 read CLAUDE_KIT_PERSONAL and are skipped without it.
 #
 # Adding a credential pattern: add it to kit.yml's sensitive_paths AND to
 # settings.json's deny array.
@@ -53,12 +58,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 SOURCE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-# Personal settings, CLAUDE.md, and rules: CLAUDE_KIT_PERSONAL, else the
-# dotfiles layout's claude/ beside the kit, else none.
+# Personal settings, CLAUDE.md, and rules: CLAUDE_KIT_PERSONAL, else none.
 if [[ -n "${CLAUDE_KIT_PERSONAL:-}" ]]; then
-  PERSONAL_ROOT="$(cd "$CLAUDE_KIT_PERSONAL" && pwd)"
-elif [[ -d "$SOURCE_ROOT/../claude" ]]; then
-  PERSONAL_ROOT="$(cd "$SOURCE_ROOT/../claude" && pwd)"
+  # A dir that doesn't exist stays as given, so the personal-config check reports it.
+  PERSONAL_ROOT="$(cd "$CLAUDE_KIT_PERSONAL" 2>/dev/null && pwd || printf '%s' "$CLAUDE_KIT_PERSONAL")"
 else
   PERSONAL_ROOT=""
 fi
@@ -66,14 +69,9 @@ SETTINGS="${PERSONAL_ROOT:+$PERSONAL_ROOT/settings.json}"
 # Claude Code's config dir, relocatable with CLAUDE_CONFIG_DIR.
 TARGET_ROOT="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
-ENTRIES=(settings.json CLAUDE.md hooks skills agents rules bin kit.yml claude-kit.local.yml)
-
-root_for() {
-  case "$1" in
-  settings.json | CLAUDE.md | rules | claude-kit.local.yml) echo "$PERSONAL_ROOT" ;;
-  *) echo "$SOURCE_ROOT" ;;
-  esac
-}
+# Personal config linked into the Claude config dir; the kit itself is a
+# plugin and links nothing there but rules/claude-kit (install-rules.sh).
+ENTRIES=(settings.json CLAUDE.md rules claude-kit.local.yml)
 
 exit_code=0
 
@@ -100,11 +98,14 @@ echo
 # CI runners have no ~/.claude install, so symlink targets never resolve correctly.
 if [[ "${CI:-}" == "true" ]]; then
   echo "== symlinks == (skipped: running in CI)"
+elif [[ -z "$PERSONAL_ROOT" ]]; then
+  echo "== symlinks == (skipped: no personal config; set CLAUDE_KIT_PERSONAL)"
+elif [[ ! -d "$PERSONAL_ROOT" ]]; then
+  echo "== symlinks == (skipped: $PERSONAL_ROOT does not exist)"
 elif [[ -d "$TARGET_ROOT" ]]; then
   echo "== symlinks =="
   for entry in "${ENTRIES[@]}"; do
-    [[ -n "$(root_for "$entry")" ]] || continue
-    src="$(root_for "$entry")/$entry"
+    src="$PERSONAL_ROOT/$entry"
     dst="$TARGET_ROOT/$entry"
 
     if [[ ! -L "$dst" ]]; then
@@ -453,10 +454,25 @@ PERSONAL_SECTIONS=(
   "mcp allow-list server parity"
   "plugin hooks.json parity"
 )
+skip_reason=""
 if [[ -z "$PERSONAL_ROOT" ]]; then
+  skip_reason="no personal config; set CLAUDE_KIT_PERSONAL"
+else
+  echo
+  echo "== personal config =="
+  for file in settings.json CLAUDE.md; do
+    if [[ ! -f "$PERSONAL_ROOT/$file" ]]; then
+      echo "missing        $PERSONAL_ROOT/$file (CLAUDE_KIT_PERSONAL)"
+      skip_reason="incomplete personal config"
+      exit_code=1
+    fi
+  done
+  [[ -n "$skip_reason" ]] || echo "ok             settings.json and CLAUDE.md in $PERSONAL_ROOT"
+fi
+if [[ -n "$skip_reason" ]]; then
   for section in "${PERSONAL_SECTIONS[@]}"; do
     echo
-    echo "== $section == (skipped: no personal config; set CLAUDE_KIT_PERSONAL)"
+    echo "== $section == (skipped: $skip_reason)"
   done
   exit "$exit_code"
 fi
@@ -633,6 +649,10 @@ echo "== plugin hooks.json parity =="
 # ${CLAUDE_PLUGIN_ROOT}. Editing one without the other ships adopters a
 # different hook set than the one this machine runs.
 HOOKS_JSON="$SOURCE_ROOT/hooks/hooks.json"
+if [[ "$(jq 'has("hooks")' "$PERSONAL_ROOT/settings.json")" != true ]]; then
+  echo "ok             settings.json has no hooks; the plugin's hooks.json is the only source"
+  exit "$exit_code"
+fi
 expected_hooks="$(jq -S '{hooks: (.hooks | walk(if type=="object" and has("command") then .command |= ("\"${CLAUDE_PLUGIN_ROOT}/hooks/" + sub("^\\$HOME/\\.claude/hooks/"; "") + "\"") else . end))}' "$PERSONAL_ROOT/settings.json")"
 if [[ "$expected_hooks" == "$(jq -S . "$HOOKS_JSON")" ]]; then
   echo "ok             hooks/hooks.json matches settings.json hooks"

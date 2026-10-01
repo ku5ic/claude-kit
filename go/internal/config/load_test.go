@@ -17,8 +17,11 @@ func write(t *testing.T, dir, name, body string) string {
 }
 
 func TestRealKitYMLLoadsCleanly(t *testing.T) {
-	// The personal overlay sits beside the kit only in the dotfiles layout.
-	overlay := "../../../../claude/claude-kit.local.yml"
+	// The personal overlay, when CLAUDE_KIT_PERSONAL points at one.
+	var overlay string
+	if dir := os.Getenv("CLAUDE_KIT_PERSONAL"); dir != "" {
+		overlay = filepath.Join(dir, "claude-kit.local.yml")
+	}
 	_, statErr := os.Stat(overlay)
 	cfg, warnings, err := Load(Paths{Base: "../../../kit.yml", Overlay: overlay})
 	if err != nil {

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# subagentStatusLine command (see claude/settings.json). Claude Code runs this
+# subagentStatusLine command, wired in your own settings.json. Claude Code runs this
 # once per render, not once per row: stdin carries {columns, tasks:[...]} for
 # every task in the agent panel, and stdout is parsed as one JSON object per
 # line, {"id": <task id>, "content": <rendered line>}. Lines that are not JSON

@@ -39,7 +39,7 @@ Procedures are skills under the kit's `skills/<name>/SKILL.md`, invoked as `/<na
 
 | Skill           | Covers                                                               |
 | --------------- | -------------------------------------------------------------------- |
-| `/audit <kind>` | Targeted audits: a11y, debt, doc-drift, perf, verify.                |
+| `/audit <kind>` | Targeted audits: a11y, debt, doc-drift, perf, simplify, verify.      |
 | `/write <kind>` | Outward-facing text: commit, pr, release-notes, devnote, and others. |
 | `/meta <kind>`  | Authoring: prompt, refresh, skill, conventions, retro.               |
 | `/deps`         | Dependabot PRs and security alerts.                                  |

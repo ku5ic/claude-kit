@@ -23,6 +23,7 @@ Add a test when:
 - The change touches business logic, validation, auth, or data transformation
 - A bug is fixed (regression test, written before the fix and seen failing; a test never seen red may not test the bug)
 - A boundary condition exists (null, empty, max, error)
+- The logic branches, loops, or parses and nothing covers it: leave at least the smallest runnable check that fails if it breaks, such as one small test file or an assert-based self-check
 
 Skip a test when:
 

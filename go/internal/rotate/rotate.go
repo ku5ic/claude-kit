@@ -42,9 +42,10 @@ func Run(cfg *config.Config, paths config.Paths, args []string, stdout, stderr i
 	n, _ := strconv.Atoi(days)
 	home := os.Getenv("HOME")
 	r := &rotator{now: time.Now(), dryRun: dryRun, log: filepath.Join(paths.LogDir(), "scratch-rotate.log")}
+	pruned, dropping := "pruned", "dropping"
 	r.verb = "deleted"
 	if dryRun {
-		r.verb = "would-delete"
+		r.verb, pruned, dropping = "would-delete", "would prune", "would drop"
 	}
 	os.MkdirAll(paths.LogDir(), 0o755)
 
@@ -54,13 +55,13 @@ func Run(cfg *config.Config, paths config.Paths, args []string, stdout, stderr i
 		// markers after a day: they only dedupe within a session.
 		removed := r.prune(scratch, n, false, func(name string) bool { return strings.HasSuffix(name, ".md") })
 		markers := r.prune(scratch, 1, true, func(name string) bool { return strings.HasPrefix(name, ".injected-") })
-		fmt.Fprintf(stdout, "scratch-rotate: pruned %d artifact(s) older than %dd from %s\n", removed, n, scratch)
-		fmt.Fprintf(stdout, "scratch-rotate: pruned %d session marker(s) older than 1d from %s\n", markers, scratch)
+		fmt.Fprintf(stdout, "scratch-rotate: %s %d artifact(s) older than %dd from %s\n", pruned, removed, n, scratch)
+		fmt.Fprintf(stdout, "scratch-rotate: %s %d session marker(s) older than 1d from %s\n", pruned, markers, scratch)
 	}
 
 	loaded := filepath.Join(paths.CacheDir(), "skills-loaded")
 	if isDir(loaded) {
-		fmt.Fprintf(stdout, "scratch-rotate: pruned %d skill-loaded marker(s) older than 1d from %s\n", r.prune(loaded, 1, false, nil), loaded)
+		fmt.Fprintf(stdout, "scratch-rotate: %s %d skill-loaded marker(s) older than 1d from %s\n", pruned, r.prune(loaded, 1, false, nil), loaded)
 	}
 
 	registry := filepath.Join(paths.LogDir(), "scratch-registry.txt")
@@ -70,14 +71,14 @@ func Run(cfg *config.Config, paths config.Paths, args []string, stdout, stderr i
 			switch {
 			case dir == "":
 			case !isDir(dir):
-				fmt.Fprintf(stdout, "scratch-rotate: dropping stale registry entry %s (directory no longer exists)\n", dir)
+				fmt.Fprintf(stdout, "scratch-rotate: %s stale registry entry %s (directory no longer exists)\n", dropping, dir)
 			case !validScratchDir(dir, home):
 				fmt.Fprintf(stderr, "scratch-rotate: REFUSING registry entry %s (not a plain scratch/ dir under $HOME)\n", dir)
 				keep = append(keep, dir)
 			default:
 				// Project scratch holds test artifacts and POC files of any
 				// extension, so it prunes by age alone.
-				fmt.Fprintf(stdout, "scratch-rotate: pruned %d artifact(s) older than %dd from %s\n", r.prune(dir, n, false, nil), n, dir)
+				fmt.Fprintf(stdout, "scratch-rotate: %s %d artifact(s) older than %dd from %s\n", pruned, r.prune(dir, n, false, nil), n, dir)
 				keep = append(keep, dir)
 			}
 		}

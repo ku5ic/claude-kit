@@ -1,4 +1,5 @@
 ---
+name: investigate
 description: Read-only investigation. Use when the user asks how, why, or where something works in the code, or reports unexpected behavior without asking for a change. Ends at findings, never edits.
 argument-hint: <a question, a symptom, or a link to an external ticket/doc>
 ---
@@ -23,7 +24,7 @@ Not for a request to change code: that goes to plan mode (`/plan`) or a direct e
 
 ### Symptom
 
-2. Delegate fault localization to the debugger agent (subagent_type: debugger, foreground). It has no MCP tools, so its prompt carries fully resolved text, never a link. It follows:
+2. Delegate fault localization to the debugger agent (subagent_type: claude-kit:debugger, foreground). It has no MCP tools, so its prompt carries fully resolved text, never a link. It follows:
    - Reproduce with the narrowest command; 3 attempts before calling it non-deterministic.
    - `git log -10 --oneline -- <affected paths>`; a commit aligned with onset is the prime suspect.
    - Trace from the entry point to where observed diverges from expected; stop at library boundaries; cap at 10 files.

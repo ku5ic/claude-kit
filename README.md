@@ -29,6 +29,26 @@ The last line links the always-on rules into `~/.claude/rules/claude-kit` (plugi
 
 Needs `git` and any bash, macOS or Linux. Formatters and linters are used when installed and skipped when not. Claude Code only: claude.ai and Cowork don't install a plugin with a top-level `bin/`.
 
+### Shell completion (optional)
+
+Claude Code puts `kit` on PATH only inside its own sessions. To run it and tab-complete it in your terminal, add the kit's `bin/` to PATH, then load the completion script.
+
+zsh, in `~/.zshrc` after the `compinit` line:
+
+```sh
+export PATH="$HOME/.claude/plugins/marketplaces/ku5ic/bin:$PATH"
+eval "$(kit completion zsh)"
+```
+
+bash, in `~/.bashrc`:
+
+```sh
+export PATH="$HOME/.claude/plugins/marketplaces/ku5ic/bin:$PATH"
+eval "$(kit completion bash)"
+```
+
+Open a new terminal, type `kit ` and press Tab: you get the commands, then hook names after `kit hook`, flags such as `--dry-run` after `kit scratch-rotate`, and file paths after `kit blast-radius`.
+
 ## What changes after you install it
 
 Nothing to learn up front. The hooks work on their own:
@@ -57,7 +77,7 @@ For anything bigger than a one-line fix:
 
 Side trips when you need them:
 
-- `/audit a11y|debt|doc-drift|perf` for a read-only audit report, and `/audit verify` to re-check one.
+- `/audit a11y|debt|doc-drift|perf|simplify` for a read-only audit report, and `/audit verify` to re-check one.
 - `/deps` to merge Dependabot PRs and reconcile security alerts.
 
 ## Features
@@ -83,16 +103,17 @@ Side trips when you need them:
 
 - **Session start:** stack, package manager, the check commands to use, the CLI tools on PATH, and which pattern skills to load.
 - **Subagents:** every subagent gets the same repo context and its scratch path.
+- **Plans:** in plan mode, Claude is pointed at `investigate`. Once a plan is approved, each prompt holds Claude to the next unchecked step until every step is ticked.
 
 ### Commands
 
 | Command | What it does |
 | --- | --- |
 | `investigate` | Read-only answer to "how", "why", or "where". Loads on its own; never edits |
-| `/audit <kind>` | `a11y`, `debt`, `doc-drift`, `perf`, or `verify`. Writes a report to scratch |
+| `/audit <kind>` | `a11y`, `debt`, `doc-drift`, `perf`, `simplify` (what to delete or replace with stdlib), or `verify`. Writes a report to scratch |
 | `/write <kind>` | `commit`, `pr`, `release-notes`, `devnote`, `explainer`, `review-comment`, `review-reply`, `stakeholder` |
 | `/deps` | Dependabot PRs and security alerts |
-| `/meta <kind>` | Sharpen a prompt, refresh the pattern skills, draft a new skill, write a repo's conventions |
+| `/meta <kind>` | Sharpen a prompt, refresh the pattern skills, draft a new skill, write a repo's conventions, run a retrospective |
 
 ### Agents
 
@@ -105,7 +126,7 @@ Side trips when you need them:
 | `researcher` | Look up library docs and web pages, keeping network access out of code work |
 | `tester` | Add or update tests for recent work. Never changes the code to make them pass |
 
-In a plugin install, commands and agents are namespaced: `/claude-kit:audit`, `claude-kit:auditor`.
+Commands work bare (`/audit`) or namespaced (`/claude-kit:audit`). Agents take only the namespaced form, `claude-kit:auditor`.
 
 ### Pattern skills
 
@@ -142,7 +163,7 @@ Defaults live in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml
 | `disabled_file_checks`, `disabled_formatters` | Turn a built-in check or formatter off |
 | `check_timeout` | Seconds before a Stop check is killed and skipped (default 90) |
 
-`kit config` prints the merged result, and `kit config --check` flags unknown keys and wrong types. `bin_lookups`, `test_script`, and `needs_files` are gone: package-manager environments (poetry, pipenv, Yarn PnP, bundler) are built in.
+`kit config` prints the merged result, and `kit config --check` flags unknown keys and wrong types. Package-manager environments (poetry, pipenv, Yarn PnP, bundler) are built in.
 
 Two opt-in switches go in your settings `env`:
 
@@ -151,11 +172,11 @@ Two opt-in switches go in your settings `env`:
 
 ## How it's built
 
-Every hook and helper runs in one Go binary (`bin/kit-<version>-<os>-<arch>`, darwin and linux, arm64 and amd64) behind same-name bash shims, in tens of milliseconds a call. The first call after an install or update downloads it from the matching GitHub release. `bin/doctor.sh` and `bin/bootstrap.sh` maintain the symlinked layout in [ku5ic/dotfiles](https://github.com/ku5ic/dotfiles), need bash 4.4+, `jq`, and mikefarah `yq`, and aren't needed for a plugin install.
+Every hook and helper runs in one Go binary (`bin/kit-<version>-<os>-<arch>`, darwin and linux, arm64 and amd64) behind same-name bash shims, in tens of milliseconds a call. The first call after an install or update downloads it from the matching GitHub release. `bin/doctor.sh` checks the kit against itself and, with `CLAUDE_KIT_PERSONAL` pointing at the dir your `settings.json`, `CLAUDE.md`, `rules/` and `claude-kit.local.yml` are symlinked from, against that too: the links, deny rules, `Skill(<name>)` allow entries, and hook parity. It needs bash 4.4+, `jq`, and mikefarah `yq`, and isn't needed to use the plugin.
 
 ## Develop
 
 - Code: `go/`. Run `go test ./...`; end-to-end tests live in `go/e2e`.
-- `bats tests/` covers the two bash scripts.
+- `bats tests/` covers `bin/doctor.sh`; set `CLAUDE_KIT_PERSONAL` to also run it against your personal config.
 - `go/build.sh` builds the binaries for the `plugin.json` version. With `KIT_DEV=1`, `bin/kit` builds them itself and rebuilds when `go/` changes.
-- Release: work lands on `dev`. Bump `.claude-plugin/plugin.json` `version`, then run the `release` workflow on `dev`. It publishes `v<version>` with the binaries and fast-forwards `main`, which is what installs track.
+- Release: work happens on feature branches off `main`, squash-merged by PR. A PR that bumps `.claude-plugin/plugin.json` `version` releases: on its merge, the `release` workflow publishes `v<version>` with the binaries. Installs take hooks and binaries only from a version bump; the rules follow `main`.
