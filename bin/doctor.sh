@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Verifies the Claude config: symlink layout AND cross-file consistency.
-# Used by .github/workflows/lint.yml and runnable locally.
+# Used by .github/workflows/ci.yml (shell job) and runnable locally.
 #
 # Checks:
-#   1. Symlinks: each top-level claude/ entry is symlinked to the dotfiles
-#      source. Verifies link existence and target path.
+#   1. Personal links: settings.json, CLAUDE.md, rules and
+#      claude-kit.local.yml in CLAUDE_KIT_PERSONAL are symlinked into the
+#      Claude config dir.
 #   2. Credential pattern parity: settings.json's deny rules mention every
 #      kit.yml sensitive_paths entry. The deny rules cover Read/Edit;
 #      guard-bash.sh reads the same list for what permissions cannot express
@@ -43,6 +44,10 @@
 #   11. Plugin hooks.json parity: hooks/hooks.json matches settings.json.
 #   12. kit.yml schema: kit.yml and the overlay hold only keys the Go
 #       loader knows (`kit config --check`).
+#   13. Skill allow-list parity: every skills/ directory has a matching
+#       Skill(<name>) allow entry in settings.json.
+#
+# Checks 1, 2, 8-11 and 13 read CLAUDE_KIT_PERSONAL and are skipped without it.
 #
 # Adding a credential pattern: add it to kit.yml's sensitive_paths AND to
 # settings.json's deny array.
@@ -53,12 +58,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 SOURCE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-# Personal settings, CLAUDE.md, and rules: CLAUDE_KIT_PERSONAL, else the
-# dotfiles layout's claude/ beside the kit, else none.
+# Personal settings, CLAUDE.md, and rules: CLAUDE_KIT_PERSONAL, else none.
 if [[ -n "${CLAUDE_KIT_PERSONAL:-}" ]]; then
   PERSONAL_ROOT="$(cd "$CLAUDE_KIT_PERSONAL" && pwd)"
-elif [[ -d "$SOURCE_ROOT/../claude" ]]; then
-  PERSONAL_ROOT="$(cd "$SOURCE_ROOT/../claude" && pwd)"
 else
   PERSONAL_ROOT=""
 fi
