@@ -17,6 +17,8 @@ import (
 var (
 	kitBin  string // the binary built from this tree, once per run
 	kitRoot string // claude-kit/, the real plugin root
+	// kitBinName is the file bin/kit runs: kit-<plugin.json version>-<os>-<arch>.
+	kitBinName string
 )
 
 func TestMain(m *testing.M) {
@@ -38,6 +40,16 @@ func TestMain(m *testing.M) {
 			return 1
 		}
 		kitRoot = root
+		raw, err := os.ReadFile(filepath.Join(root, ".claude-plugin", "plugin.json"))
+		var manifest struct{ Version string }
+		if err == nil {
+			err = json.Unmarshal(raw, &manifest)
+		}
+		if err != nil || manifest.Version == "" {
+			fmt.Fprintln(os.Stderr, "plugin.json version:", err)
+			return 1
+		}
+		kitBinName = "kit-" + manifest.Version + "-" + runtime.GOOS + "-" + runtime.GOARCH
 		return m.Run()
 	}())
 }
@@ -208,21 +220,22 @@ func (k *Kit) Repo(dir string) string {
 
 // Tree is a kit tree for the freshly built binary, for tests that run a
 // real shim through the bin/kit launcher: the named kit files (such as
-// "hooks/log-skills.sh") copied from the kit, bin/kit, the binary as
-// bin/kit-<os>-<arch>, and rules linked to the kit's. The binary is a hard
+// "hooks/log-skills.sh") copied from the kit, bin/kit and the plugin.json
+// it reads the version from, the binary as bin/<kitBinName>, and rules
+// linked to the kit's. The binary is a hard
 // link or a copy, never a symlink: the kit resolves symlinks to find its
 // root, and the rules check looks beside it.
 func Tree(t *testing.T, files ...string) string {
 	t.Helper()
 	dir := Physical(t, t.TempDir())
-	for _, src := range append(files, "bin/kit") {
+	for _, src := range append(files, "bin/kit", ".claude-plugin/plugin.json") {
 		dst := filepath.Join(dir, src)
 		Write(t, dst, Read(t, filepath.Join(kitRoot, src)))
 		if err := os.Chmod(dst, 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
-	bin := filepath.Join(dir, "bin", "kit-"+runtime.GOOS+"-"+runtime.GOARCH)
+	bin := filepath.Join(dir, "bin", kitBinName)
 	if err := os.Link(kitBin, bin); err != nil {
 		Write(t, bin, Read(t, kitBin))
 		if err := os.Chmod(bin, 0o755); err != nil {

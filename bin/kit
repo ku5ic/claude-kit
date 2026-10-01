@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
-# Runs the prebuilt kit binary for this OS and CPU (bin/kit-<os>-<arch>).
-# Builtins only: every hook call pays for this, and uname or dirname forks
-# cost more than the binary itself. Runs under the stock macOS bash 3.2.
-# Shims source it rather than exec it, saving a second bash startup (~10 ms).
-# Without a binary, a hook fails open (exit 0, as a hook without jq does)
-# and any other command fails with the reason.
+# Runs the kit binary for this OS, CPU, and plugin version
+# (bin/kit-<version>-<os>-<arch>). Fast path is builtins only: every hook
+# call pays for this, and uname or dirname forks cost more than the binary
+# itself. Runs under the stock macOS bash 3.2. Shims source it rather than
+# exec it, saving a second bash startup (~10 ms).
+#
+# The version comes from .claude-plugin/plugin.json, so a checkout that a
+# release moved never reuses an older binary. A missing binary is built from
+# source with KIT_DEV=1 (and rebuilt when go/ is newer), else downloaded from
+# the matching GitHub release. Still none: a hook fails open (exit 0, as a
+# hook without jq does) and any other command fails with the reason.
 case $OSTYPE in
 darwin*) os=darwin ;;
 linux*) os=linux ;;
@@ -24,10 +29,40 @@ while [[ -L $self ]]; do
 done
 dir=${self%/*}
 [[ $dir == "$self" ]] && dir=.
-bin="$dir/kit-$os-$arch"
+ver=
+manifest="$dir/../.claude-plugin/plugin.json"
+if [[ -r $manifest ]]; then
+  version_re='"version"[[:space:]]*:[[:space:]]*"([^"]+)"'
+  while IFS= read -r line || [[ -n $line ]]; do
+    if [[ $line =~ $version_re ]]; then
+      ver=${BASH_REMATCH[1]}
+      break
+    fi
+  done <"$manifest"
+fi
+bin="$dir/kit-$ver-$os-$arch"
+if [[ -x $bin && ${KIT_DEV:-} != 1 ]]; then
+  exec "$bin" "$@"
+fi
+
+# Slow path, once per version: forks are fine here. The temp name keeps
+# hooks running in parallel from exec'ing a half-written binary.
+tmp="$bin.$$"
+if [[ ${KIT_DEV:-} == 1 ]]; then
+  if [[ ! -x $bin || -n $(find "$dir/../go" -name '*.go' -newer "$bin" -print -quit 2>/dev/null) ]]; then
+    (cd "$dir/../go" && CGO_ENABLED=0 go build -trimpath -buildvcs=false \
+      -ldflags="-s -w -buildid= -X main.version=$ver" -o "$tmp" ./cmd/kit) >&2 &&
+      mv -f "$tmp" "$bin"
+  fi
+elif [[ -n $ver ]]; then
+  curl -fsSL --max-time 20 -o "$tmp" \
+    "https://github.com/ku5ic/claude-kit/releases/download/v$ver/kit-$ver-$os-$arch" &&
+    chmod +x "$tmp" && mv -f "$tmp" "$bin"
+fi
+rm -f "$tmp"
 if [[ -x $bin ]]; then
   exec "$bin" "$@"
 fi
-echo "kit: no binary for $os-$arch at $bin; build it with claude-kit/go/build.sh" >&2
+echo "kit: no binary for $os-$arch at $bin; build it with go/build.sh, or set KIT_DEV=1" >&2
 [[ ${1:-} == hook ]] && exit 0
 exit 127

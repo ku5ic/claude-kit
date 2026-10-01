@@ -45,7 +45,11 @@ const usage = `usage: kit <command> [args]
   hook <name>                run a Claude Code hook; payload on stdin
   statusline                 the statusLine rows; payload on stdin
   subagent-statusline        subagentStatusLine JSON lines; payload on stdin
+  version                    the plugin version this binary was built for
 `
+
+// version is stamped by go/build.sh from .claude-plugin/plugin.json.
+var version = "dev"
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
@@ -100,6 +104,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 	switch name {
 	case "-h", "--help", "help":
 		fmt.Fprint(stdout, usage)
+		return 0
+	case "version":
+		fmt.Fprintln(stdout, version)
 		return 0
 	case "config":
 		return cmdConfig(e, rest)

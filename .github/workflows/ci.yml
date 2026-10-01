@@ -25,15 +25,13 @@ jobs:
       - name: vet
         run: go vet ./...
 
+      # Before test: the launcher tests run the real shims, which need the
+      # binary for this platform.
+      - name: build
+        run: ./build.sh
+
       - name: test
         run: go test ./...
-
-      # Committed binaries must be what the source builds; a stale one
-      # would run old logic behind the shims.
-      - name: binaries match source
-        run: |
-          ./build.sh
-          git diff --exit-code --stat -- ../bin/
 
   shell:
     runs-on: ubuntu-latest

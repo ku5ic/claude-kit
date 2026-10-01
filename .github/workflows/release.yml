@@ -1,0 +1,54 @@
+name: release
+
+# Run on dev after committing the .claude-plugin/plugin.json version bump.
+# Publishes v<version> with the four binaries, then fast-forwards main to
+# that commit. main moving last is what makes the release visible: the
+# marketplace clone tracks main, so no client sees a version before its
+# binaries exist.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Check preconditions
+        id: pre
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [[ "$GITHUB_REF_NAME" == dev ]] || { echo "run this on dev, not $GITHUB_REF_NAME"; exit 1; }
+          version="$(jq -r .version .claude-plugin/plugin.json)"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "plugin.json version '$version' is not semver"; exit 1; }
+          if git ls-remote --exit-code --tags origin "v$version" >/dev/null; then
+            echo "v$version already exists; bump plugin.json first"
+            exit 1
+          fi
+          conclusion="$(gh run list --commit "$GITHUB_SHA" --workflow ci.yml --json conclusion --jq '.[0].conclusion')"
+          [[ "$conclusion" == success ]] || { echo "ci on $GITHUB_SHA is '$conclusion', not success"; exit 1; }
+          git merge-base --is-ancestor origin/main "$GITHUB_SHA" || { echo "main is not an ancestor of dev; can't fast-forward"; exit 1; }
+          echo "version=$version" >>"$GITHUB_OUTPUT"
+
+      - name: Build
+        run: go/build.sh
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.pre.outputs.version }}
+        run: gh release create "v$VERSION" --target "$GITHUB_SHA" --generate-notes bin/kit-"$VERSION"-*
+
+      - name: Fast-forward main
+        run: git push origin "$GITHUB_SHA:refs/heads/main"

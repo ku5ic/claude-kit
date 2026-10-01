@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 )
@@ -417,5 +416,5 @@ stacks:
 // injectContextBin is a Tree's binary: the prerequisite check finds the
 // kit's rules at <binary>/../rules, which the harness's kitBin lacks.
 func injectContextBin(tree string) string {
-	return filepath.Join(tree, "bin", "kit-"+runtime.GOOS+"-"+runtime.GOARCH)
+	return filepath.Join(tree, "bin", kitBinName)
 }
