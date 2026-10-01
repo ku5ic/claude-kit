@@ -48,6 +48,7 @@ copy_tree() {
 == skills-log field parity ==
 == audit-verify field parity ==
 == kit.yml schema ==
+== personal config ==
 == credential pattern parity ==
 == skill directory / allow-list parity ==
 == CLAUDE.md rules pointer parity ==
@@ -67,7 +68,8 @@ copy_tree() {
   mkdir -p "$BATS_TEST_TMPDIR/bare"
   CI=true CLAUDE_KIT_PERSONAL="$BATS_TEST_TMPDIR/bare" run "$SCRIPT"
   [ "$status" -eq 1 ]
-  [[ "$output" == *"missing        $BATS_TEST_TMPDIR/bare/settings.json"* ]]
+  [[ "$output" == *"== personal config ==
+missing        $BATS_TEST_TMPDIR/bare/settings.json"* ]]
   [[ "$output" == *"missing        $BATS_TEST_TMPDIR/bare/CLAUDE.md"* ]]
   [[ "$output" == *"== plugin hooks.json parity == (skipped: incomplete personal config)"* ]]
   [[ "$output" != *"No such file"* ]]

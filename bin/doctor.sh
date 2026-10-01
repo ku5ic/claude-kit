@@ -456,14 +456,16 @@ skip_reason=""
 if [[ -z "$PERSONAL_ROOT" ]]; then
   skip_reason="no personal config; set CLAUDE_KIT_PERSONAL"
 else
+  echo
+  echo "== personal config =="
   for file in settings.json CLAUDE.md; do
     if [[ ! -f "$PERSONAL_ROOT/$file" ]]; then
-      echo
       echo "missing        $PERSONAL_ROOT/$file (CLAUDE_KIT_PERSONAL)"
       skip_reason="incomplete personal config"
       exit_code=1
     fi
   done
+  [[ -n "$skip_reason" ]] || echo "ok             settings.json and CLAUDE.md in $PERSONAL_ROOT"
 fi
 if [[ -n "$skip_reason" ]]; then
   for section in "${PERSONAL_SECTIONS[@]}"; do
