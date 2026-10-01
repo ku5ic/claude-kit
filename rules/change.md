@@ -22,6 +22,8 @@ Before introducing a new library, state-management approach, folder shape, or na
 
 Before adding a tool, library, or pattern, check what is already in use: `package.json`, the lockfile, existing imports, config files.
 
+Before writing code, take the first rung that holds: not needed at all, already in this codebase, the standard library, a native platform feature (CSS over JS, a DB constraint over app code), an installed dependency, one line, and only then the minimum new code.
+
 Before running a script, check the project defines it: `scripts` in `package.json`, a Makefile, a justfile, a task runner.
 
 ## 3. Name the blast radius before editing shared code
@@ -50,6 +52,7 @@ The one exception is scaffolding explicitly requested or explicitly marked for a
 - One line. A "why" needing a paragraph belongs in the commit message or PR description.
 - Remove comments that restate the code.
 - No decorative comments: no banners, dividers, or headers made of `===`, `---`, `***`, `###`.
+- A deliberate shortcut with a known ceiling (a global lock, an O(n^2) scan, a naive heuristic) gets a `shortcut:` comment naming the ceiling and the upgrade path, so `/audit debt` can collect it.
 - ASCII box characters (`+`, `-`, `|`, `->`) only when actually drawing a diagram, never as decoration.
 
 ## 6. Scope
@@ -75,8 +78,6 @@ Each of these is enforced by the judgment it turns on, not by reciting the acron
 - **SOLID**: one reason to change per unit; extend rather than modify working code; no interface whose only implementation is its only caller.
 
 A finding names the principle and the concrete cost. A preference dressed as a principle is not a finding.
-
-Simplicity and unnecessary-abstraction avoidance is also enforced by the `ponytail` plugin, enabled globally.
 
 ## Anti-patterns
 
