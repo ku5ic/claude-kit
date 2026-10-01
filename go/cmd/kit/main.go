@@ -37,10 +37,12 @@ const usage = `usage: kit <command> [args]
   plans-dir                  plans directory
   detect-stack               compact stack report
   agent-context              a subagent's startup context
-  run-checks [--only sub...] every declared check, in every subproject;
+  run-checks [--only sub...]
+                             every declared check, in every subproject;
                              exits with the failure count
   git-base [--diff|--log] [base] [flags] [-- paths]
-  explain bash|edit|stop ... why a guard or the Stop hook decides what it
+  explain bash|edit|stop ...
+                             why a guard or the Stop hook decides what it
                              does; logs, blocks, and runs nothing
   blast-radius <file> [symbol]
                              the files that import <file>

@@ -8,8 +8,7 @@ import (
 	"strings"
 )
 
-// argWords are the words offered after a command; commands taking a file
-// or directory fall through to the shell's own path completion.
+// argWords are the words offered after a command.
 var argWords = map[string][]string{
 	"completion":     {"bash", "zsh"},
 	"config":         {"--check"},
@@ -20,25 +19,45 @@ var argWords = map[string][]string{
 	"scratch-rotate": {"--dry-run"},
 }
 
+// pathArgs are the commands whose argument is a path, true when only a
+// directory fits; every other argument gets no path completion.
+var pathArgs = map[string]bool{
+	"blast-radius": false,
+	"subprojects":  true,
+	"tasks":        true,
+}
+
 type command struct{ name, desc string }
 
 // usageCommands reads the command list off usage, so completion can't
-// drift from it. A description is the text from column 29 on, across the
-// command's line and its continuation lines.
-func usageCommands() []command {
-	const descCol = 29
+// drift from it.
+func usageCommands() []command { return parseUsage(usage) }
+
+// parseUsage reads commands from text: a command line is indented two
+// spaces, its description follows the first run of two or more spaces, and
+// a deeper-indented line continues the previous command's description.
+func parseUsage(text string) []command {
 	var cmds []command
-	for _, line := range strings.Split(usage, "\n") {
-		if !strings.HasPrefix(line, "  ") {
+	for _, line := range strings.Split(text, "\n") {
+		rest, ok := strings.CutPrefix(line, "  ")
+		if !ok || strings.TrimSpace(rest) == "" {
 			continue
 		}
-		if line[2] != ' ' {
-			cmds = append(cmds, command{name: strings.Fields(line)[0]})
+		var desc string
+		if rest[0] == ' ' {
+			if len(cmds) == 0 {
+				continue
+			}
+			desc = rest
+		} else {
+			spec := rest
+			if i := strings.Index(rest, "  "); i >= 0 {
+				spec, desc = rest[:i], rest[i:]
+			}
+			cmds = append(cmds, command{name: strings.Fields(spec)[0]})
 		}
 		last := &cmds[len(cmds)-1]
-		if len(line) > descCol && line[descCol-1] == ' ' {
-			last.desc = strings.TrimSpace(last.desc + " " + line[descCol:])
-		}
+		last.desc = strings.TrimSpace(last.desc + " " + strings.TrimSpace(desc))
 	}
 	return cmds
 }
@@ -81,7 +100,14 @@ func bashCompletion() string {
 	for _, name := range slices.Sorted(maps.Keys(argWords)) {
 		fmt.Fprintf(&b, "  %s) COMPREPLY=($(compgen -W %q -- \"$cur\")) ;;\n", name, strings.Join(argWords[name], " "))
 	}
-	b.WriteString("  esac\n}\ncomplete -o bashdefault -o default -F _kit kit\n")
+	for _, name := range slices.Sorted(maps.Keys(pathArgs)) {
+		kind := "-f"
+		if pathArgs[name] {
+			kind = "-d"
+		}
+		fmt.Fprintf(&b, "  %s) local IFS=$'\\n'; COMPREPLY=($(compgen %s -- \"$cur\")) ;;\n", name, kind)
+	}
+	b.WriteString("  esac\n}\ncomplete -o filenames -F _kit kit\n")
 	return b.String()
 }
 
@@ -101,7 +127,14 @@ func zshCompletion() string {
 	for _, name := range slices.Sorted(maps.Keys(argWords)) {
 		fmt.Fprintf(&b, "  %s) compadd -- %s ;;\n", name, strings.Join(argWords[name], " "))
 	}
-	b.WriteString("  blast-radius) _files ;;\n  subprojects|tasks) _files -/ ;;\n  esac\n}\ncompdef _kit kit\n")
+	for _, name := range slices.Sorted(maps.Keys(pathArgs)) {
+		files := "_files"
+		if pathArgs[name] {
+			files = "_files -/"
+		}
+		fmt.Fprintf(&b, "  %s) %s ;;\n", name, files)
+	}
+	b.WriteString("  esac\n}\ncompdef _kit kit\n")
 	return b.String()
 }
 

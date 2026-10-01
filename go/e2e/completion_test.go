@@ -27,6 +27,22 @@ complete_words hook guard-bash x`)
 		}
 	})
 
+	t.Run("bash: no filename fallback, directories only where only a directory fits", func(t *testing.T) {
+		k := New(t)
+		dir := t.TempDir()
+		Mkdir(t, dir+"/sub")
+		Touch(t, dir+"/file.txt")
+		r := k.Shell("", complete+`cd '`+dir+`'
+complete_words hook gx
+complete_words version ''
+complete_words tasks ''
+complete_words blast-radius f`)
+		r.Want(t, 0)
+		if want := "\n\nsub\nfile.txt\n"; r.Stdout != want {
+			t.Errorf("stdout %q, want %q", r.Stdout, want)
+		}
+	})
+
 	t.Run("zsh: describes every command, wrapped descriptions joined", func(t *testing.T) {
 		k := New(t)
 		r := k.Run("", "completion", "zsh")
@@ -34,8 +50,10 @@ complete_words hook guard-bash x`)
 		r.Has(t, "#compdef kit", "compdef _kit kit",
 			"'explain:why a guard or the Stop hook decides what it does; logs, blocks, and runs nothing'",
 			"'agent-context:a subagent'\\''s startup context'",
+			"'run-checks:every declared check, in every subproject; exits with the failure count'",
 			"'git-base'\n",
-			"blast-radius) _files ;;")
+			"blast-radius) _files ;;",
+			"tasks) _files -/ ;;")
 	})
 
 	t.Run("a missing or unknown shell is a usage error", func(t *testing.T) {
