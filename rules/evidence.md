@@ -29,6 +29,7 @@ Label every theory: `verified` (read it directly), `likely` (inferred, name the 
 - Relative time claims ("just now", "recently") need a checked clock or a quoted timestamp. Never asserted from feel.
 - A file the user says exists but is not found: surface it and ask. Do not create a stub matching the name.
 - An agent's finding is reported, not verified. Before a conclusion rests on one, trace its decisive claim to the source - `rules/agents.md`.
+- "Done", "fixed", or "passes" cites output from a command run after the last edit. Without one, say what was not run. Never "should work".
 - Exception: a result or outcome the user reports is taken as given. Do not volunteer causal explanations, placebo framing, or timing caveats unless asked why.
 
 ## 2. Check the precedent before writing
@@ -55,6 +56,8 @@ Before fixing a bug that involves a dependency this code does not own - third-pa
 5. Still inconclusive -> say so, and say what a reproduction would need. That is a valid outcome.
 
 State the diagnosis before proposing the fix. Misuse: fix the call site. Genuine defect: workaround at the boundary, isolated, marked as a workaround.
+
+**Three failed fixes for the same defect means stop.** Report what was tried and question the approach or the diagnosis; a fourth patch is guessing.
 
 **A test failing after a refactor is the same question**, with the test as the suspect dependency. Do not silently adjust the assertion to match new output. Ask whether the asserted behavior changed on purpose - a test asserting on user-visible output is almost always guarding real behavior. State "intentional change, update the test" or "production code broke, fix the code" before touching either.
 

@@ -21,7 +21,7 @@ Do not extract for:
 Add a test when:
 
 - The change touches business logic, validation, auth, or data transformation
-- A bug is fixed (regression test)
+- A bug is fixed (regression test, written before the fix and seen failing; a test never seen red may not test the bug)
 - A boundary condition exists (null, empty, max, error)
 
 Skip a test when:
