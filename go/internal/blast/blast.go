@@ -25,10 +25,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/config"
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/extract"
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/guard"
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/extract"
+	"github.com/ku5ic/claude-kit/go/internal/guard"
+	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
 var jsFiles = []string{"*.js", "*.jsx", "*.ts", "*.tsx", "*.mjs", "*.cjs", "*.mts", "*.cts", "*.vue", "*.svelte", "*.astro"}

@@ -1,0 +1,61 @@
+name: ci
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: go
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+
+      - name: vet
+        run: go vet ./...
+
+      - name: test
+        run: go test ./...
+
+      # Committed binaries must be what the source builds; a stale one
+      # would run old logic behind the shims.
+      - name: binaries match source
+        run: |
+          ./build.sh
+          git diff --exit-code --stat -- ../bin/
+
+  shell:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install shellcheck and bats
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck bats
+
+      - name: shellcheck
+        run: shellcheck -x -P SCRIPTDIR bin/*.sh bin/kit hooks/*.sh install-rules.sh go/build.sh
+
+      - name: bats
+        run: bats tests/
+
+      - name: doctor
+        run: CI=true bash bin/doctor.sh
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: claude plugin validate
+        run: claude plugin validate .

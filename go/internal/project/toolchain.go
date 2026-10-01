@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/config"
 )
 
 // ResolvePackageManager is the manager of the first package_managers

@@ -7,8 +7,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/hook"
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
 // openStep matches an unticked checklist item, the shape rules/workflow.md

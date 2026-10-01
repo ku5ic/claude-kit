@@ -13,8 +13,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/config"
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/detect"
+	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/detect"
 )
 
 // CacheFile is <cache>/stack/<name>-<sha256(root)[:8]>.<tag>.txt: the root

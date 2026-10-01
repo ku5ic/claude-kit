@@ -11,18 +11,18 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/a11y"
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/blast"
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/checks"
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/config"
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/detect"
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/explain"
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/gitbase"
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/hooks"
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/project"
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/report"
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/rotate"
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/status"
+	"github.com/ku5ic/claude-kit/go/internal/a11y"
+	"github.com/ku5ic/claude-kit/go/internal/blast"
+	"github.com/ku5ic/claude-kit/go/internal/checks"
+	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/detect"
+	"github.com/ku5ic/claude-kit/go/internal/explain"
+	"github.com/ku5ic/claude-kit/go/internal/gitbase"
+	"github.com/ku5ic/claude-kit/go/internal/hooks"
+	"github.com/ku5ic/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/report"
+	"github.com/ku5ic/claude-kit/go/internal/rotate"
+	"github.com/ku5ic/claude-kit/go/internal/status"
 )
 
 const usage = `usage: kit <command> [args]

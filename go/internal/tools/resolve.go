@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
 // lookup finds a binary inside a package manager's environment when the

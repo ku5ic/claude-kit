@@ -20,9 +20,9 @@ claude-kit closes those gaps with hooks: small, deterministic checks that run on
 ## Install
 
 ```sh
-claude plugin marketplace add ku5ic/dotfiles
+claude plugin marketplace add ku5ic/claude-kit
 claude plugin install claude-kit@ku5ic
-~/.claude/plugins/marketplaces/ku5ic/claude-kit/install-rules.sh
+~/.claude/plugins/marketplaces/ku5ic/install-rules.sh
 ```
 
 The last line links the always-on rules into `~/.claude/rules/claude-kit` (plugins can't ship rules themselves). For your own `~/.claude/CLAUDE.md`, start from `templates/CLAUDE.md`.

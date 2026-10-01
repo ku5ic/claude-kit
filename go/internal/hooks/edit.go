@@ -11,9 +11,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/config"
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/guard"
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/guard"
+	"github.com/ku5ic/claude-kit/go/internal/hook"
 )
 
 // cfgOrEmpty is the loaded config, or an empty one when kit.yml can't load:
@@ -198,6 +198,10 @@ func loadedSkills(logPath, session string) (map[string]bool, error) {
 		if entry.SessionID == session && entry.SkillFile != nil &&
 			entry.Event != "required-skill" && entry.Event != "suggested-skill" {
 			loaded[*entry.SkillFile] = true
+			// A plugin's skills log as <plugin>:<skill>; kit.yml maps bare names.
+			if _, skill, ok := strings.Cut(*entry.SkillFile, ":"); ok && !strings.Contains(skill, "/") {
+				loaded[skill] = true
+			}
 		}
 	}
 	return loaded, nil

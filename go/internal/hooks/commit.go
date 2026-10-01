@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/hook"
 )
 
 var (

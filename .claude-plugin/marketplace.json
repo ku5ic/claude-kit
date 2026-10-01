@@ -1,0 +1,14 @@
+{
+  "name": "ku5ic",
+  "description": "Claude Code plugins from ku5ic/claude-kit.",
+  "owner": {
+    "name": "Sinisa Kusic"
+  },
+  "plugins": [
+    {
+      "name": "claude-kit",
+      "source": "./",
+      "description": "Guard hooks, context injection, read-only exploration, /audit and /write, stack pattern skills, and review agents for Claude Code."
+    }
+  ]
+}

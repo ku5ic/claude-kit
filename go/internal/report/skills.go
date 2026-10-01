@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/config"
 )
 
 // entry is one log row; Skill is a pointer so a null stays distinct from "".

@@ -3,7 +3,7 @@ package guard
 import (
 	"testing"
 
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/config"
 )
 
 func TestGlobBashSemantics(t *testing.T) {

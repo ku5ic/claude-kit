@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/bashguard"
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/hook"
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/hooks"
+	"github.com/ku5ic/claude-kit/go/internal/bashguard"
+	"github.com/ku5ic/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/hooks"
 )
 
 // singleChecks are hooks that run one check; dispatchers get their own case.

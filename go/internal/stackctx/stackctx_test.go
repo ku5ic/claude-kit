@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/config"
 )
 
 // The stack-line parser reads extras from the current report format, and

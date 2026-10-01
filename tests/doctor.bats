@@ -11,11 +11,16 @@
 # skips instead of reading the machine's real connector set.
 
 setup() {
-  local dotfiles tree="$BATS_TEST_TMPDIR/tree"
-  dotfiles="$(cd -P "$BATS_TEST_DIRNAME/../.." && pwd)"
-  mkdir -p "$tree"
-  git -C "$dotfiles" ls-files -z -co --exclude-standard -- claude-kit claude |
-    tar -C "$dotfiles" --null -T - -cf - | tar -C "$tree" -xf -
+  local kit dir tree="$BATS_TEST_TMPDIR/tree"
+  kit="$(cd -P "$BATS_TEST_DIRNAME/.." && pwd)"
+  # The personal claude/ sits beside the kit only in the dotfiles layout.
+  for dir in "$kit" "$kit/../claude"; do
+    [[ -d "$dir" ]] || continue
+    mkdir -p "$tree/${dir##*/}"
+    git -C "$dir" ls-files -z -co --exclude-standard -- . |
+      tar -C "$dir" --null -T - -cf - | tar -C "$tree/${dir##*/}" -xf -
+  done
+  mv "$tree/${kit##*/}" "$tree/claude-kit" 2>/dev/null || true
   SCRIPT="$tree/claude-kit/bin/doctor.sh"
   export HOME="$BATS_TEST_TMPDIR/home"
   mkdir -p "$HOME"
@@ -28,24 +33,33 @@ setup() {
 }
 
 @test "CI run passes and prints every section header in order" {
+  [[ -d "$BATS_TEST_TMPDIR/tree/claude" ]] || skip "no personal claude/ beside the kit"
   CI=true run "$SCRIPT"
   [ "$status" -eq 0 ]
   local headers
   headers="$(printf '%s\n' "$output" | grep '^== ')"
   [ "$headers" = "== prerequisites ==
 == symlinks == (skipped: running in CI)
-== credential pattern parity ==
 == agent-context / inject-context derivation parity ==
 == skill + agent frontmatter lint ==
 == skill map validation ==
 == skills-log field parity ==
 == audit-verify field parity ==
+== kit.yml schema ==
+== credential pattern parity ==
 == skill directory / allow-list parity ==
 == CLAUDE.md rules pointer parity ==
 == settings.json machine-local leak ==
 == mcp allow-list server parity ==
-== plugin hooks.json parity ==
-== kit.yml schema ==" ]
+== plugin hooks.json parity ==" ]
+}
+
+@test "a standalone kit checkout skips the personal-config sections and passes" {
+  rm -rf "$BATS_TEST_TMPDIR/tree/claude"
+  CI=true run "$SCRIPT"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"== credential pattern parity == (skipped: no personal config"* ]]
+  [[ "$output" == *"== plugin hooks.json parity == (skipped: no personal config"* ]]
 }
 
 @test "missing jq is reported by the prerequisite check, and nothing else runs" {

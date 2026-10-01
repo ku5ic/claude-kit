@@ -20,7 +20,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/config"
 )
 
 var positive = regexp.MustCompile(`^[1-9][0-9]*$`)

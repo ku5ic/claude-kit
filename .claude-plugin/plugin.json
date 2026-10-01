@@ -4,6 +4,7 @@
   "author": {
     "name": "Sinisa Kusic"
   },
-  "repository": "https://github.com/ku5ic/dotfiles",
+  "version": "0.1.0",
+  "repository": "https://github.com/ku5ic/claude-kit",
   "license": "MIT"
 }

@@ -5,8 +5,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/guard"
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/guard"
+	"github.com/ku5ic/claude-kit/go/internal/hook"
 )
 
 // LogSkills appends one skills.jsonl line per skill activation: a typed

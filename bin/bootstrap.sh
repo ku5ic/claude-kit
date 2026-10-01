@@ -14,7 +14,10 @@ set -euo pipefail
 # here makes SOURCE_ROOT == ~/.claude, and the bin entry then self-symlinks (ELOOP).
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 SOURCE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd -P)"
-PERSONAL_ROOT="$(cd "$SOURCE_ROOT/../claude" && pwd -P)"
+PERSONAL_ROOT="$(cd "${CLAUDE_KIT_PERSONAL:-$SOURCE_ROOT/../claude}" && pwd -P)" || {
+  echo "bootstrap.sh: no personal config at ${CLAUDE_KIT_PERSONAL:-$SOURCE_ROOT/../claude}; set CLAUDE_KIT_PERSONAL" >&2
+  exit 1
+}
 # Claude Code's config dir, relocatable with CLAUDE_CONFIG_DIR.
 TARGET_ROOT="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 

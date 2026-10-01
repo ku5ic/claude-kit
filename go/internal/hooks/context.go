@@ -8,10 +8,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/config"
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/hook"
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/project"
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/stackctx"
+	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/stackctx"
 )
 
 // cwdOf is the payload's cwd, which Claude Code always sends, else the

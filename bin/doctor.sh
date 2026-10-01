@@ -53,8 +53,16 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 SOURCE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-# Dotfiles layout: personal settings, CLAUDE.md, and rules live beside the kit.
-PERSONAL_ROOT="$(cd "$SOURCE_ROOT/../claude" && pwd)"
+# Personal settings, CLAUDE.md, and rules: CLAUDE_KIT_PERSONAL, else the
+# dotfiles layout's claude/ beside the kit, else none.
+if [[ -n "${CLAUDE_KIT_PERSONAL:-}" ]]; then
+  PERSONAL_ROOT="$(cd "$CLAUDE_KIT_PERSONAL" && pwd)"
+elif [[ -d "$SOURCE_ROOT/../claude" ]]; then
+  PERSONAL_ROOT="$(cd "$SOURCE_ROOT/../claude" && pwd)"
+else
+  PERSONAL_ROOT=""
+fi
+SETTINGS="${PERSONAL_ROOT:+$PERSONAL_ROOT/settings.json}"
 # Claude Code's config dir, relocatable with CLAUDE_CONFIG_DIR.
 TARGET_ROOT="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
@@ -95,6 +103,7 @@ if [[ "${CI:-}" == "true" ]]; then
 elif [[ -d "$TARGET_ROOT" ]]; then
   echo "== symlinks =="
   for entry in "${ENTRIES[@]}"; do
+    [[ -n "$(root_for "$entry")" ]] || continue
     src="$(root_for "$entry")/$entry"
     dst="$TARGET_ROOT/$entry"
 
@@ -119,33 +128,6 @@ elif [[ -d "$TARGET_ROOT" ]]; then
   done
 else
   echo "== symlinks == (skipped: $TARGET_ROOT does not exist)"
-fi
-
-echo
-echo "== credential pattern parity =="
-
-SETTINGS="$PERSONAL_ROOT/settings.json"
-
-# kit.yml's "~/..." entries are compared by their path tail, which is what
-# settings.json's "~/..." rules contain too.
-mapfile -t patterns < <(yq '.sensitive_paths // [] | .[]' "$SOURCE_ROOT/kit.yml" 2>/dev/null)
-parity_failed=0
-if ((${#patterns[@]} == 0)); then
-  echo "empty          kit.yml has no sensitive_paths"
-  parity_failed=1
-fi
-for pat in "${patterns[@]}"; do
-  pat="${pat#\~/}"
-  if ! grep -qF "$pat" "$SETTINGS"; then
-    echo "missing-pattern  settings.json: '$pat'"
-    parity_failed=1
-  fi
-done
-
-if ((parity_failed)); then
-  exit_code=1
-else
-  echo "ok             ${#patterns[@]} kit.yml sensitive_paths mirrored in settings.json"
 fi
 
 echo
@@ -448,6 +430,63 @@ else
 fi
 
 echo
+echo "== kit.yml schema =="
+
+# The Go loader decodes strictly, so a misspelled key in kit.yml or the
+# overlay shows up here.
+if schema_warnings="$("$SCRIPT_DIR/kit" config --check 2>&1)"; then
+  echo "ok             kit.yml and the overlay hold only known keys"
+elif [[ "$schema_warnings" == *"no binary for"* ]]; then
+  echo "skip           no kit binary for this platform (claude-kit/go/build.sh)"
+else
+  printf 'invalid        %s\n' "${schema_warnings//kit: warning: /}"
+  exit_code=1
+fi
+
+# Everything below checks the kit against personal settings.json and
+# CLAUDE.md, which a standalone kit checkout doesn't have.
+PERSONAL_SECTIONS=(
+  "credential pattern parity"
+  "skill directory / allow-list parity"
+  "CLAUDE.md rules pointer parity"
+  "settings.json machine-local leak"
+  "mcp allow-list server parity"
+  "plugin hooks.json parity"
+)
+if [[ -z "$PERSONAL_ROOT" ]]; then
+  for section in "${PERSONAL_SECTIONS[@]}"; do
+    echo
+    echo "== $section == (skipped: no personal config; set CLAUDE_KIT_PERSONAL)"
+  done
+  exit "$exit_code"
+fi
+
+echo
+echo "== credential pattern parity =="
+
+# kit.yml's "~/..." entries are compared by their path tail, which is what
+# settings.json's "~/..." rules contain too.
+mapfile -t patterns < <(yq '.sensitive_paths // [] | .[]' "$SOURCE_ROOT/kit.yml" 2>/dev/null)
+parity_failed=0
+if ((${#patterns[@]} == 0)); then
+  echo "empty          kit.yml has no sensitive_paths"
+  parity_failed=1
+fi
+for pat in "${patterns[@]}"; do
+  pat="${pat#\~/}"
+  if ! grep -qF "$pat" "$SETTINGS"; then
+    echo "missing-pattern  settings.json: '$pat'"
+    parity_failed=1
+  fi
+done
+
+if ((parity_failed)); then
+  exit_code=1
+else
+  echo "ok             ${#patterns[@]} kit.yml sensitive_paths mirrored in settings.json"
+fi
+
+echo
 echo "== skill directory / allow-list parity =="
 
 SETTINGS_JSON="$PERSONAL_ROOT/settings.json"
@@ -599,20 +638,6 @@ if [[ "$expected_hooks" == "$(jq -S . "$HOOKS_JSON")" ]]; then
   echo "ok             hooks/hooks.json matches settings.json hooks"
 else
   echo "drift          hooks/hooks.json differs from settings.json hooks; regenerate it"
-  exit_code=1
-fi
-
-echo
-echo "== kit.yml schema =="
-
-# The Go loader decodes strictly, so a misspelled key in kit.yml or the
-# overlay shows up here.
-if schema_warnings="$("$SCRIPT_DIR/kit" config --check 2>&1)"; then
-  echo "ok             kit.yml and the overlay hold only known keys"
-elif [[ "$schema_warnings" == *"no binary for"* ]]; then
-  echo "skip           no kit binary for this platform (claude-kit/go/build.sh)"
-else
-  printf 'invalid        %s\n' "${schema_warnings//kit: warning: /}"
   exit_code=1
 fi
 

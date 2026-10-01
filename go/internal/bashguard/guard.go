@@ -8,10 +8,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/config"
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/guard"
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/hook"
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/guard"
+	"github.com/ku5ic/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
 const overlayAsk = "this writes the claude-kit overlay, which can switch the kit's own guards off; confirm the change"

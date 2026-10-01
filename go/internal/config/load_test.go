@@ -17,7 +17,10 @@ func write(t *testing.T, dir, name, body string) string {
 }
 
 func TestRealKitYMLLoadsCleanly(t *testing.T) {
-	cfg, warnings, err := Load(Paths{Base: "../../../kit.yml", Overlay: "../../../../claude/claude-kit.local.yml"})
+	// The personal overlay sits beside the kit only in the dotfiles layout.
+	overlay := "../../../../claude/claude-kit.local.yml"
+	_, statErr := os.Stat(overlay)
+	cfg, warnings, err := Load(Paths{Base: "../../../kit.yml", Overlay: overlay})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +45,7 @@ func TestRealKitYMLLoadsCleanly(t *testing.T) {
 			t.Errorf("%s is empty", name)
 		}
 	}
-	if _, ok := cfg.Stacks["dotfiles"]; !ok {
+	if _, ok := cfg.Stacks["dotfiles"]; statErr == nil && !ok {
 		t.Error("overlay stack dotfiles not merged")
 	}
 }

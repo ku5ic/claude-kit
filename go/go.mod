@@ -1,4 +1,4 @@
-module github.com/ku5ic/dotfiles/claude-kit/go
+module github.com/ku5ic/claude-kit/go
 
 go 1.26.6
 

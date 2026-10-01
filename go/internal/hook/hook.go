@@ -18,7 +18,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/config"
 )
 
 // Payload is the hook's stdin JSON. A payload that doesn't parse is kept as

@@ -13,12 +13,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/bashguard"
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/checks"
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/config"
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/hook"
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/hooks"
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/bashguard"
+	"github.com/ku5ic/claude-kit/go/internal/checks"
+	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/hooks"
+	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
 const usage = `usage: kit explain <what> ...

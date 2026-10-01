@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/guard"
+	"github.com/ku5ic/claude-kit/go/internal/guard"
 )
 
 // command is one command of a pipeline, past its assignments and wrappers.

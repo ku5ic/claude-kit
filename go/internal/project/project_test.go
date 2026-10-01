@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/config"
 )
 
 // kit_tasks and kit_subprojects against the real kit.yml.

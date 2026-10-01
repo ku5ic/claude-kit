@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/config"
 )
 
 func TestName(t *testing.T) {

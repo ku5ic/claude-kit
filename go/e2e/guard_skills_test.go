@@ -133,6 +133,8 @@ func TestGuardSkills(t *testing.T) {
 		status             int
 	}{
 		{"allows when the required skill was loaded this session via the Skill tool", guardSkillsLoaded, "s1", 0},
+		{"allows a plugin-namespaced skill name (claude-kit:bash-patterns)",
+			strings.Replace(guardSkillsLoaded, `"skill_file":"bash-patterns"`, `"skill_file":"claude-kit:bash-patterns"`, 1), "s1", 0},
 		{"allows when the required skill's SKILL.md was read this session (Read fallback)",
 			`{"ts":"2026-01-01T00:00:00Z","hook":"log-skills.sh","event":"PostToolUse","session_id":"s1","cwd":"/x","expansion_type":null,"command_name":null,"command_args":null,"command_source":null,"skill_file":"/Users/x/.claude/skills/bash-patterns/SKILL.md","tool_name":"Read"}`, "s1", 0},
 		{"a session_id mismatch does not count as loaded",

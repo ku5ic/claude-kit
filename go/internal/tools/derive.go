@@ -11,8 +11,8 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/bashguard"
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/extract"
+	"github.com/ku5ic/claude-kit/go/internal/bashguard"
+	"github.com/ku5ic/claude-kit/go/internal/extract"
 )
 
 // Derived is what a project's own invocation of a tool adds to the

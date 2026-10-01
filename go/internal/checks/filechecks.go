@@ -16,9 +16,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/config"
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/project"
-	"github.com/ku5ic/dotfiles/claude-kit/go/internal/tools"
+	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/tools"
 )
 
 // EditedFiles lists the file_path (or notebook_path) of every Edit, Write,
