@@ -160,6 +160,15 @@ func TestScratchRotate(t *testing.T) {
 			t.Errorf("registry not emptied: %q", Read(t, registry))
 		}
 	})
+	t.Run("--dry-run keeps a stale registry entry and says it would drop it", func(t *testing.T) {
+		k, _, registry := setup(t)
+		proj := filepath.Join(Physical(t, t.TempDir()), "proj/scratch")
+		Write(t, registry, proj+"\n")
+		r := k.Run("", "scratch-rotate", "--dry-run")
+		r.Want(t, 0)
+		r.Has(t, "would drop stale registry entry "+proj)
+		registryIs(t, registry, proj)
+	})
 	t.Run("prunes multiple registered project dirs and keeps existing entries", func(t *testing.T) {
 		k, _, registry := setup(t)
 		projA := filepath.Join(k.Home, "proj-a/scratch")

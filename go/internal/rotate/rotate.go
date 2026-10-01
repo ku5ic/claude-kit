@@ -42,10 +42,10 @@ func Run(cfg *config.Config, paths config.Paths, args []string, stdout, stderr i
 	n, _ := strconv.Atoi(days)
 	home := os.Getenv("HOME")
 	r := &rotator{now: time.Now(), dryRun: dryRun, log: filepath.Join(paths.LogDir(), "scratch-rotate.log")}
-	pruned := "pruned"
+	pruned, dropping := "pruned", "dropping"
 	r.verb = "deleted"
 	if dryRun {
-		r.verb, pruned = "would-delete", "would prune"
+		r.verb, pruned, dropping = "would-delete", "would prune", "would drop"
 	}
 	os.MkdirAll(paths.LogDir(), 0o755)
 
@@ -71,7 +71,7 @@ func Run(cfg *config.Config, paths config.Paths, args []string, stdout, stderr i
 			switch {
 			case dir == "":
 			case !isDir(dir):
-				fmt.Fprintf(stdout, "scratch-rotate: dropping stale registry entry %s (directory no longer exists)\n", dir)
+				fmt.Fprintf(stdout, "scratch-rotate: %s stale registry entry %s (directory no longer exists)\n", dropping, dir)
 			case !validScratchDir(dir, home):
 				fmt.Fprintf(stderr, "scratch-rotate: REFUSING registry entry %s (not a plain scratch/ dir under $HOME)\n", dir)
 				keep = append(keep, dir)

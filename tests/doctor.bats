@@ -73,6 +73,15 @@ copy_tree() {
   [[ "$output" != *"No such file"* ]]
 }
 
+@test "a personal dir that doesn't exist fails and skips the personal sections" {
+  CI=true CLAUDE_KIT_PERSONAL="$BATS_TEST_TMPDIR/absent" run "$SCRIPT"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"== prerequisites =="* ]]
+  [[ "$output" == *"missing        $BATS_TEST_TMPDIR/absent/settings.json"* ]]
+  [[ "$output" == *"== plugin hooks.json parity == (skipped: incomplete personal config)"* ]]
+  [[ "$output" != *"No such file"* ]]
+}
+
 @test "missing jq is reported by the prerequisite check, and nothing else runs" {
   # A PATH with bash and yq but no jq; each tool linked by itself, since
   # Homebrew keeps jq in the same directory as bash.

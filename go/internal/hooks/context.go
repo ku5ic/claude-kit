@@ -228,7 +228,7 @@ func tooling(cfg *config.Config, root string) string {
 func prerequisites(paths config.Paths) string {
 	var missing []string
 	if !rulesLinked(paths) {
-		missing = append(missing, "the kit rules linked under ~/.claude/rules (run ~/.claude/plugins/marketplaces/ku5ic/install-rules.sh)")
+		missing = append(missing, "the kit rules linked under ~/.claude/rules (run "+filepath.Join(paths.Root, "install-rules.sh")+")")
 	}
 	if f, err := os.Open(paths.Base); err != nil {
 		missing = append(missing, "a readable kit.yml at the kit root (reinstall the plugin)")

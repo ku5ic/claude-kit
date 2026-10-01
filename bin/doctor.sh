@@ -60,7 +60,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 SOURCE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # Personal settings, CLAUDE.md, and rules: CLAUDE_KIT_PERSONAL, else none.
 if [[ -n "${CLAUDE_KIT_PERSONAL:-}" ]]; then
-  PERSONAL_ROOT="$(cd "$CLAUDE_KIT_PERSONAL" && pwd)"
+  # A dir that doesn't exist stays as given, so the personal-config check reports it.
+  PERSONAL_ROOT="$(cd "$CLAUDE_KIT_PERSONAL" 2>/dev/null && pwd || printf '%s' "$CLAUDE_KIT_PERSONAL")"
 else
   PERSONAL_ROOT=""
 fi
