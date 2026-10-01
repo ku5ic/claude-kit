@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# statusLine command (see claude/settings.json). Reads the payload Claude Code
+# statusLine command, wired in your own settings.json. Reads the payload Claude Code
 # pipes to stdin and prints a two-row status: model/agent/dir/git on row 1,
 # context/cost/effort/rate-limit on row 2. The actual model is read from the
 # transcript, so a skill's model override that didn't take shows in red.

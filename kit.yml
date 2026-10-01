@@ -62,7 +62,7 @@ global_skills: []
 #
 # on: basename  -> match against basename only
 # on: path      -> match against the full file path
-# globs: [...]  -> shell globs, tested with bash [[ $target == $glob ]]
+# globs: [...]  -> shell-style globs (go/internal/guard Glob)
 skill_file_map:
   - on: basename
     globs: ["*.ts", "*.tsx", "*.js", "*.jsx", "*.mjs", "*.cjs", "*.py", "*.rb", "*.go", "*.rs", "*.java", "*.sh", "*.vue"]
@@ -297,7 +297,7 @@ toolchain_checks:
   - {stack: opentofu, name: validate, cmd: "{bin} validate", bin: [tofu, terraform], when_dir: .terraform}
 
 # How deep below the repo root a tracked anchor sentinel still makes its
-# directory a subproject (kit_subprojects).
+# directory a subproject (`kit subprojects`).
 subproject_max_depth: 4
 
 # Formatters run on each edited file by hooks/format-dispatch.sh, only where

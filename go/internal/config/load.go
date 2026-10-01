@@ -11,7 +11,7 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-// Paths are the kit's fixed locations, as bin/_lib.sh derives them.
+// Paths are the kit's fixed locations, resolved by ResolvePaths.
 type Paths struct {
 	Root    string // kit root: $CLAUDE_PLUGIN_ROOT, else the parent of the binary's bin/
 	Home    string // Claude Code's config dir: $CLAUDE_CONFIG_DIR, else ~/.claude

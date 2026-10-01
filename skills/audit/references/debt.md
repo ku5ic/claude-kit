@@ -7,7 +7,7 @@ Surface technical debt and architectural risks with severity and remediation pat
 1. Stack is in the `<repo-context>` block from the `SubagentStart` hook. Get the scratch directory via `scratch-dir.sh`.
 2. Load the patterns skill for the detected stack (react-patterns, django-patterns, etc.) for the anti-pattern reference.
 3. Read the target.
-   1. If $ARGUMENTS is a directory, run `tokei --sort code <path>` to get accurate line counts per language and per file.
+   1. If $ARGUMENTS is a directory, run `tokei --files --sort code <path>` to get accurate line counts per language and per file.
    2. Read the 5 files with the highest code-line counts (excluding tests, generated files, and lockfiles).
    3. Read any `index.ts`, `main.py`, `urls.py`, `routes.ts` equivalents.
 4. Run `git log --oneline -20` on the target to see recent churn. High-churn files are candidates for higher-priority debt.

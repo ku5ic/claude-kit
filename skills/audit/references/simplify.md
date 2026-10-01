@@ -8,7 +8,7 @@ Find what to delete or replace with something smaller: over-engineering only, no
 2. Load the patterns skill for the detected stack for its idioms and stdlib reference.
 3. Scope:
    - `diff`: `git-base.sh --diff`. Judge only added or changed code; surrounding code is context.
-   - A path: read it. For a directory, `tokei --sort code <path>` and read the 5 largest files plus the entry points.
+   - A path: read it. For a directory, `tokei --files --sort code <path>` and read the 5 largest files plus the entry points.
    - Empty: the repo root, same as a directory.
 4. Read the dependency manifest (`package.json`, `pyproject.toml`, `go.mod`, or similar) for what is already installed.
 5. Climb the ladder in `rules/change.md` section 2 for each candidate: the finding is the lowest rung that would replace it. Skip categories with no findings. Do not pad.

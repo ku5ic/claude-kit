@@ -85,7 +85,7 @@ Structured artifacts (reports, reviews, audits) go to the path `scratch-dir.sh <
 
 Test artifacts and POC files need no fixed shape - name them sensibly, but keep them under the resolved directory.
 
-Plans are the exception to the timestamp. `.claude/plans/` is browsed by eye and shares a directory with the harness's own plan-mode files, so a plan is `plan-<task-slug>.md` - no date, slug capped at four words. Its age comes from the file's birth time (`stat -f %B`).
+Plans are the exception to the timestamp. `.claude/plans/` is browsed by eye and shares a directory with the harness's own plan-mode files, so a plan is `plan-<task-slug>.md` - no date, slug capped at four words. Its age comes from the file's birth time (`stat -f %B` on macOS, `stat -c %W` on Linux).
 
 Reading the most recent artifact of a kind, always filtered to the resolved directory:
 

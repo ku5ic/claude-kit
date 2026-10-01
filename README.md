@@ -106,7 +106,7 @@ Side trips when you need them:
 | `researcher` | Look up library docs and web pages, keeping network access out of code work |
 | `tester` | Add or update tests for recent work. Never changes the code to make them pass |
 
-In a plugin install, commands and agents are namespaced: `/claude-kit:audit`, `claude-kit:auditor`.
+Commands work bare (`/audit`) or namespaced (`/claude-kit:audit`). Agents take only the namespaced form, `claude-kit:auditor`.
 
 ### Pattern skills
 
@@ -152,11 +152,11 @@ Two opt-in switches go in your settings `env`:
 
 ## How it's built
 
-Every hook and helper runs in one Go binary (`bin/kit-<version>-<os>-<arch>`, darwin and linux, arm64 and amd64) behind same-name bash shims, in tens of milliseconds a call. The first call after an install or update downloads it from the matching GitHub release. `bin/doctor.sh` checks the kit against itself and, with `CLAUDE_KIT_PERSONAL` pointing at a personal config dir (`settings.json`, `CLAUDE.md`), against that too. It needs bash 4.4+, `jq`, and mikefarah `yq`, and isn't needed to use the plugin.
+Every hook and helper runs in one Go binary (`bin/kit-<version>-<os>-<arch>`, darwin and linux, arm64 and amd64) behind same-name bash shims, in tens of milliseconds a call. The first call after an install or update downloads it from the matching GitHub release. `bin/doctor.sh` checks the kit against itself and, with `CLAUDE_KIT_PERSONAL` pointing at the dir your `settings.json`, `CLAUDE.md`, `rules/` and `claude-kit.local.yml` are symlinked from, against that too: the links, deny rules, `Skill(<name>)` allow entries, and hook parity. It needs bash 4.4+, `jq`, and mikefarah `yq`, and isn't needed to use the plugin.
 
 ## Develop
 
 - Code: `go/`. Run `go test ./...`; end-to-end tests live in `go/e2e`.
-- `bats tests/` covers the two bash scripts.
+- `bats tests/` covers `bin/doctor.sh`; set `CLAUDE_KIT_PERSONAL` to also run it against your personal config.
 - `go/build.sh` builds the binaries for the `plugin.json` version. With `KIT_DEV=1`, `bin/kit` builds them itself and rebuilds when `go/` changes.
 - Release: work happens on feature branches off `main`, squash-merged by PR. A PR that bumps `.claude-plugin/plugin.json` `version` releases: on its merge, the `release` workflow publishes `v<version>` with the binaries. Installs take hooks and binaries only from a version bump; the rules follow `main`.

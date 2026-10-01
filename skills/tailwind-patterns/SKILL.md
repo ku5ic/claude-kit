@@ -5,7 +5,7 @@ description: Tailwind CSS v4 patterns - CSS-first config via the @theme directiv
 
 # Tailwind patterns
 
-Default assumption in this dotfiles project: Tailwind v4 with CSS-first config. If the project has a `tailwind.config.js` it is v3 and the v3 section applies; otherwise v4.
+Default assumption: Tailwind v4 with CSS-first config. If the project has a `tailwind.config.js` it is v3 and the v3 section applies; otherwise v4.
 
 ## v4 vs v3 at a glance
 

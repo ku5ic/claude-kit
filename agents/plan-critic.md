@@ -2,7 +2,7 @@
 name: plan-critic
 description: Adversarially reviews a plan file (plan mode output) against the real repo, not only the plan's own internal consistency. Verifies cited precedent exists, catches design-integrity non-answers, and checks whether named tests would catch the failures they claim to. Use after a plan is written, before approving it; never revises the plan itself.
 tools: Read, Grep, Glob, Bash, Skill
-color: indigo
+color: purple
 memory: local
 ---
 
