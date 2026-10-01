@@ -159,4 +159,4 @@ Every hook and helper runs in one Go binary (`bin/kit-<version>-<os>-<arch>`, da
 - Code: `go/`. Run `go test ./...`; end-to-end tests live in `go/e2e`.
 - `bats tests/` covers the two bash scripts.
 - `go/build.sh` builds the binaries for the `plugin.json` version. With `KIT_DEV=1`, `bin/kit` builds them itself and rebuilds when `go/` changes.
-- Release: work lands on `dev`. Bump `.claude-plugin/plugin.json` `version`, then run the `release` workflow on `dev`. It publishes `v<version>` with the binaries and fast-forwards `main`, which is what installs track.
+- Release: work lands on `dev`. Bump `.claude-plugin/plugin.json` `version` there and merge a PR from `dev` into `main` with a merge commit (a squash would leave `dev` behind `main`). The `release` workflow publishes `v<version>` with the binaries on that push; installs track `main`. A merge without a version bump ships nothing new to installs.
