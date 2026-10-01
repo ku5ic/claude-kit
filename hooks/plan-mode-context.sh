@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# UserPromptSubmit hook: in plan mode, points Claude at investigate so the
-# read-only investigation procedure feeds the plan. Plain stdout on this event
-# becomes context. Must stay fast: a timed-out hook's context is discarded.
+# UserPromptSubmit and PostToolUse (ExitPlanMode) hook: points Claude at
+# investigate in plan mode, then holds an approved plan to one step per turn
+# while it has open "- [ ]" steps. Must stay fast: a timed-out hook's context
+# is discarded.
 #
 # Implemented by `kit hook plan-mode-context` (go/internal/hooks).
 dir=${BASH_SOURCE[0]%/*}

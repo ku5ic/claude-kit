@@ -2,23 +2,12 @@ package hooks
 
 import (
 	"bytes"
-	"fmt"
 	"os"
 	"strings"
 
 	"github.com/ku5ic/dotfiles/claude-kit/go/internal/guard"
 	"github.com/ku5ic/dotfiles/claude-kit/go/internal/hook"
 )
-
-// PlanModeContext points Claude at investigate in plan mode, so the
-// read-only procedure feeds the plan. UserPromptSubmit: plain stdout becomes
-// context. Silent on anything else, a bad payload included.
-func PlanModeContext(h *hook.Hook) error {
-	if h.Payload.Err == nil && h.Payload.String("permission_mode") == "plan" {
-		fmt.Fprintln(h.Stdout, "Plan mode: load the investigate skill and follow it; its findings feed the plan.")
-	}
-	return nil
-}
 
 // LogSkills appends one skills.jsonl line per skill activation: a typed
 // /skill (UserPromptExpansion), the Skill tool, or a Read of a SKILL.md,
