@@ -1,4 +1,5 @@
 ---
+name: write
 description: Draft outward-facing text - commit message, PR description, release notes, devnote, explainer, review comment or reply, stakeholder summary
 argument-hint: <commit|pr|release-notes|devnote|explainer|review-comment|review-reply|stakeholder> [kind arguments]
 disable-model-invocation: true

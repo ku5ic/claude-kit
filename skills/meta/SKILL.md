@@ -1,4 +1,5 @@
 ---
+name: meta
 description: Authoring and reflection - sharpen a prompt, refresh reference skills against current releases, draft a new pattern skill pack, write a repo's conventions as cited rules, or run a retrospective
 argument-hint: <prompt|refresh|skill|conventions|retro> [kind arguments]
 disable-model-invocation: true

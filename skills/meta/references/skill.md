@@ -5,7 +5,7 @@ Draft a pattern skill pack for a stack from current docs and this repo's precede
 ## Procedure
 
 1. Scope. The stack is: $ARGUMENTS. Blank: ask via AskUserQuestion. The pack name is `<stack>-patterns`, lowercase and hyphenated. If `skills/<name>/` already exists in the kit, stop and point at `/meta refresh <name>` instead.
-2. Research. Dispatch the researcher agent (subagent_type: researcher, foreground) with fully resolved text, never a bare link. Ask it for, through Context7 first and official docs second:
+2. Research. Dispatch the researcher agent (subagent_type: claude-kit:researcher, foreground) with fully resolved text, never a bare link. Ask it for, through Context7 first and official docs second:
    - the library id and current stable version, with its release date
    - the key APIs and idioms a reviewer would check, and what each replaced
    - deprecations and removals in the last two majors

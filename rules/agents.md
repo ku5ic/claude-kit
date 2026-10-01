@@ -1,8 +1,8 @@
 # Agents
 
-Subagent shells live under `$HOME/.claude/agents/`. The canonical inventory is `/agents` output.
+Subagent shells live in the plugin's `agents/`. The canonical inventory is `/agents` output.
 
-Installed as a plugin, the kit's agents are namespaced: `subagent_type: auditor` in a skill means `claude-kit:auditor` there. Use whichever form the Agent tool lists.
+The Agent tool takes only the namespaced name, `claude-kit:<name>`; a bare `auditor` fails as not found.
 
 ## Spawn discipline
 
