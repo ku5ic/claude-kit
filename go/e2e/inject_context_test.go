@@ -237,7 +237,6 @@ stacks:
 		r.Has(t, "run install-rules.sh")
 	})
 
-
 	t.Run("prereqs: a missing kit.yml gets a warning naming the plugin fix", func(t *testing.T) {
 		e := injectContextSetup(t, tree)
 		os.Remove(filepath.Join(e.Claude, "kit.yml"))
