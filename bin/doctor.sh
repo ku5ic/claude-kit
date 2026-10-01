@@ -451,10 +451,23 @@ PERSONAL_SECTIONS=(
   "mcp allow-list server parity"
   "plugin hooks.json parity"
 )
+skip_reason=""
 if [[ -z "$PERSONAL_ROOT" ]]; then
+  skip_reason="no personal config; set CLAUDE_KIT_PERSONAL"
+else
+  for file in settings.json CLAUDE.md; do
+    if [[ ! -f "$PERSONAL_ROOT/$file" ]]; then
+      echo
+      echo "missing        $PERSONAL_ROOT/$file (CLAUDE_KIT_PERSONAL)"
+      skip_reason="incomplete personal config"
+      exit_code=1
+    fi
+  done
+fi
+if [[ -n "$skip_reason" ]]; then
   for section in "${PERSONAL_SECTIONS[@]}"; do
     echo
-    echo "== $section == (skipped: no personal config; set CLAUDE_KIT_PERSONAL)"
+    echo "== $section == (skipped: $skip_reason)"
   done
   exit "$exit_code"
 fi

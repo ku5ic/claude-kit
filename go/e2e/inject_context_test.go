@@ -234,7 +234,7 @@ stacks:
 		os.Remove(filepath.Join(e.Claude, "rules", "kit"))
 		r := e.run("s1", "")
 		r.Want(t, 0)
-		r.Has(t, "run install-rules.sh")
+		r.Has(t, "run ~/.claude/plugins/marketplaces/ku5ic/install-rules.sh")
 	})
 
 	t.Run("prereqs: a missing kit.yml gets a warning naming the plugin fix", func(t *testing.T) {

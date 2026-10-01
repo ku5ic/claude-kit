@@ -63,6 +63,16 @@ copy_tree() {
   [[ "$output" == *"== plugin hooks.json parity == (skipped: no personal config"* ]]
 }
 
+@test "a personal dir without settings.json or CLAUDE.md fails and skips the personal sections" {
+  mkdir -p "$BATS_TEST_TMPDIR/bare"
+  CI=true CLAUDE_KIT_PERSONAL="$BATS_TEST_TMPDIR/bare" run "$SCRIPT"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"missing        $BATS_TEST_TMPDIR/bare/settings.json"* ]]
+  [[ "$output" == *"missing        $BATS_TEST_TMPDIR/bare/CLAUDE.md"* ]]
+  [[ "$output" == *"== plugin hooks.json parity == (skipped: incomplete personal config)"* ]]
+  [[ "$output" != *"No such file"* ]]
+}
+
 @test "missing jq is reported by the prerequisite check, and nothing else runs" {
   # A PATH with bash and yq but no jq; each tool linked by itself, since
   # Homebrew keeps jq in the same directory as bash.
