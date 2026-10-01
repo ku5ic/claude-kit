@@ -66,14 +66,9 @@ SETTINGS="${PERSONAL_ROOT:+$PERSONAL_ROOT/settings.json}"
 # Claude Code's config dir, relocatable with CLAUDE_CONFIG_DIR.
 TARGET_ROOT="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
-ENTRIES=(settings.json CLAUDE.md hooks skills agents rules bin kit.yml claude-kit.local.yml)
-
-root_for() {
-  case "$1" in
-  settings.json | CLAUDE.md | rules | claude-kit.local.yml) echo "$PERSONAL_ROOT" ;;
-  *) echo "$SOURCE_ROOT" ;;
-  esac
-}
+# Personal config linked into the Claude config dir; the kit itself is a
+# plugin and links nothing there but rules/claude-kit (install-rules.sh).
+ENTRIES=(settings.json CLAUDE.md rules claude-kit.local.yml)
 
 exit_code=0
 
@@ -100,11 +95,12 @@ echo
 # CI runners have no ~/.claude install, so symlink targets never resolve correctly.
 if [[ "${CI:-}" == "true" ]]; then
   echo "== symlinks == (skipped: running in CI)"
+elif [[ -z "$PERSONAL_ROOT" ]]; then
+  echo "== symlinks == (skipped: no personal config; set CLAUDE_KIT_PERSONAL)"
 elif [[ -d "$TARGET_ROOT" ]]; then
   echo "== symlinks =="
   for entry in "${ENTRIES[@]}"; do
-    [[ -n "$(root_for "$entry")" ]] || continue
-    src="$(root_for "$entry")/$entry"
+    src="$PERSONAL_ROOT/$entry"
     dst="$TARGET_ROOT/$entry"
 
     if [[ ! -L "$dst" ]]; then

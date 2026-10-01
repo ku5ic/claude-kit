@@ -38,7 +38,7 @@ Factual question (how big, what secrets, how fast, what is in this JSON): reach 
 
 ## 2. Call bin scripts by bare name
 
-The kit's `bin/` is on PATH (the plugin's `bin/`, or `~/.claude/bin` in a symlinked install). Call every script there by bare name, never by path.
+The plugin's `bin/` is on PATH. Call every script there by bare name, never by path.
 
 - Correct: `project-name.sh`, `run-checks.sh`, `git-base.sh main`, `scratch-dir.sh`
 - Wrong: `$HOME/.claude/bin/run-checks.sh`, `./bin/run-checks.sh`, `bash run-checks.sh`

@@ -151,7 +151,7 @@ Two opt-in switches go in your settings `env`:
 
 ## How it's built
 
-Every hook and helper runs in one Go binary (`bin/kit-<version>-<os>-<arch>`, darwin and linux, arm64 and amd64) behind same-name bash shims, in tens of milliseconds a call. The first call after an install or update downloads it from the matching GitHub release. `bin/doctor.sh` and `bin/bootstrap.sh` maintain the symlinked layout in [ku5ic/dotfiles](https://github.com/ku5ic/dotfiles), need bash 4.4+, `jq`, and mikefarah `yq`, and aren't needed for a plugin install.
+Every hook and helper runs in one Go binary (`bin/kit-<version>-<os>-<arch>`, darwin and linux, arm64 and amd64) behind same-name bash shims, in tens of milliseconds a call. The first call after an install or update downloads it from the matching GitHub release. `bin/doctor.sh` checks the kit against itself and, with `CLAUDE_KIT_PERSONAL` pointing at a personal config dir (`settings.json`, `CLAUDE.md`), against that too. It needs bash 4.4+, `jq`, and mikefarah `yq`, and isn't needed to use the plugin.
 
 ## Develop
 

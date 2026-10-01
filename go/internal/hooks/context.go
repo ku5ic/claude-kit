@@ -226,17 +226,12 @@ func tooling(cfg *config.Config, root string) string {
 // nothing is: the kit rules linked and a readable kit.yml. The kit itself
 // needs no tools beyond git and a POSIX shell.
 func prerequisites(paths config.Paths) string {
-	// Only the harness sets CLAUDE_PLUGIN_ROOT, and only for plugin hooks.
-	rulesFix, kitFix := "run bootstrap.sh", "run bootstrap.sh"
-	if os.Getenv("CLAUDE_PLUGIN_ROOT") != "" {
-		rulesFix, kitFix = "run install-rules.sh", "reinstall the plugin"
-	}
 	var missing []string
 	if !rulesLinked(paths) {
-		missing = append(missing, "the kit rules linked under ~/.claude/rules ("+rulesFix+")")
+		missing = append(missing, "the kit rules linked under ~/.claude/rules (run install-rules.sh)")
 	}
 	if f, err := os.Open(paths.Base); err != nil {
-		missing = append(missing, "a readable kit.yml at the kit root ("+kitFix+")")
+		missing = append(missing, "a readable kit.yml at the kit root (reinstall the plugin)")
 	} else {
 		f.Close()
 	}
