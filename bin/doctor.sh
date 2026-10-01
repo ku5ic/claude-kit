@@ -633,6 +633,10 @@ echo "== plugin hooks.json parity =="
 # ${CLAUDE_PLUGIN_ROOT}. Editing one without the other ships adopters a
 # different hook set than the one this machine runs.
 HOOKS_JSON="$SOURCE_ROOT/hooks/hooks.json"
+if [[ "$(jq 'has("hooks")' "$PERSONAL_ROOT/settings.json")" != true ]]; then
+  echo "ok             settings.json has no hooks; the plugin's hooks.json is the only source"
+  exit "$exit_code"
+fi
 expected_hooks="$(jq -S '{hooks: (.hooks | walk(if type=="object" and has("command") then .command |= ("\"${CLAUDE_PLUGIN_ROOT}/hooks/" + sub("^\\$HOME/\\.claude/hooks/"; "") + "\"") else . end))}' "$PERSONAL_ROOT/settings.json")"
 if [[ "$expected_hooks" == "$(jq -S . "$HOOKS_JSON")" ]]; then
   echo "ok             hooks/hooks.json matches settings.json hooks"
