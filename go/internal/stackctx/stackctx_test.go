@@ -7,8 +7,8 @@ import (
 	"github.com/ku5ic/dotfiles/claude-kit/go/internal/config"
 )
 
-// Moved from detect-stack.bats: the stack-line parser reads extras from the
-// current report format, and skips root and versions lines.
+// The stack-line parser reads extras from the current report format, and
+// skips root and versions lines.
 func TestSignals(t *testing.T) {
 	report := "root: /x\njs: yes (react) [pnpm] at ., packages/a\npython: yes [uv] at services/api\nversions [packages/a]: react 19.0.0 (declared)\n"
 	got := Signals(report)

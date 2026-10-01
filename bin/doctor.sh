@@ -605,8 +605,8 @@ fi
 echo
 echo "== kit.yml schema =="
 
-# The bash loader drops a key it doesn't know; the Go loader decodes
-# strictly, so a misspelled key in kit.yml or the overlay shows up here.
+# The Go loader decodes strictly, so a misspelled key in kit.yml or the
+# overlay shows up here.
 if schema_warnings="$("$SCRIPT_DIR/kit" config --check 2>&1)"; then
   echo "ok             kit.yml and the overlay hold only known keys"
 elif [[ "$schema_warnings" == *"no binary for"* ]]; then

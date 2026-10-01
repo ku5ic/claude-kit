@@ -8,8 +8,6 @@ import (
 	"testing"
 )
 
-// Ports providers.bats' extractor tests: same fixtures, same expected output.
-
 func fixture(t *testing.T, name, body string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), name)

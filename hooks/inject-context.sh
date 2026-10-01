@@ -2,7 +2,7 @@
 # SessionStart hook. Prepends repo context at session start/resume/compact/
 # clear: prerequisite warnings, <repo-context>, <required-skills>,
 # <suggested-skills>, and <tooling>. The harness guarantees this fires once
-# per boundary (matcher: startup|resume|compact|clear in settings.json).
+# per boundary (matcher: startup|resume|compact|clear in hooks.json).
 #
 # Implemented by `kit hook inject-context` (go/internal/hooks).
 dir=${BASH_SOURCE[0]%/*}

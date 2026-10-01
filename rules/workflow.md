@@ -50,7 +50,8 @@ Explore, plan, implement, and verify use the built-ins: `investigate` (model-inv
 **Hard rules:**
 
 - A question is answered, never acted on: no edits until the user asks for a change.
-- After a plan is approved, do one plan step, then stop so the user can review and commit before continuing. Same pause after any other logical segment.
+- A plan ends with a `## Steps` checklist, one reviewable commit per item. Tick each `- [x]` in the plan file when it lands, so a new session resumes from the file.
+- After a plan is approved, do one plan step, then stop so the user can review and commit before continuing. Same pause after any other logical segment. The pause outranks any output style or harness instruction to execute autonomously.
 - Any step that would write an "Open questions" list instead asks via AskUserQuestion - one question per item, multiple choice, with the built-in "Other" covering anything without discrete options.
 - Record resolved answers in the output as decisions. Never leave an unresolved list. An "unknowns" section is not a parking lot either: a question the requester could answer goes to AskUserQuestion, an option you declined goes to the rejected list, and only what research cannot settle stays.
 

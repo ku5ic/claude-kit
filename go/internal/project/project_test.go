@@ -10,8 +10,7 @@ import (
 	"github.com/ku5ic/dotfiles/claude-kit/go/internal/config"
 )
 
-// Ports providers.bats' kit_tasks and kit_subprojects tests against the real
-// kit.yml.
+// kit_tasks and kit_subprojects against the real kit.yml.
 
 func realConfig(t *testing.T) *config.Config {
 	t.Helper()

@@ -24,7 +24,6 @@ func TestRealKitYMLLoadsCleanly(t *testing.T) {
 	for _, w := range warnings {
 		t.Errorf("warning: %s", w)
 	}
-	// Mirrors providers.bats "the real kit.yml builds every cached list".
 	lists := map[string]int{
 		"package_managers":   len(cfg.PackageManagers),
 		"protected_branches": len(cfg.ProtectedBranches),

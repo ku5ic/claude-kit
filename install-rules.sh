@@ -15,7 +15,7 @@ case "$kit_dir" in
   ;;
 esac
 
-dst="$HOME/.claude/rules/claude-kit"
+dst="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/rules/claude-kit"
 mkdir -p "$(dirname "$dst")"
 
 if [[ -e "$dst" && ! -L "$dst" ]]; then

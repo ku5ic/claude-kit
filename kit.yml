@@ -54,7 +54,7 @@
 # CLAUDE_GUARD_SKILLS=1.
 global_skills: []
 
-# File-to-skills map consumed by hooks/guard-skills.sh.
+# File-to-skills map consumed by guard-dispatch's skills gate.
 # Evaluated against every Edit/Write/MultiEdit target; matching is
 # cumulative (a single file can satisfy multiple entries). Order matters:
 # test entries precede extension entries so a .test.tsx file picks up
@@ -177,12 +177,12 @@ package_managers:
     manager: pip
     ecosystem: python
     # Hand-maintained, so edits to it are normal; every other lockfile here is
-    # tool-generated and guard-edit.sh blocks direct edits to it.
+    # tool-generated and guard-dispatch blocks direct edits to it.
     hand_edited: true
 
 # Guard lists. An overlay can append to any of them.
 
-# Lockfiles guard-edit.sh blocks on top of the package_managers ones.
+# Lockfiles guard-dispatch blocks on top of the package_managers ones.
 extra_lockfiles: [Gemfile.lock, Cargo.lock, composer.lock, pdm.lock]
 
 # Branches git push, and git reset --hard to, are blocked for.
