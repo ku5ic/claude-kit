@@ -100,6 +100,8 @@ if [[ "${CI:-}" == "true" ]]; then
   echo "== symlinks == (skipped: running in CI)"
 elif [[ -z "$PERSONAL_ROOT" ]]; then
   echo "== symlinks == (skipped: no personal config; set CLAUDE_KIT_PERSONAL)"
+elif [[ ! -d "$PERSONAL_ROOT" ]]; then
+  echo "== symlinks == (skipped: $PERSONAL_ROOT does not exist)"
 elif [[ -d "$TARGET_ROOT" ]]; then
   echo "== symlinks =="
   for entry in "${ENTRIES[@]}"; do

@@ -84,6 +84,13 @@ missing        $BATS_TEST_TMPDIR/bare/settings.json"* ]]
   [[ "$output" != *"No such file"* ]]
 }
 
+@test "a personal dir that doesn't exist skips the symlinks section instead of reporting wrong targets" {
+  mkdir -p "$BATS_TEST_TMPDIR/claude"
+  CI=false CLAUDE_CONFIG_DIR="$BATS_TEST_TMPDIR/claude" CLAUDE_KIT_PERSONAL="$BATS_TEST_TMPDIR/absent" run "$SCRIPT"
+  [[ "$output" == *"== symlinks == (skipped: $BATS_TEST_TMPDIR/absent does not exist)"* ]]
+  [[ "$output" != *"wrong-target"* ]]
+}
+
 @test "missing jq is reported by the prerequisite check, and nothing else runs" {
   # A PATH with bash and yq but no jq; each tool linked by itself, since
   # Homebrew keeps jq in the same directory as bash.
