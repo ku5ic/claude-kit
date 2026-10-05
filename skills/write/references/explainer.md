@@ -28,7 +28,7 @@ The subject is already understood well enough to explain - root cause from `inve
 
 Format:
 
-- Structured with section headers - the point is a reader building a mental model across multiple hops, which a devnote's few sentences are too short to need broken out that far.
+- Structured with section headers - the point is a reader building a mental model across multiple hops, which a devnote's sentence or two is too short to need broken out that far.
 - Full sentences over fragments; a newcomer needs the reasoning spelled out.
 - Cite every claim as `file:line`.
 

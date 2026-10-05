@@ -1,6 +1,6 @@
 # /write devnote
 
-Explain a completed change's key reasoning in a few sentences, developer to developer. Arguments: `<optional: which decision to focus on>`.
+Explain a completed change's key reasoning in a sentence or two, developer to developer. Arguments: `<optional: which decision to focus on>`.
 
 ## Procedure
 
@@ -17,7 +17,9 @@ Explain a completed change's key reasoning in a few sentences, developer to deve
 
 ## Output
 
-Plain language, developer to developer - assume the reader is a peer engineer who doesn't need the mechanism re-explained, just the reasoning. No restating the diff, no "Summary:" preamble. Print directly to the terminal, not a file. A single decision is a few plain sentences; more than one decision gets a plain bullet per decision. No bold lead-in labels.
+Plain language, developer to developer - assume the reader is a peer engineer who doesn't need the mechanism re-explained, just the reasoning. No restating the diff, no "Summary:" preamble. Print directly to the terminal, not a file. A single decision is one or two short sentences; more than one decision gets a plain bullet per decision. No bold lead-in labels.
+
+Write it the way you'd say it to a teammate in chat, casually. No file paths, line numbers, or source citations - name the tool or concept instead ("fuzzysort scores by the best-matching key", not `fuzzysort.js:459`). Keep the evidence, drop the receipts.
 
 ## Rules
 

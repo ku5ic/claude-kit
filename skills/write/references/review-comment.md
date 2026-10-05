@@ -46,7 +46,7 @@ Hey @<author>, <genuine one-line compliment about the work>.
 
 ## Rules
 
-- Tone: peer to peer, professional, warm. Never "I recommend", "you should", or "let me know if you have questions".
+- Tone: peer to peer. Never "I recommend", "you should", or "let me know if you have questions".
 - Every finding link points at the exact line(s) from the source report, unedited.
 - Skip info-level findings unless they are quick wins or visibly affect code quality.
 - The comment is read in a PR thread, so it stays scannable in one screen and covers only the findings worth the author's time. If it grows past what one comment can carry, split it in the same output file, each in its own fenced block, labeled "Comment 1 of N" etc.
