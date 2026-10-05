@@ -2,7 +2,7 @@
 
 Subagent shells live in the plugin's `agents/`. The canonical inventory is `/agents` output.
 
-The Agent tool takes only the namespaced name, `claude-kit:<name>`; a bare `auditor` fails as not found.
+The Agent tool takes only the namespaced name, `kit:<name>`; a bare `auditor` fails as not found.
 
 ## Spawn discipline
 

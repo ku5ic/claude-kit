@@ -24,7 +24,7 @@ Retention: at most 3 version entries, newest first. A pattern that changed moves
    - `--all`: every reference skill.
    - Blank: list every reference skill with its `Checked:` date (or "never"), oldest first, and ask which to refresh via AskUserQuestion (multi-select, at most 5 unless the user picks `--all`).
 2. Read each selected skill's SKILL.md and every file under its `reference/`. Extract: the claimed current version (intro lines and Version notes), every version-specific claim ("since 3.4", "renamed in 16", "deprecated"), and the References URLs.
-3. Research, never from memory. For each skill dispatch one researcher agent (Agent tool, subagent_type: claude-kit:researcher, same message for up to 3 at a time) with: the library or framework name, the References URLs, the claimed current version, and the list of version-specific claims. Ask it to return, with a source for each:
+3. Research, never from memory. For each skill dispatch one researcher agent (Agent tool, subagent_type: kit:researcher, same message for up to 3 at a time) with: the library or framework name, the References URLs, the claimed current version, and the list of version-specific claims. Ask it to return, with a source for each:
    - Latest stable version and its release date; latest LTS if the ecosystem has one.
    - Each claim: verified / contradicted (with the current wording) / could not verify.
    - New deprecations or renames since the claimed version.
