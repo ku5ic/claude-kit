@@ -47,6 +47,6 @@ Structure:
 
 - Replace jargon with plain language without oversimplifying to the point of being inaccurate.
 - Keep tradeoffs intact. Do not hide risk or complexity, just express it in outcomes.
-- Tone: direct, professional, confident. Not apologetic, not hedged.
+- Tone: direct. Not apologetic, not hedged.
 - Do not invent context. If something in the input is ambiguous, note it as an open question rather than guessing.
 - No padding. If a section has nothing meaningful, omit it.
