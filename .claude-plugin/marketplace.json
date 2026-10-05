@@ -6,7 +6,7 @@
   },
   "plugins": [
     {
-      "name": "claude-kit",
+      "name": "kit",
       "source": "./",
       "description": "Guard hooks, context injection, read-only exploration, /audit and /write, stack pattern skills, and review agents for Claude Code."
     }

@@ -24,7 +24,7 @@ Not for a request to change code: that goes to plan mode (`/plan`) or a direct e
 
 ### Symptom
 
-2. Delegate fault localization to the debugger agent (subagent_type: claude-kit:debugger, foreground). It has no MCP tools, so its prompt carries fully resolved text, never a link. It follows:
+2. Delegate fault localization to the debugger agent (subagent_type: kit:debugger, foreground). It has no MCP tools, so its prompt carries fully resolved text, never a link. It follows:
    - Reproduce with the narrowest command; 3 attempts before calling it non-deterministic.
    - `git log -10 --oneline -- <affected paths>`; a commit aligned with onset is the prime suspect.
    - Trace from the entry point to where observed diverges from expected; stop at library boundaries; cap at 10 files.

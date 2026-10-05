@@ -21,7 +21,7 @@ claude-kit closes those gaps with hooks: small, deterministic checks that run on
 
 ```sh
 claude plugin marketplace add ku5ic/claude-kit
-claude plugin install claude-kit@ku5ic
+claude plugin install kit@ku5ic
 ~/.claude/plugins/marketplaces/ku5ic/install-rules.sh
 ```
 
@@ -126,7 +126,7 @@ Side trips when you need them:
 | `researcher` | Look up library docs and web pages, keeping network access out of code work |
 | `tester` | Add or update tests for recent work. Never changes the code to make them pass |
 
-Commands work bare (`/audit`) or namespaced (`/claude-kit:audit`). Agents take only the namespaced form, `claude-kit:auditor`.
+Commands work bare (`/audit`) or namespaced (`/kit:audit`). Agents take only the namespaced form, `kit:auditor`.
 
 ### Pattern skills
 
