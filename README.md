@@ -84,20 +84,20 @@ Side trips when you need them:
 
 ### Guards (always on)
 
-| Guard | What it stops |
-| --- | --- |
-| **guard-bash** | Parses every command with a real bash parser, including pipelines, `$(...)`, subshells, and heredocs fed to a shell, and sees through `sudo`, `doas`, `env`, and similar wrappers. Blocks `rm -rf ~`, force pushes, pushes to protected branches, `curl \| sh`, `eval`, `sh -c`, reading credential files, and writing shell rc files. Asks before `git push`, an unfrozen `pnpm install`, or a stray file written into the repo root |
-| **guard-edit** | Blocks reading or writing `.env`, keys, and other credential files, and editing lockfiles, `.git/`, or shell rc files, whatever your permission rules say |
-| **guard-commit** | Blocks AI signatures and AI-tell phrasing in commit messages, and secrets in the staged diff (runs `gitleaks` when installed) |
-| **downloads** | `curl` and `wget` may write only into the gitignored `.claude/scratch/` |
+| Guard            | What it stops                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **guard-bash**   | Parses every command with a real bash parser, including pipelines, `$(...)`, subshells, and heredocs fed to a shell, and sees through `sudo`, `doas`, `env`, and similar wrappers. Blocks `rm -rf ~`, force pushes, pushes to protected branches, `curl \| sh`, `eval`, `sh -c`, reading credential files, and writing shell rc files. Asks before `git push`, an unfrozen `pnpm install`, or a stray file written into the repo root |
+| **guard-edit**   | Blocks reading or writing `.env`, keys, and other credential files, and editing lockfiles, `.git/`, or shell rc files, whatever your permission rules say                                                                                                                                                                                                                                                                             |
+| **guard-commit** | Blocks AI signatures and AI-tell phrasing in commit messages, and secrets in the staged diff (runs `gitleaks` when installed)                                                                                                                                                                                                                                                                                                         |
+| **downloads**    | `curl` and `wget` may write only into the gitignored `.claude/scratch/`                                                                                                                                                                                                                                                                                                                                                               |
 
 ### Quality (automatic)
 
-| Hook | What it does |
-| --- | --- |
+| Hook            | What it does                                                                                                                                                                                                                                                                                    |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Stop checks** | Runs your project's own linters, type checkers, and tests on just the files Claude edited, in parallel. Reuses the flags from your `package.json` scripts, Makefile, justfile, or CI. A linter blocks only on findings in lines Claude changed, so old warnings in a touched file don't trap it |
-| **format** | Formats each edited file with the project's own formatter and config (Prettier, Biome, dprint, ruff, black, shfmt, stylua, gofmt). Never installs anything |
-| **sanitize** | Strips invisible bidi characters (Trojan Source) from every written file |
+| **format**      | Formats each edited file with the project's own formatter and config (Prettier, Biome, dprint, ruff, black, shfmt, stylua, gofmt). Never installs anything                                                                                                                                      |
+| **sanitize**    | Strips invisible bidi characters (Trojan Source) from every written file                                                                                                                                                                                                                        |
 
 ### Context (automatic)
 
@@ -107,24 +107,24 @@ Side trips when you need them:
 
 ### Commands
 
-| Command | What it does |
-| --- | --- |
-| `investigate` | Read-only answer to "how", "why", or "where". Loads on its own; never edits |
+| Command         | What it does                                                                                                                     |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `investigate`   | Read-only answer to "how", "why", or "where". Loads on its own; never edits                                                      |
 | `/audit <kind>` | `a11y`, `debt`, `doc-drift`, `perf`, `simplify` (what to delete or replace with stdlib), or `verify`. Writes a report to scratch |
-| `/write <kind>` | `commit`, `pr`, `release-notes`, `devnote`, `explainer`, `review-comment`, `review-reply`, `stakeholder` |
-| `/deps` | Dependabot PRs and security alerts |
-| `/meta <kind>` | Sharpen a prompt, refresh the pattern skills, draft a new skill, write a repo's conventions, run a retrospective |
+| `/write <kind>` | `commit`, `pr`, `release-notes`, `devnote`, `explainer`, `review-comment`, `review-reply`, `stakeholder`                         |
+| `/deps`         | Dependabot PRs and security alerts                                                                                               |
+| `/meta <kind>`  | Sharpen a prompt, refresh the pattern skills, draft a new skill, write a repo's conventions, run a retrospective                 |
 
 ### Agents
 
-| Agent | Use it to |
-| --- | --- |
-| `auditor` | Run a read-only audit for an `/audit` kind |
-| `checker` | Get a one-line pass/fail from `run-checks.sh` |
-| `debugger` | Find where and why something breaks. Hands the fix back |
-| `plan-critic` | Attack a plan against the real repo before you approve it |
-| `researcher` | Look up library docs and web pages, keeping network access out of code work |
-| `tester` | Add or update tests for recent work. Never changes the code to make them pass |
+| Agent         | Use it to                                                                     |
+| ------------- | ----------------------------------------------------------------------------- |
+| `auditor`     | Run a read-only audit for an `/audit` kind                                    |
+| `checker`     | Get a one-line pass/fail from `run-checks.sh`                                 |
+| `debugger`    | Find where and why something breaks. Hands the fix back                       |
+| `plan-critic` | Attack a plan against the real repo before you approve it                     |
+| `researcher`  | Look up library docs and web pages, keeping network access out of code work   |
+| `tester`      | Add or update tests for recent work. Never changes the code to make them pass |
 
 Commands work bare (`/audit`) or namespaced (`/kit:audit`). Agents take only the namespaced form, `kit:auditor`.
 
@@ -136,14 +136,14 @@ Stack knowledge Claude loads when the repo calls for it: React, Next.js App Rout
 
 Six short files that shape how Claude works:
 
-| Rule | In one line |
-| --- | --- |
-| `output` | Answer first, short by default, deliverables go to files |
+| Rule       | In one line                                                               |
+| ---------- | ------------------------------------------------------------------------- |
+| `output`   | Answer first, short by default, deliverables go to files                  |
 | `evidence` | Never invent paths, APIs, versions, or test results; label how sure it is |
-| `change` | Smallest fix for the defect, follow the existing pattern, no dead code |
-| `workflow` | Never commit or push unasked; confirm before anything destructive |
-| `tooling` | Reach for a CLI before reasoning; temporary files go to scratch |
-| `agents` | When to spawn a subagent, and check its work before building on it |
+| `change`   | Smallest fix for the defect, follow the existing pattern, no dead code    |
+| `workflow` | Never commit or push unasked; confirm before anything destructive         |
+| `tooling`  | Reach for a CLI before reasoning; temporary files go to scratch           |
+| `agents`   | When to spawn a subagent, and check its work before building on it        |
 
 ## When a guard gets in your way
 
@@ -156,13 +156,13 @@ Six short files that shape how Claude works:
 
 Defaults live in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml`, which merges on top (maps merge, lists append). Handy keys:
 
-| Key | For |
-| --- | --- |
-| `protected_branches` | Branches Claude can't push to (default: `main`, `master`, `develop`, `production`, `release`) |
-| `sensitive_paths` | Extra credential files to guard |
-| `file_checks` | Your own Stop checks; a same-named entry replaces a built-in |
-| `disabled_file_checks`, `disabled_formatters` | Turn a built-in check or formatter off |
-| `check_timeout` | Seconds before a Stop check is killed and skipped (default 90) |
+| Key                                           | For                                                                                           |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `protected_branches`                          | Branches Claude can't push to (default: `main`, `master`, `develop`, `production`, `release`) |
+| `sensitive_paths`                             | Extra credential files to guard                                                               |
+| `file_checks`                                 | Your own Stop checks; a same-named entry replaces a built-in                                  |
+| `disabled_file_checks`, `disabled_formatters` | Turn a built-in check or formatter off                                                        |
+| `check_timeout`                               | Seconds before a Stop check is killed and skipped (default 90)                                |
 
 `kit config` prints the merged result, and `kit config --check` flags unknown keys and wrong types. Package-manager environments (poetry, pipenv, Yarn PnP, bundler) are built in.
 
