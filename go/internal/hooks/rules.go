@@ -76,10 +76,10 @@ func InjectRules(h *hook.Hook) error {
 
 // leftoverRulesLink is the directory under <home>/rules that still holds the
 // kit's rules from an install-rules.sh install, "" when there is none: the
-// claude-kit name that script used, the kit's own rules dir, or a copy
-// holding every rule file it has (the
+// kit's own rules dir, a copy holding every rule file it has (the
 // marketplace clone a link points at is never the plugin cache the hooks
-// run from). Left in place, the rules would load twice.
+// run from), or, under the claude-kit name that script used, any of them.
+// Left in place, the rules would load twice.
 func leftoverRulesLink(paths config.Paths) string {
 	kitRules, err := filepath.EvalSymlinks(filepath.Join(paths.Root, "rules"))
 	if err != nil {
@@ -92,20 +92,16 @@ func leftoverRulesLink(paths config.Paths) string {
 		if !project.IsDir(dir) {
 			continue
 		}
-		if entry.Name() == "claude-kit" {
-			return dir
-		}
 		if physical, err := filepath.EvalSymlinks(dir); err == nil && physical == kitRules {
 			return dir
 		}
-		complete := len(ruleFiles) > 0
+		present := 0
 		for _, rule := range ruleFiles {
-			if !project.IsFile(filepath.Join(dir, filepath.Base(rule))) {
-				complete = false
-				break
+			if project.IsFile(filepath.Join(dir, filepath.Base(rule))) {
+				present++
 			}
 		}
-		if complete {
+		if present > 0 && (present == len(ruleFiles) || entry.Name() == "claude-kit") {
 			return dir
 		}
 	}

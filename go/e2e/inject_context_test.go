@@ -305,6 +305,12 @@ stacks:
 		e.run("s1", "").Has(t, "load twice")
 	})
 
+	t.Run("a claude-kit dir holding none of the kit's rule files is not the kit's", func(t *testing.T) {
+		e := injectContextSetup(t, tree)
+		Write(t, filepath.Join(e.Claude, "rules", "claude-kit", "my-notes.md"), "mine\n")
+		e.run("s1", "").Lacks(t, "load twice")
+	})
+
 	t.Run("an unrelated rules dir missing one of the kit's rule files is not the kit's", func(t *testing.T) {
 		e := injectContextSetup(t, tree)
 		partial := filepath.Join(e.tmp, "partial-rules")
