@@ -116,9 +116,9 @@ func AgentContext(paths config.Paths, cfg *config.Config, cwd string) string {
 	return b.String()
 }
 
-// InjectSubagentContext is the SubagentStart hook. SubagentStart takes
-// additionalContext in JSON, not plain stdout, so agent-context's text is
-// wrapped.
+// InjectSubagentContext is the SubagentStart hook. SubagentStart ignores
+// plain stdout and a top-level additionalContext: it reads only
+// hookSpecificOutput.additionalContext.
 func InjectSubagentContext(h *hook.Hook) error {
 	cfg := h.Config()
 	if cfg == nil {
@@ -128,7 +128,13 @@ func InjectSubagentContext(h *hook.Hook) error {
 	if context == "" {
 		return nil
 	}
-	hook.WriteJSON(h.Stdout, map[string]string{"additionalContext": context})
+	type specific struct {
+		HookEventName     string `json:"hookEventName"`
+		AdditionalContext string `json:"additionalContext"`
+	}
+	hook.WriteJSON(h.Stdout, struct {
+		HookSpecificOutput specific `json:"hookSpecificOutput"`
+	}{specific{"SubagentStart", context}})
 	return nil
 }
 
