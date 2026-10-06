@@ -560,4 +560,11 @@ func TestGuardBash(t *testing.T) {
 		r.Want(t, 2)
 		r.Has(t, "rm with recursive force", "Command: find . -delete && rm -rf ~")
 	})
+	t.Run("a disabled rule doesn't end the checks for the rest of the same command", func(t *testing.T) {
+		k, src := guardBashOverlay(t)
+		Write(t, src, "disabled_rules: [sensitive-read]\n")
+		r := guard(k, `tee -a ~/.zshrc < .env`)
+		r.Want(t, 2)
+		r.Has(t, "direct write to a shell rc file")
+	})
 }

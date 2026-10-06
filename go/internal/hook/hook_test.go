@@ -98,16 +98,13 @@ func TestDecide(t *testing.T) {
 	}
 }
 
-func TestPayloadAlt(t *testing.T) {
-	p := ParsePayload([]byte(`{"tool_input":{"skill":"","file_path":"/a","n":3,"f":false}}`))
-	if got := p.Alt("tool_input.skill", "tool_input.file_path"); got != "" {
-		t.Errorf(`"" is a value in jq's //, got %q`, got)
+func TestPayload(t *testing.T) {
+	p := ParsePayload([]byte(`{"tool_input":{"file_path":"/a","n":3}}`))
+	if got := p.FilePath(); got != "/a" {
+		t.Errorf("FilePath = %q", got)
 	}
-	if got := p.Alt("tool_input.missing", "tool_input.f", "tool_input.file_path"); got != "/a" {
-		t.Errorf("got %q", got)
-	}
-	if got := p.Alt("tool_input.n"); got != "3" {
-		t.Errorf("got %q", got)
+	if got := p.String("tool_input.n"); got != "" {
+		t.Errorf("String of a number = %q, want empty", got)
 	}
 	if ParsePayload([]byte("not json")).Err == nil || ParsePayload(nil).Err == nil {
 		t.Error("bad payloads must set Err")

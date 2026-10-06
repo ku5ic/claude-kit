@@ -33,8 +33,8 @@ import (
 
 var jsFiles = []string{"*.js", "*.jsx", "*.ts", "*.tsx", "*.mjs", "*.cjs", "*.mts", "*.cts", "*.vue", "*.svelte", "*.astro"}
 
-// The matchers are the bash original's EREs, compiled POSIX so alternation
-// stays leftmost-longest as grep's.
+// The matchers compile POSIX so alternation is leftmost-longest: the
+// longer of two matching import forms wins.
 var (
 	jsCandidate = regexp.MustCompilePOSIX(`(from|import|require)[[:space:]]*\(?[[:space:]]*['"]`)
 	jsSpec      = regexp.MustCompilePOSIX(`(from|import|require[[:space:]]*\(|import[[:space:]]*\()[[:space:]]*['"]([^'"]+)['"]`)

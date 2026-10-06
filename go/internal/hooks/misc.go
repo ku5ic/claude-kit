@@ -2,6 +2,7 @@ package hooks
 
 import (
 	"bytes"
+	"cmp"
 	"os"
 	"strings"
 
@@ -23,9 +24,9 @@ func LogSkills(h *hook.Hook) error {
 		return nil
 	}
 	p := h.Payload
-	event := p.Alt("hook_event_name")
-	expansion := p.Alt("expansion_type")
-	tool := p.Alt("tool_name")
+	event := p.String("hook_event_name")
+	expansion := p.String("expansion_type")
+	tool := p.String("tool_name")
 	switch event {
 	case "UserPromptExpansion":
 		if expansion != "slash_command" {
@@ -35,7 +36,7 @@ func LogSkills(h *hook.Hook) error {
 		switch tool {
 		case "Skill":
 		case "Read":
-			file := p.Alt("tool_input.file_path")
+			file := p.String("tool_input.file_path")
 			if !guard.Glob("*/skills/*/SKILL.md", file) {
 				return nil
 			}
@@ -48,8 +49,8 @@ func LogSkills(h *hook.Hook) error {
 	// scratch-rotate.sh trims the log to log_max_lines.
 	h.Log("skills", event,
 		"expansion_type", expansion,
-		"command_name", p.Alt("command_name"),
-		"skill_file", p.Alt("tool_input.skill", "tool_input.file_path"),
+		"command_name", p.String("command_name"),
+		"skill_file", cmp.Or(p.String("tool_input.skill"), p.String("tool_input.file_path")),
 		"tool_name", tool)
 	return nil
 }
@@ -115,8 +116,6 @@ func SanitizeOutput(h *hook.Hook) error {
 }
 
 // isText is git's binary heuristic: no NUL byte in the first 8000 bytes.
-// (The bash hook asked `file`, whose output includes the path, so a binary
-// under a directory named "text" passed.)
 func isText(data []byte) bool {
 	return !bytes.Contains(data[:min(len(data), 8000)], []byte{0})
 }

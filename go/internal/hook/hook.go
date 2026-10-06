@@ -64,28 +64,10 @@ func (p *Payload) String(path string) string {
 	return s
 }
 
-// Alt is jq's `a // b // ...`: the first path whose value is neither null
-// nor false, as a string ("" is a value and wins).
-func (p *Payload) Alt(paths ...string) string {
-	for _, path := range paths {
-		switch v := p.value(path).(type) {
-		case nil:
-		case bool:
-			if v {
-				return "true"
-			}
-		case string:
-			return v
-		default:
-			return fmt.Sprint(v)
-		}
-	}
-	return ""
-}
-
-// FilePath is the tool's target file: file_path, else path, else target_file.
+// FilePath is the tool's target file; Read, Edit, Write, and MultiEdit all
+// send it as file_path.
 func (p *Payload) FilePath() string {
-	return p.Alt("tool_input.file_path", "tool_input.path", "tool_input.target_file")
+	return p.String("tool_input.file_path")
 }
 
 // Blocked ends a check with exit 2. Returned, not panicked, so a check reads
@@ -174,8 +156,8 @@ func (h *Hook) Decide(decision, reason string) {
 	WriteJSON(h.Stdout, out)
 }
 
-// WriteJSON writes v as one compact line, <, >, and & left as they are (as
-// jq -c prints them; hook output often carries <tag> blocks).
+// WriteJSON writes v as one compact line with <, >, and & left as they are:
+// hook output often carries <tag> blocks, which json.Marshal would escape.
 func WriteJSON(w io.Writer, v any) {
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)

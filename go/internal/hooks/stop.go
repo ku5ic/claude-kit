@@ -59,15 +59,15 @@ func StopChecks(h *hook.Hook) error {
 		return nil
 	}
 
-	report, failures, summary, failed, ran := checks.FileChecks(cfg, root, cwd, edited)
-	if !ran {
+	out := checks.FileChecks(cfg, root, cwd, edited)
+	if out == nil {
 		return nil
 	}
-	if failed {
-		if err := h.Block("file checks failed; fix them or report and stop.\n"+failures+summary, "checks-failed"); err != nil {
+	if out.Failed {
+		if err := h.Block("file checks failed; fix them or report and stop.\n"+out.Failures+out.Summary, "checks-failed"); err != nil {
 			return err
 		}
 	}
-	hook.WriteJSON(h.Stdout, map[string]string{"systemMessage": h.Name + ":\n" + report + summary})
+	hook.WriteJSON(h.Stdout, map[string]string{"systemMessage": h.Name + ":\n" + out.Report + out.Summary})
 	return nil
 }

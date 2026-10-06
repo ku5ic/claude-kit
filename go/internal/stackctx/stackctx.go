@@ -124,9 +124,7 @@ func Suggested(cfg *config.Config, signals []string) []string {
 	return out
 }
 
-// RequiredBlock is the <required-skills> block, "" when there are none. The
-// list joins on "," alone, as the bash original's "${list[*]}" under
-// IFS=', ' did.
+// RequiredBlock is the <required-skills> block, "" when there are none.
 func RequiredBlock(required []string) string {
 	if len(required) == 0 {
 		return ""

@@ -53,7 +53,7 @@ func GuardCommit(h *hook.Hook) error {
 	// (-m "$(cat <<'EOF' ... EOF)"). A single-line -m has no heredoc and is
 	// skipped: short enough that a miss is harmless.
 	if body := heredocBody(cmd); body != "" {
-		if run := LongestProseRun(body); run > 4 {
+		if run := longestProseRun(body); run > 4 {
 			reason := fmt.Sprintf("commit message has an unchunked wall of text (%d consecutive prose lines). rules/output.md section 1: short paragraphs, no dense blocks.", run)
 			if err := h.Block(reason, "commit-wall-of-text"); err != nil {
 				return err
@@ -131,12 +131,12 @@ func quotedMessages(cmd string, re *regexp.Regexp, quote byte) string {
 	return strings.Join(out, "\n")
 }
 
-// LongestProseRun is the longest run of consecutive non-blank lines that
+// longestProseRun is the longest run of consecutive non-blank lines that
 // aren't list items, headings, blockquotes, or table rows, outside fenced
 // code and YAML frontmatter: a deterministic stand-in for rules/output.md
 // section 1. Frontmatter is skipped because its key: value lines would read
 // as a wall, blocking every agent and skill header.
-func LongestProseRun(text string) int {
+func longestProseRun(text string) int {
 	best, run := 0, 0
 	inFront, inFence := false, false
 	for i, line := range strings.Split(strings.TrimSuffix(text, "\n"), "\n") {
