@@ -52,7 +52,7 @@ Retention: at most 3 version entries, newest first. A pattern that changed moves
 - A claim the researcher could not source stays as it was. "Could not verify" is a valid outcome; a confident edit from training memory is not (`rules/evidence.md`).
 - Every Version notes entry cites its source. An entry without one is a defect.
 - Prefer the smallest edit that makes the guidance true. Rewriting a reference file is out of scope; propose it in the report instead.
-- engineering-fundamentals is exempt: its sources move on a multi-decade cycle. Refresh it only when named explicitly.
+- engineering-fundamentals is exempt: it holds no version-dependent content. Refresh it only when named explicitly.
 - Stop after the report. Do not commit.
 
 ## Stop conditions
