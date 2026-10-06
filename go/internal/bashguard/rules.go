@@ -19,11 +19,22 @@ type command struct {
 	redirs []Redir
 	inputs []string // < redirect sources
 	rest   string   // normalized source after the name, to the pipeline's end
-	text   string   // name + rest: what the bash original's regexes read
+	text   string   // name + rest: what the per-command regexes read
 	alone  bool     // the only command of its pipeline
 }
 
 func (c *command) block(reason, rule string) error { return c.st.h.Block(reason, rule) }
+
+// readsSensitive blocks when any of paths is a credential file. nil when
+// none is, or when sensitive-read is disabled, so the caller carries on.
+func (c *command) readsSensitive(paths []string) error {
+	for _, p := range paths {
+		if guard.IsSensitive(c.st.cfg, p) {
+			return c.block("reading a sensitive file is not permitted", "sensitive-read")
+		}
+	}
+	return nil
+}
 
 func (c *command) values() []string {
 	out := make([]string, len(c.args))
@@ -95,10 +106,8 @@ var readers = map[string]bool{
 func (c *command) check() error {
 	c.overlayWrite()
 	// Any command prints what < feeds it: sort < .env reads it as well as cat.
-	for _, p := range c.inputs {
-		if guard.IsSensitive(c.st.cfg, p) {
-			return c.block("reading a sensitive file is not permitted", "sensitive-read")
-		}
+	if err := c.readsSensitive(c.inputs); err != nil {
+		return err
 	}
 	if err := c.rcWrite(); err != nil {
 		return err
@@ -200,22 +209,14 @@ func (c *command) check() error {
 	case "wget":
 		return c.wget()
 	case "cat", "bat", "head", "tail", "less", "more", "strings":
-		for _, p := range c.operands() {
-			if guard.IsSensitive(c.st.cfg, p) {
-				return c.block("reading a sensitive file is not permitted", "sensitive-read")
-			}
-		}
+		return c.readsSensitive(c.operands())
 	case "grep", "rg":
 		// The first non-option argument is the pattern, not a path.
 		ops := c.operands()
 		if len(ops) > 0 {
 			ops = ops[1:]
 		}
-		for _, p := range ops {
-			if guard.IsSensitive(c.st.cfg, p) {
-				return c.block("reading a sensitive file is not permitted", "sensitive-read")
-			}
-		}
+		return c.readsSensitive(ops)
 	case "sh", "bash", "zsh", "dash":
 		// -c runs a command string that never surfaces as its own Bash tool
 		// call, bypassing the allow list. Short-option clusters only.
@@ -229,11 +230,11 @@ func (c *command) check() error {
 		}
 	case "eval":
 		return c.block("eval runs a command string that bypasses the permission allow list; run the command directly as a Bash tool call", "interpreter-c-wrap")
-	case "git-base.sh":
-		// An explicit ask: with no decision, a Bash(git-base.sh *) allow
+	case "kit":
+		// An explicit ask: with no decision, a Bash(kit git-base *) allow
 		// rule would approve --output=<file> silently.
-		if !gitBaseFlagsSafe(strings.Fields(c.rest)) {
-			c.st.ask("git-base.sh passes this flag to git, which can write files or run programs; confirm it")
+		if words := strings.Fields(c.rest); len(words) > 0 && words[0] == "git-base" && !gitBaseFlagsSafe(words[1:]) {
+			c.st.ask("kit git-base passes this flag to git, which can write files or run programs; confirm it")
 		}
 	case "sed", "sd":
 		// sed only with -i; sd is always in place when given a file.

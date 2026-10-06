@@ -62,6 +62,13 @@ func Toplevel(dir string) string {
 	return strings.TrimSpace(string(out))
 }
 
+// Branch is the branch checked out in dir's repo, "" on a detached HEAD; it
+// errors outside a repo.
+func Branch(dir string) (string, error) {
+	out, err := exec.Command("git", "-C", dir, "branch", "--show-current").Output()
+	return strings.TrimSpace(string(out)), err
+}
+
 // Lockfile is a package manager and the lockfile that names it.
 type Lockfile struct {
 	Manager string
@@ -78,7 +85,7 @@ func NearestLockfile(cfg *config.Config, dir, ecosystem string) (Lockfile, bool)
 			if pm.Ecosystem != ecosystem {
 				continue
 			}
-			if isFile(filepath.Join(dir, pm.Lockfile)) {
+			if IsFile(filepath.Join(dir, pm.Lockfile)) {
 				return Lockfile{pm.Manager, pm.Lockfile}, true
 			}
 		}
@@ -89,12 +96,24 @@ func NearestLockfile(cfg *config.Config, dir, ecosystem string) (Lockfile, bool)
 	}
 }
 
-func isFile(path string) bool {
+// IsScratch is true for a path in, or at, a project's .claude/scratch or
+// the home scratch, which $CLAUDE_CONFIG_DIR can move. Any other directory
+// named scratch is project code and gets every check.
+func IsScratch(paths config.Paths, path string) bool {
+	p := filepath.Clean(path)
+	home := paths.ScratchHome()
+	return p == home || strings.HasPrefix(p, home+"/") ||
+		strings.HasSuffix(p, "/.claude/scratch") || strings.Contains(p, "/.claude/scratch/")
+}
+
+// IsFile is true for an existing regular file.
+func IsFile(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && info.Mode().IsRegular()
 }
 
-func isDir(path string) bool {
+// IsDir is true for an existing directory.
+func IsDir(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && info.IsDir()
 }
@@ -112,7 +131,7 @@ func Providers(cfg *config.Config, dir string) []Provider {
 	var out []Provider
 	for i, tp := range cfg.TaskProviders {
 		for _, manifest := range tp.Manifests {
-			if path := filepath.Join(dir, manifest); isFile(path) {
+			if path := filepath.Join(dir, manifest); IsFile(path) {
 				out = append(out, Provider{tp.Name, tp.Stack, path, i})
 				break
 			}
@@ -189,7 +208,7 @@ func Subprojects(cfg *config.Config, root string) []string {
 	if len(pathspecs) > 0 {
 		args := append([]string{"-C", root, "ls-files", "--"}, pathspecs...)
 		out, _ := exec.Command("git", args...).Output()
-		for _, path := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		for path := range strings.SplitSeq(strings.TrimSpace(string(out)), "\n") {
 			dir := filepath.Dir(path)
 			if !strings.Contains(path, "/") || strings.Count(dir, "/")+1 > cfg.SubprojectMaxDepth {
 				continue
@@ -237,7 +256,7 @@ func globDirs(root, pattern string) []string {
 	walk = func(rel string, rest []string) {
 		abs := filepath.Join(root, rel)
 		if len(rest) == 0 {
-			if isDir(abs) {
+			if IsDir(abs) {
 				out = append(out, rel)
 			}
 			return

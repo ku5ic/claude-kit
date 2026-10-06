@@ -15,7 +15,7 @@ Consistent format for findings reports: audits, reviews, dependency runs, and an
 
 Generated: <ISO timestamp>
 Scope: <file, component, or module>
-Stack: <line from detect-stack.sh, if applicable>
+Stack: <line from kit detect-stack, if applicable>
 
 ## Summary
 
@@ -52,7 +52,7 @@ Stack: <line from detect-stack.sh, if applicable>
 - Code snippets use fenced blocks with language tag.
 - No ASCII decoration, no banner comments, no emoji.
 - Use straight quotes, plain ASCII punctuation.
-- File naming and location: the path `scratch-dir.sh <kind> <target-slug>` prints.
+- File naming and location: the path `kit scratch-dir <kind> <target-slug>` prints.
 - Always print the absolute path at the end of execution so the user can open it.
 - Does not govern `/write` output (commit messages, PR descriptions, release notes, stakeholder summaries) - those have their own formats per `rules/output.md`.
 
@@ -72,6 +72,6 @@ The "overall health in one word" at the end of the Summary helps quick scanning:
 - `failure`: omitting the `## Summary` section or the `## Findings` section when findings exist, in a report this format governs.
 - `warning`: inventing severity levels outside `failure`, `warning`, `info` -- e.g. `critical`, `high`, `medium`, `low`, `error`. The rubric has three levels; anything else breaks downstream tooling that parses reports.
 - `warning`: leaving placeholder text in empty sections (e.g. `<none>`, `N/A`) rather than omitting the section.
-- `warning`: hardcoding a literal `~/.claude/scratch/` or `scratch/` path instead of resolving it via `scratch-dir.sh`. The resolved directory is project-scoped inside a recognized project and home-fallback otherwise - a literal is wrong in whichever case it doesn't match.
+- `warning`: hardcoding a literal `~/.claude/scratch/` or `scratch/` path instead of resolving it via `kit scratch-dir`. The resolved directory is project-scoped inside a recognized project and home-fallback otherwise - a literal is wrong in whichever case it doesn't match.
 - `warning`: not printing the absolute file path after writing -- the user cannot open the file without it.
 - `info`: not sorting findings by severity (failures first, then warnings, then info).

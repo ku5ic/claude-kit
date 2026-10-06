@@ -1,6 +1,6 @@
 ---
 name: wcag-audit
-description: WCAG 2.2 AA audit checklist, severity rubric, and stack adaptation for accessibility review. Use whenever the project contains UI code (`.jsx`, `.tsx`, `.vue`, `.svelte`, HTML files, Django templates), OR the user asks about accessibility, a11y, WCAG, screen readers, keyboard navigation, focus management, ARIA, contrast, semantic HTML, alt text, form labels, or audits a component, page, or template for accessibility issues regardless of stack, even if WCAG is not mentioned by name.
+description: WCAG 2.2 AA audit checklist, severity rubric, and stack adaptation for accessibility review. Use when the user asks about accessibility, a11y, WCAG, screen readers, keyboard navigation, focus management, ARIA, contrast, semantic HTML, alt text, or form labels, or audits a component, page, or template for accessibility, in any stack, even if WCAG is not mentioned by name. Not loaded just because a project has UI code.
 ---
 
 # WCAG 2.2 AA audit
@@ -12,7 +12,7 @@ Target: WCAG 2.2 Level AA. Includes all Level A. Does not include AAA unless exp
 1. Go through the references in order.
 2. Skip criteria that do not apply to the scope (e.g. no forms -> skip form labeling).
 3. Record what was checked, what passed, what failed.
-4. Note items that require runtime or user testing. For those axe can settle against a running page, such as contrast (1.4.3), run `a11y-check.sh <url>`; screen reader and keyboard behavior still need a person.
+4. Note items that require runtime or user testing. For those axe can settle against a running page, such as contrast (1.4.3), run `kit a11y-check <url>`; screen reader and keyboard behavior still need a person.
 
 For accessibility work, validate against WCAG 2.2 AA explicitly. Do not claim compliance without checking it against this list; an unaudited claim of conformance is a fabrication.
 

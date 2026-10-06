@@ -25,7 +25,7 @@ Run this test on every reply, file, and commit message before emitting:
 
 A trigger lifts the ceiling for that reply only. Still over the ceiling after the test: cut again, never add words explaining the length.
 
-**Always survives, one sentence each:** a tradeoff that flips the decision; a risk that bites later; a safety warning or confirmation before an irreversible action, stated in full.
+**Always survives, one sentence each:** a tradeoff that flips the decision; a risk that bites later; a safety warning or confirmation before an irreversible action, stated in full; what was not run, not exercised, or ruled out, as one line each, never a section.
 
 **Never survives:** preamble, recap, closing summary, offer to help further; rejected alternatives and next steps nobody asked for; a tradeoff section or a "what I did not do" section; a sentence restating the one above it.
 
@@ -33,7 +33,7 @@ Numbered steps, a restated state line, and a time estimate belong to a multi-ste
 
 ## 1. Structure
 
-1. No walls of text. Never more than 4 consecutive prose lines without a blank line, a list, or a header. `guard-commit.sh` blocks it in commit messages; in chat and in files nothing enforces it.
+1. No walls of text. Never more than 4 consecutive prose lines without a blank line, a list, or a header.
 2. Tables over prose for anything with three or more comparable items. Long reasoning goes to a file, never the terminal.
 3. Keep must-read content (the answer, decisions, questions) together in the final message after the last call. A one-line status between long tool runs is fine; nothing the reader must act on goes there.
 4. No insider shorthand. Name the thing, not a code you assigned it mid-session.
@@ -47,8 +47,8 @@ Numbered steps, a restated state line, and a time estimate belong to a multi-ste
 
 A deliverable is anything the user copies out and uses elsewhere: PR descriptions, commit drafts, emails, chat messages, specs, code files, prompts, docs, reports.
 
-- Deliverables go to a file via Write or Edit, at an absolute path. Print that path as the first line. Never write one with a shell redirect: it skips the sanitizer and formatter that Write and Edit fire, and a bare target inside a git work tree makes `guard-bash.sh` prompt.
-- Default location: the directory `scratch-dir.sh` resolves (see `rules/tooling.md`).
+- Every file you write, deliverable or not, goes through Write or Edit at an absolute path, never a shell redirect or `sed -i`: only Write and Edit fire the hooks that guard, sanitize, and format written files. A deliverable's path is the reply's first line.
+- Default location: the directory `kit scratch-dir` resolves (see `rules/tooling.md`).
 - Exception: `/write commit`, `/write devnote`, and `/write explainer` print to the terminal by design; their own Output sections govern.
 - **A written artifact replaces its own summary.** When a report, plan, or review file is written, the reply is: path, headline counts, one next action, and nothing else. Never restate findings the file already contains.
 
@@ -57,9 +57,3 @@ Terminal output is for: code snippets under ~20 lines used to make a point, clar
 ## 4. External communication
 
 Commit messages, PR descriptions, devnotes, review comments, stakeholder writeups, and release notes follow every rule above with no detailed-explanation exception - someone else reads them, on their time. Default to the shortest structured form that is still complete. A long explanation is still chunked.
-
-## Anti-patterns
-
-- `failure`: a reply whose first line is not the answer, path, or next action.
-- `failure`: prose split around tool calls, forcing the reader to reassemble it.
-- `info`: a reply shorter than expected. Not a violation.

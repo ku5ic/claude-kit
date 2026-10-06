@@ -120,6 +120,31 @@ func TestEmptyOrCommentOnlyOverlayIsQuiet(t *testing.T) {
 	}
 }
 
+// A type error only surfaces after the merge (a scalar replaces the base's
+// list), and used to nil the whole config, switching every guard off.
+func TestOverlayThatBreaksTheMergeFallsBackToBase(t *testing.T) {
+	dir := t.TempDir()
+	base := write(t, dir, "kit.yml", "protected_branches: [main]\n")
+	overlay := write(t, dir, "over.yml", "protected_branches: main\n")
+	cfg, warnings, err := Load(Paths{Base: base, Overlay: overlay})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(cfg.ProtectedBranches, ",") != "main" {
+		t.Errorf("protected_branches = %v", cfg.ProtectedBranches)
+	}
+	if cfg.Tag != "base" {
+		t.Errorf("tag = %q, want base", cfg.Tag)
+	}
+	ignored := false
+	for _, w := range warnings {
+		ignored = ignored || (w.File == overlay && strings.HasPrefix(w.Err.Error(), "ignored"))
+	}
+	if !ignored {
+		t.Errorf("no ignored-overlay warning in %v", warnings)
+	}
+}
+
 func TestBrokenOverlayIsIgnoredWithAWarning(t *testing.T) {
 	dir := t.TempDir()
 	base := write(t, dir, "kit.yml", "protected_branches: [main]\n")

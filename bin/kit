@@ -2,14 +2,14 @@
 # Runs the kit binary for this OS, CPU, and plugin version
 # (bin/kit-<version>-<os>-<arch>). Fast path is builtins only: every hook
 # call pays for this, and uname or dirname forks cost more than the binary
-# itself. Runs under the stock macOS bash 3.2. Shims source it rather than
-# exec it, saving a second bash startup (~10 ms).
+# itself. Runs under the stock macOS bash 3.2. hooks.json and every caller
+# run it directly: `kit <subcommand>`, `kit hook <name>`.
 #
 # The version comes from .claude-plugin/plugin.json, so a checkout that a
 # release moved never reuses an older binary. A missing binary is built from
 # source with KIT_DEV=1 (and rebuilt when go/ is newer), else downloaded from
-# the matching GitHub release. Still none: a hook fails open (exit 0, as a
-# hook without jq does) and any other command fails with the reason.
+# the matching GitHub release. Still none: a hook fails open (exit 0), the
+# SessionStart hook says so, and any other command fails with the reason.
 case $OSTYPE in
 darwin*) os=darwin ;;
 linux*) os=linux ;;
@@ -54,15 +54,34 @@ if [[ ${KIT_DEV:-} == 1 ]]; then
       -ldflags="-s -w -buildid= -X main.version=$ver" -o "$tmp" ./cmd/kit) >&2 &&
       mv -f "$tmp" "$bin"
   fi
-elif [[ -n $ver ]]; then
-  curl -fsSL --max-time 20 -o "$tmp" \
+# Only the CLI and the context hooks with a 30s timeout download: every other
+# hook's timeout is shorter than curl's, so it would be killed mid-download. A
+# failed download backs off for a minute so offline sessions start fast.
+elif [[ -n $ver && (${1:-} != hook || ${2:-} == inject-context || ${2:-} == inject-rules) &&
+  -z $(find "$bin.failed" -mmin -1 2>/dev/null) ]]; then
+  if curl -fsSL --max-time 20 -o "$tmp" \
     "https://github.com/ku5ic/claude-kit/releases/download/v$ver/kit-$ver-$os-$arch" &&
-    chmod +x "$tmp" && mv -f "$tmp" "$bin"
+    chmod +x "$tmp" && mv -f "$tmp" "$bin"; then
+    rm -f "$bin.failed"
+  else
+    touch "$bin.failed"
+  fi
 fi
 rm -f "$tmp"
 if [[ -x $bin ]]; then
   exec "$bin" "$@"
 fi
-echo "kit: no binary for $os-$arch at $bin; build it with go/build.sh, or set KIT_DEV=1" >&2
-[[ ${1:-} == hook ]] && exit 0
+reason="kit: no binary for $os-$arch at $bin; build it with go/build.sh, or set KIT_DEV=1"
+if [[ ${1:-} == hook ]]; then
+  reason=${reason/;/, so every claude-kit guard is off;}
+  echo "$reason" >&2
+  # SessionStart is the one hook whose output both the user and Claude see.
+  if [[ ${2:-} == inject-context ]]; then
+    reason=${reason//\\/\\\\}
+    reason=${reason//\"/\\\"}
+    printf '{"systemMessage":"%s","hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"%s"}}\n' "$reason" "$reason"
+  fi
+  exit 0
+fi
+echo "$reason" >&2
 exit 127

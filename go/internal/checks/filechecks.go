@@ -124,7 +124,7 @@ func Plan(cfg *config.Config, root, base string, edited []string) []*Group {
 			path = filepath.Join(base, path)
 		}
 		path = project.PhysicalPath(path)
-		if !strings.HasPrefix(path, root+"/") || seen[path] || !isFile(path) || ignored[path] {
+		if !strings.HasPrefix(path, root+"/") || seen[path] || !project.IsFile(path) || ignored[path] {
 			continue
 		}
 		seen[path] = true
@@ -167,13 +167,19 @@ func Plan(cfg *config.Config, root, base string, edited []string) []*Group {
 	return groups
 }
 
-// FileChecks runs the planned checks and returns the report (PASS/FAIL/SKIP
-// lines), the failures with each tool's last 30 output lines, and the
-// summary line. ran is false when no check claimed a file.
-func FileChecks(cfg *config.Config, root, base string, edited []string) (report, failures, summary string, failed, ran bool) {
+// Outcome is one FileChecks run.
+type Outcome struct {
+	Report   string // PASS/FAIL/SKIP lines
+	Failures string // each failing tool's last 30 output lines
+	Summary  string // "checks: N passed, N failed, N skipped"
+	Failed   bool
+}
+
+// FileChecks runs the planned checks; nil when no check claimed a file.
+func FileChecks(cfg *config.Config, root, base string, edited []string) *Outcome {
 	groups := Plan(cfg, root, base, edited)
 	if len(groups) == 0 {
-		return "", "", "", false, false
+		return nil
 	}
 	timeout := time.Duration(cmp.Or(cfg.CheckTimeout, 90)) * time.Second
 	results := make([]result, len(groups))
@@ -244,7 +250,12 @@ func FileChecks(cfg *config.Config, root, base string, edited []string) (report,
 		fmt.Fprintf(&fails, "FAIL %s\n%s\n", label, strings.Join(lines[max(0, len(lines)-30):], "\n"))
 		fail++
 	}
-	return rep.String(), fails.String(), fmt.Sprintf("checks: %d passed, %d failed, %d skipped", pass, fail, skip), fail > 0, true
+	return &Outcome{
+		Report:   rep.String(),
+		Failures: fails.String(),
+		Summary:  fmt.Sprintf("checks: %d passed, %d failed, %d skipped", pass, fail, skip),
+		Failed:   fail > 0,
+	}
 }
 
 type result struct {
@@ -310,7 +321,7 @@ func editedFile(path string, g *Group) string {
 	if physical := project.PhysicalPath(path); slices.Contains(g.Files, physical) {
 		return physical
 	}
-	if isFile(path) {
+	if project.IsFile(path) {
 		return ""
 	}
 	for _, f := range g.Files {
@@ -364,17 +375,12 @@ func gitIgnored(root string, edited []string, base string) map[string]bool {
 	cmd := exec.Command("git", "-C", root, "check-ignore", "--stdin")
 	cmd.Stdin = strings.NewReader(strings.Join(paths, "\n") + "\n")
 	out, _ := cmd.Output() // exit 1 means none ignored
-	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(string(out)), "\n") {
 		if line != "" {
 			ignored[line] = true
 		}
 	}
 	return ignored
-}
-
-func isFile(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && info.Mode().IsRegular()
 }
 
 // expand fills a check's cmd word by word: {bin} (a whole word) becomes the

@@ -5,12 +5,13 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 )
 
-// Root resolves the project root for cwd, as project-root.sh:
+// Root resolves the project root for cwd, as `kit project-root`:
 //  1. the git worktree root;
 //  2. cwd or up to 2 ancestors holding an anchor sentinel;
 //  3. cwd itself, with anchored false.
@@ -22,7 +23,7 @@ func Root(cfg *config.Config, cwd string) (root string, anchored bool) {
 	dir := cwd
 	for depth := 0; dir != "/" && depth < 3; depth++ {
 		for _, name := range anchors {
-			if isFile(filepath.Join(dir, name)) {
+			if IsFile(filepath.Join(dir, name)) {
 				return dir, true
 			}
 		}
@@ -58,7 +59,7 @@ func Name(root string) string {
 // Dir resolves the scratch or plans directory for cwd: <root>/.claude/<kind>
 // when the project is anchored, else the global one under the kit home.
 // With create, it makes the directory, and registers a project scratch dir
-// in scratch-registry.txt so scratch-rotate.sh's cwd-less run can prune it.
+// in scratch-registry.txt so `kit scratch-rotate`'s cwd-less run can prune it.
 func Dir(cfg *config.Config, paths config.Paths, cwd, kind string, create bool) (string, error) {
 	if kind != "scratch" && kind != "plans" {
 		return "", fmt.Errorf("unknown kind: %s", kind)
@@ -93,10 +94,8 @@ func register(paths config.Paths, dir string) error {
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
-	for _, line := range strings.Split(string(data), "\n") {
-		if line == dir {
-			return nil
-		}
+	if slices.Contains(strings.Split(string(data), "\n"), dir) {
+		return nil
 	}
 	f, err := os.OpenFile(registry, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {

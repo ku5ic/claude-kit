@@ -32,7 +32,7 @@ func TestExplain(t *testing.T) {
 	t.Run("bash: an ordinary command passes; a lone kit script is allowed", func(t *testing.T) {
 		k, _ := setup(t)
 		k.Run("", "explain", "bash", "git status").Has(t, "guard-bash: pass")
-		k.Run("", "explain", "bash", "scratch-dir.sh").Has(t, "guard-bash: allow")
+		k.Run("", "explain", "bash", "kit scratch-dir").Has(t, "guard-bash: allow")
 	})
 
 	t.Run("edit: a credential read blocks, a plain write passes", func(t *testing.T) {

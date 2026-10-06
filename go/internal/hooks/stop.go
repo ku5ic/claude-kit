@@ -1,8 +1,6 @@
 package hooks
 
 import (
-	"bytes"
-	"encoding/json"
 	"os"
 	"os/exec"
 	"strings"
@@ -61,21 +59,15 @@ func StopChecks(h *hook.Hook) error {
 		return nil
 	}
 
-	report, failures, summary, failed, ran := checks.FileChecks(cfg, root, cwd, edited)
-	if !ran {
+	out := checks.FileChecks(cfg, root, cwd, edited)
+	if out == nil {
 		return nil
 	}
-	if failed {
-		if err := h.Block("file checks failed; fix them or report and stop.\n"+failures+summary, "checks-failed"); err != nil {
+	if out.Failed {
+		if err := h.Block("file checks failed; fix them or report and stop.\n"+out.Failures+out.Summary, "checks-failed"); err != nil {
 			return err
 		}
 	}
-	// Pretty-printed, as `jq -n` printed it.
-	var buf bytes.Buffer
-	enc := json.NewEncoder(&buf)
-	enc.SetEscapeHTML(false)
-	enc.SetIndent("", "  ")
-	enc.Encode(map[string]string{"systemMessage": h.Name + ":\n" + report + summary})
-	h.Stdout.Write(buf.Bytes())
+	hook.WriteJSON(h.Stdout, map[string]string{"systemMessage": h.Name + ":\n" + out.Report + out.Summary})
 	return nil
 }

@@ -10,7 +10,7 @@ Fault localizer. You find where and why; you do not fix.
 
 ## Startup
 
-Repo context and the `<required-skills>`/`<suggested-skills>` blocks arrive via the `SubagentStart` hook - see `rules/agents.md`. Then:
+Repo context and the `<required-skills>`/`<suggested-skills>` blocks arrive via the `SubagentStart` hooks - see `rules/subagents.md` section 3. Then:
 
 1. Load every skill they name via the Skill tool BEFORE any edit. When `CLAUDE_GUARD_SKILLS=1`, the guard-skills hook enforces this on edits and frontmatter preload does not satisfy it. If they name none, proceed and say so.
 2. Consult project memory before starting; record durable fault patterns after finishing - recurring root-cause classes, misleading symptoms, and which probe technique confirmed the hypothesis.
@@ -22,4 +22,4 @@ Repo context and the `<required-skills>`/`<suggested-skills>` blocks arrive via 
 
 ## Output
 
-Return the root cause, the evidence, and the proposed fix location. When the trace runs long, write it to the path `scratch-dir.sh debug <scope-slug>` prints and return a digest plus that path.
+Return the root cause, the evidence, and the proposed fix location. When the trace runs long, write it to the path `kit scratch-dir debug <scope-slug>` prints and return a digest plus that path.

@@ -5,7 +5,6 @@
 package extract
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -57,7 +56,7 @@ func single(value string) []string {
 // splitPath turns ".a.b" into [a b], as jq's getpath with empty parts dropped.
 func splitPath(path string) []string {
 	var parts []string
-	for _, part := range strings.Split(strings.TrimPrefix(path, "."), ".") {
+	for part := range strings.SplitSeq(strings.TrimPrefix(path, "."), ".") {
 		if part != "" {
 			parts = append(parts, part)
 		}
@@ -326,7 +325,7 @@ func RegexLines(file, pattern string) []string {
 		return nil
 	}
 	var out []string
-	eachLine(file, func(line string) {
+	EachLine(file, func(line string) {
 		if m := re.FindStringSubmatch(line); m != nil {
 			out = append(out, m[len(m)-1])
 		}
@@ -337,7 +336,7 @@ func RegexLines(file, pattern string) []string {
 func matchLines(file string, re *regexp.Regexp, name func(string) string) []string {
 	var out []string
 	seen := map[string]bool{}
-	eachLine(file, func(line string) {
+	EachLine(file, func(line string) {
 		if !re.MatchString(line) {
 			return
 		}
@@ -349,14 +348,14 @@ func matchLines(file string, re *regexp.Regexp, name func(string) string) []stri
 	return out
 }
 
-func eachLine(file string, fn func(string)) {
-	f, err := os.Open(file)
+// EachLine calls fn for each line of file, or never when the file can't be
+// read, so a caller never acts on half a file.
+func EachLine(file string, fn func(string)) {
+	data, err := os.ReadFile(file)
 	if err != nil {
 		return
 	}
-	defer f.Close()
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		fn(scanner.Text())
+	for line := range strings.Lines(string(data)) {
+		fn(strings.TrimRight(line, "\r\n"))
 	}
 }

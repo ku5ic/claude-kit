@@ -1,0 +1,5 @@
+schema_version: "1.1"
+name: commit-request
+description: A commit request gets a proposed message and diff summary first, not a commit.
+context:
+  scaffold_script: fixture.sh

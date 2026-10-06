@@ -38,7 +38,7 @@ func usageCommands() []command { return parseUsage(usage) }
 // a deeper-indented line continues the previous command's description.
 func parseUsage(text string) []command {
 	var cmds []command
-	for _, line := range strings.Split(text, "\n") {
+	for line := range strings.SplitSeq(text, "\n") {
 		rest, ok := strings.CutPrefix(line, "  ")
 		if !ok || strings.TrimSpace(rest) == "" {
 			continue

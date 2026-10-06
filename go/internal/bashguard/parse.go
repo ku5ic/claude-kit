@@ -11,8 +11,8 @@ import (
 )
 
 // Word is one shell word: Value has quotes removed and escapes resolved,
-// with expansions left as their source text ("$HOME/x", "$(scratch-dir.sh)"),
-// as the bash original's word splitter produced it. Raw is the source.
+// with expansions left as their source text ("$HOME/x", "$(kit scratch-dir)").
+// Raw is the source.
 type Word struct {
 	Value string
 	Raw   string
@@ -45,8 +45,8 @@ type Segment struct {
 }
 
 // Rest is the normalized source text after call's word, to the end of the
-// pipeline: what the bash original matched its per-command regexes on. A
-// word index past the end means the text after the whole call.
+// pipeline: what the per-command regexes match on. A word index past the
+// end means the text after the whole call.
 func (s Segment) Rest(call, word int) string {
 	c := s.Calls[call]
 	start := c.start
@@ -62,8 +62,8 @@ func (s Segment) Rest(call, word int) string {
 	return normalize(s.src[start:s.end])
 }
 
-// normalize turns tabs into spaces and squeezes runs of spaces, as the bash
-// original did with `tr '\t' ' ' | tr -s ' '` before any check.
+// normalize turns tabs into spaces and squeezes runs of spaces, so every
+// rule matches one spacing.
 func normalize(s string) string {
 	s = strings.ReplaceAll(s, "\t", " ")
 	for strings.Contains(s, "  ") {
@@ -163,7 +163,7 @@ func errorPos(err error) (line, offset int) {
 
 // afterLine is src from the line after line on.
 func afterLine(src string, line int) string {
-	for i := 0; i < line; i++ {
+	for range line {
 		nl := strings.IndexByte(src, '\n')
 		if nl < 0 {
 			return ""
@@ -271,8 +271,7 @@ func (c *collector) stmt(src string, s *syntax.Stmt) {
 			case r.Op == syntax.RdrIn:
 				cl.Inputs = append(cl.Inputs, value)
 			case strings.Contains(op, ">"):
-				// >&2 duplicates an fd; the bash original read its target as
-				// "&2", never a file name.
+				// >&2 duplicates an fd: its target is "&2", never a file name.
 				if r.Op == syntax.DplOut {
 					value = "&" + value
 				}

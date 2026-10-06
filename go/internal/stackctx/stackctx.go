@@ -7,6 +7,7 @@ package stackctx
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -70,7 +71,7 @@ var (
 // js+typescript, js+react.
 func Signals(report string) []string {
 	var out []string
-	for _, line := range strings.Split(report, "\n") {
+	for line := range strings.SplitSeq(report, "\n") {
 		if line == "" || skipLine.MatchString(line) {
 			continue
 		}
@@ -124,9 +125,7 @@ func Suggested(cfg *config.Config, signals []string) []string {
 	return out
 }
 
-// RequiredBlock is the <required-skills> block, "" when there are none. The
-// list joins on "," alone, as the bash original's "${list[*]}" under
-// IFS=', ' did.
+// RequiredBlock is the <required-skills> block, "" when there are none.
 func RequiredBlock(required []string) string {
 	if len(required) == 0 {
 		return ""
@@ -145,9 +144,9 @@ func SuggestedBlock(cfg *config.Config, suggested []string) string {
 	b.WriteString("\n<suggested-skills>\n")
 	for _, skill := range suggested {
 		if trigger := cfg.SkillTriggers[skill]; trigger != "" {
-			b.WriteString(trigger + ": ")
+			fmt.Fprintf(&b, "%s: ", trigger)
 		}
-		b.WriteString("load " + skill + " via the Skill tool\n")
+		fmt.Fprintf(&b, "load %s via the Skill tool\n", skill)
 	}
 	if os.Getenv("CLAUDE_GUARD_SKILLS") == "1" {
 		b.WriteString("Patterns skills are also enforced automatically: the first edit to a matching file type will be blocked until the relevant skill is loaded.\n")

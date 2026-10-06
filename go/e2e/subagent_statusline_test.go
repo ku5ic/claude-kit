@@ -171,8 +171,8 @@ func TestSubagentStatusline(t *testing.T) {
 	})
 
 	t.Run("renders without jq on PATH", func(t *testing.T) {
-		// Runs the built binary rather than the shim, which would pick the
-		// committed one.
+		// Runs the built binary rather than bin/kit, which would pick the
+		// installed one.
 		k := New(t)
 		k.Setenv("PATH", t.TempDir())
 		r := k.Run(`{"columns":120,"tasks":[{"id":"t1","name":"scout"}]}`, "subagent-statusline")

@@ -20,14 +20,14 @@ This command names no specific package manager, lockfile, or manifest.
 - Do not detect the stack.
 - Do not re-list lockfiles.
 - Do not hardcode any tool's syntax.
-- All check-running goes through `run-checks.sh`.
+- All check-running goes through `kit run-checks`.
 
 ## Preconditions
 
-1. Stack and package manager are in the injected `<repo-context>` and `<tooling>` blocks. Scratch directory: `!`scratch-dir.sh``.
+1. Stack and package manager are in the injected `<repo-context>` and `<tooling>` blocks. Scratch directory: `!`kit scratch-dir``.
 2. Require `gh`. If absent: stop and report. Confirm auth: `gh auth status`. If unauthenticated, stop.
 3. Resolve the repo slug: `gh repo view --json nameWithOwner -q .nameWithOwner`. Call it `<slug>`. If this fails there is no GitHub remote; stop, this command is GitHub-only.
-4. Base branch: `!`git-base.sh``. Merge target and rebase base; do not re-derive it.
+4. Base branch: `!`kit git-base``. Merge target and rebase base; do not re-derive it.
 5. Working tree must be clean. If `git status --porcelain` is non-empty, stop and surface.
 
 ## Phase 1: inventory
@@ -108,7 +108,7 @@ Per candidate, in turn:
 
 1. `gh pr checkout <n>`.
 2. Reinstall against the PR's lockfile using the injected manager's reproducible (frozen/locked) install mode.
-3. Run `!`run-checks.sh``. On a non-zero failed count: do not merge, record the failing label, leave the PR open, move on. `run-checks.sh` owns runner detection across every stack; do not reimplement it.
+3. Run `!`kit run-checks``. On a non-zero failed count: do not merge, record the failing label, leave the PR open, move on. `kit run-checks` owns runner detection across every stack; do not reimplement it.
 4. On pass: merge with the project's convention (read recent merges). Default `gh pr merge <n> --squash --delete-branch`.
 5. After each merge, return to base and pull before the next PR. Re-check mergeability; a merge can newly conflict a sibling.
 
@@ -116,11 +116,11 @@ Process priority-tier alerts first.
 
 ## Phase 5: manual remediation of alerts with no PR (opt-in, best-effort)
 
-Runs only when $ARGUMENTS contains `--fix-transitive`; then read [references/fix-transitive.md](references/fix-transitive.md) and follow it. Without the flag, skip to Phase 6.
+Runs only when $ARGUMENTS contains `--fix-transitive`; then read [reference/fix-transitive.md](reference/fix-transitive.md) and follow it. Without the flag, skip to Phase 6.
 
 ## Phase 6: report
 
-Load the report-format skill and use its format. Write to the path `scratch-dir.sh deps` prints. Print the path.
+Load the report-format skill and use its format. Write to the path `kit scratch-dir deps` prints. Print the path.
 
 Per PR/alert, report these fields:
 
@@ -147,7 +147,7 @@ Per PR/alert, report these fields:
 - Core (Phases 1-4) is ecosystem-agnostic. Read the `ecosystem` field on each alert; never assume a default ecosystem.
 - Phase 5 is opt-in (`--fix-transitive`) and best-effort. Without the flag, report alerts with no PR and stop.
 - In Phase 5, prefer a parent bump over a transitive pin. A pin is the fallback, not the default, and it is standing debt; record every one. If the ecosystem's pin mechanism is uncertain, stop and hand back rather than guess.
-- Do not re-derive the base branch. Use `git-base.sh` (Precondition 4). All checks go through `run-checks.sh`.
+- Do not re-derive the base branch. Use `kit git-base` (Precondition 4). All checks go through `kit run-checks`.
 - Severity is from the GitHub alert list when available, not local audit.
 - Only `state == "open"` alerts are actionable. `fixed`, `dismissed`, `auto_dismissed` are not.
 - Do not push to or merge into a protected branch directly.
@@ -170,4 +170,4 @@ A failed-checks PR (Phase 4) is not a full stop - record it as held and continue
 
 ## Output
 
-Report: the path `scratch-dir.sh deps` prints, in the report-format skill's format, per-PR/alert fields defined in Phase 6, ending with a "Still open, needs you" list.
+Report: the path `kit scratch-dir deps` prints, in the report-format skill's format, per-PR/alert fields defined in Phase 6, ending with a "Still open, needs you" list.

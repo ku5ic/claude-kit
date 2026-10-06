@@ -14,4 +14,4 @@ Generally available since 1.25, after an experiment in 1.24. It tests concurrent
 
 ## Vet runs inside `go test`
 
-`go test` runs a subset of vet checks automatically; 1.27 added `stdversion` to that default set. The kit's `run-checks.sh` also runs `go vet ./...` and `go test ./...` wherever a `go.mod` is. Source: https://go.dev/doc/go1.27
+`go test` runs a subset of vet checks automatically; 1.27 added `stdversion` to that default set. The kit's `kit run-checks` also runs `go vet ./...` and `go test ./...` wherever a `go.mod` is. Source: https://go.dev/doc/go1.27

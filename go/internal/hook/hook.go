@@ -10,6 +10,7 @@ package hook
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -48,7 +49,7 @@ func (p *Payload) Bool(path string) bool {
 
 func (p *Payload) value(path string) any {
 	var value any = p.data
-	for _, part := range strings.Split(path, ".") {
+	for part := range strings.SplitSeq(path, ".") {
 		m, ok := value.(map[string]any)
 		if !ok {
 			return nil
@@ -64,28 +65,10 @@ func (p *Payload) String(path string) string {
 	return s
 }
 
-// Alt is jq's `a // b // ...`: the first path whose value is neither null
-// nor false, as a string ("" is a value and wins).
-func (p *Payload) Alt(paths ...string) string {
-	for _, path := range paths {
-		switch v := p.value(path).(type) {
-		case nil:
-		case bool:
-			if v {
-				return "true"
-			}
-		case string:
-			return v
-		default:
-			return fmt.Sprint(v)
-		}
-	}
-	return ""
-}
-
-// FilePath is the tool's target file: file_path, else path, else target_file.
+// FilePath is the tool's target file; Read, Edit, Write, and MultiEdit all
+// send it as file_path.
 func (p *Payload) FilePath() string {
-	return p.Alt("tool_input.file_path", "tool_input.path", "tool_input.target_file")
+	return p.String("tool_input.file_path")
 }
 
 // Blocked ends a check with exit 2. Returned, not panicked, so a check reads
@@ -96,7 +79,8 @@ func (b *Blocked) Error() string { return b.Reason }
 
 // Hook is one hook invocation.
 type Hook struct {
-	Name    string // e.g. "guard-edit.sh"; names the hook in blocks and logs
+	Name    string   // e.g. "guard-edit"; names the hook in blocks and logs
+	Args    []string // arguments after the hook name in hooks.json
 	Payload *Payload
 	Paths   config.Paths
 	Stdout  io.Writer
@@ -106,9 +90,10 @@ type Hook struct {
 	// a trace in guards.jsonl.
 	DryRun bool
 
-	cfg     *config.Config
-	loaded  bool
-	context string // printed after a block reason, e.g. "Path: <path>"
+	cfg      *config.Config
+	warnings []config.Warning
+	loaded   bool
+	context  string // printed after a block reason, e.g. "Path: <path>"
 }
 
 // Config loads kit.yml on first use; hooks that never need it never pay.
@@ -117,12 +102,33 @@ type Hook struct {
 func (h *Hook) Config() *config.Config {
 	if !h.loaded {
 		h.loaded = true
-		cfg, _, err := config.Load(h.Paths)
+		cfg, warnings, err := config.Load(h.Paths)
+		h.warnings = warnings
 		if err == nil {
 			h.cfg = cfg
+		} else {
+			h.warnings = append(h.warnings, baseNotLoaded(h.Paths.Base, warnings, err))
 		}
 	}
 	return h.cfg
+}
+
+// baseNotLoaded says the guards run without config, adding Load's error
+// only when no warning already names kit.yml with it.
+func baseNotLoaded(base string, warnings []config.Warning, err error) config.Warning {
+	const off = "not loaded, so every guard runs with no config"
+	for _, w := range warnings {
+		if w.File == base {
+			return config.Warning{File: base, Err: errors.New(off)}
+		}
+	}
+	return config.Warning{File: base, Err: fmt.Errorf("%s: %w", off, err)}
+}
+
+// Warnings are the problems Config found loading kit.yml and the overlay.
+func (h *Hook) Warnings() []config.Warning {
+	h.Config()
+	return h.warnings
 }
 
 // SetConfig injects a config, for tests and for dispatchers that load once.
@@ -166,8 +172,21 @@ func (h *Hook) Decide(decision, reason string) {
 	WriteJSON(h.Stdout, out)
 }
 
-// WriteJSON writes v as one compact line, <, >, and & left as they are (as
-// jq -c prints them; hook output often carries <tag> blocks).
+// AddContext prints context for Claude on event, plus systemMessage for the
+// user when it isn't empty.
+func AddContext(w io.Writer, event, systemMessage, context string) {
+	type specific struct {
+		HookEventName     string `json:"hookEventName"`
+		AdditionalContext string `json:"additionalContext"`
+	}
+	WriteJSON(w, struct {
+		SystemMessage      string   `json:"systemMessage,omitempty"`
+		HookSpecificOutput specific `json:"hookSpecificOutput"`
+	}{systemMessage, specific{event, context}})
+}
+
+// WriteJSON writes v as one compact line with <, >, and & left as they are:
+// hook output often carries <tag> blocks, which json.Marshal would escape.
 func WriteJSON(w io.Writer, v any) {
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
@@ -240,17 +259,22 @@ func (h *Hook) now() time.Time {
 type Check func(*Hook) error
 
 // RunCheck runs check under name, failing open on a panic or error: the
-// notice goes to stderr and the result is "allow". It reports whether the
-// check blocked, having printed the block to stderr.
+// notice goes to stderr, which only the debug log sees, so it is also logged
+// to guards.jsonl, and the result is "allow". It reports whether the check
+// blocked, having printed the block to stderr.
 func RunCheck(h *Hook, name string, check Check) (blocked bool) {
 	saved := h.Name
 	h.Name = name
+	failOpen := func() {
+		fmt.Fprintf(h.Stderr, "%s: unexpected error, failing open\n", name)
+		h.Log("guards", "fail-open")
+	}
 	defer func() {
-		h.Name = saved
 		if r := recover(); r != nil {
-			fmt.Fprintf(h.Stderr, "%s: unexpected error, failing open\n", name)
+			failOpen()
 			blocked = false
 		}
+		h.Name = saved
 	}()
 	err := check(h)
 	if err == nil {
@@ -260,7 +284,7 @@ func RunCheck(h *Hook, name string, check Check) (blocked bool) {
 		fmt.Fprintln(h.Stderr, b.Reason)
 		return true
 	}
-	fmt.Fprintf(h.Stderr, "%s: unexpected error, failing open\n", name)
+	failOpen()
 	return false
 }
 

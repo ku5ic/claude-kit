@@ -4,17 +4,18 @@
 package guard
 
 import (
+	"fmt"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
-// expandHome turns a leading ~, $HOME, or ${HOME} into $HOME.
-func expandHome(path string) string {
-	home := os.Getenv("HOME")
+// ExpandHome turns a leading ~, $HOME, or ${HOME} into home.
+func ExpandHome(home, path string) string {
 	for _, prefix := range []string{"~", "$HOME", "${HOME}"} {
 		if strings.HasPrefix(path, prefix) {
 			return home + path[len(prefix):]
@@ -34,7 +35,7 @@ func IsSensitive(cfg *config.Config, path string) bool {
 	if path != "" && (path[len(path)-1] == '"' || path[len(path)-1] == '\'') {
 		path = path[:len(path)-1]
 	}
-	path = expandHome(path)
+	path = ExpandHome(os.Getenv("HOME"), path)
 	home := os.Getenv("HOME")
 	base := path[strings.LastIndex(path, "/")+1:]
 	for _, entry := range cfg.SensitivePaths {
@@ -56,7 +57,7 @@ func IsSensitive(cfg *config.Config, path string) bool {
 
 // IsRCFile is true when path is a shell rc file per rc_files.
 func IsRCFile(cfg *config.Config, path string) bool {
-	path = expandHome(path)
+	path = ExpandHome(os.Getenv("HOME"), path)
 	home := os.Getenv("HOME")
 	for _, entry := range cfg.RCFiles {
 		if path == home+"/"+strings.TrimPrefix(entry, "~/") {
@@ -76,12 +77,7 @@ func IsGuardedLockfile(cfg *config.Config, path string) bool {
 			return true
 		}
 	}
-	for _, lockfile := range cfg.ExtraLockfiles {
-		if lockfile == base {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(cfg.ExtraLockfiles, base)
 }
 
 // IsOverlay is true when path is the overlay, reached through any path or
@@ -141,7 +137,7 @@ func globRegexp(pattern string) (*regexp.Regexp, error) {
 			if class[0] == '!' {
 				class = "^" + class[1:]
 			}
-			b.WriteString("[" + strings.ReplaceAll(class, `\`, `\\`) + "]")
+			fmt.Fprintf(&b, "[%s]", strings.ReplaceAll(class, `\`, `\\`))
 			i += end + 1
 		default:
 			b.WriteString(regexp.QuoteMeta(string(c)))

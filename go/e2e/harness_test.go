@@ -112,7 +112,7 @@ func (k *Kit) Run(stdin string, args ...string) Result {
 }
 
 // Shell runs a bash script in the sandbox's environment, for a test that
-// drives a shim or composes commands; bash -c, with $KIT set to the
+// drives the launcher or composes commands; bash -c, with $KIT set to the
 // freshly built binary.
 func (k *Kit) Shell(stdin, script string) Result {
 	k.t.Helper()
@@ -218,17 +218,16 @@ func (k *Kit) Repo(dir string) string {
 	return dir
 }
 
-// Tree is a kit tree for the freshly built binary, for tests that run a
-// real shim through the bin/kit launcher: the named kit files (such as
-// "hooks/log-skills.sh") copied from the kit, bin/kit and the plugin.json
-// it reads the version from, the binary as bin/<kitBinName>, and rules
-// linked to the kit's. The binary is a hard
-// link or a copy, never a symlink: the kit resolves symlinks to find its
-// root, and the rules check looks beside it.
-func Tree(t *testing.T, files ...string) string {
+// Tree is a kit tree for the freshly built binary, for tests that run the
+// real bin/kit launcher: bin/kit and the plugin.json it reads the version
+// from, copied from the kit, the binary as bin/<kitBinName>, and rules
+// linked to the kit's. The binary is a hard link or a copy, never a
+// symlink: the kit resolves symlinks to find its root, and reads the rules
+// it injects from there.
+func Tree(t *testing.T) string {
 	t.Helper()
 	dir := Physical(t, t.TempDir())
-	for _, src := range append(files, "bin/kit", ".claude-plugin/plugin.json") {
+	for _, src := range []string{"bin/kit", ".claude-plugin/plugin.json"} {
 		dst := filepath.Join(dir, src)
 		Write(t, dst, Read(t, filepath.Join(kitRoot, src)))
 		if err := os.Chmod(dst, 0o755); err != nil {
@@ -327,7 +326,7 @@ func Physical(t *testing.T, path string) string {
 // Lines is the non-empty lines of a log or output.
 func Lines(s string) []string {
 	var out []string
-	for _, l := range strings.Split(s, "\n") {
+	for l := range strings.SplitSeq(s, "\n") {
 		if l != "" {
 			out = append(out, l)
 		}

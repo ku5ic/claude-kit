@@ -36,9 +36,13 @@ func projectOf(cfg *config.Config, cwd string) (name, root string, ok bool) {
 	return name, root, true
 }
 
-// InjectContext is the SessionStart hook: prerequisite warnings, then
-// <repo-context>, <required-skills>, <suggested-skills>, and <tooling>.
-// Plain stdout on SessionStart becomes context.
+// InjectContext is the SessionStart hook: <repo-context>,
+// <required-skills>, <suggested-skills>, and <tooling>. The rules come from
+// InjectRules.
+// Plain stdout on SessionStart becomes context. Install problems switch it to
+// one JSON object, since a hook's stdout is either JSON or text, never both:
+// systemMessage shows them to the user, additionalContext carries them and
+// the context to Claude.
 func InjectContext(h *hook.Hook) error {
 	if missing := prerequisites(h.Paths); missing != "" {
 		hook.WriteJSON(h.Stdout, map[string]string{
@@ -46,14 +50,32 @@ func InjectContext(h *hook.Hook) error {
 		})
 		return nil
 	}
+	var out strings.Builder
 	cfg := h.Config()
-	if cfg == nil {
+	if cfg != nil {
+		writeContext(h, cfg, &out)
+	}
+	var lines []string
+	for _, w := range h.Warnings() {
+		lines = append(lines, w.String())
+	}
+	if dir := leftoverRulesLink(h.Paths); dir != "" {
+		lines = append(lines, dir+" holds the claude-kit rules, which now ship with the plugin: remove it, or they load twice")
+	}
+	if len(lines) == 0 {
+		fmt.Fprint(h.Stdout, out.String())
 		return nil
 	}
+	notice := "claude-kit install problems:\n" + strings.Join(lines, "\n")
+	hook.AddContext(h.Stdout, "SessionStart", notice, notice+"\n"+out.String())
+	return nil
+}
+
+func writeContext(h *hook.Hook, cfg *config.Config, out *strings.Builder) {
 	cwd := cwdOf(h)
 	name, root, ok := projectOf(cfg, cwd)
 	if !ok {
-		return nil
+		return
 	}
 	cache := stackctx.CacheFile(h.Paths, cfg, name, root)
 	stackctx.Refresh(h.Paths, cfg, root, cache)
@@ -61,14 +83,12 @@ func InjectContext(h *hook.Hook) error {
 
 	if len(report) > 0 {
 		scratch, _ := project.Dir(cfg, h.Paths, root, "scratch", false)
-		fmt.Fprint(h.Stdout, "\n<repo-context>\n"+string(report)+
-			"branch (at session start): "+branch(root)+"\n"+
-			"dirty-files (at session start): "+dirtyCount(root)+"\n"+
-			"scratch: "+scratch+"\n</repo-context>\n")
+		fmt.Fprintf(out, "\n<repo-context>\n%sbranch (at session start): %s\ndirty-files (at session start): %s\nscratch: %s\n</repo-context>\n",
+			report, branch(root), dirtyCount(root), scratch)
 	}
 
 	required := stackctx.Required(cfg)
-	fmt.Fprint(h.Stdout, stackctx.RequiredBlock(required))
+	out.WriteString(stackctx.RequiredBlock(required))
 	for _, skill := range required {
 		h.Log("skills", "required-skill", "cwd", h.Payload.String("cwd"), "skill_file", skill)
 	}
@@ -76,13 +96,12 @@ func InjectContext(h *hook.Hook) error {
 		// Logged as surfaced, not loaded, so skills-report can measure
 		// whether a suggestion was ever acted on.
 		suggested := stackctx.Suggested(cfg, stackctx.Signals(string(report)))
-		fmt.Fprint(h.Stdout, stackctx.SuggestedBlock(cfg, suggested))
+		out.WriteString(stackctx.SuggestedBlock(cfg, suggested))
 		for _, skill := range suggested {
 			h.Log("skills", "suggested-skill", "cwd", h.Payload.String("cwd"), "skill_file", skill)
 		}
 	}
-	fmt.Fprint(h.Stdout, tooling(cfg, root))
-	return nil
+	out.WriteString(tooling(cfg, root))
 }
 
 // AgentContext is the subagent counterpart: the resolved scratch path (which
@@ -91,10 +110,10 @@ func InjectContext(h *hook.Hook) error {
 func AgentContext(paths config.Paths, cfg *config.Config, cwd string) string {
 	var b strings.Builder
 	if scratch, err := project.Dir(cfg, paths, cwd, "scratch", true); err == nil {
-		b.WriteString("<scratch>\npath: " + scratch + "\n" +
-			"Write every file you produce here - reports, plans, previews, logs, downloads, test artifacts, POC scripts.\n" +
+		fmt.Fprintf(&b, "<scratch>\npath: %s\n", scratch)
+		b.WriteString("Write every file you produce here - reports, plans, previews, logs, downloads, test artifacts, POC scripts.\n" +
 			`This overrides the "Scratchpad directory" line in your system prompt: use this path, never the /private/tmp session scratchpad.` + "\n" +
-			"Name structured artifacts with `scratch-dir.sh <kind> <scope-slug>`, which prints the full path with a real timestamp.\n" +
+			"Name structured artifacts with `kit scratch-dir <kind> <scope-slug>`, which prints the full path with a real timestamp.\n" +
 			"</scratch>\n")
 	}
 	name, root, ok := projectOf(cfg, cwd)
@@ -105,9 +124,7 @@ func AgentContext(paths config.Paths, cfg *config.Config, cwd string) string {
 	stackctx.Refresh(paths, cfg, root, cache)
 	report, _ := os.ReadFile(cache)
 	if len(report) > 0 {
-		b.WriteString("<repo-context>\n" + string(report) +
-			"branch: " + branch(root) + "\n" +
-			"dirty-files: " + dirtyCount(root) + "\n</repo-context>\n")
+		fmt.Fprintf(&b, "<repo-context>\n%sbranch: %s\ndirty-files: %s\n</repo-context>\n", report, branch(root), dirtyCount(root))
 	}
 	b.WriteString(stackctx.RequiredBlock(stackctx.Required(cfg)))
 	if len(report) > 0 {
@@ -116,9 +133,9 @@ func AgentContext(paths config.Paths, cfg *config.Config, cwd string) string {
 	return b.String()
 }
 
-// InjectSubagentContext is the SubagentStart hook. SubagentStart takes
-// additionalContext in JSON, not plain stdout, so agent-context's text is
-// wrapped.
+// InjectSubagentContext is the SubagentStart hook. SubagentStart ignores
+// plain stdout and a top-level additionalContext: it reads only
+// hookSpecificOutput.additionalContext.
 func InjectSubagentContext(h *hook.Hook) error {
 	cfg := h.Config()
 	if cfg == nil {
@@ -128,16 +145,16 @@ func InjectSubagentContext(h *hook.Hook) error {
 	if context == "" {
 		return nil
 	}
-	hook.WriteJSON(h.Stdout, map[string]string{"additionalContext": context})
+	hook.AddContext(h.Stdout, "SubagentStart", "", context)
 	return nil
 }
 
 func branch(root string) string {
-	out, err := exec.Command("git", "-C", root, "branch", "--show-current").Output()
+	b, err := project.Branch(root)
 	if err != nil {
 		return "unknown"
 	}
-	return strings.TrimSpace(string(out))
+	return b
 }
 
 func dirtyCount(root string) string {
@@ -190,7 +207,7 @@ func tooling(cfg *config.Config, root string) string {
 		}
 	}
 	if capped {
-		body = append(body, "(subprojects capped at 20; run-checks.sh covers all)")
+		body = append(body, "(subprojects capped at 20; kit run-checks covers all)")
 	}
 
 	var available, missing []string
@@ -212,72 +229,27 @@ func tooling(cfg *config.Config, root string) string {
 		return ""
 	}
 
-	out := "\n<tooling>\n"
+	var out strings.Builder
+	out.WriteString("\n<tooling>\n")
 	for _, line := range append(body, tools...) {
-		out += line + "\n"
+		out.WriteString(line)
+		out.WriteString("\n")
 	}
 	if len(body) > 0 {
-		out += "\nguidance: Run scripts only through the package manager named above, prefer these scripts and run-checks.sh over direct tool invocation, and never substitute a different package manager.\n"
+		out.WriteString("\nguidance: Run scripts only through the package manager named above, prefer these scripts and kit run-checks over direct tool invocation, and never substitute a different package manager.\n")
 	}
-	return out + "</tooling>\n"
+	out.WriteString("</tooling>\n")
+	return out.String()
 }
 
-// prerequisites names what the install is missing, "; "-separated, "" when
-// nothing is: the kit rules linked and a readable kit.yml. The kit itself
-// needs no tools beyond git and a POSIX shell.
+// prerequisites names what the install is missing, "" when nothing is: a
+// readable kit.yml. The kit itself needs no tools beyond git and a POSIX
+// shell.
 func prerequisites(paths config.Paths) string {
-	var missing []string
-	if !rulesLinked(paths) {
-		missing = append(missing, "the kit rules linked under ~/.claude/rules (run "+filepath.Join(paths.Root, "install-rules.sh")+")")
-	}
-	if f, err := os.Open(paths.Base); err != nil {
-		missing = append(missing, "a readable kit.yml at the kit root (reinstall the plugin)")
-	} else {
-		f.Close()
-	}
-	return strings.Join(missing, "; ")
-}
-
-// rulesLinked is true when some directory under <home>/rules is the kit's
-// rules dir, or a copy holding every rule file it has: a plugin's hooks run
-// from the versioned plugin cache while install-rules.sh links the
-// marketplace clone, so the two paths never match.
-func rulesLinked(paths config.Paths) bool {
-	exe, err := os.Executable()
+	f, err := os.Open(paths.Base)
 	if err != nil {
-		return false
+		return "a readable kit.yml at the kit root (reinstall the plugin)"
 	}
-	real, err := filepath.EvalSymlinks(exe)
-	if err != nil {
-		return false
-	}
-	kitRules, err := filepath.EvalSymlinks(filepath.Join(filepath.Dir(real), "..", "rules"))
-	if err != nil {
-		return false
-	}
-	ruleFiles, _ := filepath.Glob(filepath.Join(kitRules, "*.md"))
-	entries, _ := os.ReadDir(filepath.Join(paths.Home, "rules"))
-	for _, entry := range entries {
-		dir := filepath.Join(paths.Home, "rules", entry.Name())
-		if info, err := os.Stat(dir); err != nil || !info.IsDir() {
-			continue
-		}
-		if physical, err := filepath.EvalSymlinks(dir); err == nil && physical == kitRules {
-			return true
-		}
-		if len(ruleFiles) == 0 {
-			continue
-		}
-		complete := true
-		for _, rule := range ruleFiles {
-			if _, err := os.Stat(filepath.Join(dir, filepath.Base(rule))); err != nil {
-				complete = false
-				break
-			}
-		}
-		if complete {
-			return true
-		}
-	}
-	return false
+	f.Close()
+	return ""
 }

@@ -79,7 +79,7 @@ func verdict(w io.Writer, name string, err error, out *bytes.Buffer) {
 			rule = "(no slug)"
 		}
 		fmt.Fprintf(w, "%s: block  %s\n", name, rule)
-		for _, line := range strings.Split(b.Reason, "\n") {
+		for line := range strings.SplitSeq(b.Reason, "\n") {
 			fmt.Fprintf(w, "  %s\n", line)
 		}
 		return
@@ -117,7 +117,7 @@ func bash(paths config.Paths, cfg *config.Config, cwd, command string, w io.Writ
 		}
 		fmt.Fprintf(w, "  %d  %s\n", i+1, strings.Join(calls, "  |  "))
 	}
-	h, out, _ := dryHook(paths, cfg, "guard-bash.sh", map[string]any{
+	h, out, _ := dryHook(paths, cfg, "guard-bash", map[string]any{
 		"tool_name": "Bash", "cwd": cwd, "tool_input": map[string]any{"command": command},
 	})
 	verdict(w, "guard-bash", bashguard.Check(h), out)
@@ -129,9 +129,9 @@ func edit(paths config.Paths, cfg *config.Config, cwd, path, tool string, w io.W
 		path = filepath.Join(cwd, path)
 	}
 	payload := map[string]any{"tool_name": tool, "session_id": "explain", "cwd": cwd, "tool_input": map[string]any{"file_path": path}}
-	h, out, _ := dryHook(paths, cfg, "guard-edit.sh", payload)
+	h, out, _ := dryHook(paths, cfg, "guard-edit", payload)
 	verdict(w, "guard-edit", hooks.GuardEdit(h), out)
-	h, out, _ = dryHook(paths, cfg, "guard-skills.sh", payload)
+	h, out, _ = dryHook(paths, cfg, "guard-skills", payload)
 	name := "skills gate"
 	if os.Getenv("CLAUDE_GUARD_SKILLS") != "1" {
 		name += " (off: CLAUDE_GUARD_SKILLS isn't 1)"
@@ -201,7 +201,7 @@ func changedFiles(root string) []string {
 		return nil
 	}
 	var files []string
-	for _, line := range strings.Split(string(out), "\n") {
+	for line := range strings.SplitSeq(string(out), "\n") {
 		if len(line) < 4 || strings.Contains(line[:2], "D") {
 			continue
 		}

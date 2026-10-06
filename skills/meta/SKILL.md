@@ -9,13 +9,13 @@ disable-model-invocation: true
 
 The first word of the arguments is the kind; everything after it is the kind's arguments.
 
-| Kind          | Procedure                                              |
-| ------------- | ------------------------------------------------------ |
-| `prompt`      | [references/prompt.md](references/prompt.md)           |
-| `refresh`     | [references/refresh.md](references/refresh.md)         |
-| `skill`       | [references/skill.md](references/skill.md)             |
-| `conventions` | [references/conventions.md](references/conventions.md) |
-| `retro`       | [references/retro.md](references/retro.md)             |
+| Kind          | Procedure                                            |
+| ------------- | ---------------------------------------------------- |
+| `prompt`      | [reference/prompt.md](reference/prompt.md)           |
+| `refresh`     | [reference/refresh.md](reference/refresh.md)         |
+| `skill`       | [reference/skill.md](reference/skill.md)             |
+| `conventions` | [reference/conventions.md](reference/conventions.md) |
+| `retro`       | [reference/retro.md](reference/retro.md)             |
 
 1. Missing or unknown kind: ask via AskUserQuestion with the kinds above as options.
 2. Read the kind's reference file and follow it as the procedure.

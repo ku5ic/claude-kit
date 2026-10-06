@@ -15,12 +15,12 @@ Review checklist for Prometheus instrumentation. Constructor signatures are in t
 
 ## Picking a metric type
 
-| Type      | Use for                                                                             | Goes down? |
-| --------- | ----------------------------------------------------------------------------------- | ---------- |
-| Counter   | Requests, errors, bytes - totals that only increase                                 | No         |
-| Gauge     | Queue depth, active connections, memory - current state                             | Yes        |
-| Histogram | Latency, payload size - distribution matters                                        | No         |
-| Summary   | Avoid; the Python client exposes only count and sum, no quantiles                   | No         |
+| Type      | Use for                                                           | Goes down? |
+| --------- | ----------------------------------------------------------------- | ---------- |
+| Counter   | Requests, errors, bytes - totals that only increase               | No         |
+| Gauge     | Queue depth, active connections, memory - current state           | Yes        |
+| Histogram | Latency, payload size - distribution matters                      | No         |
+| Summary   | Avoid; the Python client exposes only count and sum, no quantiles | No         |
 
 Default to Histogram over Summary. Review the default buckets (.005 through 10, tuned for HTTP latency) against the operation's real distribution rather than accepting them.
 

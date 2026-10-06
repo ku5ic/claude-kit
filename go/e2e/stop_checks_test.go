@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -103,10 +104,8 @@ func (e *stopChecksEnv) callsIs(want string) {
 
 func (e *stopChecksEnv) callsHasLine(want string) {
 	e.t.Helper()
-	for _, l := range Lines(Read(e.t, e.calls)) {
-		if l == want {
-			return
-		}
+	if slices.Contains(Lines(Read(e.t, e.calls)), want) {
+		return
 	}
 	e.t.Errorf("calls lack line %q:\n%s", want, Read(e.t, e.calls))
 }
@@ -181,7 +180,7 @@ func TestStopChecks(t *testing.T) {
 		r.Want(t, 0)
 		r.Has(t, "PASS fakelint (1 file)")
 		// The hook name gets its own line, so every check starts one.
-		r.Has(t, `stop-checks.sh:\nPASS fakelint`)
+		r.Has(t, `stop-checks:\nPASS fakelint`)
 		e.callsIs(e.repo + "|--check " + e.path("a.ts"))
 	})
 

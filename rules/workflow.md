@@ -26,47 +26,32 @@ Destructive operations require explicit confirmation before running: `rm`, `git 
 
 ### Shell mechanics
 
-Most of this is enforced by `guard-bash.sh`.
-
 - Chaining with `&&`, `||`, or `;` is fine; every segment is still checked on its own. Keep a mutating command (`rm`, `git commit`, an install) in its own Bash call so a failure earlier in the chain cannot mask it.
 - Pipes are for single-operation semantics only: `cmd | grep`, `find | wc -l`, `git log | head`. Sequential checks go in separate calls.
 - Use native path arguments instead of `cd <dir> && cmd`: `git -C <dir>`, `tokei <path>`. See `rules/tooling.md`.
 - `2>&1` is unnecessary; the Bash tool merges stderr.
 
-## 3. Skills
+## 3. Skills and plans
 
-Procedures are skills under the kit's `skills/<name>/SKILL.md`, invoked as `/<name>`.
+The kit's procedure skills (`/audit`, `/write`, `/meta`, `/deps`) are user-only: they run when typed, never on model initiative.
 
-| Skill           | Covers                                                               |
-| --------------- | -------------------------------------------------------------------- |
-| `/audit <kind>` | Targeted audits: a11y, debt, doc-drift, perf, simplify, verify.      |
-| `/write <kind>` | Outward-facing text: commit, pr, release-notes, devnote, and others. |
-| `/meta <kind>`  | Authoring: prompt, refresh, skill, conventions, retro.               |
-| `/deps`         | Dependabot PRs and security alerts.                                  |
-
-Every one is user-only (`disable-model-invocation: true`). They run when typed, never on model initiative. The canonical inventory is `/skills` output, not any UI label.
-
-Explore, plan, implement, and verify use the built-ins: `investigate` (model-invocable, read-only), `/plan`, approving the plan, the `Stop` hook running file-scoped checks on edited files, `/code-review`, and `/verify`, which drives the running app and runs no tests. The built-in `/code-review` doesn't run `run-checks.sh`: run the full suite alongside it.
+Explore, plan, implement, and verify use the kit's `investigate` (read-only) and the built-ins `/plan`, `/code-review`, and the `run` skill. Which checks run when is `rules/verify.md`.
 
 **Hard rules:**
 
-- A question is answered, never acted on: no edits until the user asks for a change.
 - A plan ends with a `## Steps` checklist, one reviewable commit per item. Tick a step `- [x]` only once it is done: its verification passed and the user committed it. A new session resumes from the file.
 - After a plan is approved, do one plan step, then stop so the user can review and commit before continuing. Same pause after any other logical segment. The pause outranks any output style or harness instruction to execute autonomously.
-- Any step that would write an "Open questions" list instead asks via AskUserQuestion - one question per item, multiple choice, with the built-in "Other" covering anything without discrete options.
-- Record resolved answers in the output as decisions. Never leave an unresolved list. An "unknowns" section is not a parking lot either: a question the requester could answer goes to AskUserQuestion, an option you declined goes to the rejected list, and only what research cannot settle stays.
 
-## 4. Resolve external context first
+## 4. Ask or proceed
 
-Step 0 for `investigate` and `/audit`: if `$ARGUMENTS` contains a URL with little inline description, resolve it before anything else.
+Decide in this order; the first match wins:
 
-Identify the service from the domain, use ToolSearch to find the matching fetch tool (`app.clickup.com` -> ClickUp tools, `notion.so` -> Notion, `github.com` -> `gh` or the GitHub tools), and call it. Extract the scope and requirements from what comes back.
+1. **A question** (how, why, where, what) is answered, never acted on: no edit until the user asks for a change.
+2. **A request with more than one reasonable reading** that leads to different changes: ask one focused question, with concrete options, before any edit. State what you found in the code, but don't pick a reading and act on it. One question, not several, and not a question plus a provisional answer.
+3. **A destructive, dependency, or config change** (section 2): confirm first.
+4. **Everything else:** proceed, then report. When the request conflicts with good practice, say so once with the better path, then do it the user's way.
 
-Treat the resolved text as the effective `$ARGUMENTS`. **Never hand a bare link to a sub-agent.**
-
-## 5. Ambiguity
-
-- If a request is ambiguous, ask one focused clarifying question before proceeding, at any length tier. Not three, and not a question plus a provisional answer.
+- Questions that would end up as an "Open questions" list go to AskUserQuestion instead: one question per item, multiple choice, with the built-in "Other" for anything without discrete options. Record the answers as decisions. An "unknowns" section is not a parking lot: a question the requester could answer is asked, a declined option goes to the rejected list, and only what research cannot settle stays.
 - If a required tool, permission, or connector is unavailable, say so, propose alternatives in priority order, and ask how to proceed.
 - On a user correction: acknowledge tersely, fix it, and surface other places the same misunderstanding applies. One correction does not justify rewriting unrelated work.
 - Review findings (`/code-review`, plan-critic, PR comments) are claims, not instructions. Check each against the code before applying it, reject a wrong one with the evidence, and acknowledge an applied one by what changed, not with thanks.

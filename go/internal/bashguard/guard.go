@@ -2,7 +2,6 @@ package bashguard
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -140,17 +139,22 @@ func resolveDir(home, base, dir string) string {
 	return filepath.Clean(dir)
 }
 
-// Wrappers that only change how a command runs, and their options that take
-// a separate value.
+// Wrappers that only change how (or as whom) a command runs, and their
+// options that take a separate value.
 var (
-	wrappers     = map[string]bool{"command": true, "env": true, "builtin": true, "exec": true, "nohup": true, "nice": true, "timeout": true, "stdbuf": true, "ionice": true, "chrt": true}
-	wrapperValue = map[string]bool{"nice:-n": true, "env:-u": true, "env:-C": true, "exec:-a": true, "timeout:-s": true, "timeout:-k": true, "ionice:-c": true, "ionice:-n": true, "chrt:-p": true}
-	assignment   = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*=`)
+	wrappers     = map[string]bool{"command": true, "env": true, "builtin": true, "exec": true, "nohup": true, "nice": true, "timeout": true, "stdbuf": true, "ionice": true, "chrt": true, "sudo": true, "doas": true}
+	wrapperValue = map[string]bool{
+		"nice:-n": true, "env:-u": true, "env:-C": true, "exec:-a": true, "timeout:-s": true, "timeout:-k": true, "ionice:-c": true, "ionice:-n": true, "chrt:-p": true,
+		"sudo:-u": true, "sudo:-g": true, "sudo:-h": true, "sudo:-p": true, "sudo:-C": true, "sudo:-D": true, "sudo:-R": true, "sudo:-T": true, "sudo:-U": true, "sudo:-r": true, "sudo:-t": true,
+		"sudo:--user": true, "sudo:--group": true, "sudo:--host": true, "sudo:--prompt": true, "sudo:--close-from": true, "sudo:--chdir": true, "sudo:--chroot": true, "sudo:--command-timeout": true, "sudo:--other-user": true, "sudo:--role": true, "sudo:--type": true,
+		"doas:-u": true, "doas:-a": true, "doas:-C": true,
+	}
+	assignment = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*=`)
 )
 
 // lead finds where the real command starts in a call's words, seeing
-// through VAR=value words and command/env/nice/timeout-style wrappers with
-// their own options.
+// through VAR=value words and command/env/nice/timeout/sudo-style wrappers
+// with their own options.
 func lead(words []Word) int {
 	i := 0
 	skipAssigns := func() {
@@ -159,8 +163,8 @@ func lead(words []Word) int {
 		}
 	}
 	skipAssigns()
-	for i < len(words) && wrappers[words[i].Value] && i+1 < len(words) {
-		w := words[i].Value
+	for i < len(words) && wrappers[baseName(words[i].Value)] && i+1 < len(words) {
+		w := baseName(words[i].Value)
 		i++
 		for i < len(words)-1 && strings.HasPrefix(words[i].Value, "-") {
 			opt := words[i].Value
@@ -168,7 +172,7 @@ func lead(words []Word) int {
 			if opt == "--" {
 				break
 			}
-			if wrapperValue[w+":"+opt] && i < len(words)-1 {
+			if takesNextWord(w, opt) && i < len(words)-1 {
 				i++
 			}
 		}
@@ -180,7 +184,22 @@ func lead(words []Word) int {
 	return i
 }
 
-var interpreters = map[string]bool{"sh": true, "bash": true, "zsh": true, "dash": true, "fish": true, "node": true, "ruby": true, "perl": true}
+// takesNextWord is true when a wrapper's option consumes the next word. A
+// short-option cluster (sudo -Eu) does when its first value-taking letter is
+// its last; one earlier takes the rest of the word (sudo -uroot).
+func takesNextWord(wrapper, opt string) bool {
+	if strings.HasPrefix(opt, "--") {
+		return wrapperValue[wrapper+":"+opt]
+	}
+	for i := 1; i < len(opt); i++ {
+		if wrapperValue[wrapper+":-"+opt[i:i+1]] {
+			return i == len(opt)-1
+		}
+	}
+	return false
+}
+
+var interpreters = map[string]bool{"sh": true, "bash": true, "zsh": true, "dash": true, "fish": true, "su": true, "node": true, "ruby": true, "perl": true}
 
 // pipeToShell blocks a download piped into an interpreter later in the
 // same pipeline (curl x | sh, wget -O- x | tee log | sudo bash). Parsed
@@ -188,18 +207,13 @@ var interpreters = map[string]bool{"sh": true, "bash": true, "zsh": true, "dash"
 func (st *state) pipeToShell(seg Segment) error {
 	fetched := false
 	for _, call := range seg.Calls {
-		words := call.Words[lead(call.Words):]
-		if len(words) > 0 && baseName(words[0].Value) == "sudo" {
-			words = words[1:]
-			for len(words) > 0 && strings.HasPrefix(words[0].Value, "-") {
-				words = words[1:]
-			}
-		}
+		start := lead(call.Words)
+		words := call.Words[start:]
 		if len(words) == 0 {
 			continue
 		}
 		name := baseName(words[0].Value)
-		if fetched && (interpreters[name] || strings.HasPrefix(name, "python")) {
+		if fetched && (interpreters[name] || strings.HasPrefix(name, "python") || rootShell(call.Words[:start+1])) {
 			return st.h.Block("piping network content into an interpreter", "pipe-to-shell")
 		}
 		if name == "curl" || name == "wget" {
@@ -207,6 +221,31 @@ func (st *state) pipeToShell(seg Segment) error {
 		}
 	}
 	return nil
+}
+
+// rootShell is true for sudo or doas told to start a shell (sudo -s, sudo -i,
+// doas -s), which reads its commands from stdin like a named interpreter.
+func rootShell(wrapperWords []Word) bool {
+	elevator := ""
+	for _, w := range wrapperWords {
+		switch v := w.Value; {
+		case baseName(v) == "sudo", baseName(v) == "doas":
+			elevator = baseName(v)
+		case elevator == "":
+		case v == "--shell", v == "--login":
+			return true
+		case len(v) > 1 && v[0] == '-' && v[1] != '-':
+			for i := 1; i < len(v); i++ {
+				if v[i] == 's' || v[i] == 'i' {
+					return true
+				}
+				if wrapperValue[elevator+":-"+v[i:i+1]] {
+					break
+				}
+			}
+		}
+	}
+	return false
 }
 
 // segment runs the per-command checks on every command of a pipeline.
@@ -256,7 +295,7 @@ func (st *state) redirects(call Call) error {
 			st.ask(overlayAsk)
 		}
 		if (!strings.Contains(target, "/") || strings.HasPrefix(target, "./")) && looseWriteTarget(target) && st.inWorktree() {
-			st.ask("'> " + target + "' writes into the current directory; rules/tooling.md wants > \"$(scratch-dir.sh)/" + baseName(target) + "\". Confirm only if this file belongs in the project tree.")
+			st.ask("'> " + target + "' writes into the current directory; rules/tooling.md wants > \"$(kit scratch-dir)/" + baseName(target) + "\". Confirm only if this file belongs in the project tree.")
 		}
 	}
 	return nil
@@ -266,7 +305,7 @@ func (st *state) redirects(call Call) error {
 // tree and not under a scratch directory: cd /tmp or cd .claude/scratch
 // makes a bare > name harmless.
 func (st *state) inWorktree() bool {
-	if st.cwd == "" || strings.Contains(st.cwd+"/", "/.claude/scratch/") {
+	if st.cwd == "" || project.IsScratch(st.h.Paths, st.cwd) {
 		return false
 	}
 	return project.Toplevel(st.cwd) != ""
@@ -274,7 +313,7 @@ func (st *state) inWorktree() bool {
 
 // looseWriteTarget is true for a relative target that would land loose in
 // the repo instead of scratch. Unresolvable targets (variables,
-// substitutions, fd duplications) are false: $(scratch-dir.sh) is the
+// substitutions, fd duplications) are false: $(kit scratch-dir) is the
 // sanctioned form.
 func looseWriteTarget(p string) bool {
 	switch {
@@ -290,7 +329,7 @@ func looseWriteTarget(p string) bool {
 }
 
 // scratchTarget is true when a download target is stdout, /dev/null, an fd,
-// or inside a .claude/scratch directory. $(scratch-dir.sh) counts; any
+// or inside a .claude/scratch directory. $(kit scratch-dir) counts; any
 // other unexpanded variable, and any "..", doesn't, since it can't be
 // checked.
 func (st *state) scratchTarget(p string) bool {
@@ -301,27 +340,18 @@ func (st *state) scratchTarget(p string) bool {
 	}
 	switch {
 	case p == "-", p == "/dev/null", len(p) == 2 && p[0] == '&' && p[1] >= '0' && p[1] <= '9',
-		p == "$(scratch-dir.sh)", strings.HasPrefix(p, "$(scratch-dir.sh)/"),
-		p == "`scratch-dir.sh`", strings.HasPrefix(p, "`scratch-dir.sh`/"):
+		p == "$(kit scratch-dir)", strings.HasPrefix(p, "$(kit scratch-dir)/"),
+		p == "`kit scratch-dir`", strings.HasPrefix(p, "`kit scratch-dir`/"):
 		return true
 	}
-	p = expandHome(st.home, p)
+	p = guard.ExpandHome(st.home, p)
 	if strings.ContainsAny(p, "$`") {
 		return false
 	}
 	if !strings.HasPrefix(p, "/") {
 		p = st.cwd + "/" + p
 	}
-	return strings.HasSuffix(p, "/.claude/scratch") || strings.Contains(p, "/.claude/scratch/")
-}
-
-func expandHome(home, p string) string {
-	for _, prefix := range []string{"~", "$HOME", "${HOME}"} {
-		if strings.HasPrefix(p, prefix) {
-			return home + p[len(prefix):]
-		}
-	}
-	return p
+	return project.IsScratch(st.h.Paths, p)
 }
 
 // isOverlayArg is true when a word (quoted, ~- or $HOME-prefixed, or
@@ -333,7 +363,7 @@ func (st *state) isOverlayArg(arg string) bool {
 	if arg != "claude-kit.local.yml" && !strings.HasSuffix(arg, "/claude-kit.local.yml") {
 		return false
 	}
-	arg = expandHome(st.home, arg)
+	arg = guard.ExpandHome(st.home, arg)
 	if !strings.HasPrefix(arg, "/") {
 		arg = st.cwd + "/" + arg
 	}
@@ -356,40 +386,38 @@ func (st *state) isProtected(ref string) bool {
 // currentBranch of the repo a git command targets: -C resolved against the
 // segment's cwd. Empty outside a repo or on a detached HEAD.
 func (st *state) currentBranch(gitDir string) string {
-	dir := expandHome(st.home, gitDir)
+	dir := guard.ExpandHome(st.home, gitDir)
 	switch {
 	case dir == "":
 		dir = st.cwd
 	case !strings.HasPrefix(dir, "/"):
 		dir = st.cwd + "/" + dir
 	}
-	out, err := exec.Command("git", "-C", dir, "branch", "--show-current").Output()
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(out))
+	branch, _ := project.Branch(dir)
+	return branch
 }
 
-// Kit scripts that only read state or create the scratch/plans directories.
-// Plugins can't ship allow rules, so the hook allows them itself; settings
-// deny and ask rules still win over a hook allow. run-checks.sh stays out:
-// it runs project-defined scripts.
-var readonlyScripts = []string{"scratch-dir.sh", "plans-dir.sh", "git-base.sh", "project-name.sh", "project-root.sh", "detect-stack.sh", "skills-report.sh", "blast-radius.sh"}
+// kit subcommands that only read state or create the scratch/plans
+// directories. Plugins can't ship allow rules, so the hook allows them
+// itself; settings deny and ask rules still win over a hook allow.
+// run-checks stays out: it runs project-defined scripts.
+var readonlySubcommands = []string{"scratch-dir", "plans-dir", "git-base", "project-name", "project-root", "detect-stack", "skills-report", "blast-radius"}
 
-// readonlyCall is true for a lone kit script call: no chaining, pipes,
-// redirects, or substitutions that could smuggle in a second command.
+// readonlyCall is true for a lone `kit <read-only subcommand>` call: no
+// chaining, pipes, redirects, or substitutions that could smuggle in a
+// second command.
 func readonlyCall(cmd, norm string) bool {
 	if strings.ContainsAny(cmd, ";&|<>`\n") || strings.Contains(cmd, "$(") {
 		return false
 	}
-	first, rest, _ := strings.Cut(norm, " ")
-	if !slices.Contains(readonlyScripts, first) {
+	words := strings.Fields(norm)
+	if len(words) < 2 || words[0] != "kit" || !slices.Contains(readonlySubcommands, words[1]) {
 		return false
 	}
-	return first != "git-base.sh" || gitBaseFlagsSafe(strings.Fields(rest))
+	return words[1] != "git-base" || gitBaseFlagsSafe(words[2:])
 }
 
-// gitBaseFlagsSafe is false when git-base.sh would hand git a flag that can
+// gitBaseFlagsSafe is false when `kit git-base` would hand git a flag that can
 // write files (--output) or run programs (--ext-diff): only the flags the
 // kit's own skills pass go through without a prompt.
 func gitBaseFlagsSafe(words []string) bool {

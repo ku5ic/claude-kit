@@ -12,10 +12,10 @@ Default assumption: <Stack> <current major.minor>.
 
 ## Reference files
 
-| File                                                     | Covers                                              |
-| -------------------------------------------------------- | --------------------------------------------------- |
-| [reference/<area>.md](reference/<area>.md)               | <what this file decides, in one line>               |
-| [reference/anti-patterns.md](reference/anti-patterns.md) | <N> review-time anti-patterns with severity calls   |
+| File                                                     | Covers                                            |
+| -------------------------------------------------------- | ------------------------------------------------- |
+| [reference/<area>.md](reference/<area>.md)               | <what this file decides, in one line>             |
+| [reference/anti-patterns.md](reference/anti-patterns.md) | <N> review-time anti-patterns with severity calls |
 
 ## References
 

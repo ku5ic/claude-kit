@@ -33,8 +33,8 @@ import (
 
 var jsFiles = []string{"*.js", "*.jsx", "*.ts", "*.tsx", "*.mjs", "*.cjs", "*.mts", "*.cts", "*.vue", "*.svelte", "*.astro"}
 
-// The matchers are the bash original's EREs, compiled POSIX so alternation
-// stays leftmost-longest as grep's.
+// The matchers compile POSIX so alternation is leftmost-longest: the
+// longer of two matching import forms wins.
 var (
 	jsCandidate = regexp.MustCompilePOSIX(`(from|import|require)[[:space:]]*\(?[[:space:]]*['"]`)
 	jsSpec      = regexp.MustCompilePOSIX(`(from|import|require[[:space:]]*\(|import[[:space:]]*\()[[:space:]]*['"]([^'"]+)['"]`)
@@ -58,7 +58,7 @@ type scan struct {
 	tests             int
 }
 
-// Run is blast-radius.sh <file> [symbol].
+// Run is `kit blast-radius <file> [symbol]`.
 func Run(cfg *config.Config, args []string, stdout, stderr io.Writer) int {
 	if len(args) < 1 || len(args) > 2 {
 		fmt.Fprintln(stderr, "usage: kit blast-radius <file> [symbol]")
@@ -124,7 +124,7 @@ func Run(cfg *config.Config, args []string, stdout, stderr io.Writer) int {
 func (s *scan) grepFiles(re *regexp.Regexp, pathspecs ...string) []hit {
 	out, _ := exec.Command("git", append([]string{"-C", s.root, "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--"}, pathspecs...)...).Output()
 	var hits []hit
-	for _, file := range strings.Split(string(out), "\x00") {
+	for file := range strings.SplitSeq(string(out), "\x00") {
 		if file == "" {
 			continue
 		}
@@ -231,7 +231,7 @@ func parent(p string) string {
 // normPath resolves . and .. segments; "" for the root.
 func normPath(p string) string {
 	var out []string
-	for _, part := range strings.Split(p, "/") {
+	for part := range strings.SplitSeq(p, "/") {
 		switch part {
 		case "", ".":
 		case "..":
@@ -306,9 +306,9 @@ func (s *scan) javascript(cfg *config.Config) (dynamic bool) {
 func (s *scan) pyModule(p string) string {
 	dir := parent(p)
 	mod := strings.TrimSuffix(strings.TrimSuffix(p, ".py"), "/__init__")
-	if dir != "" && isFile(filepath.Join(s.root, dir, "__init__.py")) {
+	if dir != "" && project.IsFile(filepath.Join(s.root, dir, "__init__.py")) {
 		pkgRoot := dir
-		for pkgRoot != "" && isFile(filepath.Join(s.root, pkgRoot, "__init__.py")) {
+		for pkgRoot != "" && project.IsFile(filepath.Join(s.root, pkgRoot, "__init__.py")) {
 			pkgRoot = parent(pkgRoot)
 		}
 		if pkgRoot != "" {
@@ -360,7 +360,7 @@ func (s *scan) python() {
 				s.add(h.file, h.line, "")
 			}
 		} else if m := pyImport.FindStringSubmatch(content); m != nil {
-			for _, item := range strings.Split(m[1], ",") {
+			for item := range strings.SplitSeq(m[1], ",") {
 				fields := strings.Fields(item)
 				if len(fields) > 0 && (fields[0] == mod || strings.HasPrefix(fields[0], mod+".")) {
 					s.add(h.file, h.line, "")
@@ -380,9 +380,4 @@ func containsSpaced(names, leaf string) bool {
 		}
 	}
 	return false
-}
-
-func isFile(p string) bool {
-	info, err := os.Stat(p)
-	return err == nil && info.Mode().IsRegular()
 }

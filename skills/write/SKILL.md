@@ -17,16 +17,16 @@ allowed-tools:
 
 The first word of the arguments is the kind; everything after it is the kind's arguments.
 
-| Kind             | Procedure                                                    |
-| ---------------- | ------------------------------------------------------------ |
-| `commit`         | [references/commit.md](references/commit.md)                 |
-| `pr`             | [references/pr.md](references/pr.md)                         |
-| `release-notes`  | [references/release-notes.md](references/release-notes.md)   |
-| `devnote`        | [references/devnote.md](references/devnote.md)               |
-| `explainer`      | [references/explainer.md](references/explainer.md)           |
-| `review-comment` | [references/review-comment.md](references/review-comment.md) |
-| `review-reply`   | [references/review-reply.md](references/review-reply.md)     |
-| `stakeholder`    | [references/stakeholder.md](references/stakeholder.md)       |
+| Kind             | Procedure                                                  |
+| ---------------- | ---------------------------------------------------------- |
+| `commit`         | [reference/commit.md](reference/commit.md)                 |
+| `pr`             | [reference/pr.md](reference/pr.md)                         |
+| `release-notes`  | [reference/release-notes.md](reference/release-notes.md)   |
+| `devnote`        | [reference/devnote.md](reference/devnote.md)               |
+| `explainer`      | [reference/explainer.md](reference/explainer.md)           |
+| `review-comment` | [reference/review-comment.md](reference/review-comment.md) |
+| `review-reply`   | [reference/review-reply.md](reference/review-reply.md)     |
+| `stakeholder`    | [reference/stakeholder.md](reference/stakeholder.md)       |
 
 1. Missing or unknown kind: ask via AskUserQuestion with the likeliest kinds as options.
 2. Read the kind's reference file and follow it as the procedure.

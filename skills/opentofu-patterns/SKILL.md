@@ -12,12 +12,12 @@ Default assumption: OpenTofu 1.12. Most rules hold for Terraform too, since the 
 
 ## Reference files
 
-| File                                                                     | Covers                                                                                      |
-| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
-| [reference/refactoring-and-state.md](reference/refactoring-and-state.md) | `moved`, `import`, `removed` blocks, `lifecycle`, what state holds                          |
-| [reference/configuration.md](reference/configuration.md)                 | `for_each` vs `count`, `enabled`, variables, pinning and the lock file, provisioners         |
-| [reference/workflow.md](reference/workflow.md)                           | `fmt` and `validate` in checks, and what the kit's guard blocks                             |
-| [reference/anti-patterns.md](reference/anti-patterns.md)                 | Seven review-time anti-patterns with severity calls                                         |
+| File                                                                     | Covers                                                                               |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| [reference/refactoring-and-state.md](reference/refactoring-and-state.md) | `moved`, `import`, `removed` blocks, `lifecycle`, what state holds                   |
+| [reference/configuration.md](reference/configuration.md)                 | `for_each` vs `count`, `enabled`, variables, pinning and the lock file, provisioners |
+| [reference/workflow.md](reference/workflow.md)                           | `fmt` and `validate` in checks, and what the kit's guard blocks                      |
+| [reference/anti-patterns.md](reference/anti-patterns.md)                 | Seven review-time anti-patterns with severity calls                                  |
 
 ## References
 

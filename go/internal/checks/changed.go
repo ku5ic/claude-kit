@@ -32,13 +32,13 @@ func changedLines(root string, files []string) map[string]map[int]bool {
 	for _, f := range files {
 		changed[f] = nil
 	}
-	for _, name := range strings.Split(tracked, "\n") {
+	for name := range strings.SplitSeq(tracked, "\n") {
 		if name != "" {
 			changed[root+"/"+name] = map[int]bool{}
 		}
 	}
 	var current map[int]bool
-	for _, line := range strings.Split(diff, "\n") {
+	for line := range strings.SplitSeq(diff, "\n") {
 		if name, ok := strings.CutPrefix(line, "+++ b/"); ok {
 			current = changed[root+"/"+name]
 			continue

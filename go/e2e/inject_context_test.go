@@ -30,12 +30,9 @@ func injectContextSetup(t *testing.T, tree string) *injectContextEnv {
 	k.Git(proj, "init", "-q")
 	// Physical, as git reports the root the hook resolves.
 	root := Physical(t, proj)
-	// The prerequisite check wants the kit rules linked; without this every
-	// test would get the warning JSON instead of the context.
-	Mkdir(t, filepath.Join(k.Claude, "rules"))
-	if err := os.Symlink(filepath.Join(kitRoot, "rules"), filepath.Join(k.Claude, "rules", "kit")); err != nil {
-		t.Fatal(err)
-	}
+	// The plugin root is the fake .claude, so the rules the hook injects are
+	// these copies: plain files, which never count as a leftover link.
+	injectContextCopyRules(t, filepath.Join(k.Claude, "rules"))
 	// Likewise a readable kit.yml; tests that need content overwrite it.
 	Touch(t, filepath.Join(k.Claude, "kit.yml"))
 	e := &injectContextEnv{Kit: k, tree: tree, tmp: tmp, root: root}
@@ -77,7 +74,7 @@ func (e *injectContextEnv) run(session, cwd string) Result {
 func injectContextTooling(out string) string {
 	var block []string
 	in := false
-	for _, l := range strings.Split(out, "\n") {
+	for l := range strings.SplitSeq(out, "\n") {
 		if l == "<tooling>" {
 			in = true
 		}
@@ -94,7 +91,7 @@ func injectContextTooling(out string) string {
 // injectContextIndented is the block's lines starting with two spaces.
 func injectContextIndented(block string) string {
 	var out []string
-	for _, l := range strings.Split(block, "\n") {
+	for l := range strings.SplitSeq(block, "\n") {
 		if strings.HasPrefix(l, "  ") {
 			out = append(out, l)
 		}
@@ -111,7 +108,7 @@ func injectContextCopyRules(t *testing.T, dst string) {
 }
 
 func TestInjectContext(t *testing.T) {
-	tree := Tree(t, "hooks/inject-context.sh")
+	tree := Tree(t)
 	t.Run("<required-skills> contains every global_skills entry", func(t *testing.T) {
 		e := injectContextSetup(t, tree)
 		e.kitYML("global_skills:\n  - fix-sizing\n  - context-gathering\nskill_triggers: {}\nstacks: {}\n")
@@ -181,7 +178,7 @@ stacks:
 		}
 	})
 
-	// Regression coverage for a fixed bug: inject-context.sh's dirty-file count
+	// Regression coverage for a fixed bug: inject-context's dirty-file count
 	// runs `git -C "$project_root" status --porcelain | wc -l | tr -d ' '`. Under
 	// pipefail, a non-git project_root used to make that pipeline fail, and the
 	// fail-open ERR trap from kit_hook_init turned that into a silent early exit --
@@ -220,21 +217,13 @@ stacks:
 				t.Fatal(err)
 			}
 		}
-		// The real shim and launcher, running the freshly built kit.
-		shim := filepath.Join(tree, "hooks", "inject-context.sh")
+		// The real launcher, running the freshly built kit, as hooks.json does.
+		launcher := filepath.Join(tree, "bin", "kit")
 		e.Setenv("PATH", bin)
-		r := e.exec(bash, `{"session_id":"s1","cwd":"`+e.root+`"}`, shim)
+		r := e.exec(bash, `{"session_id":"s1","cwd":"`+e.root+`"}`, launcher, "hook", "inject-context")
 		r.Want(t, 0)
 		r.Lacks(t, "systemMessage")
 		r.Has(t, "<required-skills>")
-	})
-
-	t.Run("prereqs: kit rules not linked under ~/.claude/rules gets a warning", func(t *testing.T) {
-		e := injectContextSetup(t, tree)
-		os.Remove(filepath.Join(e.Claude, "rules", "kit"))
-		r := e.run("s1", "")
-		r.Want(t, 0)
-		r.Has(t, "run "+filepath.Join(e.Root, "install-rules.sh"))
 	})
 
 	t.Run("prereqs: a missing kit.yml gets a warning naming the plugin fix", func(t *testing.T) {
@@ -245,23 +234,54 @@ stacks:
 		r.Has(t, "readable kit.yml", "reinstall the plugin")
 	})
 
-	t.Run("prereqs: kit rules linked under another name count", func(t *testing.T) {
+	t.Run("a kit.yml that fails to load is reported, since every guard then runs with no config", func(t *testing.T) {
 		e := injectContextSetup(t, tree)
-		rules := filepath.Join(e.Claude, "rules")
-		if err := os.Rename(filepath.Join(rules, "kit"), filepath.Join(rules, "claude-kit")); err != nil {
-			t.Fatal(err)
-		}
-		e.kitYML("global_skills:\n  - fix-sizing\n")
-		e.writeCache("root: "+e.root, "js: yes")
+		e.kitYML("protected_branches: main\n")
+		e.Overlay("global_skills: [fix-sizing]\n")
 		r := e.run("s1", "")
 		r.Want(t, 0)
-		r.Lacks(t, "systemMessage")
-		r.Has(t, "<required-skills>")
+		r.Has(t, "systemMessage", "kit.yml", "every guard runs with no config")
+		var out struct {
+			SystemMessage string `json:"systemMessage"`
+		}
+		if err := json.Unmarshal([]byte(r.Stdout), &out); err != nil {
+			t.Fatal(err)
+		}
+		if n := strings.Count(out.SystemMessage, "cannot unmarshal"); n != 1 {
+			t.Errorf("the decode error appears %d times, want once:\n%s", n, out.SystemMessage)
+		}
+		if strings.Contains(out.SystemMessage, "claude-kit.local.yml") {
+			t.Errorf("the valid overlay is blamed:\n%s", out.SystemMessage)
+		}
 	})
 
-	t.Run("prereqs: another copy of the kit's rules counts (plugin cache vs marketplace clone)", func(t *testing.T) {
+	t.Run("an overlay that breaks the merge is reported to the user and to Claude, with the context intact", func(t *testing.T) {
 		e := injectContextSetup(t, tree)
-		os.Remove(filepath.Join(e.Claude, "rules", "kit"))
+		e.kitYML("global_skills:\n  - fix-sizing\nprotected_branches: [main]\n")
+		e.Overlay("protected_branches: main\n")
+		r := e.run("s1", "")
+		r.Want(t, 0)
+		var out struct {
+			SystemMessage      string `json:"systemMessage"`
+			HookSpecificOutput struct {
+				HookEventName     string `json:"hookEventName"`
+				AdditionalContext string `json:"additionalContext"`
+			} `json:"hookSpecificOutput"`
+		}
+		if err := json.Unmarshal([]byte(r.Stdout), &out); err != nil {
+			t.Fatalf("stdout is not one JSON object: %v\n%s", err, r.Stdout)
+		}
+		if !strings.Contains(out.SystemMessage, "claude-kit.local.yml") || !strings.Contains(out.SystemMessage, "ignored") {
+			t.Errorf("systemMessage = %q", out.SystemMessage)
+		}
+		ctx := out.HookSpecificOutput.AdditionalContext
+		if out.HookSpecificOutput.HookEventName != "SessionStart" || !strings.Contains(ctx, "ignored") || !strings.Contains(ctx, "<required-skills>") {
+			t.Errorf("hookSpecificOutput = %+v", out.HookSpecificOutput)
+		}
+	})
+
+	t.Run("a leftover install-rules.sh link is reported, since the rules would load twice", func(t *testing.T) {
+		e := injectContextSetup(t, tree)
 		clone := filepath.Join(e.tmp, "clone-rules")
 		injectContextCopyRules(t, clone)
 		if err := os.Symlink(clone, filepath.Join(e.Claude, "rules", "claude-kit")); err != nil {
@@ -269,12 +289,11 @@ stacks:
 		}
 		r := e.run("s1", "")
 		r.Want(t, 0)
-		r.Lacks(t, "the kit rules linked")
+		r.Has(t, "systemMessage", filepath.Join(e.Claude, "rules", "claude-kit"), "load twice")
 	})
 
-	t.Run("prereqs: a rules dir missing one of the kit's rule files doesn't count", func(t *testing.T) {
+	t.Run("a claude-kit link to an older clone missing a rule file is still reported", func(t *testing.T) {
 		e := injectContextSetup(t, tree)
-		os.Remove(filepath.Join(e.Claude, "rules", "kit"))
 		partial := filepath.Join(e.tmp, "partial-rules")
 		injectContextCopyRules(t, partial)
 		if err := os.Remove(filepath.Join(partial, "workflow.md")); err != nil {
@@ -283,7 +302,26 @@ stacks:
 		if err := os.Symlink(partial, filepath.Join(e.Claude, "rules", "claude-kit")); err != nil {
 			t.Fatal(err)
 		}
-		e.run("s1", "").Has(t, "the kit rules linked")
+		e.run("s1", "").Has(t, "load twice")
+	})
+
+	t.Run("a claude-kit dir holding none of the kit's rule files is not the kit's", func(t *testing.T) {
+		e := injectContextSetup(t, tree)
+		Write(t, filepath.Join(e.Claude, "rules", "claude-kit", "my-notes.md"), "mine\n")
+		e.run("s1", "").Lacks(t, "load twice")
+	})
+
+	t.Run("an unrelated rules dir missing one of the kit's rule files is not the kit's", func(t *testing.T) {
+		e := injectContextSetup(t, tree)
+		partial := filepath.Join(e.tmp, "partial-rules")
+		injectContextCopyRules(t, partial)
+		if err := os.Remove(filepath.Join(partial, "workflow.md")); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(partial, filepath.Join(e.Claude, "rules", "mine")); err != nil {
+			t.Fatal(err)
+		}
+		e.run("s1", "").Lacks(t, "load twice")
 	})
 
 	// <tooling>: run forms from kit.yml's task_providers and toolchain_checks.

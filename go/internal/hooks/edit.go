@@ -4,7 +4,7 @@ package hooks
 import (
 	"bufio"
 	"encoding/json"
-	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -14,6 +14,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
 // cfgOrEmpty is the loaded config, or an empty one when kit.yml can't load:
@@ -76,7 +77,7 @@ func GuardEdit(h *hook.Hook) error {
 		}
 	}
 	if ciWorkflows.MatchString(path) {
-		fmt.Fprintf(h.Stderr, "guard-edit: editing CI workflow %s\n", path)
+		h.Decide("ask", "this is a CI workflow, which changes what runs on every push; confirm the change")
 	}
 	if guard.IsOverlay(h.Paths, path) {
 		h.Decide("ask", "this is the claude-kit overlay, which can switch the kit's own guards off; confirm the change")
@@ -97,7 +98,7 @@ func GuardSkills(h *hook.Hook) error {
 		return nil
 	}
 	path := h.Payload.FilePath()
-	if path == "" || strings.Contains(path, "/.claude/scratch/") || strings.Contains(path, "/scratch/") {
+	if path == "" || project.IsScratch(h.Paths, path) {
 		return nil
 	}
 	session := h.Payload.String("session_id")
@@ -168,10 +169,7 @@ func GuardSkills(h *hook.Hook) error {
 	if len(missing) == 0 {
 		return nil
 	}
-	return &hook.Blocked{
-		Reason: "This edit touches " + path + ". Load the following skills via the Skill tool first, then retry the edit: " + strings.Join(missing, ", "),
-		Rule:   "skills-gate",
-	}
+	return h.Block("This edit touches "+path+". Load the following skills via the Skill tool first, then retry the edit: "+strings.Join(missing, ", "), "skills-gate")
 }
 
 // loadedSkills streams skills.jsonl once for session's skill_file values,
@@ -184,15 +182,22 @@ func loadedSkills(logPath, session string) (map[string]bool, error) {
 	}
 	defer f.Close()
 	loaded := map[string]bool{}
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 64*1024), 4*1024*1024)
-	for scanner.Scan() {
+	// A Reader, not a Scanner: one oversized line must not end the read.
+	reader := bufio.NewReader(f)
+	for {
+		line, err := reader.ReadBytes('\n')
+		if err == io.EOF && len(line) == 0 {
+			return loaded, nil
+		}
+		if err != nil && err != io.EOF {
+			return nil, err
+		}
 		var entry struct {
 			SessionID string  `json:"session_id"`
 			SkillFile *string `json:"skill_file"`
 			Event     string  `json:"event"`
 		}
-		if json.Unmarshal(scanner.Bytes(), &entry) != nil {
+		if json.Unmarshal(line, &entry) != nil {
 			continue
 		}
 		if entry.SessionID == session && entry.SkillFile != nil &&
@@ -204,7 +209,6 @@ func loadedSkills(logPath, session string) (map[string]bool, error) {
 			}
 		}
 	}
-	return loaded, nil
 }
 
 // GuardDispatch runs guard-edit's and, with CLAUDE_GUARD_SKILLS=1,
@@ -212,9 +216,9 @@ func loadedSkills(logPath, session string) (map[string]bool, error) {
 // failing open never skips the other. The skills gate is opt-in: blocking
 // edits until a patterns skill loads is a personal policy, not a default.
 func GuardDispatch(h *hook.Hook) int {
-	checks := []hook.NamedCheck{{Name: "guard-edit.sh", Check: GuardEdit}}
+	checks := []hook.NamedCheck{{Name: "guard-edit", Check: GuardEdit}}
 	if os.Getenv("CLAUDE_GUARD_SKILLS") == "1" {
-		checks = append(checks, hook.NamedCheck{Name: "guard-skills.sh", Check: GuardSkills})
+		checks = append(checks, hook.NamedCheck{Name: "guard-skills", Check: GuardSkills})
 	}
 	return hook.Run(h, checks...)
 }

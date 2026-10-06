@@ -404,21 +404,20 @@ func TestRunChecks(t *testing.T) {
 		e.callsEndWith("composer", "run test")
 	})
 
-	// The bats test ran the committed shim; this runs a copy of the shim and
-	// launcher beside the freshly built binary, so the shim's relative-path
-	// resolution is tested against this tree's code.
-	t.Run("a relative script path from a subdirectory still finds the lib", func(t *testing.T) {
+	// A copy of the launcher beside the freshly built binary, so its
+	// relative-path resolution is tested against this tree's code.
+	t.Run("a relative launcher path from a subdirectory still finds the binary", func(t *testing.T) {
 		e := runChecksSetup(t)
 		e.write("go.mod", "module example.com/fixture\n\ngo 1.22\n")
 		Mkdir(t, filepath.Join(e.project, "sub"))
 		e.stub("go", 0)
 		e.k.Git(e.project, "add", "-A")
-		bin := filepath.Join(Tree(t, "bin/run-checks.sh"), "bin")
-		// ../ up to /, then the script's absolute path: relative from sub/.
+		bin := filepath.Join(Tree(t), "bin")
+		// ../ up to /, then the launcher's absolute path: relative from sub/.
 		sub := Physical(t, filepath.Join(e.project, "sub"))
 		up := strings.Repeat("../", strings.Count(sub, "/"))
-		script := filepath.Join(bin, "run-checks.sh")
+		launcher := filepath.Join(bin, "kit")
 		e.k.Dir = sub
-		e.k.Shell("", up+strings.TrimPrefix(script, "/")).Has(t, "PASS go: vet")
+		e.k.Shell("", up+strings.TrimPrefix(launcher, "/")+" run-checks").Has(t, "PASS go: vet")
 	})
 }

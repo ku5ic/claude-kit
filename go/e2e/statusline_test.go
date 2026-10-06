@@ -266,7 +266,7 @@ func TestStatusline(t *testing.T) {
 
 	t.Run("renders without jq on PATH", func(t *testing.T) {
 		// The status line is Go: an empty PATH still renders. Runs the built
-		// binary rather than the shim, which would pick the committed one.
+		// binary rather than bin/kit, which would pick the installed one.
 		k, _ := setup(t)
 		k.Setenv("PATH", t.TempDir())
 		r := k.Run(`{"model":{"display_name":"Opus"}}`, "statusline")
