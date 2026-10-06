@@ -142,4 +142,24 @@ printf '#!/bin/sh\necho fetched "$@"\n' >"$2"
 			t.Errorf("guard-bash ran curl:\n%s", Read(t, log))
 		}
 	})
+
+	t.Run("a status line never downloads, since each refresh cancels it", func(t *testing.T) {
+		root := t.TempDir()
+		Write(t, filepath.Join(root, "bin/kit"), string(raw))
+		Write(t, filepath.Join(root, ".claude-plugin/plugin.json"), `{"name": "claude-kit", "version": "9.9.9"}`)
+		stubs := t.TempDir()
+		log := filepath.Join(stubs, "curl.log")
+		Write(t, filepath.Join(stubs, "curl"), "#!/bin/sh\necho \"$@\" >>"+log+"\nexit 22\n")
+		if err := os.Chmod(filepath.Join(stubs, "curl"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		k := New(t)
+		k.PrependPath(stubs)
+		for _, cmd := range []string{"statusline", "subagent-statusline"} {
+			k.exec("bash", "{}", filepath.Join(root, "bin/kit"), cmd).Want(t, 127)
+		}
+		if _, err := os.Stat(log); err == nil {
+			t.Errorf("a status line ran curl:\n%s", Read(t, log))
+		}
+	})
 }
