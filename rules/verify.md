@@ -1,0 +1,74 @@
+# Verify
+
+What must happen before a change is called done: self-review of the diff, then the change exercised through its real interface until it breaks or holds.
+
+Tests and type checks prove the code compiles and the asserted paths pass. They don't prove the change works for whoever consumes it. Both halves below are required for any change with observable behavior: a response, output, an exit code, data written, a side effect. A pure refactor with no behavior change is covered by the existing tests.
+
+## 1. Self-review (`/code-review`)
+
+Read your own diff as a reviewer who didn't write it and doesn't trust it.
+
+- Every new helper, module, type, or abstraction names what was searched for and not found, per `rules/change.md` section 2. "I didn't look" is a finding against the change.
+- Every non-obvious decision gets one line answering "why this, not the obvious alternative". A decision you can't justify is a decision you took from a generated draft without checking it.
+- Review findings are claims, per `rules/workflow.md` section 5. Check each against the code before applying it.
+
+## 2. Use it until it breaks (`/verify`)
+
+Exercise the change through the interface its consumers use, the way they use it:
+
+| Surface   | Exercise it by                                                     |
+| --------- | ------------------------------------------------------------------ |
+| UI        | driving the affected flow in the running app                       |
+| API       | real HTTP calls against a running server                           |
+| CLI       | invoking the built binary or script, checking output and exit code |
+| Library   | a scratch caller importing the public API                          |
+| Migration | running it on a copy of realistic data                             |
+| Infra     | `plan` or a dry run against the real target                        |
+
+Starting it and seeing it respond is not verification. The goal is to break it.
+
+Exercise every row that applies to the change:
+
+| Axis       | Cases                                                                                                                    |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Input      | empty, exactly one, many (past a page or batch), boundary and oversized values, malformed input, missing optional fields |
+| Failure    | dependency errors, timeout or slow response, partial failure mid-operation, insufficient permission                      |
+| Repetition | retry or double submit (idempotency), concurrent writers, interrupted mid-run then rerun                                 |
+| State      | stale cache or data after a write, existing data in the old shape, rollback                                              |
+| UI only    | loading state, keyboard only, narrow viewport, back or refresh mid-flow                                                  |
+| CLI only   | no args and `--help`, invalid flags, piped stdin and non-TTY output, stdout vs stderr, exit codes, Ctrl-C mid-run        |
+
+The UI and CLI rows are additive: they apply only when the change touches that surface, and a change that doesn't never lists them as Not exercised.
+
+When the setup can't produce a case (no fixture with many items, no limited-permission user), say so; don't skip it silently.
+
+The report lists three things, one line per case:
+
+1. **Exercised**: the case and what happened.
+2. **Not exercised**: the case and why (no data, no access, out of scope).
+3. **Raise with**: see section 3.
+
+"Looked fine" is not a result. A case that broke goes back to the fix loop before anything else.
+
+## 3. Raise upstream gaps
+
+An edge case the spec, the contract, or the design doesn't cover is a question for the person who owns it, not something to patch around quietly.
+
+- List each under **Raise with** naming the owner of the contract (upstream service, API, schema, design, product) and the concrete case: input, observed behavior, what's undefined.
+- A workaround on your side of the boundary is allowed only when named in the change and in the Raise with list. An unnamed one is a defect.
+
+## 4. The human orchestrates
+
+The agent proposes; the human decides and owns the result. Agent output, including a generated plan, review, or fix, is a draft with its reasons attached, never a decision already taken.
+
+- Present a non-obvious choice with its alternative and the reason, so the human can overrule it.
+- Don't claim done on behalf of the human. Done means section 1 and section 2 ran after the last edit, with output cited, per `rules/evidence.md` section 1.
+
+## Anti-patterns
+
+- `failure`: calling a behavior change done with no exercise of it through its real interface.
+- `failure`: a `/verify` report with no Not exercised list. Every report has gaps; an empty list means they weren't looked for.
+- `failure`: patching around a contract or design gap without naming it under Raise with.
+- `warning`: verifying only the happy path with the fixture data that happened to be loaded.
+- `warning`: a new abstraction with no record of the search for an existing one.
+- `info`: a Raise with list that's empty because the spec really did cover every case. Fine, say so.

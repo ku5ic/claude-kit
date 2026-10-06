@@ -46,7 +46,7 @@ Procedures are skills under the kit's `skills/<name>/SKILL.md`, invoked as `/<na
 
 Every one is user-only (`disable-model-invocation: true`). They run when typed, never on model initiative. The canonical inventory is `/skills` output, not any UI label.
 
-Explore, plan, implement, and verify use the built-ins: `investigate` (model-invocable, read-only), `/plan`, approving the plan, the `Stop` hook running file-scoped checks on edited files, `/code-review`, and `/verify`, which drives the running app and runs no tests. The built-in `/code-review` doesn't run `run-checks.sh`: run the full suite alongside it.
+Explore, plan, implement, and verify use the built-ins: `investigate` (model-invocable, read-only), `/plan`, approving the plan, the `Stop` hook running file-scoped checks on edited files, `/code-review`, and `/verify`, which exercises the change through its real interface and runs no tests. The built-in `/code-review` doesn't run `run-checks.sh`: run the full suite alongside it. How thorough both must be is `rules/verify.md`.
 
 **Hard rules:**
 
