@@ -10,6 +10,7 @@ package hook
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -106,10 +107,22 @@ func (h *Hook) Config() *config.Config {
 		if err == nil {
 			h.cfg = cfg
 		} else {
-			h.warnings = append(h.warnings, config.Warning{File: h.Paths.Base, Err: fmt.Errorf("not loaded, so every guard runs with no config: %w", err)})
+			h.warnings = append(h.warnings, baseNotLoaded(h.Paths.Base, warnings, err))
 		}
 	}
 	return h.cfg
+}
+
+// baseNotLoaded says the guards run without config, adding Load's error
+// only when no warning already names kit.yml with it.
+func baseNotLoaded(base string, warnings []config.Warning, err error) config.Warning {
+	const off = "not loaded, so every guard runs with no config"
+	for _, w := range warnings {
+		if w.File == base {
+			return config.Warning{File: base, Err: errors.New(off)}
+		}
+	}
+	return config.Warning{File: base, Err: fmt.Errorf("%s: %w", off, err)}
 }
 
 // Warnings are the problems Config found loading kit.yml and the overlay.
@@ -157,6 +170,19 @@ func (h *Hook) Decide(decision, reason string) {
 		HookSpecificOutput specific `json:"hookSpecificOutput"`
 	}{specific{"PreToolUse", decision, reason}}
 	WriteJSON(h.Stdout, out)
+}
+
+// AddContext prints context for Claude on event, plus systemMessage for the
+// user when it isn't empty.
+func AddContext(w io.Writer, event, systemMessage, context string) {
+	type specific struct {
+		HookEventName     string `json:"hookEventName"`
+		AdditionalContext string `json:"additionalContext"`
+	}
+	WriteJSON(w, struct {
+		SystemMessage      string   `json:"systemMessage,omitempty"`
+		HookSpecificOutput specific `json:"hookSpecificOutput"`
+	}{systemMessage, specific{event, context}})
 }
 
 // WriteJSON writes v as one compact line with <, >, and & left as they are:

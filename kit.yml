@@ -182,7 +182,7 @@ package_managers:
 # Guard lists. An overlay can append to any of them.
 
 # Lockfiles guard-dispatch blocks on top of the package_managers ones.
-extra_lockfiles: [Gemfile.lock, Cargo.lock, composer.lock, pdm.lock]
+extra_lockfiles: [Gemfile.lock, Cargo.lock, composer.lock, pdm.lock, go.sum]
 
 # Branches git push, and git reset --hard to, are blocked for.
 protected_branches: [main, master, develop, production, release]

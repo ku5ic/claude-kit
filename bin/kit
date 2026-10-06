@@ -71,9 +71,10 @@ rm -f "$tmp"
 if [[ -x $bin ]]; then
   exec "$bin" "$@"
 fi
-reason="kit: no binary for $os-$arch at $bin, so every claude-kit guard is off; build it with go/build.sh, or set KIT_DEV=1"
-echo "$reason" >&2
+reason="kit: no binary for $os-$arch at $bin; build it with go/build.sh, or set KIT_DEV=1"
 if [[ ${1:-} == hook ]]; then
+  reason=${reason/;/, so every claude-kit guard is off;}
+  echo "$reason" >&2
   # SessionStart is the one hook whose output both the user and Claude see.
   if [[ ${2:-} == inject-context ]]; then
     reason=${reason//\\/\\\\}
@@ -82,4 +83,5 @@ if [[ ${1:-} == hook ]]; then
   fi
   exit 0
 fi
+echo "$reason" >&2
 exit 127

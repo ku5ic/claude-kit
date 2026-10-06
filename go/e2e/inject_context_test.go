@@ -237,9 +237,22 @@ stacks:
 	t.Run("a kit.yml that fails to load is reported, since every guard then runs with no config", func(t *testing.T) {
 		e := injectContextSetup(t, tree)
 		e.kitYML("protected_branches: main\n")
+		e.Overlay("global_skills: [fix-sizing]\n")
 		r := e.run("s1", "")
 		r.Want(t, 0)
 		r.Has(t, "systemMessage", "kit.yml", "every guard runs with no config")
+		var out struct {
+			SystemMessage string `json:"systemMessage"`
+		}
+		if err := json.Unmarshal([]byte(r.Stdout), &out); err != nil {
+			t.Fatal(err)
+		}
+		if n := strings.Count(out.SystemMessage, "cannot unmarshal"); n != 1 {
+			t.Errorf("the decode error appears %d times, want once:\n%s", n, out.SystemMessage)
+		}
+		if strings.Contains(out.SystemMessage, "claude-kit.local.yml") {
+			t.Errorf("the valid overlay is blamed:\n%s", out.SystemMessage)
+		}
 	})
 
 	t.Run("an overlay that breaks the merge is reported to the user and to Claude, with the context intact", func(t *testing.T) {

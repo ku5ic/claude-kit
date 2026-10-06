@@ -70,13 +70,7 @@ func InjectRules(h *hook.Hook) error {
 		fmt.Fprint(h.Stdout, parts[n-1])
 		return nil
 	}
-	type specific struct {
-		HookEventName     string `json:"hookEventName"`
-		AdditionalContext string `json:"additionalContext"`
-	}
-	hook.WriteJSON(h.Stdout, struct {
-		HookSpecificOutput specific `json:"hookSpecificOutput"`
-	}{specific{"SubagentStart", parts[n-1]}})
+	hook.AddContext(h.Stdout, "SubagentStart", "", parts[n-1])
 	return nil
 }
 

@@ -67,14 +67,7 @@ func InjectContext(h *hook.Hook) error {
 		return nil
 	}
 	notice := "claude-kit install problems:\n" + strings.Join(lines, "\n")
-	type specific struct {
-		HookEventName     string `json:"hookEventName"`
-		AdditionalContext string `json:"additionalContext"`
-	}
-	hook.WriteJSON(h.Stdout, struct {
-		SystemMessage      string   `json:"systemMessage"`
-		HookSpecificOutput specific `json:"hookSpecificOutput"`
-	}{notice, specific{"SessionStart", notice + "\n" + out.String()}})
+	hook.AddContext(h.Stdout, "SessionStart", notice, notice+"\n"+out.String())
 	return nil
 }
 
@@ -152,13 +145,7 @@ func InjectSubagentContext(h *hook.Hook) error {
 	if context == "" {
 		return nil
 	}
-	type specific struct {
-		HookEventName     string `json:"hookEventName"`
-		AdditionalContext string `json:"additionalContext"`
-	}
-	hook.WriteJSON(h.Stdout, struct {
-		HookSpecificOutput specific `json:"hookSpecificOutput"`
-	}{specific{"SubagentStart", context}})
+	hook.AddContext(h.Stdout, "SubagentStart", "", context)
 	return nil
 }
 
