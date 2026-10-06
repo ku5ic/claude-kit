@@ -21,7 +21,7 @@ When a deterministic CLI can answer the question, call it before reading files a
 | In-place substitution              | `sd 'find' 'repl' file`            | sed -i                             |
 | Buffer stdin for in-place pipes    | `cmd \| sponge file`               | temp-file dance                    |
 | Fixup commits from staged hunks    | `git absorb`                       | rebase -i + fixup                  |
-| Git outside cwd                    | `git -C <dir>`                     | cd <dir> && git (prompts)          |
+| Git outside cwd                    | `git -C <dir>`                     | cd <dir> && git                    |
 | Validate a GitHub Actions workflow | `actionlint`                       | reading YAML by eye                |
 
 Factual question (how big, what secrets, how fast, what is in this JSON): reach for the tool. Interpretive question (is this correct, does this design hold): reading and reasoning is correct.
@@ -38,30 +38,21 @@ Factual question (how big, what secrets, how fast, what is in this JSON): reach 
 
 ## 2. Call bin scripts by bare name
 
-The plugin's `bin/` is on PATH. Call every script there by bare name, never by path.
-
-- Correct: `project-name.sh`, `run-checks.sh`, `git-base.sh main`, `scratch-dir.sh`
-- Wrong: `$HOME/.claude/bin/run-checks.sh`, `./bin/run-checks.sh`, `bash run-checks.sh`
-
-Arguments go as plain positional args after a space. Do not wrap a call in `bash` or `sh`; the shebang handles it. Inline skill injection uses the same form: `` !`project-name.sh` ``.
-
-Permission allows for these scripts are written against the bare command, so a pathful or `bash`-wrapped call won't match one and triggers a permission prompt.
-
-Script-to-script calls inside the bin scripts are exempt; they resolve paths internally.
+The plugin's `bin/` is on PATH. Call every script there by bare name, never by path: `scratch-dir.sh`, not `$HOME/.claude/bin/scratch-dir.sh` or `bash scratch-dir.sh`. Arguments go as plain positional args. Permission allows are written against the bare command, so a pathful or `bash`-wrapped call misses them and prompts.
 
 ## 3. Scratch
 
-Scratch is whatever `scratch-dir.sh` prints: `<project-root>/.claude/scratch/` inside a recognized project (a git worktree, or a stack sentinel matched during the ancestor walk), `$HOME/.claude/scratch/` everywhere else.
+Scratch is whatever `scratch-dir.sh` prints: `<project-root>/.claude/scratch/` inside a recognized project, `$HOME/.claude/scratch/` everywhere else.
 
 Three sibling directories under a project's `.claude/`, each with one job:
 
-| Directory          | Holds                                                                            | Tracked?        |
-| ------------------ | -------------------------------------------------------------------------------- | --------------- |
-| `.claude/scratch/` | Throwaway work: POCs, one-off scripts, logs, downloads, screenshots              | No - gitignored |
-| `.claude/plans/`   | Plan-mode files, via `plansDirectory: ".claude/plans"`                           | No - gitignored |
-| `.claude/tasks/`   | Handover plans a person is meant to read - written by hand, no skill writes here | Yes             |
+| Directory          | Holds                                                               | Tracked?        |
+| ------------------ | ------------------------------------------------------------------- | --------------- |
+| `.claude/scratch/` | Throwaway work: POCs, one-off scripts, logs, downloads, screenshots | No - gitignored |
+| `.claude/plans/`   | Plan files, via `plansDirectory: ".claude/plans"`                   | No - gitignored |
+| `.claude/tasks/`   | Handover plans a person is meant to read, written by hand           | Yes             |
 
-**Everything temporary goes to scratch**: reports, previews, test artifacts, proof-of-concept scripts, one-off debug files, downloads, screenshots, logs. Plans are the exception - they have their own directory above. This overrides two competing defaults: the harness's per-session `/tmp` scratchpad (the project tier survives the session), and ad hoc paths under `~/.claude/`. The harness's own memory stores are the one carve-out.
+**Everything temporary goes to scratch**: reports, previews, test artifacts, proof-of-concept scripts, one-off debug files, downloads, screenshots, logs. Plans are the exception; they have their own directory above. This overrides the harness's per-session `/tmp` scratchpad and ad hoc paths under `~/.claude/`.
 
 ### Never the project root
 
@@ -71,28 +62,11 @@ Resolve the destination first, then pass it explicitly:
 - a screenshot or export tool's `out_dir` argument, not its default
 - `cmd > "$(scratch-dir.sh)/<name>.log"`, not `cmd > out.log`
 
-Never default to `.`, a bare filename, or whatever directory the tool picks. A stray file in the project root pollutes `git status`, risks being committed, and lands in every clone.
+A stray file in the project root pollutes `git status`, risks being committed, and lands in every clone.
 
+- `curl` and `wget` download only into scratch.
 - Read web pages and docs with WebFetch, never `curl` to disk. If you only need to search a page, pipe it (`curl ... | rg`) instead of saving it.
 - After any download, and after any subagent that has Bash returns, run `git status --short`. A new untracked file you didn't intend to create gets moved to scratch or flagged before you do anything else.
 - A subagent prompt that may write files names `$(scratch-dir.sh)` as the only place it may write.
 
-**Hard rule: `curl` and `wget` download only into scratch.** `guard-bash.sh` blocks any output file, output directory, or `>` redirect that isn't stdout, `/dev/null`, `"$(scratch-dir.sh)/..."`, or a path inside a `.claude/scratch` directory, plus `curl -O`/`-J` without a scratch `--output-dir` and `wget` with no output flag. A shell alias expands after the hook runs, so an alias that adds `-O` would slip past it; keep such aliases out of Claude Code sessions (`CLAUDECODE=1`). Tool-driven writes (a browser screenshot's `out_dir`, an MCP server's download path) are invisible to the hook and rely on this rule.
-
-### Naming
-
-Structured artifacts (reports, reviews, audits) go to the path `scratch-dir.sh <kind> [slug]` prints: `<kind>-<slug>-<YYYYMMDD-HHMM>.md` in the scratch directory.
-
-Test artifacts and POC files need no fixed shape - name them sensibly, but keep them under the resolved directory.
-
-Plans are the exception to the timestamp. `.claude/plans/` is browsed by eye and shares a directory with the harness's own plan-mode files, so a plan is `plan-<task-slug>.md` - no date, slug capped at four words. Its age comes from the file's birth time (`stat -f %B` on macOS, `stat -c %W` on Linux).
-
-Reading the most recent artifact of a kind, always filtered to the resolved directory:
-
-```sh
-ls -t "$(scratch-dir.sh)"/<kind>-*.md | head -1
-```
-
-Never read across projects. If none exists for this project, run the predecessor command first.
-
-Retention, the prune registry, and `.claude/` write gating are documented in the headers of `scratch-dir.sh`, `scratch-rotate.sh`, and `plans-dir.sh`.
+Structured artifacts (reports, reviews, audits) go to the path `scratch-dir.sh <kind> <slug>` prints. A plan is `.claude/plans/plan-<task-slug>.md`, slug capped at four words.

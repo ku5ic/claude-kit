@@ -135,15 +135,15 @@ Stack knowledge Claude loads when the repo calls for it: React, Next.js App Rout
 
 Seven short files that shape how Claude works, injected into every session and every subagent:
 
-| Rule       | In one line                                                               |
-| ---------- | ------------------------------------------------------------------------- |
-| `output`   | Answer first, short by default, deliverables go to files                  |
-| `evidence` | Never invent paths, APIs, versions, or test results; label how sure it is |
-| `change`   | Smallest fix for the defect, follow the existing pattern, no dead code    |
-| `workflow` | Never commit or push unasked; confirm before anything destructive         |
-| `tooling`  | Reach for a CLI before reasoning; temporary files go to scratch           |
-| `agents`   | When to spawn a subagent, and check its work before building on it        |
-| `verify`   | What has to happen before a change is called done                         |
+| Rule        | In one line                                                               |
+| ----------- | ------------------------------------------------------------------------- |
+| `output`    | Answer first, short by default, deliverables go to files                  |
+| `evidence`  | Never invent paths, APIs, versions, or test results; label how sure it is |
+| `change`    | Smallest fix for the defect, follow the existing pattern, no dead code    |
+| `workflow`  | Never commit or push unasked; confirm before anything destructive         |
+| `tooling`   | Reach for a CLI before reasoning; temporary files go to scratch           |
+| `subagents` | When to spawn a subagent, and check its work before building on it        |
+| `verify`    | What has to happen before a change is called done                         |
 
 ## When a guard gets in your way
 

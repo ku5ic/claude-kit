@@ -17,7 +17,7 @@ Read your own diff as a reviewer who didn't write it and doesn't trust it.
 
 - Every new helper, module, type, or abstraction names what was searched for and not found, per `rules/change.md` section 2. "I didn't look" is a finding against the change.
 - Every non-obvious decision gets one line answering "why this, not the obvious alternative". A decision you can't justify is a decision you took from a generated draft without checking it.
-- Review findings are claims, per `rules/workflow.md` section 5. Check each against the code before applying it.
+- Review findings are claims, per `rules/workflow.md` section 4. Check each against the code before applying it.
 
 ## 2. Use it until it breaks (the runtime pass, with the `run` skill)
 
@@ -70,12 +70,3 @@ The agent proposes; the human decides and owns the result. Agent output, includi
 
 - Present a non-obvious choice with its alternative and the reason, so the human can overrule it.
 - Don't claim done on behalf of the human. Done means the checks the table at the top requires ran after the last edit, with output cited, per `rules/evidence.md` section 1.
-
-## Anti-patterns
-
-- `failure`: calling a behavior change done with no exercise of it through its real interface.
-- `failure`: a runtime-pass report with no Not exercised list. Every report has gaps; an empty list means they weren't looked for.
-- `failure`: patching around a contract or design gap without naming it under Raise with.
-- `warning`: verifying only the happy path with the fixture data that happened to be loaded.
-- `warning`: a new abstraction with no record of the search for an existing one.
-- `info`: a Raise with list that's empty because the spec really did cover every case. Fine, say so.

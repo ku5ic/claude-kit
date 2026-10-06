@@ -10,7 +10,7 @@ Before proposing or applying a fix:
 2. Name the minimal change that resolves exactly that, nothing else.
 3. Compare it to what you are about to edit. Match -> proceed.
 4. Larger -> name the excess and the reason. Excess is: more files touched, a new abstraction, an adjacent refactor, or unrelated cleanup bundled in.
-5. Excess with no stated reason -> stop and ask, per `rules/workflow.md` section 5.
+5. Excess with no stated reason -> stop and ask, per `rules/workflow.md` section 4.
 
 "Minimal" is measured against the defect, not against caution. A one-line fix to a one-line bug is minimal. A one-line fix that papers over a genuinely broken abstraction is not - that is the justification to state, not skip.
 
@@ -22,7 +22,7 @@ Before introducing a new library, state-management approach, folder shape, or na
 
 Before adding a tool, library, or pattern, check what is already in use: `package.json`, the lockfile, existing imports, config files.
 
-Before writing code, take the first rung that holds: not needed at all, already in this codebase, the standard library, a native platform feature (CSS over JS, a DB constraint over app code), an installed dependency, one line, and only then the minimum new code.
+Before writing code, take the first option that holds, in this order: not needed at all, already in this codebase, the standard library, a native platform feature (CSS over JS, a DB constraint over app code), an installed dependency, one line, and only then the minimum new code.
 
 Before running a script, check the project defines it: `scripts` in `package.json`, a Makefile, a justfile, a task runner.
 
@@ -64,7 +64,7 @@ The one exception is scaffolding explicitly requested or explicitly marked for a
 
 ## 7. Price the cheapest option
 
-Whenever options are enumerated - candidate directions, alternatives, approaches - one slot belongs to the cheapest thing that could work: a data, config, or lookup-table row, an existing entry extended, or doing nothing.
+Whenever options are enumerated - candidate directions, alternatives, approaches - one of them is the cheapest thing that could work: a data, config, or lookup-table row, an existing entry extended, or doing nothing.
 
 It counts as an option even when it is not a code change, and it gets the same scope, risk, and fit treatment as the rest. Insufficient -> say why in one line and rule it out. The failure is never writing it down.
 
@@ -78,12 +78,3 @@ Each of these is enforced by the judgment it turns on, not by reciting the acron
 - **SOLID**: one reason to change per unit; extend rather than modify working code; no interface whose only implementation is its only caller.
 
 A finding names the principle and the concrete cost. A preference dressed as a principle is not a finding.
-
-## Anti-patterns
-
-- `failure`: touching files unrelated to the defect without naming why.
-- `failure`: a new abstraction (interface, config layer, helper module) for a single call site, without stating why now rather than at the second call site.
-- `warning`: refactoring surrounding code "while in there" during a bug fix.
-- `warning`: describing a fix as "cleanup" when the ask was a specific defect.
-- `warning`: an option list with no cheapest option priced, or one mentioned in passing instead of ruled out.
-- `info`: a fix smaller than expected because the defect was smaller than it looked. Worth noting, not a violation.

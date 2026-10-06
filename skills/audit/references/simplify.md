@@ -11,7 +11,7 @@ Find what to delete or replace with something smaller: over-engineering only, no
    - A path: read it. For a directory, `tokei --files --sort code <path>` and read the 5 largest files plus the entry points.
    - Empty: the repo root, same as a directory.
 4. Read the dependency manifest (`package.json`, `pyproject.toml`, `go.mod`, or similar) for what is already installed.
-5. Climb the ladder in `rules/change.md` section 2 for each candidate: the finding is the lowest rung that would replace it. Skip categories with no findings. Do not pad.
+5. For each candidate, walk the order in `rules/change.md` section 2: the finding is the first option in that order that would replace it. Skip categories with no findings. Do not pad.
 
 ### Categories
 
@@ -28,7 +28,7 @@ Out of scope: correctness, security, and style. Input validation at trust bounda
 
 - Location: `file:line`
 - What to cut
-- What replaces it (the stdlib call, the native feature, the existing helper, or nothing), with the rung it sits on
+- What replaces it (the stdlib call, the native feature, the existing helper, or nothing), with where it sits in that order
 - Lines saved, approximately
 - Severity: warning when it adds a dependency or an abstraction layer, info otherwise (per the report-format skill's rubric)
 

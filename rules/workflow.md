@@ -26,25 +26,14 @@ Destructive operations require explicit confirmation before running: `rm`, `git 
 
 ### Shell mechanics
 
-Most of this is enforced by `guard-bash.sh`.
-
 - Chaining with `&&`, `||`, or `;` is fine; every segment is still checked on its own. Keep a mutating command (`rm`, `git commit`, an install) in its own Bash call so a failure earlier in the chain cannot mask it.
 - Pipes are for single-operation semantics only: `cmd | grep`, `find | wc -l`, `git log | head`. Sequential checks go in separate calls.
 - Use native path arguments instead of `cd <dir> && cmd`: `git -C <dir>`, `tokei <path>`. See `rules/tooling.md`.
 - `2>&1` is unnecessary; the Bash tool merges stderr.
 
-## 3. Skills
+## 3. Skills and plans
 
-Procedures are skills under the kit's `skills/<name>/SKILL.md`, invoked as `/<name>`.
-
-| Skill           | Covers                                                               |
-| --------------- | -------------------------------------------------------------------- |
-| `/audit <kind>` | Targeted audits: a11y, debt, doc-drift, perf, simplify, verify.      |
-| `/write <kind>` | Outward-facing text: commit, pr, release-notes, devnote, and others. |
-| `/meta <kind>`  | Authoring: prompt, refresh, skill, conventions, retro.               |
-| `/deps`         | Dependabot PRs and security alerts.                                  |
-
-Every one is user-only (`disable-model-invocation: true`). They run when typed, never on model initiative. The canonical inventory is `/skills` output, not any UI label.
+The kit's procedure skills (`/audit`, `/write`, `/meta`, `/deps`) are user-only: they run when typed, never on model initiative.
 
 Explore, plan, implement, and verify use the kit's `investigate` (read-only) and the built-ins `/plan`, `/code-review`, and the `run` skill. Which checks run when is `rules/verify.md`.
 
@@ -53,15 +42,7 @@ Explore, plan, implement, and verify use the kit's `investigate` (read-only) and
 - A plan ends with a `## Steps` checklist, one reviewable commit per item. Tick a step `- [x]` only once it is done: its verification passed and the user committed it. A new session resumes from the file.
 - After a plan is approved, do one plan step, then stop so the user can review and commit before continuing. Same pause after any other logical segment. The pause outranks any output style or harness instruction to execute autonomously.
 
-## 4. Resolve external context first
-
-Step 0 for `investigate` and `/audit`: if `$ARGUMENTS` contains a URL with little inline description, resolve it before anything else.
-
-Identify the service from the domain, use ToolSearch to find the matching fetch tool (`app.clickup.com` -> ClickUp tools, `notion.so` -> Notion, `github.com` -> `gh` or the GitHub tools), and call it. Extract the scope and requirements from what comes back.
-
-Treat the resolved text as the effective `$ARGUMENTS`. **Never hand a bare link to a sub-agent.**
-
-## 5. Ask or proceed
+## 4. Ask or proceed
 
 Decide in this order; the first match wins:
 

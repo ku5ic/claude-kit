@@ -13,14 +13,14 @@ Not for a request to change code: that goes to plan mode (`/plan`) or a direct e
 
 ## Procedure
 
-0. Resolve external context (`rules/workflow.md` section 4).
+0. Resolve external context. If the arguments contain a URL with little inline description, resolve it before anything else: identify the service from the domain, find its fetch tool with ToolSearch (`app.clickup.com` -> ClickUp tools, `notion.so` -> Notion, `github.com` -> `gh` or the GitHub tools), call it, and take the scope and requirements from what comes back. The resolved text becomes the effective arguments. Never hand a bare link to a subagent.
 
 1. Classify the input as a question or a symptom. For a symptom, confirm observed behavior, expected behavior, entry point, and known repro steps; if observed vs expected is still missing, ask before continuing.
 
 ### Question
 
 2. Skim: project CLAUDE.md, `rg` for the names involved, read the matched sections. Answer from what was read, citing `file:line`, each claim labelled per `rules/evidence.md` section 1.
-3. Only when the question spans 2-4 unfamiliar areas, fan out one built-in Explore subagent per area in a single message. Re-verify each result's decisive claim before using it (`rules/agents.md`). One slot is the cheapest option, per `rules/change.md` section 7.
+3. Only when the question spans 2-4 unfamiliar areas, fan out one built-in Explore subagent per area in a single message. Re-verify each result's decisive claim before using it (`rules/subagents.md` section 2). One of the areas is the cheapest option, per `rules/change.md` section 7.
 
 ### Symptom
 

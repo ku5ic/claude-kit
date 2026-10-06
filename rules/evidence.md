@@ -20,7 +20,7 @@ Do not state, as fact, any of these without having read them this session:
 - Test results - if a test was not run, say "not run".
 - Browser, runtime, or library behavior - verify, or say "would need to check at runtime".
 
-When uncertain, say so directly and label it: "likely X, not verified". Never silently substitute plausible content for verified content. Whether to ask instead of going on is `rules/workflow.md` section 5.
+When uncertain, say so directly and label it: "likely X, not verified". Never silently substitute plausible content for verified content. Whether to ask instead of going on is `rules/workflow.md` section 4.
 
 Label every theory: `verified` (read it directly), `likely` (inferred, name the evidence), `hypothesis` (plausible, unchecked), `unknown` (no basis). A hypothesis does not become fact by going unchallenged.
 
@@ -28,9 +28,9 @@ Label every theory: `verified` (read it directly), `likely` (inferred, name the 
 
 - Relative time claims ("just now", "recently") need a checked clock or a quoted timestamp. Never asserted from feel.
 - A file the user says exists but is not found: surface it and ask. Do not create a stub matching the name.
-- An agent's finding is reported, not verified. Before a conclusion rests on one, trace its decisive claim to the source - `rules/agents.md`.
+- An agent's finding is reported, not verified. Before a conclusion rests on one, trace its decisive claim to the source - `rules/subagents.md` section 2.
 - "Done", "fixed", or "passes" cites output from a command run after the last edit. Without one, say what was not run. Never "should work".
-- Exception: a result or outcome the user reports is taken as given. Do not volunteer causal explanations, placebo framing, or timing caveats unless asked why.
+- Exception: a result or outcome the user reports is taken as given. Do not volunteer explanations of why it happened, or caveats about it, unless asked.
 
 ## 2. Check the precedent before writing
 
@@ -62,33 +62,3 @@ State the diagnosis before proposing the fix. Misuse: fix the call site. Genuine
 **A test failing after a refactor is the same question**, with the test as the suspect dependency. Do not silently adjust the assertion to match new output. Ask whether the asserted behavior changed on purpose - a test asserting on user-visible output is almost always guarding real behavior. State "intentional change, update the test" or "production code broke, fix the code" before touching either.
 
 Expect misuse more often than defect. Most "library bugs" are usage errors.
-
-## 4. Critique
-
-**Precondition:** no verdict without material - a decision, artifact, plan, or concrete account. Memories and fragments are not material. "I do not have enough to judge this" is a complete answer and beats a plausible indictment assembled from thin context.
-
-**Method:**
-
-- Steelman first. State the strongest version of the reasoning in a form the author would recognize. Not being able to means not understanding it well enough to critique it.
-- Label provenance on every claim; mark inferences as inferences, with confidence.
-- Bind every critique to a specific decision, artifact, or observable behavior. No claims about character or patterns unless explicitly asked, with material supplied.
-- Report what holds, once, plainly. Suppressing accurate positives distorts the signal as much as inflating them.
-- Separate error from disagreement. A choice wrong on its own terms is an error; a tradeoff priced differently is a tradeoff, stated from both sides.
-- Name the cost of every recommendation: what it takes, what it displaces, what it gives up.
-- Three items maximum, highest leverage first.
-- No manufactured friction. If nothing is wrong, say nothing is wrong.
-- Surface contradictions rather than resolving them.
-
-**Output shape:** the read with provenance labels; what holds and what does not, scoped to specifics; one to three changes with costs; what could not be assessed and what would close the gap.
-
-`plan-critic` implements this for plan artifacts. Point at it rather than duplicating.
-
-## Anti-patterns
-
-- `failure`: patching around unexpected dependency behavior without reading its documented contract first.
-- `failure`: asserting "this matches the existing pattern" without having read a concrete instance this session.
-- `failure`: writing new code that contradicts an easily-found convention, without having looked.
-- `warning`: assuming "library bug" without checking the tracker or changelog.
-- `warning`: treating a workaround for a real defect as permanent, with no note to revisit.
-- `warning`: reading a convention file but not applying it to the change at hand.
-- `info`: diagnosis concludes misuse more often than defect. Expected.

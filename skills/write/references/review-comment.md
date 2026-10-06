@@ -6,7 +6,7 @@ Convert a structured review report into a peer-to-peer GitHub PR comment. Argume
 
 1. Get the scratch directory: `!`scratch-dir.sh``.
 2. Parse $ARGUMENTS. If the first token resolves to an existing file, treat it as the report path and any remaining token as the PR author username. Otherwise treat the whole of $ARGUMENTS as the PR author username and leave the report path unset.
-3. If no report path was resolved, stop and ask for one: any file in the report-format skill's shape, e.g. saved `/code-review` output or an `/audit` report (forked: follow the forked decision protocol in `rules/agents.md` instead of guessing).
+3. If no report path was resolved, stop and ask for one: any file in the report-format skill's shape, e.g. saved `/code-review` output or an `/audit` report.
 4. Read the review report. It follows the report-format skill's format: a severity rubric (failure/warning/info), each finding with file, line, "What", "Why it matters", and "Fix".
 5. Look for a PR number in the report's `Scope:` line, its filename, or body (patterns like `pr-123`, `PR #123`, `PR: 123`). If found, run `gh pr view <n> --json author,headRefOid`. Use `.author.login` as the auto-detected author and `.headRefOid` as the ref for links.
 6. Resolve the repo slug: `gh repo view --json nameWithOwner -q .nameWithOwner`. If this fails (no remote, no auth), fall back to plain backticked `path:line` text for every finding - no links - and say so at the top of the comment.

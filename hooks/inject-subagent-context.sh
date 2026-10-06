@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SubagentStart hook. Gives every subagent (matcher: "*" in hooks.json)
 # agent-context's scratch path, repo context, and skills - see
-# rules/agents.md. Fires even for agents without Bash, since hooks run in
+# rules/subagents.md. Fires even for agents without Bash, since hooks run in
 # the harness. SubagentStart takes additionalContext in JSON, not plain
 # stdout, so the text is wrapped.
 #

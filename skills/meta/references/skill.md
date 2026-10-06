@@ -12,6 +12,7 @@ Draft a pattern skill pack for a stack from current docs and this repo's precede
    - the review-time mistakes the docs themselves warn about
 
    One source per claim. A claim it returns without a source doesn't go in the pack.
+
 3. Precedent. If `<repo-context>` or `detect-stack.sh` shows the current repo uses the stack, load the `investigate` skill and answer "how does this repo use <stack>: file layout, conventions, config" with `file:line` citations. A pack rule that contradicts the repo's own consistent usage gets named in the draft, not silently dropped.
 4. Draft. Work in the kit's source checkout, the directory `$CLAUDE_KIT_DEV` names, never an installed plugin copy or the marketplace clone. Unset: stop and ask where the checkout is. Copy `templates/pattern-skill/` to `skills/<name>/` and fill it:
    - `description`: the file and dependency signals, then the concepts, in the template's shape.
@@ -32,3 +33,4 @@ Draft a pattern skill pack for a stack from current docs and this repo's precede
 - Nothing from memory. A version, API shape, or deprecation not traced to step 2's sources stays out of the pack.
 - Cut anything no repo using this stack would hit; a pack is a review aid, not a tutorial.
 - Don't edit `settings.json`; it's the user's config.
+- Pin `model:` or `effort:` only when it differs from the session default; `doctor.sh` flags a redundant pin. Never both on one skill: Claude Code drops the model override when both are present. A skill forks (`context: fork`) only to carry a `model:` pin or to name an `agent:`.

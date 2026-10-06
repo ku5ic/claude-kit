@@ -17,9 +17,10 @@ Every behavior the kit applies everywhere has exactly one owner, listed below. B
 | Minimal change, precedent, blast radius, dead code, comments, abstractions, simplification criteria | `rules/change.md`                                        |
 | Done and verification                                                                               | `rules/verify.md`                                        |
 | Git and commit policy, side effects, ask vs proceed, AskUserQuestion                                | `rules/workflow.md`                                      |
-| Subagent use and agent defaults                                                                     | `rules/agents.md`                                        |
+| Subagent use and agent defaults                                                                     | `rules/subagents.md`                                     |
 | CLI choice, calling bin scripts, scratch location                                                   | `rules/tooling.md`                                       |
 | Artifact naming and path                                                                            | `bin/scratch-dir.sh`                                     |
+| Resolving a linked ticket or doc before work starts                                                 | `skills/investigate` step 0                              |
 | Report shape and severity                                                                           | `skills/report-format`                                   |
 | Test design                                                                                         | `skills/test-patterns`                                   |
 | Stack detection, guards, checks, formatters, tools                                                  | `kit.yml`                                                |
