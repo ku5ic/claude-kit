@@ -164,11 +164,11 @@ func InjectSubagentContext(h *hook.Hook) error {
 }
 
 func branch(root string) string {
-	out, err := exec.Command("git", "-C", root, "branch", "--show-current").Output()
+	b, err := project.Branch(root)
 	if err != nil {
 		return "unknown"
 	}
-	return strings.TrimSpace(string(out))
+	return b
 }
 
 func dirtyCount(root string) string {

@@ -1,8 +1,6 @@
 package hooks
 
 import (
-	"bytes"
-	"encoding/json"
 	"os"
 	"os/exec"
 	"strings"
@@ -70,12 +68,6 @@ func StopChecks(h *hook.Hook) error {
 			return err
 		}
 	}
-	// Pretty-printed, as `jq -n` printed it.
-	var buf bytes.Buffer
-	enc := json.NewEncoder(&buf)
-	enc.SetEscapeHTML(false)
-	enc.SetIndent("", "  ")
-	enc.Encode(map[string]string{"systemMessage": h.Name + ":\n" + report + summary})
-	h.Stdout.Write(buf.Bytes())
+	hook.WriteJSON(h.Stdout, map[string]string{"systemMessage": h.Name + ":\n" + report + summary})
 	return nil
 }

@@ -306,9 +306,9 @@ func (s *scan) javascript(cfg *config.Config) (dynamic bool) {
 func (s *scan) pyModule(p string) string {
 	dir := parent(p)
 	mod := strings.TrimSuffix(strings.TrimSuffix(p, ".py"), "/__init__")
-	if dir != "" && isFile(filepath.Join(s.root, dir, "__init__.py")) {
+	if dir != "" && project.IsFile(filepath.Join(s.root, dir, "__init__.py")) {
 		pkgRoot := dir
-		for pkgRoot != "" && isFile(filepath.Join(s.root, pkgRoot, "__init__.py")) {
+		for pkgRoot != "" && project.IsFile(filepath.Join(s.root, pkgRoot, "__init__.py")) {
 			pkgRoot = parent(pkgRoot)
 		}
 		if pkgRoot != "" {
@@ -380,9 +380,4 @@ func containsSpaced(names, leaf string) bool {
 		}
 	}
 	return false
-}
-
-func isFile(p string) bool {
-	info, err := os.Stat(p)
-	return err == nil && info.Mode().IsRegular()
 }

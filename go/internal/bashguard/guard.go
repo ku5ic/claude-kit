@@ -2,7 +2,6 @@ package bashguard
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -304,7 +303,7 @@ func (st *state) scratchTarget(p string) bool {
 		p == "`scratch-dir.sh`", strings.HasPrefix(p, "`scratch-dir.sh`/"):
 		return true
 	}
-	p = expandHome(st.home, p)
+	p = guard.ExpandHome(st.home, p)
 	if strings.ContainsAny(p, "$`") {
 		return false
 	}
@@ -312,15 +311,6 @@ func (st *state) scratchTarget(p string) bool {
 		p = st.cwd + "/" + p
 	}
 	return project.IsScratch(p)
-}
-
-func expandHome(home, p string) string {
-	for _, prefix := range []string{"~", "$HOME", "${HOME}"} {
-		if strings.HasPrefix(p, prefix) {
-			return home + p[len(prefix):]
-		}
-	}
-	return p
 }
 
 // isOverlayArg is true when a word (quoted, ~- or $HOME-prefixed, or
@@ -332,7 +322,7 @@ func (st *state) isOverlayArg(arg string) bool {
 	if arg != "claude-kit.local.yml" && !strings.HasSuffix(arg, "/claude-kit.local.yml") {
 		return false
 	}
-	arg = expandHome(st.home, arg)
+	arg = guard.ExpandHome(st.home, arg)
 	if !strings.HasPrefix(arg, "/") {
 		arg = st.cwd + "/" + arg
 	}
@@ -355,18 +345,15 @@ func (st *state) isProtected(ref string) bool {
 // currentBranch of the repo a git command targets: -C resolved against the
 // segment's cwd. Empty outside a repo or on a detached HEAD.
 func (st *state) currentBranch(gitDir string) string {
-	dir := expandHome(st.home, gitDir)
+	dir := guard.ExpandHome(st.home, gitDir)
 	switch {
 	case dir == "":
 		dir = st.cwd
 	case !strings.HasPrefix(dir, "/"):
 		dir = st.cwd + "/" + dir
 	}
-	out, err := exec.Command("git", "-C", dir, "branch", "--show-current").Output()
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(out))
+	branch, _ := project.Branch(dir)
+	return branch
 }
 
 // Kit scripts that only read state or create the scratch/plans directories.

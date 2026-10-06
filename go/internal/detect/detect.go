@@ -122,12 +122,12 @@ func matchExtra(extra config.Extra, dir string) (string, bool) {
 	case extra.Dep != "":
 		return token, hasDep(filepath.Join(dir, "package.json"), extra.Dep)
 	case extra.File != "":
-		return token, isFile(filepath.Join(dir, extra.File))
+		return token, project.IsFile(filepath.Join(dir, extra.File))
 	case extra.Grep != "":
 		return token, grepAny(dir, extra.Grep, extra.In)
 	}
 	for _, rule := range extra.AnyOf {
-		if rule.File != "" && isFile(filepath.Join(dir, rule.File)) {
+		if rule.File != "" && project.IsFile(filepath.Join(dir, rule.File)) {
 			return token, true
 		}
 		if rule.Grep != "" && grepAny(dir, rule.Grep, rule.In) {
@@ -169,11 +169,6 @@ func grepAny(dir, pattern string, files []string) bool {
 	return false
 }
 
-func isFile(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && info.Mode().IsRegular()
-}
-
 // versions lists "<name> <version> (<label>)" for each kit.yml versions
 // entry whose stack is in dir, from the first source that yields one.
 func versions(cfg *config.Config, root, dir string) []string {
@@ -189,7 +184,7 @@ func versions(cfg *config.Config, root, dir string) []string {
 				if src.Up {
 					path = project.FindUp(dir, root, file)
 				}
-				if path == "" || !isFile(path) {
+				if path == "" || !project.IsFile(path) {
 					continue
 				}
 				arg := strings.ReplaceAll(src.Arg, "{name}", name)

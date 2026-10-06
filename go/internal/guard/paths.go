@@ -12,9 +12,8 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
-// expandHome turns a leading ~, $HOME, or ${HOME} into $HOME.
-func expandHome(path string) string {
-	home := os.Getenv("HOME")
+// ExpandHome turns a leading ~, $HOME, or ${HOME} into home.
+func ExpandHome(home, path string) string {
 	for _, prefix := range []string{"~", "$HOME", "${HOME}"} {
 		if strings.HasPrefix(path, prefix) {
 			return home + path[len(prefix):]
@@ -34,7 +33,7 @@ func IsSensitive(cfg *config.Config, path string) bool {
 	if path != "" && (path[len(path)-1] == '"' || path[len(path)-1] == '\'') {
 		path = path[:len(path)-1]
 	}
-	path = expandHome(path)
+	path = ExpandHome(os.Getenv("HOME"), path)
 	home := os.Getenv("HOME")
 	base := path[strings.LastIndex(path, "/")+1:]
 	for _, entry := range cfg.SensitivePaths {
@@ -56,7 +55,7 @@ func IsSensitive(cfg *config.Config, path string) bool {
 
 // IsRCFile is true when path is a shell rc file per rc_files.
 func IsRCFile(cfg *config.Config, path string) bool {
-	path = expandHome(path)
+	path = ExpandHome(os.Getenv("HOME"), path)
 	home := os.Getenv("HOME")
 	for _, entry := range cfg.RCFiles {
 		if path == home+"/"+strings.TrimPrefix(entry, "~/") {

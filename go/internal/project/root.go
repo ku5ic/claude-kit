@@ -22,7 +22,7 @@ func Root(cfg *config.Config, cwd string) (root string, anchored bool) {
 	dir := cwd
 	for depth := 0; dir != "/" && depth < 3; depth++ {
 		for _, name := range anchors {
-			if isFile(filepath.Join(dir, name)) {
+			if IsFile(filepath.Join(dir, name)) {
 				return dir, true
 			}
 		}

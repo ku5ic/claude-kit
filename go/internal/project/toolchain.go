@@ -17,7 +17,7 @@ func ResolvePackageManager(cfg *config.Config, dir string) string {
 		if pm.Lockfile == "" || pm.Manager == "" {
 			continue
 		}
-		if isFile(filepath.Join(dir, pm.Lockfile)) || (top != "" && isFile(filepath.Join(top, pm.Lockfile))) {
+		if IsFile(filepath.Join(dir, pm.Lockfile)) || (top != "" && IsFile(filepath.Join(top, pm.Lockfile))) {
 			return pm.Manager
 		}
 	}
@@ -29,7 +29,7 @@ func ResolvePackageManager(cfg *config.Config, dir string) string {
 // none of its bins is on PATH). run-checks and the <tooling> block both use
 // it, so Claude is never told about a check the checks skip.
 func ToolchainCmd(tc config.ToolchainCheck, dir string) (cmd, skip string) {
-	if tc.WhenDir != "" && !isDir(filepath.Join(dir, tc.WhenDir)) {
+	if tc.WhenDir != "" && !IsDir(filepath.Join(dir, tc.WhenDir)) {
 		return "", "no " + tc.WhenDir + "/ yet"
 	}
 	if len(tc.Bin) == 0 {

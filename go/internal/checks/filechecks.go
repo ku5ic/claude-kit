@@ -124,7 +124,7 @@ func Plan(cfg *config.Config, root, base string, edited []string) []*Group {
 			path = filepath.Join(base, path)
 		}
 		path = project.PhysicalPath(path)
-		if !strings.HasPrefix(path, root+"/") || seen[path] || !isFile(path) || ignored[path] {
+		if !strings.HasPrefix(path, root+"/") || seen[path] || !project.IsFile(path) || ignored[path] {
 			continue
 		}
 		seen[path] = true
@@ -310,7 +310,7 @@ func editedFile(path string, g *Group) string {
 	if physical := project.PhysicalPath(path); slices.Contains(g.Files, physical) {
 		return physical
 	}
-	if isFile(path) {
+	if project.IsFile(path) {
 		return ""
 	}
 	for _, f := range g.Files {
@@ -370,11 +370,6 @@ func gitIgnored(root string, edited []string, base string) map[string]bool {
 		}
 	}
 	return ignored
-}
-
-func isFile(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && info.Mode().IsRegular()
 }
 
 // expand fills a check's cmd word by word: {bin} (a whole word) becomes the
