@@ -265,7 +265,7 @@ func (st *state) redirects(call Call) error {
 // tree and not under a scratch directory: cd /tmp or cd .claude/scratch
 // makes a bare > name harmless.
 func (st *state) inWorktree() bool {
-	if st.cwd == "" || strings.Contains(st.cwd+"/", "/.claude/scratch/") {
+	if st.cwd == "" || project.IsScratch(st.cwd) {
 		return false
 	}
 	return project.Toplevel(st.cwd) != ""
@@ -311,7 +311,7 @@ func (st *state) scratchTarget(p string) bool {
 	if !strings.HasPrefix(p, "/") {
 		p = st.cwd + "/" + p
 	}
-	return strings.HasSuffix(p, "/.claude/scratch") || strings.Contains(p, "/.claude/scratch/")
+	return project.IsScratch(p)
 }
 
 func expandHome(home, p string) string {

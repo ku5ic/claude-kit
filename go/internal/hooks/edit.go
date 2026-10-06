@@ -13,6 +13,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
 // cfgOrEmpty is the loaded config, or an empty one when kit.yml can't load:
@@ -96,7 +97,7 @@ func GuardSkills(h *hook.Hook) error {
 		return nil
 	}
 	path := h.Payload.FilePath()
-	if path == "" || strings.Contains(path, "/.claude/scratch/") || strings.Contains(path, "/scratch/") {
+	if path == "" || project.IsScratch(path) {
 		return nil
 	}
 	session := h.Payload.String("session_id")

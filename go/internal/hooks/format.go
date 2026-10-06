@@ -28,7 +28,7 @@ func FormatDispatch(h *hook.Hook) error {
 	if info, err := os.Stat(path); path == "" || err != nil || !info.Mode().IsRegular() {
 		return nil
 	}
-	if strings.Contains(path, "/.claude/scratch/") || strings.Contains(path, "/scratch/") {
+	if project.IsScratch(path) {
 		return nil
 	}
 	base := filepath.Base(path)

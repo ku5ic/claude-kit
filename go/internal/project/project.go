@@ -89,6 +89,14 @@ func NearestLockfile(cfg *config.Config, dir, ecosystem string) (Lockfile, bool)
 	}
 }
 
+// IsScratch is true for a path in, or at, a .claude/scratch directory (a
+// project's or the home one). Any other directory named scratch is project
+// code and gets every check.
+func IsScratch(path string) bool {
+	p := filepath.Clean(path)
+	return strings.HasSuffix(p, "/.claude/scratch") || strings.Contains(p, "/.claude/scratch/")
+}
+
 func isFile(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && info.Mode().IsRegular()

@@ -187,3 +187,21 @@ func TestFindUpStopsAtStop(t *testing.T) {
 		t.Errorf("got %q", got)
 	}
 }
+
+func TestIsScratch(t *testing.T) {
+	for path, want := range map[string]bool{
+		"/repo/.claude/scratch":          true,
+		"/repo/.claude/scratch/":         true,
+		"/repo/.claude/scratch/a/b.md":   true,
+		"/home/u/.claude/scratch/x.log":  true,
+		"/repo/src/scratch/x.go":         false,
+		"/repo/scratch/x.go":             false,
+		"/repo/.claude/scratchpad/x":     false,
+		"/repo/.claude/scratch/../src/x": false,
+		"/repo/.claude/plans/scratch.md": false,
+	} {
+		if got := IsScratch(path); got != want {
+			t.Errorf("IsScratch(%q) = %v, want %v", path, got, want)
+		}
+	}
+}

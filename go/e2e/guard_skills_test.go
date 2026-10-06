@@ -97,6 +97,12 @@ func TestGuardSkills(t *testing.T) {
 		}
 	})
 
+	t.Run("only a .claude/scratch file skips the gate, not any dir named scratch", func(t *testing.T) {
+		k := sandbox(t, guardSkillsBashMap, "")
+		guard(k, "/tmp/project/src/scratch/x.sh", "s1").Want(t, 2)
+		guard(k, "/tmp/project/.claude/scratch/x.sh", "s1").Want(t, 0)
+	})
+
 	t.Run("disabled_rules: skills-gate turns the gate off", func(t *testing.T) {
 		k := sandbox(t, guardSkillsBashMap+"disabled_rules: [skills-gate]\n", "")
 		guard(k, "/tmp/project/x.sh", "s1").Want(t, 0)
