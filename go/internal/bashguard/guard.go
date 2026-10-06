@@ -192,12 +192,13 @@ var interpreters = map[string]bool{"sh": true, "bash": true, "zsh": true, "dash"
 func (st *state) pipeToShell(seg Segment) error {
 	fetched := false
 	for _, call := range seg.Calls {
-		words := call.Words[lead(call.Words):]
+		start := lead(call.Words)
+		words := call.Words[start:]
 		if len(words) == 0 {
 			continue
 		}
 		name := baseName(words[0].Value)
-		if fetched && (interpreters[name] || strings.HasPrefix(name, "python")) {
+		if fetched && (interpreters[name] || strings.HasPrefix(name, "python") || rootShell(call.Words[:start+1])) {
 			return st.h.Block("piping network content into an interpreter", "pipe-to-shell")
 		}
 		if name == "curl" || name == "wget" {
@@ -205,6 +206,21 @@ func (st *state) pipeToShell(seg Segment) error {
 		}
 	}
 	return nil
+}
+
+// rootShell is true for sudo or doas told to start a shell (sudo -s, sudo -i,
+// doas -s), which reads its commands from stdin like a named interpreter.
+func rootShell(wrapperWords []Word) bool {
+	elevated := false
+	for _, w := range wrapperWords {
+		switch {
+		case baseName(w.Value) == "sudo", baseName(w.Value) == "doas":
+			elevated = true
+		case elevated && (w.Value == "-s" || w.Value == "-i" || w.Value == "--shell" || w.Value == "--login"):
+			return true
+		}
+	}
+	return false
 }
 
 // segment runs the per-command checks on every command of a pipeline.

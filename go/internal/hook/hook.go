@@ -105,6 +105,8 @@ func (h *Hook) Config() *config.Config {
 		h.warnings = warnings
 		if err == nil {
 			h.cfg = cfg
+		} else {
+			h.warnings = append(h.warnings, config.Warning{File: h.Paths.Base, Err: fmt.Errorf("not loaded, so every guard runs with no config: %w", err)})
 		}
 	}
 	return h.cfg

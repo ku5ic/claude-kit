@@ -54,9 +54,11 @@ if [[ ${KIT_DEV:-} == 1 ]]; then
       -ldflags="-s -w -buildid= -X main.version=$ver" -o "$tmp" ./cmd/kit) >&2 &&
       mv -f "$tmp" "$bin"
   fi
-elif [[ -n $ver && -z $(find "$bin.failed" -mmin -1 2>/dev/null) ]]; then
-  # A failed download backs off for a minute: offline, every hook would
-  # otherwise wait out curl's timeout, which outlasts guard-bash's.
+# Only the CLI and the SessionStart hooks download: every other hook's
+# timeout is shorter than curl's, so it would be killed mid-download. A
+# failed download backs off for a minute so offline sessions start fast.
+elif [[ -n $ver && (${1:-} != hook || ${2:-} == inject-context || ${2:-} == inject-rules) &&
+  -z $(find "$bin.failed" -mmin -1 2>/dev/null) ]]; then
   if curl -fsSL --max-time 20 -o "$tmp" \
     "https://github.com/ku5ic/claude-kit/releases/download/v$ver/kit-$ver-$os-$arch" &&
     chmod +x "$tmp" && mv -f "$tmp" "$bin"; then

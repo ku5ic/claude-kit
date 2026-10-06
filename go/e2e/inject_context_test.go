@@ -234,6 +234,14 @@ stacks:
 		r.Has(t, "readable kit.yml", "reinstall the plugin")
 	})
 
+	t.Run("a kit.yml that fails to load is reported, since every guard then runs with no config", func(t *testing.T) {
+		e := injectContextSetup(t, tree)
+		e.kitYML("protected_branches: main\n")
+		r := e.run("s1", "")
+		r.Want(t, 0)
+		r.Has(t, "systemMessage", "kit.yml", "every guard runs with no config")
+	})
+
 	t.Run("an overlay that breaks the merge is reported to the user and to Claude, with the context intact", func(t *testing.T) {
 		e := injectContextSetup(t, tree)
 		e.kitYML("global_skills:\n  - fix-sizing\nprotected_branches: [main]\n")
@@ -271,7 +279,7 @@ stacks:
 		r.Has(t, "systemMessage", filepath.Join(e.Claude, "rules", "claude-kit"), "load twice")
 	})
 
-	t.Run("a rules dir missing one of the kit's rule files is not the kit's", func(t *testing.T) {
+	t.Run("a claude-kit link to an older clone missing a rule file is still reported", func(t *testing.T) {
 		e := injectContextSetup(t, tree)
 		partial := filepath.Join(e.tmp, "partial-rules")
 		injectContextCopyRules(t, partial)
@@ -279,6 +287,19 @@ stacks:
 			t.Fatal(err)
 		}
 		if err := os.Symlink(partial, filepath.Join(e.Claude, "rules", "claude-kit")); err != nil {
+			t.Fatal(err)
+		}
+		e.run("s1", "").Has(t, "load twice")
+	})
+
+	t.Run("an unrelated rules dir missing one of the kit's rule files is not the kit's", func(t *testing.T) {
+		e := injectContextSetup(t, tree)
+		partial := filepath.Join(e.tmp, "partial-rules")
+		injectContextCopyRules(t, partial)
+		if err := os.Remove(filepath.Join(partial, "workflow.md")); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(partial, filepath.Join(e.Claude, "rules", "mine")); err != nil {
 			t.Fatal(err)
 		}
 		e.run("s1", "").Lacks(t, "load twice")

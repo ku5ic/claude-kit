@@ -118,10 +118,28 @@ printf '#!/bin/sh\necho fetched "$@"\n' >"$2"
 		k := New(t)
 		k.PrependPath(stubs)
 		launcher := filepath.Join(root, "bin/kit")
-		k.exec("bash", "{}", launcher, "hook", "guard-bash").Want(t, 0)
-		k.exec("bash", "{}", launcher, "hook", "guard-bash").Want(t, 0)
+		k.exec("bash", "{}", launcher, "hook", "inject-context").Want(t, 0)
+		k.exec("bash", "{}", launcher, "hook", "inject-context").Want(t, 0)
 		if n := strings.Count(Read(t, log), "\n"); n != 1 {
 			t.Errorf("curl ran %d times, want once", n)
+		}
+	})
+
+	t.Run("a guard never downloads, since its timeout is shorter than curl's", func(t *testing.T) {
+		root := t.TempDir()
+		Write(t, filepath.Join(root, "bin/kit"), string(raw))
+		Write(t, filepath.Join(root, ".claude-plugin/plugin.json"), `{"name": "claude-kit", "version": "9.9.9"}`)
+		stubs := t.TempDir()
+		log := filepath.Join(stubs, "curl.log")
+		Write(t, filepath.Join(stubs, "curl"), "#!/bin/sh\necho \"$@\" >>"+log+"\nexit 22\n")
+		if err := os.Chmod(filepath.Join(stubs, "curl"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		k := New(t)
+		k.PrependPath(stubs)
+		k.exec("bash", "{}", filepath.Join(root, "bin/kit"), "hook", "guard-bash").Want(t, 0)
+		if _, err := os.Stat(log); err == nil {
+			t.Errorf("guard-bash ran curl:\n%s", Read(t, log))
 		}
 	})
 }
