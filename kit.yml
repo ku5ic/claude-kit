@@ -190,7 +190,7 @@ protected_branches: [main, master, develop, production, release]
 # Shell rc files: direct writes are blocked, the dotfiles repo is the source.
 rc_files: ["~/.zshrc", "~/.zprofile", "~/.bashrc", "~/.bash_profile", "~/.profile"]
 
-# Credential and key files guard-bash.sh refuses to read. A "~/" entry is a
+# Credential and key files guard-bash refuses to read. A "~/" entry is a
 # path under $HOME, a directory when it ends in "/"; any other entry is a
 # basename glob. These guard a plugin install, which can't ship deny rules.
 sensitive_paths:

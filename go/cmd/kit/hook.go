@@ -32,7 +32,7 @@ func cmdHook(e *env, args []string, stdin io.Reader) (status int) {
 		fmt.Fprintln(e.stderr, "kit hook: missing hook name")
 		return 0
 	}
-	name := args[0] + ".sh"
+	name := args[0]
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Fprintf(e.stderr, "%s: unexpected error, failing open\n", name)

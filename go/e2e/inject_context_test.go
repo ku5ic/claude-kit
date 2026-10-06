@@ -178,7 +178,7 @@ stacks:
 		}
 	})
 
-	// Regression coverage for a fixed bug: inject-context.sh's dirty-file count
+	// Regression coverage for a fixed bug: inject-context's dirty-file count
 	// runs `git -C "$project_root" status --porcelain | wc -l | tr -d ' '`. Under
 	// pipefail, a non-git project_root used to make that pipeline fail, and the
 	// fail-open ERR trap from kit_hook_init turned that into a silent early exit --

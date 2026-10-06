@@ -527,7 +527,7 @@ func TestGuardBash(t *testing.T) {
 		if len(recs) != 1 {
 			t.Fatalf("want 1 record, got %d: %v", len(recs), recs)
 		}
-		want := map[string]string{"hook": "guard-bash.sh", "event": "block", "rule": "find-delete", "session_id": "s9"}
+		want := map[string]string{"hook": "guard-bash", "event": "block", "rule": "find-delete", "session_id": "s9"}
 		for key, v := range want {
 			if recs[0][key] != v {
 				t.Errorf("%s = %v, want %q", key, recs[0][key], v)

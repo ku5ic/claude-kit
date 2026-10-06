@@ -50,7 +50,7 @@ func TestGuardDispatch(t *testing.T) {
 		k.KitYML("extra_lockfiles: [package-lock.json]\n")
 		r := dispatch(k, "/tmp/project/package-lock.json", "harmless content", "Write")
 		r.Want(t, 2)
-		r.Has(t, "Blocked by guard-edit.sh")
+		r.Has(t, "Blocked by guard-edit:")
 	})
 
 	t.Run("guard-skills' check blocks when a required skill has not been loaded", func(t *testing.T) {
@@ -81,7 +81,7 @@ skill_file_map:
 		skillsLog(k, "")
 		r := dispatch(k, "/tmp/project/yarn.lock", "harmless content", "Write")
 		r.Want(t, 2)
-		r.Has(t, "Blocked by guard-edit.sh")
+		r.Has(t, "Blocked by guard-edit:")
 		// The dispatcher exits at the first blocking check instead of running
 		// the remaining one, so the skills-gate message never appears
 		// alongside it.
@@ -91,7 +91,7 @@ skill_file_map:
 	t.Run("a required skill already loaded this session allows a clean write through both checks", func(t *testing.T) {
 		k := sandbox(t)
 		k.KitYML(guardDispatchSkillMap)
-		skillsLog(k, `{"ts":"2026-01-01T00:00:00Z","hook":"log-skills.sh","event":"PreToolUse","session_id":"s1","cwd":"/x","expansion_type":null,"command_name":null,"command_args":null,"command_source":null,"skill_file":"bash-patterns","tool_name":"Skill"}`+"\n")
+		skillsLog(k, `{"ts":"2026-01-01T00:00:00Z","hook":"log-skills","event":"PreToolUse","session_id":"s1","cwd":"/x","expansion_type":null,"command_name":null,"command_args":null,"command_source":null,"skill_file":"bash-patterns","tool_name":"Skill"}`+"\n")
 		dispatch(k, "/tmp/project/deploy.sh", "A perfectly ordinary comment.", "Write").Want(t, 0)
 	})
 
@@ -103,14 +103,14 @@ skill_file_map:
 	t.Run("malformed JSON payload fails open through both checks instead of erroring out", func(t *testing.T) {
 		r := sandbox(t).Hook("guard-dispatch", "not valid json")
 		r.Want(t, 0)
-		r.Has(t, "guard-edit.sh: unexpected error, failing open", "guard-skills.sh: unexpected error, failing open")
+		r.Has(t, "guard-edit: unexpected error, failing open", "guard-skills: unexpected error, failing open")
 	})
 
 	t.Run("each fail-open is logged to guards.jsonl, since its stderr reaches no one", func(t *testing.T) {
 		k := sandbox(t)
 		k.Hook("guard-dispatch", "not valid json").Want(t, 0)
 		log := Read(t, filepath.Join(k.Claude, "logs/guards.jsonl"))
-		for _, hook := range []string{"guard-edit.sh", "guard-skills.sh"} {
+		for _, hook := range []string{"guard-edit", "guard-skills"} {
 			if !strings.Contains(log, `"hook":"`+hook+`","event":"fail-open"`) {
 				t.Errorf("no fail-open line for %s:\n%s", hook, log)
 			}

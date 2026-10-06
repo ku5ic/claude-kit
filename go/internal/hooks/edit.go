@@ -209,9 +209,9 @@ func loadedSkills(logPath, session string) (map[string]bool, error) {
 // failing open never skips the other. The skills gate is opt-in: blocking
 // edits until a patterns skill loads is a personal policy, not a default.
 func GuardDispatch(h *hook.Hook) int {
-	checks := []hook.NamedCheck{{Name: "guard-edit.sh", Check: GuardEdit}}
+	checks := []hook.NamedCheck{{Name: "guard-edit", Check: GuardEdit}}
 	if os.Getenv("CLAUDE_GUARD_SKILLS") == "1" {
-		checks = append(checks, hook.NamedCheck{Name: "guard-skills.sh", Check: GuardSkills})
+		checks = append(checks, hook.NamedCheck{Name: "guard-skills", Check: GuardSkills})
 	}
 	return hook.Run(h, checks...)
 }

@@ -11,4 +11,4 @@
 
 ## What the guard blocks
 
-`guard-bash.sh` blocks `destroy` and `apply -auto-approve` for both `tofu` and `terraform`, with global options like `-chdir` in front. A plan has to be reviewed before it's applied. Never work around the block; ask the user to run it themselves.
+`guard-bash` blocks `destroy` and `apply -auto-approve` for both `tofu` and `terraform`, with global options like `-chdir` in front. A plan has to be reviewed before it's applied. Never work around the block; ask the user to run it themselves.

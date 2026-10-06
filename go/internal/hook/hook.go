@@ -78,7 +78,7 @@ func (b *Blocked) Error() string { return b.Reason }
 
 // Hook is one hook invocation.
 type Hook struct {
-	Name    string   // e.g. "guard-edit.sh"; names the hook in blocks and logs
+	Name    string   // e.g. "guard-edit"; names the hook in blocks and logs
 	Args    []string // arguments after the hook name in hooks.json
 	Payload *Payload
 	Paths   config.Paths

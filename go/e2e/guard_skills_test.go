@@ -17,7 +17,7 @@ const guardSkillsBashMap = `skill_file_map:
 
 // guardSkillsLoaded is a skills.jsonl line recording bash-patterns loaded
 // via the Skill tool in session s1.
-const guardSkillsLoaded = `{"ts":"2026-01-01T00:00:00Z","hook":"log-skills.sh","event":"PreToolUse","session_id":"s1","cwd":"/x","expansion_type":null,"command_name":null,"command_args":null,"command_source":null,"skill_file":"bash-patterns","tool_name":"Skill"}`
+const guardSkillsLoaded = `{"ts":"2026-01-01T00:00:00Z","hook":"log-skills","event":"PreToolUse","session_id":"s1","cwd":"/x","expansion_type":null,"command_name":null,"command_args":null,"command_source":null,"skill_file":"bash-patterns","tool_name":"Skill"}`
 
 func TestGuardSkills(t *testing.T) {
 	// guard-skills reads kit.yml (skill_file_map) and logs/skills.jsonl (what
@@ -91,7 +91,7 @@ func TestGuardSkills(t *testing.T) {
 		k := sandbox(t, guardSkillsBashMap, "")
 		r := guard(k, "/tmp/project/x.sh", "s1")
 		r.Want(t, 2)
-		r.Has(t, "Blocked by guard-skills.sh", "bash-patterns")
+		r.Has(t, "Blocked by guard-skills:", "bash-patterns")
 		if log := Read(t, filepath.Join(k.Claude, "logs/guards.jsonl")); !strings.Contains(log, `"rule":"skills-gate"`) {
 			t.Errorf("guards.jsonl has no skills-gate block:\n%s", log)
 		}
@@ -157,9 +157,9 @@ func TestGuardSkills(t *testing.T) {
 		{"allows a plugin-namespaced skill name (kit:bash-patterns)",
 			strings.Replace(guardSkillsLoaded, `"skill_file":"bash-patterns"`, `"skill_file":"kit:bash-patterns"`, 1), "s1", 0},
 		{"allows when the required skill's SKILL.md was read this session (Read fallback)",
-			`{"ts":"2026-01-01T00:00:00Z","hook":"log-skills.sh","event":"PostToolUse","session_id":"s1","cwd":"/x","expansion_type":null,"command_name":null,"command_args":null,"command_source":null,"skill_file":"/Users/x/.claude/skills/bash-patterns/SKILL.md","tool_name":"Read"}`, "s1", 0},
+			`{"ts":"2026-01-01T00:00:00Z","hook":"log-skills","event":"PostToolUse","session_id":"s1","cwd":"/x","expansion_type":null,"command_name":null,"command_args":null,"command_source":null,"skill_file":"/Users/x/.claude/skills/bash-patterns/SKILL.md","tool_name":"Read"}`, "s1", 0},
 		{"a session_id mismatch does not count as loaded",
-			`{"ts":"2026-01-01T00:00:00Z","hook":"log-skills.sh","event":"PreToolUse","session_id":"other-session","cwd":"/x","expansion_type":null,"command_name":null,"command_args":null,"command_source":null,"skill_file":"bash-patterns","tool_name":"Skill"}`, "s1", 2},
+			`{"ts":"2026-01-01T00:00:00Z","hook":"log-skills","event":"PreToolUse","session_id":"other-session","cwd":"/x","expansion_type":null,"command_name":null,"command_args":null,"command_source":null,"skill_file":"bash-patterns","tool_name":"Skill"}`, "s1", 2},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			guard(sandbox(t, guardSkillsBashMap, tc.log+"\n"), "/tmp/project/foo.sh", tc.session).Want(t, tc.status)
@@ -183,7 +183,7 @@ func TestGuardSkills(t *testing.T) {
   - on: basename
     globs: ["*.jsx"]
     skills: [react-patterns]
-`, `{"ts":"2026-01-01T00:00:00Z","hook":"inject-context.sh","event":"suggested-skill","session_id":"s1","cwd":"/x","expansion_type":null,"command_name":null,"command_args":null,"command_source":null,"skill_file":"react-patterns","tool_name":null}`+"\n")
+`, `{"ts":"2026-01-01T00:00:00Z","hook":"inject-context","event":"suggested-skill","session_id":"s1","cwd":"/x","expansion_type":null,"command_name":null,"command_args":null,"command_source":null,"skill_file":"react-patterns","tool_name":null}`+"\n")
 		r := guard(k, "/tmp/project/foo.jsx", "s1")
 		r.Want(t, 2)
 		r.Has(t, "react-patterns")
@@ -194,7 +194,7 @@ func TestGuardSkills(t *testing.T) {
   - on: basename
     globs: ["*"]
     skills: [fix-sizing]
-`, `{"ts":"2026-01-01T00:00:00Z","hook":"inject-context.sh","event":"required-skill","session_id":"s1","cwd":"/x","expansion_type":null,"command_name":null,"command_args":null,"command_source":null,"skill_file":"fix-sizing","tool_name":null}`+"\n")
+`, `{"ts":"2026-01-01T00:00:00Z","hook":"inject-context","event":"required-skill","session_id":"s1","cwd":"/x","expansion_type":null,"command_name":null,"command_args":null,"command_source":null,"skill_file":"fix-sizing","tool_name":null}`+"\n")
 		r := guard(k, "/tmp/project/foo.txt", "s1")
 		r.Want(t, 2)
 		r.Has(t, "fix-sizing")

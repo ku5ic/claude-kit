@@ -17,8 +17,8 @@ func TestSkillsReport(t *testing.T) {
 		Write(t, filepath.Join(k.Claude, "logs", "skills.jsonl"), strings.Join(lines, "\n")+"\n")
 	}
 	stamp := func(at time.Time) string { return at.UTC().Format("2006-01-02T15:04:05Z") }
-	// entry is one skills.jsonl line in the full shape log-skills.sh and
-	// inject-context.sh write; tool "" is null.
+	// entry is one skills.jsonl line in the full shape log-skills and
+	// inject-context write; tool "" is null.
 	entry := func(ts, hook, event, session, skill, tool string) string {
 		var toolName any
 		if tool != "" {
@@ -32,7 +32,7 @@ func TestSkillsReport(t *testing.T) {
 		return string(raw)
 	}
 	skillUse := func(ts, skill string) string {
-		return entry(ts, "log-skills.sh", "PostToolUse", "s1", skill, "Skill")
+		return entry(ts, "log-skills", "PostToolUse", "s1", skill, "Skill")
 	}
 
 	// The real emitter, not a hand-written line: a field renamed in the
@@ -96,8 +96,8 @@ func TestSkillsReport(t *testing.T) {
 		k := setup(t)
 		ts := stamp(time.Now())
 		writeLog(t, k,
-			entry(ts, "inject-context.sh", "required-skill", "s1", "fix-sizing", ""),
-			entry(ts, "inject-context.sh", "suggested-skill", "s2", "bash-patterns", ""))
+			entry(ts, "inject-context", "required-skill", "s1", "fix-sizing", ""),
+			entry(ts, "inject-context", "suggested-skill", "s2", "bash-patterns", ""))
 		k.Run("", "skills-report").Has(t, "required=1", "suggested=1", "(no real activations in the window)")
 	})
 
@@ -121,7 +121,7 @@ stacks:
 		ts := stamp(time.Now())
 		writeLog(t, k,
 			skillUse(ts, "bash-patterns"),
-			`{"ts":"`+ts+`","hook":"log-skills.sh","event":"UserPromptExpansion","session_id":"s1","cwd":"/x","expansion_type":"slash_command","command_name":"/flow-plan","command_args":null,"command_source":"user","skill_file":null,"tool_name":null}`)
+			`{"ts":"`+ts+`","hook":"log-skills","event":"UserPromptExpansion","session_id":"s1","cwd":"/x","expansion_type":"slash_command","command_name":"/flow-plan","command_args":null,"command_source":"user","skill_file":null,"tool_name":null}`)
 		r := k.Run("", "skills-report")
 		r.Want(t, 0)
 		r.Has(t,
@@ -142,7 +142,7 @@ stacks:
   dotfiles:
     skills: [bash-patterns]
 `)
-		writeLog(t, k, entry(stamp(time.Now()), "inject-context.sh", "suggested-skill", "s3", "bash-patterns", ""))
+		writeLog(t, k, entry(stamp(time.Now()), "inject-context", "suggested-skill", "s3", "bash-patterns", ""))
 		k.Run("", "skills-report").Has(t, "s3: bash-patterns")
 	})
 
@@ -151,9 +151,9 @@ stacks:
 		ts := stamp(time.Now())
 		writeLog(t, k, `{"ts":"`+ts+`","event":"PostToolUse","session_id":"s1","skill_file":"bash-patterns","tool_name":"Skill"}`)
 		Write(t, filepath.Join(k.Claude, "logs", "guards.jsonl"), strings.Join([]string{
-			`{"ts":"2026-01-01T00:00:00Z","hook":"guard-bash.sh","event":"block","rule":"rm-recursive"}`,
-			`{"ts":"` + ts + `","hook":"guard-bash.sh","event":"block","rule":"find-delete"}`,
-			`{"ts":"` + ts + `","hook":"guard-bash.sh","event":"disabled","rule":"find-delete"}`,
+			`{"ts":"2026-01-01T00:00:00Z","hook":"guard-bash","event":"block","rule":"rm-recursive"}`,
+			`{"ts":"` + ts + `","hook":"guard-bash","event":"block","rule":"find-delete"}`,
+			`{"ts":"` + ts + `","hook":"guard-bash","event":"disabled","rule":"find-delete"}`,
 		}, "\n")+"\n")
 		r := k.Run("", "skills-report", "30")
 		r.Want(t, 0)
