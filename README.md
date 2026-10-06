@@ -179,6 +179,7 @@ Every hook and helper runs in one Go binary (`bin/kit-<version>-<os>-<arch>`, da
 
 - Guidance: `CLAUDE.md` maps every rule topic to the one file that owns it. Change guidance there or nowhere.
 - Code: `go/`. Run `go test ./...`; end-to-end tests live in `go/e2e`.
+- Behavior: `evals/` checks that the rules shape replies (answer first, ask before guessing, no unasked commits, artifacts in scratch). Run `claude plugin eval . --ablation none --scaffold --allow-tools Edit Write Bash --runs 5` before and after a rules change and compare the scores. About $10 a run.
 - `bats tests/` covers `bin/doctor.sh`; set `CLAUDE_KIT_PERSONAL` to also run it against your personal config.
 - `go/build.sh` builds the binaries for the `plugin.json` version. With `KIT_DEV=1`, `bin/kit` builds them itself and rebuilds when `go/` changes.
 - Release: work happens on feature branches off `main`, squash-merged by PR. A PR that bumps `.claude-plugin/plugin.json` `version` releases: on its merge, the `release` workflow publishes `v<version>` with the binaries. Installs take hooks, binaries, and rules only from a version bump.

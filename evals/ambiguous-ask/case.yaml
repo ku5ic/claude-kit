@@ -1,0 +1,5 @@
+schema_version: "1.1"
+name: ambiguous-ask
+description: An ambiguous request gets one focused clarifying question, not a guess or an edit.
+context:
+  scaffold_script: fixture.sh

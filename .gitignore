@@ -2,3 +2,5 @@
 skills/synced/
 # Built by go/build.sh or KIT_DEV=1, downloaded from releases otherwise.
 bin/kit-*
+# claude plugin eval's default output dir.
+evals/results/

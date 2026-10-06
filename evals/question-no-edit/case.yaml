@@ -1,0 +1,5 @@
+schema_version: "1.1"
+name: question-no-edit
+description: A how/why question is answered from the code, with no edit.
+context:
+  scaffold_script: fixture.sh
