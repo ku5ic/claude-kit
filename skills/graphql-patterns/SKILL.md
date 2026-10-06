@@ -13,12 +13,12 @@ Default assumption: a TypeScript client on Apollo Client 4.3 with documents type
 
 ## Reference files
 
-| File                                                     | Covers                                                                                   |
-| -------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| [reference/documents.md](reference/documents.md)         | Operation names, variables, fragments and colocation                                     |
-| [reference/codegen.md](reference/codegen.md)             | Client preset config, the `graphql()` function, fragment masking                         |
-| [reference/apollo-client.md](reference/apollo-client.md) | v4 entry points, error handling, `errorPolicy`, fetch policies, cache normalization      |
-| [reference/anti-patterns.md](reference/anti-patterns.md) | Six review-time anti-patterns with severity calls                                        |
+| File                                                     | Covers                                                                              |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| [reference/documents.md](reference/documents.md)         | Operation names, variables, fragments and colocation                                |
+| [reference/codegen.md](reference/codegen.md)             | Client preset config, the `graphql()` function, fragment masking                    |
+| [reference/apollo-client.md](reference/apollo-client.md) | v4 entry points, error handling, `errorPolicy`, fetch policies, cache normalization |
+| [reference/anti-patterns.md](reference/anti-patterns.md) | Six review-time anti-patterns with severity calls                                   |
 
 ## References
 

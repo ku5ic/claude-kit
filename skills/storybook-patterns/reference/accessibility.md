@@ -8,11 +8,11 @@
 
 This parameter can be set project-wide in `.storybook/preview.*`, in a component's meta, or on one story. It decides what violations do when stories run through the Vitest addon or the test-runner:
 
-| Value     | Effect                                                                   |
-| --------- | ------------------------------------------------------------------------ |
-| `'off'`   | Checks don't run; the addon panel can still be used by hand              |
-| `'todo'`  | Checks run; violations show as warnings in the Storybook UI              |
-| `'error'` | Checks run; violations fail the test in the Storybook UI and in CLI/CI   |
+| Value     | Effect                                                                 |
+| --------- | ---------------------------------------------------------------------- |
+| `'off'`   | Checks don't run; the addon panel can still be used by hand            |
+| `'todo'`  | Checks run; violations show as warnings in the Storybook UI            |
+| `'error'` | Checks run; violations fail the test in the Storybook UI and in CLI/CI |
 
 - CI output only happens with `'error'`. With `'todo'` there's nothing in CI at all: no error, no warning, no output.
 - `'todo'` is meant as a literal TODO for known issues not yet fixed.

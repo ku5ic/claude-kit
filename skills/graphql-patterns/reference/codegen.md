@@ -7,17 +7,17 @@ Source for this file: https://github.com/dotansimha/graphql-code-generator/blob/
 `codegen.ts` exports a `CodegenConfig` whose `generates` target uses `preset: 'client'`:
 
 ```ts
-import type { CodegenConfig } from '@graphql-codegen/cli'
+import type { CodegenConfig } from "@graphql-codegen/cli";
 
 const config: CodegenConfig = {
-  schema: 'schema.graphql',
-  documents: ['src/**/*.tsx', '!src/gql/**/*'],
+  schema: "schema.graphql",
+  documents: ["src/**/*.tsx", "!src/gql/**/*"],
   generates: {
-    './src/gql/': { preset: 'client' },
+    "./src/gql/": { preset: "client" },
   },
-}
+};
 
-export default config
+export default config;
 ```
 
 - `documents` excludes the output directory, so generated files are never re-scanned as sources.
@@ -25,7 +25,7 @@ export default config
 
 ## Typed documents through `graphql()`
 
-Import `graphql` from the generated directory and wrap each document in it: `graphql(/* GraphQL */ \`query ...\`)`. The result is a typed document node, so the client infers the result and variables types with no generic arguments or generated hooks. A hand-written generic on `useQuery<...>` next to a `graphql()` document is redundant and can drift.
+Import `graphql` from the generated directory and wrap each document in it: `graphql(/* GraphQL */ \`query ...\`)`. The result is a typed document node, so the client infers the result and variables types with no generic arguments or generated hooks. A hand-written generic on `useQuery<...>`next to a`graphql()` document is redundant and can drift.
 
 ## Fragment masking
 

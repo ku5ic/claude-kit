@@ -13,17 +13,17 @@ Assign `fn()` from `storybook/test` to callback args (`onClick: fn()`). Calls th
 A `play` function receives `canvas`, `userEvent`, `args`, and `step`. It queries the rendered story with Testing Library queries (`canvas.getByRole`, `findByLabelText`), drives it with `userEvent`, and asserts with `expect`, all from `storybook/test`. The docs examples `await` every `userEvent` call and every `expect`; do the same. Source: https://github.com/storybookjs/storybook/blob/next/docs/_snippets/interaction-test-fn-mock-spy.md
 
 ```ts
-import { expect, fn } from 'storybook/test'
+import { expect, fn } from "storybook/test";
 
-export default { component: LoginForm, args: { onSubmit: fn() } }
+export default { component: LoginForm, args: { onSubmit: fn() } };
 
 export const FilledForm = {
   play: async ({ args, canvas, userEvent }) => {
-    await userEvent.type(canvas.getByLabelText('Email'), 'email@provider.com')
-    await userEvent.click(canvas.getByRole('button', { name: 'Log in' }))
-    await expect(args.onSubmit).toHaveBeenCalled()
+    await userEvent.type(canvas.getByLabelText("Email"), "email@provider.com");
+    await userEvent.click(canvas.getByRole("button", { name: "Log in" }));
+    await expect(args.onSubmit).toHaveBeenCalled();
   },
-}
+};
 ```
 
 ## Mock setup goes in `beforeEach`

@@ -28,6 +28,7 @@ Find the conventions this repo actually follows and write them down once, as pat
    - `paths` is the narrowest set of globs where the convention holds, such as `"src/**/*.{ts,tsx}"` for a component convention. Leave `paths` out only for a convention that truly applies to every file (naming, sometimes). Claude Code loads a path-scoped rule when it reads a matching file, and loads a rule without `paths` in every session.
    - Every bullet ends with its citations. A bullet without one gets cut.
    - Record what the code does, not what it should do. A convention you'd argue against still goes in as found; raise the disagreement in the report.
+
 6. Report: the files written, each with its convention count; the areas marked `no convention found`; and any conventions with notable counter-examples, which are the candidates for a cleanup.
 
 ## Rules
