@@ -48,7 +48,7 @@ func (p *Payload) Bool(path string) bool {
 
 func (p *Payload) value(path string) any {
 	var value any = p.data
-	for _, part := range strings.Split(path, ".") {
+	for part := range strings.SplitSeq(path, ".") {
 		m, ok := value.(map[string]any)
 		if !ok {
 			return nil
@@ -78,7 +78,8 @@ func (b *Blocked) Error() string { return b.Reason }
 
 // Hook is one hook invocation.
 type Hook struct {
-	Name    string // e.g. "guard-edit.sh"; names the hook in blocks and logs
+	Name    string   // e.g. "guard-edit.sh"; names the hook in blocks and logs
+	Args    []string // arguments after the hook name in hooks.json
 	Payload *Payload
 	Paths   config.Paths
 	Stdout  io.Writer

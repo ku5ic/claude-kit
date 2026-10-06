@@ -70,7 +70,7 @@ SETTINGS="${PERSONAL_ROOT:+$PERSONAL_ROOT/settings.json}"
 TARGET_ROOT="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
 # Personal config linked into the Claude config dir; the kit itself is a
-# plugin and links nothing there but rules/claude-kit (install-rules.sh).
+# plugin and links nothing there.
 ENTRIES=(settings.json CLAUDE.md rules claude-kit.local.yml)
 
 exit_code=0

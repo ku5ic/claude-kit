@@ -29,4 +29,4 @@ Skills and agents carry procedure and stack knowledge only. When one needs a rul
 
 ## Rules are live
 
-`install-rules.sh` links `~/.claude/rules/claude-kit` to the `rules/` of whichever clone runs it. Run from this checkout, a rule edit applies to every session on the machine the moment it is saved, so finish a rules change in one sitting.
+The SessionStart and SubagentStart hooks inject `rules/*.md` from the plugin root they run from. A session running the hooks from this checkout picks up a rule edit at its next start or compaction, so finish a rules change in one sitting.

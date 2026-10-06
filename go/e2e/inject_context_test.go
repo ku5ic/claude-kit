@@ -30,12 +30,9 @@ func injectContextSetup(t *testing.T, tree string) *injectContextEnv {
 	k.Git(proj, "init", "-q")
 	// Physical, as git reports the root the hook resolves.
 	root := Physical(t, proj)
-	// The prerequisite check wants the kit rules linked; without this every
-	// test would get the warning JSON instead of the context.
-	Mkdir(t, filepath.Join(k.Claude, "rules"))
-	if err := os.Symlink(filepath.Join(kitRoot, "rules"), filepath.Join(k.Claude, "rules", "kit")); err != nil {
-		t.Fatal(err)
-	}
+	// The plugin root is the fake .claude, so the rules the hook injects are
+	// these copies: plain files, which never count as a leftover link.
+	injectContextCopyRules(t, filepath.Join(k.Claude, "rules"))
 	// Likewise a readable kit.yml; tests that need content overwrite it.
 	Touch(t, filepath.Join(k.Claude, "kit.yml"))
 	e := &injectContextEnv{Kit: k, tree: tree, tmp: tmp, root: root}
@@ -77,7 +74,7 @@ func (e *injectContextEnv) run(session, cwd string) Result {
 func injectContextTooling(out string) string {
 	var block []string
 	in := false
-	for _, l := range strings.Split(out, "\n") {
+	for l := range strings.SplitSeq(out, "\n") {
 		if l == "<tooling>" {
 			in = true
 		}
@@ -94,7 +91,7 @@ func injectContextTooling(out string) string {
 // injectContextIndented is the block's lines starting with two spaces.
 func injectContextIndented(block string) string {
 	var out []string
-	for _, l := range strings.Split(block, "\n") {
+	for l := range strings.SplitSeq(block, "\n") {
 		if strings.HasPrefix(l, "  ") {
 			out = append(out, l)
 		}
@@ -229,14 +226,6 @@ stacks:
 		r.Has(t, "<required-skills>")
 	})
 
-	t.Run("prereqs: kit rules not linked under ~/.claude/rules gets a warning", func(t *testing.T) {
-		e := injectContextSetup(t, tree)
-		os.Remove(filepath.Join(e.Claude, "rules", "kit"))
-		r := e.run("s1", "")
-		r.Want(t, 0)
-		r.Has(t, "run "+filepath.Join(e.Root, "install-rules.sh"))
-	})
-
 	t.Run("prereqs: a missing kit.yml gets a warning naming the plugin fix", func(t *testing.T) {
 		e := injectContextSetup(t, tree)
 		os.Remove(filepath.Join(e.Claude, "kit.yml"))
@@ -270,23 +259,8 @@ stacks:
 		}
 	})
 
-	t.Run("prereqs: kit rules linked under another name count", func(t *testing.T) {
+	t.Run("a leftover install-rules.sh link is reported, since the rules would load twice", func(t *testing.T) {
 		e := injectContextSetup(t, tree)
-		rules := filepath.Join(e.Claude, "rules")
-		if err := os.Rename(filepath.Join(rules, "kit"), filepath.Join(rules, "claude-kit")); err != nil {
-			t.Fatal(err)
-		}
-		e.kitYML("global_skills:\n  - fix-sizing\n")
-		e.writeCache("root: "+e.root, "js: yes")
-		r := e.run("s1", "")
-		r.Want(t, 0)
-		r.Lacks(t, "systemMessage")
-		r.Has(t, "<required-skills>")
-	})
-
-	t.Run("prereqs: another copy of the kit's rules counts (plugin cache vs marketplace clone)", func(t *testing.T) {
-		e := injectContextSetup(t, tree)
-		os.Remove(filepath.Join(e.Claude, "rules", "kit"))
 		clone := filepath.Join(e.tmp, "clone-rules")
 		injectContextCopyRules(t, clone)
 		if err := os.Symlink(clone, filepath.Join(e.Claude, "rules", "claude-kit")); err != nil {
@@ -294,12 +268,11 @@ stacks:
 		}
 		r := e.run("s1", "")
 		r.Want(t, 0)
-		r.Lacks(t, "the kit rules linked")
+		r.Has(t, "systemMessage", filepath.Join(e.Claude, "rules", "claude-kit"), "load twice")
 	})
 
-	t.Run("prereqs: a rules dir missing one of the kit's rule files doesn't count", func(t *testing.T) {
+	t.Run("a rules dir missing one of the kit's rule files is not the kit's", func(t *testing.T) {
 		e := injectContextSetup(t, tree)
-		os.Remove(filepath.Join(e.Claude, "rules", "kit"))
 		partial := filepath.Join(e.tmp, "partial-rules")
 		injectContextCopyRules(t, partial)
 		if err := os.Remove(filepath.Join(partial, "workflow.md")); err != nil {
@@ -308,7 +281,7 @@ stacks:
 		if err := os.Symlink(partial, filepath.Join(e.Claude, "rules", "claude-kit")); err != nil {
 			t.Fatal(err)
 		}
-		e.run("s1", "").Has(t, "the kit rules linked")
+		e.run("s1", "").Lacks(t, "load twice")
 	})
 
 	// <tooling>: run forms from kit.yml's task_providers and toolchain_checks.

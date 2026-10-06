@@ -22,10 +22,9 @@ claude-kit closes those gaps with hooks: small, deterministic checks that run on
 ```sh
 claude plugin marketplace add ku5ic/claude-kit
 claude plugin install kit@ku5ic
-~/.claude/plugins/marketplaces/ku5ic/install-rules.sh
 ```
 
-The last line links the always-on rules into `~/.claude/rules/claude-kit` (plugins can't ship rules themselves). For your own `~/.claude/CLAUDE.md`, start from `templates/CLAUDE.md`.
+The rules ship with the plugin: its session-start and subagent-start hooks inject them, so there's nothing to link. If an earlier install left `~/.claude/rules/claude-kit`, remove it; the session-start notice names it. For your own `~/.claude/CLAUDE.md`, start from `templates/CLAUDE.md`.
 
 Needs `git` and any bash, macOS or Linux. Formatters and linters are used when installed and skipped when not. Claude Code only: claude.ai and Cowork don't install a plugin with a top-level `bin/`.
 
@@ -101,8 +100,8 @@ Side trips when you need them:
 
 ### Context (automatic)
 
-- **Session start:** stack, package manager, the check commands to use, the CLI tools on PATH, and which pattern skills to load.
-- **Subagents:** every subagent gets the same repo context and its scratch path.
+- **Session start:** the rules, then stack, package manager, the check commands to use, the CLI tools on PATH, and which pattern skills to load. The rules come in parts of under 10,000 characters, Claude Code's limit on one hook's context.
+- **Subagents:** every subagent gets the rules, the same repo context, and its scratch path.
 - **Plans:** in plan mode, Claude is pointed at `investigate`. Once a plan is approved, each prompt holds Claude to the next unchecked step until every step is ticked.
 
 ### Commands
@@ -134,7 +133,7 @@ Stack knowledge Claude loads when the repo calls for it: React, Next.js App Rout
 
 ### Rules (always on)
 
-Six short files that shape how Claude works:
+Seven short files that shape how Claude works, injected into every session and every subagent:
 
 | Rule       | In one line                                                               |
 | ---------- | ------------------------------------------------------------------------- |
@@ -144,6 +143,7 @@ Six short files that shape how Claude works:
 | `workflow` | Never commit or push unasked; confirm before anything destructive         |
 | `tooling`  | Reach for a CLI before reasoning; temporary files go to scratch           |
 | `agents`   | When to spawn a subagent, and check its work before building on it        |
+| `verify`   | What has to happen before a change is called done                         |
 
 ## When a guard gets in your way
 
@@ -181,4 +181,4 @@ Every hook and helper runs in one Go binary (`bin/kit-<version>-<os>-<arch>`, da
 - Code: `go/`. Run `go test ./...`; end-to-end tests live in `go/e2e`.
 - `bats tests/` covers `bin/doctor.sh`; set `CLAUDE_KIT_PERSONAL` to also run it against your personal config.
 - `go/build.sh` builds the binaries for the `plugin.json` version. With `KIT_DEV=1`, `bin/kit` builds them itself and rebuilds when `go/` changes.
-- Release: work happens on feature branches off `main`, squash-merged by PR. A PR that bumps `.claude-plugin/plugin.json` `version` releases: on its merge, the `release` workflow publishes `v<version>` with the binaries. Installs take hooks and binaries only from a version bump; the rules follow `main`.
+- Release: work happens on feature branches off `main`, squash-merged by PR. A PR that bumps `.claude-plugin/plugin.json` `version` releases: on its merge, the `release` workflow publishes `v<version>` with the binaries. Installs take hooks, binaries, and rules only from a version bump.

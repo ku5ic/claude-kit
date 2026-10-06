@@ -224,7 +224,7 @@ func (k *Kit) Repo(dir string) string {
 // it reads the version from, the binary as bin/<kitBinName>, and rules
 // linked to the kit's. The binary is a hard
 // link or a copy, never a symlink: the kit resolves symlinks to find its
-// root, and the rules check looks beside it.
+// root, and reads the rules it injects from there.
 func Tree(t *testing.T, files ...string) string {
 	t.Helper()
 	dir := Physical(t, t.TempDir())
@@ -327,7 +327,7 @@ func Physical(t *testing.T, path string) string {
 // Lines is the non-empty lines of a log or output.
 func Lines(s string) []string {
 	var out []string
-	for _, l := range strings.Split(s, "\n") {
+	for l := range strings.SplitSeq(s, "\n") {
 		if l != "" {
 			out = append(out, l)
 		}

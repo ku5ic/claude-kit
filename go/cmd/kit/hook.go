@@ -19,6 +19,7 @@ var singleChecks = map[string]hook.Check{
 	"sanitize-output":         hooks.SanitizeOutput,
 	"inject-context":          hooks.InjectContext,
 	"inject-subagent-context": hooks.InjectSubagentContext,
+	"inject-rules":            hooks.InjectRules,
 	"format-dispatch":         hooks.FormatDispatch,
 	"stop-checks":             hooks.StopChecks,
 	"guard-bash":              bashguard.Check,
@@ -46,6 +47,7 @@ func cmdHook(e *env, args []string, stdin io.Reader) (status int) {
 	}
 	h := &hook.Hook{
 		Name:    name,
+		Args:    args[1:],
 		Payload: hook.ParsePayload(raw),
 		Paths:   e.paths,
 		Stdout:  e.stdout,
