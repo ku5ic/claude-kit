@@ -177,6 +177,7 @@ Every hook and helper runs in one Go binary (`bin/kit-<version>-<os>-<arch>`, da
 
 ## Develop
 
+- Guidance: `CLAUDE.md` maps every rule topic to the one file that owns it. Change guidance there or nowhere.
 - Code: `go/`. Run `go test ./...`; end-to-end tests live in `go/e2e`.
 - `bats tests/` covers `bin/doctor.sh`; set `CLAUDE_KIT_PERSONAL` to also run it against your personal config.
 - `go/build.sh` builds the binaries for the `plugin.json` version. With `KIT_DEV=1`, `bin/kit` builds them itself and rebuilds when `go/` changes.
