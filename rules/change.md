@@ -59,6 +59,7 @@ The one exception is scaffolding explicitly requested or explicitly marked for a
 
 - Stay in scope. Do not refactor unrelated code as part of a feature change.
 - Do not rewrite working code in a different style unless that is the task.
+- A refactor, requested or not, changes no behavior: the existing tests pass unchanged before and after. A test that needs changing is a behavior change, per `rules/evidence.md` section 3.
 - If the task grows during execution, pause and confirm the expanded scope.
 - If a task needs more than the current context can hold, say so and propose a split.
 
@@ -78,3 +79,16 @@ Each of these is enforced by the judgment it turns on, not by reciting the acron
 - **SOLID**: one reason to change per unit; extend rather than modify working code; no interface whose only implementation is its only caller.
 
 A finding names the principle and the concrete cost. A preference dressed as a principle is not a finding.
+
+## 9. What counts as over-engineering
+
+Writing, reviewing, or simplifying code, these are what to cut, each replaced by the first option in section 2's order that would do:
+
+- **Reinvented stdlib or platform**: hand-rolled code the standard library, the language, or a native platform feature already provides (a deep-clone helper over `structuredClone`, JS layout over CSS).
+- **Unneeded dependency**: a package used for what a few lines or an installed dependency already do.
+- **Duplicate of existing code**: a helper, type, or pattern re-implemented when one already lives in the codebase.
+- **Speculative abstraction**: an interface with one implementation, a factory with one product, a config option for a value that never changes, a layer with one caller.
+- **Dead flexibility**: parameters always passed the same value, options nothing sets, branches no caller reaches.
+- **Boilerplate**: wrappers that only forward, "for later" stubs, code that restates what the framework does.
+
+Never simplification targets: input validation at trust boundaries, error handling that prevents data loss, security controls, and accessibility. Like any refactor, a simplification changes no behavior (section 6).
