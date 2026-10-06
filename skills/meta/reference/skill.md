@@ -25,12 +25,12 @@ Draft a pattern skill pack for a stack from current docs and this repo's precede
    - `skill_file_map`: the file globs that should trigger the pack, if the stack has its own file types.
    - `skill_triggers`: one phrase naming a concrete action ("before writing ..."), like the existing ones.
    - When the stack has its own task runner, check commands, or formatter: a `task_providers`, `toolchain_checks`, or `formatters` entry. Anything that runs a binary resolves it locally, never through `npx` or another installer.
-6. Verify. Run `"$CLAUDE_KIT_DEV/bin/doctor.sh"` with `CLAUDE_KIT_PERSONAL` set to the user's personal config dir, and `go test ./...` in `"$CLAUDE_KIT_DEV/go"`. The one failure expected is `missing-allow` for the new pack; fix anything else. Without `CLAUDE_KIT_PERSONAL` the allow-list section is skipped, so that failure can't show.
-7. Report the path of the new skill directory, the `kit.yml` keys touched, and the one manual step: add `"Skill(<name>)"` to `permissions.allow` in the user's `settings.json`, which `doctor.sh` enforces.
+6. Verify. Run `go test ./...` in `"$CLAUDE_KIT_DEV/go"`; it checks the new skill against `kit.yml`. Fix any failure.
+7. Report the path of the new skill directory, the `kit.yml` keys touched, and the one manual step: add `"Skill(<name>)"` to `permissions.allow` in the user's `settings.json`.
 
 ## Rules
 
 - Nothing from memory. A version, API shape, or deprecation not traced to step 2's sources stays out of the pack.
 - Cut anything no repo using this stack would hit; a pack is a review aid, not a tutorial.
 - Don't edit `settings.json`; it's the user's config.
-- Pin `model:` or `effort:` only when it differs from the session default; `doctor.sh` flags a redundant pin. Never both on one skill: Claude Code drops the model override when both are present. A skill forks (`context: fork`) only to carry a `model:` pin or to name an `agent:`.
+- Pin `model:` or `effort:` only when it differs from the session default. Never both on one skill: Claude Code drops the model override when both are present. A skill forks (`context: fork`) only to carry a `model:` pin or to name an `agent:`.

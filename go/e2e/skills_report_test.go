@@ -35,6 +35,21 @@ func TestSkillsReport(t *testing.T) {
 		return entry(ts, "log-skills.sh", "PostToolUse", "s1", skill, "Skill")
 	}
 
+	// The real emitter, not a hand-written line: a field renamed in the
+	// log-skills hook breaks this, where the fixture-line tests below can't.
+	t.Run("a line the log-skills hook writes counts as an activation", func(t *testing.T) {
+		k := setup(t)
+		Mkdir(t, filepath.Join(k.Claude, "logs"))
+		k.Hook("log-skills", map[string]any{
+			"hook_event_name": "PostToolUse", "tool_name": "Skill", "session_id": "s1",
+			"tool_input": map[string]any{"skill": "bash-patterns"},
+		}).Want(t, 0)
+		r := k.Run("", "skills-report")
+		r.Want(t, 0)
+		r.Has(t, "bash-patterns")
+		r.Lacks(t, "malformed=1")
+	})
+
 	t.Run("missing log exits 0 with a clear message", func(t *testing.T) {
 		r := setup(t).Run("", "skills-report")
 		r.Want(t, 0)

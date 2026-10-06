@@ -192,7 +192,7 @@ rc_files: ["~/.zshrc", "~/.zprofile", "~/.bashrc", "~/.bash_profile", "~/.profil
 
 # Credential and key files guard-bash.sh refuses to read. A "~/" entry is a
 # path under $HOME, a directory when it ends in "/"; any other entry is a
-# basename glob. settings.json's deny rules mirror these (doctor.sh checks).
+# basename glob. These guard a plugin install, which can't ship deny rules.
 sensitive_paths:
   - ".env"
   - ".env.*"

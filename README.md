@@ -174,13 +174,12 @@ Two opt-in switches go in your settings `env`:
 
 ## How it's built
 
-Every hook and helper is one Go binary (`bin/kit-<version>-<os>-<arch>`, darwin and linux, arm64 and amd64), run through the `bin/kit` launcher as `kit <subcommand>` or `kit hook <name>`, in tens of milliseconds a call. The first call after an install or update downloads it from the matching GitHub release. `bin/doctor.sh` checks the kit against itself and, with `CLAUDE_KIT_PERSONAL` pointing at the dir your `settings.json`, `CLAUDE.md`, `rules/` and `claude-kit.local.yml` are symlinked from, against that too: the links, deny rules, and `Skill(<name>)` allow entries. It needs bash 4.4+, `jq`, and mikefarah `yq`, and isn't needed to use the plugin.
+Every hook and helper is one Go binary (`bin/kit-<version>-<os>-<arch>`, darwin and linux, arm64 and amd64), run through the `bin/kit` launcher as `kit <subcommand>` or `kit hook <name>`, in tens of milliseconds a call. The first call after an install or update downloads it from the matching GitHub release.
 
 ## Develop
 
 - Guidance: `CLAUDE.md` maps every rule topic to the one file that owns it. Change guidance there or nowhere.
-- Code: `go/`. Run `go test ./...`; end-to-end tests live in `go/e2e`.
+- Code: `go/`. Run `go test ./...`; end-to-end tests live in `go/e2e`, and `go/e2e/kit_repo_test.go` checks the kit's own files agree (skill map, skill and agent frontmatter, `kit.yml` keys).
 - Behavior: `evals/` checks that the rules shape replies (answer first, ask before guessing, no unasked commits, artifacts in scratch). Run `claude plugin eval . --ablation none --scaffold --allow-tools Edit Write Bash --runs 5` before and after a rules change and compare the scores. About $10 a run.
-- `bats tests/` covers `bin/doctor.sh`; set `CLAUDE_KIT_PERSONAL` to also run it against your personal config.
 - `go/build.sh` builds the binaries for the `plugin.json` version. With `KIT_DEV=1`, `bin/kit` builds them itself and rebuilds when `go/` changes.
 - Release: work happens on feature branches off `main`, squash-merged by PR. A PR that bumps `.claude-plugin/plugin.json` `version` releases: on its merge, the `release` workflow publishes `v<version>` with the binaries. Installs take hooks, binaries, and rules only from a version bump.
