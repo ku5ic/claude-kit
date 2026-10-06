@@ -140,17 +140,22 @@ func resolveDir(home, base, dir string) string {
 	return filepath.Clean(dir)
 }
 
-// Wrappers that only change how a command runs, and their options that take
-// a separate value.
+// Wrappers that only change how (or as whom) a command runs, and their
+// options that take a separate value.
 var (
-	wrappers     = map[string]bool{"command": true, "env": true, "builtin": true, "exec": true, "nohup": true, "nice": true, "timeout": true, "stdbuf": true, "ionice": true, "chrt": true}
-	wrapperValue = map[string]bool{"nice:-n": true, "env:-u": true, "env:-C": true, "exec:-a": true, "timeout:-s": true, "timeout:-k": true, "ionice:-c": true, "ionice:-n": true, "chrt:-p": true}
-	assignment   = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*=`)
+	wrappers     = map[string]bool{"command": true, "env": true, "builtin": true, "exec": true, "nohup": true, "nice": true, "timeout": true, "stdbuf": true, "ionice": true, "chrt": true, "sudo": true, "doas": true}
+	wrapperValue = map[string]bool{
+		"nice:-n": true, "env:-u": true, "env:-C": true, "exec:-a": true, "timeout:-s": true, "timeout:-k": true, "ionice:-c": true, "ionice:-n": true, "chrt:-p": true,
+		"sudo:-u": true, "sudo:-g": true, "sudo:-h": true, "sudo:-p": true, "sudo:-C": true, "sudo:-D": true, "sudo:-R": true, "sudo:-T": true, "sudo:-U": true, "sudo:-r": true, "sudo:-t": true,
+		"sudo:--user": true, "sudo:--group": true, "sudo:--host": true, "sudo:--prompt": true, "sudo:--close-from": true, "sudo:--chdir": true, "sudo:--chroot": true, "sudo:--command-timeout": true, "sudo:--other-user": true, "sudo:--role": true, "sudo:--type": true,
+		"doas:-u": true, "doas:-a": true, "doas:-C": true,
+	}
+	assignment = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*=`)
 )
 
 // lead finds where the real command starts in a call's words, seeing
-// through VAR=value words and command/env/nice/timeout-style wrappers with
-// their own options.
+// through VAR=value words and command/env/nice/timeout/sudo-style wrappers
+// with their own options.
 func lead(words []Word) int {
 	i := 0
 	skipAssigns := func() {
@@ -159,8 +164,8 @@ func lead(words []Word) int {
 		}
 	}
 	skipAssigns()
-	for i < len(words) && wrappers[words[i].Value] && i+1 < len(words) {
-		w := words[i].Value
+	for i < len(words) && wrappers[baseName(words[i].Value)] && i+1 < len(words) {
+		w := baseName(words[i].Value)
 		i++
 		for i < len(words)-1 && strings.HasPrefix(words[i].Value, "-") {
 			opt := words[i].Value
@@ -189,12 +194,6 @@ func (st *state) pipeToShell(seg Segment) error {
 	fetched := false
 	for _, call := range seg.Calls {
 		words := call.Words[lead(call.Words):]
-		if len(words) > 0 && baseName(words[0].Value) == "sudo" {
-			words = words[1:]
-			for len(words) > 0 && strings.HasPrefix(words[0].Value, "-") {
-				words = words[1:]
-			}
-		}
 		if len(words) == 0 {
 			continue
 		}

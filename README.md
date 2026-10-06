@@ -86,7 +86,7 @@ Side trips when you need them:
 
 | Guard | What it stops |
 | --- | --- |
-| **guard-bash** | Parses every command with a real bash parser, including pipelines, `$(...)`, subshells, and heredocs fed to a shell. Blocks `rm -rf ~`, force pushes, pushes to protected branches, `curl \| sh`, `eval`, `sh -c`, reading credential files, and writing shell rc files. Asks before `git push`, an unfrozen `pnpm install`, or a stray file written into the repo root |
+| **guard-bash** | Parses every command with a real bash parser, including pipelines, `$(...)`, subshells, and heredocs fed to a shell, and sees through `sudo`, `doas`, `env`, and similar wrappers. Blocks `rm -rf ~`, force pushes, pushes to protected branches, `curl \| sh`, `eval`, `sh -c`, reading credential files, and writing shell rc files. Asks before `git push`, an unfrozen `pnpm install`, or a stray file written into the repo root |
 | **guard-edit** | Blocks reading or writing `.env`, keys, and other credential files, and editing lockfiles, `.git/`, or shell rc files, whatever your permission rules say |
 | **guard-commit** | Blocks AI signatures and AI-tell phrasing in commit messages, and secrets in the staged diff (runs `gitleaks` when installed) |
 | **downloads** | `curl` and `wget` may write only into the gitignored `.claude/scratch/` |
