@@ -1,6 +1,6 @@
 ---
 name: security-patterns
-description: Security checklist covering XSS, injection, authentication, authorization, sessions, CSRF, CSP, secrets, dependency CVEs, input validation, and severity calls. Use whenever the project includes auth code, session handling, environment variable reads, user input handling, route handlers, server actions, middleware, or external API calls, OR the user asks about security, hardening, vulnerabilities, auth, authentication, authorization, sessions, cookies, XSS, CSRF, SQL injection, secrets, environment variables, CSP, headers, or reviews changes that touch user input, auth, or external data, even if "security" is not mentioned by name.
+description: Security checklist covering XSS, injection, authentication, authorization, sessions, CSRF, CSP, secrets, dependency CVEs, input validation, and severity calls. Use when writing or reviewing code that handles auth, sessions, secrets, user input, or external data, or when the user asks about security, hardening, vulnerabilities, authentication, authorization, cookies, XSS, CSRF, SQL injection, CSP, or headers, even if "security" is not mentioned by name. Not loaded just because a project has such code.
 ---
 
 # Security patterns

@@ -6,7 +6,7 @@ Generate a commit message from the staged diff, matching project style. Argument
 
 1. Check staged state: !`git status --short`
 2. Pull the staged diff: !`git diff --cached`
-3. Pull recent commit history to detect style: !`git log --oneline -30`
+3. Pull recent commit history to detect style: !`git log --oneline -20`
 4. Detect the project's commit convention from the history:
    - Conventional Commits (`feat:`, `fix:`, `chore:`, scoped: `feat(auth):`)
    - Ticket prefix (`ABC-123:`, `#456:`)

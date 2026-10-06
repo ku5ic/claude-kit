@@ -116,7 +116,7 @@ Process priority-tier alerts first.
 
 ## Phase 5: manual remediation of alerts with no PR (opt-in, best-effort)
 
-Runs only when $ARGUMENTS contains `--fix-transitive`; then read [references/fix-transitive.md](references/fix-transitive.md) and follow it. Without the flag, skip to Phase 6.
+Runs only when $ARGUMENTS contains `--fix-transitive`; then read [reference/fix-transitive.md](reference/fix-transitive.md) and follow it. Without the flag, skip to Phase 6.
 
 ## Phase 6: report
 

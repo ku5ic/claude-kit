@@ -12,13 +12,13 @@ allowed-tools:
 
 The first word of the arguments is the kind; everything after it is the kind's arguments.
 
-| Kind        | Procedure                                          |
-| ----------- | -------------------------------------------------- |
-| `a11y`      | [references/a11y.md](references/a11y.md)           |
-| `debt`      | [references/debt.md](references/debt.md)           |
-| `doc-drift` | [references/doc-drift.md](references/doc-drift.md) |
-| `perf`      | [references/perf.md](references/perf.md)           |
-| `verify`    | [references/verify.md](references/verify.md)       |
+| Kind        | Procedure                                        |
+| ----------- | ------------------------------------------------ |
+| `a11y`      | [reference/a11y.md](reference/a11y.md)           |
+| `debt`      | [reference/debt.md](reference/debt.md)           |
+| `doc-drift` | [reference/doc-drift.md](reference/doc-drift.md) |
+| `perf`      | [reference/perf.md](reference/perf.md)           |
+| `verify`    | [reference/verify.md](reference/verify.md)       |
 
 Security audits use the built-in `/security-review`, and simplification the built-in `/simplify <path>`, which reviews a path beyond the diff.
 
