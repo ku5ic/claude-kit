@@ -19,7 +19,7 @@
 #      settings.json.
 #   5. Skill map validation: skill_file_map and skill_triggers reference only
 #      skills that exist, and every stack/extra skill has a trigger entry.
-#   6. Skills-log field parity: the Go log-skills hook and skills-report.sh reference
+#   6. Skills-log field parity: the Go log-skills hook and kit skills-report reference
 #      the same skills.jsonl field names, so a rename in the emitter cannot
 #      silently break the report.
 #   7. Audit-verify field parity: audit/reference/verify.md's per-finding parser
@@ -41,13 +41,12 @@
 #       .mcp.json, which `claude mcp list` never shows. The tool segment is
 #       not validated at all; the CLI exposes no way to enumerate a server's
 #       tools.
-#   11. Plugin hooks.json parity: hooks/hooks.json matches settings.json.
 #   12. kit.yml schema: kit.yml and the overlay hold only keys the Go
 #       loader knows (`kit config --check`).
 #   13. Skill allow-list parity: every skills/ directory has a matching
 #       Skill(<name>) allow entry in settings.json.
 #
-# Checks 1, 2, 8-11 and 13 read CLAUDE_KIT_PERSONAL and are skipped without it.
+# Checks 1, 2, 8-10 and 13 read CLAUDE_KIT_PERSONAL and are skipped without it.
 #
 # Adding a credential pattern: add it to kit.yml's sensitive_paths AND to
 # settings.json's deny array.
@@ -366,11 +365,11 @@ LIB="$SOURCE_ROOT/go/internal/hook/hook.go"
 SKILLS_REPORT="$SOURCE_ROOT/go/internal/report/skills.go"
 field_parity_failed=0
 
-# Field subset of skills.jsonl that skills-report.sh consumes for
+# Field subset of skills.jsonl that kit skills-report consumes for
 # classification. Not the full emitted set --
 # hook/cwd are emitted but never read by the report, so a rename there
 # carries no drift risk worth checking.
-# skills-report.sh must reference each field below verbatim in its jq
+# kit skills-report must reference each field below verbatim in its jq
 # filters, or a future rename in the emitter silently breaks the report
 # instead of erroring.
 skills_log_fields=(
@@ -394,7 +393,7 @@ done
 if ((field_parity_failed)); then
   exit_code=1
 else
-  echo "ok             ${#skills_log_fields[@]} skills.jsonl fields emitted and read by skills-report.sh"
+  echo "ok             ${#skills_log_fields[@]} skills.jsonl fields emitted and read by kit skills-report"
 fi
 
 echo
@@ -452,7 +451,6 @@ PERSONAL_SECTIONS=(
   "CLAUDE.md rules pointer parity"
   "settings.json machine-local leak"
   "mcp allow-list server parity"
-  "plugin hooks.json parity"
 )
 skip_reason=""
 if [[ -z "$PERSONAL_ROOT" ]]; then
@@ -640,25 +638,6 @@ else
 
     echo "ok             $((${#mcp_allow[@]} - plugin_entries - absent_entries)) mcp__ allow entries match a configured server"
   fi
-fi
-
-echo
-echo "== plugin hooks.json parity =="
-
-# hooks/hooks.json is the plugin copy of settings.json's hooks, rewritten to
-# ${CLAUDE_PLUGIN_ROOT}. Editing one without the other ships adopters a
-# different hook set than the one this machine runs.
-HOOKS_JSON="$SOURCE_ROOT/hooks/hooks.json"
-if [[ "$(jq 'has("hooks")' "$PERSONAL_ROOT/settings.json")" != true ]]; then
-  echo "ok             settings.json has no hooks; the plugin's hooks.json is the only source"
-  exit "$exit_code"
-fi
-expected_hooks="$(jq -S '{hooks: (.hooks | walk(if type=="object" and has("command") then .command |= ("\"${CLAUDE_PLUGIN_ROOT}/hooks/" + sub("^\\$HOME/\\.claude/hooks/"; "") + "\"") else . end))}' "$PERSONAL_ROOT/settings.json")"
-if [[ "$expected_hooks" == "$(jq -S . "$HOOKS_JSON")" ]]; then
-  echo "ok             hooks/hooks.json matches settings.json hooks"
-else
-  echo "drift          hooks/hooks.json differs from settings.json hooks; regenerate it"
-  exit_code=1
 fi
 
 exit "$exit_code"

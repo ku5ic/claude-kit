@@ -2,8 +2,8 @@
 # Runs the kit binary for this OS, CPU, and plugin version
 # (bin/kit-<version>-<os>-<arch>). Fast path is builtins only: every hook
 # call pays for this, and uname or dirname forks cost more than the binary
-# itself. Runs under the stock macOS bash 3.2. Shims source it rather than
-# exec it, saving a second bash startup (~10 ms).
+# itself. Runs under the stock macOS bash 3.2. hooks.json and every caller
+# run it directly: `kit <subcommand>`, `kit hook <name>`.
 #
 # The version comes from .claude-plugin/plugin.json, so a checkout that a
 # release moved never reuses an older binary. A missing binary is built from

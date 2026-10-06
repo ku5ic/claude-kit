@@ -11,9 +11,9 @@ Turn a fuzzy ask into a sharp Claude Code prompt with context and acceptance cri
 
 ## Procedure
 
-1. Get the scratch directory: `!`scratch-dir.sh``.
+1. Get the scratch directory: `!`kit scratch-dir``.
 2. Read $ARGUMENTS. If it points to a file, read it.
-3. Run `!`detect-stack.sh`` if the ask appears technical.
+3. Run `!`kit detect-stack`` if the ask appears technical.
 4. Identify what is missing:
    - Goal unclear or conflated with method
    - Scope undefined (no files, no surface area)
@@ -28,7 +28,7 @@ Turn a fuzzy ask into a sharp Claude Code prompt with context and acceptance cri
 
 ## Output file
 
-Write to the path `scratch-dir.sh prompt <slug>` prints. Print the path.
+Write to the path `kit scratch-dir prompt <slug>` prints. Print the path.
 
 Structure:
 

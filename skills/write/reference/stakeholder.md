@@ -4,14 +4,14 @@ Reframe a technical finding or proposal for a non-technical audience. Arguments:
 
 ## Procedure
 
-1. Get the scratch directory: `!`scratch-dir.sh``.
+1. Get the scratch directory: `!`kit scratch-dir``.
 2. Read the input. If $ARGUMENTS looks like a file path, read the file. Otherwise treat $ARGUMENTS as the content directly.
 3. Identify the audience implied by the input or default to PM-level.
 4. Reframe.
 
 ## Output file
 
-Write to the path `scratch-dir.sh stakeholder <topic-slug>` prints. Print the path.
+Write to the path `kit scratch-dir stakeholder <topic-slug>` prints. Print the path.
 
 Structure:
 

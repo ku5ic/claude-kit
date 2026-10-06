@@ -4,7 +4,7 @@ Re-check findings from a prior audit report against the current repo, classifyin
 
 ## Procedure
 
-1. Resolve the report path from $ARGUMENTS. If empty or the file does not exist, list the most recent reports (`ls -t "$(scratch-dir.sh)"/\*.md | head -10`) and ask which one via AskUserQuestion rather than guessing.
+1. Resolve the report path from $ARGUMENTS. If empty or the file does not exist, list the most recent reports (`ls -t "$(kit scratch-dir)"/\*.md | head -10`) and ask which one via AskUserQuestion rather than guessing.
 2. Read the report in full. Identify its kind from the filename prefix (`a11y-`, `perf-`, `debt-`, `doc-drift-`) or, absent a conventional filename, its title/Scope line. If the kind matches none of these, stop and ask rather than guessing.
 3. Extract every finding's Severity, Location, What, Why it matters, Fix, and Refs fields from `## Findings` (the report-format skill's required per-finding shape).
 4. Dispatch the auditor agent (subagent_type: kit:auditor, foreground) with the report kind, the checklist skill it implies (wcag-audit for a11y, the stack patterns skill otherwise), and only the extracted finding list, not the full original report, plus an explicit instruction: re-check each cited location as it exists in the repo right now. This is a re-check, not a re-audit -- it must not scan for new findings outside the given list.
@@ -18,7 +18,7 @@ Re-check findings from a prior audit report against the current repo, classifyin
 
 ## Output
 
-Write to the path `scratch-dir.sh verify <original-slug>` prints, where `<original-slug>` is the original report's own target slug, or its full kind-and-timestamp stem if it has none. Never modify the original report -- this command is append-only across files, so a bad verify run cannot corrupt an audit.
+Write to the path `kit scratch-dir verify <original-slug>` prints, where `<original-slug>` is the original report's own target slug, or its full kind-and-timestamp stem if it has none. Never modify the original report -- this command is append-only across files, so a bad verify run cannot corrupt an audit.
 
 ```
 # Verify: <original report filename>

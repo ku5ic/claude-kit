@@ -13,7 +13,7 @@ Draft a pattern skill pack for a stack from current docs and this repo's precede
 
    One source per claim. A claim it returns without a source doesn't go in the pack.
 
-3. Precedent. If `<repo-context>` or `detect-stack.sh` shows the current repo uses the stack, load the `investigate` skill and answer "how does this repo use <stack>: file layout, conventions, config" with `file:line` citations. A pack rule that contradicts the repo's own consistent usage gets named in the draft, not silently dropped.
+3. Precedent. If `<repo-context>` or `kit detect-stack` shows the current repo uses the stack, load the `investigate` skill and answer "how does this repo use <stack>: file layout, conventions, config" with `file:line` citations. A pack rule that contradicts the repo's own consistent usage gets named in the draft, not silently dropped.
 4. Draft. Work in the kit's source checkout, the directory `$CLAUDE_KIT_DEV` names, never an installed plugin copy or the marketplace clone. Unset: stop and ask where the checkout is. Copy `templates/pattern-skill/` to `skills/<name>/` and fill it:
    - `description`: the file and dependency signals, then the concepts, in the template's shape.
    - One `reference/<area>.md` per area with enough verified material; three to five areas is typical. Every rule cites its source URL or library id.

@@ -22,4 +22,4 @@ Source: https://storybook.js.org/docs/writing-tests/accessibility-testing
 
 ## Checking one story from the kit
 
-With Storybook running, `a11y-check.sh "http://localhost:6006/iframe.html?id=<story-id>&viewMode=story"` runs axe against that story and prints a digest. `reference/story-ids.md` covers how to build the id. `/audit a11y` marks findings confirmed this way `runtime-verified`.
+With Storybook running, `kit a11y-check "http://localhost:6006/iframe.html?id=<story-id>&viewMode=story"` runs axe against that story and prints a digest. `reference/story-ids.md` covers how to build the id. `/audit a11y` marks findings confirmed this way `runtime-verified`.

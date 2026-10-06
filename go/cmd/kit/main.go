@@ -268,7 +268,7 @@ func cmdProjectName(e *env, cfg *config.Config, _ []string) int {
 func cmdScratchDir(e *env, cfg *config.Config, args []string) int {
 	dir, err := project.Dir(cfg, e.paths, e.cwd, "scratch", true)
 	if err != nil {
-		fmt.Fprintln(e.stderr, "scratch-dir.sh:", err)
+		fmt.Fprintln(e.stderr, "kit scratch-dir:", err)
 		return 1
 	}
 	if len(args) == 0 {
@@ -286,7 +286,7 @@ func cmdScratchDir(e *env, cfg *config.Config, args []string) int {
 func cmdPlansDir(e *env, cfg *config.Config, _ []string) int {
 	dir, err := project.Dir(cfg, e.paths, e.cwd, "plans", true)
 	if err != nil {
-		fmt.Fprintln(e.stderr, "plans-dir.sh:", err)
+		fmt.Fprintln(e.stderr, "kit plans-dir:", err)
 		return 1
 	}
 	fmt.Fprintln(e.stdout, dir)

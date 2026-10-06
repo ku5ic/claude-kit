@@ -4,7 +4,7 @@ Performance audit focused on statically detectable issues. Arguments: `<file, di
 
 ## Procedure
 
-1. Stack is in the `<repo-context>` block from the `SubagentStart` hook. Get the scratch directory via `scratch-dir.sh`.
+1. Stack is in the `<repo-context>` block from the `SubagentStart` hook. Get the scratch directory via `kit scratch-dir`.
 2. Load the patterns skill for the detected stack (react-patterns, django-patterns, etc.) for the anti-pattern reference.
 3. Review the target across these categories:
    - Ground each candidate in this project's own precedent before including it.
@@ -54,7 +54,7 @@ Performance audit focused on statically detectable issues. Arguments: `<file, di
 
 ## Output file
 
-Load the report-format skill and use its format. Write to the path `scratch-dir.sh perf <target-slug>` prints. Print the path.
+Load the report-format skill and use its format. Write to the path `kit scratch-dir perf <target-slug>` prints. Print the path.
 
 ## Rules
 

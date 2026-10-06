@@ -4,7 +4,7 @@ Convert a structured review report into a peer-to-peer GitHub PR comment. Argume
 
 ## Procedure
 
-1. Get the scratch directory: `!`scratch-dir.sh``.
+1. Get the scratch directory: `!`kit scratch-dir``.
 2. Parse $ARGUMENTS. If the first token resolves to an existing file, treat it as the report path and any remaining token as the PR author username. Otherwise treat the whole of $ARGUMENTS as the PR author username and leave the report path unset.
 3. If no report path was resolved, stop and ask for one: any file in the report-format skill's shape, e.g. saved `/code-review` output or an `/audit` report.
 4. Read the review report. It follows the report-format skill's format: a severity rubric (failure/warning/info), each finding with file, line, "What", "Why it matters", and "Fix".
@@ -29,7 +29,7 @@ For every finding, build a real link instead of relying on GitHub to auto-linkif
 
 ## Output file
 
-Write to the path `scratch-dir.sh review-comment <scope-slug>` prints. Print the path. `<scope-slug>` comes from the input report's `Scope:` line if present, otherwise from the input filename.
+Write to the path `kit scratch-dir review-comment <scope-slug>` prints. Print the path. `<scope-slug>` comes from the input report's `Scope:` line if present, otherwise from the input filename.
 
 Structure (GitHub markdown, no frontmatter, no metadata - copy-paste ready as a single PR comment):
 

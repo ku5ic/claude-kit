@@ -19,7 +19,7 @@ Retention: at most 3 version entries, newest first. A pattern that changed moves
 
 ## Procedure
 
-1. Scope. Get the scratch directory: `!`scratch-dir.sh``. The arguments are: $ARGUMENTS
+1. Scope. Get the scratch directory: `!`kit scratch-dir``. The arguments are: $ARGUMENTS
    - One or more skill names: refresh those.
    - `--all`: every reference skill.
    - Blank: list every reference skill with its `Checked:` date (or "never"), oldest first, and ask which to refresh via AskUserQuestion (multi-select, at most 5 unless the user picks `--all`).
@@ -40,7 +40,7 @@ Retention: at most 3 version entries, newest first. A pattern that changed moves
    - Enforce the caps from "What this maintains". Prune oldest first.
    - Add the Version notes entry naming the source URL or library id from step 3.
    - Do not touch guidance the research did not contradict. Do not delete a reference file. Do not reword for style.
-6. Report. Write the path `scratch-dir.sh refresh` prints, in the report-format skill's format (load it first):
+6. Report. Write the path `kit scratch-dir refresh` prints, in the report-format skill's format (load it first):
    - Summary: skills checked, per-classification counts.
    - One finding per `guidance changed` skill: severity `warning`, what changed, files edited, source.
    - One finding per `version bump`: severity `info`.

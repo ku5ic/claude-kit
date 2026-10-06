@@ -55,13 +55,13 @@ func TestSegmentsFindHiddenCommands(t *testing.T) {
 }
 
 func TestWordValues(t *testing.T) {
-	segs := Segments(`rm -rf "${HOME}" '~' $HOME/x "a b" \$y "$(scratch-dir.sh)/f"`)
+	segs := Segments(`rm -rf "${HOME}" '~' $HOME/x "a b" \$y "$(kit scratch-dir)/f"`)
 	// Inner substitutions come first, as they run first.
 	var got []string
 	for _, w := range segs[len(segs)-1].Calls[0].Words {
 		got = append(got, w.Value)
 	}
-	want := []string{"rm", "-rf", "${HOME}", "~", "$HOME/x", "a b", "$y", "$(scratch-dir.sh)/f"}
+	want := []string{"rm", "-rf", "${HOME}", "~", "$HOME/x", "a b", "$y", "$(kit scratch-dir)/f"}
 	if !slices.Equal(got, want) {
 		t.Errorf("got %q, want %q", got, want)
 	}
@@ -83,7 +83,7 @@ func TestRedirectTargets(t *testing.T) {
 func TestLooseWriteTarget(t *testing.T) {
 	for target, want := range map[string]bool{
 		"out.txt": true, "./x.md": true, "&1": false, "/dev/null": false, "-": false,
-		"$(scratch-dir.sh)/x": false, "scratch/x": false, "~/x": false, `"x"`: false,
+		"$(kit scratch-dir)/x": false, "scratch/x": false, "~/x": false, `"x"`: false,
 	} {
 		if got := looseWriteTarget(target); got != want {
 			t.Errorf("looseWriteTarget(%q) = %v", target, got)

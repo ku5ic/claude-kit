@@ -1,5 +1,5 @@
 // Package gitbase finds the base ref of the current checkout, as
-// git-base.sh: an explicit ref, else the upstream (unless it is only this
+// kit git-base: an explicit ref, else the upstream (unless it is only this
 // branch's own push target), else origin/HEAD, else main, master, develop,
 // or trunk.
 package gitbase
@@ -23,7 +23,7 @@ const (
 	Log
 )
 
-// Args are git-base.sh's arguments, parsed.
+// Args are kit git-base's arguments, parsed.
 type Args struct {
 	Mode     Mode
 	Explicit string   // first word that resolves as a ref
@@ -31,7 +31,7 @@ type Args struct {
 	Paths    []string // pathspecs after --
 }
 
-// Parse splits git-base.sh's arguments. The mode is a flag (--diff, --log)
+// Parse splits kit git-base's arguments. The mode is a flag (--diff, --log)
 // so a branch named diff or log still works as the base. The base is the
 // first word that resolves as a ref; a word right after a flag is that
 // flag's value (-n 5); any other word is an error, not a silent fallback
@@ -61,7 +61,7 @@ func Parse(argv []string) (Args, error) {
 		case strings.HasPrefix(prev, "-") && !strings.Contains(prev, "="):
 			a.Extra = append(a.Extra, arg)
 		default:
-			return a, fmt.Errorf("git-base.sh: '%s' is not a ref", arg)
+			return a, fmt.Errorf("kit git-base: '%s' is not a ref", arg)
 		}
 		prev = arg
 	}
@@ -107,7 +107,7 @@ func Resolve(explicit string) (string, bool) {
 	return "", false
 }
 
-// Run executes git-base.sh's behavior and returns its exit status.
+// Run executes kit git-base's behavior and returns its exit status.
 func Run(argv []string, stdout, stderr io.Writer) int {
 	a, err := Parse(argv)
 	if err != nil {
@@ -134,7 +134,7 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 		if exit, ok := errors.AsType[*exec.ExitError](err); ok {
 			return exit.ExitCode()
 		}
-		fmt.Fprintln(stderr, "git-base.sh:", err)
+		fmt.Fprintln(stderr, "kit git-base:", err)
 		return 1
 	}
 	return 0

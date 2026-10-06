@@ -42,7 +42,7 @@ func answers(url string) bool {
 	return true
 }
 
-// Run is a11y-check.sh <url>. Exit codes: 0 ran (violations or not), 1 axe
+// Run is `kit a11y-check <url>`. Exit codes: 0 ran (violations or not), 1 axe
 // failed, 2 usage, 3 axe not installed, 4 the URL does not answer. The raw
 // JSON (an array of axe-core results) is saved beside the scratch report
 // path, as .json; the digest has one line per violated rule:

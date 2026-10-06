@@ -12,12 +12,12 @@ Default assumption: Storybook 10.6 with CSF 3 stories.
 
 ## Reference files
 
-| File                                                     | Covers                                                                   |
-| -------------------------------------------------------- | ------------------------------------------------------------------------ |
-| [reference/story-ids.md](reference/story-ids.md)         | How an id is formed, the manager and iframe URLs, what renames break     |
-| [reference/csf.md](reference/csf.md)                     | Meta, args and `fn()`, `play` functions, `beforeEach`                    |
-| [reference/accessibility.md](reference/accessibility.md) | The a11y addon, `parameters.a11y.test`, CI behavior, and `a11y-check.sh` |
-| [reference/anti-patterns.md](reference/anti-patterns.md) | Six review-time anti-patterns with severity calls                        |
+| File                                                     | Covers                                                                    |
+| -------------------------------------------------------- | ------------------------------------------------------------------------- |
+| [reference/story-ids.md](reference/story-ids.md)         | How an id is formed, the manager and iframe URLs, what renames break      |
+| [reference/csf.md](reference/csf.md)                     | Meta, args and `fn()`, `play` functions, `beforeEach`                     |
+| [reference/accessibility.md](reference/accessibility.md) | The a11y addon, `parameters.a11y.test`, CI behavior, and `kit a11y-check` |
+| [reference/anti-patterns.md](reference/anti-patterns.md) | Six review-time anti-patterns with severity calls                         |
 
 ## References
 

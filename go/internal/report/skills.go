@@ -161,7 +161,7 @@ func count(rows []entry, category string) int {
 	return n
 }
 
-// Run is skills-report.sh [days].
+// Run is `kit skills-report [days]`.
 func Run(cfg *config.Config, paths config.Paths, args []string, stdout io.Writer) int {
 	days := 30
 	if len(args) > 0 {

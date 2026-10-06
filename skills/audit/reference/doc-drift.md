@@ -8,7 +8,7 @@ $ARGUMENTS should point to the code surface to check. Required.
 
 ## Procedure
 
-1. Stack is in the injected `<repo-context>` block. Get the scratch directory: `!`scratch-dir.sh``.
+1. Stack is in the injected `<repo-context>` block. Get the scratch directory: `!`kit scratch-dir``.
 2. Read the code at $ARGUMENTS.
 3. Find relevant docs. Prefer targeted over exhaustive:
    - `README.md` at the project root if $ARGUMENTS is in `src/` or equivalent
@@ -46,7 +46,7 @@ $ARGUMENTS should point to the code surface to check. Required.
 
 ## Output file
 
-Load the report-format skill and use its format. Write to the path `scratch-dir.sh doc-drift <target-slug>` prints. Print the path.
+Load the report-format skill and use its format. Write to the path `kit scratch-dir doc-drift <target-slug>` prints. Print the path.
 
 ## Scope rules
 

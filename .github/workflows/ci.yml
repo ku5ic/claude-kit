@@ -52,7 +52,7 @@ jobs:
         run: jq -re .version .claude-plugin/plugin.json | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'
 
       - name: shellcheck
-        run: shellcheck -x -P SCRIPTDIR bin/*.sh bin/kit hooks/*.sh go/build.sh
+        run: shellcheck -x -P SCRIPTDIR bin/doctor.sh bin/kit go/build.sh
 
       - name: bats
         run: bats tests/

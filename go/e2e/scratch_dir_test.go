@@ -39,7 +39,7 @@ func TestScratchDir(t *testing.T) {
 		k.Setenv("PWD", dir)
 	}
 
-	t.Run("scratch-dir.sh inside a repo prints and creates the project tier", func(t *testing.T) {
+	t.Run("kit scratch-dir inside a repo prints and creates the project tier", func(t *testing.T) {
 		k, repo, _ := setup(t)
 		cd(k, filepath.Join(repo, "src"))
 		r := k.Run("", "scratch-dir")
@@ -51,24 +51,24 @@ func TestScratchDir(t *testing.T) {
 			t.Error("project scratch not created")
 		}
 	})
-	t.Run("scratch-dir.sh <kind> <slug> prints a timestamped report path", func(t *testing.T) {
+	t.Run("kit scratch-dir <kind> <slug> prints a timestamped report path", func(t *testing.T) {
 		k, repo, _ := setup(t)
 		cd(k, repo)
 		r := k.Run("", "scratch-dir", "perf", "checkout-page")
 		r.Want(t, 0)
 		matches(t, r, `^`+regexp.QuoteMeta(repo)+`/\.claude/scratch/perf-checkout-page-[0-9]{8}-[0-9]{4}\.md$`)
 	})
-	t.Run("scratch-dir.sh <kind> alone leaves the slug out", func(t *testing.T) {
+	t.Run("kit scratch-dir <kind> alone leaves the slug out", func(t *testing.T) {
 		k, repo, _ := setup(t)
 		cd(k, repo)
 		matches(t, k.Run("", "scratch-dir", "deps"), `/deps-[0-9]{8}-[0-9]{4}\.md$`)
 	})
-	t.Run("scratch-dir.sh makes the slug filename-safe", func(t *testing.T) {
+	t.Run("kit scratch-dir makes the slug filename-safe", func(t *testing.T) {
 		k, repo, _ := setup(t)
 		cd(k, repo)
 		matches(t, k.Run("", "scratch-dir", "review", "feat/login page"), `/review-feat-login-page-[0-9]{8}-[0-9]{4}\.md$`)
 	})
-	t.Run("scratch-dir.sh registers the project tier once", func(t *testing.T) {
+	t.Run("kit scratch-dir registers the project tier once", func(t *testing.T) {
 		k, repo, _ := setup(t)
 		cd(k, repo)
 		k.Run("", "scratch-dir")
@@ -78,7 +78,7 @@ func TestScratchDir(t *testing.T) {
 			t.Errorf("registry %q, want %q", got, want)
 		}
 	})
-	t.Run("scratch-dir.sh outside a project falls back to home", func(t *testing.T) {
+	t.Run("kit scratch-dir outside a project falls back to home", func(t *testing.T) {
 		k, _, outside := setup(t)
 		cd(k, outside)
 		r := k.Run("", "scratch-dir")
@@ -93,7 +93,7 @@ func TestScratchDir(t *testing.T) {
 			t.Error("home tier was registered")
 		}
 	})
-	t.Run("plans-dir.sh inside a repo prints and creates the project tier", func(t *testing.T) {
+	t.Run("kit plans-dir inside a repo prints and creates the project tier", func(t *testing.T) {
 		k, repo, _ := setup(t)
 		cd(k, filepath.Join(repo, "src"))
 		r := k.Run("", "plans-dir")
@@ -105,7 +105,7 @@ func TestScratchDir(t *testing.T) {
 			t.Error("project plans not created")
 		}
 	})
-	t.Run("plans-dir.sh registers nothing", func(t *testing.T) {
+	t.Run("kit plans-dir registers nothing", func(t *testing.T) {
 		k, repo, _ := setup(t)
 		cd(k, repo)
 		k.Run("", "plans-dir")
@@ -132,7 +132,7 @@ func TestScratchDir(t *testing.T) {
 			t.Error("registered under HOME despite CLAUDE_CONFIG_DIR")
 		}
 	})
-	t.Run("plans-dir.sh outside a project falls back to home", func(t *testing.T) {
+	t.Run("kit plans-dir outside a project falls back to home", func(t *testing.T) {
 		k, _, outside := setup(t)
 		cd(k, outside)
 		r := k.Run("", "plans-dir")

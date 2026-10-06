@@ -48,7 +48,7 @@ Numbered steps, a restated state line, and a time estimate belong to a multi-ste
 A deliverable is anything the user copies out and uses elsewhere: PR descriptions, commit drafts, emails, chat messages, specs, code files, prompts, docs, reports.
 
 - Every file you write, deliverable or not, goes through Write or Edit at an absolute path, never a shell redirect or `sed -i`: only Write and Edit fire the hooks that guard, sanitize, and format written files. A deliverable's path is the reply's first line.
-- Default location: the directory `scratch-dir.sh` resolves (see `rules/tooling.md`).
+- Default location: the directory `kit scratch-dir` resolves (see `rules/tooling.md`).
 - Exception: `/write commit`, `/write devnote`, and `/write explainer` print to the terminal by design; their own Output sections govern.
 - **A written artifact replaces its own summary.** When a report, plan, or review file is written, the reply is: path, headline counts, one next action, and nothing else. Never restate findings the file already contains.
 

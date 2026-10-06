@@ -1,4 +1,4 @@
-// Package detect writes the compact stack report detect-stack.sh prints and
+// Package detect writes the compact stack report `kit detect-stack` prints and
 // the <repo-context> block carries:
 //
 //	root: <root>
@@ -188,8 +188,7 @@ func versions(cfg *config.Config, root, dir string) []string {
 					continue
 				}
 				arg := strings.ReplaceAll(src.Arg, "{name}", name)
-				// Package names ignore case (pip); detect-stack.sh ran its
-				// extractors under nocasematch.
+				// Package names ignore case (pip).
 				if src.Extractor == "regex_lines" {
 					arg = "(?i)" + arg
 				}
@@ -204,8 +203,7 @@ func versions(cfg *config.Config, root, dir string) []string {
 	return parts
 }
 
-// nvmrc is the file's content with every "v" and newline removed, as
-// detect-stack.sh's `tr -d 'v\n'`.
+// nvmrc is the file's content with every "v" and newline removed.
 func nvmrc(path string) (string, bool) {
 	data, err := os.ReadFile(path)
 	if err != nil {

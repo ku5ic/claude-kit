@@ -254,7 +254,7 @@ func (st *state) redirects(call Call) error {
 			st.ask(overlayAsk)
 		}
 		if (!strings.Contains(target, "/") || strings.HasPrefix(target, "./")) && looseWriteTarget(target) && st.inWorktree() {
-			st.ask("'> " + target + "' writes into the current directory; rules/tooling.md wants > \"$(scratch-dir.sh)/" + baseName(target) + "\". Confirm only if this file belongs in the project tree.")
+			st.ask("'> " + target + "' writes into the current directory; rules/tooling.md wants > \"$(kit scratch-dir)/" + baseName(target) + "\". Confirm only if this file belongs in the project tree.")
 		}
 	}
 	return nil
@@ -272,7 +272,7 @@ func (st *state) inWorktree() bool {
 
 // looseWriteTarget is true for a relative target that would land loose in
 // the repo instead of scratch. Unresolvable targets (variables,
-// substitutions, fd duplications) are false: $(scratch-dir.sh) is the
+// substitutions, fd duplications) are false: $(kit scratch-dir) is the
 // sanctioned form.
 func looseWriteTarget(p string) bool {
 	switch {
@@ -288,7 +288,7 @@ func looseWriteTarget(p string) bool {
 }
 
 // scratchTarget is true when a download target is stdout, /dev/null, an fd,
-// or inside a .claude/scratch directory. $(scratch-dir.sh) counts; any
+// or inside a .claude/scratch directory. $(kit scratch-dir) counts; any
 // other unexpanded variable, and any "..", doesn't, since it can't be
 // checked.
 func (st *state) scratchTarget(p string) bool {
@@ -299,8 +299,8 @@ func (st *state) scratchTarget(p string) bool {
 	}
 	switch {
 	case p == "-", p == "/dev/null", len(p) == 2 && p[0] == '&' && p[1] >= '0' && p[1] <= '9',
-		p == "$(scratch-dir.sh)", strings.HasPrefix(p, "$(scratch-dir.sh)/"),
-		p == "`scratch-dir.sh`", strings.HasPrefix(p, "`scratch-dir.sh`/"):
+		p == "$(kit scratch-dir)", strings.HasPrefix(p, "$(kit scratch-dir)/"),
+		p == "`kit scratch-dir`", strings.HasPrefix(p, "`kit scratch-dir`/"):
 		return true
 	}
 	p = guard.ExpandHome(st.home, p)
@@ -356,26 +356,27 @@ func (st *state) currentBranch(gitDir string) string {
 	return branch
 }
 
-// Kit scripts that only read state or create the scratch/plans directories.
-// Plugins can't ship allow rules, so the hook allows them itself; settings
-// deny and ask rules still win over a hook allow. run-checks.sh stays out:
-// it runs project-defined scripts.
-var readonlyScripts = []string{"scratch-dir.sh", "plans-dir.sh", "git-base.sh", "project-name.sh", "project-root.sh", "detect-stack.sh", "skills-report.sh", "blast-radius.sh"}
+// kit subcommands that only read state or create the scratch/plans
+// directories. Plugins can't ship allow rules, so the hook allows them
+// itself; settings deny and ask rules still win over a hook allow.
+// run-checks stays out: it runs project-defined scripts.
+var readonlySubcommands = []string{"scratch-dir", "plans-dir", "git-base", "project-name", "project-root", "detect-stack", "skills-report", "blast-radius"}
 
-// readonlyCall is true for a lone kit script call: no chaining, pipes,
-// redirects, or substitutions that could smuggle in a second command.
+// readonlyCall is true for a lone `kit <read-only subcommand>` call: no
+// chaining, pipes, redirects, or substitutions that could smuggle in a
+// second command.
 func readonlyCall(cmd, norm string) bool {
 	if strings.ContainsAny(cmd, ";&|<>`\n") || strings.Contains(cmd, "$(") {
 		return false
 	}
-	first, rest, _ := strings.Cut(norm, " ")
-	if !slices.Contains(readonlyScripts, first) {
+	words := strings.Fields(norm)
+	if len(words) < 2 || words[0] != "kit" || !slices.Contains(readonlySubcommands, words[1]) {
 		return false
 	}
-	return first != "git-base.sh" || gitBaseFlagsSafe(strings.Fields(rest))
+	return words[1] != "git-base" || gitBaseFlagsSafe(words[2:])
 }
 
-// gitBaseFlagsSafe is false when git-base.sh would hand git a flag that can
+// gitBaseFlagsSafe is false when `kit git-base` would hand git a flag that can
 // write files (--output) or run programs (--ext-diff): only the flags the
 // kit's own skills pass go through without a prompt.
 func gitBaseFlagsSafe(words []string) bool {

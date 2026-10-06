@@ -9,19 +9,19 @@ import (
 	"testing"
 )
 
-// The shims source bin/kit, which picks the binary for this platform and
-// plugin version. These run the real shims, so they need go/build.sh run
-// first (CI builds before testing).
+// bin/kit picks the binary for this platform and plugin version. These run
+// the real launcher, so they need go/build.sh run first (CI builds before
+// testing).
 func TestLauncher(t *testing.T) {
 	k := New(t)
-	shim := func(name string) string { return filepath.Join(kitRoot, name) }
-	t.Run("a hook shim blocks through the built binary", func(t *testing.T) {
-		r := k.exec(shim("hooks/guard-bash.sh"), `{"tool_name":"Bash","tool_input":{"command":"git push --force origin main"}}`)
+	kitFile := func(name string) string { return filepath.Join(kitRoot, name) }
+	t.Run("a hook blocks through the built binary", func(t *testing.T) {
+		r := k.exec(kitFile("bin/kit"), `{"tool_name":"Bash","tool_input":{"command":"git push --force origin main"}}`, "hook", "guard-bash")
 		r.Want(t, 2)
 		r.Has(t, "Blocked by guard-bash.sh")
 	})
-	t.Run("a bin shim prints through the built binary", func(t *testing.T) {
-		r := k.exec(shim("bin/plans-dir.sh"), "")
+	t.Run("a subcommand prints through the built binary", func(t *testing.T) {
+		r := k.exec(kitFile("bin/kit"), "", "plans-dir")
 		r.Want(t, 0)
 		if r.Stdout == "" {
 			t.Error("plans-dir printed nothing")
@@ -30,7 +30,7 @@ func TestLauncher(t *testing.T) {
 
 	// A copy of the launcher with no binary beside it.
 	bare := filepath.Join(t.TempDir(), "kit")
-	raw, err := os.ReadFile(shim("bin/kit"))
+	raw, err := os.ReadFile(kitFile("bin/kit"))
 	if err != nil {
 		t.Fatal(err)
 	}

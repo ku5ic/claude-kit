@@ -4,7 +4,7 @@ Surface technical debt and architectural risks with severity and remediation pat
 
 ## Procedure
 
-1. Stack is in the `<repo-context>` block from the `SubagentStart` hook. Get the scratch directory via `scratch-dir.sh`.
+1. Stack is in the `<repo-context>` block from the `SubagentStart` hook. Get the scratch directory via `kit scratch-dir`.
 2. Load the patterns skill for the detected stack (react-patterns, django-patterns, etc.) for the anti-pattern reference.
 3. Read the target.
    1. If $ARGUMENTS is a directory, run `tokei --files --sort code <path>` to get accurate line counts per language and per file.
@@ -42,6 +42,6 @@ Surface technical debt and architectural risks with severity and remediation pat
 
 ## Output file
 
-Load the report-format skill and use its format. Write to the path `scratch-dir.sh debt <target-slug>` prints. Print the path.
+Load the report-format skill and use its format. Write to the path `kit scratch-dir debt <target-slug>` prints. Print the path.
 
 Sort findings by severity, then by effort (smallest first within each severity) so the quick wins are visible at the top.

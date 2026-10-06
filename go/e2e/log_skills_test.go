@@ -92,10 +92,10 @@ func TestLogSkills(t *testing.T) {
 		})
 	}
 
-	// No jq dependency: the hook is Go behind a bash shim. These run the real
-	// shim and launcher against the freshly built binary, with a minimal PATH
+	// No jq dependency: the hook is Go behind the bash launcher. These run the
+	// real launcher against the freshly built binary, with a minimal PATH
 	// holding `cat` and `dirname` but no `jq`, rather than an empty PATH.
-	noJQ := func(t *testing.T, k *Kit) (bash, shim string) {
+	noJQ := func(t *testing.T, k *Kit) (bash, launcher string) {
 		stubDir := filepath.Join(t.TempDir(), "stub_no_jq")
 		Mkdir(t, stubDir)
 		for _, tool := range []string{"cat", "dirname"} {
@@ -112,13 +112,13 @@ func TestLogSkills(t *testing.T) {
 			t.Fatal(err)
 		}
 		k.Setenv("PATH", stubDir)
-		return bash, filepath.Join(Tree(t, "hooks/log-skills.sh"), "hooks", "log-skills.sh")
+		return bash, filepath.Join(Tree(t), "bin", "kit")
 	}
 
 	t.Run("a payload with none of the three substrings exits clean even without jq on PATH", func(t *testing.T) {
 		k, log := setup(t)
-		bash, shim := noJQ(t, k)
-		r := k.exec(bash, `{"hook_event_name":"PostToolUse","tool_name":"Read","tool_input":{"file_path":"/tmp/foo.ts"}}`, shim)
+		bash, launcher := noJQ(t, k)
+		r := k.exec(bash, `{"hook_event_name":"PostToolUse","tool_name":"Read","tool_input":{"file_path":"/tmp/foo.ts"}}`, launcher, "hook", "log-skills")
 		r.Want(t, 0)
 		r.Lacks(t, "jq not found")
 		if n := lineCount(t, log); n != 0 {
@@ -128,8 +128,8 @@ func TestLogSkills(t *testing.T) {
 
 	t.Run("a loggable payload is logged even without jq on PATH", func(t *testing.T) {
 		k, log := setup(t)
-		bash, shim := noJQ(t, k)
-		r := k.exec(bash, `{"hook_event_name":"PostToolUse","tool_name":"Skill","tool_input":{"skill":"bash-patterns"}}`, shim)
+		bash, launcher := noJQ(t, k)
+		r := k.exec(bash, `{"hook_event_name":"PostToolUse","tool_name":"Skill","tool_input":{"skill":"bash-patterns"}}`, launcher, "hook", "log-skills")
 		r.Want(t, 0)
 		r.Empty(t)
 		if n := lineCount(t, log); n != 1 {

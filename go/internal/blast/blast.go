@@ -58,7 +58,7 @@ type scan struct {
 	tests             int
 }
 
-// Run is blast-radius.sh <file> [symbol].
+// Run is `kit blast-radius <file> [symbol]`.
 func Run(cfg *config.Config, args []string, stdout, stderr io.Writer) int {
 	if len(args) < 1 || len(args) > 2 {
 		fmt.Fprintln(stderr, "usage: kit blast-radius <file> [symbol]")

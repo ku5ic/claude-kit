@@ -108,7 +108,7 @@ func injectContextCopyRules(t *testing.T, dst string) {
 }
 
 func TestInjectContext(t *testing.T) {
-	tree := Tree(t, "hooks/inject-context.sh")
+	tree := Tree(t)
 	t.Run("<required-skills> contains every global_skills entry", func(t *testing.T) {
 		e := injectContextSetup(t, tree)
 		e.kitYML("global_skills:\n  - fix-sizing\n  - context-gathering\nskill_triggers: {}\nstacks: {}\n")
@@ -217,10 +217,10 @@ stacks:
 				t.Fatal(err)
 			}
 		}
-		// The real shim and launcher, running the freshly built kit.
-		shim := filepath.Join(tree, "hooks", "inject-context.sh")
+		// The real launcher, running the freshly built kit, as hooks.json does.
+		launcher := filepath.Join(tree, "bin", "kit")
 		e.Setenv("PATH", bin)
-		r := e.exec(bash, `{"session_id":"s1","cwd":"`+e.root+`"}`, shim)
+		r := e.exec(bash, `{"session_id":"s1","cwd":"`+e.root+`"}`, launcher, "hook", "inject-context")
 		r.Want(t, 0)
 		r.Lacks(t, "systemMessage")
 		r.Has(t, "<required-skills>")

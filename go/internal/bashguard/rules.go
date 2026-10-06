@@ -230,11 +230,11 @@ func (c *command) check() error {
 		}
 	case "eval":
 		return c.block("eval runs a command string that bypasses the permission allow list; run the command directly as a Bash tool call", "interpreter-c-wrap")
-	case "git-base.sh":
-		// An explicit ask: with no decision, a Bash(git-base.sh *) allow
+	case "kit":
+		// An explicit ask: with no decision, a Bash(kit git-base *) allow
 		// rule would approve --output=<file> silently.
-		if !gitBaseFlagsSafe(strings.Fields(c.rest)) {
-			c.st.ask("git-base.sh passes this flag to git, which can write files or run programs; confirm it")
+		if words := strings.Fields(c.rest); len(words) > 0 && words[0] == "git-base" && !gitBaseFlagsSafe(words[1:]) {
+			c.st.ask("kit git-base passes this flag to git, which can write files or run programs; confirm it")
 		}
 	case "sed", "sd":
 		// sed only with -i; sd is always in place when given a file.

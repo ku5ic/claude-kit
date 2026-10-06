@@ -53,15 +53,14 @@ copy_tree() {
 == skill directory / allow-list parity ==
 == CLAUDE.md rules pointer parity ==
 == settings.json machine-local leak ==
-== mcp allow-list server parity ==
-== plugin hooks.json parity ==" ]
+== mcp allow-list server parity ==" ]
 }
 
 @test "a standalone kit checkout skips the personal-config sections and passes" {
   CI=true run "$SCRIPT"
   [ "$status" -eq 0 ]
   [[ "$output" == *"== credential pattern parity == (skipped: no personal config"* ]]
-  [[ "$output" == *"== plugin hooks.json parity == (skipped: no personal config"* ]]
+  [[ "$output" == *"== mcp allow-list server parity == (skipped: no personal config"* ]]
 }
 
 @test "a personal dir without settings.json or CLAUDE.md fails and skips the personal sections" {
@@ -71,7 +70,7 @@ copy_tree() {
   [[ "$output" == *"== personal config ==
 missing        $BATS_TEST_TMPDIR/bare/settings.json"* ]]
   [[ "$output" == *"missing        $BATS_TEST_TMPDIR/bare/CLAUDE.md"* ]]
-  [[ "$output" == *"== plugin hooks.json parity == (skipped: incomplete personal config)"* ]]
+  [[ "$output" == *"== mcp allow-list server parity == (skipped: incomplete personal config)"* ]]
   [[ "$output" != *"No such file"* ]]
 }
 
@@ -80,7 +79,7 @@ missing        $BATS_TEST_TMPDIR/bare/settings.json"* ]]
   [ "$status" -eq 1 ]
   [[ "$output" == *"== prerequisites =="* ]]
   [[ "$output" == *"missing        $BATS_TEST_TMPDIR/absent/settings.json"* ]]
-  [[ "$output" == *"== plugin hooks.json parity == (skipped: incomplete personal config)"* ]]
+  [[ "$output" == *"== mcp allow-list server parity == (skipped: incomplete personal config)"* ]]
   [[ "$output" != *"No such file"* ]]
 }
 

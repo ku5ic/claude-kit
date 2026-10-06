@@ -11,7 +11,7 @@ import (
 )
 
 // Word is one shell word: Value has quotes removed and escapes resolved,
-// with expansions left as their source text ("$HOME/x", "$(scratch-dir.sh)").
+// with expansions left as their source text ("$HOME/x", "$(kit scratch-dir)").
 // Raw is the source.
 type Word struct {
 	Value string

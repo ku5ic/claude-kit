@@ -36,7 +36,7 @@ Not for a request to change code: that goes to plan mode (`/plan`) or a direct e
 ## Output
 
 - Short answer: inline, first line is the answer.
-- Symptom, or a question that needed a fan-out: a report at the path `scratch-dir.sh debug <scope-slug>` or `scratch-dir.sh explore <scope-slug>` prints, then print the path, the root cause or answer in one sentence, and the next step.
+- Symptom, or a question that needed a fan-out: a report at the path `kit scratch-dir debug <scope-slug>` or `kit scratch-dir explore <scope-slug>` prints, then print the path, the root cause or answer in one sentence, and the next step.
 
 ```markdown
 # <Debug|Explore>: <one-line description>

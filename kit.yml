@@ -13,7 +13,7 @@
 #   mystack:
 #     sentinels:
 #       - name: mystack.lock
-#         anchor: true          # include in project-root.sh ancestor walk
+#         anchor: true          # include in kit project-root ancestor walk
 #     skills: [mystack-patterns]
 #     extras:
 #       - name: myframework
@@ -44,7 +44,7 @@
 # ---------------
 # name: <filename>    the sentinel file, looked for in every subproject
 #                     (`bin/kit subprojects`)
-# anchor: true        include in the fast ancestor walk (project-root.sh)
+# anchor: true        include in the fast ancestor walk (kit project-root)
 #                     keep this list minimal; every entry slows the walk
 
 # Skills loaded for every project regardless of detected stack.
@@ -120,7 +120,7 @@ skill_file_map:
     skills: [opentofu-patterns]
 
 # Action-conditioned trigger phrases for every skill any stack/extra maps to.
-# Consumed by hooks/inject-context.sh to build the <suggested-skills> block.
+# Consumed by the inject-context hook to build the <suggested-skills> block.
 # Phrases name a concrete action, not a topic, so the reader knows when to load.
 # global_skills entries, if any, are excluded; they are required, not
 # suggested.
@@ -300,7 +300,7 @@ toolchain_checks:
 # directory a subproject (`kit subprojects`).
 subproject_max_depth: 4
 
-# Formatters run on each edited file by hooks/format-dispatch.sh, only where
+# Formatters run on each edited file by the format-dispatch hook, only where
 # the project opts in. A formatter is a candidate for a file when its ext
 # lists the file's extension and one of its signals is found walking up from
 # the file to the project root (never above it):
@@ -381,8 +381,8 @@ disabled_formatters: []
 # {bin} resolves from the project (node_modules/.bin, .venv/bin, venv/bin),
 # then its package manager's environment (poetry, pipenv, Yarn PnP,
 # bundler), then PATH. disabled_file_checks turns any check off by name.
-# Whole-project checks (typecheck, the full test suite) are run-checks.sh's
-# job, run with /code-review.
+# Whole-project checks (typecheck, the full test suite) are `kit run-checks`'s
+# job, run when rules/verify.md says.
 
 file_checks: []
 
@@ -399,7 +399,7 @@ tools: [rg, sg, fd, tokei, gitleaks, trufflehog, hyperfine, jq, gron, yq, qsv, s
 
 # JS monorepo task runners that know package dependents and cache results.
 # When a signal file is at the repo root and {bin} resolves from the root's
-# node_modules/.bin (never npx), run-checks.sh runs each JS check matching one
+# node_modules/.bin (never npx), `kit run-checks` runs each JS check matching one
 # of task_paths' task names once through the orchestrator, instead of per
 # package. Flags checked against the docs on 2026-09-26, no local install:
 # turbo 2.x (`--filter=...[ref]` is changed packages plus dependents; 1.x

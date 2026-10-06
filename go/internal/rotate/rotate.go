@@ -26,7 +26,7 @@ import (
 
 var positive = regexp.MustCompile(`^[1-9][0-9]*$`)
 
-// Run is scratch-rotate.sh [days] [--dry-run]; it returns the exit status.
+// Run is `kit scratch-rotate [days] [--dry-run]`; it returns the exit status.
 func Run(cfg *config.Config, paths config.Paths, args []string, stdout, stderr io.Writer) int {
 	dryRun, days := false, "30"
 	for _, a := range args {

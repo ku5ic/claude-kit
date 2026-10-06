@@ -13,7 +13,7 @@ Source: https://storybook.js.org/docs/configure/user-interface/sidebar-and-urls
 ## URLs
 
 - In the Storybook UI: `?path=/story/<story-id>`, e.g. `http://localhost:6006/?path=/story/foo-bar--baz`. Source: https://storybook.js.org/docs/configure/user-interface/sidebar-and-urls
-- The story alone, without the UI around it: `iframe.html?id=<story-id>&viewMode=story`. This is the URL to hand to tools that test a single rendered story, such as `a11y-check.sh`. Source: https://storybook.js.org/docs/sharing/embed
+- The story alone, without the UI around it: `iframe.html?id=<story-id>&viewMode=story`. This is the URL to hand to tools that test a single rendered story, such as `kit a11y-check`. Source: https://storybook.js.org/docs/sharing/embed
 
 ## What breaks links
 

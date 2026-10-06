@@ -6,7 +6,7 @@ Working on the kit itself. Build, test, and release steps live in README.md "Dev
 
 Every behavior the kit applies everywhere has exactly one owner, listed below. Before adding or changing guidance, find its owner here: change it there, or nowhere. Every other file links to the owner or says nothing about the topic. It never restates, paraphrases, or reminds.
 
-- Data and mechanics belong to code: `kit.yml`, the `kit` binary, `bin/*.sh`. Prose never re-describes what a script does.
+- Data and mechanics belong to code: `kit.yml` and the `kit` binary. Prose never re-describes what a subcommand does.
 - When two files disagree, the owner wins and the other file is fixed.
 - A topic missing from this table gets a row before it gets text anywhere else.
 
@@ -19,7 +19,7 @@ Every behavior the kit applies everywhere has exactly one owner, listed below. B
 | Git and commit policy, side effects, ask vs proceed, AskUserQuestion                                | `rules/workflow.md`                                      |
 | Subagent use and agent defaults                                                                     | `rules/subagents.md`                                     |
 | CLI choice, calling bin scripts, scratch location                                                   | `rules/tooling.md`                                       |
-| Artifact naming and path                                                                            | `bin/scratch-dir.sh`                                     |
+| Artifact naming and path                                                                            | `kit scratch-dir`                                        |
 | Resolving a linked ticket or doc before work starts                                                 | `skills/investigate` step 0                              |
 | Report shape and severity                                                                           | `skills/report-format`                                   |
 | Test design                                                                                         | `skills/test-patterns`                                   |

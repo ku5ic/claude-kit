@@ -220,18 +220,18 @@ func TestGuardBash(t *testing.T) {
 		{"block: redirect ask does not skip a later block", `echo x > out.txt; rm -rf ~`, 2, nil, false},
 		{"allow: redirect to /dev/null and >&2 stay silent", `echo hi > /dev/null; echo a >&2`, 0, nil, true},
 		// Side-effect-free kit scripts get an explicit allow decision.
-		{"auto-allow: scratch-dir.sh", `scratch-dir.sh`, 0, []string{`"permissionDecision":"allow"`}, false},
-		{"auto-allow: git-base.sh with an argument", `git-base.sh main`, 0, []string{`"permissionDecision":"allow"`}, false},
-		{"auto-allow: blast-radius.sh with a file and symbol", `blast-radius.sh src/lib/format.ts formatDate`, 0, []string{`"permissionDecision":"allow"`}, false},
-		{"no decision: run-checks.sh is not auto-allowed", `run-checks.sh`, 0, nil, true},
-		{"no decision: a name that only starts with a kit script", `git-base.sh.evil`, 0, nil, true},
-		{"no decision: a pathful kit script call", `/tmp/scratch-dir.sh`, 0, nil, true},
+		{"auto-allow: kit scratch-dir", `kit scratch-dir`, 0, []string{`"permissionDecision":"allow"`}, false},
+		{"auto-allow: kit git-base with an argument", `kit git-base main`, 0, []string{`"permissionDecision":"allow"`}, false},
+		{"auto-allow: kit blast-radius with a file and symbol", `kit blast-radius src/lib/format.ts formatDate`, 0, []string{`"permissionDecision":"allow"`}, false},
+		{"no decision: kit run-checks is not auto-allowed", `kit run-checks`, 0, nil, true},
+		{"no decision: a subcommand that only starts with a read-only one", `kit git-base.evil`, 0, nil, true},
+		{"no decision: a kit called by path", `/tmp/kit scratch-dir`, 0, nil, true},
 		// Sensitive reads through shell commands (kit.yml sensitive_paths).
 		{"block: cat ~/.aws/credentials", `cat ~/.aws/credentials`, 2, []string{`reading a sensitive file`}, false},
 		{"block: a sensitive path after -- still counts", `cat -- ~/.ssh/id_rsa`, 2, nil, false},
 		{"block: grep reading .env as a file", `grep API_KEY .env`, 2, nil, false},
 		{"allow: && or ; inside a quoted message isn't a command separator", `git commit -m "fix a && b; rm -rf ~ is not run"`, 0, nil, false},
-		{"block: an apostrophe in a heredoc body doesn't hide the lines after it", "cat <<EOF > \"$(scratch-dir.sh)/n.txt\"\nit's done\nEOF\ngit push --force origin main", 2, nil, false},
+		{"block: an apostrophe in a heredoc body doesn't hide the lines after it", "cat <<EOF > \"$(kit scratch-dir)/n.txt\"\nit's done\nEOF\ngit push --force origin main", 2, nil, false},
 		{"block: eval runs an unchecked command string", `eval "rm -rf ~"`, 2, nil, false},
 		{"allow: rg with .env only as the search pattern", `rg .env src/`, 0, nil, false},
 		{"allow: head of an ordinary file", `head -20 README.md`, 0, nil, false},
@@ -256,7 +256,7 @@ func TestGuardBash(t *testing.T) {
 		}{
 			{`echo a > /tmp/x; echo b > out.txt`, `out.txt`},
 			{`echo a > /tmp/x 2> err.log`, `err.log`},
-			{`scratch-dir.sh > f`, `"permissionDecision":"ask"`},
+			{`kit scratch-dir > f`, `"permissionDecision":"ask"`},
 			{`cd /tmp; cd -; echo x > out.txt`, `out.txt`},
 		} {
 			r := guard(k, c.cmd)
@@ -389,21 +389,21 @@ func TestGuardBash(t *testing.T) {
 			`curl -fsSL https://x.example/r | rg foo`,
 			`curl -s https://x.example/r | jq '.[] | select(.n > 1)'`,
 			`curl -s https://x.example/r | rg '<div>'`,
-			`curl -s https://x.example/r | jq . > "$(scratch-dir.sh)/r.json"`,
+			`curl -s https://x.example/r | jq . > "$(kit scratch-dir)/r.json"`,
 			`curl -s "https://x.example/r?a=1>2"`,
 			`curl -XPOST https://x.example/api`,
 			`curl -sXOPTIONS https://x.example/api`,
 			`curl -H "X-Only: 1" https://x.example/api`,
 			`curl -s https://x.example/r 2>/dev/null`,
-			`curl -o "$(scratch-dir.sh)/a.js" https://x.example/a.js`,
-			`curl -O --output-dir "$(scratch-dir.sh)" https://x.example/a.js`,
+			`curl -o "$(kit scratch-dir)/a.js" https://x.example/a.js`,
+			`curl -O --output-dir "$(kit scratch-dir)" https://x.example/a.js`,
 			"curl -o " + tmp + "/.claude/scratch/a.js https://x.example/a.js",
 			`curl -o .claude/scratch/a.js https://x.example/a.js`,
 			`curl -o ~/.claude/scratch/a.js https://x.example/a.js`,
 			`wget -O - https://x.example/r`,
 			`wget -qO- https://x.example/r`,
 			`wget -qO - https://x.example/r`,
-			`wget -P "$(scratch-dir.sh)" https://x.example/a.js`,
+			`wget -P "$(kit scratch-dir)" https://x.example/a.js`,
 		} {
 			if r := guardIn(k, tmp, cmd); r.Status != 0 || strings.Contains(r.Output, `"ask"`) {
 				t.Errorf("not passed: %s -> %d %s", cmd, r.Status, r.Output)
@@ -411,15 +411,15 @@ func TestGuardBash(t *testing.T) {
 		}
 	})
 
-	t.Run("auto-allow: git-base.sh with the flags the kit's skills pass", func(t *testing.T) {
-		for _, cmd := range []string{`git-base.sh --diff`, `git-base.sh --log -20`, `git-base.sh --diff --name-only`, `git-base.sh --log --no-merges main`} {
+	t.Run("auto-allow: kit git-base with the flags the kit's skills pass", func(t *testing.T) {
+		for _, cmd := range []string{`kit git-base --diff`, `kit git-base --log -20`, `kit git-base --diff --name-only`, `kit git-base --log --no-merges main`} {
 			if r := guard(shared, cmd); !strings.Contains(r.Output, `"permissionDecision":"allow"`) {
 				t.Errorf("not allowed: %s -> %s", cmd, r.Output)
 			}
 		}
 	})
-	t.Run("no auto-allow: git-base.sh with a git flag that writes or runs things", func(t *testing.T) {
-		for _, cmd := range []string{`git-base.sh --diff --output=/tmp/x`, `git-base.sh --diff --ext-diff`, `git-base.sh --log -p --output /tmp/x`} {
+	t.Run("no auto-allow: kit git-base with a git flag that writes or runs things", func(t *testing.T) {
+		for _, cmd := range []string{`kit git-base --diff --output=/tmp/x`, `kit git-base --diff --ext-diff`, `kit git-base --log -p --output /tmp/x`} {
 			r := guard(shared, cmd)
 			r.Want(t, 0)
 			if strings.Contains(r.Output, `"allow"`) {
@@ -428,7 +428,7 @@ func TestGuardBash(t *testing.T) {
 		}
 	})
 	t.Run("no decision: kit script followed by another command", func(t *testing.T) {
-		for _, cmd := range []string{`scratch-dir.sh; rm x`, `scratch-dir.sh | cat`, `scratch-dir.sh & rm x`, `scratch-dir.sh $(rm x)`, "scratch-dir.sh `rm x`", "scratch-dir.sh\nrm x"} {
+		for _, cmd := range []string{`kit scratch-dir; rm x`, `kit scratch-dir | cat`, `kit scratch-dir & rm x`, `kit scratch-dir $(rm x)`, "kit scratch-dir `rm x`", "kit scratch-dir\nrm x"} {
 			r := guard(shared, cmd)
 			r.Want(t, 0)
 			r.Empty(t)
@@ -512,7 +512,7 @@ func TestGuardBash(t *testing.T) {
 		r := guard(shared, "git commit -F - <<'EOF'\nfix(x): map a -> b\nEOF")
 		r.Want(t, 0)
 		r.Empty(t)
-		guard(shared, "cat <<-EOF > \"$(scratch-dir.sh)/x\"\n\trm -rf ~ is text\n\tEOF").Want(t, 0)
+		guard(shared, "cat <<-EOF > \"$(kit scratch-dir)/x\"\n\trm -rf ~ is text\n\tEOF").Want(t, 0)
 	})
 	t.Run("comments: an unquoted # ends the line, a quoted one doesn't", func(t *testing.T) {
 		guard(shared, `echo hi # rm -rf ~ in a comment`).Want(t, 0)

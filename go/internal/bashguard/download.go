@@ -8,7 +8,7 @@ import (
 // directory, and every > redirect, must be a scratch path.
 
 func (c *command) blockDownload(tool, target, flag string) error {
-	return c.block(tool+" would write '"+target+"' outside scratch; downloads go only to scratch: "+tool+" "+flag+" \"$(scratch-dir.sh)/<name>\"", "download-to-repo")
+	return c.block(tool+" would write '"+target+"' outside scratch; downloads go only to scratch: "+tool+" "+flag+" \"$(kit scratch-dir)/<name>\"", "download-to-repo")
 }
 
 func (c *command) redirectTargets() []string {
@@ -72,7 +72,7 @@ func (c *command) curl() error {
 	}
 done:
 	if remote && outDir == "" {
-		if err := c.block("curl -O/-J writes a server-named file into the current directory; use: curl -o \"$(scratch-dir.sh)/<name>\"", "download-to-repo"); err != nil {
+		if err := c.block("curl -O/-J writes a server-named file into the current directory; use: curl -o \"$(kit scratch-dir)/<name>\"", "download-to-repo"); err != nil {
 			return err
 		}
 	}
@@ -136,7 +136,7 @@ func (c *command) wget() error {
 	}
 done:
 	if !hasOut {
-		if err := c.block("wget writes into the current directory by default; use: wget -P \"$(scratch-dir.sh)\" <url>", "download-to-repo"); err != nil {
+		if err := c.block("wget writes into the current directory by default; use: wget -P \"$(kit scratch-dir)\" <url>", "download-to-repo"); err != nil {
 			return err
 		}
 	}

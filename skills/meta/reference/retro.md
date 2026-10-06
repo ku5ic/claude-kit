@@ -4,7 +4,7 @@ Structured retrospective for an incident, sprint, or completed feature. Argument
 
 ## Procedure
 
-1. Get the scratch directory: `!`scratch-dir.sh``.
+1. Get the scratch directory: `!`kit scratch-dir``.
 2. Identify the retro type from $ARGUMENTS:
    - Incident: something broke, users affected, response happened
    - Sprint or iteration: time-boxed period of work
@@ -15,7 +15,7 @@ Structured retrospective for an incident, sprint, or completed feature. Argument
 
 ## Output file
 
-Write to the path `scratch-dir.sh retro <type>-<slug>` prints. Print the path.
+Write to the path `kit scratch-dir retro <type>-<slug>` prints. Print the path.
 
 ## Incident template
 

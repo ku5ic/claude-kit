@@ -4,7 +4,7 @@ Find the conventions this repo actually follows and write them down once, as pat
 
 ## Procedure
 
-1. Scope. The arguments are: $ARGUMENTS. Resolve the project root with `!`project-root.sh``. Use the `<repo-context>` block for the stack.
+1. Scope. The arguments are: $ARGUMENTS. Resolve the project root with `!`kit project-root``. Use the `<repo-context>` block for the stack.
 2. Ask via AskUserQuestion, in one call:
    - Which areas to cover (multi-select): state, data fetching, styling, testing, errors, naming, file layout. Areas named in the arguments are pre-answered; skip this question when they cover everything.
    - Whether to write the rules under `<root>/.claude/rules/conventions/` (one file per area) or only report them. These files are meant to be committed, so writing needs a yes.

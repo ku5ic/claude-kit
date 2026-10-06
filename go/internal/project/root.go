@@ -11,7 +11,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/config"
 )
 
-// Root resolves the project root for cwd, as project-root.sh:
+// Root resolves the project root for cwd, as `kit project-root`:
 //  1. the git worktree root;
 //  2. cwd or up to 2 ancestors holding an anchor sentinel;
 //  3. cwd itself, with anchored false.
@@ -59,7 +59,7 @@ func Name(root string) string {
 // Dir resolves the scratch or plans directory for cwd: <root>/.claude/<kind>
 // when the project is anchored, else the global one under the kit home.
 // With create, it makes the directory, and registers a project scratch dir
-// in scratch-registry.txt so scratch-rotate.sh's cwd-less run can prune it.
+// in scratch-registry.txt so `kit scratch-rotate`'s cwd-less run can prune it.
 func Dir(cfg *config.Config, paths config.Paths, cwd, kind string, create bool) (string, error) {
 	if kind != "scratch" && kind != "plans" {
 		return "", fmt.Errorf("unknown kind: %s", kind)

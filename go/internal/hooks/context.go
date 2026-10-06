@@ -120,7 +120,7 @@ func AgentContext(paths config.Paths, cfg *config.Config, cwd string) string {
 		fmt.Fprintf(&b, "<scratch>\npath: %s\n", scratch)
 		b.WriteString("Write every file you produce here - reports, plans, previews, logs, downloads, test artifacts, POC scripts.\n" +
 			`This overrides the "Scratchpad directory" line in your system prompt: use this path, never the /private/tmp session scratchpad.` + "\n" +
-			"Name structured artifacts with `scratch-dir.sh <kind> <scope-slug>`, which prints the full path with a real timestamp.\n" +
+			"Name structured artifacts with `kit scratch-dir <kind> <scope-slug>`, which prints the full path with a real timestamp.\n" +
 			"</scratch>\n")
 	}
 	name, root, ok := projectOf(cfg, cwd)
@@ -220,7 +220,7 @@ func tooling(cfg *config.Config, root string) string {
 		}
 	}
 	if capped {
-		body = append(body, "(subprojects capped at 20; run-checks.sh covers all)")
+		body = append(body, "(subprojects capped at 20; kit run-checks covers all)")
 	}
 
 	var available, missing []string
@@ -249,7 +249,7 @@ func tooling(cfg *config.Config, root string) string {
 		out.WriteString("\n")
 	}
 	if len(body) > 0 {
-		out.WriteString("\nguidance: Run scripts only through the package manager named above, prefer these scripts and run-checks.sh over direct tool invocation, and never substitute a different package manager.\n")
+		out.WriteString("\nguidance: Run scripts only through the package manager named above, prefer these scripts and kit run-checks over direct tool invocation, and never substitute a different package manager.\n")
 	}
 	out.WriteString("</tooling>\n")
 	return out.String()

@@ -2,7 +2,7 @@
 
 ## Checks
 
-`run-checks.sh` runs two checks where a `.terraform.lock.hcl` is, with `tofu`, or `terraform` when `tofu` isn't installed:
+`kit run-checks` runs two checks where a `.terraform.lock.hcl` is, with `tofu`, or `terraform` when `tofu` isn't installed:
 
 - `fmt -check -recursive`: formatting only, needs nothing installed.
 - `validate`: syntax and internal consistency. It contacts no backend or provider API, but it needs an initialized directory with providers and modules installed, so the check reports SKIP until `.terraform/` exists. To initialize without touching the backend, run `tofu init -backend=false`.

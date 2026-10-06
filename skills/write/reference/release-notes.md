@@ -6,13 +6,13 @@ Generate release notes from commits unique to the current branch vs its base. Ar
 
 Current branch: !`git branch --show-current`
 
-Detected base: !`git-base.sh`
+Detected base: !`kit git-base`
 
-Commits on this branch but not on the base: !`git-base.sh --log --no-merges`
+Commits on this branch but not on the base: !`kit git-base --log --no-merges`
 
 ## Procedure
 
-1. Get the scratch directory: `!`scratch-dir.sh``.
+1. Get the scratch directory: `!`kit scratch-dir``.
 2. Interpret $ARGUMENTS:
    - If it looks like an explicit range (`ref..HEAD`, `sha1..sha2`): trust it. Pull commits with `git log --oneline --no-merges $ARGUMENTS`.
    - If it is a single ref (e.g. `develop`): use it as the explicit base. Pull commits with `git log --oneline --no-merges "$ARGUMENTS"..HEAD`.
@@ -24,7 +24,7 @@ Commits on this branch but not on the base: !`git-base.sh --log --no-merges`
 
 ## Output file
 
-Write to the path `scratch-dir.sh release-notes <branch-or-range-slug>` prints. Print the path.
+Write to the path `kit scratch-dir release-notes <branch-or-range-slug>` prints. Print the path.
 
 Structure:
 
@@ -70,5 +70,5 @@ Range: <base>..HEAD (N commits)
 - Skip merge commits, formatting commits, and dependency bumps unless a bump is itself the release reason.
 - If the range has nothing worth noting, say so and propose skipping the release.
 - If a commit is ambiguous ("fix stuff", "wip"): flag it in an "Unclear" section rather than inventing intent.
-- If `git-base.sh` failed (exit 1, empty output): note that in the report and fall back to last 30 commits by running `git log --oneline --no-merges -30` explicitly.
+- If `kit git-base` failed (exit 1, empty output): note that in the report and fall back to last 30 commits by running `git log --oneline --no-merges -30` explicitly.
 - Each entry is a single short line, never a paragraph per change.

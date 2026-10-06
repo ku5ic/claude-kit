@@ -71,7 +71,7 @@ For anything bigger than a one-line fix:
 1. **Ask first.** "How does X work?" or "why does Y break?" loads `investigate`, which reads the code and answers without editing anything.
 2. **Plan.** Use the built-in `/plan`. In plan mode, `investigate`'s findings feed the plan. For a big plan, ask the `plan-critic` agent to check it against the real repo.
 3. **Build one step at a time.** After each plan step Claude stops so you can review and commit. The Stop hook has already run the checks on what it touched.
-4. **Review.** At the end of the plan, run `/code-review` and `run-checks.sh` for the full suite, and the `run` skill to watch a change with visible behavior work. `rules/verify.md` says when each runs.
+4. **Review.** At the end of the plan, run `/code-review` and `kit run-checks` for the full suite, and the `run` skill to watch a change with visible behavior work. `rules/verify.md` says when each runs.
 5. **Ship.** `/write commit` and `/write pr` draft the message and description. Claude never commits or pushes without being asked.
 
 Side trips when you need them:
@@ -120,7 +120,7 @@ Side trips when you need them:
 | Agent         | Use it to                                                                     |
 | ------------- | ----------------------------------------------------------------------------- |
 | `auditor`     | Run a read-only audit for an `/audit` kind                                    |
-| `checker`     | Get a one-line pass/fail from `run-checks.sh`                                 |
+| `checker`     | Get a one-line pass/fail from `kit run-checks`                                |
 | `debugger`    | Find where and why something breaks. Hands the fix back                       |
 | `plan-critic` | Attack a plan against the real repo before you approve it                     |
 | `researcher`  | Look up library docs and web pages, keeping network access out of code work   |
@@ -174,7 +174,7 @@ Two opt-in switches go in your settings `env`:
 
 ## How it's built
 
-Every hook and helper runs in one Go binary (`bin/kit-<version>-<os>-<arch>`, darwin and linux, arm64 and amd64) behind same-name bash shims, in tens of milliseconds a call. The first call after an install or update downloads it from the matching GitHub release. `bin/doctor.sh` checks the kit against itself and, with `CLAUDE_KIT_PERSONAL` pointing at the dir your `settings.json`, `CLAUDE.md`, `rules/` and `claude-kit.local.yml` are symlinked from, against that too: the links, deny rules, `Skill(<name>)` allow entries, and hook parity. It needs bash 4.4+, `jq`, and mikefarah `yq`, and isn't needed to use the plugin.
+Every hook and helper is one Go binary (`bin/kit-<version>-<os>-<arch>`, darwin and linux, arm64 and amd64), run through the `bin/kit` launcher as `kit <subcommand>` or `kit hook <name>`, in tens of milliseconds a call. The first call after an install or update downloads it from the matching GitHub release. `bin/doctor.sh` checks the kit against itself and, with `CLAUDE_KIT_PERSONAL` pointing at the dir your `settings.json`, `CLAUDE.md`, `rules/` and `claude-kit.local.yml` are symlinked from, against that too: the links, deny rules, and `Skill(<name>)` allow entries. It needs bash 4.4+, `jq`, and mikefarah `yq`, and isn't needed to use the plugin.
 
 ## Develop
 

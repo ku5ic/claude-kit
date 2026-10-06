@@ -37,20 +37,20 @@ func TestGuardBashParsing(t *testing.T) {
 		}
 		const R = "rm -rf ~"
 		// Heredocs: bodies are data, unless fed to a shell or never terminated.
-		probe("block", "cat <<EOF > \"$(scratch-dir.sh)/n.txt\"\nit's done\nEOF\ngit push --force origin main")
+		probe("block", "cat <<EOF > \"$(kit scratch-dir)/n.txt\"\nit's done\nEOF\ngit push --force origin main")
 		probe("pass", "git commit -F - <<'EOF'\nfix(x): map a -> b\nEOF")
 		probe("block", "bash <<EOF\n"+R+"\nEOF")
 		probe("block", "cat <<EOF | sh\n"+R+"\nEOF")
-		probe("block", "cat <<EOF > \"$(scratch-dir.sh)/x\"\nbody\nEOF\n"+R)
+		probe("block", "cat <<EOF > \"$(kit scratch-dir)/x\"\nbody\nEOF\n"+R)
 		probe("block", "cat <<-EOF\n\tx\n\tEOF\n"+R)
 		probe("block", "cat <<-EOF\n  x\n  EOF\n"+R)
-		probe("pass", "cat <<-EOF > \"$(scratch-dir.sh)/x\"\n\trm -rf ~ is text\n\tEOF")
+		probe("pass", "cat <<-EOF > \"$(kit scratch-dir)/x\"\n\trm -rf ~ is text\n\tEOF")
 		probe("block", "cat <<EOF\n"+R)
 		probe("block", "cat <<EOF\nx\nEOFX\n"+R)
 		probe("block", "cat <<A <<B\na\nA\nb\nB\n"+R)
-		probe("pass", "cat <<A <<B > \"$(scratch-dir.sh)/x\"\na\nA\nb\nB")
-		probe("pass", "cat <<\"EOF\" > \"$(scratch-dir.sh)/x\"\n$(rm -rf ~)\nEOF")
-		probe("pass", "cat <<\\EOF > \"$(scratch-dir.sh)/x\"\n$(rm -rf ~)\nEOF")
+		probe("pass", "cat <<A <<B > \"$(kit scratch-dir)/x\"\na\nA\nb\nB")
+		probe("pass", "cat <<\"EOF\" > \"$(kit scratch-dir)/x\"\n$(rm -rf ~)\nEOF")
+		probe("pass", "cat <<\\EOF > \"$(kit scratch-dir)/x\"\n$(rm -rf ~)\nEOF")
 		probe("block", "cat <<\"EOF\"\nx\nEOF\n"+R)
 		probe("block", "x=$(cat <<EOF\nit's\nEOF\n)\n"+R)
 		probe("block", "echo \"$(cat <<EOF\nhi\nEOF\n)\"; "+R)
@@ -214,9 +214,9 @@ func TestGuardBashParsing(t *testing.T) {
 		probe("ask", `git checkout HEAD -- ~/.claude/claude-kit.local.yml`)
 		probe("ask", `perl -pi -e s/a/b/ ~/.claude/claude-kit.local.yml`)
 		probe("pass", `git log -- ~/.claude/claude-kit.local.yml`)
-		// Downloads: .. never escapes scratch, even behind $(scratch-dir.sh).
-		probe("block", `curl -o "$(scratch-dir.sh)/../../x" https://x.example/a`)
-		probe("block", `wget -P "$(scratch-dir.sh)/.." https://x.example/a`)
+		// Downloads: .. never escapes scratch, even behind $(kit scratch-dir).
+		probe("block", `curl -o "$(kit scratch-dir)/../../x" https://x.example/a`)
+		probe("block", `wget -P "$(kit scratch-dir)/.." https://x.example/a`)
 		// Wrappers with their own options.
 		probe("block", `nice -n 10 rm -rf ~`)
 		probe("block", `nice -10 rm -rf ~`)
@@ -231,13 +231,13 @@ func TestGuardBashParsing(t *testing.T) {
 		probe("block", `exec -a x rm -rf ~`)
 		probe("pass", `env`)
 		probe("pass", `command -v rm`)
-		// git-base.sh: an explicit ask, so a settings allow rule can't approve it.
-		probe("allow", `git-base.sh --diff`)
-		probe("ask", `git-base.sh --diff --output=/tmp/x`)
-		probe("ask", `git-base.sh --log --ext-diff`)
-		probe("ask", `git-base.sh --diff '--output=/tmp/x'`)
-		probe("ask", `git-base.sh --diff \--output=/tmp/x`)
-		probe("block", `git-base.sh --diff --output=/tmp/x; rm -rf ~`)
+		// kit git-base: an explicit ask, so a settings allow rule can't approve it.
+		probe("allow", `kit git-base --diff`)
+		probe("ask", `kit git-base --diff --output=/tmp/x`)
+		probe("ask", `kit git-base --log --ext-diff`)
+		probe("ask", `kit git-base --diff '--output=/tmp/x'`)
+		probe("ask", `kit git-base --diff \--output=/tmp/x`)
+		probe("block", `kit git-base --diff --output=/tmp/x; rm -rf ~`)
 		// Ordinary commands stay quiet.
 		probe("pass", `git status`)
 		probe("pass", `jq '.a > 1' f.json`)

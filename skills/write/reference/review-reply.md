@@ -4,7 +4,7 @@ Draft replies to a reviewer's PR comments, verifying each claim against the actu
 
 ## Procedure
 
-1. Get the scratch directory: `!`scratch-dir.sh``.
+1. Get the scratch directory: `!`kit scratch-dir``.
 2. Resolve the repo slug: `gh repo view --json nameWithOwner -q .nameWithOwner`. If this fails (no remote, no auth), stop and say so.
 3. Resolve the current GitHub user: `gh api user -q .login`. Used later to detect already-answered threads.
 4. Parse `$ARGUMENTS`:
@@ -42,7 +42,7 @@ For each comment, once investigated:
 
 ## Output
 
-Write to the path `scratch-dir.sh pr <pr-number>-<reviewer>-review-replies` prints. Print the path.
+Write to the path `kit scratch-dir pr <pr-number>-<reviewer>-review-replies` prints. Print the path.
 
 Structure:
 

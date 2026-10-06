@@ -42,4 +42,4 @@ Repo context and the `<required-skills>`/`<suggested-skills>` blocks arrive via 
 
 ## Output
 
-Load the report-format skill and use its format. Write to the path `scratch-dir.sh plan-critique <plan-task-slug>` prints, referencing the plan path you critiqued. Return a digest plus that path.
+Load the report-format skill and use its format. Write to the path `kit scratch-dir plan-critique <plan-task-slug>` prints, referencing the plan path you critiqued. Return a digest plus that path.

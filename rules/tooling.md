@@ -36,13 +36,13 @@ Factual question (how big, what secrets, how fast, what is in this JSON): reach 
 - Reference scratch artifacts by path; do not inline their contents.
 - Skip for any glob, grep, or read: `node_modules/**`, `.next/**`, `dist/**`, `build/**`, `coverage/**`, `.turbo/**`, `.cache/**`, `vendor/**`, `target/**`, `out/**`, `storybook-static/**`, `.pnpm-store/**`, `__pycache__/**`, `.venv/**`, `venv/**`.
 
-## 2. Call bin scripts by bare name
+## 2. Call kit by bare name
 
-The plugin's `bin/` is on PATH. Call every script there by bare name, never by path: `scratch-dir.sh`, not `$HOME/.claude/bin/scratch-dir.sh` or `bash scratch-dir.sh`. Arguments go as plain positional args. Permission allows are written against the bare command, so a pathful or `bash`-wrapped call misses them and prompts.
+The plugin's `bin/` is on PATH, so its tools are `kit <subcommand>`: `kit scratch-dir`, `kit run-checks`, `kit git-base`. Never call it by path or through `bash`. Permission allows are written against the bare command, so a pathful or wrapped call misses them and prompts.
 
 ## 3. Scratch
 
-Scratch is whatever `scratch-dir.sh` prints: `<project-root>/.claude/scratch/` inside a recognized project, `$HOME/.claude/scratch/` everywhere else.
+Scratch is whatever `kit scratch-dir` prints: `<project-root>/.claude/scratch/` inside a recognized project, `$HOME/.claude/scratch/` everywhere else.
 
 Three sibling directories under a project's `.claude/`, each with one job:
 
@@ -58,15 +58,15 @@ Three sibling directories under a project's `.claude/`, each with one job:
 
 Resolve the destination first, then pass it explicitly:
 
-- `curl -o "$(scratch-dir.sh)/<name>"`, not `curl -O`
+- `curl -o "$(kit scratch-dir)/<name>"`, not `curl -O`
 - a screenshot or export tool's `out_dir` argument, not its default
-- `cmd > "$(scratch-dir.sh)/<name>.log"`, not `cmd > out.log`
+- `cmd > "$(kit scratch-dir)/<name>.log"`, not `cmd > out.log`
 
 A stray file in the project root pollutes `git status`, risks being committed, and lands in every clone.
 
 - `curl` and `wget` download only into scratch.
 - Read web pages and docs with WebFetch, never `curl` to disk. If you only need to search a page, pipe it (`curl ... | rg`) instead of saving it.
 - After any download, and after any subagent that has Bash returns, run `git status --short`. A new untracked file you didn't intend to create gets moved to scratch or flagged before you do anything else.
-- A subagent prompt that may write files names `$(scratch-dir.sh)` as the only place it may write.
+- A subagent prompt that may write files names `$(kit scratch-dir)` as the only place it may write.
 
-Structured artifacts (reports, reviews, audits) go to the path `scratch-dir.sh <kind> <slug>` prints. A plan is `.claude/plans/plan-<task-slug>.md`, slug capped at four words.
+Structured artifacts (reports, reviews, audits) go to the path `kit scratch-dir <kind> <slug>` prints. A plan is `.claude/plans/plan-<task-slug>.md`, slug capped at four words.
