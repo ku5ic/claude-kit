@@ -199,7 +199,7 @@ func takesNextWord(wrapper, opt string) bool {
 	return false
 }
 
-var interpreters = map[string]bool{"sh": true, "bash": true, "zsh": true, "dash": true, "fish": true, "node": true, "ruby": true, "perl": true}
+var interpreters = map[string]bool{"sh": true, "bash": true, "zsh": true, "dash": true, "fish": true, "su": true, "node": true, "ruby": true, "perl": true}
 
 // pipeToShell blocks a download piped into an interpreter later in the
 // same pipeline (curl x | sh, wget -O- x | tee log | sudo bash). Parsed
