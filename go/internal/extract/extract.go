@@ -5,7 +5,6 @@
 package extract
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -349,17 +348,14 @@ func matchLines(file string, re *regexp.Regexp, name func(string) string) []stri
 	return out
 }
 
-// EachLine calls fn for each line of file. Its error is the open or read
-// error; a read error stops it partway, after fn saw the lines before it.
-func EachLine(file string, fn func(string)) error {
-	f, err := os.Open(file)
+// EachLine calls fn for each line of file, or never when the file can't be
+// read, so a caller never acts on half a file.
+func EachLine(file string, fn func(string)) {
+	data, err := os.ReadFile(file)
 	if err != nil {
-		return err
+		return
 	}
-	defer f.Close()
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		fn(scanner.Text())
+	for line := range strings.Lines(string(data)) {
+		fn(strings.TrimRight(line, "\r\n"))
 	}
-	return scanner.Err()
 }

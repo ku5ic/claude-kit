@@ -4,6 +4,7 @@ package hooks
 import (
 	"bufio"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -181,15 +182,22 @@ func loadedSkills(logPath, session string) (map[string]bool, error) {
 	}
 	defer f.Close()
 	loaded := map[string]bool{}
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 64*1024), 4*1024*1024)
-	for scanner.Scan() {
+	// A Reader, not a Scanner: one oversized line must not end the read.
+	reader := bufio.NewReader(f)
+	for {
+		line, err := reader.ReadBytes('\n')
+		if err == io.EOF && len(line) == 0 {
+			return loaded, nil
+		}
+		if err != nil && err != io.EOF {
+			return nil, err
+		}
 		var entry struct {
 			SessionID string  `json:"session_id"`
 			SkillFile *string `json:"skill_file"`
 			Event     string  `json:"event"`
 		}
-		if json.Unmarshal(scanner.Bytes(), &entry) != nil {
+		if json.Unmarshal(line, &entry) != nil {
 			continue
 		}
 		if entry.SessionID == session && entry.SkillFile != nil &&
@@ -201,7 +209,6 @@ func loadedSkills(logPath, session string) (map[string]bool, error) {
 			}
 		}
 	}
-	return loaded, scanner.Err()
 }
 
 // GuardDispatch runs guard-edit's and, with CLAUDE_GUARD_SKILLS=1,

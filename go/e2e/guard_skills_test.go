@@ -160,6 +160,10 @@ func TestGuardSkills(t *testing.T) {
 			`{"ts":"2026-01-01T00:00:00Z","hook":"log-skills","event":"PostToolUse","session_id":"s1","cwd":"/x","expansion_type":null,"command_name":null,"command_args":null,"command_source":null,"skill_file":"/Users/x/.claude/skills/bash-patterns/SKILL.md","tool_name":"Read"}`, "s1", 0},
 		{"a session_id mismatch does not count as loaded",
 			`{"ts":"2026-01-01T00:00:00Z","hook":"log-skills","event":"PreToolUse","session_id":"other-session","cwd":"/x","expansion_type":null,"command_name":null,"command_args":null,"command_source":null,"skill_file":"bash-patterns","tool_name":"Skill"}`, "s1", 2},
+		{"an oversized log line doesn't switch the gate off",
+			`{"command_name":"` + strings.Repeat("x", 5<<20) + `"}`, "s1", 2},
+		{"an oversized log line doesn't hide a later load",
+			`{"command_name":"` + strings.Repeat("x", 5<<20) + `"}` + "\n" + guardSkillsLoaded, "s1", 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			guard(sandbox(t, guardSkillsBashMap, tc.log+"\n"), "/tmp/project/foo.sh", tc.session).Want(t, tc.status)
