@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -39,6 +40,32 @@ func TestLauncher(t *testing.T) {
 		r.Want(t, 0)
 		r.Has(t, "kit: no binary for")
 	})
+	t.Run("without a binary SessionStart tells the user and Claude in one JSON object", func(t *testing.T) {
+		r := k.exec("bash", "{}", bare, "hook", "inject-context")
+		r.Want(t, 0)
+		var out struct {
+			SystemMessage      string `json:"systemMessage"`
+			HookSpecificOutput struct {
+				HookEventName     string `json:"hookEventName"`
+				AdditionalContext string `json:"additionalContext"`
+			} `json:"hookSpecificOutput"`
+		}
+		if err := json.Unmarshal([]byte(r.Stdout), &out); err != nil {
+			t.Fatalf("stdout is not one JSON object: %v\n%s", err, r.Stdout)
+		}
+		if !strings.Contains(out.SystemMessage, "guard is off") ||
+			out.HookSpecificOutput.HookEventName != "SessionStart" ||
+			out.HookSpecificOutput.AdditionalContext != out.SystemMessage {
+			t.Errorf("unexpected output:\n%s", r.Stdout)
+		}
+	})
+	t.Run("without a binary other hooks print nothing to stdout", func(t *testing.T) {
+		r := k.exec("bash", "{}", bare, "hook", "guard-bash")
+		r.Want(t, 0)
+		if r.Stdout != "" {
+			t.Errorf("stdout = %q", r.Stdout)
+		}
+	})
 	t.Run("without a binary a command fails with 127", func(t *testing.T) {
 		r := k.exec("bash", "", bare, "plans-dir")
 		r.Want(t, 127)
@@ -75,6 +102,26 @@ printf '#!/bin/sh\necho fetched "$@"\n' >"$2"
 		want := "releases/download/v9.9.9/kit-9.9.9-" + runtime.GOOS + "-" + runtime.GOARCH
 		if !strings.Contains(calls, want) {
 			t.Errorf("curl URL lacks %s:\n%s", want, calls)
+		}
+	})
+
+	t.Run("a failed download is not retried within a minute", func(t *testing.T) {
+		root := t.TempDir()
+		Write(t, filepath.Join(root, "bin/kit"), string(raw))
+		Write(t, filepath.Join(root, ".claude-plugin/plugin.json"), `{"name": "claude-kit", "version": "9.9.9"}`)
+		stubs := t.TempDir()
+		log := filepath.Join(stubs, "curl.log")
+		Write(t, filepath.Join(stubs, "curl"), "#!/bin/sh\necho \"$@\" >>"+log+"\nexit 22\n")
+		if err := os.Chmod(filepath.Join(stubs, "curl"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		k := New(t)
+		k.PrependPath(stubs)
+		launcher := filepath.Join(root, "bin/kit")
+		k.exec("bash", "{}", launcher, "hook", "guard-bash").Want(t, 0)
+		k.exec("bash", "{}", launcher, "hook", "guard-bash").Want(t, 0)
+		if n := strings.Count(Read(t, log), "\n"); n != 1 {
+			t.Errorf("curl ran %d times, want once", n)
 		}
 	})
 }

@@ -38,7 +38,10 @@ func projectOf(cfg *config.Config, cwd string) (name, root string, ok bool) {
 
 // InjectContext is the SessionStart hook: prerequisite warnings, then
 // <repo-context>, <required-skills>, <suggested-skills>, and <tooling>.
-// Plain stdout on SessionStart becomes context.
+// Plain stdout on SessionStart becomes context. Config warnings switch it to
+// one JSON object, since a hook's stdout is either JSON or text, never both:
+// systemMessage shows them to the user, additionalContext carries them and
+// the context to Claude.
 func InjectContext(h *hook.Hook) error {
 	if missing := prerequisites(h.Paths); missing != "" {
 		hook.WriteJSON(h.Stdout, map[string]string{
@@ -47,13 +50,36 @@ func InjectContext(h *hook.Hook) error {
 		return nil
 	}
 	cfg := h.Config()
-	if cfg == nil {
+	var out strings.Builder
+	if cfg != nil {
+		writeContext(h, cfg, &out)
+	}
+	warnings := h.Warnings()
+	if len(warnings) == 0 {
+		fmt.Fprint(h.Stdout, out.String())
 		return nil
 	}
+	lines := make([]string, len(warnings))
+	for i, w := range warnings {
+		lines[i] = w.String()
+	}
+	notice := "claude-kit config problems (`kit config --check` lists them):\n" + strings.Join(lines, "\n")
+	type specific struct {
+		HookEventName     string `json:"hookEventName"`
+		AdditionalContext string `json:"additionalContext"`
+	}
+	hook.WriteJSON(h.Stdout, struct {
+		SystemMessage      string   `json:"systemMessage"`
+		HookSpecificOutput specific `json:"hookSpecificOutput"`
+	}{notice, specific{"SessionStart", notice + "\n" + out.String()}})
+	return nil
+}
+
+func writeContext(h *hook.Hook, cfg *config.Config, out *strings.Builder) {
 	cwd := cwdOf(h)
 	name, root, ok := projectOf(cfg, cwd)
 	if !ok {
-		return nil
+		return
 	}
 	cache := stackctx.CacheFile(h.Paths, cfg, name, root)
 	stackctx.Refresh(h.Paths, cfg, root, cache)
@@ -61,14 +87,14 @@ func InjectContext(h *hook.Hook) error {
 
 	if len(report) > 0 {
 		scratch, _ := project.Dir(cfg, h.Paths, root, "scratch", false)
-		fmt.Fprint(h.Stdout, "\n<repo-context>\n"+string(report)+
-			"branch (at session start): "+branch(root)+"\n"+
-			"dirty-files (at session start): "+dirtyCount(root)+"\n"+
-			"scratch: "+scratch+"\n</repo-context>\n")
+		out.WriteString("\n<repo-context>\n" + string(report) +
+			"branch (at session start): " + branch(root) + "\n" +
+			"dirty-files (at session start): " + dirtyCount(root) + "\n" +
+			"scratch: " + scratch + "\n</repo-context>\n")
 	}
 
 	required := stackctx.Required(cfg)
-	fmt.Fprint(h.Stdout, stackctx.RequiredBlock(required))
+	out.WriteString(stackctx.RequiredBlock(required))
 	for _, skill := range required {
 		h.Log("skills", "required-skill", "cwd", h.Payload.String("cwd"), "skill_file", skill)
 	}
@@ -76,13 +102,12 @@ func InjectContext(h *hook.Hook) error {
 		// Logged as surfaced, not loaded, so skills-report can measure
 		// whether a suggestion was ever acted on.
 		suggested := stackctx.Suggested(cfg, stackctx.Signals(string(report)))
-		fmt.Fprint(h.Stdout, stackctx.SuggestedBlock(cfg, suggested))
+		out.WriteString(stackctx.SuggestedBlock(cfg, suggested))
 		for _, skill := range suggested {
 			h.Log("skills", "suggested-skill", "cwd", h.Payload.String("cwd"), "skill_file", skill)
 		}
 	}
-	fmt.Fprint(h.Stdout, tooling(cfg, root))
-	return nil
+	out.WriteString(tooling(cfg, root))
 }
 
 // AgentContext is the subagent counterpart: the resolved scratch path (which

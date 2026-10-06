@@ -106,9 +106,10 @@ type Hook struct {
 	// a trace in guards.jsonl.
 	DryRun bool
 
-	cfg     *config.Config
-	loaded  bool
-	context string // printed after a block reason, e.g. "Path: <path>"
+	cfg      *config.Config
+	warnings []config.Warning
+	loaded   bool
+	context  string // printed after a block reason, e.g. "Path: <path>"
 }
 
 // Config loads kit.yml on first use; hooks that never need it never pay.
@@ -117,12 +118,19 @@ type Hook struct {
 func (h *Hook) Config() *config.Config {
 	if !h.loaded {
 		h.loaded = true
-		cfg, _, err := config.Load(h.Paths)
+		cfg, warnings, err := config.Load(h.Paths)
+		h.warnings = warnings
 		if err == nil {
 			h.cfg = cfg
 		}
 	}
 	return h.cfg
+}
+
+// Warnings are the problems Config found loading kit.yml and the overlay.
+func (h *Hook) Warnings() []config.Warning {
+	h.Config()
+	return h.warnings
 }
 
 // SetConfig injects a config, for tests and for dispatchers that load once.

@@ -245,6 +245,31 @@ stacks:
 		r.Has(t, "readable kit.yml", "reinstall the plugin")
 	})
 
+	t.Run("an overlay that breaks the merge is reported to the user and to Claude, with the context intact", func(t *testing.T) {
+		e := injectContextSetup(t, tree)
+		e.kitYML("global_skills:\n  - fix-sizing\nprotected_branches: [main]\n")
+		e.Overlay("protected_branches: main\n")
+		r := e.run("s1", "")
+		r.Want(t, 0)
+		var out struct {
+			SystemMessage      string `json:"systemMessage"`
+			HookSpecificOutput struct {
+				HookEventName     string `json:"hookEventName"`
+				AdditionalContext string `json:"additionalContext"`
+			} `json:"hookSpecificOutput"`
+		}
+		if err := json.Unmarshal([]byte(r.Stdout), &out); err != nil {
+			t.Fatalf("stdout is not one JSON object: %v\n%s", err, r.Stdout)
+		}
+		if !strings.Contains(out.SystemMessage, "claude-kit.local.yml") || !strings.Contains(out.SystemMessage, "ignored") {
+			t.Errorf("systemMessage = %q", out.SystemMessage)
+		}
+		ctx := out.HookSpecificOutput.AdditionalContext
+		if out.HookSpecificOutput.HookEventName != "SessionStart" || !strings.Contains(ctx, "ignored") || !strings.Contains(ctx, "<required-skills>") {
+			t.Errorf("hookSpecificOutput = %+v", out.HookSpecificOutput)
+		}
+	})
+
 	t.Run("prereqs: kit rules linked under another name count", func(t *testing.T) {
 		e := injectContextSetup(t, tree)
 		rules := filepath.Join(e.Claude, "rules")

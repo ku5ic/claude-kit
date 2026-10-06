@@ -86,7 +86,20 @@ func Load(p Paths) (*Config, []Warning, error) {
 
 	var cfg Config
 	if err := merged.Decode(&cfg); err != nil {
-		return nil, warnings, fmt.Errorf("decode %s: %w", p.Base, err)
+		if tag != "merged" {
+			return nil, warnings, fmt.Errorf("decode %s: %w", p.Base, err)
+		}
+		// mergeNode rewrote base in place, so it is read again: losing the
+		// overlay beats losing every guard's lists.
+		warnings = append(warnings, Warning{p.Overlay, errors.New("ignored: it doesn't merge with kit.yml, so only kit.yml applies")})
+		if merged, err = readNode(p.Base); err != nil {
+			return nil, warnings, err
+		}
+		tag = "base"
+		cfg = Config{}
+		if err := merged.Decode(&cfg); err != nil {
+			return nil, warnings, fmt.Errorf("decode %s: %w", p.Base, err)
+		}
 	}
 	applyDefaults(&cfg)
 	cfg.StackOrder = mappingKeys(mappingValue(merged, "stacks"))

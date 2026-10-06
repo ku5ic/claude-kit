@@ -149,7 +149,8 @@ Six short files that shape how Claude works:
 
 - **See why:** `kit explain bash '<cmd>'`, `kit explain edit <path>`, or `kit explain stop <file>` shows the decision and the exact rule. Nothing runs, blocks, or logs.
 - **Turn one rule off:** add its slug to `disabled_rules` in `~/.claude/claude-kit.local.yml`. `kit explain` prints the slug, and `~/.claude/logs/guards.jsonl` logs it for every block.
-- **A kit bug never blocks you:** a hook that crashes, or a missing binary, fails open.
+- **A kit bug never blocks you:** a hook that crashes, or a missing binary, fails open. A missing binary is reported at session start, to you and to Claude.
+- **A bad overlay never switches guards off:** if `claude-kit.local.yml` doesn't merge with `kit.yml` (say, a list written as a single value), the kit ignores the overlay, uses `kit.yml` alone, and reports why at session start.
 
 ## Configure
 
