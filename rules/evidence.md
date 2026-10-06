@@ -20,7 +20,7 @@ Do not state, as fact, any of these without having read them this session:
 - Test results - if a test was not run, say "not run".
 - Browser, runtime, or library behavior - verify, or say "would need to check at runtime".
 
-When uncertain, say so directly: "I have not verified this; the likely shape is X, please confirm." Never silently substitute plausible content for verified content.
+When uncertain, say so directly and label it: "likely X, not verified". Never silently substitute plausible content for verified content. Whether to ask instead of going on is `rules/workflow.md` section 5.
 
 Label every theory: `verified` (read it directly), `likely` (inferred, name the evidence), `hypothesis` (plausible, unchecked), `unknown` (no basis). A hypothesis does not become fact by going unchallenged.
 

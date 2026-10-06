@@ -10,7 +10,7 @@ Before proposing or applying a fix:
 2. Name the minimal change that resolves exactly that, nothing else.
 3. Compare it to what you are about to edit. Match -> proceed.
 4. Larger -> name the excess and the reason. Excess is: more files touched, a new abstraction, an adjacent refactor, or unrelated cleanup bundled in.
-5. Excess with no stated reason -> stop and ask.
+5. Excess with no stated reason -> stop and ask, per `rules/workflow.md` section 5.
 
 "Minimal" is measured against the defect, not against caution. A one-line fix to a one-line bug is minimal. A one-line fix that papers over a genuinely broken abstraction is not - that is the justification to state, not skip.
 

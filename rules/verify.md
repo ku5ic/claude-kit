@@ -1,8 +1,15 @@
 # Verify
 
-What must happen before a change is called done: self-review of the diff, then the change exercised through its real interface until it breaks or holds.
+What must happen before a change is called done, and when. This file is the one definition of "done" and "verify"; others point here.
 
-Tests and type checks prove the code compiles and the asserted paths pass. They don't prove the change works for whoever consumes it. Both halves below are required for any change with observable behavior: a response, output, an exit code, data written, a side effect. A pure refactor with no behavior change is covered by the existing tests.
+| When                                                                                                                 | What runs                                                                        |
+| -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| After every edit                                                                                                     | The Stop hook's checks on the edited files. Automatic; a failure blocks the turn |
+| Calling an ordinary change done                                                                                      | Nothing more. Cite the Stop hook's result, and name in one line anything not run |
+| End of a plan, or when the user asks                                                                                 | The full `run-checks.sh` suite and self-review (section 1)                       |
+| Same moment, when the change has observable behavior (a response, output, an exit code, data written, a side effect) | The runtime pass (section 2)                                                     |
+
+Tests and type checks prove the code compiles and the asserted paths pass. They don't prove the change works for whoever consumes it; that is what the runtime pass is for. A pure refactor with no behavior change is covered by the existing tests.
 
 ## 1. Self-review (`/code-review`)
 
@@ -12,7 +19,7 @@ Read your own diff as a reviewer who didn't write it and doesn't trust it.
 - Every non-obvious decision gets one line answering "why this, not the obvious alternative". A decision you can't justify is a decision you took from a generated draft without checking it.
 - Review findings are claims, per `rules/workflow.md` section 5. Check each against the code before applying it.
 
-## 2. Use it until it breaks (`/verify`)
+## 2. Use it until it breaks (the runtime pass, with the `run` skill)
 
 Exercise the change through the interface its consumers use, the way they use it:
 
@@ -62,12 +69,12 @@ An edge case the spec, the contract, or the design doesn't cover is a question f
 The agent proposes; the human decides and owns the result. Agent output, including a generated plan, review, or fix, is a draft with its reasons attached, never a decision already taken.
 
 - Present a non-obvious choice with its alternative and the reason, so the human can overrule it.
-- Don't claim done on behalf of the human. Done means section 1 and section 2 ran after the last edit, with output cited, per `rules/evidence.md` section 1.
+- Don't claim done on behalf of the human. Done means the checks the table at the top requires ran after the last edit, with output cited, per `rules/evidence.md` section 1.
 
 ## Anti-patterns
 
 - `failure`: calling a behavior change done with no exercise of it through its real interface.
-- `failure`: a `/verify` report with no Not exercised list. Every report has gaps; an empty list means they weren't looked for.
+- `failure`: a runtime-pass report with no Not exercised list. Every report has gaps; an empty list means they weren't looked for.
 - `failure`: patching around a contract or design gap without naming it under Raise with.
 - `warning`: verifying only the happy path with the fixture data that happened to be loaded.
 - `warning`: a new abstraction with no record of the search for an existing one.

@@ -25,7 +25,7 @@ Run this test on every reply, file, and commit message before emitting:
 
 A trigger lifts the ceiling for that reply only. Still over the ceiling after the test: cut again, never add words explaining the length.
 
-**Always survives, one sentence each:** a tradeoff that flips the decision; a risk that bites later; a safety warning or confirmation before an irreversible action, stated in full.
+**Always survives, one sentence each:** a tradeoff that flips the decision; a risk that bites later; a safety warning or confirmation before an irreversible action, stated in full; what was not run, not exercised, or ruled out, as one line each, never a section.
 
 **Never survives:** preamble, recap, closing summary, offer to help further; rejected alternatives and next steps nobody asked for; a tradeoff section or a "what I did not do" section; a sentence restating the one above it.
 

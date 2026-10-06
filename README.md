@@ -71,7 +71,7 @@ For anything bigger than a one-line fix:
 1. **Ask first.** "How does X work?" or "why does Y break?" loads `investigate`, which reads the code and answers without editing anything.
 2. **Plan.** Use the built-in `/plan`. In plan mode, `investigate`'s findings feed the plan. For a big plan, ask the `plan-critic` agent to check it against the real repo.
 3. **Build one step at a time.** After each plan step Claude stops so you can review and commit. The Stop hook has already run the checks on what it touched.
-4. **Review.** Run `/code-review` and `run-checks.sh` for the full suite. `/verify` runs the app and watches the change work.
+4. **Review.** At the end of the plan, run `/code-review` and `run-checks.sh` for the full suite, and the `run` skill to watch a change with visible behavior work. `rules/verify.md` says when each runs.
 5. **Ship.** `/write commit` and `/write pr` draft the message and description. Claude never commits or pushes without being asked.
 
 Side trips when you need them:
