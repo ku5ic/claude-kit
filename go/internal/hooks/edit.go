@@ -98,7 +98,7 @@ func GuardSkills(h *hook.Hook) error {
 		return nil
 	}
 	path := h.Payload.FilePath()
-	if path == "" || project.IsScratch(path) {
+	if path == "" || project.IsScratch(h.Paths, path) {
 		return nil
 	}
 	session := h.Payload.String("session_id")

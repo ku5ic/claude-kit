@@ -54,8 +54,8 @@ if [[ ${KIT_DEV:-} == 1 ]]; then
       -ldflags="-s -w -buildid= -X main.version=$ver" -o "$tmp" ./cmd/kit) >&2 &&
       mv -f "$tmp" "$bin"
   fi
-# Only the CLI and the SessionStart hooks download: every other hook's
-# timeout is shorter than curl's, so it would be killed mid-download. A
+# Only the CLI and the context hooks with a 30s timeout download: every other
+# hook's timeout is shorter than curl's, so it would be killed mid-download. A
 # failed download backs off for a minute so offline sessions start fast.
 elif [[ -n $ver && (${1:-} != hook || ${2:-} == inject-context || ${2:-} == inject-rules) &&
   -z $(find "$bin.failed" -mmin -1 2>/dev/null) ]]; then

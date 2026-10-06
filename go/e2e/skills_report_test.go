@@ -64,6 +64,14 @@ func TestSkillsReport(t *testing.T) {
 		r.Has(t, "is empty")
 	})
 
+	t.Run("an unreadable log fails loudly, not as an empty report", func(t *testing.T) {
+		k := setup(t)
+		Mkdir(t, filepath.Join(k.Claude, "logs", "skills.jsonl", "x"))
+		r := k.Run("", "skills-report")
+		r.Want(t, 1)
+		r.Has(t, "skills-report:", "is a directory")
+	})
+
 	t.Run("malformed lines are counted and reported, not fatal", func(t *testing.T) {
 		k := setup(t)
 		writeLog(t, k, skillUse(stamp(time.Now()), "bash-patterns"), "not valid json{{{")

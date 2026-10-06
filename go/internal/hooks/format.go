@@ -28,7 +28,7 @@ func FormatDispatch(h *hook.Hook) error {
 	if info, err := os.Stat(path); path == "" || err != nil || !info.Mode().IsRegular() {
 		return nil
 	}
-	if project.IsScratch(path) {
+	if project.IsScratch(h.Paths, path) {
 		return nil
 	}
 	base := filepath.Base(path)

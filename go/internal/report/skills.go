@@ -4,8 +4,8 @@
 package report
 
 import (
-	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -54,17 +54,13 @@ func jqText(s *string) string {
 
 // readLog parses a JSONL file: blank lines are dropped, unparsable or
 // non-object lines counted as malformed.
-func readLog(path string) (entries []entry, malformed int) {
-	f, err := os.Open(path)
+func readLog(path string) (entries []entry, malformed int, err error) {
+	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, 0
+		return nil, 0, err
 	}
-	defer f.Close()
-	s := bufio.NewScanner(f)
-	s.Buffer(make([]byte, 1024*1024), 64*1024*1024)
-	for s.Scan() {
-		line := s.Text()
-		if line == "" {
+	for line := range strings.Lines(string(data)) {
+		if line = strings.TrimRight(line, "\r\n"); line == "" {
 			continue
 		}
 		var e entry
@@ -74,11 +70,7 @@ func readLog(path string) (entries []entry, malformed int) {
 			malformed++
 		}
 	}
-	if s.Err() != nil {
-		// A partial read would report skewed counts as if complete.
-		return nil, 0
-	}
-	return entries, malformed
+	return entries, malformed, nil
 }
 
 var readSkill = regexp.MustCompile(`/skills/([^/]+)/SKILL\.md$`)
@@ -179,7 +171,11 @@ func Run(cfg *config.Config, paths config.Paths, args []string, stdout io.Writer
 		fmt.Fprintf(stdout, "skills-report: %s is empty, nothing to report\n", logFile)
 		return 0
 	}
-	all, malformed := readLog(logFile)
+	all, malformed, err := readLog(logFile)
+	if err != nil {
+		fmt.Fprintf(stdout, "skills-report: %v\n", err)
+		return 1
+	}
 	if len(all) == 0 {
 		fmt.Fprintf(stdout, "skills-report: no valid JSONL lines in %s (%d malformed)\n", logFile, malformed)
 		return 0
@@ -304,7 +300,11 @@ func suggestedSection(rows, active []entry, stdout io.Writer) {
 
 func guardsSection(paths config.Paths, cutoff string, stdout io.Writer) {
 	fmt.Fprintln(stdout, "\n== 6: guard rules fired in the window (guards.jsonl) ==")
-	guards, _ := readLog(filepath.Join(paths.LogDir(), "guards.jsonl"))
+	guards, _, err := readLog(filepath.Join(paths.LogDir(), "guards.jsonl"))
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		fmt.Fprintf(stdout, "(could not read it: %v)\n", err)
+		return
+	}
 	var recent []entry
 	for _, e := range guards {
 		if e.TS != nil && e.ts() >= cutoff {

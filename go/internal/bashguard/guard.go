@@ -172,7 +172,7 @@ func lead(words []Word) int {
 			if opt == "--" {
 				break
 			}
-			if wrapperValue[w+":"+opt] && i < len(words)-1 {
+			if takesNextWord(w, opt) && i < len(words)-1 {
 				i++
 			}
 		}
@@ -182,6 +182,21 @@ func lead(words []Word) int {
 		skipAssigns()
 	}
 	return i
+}
+
+// takesNextWord is true when a wrapper's option consumes the next word. A
+// short-option cluster (sudo -Eu) does when its first value-taking letter is
+// its last; one earlier takes the rest of the word (sudo -uroot).
+func takesNextWord(wrapper, opt string) bool {
+	if strings.HasPrefix(opt, "--") {
+		return wrapperValue[wrapper+":"+opt]
+	}
+	for i := 1; i < len(opt); i++ {
+		if wrapperValue[wrapper+":-"+opt[i:i+1]] {
+			return i == len(opt)-1
+		}
+	}
+	return false
 }
 
 var interpreters = map[string]bool{"sh": true, "bash": true, "zsh": true, "dash": true, "fish": true, "node": true, "ruby": true, "perl": true}
@@ -211,13 +226,23 @@ func (st *state) pipeToShell(seg Segment) error {
 // rootShell is true for sudo or doas told to start a shell (sudo -s, sudo -i,
 // doas -s), which reads its commands from stdin like a named interpreter.
 func rootShell(wrapperWords []Word) bool {
-	elevated := false
+	elevator := ""
 	for _, w := range wrapperWords {
-		switch {
-		case baseName(w.Value) == "sudo", baseName(w.Value) == "doas":
-			elevated = true
-		case elevated && (w.Value == "-s" || w.Value == "-i" || w.Value == "--shell" || w.Value == "--login"):
+		switch v := w.Value; {
+		case baseName(v) == "sudo", baseName(v) == "doas":
+			elevator = baseName(v)
+		case elevator == "":
+		case v == "--shell", v == "--login":
 			return true
+		case len(v) > 1 && v[0] == '-' && v[1] != '-':
+			for i := 1; i < len(v); i++ {
+				if v[i] == 's' || v[i] == 'i' {
+					return true
+				}
+				if wrapperValue[elevator+":-"+v[i:i+1]] {
+					break
+				}
+			}
 		}
 	}
 	return false
@@ -280,7 +305,7 @@ func (st *state) redirects(call Call) error {
 // tree and not under a scratch directory: cd /tmp or cd .claude/scratch
 // makes a bare > name harmless.
 func (st *state) inWorktree() bool {
-	if st.cwd == "" || project.IsScratch(st.cwd) {
+	if st.cwd == "" || project.IsScratch(st.h.Paths, st.cwd) {
 		return false
 	}
 	return project.Toplevel(st.cwd) != ""
@@ -326,7 +351,7 @@ func (st *state) scratchTarget(p string) bool {
 	if !strings.HasPrefix(p, "/") {
 		p = st.cwd + "/" + p
 	}
-	return project.IsScratch(p)
+	return project.IsScratch(st.h.Paths, p)
 }
 
 // isOverlayArg is true when a word (quoted, ~- or $HOME-prefixed, or
