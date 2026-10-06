@@ -87,6 +87,21 @@ func TestGuardSkills(t *testing.T) {
 		}
 	})
 
+	t.Run("a block names the hook and is logged like every other guard", func(t *testing.T) {
+		k := sandbox(t, guardSkillsBashMap, "")
+		r := guard(k, "/tmp/project/x.sh", "s1")
+		r.Want(t, 2)
+		r.Has(t, "Blocked by guard-skills.sh", "bash-patterns")
+		if log := Read(t, filepath.Join(k.Claude, "logs/guards.jsonl")); !strings.Contains(log, `"rule":"skills-gate"`) {
+			t.Errorf("guards.jsonl has no skills-gate block:\n%s", log)
+		}
+	})
+
+	t.Run("disabled_rules: skills-gate turns the gate off", func(t *testing.T) {
+		k := sandbox(t, guardSkillsBashMap+"disabled_rules: [skills-gate]\n", "")
+		guard(k, "/tmp/project/x.sh", "s1").Want(t, 0)
+	})
+
 	t.Run("cumulative matching: a .test.tsx file requires skills from every matching entry, not just one", func(t *testing.T) {
 		r := guard(sandbox(t, realKitYML(t), ""), "/tmp/project/foo.test.tsx", "s1")
 		r.Want(t, 2)

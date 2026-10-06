@@ -248,17 +248,22 @@ func (h *Hook) now() time.Time {
 type Check func(*Hook) error
 
 // RunCheck runs check under name, failing open on a panic or error: the
-// notice goes to stderr and the result is "allow". It reports whether the
-// check blocked, having printed the block to stderr.
+// notice goes to stderr, which only the debug log sees, so it is also logged
+// to guards.jsonl, and the result is "allow". It reports whether the check
+// blocked, having printed the block to stderr.
 func RunCheck(h *Hook, name string, check Check) (blocked bool) {
 	saved := h.Name
 	h.Name = name
+	failOpen := func() {
+		fmt.Fprintf(h.Stderr, "%s: unexpected error, failing open\n", name)
+		h.Log("guards", "fail-open")
+	}
 	defer func() {
-		h.Name = saved
 		if r := recover(); r != nil {
-			fmt.Fprintf(h.Stderr, "%s: unexpected error, failing open\n", name)
+			failOpen()
 			blocked = false
 		}
+		h.Name = saved
 	}()
 	err := check(h)
 	if err == nil {
@@ -268,7 +273,7 @@ func RunCheck(h *Hook, name string, check Check) (blocked bool) {
 		fmt.Fprintln(h.Stderr, b.Reason)
 		return true
 	}
-	fmt.Fprintf(h.Stderr, "%s: unexpected error, failing open\n", name)
+	failOpen()
 	return false
 }
 

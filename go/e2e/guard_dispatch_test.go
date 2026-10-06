@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -103,6 +104,17 @@ skill_file_map:
 		r := sandbox(t).Hook("guard-dispatch", "not valid json")
 		r.Want(t, 0)
 		r.Has(t, "guard-edit.sh: unexpected error, failing open", "guard-skills.sh: unexpected error, failing open")
+	})
+
+	t.Run("each fail-open is logged to guards.jsonl, since its stderr reaches no one", func(t *testing.T) {
+		k := sandbox(t)
+		k.Hook("guard-dispatch", "not valid json").Want(t, 0)
+		log := Read(t, filepath.Join(k.Claude, "logs/guards.jsonl"))
+		for _, hook := range []string{"guard-edit.sh", "guard-skills.sh"} {
+			if !strings.Contains(log, `"hook":"`+hook+`","event":"fail-open"`) {
+				t.Errorf("no fail-open line for %s:\n%s", hook, log)
+			}
+		}
 	})
 
 	t.Run("empty stdin payload fails open cleanly", func(t *testing.T) {

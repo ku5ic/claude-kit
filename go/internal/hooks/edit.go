@@ -4,7 +4,6 @@ package hooks
 import (
 	"bufio"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -76,7 +75,7 @@ func GuardEdit(h *hook.Hook) error {
 		}
 	}
 	if ciWorkflows.MatchString(path) {
-		fmt.Fprintf(h.Stderr, "guard-edit: editing CI workflow %s\n", path)
+		h.Decide("ask", "this is a CI workflow, which changes what runs on every push; confirm the change")
 	}
 	if guard.IsOverlay(h.Paths, path) {
 		h.Decide("ask", "this is the claude-kit overlay, which can switch the kit's own guards off; confirm the change")
@@ -168,10 +167,7 @@ func GuardSkills(h *hook.Hook) error {
 	if len(missing) == 0 {
 		return nil
 	}
-	return &hook.Blocked{
-		Reason: "This edit touches " + path + ". Load the following skills via the Skill tool first, then retry the edit: " + strings.Join(missing, ", "),
-		Rule:   "skills-gate",
-	}
+	return h.Block("This edit touches "+path+". Load the following skills via the Skill tool first, then retry the edit: "+strings.Join(missing, ", "), "skills-gate")
 }
 
 // loadedSkills streams skills.jsonl once for session's skill_file values,

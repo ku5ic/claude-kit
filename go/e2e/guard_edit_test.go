@@ -77,6 +77,16 @@ func TestGuardEdit(t *testing.T) {
 		r.Want(t, 0)
 		r.Has(t, `"permissionDecision":"ask"`)
 	})
+	t.Run("ask: Edit a CI workflow, which rules/workflow.md says needs confirmation", func(t *testing.T) {
+		r := New(t).Hook("guard-edit", Payload("Edit", "/tmp/project/.github/workflows/ci.yml", "", ""))
+		r.Want(t, 0)
+		r.Has(t, `"permissionDecision":"ask"`, "CI workflow")
+	})
+	t.Run("allow: Read a CI workflow", func(t *testing.T) {
+		r := New(t).Hook("guard-edit", Payload("Read", "/tmp/project/.github/workflows/ci.yml", "", ""))
+		r.Want(t, 0)
+		r.Empty(t)
+	})
 	t.Run("allow: a same-named file that is not the overlay", func(t *testing.T) {
 		k, _ := overlay(t)
 		r := k.Hook("guard-edit", Payload("Edit", filepath.Join(t.TempDir(), "elsewhere/claude-kit.local.yml"), "", ""))
