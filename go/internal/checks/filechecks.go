@@ -375,7 +375,7 @@ func gitIgnored(root string, edited []string, base string) map[string]bool {
 	cmd := exec.Command("git", "-C", root, "check-ignore", "--stdin")
 	cmd.Stdin = strings.NewReader(strings.Join(paths, "\n") + "\n")
 	out, _ := cmd.Output() // exit 1 means none ignored
-	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(string(out)), "\n") {
 		if line != "" {
 			ignored[line] = true
 		}

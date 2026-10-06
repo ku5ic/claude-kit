@@ -34,7 +34,7 @@ func (f *Findings) Parse(out string) ([]Finding, bool) {
 	var found []Finding
 	header := ""
 	fileGroup, lineGroup := f.Item.SubexpIndex("file"), f.Item.SubexpIndex("line")
-	for _, raw := range strings.Split(out, "\n") {
+	for raw := range strings.SplitSeq(out, "\n") {
 		if f.Header != nil {
 			if m := f.Header.FindStringSubmatch(raw); m != nil {
 				header = m[f.Header.SubexpIndex("file")]

@@ -74,6 +74,10 @@ func readLog(path string) (entries []entry, malformed int) {
 			malformed++
 		}
 	}
+	if s.Err() != nil {
+		// A partial read would report skewed counts as if complete.
+		return nil, 0
+	}
 	return entries, malformed
 }
 

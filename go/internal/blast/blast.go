@@ -124,7 +124,7 @@ func Run(cfg *config.Config, args []string, stdout, stderr io.Writer) int {
 func (s *scan) grepFiles(re *regexp.Regexp, pathspecs ...string) []hit {
 	out, _ := exec.Command("git", append([]string{"-C", s.root, "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--"}, pathspecs...)...).Output()
 	var hits []hit
-	for _, file := range strings.Split(string(out), "\x00") {
+	for file := range strings.SplitSeq(string(out), "\x00") {
 		if file == "" {
 			continue
 		}
@@ -231,7 +231,7 @@ func parent(p string) string {
 // normPath resolves . and .. segments; "" for the root.
 func normPath(p string) string {
 	var out []string
-	for _, part := range strings.Split(p, "/") {
+	for part := range strings.SplitSeq(p, "/") {
 		switch part {
 		case "", ".":
 		case "..":
@@ -360,7 +360,7 @@ func (s *scan) python() {
 				s.add(h.file, h.line, "")
 			}
 		} else if m := pyImport.FindStringSubmatch(content); m != nil {
-			for _, item := range strings.Split(m[1], ",") {
+			for item := range strings.SplitSeq(m[1], ",") {
 				fields := strings.Fields(item)
 				if len(fields) > 0 && (fields[0] == mod || strings.HasPrefix(fields[0], mod+".")) {
 					s.add(h.file, h.line, "")

@@ -206,7 +206,7 @@ func Subprojects(cfg *config.Config, root string) []string {
 	if len(pathspecs) > 0 {
 		args := append([]string{"-C", root, "ls-files", "--"}, pathspecs...)
 		out, _ := exec.Command("git", args...).Output()
-		for _, path := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		for path := range strings.SplitSeq(strings.TrimSpace(string(out)), "\n") {
 			dir := filepath.Dir(path)
 			if !strings.Contains(path, "/") || strings.Count(dir, "/")+1 > cfg.SubprojectMaxDepth {
 				continue

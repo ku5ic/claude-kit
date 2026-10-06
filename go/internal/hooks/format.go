@@ -84,7 +84,7 @@ func FormatDispatch(h *hook.Hook) error {
 		// Word by word, so a path with spaces stays one argument; {bin} can
 		// be several words (yarn run prettier under Yarn PnP).
 		var parts []string
-		for _, word := range strings.Fields(hits[0].fmt.Cmd) {
+		for word := range strings.FieldsSeq(hits[0].fmt.Cmd) {
 			if word == "{bin}" {
 				parts = append(parts, hits[0].bin...)
 				continue

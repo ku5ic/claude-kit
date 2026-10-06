@@ -211,7 +211,7 @@ func makeRecipes(path string) []script {
 	vars := map[string]string{}
 	var out []script
 	target := ""
-	for _, line := range strings.Split(string(data), "\n") {
+	for line := range strings.SplitSeq(string(data), "\n") {
 		switch {
 		case strings.HasPrefix(line, "\t") && target != "":
 			body := strings.TrimLeft(strings.TrimSpace(line), "@-+")
@@ -247,7 +247,7 @@ func justRecipes(path string) []script {
 	}
 	var out []script
 	recipe := ""
-	for _, line := range strings.Split(string(data), "\n") {
+	for line := range strings.SplitSeq(string(data), "\n") {
 		switch {
 		case (strings.HasPrefix(line, " ") || strings.HasPrefix(line, "\t")) && recipe != "":
 			body := strings.TrimLeft(strings.TrimSpace(line), "@-")

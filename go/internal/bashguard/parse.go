@@ -163,7 +163,7 @@ func errorPos(err error) (line, offset int) {
 
 // afterLine is src from the line after line on.
 func afterLine(src string, line int) string {
-	for i := 0; i < line; i++ {
+	for range line {
 		nl := strings.IndexByte(src, '\n')
 		if nl < 0 {
 			return ""

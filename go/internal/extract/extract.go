@@ -57,7 +57,7 @@ func single(value string) []string {
 // splitPath turns ".a.b" into [a b], as jq's getpath with empty parts dropped.
 func splitPath(path string) []string {
 	var parts []string
-	for _, part := range strings.Split(strings.TrimPrefix(path, "."), ".") {
+	for part := range strings.SplitSeq(strings.TrimPrefix(path, "."), ".") {
 		if part != "" {
 			parts = append(parts, part)
 		}
@@ -326,7 +326,7 @@ func RegexLines(file, pattern string) []string {
 		return nil
 	}
 	var out []string
-	eachLine(file, func(line string) {
+	EachLine(file, func(line string) {
 		if m := re.FindStringSubmatch(line); m != nil {
 			out = append(out, m[len(m)-1])
 		}
@@ -337,7 +337,7 @@ func RegexLines(file, pattern string) []string {
 func matchLines(file string, re *regexp.Regexp, name func(string) string) []string {
 	var out []string
 	seen := map[string]bool{}
-	eachLine(file, func(line string) {
+	EachLine(file, func(line string) {
 		if !re.MatchString(line) {
 			return
 		}
@@ -349,14 +349,17 @@ func matchLines(file string, re *regexp.Regexp, name func(string) string) []stri
 	return out
 }
 
-func eachLine(file string, fn func(string)) {
+// EachLine calls fn for each line of file. Its error is the open or read
+// error; a read error stops it partway, after fn saw the lines before it.
+func EachLine(file string, fn func(string)) error {
 	f, err := os.Open(file)
 	if err != nil {
-		return
+		return err
 	}
 	defer f.Close()
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		fn(scanner.Text())
 	}
+	return scanner.Err()
 }

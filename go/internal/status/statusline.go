@@ -38,7 +38,7 @@ const (
 // false value gives default; a number prints in jq's shortest form.
 func jqString(data map[string]any, path, def string) string {
 	var v any = data
-	for _, part := range strings.Split(path, ".") {
+	for part := range strings.SplitSeq(path, ".") {
 		m, ok := v.(map[string]any)
 		if !ok {
 			return def
@@ -286,6 +286,10 @@ func tailLines(path string, n int) []string {
 	for scanner.Scan() {
 		lines = append(lines, scanner.Text())
 	}
+	if scanner.Err() != nil {
+		// What was read before the error is not the file's tail.
+		return nil
+	}
 	return lines[max(0, len(lines)-n):]
 }
 
@@ -321,7 +325,7 @@ func gitStatus(home, cwd, sessionID string) string {
 	add, del := 0, 0
 	for _, args := range [][]string{{"diff", "--numstat"}, {"diff", "--cached", "--numstat"}} {
 		out, _ := exec.Command("git", append([]string{"-C", cwd}, args...)...).Output()
-		for _, line := range strings.Split(string(out), "\n") {
+		for line := range strings.SplitSeq(string(out), "\n") {
 			f := strings.Fields(line)
 			if len(f) >= 2 {
 				a, _ := strconv.Atoi(f[0]) // "-" for binary files counts 0

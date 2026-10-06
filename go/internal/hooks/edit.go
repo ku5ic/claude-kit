@@ -201,7 +201,7 @@ func loadedSkills(logPath, session string) (map[string]bool, error) {
 			}
 		}
 	}
-	return loaded, nil
+	return loaded, scanner.Err()
 }
 
 // GuardDispatch runs guard-edit's and, with CLAUDE_GUARD_SKILLS=1,

@@ -10,6 +10,7 @@ package rotate
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -67,7 +68,7 @@ func Run(cfg *config.Config, paths config.Paths, args []string, stdout, stderr i
 	registry := filepath.Join(paths.LogDir(), "scratch-registry.txt")
 	if data, err := os.ReadFile(registry); err == nil {
 		var keep []string
-		for _, dir := range strings.Split(string(data), "\n") {
+		for dir := range strings.SplitSeq(string(data), "\n") {
 			switch {
 			case dir == "":
 			case !isDir(dir):
@@ -95,7 +96,12 @@ func Run(cfg *config.Config, paths config.Paths, args []string, stdout, stderr i
 			continue
 		}
 		name := filepath.Base(log)
-		lines := readLines(log)
+		lines, err := readLines(log)
+		if err != nil {
+			// Trimming what was read so far would drop the unread rest.
+			fmt.Fprintf(stdout, "scratch-rotate: %s not trimmed, unreadable: %v\n", name, err)
+			continue
+		}
 		switch total := len(lines); {
 		case total <= cfg.LogMaxLines:
 			fmt.Fprintf(stdout, "scratch-rotate: %s has %d lines, no trim needed\n", name, total)
@@ -181,10 +187,10 @@ func isFile(p string) bool {
 	return err == nil && info.Mode().IsRegular()
 }
 
-func readLines(path string) []string {
+func readLines(path string) ([]string, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	defer f.Close()
 	var lines []string
@@ -193,7 +199,7 @@ func readLines(path string) []string {
 	for s.Scan() {
 		lines = append(lines, s.Text())
 	}
-	return lines
+	return lines, s.Err()
 }
 
 // writeLines replaces path atomically with lines, one per line.
@@ -204,10 +210,14 @@ func writeLines(path string, lines []string) {
 	}
 	w := bufio.NewWriter(tmp)
 	for _, l := range lines {
-		w.WriteString(l + "\n")
+		w.WriteString(l)
+		w.WriteByte('\n')
 	}
-	w.Flush()
-	tmp.Close()
+	// A short write must not replace the log with a truncated copy.
+	if err := errors.Join(w.Flush(), tmp.Close()); err != nil {
+		os.Remove(tmp.Name())
+		return
+	}
 	if os.Rename(tmp.Name(), path) != nil {
 		os.Remove(tmp.Name())
 	}

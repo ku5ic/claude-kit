@@ -4,7 +4,6 @@
 package tools
 
 import (
-	"bufio"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -12,6 +11,8 @@ import (
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
+
+	"github.com/ku5ic/claude-kit/go/internal/extract"
 )
 
 // Deps are the packages a manifest declares, by normalized name.
@@ -119,7 +120,7 @@ func PythonDeps(dir string) Deps {
 	}
 	reqs, _ := filepath.Glob(filepath.Join(dir, "requirements*.txt"))
 	for _, file := range reqs {
-		eachLine(file, func(line string) {
+		extract.EachLine(file, func(line string) {
 			if line = strings.TrimSpace(line); line != "" && !strings.HasPrefix(line, "#") && !strings.HasPrefix(line, "-") {
 				addReq(line)
 			}
@@ -133,22 +134,10 @@ var gemSpec = regexp.MustCompile(`^    ([A-Za-z0-9_.-]+) \(`)
 // RubyDeps are the gems a Gemfile.lock resolves.
 func RubyDeps(dir string) Deps {
 	deps := Deps{}
-	eachLine(filepath.Join(dir, "Gemfile.lock"), func(line string) {
+	extract.EachLine(filepath.Join(dir, "Gemfile.lock"), func(line string) {
 		if m := gemSpec.FindStringSubmatch(line); m != nil {
 			deps[m[1]] = true
 		}
 	})
 	return deps
-}
-
-func eachLine(path string, fn func(string)) {
-	f, err := os.Open(path)
-	if err != nil {
-		return
-	}
-	defer f.Close()
-	s := bufio.NewScanner(f)
-	for s.Scan() {
-		fn(s.Text())
-	}
 }

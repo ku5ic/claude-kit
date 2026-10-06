@@ -79,7 +79,7 @@ func verdict(w io.Writer, name string, err error, out *bytes.Buffer) {
 			rule = "(no slug)"
 		}
 		fmt.Fprintf(w, "%s: block  %s\n", name, rule)
-		for _, line := range strings.Split(b.Reason, "\n") {
+		for line := range strings.SplitSeq(b.Reason, "\n") {
 			fmt.Fprintf(w, "  %s\n", line)
 		}
 		return
@@ -201,7 +201,7 @@ func changedFiles(root string) []string {
 		return nil
 	}
 	var files []string
-	for _, line := range strings.Split(string(out), "\n") {
+	for line := range strings.SplitSeq(string(out), "\n") {
 		if len(line) < 4 || strings.Contains(line[:2], "D") {
 			continue
 		}

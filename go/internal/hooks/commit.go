@@ -34,7 +34,7 @@ func GuardCommit(h *hook.Hook) error {
 	}
 
 	// Line by line, as grep: the trailer sits on a line of its own.
-	for _, line := range strings.Split(cmd, "\n") {
+	for line := range strings.SplitSeq(cmd, "\n") {
 		if aiSignature.MatchString(line) {
 			if err := h.Block("AI signature in commit message", "ai-commit-sig"); err != nil {
 				return err
@@ -61,7 +61,7 @@ func GuardCommit(h *hook.Hook) error {
 		}
 	}
 
-	subject := strings.SplitN(quotedMessages(cmd, messageDQ, '"')+quotedMessages(cmd, messageSQ, '\''), "\n", 2)[0]
+	subject, _, _ := strings.Cut(quotedMessages(cmd, messageDQ, '"')+quotedMessages(cmd, messageSQ, '\''), "\n")
 	if subject != "" && aiTell.MatchString(subject) {
 		return h.Block("AI-tell phrasing in commit subject", "ai-commit-tell")
 	}
@@ -98,7 +98,7 @@ func scanStaged(h *hook.Hook) error {
 func heredocBody(cmd string) string {
 	var lines []string
 	in := false
-	for _, line := range strings.Split(cmd, "\n") {
+	for line := range strings.SplitSeq(cmd, "\n") {
 		switch {
 		case in:
 			lines = append(lines, line)
@@ -122,7 +122,7 @@ func heredocBody(cmd string) string {
 // double- and single-quoted results concatenate directly).
 func quotedMessages(cmd string, re *regexp.Regexp, quote byte) string {
 	var out []string
-	for _, line := range strings.Split(cmd, "\n") {
+	for line := range strings.SplitSeq(cmd, "\n") {
 		for _, match := range re.FindAllString(line, -1) {
 			inner := strings.TrimSuffix(match, string(quote))
 			out = append(out, inner[strings.LastIndexByte(inner, quote)+1:])

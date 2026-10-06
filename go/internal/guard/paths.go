@@ -4,8 +4,10 @@
 package guard
 
 import (
+	"fmt"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
@@ -75,12 +77,7 @@ func IsGuardedLockfile(cfg *config.Config, path string) bool {
 			return true
 		}
 	}
-	for _, lockfile := range cfg.ExtraLockfiles {
-		if lockfile == base {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(cfg.ExtraLockfiles, base)
 }
 
 // IsOverlay is true when path is the overlay, reached through any path or
@@ -140,7 +137,7 @@ func globRegexp(pattern string) (*regexp.Regexp, error) {
 			if class[0] == '!' {
 				class = "^" + class[1:]
 			}
-			b.WriteString("[" + strings.ReplaceAll(class, `\`, `\\`) + "]")
+			fmt.Fprintf(&b, "[%s]", strings.ReplaceAll(class, `\`, `\\`))
 			i += end + 1
 		default:
 			b.WriteString(regexp.QuoteMeta(string(c)))

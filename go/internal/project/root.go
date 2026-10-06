@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
@@ -93,10 +94,8 @@ func register(paths config.Paths, dir string) error {
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
-	for _, line := range strings.Split(string(data), "\n") {
-		if line == dir {
-			return nil
-		}
+	if slices.Contains(strings.Split(string(data), "\n"), dir) {
+		return nil
 	}
 	f, err := os.OpenFile(registry, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {

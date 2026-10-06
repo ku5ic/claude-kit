@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -103,10 +104,8 @@ func (e *stopChecksEnv) callsIs(want string) {
 
 func (e *stopChecksEnv) callsHasLine(want string) {
 	e.t.Helper()
-	for _, l := range Lines(Read(e.t, e.calls)) {
-		if l == want {
-			return
-		}
+	if slices.Contains(Lines(Read(e.t, e.calls)), want) {
+		return
 	}
 	e.t.Errorf("calls lack line %q:\n%s", want, Read(e.t, e.calls))
 }
