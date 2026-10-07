@@ -257,8 +257,9 @@ func globIndex(globs []string, name string) int {
 // excludedTask is the first of tasks named like check c (its task or
 // fallback globs) that an exclude glob turns away, and that glob.
 func excludedTask(c config.Check, tasks []project.Task) (name, glob string) {
+	names := slices.Concat(c.Tasks, c.FallbackTasks)
 	for _, t := range tasks {
-		if globIndex(slices.Concat(c.Tasks, c.FallbackTasks), t.Name) < 0 {
+		if globIndex(names, t.Name) < 0 {
 			continue
 		}
 		if i := globIndex(c.Exclude, t.Name); i >= 0 {

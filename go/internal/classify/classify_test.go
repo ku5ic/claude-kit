@@ -66,6 +66,7 @@ func TestBody(t *testing.T) {
 		{"eslint --fix .", "other"},
 		{"tsc --noEmit", "gate:typecheck:tsc"},
 		{"tsc -b", "other"},
+		{"tsc --noEmit=false", "other"}, // a required flag set off isn't set
 		{"prettier --check .", "gate:format-check:prettier"},
 		{"prettier --write .", "other"},
 		{"vitest", "gate:test:vitest"},

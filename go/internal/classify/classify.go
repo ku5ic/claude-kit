@@ -432,16 +432,20 @@ func match(words []string, p config.ToolPattern) (score int, flag string) {
 			return -1, ""
 		}
 	}
-	has := func(flag string) bool {
-		return slices.ContainsFunc(args, func(a string) bool { return a == flag || strings.HasPrefix(a, flag+"=") })
+	// set: the flag alone, or flag=value with a value that doesn't turn it off.
+	set := func(flag string) bool {
+		return slices.ContainsFunc(args, func(a string) bool {
+			value, ok := strings.CutPrefix(a, flag+"=")
+			return a == flag || ok && !off(value)
+		})
 	}
 	for _, f := range p.Forbid {
-		if slices.ContainsFunc(args, func(a string) bool { return a == f || strings.HasPrefix(a, f+"=") && !off(a[len(f)+1:]) }) {
+		if set(f) {
 			return -1, f
 		}
 	}
 	for _, f := range p.Require {
-		if !has(f) {
+		if !set(f) {
 			return -1, ""
 		}
 	}
