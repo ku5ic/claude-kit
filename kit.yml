@@ -298,7 +298,7 @@ checks:
       - {bin: ty, sub: [check], forbid: [--watch]}
   - name: lint
     tasks: [lint, eslint, stylelint, "lint:*", "eslint:*", "stylelint:*"]
-    exclude: ["*fix*", "*watch*", "*staged*", "*changed*"]
+    exclude: ["*fix*", "*watch*", "*staged*", "*changed*", "*unused*", "*deadcode*", "*dead-code*"]
     tools:
       - {bin: eslint, forbid: [--fix]}
       - {bin: biome, sub: [lint, check, ci], forbid: [--write, --fix, --apply, --apply-unsafe]}
@@ -340,6 +340,28 @@ checks:
       - {bin: cargo, sub: [test, nextest]}
       - {bin: bun, sub: [test], forbid: [--watch]}
       - {bin: deno, sub: [test], forbid: [--watch]}
+  # Dead code runs whole-program, but only findings in files changed since
+  # the git base (kit git-base) fail it, judged from its output, never its
+  # exit code; with no git base it's skipped. A tool whose output can't be
+  # mapped to files (debride's heuristic list, cargo machete/udeps' crate
+  # names) is advisory: it runs and reports, but never fails. Dead code a
+  # change leaves behind in an unchanged file isn't caught.
+  # Per stack: js knip, python vulture, go deadcode (golangci-lint's unused
+  # is a lint gate), ruby debride (advisory), opentofu tflint limited to
+  # terraform_unused_declarations (plain tflint is lint). rust: none here;
+  # rustc's dead_code lint fails the existing clippy -D warnings. docker:
+  # none; images have no unused-code concept.
+  - name: deadcode
+    tasks: [deadcode, dead-code, "deadcode:*", "dead-code:*", knip, "knip:*", unused, "unused:*", "lint:unused", "lint:deadcode", unimported, vulture]
+    exclude: ["*fix*", "*watch*"]
+    scope: changed
+    tools:
+      - {bin: knip, forbid: [--fix, --watch], unmapped: [--reporter], findings: '^\S+\s+(?P<file>[^\s:]+):(?P<line>\d+):\d+\s*$'}
+      - {bin: vulture, findings: '^(?P<file>[^\s:]+):(?P<line>\d+): unused '}
+      - {bin: deadcode, findings: '^(?P<file>[^\s:]+\.go):(?P<line>\d+):\d+: unreachable func: '}
+      - {bin: debride, advisory: true}
+      - {bin: tflint, require: [--only=terraform_unused_declarations], forbid: [--fix], findings: '^(?P<file>[^\s:]+):(?P<line>\d+):\d+: \w+ - .*\(terraform_unused_declarations\)$'}
+      - {bin: cargo, sub: [machete, udeps], advisory: true}
 
 # How the gate classifier reads a task body. A body it can't read with
 # certainty (a pipe, ||, a subshell, command substitution) holds no gate.

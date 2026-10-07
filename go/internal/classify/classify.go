@@ -36,12 +36,13 @@ type TaskRef struct {
 
 // Command is one simple command of a body.
 type Command struct {
-	Kind  Kind
-	Words []string // after wrappers and tool runners
-	Env   []string // K=V assignments in front of it, or in a wrapper
-	Slot  string   // Gate: the check it counts as
-	Tool  string   // Gate: the pattern's bin
-	Refs  []TaskRef
+	Kind    Kind
+	Words   []string            // after wrappers and tool runners
+	Env     []string            // K=V assignments in front of it, or in a wrapper
+	Slot    string              // Gate: the check it counts as
+	Tool    string              // Gate: the pattern's bin
+	Pattern *config.ToolPattern // Gate: the pattern it matched
+	Refs    []TaskRef
 }
 
 // Result is a whole body. Opaque says why it can't be read (a pipe, ||,
@@ -319,10 +320,12 @@ func (c *classifier) concurrently(args, env []string) []Command {
 // is dead code, plain tflint is lint), the first on a tie.
 func (c *classifier) tool(words, env []string) Command {
 	best, bestScore := Command{Kind: Other, Words: words, Env: env}, -1
-	for _, check := range c.cfg.Checks {
-		for _, p := range check.Tools {
-			if score := match(words, p); score > bestScore {
-				best, bestScore = Command{Kind: Gate, Words: words, Env: env, Slot: check.Name, Tool: p.Bin}, score
+	for ci := range c.cfg.Checks {
+		check := &c.cfg.Checks[ci]
+		for pi := range check.Tools {
+			p := &check.Tools[pi]
+			if score := match(words, *p); score > bestScore {
+				best, bestScore = Command{Kind: Gate, Words: words, Env: env, Slot: check.Name, Tool: p.Bin, Pattern: p}, score
 			}
 		}
 	}

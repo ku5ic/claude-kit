@@ -21,9 +21,10 @@ var stateful = []string{"source", ".", "set", "shopt", "alias", "unalias", "ulim
 
 // taskRoles is how each task of one directory takes part in run-checks.
 type taskRoles struct {
-	slots   []string // per task: the check it fills, by name or by a single-gate body
-	covered []string // per task: the slot-named task whose body already runs it
-	leaves  []leaf   // gates found inside aggregate tasks, in body order
+	slots   []string            // per task: the check it fills, by name or by a single-gate body
+	covered []string            // per task: the slot-named task whose body already runs it
+	single  []*classify.Command // per task: its body's one gate, when it has exactly one
+	leaves  []leaf              // gates found inside aggregate tasks, in body order
 }
 
 // leaf is one gate inside an aggregate: another task, run as itself, or an
@@ -46,14 +47,18 @@ type taskAt struct {
 // runs other tasks or several gates is an aggregate, never run itself, its
 // gates run separately; anything else doesn't run.
 func roles(cfg *config.Config, root, dir, sfx string, tasks []project.Task) taskRoles {
-	r := taskRoles{slots: make([]string, len(tasks)), covered: make([]string, len(tasks))}
+	r := taskRoles{slots: make([]string, len(tasks)), covered: make([]string, len(tasks)), single: make([]*classify.Command, len(tasks))}
 	a := &aggregator{cfg: cfg, root: root, sfx: sfx, cache: map[string][]project.Task{dir: tasks}}
 	results := make([]classify.Result, len(tasks))
 	for i, t := range tasks {
 		results[i] = classify.Body(cfg, t.Body, a.lookup(dir))
+		gate, single := results[i].SingleGate()
+		if single {
+			r.single[i] = &gate
+		}
 		if slot := globSlot(cfg, t.Name); slot != "" {
 			r.slots[i] = slot
-		} else if gate, ok := results[i].SingleGate(); ok && !excludedBy(cfg, gate.Slot, t.Name) {
+		} else if single && !excludedBy(cfg, gate.Slot, t.Name) {
 			r.slots[i] = gate.Slot
 		}
 	}
@@ -197,7 +202,8 @@ func (a *aggregator) inline(cmd classify.Command, agg taskAt, stack, dir string,
 	if all := append(slices.Clone(env), cmd.Env...); len(all) > 0 {
 		words = append(append([]string{"env"}, all...), words...)
 	}
-	l.gate = Gate{Label: label, Dir: dir, Words: words, BinLine: res.BinLine(), Note: setupNote(agg.task.Name, setup)}
+	l.gate = Gate{Label: label, Dir: dir, Words: words, BinLine: res.BinLine(), Note: setupNote(agg.task.Name, setup),
+		Scope: scopeFor(checkNamed(a.cfg, cmd.Slot), &cmd)}
 	return l
 }
 
@@ -218,8 +224,10 @@ func (a *aggregator) reference(ref classify.TaskRef, agg taskAt, stack string, v
 	visited[id] = true
 	r := classify.Body(a.cfg, target.task.Body, a.lookup(target.dir))
 	slot := globSlot(a.cfg, target.task.Name)
-	if slot == "" {
-		if gate, ok := r.SingleGate(); ok && !excludedBy(a.cfg, gate.Slot, target.task.Name) {
+	var single *classify.Command
+	if gate, ok := r.SingleGate(); ok {
+		single = &gate
+		if slot == "" && !excludedBy(a.cfg, gate.Slot, target.task.Name) {
 			slot = gate.Slot
 		}
 	}
@@ -240,7 +248,8 @@ func (a *aggregator) reference(ref classify.TaskRef, agg taskAt, stack string, v
 		sfx = " [" + rel(a.root, target.dir) + "]"
 	}
 	label := fmt.Sprintf("%s: %s (%s)%s", stack, slot, target.task.Name, sfx)
-	return []leaf{{id: id, slot: slot, label: label, withArgs: withArgs, gate: Gate{Label: label, Dir: target.dir, Words: words}}}, false
+	gate := Gate{Label: label, Dir: target.dir, Words: words, Scope: scopeFor(checkNamed(a.cfg, slot), single)}
+	return []leaf{{id: id, slot: slot, label: label, withArgs: withArgs, gate: gate}}, false
 }
 
 // ciLeaves reads the CI steps that run in subproject sub like aggregates:

@@ -163,16 +163,25 @@ type Check struct {
 	Tasks   []string      `yaml:"tasks"`
 	Exclude []string      `yaml:"exclude"`
 	Tools   []ToolPattern `yaml:"tools"`
+	// Scope "changed": the check runs whole-program, but only findings in
+	// files changed since the git base fail it (dead code).
+	Scope string `yaml:"scope"`
 }
 
 // ToolPattern is a command that counts as a check: bin by name, its first
 // non-flag argument one of sub when sub is set, every require flag present,
 // and no forbid flag (a flag counts as written alone or as flag=value).
+// For a scoped check, Findings is a regex with file and line groups for one
+// finding; a flag in Unmapped changes the output so it no longer matches,
+// and Advisory marks output that can't be mapped to files at all.
 type ToolPattern struct {
-	Bin     string   `yaml:"bin"`
-	Sub     []string `yaml:"sub"`
-	Require []string `yaml:"require"`
-	Forbid  []string `yaml:"forbid"`
+	Bin      string   `yaml:"bin"`
+	Sub      []string `yaml:"sub"`
+	Require  []string `yaml:"require"`
+	Forbid   []string `yaml:"forbid"`
+	Findings string   `yaml:"findings"`
+	Unmapped []string `yaml:"unmapped"`
+	Advisory bool     `yaml:"advisory"`
 }
 
 // GateDiscovery is the shell grammar the gate classifier reads task bodies

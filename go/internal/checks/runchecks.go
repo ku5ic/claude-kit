@@ -30,6 +30,7 @@ type Gate struct {
 	Note    string // printed as "  note: <note>" under the verdict
 	Skip    string
 	CI      string // the CI config it came from, when only CI names it
+	Scope   *Scope // set: findings in changed files decide (dead code)
 }
 
 // extra is the lines printed under g's verdict: its bin line and note.
@@ -105,11 +106,25 @@ func stepsBySubproject(steps []ciStep, subs []string) map[string][]ciStep {
 // passed, N failed, N skipped".
 func RunAll(cfg *config.Config, root string, only []string, out io.Writer) int {
 	pass, fail, skip := 0, 0, 0
+	var ch *changes
 	for _, g := range Gates(cfg, root, only) {
 		switch {
 		case g.Skip != "":
 			fmt.Fprintf(out, "SKIP %s (%s)\n", g.Label, g.Skip)
 			skip++
+		case g.Scope != nil:
+			if ch == nil {
+				c := changedSince(root)
+				ch = &c
+			}
+			switch runScoped(g, *ch, out) {
+			case "pass":
+				pass++
+			case "fail":
+				fail++
+			default:
+				skip++
+			}
 		case run(g, out):
 			pass++
 		default:
@@ -131,6 +146,12 @@ func PrintPlan(cfg *config.Config, root string, only []string, out io.Writer) {
 		fmt.Fprintf(out, "RUN %s\n  cmd: %s\n", g.Label, tools.ShellJoin(g.Words))
 		if g.Dir != root && g.Dir != "" {
 			fmt.Fprintf(out, "  dir: %s\n", rel(root, g.Dir))
+		}
+		switch {
+		case g.Scope != nil && g.Scope.Advisory:
+			fmt.Fprint(out, "  scope: advisory; its findings never fail run-checks\n")
+		case g.Scope != nil:
+			fmt.Fprint(out, "  scope: only findings in files changed since the git base fail it\n")
 		}
 		fmt.Fprint(out, g.extra())
 	}
@@ -276,7 +297,7 @@ func (p *planner) subproject(sub string) {
 			case cfg.CheckDisabled(c.Name, full):
 				p.add(Gate{Label: full, Skip: "disabled_checks"})
 			default:
-				g := Gate{Label: full, Dir: dir, Words: strings.Fields(t.Cmd)}
+				g := Gate{Label: full, Dir: dir, Words: strings.Fields(t.Cmd), Scope: scopeFor(c, r.single[i])}
 				if withArgs, ok := argLeaves[taskID(t, dir)]; ok {
 					// An aggregate passes it arguments (npm run unit -- --coverage).
 					g.Words = withArgs.Words

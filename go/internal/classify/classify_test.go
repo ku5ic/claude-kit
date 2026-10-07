@@ -73,7 +73,10 @@ func TestBody(t *testing.T) {
 		{"cargo clippy -- -D warnings", "gate:lint:cargo"},
 		{"go test ./...", "gate:test:go"},
 		{"bun test", "gate:test:bun"},
-		{"tflint --only=terraform_unused_declarations", "gate:lint:tflint"}, // no deadcode slot until step 16
+		{"tflint --only=terraform_unused_declarations", "gate:deadcode:tflint"}, // the most required flags wins
+		{"tflint", "gate:lint:tflint"},
+		{"knip --reporter compact", "gate:deadcode:knip"},
+		{"cargo machete", "gate:deadcode:cargo"},
 		{"./node_modules/.bin/eslint src", "gate:lint:eslint"},
 		// Wrappers and tool runners unwrap to the tool.
 		{"NODE_ENV=test vitest run", "gate:test:vitest"},
