@@ -27,7 +27,7 @@ func flags(valued []string, bare ...string) map[string]bool {
 // already keeps). Nothing that writes source or picks output files carries.
 var builtins = []Adapter{
 	{
-		Name: "eslint", Ext: jsExt, Bin: "eslint", Cmd: "{bin} {files}",
+		Name: "eslint", Ext: jsExt, Bin: "eslint", Cmd: "{bin} {files}", LocalOnly: true,
 		Findings: &Findings{Header: regexp.MustCompile(`^(?P<file>/.*\S)\s*$`), Item: regexp.MustCompile(`^\s+(?P<line>\d+):\d+\s+(?:error|warning)\s`)},
 		Signals: []string{"eslint.config.js", "eslint.config.mjs", "eslint.config.cjs", "eslint.config.ts", "eslint.config.mts", "eslint.config.cts",
 			".eslintrc.js", ".eslintrc.cjs", ".eslintrc.json", ".eslintrc.yml", ".eslintrc.yaml", ".eslintrc"},
@@ -46,7 +46,7 @@ var builtins = []Adapter{
 		},
 	},
 	{
-		Name: "stylelint", Ext: []string{"css", "scss"}, Bin: "stylelint", Cmd: "{bin} --allow-empty-input -f unix {files}",
+		Name: "stylelint", Ext: []string{"css", "scss"}, Bin: "stylelint", Cmd: "{bin} --allow-empty-input -f unix {files}", LocalOnly: true,
 		Findings: lines(`^(?P<file>.+?):(?P<line>\d+):\d+: `),
 		Signals: []string{"stylelint.config.js", "stylelint.config.mjs", "stylelint.config.cjs", ".stylelintrc", ".stylelintrc.json",
 			".stylelintrc.js", ".stylelintrc.cjs", ".stylelintrc.yml", ".stylelintrc.yaml"},
@@ -54,13 +54,13 @@ var builtins = []Adapter{
 	},
 	{
 		// CI=1: outside CI, vitest writes new snapshots.
-		Name: "vitest", Ext: jsExt, Bin: "vitest", Cmd: "env CI=1 {bin} related --run --passWithNoTests {files}",
+		Name: "vitest", Ext: jsExt, Bin: "vitest", Cmd: "env CI=1 {bin} related --run --passWithNoTests {files}", LocalOnly: true,
 		Deps: JS, Packages: []string{"vitest"}, TestRunner: true,
 		Carry: flags([]string{"--project", "-c", "--config", "--environment", "-r", "--root"}),
 	},
 	{
 		// --ci: fail on a missing snapshot instead of writing it.
-		Name: "jest", Ext: jsExt, Bin: "jest", Cmd: "{bin} --ci --findRelatedTests --passWithNoTests {files}",
+		Name: "jest", Ext: jsExt, Bin: "jest", Cmd: "{bin} --ci --findRelatedTests --passWithNoTests {files}", LocalOnly: true,
 		Deps: JS, Packages: []string{"jest"}, TestRunner: true,
 		Carry: flags([]string{"-c", "--config", "--testEnvironment", "-w", "--maxWorkers"}),
 	},
@@ -94,7 +94,7 @@ var builtins = []Adapter{
 	},
 	{Name: "go-vet", Ext: []string{"go"}, Bin: "go", Cmd: "{bin} vet {dirs}", Signals: []string{"go.mod"}, Sub: []string{"vet"}, Carry: flags([]string{"-tags"})},
 	{
-		Name: "rubocop", Ext: []string{"rb"}, Bin: "rubocop", Cmd: "{bin} --force-exclusion --format emacs {files}",
+		Name: "rubocop", Ext: []string{"rb"}, Bin: "rubocop", Cmd: "{bin} --force-exclusion --format emacs {files}", LocalOnly: true,
 		Findings: lines(`^(?P<file>.+?):(?P<line>\d+):\d+: [A-Z]: `),
 		Signals:  []string{".rubocop.yml"}, Deps: Ruby, Packages: []string{"rubocop"},
 		Carry: flags([]string{"-c", "--config", "--only", "--except"}),

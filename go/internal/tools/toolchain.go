@@ -19,7 +19,7 @@ type Toolchain struct {
 // filling {bin} with the first of its bins that resolves. run-checks and the
 // <tooling> block both use it, so Claude is never told about a check the
 // checks skip.
-func ResolveToolchain(tc config.ToolchainCheck, dir, root string) Toolchain {
+func ResolveToolchain(cfg *config.Config, tc config.ToolchainCheck, dir, root string) Toolchain {
 	if tc.WhenDir != "" && !project.IsDir(filepath.Join(dir, tc.WhenDir)) {
 		return Toolchain{Resolution: Resolution{Skip: "no " + tc.WhenDir + "/ yet"}}
 	}
@@ -29,7 +29,7 @@ func ResolveToolchain(tc config.ToolchainCheck, dir, root string) Toolchain {
 	}
 	var first Resolution
 	for i, bin := range tc.Bin {
-		res := Resolve(dir, root, bin, false)
+		res := Resolve(cfg, dir, root, bin, Default)
 		if res.Words != nil {
 			return Toolchain{Words: Fill(template, "{bin}", res.Words), Shown: Fill(template, "{bin}", res.shown(root)), Resolution: res}
 		}

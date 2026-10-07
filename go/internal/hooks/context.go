@@ -187,7 +187,7 @@ func tooling(cfg *config.Config, root string) string {
 		}
 		for _, tc := range cfg.ToolchainChecks {
 			if cfg.HasStack(dir, tc.Stack) {
-				if run := tools.ResolveToolchain(tc, dir, root); run.Words != nil {
+				if run := tools.ResolveToolchain(cfg, tc, dir, root); run.Words != nil {
 					lines = append(lines, tools.ShellJoin(run.Shown))
 				}
 			}

@@ -152,7 +152,11 @@ func Plan(cfg *config.Config, root, base string, edited []string) []*Group {
 			g.Skip = "no cmd in kit.yml"
 			continue
 		}
-		res := tools.Resolve(g.Dir, root, g.Adapter.Bin, g.Adapter.LocalOnly)
+		mode := tools.Default
+		if g.Adapter.LocalOnly {
+			mode = tools.LocalOnly
+		}
+		res := tools.Resolve(cfg, g.Dir, root, g.Adapter.Bin, mode)
 		if res.Words == nil {
 			g.Skip = res.Skip
 			continue

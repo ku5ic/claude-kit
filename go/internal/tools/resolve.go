@@ -4,8 +4,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 
+	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
@@ -31,29 +33,48 @@ var lookups = []lookup{
 
 // Where a Resolution's words come from.
 const (
-	SourceLocal = "local"
-	SourcePM    = "package-manager env"
-	SourcePATH  = "PATH"
+	SourceLocal   = "local"
+	SourcePM      = "package-manager env"
+	SourceManager = "version manager"
+	SourcePATH    = "PATH"
 )
 
 // Resolution is how a tool runs: the words that run it and where they come
-// from, or, when Words is nil, why it can't run.
+// from, or, when Words is nil, why it can't run. Missing is true only when
+// no copy exists anywhere, the one skip a fallback formatter moves past.
 type Resolution struct {
-	Words  []string
-	Source string
-	Skip   string
+	Words   []string
+	Source  string
+	Skip    string
+	Missing bool
 }
 
-// Resolve finds name for dir: a project-local copy (node_modules/.bin,
-// .venv/bin, venv/bin, from dir up to root), else the project's
-// package-manager environment, else PATH unless localOnly (a type checker
-// from PATH can't see the project's packages). Never npx, pnpm dlx, or uv
-// run, which can install packages.
-func Resolve(dir, root, name string, localOnly bool) Resolution {
+// Mode is how far past the project Resolve may look.
+type Mode int
+
+const (
+	// Default allows PATH only for a pinned or path_fallback tool.
+	Default Mode = iota
+	// LocalOnly never takes PATH: a copy from there can't see the
+	// project's packages.
+	LocalOnly
+	// AnyPath takes any PATH copy, for fallback formatters.
+	AnyPath
+)
+
+// Resolve finds name for dir, in tool_resolution's order (kit.yml): a
+// project-local copy from dir up to root, a go.mod tool, the project's
+// package-manager environment, then a skip when the project declares it but
+// it isn't installed, then PATH as mode and the policy allow. Never npx,
+// pnpm dlx, or uv run, which can install packages.
+func Resolve(cfg *config.Config, dir, root, name string, mode Mode) Resolution {
 	for _, sub := range []string{"node_modules/.bin", ".venv/bin", "venv/bin"} {
 		if found := project.FindUp(dir, root, filepath.Join(sub, name)); found != "" && executable(found) {
 			return Resolution{Words: []string{found}, Source: SourceLocal}
 		}
+	}
+	if path := goTool(dir, root, name); path != "" {
+		return Resolution{Words: []string{path}, Source: SourcePM}
 	}
 	for _, l := range lookups {
 		lock := project.FindUp(dir, root, l.lockfile)
@@ -64,13 +85,32 @@ func Resolve(dir, root, name string, localOnly bool) Resolution {
 			return Resolution{Words: words, Source: SourcePM}
 		}
 	}
-	if localOnly {
+	if bin := activeEnv(root, name); bin != "" {
+		return Resolution{Words: []string{bin}, Source: SourcePM}
+	}
+	if manifest, install := declared(cfg, dir, root, name); manifest != "" {
+		return Resolution{Skip: name + " declared in " + manifest + " but not installed; run " + install}
+	}
+	if mode == LocalOnly {
 		return Resolution{Skip: name + " not in the project environment"}
 	}
-	if path, err := exec.LookPath(name); err == nil {
+	path, err := exec.LookPath(name)
+	if err != nil {
+		return Resolution{Skip: name + " not installed", Missing: true}
+	}
+	if mode == AnyPath {
 		return Resolution{Words: []string{path}, Source: SourcePATH}
 	}
-	return Resolution{Skip: name + " not installed"}
+	if pin := pinned(cfg, dir, root, name); pin != "" {
+		if underManagerDir(cfg, path) {
+			return Resolution{Words: []string{path}, Source: SourceManager}
+		}
+		return Resolution{Skip: name + " pinned in " + pin + ", but PATH has " + path}
+	}
+	if slices.Contains(cfg.ToolResolution.PathFallback, name) {
+		return Resolution{Words: []string{path}, Source: SourcePATH}
+	}
+	return Resolution{Skip: name + " only on PATH (" + path + "); nothing in the project declares or pins it. Add it to tool_resolution.path_fallback to allow"}
 }
 
 func (l lookup) resolve(dir, name string) []string {

@@ -310,11 +310,17 @@ subproject_max_depth: 4
 #   signal_prettier  Prettier's own config lookup, accepted only when the
 #                    config it finds is inside the project root
 # Exactly one candidate formats the file; none, or two (a Biome/Prettier
-# migration mid-way), leaves it alone. {bin} is the nearest
-# node_modules/.bin, .venv/bin, or venv/bin copy inside the project, then its
-# package manager's environment (poetry, pipenv, Yarn PnP, bundler), else
-# PATH; never npx, pnpm dlx, or uv run, which can install packages.
-# disabled_formatters in the overlay turns an entry off by name.
+# migration mid-way), leaves it alone. {bin} resolves as tool_resolution
+# says. When no candidate claims the file, the fallback entries are tried in
+# order and the first that resolves formats it, PATH allowed: an opinionated
+# exception so edited Markdown is formatted even in a repo with no config.
+# A project-side reason it can't run (declared but not installed) stops the
+# chain; only a binary found nowhere moves on.
+#   fallback  no signal needed; used only when nothing else claims the file
+#   stdout    the command reads the file on stdin and prints the result,
+#             which replaces the file when it exits 0
+# disabled_formatters in the overlay turns an entry off by name; an overlay
+# entry with the same name updates the fields it sets.
 formatters:
   - name: biome
     ext: [js, jsx, ts, tsx, json, jsonc, css]
@@ -357,8 +363,76 @@ formatters:
     signal_files: [go.mod]
     bin: gofmt
     cmd: "{bin} -w {file}"
+  - name: prettierd
+    ext: [md, mdx, markdown]
+    fallback: true
+    bin: prettierd
+    cmd: "{bin} {file}"
+    stdout: true
+  - name: prettier-markdown
+    ext: [md, mdx, markdown]
+    fallback: true
+    bin: prettier
+    cmd: "{bin} --write {file}"
+  - name: deno-markdown
+    ext: [md, mdx, markdown]
+    fallback: true
+    bin: deno
+    cmd: "{bin} fmt {file}"
+  - name: mdformat
+    ext: [md, markdown]
+    fallback: true
+    bin: mdformat
+    cmd: "{bin} {file}"
 
 disabled_formatters: []
+
+# Where every tool the kit runs (toolchain checks, file checks, formatters)
+# gets its binary. First match wins:
+#   1. a project-local copy: node_modules/.bin, .venv/bin, venv/bin, from the
+#      file's directory up to the repo root
+#   2. a go.mod tool directive, as `go tool -n` builds it (never downloads)
+#   3. the project's package-manager environment (poetry, pipenv, Yarn PnP,
+#      bundler), or an activated $VIRTUAL_ENV / $CONDA_PREFIX inside the repo
+#   4. declared in a manifest but not installed: skipped, naming the install
+#      command
+#   5. a check that needs the project's packages (local_only): skipped
+#   6. on PATH, when a pin file names the tool and the copy is the version
+#      manager's (under manager_dirs), or the tool is in path_fallback
+# Anything else on PATH is skipped with the reason. Never npx, pnpm dlx, or
+# uv run, which can install packages.
+#   path_fallback  standalone toolchains whose PATH copy is safe to run
+#   pin_files      version-manager files naming tools (.tool-versions, mise)
+#   pin_aliases    a pin file's plugin name -> the binary it provides
+#   manager_dirs   where version managers put the binaries they pin
+#   bin_packages   binary -> the package that declares it, when they differ
+#   install        package manager -> the command that installs declared tools
+tool_resolution:
+  path_fallback: [go, gofmt, cargo, rustfmt, shellcheck, shfmt, stylua, tofu, terraform]
+  pin_files: [.tool-versions, mise.toml, .mise.toml]
+  pin_aliases: {opentofu: tofu, golang: go}
+  manager_dirs:
+    - "$ASDF_DATA_DIR/shims"
+    - "$ASDF_DATA_DIR/installs"
+    - "~/.asdf/shims"
+    - "~/.asdf/installs"
+    - "$MISE_DATA_DIR/shims"
+    - "$MISE_DATA_DIR/installs"
+    - "~/.local/share/mise/shims"
+    - "~/.local/share/mise/installs"
+  bin_packages: {biome: "@biomejs/biome", tsc: typescript}
+  install:
+    npm: npm install
+    pnpm: pnpm install
+    yarn: yarn install
+    bun: bun install
+    uv: uv sync
+    poetry: poetry install
+    pipenv: pipenv install --dev
+    pip: pip install -r requirements.txt
+    pdm: pdm install
+    bundler: bundle install
+    go: go mod download
 
 # The Stop hook runs file-scoped checks on only the files the turn edited.
 # The built-in ones (eslint, biome, stylelint, vitest, jest, ruff, mypy,
@@ -378,10 +452,9 @@ disabled_formatters: []
 #   signal_toml           "<file> <dotted path>": a table in a TOML file
 #   exclude_toml          "<file> <dotted path>" to a regex or regex list;
 #                         matching files (relative to the run dir) are dropped
-#   local_only            don't fall back to a PATH copy
-# {bin} resolves from the project (node_modules/.bin, .venv/bin, venv/bin),
-# then its package manager's environment (poetry, pipenv, Yarn PnP,
-# bundler), then PATH. disabled_file_checks turns any check off by name.
+#   local_only            never take a PATH copy, even a pinned one
+# {bin} resolves as tool_resolution says. disabled_file_checks turns any
+# check off by name.
 # Whole-project checks (typecheck, the full test suite) are `kit run-checks`'s
 # job, run when rules/verify.md says.
 

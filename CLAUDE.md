@@ -24,6 +24,7 @@ Every behavior the kit applies everywhere has exactly one owner, listed below. B
 | Report shape and severity                                                                           | `skills/report-format`                                   |
 | Test design                                                                                         | `skills/test-patterns`                                   |
 | Stack detection, guards, checks, formatters, tools                                                  | `kit.yml`                                                |
+| Where a tool's binary comes from, and when PATH is allowed                                          | `kit.yml` `tool_resolution`, `tools.Resolve`             |
 | Personal register and typography                                                                    | the user's own `~/.claude/rules/voice.md`, never the kit |
 
 Skills and agents carry procedure and stack knowledge only. When one needs a rule above, it cites `rules/<file>.md` instead of restating it.

@@ -175,7 +175,7 @@ func (r *Runner) subproject(cfg *config.Config, root, sub string) {
 			continue
 		}
 		label := tc.Stack + ": " + tc.Name + sfx
-		run := tools.ResolveToolchain(tc, dir, root)
+		run := tools.ResolveToolchain(cfg, tc, dir, root)
 		if run.Words == nil {
 			r.skip(label + " (" + run.Skip + ")")
 			continue

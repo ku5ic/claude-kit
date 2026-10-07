@@ -28,6 +28,7 @@ type Config struct {
 	FileChecks         []FileCheck         `yaml:"file_checks"`
 	DisabledFileChecks []string            `yaml:"disabled_file_checks"`
 	CheckTimeout       int                 `yaml:"check_timeout"`
+	ToolResolution     ToolResolution      `yaml:"tool_resolution"`
 	Tools              []string            `yaml:"tools"`
 	Orchestrators      []Orchestrator      `yaml:"orchestrators"`
 	Versions           map[string][]string `yaml:"versions"`
@@ -151,6 +152,19 @@ type Formatter struct {
 	SignalPrettier bool     `yaml:"signal_prettier"`
 	Bin            string   `yaml:"bin"`
 	Cmd            string   `yaml:"cmd"`
+	Fallback       bool     `yaml:"fallback"`
+	Stdout         bool     `yaml:"stdout"`
+}
+
+// ToolResolution is where a tool's binary may come from beyond the
+// project's own copy (go/internal/tools.Resolve).
+type ToolResolution struct {
+	PathFallback []string          `yaml:"path_fallback"`
+	PinFiles     []string          `yaml:"pin_files"`
+	PinAliases   map[string]string `yaml:"pin_aliases"`
+	ManagerDirs  []string          `yaml:"manager_dirs"`
+	BinPackages  map[string]string `yaml:"bin_packages"`
+	Install      map[string]string `yaml:"install"`
 }
 
 // FileCheck is a user-defined file-scoped check (kit.yml file_checks); the

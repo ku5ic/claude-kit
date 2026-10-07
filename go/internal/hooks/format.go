@@ -2,6 +2,7 @@ package hooks
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,8 +17,9 @@ import (
 )
 
 // FormatDispatch formats an edited file with the project's own formatter
-// and config, per kit.yml's formatters table. A file no formatter claims, or
-// one two formatters claim (a migration in progress), is left byte-identical.
+// and config, per kit.yml's formatters table. A file two formatters claim (a
+// migration in progress) is left byte-identical, and so is one none claims,
+// unless a fallback entry (Markdown) resolves.
 // Never installs anything. Shell files also get a non-blocking shellcheck
 // pass on stderr. PostToolUse for Edit, Write, MultiEdit.
 func FormatDispatch(h *hook.Hook) error {
@@ -51,11 +53,16 @@ func FormatDispatch(h *hook.Hook) error {
 
 	type hit struct {
 		fmt config.Formatter
-		bin []string // the words that run it, nil when not installed
+		res tools.Resolution
 	}
 	var hits []hit
+	var fallbacks []config.Formatter
 	for _, f := range cfg.Formatters {
 		if slices.Contains(cfg.DisabledFormatters, f.Name) || !slices.Contains(f.Ext, ext) {
+			continue
+		}
+		if f.Fallback {
+			fallbacks = append(fallbacks, f)
 			continue
 		}
 		// Resolving can start a package manager (poetry env info, bundle
@@ -65,9 +72,26 @@ func FormatDispatch(h *hook.Hook) error {
 		if !signaled && !f.SignalPrettier {
 			continue
 		}
-		bin := tools.Resolve(dir, root, f.Bin, false).Words
-		if signaled || hasSignal(f, bin, dir, root, path) {
-			hits = append(hits, hit{f, bin})
+		res := tools.Resolve(cfg, dir, root, f.Bin, tools.Default)
+		if !signaled {
+			// Any copy can answer Prettier's config lookup, even one the
+			// policy won't format with.
+			probe := res.Words
+			if probe == nil {
+				probe = tools.Resolve(cfg, dir, root, f.Bin, tools.AnyPath).Words
+			}
+			signaled = hasSignal(f, probe, dir, root, path)
+		}
+		if signaled {
+			hits = append(hits, hit{f, res})
+		}
+	}
+	if len(hits) == 0 {
+		for _, f := range fallbacks {
+			if res := tools.Resolve(cfg, dir, root, f.Bin, tools.AnyPath); !res.Missing {
+				hits = append(hits, hit{f, res})
+				break
+			}
 		}
 	}
 
@@ -78,32 +102,61 @@ func FormatDispatch(h *hook.Hook) error {
 			names = append(names, h.fmt.Name)
 		}
 		fmt.Fprintf(h.Stderr, "format-dispatch: left %s unformatted; %s are all configured for it here\n", base, strings.Join(names, " "))
-	case len(hits) == 1 && hits[0].bin == nil:
+	case len(hits) == 1 && hits[0].res.Missing:
 		fmt.Fprintf(h.Stderr, "format-dispatch: %s is configured here but not installed; %s left unformatted\n", hits[0].fmt.Name, base)
+	case len(hits) == 1 && hits[0].res.Words == nil:
+		fmt.Fprintf(h.Stderr, "format-dispatch: %s is configured here but can't run: %s; %s left unformatted\n", hits[0].fmt.Name, hits[0].res.Skip, base)
 	case len(hits) == 1:
-		// Word by word, so a path with spaces stays one argument; {bin} can
-		// be several words (yarn run prettier under Yarn PnP).
-		var parts []string
-		for word := range strings.FieldsSeq(hits[0].fmt.Cmd) {
-			if word == "{bin}" {
-				parts = append(parts, hits[0].bin...)
-				continue
-			}
-			parts = append(parts, strings.ReplaceAll(word, "{file}", path))
-		}
-		cmd := exec.Command(parts[0], parts[1:]...)
-		cmd.Dir, cmd.Stderr = dir, h.Stderr
-		cmd.Run()
+		runFormatter(hits[0].fmt, hits[0].res.Words, path, dir, h.Stderr)
 	}
 
 	if ext == "sh" || ext == "bash" {
-		if _, err := exec.LookPath("shellcheck"); err == nil {
-			cmd := exec.Command("shellcheck", path)
+		if res := tools.Resolve(cfg, dir, root, "shellcheck", tools.Default); res.Words != nil {
+			cmd := exec.Command(res.Words[0], append(res.Words[1:], path)...)
 			cmd.Stdout, cmd.Stderr = h.Stderr, h.Stderr
 			cmd.Run()
 		}
 	}
 	return nil
+}
+
+// runFormatter runs f on path with bin filling {bin}, word by word so a
+// path with spaces stays one argument. A stdout formatter reads the file on
+// stdin; its output replaces the file only when it exits 0 with output.
+func runFormatter(f config.Formatter, bin []string, path, dir string, stderr io.Writer) {
+	var parts []string
+	for _, word := range tools.Fill(strings.Fields(f.Cmd), "{bin}", bin) {
+		parts = append(parts, strings.ReplaceAll(word, "{file}", path))
+	}
+	cmd := exec.Command(parts[0], parts[1:]...)
+	cmd.Dir, cmd.Stderr = dir, stderr
+	if !f.Stdout {
+		cmd.Run()
+		return
+	}
+	in, err := os.Open(path)
+	if err != nil {
+		return
+	}
+	defer in.Close()
+	cmd.Stdin = in
+	out, err := cmd.Output()
+	if err != nil || len(out) == 0 {
+		return
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*")
+	if err != nil {
+		return
+	}
+	_, werr := tmp.Write(out)
+	cerr := tmp.Close()
+	if werr != nil || cerr != nil || os.Chmod(tmp.Name(), info.Mode().Perm()) != nil || os.Rename(tmp.Name(), path) != nil {
+		os.Remove(tmp.Name())
+	}
 }
 
 // hasSignal is true when formatter f has a signal for the file: a config

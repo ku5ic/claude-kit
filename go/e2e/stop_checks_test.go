@@ -378,7 +378,7 @@ func TestStopChecks(t *testing.T) {
 
 	t.Run("golangci-lint runs from the Go module, only with a .golangci config at or above it", func(t *testing.T) {
 		e := stopChecksSetup(t)
-		e.k.KitYML("disabled_file_checks: [go-vet]\n")
+		e.k.KitYML("disabled_file_checks: [go-vet]\ntool_resolution:\n  path_fallback: [golangci-lint]\n")
 		Write(t, e.path("mod/go.mod"), "module example.com/m\n")
 		Write(t, e.path("mod/pkg/c.go"), "package pkg\n")
 		dir := filepath.Join(e.tmp, "path")
@@ -465,9 +465,20 @@ func TestStopChecks(t *testing.T) {
 		e.noCalls()
 	})
 
-	t.Run("without local_only a bin on PATH runs", func(t *testing.T) {
+	t.Run("a bin found only on PATH, undeclared and unpinned, is skipped with the reason", func(t *testing.T) {
 		e := stopChecksSetup(t)
 		e.oneCheck("")
+		e.fakelintOnPath()
+		e.turn("Edit", e.path("a.ts"))
+		r := e.stop(false)
+		r.Want(t, 0)
+		r.Has(t, "SKIP fakelint (1 file) (fakelint only on PATH (", "Add it to tool_resolution.path_fallback to allow")
+		e.noCalls()
+	})
+
+	t.Run("a bin in path_fallback runs from PATH", func(t *testing.T) {
+		e := stopChecksSetup(t)
+		e.oneCheck("tool_resolution:\n  path_fallback: [fakelint]")
 		e.fakelintOnPath()
 		e.turn("Edit", e.path("a.ts"))
 		e.stop(false)

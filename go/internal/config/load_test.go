@@ -75,6 +75,23 @@ func TestOverlayMergesMapsAndAppendsSequences(t *testing.T) {
 	}
 }
 
+func TestOverlayFormatterWithADefaultsNameUpdatesItFieldByField(t *testing.T) {
+	dir := t.TempDir()
+	base := write(t, dir, "kit.yml", "formatters:\n  - {name: a, ext: [md], bin: a, cmd: \"{bin} {file}\"}\n  - {name: b, ext: [py], bin: b}\n")
+	overlay := write(t, dir, "over.yml", "formatters:\n  - {name: a, ext: [mdx]}\n  - {name: c, ext: [toml], bin: c}\n")
+	cfg, warnings, err := Load(Paths{Base: base, Overlay: overlay})
+	if err != nil || len(warnings) > 0 {
+		t.Fatalf("err=%v warnings=%v", err, warnings)
+	}
+	var got []string
+	for _, f := range cfg.Formatters {
+		got = append(got, f.Name+":"+strings.Join(f.Ext, ",")+":"+f.Bin+":"+f.Cmd)
+	}
+	if want := "a:mdx:a:{bin} {file}|b:py:b:|c:toml:c:"; strings.Join(got, "|") != want {
+		t.Errorf("formatters = %s, want %s", strings.Join(got, "|"), want)
+	}
+}
+
 func TestUnknownKeysWarnWithTheirFile(t *testing.T) {
 	dir := t.TempDir()
 	base := write(t, dir, "kit.yml", "protected_branches: [main]\nformatters:\n  - name: x\n    signal_fies: [a]\n")

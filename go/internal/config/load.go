@@ -184,15 +184,24 @@ func validate(path string) []Warning {
 	}
 }
 
+// keyedSequences are the sequences whose entries an overlay entry with the
+// same value at the named field updates instead of appending beside.
+var keyedSequences = map[string]string{"formatters": "name"}
+
 // mergeNode merges src into dst in place, as yq's `*+`: mappings merge key by
-// key in dst's order with src's new keys after, sequences append, and any
-// other pairing takes src's value.
+// key in dst's order with src's new keys after, sequences append (keyed ones
+// update a same-named entry field by field), and any other pairing takes
+// src's value.
 func mergeNode(dst, src *yaml.Node) {
 	switch {
 	case dst.Kind == yaml.MappingNode && src.Kind == yaml.MappingNode:
 		for i := 0; i+1 < len(src.Content); i += 2 {
 			key, value := src.Content[i], src.Content[i+1]
 			if existing := mappingValue(dst, key.Value); existing != nil {
+				if field, ok := keyedSequences[key.Value]; ok && existing.Kind == yaml.SequenceNode && value.Kind == yaml.SequenceNode {
+					mergeKeyed(existing, value, field)
+					continue
+				}
 				mergeNode(existing, value)
 				continue
 			}
@@ -202,6 +211,33 @@ func mergeNode(dst, src *yaml.Node) {
 		dst.Content = append(dst.Content, src.Content...)
 	default:
 		*dst = *src
+	}
+}
+
+// mergeKeyed appends each src entry to dst, except one whose field matches
+// a dst entry's: that entry takes the fields src sets and keeps the rest.
+func mergeKeyed(dst, src *yaml.Node, field string) {
+	for _, item := range src.Content {
+		var target *yaml.Node
+		if name := mappingValue(item, field); item.Kind == yaml.MappingNode && name != nil {
+			for _, d := range dst.Content {
+				if v := mappingValue(d, field); d.Kind == yaml.MappingNode && v != nil && v.Value == name.Value {
+					target = d
+					break
+				}
+			}
+		}
+		if target == nil {
+			dst.Content = append(dst.Content, item)
+			continue
+		}
+		for i := 0; i+1 < len(item.Content); i += 2 {
+			if existing := mappingValue(target, item.Content[i].Value); existing != nil {
+				*existing = *item.Content[i+1]
+				continue
+			}
+			target.Content = append(target.Content, item.Content[i], item.Content[i+1])
+		}
 	}
 }
 
