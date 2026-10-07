@@ -139,7 +139,7 @@ func Resolve(cfg *config.Config, dir, root, name string, mode Mode) Resolution {
 	if slices.Contains(cfg.ToolResolution.PathFallback, name) {
 		return Resolution{Words: []string{path}, Source: SourcePATH}
 	}
-	return Resolution{Skip: name + " only on PATH (" + path + "); nothing in the project declares or pins it. Add it to tool_resolution.path_fallback to allow", OnPath: path}
+	return Resolution{Skip: name + " only on PATH (" + path + "); nothing in the project declares or pins it. Pin it (.tool-versions), or add it to tool_resolution.path_fallback in ~/.claude/claude-kit.local.yml to allow", OnPath: path}
 }
 
 func (l lookup) resolve(dir, name string) []string {

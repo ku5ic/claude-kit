@@ -482,7 +482,7 @@ func TestStopChecks(t *testing.T) {
 		e.turn("Edit", e.path("a.ts"))
 		r := e.stop(false)
 		r.Want(t, 0)
-		r.Has(t, "SKIP fakelint (1 file) (fakelint only on PATH (", "Add it to tool_resolution.path_fallback to allow")
+		r.Has(t, "SKIP fakelint (1 file) (fakelint only on PATH (", "add it to tool_resolution.path_fallback in ~/.claude/claude-kit.local.yml to allow")
 		e.noCalls()
 	})
 

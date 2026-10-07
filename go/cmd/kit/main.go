@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -205,18 +206,28 @@ func run(args []string, stdout, stderr io.Writer) int {
 }
 
 // parseRunChecksArgs reads [--plan] [--only sub...]. Anything else is an
-// error: a typo'd --plan must never fall through to a real run.
+// error: a typo'd --plan must never fall through to a real run. A repeated
+// --only adds to the list; a subproject written as a path (./api, api/) is
+// cleaned to its name.
 func parseRunChecksArgs(args []string) (plan bool, only []string, err error) {
 	for i, arg := range args {
 		switch arg {
 		case "--plan":
 			plan = true
 		case "--only":
-			if only = args[i+1:]; len(only) == 0 {
-				return false, nil, fmt.Errorf("--only needs at least one subproject")
+			for _, a := range args[i+1:] {
+				switch {
+				case a == "--only":
+				case a == "--plan":
+					return false, nil, fmt.Errorf("--plan must come before --only")
+				case strings.HasPrefix(a, "-"):
+					return false, nil, fmt.Errorf("unknown argument %q", a)
+				default:
+					only = append(only, filepath.Clean(a))
+				}
 			}
-			if j := slices.IndexFunc(only, func(a string) bool { return strings.HasPrefix(a, "-") }); j >= 0 {
-				return false, nil, fmt.Errorf("%s must come before --only", only[j])
+			if len(only) == 0 {
+				return false, nil, fmt.Errorf("--only needs at least one subproject")
 			}
 			return plan, only, nil
 		default:

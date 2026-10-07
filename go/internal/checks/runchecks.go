@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
@@ -251,6 +252,21 @@ func excluded(c config.Check, task string) bool {
 	return slices.ContainsFunc(c.Exclude, func(g string) bool { return guard.Glob(g, task) })
 }
 
+// excludedTask is the first of tasks named like check c (its task or
+// fallback globs) that an exclude glob turns away, and that glob.
+func excludedTask(c config.Check, tasks []project.Task) (name, glob string) {
+	names := slices.Concat(c.Tasks, c.FallbackTasks)
+	for _, t := range tasks {
+		if !slices.ContainsFunc(names, func(g string) bool { return guard.Glob(g, t.Name) }) {
+			continue
+		}
+		if i := slices.IndexFunc(c.Exclude, func(g string) bool { return guard.Glob(g, t.Name) }); i >= 0 {
+			return t.Name, c.Exclude[i]
+		}
+	}
+	return "", ""
+}
+
 // excludedDir is the first path segment of subproject sub matching an
 // exclude_dirs glob of check slot, or "".
 func excludedDir(cfg *config.Config, slot, sub string) string {
@@ -445,6 +461,9 @@ func (p *planner) subproject(sub string) {
 		}
 		if !matched && skipLabel != "" && (!p.orchestrated[c.Name] || skipLabel != "js") {
 			reason := "no " + c.Name + " task"
+			if name, glob := excludedTask(c, tasks); name != "" {
+				reason += "; " + name + " matches the exclude glob " + strconv.Quote(glob)
+			}
 			if cfg.CheckDisabled(c.Name, "") {
 				reason = "disabled_checks"
 			}

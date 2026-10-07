@@ -352,9 +352,26 @@ func TestRunChecks(t *testing.T) {
 		r.Has(t, "PASS python: test (test) [services/api]")
 		r.Lacks(t, "packages/a", "js: lint")
 	})
+	t.Run("--only repeated adds to the list, and takes subprojects written as paths", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", `{"scripts":{"lint":"eslint ."}}`+"\n")
+		e.write("packages/a/package.json", `{"scripts":{"test":"vitest"}}`+"\n")
+		e.write("services/api/pyproject.toml", "[tool.pdm.scripts]\ntest = \"pytest\"\n")
+		e.stub("npm", 0)
+		e.stub("pdm", 0)
+		r := e.run("--only", "./services/api/", "--only", "packages/a/")
+		r.Want(t, 0)
+		r.Has(t, "PASS python: test (test) [services/api]", "PASS js: test (test) [packages/a]")
+		r.Lacks(t, "js: lint (lint)\n")
+	})
+	t.Run("an excluded task names the glob that turned it away", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", `{"scripts":{"lint:fix":"eslint --fix ."}}`+"\n")
+		e.run().Has(t, `SKIP js: lint (no lint task; lint:fix matches the exclude glob "*fix*")`)
+	})
 
 	t.Run("a bad argument is a usage error and runs nothing", func(t *testing.T) {
-		for _, args := range [][]string{{"--plann"}, {"--only"}, {"--only", "services/nope"}, {"--plan", "extra"}} {
+		for _, args := range [][]string{{"--plann"}, {"--only"}, {"--only", "services/nope"}, {"--plan", "extra"}, {"--only", ".", "-x"}} {
 			e := runChecksSetup(t)
 			e.write("package.json", `{"scripts":{"lint":"eslint ."}}`+"\n")
 			e.stub("npm", 0)
