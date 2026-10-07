@@ -409,8 +409,8 @@ func (c *classifier) tool(words, env []string) Command {
 }
 
 // match scores words against p: -1 when they don't match, else the number
-// of required flags (all of which are present). flag is the forbidden flag
-// that alone kept words from matching.
+// of required flags (all of which are present). flag is a forbidden flag
+// words set, whatever the required ones; one set off (--watch=false) isn't.
 func match(words []string, p config.ToolPattern) (score int, flag string) {
 	bin := words[0]
 	if i := strings.LastIndex(bin, "/"); i >= 0 {
@@ -435,17 +435,22 @@ func match(words []string, p config.ToolPattern) (score int, flag string) {
 	has := func(flag string) bool {
 		return slices.ContainsFunc(args, func(a string) bool { return a == flag || strings.HasPrefix(a, flag+"=") })
 	}
+	for _, f := range p.Forbid {
+		if slices.ContainsFunc(args, func(a string) bool { return a == f || strings.HasPrefix(a, f+"=") && !off(a[len(f)+1:]) }) {
+			return -1, f
+		}
+	}
 	for _, f := range p.Require {
 		if !has(f) {
 			return -1, ""
 		}
 	}
-	for _, f := range p.Forbid {
-		if has(f) {
-			return -1, f
-		}
-	}
 	return len(p.Require), ""
+}
+
+// off is true for a flag value that turns the flag off (--watch=false).
+func off(value string) bool {
+	return slices.Contains([]string{"false", "0", "no", "off"}, strings.ToLower(value))
 }
 
 // matchPrefix is the length of the first of prefixes (each one or more

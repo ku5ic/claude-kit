@@ -70,6 +70,8 @@ func TestBody(t *testing.T) {
 		{"prettier --write .", "other"},
 		{"vitest", "gate:test:vitest"},
 		{"vitest --watch", "other"},
+		{"vitest --watch=false", "gate:test:vitest"}, // set off, not on
+		{"jest --watchAll=false", "gate:test:jest"},
 		{"jest -w 4", "gate:test:jest"}, // -w is max workers, not watch
 		{"ruff format --check .", "gate:format-check:ruff"},
 		{"ruff check .", "gate:lint:ruff"},

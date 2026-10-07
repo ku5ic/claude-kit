@@ -534,6 +534,15 @@ func TestRunChecks(t *testing.T) {
 			"SKIP js: test (test) (runs `jest --watch`, which a gate never runs)", "PASS js: test (unit)")
 		e.callsEqual("npm", e.phys(".")+" run unit")
 	})
+	t.Run("a forbidden flag skips a task even without the required flags; one set off doesn't", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", `{"scripts":{"typecheck":"tsc --watch","format:check":"prettier --write .","test":"vitest --watch=false"}}`+"\n")
+		e.stub("npm", 0)
+		r := e.run()
+		r.Has(t, "SKIP js: typecheck (typecheck) (runs `tsc --watch`, which a gate never runs)",
+			"SKIP js: format-check (format:check) (runs `prettier --write`, which a gate never runs)", "PASS js: test (test)")
+		e.callsEqual("npm", e.phys(".")+" run test")
+	})
 	t.Run("a slot's exclude globs hold for body-classified tasks too", func(t *testing.T) {
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"unit-watch":"vitest"}}`+"\n")
