@@ -41,13 +41,18 @@ const (
 
 // Resolution is how a tool runs: the words that run it and where they come
 // from, or, when Words is nil, why it can't run. Missing is true only when
-// no copy exists anywhere, the one skip a fallback formatter moves past.
-// Note qualifies a copy that runs (its declared range couldn't be checked).
+// no copy exists anywhere, the one skip a fallback formatter moves past;
+// Project is true when the project itself names the tool (declared, pinned,
+// a range the copy misses), so it claims the file even though it can't run.
+// OnPath is the PATH copy a skip passed over. Note qualifies a copy that
+// runs (its declared range couldn't be checked).
 type Resolution struct {
 	Words   []string
 	Source  string
 	Skip    string
 	Missing bool
+	Project bool
+	OnPath  string
 	Note    string
 }
 
@@ -85,7 +90,7 @@ func Resolve(cfg *config.Config, dir, root, name string, mode Mode) Resolution {
 			switch version, verdict := satisfies(installed, pkg, spec); verdict {
 			case mismatch:
 				return Resolution{Skip: rel(root, filepath.Join(owner, "package.json")) + " declares " + pkg + " " + spec +
-					", installed is " + version + " at " + rel(root, installed) + "; run " + installCmd(cfg, owner, "js", "npm")}
+					", installed is " + version + " at " + rel(root, installed) + "; run " + installCmd(cfg, owner, "js", "npm"), Project: true}
 			case unchecked:
 				res.Note = pkg + " " + spec + " not checked against the installed copy"
 			}
@@ -113,7 +118,7 @@ func Resolve(cfg *config.Config, dir, root, name string, mode Mode) Resolution {
 		return Resolution{Words: []string{bin}, Source: SourcePM}
 	}
 	if manifest, install := declared(cfg, dir, root, name); manifest != "" {
-		return Resolution{Skip: name + " declared in " + manifest + " but not installed; run " + install}
+		return Resolution{Skip: name + " declared in " + manifest + " but not installed; run " + install, Project: true}
 	}
 	if mode == LocalOnly {
 		return Resolution{Skip: name + " not in the project environment"}
@@ -129,12 +134,12 @@ func Resolve(cfg *config.Config, dir, root, name string, mode Mode) Resolution {
 		if underManagerDir(cfg, path) {
 			return Resolution{Words: []string{path}, Source: SourceManager}
 		}
-		return Resolution{Skip: name + " pinned in " + pin + ", but PATH has " + path}
+		return Resolution{Skip: name + " pinned in " + pin + ", but PATH has " + path, Project: true, OnPath: path}
 	}
 	if slices.Contains(cfg.ToolResolution.PathFallback, name) {
 		return Resolution{Words: []string{path}, Source: SourcePATH}
 	}
-	return Resolution{Skip: name + " only on PATH (" + path + "); nothing in the project declares or pins it. Add it to tool_resolution.path_fallback to allow"}
+	return Resolution{Skip: name + " only on PATH (" + path + "); nothing in the project declares or pins it. Add it to tool_resolution.path_fallback to allow", OnPath: path}
 }
 
 func (l lookup) resolve(dir, name string) []string {

@@ -55,7 +55,7 @@ func FormatDispatch(h *hook.Hook) error {
 		fmt config.Formatter
 		res tools.Resolution
 	}
-	var hits []hit
+	var hits, blocked []hit
 	var fallbacks []config.Formatter
 	for _, f := range cfg.Formatters {
 		if slices.Contains(cfg.DisabledFormatters, f.Name) || !slices.Contains(f.Ext, ext) {
@@ -73,18 +73,25 @@ func FormatDispatch(h *hook.Hook) error {
 			continue
 		}
 		res := tools.Resolve(cfg, dir, root, f.Bin, tools.Default)
-		if !signaled {
+		switch {
+		case signaled:
+		case res.Project:
+			// The project names the tool (declared, pinned) but it can't
+			// run: no fallback may swap another formatter in.
+			blocked = append(blocked, hit{f, res})
+		case res.Words != nil:
+			signaled = hasSignal(f, res.Words, dir, root, path)
+		case res.OnPath != "":
 			// Any copy can answer Prettier's config lookup, even one the
 			// policy won't format with.
-			probe := res.Words
-			if probe == nil {
-				probe = tools.Resolve(cfg, dir, root, f.Bin, tools.AnyPath).Words
-			}
-			signaled = hasSignal(f, probe, dir, root, path)
+			signaled = hasSignal(f, []string{res.OnPath}, dir, root, path)
 		}
 		if signaled {
 			hits = append(hits, hit{f, res})
 		}
+	}
+	if len(hits) == 0 && len(blocked) > 0 {
+		hits = blocked[:1]
 	}
 	if len(hits) == 0 {
 		for _, f := range fallbacks {
@@ -144,10 +151,16 @@ func runFormatter(f config.Formatter, bin []string, path, dir string, stderr io.
 	if err != nil || len(out) == 0 {
 		return
 	}
-	info, err := os.Stat(path)
+	// Write through a symlink (CLAUDE.md -> AGENTS.md), never over it.
+	target, err := filepath.EvalSymlinks(path)
 	if err != nil {
 		return
 	}
+	info, err := os.Stat(target)
+	if err != nil {
+		return
+	}
+	path = target
 	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*")
 	if err != nil {
 		return

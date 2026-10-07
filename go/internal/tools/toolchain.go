@@ -83,8 +83,14 @@ func (r Resolution) Origin() string {
 	return ShellJoin(r.Words) + " (" + why + ")"
 }
 
-// BinLine is the line printed under a check's PASS or FAIL line.
-func (r Resolution) BinLine() string { return "  bin: " + r.Origin() + "\n" }
+// BinLine is the line printed under a check's PASS or FAIL line, "" when
+// the kit resolved no binary for it.
+func (r Resolution) BinLine() string {
+	if r.Words == nil {
+		return ""
+	}
+	return "  bin: " + r.Origin() + "\n"
+}
 
 // ShellJoin joins words for display, single-quoting any holding a space.
 func ShellJoin(words []string) string {

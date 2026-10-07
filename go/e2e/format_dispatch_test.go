@@ -122,6 +122,39 @@ echo formatted
 			t.Errorf("README.md is %q", got)
 		}
 	})
+	t.Run("prettierd's output goes through a symlink, which stays a symlink", func(t *testing.T) {
+		e := formatDispatchSetup(t)
+		Stub(t, filepath.Join(e.stubs, "prettierd"), "cat >/dev/null\necho formatted\n")
+		Write(t, filepath.Join(e.repo, "AGENTS.md"), "content\n")
+		if err := os.Symlink("AGENTS.md", filepath.Join(e.repo, "CLAUDE.md")); err != nil {
+			t.Fatal(err)
+		}
+		e.Hook("format-dispatch", map[string]any{"tool_input": map[string]any{"file_path": filepath.Join(e.repo, "CLAUDE.md")}})
+		if link, err := os.Readlink(filepath.Join(e.repo, "CLAUDE.md")); err != nil || link != "AGENTS.md" {
+			t.Errorf("CLAUDE.md is no longer the symlink: %q %v", link, err)
+		}
+		if got := Read(t, filepath.Join(e.repo, "AGENTS.md")); got != "formatted\n" {
+			t.Errorf("AGENTS.md is %q", got)
+		}
+	})
+	t.Run("a declared but uninstalled prettier with a config blocks the Markdown fallback", func(t *testing.T) {
+		e := formatDispatchSetup(t)
+		Write(t, filepath.Join(e.repo, "package.json"), `{"devDependencies":{"prettier":"^3"}}`+"\n")
+		Touch(t, filepath.Join(e.repo, ".prettierrc"))
+		e.remove(filepath.Join(e.repo, "node_modules/.bin/prettier"))
+		Stub(t, filepath.Join(e.stubs, "prettierd"), `echo "prettierd $*" >>"`+e.calls+"\"\n")
+		r := e.format(filepath.Join(e.repo, "README.md"))
+		r.Has(t, "prettier is configured here but can't run: prettier declared in package.json but not installed")
+		e.callsWant("")
+	})
+	t.Run("a stale prettier dependency doesn't stop a configured Biome", func(t *testing.T) {
+		e := formatDispatchSetup(t)
+		Write(t, filepath.Join(e.repo, "package.json"), `{"devDependencies":{"prettier":"^3"}}`+"\n")
+		Write(t, filepath.Join(e.repo, "biome.json"), "{}\n")
+		e.remove(filepath.Join(e.repo, "node_modules/.bin/prettier"))
+		e.format(filepath.Join(e.repo, "app.ts"))
+		e.callsWant("biome format --write " + e.repo + "/app.ts")
+	})
 	t.Run("a prettierd failure leaves the file as it was", func(t *testing.T) {
 		e := formatDispatchSetup(t)
 		Stub(t, filepath.Join(e.stubs, "prettierd"), "cat >/dev/null\necho partial\nexit 2\n")

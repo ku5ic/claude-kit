@@ -418,6 +418,8 @@ tool_resolution:
     - "~/.asdf/installs"
     - "$MISE_DATA_DIR/shims"
     - "$MISE_DATA_DIR/installs"
+    - "$XDG_DATA_HOME/mise/shims"
+    - "$XDG_DATA_HOME/mise/installs"
     - "~/.local/share/mise/shims"
     - "~/.local/share/mise/installs"
   bin_packages: {biome: "@biomejs/biome", tsc: typescript}

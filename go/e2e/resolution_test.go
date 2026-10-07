@@ -218,6 +218,16 @@ func TestResolutionMatrix(t *testing.T) {
 			"PASS opentofu: fmt\n  bin: "+filepath.Join(e.stubs, "tofu")+" (PATH)\n")
 	})
 
+	t.Run("a toolchain check with no {bin} gets no bin line", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", "{}\n")
+		e.k.Overlay("toolchain_checks:\n  - {stack: js, name: plain, cmd: \"fakeplain --probe\"}\n")
+		e.stub("fakeplain", 0)
+		r := e.run()
+		r.Has(t, "PASS js: plain\n")
+		r.Lacks(t, "PASS js: plain\n  bin:")
+	})
+
 	t.Run("ambiguous: an undeclared, unpinned PATH-only tool is skipped with the reason", func(t *testing.T) {
 		e := runChecksSetup(t)
 		e.write("package.json", "{}\n")
