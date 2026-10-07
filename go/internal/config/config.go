@@ -163,6 +163,9 @@ type Check struct {
 	Tasks   []string      `yaml:"tasks"`
 	Exclude []string      `yaml:"exclude"`
 	Tools   []ToolPattern `yaml:"tools"`
+	// FallbackTasks: names that count only when no Tasks glob matches, and
+	// then only the first present; the rest are covered by it.
+	FallbackTasks []string `yaml:"fallback_tasks"`
 	// Scope "changed": the check runs whole-program, but only findings in
 	// files changed since the git base fail it (dead code).
 	Scope string `yaml:"scope"`

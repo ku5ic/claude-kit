@@ -62,6 +62,7 @@ func roles(cfg *config.Config, root, dir, sfx string, tasks []project.Task) task
 			r.slots[i] = gate.Slot
 		}
 	}
+	applyFallbacks(cfg, tasks, &r)
 	for i, t := range tasks {
 		if globSlot(cfg, t.Name) == "" {
 			continue
@@ -82,6 +83,37 @@ func roles(cfg *config.Config, root, dir, sfx string, tasks []project.Task) task
 		r.leaves = append(r.leaves, a.walk(results[i], taskAt{t, dir}, visited, 0)...)
 	}
 	return r
+}
+
+// applyFallbacks gives each check's fallback_tasks their role: covered by
+// the task a Tasks glob matched, else the first present runs and covers
+// the rest, so test:unit and test:ci never both run.
+func applyFallbacks(cfg *config.Config, tasks []project.Task, r *taskRoles) {
+	for _, c := range cfg.Checks {
+		if len(c.FallbackTasks) == 0 {
+			continue
+		}
+		primary := ""
+		for _, t := range tasks {
+			if matchesCheck(c, t.Name) {
+				primary = t.Name
+				break
+			}
+		}
+		for _, name := range c.FallbackTasks {
+			for i, t := range tasks {
+				if t.Name != name || excluded(c, t.Name) {
+					continue
+				}
+				r.slots[i] = c.Name
+				if primary == "" {
+					primary = t.Name
+				} else {
+					r.covered[i] = primary
+				}
+			}
+		}
+	}
 }
 
 type aggregator struct {

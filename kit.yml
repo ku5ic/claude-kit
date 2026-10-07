@@ -283,12 +283,18 @@ task_providers:
 # commands that count as each when a task's name matches no glob (its body
 # is read by go/internal/classify). A task matching an exclude glob never
 # counts, whatever its body.
-#   tools  {bin, sub, require, forbid}: bin by name; its first non-flag
-#          argument one of sub; every require flag present; no forbid flag
-#          (alone or as flag=value)
+#   tools           {bin, sub, require, forbid}: bin by name; its first
+#                   non-flag argument one of sub; every require flag present;
+#                   no forbid flag (alone or as flag=value). A scoped check's
+#                   patterns add findings, unmapped, advisory (see deadcode)
+#   fallback_tasks  names that count only when no tasks glob matches, and
+#                   then only the first present; the others are covered by
+#                   it, so test:unit and test:ci never both run
+#   scope           changed: see deadcode
+# The globs, fallbacks, and excludes follow a survey of 140 popular repos.
 checks:
   - name: typecheck
-    tasks: [typecheck, type-check]
+    tasks: [typecheck, type-check, "typecheck:*", "type-check:*", types, typing, check-types, "check:types", "test:types", test-types, "test:typecheck"]
     exclude: ["*watch*"]
     tools:
       - {bin: tsc, require: [--noEmit], forbid: [--watch, -w]}
@@ -297,7 +303,7 @@ checks:
       - {bin: pyright, forbid: [--watch, -w]}
       - {bin: ty, sub: [check], forbid: [--watch]}
   - name: lint
-    tasks: [lint, eslint, stylelint, "lint:*", "eslint:*", "stylelint:*"]
+    tasks: [lint, eslint, stylelint, "lint:*", "lint-*", "eslint:*", "stylelint:*"]
     exclude: ["*fix*", "*watch*", "*staged*", "*changed*", "*unused*", "*deadcode*", "*dead-code*"]
     tools:
       - {bin: eslint, forbid: [--fix]}
@@ -313,7 +319,7 @@ checks:
       - {bin: yamllint}
       - {bin: tflint, forbid: [--fix]}
   - name: format-check
-    tasks: ["format:check", "fmt:check", format-check]
+    tasks: ["format:check", "fmt:check", format-check, fmt-check, check-format, "check:format", check-fmt, "check:fmt", prettier-check, "prettier:check", "lint:prettier", style-check, "style:check", "format:diff"]
     exclude: ["*watch*"]
     tools:
       - {bin: prettier, require: [--check], forbid: [--write, -w]}
@@ -329,6 +335,7 @@ checks:
       - {bin: terraform, sub: [fmt], require: [-check]}
   - name: test
     tasks: [test]
+    fallback_tasks: ["test:unit", test-unit, "test:ci", test-ci, "test:all", test-all, tests, unit-test, "unit:test"]
     exclude: ["*watch*", "*e2e*", "*integration*", "*bench*", "*:update*", "*snapshot*"]
     tools:
       - {bin: vitest, forbid: [--watch, -w, --ui]}
