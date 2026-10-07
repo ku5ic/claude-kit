@@ -379,6 +379,32 @@ stacks:
 		}
 	})
 
+	t.Run("tooling: lists exactly the toolchain checks run-checks runs", func(t *testing.T) {
+		e := injectContextSetup(t, tree)
+		e.kitYML(`toolchain_checks:
+  - {stack: js, name: local, cmd: "{bin} --probe", bin: [fakefmt]}
+  - {stack: js, name: ambiguous, cmd: "{bin} --probe", bin: [fakeother]}
+stacks:
+  js:
+    sentinels:
+      - {name: package.json, anchor: true}
+`)
+		Write(t, filepath.Join(e.root, "package.json"), "{}\n")
+		Write(t, filepath.Join(e.root, ".gitignore"), "node_modules\n")
+		Stub(t, filepath.Join(e.root, "node_modules/.bin/fakefmt"), "")
+		stubs := filepath.Join(e.tmp, "stubs")
+		Stub(t, filepath.Join(stubs, "fakeother"), "")
+		e.PrependPath(stubs)
+		e.Git(e.root, "add", "-A")
+
+		if got, want := injectContextIndented(injectContextTooling(e.run("s1", "").Output)), "  node_modules/.bin/fakefmt --probe"; got != want {
+			t.Errorf("tooling lines:\n%s\nwant:\n%s", got, want)
+		}
+		e.Dir = e.root
+		r := e.exec(injectContextBin(e.tree), "", "run-checks")
+		r.Has(t, "PASS js: local\n", "SKIP js: ambiguous (fakeother only on PATH (")
+	})
+
 	t.Run("tooling: workspace packages get their own section with the root's package manager", func(t *testing.T) {
 		e := injectContextSetup(t, tree)
 		e.useRealKitYML()

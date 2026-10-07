@@ -486,6 +486,35 @@ func TestStopChecks(t *testing.T) {
 		e.noCalls()
 	})
 
+	t.Run("a declared but uninstalled bin is skipped with the install command, not run from PATH", func(t *testing.T) {
+		e := stopChecksSetup(t)
+		e.oneCheck("")
+		Write(t, e.path("package.json"), `{"devDependencies":{"fakelint":"1.0.0"}}`+"\n")
+		e.fakelintOnPath()
+		e.turn("Edit", e.path("a.ts"))
+		r := e.stop(false)
+		r.Want(t, 0)
+		r.Has(t, "SKIP fakelint (1 file) (fakelint declared in package.json but not installed; run npm install)")
+		e.noCalls()
+	})
+
+	t.Run("a pinned bin runs from the version manager's shims", func(t *testing.T) {
+		e := stopChecksSetup(t)
+		e.oneCheck("tool_resolution:\n  pin_files: [.tool-versions]\n  manager_dirs: [\"$ASDF_DATA_DIR/shims\"]")
+		Write(t, e.path(".tool-versions"), "fakelint 1.0.0\n")
+		asdf := filepath.Join(e.tmp, "asdf")
+		shim := filepath.Join(asdf, "shims/fakelint")
+		Mkdir(t, filepath.Dir(shim))
+		if err := os.Rename(e.path("node_modules/.bin/fakelint"), shim); err != nil {
+			t.Fatal(err)
+		}
+		e.k.Setenv("ASDF_DATA_DIR", asdf)
+		e.k.PrependPath(filepath.Dir(shim))
+		e.turn("Edit", e.path("a.ts"))
+		r := e.stop(false)
+		r.Has(t, `PASS fakelint (1 file)\n  bin: `+shim+` (version manager)`)
+	})
+
 	t.Run("a bin in path_fallback runs from PATH", func(t *testing.T) {
 		e := stopChecksSetup(t)
 		e.oneCheck("tool_resolution:\n  path_fallback: [fakelint]")

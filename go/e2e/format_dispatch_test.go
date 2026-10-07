@@ -247,6 +247,29 @@ echo formatted
 		e.callsWant("taplo format " + e.repo + "/Cargo.toml")
 	})
 
+	t.Run("a configured formatter only on PATH, undeclared and unpinned, can't run", func(t *testing.T) {
+		e := formatDispatchSetup(t)
+		Write(t, filepath.Join(e.repo, "biome.json"), "{}\n")
+		e.remove(filepath.Join(e.repo, "node_modules/.bin/biome"))
+		r := e.format(filepath.Join(e.repo, "app.ts"))
+		r.Want(t, 0)
+		r.Has(t, "biome is configured here but can't run: biome only on PATH (")
+		e.callsWant("")
+	})
+
+	t.Run("a pinned formatter runs from the version manager's shims", func(t *testing.T) {
+		e := formatDispatchSetup(t)
+		Write(t, filepath.Join(e.repo, "biome.json"), "{}\n")
+		Write(t, filepath.Join(e.repo, ".tool-versions"), "biome 2.0.0\n")
+		e.remove(filepath.Join(e.repo, "node_modules/.bin/biome"))
+		asdf := filepath.Join(e.tmp, "asdf")
+		e.stub(filepath.Join(asdf, "shims/biome"), "shim-biome")
+		e.Setenv("ASDF_DATA_DIR", asdf)
+		e.PrependPath(filepath.Join(asdf, "shims"))
+		e.format(filepath.Join(e.repo, "app.ts"))
+		e.callsWant("shim-biome format --write " + e.repo + "/app.ts")
+	})
+
 	t.Run("a configured formatter that isn't installed leaves the file alone", func(t *testing.T) {
 		e := formatDispatchSetup(t)
 		Write(t, filepath.Join(e.repo, "biome.json"), "{}\n")
