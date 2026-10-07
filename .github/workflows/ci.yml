@@ -22,19 +22,19 @@ jobs:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
 
-      # The version .tool-versions pins, so CI and local runs agree.
+      # The version .tool-versions pins, script and binary both from its tag.
       - name: Install golangci-lint
-        run: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b "$(go env GOPATH)/bin" "v$(awk '$1 == "golangci-lint" {print $2}' ../.tool-versions)"
+        run: |
+          v="v$(awk '$1 == "golangci-lint" {print $2}' ../.tool-versions)"
+          curl -sSfL "https://raw.githubusercontent.com/golangci/golangci-lint/$v/install.sh" | sh -s -- -b "$(go env GOPATH)/bin" "$v"
 
-      # Also the gofmt gate: .golangci.yml enables the gofmt formatter.
       - name: golangci-lint
         run: golangci-lint run ./...
 
       - name: vet
         run: go vet ./...
 
-      # Logs only: deadcode exits 0 with findings. run-checks reads this
-      # step and fails it locally on findings in changed lines.
+      # Logs only: deadcode exits 0 with findings.
       - name: deadcode
         run: go tool deadcode -test ./...
 

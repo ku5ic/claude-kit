@@ -18,6 +18,6 @@ linters:
       - path: _test\.go
         linters: [errcheck]
 
-# The CI gofmt gate, as a step run-checks can read.
+# golangci-lint run reports gofmt findings too.
 formatters:
   enable: [gofmt]
