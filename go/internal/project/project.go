@@ -189,9 +189,14 @@ func Tasks(cfg *config.Config, dir string) []Task {
 		}
 		bodies := extract.Bodies(tp.Extractor, p.Manifest, tp.Arg)
 		for _, name := range names {
-			if name != "" {
-				out = append(out, Task{Provider: tp.Name, Stack: tp.Stack, Name: name, Cmd: strings.ReplaceAll(run, "{task}", name), Body: bodies[name]})
+			if name == "" {
+				continue
 			}
+			body := bodies[name]
+			if tp.Body != "" && body != "" {
+				body = strings.ReplaceAll(tp.Body, "{body}", body)
+			}
+			out = append(out, Task{Provider: tp.Name, Stack: tp.Stack, Name: name, Cmd: strings.ReplaceAll(run, "{task}", name), Body: body})
 		}
 	}
 	return out

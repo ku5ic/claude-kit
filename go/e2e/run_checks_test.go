@@ -480,6 +480,24 @@ func TestRunChecks(t *testing.T) {
 		e.run().Has(t, "PASS make: lint (golint)")
 	})
 
+	// Cargo aliases are tasks, read as the cargo command they expand to.
+	t.Run("rust: a cargo alias fills its slot by name or by what it runs", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("Cargo.toml", "[package]\nname = \"x\"\n")
+		e.write(".cargo/config.toml", "[alias]\nlint = \"clippy --all-targets -- -D warnings\"\nck = [\"fmt\", \"--check\"]\nxtask = \"run --package xtask --\"\n")
+		e.stub("cargo", 0)
+		r := e.run()
+		r.Has(t, "PASS rust: lint (lint)", "PASS rust: format-check (ck)")
+		r.Lacks(t, "(xtask)")
+	})
+	t.Run("rust: no .cargo/config.toml, no alias tasks", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("Cargo.toml", "[package]\nname = \"x\"\n")
+		e.stub("cargo", 0)
+		r := e.run()
+		r.Lacks(t, "rust: lint (", "rust: format-check (")
+	})
+
 	t.Run("--plan lists every check with its command and runs none", func(t *testing.T) {
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"lint":"eslint ."}}`+"\n")

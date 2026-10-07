@@ -234,6 +234,9 @@ disabled_rules: []
 #   run:       command template; {task} is the task, {pm} the package manager
 #              resolved for the directory (npm when none)
 #   run_by_pm: run templates that replace run under a given package manager
+#   body:      template for the shell a task runs, as the gate classifier
+#              reads it; {body} is what the manifest holds (a cargo alias
+#              holds "clippy ...", which runs as "cargo clippy ...")
 task_providers:
   - name: package-scripts
     stack: js
@@ -268,6 +271,13 @@ task_providers:
     extractor: regex_lines
     arg: '^[[:space:]]*task[[:space:]]+:?"?([A-Za-z0-9_:]+)'
     run: "bundle exec rake {task}"
+  - name: cargo-alias
+    stack: rust
+    manifests: [.cargo/config.toml, .cargo/config]
+    extractor: toml_keys
+    arg: .alias
+    run: "cargo {task}"
+    body: "cargo {body}"
 
 # Canonical checks: the task names that count as each, as globs, and the
 # commands that count as each when a task's name matches no glob (its body

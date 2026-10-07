@@ -32,7 +32,9 @@ func TestBodies(t *testing.T) {
 			"ci":    "make check\ngo vet ./...",
 		}},
 		{"just_recipes", just, "", map[string]string{"check": "just lint\njust test\necho done", "lint": "eslint ."}},
-		{"toml_keys", poe, ".tool.poe.tasks", map[string]string{"lint": "ruff check .", "test": "pytest"}},
+		// A list joins with spaces (a cargo alias); a poe sequence reads as one
+		// unknown command, so it never counts as a gate.
+		{"toml_keys", poe, ".tool.poe.tasks", map[string]string{"lint": "ruff check .", "test": "pytest", "all": "lint test"}},
 	} {
 		got := Bodies(c.name, c.file, c.arg)
 		if len(got) != len(c.want) {

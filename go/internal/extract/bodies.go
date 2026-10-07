@@ -26,8 +26,9 @@ func Bodies(name, file, arg string) map[string]string {
 	return nil
 }
 
-// stringValues maps a table's keys to their command: a string, or a table's
-// cmd or shell string (poe, pdm). Anything else has no body.
+// stringValues maps a table's keys to their command: a string, a list of
+// strings joined with spaces (a cargo alias), or a table's cmd or shell
+// string (poe, pdm). Anything else has no body.
 func stringValues(value any) map[string]string {
 	m, ok := value.(map[string]any)
 	if !ok {
@@ -38,6 +39,10 @@ func stringValues(value any) map[string]string {
 		switch v := v.(type) {
 		case string:
 			out[key] = v
+		case []any:
+			if words := strings_(v); len(words) == len(v) && len(words) > 0 {
+				out[key] = strings.Join(words, " ")
+			}
 		case map[string]any:
 			for _, field := range []string{"cmd", "shell"} {
 				if s, ok := v[field].(string); ok {

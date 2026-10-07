@@ -155,6 +155,7 @@ type TaskProvider struct {
 	Arg       string            `yaml:"arg"`
 	Run       string            `yaml:"run"`
 	RunByPM   map[string]string `yaml:"run_by_pm"`
+	Body      string            `yaml:"body"`
 }
 
 type Check struct {
