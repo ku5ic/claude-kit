@@ -50,6 +50,7 @@ type planner struct {
 	gates        []Gate
 	orchestrated map[string]bool
 	ci           map[string][]ciStep
+	subDirs      map[string]bool // every subproject's absolute directory
 }
 
 func (p *planner) add(g Gate) { p.gates = append(p.gates, g) }
@@ -74,6 +75,10 @@ func Gates(cfg *config.Config, root string, only []string) []Gate {
 		p.orchestrate()
 	}
 	subs := project.Subprojects(cfg, root)
+	p.subDirs = map[string]bool{}
+	for _, sub := range subs {
+		p.subDirs[dirOf(root, sub)] = true
+	}
 	p.ci = stepsBySubproject(ciSteps(cfg, root), subs)
 	for _, sub := range subs {
 		if inScope(sub) {
@@ -255,12 +260,17 @@ func (p *planner) subproject(sub string) {
 		}
 	}
 
-	r := roles(cfg, p.root, dir, sfx, tasks)
-	ciStack := skipLabel
+	r := roles(cfg, p.root, dir, sfx, tasks, p.subDirs)
+	// CI gates take the detected stack (go), not a stackless provider's
+	// name (make), when there is one.
+	ciStack := ""
 	for _, name := range cfg.StackOrder {
 		if ciStack == "" && name != "monorepo" && cfg.HasStack(dir, name) {
 			ciStack = name
 		}
+	}
+	if ciStack == "" {
+		ciStack = skipLabel
 	}
 	ci := p.ciLeaves(sub, sfx, ciStack)
 	seen := map[string]bool{}

@@ -2,6 +2,7 @@ package checks
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -46,9 +47,9 @@ type taskAt struct {
 // a task whose body is one gate is that gate's check; a task whose body
 // runs other tasks or several gates is an aggregate, never run itself, its
 // gates run separately; anything else doesn't run.
-func roles(cfg *config.Config, root, dir, sfx string, tasks []project.Task) taskRoles {
+func roles(cfg *config.Config, root, dir, sfx string, tasks []project.Task, subs map[string]bool) taskRoles {
 	r := taskRoles{slots: make([]string, len(tasks)), covered: make([]string, len(tasks)), single: make([]*classify.Command, len(tasks))}
-	a := &aggregator{cfg: cfg, root: root, sfx: sfx, cache: map[string][]project.Task{dir: tasks}}
+	a := &aggregator{cfg: cfg, root: root, sfx: sfx, home: dir, subs: subs, cache: map[string][]project.Task{dir: tasks}}
 	results := make([]classify.Result, len(tasks))
 	for i, t := range tasks {
 		results[i] = classify.Body(cfg, t.Body, a.lookup(dir))
@@ -80,7 +81,12 @@ func roles(cfg *config.Config, root, dir, sfx string, tasks []project.Task) task
 			continue
 		}
 		visited := map[string]bool{taskID(t, dir): true}
-		r.leaves = append(r.leaves, a.walk(results[i], taskAt{t, dir}, visited, 0)...)
+		leaves := a.walk(results[i], taskAt{t, dir}, visited, 0)
+		// A missing reference is worth naming only in an aggregate that
+		// holds gates; in a build or release task it's just noise.
+		if slices.ContainsFunc(leaves, func(l leaf) bool { return l.slot != "" }) {
+			r.leaves = append(r.leaves, leaves...)
+		}
 	}
 	return r
 }
@@ -116,11 +122,25 @@ func applyFallbacks(cfg *config.Config, tasks []project.Task, r *taskRoles) {
 	}
 }
 
+// aggregator walks aggregates in one subproject (home). subs is every
+// subproject directory: a reference into another one is left to that
+// subproject's own run, so it doesn't run twice.
 type aggregator struct {
 	cfg   *config.Config
 	root  string
 	sfx   string
+	home  string
+	subs  map[string]bool
 	cache map[string][]project.Task
+}
+
+// shellState is what the commands before a gate in a body have set up: the
+// directory a literal cd moved to, exported env, and the first command the
+// kit can't carry over (a stateful builtin, a cd it can't follow).
+type shellState struct {
+	dir     string
+	env     []string
+	blocker string
 }
 
 func (a *aggregator) tasksIn(dir string) []project.Task {
@@ -177,37 +197,46 @@ func (a *aggregator) referenced(r classify.Result, dir string, tasks []project.T
 // Commands that are neither (a build, codegen) are named on the leaf.
 func (a *aggregator) walk(r classify.Result, agg taskAt, visited map[string]bool, depth int) []leaf {
 	var out []leaf
-	dir, env, blocker := agg.dir, []string(nil), ""
+	st := shellState{dir: agg.dir}
 	var setup []string
 	stack := agg.task.Stack
 	if stack == "" {
 		stack = agg.task.Provider
+	}
+	block := func(cmd classify.Command) {
+		if st.blocker == "" {
+			st.blocker = strings.Join(cmd.Words, " ")
+		}
 	}
 	for _, cmd := range r.Commands {
 		switch cmd.Kind {
 		case classify.Cd:
 			target := ""
 			if len(cmd.Words) == 2 {
-				target = filepath.Clean(filepath.Join(dir, cmd.Words[1]))
+				target = filepath.Clean(filepath.Join(st.dir, cmd.Words[1]))
 			}
 			if target == "" || (target != a.root && !strings.HasPrefix(target, a.root+"/")) {
-				blocker = strings.Join(cmd.Words, " ")
+				block(cmd)
 				continue
 			}
-			dir = target
+			st.dir = target
 		case classify.Export:
-			env = append(env, cmd.Env...)
+			st.env = append(st.env, cmd.Env...)
 		case classify.Other:
-			if len(cmd.Words) > 0 && slices.Contains(stateful, cmd.Words[0]) {
-				blocker = strings.Join(cmd.Words, " ")
-			} else if len(cmd.Words) > 0 {
+			switch {
+			case len(cmd.Words) == 0:
+			case slices.Contains(stateful, cmd.Words[0]),
+				// cd "$DIR", FOO=$BAR: a directory or value the kit can't know.
+				cmd.Expansion && (cmd.Words[0] == "cd" || strings.HasSuffix(cmd.Words[0], "=$")):
+				block(cmd)
+			default:
 				setup = append(setup, strings.Join(cmd.Words, " "))
 			}
 		case classify.Gate:
-			out = append(out, a.inline(cmd, agg, stack, dir, env, blocker, setup))
+			out = append(out, a.inline(cmd, agg, stack, st, setup))
 		case classify.Ref:
 			for _, ref := range cmd.Refs {
-				leaves, gateless := a.reference(ref, agg, stack, visited, depth)
+				leaves, gateless := a.reference(ref, agg, stack, st, visited, depth)
 				out = append(out, leaves...)
 				if gateless {
 					setup = append(setup, strings.Join(cmd.Words, " "))
@@ -218,36 +247,59 @@ func (a *aggregator) walk(r classify.Result, agg taskAt, visited map[string]bool
 	return out
 }
 
-func (a *aggregator) inline(cmd classify.Command, agg taskAt, stack, dir string, env []string, blocker string, setup []string) leaf {
+func (a *aggregator) inline(cmd classify.Command, agg taskAt, stack string, st shellState, setup []string) leaf {
 	label := fmt.Sprintf("%s: %s (%s: %s)%s", stack, cmd.Slot, agg.task.Name, cmd.Tool, a.sfx)
-	l := leaf{id: "inline\x00" + dir + "\x00" + cmd.Slot + "\x00" + strings.Join(cmd.Words, " "), slot: cmd.Slot, label: label, inline: true}
-	if blocker != "" {
-		l.gate = Gate{Label: label, Skip: "depends on `" + blocker + "` in " + agg.task.Name}
+	l := leaf{id: "inline\x00" + st.dir + "\x00" + cmd.Slot + "\x00" + strings.Join(cmd.Words, " "), slot: cmd.Slot, label: label, inline: true}
+	if st.blocker != "" {
+		l.gate = Gate{Label: label, Skip: "depends on `" + st.blocker + "` in " + agg.task.Name}
 		return l
 	}
-	res := tools.Resolve(a.cfg, dir, a.root, cmd.Words[0], tools.Default)
+	res := a.resolveWord(st.dir, cmd.Words[0])
 	if res.Words == nil {
 		l.gate = Gate{Label: label, Skip: res.Skip}
 		return l
 	}
 	words := append(slices.Clone(res.Words), cmd.Words[1:]...)
-	if all := append(slices.Clone(env), cmd.Env...); len(all) > 0 {
+	if all := append(slices.Clone(st.env), cmd.Env...); len(all) > 0 {
 		words = append(append([]string{"env"}, all...), words...)
 	}
-	l.gate = Gate{Label: label, Dir: dir, Words: words, BinLine: res.BinLine(), Note: setupNote(agg.task.Name, setup),
+	l.gate = Gate{Label: label, Dir: st.dir, Words: words, BinLine: res.BinLine(), Note: setupNote(agg.task.Name, setup),
 		Scope: scopeFor(checkNamed(a.cfg, cmd.Slot), &cmd)}
 	return l
 }
 
-// reference follows one task reference of an aggregate: a slot-named or
+// resolveWord resolves a command's first word: a path (./node_modules/.bin/
+// eslint, bin/rubocop) is that file when it's an executable inside the
+// repo; a bare name goes through tools.Resolve.
+func (a *aggregator) resolveWord(dir, word string) tools.Resolution {
+	if !strings.Contains(word, "/") {
+		return tools.Resolve(a.cfg, dir, a.root, word, tools.Default)
+	}
+	path := word
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(dir, path)
+	}
+	path = filepath.Clean(path)
+	if info, err := os.Stat(path); err == nil && !info.IsDir() && info.Mode()&0o111 != 0 && strings.HasPrefix(path, a.root+"/") {
+		return tools.Resolution{Words: []string{path}, Source: tools.SourceLocal}
+	}
+	return tools.Resolution{Skip: word + " not found in the repo"}
+}
+
+// reference follows one task reference of an aggregate, from the
+// directory and env the commands before it set up: a slot-named or
 // single-gate task is a leaf run as itself; another aggregate is walked in
-// turn; anything else runs nothing and is gateless (a build step).
-func (a *aggregator) reference(ref classify.TaskRef, agg taskAt, stack string, visited map[string]bool, depth int) (leaves []leaf, gateless bool) {
-	target, ok := a.find(agg.dir, ref)
+// turn; anything else runs nothing and is gateless (a build step). A task
+// in another subproject is left to that subproject's own run.
+func (a *aggregator) reference(ref classify.TaskRef, agg taskAt, stack string, st shellState, visited map[string]bool, depth int) (leaves []leaf, gateless bool) {
+	target, ok := a.find(st.dir, ref)
 	if !ok {
 		label := fmt.Sprintf("%s: %s%s", stack, agg.task.Name, a.sfx)
-		return []leaf{{id: "missing\x00" + agg.dir + "\x00" + ref.Name, label: label,
+		return []leaf{{id: "missing\x00" + st.dir + "\x00" + ref.Name, label: label,
 			gate: Gate{Label: label, Skip: "references missing task " + ref.Name}}}, false
+	}
+	if target.dir != a.home && a.subs[target.dir] {
+		return nil, false
 	}
 	id := taskID(target.task, target.dir)
 	if visited[id] || depth >= maxDepth {
@@ -275,12 +327,18 @@ func (a *aggregator) reference(ref classify.TaskRef, agg taskAt, stack string, v
 	if withArgs {
 		words = append(append(words, "--"), ref.Args...)
 	}
+	if len(st.env) > 0 {
+		words = append(append([]string{"env"}, st.env...), words...)
+	}
 	sfx := a.sfx
-	if target.dir != agg.dir {
+	if target.dir != a.home {
 		sfx = " [" + rel(a.root, target.dir) + "]"
 	}
 	label := fmt.Sprintf("%s: %s (%s)%s", stack, slot, target.task.Name, sfx)
 	gate := Gate{Label: label, Dir: target.dir, Words: words, Scope: scopeFor(checkNamed(a.cfg, slot), single)}
+	if st.blocker != "" {
+		gate = Gate{Label: label, Skip: "depends on `" + st.blocker + "` in " + agg.task.Name}
+	}
 	return []leaf{{id: id, slot: slot, label: label, withArgs: withArgs, gate: gate}}, false
 }
 
@@ -293,7 +351,7 @@ func (p *planner) ciLeaves(sub, sfx, stack string) []leaf {
 	if stack == "" {
 		stack = "ci"
 	}
-	a := &aggregator{cfg: p.cfg, root: p.root, sfx: sfx, cache: map[string][]project.Task{}}
+	a := &aggregator{cfg: p.cfg, root: p.root, sfx: sfx, home: dirOf(p.root, sub), subs: p.subDirs, cache: map[string][]project.Task{}}
 	var out []leaf
 	for _, step := range p.ci[sub] {
 		dir := filepath.Clean(filepath.Join(p.root, step.dir))

@@ -336,7 +336,7 @@ checks:
   - name: test
     tasks: [test]
     fallback_tasks: ["test:unit", test-unit, "test:ci", test-ci, "test:all", test-all, tests, unit-test, "unit:test"]
-    exclude: ["*watch*", "*e2e*", "*integration*", "*bench*", "*:update*", "*snapshot*"]
+    exclude: ["*watch*", "*e2e*", "*integration*", "*bench*", "*:update*", "*snapshot*", "*storybook*", "*browser*", "*playwright*", "*visual*", "*smoke*", "*live*"]
     tools:
       - {bin: vitest, forbid: [--watch, -w, --ui]}
       - {bin: jest, forbid: [--watch, --watchAll]}

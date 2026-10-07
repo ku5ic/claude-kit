@@ -71,7 +71,14 @@ func changedSince(root string) changes {
 		if err != nil {
 			return nil
 		}
-		return strings.Fields(string(out))
+		// One path per line: a path may hold spaces.
+		var lines []string
+		for line := range strings.SplitSeq(strings.TrimRight(string(out), "\n"), "\n") {
+			if line != "" {
+				lines = append(lines, line)
+			}
+		}
+		return lines
 	}
 	mb := git("merge-base", base, "HEAD")
 	if len(mb) != 1 {

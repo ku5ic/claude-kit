@@ -43,6 +43,8 @@ type Command struct {
 	Tool    string              // Gate: the pattern's bin
 	Pattern *config.ToolPattern // Gate: the pattern it matched
 	Refs    []TaskRef
+	// Expansion: a word held a variable; Words ends at it with "$".
+	Expansion bool
 }
 
 // Result is a whole body. Opaque says why it can't be read (a pipe, ||,
@@ -169,7 +171,8 @@ func (c *classifier) call(call *syntax.CallExpr) {
 		if a.Value != nil {
 			v, ok := literal(a.Value)
 			if !ok {
-				c.out = append(c.out, Command{Kind: Other})
+				// FOO=$BAR: later commands see a value the kit can't know.
+				c.out = append(c.out, Command{Kind: Other, Words: []string{a.Name.Value + "=$"}, Expansion: true})
 				return
 			}
 			value = v
@@ -184,7 +187,9 @@ func (c *classifier) call(call *syntax.CallExpr) {
 		}
 		v, ok := literal(w)
 		if !ok {
-			c.out = append(c.out, Command{Kind: Other, Env: env})
+			// Keep the literal words before it, so cd "$DIR" still reads
+			// as a cd the kit can't follow.
+			c.out = append(c.out, Command{Kind: Other, Words: append(words, "$"), Env: env, Expansion: true})
 			return
 		}
 		words = append(words, v)
@@ -259,6 +264,7 @@ func (c *classifier) reference(words, env []string) (Command, bool) {
 	}
 	rest := words[bestLen:]
 	ref := TaskRef{Provider: best.Provider, Name: best.Task}
+	runner := best.Provider == "make" || best.Provider == "just"
 	for i := 0; i < len(rest); i++ {
 		w := rest[i]
 		switch {
@@ -267,11 +273,19 @@ func (c *classifier) reference(words, env []string) (Command, bool) {
 			i = len(rest)
 		case slices.Contains(c.cfg.GateDiscovery.FanOutFlags, w) || slices.ContainsFunc(c.cfg.GateDiscovery.FanOutFlags, func(f string) bool { return strings.HasPrefix(w, f+"=") }):
 			return Command{Kind: FanOut, Words: words, Env: env}, true
-		case best.Provider == "make" && w == "-C" && i+1 < len(rest):
+		case runner && slices.Contains([]string{"-f", "--file", "--makefile", "--justfile"}, w):
+			// Another file's targets: the kit can't look them up.
+			return Command{Kind: Other, Words: words, Env: env}, true
+		case best.Provider == "make" && (w == "-C" || w == "--directory") && i+1 < len(rest),
+			best.Provider == "just" && (w == "-d" || w == "--working-directory") && i+1 < len(rest):
 			ref.Dir = rest[i+1]
 			i++
 		case best.Provider == "make" && strings.HasPrefix(w, "-C"):
 			ref.Dir = strings.TrimPrefix(w, "-C")
+		case best.Provider == "make" && slices.Contains([]string{"-j", "-l", "-o", "-W", "-I"}, w) && i+1 < len(rest) && !strings.HasPrefix(rest[i+1], "-"):
+			i++ // a flag's value (make -j 4), not a target
+		case runner && strings.Contains(w, "="):
+			// make GOARCH=arm64 build, just os=linux build: a variable.
 		case strings.HasPrefix(w, "-"):
 		case ref.Name == "":
 			ref.Name = w

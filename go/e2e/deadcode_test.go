@@ -45,6 +45,14 @@ func TestDeadcode(t *testing.T) {
 		e.prints("npm", "Unused exports (1)\nold  src/old.ts:1:14", 1)
 		e.run().Has(t, "PASS js: deadcode (knip) (1 finding in unchanged files)")
 	})
+	t.Run("a finding in a changed file whose path has a space still fails", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", `{"scripts":{"knip":"knip"}}`+"\n")
+		e.branchOff()
+		e.write("src/my module.ts", "export const fresh = 2\n")
+		e.prints("npm", "Unused exports (1)\nfresh  src/my module.ts:1:14", 1)
+		e.run().Has(t, "FAIL js: deadcode (knip)")
+	})
 	t.Run("python: vulture's exit 3 with only unchanged findings passes", func(t *testing.T) {
 		e := runChecksSetup(t)
 		e.write("pyproject.toml", "[tool.pdm.scripts]\ndeadcode = \"vulture src\"\n")

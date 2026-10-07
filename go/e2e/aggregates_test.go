@@ -104,6 +104,44 @@ func TestAggregates(t *testing.T) {
 		r.Want(t, 0)
 		r.Has(t, "SKIP js: ci (references missing task nope)", "RUN js: lint (ci: eslint)")
 	})
+	t.Run("a task reference follows the cd before it", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", `{"scripts":{"ci":"cd tools && make lint && eslint ."}}`+"\n")
+		e.write("tools/Makefile", "lint:\n\tgolangci-lint run\n")
+		e.write(".gitignore", "node_modules\n")
+		Stub(t, filepath.Join(e.project, "node_modules/.bin/eslint"), "")
+		e.run("--plan").Has(t, "RUN js: lint (lint) [tools]\n  cmd: make lint\n  dir: tools\n")
+	})
+	t.Run("a task reference after a stateful command is skipped with the reason", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", `{"scripts":{"ci":"source .env && make -C tools lint && eslint ."}}`+"\n")
+		e.write("tools/Makefile", "lint:\n\tgolangci-lint run\n")
+		e.run("--plan").Has(t, "SKIP js: lint (lint) [tools] (depends on `source .env` in ci)")
+	})
+	t.Run("a cd the kit can't follow blocks the gates after it", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", `{"scripts":{"ci":"cd \"$APP_DIR\" && eslint . && tsc --noEmit"}}`+"\n")
+		r := e.run("--plan")
+		r.Has(t, "SKIP js: lint (ci: eslint) (depends on `cd $` in ci)", "SKIP js: typecheck (ci: tsc) (depends on `cd $` in ci)")
+	})
+	t.Run("a reference into another subproject is left to that subproject", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("go.mod", "module example.com/x\n")
+		e.write("Makefile", "check:\n\t$(MAKE) -C web lint\n\tgo vet ./...\n")
+		e.write("web/go.mod", "module example.com/web\n")
+		e.write("web/Makefile", "lint:\n\tgolangci-lint run\n")
+		r := e.run("--plan")
+		if n := strings.Count(r.Output, "(lint) [web]"); n != 1 {
+			t.Errorf("web's lint planned %d times:\n%s", n, r.Output)
+		}
+	})
+	t.Run("a build task's missing references aren't reported, since it holds no gate", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("go.mod", "module example.com/x\n")
+		e.write("Makefile", "build-arm64:\n\t$(MAKE) GOARCH=arm64 compile\n")
+		r := e.run("--plan")
+		r.Lacks(t, "references missing task", "GOARCH")
+	})
 	t.Run("an aggregate whose body runs only a script file runs nothing", func(t *testing.T) {
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"verify":"node scripts/verify.js"}}`+"\n")

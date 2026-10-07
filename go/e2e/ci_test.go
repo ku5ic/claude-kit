@@ -152,6 +152,36 @@ func TestCIDiscovery(t *testing.T) {
 			t.Errorf("the release job ran too:\n%s", r.Output)
 		}
 	})
+	t.Run("workflow-level defaults.run.working-directory holds for every step", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("services/api/pyproject.toml", "[project]\nname = \"api\"\n")
+		e.localTool("services/api/.venv/bin", "pytest")
+		e.workflow("defaults:\n  run:\n    working-directory: services/api\njobs:\n  test:\n    steps:\n      - run: pytest\n")
+		e.run().Has(t, "PASS python: test (.github/workflows/ci.yml: pytest) [services/api]")
+	})
+	t.Run("workflow-level secrets, OIDC, or a pwsh default shell skip it all", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("pyproject.toml", "[project]\nname = \"x\"\n")
+		e.localTool(".venv/bin", "pytest")
+		e.write(".github/workflows/a.yml", "env:\n  TOKEN: ${{ secrets.T }}\njobs:\n  t:\n    steps:\n      - run: pytest\n")
+		e.write(".github/workflows/b.yml", "permissions:\n  id-token: write\njobs:\n  t:\n    steps:\n      - run: pytest\n")
+		e.write(".github/workflows/c.yml", "defaults:\n  run:\n    shell: pwsh\njobs:\n  t:\n    steps:\n      - run: pytest\n")
+		e.run().Lacks(t, ": pytest)")
+	})
+	t.Run("a path-qualified tool in CI runs from that path", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", "{}\n")
+		eslint := e.localTool("node_modules/.bin", "eslint")
+		e.workflow("jobs:\n  lint:\n    steps:\n      - run: ./node_modules/.bin/eslint .\n")
+		e.run().Has(t, "PASS js: lint (.github/workflows/ci.yml: eslint)\n  bin: "+eslint+" (local)\n")
+	})
+	t.Run("gitlab: before_script and script run in one shell", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("tools/Makefile", "lint:\n\tgolangci-lint run\n")
+		e.write("go.mod", "module example.com/x\n")
+		e.write(".gitlab-ci.yml", "lint:\n  before_script:\n    - cd tools\n  script:\n    - make lint\n")
+		e.run("--plan").Has(t, "RUN go: lint (lint) [tools]\n  cmd: make lint\n  dir: tools\n")
+	})
 	t.Run("working-directory files a step under its subproject", func(t *testing.T) {
 		e := runChecksSetup(t)
 		e.write("services/api/pyproject.toml", "[project]\nname = \"api\"\n")

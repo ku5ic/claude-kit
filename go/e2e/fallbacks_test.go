@@ -33,6 +33,15 @@ func TestTestFallbacks(t *testing.T) {
 			t.Errorf("ran: %s", e.calls("npm"))
 		}
 	})
+	t.Run("js: browser-bound test scripts (storybook, playwright) never run", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", `{"scripts":{"test-storybook":"vitest --project=storybook","a11y-test-storybook":"vitest run --project=storybook","smoke":"vitest run smoke"}}`+"\n")
+		e.stub("npm", 0)
+		e.run().Has(t, "SKIP js: test (no test task)")
+		if e.called("npm") {
+			t.Errorf("ran: %s", e.calls("npm"))
+		}
+	})
 	t.Run("python: a pdm test-unit script", func(t *testing.T) {
 		e := runChecksSetup(t)
 		e.write("pyproject.toml", "[tool.pdm.scripts]\ntest-unit = \"pytest tests/unit\"\n")

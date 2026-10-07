@@ -155,7 +155,7 @@ Seven short files that shape how Claude works, injected into every session and e
 
 ## Configure
 
-Defaults live in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml`, which merges on top (maps merge, lists append). Handy keys:
+Defaults live in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml`, which merges on top: maps merge and lists append, except that an entry in `checks`, `toolchain_checks`, or `formatters` with a default's name updates that default's fields. Handy keys:
 
 | Key                                            | For                                                                                           |
 | ---------------------------------------------- | --------------------------------------------------------------------------------------------- |

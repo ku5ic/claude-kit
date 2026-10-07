@@ -63,6 +63,15 @@ func readYAML(file string) map[string]any {
 func githubSteps(cfg *config.Config, root, file string) []ciStep {
 	doc := readYAML(file)
 	jobs, _ := doc["jobs"].(map[string]any)
+	// Workflow-level permissions, env, and defaults hold for every job.
+	if !permissionsOK(doc["permissions"]) {
+		return nil
+	}
+	workflowEnv, ok := literalEnv(doc["env"])
+	if !ok {
+		return nil
+	}
+	workflowDir, workflowShell := runDefaults(doc)
 	rel := strings.TrimPrefix(file, root+"/")
 	ids := make([]string, 0, len(jobs))
 	for id := range jobs {
@@ -79,11 +88,13 @@ func githubSteps(cfg *config.Config, root, file string) []ciStep {
 		if !ok {
 			continue
 		}
-		defaultDir := ""
-		if defaults, _ := job["defaults"].(map[string]any); defaults != nil {
-			if run, _ := defaults["run"].(map[string]any); run != nil {
-				defaultDir, _ = run["working-directory"].(string)
-			}
+		jobEnv = append(slices.Clone(workflowEnv), jobEnv...)
+		defaultDir, defaultShell := runDefaults(job)
+		if defaultDir == "" {
+			defaultDir = workflowDir
+		}
+		if defaultShell == "" {
+			defaultShell = workflowShell
 		}
 		steps, _ := job["steps"].([]any)
 		for _, s := range steps {
@@ -92,7 +103,11 @@ func githubSteps(cfg *config.Config, root, file string) []ciStep {
 			if step == nil || run == "" || step["uses"] != nil || strings.Contains(run, "${{") || deniedName(cfg, str(step["name"])) {
 				continue
 			}
-			if shell := str(step["shell"]); shell != "" && shell != "bash" && shell != "sh" {
+			shell := str(step["shell"])
+			if shell == "" {
+				shell = defaultShell
+			}
+			if shell != "" && shell != "bash" && shell != "sh" {
 				continue
 			}
 			env, ok := literalEnv(step["env"])
@@ -119,17 +134,7 @@ func githubJobOK(cfg *config.Config, id string, job map[string]any) bool {
 			return false
 		}
 	}
-	switch p := job["permissions"].(type) {
-	case string:
-		if p == "write-all" {
-			return false
-		}
-	case map[string]any:
-		if p["id-token"] == "write" {
-			return false
-		}
-	}
-	if deniedName(cfg, id) || deniedName(cfg, str(job["name"])) {
+	if !permissionsOK(job["permissions"]) || deniedName(cfg, id) || deniedName(cfg, str(job["name"])) {
 		return false
 	}
 	steps, _ := job["steps"].([]any)
@@ -141,6 +146,26 @@ func githubJobOK(cfg *config.Config, id string, job map[string]any) bool {
 		}
 	}
 	return true
+}
+
+// permissionsOK is false for write-all or an OIDC token (id-token: write),
+// which a job uses to reach a cloud or a registry.
+func permissionsOK(v any) bool {
+	switch p := v.(type) {
+	case string:
+		return p != "write-all"
+	case map[string]any:
+		return p["id-token"] != "write"
+	}
+	return true
+}
+
+// runDefaults is a workflow's or job's defaults.run working-directory and
+// shell.
+func runDefaults(m map[string]any) (dir, shell string) {
+	defaults, _ := m["defaults"].(map[string]any)
+	run, _ := defaults["run"].(map[string]any)
+	return str(run["working-directory"]), str(run["shell"])
 }
 
 // gitlabReserved are .gitlab-ci.yml's top-level keys that aren't jobs.
@@ -181,15 +206,41 @@ func gitlabSteps(cfg *config.Config, root, file string) []ciStep {
 		if !ok {
 			continue
 		}
-		script, _ := job["script"].([]any)
-		for _, line := range script {
-			// A nested list is a !reference, which yaml.v3 decodes as data.
-			if s, ok := line.(string); ok && !strings.Contains(s, "$CI_") {
-				out = append(out, ciStep{file: rel, dir: ".", env: env, run: s})
+		// GitLab runs before_script and script in one shell, so a cd or an
+		// export on one line holds for the next: they're one step.
+		before := job["before_script"]
+		if before == nil {
+			if def, _ := merged["default"].(map[string]any); def != nil {
+				before = def["before_script"]
 			}
 		}
+		if before == nil {
+			before = merged["before_script"]
+		}
+		lines, ok := scriptLines(before)
+		script, ok2 := scriptLines(job["script"])
+		if !ok || !ok2 || len(script) == 0 {
+			continue
+		}
+		out = append(out, ciStep{file: rel, dir: ".", env: env, run: strings.Join(append(lines, script...), "\n")})
 	}
 	return out
+}
+
+// scriptLines is a GitLab script list; ok is false when a line uses a CI
+// variable or is a !reference (a nested list, as yaml.v3 decodes it),
+// which a local run can't reproduce.
+func scriptLines(v any) ([]string, bool) {
+	items, _ := v.([]any)
+	var out []string
+	for _, item := range items {
+		s, isString := item.(string)
+		if !isString || strings.Contains(s, "$CI_") {
+			return nil, false
+		}
+		out = append(out, s)
+	}
+	return out, true
 }
 
 func gitlabLocalIncludes(v any) []string {
