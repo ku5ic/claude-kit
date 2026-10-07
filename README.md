@@ -7,7 +7,7 @@ claude plugin marketplace add ku5ic/claude-kit
 claude plugin install kit@ku5ic
 ```
 
-Zero config. Works in any repo on macOS and Linux. Every hook is a deterministic Go binary that runs in tens of milliseconds.
+Zero config. Works in any repo on macOS and Linux. Every hook is a deterministic Go binary; the guards run in tens of milliseconds.
 
 ## Contents
 
@@ -110,10 +110,13 @@ For the whole project, `kit run-checks` runs every quality gate the repo declare
 - **Tasks:** `package.json` scripts, Makefile, justfile, and cargo aliases, matched to five slots: `typecheck`, `lint`, `format-check`, `test`, `deadcode`. An odd-named task counts when its body runs a known tool.
 - **Aggregates:** a `ci` script that chains `lint && test` runs each gate once, not twice.
 - **CI:** gates from GitHub Actions and GitLab CI, run only with tools the project has. `kit.yml` `gate_discovery` says which jobs and steps are read.
-- **Dead code:** knip, vulture, deadcode, and tflint findings block only on files changed against the base branch.
+- **Dead code:** knip, vulture, deadcode, and tflint findings block only on lines changed against the base branch.
 - **Monorepos:** turbo and nx run affected packages once through the orchestrator.
 
 `kit run-checks --plan` shows what would run, and why, without running it.
+
+- **On review:** every `/code-review`, typed or invoked, runs `kit run-checks` once and hands Claude the result, so a failing gate is a review finding.
+- **At the end of a plan:** ticking its last step without a `/code-review` since the last code edit blocks the stop until one runs.
 
 ### Project-first tools
 
@@ -202,7 +205,7 @@ For anything bigger than a one-line fix:
 1. **Ask.** "How does X work?" loads `investigate`, which reads the code and edits nothing.
 2. **Plan** with the built-in `/plan`. For a big one, have `kit:plan-critic` check it against the repo.
 3. **Build one step at a time.** Claude stops after each step so you can review and commit. The Stop hook has already checked what it touched.
-4. **Review** at the end: `/code-review`, `kit run-checks`, and `/verify` to watch the change work.
+4. **Review** at the end: `/code-review`, which runs `kit run-checks` for you, then `/verify` to watch the change work.
 5. **Ship** with `/write commit` and `/write pr`. Claude never commits or pushes unasked.
 
 Side trips: `/audit` for a read-only report, `/simplify <path>` to cut over-engineering, `/deps` for dependency PRs.
@@ -218,6 +221,7 @@ Defaults live in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml
 | `disabled_rules`                               | Guard rules to let through, by the slug `kit explain` prints                                 |
 | `file_checks`, `disabled_file_checks`          | Add your own Stop checks, or turn a built-in off                                             |
 | `disabled_checks`, `disabled_toolchain_checks` | Turn a `run-checks` gate off, by slot or by the label it prints                              |
+| `disabled_task_providers`                      | Stop reading a task source (`make`, `package-scripts`, ...) at all                           |
 | `disabled_formatters`                          | Turn a formatter off                                                                         |
 | `check_timeout`                                | Seconds before a Stop check is skipped (default 90)                                          |
 | `tool_resolution.path_fallback`                | Tools the project doesn't declare that may still run from PATH                               |
