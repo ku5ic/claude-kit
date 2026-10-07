@@ -34,7 +34,7 @@ func GuardCommit(h *hook.Hook) error {
 	}
 
 	// Line by line, as grep: the trailer sits on a line of its own.
-	for line := range strings.SplitSeq(cmd, "\n") {
+	for line := range strings.SplitSeq(withoutOtherHeredocs(cmd), "\n") {
 		if aiSignature.MatchString(line) {
 			if err := h.Block("AI signature in commit message", "ai-commit-sig"); err != nil {
 				return err
@@ -52,7 +52,8 @@ func GuardCommit(h *hook.Hook) error {
 	// This repo passes multi-line messages via a heredoc
 	// (-m "$(cat <<'EOF' ... EOF)"). A single-line -m has no heredoc and is
 	// skipped: short enough that a miss is harmless.
-	if body := heredocBody(cmd); body != "" {
+	body := heredocBody(cmd)
+	if body != "" {
 		if run := longestProseRun(body); run > 4 {
 			reason := fmt.Sprintf("commit message has an unchunked wall of text (%d consecutive prose lines). rules/output.md section 1: short paragraphs, no dense blocks.", run)
 			if err := h.Block(reason, "commit-wall-of-text"); err != nil {
@@ -61,8 +62,7 @@ func GuardCommit(h *hook.Hook) error {
 		}
 	}
 
-	subject, _, _ := strings.Cut(quotedMessages(cmd, messageDQ, '"')+quotedMessages(cmd, messageSQ, '\''), "\n")
-	if subject != "" && aiTell.MatchString(subject) {
+	if subject := subject(cmd, body); subject != "" && aiTell.MatchString(subject) {
 		return h.Block("AI-tell phrasing in commit subject", "ai-commit-tell")
 	}
 	return nil
@@ -96,12 +96,13 @@ func scanStaged(h *hook.Hook) error {
 // heredocBody is the message between the opener and the closing delimiter
 // of the heredoc opened on the git commit line (-m "$(cat <<'EOF'", -F -
 // <<'MSG'). Other heredocs in the command write files, not the message.
+// One never closed runs to the end, as the shell reads it.
 func heredocBody(cmd string) string {
 	var lines []string
 	delim, tabs := "", false
 	for line := range strings.SplitSeq(cmd, "\n") {
 		switch {
-		case delim != "" && (line == delim || tabs && strings.TrimLeft(line, "\t") == delim):
+		case delim != "" && closes(line, delim, tabs):
 			return strings.Join(lines, "\n")
 		case delim != "":
 			lines = append(lines, line)
@@ -111,19 +112,85 @@ func heredocBody(cmd string) string {
 			}
 		}
 	}
-	return ""
+	return strings.Join(lines, "\n")
+}
+
+// withoutOtherHeredocs is cmd minus the bodies of heredocs opened on lines
+// other than the git commit line (cat > notes.md <<EOF): they write files,
+// so their text isn't the commit's.
+func withoutOtherHeredocs(cmd string) string {
+	var keep []string
+	delim, tabs := "", false
+	for line := range strings.SplitSeq(cmd, "\n") {
+		switch {
+		case delim != "":
+			if closes(line, delim, tabs) {
+				delim = ""
+				keep = append(keep, line)
+			}
+		default:
+			keep = append(keep, line)
+			if m := heredocOpen.FindStringSubmatch(line); m != nil && !gitCommit.MatchString(line) {
+				delim, tabs = m[2], m[1] == "-"
+			}
+		}
+	}
+	return strings.Join(keep, "\n")
+}
+
+// closes is true when line ends a heredoc delimited by delim; with tabs
+// (<<-), leading tabs are stripped first.
+func closes(line, delim string, tabs bool) bool {
+	return line == delim || tabs && strings.TrimLeft(line, "\t") == delim
+}
+
+// subject is the commit message's first line: the commit heredoc's when
+// it opens before any quoted -m on the commit line, else the first quoted
+// -m's.
+func subject(cmd, body string) string {
+	for line := range strings.SplitSeq(cmd, "\n") {
+		if !gitCommit.MatchString(line) {
+			continue
+		}
+		open := heredocOpen.FindStringIndex(line)
+		quoted := firstQuoted(line)
+		if body != "" && open != nil && (quoted < 0 || open[0] < quoted) {
+			first, _, _ := strings.Cut(strings.TrimLeft(body, "\n"), "\n")
+			return strings.TrimLeft(first, " \t")
+		}
+		break
+	}
+	first, _, _ := strings.Cut(quotedMessages(cmd, messageDQ, '"')+quotedMessages(cmd, messageSQ, '\''), "\n")
+	return first
+}
+
+// firstQuoted is where line's first quoted -m message starts, or -1. A
+// command substitution ("$(cat <<'EOF'") isn't one.
+func firstQuoted(line string) int {
+	first := -1
+	for _, re := range []*regexp.Regexp{messageDQ, messageSQ} {
+		for _, loc := range re.FindAllStringIndex(line, -1) {
+			if !strings.Contains(line[loc[0]:loc[1]], "$(") && (first < 0 || loc[0] < first) {
+				first = loc[0]
+			}
+		}
+	}
+	return first
 }
 
 // quotedMessages is `$(grep -oE '<re>' | sed 's/.*<q>([^<q>]*)<q>/\1/')`:
 // the quoted text of every -m/--message match, one per line, matched line by
 // line, with no trailing newline (command substitution strips it, so the
-// double- and single-quoted results concatenate directly).
+// double- and single-quoted results concatenate directly). A command
+// substitution's opening ("$(cat << ") isn't a message.
 func quotedMessages(cmd string, re *regexp.Regexp, quote byte) string {
 	var out []string
 	for line := range strings.SplitSeq(cmd, "\n") {
 		for _, match := range re.FindAllString(line, -1) {
 			inner := strings.TrimSuffix(match, string(quote))
-			out = append(out, inner[strings.LastIndexByte(inner, quote)+1:])
+			if msg := inner[strings.LastIndexByte(inner, quote)+1:]; !strings.HasPrefix(msg, "$(") {
+				out = append(out, msg)
+			}
 		}
 	}
 	return strings.Join(out, "\n")

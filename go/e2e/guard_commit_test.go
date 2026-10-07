@@ -63,6 +63,13 @@ func TestGuardCommit(t *testing.T) {
 		{"block: wall of text in a heredoc with another delimiter", "git commit -m \"$(cat <<'MSG'\nfeat: x\n\n" + prose(5) + "MSG\n)\"", 2},
 		{"block: wall of text in a <<- heredoc closed by a tab-indented delimiter", "git commit -F - <<-MSG\n\tfeat: x\n\n" + prose(5) + "\tMSG", 2},
 		{"allow: wall of text in a heredoc writing a file", "cat > notes.md <<'EOF'\n" + prose(20) + "EOF\ngit add -A && git commit -qm init", 0},
+		// signatures and subjects: the commit's heredoc is its message, another heredoc writes a file
+		{"allow: a signature in a heredoc writing a file", "cat > notes.md <<EOF\nGenerated with Claude\nEOF\ngit commit -m \"feat: ok\"", 0},
+		{"block: a signature in an unterminated commit heredoc", "git commit -m \"$(cat <<EOF\nfeat: x\nGenerated with Claude\n)\"", 2},
+		{"block: a signature in a -m variable set earlier in the command", "MSG=\"Generated with Claude\"\ngit commit -m \"$MSG\"", 2},
+		{"block: AI-tell phrasing in a heredoc subject", "git -C . commit -m \"$(cat <<'EOF'\nlet me fix this\nEOF\n)\"", 2},
+		{"block: AI-tell phrasing in a <<- heredoc subject with a spaced opener", "git commit -F - <<- \"MSG\"\n\there is the patch\n\tMSG", 2},
+		{"allow: a quoted -m subject before a heredoc body", "git commit -m \"feat: x\" -m \"$(cat <<'EOF'\nlet me explain\nEOF\n)\"", 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			New(t).Hook("guard-commit", guardCommitPayload(tc.command, "")).Want(t, tc.status)
