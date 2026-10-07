@@ -543,6 +543,16 @@ func TestRunChecks(t *testing.T) {
 			"SKIP js: format-check (format:check) (runs `prettier --write`, which a gate never runs)", "PASS js: test (test)")
 		e.callsEqual("npm", e.phys(".")+" run test")
 	})
+	t.Run("an odd-named gofmt -l task is no gate: it can't fail", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("go.mod", "module example.com/x\n")
+		e.write("Makefile", "gofmtcheck:\n\tgofmt -l .\n")
+		e.stub("make", 0)
+		e.stub("go", 0)
+		r := e.run()
+		r.Has(t, "SKIP make: format-check (no format-check task)")
+		r.Lacks(t, "(gofmtcheck)")
+	})
 	t.Run("a slot's exclude globs hold for body-classified tasks too", func(t *testing.T) {
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"unit-watch":"vitest"}}`+"\n")

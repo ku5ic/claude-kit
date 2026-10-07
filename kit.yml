@@ -334,7 +334,7 @@ checks:
       - {bin: black, require: [--check]}
       - {bin: dprint, sub: [check]}
       - {bin: cargo, sub: [fmt], require: [--check]}
-      - {bin: gofmt, require: [-l], forbid: [-w]}
+      # No gofmt: gofmt -l exits 0 whatever it lists, so it would always pass.
       - {bin: shfmt, require: [-d], forbid: [-w]}
       - {bin: stylua, require: [--check]}
       - {bin: tofu, sub: [fmt], require: [-check]}

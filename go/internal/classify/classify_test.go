@@ -75,6 +75,8 @@ func TestBody(t *testing.T) {
 		{"jest --watchAll=false", "gate:test:jest"},
 		{"jest -w 4", "gate:test:jest"}, // -w is max workers, not watch
 		{"ruff format --check .", "gate:format-check:ruff"},
+		{"gofmt -l .", "other"}, // exits 0 whatever it lists
+		{"shfmt -d .", "gate:format-check:shfmt"},
 		{"ruff check .", "gate:lint:ruff"},
 		{"cargo clippy -- -D warnings", "gate:lint:cargo"},
 		{"go test ./...", "gate:test:go"},
