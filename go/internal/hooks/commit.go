@@ -93,27 +93,23 @@ func scanStaged(h *hook.Hook) error {
 	return nil
 }
 
-// heredocBody is sed's `/<<EOF/,/^EOF$/p` range output minus its first and
-// last lines: the message between the opener and the closing EOF.
+// heredocBody is the message between the opener and the closing EOF of the
+// heredoc opened on the git commit line (-m "$(cat <<'EOF'", -F - <<'EOF').
+// Other heredocs in the command write files, not the message.
 func heredocBody(cmd string) string {
 	var lines []string
 	in := false
 	for line := range strings.SplitSeq(cmd, "\n") {
 		switch {
+		case in && line == "EOF":
+			return strings.Join(lines, "\n")
 		case in:
 			lines = append(lines, line)
-			if line == "EOF" {
-				in = false
-			}
-		case heredocOpen.MatchString(line):
-			lines = append(lines, line)
+		case heredocOpen.MatchString(line) && gitCommit.MatchString(line):
 			in = true
 		}
 	}
-	if len(lines) < 3 {
-		return ""
-	}
-	return strings.Join(lines[1:len(lines)-1], "\n")
+	return ""
 }
 
 // quotedMessages is `$(grep -oE '<re>' | sed 's/.*<q>([^<q>]*)<q>/\1/')`:

@@ -27,6 +27,9 @@ func guardCommitStubbed(t *testing.T, code int) *Kit {
 	return k
 }
 
+// prose is n consecutive prose lines.
+func prose(n int) string { return strings.Repeat("a line of plain prose\n", n) }
+
 func TestGuardCommit(t *testing.T) {
 	// Each test feeds a synthetic Bash payload (a git commit command) to the
 	// hook and asserts the exit code: 0 = allow, 2 = block.
@@ -54,6 +57,10 @@ func TestGuardCommit(t *testing.T) {
 		{"block: i have at start of subject", `git commit -m "I have refactored the loop"`, 2},
 		{"block: let me at start of subject", `git commit -m "let me clean this up"`, 2},
 		{"block: in this commit phrasing", `git commit -m "in this commit we add the API"`, 2},
+		// wall of text: only the heredoc opened on the git commit line is the message
+		{"block: wall of text in a -m heredoc", "git commit -m \"$(cat <<'EOF'\nfeat: x\n\n" + prose(5) + "EOF\n)\"", 2},
+		{"block: wall of text in a -F - heredoc", "git commit -F - <<'EOF'\nfeat: x\n\n" + prose(5) + "EOF", 2},
+		{"allow: wall of text in a heredoc writing a file", "cat > notes.md <<'EOF'\n" + prose(20) + "EOF\ngit add -A && git commit -qm init", 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			New(t).Hook("guard-commit", guardCommitPayload(tc.command, "")).Want(t, tc.status)
