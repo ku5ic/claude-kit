@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"maps"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -58,6 +59,17 @@ type changes struct {
 	root, base, mergeBase string
 	files                 map[string]bool // absolute paths
 	ok                    bool
+	lines                 map[string]map[int]bool // changedLines of files, once read
+	read                  bool
+}
+
+// changedLines is c's files' changed lines, read once for every scoped
+// gate of a run.
+func (c *changes) changedLines() map[string]map[int]bool {
+	if !c.read {
+		c.lines, c.read = changedLines(c.root, c.mergeBase, slices.Sorted(maps.Keys(c.files))), true
+	}
+	return c.lines
 }
 
 func changedSince(root string) changes {
@@ -98,7 +110,7 @@ func changedSince(root string) changes {
 // error. Only a finding on a changed line counts, so touching a file doesn't
 // inherit its old dead code. It returns the verdict: "pass", "fail", or
 // "skip".
-func runScoped(g Gate, ch changes, w io.Writer) string {
+func runScoped(g Gate, ch *changes, w io.Writer) string {
 	if !ch.ok {
 		fmt.Fprintf(w, "SKIP %s (no git base)\n", g.Label)
 		return "skip"
@@ -126,25 +138,17 @@ func runScoped(g Gate, ch changes, w io.Writer) string {
 		fmt.Fprintf(w, "PASS %s (advisory: %s)\n%s", g.Label, what, g.extra())
 		return "pass"
 	}
-	paths := make([]string, len(found))
-	var touched []string
-	for i, f := range found {
+	var blocking []string
+	for _, f := range found {
 		path := f.File
 		if !filepath.IsAbs(path) {
 			path = filepath.Join(g.Dir, path)
 		}
-		paths[i] = filepath.Clean(path)
-		if ch.files[paths[i]] {
-			touched = append(touched, paths[i])
+		path = filepath.Clean(path)
+		if !ch.files[path] {
+			continue
 		}
-	}
-	var lines map[string]map[int]bool
-	if len(touched) > 0 {
-		lines = changedLines(ch.root, ch.mergeBase, touched)
-	}
-	var blocking []string
-	for i, f := range found {
-		if ch.files[paths[i]] && (f.Line == 0 || lines == nil || lines[paths[i]] == nil || lines[paths[i]][f.Line]) {
+		if lines := ch.changedLines(); f.Line == 0 || lines == nil || lines[path] == nil || lines[path][f.Line] {
 			blocking = append(blocking, f.Text)
 		}
 	}
