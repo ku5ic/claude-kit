@@ -13,7 +13,7 @@ import (
 var (
 	gitCommit    = regexp.MustCompile(`git[[:space:]]+([^[:space:]]+[[:space:]]+)*commit`)
 	aiSignature  = regexp.MustCompile(`(?i)Co-Authored-By:[[:space:]]*Claude|Generated[[:space:]]+(by|with)[[:space:]]+Claude|🤖[[:space:]]*Generated`)
-	heredocOpen  = regexp.MustCompile(`<<-?['"]?EOF['"]?`)
+	heredocOpen  = regexp.MustCompile(`<<(-?)[[:space:]]*['"]?([A-Za-z_][A-Za-z0-9_]*)['"]?`)
 	messageDQ    = regexp.MustCompile(`(-m|--message=?)[[:space:]]*"[^"]*"`)
 	messageSQ    = regexp.MustCompile(`(-m|--message=?)[[:space:]]*'[^']*'`)
 	aiTell       = regexp.MustCompile(`(?i)^(feat|fix|chore|refactor|docs|test|perf|build|ci|style)?:?[[:space:]]*(certainly|here is|i have|let me|in this commit|this commit)`)
@@ -93,20 +93,22 @@ func scanStaged(h *hook.Hook) error {
 	return nil
 }
 
-// heredocBody is the message between the opener and the closing EOF of the
-// heredoc opened on the git commit line (-m "$(cat <<'EOF'", -F - <<'EOF').
-// Other heredocs in the command write files, not the message.
+// heredocBody is the message between the opener and the closing delimiter
+// of the heredoc opened on the git commit line (-m "$(cat <<'EOF'", -F -
+// <<'MSG'). Other heredocs in the command write files, not the message.
 func heredocBody(cmd string) string {
 	var lines []string
-	in := false
+	delim, tabs := "", false
 	for line := range strings.SplitSeq(cmd, "\n") {
 		switch {
-		case in && line == "EOF":
+		case delim != "" && (line == delim || tabs && strings.TrimLeft(line, "\t") == delim):
 			return strings.Join(lines, "\n")
-		case in:
+		case delim != "":
 			lines = append(lines, line)
-		case heredocOpen.MatchString(line) && gitCommit.MatchString(line):
-			in = true
+		case gitCommit.MatchString(line):
+			if m := heredocOpen.FindStringSubmatch(line); m != nil {
+				delim, tabs = m[2], m[1] == "-"
+			}
 		}
 	}
 	return ""

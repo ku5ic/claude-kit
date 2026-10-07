@@ -60,6 +60,8 @@ func TestGuardCommit(t *testing.T) {
 		// wall of text: only the heredoc opened on the git commit line is the message
 		{"block: wall of text in a -m heredoc", "git commit -m \"$(cat <<'EOF'\nfeat: x\n\n" + prose(5) + "EOF\n)\"", 2},
 		{"block: wall of text in a -F - heredoc", "git commit -F - <<'EOF'\nfeat: x\n\n" + prose(5) + "EOF", 2},
+		{"block: wall of text in a heredoc with another delimiter", "git commit -m \"$(cat <<'MSG'\nfeat: x\n\n" + prose(5) + "MSG\n)\"", 2},
+		{"block: wall of text in a <<- heredoc closed by a tab-indented delimiter", "git commit -F - <<-MSG\n\tfeat: x\n\n" + prose(5) + "\tMSG", 2},
 		{"allow: wall of text in a heredoc writing a file", "cat > notes.md <<'EOF'\n" + prose(20) + "EOF\ngit add -A && git commit -qm init", 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
