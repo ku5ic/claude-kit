@@ -67,6 +67,16 @@ func TestDeadcode(t *testing.T) {
 		e.prints("npm", "Unused exports (1)\nold  src/old.ts:1:14", 1)
 		e.run().Has(t, "PASS js: deadcode (knip) (1 finding on unchanged lines)")
 	})
+	t.Run("a new line's finding fails in a tracked spaced path, whatever the diff prefix config", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", `{"scripts":{"knip":"knip"}}`+"\n")
+		e.write("src/my old.ts", "export const old = 1\n")
+		e.branchOff()
+		e.k.Git(e.project, "config", "diff.mnemonicPrefix", "true")
+		e.write("src/my old.ts", "export const old = 1\nexport const added = 2\n")
+		e.prints("npm", "Unused exports (1)\nadded  src/my old.ts:2:14", 1)
+		e.run().Has(t, "FAIL js: deadcode (knip)", "added  src/my old.ts:2:14")
+	})
 	t.Run("a finding in a changed file whose path has a space still fails", func(t *testing.T) {
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"knip":"knip"}}`+"\n")

@@ -24,7 +24,8 @@ func changedLines(root, rev string, files []string) map[string]map[int]bool {
 	if err != nil {
 		return nil
 	}
-	diff, err := git(append([]string{"diff", "-U0", "--no-color", "--no-ext-diff", "--no-renames", rev, "--"}, rel...)...)
+	// Fixed prefixes: diff.noprefix or diff.mnemonicPrefix would change them.
+	diff, err := git(append([]string{"diff", "-U0", "--no-color", "--no-ext-diff", "--no-renames", "--src-prefix=a/", "--dst-prefix=b/", rev, "--"}, rel...)...)
 	if err != nil {
 		return nil
 	}
@@ -39,8 +40,19 @@ func changedLines(root, rev string, files []string) map[string]map[int]bool {
 	}
 	var current map[int]bool
 	for line := range strings.SplitSeq(diff, "\n") {
-		if name, ok := strings.CutPrefix(line, "+++ b/"); ok {
-			current = changed[root+"/"+name]
+		if header, ok := strings.CutPrefix(line, "+++ "); ok {
+			if header == "/dev/null" {
+				current = nil
+				continue
+			}
+			// A path with a space ends in a tab; one git quotes ("b/a\"b")
+			// doesn't map, and then git can't say: every line counts.
+			name, ok := strings.CutPrefix(strings.TrimSuffix(header, "\t"), "b/")
+			lines, known := changed[root+"/"+name]
+			if !ok || !known {
+				return nil
+			}
+			current = lines
 			continue
 		}
 		m := hunk.FindStringSubmatch(line)
