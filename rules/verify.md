@@ -19,7 +19,7 @@ Read your own diff as a reviewer who didn't write it and doesn't trust it.
 - Every non-obvious decision gets one line answering "why this, not the obvious alternative". A decision you can't justify is a decision you took from a generated draft without checking it.
 - Review findings are claims, per `rules/workflow.md` section 4. Check each against the code before applying it.
 
-## 2. Use it until it breaks (the runtime pass, with the `run` skill)
+## 2. Use it until it breaks (the runtime pass, with `/verify`)
 
 Exercise the change through the interface its consumers use, the way they use it:
 
