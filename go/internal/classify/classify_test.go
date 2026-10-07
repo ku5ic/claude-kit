@@ -2,6 +2,7 @@ package classify
 
 import (
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -117,6 +118,38 @@ func TestBody(t *testing.T) {
 	} {
 		if got := describe(Body(cfg, c.body, scripts)); got != c.want {
 			t.Errorf("%q: %s, want %s", c.body, got, c.want)
+		}
+	}
+}
+
+// Every pattern kit.yml ships is detected from its minimal command, and
+// turned away by its first forbidden flag or a missing required one.
+func TestEveryToolPatternDetectsAndSkips(t *testing.T) {
+	cfg := kitConfig(t)
+	for _, check := range cfg.Checks {
+		for _, p := range check.Tools {
+			words := []string{p.Bin}
+			if len(p.Sub) > 0 {
+				words = append(words, p.Sub[0])
+			}
+			words = append(words, p.Require...)
+			name := check.Name + "/" + strings.Join(words, " ")
+			if got := describe(Body(cfg, strings.Join(words, " "), scripts)); !strings.HasPrefix(got, "gate:") {
+				t.Errorf("%s: %s, want a gate", name, got)
+				continue
+			}
+			if len(p.Forbid) > 0 {
+				body := strings.Join(append(slices.Clone(words), p.Forbid[0]), " ")
+				if got := describe(Body(cfg, body, scripts)); got == "gate:"+check.Name+":"+p.Bin {
+					t.Errorf("%s with %s still counts as %s", name, p.Forbid[0], check.Name)
+				}
+			}
+			if len(p.Require) > 0 {
+				body := strings.Join(words[:len(words)-len(p.Require)], " ")
+				if got := describe(Body(cfg, body, scripts)); got == "gate:"+check.Name+":"+p.Bin {
+					t.Errorf("%s without %s still counts as %s", name, p.Require[0], check.Name)
+				}
+			}
 		}
 	}
 }

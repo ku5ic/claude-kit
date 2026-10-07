@@ -457,7 +457,7 @@ func TestRunChecks(t *testing.T) {
 	})
 	t.Run("a body that isn't one readable gate never runs", func(t *testing.T) {
 		e := runChecksSetup(t)
-		e.write("package.json", `{"scripts":{"fixup":"eslint --fix .","piped":"eslint . | tee out","build":"tsc -b","check-all":"eslint . && tsc --noEmit"}}`+"\n")
+		e.write("package.json", `{"scripts":{"fixup":"eslint --fix .","piped":"eslint . | tee out","build":"tsc -b"}}`+"\n")
 		e.stub("npm", 0)
 		r := e.run()
 		r.Has(t, "SKIP js: lint (no lint task)", "SKIP js: typecheck (no typecheck task)")

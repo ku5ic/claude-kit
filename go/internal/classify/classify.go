@@ -129,7 +129,23 @@ func (c *classifier) stmt(s *syntax.Stmt) {
 			c.opaque = cmd.Variant.Value
 			return
 		}
-		c.out = append(c.out, Command{Kind: Export})
+		var env []string
+		for _, a := range cmd.Args {
+			if a.Name == nil {
+				continue
+			}
+			value := ""
+			if a.Value != nil {
+				v, ok := literal(a.Value)
+				if !ok {
+					c.opaque = "export with an expansion"
+					return
+				}
+				value = v
+			}
+			env = append(env, a.Name.Value+"="+value)
+		}
+		c.out = append(c.out, Command{Kind: Export, Env: env})
 	default:
 		c.opaque = "compound command"
 	}

@@ -13,7 +13,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/ku5ic/claude-kit/go/internal/classify"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/extract"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
@@ -28,7 +27,16 @@ type Gate struct {
 	Dir     string
 	Words   []string
 	BinLine string // "  bin: <words> (<source>)\n" when the kit resolved the binary
+	Note    string // printed as "  note: <note>" under the verdict
 	Skip    string
+}
+
+// extra is the lines printed under g's verdict: its bin line and note.
+func (g Gate) extra() string {
+	if g.Note == "" {
+		return g.BinLine
+	}
+	return g.BinLine + "  note: " + g.Note + "\n"
 }
 
 // planner accumulates one plan; orchestrated holds the checks an
@@ -99,7 +107,11 @@ func PrintPlan(cfg *config.Config, root string, only []string, out io.Writer) {
 			fmt.Fprintf(out, "SKIP %s (%s)\n", g.Label, g.Skip)
 			continue
 		}
-		fmt.Fprintf(out, "RUN %s\n  cmd: %s\n%s", g.Label, tools.ShellJoin(g.Words), g.BinLine)
+		fmt.Fprintf(out, "RUN %s\n  cmd: %s\n", g.Label, tools.ShellJoin(g.Words))
+		if g.Dir != root && g.Dir != "" {
+			fmt.Fprintf(out, "  dir: %s\n", rel(root, g.Dir))
+		}
+		fmt.Fprint(out, g.extra())
 	}
 }
 
@@ -110,7 +122,7 @@ func run(g Gate, w io.Writer) bool {
 	cmd := exec.Command(g.Words[0], g.Words[1:]...)
 	cmd.Dir, cmd.Stdout, cmd.Stderr = g.Dir, &out, &out
 	if err := cmd.Run(); err != nil {
-		fmt.Fprintf(w, "FAIL %s (%s)\n%s", g.Label, strings.Join(g.Words, " "), g.BinLine)
+		fmt.Fprintf(w, "FAIL %s (%s)\n%s", g.Label, strings.Join(g.Words, " "), g.extra())
 		if _, isExit := err.(*exec.ExitError); !isExit {
 			fmt.Fprintf(&out, "%s: %v\n", g.Words[0], err)
 		}
@@ -118,7 +130,7 @@ func run(g Gate, w io.Writer) bool {
 		fmt.Fprint(w, strings.Join(lines[:min(len(lines), 30)], ""))
 		return false
 	}
-	fmt.Fprintf(w, "PASS %s\n%s", g.Label, g.BinLine)
+	fmt.Fprintf(w, "PASS %s\n%s", g.Label, g.extra())
 	return true
 }
 
@@ -133,30 +145,6 @@ func matchesCheck(c config.Check, task string) bool {
 
 func excluded(c config.Check, task string) bool {
 	return slices.ContainsFunc(c.Exclude, func(g string) bool { return guard.Glob(g, task) })
-}
-
-// bodySlots is, per task, the check its body is when its name matches no
-// check's globs and its body is a single gate (verify-style: eslint .);
-// "" otherwise. Such a task still runs as itself, through its provider.
-func bodySlots(cfg *config.Config, dir string, tasks []project.Task) []string {
-	lookup := func(provider, rel, name string) bool {
-		for _, t := range project.Tasks(cfg, filepath.Join(dir, rel)) {
-			if t.Provider == provider && t.Name == name {
-				return true
-			}
-		}
-		return false
-	}
-	slots := make([]string, len(tasks))
-	for i, t := range tasks {
-		if t.Body == "" || slices.ContainsFunc(cfg.Checks, func(c config.Check) bool { return matchesCheck(c, t.Name) }) {
-			continue
-		}
-		if gate, ok := classify.Body(cfg, t.Body, lookup).SingleGate(); ok {
-			slots[i] = gate.Slot
-		}
-	}
-	return slots
 }
 
 func dirOf(root, sub string) string {
@@ -225,7 +213,14 @@ func (p *planner) subproject(sub string) {
 		}
 	}
 
-	bodySlots := bodySlots(cfg, dir, tasks)
+	r := roles(cfg, p.root, dir, sfx, tasks)
+	seen := map[string]bool{}
+	argLeaves := map[string]Gate{}
+	for _, l := range r.leaves {
+		if l.withArgs {
+			argLeaves[l.id] = l.gate
+		}
+	}
 	for _, c := range cfg.Checks {
 		matched := false
 		for i, t := range tasks {
@@ -233,17 +228,35 @@ func (p *planner) subproject(sub string) {
 			if label == "" {
 				label = t.Provider
 			}
-			counts := matchesCheck(c, t.Name) || (bodySlots[i] == c.Name && !excluded(c, t.Name))
-			if !counts || (p.orchestrated[c.Name] && label == "js") {
+			if r.slots[i] != c.Name || (p.orchestrated[c.Name] && label == "js") {
 				continue
 			}
 			matched = true
+			seen[taskID(t, dir)] = true
 			full := fmt.Sprintf("%s: %s (%s)%s", label, c.Name, t.Name, sfx)
-			if cfg.CheckDisabled(c.Name, full) {
+			switch {
+			case r.covered[i] != "":
+				p.add(Gate{Label: full, Skip: "covered by " + r.covered[i]})
+			case cfg.CheckDisabled(c.Name, full):
 				p.add(Gate{Label: full, Skip: "disabled_checks"})
+			default:
+				g := Gate{Label: full, Dir: dir, Words: strings.Fields(t.Cmd)}
+				if withArgs, ok := argLeaves[taskID(t, dir)]; ok {
+					// An aggregate passes it arguments (npm run unit -- --coverage).
+					g.Words = withArgs.Words
+				}
+				p.add(g)
+			}
+		}
+		for _, l := range r.leaves {
+			if l.slot != c.Name || seen[l.id] || (p.orchestrated[c.Name] && strings.HasPrefix(l.label, "js: ")) {
 				continue
 			}
-			p.add(Gate{Label: full, Dir: dir, Words: strings.Fields(t.Cmd)})
+			matched, seen[l.id] = true, true
+			if l.gate.Skip == "" && cfg.CheckDisabled(c.Name, l.label) {
+				l.gate = Gate{Label: l.label, Skip: "disabled_checks"}
+			}
+			p.add(l.gate)
 		}
 		if !matched && skipLabel != "" && !(p.orchestrated[c.Name] && skipLabel == "js") {
 			reason := "no " + c.Name + " task"
@@ -251,6 +264,13 @@ func (p *planner) subproject(sub string) {
 				reason = "disabled_checks"
 			}
 			p.add(Gate{Label: fmt.Sprintf("%s: %s%s", skipLabel, c.Name, sfx), Skip: reason})
+		}
+	}
+	// An aggregate's reference to a task that doesn't exist has no slot.
+	for _, l := range r.leaves {
+		if l.slot == "" && !seen[l.id] {
+			seen[l.id] = true
+			p.add(l.gate)
 		}
 	}
 
