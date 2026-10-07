@@ -1,0 +1,19 @@
+version: "2"
+
+linters:
+  settings:
+    errcheck:
+      # Output and cleanup: a failed write to stdout or a failed close has no
+      # recovery here, and hooks fail open by design.
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - (*os.File).Close
+        - (io.Closer).Close
+        - os.Remove
+  exclusions:
+    rules:
+      # Test setup ignores errors on purpose; a failed step fails the assertion after it.
+      - path: _test\.go
+        linters: [errcheck]
