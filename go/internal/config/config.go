@@ -4,24 +4,31 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 )
 
 // Config mirrors kit.yml. Every key kit.yml may hold is a field here, so a
 // strict decode reports an unknown or misspelled key instead of dropping it.
 type Config struct {
-	GlobalSkills       []string            `yaml:"global_skills"`
-	SkillFileMap       []SkillFileRule     `yaml:"skill_file_map"`
-	SkillTriggers      map[string]string   `yaml:"skill_triggers"`
-	PackageManagers    []PackageManager    `yaml:"package_managers"`
-	ExtraLockfiles     []string            `yaml:"extra_lockfiles"`
-	ProtectedBranches  []string            `yaml:"protected_branches"`
-	RCFiles            []string            `yaml:"rc_files"`
-	SensitivePaths     []string            `yaml:"sensitive_paths"`
-	LogMaxLines        int                 `yaml:"log_max_lines"`
-	DisabledRules      []string            `yaml:"disabled_rules"`
-	TaskProviders      []TaskProvider      `yaml:"task_providers"`
-	Checks             []Check             `yaml:"checks"`
-	ToolchainChecks    []ToolchainCheck    `yaml:"toolchain_checks"`
+	GlobalSkills      []string          `yaml:"global_skills"`
+	SkillFileMap      []SkillFileRule   `yaml:"skill_file_map"`
+	SkillTriggers     map[string]string `yaml:"skill_triggers"`
+	PackageManagers   []PackageManager  `yaml:"package_managers"`
+	ExtraLockfiles    []string          `yaml:"extra_lockfiles"`
+	ProtectedBranches []string          `yaml:"protected_branches"`
+	RCFiles           []string          `yaml:"rc_files"`
+	SensitivePaths    []string          `yaml:"sensitive_paths"`
+	LogMaxLines       int               `yaml:"log_max_lines"`
+	DisabledRules     []string          `yaml:"disabled_rules"`
+	TaskProviders     []TaskProvider    `yaml:"task_providers"`
+	Checks            []Check           `yaml:"checks"`
+	ToolchainChecks   []ToolchainCheck  `yaml:"toolchain_checks"`
+
+	DisabledTaskProviders   []string `yaml:"disabled_task_providers"`
+	DisabledChecks          []string `yaml:"disabled_checks"`
+	DisabledToolchainChecks []string `yaml:"disabled_toolchain_checks"`
+
 	SubprojectMaxDepth int                 `yaml:"subproject_max_depth"`
 	Formatters         []Formatter         `yaml:"formatters"`
 	DisabledFormatters []string            `yaml:"disabled_formatters"`
@@ -44,6 +51,25 @@ type Config struct {
 	// derived from the config carry it in their file name, so deleting the
 	// overlay can't leave its derived state in use.
 	Tag string `yaml:"-"`
+}
+
+// ToolchainEnabled is false for a toolchain check disabled_toolchain_checks
+// names as "<stack>:<name>".
+func (c *Config) ToolchainEnabled(tc ToolchainCheck) bool {
+	return !slices.Contains(c.DisabledToolchainChecks, tc.Stack+":"+tc.Name)
+}
+
+// CheckDisabled is true when disabled_checks names a run-checks check: by
+// its slot ("lint"), or by its label as run-checks prints it, with or
+// without the "<stack>: " prefix ("lint (lint:css) [web]").
+func (c *Config) CheckDisabled(slot, label string) bool {
+	_, short, _ := strings.Cut(label, ": ")
+	for _, d := range c.DisabledChecks {
+		if d == slot || d == label || d == short {
+			return true
+		}
+	}
+	return false
 }
 
 // AnchorSentinels are the sentinels marked anchor: true, in stack order:

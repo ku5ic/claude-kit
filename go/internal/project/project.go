@@ -130,6 +130,9 @@ type Provider struct {
 func Providers(cfg *config.Config, dir string) []Provider {
 	var out []Provider
 	for i, tp := range cfg.TaskProviders {
+		if slices.Contains(cfg.DisabledTaskProviders, tp.Name) {
+			continue
+		}
 		for _, manifest := range tp.Manifests {
 			if path := filepath.Join(dir, manifest); IsFile(path) {
 				out = append(out, Provider{tp.Name, tp.Stack, path, i})

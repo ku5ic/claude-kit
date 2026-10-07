@@ -297,6 +297,18 @@ toolchain_checks:
   - {stack: opentofu, name: fmt, cmd: "{bin} fmt -check -recursive", bin: [tofu, terraform]}
   - {stack: opentofu, name: validate, cmd: "{bin} validate", bin: [tofu, terraform], when_dir: .terraform}
 
+# Turning checks off from the overlay. An overlay entry in checks (by name)
+# or toolchain_checks (by stack and name) with a default's key updates the
+# fields it sets instead of adding a second entry.
+#   disabled_task_providers    provider names; their tasks aren't read at all
+#   disabled_checks            a slot ("lint"), or a label as run-checks
+#                              prints it, with or without the stack prefix
+#                              ("lint (lint:css) [web]")
+#   disabled_toolchain_checks  "<stack>:<name>" ("go:vet")
+disabled_task_providers: []
+disabled_checks: []
+disabled_toolchain_checks: []
+
 # How deep below the repo root a tracked anchor sentinel still makes its
 # directory a subproject (`kit subprojects`).
 subproject_max_depth: 4

@@ -446,6 +446,62 @@ func TestRunChecks(t *testing.T) {
 		e.callsEqual("turbo", "run test --filter=...[HEAD]")
 	})
 
+	// Overlay control: turning checks off, and updating a default by key.
+	t.Run("disabled_checks turns a slot off, and one task by its label", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", `{"scripts":{"typecheck":"tsc","lint":"eslint .","lint:css":"stylelint"}}`+"\n")
+		e.stub("npm", 0)
+		e.k.Overlay("disabled_checks: [typecheck, \"lint (lint:css)\"]\n")
+		r := e.run()
+		r.Has(t, "SKIP js: typecheck (typecheck) (disabled_checks)", "PASS js: lint (lint)", "SKIP js: lint (lint:css) (disabled_checks)")
+		e.callsEqual("npm", e.phys(".")+" run lint")
+	})
+	t.Run("disabled_checks on a slot with no task says so", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", "{}\n")
+		e.k.Overlay("disabled_checks: [test]\n")
+		e.run().Has(t, "SKIP js: test (disabled_checks)")
+	})
+	t.Run("disabled_toolchain_checks skips one by <stack>:<name>", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("go.mod", "module example.com/x\n")
+		e.stub("go", 0)
+		e.k.Overlay("disabled_toolchain_checks: [\"go:vet\"]\n")
+		r := e.run()
+		r.Has(t, "SKIP go: vet (disabled_toolchain_checks)", "PASS go: test")
+		e.callsEqual("go", e.phys(".")+" test ./...")
+	})
+	t.Run("disabled_task_providers stops a provider's tasks being read", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", `{"scripts":{"lint":"eslint ."}}`+"\n")
+		e.write("Makefile", "lint:\n\techo lint\n")
+		e.stub("npm", 0)
+		e.stub("make", 0)
+		e.k.Overlay("disabled_task_providers: [make]\n")
+		r := e.run()
+		r.Has(t, "PASS js: lint (lint)")
+		r.Lacks(t, "make: lint")
+	})
+	t.Run("an overlay toolchain check with a default's key replaces it, not runs beside it", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("go.mod", "module example.com/x\n")
+		e.stub("go", 0)
+		e.k.Overlay("toolchain_checks:\n  - {stack: go, name: test, cmd: \"{bin} test -race ./...\"}\n")
+		e.run()
+		e.callsEqual("go", e.phys(".")+" vet ./...\n"+e.phys(".")+" test -race ./...")
+	})
+	t.Run("an overlay check with a default's name updates its globs", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", `{"scripts":{"verify-types":"tsc"}}`+"\n")
+		e.stub("npm", 0)
+		e.k.Overlay("checks:\n  - {name: typecheck, tasks: [verify-types]}\n")
+		r := e.run()
+		r.Has(t, "PASS js: typecheck (verify-types)")
+		if n := strings.Count(r.Output, "js: typecheck"); n != 1 {
+			t.Errorf("typecheck reported %d times:\n%s", n, r.Output)
+		}
+	})
+
 	// A copy of the launcher beside the freshly built binary, so its
 	// relative-path resolution is tested against this tree's code.
 	t.Run("a relative launcher path from a subdirectory still finds the binary", func(t *testing.T) {

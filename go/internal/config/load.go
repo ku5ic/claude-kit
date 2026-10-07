@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"go.yaml.in/yaml/v3"
 )
@@ -185,8 +186,12 @@ func validate(path string) []Warning {
 }
 
 // keyedSequences are the sequences whose entries an overlay entry with the
-// same value at the named field updates instead of appending beside.
-var keyedSequences = map[string]string{"formatters": "name"}
+// same values at the named fields updates instead of appending beside.
+var keyedSequences = map[string][]string{
+	"formatters":       {"name"},
+	"checks":           {"name"},
+	"toolchain_checks": {"stack", "name"},
+}
 
 // mergeNode merges src into dst in place, as yq's `*+`: mappings merge key by
 // key in dst's order with src's new keys after, sequences append (keyed ones
@@ -198,8 +203,8 @@ func mergeNode(dst, src *yaml.Node) {
 		for i := 0; i+1 < len(src.Content); i += 2 {
 			key, value := src.Content[i], src.Content[i+1]
 			if existing := mappingValue(dst, key.Value); existing != nil {
-				if field, ok := keyedSequences[key.Value]; ok && existing.Kind == yaml.SequenceNode && value.Kind == yaml.SequenceNode {
-					mergeKeyed(existing, value, field)
+				if fields, ok := keyedSequences[key.Value]; ok && existing.Kind == yaml.SequenceNode && value.Kind == yaml.SequenceNode {
+					mergeKeyed(existing, value, fields)
 					continue
 				}
 				mergeNode(existing, value)
@@ -214,14 +219,29 @@ func mergeNode(dst, src *yaml.Node) {
 	}
 }
 
-// mergeKeyed appends each src entry to dst, except one whose field matches
-// a dst entry's: that entry takes the fields src sets and keeps the rest.
-func mergeKeyed(dst, src *yaml.Node, field string) {
+// mergeKeyed appends each src entry to dst, except one whose key fields all
+// match a dst entry's: that entry takes the fields src sets and keeps the
+// rest.
+func mergeKeyed(dst, src *yaml.Node, fields []string) {
+	key := func(n *yaml.Node) (string, bool) {
+		if n.Kind != yaml.MappingNode {
+			return "", false
+		}
+		var parts []string
+		for _, f := range fields {
+			v := mappingValue(n, f)
+			if v == nil {
+				return "", false
+			}
+			parts = append(parts, v.Value)
+		}
+		return strings.Join(parts, "\x00"), true
+	}
 	for _, item := range src.Content {
 		var target *yaml.Node
-		if name := mappingValue(item, field); item.Kind == yaml.MappingNode && name != nil {
+		if k, ok := key(item); ok {
 			for _, d := range dst.Content {
-				if v := mappingValue(d, field); d.Kind == yaml.MappingNode && v != nil && v.Value == name.Value {
+				if dk, ok := key(d); ok && dk == k {
 					target = d
 					break
 				}

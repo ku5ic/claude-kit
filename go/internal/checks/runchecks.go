@@ -126,10 +126,15 @@ func (r *Runner) orchestrate(cfg *config.Config, root string) {
 				if !matchesCheck(c, task) {
 					continue
 				}
+				label := fmt.Sprintf("js: %s (%s affected: %s)", c.Name, o.Name, task)
+				if cfg.CheckDisabled(c.Name, label) {
+					r.skip(label + " (disabled_checks)")
+					continue
+				}
 				r.orchestratedChecks[c.Name] = true
 				words := tools.Fill(strings.Fields(strings.ReplaceAll(o.Run, "{task}", task)), "{bin}", []string{bin})
 				origin := tools.Resolution{Words: []string{bin}, Source: tools.SourceLocal}
-				r.exec(fmt.Sprintf("js: %s (%s affected: %s)", c.Name, o.Name, task), root, words, origin.BinLine())
+				r.exec(label, root, words, origin.BinLine())
 			}
 		}
 		return
@@ -167,10 +172,19 @@ func (r *Runner) subproject(cfg *config.Config, root, sub string) {
 				continue
 			}
 			matched = true
-			r.exec(fmt.Sprintf("%s: %s (%s)%s", label, c.Name, t.Name, sfx), dir, strings.Fields(t.Cmd), "")
+			full := fmt.Sprintf("%s: %s (%s)%s", label, c.Name, t.Name, sfx)
+			if cfg.CheckDisabled(c.Name, full) {
+				r.skip(full + " (disabled_checks)")
+				continue
+			}
+			r.exec(full, dir, strings.Fields(t.Cmd), "")
 		}
 		if !matched && skipLabel != "" && !(r.orchestratedChecks[c.Name] && skipLabel == "js") {
-			r.skip(fmt.Sprintf("%s: %s%s (no %s task)", skipLabel, c.Name, sfx, c.Name))
+			reason := "no " + c.Name + " task"
+			if cfg.CheckDisabled(c.Name, "") {
+				reason = "disabled_checks"
+			}
+			r.skip(fmt.Sprintf("%s: %s%s (%s)", skipLabel, c.Name, sfx, reason))
 		}
 	}
 
@@ -179,6 +193,10 @@ func (r *Runner) subproject(cfg *config.Config, root, sub string) {
 			continue
 		}
 		label := tc.Stack + ": " + tc.Name + sfx
+		if !cfg.ToolchainEnabled(tc) {
+			r.skip(label + " (disabled_toolchain_checks)")
+			continue
+		}
 		run := tools.ResolveToolchain(cfg, tc, dir, root)
 		if run.Words == nil {
 			r.skip(label + " (" + run.Skip + ")")

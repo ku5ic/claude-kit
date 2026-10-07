@@ -157,14 +157,15 @@ Seven short files that shape how Claude works, injected into every session and e
 
 Defaults live in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml`, which merges on top (maps merge, lists append). Handy keys:
 
-| Key                                           | For                                                                                           |
-| --------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `protected_branches`                          | Branches Claude can't push to (default: `main`, `master`, `develop`, `production`, `release`) |
-| `sensitive_paths`                             | Extra credential files to guard                                                               |
-| `file_checks`                                 | Your own Stop checks; a same-named entry replaces a built-in                                  |
-| `disabled_file_checks`, `disabled_formatters` | Turn a built-in check or formatter off                                                        |
-| `check_timeout`                               | Seconds before a Stop check is killed and skipped (default 90)                                |
-| `tool_resolution.path_fallback`               | Tools the project doesn't declare that may still run from PATH                                |
+| Key                                            | For                                                                                           |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `protected_branches`                           | Branches Claude can't push to (default: `main`, `master`, `develop`, `production`, `release`) |
+| `sensitive_paths`                              | Extra credential files to guard                                                               |
+| `file_checks`                                  | Your own Stop checks; a same-named entry replaces a built-in                                  |
+| `disabled_file_checks`, `disabled_formatters`  | Turn a built-in check or formatter off                                                        |
+| `disabled_checks`, `disabled_toolchain_checks` | Turn a run-checks check off, by slot or by the label it prints                                |
+| `check_timeout`                                | Seconds before a Stop check is killed and skipped (default 90)                                |
+| `tool_resolution.path_fallback`                | Tools the project doesn't declare that may still run from PATH                                |
 
 `kit config` prints the merged result, and `kit config --check` flags unknown keys and wrong types. Package-manager environments (poetry, pipenv, Yarn PnP, bundler) are built in.
 

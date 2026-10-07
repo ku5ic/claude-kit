@@ -92,6 +92,46 @@ func TestOverlayFormatterWithADefaultsNameUpdatesItFieldByField(t *testing.T) {
 	}
 }
 
+func TestOverlayChecksAndToolchainChecksUpdateByKey(t *testing.T) {
+	dir := t.TempDir()
+	base := write(t, dir, "kit.yml", "checks:\n  - {name: test, tasks: [test], exclude: [\"*watch*\"]}\n"+
+		"toolchain_checks:\n  - {stack: go, name: test, cmd: \"{bin} test ./...\", bin: [go]}\n  - {stack: rust, name: test, cmd: \"{bin} test\", bin: [cargo]}\n")
+	overlay := write(t, dir, "over.yml", "checks:\n  - {name: test, tasks: [test, \"test:unit\"]}\n"+
+		"toolchain_checks:\n  - {stack: go, name: test, cmd: \"{bin} test -race ./...\"}\n")
+	cfg, warnings, err := Load(Paths{Base: base, Overlay: overlay})
+	if err != nil || len(warnings) > 0 {
+		t.Fatalf("err=%v warnings=%v", err, warnings)
+	}
+	if len(cfg.Checks) != 1 || strings.Join(cfg.Checks[0].Tasks, ",") != "test,test:unit" || strings.Join(cfg.Checks[0].Exclude, ",") != "*watch*" {
+		t.Errorf("checks = %+v", cfg.Checks)
+	}
+	var got []string
+	for _, tc := range cfg.ToolchainChecks {
+		got = append(got, tc.Stack+":"+tc.Cmd+":"+strings.Join(tc.Bin, ","))
+	}
+	if want := "go:{bin} test -race ./...:go|rust:{bin} test:cargo"; strings.Join(got, "|") != want {
+		t.Errorf("toolchain_checks = %s, want %s", strings.Join(got, "|"), want)
+	}
+}
+
+func TestCheckDisabledMatchesSlotOrLabel(t *testing.T) {
+	cfg := &Config{DisabledChecks: []string{"typecheck", "lint (lint:css) [web]", "js: test (test:unit)"}}
+	for _, c := range []struct {
+		slot, label string
+		want        bool
+	}{
+		{"typecheck", "js: typecheck (tsc)", true},
+		{"lint", "js: lint (lint:css) [web]", true},
+		{"lint", "js: lint (lint) [web]", false},
+		{"test", "js: test (test:unit)", true},
+		{"test", "js: test (test)", false},
+	} {
+		if got := cfg.CheckDisabled(c.slot, c.label); got != c.want {
+			t.Errorf("CheckDisabled(%q, %q) = %v, want %v", c.slot, c.label, got, c.want)
+		}
+	}
+}
+
 func TestUnknownKeysWarnWithTheirFile(t *testing.T) {
 	dir := t.TempDir()
 	base := write(t, dir, "kit.yml", "protected_branches: [main]\nformatters:\n  - name: x\n    signal_fies: [a]\n")
