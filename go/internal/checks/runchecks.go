@@ -167,7 +167,7 @@ func RunAll(cfg *config.Config, root string, only []string, out io.Writer) int {
 				c := changedSince(root)
 				ch = &c
 			}
-			switch runScoped(g, ch, out) {
+			switch runScoped(g, *ch, out) {
 			case "pass":
 				pass++
 			case "fail":
