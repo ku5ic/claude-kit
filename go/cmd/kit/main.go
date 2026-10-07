@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -143,17 +144,21 @@ func run(args []string, stdout, stderr io.Writer) int {
 		"plans-dir":    cmdPlansDir,
 		"detect-stack": cmdDetectStack,
 		"run-checks": func(e *env, cfg *config.Config, args []string) int {
-			plan := len(args) > 0 && args[0] == "--plan"
-			if plan {
-				args = args[1:]
-			}
-			var only []string
-			if len(args) > 0 && args[0] == "--only" {
-				only = args[1:]
+			plan, only, err := parseRunChecksArgs(args)
+			if err != nil {
+				fmt.Fprintf(e.stderr, "kit run-checks: %v\nusage: kit run-checks [--plan] [--only sub...]\n", err)
+				return 2
 			}
 			root := project.Toplevel(e.cwd)
 			if root == "" {
 				root = e.cwd
+			}
+			subs := project.Subprojects(cfg, root)
+			for _, sub := range only {
+				if !slices.Contains(subs, sub) {
+					fmt.Fprintf(e.stderr, "kit run-checks: %q is not a subproject; kit subprojects lists them\n", sub)
+					return 2
+				}
 			}
 			if plan {
 				checks.PrintPlan(cfg, root, only, e.stdout)
@@ -197,6 +202,25 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	return cmd(e, cfg, rest)
+}
+
+// parseRunChecksArgs reads [--plan] [--only sub...]. Anything else is an
+// error: a typo'd --plan must never fall through to a real run.
+func parseRunChecksArgs(args []string) (plan bool, only []string, err error) {
+	for i, arg := range args {
+		switch arg {
+		case "--plan":
+			plan = true
+		case "--only":
+			if only = args[i+1:]; len(only) == 0 {
+				return false, nil, fmt.Errorf("--only needs at least one subproject")
+			}
+			return plan, only, nil
+		default:
+			return false, nil, fmt.Errorf("unknown argument %q", arg)
+		}
+	}
+	return plan, nil, nil
 }
 
 func cmdConfig(e *env, args []string) int {

@@ -353,6 +353,20 @@ func TestRunChecks(t *testing.T) {
 		r.Lacks(t, "packages/a", "js: lint")
 	})
 
+	t.Run("a bad argument is a usage error and runs nothing", func(t *testing.T) {
+		for _, args := range [][]string{{"--plann"}, {"--only"}, {"--only", "services/nope"}, {"--plan", "extra"}} {
+			e := runChecksSetup(t)
+			e.write("package.json", `{"scripts":{"lint":"eslint ."}}`+"\n")
+			e.stub("npm", 0)
+			r := e.run(args...)
+			r.Want(t, 2)
+			r.Has(t, "kit run-checks: ")
+			if e.called("npm") {
+				t.Errorf("%v ran npm: %s", args, e.calls("npm"))
+			}
+		}
+	})
+
 	t.Run("pnpm runs a task with its install-before-run turned off", func(t *testing.T) {
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"lint":"eslint ."}}`+"\n")
