@@ -106,6 +106,22 @@ func TestGateCoverage(t *testing.T) {
 		r.Has(t, "RUN js: format-check (lint:prettier)")
 		r.Lacks(t, "RUN js: lint (lint:prettier)")
 	})
+	t.Run("a CI step the same tool already covers names the command it skipped", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", `{"devDependencies":{"typescript":"5"}}`+"\n")
+		e.localTool("node_modules/.bin", "tsc")
+		e.workflow("jobs:\n  c:\n    steps:\n      - run: npx tsc --noEmit\n      - run: npx tsc --noEmit -p tsconfig.other.json\n")
+		e.run("--plan").Has(t, "SKIP js: typecheck (.github/workflows/ci.yml: tsc) (covered by an earlier step running tsc; skipped `tsc --noEmit -p tsconfig.other.json`)")
+	})
+	t.Run("a root task that cds into a subproject covers that subproject's toolchain check", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("Makefile", "test:\n\tcd svc && go test ./...\n")
+		e.write("svc/go.mod", "module example.com/svc\n")
+		e.stub("go", 0)
+		r := e.run("--plan")
+		r.Has(t, "RUN make: test (test)", "SKIP go: test [svc] (covered by make: test (test))", "RUN go: vet [svc]")
+		e.run("--plan", "--only", "svc").Has(t, "RUN go: test [svc]")
+	})
 }
 
 func TestCIShellSemantics(t *testing.T) {

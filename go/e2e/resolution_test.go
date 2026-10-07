@@ -144,7 +144,8 @@ func TestResolutionMatrix(t *testing.T) {
 		e.write("pnpm-lock.yaml", "")
 		e.probe("js", "fakefmt", "")
 		e.recorder(filepath.Join(e.stubs, "fakefmt"), "path")
-		e.run().Has(t, "SKIP js: probe (fakefmt declared in package.json but not installed; run pnpm install)")
+		e.run().Has(t, "SKIP js: probe (fakefmt declared in package.json but not installed; run pnpm install)",
+			"not run: 1 check the project declares a tool for, not installed")
 		if e.called("rec") {
 			t.Errorf("ran: %s", e.calls("rec"))
 		}

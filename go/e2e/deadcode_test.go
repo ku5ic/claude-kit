@@ -45,6 +45,18 @@ func TestDeadcode(t *testing.T) {
 		e.prints("npm", "Unused exports (1)\nold  src/old.ts:1:14", 1)
 		e.run().Has(t, "PASS js: deadcode (knip) (1 finding in unchanged files)")
 	})
+	t.Run("js: knip's unused-files list, bare paths, is scoped like any finding", func(t *testing.T) {
+		e := knip(t)
+		e.prints("npm", "> knip\n\nUnused files (1)\nsrc/old.ts", 1)
+		e.run().Has(t, "PASS js: deadcode (knip) (1 finding in unchanged files)")
+		e.prints("npm", "Unused files (1)\nsrc/new.ts\nUnused exports (1)\nold  src/old.ts:1:14", 1)
+		e.run().Has(t, "FAIL js: deadcode (knip)", "src/new.ts")
+	})
+	t.Run("js: knip output with nothing parsed and a non-zero exit is a tool error", func(t *testing.T) {
+		e := knip(t)
+		e.prints("npm", "> knip\nError: Cannot read knip.json", 2)
+		e.run().Has(t, "FAIL js: deadcode (knip)", "Error: Cannot read knip.json")
+	})
 	t.Run("a finding in a changed file whose path has a space still fails", func(t *testing.T) {
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"knip":"knip"}}`+"\n")

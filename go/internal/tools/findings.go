@@ -2,6 +2,7 @@ package tools
 
 import (
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -33,7 +34,7 @@ func (f *Findings) Parse(out string) ([]Finding, bool) {
 	}
 	var found []Finding
 	header := ""
-	fileGroup, lineGroup := f.Item.SubexpIndex("file"), f.Item.SubexpIndex("line")
+	names := f.Item.SubexpNames()
 	for raw := range strings.SplitSeq(out, "\n") {
 		if f.Header != nil {
 			if m := f.Header.FindStringSubmatch(raw); m != nil {
@@ -46,18 +47,29 @@ func (f *Findings) Parse(out string) ([]Finding, bool) {
 			continue
 		}
 		finding := Finding{File: header, Text: strings.TrimSpace(raw)}
-		if fileGroup >= 0 {
-			finding.File = m[fileGroup]
+		if slices.Contains(names, "file") {
+			finding.File = group(names, m, "file")
 		} else {
 			finding.Text = header + ":" + finding.Text
 		}
 		if finding.File == "" {
 			continue
 		}
-		finding.Line, _ = strconv.Atoi(m[lineGroup])
+		finding.Line, _ = strconv.Atoi(group(names, m, "line"))
 		found = append(found, finding)
 	}
 	return found, true
+}
+
+// group is the first non-empty submatch named name: a pattern may repeat a
+// name across alternatives (knip prints "sym  file:line:col" and bare paths).
+func group(names, m []string, name string) string {
+	for i, n := range names {
+		if n == name && m[i] != "" {
+			return m[i]
+		}
+	}
+	return ""
 }
 
 // lines is a Findings with one finding per line, file and line leading.

@@ -32,6 +32,7 @@ type taskRoles struct {
 	single  []*classify.Command // per task: its body's one gate, when it has exactly one
 	tools   [][]string          // per task: the commands its body runs directly
 	leaves  []leaf              // gates found inside aggregate tasks, in body order
+	away    [][]awayGate        // per task: the gates its body runs in another subproject
 }
 
 // leaf is one gate inside an aggregate: another task, run as itself, or an
@@ -57,13 +58,14 @@ type taskAt struct {
 // runs other tasks or several gates is an aggregate, never run itself, its
 // gates run separately; anything else doesn't run.
 func roles(cfg *config.Config, root, dir, sfx string, tasks []project.Task, subs map[string]bool) taskRoles {
-	r := taskRoles{slots: make([]string, len(tasks)), covered: make([]int, len(tasks)), single: make([]*classify.Command, len(tasks)), tools: make([][]string, len(tasks))}
+	r := taskRoles{slots: make([]string, len(tasks)), covered: make([]int, len(tasks)), single: make([]*classify.Command, len(tasks)), tools: make([][]string, len(tasks)), away: make([][]awayGate, len(tasks))}
 	a := &aggregator{cfg: cfg, root: root, sfx: sfx, home: dir, subs: subs, cache: map[string][]project.Task{dir: tasks}}
 	results := make([]classify.Result, len(tasks))
 	for i, t := range tasks {
 		r.covered[i] = -1
 		results[i] = classify.Body(cfg, t.Body, a.lookup(dir))
 		r.tools[i] = bodyTools(results[i])
+		r.away[i] = away(root, dir, subs, t, results[i])
 		gate, single := results[i].SingleGate()
 		if single {
 			r.single[i] = &gate
@@ -131,6 +133,33 @@ func applyFallbacks(cfg *config.Config, tasks []project.Task, r *taskRoles) {
 			}
 		}
 	}
+}
+
+// awayGate is a gate a task's body runs in another subproject, after a
+// literal cd into it.
+type awayGate struct {
+	dir, slot, tool string
+}
+
+// away is the gates r runs, as task t's body in home, in a subproject
+// other than home: that subproject's own run then treats them as filled.
+func away(root, home string, subs map[string]bool, t project.Task, r classify.Result) []awayGate {
+	var out []awayGate
+	dir, line := home, uint(0)
+	for _, cmd := range r.Commands {
+		if t.PerLine && cmd.Line != line {
+			dir, line = home, cmd.Line
+		}
+		switch {
+		case cmd.Kind == classify.Cd && len(cmd.Words) == 2 && !filepath.IsAbs(cmd.Words[1]):
+			dir = filepath.Clean(filepath.Join(dir, cmd.Words[1]))
+		case cmd.Kind == classify.Gate:
+			if owner := ownerOf(root, subs, dir); owner != home && (dir == root || strings.HasPrefix(dir, root+"/")) {
+				out = append(out, awayGate{owner, cmd.Slot, cmd.Tool})
+			}
+		}
+	}
+	return out
 }
 
 // bodyTools is the commands r runs directly: each gate's tool, and the
@@ -357,7 +386,7 @@ func (a *aggregator) inline(cmd classify.Command, agg taskAt, stack string, st s
 	}
 	res := a.resolveWord(st.dir, cmd.Words[0])
 	if res.Words == nil {
-		l.gate = Gate{Label: label, Skip: res.Skip}
+		l.gate = Gate{Label: label, Skip: res.Skip, Unrun: res.Project}
 		return l
 	}
 	words := append(slices.Clone(res.Words), expandGlobs(cmd.Words[1:], cmd.Globs, st.dir)...)

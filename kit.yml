@@ -368,7 +368,7 @@ checks:
     exclude: ["*fix*", "*watch*"]
     scope: changed
     tools:
-      - {bin: knip, forbid: [--fix, --watch], unmapped: [--reporter], findings: '^\S+\s+(?P<file>[^\s:]+):(?P<line>\d+):\d+\s*$'}
+      - {bin: knip, forbid: [--fix, --watch], unmapped: [--reporter], findings: '^(?:\S+\s+(?P<file>\S.*?):(?P<line>\d+):\d+|(?P<file>[^\s:]+\.\w+))\s*$'}
       - {bin: vulture, findings: '^(?P<file>[^\s:]+):(?P<line>\d+): unused '}
       - {bin: deadcode, findings: '^(?P<file>[^\s:]+\.go):(?P<line>\d+):\d+: unreachable func: '}
       - {bin: debride, advisory: true}

@@ -215,6 +215,9 @@ func parseRunChecksArgs(args []string) (plan bool, only []string, err error) {
 			if only = args[i+1:]; len(only) == 0 {
 				return false, nil, fmt.Errorf("--only needs at least one subproject")
 			}
+			if j := slices.IndexFunc(only, func(a string) bool { return strings.HasPrefix(a, "-") }); j >= 0 {
+				return false, nil, fmt.Errorf("%s must come before --only", only[j])
+			}
 			return plan, only, nil
 		default:
 			return false, nil, fmt.Errorf("unknown argument %q", arg)

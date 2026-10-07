@@ -29,6 +29,7 @@ type Gate struct {
 	BinLine string // "  bin: <words> (<source>)\n" when the kit resolved the binary
 	Note    string // printed as "  note: <note>" under the verdict
 	Skip    string
+	Unrun   bool   // skipped though the project names its tool: not installed
 	CI      string // the CI config it came from, when only CI names it
 	Scope   *Scope // set: findings in changed files decide (dead code)
 }
@@ -50,6 +51,18 @@ type planner struct {
 	orchestrated map[string]bool
 	ci           map[string][]leaf // CI gates by the subproject they run in
 	subDirs      map[string]bool   // every subproject's absolute directory
+	// Per subproject directory, gates an earlier subproject's task runs
+	// there (cd svc && go test). Subprojects plan root first, so a task
+	// that cds into a sibling planned before it doesn't count.
+	awayFilled map[string]map[string][]filler
+}
+
+// filler is a gate that runs for a check, and the tools it runs: an inline
+// tool line or a toolchain check running one of the same tools is then
+// covered.
+type filler struct {
+	label string
+	tools []string
 }
 
 func (p *planner) add(g Gate) { p.gates = append(p.gates, g) }
@@ -57,7 +70,7 @@ func (p *planner) add(g Gate) { p.gates = append(p.gates, g) }
 // Gates is every check of every subproject of root, or only those named in
 // only ("." is the root), in the order run-checks runs them.
 func Gates(cfg *config.Config, root string, only []string) []Gate {
-	p := &planner{cfg: cfg, root: root, orchestrated: map[string]bool{}}
+	p := &planner{cfg: cfg, root: root, orchestrated: map[string]bool{}, awayFilled: map[string]map[string][]filler{}}
 	inScope := func(sub string) bool { return len(only) == 0 || slices.Contains(only, sub) }
 
 	// The orchestrator only when a JS subproject is in scope: a run scoped to
@@ -135,15 +148,19 @@ func (p *planner) stackFor(dir string) string {
 // parsed by callers: one PASS, FAIL, or SKIP line per check, labeled as Gate
 // says; a check whose binary the kit resolved has an indented "  bin:
 // <words> (<source>)" line right under it; then a blank line and "checks: N
-// passed, N failed, N skipped".
+// passed, N failed, N skipped", and, when the project's own tools weren't
+// installed, a "not run: ..." line saying so.
 func RunAll(cfg *config.Config, root string, only []string, out io.Writer) int {
-	pass, fail, skip := 0, 0, 0
+	pass, fail, skip, unrun := 0, 0, 0, 0
 	var ch *changes
 	for _, g := range Gates(cfg, root, only) {
 		switch {
 		case g.Skip != "":
 			fmt.Fprintf(out, "SKIP %s (%s)\n", g.Label, g.Skip)
 			skip++
+			if g.Unrun {
+				unrun++
+			}
 		case g.Scope != nil:
 			if ch == nil {
 				c := changedSince(root)
@@ -164,6 +181,9 @@ func RunAll(cfg *config.Config, root string, only []string, out io.Writer) int {
 		}
 	}
 	fmt.Fprintf(out, "\nchecks: %d passed, %d failed, %d skipped\n", pass, fail, skip)
+	if unrun > 0 {
+		fmt.Fprintf(out, "not run: %d check%s the project declares a tool for, not installed; install the dependencies, then rerun\n", unrun, plural(unrun))
+	}
 	return fail
 }
 
@@ -338,14 +358,11 @@ func (p *planner) subproject(sub string) {
 		}
 		return -1
 	}
-	// filled is, per check, the gates that run for it and the tools they
-	// run: an inline tool line or a toolchain check running one of the same
-	// tools is then covered.
-	type filler struct {
-		label string
-		tools []string
-	}
+	// filled is, per check, the gates that run for it.
 	filled := map[string][]filler{}
+	for slot, fs := range p.awayFilled[dir] {
+		filled[slot] = slices.Clone(fs)
+	}
 	fill := func(slot, label string, tools []string) {
 		filled[slot] = append(filled[slot], filler{label, tools})
 	}
@@ -379,6 +396,12 @@ func (p *planner) subproject(sub string) {
 				}
 				p.add(g)
 				fill(c.Name, full, r.tools[i])
+				for _, ag := range r.away[i] {
+					if p.awayFilled[ag.dir] == nil {
+						p.awayFilled[ag.dir] = map[string][]filler{}
+					}
+					p.awayFilled[ag.dir][ag.slot] = append(p.awayFilled[ag.dir][ag.slot], filler{full, []string{ag.tool}})
+				}
 			}
 		}
 		// Gates inside aggregates, then those only CI names: tasks CI runs,
@@ -394,6 +417,16 @@ func (p *planner) subproject(sub string) {
 				by = coveredBy(c.Name, l.tools)
 			}
 			switch {
+			case by == l.label && len(l.gate.Words) > 0:
+				// Two steps alike but for arguments: name what this one ran.
+				words := make([]string, len(l.gate.Words))
+				for k, w := range l.gate.Words {
+					if filepath.IsAbs(w) {
+						w = filepath.Base(w)
+					}
+					words[k] = w
+				}
+				l.gate = Gate{Label: l.label, Skip: "covered by an earlier step running " + l.tools[0] + "; skipped `" + strings.Join(words, " ") + "`", CI: l.gate.CI}
 			case by != "":
 				l.gate = Gate{Label: l.label, Skip: "covered by " + by, CI: l.gate.CI}
 			case l.gate.Skip == "" && cfg.CheckDisabled(c.Name, l.label):
@@ -445,7 +478,7 @@ func (p *planner) subproject(sub string) {
 		}
 		run := tools.ResolveToolchain(cfg, tc, dir, p.root)
 		if run.Words == nil {
-			p.add(Gate{Label: label, Skip: run.Skip})
+			p.add(Gate{Label: label, Skip: run.Skip, Unrun: run.Project})
 			continue
 		}
 		p.add(Gate{Label: label, Dir: dir, Words: run.Words, BinLine: run.BinLine()})

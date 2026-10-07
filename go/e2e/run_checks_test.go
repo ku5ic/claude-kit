@@ -367,6 +367,14 @@ func TestRunChecks(t *testing.T) {
 		}
 	})
 
+	t.Run("a flag after --only says where it belongs", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", `{"scripts":{"lint":"eslint ."}}`+"\n")
+		r := e.run("--only", ".", "--plan")
+		r.Want(t, 2)
+		r.Has(t, "kit run-checks: --plan must come before --only")
+	})
+
 	t.Run("pnpm runs a task with its install-before-run turned off", func(t *testing.T) {
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"lint":"eslint ."}}`+"\n")

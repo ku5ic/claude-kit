@@ -2,6 +2,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -71,6 +72,38 @@ func (c *Config) CheckDisabled(slot, label string) bool {
 		}
 	}
 	return false
+}
+
+// unknownDisables names the disabled_checks, disabled_toolchain_checks, and
+// disabled_task_providers entries that match nothing, so a typo doesn't
+// silently disable nothing. A disabled_checks label is judged by its check
+// name, the word its label starts with after any "<stack>: ".
+func (c *Config) unknownDisables() []error {
+	var errs []error
+	known := func(name string) bool {
+		return slices.ContainsFunc(c.Checks, func(ch Check) bool { return ch.Name == name }) ||
+			slices.ContainsFunc(c.ToolchainChecks, func(tc ToolchainCheck) bool { return tc.Name == name })
+	}
+	for _, d := range c.DisabledChecks {
+		_, short, found := strings.Cut(d, ": ")
+		if !found {
+			short = d
+		}
+		if name, _, _ := strings.Cut(short, " "); !known(name) {
+			errs = append(errs, fmt.Errorf("disabled_checks: %q names no check", d))
+		}
+	}
+	for _, d := range c.DisabledToolchainChecks {
+		if !slices.ContainsFunc(c.ToolchainChecks, func(tc ToolchainCheck) bool { return tc.Stack+":"+tc.Name == d }) {
+			errs = append(errs, fmt.Errorf("disabled_toolchain_checks: %q names no toolchain check (<stack>:<name>)", d))
+		}
+	}
+	for _, d := range c.DisabledTaskProviders {
+		if !slices.ContainsFunc(c.TaskProviders, func(tp TaskProvider) bool { return tp.Name == d }) {
+			errs = append(errs, fmt.Errorf("disabled_task_providers: %q names no task provider", d))
+		}
+	}
+	return errs
 }
 
 // AnchorSentinels are the sentinels marked anchor: true, in stack order:
@@ -178,7 +211,7 @@ type Check struct {
 // non-flag argument one of sub when sub is set, every require flag present,
 // and no forbid flag (a flag counts as written alone or as flag=value).
 // For a scoped check, Findings is a regex with file and line groups for one
-// finding; a flag in Unmapped changes the output so it no longer matches,
+// finding (a group name may repeat across alternatives); a flag in Unmapped changes the output so it no longer matches,
 // and Advisory marks output that can't be mapped to files at all.
 type ToolPattern struct {
 	Bin      string   `yaml:"bin"`

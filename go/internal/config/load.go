@@ -103,6 +103,13 @@ func Load(p Paths) (*Config, []Warning, error) {
 		warnings = append(warnings, Warning{p.Overlay, errors.New("ignored: it doesn't merge with kit.yml, so only kit.yml applies")})
 	}
 	applyDefaults(&cfg)
+	from := p.Base
+	if tag == "merged" {
+		from = p.Overlay
+	}
+	for _, err := range cfg.unknownDisables() {
+		warnings = append(warnings, Warning{from, err})
+	}
 	cfg.StackOrder = mappingKeys(mappingValue(merged, "stacks"))
 	cfg.VersionOrder = mappingKeys(mappingValue(merged, "versions"))
 	cfg.Tag = tag

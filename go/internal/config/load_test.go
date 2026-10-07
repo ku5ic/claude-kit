@@ -132,6 +132,34 @@ func TestCheckDisabledMatchesSlotOrLabel(t *testing.T) {
 	}
 }
 
+func TestDisablesThatMatchNothingWarn(t *testing.T) {
+	dir := t.TempDir()
+	base := write(t, dir, "kit.yml", "checks:\n  - {name: lint}\n"+
+		"toolchain_checks:\n  - {stack: go, name: vet, cmd: x}\n"+
+		"task_providers:\n  - {name: make}\n")
+	overlay := write(t, dir, "over.yml", "disabled_checks: [lint, \"js: lint (lint:css) [web]\", vet, bogus, \"js: lnt (x)\"]\n"+
+		"disabled_toolchain_checks: [\"go:vet\", \"go:nope\", vet]\n"+
+		"disabled_task_providers: [make, mkae]\n")
+	_, warnings, err := Load(Paths{Base: base, Overlay: overlay})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, w := range warnings {
+		if w.File != overlay {
+			t.Errorf("warning names %s, want the overlay", w.File)
+		}
+		got = append(got, w.Err.Error())
+	}
+	want := `disabled_checks: "bogus" names no check|disabled_checks: "js: lnt (x)" names no check|` +
+		`disabled_toolchain_checks: "go:nope" names no toolchain check (<stack>:<name>)|` +
+		`disabled_toolchain_checks: "vet" names no toolchain check (<stack>:<name>)|` +
+		`disabled_task_providers: "mkae" names no task provider`
+	if strings.Join(got, "|") != want {
+		t.Errorf("warnings =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.ReplaceAll(want, "|", "\n"))
+	}
+}
+
 func TestUnknownKeysWarnWithTheirFile(t *testing.T) {
 	dir := t.TempDir()
 	base := write(t, dir, "kit.yml", "protected_branches: [main]\nformatters:\n  - name: x\n    signal_fies: [a]\n")
