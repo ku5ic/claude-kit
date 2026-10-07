@@ -152,17 +152,13 @@ func Plan(cfg *config.Config, root, base string, edited []string) []*Group {
 			g.Skip = "no cmd in kit.yml"
 			continue
 		}
-		bin := tools.Resolve(g.Dir, root, g.Adapter.Bin, g.Adapter.LocalOnly)
-		if bin == nil {
-			where := "not installed"
-			if g.Adapter.LocalOnly {
-				where = "not in the project environment"
-			}
-			g.Skip = g.Adapter.Bin + " " + where
+		res := tools.Resolve(g.Dir, root, g.Adapter.Bin, g.Adapter.LocalOnly)
+		if res.Words == nil {
+			g.Skip = res.Skip
 			continue
 		}
 		g.Derived, _ = g.Adapter.Derive(g.Dir, root)
-		g.Words = expand(g.Adapter.Cmd, bin, g.Files, g.Dir, g.Derived)
+		g.Words = expand(g.Adapter.Cmd, res.Words, g.Files, g.Dir, g.Derived)
 	}
 	return groups
 }

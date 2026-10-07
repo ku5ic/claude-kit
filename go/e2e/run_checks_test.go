@@ -17,10 +17,13 @@ type runChecksEnv struct {
 	project, stubs string
 }
 
-func runChecksSetup(t *testing.T) *runChecksEnv {
+func runChecksSetup(t *testing.T) *runChecksEnv { return runChecksSetupIn(t, "project") }
+
+// runChecksSetupIn is runChecksSetup with the repo at <tmp>/<name>.
+func runChecksSetupIn(t *testing.T, name string) *runChecksEnv {
 	k := New(t)
 	tmp := t.TempDir()
-	e := &runChecksEnv{t: t, k: k, project: filepath.Join(tmp, "project"), stubs: filepath.Join(tmp, "stubs")}
+	e := &runChecksEnv{t: t, k: k, project: filepath.Join(tmp, name), stubs: filepath.Join(tmp, "stubs")}
 	Mkdir(t, e.project)
 	Mkdir(t, e.stubs)
 	k.Git(e.project, "init", "-q", "-b", "main")
@@ -80,6 +83,18 @@ func (e *runChecksEnv) orchestrated(name, config string) {
 	e.write(".gitignore", "node_modules\n")
 	e.stub("pnpm", 0)
 	e.stub("pdm", 0)
+}
+
+// localFakefmt adds a js toolchain check on fakefmt, with a recording copy
+// in <prefix>node_modules/.bin and another on PATH, both writing to
+// fakefmt.calls.
+func (e *runChecksEnv) localFakefmt(prefix string) {
+	e.k.Overlay("toolchain_checks:\n  - {stack: js, name: fmt, cmd: \"{bin} --check .\", bin: [fakefmt]}\n")
+	e.write(prefix+"package.json", "{}\n")
+	e.write(".gitignore", "node_modules\n")
+	calls := filepath.Join(e.stubs, "fakefmt.calls")
+	Stub(e.t, filepath.Join(e.project, prefix+"node_modules/.bin/fakefmt"), fmt.Sprintf("echo \"local $*\" >>%q\n", calls))
+	Stub(e.t, filepath.Join(e.stubs, "fakefmt"), fmt.Sprintf("echo \"path $*\" >>%q\n", calls))
 }
 
 // runChecksCase is a test that writes files, stubs binaries, runs
@@ -402,6 +417,26 @@ func TestRunChecks(t *testing.T) {
 		e.stub("composer", 0)
 		e.run().Has(t, "PASS php: test (test)")
 		e.callsEndWith("composer", "run test")
+	})
+
+	// Toolchain checks resolve {bin} like file checks: the project's copy first.
+	t.Run("a toolchain check runs the project-local bin before a PATH copy", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.localFakefmt("")
+		e.run().Has(t, "PASS js: fmt")
+		e.callsEqual("fakefmt", "local --check .")
+	})
+	t.Run("a resolved bin path with a space stays one word", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.localFakefmt("my app/")
+		e.run().Has(t, "PASS js: fmt [my app]")
+		e.callsEqual("fakefmt", "local --check .")
+	})
+	t.Run("turbo: a repo path with a space still orchestrates", func(t *testing.T) {
+		e := runChecksSetupIn(t, "my project")
+		e.orchestrated("turbo", `{"tasks":{"test":{}}}`)
+		e.run("--only", "packages/a").Has(t, "PASS js: test (turbo affected: test)")
+		e.callsEqual("turbo", "run test --filter=...[HEAD]")
 	})
 
 	// A copy of the launcher beside the freshly built binary, so its

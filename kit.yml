@@ -283,15 +283,16 @@ checks:
     tasks: [test]
 
 # Checks a stack's own toolchain provides, run where that stack is detected.
-#   bin:      candidate binaries; the first found fills {bin}
+#   bin:      candidate binaries; the first that resolves (as file_checks
+#             bins do) fills the {bin} word
 #   when_dir: a directory that must exist first, else the check is skipped
 toolchain_checks:
-  - {stack: rust, name: check, cmd: "cargo check"}
-  - {stack: rust, name: clippy, cmd: "cargo clippy -- -D warnings"}
-  - {stack: rust, name: fmt, cmd: "cargo fmt --check"}
-  - {stack: rust, name: test, cmd: "cargo test"}
-  - {stack: go, name: vet, cmd: "go vet ./..."}
-  - {stack: go, name: test, cmd: "go test ./..."}
+  - {stack: rust, name: check, cmd: "{bin} check", bin: [cargo]}
+  - {stack: rust, name: clippy, cmd: "{bin} clippy -- -D warnings", bin: [cargo]}
+  - {stack: rust, name: fmt, cmd: "{bin} fmt --check", bin: [cargo]}
+  - {stack: rust, name: test, cmd: "{bin} test", bin: [cargo]}
+  - {stack: go, name: vet, cmd: "{bin} vet ./...", bin: [go]}
+  - {stack: go, name: test, cmd: "{bin} test ./...", bin: [go]}
   # validate needs the providers `init` installs, so it waits for .terraform/.
   - {stack: opentofu, name: fmt, cmd: "{bin} fmt -check -recursive", bin: [tofu, terraform]}
   - {stack: opentofu, name: validate, cmd: "{bin} validate", bin: [tofu, terraform], when_dir: .terraform}

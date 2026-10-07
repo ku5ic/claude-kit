@@ -344,6 +344,9 @@ stacks:
 		e.useRealKitYML()
 		Write(t, filepath.Join(e.root, "Cargo.toml"), "[package]\nname = \"x\"\n")
 		e.Git(e.root, "add", "-A")
+		stubs := filepath.Join(e.tmp, "stubs")
+		Stub(t, filepath.Join(stubs, "cargo"), "")
+		e.PrependPath(stubs)
 		r := e.run("s1", "")
 		r.Want(t, 0)
 		want := "  cargo check\n  cargo clippy -- -D warnings\n  cargo fmt --check\n  cargo test"

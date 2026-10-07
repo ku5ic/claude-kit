@@ -65,7 +65,7 @@ func FormatDispatch(h *hook.Hook) error {
 		if !signaled && !f.SignalPrettier {
 			continue
 		}
-		bin := tools.Resolve(dir, root, f.Bin, false)
+		bin := tools.Resolve(dir, root, f.Bin, false).Words
 		if signaled || hasSignal(f, bin, dir, root, path) {
 			hits = append(hits, hit{f, bin})
 		}

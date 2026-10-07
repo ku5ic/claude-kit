@@ -29,15 +29,30 @@ var lookups = []lookup{
 	{lockfile: "Gemfile.lock", probe: []string{"bundle", "info", "{bin}"}, run: []string{"bundle", "exec", "{bin}"}},
 }
 
-// Resolve is the words that run name from dir: a project-local copy
-// (node_modules/.bin, .venv/bin, venv/bin, from dir up to root), else the
-// project's package-manager environment, else PATH unless localOnly (a type
-// checker from PATH can't see the project's packages). Nil when none has it.
-// Never npx, pnpm dlx, or uv run, which can install packages.
-func Resolve(dir, root, name string, localOnly bool) []string {
+// Where a Resolution's words come from.
+const (
+	SourceLocal = "local"
+	SourcePM    = "package-manager env"
+	SourcePATH  = "PATH"
+)
+
+// Resolution is how a tool runs: the words that run it and where they come
+// from, or, when Words is nil, why it can't run.
+type Resolution struct {
+	Words  []string
+	Source string
+	Skip   string
+}
+
+// Resolve finds name for dir: a project-local copy (node_modules/.bin,
+// .venv/bin, venv/bin, from dir up to root), else the project's
+// package-manager environment, else PATH unless localOnly (a type checker
+// from PATH can't see the project's packages). Never npx, pnpm dlx, or uv
+// run, which can install packages.
+func Resolve(dir, root, name string, localOnly bool) Resolution {
 	for _, sub := range []string{"node_modules/.bin", ".venv/bin", "venv/bin"} {
 		if found := project.FindUp(dir, root, filepath.Join(sub, name)); found != "" && executable(found) {
-			return []string{found}
+			return Resolution{Words: []string{found}, Source: SourceLocal}
 		}
 	}
 	for _, l := range lookups {
@@ -46,16 +61,16 @@ func Resolve(dir, root, name string, localOnly bool) []string {
 			continue
 		}
 		if words := l.resolve(filepath.Dir(lock), name); words != nil {
-			return words
+			return Resolution{Words: words, Source: SourcePM}
 		}
 	}
 	if localOnly {
-		return nil
+		return Resolution{Skip: name + " not in the project environment"}
 	}
 	if path, err := exec.LookPath(name); err == nil {
-		return []string{path}
+		return Resolution{Words: []string{path}, Source: SourcePATH}
 	}
-	return nil
+	return Resolution{Skip: name + " not installed"}
 }
 
 func (l lookup) resolve(dir, name string) []string {

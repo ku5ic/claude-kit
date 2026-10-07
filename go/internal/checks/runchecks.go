@@ -17,6 +17,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/extract"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/tools"
 )
 
 // Runner accumulates one run's results. Output contract, parsed by callers:
@@ -123,8 +124,8 @@ func (r *Runner) orchestrate(cfg *config.Config, root string) {
 					continue
 				}
 				r.orchestratedChecks[c.Name] = true
-				cmd := strings.ReplaceAll(strings.ReplaceAll(o.Run, "{bin}", bin), "{task}", task)
-				r.exec(fmt.Sprintf("js: %s (%s affected: %s)", c.Name, o.Name, task), root, strings.Fields(cmd))
+				words := tools.Fill(strings.Fields(strings.ReplaceAll(o.Run, "{task}", task)), "{bin}", []string{bin})
+				r.exec(fmt.Sprintf("js: %s (%s affected: %s)", c.Name, o.Name, task), root, words)
 			}
 		}
 		return
@@ -174,11 +175,11 @@ func (r *Runner) subproject(cfg *config.Config, root, sub string) {
 			continue
 		}
 		label := tc.Stack + ": " + tc.Name + sfx
-		cmd, reason := project.ToolchainCmd(tc, dir)
-		if reason != "" {
-			r.skip(label + " (" + reason + ")")
+		run := tools.ResolveToolchain(tc, dir, root)
+		if run.Words == nil {
+			r.skip(label + " (" + run.Skip + ")")
 			continue
 		}
-		r.exec(label, dir, strings.Fields(cmd))
+		r.exec(label, dir, run.Words)
 	}
 }

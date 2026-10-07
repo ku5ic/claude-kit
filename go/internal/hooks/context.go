@@ -12,6 +12,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/stackctx"
+	"github.com/ku5ic/claude-kit/go/internal/tools"
 )
 
 // cwdOf is the payload's cwd, which Claude Code always sends, else the
@@ -186,8 +187,8 @@ func tooling(cfg *config.Config, root string) string {
 		}
 		for _, tc := range cfg.ToolchainChecks {
 			if cfg.HasStack(dir, tc.Stack) {
-				if cmd, skip := project.ToolchainCmd(tc, dir); skip == "" {
-					lines = append(lines, cmd)
+				if run := tools.ResolveToolchain(tc, dir, root); run.Words != nil {
+					lines = append(lines, tools.ShellJoin(run.Shown))
 				}
 			}
 		}
@@ -218,20 +219,20 @@ func tooling(cfg *config.Config, root string) string {
 			missing = append(missing, tool)
 		}
 	}
-	var tools []string
+	var cli []string
 	if len(available) > 0 {
-		tools = append(tools, "available: "+strings.Join(available, ", "))
+		cli = append(cli, "available: "+strings.Join(available, ", "))
 	}
 	if len(missing) > 0 {
-		tools = append(tools, "missing: "+strings.Join(missing, ", "))
+		cli = append(cli, "missing: "+strings.Join(missing, ", "))
 	}
-	if len(body) == 0 && len(tools) == 0 {
+	if len(body) == 0 && len(cli) == 0 {
 		return ""
 	}
 
 	var out strings.Builder
 	out.WriteString("\n<tooling>\n")
-	for _, line := range append(body, tools...) {
+	for _, line := range append(body, cli...) {
 		out.WriteString(line)
 		out.WriteString("\n")
 	}
