@@ -164,6 +164,7 @@ Defaults live in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml
 | `file_checks`                                 | Your own Stop checks; a same-named entry replaces a built-in                                  |
 | `disabled_file_checks`, `disabled_formatters` | Turn a built-in check or formatter off                                                        |
 | `check_timeout`                               | Seconds before a Stop check is killed and skipped (default 90)                                |
+| `tool_resolution.path_fallback`               | Tools the project doesn't declare that may still run from PATH                                |
 
 `kit config` prints the merged result, and `kit config --check` flags unknown keys and wrong types. Package-manager environments (poetry, pipenv, Yarn PnP, bundler) are built in.
 

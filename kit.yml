@@ -283,8 +283,8 @@ checks:
     tasks: [test]
 
 # Checks a stack's own toolchain provides, run where that stack is detected.
-#   bin:      candidate binaries; the first that resolves (as file_checks
-#             bins do) fills the {bin} word
+#   bin:      candidate binaries; the first that resolves (tool_resolution)
+#             fills the {bin} word
 #   when_dir: a directory that must exist first, else the check is skipped
 toolchain_checks:
   - {stack: rust, name: check, cmd: "{bin} check", bin: [cargo]}
