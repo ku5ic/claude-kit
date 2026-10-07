@@ -2,6 +2,7 @@ package tools
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -12,9 +13,9 @@ import (
 // resolveEnv is one Resolve test: a repo dir, a PATH dir that is the whole
 // PATH, and the policy kit.yml ships.
 type resolveEnv struct {
-	t          *testing.T
-	repo, path string
-	cfg        *config.Config
+	t               *testing.T
+	repo, path, git string
+	cfg             *config.Config
 }
 
 func resolveSetup(t *testing.T) *resolveEnv {
@@ -22,7 +23,8 @@ func resolveSetup(t *testing.T) *resolveEnv {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e := &resolveEnv{t: t, repo: filepath.Join(tmp, "repo"), path: filepath.Join(tmp, "path")}
+	git, _ := exec.LookPath("git")
+	e := &resolveEnv{t: t, repo: filepath.Join(tmp, "repo"), path: filepath.Join(tmp, "path"), git: git}
 	os.MkdirAll(e.repo, 0o755)
 	os.MkdirAll(e.path, 0o755)
 	t.Setenv("PATH", e.path)
@@ -225,6 +227,103 @@ func TestResolveToolchainTakesTheFirstCandidateThatRuns(t *testing.T) {
 	}
 	if got := strings.Join(run.Shown, " "); got != "terraform fmt -check" {
 		t.Errorf("shown %q", got)
+	}
+}
+
+// install puts prettier at version under dir/node_modules, its binary in
+// dir/node_modules/.bin, and returns the binary's path.
+func (e *resolveEnv) install(dir, version string) string {
+	e.t.Helper()
+	put(e.t, dir, "node_modules/prettier/package.json", `{"name":"prettier","version":"`+version+`"}`)
+	return e.exe(filepath.Join(dir, "node_modules/.bin/prettier"), "")
+}
+
+// workspace is a root package.json plus packages/a declaring prettier spec;
+// it returns packages/a's dir.
+func (e *resolveEnv) workspace(spec string) string {
+	e.t.Helper()
+	put(e.t, e.repo, "package.json", `{"private":true}`)
+	a := filepath.Join(e.repo, "packages/a")
+	put(e.t, a, "package.json", `{"devDependencies":{"prettier":"`+spec+`"}}`)
+	return a
+}
+
+func TestResolveWorkspacePackageCopyWinsWhenItSatisfies(t *testing.T) {
+	e := resolveSetup(t)
+	a := e.workspace("^3.6.0")
+	e.install(e.repo, "3.9.6")
+	own := e.install(a, "3.6.2")
+	e.wantRuns(Resolve(e.cfg, filepath.Join(a, "src"), e.repo, "prettier", Default), own, SourceLocal)
+}
+
+func TestResolveStaleOwnCopySkips(t *testing.T) {
+	e := resolveSetup(t)
+	a := e.workspace("^3.6.0")
+	e.install(a, "3.5.0")
+	e.wantSkip(Resolve(e.cfg, a, e.repo, "prettier", Default),
+		"packages/a/package.json declares prettier ^3.6.0, installed is 3.5.0 at packages/a; run npm install")
+}
+
+func TestResolveHoistedCopyRunsOnlyWhenItSatisfiesThePackage(t *testing.T) {
+	e := resolveSetup(t)
+	a := e.workspace("~3.6.0")
+	put(t, e.repo, "pnpm-lock.yaml", "")
+	// The install hint finds the root lockfile by walking to the git toplevel.
+	if err := os.Symlink(e.git, filepath.Join(e.path, "git")); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := exec.Command("git", "-C", e.repo, "init", "-q").CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v %s", err, out)
+	}
+	hoisted := e.install(e.repo, "3.6.2")
+	e.wantRuns(Resolve(e.cfg, a, e.repo, "prettier", Default), hoisted, SourceLocal)
+
+	e.install(e.repo, "3.9.6")
+	e.wantSkip(Resolve(e.cfg, a, e.repo, "prettier", Default),
+		"packages/a/package.json declares prettier ~3.6.0, installed is 3.9.6 at .; run pnpm install")
+}
+
+func TestResolveUnreadableSpecRunsWithANote(t *testing.T) {
+	e := resolveSetup(t)
+	a := e.workspace("workspace:*")
+	hoisted := e.install(e.repo, "3.9.6")
+	res := Resolve(e.cfg, a, e.repo, "prettier", Default)
+	e.wantRuns(res, hoisted, SourceLocal)
+	if !strings.Contains(res.Note, "workspace:* not checked") {
+		t.Errorf("note %q", res.Note)
+	}
+}
+
+func TestSatisfiesFollowsNpmRangeRules(t *testing.T) {
+	dir := t.TempDir()
+	for _, c := range []struct {
+		spec, version string
+		want          verdict
+	}{
+		{"^3.6.0", "3.7.0-beta.1", mismatch}, // a plain range never takes a prerelease
+		{"^3.7.0-beta.0", "3.7.0-beta.1", matches},
+		{">=3.6 <4", "3.9.6", matches},
+		{"~3.6.0", "3.7.0", mismatch},
+		{"3.6.2", "3.6.2", matches},
+		{"*", "1.0.0", matches},
+		{"npm:other@^1", "1.0.0", unchecked},
+	} {
+		put(t, dir, "node_modules/p/package.json", `{"version":"`+c.version+`"}`)
+		if _, got := satisfies(dir, "p", c.spec); got != c.want {
+			t.Errorf("%s vs %s: verdict %d, want %d", c.spec, c.version, got, c.want)
+		}
+	}
+}
+
+func TestResolveYarnPnPAsksFromTheOwningWorkspace(t *testing.T) {
+	e := resolveSetup(t)
+	a := e.workspace("^3.6.0")
+	put(t, e.repo, ".pnp.cjs", "")
+	where := filepath.Join(e.repo, "where")
+	e.exe(filepath.Join(e.path, "yarn"), `pwd >`+where+"\n")
+	e.wantRuns(Resolve(e.cfg, filepath.Join(a, "src"), e.repo, "prettier", Default), "yarn run prettier", SourcePM)
+	if got := strings.TrimSpace(readFile(t, where)); got != a {
+		t.Errorf("yarn bin ran in %s, want %s", got, a)
 	}
 }
 

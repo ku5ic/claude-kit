@@ -96,21 +96,17 @@ func activeEnv(root, name string) string {
 // declared is the manifest, from dir up to root, that declares the package
 // providing name, and the command that installs it; "" when none does.
 func declared(cfg *config.Config, dir, root, name string) (manifest, install string) {
-	pkg := cfg.ToolResolution.BinPackages[name]
-	if pkg == "" {
-		pkg = name
-	}
-	rel := func(path string) string { return strings.TrimPrefix(path, root+"/") }
+	pkg := binPackage(cfg, name)
 	for d := dir; ; d = filepath.Dir(d) {
 		switch {
 		case JSDeps(d)[pkg]:
-			return rel(filepath.Join(d, "package.json")), installCmd(cfg, d, "js", "npm")
+			return rel(root, filepath.Join(d, "package.json")), installCmd(cfg, d, "js", "npm")
 		case PythonDeps(d)[normalize(pkg)]:
 			return manifestName(Python, d, root), installCmd(cfg, d, "python", "pip")
 		case RubyDeps(d)[pkg]:
-			return rel(filepath.Join(d, "Gemfile.lock")), installCmd(cfg, d, "", "bundler")
+			return rel(root, filepath.Join(d, "Gemfile.lock")), installCmd(cfg, d, "", "bundler")
 		case project.IsFile(filepath.Join(d, "go.mod")) && goModDeclares(filepath.Join(d, "go.mod"), name):
-			return rel(filepath.Join(d, "go.mod")), installCmd(cfg, d, "", "go")
+			return rel(root, filepath.Join(d, "go.mod")), installCmd(cfg, d, "", "go")
 		}
 		if d == root || d == "/" || !strings.HasPrefix(d, root) {
 			return "", ""

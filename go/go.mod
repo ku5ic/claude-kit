@@ -8,3 +8,5 @@ require (
 )
 
 require mvdan.cc/sh/v3 v3.14.1
+
+require github.com/Masterminds/semver/v3 v3.5.0 // indirect

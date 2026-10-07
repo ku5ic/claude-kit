@@ -30,6 +30,16 @@ func normalize(name string) string {
 
 // JSDeps are package.json's dependencies and devDependencies.
 func JSDeps(dir string) Deps {
+	deps := Deps{}
+	for name := range JSSpecs(dir) {
+		deps[name] = true
+	}
+	return deps
+}
+
+// JSSpecs maps package.json's dependencies and devDependencies to the
+// version specs they declare; devDependencies win a clash.
+func JSSpecs(dir string) map[string]string {
 	data, err := os.ReadFile(filepath.Join(dir, "package.json"))
 	if err != nil {
 		return nil
@@ -41,14 +51,14 @@ func JSDeps(dir string) Deps {
 	if json.Unmarshal(data, &pkg) != nil {
 		return nil
 	}
-	deps := Deps{}
-	for name := range pkg.Dependencies {
-		deps[name] = true
+	specs := map[string]string{}
+	for _, table := range []map[string]any{pkg.Dependencies, pkg.DevDependencies} {
+		for name, spec := range table {
+			s, _ := spec.(string)
+			specs[name] = s
+		}
 	}
-	for name := range pkg.DevDependencies {
-		deps[name] = true
-	}
-	return deps
+	return specs
 }
 
 // TestScript is package.json's scripts.test, "" when absent.

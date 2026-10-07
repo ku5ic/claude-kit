@@ -42,11 +42,13 @@ const (
 // Resolution is how a tool runs: the words that run it and where they come
 // from, or, when Words is nil, why it can't run. Missing is true only when
 // no copy exists anywhere, the one skip a fallback formatter moves past.
+// Note qualifies a copy that runs (its declared range couldn't be checked).
 type Resolution struct {
 	Words   []string
 	Source  string
 	Skip    string
 	Missing bool
+	Note    string
 }
 
 // Mode is how far past the project Resolve may look.
@@ -68,10 +70,27 @@ const (
 // it isn't installed, then PATH as mode and the policy allow. Never npx,
 // pnpm dlx, or uv run, which can install packages.
 func Resolve(cfg *config.Config, dir, root, name string, mode Mode) Resolution {
+	pkg := binPackage(cfg, name)
+	owner, spec := jsOwner(dir, root, pkg)
 	for _, sub := range []string{"node_modules/.bin", ".venv/bin", "venv/bin"} {
-		if found := project.FindUp(dir, root, filepath.Join(sub, name)); found != "" && executable(found) {
-			return Resolution{Words: []string{found}, Source: SourceLocal}
+		found := project.FindUp(dir, root, filepath.Join(sub, name))
+		if found == "" || !executable(found) {
+			continue
 		}
+		res := Resolution{Words: []string{found}, Source: SourceLocal}
+		if sub == "node_modules/.bin" && owner != "" {
+			// The copy that runs must be the one the owning package
+			// declares, whether it's the owner's own or hoisted above it.
+			installed := filepath.Dir(filepath.Dir(filepath.Dir(found)))
+			switch version, verdict := satisfies(installed, pkg, spec); verdict {
+			case mismatch:
+				return Resolution{Skip: rel(root, filepath.Join(owner, "package.json")) + " declares " + pkg + " " + spec +
+					", installed is " + version + " at " + rel(root, installed) + "; run " + installCmd(cfg, owner, "js", "npm")}
+			case unchecked:
+				res.Note = pkg + " " + spec + " not checked against the installed copy"
+			}
+		}
+		return res
 	}
 	if path := goTool(dir, root, name); path != "" {
 		return Resolution{Words: []string{path}, Source: SourcePM}
@@ -81,7 +100,12 @@ func Resolve(cfg *config.Config, dir, root, name string, mode Mode) Resolution {
 		if lock == "" {
 			continue
 		}
-		if words := l.resolve(filepath.Dir(lock), name); words != nil {
+		at := filepath.Dir(lock)
+		if l.lockfile == ".pnp.cjs" && owner != "" {
+			// yarn bin answers for the workspace it runs in.
+			at = owner
+		}
+		if words := l.resolve(at, name); words != nil {
 			return Resolution{Words: words, Source: SourcePM}
 		}
 	}
