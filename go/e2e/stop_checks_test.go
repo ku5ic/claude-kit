@@ -181,7 +181,17 @@ func TestStopChecks(t *testing.T) {
 		r.Has(t, "PASS fakelint (1 file)")
 		// The hook name gets its own line, so every check starts one.
 		r.Has(t, `stop-checks:\nPASS fakelint`)
+		// And the binary that ran, with where it came from.
+		r.Has(t, `PASS fakelint (1 file)\n  bin: `+e.path("node_modules/.bin/fakelint")+` (local)`)
 		e.callsIs(e.repo + "|--check " + e.path("a.ts"))
+	})
+
+	t.Run("kit explain stop names the binary's source", func(t *testing.T) {
+		e := stopChecksSetup(t)
+		e.k.Dir = e.repo
+		r := e.k.Run("", "explain", "stop", e.path("a.ts"))
+		r.Want(t, 0)
+		r.Has(t, "  source   "+e.path("node_modules/.bin/fakelint")+" (local)")
 	})
 
 	t.Run("several edited files go to one call, each file once", func(t *testing.T) {

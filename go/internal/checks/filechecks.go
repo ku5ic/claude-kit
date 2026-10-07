@@ -101,6 +101,7 @@ type Group struct {
 	Derived tools.Derived
 	Files   []string
 	Words   []string
+	Bin     tools.Resolution // where Words' binary comes from
 	Skip    string
 	label   string
 }
@@ -161,6 +162,7 @@ func Plan(cfg *config.Config, root, base string, edited []string) []*Group {
 			g.Skip = res.Skip
 			continue
 		}
+		g.Bin = res
 		g.Derived, _ = g.Adapter.Derive(g.Dir, root)
 		g.Words = expand(g.Adapter.Cmd, res.Words, g.Files, g.Dir, g.Derived)
 	}
@@ -220,9 +222,9 @@ func FileChecks(cfg *config.Config, root, base string, edited []string) *Outcome
 			skip++
 			continue
 		}
-		out := &res.out
+		out, bin := &res.out, g.Bin.BinLine()
 		if res.err == nil {
-			fmt.Fprintf(&rep, "PASS %s\n", label)
+			fmt.Fprintf(&rep, "PASS %s\n%s", label, bin)
 			pass++
 			continue
 		}
@@ -231,23 +233,23 @@ func FileChecks(cfg *config.Config, root, base string, edited []string) *Outcome
 		}
 		if blocking, old, ok := newFindings(g, out.String(), root, changed); ok {
 			if len(blocking) == 0 {
-				fmt.Fprintf(&rep, "PASS %s (%d finding%s on unchanged lines)\n", label, old, plural(old))
+				fmt.Fprintf(&rep, "PASS %s (%d finding%s on unchanged lines)\n%s", label, old, plural(old), bin)
 				pass++
 				continue
 			}
-			fmt.Fprintf(&rep, "FAIL %s\n", label)
-			fmt.Fprintf(&fails, "FAIL %s\n%s\n", label, strings.Join(blocking[:min(len(blocking), 30)], "\n"))
+			fmt.Fprintf(&rep, "FAIL %s\n%s", label, bin)
+			fmt.Fprintf(&fails, "FAIL %s\n%s%s\n", label, bin, strings.Join(blocking[:min(len(blocking), 30)], "\n"))
 			if old > 0 {
 				fmt.Fprintf(&fails, "(%d more on unchanged lines don't block)\n", old)
 			}
 			fail++
 			continue
 		}
-		fmt.Fprintf(&rep, "FAIL %s\n", label)
+		fmt.Fprintf(&rep, "FAIL %s\n%s", label, bin)
 		// The tail: linters print findings and the summary last, after
 		// preambles like rubocop's unconfigured-cops notice.
 		lines := strings.Split(strings.TrimRight(out.String(), "\n"), "\n")
-		fmt.Fprintf(&fails, "FAIL %s\n%s\n", label, strings.Join(lines[max(0, len(lines)-30):], "\n"))
+		fmt.Fprintf(&fails, "FAIL %s\n%s%s\n", label, bin, strings.Join(lines[max(0, len(lines)-30):], "\n"))
 		fail++
 	}
 	return &Outcome{

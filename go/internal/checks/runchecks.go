@@ -22,22 +22,25 @@ import (
 
 // Runner accumulates one run's results. Output contract, parsed by callers:
 // one PASS, FAIL, or SKIP line per check, labeled
-// "<stack>: <check> (<task>) [<subproject>]" (the root has no bracket part),
-// then a blank line and "checks: N passed, N failed, N skipped".
+// "<stack>: <check> (<task>) [<subproject>]" (the root has no bracket part);
+// a check whose binary the kit resolved has an indented "  bin: <words>
+// (<source>)" line right under it; then a blank line and "checks: N passed,
+// N failed, N skipped".
 type Runner struct {
 	Out                io.Writer
 	Pass, Fail, Skip   int
 	orchestratedChecks map[string]bool
 }
 
-// exec runs words in dir and reports it; a failure prints the first 30
-// lines of the command's output under the FAIL line.
-func (r *Runner) exec(label, dir string, words []string) {
+// exec runs words in dir and reports it, with binLine (when not empty)
+// under the verdict; a failure then prints the first 30 lines of the
+// command's output.
+func (r *Runner) exec(label, dir string, words []string, binLine string) {
 	var out bytes.Buffer
 	cmd := exec.Command(words[0], words[1:]...)
 	cmd.Dir, cmd.Stdout, cmd.Stderr = dir, &out, &out
 	if err := cmd.Run(); err != nil {
-		fmt.Fprintf(r.Out, "FAIL %s (%s)\n", label, strings.Join(words, " "))
+		fmt.Fprintf(r.Out, "FAIL %s (%s)\n%s", label, strings.Join(words, " "), binLine)
 		if _, isExit := err.(*exec.ExitError); !isExit {
 			fmt.Fprintf(&out, "%s: %v\n", words[0], err)
 		}
@@ -46,7 +49,7 @@ func (r *Runner) exec(label, dir string, words []string) {
 		r.Fail++
 		return
 	}
-	fmt.Fprintf(r.Out, "PASS %s\n", label)
+	fmt.Fprintf(r.Out, "PASS %s\n%s", label, binLine)
 	r.Pass++
 }
 
@@ -125,7 +128,8 @@ func (r *Runner) orchestrate(cfg *config.Config, root string) {
 				}
 				r.orchestratedChecks[c.Name] = true
 				words := tools.Fill(strings.Fields(strings.ReplaceAll(o.Run, "{task}", task)), "{bin}", []string{bin})
-				r.exec(fmt.Sprintf("js: %s (%s affected: %s)", c.Name, o.Name, task), root, words)
+				origin := tools.Resolution{Words: []string{bin}, Source: tools.SourceLocal}
+				r.exec(fmt.Sprintf("js: %s (%s affected: %s)", c.Name, o.Name, task), root, words, origin.BinLine())
 			}
 		}
 		return
@@ -163,7 +167,7 @@ func (r *Runner) subproject(cfg *config.Config, root, sub string) {
 				continue
 			}
 			matched = true
-			r.exec(fmt.Sprintf("%s: %s (%s)%s", label, c.Name, t.Name, sfx), dir, strings.Fields(t.Cmd))
+			r.exec(fmt.Sprintf("%s: %s (%s)%s", label, c.Name, t.Name, sfx), dir, strings.Fields(t.Cmd), "")
 		}
 		if !matched && skipLabel != "" && !(r.orchestratedChecks[c.Name] && skipLabel == "js") {
 			r.skip(fmt.Sprintf("%s: %s%s (no %s task)", skipLabel, c.Name, sfx, c.Name))
@@ -180,6 +184,6 @@ func (r *Runner) subproject(cfg *config.Config, root, sub string) {
 			r.skip(label + " (" + run.Skip + ")")
 			continue
 		}
-		r.exec(label, dir, run.Words)
+		r.exec(label, dir, run.Words, run.BinLine())
 	}
 }

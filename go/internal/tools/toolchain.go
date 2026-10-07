@@ -69,6 +69,23 @@ func (r Resolution) shown(root string) []string {
 	return r.Words
 }
 
+// Origin is r's words and where they come from, e.g. "/r/node_modules/.bin/x
+// (local)", so a fallback is visible; "(cmd not resolved)" for a command
+// with no {bin}.
+func (r Resolution) Origin() string {
+	if r.Words == nil {
+		return "(cmd not resolved)"
+	}
+	why := r.Source
+	if r.Note != "" {
+		why += "; " + r.Note
+	}
+	return ShellJoin(r.Words) + " (" + why + ")"
+}
+
+// BinLine is the line printed under a check's PASS or FAIL line.
+func (r Resolution) BinLine() string { return "  bin: " + r.Origin() + "\n" }
+
 // ShellJoin joins words for display, single-quoting any holding a space.
 func ShellJoin(words []string) string {
 	quoted := make([]string, len(words))

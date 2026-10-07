@@ -176,6 +176,7 @@ func stop(cfg *config.Config, cwd string, files []string, w, stderr io.Writer) i
 			fmt.Fprintf(w, "  from     %s (%s)\n", g.Derived.Source, what)
 		}
 		fmt.Fprintf(w, "  command  %s\n", strings.Join(g.Words, " "))
+		fmt.Fprintf(w, "  source   %s\n", g.Bin.Origin())
 		blocks := "any failure (whole file)"
 		if g.Adapter.Findings != nil {
 			blocks = "findings on changed lines"

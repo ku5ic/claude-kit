@@ -423,8 +423,15 @@ func TestRunChecks(t *testing.T) {
 	t.Run("a toolchain check runs the project-local bin before a PATH copy", func(t *testing.T) {
 		e := runChecksSetup(t)
 		e.localFakefmt("")
-		e.run().Has(t, "PASS js: fmt")
+		local := Physical(t, filepath.Join(e.project, "node_modules/.bin/fakefmt"))
+		e.run().Has(t, "PASS js: fmt\n  bin: "+local+" (local)\n")
 		e.callsEqual("fakefmt", "local --check .")
+	})
+	t.Run("a failing toolchain check names its binary before the output", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("go.mod", "module example.com/x\n")
+		Stub(t, filepath.Join(e.stubs, "go"), "echo vet output\nexit 1\n")
+		e.run().Has(t, "FAIL go: vet ("+filepath.Join(e.stubs, "go")+" vet ./...)\n  bin: "+filepath.Join(e.stubs, "go")+" (PATH)\nvet output\n")
 	})
 	t.Run("a resolved bin path with a space stays one word", func(t *testing.T) {
 		e := runChecksSetup(t)
