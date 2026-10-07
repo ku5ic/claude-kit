@@ -291,6 +291,10 @@ task_providers:
 #                   then only the first present; the others are covered by
 #                   it, so test:unit and test:ci never both run
 #   scope           changed: see deadcode
+#   exclude_dirs    globs matched against each path segment of a
+#                   subproject: a toolchain check standing in for the check
+#                   (go test ./...) skips it there, as an e2e module needs
+#                   infrastructure a quality gate can't assume
 # The globs, fallbacks, and excludes follow a survey of 140 popular repos.
 checks:
   - name: typecheck
@@ -337,6 +341,7 @@ checks:
     tasks: [test]
     fallback_tasks: ["test:unit", test-unit, "test:ci", test-ci, "test:all", test-all, tests, unit-test, "unit:test"]
     exclude: ["*watch*", "*e2e*", "*integration*", "*bench*", "*:update*", "*snapshot*", "*storybook*", "*browser*", "*playwright*", "*visual*", "*smoke*", "*live*"]
+    exclude_dirs: [e2e, "*-e2e", "e2e-*", "*_e2e", end2end, endtoend, end-to-end, integration, integration-tests, integration_tests]
     tools:
       - {bin: vitest, forbid: [--watch, -w, --ui]}
       - {bin: jest, forbid: [--watch, --watchAll]}

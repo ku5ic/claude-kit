@@ -433,6 +433,17 @@ func TestRunChecks(t *testing.T) {
 		Stub(t, filepath.Join(e.stubs, "go"), "echo vet output\nexit 1\n")
 		e.run().Has(t, "FAIL go: vet ("+filepath.Join(e.stubs, "go")+" vet ./...)\n  bin: "+filepath.Join(e.stubs, "go")+" (PATH)\nvet output\n")
 	})
+	t.Run("go test skips an end-to-end module, not a lookalike name", func(t *testing.T) {
+		e := runChecksSetup(t)
+		for _, dir := range []string{"", "e2e/end2end/", "services/delivery/"} {
+			e.write(dir+"go.mod", "module example.com/x\n")
+		}
+		e.stub("go", 0)
+		r := e.run("--plan")
+		r.Want(t, 0)
+		r.Has(t, "SKIP go: test [e2e/end2end] (e2e looks like a test suite to leave out (exclude_dirs))",
+			"RUN go: vet [e2e/end2end]", "RUN go: test [services/delivery]", "RUN go: test\n")
+	})
 	t.Run("a resolved bin path with a space stays one word", func(t *testing.T) {
 		e := runChecksSetup(t)
 		e.localFakefmt("my app/")

@@ -166,6 +166,9 @@ type Check struct {
 	// FallbackTasks: names that count only when no Tasks glob matches, and
 	// then only the first present; the rest are covered by it.
 	FallbackTasks []string `yaml:"fallback_tasks"`
+	// ExcludeDirs: globs matched against each path segment of a subproject;
+	// a toolchain check standing in for this check skips a match.
+	ExcludeDirs []string `yaml:"exclude_dirs"`
 	// Scope "changed": the check runs whole-program, but only findings in
 	// files changed since the git base fail it (dead code).
 	Scope string `yaml:"scope"`

@@ -194,6 +194,21 @@ func excluded(c config.Check, task string) bool {
 	return slices.ContainsFunc(c.Exclude, func(g string) bool { return guard.Glob(g, task) })
 }
 
+// excludedDir is the first path segment of subproject sub matching an
+// exclude_dirs glob of check slot, or "".
+func excludedDir(cfg *config.Config, slot, sub string) string {
+	i := slices.IndexFunc(cfg.Checks, func(c config.Check) bool { return c.Name == slot })
+	if slot == "" || i < 0 {
+		return ""
+	}
+	for _, seg := range strings.Split(filepath.ToSlash(sub), "/") {
+		if slices.ContainsFunc(cfg.Checks[i].ExcludeDirs, func(g string) bool { return guard.Glob(g, seg) }) {
+			return seg
+		}
+	}
+	return ""
+}
+
 func dirOf(root, sub string) string {
 	if sub == "." {
 		return root
@@ -363,6 +378,10 @@ func (p *planner) subproject(sub string) {
 		}
 		if tc.Slot != "" && filled[tc.Slot] != "" {
 			p.add(Gate{Label: label, Skip: "covered by " + filled[tc.Slot]})
+			continue
+		}
+		if seg := excludedDir(cfg, tc.Slot, sub); seg != "" {
+			p.add(Gate{Label: label, Skip: fmt.Sprintf("%s looks like a %s suite to leave out (exclude_dirs)", seg, tc.Slot)})
 			continue
 		}
 		run := tools.ResolveToolchain(cfg, tc, dir, p.root)
