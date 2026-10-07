@@ -147,6 +147,16 @@ echo formatted
 		r.Has(t, "prettier is configured here but can't run: prettier declared in package.json but not installed")
 		e.callsWant("")
 	})
+	t.Run("a configured Biome that can't run also names a declared prettier that can't", func(t *testing.T) {
+		e := formatDispatchSetup(t)
+		Write(t, filepath.Join(e.repo, "package.json"), `{"devDependencies":{"prettier":"^3"}}`+"\n")
+		Write(t, filepath.Join(e.repo, "biome.json"), "{}\n")
+		e.remove(filepath.Join(e.repo, "node_modules/.bin/prettier"))
+		e.remove(filepath.Join(e.repo, "node_modules/.bin/biome"))
+		r := e.format(filepath.Join(e.repo, "app.ts"))
+		r.Has(t, "biome is configured here but can't run: ", "(prettier is also declared here but can't run: prettier declared in package.json but not installed")
+		e.callsWant("")
+	})
 	t.Run("a stale prettier dependency doesn't stop a configured Biome", func(t *testing.T) {
 		e := formatDispatchSetup(t)
 		Write(t, filepath.Join(e.repo, "package.json"), `{"devDependencies":{"prettier":"^3"}}`+"\n")

@@ -90,8 +90,13 @@ func FormatDispatch(h *hook.Hook) error {
 			hits = append(hits, hit{f, res})
 		}
 	}
+	also := ""
 	if len(hits) == 0 && len(blocked) > 0 {
-		hits = blocked[:1]
+		hits, blocked = blocked[:1], blocked[1:]
+	}
+	if len(blocked) > 0 {
+		// Can't tell whether it's configured too without running it.
+		also = fmt.Sprintf(" (%s is also declared here but can't run: %s)", blocked[0].fmt.Name, blocked[0].res.Skip)
 	}
 	if len(hits) == 0 {
 		for _, f := range fallbacks {
@@ -110,9 +115,9 @@ func FormatDispatch(h *hook.Hook) error {
 		}
 		fmt.Fprintf(h.Stderr, "format-dispatch: left %s unformatted; %s are all configured for it here\n", base, strings.Join(names, " "))
 	case len(hits) == 1 && hits[0].res.Missing:
-		fmt.Fprintf(h.Stderr, "format-dispatch: %s is configured here but not installed; %s left unformatted\n", hits[0].fmt.Name, base)
+		fmt.Fprintf(h.Stderr, "format-dispatch: %s is configured here but not installed; %s left unformatted%s\n", hits[0].fmt.Name, base, also)
 	case len(hits) == 1 && hits[0].res.Words == nil:
-		fmt.Fprintf(h.Stderr, "format-dispatch: %s is configured here but can't run: %s; %s left unformatted\n", hits[0].fmt.Name, hits[0].res.Skip, base)
+		fmt.Fprintf(h.Stderr, "format-dispatch: %s is configured here but can't run: %s; %s left unformatted%s\n", hits[0].fmt.Name, hits[0].res.Skip, base, also)
 	case len(hits) == 1:
 		runFormatter(hits[0].fmt, hits[0].res.Words, path, dir, h.Stderr)
 	}
