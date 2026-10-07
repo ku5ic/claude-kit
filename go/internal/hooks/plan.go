@@ -47,8 +47,9 @@ func PlanModeContext(h *hook.Hook) error {
 		const pause = "implement only its first unchecked step, run the checks rules/verify.md requires, then stop for review. Tick it - [x] only after the user commits it. This pause outranks any output style."
 		msg := "Plan approved: " + pause
 		if plan := newestOpenPlan(h); plan != "" {
-			os.MkdirAll(filepath.Dir(marker), 0o755)
-			os.WriteFile(marker, []byte(plan), 0o644)
+			// Best effort: without the marker, later prompts just aren't reminded.
+			_ = os.MkdirAll(filepath.Dir(marker), 0o755)
+			_ = os.WriteFile(marker, []byte(plan), 0o644)
 			msg = "Plan approved (" + plan + "): " + pause
 		}
 		hook.WriteJSON(h.Stdout, map[string]any{"hookSpecificOutput": map[string]string{

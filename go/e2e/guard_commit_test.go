@@ -27,6 +27,9 @@ func guardCommitStubbed(t *testing.T, code int) *Kit {
 	return k
 }
 
+// prose is n consecutive prose lines.
+func prose(n int) string { return strings.Repeat("a line of plain prose\n", n) }
+
 func TestGuardCommit(t *testing.T) {
 	// Each test feeds a synthetic Bash payload (a git commit command) to the
 	// hook and asserts the exit code: 0 = allow, 2 = block.
@@ -38,6 +41,12 @@ func TestGuardCommit(t *testing.T) {
 		{"passthrough: ls", "ls -la", 0},
 		{"passthrough: git status", "git status", 0},
 		{"passthrough: git push", "git push origin main", 0},
+		{"passthrough: a path starting with commit isn't a commit", "cat > docs/rules.md <<EOF\nNever add Co-Authored-By: Claude\nEOF\ngit add commitlint.config.js", 0},
+		{"block: a commit ended by a separator is still a commit", "git commit;echo \"Co-Authored-By: Claude\"", 2},
+		{"block: a commit with its output redirected is still a commit", "git commit>out.log -m \"x\n\nCo-Authored-By: Claude\"", 2},
+		{"block: a commit split by a line continuation is still a commit", "git -C . \\\ncommit -m \"x\n\nCo-Authored-By: Claude\"", 2},
+		{"passthrough: commit as a word in a later command isn't a commit", "git add x\ncat > notes.md <<EOF\nWe commit to Co-Authored-By: Claude docs\nEOF", 0},
+		{"passthrough: make commit after git status isn't a git commit", "git status && make commit && echo \"Co-Authored-By: Claude\"", 0},
 		// allow: normal commits
 		{"allow: feat conventional commit", `git commit -m "feat: add foo"`, 0},
 		{"allow: fix conventional commit", `git commit -m "fix: bar bug"`, 0},
@@ -54,6 +63,24 @@ func TestGuardCommit(t *testing.T) {
 		{"block: i have at start of subject", `git commit -m "I have refactored the loop"`, 2},
 		{"block: let me at start of subject", `git commit -m "let me clean this up"`, 2},
 		{"block: in this commit phrasing", `git commit -m "in this commit we add the API"`, 2},
+		// wall of text: only the heredoc opened on the git commit line is the message
+		{"block: wall of text in a -m heredoc", "git commit -m \"$(cat <<'EOF'\nfeat: x\n\n" + prose(5) + "EOF\n)\"", 2},
+		{"block: wall of text in a -F - heredoc", "git commit -F - <<'EOF'\nfeat: x\n\n" + prose(5) + "EOF", 2},
+		{"block: wall of text in a heredoc with another delimiter", "git commit -m \"$(cat <<'MSG'\nfeat: x\n\n" + prose(5) + "MSG\n)\"", 2},
+		{"block: wall of text in a <<- heredoc closed by a tab-indented delimiter", "git commit -F - <<-MSG\n\tfeat: x\n\n" + prose(5) + "\tMSG", 2},
+		{"allow: wall of text in a heredoc writing a file", "cat > notes.md <<'EOF'\n" + prose(20) + "EOF\ngit add -A && git commit -qm init", 0},
+		// signatures and subjects: the commit's heredoc is its message, another heredoc writes a file
+		// the whole command is scanned: a message can come from anywhere in it
+		{"block: a signature in a heredoc writing a file, even an unrelated one", "cat > notes.md <<EOF\nGenerated with Claude\nEOF\ngit commit -m \"feat: ok\"", 2},
+		{"block: a signature in a message file a heredoc writes for -F", "cat > /tmp/msg <<'EOF'\nfeat: x\n\nCo-Authored-By: Claude <c@a.com>\nEOF\ngit commit -F /tmp/msg", 2},
+		{"block: a signature in a heredoc opened on a continuation line", "git commit \\\n  -F - <<'EOF'\nfeat: x\n\nCo-Authored-By: Claude <c@a.com>\nEOF", 2},
+		{"block: a signature after a here-string", "v=$(tr a-z A-Z <<< hello)\ngit commit -m \"feat: x\n\nCo-Authored-By: Claude <c@a.com>\"", 2},
+		{"block: a signature after an arithmetic shift", "n=$((1<<b))\ngit commit -m \"feat: x\n\nCo-Authored-By: Claude <c@a.com>\"", 2},
+		{"block: a signature in an unterminated commit heredoc", "git commit -m \"$(cat <<EOF\nfeat: x\nGenerated with Claude\n)\"", 2},
+		{"block: a signature in a -m variable set earlier in the command", "MSG=\"Generated with Claude\"\ngit commit -m \"$MSG\"", 2},
+		{"block: AI-tell phrasing in a heredoc subject", "git -C . commit -m \"$(cat <<'EOF'\nlet me fix this\nEOF\n)\"", 2},
+		{"block: AI-tell phrasing in a <<- heredoc subject with a spaced opener", "git commit -F - <<- \"MSG\"\n\there is the patch\n\tMSG", 2},
+		{"allow: a quoted -m subject before a heredoc body", "git commit -m \"feat: x\" -m \"$(cat <<'EOF'\nlet me explain\nEOF\n)\"", 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			New(t).Hook("guard-commit", guardCommitPayload(tc.command, "")).Want(t, tc.status)

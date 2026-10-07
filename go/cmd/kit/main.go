@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -37,9 +39,10 @@ const usage = `usage: kit <command> [args]
   plans-dir                  plans directory
   detect-stack               compact stack report
   agent-context              a subagent's startup context
-  run-checks [--only sub...]
+  run-checks [--plan] [--only sub...]
                              every declared check, in every subproject;
-                             exits with the failure count
+                             exits with the failure count. --plan lists
+                             them, with commands, without running any
   git-base [--diff|--log] [base] [flags] [-- paths]
   explain bash|edit|stop ...
                              why a guard or the Stop hook decides what it
@@ -142,13 +145,25 @@ func run(args []string, stdout, stderr io.Writer) int {
 		"plans-dir":    cmdPlansDir,
 		"detect-stack": cmdDetectStack,
 		"run-checks": func(e *env, cfg *config.Config, args []string) int {
-			var only []string
-			if len(args) > 0 && args[0] == "--only" {
-				only = args[1:]
+			plan, only, err := parseRunChecksArgs(args)
+			if err != nil {
+				fmt.Fprintf(e.stderr, "kit run-checks: %v\nusage: kit run-checks [--plan] [--only sub...]\n", err)
+				return 2
 			}
 			root := project.Toplevel(e.cwd)
 			if root == "" {
 				root = e.cwd
+			}
+			subs := project.Subprojects(cfg, root)
+			for _, sub := range only {
+				if !slices.Contains(subs, sub) {
+					fmt.Fprintf(e.stderr, "kit run-checks: %q is not a subproject; kit subprojects lists them\n", sub)
+					return 2
+				}
+			}
+			if plan {
+				checks.PrintPlan(cfg, root, only, e.stdout)
+				return 0
 			}
 			return min(checks.RunAll(cfg, root, only, e.stdout), 125)
 		},
@@ -188,6 +203,38 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	return cmd(e, cfg, rest)
+}
+
+// parseRunChecksArgs reads [--plan] [--only sub...]. Anything else is an
+// error: a typo'd --plan must never fall through to a real run. A repeated
+// --only adds to the list; a subproject written as a path (./api, api/) is
+// cleaned to its name.
+func parseRunChecksArgs(args []string) (plan bool, only []string, err error) {
+	for i, arg := range args {
+		switch arg {
+		case "--plan":
+			plan = true
+		case "--only":
+			for _, a := range args[i+1:] {
+				switch {
+				case a == "--only":
+				case a == "--plan":
+					return false, nil, fmt.Errorf("--plan must come before --only")
+				case strings.HasPrefix(a, "-"):
+					return false, nil, fmt.Errorf("unknown argument %q", a)
+				default:
+					only = append(only, filepath.Clean(a))
+				}
+			}
+			if len(only) == 0 {
+				return false, nil, fmt.Errorf("--only needs at least one subproject")
+			}
+			return plan, only, nil
+		default:
+			return false, nil, fmt.Errorf("unknown argument %q", arg)
+		}
+	}
+	return plan, nil, nil
 }
 
 func cmdConfig(e *env, args []string) int {

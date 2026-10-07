@@ -15,7 +15,7 @@ var argWords = map[string][]string{
 	"explain":        {"bash", "edit", "stop"},
 	"git-base":       {"--diff", "--log"},
 	"project-root":   {"--check"},
-	"run-checks":     {"--only"},
+	"run-checks":     {"--plan", "--only"},
 	"scratch-rotate": {"--dry-run"},
 }
 

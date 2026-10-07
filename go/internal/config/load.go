@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"go.yaml.in/yaml/v3"
 )
@@ -102,6 +103,13 @@ func Load(p Paths) (*Config, []Warning, error) {
 		warnings = append(warnings, Warning{p.Overlay, errors.New("ignored: it doesn't merge with kit.yml, so only kit.yml applies")})
 	}
 	applyDefaults(&cfg)
+	from := p.Base
+	if tag == "merged" {
+		from = p.Overlay
+	}
+	for _, err := range cfg.unknownDisables() {
+		warnings = append(warnings, Warning{from, err})
+	}
 	cfg.StackOrder = mappingKeys(mappingValue(merged, "stacks"))
 	cfg.VersionOrder = mappingKeys(mappingValue(merged, "versions"))
 	cfg.Tag = tag
@@ -184,15 +192,28 @@ func validate(path string) []Warning {
 	}
 }
 
+// keyedSequences are the sequences whose entries an overlay entry with the
+// same values at the named fields updates instead of appending beside.
+var keyedSequences = map[string][]string{
+	"formatters":       {"name"},
+	"checks":           {"name"},
+	"toolchain_checks": {"stack", "name"},
+}
+
 // mergeNode merges src into dst in place, as yq's `*+`: mappings merge key by
-// key in dst's order with src's new keys after, sequences append, and any
-// other pairing takes src's value.
+// key in dst's order with src's new keys after, sequences append (keyed ones
+// update a same-named entry field by field), and any other pairing takes
+// src's value.
 func mergeNode(dst, src *yaml.Node) {
 	switch {
 	case dst.Kind == yaml.MappingNode && src.Kind == yaml.MappingNode:
 		for i := 0; i+1 < len(src.Content); i += 2 {
 			key, value := src.Content[i], src.Content[i+1]
 			if existing := mappingValue(dst, key.Value); existing != nil {
+				if fields, ok := keyedSequences[key.Value]; ok && existing.Kind == yaml.SequenceNode && value.Kind == yaml.SequenceNode {
+					mergeKeyed(existing, value, fields)
+					continue
+				}
 				mergeNode(existing, value)
 				continue
 			}
@@ -202,6 +223,48 @@ func mergeNode(dst, src *yaml.Node) {
 		dst.Content = append(dst.Content, src.Content...)
 	default:
 		*dst = *src
+	}
+}
+
+// mergeKeyed appends each src entry to dst, except one whose key fields all
+// match a dst entry's: that entry takes the fields src sets and keeps the
+// rest.
+func mergeKeyed(dst, src *yaml.Node, fields []string) {
+	key := func(n *yaml.Node) (string, bool) {
+		if n.Kind != yaml.MappingNode {
+			return "", false
+		}
+		var parts []string
+		for _, f := range fields {
+			v := mappingValue(n, f)
+			if v == nil {
+				return "", false
+			}
+			parts = append(parts, v.Value)
+		}
+		return strings.Join(parts, "\x00"), true
+	}
+	for _, item := range src.Content {
+		var target *yaml.Node
+		if k, ok := key(item); ok {
+			for _, d := range dst.Content {
+				if dk, ok := key(d); ok && dk == k {
+					target = d
+					break
+				}
+			}
+		}
+		if target == nil {
+			dst.Content = append(dst.Content, item)
+			continue
+		}
+		for i := 0; i+1 < len(item.Content); i += 2 {
+			if existing := mappingValue(target, item.Content[i].Value); existing != nil {
+				*existing = *item.Content[i+1]
+				continue
+			}
+			target.Content = append(target.Content, item.Content[i], item.Content[i+1])
+		}
 	}
 }
 

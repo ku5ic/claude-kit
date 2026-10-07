@@ -75,6 +75,91 @@ func TestOverlayMergesMapsAndAppendsSequences(t *testing.T) {
 	}
 }
 
+func TestOverlayFormatterWithADefaultsNameUpdatesItFieldByField(t *testing.T) {
+	dir := t.TempDir()
+	base := write(t, dir, "kit.yml", "formatters:\n  - {name: a, ext: [md], bin: a, cmd: \"{bin} {file}\"}\n  - {name: b, ext: [py], bin: b}\n")
+	overlay := write(t, dir, "over.yml", "formatters:\n  - {name: a, ext: [mdx]}\n  - {name: c, ext: [toml], bin: c}\n")
+	cfg, warnings, err := Load(Paths{Base: base, Overlay: overlay})
+	if err != nil || len(warnings) > 0 {
+		t.Fatalf("err=%v warnings=%v", err, warnings)
+	}
+	var got []string
+	for _, f := range cfg.Formatters {
+		got = append(got, f.Name+":"+strings.Join(f.Ext, ",")+":"+f.Bin+":"+f.Cmd)
+	}
+	if want := "a:mdx:a:{bin} {file}|b:py:b:|c:toml:c:"; strings.Join(got, "|") != want {
+		t.Errorf("formatters = %s, want %s", strings.Join(got, "|"), want)
+	}
+}
+
+func TestOverlayChecksAndToolchainChecksUpdateByKey(t *testing.T) {
+	dir := t.TempDir()
+	base := write(t, dir, "kit.yml", "checks:\n  - {name: test, tasks: [test], exclude: [\"*watch*\"]}\n"+
+		"toolchain_checks:\n  - {stack: go, name: test, cmd: \"{bin} test ./...\", bin: [go]}\n  - {stack: rust, name: test, cmd: \"{bin} test\", bin: [cargo]}\n")
+	overlay := write(t, dir, "over.yml", "checks:\n  - {name: test, tasks: [test, \"test:unit\"]}\n"+
+		"toolchain_checks:\n  - {stack: go, name: test, cmd: \"{bin} test -race ./...\"}\n")
+	cfg, warnings, err := Load(Paths{Base: base, Overlay: overlay})
+	if err != nil || len(warnings) > 0 {
+		t.Fatalf("err=%v warnings=%v", err, warnings)
+	}
+	if len(cfg.Checks) != 1 || strings.Join(cfg.Checks[0].Tasks, ",") != "test,test:unit" || strings.Join(cfg.Checks[0].Exclude, ",") != "*watch*" {
+		t.Errorf("checks = %+v", cfg.Checks)
+	}
+	var got []string
+	for _, tc := range cfg.ToolchainChecks {
+		got = append(got, tc.Stack+":"+tc.Cmd+":"+strings.Join(tc.Bin, ","))
+	}
+	if want := "go:{bin} test -race ./...:go|rust:{bin} test:cargo"; strings.Join(got, "|") != want {
+		t.Errorf("toolchain_checks = %s, want %s", strings.Join(got, "|"), want)
+	}
+}
+
+func TestCheckDisabledMatchesSlotOrLabel(t *testing.T) {
+	cfg := &Config{DisabledChecks: []string{"typecheck", "lint (lint:css) [web]", "js: test (test:unit)"}}
+	for _, c := range []struct {
+		slot, label string
+		want        bool
+	}{
+		{"typecheck", "js: typecheck (tsc)", true},
+		{"lint", "js: lint (lint:css) [web]", true},
+		{"lint", "js: lint (lint) [web]", false},
+		{"test", "js: test (test:unit)", true},
+		{"test", "js: test (test)", false},
+	} {
+		if got := cfg.CheckDisabled(c.slot, c.label); got != c.want {
+			t.Errorf("CheckDisabled(%q, %q) = %v, want %v", c.slot, c.label, got, c.want)
+		}
+	}
+}
+
+func TestDisablesThatMatchNothingWarn(t *testing.T) {
+	dir := t.TempDir()
+	base := write(t, dir, "kit.yml", "checks:\n  - {name: lint}\n"+
+		"toolchain_checks:\n  - {stack: go, name: vet, cmd: x}\n"+
+		"task_providers:\n  - {name: make}\n")
+	overlay := write(t, dir, "over.yml", "disabled_checks: [lint, \"js: lint (lint:css) [web]\", vet, bogus, \"js: lnt (x)\"]\n"+
+		"disabled_toolchain_checks: [\"go:vet\", \"go:nope\", vet]\n"+
+		"disabled_task_providers: [make, mkae]\n")
+	_, warnings, err := Load(Paths{Base: base, Overlay: overlay})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, w := range warnings {
+		if w.File != overlay {
+			t.Errorf("warning names %s, want the overlay", w.File)
+		}
+		got = append(got, w.Err.Error())
+	}
+	want := `disabled_checks: "bogus" names no check|disabled_checks: "js: lnt (x)" names no check|` +
+		`disabled_toolchain_checks: "go:nope" names no toolchain check (<stack>:<name>)|` +
+		`disabled_toolchain_checks: "vet" names no toolchain check (<stack>:<name>)|` +
+		`disabled_task_providers: "mkae" names no task provider`
+	if strings.Join(got, "|") != want {
+		t.Errorf("warnings =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.ReplaceAll(want, "|", "\n"))
+	}
+}
+
 func TestUnknownKeysWarnWithTheirFile(t *testing.T) {
 	dir := t.TempDir()
 	base := write(t, dir, "kit.yml", "protected_branches: [main]\nformatters:\n  - name: x\n    signal_fies: [a]\n")

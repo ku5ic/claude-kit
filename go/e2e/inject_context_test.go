@@ -344,6 +344,9 @@ stacks:
 		e.useRealKitYML()
 		Write(t, filepath.Join(e.root, "Cargo.toml"), "[package]\nname = \"x\"\n")
 		e.Git(e.root, "add", "-A")
+		stubs := filepath.Join(e.tmp, "stubs")
+		Stub(t, filepath.Join(stubs, "cargo"), "")
+		e.PrependPath(stubs)
 		r := e.run("s1", "")
 		r.Want(t, 0)
 		want := "  cargo check\n  cargo clippy -- -D warnings\n  cargo fmt --check\n  cargo test"
@@ -373,6 +376,50 @@ stacks:
 		r = e.run("s2", "")
 		if got, want := injectContextIndented(injectContextTooling(r.Output)), "  tofu fmt -check -recursive\n  tofu validate"; got != want {
 			t.Errorf("after init:\n%s\nwant:\n%s", got, want)
+		}
+	})
+
+	t.Run("tooling: lists exactly the toolchain checks run-checks runs", func(t *testing.T) {
+		e := injectContextSetup(t, tree)
+		e.kitYML(`toolchain_checks:
+  - {stack: js, name: local, cmd: "{bin} --probe", bin: [fakefmt]}
+  - {stack: js, name: ambiguous, cmd: "{bin} --probe", bin: [fakeother]}
+stacks:
+  js:
+    sentinels:
+      - {name: package.json, anchor: true}
+`)
+		Write(t, filepath.Join(e.root, "package.json"), "{}\n")
+		Write(t, filepath.Join(e.root, ".gitignore"), "node_modules\n")
+		Stub(t, filepath.Join(e.root, "node_modules/.bin/fakefmt"), "")
+		stubs := filepath.Join(e.tmp, "stubs")
+		Stub(t, filepath.Join(stubs, "fakeother"), "")
+		e.PrependPath(stubs)
+		e.Git(e.root, "add", "-A")
+
+		block := injectContextTooling(e.run("s1", "").Output)
+		if got, want := injectContextIndented(block), "  node_modules/.bin/fakefmt --probe"; got != want {
+			t.Errorf("tooling lines:\n%s\nwant:\n%s", got, want)
+		}
+		if !strings.Contains(block, "\nchecks: `kit run-checks --plan` lists what kit run-checks runs") {
+			t.Errorf("tooling lacks the --plan pointer:\n%s", block)
+		}
+		e.Dir = e.root
+		r := e.exec(injectContextBin(e.tree), "", "run-checks")
+		r.Has(t, "PASS js: local\n", "SKIP js: ambiguous (fakeother only on PATH (")
+	})
+
+	t.Run("tooling: lists the gates run-checks takes from CI config", func(t *testing.T) {
+		e := injectContextSetup(t, tree)
+		e.useRealKitYML()
+		Write(t, filepath.Join(e.root, "pyproject.toml"), "[project]\nname = \"x\"\n")
+		Write(t, filepath.Join(e.root, ".gitignore"), ".venv\n")
+		Write(t, filepath.Join(e.root, ".github/workflows/ci.yml"), "jobs:\n  test:\n    steps:\n      - run: pytest\n")
+		Stub(t, filepath.Join(e.root, ".venv/bin/pytest"), "")
+		e.Git(e.root, "add", "-A")
+		block := injectContextTooling(e.run("s1", "").Output)
+		if !strings.Contains(block, "ci gates (from CI config; run-checks runs each whose tool the project has):\n  python: test (.github/workflows/ci.yml: pytest)\n") {
+			t.Errorf("tooling lacks the CI gate:\n%s", block)
 		}
 	})
 

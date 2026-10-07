@@ -80,8 +80,13 @@ func (a Adapter) Claims(path, root string) (Claim, bool) {
 	if !ok {
 		return Claim{}, false
 	}
-	if len(a.Needs) > 0 && project.FindUp(claim.Dir, root, a.Needs...) == "" {
-		return Claim{}, false
+	if len(a.Needs) > 0 {
+		needed := project.FindUp(claim.Dir, root, a.Needs...)
+		if needed == "" {
+			return Claim{}, false
+		}
+		// The signal says where it runs (go.mod); this is the config it reads.
+		claim.Why += ", needs " + strings.TrimPrefix(needed, root+"/")
 	}
 	if a.ExcludeTOML != "" && excluded(claim.Dir, path, a.ExcludeTOML) {
 		return Claim{}, false

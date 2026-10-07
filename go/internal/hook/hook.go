@@ -192,7 +192,7 @@ func WriteJSON(w io.Writer, v any) {
 	enc := json.NewEncoder(&buf)
 	enc.SetEscapeHTML(false)
 	if enc.Encode(v) == nil {
-		w.Write(buf.Bytes())
+		_, _ = w.Write(buf.Bytes())
 	}
 }
 
@@ -236,14 +236,14 @@ func (h *Hook) Log(log, event string, pairs ...string) {
 		return
 	}
 	defer f.Close()
-	f.Write(line.Bytes())
+	_, _ = f.Write(line.Bytes())
 }
 
 func writeJSONValue(buf *bytes.Buffer, s string) {
 	var tmp bytes.Buffer
 	enc := json.NewEncoder(&tmp)
 	enc.SetEscapeHTML(false)
-	enc.Encode(s)
+	_ = enc.Encode(s) // a string always encodes
 	buf.Write(bytes.TrimSuffix(tmp.Bytes(), []byte("\n")))
 }
 

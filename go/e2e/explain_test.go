@@ -51,6 +51,14 @@ func TestExplain(t *testing.T) {
 		r.Has(t, "shellcheck  (config .shellcheckrc)", "file     run.sh", "unclaimed  notes.md")
 	})
 
+	t.Run("stop: names the config a check needs besides where it runs", func(t *testing.T) {
+		k, repo := setup(t)
+		Write(t, filepath.Join(repo, "go.mod"), "module example.com/x\n")
+		Touch(t, filepath.Join(repo, ".golangci.yml"))
+		Write(t, filepath.Join(repo, "main.go"), "package main\n")
+		k.Run("", "explain", "stop", "main.go").Has(t, "golangci-lint  (config go.mod, needs .golangci.yml)")
+	})
+
 	t.Run("stop: with no files, uses the working tree's changes", func(t *testing.T) {
 		k, repo := setup(t)
 		Touch(t, filepath.Join(repo, ".shellcheckrc"))

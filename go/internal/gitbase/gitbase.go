@@ -68,18 +68,29 @@ func Parse(argv []string) (Args, error) {
 	return a, nil
 }
 
-func git(args ...string) (string, error) {
-	out, err := exec.Command("git", args...).Output()
-	return strings.TrimSpace(string(out)), err
-}
+func verify(ref string) bool { return verifyIn("", ref) }
 
-func verify(ref string) bool {
-	_, err := git("rev-parse", "--verify", "--quiet", ref)
+func verifyIn(dir, ref string) bool {
+	_, err := gitIn(dir, "rev-parse", "--verify", "--quiet", ref)
 	return err == nil
 }
 
-// Resolve returns the base ref, or false when nothing resolves.
-func Resolve(explicit string) (string, bool) {
+func gitIn(dir string, args ...string) (string, error) {
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	return strings.TrimSpace(string(out)), err
+}
+
+// Resolve returns the base ref for the working directory, or false when
+// nothing resolves.
+func Resolve(explicit string) (string, bool) { return ResolveIn("", explicit) }
+
+// ResolveIn is Resolve for the repository at dir ("" is the working
+// directory).
+func ResolveIn(dir, explicit string) (string, bool) {
+	git := func(args ...string) (string, error) { return gitIn(dir, args...) }
+	verify := func(ref string) bool { return verifyIn(dir, ref) }
 	if explicit != "" && verify(explicit) {
 		return explicit, true
 	}

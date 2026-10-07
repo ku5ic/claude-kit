@@ -234,6 +234,9 @@ disabled_rules: []
 #   run:       command template; {task} is the task, {pm} the package manager
 #              resolved for the directory (npm when none)
 #   run_by_pm: run templates that replace run under a given package manager
+#   body:      template for the shell a task runs, as the gate classifier
+#              reads it; {body} is what the manifest holds (a cargo alias
+#              holds "clippy ...", which runs as "cargo clippy ...")
 task_providers:
   - name: package-scripts
     stack: js
@@ -268,33 +271,198 @@ task_providers:
     extractor: regex_lines
     arg: '^[[:space:]]*task[[:space:]]+:?"?([A-Za-z0-9_:]+)'
     run: "bundle exec rake {task}"
+  - name: cargo-alias
+    stack: rust
+    manifests: [.cargo/config.toml, .cargo/config]
+    extractor: toml_keys
+    arg: .alias
+    run: "cargo {task}"
+    body: "cargo {body}"
 
-# Canonical checks and the task names that count as each, as globs. A task
-# matching an exclude glob never counts.
+# Canonical checks: the task names that count as each, as globs, and the
+# commands that count as each when a task's name matches no glob (its body
+# is read by go/internal/classify). A task matching an exclude glob never
+# counts, whatever its body.
+#   tools           {bin, sub, require, forbid}: bin by name; its first
+#                   non-flag argument one of sub; every require flag present;
+#                   no forbid flag (alone or as flag=value). A task whose
+#                   body runs a forbid flag (eslint --fix) is skipped even
+#                   when its name matches, and fills nothing. A scoped check's
+#                   patterns add findings, unmapped, advisory (see deadcode)
+#   fallback_tasks  names that count only when no tasks glob matches, and
+#                   then only the first present; the others are covered by
+#                   it, so test:unit and test:ci never both run
+#   scope           changed: see deadcode
+#   exclude_dirs    globs matched against each path segment of a
+#                   subproject: a toolchain check standing in for the check
+#                   (go test ./...) skips it there, as an e2e module needs
+#                   infrastructure a quality gate can't assume
+# The globs, fallbacks, and excludes follow a survey of 140 popular repos.
 checks:
   - name: typecheck
-    tasks: [typecheck, type-check]
+    tasks: [typecheck, type-check, "typecheck:*", "type-check:*", types, typing, check-types, "check:types", "test:types", test-types, "test:typecheck"]
+    exclude: ["*watch*"]
+    tools:
+      - {bin: tsc, require: [--noEmit], forbid: [--watch, -w]}
+      - {bin: vue-tsc, require: [--noEmit], forbid: [--watch, -w]}
+      - {bin: mypy}
+      - {bin: pyright, forbid: [--watch, -w]}
+      - {bin: ty, sub: [check], forbid: [--watch]}
   - name: lint
-    tasks: [lint, eslint, stylelint, "lint:*", "eslint:*", "stylelint:*"]
-    exclude: ["*:fix"]
+    tasks: [lint, eslint, stylelint, "lint:*", "lint-*", "eslint:*", "stylelint:*"]
+    exclude: ["*fix*", "*watch*", "*staged*", "*changed*", "*unused*", "*deadcode*", "*dead-code*", "lint:prettier"]
+    tools:
+      - {bin: eslint, forbid: [--fix]}
+      - {bin: biome, sub: [lint, check, ci], forbid: [--write, --fix, --apply, --apply-unsafe]}
+      - {bin: oxlint, forbid: [--fix]}
+      - {bin: stylelint, forbid: [--fix]}
+      - {bin: ruff, sub: [check], forbid: [--fix, --watch]}
+      - {bin: rubocop, forbid: [-a, -A, -x, --autocorrect, --autocorrect-all, --auto-correct, --auto-correct-all, --safe-auto-correct, --fix-layout, --disable-uncorrectable]}
+      - {bin: golangci-lint, sub: [run], forbid: [--fix]}
+      - {bin: cargo, sub: [clippy], forbid: [--fix]}
+      - {bin: markdownlint-cli2, forbid: [--fix]}
+      - {bin: shellcheck}
+      - {bin: yamllint}
+      - {bin: tflint, forbid: [--fix]}
   - name: format-check
-    tasks: ["format:check", "fmt:check", format-check]
+    tasks: ["format:check", "fmt:check", format-check, fmt-check, check-format, "check:format", check-fmt, "check:fmt", prettier-check, "prettier:check", "lint:prettier", style-check, "style:check", "format:diff"]
+    exclude: ["*watch*"]
+    tools:
+      - {bin: prettier, require: [--check], forbid: [--write, -w]}
+      - {bin: biome, sub: [format], forbid: [--write, --fix, --apply]}
+      - {bin: ruff, sub: [format], require: [--check]}
+      - {bin: black, require: [--check]}
+      - {bin: dprint, sub: [check]}
+      - {bin: cargo, sub: [fmt], require: [--check]}
+      # No gofmt: gofmt -l exits 0 whatever it lists, so it would always pass.
+      - {bin: shfmt, require: [-d], forbid: [-w]}
+      - {bin: stylua, require: [--check]}
+      - {bin: tofu, sub: [fmt], require: [-check]}
+      - {bin: terraform, sub: [fmt], require: [-check]}
   - name: test
     tasks: [test]
+    fallback_tasks: ["test:unit", test-unit, "test:ci", test-ci, "test:all", test-all, tests, unit-test, "unit:test"]
+    exclude: ["*watch*", "*e2e*", "*integration*", "*bench*", "*:update*", "*snapshot*", "*storybook*", "*browser*", "*playwright*", "*visual*", "*smoke*", "*live*"]
+    exclude_dirs: [e2e, "*-e2e", "e2e-*", "*_e2e", end2end, endtoend, end-to-end, integration, integration-tests, integration_tests]
+    tools:
+      - {bin: vitest, forbid: [--watch, -w, --ui]}
+      - {bin: jest, forbid: [--watch, --watchAll]}
+      - {bin: mocha, forbid: [--watch, -w]}
+      - {bin: pytest}
+      - {bin: rspec}
+      - {bin: go, sub: [test]}
+      - {bin: cargo, sub: [test, nextest]}
+      - {bin: bun, sub: [test], forbid: [--watch]}
+      - {bin: deno, sub: [test], forbid: [--watch]}
+  # Dead code runs whole-program, but only findings on lines changed since
+  # the git base (kit git-base) fail it, judged from its output, never its
+  # exit code; with no git base it's skipped. A finding with no line counts
+  # for its whole file. A tool whose output can't be mapped to files
+  # (debride's heuristic list, cargo machete/udeps' crate names) is
+  # advisory: it runs and reports, but never fails. Dead code a change
+  # leaves behind on an unchanged line (removing a function's last caller)
+  # isn't caught.
+  # Per stack: js knip, python vulture, go deadcode (golangci-lint's unused
+  # is a lint gate), ruby debride (advisory), opentofu tflint limited to
+  # terraform_unused_declarations (plain tflint is lint). rust: none here;
+  # rustc's dead_code lint fails the existing clippy -D warnings. docker:
+  # none; images have no unused-code concept.
+  - name: deadcode
+    tasks: [deadcode, dead-code, "deadcode:*", "dead-code:*", knip, "knip:*", unused, "unused:*", "lint:unused", "lint:deadcode", unimported, vulture]
+    exclude: ["*fix*", "*watch*"]
+    scope: changed
+    tools:
+      - {bin: knip, forbid: [--fix, --watch], unmapped: [--reporter], findings: '^(?:\S+\s+(?P<file>\S.*?):(?P<line>\d+):\d+|(?P<file>[^\s:]+\.\w+))\s*$'}
+      - {bin: vulture, findings: '^(?P<file>[^\s:]+):(?P<line>\d+): unused '}
+      - {bin: deadcode, findings: '^(?P<file>[^\s:]+\.go):(?P<line>\d+):\d+: unreachable func: '}
+      - {bin: debride, advisory: true}
+      - {bin: tflint, require: [--only=terraform_unused_declarations], forbid: [--fix], findings: '^(?P<file>[^\s:]+):(?P<line>\d+):\d+: \w+ - .*\(terraform_unused_declarations\)$'}
+      - {bin: cargo, sub: [machete, udeps], advisory: true}
+
+# How the gate classifier reads a task body. A body it can't read with
+# certainty (a pipe, ||, a subshell, command substitution) holds no gate.
+#   wrappers          run the rest of the line, after any K=V words; never
+#                     one that loads env (dotenv --), which the gate needs
+#   tool_runners      run the word after them as a tool; the kit reads the
+#                     tool, so the project's own copy is what counts
+#   references        a prefix that runs another task of a provider: the word
+#                     after it, or task. shorthand: a word that names no such
+#                     task is a tool (pnpm eslint)
+#   script_runners    every non-flag argument is a package script
+#   fan_out_flags     on a reference, run it across workspace packages, which
+#                     run-checks covers per subproject already
+#   fan_out_commands  the same, as whole commands
+gate_discovery:
+  wrappers: [env, cross-env]
+  tool_runners: [npx, "pnpm exec", "pnpm dlx", bunx, "yarn dlx", "yarn exec", "npm exec", "uv run", "pipx run", "bundle exec", "poetry run", "go tool"]
+  references:
+    - {prefix: "npm run", provider: package-scripts}
+    - {prefix: "npm run-script", provider: package-scripts}
+    - {prefix: "npm test", provider: package-scripts, task: test}
+    - {prefix: "npm t", provider: package-scripts, task: test}
+    - {prefix: "pnpm run", provider: package-scripts}
+    - {prefix: "pnpm", provider: package-scripts, shorthand: true}
+    - {prefix: "yarn run", provider: package-scripts}
+    - {prefix: "yarn", provider: package-scripts, shorthand: true}
+    - {prefix: "bun run", provider: package-scripts}
+    - {prefix: "node --run", provider: package-scripts}
+    - {prefix: make, provider: make}
+    - {prefix: just, provider: just}
+    - {prefix: rake, provider: rake}
+    - {prefix: bin/rake, provider: rake}
+    - {prefix: "pdm run", provider: pdm, shorthand: true}
+    - {prefix: poe, provider: poe}
+  script_runners: [run-s, run-p, npm-run-all, npm-run-all2]
+  fan_out_flags: [-r, --recursive, --filter, -F, --workspaces, --ws, -ws, --workspace]
+  fan_out_commands: ["turbo run", turbo, "nx run-many", "nx affected", "lerna run", "yarn workspaces foreach", "pnpm -r"]
+  # CI steps (GitHub Actions workflows, .gitlab-ci.yml) are read like task
+  # bodies; a step's task references run those tasks, and a tool it runs
+  # directly runs only when that tool resolves from the project
+  # (tool_resolution), and only when no gate running the same tool already
+  # fills its check. A cd in a step files its gates under the subproject
+  # they run in. Jobs
+  # with services, a container, OIDC (id-token: write), a deployment
+  # environment, secrets in their env, or a reusable workflow are skipped
+  # whole, and so are steps that use an action, a non-sh shell, secrets, or
+  # a CI expression.
+  #   deny_commands  a step holding one of these words (or word runs) is skipped
+  #   deny_names     a job or step whose name holds one of these words is skipped
+  #   deny_actions   a job using an action with one of these prefixes is skipped
+  deny_commands: [publish, deploy, upload, release, "docker push", "docker login", "gh release", twine, "npm publish", "pnpm publish",
+    "yarn publish", "cargo publish", "gem push", "terraform apply", "tofu apply", aws, gcloud, az, wrangler, vercel, netlify, flyctl,
+    heroku, kubectl, helm, ssh, scp, rsync, cosign, gpg, codecov, coveralls, curl, wget]
+  deny_names: [release, deploy, deployment, publish, upload, pages, docs-deploy, notify, slack, discord]
+  deny_actions: [aws-actions/, google-github-actions/auth, google-github-actions/setup-gcloud, azure/login, docker/login-action,
+    docker/build-push-action, hashicorp/setup-terraform, pulumi/]
 
 # Checks a stack's own toolchain provides, run where that stack is detected.
-#   bin:      candidate binaries; the first found fills {bin}
+#   bin:      candidate binaries; the first that resolves (tool_resolution)
+#             fills the {bin} word
 #   when_dir: a directory that must exist first, else the check is skipped
+#   slot:     the check it stands in for; a project task or CI gate that
+#             fills that check covers it, so the two don't both run
 toolchain_checks:
-  - {stack: rust, name: check, cmd: "cargo check"}
-  - {stack: rust, name: clippy, cmd: "cargo clippy -- -D warnings"}
-  - {stack: rust, name: fmt, cmd: "cargo fmt --check"}
-  - {stack: rust, name: test, cmd: "cargo test"}
-  - {stack: go, name: vet, cmd: "go vet ./..."}
-  - {stack: go, name: test, cmd: "go test ./..."}
+  - {stack: rust, name: check, cmd: "{bin} check", bin: [cargo]}
+  - {stack: rust, name: clippy, cmd: "{bin} clippy -- -D warnings", bin: [cargo], slot: lint}
+  - {stack: rust, name: fmt, cmd: "{bin} fmt --check", bin: [cargo], slot: format-check}
+  - {stack: rust, name: test, cmd: "{bin} test", bin: [cargo], slot: test}
+  - {stack: go, name: vet, cmd: "{bin} vet ./...", bin: [go]}
+  - {stack: go, name: test, cmd: "{bin} test ./...", bin: [go], slot: test}
   # validate needs the providers `init` installs, so it waits for .terraform/.
-  - {stack: opentofu, name: fmt, cmd: "{bin} fmt -check -recursive", bin: [tofu, terraform]}
+  - {stack: opentofu, name: fmt, cmd: "{bin} fmt -check -recursive", bin: [tofu, terraform], slot: format-check}
   - {stack: opentofu, name: validate, cmd: "{bin} validate", bin: [tofu, terraform], when_dir: .terraform}
+
+# Turning checks off from the overlay. An overlay entry in checks (by name)
+# or toolchain_checks (by stack and name) with a default's key updates the
+# fields it sets instead of adding a second entry.
+#   disabled_task_providers    provider names; their tasks aren't read at all
+#   disabled_checks            a slot ("lint"), or a label as run-checks
+#                              prints it, with or without the stack prefix
+#                              ("lint (lint:css) [web]")
+#   disabled_toolchain_checks  "<stack>:<name>" ("go:vet")
+disabled_task_providers: []
+disabled_checks: []
+disabled_toolchain_checks: []
 
 # How deep below the repo root a tracked anchor sentinel still makes its
 # directory a subproject (`kit subprojects`).
@@ -309,11 +477,17 @@ subproject_max_depth: 4
 #   signal_prettier  Prettier's own config lookup, accepted only when the
 #                    config it finds is inside the project root
 # Exactly one candidate formats the file; none, or two (a Biome/Prettier
-# migration mid-way), leaves it alone. {bin} is the nearest
-# node_modules/.bin, .venv/bin, or venv/bin copy inside the project, then its
-# package manager's environment (poetry, pipenv, Yarn PnP, bundler), else
-# PATH; never npx, pnpm dlx, or uv run, which can install packages.
-# disabled_formatters in the overlay turns an entry off by name.
+# migration mid-way), leaves it alone. {bin} resolves as tool_resolution
+# says. When no candidate claims the file, the fallback entries are tried in
+# order and the first that resolves formats it, PATH allowed: an opinionated
+# exception so edited Markdown is formatted even in a repo with no config.
+# A project-side reason it can't run (declared but not installed) stops the
+# chain; only a binary found nowhere moves on.
+#   fallback  no signal needed; used only when nothing else claims the file
+#   stdout    the command reads the file on stdin and prints the result,
+#             which replaces the file when it exits 0
+# disabled_formatters in the overlay turns an entry off by name; an overlay
+# entry with the same name updates the fields it sets.
 formatters:
   - name: biome
     ext: [js, jsx, ts, tsx, json, jsonc, css]
@@ -356,8 +530,78 @@ formatters:
     signal_files: [go.mod]
     bin: gofmt
     cmd: "{bin} -w {file}"
+  - name: prettierd
+    ext: [md, mdx, markdown]
+    fallback: true
+    bin: prettierd
+    cmd: "{bin} {file}"
+    stdout: true
+  - name: prettier-markdown
+    ext: [md, mdx, markdown]
+    fallback: true
+    bin: prettier
+    cmd: "{bin} --write {file}"
+  - name: deno-markdown
+    ext: [md, mdx, markdown]
+    fallback: true
+    bin: deno
+    cmd: "{bin} fmt {file}"
+  - name: mdformat
+    ext: [md, markdown]
+    fallback: true
+    bin: mdformat
+    cmd: "{bin} {file}"
 
 disabled_formatters: []
+
+# Where every tool the kit runs (toolchain checks, file checks, formatters)
+# gets its binary. First match wins:
+#   1. a project-local copy: node_modules/.bin, .venv/bin, venv/bin, from the
+#      file's directory up to the repo root
+#   2. a go.mod tool directive, as `go tool -n` builds it (never downloads)
+#   3. the project's package-manager environment (poetry, pipenv, Yarn PnP,
+#      bundler), or an activated $VIRTUAL_ENV / $CONDA_PREFIX inside the repo
+#   4. declared in a manifest but not installed: skipped, naming the install
+#      command
+#   5. a check that needs the project's packages (local_only): skipped
+#   6. on PATH, when a pin file names the tool and the copy is the version
+#      manager's (under manager_dirs), or the tool is in path_fallback
+# Anything else on PATH is skipped with the reason. Never npx, pnpm dlx, or
+# uv run, which can install packages.
+#   path_fallback  standalone toolchains whose PATH copy is safe to run
+#   pin_files      version-manager files naming tools (.tool-versions, mise)
+#   pin_aliases    a pin file's plugin name -> the binary it provides
+#   manager_dirs   where version managers put the binaries they pin
+#   bin_packages   binary -> the package that declares it, when they differ
+#   install        package manager -> the command that installs declared tools
+tool_resolution:
+  path_fallback: [go, gofmt, cargo, rustfmt, shellcheck, shfmt, stylua, tofu, terraform]
+  pin_files: [.tool-versions, mise.toml, .mise.toml]
+  pin_aliases: {opentofu: tofu, golang: go}
+  manager_dirs:
+    - "$ASDF_DATA_DIR/shims"
+    - "$ASDF_DATA_DIR/installs"
+    - "~/.asdf/shims"
+    - "~/.asdf/installs"
+    - "$MISE_DATA_DIR/shims"
+    - "$MISE_DATA_DIR/installs"
+    - "$XDG_DATA_HOME/mise/shims"
+    - "$XDG_DATA_HOME/mise/installs"
+    - "~/.local/share/mise/shims"
+    - "~/.local/share/mise/installs"
+  bin_packages: {biome: "@biomejs/biome", tsc: typescript}
+  install:
+    npm: npm install
+    pnpm: pnpm install
+    yarn: yarn install
+    bun: bun install
+    uv: uv sync
+    poetry: poetry install
+    pipenv: pipenv install --dev
+    pip: pip install -r requirements.txt
+    pdm: pdm install
+    bundler: bundle install
+    go: go mod download
 
 # The Stop hook runs file-scoped checks on only the files the turn edited.
 # The built-in ones (eslint, biome, stylelint, vitest, jest, ruff, mypy,
@@ -377,10 +621,9 @@ disabled_formatters: []
 #   signal_toml           "<file> <dotted path>": a table in a TOML file
 #   exclude_toml          "<file> <dotted path>" to a regex or regex list;
 #                         matching files (relative to the run dir) are dropped
-#   local_only            don't fall back to a PATH copy
-# {bin} resolves from the project (node_modules/.bin, .venv/bin, venv/bin),
-# then its package manager's environment (poetry, pipenv, Yarn PnP,
-# bundler), then PATH. disabled_file_checks turns any check off by name.
+#   local_only            never take a PATH copy, even a pinned one
+# {bin} resolves as tool_resolution says. disabled_file_checks turns any
+# check off by name.
 # Whole-project checks (typecheck, the full test suite) are `kit run-checks`'s
 # job, run when rules/verify.md says.
 

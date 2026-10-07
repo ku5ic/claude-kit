@@ -26,6 +26,10 @@
         "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook log-skills", "timeout": 5 }]
       },
       {
+        "matcher": "Skill",
+        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook review-checks", "timeout": 600 }]
+      },
+      {
         "matcher": "ExitPlanMode",
         "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook plan-mode-context", "timeout": 5 }]
       }
@@ -46,7 +50,10 @@
     ],
     "UserPromptExpansion": [
       {
-        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook log-skills", "timeout": 5 }]
+        "hooks": [
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook log-skills", "timeout": 5 },
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook review-checks", "timeout": 600 }
+        ]
       }
     ],
     "UserPromptSubmit": [

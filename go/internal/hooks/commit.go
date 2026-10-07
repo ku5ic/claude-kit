@@ -11,9 +11,11 @@ import (
 )
 
 var (
-	gitCommit    = regexp.MustCompile(`git[[:space:]]+([^[:space:]]+[[:space:]]+)*commit`)
+	// git, any global options, then commit as a word, all in one simple
+	// command: the gap crosses no separator or newline but a line continuation.
+	gitCommit    = regexp.MustCompile(`\bgit(?:[ \t]|\\\n)+(?:[^[:space:];&|]+(?:[ \t]|\\\n)+)*commit(?:[^-[:alnum:]_.]|$)`)
 	aiSignature  = regexp.MustCompile(`(?i)Co-Authored-By:[[:space:]]*Claude|Generated[[:space:]]+(by|with)[[:space:]]+Claude|🤖[[:space:]]*Generated`)
-	heredocOpen  = regexp.MustCompile(`<<-?['"]?EOF['"]?`)
+	heredocOpen  = regexp.MustCompile(`<<(-?)[[:space:]]*['"]?([A-Za-z_][A-Za-z0-9_]*)['"]?`)
 	messageDQ    = regexp.MustCompile(`(-m|--message=?)[[:space:]]*"[^"]*"`)
 	messageSQ    = regexp.MustCompile(`(-m|--message=?)[[:space:]]*'[^']*'`)
 	aiTell       = regexp.MustCompile(`(?i)^(feat|fix|chore|refactor|docs|test|perf|build|ci|style)?:?[[:space:]]*(certainly|here is|i have|let me|in this commit|this commit)`)
@@ -33,7 +35,9 @@ func GuardCommit(h *hook.Hook) error {
 		return nil
 	}
 
-	// Line by line, as grep: the trailer sits on a line of its own.
+	// Line by line, as grep: the trailer sits on a line of its own. The
+	// whole command, since a message can come from anywhere in it (a file a
+	// heredoc writes, then -F); a signature in an unrelated heredoc blocks too.
 	for line := range strings.SplitSeq(cmd, "\n") {
 		if aiSignature.MatchString(line) {
 			if err := h.Block("AI signature in commit message", "ai-commit-sig"); err != nil {
@@ -52,7 +56,8 @@ func GuardCommit(h *hook.Hook) error {
 	// This repo passes multi-line messages via a heredoc
 	// (-m "$(cat <<'EOF' ... EOF)"). A single-line -m has no heredoc and is
 	// skipped: short enough that a miss is harmless.
-	if body := heredocBody(cmd); body != "" {
+	body := heredocBody(cmd)
+	if body != "" {
 		if run := longestProseRun(body); run > 4 {
 			reason := fmt.Sprintf("commit message has an unchunked wall of text (%d consecutive prose lines). rules/output.md section 1: short paragraphs, no dense blocks.", run)
 			if err := h.Block(reason, "commit-wall-of-text"); err != nil {
@@ -61,8 +66,7 @@ func GuardCommit(h *hook.Hook) error {
 		}
 	}
 
-	subject, _, _ := strings.Cut(quotedMessages(cmd, messageDQ, '"')+quotedMessages(cmd, messageSQ, '\''), "\n")
-	if subject != "" && aiTell.MatchString(subject) {
+	if subject := subject(cmd, body); subject != "" && aiTell.MatchString(subject) {
 		return h.Block("AI-tell phrasing in commit subject", "ai-commit-tell")
 	}
 	return nil
@@ -93,39 +97,83 @@ func scanStaged(h *hook.Hook) error {
 	return nil
 }
 
-// heredocBody is sed's `/<<EOF/,/^EOF$/p` range output minus its first and
-// last lines: the message between the opener and the closing EOF.
+// heredocBody is the message between the opener and the closing delimiter
+// of the heredoc opened on the git commit line (-m "$(cat <<'EOF'", -F -
+// <<'MSG'). A message from elsewhere (a file a heredoc writes for -F, a
+// heredoc opened on a continuation line) isn't read here; the signature
+// scan covers it, the wall-of-text and subject checks don't. One never
+// closed runs to the end, as the shell reads it.
 func heredocBody(cmd string) string {
 	var lines []string
-	in := false
+	delim, tabs := "", false
 	for line := range strings.SplitSeq(cmd, "\n") {
 		switch {
-		case in:
+		case delim != "" && closes(line, delim, tabs):
+			return strings.Join(lines, "\n")
+		case delim != "":
 			lines = append(lines, line)
-			if line == "EOF" {
-				in = false
+		case gitCommit.MatchString(line):
+			if m := heredocOpen.FindStringSubmatch(line); m != nil {
+				delim, tabs = m[2], m[1] == "-"
 			}
-		case heredocOpen.MatchString(line):
-			lines = append(lines, line)
-			in = true
 		}
 	}
-	if len(lines) < 3 {
-		return ""
+	return strings.Join(lines, "\n")
+}
+
+// closes is true when line ends a heredoc delimited by delim; with tabs
+// (<<-), leading tabs are stripped first.
+func closes(line, delim string, tabs bool) bool {
+	return line == delim || tabs && strings.TrimLeft(line, "\t") == delim
+}
+
+// subject is the commit message's first line: the commit heredoc's when
+// it opens before any quoted -m on the commit line, else the first quoted
+// -m's.
+func subject(cmd, body string) string {
+	for line := range strings.SplitSeq(cmd, "\n") {
+		if !gitCommit.MatchString(line) {
+			continue
+		}
+		open := heredocOpen.FindStringIndex(line)
+		quoted := firstQuoted(line)
+		if body != "" && open != nil && (quoted < 0 || open[0] < quoted) {
+			first, _, _ := strings.Cut(strings.TrimLeft(body, "\n"), "\n")
+			return strings.TrimLeft(first, " \t")
+		}
+		break
 	}
-	return strings.Join(lines[1:len(lines)-1], "\n")
+	first, _, _ := strings.Cut(quotedMessages(cmd, messageDQ, '"')+quotedMessages(cmd, messageSQ, '\''), "\n")
+	return first
+}
+
+// firstQuoted is where line's first quoted -m message starts, or -1. A
+// command substitution ("$(cat <<'EOF'") isn't one.
+func firstQuoted(line string) int {
+	first := -1
+	for _, re := range []*regexp.Regexp{messageDQ, messageSQ} {
+		for _, loc := range re.FindAllStringIndex(line, -1) {
+			if !strings.Contains(line[loc[0]:loc[1]], "$(") && (first < 0 || loc[0] < first) {
+				first = loc[0]
+			}
+		}
+	}
+	return first
 }
 
 // quotedMessages is `$(grep -oE '<re>' | sed 's/.*<q>([^<q>]*)<q>/\1/')`:
 // the quoted text of every -m/--message match, one per line, matched line by
 // line, with no trailing newline (command substitution strips it, so the
-// double- and single-quoted results concatenate directly).
+// double- and single-quoted results concatenate directly). A command
+// substitution's opening ("$(cat << ") isn't a message.
 func quotedMessages(cmd string, re *regexp.Regexp, quote byte) string {
 	var out []string
 	for line := range strings.SplitSeq(cmd, "\n") {
 		for _, match := range re.FindAllString(line, -1) {
 			inner := strings.TrimSuffix(match, string(quote))
-			out = append(out, inner[strings.LastIndexByte(inner, quote)+1:])
+			if msg := inner[strings.LastIndexByte(inner, quote)+1:]; !strings.HasPrefix(msg, "$(") {
+				out = append(out, msg)
+			}
 		}
 	}
 	return strings.Join(out, "\n")

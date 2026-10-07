@@ -17,10 +17,13 @@ type runChecksEnv struct {
 	project, stubs string
 }
 
-func runChecksSetup(t *testing.T) *runChecksEnv {
+func runChecksSetup(t *testing.T) *runChecksEnv { return runChecksSetupIn(t, "project") }
+
+// runChecksSetupIn is runChecksSetup with the repo at <tmp>/<name>.
+func runChecksSetupIn(t *testing.T, name string) *runChecksEnv {
 	k := New(t)
 	tmp := t.TempDir()
-	e := &runChecksEnv{t: t, k: k, project: filepath.Join(tmp, "project"), stubs: filepath.Join(tmp, "stubs")}
+	e := &runChecksEnv{t: t, k: k, project: filepath.Join(tmp, name), stubs: filepath.Join(tmp, "stubs")}
 	Mkdir(t, e.project)
 	Mkdir(t, e.stubs)
 	k.Git(e.project, "init", "-q", "-b", "main")
@@ -80,6 +83,18 @@ func (e *runChecksEnv) orchestrated(name, config string) {
 	e.write(".gitignore", "node_modules\n")
 	e.stub("pnpm", 0)
 	e.stub("pdm", 0)
+}
+
+// localFakefmt adds a js toolchain check on fakefmt, with a recording copy
+// in <prefix>node_modules/.bin and another on PATH, both writing to
+// fakefmt.calls.
+func (e *runChecksEnv) localFakefmt(prefix string) {
+	e.k.Overlay("toolchain_checks:\n  - {stack: js, name: fmt, cmd: \"{bin} --check .\", bin: [fakefmt]}\n")
+	e.write(prefix+"package.json", "{}\n")
+	e.write(".gitignore", "node_modules\n")
+	calls := filepath.Join(e.stubs, "fakefmt.calls")
+	Stub(e.t, filepath.Join(e.project, prefix+"node_modules/.bin/fakefmt"), fmt.Sprintf("echo \"local $*\" >>%q\n", calls))
+	Stub(e.t, filepath.Join(e.stubs, "fakefmt"), fmt.Sprintf("echo \"path $*\" >>%q\n", calls))
 }
 
 // runChecksCase is a test that writes files, stubs binaries, runs
@@ -337,6 +352,55 @@ func TestRunChecks(t *testing.T) {
 		r.Has(t, "PASS python: test (test) [services/api]")
 		r.Lacks(t, "packages/a", "js: lint")
 	})
+	t.Run("--only repeated adds to the list, and takes subprojects written as paths", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", `{"scripts":{"lint":"eslint ."}}`+"\n")
+		e.write("packages/a/package.json", `{"scripts":{"test":"vitest"}}`+"\n")
+		e.write("services/api/pyproject.toml", "[tool.pdm.scripts]\ntest = \"pytest\"\n")
+		e.stub("npm", 0)
+		e.stub("pdm", 0)
+		r := e.run("--only", "./services/api/", "--only", "packages/a/")
+		r.Want(t, 0)
+		r.Has(t, "PASS python: test (test) [services/api]", "PASS js: test (test) [packages/a]")
+		r.Lacks(t, "js: lint (lint)\n")
+	})
+	t.Run("an excluded task names the glob that turned it away", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", `{"scripts":{"lint:fix":"eslint --fix ."}}`+"\n")
+		e.run().Has(t, `SKIP js: lint (no lint task; lint:fix matches the exclude glob "*fix*")`)
+	})
+
+	t.Run("a bad argument is a usage error and runs nothing", func(t *testing.T) {
+		for _, args := range [][]string{{"--plann"}, {"--only"}, {"--only", "services/nope"}, {"--plan", "extra"}, {"--only", ".", "-x"}} {
+			e := runChecksSetup(t)
+			e.write("package.json", `{"scripts":{"lint":"eslint ."}}`+"\n")
+			e.stub("npm", 0)
+			r := e.run(args...)
+			r.Want(t, 2)
+			r.Has(t, "kit run-checks: ")
+			if e.called("npm") {
+				t.Errorf("%v ran npm: %s", args, e.calls("npm"))
+			}
+		}
+	})
+
+	t.Run("a flag after --only says where it belongs", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", `{"scripts":{"lint":"eslint ."}}`+"\n")
+		r := e.run("--only", ".", "--plan")
+		r.Want(t, 2)
+		r.Has(t, "kit run-checks: --plan must come before --only")
+	})
+
+	t.Run("pnpm runs a task with its install-before-run turned off", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", `{"scripts":{"lint":"eslint ."}}`+"\n")
+		e.write("pnpm-lock.yaml", "")
+		Stub(t, filepath.Join(e.stubs, "pnpm"),
+			fmt.Sprintf("echo \"$pnpm_config_verify_deps_before_run $*\" >>%q\n", filepath.Join(e.stubs, "pnpm.calls")))
+		e.run().Want(t, 0)
+		e.callsEqual("pnpm", "false run lint")
+	})
 
 	// Orchestrators: turbo or nx run JS checks once, for affected packages.
 	t.Run("turbo: an edit in packages/a runs turbo once per check, no per-package task", func(t *testing.T) {
@@ -402,6 +466,206 @@ func TestRunChecks(t *testing.T) {
 		e.stub("composer", 0)
 		e.run().Has(t, "PASS php: test (test)")
 		e.callsEndWith("composer", "run test")
+	})
+
+	// Toolchain checks resolve {bin} like file checks: the project's copy first.
+	t.Run("a toolchain check runs the project-local bin before a PATH copy", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.localFakefmt("")
+		local := Physical(t, filepath.Join(e.project, "node_modules/.bin/fakefmt"))
+		e.run().Has(t, "PASS js: fmt\n  bin: "+local+" (local)\n")
+		e.callsEqual("fakefmt", "local --check .")
+	})
+	t.Run("a failing toolchain check names its binary before the output", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("go.mod", "module example.com/x\n")
+		Stub(t, filepath.Join(e.stubs, "go"), "echo vet output\nexit 1\n")
+		e.run().Has(t, "FAIL go: vet ("+filepath.Join(e.stubs, "go")+" vet ./...)\n  bin: "+filepath.Join(e.stubs, "go")+" (PATH)\nvet output\n")
+	})
+	t.Run("go test skips an end-to-end module, not a lookalike name", func(t *testing.T) {
+		e := runChecksSetup(t)
+		for _, dir := range []string{"", "e2e/end2end/", "services/delivery/"} {
+			e.write(dir+"go.mod", "module example.com/x\n")
+		}
+		e.stub("go", 0)
+		r := e.run("--plan")
+		r.Want(t, 0)
+		r.Has(t, "SKIP go: test [e2e/end2end] (e2e looks like a test suite to leave out (exclude_dirs))",
+			"RUN go: vet [e2e/end2end]", "RUN go: test [services/delivery]", "RUN go: test\n")
+	})
+	t.Run("a resolved bin path with a space stays one word", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.localFakefmt("my app/")
+		e.run().Has(t, "PASS js: fmt [my app]")
+		e.callsEqual("fakefmt", "local --check .")
+	})
+	t.Run("turbo: a repo path with a space still orchestrates", func(t *testing.T) {
+		e := runChecksSetupIn(t, "my project")
+		e.orchestrated("turbo", `{"tasks":{"test":{}}}`)
+		e.run("--only", "packages/a").Has(t, "PASS js: test (turbo affected: test)")
+		e.callsEqual("turbo", "run test --filter=...[HEAD]")
+	})
+
+	// Task bodies: a task whose name matches no slot counts by what it runs.
+	t.Run("an odd-named task whose body is one gate fills that slot, run as itself", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", `{"scripts":{"verify-style":"cross-env CI=1 eslint .","types":"tsc --noEmit"}}`+"\n")
+		e.stub("npm", 0)
+		r := e.run()
+		r.Has(t, "PASS js: lint (verify-style)", "PASS js: typecheck (types)")
+		e.callsEqual("npm", e.phys(".")+" run types\n"+e.phys(".")+" run verify-style")
+	})
+	t.Run("a body that isn't one readable gate never runs", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", `{"scripts":{"fixup":"eslint --fix .","piped":"eslint . | tee out","build":"tsc -b"}}`+"\n")
+		e.stub("npm", 0)
+		r := e.run()
+		r.Has(t, "SKIP js: lint (no lint task)", "SKIP js: typecheck (no typecheck task)")
+		if e.called("npm") {
+			t.Errorf("ran: %s", e.calls("npm"))
+		}
+	})
+	t.Run("a slot-named task whose body fixes or watches is skipped, and covers nothing", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", `{"scripts":{"check":"npm run lint && npm run unit","lint":"eslint . --fix","test":"jest --watch","unit":"vitest run"}}`+"\n")
+		e.stub("npm", 0)
+		r := e.run()
+		r.Has(t, "SKIP js: lint (lint) (runs `eslint --fix`, which a gate never runs)",
+			"SKIP js: test (test) (runs `jest --watch`, which a gate never runs)", "PASS js: test (unit)")
+		e.callsEqual("npm", e.phys(".")+" run unit")
+	})
+	t.Run("a forbidden flag skips a task even without the required flags; one set off doesn't", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", `{"scripts":{"typecheck":"tsc --watch","format:check":"prettier --write .","test":"vitest --watch=false"}}`+"\n")
+		e.stub("npm", 0)
+		r := e.run()
+		r.Has(t, "SKIP js: typecheck (typecheck) (runs `tsc --watch`, which a gate never runs)",
+			"SKIP js: format-check (format:check) (runs `prettier --write`, which a gate never runs)", "PASS js: test (test)")
+		e.callsEqual("npm", e.phys(".")+" run test")
+	})
+	t.Run("an odd-named gofmt -l task is no gate: it can't fail", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("go.mod", "module example.com/x\n")
+		e.write("Makefile", "gofmtcheck:\n\tgofmt -l .\n")
+		e.stub("make", 0)
+		e.stub("go", 0)
+		r := e.run()
+		r.Has(t, "SKIP make: format-check (no format-check task)")
+		r.Lacks(t, "(gofmtcheck)")
+	})
+	t.Run("a slot's exclude globs hold for body-classified tasks too", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", `{"scripts":{"unit-watch":"vitest"}}`+"\n")
+		e.stub("npm", 0)
+		e.run().Has(t, "SKIP js: test (no test task)")
+	})
+	t.Run("a Make target whose recipe is one gate fills that slot", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("go.mod", "module example.com/x\n")
+		e.write("Makefile", "golint:\n\t@golangci-lint run ./...\n")
+		e.stub("make", 0)
+		e.stub("go", 0)
+		e.run().Has(t, "PASS make: lint (golint)")
+	})
+
+	// Cargo aliases are tasks, read as the cargo command they expand to.
+	t.Run("rust: a cargo alias fills its slot by name or by what it runs", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("Cargo.toml", "[package]\nname = \"x\"\n")
+		e.write(".cargo/config.toml", "[alias]\nlint = \"clippy --all-targets -- -D warnings\"\nck = [\"fmt\", \"--check\"]\nxtask = \"run --package xtask --\"\n")
+		e.stub("cargo", 0)
+		r := e.run()
+		r.Has(t, "PASS rust: lint (lint)", "PASS rust: format-check (ck)")
+		r.Lacks(t, "(xtask)")
+	})
+	t.Run("rust: no .cargo/config.toml, no alias tasks", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("Cargo.toml", "[package]\nname = \"x\"\n")
+		e.stub("cargo", 0)
+		r := e.run()
+		r.Lacks(t, "rust: lint (", "rust: format-check (")
+	})
+
+	t.Run("--plan lists every check with its command and runs none", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", `{"scripts":{"lint":"eslint ."}}`+"\n")
+		e.write("go.mod", "module example.com/x\n")
+		e.stub("npm", 0)
+		e.stub("go", 0)
+		r := e.run("--plan")
+		r.Want(t, 0)
+		r.Has(t,
+			"RUN js: lint (lint)\n  cmd: npm run lint\n",
+			"SKIP js: test (no test task)\n",
+			"RUN go: vet\n  cmd: "+filepath.Join(e.stubs, "go")+" vet ./...\n  bin: "+filepath.Join(e.stubs, "go")+" (PATH)\n")
+		r.Lacks(t, "checks:")
+		if e.called("npm") || e.called("go") {
+			t.Errorf("--plan ran something: npm %q go %q", e.calls("npm"), e.calls("go"))
+		}
+	})
+	t.Run("--plan takes --only too", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", `{"scripts":{"lint":"eslint ."}}`+"\n")
+		e.write("services/api/pyproject.toml", "[tool.pdm.scripts]\ntest = \"pytest\"\n")
+		r := e.run("--plan", "--only", "services/api")
+		r.Has(t, "RUN python: test (test) [services/api]")
+		r.Lacks(t, "js: lint")
+	})
+
+	// Overlay control: turning checks off, and updating a default by key.
+	t.Run("disabled_checks turns a slot off, and one task by its label", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", `{"scripts":{"typecheck":"tsc","lint":"eslint .","lint:css":"stylelint"}}`+"\n")
+		e.stub("npm", 0)
+		e.k.Overlay("disabled_checks: [typecheck, \"lint (lint:css)\"]\n")
+		r := e.run()
+		r.Has(t, "SKIP js: typecheck (typecheck) (disabled_checks)", "PASS js: lint (lint)", "SKIP js: lint (lint:css) (disabled_checks)")
+		e.callsEqual("npm", e.phys(".")+" run lint")
+	})
+	t.Run("disabled_checks on a slot with no task says so", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", "{}\n")
+		e.k.Overlay("disabled_checks: [test]\n")
+		e.run().Has(t, "SKIP js: test (disabled_checks)")
+	})
+	t.Run("disabled_toolchain_checks skips one by <stack>:<name>", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("go.mod", "module example.com/x\n")
+		e.stub("go", 0)
+		e.k.Overlay("disabled_toolchain_checks: [\"go:vet\"]\n")
+		r := e.run()
+		r.Has(t, "SKIP go: vet (disabled_toolchain_checks)", "PASS go: test")
+		e.callsEqual("go", e.phys(".")+" test ./...")
+	})
+	t.Run("disabled_task_providers stops a provider's tasks being read", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", `{"scripts":{"lint":"eslint ."}}`+"\n")
+		e.write("Makefile", "lint:\n\techo lint\n")
+		e.stub("npm", 0)
+		e.stub("make", 0)
+		e.k.Overlay("disabled_task_providers: [make]\n")
+		r := e.run()
+		r.Has(t, "PASS js: lint (lint)")
+		r.Lacks(t, "make: lint")
+	})
+	t.Run("an overlay toolchain check with a default's key replaces it, not runs beside it", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("go.mod", "module example.com/x\n")
+		e.stub("go", 0)
+		e.k.Overlay("toolchain_checks:\n  - {stack: go, name: test, cmd: \"{bin} test -race ./...\"}\n")
+		e.run()
+		e.callsEqual("go", e.phys(".")+" vet ./...\n"+e.phys(".")+" test -race ./...")
+	})
+	t.Run("an overlay check with a default's name updates its globs", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", `{"scripts":{"verify-types":"tsc"}}`+"\n")
+		e.stub("npm", 0)
+		e.k.Overlay("checks:\n  - {name: typecheck, tasks: [verify-types]}\n")
+		r := e.run()
+		r.Has(t, "PASS js: typecheck (verify-types)")
+		if n := strings.Count(r.Output, "js: typecheck"); n != 1 {
+			t.Errorf("typecheck reported %d times:\n%s", n, r.Output)
+		}
 	})
 
 	// A copy of the launcher beside the freshly built binary, so its

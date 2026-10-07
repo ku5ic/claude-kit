@@ -8,10 +8,12 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ku5ic/claude-kit/go/internal/checks"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/stackctx"
+	"github.com/ku5ic/claude-kit/go/internal/tools"
 )
 
 // cwdOf is the payload's cwd, which Claude Code always sends, else the
@@ -185,9 +187,9 @@ func tooling(cfg *config.Config, root string) string {
 			lines = append(lines, task.Cmd)
 		}
 		for _, tc := range cfg.ToolchainChecks {
-			if cfg.HasStack(dir, tc.Stack) {
-				if cmd, skip := project.ToolchainCmd(tc, dir); skip == "" {
-					lines = append(lines, cmd)
+			if cfg.HasStack(dir, tc.Stack) && cfg.ToolchainEnabled(tc) {
+				if run := tools.ResolveToolchain(cfg, tc, dir, root); run.Words != nil {
+					lines = append(lines, tools.ShellJoin(run.Shown))
 				}
 			}
 		}
@@ -209,6 +211,16 @@ func tooling(cfg *config.Config, root string) string {
 	if capped {
 		body = append(body, "(subprojects capped at 20; kit run-checks covers all)")
 	}
+	// Labels only: resolving every tool is too slow for every session start.
+	if gates := checks.CIGates(cfg, root); len(gates) > 0 {
+		body = append(body, "ci gates (from CI config; run-checks runs each whose tool the project has):")
+		for _, label := range gates {
+			body = append(body, "  "+label)
+		}
+	}
+	if len(body) > 0 {
+		body = append(body, "checks: `kit run-checks --plan` lists what kit run-checks runs, without running it")
+	}
 
 	var available, missing []string
 	for _, tool := range cfg.Tools {
@@ -218,20 +230,20 @@ func tooling(cfg *config.Config, root string) string {
 			missing = append(missing, tool)
 		}
 	}
-	var tools []string
+	var cli []string
 	if len(available) > 0 {
-		tools = append(tools, "available: "+strings.Join(available, ", "))
+		cli = append(cli, "available: "+strings.Join(available, ", "))
 	}
 	if len(missing) > 0 {
-		tools = append(tools, "missing: "+strings.Join(missing, ", "))
+		cli = append(cli, "missing: "+strings.Join(missing, ", "))
 	}
-	if len(body) == 0 && len(tools) == 0 {
+	if len(body) == 0 && len(cli) == 0 {
 		return ""
 	}
 
 	var out strings.Builder
 	out.WriteString("\n<tooling>\n")
-	for _, line := range append(body, tools...) {
+	for _, line := range append(body, cli...) {
 		out.WriteString(line)
 		out.WriteString("\n")
 	}

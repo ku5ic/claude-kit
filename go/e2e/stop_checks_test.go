@@ -158,6 +158,62 @@ func (e *stopChecksEnv) lintLines() {
 	e.k.Git(e.repo, "commit", "-q", "-m", "a.sh")
 }
 
+// plan writes a plan file in the repo's plans dir and returns its path.
+func (e *stopChecksEnv) plan(body string) string {
+	path := e.path(".claude/plans/plan-x.md")
+	Write(e.t, path, body)
+	return path
+}
+
+// review is a /code-review the model invoked.
+func (e *stopChecksEnv) review() {
+	e.line(map[string]any{"type": "assistant", "message": map[string]any{"content": []any{
+		map[string]any{"type": "tool_use", "name": "Skill", "input": map[string]any{"skill": "code-review"}},
+	}}})
+}
+
+func TestStopPlanDone(t *testing.T) {
+	const done = "## Steps\n\n- [x] 1. a\n- [x] 2. b\n"
+	t.Run("ticking the last step with no review since the last edit blocks once", func(t *testing.T) {
+		e := stopChecksSetup(t)
+		e.turn("Edit", e.path("a.ts"))
+		e.turn("Edit", e.plan(done))
+		r := e.stop(false)
+		r.Want(t, 2)
+		r.Has(t, "plan-x.md is done, but /code-review hasn't run since the last code edit")
+		e.stop(true).Want(t, 0)
+	})
+	t.Run("a review after the last edit, even in an earlier turn, lets it through", func(t *testing.T) {
+		e := stopChecksSetup(t)
+		e.turn("Edit", e.path("a.ts"))
+		e.review()
+		e.turn("Edit", e.plan(done))
+		e.stop(false).Want(t, 0)
+	})
+	t.Run("a typed /code-review counts", func(t *testing.T) {
+		e := stopChecksSetup(t)
+		e.turn("Edit", e.path("a.ts"))
+		e.line(map[string]any{"type": "user", "message": map[string]any{"content": "/code-review high"}})
+		e.turn("Edit", e.plan(done))
+		e.stop(false).Want(t, 0)
+	})
+	t.Run("an edit after the review needs a new one", func(t *testing.T) {
+		e := stopChecksSetup(t)
+		e.review()
+		e.turn("Edit", e.path("a.ts"), e.plan(done))
+		e.stop(false).Want(t, 2)
+	})
+	t.Run("a plan with an open step, or one ticked in an earlier turn, doesn't gate", func(t *testing.T) {
+		e := stopChecksSetup(t)
+		e.turn("Edit", e.path("a.ts"))
+		e.turn("Edit", e.plan("## Steps\n\n- [x] 1. a\n- [ ] 2. b\n"))
+		e.stop(false).Want(t, 0)
+		e.plan(done)
+		e.turn("Edit", e.path("b.ts"))
+		e.stop(false).Want(t, 0)
+	})
+}
+
 func TestStopChecks(t *testing.T) {
 	t.Run("missing transcript runs nothing", func(t *testing.T) {
 		e := stopChecksSetup(t)
@@ -181,7 +237,17 @@ func TestStopChecks(t *testing.T) {
 		r.Has(t, "PASS fakelint (1 file)")
 		// The hook name gets its own line, so every check starts one.
 		r.Has(t, `stop-checks:\nPASS fakelint`)
+		// And the binary that ran, with where it came from.
+		r.Has(t, `PASS fakelint (1 file)\n  bin: `+e.path("node_modules/.bin/fakelint")+` (local)`)
 		e.callsIs(e.repo + "|--check " + e.path("a.ts"))
+	})
+
+	t.Run("kit explain stop names the binary's source", func(t *testing.T) {
+		e := stopChecksSetup(t)
+		e.k.Dir = e.repo
+		r := e.k.Run("", "explain", "stop", e.path("a.ts"))
+		r.Want(t, 0)
+		r.Has(t, "  source   "+e.path("node_modules/.bin/fakelint")+" (local)")
 	})
 
 	t.Run("several edited files go to one call, each file once", func(t *testing.T) {
@@ -378,7 +444,7 @@ func TestStopChecks(t *testing.T) {
 
 	t.Run("golangci-lint runs from the Go module, only with a .golangci config at or above it", func(t *testing.T) {
 		e := stopChecksSetup(t)
-		e.k.KitYML("disabled_file_checks: [go-vet]\n")
+		e.k.KitYML("disabled_file_checks: [go-vet]\ntool_resolution:\n  path_fallback: [golangci-lint]\n")
 		Write(t, e.path("mod/go.mod"), "module example.com/m\n")
 		Write(t, e.path("mod/pkg/c.go"), "package pkg\n")
 		dir := filepath.Join(e.tmp, "path")
@@ -465,9 +531,49 @@ func TestStopChecks(t *testing.T) {
 		e.noCalls()
 	})
 
-	t.Run("without local_only a bin on PATH runs", func(t *testing.T) {
+	t.Run("a bin found only on PATH, undeclared and unpinned, is skipped with the reason", func(t *testing.T) {
 		e := stopChecksSetup(t)
 		e.oneCheck("")
+		e.fakelintOnPath()
+		e.turn("Edit", e.path("a.ts"))
+		r := e.stop(false)
+		r.Want(t, 0)
+		r.Has(t, "SKIP fakelint (1 file) (fakelint only on PATH (", "add it to tool_resolution.path_fallback in ~/.claude/claude-kit.local.yml to allow")
+		e.noCalls()
+	})
+
+	t.Run("a declared but uninstalled bin is skipped with the install command, not run from PATH", func(t *testing.T) {
+		e := stopChecksSetup(t)
+		e.oneCheck("")
+		Write(t, e.path("package.json"), `{"devDependencies":{"fakelint":"1.0.0"}}`+"\n")
+		e.fakelintOnPath()
+		e.turn("Edit", e.path("a.ts"))
+		r := e.stop(false)
+		r.Want(t, 0)
+		r.Has(t, "SKIP fakelint (1 file) (fakelint declared in package.json but not installed; run npm install)")
+		e.noCalls()
+	})
+
+	t.Run("a pinned bin runs from the version manager's shims", func(t *testing.T) {
+		e := stopChecksSetup(t)
+		e.oneCheck("tool_resolution:\n  pin_files: [.tool-versions]\n  manager_dirs: [\"$ASDF_DATA_DIR/shims\"]")
+		Write(t, e.path(".tool-versions"), "fakelint 1.0.0\n")
+		asdf := filepath.Join(e.tmp, "asdf")
+		shim := filepath.Join(asdf, "shims/fakelint")
+		Mkdir(t, filepath.Dir(shim))
+		if err := os.Rename(e.path("node_modules/.bin/fakelint"), shim); err != nil {
+			t.Fatal(err)
+		}
+		e.k.Setenv("ASDF_DATA_DIR", asdf)
+		e.k.PrependPath(filepath.Dir(shim))
+		e.turn("Edit", e.path("a.ts"))
+		r := e.stop(false)
+		r.Has(t, `PASS fakelint (1 file)\n  bin: `+shim+` (version manager)`)
+	})
+
+	t.Run("a bin in path_fallback runs from PATH", func(t *testing.T) {
+		e := stopChecksSetup(t)
+		e.oneCheck("tool_resolution:\n  path_fallback: [fakelint]")
 		e.fakelintOnPath()
 		e.turn("Edit", e.path("a.ts"))
 		e.stop(false)

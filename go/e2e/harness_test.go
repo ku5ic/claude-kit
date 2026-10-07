@@ -157,12 +157,14 @@ func (k *Kit) exec(name, stdin string, args ...string) Result {
 }
 
 // environ is the test process's environment minus anything that could
-// point the kit at the developer's real config, plus the sandbox's.
+// point the kit at the developer's real config or tool environments, plus
+// the sandbox's.
 func (k *Kit) environ() []string {
 	var env []string
 	for _, kv := range os.Environ() {
 		name, _, _ := strings.Cut(kv, "=")
-		if strings.HasPrefix(name, "CLAUDE") || strings.HasPrefix(name, "KIT_") || strings.HasPrefix(name, "GIT_") {
+		if strings.HasPrefix(name, "CLAUDE") || strings.HasPrefix(name, "KIT_") || strings.HasPrefix(name, "GIT_") ||
+			strings.HasPrefix(name, "ASDF_") || strings.HasPrefix(name, "MISE_") || name == "VIRTUAL_ENV" || name == "CONDA_PREFIX" {
 			continue
 		}
 		env = append(env, kv)
