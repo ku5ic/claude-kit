@@ -184,6 +184,9 @@ type GateDiscovery struct {
 	ScriptRunners  []string    `yaml:"script_runners"`
 	FanOutFlags    []string    `yaml:"fan_out_flags"`
 	FanOutCommands []string    `yaml:"fan_out_commands"`
+	DenyCommands   []string    `yaml:"deny_commands"`
+	DenyNames      []string    `yaml:"deny_names"`
+	DenyActions    []string    `yaml:"deny_actions"`
 }
 
 // Reference is a command prefix that runs another task of provider: the
@@ -202,6 +205,7 @@ type ToolchainCheck struct {
 	Cmd     string   `yaml:"cmd"`
 	Bin     []string `yaml:"bin"`
 	WhenDir string   `yaml:"when_dir"`
+	Slot    string   `yaml:"slot"`
 }
 
 type Formatter struct {

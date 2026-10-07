@@ -409,6 +409,20 @@ stacks:
 		r.Has(t, "PASS js: local\n", "SKIP js: ambiguous (fakeother only on PATH (")
 	})
 
+	t.Run("tooling: lists the gates run-checks takes from CI config", func(t *testing.T) {
+		e := injectContextSetup(t, tree)
+		e.useRealKitYML()
+		Write(t, filepath.Join(e.root, "pyproject.toml"), "[project]\nname = \"x\"\n")
+		Write(t, filepath.Join(e.root, ".gitignore"), ".venv\n")
+		Write(t, filepath.Join(e.root, ".github/workflows/ci.yml"), "jobs:\n  test:\n    steps:\n      - run: pytest\n")
+		Stub(t, filepath.Join(e.root, ".venv/bin/pytest"), "")
+		e.Git(e.root, "add", "-A")
+		block := injectContextTooling(e.run("s1", "").Output)
+		if !strings.Contains(block, "ci gates (run-checks runs these from CI config):\n  python: test (.github/workflows/ci.yml: pytest)\n") {
+			t.Errorf("tooling lacks the CI gate:\n%s", block)
+		}
+	})
+
 	t.Run("tooling: workspace packages get their own section with the root's package manager", func(t *testing.T) {
 		e := injectContextSetup(t, tree)
 		e.useRealKitYML()

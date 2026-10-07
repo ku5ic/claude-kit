@@ -29,6 +29,7 @@ type Gate struct {
 	BinLine string // "  bin: <words> (<source>)\n" when the kit resolved the binary
 	Note    string // printed as "  note: <note>" under the verdict
 	Skip    string
+	CI      string // the CI config it came from, when only CI names it
 }
 
 // extra is the lines printed under g's verdict: its bin line and note.
@@ -40,12 +41,14 @@ func (g Gate) extra() string {
 }
 
 // planner accumulates one plan; orchestrated holds the checks an
-// orchestrator covers, whose JS tasks are then left to it.
+// orchestrator covers, whose JS tasks are then left to it; ci holds the CI
+// steps by the subproject they run in.
 type planner struct {
 	cfg          *config.Config
 	root         string
 	gates        []Gate
 	orchestrated map[string]bool
+	ci           map[string][]ciStep
 }
 
 func (p *planner) add(g Gate) { p.gates = append(p.gates, g) }
@@ -69,12 +72,30 @@ func Gates(cfg *config.Config, root string, only []string) []Gate {
 	if wantsJS {
 		p.orchestrate()
 	}
-	for _, sub := range project.Subprojects(cfg, root) {
+	subs := project.Subprojects(cfg, root)
+	p.ci = stepsBySubproject(ciSteps(cfg, root), subs)
+	for _, sub := range subs {
 		if inScope(sub) {
 			p.subproject(sub)
 		}
 	}
 	return p.gates
+}
+
+// stepsBySubproject files each CI step under the deepest subproject its
+// directory is in.
+func stepsBySubproject(steps []ciStep, subs []string) map[string][]ciStep {
+	out := map[string][]ciStep{}
+	for _, s := range steps {
+		best := "."
+		for _, sub := range subs {
+			if sub != "." && (s.dir == sub || strings.HasPrefix(s.dir, sub+"/")) && len(sub) > len(best) {
+				best = sub
+			}
+		}
+		out[best] = append(out[best], s)
+	}
+	return out
 }
 
 // RunAll runs Gates' checks and returns the failure count. Output contract,
@@ -214,11 +235,26 @@ func (p *planner) subproject(sub string) {
 	}
 
 	r := roles(cfg, p.root, dir, sfx, tasks)
+	ciStack := skipLabel
+	for _, name := range cfg.StackOrder {
+		if ciStack == "" && name != "monorepo" && cfg.HasStack(dir, name) {
+			ciStack = name
+		}
+	}
+	ci := p.ciLeaves(sub, sfx, ciStack)
 	seen := map[string]bool{}
 	argLeaves := map[string]Gate{}
 	for _, l := range r.leaves {
 		if l.withArgs {
 			argLeaves[l.id] = l.gate
+		}
+	}
+	// filled is, per check, the first gate that runs for it: a CI tool line
+	// or a toolchain check standing in for that check is then covered.
+	filled := map[string]string{}
+	fill := func(slot, label string) {
+		if filled[slot] == "" {
+			filled[slot] = label
 		}
 	}
 	for _, c := range cfg.Checks {
@@ -246,15 +282,26 @@ func (p *planner) subproject(sub string) {
 					g.Words = withArgs.Words
 				}
 				p.add(g)
+				fill(c.Name, full)
 			}
 		}
-		for _, l := range r.leaves {
+		// Gates inside aggregates, then those only CI names: tasks CI runs,
+		// then tools it runs directly, which yield to anything that filled
+		// the check already.
+		for _, l := range append(slices.Clone(r.leaves), ci...) {
 			if l.slot != c.Name || seen[l.id] || (p.orchestrated[c.Name] && strings.HasPrefix(l.label, "js: ")) {
 				continue
 			}
-			matched, seen[l.id] = true, true
-			if l.gate.Skip == "" && cfg.CheckDisabled(c.Name, l.label) {
-				l.gate = Gate{Label: l.label, Skip: "disabled_checks"}
+			seen[l.id] = true
+			switch {
+			case l.gate.CI != "" && l.inline && filled[c.Name] != "":
+				l.gate = Gate{Label: l.label, Skip: "covered by " + filled[c.Name], CI: l.gate.CI}
+			case l.gate.Skip == "" && cfg.CheckDisabled(c.Name, l.label):
+				l.gate = Gate{Label: l.label, Skip: "disabled_checks", CI: l.gate.CI}
+			}
+			if l.gate.Skip == "" {
+				matched = true
+				fill(c.Name, l.label)
 			}
 			p.add(l.gate)
 		}
@@ -281,6 +328,10 @@ func (p *planner) subproject(sub string) {
 		label := tc.Stack + ": " + tc.Name + sfx
 		if !cfg.ToolchainEnabled(tc) {
 			p.add(Gate{Label: label, Skip: "disabled_toolchain_checks"})
+			continue
+		}
+		if tc.Slot != "" && filled[tc.Slot] != "" {
+			p.add(Gate{Label: label, Skip: "covered by " + filled[tc.Slot]})
 			continue
 		}
 		run := tools.ResolveToolchain(cfg, tc, dir, p.root)

@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ku5ic/claude-kit/go/internal/checks"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/project"
@@ -209,6 +210,17 @@ func tooling(cfg *config.Config, root string) string {
 	}
 	if capped {
 		body = append(body, "(subprojects capped at 20; kit run-checks covers all)")
+	}
+	if checks.HasCI(root) {
+		var ci []string
+		for _, g := range checks.Gates(cfg, root, nil) {
+			if g.CI != "" && g.Skip == "" {
+				ci = append(ci, "  "+g.Label)
+			}
+		}
+		if len(ci) > 0 {
+			body = append(append(body, "ci gates (run-checks runs these from CI config):"), ci...)
+		}
 	}
 	if len(body) > 0 {
 		body = append(body, "checks: `kit run-checks --plan` lists what kit run-checks runs, without running it")

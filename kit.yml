@@ -376,20 +376,39 @@ gate_discovery:
   script_runners: [run-s, run-p, npm-run-all, npm-run-all2]
   fan_out_flags: [-r, --recursive, --filter, -F, --workspaces, --ws, -ws, --workspace]
   fan_out_commands: ["turbo run", turbo, "nx run-many", "nx affected", "lerna run", "yarn workspaces foreach", "pnpm -r"]
+  # CI steps (GitHub Actions workflows, .gitlab-ci.yml) are read like task
+  # bodies; a step's task references run those tasks, and a tool it runs
+  # directly runs only when that tool resolves from the project
+  # (tool_resolution), and only when no project task fills its check. Jobs
+  # with services, a container, OIDC (id-token: write), a deployment
+  # environment, secrets in their env, or a reusable workflow are skipped
+  # whole, and so are steps that use an action, a non-sh shell, secrets, or
+  # a CI expression.
+  #   deny_commands  a step holding one of these words (or word runs) is skipped
+  #   deny_names     a job or step whose name holds one of these words is skipped
+  #   deny_actions   a job using an action with one of these prefixes is skipped
+  deny_commands: [publish, deploy, upload, release, "docker push", "docker login", "gh release", twine, "npm publish", "pnpm publish",
+    "yarn publish", "cargo publish", "gem push", "terraform apply", "tofu apply", aws, gcloud, az, wrangler, vercel, netlify, flyctl,
+    heroku, kubectl, helm, ssh, scp, rsync, cosign, gpg, codecov, coveralls, curl, wget]
+  deny_names: [release, deploy, deployment, publish, upload, pages, docs-deploy, notify, slack, discord]
+  deny_actions: [aws-actions/, google-github-actions/auth, google-github-actions/setup-gcloud, azure/login, docker/login-action,
+    docker/build-push-action, hashicorp/setup-terraform, pulumi/]
 
 # Checks a stack's own toolchain provides, run where that stack is detected.
 #   bin:      candidate binaries; the first that resolves (tool_resolution)
 #             fills the {bin} word
 #   when_dir: a directory that must exist first, else the check is skipped
+#   slot:     the check it stands in for; a project task or CI gate that
+#             fills that check covers it, so the two don't both run
 toolchain_checks:
   - {stack: rust, name: check, cmd: "{bin} check", bin: [cargo]}
-  - {stack: rust, name: clippy, cmd: "{bin} clippy -- -D warnings", bin: [cargo]}
-  - {stack: rust, name: fmt, cmd: "{bin} fmt --check", bin: [cargo]}
-  - {stack: rust, name: test, cmd: "{bin} test", bin: [cargo]}
+  - {stack: rust, name: clippy, cmd: "{bin} clippy -- -D warnings", bin: [cargo], slot: lint}
+  - {stack: rust, name: fmt, cmd: "{bin} fmt --check", bin: [cargo], slot: format-check}
+  - {stack: rust, name: test, cmd: "{bin} test", bin: [cargo], slot: test}
   - {stack: go, name: vet, cmd: "{bin} vet ./...", bin: [go]}
-  - {stack: go, name: test, cmd: "{bin} test ./...", bin: [go]}
+  - {stack: go, name: test, cmd: "{bin} test ./...", bin: [go], slot: test}
   # validate needs the providers `init` installs, so it waits for .terraform/.
-  - {stack: opentofu, name: fmt, cmd: "{bin} fmt -check -recursive", bin: [tofu, terraform]}
+  - {stack: opentofu, name: fmt, cmd: "{bin} fmt -check -recursive", bin: [tofu, terraform], slot: format-check}
   - {stack: opentofu, name: validate, cmd: "{bin} validate", bin: [tofu, terraform], when_dir: .terraform}
 
 # Turning checks off from the overlay. An overlay entry in checks (by name)

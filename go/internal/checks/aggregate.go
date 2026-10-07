@@ -30,9 +30,9 @@ type taskRoles struct {
 // inline command, run as words. withArgs: a task run with the arguments the
 // aggregate passes it, which beats a plain run of the same task.
 type leaf struct {
-	id, slot, label string
-	withArgs        bool
-	gate            Gate
+	id, slot, label  string
+	withArgs, inline bool
+	gate             Gate
 }
 
 type taskAt struct {
@@ -183,7 +183,7 @@ func (a *aggregator) walk(r classify.Result, agg taskAt, visited map[string]bool
 
 func (a *aggregator) inline(cmd classify.Command, agg taskAt, stack, dir string, env []string, blocker string, setup []string) leaf {
 	label := fmt.Sprintf("%s: %s (%s: %s)%s", stack, cmd.Slot, agg.task.Name, cmd.Tool, a.sfx)
-	l := leaf{id: "inline\x00" + dir + "\x00" + cmd.Slot + "\x00" + strings.Join(cmd.Words, " "), slot: cmd.Slot, label: label}
+	l := leaf{id: "inline\x00" + dir + "\x00" + cmd.Slot + "\x00" + strings.Join(cmd.Words, " "), slot: cmd.Slot, label: label, inline: true}
 	if blocker != "" {
 		l.gate = Gate{Label: label, Skip: "depends on `" + blocker + "` in " + agg.task.Name}
 		return l
@@ -241,6 +241,47 @@ func (a *aggregator) reference(ref classify.TaskRef, agg taskAt, stack string, v
 	}
 	label := fmt.Sprintf("%s: %s (%s)%s", stack, slot, target.task.Name, sfx)
 	return []leaf{{id: id, slot: slot, label: label, withArgs: withArgs, gate: Gate{Label: label, Dir: target.dir, Words: words}}}, false
+}
+
+// ciLeaves reads the CI steps that run in subproject sub like aggregates:
+// the tasks a step runs are leaves run as themselves, and a tool it runs
+// directly is a leaf only once it resolves from the project. A step that
+// can't be read, or holds a deny_commands word, gives nothing; so does a
+// reference to a task the project doesn't have (npm ci, make build).
+func (p *planner) ciLeaves(sub, sfx, stack string) []leaf {
+	if stack == "" {
+		stack = "ci"
+	}
+	a := &aggregator{cfg: p.cfg, root: p.root, sfx: sfx, cache: map[string][]project.Task{}}
+	var out []leaf
+	for _, step := range p.ci[sub] {
+		dir := filepath.Clean(filepath.Join(p.root, step.dir))
+		if dir != p.root && !strings.HasPrefix(dir, p.root+"/") {
+			continue
+		}
+		body := step.run
+		if len(step.env) > 0 {
+			quoted := make([]string, len(step.env))
+			for i, kv := range step.env {
+				k, v, _ := strings.Cut(kv, "=")
+				quoted[i] = k + "='" + strings.ReplaceAll(v, "'", `'\''`) + "'"
+			}
+			body = "export " + strings.Join(quoted, " ") + "\n" + body
+		}
+		r := classify.Body(p.cfg, body, a.lookup(dir))
+		if r.Opaque != "" || slices.ContainsFunc(r.Commands, func(c classify.Command) bool { return deniedCommand(p.cfg, c.Words) }) {
+			continue
+		}
+		task := project.Task{Provider: "ci", Stack: stack, Name: step.file}
+		for _, l := range a.walk(r, taskAt{task, dir}, map[string]bool{}, 0) {
+			if l.slot == "" {
+				continue
+			}
+			l.gate.CI = step.file
+			out = append(out, l)
+		}
+	}
+	return out
 }
 
 func setupNote(agg string, setup []string) string {
