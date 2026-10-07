@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	gitCommit    = regexp.MustCompile(`git[[:space:]]+([^[:space:]]+[[:space:]]+)*commit`)
+	gitCommit    = regexp.MustCompile(`\bgit[[:space:]]+([^[:space:]]+[[:space:]]+)*commit([[:space:];&|)]|$)`)
 	aiSignature  = regexp.MustCompile(`(?i)Co-Authored-By:[[:space:]]*Claude|Generated[[:space:]]+(by|with)[[:space:]]+Claude|🤖[[:space:]]*Generated`)
 	heredocOpen  = regexp.MustCompile(`<<(-?)[[:space:]]*['"]?([A-Za-z_][A-Za-z0-9_]*)['"]?`)
 	messageDQ    = regexp.MustCompile(`(-m|--message=?)[[:space:]]*"[^"]*"`)
@@ -97,8 +97,10 @@ func scanStaged(h *hook.Hook) error {
 
 // heredocBody is the message between the opener and the closing delimiter
 // of the heredoc opened on the git commit line (-m "$(cat <<'EOF'", -F -
-// <<'MSG'). Other heredocs in the command write files, not the message.
-// One never closed runs to the end, as the shell reads it.
+// <<'MSG'). A message from elsewhere (a file a heredoc writes for -F, a
+// heredoc opened on a continuation line) isn't read here; the signature
+// scan covers it, the wall-of-text and subject checks don't. One never
+// closed runs to the end, as the shell reads it.
 func heredocBody(cmd string) string {
 	var lines []string
 	delim, tabs := "", false
