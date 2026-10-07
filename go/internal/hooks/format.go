@@ -121,7 +121,7 @@ func FormatDispatch(h *hook.Hook) error {
 		if res := tools.Resolve(cfg, dir, root, "shellcheck", tools.Default); res.Words != nil {
 			cmd := exec.Command(res.Words[0], append(res.Words[1:], path)...)
 			cmd.Stdout, cmd.Stderr = h.Stderr, h.Stderr
-			cmd.Run()
+			_ = cmd.Run() // advisory: its findings are on stderr already
 		}
 	}
 	return nil
@@ -138,7 +138,7 @@ func runFormatter(f config.Formatter, bin []string, path, dir string, stderr io.
 	cmd := exec.Command(parts[0], parts[1:]...)
 	cmd.Dir, cmd.Stderr = dir, stderr
 	if !f.Stdout {
-		cmd.Run()
+		_ = cmd.Run() // a formatter that fails leaves the file as it was
 		return
 	}
 	in, err := os.Open(path)

@@ -145,7 +145,7 @@ func GuardSkills(h *hook.Hook) error {
 	if err != nil {
 		return nil
 	}
-	os.MkdirAll(cacheDir, 0o755)
+	_ = os.MkdirAll(cacheDir, 0o755)
 
 	var missing []string
 	for _, skill := range toCheck {

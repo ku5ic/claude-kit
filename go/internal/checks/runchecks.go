@@ -135,11 +135,11 @@ func (p *planner) stackFor(dir string) string {
 			return name
 		}
 	}
-	for _, pr := range project.Providers(p.cfg, dir) {
-		if pr.Stack != "" {
-			return pr.Stack
+	if prs := project.Providers(p.cfg, dir); len(prs) > 0 {
+		if prs[0].Stack != "" {
+			return prs[0].Stack
 		}
-		return pr.Name
+		return prs[0].Name
 	}
 	return "ci"
 }
@@ -439,7 +439,7 @@ func (p *planner) subproject(sub string) {
 			}
 			p.add(l.gate)
 		}
-		if !matched && skipLabel != "" && !(p.orchestrated[c.Name] && skipLabel == "js") {
+		if !matched && skipLabel != "" && (!p.orchestrated[c.Name] || skipLabel != "js") {
 			reason := "no " + c.Name + " task"
 			if cfg.CheckDisabled(c.Name, "") {
 				reason = "disabled_checks"

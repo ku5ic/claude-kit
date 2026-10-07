@@ -6,6 +6,7 @@ package status
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -66,10 +67,10 @@ func jqString(data map[string]any, path, def string) string {
 // Statusline prints the two-row status: model/agent/dir/git on row 1,
 // context/cost/duration/effort/rate limit on row 2.
 func Statusline(stdin io.Reader, stdout io.Writer, home string) {
-	defer func() { recover() }()
+	defer func() { _ = recover() }()
 	raw, _ := io.ReadAll(stdin)
 	var data map[string]any
-	json.Unmarshal(raw, &data)
+	_ = json.Unmarshal(raw, &data) // bad input renders the defaults
 
 	modelName := jqString(data, "model.display_name", "unknown")
 	cwd := jqString(data, "workspace.current_dir", "")
@@ -278,7 +279,7 @@ func tailLines(path string, n int) []string {
 	// Transcripts grow large; read only the end.
 	const window = 4 << 20
 	if info, err := f.Stat(); err == nil && info.Size() > window {
-		f.Seek(-window, io.SeekEnd)
+		_, _ = f.Seek(-window, io.SeekEnd) // failing, it reads from the start: slower, same tail
 	}
 	var lines []string
 	scanner := bufio.NewScanner(f)
@@ -316,7 +317,7 @@ func gitStatus(home, cwd, sessionID string) string {
 		data, _ := os.ReadFile(file)
 		return strings.TrimSuffix(string(data), "\n")
 	}
-	os.MkdirAll(dir, 0o755)
+	_ = os.MkdirAll(dir, 0o755) // without it, the segment just isn't cached
 	out, _ := exec.Command("git", "-C", cwd, "branch", "--show-current").Output()
 	branch := strings.TrimSpace(string(out))
 	if branch == "" {
@@ -336,9 +337,9 @@ func gitStatus(home, cwd, sessionID string) string {
 	}
 	segment := fmt.Sprintf("%s\t%d\t%d", branch, add, del)
 	if tmp, err := os.CreateTemp(dir, ".git-*"); err == nil {
-		tmp.WriteString(segment + "\n")
-		tmp.Close()
-		if os.Rename(tmp.Name(), file) != nil {
+		_, werr := tmp.WriteString(segment + "\n")
+		// A short write must not be cached for the whole ttl.
+		if errors.Join(werr, tmp.Close()) != nil || os.Rename(tmp.Name(), file) != nil {
 			os.Remove(tmp.Name())
 		}
 	}
@@ -350,7 +351,7 @@ func gitStatus(home, cwd, sessionID string) string {
 // prints nothing: lines not matching that shape are discarded and logged
 // by Claude Code.
 func SubagentStatusline(stdin io.Reader, stdout io.Writer) {
-	defer func() { recover() }()
+	defer func() { _ = recover() }()
 	var payload struct {
 		Tasks []map[string]any `json:"tasks"`
 	}

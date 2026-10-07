@@ -185,7 +185,7 @@ func Tasks(cfg *config.Config, dir string) []Task {
 		run = strings.ReplaceAll(run, "{pm}", pm)
 		names, err := extract.Run(tp.Extractor, p.Manifest, tp.Arg)
 		if err != nil {
-			os.Stderr.WriteString("kit: " + err.Error() + "\n")
+			_, _ = os.Stderr.WriteString("kit: " + err.Error() + "\n")
 			continue
 		}
 		bodies := extract.Bodies(tp.Extractor, p.Manifest, tp.Arg)

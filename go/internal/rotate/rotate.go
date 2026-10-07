@@ -48,7 +48,7 @@ func Run(cfg *config.Config, paths config.Paths, args []string, stdout, stderr i
 	if dryRun {
 		r.verb, pruned, dropping = "would-delete", "would prune", "would drop"
 	}
-	os.MkdirAll(paths.LogDir(), 0o755)
+	_ = os.MkdirAll(paths.LogDir(), 0o755)
 
 	scratch := paths.ScratchHome()
 	if isDir(scratch) {
@@ -127,7 +127,7 @@ type rotator struct {
 // old, as find's -mtime +days, and records each in the rotate log.
 func (r *rotator) prune(dir string, days int, topOnly bool, keep func(string) bool) int {
 	var matched []string
-	filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+	_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
@@ -210,8 +210,9 @@ func writeLines(path string, lines []string) {
 	}
 	w := bufio.NewWriter(tmp)
 	for _, l := range lines {
-		w.WriteString(l)
-		w.WriteByte('\n')
+		// bufio errors are sticky: Flush below reports any of them.
+		_, _ = w.WriteString(l)
+		_ = w.WriteByte('\n')
 	}
 	// A short write must not replace the log with a truncated copy.
 	if err := errors.Join(w.Flush(), tmp.Close()); err != nil {

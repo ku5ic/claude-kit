@@ -70,7 +70,9 @@ func TestScript(dir string) string {
 	var pkg struct {
 		Scripts map[string]string `json:"scripts"`
 	}
-	json.Unmarshal(data, &pkg)
+	if json.Unmarshal(data, &pkg) != nil {
+		return ""
+	}
 	return pkg.Scripts["test"]
 }
 
