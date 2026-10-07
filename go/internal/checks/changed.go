@@ -39,7 +39,14 @@ func changedLines(root, rev string, files []string) map[string]map[int]bool {
 		}
 	}
 	var current map[int]bool
+	body := 0 // lines of the hunk still to come: content, whatever they start with
 	for line := range strings.SplitSeq(diff, "\n") {
+		if body > 0 {
+			if !strings.HasPrefix(line, `\`) { // "\ No newline at end of file" isn't counted
+				body--
+			}
+			continue
+		}
 		if header, ok := strings.CutPrefix(line, "+++ "); ok {
 			if header == "/dev/null" {
 				current = nil
@@ -56,23 +63,34 @@ func changedLines(root, rev string, files []string) map[string]map[int]bool {
 			continue
 		}
 		m := hunk.FindStringSubmatch(line)
-		if m == nil || current == nil {
+		if m == nil {
 			continue
 		}
-		start, _ := strconv.Atoi(m[1])
-		count := 1
-		if m[2] != "" {
-			count, _ = strconv.Atoi(m[2])
+		start, _ := strconv.Atoi(m[2])
+		removed, added := hunkCount(m[1]), hunkCount(m[3])
+		body = removed + added
+		if current == nil {
+			continue
 		}
-		if count == 0 {
+		if added == 0 {
 			// A pure deletion: the lines on either side of it are touched.
 			current[start], current[start+1] = true, true
 		}
-		for n := start; n < start+count; n++ {
+		for n := start; n < start+added; n++ {
 			current[n] = true
 		}
 	}
 	return changed
 }
 
-var hunk = regexp.MustCompile(`^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@`)
+// hunk is a hunk header: the old line count, the new start, the new count.
+var hunk = regexp.MustCompile(`^@@ -\d+(?:,(\d+))? \+(\d+)(?:,(\d+))? @@`)
+
+// hunkCount is a hunk header's line count; one left out is 1.
+func hunkCount(s string) int {
+	if s == "" {
+		return 1
+	}
+	n, _ := strconv.Atoi(s)
+	return n
+}

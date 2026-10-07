@@ -77,6 +77,18 @@ func TestDeadcode(t *testing.T) {
 		e.prints("npm", "Unused exports (1)\nadded  src/my old.ts:2:14", 1)
 		e.run().Has(t, "FAIL js: deadcode (knip)", "added  src/my old.ts:2:14")
 	})
+	t.Run("added or removed lines that look like diff headers stay content", func(t *testing.T) {
+		e := knip(t)
+		e.write("notes.md", "a\n-- x\n")
+		e.k.Git(e.project, "add", "notes.md")
+		e.k.Git(e.project, "commit", "-q", "-m", "notes")
+		e.write("notes.md", "a\n++ b/src/x.ts\n")
+		e.write("src/old.ts", "export const old = 1\nexport const added = 2\n")
+		e.prints("npm", "Unused exports (2)\nold  src/old.ts:1:14\nadded  src/old.ts:2:14", 1)
+		r := e.run()
+		r.Has(t, "FAIL js: deadcode (knip)", "added  src/old.ts:2:14")
+		r.Lacks(t, "old  src/old.ts:1:14")
+	})
 	t.Run("a finding in a changed file whose path has a space still fails", func(t *testing.T) {
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"knip":"knip"}}`+"\n")
