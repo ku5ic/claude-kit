@@ -33,6 +33,7 @@ type taskRoles struct {
 	tools   [][]string          // per task: the commands its body runs directly
 	leaves  []leaf              // gates found inside aggregate tasks, in body order
 	away    [][]awayGate        // per task: the gates its body runs in another subproject
+	unsafe  []string            // per task: a forbidden command its body runs (eslint --fix), or ""
 }
 
 // leaf is one gate inside an aggregate: another task, run as itself, or an
@@ -58,7 +59,7 @@ type taskAt struct {
 // runs other tasks or several gates is an aggregate, never run itself, its
 // gates run separately; anything else doesn't run.
 func roles(cfg *config.Config, root, dir, sfx string, tasks []project.Task, subs map[string]bool) taskRoles {
-	r := taskRoles{slots: make([]string, len(tasks)), covered: make([]int, len(tasks)), single: make([]*classify.Command, len(tasks)), tools: make([][]string, len(tasks)), away: make([][]awayGate, len(tasks))}
+	r := taskRoles{slots: make([]string, len(tasks)), covered: make([]int, len(tasks)), single: make([]*classify.Command, len(tasks)), tools: make([][]string, len(tasks)), away: make([][]awayGate, len(tasks)), unsafe: make([]string, len(tasks))}
 	a := &aggregator{cfg: cfg, root: root, sfx: sfx, home: dir, subs: subs, cache: map[string][]project.Task{dir: tasks}}
 	results := make([]classify.Result, len(tasks))
 	for i, t := range tasks {
@@ -66,6 +67,7 @@ func roles(cfg *config.Config, root, dir, sfx string, tasks []project.Task, subs
 		results[i] = classify.Body(cfg, t.Body, a.lookup(dir))
 		r.tools[i] = bodyTools(results[i])
 		r.away[i] = away(root, dir, subs, t, results[i])
+		r.unsafe[i] = forbidden(results[i])
 		gate, single := results[i].SingleGate()
 		if single {
 			r.single[i] = &gate
@@ -160,6 +162,22 @@ func away(root, home string, subs map[string]bool, t project.Task, r classify.Re
 		}
 	}
 	return out
+}
+
+// forbidden is the first command r runs with a flag its check forbids
+// (eslint --fix, jest --watch), or "".
+func forbidden(r classify.Result) string {
+	for _, cmd := range r.Commands {
+		if cmd.Forbidden != "" {
+			return cmd.Forbidden
+		}
+	}
+	return ""
+}
+
+// unsafeSkip is the SKIP reason for a check task whose body runs cmd.
+func unsafeSkip(cmd string) string {
+	return "runs `" + cmd + "`, which a gate never runs"
 }
 
 // bodyTools is the commands r runs directly: each gate's tool, and the
@@ -499,7 +517,10 @@ func (a *aggregator) reference(ref classify.TaskRef, globs []string, agg taskAt,
 	}
 	label := fmt.Sprintf("%s: %s (%s)%s", stack, slot, target.task.Name, sfx)
 	gate := Gate{Label: label, Dir: target.dir, Words: words, Scope: scopeFor(checkNamed(a.cfg, slot), single)}
-	if st.blocker != "" {
+	switch unsafe := forbidden(r); {
+	case unsafe != "":
+		gate = Gate{Label: label, Skip: unsafeSkip(unsafe)}
+	case st.blocker != "":
 		gate = Gate{Label: label, Skip: "depends on `" + st.blocker + "` in " + agg.task.Name}
 	}
 	return []leaf{{id: id, slot: slot, label: label, withArgs: withArgs, tools: bodyTools(r), gate: gate, sub: sub}}, false

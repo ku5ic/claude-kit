@@ -508,6 +508,15 @@ func TestRunChecks(t *testing.T) {
 			t.Errorf("ran: %s", e.calls("npm"))
 		}
 	})
+	t.Run("a slot-named task whose body fixes or watches is skipped, and covers nothing", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", `{"scripts":{"check":"npm run lint && npm run unit","lint":"eslint . --fix","test":"jest --watch","unit":"vitest run"}}`+"\n")
+		e.stub("npm", 0)
+		r := e.run()
+		r.Has(t, "SKIP js: lint (lint) (runs `eslint --fix`, which a gate never runs)",
+			"SKIP js: test (test) (runs `jest --watch`, which a gate never runs)", "PASS js: test (unit)")
+		e.callsEqual("npm", e.phys(".")+" run unit")
+	})
 	t.Run("a slot's exclude globs hold for body-classified tasks too", func(t *testing.T) {
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"unit-watch":"vitest"}}`+"\n")

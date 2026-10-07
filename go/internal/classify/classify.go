@@ -49,6 +49,9 @@ type Command struct {
 	Expansion bool
 	Line      uint     // the body line its statement starts on
 	Globs     []string // words with an unquoted glob, which a shell expands
+	// Other: a check's tool run with a flag the check forbids ("eslint
+	// --fix"), which no gate may run.
+	Forbidden string
 }
 
 // Result is a whole body. Opaque says why it can't be read (a pipe, ||,
@@ -385,27 +388,36 @@ func (c *classifier) concurrently(args, env []string) []Command {
 // is dead code, plain tflint is lint), the first on a tie.
 func (c *classifier) tool(words, env []string) Command {
 	best, bestScore := Command{Kind: Other, Words: words, Env: env}, -1
+	forbidden := ""
 	for ci := range c.cfg.Checks {
 		check := &c.cfg.Checks[ci]
 		for pi := range check.Tools {
 			p := &check.Tools[pi]
-			if score := match(words, *p); score > bestScore {
+			score, flag := match(words, *p)
+			if score > bestScore {
 				best, bestScore = Command{Kind: Gate, Words: words, Env: env, Slot: check.Name, Tool: p.Bin, Pattern: p}, score
 			}
+			if forbidden == "" && flag != "" {
+				forbidden = p.Bin + " " + flag
+			}
 		}
+	}
+	if best.Kind == Other {
+		best.Forbidden = forbidden
 	}
 	return best
 }
 
 // match scores words against p: -1 when they don't match, else the number
-// of required flags (all of which are present).
-func match(words []string, p config.ToolPattern) int {
+// of required flags (all of which are present). flag is the forbidden flag
+// that alone kept words from matching.
+func match(words []string, p config.ToolPattern) (score int, flag string) {
 	bin := words[0]
 	if i := strings.LastIndex(bin, "/"); i >= 0 {
 		bin = bin[i+1:]
 	}
 	if bin != p.Bin {
-		return -1
+		return -1, ""
 	}
 	args := words[1:]
 	if len(p.Sub) > 0 {
@@ -417,23 +429,23 @@ func match(words []string, p config.ToolPattern) int {
 			}
 		}
 		if !slices.Contains(p.Sub, sub) {
-			return -1
+			return -1, ""
 		}
 	}
 	has := func(flag string) bool {
 		return slices.ContainsFunc(args, func(a string) bool { return a == flag || strings.HasPrefix(a, flag+"=") })
 	}
-	for _, f := range p.Forbid {
-		if has(f) {
-			return -1
-		}
-	}
 	for _, f := range p.Require {
 		if !has(f) {
-			return -1
+			return -1, ""
 		}
 	}
-	return len(p.Require)
+	for _, f := range p.Forbid {
+		if has(f) {
+			return -1, f
+		}
+	}
+	return len(p.Require), ""
 }
 
 // matchPrefix is the length of the first of prefixes (each one or more

@@ -349,10 +349,11 @@ func (p *planner) subproject(sub string) {
 		return fmt.Sprintf("%s: %s (%s)%s", stackOf(tasks[i]), r.slots[i], tasks[i].Name, sfx)
 	}
 	// coverer is the task whose run covers task i: the one whose body runs
-	// it, or, when that one is disabled, whatever covers that one; else -1.
+	// it, or, when that one is disabled or unsafe, whatever covers that one;
+	// else -1.
 	coverer := func(i int) int {
 		for j, n := r.covered[i], 0; j >= 0 && n < len(tasks); j, n = r.covered[j], n+1 {
-			if !cfg.CheckDisabled(r.slots[j], labelOf(j)) {
+			if !cfg.CheckDisabled(r.slots[j], labelOf(j)) && r.unsafe[j] == "" {
 				return j
 			}
 		}
@@ -388,6 +389,9 @@ func (p *planner) subproject(sub string) {
 				p.add(Gate{Label: full, Skip: "covered by " + tasks[by].Name})
 			case cfg.CheckDisabled(c.Name, full):
 				p.add(Gate{Label: full, Skip: "disabled_checks"})
+			case r.unsafe[i] != "":
+				// It never fills the check, so a clean gate (a CI step) still runs.
+				p.add(Gate{Label: full, Skip: unsafeSkip(r.unsafe[i])})
 			default:
 				g := Gate{Label: full, Dir: dir, Words: strings.Fields(t.Cmd), Scope: scopeFor(c, r.single[i])}
 				if withArgs, ok := argLeaves[taskID(t, dir)]; ok {

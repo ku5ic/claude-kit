@@ -285,7 +285,9 @@ task_providers:
 # counts, whatever its body.
 #   tools           {bin, sub, require, forbid}: bin by name; its first
 #                   non-flag argument one of sub; every require flag present;
-#                   no forbid flag (alone or as flag=value). A scoped check's
+#                   no forbid flag (alone or as flag=value). A task whose
+#                   body runs a forbid flag (eslint --fix) is skipped even
+#                   when its name matches, and fills nothing. A scoped check's
 #                   patterns add findings, unmapped, advisory (see deadcode)
 #   fallback_tasks  names that count only when no tasks glob matches, and
 #                   then only the first present; the others are covered by
