@@ -211,9 +211,11 @@ func tooling(cfg *config.Config, root string) string {
 	if capped {
 		body = append(body, "(subprojects capped at 20; kit run-checks covers all)")
 	}
-	if checks.HasCI(root) {
+	// Only the subprojects CI runs in, capped like the list above: planning
+	// resolves every tool, too slow for every session start.
+	if subs := checks.CISubprojects(cfg, root); len(subs) > 0 {
 		var ci []string
-		for _, g := range checks.Gates(cfg, root, nil) {
+		for _, g := range checks.Gates(cfg, root, subs[:min(len(subs), 20)]) {
 			if g.CI != "" && g.Skip == "" {
 				ci = append(ci, "  "+g.Label)
 			}

@@ -308,14 +308,14 @@ checks:
       - {bin: ty, sub: [check], forbid: [--watch]}
   - name: lint
     tasks: [lint, eslint, stylelint, "lint:*", "lint-*", "eslint:*", "stylelint:*"]
-    exclude: ["*fix*", "*watch*", "*staged*", "*changed*", "*unused*", "*deadcode*", "*dead-code*"]
+    exclude: ["*fix*", "*watch*", "*staged*", "*changed*", "*unused*", "*deadcode*", "*dead-code*", "lint:prettier"]
     tools:
       - {bin: eslint, forbid: [--fix]}
       - {bin: biome, sub: [lint, check, ci], forbid: [--write, --fix, --apply, --apply-unsafe]}
       - {bin: oxlint, forbid: [--fix]}
       - {bin: stylelint, forbid: [--fix]}
       - {bin: ruff, sub: [check], forbid: [--fix, --watch]}
-      - {bin: rubocop, forbid: [-a, -A, --autocorrect, --autocorrect-all]}
+      - {bin: rubocop, forbid: [-a, -A, -x, --autocorrect, --autocorrect-all, --auto-correct, --auto-correct-all, --safe-auto-correct, --fix-layout, --disable-uncorrectable]}
       - {bin: golangci-lint, sub: [run], forbid: [--fix]}
       - {bin: cargo, sub: [clippy], forbid: [--fix]}
       - {bin: markdownlint-cli2, forbid: [--fix]}
@@ -377,7 +377,8 @@ checks:
 
 # How the gate classifier reads a task body. A body it can't read with
 # certainty (a pipe, ||, a subshell, command substitution) holds no gate.
-#   wrappers          run the rest of the line, after any K=V words
+#   wrappers          run the rest of the line, after any K=V words; never
+#                     one that loads env (dotenv --), which the gate needs
 #   tool_runners      run the word after them as a tool; the kit reads the
 #                     tool, so the project's own copy is what counts
 #   references        a prefix that runs another task of a provider: the word
@@ -388,7 +389,7 @@ checks:
 #                     run-checks covers per subproject already
 #   fan_out_commands  the same, as whole commands
 gate_discovery:
-  wrappers: [env, cross-env, "dotenv --"]
+  wrappers: [env, cross-env]
   tool_runners: [npx, "pnpm exec", "pnpm dlx", bunx, "yarn dlx", "yarn exec", "npm exec", "uv run", "pipx run", "bundle exec", "poetry run"]
   references:
     - {prefix: "npm run", provider: package-scripts}

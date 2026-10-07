@@ -151,6 +151,7 @@ type Task struct {
 	Name     string
 	Cmd      string
 	Body     string
+	PerLine  bool // each line of Body runs in its own shell (make, just)
 }
 
 // Tasks lists every task of every provider in dir. {pm} is the nearest
@@ -193,10 +194,10 @@ func Tasks(cfg *config.Config, dir string) []Task {
 				continue
 			}
 			body := bodies[name]
-			if tp.Body != "" && body != "" {
-				body = strings.ReplaceAll(tp.Body, "{body}", body)
+			if tp.Body != "" && body.Text != "" {
+				body.Text = strings.ReplaceAll(tp.Body, "{body}", body.Text)
 			}
-			out = append(out, Task{Provider: tp.Name, Stack: tp.Stack, Name: name, Cmd: strings.ReplaceAll(run, "{task}", name), Body: body})
+			out = append(out, Task{Provider: tp.Name, Stack: tp.Stack, Name: name, Cmd: strings.ReplaceAll(run, "{task}", name), Body: body.Text, PerLine: body.PerLine})
 		}
 	}
 	return out

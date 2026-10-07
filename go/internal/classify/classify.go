@@ -5,6 +5,8 @@
 package classify
 
 import (
+	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -45,6 +47,8 @@ type Command struct {
 	Refs    []TaskRef
 	// Expansion: a word held a variable; Words ends at it with "$".
 	Expansion bool
+	Line      uint     // the body line its statement starts on
+	Globs     []string // words with an unquoted glob, which a shell expands
 }
 
 // Result is a whole body. Opaque says why it can't be read (a pipe, ||,
@@ -67,9 +71,13 @@ func Body(cfg *config.Config, body string, lookup Lookup) Result {
 	}
 	c := &classifier{cfg: cfg, lookup: lookup}
 	for _, stmt := range file.Stmts {
+		n := len(c.out)
 		c.stmt(stmt)
 		if c.opaque != "" {
 			return Result{Opaque: c.opaque}
+		}
+		for i := n; i < len(c.out); i++ {
+			c.out[i].Line = stmt.Pos().Line()
 		}
 	}
 	return Result{Commands: c.out}
@@ -134,7 +142,8 @@ func (c *classifier) stmt(s *syntax.Stmt) {
 		}
 		var env []string
 		for _, a := range cmd.Args {
-			if a.Name == nil {
+			// export FOO re-exports FOO's current value; it sets nothing.
+			if a.Name == nil || a.Naked {
 				continue
 			}
 			value := ""
@@ -179,18 +188,25 @@ func (c *classifier) call(call *syntax.CallExpr) {
 		}
 		env = append(env, a.Name.Value+"="+value)
 	}
-	var words []string
+	var words, globs []string
 	for _, w := range call.Args {
 		if hasCmdSubst(w) {
 			c.opaque = "command substitution"
 			return
 		}
 		v, ok := literal(w)
+		bare := unquoted(w)
+		if ok && (strings.HasPrefix(bare, "~") || braces.MatchString(bare)) {
+			ok = false // ~ and {a,b}: a shell rewrites them; exec doesn't
+		}
 		if !ok {
 			// Keep the literal words before it, so cd "$DIR" still reads
 			// as a cd the kit can't follow.
 			c.out = append(c.out, Command{Kind: Other, Words: append(words, "$"), Env: env, Expansion: true})
 			return
+		}
+		if strings.ContainsAny(bare, "*?[") {
+			globs = append(globs, v)
 		}
 		words = append(words, v)
 	}
@@ -198,7 +214,27 @@ func (c *classifier) call(call *syntax.CallExpr) {
 		c.out = append(c.out, Command{Kind: Export, Env: env})
 		return
 	}
-	c.out = append(c.out, c.words(words, env)...)
+	cmds := c.words(words, env)
+	for i := range cmds {
+		cmds[i].Globs = globs
+	}
+	c.out = append(c.out, cmds...)
+}
+
+var braces = regexp.MustCompile(`\{[^{}]*(,|\.\.)[^{}]*\}`)
+
+// unquoted is w's text outside quotes, where a shell expands globs, braces,
+// and a leading ~.
+func unquoted(w *syntax.Word) string {
+	var b strings.Builder
+	for _, part := range w.Parts {
+		if lit, ok := part.(*syntax.Lit); ok {
+			b.WriteString(lit.Value)
+		} else {
+			b.WriteString("\x00")
+		}
+	}
+	return b.String()
 }
 
 // words classifies one command's literal words; concurrently can make one
@@ -265,6 +301,9 @@ func (c *classifier) reference(words, env []string) (Command, bool) {
 	rest := words[bestLen:]
 	ref := TaskRef{Provider: best.Provider, Name: best.Task}
 	runner := best.Provider == "make" || best.Provider == "just"
+	// make runs every target it's given; just runs each word that names a
+	// recipe, the rest being arguments to the recipe before it.
+	var more []string
 	for i := 0; i < len(rest); i++ {
 		w := rest[i]
 		switch {
@@ -282,19 +321,31 @@ func (c *classifier) reference(words, env []string) (Command, bool) {
 			i++
 		case best.Provider == "make" && strings.HasPrefix(w, "-C"):
 			ref.Dir = strings.TrimPrefix(w, "-C")
-		case best.Provider == "make" && slices.Contains([]string{"-j", "-l", "-o", "-W", "-I"}, w) && i+1 < len(rest) && !strings.HasPrefix(rest[i+1], "-"):
+		case best.Provider == "make" && slices.Contains([]string{"-j", "-l"}, w) && i+1 < len(rest) && isNumber(rest[i+1]),
+			best.Provider == "make" && slices.Contains([]string{"-o", "-W", "-I"}, w) && i+1 < len(rest):
 			i++ // a flag's value (make -j 4), not a target
 		case runner && strings.Contains(w, "="):
 			// make GOARCH=arm64 build, just os=linux build: a variable.
 		case strings.HasPrefix(w, "-"):
 		case ref.Name == "":
 			ref.Name = w
+		case best.Provider == "make",
+			best.Provider == "just" && len(ref.Args) == 0 && c.lookup(ref.Provider, ref.Dir, w):
+			more = append(more, w)
 		default:
 			ref.Args = append(ref.Args, w)
 		}
 	}
-	if ref.Name == "" {
+	if ref.Name == "" || filepath.IsAbs(ref.Dir) || strings.HasPrefix(ref.Dir, "~") {
+		// make -C /opt/app: outside the repo, so not a task the kit can read.
 		return Command{Kind: Other, Words: words, Env: env}, true
+	}
+	if len(more) > 0 {
+		refs := []TaskRef{ref}
+		for _, name := range more {
+			refs = append(refs, TaskRef{Provider: ref.Provider, Dir: ref.Dir, Name: name})
+		}
+		return Command{Kind: Ref, Words: words, Env: env, Refs: refs}, true
 	}
 	if best.Shorthand && !c.lookup(ref.Provider, ref.Dir, ref.Name) {
 		// pnpm eslint: no such script, so pnpm runs the eslint binary.
@@ -394,6 +445,10 @@ func matchPrefix(words, prefixes []string) (int, bool) {
 		}
 	}
 	return 0, false
+}
+
+func isNumber(w string) bool {
+	return w != "" && strings.Trim(w, "0123456789") == ""
 }
 
 func hasPrefix(words, prefix []string) bool {

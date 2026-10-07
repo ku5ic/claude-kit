@@ -96,6 +96,10 @@ func githubSteps(cfg *config.Config, root, file string) []ciStep {
 		if defaultShell == "" {
 			defaultShell = workflowShell
 		}
+		// A Windows runner's default shell is pwsh.
+		if defaultShell == "" && strings.Contains(strings.ToLower(str(job["runs-on"])), "windows") {
+			defaultShell = "pwsh"
+		}
 		steps, _ := job["steps"].([]any)
 		for _, s := range steps {
 			step, _ := s.(map[string]any)
@@ -186,6 +190,13 @@ func gitlabSteps(cfg *config.Config, root, file string) []ciStep {
 	for k, v := range doc {
 		merged[k] = v
 	}
+	// Global variables, and default: services or id_tokens, hold for every
+	// job that doesn't set its own.
+	globalEnv, ok := literalEnv(merged["variables"])
+	if !ok {
+		return nil
+	}
+	def, _ := merged["default"].(map[string]any)
 	rel := strings.TrimPrefix(file, root+"/")
 	names := make([]string, 0, len(merged))
 	for name := range merged {
@@ -199,25 +210,26 @@ func gitlabSteps(cfg *config.Config, root, file string) []ciStep {
 			continue
 		}
 		job = gitlabExtend(merged, job, 0)
-		if job["services"] != nil || job["environment"] != nil || job["id_tokens"] != nil || job["secrets"] != nil || job["trigger"] != nil || deniedName(cfg, name) {
+		inherited := func(key string) any {
+			if v := job[key]; v != nil {
+				return v
+			}
+			if v := def[key]; v != nil {
+				return v
+			}
+			return merged[key]
+		}
+		if inherited("services") != nil || inherited("id_tokens") != nil || job["environment"] != nil || job["secrets"] != nil || job["trigger"] != nil || deniedName(cfg, name) {
 			continue
 		}
 		env, ok := literalEnv(job["variables"])
 		if !ok {
 			continue
 		}
+		env = append(slices.Clone(globalEnv), env...)
 		// GitLab runs before_script and script in one shell, so a cd or an
 		// export on one line holds for the next: they're one step.
-		before := job["before_script"]
-		if before == nil {
-			if def, _ := merged["default"].(map[string]any); def != nil {
-				before = def["before_script"]
-			}
-		}
-		if before == nil {
-			before = merged["before_script"]
-		}
-		lines, ok := scriptLines(before)
+		lines, ok := scriptLines(inherited("before_script"))
 		script, ok2 := scriptLines(job["script"])
 		if !ok || !ok2 || len(script) == 0 {
 			continue

@@ -68,8 +68,8 @@ func satisfies(dir, pkg, spec string) (string, verdict) {
 	return manifest.Version, mismatch
 }
 
-// rel is path relative to root, "." for root itself.
-func rel(root, path string) string {
+// Rel is path relative to root, "." for root itself.
+func Rel(root, path string) string {
 	if path == root {
 		return "."
 	}

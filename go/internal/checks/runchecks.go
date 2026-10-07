@@ -88,6 +88,16 @@ func Gates(cfg *config.Config, root string, only []string) []Gate {
 	return p.gates
 }
 
+// CISubprojects is the subprojects ("." is the root) a CI step runs in.
+func CISubprojects(cfg *config.Config, root string) []string {
+	if !HasCI(root) {
+		return nil
+	}
+	subs := project.Subprojects(cfg, root)
+	steps := stepsBySubproject(ciSteps(cfg, root), subs)
+	return slices.DeleteFunc(subs, func(sub string) bool { return len(steps[sub]) == 0 })
+}
+
 // stepsBySubproject files each CI step under the deepest subproject its
 // directory is in.
 func stepsBySubproject(steps []ciStep, subs []string) map[string][]ciStep {
@@ -150,7 +160,7 @@ func PrintPlan(cfg *config.Config, root string, only []string, out io.Writer) {
 		}
 		fmt.Fprintf(out, "RUN %s\n  cmd: %s\n", g.Label, tools.ShellJoin(g.Words))
 		if g.Dir != root && g.Dir != "" {
-			fmt.Fprintf(out, "  dir: %s\n", rel(root, g.Dir))
+			fmt.Fprintf(out, "  dir: %s\n", tools.Rel(root, g.Dir))
 		}
 		switch {
 		case g.Scope != nil && g.Scope.Advisory:
@@ -301,34 +311,61 @@ func (p *planner) subproject(sub string) {
 	seen := map[string]bool{}
 	argLeaves := map[string]Gate{}
 	for _, l := range r.leaves {
-		if l.withArgs {
+		// A leaf a blocker skipped has no words to run the task with.
+		if l.withArgs && l.gate.Skip == "" {
 			argLeaves[l.id] = l.gate
 		}
 	}
-	// filled is, per check, the first gate that runs for it: a CI tool line
-	// or a toolchain check standing in for that check is then covered.
-	filled := map[string]string{}
-	fill := func(slot, label string) {
-		if filled[slot] == "" {
-			filled[slot] = label
+	stackOf := func(t project.Task) string {
+		if t.Stack != "" {
+			return t.Stack
 		}
+		return t.Provider
+	}
+	labelOf := func(i int) string {
+		return fmt.Sprintf("%s: %s (%s)%s", stackOf(tasks[i]), r.slots[i], tasks[i].Name, sfx)
+	}
+	// coverer is the task whose run covers task i: the one whose body runs
+	// it, or, when that one is disabled, whatever covers that one; else -1.
+	coverer := func(i int) int {
+		for j, n := r.covered[i], 0; j >= 0 && n < len(tasks); j, n = r.covered[j], n+1 {
+			if !cfg.CheckDisabled(r.slots[j], labelOf(j)) {
+				return j
+			}
+		}
+		return -1
+	}
+	// filled is, per check, the gates that run for it and the tools they
+	// run: an inline tool line or a toolchain check running one of the same
+	// tools is then covered.
+	type filler struct {
+		label string
+		tools []string
+	}
+	filled := map[string][]filler{}
+	fill := func(slot, label string, tools []string) {
+		filled[slot] = append(filled[slot], filler{label, tools})
+	}
+	coveredBy := func(slot string, tools []string) string {
+		for _, f := range filled[slot] {
+			if slices.ContainsFunc(f.tools, func(t string) bool { return slices.Contains(tools, t) }) {
+				return f.label
+			}
+		}
+		return ""
 	}
 	for _, c := range cfg.Checks {
 		matched := false
 		for i, t := range tasks {
-			label := t.Stack
-			if label == "" {
-				label = t.Provider
-			}
-			if r.slots[i] != c.Name || (p.orchestrated[c.Name] && label == "js") {
+			if r.slots[i] != c.Name || (p.orchestrated[c.Name] && stackOf(t) == "js") {
 				continue
 			}
 			matched = true
 			seen[taskID(t, dir)] = true
-			full := fmt.Sprintf("%s: %s (%s)%s", label, c.Name, t.Name, sfx)
-			switch {
-			case r.covered[i] != "":
-				p.add(Gate{Label: full, Skip: "covered by " + r.covered[i]})
+			full := labelOf(i)
+			switch by := coverer(i); {
+			case by >= 0:
+				p.add(Gate{Label: full, Skip: "covered by " + tasks[by].Name})
 			case cfg.CheckDisabled(c.Name, full):
 				p.add(Gate{Label: full, Skip: "disabled_checks"})
 			default:
@@ -338,26 +375,30 @@ func (p *planner) subproject(sub string) {
 					g.Words = withArgs.Words
 				}
 				p.add(g)
-				fill(c.Name, full)
+				fill(c.Name, full, r.tools[i])
 			}
 		}
 		// Gates inside aggregates, then those only CI names: tasks CI runs,
-		// then tools it runs directly, which yield to anything that filled
-		// the check already.
+		// then tools it runs directly, which yield to a gate already
+		// running the same tool for the check.
 		for _, l := range append(slices.Clone(r.leaves), ci...) {
 			if l.slot != c.Name || seen[l.id] || (p.orchestrated[c.Name] && strings.HasPrefix(l.label, "js: ")) {
 				continue
 			}
 			seen[l.id] = true
+			by := ""
+			if l.inline {
+				by = coveredBy(c.Name, l.tools)
+			}
 			switch {
-			case l.gate.CI != "" && l.inline && filled[c.Name] != "":
-				l.gate = Gate{Label: l.label, Skip: "covered by " + filled[c.Name], CI: l.gate.CI}
+			case by != "":
+				l.gate = Gate{Label: l.label, Skip: "covered by " + by, CI: l.gate.CI}
 			case l.gate.Skip == "" && cfg.CheckDisabled(c.Name, l.label):
 				l.gate = Gate{Label: l.label, Skip: "disabled_checks", CI: l.gate.CI}
 			}
 			if l.gate.Skip == "" {
 				matched = true
-				fill(c.Name, l.label)
+				fill(c.Name, l.label, l.tools)
 			}
 			p.add(l.gate)
 		}
@@ -386,8 +427,8 @@ func (p *planner) subproject(sub string) {
 			p.add(Gate{Label: label, Skip: "disabled_toolchain_checks"})
 			continue
 		}
-		if tc.Slot != "" && filled[tc.Slot] != "" {
-			p.add(Gate{Label: label, Skip: "covered by " + filled[tc.Slot]})
+		if by := coveredBy(tc.Slot, tc.Bin); tc.Slot != "" && by != "" {
+			p.add(Gate{Label: label, Skip: "covered by " + by})
 			continue
 		}
 		if seg := excludedDir(cfg, tc.Slot, sub); seg != "" {

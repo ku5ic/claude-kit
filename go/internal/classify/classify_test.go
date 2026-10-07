@@ -20,6 +20,9 @@ func kitConfig(t *testing.T) *config.Config {
 
 // scripts is the package.json the lookup answers for: lint, test, typecheck.
 func scripts(provider, dir, name string) bool {
+	if provider == "just" {
+		return name == "lint" || name == "test"
+	}
 	return provider == "package-scripts" && dir == "" && (name == "lint" || name == "test" || name == "typecheck")
 }
 
@@ -86,6 +89,9 @@ func TestBody(t *testing.T) {
 		{"bunx eslint .", "gate:lint:eslint"},
 		{"uv run pytest", "gate:test:pytest"},
 		{"bundle exec rubocop", "gate:lint:rubocop"},
+		{"rubocop -x", "other"},
+		{"rubocop --auto-correct", "other"},
+		{"rubocop --disable-uncorrectable", "other"},
 		// References.
 		{"npm run lint", "ref:package-scripts::lint"},
 		{"npm t", "ref:package-scripts::test"},
@@ -97,6 +103,13 @@ func TestBody(t *testing.T) {
 		{"make lint", "ref:make::lint"},
 		{"make GOARCH=arm64 build", "ref:make::build"},
 		{"make -j 4 test", "ref:make::test"},
+		{"make -j lint", "ref:make::lint"},
+		{"make lint unit", "ref:make::lint ref:make::unit"},
+		{"make lint -C tools unit", "ref:make:tools:lint ref:make:tools:unit"},
+		{"make -C /opt/app lint", "other"},
+		{"make -C ~/app lint", "other"},
+		{"just lint test", "ref:just::lint ref:just::test"},
+		{"just deploy prod", "ref:just::deploy:prod"},
 		{"make -f Makefile.ci lint", "other"},
 		{"just os=linux build", "ref:just::build"},
 		{"just --justfile ci.just lint", "other"},
@@ -112,6 +125,10 @@ func TestBody(t *testing.T) {
 		// Sequences and context.
 		{"cd web && tsc --noEmit", "cd gate:typecheck:tsc"},
 		{"export CI=1; jest", "export gate:test:jest"},
+		{"shellcheck scripts/*.sh", "gate:lint:shellcheck"},
+		{"shellcheck ~/a.sh", "other"},
+		{"shellcheck {a,b}.sh", "other"},
+		{"shellcheck '{a,b}.sh'", "gate:lint:shellcheck"},
 		{"pnpm build && pnpm test", "other ref:package-scripts::test"},
 		{"eslint . 2>&1", "gate:lint:eslint"},
 		{"eslint . >/dev/null", "gate:lint:eslint"},
@@ -160,6 +177,27 @@ func TestEveryToolPatternDetectsAndSkips(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+func TestBodyDetails(t *testing.T) {
+	cfg := kitConfig(t)
+	r := Body(cfg, "export PATH\nexport CI=1 NODE_ENV\ncd web && eslint 'a*' src/*.ts", scripts)
+	if len(r.Commands) != 4 {
+		t.Fatalf("commands: %+v", r.Commands)
+	}
+	// A bare name re-exports what's already set; it sets nothing.
+	if env := r.Commands[0].Env; len(env) != 0 {
+		t.Errorf("export PATH: env %q, want none", env)
+	}
+	if env := r.Commands[1].Env; !slices.Equal(env, []string{"CI=1"}) {
+		t.Errorf("export CI=1 NODE_ENV: env %q, want [CI=1]", env)
+	}
+	if lines := []uint{r.Commands[0].Line, r.Commands[1].Line, r.Commands[2].Line, r.Commands[3].Line}; !slices.Equal(lines, []uint{1, 2, 3, 3}) {
+		t.Errorf("lines %v, want [1 2 3 3]", lines)
+	}
+	if globs := r.Commands[3].Globs; !slices.Equal(globs, []string{"src/*.ts"}) {
+		t.Errorf("globs %q, want [src/*.ts]", globs)
 	}
 }
 

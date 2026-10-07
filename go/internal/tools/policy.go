@@ -100,13 +100,13 @@ func declared(cfg *config.Config, dir, root, name string) (manifest, install str
 	for d := dir; ; d = filepath.Dir(d) {
 		switch {
 		case JSDeps(d)[pkg]:
-			return rel(root, filepath.Join(d, "package.json")), installCmd(cfg, d, "js", "npm")
+			return Rel(root, filepath.Join(d, "package.json")), installCmd(cfg, d, "js", "npm")
 		case PythonDeps(d)[normalize(pkg)]:
 			return manifestName(Python, d, root), installCmd(cfg, d, "python", "pip")
 		case RubyDeps(d)[pkg]:
-			return rel(root, filepath.Join(d, "Gemfile.lock")), installCmd(cfg, d, "", "bundler")
+			return Rel(root, filepath.Join(d, "Gemfile.lock")), installCmd(cfg, d, "", "bundler")
 		case project.IsFile(filepath.Join(d, "go.mod")) && goModDeclares(filepath.Join(d, "go.mod"), name):
-			return rel(root, filepath.Join(d, "go.mod")), installCmd(cfg, d, "", "go")
+			return Rel(root, filepath.Join(d, "go.mod")), installCmd(cfg, d, "", "go")
 		}
 		if d == root || d == "/" || !strings.HasPrefix(d, root) {
 			return "", ""
