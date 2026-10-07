@@ -140,7 +140,9 @@ func runScoped(g Gate, ch changes, w io.Writer) string {
 	}
 	var lines map[string]map[int]bool
 	if len(touched) > 0 {
-		lines = changedLines(ch.root, ch.mergeBase, touched)
+		// Each file once: thousands of findings in one file mustn't swell git's argv.
+		slices.Sort(touched)
+		lines = changedLines(ch.root, ch.mergeBase, slices.Compact(touched))
 	}
 	var blocking []string
 	for i, f := range found {

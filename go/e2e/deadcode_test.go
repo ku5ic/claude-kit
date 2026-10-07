@@ -79,14 +79,14 @@ func TestDeadcode(t *testing.T) {
 	})
 	t.Run("added or removed lines that look like diff headers stay content", func(t *testing.T) {
 		e := knip(t)
-		e.write("notes.md", "a\n-- x\n")
-		e.k.Git(e.project, "add", "notes.md")
-		e.k.Git(e.project, "commit", "-q", "-m", "notes")
-		e.write("notes.md", "a\n++ b/src/x.ts\n")
-		e.write("src/old.ts", "export const old = 1\nexport const added = 2\n")
-		e.prints("npm", "Unused exports (2)\nold  src/old.ts:1:14\nadded  src/old.ts:2:14", 1)
+		// In the file with findings, so its diff reaches the parser: a
+		// removed "-- x" and an added "++ b/src/x.ts" print as --- and +++.
+		e.write("src/old.ts", "export const old = 1\n-- x\n")
+		e.k.Git(e.project, "commit", "-q", "-am", "x")
+		e.write("src/old.ts", "export const old = 1\n++ b/src/x.ts\nexport const added = 2\n")
+		e.prints("npm", "Unused exports (2)\nold  src/old.ts:1:14\nadded  src/old.ts:3:14", 1)
 		r := e.run()
-		r.Has(t, "FAIL js: deadcode (knip)", "added  src/old.ts:2:14")
+		r.Has(t, "FAIL js: deadcode (knip)", "added  src/old.ts:3:14")
 		r.Lacks(t, "old  src/old.ts:1:14")
 	})
 	t.Run("a finding in a changed file whose path has a space still fails", func(t *testing.T) {

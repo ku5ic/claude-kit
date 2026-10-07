@@ -11,7 +11,9 @@ import (
 )
 
 var (
-	gitCommit    = regexp.MustCompile(`\bgit[[:space:]]+([^[:space:]]+[[:space:]]+)*commit([[:space:];&|)]|$)`)
+	// git, any global options, then commit as a word, all in one simple
+	// command: the gap crosses no separator or newline but a line continuation.
+	gitCommit    = regexp.MustCompile(`\bgit(?:[ \t]|\\\n)+(?:[^[:space:];&|]+(?:[ \t]|\\\n)+)*commit(?:[^-[:alnum:]_.]|$)`)
 	aiSignature  = regexp.MustCompile(`(?i)Co-Authored-By:[[:space:]]*Claude|Generated[[:space:]]+(by|with)[[:space:]]+Claude|🤖[[:space:]]*Generated`)
 	heredocOpen  = regexp.MustCompile(`<<(-?)[[:space:]]*['"]?([A-Za-z_][A-Za-z0-9_]*)['"]?`)
 	messageDQ    = regexp.MustCompile(`(-m|--message=?)[[:space:]]*"[^"]*"`)

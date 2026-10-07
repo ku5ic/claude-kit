@@ -43,6 +43,10 @@ func TestGuardCommit(t *testing.T) {
 		{"passthrough: git push", "git push origin main", 0},
 		{"passthrough: a path starting with commit isn't a commit", "cat > docs/rules.md <<EOF\nNever add Co-Authored-By: Claude\nEOF\ngit add commitlint.config.js", 0},
 		{"block: a commit ended by a separator is still a commit", "git commit;echo \"Co-Authored-By: Claude\"", 2},
+		{"block: a commit with its output redirected is still a commit", "git commit>out.log -m \"x\n\nCo-Authored-By: Claude\"", 2},
+		{"block: a commit split by a line continuation is still a commit", "git -C . \\\ncommit -m \"x\n\nCo-Authored-By: Claude\"", 2},
+		{"passthrough: commit as a word in a later command isn't a commit", "git add x\ncat > notes.md <<EOF\nWe commit to Co-Authored-By: Claude docs\nEOF", 0},
+		{"passthrough: make commit after git status isn't a git commit", "git status && make commit && echo \"Co-Authored-By: Claude\"", 0},
 		// allow: normal commits
 		{"allow: feat conventional commit", `git commit -m "feat: add foo"`, 0},
 		{"allow: fix conventional commit", `git commit -m "fix: bar bug"`, 0},
