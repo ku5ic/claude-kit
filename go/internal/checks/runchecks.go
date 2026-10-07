@@ -42,15 +42,14 @@ func (g Gate) extra() string {
 }
 
 // planner accumulates one plan; orchestrated holds the checks an
-// orchestrator covers, whose JS tasks are then left to it; ci holds the CI
-// steps by the subproject they run in.
+// orchestrator covers, whose JS tasks are then left to it.
 type planner struct {
 	cfg          *config.Config
 	root         string
 	gates        []Gate
 	orchestrated map[string]bool
-	ci           map[string][]ciStep
-	subDirs      map[string]bool // every subproject's absolute directory
+	ci           map[string][]leaf // CI gates by the subproject they run in
+	subDirs      map[string]bool   // every subproject's absolute directory
 }
 
 func (p *planner) add(g Gate) { p.gates = append(p.gates, g) }
@@ -74,12 +73,8 @@ func Gates(cfg *config.Config, root string, only []string) []Gate {
 	if wantsJS {
 		p.orchestrate()
 	}
-	subs := project.Subprojects(cfg, root)
-	p.subDirs = map[string]bool{}
-	for _, sub := range subs {
-		p.subDirs[dirOf(root, sub)] = true
-	}
-	p.ci = stepsBySubproject(ciSteps(cfg, root), subs)
+	subs := p.subprojects()
+	p.ci = p.ciLeaves(false)
 	for _, sub := range subs {
 		if inScope(sub) {
 			p.subproject(sub)
@@ -88,30 +83,52 @@ func Gates(cfg *config.Config, root string, only []string) []Gate {
 	return p.gates
 }
 
-// CISubprojects is the subprojects ("." is the root) a CI step runs in.
-func CISubprojects(cfg *config.Config, root string) []string {
+func (p *planner) subprojects() []string {
+	subs := project.Subprojects(p.cfg, p.root)
+	p.subDirs = map[string]bool{}
+	for _, sub := range subs {
+		p.subDirs[dirOf(p.root, sub)] = true
+	}
+	return subs
+}
+
+// CIGates is the labels of the gates root's CI config runs, without
+// resolving their tools: run-checks runs each one whose tool the project
+// has, unless a gate running the same tool already fills its check.
+func CIGates(cfg *config.Config, root string) []string {
 	if !HasCI(root) {
 		return nil
 	}
-	subs := project.Subprojects(cfg, root)
-	steps := stepsBySubproject(ciSteps(cfg, root), subs)
-	return slices.DeleteFunc(subs, func(sub string) bool { return len(steps[sub]) == 0 })
-}
-
-// stepsBySubproject files each CI step under the deepest subproject its
-// directory is in.
-func stepsBySubproject(steps []ciStep, subs []string) map[string][]ciStep {
-	out := map[string][]ciStep{}
-	for _, s := range steps {
-		best := "."
-		for _, sub := range subs {
-			if sub != "." && (s.dir == sub || strings.HasPrefix(s.dir, sub+"/")) && len(sub) > len(best) {
-				best = sub
+	p := &planner{cfg: cfg, root: root}
+	subs := p.subprojects()
+	leaves := p.ciLeaves(true)
+	var out []string
+	for _, sub := range subs {
+		for _, l := range leaves[sub] {
+			if l.gate.Skip == "" {
+				out = append(out, l.label)
 			}
 		}
-		out[best] = append(out[best], s)
 	}
 	return out
+}
+
+// stackFor is the stack CI gates in dir take: the detected stack (go), not
+// a stackless provider's name (make), when there is one; else the first
+// provider's stack or name; else "ci".
+func (p *planner) stackFor(dir string) string {
+	for _, name := range p.cfg.StackOrder {
+		if name != "monorepo" && p.cfg.HasStack(dir, name) {
+			return name
+		}
+	}
+	for _, pr := range project.Providers(p.cfg, dir) {
+		if pr.Stack != "" {
+			return pr.Stack
+		}
+		return pr.Name
+	}
+	return "ci"
 }
 
 // RunAll runs Gates' checks and returns the failure count. Output contract,
@@ -217,12 +234,9 @@ func excluded(c config.Check, task string) bool {
 // excludedDir is the first path segment of subproject sub matching an
 // exclude_dirs glob of check slot, or "".
 func excludedDir(cfg *config.Config, slot, sub string) string {
-	i := slices.IndexFunc(cfg.Checks, func(c config.Check) bool { return c.Name == slot })
-	if slot == "" || i < 0 {
-		return ""
-	}
+	dirs := checkNamed(cfg, slot).ExcludeDirs
 	for _, seg := range strings.Split(filepath.ToSlash(sub), "/") {
-		if slices.ContainsFunc(cfg.Checks[i].ExcludeDirs, func(g string) bool { return guard.Glob(g, seg) }) {
+		if slices.ContainsFunc(dirs, func(g string) bool { return guard.Glob(g, seg) }) {
 			return seg
 		}
 	}
@@ -296,18 +310,7 @@ func (p *planner) subproject(sub string) {
 	}
 
 	r := roles(cfg, p.root, dir, sfx, tasks, p.subDirs)
-	// CI gates take the detected stack (go), not a stackless provider's
-	// name (make), when there is one.
-	ciStack := ""
-	for _, name := range cfg.StackOrder {
-		if ciStack == "" && name != "monorepo" && cfg.HasStack(dir, name) {
-			ciStack = name
-		}
-	}
-	if ciStack == "" {
-		ciStack = skipLabel
-	}
-	ci := p.ciLeaves(sub, sfx, ciStack)
+	ci := p.ci[sub]
 	seen := map[string]bool{}
 	argLeaves := map[string]Gate{}
 	for _, l := range r.leaves {
@@ -396,8 +399,9 @@ func (p *planner) subproject(sub string) {
 			case l.gate.Skip == "" && cfg.CheckDisabled(c.Name, l.label):
 				l.gate = Gate{Label: l.label, Skip: "disabled_checks", CI: l.gate.CI}
 			}
+			// A skipped leaf still reports the check, so no "no task" line.
+			matched = true
 			if l.gate.Skip == "" {
-				matched = true
 				fill(c.Name, l.label, l.tools)
 			}
 			p.add(l.gate)
@@ -425,6 +429,10 @@ func (p *planner) subproject(sub string) {
 		label := tc.Stack + ": " + tc.Name + sfx
 		if !cfg.ToolchainEnabled(tc) {
 			p.add(Gate{Label: label, Skip: "disabled_toolchain_checks"})
+			continue
+		}
+		if cfg.CheckDisabled(tc.Slot, label) {
+			p.add(Gate{Label: label, Skip: "disabled_checks"})
 			continue
 		}
 		if by := coveredBy(tc.Slot, tc.Bin); tc.Slot != "" && by != "" {

@@ -418,7 +418,7 @@ stacks:
 		Stub(t, filepath.Join(e.root, ".venv/bin/pytest"), "")
 		e.Git(e.root, "add", "-A")
 		block := injectContextTooling(e.run("s1", "").Output)
-		if !strings.Contains(block, "ci gates (run-checks runs these from CI config):\n  python: test (.github/workflows/ci.yml: pytest)\n") {
+		if !strings.Contains(block, "ci gates (from CI config; run-checks runs each whose tool the project has):\n  python: test (.github/workflows/ci.yml: pytest)\n") {
 			t.Errorf("tooling lacks the CI gate:\n%s", block)
 		}
 	})

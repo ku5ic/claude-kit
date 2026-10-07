@@ -78,6 +78,27 @@ func TestGateCoverage(t *testing.T) {
 		e.write("package.json", `{"scripts":{"ci":"dotenv -- vitest run && eslint ."}}`+"\n")
 		e.run("--plan").Lacks(t, "(ci: vitest)")
 	})
+	t.Run("disabled_checks turns off the toolchain check for its slot", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("go.mod", "module example.com/x\n")
+		e.stub("go", 0)
+		e.k.Overlay("disabled_checks: [test]\n")
+		e.run("--plan").Has(t, "SKIP go: test (disabled_checks)", "RUN go: vet")
+	})
+	t.Run("run-s globs expand to the scripts they match", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", `{"scripts":{"check":"run-s lint:* typecheck","lint:js":"eslint .","lint:css":"stylelint .","typecheck":"tsc --noEmit"}}`+"\n")
+		r := e.run("--plan")
+		r.Has(t, "RUN js: lint (lint:js)", "RUN js: lint (lint:css)", "RUN js: typecheck (typecheck)")
+		r.Lacks(t, "references missing task")
+	})
+	t.Run("a just {{var}} is an unknown value, never a literal word", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("Cargo.toml", "[package]\nname = \"x\"\n")
+		e.write("justfile", "ci:\n    cargo clippy --workspace {{flags}}\n    cargo test\n")
+		e.stub("cargo", 0)
+		e.run("--plan").Lacks(t, "{{flags}}")
+	})
 	t.Run("lint:prettier is a format check, run once", func(t *testing.T) {
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"lint:prettier":"prettier --check ."}}`+"\n")
@@ -119,14 +140,39 @@ func TestCIShellSemantics(t *testing.T) {
 		r.Has(t, "RUN ci: lint (.github/workflows/ci.yml: shellcheck)\n  cmd: "+filepath.Join(e.stubs, "shellcheck")+" a.sh\n")
 		r.Lacks(t, "PATH=")
 	})
-	t.Run("an inline gate after a cd into a subproject is left to that subproject", func(t *testing.T) {
+	t.Run("an inline gate after a cd into a subproject belongs to that subproject", func(t *testing.T) {
 		e := runChecksSetup(t)
 		e.write("web/package.json", `{"scripts":{"lint":"eslint ."}}`+"\n")
 		e.localTool("web/node_modules/.bin", "eslint")
 		e.workflow("jobs:\n  lint:\n    steps:\n      - run: cd web && npx eslint .\n")
+		e.run("--plan").Has(t, "RUN js: lint (lint) [web]",
+			"SKIP js: lint (.github/workflows/ci.yml: eslint) [web] (covered by js: lint (lint) [web])")
+	})
+	t.Run("a CI-only gate in a subproject it cds into still runs there", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("web/package.json", "{}\n")
+		e.localTool("web/node_modules/.bin", "tsc")
+		e.workflow("jobs:\n  types:\n    steps:\n      - run: cd web && npx tsc --noEmit\n")
 		r := e.run("--plan")
-		r.Has(t, "RUN js: lint (lint) [web]")
-		r.Lacks(t, "ci.yml: eslint")
+		r.Has(t, "RUN js: typecheck (.github/workflows/ci.yml: tsc) [web]\n")
+		r.Lacks(t, "SKIP js: typecheck [web] (no typecheck task)")
+	})
+	t.Run("a CI tool the project lacks is one SKIP line for its check", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", "{}\n")
+		e.workflow("jobs:\n  lint:\n    steps:\n      - run: npx oxlint .\n")
+		r := e.run("--plan")
+		if n := strings.Count(r.Output, "js: lint"); n != 1 {
+			t.Errorf("js: lint reported %d times:\n%s", n, r.Output)
+		}
+		r.Has(t, "SKIP js: lint (.github/workflows/ci.yml: oxlint) (")
+	})
+	t.Run("a CI tool the project has runs beside a task running another tool", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", `{"scripts":{"lint":"eslint ."}}`+"\n")
+		e.localTool("node_modules/.bin", "oxlint")
+		e.workflow("jobs:\n  lint:\n    steps:\n      - run: npx oxlint .\n")
+		e.run("--plan").Has(t, "RUN js: lint (lint)", "RUN js: lint (.github/workflows/ci.yml: oxlint)")
 	})
 	t.Run("a Windows job's steps are pwsh, never read as sh", func(t *testing.T) {
 		e := runChecksSetup(t)

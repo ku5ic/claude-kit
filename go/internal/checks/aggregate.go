@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -42,6 +43,7 @@ type leaf struct {
 	withArgs, inline bool
 	tools            []string
 	gate             Gate
+	sub              string // CI: the subproject its gate runs in
 }
 
 type taskAt struct {
@@ -148,14 +150,19 @@ func bodyTools(r classify.Result) []string {
 
 // aggregator walks aggregates in one subproject (home). subs is every
 // subproject directory: a reference into another one is left to that
-// subproject's own run, so it doesn't run twice.
+// subproject's own run, so it doesn't run twice. place is set for CI steps:
+// an inline gate there belongs to whichever subproject it runs in, which
+// place names with its stack and label suffix. labelsOnly skips resolving
+// tools, for a list of what CI holds.
 type aggregator struct {
-	cfg   *config.Config
-	root  string
-	sfx   string
-	home  string
-	subs  map[string]bool
-	cache map[string][]project.Task
+	cfg        *config.Config
+	root       string
+	sfx        string
+	home       string
+	subs       map[string]bool
+	cache      map[string][]project.Task
+	place      func(dir string) (sub, stack, sfx string)
+	labelsOnly bool
 }
 
 // shellState is what the commands before a gate in a body have set up: the
@@ -197,13 +204,19 @@ func (a *aggregator) inRoot(dir, path string) (string, bool) {
 // nested deeper than home, or outside home altogether. That subproject's own
 // run covers it.
 func (a *aggregator) elsewhere(dir string) bool {
-	owner := a.root
-	for sub := range a.subs {
+	return ownerOf(a.root, a.subs, dir) != a.home
+}
+
+// ownerOf is the deepest subproject directory of subs holding dir, else
+// root.
+func ownerOf(root string, subs map[string]bool, dir string) string {
+	owner := root
+	for sub := range subs {
 		if (dir == sub || strings.HasPrefix(dir, sub+"/")) && len(sub) > len(owner) {
 			owner = sub
 		}
 	}
-	return owner != a.home
+	return owner
 }
 
 // find is the task ref names, relative to dir; never outside the root.
@@ -220,11 +233,35 @@ func (a *aggregator) find(dir string, ref classify.TaskRef) (taskAt, bool) {
 	return taskAt{}, false
 }
 
+// expandRefs replaces each package-script reference holding a glob (run-s
+// lint:*) with the scripts in dir it matches, as npm-run-all does: * within
+// one :-separated segment, ** across them.
+func (a *aggregator) expandRefs(dir string, refs []classify.TaskRef) []classify.TaskRef {
+	var out []classify.TaskRef
+	for _, ref := range refs {
+		if ref.Provider != "package-scripts" || !strings.Contains(ref.Name, "*") {
+			out = append(out, ref)
+			continue
+		}
+		pattern := regexp.QuoteMeta(ref.Name)
+		pattern = strings.ReplaceAll(pattern, `\*\*`, ".+")
+		pattern = strings.ReplaceAll(pattern, `\*`, "[^:]+")
+		re := regexp.MustCompile("^" + pattern + "$")
+		target, _ := a.inRoot(dir, ref.Dir)
+		for _, t := range a.tasksIn(target) {
+			if t.Provider == ref.Provider && re.MatchString(t.Name) {
+				out = append(out, classify.TaskRef{Provider: ref.Provider, Dir: ref.Dir, Name: t.Name, Args: ref.Args})
+			}
+		}
+	}
+	return out
+}
+
 // referenced is the indexes into tasks of the same-directory tasks r runs.
 func (a *aggregator) referenced(r classify.Result, dir string, tasks []project.Task) []int {
 	var out []int
 	for _, cmd := range r.Commands {
-		for _, ref := range cmd.Refs {
+		for _, ref := range a.expandRefs(dir, cmd.Refs) {
 			if ref.Dir != "" {
 				continue
 			}
@@ -287,11 +324,11 @@ func (a *aggregator) walk(r classify.Result, agg taskAt, visited map[string]bool
 				setup = append(setup, strings.Join(cmd.Words, " "))
 			}
 		case classify.Gate:
-			if !a.elsewhere(st.dir) {
+			if a.place != nil || !a.elsewhere(st.dir) {
 				out = append(out, a.inline(cmd, agg, stack, st, setup))
 			}
 		case classify.Ref:
-			for _, ref := range cmd.Refs {
+			for _, ref := range a.expandRefs(st.dir, cmd.Refs) {
 				leaves, gateless := a.reference(ref, cmd.Globs, agg, stack, st, visited, depth)
 				out = append(out, leaves...)
 				if gateless {
@@ -304,10 +341,18 @@ func (a *aggregator) walk(r classify.Result, agg taskAt, visited map[string]bool
 }
 
 func (a *aggregator) inline(cmd classify.Command, agg taskAt, stack string, st shellState, setup []string) leaf {
-	label := fmt.Sprintf("%s: %s (%s: %s)%s", stack, cmd.Slot, agg.task.Name, cmd.Tool, a.sfx)
-	l := leaf{id: "inline\x00" + st.dir + "\x00" + cmd.Slot + "\x00" + strings.Join(cmd.Words, " "), slot: cmd.Slot, label: label, inline: true, tools: []string{cmd.Tool}}
+	sub, sfx := "", a.sfx
+	if a.place != nil {
+		sub, stack, sfx = a.place(st.dir)
+	}
+	label := fmt.Sprintf("%s: %s (%s: %s)%s", stack, cmd.Slot, agg.task.Name, cmd.Tool, sfx)
+	l := leaf{id: "inline\x00" + st.dir + "\x00" + cmd.Slot + "\x00" + strings.Join(cmd.Words, " "), slot: cmd.Slot, label: label, inline: true, tools: []string{cmd.Tool}, sub: sub}
 	if st.blocker != "" {
 		l.gate = Gate{Label: label, Skip: "depends on `" + st.blocker + "` in " + agg.task.Name}
+		return l
+	}
+	if a.labelsOnly {
+		l.gate = Gate{Label: label, Words: cmd.Words}
 		return l
 	}
 	res := a.resolveWord(st.dir, cmd.Words[0])
@@ -416,7 +461,10 @@ func (a *aggregator) reference(ref classify.TaskRef, globs []string, agg taskAt,
 	if len(st.env) > 0 {
 		words = append(append([]string{"env"}, st.env...), words...)
 	}
-	sfx := a.sfx
+	sub, sfx := "", a.sfx
+	if a.place != nil {
+		sub, stack, sfx = a.place(target.dir)
+	}
 	if target.dir != a.home {
 		sfx = " [" + tools.Rel(a.root, target.dir) + "]"
 	}
@@ -425,7 +473,7 @@ func (a *aggregator) reference(ref classify.TaskRef, globs []string, agg taskAt,
 	if st.blocker != "" {
 		gate = Gate{Label: label, Skip: "depends on `" + st.blocker + "` in " + agg.task.Name}
 	}
-	return []leaf{{id: id, slot: slot, label: label, withArgs: withArgs, tools: bodyTools(r), gate: gate}}, false
+	return []leaf{{id: id, slot: slot, label: label, withArgs: withArgs, tools: bodyTools(r), gate: gate, sub: sub}}, false
 }
 
 // sameGates is true when b runs the same commands as a, its gates still
@@ -436,22 +484,30 @@ func sameGates(a, b classify.Result) bool {
 	})
 }
 
-// ciLeaves reads the CI steps that run in subproject sub like aggregates:
+// ciLeaves reads every CI step like an aggregate and files each gate under
+// the subproject it runs in, which a cd inside the step can move it to:
 // the tasks a step runs are leaves run as themselves, and a tool it runs
-// directly is a leaf only once it resolves from the project. A step that
-// can't be read, or holds a deny_commands word, gives nothing; so does a
-// reference to a task the project doesn't have (npm ci, make build).
-func (p *planner) ciLeaves(sub, sfx, stack string) []leaf {
-	if stack == "" {
-		stack = "ci"
+// directly is a leaf that runs only once it resolves from the project. A
+// step that can't be read, or holds a deny_commands word, gives nothing;
+// so does a reference to a task the project doesn't have (npm ci, make
+// build). labelsOnly leaves tools unresolved.
+func (p *planner) ciLeaves(labelsOnly bool) map[string][]leaf {
+	out := map[string][]leaf{}
+	place := func(dir string) (string, string, string) {
+		owner := ownerOf(p.root, p.subDirs, dir)
+		sub, sfx := tools.Rel(p.root, owner), ""
+		if sub != "." {
+			sfx = " [" + sub + "]"
+		}
+		return sub, p.stackFor(owner), sfx
 	}
-	a := &aggregator{cfg: p.cfg, root: p.root, sfx: sfx, home: dirOf(p.root, sub), subs: p.subDirs, cache: map[string][]project.Task{}}
-	var out []leaf
-	for _, step := range p.ci[sub] {
+	cache := map[string][]project.Task{}
+	for _, step := range ciSteps(p.cfg, p.root) {
 		dir := filepath.Clean(filepath.Join(p.root, step.dir))
 		if dir != p.root && !strings.HasPrefix(dir, p.root+"/") {
 			continue
 		}
+		a := &aggregator{cfg: p.cfg, root: p.root, home: ownerOf(p.root, p.subDirs, dir), subs: p.subDirs, cache: cache, place: place, labelsOnly: labelsOnly}
 		body := step.run
 		if len(step.env) > 0 {
 			quoted := make([]string, len(step.env))
@@ -465,13 +521,13 @@ func (p *planner) ciLeaves(sub, sfx, stack string) []leaf {
 		if r.Opaque != "" || slices.ContainsFunc(r.Commands, func(c classify.Command) bool { return deniedCommand(p.cfg, c.Words) }) {
 			continue
 		}
-		task := project.Task{Provider: "ci", Stack: stack, Name: step.file}
+		task := project.Task{Provider: "ci", Name: step.file}
 		for _, l := range a.walk(r, taskAt{task, dir}, map[string]bool{}, 0) {
 			if l.slot == "" {
 				continue
 			}
 			l.gate.CI = step.file
-			out = append(out, l)
+			out[l.sub] = append(out[l.sub], l)
 		}
 	}
 	return out
@@ -505,10 +561,5 @@ func excludedAnywhere(cfg *config.Config, name string) bool {
 
 // excludedBy is true when check slot's exclude globs cover name.
 func excludedBy(cfg *config.Config, slot, name string) bool {
-	for _, c := range cfg.Checks {
-		if c.Name == slot {
-			return excluded(c, name)
-		}
-	}
-	return false
+	return excluded(checkNamed(cfg, slot), name)
 }

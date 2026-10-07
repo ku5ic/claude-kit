@@ -83,7 +83,10 @@ func makeBodies(file string) map[string]Body {
 		name = strings.TrimSpace(name)
 		var body []string
 		for dep := range strings.FieldsSeq(strings.SplitN(rest, ";", 2)[0]) {
-			body = append(body, "make "+dep)
+			// | only separates order-only prerequisites, which still run.
+			if dep != "|" {
+				body = append(body, "make "+dep)
+			}
 		}
 		for i+1 < len(lines) && strings.HasPrefix(lines[i+1], "\t") {
 			i++
@@ -100,6 +103,8 @@ func makeBodies(file string) map[string]Body {
 }
 
 var shellShebang = regexp.MustCompile(`^#!\s*(/usr/bin/env\s+(-S\s+)?)?(\S*/)?(ba|z)?sh(\s|$)`)
+
+var justVar = regexp.MustCompile(`\{\{[^}]*\}\}`)
 
 var justHeader = regexp.MustCompile(`^@?([A-Za-z_][A-Za-z0-9_-]*)([^:=]*):([^=].*|)$`)
 
@@ -122,7 +127,8 @@ func justBodies(file string) map[string]Body {
 		}
 		for i+1 < len(lines) && (strings.HasPrefix(lines[i+1], " ") || strings.HasPrefix(lines[i+1], "\t")) {
 			i++
-			body = append(body, strings.TrimLeft(strings.TrimSpace(lines[i]), "@-"))
+			// {{var}} is just's interpolation: a value the kit can't know.
+			body = append(body, justVar.ReplaceAllString(strings.TrimLeft(strings.TrimSpace(lines[i]), "@-"), "$$JUST_VAR"))
 		}
 		perLine := true
 		if len(body) > 0 && strings.HasPrefix(body[0], "#!") {

@@ -109,7 +109,7 @@ For the whole project, `kit run-checks` runs every quality gate the repo declare
 
 - **Tasks:** `package.json` scripts, Makefile, justfile, and cargo aliases, matched to five slots: `typecheck`, `lint`, `format-check`, `test`, `deadcode`. An odd-named task counts when its body runs a known tool.
 - **Aggregates:** a `ci` script that chains `lint && test` runs each gate once, not twice.
-- **CI:** gates from GitHub Actions and GitLab CI. Anything deploy-like, secret-using, OIDC, or service-backed is skipped.
+- **CI:** gates from GitHub Actions and GitLab CI, run only with tools the project has. `kit.yml` `gate_discovery` says which jobs and steps are read.
 - **Dead code:** knip, vulture, deadcode, and tflint findings block only on files changed against the base branch.
 - **Monorepos:** turbo and nx run affected packages once through the orchestrator.
 

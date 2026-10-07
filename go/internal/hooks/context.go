@@ -211,17 +211,11 @@ func tooling(cfg *config.Config, root string) string {
 	if capped {
 		body = append(body, "(subprojects capped at 20; kit run-checks covers all)")
 	}
-	// Only the subprojects CI runs in, capped like the list above: planning
-	// resolves every tool, too slow for every session start.
-	if subs := checks.CISubprojects(cfg, root); len(subs) > 0 {
-		var ci []string
-		for _, g := range checks.Gates(cfg, root, subs[:min(len(subs), 20)]) {
-			if g.CI != "" && g.Skip == "" {
-				ci = append(ci, "  "+g.Label)
-			}
-		}
-		if len(ci) > 0 {
-			body = append(append(body, "ci gates (run-checks runs these from CI config):"), ci...)
+	// Labels only: resolving every tool is too slow for every session start.
+	if gates := checks.CIGates(cfg, root); len(gates) > 0 {
+		body = append(body, "ci gates (from CI config; run-checks runs each whose tool the project has):")
+		for _, label := range gates {
+			body = append(body, "  "+label)
 		}
 	}
 	if len(body) > 0 {

@@ -414,7 +414,9 @@ gate_discovery:
   # CI steps (GitHub Actions workflows, .gitlab-ci.yml) are read like task
   # bodies; a step's task references run those tasks, and a tool it runs
   # directly runs only when that tool resolves from the project
-  # (tool_resolution), and only when no project task fills its check. Jobs
+  # (tool_resolution), and only when no gate running the same tool already
+  # fills its check. A cd in a step files its gates under the subproject
+  # they run in. Jobs
   # with services, a container, OIDC (id-token: write), a deployment
   # environment, secrets in their env, or a reusable workflow are skipped
   # whole, and so are steps that use an action, a non-sh shell, secrets, or
