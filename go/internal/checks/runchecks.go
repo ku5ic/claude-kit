@@ -242,25 +242,26 @@ func run(g Gate, w io.Writer) bool {
 // matchesCheck is true when task counts as check c: it matches one of the
 // check's task globs and none of its exclude globs.
 func matchesCheck(c config.Check, task string) bool {
-	match := func(globs []string) bool {
-		return slices.ContainsFunc(globs, func(g string) bool { return guard.Glob(g, task) })
-	}
-	return match(c.Tasks) && !match(c.Exclude)
+	return globIndex(c.Tasks, task) >= 0 && !excluded(c, task)
 }
 
 func excluded(c config.Check, task string) bool {
-	return slices.ContainsFunc(c.Exclude, func(g string) bool { return guard.Glob(g, task) })
+	return globIndex(c.Exclude, task) >= 0
+}
+
+// globIndex is the index of the first of globs matching name, or -1.
+func globIndex(globs []string, name string) int {
+	return slices.IndexFunc(globs, func(g string) bool { return guard.Glob(g, name) })
 }
 
 // excludedTask is the first of tasks named like check c (its task or
 // fallback globs) that an exclude glob turns away, and that glob.
 func excludedTask(c config.Check, tasks []project.Task) (name, glob string) {
-	names := slices.Concat(c.Tasks, c.FallbackTasks)
 	for _, t := range tasks {
-		if !slices.ContainsFunc(names, func(g string) bool { return guard.Glob(g, t.Name) }) {
+		if globIndex(slices.Concat(c.Tasks, c.FallbackTasks), t.Name) < 0 {
 			continue
 		}
-		if i := slices.IndexFunc(c.Exclude, func(g string) bool { return guard.Glob(g, t.Name) }); i >= 0 {
+		if i := globIndex(c.Exclude, t.Name); i >= 0 {
 			return t.Name, c.Exclude[i]
 		}
 	}
