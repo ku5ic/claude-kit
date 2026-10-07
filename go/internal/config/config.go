@@ -25,9 +25,10 @@ type Config struct {
 	Checks            []Check           `yaml:"checks"`
 	ToolchainChecks   []ToolchainCheck  `yaml:"toolchain_checks"`
 
-	DisabledTaskProviders   []string `yaml:"disabled_task_providers"`
-	DisabledChecks          []string `yaml:"disabled_checks"`
-	DisabledToolchainChecks []string `yaml:"disabled_toolchain_checks"`
+	GateDiscovery           GateDiscovery `yaml:"gate_discovery"`
+	DisabledTaskProviders   []string      `yaml:"disabled_task_providers"`
+	DisabledChecks          []string      `yaml:"disabled_checks"`
+	DisabledToolchainChecks []string      `yaml:"disabled_toolchain_checks"`
 
 	SubprojectMaxDepth int                 `yaml:"subproject_max_depth"`
 	Formatters         []Formatter         `yaml:"formatters"`
@@ -157,9 +158,41 @@ type TaskProvider struct {
 }
 
 type Check struct {
-	Name    string   `yaml:"name"`
-	Tasks   []string `yaml:"tasks"`
-	Exclude []string `yaml:"exclude"`
+	Name    string        `yaml:"name"`
+	Tasks   []string      `yaml:"tasks"`
+	Exclude []string      `yaml:"exclude"`
+	Tools   []ToolPattern `yaml:"tools"`
+}
+
+// ToolPattern is a command that counts as a check: bin by name, its first
+// non-flag argument one of sub when sub is set, every require flag present,
+// and no forbid flag (a flag counts as written alone or as flag=value).
+type ToolPattern struct {
+	Bin     string   `yaml:"bin"`
+	Sub     []string `yaml:"sub"`
+	Require []string `yaml:"require"`
+	Forbid  []string `yaml:"forbid"`
+}
+
+// GateDiscovery is the shell grammar the gate classifier reads task bodies
+// with (go/internal/classify).
+type GateDiscovery struct {
+	Wrappers       []string    `yaml:"wrappers"`
+	ToolRunners    []string    `yaml:"tool_runners"`
+	References     []Reference `yaml:"references"`
+	ScriptRunners  []string    `yaml:"script_runners"`
+	FanOutFlags    []string    `yaml:"fan_out_flags"`
+	FanOutCommands []string    `yaml:"fan_out_commands"`
+}
+
+// Reference is a command prefix that runs another task of provider: the
+// word after it, or Task when set. With Shorthand, a word that names no such
+// task is a tool instead (pnpm eslint).
+type Reference struct {
+	Prefix    string `yaml:"prefix"`
+	Provider  string `yaml:"provider"`
+	Task      string `yaml:"task"`
+	Shorthand bool   `yaml:"shorthand"`
 }
 
 type ToolchainCheck struct {

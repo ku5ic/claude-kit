@@ -446,6 +446,40 @@ func TestRunChecks(t *testing.T) {
 		e.callsEqual("turbo", "run test --filter=...[HEAD]")
 	})
 
+	// Task bodies: a task whose name matches no slot counts by what it runs.
+	t.Run("an odd-named task whose body is one gate fills that slot, run as itself", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", `{"scripts":{"verify-style":"cross-env CI=1 eslint .","types":"tsc --noEmit"}}`+"\n")
+		e.stub("npm", 0)
+		r := e.run()
+		r.Has(t, "PASS js: lint (verify-style)", "PASS js: typecheck (types)")
+		e.callsEqual("npm", e.phys(".")+" run types\n"+e.phys(".")+" run verify-style")
+	})
+	t.Run("a body that isn't one readable gate never runs", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", `{"scripts":{"fixup":"eslint --fix .","piped":"eslint . | tee out","build":"tsc -b","check-all":"eslint . && tsc --noEmit"}}`+"\n")
+		e.stub("npm", 0)
+		r := e.run()
+		r.Has(t, "SKIP js: lint (no lint task)", "SKIP js: typecheck (no typecheck task)")
+		if e.called("npm") {
+			t.Errorf("ran: %s", e.calls("npm"))
+		}
+	})
+	t.Run("a slot's exclude globs hold for body-classified tasks too", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", `{"scripts":{"unit-watch":"vitest"}}`+"\n")
+		e.stub("npm", 0)
+		e.run().Has(t, "SKIP js: test (no test task)")
+	})
+	t.Run("a Make target whose recipe is one gate fills that slot", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("go.mod", "module example.com/x\n")
+		e.write("Makefile", "golint:\n\t@golangci-lint run ./...\n")
+		e.stub("make", 0)
+		e.stub("go", 0)
+		e.run().Has(t, "PASS make: lint (golint)")
+	})
+
 	t.Run("--plan lists every check with its command and runs none", func(t *testing.T) {
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"lint":"eslint ."}}`+"\n")

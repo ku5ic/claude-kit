@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/ku5ic/claude-kit/go/internal/classify"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/extract"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
@@ -130,6 +131,34 @@ func matchesCheck(c config.Check, task string) bool {
 	return match(c.Tasks) && !match(c.Exclude)
 }
 
+func excluded(c config.Check, task string) bool {
+	return slices.ContainsFunc(c.Exclude, func(g string) bool { return guard.Glob(g, task) })
+}
+
+// bodySlots is, per task, the check its body is when its name matches no
+// check's globs and its body is a single gate (verify-style: eslint .);
+// "" otherwise. Such a task still runs as itself, through its provider.
+func bodySlots(cfg *config.Config, dir string, tasks []project.Task) []string {
+	lookup := func(provider, rel, name string) bool {
+		for _, t := range project.Tasks(cfg, filepath.Join(dir, rel)) {
+			if t.Provider == provider && t.Name == name {
+				return true
+			}
+		}
+		return false
+	}
+	slots := make([]string, len(tasks))
+	for i, t := range tasks {
+		if t.Body == "" || slices.ContainsFunc(cfg.Checks, func(c config.Check) bool { return matchesCheck(c, t.Name) }) {
+			continue
+		}
+		if gate, ok := classify.Body(cfg, t.Body, lookup).SingleGate(); ok {
+			slots[i] = gate.Slot
+		}
+	}
+	return slots
+}
+
 func dirOf(root, sub string) string {
 	if sub == "." {
 		return root
@@ -196,14 +225,16 @@ func (p *planner) subproject(sub string) {
 		}
 	}
 
+	bodySlots := bodySlots(cfg, dir, tasks)
 	for _, c := range cfg.Checks {
 		matched := false
-		for _, t := range tasks {
+		for i, t := range tasks {
 			label := t.Stack
 			if label == "" {
 				label = t.Provider
 			}
-			if !matchesCheck(c, t.Name) || (p.orchestrated[c.Name] && label == "js") {
+			counts := matchesCheck(c, t.Name) || (bodySlots[i] == c.Name && !excluded(c, t.Name))
+			if !counts || (p.orchestrated[c.Name] && label == "js") {
 				continue
 			}
 			matched = true

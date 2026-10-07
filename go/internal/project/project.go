@@ -143,12 +143,14 @@ func Providers(cfg *config.Config, dir string) []Provider {
 	return out
 }
 
-// Task is one runnable task: its provider, name, and the command that runs it.
+// Task is one runnable task: its provider, name, the command that runs it,
+// and, where the manifest holds it, the shell it runs (its body).
 type Task struct {
 	Provider string
 	Stack    string
 	Name     string
 	Cmd      string
+	Body     string
 }
 
 // Tasks lists every task of every provider in dir. {pm} is the nearest
@@ -185,9 +187,10 @@ func Tasks(cfg *config.Config, dir string) []Task {
 			os.Stderr.WriteString("kit: " + err.Error() + "\n")
 			continue
 		}
+		bodies := extract.Bodies(tp.Extractor, p.Manifest, tp.Arg)
 		for _, name := range names {
 			if name != "" {
-				out = append(out, Task{tp.Name, tp.Stack, name, strings.ReplaceAll(run, "{task}", name)})
+				out = append(out, Task{Provider: tp.Name, Stack: tp.Stack, Name: name, Cmd: strings.ReplaceAll(run, "{task}", name), Body: bodies[name]})
 			}
 		}
 	}
