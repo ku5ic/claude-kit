@@ -106,8 +106,8 @@ func runScoped(g Gate, ch changes, w io.Writer) string {
 		return "pass"
 	}
 	var out bytes.Buffer
-	cmd := exec.Command(g.Words[0], g.Words[1:]...)
-	cmd.Dir, cmd.Stdout, cmd.Stderr = g.Dir, &out, &out
+	cmd := gateCommand(g)
+	cmd.Stdout, cmd.Stderr = &out, &out
 	err := cmd.Run()
 	if _, isExit := err.(*exec.ExitError); err != nil && !isExit {
 		fmt.Fprintf(&out, "%s: %v\n", g.Words[0], err)

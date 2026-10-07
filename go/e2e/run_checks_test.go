@@ -353,6 +353,16 @@ func TestRunChecks(t *testing.T) {
 		r.Lacks(t, "packages/a", "js: lint")
 	})
 
+	t.Run("pnpm runs a task with its install-before-run turned off", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", `{"scripts":{"lint":"eslint ."}}`+"\n")
+		e.write("pnpm-lock.yaml", "")
+		Stub(t, filepath.Join(e.stubs, "pnpm"),
+			fmt.Sprintf("echo \"$pnpm_config_verify_deps_before_run $*\" >>%q\n", filepath.Join(e.stubs, "pnpm.calls")))
+		e.run().Want(t, 0)
+		e.callsEqual("pnpm", "false run lint")
+	})
+
 	// Orchestrators: turbo or nx run JS checks once, for affected packages.
 	t.Run("turbo: an edit in packages/a runs turbo once per check, no per-package task", func(t *testing.T) {
 		e := runChecksSetup(t)

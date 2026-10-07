@@ -162,12 +162,22 @@ func PrintPlan(cfg *config.Config, root string, only []string, out io.Writer) {
 	}
 }
 
+// gateCommand is g's command, run in its directory. pnpm 10+ installs
+// before `pnpm run` when node_modules is out of sync with the lockfile, and
+// run-checks never installs.
+func gateCommand(g Gate) *exec.Cmd {
+	cmd := exec.Command(g.Words[0], g.Words[1:]...)
+	cmd.Dir = g.Dir
+	cmd.Env = append(cmd.Environ(), "pnpm_config_verify_deps_before_run=false")
+	return cmd
+}
+
 // run runs g and reports it, with its bin line under the verdict; a failure
 // then prints the first 30 lines of the command's output.
 func run(g Gate, w io.Writer) bool {
 	var out bytes.Buffer
-	cmd := exec.Command(g.Words[0], g.Words[1:]...)
-	cmd.Dir, cmd.Stdout, cmd.Stderr = g.Dir, &out, &out
+	cmd := gateCommand(g)
+	cmd.Stdout, cmd.Stderr = &out, &out
 	if err := cmd.Run(); err != nil {
 		fmt.Fprintf(w, "FAIL %s (%s)\n%s", g.Label, strings.Join(g.Words, " "), g.extra())
 		if _, isExit := err.(*exec.ExitError); !isExit {
