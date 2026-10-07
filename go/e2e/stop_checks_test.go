@@ -158,6 +158,62 @@ func (e *stopChecksEnv) lintLines() {
 	e.k.Git(e.repo, "commit", "-q", "-m", "a.sh")
 }
 
+// plan writes a plan file in the repo's plans dir and returns its path.
+func (e *stopChecksEnv) plan(body string) string {
+	path := e.path(".claude/plans/plan-x.md")
+	Write(e.t, path, body)
+	return path
+}
+
+// review is a /code-review the model invoked.
+func (e *stopChecksEnv) review() {
+	e.line(map[string]any{"type": "assistant", "message": map[string]any{"content": []any{
+		map[string]any{"type": "tool_use", "name": "Skill", "input": map[string]any{"skill": "code-review"}},
+	}}})
+}
+
+func TestStopPlanDone(t *testing.T) {
+	const done = "## Steps\n\n- [x] 1. a\n- [x] 2. b\n"
+	t.Run("ticking the last step with no review since the last edit blocks once", func(t *testing.T) {
+		e := stopChecksSetup(t)
+		e.turn("Edit", e.path("a.ts"))
+		e.turn("Edit", e.plan(done))
+		r := e.stop(false)
+		r.Want(t, 2)
+		r.Has(t, "plan-x.md is done, but /code-review hasn't run since the last code edit")
+		e.stop(true).Want(t, 0)
+	})
+	t.Run("a review after the last edit, even in an earlier turn, lets it through", func(t *testing.T) {
+		e := stopChecksSetup(t)
+		e.turn("Edit", e.path("a.ts"))
+		e.review()
+		e.turn("Edit", e.plan(done))
+		e.stop(false).Want(t, 0)
+	})
+	t.Run("a typed /code-review counts", func(t *testing.T) {
+		e := stopChecksSetup(t)
+		e.turn("Edit", e.path("a.ts"))
+		e.line(map[string]any{"type": "user", "message": map[string]any{"content": "/code-review high"}})
+		e.turn("Edit", e.plan(done))
+		e.stop(false).Want(t, 0)
+	})
+	t.Run("an edit after the review needs a new one", func(t *testing.T) {
+		e := stopChecksSetup(t)
+		e.review()
+		e.turn("Edit", e.path("a.ts"), e.plan(done))
+		e.stop(false).Want(t, 2)
+	})
+	t.Run("a plan with an open step, or one ticked in an earlier turn, doesn't gate", func(t *testing.T) {
+		e := stopChecksSetup(t)
+		e.turn("Edit", e.path("a.ts"))
+		e.turn("Edit", e.plan("## Steps\n\n- [x] 1. a\n- [ ] 2. b\n"))
+		e.stop(false).Want(t, 0)
+		e.plan(done)
+		e.turn("Edit", e.path("b.ts"))
+		e.stop(false).Want(t, 0)
+	})
+}
+
 func TestStopChecks(t *testing.T) {
 	t.Run("missing transcript runs nothing", func(t *testing.T) {
 		e := stopChecksSetup(t)
