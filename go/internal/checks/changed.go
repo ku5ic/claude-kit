@@ -8,10 +8,10 @@ import (
 )
 
 // changedLines maps each of files (absolute, under root) to the lines the
-// working tree changed against HEAD; a nil entry means every line (a file
-// HEAD doesn't have). A file tracked and unchanged maps to no lines. The
+// working tree changed against rev; a nil entry means every line (a file
+// rev doesn't have). A file tracked and unchanged maps to no lines. The
 // whole map is nil, every line of every file counting, when git can't say.
-func changedLines(root string, files []string) map[string]map[int]bool {
+func changedLines(root, rev string, files []string) map[string]map[int]bool {
 	var rel []string
 	for _, f := range files {
 		rel = append(rel, strings.TrimPrefix(f, root+"/"))
@@ -20,11 +20,11 @@ func changedLines(root string, files []string) map[string]map[int]bool {
 		out, err := exec.Command("git", append([]string{"-C", root, "-c", "core.quotePath=false"}, args...)...).Output()
 		return string(out), err
 	}
-	tracked, err := git(append([]string{"ls-tree", "-r", "--name-only", "HEAD", "--"}, rel...)...)
+	tracked, err := git(append([]string{"ls-tree", "-r", "--name-only", rev, "--"}, rel...)...)
 	if err != nil {
 		return nil
 	}
-	diff, err := git(append([]string{"diff", "-U0", "--no-color", "--no-ext-diff", "--no-renames", "HEAD", "--"}, rel...)...)
+	diff, err := git(append([]string{"diff", "-U0", "--no-color", "--no-ext-diff", "--no-renames", rev, "--"}, rel...)...)
 	if err != nil {
 		return nil
 	}

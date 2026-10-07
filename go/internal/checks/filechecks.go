@@ -229,7 +229,7 @@ func FileChecks(cfg *config.Config, root, base string, edited []string) *Outcome
 			continue
 		}
 		if !changedKnown {
-			changed, changedKnown = changedLines(root, planned(groups)), true
+			changed, changedKnown = changedLines(root, "HEAD", planned(groups)), true
 		}
 		if blocking, old, ok := newFindings(g, out.String(), root, changed); ok {
 			if len(blocking) == 0 {

@@ -17,7 +17,7 @@ import (
 )
 
 // Scope is how a whole-program check (dead code) is judged: only findings
-// in files changed since the git base fail it. Advisory checks, whose
+// on lines changed since the git base fail it. Advisory checks, whose
 // output can't be mapped to files, never fail.
 type Scope struct {
 	Findings *tools.Findings
@@ -55,9 +55,9 @@ func checkNamed(cfg *config.Config, slot string) config.Check {
 // changes is the git base and the files changed since its merge-base with
 // HEAD: committed, staged, unstaged, and untracked, deletions left out.
 type changes struct {
-	base  string
-	files map[string]bool // absolute paths
-	ok    bool
+	root, base, mergeBase string
+	files                 map[string]bool // absolute paths
+	ok                    bool
 }
 
 func changedSince(root string) changes {
@@ -84,7 +84,7 @@ func changedSince(root string) changes {
 	if len(mb) != 1 {
 		return changes{}
 	}
-	c := changes{base: base, files: map[string]bool{}, ok: true}
+	c := changes{root: root, base: base, mergeBase: mb[0], files: map[string]bool{}, ok: true}
 	for _, f := range append(git("diff", "--name-only", "--diff-filter=d", mb[0]), git("ls-files", "--others", "--exclude-standard")...) {
 		c.files[filepath.Join(root, f)] = true
 	}
@@ -95,7 +95,9 @@ func changedSince(root string) changes {
 // changed it passes without running. Otherwise the findings decide, not
 // the exit code (vulture exits 3, deadcode 0, with findings alike): any in
 // a changed file fails it; a non-zero exit with none parsed is a tool
-// error. It returns the verdict: "pass", "fail", or "skip".
+// error. Only a finding on a changed line counts, so touching a file doesn't
+// inherit its old dead code. It returns the verdict: "pass", "fail", or
+// "skip".
 func runScoped(g Gate, ch changes, w io.Writer) string {
 	if !ch.ok {
 		fmt.Fprintf(w, "SKIP %s (no git base)\n", g.Label)
@@ -124,13 +126,25 @@ func runScoped(g Gate, ch changes, w io.Writer) string {
 		fmt.Fprintf(w, "PASS %s (advisory: %s)\n%s", g.Label, what, g.extra())
 		return "pass"
 	}
-	var blocking []string
-	for _, f := range found {
+	paths := make([]string, len(found))
+	var touched []string
+	for i, f := range found {
 		path := f.File
 		if !filepath.IsAbs(path) {
 			path = filepath.Join(g.Dir, path)
 		}
-		if ch.files[filepath.Clean(path)] {
+		paths[i] = filepath.Clean(path)
+		if ch.files[paths[i]] {
+			touched = append(touched, paths[i])
+		}
+	}
+	var lines map[string]map[int]bool
+	if len(touched) > 0 {
+		lines = changedLines(ch.root, ch.mergeBase, touched)
+	}
+	var blocking []string
+	for i, f := range found {
+		if ch.files[paths[i]] && (f.Line == 0 || lines == nil || lines[paths[i]] == nil || lines[paths[i]][f.Line]) {
 			blocking = append(blocking, f.Text)
 		}
 	}
@@ -143,7 +157,7 @@ func runScoped(g Gate, ch changes, w io.Writer) string {
 		fmt.Fprintf(w, "FAIL %s (%s)\n%s%s", g.Label, strings.Join(g.Words, " "), g.extra(), strings.Join(lines[:min(len(lines), 30)], ""))
 		return "fail"
 	case len(found) > 0:
-		fmt.Fprintf(w, "PASS %s (%d finding%s in unchanged files)\n%s", g.Label, len(found), plural(len(found)), g.extra())
+		fmt.Fprintf(w, "PASS %s (%d finding%s on unchanged lines)\n%s", g.Label, len(found), plural(len(found)), g.extra())
 	default:
 		fmt.Fprintf(w, "PASS %s\n%s", g.Label, g.extra())
 	}

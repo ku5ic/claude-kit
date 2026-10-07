@@ -354,12 +354,14 @@ checks:
       - {bin: cargo, sub: [test, nextest]}
       - {bin: bun, sub: [test], forbid: [--watch]}
       - {bin: deno, sub: [test], forbid: [--watch]}
-  # Dead code runs whole-program, but only findings in files changed since
+  # Dead code runs whole-program, but only findings on lines changed since
   # the git base (kit git-base) fail it, judged from its output, never its
-  # exit code; with no git base it's skipped. A tool whose output can't be
-  # mapped to files (debride's heuristic list, cargo machete/udeps' crate
-  # names) is advisory: it runs and reports, but never fails. Dead code a
-  # change leaves behind in an unchanged file isn't caught.
+  # exit code; with no git base it's skipped. A finding with no line counts
+  # for its whole file. A tool whose output can't be mapped to files
+  # (debride's heuristic list, cargo machete/udeps' crate names) is
+  # advisory: it runs and reports, but never fails. Dead code a change
+  # leaves behind on an unchanged line (removing a function's last caller)
+  # isn't caught.
   # Per stack: js knip, python vulture, go deadcode (golangci-lint's unused
   # is a lint gate), ruby debride (advisory), opentofu tflint limited to
   # terraform_unused_declarations (plain tflint is lint). rust: none here;

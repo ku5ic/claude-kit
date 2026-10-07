@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// The deadcode slot runs whole-program but only fails on findings in files
+// The deadcode slot runs whole-program but only fails on findings on lines
 // changed since the git base, judged from its output, never its exit code.
 // The task runner stub prints the dead-code tool's output, in the format
 // each tool printed in the step 7 sandbox runs.
@@ -43,12 +43,12 @@ func TestDeadcode(t *testing.T) {
 	t.Run("js: knip findings only in unchanged files pass, whatever the exit code", func(t *testing.T) {
 		e := knip(t)
 		e.prints("npm", "Unused exports (1)\nold  src/old.ts:1:14", 1)
-		e.run().Has(t, "PASS js: deadcode (knip) (1 finding in unchanged files)")
+		e.run().Has(t, "PASS js: deadcode (knip) (1 finding on unchanged lines)")
 	})
 	t.Run("js: knip's unused-files list, bare paths, is scoped like any finding", func(t *testing.T) {
 		e := knip(t)
 		e.prints("npm", "> knip\n\nUnused files (1)\nsrc/old.ts", 1)
-		e.run().Has(t, "PASS js: deadcode (knip) (1 finding in unchanged files)")
+		e.run().Has(t, "PASS js: deadcode (knip) (1 finding on unchanged lines)")
 		e.prints("npm", "Unused files (1)\nsrc/new.ts\nUnused exports (1)\nold  src/old.ts:1:14", 1)
 		e.run().Has(t, "FAIL js: deadcode (knip)", "src/new.ts")
 	})
@@ -56,6 +56,16 @@ func TestDeadcode(t *testing.T) {
 		e := knip(t)
 		e.prints("npm", "> knip\nError: Cannot read knip.json", 2)
 		e.run().Has(t, "FAIL js: deadcode (knip)", "Error: Cannot read knip.json")
+	})
+	t.Run("touching a file doesn't inherit its old finding; a new line's finding fails", func(t *testing.T) {
+		e := knip(t)
+		e.write("src/old.ts", "export const old = 1\n// touched\nexport const added = 3\n")
+		e.prints("npm", "Unused exports (2)\nold  src/old.ts:1:14\nadded  src/old.ts:3:14", 1)
+		r := e.run()
+		r.Has(t, "FAIL js: deadcode (knip)", "added  src/old.ts:3:14")
+		r.Lacks(t, "old  src/old.ts:1:14")
+		e.prints("npm", "Unused exports (1)\nold  src/old.ts:1:14", 1)
+		e.run().Has(t, "PASS js: deadcode (knip) (1 finding on unchanged lines)")
 	})
 	t.Run("a finding in a changed file whose path has a space still fails", func(t *testing.T) {
 		e := runChecksSetup(t)
@@ -72,7 +82,7 @@ func TestDeadcode(t *testing.T) {
 		e.branchOff()
 		e.write("src/new.py", "def fresh(): pass\n")
 		e.prints("pdm", "src/old.py:1: unused function 'old' (60% confidence)", 3)
-		e.run().Has(t, "PASS python: deadcode (deadcode) (1 finding in unchanged files)")
+		e.run().Has(t, "PASS python: deadcode (deadcode) (1 finding on unchanged lines)")
 	})
 	t.Run("go: deadcode's exit 0 with a finding in a changed file fails", func(t *testing.T) {
 		e := runChecksSetup(t)
@@ -93,7 +103,7 @@ func TestDeadcode(t *testing.T) {
 		e.write("new.tf", "output \"o\" { value = 1 }\n")
 		e.stub("tofu", 0)
 		e.prints("make", "old.tf:1:1: Warning - variable \"old\" is declared but not used (terraform_unused_declarations)", 2)
-		e.run().Has(t, "PASS make: deadcode (unused-vars) (1 finding in unchanged files)")
+		e.run().Has(t, "PASS make: deadcode (unused-vars) (1 finding on unchanged lines)")
 	})
 	t.Run("ruby: debride is advisory, so even a changed file's finding passes", func(t *testing.T) {
 		e := runChecksSetup(t)
@@ -135,6 +145,6 @@ func TestDeadcode(t *testing.T) {
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"knip":"knip","dead":"node x.js"}}`+"\n")
 		r := e.run("--plan")
-		r.Has(t, "RUN js: deadcode (knip)\n  cmd: npm run knip\n  scope: only findings in files changed since the git base fail it\n")
+		r.Has(t, "RUN js: deadcode (knip)\n  cmd: npm run knip\n  scope: only findings on lines changed since the git base fail it\n")
 	})
 }
