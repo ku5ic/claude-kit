@@ -33,8 +33,10 @@ func GuardCommit(h *hook.Hook) error {
 		return nil
 	}
 
-	// Line by line, as grep: the trailer sits on a line of its own.
-	for line := range strings.SplitSeq(withoutOtherHeredocs(cmd), "\n") {
+	// Line by line, as grep: the trailer sits on a line of its own. The
+	// whole command, since a message can come from anywhere in it (a file a
+	// heredoc writes, then -F); a signature in an unrelated heredoc blocks too.
+	for line := range strings.SplitSeq(cmd, "\n") {
 		if aiSignature.MatchString(line) {
 			if err := h.Block("AI signature in commit message", "ai-commit-sig"); err != nil {
 				return err
@@ -113,29 +115,6 @@ func heredocBody(cmd string) string {
 		}
 	}
 	return strings.Join(lines, "\n")
-}
-
-// withoutOtherHeredocs is cmd minus the bodies of heredocs opened on lines
-// other than the git commit line (cat > notes.md <<EOF): they write files,
-// so their text isn't the commit's.
-func withoutOtherHeredocs(cmd string) string {
-	var keep []string
-	delim, tabs := "", false
-	for line := range strings.SplitSeq(cmd, "\n") {
-		switch {
-		case delim != "":
-			if closes(line, delim, tabs) {
-				delim = ""
-				keep = append(keep, line)
-			}
-		default:
-			keep = append(keep, line)
-			if m := heredocOpen.FindStringSubmatch(line); m != nil && !gitCommit.MatchString(line) {
-				delim, tabs = m[2], m[1] == "-"
-			}
-		}
-	}
-	return strings.Join(keep, "\n")
 }
 
 // closes is true when line ends a heredoc delimited by delim; with tabs

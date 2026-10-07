@@ -64,7 +64,12 @@ func TestGuardCommit(t *testing.T) {
 		{"block: wall of text in a <<- heredoc closed by a tab-indented delimiter", "git commit -F - <<-MSG\n\tfeat: x\n\n" + prose(5) + "\tMSG", 2},
 		{"allow: wall of text in a heredoc writing a file", "cat > notes.md <<'EOF'\n" + prose(20) + "EOF\ngit add -A && git commit -qm init", 0},
 		// signatures and subjects: the commit's heredoc is its message, another heredoc writes a file
-		{"allow: a signature in a heredoc writing a file", "cat > notes.md <<EOF\nGenerated with Claude\nEOF\ngit commit -m \"feat: ok\"", 0},
+		// the whole command is scanned: a message can come from anywhere in it
+		{"block: a signature in a heredoc writing a file, even an unrelated one", "cat > notes.md <<EOF\nGenerated with Claude\nEOF\ngit commit -m \"feat: ok\"", 2},
+		{"block: a signature in a message file a heredoc writes for -F", "cat > /tmp/msg <<'EOF'\nfeat: x\n\nCo-Authored-By: Claude <c@a.com>\nEOF\ngit commit -F /tmp/msg", 2},
+		{"block: a signature in a heredoc opened on a continuation line", "git commit \\\n  -F - <<'EOF'\nfeat: x\n\nCo-Authored-By: Claude <c@a.com>\nEOF", 2},
+		{"block: a signature after a here-string", "v=$(tr a-z A-Z <<< hello)\ngit commit -m \"feat: x\n\nCo-Authored-By: Claude <c@a.com>\"", 2},
+		{"block: a signature after an arithmetic shift", "n=$((1<<b))\ngit commit -m \"feat: x\n\nCo-Authored-By: Claude <c@a.com>\"", 2},
 		{"block: a signature in an unterminated commit heredoc", "git commit -m \"$(cat <<EOF\nfeat: x\nGenerated with Claude\n)\"", 2},
 		{"block: a signature in a -m variable set earlier in the command", "MSG=\"Generated with Claude\"\ngit commit -m \"$MSG\"", 2},
 		{"block: AI-tell phrasing in a heredoc subject", "git -C . commit -m \"$(cat <<'EOF'\nlet me fix this\nEOF\n)\"", 2},
