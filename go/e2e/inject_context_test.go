@@ -397,8 +397,12 @@ stacks:
 		e.PrependPath(stubs)
 		e.Git(e.root, "add", "-A")
 
-		if got, want := injectContextIndented(injectContextTooling(e.run("s1", "").Output)), "  node_modules/.bin/fakefmt --probe"; got != want {
+		block := injectContextTooling(e.run("s1", "").Output)
+		if got, want := injectContextIndented(block), "  node_modules/.bin/fakefmt --probe"; got != want {
 			t.Errorf("tooling lines:\n%s\nwant:\n%s", got, want)
+		}
+		if !strings.Contains(block, "\nchecks: `kit run-checks --plan` lists what kit run-checks runs") {
+			t.Errorf("tooling lacks the --plan pointer:\n%s", block)
 		}
 		e.Dir = e.root
 		r := e.exec(injectContextBin(e.tree), "", "run-checks")

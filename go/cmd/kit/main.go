@@ -37,9 +37,10 @@ const usage = `usage: kit <command> [args]
   plans-dir                  plans directory
   detect-stack               compact stack report
   agent-context              a subagent's startup context
-  run-checks [--only sub...]
+  run-checks [--plan] [--only sub...]
                              every declared check, in every subproject;
-                             exits with the failure count
+                             exits with the failure count. --plan lists
+                             them, with commands, without running any
   git-base [--diff|--log] [base] [flags] [-- paths]
   explain bash|edit|stop ...
                              why a guard or the Stop hook decides what it
@@ -142,6 +143,10 @@ func run(args []string, stdout, stderr io.Writer) int {
 		"plans-dir":    cmdPlansDir,
 		"detect-stack": cmdDetectStack,
 		"run-checks": func(e *env, cfg *config.Config, args []string) int {
+			plan := len(args) > 0 && args[0] == "--plan"
+			if plan {
+				args = args[1:]
+			}
 			var only []string
 			if len(args) > 0 && args[0] == "--only" {
 				only = args[1:]
@@ -149,6 +154,10 @@ func run(args []string, stdout, stderr io.Writer) int {
 			root := project.Toplevel(e.cwd)
 			if root == "" {
 				root = e.cwd
+			}
+			if plan {
+				checks.PrintPlan(cfg, root, only, e.stdout)
+				return 0
 			}
 			return min(checks.RunAll(cfg, root, only, e.stdout), 125)
 		},

@@ -210,6 +210,9 @@ func tooling(cfg *config.Config, root string) string {
 	if capped {
 		body = append(body, "(subprojects capped at 20; kit run-checks covers all)")
 	}
+	if len(body) > 0 {
+		body = append(body, "checks: `kit run-checks --plan` lists what kit run-checks runs, without running it")
+	}
 
 	var available, missing []string
 	for _, tool := range cfg.Tools {

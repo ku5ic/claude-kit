@@ -446,6 +446,32 @@ func TestRunChecks(t *testing.T) {
 		e.callsEqual("turbo", "run test --filter=...[HEAD]")
 	})
 
+	t.Run("--plan lists every check with its command and runs none", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", `{"scripts":{"lint":"eslint ."}}`+"\n")
+		e.write("go.mod", "module example.com/x\n")
+		e.stub("npm", 0)
+		e.stub("go", 0)
+		r := e.run("--plan")
+		r.Want(t, 0)
+		r.Has(t,
+			"RUN js: lint (lint)\n  cmd: npm run lint\n",
+			"SKIP js: test (no test task)\n",
+			"RUN go: vet\n  cmd: "+filepath.Join(e.stubs, "go")+" vet ./...\n  bin: "+filepath.Join(e.stubs, "go")+" (PATH)\n")
+		r.Lacks(t, "checks:")
+		if e.called("npm") || e.called("go") {
+			t.Errorf("--plan ran something: npm %q go %q", e.calls("npm"), e.calls("go"))
+		}
+	})
+	t.Run("--plan takes --only too", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("package.json", `{"scripts":{"lint":"eslint ."}}`+"\n")
+		e.write("services/api/pyproject.toml", "[tool.pdm.scripts]\ntest = \"pytest\"\n")
+		r := e.run("--plan", "--only", "services/api")
+		r.Has(t, "RUN python: test (test) [services/api]")
+		r.Lacks(t, "js: lint")
+	})
+
 	// Overlay control: turning checks off, and updating a default by key.
 	t.Run("disabled_checks turns a slot off, and one task by its label", func(t *testing.T) {
 		e := runChecksSetup(t)
