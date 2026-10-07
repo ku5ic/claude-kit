@@ -394,7 +394,7 @@ checks:
 #   fan_out_commands  the same, as whole commands
 gate_discovery:
   wrappers: [env, cross-env]
-  tool_runners: [npx, "pnpm exec", "pnpm dlx", bunx, "yarn dlx", "yarn exec", "npm exec", "uv run", "pipx run", "bundle exec", "poetry run"]
+  tool_runners: [npx, "pnpm exec", "pnpm dlx", bunx, "yarn dlx", "yarn exec", "npm exec", "uv run", "pipx run", "bundle exec", "poetry run", "go tool"]
   references:
     - {prefix: "npm run", provider: package-scripts}
     - {prefix: "npm run-script", provider: package-scripts}

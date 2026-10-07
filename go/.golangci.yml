@@ -17,3 +17,7 @@ linters:
       # Test setup ignores errors on purpose; a failed step fails the assertion after it.
       - path: _test\.go
         linters: [errcheck]
+
+# The CI gofmt gate, as a step run-checks can read.
+formatters:
+  enable: [gofmt]

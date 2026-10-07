@@ -89,6 +89,7 @@ func TestBody(t *testing.T) {
 		{"bunx eslint .", "gate:lint:eslint"},
 		{"uv run pytest", "gate:test:pytest"},
 		{"bundle exec rubocop", "gate:lint:rubocop"},
+		{"go tool deadcode -test ./...", "gate:deadcode:deadcode"},
 		{"rubocop -x", "other"},
 		{"rubocop --auto-correct", "other"},
 		{"rubocop --disable-uncorrectable", "other"},
