@@ -46,7 +46,7 @@ func TestReviewChecks(t *testing.T) {
 	})
 	t.Run("a prefixed call, like time kit run-checks, counts as a run", func(t *testing.T) {
 		e, transcript := setup(t, `{"skillName":"code-review"}`)
-		Write(t, transcript, `{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"time kit run-checks"}}]}}`+"\n")
+		Write(t, transcript, `{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"cd go && CI=1 timeout 600 kit run-checks"}}]}}`+"\n")
 		quiet(t, e, stop(e, transcript, false))
 	})
 	t.Run("a review that already ran kit run-checks stops freely", func(t *testing.T) {
@@ -60,9 +60,10 @@ func TestReviewChecks(t *testing.T) {
 		Write(t, transcript, `{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"kit run-checks --plan | head"}}]}}`+"\n")
 		stop(e, transcript, false).Want(t, 2)
 	})
-	t.Run("a search for the text, or --plan after a line continuation, is still sent back", func(t *testing.T) {
+	t.Run("a search or echo of the text, or --plan after a line continuation, is still sent back", func(t *testing.T) {
 		e, transcript := setup(t, `{"skillName":"code-review"}`)
 		Write(t, transcript, `{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"rg -n \"kit run-checks\" rules/"}}]}}`+"\n"+
+			`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"echo next: kit run-checks && git log --grep 'wire kit run-checks'"}}]}}`+"\n"+
 			`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"kit run-checks \\\n  --plan"}}]}}`+"\n")
 		stop(e, transcript, false).Want(t, 2)
 	})

@@ -11,7 +11,6 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
-	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
 // writeCommand is a typed /write and its kind; command is any leading
@@ -21,13 +20,12 @@ var (
 	command      = regexp.MustCompile(`^\s*/\S+`)
 )
 
-// turn is what UserPromptSubmit records for the Stop and PostToolUse that
-// follow: the ceiling, whether code counts, and the /write kind, if any.
+// turn is what UserPromptSubmit records for the Stops that follow: the
+// ceiling, whether code counts, and how far Stop has judged it.
 type turn struct {
 	Limit int    `json:"limit"`
 	All   bool   `json:"all"`
-	Kind  string `json:"kind"`
-	State string `json:"state"` // "", "passed", or "blocked" once Stop has judged it
+	State string `json:"state"` // "", then "passed" or "blocked", then "released"
 }
 
 func writeTurn(marker string, t turn) {
@@ -36,11 +34,10 @@ func writeTurn(marker string, t turn) {
 	}
 }
 
-// ReplyLength holds output to the word ceilings in kit.yml reply_limits
-// (rules/output.md section 0). On UserPromptSubmit it picks the turn's
-// ceiling from the prompt, records it, and says it; at Stop it blocks a
-// final reply over it, once per turn; after a write to scratch it sends back
-// a /write turn's .md file or a report finding over its ceiling.
+// ReplyLength holds chat replies to the word ceilings in kit.yml
+// reply_limits (rules/output.md section 0). On UserPromptSubmit it picks the
+// turn's ceiling from the prompt, records it, and says it; at Stop it blocks
+// a final reply over it, once per turn.
 func ReplyLength(h *hook.Hook) error {
 	p := h.Payload
 	cfg := h.Config()
@@ -62,18 +59,20 @@ func ReplyLength(h *hook.Hook) error {
 		}
 	case "Stop":
 		// Its own state, not stop_hook_active: another Stop hook's block sets
-		// that too, and a long reply after it still counts. A blocked turn's
-		// next Stop goes through; a turn with no prompt of its own (a task
+		// that too, and a long reply after it still counts. After its own
+		// block the turn is released; a turn with no prompt of its own (a task
 		// notification) gets the chat ceiling.
 		t := turn{Limit: l.Chat}
 		if data, err := os.ReadFile(marker); err == nil {
 			_ = json.Unmarshal(data, &t)
 		}
+		active := p.Bool("stop_hook_active")
 		switch {
-		case t.State == "blocked":
-			os.Remove(marker)
+		case t.State == "blocked" || (t.State == "released" && active):
+			t.State = "released"
+			writeTurn(marker, t)
 			return nil
-		case t.State == "passed" && !p.Bool("stop_hook_active"):
+		case t.State != "" && !active:
 			t = turn{Limit: l.Chat}
 		}
 		n := countWords(p.String("last_assistant_message"), t.All)
@@ -86,18 +85,6 @@ func ReplyLength(h *hook.Hook) error {
 			return h.Block(fmt.Sprintf("your reply was %d words; this turn's ceiling is %d (rules/output.md section 0). "+
 				"Send only the cut version, at most %d words: the answer or next action first, nothing the reader already saw.", n, t.Limit, t.Limit), "reply-length")
 		}
-	case "PostToolUse":
-		path := p.FilePath()
-		if !project.IsScratch(h.Paths, path) || filepath.Ext(path) != ".md" {
-			return nil
-		}
-		var t turn
-		if data, err := os.ReadFile(marker); err == nil {
-			_ = json.Unmarshal(data, &t)
-		}
-		if reason := fileOverLimit(l, t, path); reason != "" {
-			return h.Block(reason+" (kit.yml reply_limits, rules/output.md section 0). Rewrite it shorter: one idea per line, nothing the reader already knows.", "reply-length")
-		}
 	}
 	return nil
 }
@@ -108,7 +95,7 @@ func ReplyLength(h *hook.Hook) error {
 func turnLimit(l config.ReplyLimits, prompt string) turn {
 	if m := writeCommand.FindStringSubmatch(prompt); m != nil {
 		if n, ok := l.Write[m[1]]; ok {
-			return turn{Limit: n, All: true, Kind: m[1]}
+			return turn{Limit: n, All: true}
 		}
 	}
 	text := command.ReplaceAllString(prompt, "")
@@ -130,71 +117,6 @@ func hasTrigger(text string, triggers []string) bool {
 		quoted[i] = regexp.QuoteMeta(t)
 	}
 	return regexp.MustCompile(`(?i)\b(?:` + strings.Join(quoted, "|") + `)\b`).MatchString(text)
-}
-
-// fileOverLimit says how a scratch .md file breaks its ceiling, or "". In a
-// /write turn the file is that kind's output, held whole to its ceiling; else
-// a report-format file has each finding held to report_finding.
-func fileOverLimit(l config.ReplyLimits, t turn, path string) string {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return ""
-	}
-	base := filepath.Base(path)
-	if t.Kind != "" {
-		if n := countWords(string(data), true); t.Limit > 0 && n > t.Limit {
-			return fmt.Sprintf("%s is %d words; the /write %s ceiling is %d", base, n, t.Kind, t.Limit)
-		}
-		return ""
-	}
-	if l.ReportFinding <= 0 {
-		return ""
-	}
-	var over []string
-	for _, f := range findings(string(data)) {
-		title, _, _ := strings.Cut(f, "\n")
-		if n := countWords(f, false); n > l.ReportFinding {
-			over = append(over, fmt.Sprintf("%q (%d)", strings.TrimSpace(strings.TrimPrefix(title, "### ")), n))
-		}
-	}
-	if len(over) == 0 {
-		return ""
-	}
-	return fmt.Sprintf("%s has findings over %d words: %s", base, l.ReportFinding, strings.Join(over, ", "))
-}
-
-// findings is each "### " section under a report's "## Findings", up to the
-// next "## ". Headings inside fenced code are text, not structure.
-func findings(report string) []string {
-	var out []string
-	var cur strings.Builder
-	in, fenced := false, false
-	flush := func() {
-		if cur.Len() > 0 {
-			out = append(out, cur.String())
-			cur.Reset()
-		}
-	}
-	for line := range strings.Lines(report) {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "```") {
-			fenced = !fenced
-		}
-		switch {
-		case fenced || strings.HasPrefix(trimmed, "```"):
-		case strings.HasPrefix(line, "## "):
-			flush()
-			in = trimmed == "## Findings"
-			continue
-		case in && strings.HasPrefix(line, "### "):
-			flush()
-		}
-		if in && (cur.Len() > 0 || strings.HasPrefix(line, "### ")) {
-			cur.WriteString(line)
-		}
-	}
-	flush()
-	return out
 }
 
 // countWords counts the words in text, fenced code only when all. A token

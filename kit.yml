@@ -682,8 +682,8 @@ check_timeout: 90
 # Chat reply word ceilings (rules/output.md section 0), set per prompt and
 # enforced at Stop by the reply-length hook. Fenced code doesn't count.
 # A prompt with a detail trigger has no ceiling; with an explain trigger,
-# the explain one. write: per /write kind, its whole output, code included.
-# report_finding: each "### " finding in a report-format file. 0 turns a
+# the explain one. write: the /write kinds that print to the terminal, code
+# included; the others write a file and reply with its path. 0 turns a
 # ceiling off.
 reply_limits:
   chat: 40
@@ -693,14 +693,7 @@ reply_limits:
   write:
     commit: 40
     devnote: 40
-    review-comment: 40
-    review-reply: 120 # one file holds every reply
-    pr: 80
-    stakeholder: 80
     explainer: 150
-    release-notes: 150
-  # Severity and Location lines take ~6 of these.
-  report_finding: 50
 
 # The CLIs rules/tooling.md steers toward. <tooling> reports which of them
 # are on PATH as available: and missing: lines, so a rule never sends Claude
