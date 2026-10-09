@@ -391,12 +391,15 @@ type Extra struct {
 	Skills []string `yaml:"skills"`
 }
 
-// ReplyLimits are the chat reply word ceilings rules/output.md section 0
-// names. A prompt holding a detail trigger lifts the ceiling, one holding an
-// explain trigger raises it to Explain; 0 is no ceiling.
+// ReplyLimits are the word ceilings rules/output.md section 0 names. A
+// prompt holding a detail trigger lifts the chat ceiling, one holding an
+// explain trigger raises it to Explain. Write is per /write kind, the whole
+// output; ReportFinding is per report-format finding. 0 is no ceiling.
 type ReplyLimits struct {
-	Chat            int      `yaml:"chat"`
-	Explain         int      `yaml:"explain"`
-	ExplainTriggers []string `yaml:"explain_triggers"`
-	DetailTriggers  []string `yaml:"detail_triggers"`
+	Chat            int            `yaml:"chat"`
+	Explain         int            `yaml:"explain"`
+	ExplainTriggers []string       `yaml:"explain_triggers"`
+	DetailTriggers  []string       `yaml:"detail_triggers"`
+	Write           map[string]int `yaml:"write"`
+	ReportFinding   int            `yaml:"report_finding"`
 }

@@ -18,7 +18,8 @@
         "matcher": "Edit|Write|MultiEdit",
         "hooks": [
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook sanitize-output", "timeout": 5 },
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook format-dispatch", "timeout": 15 }
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook format-dispatch", "timeout": 15 },
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook reply-length", "timeout": 5 }
         ]
       },
       {
