@@ -87,6 +87,11 @@ func IsOverlay(paths config.Paths, path string) bool {
 	return project.PhysicalPath(path) == project.PhysicalPath(paths.Overlay)
 }
 
+// GlobAny is true when s matches any of patterns.
+func GlobAny(patterns []string, s string) bool {
+	return slices.ContainsFunc(patterns, func(p string) bool { return Glob(p, s) })
+}
+
 // Glob matches s against a bash pattern as [[ s == pattern ]] does: * and ?
 // cross "/", [...] is a bracket expression ([!...] or [^...] negates), and
 // a backslash escapes the next character.
@@ -117,7 +122,7 @@ func FileMapSkills(rules []config.SkillFileRule, path string) []string {
 		default:
 			continue
 		}
-		if !slices.ContainsFunc(rule.Globs, func(g string) bool { return Glob(g, target) }) {
+		if !GlobAny(rule.Globs, target) {
 			continue
 		}
 		for _, skill := range rule.Skills {

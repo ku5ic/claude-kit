@@ -36,7 +36,7 @@ func goTool(dir, root, name string) string {
 	if err != nil {
 		return ""
 	}
-	if fields := strings.Fields(string(out)); len(fields) > 0 && executable(fields[0]) {
+	if fields := strings.Fields(string(out)); len(fields) > 0 && project.IsExecutable(fields[0]) {
 		return fields[0]
 	}
 	return ""
@@ -87,7 +87,7 @@ func activeEnv(root, name string) string {
 		if rel, err := filepath.Rel(physRoot, project.PhysicalPath(env)); err != nil || rel == ".." || strings.HasPrefix(rel, "../") {
 			continue
 		}
-		if bin := filepath.Join(env, "bin", name); executable(bin) {
+		if bin := filepath.Join(env, "bin", name); project.IsExecutable(bin) {
 			return bin
 		}
 	}

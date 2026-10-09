@@ -1,6 +1,7 @@
 package hooks
 
 import (
+	"cmp"
 	"fmt"
 	"io"
 	"os"
@@ -26,7 +27,7 @@ func FormatDispatch(h *hook.Hook) error {
 		return h.Payload.Err
 	}
 	path := h.Payload.FilePath()
-	if info, err := os.Stat(path); path == "" || err != nil || !info.Mode().IsRegular() {
+	if path == "" || !project.IsFile(path) {
 		return nil
 	}
 	if project.IsScratch(h.Paths, path) {
@@ -41,10 +42,7 @@ func FormatDispatch(h *hook.Hook) error {
 	if err != nil {
 		return nil
 	}
-	root := project.Toplevel(dir)
-	if root == "" {
-		root = dir
-	}
+	root := cmp.Or(project.Toplevel(dir), dir)
 	cfg := h.Config()
 	if cfg == nil {
 		return nil
@@ -164,16 +162,7 @@ func runFormatter(f config.Formatter, bin []string, path, dir string, stderr io.
 	if err != nil {
 		return
 	}
-	path = target
-	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*")
-	if err != nil {
-		return
-	}
-	_, werr := tmp.Write(out)
-	cerr := tmp.Close()
-	if werr != nil || cerr != nil || os.Chmod(tmp.Name(), info.Mode().Perm()) != nil || os.Rename(tmp.Name(), path) != nil {
-		os.Remove(tmp.Name())
-	}
+	_ = project.WriteAtomic(target, out, info.Mode().Perm())
 }
 
 // hasSignal is true when formatter f has a signal for the file: a config

@@ -19,6 +19,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/detect"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
+	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
 // CacheFile is <cache>/stack/<name>-<sha256(root)[:8]>.<tag>.txt: the root
@@ -57,15 +58,7 @@ func Refresh(paths config.Paths, cfg *config.Config, root, cache string) {
 	if os.MkdirAll(filepath.Dir(cache), 0o755) != nil {
 		return
 	}
-	tmp, err := os.CreateTemp(filepath.Dir(cache), ".stack-*")
-	if err != nil {
-		return
-	}
-	_, werr := tmp.WriteString(detect.Report(cfg, root))
-	cerr := tmp.Close()
-	if werr != nil || cerr != nil || os.Rename(tmp.Name(), cache) != nil {
-		os.Remove(tmp.Name())
-	}
+	_ = project.WriteAtomic(cache, []byte(detect.Report(cfg, root)), 0o600)
 }
 
 func mtime(path string) int64 {

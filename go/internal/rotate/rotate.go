@@ -10,7 +10,6 @@ package rotate
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -22,6 +21,7 @@ import (
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
 var positive = regexp.MustCompile(`^[1-9][0-9]*$`)
@@ -51,7 +51,7 @@ func Run(cfg *config.Config, paths config.Paths, args []string, stdout, stderr i
 	_ = os.MkdirAll(paths.LogDir(), 0o755)
 
 	scratch := paths.ScratchHome()
-	if isDir(scratch) {
+	if project.IsDir(scratch) {
 		// .md artifacts by the retention window; .injected-* session
 		// markers after a day: they only dedupe within a session.
 		removed := r.prune(scratch, n, false, func(name string) bool { return strings.HasSuffix(name, ".md") })
@@ -61,11 +61,11 @@ func Run(cfg *config.Config, paths config.Paths, args []string, stdout, stderr i
 	}
 
 	loaded := filepath.Join(paths.CacheDir(), "skills-loaded")
-	if isDir(loaded) {
+	if project.IsDir(loaded) {
 		fmt.Fprintf(stdout, "scratch-rotate: %s %d skill-loaded marker(s) older than 1d from %s\n", pruned, r.prune(loaded, 1, false, nil), loaded)
 	}
 	fileSkills := filepath.Join(paths.CacheDir(), "file-skills")
-	if isDir(fileSkills) {
+	if project.IsDir(fileSkills) {
 		fmt.Fprintf(stdout, "scratch-rotate: %s %d file-skills cache(s) older than 1d from %s\n", pruned, r.prune(fileSkills, 1, false, nil), fileSkills)
 	}
 
@@ -75,7 +75,7 @@ func Run(cfg *config.Config, paths config.Paths, args []string, stdout, stderr i
 		for dir := range strings.SplitSeq(string(data), "\n") {
 			switch {
 			case dir == "":
-			case !isDir(dir):
+			case !project.IsDir(dir):
 				fmt.Fprintf(stdout, "scratch-rotate: %s stale registry entry %s (directory no longer exists)\n", dropping, dir)
 			case !validScratchDir(dir, home):
 				fmt.Fprintf(stderr, "scratch-rotate: REFUSING registry entry %s (not a plain scratch/ dir under $HOME)\n", dir)
@@ -96,7 +96,7 @@ func Run(cfg *config.Config, paths config.Paths, args []string, stdout, stderr i
 	// to them never trim.
 	logs, _ := filepath.Glob(filepath.Join(paths.LogDir(), "*.jsonl"))
 	for _, log := range logs {
-		if !isFile(log) {
+		if !project.IsFile(log) {
 			continue
 		}
 		name := filepath.Base(log)
@@ -181,16 +181,6 @@ func validScratchDir(dir, home string) bool {
 	return os.IsNotExist(err)
 }
 
-func isDir(p string) bool {
-	info, err := os.Stat(p)
-	return err == nil && info.IsDir()
-}
-
-func isFile(p string) bool {
-	info, err := os.Stat(p)
-	return err == nil && info.Mode().IsRegular()
-}
-
 func readLines(path string) ([]string, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -208,22 +198,10 @@ func readLines(path string) ([]string, error) {
 
 // writeLines replaces path atomically with lines, one per line.
 func writeLines(path string, lines []string) {
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".rotate-*")
-	if err != nil {
-		return
-	}
-	w := bufio.NewWriter(tmp)
+	var b strings.Builder
 	for _, l := range lines {
-		// bufio errors are sticky: Flush below reports any of them.
-		_, _ = w.WriteString(l)
-		_ = w.WriteByte('\n')
+		b.WriteString(l)
+		b.WriteByte('\n')
 	}
-	// A short write must not replace the log with a truncated copy.
-	if err := errors.Join(w.Flush(), tmp.Close()); err != nil {
-		os.Remove(tmp.Name())
-		return
-	}
-	if os.Rename(tmp.Name(), path) != nil {
-		os.Remove(tmp.Name())
-	}
+	_ = project.WriteAtomic(path, []byte(b.String()), 0o600)
 }

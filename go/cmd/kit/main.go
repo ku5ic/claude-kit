@@ -3,6 +3,7 @@
 package main
 
 import (
+	"cmp"
 	"fmt"
 	"io"
 	"os"
@@ -150,10 +151,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 				fmt.Fprintf(e.stderr, "kit run-checks: %v\nusage: kit run-checks [--plan] [--only sub...]\n", err)
 				return 2
 			}
-			root := project.Toplevel(e.cwd)
-			if root == "" {
-				root = e.cwd
-			}
+			root := cmp.Or(project.Toplevel(e.cwd), e.cwd)
 			subs := project.Subprojects(cfg, root)
 			for _, sub := range only {
 				if !slices.Contains(subs, sub) {
@@ -269,9 +267,7 @@ func cmdSubprojects(e *env, cfg *config.Config, args []string) int {
 		root = args[0]
 	}
 	if root == "" {
-		if root = project.Toplevel(e.cwd); root == "" {
-			root = e.cwd
-		}
+		root = cmp.Or(project.Toplevel(e.cwd), e.cwd)
 	}
 	for _, dir := range project.Subprojects(cfg, root) {
 		fmt.Fprintln(e.stdout, dir)

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"cmp"
 	"os"
-	"slices"
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/guard"
@@ -90,7 +89,7 @@ func SanitizeOutput(h *hook.Hook) error {
 	if path == "" || err != nil || !info.Mode().IsRegular() {
 		return nil
 	}
-	if cfg := h.Config(); cfg != nil && slices.ContainsFunc(cfg.SanitizeSkip, func(p string) bool { return guard.Glob(p, path) }) {
+	if cfg := h.Config(); cfg != nil && guard.GlobAny(cfg.SanitizeSkip, path) {
 		return nil
 	}
 	data, err := os.ReadFile(path)

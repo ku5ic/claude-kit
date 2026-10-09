@@ -64,8 +64,8 @@ func splitPath(path string) []string {
 	return parts
 }
 
-// getPath walks decoded JSON/TOML/YAML maps; nil when any step is missing.
-func getPath(value any, path string) any {
+// GetPath walks decoded JSON/TOML/YAML maps; nil when any step is missing.
+func GetPath(value any, path string) any {
 	for _, part := range splitPath(path) {
 		m, ok := value.(map[string]any)
 		if !ok {
@@ -153,12 +153,12 @@ func JSONKeys(file, path string) []string {
 
 // JSONArray lists the string items of the array at path.
 func JSONArray(file, path string) []string {
-	return strings_(getPath(readJSON(file), path))
+	return strings_(GetPath(readJSON(file), path))
 }
 
 // JSONValue is the string or number at path, "" otherwise.
 func JSONValue(file, path string) string {
-	switch v := getPath(readJSON(file), path).(type) {
+	switch v := GetPath(readJSON(file), path).(type) {
 	case string:
 		return v
 	case float64:
@@ -223,7 +223,7 @@ func TOMLKeys(file, path string) []string {
 		return nil
 	}
 	// Keys only of a table: a scalar at the path has no children to list.
-	if _, isTable := getPath(readTOML(file), path).(map[string]any); !isTable {
+	if _, isTable := GetPath(readTOML(file), path).(map[string]any); !isTable {
 		return nil
 	}
 	return children[strings.Join(splitPath(path), ".")]
@@ -240,25 +240,25 @@ func keyParts(node *unstable.Node) []string {
 
 // TOMLArray lists the string items of the array at path.
 func TOMLArray(file, path string) []string {
-	return strings_(getPath(readTOML(file), path))
+	return strings_(GetPath(readTOML(file), path))
 }
 
 // TOMLString is the string at path, "" otherwise.
 func TOMLString(file, path string) string {
-	s, _ := getPath(readTOML(file), path).(string)
+	s, _ := GetPath(readTOML(file), path).(string)
 	return s
 }
 
 // TOMLHas is true when path exists, even as an empty table: a bare
 // [tool.ruff] means "use ruff with defaults".
 func TOMLHas(file, path string) bool {
-	return getPath(readTOML(file), path) != nil
+	return GetPath(readTOML(file), path) != nil
 }
 
 // TOMLPackageVersion is the version of [[package]] name in a uv.lock or
 // poetry.lock, matched case-insensitively as pip names are.
 func TOMLPackageVersion(file, name string) string {
-	packages, _ := getPath(readTOML(file), ".package").([]any)
+	packages, _ := GetPath(readTOML(file), ".package").([]any)
 	for _, pkg := range packages {
 		m, ok := pkg.(map[string]any)
 		if !ok {
@@ -282,7 +282,7 @@ func YAMLArray(file, path string) []string {
 	if yaml.Unmarshal(data, &value) != nil {
 		return nil
 	}
-	return strings_(getPath(value, path))
+	return strings_(GetPath(value, path))
 }
 
 var (

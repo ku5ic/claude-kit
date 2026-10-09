@@ -4,6 +4,7 @@
 package project
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -106,10 +107,31 @@ func IsScratch(paths config.Paths, path string) bool {
 		strings.HasSuffix(p, "/.claude/scratch") || strings.Contains(p, "/.claude/scratch/")
 }
 
+// WriteAtomic replaces path with data through a temp file in its directory,
+// so a reader never sees a partial write; on any error path is untouched.
+func WriteAtomic(path string, data []byte, perm os.FileMode) error {
+	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*")
+	if err != nil {
+		return err
+	}
+	_, werr := tmp.Write(data)
+	if err := errors.Join(werr, tmp.Close(), os.Chmod(tmp.Name(), perm), os.Rename(tmp.Name(), path)); err != nil {
+		os.Remove(tmp.Name())
+		return err
+	}
+	return nil
+}
+
 // IsFile is true for an existing regular file.
 func IsFile(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && info.Mode().IsRegular()
+}
+
+// IsExecutable is true for an existing non-directory with an execute bit.
+func IsExecutable(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir() && info.Mode()&0o111 != 0
 }
 
 // IsDir is true for an existing directory.

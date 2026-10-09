@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
@@ -243,11 +242,11 @@ func run(g Gate, w io.Writer) bool {
 // matchesCheck is true when task counts as check c: it matches one of the
 // check's task globs and none of its exclude globs.
 func matchesCheck(c config.Check, task string) bool {
-	return globIndex(c.Tasks, task) >= 0 && !excluded(c, task)
+	return guard.GlobAny(c.Tasks, task) && !excluded(c, task)
 }
 
 func excluded(c config.Check, task string) bool {
-	return globIndex(c.Exclude, task) >= 0
+	return guard.GlobAny(c.Exclude, task)
 }
 
 // globIndex is the index of the first of globs matching name, or -1.
@@ -260,7 +259,7 @@ func globIndex(globs []string, name string) int {
 func excludedTask(c config.Check, tasks []project.Task) (name, glob string) {
 	names := slices.Concat(c.Tasks, c.FallbackTasks)
 	for _, t := range tasks {
-		if globIndex(names, t.Name) < 0 {
+		if !guard.GlobAny(names, t.Name) {
 			continue
 		}
 		if i := globIndex(c.Exclude, t.Name); i >= 0 {
@@ -300,7 +299,7 @@ func ToolchainSkip(cfg *config.Config, tc config.ToolchainCheck, sub string, cov
 func excludedDir(cfg *config.Config, slot, sub string) string {
 	dirs := checkNamed(cfg, slot).ExcludeDirs
 	for _, seg := range strings.Split(filepath.ToSlash(sub), "/") {
-		if slices.ContainsFunc(dirs, func(g string) bool { return guard.Glob(g, seg) }) {
+		if guard.GlobAny(dirs, seg) {
 			return seg
 		}
 	}
@@ -322,10 +321,7 @@ func (p *planner) orchestrate() {
 	for _, o := range p.cfg.Orchestrators {
 		signal := filepath.Join(p.root, o.Signal)
 		bin := filepath.Join(p.root, "node_modules", ".bin", o.Name)
-		if info, err := os.Stat(signal); err != nil || !info.Mode().IsRegular() {
-			continue
-		}
-		if info, err := os.Stat(bin); err != nil || info.Mode()&0o111 == 0 {
+		if !project.IsFile(signal) || !project.IsExecutable(bin) {
 			continue
 		}
 		var tasks []string

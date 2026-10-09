@@ -61,21 +61,6 @@ func JSSpecs(dir string) map[string]string {
 	return specs
 }
 
-// TestScript is package.json's scripts.test, "" when absent.
-func TestScript(dir string) string {
-	data, err := os.ReadFile(filepath.Join(dir, "package.json"))
-	if err != nil {
-		return ""
-	}
-	var pkg struct {
-		Scripts map[string]string `json:"scripts"`
-	}
-	if json.Unmarshal(data, &pkg) != nil {
-		return ""
-	}
-	return pkg.Scripts["test"]
-}
-
 // PythonDeps are every requirement pyproject.toml declares (PEP 621
 // dependencies and optional-dependencies, PEP 735 dependency groups,
 // Poetry's dependency tables, PDM's dev-dependencies) plus requirements

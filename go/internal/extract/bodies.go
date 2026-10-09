@@ -21,9 +21,9 @@ type Body struct {
 func Bodies(name, file, arg string) map[string]Body {
 	switch name {
 	case "json_keys":
-		return stringValues(getPath(readJSON(file), arg))
+		return stringValues(GetPath(readJSON(file), arg))
 	case "toml_keys":
-		return stringValues(getPath(readTOML(file), arg))
+		return stringValues(GetPath(readTOML(file), arg))
 	case "make_targets":
 		return makeBodies(file)
 	case "just_recipes":

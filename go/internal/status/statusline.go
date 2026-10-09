@@ -5,7 +5,6 @@ package status
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -15,7 +14,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ku5ic/claude-kit/go/internal/extract"
 	"github.com/ku5ic/claude-kit/go/internal/git"
+	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
@@ -39,15 +40,7 @@ const (
 // jqString is jq -r's rendering of `.a.b // default`: a missing, null, or
 // false value gives default; a number prints in jq's shortest form.
 func jqString(data map[string]any, path, def string) string {
-	var v any = data
-	for part := range strings.SplitSeq(path, ".") {
-		m, ok := v.(map[string]any)
-		if !ok {
-			return def
-		}
-		v = m[part]
-	}
-	switch x := v.(type) {
+	switch x := extract.GetPath(data, path).(type) {
 	case nil:
 		return def
 	case bool:
@@ -268,13 +261,7 @@ func gitStatus(home, cwd, sessionID string) string {
 		}
 	}
 	segment := fmt.Sprintf("%s\t%d\t%d", branch, add, del)
-	if tmp, err := os.CreateTemp(dir, ".git-*"); err == nil {
-		_, werr := tmp.WriteString(segment + "\n")
-		// A short write must not be cached for the whole ttl.
-		if errors.Join(werr, tmp.Close()) != nil || os.Rename(tmp.Name(), file) != nil {
-			os.Remove(tmp.Name())
-		}
-	}
+	_ = project.WriteAtomic(file, []byte(segment+"\n"), 0o600)
 	return segment
 }
 

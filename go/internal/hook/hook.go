@@ -16,10 +16,10 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/extract"
 )
 
 // Payload is the hook's stdin JSON. A payload that doesn't parse is kept as
@@ -43,25 +43,13 @@ func ParsePayload(raw []byte) *Payload {
 
 // Bool is the boolean at a dotted path, false when absent or not a bool.
 func (p *Payload) Bool(path string) bool {
-	b, _ := p.value(path).(bool)
+	b, _ := extract.GetPath(p.data, path).(bool)
 	return b
-}
-
-func (p *Payload) value(path string) any {
-	var value any = p.data
-	for part := range strings.SplitSeq(path, ".") {
-		m, ok := value.(map[string]any)
-		if !ok {
-			return nil
-		}
-		value = m[part]
-	}
-	return value
 }
 
 // String is the string at a dotted path, "" when absent or not a string.
 func (p *Payload) String(path string) string {
-	s, _ := p.value(path).(string)
+	s, _ := extract.GetPath(p.data, path).(string)
 	return s
 }
 

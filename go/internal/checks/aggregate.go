@@ -2,7 +2,6 @@ package checks
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -429,7 +428,7 @@ func (a *aggregator) resolveWord(dir, word string) tools.Resolution {
 		path = filepath.Join(dir, path)
 	}
 	path = filepath.Clean(path)
-	if info, err := os.Stat(path); err == nil && !info.IsDir() && info.Mode()&0o111 != 0 && strings.HasPrefix(path, a.root+"/") {
+	if project.IsExecutable(path) && strings.HasPrefix(path, a.root+"/") {
 		return tools.Resolution{Words: []string{path}, Source: tools.SourceLocal}
 	}
 	return tools.Resolution{Skip: word + " not found in the repo"}

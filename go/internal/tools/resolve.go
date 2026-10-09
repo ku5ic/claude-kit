@@ -1,7 +1,6 @@
 package tools
 
 import (
-	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
@@ -59,7 +58,7 @@ func Resolve(cfg *config.Config, dir, root, name string, mode Mode) Resolution {
 	owner, spec := jsOwner(dir, root, pkg)
 	for _, sub := range []string{"node_modules/.bin", ".venv/bin", "venv/bin"} {
 		found := project.FindUp(dir, root, filepath.Join(sub, name))
-		if found == "" || !executable(found) {
+		if found == "" || !project.IsExecutable(found) {
 			continue
 		}
 		res := Resolution{Words: []string{found}, Source: SourceLocal}
@@ -140,7 +139,7 @@ func envBin(l config.EnvLookup, dir, name string) []string {
 		cmd.Dir = dir
 		out, err := cmd.Output()
 		if venv := strings.TrimSpace(string(out)); err == nil && venv != "" {
-			if bin := filepath.Join(venv, "bin", name); executable(bin) {
+			if bin := filepath.Join(venv, "bin", name); project.IsExecutable(bin) {
 				return []string{bin}
 			}
 		}
@@ -159,9 +158,4 @@ func envBin(l config.EnvLookup, dir, name string) []string {
 		return nil
 	}
 	return fill(l.Run)
-}
-
-func executable(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && !info.IsDir() && info.Mode()&0o111 != 0
 }

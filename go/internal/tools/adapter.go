@@ -199,7 +199,7 @@ func (a Adapter) chosenRunner(dir string) bool {
 	if others == 0 {
 		return true
 	}
-	return slices.Contains(strings.Fields(nonWord.ReplaceAllString(TestScript(dir), " ")), a.Name)
+	return slices.Contains(strings.Fields(nonWord.ReplaceAllString(extract.JSONValue(filepath.Join(dir, "package.json"), ".scripts.test"), " ")), a.Name)
 }
 
 var nonWord = regexp.MustCompile(`[^A-Za-z0-9_-]`)

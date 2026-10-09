@@ -80,7 +80,7 @@ func Run(cfg *config.Config, args []string, stdout, stderr io.Writer) int {
 	if len(args) == 2 {
 		symbol = args[1]
 	}
-	if info, err := os.Stat(target); err != nil || !info.Mode().IsRegular() {
+	if !project.IsFile(target) {
 		fmt.Fprintf(stderr, "blast-radius: no such file: %s\n", target)
 		return 2
 	}
@@ -190,7 +190,7 @@ func (s *scan) add(file string, line int, label string) {
 	}
 	kind := "source"
 	base := filepath.Base(file)
-	if slices.ContainsFunc(s.testGlobs, func(g string) bool { return guard.Glob(g, base) }) {
+	if guard.GlobAny(s.testGlobs, base) {
 		kind = "test"
 		s.tests++
 	}
