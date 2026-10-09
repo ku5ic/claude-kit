@@ -219,31 +219,6 @@ func TestStopPlanDone(t *testing.T) {
 		e.turn("Edit", e.plan(done))
 		e.stop(false).Want(t, 0)
 	})
-	t.Run("an inline review counts: a typed one with no launch record, or a Skill call that launched in place", func(t *testing.T) {
-		e := stopChecksSetup(t)
-		e.turn("Edit", e.path("a.ts"))
-		e.line(map[string]any{"type": "user", "message": map[string]any{"content": "<command-name>/code-review</command-name>"}})
-		e.turn("Edit", e.plan(done))
-		e.stop(false).Want(t, 0)
-
-		e = stopChecksSetup(t)
-		e.turn("Edit", e.path("a.ts"))
-		e.review()
-		e.line(map[string]any{"type": "user", "message": map[string]any{"content": []any{
-			map[string]any{"type": "tool_result", "tool_use_id": "toolu_r1", "content": "Launching skill: code-review"},
-		}}})
-		e.turn("Edit", e.plan(done))
-		e.stop(false).Want(t, 0)
-	})
-	t.Run("a typed review that forked counts only once it finishes", func(t *testing.T) {
-		e := stopChecksSetup(t)
-		e.turn("Edit", e.path("a.ts"))
-		e.line(map[string]any{"type": "user", "message": map[string]any{"content": "/code-review"}})
-		e.line(map[string]any{"type": "system", "subtype": "local_command",
-			"content": `<forked-skill-launch>{"agentId":"a1","skillName":"code-review"}</forked-skill-launch>`})
-		e.turn("Edit", e.plan(done))
-		e.stop(false).Want(t, 2)
-	})
 	t.Run("a review that was stopped, or hasn't finished, doesn't count", func(t *testing.T) {
 		e := stopChecksSetup(t)
 		e.turn("Edit", e.path("a.ts"))

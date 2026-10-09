@@ -14,10 +14,7 @@ import (
 var (
 	// doneStep matches a ticked checklist item.
 	doneStep = regexp.MustCompile(`(?m)^\s*[-*] \[[xX]\]`)
-	// A typed /code-review arrives as the user's own message:
-	// "/code-review high", or a <command-name> block.
-	typedReview = regexp.MustCompile(`^\s*/code-review(\s|$)|<command-name>/code-review</command-name>`)
-	// A forked typed /code-review leaves this launch record; a Skill call is
+	// A typed /code-review forks with this launch record; a Skill call is
 	// known by its tool_use id. Either one's task-notification names it.
 	launchTag   = regexp.MustCompile(`<forked-skill-launch>(.*?)</forked-skill-launch>`)
 	notifyField = regexp.MustCompile(`<(task-id|tool-use-id|status)>([^<]*)</`)
@@ -37,13 +34,6 @@ func launchedReview(text string) string {
 		return ""
 	}
 	return launch.AgentID
-}
-
-// blockText is raw content when it's a plain string, else "".
-func blockText(raw json.RawMessage) string {
-	var text string
-	_ = json.Unmarshal(raw, &text)
-	return text
 }
 
 // finishedReview is the transcript line where the review a completed
@@ -78,30 +68,15 @@ func planDone(path, plansDir string, isCode func(string) bool) (plan string, rev
 	// Transcript line numbers; -1 is never.
 	lastEdit, lastReview := -1, -1
 	var ticked []string         // plans this turn edited
-	started := map[string]int{} // forked review's tool_use or task id -> its start line
-	// A typed review that no launch record has shown to be forked runs inline:
-	// it has finished once the next turn starts, or by this Stop.
-	typed := -1
-	settleTyped := func() { lastReview, typed = max(lastReview, typed), -1 }
+	started := map[string]int{} // review tool_use or task id -> its start line
 	// A read error leaves what was read: the hook fails open.
 	_ = transcript.Each(path, func(e transcript.Entry) {
 		if id := launchedReview(e.Notice); id != "" {
-			started[id], typed = e.Line, -1
+			started[id] = e.Line
 		}
 		// A notification arrives as a user message or a queued command.
 		lastReview = max(lastReview, finishedReview(e.Text, started), finishedReview(e.Notice, started))
-		for _, b := range e.Blocks {
-			// An inline Skill call answers "Launching skill: ..." and runs in
-			// this turn; a forked one waits for its notification.
-			if line, ok := started[b.ToolUseID]; ok && b.Type == "tool_result" && strings.HasPrefix(blockText(b.Content), "Launching skill:") {
-				lastReview = max(lastReview, line)
-			}
-		}
 		if e.StartsTurn() {
-			settleTyped()
-			if typedReview.MatchString(e.PromptText()) {
-				typed = e.Line
-			}
 			ticked = ticked[:0]
 			return
 		}
@@ -121,7 +96,6 @@ func planDone(path, plansDir string, isCode func(string) bool) (plan string, rev
 			}
 		}
 	})
-	settleTyped()
 
 	for _, path := range ticked {
 		if data, err := os.ReadFile(path); err == nil && !openStep.Match(data) && doneStep.Match(data) {
