@@ -135,7 +135,7 @@ func Suggested(cfg *config.Config, signals, fileSkills []string) []string {
 // a file without them. The scan runs once per session and root; subagents
 // read the cached result, as their SubagentStart hook has a 5s timeout.
 func FileSkills(paths config.Paths, cfg *config.Config, root, session string) []string {
-	if os.Getenv("CLAUDE_GUARD_SKILLS") != "1" || root == "" {
+	if !guard.SkillsEnforced() || root == "" {
 		return nil
 	}
 	sum := sha256.Sum256([]byte(root))
@@ -229,7 +229,7 @@ func SuggestedBlock(cfg *config.Config, suggested []string) string {
 		}
 		fmt.Fprintf(&b, "load %s via the Skill tool\n", skill)
 	}
-	if os.Getenv("CLAUDE_GUARD_SKILLS") == "1" {
+	if guard.SkillsEnforced() {
 		b.WriteString("Patterns skills are also enforced automatically: the first edit to a matching file type will be blocked until the relevant skill is loaded.\n")
 	}
 	b.WriteString("</suggested-skills>\n")

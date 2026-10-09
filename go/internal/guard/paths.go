@@ -98,6 +98,10 @@ func Glob(pattern, s string) bool {
 	return re.MatchString(s)
 }
 
+// SkillsEnforced reports whether guard-skills is on: CLAUDE_GUARD_SKILLS=1,
+// an opt-in personal policy.
+func SkillsEnforced() bool { return os.Getenv("CLAUDE_GUARD_SKILLS") == "1" }
+
 // FileMapSkills is every skill a skill_file_map rule matching path gives,
 // deduped: an "on: basename" rule tests the base name, "on: path" the full
 // path.
