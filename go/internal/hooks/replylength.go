@@ -72,6 +72,10 @@ func ReplyLength(h *hook.Hook) error {
 		case marker == "":
 			// No session to keep "once per turn" in: never block, never loop.
 			return nil
+		case t.State == "" && active:
+			// A continuation before this turn's first Stop belongs to the
+			// turn before a queued prompt: leave the new turn's marker alone.
+			return nil
 		case t.State == "blocked":
 			t.State = "released"
 			writeTurn(marker, t)

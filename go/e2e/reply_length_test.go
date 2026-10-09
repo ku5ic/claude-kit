@@ -82,6 +82,17 @@ func TestReplyLength(t *testing.T) {
 		stop(k, words(30)+"\n~~~\n"+words(200)+"\n~~~\n", false).Want(t, 0)
 		stop(k, words(30)+"\n```\n"+words(20), false).Want(t, 2)
 	})
+	t.Run("a prompt queued during a blocked turn keeps its own ceiling", func(t *testing.T) {
+		k := New(t)
+		prompt(k, "go")
+		stop(k, words(46), false).Want(t, 2)
+		// The next prompt is submitted before the cut reply's Stop arrives.
+		prompt(k, "why did it stall?").Has(t, "80 words")
+		stop(k, words(30), true).Want(t, 0)
+		r := stop(k, words(86), false)
+		r.Want(t, 2)
+		r.Has(t, "this turn's ceiling is 80")
+	})
 	t.Run("a hyphenated compound isn't a trigger", func(t *testing.T) {
 		k := New(t)
 		prompt(k, "is it a why-not case").Has(t, "40 words")
