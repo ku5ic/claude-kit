@@ -136,6 +136,24 @@ func TestKitRepo(t *testing.T) {
 		}
 	})
 
+	t.Run("rules/tooling.md's skip list is kit.yml's skip_dirs", func(t *testing.T) {
+		cfg, _, err := config.Load(config.Paths{Base: filepath.Join(kitRoot, "kit.yml"), Overlay: filepath.Join(t.TempDir(), "none.yml")})
+		if err != nil {
+			t.Fatal(err)
+		}
+		line := regexp.MustCompile("(?m)^- Skip for any glob, grep, or read: (.*)$").FindStringSubmatch(Read(t, filepath.Join(kitRoot, "rules/tooling.md")))
+		if line == nil {
+			t.Fatal("rules/tooling.md has no skip line")
+		}
+		var listed []string
+		for _, m := range regexp.MustCompile("`([^`]+)/\\*\\*`").FindAllStringSubmatch(line[1], -1) {
+			listed = append(listed, m[1])
+		}
+		if !slices.Equal(slices.Sorted(slices.Values(listed)), slices.Sorted(slices.Values(cfg.SkipDirs))) {
+			t.Errorf("rules/tooling.md skips %q, kit.yml skip_dirs is %q", listed, cfg.SkipDirs)
+		}
+	})
+
 	t.Run("audit verify parses every per-finding field the report format requires", func(t *testing.T) {
 		format := Read(t, filepath.Join(kitRoot, "skills/report-format/SKILL.md"))
 		verify := Read(t, filepath.Join(kitRoot, "skills/audit/reference/verify.md"))

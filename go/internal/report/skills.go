@@ -256,7 +256,7 @@ func referencedSections(cfg *config.Config, groups []group, stdout io.Writer) {
 		fmt.Fprintln(stdout, s)
 	}
 	fmt.Fprintln(stdout, "\n== 4: activations for skills not referenced anywhere in kit.yml ==")
-	fmt.Fprintln(stdout, "(expected for audit, write, meta, deps, and investigate procedure skills -- kit.yml only maps pattern/reference skills to stacks, not this group)")
+	fmt.Fprintln(stdout, "(expected for the procedure skills, rules/workflow.md section 3 -- kit.yml only maps pattern/reference skills to stacks)")
 	unreferenced := minus(activeNames, referenced)
 	if len(unreferenced) == 0 {
 		fmt.Fprintln(stdout, "(none)")

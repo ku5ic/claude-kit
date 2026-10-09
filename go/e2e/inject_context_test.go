@@ -237,7 +237,7 @@ stacks:
 
 	t.Run("outside a git work tree, a directory walk finds the files", func(t *testing.T) {
 		e := injectContextSetup(t, tree)
-		e.kitYML(fileSkillsYML)
+		e.kitYML(fileSkillsYML + "skip_dirs: [node_modules, dist]\n")
 		e.writeCache("root: "+e.root, "go: yes")
 		e.Setenv("CLAUDE_GUARD_SKILLS", "1")
 		if err := os.RemoveAll(filepath.Join(e.root, ".git")); err != nil {

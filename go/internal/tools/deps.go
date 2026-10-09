@@ -79,7 +79,7 @@ func TestScript(dir string) string {
 // PythonDeps are every requirement pyproject.toml declares (PEP 621
 // dependencies and optional-dependencies, PEP 735 dependency groups,
 // Poetry's dependency tables, PDM's dev-dependencies) plus requirements
-// files' entries, by normalized name.
+// files' entries and Pipfile's packages, by normalized name.
 func PythonDeps(dir string) Deps {
 	deps := Deps{}
 	addReq := func(req string) {
@@ -128,6 +128,13 @@ func PythonDeps(dir string) Deps {
 			}
 			pdm, _ := tool["pdm"].(map[string]any)
 			addTables(pdm["dev-dependencies"])
+		}
+	}
+	if data, err := os.ReadFile(filepath.Join(dir, "Pipfile")); err == nil {
+		var doc map[string]any
+		if toml.Unmarshal(data, &doc) == nil {
+			addKeys(doc["packages"])
+			addKeys(doc["dev-packages"])
 		}
 	}
 	reqs, _ := filepath.Glob(filepath.Join(dir, "requirements*.txt"))

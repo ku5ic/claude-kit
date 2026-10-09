@@ -208,8 +208,8 @@ func TestDefaultsAndMissingOverlay(t *testing.T) {
 	if err != nil || len(warnings) > 0 {
 		t.Fatalf("err=%v warnings=%v", err, warnings)
 	}
-	if cfg.LogMaxLines != 10000 || cfg.SubprojectMaxDepth != 4 {
-		t.Errorf("defaults: log_max_lines=%d subproject_max_depth=%d", cfg.LogMaxLines, cfg.SubprojectMaxDepth)
+	if cfg.LogMaxLines != 10000 || cfg.SubprojectMaxDepth != 4 || cfg.CheckTimeout != 90 {
+		t.Errorf("defaults: log_max_lines=%d subproject_max_depth=%d check_timeout=%d", cfg.LogMaxLines, cfg.SubprojectMaxDepth, cfg.CheckTimeout)
 	}
 }
 

@@ -190,7 +190,7 @@ func FileSkills(paths config.Paths, cfg *config.Config, root, session string) []
 func scanFileSkills(cfg *config.Config, root string) []string {
 	rules := slices.Clone(cfg.SkillFileMap)
 	var skills []string
-	for _, path := range listFiles(root) {
+	for _, path := range listFiles(cfg, root) {
 		rules = slices.DeleteFunc(rules, func(rule config.SkillFileRule) bool {
 			matched := guard.FileMapSkills([]config.SkillFileRule{rule}, path)
 			skills = append(skills, matched...)
@@ -207,14 +207,10 @@ func scanFileSkills(cfg *config.Config, root string) []string {
 // and a home-sized tree must not stall a 5s hook.
 const walkCap = 20000
 
-// walkSkip is the dependency and build-output dirs the walk never enters,
-// matching the skip list in rules/tooling.md; hidden dirs are skipped too.
-var walkSkip = []string{"node_modules", "vendor", "dist", "build", "out", "target", "coverage", "storybook-static", "__pycache__", "venv"}
-
 // listFiles is every file under root as an absolute path: git's list when
-// root is a work tree, else a walk that skips hidden and walkSkip dirs,
+// root is a work tree, else a walk that skips hidden and skip_dirs dirs,
 // stopping at walkCap files.
-func listFiles(root string) []string {
+func listFiles(cfg *config.Config, root string) []string {
 	var files []string
 	if out, err := git.Output(root, "ls-files", "--cached", "--others", "--exclude-standard", "-z"); err == nil {
 		for file := range strings.SplitSeq(out, "\x00") {
@@ -228,7 +224,7 @@ func listFiles(root string) []string {
 		switch {
 		case err != nil:
 			return nil
-		case d.IsDir() && path != root && (strings.HasPrefix(d.Name(), ".") || slices.Contains(walkSkip, d.Name())):
+		case d.IsDir() && path != root && (strings.HasPrefix(d.Name(), ".") || slices.Contains(cfg.SkipDirs, d.Name())):
 			return filepath.SkipDir
 		case d.IsDir():
 			return nil

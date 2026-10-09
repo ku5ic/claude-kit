@@ -2,7 +2,6 @@ package checks
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"fmt"
 	"os/exec"
@@ -137,7 +136,7 @@ func FileChecks(cfg *config.Config, root, base string, edited []string) *Outcome
 	if len(groups) == 0 {
 		return nil
 	}
-	timeout := time.Duration(cmp.Or(cfg.CheckTimeout, 90)) * time.Second
+	timeout := time.Duration(cfg.CheckTimeout) * time.Second
 	results := make([]result, len(groups))
 	var wg sync.WaitGroup
 	for i, g := range groups {

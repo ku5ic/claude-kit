@@ -211,6 +211,15 @@ extra_lockfiles: [Gemfile.lock, Cargo.lock, composer.lock, pdm.lock, go.sum]
 # Branches git push, and git reset --hard to, are blocked for.
 protected_branches: [main, master, develop, production, release]
 
+# Dependency and build-output dirs a file walk never enters (hidden dirs are
+# skipped too); rules/tooling.md's skip list matches it.
+skip_dirs: [node_modules, vendor, dist, build, out, target, coverage, storybook-static, __pycache__, venv, .next, .turbo, .cache, .pnpm-store, .venv]
+
+# Files sanitize-output leaves alone: translations, templates, snapshots, and
+# fixtures, whose characters are content.
+sanitize_skip: ["*.po", "*.pot", "*.svg", "*.html.j2", "*.j2", "*.jinja", "*.jinja2", "*.hbs", "*.erb", "*.liquid",
+  "*/locales/*", "*/messages/*", "*/i18n/*", "*.snap", "*/fixtures/*", "*/__snapshots__/*", "*/testdata/*"]
+
 # Shell rc files: direct writes are blocked, the dotfiles repo is the source.
 rc_files: ["~/.zshrc", "~/.zprofile", "~/.bashrc", "~/.bash_profile", "~/.profile"]
 
@@ -795,36 +804,30 @@ stacks:
       - name: pdm.lock
     skills: [python-patterns]
     extras:
+      # pydep: declared in pyproject.toml, requirements*.txt, or Pipfile.
       - name: django
         any_of:
           - file: manage.py
-          - grep: '^[[:space:]"]*[Dd]jango'
-            in: [pyproject.toml, requirements.txt, Pipfile]
+          - pydep: django
         skills: [django-patterns]
       - name: drf
-        grep: '^[[:space:]"]*djangorestframework'
-        in: [pyproject.toml, requirements.txt, Pipfile]
+        pydep: djangorestframework
         skills: [drf-patterns]
       - name: fastapi
-        grep: '^[[:space:]"]*fastapi'
-        in: [pyproject.toml, requirements.txt, Pipfile]
+        pydep: fastapi
         skills: [fastapi-patterns]
       - name: flask
-        grep: '^[[:space:]"]*flask'
-        in: [pyproject.toml, requirements.txt, Pipfile]
+        pydep: flask
       - name: pytest
         any_of:
           - file: pytest.ini
           - file: conftest.py
-          - grep: '^[[:space:]"]*pytest'
-            in: [pyproject.toml, requirements.txt, Pipfile]
+          - pydep: pytest
         skills: [test-patterns]
       - name: ruff
-        grep: '^[[:space:]"]*ruff'
-        in: [pyproject.toml, requirements.txt, Pipfile]
+        pydep: ruff
       - name: mypy
-        grep: '^[[:space:]"]*mypy'
-        in: [pyproject.toml, requirements.txt, Pipfile]
+        pydep: mypy
 
   ruby:
     sentinels:

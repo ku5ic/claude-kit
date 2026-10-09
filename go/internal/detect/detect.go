@@ -11,7 +11,6 @@
 package detect
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -21,6 +20,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/extract"
 	"github.com/ku5ic/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/tools"
 )
 
 // Report is the full text for root, "" when no stack is found.
@@ -112,7 +112,7 @@ func hasEcosystem(cfg *config.Config, ecosystem string) bool {
 }
 
 // matchExtra evaluates one extra's first rule kind present, in the order
-// dep, file, grep, any_of, and returns the token it reports as.
+// dep, pydep, file, grep, any_of, and returns the token it reports as.
 func matchExtra(extra config.Extra, dir string) (string, bool) {
 	token := extra.Name
 	if extra.Rename != "" {
@@ -120,7 +120,10 @@ func matchExtra(extra config.Extra, dir string) (string, bool) {
 	}
 	switch {
 	case extra.Dep != "":
-		return token, hasDep(filepath.Join(dir, "package.json"), extra.Dep)
+		_, ok := tools.JSSpecs(dir)[extra.Dep]
+		return token, ok
+	case extra.PyDep != "":
+		return token, tools.PythonDeps(dir)[extra.PyDep]
 	case extra.File != "":
 		return token, project.IsFile(filepath.Join(dir, extra.File))
 	case extra.Grep != "":
@@ -133,25 +136,11 @@ func matchExtra(extra config.Extra, dir string) (string, bool) {
 		if rule.Grep != "" && grepAny(dir, rule.Grep, rule.In) {
 			return token, true
 		}
+		if rule.PyDep != "" && tools.PythonDeps(dir)[rule.PyDep] {
+			return token, true
+		}
 	}
 	return "", false
-}
-
-func hasDep(packageJSON, dep string) bool {
-	data, err := os.ReadFile(packageJSON)
-	if err != nil {
-		return false
-	}
-	var pkg struct {
-		Dependencies    map[string]any `json:"dependencies"`
-		DevDependencies map[string]any `json:"devDependencies"`
-	}
-	if json.Unmarshal(data, &pkg) != nil {
-		return false
-	}
-	_, inDeps := pkg.Dependencies[dep]
-	_, inDev := pkg.DevDependencies[dep]
-	return inDeps || inDev
 }
 
 // grepAny is `grep -qE pattern` over each file: ^ and $ anchor per line.

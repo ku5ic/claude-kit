@@ -53,6 +53,14 @@ versions: react 19.0.0 (declared), next 15.0.0 (declared), typescript 5.6.0 (dec
 		r.Want(t, 0)
 		exact(t, r, "root: "+root+"\npython: yes (django) [uv]")
 	})
+	t.Run("python extras read declared dependencies, not a name prefix", func(t *testing.T) {
+		k, root := repo(t, "pipenv")
+		Write(t, filepath.Join(root, "Pipfile"), "[packages]\nFastAPI = \"*\"\nruff-lsp = \"*\"\n")
+		Write(t, filepath.Join(root, "requirements-dev.txt"), "pytest==8.3\n")
+		r := k.Run("", "detect-stack")
+		r.Want(t, 0)
+		exact(t, r, "root: "+root+"\npython: yes (fastapi,pytest)")
+	})
 	t.Run("repo with no sentinel prints nothing", func(t *testing.T) {
 		k, _ := repo(t, "none")
 		r := k.Run("", "detect-stack")

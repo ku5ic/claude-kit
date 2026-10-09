@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"cmp"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/guard"
@@ -74,16 +75,12 @@ var (
 		string(rune(0x2190)), "<-",
 		string(rune(0x21D2)), "=>",
 	)
-	sanitizeSkip = []string{
-		"*.po", "*.pot", "*.svg", "*.html.j2", "*.j2", "*.jinja", "*.jinja2", "*.hbs", "*.erb", "*.liquid",
-		"*/locales/*", "*/messages/*", "*/i18n/*", "*.snap", "*/fixtures/*", "*/__snapshots__/*", "*/testdata/*",
-	}
 )
 
 // SanitizeOutput strips bidi control characters from a written text file,
 // and with CLAUDE_SANITIZE_TYPOGRAPHY=1 rewrites em dashes, smart quotes,
 // ellipses, and arrows to ASCII. PostToolUse for Write, Edit, MultiEdit.
-// Translations, templates, snapshots, and fixtures are left alone.
+// Files kit.yml's sanitize_skip matches are left alone.
 func SanitizeOutput(h *hook.Hook) error {
 	if h.Payload.Err != nil {
 		return h.Payload.Err
@@ -93,10 +90,8 @@ func SanitizeOutput(h *hook.Hook) error {
 	if path == "" || err != nil || !info.Mode().IsRegular() {
 		return nil
 	}
-	for _, pattern := range sanitizeSkip {
-		if guard.Glob(pattern, path) {
-			return nil
-		}
+	if cfg := h.Config(); cfg != nil && slices.ContainsFunc(cfg.SanitizeSkip, func(p string) bool { return guard.Glob(p, path) }) {
+		return nil
 	}
 	data, err := os.ReadFile(path)
 	if err != nil || !isText(data) {

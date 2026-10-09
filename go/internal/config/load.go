@@ -146,6 +146,9 @@ func applyDefaults(cfg *Config) {
 	if cfg.SubprojectMaxDepth == 0 {
 		cfg.SubprojectMaxDepth = 4
 	}
+	if cfg.CheckTimeout == 0 {
+		cfg.CheckTimeout = 90
+	}
 }
 
 // readNode returns the top-level mapping of a YAML file.

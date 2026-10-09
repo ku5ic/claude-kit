@@ -37,6 +37,8 @@ type Config struct {
 	FileChecks         []FileCheck         `yaml:"file_checks"`
 	DisabledFileChecks []string            `yaml:"disabled_file_checks"`
 	CheckTimeout       int                 `yaml:"check_timeout"`
+	SanitizeSkip       []string            `yaml:"sanitize_skip"`
+	SkipDirs           []string            `yaml:"skip_dirs"`
 	ToolResolution     ToolResolution      `yaml:"tool_resolution"`
 	Tools              []string            `yaml:"tools"`
 	Orchestrators      []Orchestrator      `yaml:"orchestrators"`
@@ -120,8 +122,12 @@ func (c *Config) AnchorSentinels() []string {
 	return out
 }
 
+// pyDepFiles are the manifests a pydep rule reads (tools.PythonDeps), past
+// requirements.txt's siblings.
+var pyDepFiles = []string{"pyproject.toml", "requirements.txt", "Pipfile"}
+
 // DetectFiles are the files whose change can change detection: every
-// sentinel, every extra's file and grep target, and every lockfile, deduped
+// sentinel, every extra's file, grep, and pydep target, and every lockfile, deduped
 // in first-seen order.
 func (c *Config) DetectFiles() []string {
 	seen := map[string]bool{}
@@ -139,11 +145,12 @@ func (c *Config) DetectFiles() []string {
 	}
 	for _, name := range c.StackOrder {
 		for _, e := range c.Stacks[name].Extras {
-			add(e.File)
-			for _, f := range e.In {
-				add(f)
-			}
-			for _, r := range e.AnyOf {
+			for _, r := range append([]Rule{e.Rule}, e.AnyOf...) {
+				if r.PyDep != "" {
+					for _, f := range pyDepFiles {
+						add(f)
+					}
+				}
 				add(r.File)
 				for _, f := range r.In {
 					add(f)
@@ -357,12 +364,14 @@ type Sentinel struct {
 	Anchor bool   `yaml:"anchor"`
 }
 
-// Rule is one detection test of an extra: a dep, a file, or a grep over files.
+// Rule is one detection test of an extra: a package.json dep, a Python
+// dependency (pydep), a file, or a grep over files.
 type Rule struct {
-	Dep  string   `yaml:"dep"`
-	File string   `yaml:"file"`
-	Grep string   `yaml:"grep"`
-	In   []string `yaml:"in"`
+	Dep   string   `yaml:"dep"`
+	PyDep string   `yaml:"pydep"`
+	File  string   `yaml:"file"`
+	Grep  string   `yaml:"grep"`
+	In    []string `yaml:"in"`
 }
 
 type Extra struct {
