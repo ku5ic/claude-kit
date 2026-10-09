@@ -67,7 +67,7 @@ func JSSpecs(dir string) map[string]string {
 // files' entries and Pipfile's packages, by normalized name.
 func PythonDeps(dir string) Deps {
 	deps := Deps{}
-	if doc, ok := readTOML(filepath.Join(dir, "pyproject.toml")); ok {
+	if doc := readTOML(filepath.Join(dir, "pyproject.toml")); doc != nil {
 		project, _ := doc["project"].(map[string]any)
 		deps.addList(project["dependencies"])
 		deps.addTables(project["optional-dependencies"])
@@ -84,7 +84,7 @@ func PythonDeps(dir string) Deps {
 		pdm, _ := tool["pdm"].(map[string]any)
 		deps.addTables(pdm["dev-dependencies"])
 	}
-	if doc, ok := readTOML(filepath.Join(dir, "Pipfile")); ok {
+	if doc := readTOML(filepath.Join(dir, "Pipfile")); doc != nil {
 		deps.addKeys(doc["packages"])
 		deps.addKeys(doc["dev-packages"])
 	}
@@ -99,13 +99,8 @@ func PythonDeps(dir string) Deps {
 	return deps
 }
 
-func readTOML(file string) (map[string]any, bool) {
-	data, err := os.ReadFile(file)
-	if err != nil {
-		return nil, false
-	}
-	var doc map[string]any
-	return doc, toml.Unmarshal(data, &doc) == nil
+func readTOML(file string) map[string]any {
+	return extract.Decode[map[string]any](file, toml.Unmarshal)
 }
 
 // addReq adds a PEP 508 requirement's name.

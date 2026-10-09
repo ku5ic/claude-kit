@@ -1,9 +1,6 @@
 package gitbase
 
 import (
-	"os"
-	"os/exec"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -49,10 +46,7 @@ func TestParseRejectsAWordThatIsNotARef(t *testing.T) {
 
 func TestParseBranchNamedDiffIsABase(t *testing.T) {
 	repo(t)
-	cmd := exec.Command("git", "branch", "diff")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("%v\n%s", err, out)
-	}
+	testutil.Git(t, ".", "branch", "diff")
 	a, err := parse([]string{"diff"})
 	if err != nil || a.Mode != Base || a.Explicit != "diff" {
 		t.Errorf("a=%+v err=%v", a, err)
@@ -61,21 +55,17 @@ func TestParseBranchNamedDiffIsABase(t *testing.T) {
 
 func TestResolveFallsBackToMain(t *testing.T) {
 	repo(t)
-	if base, ok := Resolve(""); !ok || base != "main" {
+	if base, ok := Resolve("", ""); !ok || base != "main" {
 		t.Errorf("base=%q ok=%v", base, ok)
 	}
 }
 
 func TestResolveFailsWithNoCandidate(t *testing.T) {
 	dir := t.TempDir()
-	if out, err := exec.Command("git", "-C", dir, "init", "-q", "-b", "solo").CombinedOutput(); err != nil {
-		t.Fatalf("%v\n%s", err, out)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "x"), nil, 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testutil.Git(t, dir, "init", "-q", "-b", "solo")
+	testutil.Put(t, dir, "x", "")
 	t.Chdir(dir)
-	if base, ok := Resolve(""); ok {
+	if base, ok := Resolve("", ""); ok {
 		t.Errorf("resolved %q in a repo with no commits", base)
 	}
 }

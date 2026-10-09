@@ -278,9 +278,7 @@ func TestResolveHoistedCopyRunsOnlyWhenItSatisfiesThePackage(t *testing.T) {
 	if err := os.Symlink(e.git, filepath.Join(e.path, "git")); err != nil {
 		t.Fatal(err)
 	}
-	if out, err := exec.Command("git", "-C", e.repo, "init", "-q").CombinedOutput(); err != nil {
-		t.Fatalf("git init: %v %s", err, out)
-	}
+	testutil.Git(t, e.repo, "init", "-q")
 	hoisted := e.install(e.repo, "3.6.2")
 	e.wantRuns(Resolve(e.cfg, a, e.repo, "prettier", Default), hoisted, SourceLocal)
 

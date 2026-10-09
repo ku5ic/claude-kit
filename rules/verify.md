@@ -26,7 +26,7 @@ A PR or another branch is reviewed checked out, never from its diff alone; this 
 
 - Every new helper, module, type, or abstraction names what was searched for and not found, per `rules/change.md` section 2. "I didn't look" is a finding against the change.
 - Every non-obvious decision gets one line answering "why this, not the obvious alternative". A decision you can't justify is a decision you took from a generated draft without checking it.
-- Review findings are claims, per `rules/workflow.md` section 4. Check each against the code before applying it.
+- Review findings are claims, per `rules/workflow.md` section 4.
 
 ## 2. Use it until it breaks (the runtime pass, with `/verify`)
 

@@ -215,7 +215,7 @@ func manifestName(eco Ecosystem, dir, root string) string {
 	}
 	for _, n := range names {
 		if _, err := os.Stat(filepath.Join(dir, n)); err == nil {
-			return strings.TrimPrefix(filepath.Join(dir, n), root+"/")
+			return project.Rel(root, filepath.Join(dir, n))
 		}
 	}
 	return strings.TrimPrefix(dir, root+"/")

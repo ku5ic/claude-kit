@@ -19,7 +19,3 @@ The read-only default in `rules/subagents.md` section 3 applies, plus:
 - Never refactor, never change documentation, never run an exploit or payload.
 - Rate every finding with the failure/warning/info rubric the invoking skill supplies. Cite the criterion, CVE, or measurement that backs it.
 - Static analysis only: anything that needs a runtime measurement goes under "Cannot be verified statically".
-
-## Output
-
-See `rules/subagents.md` section 3.

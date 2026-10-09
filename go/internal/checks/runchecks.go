@@ -290,8 +290,6 @@ func excludedTask(c config.Check, tasks []project.Task) (name, glob string) {
 	return "", ""
 }
 
-// excludedDir is the first path segment of subproject sub matching an
-// exclude_dirs glob of check slot, or "".
 // ToolchainSkip is why toolchain check tc doesn't run in subproject sub, or
 // "" when it runs. coveredBy names a gate already filling the check's slot;
 // it needs the planner's state, so callers without one pass nil.
@@ -314,6 +312,8 @@ func ToolchainSkip(cfg *config.Config, tc config.ToolchainCheck, sub string, cov
 	return ""
 }
 
+// excludedDir is the first path segment of subproject sub matching an
+// exclude_dirs glob of check slot, or "".
 func excludedDir(cfg *config.Config, slot, sub string) string {
 	dirs := checkNamed(cfg, slot).ExcludeDirs
 	for _, seg := range strings.Split(filepath.ToSlash(sub), "/") {

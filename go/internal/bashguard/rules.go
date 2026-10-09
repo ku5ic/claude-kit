@@ -49,23 +49,7 @@ func (c *command) values() []string {
 
 // operands are the non-option arguments: words starting with "-" are
 // skipped until a "--", after which every word counts.
-func (c *command) operands() []string {
-	var out []string
-	done := false
-	for _, v := range c.values() {
-		if !done {
-			if v == "--" {
-				done = true
-				continue
-			}
-			if strings.HasPrefix(v, "-") {
-				continue
-			}
-		}
-		out = append(out, v)
-	}
-	return out
-}
+func (c *command) operands() []string { return nonOptions(c.values()) }
 
 var (
 	chmod777    = regexp.MustCompile(`chmod[[:space:]]+(-R[[:space:]]+)?777([[:space:]]|$)`)
@@ -358,8 +342,6 @@ func (c *command) chmod() error {
 	return nil
 }
 
-// git splits past git's global options: the subcommand, its arguments, and
-// the -C directory.
 // gitSubcommand splits git's words past its global options: the
 // subcommand, its arguments, and the -C directory.
 func gitSubcommand(words []string) (sub string, args []string, dir string) {

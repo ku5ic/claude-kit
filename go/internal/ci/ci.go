@@ -15,6 +15,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/extract"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
@@ -57,15 +58,7 @@ func Has(root string) bool {
 }
 
 func readYAML(file string) map[string]any {
-	data, err := os.ReadFile(file)
-	if err != nil {
-		return nil
-	}
-	var doc map[string]any
-	if yaml.Unmarshal(data, &doc) != nil {
-		return nil
-	}
-	return doc
+	return extract.Decode[map[string]any](file, yaml.Unmarshal)
 }
 
 func githubSteps(cfg *config.Config, root, file string) []Step {
@@ -288,14 +281,10 @@ func gitlabExtend(doc, job map[string]any, depth int) map[string]any {
 	out := map[string]any{}
 	for _, p := range parents {
 		if parent, ok := doc[p].(map[string]any); ok {
-			for k, v := range gitlabExtend(doc, parent, depth+1) {
-				out[k] = v
-			}
+			maps.Copy(out, gitlabExtend(doc, parent, depth+1))
 		}
 	}
-	for k, v := range job {
-		out[k] = v
-	}
+	maps.Copy(out, job)
 	delete(out, "extends")
 	return out
 }

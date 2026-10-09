@@ -105,30 +105,25 @@ func hasEcosystem(cfg *config.Config, ecosystem string) bool {
 	return false
 }
 
-// matchExtra evaluates one extra's first rule kind present, in the order
-// dep, pydep, file, grep, any_of, and reports whether it matches.
+// matchExtra is true when the extra's own rule or any of its any_of rules
+// matches.
 func matchExtra(extra config.Extra, dir string) bool {
+	return matchRule(extra.Rule, dir) || slices.ContainsFunc(extra.AnyOf, func(r config.Rule) bool { return matchRule(r, dir) })
+}
+
+// matchRule evaluates the rule's first kind present, in the order dep,
+// pydep, file, grep.
+func matchRule(rule config.Rule, dir string) bool {
 	switch {
-	case extra.Dep != "":
-		_, ok := tools.JSSpecs(dir)[extra.Dep]
+	case rule.Dep != "":
+		_, ok := tools.JSSpecs(dir)[rule.Dep]
 		return ok
-	case extra.PyDep != "":
-		return tools.PythonDeps(dir)[extra.PyDep]
-	case extra.File != "":
-		return project.IsFile(filepath.Join(dir, extra.File))
-	case extra.Grep != "":
-		return grepAny(dir, extra.Grep, extra.In)
-	}
-	for _, rule := range extra.AnyOf {
-		if rule.File != "" && project.IsFile(filepath.Join(dir, rule.File)) {
-			return true
-		}
-		if rule.Grep != "" && grepAny(dir, rule.Grep, rule.In) {
-			return true
-		}
-		if rule.PyDep != "" && tools.PythonDeps(dir)[rule.PyDep] {
-			return true
-		}
+	case rule.PyDep != "":
+		return tools.PythonDeps(dir)[rule.PyDep]
+	case rule.File != "":
+		return project.IsFile(filepath.Join(dir, rule.File))
+	case rule.Grep != "":
+		return grepAny(dir, rule.Grep, rule.In)
 	}
 	return false
 }

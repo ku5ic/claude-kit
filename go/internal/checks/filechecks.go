@@ -359,16 +359,14 @@ func expand(cmd string, bin, files []string, dir string, derived tools.Derived) 
 			return
 		}
 		flagsAdded = true
-		for i := 0; i < len(derived.Flags); i++ {
-			if slices.Contains(template, derived.Flags[i]) {
-				continue
+		for _, flag := range derived.Flags {
+			if !slices.Contains(template, flag) {
+				parts = append(parts, flag)
 			}
-			parts = append(parts, derived.Flags[i])
 		}
 	}
 	for _, word := range template {
-		switch {
-		case strings.Contains(word, "{files}") || strings.Contains(word, "{dirs}"):
+		if strings.Contains(word, "{files}") || strings.Contains(word, "{dirs}") {
 			addFlags()
 		}
 		switch {

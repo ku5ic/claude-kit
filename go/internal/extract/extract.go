@@ -90,28 +90,27 @@ func strings_(value any) []string {
 	return out
 }
 
-func readJSON(file string) any {
+// Decode is file unmarshaled into a T, or the zero T when it can't be read
+// or parsed.
+func Decode[T any](file string, unmarshal func([]byte, any) error) T {
+	var value T
 	data, err := os.ReadFile(file)
-	if err != nil {
-		return nil
-	}
-	var value any
-	if json.Unmarshal(data, &value) != nil {
-		return nil
+	if err != nil || unmarshal(data, &value) != nil {
+		var zero T
+		return zero
 	}
 	return value
 }
 
+func readJSON(file string) any { return Decode[any](file, json.Unmarshal) }
+
+// readTOML is untyped nil, not a nil map, when file can't be read, so a
+// GetPath on it never looks like a table.
 func readTOML(file string) any {
-	data, err := os.ReadFile(file)
-	if err != nil {
-		return nil
+	if doc := Decode[map[string]any](file, toml.Unmarshal); doc != nil {
+		return doc
 	}
-	var value map[string]any
-	if toml.Unmarshal(data, &value) != nil {
-		return nil
-	}
-	return value
+	return nil
 }
 
 // JSONKeys lists the keys of the object at path, in file order.
@@ -274,15 +273,7 @@ func TOMLPackageVersion(file, name string) string {
 
 // YAMLArray lists the string items of the sequence at path.
 func YAMLArray(file, path string) []string {
-	data, err := os.ReadFile(file)
-	if err != nil {
-		return nil
-	}
-	var value any
-	if yaml.Unmarshal(data, &value) != nil {
-		return nil
-	}
-	return strings_(GetPath(value, path))
+	return strings_(GetPath(Decode[any](file, yaml.Unmarshal), path))
 }
 
 var (

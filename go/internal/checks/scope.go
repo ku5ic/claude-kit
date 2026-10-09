@@ -74,7 +74,7 @@ type changes struct {
 }
 
 func changedSince(root string) changes {
-	base, ok := gitbase.ResolveIn(root, "")
+	base, ok := gitbase.Resolve(root, "")
 	if !ok {
 		return changes{}
 	}

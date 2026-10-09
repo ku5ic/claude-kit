@@ -4,11 +4,11 @@ package testutil
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 )
 
 // KitConfig is the repo's kit.yml with no overlay, for a test in
@@ -47,8 +47,7 @@ func Read(t *testing.T, path string) string {
 // Git runs git in dir, failing the test on an error.
 func Git(t *testing.T, dir string, args ...string) {
 	t.Helper()
-	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
-	if out, err := cmd.CombinedOutput(); err != nil {
+	if out, err := git.Command(dir, args...).CombinedOutput(); err != nil {
 		t.Fatalf("git %v: %v\n%s", args, err, out)
 	}
 }

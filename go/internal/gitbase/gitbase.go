@@ -75,13 +75,9 @@ func verifyIn(dir, ref string) bool {
 	return err == nil
 }
 
-// Resolve returns the base ref for the working directory, or false when
-// nothing resolves.
-func Resolve(explicit string) (string, bool) { return ResolveIn("", explicit) }
-
-// ResolveIn is Resolve for the repository at dir ("" is the working
-// directory).
-func ResolveIn(dir, explicit string) (string, bool) {
+// Resolve returns the base ref for the repository at dir ("" is the
+// working directory), or false when nothing resolves.
+func Resolve(dir, explicit string) (string, bool) {
 	run := func(args ...string) (string, error) { return git.Line(dir, args...) }
 	verify := func(ref string) bool { return verifyIn(dir, ref) }
 	if explicit != "" && verify(explicit) {
@@ -118,7 +114,7 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, err)
 		return 1
 	}
-	base, ok := Resolve(a.Explicit)
+	base, ok := Resolve("", a.Explicit)
 	if !ok {
 		return 1
 	}

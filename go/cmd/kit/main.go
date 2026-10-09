@@ -260,13 +260,7 @@ func cmdConfig(e *env, args []string) int {
 }
 
 func cmdSubprojects(e *env, cfg *config.Config, args []string) int {
-	root := ""
-	if len(args) > 0 {
-		root = args[0]
-	}
-	if root == "" {
-		root = cmp.Or(project.Toplevel(e.cwd), e.cwd)
-	}
+	root := cmp.Or(first(args), project.Toplevel(e.cwd), e.cwd)
 	for _, dir := range project.Subprojects(cfg, root) {
 		fmt.Fprintln(e.stdout, dir)
 	}
@@ -274,16 +268,8 @@ func cmdSubprojects(e *env, cfg *config.Config, args []string) int {
 }
 
 func cmdTasks(e *env, cfg *config.Config, args []string) int {
-	dir := "."
-	if len(args) > 0 {
-		dir = args[0]
-	}
-	for _, task := range project.Tasks(cfg, dir) {
-		stack := task.Stack
-		if stack == "" {
-			stack = "-"
-		}
-		fmt.Fprintln(e.stdout, strings.Join([]string{task.Provider, stack, task.Name, task.Cmd}, "\t"))
+	for _, task := range project.Tasks(cfg, cmp.Or(first(args), ".")) {
+		fmt.Fprintln(e.stdout, strings.Join([]string{task.Provider, cmp.Or(task.Stack, "-"), task.Name, task.Cmd}, "\t"))
 	}
 	return 0
 }

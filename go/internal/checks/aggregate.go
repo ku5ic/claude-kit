@@ -247,7 +247,7 @@ func taskSlot(cfg *config.Config, name string, r classify.Result) (slot string, 
 	slot = globSlot(cfg, name)
 	if gate, ok := r.SingleGate(); ok {
 		single = &gate
-		if slot == "" && !excludedBy(cfg, gate.Slot, name) {
+		if slot == "" && !excluded(checkNamed(cfg, gate.Slot), name) {
 			slot = gate.Slot
 		}
 	}
@@ -616,9 +616,4 @@ func globSlot(cfg *config.Config, name string) string {
 // excludedAnywhere is true when any check's exclude globs cover name.
 func excludedAnywhere(cfg *config.Config, name string) bool {
 	return slices.ContainsFunc(cfg.Checks, func(c config.Check) bool { return excluded(c, name) })
-}
-
-// excludedBy is true when check slot's exclude globs cover name.
-func excludedBy(cfg *config.Config, slot, name string) bool {
-	return excluded(checkNamed(cfg, slot), name)
 }

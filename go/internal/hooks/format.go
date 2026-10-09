@@ -30,11 +30,10 @@ func FormatDispatch(h *hook.Hook) error {
 	if path == "" || !project.IsFile(path) || project.IsScratch(h.Paths, path) {
 		return nil
 	}
-	base := filepath.Base(path)
-	if !strings.Contains(base, ".") {
+	ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(path), "."))
+	if ext == "" {
 		return nil
 	}
-	ext := strings.ToLower(base[strings.LastIndexByte(base, '.')+1:])
 	dir, err := filepath.EvalSymlinks(filepath.Dir(path))
 	cfg := h.Config()
 	if err != nil || cfg == nil {
