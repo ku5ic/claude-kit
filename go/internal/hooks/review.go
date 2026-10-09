@@ -1,49 +1,29 @@
 package hooks
 
 import (
-	"bufio"
 	"encoding/json"
 	"os"
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
 // ranChecks reports whether the agent's transcript has a Bash call that ran
 // kit run-checks, so a reviewer that already did isn't sent back to re-emit
 // its report.
-func ranChecks(transcript string) bool {
-	f, err := os.Open(transcript)
-	if err != nil {
-		return false
-	}
-	defer f.Close()
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 1024*1024), 64*1024*1024)
-	for scanner.Scan() {
-		var e struct {
-			Type    string `json:"type"`
-			Message struct {
-				Content []struct {
-					Type  string `json:"type"`
-					Name  string `json:"name"`
-					Input struct {
-						Command string `json:"command"`
-					} `json:"input"`
-				} `json:"content"`
-			} `json:"message"`
-		}
-		if json.Unmarshal(scanner.Bytes(), &e) != nil || e.Type != "assistant" {
-			continue
-		}
-		for _, b := range e.Message.Content {
-			if b.Type == "tool_use" && b.Name == "Bash" && strings.Contains(b.Input.Command, "kit run-checks") {
-				return true
+func ranChecks(path string) bool {
+	ran := false
+	// A read error leaves what was read: the hook fails open.
+	_ = transcript.Each(path, func(e transcript.Entry) {
+		for _, b := range e.ToolUses() {
+			if e.Type == "assistant" && b.Name == "Bash" && strings.Contains(b.Input.Command, "kit run-checks") {
+				ran = true
 			}
 		}
-	}
-	return false
+	})
+	return ran
 }
 
 // ReviewChecks holds a forked /code-review at its first stop (SubagentStop)

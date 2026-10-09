@@ -91,6 +91,8 @@ func GuardSkills(h *hook.Hook) error {
 	if h.Payload.Err != nil {
 		return h.Payload.Err
 	}
+	// transcript.EditTools minus NotebookEdit: Payload.FilePath reads only
+	// file_path, and NotebookEdit sends notebook_path.
 	switch h.Payload.String("tool_name") {
 	case "Edit", "Write", "MultiEdit":
 	default:

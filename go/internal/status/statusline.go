@@ -4,7 +4,6 @@
 package status
 
 import (
-	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,6 +15,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
 const (
@@ -191,35 +192,14 @@ func modelShort(id string) string {
 // skill's per-turn override. It also finds a model a skill declared this
 // turn (a command_permissions attachment newer than the turn's prompt)
 // that didn't take.
-func models(transcript, modelName string) (actualShort, actualDisplay, sessionShort, declaredShort, declaredDisplay string) {
-	if transcript == "" {
+func models(path, modelName string) (actualShort, actualDisplay, sessionShort, declaredShort, declaredDisplay string) {
+	if path == "" {
 		return
 	}
-	lines := tailLines(transcript, 60)
-	type entry struct {
-		Type        string `json:"type"`
-		IsMeta      bool   `json:"isMeta"`
-		IsSidechain bool   `json:"isSidechain"`
-		Timestamp   string `json:"timestamp"`
-		Message     struct {
-			Model   string          `json:"model"`
-			Content json.RawMessage `json:"content"`
-		} `json:"message"`
-		Attachment struct {
-			Type  string `json:"type"`
-			Model string `json:"model"`
-		} `json:"attachment"`
-	}
-	var entries []entry
-	for _, line := range lines {
-		var e entry
-		if json.Unmarshal([]byte(line), &e) == nil {
-			entries = append(entries, e)
-		}
-	}
+	entries, _ := transcript.Tail(path, 60)
 	since, actualID := "", ""
 	for _, e := range entries {
-		if e.Type == "user" && !e.IsMeta && promptText(e.Message.Content) != "" {
+		if e.Type == "user" && !e.IsMeta && e.PromptText() != "" {
 			since = e.Timestamp
 		}
 		if e.Type == "assistant" && !e.IsSidechain && e.Message.Model != "" {
@@ -245,53 +225,6 @@ func models(transcript, modelName string) (actualShort, actualDisplay, sessionSh
 		declaredShort, declaredDisplay = modelShort(declaredID), modelDisplay(declaredID)
 	}
 	return
-}
-
-// promptText is a user entry's text: the string content, or its text
-// blocks joined.
-func promptText(content json.RawMessage) string {
-	var s string
-	if json.Unmarshal(content, &s) == nil {
-		return s
-	}
-	var blocks []struct {
-		Type string `json:"type"`
-		Text string `json:"text"`
-	}
-	if json.Unmarshal(content, &blocks) != nil {
-		return ""
-	}
-	var texts []string
-	for _, b := range blocks {
-		if b.Type == "text" {
-			texts = append(texts, b.Text)
-		}
-	}
-	return strings.Join(texts, "\n")
-}
-
-func tailLines(path string, n int) []string {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil
-	}
-	defer f.Close()
-	// Transcripts grow large; read only the end.
-	const window = 4 << 20
-	if info, err := f.Stat(); err == nil && info.Size() > window {
-		_, _ = f.Seek(-window, io.SeekEnd) // failing, it reads from the start: slower, same tail
-	}
-	var lines []string
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 1024*1024), 32*1024*1024)
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-	if scanner.Err() != nil {
-		// What was read before the error is not the file's tail.
-		return nil
-	}
-	return lines[max(0, len(lines)-n):]
 }
 
 // gitStatus is "branch\tadditions\tdeletions" for cwd's repo, cached per

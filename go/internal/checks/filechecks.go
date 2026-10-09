@@ -1,13 +1,10 @@
 package checks
 
 import (
-	"bufio"
 	"bytes"
 	"cmp"
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
@@ -19,74 +16,30 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/tools"
+	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
 // EditedFiles lists the file_path (or notebook_path) of every Edit, Write,
 // MultiEdit, and NotebookEdit call in the last turn of a transcript: the
 // entries after the last real user prompt. A tool result is not a prompt;
 // neither is a meta entry.
-func EditedFiles(transcript string) ([]string, error) {
-	f, err := os.Open(transcript)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	type entry struct {
-		Type    string `json:"type"`
-		IsMeta  bool   `json:"isMeta"`
-		Message struct {
-			Content json.RawMessage `json:"content"`
-		} `json:"message"`
-	}
-	type block struct {
-		Type  string `json:"type"`
-		Name  string `json:"name"`
-		Input struct {
-			FilePath     *string `json:"file_path"`
-			NotebookPath *string `json:"notebook_path"`
-		} `json:"input"`
-	}
-
+func EditedFiles(path string) ([]string, error) {
 	var edited []string
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 1024*1024), 64*1024*1024)
-	for scanner.Scan() {
-		var e entry
-		if json.Unmarshal(scanner.Bytes(), &e) != nil {
-			continue
+	err := transcript.Each(path, func(e transcript.Entry) {
+		if e.StartsTurn() {
+			edited = edited[:0]
+			return
 		}
-		var blocks []block
-		isArray := json.Unmarshal(e.Message.Content, &blocks) == nil
-		switch e.Type {
-		case "user":
-			if e.IsMeta {
-				continue
-			}
-			if isArray && slices.ContainsFunc(blocks, func(b block) bool { return b.Type == "tool_result" }) {
-				continue
-			}
-			edited = edited[:0] // a new turn starts
-		case "assistant":
-			if !isArray {
-				continue
-			}
-			for _, b := range blocks {
-				if b.Type != "tool_use" || !slices.Contains([]string{"Edit", "Write", "MultiEdit", "NotebookEdit"}, b.Name) {
-					continue
-				}
-				switch {
-				case b.Input.FilePath != nil:
-					edited = append(edited, *b.Input.FilePath)
-				case b.Input.NotebookPath != nil:
-					edited = append(edited, *b.Input.NotebookPath)
-				default:
-					edited = append(edited, "")
-				}
+		if e.Type != "assistant" {
+			return
+		}
+		for _, b := range e.ToolUses() {
+			if slices.Contains(transcript.EditTools, b.Name) {
+				edited = append(edited, b.Path())
 			}
 		}
-	}
-	return edited, scanner.Err()
+	})
+	return edited, err
 }
 
 // Group is one planned check run: the files an adapter claims under one
