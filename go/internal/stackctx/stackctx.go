@@ -280,7 +280,9 @@ func FileMapSkills(rules []config.SkillFileRule, path string) []string {
 		default:
 			continue
 		}
-		if !guard.GlobAny(rule.Globs, target) {
+		// An extension's case varies (Main.GO on a case-insensitive disk); a name's doesn't.
+		ext := filepath.Ext(target)
+		if !guard.GlobAny(rule.Globs, target) && !guard.GlobAny(rule.Globs, strings.TrimSuffix(target, ext)+strings.ToLower(ext)) {
 			continue
 		}
 		for _, skill := range rule.Skills {

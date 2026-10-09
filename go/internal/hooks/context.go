@@ -152,7 +152,8 @@ func dirtyCount(root string) string {
 // then kit.yml's tools split by whether PATH has them.
 func tooling(cfg *config.Config, root string) string {
 	var body []string
-	if pm := project.ResolvePackageManager(cfg, root); pm != "" {
+	pm := project.ResolvePackageManager(cfg, root)
+	if pm != "" {
 		body = append(body, "package-manager: "+pm)
 	}
 	body = append(body, taskLines(cfg, root)...)
@@ -176,7 +177,7 @@ func tooling(cfg *config.Config, root string) string {
 		out.WriteString(line)
 		out.WriteString("\n")
 	}
-	if len(body) > 0 {
+	if pm != "" {
 		out.WriteString("\nguidance: Run scripts only through the package manager named above, prefer these scripts and kit run-checks over direct tool invocation, and never substitute a different package manager.\n")
 	}
 	out.WriteString("</tooling>\n")

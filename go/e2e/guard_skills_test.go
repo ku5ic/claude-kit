@@ -143,6 +143,11 @@ func TestGuardSkills(t *testing.T) {
 		guard(k, "/tmp/project/widgets/foo/CONFIG.md", "s1").Has(t, "widget-patterns")
 	})
 
+	t.Run("an upper-case extension matches like its lower-case glob", func(t *testing.T) {
+		r := guard(sandbox(t, guardSkillsBashMap, ""), "/tmp/project/FOO.SH", "s1")
+		r.Want(t, 2)
+		r.Has(t, "bash-patterns")
+	})
 	t.Run("blocks when the required skill has not been loaded this session", func(t *testing.T) {
 		r := guard(sandbox(t, guardSkillsBashMap, ""), "/tmp/project/foo.sh", "s1")
 		r.Want(t, 2)

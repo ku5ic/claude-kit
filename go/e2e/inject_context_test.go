@@ -588,6 +588,16 @@ stacks:
 		}
 	})
 
+	t.Run("tooling: tasks with no package manager get no package-manager guidance", func(t *testing.T) {
+		e := injectContextSetup(t, tree)
+		e.useRealKitYML()
+		Write(t, filepath.Join(e.root, "go.mod"), "module x\n\ngo 1.26\n")
+		e.Git(e.root, "add", "-A")
+		block := injectContextTooling(e.run("s1", "").Output)
+		if !strings.Contains(block, "go vet ./...") || strings.Contains(block, "guidance:") {
+			t.Errorf("want go tasks and no guidance:\n%s", block)
+		}
+	})
 	t.Run("tooling: a project with no providers or toolchain gets tools only, no tasks or guidance", func(t *testing.T) {
 		e := injectContextSetup(t, tree)
 		e.useRealKitYML()
