@@ -229,6 +229,47 @@ func TestUnknownKeysWarnWithTheirFile(t *testing.T) {
 	}
 }
 
+// With a Home, Load serves its cached result until a file changes: a
+// cached load matches a fresh one, warnings included, and an overlay
+// written, edited, or removed is seen on the next load.
+func TestLoadCacheFollowsTheFiles(t *testing.T) {
+	dir := t.TempDir()
+	p := Paths{Home: dir, Base: write(t, dir, "kit.yml", "protected_branches: [main]\n"), Overlay: filepath.Join(dir, "over.yml")}
+	branches := func(wantWarnings int) string {
+		t.Helper()
+		cfg, warnings, err := Load(p)
+		if err != nil || len(warnings) != wantWarnings {
+			t.Fatalf("err=%v warnings=%v, want %d", err, warnings, wantWarnings)
+		}
+		return strings.Join(cfg.ProtectedBranches, ",")
+	}
+	if got := branches(0); got != "main" {
+		t.Fatalf("first load = %s", got)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "cache", "config.gob")); err != nil {
+		t.Fatalf("no cache written: %v", err)
+	}
+	if got := branches(0); got != "main" {
+		t.Errorf("cached load = %s", got)
+	}
+	write(t, dir, "over.yml", "protected_branches: [dev]\nprotected_brnches: [x]\n")
+	for range 2 { // fresh, then cached
+		if got := branches(1); got != "main,dev" {
+			t.Errorf("after the overlay appears = %s", got)
+		}
+	}
+	write(t, dir, "over.yml", "protected_branches: [release]\n")
+	if got := branches(0); got != "main,release" {
+		t.Errorf("after the overlay changes = %s", got)
+	}
+	if err := os.Remove(p.Overlay); err != nil {
+		t.Fatal(err)
+	}
+	if got := branches(0); got != "main" {
+		t.Errorf("after the overlay goes = %s", got)
+	}
+}
+
 func TestDefaultsAndMissingOverlay(t *testing.T) {
 	dir := t.TempDir()
 	base := write(t, dir, "kit.yml", "tools: [rg]\n")

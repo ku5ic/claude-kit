@@ -90,8 +90,24 @@ func (w Warning) String() string { return w.File + ": " + w.Err.Error() }
 // Load reads kit.yml and, when present, the overlay merged over it: maps
 // merge and sequences append, so an overlay can add but never remove.
 // Each file is also decoded strictly on its own, and what that rejects comes
-// back as warnings naming the file.
+// back as warnings naming the file. The result is cached on disk until
+// either file changes, since every hook call would otherwise pay the parse.
 func Load(p Paths) (*Config, []Warning, error) {
+	file, key := p.cacheFile(), cacheKey(p)
+	if file == "" || key == "" {
+		return load(p)
+	}
+	if cfg, warnings, ok := loadCached(file, key); ok {
+		return cfg, warnings, nil
+	}
+	cfg, warnings, err := load(p)
+	if err == nil {
+		storeCached(file, key, cfg, warnings)
+	}
+	return cfg, warnings, err
+}
+
+func load(p Paths) (*Config, []Warning, error) {
 	base, err := readNode(p.Base)
 	if err != nil {
 		return nil, nil, err
