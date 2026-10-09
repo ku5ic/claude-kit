@@ -115,7 +115,7 @@ For the whole project, `kit run-checks` runs every quality gate the repo declare
 
 `kit run-checks --plan` shows what would run, and why, without running it.
 
-- **On review:** every `/code-review`, typed or invoked, runs `kit run-checks` once and hands Claude the result, so a failing gate is a review finding.
+- **On review:** at the end of every `/code-review` of the working tree, the reviewer runs `kit run-checks` and opens its report with the result; a failing gate becomes a finding once the reviewer has verified its cause. A review of a PR or another branch says the local checks don't apply.
 - **At the end of a plan:** ticking its last step without a `/code-review` since the last code edit blocks the stop until one runs.
 
 ### Project-first tools
@@ -205,7 +205,7 @@ For anything bigger than a one-line fix:
 1. **Ask.** "How does X work?" loads `investigate`, which reads the code and edits nothing.
 2. **Plan** with the built-in `/plan`. For a big one, have `kit:plan-critic` check it against the repo.
 3. **Build one step at a time.** Claude stops after each step so you can review and commit. The Stop hook has already checked what it touched.
-4. **Review** at the end: `/code-review`, which runs `kit run-checks` for you, then `/verify` to watch the change work.
+4. **Review** at the end: `/code-review`, which ends by running `kit run-checks`, then `/verify` to watch the change work.
 5. **Ship** with `/write commit` and `/write pr`. Claude never commits or pushes unasked.
 
 Side trips: `/audit` for a read-only report, `/simplify <path>` to cut over-engineering, `/deps` for dependency PRs.

@@ -26,10 +26,6 @@
         "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook log-skills", "timeout": 5 }]
       },
       {
-        "matcher": "Skill",
-        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook review-checks", "timeout": 600 }]
-      },
-      {
         "matcher": "ExitPlanMode",
         "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook plan-mode-context", "timeout": 5 }]
       }
@@ -51,8 +47,7 @@
     "UserPromptExpansion": [
       {
         "hooks": [
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook log-skills", "timeout": 5 },
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook review-checks", "timeout": 600 }
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook log-skills", "timeout": 5 }
         ]
       }
     ],
@@ -64,6 +59,12 @@
     "Stop": [
       {
         "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook stop-checks", "timeout": 300 }]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "*",
+        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook review-checks", "timeout": 5 }]
       }
     ],
     "SubagentStart": [
