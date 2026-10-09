@@ -68,7 +68,7 @@ skill_file_map:
     globs: ["*.ts", "*.tsx", "*.js", "*.jsx", "*.mjs", "*.cjs", "*.py", "*.rb", "*.go", "*.rs", "*.java", "*.sh", "*.vue"]
     skills: [engineering-fundamentals]
   - on: basename
-    globs: ["*.test.*", "*.spec.*", "test_*.py", "*_test.py"]
+    globs: ["*.test.*", "*.spec.*", "test_*.py", "*_test.py", "*_test.go"]
     skills: [test-patterns]
   - on: basename
     globs: ["*.tsx"]
@@ -136,6 +136,7 @@ skill_triggers:
   storybook-patterns: "before writing or changing stories, play functions, or Storybook config"
   go-patterns: "before writing or changing Go packages, error handling, goroutines, or tests"
   test-patterns: "before writing or restructuring tests, fixtures, or assertions"
+  engineering-fundamentals: "before the first edit to a source file"
   python-patterns: "before writing or restructuring Python modules, classes, or packaging"
   django-patterns: "before modeling, migrations, or view work in a Django app"
   drf-patterns: "before building serializers, viewsets, or API endpoints with Django REST Framework"
@@ -813,7 +814,8 @@ stacks:
     sentinels:
       - name: go.mod
         anchor: true
-    skills: [go-patterns]
+    # Go's test runner is built in, so no extra detects it.
+    skills: [go-patterns, test-patterns]
 
   # OpenTofu, and Terraform where the two share syntax. The committed
   # dependency lock file marks a root module.

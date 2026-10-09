@@ -140,6 +140,39 @@ stacks:
 			"load javascript-patterns via the Skill tool")
 	})
 
+	t.Run("with guard-skills on, <suggested-skills> adds the file-map skills no stack owns", func(t *testing.T) {
+		yml := `global_skills: []
+skill_triggers: {}
+skill_file_map:
+  - on: basename
+    globs: ["*.go"]
+    skills: [engineering-fundamentals]
+  - on: basename
+    globs: ["*.ts"]
+    skills: [typescript-patterns]
+stacks:
+  go:
+    skills: [go-patterns]
+  ts:
+    skills: [typescript-patterns]
+`
+		for _, guard := range []string{"1", "0"} {
+			e := injectContextSetup(t, tree)
+			e.kitYML(yml)
+			e.writeCache("root: "+e.root, "go: yes")
+			e.Setenv("CLAUDE_GUARD_SKILLS", guard)
+			r := e.run("s1", "")
+			r.Want(t, 0)
+			r.Has(t, "load go-patterns via the Skill tool")
+			r.Lacks(t, "typescript-patterns")
+			if guard == "1" {
+				r.Has(t, "load engineering-fundamentals via the Skill tool")
+			} else {
+				r.Lacks(t, "engineering-fundamentals")
+			}
+		}
+	})
+
 	t.Run("a non-project context (home) produces no injection", func(t *testing.T) {
 		e := injectContextSetup(t, tree)
 		e.kitYML("global_skills:\n  - fix-sizing\n")

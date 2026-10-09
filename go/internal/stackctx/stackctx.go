@@ -99,7 +99,9 @@ func Required(cfg *config.Config) []string {
 
 // Suggested maps signals to the skills kit.yml gives their stack or extra,
 // deduped, first-seen order, leaving out global_skills (required, not
-// suggested). An extra matches by its name.
+// suggested). An extra matches by its name. With CLAUDE_GUARD_SKILLS=1 it
+// adds the skill_file_map skills no stack owns, since guard-skills blocks
+// the first edit without them.
 func Suggested(cfg *config.Config, signals []string) []string {
 	required := Required(cfg)
 	var out []string
@@ -122,7 +124,28 @@ func Suggested(cfg *config.Config, signals []string) []string {
 			}
 		}
 	}
+	if os.Getenv("CLAUDE_GUARD_SKILLS") == "1" {
+		for _, rule := range cfg.SkillFileMap {
+			add(slices.DeleteFunc(slices.Clone(rule.Skills), func(skill string) bool { return stackOwned(cfg, skill) }))
+		}
+	}
 	return out
+}
+
+// stackOwned reports whether any stack or extra lists skill, so detection,
+// not the file map, decides when to suggest it.
+func stackOwned(cfg *config.Config, skill string) bool {
+	for _, stack := range cfg.Stacks {
+		if slices.Contains(stack.Skills, skill) {
+			return true
+		}
+		for _, e := range stack.Extras {
+			if slices.Contains(e.Skills, skill) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // RequiredBlock is the <required-skills> block, "" when there are none.
