@@ -60,20 +60,11 @@ Matcher values must be statically analyzable; dynamic values are silently ignore
 
 ## Proxy vs Server Function authentication
 
-`failure`. Do not rely on Proxy alone for auth. Server Functions are reachable as direct `POST` requests to the route where they are exported, so a Proxy matcher that excludes a path also skips Server Function calls on that path. A matcher refactor or a Server Function move can silently remove access control. Always check auth inside the Server Function itself; treat Proxy as a defense-in-depth layer, not the primary gate.
+`failure`. Proxy is defense in depth, never the gate: a matcher that excludes a path also skips the Server Function calls on it. The rule is `reference/server-actions.md`'s "Authenticate inside every Server Function".
 
-## Runtime config: `runtimeConfig.public` vs server-only
+## Environment variables: server-only vs `NEXT_PUBLIC_`
 
-Use `runtimeConfig` in `next.config.js` (or `next.config.ts`) to expose values at runtime instead of build time:
-
-```ts
-const nextConfig = {
-  serverRuntimeConfig: { mySecret: process.env.MY_SECRET },
-  publicRuntimeConfig: { staticFolder: "/static" },
-};
-```
-
-`serverRuntimeConfig` is server-only; `publicRuntimeConfig` is available on both. For most cases, prefer environment variables: `process.env.NEXT_PUBLIC_*` is inlined into the client bundle at build, everything else stays server-side.
+Next.js 16 removed `serverRuntimeConfig` and `publicRuntimeConfig`; flag either as `failure` in a 16+ project. Read server-only values from `process.env` in Server Components (the taint API keeps them out of Client Components). `NEXT_PUBLIC_*` values are inlined into the client bundle at build; call `connection()` before reading `process.env` to read at request time instead. Source: https://nextjs.org/docs/app/guides/upgrading/version-16
 
 `failure`: reading `process.env.SECRET` (no `NEXT_PUBLIC_` prefix) in a Client Component. The variable is replaced with `""` in the client bundle and the runtime read returns the empty string silently - no error.
 

@@ -6,13 +6,13 @@ Severity levels: the report-format skill.
 
 **`failure`: `DEBUG = True` in production**
 
-Exposes full tracebacks, local variable values, SQL query history, and settings to any exception response. Confirmed security risk in Django security docs.
+See `reference/settings.md`.
 
 ---
 
-**`failure`: `|safe` filter on user-controlled content**
+**`failure`: `|safe`, `{% autoescape off %}`, or `mark_safe()` on user-controlled content**
 
-Bypasses auto-escaping. A documented XSS vector. If you see `{{ user_input|safe }}` or `{% autoescape off %}` wrapping user data, it will execute arbitrary HTML and JavaScript.
+See `reference/templates.md`.
 
 ---
 

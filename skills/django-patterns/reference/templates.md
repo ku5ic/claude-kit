@@ -26,7 +26,7 @@ Use `{% include %}` for reusable partials (fragments without structural meaning)
 
 Django templates auto-escape all variable output by default. Characters like `<`, `>`, `"`, `'`, and `&` are converted to their HTML entity equivalents.
 
-The `|safe` filter and `{% autoescape off %}` disable this escaping. Both are a `failure` when applied to user-controlled content. The Django security docs explicitly call this out as an XSS vector.
+The `|safe` filter, `{% autoescape off %}`, and `mark_safe()` in Python disable this escaping. Each is a `failure` when applied to user-controlled content. The Django security docs explicitly call this out as an XSS vector.
 
 ```html
 {# WRONG: XSS if comment is user input #} {{ comment|safe }} {# Correct:
@@ -44,7 +44,7 @@ auto-escape handles it #} {{ comment }}
 </form>
 ```
 
-If CSRF is disabled for an endpoint, document why and confirm the endpoint is safe (e.g., an API endpoint with its own auth).
+`@csrf_exempt` on a view that mutates state is a `failure` unless the endpoint authenticates by API token rather than session; document why next to the decorator.
 
 ## Logic in templates
 

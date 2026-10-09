@@ -1,7 +1,8 @@
 # pytest (Django and general Python)
 
 - File layout: mirror source layout under `tests/`. One test module per source module.
-- Fixtures in `conftest.py` at the appropriate scope. Prefer function scope unless setup is expensive.
+- Fixtures in `conftest.py` at the appropriate scope. Prefer function scope unless setup is expensive: `module` and `session` scopes share state and couple test order.
+- `monkeypatch` for test-local changes to env vars, attributes, and module-level singletons; it reverts them after the test.
 - Parametrize with `@pytest.mark.parametrize` for table tests. Include an `id` for readability on failure.
 - Django: use `pytest-django`, `@pytest.mark.django_db` only when DB needed. Prefer `--no-migrations` in CI if migrations are settled.
 - Factory Boy for model fixtures when the same model is used in many tests.

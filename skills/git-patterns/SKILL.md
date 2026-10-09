@@ -45,10 +45,10 @@ Review checklist and the handful of git behaviors that are easy to get wrong. Co
 ## Anti-patterns
 
 **failure: force-pushing to a shared branch**
-`git push --force` on `main` or any branch other people are using rewrites history and destroys their local branches. Use `--force-with-lease --force-if-includes` if you must force-push to your own remote branch: the first fails if someone else pushed since your last fetch, the second also fails when a background fetch updated the ref without you seeing it.
+The rule is `rules/workflow.md` section 1. To force-push your own remote branch, use `--force-with-lease --force-if-includes`: the first fails if someone else pushed since your last fetch, the second also fails when a background fetch updated the ref without you seeing it.
 
 **failure: committing secrets**
-If a secret lands in git history, rotate it immediately regardless of whether you think the repo is private. `git rm` does not remove it from history; the secret is still in every clone.
+`git rm` does not remove it from history; the secret is still in every clone. Remediation is rotation: security-patterns' `reference/secrets.md`.
 
 **warning: merge commit spam on feature branches**
 Merging `main` into a feature branch repeatedly to stay up to date produces a messy history. Prefer `git rebase main` on the feature branch to keep a linear history before merge.

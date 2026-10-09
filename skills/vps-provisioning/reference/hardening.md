@@ -100,18 +100,7 @@ unattended-upgrade --dry-run --debug
 
 ## SSH hardening summary
 
-Key settings in `/etc/ssh/sshd_config` (covered fully in initial-setup.md):
-
-```
-PasswordAuthentication no
-PermitRootLogin no
-PubkeyAuthentication yes
-MaxAuthTries 3
-LoginGraceTime 30
-X11Forwarding no
-```
-
-Combine with `ufw limit ssh` (covered in firewall.md) and fail2ban sshd jail for layered defense.
+The `/etc/ssh/sshd_config` settings are in `initial-setup.md`. Combine them with `ufw limit ssh` (covered in firewall.md) and fail2ban sshd jail for layered defense.
 
 Verify the running sshd config without restarting:
 

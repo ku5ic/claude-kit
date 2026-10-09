@@ -6,25 +6,18 @@
 - N+1 and accidental data exposure: `.values()` without filtering, overly broad `select_related()`.
 - `.filter(**request.GET)`: never. Arbitrary kwargs to filter is dangerous.
 
+Settings (`DEBUG`, `SECRET_KEY`, `ALLOWED_HOSTS`, HTTPS headers), template escaping (`|safe`, `mark_safe`), CSRF, and DRF permissions are django-patterns' and drf-patterns' references; review against those.
+
 ## Views and middleware
 
-- CSRF: `@csrf_exempt` on mutating views is a failure unless the view is read-only or explicitly API token authenticated.
-- `DEBUG = True` in committed settings: `failure`.
-- `SECRET_KEY`, DB credentials, API keys in repo: `failure`. Check `.env` handling, `env.example` vs `.env`.
-- `ALLOWED_HOSTS` wildcard in production settings: `failure`.
+- DB credentials and API keys in the repo: `failure`. Check `.env` handling, `env.example` vs `.env`.
 - Middleware order: `SecurityMiddleware` first, `SessionMiddleware` before `AuthenticationMiddleware`, `CsrfViewMiddleware` before views that mutate.
 - CSP on Django 6.0+: built in via `django.middleware.csp.ContentSecurityPolicyMiddleware` with `SECURE_CSP` / `SECURE_CSP_REPORT_ONLY`; nonces reach templates through the `csp()` context processor as `{{ csp_nonce }}`. Prefer it over a third-party CSP package on 6.0+.
 
 ## Auth and permissions
 
-- DRF viewsets: `permission_classes` set explicitly. Default `AllowAny` is a failure for write endpoints.
 - Object-level permissions: does user own this object before edit or delete?
 - Password storage: default hashers OK. Custom implementations need review.
-
-## Templates
-
-- `{% autoescape off %}` or `|safe`: every use. Must be on trusted content only.
-- `mark_safe()` on user-derived data: `failure`.
 
 ## File uploads
 

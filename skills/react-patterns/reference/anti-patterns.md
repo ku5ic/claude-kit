@@ -20,7 +20,7 @@ Severity levels: the report-format skill.
 
 ## `dangerouslySetInnerHTML` with unsanitized input
 
-`failure`. Direct XSS vector. Either sanitize with a library that handles the full HTML parsing surface (DOMPurify) or render as text. Never inject user-derived strings as HTML without sanitization.
+`failure`. Direct XSS vector: render as text, or sanitize with DOMPurify first. The rest of the XSS surface (URL schemes, open redirects): security-patterns' `reference/frontend.md`.
 
 ## `fetch` in a client component without error handling
 

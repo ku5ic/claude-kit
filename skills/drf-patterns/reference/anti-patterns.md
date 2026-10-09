@@ -6,7 +6,7 @@ Severity levels: the report-format skill.
 
 **`failure`: Missing permission_classes on write endpoints**
 
-DRF default is `AllowAny`. A viewset with write actions (create, update, partial_update, destroy) and no `permission_classes` is open to unauthenticated requests. Set `permission_classes = [IsAuthenticated]` (or stricter) on every viewset.
+See `reference/permissions.md`.
 
 ---
 

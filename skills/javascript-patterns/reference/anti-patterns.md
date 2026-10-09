@@ -39,7 +39,7 @@ Severity levels: the report-format skill.
 
 ## `console.log` left in production code
 
-`warning`. Noise in production logs and a sign that proper instrumentation is missing. Use a structured logger (`pino`, `winston`, platform logger). Strip or guard the call before merging.
+`warning`. Leftover debugging is dead code (`rules/change.md` section 4); logging that should stay goes through a structured logger (`pino`, `winston`, the platform's).
 
 ## Mutating function arguments
 

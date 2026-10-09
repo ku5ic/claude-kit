@@ -70,7 +70,7 @@ export async function publishPost(id: string) {
 
 ## Pending state: `useActionState`, `useFormStatus`
 
-React 19 provides `useActionState(fn, initialState)` (returns `[state, action, pending]`) for wrapping a Server Action with state and pending tracking, and `useFormStatus()` (read inside a form's child Client Component) for reading `pending` from the parent `<form>` without prop drilling. Use them for submit-button disabling, optimistic UI, and inline validation feedback.
+Wrap a Server Action in React 19's `useActionState`, and read `pending` in a form's child with `useFormStatus`; the hooks' semantics are react-patterns' `reference/structure.md`.
 
 ## Limit return values
 

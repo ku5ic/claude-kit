@@ -16,10 +16,7 @@
 
 ## Client / server boundary (Next.js)
 
-- Secrets: `NEXT_PUBLIC_*` is sent to the browser. Anything sensitive must not have this prefix. Audit all `process.env.*` reads in client components.
-- Server actions: check `use server` files. Validate input at the action boundary. Assume every arg is user controlled.
-- `headers()`, `cookies()`: used only in server components, route handlers, or server actions. Never leaked to client.
-- Route handlers: validate body and query with a schema (zod, valibot). Do not trust `Content-Type` header.
+next-app-router-patterns owns these: `NEXT_PUBLIC_*` secrets (`reference/runtime.md`), Server Function auth and input validation (`reference/server-actions.md`), and server-only APIs (`reference/server-and-client.md`). Route handlers too: validate body and query with a schema (Zod, Valibot), and don't trust the `Content-Type` header.
 
 ## Auth and sessions
 
