@@ -76,6 +76,12 @@ func TestBody(t *testing.T) {
 		{"knip --reporter compact", "gate:deadcode:knip"},
 		{"cargo machete", "gate:deadcode:cargo"},
 		{"./node_modules/.bin/eslint src", "gate:lint:eslint"},
+		// find -exec and xargs run the tool on the files they pick.
+		{"find scripts -name '*.sh' -exec shellcheck -S warning {} +", "gate:lint:shellcheck"},
+		{`find . -name '*.py' -execdir ruff check {} \;`, "gate:lint:ruff"},
+		{"find . -exec eslint --fix {} +", "other"},
+		{"find . -name '*.sh'", "other"},
+		{"xargs -n 1 -P 4 shellcheck", "gate:lint:shellcheck"},
 		// Wrappers and tool runners unwrap to the tool.
 		{"NODE_ENV=test vitest run", "gate:test:vitest"},
 		{"cross-env CI=1 jest", "gate:test:jest"},
@@ -194,6 +200,11 @@ func TestBodyDetails(t *testing.T) {
 	}
 	if globs := r.Commands[3].Globs; !slices.Equal(globs, []string{"src/*.ts"}) {
 		t.Errorf("globs %q, want [src/*.ts]", globs)
+	}
+	// A find gate keeps the whole command, and says where its tool is.
+	find := Body(cfg, "find . -exec shellcheck {} +", scripts).Commands[0]
+	if !slices.Equal(find.Words, []string{"find", ".", "-exec", "shellcheck", "{}", "+"}) || find.ToolAt != 3 {
+		t.Errorf("find gate: words %q at %d", find.Words, find.ToolAt)
 	}
 }
 

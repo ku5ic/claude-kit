@@ -411,12 +411,18 @@ func (a *aggregator) inline(cmd classify.Command, agg taskAt, stack string, st s
 		l.gate = Gate{Label: label, Words: cmd.Words}
 		return l
 	}
-	res := a.resolveWord(st.dir, cmd.Words[0])
+	res := a.resolveWord(st.dir, cmd.Words[cmd.ToolAt])
 	if res.Words == nil {
 		l.gate = Gate{Label: label, Skip: res.Skip, Unrun: res.Project}
 		return l
 	}
-	words := append(slices.Clone(res.Words), expandGlobs(cmd.Words[1:], cmd.Globs, st.dir)...)
+	// Before the tool sits a find or xargs that runs it: only its own first
+	// word stays unexpanded.
+	var lead []string
+	if cmd.ToolAt > 0 {
+		lead = append([]string{cmd.Words[0]}, expandGlobs(cmd.Words[1:cmd.ToolAt], cmd.Globs, st.dir)...)
+	}
+	words := slices.Concat(lead, res.Words, expandGlobs(cmd.Words[cmd.ToolAt+1:], cmd.Globs, st.dir))
 	if all := append(slices.Clone(st.env), cmd.Env...); len(all) > 0 {
 		words = append(append([]string{"env"}, all...), words...)
 	}

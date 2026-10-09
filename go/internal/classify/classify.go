@@ -40,6 +40,7 @@ type TaskRef struct {
 type Command struct {
 	Kind    Kind
 	Words   []string            // after wrappers and tool runners
+	ToolAt  int                 // Gate: Tool's word in Words (find -exec runs it later)
 	Env     []string            // K=V assignments in front of it, or in a wrapper
 	Slot    string              // Gate: the check it counts as
 	Tool    string              // Gate: the pattern's bin
@@ -285,7 +286,51 @@ func (c *classifier) words(words, env []string) []Command {
 	if cmd, ok := c.reference(words, env); ok {
 		return []Command{cmd}
 	}
+	if at, inner := execTarget(words); inner != nil {
+		if cmd := c.tool(inner, env); cmd.Kind == Gate {
+			cmd.Words, cmd.ToolAt = words, at
+			return []Command{cmd}
+		}
+	}
 	return []Command{c.tool(words, env)}
+}
+
+// xargsValueFlags take the next word as their value.
+var xargsValueFlags = []string{"-n", "-P", "-I", "-L", "-d", "-s", "-a", "-E", "--max-args", "--max-procs", "--replace", "--delimiter", "--arg-file", "--max-lines"}
+
+// execTarget is the command find -exec/-execdir or xargs runs on the files
+// they pick, without find's {} and terminator, and where it starts in words;
+// nil when words is neither.
+func execTarget(words []string) (at int, inner []string) {
+	switch words[0] {
+	case "find":
+		i := slices.IndexFunc(words, func(w string) bool { return w == "-exec" || w == "-execdir" })
+		if i < 0 || i+1 >= len(words) {
+			return 0, nil
+		}
+		for _, w := range words[i+1:] {
+			if w == ";" || w == `\;` || w == "+" {
+				break
+			}
+			if w != "{}" {
+				inner = append(inner, w)
+			}
+		}
+		return i + 1, inner
+	case "xargs":
+		i := 1
+		for i < len(words) && strings.HasPrefix(words[i], "-") {
+			if slices.Contains(xargsValueFlags, words[i]) {
+				i++
+			}
+			i++
+		}
+		if i >= len(words) {
+			return 0, nil
+		}
+		return i, words[i:]
+	}
+	return 0, nil
 }
 
 // reference reads words as a task reference, by the longest matching
