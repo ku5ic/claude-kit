@@ -1,6 +1,7 @@
 package hooks
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,9 +13,38 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
-// openStep matches an unticked checklist item, the shape rules/workflow.md
-// section 3 requires a plan's Steps list to take.
-var openStep = regexp.MustCompile(`(?m)^\s*[-*] \[ \]`)
+var (
+	// openStep matches an unticked checklist item, the shape rules/workflow.md
+	// section 3 requires a plan's Steps list to take.
+	openStep = regexp.MustCompile(`(?m)^\s*[-*] \[ \]`)
+	// stepsHeading opens that list; the next heading at its level or above ends it.
+	stepsHeading = regexp.MustCompile(`(?m)^##[ \t]+Steps[ \t]*$`)
+	nextHeading  = regexp.MustCompile(`(?m)^#{1,2}[ \t]`)
+)
+
+// steps is the part of a plan its steps are read from: the "## Steps"
+// section, else the whole plan, minus fenced code, whose checkboxes are
+// examples rather than steps.
+func steps(plan []byte) []byte {
+	if loc := stepsHeading.FindIndex(plan); loc != nil {
+		plan = plan[loc[1]:]
+		if next := nextHeading.FindIndex(plan); next != nil {
+			plan = plan[:next[0]]
+		}
+	}
+	var kept []byte
+	fenced := false
+	for line := range bytes.Lines(plan) {
+		if trimmed := bytes.TrimSpace(line); bytes.HasPrefix(trimmed, []byte("```")) || bytes.HasPrefix(trimmed, []byte("~~~")) {
+			fenced = !fenced
+			continue
+		}
+		if !fenced {
+			kept = append(kept, line...)
+		}
+	}
+	return kept
+}
 
 // PlanModeContext keeps plan work to one step per turn, which rule text
 // alone did not hold against an "execute autonomously" output style.
@@ -107,5 +137,5 @@ func newestOpenPlan(h *hook.Hook) string {
 
 func hasOpenStep(path string) bool {
 	data, err := os.ReadFile(path)
-	return err == nil && openStep.Match(data)
+	return err == nil && openStep.Match(steps(data))
 }

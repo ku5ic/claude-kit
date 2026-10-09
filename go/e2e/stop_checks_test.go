@@ -253,6 +253,18 @@ func TestStopPlanDone(t *testing.T) {
 		e.turn("Edit", e.path("b.ts"))
 		e.stop(false).Want(t, 0)
 	})
+	t.Run("checkboxes outside the Steps list, or in fenced code, don't hold a done plan open", func(t *testing.T) {
+		for _, plan := range []string{
+			done + "\n## Notes\n\n- [ ] a template item\n",
+			done + "\n```md\n- [ ] an example step\n```\n",
+			"- [x] 1. a\n\n```\n- [ ] an example step\n```\n",
+		} {
+			e := stopChecksSetup(t)
+			e.turn("Edit", e.path("a.ts"))
+			e.turn("Edit", e.plan(plan))
+			e.stop(false).Want(t, 2)
+		}
+	})
 }
 
 func TestStopChecks(t *testing.T) {

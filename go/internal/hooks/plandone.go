@@ -98,8 +98,10 @@ func planDone(path, plansDir string, isCode func(string) bool) (plan string, rev
 	})
 
 	for _, path := range ticked {
-		if data, err := os.ReadFile(path); err == nil && !openStep.Match(data) && doneStep.Match(data) {
-			plan = path
+		if data, err := os.ReadFile(path); err == nil {
+			if s := steps(data); !openStep.Match(s) && doneStep.Match(s) {
+				plan = path
+			}
 		}
 	}
 	return plan, lastReview > lastEdit
