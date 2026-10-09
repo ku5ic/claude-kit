@@ -4,6 +4,7 @@
 package status
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -261,9 +262,50 @@ func gitStatus(home, cwd, sessionID string) string {
 			}
 		}
 	}
+	// Untracked files count as all-new lines, as they will once added. From
+	// the top: ls-files --others lists only cwd's subtree, numstat the whole repo.
+	if top := project.Toplevel(cwd); top != "" {
+		untracked, _ := git.Output(top, "ls-files", "--others", "--exclude-standard", "-z")
+		for name := range strings.SplitSeq(untracked, "\x00") {
+			if name != "" {
+				add += newLines(filepath.Join(top, name))
+			}
+		}
+	}
 	segment := fmt.Sprintf("%s\t%d\t%d", branch, add, del)
 	_ = project.WriteAtomic(file, []byte(segment+"\n"), 0o600)
 	return segment
+}
+
+// newLines is a new file's line count as git diff --numstat shows it: a
+// last line without a newline counts, and a binary file (a NUL in its first
+// 8000 bytes, git's test) counts 0.
+func newLines(path string) int {
+	f, err := os.Open(path)
+	if err != nil {
+		return 0
+	}
+	defer f.Close()
+	buf := make([]byte, 64*1024)
+	n, last, first := 0, byte('\n'), true
+	for {
+		k, err := f.Read(buf)
+		if first && bytes.IndexByte(buf[:min(k, 8000)], 0) >= 0 {
+			return 0
+		}
+		first = false
+		if k > 0 {
+			n += bytes.Count(buf[:k], []byte{'\n'})
+			last = buf[k-1]
+		}
+		if err != nil {
+			break
+		}
+	}
+	if last != '\n' {
+		n++
+	}
+	return n
 }
 
 // SubagentStatusline prints one {"id","content"} JSON object per task:

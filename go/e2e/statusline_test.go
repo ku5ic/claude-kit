@@ -196,6 +196,18 @@ func TestStatusline(t *testing.T) {
 		statuslineContains(t, render(k, statuslinePayload(repo, "t9", 50)), "main +2 ~1")
 	})
 
+	t.Run("git segment counts untracked files repo-wide, not ignored or binary ones", func(t *testing.T) {
+		k, repo := setup(t)
+		Write(t, filepath.Join(repo, ".gitignore"), "*.log\n")
+		k.Git(repo, "add", ".gitignore")
+		k.Git(repo, "commit", "-qm", "init")
+		Write(t, filepath.Join(repo, "new.txt"), "x\ny\nz")
+		Write(t, filepath.Join(repo, "skip.log"), "1\n2\n")
+		Write(t, filepath.Join(repo, "blob.bin"), "a\x00\nb\n")
+		Mkdir(t, filepath.Join(repo, "sub"))
+		statuslineContains(t, render(k, statuslinePayload(filepath.Join(repo, "sub"), "t9u", 50)), "main +3")
+	})
+
 	t.Run("git segment is omitted outside a git repo", func(t *testing.T) {
 		k, _ := setup(t)
 		plain := filepath.Join(Physical(t, t.TempDir()), "plain")
