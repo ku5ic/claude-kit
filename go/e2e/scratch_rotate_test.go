@@ -154,6 +154,8 @@ func TestScratchRotate(t *testing.T) {
 		Write(t, registry, scratch+"\n")
 		wt = filepath.Join(scratch, name)
 		k.Git(repo, "worktree", "add", "-q", "--detach", wt)
+		// Ignored, so it isn't uncommitted work that keeps the worktree.
+		Write(t, filepath.Join(repo, ".git/info/exclude"), "old.txt\n")
 		touch(t, filepath.Join(wt, "old.txt"), 40*day)
 		age(t, filepath.Join(wt, ".git"), secs)
 		return repo, wt
@@ -182,6 +184,34 @@ func TestScratchRotate(t *testing.T) {
 		r := k.Run("", "scratch-rotate", "30", "--dry-run")
 		r.Has(t, "would-delete review worktree older than 1d "+wt)
 		kept(t, filepath.Join(wt, "old.txt"))
+	})
+	t.Run("removes a review worktree 30 hours old", func(t *testing.T) {
+		k, _, registry := setup(t)
+		_, wt := worktree(t, k, registry, "review-pr-7", 30*3600)
+		k.Run("", "scratch-rotate", "30").Has(t, "deleted review worktree older than 1d "+wt)
+		gone(t, wt)
+	})
+	t.Run("keeps an old review worktree holding uncommitted work, and dry-run says so", func(t *testing.T) {
+		k, _, registry := setup(t)
+		_, wt := worktree(t, k, registry, "review-pr-7", 3*day)
+		Write(t, filepath.Join(wt, "NOTES.md"), "mine\n")
+		for _, args := range [][]string{{"30", "--dry-run"}, {"30"}} {
+			r := k.Run("", append([]string{"scratch-rotate"}, args...)...)
+			r.Want(t, 0)
+			r.Has(t, "kept review worktree with uncommitted changes "+wt)
+		}
+		kept(t, filepath.Join(wt, "NOTES.md"))
+	})
+	t.Run("keeps a locked review worktree, and dry-run says so", func(t *testing.T) {
+		k, _, registry := setup(t)
+		repo, wt := worktree(t, k, registry, "review-pr-7", 3*day)
+		k.Git(repo, "worktree", "lock", wt)
+		for _, args := range [][]string{{"30", "--dry-run"}, {"30"}} {
+			r := k.Run("", append([]string{"scratch-rotate"}, args...)...)
+			r.Want(t, 0)
+			r.Has(t, "kept locked review worktree "+wt)
+		}
+		kept(t, filepath.Join(wt, ".git"))
 	})
 	t.Run("keeps a fresh file in a registered project scratch dir", func(t *testing.T) {
 		k, _, registry := setup(t)

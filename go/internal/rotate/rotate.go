@@ -139,6 +139,10 @@ func (r *rotator) worktrees(dir string, stderr io.Writer) {
 			continue
 		}
 		wt := filepath.Dir(gitFile)
+		if why := keepWorktree(wt); why != "" {
+			fmt.Fprintf(r.stdout, "scratch-rotate: kept %s %s\n", why, wt)
+			continue
+		}
 		if !r.dryRun {
 			if out, err := git.Command(wt, "worktree", "remove", "--force", wt).CombinedOutput(); err != nil {
 				fmt.Fprintf(stderr, "scratch-rotate: can't remove review worktree %s: %s\n", wt, strings.TrimSpace(string(out)))
@@ -151,10 +155,25 @@ func (r *rotator) worktrees(dir string, stderr io.Writer) {
 	r.record(removed)
 }
 
-// older reports whether info's modification is more than days whole days
-// old, as find's -mtime +days.
+// keepWorktree is why a review worktree must stay, or "": git refuses to
+// remove a locked one, and --force would drop uncommitted work.
+func keepWorktree(wt string) string {
+	gitDir, err := git.Line(wt, "rev-parse", "--absolute-git-dir")
+	status, statusErr := git.Output(wt, "status", "--porcelain")
+	switch {
+	case err != nil || statusErr != nil:
+		return "unreadable review worktree"
+	case project.IsFile(filepath.Join(gitDir, "locked")):
+		return "locked review worktree"
+	case status != "":
+		return "review worktree with uncommitted changes"
+	}
+	return ""
+}
+
+// older reports whether info's modification is more than days days old.
 func (r *rotator) older(info fs.FileInfo, days int) bool {
-	return int(r.now.Sub(info.ModTime())/(24*time.Hour)) > days
+	return r.now.Sub(info.ModTime()) > time.Duration(days)*24*time.Hour
 }
 
 // prune deletes the regular files under dir (only dir itself with
