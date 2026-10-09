@@ -15,6 +15,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -231,10 +232,6 @@ func gitStatus(home, cwd, sessionID string) string {
 	if cwd == "" {
 		return ""
 	}
-	top := project.Toplevel(cwd)
-	if top == "" {
-		return ""
-	}
 	ttl, err := strconv.Atoi(os.Getenv("STATUSLINE_CACHE_TTL"))
 	if err != nil || ttl < 0 {
 		ttl = 1
@@ -249,14 +246,26 @@ func gitStatus(home, cwd, sessionID string) string {
 		data, _ := os.ReadFile(file)
 		return strings.TrimSuffix(string(data), "\n")
 	}
+	top := project.Toplevel(cwd)
+	if top == "" {
+		return ""
+	}
 	_ = os.MkdirAll(dir, 0o755) // without it, the segment just isn't cached
-	branch, _ := git.Line(cwd, "branch", "--show-current")
+	// Independent git reads, run at once: this renders every second.
+	// Untracked files are listed from the top: ls-files --others lists only
+	// cwd's subtree, numstat the whole repo.
+	var branch, unstaged, staged, untracked string
+	var wg sync.WaitGroup
+	wg.Go(func() { branch, _ = git.Line(cwd, "branch", "--show-current") })
+	wg.Go(func() { unstaged, _ = git.Output(cwd, "diff", "--numstat") })
+	wg.Go(func() { staged, _ = git.Output(cwd, "diff", "--cached", "--numstat") })
+	wg.Go(func() { untracked, _ = git.Output(top, "ls-files", "--others", "--exclude-standard", "-z") })
+	wg.Wait()
 	if branch == "" {
 		branch = "detached"
 	}
 	add, del := 0, 0
-	for _, args := range [][]string{{"diff", "--numstat"}, {"diff", "--cached", "--numstat"}} {
-		out, _ := git.Output(cwd, args...)
+	for _, out := range []string{unstaged, staged} {
 		for line := range strings.SplitSeq(out, "\n") {
 			f := strings.Fields(line)
 			if len(f) >= 2 {
@@ -266,11 +275,9 @@ func gitStatus(home, cwd, sessionID string) string {
 			}
 		}
 	}
-	// Untracked files count as all-new lines, as they will once added. From
-	// the top: ls-files --others lists only cwd's subtree, numstat the whole repo.
-	// This runs on every refresh, so only regular files are read, within a
-	// byte budget: past it, or for one larger file, the count runs low.
-	untracked, _ := git.Output(top, "ls-files", "--others", "--exclude-standard", "-z")
+	// Untracked files count as all-new lines, as they will once added. This
+	// runs on every refresh, so only regular files are read, within a byte
+	// budget: past it, or for one larger file, the count runs low.
 	budget := int64(untrackedReadBudget)
 	for name := range strings.SplitSeq(untracked, "\x00") {
 		if name == "" {
