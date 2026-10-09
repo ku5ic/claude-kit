@@ -149,21 +149,26 @@ func (c *classifier) stmt(s *syntax.Stmt) {
 			if a.Name == nil || a.Naked {
 				continue
 			}
-			value := ""
-			if a.Value != nil {
-				v, ok := literal(a.Value)
-				if !ok {
-					c.opaque = "export with an expansion"
-					return
-				}
-				value = v
+			kv, ok := assignment(a)
+			if !ok {
+				c.opaque = "export with an expansion"
+				return
 			}
-			env = append(env, a.Name.Value+"="+value)
+			env = append(env, kv)
 		}
 		c.out = append(c.out, Command{Kind: Export, Env: env})
 	default:
 		c.opaque = "compound command"
 	}
+}
+
+// assignment is a as K=V; ok is false when its value holds an expansion.
+func assignment(a *syntax.Assign) (string, bool) {
+	if a.Value == nil {
+		return a.Name.Value + "=", true
+	}
+	v, ok := literal(a.Value)
+	return a.Name.Value + "=" + v, ok
 }
 
 // harmlessRedirect is a redirect that writes no file: to /dev/null, or a
@@ -179,17 +184,13 @@ func harmlessRedirect(r *syntax.Redirect) bool {
 func (c *classifier) call(call *syntax.CallExpr) {
 	var env []string
 	for _, a := range call.Assigns {
-		value := ""
-		if a.Value != nil {
-			v, ok := literal(a.Value)
-			if !ok {
-				// FOO=$BAR: later commands see a value the kit can't know.
-				c.out = append(c.out, Command{Kind: Other, Words: []string{a.Name.Value + "=$"}, Expansion: true})
-				return
-			}
-			value = v
+		kv, ok := assignment(a)
+		if !ok {
+			// FOO=$BAR: later commands see a value the kit can't know.
+			c.out = append(c.out, Command{Kind: Other, Words: []string{a.Name.Value + "=$"}, Expansion: true})
+			return
 		}
-		env = append(env, a.Name.Value+"="+value)
+		env = append(env, kv)
 	}
 	var words, globs []string
 	for _, w := range call.Args {

@@ -359,8 +359,7 @@ func looseWriteTarget(p string) bool {
 // other unexpanded variable, and any "..", doesn't, since it can't be
 // checked.
 func (st *state) scratchTarget(p string) bool {
-	p = strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(p, `"`), `'`), `"`)
-	p = strings.TrimSuffix(p, `'`)
+	p = unquote(p)
 	if strings.Contains(p, "..") {
 		return false
 	}
@@ -370,30 +369,37 @@ func (st *state) scratchTarget(p string) bool {
 		p == "`kit scratch-dir`", strings.HasPrefix(p, "`kit scratch-dir`/"):
 		return true
 	}
-	p = guard.ExpandHome(st.home, p)
+	p = st.abs(p)
 	if strings.ContainsAny(p, "$`") {
 		return false
 	}
+	return project.IsScratch(st.h.Paths, p)
+}
+
+// unquote strips one pair of surrounding quotes, single or double.
+func unquote(p string) string {
+	p = strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(p, `"`), `'`), `"`)
+	return strings.TrimSuffix(p, `'`)
+}
+
+// abs is p with ~ or $HOME expanded, joined to the segment's cwd when relative.
+func (st *state) abs(p string) string {
+	p = guard.ExpandHome(st.home, p)
 	if !strings.HasPrefix(p, "/") {
 		p = st.cwd + "/" + p
 	}
-	return project.IsScratch(st.h.Paths, p)
+	return p
 }
 
 // isOverlayArg is true when a word (quoted, ~- or $HOME-prefixed, or
 // relative to the segment's cwd) names the kit overlay. The basename test
 // keeps path resolution off every other argument.
 func (st *state) isOverlayArg(arg string) bool {
-	arg = strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(arg, `"`), `'`), `"`)
-	arg = strings.TrimSuffix(arg, `'`)
+	arg = unquote(arg)
 	if arg != "claude-kit.local.yml" && !strings.HasSuffix(arg, "/claude-kit.local.yml") {
 		return false
 	}
-	arg = guard.ExpandHome(st.home, arg)
-	if !strings.HasPrefix(arg, "/") {
-		arg = st.cwd + "/" + arg
-	}
-	return guard.IsOverlay(st.h.Paths, arg)
+	return guard.IsOverlay(st.h.Paths, st.abs(arg))
 }
 
 // isProtected is true when ref names a protected branch, ignoring
@@ -412,12 +418,9 @@ func (st *state) isProtected(ref string) bool {
 // currentBranch of the repo a git command targets: -C resolved against the
 // segment's cwd. Empty outside a repo or on a detached HEAD.
 func (st *state) currentBranch(gitDir string) string {
-	dir := guard.ExpandHome(st.home, gitDir)
-	switch {
-	case dir == "":
-		dir = st.cwd
-	case !strings.HasPrefix(dir, "/"):
-		dir = st.cwd + "/" + dir
+	dir := st.cwd
+	if gitDir != "" {
+		dir = st.abs(gitDir)
 	}
 	branch, _ := project.Branch(dir)
 	return branch

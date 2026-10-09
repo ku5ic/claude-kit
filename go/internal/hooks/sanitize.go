@@ -43,11 +43,13 @@ func SanitizeOutput(h *hook.Hook) error {
 	if path == "" || err != nil || !info.Mode().IsRegular() {
 		return nil
 	}
-	if cfg := h.Config(); cfg != nil && guard.GlobAny(cfg.SanitizeSkip, path) {
+	data, err := os.ReadFile(path)
+	// Every rune above is U+2xxx, which UTF-8 leads with 0xE2: without that
+	// byte there's nothing to do, and the config load is skipped.
+	if err != nil || bytes.IndexByte(data, 0xE2) < 0 || !isText(data) {
 		return nil
 	}
-	data, err := os.ReadFile(path)
-	if err != nil || !isText(data) {
+	if cfg := h.Config(); cfg != nil && guard.GlobAny(cfg.SanitizeSkip, path) {
 		return nil
 	}
 	out := string(data)

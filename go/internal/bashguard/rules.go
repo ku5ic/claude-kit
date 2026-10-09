@@ -22,6 +22,12 @@ type command struct {
 
 func (c *command) block(reason, rule string) error { return c.st.h.Block(reason, rule) }
 
+// shortCluster is true when a is a short-option cluster (-xyz) holding any
+// of letters.
+func shortCluster(a, letters string) bool {
+	return strings.HasPrefix(a, "-") && !strings.HasPrefix(a, "--") && strings.ContainsAny(a, letters)
+}
+
 // readsSensitive blocks when any of paths is a credential file. nil when
 // none is, or when sensitive-read is disabled, so the caller carries on.
 func (c *command) readsSensitive(paths []string) error {
@@ -409,15 +415,13 @@ func (c *command) git() error {
 			c.st.ask("git reset --hard discards uncommitted changes; confirm")
 		}
 	case "clean":
-		dryRun := has("--dry-run") || slices.ContainsFunc(args, func(a string) bool {
-			return strings.HasPrefix(a, "-") && !strings.HasPrefix(a, "--") && strings.Contains(a, "n")
-		})
+		dryRun := has("--dry-run") || slices.ContainsFunc(args, func(a string) bool { return shortCluster(a, "n") })
 		if !dryRun {
 			c.st.ask("git clean deletes untracked files; confirm, or run it with -n first")
 		}
 	case "branch", "tag":
 		if slices.ContainsFunc(args, func(a string) bool {
-			return a == "--delete" || (strings.HasPrefix(a, "-") && !strings.HasPrefix(a, "--") && strings.ContainsAny(a, "dD"))
+			return a == "--delete" || shortCluster(a, "dD")
 		}) {
 			c.st.ask("git " + sub + " deletion; confirm the name")
 		}

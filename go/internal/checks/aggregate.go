@@ -69,15 +69,7 @@ func roles(cfg *config.Config, root, dir, sfx string, tasks []project.Task, subs
 		r.tools[i] = bodyTools(results[i])
 		r.away[i] = away(root, dir, subs, t, results[i])
 		r.unsafe[i] = forbidden(results[i])
-		gate, single := results[i].SingleGate()
-		if single {
-			r.single[i] = &gate
-		}
-		if slot := globSlot(cfg, t.Name); slot != "" {
-			r.slots[i] = slot
-		} else if single && !excludedBy(cfg, gate.Slot, t.Name) {
-			r.slots[i] = gate.Slot
-		}
+		r.slots[i], r.single[i] = taskSlot(cfg, t.Name, results[i])
 	}
 	applyFallbacks(cfg, tasks, &r)
 	for i, t := range tasks {
@@ -93,7 +85,7 @@ func roles(cfg *config.Config, root, dir, sfx string, tasks []project.Task, subs
 	for i, t := range tasks {
 		// A single gate an exclude glob turned away (unit-watch: vitest), or
 		// any task named like a watch, fix, or e2e task, is never expanded.
-		if _, single := results[i].SingleGate(); r.slots[i] != "" || t.Body == "" || single || excludedAnywhere(cfg, t.Name) {
+		if r.slots[i] != "" || t.Body == "" || r.single[i] != nil || excludedAnywhere(cfg, t.Name) {
 			continue
 		}
 		visited := map[string]bool{taskID(t, dir): true}
@@ -246,6 +238,20 @@ func (a *aggregator) inRoot(dir, path string) (string, bool) {
 	}
 	target := filepath.Clean(filepath.Join(dir, path))
 	return target, within(target, a.root)
+}
+
+// taskSlot is the check a task counts as: its name's glob slot, else its
+// single gate's slot unless an exclude glob turns it away. single is that
+// gate, nil when the body isn't one.
+func taskSlot(cfg *config.Config, name string, r classify.Result) (slot string, single *classify.Command) {
+	slot = globSlot(cfg, name)
+	if gate, ok := r.SingleGate(); ok {
+		single = &gate
+		if slot == "" && !excludedBy(cfg, gate.Slot, name) {
+			slot = gate.Slot
+		}
+	}
+	return slot, single
 }
 
 // within is true when path is dir or lies under it.
@@ -480,14 +486,7 @@ func (a *aggregator) reference(ref classify.TaskRef, globs []string, agg taskAt,
 	}
 	visited[id] = true
 	r := classify.Body(a.cfg, target.task.Body, a.lookup(target.dir))
-	slot := globSlot(a.cfg, target.task.Name)
-	var single *classify.Command
-	if gate, ok := r.SingleGate(); ok {
-		single = &gate
-		if slot == "" && !excludedBy(a.cfg, gate.Slot, target.task.Name) {
-			slot = gate.Slot
-		}
-	}
+	slot, single := taskSlot(a.cfg, target.task.Name, r)
 	if slot == "" {
 		if excludedAnywhere(a.cfg, target.task.Name) {
 			return nil, true
