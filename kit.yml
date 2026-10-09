@@ -95,7 +95,7 @@ skill_file_map:
     globs: ["Dockerfile", "docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"]
     skills: [docker-patterns]
   - on: basename
-    globs: ["tailwind.config.js", "tailwind.config.ts"]
+    globs: ["tailwind.config.js", "tailwind.config.ts", "tailwind.config.mjs", "tailwind.config.cjs"]
     skills: [tailwind-patterns]
   - on: basename
     globs: ["next.config.js", "next.config.mjs", "next.config.ts"]

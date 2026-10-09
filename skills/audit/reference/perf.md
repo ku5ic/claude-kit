@@ -4,7 +4,7 @@ Performance audit focused on statically detectable issues. Arguments: `<file, di
 
 ## Procedure
 
-1. Stack is in the `<repo-context>` block from the `SubagentStart` hook. Get the scratch directory via `kit scratch-dir`.
+1. Stack is in the `<repo-context>` block from the `SubagentStart` hook.
 2. Load the patterns skill for the detected stack (react-patterns, django-patterns, etc.) for the anti-pattern reference.
 3. Review the target across these categories:
    - Ground each candidate in this project's precedent, per `rules/evidence.md` section 2: a pattern that repeats elsewhere unflagged by CLAUDE.md or tests is a deliberate tradeoff, not a finding.

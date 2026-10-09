@@ -1,6 +1,6 @@
 # Anti-patterns
 
-Severity: `failure` = do not ship. `warning` = smell that compounds. `info` = hardening opportunity.
+Severity levels: the report-format skill.
 
 ---
 

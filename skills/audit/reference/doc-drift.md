@@ -8,7 +8,7 @@ $ARGUMENTS should point to the code surface to check. Required.
 
 ## Procedure
 
-1. Stack is in the injected `<repo-context>` block. Get the scratch directory: `!`kit scratch-dir``.
+1. Stack is in the injected `<repo-context>` block.
 2. Read the code at $ARGUMENTS.
 3. Find relevant docs. Prefer targeted over exhaustive:
    - `README.md` at the project root if $ARGUMENTS is in `src/` or equivalent

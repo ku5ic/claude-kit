@@ -4,14 +4,13 @@ Structured retrospective for an incident, sprint, or completed feature. Argument
 
 ## Procedure
 
-1. Get the scratch directory: `!`kit scratch-dir``.
-2. Identify the retro type from $ARGUMENTS:
+1. Identify the retro type from $ARGUMENTS:
    - Incident: something broke, users affected, response happened
    - Sprint or iteration: time-boxed period of work
    - Feature or project: a shipped deliverable
-3. Read $ARGUMENTS. If it references a file (timeline, postmortem draft, sprint notes): read it.
-4. Pull git context if useful: `git log --since=<date>` for sprint retros.
-5. Use the matching template below.
+2. Read $ARGUMENTS. If it references a file (timeline, postmortem draft, sprint notes): read it.
+3. Pull git context if useful: `git log --since=<date>` for sprint retros.
+4. Use the matching template below.
 
 ## Output file
 

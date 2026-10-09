@@ -44,7 +44,7 @@ The plugin's `bin/` is on PATH, so its tools are `kit <subcommand>`: `kit scratc
 
 ## 3. Scratch
 
-Scratch is whatever `kit scratch-dir` prints: `<project-root>/.claude/scratch/` inside a recognized project, `$HOME/.claude/scratch/` everywhere else.
+Scratch is whatever `kit scratch-dir` prints, the `scratch:` line of `<repo-context>`.
 
 Three sibling directories under a project's `.claude/`, each with one job:
 

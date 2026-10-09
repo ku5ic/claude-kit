@@ -11,20 +11,19 @@ Turn a fuzzy ask into a sharp Claude Code prompt with context and acceptance cri
 
 ## Procedure
 
-1. Get the scratch directory: `!`kit scratch-dir``.
-2. Read $ARGUMENTS. If it points to a file, read it.
-3. Run `!`kit detect-stack`` if the ask appears technical.
-4. Identify what is missing:
+1. Read $ARGUMENTS. If it points to a file, read it.
+2. Run `!`kit detect-stack`` if the ask appears technical.
+3. Identify what is missing:
    - Goal unclear or conflated with method
    - Scope undefined (no files, no surface area)
    - Success unstated (how do we know it worked)
    - Constraints missing (stack, style, deadline, performance)
-5. Verify before writing. For any file path, symbol, or API the prompt is about to name:
+4. Verify before writing. For any file path, symbol, or API the prompt is about to name:
    1. Confirm it exists.
    2. Read it directly when the input names a couple of files.
    3. Delegate to the built-in Explore agent when the input references code or architecture spanning more than a couple of files.
    4. Anything that cannot be verified goes into the output as "unverified, please confirm", not asserted.
-6. Rewrite as a structured prompt.
+5. Rewrite as a structured prompt.
 
 ## Output file
 
@@ -69,7 +68,6 @@ Structure:
 - Extract the underlying goal, do not repeat the fuzzy phrasing.
 - If the ask is actually two or three tasks bundled, split them and output multiple prompts.
 - If the ask is under-specified in a way that cannot be inferred, ask per `rules/workflow.md` section 4 before writing the output file; the answers become a "Decisions" section.
-- Do not name a file path, function, or API in the output unless it was confirmed this session via Read/Grep/fd or Explore; unconfirmed items are marked unverified, never asserted as fact.
 - The output is meant to be copy-pasted by another agent or a human, not a chatbot.
 
 ## Bonus: promoting the prompt to a skill

@@ -15,7 +15,7 @@ The subject is already understood well enough to explain - root cause from `inve
    - If nothing can be found, stop and ask what to explain.
 2. Do not trust any existing citations - from a debug report, prior conversation, or memory - at face value. Re-read every file mentioned in its current state before repeating a citation. Code moves; a prior artifact is a starting hypothesis, not a fact.
 3. Identify the natural entry point for understanding the subject: for a bug, the user action or event that starts the chain; for a feature or module, where it's mounted, its main export, or the first file a reader would open. Name where the relevant state or logic actually lives, not just where it's consumed or re-exported.
-4. Trace hop by hop from the entry point through the rest of the subject. At each hop, cite file:line and state what the code does and why it's written that way - not just a restatement of what it does. Read the actual current file before citing it; never cite from memory of a source artifact alone.
+4. Trace hop by hop from the entry point through the rest of the subject. At each hop, cite file:line and state what the code does and why it's written that way - not just a restatement of what it does.
 5. If the subject has more than one distinct mechanism, responsibility, or (for a bug) manifestation:
    - Address each separately.
    - State explicitly why one doesn't substitute for or explain the other.
@@ -41,8 +41,6 @@ Invoking this skill lifts the `rules/output.md` section 0 ceiling, like "in deta
 
 ## Rules
 
-- Every file:line cited must have been read in this session, not carried over unverified from a stale artifact.
 - State plainly when something is inferred vs. verified (e.g., "confirmed via the actual refetch call" vs. "likely, based on the naming").
 - Multiple mechanisms sharing one subject - one ticket, one feature, one module - are not automatically one story. Check before merging them into a single narrative.
 - Don't pad with a closing summary that restates what was just explained.
-- Follows `rules/output.md` structurally even though it's exempt from the length ceiling: short paragraphs per point, headers per hop or mechanism, front-loaded conclusions before the mechanism detail that supports them.

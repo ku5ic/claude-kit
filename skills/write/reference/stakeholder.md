@@ -4,10 +4,9 @@ Reframe a technical finding or proposal for a non-technical audience. Arguments:
 
 ## Procedure
 
-1. Get the scratch directory: `!`kit scratch-dir``.
-2. Read the input. If $ARGUMENTS looks like a file path, read the file. Otherwise treat $ARGUMENTS as the content directly.
-3. Identify the audience implied by the input or default to PM-level.
-4. Reframe.
+1. Read the input. If $ARGUMENTS looks like a file path, read the file. Otherwise treat $ARGUMENTS as the content directly.
+2. Identify the audience implied by the input or default to PM-level.
+3. Reframe.
 
 ## Output file
 

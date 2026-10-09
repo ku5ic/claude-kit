@@ -19,7 +19,7 @@ Retention: at most 3 version entries, newest first. A pattern that changed moves
 
 ## Procedure
 
-1. Scope. Get the scratch directory: `!`kit scratch-dir``. The arguments are: $ARGUMENTS
+1. Scope. The arguments are: $ARGUMENTS
    - One or more skill names: refresh those.
    - `--all`: every reference skill.
    - Blank: list every reference skill with its `Checked:` date (or "never"), oldest first, and ask which to refresh via AskUserQuestion (multi-select, at most 5 unless the user picks `--all`).

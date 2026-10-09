@@ -4,8 +4,7 @@ Generate a pull request description from the current diff. Arguments: `<optional
 
 ## Procedure
 
-1. Get the scratch directory: `!`kit scratch-dir``.
-2. Check for a project PR template: resolve the project root via `!`kit project-root``, then check these exact paths in order, using the first that exists:
+1. Check for a project PR template: resolve the project root via `!`kit project-root``, then check these exact paths in order, using the first that exists:
    - `<root>/.github/pull_request_template.md`, and its case variant `<root>/.github/PULL_REQUEST_TEMPLATE.md`
    - the alphabetically-first `*.md` file directly inside `<root>/.github/PULL_REQUEST_TEMPLATE/`, if that directory exists (`fd -H . <root>/.github/PULL_REQUEST_TEMPLATE -e md | sort | head -1`)
    - `<root>/docs/pull_request_template.md`
@@ -20,17 +19,17 @@ Generate a pull request description from the current diff. Arguments: `<optional
 
    If one exists, read it: its sections replace the default Structure below - this is mandatory, not a preference, even for a one-line diff. Never substitute the default Structure when a project template exists. If none exists, fall back to the default Structure.
 
-3. Resolve the base: !`kit git-base`. Falls through upstream / origin HEAD / main / master / develop / trunk. If $ARGUMENTS is a valid single-word git ref (no spaces, not a sentence), use it as the explicit base instead by running `kit git-base "$ARGUMENTS"` via Bash.
-4. Pull the diff: !`kit git-base --diff`
-5. Pull the log (last 20): !`kit git-base --log -20`
-6. Read any referenced issue number in recent commit messages, but do not fetch external data.
-7. Build the risk map. List the changed files with `kit git-base --diff --name-only` (plus the explicit base from step 3, if any). Run `kit blast-radius <file>` on each one that isn't a test file; it exits 2 for a file type it can't scan, so skip those. A file qualifies when it has 5 or more consumers, or when it has consumers and none of them is a test (`test 0`).
+2. Resolve the base: !`kit git-base`. If $ARGUMENTS is a valid single-word git ref (no spaces, not a sentence), use it as the explicit base instead by running `kit git-base "$ARGUMENTS"` via Bash.
+3. Pull the diff: !`kit git-base --diff`
+4. Pull the log (last 20): !`kit git-base --log -20`
+5. Read any referenced issue number in recent commit messages, but do not fetch external data.
+6. Build the risk map. List the changed files with `kit git-base --diff --name-only` (plus the explicit base from step 2, if any). Run `kit blast-radius <file>` on each one that isn't a test file; it exits 2 for a file type it can't scan, so skip those. A file qualifies when it has 5 or more consumers, or when it has consumers and none of them is a test (`test 0`).
 
 ## Output
 
 Write the PR description to the path `kit scratch-dir pr <branch-slug>` prints.
 
-### If step 2 found a project PR template
+### If step 1 found a project PR template
 
 Reproduce the template verbatim and fill it in. This branch is mandatory and exclusive:
 
@@ -39,9 +38,9 @@ Reproduce the template verbatim and fill it in. This branch is mandatory and exc
 - No heading is removed. A section with nothing to say gets `N/A` or the template's own placeholder, never deletion.
 - Non-heading template scaffolding - checklists, HTML comments, instructional italics, blockquotes - is preserved as-is. Tick a checkbox only when the diff establishes it; otherwise leave it unticked.
 - The Rules below govern the prose you write _inside_ a section. They never govern which sections exist.
-- Risk-map lines from step 7 go in the section closest to reviewer notes, never under a new heading.
+- Risk-map lines from step 6 go in the section closest to reviewer notes, never under a new heading.
 
-### Only if step 2 found no template
+### Only if step 1 found no template
 
 Use this default structure:
 
@@ -64,7 +63,7 @@ Use this default structure:
 
 ## Risk
 
-<One bullet per file step 7 qualified: `path` - N consumers (S source, T test), and "no test imports it" when T is 0. Omit when nothing qualifies.>
+<One bullet per file step 6 qualified: `path` - N consumers (S source, T test), and "no test imports it" when T is 0. Omit when nothing qualifies.>
 
 ## Notes for reviewer
 

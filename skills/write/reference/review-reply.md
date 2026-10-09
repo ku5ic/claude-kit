@@ -4,31 +4,30 @@ Draft replies to a reviewer's PR comments, verifying each claim against the actu
 
 ## Procedure
 
-1. Get the scratch directory: `!`kit scratch-dir``.
-2. Resolve the repo slug: `gh repo view --json nameWithOwner -q .nameWithOwner`. If this fails (no remote, no auth), stop and say so.
-3. Resolve the current GitHub user: `gh api user -q .login`. Used later to detect already-answered threads.
-4. Parse `$ARGUMENTS`:
+1. Resolve the repo slug: `gh repo view --json nameWithOwner -q .nameWithOwner`. If this fails (no remote, no auth), stop and say so.
+2. Resolve the current GitHub user: `gh api user -q .login`. Used later to detect already-answered threads.
+3. Parse `$ARGUMENTS`:
    - First non-flag token: reviewer username.
    - A bare number: PR number.
-   - `--all`: include every review round, not just the newest (see step 7).
-5. If no PR number was given, resolve the current branch's PR: `gh pr view --json number,url`. If that fails (not on a PR branch, no open PR), ask for the PR number or URL via the AskUserQuestion tool instead of guessing.
-6. If no reviewer username was given:
+   - `--all`: include every review round, not just the newest (see step 6).
+4. If no PR number was given, resolve the current branch's PR: `gh pr view --json number,url`. If that fails (not on a PR branch, no open PR), ask for the PR number or URL via the AskUserQuestion tool instead of guessing.
+5. If no reviewer username was given:
    - List distinct reviewers from `gh api repos/<slug>/pulls/<n>/reviews` and `gh api repos/<slug>/pulls/<n>/comments`, excluding the PR author and the current user.
    - Exactly one candidate: use it.
    - Zero or more than one: ask via the AskUserQuestion tool, listing the candidates, instead of guessing.
-7. Fetch the reviewer's comments:
+6. Fetch the reviewer's comments:
    - Inline: `gh api repos/<slug>/pulls/<n>/comments --paginate`, filtered to `user.login == <reviewer>`. Keep `id`, `path`, `line` (or `original_line`), `body`, `html_url`, `created_at`, `in_reply_to_id`.
    - Reviews: `gh api repos/<slug>/pulls/<n>/reviews --paginate`, filtered to the same user. Keep `id`, `body`, `html_url`, `submitted_at`. Include a review's own `body` as a comment only if non-empty.
-8. Scope to the newest round, unless `--all` was passed:
-   - Group everything from step 7 by calendar date (from `created_at` / `submitted_at`).
+7. Scope to the newest round, unless `--all` was passed:
+   - Group everything from step 6 by calendar date (from `created_at` / `submitted_at`).
    - Keep only the most recent date's items.
    - Note any older items that were excluded, in one line, at the top of the output file.
-9. Drop already-answered threads: for each inline comment, check whether any other comment in the full (unfiltered) `pulls/comments` list has `in_reply_to_id` equal to its `id` and `user.login` equal to the current user from step 3. If so, skip it.
-10. For each remaining comment, investigate before answering:
-    - Read the referenced file at the given line, plus enough surrounding context to understand the claim (the function, its callers, related types/hooks).
-    - Trace the actual behavior: if the comment claims something is dead code, unreachable, redundant, or inconsistent, verify it by reading the code paths involved, not by re-reading the comment.
-    - If the comment concerns a contract this repo doesn't own (e.g. a backend API, an external service), check whether a project-specific scout/backend agent is configured (`/agents` in this session) and use it; otherwise verify from what's available (schema files, generated types, docs in-repo) and say plainly what could not be confirmed.
-    - Do not fabricate verification. Anything not actually checked against the code is a judgment call, and gets flagged as one in the answer.
+8. Drop already-answered threads: for each inline comment, check whether any other comment in the full (unfiltered) `pulls/comments` list has `in_reply_to_id` equal to its `id` and `user.login` equal to the current user from step 2. If so, skip it.
+9. For each remaining comment, investigate before answering:
+   - Read the referenced file at the given line, plus enough surrounding context to understand the claim (the function, its callers, related types/hooks).
+   - Trace the actual behavior: if the comment claims something is dead code, unreachable, redundant, or inconsistent, verify it by reading the code paths involved, not by re-reading the comment.
+   - If the comment concerns a contract this repo doesn't own (e.g. a backend API, an external service), check whether a project-specific scout/backend agent is configured (`/agents` in this session) and use it; otherwise verify from what's available (schema files, generated types, docs in-repo) and say plainly what could not be confirmed.
+   - Do not fabricate verification. Anything not actually checked against the code is a judgment call, and gets flagged as one in the answer.
 
 ## Deciding the answer
 
@@ -73,5 +72,5 @@ Structure:
 - Tone: short, peer-to-peer - the PR author replying to a colleague, not a report. No "Thank you for the feedback", no groveling, no corporate hedging.
 - Disagree plainly when the code contradicts the reviewer. State the evidence, don't soften it.
 - Never post anything to GitHub. This drafts a file only - posting the replies is a separate, explicit action the user takes themselves.
-- If a comment's thread already has a reply from the current user (step 9), it's excluded silently from the per-comment sections, but counted in the round-summary line at the top.
+- If a comment's thread already has a reply from the current user (step 8), it's excluded silently from the per-comment sections, but counted in the round-summary line at the top.
 - If zero comments remain after scoping and filtering, say so and stop - do not write an empty file.
