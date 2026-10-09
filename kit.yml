@@ -68,7 +68,7 @@ skill_file_map:
     globs: ["*.ts", "*.tsx", "*.js", "*.jsx", "*.mjs", "*.cjs", "*.py", "*.rb", "*.go", "*.rs", "*.java", "*.sh", "*.vue"]
     skills: [engineering-fundamentals]
   - on: basename
-    globs: ["*.test.*", "*.spec.*", "test_*.py", "*_test.py", "*_test.go"]
+    globs: ["*.test.*", "*.spec.*", "test_*.py", "*_test.py", "*_test.go", "*_spec.rb"]
     skills: [test-patterns]
   - on: basename
     globs: ["*.tsx"]
