@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"os"
 	"regexp"
-	"slices"
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/hook"
@@ -12,29 +11,21 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
-// runChecksCall is a kit run-checks call: first in a command line or after
-// a shell operator, past any time, nice, env, timeout N, or VAR=value
-// prefix, with its arguments up to the next operator. A mention inside
-// quotes or an rg pattern doesn't start a command, so it doesn't count.
-var runChecksCall = regexp.MustCompile(`(?m)(?:^|[|;&(])\s*(?:(?:time|nice|env|timeout\s+\S+|[A-Za-z_][A-Za-z0-9_]*=\S*)\s+)*kit run-checks([^|;&\n]*)`)
+// checksSummary is the line kit run-checks ends a real run with; --plan
+// doesn't print it.
+var checksSummary = regexp.MustCompile(`checks: \d+ passed, \d+ failed, \d+ skipped`)
 
-// ranChecks reports whether the agent's transcript has a Bash call that ran
-// kit run-checks, so a reviewer that already did isn't sent back to re-emit
-// its report. --plan only lists the checks, so it doesn't count.
+// ranChecks reports whether the agent's transcript shows a kit run-checks
+// run, by its summary line in a tool result, so a reviewer that already ran
+// it isn't sent back to re-emit its report. Reading the output, not the
+// command, needs no shell parsing: a mention in quotes prints no summary.
 func ranChecks(path string) bool {
 	ran := false
 	// A read error leaves what was read: the hook fails open.
 	_ = transcript.Each(path, func(e transcript.Entry) {
-		for _, b := range e.ToolUses() {
-			if e.Type != "assistant" || b.Name != "Bash" {
-				continue
-			}
-			// A backslash-newline continues the line, so its --plan still counts.
-			command := strings.ReplaceAll(b.Input.Command, "\\\n", " ")
-			for _, m := range runChecksCall.FindAllStringSubmatch(command, -1) {
-				if !slices.Contains(strings.Fields(m[1]), "--plan") {
-					ran = true
-				}
+		for _, b := range e.Blocks {
+			if b.Type == "tool_result" && checksSummary.MatchString(b.ResultText()) {
+				ran = true
 			}
 		}
 	})

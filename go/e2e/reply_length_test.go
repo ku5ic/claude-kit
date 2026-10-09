@@ -56,6 +56,15 @@ func TestReplyLength(t *testing.T) {
 		// A new turn with no prompt starts over at the chat ceiling.
 		stop(k, words(41), false).Want(t, 2)
 	})
+	t.Run("a detail trigger lifts a /write ceiling too", func(t *testing.T) {
+		k := New(t)
+		prompt(k, "/write explainer the cache in detail").Empty(t)
+		stop(k, words(500), false).Want(t, 0)
+	})
+	t.Run("with no session id it never blocks, so it can't loop", func(t *testing.T) {
+		k := New(t)
+		k.Hook("reply-length", map[string]any{"hook_event_name": "Stop", "last_assistant_message": words(500)}).Want(t, 0)
+	})
 	t.Run("a slash command's name isn't a trigger", func(t *testing.T) {
 		k := New(t)
 		prompt(k, "/code-review high").Has(t, "40 words")

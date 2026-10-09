@@ -19,6 +19,7 @@ Run this test on every reply, file, and commit message before emitting:
 | Chat reply, default                                            | kit.yml `reply_limits.chat` words         |
 | Chat reply after a `reply_limits.explain_triggers` word        | kit.yml `reply_limits.explain` words      |
 | Chat reply after a `reply_limits.detail_triggers` phrase       | no ceiling, headers required              |
+| Terminal output of a `/write` kind in `reply_limits.write`     | that kind's kit.yml words, code included  |
 | An artifact the reader asked for (report, audit, plan, review) | follows the report-format skill           |
 | Reply naming a written file                                    | path, headline count, one next action     |
 | Commit message body, PR description                            | shortest structured form that is complete |

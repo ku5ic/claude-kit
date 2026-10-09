@@ -68,9 +68,14 @@ func ReplyLength(h *hook.Hook) error {
 		}
 		active := p.Bool("stop_hook_active")
 		switch {
-		case t.State == "blocked" || (t.State == "released" && active):
+		case marker == "":
+			// No session to keep "once per turn" in: never block, never loop.
+			return nil
+		case t.State == "blocked":
 			t.State = "released"
 			writeTurn(marker, t)
+			return nil
+		case t.State == "released" && active:
 			return nil
 		case t.State != "" && !active:
 			t = turn{Limit: l.Chat}
@@ -89,19 +94,20 @@ func ReplyLength(h *hook.Hook) error {
 	return nil
 }
 
-// turnLimit is what a prompt sets: a /write kind's ceiling, code included;
-// none after a detail trigger; the explain ceiling after an explain trigger;
-// else the chat one. A leading slash command's name isn't a trigger.
+// turnLimit is what a prompt sets: none after a detail trigger; a /write
+// kind's ceiling, code included; the explain ceiling after an explain
+// trigger; else the chat one. A leading slash command's name isn't a trigger.
 func turnLimit(l config.ReplyLimits, prompt string) turn {
+	text := command.ReplaceAllString(prompt, "")
+	if hasTrigger(text, l.DetailTriggers) {
+		return turn{}
+	}
 	if m := writeCommand.FindStringSubmatch(prompt); m != nil {
 		if n, ok := l.Write[m[1]]; ok {
 			return turn{Limit: n, All: true}
 		}
 	}
-	text := command.ReplaceAllString(prompt, "")
 	switch {
-	case hasTrigger(text, l.DetailTriggers):
-		return turn{}
 	case hasTrigger(text, l.ExplainTriggers):
 		return turn{Limit: l.Explain}
 	}

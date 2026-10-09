@@ -43,11 +43,13 @@ type Entry struct {
 
 // Block is one content block.
 type Block struct {
-	Type  string `json:"type"`
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Text  string `json:"text"`
-	Input struct {
+	Type string `json:"type"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Text string `json:"text"`
+	// Content is a tool_result's output: a string or an array of blocks.
+	Content json.RawMessage `json:"content"`
+	Input   struct {
 		FilePath     *string `json:"file_path"`
 		NotebookPath *string `json:"notebook_path"`
 		Skill        string  `json:"skill"`
@@ -64,6 +66,24 @@ func (b Block) Path() string {
 		return *b.Input.NotebookPath
 	}
 	return ""
+}
+
+// ResultText is a tool_result's output text: its string content, or its
+// text blocks joined.
+func (b Block) ResultText() string {
+	var text string
+	if json.Unmarshal(b.Content, &text) == nil {
+		return text
+	}
+	var blocks []Block
+	_ = json.Unmarshal(b.Content, &blocks)
+	var texts []string
+	for _, c := range blocks {
+		if c.Type == "text" {
+			texts = append(texts, c.Text)
+		}
+	}
+	return strings.Join(texts, "\n")
 }
 
 // StartsTurn reports whether e is a real user prompt: a user entry that is

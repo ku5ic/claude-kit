@@ -44,15 +44,11 @@ func TestReviewChecks(t *testing.T) {
 		}
 		quiet(t, e, stop(e, transcript, true))
 	})
-	t.Run("a prefixed call, like time kit run-checks, counts as a run", func(t *testing.T) {
-		e, transcript := setup(t, `{"skillName":"code-review"}`)
-		Write(t, transcript, `{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"cd go && CI=1 timeout 600 kit run-checks"}}]}}`+"\n")
-		quiet(t, e, stop(e, transcript, false))
-	})
-	t.Run("a review that already ran kit run-checks stops freely", func(t *testing.T) {
+	t.Run("a review whose tool output shows a run-checks summary stops freely", func(t *testing.T) {
 		e, transcript := setup(t, `{"skillName":"code-review"}`)
 		Write(t, transcript, `{"type":"user","message":{"content":"review this"}}`+"\n"+
-			`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"kit run-checks","timeout":600000}}]}}`+"\n")
+			`{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"if time kit run-checks; then :; fi"}}]}}`+"\n"+
+			`{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":[{"type":"text","text":"PASS go: vet\nchecks: 5 passed, 0 failed, 1 skipped"}]}]}}`+"\n")
 		quiet(t, e, stop(e, transcript, false))
 	})
 	t.Run("a review that only listed the checks with --plan is still sent back", func(t *testing.T) {
