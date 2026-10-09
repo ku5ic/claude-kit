@@ -134,7 +134,7 @@ func TestOverlayChecksAndToolchainChecksUpdateByKey(t *testing.T) {
 }
 
 func TestCheckDisabledMatchesSlotOrLabel(t *testing.T) {
-	cfg := &Config{DisabledChecks: []string{"typecheck", "lint (lint:css) [web]", "js: test (test:unit)", "js: off"}}
+	cfg := &Config{DisabledChecks: []string{"typecheck", "lint (lint:css) [web]", "js: test (test:unit)", "js: off", "", "lint (.github/workflows/ci.yml: eslint)"}}
 	for _, c := range []struct {
 		slot, label string
 		want        bool
@@ -151,6 +151,9 @@ func TestCheckDisabledMatchesSlotOrLabel(t *testing.T) {
 		{"other", "js: offline [e2e]", false},
 		// A "[dir]" label stays exact.
 		{"lint", "js: lint (lint:css) [api]", false},
+		// An empty entry names nothing, not a check with no slot.
+		{"", "go: vet [go]", false},
+		{"lint", "js: lint (.github/workflows/ci.yml: eslint) [web]", true},
 	} {
 		if got := cfg.CheckDisabled(c.slot, c.label); got != c.want {
 			t.Errorf("CheckDisabled(%q, %q) = %v, want %v", c.slot, c.label, got, c.want)
@@ -163,7 +166,7 @@ func TestDisablesThatMatchNothingWarn(t *testing.T) {
 	base := write(t, dir, "kit.yml", "checks:\n  - {name: lint}\n"+
 		"toolchain_checks:\n  - {stack: go, name: vet, cmd: x}\n"+
 		"task_providers:\n  - {name: make}\n")
-	overlay := write(t, dir, "over.yml", "disabled_checks: [lint, \"js: lint (lint:css) [web]\", vet, bogus, \"js: lnt (x)\"]\n"+
+	overlay := write(t, dir, "over.yml", "disabled_checks: [lint, \"js: lint (lint:css) [web]\", vet, bogus, \"js: lnt (x)\", \"lint (.github/workflows/ci.yml: eslint)\", \"\"]\n"+
 		"disabled_toolchain_checks: [\"go:vet\", \"go:nope\", vet]\n"+
 		"disabled_task_providers: [make, mkae]\n")
 	_, warnings, err := Load(Paths{Base: base, Overlay: overlay})
@@ -178,6 +181,7 @@ func TestDisablesThatMatchNothingWarn(t *testing.T) {
 		got = append(got, w.Err.Error())
 	}
 	want := `disabled_checks: "bogus" names no check|disabled_checks: "js: lnt (x)" names no check|` +
+		`disabled_checks: "" names no check|` +
 		`disabled_toolchain_checks: "go:nope" names no toolchain check (<stack>:<name>)|` +
 		`disabled_toolchain_checks: "vet" names no toolchain check (<stack>:<name>)|` +
 		`disabled_task_providers: "mkae" names no task provider`

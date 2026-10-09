@@ -6,6 +6,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 )
@@ -70,14 +71,21 @@ func (c *Config) ToolchainEnabled(tc ToolchainCheck) bool {
 // without the "<stack>: " prefix ("lint (lint:css) [web]"). A label without
 // its " [dir]" part names the check in every subproject.
 func (c *Config) CheckDisabled(slot, label string) bool {
-	_, short, _ := strings.Cut(label, ": ")
+	short := stackPrefix.ReplaceAllString(label, "")
 	for _, d := range c.DisabledChecks {
+		if d == "" {
+			continue
+		}
 		if d == slot || slices.Contains([]string{label, short, rootLabel(label), rootLabel(short)}, d) {
 			return true
 		}
 	}
 	return false
 }
+
+// stackPrefix is the "<stack>: " a run-checks label starts with; a ": "
+// later in the label ("ci.yml: eslint") is part of its source.
+var stackPrefix = regexp.MustCompile(`^[\w.-]+: `)
 
 // rootLabel is label without the " [dir]" run-checks appends for a subproject.
 func rootLabel(label string) string {
@@ -98,11 +106,7 @@ func (c *Config) unknownDisables() []error {
 			slices.ContainsFunc(c.ToolchainChecks, func(tc ToolchainCheck) bool { return tc.Name == name })
 	}
 	for _, d := range c.DisabledChecks {
-		_, short, found := strings.Cut(d, ": ")
-		if !found {
-			short = d
-		}
-		if name, _, _ := strings.Cut(short, " "); !known(name) {
+		if name, _, _ := strings.Cut(stackPrefix.ReplaceAllString(d, ""), " "); !known(name) {
 			errs = append(errs, fmt.Errorf("disabled_checks: %q names no check", d))
 		}
 	}
