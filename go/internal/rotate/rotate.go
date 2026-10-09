@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 )
@@ -79,6 +80,7 @@ func (r *rotator) registry(registry string, n int, stderr io.Writer) {
 			fmt.Fprintf(stderr, "scratch-rotate: REFUSING registry entry %s (not a plain scratch/ dir under $HOME)\n", dir)
 			keep = append(keep, dir)
 		default:
+			r.worktrees(dir, stderr)
 			fmt.Fprintf(r.stdout, "scratch-rotate: %s %d artifact(s) older than %dd from %s\n", r.pruned, r.prune(dir, n, false, nil), n, dir)
 			keep = append(keep, dir)
 		}
@@ -124,9 +126,40 @@ type rotator struct {
 	stdout io.Writer
 }
 
+// worktrees removes the review-* git worktrees directly under a project
+// scratch dir whose creation (their .git file) is more than a day old: a
+// review that ended without cleaning up leaves one behind.
+func (r *rotator) worktrees(dir string, stderr io.Writer) {
+	gitFiles, _ := filepath.Glob(filepath.Join(dir, "review-*", ".git"))
+	var removed []string
+	for _, gitFile := range gitFiles {
+		info, err := os.Lstat(gitFile)
+		if err != nil || !info.Mode().IsRegular() || !r.older(info, 1) {
+			continue
+		}
+		wt := filepath.Dir(gitFile)
+		if !r.dryRun {
+			if out, err := git.Command(wt, "worktree", "remove", "--force", wt).CombinedOutput(); err != nil {
+				fmt.Fprintf(stderr, "scratch-rotate: can't remove review worktree %s: %s\n", wt, strings.TrimSpace(string(out)))
+				continue
+			}
+		}
+		fmt.Fprintf(r.stdout, "scratch-rotate: %s review worktree older than 1d %s\n", r.verb, wt)
+		removed = append(removed, wt)
+	}
+	r.record(removed)
+}
+
+// older reports whether info's modification is more than days whole days
+// old, as find's -mtime +days.
+func (r *rotator) older(info fs.FileInfo, days int) bool {
+	return int(r.now.Sub(info.ModTime())/(24*time.Hour)) > days
+}
+
 // prune deletes the regular files under dir (only dir itself with
 // topOnly) matching keep whose modification is more than days whole days
-// old, as find's -mtime +days, and records each in the rotate log.
+// old, and records each in the rotate log. It never enters a nested git
+// checkout: deleting its old files would corrupt it.
 func (r *rotator) prune(dir string, days int, topOnly bool, keep func(string) bool) int {
 	var matched []string
 	_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
@@ -134,7 +167,7 @@ func (r *rotator) prune(dir string, days int, topOnly bool, keep func(string) bo
 			return nil
 		}
 		if d.IsDir() {
-			if topOnly && path != dir {
+			if path != dir && (topOnly || isCheckout(path)) {
 				return filepath.SkipDir
 			}
 			return nil
@@ -143,7 +176,7 @@ func (r *rotator) prune(dir string, days int, topOnly bool, keep func(string) bo
 			return nil
 		}
 		info, err := d.Info()
-		if err != nil || int(r.now.Sub(info.ModTime())/(24*time.Hour)) <= days {
+		if err != nil || !r.older(info, days) {
 			return nil
 		}
 		if !r.dryRun && os.Remove(path) != nil {
@@ -152,16 +185,28 @@ func (r *rotator) prune(dir string, days int, topOnly bool, keep func(string) bo
 		matched = append(matched, path)
 		return nil
 	})
-	if len(matched) > 0 {
-		if f, err := os.OpenFile(r.log, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644); err == nil {
-			prefix := r.now.UTC().Format(hook.TimeLayout) + " " + r.verb + " "
-			for _, m := range matched {
-				fmt.Fprintln(f, prefix+m)
-			}
-			f.Close()
-		}
-	}
+	r.record(matched)
 	return len(matched)
+}
+
+// record appends each deleted path to the rotate log.
+func (r *rotator) record(paths []string) {
+	if len(paths) == 0 {
+		return
+	}
+	if f, err := os.OpenFile(r.log, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644); err == nil {
+		prefix := r.now.UTC().Format(hook.TimeLayout) + " " + r.verb + " "
+		for _, p := range paths {
+			fmt.Fprintln(f, prefix+p)
+		}
+		f.Close()
+	}
+}
+
+// isCheckout reports whether dir is a git checkout: a repo or a worktree.
+func isCheckout(dir string) bool {
+	_, err := os.Lstat(filepath.Join(dir, ".git"))
+	return err == nil
 }
 
 // validScratchDir treats a registry line as untrusted: absolute, no "..",

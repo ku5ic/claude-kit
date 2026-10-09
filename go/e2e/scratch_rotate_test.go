@@ -23,14 +23,19 @@ func TestScratchRotate(t *testing.T) {
 		Mkdir(t, scratch)
 		return k, scratch, registry
 	}
-	// touch creates an empty file whose mtime is secs seconds ago.
-	touch := func(t *testing.T, path string, secs int) {
+	// age sets path's mtime to secs seconds ago.
+	age := func(t *testing.T, path string, secs int) {
 		t.Helper()
-		Touch(t, path)
 		ts := time.Now().Add(-time.Duration(secs) * time.Second)
 		if err := os.Chtimes(path, ts, ts); err != nil {
 			t.Fatal(err)
 		}
+	}
+	// touch creates an empty file whose mtime is secs seconds ago.
+	touch := func(t *testing.T, path string, secs int) {
+		t.Helper()
+		Touch(t, path)
+		age(t, path, secs)
 	}
 	gone := func(t *testing.T, path string) {
 		t.Helper()
@@ -138,6 +143,45 @@ func TestScratchRotate(t *testing.T) {
 		r.Has(t, "pruned 1 artifact(s) older than 30d from "+proj)
 		gone(t, filepath.Join(proj, "poc.py"))
 		registryIs(t, registry, proj)
+	})
+	// worktree adds a detached review worktree under a registered project
+	// scratch dir, created secs seconds ago, holding a 40-day-old file.
+	worktree := func(t *testing.T, k *Kit, registry, name string, secs int) (repo, wt string) {
+		t.Helper()
+		repo = k.Repo(filepath.Join(k.Home, "proj"))
+		scratch := filepath.Join(repo, ".claude/scratch")
+		Mkdir(t, scratch)
+		Write(t, registry, scratch+"\n")
+		wt = filepath.Join(scratch, name)
+		k.Git(repo, "worktree", "add", "-q", "--detach", wt)
+		touch(t, filepath.Join(wt, "old.txt"), 40*day)
+		age(t, filepath.Join(wt, ".git"), secs)
+		return repo, wt
+	}
+	t.Run("removes a review worktree older than 1 day through git", func(t *testing.T) {
+		k, _, registry := setup(t)
+		repo, wt := worktree(t, k, registry, "review-pr-7", 3*day)
+		r := k.Run("", "scratch-rotate", "30")
+		r.Want(t, 0)
+		r.Has(t, "deleted review worktree older than 1d "+wt)
+		gone(t, wt)
+		if list := k.Git(repo, "worktree", "list"); strings.Contains(list, wt) {
+			t.Errorf("git still lists %s:\n%s", wt, list)
+		}
+	})
+	t.Run("keeps a fresh review worktree and never prunes inside it", func(t *testing.T) {
+		k, _, registry := setup(t)
+		_, wt := worktree(t, k, registry, "review-pr-7", 3600)
+		k.Run("", "scratch-rotate", "30").Want(t, 0)
+		kept(t, filepath.Join(wt, "old.txt"))
+		kept(t, filepath.Join(wt, ".git"))
+	})
+	t.Run("--dry-run keeps an old review worktree and says it would go", func(t *testing.T) {
+		k, _, registry := setup(t)
+		_, wt := worktree(t, k, registry, "review-pr-7", 3*day)
+		r := k.Run("", "scratch-rotate", "30", "--dry-run")
+		r.Has(t, "would-delete review worktree older than 1d "+wt)
+		kept(t, filepath.Join(wt, "old.txt"))
 	})
 	t.Run("keeps a fresh file in a registered project scratch dir", func(t *testing.T) {
 		k, _, registry := setup(t)
