@@ -134,7 +134,7 @@ func TestOverlayChecksAndToolchainChecksUpdateByKey(t *testing.T) {
 }
 
 func TestCheckDisabledMatchesSlotOrLabel(t *testing.T) {
-	cfg := &Config{DisabledChecks: []string{"typecheck", "lint (lint:css) [web]", "js: test (test:unit)"}}
+	cfg := &Config{DisabledChecks: []string{"typecheck", "lint (lint:css) [web]", "js: test (test:unit)", "js: off"}}
 	for _, c := range []struct {
 		slot, label string
 		want        bool
@@ -144,6 +144,13 @@ func TestCheckDisabledMatchesSlotOrLabel(t *testing.T) {
 		{"lint", "js: lint (lint) [web]", false},
 		{"test", "js: test (test:unit)", true},
 		{"test", "js: test (test)", false},
+		// A label without " [dir]" names the check in every subproject.
+		{"test", "js: test (test:unit) [e2e]", true},
+		{"other", "js: off", true},
+		{"other", "js: off [e2e]", true},
+		{"other", "js: offline [e2e]", false},
+		// A "[dir]" label stays exact.
+		{"lint", "js: lint (lint:css) [api]", false},
 	} {
 		if got := cfg.CheckDisabled(c.slot, c.label); got != c.want {
 			t.Errorf("CheckDisabled(%q, %q) = %v, want %v", c.slot, c.label, got, c.want)

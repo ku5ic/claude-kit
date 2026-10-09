@@ -526,7 +526,7 @@ stacks:
 		e := injectContextSetup(t, tree)
 		e.kitYML(`checks:
   - {name: test, exclude_dirs: [e2e]}
-disabled_checks: [off]
+disabled_checks: [off, "kept [e2e]"]
 toolchain_checks:
   - {stack: js, name: kept, cmd: "{bin} --kept", bin: [fakefmt]}
   - {stack: js, name: off, cmd: "{bin} --off", bin: [fakefmt]}
@@ -543,16 +543,17 @@ stacks:
 		}
 		e.Git(e.root, "add", "-A")
 
-		// disabled_checks [off] matches the root's "js: off" but not
-		// "js: off [e2e]": run-checks draws the same line.
+		// disabled_checks [off] matches "js: off" at the root and in e2e;
+		// "kept [e2e]" matches only e2e's. run-checks draws the same line.
 		block := injectContextTooling(e.run("s1", "").Output)
-		want := "  node_modules/.bin/fakefmt --kept\n  node_modules/.bin/fakefmt --suite\n  e2e/node_modules/.bin/fakefmt --kept\n  e2e/node_modules/.bin/fakefmt --off"
+		want := "  node_modules/.bin/fakefmt --kept\n  node_modules/.bin/fakefmt --suite"
 		if got := injectContextIndented(block); got != want {
 			t.Errorf("tooling lines:\n%s\nwant:\n%s", got, want)
 		}
 		e.Dir = e.root
 		e.exec(injectContextBin(e.tree), "", "run-checks", "--plan").Has(t,
-			"SKIP js: off (disabled_checks)", "RUN js: off [e2e]", "SKIP js: suite [e2e] (e2e looks like a test suite")
+			"SKIP js: off (disabled_checks)", "SKIP js: off [e2e] (disabled_checks)", "RUN js: kept\n",
+			"SKIP js: kept [e2e] (disabled_checks)", "SKIP js: suite [e2e] (e2e looks like a test suite")
 	})
 
 	t.Run("tooling: lists the gates run-checks takes from CI config", func(t *testing.T) {

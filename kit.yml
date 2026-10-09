@@ -491,7 +491,8 @@ toolchain_checks:
 #   disabled_task_providers    provider names; their tasks aren't read at all
 #   disabled_checks            a slot ("lint"), or a label as run-checks
 #                              prints it, with or without the stack prefix
-#                              ("lint (lint:css) [web]")
+#                              ("lint (lint:css) [web]"); without its
+#                              "[dir]", it names every subproject's copy
 #   disabled_toolchain_checks  "<stack>:<name>" ("go:vet")
 disabled_task_providers: []
 disabled_checks: []

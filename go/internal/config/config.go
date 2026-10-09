@@ -65,15 +65,24 @@ func (c *Config) ToolchainEnabled(tc ToolchainCheck) bool {
 
 // CheckDisabled is true when disabled_checks names a run-checks check: by
 // its slot ("lint"), or by its label as run-checks prints it, with or
-// without the "<stack>: " prefix ("lint (lint:css) [web]").
+// without the "<stack>: " prefix ("lint (lint:css) [web]"). A label without
+// its " [dir]" part names the check in every subproject.
 func (c *Config) CheckDisabled(slot, label string) bool {
 	_, short, _ := strings.Cut(label, ": ")
 	for _, d := range c.DisabledChecks {
-		if d == slot || d == label || d == short {
+		if d == slot || slices.Contains([]string{label, short, rootLabel(label), rootLabel(short)}, d) {
 			return true
 		}
 	}
 	return false
+}
+
+// rootLabel is label without the " [dir]" run-checks appends for a subproject.
+func rootLabel(label string) string {
+	if i := strings.LastIndex(label, " ["); i >= 0 && strings.HasSuffix(label, "]") {
+		return label[:i]
+	}
+	return label
 }
 
 // unknownDisables names the disabled_checks, disabled_toolchain_checks, and
