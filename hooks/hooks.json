@@ -3,10 +3,7 @@
     "PreToolUse": [
       {
         "matcher": "Bash",
-        "hooks": [
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook guard-bash", "timeout": 10 },
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook guard-commit", "timeout": 5 }
-        ]
+        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook bash-dispatch", "timeout": 15 }]
       },
       {
         "matcher": "Edit|Write|MultiEdit|Read",
@@ -16,10 +13,7 @@
     "PostToolUse": [
       {
         "matcher": "Edit|Write|MultiEdit",
-        "hooks": [
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook sanitize-output", "timeout": 5 },
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook format-dispatch", "timeout": 15 }
-        ]
+        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook post-edit-dispatch", "timeout": 20 }]
       },
       {
         "matcher": "Read|Skill",

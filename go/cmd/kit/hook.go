@@ -27,6 +27,13 @@ var singleChecks = map[string]hook.Check{
 	"guard-bash":              bashguard.Check,
 }
 
+// dispatchers run several single checks, in order, against one process and
+// payload read: one hooks.json entry per event instead of one per check.
+var dispatchers = map[string][]string{
+	"bash-dispatch":      {"guard-bash", "guard-commit"},
+	"post-edit-dispatch": {"sanitize-output", "format-dispatch"},
+}
+
 // cmdHook runs `kit hook <name>`: stdin is the payload, the exit status is
 // Claude Code's (0 allow, 2 block). Anything unexpected fails open.
 func cmdHook(e *env, args []string, stdin io.Reader) (status int) {
@@ -58,6 +65,13 @@ func cmdHook(e *env, args []string, stdin io.Reader) (status int) {
 
 	if args[0] == "guard-dispatch" {
 		return hooks.GuardDispatch(h)
+	}
+	if names, ok := dispatchers[args[0]]; ok {
+		var checks []hook.NamedCheck
+		for _, n := range names {
+			checks = append(checks, hook.NamedCheck{Name: n, Check: singleChecks[n]})
+		}
+		return hook.Run(h, checks...)
 	}
 	check, ok := singleChecks[args[0]]
 	if !ok {

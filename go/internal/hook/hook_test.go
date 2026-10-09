@@ -90,11 +90,29 @@ func TestLogEmptyValuesAreNull(t *testing.T) {
 }
 
 func TestDecide(t *testing.T) {
-	h, stdout, _ := newHook(t, `{}`)
-	h.Decide("ask", "confirm <this>")
-	want := `{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"confirm <this>"}}` + "\n"
-	if stdout.String() != want {
-		t.Errorf("got %s", stdout)
+	decide := func(d, reason string) NamedCheck {
+		return NamedCheck{"c", func(h *Hook) error { h.Decide(d, reason); return nil }}
+	}
+	tests := map[string]struct {
+		checks []NamedCheck
+		want   string
+	}{
+		"one ask": {[]NamedCheck{decide("ask", "confirm <this>")},
+			`{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"confirm <this>"}}` + "\n"},
+		"ask outranks allow": {[]NamedCheck{decide("allow", "safe"), decide("ask", "confirm")},
+			`{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"confirm"}}` + "\n"},
+		"asks join": {[]NamedCheck{decide("ask", "a"), decide("ask", "b")},
+			`{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"a; b"}}` + "\n"},
+		"none": {[]NamedCheck{{"c", func(*Hook) error { return nil }}}, ""},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			h, stdout, _ := newHook(t, `{}`)
+			Run(h, tc.checks...)
+			if stdout.String() != tc.want {
+				t.Errorf("got %s", stdout)
+			}
+		})
 	}
 }
 

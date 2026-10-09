@@ -4,7 +4,6 @@
 package explain
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -61,18 +60,17 @@ func Run(paths config.Paths, cfg *config.Config, cwd string, args []string, stdo
 	return 2
 }
 
-// dryHook is a hook invocation that logs nothing, with its output captured.
-func dryHook(paths config.Paths, cfg *config.Config, name string, payload map[string]any) (*hook.Hook, *bytes.Buffer) {
+// dryHook is a hook invocation that logs nothing and prints nothing.
+func dryHook(paths config.Paths, cfg *config.Config, name string, payload map[string]any) *hook.Hook {
 	raw, _ := json.Marshal(payload)
-	var out bytes.Buffer
-	h := &hook.Hook{Name: name, Payload: hook.ParsePayload(raw), Paths: paths, Stdout: &out, Stderr: io.Discard, DryRun: true}
+	h := &hook.Hook{Name: name, Payload: hook.ParsePayload(raw), Paths: paths, Stdout: io.Discard, Stderr: io.Discard, DryRun: true}
 	h.SetConfig(cfg)
-	return h, &out
+	return h
 }
 
 // verdict prints a check's outcome: block with its rule, ask or allow with
 // the reason, or pass.
-func verdict(w io.Writer, name string, err error, out *bytes.Buffer) {
+func verdict(w io.Writer, name string, err error, h *hook.Hook) {
 	if b, ok := err.(*hook.Blocked); ok {
 		rule := b.Rule
 		if rule == "" {
@@ -88,14 +86,8 @@ func verdict(w io.Writer, name string, err error, out *bytes.Buffer) {
 		fmt.Fprintf(w, "%s: fails open (%v)\n", name, err)
 		return
 	}
-	var decision struct {
-		HookSpecificOutput struct {
-			PermissionDecision       string `json:"permissionDecision"`
-			PermissionDecisionReason string `json:"permissionDecisionReason"`
-		} `json:"hookSpecificOutput"`
-	}
-	if json.Unmarshal(out.Bytes(), &decision) == nil && decision.HookSpecificOutput.PermissionDecision != "" {
-		fmt.Fprintf(w, "%s: %s\n  %s\n", name, decision.HookSpecificOutput.PermissionDecision, decision.HookSpecificOutput.PermissionDecisionReason)
+	if decision, reason := h.Decision(); decision != "" {
+		fmt.Fprintf(w, "%s: %s\n  %s\n", name, decision, reason)
 		return
 	}
 	fmt.Fprintf(w, "%s: pass\n", name)
@@ -117,10 +109,10 @@ func bash(paths config.Paths, cfg *config.Config, cwd, command string, w io.Writ
 		}
 		fmt.Fprintf(w, "  %d  %s\n", i+1, strings.Join(calls, "  |  "))
 	}
-	h, out := dryHook(paths, cfg, "guard-bash", map[string]any{
+	h := dryHook(paths, cfg, "guard-bash", map[string]any{
 		"tool_name": "Bash", "cwd": cwd, "tool_input": map[string]any{"command": command},
 	})
-	verdict(w, "guard-bash", bashguard.Check(h), out)
+	verdict(w, "guard-bash", bashguard.Check(h), h)
 	return 0
 }
 
@@ -129,14 +121,14 @@ func edit(paths config.Paths, cfg *config.Config, cwd, path, tool string, w io.W
 		path = filepath.Join(cwd, path)
 	}
 	payload := map[string]any{"tool_name": tool, "session_id": "explain", "cwd": cwd, "tool_input": map[string]any{"file_path": path}}
-	h, out := dryHook(paths, cfg, "guard-edit", payload)
-	verdict(w, "guard-edit", hooks.GuardEdit(h), out)
-	h, out = dryHook(paths, cfg, "guard-skills", payload)
+	h := dryHook(paths, cfg, "guard-edit", payload)
+	verdict(w, "guard-edit", hooks.GuardEdit(h), h)
+	h = dryHook(paths, cfg, "guard-skills", payload)
 	name := "skills gate"
 	if !stackctx.SkillsEnforced() {
 		name += " (off: CLAUDE_GUARD_SKILLS isn't 1)"
 	}
-	verdict(w, name, hooks.GuardSkills(h), out)
+	verdict(w, name, hooks.GuardSkills(h), h)
 	return 0
 }
 

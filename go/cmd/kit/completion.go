@@ -26,6 +26,7 @@ func argCommands() []kitcmd.Command {
 // hookNames is every name `kit hook` accepts.
 func hookNames() []string {
 	names := append(slices.Collect(maps.Keys(singleChecks)), "guard-dispatch")
+	names = slices.AppendSeq(names, maps.Keys(dispatchers))
 	slices.Sort(names)
 	return names
 }

@@ -93,6 +93,8 @@ type Hook struct {
 	warnings []config.Warning
 	loaded   bool
 	context  string // printed after a block reason, e.g. "Path: <path>"
+	decision string // the strongest Decide so far; Run prints it once
+	reason   string
 }
 
 // Config loads kit.yml on first use; hooks that never need it never pay.
@@ -158,17 +160,34 @@ func (h *Hook) Block(reason, rule string) error {
 	return &Blocked{msg, rule}
 }
 
-// Decide prints a PreToolUse permission decision (allow or ask).
+// Decide records a PreToolUse permission decision (allow or ask). Several
+// checks in one run may decide: ask outranks allow, and asks join their
+// reasons. Run prints the result once, since stdout takes one JSON object.
 func (h *Hook) Decide(decision, reason string) {
+	switch {
+	case h.decision == "" || decision == "ask" && h.decision == "allow":
+		h.decision, h.reason = decision, reason
+	case decision == "ask" && h.decision == "ask":
+		h.reason += "; " + reason
+	}
+}
+
+// Decision is the permission decision and reason recorded so far, "" when
+// no check decided.
+func (h *Hook) Decision() (decision, reason string) { return h.decision, h.reason }
+
+func (h *Hook) printDecision() {
+	if h.decision == "" {
+		return
+	}
 	type specific struct {
 		HookEventName            string `json:"hookEventName"`
 		PermissionDecision       string `json:"permissionDecision"`
 		PermissionDecisionReason string `json:"permissionDecisionReason"`
 	}
-	out := struct {
+	WriteJSON(h.Stdout, struct {
 		HookSpecificOutput specific `json:"hookSpecificOutput"`
-	}{specific{"PreToolUse", decision, reason}}
-	WriteJSON(h.Stdout, out)
+	}{specific{"PreToolUse", h.decision, h.reason}})
 }
 
 // AddContext prints context for Claude on event, plus systemMessage for the
@@ -330,6 +349,7 @@ func Run(h *Hook, checks ...NamedCheck) int {
 			return 2
 		}
 	}
+	h.printDecision()
 	return 0
 }
 
