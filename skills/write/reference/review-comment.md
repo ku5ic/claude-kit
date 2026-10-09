@@ -34,7 +34,7 @@ Write to the path `kit scratch-dir review-comment <scope-slug>` prints. Print th
 Structure (GitHub markdown, no frontmatter, no metadata - copy-paste ready as a single PR comment):
 
 ```
-Hey @<author>, <genuine one-line compliment about the work>.
+@<author>
 
 <1-3 actionable issues, each as:>
 - [path:line](link) - plain-language description of the problem, framed as "this one's a real bug" or "worth fixing".

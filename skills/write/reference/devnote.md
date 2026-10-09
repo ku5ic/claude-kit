@@ -1,6 +1,6 @@
 # /write devnote
 
-Explain a completed change's key reasoning in a sentence or two, developer to developer. Arguments: `<optional: which decision to focus on>`.
+Explain a completed change's key reasoning, or what you found testing someone else's, in a sentence or two, developer to developer. Arguments: `<optional: which decision to focus on>`.
 
 ## Procedure
 
@@ -26,4 +26,14 @@ Write it the way you'd say it to a teammate in chat, casually. No file paths, li
 - Say what turned out to be true and why, not what was built.
 - If something was verified empirically instead of assumed, that's the interesting part - lead with it.
 - Cut every sentence that's only there to sound complete.
-- Voice: first person, as the developer who made the change - "I checked X, turned out Y" - never third-person narration of the change ("This commit does X", "The change adds Y"). Must read like the developer wrote it, not like a summary of the developer's work.
+- Voice: first person, as the developer who did the work (made the change, or tested someone else's) - "I checked X, turned out Y" - never third-person narration of the change ("This commit does X", "The change adds Y"). Must read like the developer wrote it, not like a summary of the developer's work.
+
+## Example
+
+A note on a teammate's PR after testing it locally. What was checked, what it showed, then one optional nit with a direction:
+
+```
+I ran it locally and everything I tried behaved as described: the redirect on /, the settings menu and the export button switch correctly with the feature flag on and off.
+
+A nit. the `useFeatureFlags` test mock is repeated in 8 test files, maybe worth folding into the follow-up PR.
+```

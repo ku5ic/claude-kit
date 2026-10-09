@@ -57,3 +57,9 @@ Terminal output is for: code snippets under ~20 lines used to make a point, clar
 ## 4. External communication
 
 Commit messages, PR descriptions, devnotes, review comments, stakeholder writeups, and release notes follow every rule above with no detailed-explanation exception - someone else reads them, on their time. Default to the shortest structured form that is still complete. A long explanation is still chunked.
+
+Assume the reader is senior and knows the project and domain better than you do. Their time is the scarce thing.
+
+- Humble. Report what you checked and what it showed. Offer a suggestion as an option ("maybe worth folding into the follow-up"), never as an instruction, and never explain what they already know.
+- Short. One pointer to the right place (the file, the function, the follow-up) beats a full explanation. If a sentence doesn't inform them or point them somewhere, cut it.
+- Human. Plain chat register, the way you'd type it to a colleague. No preamble, padding compliments, recap, sign-off, headers, bold labels, or triads.
