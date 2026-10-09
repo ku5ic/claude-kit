@@ -261,18 +261,28 @@ func gitStatus(home, cwd, sessionID string) string {
 	}
 	// Untracked files count as all-new lines, as they will once added. From
 	// the top: ls-files --others lists only cwd's subtree, numstat the whole repo.
+	// This runs on every refresh, so only regular files are read, within a
+	// byte budget: past it, or for one larger file, the count runs low.
 	if top := project.Toplevel(cwd); top != "" {
 		untracked, _ := git.Output(top, "ls-files", "--others", "--exclude-standard", "-z")
+		budget := int64(untrackedReadBudget)
 		for name := range strings.SplitSeq(untracked, "\x00") {
-			if name != "" {
-				add += newLines(filepath.Join(top, name))
+			path := filepath.Join(top, name)
+			info, err := os.Lstat(path)
+			if name == "" || err != nil || !info.Mode().IsRegular() || info.Size() > budget {
+				continue
 			}
+			budget -= info.Size()
+			add += newLines(path)
 		}
 	}
 	segment := fmt.Sprintf("%s\t%d\t%d", branch, add, del)
 	_ = project.WriteAtomic(file, []byte(segment+"\n"), 0o600)
 	return segment
 }
+
+// untrackedReadBudget caps the bytes one refresh reads to count untracked lines.
+const untrackedReadBudget = 8 << 20
 
 // newLines is a new file's line count as git diff --numstat shows it: a
 // last line without a newline counts, and a binary file (a NUL in its first

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -204,6 +205,11 @@ func TestStatusline(t *testing.T) {
 		Write(t, filepath.Join(repo, "new.txt"), "x\ny\nz")
 		Write(t, filepath.Join(repo, "skip.log"), "1\n2\n")
 		Write(t, filepath.Join(repo, "blob.bin"), "a\x00\nb\n")
+		// Not read: one file past the byte budget, and a FIFO that would block.
+		Write(t, filepath.Join(repo, "huge.txt"), strings.Repeat("x\n", 5<<20))
+		if err := syscall.Mkfifo(filepath.Join(repo, "pipe"), 0o644); err != nil {
+			t.Fatal(err)
+		}
 		Mkdir(t, filepath.Join(repo, "sub"))
 		statuslineContains(t, render(k, statuslinePayload(filepath.Join(repo, "sub"), "t9u", 50)), "main +3")
 	})
