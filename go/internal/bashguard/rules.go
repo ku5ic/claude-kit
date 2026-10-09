@@ -100,6 +100,31 @@ var readers = map[string]bool{
 	"readlink": true, "test": true, "[": true, "echo": true, "printf": true, "sed": true, "sd": true,
 }
 
+// destructive is the commands blocked by pattern: one of names, with every
+// regex matching its text. %s in reason is the command's name.
+var destructive = []struct {
+	names        []string
+	all          []*regexp.Regexp
+	reason, rule string
+}{
+	{[]string{"psql"}, []*regexp.Regexp{psqlCommand, psqlDrop}, "destructive SQL via psql -c", "psql-destructive"},
+	{[]string{"redis-cli"}, []*regexp.Regexp{redisBad}, "destructive redis-cli command", "redis-destructive"},
+	{[]string{"aws"}, []*regexp.Regexp{awsS3Rm}, "aws s3 rm --recursive deletes an entire bucket prefix", "aws-s3-recursive-rm"},
+	{[]string{"aws"}, []*regexp.Regexp{awsS3Rb}, "aws s3 rb --force force-deletes a bucket and its contents", "aws-s3-force-rb"},
+	{[]string{"aws"}, []*regexp.Regexp{awsEc2}, "aws ec2 terminate-instances is irreversible", "aws-ec2-terminate"},
+	{[]string{"gcloud"}, []*regexp.Regexp{gcloudDel}, "gcloud delete operation", "gcloud-delete"},
+	{[]string{"kubectl"}, []*regexp.Regexp{kubectlDel}, "kubectl delete", "kubectl-delete"},
+	// OpenTofu shares Terraform's CLI; the same slugs cover both.
+	{[]string{"terraform", "tofu"}, []*regexp.Regexp{tfDestroy}, "%s destroy", "terraform-destroy"},
+	{[]string{"terraform", "tofu"}, []*regexp.Regexp{tfAuto}, "%s apply -auto-approve skips the plan review step", "terraform-auto-approve"},
+	// -a/-f are the only short flags these prune subcommands define, so any
+	// cluster holding both letters is --all --force.
+	{[]string{"docker"}, []*regexp.Regexp{dockerPrune, dockerAll, dockerForce}, "docker prune with --all --force wipes all unused resources", "docker-prune-all-force"},
+	{[]string{"find"}, []*regexp.Regexp{findDelete}, "find -delete", "find-delete"},
+	{[]string{"find"}, []*regexp.Regexp{findExecRm}, "find -exec rm", "find-exec-rm"},
+	{[]string{"security"}, []*regexp.Regexp{keychainDel}, "keychain deletion", "keychain-delete"},
+}
+
 func (c *command) check() error {
 	c.overlayWrite()
 	// Any command prints what < feeds it: sort < .env reads it as well as cat.
@@ -109,28 +134,16 @@ func (c *command) check() error {
 	if err := c.rcWrite(); err != nil {
 		return err
 	}
+	for _, d := range destructive {
+		if slices.Contains(d.names, c.name) && !slices.ContainsFunc(d.all, func(re *regexp.Regexp) bool { return !re.MatchString(c.text) }) {
+			if err := c.block(strings.ReplaceAll(d.reason, "%s", c.name), d.rule); err != nil {
+				return err
+			}
+		}
+	}
 	switch c.name {
 	case "cd":
-		// Tracked so a later command checks the right repo; a cd inside a
-		// pipeline runs in a subshell and moves nothing.
-		if !c.alone {
-			return nil
-		}
-		prev := c.st.cwd
-		switch {
-		case len(c.args) == 0:
-			c.st.cwd = c.st.home
-		case c.args[0].Value == "-":
-			if c.st.prev == "" {
-				return nil
-			}
-			c.st.cwd = c.st.prev
-		case strings.HasPrefix(c.args[0].Value, "-"):
-			return nil
-		default:
-			c.st.cwd = resolveDir(c.st.home, c.st.cwd, c.args[0].Value)
-		}
-		c.st.prev = prev
+		c.cd()
 	case "rm":
 		return c.rm()
 	case "dd", "shred", "wipefs", "mkfs":
@@ -139,66 +152,6 @@ func (c *command) check() error {
 		return c.chmod()
 	case "git":
 		return c.git()
-	case "psql":
-		if psqlCommand.MatchString(c.text) && psqlDrop.MatchString(c.text) {
-			return c.block("destructive SQL via psql -c", "psql-destructive")
-		}
-	case "redis-cli":
-		if redisBad.MatchString(c.text) {
-			return c.block("destructive redis-cli command", "redis-destructive")
-		}
-	case "aws":
-		for _, r := range []struct {
-			re           *regexp.Regexp
-			reason, rule string
-		}{
-			{awsS3Rm, "aws s3 rm --recursive deletes an entire bucket prefix", "aws-s3-recursive-rm"},
-			{awsS3Rb, "aws s3 rb --force force-deletes a bucket and its contents", "aws-s3-force-rb"},
-			{awsEc2, "aws ec2 terminate-instances is irreversible", "aws-ec2-terminate"},
-		} {
-			if r.re.MatchString(c.text) {
-				if err := c.block(r.reason, r.rule); err != nil {
-					return err
-				}
-			}
-		}
-	case "gcloud":
-		if gcloudDel.MatchString(c.text) {
-			return c.block("gcloud delete operation", "gcloud-delete")
-		}
-	case "kubectl":
-		if kubectlDel.MatchString(c.text) {
-			return c.block("kubectl delete", "kubectl-delete")
-		}
-	case "terraform", "tofu":
-		// OpenTofu shares Terraform's CLI; the same slugs cover both.
-		if tfDestroy.MatchString(c.text) {
-			if err := c.block(c.name+" destroy", "terraform-destroy"); err != nil {
-				return err
-			}
-		}
-		if tfAuto.MatchString(c.text) {
-			return c.block(c.name+" apply -auto-approve skips the plan review step", "terraform-auto-approve")
-		}
-	case "docker":
-		// -a/-f are the only short flags these prune subcommands define, so
-		// any cluster holding both letters is --all --force.
-		if dockerPrune.MatchString(c.text) && dockerAll.MatchString(c.text) && dockerForce.MatchString(c.text) {
-			return c.block("docker prune with --all --force wipes all unused resources", "docker-prune-all-force")
-		}
-	case "find":
-		if findDelete.MatchString(c.text) {
-			if err := c.block("find -delete", "find-delete"); err != nil {
-				return err
-			}
-		}
-		if findExecRm.MatchString(c.text) {
-			return c.block("find -exec rm", "find-exec-rm")
-		}
-	case "security":
-		if keychainDel.MatchString(c.text) {
-			return c.block("keychain deletion", "keychain-delete")
-		}
 	case "curl":
 		return c.curl()
 	case "wget":
@@ -213,16 +166,7 @@ func (c *command) check() error {
 		}
 		return c.readsSensitive(ops)
 	case "sh", "bash", "zsh", "dash":
-		// -c runs a command string that never surfaces as its own Bash tool
-		// call, bypassing the allow list. Short-option clusters only.
-		for _, v := range c.values() {
-			if v == "--" || !strings.HasPrefix(v, "-") {
-				break
-			}
-			if !strings.HasPrefix(v, "--") && strings.Contains(v, "c") {
-				return c.block("interpreter -c wrapping bypasses the permission allow list; run the command directly as a Bash tool call", "interpreter-c-wrap")
-			}
-		}
+		return c.interpreterC()
 	case "eval":
 		return c.block("eval runs a command string that bypasses the permission allow list; run the command directly as a Bash tool call", "interpreter-c-wrap")
 	case "kit":
@@ -232,35 +176,79 @@ func (c *command) check() error {
 			c.st.ask("kit git-base passes this flag to git, which can write files or run programs; confirm it")
 		}
 	case "sed", "sd":
-		// sed only with -i; sd is always in place when given a file.
-		inPlace := c.name == "sd"
-		for _, v := range c.values() {
-			if v == "--" {
-				break
-			}
-			if strings.HasPrefix(v, "-") && strings.Contains(v, "i") {
-				inPlace = true
-			}
-		}
-		if !inPlace {
-			return nil
-		}
-		for _, p := range c.operands() {
-			if guard.IsRCFile(c.st.cfg, p) {
-				if err := c.block("in-place edit of a shell rc file. Use the dotfiles repo.", "rc-inplace-edit"); err != nil {
-					return err
-				}
-			}
-			if c.st.isOverlayArg(p) {
-				c.st.ask(overlayAsk)
-			}
-		}
+		return c.inPlaceEdit()
 	default:
 		if _, ok := c.st.cfg.Manager(c.name); ok {
 			return c.packageManager()
 		}
 		if strings.HasPrefix(c.name, "mkfs.") {
 			return c.block("low level disk or filesystem tool", "disk-tool")
+		}
+	}
+	return nil
+}
+
+// cd tracks the directory a later command runs in, so it checks the right
+// repo; a cd inside a pipeline runs in a subshell and moves nothing.
+func (c *command) cd() {
+	if !c.alone {
+		return
+	}
+	prev := c.st.cwd
+	switch {
+	case len(c.args) == 0:
+		c.st.cwd = c.st.home
+	case c.args[0].Value == "-":
+		if c.st.prev == "" {
+			return
+		}
+		c.st.cwd = c.st.prev
+	case strings.HasPrefix(c.args[0].Value, "-"):
+		return
+	default:
+		c.st.cwd = resolveDir(c.st.home, c.st.cwd, c.args[0].Value)
+	}
+	c.st.prev = prev
+}
+
+// interpreterC blocks sh -c and its kin: the command string never surfaces
+// as its own Bash tool call, bypassing the allow list. Short-option
+// clusters only.
+func (c *command) interpreterC() error {
+	for _, v := range c.values() {
+		if v == "--" || !strings.HasPrefix(v, "-") {
+			break
+		}
+		if !strings.HasPrefix(v, "--") && strings.Contains(v, "c") {
+			return c.block("interpreter -c wrapping bypasses the permission allow list; run the command directly as a Bash tool call", "interpreter-c-wrap")
+		}
+	}
+	return nil
+}
+
+// inPlaceEdit guards sed -i and sd, which is always in place when given a
+// file: blocked on a shell rc file, asked on the overlay.
+func (c *command) inPlaceEdit() error {
+	inPlace := c.name == "sd"
+	for _, v := range c.values() {
+		if v == "--" {
+			break
+		}
+		if strings.HasPrefix(v, "-") && strings.Contains(v, "i") {
+			inPlace = true
+		}
+	}
+	if !inPlace {
+		return nil
+	}
+	for _, p := range c.operands() {
+		if guard.IsRCFile(c.st.cfg, p) {
+			if err := c.block("in-place edit of a shell rc file. Use the dotfiles repo.", "rc-inplace-edit"); err != nil {
+				return err
+			}
+		}
+		if c.st.isOverlayArg(p) {
+			c.st.ask(overlayAsk)
 		}
 	}
 	return nil
