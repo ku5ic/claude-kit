@@ -216,6 +216,10 @@ extra_lockfiles: [Gemfile.lock, Cargo.lock, composer.lock, pdm.lock, go.sum]
 # Branches git push, and git reset --hard to, are blocked for.
 protected_branches: [main, master, develop, production, release]
 
+# Extensions of a new file Write gets a prompt for at the repo root: a
+# report or log there belongs in scratch (rules/output.md section 3).
+root_artifact_exts: [md, txt, log, html, csv]
+
 # Commands that add a dependency, which rules/workflow.md section 2 asks
 # before: <command>: [verbs]. guard-bash asks when a verb is followed by a
 # package operand; a bare `npm install` from the lockfile adds nothing.

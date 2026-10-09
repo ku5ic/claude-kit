@@ -38,7 +38,8 @@ func TestExplain(t *testing.T) {
 	t.Run("edit: a credential read blocks, a plain write passes", func(t *testing.T) {
 		k, repo := setup(t)
 		k.Run("", "explain", "edit", filepath.Join(k.Home, ".ssh/id_rsa"), "Read").Has(t, "guard-edit: block  sensitive-read")
-		k.Run("", "explain", "edit", filepath.Join(repo, "notes.md")).Has(t, "guard-edit: pass")
+		k.Run("", "explain", "edit", filepath.Join(repo, "docs/notes.md")).Has(t, "guard-edit: pass")
+		k.Run("", "explain", "edit", filepath.Join(repo, "notes.md")).Has(t, "guard-edit: ask")
 	})
 
 	t.Run("stop: names what claims a file, where it runs, and the command", func(t *testing.T) {

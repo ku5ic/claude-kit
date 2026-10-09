@@ -87,6 +87,18 @@ func TestGuardEdit(t *testing.T) {
 		r.Want(t, 0)
 		r.Empty(t)
 	})
+	t.Run("ask: Write a new report-like file at the repo root; scratch is its place", func(t *testing.T) {
+		k := New(t)
+		repo := k.Repo(filepath.Join(t.TempDir(), "repo"))
+		Touch(t, filepath.Join(repo, "existing.md"))
+		r := k.Hook("guard-edit", Payload("Write", filepath.Join(repo, "report.md"), "", repo))
+		r.Want(t, 0)
+		r.Has(t, `"permissionDecision":"ask"`, "kit scratch-dir")
+		for _, path := range []string{"existing.md", "docs/guide.md", "main.go"} {
+			k.Hook("guard-edit", Payload("Write", filepath.Join(repo, path), "", repo)).Empty(t)
+		}
+		k.Hook("guard-edit", Payload("Edit", filepath.Join(repo, "notes.md"), "", repo)).Empty(t)
+	})
 	t.Run("allow: a same-named file that is not the overlay", func(t *testing.T) {
 		k, _ := overlay(t)
 		r := k.Hook("guard-edit", Payload("Edit", filepath.Join(t.TempDir(), "elsewhere/claude-kit.local.yml"), "", ""))

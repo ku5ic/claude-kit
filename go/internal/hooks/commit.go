@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
 var (
@@ -66,10 +67,37 @@ func GuardCommit(h *hook.Hook) error {
 		}
 	}
 
-	if subject := subject(cmd, body); subject != "" && aiTell.MatchString(subject) {
+	subject := subject(cmd, body)
+	if subject != "" && aiTell.MatchString(subject) {
 		return h.Block("AI-tell phrasing in commit subject", "ai-commit-tell")
 	}
+	if !shownBefore(h.Payload.String("transcript_path"), subject) {
+		h.Decide("ask", "rules/workflow.md section 1: show the commit message and staged diff summary, then wait for the user's go; confirm only if they've seen this message")
+	}
 	return nil
+}
+
+// shownBefore reports whether an assistant reply before the current prompt
+// held subject: the message was shown, and the user answered.
+func shownBefore(path, subject string) bool {
+	if path == "" || subject == "" {
+		return false
+	}
+	var earlier, current strings.Builder
+	_ = transcript.Each(path, func(e transcript.Entry) {
+		switch {
+		case e.StartsTurn():
+			earlier.WriteString(current.String())
+			current.Reset()
+		case e.Type == "assistant":
+			for _, b := range e.Blocks {
+				if b.Type == "text" {
+					current.WriteString(b.Text + "\n")
+				}
+			}
+		}
+	})
+	return strings.Contains(earlier.String(), subject)
 }
 
 // scanStaged runs gitleaks on the staged diff. Its exit codes: 0 clean, 1 a

@@ -30,6 +30,38 @@ func guardCommitStubbed(t *testing.T, code int) *Kit {
 // prose is n consecutive prose lines.
 func prose(n int) string { return strings.Repeat("a line of plain prose\n", n) }
 
+// rules/workflow.md section 1: a commit's message is shown before it runs,
+// so a commit whose subject no earlier turn showed gets a prompt.
+func TestGuardCommitAsksForAnUnshownMessage(t *testing.T) {
+	text := func(s string) string {
+		return fmt.Sprintf(`{"type":"assistant","message":{"content":[{"type":"text","text":%q}]}}`, s)
+	}
+	prompt := func(s string) string { return fmt.Sprintf(`{"type":"user","message":{"content":%q}}`, s) }
+	commit := func(k *Kit, transcript string) Result {
+		p := guardCommitPayload(`git commit -m "fix: add sums"`, "")
+		if transcript != "" {
+			path := filepath.Join(t.TempDir(), "t.jsonl")
+			Write(t, path, transcript+"\n")
+			p["transcript_path"] = path
+		}
+		return k.Hook("guard-commit", p)
+	}
+	k := guardCommitStubbed(t, 0)
+	for name, transcript := range map[string]string{
+		"no transcript":           "",
+		"never shown":             prompt("fix it and commit"),
+		"shown only in this turn": prompt("fix it and commit") + "\n" + text("Committing `fix: add sums`."),
+	} {
+		r := commit(k, transcript)
+		r.Want(t, 0)
+		if !strings.Contains(r.Output, `"permissionDecision":"ask"`) {
+			t.Errorf("%s: no ask; output:\n%s", name, r.Output)
+		}
+	}
+	shown := prompt("fix it") + "\n" + text("Commit as `fix: add sums`?") + "\n" + prompt("go")
+	commit(k, shown).Empty(t)
+}
+
 func TestGuardCommit(t *testing.T) {
 	// Each test feeds a synthetic Bash payload (a git commit command) to the
 	// hook and asserts the exit code: 0 = allow, 2 = block.
@@ -124,7 +156,10 @@ func TestGuardCommit(t *testing.T) {
 		k.Setenv("PATH", t.TempDir())
 		r := k.Hook("guard-commit", `{"tool_input":{"command":"git commit -m \"feat: add foo\""}}`)
 		r.Want(t, 0)
-		r.Empty(t)
+		// No transcript shows the message, so it asks; nothing about gitleaks.
+		if strings.Contains(r.Output, "gitleaks") {
+			t.Errorf("gitleaks notice in output:\n%s", r.Output)
+		}
 	})
 
 	t.Run("gitleaks is invoked against payload .cwd, not the hook's own cwd", func(t *testing.T) {

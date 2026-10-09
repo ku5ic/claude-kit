@@ -21,6 +21,7 @@ type Config struct {
 	ExtraLockfiles    []string            `yaml:"extra_lockfiles"`
 	ProtectedBranches []string            `yaml:"protected_branches"`
 	DependencyAdds    map[string][]string `yaml:"dependency_adds"`
+	RootArtifactExts  []string            `yaml:"root_artifact_exts"`
 	RCFiles           []string            `yaml:"rc_files"`
 	SensitivePaths    []string            `yaml:"sensitive_paths"`
 	LogMaxLines       int                 `yaml:"log_max_lines"`

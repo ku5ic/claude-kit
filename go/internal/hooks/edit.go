@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
@@ -75,7 +76,21 @@ func GuardEdit(h *hook.Hook) error {
 	if guard.IsOverlay(h.Paths, path) {
 		h.Decide("ask", "this is the claude-kit overlay, which can switch the kit's own guards off; confirm the change")
 	}
+	if tool == "Write" && newRootArtifact(cfg, path) {
+		h.Decide("ask", "a new "+filepath.Base(path)+" at the repo root; rules/output.md section 3 puts reports and logs in `kit scratch-dir`. Confirm only if it belongs in the repo")
+	}
 	return nil
+}
+
+// newRootArtifact is true for a file that doesn't exist yet, directly in a
+// repo's toplevel, with a root_artifact_exts extension.
+func newRootArtifact(cfg *config.Config, path string) bool {
+	ext := strings.TrimPrefix(filepath.Ext(path), ".")
+	if !slices.Contains(cfg.RootArtifactExts, ext) || project.IsFile(path) {
+		return false
+	}
+	dir := project.PhysicalPath(filepath.Dir(path))
+	return dir == project.Toplevel(dir)
 }
 
 // GuardSkills blocks edits of mapped file types until the patterns skill
