@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
@@ -47,13 +48,14 @@ func Run(cfg *config.Config, paths config.Paths, n int, dryRun bool, stdout, std
 		{config.SkillsLoaded, "skill-loaded marker(s)"},
 		{config.FileSkills, "file-skills cache(s)"},
 		{config.PlanActive, "plan-active marker(s)"},
+		{config.Statusline, "statusline cache(s)"},
 	} {
 		if dir := filepath.Join(paths.CacheDir(), m.kind); project.IsDir(dir) {
 			fmt.Fprintf(stdout, "scratch-rotate: %s %d %s older than 1d from %s\n", pruned, r.prune(dir, 1, false, nil), m.what, dir)
 		}
 	}
 
-	registry := filepath.Join(paths.LogDir(), "scratch-registry.txt")
+	registry := paths.ScratchRegistry()
 	if data, err := os.ReadFile(registry); err == nil {
 		var keep []string
 		for dir := range strings.SplitSeq(string(data), "\n") {
@@ -140,7 +142,7 @@ func (r *rotator) prune(dir string, days int, topOnly bool, keep func(string) bo
 	})
 	if len(matched) > 0 {
 		if f, err := os.OpenFile(r.log, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644); err == nil {
-			prefix := r.now.UTC().Format("2006-01-02T15:04:05Z") + " " + r.verb + " "
+			prefix := r.now.UTC().Format(hook.TimeLayout) + " " + r.verb + " "
 			for _, m := range matched {
 				fmt.Fprintln(f, prefix+m)
 			}

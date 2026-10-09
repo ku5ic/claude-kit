@@ -122,7 +122,7 @@ func GuardSkills(h *hook.Hook) error {
 	}
 
 	// A missing or unreadable log fails open rather than block on uncertainty.
-	loaded, err := loadedSkills(filepath.Join(h.Paths.LogDir(), "skills.jsonl"), session)
+	loaded, err := loadedSkills(h.Paths.LogFile(hook.SkillsLog), session)
 	if err != nil {
 		return nil
 	}
@@ -173,16 +173,11 @@ func loadedSkills(logPath, session string) (map[string]bool, error) {
 		if err != nil && err != io.EOF {
 			return nil, err
 		}
-		var entry struct {
-			SessionID string  `json:"session_id"`
-			SkillFile *string `json:"skill_file"`
-			Event     string  `json:"event"`
-		}
+		var entry hook.Entry
 		if json.Unmarshal(line, &entry) != nil {
 			continue
 		}
-		if entry.SessionID == session && entry.SkillFile != nil &&
-			entry.Event != "required-skill" && entry.Event != "suggested-skill" {
+		if entry.SessionID != nil && *entry.SessionID == session && entry.SkillFile != nil && !entry.Surfaced() {
 			loaded[*entry.SkillFile] = true
 			// A plugin's skills log as <plugin>:<skill>; kit.yml maps bare names.
 			if _, skill, ok := strings.Cut(*entry.SkillFile, ":"); ok && !strings.Contains(skill, "/") {

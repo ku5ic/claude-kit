@@ -80,13 +80,13 @@ func writeContext(h *hook.Hook, cfg *config.Config, out *strings.Builder) {
 	}
 	out.WriteString(stackctx.RequiredBlock(ctx.Required))
 	for _, skill := range ctx.Required {
-		h.Log("skills", "required-skill", "cwd", h.Payload.String("cwd"), "skill_file", skill)
+		h.Log(hook.SkillsLog, hook.EventRequiredSkill, "cwd", h.Payload.String("cwd"), "skill_file", skill)
 	}
 	// Logged as surfaced, not loaded, so skills-report can measure whether a
 	// suggestion was ever acted on.
 	out.WriteString(stackctx.SuggestedBlock(cfg, ctx.Suggested))
 	for _, skill := range ctx.Suggested {
-		h.Log("skills", "suggested-skill", "cwd", h.Payload.String("cwd"), "skill_file", skill)
+		h.Log(hook.SkillsLog, hook.EventSuggestedSkill, "cwd", h.Payload.String("cwd"), "skill_file", skill)
 	}
 	out.WriteString(tooling(cfg, root))
 }

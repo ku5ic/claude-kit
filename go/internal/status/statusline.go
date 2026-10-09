@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/extract"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/project"
@@ -237,7 +238,7 @@ func gitStatus(home, cwd, sessionID string) string {
 	if safe == "" {
 		safe = "nosession"
 	}
-	dir := filepath.Join(home, "cache", "statusline")
+	dir := filepath.Join(config.Paths{Home: home}.CacheDir(), config.Statusline)
 	file := filepath.Join(dir, "git-"+safe)
 	if info, err := os.Stat(file); err == nil && info.Size() > 0 && time.Now().Unix()-info.ModTime().Unix() < int64(ttl) {
 		data, _ := os.ReadFile(file)

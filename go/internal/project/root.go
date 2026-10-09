@@ -89,7 +89,7 @@ func register(paths config.Paths, dir string) error {
 	if err := os.MkdirAll(paths.LogDir(), 0o755); err != nil {
 		return err
 	}
-	registry := filepath.Join(paths.LogDir(), "scratch-registry.txt")
+	registry := paths.ScratchRegistry()
 	data, err := os.ReadFile(registry)
 	if err != nil && !os.IsNotExist(err) {
 		return err

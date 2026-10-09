@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"regexp"
 	"slices"
 	"sort"
@@ -17,18 +16,12 @@ import (
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/hook"
 )
 
-// entry is one log row; Skill is a pointer so a null stays distinct from "".
+// entry is one log row with what the report derives from it.
 type entry struct {
-	TS            *string `json:"ts"`
-	Event         string  `json:"event"`
-	SessionID     *string `json:"session_id"`
-	ExpansionType string  `json:"expansion_type"`
-	CommandName   *string `json:"command_name"`
-	SkillFile     *string `json:"skill_file"`
-	ToolName      string  `json:"tool_name"`
-	Rule          *string `json:"rule"`
+	hook.Entry
 
 	category string
 	skill    *string
@@ -99,9 +92,9 @@ func classify(e *entry) bool {
 			return false
 		}
 		e.skill = &m[1]
-	case e.Event == "required-skill":
+	case e.Event == hook.EventRequiredSkill:
 		e.category, e.skill = "surfaced_required", e.SkillFile
-	case e.Event == "suggested-skill":
+	case e.Event == hook.EventSuggestedSkill:
 		e.category, e.skill = "surfaced_suggested", e.SkillFile
 	default:
 		return false
@@ -154,7 +147,7 @@ func count(rows []entry, category string) int {
 
 // Run is `kit skills-report [days]`.
 func Run(cfg *config.Config, paths config.Paths, days int, stdout io.Writer) int {
-	logFile := filepath.Join(paths.LogDir(), "skills.jsonl")
+	logFile := paths.LogFile(hook.SkillsLog)
 	info, err := os.Stat(logFile)
 	if err != nil {
 		fmt.Fprintf(stdout, "skills-report: no log at %s, nothing to report\n", logFile)
@@ -173,7 +166,7 @@ func Run(cfg *config.Config, paths config.Paths, days int, stdout io.Writer) int
 		fmt.Fprintf(stdout, "skills-report: no valid JSONL lines in %s (%d malformed)\n", logFile, malformed)
 		return 0
 	}
-	cutoff := time.Now().UTC().AddDate(0, 0, -days).Format("2006-01-02T15:04:05Z")
+	cutoff := time.Now().UTC().AddDate(0, 0, -days).Format(hook.TimeLayout)
 	var entries []entry
 	for _, e := range all {
 		if e.TS != nil && e.ts() >= cutoff {
@@ -293,7 +286,7 @@ func suggestedSection(rows, active []entry, stdout io.Writer) {
 
 func guardsSection(paths config.Paths, cutoff string, stdout io.Writer) {
 	fmt.Fprintln(stdout, "\n== 6: guard rules fired in the window (guards.jsonl) ==")
-	guards, _, err := readLog(filepath.Join(paths.LogDir(), "guards.jsonl"))
+	guards, _, err := readLog(paths.LogFile(hook.GuardsLog))
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		fmt.Fprintf(stdout, "(could not read it: %v)\n", err)
 		return

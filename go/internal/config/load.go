@@ -25,12 +25,19 @@ func (p Paths) CacheDir() string    { return filepath.Join(p.Home, "cache") }
 func (p Paths) ScratchHome() string { return filepath.Join(p.Home, "scratch") }
 func (p Paths) PlansHome() string   { return filepath.Join(p.Home, "plans") }
 
+// LogFile is the JSONL log called name.
+func (p Paths) LogFile(name string) string { return filepath.Join(p.LogDir(), name+".jsonl") }
+
+// ScratchRegistry lists every project scratch dir, for scratch-rotate.
+func (p Paths) ScratchRegistry() string { return filepath.Join(p.LogDir(), "scratch-registry.txt") }
+
 // The cache dirs of per-session markers, which scratch-rotate prunes after
 // a day.
 const (
 	SkillsLoaded = "skills-loaded"
 	FileSkills   = "file-skills"
 	PlanActive   = "plan-active"
+	Statusline   = "statusline"
 )
 
 // SessionFile is <cache>/<kind>/<session>[-<part>...]: one session's marker.

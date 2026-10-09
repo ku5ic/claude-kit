@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"slices"
 	"time"
 
@@ -148,10 +147,10 @@ func (h *Hook) RuleDisabled(rule string) bool {
 // on as if it hadn't matched.
 func (h *Hook) Block(reason, rule string) error {
 	if rule != "" && h.RuleDisabled(rule) {
-		h.Log("guards", "disabled", "rule", rule)
+		h.Log(GuardsLog, "disabled", "rule", rule)
 		return nil
 	}
-	h.Log("guards", "block", "rule", rule)
+	h.Log(GuardsLog, "block", "rule", rule)
 	msg := "Blocked by " + h.Name + ": " + reason
 	if h.context != "" {
 		msg += "\n" + h.context
@@ -196,6 +195,35 @@ func WriteJSON(w io.Writer, v any) {
 	}
 }
 
+// The kit's JSONL logs, the skills log's events that mark a skill as only
+// surfaced, and a line's ts layout.
+const (
+	SkillsLog           = "skills"
+	GuardsLog           = "guards"
+	EventRequiredSkill  = "required-skill"
+	EventSuggestedSkill = "suggested-skill"
+	TimeLayout          = "2006-01-02T15:04:05Z"
+)
+
+// Entry is one log line as the readers use it; a pointer keeps a null
+// distinct from "".
+type Entry struct {
+	TS            *string `json:"ts"`
+	Event         string  `json:"event"`
+	SessionID     *string `json:"session_id"`
+	ExpansionType string  `json:"expansion_type"`
+	CommandName   *string `json:"command_name"`
+	SkillFile     *string `json:"skill_file"`
+	ToolName      string  `json:"tool_name"`
+	Rule          *string `json:"rule"`
+}
+
+// Surfaced is true for a skills log line that says a skill was shown, not
+// loaded.
+func (e Entry) Surfaced() bool {
+	return e.Event == EventRequiredSkill || e.Event == EventSuggestedSkill
+}
+
 // Log appends one line to <log dir>/<log>.jsonl: ts, hook, event, the
 // payload's session_id, then each key/value pair in order, an empty value
 // as null. Never fails its caller: a log that can't be written is skipped.
@@ -204,7 +232,7 @@ func (h *Hook) Log(log, event string, pairs ...string) {
 		return
 	}
 	fields := []string{
-		"ts", h.now().UTC().Format("2006-01-02T15:04:05Z"),
+		"ts", h.now().UTC().Format(TimeLayout),
 		"hook", h.Name,
 		"event", event,
 		"session_id", h.Payload.SessionID(),
@@ -231,7 +259,7 @@ func (h *Hook) Log(log, event string, pairs ...string) {
 	if os.MkdirAll(dir, 0o755) != nil {
 		return
 	}
-	f, err := os.OpenFile(filepath.Join(dir, log+".jsonl"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(h.Paths.LogFile(log), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		return
 	}
@@ -254,6 +282,11 @@ func (h *Hook) now() time.Time {
 	return time.Now()
 }
 
+// FailOpen prints the notice for a hook that allows because it failed.
+func FailOpen(stderr io.Writer, name string) {
+	fmt.Fprintf(stderr, "%s: unexpected error, failing open\n", name)
+}
+
 // Check is one policy check. It returns *Blocked to block, nil to allow, and
 // any other error to fail open.
 type Check func(*Hook) error
@@ -266,8 +299,8 @@ func RunCheck(h *Hook, name string, check Check) (blocked bool) {
 	saved := h.Name
 	h.Name = name
 	failOpen := func() {
-		fmt.Fprintf(h.Stderr, "%s: unexpected error, failing open\n", name)
-		h.Log("guards", "fail-open")
+		FailOpen(h.Stderr, name)
+		h.Log(GuardsLog, "fail-open")
 	}
 	defer func() {
 		if r := recover(); r != nil {

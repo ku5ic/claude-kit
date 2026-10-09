@@ -47,7 +47,7 @@ func LogSkills(h *hook.Hook) error {
 		return nil
 	}
 	// `kit scratch-rotate` trims the log to log_max_lines.
-	h.Log("skills", event,
+	h.Log(hook.SkillsLog, event,
 		"expansion_type", expansion,
 		"command_name", p.String("command_name"),
 		"skill_file", cmp.Or(p.String("tool_input.skill"), p.FilePath()),

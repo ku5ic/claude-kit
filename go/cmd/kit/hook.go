@@ -36,14 +36,14 @@ func cmdHook(e *env, args []string, stdin io.Reader) (status int) {
 	name := args[0]
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Fprintf(e.stderr, "%s: unexpected error, failing open\n", name)
+			hook.FailOpen(e.stderr, name)
 			status = 0
 		}
 	}()
 
 	raw, err := io.ReadAll(stdin)
 	if err != nil {
-		fmt.Fprintf(e.stderr, "%s: unexpected error, failing open\n", name)
+		hook.FailOpen(e.stderr, name)
 		return 0
 	}
 	h := &hook.Hook{
