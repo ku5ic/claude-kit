@@ -207,6 +207,9 @@ type PackageManager struct {
 	Dlx           string   `yaml:"dlx"`
 	DirFlags      []string `yaml:"dir_flags"`
 	GlobalInstall string   `yaml:"global_install"`
+	// Its verbs where another manager's "install" means something else.
+	AddVerb  string `yaml:"add_verb"`
+	SyncVerb string `yaml:"sync_verb"`
 }
 
 // Manager is the first package_managers entry for a manager, or for a

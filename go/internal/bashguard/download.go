@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
@@ -144,13 +145,18 @@ func wgetTargets(words []string) (targets []string, hasOut bool) {
 }
 
 // checkTargets blocks every download target, flag value or > redirect,
-// outside scratch.
+// outside scratch, and asks about one behind a variable it can't resolve.
 func (c *command) checkTargets(tool, flag string, targets []string) error {
 	for _, t := range append(targets, c.redirectTargets()...) {
-		if !c.st.scratchTarget(t) {
-			if err := c.blockDownload(tool, t, flag); err != nil {
-				return err
-			}
+		if c.st.scratchTarget(t) {
+			continue
+		}
+		if strings.ContainsAny(t, "$`") && !strings.Contains(t, "..") {
+			c.st.ask(tool + " writes to '" + t + "', and guard-bash can't tell whether that's in scratch; confirm it is")
+			continue
+		}
+		if err := c.blockDownload(tool, t, flag); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -208,12 +214,52 @@ func (c *command) packageManager() error {
 		return nil
 	}
 	// A dlx command (npx) suggests the lockfile manager's own.
+	other, _ := c.st.cfg.Manager(lock.Manager)
 	suggest := lock.Manager
-	if c.name == pm.Dlx {
-		if other, _ := c.st.cfg.Manager(lock.Manager); other.Dlx != "" {
-			suggest = other.Dlx
+	if c.name == pm.Dlx && other.Dlx != "" {
+		suggest = other.Dlx
+	}
+	return c.block("this repo uses "+lock.Manager+" ("+lock.File+"); rerun as: "+c.rerun(pm, other, suggest), "pm-mismatch")
+}
+
+// rerun is the command in the lockfile manager's own terms: its directory
+// flag (or a cd when it has none) and its verbs for add and install.
+func (c *command) rerun(pm, other config.PackageManager, name string) string {
+	words := strings.Fields(c.rest)
+	var out []string
+	cd := ""
+	dir := func(d string) {
+		if len(other.DirFlags) == 0 {
+			cd = "cd " + d + " && "
+			return
+		}
+		out = append(out, other.DirFlags[0], d)
+	}
+	verbAt := -1
+	for i := 0; i < len(words); i++ {
+		w := words[i]
+		flag, value, hasValue := strings.Cut(w, "=")
+		switch {
+		case slices.Contains(pm.DirFlags, w) && i+1 < len(words):
+			i++
+			dir(words[i])
+		case hasValue && slices.Contains(pm.DirFlags, flag):
+			dir(value)
+		default:
+			if verbAt < 0 && !strings.HasPrefix(w, "-") {
+				verbAt = len(out)
+			}
+			out = append(out, w)
 		}
 	}
-	suggest += c.rest
-	return c.block("this repo uses "+lock.Manager+" ("+lock.File+"); rerun as: "+suggest, "pm-mismatch")
+	if verbAt >= 0 && slices.Contains([]string{"install", "i", "add"}, out[verbAt]) {
+		hasPackage := slices.ContainsFunc(out[verbAt+1:], func(w string) bool { return !strings.HasPrefix(w, "-") })
+		switch {
+		case hasPackage && other.AddVerb != "":
+			out[verbAt] = other.AddVerb
+		case !hasPackage && other.SyncVerb != "":
+			out[verbAt] = other.SyncVerb
+		}
+	}
+	return cd + strings.Join(append([]string{name}, out...), " ")
 }

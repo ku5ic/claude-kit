@@ -153,6 +153,8 @@ skill_triggers:
 #   dlx:            its command for running a package without installing it
 #   dir_flags:      flags that pick the directory it works in
 #   global_install: regex on its arguments that marks a global install
+#   add_verb:       its verb for adding a package, when not "install"
+#   sync_verb:      its verb for installing from the lockfile, when not "install"
 # A manager's fields go on its first entry.
 package_managers:
   - lockfile: bun.lockb
@@ -188,9 +190,12 @@ package_managers:
     manager: uv
     ecosystem: python
     dir_flags: [--directory, --project]
+    add_verb: add
+    sync_verb: sync
   - lockfile: poetry.lock
     manager: poetry
     ecosystem: python
+    add_verb: add
   - lockfile: Pipfile.lock
     manager: pipenv
     ecosystem: python

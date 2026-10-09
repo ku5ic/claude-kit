@@ -387,7 +387,6 @@ func TestGuardBash(t *testing.T) {
 			`curl -s https://x.example/r >>log.txt`,
 			`curl -o /tmp/a.js https://x.example/a.js`,
 			`curl -o .claude/scratch/../../a.js https://x.example/a.js`,
-			`curl -o "$OUT" https://x.example/a.js`,
 			`curl -O --output-dir /tmp https://x.example/a.js`,
 			`wget https://x.example/a.js`,
 			`wget -O page.html https://x.example/`,
@@ -399,6 +398,17 @@ func TestGuardBash(t *testing.T) {
 			if r := guardIn(k, tmp, cmd); r.Status != 2 {
 				t.Errorf("not blocked: %s -> %d %s", cmd, r.Status, r.Output)
 			}
+		}
+	})
+	t.Run("download asks: a target behind a variable can't be checked", func(t *testing.T) {
+		k := New(t)
+		for _, cmd := range []string{
+			`curl -o "$OUT" https://x.example/a.js`,
+			`d="$(kit scratch-dir)/x"; mkdir -p "$d" && curl -sS -o "$d/index.html" https://x.example/`,
+		} {
+			r := guardIn(k, t.TempDir(), cmd)
+			r.Want(t, 0)
+			r.Has(t, `"permissionDecision":"ask"`, "can't tell")
 		}
 	})
 	t.Run("download passes: stdout, /dev/null, and scratch targets", func(t *testing.T) {
@@ -484,6 +494,21 @@ func TestGuardBash(t *testing.T) {
 			}
 		})
 	}
+	t.Run("pm: the rerun command uses the lockfile manager's own flags and verbs", func(t *testing.T) {
+		k := New(t)
+		repo := guardBashMono(k, t.TempDir())
+		Touch(t, filepath.Join(repo, "packages/y/yarn.lock"), filepath.Join(repo, "packages/b/bun.lockb"))
+		for cmd, want := range map[string]string{
+			`pnpm --dir packages/y add left-pad`:      "rerun as: yarn --cwd packages/y add left-pad",
+			`npm --prefix packages/y install`:         "rerun as: yarn --cwd packages/y install",
+			`npm --prefix packages/b install`:         "rerun as: cd packages/b && bun install",
+			`cd services/api && pip install requests`: "rerun as: uv add requests",
+		} {
+			r := guardIn(k, repo, cmd)
+			r.Want(t, 2)
+			r.Has(t, want)
+		}
+	})
 	t.Run("pm: no lockfile at all is greenfield", func(t *testing.T) {
 		k := New(t)
 		guardIn(k, guardBashRepo(k, t.TempDir(), "empty"), `npm install`).Want(t, 0)
@@ -532,6 +557,17 @@ func TestGuardBash(t *testing.T) {
 		r.Want(t, 0)
 		r.Empty(t)
 		guard(shared, "cat <<-EOF > \"$(kit scratch-dir)/x\"\n\trm -rf ~ is text\n\tEOF").Want(t, 0)
+		// A quoted heredoc expands nothing, so an rc write in it is text too.
+		guard(shared, "cat <<'EOF' > \"$(kit scratch-dir)/n.md\"\necho x >> ~/.zshrc\nEOF").Want(t, 0)
+		guard(shared, "bash <<'EOF'\necho x >> ~/.zshrc\nEOF").Want(t, 2)
+	})
+	t.Run("tee into the current directory asks like > does", func(t *testing.T) {
+		k := New(t)
+		repo := guardBashRepo(k, t.TempDir(), "feat")
+		r := guardIn(k, repo, `cat foo | tee report.md`)
+		r.Want(t, 0)
+		r.Has(t, "writes into the current directory")
+		guardIn(k, repo, `cat foo | tee "$(kit scratch-dir)/report.md"`).Empty(t)
 	})
 	t.Run("comments: an unquoted # ends the line, a quoted one doesn't", func(t *testing.T) {
 		guard(shared, `echo hi # rm -rf ~ in a comment`).Want(t, 0)

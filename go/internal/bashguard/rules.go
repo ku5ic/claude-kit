@@ -178,6 +178,10 @@ func (c *command) check() error {
 		}
 	case "sed", "sd":
 		return c.inPlaceEdit()
+	case "tee":
+		for _, p := range c.operands() {
+			c.st.looseWrite("tee", p)
+		}
 	default:
 		if _, ok := c.st.cfg.Manager(c.name); ok {
 			return c.packageManager()

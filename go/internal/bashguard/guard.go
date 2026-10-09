@@ -97,7 +97,7 @@ func wholeString(h *hook.Hook, cfg *config.Config, cmd, norm, home string) error
 			}
 		}
 	}
-	if re := rcRedirect(cfg, home); re != nil && re.MatchString(norm) {
+	if re := rcRedirect(cfg, home); re != nil && re.MatchString(normalize(withoutQuotedHeredocs(cmd))) {
 		if err := h.Block("direct write to a shell rc file. Use the dotfiles repo.", "rc-redirect"); err != nil {
 			return err
 		}
@@ -107,6 +107,29 @@ func wholeString(h *hook.Hook, cfg *config.Config, cmd, norm, home string) error
 		return h.Block("xargs rm with recursive or force flag", "xargs-rm")
 	}
 	return nil
+}
+
+// quotedHeredoc opens a heredoc whose quoted delimiter turns expansion off.
+var quotedHeredoc = regexp.MustCompile(`<<-?[ \t]*['"]([A-Za-z_][A-Za-z0-9_]*)['"]`)
+
+// withoutQuotedHeredocs drops quoted heredoc bodies, which run nothing as
+// text; one fed to a shell is still checked, parsed as commands.
+func withoutQuotedHeredocs(cmd string) string {
+	var out, ends []string
+	for line := range strings.Lines(cmd) {
+		if len(ends) > 0 {
+			if strings.TrimRight(strings.TrimLeft(line, "\t"), "\n") == ends[0] {
+				ends = ends[1:]
+				out = append(out, line)
+			}
+			continue
+		}
+		out = append(out, line)
+		for _, m := range quotedHeredoc.FindAllStringSubmatch(line, -1) {
+			ends = append(ends, m[1])
+		}
+	}
+	return strings.Join(out, "")
 }
 
 // rcRedirect matches a > or >> into a shell rc file under home.
@@ -291,11 +314,17 @@ func (st *state) redirects(call Call) error {
 		if st.isOverlayArg(target) {
 			st.ask(overlayAsk)
 		}
-		if (!strings.Contains(target, "/") || strings.HasPrefix(target, "./")) && looseWriteTarget(target) && st.inWorktree() {
-			st.ask("'> " + target + "' writes into the current directory; rules/tooling.md wants > \"$(kit scratch-dir)/" + baseName(target) + "\". Confirm only if this file belongs in the project tree.")
-		}
+		st.looseWrite(">", target)
 	}
 	return nil
+}
+
+// looseWrite asks before a write (op is > or tee) that lands loose in the
+// current directory.
+func (st *state) looseWrite(op, target string) {
+	if (!strings.Contains(target, "/") || strings.HasPrefix(target, "./")) && looseWriteTarget(target) && st.inWorktree() {
+		st.ask("'" + op + " " + target + "' writes into the current directory; rules/tooling.md wants " + op + " \"$(kit scratch-dir)/" + baseName(target) + "\". Confirm only if this file belongs in the project tree.")
+	}
 }
 
 // inWorktree is true when the tracked cwd (after any cd) is in a git work
