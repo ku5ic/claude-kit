@@ -183,7 +183,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 			return explain.Run(e.paths, cfg, e.cwd, args, e.stdout, e.stderr)
 		},
 		"agent-context": func(e *env, cfg *config.Config, _ []string) int {
-			fmt.Fprint(e.stdout, hooks.AgentContext(e.paths, cfg, e.cwd))
+			fmt.Fprint(e.stdout, hooks.AgentContext(e.paths, cfg, e.cwd, ""))
 			return 0
 		},
 	}

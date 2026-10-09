@@ -181,6 +181,57 @@ stacks:
 		}
 	})
 
+	fileSkillsYML := `global_skills: []
+skill_triggers: {}
+skill_file_map:
+  - on: basename
+    globs: ["*.go"]
+    skills: [engineering-fundamentals]
+  - on: basename
+    globs: ["*.py"]
+    skills: [python-patterns]
+stacks:
+  go:
+    skills: [go-patterns]
+`
+	t.Run("a subagent reuses its session's file scan; another session rescans", func(t *testing.T) {
+		e := injectContextSetup(t, tree)
+		e.kitYML(fileSkillsYML)
+		e.writeCache("root: "+e.root, "go: yes")
+		e.Setenv("CLAUDE_GUARD_SKILLS", "1")
+		Write(t, filepath.Join(e.root, "main.go"), "package main\n")
+		r := e.run("s1", "")
+		r.Want(t, 0)
+		r.Has(t, "load engineering-fundamentals via the Skill tool")
+
+		Write(t, filepath.Join(e.root, "late.py"), "")
+		agent := func(session string) Result {
+			return e.exec(injectContextBin(e.tree), `{"session_id":"`+session+`","cwd":"`+e.root+`"}`, "hook", "inject-subagent-context")
+		}
+		cached := agent("s1")
+		cached.Want(t, 0)
+		cached.Has(t, "load engineering-fundamentals via the Skill tool")
+		cached.Lacks(t, "python-patterns")
+		agent("s2").Has(t, "load python-patterns via the Skill tool")
+	})
+
+	t.Run("outside a git work tree, a directory walk finds the files", func(t *testing.T) {
+		e := injectContextSetup(t, tree)
+		e.kitYML(fileSkillsYML)
+		e.writeCache("root: "+e.root, "go: yes")
+		e.Setenv("CLAUDE_GUARD_SKILLS", "1")
+		if err := os.RemoveAll(filepath.Join(e.root, ".git")); err != nil {
+			t.Fatal(err)
+		}
+		Write(t, filepath.Join(e.root, "go.mod"), "module x\n")
+		Write(t, filepath.Join(e.root, "cmd", "main.go"), "package main\n")
+		Write(t, filepath.Join(e.root, "node_modules", "dep", "x.py"), "")
+		r := e.run("s1", "")
+		r.Want(t, 0)
+		r.Has(t, "load engineering-fundamentals via the Skill tool")
+		r.Lacks(t, "python-patterns")
+	})
+
 	t.Run("a non-project context (home) produces no injection", func(t *testing.T) {
 		e := injectContextSetup(t, tree)
 		e.kitYML("global_skills:\n  - fix-sizing\n")

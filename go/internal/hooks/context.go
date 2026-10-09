@@ -97,7 +97,8 @@ func writeContext(h *hook.Hook, cfg *config.Config, out *strings.Builder) {
 	if len(report) > 0 {
 		// Logged as surfaced, not loaded, so skills-report can measure
 		// whether a suggestion was ever acted on.
-		suggested := stackctx.Suggested(cfg, stackctx.Signals(string(report)), root)
+		fileSkills := stackctx.FileSkills(h.Paths, cfg, root, h.Payload.String("session_id"))
+		suggested := stackctx.Suggested(cfg, stackctx.Signals(string(report)), fileSkills)
 		out.WriteString(stackctx.SuggestedBlock(cfg, suggested))
 		for _, skill := range suggested {
 			h.Log("skills", "suggested-skill", "cwd", h.Payload.String("cwd"), "skill_file", skill)
@@ -109,7 +110,7 @@ func writeContext(h *hook.Hook, cfg *config.Config, out *strings.Builder) {
 // AgentContext is the subagent counterpart: the resolved scratch path (which
 // overrides the harness's /tmp scratchpad line), then the same repo context
 // and skill blocks, unlogged.
-func AgentContext(paths config.Paths, cfg *config.Config, cwd string) string {
+func AgentContext(paths config.Paths, cfg *config.Config, cwd, session string) string {
 	var b strings.Builder
 	if scratch, err := project.Dir(cfg, paths, cwd, "scratch", true); err == nil {
 		fmt.Fprintf(&b, "<scratch>\npath: %s\n", scratch)
@@ -130,7 +131,8 @@ func AgentContext(paths config.Paths, cfg *config.Config, cwd string) string {
 	}
 	b.WriteString(stackctx.RequiredBlock(stackctx.Required(cfg)))
 	if len(report) > 0 {
-		b.WriteString(stackctx.SuggestedBlock(cfg, stackctx.Suggested(cfg, stackctx.Signals(string(report)), root)))
+		fileSkills := stackctx.FileSkills(paths, cfg, root, session)
+		b.WriteString(stackctx.SuggestedBlock(cfg, stackctx.Suggested(cfg, stackctx.Signals(string(report)), fileSkills)))
 	}
 	return b.String()
 }
@@ -143,7 +145,7 @@ func InjectSubagentContext(h *hook.Hook) error {
 	if cfg == nil {
 		return nil
 	}
-	context := strings.TrimRight(AgentContext(h.Paths, cfg, cwdOf(h)), "\n")
+	context := strings.TrimRight(AgentContext(h.Paths, cfg, cwdOf(h), h.Payload.String("session_id")), "\n")
 	if context == "" {
 		return nil
 	}

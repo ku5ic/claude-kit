@@ -64,6 +64,10 @@ func Run(cfg *config.Config, paths config.Paths, args []string, stdout, stderr i
 	if isDir(loaded) {
 		fmt.Fprintf(stdout, "scratch-rotate: %s %d skill-loaded marker(s) older than 1d from %s\n", pruned, r.prune(loaded, 1, false, nil), loaded)
 	}
+	fileSkills := filepath.Join(paths.CacheDir(), "file-skills")
+	if isDir(fileSkills) {
+		fmt.Fprintf(stdout, "scratch-rotate: %s %d file-skills cache(s) older than 1d from %s\n", pruned, r.prune(fileSkills, 1, false, nil), fileSkills)
+	}
 
 	registry := filepath.Join(paths.LogDir(), "scratch-registry.txt")
 	if data, err := os.ReadFile(registry); err == nil {

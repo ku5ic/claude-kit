@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -101,10 +102,9 @@ func Required(cfg *config.Config) []string {
 
 // Suggested maps signals to the skills kit.yml gives their stack or extra,
 // deduped, first-seen order, leaving out global_skills (required, not
-// suggested). An extra matches by its name. With CLAUDE_GUARD_SKILLS=1 it
-// adds the skill_file_map skills a file under root matches, since
-// guard-skills blocks the first edit of such a file without them.
-func Suggested(cfg *config.Config, signals []string, root string) []string {
+// suggested). An extra matches by its name. fileSkills, from FileSkills,
+// follow the stack skills.
+func Suggested(cfg *config.Config, signals, fileSkills []string) []string {
 	required := Required(cfg)
 	var out []string
 	add := func(skills []string) {
@@ -126,30 +126,40 @@ func Suggested(cfg *config.Config, signals []string, root string) []string {
 			}
 		}
 	}
-	if os.Getenv("CLAUDE_GUARD_SKILLS") == "1" {
-		add(fileMapSkills(cfg, root))
-	}
+	add(fileSkills)
 	return out
 }
 
-// fileMapSkills is the skill_file_map skills whose rule matches at least one
-// file git lists under root, tracked or untracked and not ignored. A rule
-// leaves the scan once it matches, so the walk ends early in most repos.
-func fileMapSkills(cfg *config.Config, root string) []string {
-	if root == "" {
+// FileSkills is, with CLAUDE_GUARD_SKILLS=1, the skill_file_map skills a
+// file under root matches, since guard-skills blocks the first edit of such
+// a file without them. The scan runs once per session and root; subagents
+// read the cached result, as their SubagentStart hook has a 5s timeout.
+func FileSkills(paths config.Paths, cfg *config.Config, root, session string) []string {
+	if os.Getenv("CLAUDE_GUARD_SKILLS") != "1" || root == "" {
 		return nil
 	}
-	files, err := exec.Command("git", "-C", root, "ls-files", "--cached", "--others", "--exclude-standard", "-z").Output()
-	if err != nil {
-		return nil
+	sum := sha256.Sum256([]byte(root))
+	cache := filepath.Join(paths.CacheDir(), "file-skills", session+"-"+hex.EncodeToString(sum[:])[:8])
+	if session != "" {
+		if data, err := os.ReadFile(cache); err == nil {
+			return strings.Fields(string(data))
+		}
 	}
+	skills := scanFileSkills(cfg, root)
+	if session != "" && os.MkdirAll(filepath.Dir(cache), 0o755) == nil {
+		_ = os.WriteFile(cache, []byte(strings.Join(skills, "\n")), 0o644)
+	}
+	return skills
+}
+
+// scanFileSkills matches skill_file_map against every file git lists under
+// root, tracked or untracked and not ignored, or a capped walk outside a
+// git work tree. A rule leaves the scan once it matches; the scan ends early
+// only when every rule has.
+func scanFileSkills(cfg *config.Config, root string) []string {
 	rules := slices.Clone(cfg.SkillFileMap)
 	var skills []string
-	for _, file := range strings.Split(string(files), "\x00") {
-		if file == "" {
-			continue
-		}
-		path := filepath.Join(root, file)
+	for _, path := range listFiles(root) {
 		rules = slices.DeleteFunc(rules, func(rule config.SkillFileRule) bool {
 			matched := guard.FileMapSkills([]config.SkillFileRule{rule}, path)
 			skills = append(skills, matched...)
@@ -160,6 +170,40 @@ func fileMapSkills(cfg *config.Config, root string) []string {
 		}
 	}
 	return skills
+}
+
+// walkCap bounds the non-git walk: a project without git is rarely large,
+// and a home-sized tree must not stall a 5s hook.
+const walkCap = 20000
+
+// listFiles is every file under root as an absolute path: git's list when
+// root is a work tree, else a walk that skips hidden dirs, node_modules,
+// and vendor, stopping at walkCap files.
+func listFiles(root string) []string {
+	var files []string
+	if out, err := exec.Command("git", "-C", root, "ls-files", "--cached", "--others", "--exclude-standard", "-z").Output(); err == nil {
+		for file := range strings.SplitSeq(string(out), "\x00") {
+			if file != "" {
+				files = append(files, filepath.Join(root, file))
+			}
+		}
+		return files
+	}
+	_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		switch {
+		case err != nil:
+			return nil
+		case d.IsDir() && path != root && (strings.HasPrefix(d.Name(), ".") || d.Name() == "node_modules" || d.Name() == "vendor"):
+			return filepath.SkipDir
+		case d.IsDir():
+			return nil
+		case len(files) >= walkCap:
+			return filepath.SkipAll
+		}
+		files = append(files, path)
+		return nil
+	})
+	return files
 }
 
 // RequiredBlock is the <required-skills> block, "" when there are none.
