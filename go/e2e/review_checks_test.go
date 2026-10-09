@@ -44,6 +44,11 @@ func TestReviewChecks(t *testing.T) {
 		}
 		quiet(t, e, stop(e, transcript, true))
 	})
+	t.Run("a prefixed call, like time kit run-checks, counts as a run", func(t *testing.T) {
+		e, transcript := setup(t, `{"skillName":"code-review"}`)
+		Write(t, transcript, `{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"time kit run-checks"}}]}}`+"\n")
+		quiet(t, e, stop(e, transcript, false))
+	})
 	t.Run("a review that already ran kit run-checks stops freely", func(t *testing.T) {
 		e, transcript := setup(t, `{"skillName":"code-review"}`)
 		Write(t, transcript, `{"type":"user","message":{"content":"review this"}}`+"\n"+

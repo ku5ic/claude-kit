@@ -55,17 +55,23 @@ func TestReplyLength(t *testing.T) {
 	}
 	t.Run("a /write file over its kind's ceiling is sent back", func(t *testing.T) {
 		k := New(t)
+		prompt(k, "/write pr")
 		written(k, "pr-x-20261009-1200.md", words(80)).Want(t, 0)
 		r := written(k, "pr-x-20261009-1200.md", words(81))
 		r.Want(t, 2)
 		r.Has(t, "pr-x-20261009-1200.md is 81 words; the /write pr ceiling is 80")
+		prompt(k, "/write review-comment")
 		r = written(k, "review-comment-y-20261009-1200.md", words(41))
 		r.Has(t, "the /write review-comment ceiling is 40")
+		// Outside a /write turn a scratch file's name means nothing.
+		prompt(k, "go on")
+		written(k, "pr-x-20261009-1200.md", words(500)).Want(t, 0)
 	})
 	t.Run("a report finding over report_finding is named; short ones and other files pass", func(t *testing.T) {
 		k := New(t)
 		report := "# R\n\n## Summary\n\n" + words(100) + "\n\n## Findings\n\n### Short\n\n" + words(20) +
-			"\n\n### Long one\n\n" + words(51) + "\n```go\n" + words(100) + "\n```\n\n## Out of scope\n\n" + words(100) + "\n"
+			"\n```md\n## Not a heading\n### Nor this\n" + words(100) + "\n```\n" +
+			"\n### Long one\n\n" + words(51) + "\n```go\n" + words(100) + "\n```\n\n## Out of scope\n\n" + words(100) + "\n"
 		r := written(k, "audit-x-20261009-1200.md", report)
 		r.Want(t, 2)
 		r.Has(t, `"Long one" (53)`)
@@ -80,6 +86,24 @@ func TestReplyLength(t *testing.T) {
 		Write(t, path, words(500))
 		k.Hook("reply-length", map[string]any{"hook_event_name": "PostToolUse", "session_id": "s1",
 			"tool_name": "Write", "tool_input": map[string]any{"file_path": path}}).Want(t, 0)
+	})
+	t.Run("a slash command's name isn't a trigger", func(t *testing.T) {
+		k := New(t)
+		prompt(k, "/code-review high").Has(t, "40 words")
+	})
+	t.Run("a turn with no prompt of its own gets the chat ceiling", func(t *testing.T) {
+		k := New(t)
+		prompt(k, "/write commit")
+		stop(k, words(30), false).Want(t, 0)
+		// A task notification's turn: no UserPromptSubmit, code not counted.
+		stop(k, words(30)+"\n```\n"+words(50)+"\n```", false).Want(t, 0)
+		stop(k, words(41), false).Want(t, 2)
+	})
+	t.Run("a long reply after another Stop hook's block still counts", func(t *testing.T) {
+		k := New(t)
+		prompt(k, "go")
+		stop(k, words(10), false).Want(t, 0)
+		stop(k, words(41), true).Want(t, 2)
 	})
 	t.Run("a trigger matches whole words only", func(t *testing.T) {
 		k := New(t)

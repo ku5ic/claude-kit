@@ -694,7 +694,7 @@ reply_limits:
     commit: 40
     devnote: 40
     review-comment: 40
-    review-reply: 40
+    review-reply: 120 # one file holds every reply
     pr: 80
     stakeholder: 80
     explainer: 150

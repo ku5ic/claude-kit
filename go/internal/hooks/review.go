@@ -12,9 +12,10 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
-// runChecksCall is a kit run-checks invocation at the start of a command or
-// after a shell operator, and its arguments up to the next operator.
-var runChecksCall = regexp.MustCompile(`(?m)(?:^|[|;&(]\s*)kit run-checks([^|;&\n]*)`)
+// runChecksCall is a kit run-checks invocation, as a word of its own (so
+// `time kit run-checks` counts and `rg "kit run-checks"` doesn't), and its
+// arguments up to the next shell operator.
+var runChecksCall = regexp.MustCompile(`(?:^|[\s|;&(])kit run-checks([^|;&\n]*)`)
 
 // ranChecks reports whether the agent's transcript has a Bash call that ran
 // kit run-checks, so a reviewer that already did isn't sent back to re-emit

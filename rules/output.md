@@ -23,7 +23,7 @@ Run this test on every reply, file, and commit message before emitting:
 | Reply naming a written file                                    | path, headline count, one next action     |
 | Commit message body, PR description                            | shortest structured form that is complete |
 
-A trigger lifts the ceiling for that reply only. Fenced code doesn't count. Working memory is small: one idea per line, no status tables, nothing the reader already saw. Still over the ceiling after the test: cut again, never add words explaining the length.
+A trigger lifts the ceiling for that reply only. Working memory is small: one idea per line, no status tables, nothing the reader already saw. Still over the ceiling after the test: cut again, never add words explaining the length.
 
 **Always survives, one sentence each:** a tradeoff that flips the decision; a risk that bites later; a safety warning or confirmation before an irreversible action, stated in full; what was not run, not exercised, or ruled out, as one line each, never a section.
 
