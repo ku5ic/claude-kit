@@ -1,7 +1,12 @@
 version: "2"
 
 linters:
+  # dupl flags copied blocks before they drift. Threshold is in tokens: the
+  # lowest that passes on today's tree; lower it as copies are removed.
+  enable: [dupl]
   settings:
+    dupl:
+      threshold: 36
     errcheck:
       # Output and cleanup: a failed write to stdout or a failed close has no
       # recovery here, and hooks fail open by design.
@@ -17,6 +22,9 @@ linters:
       # Test setup ignores errors on purpose; a failed step fails the assertion after it.
       - path: _test\.go
         linters: [errcheck]
+      # Table-driven tests repeat their shape on purpose.
+      - path: _test\.go
+        linters: [dupl]
 
 # golangci-lint run reports gofmt findings too.
 formatters:
