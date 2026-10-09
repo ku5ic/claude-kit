@@ -14,19 +14,20 @@ import (
 // Config mirrors kit.yml. Every key kit.yml may hold is a field here, so a
 // strict decode reports an unknown or misspelled key instead of dropping it.
 type Config struct {
-	GlobalSkills      []string          `yaml:"global_skills"`
-	SkillFileMap      []SkillFileRule   `yaml:"skill_file_map"`
-	SkillTriggers     map[string]string `yaml:"skill_triggers"`
-	PackageManagers   []PackageManager  `yaml:"package_managers"`
-	ExtraLockfiles    []string          `yaml:"extra_lockfiles"`
-	ProtectedBranches []string          `yaml:"protected_branches"`
-	RCFiles           []string          `yaml:"rc_files"`
-	SensitivePaths    []string          `yaml:"sensitive_paths"`
-	LogMaxLines       int               `yaml:"log_max_lines"`
-	DisabledRules     []string          `yaml:"disabled_rules"`
-	TaskProviders     []TaskProvider    `yaml:"task_providers"`
-	Checks            []Check           `yaml:"checks"`
-	ToolchainChecks   []ToolchainCheck  `yaml:"toolchain_checks"`
+	GlobalSkills      []string            `yaml:"global_skills"`
+	SkillFileMap      []SkillFileRule     `yaml:"skill_file_map"`
+	SkillTriggers     map[string]string   `yaml:"skill_triggers"`
+	PackageManagers   []PackageManager    `yaml:"package_managers"`
+	ExtraLockfiles    []string            `yaml:"extra_lockfiles"`
+	ProtectedBranches []string            `yaml:"protected_branches"`
+	DependencyAdds    map[string][]string `yaml:"dependency_adds"`
+	RCFiles           []string            `yaml:"rc_files"`
+	SensitivePaths    []string            `yaml:"sensitive_paths"`
+	LogMaxLines       int                 `yaml:"log_max_lines"`
+	DisabledRules     []string            `yaml:"disabled_rules"`
+	TaskProviders     []TaskProvider      `yaml:"task_providers"`
+	Checks            []Check             `yaml:"checks"`
+	ToolchainChecks   []ToolchainCheck    `yaml:"toolchain_checks"`
 
 	GateDiscovery           GateDiscovery `yaml:"gate_discovery"`
 	DisabledTaskProviders   []string      `yaml:"disabled_task_providers"`

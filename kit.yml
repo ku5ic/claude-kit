@@ -211,6 +211,23 @@ extra_lockfiles: [Gemfile.lock, Cargo.lock, composer.lock, pdm.lock, go.sum]
 # Branches git push, and git reset --hard to, are blocked for.
 protected_branches: [main, master, develop, production, release]
 
+# Commands that add a dependency, which rules/workflow.md section 2 asks
+# before: <command>: [verbs]. guard-bash asks when a verb is followed by a
+# package operand; a bare `npm install` from the lockfile adds nothing.
+dependency_adds:
+  npm: [install, i, add]
+  pnpm: [add, install, i]
+  yarn: [add]
+  bun: [add, install, i]
+  pip: [install]
+  pip3: [install]
+  uv: [add]
+  poetry: [add]
+  go: [get]
+  cargo: [add]
+  gem: [install]
+  bundle: [add]
+
 # Dependency and build-output dirs a file walk never enters (hidden dirs are
 # skipped too); rules/tooling.md's skip list matches it.
 skip_dirs: [node_modules, vendor, dist, build, out, target, coverage, storybook-static, __pycache__, venv, .next, .turbo, .cache, .pnpm-store, .venv]

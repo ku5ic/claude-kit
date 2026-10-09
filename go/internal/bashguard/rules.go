@@ -141,6 +141,7 @@ func (c *command) check() error {
 			}
 		}
 	}
+	c.dependencyAdd()
 	switch c.name {
 	case "cd":
 		c.cd()
@@ -300,22 +301,39 @@ func (c *command) overlayWrite() {
 	}
 }
 
+// dependencyAdd asks before a kit.yml dependency_adds verb with a package
+// operand after it (rules/workflow.md section 2).
+func (c *command) dependencyAdd() {
+	verbs := c.st.cfg.DependencyAdds[c.name]
+	values := c.values()
+	i := slices.IndexFunc(values, func(v string) bool { return slices.Contains(verbs, v) })
+	if i >= 0 && slices.ContainsFunc(values[i+1:], func(v string) bool { return !strings.HasPrefix(v, "-") }) {
+		c.st.ask("this adds a dependency; rules/workflow.md section 2 asks before installing: confirm the package")
+	}
+}
+
 func (c *command) rm() error {
-	// Whole words only: rm -rf *.log and rm -rf dist/* stay allowed.
-	force, broad := false, false
+	// Whole words only: rm -rf *.log and rm -rf dist/* are asked, not blocked.
+	force, recursive, broad := false, false, false
 	for _, v := range c.values() {
 		switch {
-		case v == "--recursive" || v == "--force":
+		case v == "--recursive":
+			force, recursive = true, true
+		case v == "--force":
 			force = true
 		case strings.HasPrefix(v, "--"):
-		case strings.HasPrefix(v, "-") && strings.ContainsAny(v, "rRfF"):
-			force = true
+		case strings.HasPrefix(v, "-"):
+			force = force || strings.ContainsAny(v, "rRfF")
+			recursive = recursive || strings.ContainsAny(v, "rR")
 		case slices.Contains([]string{"/", "/*", "~", "~/", "~/*", "$HOME", "${HOME}", "$HOME/", "${HOME}/", "$HOME/*", "${HOME}/*", ".", "..", "./", "../", "*"}, v):
 			broad = true
 		}
 	}
 	if force && broad {
 		return c.block("rm with recursive force against root, home, or cwd", "rm-recursive")
+	}
+	if recursive {
+		c.st.ask("rm -r deletes a directory tree; confirm the path")
 	}
 	return nil
 }
@@ -387,6 +405,20 @@ func (c *command) git() error {
 					}
 				}
 			}
+			c.st.ask("git reset --hard discards uncommitted changes; confirm")
+		}
+	case "clean":
+		dryRun := has("--dry-run") || slices.ContainsFunc(args, func(a string) bool {
+			return strings.HasPrefix(a, "-") && !strings.HasPrefix(a, "--") && strings.Contains(a, "n")
+		})
+		if !dryRun {
+			c.st.ask("git clean deletes untracked files; confirm, or run it with -n first")
+		}
+	case "branch", "tag":
+		if slices.ContainsFunc(args, func(a string) bool {
+			return a == "--delete" || (strings.HasPrefix(a, "-") && !strings.HasPrefix(a, "--") && strings.ContainsAny(a, "dD"))
+		}) {
+			c.st.ask("git " + sub + " deletion; confirm the name")
 		}
 	case "config":
 		if has("--global") {
