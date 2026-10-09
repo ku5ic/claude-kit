@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -90,6 +91,12 @@ func TestKitRepo(t *testing.T) {
 		}
 	})
 
+	t.Run("every cited file and rules section exists", func(t *testing.T) {
+		for _, bad := range brokenPointers(t) {
+			t.Error(bad)
+		}
+	})
+
 	t.Run("audit verify parses every per-finding field the report format requires", func(t *testing.T) {
 		format := Read(t, filepath.Join(kitRoot, "skills/report-format/SKILL.md"))
 		verify := Read(t, filepath.Join(kitRoot, "skills/audit/reference/verify.md"))
@@ -124,4 +131,65 @@ func frontmatter(text string) (map[string]string, bool) {
 		}
 	}
 	return fields, true
+}
+
+var (
+	// rules/x.md section 2, with or without backticks, and "sections 2 and 4".
+	ruleSection = regexp.MustCompile("(rules/[a-z]+\\.md)`? sections? ([0-9]+(?:(?:, | and | or )[0-9]+)*)")
+	sectionNums = regexp.MustCompile(`[0-9]+`)
+	// A repo-root path, not one under ~/.claude or another directory, and not
+	// a link target (linkPath reads those).
+	rootPath = regexp.MustCompile(`(?:^|[^\w./~(-])((?:rules|skills|agents)/[\w./-]+\.md)\b`)
+	// A markdown link target, relative to the file that holds it.
+	linkPath = regexp.MustCompile(`\]\(([\w./-]+\.md)\)`)
+)
+
+// brokenPointers is every reference in the kit's prose and Go sources to a
+// .md file that doesn't exist, or to a rules section with no "## N." heading.
+func brokenPointers(t *testing.T) []string {
+	t.Helper()
+	var sources []string
+	for _, dir := range []string{"rules", "agents", "skills", "go"} {
+		_ = filepath.WalkDir(filepath.Join(kitRoot, dir), func(path string, d os.DirEntry, err error) error {
+			if err == nil && !d.IsDir() && (strings.HasSuffix(path, ".md") || strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, "_test.go")) {
+				sources = append(sources, path)
+			}
+			return nil
+		})
+	}
+	sources = append(sources, filepath.Join(kitRoot, "README.md"), filepath.Join(kitRoot, "CLAUDE.md"))
+
+	headings := map[string]bool{}
+	var bad []string
+	for _, src := range sources {
+		rel, _ := filepath.Rel(kitRoot, src)
+		for n, line := range strings.Split(Read(t, src), "\n") {
+			at := func(format string, args ...any) {
+				bad = append(bad, fmt.Sprintf("%s:%d: ", rel, n+1)+fmt.Sprintf(format, args...))
+			}
+			for _, m := range rootPath.FindAllStringSubmatch(line, -1) {
+				if _, err := os.Stat(filepath.Join(kitRoot, m[1])); err != nil {
+					at("%s doesn't exist", m[1])
+				}
+			}
+			for _, m := range linkPath.FindAllStringSubmatch(line, -1) {
+				if _, err := os.Stat(filepath.Join(filepath.Dir(src), m[1])); err != nil {
+					at("link %s doesn't exist", m[1])
+				}
+			}
+			for _, m := range ruleSection.FindAllStringSubmatch(line, -1) {
+				for _, num := range sectionNums.FindAllString(m[2], -1) {
+					key := m[1] + "#" + num
+					if _, seen := headings[key]; !seen {
+						text, err := os.ReadFile(filepath.Join(kitRoot, m[1]))
+						headings[key] = err == nil && regexp.MustCompile(`(?m)^## `+num+`\. `).Match(text)
+					}
+					if !headings[key] {
+						at("%s has no section %s", m[1], num)
+					}
+				}
+			}
+		}
+	}
+	return bad
 }
