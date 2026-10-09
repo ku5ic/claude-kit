@@ -5,13 +5,13 @@ package project
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/extract"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 )
 
 // FindUp returns the first dir/name for each dir from start up to and
@@ -55,18 +55,17 @@ func PhysicalPath(path string) string {
 
 // Toplevel is the git worktree root holding dir, "" outside a repo.
 func Toplevel(dir string) string {
-	out, err := exec.Command("git", "-C", dir, "rev-parse", "--show-toplevel").Output()
+	top, err := git.Line(dir, "rev-parse", "--show-toplevel")
 	if err != nil {
 		return ""
 	}
-	return strings.TrimSpace(string(out))
+	return top
 }
 
 // Branch is the branch checked out in dir's repo, "" on a detached HEAD; it
 // errors outside a repo.
 func Branch(dir string) (string, error) {
-	out, err := exec.Command("git", "-C", dir, "branch", "--show-current").Output()
-	return strings.TrimSpace(string(out)), err
+	return git.Line(dir, "branch", "--show-current")
 }
 
 // Lockfile is a package manager and the lockfile that names it.
@@ -218,9 +217,8 @@ func Subprojects(cfg *config.Config, root string) []string {
 		pathspecs = append(pathspecs, ":(glob)**/"+name)
 	}
 	if len(pathspecs) > 0 {
-		args := append([]string{"-C", root, "ls-files", "--"}, pathspecs...)
-		out, _ := exec.Command("git", args...).Output()
-		for path := range strings.SplitSeq(strings.TrimSpace(string(out)), "\n") {
+		paths, _ := git.Lines(root, append([]string{"ls-files", "--"}, pathspecs...)...)
+		for _, path := range paths {
 			dir := filepath.Dir(path)
 			if !strings.Contains(path, "/") || strings.Count(dir, "/")+1 > cfg.SubprojectMaxDepth {
 				continue

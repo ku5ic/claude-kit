@@ -11,6 +11,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/ku5ic/claude-kit/go/internal/git"
 )
 
 // Mode is what to print for the base: the ref, the diff against it, or the
@@ -56,7 +58,7 @@ func Parse(argv []string) (Args, error) {
 			inPaths = true
 		case strings.HasPrefix(arg, "-"):
 			a.Extra = append(a.Extra, arg)
-		case a.Explicit == "" && verify(arg):
+		case a.Explicit == "" && verifyIn("", arg):
 			a.Explicit = arg
 		case strings.HasPrefix(prev, "-") && !strings.Contains(prev, "="):
 			a.Extra = append(a.Extra, arg)
@@ -68,18 +70,9 @@ func Parse(argv []string) (Args, error) {
 	return a, nil
 }
 
-func verify(ref string) bool { return verifyIn("", ref) }
-
 func verifyIn(dir, ref string) bool {
-	_, err := gitIn(dir, "rev-parse", "--verify", "--quiet", ref)
+	_, err := git.Line(dir, "rev-parse", "--verify", "--quiet", ref)
 	return err == nil
-}
-
-func gitIn(dir string, args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
-	cmd.Dir = dir
-	out, err := cmd.Output()
-	return strings.TrimSpace(string(out)), err
 }
 
 // Resolve returns the base ref for the working directory, or false when
@@ -89,13 +82,13 @@ func Resolve(explicit string) (string, bool) { return ResolveIn("", explicit) }
 // ResolveIn is Resolve for the repository at dir ("" is the working
 // directory).
 func ResolveIn(dir, explicit string) (string, bool) {
-	git := func(args ...string) (string, error) { return gitIn(dir, args...) }
+	run := func(args ...string) (string, error) { return git.Line(dir, args...) }
 	verify := func(ref string) bool { return verifyIn(dir, ref) }
 	if explicit != "" && verify(explicit) {
 		return explicit, true
 	}
-	if upstream, err := git("rev-parse", "--abbrev-ref", "@{upstream}"); err == nil {
-		current, _ := git("rev-parse", "--abbrev-ref", "HEAD")
+	if upstream, err := run("rev-parse", "--abbrev-ref", "@{upstream}"); err == nil {
+		current, _ := run("rev-parse", "--abbrev-ref", "HEAD")
 		// ${upstream#*/}: drop the remote name; no slash leaves it whole.
 		branch := upstream
 		if _, rest, found := strings.Cut(upstream, "/"); found {
@@ -105,8 +98,8 @@ func ResolveIn(dir, explicit string) (string, bool) {
 			return upstream, true
 		}
 	}
-	if _, err := git("symbolic-ref", "refs/remotes/origin/HEAD"); err == nil {
-		if resolved, err := git("symbolic-ref", "--short", "refs/remotes/origin/HEAD"); err == nil && verify(resolved) {
+	if _, err := run("symbolic-ref", "refs/remotes/origin/HEAD"); err == nil {
+		if resolved, err := run("symbolic-ref", "--short", "refs/remotes/origin/HEAD"); err == nil && verify(resolved) {
 			return resolved, true
 		}
 	}
@@ -139,7 +132,7 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 	case Log:
 		args = append(append([]string{"log", "--oneline"}, a.Extra...), base+"..HEAD", "--")
 	}
-	cmd := exec.Command("git", append(args, a.Paths...)...)
+	cmd := git.Command("", append(args, a.Paths...)...)
 	cmd.Stdout, cmd.Stderr, cmd.Stdin = stdout, stderr, os.Stdin
 	if err := cmd.Run(); err != nil {
 		if exit, ok := errors.AsType[*exec.ExitError](err); ok {

@@ -50,7 +50,7 @@ func readFile(t *testing.T, path string) string {
 	return string(data)
 }
 
-func git(t *testing.T, dir string, args ...string) {
+func runGit(t *testing.T, dir string, args ...string) {
 	t.Helper()
 	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
 	if out, err := cmd.CombinedOutput(); err != nil {
@@ -72,7 +72,7 @@ func taskLines(tasks []Task) string {
 
 func TestTasksResolvePMFromLockfile(t *testing.T) {
 	dir := tmp(t)
-	git(t, dir, "init", "-q", "-b", "main")
+	runGit(t, dir, "init", "-q", "-b", "main")
 	put(t, dir, "package.json", `{"scripts":{"test":"vitest"}}`)
 	put(t, dir, "pnpm-lock.yaml", "")
 	if got := taskLines(Tasks(realConfig(t), dir)); got != "package-scripts\tjs\ttest\tpnpm run test" {
@@ -113,7 +113,7 @@ func TestTasksSeveralProviders(t *testing.T) {
 // node_modules manifest that must not count.
 func monorepo(t *testing.T) string {
 	dir := tmp(t)
-	git(t, dir, "init", "-q", "-b", "main")
+	runGit(t, dir, "init", "-q", "-b", "main")
 	put(t, dir, "package.json", `{"name":"root","private":true}`)
 	put(t, dir, "pnpm-workspace.yaml", "packages:\n  - \"packages/*\"\n")
 	put(t, dir, "pnpm-lock.yaml", "")
@@ -121,7 +121,7 @@ func monorepo(t *testing.T) string {
 	put(t, dir, "services/api/pyproject.toml", "[project]\nname = \"api\"\n")
 	put(t, dir, "services/api/uv.lock", "")
 	put(t, dir, "node_modules/dep/package.json", `{"name":"dep"}`)
-	git(t, dir, "add", "package.json", "pnpm-workspace.yaml", "pnpm-lock.yaml", "packages", "services")
+	runGit(t, dir, "add", "package.json", "pnpm-workspace.yaml", "pnpm-lock.yaml", "packages", "services")
 	return dir
 }
 
@@ -134,10 +134,10 @@ func TestSubprojectsRootWorkspaceAndNested(t *testing.T) {
 
 func TestSubprojectsRespectMaxDepth(t *testing.T) {
 	dir := tmp(t)
-	git(t, dir, "init", "-q", "-b", "main")
+	runGit(t, dir, "init", "-q", "-b", "main")
 	put(t, dir, "a/b/c/d/package.json", "{}")
 	put(t, dir, "a/b/c/d/e/package.json", "{}")
-	git(t, dir, "add", "a")
+	runGit(t, dir, "add", "a")
 	if got := strings.Join(Subprojects(realConfig(t), dir), "\n"); got != ".\na/b/c/d" {
 		t.Errorf("got %q", got)
 	}
@@ -145,7 +145,7 @@ func TestSubprojectsRespectMaxDepth(t *testing.T) {
 
 func TestSubprojectsGoWorkAndCargoMembers(t *testing.T) {
 	dir := tmp(t)
-	git(t, dir, "init", "-q", "-b", "main")
+	runGit(t, dir, "init", "-q", "-b", "main")
 	for _, d := range []string{"svc", "tools", "crates/x"} {
 		if err := os.MkdirAll(filepath.Join(dir, d), 0o755); err != nil {
 			t.Fatal(err)

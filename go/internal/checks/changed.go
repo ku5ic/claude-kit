@@ -1,10 +1,11 @@
 package checks
 
 import (
-	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/ku5ic/claude-kit/go/internal/git"
 )
 
 // changedLines maps each of files (absolute, under root) to the lines the
@@ -16,16 +17,15 @@ func changedLines(root, rev string, files []string) map[string]map[int]bool {
 	for _, f := range files {
 		rel = append(rel, strings.TrimPrefix(f, root+"/"))
 	}
-	git := func(args ...string) (string, error) {
-		out, err := exec.Command("git", append([]string{"-C", root, "-c", "core.quotePath=false"}, args...)...).Output()
-		return string(out), err
+	run := func(args ...string) (string, error) {
+		return git.Output(root, append([]string{"-c", "core.quotePath=false"}, args...)...)
 	}
-	tracked, err := git(append([]string{"ls-tree", "-r", "--name-only", rev, "--"}, rel...)...)
+	tracked, err := run(append([]string{"ls-tree", "-r", "--name-only", rev, "--"}, rel...)...)
 	if err != nil {
 		return nil
 	}
 	// Fixed prefixes: diff.noprefix or diff.mnemonicPrefix would change them.
-	diff, err := git(append([]string{"diff", "-U0", "--no-color", "--no-ext-diff", "--no-renames", "--src-prefix=a/", "--dst-prefix=b/", rev, "--"}, rel...)...)
+	diff, err := run(append([]string{"diff", "-U0", "--no-color", "--no-ext-diff", "--no-renames", "--src-prefix=a/", "--dst-prefix=b/", rev, "--"}, rel...)...)
 	if err != nil {
 		return nil
 	}

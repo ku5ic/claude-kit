@@ -9,13 +9,13 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
@@ -233,7 +233,7 @@ func models(path, modelName string) (actualShort, actualDisplay, sessionShort, d
 // `git diff --shortstat` counts; not `git diff HEAD`, which fails on an
 // unborn branch.
 func gitStatus(home, cwd, sessionID string) string {
-	if cwd == "" || exec.Command("git", "-C", cwd, "rev-parse", "--is-inside-work-tree").Run() != nil {
+	if cwd == "" || git.Command(cwd, "rev-parse", "--is-inside-work-tree").Run() != nil {
 		return ""
 	}
 	ttl, err := strconv.Atoi(os.Getenv("STATUSLINE_CACHE_TTL"))
@@ -251,15 +251,14 @@ func gitStatus(home, cwd, sessionID string) string {
 		return strings.TrimSuffix(string(data), "\n")
 	}
 	_ = os.MkdirAll(dir, 0o755) // without it, the segment just isn't cached
-	out, _ := exec.Command("git", "-C", cwd, "branch", "--show-current").Output()
-	branch := strings.TrimSpace(string(out))
+	branch, _ := git.Line(cwd, "branch", "--show-current")
 	if branch == "" {
 		branch = "detached"
 	}
 	add, del := 0, 0
 	for _, args := range [][]string{{"diff", "--numstat"}, {"diff", "--cached", "--numstat"}} {
-		out, _ := exec.Command("git", append([]string{"-C", cwd}, args...)...).Output()
-		for line := range strings.SplitSeq(string(out), "\n") {
+		out, _ := git.Output(cwd, args...)
+		for line := range strings.SplitSeq(out, "\n") {
 			f := strings.Fields(line)
 			if len(f) >= 2 {
 				a, _ := strconv.Atoi(f[0]) // "-" for binary files counts 0

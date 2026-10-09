@@ -52,7 +52,7 @@ func TestDirHomeFallbackAndRegistry(t *testing.T) {
 	}
 
 	repo := tmp(t)
-	git(t, repo, "init", "-q", "-b", "main")
+	runGit(t, repo, "init", "-q", "-b", "main")
 	for range 2 {
 		if _, err := Dir(cfg, paths, repo, "scratch", true); err != nil {
 			t.Fatal(err)

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/tools"
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
@@ -327,7 +328,7 @@ func gitIgnored(root string, edited []string, base string) map[string]bool {
 	if len(paths) == 0 {
 		return ignored
 	}
-	cmd := exec.Command("git", "-C", root, "check-ignore", "--stdin")
+	cmd := git.Command(root, "check-ignore", "--stdin")
 	cmd.Stdin = strings.NewReader(strings.Join(paths, "\n") + "\n")
 	out, _ := cmd.Output() // exit 1 means none ignored
 	for line := range strings.SplitSeq(strings.TrimSpace(string(out)), "\n") {

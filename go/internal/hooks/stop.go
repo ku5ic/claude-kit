@@ -3,10 +3,10 @@ package hooks
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/checks"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 )
@@ -28,13 +28,7 @@ func StopChecks(h *hook.Hook) error {
 		return nil
 	}
 	cwd := cwdOf(h)
-	git := func(args ...string) (string, error) {
-		cmd := exec.Command("git", args...)
-		cmd.Dir = cwd
-		out, err := cmd.Output()
-		return string(out), err
-	}
-	if out, err := git("rev-parse", "--is-inside-work-tree"); err != nil || strings.TrimSpace(out) != "true" {
+	if out, err := git.Line(cwd, "rev-parse", "--is-inside-work-tree"); err != nil || out != "true" {
 		return nil
 	}
 	transcript := h.Payload.String("transcript_path")
@@ -43,11 +37,11 @@ func StopChecks(h *hook.Hook) error {
 	} else {
 		f.Close()
 	}
-	top, err := git("rev-parse", "--show-toplevel")
+	top, err := git.Line(cwd, "rev-parse", "--show-toplevel")
 	if err != nil {
 		return nil
 	}
-	root := project.PhysicalPath(strings.TrimSpace(top))
+	root := project.PhysicalPath(top)
 	cfg := h.Config()
 	if cfg == nil {
 		return nil
@@ -68,7 +62,7 @@ func StopChecks(h *hook.Hook) error {
 
 	// A clean tree means the edits were committed, which already went
 	// through verification.
-	if status, err := git("status", "--porcelain"); err != nil || status == "" {
+	if status, err := git.Output(cwd, "status", "--porcelain"); err != nil || status == "" {
 		return nil
 	}
 	edited, err := checks.EditedFiles(transcript)

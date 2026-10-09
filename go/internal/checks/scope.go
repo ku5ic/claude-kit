@@ -12,6 +12,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/classify"
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/gitbase"
 	"github.com/ku5ic/claude-kit/go/internal/tools"
 )
@@ -65,27 +66,19 @@ func changedSince(root string) changes {
 	if !ok {
 		return changes{}
 	}
-	git := func(args ...string) []string {
-		cmd := exec.Command("git", append([]string{"-C", root, "-c", "core.quotePath=false"}, args...)...)
-		out, err := cmd.Output()
+	run := func(args ...string) []string {
+		lines, err := git.Lines(root, append([]string{"-c", "core.quotePath=false"}, args...)...)
 		if err != nil {
 			return nil
 		}
-		// One path per line: a path may hold spaces.
-		var lines []string
-		for line := range strings.SplitSeq(strings.TrimRight(string(out), "\n"), "\n") {
-			if line != "" {
-				lines = append(lines, line)
-			}
-		}
 		return lines
 	}
-	mb := git("merge-base", base, "HEAD")
+	mb := run("merge-base", base, "HEAD")
 	if len(mb) != 1 {
 		return changes{}
 	}
 	c := changes{root: root, base: base, mergeBase: mb[0], files: map[string]bool{}, ok: true}
-	for _, f := range append(git("diff", "--name-only", "--diff-filter=d", mb[0]), git("ls-files", "--others", "--exclude-standard")...) {
+	for _, f := range append(run("diff", "--name-only", "--diff-filter=d", mb[0]), run("ls-files", "--others", "--exclude-standard")...) {
 		c.files[filepath.Join(root, f)] = true
 	}
 	return c

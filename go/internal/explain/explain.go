@@ -8,13 +8,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/bashguard"
 	"github.com/ku5ic/claude-kit/go/internal/checks"
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/hooks"
@@ -197,12 +197,12 @@ func stop(cfg *config.Config, cwd string, files []string, w, stderr io.Writer) i
 
 // changedFiles is every modified or untracked file in the working tree.
 func changedFiles(root string) []string {
-	out, err := exec.Command("git", "-C", root, "status", "--porcelain", "--untracked-files=all").Output()
+	out, err := git.Output(root, "status", "--porcelain", "--untracked-files=all")
 	if err != nil {
 		return nil
 	}
 	var files []string
-	for line := range strings.SplitSeq(string(out), "\n") {
+	for line := range strings.SplitSeq(out, "\n") {
 		if len(line) < 4 || strings.Contains(line[:2], "D") {
 			continue
 		}

@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -18,6 +17,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/detect"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 )
 
@@ -216,8 +216,8 @@ var walkSkip = []string{"node_modules", "vendor", "dist", "build", "out", "targe
 // stopping at walkCap files.
 func listFiles(root string) []string {
 	var files []string
-	if out, err := exec.Command("git", "-C", root, "ls-files", "--cached", "--others", "--exclude-standard", "-z").Output(); err == nil {
-		for file := range strings.SplitSeq(string(out), "\x00") {
+	if out, err := git.Output(root, "ls-files", "--cached", "--others", "--exclude-standard", "-z"); err == nil {
+		for file := range strings.SplitSeq(out, "\x00") {
 			if file != "" {
 				files = append(files, filepath.Join(root, file))
 			}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/checks"
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/stackctx"
@@ -148,11 +149,11 @@ func branch(root string) string {
 }
 
 func dirtyCount(root string) string {
-	out, err := exec.Command("git", "-C", root, "status", "--porcelain").Output()
+	out, err := git.Output(root, "status", "--porcelain")
 	if err != nil {
 		return "unknown"
 	}
-	return strconv.Itoa(strings.Count(string(out), "\n"))
+	return strconv.Itoa(strings.Count(out, "\n"))
 }
 
 // tooling is the <tooling> block, computed live: the package manager, then

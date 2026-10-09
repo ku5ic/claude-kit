@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -27,6 +26,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/extract"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 )
@@ -122,9 +122,9 @@ func Run(cfg *config.Config, args []string, stdout, stderr io.Writer) int {
 // grepFiles is every line matching re in the repo's tracked and
 // untracked-but-not-ignored files matching the pathspecs.
 func (s *scan) grepFiles(re *regexp.Regexp, pathspecs ...string) []hit {
-	out, _ := exec.Command("git", append([]string{"-C", s.root, "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--"}, pathspecs...)...).Output()
+	out, _ := git.Output(s.root, append([]string{"ls-files", "-z", "--cached", "--others", "--exclude-standard", "--"}, pathspecs...)...)
 	var hits []hit
-	for file := range strings.SplitSeq(string(out), "\x00") {
+	for file := range strings.SplitSeq(out, "\x00") {
 		if file == "" {
 			continue
 		}
