@@ -18,6 +18,7 @@ Read your own diff as a reviewer who didn't write it and doesn't trust it. Befor
 The reviewer's report follows these, whoever prompted the checks:
 
 - It opens with the `checks: N passed, M failed` result, or, for a target it didn't check out, one line saying local checks didn't run. Only the branch-left line from `rules/workflow.md` section 1 goes above it.
+- Under that line, one line per check, as `kit run-checks` labels it: PASS, FAIL, or SKIP, and for each SKIP the reason it printed. A count alone doesn't say what ran.
 - A FAIL becomes a finding only once its cause is verified in the code and you're at least 90% sure, and never twice for something already reported.
 - A FAIL left unreported gets one line saying why: pre-existing, flaky, or unrelated.
 
