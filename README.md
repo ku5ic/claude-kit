@@ -115,7 +115,7 @@ For the whole project, `kit run-checks` runs every quality gate the repo declare
 
 `kit run-checks --plan` shows what would run, and why, without running it.
 
-- **On review:** at the end of every `/code-review` of the working tree, the reviewer runs `kit run-checks` and opens its report with the result; a failing gate becomes a finding once the reviewer has verified its cause. A review of a PR or another branch says the local checks don't apply.
+- **On review:** at the end of every `/code-review`, the reviewer runs `kit run-checks` in the checkout it reviewed and opens its report with the result; a failing gate becomes a finding once the reviewer has verified its cause. A PR or another branch is checked out first, in place or in a scratch worktree (`rules/verify.md` section 1).
 - **At the end of a plan:** ticking its last step without a `/code-review` since the last code edit blocks the stop until one runs.
 
 ### Project-first tools
