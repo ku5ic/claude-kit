@@ -43,10 +43,11 @@ type Entry struct {
 
 // Block is one content block.
 type Block struct {
-	Type string `json:"type"`
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Text string `json:"text"`
+	Type      string `json:"type"`
+	ID        string `json:"id"`
+	ToolUseID string `json:"tool_use_id"` // a tool_result's tool_use
+	Name      string `json:"name"`
+	Text      string `json:"text"`
 	// Content is a tool_result's output: a string or an array of blocks.
 	Content json.RawMessage `json:"content"`
 	Input   struct {

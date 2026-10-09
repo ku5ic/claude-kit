@@ -11,25 +11,65 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
-// checksSummary is the line kit run-checks ends a real run with; --plan
-// doesn't print it.
-var checksSummary = regexp.MustCompile(`checks: \d+ passed, \d+ failed, \d+ skipped`)
+var (
+	// checksSummary is the line kit run-checks ends a real run with; --plan
+	// doesn't print it.
+	checksSummary = regexp.MustCompile(`checks: \d+ passed, \d+ failed, \d+ skipped`)
+	// persisted is where Claude Code saved a tool result too large to inline.
+	persisted = regexp.MustCompile(`(?s)^\s*<persisted-output>.*?saved to: (\S+)`)
+)
 
 // ranChecks reports whether the agent's transcript shows a kit run-checks
-// run, by its summary line in a tool result, so a reviewer that already ran
-// it isn't sent back to re-emit its report. Reading the output, not the
-// command, needs no shell parsing: a mention in quotes prints no summary.
+// run, by its summary line in a tool result (or the file a large one was
+// saved to), so a reviewer that already ran it isn't sent back to re-emit
+// its report. Reading the output, not the command, needs no shell parsing:
+// a mention in quotes prints no summary.
 func ranChecks(path string) bool {
 	ran := false
 	// A read error leaves what was read: the hook fails open.
 	_ = transcript.Each(path, func(e transcript.Entry) {
 		for _, b := range e.Blocks {
-			if b.Type == "tool_result" && checksSummary.MatchString(b.ResultText()) {
-				ran = true
+			if b.Type != "tool_result" {
+				continue
 			}
+			text := b.ResultText()
+			if m := persisted.FindStringSubmatch(text); m != nil {
+				if data, err := os.ReadFile(m[1]); err == nil {
+					text = string(data)
+				}
+			}
+			ran = ran || checksSummary.MatchString(text)
 		}
 	})
 	return ran
+}
+
+// forkedSkill is the skill a forked subagent runs: from Claude Code's
+// .forked-skill.json sidecar, else, for a foreground fork that writes none,
+// "code-review" when the parent's code-review Skill call has no result yet.
+func forkedSkill(agentTranscript, parent string) string {
+	if data, err := os.ReadFile(strings.TrimSuffix(agentTranscript, ".jsonl") + ".forked-skill.json"); err == nil {
+		var fork struct {
+			SkillName string `json:"skillName"`
+		}
+		_ = json.Unmarshal(data, &fork)
+		return fork.SkillName
+	}
+	pending := map[string]bool{}
+	_ = transcript.Each(parent, func(e transcript.Entry) {
+		for _, b := range e.Blocks {
+			switch {
+			case b.Type == "tool_use" && b.Name == "Skill" && b.Input.Skill == "code-review":
+				pending[b.ID] = true
+			case b.Type == "tool_result":
+				delete(pending, b.ToolUseID)
+			}
+		}
+	})
+	if len(pending) > 0 {
+		return "code-review"
+	}
+	return ""
 }
 
 // ReviewChecks holds a forked /code-review at its first stop (SubagentStop)
@@ -46,17 +86,10 @@ func ReviewChecks(h *hook.Hook) error {
 	if transcript == "" {
 		return nil
 	}
-	// A forked skill runs as agent_type "general-purpose"; only this sidecar,
-	// an undocumented Claude Code file, names the skill. If it moves, the
-	// hook goes quiet rather than nudging every subagent.
-	data, err := os.ReadFile(strings.TrimSuffix(transcript, ".jsonl") + ".forked-skill.json")
-	if err != nil {
-		return nil
-	}
-	var fork struct {
-		SkillName string `json:"skillName"`
-	}
-	if json.Unmarshal(data, &fork) != nil || fork.SkillName != "code-review" {
+	// A forked skill runs as agent_type "general-purpose"; only undocumented
+	// Claude Code records name the skill. If they move, the hook goes quiet
+	// rather than nudging every subagent.
+	if forkedSkill(transcript, p.String("transcript_path")) != "code-review" {
 		return nil
 	}
 	if h.Config() == nil || project.Toplevel(h.Payload.Cwd()) == "" || ranChecks(transcript) {

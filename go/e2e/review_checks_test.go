@@ -82,4 +82,36 @@ func TestReviewChecks(t *testing.T) {
 		e, transcript := setup(t, "")
 		quiet(t, e, stop(e, transcript, false))
 	})
+	// A model-invoked foreground fork writes no .forked-skill.json; the
+	// parent's pending Skill call names it.
+	parent := func(t *testing.T, lines ...string) string {
+		path := filepath.Join(t.TempDir(), "parent.jsonl")
+		body := ""
+		for _, l := range lines {
+			body += l + "\n"
+		}
+		Write(t, path, body)
+		return path
+	}
+	skillCall := `{"type":"assistant","message":{"content":[{"type":"tool_use","id":"s1","name":"Skill","input":{"skill":"code-review"}}]}}`
+	withParent := func(e *runChecksEnv, transcript, parentPath string) Result {
+		return e.k.Hook("review-checks", map[string]any{"hook_event_name": "SubagentStop", "agent_type": "general-purpose",
+			"agent_transcript_path": transcript, "transcript_path": parentPath, "stop_hook_active": false, "cwd": e.project})
+	}
+	t.Run("a fork with no sidecar is a review when the parent's code-review Skill call is pending", func(t *testing.T) {
+		e, transcript := setup(t, "")
+		withParent(e, transcript, parent(t, skillCall)).Want(t, 2)
+	})
+	t.Run("a subagent after a finished review call stops freely", func(t *testing.T) {
+		e, transcript := setup(t, "")
+		done := `{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"s1","content":"Skill \"code-review\" completed (forked execution)."}]}}`
+		quiet(t, e, withParent(e, transcript, parent(t, skillCall, done)))
+	})
+	t.Run("a run-checks summary in persisted output counts", func(t *testing.T) {
+		e, transcript := setup(t, `{"skillName":"code-review"}`)
+		saved := filepath.Join(t.TempDir(), "out.txt")
+		Write(t, saved, "PASS go: vet\n...\nchecks: 5 passed, 0 failed, 1 skipped\n")
+		Write(t, transcript, `{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":"<persisted-output>\nOutput too large (84.2KB). Full output saved to: `+saved+`\n\nPreview (first 2KB):\nPASS go: vet\n</persisted-output>"}]}}`+"\n")
+		quiet(t, e, stop(e, transcript, false))
+	})
 }
