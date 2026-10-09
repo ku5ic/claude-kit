@@ -30,7 +30,7 @@ func launchedReview(text string) string {
 		AgentID   string `json:"agentId"`
 		SkillName string `json:"skillName"`
 	}
-	if json.Unmarshal([]byte(m[1]), &launch) != nil || launch.SkillName != "code-review" {
+	if json.Unmarshal([]byte(m[1]), &launch) != nil || launch.SkillName != reviewSkill {
 		return ""
 	}
 	return launch.AgentID
@@ -85,7 +85,7 @@ func planDone(path, plansDir string, isCode func(string) bool) (plan string, rev
 		}
 		for _, b := range e.ToolUses() {
 			switch {
-			case b.Name == "Skill" && b.Input.Skill == "code-review":
+			case b.Name == "Skill" && b.Input.Skill == reviewSkill:
 				started[b.ID] = e.Line
 			case slices.Contains(transcript.EditTools, b.Name):
 				if p := b.Path(); strings.HasPrefix(p, plansDir+string(filepath.Separator)) {

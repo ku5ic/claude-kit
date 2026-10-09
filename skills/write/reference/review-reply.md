@@ -27,7 +27,7 @@ Draft replies to a reviewer's PR comments, verifying each claim against the actu
    - Read the referenced file at the given line, plus enough surrounding context to understand the claim (the function, its callers, related types/hooks).
    - Trace the actual behavior: if the comment claims something is dead code, unreachable, redundant, or inconsistent, verify it by reading the code paths involved, not by re-reading the comment.
    - If the comment concerns a contract this repo doesn't own (e.g. a backend API, an external service), check whether a project-specific scout/backend agent is configured (`/agents` in this session) and use it; otherwise verify from what's available (schema files, generated types, docs in-repo) and say plainly what could not be confirmed.
-   - Do not fabricate verification. Anything not actually checked against the code is a judgment call, and gets flagged as one in the answer.
+   - Label what wasn't checked against the code, per `rules/evidence.md` section 1.
 
 ## Deciding the answer
 

@@ -3,6 +3,7 @@
 package git
 
 import (
+	"bytes"
 	"os/exec"
 	"strings"
 )
@@ -37,4 +38,22 @@ func Lines(dir string, args ...string) ([]string, error) {
 		}
 	}
 	return lines, err
+}
+
+// Files is dir's tracked and untracked-but-not-ignored files matching
+// pathspecs (all when none), relative to dir.
+func Files(dir string, pathspecs ...string) ([]string, error) {
+	out, err := Output(dir, append([]string{"ls-files", "-z", "--cached", "--others", "--exclude-standard", "--"}, pathspecs...)...)
+	var files []string
+	for file := range strings.SplitSeq(out, "\x00") {
+		if file != "" {
+			files = append(files, file)
+		}
+	}
+	return files, err
+}
+
+// IsBinary is git's binary heuristic: a NUL byte in the first 8000 bytes.
+func IsBinary(data []byte) bool {
+	return bytes.IndexByte(data[:min(len(data), 8000)], 0) >= 0
 }

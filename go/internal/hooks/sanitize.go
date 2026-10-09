@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 )
@@ -46,7 +47,7 @@ func SanitizeOutput(h *hook.Hook) error {
 	data, err := os.ReadFile(path)
 	// Every rune above is U+2xxx, which UTF-8 leads with 0xE2: without that
 	// byte there's nothing to do, and the config load is skipped.
-	if err != nil || bytes.IndexByte(data, 0xE2) < 0 || !isText(data) {
+	if err != nil || bytes.IndexByte(data, 0xE2) < 0 || git.IsBinary(data) {
 		return nil
 	}
 	if cfg := h.Config(); cfg != nil && guard.GlobAny(cfg.SanitizeSkip, path) {
@@ -63,9 +64,4 @@ func SanitizeOutput(h *hook.Hook) error {
 		return os.WriteFile(path, []byte(out), info.Mode().Perm())
 	}
 	return nil
-}
-
-// isText is git's binary heuristic: no NUL byte in the first 8000 bytes.
-func isText(data []byte) bool {
-	return !bytes.Contains(data[:min(len(data), 8000)], []byte{0})
 }

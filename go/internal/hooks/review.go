@@ -6,18 +6,17 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/ku5ic/claude-kit/go/internal/checks"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
-var (
-	// checksSummary is the line kit run-checks ends a real run with; --plan
-	// doesn't print it.
-	checksSummary = regexp.MustCompile(`checks: \d+ passed, \d+ failed, \d+ skipped`)
-	// persisted is where Claude Code saved a tool result too large to inline.
-	persisted = regexp.MustCompile(`(?s)^\s*<persisted-output>.*?saved to: (\S+)`)
-)
+// reviewSkill is the skill whose forks the review hooks track.
+const reviewSkill = "code-review"
+
+// persisted is where Claude Code saved a tool result too large to inline.
+var persisted = regexp.MustCompile(`(?s)^\s*<persisted-output>.*?saved to: (\S+)`)
 
 // ranChecks reports whether the agent's transcript shows a kit run-checks
 // run, by its summary line in a tool result (or the file a large one was
@@ -29,7 +28,7 @@ func ranChecks(path string) bool {
 	// A read error leaves what was read: the hook fails open.
 	_ = transcript.Each(path, func(e transcript.Entry) {
 		for _, b := range e.Blocks {
-			if b.Type != "tool_result" {
+			if ran || b.Type != "tool_result" {
 				continue
 			}
 			text := b.ResultText()
@@ -38,7 +37,7 @@ func ranChecks(path string) bool {
 					text = string(data)
 				}
 			}
-			ran = ran || checksSummary.MatchString(text)
+			ran = checks.Summary.MatchString(text)
 		}
 	})
 	return ran
@@ -59,7 +58,7 @@ func forkedSkill(agentTranscript, parent string) string {
 	_ = transcript.Each(parent, func(e transcript.Entry) {
 		for _, b := range e.Blocks {
 			switch {
-			case b.Type == "tool_use" && b.Name == "Skill" && b.Input.Skill == "code-review":
+			case b.Type == "tool_use" && b.Name == "Skill" && b.Input.Skill == reviewSkill:
 				pending[b.ID] = true
 			case b.Type == "tool_result":
 				delete(pending, b.ToolUseID)
@@ -67,7 +66,7 @@ func forkedSkill(agentTranscript, parent string) string {
 		}
 	})
 	if len(pending) > 0 {
-		return "code-review"
+		return reviewSkill
 	}
 	return ""
 }
@@ -89,7 +88,7 @@ func ReviewChecks(h *hook.Hook) error {
 	// A forked skill runs as agent_type "general-purpose"; only undocumented
 	// Claude Code records name the skill. If they move, the hook goes quiet
 	// rather than nudging every subagent.
-	if forkedSkill(transcript, p.String("transcript_path")) != "code-review" {
+	if forkedSkill(transcript, p.String("transcript_path")) != reviewSkill {
 		return nil
 	}
 	if h.Config() == nil || project.Toplevel(h.Payload.Cwd()) == "" || ranChecks(transcript) {

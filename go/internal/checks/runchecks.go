@@ -10,6 +10,7 @@ import (
 	"io"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -226,6 +227,9 @@ func skipLine(label, reason string) string { return "SKIP " + label + " (" + rea
 func summary(pass, fail, skip int) string {
 	return fmt.Sprintf("checks: %d passed, %d failed, %d skipped", pass, fail, skip)
 }
+
+// Summary matches the line summary prints; --plan doesn't print it.
+var Summary = regexp.MustCompile(`checks: \d+ passed, \d+ failed, \d+ skipped`)
 
 // head is lines' first maxOutputLines.
 func head(lines []string) []string { return lines[:min(len(lines), maxOutputLines)] }
@@ -501,6 +505,7 @@ func (p *planner) leafGates(s *subPlan, c config.Check) bool {
 		if l.inline {
 			by = s.coveredBy(c.Name, l.tools)
 		}
+		skip := ""
 		switch {
 		case by == l.label && len(l.gate.Words) > 0:
 			// Two steps alike but for arguments: name what this one ran.
@@ -511,11 +516,14 @@ func (p *planner) leafGates(s *subPlan, c config.Check) bool {
 				}
 				words[k] = w
 			}
-			l.gate = Gate{Label: l.label, Skip: "covered by an earlier step running " + l.tools[0] + "; skipped `" + strings.Join(words, " ") + "`", CI: l.gate.CI}
+			skip = "covered by an earlier step running " + l.tools[0] + "; skipped `" + strings.Join(words, " ") + "`"
 		case by != "":
-			l.gate = Gate{Label: l.label, Skip: "covered by " + by, CI: l.gate.CI}
+			skip = "covered by " + by
 		case l.gate.Skip == "" && p.cfg.CheckDisabled(c.Name, l.label):
-			l.gate = Gate{Label: l.label, Skip: "disabled_checks", CI: l.gate.CI}
+			skip = "disabled_checks"
+		}
+		if skip != "" {
+			l.gate = Gate{Label: l.label, Skip: skip, CI: l.gate.CI}
 		}
 		// A skipped leaf still reports the check, so no "no task" line.
 		matched = true

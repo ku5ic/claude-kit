@@ -206,11 +206,9 @@ const walkCap = 20000
 // stopping at walkCap files.
 func listFiles(cfg *config.Config, root string) []string {
 	var files []string
-	if out, err := git.Output(root, "ls-files", "--cached", "--others", "--exclude-standard", "-z"); err == nil {
-		for file := range strings.SplitSeq(out, "\x00") {
-			if file != "" {
-				files = append(files, filepath.Join(root, file))
-			}
+	if rel, err := git.Files(root); err == nil {
+		for _, file := range rel {
+			files = append(files, filepath.Join(root, file))
 		}
 		return files
 	}

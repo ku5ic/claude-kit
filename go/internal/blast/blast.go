@@ -139,14 +139,11 @@ func (s *scan) print(dynamic bool, stdout io.Writer) {
 // grepFiles is every line matching re in the repo's tracked and
 // untracked-but-not-ignored files matching the pathspecs.
 func (s *scan) grepFiles(re *regexp.Regexp, pathspecs ...string) []hit {
-	out, _ := git.Output(s.root, append([]string{"ls-files", "-z", "--cached", "--others", "--exclude-standard", "--"}, pathspecs...)...)
+	files, _ := git.Files(s.root, pathspecs...)
 	var hits []hit
-	for file := range strings.SplitSeq(out, "\x00") {
-		if file == "" {
-			continue
-		}
+	for _, file := range files {
 		data, err := os.ReadFile(filepath.Join(s.root, file))
-		if err != nil || bytes.IndexByte(data[:min(len(data), 8000)], 0) >= 0 {
+		if err != nil || git.IsBinary(data) {
 			continue
 		}
 		sc := bufio.NewScanner(bytes.NewReader(data))

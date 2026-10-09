@@ -5,6 +5,7 @@ package transcript
 import (
 	"bufio"
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"io"
 	"os"
@@ -52,22 +53,15 @@ type Block struct {
 	// Content is a tool_result's output: a string or an array of blocks.
 	Content json.RawMessage `json:"content"`
 	Input   struct {
-		FilePath     *string `json:"file_path"`
-		NotebookPath *string `json:"notebook_path"`
-		Skill        string  `json:"skill"`
-		Command      string  `json:"command"`
+		FilePath     string `json:"file_path"`
+		NotebookPath string `json:"notebook_path"`
+		Skill        string `json:"skill"`
 	} `json:"input"`
 }
 
 // Path is the file a write tool targets: file_path, else notebook_path, else "".
 func (b Block) Path() string {
-	switch {
-	case b.Input.FilePath != nil:
-		return *b.Input.FilePath
-	case b.Input.NotebookPath != nil:
-		return *b.Input.NotebookPath
-	}
-	return ""
+	return cmp.Or(b.Input.FilePath, b.Input.NotebookPath)
 }
 
 // ResultText is a tool_result's output text: its string content, or its
@@ -79,13 +73,7 @@ func (b Block) ResultText() string {
 	}
 	var blocks []Block
 	_ = json.Unmarshal(b.Content, &blocks)
-	var texts []string
-	for _, c := range blocks {
-		if c.Type == "text" {
-			texts = append(texts, c.Text)
-		}
-	}
-	return strings.Join(texts, "\n")
+	return joinText(blocks)
 }
 
 // StartsTurn reports whether e is a real user prompt: a user entry that is
@@ -99,8 +87,13 @@ func (e Entry) PromptText() string {
 	if e.Text != "" {
 		return e.Text
 	}
+	return joinText(e.Blocks)
+}
+
+// joinText is blocks' text blocks, joined by newlines.
+func joinText(blocks []Block) string {
 	var texts []string
-	for _, b := range e.Blocks {
+	for _, b := range blocks {
 		if b.Type == "text" {
 			texts = append(texts, b.Text)
 		}

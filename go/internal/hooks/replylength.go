@@ -116,8 +116,7 @@ func turnLimit(l config.ReplyLimits, prompt string) turn {
 			return turn{Limit: n, All: true}
 		}
 	}
-	switch {
-	case hasTrigger(text, l.ExplainTriggers):
+	if hasTrigger(text, l.ExplainTriggers) {
 		return turn{Limit: l.Explain}
 	}
 	return turn{Limit: l.Chat}

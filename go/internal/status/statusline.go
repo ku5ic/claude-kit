@@ -256,7 +256,7 @@ func gitStatus(home, cwd, sessionID string) string {
 	// cwd's subtree, numstat the whole repo.
 	var branch, unstaged, staged, untracked string
 	var wg sync.WaitGroup
-	wg.Go(func() { branch, _ = git.Line(cwd, "branch", "--show-current") })
+	wg.Go(func() { branch, _ = project.Branch(cwd) })
 	wg.Go(func() { unstaged, _ = git.Output(cwd, "diff", "--numstat") })
 	wg.Go(func() { staged, _ = git.Output(cwd, "diff", "--cached", "--numstat") })
 	wg.Go(func() { untracked, _ = git.Output(top, "ls-files", "--others", "--exclude-standard", "-z") })
@@ -319,7 +319,7 @@ func newLines(path string) int {
 	n, last, first := 0, byte('\n'), true
 	for {
 		k, err := f.Read(buf)
-		if first && bytes.IndexByte(buf[:min(k, 8000)], 0) >= 0 {
+		if first && git.IsBinary(buf[:k]) {
 			return 0
 		}
 		first = false
