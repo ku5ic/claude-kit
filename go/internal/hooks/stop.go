@@ -37,11 +37,10 @@ func StopChecks(h *hook.Hook) error {
 	} else {
 		f.Close()
 	}
-	top, err := git.Line(cwd, "rev-parse", "--show-toplevel")
+	root, err := git.Line(cwd, "rev-parse", "--show-toplevel") // already physical
 	if err != nil {
 		return nil
 	}
-	root := project.PhysicalPath(top)
 	cfg := h.Config()
 	if cfg == nil {
 		return nil

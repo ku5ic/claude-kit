@@ -1,12 +1,31 @@
 package project
 
 import (
+	"os"
 	"path/filepath"
 	"regexp"
 	"testing"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 )
+
+// Callers drop their own symlink resolving on the strength of this; outside
+// git, Root keeps the path as given (kit project-root prints $PWD).
+func TestToplevelIsPhysicalThroughASymlink(t *testing.T) {
+	tmp, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	real, link := filepath.Join(tmp, "real"), filepath.Join(tmp, "link")
+	put(t, real, "sub/x.go", "package x\n")
+	runGit(t, real, "init", "-q")
+	if err := os.Symlink(real, link); err != nil {
+		t.Fatal(err)
+	}
+	if top := Toplevel(filepath.Join(link, "sub")); top != real {
+		t.Errorf("Toplevel = %q, want %q", top, real)
+	}
+}
 
 func TestName(t *testing.T) {
 	t.Setenv("HOME", "/Users/someone")

@@ -53,7 +53,8 @@ func PhysicalPath(path string) string {
 	return filepath.Join(dir, filepath.Base(path))
 }
 
-// Toplevel is the git worktree root holding dir, "" outside a repo.
+// Toplevel is the git worktree root holding dir, "" outside a repo. Git
+// resolves symlinks, so it's the physical path.
 func Toplevel(dir string) string {
 	top, err := git.Line(dir, "rev-parse", "--show-toplevel")
 	if err != nil {
