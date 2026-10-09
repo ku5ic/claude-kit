@@ -133,7 +133,7 @@ func Load(p Paths) (*Config, []Warning, error) {
 	if tag == "merged" {
 		from = p.Overlay
 	}
-	for _, err := range cfg.unknownDisables() {
+	for _, err := range append(cfg.unknownDisables(), cfg.ReplyLimits.negatives()...) {
 		warnings = append(warnings, Warning{from, err})
 	}
 	cfg.StackOrder = mappingKeys(mappingValue(merged, "stacks"))

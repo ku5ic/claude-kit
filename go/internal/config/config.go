@@ -3,6 +3,7 @@ package config
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -394,11 +395,29 @@ type Extra struct {
 // ReplyLimits are the word ceilings rules/output.md section 0 names. A
 // prompt holding a detail trigger lifts the chat ceiling, one holding an
 // explain trigger raises it to Explain. Write is per /write kind, the whole
-// reply. 0 is no ceiling.
+// reply. A prompt that starts with an UncappedCommands command has none.
+// 0 is no ceiling.
 type ReplyLimits struct {
-	Chat            int            `yaml:"chat"`
-	Explain         int            `yaml:"explain"`
-	ExplainTriggers []string       `yaml:"explain_triggers"`
-	DetailTriggers  []string       `yaml:"detail_triggers"`
-	Write           map[string]int `yaml:"write"`
+	Chat             int            `yaml:"chat"`
+	Explain          int            `yaml:"explain"`
+	ExplainTriggers  []string       `yaml:"explain_triggers"`
+	DetailTriggers   []string       `yaml:"detail_triggers"`
+	UncappedCommands []string       `yaml:"uncapped_commands"`
+	Write            map[string]int `yaml:"write"`
+}
+
+// negatives names each ceiling below 0, which would silently mean "off".
+func (l ReplyLimits) negatives() []error {
+	var errs []error
+	check := func(name string, n int) {
+		if n < 0 {
+			errs = append(errs, fmt.Errorf("reply_limits: %s is %d; a ceiling is 0 (off) or more", name, n))
+		}
+	}
+	check("chat", l.Chat)
+	check("explain", l.Explain)
+	for _, kind := range slices.Sorted(maps.Keys(l.Write)) {
+		check("write."+kind, l.Write[kind])
+	}
+	return errs
 }

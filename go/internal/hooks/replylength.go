@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"unicode"
 
@@ -14,10 +15,10 @@ import (
 )
 
 // writeCommand is a typed /write and its kind; command is any leading
-// slash command, whose name isn't free text for the triggers.
+// slash command and its name, which isn't free text for the triggers.
 var (
 	writeCommand = regexp.MustCompile(`^\s*/(?:kit:)?write\s+([a-z-]+)`)
-	command      = regexp.MustCompile(`^\s*/\S+`)
+	command      = regexp.MustCompile(`^\s*/(\S+)`)
 )
 
 // turn is what UserPromptSubmit records for the Stops that follow: the
@@ -94,10 +95,14 @@ func ReplyLength(h *hook.Hook) error {
 	return nil
 }
 
-// turnLimit is what a prompt sets: none after a detail trigger; a /write
-// kind's ceiling, code included; the explain ceiling after an explain
-// trigger; else the chat one. A leading slash command's name isn't a trigger.
+// turnLimit is what a prompt sets: none for an uncapped command or after a
+// detail trigger; a /write kind's ceiling, code included; the explain
+// ceiling after an explain trigger; else the chat one. A leading slash
+// command's name isn't a trigger.
 func turnLimit(l config.ReplyLimits, prompt string) turn {
+	if m := command.FindStringSubmatch(prompt); m != nil && slices.Contains(l.UncappedCommands, m[1]) {
+		return turn{}
+	}
 	text := command.ReplaceAllString(prompt, "")
 	if hasTrigger(text, l.DetailTriggers) {
 		return turn{}
@@ -122,26 +127,35 @@ func hasTrigger(text string, triggers []string) bool {
 	for i, t := range triggers {
 		quoted[i] = regexp.QuoteMeta(t)
 	}
-	return regexp.MustCompile(`(?i)\b(?:` + strings.Join(quoted, "|") + `)\b`).MatchString(text)
+	// A hyphen joins a compound ("why-not"), so it bounds a trigger like a letter.
+	return regexp.MustCompile(`(?i)(?:^|[^\w-])(?:` + strings.Join(quoted, "|") + `)(?:$|[^\w-])`).MatchString(text)
 }
 
 // countWords counts the words in text, fenced code only when all. A token
 // with no letter or digit (a table's pipes, a bullet, a rule) isn't a word.
+// A fence closes only on its own marker; one never closed was prose.
 func countWords(text string, all bool) int {
-	n, fenced := 0, false
+	n, inFence := 0, 0
+	fence := ""
 	for line := range strings.Lines(text) {
-		if strings.HasPrefix(strings.TrimSpace(line), "```") {
-			fenced = !fenced
+		if trimmed := strings.TrimSpace(line); fence == "" && (strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~")) {
+			fence = trimmed[:3]
+			continue
+		} else if fence != "" && strings.HasPrefix(trimmed, fence) {
+			fence, inFence = "", 0
 			continue
 		}
-		if fenced && !all {
-			continue
-		}
+		words := 0
 		for _, f := range strings.Fields(line) {
 			if strings.IndexFunc(f, func(r rune) bool { return unicode.IsLetter(r) || unicode.IsDigit(r) }) >= 0 {
-				n++
+				words++
 			}
 		}
+		if fence != "" && !all {
+			inFence += words
+			continue
+		}
+		n += words
 	}
-	return n
+	return n + inFence
 }

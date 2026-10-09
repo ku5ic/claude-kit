@@ -682,14 +682,16 @@ check_timeout: 90
 # Chat reply word ceilings (rules/output.md section 0), set per prompt and
 # enforced at Stop by the reply-length hook. Fenced code doesn't count.
 # A prompt with a detail trigger has no ceiling; with an explain trigger,
-# the explain one. write: the /write kinds that print to the terminal, code
-# included; the others write a file and reply with its path. 0 turns a
-# ceiling off.
+# the explain one. uncapped_commands: slash commands (as typed, without the
+# slash) whose turn is a report, so none. write: the /write kinds that print
+# to the terminal, code included; the others write a file and reply with its
+# path. 0 turns a ceiling off.
 reply_limits:
   chat: 40
   explain: 80
   explain_triggers: [explain, why, tradeoff, tradeoffs, review, audit]
   detail_triggers: [in detail, walk me through, long version]
+  uncapped_commands: [verify, code-review, kit:audit, kit:deps, audit, deps]
   write:
     commit: 40
     devnote: 40

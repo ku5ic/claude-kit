@@ -186,6 +186,23 @@ func TestDisablesThatMatchNothingWarn(t *testing.T) {
 	}
 }
 
+func TestNegativeReplyLimitsWarn(t *testing.T) {
+	dir := t.TempDir()
+	base := write(t, dir, "kit.yml", "reply_limits:\n  chat: -5\n  explain: 80\n  write: {commit: -1}\n")
+	_, warnings, err := Load(Paths{Base: base})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, w := range warnings {
+		got = append(got, w.Err.Error())
+	}
+	want := `reply_limits: chat is -5; a ceiling is 0 (off) or more|reply_limits: write.commit is -1; a ceiling is 0 (off) or more`
+	if strings.Join(got, "|") != want {
+		t.Errorf("warnings = %q, want %q", got, want)
+	}
+}
+
 func TestUnknownKeysWarnWithTheirFile(t *testing.T) {
 	dir := t.TempDir()
 	base := write(t, dir, "kit.yml", "protected_branches: [main]\nformatters:\n  - name: x\n    signal_fies: [a]\n")

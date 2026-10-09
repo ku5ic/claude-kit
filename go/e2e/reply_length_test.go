@@ -67,7 +67,24 @@ func TestReplyLength(t *testing.T) {
 	})
 	t.Run("a slash command's name isn't a trigger", func(t *testing.T) {
 		k := New(t)
-		prompt(k, "/code-review high").Has(t, "40 words")
+		prompt(k, "/security-review high").Has(t, "40 words")
+	})
+	t.Run("an uncapped command's turn has no ceiling", func(t *testing.T) {
+		k := New(t)
+		for _, p := range []string{"/verify this branch", "/code-review high", "/kit:audit perf"} {
+			prompt(k, p).Empty(t)
+			stop(k, words(500), false).Want(t, 0)
+		}
+	})
+	t.Run("an unclosed fence doesn't hide the prose after it; a tilde fence is code", func(t *testing.T) {
+		k := New(t)
+		prompt(k, "go")
+		stop(k, words(30)+"\n~~~\n"+words(200)+"\n~~~\n", false).Want(t, 0)
+		stop(k, words(30)+"\n```\n"+words(20), false).Want(t, 2)
+	})
+	t.Run("a hyphenated compound isn't a trigger", func(t *testing.T) {
+		k := New(t)
+		prompt(k, "is it a why-not case").Has(t, "40 words")
 	})
 	t.Run("a turn with no prompt of its own gets the chat ceiling", func(t *testing.T) {
 		k := New(t)
