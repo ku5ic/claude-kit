@@ -45,8 +45,8 @@ func Report(cfg *config.Config, root string) string {
 			}
 			locs = append(locs, sub)
 			for _, extra := range cfg.Stacks[stack].Extras {
-				if token, ok := matchExtra(extra, dir); ok && !slices.Contains(extras, token) {
-					extras = append(extras, token)
+				if matchExtra(extra, dir) && !slices.Contains(extras, extra.Name) {
+					extras = append(extras, extra.Name)
 				}
 			}
 			if pm == "" && hasEcosystem(cfg, stack) {
@@ -112,35 +112,31 @@ func hasEcosystem(cfg *config.Config, ecosystem string) bool {
 }
 
 // matchExtra evaluates one extra's first rule kind present, in the order
-// dep, pydep, file, grep, any_of, and returns the token it reports as.
-func matchExtra(extra config.Extra, dir string) (string, bool) {
-	token := extra.Name
-	if extra.Rename != "" {
-		token = extra.Rename
-	}
+// dep, pydep, file, grep, any_of, and reports whether it matches.
+func matchExtra(extra config.Extra, dir string) bool {
 	switch {
 	case extra.Dep != "":
 		_, ok := tools.JSSpecs(dir)[extra.Dep]
-		return token, ok
+		return ok
 	case extra.PyDep != "":
-		return token, tools.PythonDeps(dir)[extra.PyDep]
+		return tools.PythonDeps(dir)[extra.PyDep]
 	case extra.File != "":
-		return token, project.IsFile(filepath.Join(dir, extra.File))
+		return project.IsFile(filepath.Join(dir, extra.File))
 	case extra.Grep != "":
-		return token, grepAny(dir, extra.Grep, extra.In)
+		return grepAny(dir, extra.Grep, extra.In)
 	}
 	for _, rule := range extra.AnyOf {
 		if rule.File != "" && project.IsFile(filepath.Join(dir, rule.File)) {
-			return token, true
+			return true
 		}
 		if rule.Grep != "" && grepAny(dir, rule.Grep, rule.In) {
-			return token, true
+			return true
 		}
 		if rule.PyDep != "" && tools.PythonDeps(dir)[rule.PyDep] {
-			return token, true
+			return true
 		}
 	}
-	return "", false
+	return false
 }
 
 // grepAny is `grep -qE pattern` over each file: ^ and $ anchor per line.

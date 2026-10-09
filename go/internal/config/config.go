@@ -378,6 +378,5 @@ type Extra struct {
 	Name   string `yaml:"name"`
 	Rule   `yaml:",inline"`
 	AnyOf  []Rule   `yaml:"any_of"`
-	Rename string   `yaml:"rename"`
 	Skills []string `yaml:"skills"`
 }

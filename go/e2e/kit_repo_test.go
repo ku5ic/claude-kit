@@ -154,6 +154,31 @@ func TestKitRepo(t *testing.T) {
 		}
 	})
 
+	t.Run("the tooling rule's CLI table names every kit.yml tool", func(t *testing.T) {
+		cfg, _, err := config.Load(config.Paths{Base: filepath.Join(kitRoot, "kit.yml"), Overlay: filepath.Join(t.TempDir(), "none.yml")})
+		if err != nil {
+			t.Fatal(err)
+		}
+		rule := Read(t, filepath.Join(kitRoot, "rules/tooling.md"))
+		// Every word of every code span, and each word pair joined with -
+		// (`git absorb` is git-absorb).
+		var tools []string
+		for _, m := range regexp.MustCompile("`([^`]+)`").FindAllStringSubmatch(rule, -1) {
+			words := strings.Fields(m[1])
+			for i, w := range words {
+				tools = append(tools, w)
+				if i+1 < len(words) {
+					tools = append(tools, w+"-"+words[i+1])
+				}
+			}
+		}
+		for _, tool := range cfg.Tools {
+			if !slices.Contains(tools, tool) {
+				t.Errorf("kit.yml tools has %s, which rules/tooling.md section 1 doesn't name", tool)
+			}
+		}
+	})
+
 	t.Run("audit verify parses every per-finding field the report format requires", func(t *testing.T) {
 		format := Read(t, filepath.Join(kitRoot, "skills/report-format/SKILL.md"))
 		verify := Read(t, filepath.Join(kitRoot, "skills/audit/reference/verify.md"))
