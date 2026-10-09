@@ -335,10 +335,9 @@ func (c *command) chmod() error {
 
 // git splits past git's global options: the subcommand, its arguments, and
 // the -C directory.
-func (c *command) git() error {
-	words := c.values()
-	sub, dir := "", ""
-	var args []string
+// gitSubcommand splits git's words past its global options: the
+// subcommand, its arguments, and the -C directory.
+func gitSubcommand(words []string) (sub string, args []string, dir string) {
 	for i := 0; i < len(words); {
 		w := words[i]
 		switch {
@@ -347,17 +346,19 @@ func (c *command) git() error {
 				dir = words[i+1]
 			}
 			i += 2
-			continue
 		case slices.Contains([]string{"-c", "--git-dir", "--work-tree", "--namespace", "--config-env", "--super-prefix"}, w):
 			i += 2
-			continue
 		case strings.HasPrefix(w, "-"):
 			i++
-			continue
+		default:
+			return w, words[i+1:], dir
 		}
-		sub, args = w, words[i+1:]
-		break
 	}
+	return "", nil, dir
+}
+
+func (c *command) git() error {
+	sub, args, dir := gitSubcommand(c.values())
 	has := func(arg string) bool { return slices.Contains(args, arg) }
 
 	switch sub {
@@ -419,75 +420,74 @@ func nonOptions(words []string) []string {
 	return out
 }
 
-func (c *command) gitPush(args []string, dir string) error {
-	wantValue, optsDone, haveRemote, tagsOnly := false, false, false, false
-	var refspecs []string
+// push is git push's arguments as the guard reads them.
+type push struct {
+	forced   []string // block reasons for --force, -f, --mirror, in order
+	tagsOnly bool     // --tags: pushes tags, not the current branch
+	refspecs []string
+}
+
+func parsePush(args []string) push {
+	var p push
+	wantValue, optsDone, haveRemote := false, false, false
 	for _, a := range args {
-		if wantValue {
+		switch {
+		case wantValue:
 			wantValue = false
-			continue
-		}
-		if !optsDone {
-			switch {
-			case a == "--":
-				optsDone = true
-				continue
-			case a == "--force":
-				if err := c.block("git push --force. Use --force-with-lease if you must.", "git-force-push"); err != nil {
-					return err
-				}
-				continue
-			case a == "--mirror":
-				if err := c.block("git push --mirror overwrites every remote ref, protected branches included", "git-force-push"); err != nil {
-					return err
-				}
-				continue
-			case a == "--tags":
-				// Pushes tags, not the current branch.
-				tagsOnly = true
-				continue
-			case slices.Contains([]string{"--repo", "--push-option", "--receive-pack", "--exec"}, a):
-				wantValue = true
-				continue
-			case strings.HasPrefix(a, "--"):
-				continue
-			case strings.HasPrefix(a, "-"):
-				if strings.Contains(a, "f") {
-					if err := c.block("git push -f. Use --force-with-lease if you must.", "git-force-push"); err != nil {
-						return err
-					}
-				}
-				if strings.HasSuffix(a, "o") {
-					wantValue = true
-				}
-				continue
+		case optsDone || !strings.HasPrefix(a, "-"):
+			if haveRemote {
+				p.refspecs = append(p.refspecs, a)
 			}
-		}
-		if !haveRemote {
 			haveRemote = true
-			continue
-		}
-		refspecs = append(refspecs, a)
-	}
-	for _, ref := range refspecs {
-		if strings.HasPrefix(ref, "+") {
-			if err := c.block("force push via a +refspec. Use --force-with-lease if you must.", "git-force-push"); err != nil {
-				return err
+		case a == "--":
+			optsDone = true
+		case a == "--force":
+			p.forced = append(p.forced, "git push --force. Use --force-with-lease if you must.")
+		case a == "--mirror":
+			p.forced = append(p.forced, "git push --mirror overwrites every remote ref, protected branches included")
+		case a == "--tags":
+			p.tagsOnly = true
+		case slices.Contains([]string{"--repo", "--push-option", "--receive-pack", "--exec"}, a):
+			wantValue = true
+		case strings.HasPrefix(a, "--"):
+		default:
+			if strings.Contains(a, "f") {
+				p.forced = append(p.forced, "git push -f. Use --force-with-lease if you must.")
 			}
+			wantValue = strings.HasSuffix(a, "o")
 		}
+	}
+	for _, ref := range p.refspecs {
+		if strings.HasPrefix(ref, "+") {
+			p.forced = append(p.forced, "force push via a +refspec. Use --force-with-lease if you must.")
+		}
+	}
+	return p
+}
+
+func (c *command) gitPush(args []string, dir string) error {
+	p := parsePush(args)
+	for _, reason := range p.forced {
+		if err := c.block(reason, "git-force-push"); err != nil {
+			return err
+		}
+	}
+	dsts := make([]string, 0, len(p.refspecs))
+	for _, ref := range p.refspecs {
 		dst := ref[strings.LastIndexByte(ref, ':')+1:]
 		if dst == "HEAD" {
 			dst = c.st.currentBranch(dir)
 		}
+		dsts = append(dsts, dst)
+	}
+	if len(p.refspecs) == 0 && !p.tagsOnly {
+		dsts = append(dsts, c.st.currentBranch(dir))
+	}
+	for _, dst := range dsts {
 		if c.st.isProtected(dst) {
 			if err := c.block("push to a protected branch; use a feature branch", "git-push-protected"); err != nil {
 				return err
 			}
-		}
-	}
-	if len(refspecs) == 0 && !tagsOnly && c.st.isProtected(c.st.currentBranch(dir)) {
-		if err := c.block("push to a protected branch; use a feature branch", "git-push-protected"); err != nil {
-			return err
 		}
 	}
 	c.st.ask("git push publishes commits to a remote; confirm the destination")

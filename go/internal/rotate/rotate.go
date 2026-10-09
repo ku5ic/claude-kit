@@ -25,12 +25,10 @@ import (
 
 // Run is `kit scratch-rotate [days] [--dry-run]`; it returns the exit status.
 func Run(cfg *config.Config, paths config.Paths, n int, dryRun bool, stdout, stderr io.Writer) int {
-	home := os.Getenv("HOME")
-	r := &rotator{now: time.Now(), dryRun: dryRun, log: filepath.Join(paths.LogDir(), "scratch-rotate.log")}
-	pruned, dropping := "pruned", "dropping"
-	r.verb = "deleted"
+	r := &rotator{now: time.Now(), dryRun: dryRun, log: filepath.Join(paths.LogDir(), "scratch-rotate.log"),
+		verb: "deleted", pruned: "pruned", stdout: stdout}
 	if dryRun {
-		r.verb, pruned, dropping = "would-delete", "would prune", "would drop"
+		r.verb, r.pruned = "would-delete", "would prune"
 	}
 	_ = os.MkdirAll(paths.LogDir(), 0o755)
 
@@ -40,10 +38,9 @@ func Run(cfg *config.Config, paths config.Paths, n int, dryRun bool, stdout, std
 		// markers after a day: they only dedupe within a session.
 		removed := r.prune(scratch, n, false, func(name string) bool { return strings.HasSuffix(name, ".md") })
 		markers := r.prune(scratch, 1, true, func(name string) bool { return strings.HasPrefix(name, ".injected-") })
-		fmt.Fprintf(stdout, "scratch-rotate: %s %d artifact(s) older than %dd from %s\n", pruned, removed, n, scratch)
-		fmt.Fprintf(stdout, "scratch-rotate: %s %d session marker(s) older than 1d from %s\n", pruned, markers, scratch)
+		fmt.Fprintf(stdout, "scratch-rotate: %s %d artifact(s) older than %dd from %s\n", r.pruned, removed, n, scratch)
+		fmt.Fprintf(stdout, "scratch-rotate: %s %d session marker(s) older than 1d from %s\n", r.pruned, markers, scratch)
 	}
-
 	for _, m := range []struct{ kind, what string }{
 		{config.SkillsLoaded, "skill-loaded marker(s)"},
 		{config.FileSkills, "file-skills cache(s)"},
@@ -51,36 +48,50 @@ func Run(cfg *config.Config, paths config.Paths, n int, dryRun bool, stdout, std
 		{config.Statusline, "statusline cache(s)"},
 	} {
 		if dir := filepath.Join(paths.CacheDir(), m.kind); project.IsDir(dir) {
-			fmt.Fprintf(stdout, "scratch-rotate: %s %d %s older than 1d from %s\n", pruned, r.prune(dir, 1, false, nil), m.what, dir)
+			fmt.Fprintf(stdout, "scratch-rotate: %s %d %s older than 1d from %s\n", r.pruned, r.prune(dir, 1, false, nil), m.what, dir)
 		}
 	}
+	r.registry(paths.ScratchRegistry(), n, stderr)
+	r.trimLogs(paths.LogDir(), cfg.LogMaxLines)
+	return 0
+}
 
-	registry := paths.ScratchRegistry()
-	if data, err := os.ReadFile(registry); err == nil {
-		var keep []string
-		for dir := range strings.SplitSeq(string(data), "\n") {
-			switch {
-			case dir == "":
-			case !project.IsDir(dir):
-				fmt.Fprintf(stdout, "scratch-rotate: %s stale registry entry %s (directory no longer exists)\n", dropping, dir)
-			case !validScratchDir(dir, home):
-				fmt.Fprintf(stderr, "scratch-rotate: REFUSING registry entry %s (not a plain scratch/ dir under $HOME)\n", dir)
-				keep = append(keep, dir)
-			default:
-				// Project scratch holds test artifacts and POC files of any
-				// extension, so it prunes by age alone.
-				fmt.Fprintf(stdout, "scratch-rotate: %s %d artifact(s) older than %dd from %s\n", pruned, r.prune(dir, n, false, nil), n, dir)
-				keep = append(keep, dir)
-			}
-		}
-		if !dryRun {
-			writeLines(registry, keep)
+// registry prunes every project scratch dir the registry lists by age
+// alone (project scratch holds test artifacts and POC files of any
+// extension), dropping entries whose directory is gone.
+func (r *rotator) registry(registry string, n int, stderr io.Writer) {
+	data, err := os.ReadFile(registry)
+	if err != nil {
+		return
+	}
+	dropping := "dropping"
+	if r.dryRun {
+		dropping = "would drop"
+	}
+	home := os.Getenv("HOME")
+	var keep []string
+	for dir := range strings.SplitSeq(string(data), "\n") {
+		switch {
+		case dir == "":
+		case !project.IsDir(dir):
+			fmt.Fprintf(r.stdout, "scratch-rotate: %s stale registry entry %s (directory no longer exists)\n", dropping, dir)
+		case !validScratchDir(dir, home):
+			fmt.Fprintf(stderr, "scratch-rotate: REFUSING registry entry %s (not a plain scratch/ dir under $HOME)\n", dir)
+			keep = append(keep, dir)
+		default:
+			fmt.Fprintf(r.stdout, "scratch-rotate: %s %d artifact(s) older than %dd from %s\n", r.pruned, r.prune(dir, n, false, nil), n, dir)
+			keep = append(keep, dir)
 		}
 	}
+	if !r.dryRun {
+		writeLines(registry, keep)
+	}
+}
 
-	// Every JSONL log the kit writes is capped here; the hooks that append
-	// to them never trim.
-	logs, _ := filepath.Glob(filepath.Join(paths.LogDir(), "*.jsonl"))
+// trimLogs caps every JSONL log in dir at maxLines, keeping the newest; the
+// hooks that append to them never trim.
+func (r *rotator) trimLogs(dir string, maxLines int) {
+	logs, _ := filepath.Glob(filepath.Join(dir, "*.jsonl"))
 	for _, log := range logs {
 		if !project.IsFile(log) {
 			continue
@@ -89,27 +100,28 @@ func Run(cfg *config.Config, paths config.Paths, n int, dryRun bool, stdout, std
 		lines, err := readLines(log)
 		if err != nil {
 			// Trimming what was read so far would drop the unread rest.
-			fmt.Fprintf(stdout, "scratch-rotate: %s not trimmed, unreadable: %v\n", name, err)
+			fmt.Fprintf(r.stdout, "scratch-rotate: %s not trimmed, unreadable: %v\n", name, err)
 			continue
 		}
 		switch total := len(lines); {
-		case total <= cfg.LogMaxLines:
-			fmt.Fprintf(stdout, "scratch-rotate: %s has %d lines, no trim needed\n", name, total)
-		case dryRun:
-			fmt.Fprintf(stdout, "scratch-rotate: would trim %s from %d to %d lines\n", name, total, cfg.LogMaxLines)
+		case total <= maxLines:
+			fmt.Fprintf(r.stdout, "scratch-rotate: %s has %d lines, no trim needed\n", name, total)
+		case r.dryRun:
+			fmt.Fprintf(r.stdout, "scratch-rotate: would trim %s from %d to %d lines\n", name, total, maxLines)
 		default:
-			writeLines(log, lines[total-cfg.LogMaxLines:])
-			fmt.Fprintf(stdout, "scratch-rotate: trimmed %s from %d to %d lines\n", name, total, cfg.LogMaxLines)
+			writeLines(log, lines[total-maxLines:])
+			fmt.Fprintf(r.stdout, "scratch-rotate: trimmed %s from %d to %d lines\n", name, total, maxLines)
 		}
 	}
-	return 0
 }
 
 type rotator struct {
 	now    time.Time
 	dryRun bool
-	verb   string
+	verb   string // the rotate log's word for a delete
+	pruned string // the output's
 	log    string
+	stdout io.Writer
 }
 
 // prune deletes the regular files under dir (only dir itself with

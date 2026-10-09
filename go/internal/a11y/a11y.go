@@ -4,6 +4,7 @@
 package a11y
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -19,6 +20,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/extract"
 	"github.com/ku5ic/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/tools"
 )
 
 var nonSlug = regexp.MustCompile(`[^A-Za-z0-9]+`)
@@ -54,37 +56,49 @@ func Run(cfg *config.Config, paths config.Paths, cwd string, args []string, stdo
 		return 2
 	}
 	url := args[0]
-	root := project.Toplevel(cwd)
-	if root == "" {
-		root, _ = filepath.EvalSymlinks(cwd)
-	}
 	physical, _ := filepath.EvalSymlinks(cwd)
-
-	axe := project.FindUp(physical, root, "node_modules/.bin/axe")
-	if axe == "" {
-		axe, _ = exec.LookPath("axe")
-	}
-	if axe == "" {
+	root := cmp.Or(project.Toplevel(cwd), physical)
+	axe := tools.Resolve(cfg, physical, root, "axe", tools.AnyPath)
+	if axe.Words == nil {
 		fmt.Fprintln(stdout, "a11y-check: axe not found. Install it: npm install -D @axe-core/cli (or -g)")
 		return 3
 	}
-
 	if !answers(url) {
 		fmt.Fprintf(stdout, "a11y-check: %s does not answer.\n", url)
-		scripts := extract.JSONKeys(filepath.Join(root, "package.json"), ".scripts")
-		for _, candidate := range []string{"storybook", "dev"} {
-			if slices.Contains(scripts, candidate) {
-				pm := cfg.DefaultManager("js")
-				if lock, ok := project.NearestLockfile(cfg, root, "js"); ok {
-					pm = lock.Manager
-				}
-				fmt.Fprintf(stdout, "Start it with: %s run %s\n", pm, candidate)
-				break
-			}
-		}
+		startHint(cfg, root, stdout)
 		return 4
 	}
+	raw, err := rawPath(cfg, paths, cwd, url)
+	if err != nil {
+		fmt.Fprintln(stderr, "a11y-check:", err)
+		return 1
+	}
+	out, err := exec.Command(axe.Words[0], append(axe.Words[1:], url, "--stdout")...).Output()
+	if err != nil || os.WriteFile(raw, out, 0o644) != nil || digest(out, url, raw, stdout) != nil {
+		fmt.Fprintf(stderr, "a11y-check: axe failed on %s\n", url)
+		return 1
+	}
+	return 0
+}
 
+// startHint names the package script that likely serves the page.
+func startHint(cfg *config.Config, root string, stdout io.Writer) {
+	scripts := extract.JSONKeys(filepath.Join(root, "package.json"), ".scripts")
+	for _, candidate := range []string{"storybook", "dev"} {
+		if slices.Contains(scripts, candidate) {
+			pm := cfg.DefaultManager("js")
+			if lock, ok := project.NearestLockfile(cfg, root, "js"); ok {
+				pm = lock.Manager
+			}
+			fmt.Fprintf(stdout, "Start it with: %s run %s\n", pm, candidate)
+			return
+		}
+	}
+}
+
+// rawPath is where the raw axe JSON goes: beside the scratch report path,
+// as .json; a second run in the same minute keeps the first's results.
+func rawPath(cfg *config.Config, paths config.Paths, cwd, url string) (string, error) {
 	_, rest, found := strings.Cut(url, "://")
 	if !found {
 		rest = url
@@ -93,38 +107,32 @@ func Run(cfg *config.Config, paths config.Paths, cwd string, args []string, stdo
 	slug = strings.TrimSuffix(strings.TrimPrefix(slug[:min(len(slug), 40)], "-"), "-")
 	dir, err := project.Dir(cfg, paths, cwd, "scratch", true)
 	if err != nil {
-		fmt.Fprintln(stderr, "a11y-check:", err)
-		return 1
+		return "", err
 	}
 	stem := strings.TrimSuffix(project.ReportPath(dir, "a11y-runtime", slug, time.Now().Format("20060102-1504")), ".md")
 	raw := stem + ".json"
-	// A second run in the same minute keeps the first's results.
-	for n := 2; ; n++ {
-		if _, err := os.Stat(raw); err != nil {
-			break
-		}
+	for n := 2; project.IsFile(raw); n++ {
 		raw = fmt.Sprintf("%s-%d.json", stem, n)
 	}
+	return raw, nil
+}
 
-	out, err := exec.Command(axe, url, "--stdout").Output()
-	if err != nil || os.WriteFile(raw, out, 0o644) != nil {
-		fmt.Fprintf(stderr, "a11y-check: axe failed on %s\n", url)
-		return 1
-	}
+type violation struct {
+	ID     string   `json:"id"`
+	Impact *string  `json:"impact"`
+	Tags   []string `json:"tags"`
+	Nodes  []struct {
+		Target []any `json:"target"`
+	} `json:"nodes"`
+}
 
+// digest prints axe's JSON results as one line per violated rule.
+func digest(out []byte, url, raw string, stdout io.Writer) error {
 	var results []struct {
-		Violations []struct {
-			ID     string   `json:"id"`
-			Impact *string  `json:"impact"`
-			Tags   []string `json:"tags"`
-			Nodes  []struct {
-				Target []any `json:"target"`
-			} `json:"nodes"`
-		} `json:"violations"`
+		Violations []violation `json:"violations"`
 	}
-	if json.Unmarshal(out, &results) != nil {
-		fmt.Fprintf(stderr, "a11y-check: axe failed on %s\n", url)
-		return 1
+	if err := json.Unmarshal(out, &results); err != nil {
+		return err
 	}
 	count := 0
 	for _, r := range results {
@@ -143,29 +151,31 @@ func Run(cfg *config.Config, paths config.Paths, cwd string, args []string, stdo
 					wcag = append(wcag, t)
 				}
 			}
-			tags := strings.Join(wcag, ",")
-			if tags == "" {
-				tags = "-"
-			}
-			selector := ""
-			if len(v.Nodes) > 0 {
-				var parts []string
-				for _, t := range v.Nodes[0].Target {
-					switch x := t.(type) {
-					case string:
-						parts = append(parts, x)
-					case []any:
-						var inner []string
-						for _, s := range x {
-							inner = append(inner, fmt.Sprint(s))
-						}
-						parts = append(parts, strings.Join(inner, " "))
-					}
-				}
-				selector = strings.Join(parts, " >> ")
-			}
-			fmt.Fprintf(stdout, "%s  %s  %s  nodes=%d  %s\n", v.ID, impact, tags, len(v.Nodes), selector)
+			tags := cmp.Or(strings.Join(wcag, ","), "-")
+			fmt.Fprintf(stdout, "%s  %s  %s  nodes=%d  %s\n", v.ID, impact, tags, len(v.Nodes), v.firstSelector())
 		}
 	}
-	return 0
+	return nil
+}
+
+// firstSelector is the first node's target as axe prints it; a nested
+// (shadow DOM) target joins with ">>".
+func (v violation) firstSelector() string {
+	if len(v.Nodes) == 0 {
+		return ""
+	}
+	var parts []string
+	for _, t := range v.Nodes[0].Target {
+		switch x := t.(type) {
+		case string:
+			parts = append(parts, x)
+		case []any:
+			var inner []string
+			for _, s := range x {
+				inner = append(inner, fmt.Sprint(s))
+			}
+			parts = append(parts, strings.Join(inner, " "))
+		}
+	}
+	return strings.Join(parts, " >> ")
 }

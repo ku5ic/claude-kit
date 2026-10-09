@@ -5,6 +5,7 @@ package status
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -67,56 +68,52 @@ func Statusline(stdin io.Reader, stdout io.Writer, home string) {
 	raw, _ := io.ReadAll(stdin)
 	var data map[string]any
 	_ = json.Unmarshal(raw, &data) // bad input renders the defaults
+	fmt.Fprintf(stdout, "%s\n%s\n", modelRow(data, home), usageRow(data))
+}
 
+// modelRow is the model, any model divergence, the agent, the directory,
+// and the git segment.
+func modelRow(data map[string]any, home string) string {
 	modelName := jqString(data, "model.display_name", "unknown")
 	cwd := jqString(data, "workspace.current_dir", "")
-	sessionID := jqString(data, "session_id", "")
-	ctxPct := jqString(data, "context_window.used_percentage", "0")
-	cost := jqString(data, "cost.total_cost_usd", "0")
-	durationMS := jqString(data, "cost.total_duration_ms", "0")
-	effort := jqString(data, "effort.level", "")
-	fiveH := jqString(data, "rate_limits.five_hour.used_percentage", "")
-	agent := jqString(data, "agent.name", "")
-	if agent == "" {
-		agent = jqString(data, "agent_type", "")
-	}
-	transcript := jqString(data, "transcript_path", "")
+	agent := cmp.Or(jqString(data, "agent.name", ""), jqString(data, "agent_type", ""))
+	actualShort, actualDisplay, sessionShort, declaredShort, declaredDisplay := models(jqString(data, "transcript_path", ""), modelName)
 
-	actualShort, actualDisplay, sessionShort, declaredShort, declaredDisplay := models(transcript, modelName)
-
-	dirName := filepath.Base(cwd)
-	if cwd == "" {
-		dirName = "."
-	}
-	gitSegment := gitStatus(home, cwd, sessionID)
-
-	row1 := modelColor + modelName + reset
+	row := modelColor + modelName + reset
 	switch {
 	case declaredShort != "":
 		// Usually the override silently fell back to the session model,
 		// already shown first; name the actual model only when it's a
 		// third, different one.
 		if actualShort == sessionShort {
-			row1 += "  " + red + "!" + declaredDisplay + reset
+			row += "  " + red + "!" + declaredDisplay + reset
 		} else {
-			row1 += "  " + red + "!" + declaredDisplay + "->  " + actualDisplay + reset
+			row += "  " + red + "!" + declaredDisplay + "->  " + actualDisplay + reset
 		}
 	case actualShort != "" && actualShort != sessionShort:
-		row1 += "  " + yellow + "->  " + actualDisplay + reset
+		row += "  " + yellow + "->  " + actualDisplay + reset
 	}
 	if agent != "" {
-		row1 += " (" + agent + ")"
+		row += " (" + agent + ")"
 	}
-	row1 += "  " + dirColor + dirName + reset
-	if gitSegment != "" {
-		parts := strings.SplitN(gitSegment, "\t", 3)
+	dirName := filepath.Base(cwd)
+	if cwd == "" {
+		dirName = "."
+	}
+	row += "  " + dirColor + dirName + reset
+	if seg := gitStatus(home, cwd, jqString(data, "session_id", "")); seg != "" {
+		parts := strings.SplitN(seg, "\t", 3)
 		for len(parts) < 3 {
 			parts = append(parts, "")
 		}
-		row1 += "  " + branchColor + parts[0] + reset + " " + addColor + "+" + parts[1] + reset + " " + delColor + "~" + parts[2] + reset
+		row += "  " + branchColor + parts[0] + reset + " " + addColor + "+" + parts[1] + reset + " " + delColor + "~" + parts[2] + reset
 	}
+	return row
+}
 
-	ctx, _ := strconv.Atoi(strings.SplitN(ctxPct, ".", 2)[0])
+// usageRow is the context bar, cost, duration, effort, and 5h rate limit.
+func usageRow(data map[string]any) string {
+	ctx, _ := strconv.Atoi(strings.SplitN(jqString(data, "context_window.used_percentage", "0"), ".", 2)[0])
 	ctx = min(max(ctx, 0), 100)
 	filled := ctx / (100 / barWidth)
 	color := green
@@ -127,35 +124,35 @@ func Statusline(stdin io.Reader, stdout io.Writer, home string) {
 		color = yellow
 	}
 	bar := strings.Repeat("█", filled) + strings.Repeat("░", barWidth-filled)
-
-	costFmt := cost
+	cost := jqString(data, "cost.total_cost_usd", "0")
 	if f, err := strconv.ParseFloat(cost, 64); err == nil {
-		costFmt = fmt.Sprintf("%.2f", f)
+		cost = fmt.Sprintf("%.2f", f)
 	}
-	ms, _ := strconv.ParseFloat(durationMS, 64)
-	seconds := int(ms) / 1000
-	var duration string
-	switch {
-	case seconds >= 3600:
-		duration = fmt.Sprintf("%dh %dm", seconds/3600, seconds%3600/60)
-	case seconds >= 60:
-		duration = fmt.Sprintf("%dm", seconds/60)
-	default:
-		duration = fmt.Sprintf("%ds", seconds)
-	}
-
-	row2 := fmt.Sprintf("%s%s%s %d%%  $%s   %s%s%s", color, bar, reset, ctx, costFmt, durationColor, duration, reset)
+	ms, _ := strconv.ParseFloat(jqString(data, "cost.total_duration_ms", "0"), 64)
+	row := fmt.Sprintf("%s%s%s %d%%  $%s   %s%s%s", color, bar, reset, ctx, cost, durationColor, duration(int(ms)/1000), reset)
 	tail := ""
-	if effort != "" {
+	if effort := jqString(data, "effort.level", ""); effort != "" {
 		tail += "  effort:" + effort
 	}
-	if fiveH != "" {
+	if fiveH := jqString(data, "rate_limits.five_hour.used_percentage", ""); fiveH != "" {
 		tail += "  5h:" + strings.SplitN(fiveH, ".", 2)[0] + "%"
 	}
 	if tail != "" {
-		row2 += " " + tail
+		row += " " + tail
 	}
-	fmt.Fprintf(stdout, "%s\n%s\n", row1, row2)
+	return row
+}
+
+// duration is seconds as "1h 2m", "3m", or "45s".
+func duration(seconds int) string {
+	switch {
+	case seconds >= 3600:
+		return fmt.Sprintf("%dh %dm", seconds/3600, seconds%3600/60)
+	case seconds >= 60:
+		return fmt.Sprintf("%dm", seconds/60)
+	default:
+		return fmt.Sprintf("%ds", seconds)
+	}
 }
 
 var (

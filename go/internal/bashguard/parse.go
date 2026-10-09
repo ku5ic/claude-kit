@@ -218,66 +218,7 @@ func (c *collector) stmt(src string, s *syntax.Stmt) {
 			c.inner(src, p.Cmd)
 			continue
 		}
-		for _, a := range call.Assigns {
-			c.inner(src, a)
-		}
-		for _, w := range call.Args {
-			c.inner(src, w)
-		}
-		for _, r := range p.Redirs {
-			c.inner(src, r.Word)
-		}
-		cl := Call{}
-		for _, a := range call.Assigns {
-			if a.Name == nil {
-				continue
-			}
-			value := ""
-			if a.Value != nil {
-				value = wordValue(src, a.Value)
-			}
-			cl.Assigns = append(cl.Assigns, a.Name.Value+"="+value)
-		}
-		if len(call.Args) > 0 {
-			cl.start = int(call.Args[0].Pos().Offset())
-		} else {
-			cl.start = int(p.Pos().Offset())
-		}
-		for _, w := range call.Args {
-			cl.Words = append(cl.Words, Word{wordValue(src, w), src[w.Pos().Offset():w.End().Offset()], int(w.End().Offset())})
-		}
-		if cmd, ok := envSplitString(cl.Words); ok {
-			c.parse(cmd, c.depth+1)
-		}
-		for _, r := range p.Redirs {
-			if r.Hdoc != nil {
-				body := src[r.Hdoc.Pos().Offset():r.Hdoc.End().Offset()]
-				// The slice ends with the terminator line; it isn't body.
-				if nl := strings.LastIndexByte(body, '\n'); nl >= 0 && r.Word != nil &&
-					strings.TrimLeft(body[nl+1:], "\t") == wordValue(src, r.Word) {
-					body = body[:nl]
-				}
-				cl.Heredocs = append(cl.Heredocs, body)
-				c.inner(src, r.Hdoc)
-				continue
-			}
-			if r.Word == nil {
-				continue
-			}
-			value := wordValue(src, r.Word)
-			switch op := r.Op.String(); {
-			case r.Op == syntax.WordHdoc: // bash <<< "rm -rf ~" runs its word
-				cl.Heredocs = append(cl.Heredocs, value)
-			case r.Op == syntax.RdrIn:
-				cl.Inputs = append(cl.Inputs, value)
-			case strings.Contains(op, ">"):
-				// >&2 duplicates an fd: its target is "&2", never a file name.
-				if r.Op == syntax.DplOut {
-					value = "&" + value
-				}
-				cl.Redirs = append(cl.Redirs, Redir{op, Word{value, src[r.Word.Pos().Offset():r.Word.End().Offset()], int(r.Word.End().Offset())}})
-			}
-		}
+		cl := c.call(src, p, call)
 		if len(cl.Words) > 0 && shells[baseName(cl.Words[0].Value)] {
 			feedsShell = true
 		}
@@ -293,6 +234,77 @@ func (c *collector) stmt(src string, s *syntax.Stmt) {
 				c.parse(body, c.depth+1)
 			}
 		}
+	}
+}
+
+// call reads one simple command of a pipeline: its words, assignments, and
+// redirects, parsing any string env -S runs and any substitution in them.
+func (c *collector) call(src string, p *syntax.Stmt, call *syntax.CallExpr) Call {
+	for _, a := range call.Assigns {
+		c.inner(src, a)
+	}
+	for _, w := range call.Args {
+		c.inner(src, w)
+	}
+	for _, r := range p.Redirs {
+		c.inner(src, r.Word)
+	}
+	var cl Call
+	for _, a := range call.Assigns {
+		if a.Name == nil {
+			continue
+		}
+		value := ""
+		if a.Value != nil {
+			value = wordValue(src, a.Value)
+		}
+		cl.Assigns = append(cl.Assigns, a.Name.Value+"="+value)
+	}
+	if len(call.Args) > 0 {
+		cl.start = int(call.Args[0].Pos().Offset())
+	} else {
+		cl.start = int(p.Pos().Offset())
+	}
+	for _, w := range call.Args {
+		cl.Words = append(cl.Words, Word{wordValue(src, w), src[w.Pos().Offset():w.End().Offset()], int(w.End().Offset())})
+	}
+	if cmd, ok := envSplitString(cl.Words); ok {
+		c.parse(cmd, c.depth+1)
+	}
+	for _, r := range p.Redirs {
+		c.redirect(src, r, &cl)
+	}
+	return cl
+}
+
+// redirect records r on cl: a heredoc's body, a < input, or a > target.
+func (c *collector) redirect(src string, r *syntax.Redirect, cl *Call) {
+	if r.Hdoc != nil {
+		body := src[r.Hdoc.Pos().Offset():r.Hdoc.End().Offset()]
+		// The slice ends with the terminator line; it isn't body.
+		if nl := strings.LastIndexByte(body, '\n'); nl >= 0 && r.Word != nil &&
+			strings.TrimLeft(body[nl+1:], "\t") == wordValue(src, r.Word) {
+			body = body[:nl]
+		}
+		cl.Heredocs = append(cl.Heredocs, body)
+		c.inner(src, r.Hdoc)
+		return
+	}
+	if r.Word == nil {
+		return
+	}
+	value := wordValue(src, r.Word)
+	switch op := r.Op.String(); {
+	case r.Op == syntax.WordHdoc: // bash <<< "rm -rf ~" runs its word
+		cl.Heredocs = append(cl.Heredocs, value)
+	case r.Op == syntax.RdrIn:
+		cl.Inputs = append(cl.Inputs, value)
+	case strings.Contains(op, ">"):
+		// >&2 duplicates an fd: its target is "&2", never a file name.
+		if r.Op == syntax.DplOut {
+			value = "&" + value
+		}
+		cl.Redirs = append(cl.Redirs, Redir{op, Word{value, src[r.Word.Pos().Offset():r.Word.End().Offset()], int(r.Word.End().Offset())}})
 	}
 }
 
