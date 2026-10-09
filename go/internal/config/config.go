@@ -26,7 +26,6 @@ type Config struct {
 	SensitivePaths    []string            `yaml:"sensitive_paths"`
 	LogMaxLines       int                 `yaml:"log_max_lines"`
 	DisabledRules     []string            `yaml:"disabled_rules"`
-	TaskProviders     []TaskProvider      `yaml:"task_providers"`
 	Checks            []Check             `yaml:"checks"`
 	ToolchainChecks   []ToolchainCheck    `yaml:"toolchain_checks"`
 
@@ -118,7 +117,7 @@ func (c *Config) unknownDisables() []error {
 		}
 	}
 	for _, d := range c.DisabledTaskProviders {
-		if !slices.ContainsFunc(c.TaskProviders, func(tp TaskProvider) bool { return tp.Name == d }) {
+		if !slices.ContainsFunc(TaskProviders, func(tp TaskProvider) bool { return tp.Name == d }) {
 			errs = append(errs, fmt.Errorf("disabled_task_providers: %q names no task provider", d))
 		}
 	}
@@ -234,17 +233,6 @@ func (c *Config) DefaultManager(ecosystem string) string {
 	return ""
 }
 
-type TaskProvider struct {
-	Name      string            `yaml:"name"`
-	Stack     string            `yaml:"stack"`
-	Manifests []string          `yaml:"manifests"`
-	Extractor string            `yaml:"extractor"`
-	Arg       string            `yaml:"arg"`
-	Run       string            `yaml:"run"`
-	RunByPM   map[string]string `yaml:"run_by_pm"`
-	Body      string            `yaml:"body"`
-}
-
 type Check struct {
 	Name    string        `yaml:"name"`
 	Tasks   []string      `yaml:"tasks"`
@@ -277,28 +265,11 @@ type ToolPattern struct {
 	Advisory bool     `yaml:"advisory"`
 }
 
-// GateDiscovery is the shell grammar the gate classifier reads task bodies
-// with (go/internal/classify).
+// GateDiscovery is the CI steps and jobs the kit never runs (go/internal/ci).
 type GateDiscovery struct {
-	Wrappers       []string    `yaml:"wrappers"`
-	ToolRunners    []string    `yaml:"tool_runners"`
-	References     []Reference `yaml:"references"`
-	ScriptRunners  []string    `yaml:"script_runners"`
-	FanOutFlags    []string    `yaml:"fan_out_flags"`
-	FanOutCommands []string    `yaml:"fan_out_commands"`
-	DenyCommands   []string    `yaml:"deny_commands"`
-	DenyNames      []string    `yaml:"deny_names"`
-	DenyActions    []string    `yaml:"deny_actions"`
-}
-
-// Reference is a command prefix that runs another task of provider: the
-// word after it, or Task when set. With Shorthand, a word that names no such
-// task is a tool instead (pnpm eslint).
-type Reference struct {
-	Prefix    string `yaml:"prefix"`
-	Provider  string `yaml:"provider"`
-	Task      string `yaml:"task"`
-	Shorthand bool   `yaml:"shorthand"`
+	DenyCommands []string `yaml:"deny_commands"`
+	DenyNames    []string `yaml:"deny_names"`
+	DenyActions  []string `yaml:"deny_actions"`
 }
 
 type ToolchainCheck struct {

@@ -24,7 +24,7 @@ Draft a pattern skill pack for a stack from current docs and this repo's precede
    - Detection: a new `stacks.<stack>` with sentinels, or an `extras` entry under the stack that hosts it (a `dep:`, `file:`, or `grep:` rule), whose `skills:` lists the pack.
    - `skill_file_map`: the file globs that should trigger the pack, if the stack has its own file types.
    - `skill_triggers`: one phrase naming a concrete action ("before writing ..."), like the existing ones.
-   - When the stack has its own task runner, check commands, or formatter: a `task_providers`, `toolchain_checks`, or `formatters` entry. Anything that runs a binary resolves it locally, never through `npx` or another installer.
+   - When the stack has its own task runner: a reader in `go/internal/config/grammar.go`. Its check commands or formatter: a `toolchain_checks` or `formatters` entry. Anything that runs a binary resolves it locally, never through `npx` or another installer.
 6. Verify. Run `go test ./...` in `"$CLAUDE_KIT_DEV/go"`; it checks the new skill against `kit.yml`. Fix any failure.
 7. Report the path of the new skill directory, the `kit.yml` keys touched, and the one manual step: add `"Skill(<name>)"` to `permissions.allow` in the user's `settings.json`.
 

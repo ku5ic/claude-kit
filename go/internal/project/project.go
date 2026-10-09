@@ -174,7 +174,7 @@ type Provider struct {
 // Providers lists the task providers with a manifest in dir, tasks or not.
 func Providers(cfg *config.Config, dir string) []Provider {
 	var out []Provider
-	for i, tp := range cfg.TaskProviders {
+	for i, tp := range config.TaskProviders {
 		if slices.Contains(cfg.DisabledTaskProviders, tp.Name) {
 			continue
 		}
@@ -207,7 +207,7 @@ func Tasks(cfg *config.Config, dir string) []Task {
 	physical := ""
 	var out []Task
 	for _, p := range Providers(cfg, dir) {
-		tp := cfg.TaskProviders[p.index]
+		tp := config.TaskProviders[p.index]
 		pm, cached := pmByStack[p.Stack]
 		if !cached {
 			if physical == "" {

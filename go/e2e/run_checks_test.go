@@ -451,17 +451,8 @@ func TestRunChecks(t *testing.T) {
 		e.callsEqual("nx", "affected -t typecheck --uncommitted\naffected -t test --uncommitted")
 	})
 
-	// kit.yml overlay: a new provider is data, not code.
-	t.Run("an overlay-defined composer provider runs its test script", func(t *testing.T) {
+	t.Run("composer.json scripts run through composer", func(t *testing.T) {
 		e := runChecksSetup(t)
-		e.k.Overlay(`task_providers:
-  - name: composer
-    stack: php
-    manifests: [composer.json]
-    extractor: json_keys
-    arg: .scripts
-    run: "composer run {task}"
-`)
 		e.write("composer.json", `{"scripts": {"test": "phpunit"}}`)
 		e.stub("composer", 0)
 		e.run().Has(t, "PASS php: test (test)")

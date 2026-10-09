@@ -249,61 +249,6 @@ log_max_lines: 10000
 # the overlay: a disabled rule is still logged, as "disabled".
 disabled_rules: []
 
-# Task runners and where their task names live (`bin/kit tasks`); nothing
-# here reaches eval.
-#   manifests: file names checked in order; the first that exists is read
-#   extractor: one of json_keys, json_array, toml_keys, toml_array,
-#              yaml_array, make_targets, just_recipes, regex_lines
-#   arg:       the extractor's argument: a dotted path, or an ERE whose last
-#              capture group is the task name (regex_lines)
-#   run:       command template; {task} is the task, {pm} the package manager
-#              resolved for the directory (the default manager when none)
-#   run_by_pm: run templates that replace run under a given package manager
-#   body:      template for the shell a task runs, as the gate classifier
-#              reads it; {body} is what the manifest holds (a cargo alias
-#              holds "clippy ...", which runs as "cargo clippy ...")
-task_providers:
-  - name: package-scripts
-    stack: js
-    manifests: [package.json]
-    extractor: json_keys
-    arg: .scripts
-    run: "{pm} run {task}"
-  - name: make
-    manifests: [Makefile, makefile, GNUmakefile]
-    extractor: make_targets
-    run: "make {task}"
-  - name: just
-    manifests: [justfile, Justfile, .justfile]
-    extractor: just_recipes
-    run: "just {task}"
-  - name: pdm
-    stack: python
-    manifests: [pyproject.toml]
-    extractor: toml_keys
-    arg: .tool.pdm.scripts
-    run: "pdm run {task}"
-  - name: poe
-    stack: python
-    manifests: [pyproject.toml]
-    extractor: toml_keys
-    arg: .tool.poe.tasks
-    run: "poe {task}"
-    run_by_pm: {poetry: "poetry run poe {task}"}
-  - name: rake
-    stack: ruby
-    manifests: [Rakefile]
-    extractor: regex_lines
-    arg: '^[[:space:]]*task[[:space:]]+:?"?([A-Za-z0-9_:]+)'
-    run: "bundle exec rake {task}"
-  - name: cargo-alias
-    stack: rust
-    manifests: [.cargo/config.toml, .cargo/config]
-    extractor: toml_keys
-    arg: .alias
-    run: "cargo {task}"
-    body: "cargo {body}"
-
 # Canonical checks: the task names that count as each, as globs, and the
 # commands that count as each when a task's name matches no glob (its body
 # is read by go/internal/classify). A task matching an exclude glob never
@@ -394,43 +339,8 @@ checks:
       - {bin: tflint, require: [--only=terraform_unused_declarations], forbid: [--fix], findings: '^(?P<file>[^\s:]+):(?P<line>\d+):\d+: \w+ - .*\(terraform_unused_declarations\)$'}
       - {bin: cargo, sub: [machete, udeps], advisory: true}
 
-# How the gate classifier reads a task body. A body it can't read with
-# certainty (a pipe, ||, a subshell, command substitution) holds no gate.
-#   wrappers          run the rest of the line, after any K=V words; never
-#                     one that loads env (dotenv --), which the gate needs
-#   tool_runners      run the word after them as a tool; the kit reads the
-#                     tool, so the project's own copy is what counts
-#   references        a prefix that runs another task of a provider: the word
-#                     after it, or task. shorthand: a word that names no such
-#                     task is a tool (pnpm eslint)
-#   script_runners    every non-flag argument is a package script
-#   fan_out_flags     on a reference, run it across workspace packages, which
-#                     run-checks covers per subproject already
-#   fan_out_commands  the same, as whole commands
+# CI steps and jobs the kit never runs (go/internal/ci).
 gate_discovery:
-  wrappers: [env, cross-env]
-  tool_runners: [npx, "pnpm exec", "pnpm dlx", bunx, "yarn dlx", "yarn exec", "npm exec", "uv run", "pipx run", "bundle exec", "poetry run", "go tool"]
-  references:
-    - {prefix: "npm run", provider: package-scripts}
-    - {prefix: "npm run-script", provider: package-scripts}
-    - {prefix: "npm test", provider: package-scripts, task: test}
-    - {prefix: "npm t", provider: package-scripts, task: test}
-    - {prefix: "pnpm run", provider: package-scripts}
-    - {prefix: "pnpm", provider: package-scripts, shorthand: true}
-    - {prefix: "yarn run", provider: package-scripts}
-    - {prefix: "yarn", provider: package-scripts, shorthand: true}
-    - {prefix: "bun run", provider: package-scripts}
-    - {prefix: "node --run", provider: package-scripts}
-    - {prefix: make, provider: make}
-    - {prefix: just, provider: just}
-    - {prefix: rake, provider: rake}
-    - {prefix: bin/rake, provider: rake}
-    - {prefix: "pdm run", provider: pdm, shorthand: true}
-    - {prefix: poe, provider: poe}
-  script_runners: [run-s, run-p, npm-run-all, npm-run-all2]
-  fan_out_flags: [-r, --recursive, --filter, -F, --workspaces, --ws, -ws, --workspace]
-  fan_out_commands: ["turbo run", turbo, "nx run-many", "nx affected", "lerna run", "yarn workspaces foreach", "pnpm -r"]
-  # CI steps are read like task bodies (go/internal/ci).
   #   deny_commands  a step holding one of these words (or word runs) is skipped
   #   deny_names     a job or step whose name holds one of these words is skipped
   #   deny_actions   a job using an action with one of these prefixes is skipped

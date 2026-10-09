@@ -36,7 +36,6 @@ func TestRealKitYMLLoadsCleanly(t *testing.T) {
 		"protected_branches": len(cfg.ProtectedBranches),
 		"rc_files":           len(cfg.RCFiles),
 		"sensitive_paths":    len(cfg.SensitivePaths),
-		"task_providers":     len(cfg.TaskProviders),
 		"checks":             len(cfg.Checks),
 		"toolchain_checks":   len(cfg.ToolchainChecks),
 		"orchestrators":      len(cfg.Orchestrators),
@@ -164,8 +163,7 @@ func TestCheckDisabledMatchesSlotOrLabel(t *testing.T) {
 func TestDisablesThatMatchNothingWarn(t *testing.T) {
 	dir := t.TempDir()
 	base := write(t, dir, "kit.yml", "checks:\n  - {name: lint}\n"+
-		"toolchain_checks:\n  - {stack: go, name: vet, cmd: x}\n"+
-		"task_providers:\n  - {name: make}\n")
+		"toolchain_checks:\n  - {stack: go, name: vet, cmd: x}\n")
 	overlay := write(t, dir, "over.yml", "disabled_checks: [lint, \"js: lint (lint:css) [web]\", vet, bogus, \"js: lnt (x)\", \"lint (.github/workflows/ci.yml: eslint)\", \"\"]\n"+
 		"disabled_toolchain_checks: [\"go:vet\", \"go:nope\", vet]\n"+
 		"disabled_task_providers: [make, mkae]\n")
