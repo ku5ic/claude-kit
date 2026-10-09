@@ -40,6 +40,8 @@ Factual question (how big, what secrets, how fast, what is in this JSON): reach 
 
 The plugin's `bin/` is on PATH, so its tools are `kit <subcommand>`: `kit scratch-dir`, `kit run-checks`, `kit git-base`. Never call it by path or through `bash`. Permission allows are written against the bare command, so a pathful or wrapped call misses them and prompts.
 
+`kit run-checks` runs the full suite: give its Bash call a 600000 ms timeout, since the 120s default cuts it short.
+
 ## 3. Scratch
 
 Scratch is whatever `kit scratch-dir` prints: `<project-root>/.claude/scratch/` inside a recognized project, `$HOME/.claude/scratch/` everywhere else.

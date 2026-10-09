@@ -19,7 +19,7 @@ After any manifest edit:
 1. Confirm before writing.
 2. Regenerate the lockfile with the manager's lockfile-only install.
 3. Verify with the manager's tree query that the tree resolved to the fixed version.
-4. Run `kit run-checks`.
+4. Run `kit run-checks`, timed per `rules/tooling.md` section 2.
 5. Branch.
 6. Commit.
 7. `gh pr create`.

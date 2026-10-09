@@ -37,7 +37,7 @@ func TestReviewChecks(t *testing.T) {
 		e, transcript := setup(t, `{"skillName":"code-review","effort":"medium"}`)
 		r := stop(e, transcript, false)
 		r.Want(t, 2)
-		r.Has(t, "haven't run `kit run-checks` in this review, run it in the checkout you reviewed", "600000 ms", "checks: N passed, M failed", "local checks didn't run",
+		r.Has(t, "haven't run `kit run-checks` in this review, run it in the checkout you reviewed", "timed per rules/tooling.md section 2", "checks: N passed, M failed", "local checks didn't run",
 			"return your full report again, every finding you already had unchanged", "at least 90% sure", "never twice")
 		if e.called("npm") {
 			t.Errorf("the hook ran the suite: %s", e.calls("npm"))

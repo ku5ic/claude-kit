@@ -16,7 +16,7 @@ Repo context arrives via the `SubagentStart` hook but no stack skills are needed
 
 - No Edit or Write tool; never fix a failing check. Report failures for the caller to act on.
 - Bash runs the checks. Never write a file with it - no redirection, no `tee`, no heredoc.
-- Run the project's `kit run-checks`; do not substitute ad hoc tool invocations.
+- Run the project's `kit run-checks`, timed per `rules/tooling.md` section 2; do not substitute ad hoc tool invocations.
 
 ## Output
 
