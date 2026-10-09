@@ -13,7 +13,13 @@ Tests and type checks prove the code compiles and the asserted paths pass. They 
 
 ## 1. Self-review (`/code-review`)
 
-Read your own diff as a reviewer who didn't write it and doesn't trust it. Before it reports, a SubagentStop hook sends it back to run `kit run-checks`; the hook's message says when and how to report the result. Ticking a plan's last step without one since the last edit blocks the stop.
+Read your own diff as a reviewer who didn't write it and doesn't trust it. Before it reports, a SubagentStop hook sends it back to run `kit run-checks` unless it already has. Ticking a plan's last step blocks the stop until a review started after the last edit has finished.
+
+The reviewer's report follows these, whoever prompted the checks:
+
+- Its first line is the `checks: N passed, M failed` result, or, for a target it didn't check out, one line saying local checks didn't run.
+- A FAIL becomes a finding only once its cause is verified in the code and you're at least 90% sure, and never twice for something already reported.
+- A FAIL left unreported gets one line saying why: pre-existing, flaky, or unrelated.
 
 A PR or another branch is reviewed checked out, never from its diff alone; this applies to `/verify` too. How it's checked out: `rules/workflow.md` section 1.
 

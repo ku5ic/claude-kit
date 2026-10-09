@@ -57,8 +57,6 @@ func ReviewChecks(h *hook.Hook) error {
 		return nil
 	}
 	return h.Block("before you return: run `kit run-checks` in the checkout you reviewed, timed per rules/tooling.md section 2. "+
-		"Then return your full report again, every finding you already had unchanged and in the same format, with its `checks: N passed, M failed` line first. "+
-		"You own every statement in it: add a FAIL as a finding only after you've verified its cause in the code and are at least 90% sure, never twice for something you already reported; "+
-		"for any FAIL you don't report, say in one line why (pre-existing, flaky, unrelated). "+
-		"If you reviewed a target you didn't check out, don't run it; open the report with one line saying local checks didn't run.", "review-checks")
+		"If you reviewed a target you didn't check out, don't run it. "+
+		"Then return your full report again, every finding you already had unchanged and in the same format, reporting the result per rules/verify.md section 1.", "review-checks")
 }
