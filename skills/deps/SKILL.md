@@ -106,7 +106,7 @@ Never merge on GitHub mergeability alone. Verify each candidate first.
 
 Per candidate, in turn:
 
-1. Check the PR out here or in a worktree, per `rules/verify.md` section 1. Ask once per run, not per PR.
+1. Check the PR out here or in a worktree, per `rules/workflow.md` section 1. Ask once per run, not per PR.
 2. Reinstall against the PR's lockfile using the injected manager's reproducible (frozen/locked) install mode.
 3. Run `kit run-checks` with Bash, timed per `rules/tooling.md` section 2. On a non-zero failed count: do not merge, record the failing label, leave the PR open, move on. `kit run-checks` owns runner detection across every stack; do not reimplement it.
 4. On pass: merge with the project's convention (read recent merges). Default `gh pr merge <n> --squash --delete-branch`.

@@ -15,10 +15,7 @@ Tests and type checks prove the code compiles and the asserted paths pass. They 
 
 Read your own diff as a reviewer who didn't write it and doesn't trust it. Before it reports, a SubagentStop hook sends it back to run `kit run-checks`; the hook's message says when and how to report the result. Ticking a plan's last step without one since the last edit blocks the stop.
 
-A PR or another branch is reviewed checked out, never from its diff alone; this applies to `/verify` too. Before invoking either on one, ask with AskUserQuestion, local checkout first and preselected, worktree second, and pass the answer as `here` or `worktree` in the args. A reviewer whose args carry neither takes `here`.
-
-- `here`: on a dirty tree, stop and say so in one line. Otherwise `gh pr checkout <n>` or `git switch <branch>`, and name the branch you left in the report's first line so the user can switch back.
-- `worktree`: `git worktree add --detach "$(kit scratch-dir)/review-<target>"`, then `gh pr checkout <n>` or `git switch --detach <branch>` inside it. Review and run `kit run-checks` there, then `git worktree remove --force` it.
+A PR or another branch is reviewed checked out, never from its diff alone; this applies to `/verify` too. How it's checked out: `rules/workflow.md` section 1.
 
 - Every new helper, module, type, or abstraction names what was searched for and not found, per `rules/change.md` section 2. "I didn't look" is a finding against the change.
 - Every non-obvious decision gets one line answering "why this, not the obvious alternative". A decision you can't justify is a decision you took from a generated draft without checking it.
