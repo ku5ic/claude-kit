@@ -7,11 +7,11 @@ description: Concrete design and code-level checks for planning, review, and wri
 
 Concrete checks that turn `rules/change.md`'s principles into questions with observable answers. The principles themselves (minimal change, existing patterns, KISS, YAGNI, DRY, SOLID, comments, dead code) live in that rule; this skill never restates or overrides them.
 
-| Activity                                | Apply                                   |
-| --------------------------------------- | --------------------------------------- |
-| Planning a change or reviewing a design | Requirements clarity, Design integrity  |
-| Writing or reviewing code               | Code-level integrity, Metric thresholds |
-| Reviewing whether a change is right     | Verification and validation             |
+| Activity                                | Apply                                                    |
+| --------------------------------------- | -------------------------------------------------------- |
+| Planning a change or reviewing a design | Requirements clarity, Design integrity                   |
+| Writing or reviewing code               | Code-level integrity, Metric thresholds, Design patterns |
+| Reviewing whether a change is right     | Verification and validation                              |
 
 Apply only what fits. Do not pad findings to fill sections.
 
@@ -21,6 +21,7 @@ Apply only what fits. Do not pad findings to fill sections.
 | [reference/design-integrity.md](reference/design-integrity.md)                       | Module ownership, abstraction level, separation of concerns, reversibility |
 | [reference/code-level-integrity.md](reference/code-level-integrity.md)               | Per-function and per-file checks                                           |
 | [reference/metric-thresholds.md](reference/metric-thresholds.md)                     | The one set of size, nesting, branch, and coupling numbers                 |
+| [reference/design-patterns.md](reference/design-patterns.md)                         | Which pattern a size, spread, or repetition signal calls for               |
 | [reference/verification-and-validation.md](reference/verification-and-validation.md) | Built it right vs built the right thing                                    |
 
 Test design is `test-patterns`.

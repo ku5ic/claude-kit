@@ -24,13 +24,9 @@ Surface technical debt and architectural risks with severity and remediation pat
 - **Testing debt**: core paths with no tests, brittle tests, untestable designs
 - **Security debt**: authn/authz gaps, input validation, exposed secrets, dependency CVEs (if easy to check)
 - **Observability debt**: silently swallowed errors, no logging on critical paths, no telemetry where it matters
-- **Dead code and duplication**: unused exports, copy-paste logic with divergent lifecycles
+- **Dead code and duplication**: unused exports, and copies of one thing along a stable axis (copies with divergent lifecycles are correct, per `rules/change.md` section 8). Each finding names the pattern `skills/engineering-fundamentals/reference/design-patterns.md` gives for its signal.
 - **Build and dependency health**: deprecated APIs, ejected config, outdated patterns, unmaintained deps
-- **Metric thresholds breached**: use `tokei` for size and a quick scan for the rest. Each is a smell, not a failure; the audit's value is correlating these with high churn from `git log`.
-  - Files over 500 lines
-  - Functions over 50 lines
-  - Cyclomatic complexity: nested conditionals deeper than 3, or branches greater than 7, in a single function
-  - Modules with more than 10 internal imports
+- **Metric thresholds breached**: the numbers in `skills/engineering-fundamentals/reference/metric-thresholds.md`; use `tokei` for size and a quick scan for the rest. Each is a smell, not a failure; the audit's value is correlating these with high churn from `git log`.
 
 ## Output per finding
 
