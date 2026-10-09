@@ -34,9 +34,11 @@ jobs:
       - name: vet
         run: go vet ./...
 
-      # Logs only: deadcode exits 0 with findings.
+      # deadcode exits 0 with findings, so any output fails the step.
       - name: deadcode
-        run: go tool deadcode -test ./...
+        run: |
+          out="$(go tool deadcode -test ./...)"
+          [ -z "$out" ] || { echo "$out"; exit 1; }
 
       # Before test: the launcher tests run the real shims, which need the
       # binary for this platform.

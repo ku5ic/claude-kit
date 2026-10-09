@@ -116,6 +116,22 @@ func TestDeadcode(t *testing.T) {
 		e.prints("make", "new.go:1:1: unreachable func: fresh", 0)
 		e.run().Has(t, "FAIL make: deadcode (deadcode)", "new.go:1:1: unreachable func: fresh")
 	})
+	t.Run("go: with no deadcode task, the toolchain row runs it, scoped", func(t *testing.T) {
+		e := runChecksSetup(t)
+		e.write("go.mod", "module example.com/x\n\ntool golang.org/x/tools/cmd/deadcode\n")
+		e.write("old.go", "package main\n")
+		e.branchOff()
+		built := filepath.Join(e.t.TempDir(), "deadcode")
+		Stub(e.t, filepath.Join(e.stubs, "go"), `[ "$1 $2 $3" = "tool -n deadcode" ] && echo `+built+"\nexit 0\n")
+		e.write("new.go", "package main\n")
+		outputs := func(out string) { Stub(e.t, built, "cat <<'EOF'\n"+out+"\nEOF\n") }
+		outputs("old.go:1:1: unreachable func: old")
+		e.run().Has(t, "PASS go: deadcode (1 finding on unchanged lines)")
+		outputs("old.go:1:1: unreachable func: old\nnew.go:1:1: unreachable func: fresh")
+		r := e.run()
+		r.Has(t, "FAIL go: deadcode", "new.go:1:1: unreachable func: fresh")
+		r.Lacks(t, "old.go:1:1: unreachable func: old")
+	})
 	t.Run("opentofu: tflint limited to unused declarations is dead code, scoped", func(t *testing.T) {
 		e := runChecksSetup(t)
 		e.write(".terraform.lock.hcl", "")

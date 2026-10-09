@@ -45,7 +45,8 @@ func TestTypicalProjects(t *testing.T) {
 			"PASS js: lint (lint)",
 			"PASS js: format-check (format:check)",
 			"PASS js: test (test)",
-			"PASS js: deadcode (knip)")
+			"PASS js: deadcode (knip)",
+			"SKIP js: deadcode (covered by js: deadcode (knip))")
 	})
 	t.Run("python: pdm scripts, uv-free", func(t *testing.T) {
 		e := runChecksSetup(t)
@@ -60,7 +61,8 @@ func TestTypicalProjects(t *testing.T) {
 			"PASS python: lint (lint)",
 			"PASS python: format-check (format-check)",
 			"PASS python: test (test)",
-			"PASS python: deadcode (deadcode)")
+			"PASS python: deadcode (deadcode)",
+			"SKIP python: deadcode (covered by python: deadcode (deadcode))")
 	})
 	t.Run("ruby: rake lint and test", func(t *testing.T) {
 		e := runChecksSetup(t)
@@ -87,7 +89,8 @@ func TestTypicalProjects(t *testing.T) {
 			"PASS make: test (test)",
 			"SKIP make: deadcode (no deadcode task)",
 			"PASS go: vet",
-			"SKIP go: test (covered by make: test (test))")
+			"SKIP go: test (covered by make: test (test))",
+			"SKIP go: deadcode (deadcode not installed)")
 	})
 	t.Run("rust: Cargo.toml alone gets cargo's own checks", func(t *testing.T) {
 		e := runChecksSetup(t)

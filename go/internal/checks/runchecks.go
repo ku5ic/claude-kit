@@ -558,6 +558,6 @@ func (p *planner) toolchainGates(s *subPlan) {
 			p.add(Gate{Label: label, Skip: run.Skip, Unrun: run.Project})
 			continue
 		}
-		p.add(Gate{Label: label, Dir: s.dir, Words: run.Words, BinLine: run.BinLine()})
+		p.add(Gate{Label: label, Dir: s.dir, Words: run.Words, BinLine: run.BinLine(), Scope: toolchainScope(p.cfg, tc)})
 	}
 }

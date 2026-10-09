@@ -218,9 +218,9 @@ func TestRunChecks(t *testing.T) {
 			files: map[string]string{"pyproject.toml": "[tool.ruff]\n"},
 			has:   []string{"SKIP python: lint (no lint task)"},
 			lacks: []string{"ruff"}},
-		{name: "py: requirements.txt alone declares no tasks, so nothing runs",
+		{name: "py: requirements.txt alone declares no tasks, so only the dead-code fallback is planned",
 			files: map[string]string{"requirements.txt": "requests\n"},
-			has:   []string{"checks: 0 passed, 0 failed, 0 skipped"},
+			has:   []string{"SKIP python: deadcode (vulture not installed)", "checks: 0 passed, 0 failed, 1 skipped"},
 			check: func(e *runChecksEnv, r Result) { r.Want(e.t, 0) }},
 
 		// Ruby: declared rake tasks run via bundler.

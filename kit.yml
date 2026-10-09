@@ -421,6 +421,8 @@ checks:
   # advisory: it runs and reports, but never fails. Dead code a change
   # leaves behind on an unchanged line (removing a function's last caller)
   # isn't caught.
+  # With no project task or CI gate filling it, the js, python, and go
+  # toolchain_checks rows run it, judged the same way.
   # Per stack: js knip, python vulture, go deadcode (golangci-lint's unused
   # is a lint gate), ruby debride (advisory), opentofu tflint limited to
   # terraform_unused_declarations (plain tflint is lint). rust: none here;
@@ -507,6 +509,9 @@ toolchain_checks:
   - {stack: rust, name: test, cmd: "{bin} test", bin: [cargo], slot: test}
   - {stack: go, name: vet, cmd: "{bin} vet ./...", bin: [go]}
   - {stack: go, name: test, cmd: "{bin} test ./...", bin: [go], slot: test}
+  - {stack: go, name: deadcode, cmd: "{bin} -test ./...", bin: [deadcode], slot: deadcode}
+  - {stack: js, name: deadcode, cmd: "{bin}", bin: [knip], slot: deadcode}
+  - {stack: python, name: deadcode, cmd: "{bin} . --exclude .venv,venv,node_modules,build,dist", bin: [vulture], slot: deadcode}
   # validate needs the providers `init` installs, so it waits for .terraform/.
   - {stack: opentofu, name: fmt, cmd: "{bin} fmt -check -recursive", bin: [tofu, terraform], slot: format-check}
   - {stack: opentofu, name: validate, cmd: "{bin} validate", bin: [tofu, terraform], when_dir: .terraform}

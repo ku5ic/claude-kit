@@ -41,6 +41,21 @@ func scopeFor(c config.Check, cmd *classify.Command) *Scope {
 	return &Scope{Findings: &tools.Findings{Item: re}}
 }
 
+// toolchainScope is the scope of toolchain check tc, judged by its slot's
+// check and the pattern its first bin matches there.
+func toolchainScope(cfg *config.Config, tc config.ToolchainCheck) *Scope {
+	c := checkNamed(cfg, tc.Slot)
+	if c.Scope == "" || len(tc.Bin) == 0 {
+		return scopeFor(c, nil)
+	}
+	body := strings.ReplaceAll(tc.Cmd, "{bin}", tc.Bin[0])
+	noTasks := func(string, string, string) bool { return false }
+	if cmd, ok := classify.Body(cfg, body, noTasks).SingleGate(); ok {
+		return scopeFor(c, &cmd)
+	}
+	return scopeFor(c, nil)
+}
+
 func checkNamed(cfg *config.Config, slot string) config.Check {
 	for _, c := range cfg.Checks {
 		if c.Name == slot {
