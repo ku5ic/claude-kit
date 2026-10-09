@@ -61,17 +61,37 @@ func stringValues(value any) map[string]Body {
 	return out
 }
 
-var makeVar = regexp.MustCompile(`\$[({]MAKE[)}]`)
+var (
+	makeVar    = regexp.MustCompile(`\$[({]MAKE[)}]`)
+	makeAssign = regexp.MustCompile(`^([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*[:?]?=[[:space:]]*(.*)$`)
+	makeRef    = regexp.MustCompile(`\$[({]([A-Za-z_][A-Za-z0-9_]*)[)}]`)
+)
 
 var oneShell = regexp.MustCompile(`^\.ONESHELL\s*:`)
 
 // makeBodies reads each explicit target's prerequisites and recipe. Recipe
-// lines lose their @, -, and + prefixes, $(MAKE) reads as make, and
+// lines lose their @, -, and + prefixes, $(MAKE) reads as make, a simple
+// variable the Makefile sets ($(RUN), ${RUN}) reads as its value, and
 // backslash continuations are joined. Each line runs in its own shell
 // unless the Makefile declares .ONESHELL.
 func makeBodies(file string) map[string]Body {
 	lines := readLines(file)
 	perLine := !slices.ContainsFunc(lines, oneShell.MatchString)
+	vars := map[string]string{}
+	for _, line := range lines {
+		if m := makeAssign.FindStringSubmatch(line); m != nil {
+			vars[m[1]] = strings.TrimSpace(m[2])
+		}
+	}
+	// An unset variable stays a $(...) the classifier won't read.
+	expand := func(line string) string {
+		return makeRef.ReplaceAllStringFunc(makeVar.ReplaceAllString(line, "make"), func(ref string) string {
+			if v, ok := vars[makeRef.FindStringSubmatch(ref)[1]]; ok {
+				return v
+			}
+			return ref
+		})
+	}
 	out := map[string]Body{}
 	for i := 0; i < len(lines); i++ {
 		if !makeTarget.MatchString(lines[i]) {
@@ -93,7 +113,7 @@ func makeBodies(file string) map[string]Body {
 				i++
 				line = strings.TrimRight(strings.TrimSuffix(line, "\\"), " \t") + " " + strings.TrimSpace(lines[i])
 			}
-			body = append(body, makeVar.ReplaceAllString(line, "make"))
+			body = append(body, expand(line))
 		}
 		out[name] = Body{Text: strings.Join(body, "\n"), PerLine: perLine}
 	}

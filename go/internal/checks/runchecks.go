@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ku5ic/claude-kit/go/internal/ci"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/extract"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
@@ -110,7 +111,7 @@ func (p *planner) subprojects() []string {
 // resolving their tools: run-checks runs each one whose tool the project
 // has, unless a gate running the same tool already fills its check.
 func CIGates(cfg *config.Config, root string) []string {
-	if !HasCI(root) {
+	if !ci.Has(root) {
 		return nil
 	}
 	p := &planner{cfg: cfg, root: root}

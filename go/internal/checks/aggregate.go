@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/ku5ic/claude-kit/go/internal/ci"
 	"github.com/ku5ic/claude-kit/go/internal/classify"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/project"
@@ -552,16 +553,16 @@ func (p *planner) ciLeaves(labelsOnly bool) map[string][]leaf {
 		return sub, p.stackFor(owner), sfx
 	}
 	cache := map[string][]project.Task{}
-	for _, step := range ciSteps(p.cfg, p.root) {
-		dir := filepath.Clean(filepath.Join(p.root, step.dir))
+	for _, step := range ci.Steps(p.cfg, p.root) {
+		dir := filepath.Clean(filepath.Join(p.root, step.Dir))
 		if dir != p.root && !strings.HasPrefix(dir, p.root+"/") {
 			continue
 		}
 		a := &aggregator{cfg: p.cfg, root: p.root, home: ownerOf(p.root, p.subDirs, dir), subs: p.subDirs, cache: cache, place: place, labelsOnly: labelsOnly}
-		body := step.run
-		if len(step.env) > 0 {
-			quoted := make([]string, len(step.env))
-			for i, kv := range step.env {
+		body := step.Run
+		if len(step.Env) > 0 {
+			quoted := make([]string, len(step.Env))
+			for i, kv := range step.Env {
 				k, v, _ := strings.Cut(kv, "=")
 				quoted[i] = k + "='" + strings.ReplaceAll(v, "'", `'\''`) + "'"
 			}
@@ -571,16 +572,30 @@ func (p *planner) ciLeaves(labelsOnly bool) map[string][]leaf {
 		if r.Opaque != "" || slices.ContainsFunc(r.Commands, func(c classify.Command) bool { return deniedCommand(p.cfg, c.Words) }) {
 			continue
 		}
-		task := project.Task{Provider: "ci", Name: step.file}
+		task := project.Task{Provider: "ci", Name: step.File}
 		for _, l := range a.walk(r, taskAt{task, dir}, map[string]bool{}, 0) {
 			if l.slot == "" {
 				continue
 			}
-			l.gate.CI = step.file
+			l.gate.CI = step.File
 			out[l.sub] = append(out[l.sub], l)
 		}
 	}
 	return out
+}
+
+// deniedCommand is true when words hold a deny_commands token: one word
+// anywhere, or several in a row.
+func deniedCommand(cfg *config.Config, words []string) bool {
+	for _, token := range cfg.GateDiscovery.DenyCommands {
+		t := strings.Fields(token)
+		for i := 0; i+len(t) <= len(words); i++ {
+			if slices.Equal(words[i:i+len(t)], t) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func setupNote(agg string, setup []string) string {

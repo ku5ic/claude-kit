@@ -117,7 +117,7 @@ func Plan(cfg *config.Config, root, base string, edited []string) []*Group {
 			continue
 		}
 		g.Bin = res
-		g.Derived, _ = g.Adapter.Derive(g.Dir, root)
+		g.Derived, _ = g.Adapter.Derive(cfg, g.Dir, root)
 		g.Words = expand(g.Adapter.Cmd, res.Words, g.Files, g.Dir, g.Derived)
 	}
 	return groups

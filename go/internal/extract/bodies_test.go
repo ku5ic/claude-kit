@@ -19,6 +19,7 @@ func TestBodies(t *testing.T) {
 	pkg := write("package.json", `{"scripts":{"lint":"eslint .","test":"vitest run"}}`)
 	mk := write("Makefile", "check: lint | test\n\nlint:\n\t@golangci-lint run \\\n\t  ./...\n\ntest: ; go test\n\nci:\n\t$(MAKE) check\n\t-go vet ./...\n")
 	just := write("justfile", "check: lint test\n    @echo done\n\nlint:\n    -eslint {{flags}}\n\nsh:\n    #!/usr/bin/env bash\n    cd web\n    eslint .\n\npy:\n    #!/usr/bin/env python3\n    print(1)\n")
+	vars := write("vars.mk", "RUN := uv run\nlint:\n\t$(RUN) ruff check .\n\t${RUN} mypy $(SRC)\n")
 	oneShell := write("one.mk", ".ONESHELL:\nlint:\n\tcd web\n\teslint .\n")
 	poe := write("pyproject.toml", "[tool.poe.tasks]\nlint = \"ruff check .\"\ntest = {cmd = \"pytest\"}\nall = [\"lint\", \"test\"]\n")
 
@@ -34,6 +35,8 @@ func TestBodies(t *testing.T) {
 			"test":  "",
 			"ci":    "make check\ngo vet ./...",
 		}, true},
+		// A variable the Makefile sets expands; an unset one stays.
+		{"make_targets", vars, "", map[string]string{"lint": "uv run ruff check .\nuv run mypy $(SRC)"}, true},
 		{"make_targets", oneShell, "", map[string]string{"lint": "cd web\neslint ."}, false},
 		{"just_recipes", just, "", map[string]string{"check": "just lint\njust test\necho done", "lint": "eslint $JUST_VAR", "sh": "#!/usr/bin/env bash\ncd web\neslint .", "py": ""}, true},
 		// A list joins with spaces (a cargo alias); a poe sequence reads as one

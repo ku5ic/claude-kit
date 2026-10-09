@@ -344,6 +344,10 @@ func TestStopChecks(t *testing.T) {
 
 	t.Run("the project's own test script carries its env and allow-listed flags", func(t *testing.T) {
 		e := stopChecksSetup(t)
+		// Derive reads the scripts through kit.yml's task provider.
+		e.k.KitYML(stopChecksKitYML + `task_providers:
+  - {name: package-scripts, stack: js, manifests: [package.json], extractor: json_keys, arg: .scripts, run: "{pm} run {task}"}
+`)
 		e.bin("jest", fmt.Sprintf("echo \"$PWD|NODE_ENV=$NODE_ENV jest $*\" >>%q\n", e.calls))
 		Write(t, e.path("package.json"), `{"devDependencies":{"jest":"^30"},"scripts":{"test":"NODE_ENV=test jest --maxWorkers 2 --coverage src"}}`+"\n")
 		e.turn("Edit", e.path("a.ts"))

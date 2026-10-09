@@ -1,4 +1,6 @@
-package checks
+// Package ci reads a repo's CI config for the shell steps a local run
+// could repeat.
+package ci
 
 import (
 	"os"
@@ -13,25 +15,28 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/config"
 )
 
-// ciStep is one shell step a CI config runs: its file (relative to the
+// Step is one shell step a CI config runs: its file (relative to the
 // root), the directory it runs in (relative), its literal env, and its
 // script.
-type ciStep struct {
-	file, dir string
-	env       []string
-	run       string
+type Step struct {
+	File, Dir string
+	Env       []string
+	Run       string
 }
+
+// maxDepth bounds how deep GitLab extends: chains are followed.
+const maxDepth = 8
 
 var nonWord = regexp.MustCompile(`[^A-Za-z0-9]+`)
 
-// ciSteps reads the root's GitHub Actions workflows and GitLab CI config
+// Steps reads the root's GitHub Actions workflows and GitLab CI config
 // for the shell steps a local run could repeat. Whole jobs are dropped
 // when they need what a laptop doesn't have or shouldn't use (services, a
 // container, OIDC, a deployment environment, secrets in their env, a
 // login action, a deny-listed name), and steps when they use an action, a
 // non-sh shell, secrets, or a CI expression.
-func ciSteps(cfg *config.Config, root string) []ciStep {
-	var steps []ciStep
+func Steps(cfg *config.Config, root string) []Step {
+	var steps []Step
 	workflows, _ := filepath.Glob(filepath.Join(root, ".github/workflows/*.y*ml"))
 	sort.Strings(workflows)
 	for _, file := range workflows {
@@ -41,8 +46,8 @@ func ciSteps(cfg *config.Config, root string) []ciStep {
 	return steps
 }
 
-// HasCI is true when root has a CI config run-checks reads.
-func HasCI(root string) bool {
+// Has is true when root has a CI config Steps reads.
+func Has(root string) bool {
 	workflows, _ := filepath.Glob(filepath.Join(root, ".github/workflows/*.y*ml"))
 	_, err := os.Stat(filepath.Join(root, ".gitlab-ci.yml"))
 	return len(workflows) > 0 || err == nil
@@ -60,7 +65,7 @@ func readYAML(file string) map[string]any {
 	return doc
 }
 
-func githubSteps(cfg *config.Config, root, file string) []ciStep {
+func githubSteps(cfg *config.Config, root, file string) []Step {
 	doc := readYAML(file)
 	jobs, _ := doc["jobs"].(map[string]any)
 	// Workflow-level permissions, env, and defaults hold for every job.
@@ -78,7 +83,7 @@ func githubSteps(cfg *config.Config, root, file string) []ciStep {
 		ids = append(ids, id)
 	}
 	sort.Strings(ids)
-	var out []ciStep
+	var out []Step
 	for _, id := range ids {
 		job, _ := jobs[id].(map[string]any)
 		if job == nil || !githubJobOK(cfg, id, job) {
@@ -125,7 +130,7 @@ func githubSteps(cfg *config.Config, root, file string) []ciStep {
 			if strings.Contains(dir, "${{") {
 				continue
 			}
-			out = append(out, ciStep{file: rel, dir: filepath.Clean(dir), env: append(slices.Clone(jobEnv), env...), run: run})
+			out = append(out, Step{File: rel, Dir: filepath.Clean(dir), Env: append(slices.Clone(jobEnv), env...), Run: run})
 		}
 	}
 	return out
@@ -175,7 +180,7 @@ func runDefaults(m map[string]any) (dir, shell string) {
 // gitlabReserved are .gitlab-ci.yml's top-level keys that aren't jobs.
 var gitlabReserved = []string{"stages", "variables", "include", "default", "workflow", "image", "services", "before_script", "after_script", "cache", "pages"}
 
-func gitlabSteps(cfg *config.Config, root, file string) []ciStep {
+func gitlabSteps(cfg *config.Config, root, file string) []Step {
 	doc := readYAML(file)
 	if doc == nil {
 		return nil
@@ -203,7 +208,7 @@ func gitlabSteps(cfg *config.Config, root, file string) []ciStep {
 		names = append(names, name)
 	}
 	sort.Strings(names)
-	var out []ciStep
+	var out []Step
 	for _, name := range names {
 		job, _ := merged[name].(map[string]any)
 		if job == nil || strings.HasPrefix(name, ".") || slices.Contains(gitlabReserved, name) {
@@ -234,7 +239,7 @@ func gitlabSteps(cfg *config.Config, root, file string) []ciStep {
 		if !ok || !ok2 || len(script) == 0 {
 			continue
 		}
-		out = append(out, ciStep{file: rel, dir: ".", env: env, run: strings.Join(append(lines, script...), "\n")})
+		out = append(out, Step{File: rel, Dir: ".", Env: env, Run: strings.Join(append(lines, script...), "\n")})
 	}
 	return out
 }
@@ -337,20 +342,6 @@ func deniedName(cfg *config.Config, name string) bool {
 	for _, w := range nonWord.Split(strings.ToLower(name), -1) {
 		if slices.Contains(cfg.GateDiscovery.DenyNames, w) {
 			return true
-		}
-	}
-	return false
-}
-
-// deniedCommand is true when words hold a deny_commands token: one word
-// anywhere, or several in a row.
-func deniedCommand(cfg *config.Config, words []string) bool {
-	for _, token := range cfg.GateDiscovery.DenyCommands {
-		t := strings.Fields(token)
-		for i := 0; i+len(t) <= len(words); i++ {
-			if slices.Equal(words[i:i+len(t)], t) {
-				return true
-			}
 		}
 	}
 	return false
