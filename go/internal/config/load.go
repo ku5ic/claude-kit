@@ -25,6 +25,24 @@ func (p Paths) CacheDir() string    { return filepath.Join(p.Home, "cache") }
 func (p Paths) ScratchHome() string { return filepath.Join(p.Home, "scratch") }
 func (p Paths) PlansHome() string   { return filepath.Join(p.Home, "plans") }
 
+// The cache dirs of per-session markers, which scratch-rotate prunes after
+// a day.
+const (
+	SkillsLoaded = "skills-loaded"
+	FileSkills   = "file-skills"
+	PlanActive   = "plan-active"
+)
+
+// SessionFile is <cache>/<kind>/<session>[-<part>...]: one session's marker.
+// "" for an empty session ID or one holding a path separator, which would
+// land outside kind's dir.
+func (p Paths) SessionFile(kind, session string, parts ...string) string {
+	if session == "" || strings.ContainsAny(session, `/\`) {
+		return ""
+	}
+	return filepath.Join(p.CacheDir(), kind, strings.Join(append([]string{session}, parts...), "-"))
+}
+
 // ResolvePaths reads the environment. exe is the running binary's path,
 // used only when CLAUDE_PLUGIN_ROOT is unset.
 func ResolvePaths(exe string) (Paths, error) {

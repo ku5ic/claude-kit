@@ -8,7 +8,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -166,13 +168,29 @@ func run(args []string, stdout, stderr io.Writer) int {
 			return min(checks.RunAll(cfg, root, only, e.stdout), 125)
 		},
 		"scratch-rotate": func(e *env, cfg *config.Config, args []string) int {
-			return rotate.Run(cfg, e.paths, args, e.stdout, e.stderr)
+			dryRun, arg := false, ""
+			for _, a := range args {
+				if a == "--dry-run" {
+					dryRun = true
+				} else {
+					arg = a
+				}
+			}
+			days, ok := parseDays("scratch-rotate", arg, e.stderr)
+			if !ok {
+				return 2
+			}
+			return rotate.Run(cfg, e.paths, days, dryRun, e.stdout, e.stderr)
 		},
 		"blast-radius": func(e *env, cfg *config.Config, args []string) int {
 			return blast.Run(cfg, args, e.stdout, e.stderr)
 		},
 		"skills-report": func(e *env, cfg *config.Config, args []string) int {
-			return report.Run(cfg, e.paths, args, e.stdout)
+			days, ok := parseDays("skills-report", first(args), e.stderr)
+			if !ok {
+				return 2
+			}
+			return report.Run(cfg, e.paths, days, e.stdout)
 		},
 		"a11y-check": func(e *env, cfg *config.Config, args []string) int {
 			return a11y.Run(cfg, e.paths, e.cwd, args, e.stdout, e.stderr)
@@ -195,7 +213,11 @@ func run(args []string, stdout, stderr io.Writer) int {
 		// A report reads logs first; without kit.yml it skips the sections
 		// that need it rather than failing.
 		if name == "skills-report" {
-			return report.Run(nil, e.paths, rest, stdout)
+			days, ok := parseDays(name, first(rest), stderr)
+			if !ok {
+				return 2
+			}
+			return report.Run(nil, e.paths, days, stdout)
 		}
 		fmt.Fprintln(stderr, "kit:", err)
 		return 1
@@ -340,4 +362,26 @@ func cmdDetectStack(e *env, cfg *config.Config, _ []string) int {
 	root, _ := project.Root(cfg, e.cwd)
 	fmt.Fprint(e.stdout, detect.Report(cfg, root))
 	return 0
+}
+
+var positive = regexp.MustCompile(`^[1-9][0-9]*$`)
+
+// parseDays reads a [days] argument: a positive integer, 30 when absent.
+func parseDays(name, arg string, stderr io.Writer) (int, bool) {
+	if arg == "" {
+		return 30, true
+	}
+	if !positive.MatchString(arg) {
+		fmt.Fprintf(stderr, "%s: [days] must be a positive integer, got '%s'\n", name, arg)
+		return 0, false
+	}
+	n, err := strconv.Atoi(arg)
+	return n, err == nil
+}
+
+func first(args []string) string {
+	if len(args) == 0 {
+		return ""
+	}
+	return args[0]
 }

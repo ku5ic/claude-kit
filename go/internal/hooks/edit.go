@@ -104,16 +104,16 @@ func GuardSkills(h *hook.Hook) error {
 	}
 	session := h.Payload.SessionID()
 	cfg := h.Config()
-	if session == "" || cfg == nil {
+	if h.Paths.SessionFile(config.SkillsLoaded, session) == "" || cfg == nil {
 		return nil
 	}
 
 	required := guard.FileMapSkills(cfg.SkillFileMap, path)
 
-	cacheDir := filepath.Join(h.Paths.CacheDir(), "skills-loaded")
+	marker := func(skill string) string { return h.Paths.SessionFile(config.SkillsLoaded, session, skill) }
 	var toCheck []string
 	for _, skill := range required {
-		if _, err := os.Stat(filepath.Join(cacheDir, session+"-"+skill)); err != nil {
+		if _, err := os.Stat(marker(skill)); err != nil {
 			toCheck = append(toCheck, skill)
 		}
 	}
@@ -126,7 +126,7 @@ func GuardSkills(h *hook.Hook) error {
 	if err != nil {
 		return nil
 	}
-	_ = os.MkdirAll(cacheDir, 0o755)
+	_ = os.MkdirAll(filepath.Join(h.Paths.CacheDir(), config.SkillsLoaded), 0o755)
 
 	var missing []string
 	for _, skill := range toCheck {
@@ -140,7 +140,7 @@ func GuardSkills(h *hook.Hook) error {
 			found = strings.Contains(file, "/skills/"+skill+"/")
 		}
 		if found {
-			if f, err := os.Create(filepath.Join(cacheDir, session+"-"+skill)); err == nil {
+			if f, err := os.Create(marker(skill)); err == nil {
 				f.Close()
 			}
 		} else {

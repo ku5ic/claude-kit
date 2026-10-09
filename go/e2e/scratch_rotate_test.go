@@ -226,6 +226,15 @@ func TestScratchRotate(t *testing.T) {
 		gone(t, filepath.Join(cache, "s1-0123abcd"))
 		kept(t, filepath.Join(cache, "s2-0123abcd"))
 	})
+	t.Run("prunes a plan-active marker older than 1 day", func(t *testing.T) {
+		k, _, _ := setup(t)
+		cache := filepath.Join(k.Claude, "cache/plan-active")
+		touch(t, filepath.Join(cache, "s1"), 2*day)
+		r := k.Run("", "scratch-rotate")
+		r.Want(t, 0)
+		r.Has(t, "pruned 1 plan-active marker(s) older than 1d")
+		gone(t, filepath.Join(cache, "s1"))
+	})
 	t.Run("keeps a skills-loaded marker younger than 1 day", func(t *testing.T) {
 		k, _, _ := setup(t)
 		cache := filepath.Join(k.Claude, "cache/skills-loaded")

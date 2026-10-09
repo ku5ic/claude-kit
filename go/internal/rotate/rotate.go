@@ -15,8 +15,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -24,23 +22,8 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
-var positive = regexp.MustCompile(`^[1-9][0-9]*$`)
-
 // Run is `kit scratch-rotate [days] [--dry-run]`; it returns the exit status.
-func Run(cfg *config.Config, paths config.Paths, args []string, stdout, stderr io.Writer) int {
-	dryRun, days := false, "30"
-	for _, a := range args {
-		if a == "--dry-run" {
-			dryRun = true
-		} else {
-			days = a
-		}
-	}
-	if !positive.MatchString(days) {
-		fmt.Fprintf(stderr, "scratch-rotate: retention window must be a positive integer, got '%s'\n", days)
-		return 2
-	}
-	n, _ := strconv.Atoi(days)
+func Run(cfg *config.Config, paths config.Paths, n int, dryRun bool, stdout, stderr io.Writer) int {
 	home := os.Getenv("HOME")
 	r := &rotator{now: time.Now(), dryRun: dryRun, log: filepath.Join(paths.LogDir(), "scratch-rotate.log")}
 	pruned, dropping := "pruned", "dropping"
@@ -60,13 +43,14 @@ func Run(cfg *config.Config, paths config.Paths, args []string, stdout, stderr i
 		fmt.Fprintf(stdout, "scratch-rotate: %s %d session marker(s) older than 1d from %s\n", pruned, markers, scratch)
 	}
 
-	loaded := filepath.Join(paths.CacheDir(), "skills-loaded")
-	if project.IsDir(loaded) {
-		fmt.Fprintf(stdout, "scratch-rotate: %s %d skill-loaded marker(s) older than 1d from %s\n", pruned, r.prune(loaded, 1, false, nil), loaded)
-	}
-	fileSkills := filepath.Join(paths.CacheDir(), "file-skills")
-	if project.IsDir(fileSkills) {
-		fmt.Fprintf(stdout, "scratch-rotate: %s %d file-skills cache(s) older than 1d from %s\n", pruned, r.prune(fileSkills, 1, false, nil), fileSkills)
+	for _, m := range []struct{ kind, what string }{
+		{config.SkillsLoaded, "skill-loaded marker(s)"},
+		{config.FileSkills, "file-skills cache(s)"},
+		{config.PlanActive, "plan-active marker(s)"},
+	} {
+		if dir := filepath.Join(paths.CacheDir(), m.kind); project.IsDir(dir) {
+			fmt.Fprintf(stdout, "scratch-rotate: %s %d %s older than 1d from %s\n", pruned, r.prune(dir, 1, false, nil), m.what, dir)
+		}
 	}
 
 	registry := filepath.Join(paths.LogDir(), "scratch-registry.txt")

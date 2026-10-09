@@ -264,3 +264,18 @@ func TestBrokenOverlayIsIgnoredWithAWarning(t *testing.T) {
 		t.Errorf("protected_branches = %v", cfg.ProtectedBranches)
 	}
 }
+
+func TestSessionFile(t *testing.T) {
+	p := Paths{Home: "/h"}
+	if got := p.SessionFile(SkillsLoaded, "s1", "bash-patterns"); got != "/h/cache/skills-loaded/s1-bash-patterns" {
+		t.Errorf("got %q", got)
+	}
+	if got := p.SessionFile(PlanActive, "s1"); got != "/h/cache/plan-active/s1" {
+		t.Errorf("got %q", got)
+	}
+	for _, bad := range []string{"", "../x", `a\b`} {
+		if got := p.SessionFile(PlanActive, bad); got != "" {
+			t.Errorf("session %q: %q, want none", bad, got)
+		}
+	}
+}

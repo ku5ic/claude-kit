@@ -50,6 +50,14 @@ func TestSkillsReport(t *testing.T) {
 		r.Lacks(t, "malformed=1")
 	})
 
+	t.Run("a [days] that isn't a positive integer is an error, as in scratch-rotate", func(t *testing.T) {
+		for _, days := range []string{"0", "-3", "x"} {
+			r := setup(t).Run("", "skills-report", days)
+			r.Want(t, 2)
+			r.Has(t, "skills-report: [days] must be a positive integer, got '"+days+"'")
+		}
+	})
+
 	t.Run("missing log exits 0 with a clear message", func(t *testing.T) {
 		r := setup(t).Run("", "skills-report")
 		r.Want(t, 0)

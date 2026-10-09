@@ -163,14 +163,14 @@ func FileSkills(paths config.Paths, cfg *config.Config, root, session string) []
 	if !guard.SkillsEnforced() || root == "" {
 		return nil
 	}
-	cache := filepath.Join(paths.CacheDir(), "file-skills", session+"-"+rootKey(cfg, root))
-	if session != "" && mtime(cache) >= configTime(paths) {
+	cache := paths.SessionFile(config.FileSkills, session, rootKey(cfg, root))
+	if cache != "" && mtime(cache) >= configTime(paths) {
 		if data, err := os.ReadFile(cache); err == nil {
 			return strings.Fields(string(data))
 		}
 	}
 	skills := scanFileSkills(cfg, root)
-	if session != "" && os.MkdirAll(filepath.Dir(cache), 0o755) == nil {
+	if cache != "" && os.MkdirAll(filepath.Dir(cache), 0o755) == nil {
 		_ = os.WriteFile(cache, []byte(strings.Join(skills, "\n")), 0o644)
 	}
 	return skills

@@ -13,7 +13,6 @@ import (
 	"regexp"
 	"slices"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -154,13 +153,7 @@ func count(rows []entry, category string) int {
 }
 
 // Run is `kit skills-report [days]`.
-func Run(cfg *config.Config, paths config.Paths, args []string, stdout io.Writer) int {
-	days := 30
-	if len(args) > 0 {
-		if n, err := strconv.Atoi(args[0]); err == nil {
-			days = n
-		}
-	}
+func Run(cfg *config.Config, paths config.Paths, days int, stdout io.Writer) int {
 	logFile := filepath.Join(paths.LogDir(), "skills.jsonl")
 	info, err := os.Stat(logFile)
 	if err != nil {

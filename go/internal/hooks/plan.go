@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strings"
 
+	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 )
@@ -34,11 +34,10 @@ func PlanModeContext(h *hook.Hook) error {
 		fmt.Fprintln(h.Stdout, "Plan mode: load the investigate skill and follow it; its findings feed the plan.")
 		return nil
 	}
-	session := p.SessionID()
-	if session == "" || strings.ContainsAny(session, `/\`) {
+	marker := h.Paths.SessionFile(config.PlanActive, p.SessionID())
+	if marker == "" {
 		return nil
 	}
-	marker := filepath.Join(h.Paths.CacheDir(), "plan-active", session)
 
 	if p.String("hook_event_name") == "PostToolUse" {
 		if p.String("tool_name") != "ExitPlanMode" {
