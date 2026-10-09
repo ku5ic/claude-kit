@@ -10,6 +10,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/kitcmd"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
@@ -393,13 +394,9 @@ func (st *state) currentBranch(gitDir string) string {
 	return branch
 }
 
-// kit subcommands that only read state or create the scratch/plans
-// directories. Plugins can't ship allow rules, so the hook allows them
-// itself; settings deny and ask rules still win over a hook allow.
-// run-checks stays out: it runs project-defined scripts.
-var readonlySubcommands = []string{"scratch-dir", "plans-dir", "git-base", "project-name", "project-root", "detect-stack", "skills-report", "blast-radius"}
-
-// readonlyCall is true for a lone `kit <read-only subcommand>` call: no
+// readonlyCall is true for a lone `kit <read-only subcommand>` call
+// (kitcmd.ReadOnly). Plugins can't ship allow rules, so the hook allows
+// them itself; settings deny and ask rules still win over a hook allow. No
 // chaining, pipes, redirects, or substitutions that could smuggle in a
 // second command.
 func readonlyCall(cmd, norm string) bool {
@@ -407,7 +404,7 @@ func readonlyCall(cmd, norm string) bool {
 		return false
 	}
 	words := strings.Fields(norm)
-	if len(words) < 2 || words[0] != "kit" || !slices.Contains(readonlySubcommands, words[1]) {
+	if len(words) < 2 || words[0] != "kit" || !kitcmd.ReadOnly(words[1]) {
 		return false
 	}
 	return words[1] != "git-base" || gitBaseFlagsSafe(words[2:])

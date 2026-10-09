@@ -6,60 +6,21 @@ import (
 	"maps"
 	"slices"
 	"strings"
+
+	"github.com/ku5ic/claude-kit/go/internal/kitcmd"
 )
 
-// argWords are the words offered after a command.
-var argWords = map[string][]string{
-	"completion":     {"bash", "zsh"},
-	"config":         {"--check"},
-	"explain":        {"bash", "edit", "stop"},
-	"git-base":       {"--diff", "--log"},
-	"project-root":   {"--check"},
-	"run-checks":     {"--plan", "--only"},
-	"scratch-rotate": {"--dry-run"},
-}
-
-// pathArgs are the commands whose argument is a path, true when only a
-// directory fits; every other argument gets no path completion.
-var pathArgs = map[string]bool{
-	"blast-radius": false,
-	"subprojects":  true,
-	"tasks":        true,
-}
-
-type command struct{ name, desc string }
-
-// usageCommands reads the command list off usage, so completion can't
-// drift from it.
-func usageCommands() []command { return parseUsage(usage) }
-
-// parseUsage reads commands from text: a command line is indented two
-// spaces, its description follows the first run of two or more spaces, and
-// a deeper-indented line continues the previous command's description.
-func parseUsage(text string) []command {
-	var cmds []command
-	for line := range strings.SplitSeq(text, "\n") {
-		rest, ok := strings.CutPrefix(line, "  ")
-		if !ok || strings.TrimSpace(rest) == "" {
-			continue
+// argCommands are the commands with completion words or a path argument,
+// sorted by name.
+func argCommands() []kitcmd.Command {
+	var out []kitcmd.Command
+	for _, c := range kitcmd.Commands {
+		if len(c.Words) > 0 || c.Path != "" {
+			out = append(out, c)
 		}
-		var desc string
-		if rest[0] == ' ' {
-			if len(cmds) == 0 {
-				continue
-			}
-			desc = rest
-		} else {
-			spec := rest
-			if i := strings.Index(rest, "  "); i >= 0 {
-				spec, desc = rest[:i], rest[i:]
-			}
-			cmds = append(cmds, command{name: strings.Fields(spec)[0]})
-		}
-		last := &cmds[len(cmds)-1]
-		last.desc = strings.TrimSpace(last.desc + " " + strings.TrimSpace(desc))
 	}
-	return cmds
+	slices.SortFunc(out, func(a, b kitcmd.Command) int { return strings.Compare(a.Name, b.Name) })
+	return out
 }
 
 // hookNames is every name `kit hook` accepts.
@@ -88,8 +49,8 @@ func cmdCompletion(args []string, stdout, stderr io.Writer) int {
 
 func bashCompletion() string {
 	var names []string
-	for _, c := range usageCommands() {
-		names = append(names, c.name)
+	for _, c := range kitcmd.Commands {
+		names = append(names, c.Name)
 	}
 	var b strings.Builder
 	b.WriteString("# bash completion for kit; in ~/.bashrc: eval \"$(kit completion bash)\"\n_kit() {\n")
@@ -97,15 +58,15 @@ func bashCompletion() string {
 	fmt.Fprintf(&b, "  if ((COMP_CWORD == 1)); then\n    COMPREPLY=($(compgen -W %q -- \"$cur\"))\n    return\n  fi\n", strings.Join(names, " "))
 	b.WriteString("  ((COMP_CWORD == 2)) || return\n  case ${COMP_WORDS[1]} in\n")
 	fmt.Fprintf(&b, "  hook) COMPREPLY=($(compgen -W %q -- \"$cur\")) ;;\n", strings.Join(hookNames(), " "))
-	for _, name := range slices.Sorted(maps.Keys(argWords)) {
-		fmt.Fprintf(&b, "  %s) COMPREPLY=($(compgen -W %q -- \"$cur\")) ;;\n", name, strings.Join(argWords[name], " "))
-	}
-	for _, name := range slices.Sorted(maps.Keys(pathArgs)) {
-		kind := "-f"
-		if pathArgs[name] {
-			kind = "-d"
+	for _, c := range argCommands() {
+		if len(c.Words) > 0 {
+			fmt.Fprintf(&b, "  %s) COMPREPLY=($(compgen -W %q -- \"$cur\")) ;;\n", c.Name, strings.Join(c.Words, " "))
 		}
-		fmt.Fprintf(&b, "  %s) local IFS=$'\\n'; COMPREPLY=($(compgen %s -- \"$cur\")) ;;\n", name, kind)
+	}
+	for _, c := range argCommands() {
+		if c.Path != "" {
+			fmt.Fprintf(&b, "  %s) local IFS=$'\\n'; COMPREPLY=($(compgen -%c -- \"$cur\")) ;;\n", c.Name, c.Path[0])
+		}
 	}
 	b.WriteString("  esac\n}\ncomplete -o filenames -F _kit kit\n")
 	return b.String()
@@ -114,25 +75,28 @@ func bashCompletion() string {
 func zshCompletion() string {
 	var b strings.Builder
 	b.WriteString("#compdef kit\n# zsh completion for kit; in ~/.zshrc after compinit: eval \"$(kit completion zsh)\"\n_kit() {\n  local -a cmds\n  cmds=(\n")
-	for _, c := range usageCommands() {
-		entry := c.name
-		if c.desc != "" {
-			entry += ":" + c.desc
+	for _, c := range kitcmd.Commands {
+		entry := c.Name
+		if c.Desc != "" {
+			entry += ":" + strings.ReplaceAll(c.Desc, "\n", " ")
 		}
 		fmt.Fprintf(&b, "    %s\n", zshQuote(entry))
 	}
 	b.WriteString("  )\n  if ((CURRENT == 2)); then\n    _describe 'kit command' cmds\n    return\n  fi\n")
 	b.WriteString("  ((CURRENT == 3)) || return\n  case $words[2] in\n")
 	fmt.Fprintf(&b, "  hook) compadd -- %s ;;\n", strings.Join(hookNames(), " "))
-	for _, name := range slices.Sorted(maps.Keys(argWords)) {
-		fmt.Fprintf(&b, "  %s) compadd -- %s ;;\n", name, strings.Join(argWords[name], " "))
-	}
-	for _, name := range slices.Sorted(maps.Keys(pathArgs)) {
-		files := "_files"
-		if pathArgs[name] {
-			files = "_files -/"
+	for _, c := range argCommands() {
+		if len(c.Words) > 0 {
+			fmt.Fprintf(&b, "  %s) compadd -- %s ;;\n", c.Name, strings.Join(c.Words, " "))
 		}
-		fmt.Fprintf(&b, "  %s) %s ;;\n", name, files)
+	}
+	for _, c := range argCommands() {
+		switch c.Path {
+		case "file":
+			fmt.Fprintf(&b, "  %s) _files ;;\n", c.Name)
+		case "dir":
+			fmt.Fprintf(&b, "  %s) _files -/ ;;\n", c.Name)
+		}
 	}
 	b.WriteString("  esac\n}\ncompdef _kit kit\n")
 	return b.String()

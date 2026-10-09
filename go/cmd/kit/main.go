@@ -24,44 +24,12 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/explain"
 	"github.com/ku5ic/claude-kit/go/internal/gitbase"
 	"github.com/ku5ic/claude-kit/go/internal/hooks"
+	"github.com/ku5ic/claude-kit/go/internal/kitcmd"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/report"
 	"github.com/ku5ic/claude-kit/go/internal/rotate"
 	"github.com/ku5ic/claude-kit/go/internal/status"
 )
-
-const usage = `usage: kit <command> [args]
-
-  config [--check]           print the effective kit.yml (base + overlay);
-                             --check prints only warnings, exits 1 on any
-  subprojects [root]         ".", then each subproject directory, sorted
-  tasks [dir]                provider, stack, task, command (tab-separated)
-  project-root [--check]     the project root; --check: exit 1 if unanchored
-  project-name               slug-safe project identifier
-  scratch-dir [kind [slug]]  scratch directory, or a report path in it
-  plans-dir                  plans directory
-  detect-stack               compact stack report
-  agent-context              a subagent's startup context
-  run-checks [--plan] [--only sub...]
-                             every declared check, in every subproject;
-                             exits with the failure count. --plan lists
-                             them, with commands, without running any
-  git-base [--diff|--log] [base] [flags] [-- paths]
-  explain bash|edit|stop ...
-                             why a guard or the Stop hook decides what it
-                             does; logs, blocks, and runs nothing
-  blast-radius <file> [symbol]
-                             the files that import <file>
-  a11y-check <url>           digest of axe violations on a running page
-  skills-report [days]       skill activation telemetry from skills.jsonl
-  scratch-rotate [days] [--dry-run]
-                             prune old scratch artifacts, trim the logs
-  hook <name>                run a Claude Code hook; payload on stdin
-  statusline                 the statusLine rows; payload on stdin
-  subagent-statusline        subagentStatusLine JSON lines; payload on stdin
-  version                    the plugin version this binary was built for
-  completion bash|zsh        a shell completion script for kit
-`
 
 // version is stamped by go/build.sh from .claude-plugin/plugin.json.
 var version = "dev"
@@ -95,7 +63,7 @@ func (e *env) config() (*config.Config, error) {
 
 func run(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprint(stderr, usage)
+		fmt.Fprint(stderr, kitcmd.Usage())
 		return 2
 	}
 	exe, err := os.Executable()
@@ -118,7 +86,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	name, rest := args[0], args[1:]
 	switch name {
 	case "-h", "--help", "help":
-		fmt.Fprint(stdout, usage)
+		fmt.Fprint(stdout, kitcmd.Usage())
 		return 0
 	case "version":
 		fmt.Fprintln(stdout, version)
@@ -205,7 +173,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 	cmd, ok := commands[name]
 	if !ok {
-		fmt.Fprintf(stderr, "kit: unknown command %q\n%s", name, usage)
+		fmt.Fprintf(stderr, "kit: unknown command %q\n%s", name, kitcmd.Usage())
 		return 2
 	}
 	cfg, err := e.config()
