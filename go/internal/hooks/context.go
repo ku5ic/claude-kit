@@ -79,30 +79,21 @@ func writeContext(h *hook.Hook, cfg *config.Config, out *strings.Builder) {
 	if !ok {
 		return
 	}
-	cache := stackctx.CacheFile(h.Paths, cfg, name, root)
-	stackctx.Refresh(h.Paths, cfg, root, cache)
-	report, _ := os.ReadFile(cache)
-
-	if len(report) > 0 {
+	ctx := stackctx.Build(h.Paths, cfg, name, root, h.Payload.String("session_id"))
+	if ctx.Report != "" {
 		scratch, _ := project.Dir(cfg, h.Paths, root, "scratch", false)
 		fmt.Fprintf(out, "\n<repo-context>\n%sbranch (at session start): %s\ndirty-files (at session start): %s\nscratch: %s\n</repo-context>\n",
-			report, branch(root), dirtyCount(root), scratch)
+			ctx.Report, branch(root), dirtyCount(root), scratch)
 	}
-
-	required := stackctx.Required(cfg)
-	out.WriteString(stackctx.RequiredBlock(required))
-	for _, skill := range required {
+	out.WriteString(stackctx.RequiredBlock(ctx.Required))
+	for _, skill := range ctx.Required {
 		h.Log("skills", "required-skill", "cwd", h.Payload.String("cwd"), "skill_file", skill)
 	}
-	if len(report) > 0 {
-		// Logged as surfaced, not loaded, so skills-report can measure
-		// whether a suggestion was ever acted on.
-		fileSkills := stackctx.FileSkills(h.Paths, cfg, root, h.Payload.String("session_id"))
-		suggested := stackctx.Suggested(cfg, stackctx.Signals(string(report)), fileSkills)
-		out.WriteString(stackctx.SuggestedBlock(cfg, suggested))
-		for _, skill := range suggested {
-			h.Log("skills", "suggested-skill", "cwd", h.Payload.String("cwd"), "skill_file", skill)
-		}
+	// Logged as surfaced, not loaded, so skills-report can measure whether a
+	// suggestion was ever acted on.
+	out.WriteString(stackctx.SuggestedBlock(cfg, ctx.Suggested))
+	for _, skill := range ctx.Suggested {
+		h.Log("skills", "suggested-skill", "cwd", h.Payload.String("cwd"), "skill_file", skill)
 	}
 	out.WriteString(tooling(cfg, root))
 }
@@ -123,17 +114,12 @@ func AgentContext(paths config.Paths, cfg *config.Config, cwd, session string) s
 	if !ok {
 		return b.String()
 	}
-	cache := stackctx.CacheFile(paths, cfg, name, root)
-	stackctx.Refresh(paths, cfg, root, cache)
-	report, _ := os.ReadFile(cache)
-	if len(report) > 0 {
-		fmt.Fprintf(&b, "<repo-context>\n%sbranch: %s\ndirty-files: %s\n</repo-context>\n", report, branch(root), dirtyCount(root))
+	ctx := stackctx.Build(paths, cfg, name, root, session)
+	if ctx.Report != "" {
+		fmt.Fprintf(&b, "<repo-context>\n%sbranch: %s\ndirty-files: %s\n</repo-context>\n", ctx.Report, branch(root), dirtyCount(root))
 	}
-	b.WriteString(stackctx.RequiredBlock(stackctx.Required(cfg)))
-	if len(report) > 0 {
-		fileSkills := stackctx.FileSkills(paths, cfg, root, session)
-		b.WriteString(stackctx.SuggestedBlock(cfg, stackctx.Suggested(cfg, stackctx.Signals(string(report)), fileSkills)))
-	}
+	b.WriteString(stackctx.RequiredBlock(ctx.Required))
+	b.WriteString(stackctx.SuggestedBlock(cfg, ctx.Suggested))
 	return b.String()
 }
 
@@ -188,8 +174,9 @@ func tooling(cfg *config.Config, root string) string {
 		for _, task := range project.Tasks(cfg, dir) {
 			lines = append(lines, task.Cmd)
 		}
+		// Without the planner's state, a check another gate covers still shows.
 		for _, tc := range cfg.ToolchainChecks {
-			if cfg.HasStack(dir, tc.Stack) && cfg.ToolchainEnabled(tc) {
+			if cfg.HasStack(dir, tc.Stack) && checks.ToolchainSkip(cfg, tc, sub, nil) == "" {
 				if run := tools.ResolveToolchain(cfg, tc, dir, root); run.Words != nil {
 					lines = append(lines, tools.ShellJoin(run.Shown))
 				}

@@ -271,6 +271,31 @@ func excludedTask(c config.Check, tasks []project.Task) (name, glob string) {
 
 // excludedDir is the first path segment of subproject sub matching an
 // exclude_dirs glob of check slot, or "".
+// ToolchainSkip is why toolchain check tc doesn't run in subproject sub, or
+// "" when it runs. coveredBy names a gate already filling the check's slot;
+// it needs the planner's state, so callers without one pass nil.
+func ToolchainSkip(cfg *config.Config, tc config.ToolchainCheck, sub string, coveredBy func(slot string, tools []string) string) string {
+	label := tc.Stack + ": " + tc.Name
+	if sub != "." {
+		label += " [" + sub + "]"
+	}
+	switch {
+	case !cfg.ToolchainEnabled(tc):
+		return "disabled_toolchain_checks"
+	case cfg.CheckDisabled(tc.Slot, label):
+		return "disabled_checks"
+	}
+	if coveredBy != nil && tc.Slot != "" {
+		if by := coveredBy(tc.Slot, tc.Bin); by != "" {
+			return "covered by " + by
+		}
+	}
+	if seg := excludedDir(cfg, tc.Slot, sub); seg != "" {
+		return fmt.Sprintf("%s looks like a %s suite to leave out (exclude_dirs)", seg, tc.Slot)
+	}
+	return ""
+}
+
 func excludedDir(cfg *config.Config, slot, sub string) string {
 	dirs := checkNamed(cfg, slot).ExcludeDirs
 	for _, seg := range strings.Split(filepath.ToSlash(sub), "/") {
@@ -485,20 +510,8 @@ func (p *planner) subproject(sub string) {
 			continue
 		}
 		label := tc.Stack + ": " + tc.Name + sfx
-		if !cfg.ToolchainEnabled(tc) {
-			p.add(Gate{Label: label, Skip: "disabled_toolchain_checks"})
-			continue
-		}
-		if cfg.CheckDisabled(tc.Slot, label) {
-			p.add(Gate{Label: label, Skip: "disabled_checks"})
-			continue
-		}
-		if by := coveredBy(tc.Slot, tc.Bin); tc.Slot != "" && by != "" {
-			p.add(Gate{Label: label, Skip: "covered by " + by})
-			continue
-		}
-		if seg := excludedDir(cfg, tc.Slot, sub); seg != "" {
-			p.add(Gate{Label: label, Skip: fmt.Sprintf("%s looks like a %s suite to leave out (exclude_dirs)", seg, tc.Slot)})
+		if skip := ToolchainSkip(cfg, tc, sub, coveredBy); skip != "" {
+			p.add(Gate{Label: label, Skip: skip})
 			continue
 		}
 		run := tools.ResolveToolchain(cfg, tc, dir, p.root)

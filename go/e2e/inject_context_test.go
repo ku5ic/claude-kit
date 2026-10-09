@@ -522,6 +522,39 @@ stacks:
 		r.Has(t, "PASS js: local\n", "SKIP js: ambiguous (fakeother only on PATH (")
 	})
 
+	t.Run("tooling: leaves out toolchain checks run-checks disables or excludes", func(t *testing.T) {
+		e := injectContextSetup(t, tree)
+		e.kitYML(`checks:
+  - {name: test, exclude_dirs: [e2e]}
+disabled_checks: [off]
+toolchain_checks:
+  - {stack: js, name: kept, cmd: "{bin} --kept", bin: [fakefmt]}
+  - {stack: js, name: off, cmd: "{bin} --off", bin: [fakefmt]}
+  - {stack: js, name: suite, slot: test, cmd: "{bin} --suite", bin: [fakefmt]}
+stacks:
+  js:
+    sentinels:
+      - {name: package.json, anchor: true}
+`)
+		Write(t, filepath.Join(e.root, ".gitignore"), "node_modules\n")
+		for _, dir := range []string{e.root, filepath.Join(e.root, "e2e")} {
+			Write(t, filepath.Join(dir, "package.json"), "{}\n")
+			Stub(t, filepath.Join(dir, "node_modules/.bin/fakefmt"), "")
+		}
+		e.Git(e.root, "add", "-A")
+
+		// disabled_checks [off] matches the root's "js: off" but not
+		// "js: off [e2e]": run-checks draws the same line.
+		block := injectContextTooling(e.run("s1", "").Output)
+		want := "  node_modules/.bin/fakefmt --kept\n  node_modules/.bin/fakefmt --suite\n  e2e/node_modules/.bin/fakefmt --kept\n  e2e/node_modules/.bin/fakefmt --off"
+		if got := injectContextIndented(block); got != want {
+			t.Errorf("tooling lines:\n%s\nwant:\n%s", got, want)
+		}
+		e.Dir = e.root
+		e.exec(injectContextBin(e.tree), "", "run-checks", "--plan").Has(t,
+			"SKIP js: off (disabled_checks)", "RUN js: off [e2e]", "SKIP js: suite [e2e] (e2e looks like a test suite")
+	})
+
 	t.Run("tooling: lists the gates run-checks takes from CI config", func(t *testing.T) {
 		e := injectContextSetup(t, tree)
 		e.useRealKitYML()

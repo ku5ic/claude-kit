@@ -101,6 +101,25 @@ func Signals(report string) []string {
 	return out
 }
 
+// Context is what both context hooks derive for a project.
+type Context struct {
+	Report              string
+	Required, Suggested []string
+}
+
+// Build refreshes root's stack cache and derives its report and skills;
+// Suggested stays empty when there's no report.
+func Build(paths config.Paths, cfg *config.Config, name, root, session string) Context {
+	cache := CacheFile(paths, cfg, name, root)
+	Refresh(paths, cfg, root, cache)
+	report, _ := os.ReadFile(cache)
+	c := Context{Report: string(report), Required: Required(cfg)}
+	if c.Report != "" {
+		c.Suggested = Suggested(cfg, Signals(c.Report), FileSkills(paths, cfg, root, session))
+	}
+	return c
+}
+
 // Required is kit.yml's global_skills, deduped in first-seen order.
 func Required(cfg *config.Config) []string {
 	var out []string
