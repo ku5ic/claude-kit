@@ -21,22 +21,30 @@ type Entry struct {
 	IsMeta      bool   `json:"isMeta"`
 	IsSidechain bool   `json:"isSidechain"`
 	Timestamp   string `json:"timestamp"`
-	Message     struct {
+	// Content is a system entry's content: raw, since its shape isn't fixed.
+	Content json.RawMessage `json:"content"`
+	Message struct {
 		Model   string          `json:"model"`
 		Content json.RawMessage `json:"content"`
 	} `json:"message"`
 	Attachment struct {
-		Type  string `json:"type"`
-		Model string `json:"model"`
+		Type   string          `json:"type"`
+		Model  string          `json:"model"`
+		Prompt json.RawMessage `json:"prompt"`
 	} `json:"attachment"`
 	// Text is the content when it's a plain string; Blocks when it's an array.
 	Text   string  `json:"-"`
 	Blocks []Block `json:"-"`
+	// Notice is a system entry's content or a queued command's prompt, when
+	// it's a plain string: where forked-skill launches and task
+	// notifications land besides the user's own messages.
+	Notice string `json:"-"`
 }
 
 // Block is one content block.
 type Block struct {
 	Type  string `json:"type"`
+	ID    string `json:"id"`
 	Name  string `json:"name"`
 	Text  string `json:"text"`
 	Input struct {
@@ -146,6 +154,9 @@ func parse(line []byte) (Entry, bool) {
 	}
 	if json.Unmarshal(e.Message.Content, &e.Text) != nil {
 		_ = json.Unmarshal(e.Message.Content, &e.Blocks)
+	}
+	if json.Unmarshal(e.Content, &e.Notice) != nil {
+		_ = json.Unmarshal(e.Attachment.Prompt, &e.Notice)
 	}
 	return e, true
 }

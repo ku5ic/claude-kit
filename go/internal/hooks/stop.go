@@ -89,5 +89,5 @@ func endOfPlan(h *hook.Hook, plan string, reviewed bool) error {
 	if reviewed {
 		return nil
 	}
-	return h.Block(fmt.Sprintf("plan %s is done, but /code-review hasn't run since the last code edit. Run it now, then the runtime pass (/verify) when the change has observable behavior.", plan), "plan-done")
+	return h.Block(fmt.Sprintf("plan %s is done, but /code-review hasn't finished since the last code edit. Run it now, or wait for the one running, then the runtime pass (/verify) when the change has observable behavior.", plan), "plan-done")
 }

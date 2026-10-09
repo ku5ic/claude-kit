@@ -177,10 +177,17 @@ func (e *stopChecksEnv) plan(body string) string {
 }
 
 // review is a /code-review the model invoked.
+// review launches /code-review through the Skill tool; finish reports it.
 func (e *stopChecksEnv) review() {
 	e.line(map[string]any{"type": "assistant", "message": map[string]any{"content": []any{
-		map[string]any{"type": "tool_use", "name": "Skill", "input": map[string]any{"skill": "code-review"}},
+		map[string]any{"type": "tool_use", "id": "toolu_r1", "name": "Skill", "input": map[string]any{"skill": "code-review"}},
 	}}})
+}
+
+// finish is the task-notification for a review, as a queued command.
+func (e *stopChecksEnv) finish(id, status string) {
+	e.line(map[string]any{"type": "attachment", "attachment": map[string]any{"type": "queued_command",
+		"prompt": "<task-notification>\n<task-id>a1</task-id>\n" + id + "\n<status>" + status + "</status>\n<result>review</result>\n</task-notification>"}})
 }
 
 func TestStopPlanDone(t *testing.T) {
@@ -191,26 +198,49 @@ func TestStopPlanDone(t *testing.T) {
 		e.turn("Edit", e.plan(done))
 		r := e.stop(false)
 		r.Want(t, 2)
-		r.Has(t, "plan-x.md is done, but /code-review hasn't run since the last code edit")
+		r.Has(t, "plan-x.md is done, but /code-review hasn't finished since the last code edit")
 		e.stop(true).Want(t, 0)
 	})
 	t.Run("a review after the last edit, even in an earlier turn, lets it through", func(t *testing.T) {
 		e := stopChecksSetup(t)
 		e.turn("Edit", e.path("a.ts"))
 		e.review()
+		e.finish("<tool-use-id>toolu_r1</tool-use-id>", "completed")
 		e.turn("Edit", e.plan(done))
 		e.stop(false).Want(t, 0)
 	})
-	t.Run("a typed /code-review counts", func(t *testing.T) {
+	t.Run("a typed /code-review counts once its notification says completed", func(t *testing.T) {
 		e := stopChecksSetup(t)
 		e.turn("Edit", e.path("a.ts"))
 		e.line(map[string]any{"type": "user", "message": map[string]any{"content": "/code-review high"}})
+		e.line(map[string]any{"type": "system", "subtype": "local_command",
+			"content": `<forked-skill-launch>{"agentId":"a1","skillName":"code-review"}</forked-skill-launch>`})
+		e.line(map[string]any{"type": "user", "message": map[string]any{"content": "<task-notification>\n<task-id>a1</task-id>\n<status>completed</status>\n</task-notification>"}})
 		e.turn("Edit", e.plan(done))
 		e.stop(false).Want(t, 0)
+	})
+	t.Run("a review that was stopped, or hasn't finished, doesn't count", func(t *testing.T) {
+		e := stopChecksSetup(t)
+		e.turn("Edit", e.path("a.ts"))
+		e.review()
+		e.turn("Edit", e.plan(done))
+		e.stop(false).Want(t, 2)
+		e.finish("<tool-use-id>toolu_r1</tool-use-id>", "killed")
+		e.turn("Edit", e.plan(done))
+		e.stop(false).Want(t, 2)
+	})
+	t.Run("an edit made while the review ran needs a new one", func(t *testing.T) {
+		e := stopChecksSetup(t)
+		e.review()
+		e.turn("Edit", e.path("a.ts"))
+		e.finish("<tool-use-id>toolu_r1</tool-use-id>", "completed")
+		e.turn("Edit", e.plan(done))
+		e.stop(false).Want(t, 2)
 	})
 	t.Run("an edit after the review needs a new one", func(t *testing.T) {
 		e := stopChecksSetup(t)
 		e.review()
+		e.finish("<tool-use-id>toolu_r1</tool-use-id>", "completed")
 		e.turn("Edit", e.path("a.ts"), e.plan(done))
 		e.stop(false).Want(t, 2)
 	})
