@@ -131,12 +131,18 @@ func WriteAtomic(path string, data []byte, perm os.FileMode) error {
 	if err != nil {
 		return err
 	}
-	_, werr := tmp.Write(data)
-	if err := errors.Join(werr, tmp.Close(), os.Chmod(tmp.Name(), perm), os.Rename(tmp.Name(), path)); err != nil {
-		os.Remove(tmp.Name())
-		return err
+	_, err = tmp.Write(data)
+	// Rename only after every earlier step succeeded: a failed write must
+	// leave path untouched.
+	if err = errors.Join(err, tmp.Close()); err == nil {
+		if err = os.Chmod(tmp.Name(), perm); err == nil {
+			err = os.Rename(tmp.Name(), path)
+		}
 	}
-	return nil
+	if err != nil {
+		os.Remove(tmp.Name())
+	}
+	return err
 }
 
 // IsFile is true for an existing regular file.

@@ -53,6 +53,21 @@ func TestPlanStepPause(t *testing.T) {
 		prompt(k, proj, "s1").Empty(t)
 	})
 
+	t.Run("a reminded plan's marker stays fresh, so scratch-rotate keeps it", func(t *testing.T) {
+		k, proj := setup(t)
+		Write(t, filepath.Join(proj, ".claude", "plans", "plan-x.md"), "- [ ] one\n")
+		approve(k, proj, "s1").Want(t, 0)
+		markers, _ := filepath.Glob(filepath.Join(k.Claude, "cache", "plan-active", "*"))
+		if len(markers) != 1 {
+			t.Fatalf("plan-active markers = %v", markers)
+		}
+		old := time.Now().Add(-72 * time.Hour)
+		os.Chtimes(markers[0], old, old)
+		prompt(k, proj, "s1").Has(t, "plan-x.md")
+		k.Run("", "scratch-rotate").Want(t, 0)
+		prompt(k, proj, "s1").Has(t, "plan-x.md")
+	})
+
 	t.Run("ExitPlanMode with no open plan still asks for one step", func(t *testing.T) {
 		k, proj := setup(t)
 		r := approve(k, proj, "s1")

@@ -171,7 +171,8 @@ func FileSkills(paths config.Paths, cfg *config.Config, root, session string) []
 	}
 	skills := scanFileSkills(cfg, root)
 	if cache != "" && os.MkdirAll(filepath.Dir(cache), 0o755) == nil {
-		_ = os.WriteFile(cache, []byte(strings.Join(skills, "\n")), 0o644)
+		// Atomic: parallel SubagentStart hooks read it while one rewrites it.
+		_ = project.WriteAtomic(cache, []byte(strings.Join(skills, "\n")), 0o644)
 	}
 	return skills
 }

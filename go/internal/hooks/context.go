@@ -17,8 +17,6 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/tools"
 )
 
-// cwdOf is the payload's cwd, which Claude Code always sends, else the
-// process's own.
 // projectOf resolves the project for cwd; ok is false for a non-project
 // context (home, /, or a name that sanitizes to nothing).
 func projectOf(cfg *config.Config, cwd string) (name, root string, ok bool) {

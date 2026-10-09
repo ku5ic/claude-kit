@@ -3,6 +3,8 @@ package hooks
 import (
 	"encoding/json"
 	"os"
+	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/hook"
@@ -10,16 +12,25 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
+// runChecksCall is one kit run-checks invocation and its arguments, up to
+// the next shell operator.
+var runChecksCall = regexp.MustCompile(`kit run-checks([^|;&\n]*)`)
+
 // ranChecks reports whether the agent's transcript has a Bash call that ran
 // kit run-checks, so a reviewer that already did isn't sent back to re-emit
-// its report.
+// its report. --plan only lists the checks, so it doesn't count.
 func ranChecks(path string) bool {
 	ran := false
 	// A read error leaves what was read: the hook fails open.
 	_ = transcript.Each(path, func(e transcript.Entry) {
 		for _, b := range e.ToolUses() {
-			if e.Type == "assistant" && b.Name == "Bash" && strings.Contains(b.Input.Command, "kit run-checks") {
-				ran = true
+			if e.Type != "assistant" || b.Name != "Bash" {
+				continue
+			}
+			for _, m := range runChecksCall.FindAllStringSubmatch(b.Input.Command, -1) {
+				if !slices.Contains(strings.Fields(m[1]), "--plan") {
+					ran = true
+				}
 			}
 		}
 	})

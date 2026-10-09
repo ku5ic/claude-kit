@@ -82,13 +82,6 @@ func changedSince(root string) changes {
 	return c
 }
 
-// runScoped runs a scoped gate. With no git base it skips; with nothing
-// changed it passes without running. Otherwise the findings decide, not
-// the exit code (vulture exits 3, deadcode 0, with findings alike): any in
-// a changed file fails it; a non-zero exit with none parsed is a tool
-// error. Only a finding on a changed line counts, so touching a file doesn't
-// inherit its old dead code. It returns the verdict: "pass", "fail", or
-// "skip".
 // blockingFindings is the text of each finding on a line changed since the
 // merge-base, in a file that changed.
 func blockingFindings(found []tools.Finding, dir string, ch changes) []string {
@@ -115,6 +108,13 @@ func blockingFindings(found []tools.Finding, dir string, ch changes) []string {
 	return blocking
 }
 
+// runScoped runs a scoped gate. With no git base it skips; with nothing
+// changed it passes without running. Otherwise the findings decide, not
+// the exit code (vulture exits 3, deadcode 0, with findings alike): any in
+// a changed file fails it; a non-zero exit with none parsed is a tool
+// error. Only a finding on a changed line counts, so touching a file doesn't
+// inherit its old dead code. It returns the verdict: "pass", "fail", or
+// "skip".
 func runScoped(g Gate, ch changes, w io.Writer) string {
 	if !ch.ok {
 		fmt.Fprint(w, skipLine(g.Label, "no git base"))

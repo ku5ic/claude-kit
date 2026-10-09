@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
@@ -63,6 +64,9 @@ func PlanModeContext(h *hook.Hook) error {
 		os.Remove(marker)
 		return nil
 	}
+	// scratch-rotate prunes markers by age: a plan still in use stays fresh.
+	now := time.Now()
+	_ = os.Chtimes(marker, now, now)
 	fmt.Fprintf(h.Stdout, "Active plan %s has open steps: do only the next unchecked one, then stop for review, per rules/workflow.md section 3.\n", plan)
 	return nil
 }
