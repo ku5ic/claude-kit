@@ -23,6 +23,7 @@ var singleChecks = map[string]hook.Check{
 	"format-dispatch":         hooks.FormatDispatch,
 	"stop-checks":             hooks.StopChecks,
 	"review-checks":           hooks.ReviewChecks,
+	"reply-length":            hooks.ReplyLength,
 	"guard-bash":              bashguard.Check,
 }
 

@@ -37,6 +37,7 @@ type Config struct {
 	FileChecks         []FileCheck         `yaml:"file_checks"`
 	DisabledFileChecks []string            `yaml:"disabled_file_checks"`
 	CheckTimeout       int                 `yaml:"check_timeout"`
+	ReplyLimits        ReplyLimits         `yaml:"reply_limits"`
 	SanitizeSkip       []string            `yaml:"sanitize_skip"`
 	SkipDirs           []string            `yaml:"skip_dirs"`
 	ToolResolution     ToolResolution      `yaml:"tool_resolution"`
@@ -388,4 +389,14 @@ type Extra struct {
 	Rule   `yaml:",inline"`
 	AnyOf  []Rule   `yaml:"any_of"`
 	Skills []string `yaml:"skills"`
+}
+
+// ReplyLimits are the chat reply word ceilings rules/output.md section 0
+// names. A prompt holding a detail trigger lifts the ceiling, one holding an
+// explain trigger raises it to Explain; 0 is no ceiling.
+type ReplyLimits struct {
+	Chat            int      `yaml:"chat"`
+	Explain         int      `yaml:"explain"`
+	ExplainTriggers []string `yaml:"explain_triggers"`
+	DetailTriggers  []string `yaml:"detail_triggers"`
 }

@@ -679,6 +679,16 @@ disabled_file_checks: []
 # reported as a SKIP, never a block. The Stop hook itself allows 300.
 check_timeout: 90
 
+# Chat reply word ceilings (rules/output.md section 0), set per prompt and
+# enforced at Stop by the reply-length hook. Fenced code doesn't count.
+# A prompt with a detail trigger has no ceiling; with an explain trigger,
+# the explain one. 0 turns a ceiling off.
+reply_limits:
+  chat: 40
+  explain: 80
+  explain_triggers: [explain, why, tradeoff, tradeoffs, review, audit]
+  detail_triggers: [in detail, walk me through, long version]
+
 # The CLIs rules/tooling.md steers toward. <tooling> reports which of them
 # are on PATH as available: and missing: lines, so a rule never sends Claude
 # to a binary this machine lacks.

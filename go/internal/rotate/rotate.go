@@ -47,6 +47,7 @@ func Run(cfg *config.Config, paths config.Paths, n int, dryRun bool, stdout, std
 		{config.FileSkills, "file-skills cache(s)"},
 		{config.PlanActive, "plan-active marker(s)"},
 		{config.Statusline, "statusline cache(s)"},
+		{config.ReplyLimit, "reply-limit marker(s)"},
 	} {
 		if dir := filepath.Join(paths.CacheDir(), m.kind); project.IsDir(dir) {
 			fmt.Fprintf(stdout, "scratch-rotate: %s %d %s older than 1d from %s\n", r.pruned, r.prune(dir, 1, false, nil), m.what, dir)

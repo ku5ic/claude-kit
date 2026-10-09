@@ -14,16 +14,16 @@ Run this test on every reply, file, and commit message before emitting:
 4. The first line is the answer, the path, or the next action. Nothing before it.
 5. Stop at the last sentence that carries information.
 
-| Context                                                           | Ceiling                                   |
-| ----------------------------------------------------------------- | ----------------------------------------- |
-| Chat reply, default                                               | 2 sentences                               |
-| Chat reply after "explain", "why", "tradeoffs", "review", "audit" | 4 lines of prose                          |
-| Chat reply after "in detail", "walk me through", "long version"   | no ceiling, headers required              |
-| An artifact the reader asked for (report, audit, plan, review)    | follows the report-format skill           |
-| Reply naming a written file                                       | path, headline count, one next action     |
-| Commit message body, PR description                               | shortest structured form that is complete |
+| Context                                                        | Ceiling                                   |
+| -------------------------------------------------------------- | ----------------------------------------- |
+| Chat reply, default                                            | kit.yml `reply_limits.chat` words         |
+| Chat reply after a `reply_limits.explain_triggers` word        | kit.yml `reply_limits.explain` words      |
+| Chat reply after a `reply_limits.detail_triggers` phrase       | no ceiling, headers required              |
+| An artifact the reader asked for (report, audit, plan, review) | follows the report-format skill           |
+| Reply naming a written file                                    | path, headline count, one next action     |
+| Commit message body, PR description                            | shortest structured form that is complete |
 
-A trigger lifts the ceiling for that reply only. Still over the ceiling after the test: cut again, never add words explaining the length.
+A trigger lifts the ceiling for that reply only. Fenced code doesn't count. Working memory is small: one idea per line, no status tables, nothing the reader already saw. Still over the ceiling after the test: cut again, never add words explaining the length.
 
 **Always survives, one sentence each:** a tradeoff that flips the decision; a risk that bites later; a safety warning or confirmation before an irreversible action, stated in full; what was not run, not exercised, or ruled out, as one line each, never a section.
 

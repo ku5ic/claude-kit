@@ -38,6 +38,7 @@ const (
 	FileSkills   = "file-skills"
 	PlanActive   = "plan-active"
 	Statusline   = "statusline"
+	ReplyLimit   = "reply-limit"
 )
 
 // SessionFile is <cache>/<kind>/<session>[-<part>...]: one session's marker.
