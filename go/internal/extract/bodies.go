@@ -15,9 +15,10 @@ type Body struct {
 
 // Bodies maps each task an extractor finds to the shell it runs, for the
 // gate classifier. Only extractors whose manifest holds commands have
-// bodies: json_keys and toml_keys (script strings), make_targets and
-// just_recipes (recipes, with prerequisites and dependencies first, as
-// "make <dep>" and "just <dep>" lines). Any other extractor has none.
+// bodies: json_keys and toml_keys (script strings), make_targets,
+// just_recipes, and taskfile_tasks (recipes, with dependencies first, as
+// "make <dep>", "just <dep>", and "task <dep>" lines), and precommit_hooks
+// (each hook's command and args). Any other extractor has none.
 func Bodies(name, file, arg string) map[string]Body {
 	switch name {
 	case "json_keys":
@@ -28,6 +29,10 @@ func Bodies(name, file, arg string) map[string]Body {
 		return makeBodies(file)
 	case "just_recipes":
 		return justBodies(file)
+	case "taskfile_tasks":
+		return taskfileBodies(file)
+	case "precommit_hooks":
+		return preCommitBodies(file)
 	}
 	return nil
 }

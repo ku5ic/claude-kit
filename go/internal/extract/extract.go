@@ -42,6 +42,10 @@ func Run(name, file, arg string) ([]string, error) {
 		return MakeTargets(file), nil
 	case "just_recipes":
 		return JustRecipes(file), nil
+	case "taskfile_tasks":
+		return TaskfileTasks(file), nil
+	case "precommit_hooks":
+		return PreCommitHooks(file), nil
 	}
 	return nil, fmt.Errorf("unknown extractor in kit.yml: %s", name)
 }

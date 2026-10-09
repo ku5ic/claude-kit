@@ -29,6 +29,8 @@ var TaskProviders = []TaskProvider{
 	{Name: "rake", Stack: "ruby", Manifests: []string{"Rakefile"}, Extractor: "regex_lines", Arg: `^[[:space:]]*task[[:space:]]+:?"?([A-Za-z0-9_:]+)`, Run: "bundle exec rake {task}"},
 	{Name: "cargo-alias", Stack: "rust", Manifests: []string{".cargo/config.toml", ".cargo/config"}, Extractor: "toml_keys", Arg: ".alias", Run: "cargo {task}", Body: "cargo {body}"},
 	{Name: "composer", Stack: "php", Manifests: []string{"composer.json"}, Extractor: "json_keys", Arg: ".scripts", Run: "composer run {task}"},
+	{Name: "taskfile", Manifests: []string{"Taskfile.yml", "taskfile.yml", "Taskfile.yaml", "taskfile.yaml", "Taskfile.dist.yml", "Taskfile.dist.yaml"}, Extractor: "taskfile_tasks", Run: "task {task}"},
+	{Name: "pre-commit", Manifests: []string{".pre-commit-config.yaml", ".pre-commit-config.yml"}, Extractor: "precommit_hooks", Run: "pre-commit run {task} --all-files"},
 }
 
 // CommandGrammar is how the gate classifier reads a command line. A line it
@@ -82,6 +84,8 @@ var Grammar = CommandGrammar{
 		{Prefix: "poe", Provider: "poe"},
 		{Prefix: "composer run", Provider: "composer"},
 		{Prefix: "composer run-script", Provider: "composer"},
+		{Prefix: "task", Provider: "taskfile"},
+		{Prefix: "pre-commit run", Provider: "pre-commit"},
 	},
 	ScriptRunners:  []string{"run-s", "run-p", "npm-run-all", "npm-run-all2"},
 	FanOutFlags:    []string{"-r", "--recursive", "--filter", "-F", "--workspaces", "--ws", "-ws", "--workspace"},

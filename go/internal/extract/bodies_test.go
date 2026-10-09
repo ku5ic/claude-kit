@@ -63,6 +63,72 @@ func TestBodies(t *testing.T) {
 	}
 }
 
+func TestTaskfileAndPreCommit(t *testing.T) {
+	dir := t.TempDir()
+	taskfile := filepath.Join(dir, "Taskfile.yml")
+	precommit := filepath.Join(dir, ".pre-commit-config.yaml")
+	for path, body := range map[string]string{
+		taskfile: `version: '3'
+tasks:
+  lint:
+    cmds:
+      - golangci-lint run {{.PKGS}}
+  test:
+    deps: [lint, {task: gen}]
+    cmd: go test ./...
+  gen:
+    internal: true
+    cmds: [go generate ./...]
+  ci:
+    cmds:
+      - task: lint
+      - cmd: go vet ./...
+  short: echo hi
+`,
+		precommit: `repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+  - repo: local
+    hooks:
+      - id: pytest
+        entry: uv run pytest
+        args: [-q]
+      - id: ruff
+`,
+	} {
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if got := strings.Join(TaskfileTasks(taskfile), " "); got != "lint test ci short" {
+		t.Errorf("tasks: %q, want internal gen left out, file order kept", got)
+	}
+	for name, want := range map[string]string{
+		"lint":  "golangci-lint run $TASK_VAR",
+		"test":  "task lint\ntask gen\ngo test ./...",
+		"ci":    "task lint\ngo vet ./...",
+		"short": "echo hi",
+	} {
+		if got := Bodies("taskfile_tasks", taskfile, "")[name]; got.Text != want || !got.PerLine {
+			t.Errorf("taskfile %s: %+v, want %q per line", name, got, want)
+		}
+	}
+
+	if got := strings.Join(PreCommitHooks(precommit), " "); got != "ruff ruff-format pytest" {
+		t.Errorf("hooks: %q, want each id once in file order", got)
+	}
+	// The first hook with an id wins: its args say what running it does.
+	for id, want := range map[string]string{"ruff": "ruff --fix", "ruff-format": "ruff-format", "pytest": "uv run pytest -q"} {
+		if got := Bodies("precommit_hooks", precommit, "")[id].Text; got != want {
+			t.Errorf("pre-commit %s: %q, want %q", id, got, want)
+		}
+	}
+}
+
 func TestBodiesReadPastALongLine(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "Makefile")
 	long := "# " + strings.Repeat("x", 100*1024)
