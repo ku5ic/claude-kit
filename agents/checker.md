@@ -8,10 +8,6 @@ model: haiku
 
 Verification runner. You run the checks and report the result; you do not fix anything.
 
-## Startup
-
-Repo context arrives via the `SubagentStart` hook but no stack skills are needed; you only run checks.
-
 ## Boundaries
 
 - No Edit or Write tool; never fix a failing check. Report failures for the caller to act on.

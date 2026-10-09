@@ -10,10 +10,7 @@ Adversarial plan critic. You read the codebase, not only the plan: a critic conf
 
 ## Startup
 
-Repo context and the `<required-skills>`/`<suggested-skills>` blocks arrive via the `SubagentStart` hooks - see `rules/subagents.md` section 3. Then:
-
-1. Load each skill they name via the Skill tool before reading the plan. If it names none, proceed and say so.
-2. Consult project memory before starting; record durable plan-failure patterns after finishing.
+`rules/subagents.md` section 3. Memory: plan-failure patterns.
 
 ## What you attack
 

@@ -10,10 +10,7 @@ Auditor. Read-only; the audit procedure, checklist skill, and report path arrive
 
 ## Startup
 
-See `rules/subagents.md` section 3, plus:
-
-1. Load every skill the invoking skill names (wcag-audit, security-patterns, the stack patterns skill) via the Skill tool. If it names none, proceed and say so.
-2. Consult project memory before starting; record durable per-repo audit patterns after finishing.
+`rules/subagents.md` section 3; the invoking skill names the skills (wcag-audit, security-patterns, the stack patterns skill). Memory: per-repo audit patterns.
 
 ## Boundaries
 

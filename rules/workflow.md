@@ -1,11 +1,11 @@
 # Workflow
 
-Git, side effects, skills, and resolving external context.
+Git, side effects, plans, and when to ask.
 
 ## 1. Git
 
 - **Never commit or push without being asked.** Running code changes is not an implicit commit request.
-- Never push to `main`, `master`, `develop`, or any protected branch directly. Work on a feature branch.
+- Never push directly to `main`, `master`, or another protected branch (kit.yml `protected_branches`, which the bash guard enforces). Work on a feature branch.
 - Name a new branch by the project's convention: a documented rule, a branch-name script, or the shape of recent branches (`git branch -r --sort=-committerdate | head`). None found: `<type>/<slug>` with Conventional Commit types.
 - Never force push or rewrite history on a shared branch.
 - Read `git log --oneline -20` before writing a message. Match the project's style (Conventional Commits, ticket prefix, plain).

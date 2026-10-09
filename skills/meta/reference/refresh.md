@@ -45,7 +45,6 @@ Retention: at most 3 version entries, newest first. A pattern that changed moves
    - One finding per `guidance changed` skill: severity `warning`, what changed, files edited, source.
    - One finding per `version bump`: severity `info`.
    - "Cannot be verified statically": every `could not verify` item with what a manual check needs.
-     Print the path.
 
 ## Rules
 

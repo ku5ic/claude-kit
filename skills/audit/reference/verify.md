@@ -44,8 +44,6 @@ Original report: <absolute path>
 <counts per classification, e.g. "3 resolved, 1 unresolved, 1 moved, 0 regressed, 1 unverifiable">
 ```
 
-Print the path.
-
 ## Rules
 
 - Never edit or delete the original report.

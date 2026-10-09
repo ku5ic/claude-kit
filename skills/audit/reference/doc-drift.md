@@ -16,7 +16,7 @@ $ARGUMENTS should point to the code surface to check. Required.
    - JSDoc, docstrings, and inline comments in the target files
    - `CHANGELOG.md` only if the task involves a version boundary
 4. If `<root>/.claude/rules/conventions/*.md` exists, check every `path:line` citation in it, whatever $ARGUMENTS names. Read the cited line with a few lines of context and confirm it still shows the convention its bullet states. Moved within the file: `warning`, with the new line. Gone, or now showing the opposite: `failure` against the rule file's line, since the rule now misleads.
-5. Skip: `node_modules/**`, `.next/**`, `coverage/**`, `out/**`, `.turbo/**`, `.cache/**`, `vendor/**`, `target/**`, `dist/**`, `build/**`, `storybook-static/**`, `.pnpm-store/**`, `LICENSE.md`.
+5. Skip the dirs `rules/tooling.md` section 1 lists, and `LICENSE.md`.
 6. Compare.
 
 ## What counts as drift
@@ -46,7 +46,7 @@ $ARGUMENTS should point to the code surface to check. Required.
 
 ## Output file
 
-Load the report-format skill and use its format. Write to the path `kit scratch-dir doc-drift <target-slug>` prints. Print the path.
+Load the report-format skill and use its format. Write to the path `kit scratch-dir doc-drift <target-slug>` prints.
 
 ## Scope rules
 

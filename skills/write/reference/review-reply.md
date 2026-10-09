@@ -42,7 +42,7 @@ For each comment, once investigated:
 
 ## Output
 
-Write to the path `kit scratch-dir pr <pr-number>-<reviewer>-review-replies` prints. Print the path.
+Write to the path `kit scratch-dir pr <pr-number>-<reviewer>-review-replies` prints.
 
 Structure:
 
@@ -69,7 +69,7 @@ Structure:
 
 ## Rules
 
-- Verify before agreeing. Every "confirmed" or "agreed" answer must point at something actually read this session, not a paraphrase of the reviewer's own claim.
+- Verify before agreeing (`rules/workflow.md` section 4): every "confirmed" or "agreed" answer points at something read this session, not a paraphrase of the reviewer's claim.
 - Tone: short, peer-to-peer - the PR author replying to a colleague, not a report. No "Thank you for the feedback", no groveling, no corporate hedging.
 - Disagree plainly when the code contradicts the reviewer. State the evidence, don't soften it.
 - Never post anything to GitHub. This drafts a file only - posting the replies is a separate, explicit action the user takes themselves.

@@ -51,9 +51,7 @@ Stack: <line from kit detect-stack, if applicable>
 - If a section would be empty, omit it. Do not leave placeholder text.
 - Code snippets use fenced blocks with language tag.
 - No ASCII decoration, no banner comments, no emoji.
-- Use straight quotes, plain ASCII punctuation.
 - File naming and location: the path `kit scratch-dir <kind> <target-slug>` prints.
-- Always print the absolute path at the end of execution so the user can open it.
 - Does not govern `/write` output (commit messages, PR descriptions, release notes, stakeholder summaries) - those have their own formats per `rules/output.md`.
 
 ## Summary line rubric

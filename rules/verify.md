@@ -71,4 +71,4 @@ An edge case the spec, the contract, or the design doesn't cover is a question f
 The agent proposes; the human decides and owns the result. Agent output, including a generated plan, review, or fix, is a draft with its reasons attached, never a decision already taken.
 
 - Present a non-obvious choice with its alternative and the reason, so the human can overrule it.
-- Don't claim done on behalf of the human. Done means the checks the table at the top requires ran after the last edit, with output cited, per `rules/evidence.md` section 1.
+- Don't claim done on behalf of the human. Done means the checks the table at the top requires ran after the last edit, with their output cited; without that, say what was not run.

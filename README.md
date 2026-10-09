@@ -175,7 +175,7 @@ Commands work bare (`/audit`) or namespaced (`/kit:audit`).
 
 Stack knowledge Claude loads when the repo calls for it: React, Next.js App Router, Vue, Nuxt, TypeScript, JavaScript, Tailwind, Storybook, GraphQL, Python, Django, DRF, FastAPI, Go, Bash, Docker, OpenTofu/Terraform, git, testing, security, logging, monitoring, backups, VPS provisioning, WCAG 2.2, and engineering fundamentals.
 
-Set `CLAUDE_GUARD_SKILLS=1` to block the first edit of a file type until its skill is loaded.
+`CLAUDE_GUARD_SKILLS=1` makes them required: see the switches under Configure.
 
 ### Status line
 
@@ -246,7 +246,7 @@ Every hook and helper is one Go binary (`bin/kit-<version>-<os>-<arch>`, darwin 
 
 ## Develop
 
-- Guidance: `CLAUDE.md` maps every rule topic to the one file that owns it. Change guidance there or nowhere.
+- Guidance: `CLAUDE.md` maps every rule topic to the one file that owns it. Change a topic in its owner, or nowhere.
 - Code: `go/`. Run `go test ./...`; end-to-end tests live in `go/e2e`, and `go/e2e/kit_repo_test.go` checks the kit's own files agree (skill map, skill and agent frontmatter, `kit.yml` keys).
 - Behavior: `evals/` checks that the rules shape replies (answer first, ask before guessing, no unasked commits, artifacts in scratch). Run `claude plugin eval . --ablation none --scaffold --allow-tools Edit Write Bash --runs 5` before and after a rules change and compare the scores. About $10 a run.
 - `go/build.sh` builds the binaries for the `plugin.json` version. With `KIT_DEV=1`, `bin/kit` builds them itself and rebuilds when `go/` changes.

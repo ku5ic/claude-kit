@@ -11,7 +11,7 @@ Reframe a technical finding or proposal for a non-technical audience. Arguments:
 
 ## Output file
 
-Write to the path `kit scratch-dir stakeholder <topic-slug>` prints. Print the path.
+Write to the path `kit scratch-dir stakeholder <topic-slug>` prints.
 
 Structure:
 
@@ -48,5 +48,5 @@ Structure:
 - Replace jargon with plain language without oversimplifying to the point of being inaccurate.
 - Keep tradeoffs intact. Do not hide risk or complexity, just express it in outcomes.
 - Tone: direct. Not apologetic, not hedged.
-- Do not invent context. If something in the input is ambiguous, note it as an open question rather than guessing.
+- Do not invent context. Ask about an ambiguity in the input per `rules/workflow.md` section 4 rather than guessing.
 - No padding. If a section has nothing meaningful, omit it.

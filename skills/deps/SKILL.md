@@ -73,7 +73,7 @@ If $ARGUMENTS scopes to an ecosystem or PR number, filter to it.
 
 ## Phase 2: triage and present
 
-Stop for approval before mutating (`rules/workflow.md` section 3 pause discipline).
+Stop for approval before mutating (`rules/workflow.md` sections 2 and 4).
 
 - Severity is from 1b when available; where audit and alerts disagree, trust the alert.
 - Map each open alert to a PR by package and fixed version.
@@ -120,7 +120,7 @@ Runs only when $ARGUMENTS contains `--fix-transitive`; then read [reference/fix-
 
 ## Phase 6: report
 
-Load the report-format skill and use its format. Write to the path `kit scratch-dir deps` prints. Print the path.
+Load the report-format skill and use its format. Write to the path `kit scratch-dir deps` prints.
 
 Per PR/alert, report these fields:
 

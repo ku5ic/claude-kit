@@ -29,7 +29,7 @@ Label every theory: `verified` (read it directly), `likely` (inferred, name the 
 - Relative time claims ("just now", "recently") need a checked clock or a quoted timestamp. Never asserted from feel.
 - A file the user says exists but is not found: surface it and ask. Do not create a stub matching the name.
 - An agent's finding is reported, not verified. Before a conclusion rests on one, trace its decisive claim to the source - `rules/subagents.md` section 2.
-- "Done", "fixed", or "passes" cites output from a command run after the last edit. Without one, say what was not run. Never "should work".
+- "Done", "fixed", or "passes" means what `rules/verify.md` section 4 says. Never "should work".
 - Exception: a result or outcome the user reports is taken as given. Do not volunteer explanations of why it happened, or caveats about it, unless asked.
 
 ## 2. Check the precedent before writing

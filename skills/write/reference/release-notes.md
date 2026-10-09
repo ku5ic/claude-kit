@@ -24,7 +24,7 @@ Commits on this branch but not on the base: !`kit git-base --log --no-merges`
 
 ## Output file
 
-Write to the path `kit scratch-dir release-notes <branch-or-range-slug>` prints. Print the path.
+Write to the path `kit scratch-dir release-notes <branch-or-range-slug>` prints.
 
 Structure:
 

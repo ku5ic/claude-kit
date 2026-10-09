@@ -28,7 +28,7 @@ Generate a pull request description from the current diff. Arguments: `<optional
 
 ## Output
 
-Write the PR description to the path `kit scratch-dir pr <branch-slug>` prints. Print the path.
+Write the PR description to the path `kit scratch-dir pr <branch-slug>` prints.
 
 ### If step 2 found a project PR template
 

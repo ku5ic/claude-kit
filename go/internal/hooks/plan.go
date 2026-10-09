@@ -43,7 +43,7 @@ func PlanModeContext(h *hook.Hook) error {
 		if p.String("tool_name") != "ExitPlanMode" {
 			return nil
 		}
-		const pause = "implement only its first unchecked step, run the checks rules/verify.md requires, then stop for review. Tick it - [x] only after the user commits it. This pause outranks any output style."
+		const pause = "implement only its first unchecked step, then stop for review, per rules/workflow.md section 3."
 		msg := "Plan approved: " + pause
 		if plan := newestOpenPlan(h); plan != "" {
 			// Best effort: without the marker, later prompts just aren't reminded.
@@ -63,7 +63,7 @@ func PlanModeContext(h *hook.Hook) error {
 		os.Remove(marker)
 		return nil
 	}
-	fmt.Fprintf(h.Stdout, "Active plan %s has open steps: do only the next unchecked one, run the checks rules/verify.md requires, then stop for review. Tick a step only after the user commits it.\n", plan)
+	fmt.Fprintf(h.Stdout, "Active plan %s has open steps: do only the next unchecked one, then stop for review, per rules/workflow.md section 3.\n", plan)
 	return nil
 }
 

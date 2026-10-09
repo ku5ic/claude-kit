@@ -15,7 +15,7 @@ Structured retrospective for an incident, sprint, or completed feature. Argument
 
 ## Output file
 
-Write to the path `kit scratch-dir retro <type>-<slug>` prints. Print the path.
+Write to the path `kit scratch-dir retro <type>-<slug>` prints.
 
 ## Incident template
 

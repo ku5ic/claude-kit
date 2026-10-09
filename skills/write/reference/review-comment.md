@@ -29,7 +29,7 @@ For every finding, build a real link instead of relying on GitHub to auto-linkif
 
 ## Output file
 
-Write to the path `kit scratch-dir review-comment <scope-slug>` prints. Print the path. `<scope-slug>` comes from the input report's `Scope:` line if present, otherwise from the input filename.
+Write to the path `kit scratch-dir review-comment <scope-slug>` prints. `<scope-slug>` comes from the input report's `Scope:` line if present, otherwise from the input filename.
 
 Structure (GitHub markdown, no frontmatter, no metadata - copy-paste ready as a single PR comment):
 

@@ -28,7 +28,7 @@ Turn a fuzzy ask into a sharp Claude Code prompt with context and acceptance cri
 
 ## Output file
 
-Write to the path `kit scratch-dir prompt <slug>` prints. Print the path.
+Write to the path `kit scratch-dir prompt <slug>` prints.
 
 Structure:
 
@@ -68,7 +68,7 @@ Structure:
 
 - Extract the underlying goal, do not repeat the fuzzy phrasing.
 - If the ask is actually two or three tasks bundled, split them and output multiple prompts.
-- If the ask is under-specified in a way that cannot be inferred: ask via the AskUserQuestion tool (multiple-choice, "Other" for free text) before writing the output file. Record the resolved answers as a "Decisions" section instead of an unresolved "Open questions" list.
+- If the ask is under-specified in a way that cannot be inferred, ask per `rules/workflow.md` section 4 before writing the output file; the answers become a "Decisions" section.
 - Do not name a file path, function, or API in the output unless it was confirmed this session via Read/Grep/fd or Explore; unconfirmed items are marked unverified, never asserted as fact.
 - The output is meant to be copy-pasted by another agent or a human, not a chatbot.
 

@@ -98,7 +98,7 @@ func AgentContext(paths config.Paths, cfg *config.Config, cwd, session string) s
 	var b strings.Builder
 	if scratch, err := project.Dir(cfg, paths, cwd, "scratch", true); err == nil {
 		fmt.Fprintf(&b, "<scratch>\npath: %s\n", scratch)
-		b.WriteString("Write every file you produce here - reports, plans, previews, logs, downloads, test artifacts, POC scripts.\n" +
+		b.WriteString("Write every file you produce here - reports, previews, logs, downloads, test artifacts, POC scripts.\n" +
 			`This overrides the "Scratchpad directory" line in your system prompt: use this path, never the /private/tmp session scratchpad.` + "\n" +
 			"Name structured artifacts with `kit scratch-dir <kind> <scope-slug>`, which prints the full path with a real timestamp.\n" +
 			"</scratch>\n")
