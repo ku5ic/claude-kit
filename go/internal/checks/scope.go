@@ -16,11 +16,10 @@ import (
 )
 
 // Scope is how a whole-program check (dead code) is judged: only findings
-// on lines changed since the git base fail it. Advisory checks, whose
-// output can't be mapped to files, never fail.
+// on lines changed since the git base fail it. A nil Findings marks an
+// advisory check, whose output can't be mapped to files: it never fails.
 type Scope struct {
 	Findings *tools.Findings
-	Advisory bool
 }
 
 // scopeFor is the scope of a gate in check c, given the tool command it
@@ -30,14 +29,14 @@ func scopeFor(c config.Check, cmd *classify.Command) *Scope {
 		return nil
 	}
 	if cmd == nil || cmd.Pattern == nil || cmd.Pattern.Advisory || cmd.Pattern.Findings == "" {
-		return &Scope{Advisory: true}
+		return &Scope{}
 	}
 	p := cmd.Pattern
 	re, err := regexp.Compile(p.Findings)
 	if err != nil || slices.ContainsFunc(cmd.Words, func(w string) bool {
 		return slices.ContainsFunc(p.Unmapped, func(f string) bool { return w == f || strings.HasPrefix(w, f+"=") })
 	}) {
-		return &Scope{Advisory: true}
+		return &Scope{}
 	}
 	return &Scope{Findings: &tools.Findings{Item: re}}
 }
@@ -125,18 +124,11 @@ func runScoped(g Gate, ch changes, w io.Writer) string {
 		return "pass"
 	}
 	out, err := capture(g)
-	var found []tools.Finding
-	if g.Scope.Findings != nil {
-		found, _ = g.Scope.Findings.Parse(out)
-	}
-	if g.Scope.Advisory {
-		what := "output not mapped to files"
-		if g.Scope.Findings != nil {
-			what = fmt.Sprintf("%d finding%s", len(found), plural(len(found)))
-		}
-		fmt.Fprintf(w, "PASS %s (advisory: %s)\n%s", g.Label, what, g.extra())
+	if g.Scope.Findings == nil {
+		fmt.Fprintf(w, "PASS %s (advisory: output not mapped to files)\n%s", g.Label, g.extra())
 		return "pass"
 	}
+	found, _ := g.Scope.Findings.Parse(out)
 	blocking := blockingFindings(found, g.Dir, ch)
 	switch {
 	case len(blocking) > 0:

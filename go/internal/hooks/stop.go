@@ -28,16 +28,13 @@ func StopChecks(h *hook.Hook) error {
 		return nil
 	}
 	cwd := h.Payload.Cwd()
-	if out, err := git.Line(cwd, "rev-parse", "--is-inside-work-tree"); err != nil || out != "true" {
-		return nil
-	}
 	transcript := h.Payload.String("transcript_path")
 	if !project.IsFile(transcript) {
 		return nil
 	}
-	root, err := git.Line(cwd, "rev-parse", "--show-toplevel") // already physical
+	root := project.Toplevel(cwd) // "" outside a work tree
 	cfg := h.Config()
-	if err != nil || cfg == nil {
+	if root == "" || cfg == nil {
 		return nil
 	}
 	// Before the clean-tree return: plans are gitignored, so ticking the
@@ -77,17 +74,9 @@ func planGate(h *hook.Hook, cfg *config.Config, cwd, root, transcript string) er
 	isCode := func(path string) bool {
 		return strings.HasPrefix(project.PhysicalPath(path), root+"/") && !project.IsScratch(h.Paths, path)
 	}
-	if plan, reviewed := planDone(transcript, dir, isCode); plan != "" {
-		return endOfPlan(h, project.Rel(root, plan), reviewed)
+	// A finished plan waits for /code-review since the last code edit (rules/verify.md).
+	if plan, reviewed := planDone(transcript, dir, isCode); plan != "" && !reviewed {
+		return h.Block(fmt.Sprintf("plan %s is done, but /code-review hasn't finished since the last code edit. Run it now, or wait for the one running, then the runtime pass (/verify) when the change has observable behavior.", project.Rel(root, plan)), "plan-done")
 	}
 	return nil
-}
-
-// endOfPlan blocks a finished plan's stop until /code-review has run since
-// the last code edit (rules/verify.md).
-func endOfPlan(h *hook.Hook, plan string, reviewed bool) error {
-	if reviewed {
-		return nil
-	}
-	return h.Block(fmt.Sprintf("plan %s is done, but /code-review hasn't finished since the last code edit. Run it now, or wait for the one running, then the runtime pass (/verify) when the change has observable behavior.", plan), "plan-done")
 }

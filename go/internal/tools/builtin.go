@@ -130,9 +130,3 @@ var builtins = []Adapter{
 		Carry:    flags([]string{"-P", "--source-path", "-S", "--severity", "-e", "--exclude", "-s", "--shell", "-o", "--enable"}),
 	},
 }
-
-func init() {
-	for i := range builtins {
-		builtins[i].Builtin = true
-	}
-}

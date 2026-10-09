@@ -48,7 +48,6 @@ type Adapter struct {
 	// LocalOnly skips PATH: a copy from there can't see the project's
 	// packages.
 	LocalOnly bool
-	Builtin   bool
 
 	// Derivation from the project's own scripts (Derive): the subcommand
 	// the project's invocation must use (ruff check, golangci-lint run), and

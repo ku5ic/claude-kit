@@ -90,11 +90,7 @@ func shownBefore(path, subject string) bool {
 			earlier.WriteString(current.String())
 			current.Reset()
 		case e.Type == "assistant":
-			for _, b := range e.Blocks {
-				if b.Type == "text" {
-					current.WriteString(b.Text + "\n")
-				}
-			}
+			current.WriteString(e.PromptText() + "\n")
 		}
 	})
 	return strings.Contains(earlier.String(), subject)

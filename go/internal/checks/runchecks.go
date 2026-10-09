@@ -199,7 +199,7 @@ func PrintPlan(cfg *config.Config, root string, only []string, out io.Writer) {
 			fmt.Fprintf(out, "  dir: %s\n", project.Rel(root, g.Dir))
 		}
 		switch {
-		case g.Scope != nil && g.Scope.Advisory:
+		case g.Scope != nil && g.Scope.Findings == nil:
 			fmt.Fprint(out, "  scope: advisory; its findings never fail run-checks\n")
 		case g.Scope != nil:
 			fmt.Fprint(out, "  scope: only findings on lines changed since the git base fail it\n")

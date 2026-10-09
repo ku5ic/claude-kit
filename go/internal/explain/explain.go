@@ -62,12 +62,12 @@ func Run(paths config.Paths, cfg *config.Config, cwd string, args []string, stdo
 }
 
 // dryHook is a hook invocation that logs nothing, with its output captured.
-func dryHook(paths config.Paths, cfg *config.Config, name string, payload map[string]any) (*hook.Hook, *bytes.Buffer, *bytes.Buffer) {
+func dryHook(paths config.Paths, cfg *config.Config, name string, payload map[string]any) (*hook.Hook, *bytes.Buffer) {
 	raw, _ := json.Marshal(payload)
-	var out, errs bytes.Buffer
-	h := &hook.Hook{Name: name, Payload: hook.ParsePayload(raw), Paths: paths, Stdout: &out, Stderr: &errs, DryRun: true}
+	var out bytes.Buffer
+	h := &hook.Hook{Name: name, Payload: hook.ParsePayload(raw), Paths: paths, Stdout: &out, Stderr: io.Discard, DryRun: true}
 	h.SetConfig(cfg)
-	return h, &out, &errs
+	return h, &out
 }
 
 // verdict prints a check's outcome: block with its rule, ask or allow with
@@ -117,7 +117,7 @@ func bash(paths config.Paths, cfg *config.Config, cwd, command string, w io.Writ
 		}
 		fmt.Fprintf(w, "  %d  %s\n", i+1, strings.Join(calls, "  |  "))
 	}
-	h, out, _ := dryHook(paths, cfg, "guard-bash", map[string]any{
+	h, out := dryHook(paths, cfg, "guard-bash", map[string]any{
 		"tool_name": "Bash", "cwd": cwd, "tool_input": map[string]any{"command": command},
 	})
 	verdict(w, "guard-bash", bashguard.Check(h), out)
@@ -129,9 +129,9 @@ func edit(paths config.Paths, cfg *config.Config, cwd, path, tool string, w io.W
 		path = filepath.Join(cwd, path)
 	}
 	payload := map[string]any{"tool_name": tool, "session_id": "explain", "cwd": cwd, "tool_input": map[string]any{"file_path": path}}
-	h, out, _ := dryHook(paths, cfg, "guard-edit", payload)
+	h, out := dryHook(paths, cfg, "guard-edit", payload)
 	verdict(w, "guard-edit", hooks.GuardEdit(h), out)
-	h, out, _ = dryHook(paths, cfg, "guard-skills", payload)
+	h, out = dryHook(paths, cfg, "guard-skills", payload)
 	name := "skills gate"
 	if !stackctx.SkillsEnforced() {
 		name += " (off: CLAUDE_GUARD_SKILLS isn't 1)"

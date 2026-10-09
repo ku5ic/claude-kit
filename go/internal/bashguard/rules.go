@@ -11,9 +11,6 @@ import (
 // command is one command of a pipeline, past its assignments and wrappers.
 type command struct {
 	st     *state
-	seg    Segment
-	call   int
-	idx    int    // index of the command name in the call's words
 	name   string // basename, quotes removed: "rm", r''m, /bin/rm all read rm
 	args   []Word
 	redirs []Redir

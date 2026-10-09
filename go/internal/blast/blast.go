@@ -246,19 +246,7 @@ func parent(p string) string {
 
 // normPath resolves . and .. segments; "" for the root.
 func normPath(p string) string {
-	var out []string
-	for part := range strings.SplitSeq(p, "/") {
-		switch part {
-		case "", ".":
-		case "..":
-			if len(out) > 0 {
-				out = out[:len(out)-1]
-			}
-		default:
-			out = append(out, part)
-		}
-	}
-	return strings.Join(out, "/")
+	return strings.TrimPrefix(path.Clean("/"+p), "/")
 }
 
 func (s *scan) javascript(cfg *config.Config) (dynamic bool) {

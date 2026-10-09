@@ -157,7 +157,7 @@ func away(root, home string, subs map[string]bool, t project.Task, r classify.Re
 		case cmd.Kind == classify.Cd && len(cmd.Words) == 2 && !filepath.IsAbs(cmd.Words[1]):
 			dir = filepath.Clean(filepath.Join(dir, cmd.Words[1]))
 		case cmd.Kind == classify.Gate:
-			if owner := ownerOf(root, subs, dir); owner != home && (dir == root || strings.HasPrefix(dir, root+"/")) {
+			if owner := ownerOf(root, subs, dir); owner != home && within(dir, root) {
 				out = append(out, awayGate{owner, cmd.Slot, cmd.Tool})
 			}
 		}
@@ -245,7 +245,12 @@ func (a *aggregator) inRoot(dir, path string) (string, bool) {
 		return "", false
 	}
 	target := filepath.Clean(filepath.Join(dir, path))
-	return target, target == a.root || strings.HasPrefix(target, a.root+"/")
+	return target, within(target, a.root)
+}
+
+// within is true when path is dir or lies under it.
+func within(path, dir string) bool {
+	return path == dir || strings.HasPrefix(path, dir+"/")
 }
 
 // elsewhere is true when dir belongs to a subproject other than home: one
@@ -260,7 +265,7 @@ func (a *aggregator) elsewhere(dir string) bool {
 func ownerOf(root string, subs map[string]bool, dir string) string {
 	owner := root
 	for sub := range subs {
-		if (dir == sub || strings.HasPrefix(dir, sub+"/")) && len(sub) > len(owner) {
+		if within(dir, sub) && len(sub) > len(owner) {
 			owner = sub
 		}
 	}
@@ -545,7 +550,7 @@ func (p *planner) ciLeaves(labelsOnly bool) map[string][]leaf {
 	cache := map[string][]project.Task{}
 	for _, step := range ci.Steps(p.cfg, p.root) {
 		dir := filepath.Clean(filepath.Join(p.root, step.Dir))
-		if dir != p.root && !strings.HasPrefix(dir, p.root+"/") {
+		if !within(dir, p.root) {
 			continue
 		}
 		a := &aggregator{cfg: p.cfg, root: p.root, home: ownerOf(p.root, p.subDirs, dir), subs: p.subDirs, cache: cache, place: place, labelsOnly: labelsOnly}

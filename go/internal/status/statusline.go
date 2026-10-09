@@ -21,6 +21,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/extract"
 	"github.com/ku5ic/claude-kit/go/internal/git"
+	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
@@ -227,7 +228,11 @@ func models(path, modelName string) (actualShort, actualDisplay, sessionShort, d
 // `git diff --shortstat` counts; not `git diff HEAD`, which fails on an
 // unborn branch.
 func gitStatus(home, cwd, sessionID string) string {
-	if cwd == "" || git.Command(cwd, "rev-parse", "--is-inside-work-tree").Run() != nil {
+	if cwd == "" {
+		return ""
+	}
+	top := project.Toplevel(cwd)
+	if top == "" {
 		return ""
 	}
 	ttl, err := strconv.Atoi(os.Getenv("STATUSLINE_CACHE_TTL"))
@@ -265,22 +270,20 @@ func gitStatus(home, cwd, sessionID string) string {
 	// the top: ls-files --others lists only cwd's subtree, numstat the whole repo.
 	// This runs on every refresh, so only regular files are read, within a
 	// byte budget: past it, or for one larger file, the count runs low.
-	if top := project.Toplevel(cwd); top != "" {
-		untracked, _ := git.Output(top, "ls-files", "--others", "--exclude-standard", "-z")
-		budget := int64(untrackedReadBudget)
-		for name := range strings.SplitSeq(untracked, "\x00") {
-			if name == "" {
-				continue
-			}
-			path := filepath.Join(top, name)
-			switch info, err := os.Lstat(path); {
-			case err != nil:
-			case info.Mode()&fs.ModeSymlink != 0:
-				add++ // git counts a symlink as one line, its target
-			case info.Mode().IsRegular() && info.Size() <= budget:
-				budget -= info.Size()
-				add += newLines(path)
-			}
+	untracked, _ := git.Output(top, "ls-files", "--others", "--exclude-standard", "-z")
+	budget := int64(untrackedReadBudget)
+	for name := range strings.SplitSeq(untracked, "\x00") {
+		if name == "" {
+			continue
+		}
+		path := filepath.Join(top, name)
+		switch info, err := os.Lstat(path); {
+		case err != nil:
+		case info.Mode()&fs.ModeSymlink != 0:
+			add++ // git counts a symlink as one line, its target
+		case info.Mode().IsRegular() && info.Size() <= budget:
+			budget -= info.Size()
+			add += newLines(path)
 		}
 	}
 	segment := fmt.Sprintf("%s\t%d\t%d", branch, add, del)
@@ -346,13 +349,7 @@ func SubagentStatusline(stdin io.Reader, stdout io.Writer) {
 		if id == "" {
 			continue
 		}
-		name := jqString(t, "name", "")
-		if _, ok := t["name"]; !ok || t["name"] == nil || t["name"] == false {
-			name = jqString(t, "label", "")
-			if _, ok := t["label"]; !ok || t["label"] == nil || t["label"] == false {
-				name = jqString(t, "description", "task")
-			}
-		}
+		name := jqString(t, "name", jqString(t, "label", jqString(t, "description", "task")))
 		head := name
 		if status := jqString(t, "status", ""); status != "" {
 			head = name + " [" + status + "]"
@@ -368,15 +365,10 @@ func SubagentStatusline(stdin io.Reader, stdout io.Writer) {
 		if tokens, ok := t["tokenCount"].(float64); ok && size > 0 {
 			fields = append(fields, strconv.Itoa(int(tokens*100/size))+"%")
 		}
-		// Not json.Marshal: it escapes <, >, and &, which jq -c doesn't.
-		enc := json.NewEncoder(&out)
-		enc.SetEscapeHTML(false)
-		if enc.Encode(struct {
+		hook.WriteJSON(&out, struct {
 			ID      string `json:"id"`
 			Content string `json:"content"`
-		}{id, strings.Join(fields, "  ")}) != nil {
-			return
-		}
+		}{id, strings.Join(fields, "  ")})
 	}
 	fmt.Fprint(stdout, out.String())
 }

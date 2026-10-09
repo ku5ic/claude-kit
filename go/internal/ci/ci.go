@@ -304,13 +304,8 @@ func gitlabExtend(doc, job map[string]any, depth int) map[string]any {
 // value is a secret or a CI expression, which a local run can't have.
 func literalEnv(v any) ([]string, bool) {
 	m, _ := v.(map[string]any)
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
 	var out []string
-	for _, k := range keys {
+	for _, k := range slices.Sorted(maps.Keys(m)) {
 		value := str(m[k])
 		if strings.Contains(value, "${{") || strings.Contains(value, "secrets.") || strings.Contains(value, "$CI_") {
 			return nil, false

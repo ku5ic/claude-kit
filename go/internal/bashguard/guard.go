@@ -286,7 +286,7 @@ func (st *state) segment(seg Segment) error {
 		if raw := call.Words[start].Raw; strings.Contains(raw, "$(") || strings.Contains(raw, "`") {
 			st.ask("the command name comes from a substitution, so guard-bash can't check it; confirm it")
 		}
-		c := command{st: st, seg: seg, call: ci, name: baseName(call.Words[start].Value), args: call.Words[start+1:], redirs: call.Redirs, inputs: call.Inputs, idx: start}
+		c := command{st: st, name: baseName(call.Words[start].Value), args: call.Words[start+1:], redirs: call.Redirs, inputs: call.Inputs}
 		c.rest = seg.Rest(ci, start)
 		c.text = c.name + c.rest
 		c.alone = len(seg.Calls) == 1
