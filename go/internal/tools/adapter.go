@@ -94,28 +94,56 @@ func (a Adapter) Claims(path, root string) (Claim, bool) {
 	return claim, true
 }
 
-func (a Adapter) detect(dir, root string) (Claim, bool) {
-	if len(a.Signals) > 0 {
-		if found := project.FindUp(dir, root, a.Signals...); found != "" {
+// HasSignal finds a tool's config walking up from dir to root: one of
+// files by name, else a "<file> <dotted path>" TOML table. The TOML walk
+// goes past a nearer file without the table, as ruff's lookup does.
+func HasSignal(files []string, toml, dir, root string) (Claim, bool) {
+	if len(files) > 0 {
+		if found := project.FindUp(dir, root, files...); found != "" {
 			return Claim{filepath.Dir(found), "config " + strings.TrimPrefix(found, root+"/")}, true
 		}
 	}
-	if a.TOML != "" {
-		file, table, _ := strings.Cut(a.TOML, " ")
-		// Walks past a nearer TOML without the table, as ruff's lookup does.
-		for from := dir; ; {
-			found := project.FindUp(from, root, file)
-			if found == "" {
-				break
-			}
-			if extract.TOMLHas(found, table) {
-				return Claim{filepath.Dir(found), "[" + strings.TrimPrefix(table, ".") + "] in " + strings.TrimPrefix(found, root+"/")}, true
-			}
-			if filepath.Dir(found) == root {
-				break
-			}
-			from = filepath.Dir(filepath.Dir(found))
+	if toml == "" {
+		return Claim{}, false
+	}
+	file, table, _ := strings.Cut(toml, " ")
+	for from := dir; ; {
+		found := project.FindUp(from, root, file)
+		if found == "" {
+			return Claim{}, false
 		}
+		if extract.TOMLHas(found, table) {
+			return Claim{filepath.Dir(found), "[" + strings.TrimPrefix(table, ".") + "] in " + strings.TrimPrefix(found, root+"/")}, true
+		}
+		if filepath.Dir(found) == root {
+			return Claim{}, false
+		}
+		from = filepath.Dir(filepath.Dir(found))
+	}
+}
+
+// fromConfig fills what kit.yml already owns: a built-in without signals
+// takes those of the formatter of its name, and one without a subcommand
+// takes the first check pattern for its bin that names one.
+func (a Adapter) fromConfig(cfg *config.Config) Adapter {
+	if a.Signals == nil && a.TOML == "" {
+		if i := slices.IndexFunc(cfg.Formatters, func(f config.Formatter) bool { return f.Name == a.Name }); i >= 0 {
+			a.Signals, a.TOML = cfg.Formatters[i].SignalFiles, cfg.Formatters[i].SignalTOML
+		}
+	}
+	for _, c := range cfg.Checks {
+		for _, p := range c.Tools {
+			if a.Sub == nil && p.Bin == a.Bin && len(p.Sub) > 0 {
+				a.Sub = p.Sub
+			}
+		}
+	}
+	return a
+}
+
+func (a Adapter) detect(dir, root string) (Claim, bool) {
+	if claim, ok := HasSignal(a.Signals, a.TOML, dir, root); ok {
+		return claim, true
 	}
 	if a.Deps != "" {
 		for d := dir; ; d = filepath.Dir(d) {
@@ -226,7 +254,7 @@ func All(cfg *config.Config) []Adapter {
 	}
 	for _, a := range builtins {
 		if !custom[a.Name] && !slices.Contains(cfg.DisabledFileChecks, a.Name) {
-			out = append(out, a)
+			out = append(out, a.fromConfig(cfg))
 		}
 	}
 	for _, fc := range cfg.FileChecks {

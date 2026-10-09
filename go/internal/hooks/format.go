@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
-	"github.com/ku5ic/claude-kit/go/internal/extract"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/tools"
@@ -178,18 +177,12 @@ func runFormatter(f config.Formatter, bin []string, path, dir string, stderr io.
 }
 
 // hasSignal is true when formatter f has a signal for the file: a config
-// file by name or a TOML table walking up from dir to root, or Prettier's
+// file or TOML table (tools.HasSignal), or Prettier's
 // own config lookup, accepted only when what it finds is inside root (it
 // also finds a ~/.prettierrc, and every repo would get Prettier).
 func hasSignal(f config.Formatter, bin []string, dir, root, path string) bool {
-	if len(f.SignalFiles) > 0 && project.FindUp(dir, root, f.SignalFiles...) != "" {
+	if _, ok := tools.HasSignal(f.SignalFiles, f.SignalTOML, dir, root); ok {
 		return true
-	}
-	if f.SignalTOML != "" {
-		file, table, _ := strings.Cut(f.SignalTOML, " ")
-		if found := project.FindUp(dir, root, file); found != "" && extract.TOMLHas(found, table) {
-			return true
-		}
 	}
 	if f.SignalPrettier && bin != nil {
 		cmd := exec.Command(bin[0], append(bin[1:], "--find-config-path", path)...)

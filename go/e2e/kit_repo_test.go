@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/tools"
 )
 
 // TestKitRepo checks the kit's own files agree with each other: what kit.yml
@@ -94,6 +95,44 @@ func TestKitRepo(t *testing.T) {
 	t.Run("every cited file and rules section exists", func(t *testing.T) {
 		for _, bad := range brokenPointers(t) {
 			t.Error(bad)
+		}
+	})
+
+	t.Run("kit.yml's JS and TS extension lists cover the Go sets", func(t *testing.T) {
+		cfg, _, err := config.Load(config.Paths{Base: filepath.Join(kitRoot, "kit.yml"), Overlay: filepath.Join(t.TempDir(), "none.yml")})
+		if err != nil {
+			t.Fatal(err)
+		}
+		// A list holding a language's base extension holds all of its.
+		langs := map[string][]string{"js": tools.JSExtensions, "ts": tools.TSExtensions}
+		covers := func(what string, exts []string) {
+			for base, set := range langs {
+				if !slices.Contains(exts, base) {
+					continue
+				}
+				for _, e := range set {
+					if !slices.Contains(exts, e) {
+						t.Errorf("%s lists %s but not %s", what, base, e)
+					}
+				}
+			}
+		}
+		for _, f := range cfg.Formatters {
+			covers("formatter "+f.Name, f.Ext)
+		}
+		// skill_file_map: per skill, the basename globs of every rule naming it.
+		bySkill := map[string][]string{}
+		for _, rule := range cfg.SkillFileMap {
+			for _, g := range rule.Globs {
+				if ext, ok := strings.CutPrefix(g, "*."); ok && rule.On == "basename" {
+					for _, skill := range rule.Skills {
+						bySkill[skill] = append(bySkill[skill], ext)
+					}
+				}
+			}
+		}
+		for skill, exts := range bySkill {
+			covers("skill_file_map for "+skill, exts)
 		}
 	})
 

@@ -247,6 +247,14 @@ echo formatted
 		e.callsWant("ruff format " + e.repo + "/app.py")
 	})
 
+	t.Run("[tool.ruff] at the root counts past a nearer pyproject.toml without it", func(t *testing.T) {
+		e := formatDispatchSetup(t)
+		Write(t, filepath.Join(e.repo, "pyproject.toml"), "[tool.ruff]\n")
+		Write(t, filepath.Join(e.repo, "pkg/pyproject.toml"), "[project]\nname = \"pkg\"\n")
+		e.format(filepath.Join(e.repo, "pkg/app.py"))
+		e.callsWant("ruff format " + e.repo + "/pkg/app.py")
+	})
+
 	t.Run("shfmt runs with no indent flag, so .editorconfig decides", func(t *testing.T) {
 		e := formatDispatchSetup(t)
 		Write(t, filepath.Join(e.repo, ".editorconfig"), "root = true\n")

@@ -3,6 +3,7 @@ package tools
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 )
 
@@ -85,5 +86,18 @@ func TestDependencyClaimRunsFromTheDeclaringManifest(t *testing.T) {
 	claim, ok := ruff.Claims(filepath.Join(root, "backend/app/x.py"), root)
 	if !ok || claim.Dir != filepath.Join(root, "backend") {
 		t.Errorf("claim = %+v, %v", claim, ok)
+	}
+}
+
+func TestBuiltinsTakeKitYMLData(t *testing.T) {
+	biome, ruff := adapter(t, "biome"), adapter(t, "ruff")
+	if !slices.Equal(biome.Signals, []string{"biome.json", "biome.jsonc"}) || !slices.Equal(biome.Sub, []string{"lint", "check", "ci"}) {
+		t.Errorf("biome: signals %q sub %q, want the biome formatter's and lint pattern's", biome.Signals, biome.Sub)
+	}
+	if ruff.TOML != "pyproject.toml .tool.ruff" || !slices.Equal(ruff.Sub, []string{"check"}) {
+		t.Errorf("ruff: toml %q sub %q", ruff.TOML, ruff.Sub)
+	}
+	if !slices.Equal(adapter(t, "go-vet").Sub, []string{"vet"}) {
+		t.Error("go-vet keeps its own subcommand")
 	}
 }

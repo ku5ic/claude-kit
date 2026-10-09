@@ -65,7 +65,7 @@ global_skills: []
 # globs: [...]  -> shell-style globs (go/internal/guard Glob)
 skill_file_map:
   - on: basename
-    globs: ["*.ts", "*.tsx", "*.js", "*.jsx", "*.mjs", "*.cjs", "*.py", "*.rb", "*.go", "*.rs", "*.java", "*.sh", "*.vue"]
+    globs: ["*.ts", "*.tsx", "*.mts", "*.cts", "*.js", "*.jsx", "*.mjs", "*.cjs", "*.py", "*.rb", "*.go", "*.rs", "*.java", "*.sh", "*.vue"]
     skills: [engineering-fundamentals]
   - on: basename
     globs: ["*.test.*", "*.spec.*", "test_*.py", "*_test.py", "*_test.go", "*_spec.rb"]
@@ -74,7 +74,7 @@ skill_file_map:
     globs: ["*.tsx"]
     skills: [typescript-patterns, react-patterns]
   - on: basename
-    globs: ["*.ts"]
+    globs: ["*.ts", "*.mts", "*.cts"]
     skills: [typescript-patterns]
   - on: basename
     globs: ["*.jsx"]
@@ -491,17 +491,17 @@ subproject_max_depth: 4
 # entry with the same name updates the fields it sets.
 formatters:
   - name: biome
-    ext: [js, jsx, ts, tsx, json, jsonc, css]
+    ext: [js, jsx, mjs, cjs, ts, tsx, mts, cts, json, jsonc, css]
     signal_files: [biome.json, biome.jsonc]
     bin: biome
     cmd: "{bin} format --write {file}"
   - name: prettier
-    ext: [js, jsx, ts, tsx, css, scss, json, md, mdx, yaml, yml, html]
+    ext: [js, jsx, mjs, cjs, ts, tsx, mts, cts, css, scss, json, md, mdx, yaml, yml, html]
     signal_prettier: true
     bin: prettier
     cmd: "{bin} --write {file}"
   - name: dprint
-    ext: [js, jsx, ts, tsx, json, jsonc, md, toml]
+    ext: [js, jsx, mjs, cjs, ts, tsx, mts, cts, json, jsonc, md, toml]
     signal_files: [dprint.json, .dprint.json]
     bin: dprint
     cmd: "{bin} fmt {file}"

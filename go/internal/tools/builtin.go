@@ -1,8 +1,16 @@
 package tools
 
-import "regexp"
+import (
+	"regexp"
+	"slices"
+)
 
-var jsExt = []string{"js", "jsx", "ts", "tsx", "mjs", "cjs", "mts", "cts"}
+// JSExtensions and TSExtensions are each language's file extensions.
+var (
+	JSExtensions = []string{"js", "jsx", "mjs", "cjs"}
+	TSExtensions = []string{"ts", "tsx", "mts", "cts"}
+	jsExt        = slices.Concat(JSExtensions, TSExtensions)
+)
 
 // flags maps each carried flag to whether it takes a separate value.
 func flags(valued []string, bare ...string) map[string]bool {
@@ -25,6 +33,8 @@ func flags(valued []string, bare ...string) map[string]bool {
 // change what is checked or how strictly (config, rule and project
 // selection, warning thresholds; --cache, whose cache file the project
 // already keeps). Nothing that writes source or picks output files carries.
+//
+// Signals and Sub left unset come from kit.yml (fromConfig).
 var builtins = []Adapter{
 	{
 		Name: "eslint", Ext: jsExt, Bin: "eslint", Cmd: "{bin} {files}", LocalOnly: true,
@@ -36,9 +46,8 @@ var builtins = []Adapter{
 	},
 	{
 		// --no-errors-on-unmatched: files biome.json ignores are otherwise an error.
-		Name: "biome", Ext: []string{"js", "jsx", "ts", "tsx", "json", "jsonc", "css"}, Bin: "biome",
-		Cmd: "{bin} check --no-errors-on-unmatched {files}", Signals: []string{"biome.json", "biome.jsonc"},
-		Sub: []string{"check", "lint", "ci"}, Carry: flags([]string{"--config-path"}),
+		Name: "biome", Ext: slices.Concat(jsExt, []string{"json", "jsonc", "css"}), Bin: "biome",
+		Cmd: "{bin} check --no-errors-on-unmatched {files}", Carry: flags([]string{"--config-path"}),
 		// A format or import-order diagnostic has no line: the whole file.
 		Findings: &Findings{
 			Item:   regexp.MustCompile(`^(?P<file>[^\s:]+)(?::(?P<line>\d+):\d+)?\s+(?:lint|format|assist|parse|organizeImports)\b`),
@@ -68,8 +77,8 @@ var builtins = []Adapter{
 		// --no-fix: a project's `fix = true` would otherwise rewrite the files.
 		Name: "ruff", Ext: []string{"py"}, Bin: "ruff", Cmd: "{bin} check --no-fix --force-exclude --output-format concise {files}",
 		Findings: lines(`^(?P<file>.+?):(?P<line>\d+):\d+: `),
-		Signals:  []string{"ruff.toml", ".ruff.toml"}, TOML: "pyproject.toml .tool.ruff", Deps: Python, Packages: []string{"ruff"},
-		Sub: []string{"check"}, Carry: flags([]string{"--config", "--select", "--extend-select", "--ignore", "--target-version", "--line-length"}),
+		Deps:     Python, Packages: []string{"ruff"},
+		Carry: flags([]string{"--config", "--select", "--extend-select", "--ignore", "--target-version", "--line-length"}),
 	},
 	{
 		// mypy checks a file named on its command line even when its
@@ -90,7 +99,7 @@ var builtins = []Adapter{
 		Name: "golangci-lint", Ext: []string{"go"}, Bin: "golangci-lint", Cmd: "{bin} run --fix=false --max-issues-per-linter=0 --max-same-issues=0 {dirs}",
 		Findings: lines(`^(?P<file>[^\s:]+\.go):(?P<line>\d+)(?::\d+)?: `),
 		Signals:  []string{"go.mod"}, Needs: []string{".golangci.yml", ".golangci.yaml", ".golangci.toml", ".golangci.json"},
-		Sub: []string{"run"}, Carry: flags([]string{"-c", "--config", "-E", "--enable", "-D", "--disable", "--build-tags", "--timeout"}),
+		Carry: flags([]string{"-c", "--config", "-E", "--enable", "-D", "--disable", "--build-tags", "--timeout"}),
 	},
 	{Name: "go-vet", Ext: []string{"go"}, Bin: "go", Cmd: "{bin} vet {dirs}", Signals: []string{"go.mod"}, Sub: []string{"vet"}, Carry: flags([]string{"-tags"})},
 	{
@@ -114,7 +123,7 @@ var builtins = []Adapter{
 		Signals:  []string{".yamllint", ".yamllint.yml", ".yamllint.yaml"},
 		Carry:    flags([]string{"-c", "--config-file", "-d", "--config-data"}, "-s", "--strict"),
 	},
-	{Name: "tofu-fmt", Ext: []string{"tf", "tfvars"}, Bin: "tofu", Cmd: "{bin} fmt -check {files}", Signals: []string{".terraform.lock.hcl"}, Sub: []string{"fmt"}},
+	{Name: "tofu-fmt", Ext: []string{"tf", "tfvars"}, Bin: "tofu", Cmd: "{bin} fmt -check {files}", Signals: []string{".terraform.lock.hcl"}},
 	{
 		Name: "shellcheck", Ext: []string{"sh", "bash"}, Bin: "shellcheck", Cmd: "{bin} -x -f gcc {files}", Signals: []string{".shellcheckrc"},
 		Findings: lines(`^(?P<file>.+?):(?P<line>\d+):\d+: (?:error|warning|note|info|style): `),

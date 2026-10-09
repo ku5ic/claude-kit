@@ -29,9 +29,21 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/tools"
 )
 
-var jsFiles = []string{"*.js", "*.jsx", "*.ts", "*.tsx", "*.mjs", "*.cjs", "*.mts", "*.cts", "*.vue", "*.svelte", "*.astro"}
+var (
+	jsExt   = slices.Concat(tools.JSExtensions, tools.TSExtensions)
+	jsFiles = globs(slices.Concat(jsExt, []string{"vue", "svelte", "astro"}))
+)
+
+func globs(exts []string) []string {
+	out := make([]string, len(exts))
+	for i, e := range exts {
+		out[i] = "*." + e
+	}
+	return out
+}
 
 // The matchers compile POSIX so alternation is leftmost-longest: the
 // longer of two matching import forms wins.
@@ -90,10 +102,10 @@ func Run(cfg *config.Config, args []string, stdout, stderr io.Writer) int {
 	}
 
 	dynamic := false
-	switch ext := path.Ext(s.rel); ext {
-	case ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".mts", ".cts":
+	switch ext := path.Ext(s.rel); {
+	case slices.Contains(jsExt, strings.TrimPrefix(ext, ".")):
 		dynamic = s.javascript(cfg)
-	case ".py":
+	case ext == ".py":
 		s.python()
 	default:
 		fmt.Fprintf(stderr, "blast-radius: no import scanner for %s\n", filepath.Base(s.rel))
@@ -213,8 +225,7 @@ func containsWord(file, word string) bool {
 }
 
 func stripJSExt(p string) string {
-	switch path.Ext(p) {
-	case ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".mts", ".cts":
+	if slices.Contains(jsExt, strings.TrimPrefix(path.Ext(p), ".")) {
 		return strings.TrimSuffix(p, path.Ext(p))
 	}
 	return p

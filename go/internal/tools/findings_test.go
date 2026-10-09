@@ -31,12 +31,12 @@ func TestFindingsParse(t *testing.T) {
 		{"golangci-lint", "pkg/c.go:3:2: ineffectual assignment to x (ineffassign)\n\tx := 1\n1 issues:\n", []Finding{{"pkg/c.go", 3, "pkg/c.go:3:2: ineffectual assignment to x (ineffassign)"}}},
 	}
 	for _, c := range cases {
-		got, ok := adapter(c.tool).Findings.Parse(c.out)
+		got, ok := adapter(t, c.tool).Findings.Parse(c.out)
 		if !ok || !slices.Equal(got, c.want) {
 			t.Errorf("%s: %v %+v, want %+v", c.tool, ok, got, c.want)
 		}
 	}
-	if _, ok := adapter("biome").Findings.Parse("a.ts:1:1 lint/x\nDiagnostics not shown: 12.\n"); ok {
+	if _, ok := adapter(t, "biome").Findings.Parse("a.ts:1:1 lint/x\nDiagnostics not shown: 12.\n"); ok {
 		t.Error("biome: a truncated report must not be trusted")
 	}
 }
