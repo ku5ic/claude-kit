@@ -140,7 +140,7 @@ stacks:
 			"load javascript-patterns via the Skill tool")
 	})
 
-	t.Run("with guard-skills on, <suggested-skills> adds the file-map skills no stack owns", func(t *testing.T) {
+	t.Run("with guard-skills on, <suggested-skills> adds the file-map skills a repo file matches", func(t *testing.T) {
 		yml := `global_skills: []
 skill_triggers: {}
 skill_file_map:
@@ -148,27 +148,35 @@ skill_file_map:
     globs: ["*.go"]
     skills: [engineering-fundamentals]
   - on: basename
+    globs: ["*.test.*"]
+    skills: [test-patterns]
+  - on: basename
     globs: ["*.ts"]
     skills: [typescript-patterns]
+  - on: basename
+    globs: ["*.py"]
+    skills: [python-patterns]
 stacks:
   go:
     skills: [go-patterns]
-  ts:
-    skills: [typescript-patterns]
 `
 		for _, guard := range []string{"1", "0"} {
 			e := injectContextSetup(t, tree)
 			e.kitYML(yml)
 			e.writeCache("root: "+e.root, "go: yes")
+			Write(t, filepath.Join(e.root, "main.go"), "package main\n")
+			Write(t, filepath.Join(e.root, "web", "app.test.js"), "")
+			Write(t, filepath.Join(e.root, ".gitignore"), "ignored.py\n")
+			Write(t, filepath.Join(e.root, "ignored.py"), "")
 			e.Setenv("CLAUDE_GUARD_SKILLS", guard)
 			r := e.run("s1", "")
 			r.Want(t, 0)
 			r.Has(t, "load go-patterns via the Skill tool")
-			r.Lacks(t, "typescript-patterns")
+			r.Lacks(t, "typescript-patterns", "python-patterns")
 			if guard == "1" {
-				r.Has(t, "load engineering-fundamentals via the Skill tool")
+				r.Has(t, "load engineering-fundamentals via the Skill tool", "load test-patterns via the Skill tool")
 			} else {
-				r.Lacks(t, "engineering-fundamentals")
+				r.Lacks(t, "engineering-fundamentals", "test-patterns")
 			}
 		}
 	})

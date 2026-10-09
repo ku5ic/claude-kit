@@ -29,7 +29,7 @@ func TestSuggestedSkipsGlobalAndDedupes(t *testing.T) {
 			}},
 		},
 	}
-	got := Suggested(cfg, []string{"js", "js+react", "js+vue"})
+	got := Suggested(cfg, []string{"js", "js+react", "js+vue"}, "")
 	if want := []string{"javascript-patterns", "react-patterns"}; !slices.Equal(got, want) {
 		t.Errorf("got %q, want %q", got, want)
 	}

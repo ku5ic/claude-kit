@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
@@ -107,27 +106,7 @@ func GuardSkills(h *hook.Hook) error {
 		return nil
 	}
 
-	var required []string
-	base := filepath.Base(path)
-	for _, rule := range cfg.SkillFileMap {
-		target := ""
-		switch rule.On {
-		case "basename":
-			target = base
-		case "path":
-			target = path
-		default:
-			continue
-		}
-		if !slices.ContainsFunc(rule.Globs, func(g string) bool { return guard.Glob(g, target) }) {
-			continue
-		}
-		for _, skill := range rule.Skills {
-			if skill != "" && !slices.Contains(required, skill) {
-				required = append(required, skill)
-			}
-		}
-	}
+	required := guard.FileMapSkills(cfg.SkillFileMap, path)
 
 	cacheDir := filepath.Join(h.Paths.CacheDir(), "skills-loaded")
 	var toCheck []string

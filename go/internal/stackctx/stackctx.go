@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/detect"
+	"github.com/ku5ic/claude-kit/go/internal/guard"
 )
 
 // CacheFile is <cache>/stack/<name>-<sha256(root)[:8]>.<tag>.txt: the root
@@ -100,9 +102,9 @@ func Required(cfg *config.Config) []string {
 // Suggested maps signals to the skills kit.yml gives their stack or extra,
 // deduped, first-seen order, leaving out global_skills (required, not
 // suggested). An extra matches by its name. With CLAUDE_GUARD_SKILLS=1 it
-// adds the skill_file_map skills no stack owns, since guard-skills blocks
-// the first edit without them.
-func Suggested(cfg *config.Config, signals []string) []string {
+// adds the skill_file_map skills a file under root matches, since
+// guard-skills blocks the first edit of such a file without them.
+func Suggested(cfg *config.Config, signals []string, root string) []string {
 	required := Required(cfg)
 	var out []string
 	add := func(skills []string) {
@@ -125,27 +127,39 @@ func Suggested(cfg *config.Config, signals []string) []string {
 		}
 	}
 	if os.Getenv("CLAUDE_GUARD_SKILLS") == "1" {
-		for _, rule := range cfg.SkillFileMap {
-			add(slices.DeleteFunc(slices.Clone(rule.Skills), func(skill string) bool { return stackOwned(cfg, skill) }))
-		}
+		add(fileMapSkills(cfg, root))
 	}
 	return out
 }
 
-// stackOwned reports whether any stack or extra lists skill, so detection,
-// not the file map, decides when to suggest it.
-func stackOwned(cfg *config.Config, skill string) bool {
-	for _, stack := range cfg.Stacks {
-		if slices.Contains(stack.Skills, skill) {
-			return true
+// fileMapSkills is the skill_file_map skills whose rule matches at least one
+// file git lists under root, tracked or untracked and not ignored. A rule
+// leaves the scan once it matches, so the walk ends early in most repos.
+func fileMapSkills(cfg *config.Config, root string) []string {
+	if root == "" {
+		return nil
+	}
+	files, err := exec.Command("git", "-C", root, "ls-files", "--cached", "--others", "--exclude-standard", "-z").Output()
+	if err != nil {
+		return nil
+	}
+	rules := slices.Clone(cfg.SkillFileMap)
+	var skills []string
+	for _, file := range strings.Split(string(files), "\x00") {
+		if file == "" {
+			continue
 		}
-		for _, e := range stack.Extras {
-			if slices.Contains(e.Skills, skill) {
-				return true
-			}
+		path := filepath.Join(root, file)
+		rules = slices.DeleteFunc(rules, func(rule config.SkillFileRule) bool {
+			matched := guard.FileMapSkills([]config.SkillFileRule{rule}, path)
+			skills = append(skills, matched...)
+			return len(matched) > 0
+		})
+		if len(rules) == 0 {
+			break
 		}
 	}
-	return false
+	return skills
 }
 
 // RequiredBlock is the <required-skills> block, "" when there are none.

@@ -6,6 +6,7 @@ package guard
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -95,6 +96,33 @@ func Glob(pattern, s string) bool {
 		return false
 	}
 	return re.MatchString(s)
+}
+
+// FileMapSkills is every skill a skill_file_map rule matching path gives,
+// deduped: an "on: basename" rule tests the base name, "on: path" the full
+// path.
+func FileMapSkills(rules []config.SkillFileRule, path string) []string {
+	var out []string
+	for _, rule := range rules {
+		target := ""
+		switch rule.On {
+		case "basename":
+			target = filepath.Base(path)
+		case "path":
+			target = path
+		default:
+			continue
+		}
+		if !slices.ContainsFunc(rule.Globs, func(g string) bool { return Glob(g, target) }) {
+			continue
+		}
+		for _, skill := range rule.Skills {
+			if skill != "" && !slices.Contains(out, skill) {
+				out = append(out, skill)
+			}
+		}
+	}
+	return out
 }
 
 var globCache = map[string]*regexp.Regexp{}

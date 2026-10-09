@@ -97,7 +97,7 @@ func writeContext(h *hook.Hook, cfg *config.Config, out *strings.Builder) {
 	if len(report) > 0 {
 		// Logged as surfaced, not loaded, so skills-report can measure
 		// whether a suggestion was ever acted on.
-		suggested := stackctx.Suggested(cfg, stackctx.Signals(string(report)))
+		suggested := stackctx.Suggested(cfg, stackctx.Signals(string(report)), root)
 		out.WriteString(stackctx.SuggestedBlock(cfg, suggested))
 		for _, skill := range suggested {
 			h.Log("skills", "suggested-skill", "cwd", h.Payload.String("cwd"), "skill_file", skill)
@@ -130,7 +130,7 @@ func AgentContext(paths config.Paths, cfg *config.Config, cwd string) string {
 	}
 	b.WriteString(stackctx.RequiredBlock(stackctx.Required(cfg)))
 	if len(report) > 0 {
-		b.WriteString(stackctx.SuggestedBlock(cfg, stackctx.Suggested(cfg, stackctx.Signals(string(report)))))
+		b.WriteString(stackctx.SuggestedBlock(cfg, stackctx.Suggested(cfg, stackctx.Signals(string(report)), root)))
 	}
 	return b.String()
 }
