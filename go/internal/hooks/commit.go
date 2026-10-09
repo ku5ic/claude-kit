@@ -78,11 +78,7 @@ func scanStaged(h *hook.Hook) error {
 	if _, err := exec.LookPath("gitleaks"); err != nil {
 		return nil
 	}
-	dir := h.Payload.String("cwd")
-	if dir == "" {
-		dir = "."
-	}
-	err := exec.Command("gitleaks", "git", "--staged", "--no-banner", "--redact", "--log-level", "error", dir).Run()
+	err := exec.Command("gitleaks", "git", "--staged", "--no-banner", "--redact", "--log-level", "error", h.Payload.Cwd()).Run()
 	if err == nil {
 		return nil
 	}

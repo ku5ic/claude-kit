@@ -6,7 +6,7 @@ linters:
   enable: [dupl]
   settings:
     dupl:
-      threshold: 36
+      threshold: 35
     errcheck:
       # Output and cleanup: a failed write to stdout or a failed close has no
       # recovery here, and hooks fail open by design.

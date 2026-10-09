@@ -107,6 +107,23 @@ func IsScratch(paths config.Paths, path string) bool {
 		strings.HasSuffix(p, "/.claude/scratch") || strings.Contains(p, "/.claude/scratch/")
 }
 
+// Rel is path relative to root, "." for root itself.
+func Rel(root, path string) string {
+	if path == root {
+		return "."
+	}
+	return strings.TrimPrefix(path, root+"/")
+}
+
+// SubLabel is the " [sub]" a subproject's label ends with, "" for the
+// root (".").
+func SubLabel(sub string) string {
+	if sub == "." {
+		return ""
+	}
+	return " [" + sub + "]"
+}
+
 // WriteAtomic replaces path with data through a temp file in its directory,
 // so a reader never sees a partial write; on any error path is untouched.
 func WriteAtomic(path string, data []byte, perm os.FileMode) error {

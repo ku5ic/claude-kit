@@ -1,12 +1,28 @@
 package checks
 
 import (
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/git"
+	"github.com/ku5ic/claude-kit/go/internal/project"
 )
+
+// onChangedLine is true for a finding changedLines can't rule out: one
+// without a line, or in a file whose every line counts.
+func onChangedLine(changed map[string]map[int]bool, file string, line int) bool {
+	return line == 0 || changed[file] == nil || changed[file][line]
+}
+
+// absUnder is path, cleaned, made absolute against dir when it's relative.
+func absUnder(dir, path string) string {
+	if !filepath.IsAbs(path) {
+		return filepath.Join(dir, path)
+	}
+	return filepath.Clean(path)
+}
 
 // changedLines maps each of files (absolute, under root) to the lines the
 // working tree changed against rev; a nil entry means every line (a file
@@ -15,7 +31,7 @@ import (
 func changedLines(root, rev string, files []string) map[string]map[int]bool {
 	var rel []string
 	for _, f := range files {
-		rel = append(rel, strings.TrimPrefix(f, root+"/"))
+		rel = append(rel, project.Rel(root, f))
 	}
 	run := func(args ...string) (string, error) {
 		return git.Output(root, append([]string{"-c", "core.quotePath=false"}, args...)...)

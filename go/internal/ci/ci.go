@@ -13,6 +13,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
 // Step is one shell step a CI config runs: its file (relative to the
@@ -77,7 +78,7 @@ func githubSteps(cfg *config.Config, root, file string) []Step {
 		return nil
 	}
 	workflowDir, workflowShell := runDefaults(doc)
-	rel := strings.TrimPrefix(file, root+"/")
+	rel := project.Rel(root, file)
 	ids := make([]string, 0, len(jobs))
 	for id := range jobs {
 		ids = append(ids, id)
@@ -202,7 +203,7 @@ func gitlabSteps(cfg *config.Config, root, file string) []Step {
 		return nil
 	}
 	def, _ := merged["default"].(map[string]any)
-	rel := strings.TrimPrefix(file, root+"/")
+	rel := project.Rel(root, file)
 	names := make([]string, 0, len(merged))
 	for name := range merged {
 		names = append(names, name)

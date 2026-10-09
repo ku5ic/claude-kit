@@ -102,7 +102,7 @@ func GuardSkills(h *hook.Hook) error {
 	if path == "" || project.IsScratch(h.Paths, path) {
 		return nil
 	}
-	session := h.Payload.String("session_id")
+	session := h.Payload.SessionID()
 	cfg := h.Config()
 	if session == "" || cfg == nil {
 		return nil

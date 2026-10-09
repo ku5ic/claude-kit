@@ -19,14 +19,6 @@ import (
 
 // cwdOf is the payload's cwd, which Claude Code always sends, else the
 // process's own.
-func cwdOf(h *hook.Hook) string {
-	if cwd := h.Payload.String("cwd"); cwd != "" {
-		return cwd
-	}
-	cwd, _ := os.Getwd()
-	return cwd
-}
-
 // projectOf resolves the project for cwd; ok is false for a non-project
 // context (home, /, or a name that sanitizes to nothing).
 func projectOf(cfg *config.Config, cwd string) (name, root string, ok bool) {
@@ -75,12 +67,12 @@ func InjectContext(h *hook.Hook) error {
 }
 
 func writeContext(h *hook.Hook, cfg *config.Config, out *strings.Builder) {
-	cwd := cwdOf(h)
+	cwd := h.Payload.Cwd()
 	name, root, ok := projectOf(cfg, cwd)
 	if !ok {
 		return
 	}
-	ctx := stackctx.Build(h.Paths, cfg, name, root, h.Payload.String("session_id"))
+	ctx := stackctx.Build(h.Paths, cfg, name, root, h.Payload.SessionID())
 	if ctx.Report != "" {
 		scratch, _ := project.Dir(cfg, h.Paths, root, "scratch", false)
 		fmt.Fprintf(out, "\n<repo-context>\n%sbranch (at session start): %s\ndirty-files (at session start): %s\nscratch: %s\n</repo-context>\n",
@@ -132,7 +124,7 @@ func InjectSubagentContext(h *hook.Hook) error {
 	if cfg == nil {
 		return nil
 	}
-	context := strings.TrimRight(AgentContext(h.Paths, cfg, cwdOf(h), h.Payload.String("session_id")), "\n")
+	context := strings.TrimRight(AgentContext(h.Paths, cfg, h.Payload.Cwd(), h.Payload.SessionID()), "\n")
 	if context == "" {
 		return nil
 	}
@@ -167,10 +159,7 @@ func tooling(cfg *config.Config, root string) string {
 	}
 	shown, capped := 0, false
 	for _, sub := range project.Subprojects(cfg, root) {
-		dir, header := root, "tasks:"
-		if sub != "." {
-			dir, header = filepath.Join(root, sub), "tasks ["+sub+"]:"
-		}
+		dir, header := filepath.Join(root, sub), "tasks"+project.SubLabel(sub)+":"
 		var lines []string
 		for _, task := range project.Tasks(cfg, dir) {
 			lines = append(lines, task.Cmd)

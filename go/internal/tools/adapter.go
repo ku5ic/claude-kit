@@ -86,7 +86,7 @@ func (a Adapter) Claims(path, root string) (Claim, bool) {
 			return Claim{}, false
 		}
 		// The signal says where it runs (go.mod); this is the config it reads.
-		claim.Why += ", needs " + strings.TrimPrefix(needed, root+"/")
+		claim.Why += ", needs " + project.Rel(root, needed)
 	}
 	if a.ExcludeTOML != "" && excluded(claim.Dir, path, a.ExcludeTOML) {
 		return Claim{}, false
@@ -100,7 +100,7 @@ func (a Adapter) Claims(path, root string) (Claim, bool) {
 func HasSignal(files []string, toml, dir, root string) (Claim, bool) {
 	if len(files) > 0 {
 		if found := project.FindUp(dir, root, files...); found != "" {
-			return Claim{filepath.Dir(found), "config " + strings.TrimPrefix(found, root+"/")}, true
+			return Claim{filepath.Dir(found), "config " + project.Rel(root, found)}, true
 		}
 	}
 	if toml == "" {
@@ -113,7 +113,7 @@ func HasSignal(files []string, toml, dir, root string) (Claim, bool) {
 			return Claim{}, false
 		}
 		if extract.TOMLHas(found, table) {
-			return Claim{filepath.Dir(found), "[" + strings.TrimPrefix(table, ".") + "] in " + strings.TrimPrefix(found, root+"/")}, true
+			return Claim{filepath.Dir(found), "[" + strings.TrimPrefix(table, ".") + "] in " + project.Rel(root, found)}, true
 		}
 		if filepath.Dir(found) == root {
 			return Claim{}, false

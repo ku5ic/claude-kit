@@ -74,10 +74,7 @@ func Plan(cfg *config.Config, root, base string, edited []string) []*Group {
 		if path == "" {
 			continue
 		}
-		if !filepath.IsAbs(path) {
-			path = filepath.Join(base, path)
-		}
-		path = project.PhysicalPath(path)
+		path = project.PhysicalPath(absUnder(base, path))
 		if !strings.HasPrefix(path, root+"/") || seen[path] || !project.IsFile(path) || ignored[path] {
 			continue
 		}
@@ -99,9 +96,7 @@ func Plan(cfg *config.Config, root, base string, edited []string) []*Group {
 	}
 	for _, g := range groups {
 		g.label = fmt.Sprintf("%s (%d file%s)", g.Adapter.Name, len(g.Files), plural(len(g.Files)))
-		if g.Dir != root {
-			g.label += " [" + strings.TrimPrefix(g.Dir, root+"/") + "]"
-		}
+		g.label += project.SubLabel(project.Rel(root, g.Dir))
 		if strings.TrimSpace(g.Adapter.Cmd) == "" {
 			g.Skip = "no cmd in kit.yml"
 			continue
@@ -125,7 +120,7 @@ func Plan(cfg *config.Config, root, base string, edited []string) []*Group {
 // Outcome is one FileChecks run.
 type Outcome struct {
 	Report   string // PASS/FAIL/SKIP lines
-	Failures string // each failing tool's last 30 output lines
+	Failures string // each failing tool's last maxOutputLines output lines
 	Summary  string // "checks: N passed, N failed, N skipped"
 	Failed   bool
 }
@@ -168,7 +163,7 @@ func FileChecks(cfg *config.Config, root, base string, edited []string) *Outcome
 			g.Skip = res.skip
 		}
 		if g.Skip != "" {
-			line := fmt.Sprintf("SKIP %s (%s)\n", label, g.Skip)
+			line := skipLine(label, g.Skip)
 			rep.WriteString(line)
 			// Also in a block's message, so the skipped count has its reasons.
 			fails.WriteString(line)
@@ -191,7 +186,7 @@ func FileChecks(cfg *config.Config, root, base string, edited []string) *Outcome
 				continue
 			}
 			fmt.Fprintf(&rep, "FAIL %s\n%s", label, bin)
-			fmt.Fprintf(&fails, "FAIL %s\n%s%s\n", label, bin, strings.Join(blocking[:min(len(blocking), 30)], "\n"))
+			fmt.Fprintf(&fails, "FAIL %s\n%s%s\n", label, bin, strings.Join(head(blocking), "\n"))
 			if old > 0 {
 				fmt.Fprintf(&fails, "(%d more on unchanged lines don't block)\n", old)
 			}
@@ -202,13 +197,13 @@ func FileChecks(cfg *config.Config, root, base string, edited []string) *Outcome
 		// The tail: linters print findings and the summary last, after
 		// preambles like rubocop's unconfigured-cops notice.
 		lines := strings.Split(strings.TrimRight(out.String(), "\n"), "\n")
-		fmt.Fprintf(&fails, "FAIL %s\n%s%s\n", label, bin, strings.Join(lines[max(0, len(lines)-30):], "\n"))
+		fmt.Fprintf(&fails, "FAIL %s\n%s%s\n", label, bin, strings.Join(lines[max(0, len(lines)-maxOutputLines):], "\n"))
 		fail++
 	}
 	return &Outcome{
 		Report:   rep.String(),
 		Failures: fails.String(),
-		Summary:  fmt.Sprintf("checks: %d passed, %d failed, %d skipped", pass, fail, skip),
+		Summary:  summary(pass, fail, skip),
 		Failed:   fail > 0,
 	}
 }
@@ -251,7 +246,7 @@ func newFindings(g *Group, out, root string, changed map[string]map[int]bool) (b
 	}
 	for _, f := range found {
 		file := editedFile(f.File, g)
-		touched := file != "" && (f.Line == 0 || changed == nil || changed[file] == nil || changed[file][f.Line])
+		touched := file != "" && onChangedLine(changed, file, f.Line)
 		if !touched {
 			old++
 			continue
@@ -266,10 +261,7 @@ func newFindings(g *Group, out, root string, changed map[string]map[int]bool) (b
 // prints paths relative to its config), matched by suffix. "" for a file
 // the turn didn't edit.
 func editedFile(path string, g *Group) string {
-	if !filepath.IsAbs(path) {
-		path = filepath.Join(g.Dir, path)
-	}
-	path = filepath.Clean(path)
+	path = absUnder(g.Dir, path)
 	if slices.Contains(g.Files, path) {
 		return path
 	}
@@ -314,12 +306,9 @@ func gitIgnored(root string, edited []string, base string) map[string]bool {
 		if p == "" {
 			continue
 		}
-		if !filepath.IsAbs(p) {
-			p = filepath.Join(base, p)
-		}
 		// A path outside the repo is fatal to check-ignore, dropping every
 		// path after it.
-		if p = project.PhysicalPath(p); strings.HasPrefix(p, root+"/") {
+		if p = project.PhysicalPath(absUnder(base, p)); strings.HasPrefix(p, root+"/") {
 			paths = append(paths, p)
 		}
 	}

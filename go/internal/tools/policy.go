@@ -101,13 +101,13 @@ func declared(cfg *config.Config, dir, root, name string) (manifest, install str
 	for d := dir; ; d = filepath.Dir(d) {
 		switch {
 		case JSDeps(d)[pkg]:
-			return Rel(root, filepath.Join(d, "package.json")), installCmd(cfg, d, "js")
+			return project.Rel(root, filepath.Join(d, "package.json")), installCmd(cfg, d, "js")
 		case PythonDeps(d)[normalize(pkg)]:
 			return manifestName(Python, d, root), installCmd(cfg, d, "python")
 		case RubyDeps(d)[pkg]:
-			return Rel(root, filepath.Join(d, "Gemfile.lock")), installCmd(cfg, d, "bundler")
+			return project.Rel(root, filepath.Join(d, "Gemfile.lock")), installCmd(cfg, d, "bundler")
 		case project.IsFile(filepath.Join(d, "go.mod")) && goModDeclares(filepath.Join(d, "go.mod"), name):
-			return Rel(root, filepath.Join(d, "go.mod")), installCmd(cfg, d, "go")
+			return project.Rel(root, filepath.Join(d, "go.mod")), installCmd(cfg, d, "go")
 		}
 		if d == root || d == "/" || !strings.HasPrefix(d, root) {
 			return "", ""
@@ -155,7 +155,7 @@ func pinned(cfg *config.Config, dir, root, name string) string {
 				t = alias
 			}
 			if t == name {
-				return strings.TrimPrefix(path, root+"/")
+				return project.Rel(root, path)
 			}
 		}
 	}

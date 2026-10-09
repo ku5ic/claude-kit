@@ -5,6 +5,7 @@ package checks
 
 import (
 	"bytes"
+	"cmp"
 	"fmt"
 	"io"
 	"os/exec"
@@ -78,7 +79,7 @@ func Gates(cfg *config.Config, root string, only []string) []Gate {
 	// a Python service has nothing for turbo or nx to do.
 	wantsJS := len(only) == 0
 	for _, sub := range only {
-		for _, pr := range project.Providers(cfg, dirOf(root, sub)) {
+		for _, pr := range project.Providers(cfg, filepath.Join(root, sub)) {
 			if pr.Stack == "js" {
 				wantsJS = true
 			}
@@ -101,7 +102,7 @@ func (p *planner) subprojects() []string {
 	subs := project.Subprojects(p.cfg, p.root)
 	p.subDirs = map[string]bool{}
 	for _, sub := range subs {
-		p.subDirs[dirOf(p.root, sub)] = true
+		p.subDirs[filepath.Join(p.root, sub)] = true
 	}
 	return subs
 }
@@ -137,10 +138,7 @@ func (p *planner) stackFor(dir string) string {
 		}
 	}
 	if prs := project.Providers(p.cfg, dir); len(prs) > 0 {
-		if prs[0].Stack != "" {
-			return prs[0].Stack
-		}
-		return prs[0].Name
+		return cmp.Or(prs[0].Stack, prs[0].Name)
 	}
 	return "ci"
 }
@@ -157,7 +155,7 @@ func RunAll(cfg *config.Config, root string, only []string, out io.Writer) int {
 	for _, g := range Gates(cfg, root, only) {
 		switch {
 		case g.Skip != "":
-			fmt.Fprintf(out, "SKIP %s (%s)\n", g.Label, g.Skip)
+			fmt.Fprint(out, skipLine(g.Label, g.Skip))
 			skip++
 			if g.Unrun {
 				unrun++
@@ -181,7 +179,7 @@ func RunAll(cfg *config.Config, root string, only []string, out io.Writer) int {
 			fail++
 		}
 	}
-	fmt.Fprintf(out, "\nchecks: %d passed, %d failed, %d skipped\n", pass, fail, skip)
+	fmt.Fprintf(out, "\n%s\n", summary(pass, fail, skip))
 	if unrun > 0 {
 		fmt.Fprintf(out, "not run: %d check%s the project declares a tool for, not installed; install the dependencies, then rerun\n", unrun, plural(unrun))
 	}
@@ -193,12 +191,12 @@ func RunAll(cfg *config.Config, root string, only []string, out io.Writer) int {
 func PrintPlan(cfg *config.Config, root string, only []string, out io.Writer) {
 	for _, g := range Gates(cfg, root, only) {
 		if g.Skip != "" {
-			fmt.Fprintf(out, "SKIP %s (%s)\n", g.Label, g.Skip)
+			fmt.Fprint(out, skipLine(g.Label, g.Skip))
 			continue
 		}
 		fmt.Fprintf(out, "RUN %s\n  cmd: %s\n", g.Label, tools.ShellJoin(g.Words))
 		if g.Dir != root && g.Dir != "" {
-			fmt.Fprintf(out, "  dir: %s\n", tools.Rel(root, g.Dir))
+			fmt.Fprintf(out, "  dir: %s\n", project.Rel(root, g.Dir))
 		}
 		switch {
 		case g.Scope != nil && g.Scope.Advisory:
@@ -220,19 +218,42 @@ func gateCommand(g Gate) *exec.Cmd {
 	return cmd
 }
 
-// run runs g and reports it, with its bin line under the verdict; a failure
-// then prints the first 30 lines of the command's output.
-func run(g Gate, w io.Writer) bool {
+// maxOutputLines bounds the output a failing check shows.
+const maxOutputLines = 30
+
+func skipLine(label, reason string) string { return "SKIP " + label + " (" + reason + ")\n" }
+
+func summary(pass, fail, skip int) string {
+	return fmt.Sprintf("checks: %d passed, %d failed, %d skipped", pass, fail, skip)
+}
+
+// head is lines' first maxOutputLines.
+func head(lines []string) []string { return lines[:min(len(lines), maxOutputLines)] }
+
+// capture runs g's command for its combined output; a command that didn't
+// run at all (not a non-zero exit) says why at the end of it.
+func capture(g Gate) (string, error) {
 	var out bytes.Buffer
 	cmd := gateCommand(g)
 	cmd.Stdout, cmd.Stderr = &out, &out
-	if err := cmd.Run(); err != nil {
-		fmt.Fprintf(w, "FAIL %s (%s)\n%s", g.Label, strings.Join(g.Words, " "), g.extra())
-		if _, isExit := err.(*exec.ExitError); !isExit {
-			fmt.Fprintf(&out, "%s: %v\n", g.Words[0], err)
-		}
-		lines := strings.SplitAfter(out.String(), "\n")
-		fmt.Fprint(w, strings.Join(lines[:min(len(lines), 30)], ""))
+	err := cmd.Run()
+	if _, isExit := err.(*exec.ExitError); err != nil && !isExit {
+		fmt.Fprintf(&out, "%s: %v\n", g.Words[0], err)
+	}
+	return out.String(), err
+}
+
+// failLine is a gate's FAIL line with its command, and its bin line under it.
+func failLine(g Gate) string {
+	return fmt.Sprintf("FAIL %s (%s)\n%s", g.Label, strings.Join(g.Words, " "), g.extra())
+}
+
+// run runs g and reports it, with its bin line under the verdict; a failure
+// then prints the first lines of the command's output.
+func run(g Gate, w io.Writer) bool {
+	out, err := capture(g)
+	if err != nil {
+		fmt.Fprint(w, failLine(g)+strings.Join(head(strings.SplitAfter(out, "\n")), ""))
 		return false
 	}
 	fmt.Fprintf(w, "PASS %s\n%s", g.Label, g.extra())
@@ -275,10 +296,7 @@ func excludedTask(c config.Check, tasks []project.Task) (name, glob string) {
 // "" when it runs. coveredBy names a gate already filling the check's slot;
 // it needs the planner's state, so callers without one pass nil.
 func ToolchainSkip(cfg *config.Config, tc config.ToolchainCheck, sub string, coveredBy func(slot string, tools []string) string) string {
-	label := tc.Stack + ": " + tc.Name
-	if sub != "." {
-		label += " [" + sub + "]"
-	}
+	label := tc.Stack + ": " + tc.Name + project.SubLabel(sub)
 	switch {
 	case !cfg.ToolchainEnabled(tc):
 		return "disabled_toolchain_checks"
@@ -304,13 +322,6 @@ func excludedDir(cfg *config.Config, slot, sub string) string {
 		}
 	}
 	return ""
-}
-
-func dirOf(root, sub string) string {
-	if sub == "." {
-		return root
-	}
-	return filepath.Join(root, sub)
 }
 
 // orchestrate plans each check the first usable orchestrator declares a
@@ -350,10 +361,7 @@ func (p *planner) orchestrate() {
 
 func (p *planner) subproject(sub string) {
 	cfg := p.cfg
-	dir, sfx := dirOf(p.root, sub), ""
-	if sub != "." {
-		sfx = " [" + sub + "]"
-	}
+	dir, sfx := filepath.Join(p.root, sub), project.SubLabel(sub)
 	tasks := project.Tasks(cfg, dir)
 
 	// SKIP lines take the first present provider's stack (else its name),
@@ -379,14 +387,8 @@ func (p *planner) subproject(sub string) {
 			argLeaves[l.id] = l.gate
 		}
 	}
-	stackOf := func(t project.Task) string {
-		if t.Stack != "" {
-			return t.Stack
-		}
-		return t.Provider
-	}
 	labelOf := func(i int) string {
-		return fmt.Sprintf("%s: %s (%s)%s", stackOf(tasks[i]), r.slots[i], tasks[i].Name, sfx)
+		return fmt.Sprintf("%s: %s (%s)%s", cmp.Or(tasks[i].Stack, tasks[i].Provider), r.slots[i], tasks[i].Name, sfx)
 	}
 	// coverer is the task whose run covers task i: the one whose body runs
 	// it, or, when that one is disabled or unsafe, whatever covers that one;
@@ -418,7 +420,7 @@ func (p *planner) subproject(sub string) {
 	for _, c := range cfg.Checks {
 		matched := false
 		for i, t := range tasks {
-			if r.slots[i] != c.Name || (p.orchestrated[c.Name] && stackOf(t) == "js") {
+			if r.slots[i] != c.Name || (p.orchestrated[c.Name] && cmp.Or(t.Stack, t.Provider) == "js") {
 				continue
 			}
 			matched = true

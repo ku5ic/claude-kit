@@ -1,6 +1,7 @@
 package checks
 
 import (
+	"cmp"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -332,10 +333,7 @@ func (a *aggregator) walk(r classify.Result, agg taskAt, visited map[string]bool
 	var out []leaf
 	st := shellState{dir: agg.dir}
 	var setup []string
-	stack := agg.task.Stack
-	if stack == "" {
-		stack = agg.task.Provider
-	}
+	stack := cmp.Or(agg.task.Stack, agg.task.Provider)
 	block := func(cmd classify.Command) {
 		if st.blocker == "" {
 			st.blocker = strings.Join(cmd.Words, " ")
@@ -423,11 +421,7 @@ func (a *aggregator) resolveWord(dir, word string) tools.Resolution {
 	if !strings.Contains(word, "/") {
 		return tools.Resolve(a.cfg, dir, a.root, word, tools.Default)
 	}
-	path := word
-	if !filepath.IsAbs(path) {
-		path = filepath.Join(dir, path)
-	}
-	path = filepath.Clean(path)
+	path := absUnder(dir, word)
 	if project.IsExecutable(path) && strings.HasPrefix(path, a.root+"/") {
 		return tools.Resolution{Words: []string{path}, Source: tools.SourceLocal}
 	}
@@ -513,7 +507,7 @@ func (a *aggregator) reference(ref classify.TaskRef, globs []string, agg taskAt,
 		sub, stack, sfx = a.place(target.dir)
 	}
 	if target.dir != a.home {
-		sfx = " [" + tools.Rel(a.root, target.dir) + "]"
+		sfx = " [" + project.Rel(a.root, target.dir) + "]"
 	}
 	label := fmt.Sprintf("%s: %s (%s)%s", stack, slot, target.task.Name, sfx)
 	gate := Gate{Label: label, Dir: target.dir, Words: words, Scope: scopeFor(checkNamed(a.cfg, slot), single)}
@@ -545,11 +539,8 @@ func (p *planner) ciLeaves(labelsOnly bool) map[string][]leaf {
 	out := map[string][]leaf{}
 	place := func(dir string) (string, string, string) {
 		owner := ownerOf(p.root, p.subDirs, dir)
-		sub, sfx := tools.Rel(p.root, owner), ""
-		if sub != "." {
-			sfx = " [" + sub + "]"
-		}
-		return sub, p.stackFor(owner), sfx
+		sub := project.Rel(p.root, owner)
+		return sub, p.stackFor(owner), project.SubLabel(sub)
 	}
 	cache := map[string][]project.Task{}
 	for _, step := range ci.Steps(p.cfg, p.root) {

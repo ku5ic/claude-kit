@@ -53,7 +53,7 @@ func ReviewChecks(h *hook.Hook) error {
 	if json.Unmarshal(data, &fork) != nil || fork.SkillName != "code-review" {
 		return nil
 	}
-	if h.Config() == nil || project.Toplevel(cwdOf(h)) == "" || ranChecks(transcript) {
+	if h.Config() == nil || project.Toplevel(h.Payload.Cwd()) == "" || ranChecks(transcript) {
 		return nil
 	}
 	return h.Block("before you return: run `kit run-checks` in the checkout you reviewed, timed per rules/tooling.md section 2. "+

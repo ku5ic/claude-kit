@@ -27,7 +27,7 @@ func StopChecks(h *hook.Hook) error {
 	if h.Payload.Bool("stop_hook_active") {
 		return nil
 	}
-	cwd := cwdOf(h)
+	cwd := h.Payload.Cwd()
 	if out, err := git.Line(cwd, "rev-parse", "--is-inside-work-tree"); err != nil || out != "true" {
 		return nil
 	}
@@ -53,7 +53,7 @@ func StopChecks(h *hook.Hook) error {
 			return strings.HasPrefix(project.PhysicalPath(path), root+"/") && !project.IsScratch(h.Paths, path)
 		}
 		if plan, reviewed := planDone(transcript, dir, isCode); plan != "" {
-			if err := endOfPlan(h, strings.TrimPrefix(plan, root+"/"), reviewed); err != nil {
+			if err := endOfPlan(h, project.Rel(root, plan), reviewed); err != nil {
 				return err
 			}
 		}

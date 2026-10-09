@@ -53,6 +53,18 @@ func (p *Payload) String(path string) string {
 	return s
 }
 
+// SessionID is the payload's session_id.
+func (p *Payload) SessionID() string { return p.String("session_id") }
+
+// Cwd is the payload's cwd, else the process's working directory.
+func (p *Payload) Cwd() string {
+	if cwd := p.String("cwd"); cwd != "" {
+		return cwd
+	}
+	cwd, _ := os.Getwd()
+	return cwd
+}
+
 // FilePath is the tool's target file; Read, Edit, Write, and MultiEdit all
 // send it as file_path.
 func (p *Payload) FilePath() string {
@@ -195,7 +207,7 @@ func (h *Hook) Log(log, event string, pairs ...string) {
 		"ts", h.now().UTC().Format("2006-01-02T15:04:05Z"),
 		"hook", h.Name,
 		"event", event,
-		"session_id", h.Payload.String("session_id"),
+		"session_id", h.Payload.SessionID(),
 	}
 	fields = append(fields, pairs...)
 

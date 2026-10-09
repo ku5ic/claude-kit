@@ -26,20 +26,13 @@ import (
 // Report is the full text for root, "" when no stack is found.
 func Report(cfg *config.Config, root string) string {
 	subs := project.Subprojects(cfg, root)
-	dirOf := func(sub string) string {
-		if sub == "." {
-			return root
-		}
-		return filepath.Join(root, sub)
-	}
-
 	var lines []string
 	jsLoc := ""
 	for _, stack := range cfg.StackOrder {
 		var locs, extras []string
 		pm := ""
 		for _, sub := range subs {
-			dir := dirOf(sub)
+			dir := filepath.Join(root, sub)
 			if !cfg.HasStack(dir, stack) {
 				continue
 			}
@@ -84,12 +77,8 @@ func Report(cfg *config.Config, root string) string {
 	out := []string{"root: " + root}
 	out = append(out, lines...)
 	for _, sub := range subs {
-		if parts := versions(cfg, root, dirOf(sub)); len(parts) > 0 {
-			prefix := "versions"
-			if sub != "." {
-				prefix += " [" + sub + "]"
-			}
-			out = append(out, prefix+": "+strings.Join(parts, ", "))
+		if parts := versions(cfg, root, filepath.Join(root, sub)); len(parts) > 0 {
+			out = append(out, "versions"+project.SubLabel(sub)+": "+strings.Join(parts, ", "))
 		}
 	}
 	if jsLoc != "" {

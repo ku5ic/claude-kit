@@ -34,7 +34,7 @@ func PlanModeContext(h *hook.Hook) error {
 		fmt.Fprintln(h.Stdout, "Plan mode: load the investigate skill and follow it; its findings feed the plan.")
 		return nil
 	}
-	session := p.String("session_id")
+	session := p.SessionID()
 	if session == "" || strings.ContainsAny(session, `/\`) {
 		return nil
 	}
@@ -52,10 +52,7 @@ func PlanModeContext(h *hook.Hook) error {
 			_ = os.WriteFile(marker, []byte(plan), 0o644)
 			msg = "Plan approved (" + plan + "): " + pause
 		}
-		hook.WriteJSON(h.Stdout, map[string]any{"hookSpecificOutput": map[string]string{
-			"hookEventName":     "PostToolUse",
-			"additionalContext": msg,
-		}})
+		hook.AddContext(h.Stdout, "PostToolUse", "", msg)
 		return nil
 	}
 
@@ -79,7 +76,7 @@ func newestOpenPlan(h *hook.Hook) string {
 	if cfg == nil {
 		return ""
 	}
-	dir, err := project.Dir(cfg, h.Paths, cwdOf(h), "plans", false)
+	dir, err := project.Dir(cfg, h.Paths, h.Payload.Cwd(), "plans", false)
 	if err != nil {
 		return ""
 	}

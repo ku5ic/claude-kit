@@ -67,11 +67,3 @@ func satisfies(dir, pkg, spec string) (string, verdict) {
 	}
 	return manifest.Version, mismatch
 }
-
-// Rel is path relative to root, "." for root itself.
-func Rel(root, path string) string {
-	if path == root {
-		return "."
-	}
-	return strings.TrimPrefix(path, root+"/")
-}

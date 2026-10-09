@@ -86,11 +86,7 @@ func Check(h *hook.Hook) error {
 		}
 	}
 
-	cwd := h.Payload.String("cwd")
-	if cwd == "" {
-		cwd, _ = os.Getwd()
-	}
-	st := &state{h: h, cfg: cfg, home: home, cwd: resolveDir(home, "/", cwd)}
+	st := &state{h: h, cfg: cfg, home: home, cwd: resolveDir(home, "/", h.Payload.Cwd())}
 	// The raw command, not norm: <<- strips tabs only, and norm would turn a
 	// tab-indented terminator into spaces that no longer close the heredoc.
 	segs, unparsed := parseAll(cmd)

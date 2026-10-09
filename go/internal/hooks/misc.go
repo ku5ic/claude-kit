@@ -36,7 +36,7 @@ func LogSkills(h *hook.Hook) error {
 		switch tool {
 		case "Skill":
 		case "Read":
-			file := p.String("tool_input.file_path")
+			file := p.FilePath()
 			if !guard.Glob("*/skills/*/SKILL.md", file) {
 				return nil
 			}
@@ -50,7 +50,7 @@ func LogSkills(h *hook.Hook) error {
 	h.Log("skills", event,
 		"expansion_type", expansion,
 		"command_name", p.String("command_name"),
-		"skill_file", cmp.Or(p.String("tool_input.skill"), p.String("tool_input.file_path")),
+		"skill_file", cmp.Or(p.String("tool_input.skill"), p.FilePath()),
 		"tool_name", tool)
 	return nil
 }

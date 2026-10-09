@@ -68,8 +68,8 @@ func Resolve(cfg *config.Config, dir, root, name string, mode Mode) Resolution {
 			installed := filepath.Dir(filepath.Dir(filepath.Dir(found)))
 			switch version, verdict := satisfies(installed, pkg, spec); verdict {
 			case mismatch:
-				return Resolution{Skip: Rel(root, filepath.Join(owner, "package.json")) + " declares " + pkg + " " + spec +
-					", installed is " + version + " at " + Rel(root, installed) + "; run " + installCmd(cfg, owner, "js"), Project: true}
+				return Resolution{Skip: project.Rel(root, filepath.Join(owner, "package.json")) + " declares " + pkg + " " + spec +
+					", installed is " + version + " at " + project.Rel(root, installed) + "; run " + installCmd(cfg, owner, "js"), Project: true}
 			case unchecked:
 				res.Note = pkg + " " + spec + " not checked against the installed copy"
 			}

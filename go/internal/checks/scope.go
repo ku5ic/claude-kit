@@ -1,10 +1,8 @@
 package checks
 
 import (
-	"bytes"
 	"fmt"
 	"io"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -93,23 +91,17 @@ func changedSince(root string) changes {
 // "skip".
 func runScoped(g Gate, ch changes, w io.Writer) string {
 	if !ch.ok {
-		fmt.Fprintf(w, "SKIP %s (no git base)\n", g.Label)
+		fmt.Fprint(w, skipLine(g.Label, "no git base"))
 		return "skip"
 	}
 	if len(ch.files) == 0 {
 		fmt.Fprintf(w, "PASS %s (nothing changed since %s)\n", g.Label, ch.base)
 		return "pass"
 	}
-	var out bytes.Buffer
-	cmd := gateCommand(g)
-	cmd.Stdout, cmd.Stderr = &out, &out
-	err := cmd.Run()
-	if _, isExit := err.(*exec.ExitError); err != nil && !isExit {
-		fmt.Fprintf(&out, "%s: %v\n", g.Words[0], err)
-	}
+	out, err := capture(g)
 	var found []tools.Finding
 	if g.Scope.Findings != nil {
-		found, _ = g.Scope.Findings.Parse(out.String())
+		found, _ = g.Scope.Findings.Parse(out)
 	}
 	if g.Scope.Advisory {
 		what := "output not mapped to files"
@@ -122,11 +114,7 @@ func runScoped(g Gate, ch changes, w io.Writer) string {
 	paths := make([]string, len(found))
 	var touched []string
 	for i, f := range found {
-		path := f.File
-		if !filepath.IsAbs(path) {
-			path = filepath.Join(g.Dir, path)
-		}
-		paths[i] = filepath.Clean(path)
+		paths[i] = absUnder(g.Dir, f.File)
 		if ch.files[paths[i]] {
 			touched = append(touched, paths[i])
 		}
@@ -139,17 +127,16 @@ func runScoped(g Gate, ch changes, w io.Writer) string {
 	}
 	var blocking []string
 	for i, f := range found {
-		if ch.files[paths[i]] && (f.Line == 0 || lines == nil || lines[paths[i]] == nil || lines[paths[i]][f.Line]) {
+		if ch.files[paths[i]] && onChangedLine(lines, paths[i], f.Line) {
 			blocking = append(blocking, f.Text)
 		}
 	}
 	switch {
 	case len(blocking) > 0:
-		fmt.Fprintf(w, "FAIL %s (%s)\n%s%s\n", g.Label, strings.Join(g.Words, " "), g.extra(), strings.Join(blocking[:min(len(blocking), 30)], "\n"))
+		fmt.Fprint(w, failLine(g)+strings.Join(head(blocking), "\n")+"\n")
 		return "fail"
 	case err != nil && len(found) == 0:
-		lines := strings.SplitAfter(out.String(), "\n")
-		fmt.Fprintf(w, "FAIL %s (%s)\n%s%s", g.Label, strings.Join(g.Words, " "), g.extra(), strings.Join(lines[:min(len(lines), 30)], ""))
+		fmt.Fprint(w, failLine(g)+strings.Join(head(strings.SplitAfter(out, "\n")), ""))
 		return "fail"
 	case len(found) > 0:
 		fmt.Fprintf(w, "PASS %s (%d finding%s on unchanged lines)\n%s", g.Label, len(found), plural(len(found)), g.extra())

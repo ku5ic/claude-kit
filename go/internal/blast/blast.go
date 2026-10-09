@@ -94,7 +94,7 @@ func Run(cfg *config.Config, args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "blast-radius: not inside a git repository")
 		return 2
 	}
-	s := &scan{root: root, rel: strings.TrimPrefix(abs, root+"/"), symbol: symbol, seen: map[string]bool{}}
+	s := &scan{root: root, rel: project.Rel(root, abs), symbol: symbol, seen: map[string]bool{}}
 	for _, rule := range cfg.SkillFileMap {
 		if slices.Contains(rule.Skills, "test-patterns") {
 			s.testGlobs = append(s.testGlobs, rule.Globs...)

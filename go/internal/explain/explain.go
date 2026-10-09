@@ -160,7 +160,7 @@ func stop(cfg *config.Config, cwd string, files []string, w, stderr io.Writer) i
 		fmt.Fprintf(w, "  runs in  %s\n", g.Dir)
 		for _, f := range g.Files {
 			claimed[f] = true
-			fmt.Fprintf(w, "  file     %s\n", strings.TrimPrefix(f, root+"/"))
+			fmt.Fprintf(w, "  file     %s\n", project.Rel(root, f))
 		}
 		if g.Skip != "" {
 			fmt.Fprintf(w, "  skip     %s\n", g.Skip)
