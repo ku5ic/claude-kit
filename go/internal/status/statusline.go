@@ -9,11 +9,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
@@ -267,13 +269,18 @@ func gitStatus(home, cwd, sessionID string) string {
 		untracked, _ := git.Output(top, "ls-files", "--others", "--exclude-standard", "-z")
 		budget := int64(untrackedReadBudget)
 		for name := range strings.SplitSeq(untracked, "\x00") {
-			path := filepath.Join(top, name)
-			info, err := os.Lstat(path)
-			if name == "" || err != nil || !info.Mode().IsRegular() || info.Size() > budget {
+			if name == "" {
 				continue
 			}
-			budget -= info.Size()
-			add += newLines(path)
+			path := filepath.Join(top, name)
+			switch info, err := os.Lstat(path); {
+			case err != nil:
+			case info.Mode()&fs.ModeSymlink != 0:
+				add++ // git counts a symlink as one line, its target
+			case info.Mode().IsRegular() && info.Size() <= budget:
+				budget -= info.Size()
+				add += newLines(path)
+			}
 		}
 	}
 	segment := fmt.Sprintf("%s\t%d\t%d", branch, add, del)
@@ -288,11 +295,16 @@ const untrackedReadBudget = 8 << 20
 // last line without a newline counts, and a binary file (a NUL in its first
 // 8000 bytes, git's test) counts 0.
 func newLines(path string) int {
-	f, err := os.Open(path)
+	// Non-blocking, then Fstat: a path swapped for a FIFO since the caller's
+	// Lstat can't hang the open.
+	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return 0
 	}
 	defer f.Close()
+	if info, err := f.Stat(); err != nil || !info.Mode().IsRegular() {
+		return 0
+	}
 	buf := make([]byte, 64*1024)
 	n, last, first := 0, byte('\n'), true
 	for {

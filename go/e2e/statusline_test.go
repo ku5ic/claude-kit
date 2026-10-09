@@ -210,8 +210,12 @@ func TestStatusline(t *testing.T) {
 		if err := syscall.Mkfifo(filepath.Join(repo, "pipe"), 0o644); err != nil {
 			t.Fatal(err)
 		}
+		// A symlink is one line to git, its target, whatever it points at.
+		if err := os.Symlink("new.txt", filepath.Join(repo, "link")); err != nil {
+			t.Fatal(err)
+		}
 		Mkdir(t, filepath.Join(repo, "sub"))
-		statuslineContains(t, render(k, statuslinePayload(filepath.Join(repo, "sub"), "t9u", 50)), "main +3")
+		statuslineContains(t, render(k, statuslinePayload(filepath.Join(repo, "sub"), "t9u", 50)), "main +4")
 	})
 
 	t.Run("git segment is omitted outside a git repo", func(t *testing.T) {

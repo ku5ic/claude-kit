@@ -12,9 +12,9 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
-// runChecksCall is one kit run-checks invocation and its arguments, up to
-// the next shell operator.
-var runChecksCall = regexp.MustCompile(`kit run-checks([^|;&\n]*)`)
+// runChecksCall is a kit run-checks invocation at the start of a command or
+// after a shell operator, and its arguments up to the next operator.
+var runChecksCall = regexp.MustCompile(`(?m)(?:^|[|;&(]\s*)kit run-checks([^|;&\n]*)`)
 
 // ranChecks reports whether the agent's transcript has a Bash call that ran
 // kit run-checks, so a reviewer that already did isn't sent back to re-emit
@@ -27,7 +27,9 @@ func ranChecks(path string) bool {
 			if e.Type != "assistant" || b.Name != "Bash" {
 				continue
 			}
-			for _, m := range runChecksCall.FindAllStringSubmatch(b.Input.Command, -1) {
+			// A backslash-newline continues the line, so its --plan still counts.
+			command := strings.ReplaceAll(b.Input.Command, "\\\n", " ")
+			for _, m := range runChecksCall.FindAllStringSubmatch(command, -1) {
 				if !slices.Contains(strings.Fields(m[1]), "--plan") {
 					ran = true
 				}

@@ -55,6 +55,12 @@ func TestReviewChecks(t *testing.T) {
 		Write(t, transcript, `{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"kit run-checks --plan | head"}}]}}`+"\n")
 		stop(e, transcript, false).Want(t, 2)
 	})
+	t.Run("a search for the text, or --plan after a line continuation, is still sent back", func(t *testing.T) {
+		e, transcript := setup(t, `{"skillName":"code-review"}`)
+		Write(t, transcript, `{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"rg -n \"kit run-checks\" rules/"}}]}}`+"\n"+
+			`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"kit run-checks \\\n  --plan"}}]}}`+"\n")
+		stop(e, transcript, false).Want(t, 2)
+	})
 	t.Run("a review that only mentioned kit run-checks is still sent back", func(t *testing.T) {
 		e, transcript := setup(t, `{"skillName":"code-review"}`)
 		Write(t, transcript, `{"type":"assistant","message":{"content":[{"type":"text","text":"I'll run kit run-checks later"}]}}`+"\n")
