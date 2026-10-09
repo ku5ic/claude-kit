@@ -74,7 +74,7 @@ func Run(cfg *config.Config, paths config.Paths, cwd string, args []string, stdo
 		scripts := extract.JSONKeys(filepath.Join(root, "package.json"), ".scripts")
 		for _, candidate := range []string{"storybook", "dev"} {
 			if slices.Contains(scripts, candidate) {
-				pm := "npm"
+				pm := cfg.DefaultManager("js")
 				if lock, ok := project.NearestLockfile(cfg, root, "js"); ok {
 					pm = lock.Manager
 				}

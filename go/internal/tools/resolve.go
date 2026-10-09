@@ -11,26 +11,6 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
-// lookup finds a binary inside a package manager's environment when the
-// project doesn't keep one in node_modules/.bin or a .venv. Only commands
-// that never create an environment or install anything: poetry run and uv
-// run would; poetry env info, pipenv --venv, yarn bin, and bundle info don't.
-type lookup struct {
-	lockfile string
-	venvCmd  []string // prints the environment dir; the bin is <dir>/bin/<name>
-	probe    []string // exits 0 when the bin is available ({bin} replaced)
-	run      []string // replaces the bin in the command ({bin} replaced)
-}
-
-var lookups = []lookup{
-	{lockfile: "poetry.lock", venvCmd: []string{"poetry", "env", "info", "-p"}},
-	{lockfile: "Pipfile.lock", venvCmd: []string{"pipenv", "--venv"}},
-	{lockfile: ".pnp.cjs", probe: []string{"yarn", "bin", "{bin}"}, run: []string{"yarn", "run", "{bin}"}},
-	// bundle info, not `bundle exec which`: which also finds a global gem
-	// stub that bundle exec then refuses to load. Assumes gem name == bin.
-	{lockfile: "Gemfile.lock", probe: []string{"bundle", "info", "{bin}"}, run: []string{"bundle", "exec", "{bin}"}},
-}
-
 // Where a Resolution's words come from.
 const (
 	SourceLocal   = "local"
@@ -90,7 +70,7 @@ func Resolve(cfg *config.Config, dir, root, name string, mode Mode) Resolution {
 			switch version, verdict := satisfies(installed, pkg, spec); verdict {
 			case mismatch:
 				return Resolution{Skip: Rel(root, filepath.Join(owner, "package.json")) + " declares " + pkg + " " + spec +
-					", installed is " + version + " at " + Rel(root, installed) + "; run " + installCmd(cfg, owner, "js", "npm"), Project: true}
+					", installed is " + version + " at " + Rel(root, installed) + "; run " + installCmd(cfg, owner, "js"), Project: true}
 			case unchecked:
 				res.Note = pkg + " " + spec + " not checked against the installed copy"
 			}
@@ -100,17 +80,17 @@ func Resolve(cfg *config.Config, dir, root, name string, mode Mode) Resolution {
 	if path := goTool(dir, root, name); path != "" {
 		return Resolution{Words: []string{path}, Source: SourcePM}
 	}
-	for _, l := range lookups {
-		lock := project.FindUp(dir, root, l.lockfile)
+	for _, l := range cfg.ToolResolution.EnvLookups {
+		lock := project.FindUp(dir, root, l.Marker)
 		if lock == "" {
 			continue
 		}
 		at := filepath.Dir(lock)
-		if l.lockfile == ".pnp.cjs" && owner != "" {
+		if l.Marker == ".pnp.cjs" && owner != "" {
 			// yarn bin answers for the workspace it runs in.
 			at = owner
 		}
-		if words := l.resolve(at, name); words != nil {
+		if words := envBin(l, at, name); words != nil {
 			return Resolution{Words: words, Source: SourcePM}
 		}
 	}
@@ -142,7 +122,9 @@ func Resolve(cfg *config.Config, dir, root, name string, mode Mode) Resolution {
 	return Resolution{Skip: name + " only on PATH (" + path + "); nothing in the project declares or pins it. Pin it (.tool-versions), or add it to tool_resolution.path_fallback in ~/.claude/claude-kit.local.yml to allow", OnPath: path}
 }
 
-func (l lookup) resolve(dir, name string) []string {
+// envBin runs an env_lookups entry (kit.yml) for name from dir: the words
+// that run it, nil when the environment doesn't have it.
+func envBin(l config.EnvLookup, dir, name string) []string {
 	fill := func(words []string) []string {
 		out := make([]string, len(words))
 		for i, w := range words {
@@ -150,11 +132,11 @@ func (l lookup) resolve(dir, name string) []string {
 		}
 		return out
 	}
-	if l.venvCmd != nil {
-		if _, err := exec.LookPath(l.venvCmd[0]); err != nil {
+	if len(l.VenvCmd) > 0 {
+		if _, err := exec.LookPath(l.VenvCmd[0]); err != nil {
 			return nil
 		}
-		cmd := exec.Command(l.venvCmd[0], l.venvCmd[1:]...)
+		cmd := exec.Command(l.VenvCmd[0], l.VenvCmd[1:]...)
 		cmd.Dir = dir
 		out, err := cmd.Output()
 		if venv := strings.TrimSpace(string(out)); err == nil && venv != "" {
@@ -164,7 +146,10 @@ func (l lookup) resolve(dir, name string) []string {
 		}
 		return nil
 	}
-	probe := fill(l.probe)
+	probe := fill(l.Probe)
+	if len(probe) == 0 || len(l.Run) == 0 {
+		return nil
+	}
 	if _, err := exec.LookPath(probe[0]); err != nil {
 		return nil
 	}
@@ -173,7 +158,7 @@ func (l lookup) resolve(dir, name string) []string {
 	if cmd.Run() != nil {
 		return nil
 	}
-	return fill(l.run)
+	return fill(l.Run)
 }
 
 func executable(path string) bool {

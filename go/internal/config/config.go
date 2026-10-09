@@ -178,6 +178,33 @@ type PackageManager struct {
 	Manager    string `yaml:"manager"`
 	Ecosystem  string `yaml:"ecosystem"`
 	HandEdited bool   `yaml:"hand_edited"`
+	// Per manager, on its first entry.
+	Default       bool     `yaml:"default"`
+	Aliases       []string `yaml:"aliases"`
+	Dlx           string   `yaml:"dlx"`
+	DirFlags      []string `yaml:"dir_flags"`
+	GlobalInstall string   `yaml:"global_install"`
+}
+
+// Manager is the first package_managers entry for a manager, or for a
+// command that runs one (npx runs npm).
+func (c *Config) Manager(command string) (PackageManager, bool) {
+	for _, pm := range c.PackageManagers {
+		if pm.Manager == command || slices.Contains(pm.Aliases, command) {
+			return pm, true
+		}
+	}
+	return PackageManager{}, false
+}
+
+// DefaultManager is an ecosystem's manager when no lockfile names one.
+func (c *Config) DefaultManager(ecosystem string) string {
+	for _, pm := range c.PackageManagers {
+		if pm.Ecosystem == ecosystem && pm.Default {
+			return pm.Manager
+		}
+	}
+	return ""
 }
 
 type TaskProvider struct {
@@ -277,6 +304,18 @@ type ToolResolution struct {
 	ManagerDirs  []string          `yaml:"manager_dirs"`
 	BinPackages  map[string]string `yaml:"bin_packages"`
 	Install      map[string]string `yaml:"install"`
+	EnvLookups   []EnvLookup       `yaml:"env_lookups"`
+}
+
+// EnvLookup finds a binary inside a package manager's environment, when
+// Marker is found walking up: VenvCmd prints the environment dir (the bin is
+// <dir>/bin/<name>), or Probe exits 0 when the bin is there and Run runs it.
+// {bin} is the binary's name.
+type EnvLookup struct {
+	Marker  string   `yaml:"marker"`
+	VenvCmd []string `yaml:"venv_cmd"`
+	Probe   []string `yaml:"probe"`
+	Run     []string `yaml:"run"`
 }
 
 // FileCheck is a user-defined file-scoped check (kit.yml file_checks); the

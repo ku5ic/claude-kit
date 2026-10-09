@@ -45,6 +45,11 @@ func resolveSetup(t *testing.T) *resolveEnv {
 			Install:      map[string]string{"pnpm": "pnpm install", "uv": "uv sync", "go": "go mod download"},
 		},
 	}
+	// The default manager and environment lookups, as kit.yml has them.
+	real := kitConfig(t)
+	npm, _ := real.Manager("npm")
+	e.cfg.PackageManagers = append(e.cfg.PackageManagers, npm)
+	e.cfg.ToolResolution.EnvLookups = real.ToolResolution.EnvLookups
 	return e
 }
 

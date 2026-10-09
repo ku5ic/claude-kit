@@ -1,6 +1,8 @@
 package bashguard
 
 import (
+	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -165,36 +167,26 @@ func (c *command) packageManager() error {
 	if c.name == "pnpm" && pnpmInstall.MatchString(rest) && !frozen.MatchString(c.text) {
 		c.st.ask("pnpm install without --frozen-lockfile can change the lockfile; confirm before running")
 	}
-	global := "global package install. Use a project-local install or asdf shim."
-	switch {
-	case (c.name == "npm" || c.name == "pnpm" || c.name == "yarn") && npmGlobal.MatchString(c.text),
-		c.name == "yarn" && yarnGlobal.MatchString(c.text),
-		c.name == "bun" && bunGlobal.MatchString(c.text):
-		if err := c.block(global, "pkg-global-install"); err != nil {
-			return err
+	pm, _ := c.st.cfg.Manager(c.name)
+	if pm.GlobalInstall != "" {
+		// An unreadable pattern blocks: this is a guard.
+		global, err := regexp.Compile(pm.GlobalInstall)
+		if err != nil || global.MatchString(rest) {
+			if err := c.block("global package install. Use a project-local install or asdf shim.", "pkg-global-install"); err != nil {
+				return err
+			}
 		}
 	}
 	// --version and -v never touch project files.
 	if rest == "--version" || rest == "-v" {
 		return nil
 	}
-	invoked := map[string]string{"npx": "npm", "bunx": "bun", "pip3": "pip"}[c.name]
-	if invoked == "" {
-		invoked = c.name
-	}
-	ecosystem := ""
-	for _, pm := range c.st.cfg.PackageManagers {
-		if pm.Manager == invoked {
-			ecosystem = pm.Ecosystem
-			break
-		}
-	}
-	if ecosystem == "" || ecosystem == "none" {
+	if pm.Ecosystem == "" || pm.Ecosystem == "none" {
 		return nil
 	}
-	// The manager's own directory flag overrides the segment's cwd.
+	// The manager's own directory flag overrides the segment's cwd; only a
+	// long one takes =value.
 	dir, wantDir := c.st.cwd, false
-	dirFlags := map[string]bool{"uv:--directory": true, "uv:--project": true, "pnpm:--dir": true, "pnpm:-C": true, "yarn:--cwd": true, "npm:--prefix": true}
 	for _, w := range c.values() {
 		if wantDir {
 			dir, wantDir = resolveDir(c.st.home, c.st.cwd, w), false
@@ -202,32 +194,24 @@ func (c *command) packageManager() error {
 		}
 		flag, value, hasValue := strings.Cut(w, "=")
 		switch {
-		case dirFlags[invoked+":"+w]:
+		case slices.Contains(pm.DirFlags, w):
 			wantDir = true
-		case hasValue && dirFlags[invoked+":"+flag] && flag != "-C":
+		case hasValue && slices.Contains(pm.DirFlags, flag) && strings.HasPrefix(flag, "--"):
 			dir = resolveDir(c.st.home, c.st.cwd, value)
 		}
 	}
 	// Greenfield (no lockfile in this ecosystem) is always allowed.
-	lock, ok := c.st.nearestLockfile(dir, ecosystem)
-	if !ok || lock.Manager == invoked {
+	lock, ok := c.st.nearestLockfile(dir, pm.Ecosystem)
+	if !ok || lock.Manager == pm.Manager {
 		return nil
 	}
-	tail := c.rest
-	suggest := lock.Manager + tail
-	switch c.name {
-	case "npx":
-		suggest = map[string]string{"bun": "bunx", "pnpm": "pnpm dlx", "yarn": "yarn dlx"}[lock.Manager]
-		if suggest == "" {
-			suggest = lock.Manager
+	// A dlx command (npx) suggests the lockfile manager's own.
+	suggest := lock.Manager
+	if c.name == pm.Dlx {
+		if other, _ := c.st.cfg.Manager(lock.Manager); other.Dlx != "" {
+			suggest = other.Dlx
 		}
-		suggest += tail
-	case "bunx":
-		suggest = map[string]string{"npm": "npx", "pnpm": "pnpm dlx", "yarn": "yarn dlx"}[lock.Manager]
-		if suggest == "" {
-			suggest = lock.Manager
-		}
-		suggest += tail
 	}
+	suggest += c.rest
 	return c.block("this repo uses "+lock.Manager+" ("+lock.File+"); rerun as: "+suggest, "pm-mismatch")
 }

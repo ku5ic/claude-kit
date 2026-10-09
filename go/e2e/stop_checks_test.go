@@ -32,6 +32,16 @@ const stopChecksKitYML = `file_checks:
     cmd: "{bin} --check {files}"
 `
 
+// stopChecksPMs is kit.yml's default manager and environment lookups, for
+// the tests that need them.
+const stopChecksPMs = `package_managers:
+  - {lockfile: package-lock.json, manager: npm, ecosystem: js, default: true}
+tool_resolution:
+  env_lookups:
+    - {marker: poetry.lock, venv_cmd: [poetry, env, info, -p]}
+    - {marker: .pnp.cjs, probe: [yarn, bin, "{bin}"], run: [yarn, run, "{bin}"]}
+`
+
 func stopChecksSetup(t *testing.T) *stopChecksEnv {
 	k := NewPlugin(t)
 	tmp := t.TempDir()
@@ -121,6 +131,7 @@ func (e *stopChecksEnv) noCalls() {
 // ones. `poetry env info -p` prints $REPO/env; `yarn bin <name>` succeeds
 // unless $REPO/nopm exists, and `yarn run <name> ...` records.
 func (e *stopChecksEnv) usePMs() {
+	e.k.KitYML(stopChecksKitYML + stopChecksPMs)
 	pm := filepath.Join(e.tmp, "pm")
 	Stub(e.t, filepath.Join(pm, "poetry"), fmt.Sprintf("[[ \"$*\" == \"env info -p\" ]] && echo %q\n", e.path("env")))
 	Stub(e.t, filepath.Join(pm, "yarn"), fmt.Sprintf("case \"$1\" in\nbin) [[ ! -e %q ]] ;;\nrun) shift; echo \"$PWD|yarn run $*\" >>%q ;;\nesac\n",
@@ -548,7 +559,7 @@ func TestStopChecks(t *testing.T) {
 
 	t.Run("a declared but uninstalled bin is skipped with the install command, not run from PATH", func(t *testing.T) {
 		e := stopChecksSetup(t)
-		e.oneCheck("")
+		e.oneCheck(stopChecksPMs)
 		Write(t, e.path("package.json"), `{"devDependencies":{"fakelint":"1.0.0"}}`+"\n")
 		e.fakelintOnPath()
 		e.turn("Edit", e.path("a.ts"))

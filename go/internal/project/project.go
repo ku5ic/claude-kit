@@ -155,7 +155,7 @@ type Task struct {
 }
 
 // Tasks lists every task of every provider in dir. {pm} is the nearest
-// lockfile's manager for the provider's stack, npm when there is none, so a
+// lockfile's manager for the provider's stack, else the stack's default, so a
 // poetry service under a pnpm root runs poe through poetry.
 func Tasks(cfg *config.Config, dir string) []Task {
 	pmByStack := map[string]string{}
@@ -180,7 +180,7 @@ func Tasks(cfg *config.Config, dir string) []Task {
 			run = override
 		}
 		if pm == "" {
-			pm = "npm"
+			pm = cfg.DefaultManager(p.Stack)
 		}
 		run = strings.ReplaceAll(run, "{pm}", pm)
 		names, err := extract.Run(tp.Extractor, p.Manifest, tp.Arg)

@@ -65,7 +65,7 @@ func Report(cfg *config.Config, root string) string {
 		switch {
 		case stack == "js":
 			if pm == "" {
-				pm = "npm"
+				pm = cfg.DefaultManager("js")
 			}
 			line += " [" + pm + "]"
 			jsLoc = locs[0]

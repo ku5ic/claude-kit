@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -50,6 +51,24 @@ func TestRealKitYMLLoadsCleanly(t *testing.T) {
 	}
 	if _, ok := cfg.Stacks["dotfiles"]; statErr == nil && !ok {
 		t.Error("overlay stack dotfiles not merged")
+	}
+	if len(cfg.ToolResolution.EnvLookups) == 0 {
+		t.Error("tool_resolution.env_lookups is empty")
+	}
+	for _, eco := range []string{"js", "python"} {
+		if cfg.DefaultManager(eco) == "" {
+			t.Errorf("no default manager for %s", eco)
+		}
+	}
+	for _, name := range []string{"npx", "bunx", "pip3"} {
+		if _, ok := cfg.Manager(name); !ok {
+			t.Errorf("no package manager answers to %s", name)
+		}
+	}
+	for _, pm := range cfg.PackageManagers {
+		if _, err := regexp.Compile(pm.GlobalInstall); err != nil {
+			t.Errorf("%s global_install: %v", pm.Manager, err)
+		}
 	}
 }
 

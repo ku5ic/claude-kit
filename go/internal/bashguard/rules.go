@@ -89,9 +89,6 @@ var (
 	keychainDel = regexp.MustCompile(`security[[:space:]]+delete-keychain`)
 	pnpmInstall = regexp.MustCompile(`^(install|i)([[:space:]]|$)`)
 	frozen      = regexp.MustCompile(`(^|[[:space:]])--frozen-lockfile([[:space:]]|$)`)
-	npmGlobal   = regexp.MustCompile(`(npm|pnpm|yarn)[[:space:]]+(install|add|i)[[:space:]]+.*(-g|--global)`)
-	yarnGlobal  = regexp.MustCompile(`yarn[[:space:]]+global[[:space:]]+add[[:space:]]`)
-	bunGlobal   = regexp.MustCompile(`bun[[:space:]]+(add|install)[[:space:]]+.*(-g|--global)`)
 	gitWriters  = regexp.MustCompile(` (checkout|restore|apply|mv|rm|stash|reset) `)
 )
 
@@ -202,8 +199,6 @@ func (c *command) check() error {
 		if keychainDel.MatchString(c.text) {
 			return c.block("keychain deletion", "keychain-delete")
 		}
-	case "npm", "npx", "pnpm", "yarn", "bun", "bunx", "pip", "pip3", "poetry", "uv", "pipenv":
-		return c.packageManager()
 	case "curl":
 		return c.curl()
 	case "wget":
@@ -261,6 +256,9 @@ func (c *command) check() error {
 			}
 		}
 	default:
+		if _, ok := c.st.cfg.Manager(c.name); ok {
+			return c.packageManager()
+		}
 		if strings.HasPrefix(c.name, "mkfs.") {
 			return c.block("low level disk or filesystem tool", "disk-tool")
 		}

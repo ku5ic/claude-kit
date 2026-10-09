@@ -148,25 +148,46 @@ skill_triggers:
 # Ordered lockfile-to-manager table. First match wins.
 # Read by package-manager resolution and guard-bash's PM mismatch guard,
 # which only compares managers sharing an ecosystem.
+#   default:        the ecosystem's manager when no lockfile names one
+#   aliases:        other commands that run the manager (npx runs npm)
+#   dlx:            its command for running a package without installing it
+#   dir_flags:      flags that pick the directory it works in
+#   global_install: regex on its arguments that marks a global install
+# A manager's fields go on its first entry.
 package_managers:
   - lockfile: bun.lockb
     manager: bun
     ecosystem: js
+    aliases: [bunx]
+    dlx: bunx
+    global_install: '^(add|install)[[:space:]]+.*(-g|--global)'
   - lockfile: bun.lock
     manager: bun
     ecosystem: js
   - lockfile: pnpm-lock.yaml
     manager: pnpm
     ecosystem: js
+    dlx: pnpm dlx
+    dir_flags: [--dir, -C]
+    global_install: '^(install|add|i)[[:space:]]+.*(-g|--global)'
   - lockfile: yarn.lock
     manager: yarn
     ecosystem: js
+    dlx: yarn dlx
+    dir_flags: [--cwd]
+    global_install: '^((install|add|i)[[:space:]]+.*(-g|--global)|global[[:space:]]+add[[:space:]])'
   - lockfile: package-lock.json
     manager: npm
     ecosystem: js
+    default: true
+    aliases: [npx]
+    dlx: npx
+    dir_flags: [--prefix]
+    global_install: '^(install|add|i)[[:space:]]+.*(-g|--global)'
   - lockfile: uv.lock
     manager: uv
     ecosystem: python
+    dir_flags: [--directory, --project]
   - lockfile: poetry.lock
     manager: poetry
     ecosystem: python
@@ -176,6 +197,8 @@ package_managers:
   - lockfile: requirements.txt
     manager: pip
     ecosystem: python
+    default: true
+    aliases: [pip3]
     # Hand-maintained, so edits to it are normal; every other lockfile here is
     # tool-generated and guard-dispatch blocks direct edits to it.
     hand_edited: true
@@ -233,7 +256,7 @@ disabled_rules: []
 #   arg:       the extractor's argument: a dotted path, or an ERE whose last
 #              capture group is the task name (regex_lines)
 #   run:       command template; {task} is the task, {pm} the package manager
-#              resolved for the directory (npm when none)
+#              resolved for the directory (the default manager when none)
 #   run_by_pm: run templates that replace run under a given package manager
 #   body:      template for the shell a task runs, as the gate classifier
 #              reads it; {body} is what the manifest holds (a cargo alias
@@ -579,6 +602,16 @@ tool_resolution:
   path_fallback: [go, gofmt, cargo, rustfmt, shellcheck, shfmt, stylua, tofu, terraform]
   pin_files: [.tool-versions, mise.toml, .mise.toml]
   pin_aliases: {opentofu: tofu, golang: go}
+  # A binary inside a package manager's environment, for a project without
+  # node_modules/.bin or a .venv. Only commands that never create an
+  # environment or install anything: poetry run and uv run would.
+  # bundle info, not `bundle exec which`: which also finds a global gem stub
+  # that bundle exec then refuses to load. Assumes gem name == bin.
+  env_lookups:
+    - {marker: poetry.lock, venv_cmd: [poetry, env, info, -p]}
+    - {marker: Pipfile.lock, venv_cmd: [pipenv, --venv]}
+    - {marker: .pnp.cjs, probe: [yarn, bin, "{bin}"], run: [yarn, run, "{bin}"]}
+    - {marker: Gemfile.lock, probe: [bundle, info, "{bin}"], run: [bundle, exec, "{bin}"]}
   manager_dirs:
     - "$ASDF_DATA_DIR/shims"
     - "$ASDF_DATA_DIR/installs"

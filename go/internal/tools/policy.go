@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"cmp"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -100,13 +101,13 @@ func declared(cfg *config.Config, dir, root, name string) (manifest, install str
 	for d := dir; ; d = filepath.Dir(d) {
 		switch {
 		case JSDeps(d)[pkg]:
-			return Rel(root, filepath.Join(d, "package.json")), installCmd(cfg, d, "js", "npm")
+			return Rel(root, filepath.Join(d, "package.json")), installCmd(cfg, d, "js")
 		case PythonDeps(d)[normalize(pkg)]:
-			return manifestName(Python, d, root), installCmd(cfg, d, "python", "pip")
+			return manifestName(Python, d, root), installCmd(cfg, d, "python")
 		case RubyDeps(d)[pkg]:
-			return Rel(root, filepath.Join(d, "Gemfile.lock")), installCmd(cfg, d, "", "bundler")
+			return Rel(root, filepath.Join(d, "Gemfile.lock")), installCmd(cfg, d, "bundler")
 		case project.IsFile(filepath.Join(d, "go.mod")) && goModDeclares(filepath.Join(d, "go.mod"), name):
-			return Rel(root, filepath.Join(d, "go.mod")), installCmd(cfg, d, "", "go")
+			return Rel(root, filepath.Join(d, "go.mod")), installCmd(cfg, d, "go")
 		}
 		if d == root || d == "/" || !strings.HasPrefix(d, root) {
 			return "", ""
@@ -115,13 +116,12 @@ func declared(cfg *config.Config, dir, root, name string) (manifest, install str
 }
 
 // installCmd is tool_resolution.install's command for the manager of the
-// nearest ecosystem lockfile, else for fallback.
-func installCmd(cfg *config.Config, dir, ecosystem, fallback string) string {
-	manager := fallback
-	if ecosystem != "" {
-		if lock, ok := project.NearestLockfile(cfg, project.PhysicalPath(dir), ecosystem); ok {
-			manager = lock.Manager
-		}
+// nearest lockfile of ecosystem, else its default manager. An ecosystem
+// package_managers doesn't list (bundler, go) names its manager itself.
+func installCmd(cfg *config.Config, dir, ecosystem string) string {
+	manager := cmp.Or(cfg.DefaultManager(ecosystem), ecosystem)
+	if lock, ok := project.NearestLockfile(cfg, project.PhysicalPath(dir), ecosystem); ok {
+		manager = lock.Manager
 	}
 	if cmd := cfg.ToolResolution.Install[manager]; cmd != "" {
 		return cmd
