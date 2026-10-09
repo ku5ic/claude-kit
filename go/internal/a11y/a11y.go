@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
-	"github.com/ku5ic/claude-kit/go/internal/extract"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/tools"
 )
@@ -83,14 +82,10 @@ func Run(cfg *config.Config, paths config.Paths, cwd string, args []string, stdo
 
 // startHint names the package script that likely serves the page.
 func startHint(cfg *config.Config, root string, stdout io.Writer) {
-	scripts := extract.JSONKeys(filepath.Join(root, "package.json"), ".scripts")
+	tasks := project.Tasks(cfg, root)
 	for _, candidate := range []string{"storybook", "dev"} {
-		if slices.Contains(scripts, candidate) {
-			pm := cfg.DefaultManager("js")
-			if lock, ok := project.NearestLockfile(cfg, root, "js"); ok {
-				pm = lock.Manager
-			}
-			fmt.Fprintf(stdout, "Start it with: %s run %s\n", pm, candidate)
+		if i := slices.IndexFunc(tasks, func(t project.Task) bool { return t.Stack == "js" && t.Name == candidate }); i >= 0 {
+			fmt.Fprintf(stdout, "Start it with: %s\n", tasks[i].Cmd)
 			return
 		}
 	}
