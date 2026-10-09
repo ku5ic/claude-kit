@@ -63,7 +63,7 @@
     ],
     "SubagentStop": [
       {
-        "matcher": "*",
+        "matcher": "general-purpose",
         "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook review-checks", "timeout": 5 }]
       }
     ],

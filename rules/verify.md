@@ -13,7 +13,7 @@ Tests and type checks prove the code compiles and the asserted paths pass. They 
 
 ## 1. Self-review (`/code-review`)
 
-Read your own diff as a reviewer who didn't write it and doesn't trust it. Before it reports, a hook sends it back to run `kit run-checks` when it reviewed the working tree; the report opens with the checks line, and a failure becomes a finding only once the reviewer has verified its cause; one it doesn't report gets a one-line reason. Ticking a plan's last step without one since the last edit blocks the stop.
+Read your own diff as a reviewer who didn't write it and doesn't trust it. Before it reports, a SubagentStop hook sends it back to run `kit run-checks`; the hook's message says when and how to report the result. Ticking a plan's last step without one since the last edit blocks the stop.
 
 - Every new helper, module, type, or abstraction names what was searched for and not found, per `rules/change.md` section 2. "I didn't look" is a finding against the change.
 - Every non-obvious decision gets one line answering "why this, not the obvious alternative". A decision you can't justify is a decision you took from a generated draft without checking it.

@@ -16,7 +16,7 @@ import (
 // kit.yml's file_checks on just those files and blocks the stop on a
 // failure, so Claude fixes or reports it. A question-only turn costs
 // nothing. When the turn ticked a plan's last open step, it also blocks
-// until /code-review (which runs the full suite) has run since the last code
+// until /code-review has run since the last code
 // edit; it never runs the suite itself.
 func StopChecks(h *hook.Hook) error {
 	if h.Payload.Err != nil {
@@ -88,11 +88,11 @@ func StopChecks(h *hook.Hook) error {
 	return nil
 }
 
-// endOfPlan blocks a finished plan's stop until /code-review, which runs
-// the full suite, has run since the last code edit (rules/verify.md).
+// endOfPlan blocks a finished plan's stop until /code-review has run since
+// the last code edit (rules/verify.md).
 func endOfPlan(h *hook.Hook, plan string, reviewed bool) error {
 	if reviewed {
 		return nil
 	}
-	return h.Block(fmt.Sprintf("plan %s is done, but /code-review hasn't run since the last code edit. Run it now (it runs the full suite), then the runtime pass (/verify) when the change has observable behavior.", plan), "plan-done")
+	return h.Block(fmt.Sprintf("plan %s is done, but /code-review hasn't run since the last code edit. Run it now, then the runtime pass (/verify) when the change has observable behavior.", plan), "plan-done")
 }

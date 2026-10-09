@@ -35,7 +35,7 @@ func ReviewChecks(h *hook.Hook) error {
 	if json.Unmarshal(data, &fork) != nil || fork.SkillName != "code-review" {
 		return nil
 	}
-	return h.Block("before you return: if you reviewed the working tree, run `kit run-checks`. "+
+	return h.Block("before you return: if you reviewed the working tree and haven't run `kit run-checks` in this review, run it with a 600000 ms Bash timeout. "+
 		"Then return your full report again, every finding you already had unchanged and in the same format, with its `checks: N passed, M failed` line first. "+
 		"You own every statement in it: add a FAIL as a finding only after you've verified its cause in the code and are at least 90% sure, never twice for something you already reported; "+
 		"for any FAIL you don't report, say in one line why (pre-existing, flaky, unrelated). "+
