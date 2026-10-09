@@ -33,12 +33,12 @@ type Args struct {
 	Paths    []string // pathspecs after --
 }
 
-// Parse splits kit git-base's arguments. The mode is a flag (--diff, --log)
+// parse splits kit git-base's arguments. The mode is a flag (--diff, --log)
 // so a branch named diff or log still works as the base. The base is the
 // first word that resolves as a ref; a word right after a flag is that
 // flag's value (-n 5); any other word is an error, not a silent fallback
 // that would diff against the wrong branch.
-func Parse(argv []string) (Args, error) {
+func parse(argv []string) (Args, error) {
 	var a Args
 	if len(argv) > 0 {
 		switch argv[0] {
@@ -113,7 +113,7 @@ func ResolveIn(dir, explicit string) (string, bool) {
 
 // Run executes kit git-base's behavior and returns its exit status.
 func Run(argv []string, stdout, stderr io.Writer) int {
-	a, err := Parse(argv)
+	a, err := parse(argv)
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		return 1

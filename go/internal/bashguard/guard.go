@@ -429,8 +429,3 @@ func gitBaseFlagsSafe(words []string) bool {
 	}
 	return true
 }
-
-// nearestLockfile is project.NearestLockfile from a physical dir.
-func (st *state) nearestLockfile(dir, ecosystem string) (project.Lockfile, bool) {
-	return project.NearestLockfile(st.cfg, dir, ecosystem)
-}

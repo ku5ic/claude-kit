@@ -22,9 +22,9 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
-// CacheFile is <cache>/stack/<name>-<sha256(root)[:8]>.<tag>.txt: the root
+// cacheFile is <cache>/stack/<name>-<sha256(root)[:8]>.<tag>.txt: the root
 // is hashed in so same-named projects elsewhere on disk can't collide.
-func CacheFile(paths config.Paths, cfg *config.Config, name, root string) string {
+func cacheFile(paths config.Paths, cfg *config.Config, name, root string) string {
 	return filepath.Join(paths.CacheDir(), "stack", name+"-"+rootKey(cfg, root)+".txt")
 }
 
@@ -41,11 +41,11 @@ func configTime(paths config.Paths) int64 {
 	return max(mtime(paths.Base), mtime(paths.Overlay))
 }
 
-// Refresh regenerates the cache when it is missing, empty, or older than
+// refresh regenerates the cache when it is missing, empty, or older than
 // any detection-relevant file at root or kit.yml itself (adding a stack must
 // re-detect every project). Times compare in whole seconds, as stat(1) did,
 // so a cache written in the same second as kit.yml still counts as fresh.
-func Refresh(paths config.Paths, cfg *config.Config, root, cache string) {
+func refresh(paths config.Paths, cfg *config.Config, root, cache string) {
 	newest := int64(0)
 	for _, name := range cfg.DetectFiles() {
 		newest = max(newest, mtime(filepath.Join(root, name)))
@@ -103,18 +103,18 @@ type Context struct {
 // Build refreshes root's stack cache and derives its report and skills;
 // Suggested stays empty when there's no report.
 func Build(paths config.Paths, cfg *config.Config, name, root, session string) Context {
-	cache := CacheFile(paths, cfg, name, root)
-	Refresh(paths, cfg, root, cache)
+	cache := cacheFile(paths, cfg, name, root)
+	refresh(paths, cfg, root, cache)
 	report, _ := os.ReadFile(cache)
-	c := Context{Report: string(report), Required: Required(cfg)}
+	c := Context{Report: string(report), Required: required(cfg)}
 	if c.Report != "" {
 		c.Suggested = Suggested(cfg, Signals(c.Report), FileSkills(paths, cfg, root, session))
 	}
 	return c
 }
 
-// Required is kit.yml's global_skills, deduped in first-seen order.
-func Required(cfg *config.Config) []string {
+// required is kit.yml's global_skills, deduped in first-seen order.
+func required(cfg *config.Config) []string {
 	var out []string
 	for _, skill := range cfg.GlobalSkills {
 		if skill != "" && !slices.Contains(out, skill) {
@@ -129,11 +129,11 @@ func Required(cfg *config.Config) []string {
 // suggested). An extra matches by its name. fileSkills, from FileSkills,
 // follow the stack skills.
 func Suggested(cfg *config.Config, signals, fileSkills []string) []string {
-	required := Required(cfg)
+	globals := required(cfg)
 	var out []string
 	add := func(skills []string) {
 		for _, skill := range skills {
-			if skill != "" && !slices.Contains(required, skill) && !slices.Contains(out, skill) {
+			if skill != "" && !slices.Contains(globals, skill) && !slices.Contains(out, skill) {
 				out = append(out, skill)
 			}
 		}
@@ -160,7 +160,7 @@ func Suggested(cfg *config.Config, signals, fileSkills []string) []string {
 // read the cached result, as their SubagentStart hook has a 5s timeout. A
 // kit.yml edit since the scan triggers a fresh one.
 func FileSkills(paths config.Paths, cfg *config.Config, root, session string) []string {
-	if !guard.SkillsEnforced() || root == "" {
+	if !SkillsEnforced() || root == "" {
 		return nil
 	}
 	cache := paths.SessionFile(config.FileSkills, session, rootKey(cfg, root))
@@ -185,7 +185,7 @@ func scanFileSkills(cfg *config.Config, root string) []string {
 	var skills []string
 	for _, path := range listFiles(cfg, root) {
 		rules = slices.DeleteFunc(rules, func(rule config.SkillFileRule) bool {
-			matched := guard.FileMapSkills([]config.SkillFileRule{rule}, path)
+			matched := FileMapSkills([]config.SkillFileRule{rule}, path)
 			skills = append(skills, matched...)
 			return len(matched) > 0
 		})
@@ -231,12 +231,12 @@ func listFiles(cfg *config.Config, root string) []string {
 }
 
 // RequiredBlock is the <required-skills> block, "" when there are none.
-func RequiredBlock(required []string) string {
-	if len(required) == 0 {
+func (c Context) RequiredBlock() string {
+	if len(c.Required) == 0 {
 		return ""
 	}
 	return "\n<required-skills>\nBLOCKING REQUIREMENT: invoke the Skill tool for each of these skills NOW, before any other action: " +
-		strings.Join(required, ",") + "\n</required-skills>\n"
+		strings.Join(c.Required, ",") + "\n</required-skills>\n"
 }
 
 // SuggestedBlock is the <suggested-skills> block, "" when there are none:
@@ -253,9 +253,40 @@ func SuggestedBlock(cfg *config.Config, suggested []string) string {
 		}
 		fmt.Fprintf(&b, "load %s via the Skill tool\n", skill)
 	}
-	if guard.SkillsEnforced() {
+	if SkillsEnforced() {
 		b.WriteString("Patterns skills are also enforced automatically: the first edit to a matching file type will be blocked until the relevant skill is loaded.\n")
 	}
 	b.WriteString("</suggested-skills>\n")
 	return b.String()
+}
+
+// SkillsEnforced reports whether guard-skills is on: CLAUDE_GUARD_SKILLS=1,
+// an opt-in personal policy.
+func SkillsEnforced() bool { return os.Getenv("CLAUDE_GUARD_SKILLS") == "1" }
+
+// FileMapSkills is every skill a skill_file_map rule matching path gives,
+// deduped: an "on: basename" rule tests the base name, "on: path" the full
+// path.
+func FileMapSkills(rules []config.SkillFileRule, path string) []string {
+	var out []string
+	for _, rule := range rules {
+		target := ""
+		switch rule.On {
+		case "basename":
+			target = filepath.Base(path)
+		case "path":
+			target = path
+		default:
+			continue
+		}
+		if !guard.GlobAny(rule.Globs, target) {
+			continue
+		}
+		for _, skill := range rule.Skills {
+			if skill != "" && !slices.Contains(out, skill) {
+				out = append(out, skill)
+			}
+		}
+	}
+	return out
 }

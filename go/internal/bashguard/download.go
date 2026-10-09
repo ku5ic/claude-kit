@@ -4,6 +4,8 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+
+	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
 // Downloads land only in scratch (rules/tooling.md): every output file and
@@ -201,7 +203,7 @@ func (c *command) packageManager() error {
 		}
 	}
 	// Greenfield (no lockfile in this ecosystem) is always allowed.
-	lock, ok := c.st.nearestLockfile(dir, pm.Ecosystem)
+	lock, ok := project.NearestLockfile(c.st.cfg, dir, pm.Ecosystem)
 	if !ok || lock.Manager == pm.Manager {
 		return nil
 	}

@@ -15,10 +15,10 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/checks"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/git"
-	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/hooks"
 	"github.com/ku5ic/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/stackctx"
 )
 
 const usage = `usage: kit explain <what> ...
@@ -133,7 +133,7 @@ func edit(paths config.Paths, cfg *config.Config, cwd, path, tool string, w io.W
 	verdict(w, "guard-edit", hooks.GuardEdit(h), out)
 	h, out, _ = dryHook(paths, cfg, "guard-skills", payload)
 	name := "skills gate"
-	if !guard.SkillsEnforced() {
+	if !stackctx.SkillsEnforced() {
 		name += " (off: CLAUDE_GUARD_SKILLS isn't 1)"
 	}
 	verdict(w, name, hooks.GuardSkills(h), out)

@@ -27,7 +27,7 @@ func repo(t *testing.T) {
 
 func TestParseModesFlagsAndPaths(t *testing.T) {
 	repo(t)
-	a, err := Parse([]string{"--diff", "main", "--stat", "-n", "5", "--", "a.go", "-weird"})
+	a, err := parse([]string{"--diff", "main", "--stat", "-n", "5", "--", "a.go", "-weird"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,7 +41,7 @@ func TestParseModesFlagsAndPaths(t *testing.T) {
 
 func TestParseRejectsAWordThatIsNotARef(t *testing.T) {
 	repo(t)
-	_, err := Parse([]string{"no-such-branch"})
+	_, err := parse([]string{"no-such-branch"})
 	if err == nil || !strings.Contains(err.Error(), "'no-such-branch' is not a ref") {
 		t.Errorf("err = %v", err)
 	}
@@ -53,7 +53,7 @@ func TestParseBranchNamedDiffIsABase(t *testing.T) {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
-	a, err := Parse([]string{"diff"})
+	a, err := parse([]string{"diff"})
 	if err != nil || a.Mode != Base || a.Explicit != "diff" {
 		t.Errorf("a=%+v err=%v", a, err)
 	}

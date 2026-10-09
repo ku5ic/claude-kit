@@ -78,7 +78,7 @@ func writeContext(h *hook.Hook, cfg *config.Config, out *strings.Builder) {
 		fmt.Fprintf(out, "\n<repo-context>\n%sbranch (at session start): %s\ndirty-files (at session start): %s\nscratch: %s\n</repo-context>\n",
 			ctx.Report, branch(root), dirtyCount(root), scratch)
 	}
-	out.WriteString(stackctx.RequiredBlock(ctx.Required))
+	out.WriteString(ctx.RequiredBlock())
 	for _, skill := range ctx.Required {
 		h.Log(hook.SkillsLog, hook.EventRequiredSkill, "cwd", h.Payload.String("cwd"), "skill_file", skill)
 	}
@@ -111,7 +111,7 @@ func AgentContext(paths config.Paths, cfg *config.Config, cwd, session string) s
 	if ctx.Report != "" {
 		fmt.Fprintf(&b, "<repo-context>\n%sbranch: %s\ndirty-files: %s\n</repo-context>\n", ctx.Report, branch(root), dirtyCount(root))
 	}
-	b.WriteString(stackctx.RequiredBlock(ctx.Required))
+	b.WriteString(ctx.RequiredBlock())
 	b.WriteString(stackctx.SuggestedBlock(cfg, ctx.Suggested))
 	return b.String()
 }

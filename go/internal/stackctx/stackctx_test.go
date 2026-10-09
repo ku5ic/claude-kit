@@ -33,7 +33,7 @@ func TestSuggestedSkipsGlobalAndDedupes(t *testing.T) {
 	if want := []string{"javascript-patterns", "react-patterns"}; !slices.Equal(got, want) {
 		t.Errorf("got %q, want %q", got, want)
 	}
-	if RequiredBlock(Required(cfg)) != "\n<required-skills>\nBLOCKING REQUIREMENT: invoke the Skill tool for each of these skills NOW, before any other action: fix-sizing\n</required-skills>\n" {
+	if (Context{Required: required(cfg)}).RequiredBlock() != "\n<required-skills>\nBLOCKING REQUIREMENT: invoke the Skill tool for each of these skills NOW, before any other action: fix-sizing\n</required-skills>\n" {
 		t.Error("required block shape changed")
 	}
 }

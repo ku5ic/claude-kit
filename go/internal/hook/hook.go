@@ -136,8 +136,8 @@ func (h *Hook) SetConfig(cfg *config.Config) { h.cfg, h.loaded = cfg, true }
 // SetContext sets the line printed under every block reason.
 func (h *Hook) SetContext(context string) { h.context = context }
 
-// RuleDisabled is true when rule is in kit.yml's disabled_rules.
-func (h *Hook) RuleDisabled(rule string) bool {
+// ruleDisabled is true when rule is in kit.yml's disabled_rules.
+func (h *Hook) ruleDisabled(rule string) bool {
 	cfg := h.Config()
 	return cfg != nil && slices.Contains(cfg.DisabledRules, rule)
 }
@@ -146,7 +146,7 @@ func (h *Hook) RuleDisabled(rule string) bool {
 // disabled_rules is logged as disabled and returns nil, so the check carries
 // on as if it hadn't matched.
 func (h *Hook) Block(reason, rule string) error {
-	if rule != "" && h.RuleDisabled(rule) {
+	if rule != "" && h.ruleDisabled(rule) {
 		h.Log(GuardsLog, "disabled", "rule", rule)
 		return nil
 	}

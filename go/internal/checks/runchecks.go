@@ -69,9 +69,9 @@ type filler struct {
 
 func (p *planner) add(g Gate) { p.gates = append(p.gates, g) }
 
-// Gates is every check of every subproject of root, or only those named in
+// gates is every check of every subproject of root, or only those named in
 // only ("." is the root), in the order run-checks runs them.
-func Gates(cfg *config.Config, root string, only []string) []Gate {
+func gates(cfg *config.Config, root string, only []string) []Gate {
 	p := &planner{cfg: cfg, root: root, orchestrated: map[string]bool{}, awayFilled: map[string]map[string][]filler{}}
 	inScope := func(sub string) bool { return len(only) == 0 || slices.Contains(only, sub) }
 
@@ -152,7 +152,7 @@ func (p *planner) stackFor(dir string) string {
 func RunAll(cfg *config.Config, root string, only []string, out io.Writer) int {
 	pass, fail, skip, unrun := 0, 0, 0, 0
 	var ch *changes
-	for _, g := range Gates(cfg, root, only) {
+	for _, g := range gates(cfg, root, only) {
 		switch {
 		case g.Skip != "":
 			fmt.Fprint(out, skipLine(g.Label, g.Skip))
@@ -189,7 +189,7 @@ func RunAll(cfg *config.Config, root string, only []string, out io.Writer) int {
 // PrintPlan writes Gates' checks without running any: "RUN <label>" with
 // the command and its bin line, or "SKIP <label> (<reason>)".
 func PrintPlan(cfg *config.Config, root string, only []string, out io.Writer) {
-	for _, g := range Gates(cfg, root, only) {
+	for _, g := range gates(cfg, root, only) {
 		if g.Skip != "" {
 			fmt.Fprint(out, skipLine(g.Label, g.Skip))
 			continue

@@ -3,6 +3,7 @@ package hooks
 
 import (
 	"bufio"
+	"cmp"
 	"encoding/json"
 	"io"
 	"os"
@@ -14,16 +15,8 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/stackctx"
 )
-
-// cfgOrEmpty is the loaded config, or an empty one when kit.yml can't load:
-// with nothing configured, nothing matches and every check fails open.
-func cfgOrEmpty(h *hook.Hook) *config.Config {
-	if cfg := h.Config(); cfg != nil {
-		return cfg
-	}
-	return &config.Config{}
-}
 
 var (
 	gitDir      = regexp.MustCompile(`/\.git/`)
@@ -43,7 +36,8 @@ func GuardEdit(h *hook.Hook) error {
 		return nil
 	}
 	h.SetContext("Path: " + path)
-	cfg := cfgOrEmpty(h)
+	// Without kit.yml nothing is configured: nothing matches, every check fails open.
+	cfg := cmp.Or(h.Config(), &config.Config{})
 	tool := h.Payload.String("tool_name")
 
 	if guard.IsSensitive(cfg, path) {
@@ -108,7 +102,7 @@ func GuardSkills(h *hook.Hook) error {
 		return nil
 	}
 
-	required := guard.FileMapSkills(cfg.SkillFileMap, path)
+	required := stackctx.FileMapSkills(cfg.SkillFileMap, path)
 
 	marker := func(skill string) string { return h.Paths.SessionFile(config.SkillsLoaded, session, skill) }
 	var toCheck []string
@@ -193,7 +187,7 @@ func loadedSkills(logPath, session string) (map[string]bool, error) {
 // edits until a patterns skill loads is a personal policy, not a default.
 func GuardDispatch(h *hook.Hook) int {
 	checks := []hook.NamedCheck{{Name: "guard-edit", Check: GuardEdit}}
-	if guard.SkillsEnforced() {
+	if stackctx.SkillsEnforced() {
 		checks = append(checks, hook.NamedCheck{Name: "guard-skills", Check: GuardSkills})
 	}
 	return hook.Run(h, checks...)
