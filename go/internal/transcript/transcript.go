@@ -4,6 +4,7 @@ package transcript
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"io"
 	"os"
@@ -173,11 +174,21 @@ func parse(line []byte) (Entry, bool) {
 	if json.Unmarshal(line, &e) != nil {
 		return e, false
 	}
-	if json.Unmarshal(e.Message.Content, &e.Text) != nil {
+	// The first byte says string or not, so a non-string isn't decoded twice.
+	if isString(e.Message.Content) {
+		_ = json.Unmarshal(e.Message.Content, &e.Text)
+	} else {
 		_ = json.Unmarshal(e.Message.Content, &e.Blocks)
 	}
-	if json.Unmarshal(e.Content, &e.Notice) != nil {
+	if isString(e.Content) {
+		_ = json.Unmarshal(e.Content, &e.Notice)
+	} else {
 		_ = json.Unmarshal(e.Attachment.Prompt, &e.Notice)
 	}
 	return e, true
+}
+
+func isString(raw json.RawMessage) bool {
+	raw = bytes.TrimLeft(raw, " \t\r\n")
+	return len(raw) > 0 && raw[0] == '"'
 }
