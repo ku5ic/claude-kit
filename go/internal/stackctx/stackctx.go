@@ -24,8 +24,20 @@ import (
 // CacheFile is <cache>/stack/<name>-<sha256(root)[:8]>.<tag>.txt: the root
 // is hashed in so same-named projects elsewhere on disk can't collide.
 func CacheFile(paths config.Paths, cfg *config.Config, name, root string) string {
+	return filepath.Join(paths.CacheDir(), "stack", name+"-"+rootKey(cfg, root)+".txt")
+}
+
+// rootKey is <sha256(root)[:8]>.<tag>, the suffix every per-project cache
+// file shares.
+func rootKey(cfg *config.Config, root string) string {
 	sum := sha256.Sum256([]byte(root))
-	return filepath.Join(paths.CacheDir(), "stack", name+"-"+hex.EncodeToString(sum[:])[:8]+"."+cfg.Tag+".txt")
+	return hex.EncodeToString(sum[:])[:8] + "." + cfg.Tag
+}
+
+// configTime is the newest kit.yml mtime, base or overlay: a cache older
+// than it was built from a stale config.
+func configTime(paths config.Paths) int64 {
+	return max(mtime(paths.Base), mtime(paths.Overlay))
 }
 
 // Refresh regenerates the cache when it is missing, empty, or older than
@@ -37,7 +49,7 @@ func Refresh(paths config.Paths, cfg *config.Config, root, cache string) {
 	for _, name := range cfg.DetectFiles() {
 		newest = max(newest, mtime(filepath.Join(root, name)))
 	}
-	newest = max(newest, mtime(paths.Base), mtime(paths.Overlay))
+	newest = max(newest, configTime(paths))
 
 	if info, err := os.Stat(cache); err == nil && info.Size() > 0 && info.ModTime().Unix() >= newest {
 		return
@@ -133,14 +145,14 @@ func Suggested(cfg *config.Config, signals, fileSkills []string) []string {
 // FileSkills is, with CLAUDE_GUARD_SKILLS=1, the skill_file_map skills a
 // file under root matches, since guard-skills blocks the first edit of such
 // a file without them. The scan runs once per session and root; subagents
-// read the cached result, as their SubagentStart hook has a 5s timeout.
+// read the cached result, as their SubagentStart hook has a 5s timeout. A
+// kit.yml edit since the scan triggers a fresh one.
 func FileSkills(paths config.Paths, cfg *config.Config, root, session string) []string {
 	if !guard.SkillsEnforced() || root == "" {
 		return nil
 	}
-	sum := sha256.Sum256([]byte(root))
-	cache := filepath.Join(paths.CacheDir(), "file-skills", session+"-"+hex.EncodeToString(sum[:])[:8])
-	if session != "" {
+	cache := filepath.Join(paths.CacheDir(), "file-skills", session+"-"+rootKey(cfg, root))
+	if session != "" && mtime(cache) >= configTime(paths) {
 		if data, err := os.ReadFile(cache); err == nil {
 			return strings.Fields(string(data))
 		}
@@ -176,9 +188,13 @@ func scanFileSkills(cfg *config.Config, root string) []string {
 // and a home-sized tree must not stall a 5s hook.
 const walkCap = 20000
 
+// walkSkip is the dependency and build-output dirs the walk never enters,
+// matching the skip list in rules/tooling.md; hidden dirs are skipped too.
+var walkSkip = []string{"node_modules", "vendor", "dist", "build", "out", "target", "coverage", "storybook-static", "__pycache__", "venv"}
+
 // listFiles is every file under root as an absolute path: git's list when
-// root is a work tree, else a walk that skips hidden dirs, node_modules,
-// and vendor, stopping at walkCap files.
+// root is a work tree, else a walk that skips hidden and walkSkip dirs,
+// stopping at walkCap files.
 func listFiles(root string) []string {
 	var files []string
 	if out, err := exec.Command("git", "-C", root, "ls-files", "--cached", "--others", "--exclude-standard", "-z").Output(); err == nil {
@@ -193,7 +209,7 @@ func listFiles(root string) []string {
 		switch {
 		case err != nil:
 			return nil
-		case d.IsDir() && path != root && (strings.HasPrefix(d.Name(), ".") || d.Name() == "node_modules" || d.Name() == "vendor"):
+		case d.IsDir() && path != root && (strings.HasPrefix(d.Name(), ".") || slices.Contains(walkSkip, d.Name())):
 			return filepath.SkipDir
 		case d.IsDir():
 			return nil

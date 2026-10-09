@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // The project is real: a git repo named testproject, resolved from the
@@ -215,6 +216,25 @@ stacks:
 		agent("s2").Has(t, "load python-patterns via the Skill tool")
 	})
 
+	t.Run("a kit.yml edit after the scan makes the session rescan", func(t *testing.T) {
+		e := injectContextSetup(t, tree)
+		e.kitYML("global_skills: []\nskill_triggers: {}\nstacks:\n  go:\n    skills: [go-patterns]\n")
+		e.writeCache("root: "+e.root, "go: yes")
+		e.Setenv("CLAUDE_GUARD_SKILLS", "1")
+		Write(t, filepath.Join(e.root, "tool.py"), "")
+		e.run("s1", "").Lacks(t, "python-patterns")
+
+		e.kitYML(fileSkillsYML)
+		e.writeCache("root: "+e.root, "go: yes")
+		later := time.Now().Add(5 * time.Second)
+		for _, f := range []string{filepath.Join(e.Claude, "kit.yml"), e.cache} {
+			if err := os.Chtimes(f, later, later); err != nil {
+				t.Fatal(err)
+			}
+		}
+		e.run("s1", "").Has(t, "load python-patterns via the Skill tool")
+	})
+
 	t.Run("outside a git work tree, a directory walk finds the files", func(t *testing.T) {
 		e := injectContextSetup(t, tree)
 		e.kitYML(fileSkillsYML)
@@ -226,6 +246,7 @@ stacks:
 		Write(t, filepath.Join(e.root, "go.mod"), "module x\n")
 		Write(t, filepath.Join(e.root, "cmd", "main.go"), "package main\n")
 		Write(t, filepath.Join(e.root, "node_modules", "dep", "x.py"), "")
+		Write(t, filepath.Join(e.root, "dist", "gen.py"), "")
 		r := e.run("s1", "")
 		r.Want(t, 0)
 		r.Has(t, "load engineering-fundamentals via the Skill tool")
