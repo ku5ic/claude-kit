@@ -112,9 +112,15 @@ func Run(cfg *config.Config, args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
+	s.print(dynamic, stdout)
+	return 0
+}
+
+// print writes the consumer list, the first 50 sorted.
+func (s *scan) print(dynamic bool, stdout io.Writer) {
 	header := "blast-radius: " + s.rel
-	if symbol != "" {
-		header += " (symbol " + symbol + ")"
+	if s.symbol != "" {
+		header += " (symbol " + s.symbol + ")"
 	}
 	fmt.Fprintln(stdout, header)
 	fmt.Fprintf(stdout, "consumers: %d (source %d, test %d)\n", len(s.results), len(s.results)-s.tests, s.tests)
@@ -128,7 +134,6 @@ func Run(cfg *config.Config, args []string, stdout, stderr io.Writer) int {
 	if dynamic {
 		fmt.Fprintln(stdout, "unresolvable imports present")
 	}
-	return 0
 }
 
 // grepFiles is every line matching re in the repo's tracked and

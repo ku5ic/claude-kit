@@ -49,6 +49,23 @@ type env struct {
 	warned bool // config produced warnings
 }
 
+// newEnv resolves the kit's paths from the running binary, and the cwd.
+func newEnv(stdout, stderr io.Writer) (*env, error) {
+	exe, err := os.Executable()
+	if err != nil {
+		return nil, err
+	}
+	paths, err := config.ResolvePaths(exe)
+	if err != nil {
+		return nil, err
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+	return &env{paths: paths, stdout: stdout, stderr: stderr, cwd: cwd}, nil
+}
+
 func (e *env) config() (*config.Config, error) {
 	if e.cfg != nil {
 		return e.cfg, nil
@@ -66,22 +83,11 @@ func run(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprint(stderr, kitcmd.Usage())
 		return 2
 	}
-	exe, err := os.Executable()
+	e, err := newEnv(stdout, stderr)
 	if err != nil {
 		fmt.Fprintln(stderr, "kit:", err)
 		return 1
 	}
-	paths, err := config.ResolvePaths(exe)
-	if err != nil {
-		fmt.Fprintln(stderr, "kit:", err)
-		return 1
-	}
-	cwd, err := os.Getwd()
-	if err != nil {
-		fmt.Fprintln(stderr, "kit:", err)
-		return 1
-	}
-	e := &env{paths: paths, stdout: stdout, stderr: stderr, cwd: cwd}
 
 	name, rest := args[0], args[1:]
 	switch name {
@@ -107,90 +113,92 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 0
 	}
 
-	commands := map[string]func(*env, *config.Config, []string) int{
-		"subprojects":  cmdSubprojects,
-		"tasks":        cmdTasks,
-		"project-root": cmdProjectRoot,
-		"project-name": cmdProjectName,
-		"scratch-dir":  cmdScratchDir,
-		"plans-dir":    cmdPlansDir,
-		"detect-stack": cmdDetectStack,
-		"run-checks": func(e *env, cfg *config.Config, args []string) int {
-			plan, only, err := parseRunChecksArgs(args)
-			if err != nil {
-				fmt.Fprintf(e.stderr, "kit run-checks: %v\nusage: kit run-checks [--plan] [--only sub...]\n", err)
-				return 2
-			}
-			root := cmp.Or(project.Toplevel(e.cwd), e.cwd)
-			subs := project.Subprojects(cfg, root)
-			for _, sub := range only {
-				if !slices.Contains(subs, sub) {
-					fmt.Fprintf(e.stderr, "kit run-checks: %q is not a subproject; kit subprojects lists them\n", sub)
-					return 2
-				}
-			}
-			if plan {
-				checks.PrintPlan(cfg, root, only, e.stdout)
-				return 0
-			}
-			return min(checks.RunAll(cfg, root, only, e.stdout), 125)
-		},
-		"scratch-rotate": func(e *env, cfg *config.Config, args []string) int {
-			dryRun, arg := false, ""
-			for _, a := range args {
-				if a == "--dry-run" {
-					dryRun = true
-				} else {
-					arg = a
-				}
-			}
-			days, ok := parseDays("scratch-rotate", arg, e.stderr)
-			if !ok {
-				return 2
-			}
-			return rotate.Run(cfg, e.paths, days, dryRun, e.stdout, e.stderr)
-		},
-		"blast-radius": func(e *env, cfg *config.Config, args []string) int {
-			return blast.Run(cfg, args, e.stdout, e.stderr)
-		},
-		"skills-report": func(e *env, cfg *config.Config, args []string) int {
-			days, ok := parseDays("skills-report", first(args), e.stderr)
-			if !ok {
-				return 2
-			}
-			return report.Run(cfg, e.paths, days, e.stdout)
-		},
-		"a11y-check": func(e *env, cfg *config.Config, args []string) int {
-			return a11y.Run(cfg, e.paths, e.cwd, args, e.stdout, e.stderr)
-		},
-		"explain": func(e *env, cfg *config.Config, args []string) int {
-			return explain.Run(e.paths, cfg, e.cwd, args, e.stdout, e.stderr)
-		},
-		"agent-context": func(e *env, cfg *config.Config, _ []string) int {
-			fmt.Fprint(e.stdout, hooks.AgentContext(e.paths, cfg, e.cwd, ""))
-			return 0
-		},
-	}
-	cmd, ok := commands[name]
+	cmd, ok := configCommands[name]
 	if !ok {
 		fmt.Fprintf(stderr, "kit: unknown command %q\n%s", name, kitcmd.Usage())
 		return 2
 	}
 	cfg, err := e.config()
-	if err != nil {
-		// A report reads logs first; without kit.yml it skips the sections
-		// that need it rather than failing.
-		if name == "skills-report" {
-			days, ok := parseDays(name, first(rest), stderr)
-			if !ok {
-				return 2
-			}
-			return report.Run(nil, e.paths, days, stdout)
-		}
+	// A report reads logs first; without kit.yml it skips the sections that
+	// need it rather than failing.
+	if err != nil && name != "skills-report" {
 		fmt.Fprintln(stderr, "kit:", err)
 		return 1
 	}
 	return cmd(e, cfg, rest)
+}
+
+// configCommands are the commands that read kit.yml.
+var configCommands = map[string]func(*env, *config.Config, []string) int{
+	"subprojects":    cmdSubprojects,
+	"tasks":          cmdTasks,
+	"project-root":   cmdProjectRoot,
+	"project-name":   cmdProjectName,
+	"scratch-dir":    cmdScratchDir,
+	"plans-dir":      cmdPlansDir,
+	"detect-stack":   cmdDetectStack,
+	"run-checks":     cmdRunChecks,
+	"scratch-rotate": cmdScratchRotate,
+	"skills-report":  cmdSkillsReport,
+	"blast-radius": func(e *env, cfg *config.Config, args []string) int {
+		return blast.Run(cfg, args, e.stdout, e.stderr)
+	},
+	"a11y-check": func(e *env, cfg *config.Config, args []string) int {
+		return a11y.Run(cfg, e.paths, e.cwd, args, e.stdout, e.stderr)
+	},
+	"explain": func(e *env, cfg *config.Config, args []string) int {
+		return explain.Run(e.paths, cfg, e.cwd, args, e.stdout, e.stderr)
+	},
+	"agent-context": func(e *env, cfg *config.Config, _ []string) int {
+		fmt.Fprint(e.stdout, hooks.AgentContext(e.paths, cfg, e.cwd, ""))
+		return 0
+	},
+}
+
+func cmdRunChecks(e *env, cfg *config.Config, args []string) int {
+	plan, only, err := parseRunChecksArgs(args)
+	if err != nil {
+		fmt.Fprintf(e.stderr, "kit run-checks: %v\nusage: kit run-checks [--plan] [--only sub...]\n", err)
+		return 2
+	}
+	root := cmp.Or(project.Toplevel(e.cwd), e.cwd)
+	subs := project.Subprojects(cfg, root)
+	for _, sub := range only {
+		if !slices.Contains(subs, sub) {
+			fmt.Fprintf(e.stderr, "kit run-checks: %q is not a subproject; kit subprojects lists them\n", sub)
+			return 2
+		}
+	}
+	if plan {
+		checks.PrintPlan(cfg, root, only, e.stdout)
+		return 0
+	}
+	return min(checks.RunAll(cfg, root, only, e.stdout), 125)
+}
+
+func cmdScratchRotate(e *env, cfg *config.Config, args []string) int {
+	dryRun, arg := false, ""
+	for _, a := range args {
+		if a == "--dry-run" {
+			dryRun = true
+		} else {
+			arg = a
+		}
+	}
+	days, ok := parseDays("scratch-rotate", arg, e.stderr)
+	if !ok {
+		return 2
+	}
+	return rotate.Run(cfg, e.paths, days, dryRun, e.stdout, e.stderr)
+}
+
+// cmdSkillsReport runs with a nil cfg when kit.yml can't load.
+func cmdSkillsReport(e *env, cfg *config.Config, args []string) int {
+	days, ok := parseDays("skills-report", first(args), e.stderr)
+	if !ok {
+		return 2
+	}
+	return report.Run(cfg, e.paths, days, e.stdout)
 }
 
 // parseRunChecksArgs reads [--plan] [--only sub...]. Anything else is an

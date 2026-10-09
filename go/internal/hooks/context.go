@@ -157,9 +157,41 @@ func tooling(cfg *config.Config, root string) string {
 	if pm := project.ResolvePackageManager(cfg, root); pm != "" {
 		body = append(body, "package-manager: "+pm)
 	}
-	shown, capped := 0, false
+	body = append(body, taskLines(cfg, root)...)
+	// Labels only: resolving every tool is too slow for every session start.
+	if gates := checks.CIGates(cfg, root); len(gates) > 0 {
+		body = append(body, "ci gates (from CI config; run-checks runs each whose tool the project has):")
+		for _, label := range gates {
+			body = append(body, "  "+label)
+		}
+	}
+	if len(body) > 0 {
+		body = append(body, "checks: `kit run-checks --plan` lists what kit run-checks runs, without running it")
+	}
+	cli := cliLines(cfg)
+	if len(body) == 0 && len(cli) == 0 {
+		return ""
+	}
+	var out strings.Builder
+	out.WriteString("\n<tooling>\n")
+	for _, line := range append(body, cli...) {
+		out.WriteString(line)
+		out.WriteString("\n")
+	}
+	if len(body) > 0 {
+		out.WriteString("\nguidance: Run scripts only through the package manager named above, prefer these scripts and kit run-checks over direct tool invocation, and never substitute a different package manager.\n")
+	}
+	out.WriteString("</tooling>\n")
+	return out.String()
+}
+
+// taskLines is each subproject's task commands and toolchain checks, under
+// a "tasks [sub]:" header, past 20 subprojects capped with a note.
+func taskLines(cfg *config.Config, root string) []string {
+	var out []string
+	shown := 0
 	for _, sub := range project.Subprojects(cfg, root) {
-		dir, header := filepath.Join(root, sub), "tasks"+project.SubLabel(sub)+":"
+		dir := filepath.Join(root, sub)
 		var lines []string
 		for _, task := range project.Tasks(cfg, dir) {
 			lines = append(lines, task.Cmd)
@@ -177,31 +209,21 @@ func tooling(cfg *config.Config, root string) string {
 		}
 		if sub != "." {
 			if shown >= 20 {
-				capped = true
-				break
+				return append(out, "(subprojects capped at 20; kit run-checks covers all)")
 			}
 			shown++
 		}
-		body = append(body, header)
+		out = append(out, "tasks"+project.SubLabel(sub)+":")
 		for _, line := range lines {
-			body = append(body, "  "+line)
+			out = append(out, "  "+line)
 		}
 	}
-	if capped {
-		body = append(body, "(subprojects capped at 20; kit run-checks covers all)")
-	}
-	// Labels only: resolving every tool is too slow for every session start.
-	if gates := checks.CIGates(cfg, root); len(gates) > 0 {
-		body = append(body, "ci gates (from CI config; run-checks runs each whose tool the project has):")
-		for _, label := range gates {
-			body = append(body, "  "+label)
-		}
-	}
-	if len(body) > 0 {
-		body = append(body, "checks: `kit run-checks --plan` lists what kit run-checks runs, without running it")
-	}
+	return out
+}
 
-	var available, missing []string
+// cliLines says which of kit.yml's CLI tools are on PATH.
+func cliLines(cfg *config.Config) []string {
+	var available, missing, out []string
 	for _, tool := range cfg.Tools {
 		if _, err := exec.LookPath(tool); err == nil {
 			available = append(available, tool)
@@ -209,28 +231,13 @@ func tooling(cfg *config.Config, root string) string {
 			missing = append(missing, tool)
 		}
 	}
-	var cli []string
 	if len(available) > 0 {
-		cli = append(cli, "available: "+strings.Join(available, ", "))
+		out = append(out, "available: "+strings.Join(available, ", "))
 	}
 	if len(missing) > 0 {
-		cli = append(cli, "missing: "+strings.Join(missing, ", "))
+		out = append(out, "missing: "+strings.Join(missing, ", "))
 	}
-	if len(body) == 0 && len(cli) == 0 {
-		return ""
-	}
-
-	var out strings.Builder
-	out.WriteString("\n<tooling>\n")
-	for _, line := range append(body, cli...) {
-		out.WriteString(line)
-		out.WriteString("\n")
-	}
-	if len(body) > 0 {
-		out.WriteString("\nguidance: Run scripts only through the package manager named above, prefer these scripts and kit run-checks over direct tool invocation, and never substitute a different package manager.\n")
-	}
-	out.WriteString("</tooling>\n")
-	return out.String()
+	return out
 }
 
 // prerequisites names what the install is missing, "" when nothing is: a

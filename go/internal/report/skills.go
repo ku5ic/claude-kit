@@ -147,38 +147,11 @@ func count(rows []entry, category string) int {
 
 // Run is `kit skills-report [days]`.
 func Run(cfg *config.Config, paths config.Paths, days int, stdout io.Writer) int {
-	logFile := paths.LogFile(hook.SkillsLog)
-	info, err := os.Stat(logFile)
-	if err != nil {
-		fmt.Fprintf(stdout, "skills-report: no log at %s, nothing to report\n", logFile)
-		return 0
-	}
-	if info.Size() == 0 {
-		fmt.Fprintf(stdout, "skills-report: %s is empty, nothing to report\n", logFile)
-		return 0
-	}
-	all, malformed, err := readLog(logFile)
-	if err != nil {
-		fmt.Fprintf(stdout, "skills-report: %v\n", err)
-		return 1
-	}
-	if len(all) == 0 {
-		fmt.Fprintf(stdout, "skills-report: no valid JSONL lines in %s (%d malformed)\n", logFile, malformed)
-		return 0
-	}
 	cutoff := time.Now().UTC().AddDate(0, 0, -days).Format(hook.TimeLayout)
-	var entries []entry
-	for _, e := range all {
-		if e.TS != nil && e.ts() >= cutoff {
-			entries = append(entries, e)
-		}
+	entries, status, ok := window(paths.LogFile(hook.SkillsLog), cutoff, days, stdout)
+	if !ok {
+		return status
 	}
-	fmt.Fprintf(stdout, "skills-report: window=%dd cutoff=%s entries=%d malformed=%d\n\n", days, cutoff, len(entries), malformed)
-	if len(entries) == 0 {
-		fmt.Fprintf(stdout, "no entries in the last %d day(s)\n", days)
-		return 0
-	}
-
 	var rows, active []entry
 	for _, e := range entries {
 		if classify(&e) {
@@ -188,8 +161,57 @@ func Run(cfg *config.Config, paths config.Paths, days int, stdout io.Writer) int
 			}
 		}
 	}
-	skillOf := func(e entry) *string { return e.skill }
+	groups := activationSection(active, stdout)
+	surfacedSection(rows, stdout)
+	if cfg == nil {
+		fmt.Fprintln(stdout, "\n== 3+4: skipped (kit.yml not available) ==")
+	} else {
+		referencedSections(cfg, groups, stdout)
+	}
+	suggestedSection(rows, active, stdout)
+	guardsSection(paths, cutoff, stdout)
+	return 0
+}
 
+// window is logFile's entries since cutoff, after the header line; ok is
+// false, with the exit status, when there's nothing to report on.
+func window(logFile, cutoff string, days int, stdout io.Writer) (entries []entry, status int, ok bool) {
+	info, err := os.Stat(logFile)
+	if err != nil {
+		fmt.Fprintf(stdout, "skills-report: no log at %s, nothing to report\n", logFile)
+		return nil, 0, false
+	}
+	if info.Size() == 0 {
+		fmt.Fprintf(stdout, "skills-report: %s is empty, nothing to report\n", logFile)
+		return nil, 0, false
+	}
+	all, malformed, err := readLog(logFile)
+	if err != nil {
+		fmt.Fprintf(stdout, "skills-report: %v\n", err)
+		return nil, 1, false
+	}
+	if len(all) == 0 {
+		fmt.Fprintf(stdout, "skills-report: no valid JSONL lines in %s (%d malformed)\n", logFile, malformed)
+		return nil, 0, false
+	}
+	for _, e := range all {
+		if e.TS != nil && e.ts() >= cutoff {
+			entries = append(entries, e)
+		}
+	}
+	fmt.Fprintf(stdout, "skills-report: window=%dd cutoff=%s entries=%d malformed=%d\n\n", days, cutoff, len(entries), malformed)
+	if len(entries) == 0 {
+		fmt.Fprintf(stdout, "no entries in the last %d day(s)\n", days)
+		return nil, 0, false
+	}
+	return entries, 0, true
+}
+
+func skillOf(e entry) *string { return e.skill }
+
+// activationSection prints real activations per skill, most first, and
+// returns those groups.
+func activationSection(active []entry, stdout io.Writer) []group {
 	fmt.Fprintln(stdout, "== 1+2: activation counts per skill, by path (real activations only) ==")
 	groups := groupBy(active, skillOf)
 	sort.SliceStable(groups, func(a, b int) bool { return len(groups[a].rows) > len(groups[b].rows) })
@@ -200,7 +222,11 @@ func Run(cfg *config.Config, paths config.Paths, days int, stdout io.Writer) int
 		fmt.Fprintf(stdout, "%d  %s  (slash=%d skill_tool=%d read=%d)\n", len(g.rows), jqText(g.key),
 			count(g.rows, "slash_command"), count(g.rows, "skill_tool"), count(g.rows, "read_fallback"))
 	}
+	return groups
+}
 
+// surfacedSection prints skills shown to Claude but not confirmed loaded.
+func surfacedSection(rows []entry, stdout io.Writer) {
 	fmt.Fprintln(stdout, "\n== 2b: surfaced only, not confirmed loaded (required-skill / suggested-skill markers) ==")
 	var surfacedRows []entry
 	for _, r := range rows {
@@ -216,15 +242,6 @@ func Run(cfg *config.Config, paths config.Paths, days int, stdout io.Writer) int
 	for _, g := range surfaced {
 		fmt.Fprintf(stdout, "%s  required=%d suggested=%d\n", jqText(g.key), count(g.rows, "surfaced_required"), count(g.rows, "surfaced_suggested"))
 	}
-
-	if cfg == nil {
-		fmt.Fprintln(stdout, "\n== 3+4: skipped (kit.yml not available) ==")
-	} else {
-		referencedSections(cfg, groups, stdout)
-	}
-	suggestedSection(rows, active, stdout)
-	guardsSection(paths, cutoff, stdout)
-	return 0
 }
 
 func referencedSections(cfg *config.Config, groups []group, stdout io.Writer) {

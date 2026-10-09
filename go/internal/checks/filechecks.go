@@ -132,6 +132,27 @@ func FileChecks(cfg *config.Config, root, base string, edited []string) *Outcome
 		return nil
 	}
 	timeout := time.Duration(cfg.CheckTimeout) * time.Second
+	results := runGroups(groups, timeout)
+	t := tally{root: root, groups: groups}
+	for i, g := range groups {
+		if g.Skip == "" && results[i].timedOut {
+			g.Skip = fmt.Sprintf("timed out after %s", timeout)
+		}
+		if g.Skip == "" {
+			g.Skip = results[i].skip
+		}
+		t.record(g, &results[i])
+	}
+	return &Outcome{
+		Report:   t.rep.String(),
+		Failures: t.fails.String(),
+		Summary:  summary(t.pass, t.fail, t.skip),
+		Failed:   t.fail > 0,
+	}
+}
+
+// runGroups runs every group that isn't skipped, in parallel.
+func runGroups(groups []*Group, timeout time.Duration) []result {
 	results := make([]result, len(groups))
 	var wg sync.WaitGroup
 	for i, g := range groups {
@@ -149,63 +170,57 @@ func FileChecks(cfg *config.Config, root, base string, edited []string) *Outcome
 		}
 	}
 	wg.Wait()
+	return results
+}
 
-	var rep, fails strings.Builder
-	pass, fail, skip := 0, 0, 0
-	var changed map[string]map[int]bool
-	changedKnown := false
-	for i, g := range groups {
-		label, res := g.label, &results[i]
-		if g.Skip == "" && res.timedOut {
-			g.Skip = fmt.Sprintf("timed out after %s", timeout)
-		}
-		if g.Skip == "" {
-			g.Skip = res.skip
-		}
-		if g.Skip != "" {
-			line := skipLine(label, g.Skip)
-			rep.WriteString(line)
-			// Also in a block's message, so the skipped count has its reasons.
-			fails.WriteString(line)
-			skip++
-			continue
-		}
-		out, bin := &res.out, g.Bin.BinLine()
-		if res.err == nil {
-			fmt.Fprintf(&rep, "PASS %s\n%s", label, bin)
-			pass++
-			continue
-		}
-		if !changedKnown {
-			changed, changedKnown = changedLines(root, "HEAD", planned(groups)), true
-		}
-		if blocking, old, ok := newFindings(g, out.String(), root, changed); ok {
-			if len(blocking) == 0 {
-				fmt.Fprintf(&rep, "PASS %s (%d finding%s on unchanged lines)\n%s", label, old, plural(old), bin)
-				pass++
-				continue
-			}
-			fmt.Fprintf(&rep, "FAIL %s\n%s", label, bin)
-			fmt.Fprintf(&fails, "FAIL %s\n%s%s\n", label, bin, strings.Join(head(blocking), "\n"))
-			if old > 0 {
-				fmt.Fprintf(&fails, "(%d more on unchanged lines don't block)\n", old)
-			}
-			fail++
-			continue
-		}
-		fmt.Fprintf(&rep, "FAIL %s\n%s", label, bin)
-		// The tail: linters print findings and the summary last, after
-		// preambles like rubocop's unconfigured-cops notice.
-		lines := strings.Split(strings.TrimRight(out.String(), "\n"), "\n")
-		fmt.Fprintf(&fails, "FAIL %s\n%s%s\n", label, bin, strings.Join(lines[max(0, len(lines)-maxOutputLines):], "\n"))
-		fail++
+// tally builds the report: a line per group, and for a block, each failing
+// tool's output and every skip's reason.
+type tally struct {
+	root             string
+	groups           []*Group
+	rep, fails       strings.Builder
+	pass, fail, skip int
+	changed          map[string]map[int]bool
+	changedKnown     bool
+}
+
+func (t *tally) record(g *Group, res *result) {
+	if g.Skip != "" {
+		line := skipLine(g.label, g.Skip)
+		t.rep.WriteString(line)
+		// Also in a block's message, so the skipped count has its reasons.
+		t.fails.WriteString(line)
+		t.skip++
+		return
 	}
-	return &Outcome{
-		Report:   rep.String(),
-		Failures: fails.String(),
-		Summary:  summary(pass, fail, skip),
-		Failed:   fail > 0,
+	bin := g.Bin.BinLine()
+	if res.err == nil {
+		fmt.Fprintf(&t.rep, "PASS %s\n%s", g.label, bin)
+		t.pass++
+		return
 	}
+	if !t.changedKnown {
+		t.changed, t.changedKnown = changedLines(t.root, "HEAD", planned(t.groups)), true
+	}
+	blocking, old, ok := newFindings(g, res.out.String(), t.root, t.changed)
+	if ok && len(blocking) == 0 {
+		fmt.Fprintf(&t.rep, "PASS %s (%d finding%s on unchanged lines)\n%s", g.label, old, plural(old), bin)
+		t.pass++
+		return
+	}
+	fmt.Fprintf(&t.rep, "FAIL %s\n%s", g.label, bin)
+	t.fail++
+	if ok {
+		fmt.Fprintf(&t.fails, "FAIL %s\n%s%s\n", g.label, bin, strings.Join(head(blocking), "\n"))
+		if old > 0 {
+			fmt.Fprintf(&t.fails, "(%d more on unchanged lines don't block)\n", old)
+		}
+		return
+	}
+	// The tail: linters print findings and the summary last, after
+	// preambles like rubocop's unconfigured-cops notice.
+	lines := strings.Split(strings.TrimRight(res.out.String(), "\n"), "\n")
+	fmt.Fprintf(&t.fails, "FAIL %s\n%s%s\n", g.label, bin, strings.Join(lines[max(0, len(lines)-maxOutputLines):], "\n"))
 }
 
 type result struct {

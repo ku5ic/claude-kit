@@ -2,10 +2,10 @@ package hooks
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/checks"
+	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/project"
@@ -32,33 +32,19 @@ func StopChecks(h *hook.Hook) error {
 		return nil
 	}
 	transcript := h.Payload.String("transcript_path")
-	if f, err := os.Open(transcript); err != nil {
+	if !project.IsFile(transcript) {
 		return nil
-	} else {
-		f.Close()
 	}
 	root, err := git.Line(cwd, "rev-parse", "--show-toplevel") // already physical
-	if err != nil {
-		return nil
-	}
 	cfg := h.Config()
-	if cfg == nil {
+	if err != nil || cfg == nil {
 		return nil
 	}
-
 	// Before the clean-tree return: plans are gitignored, so ticking the
 	// last step leaves the tree clean.
-	if dir, err := project.Dir(cfg, h.Paths, cwd, "plans", false); err == nil {
-		isCode := func(path string) bool {
-			return strings.HasPrefix(project.PhysicalPath(path), root+"/") && !project.IsScratch(h.Paths, path)
-		}
-		if plan, reviewed := planDone(transcript, dir, isCode); plan != "" {
-			if err := endOfPlan(h, project.Rel(root, plan), reviewed); err != nil {
-				return err
-			}
-		}
+	if err := planGate(h, cfg, cwd, root, transcript); err != nil {
+		return err
 	}
-
 	// A clean tree means the edits were committed, which already went
 	// through verification.
 	if status, err := git.Output(cwd, "status", "--porcelain"); err != nil || status == "" {
@@ -78,6 +64,22 @@ func StopChecks(h *hook.Hook) error {
 		}
 	}
 	hook.WriteJSON(h.Stdout, map[string]string{"systemMessage": h.Name + ":\n" + out.Report + out.Summary})
+	return nil
+}
+
+// planGate blocks the stop when this turn ticked a plan's last step without
+// a review since the last code edit.
+func planGate(h *hook.Hook, cfg *config.Config, cwd, root, transcript string) error {
+	dir, err := project.Dir(cfg, h.Paths, cwd, "plans", false)
+	if err != nil {
+		return nil
+	}
+	isCode := func(path string) bool {
+		return strings.HasPrefix(project.PhysicalPath(path), root+"/") && !project.IsScratch(h.Paths, path)
+	}
+	if plan, reviewed := planDone(transcript, dir, isCode); plan != "" {
+		return endOfPlan(h, project.Rel(root, plan), reviewed)
+	}
 	return nil
 }
 

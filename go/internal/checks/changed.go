@@ -54,6 +54,27 @@ func changedLines(root, rev string, files []string) map[string]map[int]bool {
 			changed[root+"/"+name] = map[int]bool{}
 		}
 	}
+	if !markDiff(diff, root, changed) {
+		return nil
+	}
+	return changed
+}
+
+// hunk is a hunk header: the old line count, the new start, the new count.
+var hunk = regexp.MustCompile(`^@@ -\d+(?:,(\d+))? \+(\d+)(?:,(\d+))? @@`)
+
+// hunkCount is a hunk header's line count; one left out is 1.
+func hunkCount(s string) int {
+	if s == "" {
+		return 1
+	}
+	n, _ := strconv.Atoi(s)
+	return n
+}
+
+// markDiff marks each file's lines a -U0 diff adds or touches in changed;
+// false when a file's name doesn't map back, and git can't say.
+func markDiff(diff, root string, changed map[string]map[int]bool) bool {
 	var current map[int]bool
 	body := 0 // lines of the hunk still to come: content, whatever they start with
 	for line := range strings.SplitSeq(diff, "\n") {
@@ -73,7 +94,7 @@ func changedLines(root, rev string, files []string) map[string]map[int]bool {
 			name, ok := strings.CutPrefix(strings.TrimSuffix(header, "\t"), "b/")
 			lines, known := changed[root+"/"+name]
 			if !ok || !known {
-				return nil
+				return false
 			}
 			current = lines
 			continue
@@ -96,17 +117,5 @@ func changedLines(root, rev string, files []string) map[string]map[int]bool {
 			current[n] = true
 		}
 	}
-	return changed
-}
-
-// hunk is a hunk header: the old line count, the new start, the new count.
-var hunk = regexp.MustCompile(`^@@ -\d+(?:,(\d+))? \+(\d+)(?:,(\d+))? @@`)
-
-// hunkCount is a hunk header's line count; one left out is 1.
-func hunkCount(s string) int {
-	if s == "" {
-		return 1
-	}
-	n, _ := strconv.Atoi(s)
-	return n
+	return true
 }

@@ -3,6 +3,8 @@
 package ci
 
 import (
+	"cmp"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -79,13 +81,8 @@ func githubSteps(cfg *config.Config, root, file string) []Step {
 	}
 	workflowDir, workflowShell := runDefaults(doc)
 	rel := project.Rel(root, file)
-	ids := make([]string, 0, len(jobs))
-	for id := range jobs {
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
 	var out []Step
-	for _, id := range ids {
+	for _, id := range slices.Sorted(maps.Keys(jobs)) {
 		job, _ := jobs[id].(map[string]any)
 		if job == nil || !githubJobOK(cfg, id, job) {
 			continue
@@ -95,46 +92,40 @@ func githubSteps(cfg *config.Config, root, file string) []Step {
 			continue
 		}
 		jobEnv = append(slices.Clone(workflowEnv), jobEnv...)
-		defaultDir, defaultShell := runDefaults(job)
-		if defaultDir == "" {
-			defaultDir = workflowDir
-		}
-		if defaultShell == "" {
-			defaultShell = workflowShell
-		}
+		jobDir, jobShell := runDefaults(job)
+		jobDir, jobShell = cmp.Or(jobDir, workflowDir), cmp.Or(jobShell, workflowShell)
 		// A Windows runner's default shell is pwsh.
-		if defaultShell == "" && strings.Contains(strings.ToLower(str(job["runs-on"])), "windows") {
-			defaultShell = "pwsh"
+		if jobShell == "" && strings.Contains(strings.ToLower(str(job["runs-on"])), "windows") {
+			jobShell = "pwsh"
 		}
 		steps, _ := job["steps"].([]any)
 		for _, s := range steps {
 			step, _ := s.(map[string]any)
-			run, _ := step["run"].(string)
-			if step == nil || run == "" || step["uses"] != nil || strings.Contains(run, "${{") || deniedName(cfg, str(step["name"])) {
-				continue
+			if st, ok := githubStep(cfg, step, jobDir, jobShell); ok {
+				st.File, st.Env = rel, append(slices.Clone(jobEnv), st.Env...)
+				out = append(out, st)
 			}
-			shell := str(step["shell"])
-			if shell == "" {
-				shell = defaultShell
-			}
-			if shell != "" && shell != "bash" && shell != "sh" {
-				continue
-			}
-			env, ok := literalEnv(step["env"])
-			if !ok {
-				continue
-			}
-			dir := defaultDir
-			if d := str(step["working-directory"]); d != "" {
-				dir = d
-			}
-			if strings.Contains(dir, "${{") {
-				continue
-			}
-			out = append(out, Step{File: rel, Dir: filepath.Clean(dir), Env: append(slices.Clone(jobEnv), env...), Run: run})
 		}
 	}
 	return out
+}
+
+// githubStep is one workflow step as a Step (its File and the job's env
+// left to the caller), or false for a step a local run can't repeat.
+func githubStep(cfg *config.Config, step map[string]any, jobDir, jobShell string) (Step, bool) {
+	run, _ := step["run"].(string)
+	if step == nil || run == "" || step["uses"] != nil || strings.Contains(run, "${{") || deniedName(cfg, str(step["name"])) {
+		return Step{}, false
+	}
+	if shell := cmp.Or(str(step["shell"]), jobShell); shell != "" && shell != "bash" && shell != "sh" {
+		return Step{}, false
+	}
+	env, ok := literalEnv(step["env"])
+	dir := cmp.Or(str(step["working-directory"]), jobDir)
+	if !ok || strings.Contains(dir, "${{") {
+		return Step{}, false
+	}
+	return Step{Dir: filepath.Clean(dir), Env: env, Run: run}, true
 }
 
 // githubJobOK is false for a job a local run must not, or can't, repeat.
@@ -189,13 +180,9 @@ func gitlabSteps(cfg *config.Config, root, file string) []Step {
 	// include: local files merge in first, so jobs can extend their templates.
 	merged := map[string]any{}
 	for _, inc := range gitlabLocalIncludes(doc["include"]) {
-		for k, v := range readYAML(filepath.Join(root, strings.TrimPrefix(inc, "/"))) {
-			merged[k] = v
-		}
+		maps.Copy(merged, readYAML(filepath.Join(root, strings.TrimPrefix(inc, "/"))))
 	}
-	for k, v := range doc {
-		merged[k] = v
-	}
+	maps.Copy(merged, doc)
 	// Global variables, and default: services or id_tokens, hold for every
 	// job that doesn't set its own.
 	globalEnv, ok := literalEnv(merged["variables"])
@@ -204,13 +191,8 @@ func gitlabSteps(cfg *config.Config, root, file string) []Step {
 	}
 	def, _ := merged["default"].(map[string]any)
 	rel := project.Rel(root, file)
-	names := make([]string, 0, len(merged))
-	for name := range merged {
-		names = append(names, name)
-	}
-	sort.Strings(names)
 	var out []Step
-	for _, name := range names {
+	for _, name := range slices.Sorted(maps.Keys(merged)) {
 		job, _ := merged[name].(map[string]any)
 		if job == nil || strings.HasPrefix(name, ".") || slices.Contains(gitlabReserved, name) {
 			continue

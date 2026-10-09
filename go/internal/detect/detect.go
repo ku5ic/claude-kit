@@ -11,6 +11,7 @@
 package detect
 
 import (
+	"cmp"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -26,56 +27,19 @@ import (
 // Report is the full text for root, "" when no stack is found.
 func Report(cfg *config.Config, root string) string {
 	subs := project.Subprojects(cfg, root)
-	var lines []string
+	out := []string{"root: " + root}
 	jsLoc := ""
 	for _, stack := range cfg.StackOrder {
-		var locs, extras []string
-		pm := ""
-		for _, sub := range subs {
-			dir := filepath.Join(root, sub)
-			if !cfg.HasStack(dir, stack) {
-				continue
-			}
-			locs = append(locs, sub)
-			for _, extra := range cfg.Stacks[stack].Extras {
-				if matchExtra(extra, dir) && !slices.Contains(extras, extra.Name) {
-					extras = append(extras, extra.Name)
-				}
-			}
-			if pm == "" && hasEcosystem(cfg, stack) {
-				if lock, ok := project.NearestLockfile(cfg, dir, stack); ok {
-					pm = lock.Manager
-				}
+		if line, first := stackLine(cfg, root, subs, stack); line != "" {
+			out = append(out, line)
+			if stack == "js" {
+				jsLoc = first
 			}
 		}
-		if len(locs) == 0 {
-			continue
-		}
-		line := stack + ": yes"
-		if len(extras) > 0 {
-			line += " (" + strings.Join(extras, ",") + ")"
-		}
-		switch {
-		case stack == "js":
-			if pm == "" {
-				pm = cfg.DefaultManager("js")
-			}
-			line += " [" + pm + "]"
-			jsLoc = locs[0]
-		case pm != "":
-			line += " [" + pm + "]"
-		}
-		if len(locs) != 1 || locs[0] != "." {
-			line += " at " + strings.Join(locs, ", ")
-		}
-		lines = append(lines, line)
 	}
-	if len(lines) == 0 {
+	if len(out) == 1 {
 		return ""
 	}
-
-	out := []string{"root: " + root}
-	out = append(out, lines...)
 	for _, sub := range subs {
 		if parts := versions(cfg, root, filepath.Join(root, sub)); len(parts) > 0 {
 			out = append(out, "versions"+project.SubLabel(sub)+": "+strings.Join(parts, ", "))
@@ -89,6 +53,47 @@ func Report(cfg *config.Config, root string) string {
 		}
 	}
 	return strings.Join(out, "\n") + "\n"
+}
+
+// stackLine is stack's report line, "<stack>: yes (extras) [pm] at subs",
+// and the first subproject holding it; "" when none does.
+func stackLine(cfg *config.Config, root string, subs []string, stack string) (line, first string) {
+	var locs, extras []string
+	pm := ""
+	for _, sub := range subs {
+		dir := filepath.Join(root, sub)
+		if !cfg.HasStack(dir, stack) {
+			continue
+		}
+		locs = append(locs, sub)
+		for _, extra := range cfg.Stacks[stack].Extras {
+			if matchExtra(extra, dir) && !slices.Contains(extras, extra.Name) {
+				extras = append(extras, extra.Name)
+			}
+		}
+		if pm == "" && hasEcosystem(cfg, stack) {
+			if lock, ok := project.NearestLockfile(cfg, dir, stack); ok {
+				pm = lock.Manager
+			}
+		}
+	}
+	if len(locs) == 0 {
+		return "", ""
+	}
+	line = stack + ": yes"
+	if len(extras) > 0 {
+		line += " (" + strings.Join(extras, ",") + ")"
+	}
+	if stack == "js" {
+		pm = cmp.Or(pm, cfg.DefaultManager("js"))
+	}
+	if pm != "" {
+		line += " [" + pm + "]"
+	}
+	if len(locs) != 1 || locs[0] != "." {
+		line += " at " + strings.Join(locs, ", ")
+	}
+	return line, locs[0]
 }
 
 func hasEcosystem(cfg *config.Config, ecosystem string) bool {

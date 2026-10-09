@@ -115,13 +115,22 @@ func GuardSkills(h *hook.Hook) error {
 		return nil
 	}
 
-	// A missing or unreadable log fails open rather than block on uncertainty.
+	missing := notLoaded(h, session, toCheck, marker)
+	if len(missing) == 0 {
+		return nil
+	}
+	return h.Block("This edit touches "+path+". Load the following skills via the Skill tool first, then retry the edit: "+strings.Join(missing, ", "), "skills-gate")
+}
+
+// notLoaded is the skills of toCheck the session's skills log doesn't show
+// loaded; each it does show gets its marker, so the log is read once per
+// skill. A missing or unreadable log fails open: none.
+func notLoaded(h *hook.Hook, session string, toCheck []string, marker func(string) string) []string {
 	loaded, err := loadedSkills(h.Paths.LogFile(hook.SkillsLog), session)
 	if err != nil {
 		return nil
 	}
 	_ = os.MkdirAll(filepath.Join(h.Paths.CacheDir(), config.SkillsLoaded), 0o755)
-
 	var missing []string
 	for _, skill := range toCheck {
 		// An exact skill_file (the Skill tool), or a logged path holding
@@ -133,18 +142,13 @@ func GuardSkills(h *hook.Hook) error {
 			}
 			found = strings.Contains(file, "/skills/"+skill+"/")
 		}
-		if found {
-			if f, err := os.Create(marker(skill)); err == nil {
-				f.Close()
-			}
-		} else {
+		if !found {
 			missing = append(missing, skill)
+		} else if f, err := os.Create(marker(skill)); err == nil {
+			f.Close()
 		}
 	}
-	if len(missing) == 0 {
-		return nil
-	}
-	return h.Block("This edit touches "+path+". Load the following skills via the Skill tool first, then retry the edit: "+strings.Join(missing, ", "), "skills-gate")
+	return missing
 }
 
 // loadedSkills streams skills.jsonl once for session's skill_file values,

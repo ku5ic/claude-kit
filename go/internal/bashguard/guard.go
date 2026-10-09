@@ -1,6 +1,7 @@
 package bashguard
 
 import (
+	"cmp"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -52,15 +53,36 @@ func Check(h *hook.Hook) error {
 		return nil
 	}
 	h.SetContext("Command: " + cmd)
-	cfg := h.Config()
-	if cfg == nil {
-		cfg = &config.Config{}
-	}
+	cfg := cmp.Or(h.Config(), &config.Config{})
 	home := os.Getenv("HOME")
 	norm := normalize(cmd)
+	if err := wholeString(h, cfg, cmd, norm, home); err != nil {
+		return err
+	}
+	st := &state{h: h, cfg: cfg, home: home, cwd: resolveDir(home, "/", h.Payload.Cwd())}
+	// The raw command, not norm: <<- strips tabs only, and norm would turn a
+	// tab-indented terminator into spaces that no longer close the heredoc.
+	segs, unparsed := parseAll(cmd)
+	if unparsed {
+		st.ask("guard-bash could not parse part of this command, so it went unchecked; confirm it")
+	}
+	for _, seg := range segs {
+		if err := st.segment(seg); err != nil {
+			return err
+		}
+	}
+	switch {
+	case st.pending != "":
+		h.Decide("ask", st.pending)
+	case readonlyCall(cmd, norm):
+		h.Decide("allow", "side-effect-free claude-kit script")
+	}
+	return nil
+}
 
-	// Whole-string checks, distinctive enough that quoted false positives
-	// aren't realistic.
+// wholeString runs the checks on the whole command string, distinctive
+// enough that quoted false positives aren't realistic.
+func wholeString(h *hook.Hook, cfg *config.Config, cmd, norm, home string) error {
 	full := []struct {
 		re           *regexp.Regexp
 		reason, rule string
@@ -82,29 +104,7 @@ func Check(h *hook.Hook) error {
 	}
 	// On a quote-stripped copy: a && or | inside a quoted literal isn't one.
 	if xargsRm.MatchString(dqQuoted.ReplaceAllString(sqQuoted.ReplaceAllString(cmd, ""), "")) {
-		if err := h.Block("xargs rm with recursive or force flag", "xargs-rm"); err != nil {
-			return err
-		}
-	}
-
-	st := &state{h: h, cfg: cfg, home: home, cwd: resolveDir(home, "/", h.Payload.Cwd())}
-	// The raw command, not norm: <<- strips tabs only, and norm would turn a
-	// tab-indented terminator into spaces that no longer close the heredoc.
-	segs, unparsed := parseAll(cmd)
-	if unparsed {
-		st.ask("guard-bash could not parse part of this command, so it went unchecked; confirm it")
-	}
-	for _, seg := range segs {
-		if err := st.segment(seg); err != nil {
-			return err
-		}
-	}
-
-	switch {
-	case st.pending != "":
-		h.Decide("ask", st.pending)
-	case readonlyCall(cmd, norm):
-		h.Decide("allow", "side-effect-free claude-kit script")
+		return h.Block("xargs rm with recursive or force flag", "xargs-rm")
 	}
 	return nil
 }

@@ -67,70 +67,80 @@ func JSSpecs(dir string) map[string]string {
 // files' entries and Pipfile's packages, by normalized name.
 func PythonDeps(dir string) Deps {
 	deps := Deps{}
-	addReq := func(req string) {
-		if m := pep508Name.FindString(strings.TrimSpace(req)); m != "" {
-			deps[normalize(m)] = true
-		}
-	}
-	addList := func(v any) {
-		items, _ := v.([]any)
-		for _, item := range items {
-			if s, ok := item.(string); ok {
-				addReq(s)
-			}
-		}
-	}
-	addTables := func(v any) {
-		groups, _ := v.(map[string]any)
+	if doc, ok := readTOML(filepath.Join(dir, "pyproject.toml")); ok {
+		project, _ := doc["project"].(map[string]any)
+		deps.addList(project["dependencies"])
+		deps.addTables(project["optional-dependencies"])
+		deps.addTables(doc["dependency-groups"])
+		tool, _ := doc["tool"].(map[string]any)
+		poetry, _ := tool["poetry"].(map[string]any)
+		deps.addKeys(poetry["dependencies"])
+		deps.addKeys(poetry["dev-dependencies"])
+		groups, _ := poetry["group"].(map[string]any)
 		for _, g := range groups {
-			addList(g)
+			group, _ := g.(map[string]any)
+			deps.addKeys(group["dependencies"])
 		}
+		pdm, _ := tool["pdm"].(map[string]any)
+		deps.addTables(pdm["dev-dependencies"])
 	}
-	addKeys := func(v any) {
-		table, _ := v.(map[string]any)
-		for name := range table {
-			if name != "python" {
-				deps[normalize(name)] = true
-			}
-		}
-	}
-
-	if data, err := os.ReadFile(filepath.Join(dir, "pyproject.toml")); err == nil {
-		var doc map[string]any
-		if toml.Unmarshal(data, &doc) == nil {
-			project, _ := doc["project"].(map[string]any)
-			addList(project["dependencies"])
-			addTables(project["optional-dependencies"])
-			addTables(doc["dependency-groups"])
-			tool, _ := doc["tool"].(map[string]any)
-			poetry, _ := tool["poetry"].(map[string]any)
-			addKeys(poetry["dependencies"])
-			addKeys(poetry["dev-dependencies"])
-			groups, _ := poetry["group"].(map[string]any)
-			for _, g := range groups {
-				group, _ := g.(map[string]any)
-				addKeys(group["dependencies"])
-			}
-			pdm, _ := tool["pdm"].(map[string]any)
-			addTables(pdm["dev-dependencies"])
-		}
-	}
-	if data, err := os.ReadFile(filepath.Join(dir, "Pipfile")); err == nil {
-		var doc map[string]any
-		if toml.Unmarshal(data, &doc) == nil {
-			addKeys(doc["packages"])
-			addKeys(doc["dev-packages"])
-		}
+	if doc, ok := readTOML(filepath.Join(dir, "Pipfile")); ok {
+		deps.addKeys(doc["packages"])
+		deps.addKeys(doc["dev-packages"])
 	}
 	reqs, _ := filepath.Glob(filepath.Join(dir, "requirements*.txt"))
 	for _, file := range reqs {
 		extract.EachLine(file, func(line string) {
 			if line = strings.TrimSpace(line); line != "" && !strings.HasPrefix(line, "#") && !strings.HasPrefix(line, "-") {
-				addReq(line)
+				deps.addReq(line)
 			}
 		})
 	}
 	return deps
+}
+
+func readTOML(file string) (map[string]any, bool) {
+	data, err := os.ReadFile(file)
+	if err != nil {
+		return nil, false
+	}
+	var doc map[string]any
+	return doc, toml.Unmarshal(data, &doc) == nil
+}
+
+// addReq adds a PEP 508 requirement's name.
+func (d Deps) addReq(req string) {
+	if m := pep508Name.FindString(strings.TrimSpace(req)); m != "" {
+		d[normalize(m)] = true
+	}
+}
+
+// addList adds a list of requirement strings.
+func (d Deps) addList(v any) {
+	items, _ := v.([]any)
+	for _, item := range items {
+		if s, ok := item.(string); ok {
+			d.addReq(s)
+		}
+	}
+}
+
+// addTables adds each requirement list of a table of them.
+func (d Deps) addTables(v any) {
+	groups, _ := v.(map[string]any)
+	for _, g := range groups {
+		d.addList(g)
+	}
+}
+
+// addKeys adds a table's keys as names (Poetry, Pipfile), minus python.
+func (d Deps) addKeys(v any) {
+	table, _ := v.(map[string]any)
+	for name := range table {
+		if name != "python" {
+			d[normalize(name)] = true
+		}
+	}
 }
 
 var gemSpec = regexp.MustCompile(`^    ([A-Za-z0-9_.-]+) \(`)

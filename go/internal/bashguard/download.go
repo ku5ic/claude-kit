@@ -26,9 +26,20 @@ func (c *command) redirectTargets() []string {
 // curl: -O/-J name the file after the server and write to cwd, unless
 // --output-dir says otherwise.
 func (c *command) curl() error {
-	remote, wantTarget, outDir := false, 0, ""
-	var targets []string
-	for _, w := range c.values() {
+	targets, remote, outDir := curlTargets(c.values())
+	if remote && outDir == "" {
+		if err := c.block("curl -O/-J writes a server-named file into the current directory; use: curl -o \"$(kit scratch-dir)/<name>\"", "download-to-repo"); err != nil {
+			return err
+		}
+	}
+	return c.checkTargets("curl", "-o", targets)
+}
+
+// curlTargets reads curl's words for the files it writes: -o and
+// --output-dir values, and whether -O/-J names one after the server.
+func curlTargets(words []string) (targets []string, remote bool, outDir string) {
+	wantTarget := 0
+	for _, w := range words {
 		if wantTarget > 0 {
 			targets = append(targets, w)
 			if wantTarget == 2 {
@@ -39,7 +50,7 @@ func (c *command) curl() error {
 		}
 		switch {
 		case w == "--":
-			goto done
+			return targets, remote, outDir
 		case w == "--remote-name" || w == "--remote-name-all" || w == "--remote-header-name":
 			remote = true
 		case w == "--output":
@@ -74,35 +85,26 @@ func (c *command) curl() error {
 			}
 		}
 	}
-done:
-	if remote && outDir == "" {
-		if err := c.block("curl -O/-J writes a server-named file into the current directory; use: curl -o \"$(kit scratch-dir)/<name>\"", "download-to-repo"); err != nil {
-			return err
-		}
-	}
-	for _, t := range targets {
-		if !c.st.scratchTarget(t) {
-			if err := c.blockDownload("curl", t, "-o"); err != nil {
-				return err
-			}
-		}
-	}
-	for _, t := range c.redirectTargets() {
-		if !c.st.scratchTarget(t) {
-			if err := c.blockDownload("curl", t, "-o"); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
+	return targets, remote, outDir
 }
 
 // wget writes into cwd by default, so an output flag is mandatory; -O - is
 // stdout.
 func (c *command) wget() error {
-	wantDoc, wantDir, hasOut := false, false, false
-	var targets []string
-	for _, w := range c.values() {
+	targets, hasOut := wgetTargets(c.values())
+	if !hasOut {
+		if err := c.block("wget writes into the current directory by default; use: wget -P \"$(kit scratch-dir)\" <url>", "download-to-repo"); err != nil {
+			return err
+		}
+	}
+	return c.checkTargets("wget", "-O", targets)
+}
+
+// wgetTargets reads wget's words for the -O document and -P directory it
+// writes, and whether any output flag is there.
+func wgetTargets(words []string) (targets []string, hasOut bool) {
+	wantDoc, wantDir := false, false
+	for _, w := range words {
 		if wantDoc || wantDir {
 			targets = append(targets, w)
 			wantDoc, wantDir, hasOut = false, false, true
@@ -110,7 +112,7 @@ func (c *command) wget() error {
 		}
 		switch {
 		case w == "--":
-			goto done
+			return targets, hasOut
 		case strings.HasPrefix(w, "--output-document=") || strings.HasPrefix(w, "--directory-prefix="):
 			targets = append(targets, w[strings.IndexByte(w, '=')+1:])
 			hasOut = true
@@ -138,27 +140,40 @@ func (c *command) wget() error {
 			}
 		}
 	}
-done:
-	if !hasOut {
-		if err := c.block("wget writes into the current directory by default; use: wget -P \"$(kit scratch-dir)\" <url>", "download-to-repo"); err != nil {
-			return err
-		}
-	}
-	for _, t := range targets {
+	return targets, hasOut
+}
+
+// checkTargets blocks every download target, flag value or > redirect,
+// outside scratch.
+func (c *command) checkTargets(tool, flag string, targets []string) error {
+	for _, t := range append(targets, c.redirectTargets()...) {
 		if !c.st.scratchTarget(t) {
-			if err := c.blockDownload("wget", t, "-O"); err != nil {
-				return err
-			}
-		}
-	}
-	for _, t := range c.redirectTargets() {
-		if !c.st.scratchTarget(t) {
-			if err := c.blockDownload("wget", t, "-O"); err != nil {
+			if err := c.blockDownload(tool, t, flag); err != nil {
 				return err
 			}
 		}
 	}
 	return nil
+}
+
+// pmDir is the directory a package manager works in: its own directory
+// flag, else the segment's cwd. Only a long flag takes =value.
+func (c *command) pmDir(dirFlags []string) string {
+	dir, wantDir := c.st.cwd, false
+	for _, w := range c.values() {
+		if wantDir {
+			dir, wantDir = resolveDir(c.st.home, c.st.cwd, w), false
+			continue
+		}
+		flag, value, hasValue := strings.Cut(w, "=")
+		switch {
+		case slices.Contains(dirFlags, w):
+			wantDir = true
+		case hasValue && slices.Contains(dirFlags, flag) && strings.HasPrefix(flag, "--"):
+			dir = resolveDir(c.st.home, c.st.cwd, value)
+		}
+	}
+	return dir
 }
 
 // packageManager guards installs: pnpm install without --frozen-lockfile
@@ -186,22 +201,7 @@ func (c *command) packageManager() error {
 	if pm.Ecosystem == "" || pm.Ecosystem == "none" {
 		return nil
 	}
-	// The manager's own directory flag overrides the segment's cwd; only a
-	// long one takes =value.
-	dir, wantDir := c.st.cwd, false
-	for _, w := range c.values() {
-		if wantDir {
-			dir, wantDir = resolveDir(c.st.home, c.st.cwd, w), false
-			continue
-		}
-		flag, value, hasValue := strings.Cut(w, "=")
-		switch {
-		case slices.Contains(pm.DirFlags, w):
-			wantDir = true
-		case hasValue && slices.Contains(pm.DirFlags, flag) && strings.HasPrefix(flag, "--"):
-			dir = resolveDir(c.st.home, c.st.cwd, value)
-		}
-	}
+	dir := c.pmDir(pm.DirFlags)
 	// Greenfield (no lockfile in this ecosystem) is always allowed.
 	lock, ok := project.NearestLockfile(c.st.cfg, dir, pm.Ecosystem)
 	if !ok || lock.Manager == pm.Manager {

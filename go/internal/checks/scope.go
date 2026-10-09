@@ -89,6 +89,32 @@ func changedSince(root string) changes {
 // error. Only a finding on a changed line counts, so touching a file doesn't
 // inherit its old dead code. It returns the verdict: "pass", "fail", or
 // "skip".
+// blockingFindings is the text of each finding on a line changed since the
+// merge-base, in a file that changed.
+func blockingFindings(found []tools.Finding, dir string, ch changes) []string {
+	paths := make([]string, len(found))
+	var touched []string
+	for i, f := range found {
+		paths[i] = absUnder(dir, f.File)
+		if ch.files[paths[i]] {
+			touched = append(touched, paths[i])
+		}
+	}
+	var lines map[string]map[int]bool
+	if len(touched) > 0 {
+		// Each file once: thousands of findings in one file mustn't swell git's argv.
+		slices.Sort(touched)
+		lines = changedLines(ch.root, ch.mergeBase, slices.Compact(touched))
+	}
+	var blocking []string
+	for i, f := range found {
+		if ch.files[paths[i]] && onChangedLine(lines, paths[i], f.Line) {
+			blocking = append(blocking, f.Text)
+		}
+	}
+	return blocking
+}
+
 func runScoped(g Gate, ch changes, w io.Writer) string {
 	if !ch.ok {
 		fmt.Fprint(w, skipLine(g.Label, "no git base"))
@@ -111,26 +137,7 @@ func runScoped(g Gate, ch changes, w io.Writer) string {
 		fmt.Fprintf(w, "PASS %s (advisory: %s)\n%s", g.Label, what, g.extra())
 		return "pass"
 	}
-	paths := make([]string, len(found))
-	var touched []string
-	for i, f := range found {
-		paths[i] = absUnder(g.Dir, f.File)
-		if ch.files[paths[i]] {
-			touched = append(touched, paths[i])
-		}
-	}
-	var lines map[string]map[int]bool
-	if len(touched) > 0 {
-		// Each file once: thousands of findings in one file mustn't swell git's argv.
-		slices.Sort(touched)
-		lines = changedLines(ch.root, ch.mergeBase, slices.Compact(touched))
-	}
-	var blocking []string
-	for i, f := range found {
-		if ch.files[paths[i]] && onChangedLine(lines, paths[i], f.Line) {
-			blocking = append(blocking, f.Text)
-		}
-	}
+	blocking := blockingFindings(found, g.Dir, ch)
 	switch {
 	case len(blocking) > 0:
 		fmt.Fprint(w, failLine(g)+strings.Join(head(blocking), "\n")+"\n")
