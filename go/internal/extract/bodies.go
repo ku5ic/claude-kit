@@ -1,8 +1,6 @@
 package extract
 
 import (
-	"bufio"
-	"os"
 	"regexp"
 	"slices"
 	"strings"
@@ -143,15 +141,7 @@ func justBodies(file string) map[string]Body {
 }
 
 func readLines(file string) []string {
-	f, err := os.Open(file)
-	if err != nil {
-		return nil
-	}
-	defer f.Close()
 	var lines []string
-	s := bufio.NewScanner(f)
-	for s.Scan() {
-		lines = append(lines, s.Text())
-	}
+	EachLine(file, func(line string) { lines = append(lines, line) })
 	return lines
 }

@@ -3,6 +3,7 @@ package extract
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -56,5 +57,16 @@ func TestBodies(t *testing.T) {
 	}
 	if b := Bodies("regex_lines", mk, "x"); b != nil {
 		t.Errorf("regex_lines has bodies: %v", b)
+	}
+}
+
+func TestBodiesReadPastALongLine(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "Makefile")
+	long := "# " + strings.Repeat("x", 100*1024)
+	if err := os.WriteFile(path, []byte(long+"\nlint:\n\teslint .\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := Bodies("make_targets", path, "")["lint"].Text; got != "eslint ." {
+		t.Errorf("lint after a 100KB line: %q, want %q", got, "eslint .")
 	}
 }
