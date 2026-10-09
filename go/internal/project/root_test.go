@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
 
 // Callers drop their own symlink resolving on the strength of this; outside
@@ -17,8 +18,8 @@ func TestToplevelIsPhysicalThroughASymlink(t *testing.T) {
 		t.Fatal(err)
 	}
 	real, link := filepath.Join(tmp, "real"), filepath.Join(tmp, "link")
-	put(t, real, "sub/x.go", "package x\n")
-	runGit(t, real, "init", "-q")
+	testutil.Put(t, real, "sub/x.go", "package x\n")
+	testutil.Git(t, real, "init", "-q")
 	if err := os.Symlink(real, link); err != nil {
 		t.Fatal(err)
 	}
@@ -71,13 +72,13 @@ func TestDirHomeFallbackAndRegistry(t *testing.T) {
 	}
 
 	repo := tmp(t)
-	runGit(t, repo, "init", "-q", "-b", "main")
+	testutil.Git(t, repo, "init", "-q", "-b", "main")
 	for range 2 {
 		if _, err := Dir(cfg, paths, repo, "scratch", true); err != nil {
 			t.Fatal(err)
 		}
 	}
-	lines := regexp.MustCompile(`\n`).Split(readFile(t, filepath.Join(home, "logs", "scratch-registry.txt")), -1)
+	lines := regexp.MustCompile(`\n`).Split(testutil.Read(t, filepath.Join(home, "logs", "scratch-registry.txt")), -1)
 	if len(lines) != 2 || lines[0] != filepath.Join(repo, ".claude", "scratch") {
 		t.Errorf("registry = %q, want the project tier once", lines)
 	}

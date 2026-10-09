@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
 
 // repo makes a git repo with main and a feature branch, and chdirs into it.
@@ -18,10 +20,7 @@ func repo(t *testing.T) {
 		{"-c", "user.email=t@t", "-c", "user.name=t", "-c", "commit.gpgsign=false", "commit", "-q", "--allow-empty", "-m", "init"},
 		{"checkout", "-q", "-b", "feature"},
 	} {
-		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, out)
-		}
+		testutil.Git(t, dir, args...)
 	}
 	t.Chdir(dir)
 }

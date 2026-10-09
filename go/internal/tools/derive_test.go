@@ -1,17 +1,16 @@
 package tools
 
 import (
-	"path/filepath"
 	"slices"
 	"testing"
 
-	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
 
 // adapter is the built-in as kit.yml completes it.
 func adapter(t *testing.T, name string) Adapter {
 	t.Helper()
-	for _, a := range All(kitConfig(t)) {
+	for _, a := range All(testutil.KitConfig(t)) {
 		if a.Name == name {
 			return a
 		}
@@ -20,19 +19,10 @@ func adapter(t *testing.T, name string) Adapter {
 	return Adapter{}
 }
 
-func kitConfig(t *testing.T) *config.Config {
-	t.Helper()
-	cfg, _, err := config.Load(config.Paths{Base: "../../../kit.yml", Overlay: filepath.Join(t.TempDir(), "none.yml")})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return cfg
-}
-
 func TestDeriveFromPackageScripts(t *testing.T) {
-	cfg := kitConfig(t)
+	cfg := testutil.KitConfig(t)
 	dir := t.TempDir()
-	put(t, dir, "package.json", `{"scripts":{
+	testutil.Put(t, dir, "package.json", `{"scripts":{
 		"eslint:fix": "eslint --fix --max-warnings 1 .",
 		"eslint": "eslint --cache src/** --max-warnings 715 -o report.txt",
 		"test:ci": "NODE_OPTIONS=\"${NODE_OPTIONS:-}\" jest --maxWorkers 4",
@@ -59,8 +49,8 @@ func TestDeriveFromPackageScripts(t *testing.T) {
 
 func TestDeriveThroughRunnersAndMakeVariables(t *testing.T) {
 	dir := t.TempDir()
-	put(t, dir, "GNUmakefile", "RUN = uv run\n\nformat:\n\t$(RUN) ruff format .\n\nlint:\n\t@$(RUN) ruff check \\\n\t  --select E,F .\n")
-	d, ok := adapter(t, "ruff").Derive(kitConfig(t), dir, dir)
+	testutil.Put(t, dir, "GNUmakefile", "RUN = uv run\n\nformat:\n\t$(RUN) ruff format .\n\nlint:\n\t@$(RUN) ruff check \\\n\t  --select E,F .\n")
+	d, ok := adapter(t, "ruff").Derive(testutil.KitConfig(t), dir, dir)
 	if !ok || d.Source != "make lint" {
 		t.Fatalf("%+v %v: ruff format isn't ruff check, and format is not a check target", d, ok)
 	}
@@ -70,9 +60,9 @@ func TestDeriveThroughRunnersAndMakeVariables(t *testing.T) {
 }
 
 func TestDeriveFromCIStepInItsWorkingDirectory(t *testing.T) {
-	cfg := kitConfig(t)
+	cfg := testutil.KitConfig(t)
 	root := t.TempDir()
-	put(t, root, ".github/workflows/ci.yml", `
+	testutil.Put(t, root, ".github/workflows/ci.yml", `
 jobs:
   backend:
     defaults:
@@ -98,7 +88,7 @@ jobs:
 
 func TestDeriveCIPrefersAStepWithFlags(t *testing.T) {
 	root := t.TempDir()
-	put(t, root, ".github/workflows/ci.yml", `
+	testutil.Put(t, root, ".github/workflows/ci.yml", `
 jobs:
   zeta:
     steps:
@@ -107,15 +97,15 @@ jobs:
     steps:
       - run: eslint --quiet .
 `)
-	if d, ok := adapter(t, "eslint").Derive(kitConfig(t), root, root); !ok || !slices.Equal(d.Flags, []string{"--max-warnings", "0"}) {
+	if d, ok := adapter(t, "eslint").Derive(testutil.KitConfig(t), root, root); !ok || !slices.Equal(d.Flags, []string{"--max-warnings", "0"}) {
 		t.Fatalf("%+v %v", d, ok)
 	}
 }
 
 func TestDeriveFromGitLabAndThroughAShorthand(t *testing.T) {
 	root := t.TempDir()
-	put(t, root, ".gitlab-ci.yml", "lint:\n  script:\n    - pnpm eslint --max-warnings 3 .\n")
-	d, ok := adapter(t, "eslint").Derive(kitConfig(t), root, root)
+	testutil.Put(t, root, ".gitlab-ci.yml", "lint:\n  script:\n    - pnpm eslint --max-warnings 3 .\n")
+	d, ok := adapter(t, "eslint").Derive(testutil.KitConfig(t), root, root)
 	if !ok || d.Source != ".gitlab-ci.yml" || !slices.Equal(d.Flags, []string{"--max-warnings", "3"}) {
 		t.Fatalf("%+v %v: with no eslint script, pnpm eslint runs the binary", d, ok)
 	}
@@ -123,7 +113,7 @@ func TestDeriveFromGitLabAndThroughAShorthand(t *testing.T) {
 
 func TestDeriveSkipsACIStepUsingSecrets(t *testing.T) {
 	root := t.TempDir()
-	put(t, root, ".github/workflows/ci.yml", `
+	testutil.Put(t, root, ".github/workflows/ci.yml", `
 jobs:
   lint:
     steps:
@@ -131,15 +121,15 @@ jobs:
         env:
           TOKEN: ${{ secrets.TOKEN }}
 `)
-	if d, ok := adapter(t, "eslint").Derive(kitConfig(t), root, root); ok {
+	if d, ok := adapter(t, "eslint").Derive(testutil.KitConfig(t), root, root); ok {
 		t.Errorf("%+v: a step a local run can't repeat derives nothing", d)
 	}
 }
 
 func TestDeriveNothingFound(t *testing.T) {
 	dir := t.TempDir()
-	put(t, dir, "package.json", `{"scripts":{"lint":"biome check ."}}`)
-	if _, ok := adapter(t, "eslint").Derive(kitConfig(t), dir, dir); ok {
+	testutil.Put(t, dir, "package.json", `{"scripts":{"lint":"biome check ."}}`)
+	if _, ok := adapter(t, "eslint").Derive(testutil.KitConfig(t), dir, dir); ok {
 		t.Error("no eslint invocation: nothing to derive")
 	}
 }

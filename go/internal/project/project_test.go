@@ -2,24 +2,15 @@ package project
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
 
 // kit_tasks and kit_subprojects against the real kit.yml.
-
-func realConfig(t *testing.T) *config.Config {
-	t.Helper()
-	cfg, _, err := config.Load(config.Paths{Base: "../../../kit.yml", Overlay: filepath.Join(t.TempDir(), "none.yml")})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return cfg
-}
 
 func tmp(t *testing.T) string {
 	t.Helper()
@@ -28,34 +19,6 @@ func tmp(t *testing.T) string {
 		t.Fatal(err)
 	}
 	return dir
-}
-
-func put(t *testing.T, dir, name, body string) {
-	t.Helper()
-	path := filepath.Join(dir, name)
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func readFile(t *testing.T, path string) string {
-	t.Helper()
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return string(data)
-}
-
-func runGit(t *testing.T, dir string, args ...string) {
-	t.Helper()
-	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("git %v: %v\n%s", args, err, out)
-	}
 }
 
 func taskLines(tasks []Task) string {
@@ -72,36 +35,36 @@ func taskLines(tasks []Task) string {
 
 func TestTasksResolvePMFromLockfile(t *testing.T) {
 	dir := tmp(t)
-	runGit(t, dir, "init", "-q", "-b", "main")
-	put(t, dir, "package.json", `{"scripts":{"test":"vitest"}}`)
-	put(t, dir, "pnpm-lock.yaml", "")
-	if got := taskLines(Tasks(realConfig(t), dir)); got != "package-scripts\tjs\ttest\tpnpm run test" {
+	testutil.Git(t, dir, "init", "-q", "-b", "main")
+	testutil.Put(t, dir, "package.json", `{"scripts":{"test":"vitest"}}`)
+	testutil.Put(t, dir, "pnpm-lock.yaml", "")
+	if got := taskLines(Tasks(testutil.KitConfig(t), dir)); got != "package-scripts\tjs\ttest\tpnpm run test" {
 		t.Errorf("got %q", got)
 	}
 }
 
 func TestTasksDefaultPMIsNpm(t *testing.T) {
 	dir := tmp(t)
-	put(t, dir, "package.json", `{"scripts":{"lint":"eslint ."}}`)
-	if got := taskLines(Tasks(realConfig(t), dir)); got != "package-scripts\tjs\tlint\tnpm run lint" {
+	testutil.Put(t, dir, "package.json", `{"scripts":{"lint":"eslint ."}}`)
+	if got := taskLines(Tasks(testutil.KitConfig(t), dir)); got != "package-scripts\tjs\tlint\tnpm run lint" {
 		t.Errorf("got %q", got)
 	}
 }
 
 func TestTasksRunByPMForPoeUnderPoetry(t *testing.T) {
 	dir := tmp(t)
-	put(t, dir, "pyproject.toml", "[tool.poe.tasks]\ntest = \"pytest\"\n")
-	put(t, dir, "poetry.lock", "")
-	if got := taskLines(Tasks(realConfig(t), dir)); got != "poe\tpython\ttest\tpoetry run poe test" {
+	testutil.Put(t, dir, "pyproject.toml", "[tool.poe.tasks]\ntest = \"pytest\"\n")
+	testutil.Put(t, dir, "poetry.lock", "")
+	if got := taskLines(Tasks(testutil.KitConfig(t), dir)); got != "poe\tpython\ttest\tpoetry run poe test" {
 		t.Errorf("got %q", got)
 	}
 }
 
 func TestTasksSeveralProviders(t *testing.T) {
 	dir := tmp(t)
-	put(t, dir, "Makefile", "test:\n\tgo test\n")
-	put(t, dir, "pyproject.toml", "[tool.pdm.scripts]\nlint = \"ruff\"\n")
-	got := taskLines(Tasks(realConfig(t), dir))
+	testutil.Put(t, dir, "Makefile", "test:\n\tgo test\n")
+	testutil.Put(t, dir, "pyproject.toml", "[tool.pdm.scripts]\nlint = \"ruff\"\n")
+	got := taskLines(Tasks(testutil.KitConfig(t), dir))
 	for _, want := range []string{"make\t-\ttest\tmake test", "pdm\tpython\tlint\tpdm run lint"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in %q", want, got)
@@ -113,47 +76,47 @@ func TestTasksSeveralProviders(t *testing.T) {
 // node_modules manifest that must not count.
 func monorepo(t *testing.T) string {
 	dir := tmp(t)
-	runGit(t, dir, "init", "-q", "-b", "main")
-	put(t, dir, "package.json", `{"name":"root","private":true}`)
-	put(t, dir, "pnpm-workspace.yaml", "packages:\n  - \"packages/*\"\n")
-	put(t, dir, "pnpm-lock.yaml", "")
-	put(t, dir, "packages/a/package.json", `{"name":"a","scripts":{"test":"vitest"}}`)
-	put(t, dir, "services/api/pyproject.toml", "[project]\nname = \"api\"\n")
-	put(t, dir, "services/api/uv.lock", "")
-	put(t, dir, "node_modules/dep/package.json", `{"name":"dep"}`)
-	runGit(t, dir, "add", "package.json", "pnpm-workspace.yaml", "pnpm-lock.yaml", "packages", "services")
+	testutil.Git(t, dir, "init", "-q", "-b", "main")
+	testutil.Put(t, dir, "package.json", `{"name":"root","private":true}`)
+	testutil.Put(t, dir, "pnpm-workspace.yaml", "packages:\n  - \"packages/*\"\n")
+	testutil.Put(t, dir, "pnpm-lock.yaml", "")
+	testutil.Put(t, dir, "packages/a/package.json", `{"name":"a","scripts":{"test":"vitest"}}`)
+	testutil.Put(t, dir, "services/api/pyproject.toml", "[project]\nname = \"api\"\n")
+	testutil.Put(t, dir, "services/api/uv.lock", "")
+	testutil.Put(t, dir, "node_modules/dep/package.json", `{"name":"dep"}`)
+	testutil.Git(t, dir, "add", "package.json", "pnpm-workspace.yaml", "pnpm-lock.yaml", "packages", "services")
 	return dir
 }
 
 func TestSubprojectsRootWorkspaceAndNested(t *testing.T) {
 	dir := monorepo(t)
-	if got := strings.Join(Subprojects(realConfig(t), dir), "\n"); got != ".\npackages/a\nservices/api" {
+	if got := strings.Join(Subprojects(testutil.KitConfig(t), dir), "\n"); got != ".\npackages/a\nservices/api" {
 		t.Errorf("got %q", got)
 	}
 }
 
 func TestSubprojectsRespectMaxDepth(t *testing.T) {
 	dir := tmp(t)
-	runGit(t, dir, "init", "-q", "-b", "main")
-	put(t, dir, "a/b/c/d/package.json", "{}")
-	put(t, dir, "a/b/c/d/e/package.json", "{}")
-	runGit(t, dir, "add", "a")
-	if got := strings.Join(Subprojects(realConfig(t), dir), "\n"); got != ".\na/b/c/d" {
+	testutil.Git(t, dir, "init", "-q", "-b", "main")
+	testutil.Put(t, dir, "a/b/c/d/package.json", "{}")
+	testutil.Put(t, dir, "a/b/c/d/e/package.json", "{}")
+	testutil.Git(t, dir, "add", "a")
+	if got := strings.Join(Subprojects(testutil.KitConfig(t), dir), "\n"); got != ".\na/b/c/d" {
 		t.Errorf("got %q", got)
 	}
 }
 
 func TestSubprojectsGoWorkAndCargoMembers(t *testing.T) {
 	dir := tmp(t)
-	runGit(t, dir, "init", "-q", "-b", "main")
+	testutil.Git(t, dir, "init", "-q", "-b", "main")
 	for _, d := range []string{"svc", "tools", "crates/x"} {
 		if err := os.MkdirAll(filepath.Join(dir, d), 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
-	put(t, dir, "go.work", "go 1.22\n\nuse (\n\t./svc\n)\nuse ./tools\n")
-	put(t, dir, "Cargo.toml", "[workspace]\nmembers = [\"crates/*\"]\n")
-	if got := strings.Join(Subprojects(realConfig(t), dir), "\n"); got != ".\ncrates/x\nsvc\ntools" {
+	testutil.Put(t, dir, "go.work", "go 1.22\n\nuse (\n\t./svc\n)\nuse ./tools\n")
+	testutil.Put(t, dir, "Cargo.toml", "[workspace]\nmembers = [\"crates/*\"]\n")
+	if got := strings.Join(Subprojects(testutil.KitConfig(t), dir), "\n"); got != ".\ncrates/x\nsvc\ntools" {
 		t.Errorf("got %q", got)
 	}
 }
@@ -165,7 +128,7 @@ func TestGlobDirsGlobstarSkipsDotDirs(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	put(t, dir, "apps/file", "")
+	testutil.Put(t, dir, "apps/file", "")
 	got := strings.Join(globDirs(dir, "apps/*"), ",")
 	if got != "apps/deep,apps/web" {
 		t.Errorf("apps/* = %q", got)
@@ -178,8 +141,8 @@ func TestGlobDirsGlobstarSkipsDotDirs(t *testing.T) {
 
 func TestFindUpStopsAtStop(t *testing.T) {
 	dir := tmp(t)
-	put(t, dir, "marker", "")
-	put(t, dir, "repo/sub/x", "")
+	testutil.Put(t, dir, "marker", "")
+	testutil.Put(t, dir, "repo/sub/x", "")
 	if got := FindUp(filepath.Join(dir, "repo/sub"), filepath.Join(dir, "repo"), "marker"); got != "" {
 		t.Errorf("found above stop: %q", got)
 	}

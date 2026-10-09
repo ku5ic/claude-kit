@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
 
 // resolveEnv is one Resolve test: a repo dir, a PATH dir that is the whole
@@ -46,7 +47,7 @@ func resolveSetup(t *testing.T) *resolveEnv {
 		},
 	}
 	// The default manager and environment lookups, as kit.yml has them.
-	real := kitConfig(t)
+	real := testutil.KitConfig(t)
 	npm, _ := real.Manager("npm")
 	e.cfg.PackageManagers = append(e.cfg.PackageManagers, npm)
 	e.cfg.ToolResolution.EnvLookups = real.ToolResolution.EnvLookups
@@ -95,27 +96,27 @@ func TestResolveLocalCopyWinsOverPATH(t *testing.T) {
 
 func TestResolveGoModToolBuildsOfflineWithoutDownloading(t *testing.T) {
 	e := resolveSetup(t)
-	put(t, e.repo, "go.mod", "module x\n\ngo 1.24\n\ntool (\n\tgolang.org/x/tools/cmd/deadcode\n)\n")
+	testutil.Put(t, e.repo, "go.mod", "module x\n\ngo 1.24\n\ntool (\n\tgolang.org/x/tools/cmd/deadcode\n)\n")
 	built := e.exe(filepath.Join(e.repo, "cache/deadcode"), "")
 	env := filepath.Join(e.repo, "env")
 	e.exe(filepath.Join(e.path, "go"), `echo "$GOPROXY|$GOFLAGS" >`+env+`
 [ "$1 $2 $3" = "tool -n deadcode" ] && echo `+built+`
 `)
 	e.wantRuns(e.resolve("deadcode", Default), built, SourcePM)
-	if got := strings.TrimSpace(readFile(t, env)); got != "off|-mod=readonly" {
+	if got := strings.TrimSpace(testutil.Read(t, env)); got != "off|-mod=readonly" {
 		t.Errorf("go ran with GOPROXY|GOFLAGS %q", got)
 	}
 
 	os.MkdirAll(filepath.Join(e.repo, "vendor"), 0o755)
 	e.resolve("deadcode", Default)
-	if got := strings.TrimSpace(readFile(t, env)); got != "off|" {
+	if got := strings.TrimSpace(testutil.Read(t, env)); got != "off|" {
 		t.Errorf("with vendor/, go ran with GOPROXY|GOFLAGS %q", got)
 	}
 }
 
 func TestResolveGoModToolNotInTheCacheIsDeclaredNotInstalled(t *testing.T) {
 	e := resolveSetup(t)
-	put(t, e.repo, "go.mod", "module x\n\ntool github.com/golangci/golangci-lint/v2/cmd/golangci-lint\n")
+	testutil.Put(t, e.repo, "go.mod", "module x\n\ntool github.com/golangci/golangci-lint/v2/cmd/golangci-lint\n")
 	e.exe(filepath.Join(e.path, "go"), "exit 1\n")
 	e.exe(filepath.Join(e.path, "golangci-lint"), "")
 	e.wantSkip(e.resolve("golangci-lint", Default), "declared in go.mod but not installed; run go mod download")
@@ -123,7 +124,7 @@ func TestResolveGoModToolNotInTheCacheIsDeclaredNotInstalled(t *testing.T) {
 
 func TestGoModDeclaresNamesTheBinaryBeforeAMajorSuffix(t *testing.T) {
 	dir := t.TempDir()
-	put(t, dir, "go.mod", "module x\n\ntool example.com/foo/v2\n")
+	testutil.Put(t, dir, "go.mod", "module x\n\ntool example.com/foo/v2\n")
 	if !goModDeclares(filepath.Join(dir, "go.mod"), "foo") {
 		t.Error("example.com/foo/v2 should provide foo")
 	}
@@ -145,22 +146,22 @@ func TestResolveActiveVirtualenvOnlyInsideTheRepo(t *testing.T) {
 func TestResolveDeclaredButNotInstalledSkipsEvenWithAPATHCopy(t *testing.T) {
 	e := resolveSetup(t)
 	e.exe(filepath.Join(e.path, "prettier"), "")
-	put(t, e.repo, "package.json", `{"devDependencies":{"prettier":"3.6.2"}}`)
-	put(t, e.repo, "pnpm-lock.yaml", "")
+	testutil.Put(t, e.repo, "package.json", `{"devDependencies":{"prettier":"3.6.2"}}`)
+	testutil.Put(t, e.repo, "pnpm-lock.yaml", "")
 	e.wantSkip(e.resolve("prettier", AnyPath), "prettier declared in package.json but not installed; run pnpm install")
 }
 
 func TestResolveDeclaredPythonToolNamesTheManagersInstall(t *testing.T) {
 	e := resolveSetup(t)
 	e.exe(filepath.Join(e.path, "ruff"), "")
-	put(t, e.repo, "pyproject.toml", "[dependency-groups]\ndev = [\"ruff>=0.15\"]\n")
-	put(t, e.repo, "uv.lock", "")
+	testutil.Put(t, e.repo, "pyproject.toml", "[dependency-groups]\ndev = [\"ruff>=0.15\"]\n")
+	testutil.Put(t, e.repo, "uv.lock", "")
 	e.wantSkip(e.resolve("ruff", Default), "declared in pyproject.toml but not installed; run uv sync")
 }
 
 func TestResolveDeclaredInAParentManifest(t *testing.T) {
 	e := resolveSetup(t)
-	put(t, e.repo, "package.json", `{"devDependencies":{"@biomejs/biome":"2.0.0"}}`)
+	testutil.Put(t, e.repo, "package.json", `{"devDependencies":{"@biomejs/biome":"2.0.0"}}`)
 	e.cfg.ToolResolution.BinPackages = map[string]string{"biome": "@biomejs/biome"}
 	sub := filepath.Join(e.repo, "packages/a")
 	os.MkdirAll(sub, 0o755)
@@ -187,7 +188,7 @@ func TestResolvePinnedToolRunsOnlyFromTheVersionManager(t *testing.T) {
 	e := resolveSetup(t)
 	asdf := filepath.Join(filepath.Dir(e.repo), "asdf")
 	t.Setenv("ASDF_DATA_DIR", asdf)
-	put(t, e.repo, ".tool-versions", "# tools\nyamllint 1.35.1\n")
+	testutil.Put(t, e.repo, ".tool-versions", "# tools\nyamllint 1.35.1\n")
 
 	stray := e.exe(filepath.Join(e.path, "yamllint"), "")
 	e.wantSkip(e.resolve("yamllint", Default), "pinned in .tool-versions, but PATH has "+stray)
@@ -202,7 +203,7 @@ func TestResolvePinNamesArePluginNames(t *testing.T) {
 	asdf := filepath.Join(filepath.Dir(e.repo), "asdf")
 	t.Setenv("ASDF_DATA_DIR", asdf)
 	t.Setenv("PATH", filepath.Join(asdf, "shims"))
-	put(t, e.repo, "mise.toml", "[tools]\n\"npm:prettier\" = \"3.6.2\"\nopentofu = \"1.9\"\n")
+	testutil.Put(t, e.repo, "mise.toml", "[tools]\n\"npm:prettier\" = \"3.6.2\"\nopentofu = \"1.9\"\n")
 	for _, name := range []string{"prettier", "tofu"} {
 		shim := e.exe(filepath.Join(asdf, "shims", name), "")
 		e.wantRuns(e.resolve(name, Default), shim, SourceManager)
@@ -239,7 +240,7 @@ func TestResolveToolchainTakesTheFirstCandidateThatRuns(t *testing.T) {
 // dir/node_modules/.bin, and returns the binary's path.
 func (e *resolveEnv) install(dir, version string) string {
 	e.t.Helper()
-	put(e.t, dir, "node_modules/prettier/package.json", `{"name":"prettier","version":"`+version+`"}`)
+	testutil.Put(e.t, dir, "node_modules/prettier/package.json", `{"name":"prettier","version":"`+version+`"}`)
 	return e.exe(filepath.Join(dir, "node_modules/.bin/prettier"), "")
 }
 
@@ -247,9 +248,9 @@ func (e *resolveEnv) install(dir, version string) string {
 // it returns packages/a's dir.
 func (e *resolveEnv) workspace(spec string) string {
 	e.t.Helper()
-	put(e.t, e.repo, "package.json", `{"private":true}`)
+	testutil.Put(e.t, e.repo, "package.json", `{"private":true}`)
 	a := filepath.Join(e.repo, "packages/a")
-	put(e.t, a, "package.json", `{"devDependencies":{"prettier":"`+spec+`"}}`)
+	testutil.Put(e.t, a, "package.json", `{"devDependencies":{"prettier":"`+spec+`"}}`)
 	return a
 }
 
@@ -272,7 +273,7 @@ func TestResolveStaleOwnCopySkips(t *testing.T) {
 func TestResolveHoistedCopyRunsOnlyWhenItSatisfiesThePackage(t *testing.T) {
 	e := resolveSetup(t)
 	a := e.workspace("~3.6.0")
-	put(t, e.repo, "pnpm-lock.yaml", "")
+	testutil.Put(t, e.repo, "pnpm-lock.yaml", "")
 	// The install hint finds the root lockfile by walking to the git toplevel.
 	if err := os.Symlink(e.git, filepath.Join(e.path, "git")); err != nil {
 		t.Fatal(err)
@@ -313,7 +314,7 @@ func TestSatisfiesFollowsNpmRangeRules(t *testing.T) {
 		{"*", "1.0.0", matches},
 		{"npm:other@^1", "1.0.0", unchecked},
 	} {
-		put(t, dir, "node_modules/p/package.json", `{"version":"`+c.version+`"}`)
+		testutil.Put(t, dir, "node_modules/p/package.json", `{"version":"`+c.version+`"}`)
 		if _, got := satisfies(dir, "p", c.spec); got != c.want {
 			t.Errorf("%s vs %s: verdict %d, want %d", c.spec, c.version, got, c.want)
 		}
@@ -323,20 +324,11 @@ func TestSatisfiesFollowsNpmRangeRules(t *testing.T) {
 func TestResolveYarnPnPAsksFromTheOwningWorkspace(t *testing.T) {
 	e := resolveSetup(t)
 	a := e.workspace("^3.6.0")
-	put(t, e.repo, ".pnp.cjs", "")
+	testutil.Put(t, e.repo, ".pnp.cjs", "")
 	where := filepath.Join(e.repo, "where")
 	e.exe(filepath.Join(e.path, "yarn"), `pwd >`+where+"\n")
 	e.wantRuns(Resolve(e.cfg, filepath.Join(a, "src"), e.repo, "prettier", Default), "yarn run prettier", SourcePM)
-	if got := strings.TrimSpace(readFile(t, where)); got != a {
+	if got := strings.TrimSpace(testutil.Read(t, where)); got != a {
 		t.Errorf("yarn bin ran in %s, want %s", got, a)
 	}
-}
-
-func readFile(t *testing.T, path string) string {
-	t.Helper()
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return string(data)
 }

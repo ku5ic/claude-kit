@@ -1,22 +1,12 @@
 package classify
 
 import (
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
-	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
-
-func kitConfig(t *testing.T) *config.Config {
-	t.Helper()
-	cfg, _, err := config.Load(config.Paths{Base: "../../../kit.yml", Overlay: filepath.Join(t.TempDir(), "none.yml")})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return cfg
-}
 
 // scripts is the package.json the lookup answers for: lint, test, typecheck.
 func scripts(provider, dir, name string) bool {
@@ -59,7 +49,7 @@ func describe(r Result) string {
 }
 
 func TestBody(t *testing.T) {
-	cfg := kitConfig(t)
+	cfg := testutil.KitConfig(t)
 	for _, c := range []struct{ body, want string }{
 		// Plain tools, by each slot's patterns.
 		{"eslint .", "gate:lint:eslint"},
@@ -157,7 +147,7 @@ func TestBody(t *testing.T) {
 // Every pattern kit.yml ships is detected from its minimal command, and
 // turned away by its first forbidden flag or a missing required one.
 func TestEveryToolPatternDetectsAndSkips(t *testing.T) {
-	cfg := kitConfig(t)
+	cfg := testutil.KitConfig(t)
 	for _, check := range cfg.Checks {
 		for _, p := range check.Tools {
 			words := []string{p.Bin}
@@ -187,7 +177,7 @@ func TestEveryToolPatternDetectsAndSkips(t *testing.T) {
 }
 
 func TestBodyDetails(t *testing.T) {
-	cfg := kitConfig(t)
+	cfg := testutil.KitConfig(t)
 	r := Body(cfg, "export PATH\nexport CI=1 NODE_ENV\ncd web && eslint 'a*' src/*.ts", scripts)
 	if len(r.Commands) != 4 {
 		t.Fatalf("commands: %+v", r.Commands)
@@ -208,7 +198,7 @@ func TestBodyDetails(t *testing.T) {
 }
 
 func TestSingleGate(t *testing.T) {
-	cfg := kitConfig(t)
+	cfg := testutil.KitConfig(t)
 	for body, want := range map[string]string{
 		"eslint .":                       "lint",
 		"cd web && tsc --noEmit":         "typecheck",
