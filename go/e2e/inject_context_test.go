@@ -140,30 +140,24 @@ func TestInjectContext(t *testing.T) {
 		r.Has(t, "<required-skills>", "fix-sizing", "context-gathering")
 	})
 
-	t.Run("<suggested-skills> has one line per detected stack skill with its trigger phrase", func(t *testing.T) {
+	t.Run("<suggested-skills> has one line per skill a declared dependency maps to, with its trigger phrase", func(t *testing.T) {
 		t.Parallel()
 		e := injectContextSetup(t, tree)
 		e.kitYML(`global_skills:
   - fix-sizing
 skill_triggers:
   react-patterns: "before building or restructuring React components"
-stacks:
-  js:
-    skills: [javascript-patterns]
-    extras:
-      - name: react
-        dep: react
-        skills: [react-patterns]
+dependency_skills:
+  - {deps: [react], skills: [react-patterns, fix-sizing]}
+  - {deps: [vue], skills: [vue-patterns]}
 `)
-		e.writeCache("root: "+e.root, "js: yes (react)")
+		Write(t, filepath.Join(e.root, "package.json"), `{"dependencies":{"react":"19.0.0"}}`+"\n")
 		r := e.run("s1", "")
 		r.Want(t, 0)
-		r.Has(t, "<suggested-skills>",
-			"before building or restructuring React components: load react-patterns via the Skill tool",
-			"load javascript-patterns via the Skill tool")
+		r.Has(t, "<suggested-skills>\nbefore building or restructuring React components: load react-patterns via the Skill tool\n</suggested-skills>")
 	})
 
-	t.Run("with guard-skills on, <suggested-skills> adds the file-map skills a repo file matches", func(t *testing.T) {
+	t.Run("<suggested-skills> adds the file-map skills a repo file matches, guard-skills on or off", func(t *testing.T) {
 		yml := `global_skills: []
 skill_triggers: {}
 skill_file_map:
@@ -179,14 +173,10 @@ skill_file_map:
   - on: basename
     globs: ["*.py"]
     skills: [python-patterns]
-stacks:
-  go:
-    skills: [go-patterns]
 `
 		for _, guard := range []string{"1", "0"} {
 			e := injectContextSetup(t, tree)
 			e.kitYML(yml)
-			e.writeCache("root: "+e.root, "go: yes")
 			Write(t, filepath.Join(e.root, "main.go"), "package main\n")
 			Write(t, filepath.Join(e.root, "web", "app.test.js"), "")
 			Write(t, filepath.Join(e.root, ".gitignore"), "ignored.py\n")
@@ -194,13 +184,8 @@ stacks:
 			e.Setenv("CLAUDE_GUARD_SKILLS", guard)
 			r := e.run("s1", "")
 			r.Want(t, 0)
-			r.Has(t, "load go-patterns via the Skill tool")
+			r.Has(t, "load engineering-fundamentals via the Skill tool", "load test-patterns via the Skill tool")
 			r.Lacks(t, "typescript-patterns", "python-patterns")
-			if guard == "1" {
-				r.Has(t, "load engineering-fundamentals via the Skill tool", "load test-patterns via the Skill tool")
-			} else {
-				r.Lacks(t, "engineering-fundamentals", "test-patterns")
-			}
 		}
 	})
 
@@ -213,16 +198,12 @@ skill_file_map:
   - on: basename
     globs: ["*.py"]
     skills: [python-patterns]
-stacks:
-  go:
-    skills: [go-patterns]
 `
 	t.Run("a subagent reuses its session's file scan; another session rescans", func(t *testing.T) {
 		t.Parallel()
 		e := injectContextSetup(t, tree)
 		e.kitYML(fileSkillsYML)
 		e.writeCache("root: "+e.root, "go: yes")
-		e.Setenv("CLAUDE_GUARD_SKILLS", "1")
 		Write(t, filepath.Join(e.root, "main.go"), "package main\n")
 		r := e.run("s1", "")
 		r.Want(t, 0)
@@ -242,9 +223,8 @@ stacks:
 	t.Run("a kit.yml edit after the scan makes the session rescan", func(t *testing.T) {
 		t.Parallel()
 		e := injectContextSetup(t, tree)
-		e.kitYML("global_skills: []\nskill_triggers: {}\nstacks:\n  go:\n    skills: [go-patterns]\n")
+		e.kitYML("global_skills: []\nskill_triggers: {}\n")
 		e.writeCache("root: "+e.root, "go: yes")
-		e.Setenv("CLAUDE_GUARD_SKILLS", "1")
 		Write(t, filepath.Join(e.root, "tool.py"), "")
 		e.run("s1", "").Lacks(t, "python-patterns")
 
@@ -264,7 +244,6 @@ stacks:
 		e := injectContextSetup(t, tree)
 		e.kitYML(fileSkillsYML + "skip_dirs: [node_modules, dist]\n")
 		e.writeCache("root: "+e.root, "go: yes")
-		e.Setenv("CLAUDE_GUARD_SKILLS", "1")
 		if err := os.RemoveAll(filepath.Join(e.root, ".git")); err != nil {
 			t.Fatal(err)
 		}
@@ -293,15 +272,10 @@ stacks:
 		e.kitYML(`global_skills: []
 skill_triggers:
   react-patterns: "before building or restructuring React components"
-stacks:
-  js:
-    skills: []
-    extras:
-      - name: react
-        dep: react
-        skills: [react-patterns]
+dependency_skills:
+  - {deps: [react], skills: [react-patterns]}
 `)
-		e.writeCache("root: "+e.root, "js: yes (react)")
+		Write(t, filepath.Join(e.root, "package.json"), `{"dependencies":{"react":"19.0.0"}}`+"\n")
 		e.run("s1", "").Want(t, 0)
 		log := filepath.Join(e.Claude, "logs", "skills.jsonl")
 		if !Exists(log) {

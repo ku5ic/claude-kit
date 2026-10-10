@@ -9,7 +9,6 @@
 # stacks (at the end): a new stack is one stanza there.
 #   sentinels  name: a file marking the stack in a subproject; anchor: true
 #              adds it to the project-root walk (keep few: each slows it)
-#   skills     loaded on the stack's signal; an extra's on that extra
 #   extras     dep (package.json), pydep, file, grep + in, or any_of of those
 # security-patterns and wcag-audit are never mapped: invoked by hand.
 
@@ -20,7 +19,8 @@
 # CLAUDE_GUARD_SKILLS=1.
 global_skills: []
 
-# File-to-skills map consumed by guard-dispatch's skills gate.
+# File-to-skills map consumed by guard-dispatch's skills gate, and by
+# <suggested-skills> for every file in the repo.
 # Evaluated against every Edit/Write/MultiEdit target; matching is
 # cumulative (a single file can satisfy multiple entries). Order matters:
 # test entries precede extension entries so a .test.tsx file picks up
@@ -73,7 +73,7 @@ skill_file_map:
     globs: ["manage.py"]
     skills: [django-patterns]
   - on: basename
-    globs: ["*.graphql", "*.gql"]
+    globs: ["*.graphql", "*.gql", "codegen.ts"]
     skills: [graphql-patterns]
   - on: basename
     globs: ["*.stories.*"]
@@ -85,7 +85,37 @@ skill_file_map:
     globs: ["*.tf", "*.tfvars"]
     skills: [opentofu-patterns]
 
-# Action-conditioned trigger phrases for every skill any stack/extra maps to.
+# Declared-dependency-to-skills map for <suggested-skills>: a rule any of
+# whose deps a subproject's package.json, Python manifests, or Gemfile
+# declares suggests its skills. Python names match normalized (PEP 503).
+dependency_skills:
+  - deps: [typescript]
+    skills: [typescript-patterns]
+  - deps: [next]
+    skills: [react-patterns, next-app-router-patterns]
+  - deps: [react]
+    skills: [react-patterns]
+  - deps: [nuxt]
+    skills: [vue-patterns, nuxt-patterns]
+  - deps: [vue]
+    skills: [vue-patterns]
+  - deps: [tailwindcss]
+    skills: [tailwind-patterns]
+  - deps: [graphql, "@apollo/client", urql, graphql-request]
+    skills: [graphql-patterns]
+  - deps: [storybook]
+    skills: [storybook-patterns]
+  - deps: [vitest, jest, "@playwright/test", cypress, pytest]
+    skills: [test-patterns]
+  - deps: [django]
+    skills: [django-patterns]
+  - deps: [djangorestframework]
+    skills: [drf-patterns]
+  - deps: [fastapi]
+    skills: [fastapi-patterns]
+
+# Action-conditioned trigger phrases for every skill skill_file_map and
+# dependency_skills suggest.
 # Consumed by the inject-context hook to build the <suggested-skills> block.
 # Phrases name a concrete action, not a topic, so the reader knows when to load.
 # global_skills entries, if any, are excluded; they are required, not
@@ -488,34 +518,24 @@ stacks:
     sentinels:
       - name: package.json
         anchor: true
-    skills: [javascript-patterns]
     extras:
       - name: typescript
         file: tsconfig.json
-        skills: [typescript-patterns]
-      # next implies react: Next IS React; react rarely appears as a direct dep
       - name: next
         dep: next
-        skills: [react-patterns, next-app-router-patterns]
       - name: react
         dep: react
-        skills: [react-patterns]
-      # nuxt implies vue: Nuxt bundles Vue; vue rarely appears as a direct dep
       - name: nuxt
         dep: nuxt
-        skills: [vue-patterns, nuxt-patterns]
       - name: vue
         dep: vue
-        skills: [vue-patterns]
       - name: tailwindcss
         dep: tailwindcss
-        skills: [tailwind-patterns]
       - name: graphql
         any_of:
           - file: codegen.ts
           - grep: '"(graphql|@apollo/client|urql|graphql-request)"[[:space:]]*:'
             in: [package.json]
-        skills: [graphql-patterns]
       # The grep also matches a "storybook" script; either way Storybook is in use.
       - name: storybook
         any_of:
@@ -523,19 +543,14 @@ stacks:
           - file: .storybook/main.js
           - grep: '"storybook"[[:space:]]*:'
             in: [package.json]
-        skills: [storybook-patterns]
       - name: vitest
         dep: vitest
-        skills: [test-patterns]
       - name: jest
         dep: jest
-        skills: [test-patterns]
       - name: playwright
         dep: "@playwright/test"
-        skills: [test-patterns]
       - name: cypress
         dep: cypress
-        skills: [test-patterns]
       - name: express
         dep: express
       - name: fastify
@@ -562,20 +577,16 @@ stacks:
       - name: manage.py
       - name: uv.lock
       - name: pdm.lock
-    skills: [python-patterns]
     extras:
       # pydep: declared in pyproject.toml, requirements*.txt, or Pipfile.
       - name: django
         any_of:
           - file: manage.py
           - pydep: django
-        skills: [django-patterns]
       - name: drf
         pydep: djangorestframework
-        skills: [drf-patterns]
       - name: fastapi
         pydep: fastapi
-        skills: [fastapi-patterns]
       - name: flask
         pydep: flask
       - name: pytest
@@ -583,7 +594,6 @@ stacks:
           - file: pytest.ini
           - file: conftest.py
           - pydep: pytest
-        skills: [test-patterns]
       - name: ruff
         pydep: ruff
       - name: mypy
@@ -593,7 +603,6 @@ stacks:
     sentinels:
       - name: Gemfile
         anchor: true
-    skills: []
     extras:
       - name: rails
         any_of:
@@ -604,14 +613,11 @@ stacks:
     sentinels:
       - name: Cargo.toml
         anchor: true
-    skills: []
 
   go:
     sentinels:
       - name: go.mod
         anchor: true
-    # Go's test runner is built in, so no extra detects it.
-    skills: [go-patterns, test-patterns]
 
   # OpenTofu, and Terraform where the two share syntax. The committed
   # dependency lock file marks a root module.
@@ -619,7 +625,6 @@ stacks:
     sentinels:
       - name: .terraform.lock.hcl
         anchor: true
-    skills: [opentofu-patterns]
 
   docker:
     sentinels:
@@ -628,7 +633,6 @@ stacks:
       - name: docker-compose.yaml
       - name: compose.yml
       - name: compose.yaml
-    skills: [docker-patterns]
 
   monorepo:
     sentinels:
@@ -636,7 +640,6 @@ stacks:
       - name: turbo.json
       - name: nx.json
       - name: lerna.json
-    skills: []
     extras:
       - name: pnpm-workspaces
         file: pnpm-workspace.yaml

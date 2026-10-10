@@ -21,7 +21,7 @@ Draft a pattern skill pack for a stack from current docs and this repo's precede
    - `## Version notes`: one entry for the current version, with today's date and the step 2 source, in the format `/meta refresh` maintains.
    - Leave no `<placeholder>` behind. `rg -n '<[a-z]' skills/<name>/` prints nothing when done.
 5. Wire it in `kit.yml`, reading two existing entries of each key first and matching their shape:
-   - Detection: a new `stacks.<stack>` with sentinels, or an `extras` entry under the stack that hosts it (a `dep:`, `file:`, or `grep:` rule), whose `skills:` lists the pack.
+   - Detection: a `dependency_skills` entry whose `deps:` are the packages that signal the stack, as its manifests declare them, and whose `skills:` lists the pack.
    - `skill_file_map`: the file globs that should trigger the pack, if the stack has its own file types.
    - `skill_triggers`: one phrase naming a concrete action ("before writing ..."), like the existing ones.
    - When the stack has its own task runner: a reader in `go/internal/config/grammar.go`. Its check commands or formatter: a `toolchain_checks` or `formatters` entry. Anything that runs a binary resolves it locally, never through `npx` or another installer.

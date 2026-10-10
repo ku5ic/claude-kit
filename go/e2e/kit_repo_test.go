@@ -25,7 +25,7 @@ func TestKitRepo(t *testing.T) {
 		}
 	})
 
-	t.Run("every skill kit.yml names exists, and every stack skill has a trigger", func(t *testing.T) {
+	t.Run("every skill kit.yml names exists, and every suggested skill has a trigger", func(t *testing.T) {
 		cfg, _, err := config.Load(config.Paths{Base: filepath.Join(kitRoot, "kit.yml"), Overlay: filepath.Join(t.TempDir(), "none.yml")})
 		if err != nil {
 			t.Fatal(err)
@@ -34,27 +34,26 @@ func TestKitRepo(t *testing.T) {
 			info, err := os.Stat(filepath.Join(kitRoot, "skills", skill))
 			return err == nil && info.IsDir()
 		}
+		mapped := map[string][]string{}
 		for _, rule := range cfg.SkillFileMap {
-			for _, skill := range rule.Skills {
+			mapped["skill_file_map"] = append(mapped["skill_file_map"], rule.Skills...)
+		}
+		for _, rule := range cfg.DependencySkills {
+			mapped["dependency_skills"] = append(mapped["dependency_skills"], rule.Skills...)
+		}
+		for key, skills := range mapped {
+			for _, skill := range skills {
 				if !exists(skill) {
-					t.Errorf("skill_file_map names %q, which has no skills/ directory", skill)
+					t.Errorf("%s names %q, which has no skills/ directory", key, skill)
+				}
+				if !slices.Contains(cfg.GlobalSkills, skill) && cfg.SkillTriggers[skill] == "" {
+					t.Errorf("%s suggests %q, but skill_triggers has no entry for it", key, skill)
 				}
 			}
 		}
 		for skill := range cfg.SkillTriggers {
 			if !exists(skill) {
 				t.Errorf("skill_triggers names %q, which has no skills/ directory", skill)
-			}
-		}
-		for name, stack := range cfg.Stacks {
-			skills := slices.Clone(stack.Skills)
-			for _, extra := range stack.Extras {
-				skills = append(skills, extra.Skills...)
-			}
-			for _, skill := range skills {
-				if !slices.Contains(cfg.GlobalSkills, skill) && cfg.SkillTriggers[skill] == "" {
-					t.Errorf("stack %s maps %q, but skill_triggers has no entry for it", name, skill)
-				}
 			}
 		}
 	})

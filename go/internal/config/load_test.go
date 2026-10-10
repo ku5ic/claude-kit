@@ -71,8 +71,8 @@ func TestRealKitYMLLoadsCleanly(t *testing.T) {
 
 func TestOverlayMergesMapsAndAppendsSequences(t *testing.T) {
 	dir := t.TempDir()
-	base := write(t, dir, "kit.yml", "protected_branches: [main]\nlog_max_lines: 5\nstacks:\n  js:\n    skills: [a]\n")
-	overlay := write(t, dir, "over.yml", "protected_branches: [develop]\nlog_max_lines: 7\nstacks:\n  js:\n    skills: [b]\n  go:\n    skills: [c]\n")
+	base := write(t, dir, "kit.yml", "protected_branches: [main]\nlog_max_lines: 5\nstacks:\n  js:\n    extras: [{name: a}]\n")
+	overlay := write(t, dir, "over.yml", "protected_branches: [develop]\nlog_max_lines: 7\nstacks:\n  js:\n    extras: [{name: b}]\n  go:\n    extras: [{name: c}]\n")
 	cfg, warnings, err := Load(Paths{Base: base, Overlay: overlay})
 	if err != nil || len(warnings) > 0 {
 		t.Fatalf("err=%v warnings=%v", err, warnings)
@@ -83,11 +83,18 @@ func TestOverlayMergesMapsAndAppendsSequences(t *testing.T) {
 	if cfg.LogMaxLines != 7 {
 		t.Errorf("log_max_lines = %d, want the overlay's 7", cfg.LogMaxLines)
 	}
-	if got := strings.Join(cfg.Stacks["js"].Skills, ","); got != "a,b" {
-		t.Errorf("js skills = %s", got)
+	names := func(stack string) string {
+		var out []string
+		for _, e := range cfg.Stacks[stack].Extras {
+			out = append(out, e.Name)
+		}
+		return strings.Join(out, ",")
 	}
-	if got := strings.Join(cfg.Stacks["go"].Skills, ","); got != "c" {
-		t.Errorf("go skills = %s", got)
+	if got := names("js"); got != "a,b" {
+		t.Errorf("js extras = %s", got)
+	}
+	if got := names("go"); got != "c" {
+		t.Errorf("go extras = %s", got)
 	}
 }
 

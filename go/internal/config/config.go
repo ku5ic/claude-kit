@@ -16,6 +16,7 @@ import (
 type Config struct {
 	GlobalSkills      []string          `yaml:"global_skills"`
 	SkillFileMap      []SkillFileRule   `yaml:"skill_file_map"`
+	DependencySkills  []DependencyRule  `yaml:"dependency_skills"`
 	SkillTriggers     map[string]string `yaml:"skill_triggers"`
 	PackageManagers   []PackageManager  `yaml:"package_managers"`
 	ProtectedBranches []string          `yaml:"protected_branches"`
@@ -185,6 +186,12 @@ type SkillFileRule struct {
 	Skills []string `yaml:"skills"`
 }
 
+// DependencyRule gives skills to a project declaring any of Deps.
+type DependencyRule struct {
+	Deps   []string `yaml:"deps"`
+	Skills []string `yaml:"skills"`
+}
+
 type PackageManager struct {
 	Lockfile  string `yaml:"lockfile"`
 	Manager   string `yaml:"manager"`
@@ -327,7 +334,6 @@ type Orchestrator struct {
 
 type Stack struct {
 	Sentinels []Sentinel `yaml:"sentinels"`
-	Skills    []string   `yaml:"skills"`
 	Extras    []Extra    `yaml:"extras"`
 }
 
@@ -347,10 +353,9 @@ type Rule struct {
 }
 
 type Extra struct {
-	Name   string `yaml:"name"`
-	Rule   `yaml:",inline"`
-	AnyOf  []Rule   `yaml:"any_of"`
-	Skills []string `yaml:"skills"`
+	Name  string `yaml:"name"`
+	Rule  `yaml:",inline"`
+	AnyOf []Rule `yaml:"any_of"`
 }
 
 // ReplyLimits are the word ceilings rules/output.md section 0 names. A

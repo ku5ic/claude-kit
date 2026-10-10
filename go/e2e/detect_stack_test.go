@@ -55,7 +55,6 @@ func TestDetectStack(t *testing.T) {
   custom:
     sentinels:
       - name: custom.marker
-    skills: []
 `
 	t.Run("a stack added by the overlay is detected", func(t *testing.T) {
 		k, root := repo(t, "custom")

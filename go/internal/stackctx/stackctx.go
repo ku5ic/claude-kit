@@ -1,15 +1,16 @@
 // Package stackctx builds what inject-context (SessionStart) and
-// inject-subagent-context (SubagentStart) share: the cached stack report and the
-// required and suggested skills derived from it. One derivation, two
-// consumers, so a subagent sees exactly the framing the main session does.
+// inject-subagent-context (SubagentStart) share: the cached stack report,
+// and the required skills and the suggested ones: those the files and the
+// declared dependencies map to. One derivation, two consumers, so a
+// subagent sees exactly the framing the main session does.
 package stackctx
 
 import (
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 
@@ -20,6 +21,8 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/gapfill"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
+	"github.com/ku5ic/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/sources"
 )
 
 // cacheFile is <cache>/stack/<name>-<sha256(root)[:8]>.<tag>.txt: the root
@@ -70,47 +73,19 @@ func mtime(path string) int64 {
 	return info.ModTime().Unix()
 }
 
-var (
-	skipLine   = regexp.MustCompile(`^(root|package-manager)[: ]`)
-	extrasPart = regexp.MustCompile(`\([^)]+\)`)
-)
-
-// Signals parses a stack report into "stack" and "stack+extra" tokens in
-// first-seen order: "js: yes (typescript, react)" yields js,
-// js+typescript, js+react.
-func Signals(report string) []string {
-	var out []string
-	for line := range strings.SplitSeq(report, "\n") {
-		if line == "" || skipLine.MatchString(line) {
-			continue
-		}
-		stack, _, _ := strings.Cut(line, ":")
-		out = append(out, stack)
-		if m := extrasPart.FindString(line); m != "" {
-			for _, extra := range strings.FieldsFunc(strings.Trim(m, "()"), func(r rune) bool { return r == ',' || r == ' ' }) {
-				out = append(out, stack+"+"+extra)
-			}
-		}
-	}
-	return out
-}
-
 // Context is what both context hooks derive for a project.
 type Context struct {
 	Report              string
 	Required, Suggested []string
 }
 
-// Build refreshes root's stack cache and derives its report and skills;
-// Suggested stays empty when there's no report.
+// Build refreshes root's stack cache and derives its report and skills.
 func Build(paths config.Paths, cfg *config.Config, name, root, session string) Context {
 	file := cacheFile(paths, cfg, name, root)
 	refresh(paths, cfg, root, file)
 	report, _ := os.ReadFile(file)
 	c := Context{Report: string(report), Required: required(cfg)}
-	if c.Report != "" {
-		c.Suggested = Suggested(cfg, Signals(c.Report), FileSkills(paths, cfg, root, session))
-	}
+	c.Suggested = suggested(c.Required, FileSkills(paths, cfg, root, session), dependencySkills(cfg, root))
 	return c
 }
 
@@ -125,43 +100,44 @@ func required(cfg *config.Config) []string {
 	return out
 }
 
-// Suggested maps signals to the skills kit.yml gives their stack or extra,
-// deduped, first-seen order, leaving out global_skills (required, not
-// suggested). An extra matches by its name. fileSkills, from FileSkills,
-// follow the stack skills.
-func Suggested(cfg *config.Config, signals, fileSkills []string) []string {
-	globals := required(cfg)
+// suggested is the skills of lists, deduped in first-seen order, leaving
+// out the required ones.
+func suggested(required []string, lists ...[]string) []string {
 	var out []string
-	add := func(skills []string) {
-		for _, skill := range skills {
-			if skill != "" && !slices.Contains(globals, skill) && !slices.Contains(out, skill) {
-				out = append(out, skill)
-			}
+	for _, skill := range slices.Concat(lists...) {
+		if skill != "" && !slices.Contains(required, skill) && !slices.Contains(out, skill) {
+			out = append(out, skill)
 		}
 	}
-	for _, sig := range signals {
-		stack, extra, isExtra := strings.Cut(sig, "+")
-		if !isExtra {
-			add(cfg.Stacks[sig].Skills)
-			continue
-		}
-		for _, e := range cfg.Stacks[stack].Extras {
-			if e.Name == extra {
-				add(e.Skills)
-			}
-		}
-	}
-	add(fileSkills)
 	return out
 }
 
-// FileSkills is, with CLAUDE_GUARD_SKILLS=1, the skill_file_map skills a
-// file under root matches, since guard-skills blocks the first edit of such
-// a file without them. The scan runs once per session and root; subagents
-// read the cached result, as their SubagentStart hook has a 5s timeout. A
-// kit.yml edit since the scan triggers a fresh one.
+// dependencySkills are the dependency_skills skills, in rule order, for
+// the dependencies root's subprojects declare: package.json's, Python
+// manifests' (names normalized), and the Gemfile's.
+func dependencySkills(cfg *config.Config, root string) []string {
+	declared := sources.Deps{}
+	for _, sub := range project.Subprojects(cfg, root) {
+		dir := filepath.Join(root, sub)
+		for _, deps := range []sources.Deps{sources.JSDeps(dir), sources.PythonDeps(dir), sources.RubyDeps(dir)} {
+			maps.Copy(declared, deps)
+		}
+	}
+	var out []string
+	for _, rule := range cfg.DependencySkills {
+		if slices.ContainsFunc(rule.Deps, func(dep string) bool { return declared[dep] || declared[sources.PyName(dep)] }) {
+			out = append(out, rule.Skills...)
+		}
+	}
+	return out
+}
+
+// FileSkills is the skill_file_map skills a file under root matches. The
+// scan runs once per session and root; subagents read the cached result,
+// as their SubagentStart hook has a 5s timeout. A kit.yml edit since the
+// scan triggers a fresh one.
 func FileSkills(paths config.Paths, cfg *config.Config, root, session string) []string {
-	if !SkillsEnforced() || root == "" {
+	if root == "" {
 		return nil
 	}
 	file := paths.SessionFile(cache.FileSkills, session, rootKey(cfg, root))
