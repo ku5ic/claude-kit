@@ -17,7 +17,6 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"github.com/ku5ic/claude-kit/go/internal/blast"
-	"github.com/ku5ic/claude-kit/go/internal/checks"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/detect"
 	"github.com/ku5ic/claude-kit/go/internal/explain"
@@ -160,14 +159,7 @@ func cmdRunChecks(e *env, cfg *config.Config, args []string) int {
 			return 2
 		}
 	}
-	if !a.catalog {
-		return runGates(e, cfg, root, a)
-	}
-	if a.plan {
-		checks.PrintPlan(cfg, root, a.only, e.stdout)
-		return 0
-	}
-	return min(checks.RunAll(cfg, root, a.only, e.stdout), 125)
+	return runGates(e, cfg, root, a)
 }
 
 func cmdScratchRotate(e *env, args []string) int {
@@ -186,15 +178,13 @@ func cmdScratchRotate(e *env, args []string) int {
 	return rotate.Run(e.paths, days, dryRun, e.stdout, e.stderr)
 }
 
-// runChecksArgs are run-checks' arguments. catalog runs the old catalog
-// engine, which the e2e suites still pin until it is deleted.
+// runChecksArgs are run-checks' arguments.
 type runChecksArgs struct {
-	plan    bool
-	only    []string
-	catalog bool
+	plan bool
+	only []string
 }
 
-// parseRunChecksArgs reads [--plan] [--engine=catalog] [--only sub...].
+// parseRunChecksArgs reads [--plan] [--only sub...].
 // Anything else is an error: a typo'd --plan must never fall through to a
 // real run. A repeated --only adds to the list; a subproject written as a
 // path (./api, api/) is cleaned to its name.
@@ -204,13 +194,11 @@ func parseRunChecksArgs(args []string) (runChecksArgs, error) {
 		switch arg {
 		case "--plan":
 			a.plan = true
-		case "--engine=catalog":
-			a.catalog = true
 		case "--only":
 			for _, sub := range args[i+1:] {
 				switch {
 				case sub == "--only":
-				case sub == "--plan" || strings.HasPrefix(sub, "--engine"):
+				case sub == "--plan":
 					return a, fmt.Errorf("%s must come before --only", sub)
 				case strings.HasPrefix(sub, "-"):
 					return a, fmt.Errorf("unknown argument %q", sub)

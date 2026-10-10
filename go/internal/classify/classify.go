@@ -87,24 +87,6 @@ func Body(cfg *config.Config, body string, lookup Lookup) Result {
 	return Result{Commands: c.out}
 }
 
-// SingleGate is the body's one gate when, apart from cd and exports, it is
-// exactly one gate command.
-func (r Result) SingleGate() (Command, bool) {
-	var gate Command
-	n := 0
-	for _, cmd := range r.Commands {
-		switch cmd.Kind {
-		case Cd, Export:
-		case Gate:
-			gate = cmd
-			n++
-		default:
-			return Command{}, false
-		}
-	}
-	return gate, n == 1
-}
-
 type classifier struct {
 	cfg    *config.Config
 	lookup Lookup

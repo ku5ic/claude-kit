@@ -29,8 +29,6 @@ var layers = map[string]int{
 	"internal/resolve":    3,
 	"internal/classify":   4,
 	"internal/gapfill":    4,
-	"internal/tools":      4,
-	"internal/checks":     5,
 	"internal/enforce":    5,
 	"internal/run":        6,
 	"internal/bashguard":  7,

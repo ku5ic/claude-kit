@@ -30,11 +30,16 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/sources"
-	"github.com/ku5ic/claude-kit/go/internal/tools"
+)
+
+// JSExtensions and TSExtensions are each language's file extensions.
+var (
+	JSExtensions = []string{"js", "jsx", "mjs", "cjs"}
+	TSExtensions = []string{"ts", "tsx", "mts", "cts"}
 )
 
 var (
-	jsExt   = slices.Concat(tools.JSExtensions, tools.TSExtensions)
+	jsExt   = slices.Concat(JSExtensions, TSExtensions)
 	jsFiles = globs(slices.Concat(jsExt, []string{"vue", "svelte", "astro"}))
 )
 

@@ -27,8 +27,8 @@ Every behavior the kit applies everywhere has exactly one owner, listed below. B
 | Test design                                                                                                         | `skills/test-patterns`                                            |
 | Red-green-refactor cycle                                                                                            | `skills/engineering-fundamentals/reference/red-green-refactor.md` |
 | Stack detection, guards, checks, formatters, tools                                                                  | `kit.yml`                                                         |
-| Where a tool's binary comes from, and when PATH is allowed                                                          | `kit.yml` `tool_resolution`, `tools.Resolve`                      |
-| Which commands count as a quality gate, and how task bodies are read                                                | `kit.yml` `checks` `tools`; `config/grammar.go`, `classify`       |
+| Where a tool's binary comes from, and when PATH is allowed                                                          | `go/internal/resolve`                                             |
+| Which commands count as a quality gate, and how task bodies are read                                                | `go/internal/gapfill` verdicts; `go/internal/classify`            |
 | Personal register and typography                                                                                    | the user's own `~/.claude/rules/voice.md`, never the kit          |
 
 Skills and agents carry procedure and stack knowledge only. When one needs a rule above, it cites `rules/<file>.md` instead of restating it.

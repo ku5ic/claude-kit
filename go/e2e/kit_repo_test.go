@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ku5ic/claude-kit/go/internal/blast"
 	"github.com/ku5ic/claude-kit/go/internal/config"
-	"github.com/ku5ic/claude-kit/go/internal/tools"
 )
 
 // TestKitRepo checks the kit's own files agree with each other: what kit.yml
@@ -104,7 +104,7 @@ func TestKitRepo(t *testing.T) {
 			t.Fatal(err)
 		}
 		// A list holding a language's base extension holds all of its.
-		langs := map[string][]string{"js": tools.JSExtensions, "ts": tools.TSExtensions}
+		langs := map[string][]string{"js": blast.JSExtensions, "ts": blast.TSExtensions}
 		covers := func(what string, exts []string) {
 			for base, set := range langs {
 				if !slices.Contains(exts, base) {

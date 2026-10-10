@@ -207,19 +207,3 @@ func TestBodyDetails(t *testing.T) {
 		t.Errorf("find gate: words %q at %d", find.Words, find.ToolAt)
 	}
 }
-
-func TestSingleGate(t *testing.T) {
-	cfg := testutil.KitConfig(t)
-	for body, want := range map[string]string{
-		"eslint .":                       "lint",
-		"cd web && tsc --noEmit":         "typecheck",
-		"eslint . && prettier --check .": "",
-		"pnpm build && vitest run":       "",
-		"npm run lint":                   "",
-	} {
-		gate, ok := Body(cfg, body, scripts).SingleGate()
-		if got := map[bool]string{true: gate.Slot}[ok]; got != want {
-			t.Errorf("%q: single gate %q, want %q", body, got, want)
-		}
-	}
-}
