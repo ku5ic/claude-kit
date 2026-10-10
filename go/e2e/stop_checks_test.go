@@ -847,15 +847,13 @@ func TestStopChecks(t *testing.T) {
 		t.Parallel()
 		e := stopChecksSetup(t)
 		e.k.KitYML(stopChecksKitYML + "  - name: slowlint\n    ext: [ts]\n    signal_files: [.fakelintrc]\n    bin: slowlint\n    cmd: \"{bin} {files}\"\n")
-		for _, name := range []string{"fakelint", "slowlint"} {
-			e.bin(name, "sleep 2\n")
+		// A rendezvous, not a stopwatch: each check passes only once the
+		// other has started, which a serial run never lets happen.
+		mark := func(name string) string { return filepath.Join(e.tmp, name+".started") }
+		for name, other := range map[string]string{"fakelint": "slowlint", "slowlint": "fakelint"} {
+			e.bin(name, fmt.Sprintf("touch %q\nfor _ in $(seq 100); do [ -e %q ] && exit 0; sleep 0.1; done\nexit 1\n", mark(name), mark(other)))
 		}
 		e.turn("Edit", e.path("a.ts"))
-		start := time.Now()
-		r := e.stop(false)
-		r.Has(t, "PASS fakelint (1 file)", "PASS slowlint (1 file)")
-		if took := time.Since(start); took > 3500*time.Millisecond {
-			t.Errorf("two 2 s checks took %s", took)
-		}
+		e.stop(false).Has(t, "PASS fakelint (1 file)", "PASS slowlint (1 file)")
 	})
 }
