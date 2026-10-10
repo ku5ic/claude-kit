@@ -97,7 +97,7 @@ func Rel(root, path string) string {
 
 // Within reports whether path is dir or below it. Both must be clean.
 func Within(dir, path string) bool {
-	return path == dir || strings.HasPrefix(path, dir+"/")
+	return path == dir || strings.HasPrefix(path, strings.TrimSuffix(dir, "/")+"/")
 }
 
 // Abs is path, cleaned, made absolute against dir when it's relative.

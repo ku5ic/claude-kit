@@ -56,3 +56,21 @@ func TestWritesCreateTheDirectory(t *testing.T) {
 		t.Errorf("mode %v, %v; want 0600", info.Mode(), err)
 	}
 }
+
+func TestWithin(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct {
+		dir, path string
+		want      bool
+	}{
+		{"/r/app", "/r/app", true},
+		{"/r/app", "/r/app/web", true},
+		{"/r/app", "/r/app2", false},
+		{"/", "/web", true},
+		{"/", "/", true},
+	} {
+		if got := Within(c.dir, c.path); got != c.want {
+			t.Errorf("Within(%q, %q) = %v, want %v", c.dir, c.path, got, c.want)
+		}
+	}
+}
