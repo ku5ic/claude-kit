@@ -25,7 +25,7 @@ func TestCommitting(t *testing.T) {
 		// mvdan can't parse the unterminated heredoc: the raw text decides.
 		"git commit -m \"$(cat <<EOF\nfeat: x\n)\"": true,
 	} {
-		if got := commitCall(cmd).commits(cmd); got != want {
+		if got := commitCall(cmd, "", "/").commits(cmd); got != want {
 			t.Errorf("committing(%q) = %v, want %v", cmd, got, want)
 		}
 	}
@@ -45,8 +45,8 @@ func TestMessageIsWhatTheCommitMsgHookWouldRead(t *testing.T) {
 		`git commit -m "$MSG"`:                                     "",
 		`git commit --amend --no-edit`:                             "",
 	} {
-		c := commitCall(cmd)
-		if got, _ := message(cmd, c, filepath.Join(dir, c.dir)); got != want {
+		c := commitCall(cmd, "", dir)
+		if got, _ := message(cmd, c, c.repo); got != want {
 			t.Errorf("message(%q) = %q, want %q", cmd, got, want)
 		}
 	}
@@ -84,6 +84,11 @@ func TestTheCommitMsgCheckIsTheRepoGitDashCNames(t *testing.T) {
 	plain := gitRepo(t, filepath.Join(k.home, "plain"), "main")
 	k.commit(plain, `git -C ../repo commit -m "updated stuff"`).Want(t, 2)
 	k.commit(repo, `git -C ../plain commit -m "updated stuff"`).Want(t, 0)
+	// A cd earlier in the line moves the repo too; one inside a pipeline doesn't.
+	k.commit(plain, `cd ../repo && git commit -m "updated stuff"`).Want(t, 2)
+	k.commit(repo, `cd ../plain; git commit -m "updated stuff"`).Want(t, 0)
+	k.commit(plain, `cd ../repo | true && git commit -m "updated stuff"`).Want(t, 0)
+	k.commit(plain, `cd .. && git -C repo commit -m "updated stuff"`).Want(t, 2)
 }
 
 // prose is n consecutive prose lines.
@@ -242,13 +247,13 @@ func TestGuardCommitScansTheStagedDiff(t *testing.T) {
 	})
 
 	// No $ in the name: the stub's calls path is under t.TempDir, in a shell string.
-	t.Run("git -C naming home as a variable is scanned at home, not the cwd", func(t *testing.T) {
-		for _, dir := range []string{"$HOME", "${HOME}/"} {
+	t.Run("a commit that git -C or cd points at home is scanned at home, not the cwd", func(t *testing.T) {
+		for _, cmd := range []string{"git -C $HOME commit -m test", "git -C ${HOME}/ commit -m test", "cd && git commit -m test", "cd $HOME; git commit -m test"} {
 			calls := gitleaksStub(t, 0)
 			k := newSandbox(t)
-			k.commit(t.TempDir(), "git -C "+dir+" commit -m test").Want(t, 0)
+			k.commit(t.TempDir(), cmd).Want(t, 0)
 			if runs := strings.Join(testutil.Calls(t, calls), "\n"); !strings.Contains(runs, k.home) {
-				t.Errorf("%s: gitleaks runs %q lack %q", dir, runs, k.home)
+				t.Errorf("%s: gitleaks runs %q lack %q", cmd, runs, k.home)
 			}
 		}
 	})

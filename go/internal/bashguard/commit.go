@@ -1,6 +1,7 @@
 package bashguard
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"os"
@@ -12,7 +13,6 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/enforce"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
-	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/md"
 	"github.com/ku5ic/claude-kit/go/internal/proc"
@@ -40,17 +40,13 @@ func CheckCommit(h *hook.Hook) error {
 		return h.Payload.Err
 	}
 	cmd := h.Payload.String("tool_input.command")
-	c := commitCall(cmd)
+	c := commitCall(cmd, h.Home, h.Payload.Cwd())
 	if !c.commits(cmd) {
 		return nil
 	}
-	// The repo it commits to: its git -C directory, else the cwd. An
-	// expansion other than $HOME can't be resolved here; most name the cwd's
-	// repo ("$PWD", "$(git rev-parse --show-toplevel)").
-	repo := h.Payload.Cwd()
-	if dir := guard.ExpandHome(h.Home, c.dir); !strings.ContainsAny(dir, "$`") {
-		repo = resolveDir(h.Home, repo, dir)
-	}
+	// An expansion other than $HOME can't be resolved here; most name the
+	// cwd's repo ("$PWD", "$(git rev-parse --show-toplevel)").
+	repo := cmp.Or(c.repo, h.Payload.Cwd())
 
 	// Line by line, as grep: the trailer sits on a line of its own. The
 	// whole command, since a message can come from anywhere in it (a file a
@@ -96,12 +92,14 @@ func CheckCommit(h *hook.Hook) error {
 	return nil
 }
 
-// commit is the args and -C directory of a command's first parsed git
-// commit call; found is false when none commits, unparsed true when part of
-// the command didn't parse.
+// commit is the args and repo of a command's first parsed git commit call;
+// found is false when none commits, unparsed true when part of the command
+// didn't parse.
 type commit struct {
-	args            []string
-	dir             string
+	args []string
+	// repo is the directory it commits in: its git -C directory, against
+	// where the cds before it moved, "" when an expansion names it.
+	repo            string
 	found, unparsed bool
 }
 
@@ -113,12 +111,22 @@ func (c commit) commits(cmd string) bool {
 	return c.found || c.unparsed && commitLine.MatchString(cmd)
 }
 
-func commitCall(cmd string) commit {
+// commitCall parses cmd, run from cwd, for its first git commit call.
+func commitCall(cmd, home, cwd string) commit {
 	segs, unparsed := parseAll(cmd)
+	d := dirs{home: home, cwd: cwd}
 	for _, seg := range segs {
 		for _, call := range seg.Calls {
 			i := lead(call.Words)
-			if i >= len(call.Words) || baseName(call.Words[i].Value) != "git" {
+			if i >= len(call.Words) {
+				continue
+			}
+			name := baseName(call.Words[i].Value)
+			// In a pipeline, cd runs in a subshell and moves nothing.
+			if name == "cd" && len(seg.Calls) == 1 {
+				d.cd(call.Words[i+1:])
+			}
+			if name != "git" {
 				continue
 			}
 			var words []string
@@ -126,7 +134,11 @@ func commitCall(cmd string) commit {
 				words = append(words, w.Value)
 			}
 			if sub, args, dir := gitSubcommand(words); sub == "commit" {
-				return commit{args: args, dir: dir, found: true, unparsed: unparsed}
+				repo := resolveDir(home, d.cwd, dir)
+				if strings.ContainsAny(repo, "$`") {
+					repo = ""
+				}
+				return commit{args: args, repo: repo, found: true, unparsed: unparsed}
 			}
 		}
 	}

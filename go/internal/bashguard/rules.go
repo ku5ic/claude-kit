@@ -181,24 +181,9 @@ func (c *command) check() error {
 // cd tracks the directory a later command runs in, so it checks the right
 // repo; a cd inside a pipeline runs in a subshell and moves nothing.
 func (c *command) cd() {
-	if !c.alone {
-		return
+	if c.alone {
+		c.st.cd(c.args)
 	}
-	prev := c.st.cwd
-	switch {
-	case len(c.args) == 0:
-		c.st.cwd = c.st.home
-	case c.args[0].Value == "-":
-		if c.st.prev == "" {
-			return
-		}
-		c.st.cwd = c.st.prev
-	case strings.HasPrefix(c.args[0].Value, "-"):
-		return
-	default:
-		c.st.cwd = resolveDir(c.st.home, c.st.cwd, c.args[0].Value)
-	}
-	c.st.prev = prev
 }
 
 // interpreterC blocks sh -c and its kin: the command string never surfaces

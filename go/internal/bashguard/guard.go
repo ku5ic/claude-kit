@@ -22,12 +22,35 @@ const overlayAsk = "this writes the claude-kit overlay, which can switch the kit
 // state is one command's evaluation: the first ask reason wins, and the
 // directory tracks cd segments so a later push or install checks the right
 // repo.
+// dirs is where a command line's next command runs: cwd, which each cd
+// moves, and prev, the cwd before the last cd, for cd -.
+type dirs struct {
+	home, cwd, prev string
+}
+
+// cd moves d as cd with args would.
+func (d *dirs) cd(args []Word) {
+	prev := d.cwd
+	switch {
+	case len(args) == 0:
+		d.cwd = d.home
+	case args[0].Value == "-":
+		if d.prev == "" {
+			return
+		}
+		d.cwd = d.prev
+	case strings.HasPrefix(args[0].Value, "-"):
+		return
+	default:
+		d.cwd = resolveDir(d.home, d.cwd, args[0].Value)
+	}
+	d.prev = prev
+}
+
 type state struct {
+	dirs
 	h       *hook.Hook
 	cfg     *config.Config
-	home    string
-	cwd     string
-	prev    string // the cwd before the last cd, for cd -
 	pending string
 	// installs is global_installs compiled, once per command; ok is false
 	// when a pattern doesn't compile.
@@ -76,7 +99,7 @@ func Check(h *hook.Hook) error {
 	if err := wholeString(h, cfg, cmd, norm, home); err != nil {
 		return err
 	}
-	st := &state{h: h, cfg: cfg, home: home, cwd: resolveDir(home, "/", h.Payload.Cwd())}
+	st := &state{dirs: dirs{home: home, cwd: resolveDir(home, "/", h.Payload.Cwd())}, h: h, cfg: cfg}
 	st.installs = sync.OnceValues(st.compileInstalls)
 	// The raw command, not norm: <<- strips tabs only, and norm would turn a
 	// tab-indented terminator into spaces that no longer close the heredoc.
