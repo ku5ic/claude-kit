@@ -1,12 +1,15 @@
 package guard
 
 import (
+	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 )
 
 func TestGlobBashSemantics(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		pattern, s string
 		want       bool
@@ -34,8 +37,17 @@ func TestGlobBashSemantics(t *testing.T) {
 	}
 }
 
+func TestGlobConcurrent(t *testing.T) {
+	t.Parallel()
+	var wg sync.WaitGroup
+	for i := range 8 {
+		wg.Go(func() { Glob(fmt.Sprintf("*.%d", i), "a.0") })
+	}
+	wg.Wait()
+}
+
 func TestIsSensitive(t *testing.T) {
-	t.Setenv("HOME", "/h")
+	t.Parallel()
 	cfg := &config.Config{SensitivePaths: []string{"~/.ssh/", "~/.netrc", ".env", ".env.*", "id_*"}}
 	cases := map[string]bool{
 		"/h/.ssh/id_rsa":          true,
@@ -51,20 +63,20 @@ func TestIsSensitive(t *testing.T) {
 		"/other/.ssh/known_hosts": false,
 	}
 	for path, want := range cases {
-		if got := IsSensitive(cfg, path); got != want {
+		if got := IsSensitive(cfg, "/h", path); got != want {
 			t.Errorf("IsSensitive(%q) = %v, want %v", path, got, want)
 		}
 	}
 }
 
 func TestIsRCFileAndLockfile(t *testing.T) {
-	t.Setenv("HOME", "/h")
+	t.Parallel()
 	cfg := &config.Config{
 		RCFiles:         []string{"~/.zshrc", ".bashrc"},
 		PackageManagers: []config.PackageManager{{Lockfile: "pnpm-lock.yaml"}, {Lockfile: "requirements.txt", HandEdited: true}},
 		ExtraLockfiles:  []string{"Gemfile.lock"},
 	}
-	if !IsRCFile(cfg, "/h/.zshrc") || !IsRCFile(cfg, "~/.bashrc") || IsRCFile(cfg, "/p/.zshrc") {
+	if !IsRCFile(cfg, "/h", "/h/.zshrc") || !IsRCFile(cfg, "/h", "~/.bashrc") || IsRCFile(cfg, "/h", "/p/.zshrc") {
 		t.Error("IsRCFile")
 	}
 	if !IsGuardedLockfile(cfg, "/p/pnpm-lock.yaml") || !IsGuardedLockfile(cfg, "Gemfile.lock") || IsGuardedLockfile(cfg, "/p/requirements.txt") {

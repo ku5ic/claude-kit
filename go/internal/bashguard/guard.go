@@ -2,7 +2,6 @@ package bashguard
 
 import (
 	"cmp"
-	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -54,7 +53,7 @@ func Check(h *hook.Hook) error {
 	}
 	h.SetContext("Command: " + cmd)
 	cfg := cmp.Or(h.Config(), &config.Config{})
-	home := os.Getenv("HOME")
+	home := h.Home
 	norm := normalize(cmd)
 	if err := wholeString(h, cfg, cmd, norm, home); err != nil {
 		return err
@@ -306,7 +305,7 @@ func (st *state) redirects(call Call) error {
 		target := r.Target.Value
 		// The quote-removed target: the whole-string regex misses >> "$HOME/.zshrc".
 		// '$HOME/.zshrc' is a literal name in cwd, not the rc file.
-		if !strings.HasPrefix(r.Target.Raw, "'") && guard.IsRCFile(st.cfg, target) {
+		if !strings.HasPrefix(r.Target.Raw, "'") && guard.IsRCFile(st.cfg, st.home, target) {
 			if err := st.h.Block("direct write to a shell rc file. Use the dotfiles repo.", "rc-redirect"); err != nil {
 				return err
 			}

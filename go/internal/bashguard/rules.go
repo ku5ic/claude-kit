@@ -32,7 +32,7 @@ func shortCluster(a, letters string) bool {
 // none is, or when sensitive-read is disabled, so the caller carries on.
 func (c *command) readsSensitive(paths []string) error {
 	for _, p := range paths {
-		if guard.IsSensitive(c.st.cfg, p) {
+		if guard.IsSensitive(c.st.cfg, c.st.home, p) {
 			return c.block("reading a sensitive file is not permitted", "sensitive-read")
 		}
 	}
@@ -234,7 +234,7 @@ func (c *command) inPlaceEdit() error {
 		return nil
 	}
 	for _, p := range c.operands() {
-		if guard.IsRCFile(c.st.cfg, p) {
+		if guard.IsRCFile(c.st.cfg, c.st.home, p) {
 			if err := c.block("in-place edit of a shell rc file. Use the dotfiles repo.", "rc-inplace-edit"); err != nil {
 				return err
 			}
@@ -259,7 +259,7 @@ func (c *command) rcWrite() error {
 		}
 	}
 	for _, p := range targets {
-		if guard.IsRCFile(c.st.cfg, p) {
+		if guard.IsRCFile(c.st.cfg, c.st.home, p) {
 			return c.block("direct write to a shell rc file. Use the dotfiles repo.", "rc-redirect")
 		}
 	}

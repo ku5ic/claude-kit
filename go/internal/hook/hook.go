@@ -85,6 +85,7 @@ type Hook struct {
 	Stdout  io.Writer
 	Stderr  io.Writer
 	Now     func() time.Time
+	Home    string // $HOME, read once by the caller so checks never touch the environment
 	// DryRun skips every log write: kit explain evaluates without leaving
 	// a trace in guards.jsonl.
 	DryRun bool

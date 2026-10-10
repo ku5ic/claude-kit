@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/ku5ic/claude-kit/go/internal/bashguard"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
@@ -61,6 +62,7 @@ func cmdHook(e *env, args []string, stdin io.Reader) (status int) {
 		Paths:   e.paths,
 		Stdout:  e.stdout,
 		Stderr:  e.stderr,
+		Home:    os.Getenv("HOME"),
 	}
 
 	if args[0] == "guard-dispatch" {

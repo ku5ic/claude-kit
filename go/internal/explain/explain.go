@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -63,7 +64,7 @@ func Run(paths config.Paths, cfg *config.Config, cwd string, args []string, stdo
 // dryHook is a hook invocation that logs nothing and prints nothing.
 func dryHook(paths config.Paths, cfg *config.Config, name string, payload map[string]any) *hook.Hook {
 	raw, _ := json.Marshal(payload)
-	h := &hook.Hook{Name: name, Payload: hook.ParsePayload(raw), Paths: paths, Stdout: io.Discard, Stderr: io.Discard, DryRun: true}
+	h := &hook.Hook{Name: name, Payload: hook.ParsePayload(raw), Paths: paths, Stdout: io.Discard, Stderr: io.Discard, Home: os.Getenv("HOME"), DryRun: true}
 	h.SetConfig(cfg)
 	return h
 }

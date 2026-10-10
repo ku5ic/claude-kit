@@ -5,10 +5,10 @@ package guard
 
 import (
 	"fmt"
-	"os"
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/project"
@@ -25,18 +25,17 @@ func ExpandHome(home, path string) string {
 }
 
 // IsSensitive is true when path is a credential or key file per
-// sensitive_paths. A "~/" entry is a path under $HOME, a directory when it
+// sensitive_paths. A "~/" entry is a path under home, a directory when it
 // ends in "/"; any other entry is a basename glob. The path may still carry
 // the quotes of a shell word: cat "$HOME/.ssh/id_rsa".
-func IsSensitive(cfg *config.Config, path string) bool {
+func IsSensitive(cfg *config.Config, home, path string) bool {
 	if path != "" && (path[0] == '"' || path[0] == '\'') {
 		path = path[1:]
 	}
 	if path != "" && (path[len(path)-1] == '"' || path[len(path)-1] == '\'') {
 		path = path[:len(path)-1]
 	}
-	path = ExpandHome(os.Getenv("HOME"), path)
-	home := os.Getenv("HOME")
+	path = ExpandHome(home, path)
 	base := path[strings.LastIndex(path, "/")+1:]
 	for _, entry := range cfg.SensitivePaths {
 		if rest, ok := strings.CutPrefix(entry, "~/"); ok {
@@ -55,10 +54,9 @@ func IsSensitive(cfg *config.Config, path string) bool {
 	return false
 }
 
-// IsRCFile is true when path is a shell rc file per rc_files.
-func IsRCFile(cfg *config.Config, path string) bool {
-	path = ExpandHome(os.Getenv("HOME"), path)
-	home := os.Getenv("HOME")
+// IsRCFile is true when path is a shell rc file under home per rc_files.
+func IsRCFile(cfg *config.Config, home, path string) bool {
+	path = ExpandHome(home, path)
 	for _, entry := range cfg.RCFiles {
 		if path == home+"/"+strings.TrimPrefix(entry, "~/") {
 			return true
@@ -102,11 +100,11 @@ func Glob(pattern, s string) bool {
 	return re.MatchString(s)
 }
 
-var globCache = map[string]*regexp.Regexp{}
+var globCache sync.Map // pattern -> *regexp.Regexp
 
 func globRegexp(pattern string) (*regexp.Regexp, error) {
-	if re, ok := globCache[pattern]; ok {
-		return re, nil
+	if re, ok := globCache.Load(pattern); ok {
+		return re.(*regexp.Regexp), nil
 	}
 	var b strings.Builder
 	b.WriteString(`\A(?s:`)
@@ -151,7 +149,7 @@ func globRegexp(pattern string) (*regexp.Regexp, error) {
 	b.WriteString(`)\z`)
 	re, err := regexp.Compile(b.String())
 	if err == nil {
-		globCache[pattern] = re
+		globCache.Store(pattern, re)
 	}
 	return re, err
 }

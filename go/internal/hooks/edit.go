@@ -41,7 +41,7 @@ func GuardEdit(h *hook.Hook) error {
 	cfg := cmp.Or(h.Config(), &config.Config{})
 	tool := h.Payload.String("tool_name")
 
-	if guard.IsSensitive(cfg, path) {
+	if guard.IsSensitive(cfg, h.Home, path) {
 		reason, rule := "writing a credential or key file is not permitted", "sensitive-write"
 		if tool == "Read" {
 			reason, rule = "reading a credential or key file is not permitted", "sensitive-read"
@@ -65,7 +65,7 @@ func GuardEdit(h *hook.Hook) error {
 			return err
 		}
 	}
-	if guard.IsRCFile(cfg, path) {
+	if guard.IsRCFile(cfg, h.Home, path) {
 		if err := h.Block("direct edit to a shell rc file. Use the dotfiles repo.", "rc-edit"); err != nil {
 			return err
 		}
