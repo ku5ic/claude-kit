@@ -36,7 +36,8 @@ func (b *builder) expandAt(e sources.Entry, v gapfill.Verdict, dir string, env [
 	switch {
 	case ok && len(parts) == 1 && parts[0].task != nil:
 		b.reference(parts[0], depth)
-	case ok && len(parts) > 1:
+	// One command after a cd or an export runs where they leave it.
+	case ok && (len(parts) > 1 || parts[0].dir != dir || len(parts[0].env) != len(env)):
 		for _, p := range parts {
 			if p.task != nil {
 				b.reference(p, depth)
@@ -123,11 +124,12 @@ func (b *builder) split(body, dir string, env []string, v gapfill.Verdict, depth
 	return parts, ok && len(parts) > 0
 }
 
-// taskKinds is the kinds task e checks: its verdict's, or, for an aggregate
-// the verdict gives none, the kinds of the parts it runs.
+// taskKinds is the kinds task e checks: its verdict's kind, or, for an
+// aggregate the verdict gives none, the kinds of the parts it runs, the
+// tasks it calls included; its segments' when it can't be split.
 func (b *builder) taskKinds(e sources.Entry, v gapfill.Verdict, depth int) []string {
-	if kinds := kindsOf(v); len(kinds) > 0 || v.Role != "check" || depth > maxDepth {
-		return kinds
+	if v.Kind != "" || v.Role != "check" || depth > maxDepth {
+		return kindsOf(v)
 	}
 	var kinds []string
 	parts, _ := b.split(e.Body.Text, filepath.Join(b.root, e.Dir), nil, v, depth+1)
@@ -137,6 +139,9 @@ func (b *builder) taskKinds(e sources.Entry, v gapfill.Verdict, depth int) []str
 				kinds = append(kinds, k)
 			}
 		}
+	}
+	if len(kinds) == 0 {
+		return kindsOf(v)
 	}
 	return kinds
 }

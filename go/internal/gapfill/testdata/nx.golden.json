@@ -3,20 +3,20 @@
   "structured_output": {
     "entries": [
       {
-        "id": "a973773b0d8767e4",
+        "id": "cbc13bdf382cd56d",
         "role": "build",
         "mutates": false,
         "affected_form": "nx affected -t build --base={base}"
       },
       {
-        "id": "92d70b49bfa694ce",
+        "id": "9e78f260c4e2ea1b",
         "role": "check",
         "kind": "lint",
         "mutates": false,
         "affected_form": "nx affected -t lint --base={base}"
       },
       {
-        "id": "7aea358ebf5962ff",
+        "id": "70f6ad83fc23d729",
         "role": "check",
         "kind": "test",
         "mutates": false,
@@ -28,13 +28,15 @@
         "dir": ".",
         "cites": "package-lock.json",
         "manager": "npm",
-        "run_prefix": "npm exec",
+        "run_prefix": "npm exec --",
         "add_verbs": [
-          "npm install"
+          "npm install",
+          "npm i"
         ],
         "dlx": "npx",
         "dir_flags": [
-          "--prefix"
+          "--prefix",
+          "-w"
         ],
         "rivals": [
           "pnpm",

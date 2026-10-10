@@ -6,25 +6,19 @@
     "proposals": [
       {
         "role": "check",
-        "kind": "test",
-        "command": "go test ./...",
-        "dir": ".",
-        "evidence": "go.mod",
-        "mutates": false,
-        "globs": [
-          "*.go"
-        ]
-      },
-      {
-        "role": "check",
         "kind": "lint",
         "command": "go vet ./...",
         "dir": ".",
         "evidence": "go.mod",
-        "mutates": false,
-        "globs": [
-          "*.go"
-        ]
+        "mutates": false
+      },
+      {
+        "role": "check",
+        "kind": "test",
+        "command": "go test ./...",
+        "dir": ".",
+        "evidence": "go.mod",
+        "mutates": false
       },
       {
         "role": "check",
@@ -32,10 +26,7 @@
         "command": "test -z \"$(gofmt -l .)\"",
         "dir": ".",
         "evidence": "go.mod",
-        "mutates": false,
-        "globs": [
-          "*.go"
-        ]
+        "mutates": false
       },
       {
         "role": "fixer",

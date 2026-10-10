@@ -86,8 +86,10 @@ func Build(cfg *config.Config, o Options) Plan {
 	b.unclassified(func(e sources.Entry) bool { return !gitHook(e.Source) })
 	b.settle(o.CacheDir)
 	p := Plan{Root: o.Root, Unclassified: b.skipped}
+	// A fan-out gate belongs to each member it runs across.
+	member := func(sub string) bool { return b.members[filepath.Join(o.Root, sub)] }
 	for _, g := range b.gates {
-		if len(o.Only) == 0 || slices.Contains(o.Only, b.subOf(g.Dir, subs)) {
+		if len(o.Only) == 0 || slices.Contains(o.Only, b.subOf(g.Dir, subs)) || g.FanOut && slices.ContainsFunc(o.Only, member) {
 			p.Gates = append(p.Gates, g)
 		}
 	}
@@ -139,15 +141,19 @@ type builder struct {
 	resolver *resolve.Resolver
 	gates    []Gate
 	planned  map[string]bool // gates by dir and body
+	members  map[string]bool // the workspace's member dirs, which a fan-out gate covers
 	skipped  int
 }
 
 func newBuilder(cfg *config.Config, root string, entries []sources.Entry, facts gapfill.Result) *builder {
 	nocat := *cfg
 	nocat.Checks = nil
-	b := &builder{cfg: cfg, nocat: &nocat, root: root, entries: entries, facts: facts, tasks: map[taskKey]sources.Entry{}, planned: map[string]bool{}}
+	b := &builder{cfg: cfg, nocat: &nocat, root: root, entries: entries, facts: facts, tasks: map[taskKey]sources.Entry{}, planned: map[string]bool{}, members: map[string]bool{}}
+	for _, member := range project.Workspace(root) {
+		b.members[filepath.Join(root, member)] = true
+	}
 	for _, e := range entries {
-		b.tasks[taskKey{e.Source, filepath.Join(root, e.Dir), e.Name}] = e
+		b.tasks[b.key(e)] = e
 	}
 	var managers []string
 	for _, m := range facts.Managers {
@@ -158,6 +164,11 @@ func newBuilder(cfg *config.Config, root string, entries []sources.Entry, facts 
 	}
 	b.resolver = resolve.New(root, managers)
 	return b
+}
+
+// key is task e's place in b.tasks.
+func (b *builder) key(e sources.Entry) taskKey {
+	return taskKey{e.Source, filepath.Join(b.root, e.Dir), e.Name}
 }
 
 // verdict is e's verified verdict, or why it has none.
@@ -179,11 +190,11 @@ func (b *builder) add(g Gate) {
 	b.gates = append(b.gates, g)
 }
 
-// covered is true when a gate already runs kind in dir, or across every
-// subproject.
+// covered is true when a gate already runs kind in dir, or across the
+// workspace dir is a member of.
 func (b *builder) covered(dir, kind string) bool {
 	return slices.ContainsFunc(b.gates, func(g Gate) bool {
-		return slices.Contains(g.Kinds, kind) && (g.Dir == dir || g.FanOut)
+		return slices.Contains(g.Kinds, kind) && (g.Dir == dir || g.FanOut && b.members[dir])
 	})
 }
 
@@ -235,12 +246,14 @@ func (b *builder) graph(sub, kind string) {
 }
 
 // taskRunners plans sub's tasks of kind, each run by its runner: those of
-// that kind alone first, an aggregate only when none is.
+// that kind alone first, each once (one another of them calls runs inside
+// it), an aggregate only when none is.
 func (b *builder) taskRunners(sub, kind string) {
 	dir := filepath.Join(b.root, sub)
-	var aggregates []sources.Entry
+	var tasks, aggregates []sources.Entry
+	called := map[taskKey]bool{}
 	for _, e := range b.entries {
-		tp, isTask := provider(e.Source)
+		_, isTask := provider(e.Source)
 		v, why := b.verdict(e)
 		if !isTask || e.Dir != sub || why != "" {
 			continue
@@ -248,9 +261,22 @@ func (b *builder) taskRunners(sub, kind string) {
 		kinds := b.taskKinds(e, v, 0)
 		switch {
 		case len(kinds) == 1 && kinds[0] == kind:
-			b.add(Gate{Label: label(kinds, e.File+": "+e.Name, sub), Kinds: kinds, Dir: dir, Body: b.runCommand(tp, sub, e.Name), Verdict: v.String(), FileForm: v.FileForm, Globs: v.Globs})
+			tasks = append(tasks, e)
+			parts, _ := b.split(e.Body.Text, dir, nil, v, 0)
+			for _, p := range parts {
+				if p.task != nil {
+					called[b.key(*p.task)] = true
+				}
+			}
 		case slices.Contains(kinds, kind):
 			aggregates = append(aggregates, e)
+		}
+	}
+	for _, e := range tasks {
+		if !called[b.key(e)] {
+			tp, _ := provider(e.Source)
+			v, _ := b.verdict(e)
+			b.add(Gate{Label: label([]string{kind}, e.File+": "+e.Name, sub), Kinds: []string{kind}, Dir: dir, Body: b.runCommand(tp, sub, e.Name), Verdict: v.String(), FileForm: v.FileForm, Globs: v.Globs})
 		}
 	}
 	if !b.covered(dir, kind) {

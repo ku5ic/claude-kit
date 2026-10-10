@@ -26,6 +26,7 @@ type env struct {
 	verdicts                 map[string]map[string]any // by entry name
 	proposals                []map[string]any
 	managers                 []map[string]any
+	only                     []string
 }
 
 // Not parallel: each test sets PATH.
@@ -87,7 +88,7 @@ func (e *env) plan() Plan {
 	}
 	testutil.Put(e.t, e.stubs, "answer.json", string(envelope))
 	e.cfg.Classifier = testutil.Replayer(e.t, filepath.Join(e.stubs, "answer.json"))
-	return Build(e.cfg, Options{Root: e.root, CacheDir: e.cache, Ask: true, Timeout: 10 * time.Second})
+	return Build(e.cfg, Options{Root: e.root, CacheDir: e.cache, Only: e.only, Ask: true, Timeout: 10 * time.Second})
 }
 
 func orEmpty(m []map[string]any) []map[string]any {

@@ -49,10 +49,13 @@ func (e *runChecksEnv) called(name string) bool {
 	return Exists(filepath.Join(e.stubs, name+".calls"))
 }
 
+// run is run-checks on the old catalog engine: the internal/enforce plan
+// tables cover these suites on the enforcement plan, and they go with the
+// catalog engine.
 func (e *runChecksEnv) run(args ...string) Result {
 	e.t.Helper()
 	e.k.Git(e.project, "add", "-A")
-	return e.k.Run("", append([]string{"run-checks"}, args...)...)
+	return e.k.Run("", append([]string{"run-checks", "--engine=catalog"}, args...)...)
 }
 
 func (e *runChecksEnv) callsEndWith(name, suffix string) {
@@ -702,7 +705,6 @@ func TestRunChecks(t *testing.T) {
 		e := runChecksSetup(t)
 		e.write("go.mod", "module example.com/fixture\n\ngo 1.22\n")
 		Mkdir(t, filepath.Join(e.project, "sub"))
-		e.stub("go", 0)
 		e.k.Git(e.project, "add", "-A")
 		bin := filepath.Join(Tree(t), "bin")
 		// ../ up to /, then the launcher's absolute path: relative from sub/.
@@ -710,6 +712,6 @@ func TestRunChecks(t *testing.T) {
 		up := strings.Repeat("../", strings.Count(sub, "/"))
 		launcher := filepath.Join(bin, "kit")
 		e.k.Dir = sub
-		e.k.Shell("", up+strings.TrimPrefix(launcher, "/")+" run-checks").Has(t, "PASS go: vet")
+		e.k.Shell("", up+strings.TrimPrefix(launcher, "/")+" run-checks").Has(t, "\nchecks: ")
 	})
 }

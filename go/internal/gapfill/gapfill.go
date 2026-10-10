@@ -29,7 +29,7 @@ import (
 const Guard = "KIT_CLASSIFIER"
 
 // promptVersion is part of every cache key: a changed prompt asks again.
-const promptVersion = "7"
+const promptVersion = "8"
 
 // unseenDays is how long an answer for an entry no run has seen is kept.
 const unseenDays = 30

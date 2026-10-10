@@ -3,19 +3,18 @@
   "structured_output": {
     "entries": [
       {
-        "id": "956a73f40854e080",
+        "id": "9fffd53d9ba79a86",
         "role": "fixer",
-        "kind": "lint",
         "mutates": true,
+        "kind": "lint",
         "file_form": "ruff --fix {files}",
         "globs": [
           "**/*.py"
         ]
       },
       {
-        "id": "e5d996d124a5e26f",
+        "id": "e745eea606a832d8",
         "role": "fixer",
-        "kind": "format-check",
         "mutates": true,
         "file_form": "ruff-format {files}",
         "globs": [
@@ -23,7 +22,7 @@
         ]
       },
       {
-        "id": "5cfb4656ca372a02",
+        "id": "a479a9bbfe3285aa",
         "role": "check",
         "kind": "typecheck",
         "mutates": false,
@@ -33,7 +32,7 @@
         ]
       },
       {
-        "id": "5f0575bba54ddfdc",
+        "id": "8a74ca99dcc5ce11",
         "role": "check",
         "kind": "lint",
         "mutates": false,
@@ -44,9 +43,8 @@
         ]
       },
       {
-        "id": "684cde181dedb73b",
+        "id": "2ad2a72f89c688dd",
         "role": "fixer",
-        "kind": "format-check",
         "mutates": true,
         "file_form": "end-of-file-fixer {files}",
         "globs": [
@@ -59,7 +57,7 @@
       {
         "role": "check",
         "kind": "lint",
-        "command": "ruff check .",
+        "command": "ruff check",
         "dir": ".",
         "evidence": "pyproject.toml",
         "mutates": false
@@ -67,7 +65,7 @@
       {
         "role": "check",
         "kind": "format-check",
-        "command": "ruff format --check .",
+        "command": "ruff format --check",
         "dir": ".",
         "evidence": "pyproject.toml",
         "mutates": false
@@ -75,7 +73,7 @@
       {
         "role": "fixer",
         "kind": "format-check",
-        "command": "ruff format .",
+        "command": "ruff format {files}",
         "dir": ".",
         "evidence": "pyproject.toml",
         "file_form": "ruff format {files}",

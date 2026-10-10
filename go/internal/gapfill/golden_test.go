@@ -103,6 +103,11 @@ func TestGoldenVerdicts(t *testing.T) {
 			if v := g.verdict("package-scripts", "lint"); v.Role != "check" || v.Kind != "lint" {
 				g.t.Errorf("lint: %+v", v)
 			}
+			// The command beside the reference gets its kind as a segment.
+			v := g.verdict("package-scripts", "ci")
+			if !slices.ContainsFunc(v.Segments, func(s Segment) bool { return s.Text == "prettier --check ." && s.Kind == "format-check" }) {
+				g.t.Errorf("ci: %+v", v)
+			}
 		},
 		"makefile": func(g golden) {
 			if v := g.verdict("make", "lint"); v.Role != "check" || v.Kind != "lint" {

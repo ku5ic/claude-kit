@@ -149,7 +149,7 @@ var configCommands = map[string]func(*env, *config.Config, []string) int{
 func cmdRunChecks(e *env, cfg *config.Config, args []string) int {
 	a, err := parseRunChecksArgs(args)
 	if err != nil {
-		fmt.Fprintf(e.stderr, "kit run-checks: %v\nusage: kit run-checks [--plan] [--engine=enforce] [--only sub...]\n", err)
+		fmt.Fprintf(e.stderr, "kit run-checks: %v\nusage: kit run-checks [--plan] [--only sub...]\n", err)
 		return 2
 	}
 	root := cmp.Or(git.Toplevel(e.cwd), e.cwd)
@@ -160,7 +160,7 @@ func cmdRunChecks(e *env, cfg *config.Config, args []string) int {
 			return 2
 		}
 	}
-	if a.engine == "enforce" {
+	if !a.catalog {
 		return runGates(e, cfg, root, a)
 	}
 	if a.plan {
@@ -186,15 +186,15 @@ func cmdScratchRotate(e *env, args []string) int {
 	return rotate.Run(e.paths, days, dryRun, e.stdout, e.stderr)
 }
 
-// runChecksArgs are run-checks' arguments. engine is "" for the catalog
-// engine, "enforce" for the enforcement plan.
+// runChecksArgs are run-checks' arguments. catalog runs the old catalog
+// engine, which the e2e suites still pin until it is deleted.
 type runChecksArgs struct {
-	plan   bool
-	only   []string
-	engine string
+	plan    bool
+	only    []string
+	catalog bool
 }
 
-// parseRunChecksArgs reads [--plan] [--engine=enforce] [--only sub...].
+// parseRunChecksArgs reads [--plan] [--engine=catalog] [--only sub...].
 // Anything else is an error: a typo'd --plan must never fall through to a
 // real run. A repeated --only adds to the list; a subproject written as a
 // path (./api, api/) is cleaned to its name.
@@ -204,8 +204,8 @@ func parseRunChecksArgs(args []string) (runChecksArgs, error) {
 		switch arg {
 		case "--plan":
 			a.plan = true
-		case "--engine=enforce":
-			a.engine = "enforce"
+		case "--engine=catalog":
+			a.catalog = true
 		case "--only":
 			for _, sub := range args[i+1:] {
 				switch {

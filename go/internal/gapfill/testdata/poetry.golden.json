@@ -14,8 +14,8 @@
         "dlx": "",
         "dir_flags": [],
         "rivals": [
-          "uv",
-          "pipenv"
+          "pdm",
+          "uv"
         ]
       }
     ],
@@ -26,10 +26,10 @@
         "dir": ".",
         "evidence": "pyproject.toml",
         "kind": "lint",
+        "mutates": false,
         "globs": [
           "**/*.py"
-        ],
-        "mutates": false
+        ]
       },
       {
         "role": "check",
@@ -37,10 +37,10 @@
         "dir": ".",
         "evidence": "pyproject.toml",
         "kind": "typecheck",
+        "mutates": false,
         "globs": [
           "**/*.py"
-        ],
-        "mutates": false
+        ]
       },
       {
         "role": "check",
@@ -48,9 +48,6 @@
         "dir": ".",
         "evidence": "pyproject.toml",
         "kind": "test",
-        "globs": [
-          "**/*.py"
-        ],
         "mutates": false
       },
       {
@@ -59,22 +56,21 @@
         "dir": ".",
         "evidence": "pyproject.toml",
         "kind": "format-check",
+        "mutates": false,
         "globs": [
           "**/*.py"
-        ],
-        "mutates": false
+        ]
       },
       {
         "role": "fixer",
-        "command": "poetry run ruff format .",
+        "command": "poetry run ruff format {files}",
         "dir": ".",
         "evidence": "pyproject.toml",
-        "kind": "format-check",
+        "mutates": true,
+        "file_form": "poetry run ruff format {files}",
         "globs": [
           "**/*.py"
-        ],
-        "mutates": true,
-        "file_form": "poetry run ruff format {files}"
+        ]
       }
     ]
   },

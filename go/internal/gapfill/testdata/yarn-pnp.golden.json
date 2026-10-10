@@ -3,23 +3,35 @@
   "structured_output": {
     "entries": [
       {
-        "id": "a55390ba96287b21",
+        "id": "441f593472c840ca",
         "role": "check",
         "kind": "lint",
         "mutates": false,
         "file_form": "eslint {files}",
         "globs": [
-          "**/*.{js,jsx,ts,tsx,mjs,cjs}"
+          "**/*.{js,jsx,mjs,cjs,ts,tsx}"
         ]
       },
       {
-        "id": "05af82f9708f008b",
+        "id": "bc6d9acdd7cfcce4",
         "role": "check",
         "kind": "test",
         "mutates": false,
         "file_form": "jest {files}",
         "globs": [
-          "**/*.{test,spec}.{js,jsx,ts,tsx}"
+          "**/*.{test,spec}.{js,jsx,mjs,cjs,ts,tsx}"
+        ]
+      },
+      {
+        "id": "660c54936c3f8994",
+        "role": "check",
+        "mutates": false,
+        "segments": [
+          {
+            "text": "prettier --check .",
+            "role": "check",
+            "kind": "format-check"
+          }
         ]
       }
     ],
@@ -43,50 +55,38 @@
     "proposals": [
       {
         "role": "check",
-        "kind": "lint",
         "command": "yarn eslint . --max-warnings=0",
         "dir": ".",
         "evidence": "package.json",
-        "mutates": false,
-        "file_form": "yarn eslint {files} --max-warnings=0",
-        "globs": [
-          "**/*.{js,jsx,ts,tsx,mjs,cjs}"
-        ]
+        "kind": "lint",
+        "mutates": false
       },
       {
         "role": "check",
-        "kind": "test",
         "command": "yarn jest",
         "dir": ".",
         "evidence": "package.json",
-        "mutates": false,
-        "file_form": "yarn jest {files}",
-        "globs": [
-          "**/*.{test,spec}.{js,jsx,ts,tsx}"
-        ]
+        "kind": "test",
+        "mutates": false
       },
       {
         "role": "check",
-        "kind": "format-check",
         "command": "yarn prettier --check .",
         "dir": ".",
         "evidence": ".prettierrc",
-        "mutates": false,
-        "file_form": "yarn prettier --check {files}",
-        "globs": [
-          "**/*.{js,jsx,ts,tsx,mjs,cjs,json}"
-        ]
+        "kind": "format-check",
+        "mutates": false
       },
       {
         "role": "fixer",
         "command": "yarn prettier --write .",
         "dir": ".",
         "evidence": ".prettierrc",
-        "mutates": true,
         "file_form": "yarn prettier --write {files}",
         "globs": [
-          "**/*.{js,jsx,ts,tsx,mjs,cjs,json}"
-        ]
+          "**/*.{js,jsx,mjs,cjs,ts,tsx,json,md,yml,yaml,css}"
+        ],
+        "mutates": true
       }
     ]
   },

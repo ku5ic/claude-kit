@@ -168,20 +168,7 @@ func Subprojects(cfg *config.Config, root string) []string {
 		}
 	}
 
-	var patterns []string
-	patterns = append(patterns, sources.JSONArray(filepath.Join(root, "package.json"), ".workspaces")...)
-	patterns = append(patterns, sources.JSONArray(filepath.Join(root, "package.json"), ".workspaces.packages")...)
-	patterns = append(patterns, sources.YAMLArray(filepath.Join(root, "pnpm-workspace.yaml"), ".packages")...)
-	patterns = append(patterns, sources.TOMLArray(filepath.Join(root, "Cargo.toml"), ".workspace.members")...)
-	patterns = append(patterns, sources.TOMLArray(filepath.Join(root, "pyproject.toml"), ".tool.uv.workspace.members")...)
-	patterns = append(patterns, sources.RegexLines(filepath.Join(root, "go.work"), goWorkUse)...)
-	for _, pattern := range patterns {
-		// Negated entries only narrow a pnpm glob; nothing to add.
-		if strings.HasPrefix(pattern, "!") {
-			continue
-		}
-		found = append(found, globDirs(root, strings.TrimPrefix(pattern, "./"))...)
-	}
+	found = append(found, Workspace(root)...)
 
 	seen := map[string]bool{}
 	var subs []string
@@ -195,6 +182,27 @@ func Subprojects(cfg *config.Config, root string) []string {
 	}
 	slices.Sort(subs)
 	return append([]string{"."}, subs...)
+}
+
+// Workspace is every member directory, relative to root, a workspace
+// manifest at root names: package.json workspaces, pnpm-workspace.yaml,
+// Cargo, uv, go.work.
+func Workspace(root string) []string {
+	var patterns, out []string
+	patterns = append(patterns, sources.JSONArray(filepath.Join(root, "package.json"), ".workspaces")...)
+	patterns = append(patterns, sources.JSONArray(filepath.Join(root, "package.json"), ".workspaces.packages")...)
+	patterns = append(patterns, sources.YAMLArray(filepath.Join(root, "pnpm-workspace.yaml"), ".packages")...)
+	patterns = append(patterns, sources.TOMLArray(filepath.Join(root, "Cargo.toml"), ".workspace.members")...)
+	patterns = append(patterns, sources.TOMLArray(filepath.Join(root, "pyproject.toml"), ".tool.uv.workspace.members")...)
+	patterns = append(patterns, sources.RegexLines(filepath.Join(root, "go.work"), goWorkUse)...)
+	for _, pattern := range patterns {
+		// Negated entries only narrow a pnpm glob; nothing to add.
+		if strings.HasPrefix(pattern, "!") {
+			continue
+		}
+		out = append(out, globDirs(root, strings.TrimPrefix(pattern, "./"))...)
+	}
+	return out
 }
 
 // globDirs expands pattern relative to root as bash does with globstar and

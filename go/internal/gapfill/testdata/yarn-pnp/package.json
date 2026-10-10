@@ -4,7 +4,8 @@
   "packageManager": "yarn@4.5.0",
   "scripts": {
     "lint": "eslint .",
-    "test": "jest"
+    "test": "jest",
+    "ci": "yarn lint && prettier --check ."
   },
   "devDependencies": {
     "eslint": "^9.12.0",
