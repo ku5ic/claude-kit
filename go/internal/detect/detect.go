@@ -2,16 +2,15 @@
 // the <repo-context> block carries:
 //
 //	root: <root>
-//	<stack>: yes (<extras>) [<package manager>] at <subproject>, ...
-//	versions [<subproject>]: <name> <version> (<label>), ...
-//	node: <version>
+//	<stack>: yes (<extras>) at <subproject>, ...
+//	package-manager [<lockfile dir>]: <manager> (<lockfile>)
 //
-// Stacks, extras, and versions follow kit.yml's document order. Nothing is
-// printed when no subproject holds any stack.
+// Stacks and extras follow kit.yml's document order. Package managers are
+// gap-fill's verified facts, read from its cache: none until a run has
+// answered. Nothing is printed when no subproject holds any stack.
 package detect
 
 import (
-	"cmp"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -20,46 +19,33 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
+	"github.com/ku5ic/claude-kit/go/internal/gapfill"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/sources"
 )
 
 // Report is the full text for root, "" when no stack is found.
-func Report(cfg *config.Config, root string) string {
+func Report(cfg *config.Config, root, cacheDir string) string {
 	subs := project.Subprojects(cfg, root)
 	out := []string{"root: " + root}
-	jsLoc := ""
 	for _, stack := range cfg.StackOrder {
-		if line, first := stackLine(cfg, root, subs, stack); line != "" {
+		if line := stackLine(cfg, root, subs, stack); line != "" {
 			out = append(out, line)
-			if stack == "js" {
-				jsLoc = first
-			}
 		}
 	}
 	if len(out) == 1 {
 		return ""
 	}
-	for _, sub := range subs {
-		if parts := versions(cfg, root, filepath.Join(root, sub)); len(parts) > 0 {
-			out = append(out, "versions"+project.SubLabel(sub)+": "+strings.Join(parts, ", "))
-		}
-	}
-	if jsLoc != "" {
-		if node, ok := nvmrc(filepath.Join(root, jsLoc, ".nvmrc")); ok {
-			out = append(out, "node: "+node)
-		} else if node, ok := nvmrc(filepath.Join(root, ".nvmrc")); ok {
-			out = append(out, "node: "+node)
-		}
+	for _, m := range gapfill.Managers(cfg, root, cacheDir) {
+		out = append(out, "package-manager"+project.SubLabel(filepath.Clean(m.Dir))+": "+m.Manager+" ("+m.Cites+")")
 	}
 	return strings.Join(out, "\n") + "\n"
 }
 
-// stackLine is stack's report line, "<stack>: yes (extras) [pm] at subs",
-// and the first subproject holding it; "" when none does.
-func stackLine(cfg *config.Config, root string, subs []string, stack string) (line, first string) {
+// stackLine is stack's report line, "<stack>: yes (extras) at subs"; ""
+// when no subproject holds it.
+func stackLine(cfg *config.Config, root string, subs []string, stack string) string {
 	var locs, extras []string
-	pm := ""
 	for _, sub := range subs {
 		dir := filepath.Join(root, sub)
 		if !cfg.HasStack(dir, stack) {
@@ -71,38 +57,18 @@ func stackLine(cfg *config.Config, root string, subs []string, stack string) (li
 				extras = append(extras, extra.Name)
 			}
 		}
-		if pm == "" && hasEcosystem(cfg, stack) {
-			if lock, ok := project.NearestLockfile(cfg, dir, stack); ok {
-				pm = lock.Manager
-			}
-		}
 	}
 	if len(locs) == 0 {
-		return "", ""
+		return ""
 	}
-	line = stack + ": yes"
+	line := stack + ": yes"
 	if len(extras) > 0 {
 		line += " (" + strings.Join(extras, ",") + ")"
-	}
-	if stack == "js" {
-		pm = cmp.Or(pm, cfg.DefaultManager("js"))
-	}
-	if pm != "" {
-		line += " [" + pm + "]"
 	}
 	if len(locs) != 1 || locs[0] != "." {
 		line += " at " + strings.Join(locs, ", ")
 	}
-	return line, locs[0]
-}
-
-func hasEcosystem(cfg *config.Config, ecosystem string) bool {
-	for _, pm := range cfg.PackageManagers {
-		if pm.Ecosystem == ecosystem {
-			return true
-		}
-	}
-	return false
+	return line
 }
 
 // matchExtra is true when the extra's own rule or any of its any_of rules
@@ -141,47 +107,4 @@ func grepAny(dir, pattern string, files []string) bool {
 		}
 	}
 	return false
-}
-
-// versions lists "<name> <version> (<label>)" for each kit.yml versions
-// entry whose stack is in dir, from the first source that yields one.
-func versions(cfg *config.Config, root, dir string) []string {
-	var parts []string
-	for _, stack := range cfg.VersionOrder {
-		if !cfg.HasStack(dir, stack) {
-			continue
-		}
-		for _, name := range cfg.Versions[stack] {
-			for _, src := range cfg.VersionSources[stack] {
-				file := strings.ReplaceAll(src.File, "{name}", name)
-				path := filepath.Join(dir, file)
-				if src.Up {
-					path = fsx.FindUp(dir, root, file)
-				}
-				if path == "" || !fsx.IsFile(path) {
-					continue
-				}
-				arg := strings.ReplaceAll(src.Arg, "{name}", name)
-				// Package names ignore case (pip).
-				if src.Extractor == "regex_lines" {
-					arg = "(?i)" + arg
-				}
-				values, err := sources.Run(src.Extractor, path, arg)
-				if err == nil && len(values) > 0 && values[0] != "" {
-					parts = append(parts, name+" "+values[0]+" ("+src.Label+")")
-					break
-				}
-			}
-		}
-	}
-	return parts
-}
-
-// nvmrc is the file's content with every "v" and newline removed.
-func nvmrc(path string) (string, bool) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", false
-	}
-	return strings.NewReplacer("v", "", "\n", "").Replace(string(data)), true
 }

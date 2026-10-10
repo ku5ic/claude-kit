@@ -33,28 +33,24 @@ type Config struct {
 	DisabledChecks          []string      `yaml:"disabled_checks"`
 	DisabledToolchainChecks []string      `yaml:"disabled_toolchain_checks"`
 
-	SubprojectMaxDepth int                 `yaml:"subproject_max_depth"`
-	FileChecks         []FileCheck         `yaml:"file_checks"`
-	DisabledFileChecks []string            `yaml:"disabled_file_checks"`
-	CheckTimeout       int                 `yaml:"check_timeout"`
-	ReplyLimits        ReplyLimits         `yaml:"reply_limits"`
-	SanitizeSkip       []string            `yaml:"sanitize_skip"`
-	SkipDirs           []string            `yaml:"skip_dirs"`
-	ToolResolution     ToolResolution      `yaml:"tool_resolution"`
-	Tools              []string            `yaml:"tools"`
-	Orchestrators      []Orchestrator      `yaml:"orchestrators"`
-	Versions           map[string][]string `yaml:"versions"`
-	VersionSources     map[string][]Source `yaml:"version_sources"`
-	Stacks             map[string]Stack    `yaml:"stacks"`
-	LockfileGlobs      []string            `yaml:"lockfile_globs"`
-	Classifier         []string            `yaml:"classifier"`
-	OnEdit             []EditRule          `yaml:"on_edit"`
+	SubprojectMaxDepth int              `yaml:"subproject_max_depth"`
+	FileChecks         []FileCheck      `yaml:"file_checks"`
+	DisabledFileChecks []string         `yaml:"disabled_file_checks"`
+	CheckTimeout       int              `yaml:"check_timeout"`
+	ReplyLimits        ReplyLimits      `yaml:"reply_limits"`
+	SanitizeSkip       []string         `yaml:"sanitize_skip"`
+	SkipDirs           []string         `yaml:"skip_dirs"`
+	ToolResolution     ToolResolution   `yaml:"tool_resolution"`
+	Tools              []string         `yaml:"tools"`
+	Orchestrators      []Orchestrator   `yaml:"orchestrators"`
+	Stacks             map[string]Stack `yaml:"stacks"`
+	LockfileGlobs      []string         `yaml:"lockfile_globs"`
+	Classifier         []string         `yaml:"classifier"`
+	OnEdit             []EditRule       `yaml:"on_edit"`
 
-	// Document order of the map-keyed sections, which a Go map loses:
-	// detection reports stacks, and versions, in the order kit.yml (then
-	// the overlay) lists them.
-	StackOrder   []string `yaml:"-"`
-	VersionOrder []string `yaml:"-"`
+	// Document order of the stacks, which a Go map loses: detection reports
+	// them in the order kit.yml (then the overlay) lists them.
+	StackOrder []string `yaml:"-"`
 	// Tag is "merged" when an overlay was merged in, else "base". Caches
 	// derived from the config carry it in their file name, so deleting the
 	// overlay can't leave its derived state in use.
@@ -139,8 +135,8 @@ func (c *Config) AnchorSentinels() []string {
 var pyDepFiles = []string{"pyproject.toml", "requirements.txt", "Pipfile"}
 
 // DetectFiles are the files whose change can change detection: every
-// sentinel, every extra's file, grep, and pydep target, and every lockfile, deduped
-// in first-seen order.
+// sentinel, and every extra's file, grep, and pydep target, deduped in
+// first-seen order.
 func (c *Config) DetectFiles() []string {
 	seen := map[string]bool{}
 	var out []string
@@ -169,9 +165,6 @@ func (c *Config) DetectFiles() []string {
 				}
 			}
 		}
-	}
-	for _, pm := range c.PackageManagers {
-		add(pm.Lockfile)
 	}
 	return out
 }
@@ -330,14 +323,6 @@ type Orchestrator struct {
 	Signal    string   `yaml:"signal"`
 	TaskPaths []string `yaml:"task_paths"`
 	Run       string   `yaml:"run"`
-}
-
-type Source struct {
-	File      string `yaml:"file"`
-	Extractor string `yaml:"extractor"`
-	Arg       string `yaml:"arg"`
-	Label     string `yaml:"label"`
-	Up        bool   `yaml:"up"`
 }
 
 type Stack struct {

@@ -130,7 +130,7 @@ Each edited file is formatted with the project's own formatter and config (`kit.
 
 ### Context
 
-- **Session start:** the rules, stack, package manager, key package versions, the check commands, the CLI tools on PATH, and which pattern skills to load.
+- **Session start:** the rules, stack, package managers, the check commands, the CLI tools on PATH, and which pattern skills to load. Gap-fill runs in the background to answer what the project's configs leave open.
 - **Subagents:** the same rules, repo context, and scratch path.
 - **Plans:** in plan mode, Claude is pointed at `investigate`. Once a plan is approved, every prompt holds it to the next unchecked step.
 

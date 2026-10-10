@@ -302,7 +302,7 @@ func cmdScratchDir(e *env, cfg *config.Config, args []string) int {
 
 func cmdDetectStack(e *env, cfg *config.Config, _ []string) int {
 	root, _ := project.Root(cfg, e.cwd)
-	fmt.Fprint(e.stdout, detect.Report(cfg, root))
+	fmt.Fprint(e.stdout, detect.Report(cfg, root, e.paths.CacheDir()))
 	return 0
 }
 

@@ -91,7 +91,7 @@ func gates(cfg *config.Config, root string, only []string) []Gate {
 		p.orchestrate()
 	}
 	subs := p.subprojects()
-	p.ci = p.ciLeaves(false)
+	p.ci = p.ciLeaves()
 	for _, sub := range subs {
 		if inScope(sub) {
 			p.subproject(sub)
@@ -107,27 +107,6 @@ func (p *planner) subprojects() []string {
 		p.subDirs[filepath.Join(p.root, sub)] = true
 	}
 	return subs
-}
-
-// CIGates is the labels of the gates root's CI config runs, without
-// resolving their tools: run-checks runs each one whose tool the project
-// has, unless a gate running the same tool already fills its check.
-func CIGates(cfg *config.Config, root string) []string {
-	if !sources.Has(root) {
-		return nil
-	}
-	p := &planner{cfg: cfg, root: root}
-	subs := p.subprojects()
-	leaves := p.ciLeaves(true)
-	var out []string
-	for _, sub := range subs {
-		for _, l := range leaves[sub] {
-			if l.gate.Skip == "" {
-				out = append(out, l.label)
-			}
-		}
-	}
-	return out
 }
 
 // stackFor is the stack CI gates in dir take: the detected stack (go), not

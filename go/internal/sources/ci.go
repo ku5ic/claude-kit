@@ -3,7 +3,6 @@ package sources
 import (
 	"cmp"
 	"maps"
-	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -49,13 +48,6 @@ func Steps(cfg *config.Config, root string) []Step {
 	}
 	steps = append(steps, gitlabSteps(cfg, root, filepath.Join(root, gitlabCI))...)
 	return steps
-}
-
-// Has is true when root has a CI config Steps reads.
-func Has(root string) bool {
-	workflows, _ := filepath.Glob(filepath.Join(root, ".github/workflows/*.y*ml"))
-	_, err := os.Stat(filepath.Join(root, gitlabCI))
-	return len(workflows) > 0 || err == nil
 }
 
 func readYAML(file string) map[string]any {

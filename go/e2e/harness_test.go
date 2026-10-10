@@ -19,6 +19,13 @@ var (
 	kitRoot string // claude-kit/, the real plugin root
 	// kitBinName is the file bin/kit runs: kit-<plugin.json version>-<os>-<arch>.
 	kitBinName string
+	// fakes is first on every run's PATH: its claude fails, so no run can
+	// reach the real classifier.
+	fakes string
+	// homes holds every sandbox's HOME, removed with the run rather than
+	// with each test: the gap-fill run SessionStart starts in the
+	// background can still be writing to its cache when the test ends.
+	homes string
 )
 
 func TestMain(m *testing.M) {
@@ -32,6 +39,18 @@ func TestMain(m *testing.M) {
 		kitBin = filepath.Join(dir, "kit")
 		if out, err := exec.Command("go", "build", "-o", kitBin, "../cmd/kit").CombinedOutput(); err != nil {
 			fmt.Fprintf(os.Stderr, "build kit: %v\n%s", err, out)
+			return 1
+		}
+		fakes, homes = filepath.Join(dir, "fakes"), filepath.Join(dir, "homes")
+		err = os.MkdirAll(homes, 0o755)
+		if err == nil {
+			err = os.MkdirAll(fakes, 0o755)
+		}
+		if err == nil {
+			err = os.WriteFile(filepath.Join(fakes, "claude"), []byte("#!/bin/sh\nexit 1\n"), 0o755)
+		}
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
 			return 1
 		}
 		root, err := filepath.Abs("../..")
@@ -69,7 +88,11 @@ type Kit struct {
 // New is a sandbox reading the real kit.yml.
 func New(t *testing.T) *Kit {
 	t.Helper()
-	home := Physical(t, t.TempDir())
+	dir, err := os.MkdirTemp(homes, "home")
+	if err != nil {
+		t.Fatal(err)
+	}
+	home := Physical(t, dir)
 	k := &Kit{t: t, Home: home, Claude: filepath.Join(home, ".claude"), Root: kitRoot, Dir: home}
 	Mkdir(t, filepath.Join(k.Claude, "logs"))
 	return k
@@ -170,6 +193,7 @@ func (k *Kit) environ() []string {
 		env = append(env, kv)
 	}
 	env = append(env,
+		"PATH="+basePath(),
 		"HOME="+k.Home,
 		"PWD="+k.Dir, // the kit reads its cwd from PWD, as a shell's cd sets it
 		"CLAUDE_PLUGIN_ROOT="+k.Root,
@@ -181,13 +205,17 @@ func (k *Kit) environ() []string {
 	return append(env, k.Env...)
 }
 
+// basePath is every run's PATH before PrependPath: the fakes, then the
+// test process's own.
+func basePath() string { return fakes + ":" + os.Getenv("PATH") }
+
 // Setenv adds KEY=value to every later run.
 func (k *Kit) Setenv(key, value string) { k.Env = append(k.Env, key+"="+value) }
 
 // PrependPath puts dir first on PATH for every later run, ahead of any
 // dir an earlier call prepended.
 func (k *Kit) PrependPath(dir string) {
-	path := os.Getenv("PATH")
+	path := basePath()
 	for _, kv := range k.Env {
 		if v, ok := strings.CutPrefix(kv, "PATH="); ok {
 			path = v

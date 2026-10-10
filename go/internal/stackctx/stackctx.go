@@ -17,6 +17,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/detect"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
+	"github.com/ku5ic/claude-kit/go/internal/gapfill"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 )
@@ -40,9 +41,12 @@ func configTime(paths config.Paths) int64 {
 }
 
 // refresh regenerates the cache when it is missing, empty, or older than
-// any detection-relevant file at root or kit.yml itself (adding a stack must
-// re-detect every project). Times compare in whole seconds, as stat(1) did,
-// so a cache written in the same second as kit.yml still counts as fresh.
+// any detection-relevant file at root, kit.yml itself (adding a stack must
+// re-detect every project), or the gap-fill cache its package managers come
+// from. Times compare in whole seconds, as stat(1) did, so a cache written
+// in the same second as kit.yml still counts as fresh; gap-fill's answers,
+// which land in the background moments after a session starts, compare in
+// full.
 func refresh(paths config.Paths, cfg *config.Config, root, file string) {
 	newest := int64(0)
 	for _, name := range cfg.DetectFiles() {
@@ -50,10 +54,12 @@ func refresh(paths config.Paths, cfg *config.Config, root, file string) {
 	}
 	newest = max(newest, configTime(paths))
 
-	if info, err := os.Stat(file); err == nil && info.Size() > 0 && info.ModTime().Unix() >= newest {
+	answered, _ := os.Stat(gapfill.CacheFile(paths.CacheDir(), root))
+	if info, err := os.Stat(file); err == nil && info.Size() > 0 && info.ModTime().Unix() >= newest &&
+		(answered == nil || !answered.ModTime().After(info.ModTime())) {
 		return
 	}
-	_ = fsx.WriteAtomic(file, []byte(detect.Report(cfg, root)), 0o600)
+	_ = fsx.WriteAtomic(file, []byte(detect.Report(cfg, root, paths.CacheDir())), 0o600)
 }
 
 func mtime(path string) int64 {
@@ -65,12 +71,12 @@ func mtime(path string) int64 {
 }
 
 var (
-	skipLine   = regexp.MustCompile(`^(root|versions)[: ]`)
+	skipLine   = regexp.MustCompile(`^(root|package-manager)[: ]`)
 	extrasPart = regexp.MustCompile(`\([^)]+\)`)
 )
 
 // Signals parses a stack report into "stack" and "stack+extra" tokens in
-// first-seen order: "js: yes (typescript, react) [pnpm]" yields js,
+// first-seen order: "js: yes (typescript, react)" yields js,
 // js+typescript, js+react.
 func Signals(report string) []string {
 	var out []string

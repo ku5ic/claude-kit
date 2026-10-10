@@ -193,17 +193,15 @@ func bodyTools(r classify.Result) []string {
 // subproject directory: a reference into another one is left to that
 // subproject's own run, so it doesn't run twice. place is set for CI steps:
 // an inline gate there belongs to whichever subproject it runs in, which
-// place names with its stack and label suffix. labelsOnly skips resolving
-// tools, for a list of what CI holds.
+// place names with its stack and label suffix.
 type aggregator struct {
-	cfg        *config.Config
-	root       string
-	sfx        string
-	home       string
-	subs       map[string]bool
-	cache      map[string][]project.Task
-	place      func(dir string) (sub, stack, sfx string)
-	labelsOnly bool
+	cfg   *config.Config
+	root  string
+	sfx   string
+	home  string
+	subs  map[string]bool
+	cache map[string][]project.Task
+	place func(dir string) (sub, stack, sfx string)
 }
 
 // shellState is what the commands before a gate in a body have set up: the
@@ -408,10 +406,6 @@ func (a *aggregator) inline(cmd classify.Command, agg taskAt, stack string, st s
 		l.gate = Gate{Label: label, Skip: "depends on `" + st.blocker + "` in " + agg.task.Name}
 		return l
 	}
-	if a.labelsOnly {
-		l.gate = Gate{Label: label, Words: cmd.Words}
-		return l
-	}
 	res := a.resolveWord(st.dir, cmd.Words[cmd.ToolAt])
 	if res.Words == nil {
 		l.gate = Gate{Label: label, Skip: res.Skip, Unrun: res.Project}
@@ -545,8 +539,8 @@ func sameGates(a, b classify.Result) bool {
 // directly is a leaf that runs only once it resolves from the project. A
 // step that can't be read, or holds a deny_commands word, gives nothing;
 // so does a reference to a task the project doesn't have (npm ci, make
-// build). labelsOnly leaves tools unresolved.
-func (p *planner) ciLeaves(labelsOnly bool) map[string][]leaf {
+// build).
+func (p *planner) ciLeaves() map[string][]leaf {
 	out := map[string][]leaf{}
 	place := func(dir string) (string, string, string) {
 		owner := ownerOf(p.root, p.subDirs, dir)
@@ -559,7 +553,7 @@ func (p *planner) ciLeaves(labelsOnly bool) map[string][]leaf {
 		if !within(dir, p.root) {
 			continue
 		}
-		a := &aggregator{cfg: p.cfg, root: p.root, home: ownerOf(p.root, p.subDirs, dir), subs: p.subDirs, cache: cache, place: place, labelsOnly: labelsOnly}
+		a := &aggregator{cfg: p.cfg, root: p.root, home: ownerOf(p.root, p.subDirs, dir), subs: p.subDirs, cache: cache, place: place}
 		body := step.Run
 		if len(step.Env) > 0 {
 			quoted := make([]string, len(step.Env))

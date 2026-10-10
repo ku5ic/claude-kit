@@ -143,7 +143,6 @@ func load(p Paths) (*Config, []Warning, error) {
 		warnings = append(warnings, Warning{from, err})
 	}
 	cfg.StackOrder = mappingKeys(mappingValue(merged, "stacks"))
-	cfg.VersionOrder = mappingKeys(mappingValue(merged, "versions"))
 	cfg.Tag = tag
 	return &cfg, warnings, nil
 }

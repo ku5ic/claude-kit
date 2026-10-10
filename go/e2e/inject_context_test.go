@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ku5ic/claude-kit/go/internal/gapfill"
+	"github.com/ku5ic/claude-kit/go/internal/sources"
 	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
 
@@ -90,17 +92,6 @@ func injectContextTooling(out string) string {
 		}
 	}
 	return strings.Join(block, "\n")
-}
-
-// injectContextIndented is the block's lines starting with two spaces.
-func injectContextIndented(block string) string {
-	var out []string
-	for l := range strings.SplitSeq(block, "\n") {
-		if strings.HasPrefix(l, "  ") {
-			out = append(out, l)
-		}
-	}
-	return strings.Join(out, "\n")
 }
 
 // injectContextCopyRules copies the kit's rules dir to dst.
@@ -482,189 +473,55 @@ stacks:
 		e.run("s1", "").Lacks(t, "load twice")
 	})
 
-	// <tooling>: run forms from kit.yml's task_providers and toolchain_checks.
+	// <tooling> and the package managers in <repo-context>: what each holds
+	// is the hooks and detect packages' tests; this is the wiring.
 
-	t.Run("tooling: a Python project's justfile recipes are listed as just <recipe>", func(t *testing.T) {
+	t.Run("tooling and repo-context fill in once the background gap-fill run answers", func(t *testing.T) {
 		t.Parallel()
 		e := injectContextSetup(t, tree)
 		e.useRealKitYML()
-		Write(t, filepath.Join(e.root, "pyproject.toml"), "[project]\nname = \"x\"\n")
-		Write(t, filepath.Join(e.root, "justfile"), "test:\n  pytest\nlint:\n  ruff check\n")
-		e.Git(e.root, "add", "-A")
-		r := e.run("s1", "")
-		r.Want(t, 0)
-		if want := "tasks:\n  just test\n  just lint"; !strings.Contains(injectContextTooling(r.Output), want) {
-			t.Errorf("tooling lacks %q:\n%s", want, r.Output)
-		}
-	})
-
-	t.Run("tooling: a Rust project lists only its toolchain checks", func(t *testing.T) {
-		t.Parallel()
-		e := injectContextSetup(t, tree)
-		e.useRealKitYML()
-		Write(t, filepath.Join(e.root, "Cargo.toml"), "[package]\nname = \"x\"\n")
-		e.Git(e.root, "add", "-A")
-		stubs := filepath.Join(e.tmp, "stubs")
-		Stub(t, filepath.Join(stubs, "cargo"), "")
-		e.PrependPath(stubs)
-		r := e.run("s1", "")
-		r.Want(t, 0)
-		want := "  cargo check\n  cargo clippy -- -D warnings\n  cargo fmt --check\n  cargo test"
-		if got := injectContextIndented(injectContextTooling(r.Output)); got != want {
-			t.Errorf("tooling lines:\n%s\nwant:\n%s", got, want)
-		}
-	})
-
-	t.Run("tooling: an OpenTofu project gets {bin} filled, and validate only after init", func(t *testing.T) {
-		t.Parallel()
-		e := injectContextSetup(t, tree)
-		e.useRealKitYML()
-		Touch(t, filepath.Join(e.root, ".terraform.lock.hcl"))
-		e.Git(e.root, "add", "-A")
-		stubs := filepath.Join(e.tmp, "stubs")
-		Write(t, filepath.Join(stubs, "tofu"), "#!/bin/sh\n")
-		if err := os.Chmod(filepath.Join(stubs, "tofu"), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		e.PrependPath(stubs)
-
-		r := e.run("s1", "")
-		if got, want := injectContextIndented(injectContextTooling(r.Output)), "  tofu fmt -check -recursive"; got != want {
-			t.Errorf("before init:\n%s\nwant:\n%s", got, want)
-		}
-
-		Mkdir(t, filepath.Join(e.root, ".terraform"))
-		r = e.run("s2", "")
-		if got, want := injectContextIndented(injectContextTooling(r.Output)), "  tofu fmt -check -recursive\n  tofu validate"; got != want {
-			t.Errorf("after init:\n%s\nwant:\n%s", got, want)
-		}
-	})
-
-	t.Run("tooling: lists exactly the toolchain checks run-checks runs", func(t *testing.T) {
-		t.Parallel()
-		e := injectContextSetup(t, tree)
-		e.kitYML(`toolchain_checks:
-  - {stack: js, name: local, cmd: "{bin} --probe", bin: [fakefmt]}
-  - {stack: js, name: ambiguous, cmd: "{bin} --probe", bin: [fakeother]}
-stacks:
-  js:
-    sentinels:
-      - {name: package.json, anchor: true}
-`)
-		Write(t, filepath.Join(e.root, "package.json"), "{}\n")
+		Write(t, filepath.Join(e.root, "package.json"), `{"name":"x","devDependencies":{"turbo":"2.0.0"}}`+"\n")
+		Write(t, filepath.Join(e.root, "turbo.json"), `{"tasks":{"lint":{}}}`+"\n")
 		Write(t, filepath.Join(e.root, ".gitignore"), "node_modules\n")
-		Stub(t, filepath.Join(e.root, "node_modules/.bin/fakefmt"), "")
-		stubs := filepath.Join(e.tmp, "stubs")
-		Stub(t, filepath.Join(stubs, "fakeother"), "")
-		e.PrependPath(stubs)
-		e.Git(e.root, "add", "-A")
-
-		block := injectContextTooling(e.run("s1", "").Output)
-		if got, want := injectContextIndented(block), "  node_modules/.bin/fakefmt --probe"; got != want {
-			t.Errorf("tooling lines:\n%s\nwant:\n%s", got, want)
-		}
-		if !strings.Contains(block, "\nchecks: `kit run-checks --plan` lists what kit run-checks runs") {
-			t.Errorf("tooling lacks the --plan pointer:\n%s", block)
-		}
-		e.Dir = e.root
-		r := e.exec(injectContextBin(e.tree), "", "run-checks")
-		r.Has(t, "PASS js: local\n", "SKIP js: ambiguous (fakeother only on PATH (")
-	})
-
-	t.Run("tooling: leaves out toolchain checks run-checks disables or excludes", func(t *testing.T) {
-		t.Parallel()
-		e := injectContextSetup(t, tree)
-		e.kitYML(`checks:
-  - {name: test, exclude_dirs: [e2e]}
-disabled_checks: [off, "kept [e2e]"]
-toolchain_checks:
-  - {stack: js, name: kept, cmd: "{bin} --kept", bin: [fakefmt]}
-  - {stack: js, name: off, cmd: "{bin} --off", bin: [fakefmt]}
-  - {stack: js, name: suite, slot: test, cmd: "{bin} --suite", bin: [fakefmt]}
-stacks:
-  js:
-    sentinels:
-      - {name: package.json, anchor: true}
-`)
-		Write(t, filepath.Join(e.root, ".gitignore"), "node_modules\n")
-		for _, dir := range []string{e.root, filepath.Join(e.root, "e2e")} {
-			Write(t, filepath.Join(dir, "package.json"), "{}\n")
-			Stub(t, filepath.Join(dir, "node_modules/.bin/fakefmt"), "")
-		}
-		e.Git(e.root, "add", "-A")
-
-		// disabled_checks [off] matches "js: off" at the root and in e2e;
-		// "kept [e2e]" matches only e2e's. run-checks draws the same line.
-		block := injectContextTooling(e.run("s1", "").Output)
-		want := "  node_modules/.bin/fakefmt --kept\n  node_modules/.bin/fakefmt --suite"
-		if got := injectContextIndented(block); got != want {
-			t.Errorf("tooling lines:\n%s\nwant:\n%s", got, want)
-		}
-		e.Dir = e.root
-		e.exec(injectContextBin(e.tree), "", "run-checks", "--plan").Has(t,
-			"SKIP js: off (disabled_checks)", "SKIP js: off [e2e] (disabled_checks)", "RUN js: kept\n",
-			"SKIP js: kept [e2e] (disabled_checks)", "SKIP js: suite [e2e] (e2e looks like a test suite")
-	})
-
-	t.Run("tooling: lists the gates run-checks takes from CI config", func(t *testing.T) {
-		t.Parallel()
-		e := injectContextSetup(t, tree)
-		e.useRealKitYML()
-		Write(t, filepath.Join(e.root, "pyproject.toml"), "[project]\nname = \"x\"\n")
-		Write(t, filepath.Join(e.root, ".gitignore"), ".venv\n")
-		Write(t, filepath.Join(e.root, ".github/workflows/ci.yml"), "jobs:\n  test:\n    steps:\n      - run: pytest\n")
-		Stub(t, filepath.Join(e.root, ".venv/bin/pytest"), "")
-		e.Git(e.root, "add", "-A")
-		block := injectContextTooling(e.run("s1", "").Output)
-		if !strings.Contains(block, "ci gates (from CI config; run-checks runs each whose tool the project has):\n  python: test (.github/workflows/ci.yml: pytest)\n") {
-			t.Errorf("tooling lacks the CI gate:\n%s", block)
-		}
-	})
-
-	t.Run("tooling: workspace packages get their own section with the root's package manager", func(t *testing.T) {
-		t.Parallel()
-		e := injectContextSetup(t, tree)
-		e.useRealKitYML()
-		Write(t, filepath.Join(e.root, "package.json"), `{"name":"root","scripts":{"lint":"eslint ."}}`+"\n")
-		Write(t, filepath.Join(e.root, "pnpm-workspace.yaml"), "packages:\n  - \"packages/*\"\n")
 		Touch(t, filepath.Join(e.root, "pnpm-lock.yaml"))
-		Write(t, filepath.Join(e.root, "packages", "a", "package.json"), `{"name":"a","scripts":{"test":"vitest"}}`+"\n")
+		Stub(t, filepath.Join(e.root, "node_modules/.bin/turbo"), "")
 		e.Git(e.root, "add", "-A")
+
+		// The fake claude fails: the entry stays unclassified.
 		r := e.run("s1", "")
 		r.Want(t, 0)
-		block := injectContextTooling(r.Output)
-		for _, want := range []string{"package-manager: pnpm", "tasks:\n  pnpm run lint", "tasks [packages/a]:\n  pnpm run test", "guidance: "} {
-			if !strings.Contains(block, want) {
-				t.Errorf("tooling lacks %q:\n%s", want, block)
+		r.Has(t, "\nunclassified: 1 (")
+		r.Lacks(t, "package-manager:", "guidance:")
+
+		lint := sources.Entry{Source: "turbo", File: "turbo.json", Name: "lint", Dir: ".", Body: sources.Body{Text: "turbo run lint"}}
+		answer := `{"is_error":false,"subtype":"success","structured_output":{"entries":[{"id":"` + gapfill.Key(lint) + `","role":"check","kind":"lint","mutates":false}],` +
+			`"managers":[{"dir":".","cites":"pnpm-lock.yaml","manager":"pnpm"}],"proposals":[]}}`
+		classifier := filepath.Join(e.tmp, "classifier")
+		Stub(t, classifier, "cat >/dev/null\necho '"+answer+"'\n")
+		e.Overlay("classifier: [" + strconv.Quote(classifier) + "]\n")
+		e.run("s2", "").Want(t, 0)
+		answered := gapfill.CacheFile(filepath.Join(e.Claude, "cache"), e.root)
+		for deadline := time.Now().Add(10 * time.Second); !Exists(answered); time.Sleep(50 * time.Millisecond) {
+			if time.Now().After(deadline) {
+				t.Fatal("SessionStart started no gap-fill run that answered")
 			}
 		}
+
+		r = e.run("s3", "")
+		r.Want(t, 0)
+		r.Has(t, "\npackage-manager: pnpm (pnpm-lock.yaml)\n", "\nrun-checks runs:\n  turbo run lint\n", "\nguidance: ")
+		r.Lacks(t, "unclassified:")
 	})
 
-	t.Run("tooling: tasks with no package manager get no package-manager guidance", func(t *testing.T) {
-		t.Parallel()
-		e := injectContextSetup(t, tree)
-		e.useRealKitYML()
-		Write(t, filepath.Join(e.root, "go.mod"), "module x\n\ngo 1.26\n")
-		e.Git(e.root, "add", "-A")
-		block := injectContextTooling(e.run("s1", "").Output)
-		if !strings.Contains(block, "go vet ./...") || strings.Contains(block, "guidance:") {
-			t.Errorf("want go tasks and no guidance:\n%s", block)
-		}
-	})
-	t.Run("tooling: a project with no providers or toolchain gets tools only, no tasks or guidance", func(t *testing.T) {
+	t.Run("tooling: a project stating no check gets the discovery instruction and the tools", func(t *testing.T) {
 		t.Parallel()
 		e := injectContextSetup(t, tree)
 		e.useRealKitYML()
 		r := e.run("s1", "")
 		r.Want(t, 0)
 		block := injectContextTooling(r.Output)
-		for _, bad := range []string{"tasks:", "guidance:"} {
-			if strings.Contains(block, bad) {
-				t.Errorf("tooling has %q:\n%s", bad, block)
-			}
-		}
-		if !strings.Contains(block, "available: ") && !strings.Contains(block, "missing: ") {
-			t.Errorf("tooling lists no tools:\n%s", block)
+		if !strings.Contains(block, "\ndiscovery: nothing in this project states a check") || !strings.Contains(block, "\navailable: ") || strings.Contains(block, "guidance:") {
+			t.Errorf("tooling:\n%s", block)
 		}
 	})
 
@@ -680,14 +537,6 @@ stacks:
 				t.Errorf("tooling lacks %q:\n%s", want, block)
 			}
 		}
-	})
-
-	t.Run("tooling: no tools and no tasks means no block", func(t *testing.T) {
-		t.Parallel()
-		e := injectContextSetup(t, tree)
-		r := e.run("s1", "")
-		r.Want(t, 0)
-		r.Lacks(t, "<tooling>")
 	})
 
 	t.Run("repo-context names the scratch dir without creating it", func(t *testing.T) {

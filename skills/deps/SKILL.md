@@ -16,7 +16,7 @@ The core (Phases 1-4) is ecosystem-agnostic: GitHub normalizes Dependabot PRs an
 
 This command names no specific package manager, lockfile, or manifest.
 
-- Package manager and stack are already injected at session start (`<tooling>` block: `package-manager: <pm>`; `<repo-context>` block: stack and location). Read them from there. For any install, audit, tree query, lockfile regen, or override, derive the correct command from that manager at runtime.
+- Package manager and stack are already injected at session start (`<repo-context>` block: stack and location, and a `package-manager` line per lockfile directory). Read them from there. For any install, audit, tree query, lockfile regen, or override, derive the correct command from that manager at runtime.
 - Do not detect the stack.
 - Do not re-list lockfiles.
 - Do not hardcode any tool's syntax.

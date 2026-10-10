@@ -161,39 +161,44 @@ type answer struct {
 // Run answers o.Entries from the cache, first asking the classifier for
 // what it lacks when o.Ask allows.
 func Run(cfg *config.Config, o Options) Result {
-	path := filepath.Join(o.CacheDir, cache.Enforce, cache.RootKey(o.Root))
+	file := CacheFile(o.CacheDir, o.Root)
 	p := readView(cfg, o.Root, o.Entries)
-	s := load(path + ".json")
+	s := load(file)
 	// A read is use: cache.Prune drops only a file no run has read.
 	now := time.Now()
-	_ = os.Chtimes(path+".json", now, now)
+	_ = os.Chtimes(file, now, now)
 	failure := ""
 	if o.Ask && os.Getenv(Guard) != "1" && s.stale(cfg, o.Entries, p.Key) {
-		s, failure = ask(cfg, o, p, path, s)
+		s, failure = ask(cfg, o, p, file, s)
 	}
 	return verify(cfg, o.Root, o.Entries, s, failure)
+}
+
+// CacheFile holds root's answers; a run that asks takes the .lock beside it.
+func CacheFile(cacheDir, root string) string {
+	return filepath.Join(cacheDir, cache.Enforce, cache.RootKey(root)+".json")
 }
 
 // Managers are root's cached package-manager facts that verify, read
 // without asking: a cold cache has none.
 func Managers(cfg *config.Config, root, cacheDir string) []Manager {
-	ms, _ := managers(cfg, root, load(filepath.Join(cacheDir, cache.Enforce, cache.RootKey(root))+".json").Managers)
+	ms, _ := managers(cfg, root, load(CacheFile(cacheDir, root)).Managers)
 	return ms
 }
 
 // ask calls the classifier under the repo's lock, stores its answers, and
 // returns the store they're in; failure says why it couldn't, and s comes
 // back as it was.
-func ask(cfg *config.Config, o Options, p view, path string, s store) (_ store, failure string) {
+func ask(cfg *config.Config, o Options, p view, file string, s store) (_ store, failure string) {
 	ctx, cancel := context.WithTimeout(context.Background(), o.Timeout)
 	defer cancel()
-	unlock, err := cache.Lock(ctx, path+".lock")
+	unlock, err := cache.Lock(ctx, strings.TrimSuffix(file, ".json")+".lock")
 	if err != nil {
 		return s, "waiting for another run: " + err.Error()
 	}
 	defer unlock()
 	// Another run may have answered while this one waited.
-	locked := load(path + ".json")
+	locked := load(file)
 	if !locked.stale(cfg, o.Entries, p.Key) {
 		return locked, ""
 	}
@@ -208,7 +213,7 @@ func ask(cfg *config.Config, o Options, p view, path string, s store) (_ store, 
 	if locked.Context != p.Key {
 		locked.Context, locked.Managers, locked.Proposals = p.Key, resp.Managers, resp.Proposals
 	}
-	locked.save(path+".json", o.Entries, now)
+	locked.save(file, o.Entries, now)
 	return locked, ""
 }
 

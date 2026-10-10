@@ -483,24 +483,6 @@ orchestrators:
     task_paths: [.targetDefaults]
     run: "{bin} affected -t {task} --uncommitted"
 
-# Key package versions for <repo-context>, one "versions" line per subproject
-# holding the stack. For each name, version_sources for that stack are tried
-# in order and the first hit is shown with its label. {name} fills file and
-# arg; up: true walks from the subproject to the root for the file (a
-# workspace-root lockfile). Matching ignores case: pip names do.
-versions:
-  js: [react, next, typescript, tailwindcss, vue, nuxt, storybook, graphql]
-  python: [django, djangorestframework, fastapi, pydantic]
-version_sources:
-  js:
-    - {file: "node_modules/{name}/package.json", extractor: json_value, arg: .version, label: installed}
-    - {file: package.json, extractor: json_value, arg: ".dependencies.{name}", label: declared}
-    - {file: package.json, extractor: json_value, arg: ".devDependencies.{name}", label: declared}
-  python:
-    - {file: uv.lock, extractor: toml_package_version, arg: "{name}", label: locked, up: true}
-    - {file: poetry.lock, extractor: toml_package_version, arg: "{name}", label: locked, up: true}
-    - {file: requirements.txt, extractor: regex_lines, arg: "^{name}==([^[:space:];#]+)", label: pinned}
-
 stacks:
   js:
     sentinels:

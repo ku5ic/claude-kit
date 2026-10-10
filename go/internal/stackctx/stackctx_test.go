@@ -8,9 +8,9 @@ import (
 )
 
 // The stack-line parser reads extras from the current report format, and
-// skips root and versions lines.
+// skips root and package-manager lines.
 func TestSignals(t *testing.T) {
-	report := "root: /x\njs: yes (react) [pnpm] at ., packages/a\npython: yes [uv] at services/api\nversions [packages/a]: react 19.0.0 (declared)\n"
+	report := "root: /x\njs: yes (react) at ., packages/a\npython: yes at services/api\npackage-manager: pnpm (pnpm-lock.yaml)\npackage-manager [services/api]: uv (uv.lock)\n"
 	got := Signals(report)
 	if want := []string{"js", "js+react", "python"}; !slices.Equal(got, want) {
 		t.Errorf("got %q, want %q", got, want)
