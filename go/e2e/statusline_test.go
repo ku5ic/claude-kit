@@ -9,6 +9,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
 
 // kit statusline reads the statusLine JSON payload from stdin and renders a
@@ -318,16 +320,7 @@ func TestStatusline(t *testing.T) {
 	}
 	withTranscript := func(t *testing.T, repo, session string, lines ...any) map[string]any {
 		path := filepath.Join(t.TempDir(), session+".jsonl")
-		var b strings.Builder
-		for _, l := range lines {
-			raw, err := json.Marshal(l)
-			if err != nil {
-				t.Fatal(err)
-			}
-			b.Write(raw)
-			b.WriteByte('\n')
-		}
-		Write(t, path, b.String())
+		testutil.AppendJSONL(t, path, lines...)
 		p := statuslinePayload(repo, session, 50)
 		p["transcript_path"] = path
 		return p

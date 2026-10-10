@@ -3,6 +3,8 @@ package e2e
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
 
 // review-checks holds a forked /code-review at its first stop and sends it
@@ -24,6 +26,7 @@ func TestReviewChecks(t *testing.T) {
 		return e.k.Hook("review-checks", map[string]any{"hook_event_name": "SubagentStop", "agent_type": "general-purpose",
 			"agent_transcript_path": transcript, "stop_hook_active": active, "cwd": e.project})
 	}
+	bash := func(command string) any { return testutil.ToolUse("", "Bash", map[string]any{"command": command}) }
 	quiet := func(t *testing.T, e *runChecksEnv, r Result) {
 		t.Helper()
 		r.Want(t, 0)
@@ -46,26 +49,26 @@ func TestReviewChecks(t *testing.T) {
 	})
 	t.Run("a review whose tool output shows a run-checks summary stops freely", func(t *testing.T) {
 		e, transcript := setup(t, `{"skillName":"code-review"}`)
-		Write(t, transcript, `{"type":"user","message":{"content":"review this"}}`+"\n"+
-			`{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"if time kit run-checks; then :; fi"}}]}}`+"\n"+
-			`{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":[{"type":"text","text":"PASS go: vet\nchecks: 5 passed, 0 failed, 1 skipped"}]}]}}`+"\n")
+		testutil.AppendJSONL(t, transcript, testutil.UserPrompt("review this"),
+			testutil.ToolUse("t1", "Bash", map[string]any{"command": "if time kit run-checks; then :; fi"}),
+			testutil.ToolResult("t1", []any{map[string]any{"type": "text", "text": "PASS go: vet\nchecks: 5 passed, 0 failed, 1 skipped"}}))
 		quiet(t, e, stop(e, transcript, false))
 	})
 	t.Run("a review that only listed the checks with --plan is still sent back", func(t *testing.T) {
 		e, transcript := setup(t, `{"skillName":"code-review"}`)
-		Write(t, transcript, `{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"kit run-checks --plan | head"}}]}}`+"\n")
+		testutil.AppendJSONL(t, transcript, bash("kit run-checks --plan | head"))
 		stop(e, transcript, false).Want(t, 2)
 	})
 	t.Run("a search or echo of the text, or --plan after a line continuation, is still sent back", func(t *testing.T) {
 		e, transcript := setup(t, `{"skillName":"code-review"}`)
-		Write(t, transcript, `{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"rg -n \"kit run-checks\" rules/"}}]}}`+"\n"+
-			`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"echo next: kit run-checks && git log --grep 'wire kit run-checks'"}}]}}`+"\n"+
-			`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"kit run-checks \\\n  --plan"}}]}}`+"\n")
+		testutil.AppendJSONL(t, transcript, bash(`rg -n "kit run-checks" rules/`),
+			bash("echo next: kit run-checks && git log --grep 'wire kit run-checks'"),
+			bash("kit run-checks \\\n  --plan"))
 		stop(e, transcript, false).Want(t, 2)
 	})
 	t.Run("a review that only mentioned kit run-checks is still sent back", func(t *testing.T) {
 		e, transcript := setup(t, `{"skillName":"code-review"}`)
-		Write(t, transcript, `{"type":"assistant","message":{"content":[{"type":"text","text":"I'll run kit run-checks later"}]}}`+"\n")
+		testutil.AppendJSONL(t, transcript, testutil.AssistantText("I'll run kit run-checks later"))
 		stop(e, transcript, false).Want(t, 2)
 	})
 	t.Run("a review outside any project stops freely", func(t *testing.T) {
@@ -84,16 +87,12 @@ func TestReviewChecks(t *testing.T) {
 	})
 	// A model-invoked foreground fork writes no .forked-skill.json; the
 	// parent's pending Skill call names it.
-	parent := func(t *testing.T, lines ...string) string {
+	parent := func(t *testing.T, lines ...any) string {
 		path := filepath.Join(t.TempDir(), "parent.jsonl")
-		body := ""
-		for _, l := range lines {
-			body += l + "\n"
-		}
-		Write(t, path, body)
+		testutil.AppendJSONL(t, path, lines...)
 		return path
 	}
-	skillCall := `{"type":"assistant","message":{"content":[{"type":"tool_use","id":"s1","name":"Skill","input":{"skill":"code-review"}}]}}`
+	skillCall := testutil.ToolUse("s1", "Skill", map[string]any{"skill": "code-review"})
 	withParent := func(e *runChecksEnv, transcript, parentPath string) Result {
 		return e.k.Hook("review-checks", map[string]any{"hook_event_name": "SubagentStop", "agent_type": "general-purpose",
 			"agent_transcript_path": transcript, "transcript_path": parentPath, "stop_hook_active": false, "cwd": e.project})
@@ -104,14 +103,15 @@ func TestReviewChecks(t *testing.T) {
 	})
 	t.Run("a subagent after a finished review call stops freely", func(t *testing.T) {
 		e, transcript := setup(t, "")
-		done := `{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"s1","content":"Skill \"code-review\" completed (forked execution)."}]}}`
+		done := testutil.ToolResult("s1", `Skill "code-review" completed (forked execution).`)
 		quiet(t, e, withParent(e, transcript, parent(t, skillCall, done)))
 	})
 	t.Run("a run-checks summary in persisted output counts", func(t *testing.T) {
 		e, transcript := setup(t, `{"skillName":"code-review"}`)
 		saved := filepath.Join(t.TempDir(), "out.txt")
 		Write(t, saved, "PASS go: vet\n...\nchecks: 5 passed, 0 failed, 1 skipped\n")
-		Write(t, transcript, `{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":"<persisted-output>\nOutput too large (84.2KB). Full output saved to: `+saved+`\n\nPreview (first 2KB):\nPASS go: vet\n</persisted-output>"}]}}`+"\n")
+		testutil.AppendJSONL(t, transcript, testutil.ToolResult("t1",
+			"<persisted-output>\nOutput too large (84.2KB). Full output saved to: "+saved+"\n\nPreview (first 2KB):\nPASS go: vet\n</persisted-output>"))
 		quiet(t, e, stop(e, transcript, false))
 	})
 }

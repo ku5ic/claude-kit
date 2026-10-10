@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
 
 // guardCommitPayload is a Bash payload carrying command, with cwd when set.
@@ -33,33 +35,28 @@ func prose(n int) string { return strings.Repeat("a line of plain prose\n", n) }
 // rules/workflow.md section 1: a commit's message is shown before it runs,
 // so a commit whose subject no earlier turn showed gets a prompt.
 func TestGuardCommitAsksForAnUnshownMessage(t *testing.T) {
-	text := func(s string) string {
-		return fmt.Sprintf(`{"type":"assistant","message":{"content":[{"type":"text","text":%q}]}}`, s)
-	}
-	prompt := func(s string) string { return fmt.Sprintf(`{"type":"user","message":{"content":%q}}`, s) }
-	commit := func(k *Kit, transcript string) Result {
+	commit := func(k *Kit, transcript ...any) Result {
 		p := guardCommitPayload(`git commit -m "fix: add sums"`, "")
-		if transcript != "" {
+		if transcript != nil {
 			path := filepath.Join(t.TempDir(), "t.jsonl")
-			Write(t, path, transcript+"\n")
+			testutil.AppendJSONL(t, path, transcript...)
 			p["transcript_path"] = path
 		}
 		return k.Hook("guard-commit", p)
 	}
 	k := guardCommitStubbed(t, 0)
-	for name, transcript := range map[string]string{
-		"no transcript":           "",
-		"never shown":             prompt("fix it and commit"),
-		"shown only in this turn": prompt("fix it and commit") + "\n" + text("Committing `fix: add sums`."),
+	for name, transcript := range map[string][]any{
+		"no transcript":           nil,
+		"never shown":             {testutil.UserPrompt("fix it and commit")},
+		"shown only in this turn": {testutil.UserPrompt("fix it and commit"), testutil.AssistantText("Committing `fix: add sums`.")},
 	} {
-		r := commit(k, transcript)
+		r := commit(k, transcript...)
 		r.Want(t, 0)
 		if !strings.Contains(r.Output, `"permissionDecision":"ask"`) {
 			t.Errorf("%s: no ask; output:\n%s", name, r.Output)
 		}
 	}
-	shown := prompt("fix it") + "\n" + text("Commit as `fix: add sums`?") + "\n" + prompt("go")
-	commit(k, shown).Empty(t)
+	commit(k, testutil.UserPrompt("fix it"), testutil.AssistantText("Commit as `fix: add sums`?"), testutil.UserPrompt("go")).Empty(t)
 }
 
 func TestGuardCommit(t *testing.T) {
@@ -165,14 +162,14 @@ func TestGuardCommit(t *testing.T) {
 	t.Run("gitleaks is invoked against payload .cwd, not the hook's own cwd", func(t *testing.T) {
 		k := New(t)
 		stubs := t.TempDir()
-		argsFile := filepath.Join(t.TempDir(), "gitleaks.args")
-		Stub(t, filepath.Join(stubs, "gitleaks"), fmt.Sprintf("echo \"$@\" > %q\nexit 0\n", argsFile))
+		calls := filepath.Join(stubs, "gitleaks.calls")
+		testutil.FakeTool(t, filepath.Join(stubs, "gitleaks"), calls, "")
 		k.PrependPath(stubs)
 		fixture := filepath.Join(Physical(t, t.TempDir()), "fixture-repo")
 		Mkdir(t, fixture)
 		k.Hook("guard-commit", guardCommitPayload(`git commit -m "feat: add foo"`, fixture)).Want(t, 0)
-		if args := Read(t, argsFile); !strings.Contains(args, fixture) {
-			t.Errorf("gitleaks args %q lack %q", args, fixture)
+		if runs := strings.Join(testutil.Calls(t, calls), "\n"); !strings.Contains(runs, fixture) {
+			t.Errorf("gitleaks runs %q lack %q", runs, fixture)
 		}
 	})
 }

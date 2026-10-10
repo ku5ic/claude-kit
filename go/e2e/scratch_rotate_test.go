@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
 
 // Tests for `kit scratch-rotate`.
@@ -26,10 +28,7 @@ func TestScratchRotate(t *testing.T) {
 	// age sets path's mtime to secs seconds ago.
 	age := func(t *testing.T, path string, secs int) {
 		t.Helper()
-		ts := time.Now().Add(-time.Duration(secs) * time.Second)
-		if err := os.Chtimes(path, ts, ts); err != nil {
-			t.Fatal(err)
-		}
+		testutil.Age(t, time.Duration(secs)*time.Second, path)
 	}
 	// touch creates an empty file whose mtime is secs seconds ago.
 	touch := func(t *testing.T, path string, secs int) {

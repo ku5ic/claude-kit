@@ -1,10 +1,11 @@
 package e2e
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
 
 func TestPlanStepPause(t *testing.T) {
@@ -33,7 +34,7 @@ func TestPlanStepPause(t *testing.T) {
 		plans := filepath.Join(proj, ".claude", "plans")
 		old := filepath.Join(plans, "plan-old.md")
 		Write(t, old, "## Steps\n\n- [ ] one\n")
-		os.Chtimes(old, time.Now().Add(-time.Hour), time.Now().Add(-time.Hour))
+		testutil.Age(t, time.Hour, old)
 		Write(t, filepath.Join(plans, "plan-new.md"), "## Steps\n\n- [x] one\n- [ ] two\n")
 		r := approve(k, proj, "s1")
 		r.Want(t, 0)
@@ -61,8 +62,7 @@ func TestPlanStepPause(t *testing.T) {
 		if len(markers) != 1 {
 			t.Fatalf("plan-active markers = %v", markers)
 		}
-		old := time.Now().Add(-72 * time.Hour)
-		os.Chtimes(markers[0], old, old)
+		testutil.Age(t, 72*time.Hour, markers[0])
 		prompt(k, proj, "s1").Has(t, "plan-x.md")
 		k.Run("", "scratch-rotate").Want(t, 0)
 		prompt(k, proj, "s1").Has(t, "plan-x.md")
