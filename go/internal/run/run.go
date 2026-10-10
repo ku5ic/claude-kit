@@ -163,7 +163,10 @@ func (r *runner) exec(g enforce.Gate, body string) outcome {
 			r.ref = keep(root, r.tree, time.Now())
 		}
 	}
-	o := execute(command(g, body, gateTimeout))
+	cmd := command(g, body, gateTimeout)
+	// A timeout kills the workers a test runner spawned, not only bash.
+	cmd.Interruptible()
+	o := execute(cmd)
 	if o.timedOut {
 		o.out += fmt.Sprintf("\ntimed out after %s\n", gateTimeout)
 	}
