@@ -22,7 +22,6 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/sources"
-	"github.com/ku5ic/claude-kit/go/internal/tools"
 )
 
 // Report is the full text for root, "" when no stack is found.
@@ -117,10 +116,10 @@ func matchExtra(extra config.Extra, dir string) bool {
 func matchRule(rule config.Rule, dir string) bool {
 	switch {
 	case rule.Dep != "":
-		_, ok := tools.JSSpecs(dir)[rule.Dep]
+		_, ok := sources.JSSpecs(dir)[rule.Dep]
 		return ok
 	case rule.PyDep != "":
-		return tools.PythonDeps(dir)[rule.PyDep]
+		return sources.PythonDeps(dir)[rule.PyDep]
 	case rule.File != "":
 		return fsx.IsFile(filepath.Join(dir, rule.File))
 	case rule.Grep != "":

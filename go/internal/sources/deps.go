@@ -1,7 +1,4 @@
-// Package tools knows the linters, type checkers, and test runners the Stop
-// hook runs on edited files: how each is detected in a project, where it
-// runs, how to call it without writing, and where its binary comes from.
-package tools
+package sources
 
 import (
 	"encoding/json"
@@ -11,8 +8,6 @@ import (
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
-
-	"github.com/ku5ic/claude-kit/go/internal/sources"
 )
 
 // Deps are the packages a manifest declares, by normalized name.
@@ -23,8 +18,8 @@ var (
 	nameRuns   = regexp.MustCompile(`[-_.]+`)
 )
 
-// normalize is PEP 503's name normalization: case and -_. runs don't matter.
-func normalize(name string) string {
+// PyName is PEP 503's name normalization: case and -_. runs don't matter.
+func PyName(name string) string {
 	return strings.ToLower(nameRuns.ReplaceAllString(name, "-"))
 }
 
@@ -67,7 +62,7 @@ func JSSpecs(dir string) map[string]string {
 // files' entries and Pipfile's packages, by normalized name.
 func PythonDeps(dir string) Deps {
 	deps := Deps{}
-	if doc := readTOML(filepath.Join(dir, "pyproject.toml")); doc != nil {
+	if doc := readTOMLTable(filepath.Join(dir, "pyproject.toml")); doc != nil {
 		project, _ := doc["project"].(map[string]any)
 		deps.addList(project["dependencies"])
 		deps.addTables(project["optional-dependencies"])
@@ -84,13 +79,13 @@ func PythonDeps(dir string) Deps {
 		pdm, _ := tool["pdm"].(map[string]any)
 		deps.addTables(pdm["dev-dependencies"])
 	}
-	if doc := readTOML(filepath.Join(dir, "Pipfile")); doc != nil {
+	if doc := readTOMLTable(filepath.Join(dir, "Pipfile")); doc != nil {
 		deps.addKeys(doc["packages"])
 		deps.addKeys(doc["dev-packages"])
 	}
 	reqs, _ := filepath.Glob(filepath.Join(dir, "requirements*.txt"))
 	for _, file := range reqs {
-		sources.EachLine(file, func(line string) {
+		EachLine(file, func(line string) {
 			if line = strings.TrimSpace(line); line != "" && !strings.HasPrefix(line, "#") && !strings.HasPrefix(line, "-") {
 				deps.addReq(line)
 			}
@@ -99,14 +94,14 @@ func PythonDeps(dir string) Deps {
 	return deps
 }
 
-func readTOML(file string) map[string]any {
-	return sources.Decode[map[string]any](file, toml.Unmarshal)
+func readTOMLTable(file string) map[string]any {
+	return Decode[map[string]any](file, toml.Unmarshal)
 }
 
 // addReq adds a PEP 508 requirement's name.
 func (d Deps) addReq(req string) {
 	if m := pep508Name.FindString(strings.TrimSpace(req)); m != "" {
-		d[normalize(m)] = true
+		d[PyName(m)] = true
 	}
 }
 
@@ -133,7 +128,7 @@ func (d Deps) addKeys(v any) {
 	table, _ := v.(map[string]any)
 	for name := range table {
 		if name != "python" {
-			d[normalize(name)] = true
+			d[PyName(name)] = true
 		}
 	}
 }
@@ -143,7 +138,7 @@ var gemSpec = regexp.MustCompile(`^    ([A-Za-z0-9_.-]+) \(`)
 // RubyDeps are the gems a Gemfile.lock resolves.
 func RubyDeps(dir string) Deps {
 	deps := Deps{}
-	sources.EachLine(filepath.Join(dir, "Gemfile.lock"), func(line string) {
+	EachLine(filepath.Join(dir, "Gemfile.lock"), func(line string) {
 		if m := gemSpec.FindStringSubmatch(line); m != nil {
 			deps[m[1]] = true
 		}

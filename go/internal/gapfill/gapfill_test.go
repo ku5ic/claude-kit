@@ -275,6 +275,8 @@ func TestNpxHoldsUpWithALocalCopy(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t, "")
 	testutil.Put(t, f.root, "package-lock.json", "{}")
+	testutil.Put(t, f.root, ".gitignore", "node_modules\n")
+	testutil.Git(t, f.root, "init", "-q")
 	format := entry("fmt", "prettier --check .")
 	f.answer(map[string]any{
 		"entries":   []any{verdict(format, map[string]any{"role": "check", "kind": "format-check", "mutates": false, "file_form": "npx prettier --check {files}"})},
@@ -284,7 +286,7 @@ func TestNpxHoldsUpWithALocalCopy(t *testing.T) {
 	if v := f.run(format).Verdicts[Key(format)]; v.FileForm != "" {
 		t.Errorf("no local copy: %+v", v)
 	}
-	testutil.Put(t, f.root, "node_modules/.bin/prettier", "")
+	testutil.FakeTool(t, filepath.Join(f.root, "node_modules/.bin/prettier"), filepath.Join(f.dir, "prettier.calls"), "")
 	if v := f.run(format).Verdicts[Key(format)]; v.FileForm != "npx prettier --check {files}" {
 		t.Errorf("a local copy: %+v", v)
 	}

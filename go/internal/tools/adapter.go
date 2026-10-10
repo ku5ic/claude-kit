@@ -1,3 +1,6 @@
+// Package tools knows the linters, type checkers, and test runners the Stop
+// hook runs on edited files: how each is detected in a project, where it
+// runs, how to call it without writing, and where its binary comes from.
 package tools
 
 import (
@@ -162,19 +165,19 @@ func (a Adapter) detect(dir, root string) (Claim, bool) {
 
 // declared is the first of the adapter's packages dir's manifest declares.
 func (a Adapter) declared(dir string) (string, bool) {
-	var deps Deps
+	var deps sources.Deps
 	switch a.Deps {
 	case JS:
-		deps = JSDeps(dir)
+		deps = sources.JSDeps(dir)
 	case Python:
-		deps = PythonDeps(dir)
+		deps = sources.PythonDeps(dir)
 	case Ruby:
-		deps = RubyDeps(dir)
+		deps = sources.RubyDeps(dir)
 	}
 	for _, pkg := range a.Packages {
 		key := pkg
 		if a.Deps == Python {
-			key = normalize(pkg)
+			key = sources.PyName(pkg)
 		}
 		if deps[key] {
 			return pkg, true
@@ -188,7 +191,7 @@ var testRunners = []string{"jest", "vitest"}
 // chosenRunner is false when another test runner is declared in dir too
 // and the test script names that one instead.
 func (a Adapter) chosenRunner(dir string) bool {
-	deps := JSDeps(dir)
+	deps := sources.JSDeps(dir)
 	others := 0
 	for _, r := range testRunners {
 		if r != a.Name && deps[r] {

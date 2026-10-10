@@ -102,11 +102,11 @@ func declared(cfg *config.Config, dir, root, name string) (manifest, install str
 	pkg := binPackage(cfg, name)
 	for d := dir; ; d = filepath.Dir(d) {
 		switch {
-		case JSDeps(d)[pkg]:
+		case sources.JSDeps(d)[pkg]:
 			return fsx.Rel(root, filepath.Join(d, "package.json")), installCmd(cfg, d, "js")
-		case PythonDeps(d)[normalize(pkg)]:
+		case sources.PythonDeps(d)[sources.PyName(pkg)]:
 			return manifestName(Python, d, root), installCmd(cfg, d, "python")
-		case RubyDeps(d)[pkg]:
+		case sources.RubyDeps(d)[pkg]:
 			return fsx.Rel(root, filepath.Join(d, "Gemfile.lock")), installCmd(cfg, d, "bundler")
 		case fsx.IsFile(filepath.Join(d, "go.mod")) && goModDeclares(filepath.Join(d, "go.mod"), name):
 			return fsx.Rel(root, filepath.Join(d, "go.mod")), installCmd(cfg, d, "go")
@@ -140,19 +140,7 @@ func pinned(cfg *config.Config, dir, root, name string) string {
 		if path == "" {
 			continue
 		}
-		var names []string
-		if filepath.Base(path) == ".tool-versions" {
-			sources.EachLine(path, func(line string) {
-				if f := strings.Fields(line); len(f) > 0 && !strings.HasPrefix(f[0], "#") {
-					names = append(names, f[0])
-				}
-			})
-		} else {
-			names = sources.TOMLKeys(path, ".tools")
-		}
-		for _, t := range names {
-			t = t[strings.LastIndex(t, ":")+1:]
-			t = t[strings.LastIndex(t, "/")+1:]
+		for _, t := range sources.Pins(path) {
 			if alias := cfg.ToolResolution.PinAliases[t]; alias != "" {
 				t = alias
 			}

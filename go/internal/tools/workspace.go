@@ -9,6 +9,7 @@ import (
 	"github.com/Masterminds/semver/v3"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/sources"
 )
 
 // binPackage is the package that provides binary name.
@@ -24,7 +25,7 @@ func binPackage(cfg *config.Config, name string) string {
 // version is the one that counts. "" when none does.
 func jsOwner(dir, root, pkg string) (owner, spec string) {
 	for d := dir; ; d = filepath.Dir(d) {
-		if s, ok := JSSpecs(d)[pkg]; ok {
+		if s, ok := sources.JSSpecs(d)[pkg]; ok {
 			return d, s
 		}
 		if d == root || d == "/" || !strings.HasPrefix(d, root) {

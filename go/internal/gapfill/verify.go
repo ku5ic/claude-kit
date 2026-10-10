@@ -8,6 +8,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
+	"github.com/ku5ic/claude-kit/go/internal/resolve"
 	"github.com/ku5ic/claude-kit/go/internal/sources"
 )
 
@@ -28,6 +29,10 @@ func verify(cfg *config.Config, root string, entries []sources.Entry, s store, f
 		r.Managers = append(r.Managers, m)
 		prefixes = append(prefixes, m.RunPrefix)
 	}
+	resolver := resolve.New(root, nil)
+	at := func(dir string) forms {
+		return forms{root: root, dir: filepath.Join(root, dir), prefixes: prefixes, resolver: resolver}
+	}
 	unclassified := "unclassified"
 	if failure != "" {
 		unclassified += " (" + failure + ")"
@@ -44,8 +49,7 @@ func verify(cfg *config.Config, root string, entries []sources.Entry, s store, f
 			r.Skipped[key] = unclassified
 			continue
 		}
-		f := forms{root: root, dir: filepath.Join(root, e.Dir), prefixes: prefixes}
-		v, dropped, err := f.verdict(e, a.Verdict)
+		v, dropped, err := at(e.Dir).verdict(e, a.Verdict)
 		if err != nil {
 			r.Skipped[key] = "rejected (" + err.Error() + ")"
 			continue
@@ -57,8 +61,7 @@ func verify(cfg *config.Config, root string, entries []sources.Entry, s store, f
 		covered = appendKinds(covered, v)
 	}
 	for _, p := range s.Proposals {
-		f := forms{root: root, dir: filepath.Join(root, p.Dir), prefixes: prefixes}
-		if err := f.proposal(cfg, p, covered); err != nil {
+		if err := at(p.Dir).proposal(cfg, p, covered); err != nil {
 			r.Dropped = append(r.Dropped, fmt.Sprintf("proposal %q: %v", p.Command, err))
 			continue
 		}
@@ -122,6 +125,7 @@ func checkManager(cfg *config.Config, root string, m Manager) error {
 type forms struct {
 	root, dir string
 	prefixes  []string // the verified managers' run prefixes
+	resolver  *resolve.Resolver
 }
 
 // verdict is v once it holds up against e: its role and kind, and its
@@ -180,7 +184,7 @@ func (f forms) proposal(cfg *config.Config, p Proposal, covered []string) error 
 	if token := cfg.GateDiscovery.DeniedCommand(words); token != "" {
 		return fmt.Errorf("denied (%s)", token)
 	}
-	if why := f.fetches(words); why != "" {
+	if why := f.resolver.Fetches(f.dir, words); why != "" {
 		return fmt.Errorf("fetches (%s)", why)
 	}
 	if why := f.form(p.FileForm, "{files}", []string{p.Command}); p.FileForm != "" && why != "" {
@@ -198,7 +202,7 @@ func (f forms) form(form, placeholder string, bodies []string) string {
 		return "no " + placeholder
 	}
 	words := strings.Fields(form)
-	if why := f.fetches(words); why != "" {
+	if why := f.resolver.Fetches(f.dir, words); why != "" {
 		return "fetches (" + why + ")"
 	}
 	for _, b := range bodies {
@@ -248,47 +252,4 @@ func placeholder(w string) bool {
 // a glob, or a path that exists where the command runs.
 func (f forms) pathLike(w string) bool {
 	return w == "." || strings.HasSuffix(w, "/...") || strings.ContainsAny(w, "*?[") || fsx.IsFile(filepath.Join(f.dir, w)) || fsx.IsDir(filepath.Join(f.dir, w))
-}
-
-// fetches is the runner that would download a package to run words, ""
-// when none would: a dlx runner, or npx or npm exec with no copy in a
-// node_modules/.bin from the command's directory up to the root.
-func (f forms) fetches(words []string) string {
-	if len(words) == 0 {
-		return ""
-	}
-	two := words[0]
-	if len(words) > 1 {
-		two += " " + words[1]
-	}
-	switch {
-	case words[0] == "bunx" || words[0] == "uvx":
-		return words[0]
-	case len(words) > 1 && (words[1] == "dlx" || two == "pipx run" || two == "bun x"):
-		return two
-	case two == "go run" && len(words) > 2 && strings.Contains(words[2], "@"):
-		return "go run " + words[2]
-	case words[0] == "npx" || two == "npm exec":
-		bin := ""
-		for _, w := range words[1:] {
-			if !strings.HasPrefix(w, "-") && w != "exec" {
-				bin = w
-				break
-			}
-		}
-		if !f.localBin(bin) {
-			runner := words[0]
-			if runner == "npm" {
-				runner = two
-			}
-			return runner + " " + bin + " with no local copy"
-		}
-	}
-	return ""
-}
-
-// localBin is true when node_modules/.bin holds bin, from the command's
-// directory up to the root.
-func (f forms) localBin(bin string) bool {
-	return bin != "" && fsx.FindUp(f.dir, f.root, filepath.Join("node_modules", ".bin", bin)) != ""
 }

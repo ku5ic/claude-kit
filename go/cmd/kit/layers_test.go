@@ -26,6 +26,7 @@ var layers = map[string]int{
 	"internal/guard":      2,
 	"internal/sources":    2,
 	"internal/hook":       3,
+	"internal/resolve":    3,
 	"internal/classify":   4,
 	"internal/gapfill":    4,
 	"internal/tools":      4,
