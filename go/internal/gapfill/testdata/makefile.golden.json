@@ -3,31 +3,31 @@
   "structured_output": {
     "entries": [
       {
-        "id": "c69b6401cdce64c9",
+        "id": "9f38f0b6a72a4a71",
         "role": "check",
         "mutates": false
       },
       {
-        "id": "10a49f8adeed0e7d",
+        "id": "48c033c16f7f68c2",
         "role": "check",
         "kind": "lint",
         "mutates": false
       },
       {
-        "id": "22be77ad4c0d86dd",
+        "id": "d615c811f2d3a808",
         "role": "check",
         "kind": "test",
         "mutates": false
       },
       {
-        "id": "057fb0be25814bbc",
+        "id": "f55c72c7639ff8c5",
         "role": "build",
-        "mutates": false
+        "mutates": true
       },
       {
-        "id": "a39a032524454df4",
+        "id": "a16704706418d0eb",
         "role": "deploy",
-        "mutates": false
+        "mutates": true
       }
     ],
     "managers": [],
@@ -58,7 +58,7 @@
       },
       {
         "role": "check",
-        "command": "gofmt -l .",
+        "command": "test -z \"$(gofmt -l .)\"",
         "dir": ".",
         "evidence": "go.mod",
         "kind": "format-check",
@@ -73,7 +73,6 @@
         "globs": [
           "**/*.go"
         ],
-        "kind": "format-check",
         "mutates": true
       }
     ]

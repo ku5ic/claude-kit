@@ -20,6 +20,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/checks"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/detect"
+	"github.com/ku5ic/claude-kit/go/internal/enforce"
 	"github.com/ku5ic/claude-kit/go/internal/explain"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/gitbase"
@@ -145,24 +146,31 @@ var configCommands = map[string]func(*env, *config.Config, []string) int{
 }
 
 func cmdRunChecks(e *env, cfg *config.Config, args []string) int {
-	plan, only, err := parseRunChecksArgs(args)
+	a, err := parseRunChecksArgs(args)
 	if err != nil {
-		fmt.Fprintf(e.stderr, "kit run-checks: %v\nusage: kit run-checks [--plan] [--only sub...]\n", err)
+		fmt.Fprintf(e.stderr, "kit run-checks: %v\nusage: kit run-checks [--plan] [--engine=enforce] [--only sub...]\n", err)
 		return 2
 	}
 	root := cmp.Or(git.Toplevel(e.cwd), e.cwd)
 	subs := project.Subprojects(cfg, root)
-	for _, sub := range only {
+	for _, sub := range a.only {
 		if !slices.Contains(subs, sub) {
 			fmt.Fprintf(e.stderr, "kit run-checks: %q is not a subproject; kit subprojects lists them\n", sub)
 			return 2
 		}
 	}
-	if plan {
-		checks.PrintPlan(cfg, root, only, e.stdout)
+	switch {
+	case a.engine == "enforce" && a.plan:
+		enforce.Build(cfg, enforce.Options{Root: root, CacheDir: e.paths.CacheDir(), Only: a.only, Ask: true, Timeout: classifyTimeout}).Print(e.stdout)
+		return 0
+	case a.engine == "enforce":
+		fmt.Fprintln(e.stderr, "kit run-checks: --engine=enforce runs nothing yet; add --plan")
+		return 2
+	case a.plan:
+		checks.PrintPlan(cfg, root, a.only, e.stdout)
 		return 0
 	}
-	return min(checks.RunAll(cfg, root, only, e.stdout), 125)
+	return min(checks.RunAll(cfg, root, a.only, e.stdout), 125)
 }
 
 func cmdScratchRotate(e *env, args []string) int {
@@ -181,36 +189,47 @@ func cmdScratchRotate(e *env, args []string) int {
 	return rotate.Run(e.paths, days, dryRun, e.stdout, e.stderr)
 }
 
-// parseRunChecksArgs reads [--plan] [--only sub...]. Anything else is an
-// error: a typo'd --plan must never fall through to a real run. A repeated
-// --only adds to the list; a subproject written as a path (./api, api/) is
-// cleaned to its name.
-func parseRunChecksArgs(args []string) (plan bool, only []string, err error) {
+// runChecksArgs are run-checks' arguments. engine is "" for the catalog
+// engine, "enforce" for the enforcement plan.
+type runChecksArgs struct {
+	plan   bool
+	only   []string
+	engine string
+}
+
+// parseRunChecksArgs reads [--plan] [--engine=enforce] [--only sub...].
+// Anything else is an error: a typo'd --plan must never fall through to a
+// real run. A repeated --only adds to the list; a subproject written as a
+// path (./api, api/) is cleaned to its name.
+func parseRunChecksArgs(args []string) (runChecksArgs, error) {
+	var a runChecksArgs
 	for i, arg := range args {
 		switch arg {
 		case "--plan":
-			plan = true
+			a.plan = true
+		case "--engine=enforce":
+			a.engine = "enforce"
 		case "--only":
-			for _, a := range args[i+1:] {
+			for _, sub := range args[i+1:] {
 				switch {
-				case a == "--only":
-				case a == "--plan":
-					return false, nil, fmt.Errorf("--plan must come before --only")
-				case strings.HasPrefix(a, "-"):
-					return false, nil, fmt.Errorf("unknown argument %q", a)
+				case sub == "--only":
+				case sub == "--plan" || strings.HasPrefix(sub, "--engine"):
+					return a, fmt.Errorf("%s must come before --only", sub)
+				case strings.HasPrefix(sub, "-"):
+					return a, fmt.Errorf("unknown argument %q", sub)
 				default:
-					only = append(only, filepath.Clean(a))
+					a.only = append(a.only, filepath.Clean(sub))
 				}
 			}
-			if len(only) == 0 {
-				return false, nil, fmt.Errorf("--only needs at least one subproject")
+			if len(a.only) == 0 {
+				return a, fmt.Errorf("--only needs at least one subproject")
 			}
-			return plan, only, nil
+			return a, nil
 		default:
-			return false, nil, fmt.Errorf("unknown argument %q", arg)
+			return a, fmt.Errorf("unknown argument %q", arg)
 		}
 	}
-	return plan, nil, nil
+	return a, nil
 }
 
 func cmdConfig(e *env, args []string) int {

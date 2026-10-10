@@ -3,7 +3,7 @@
   "structured_output": {
     "entries": [
       {
-        "id": "c25f39d4617ee049",
+        "id": "0f918c6b2dfafd33",
         "role": "check",
         "kind": "format-check",
         "mutates": false,
@@ -13,9 +13,8 @@
         ]
       },
       {
-        "id": "1702f8d235bb97eb",
+        "id": "3395355c5459a22d",
         "role": "fixer",
-        "kind": "lint",
         "mutates": true,
         "file_form": "eslint --fix {files}",
         "globs": [
@@ -23,9 +22,8 @@
         ]
       },
       {
-        "id": "d8264464eb7945e8",
+        "id": "7173ad2053618696",
         "role": "fixer",
-        "kind": "format-check",
         "mutates": true,
         "file_form": "prettier --write {files}",
         "globs": [
@@ -33,12 +31,12 @@
         ]
       },
       {
-        "id": "01a59fc8967d462c",
-        "role": "other",
+        "id": "8dd03f3d84e4306c",
+        "role": "fixer",
         "mutates": true
       },
       {
-        "id": "6408b6607f071c76",
+        "id": "327523eda977c632",
         "role": "check",
         "kind": "test",
         "mutates": false
@@ -51,13 +49,11 @@
         "manager": "npm",
         "run_prefix": "npx",
         "add_verbs": [
-          "npm install",
-          "npm i"
+          "npm install"
         ],
         "dlx": "npx",
         "dir_flags": [
-          "--prefix",
-          "-w"
+          "--prefix"
         ],
         "rivals": [
           "pnpm",
@@ -68,7 +64,7 @@
     "proposals": [
       {
         "role": "check",
-        "command": "npx eslint .",
+        "command": "npx eslint . --max-warnings=0",
         "dir": ".",
         "evidence": "package.json",
         "kind": "lint",
@@ -95,12 +91,11 @@
         "command": "npx prettier --write .",
         "dir": ".",
         "evidence": "package.json",
-        "kind": "format-check",
-        "mutates": true,
         "file_form": "npx prettier --write {files}",
         "globs": [
-          "**/*.{ts,tsx,md}"
-        ]
+          "**/*.{js,jsx,ts,tsx,json,md,css}"
+        ],
+        "mutates": true
       }
     ]
   },

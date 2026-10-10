@@ -9,6 +9,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/proc"
+	"github.com/ku5ic/claude-kit/go/internal/resolve"
 )
 
 // Where a Resolution's words come from.
@@ -56,7 +57,7 @@ const (
 // pnpm dlx, or uv run, which can install packages.
 func Resolve(cfg *config.Config, dir, root, name string, mode Mode) Resolution {
 	pkg := binPackage(cfg, name)
-	owner, spec := jsOwner(dir, root, pkg)
+	owner, spec := resolve.JSOwner(dir, root, pkg)
 	for _, sub := range []string{"node_modules/.bin", ".venv/bin", "venv/bin"} {
 		found := fsx.FindUp(dir, root, filepath.Join(sub, name))
 		if found == "" || !fsx.IsExecutable(found) {
@@ -67,17 +68,17 @@ func Resolve(cfg *config.Config, dir, root, name string, mode Mode) Resolution {
 			// The copy that runs must be the one the owning package
 			// declares, whether it's the owner's own or hoisted above it.
 			installed := filepath.Dir(filepath.Dir(filepath.Dir(found)))
-			switch version, verdict := satisfies(installed, pkg, spec); verdict {
-			case mismatch:
+			switch version, inRange := resolve.Satisfies(installed, pkg, spec); inRange {
+			case resolve.OutOfRange:
 				return Resolution{Skip: fsx.Rel(root, filepath.Join(owner, "package.json")) + " declares " + pkg + " " + spec +
 					", installed is " + version + " at " + fsx.Rel(root, installed) + "; run " + installCmd(cfg, owner, "js"), Project: true}
-			case unchecked:
+			case resolve.Unchecked:
 				res.Note = pkg + " " + spec + " not checked against the installed copy"
 			}
 		}
 		return res
 	}
-	if path := goTool(dir, root, name); path != "" {
+	if path := resolve.GoTool(dir, root, name); path != "" {
 		return Resolution{Words: []string{path}, Source: SourcePM}
 	}
 	for _, l := range cfg.ToolResolution.EnvLookups {
@@ -94,7 +95,7 @@ func Resolve(cfg *config.Config, dir, root, name string, mode Mode) Resolution {
 			return Resolution{Words: words, Source: SourcePM}
 		}
 	}
-	if bin := activeEnv(root, name); bin != "" {
+	if bin := resolve.ActiveEnv(root, name); bin != "" {
 		return Resolution{Words: []string{bin}, Source: SourcePM}
 	}
 	if manifest, install := declared(cfg, dir, root, name); manifest != "" {

@@ -17,8 +17,9 @@ Every e2e subtest steps 16 to 21 of the enforcement refactor touch, and where it
 
 ## Gaps found while mapping
 
-- Covered kinds are per project, not per language: a JS test script in CI stops a Go test proposal (gate_coverage). Tag it in the 16b diff; the fix is covered kinds keyed by language manifest.
-- Proposals never include dead code, though the plan's decisions say evidence fills it like any kind. Fix in 16b: prompt version 4 and re-recorded goldens.
+- Covered kinds were per project, not per subproject: a JS test script stopped a Go test proposal (gate_coverage). Fixed in 16b: the plan fills kinds per subproject (`TestEachSubprojectFillsItsOwnKinds`), and gap-fill proposes for every kind with evidence.
+- Proposals never included dead code. Fixed in 16b (prompt version 4).
+- A proposed check could be one that can't fail (`gofmt -l`, `cargo clippy` without `-D warnings`). Fixed in 16b (prompt version 6).
 - pnpm's install-before-run: `gate_env` (20c) carries it; until then 16c sets it for pnpm bodies.
 
 ## stop_checks_test.go

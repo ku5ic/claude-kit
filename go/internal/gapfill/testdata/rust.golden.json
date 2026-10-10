@@ -7,7 +7,7 @@
         "dir": ".",
         "cites": "Cargo.lock",
         "manager": "cargo",
-        "run_prefix": "cargo run",
+        "run_prefix": "cargo",
         "add_verbs": [
           "cargo add"
         ],
@@ -21,54 +21,41 @@
     "proposals": [
       {
         "role": "check",
-        "command": "cargo clippy",
+        "command": "cargo clippy -- -D warnings",
         "dir": ".",
         "evidence": "Cargo.toml",
-        "kind": "lint",
         "mutates": false,
-        "globs": [
-          "**/*.rs"
-        ]
+        "kind": "lint"
       },
       {
         "role": "check",
         "command": "cargo check",
         "dir": ".",
         "evidence": "Cargo.toml",
-        "kind": "typecheck",
         "mutates": false,
-        "globs": [
-          "**/*.rs"
-        ]
+        "kind": "typecheck"
       },
       {
         "role": "check",
         "command": "cargo test",
         "dir": ".",
         "evidence": "Cargo.toml",
-        "kind": "test",
         "mutates": false,
-        "globs": [
-          "**/*.rs"
-        ]
+        "kind": "test"
       },
       {
         "role": "check",
         "command": "cargo fmt --check",
         "dir": ".",
         "evidence": "Cargo.toml",
-        "kind": "format-check",
         "mutates": false,
-        "globs": [
-          "**/*.rs"
-        ]
+        "kind": "format-check"
       },
       {
         "role": "fixer",
         "command": "cargo fmt",
         "dir": ".",
         "evidence": "Cargo.toml",
-        "kind": "format-check",
         "mutates": true,
         "file_form": "cargo fmt -- {files}",
         "globs": [

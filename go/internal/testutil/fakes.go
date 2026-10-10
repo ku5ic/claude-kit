@@ -24,6 +24,15 @@ func FakeTool(t *testing.T, path, calls, extra string) {
 	}
 }
 
+// Replayer is a classifier command answering every request with the
+// envelope recorded at path.
+func Replayer(t *testing.T, path string) []string {
+	t.Helper()
+	stub := filepath.Join(t.TempDir(), "classifier")
+	FakeTool(t, stub, filepath.Join(t.TempDir(), "calls"), fmt.Sprintf("cat >/dev/null\ncat %q", path))
+	return []string{stub}
+}
+
 // Calls is every run a FakeTool recorded in calls, oldest first; none when
 // it never ran.
 func Calls(t *testing.T, calls string) []string {

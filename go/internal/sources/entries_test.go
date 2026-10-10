@@ -125,8 +125,8 @@ func TestReaders(t *testing.T) {
 }
 
 // Entries reads every source in one order: CI, the hook managers, the task
-// graphs, then the task runners, a disabled one and pre-commit's tasks left
-// out (pre-commit is its own source).
+// graphs, then each subproject's task runners, a disabled one and
+// pre-commit's tasks left out (pre-commit is its own source).
 func TestEntries(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -136,8 +136,9 @@ func TestEntries(t *testing.T) {
 	testutil.Put(t, root, "nx.json", `{"targetDefaults":{"lint":{}}}`)
 	testutil.Put(t, root, "package.json", `{"scripts":{"test":"vitest run"}}`)
 	testutil.Put(t, root, "Makefile", "lint:\n\tgolangci-lint run\n")
+	testutil.Put(t, root, "web/package.json", `{"scripts":{"lint":"eslint ."}}`)
 	var got []string
-	for _, e := range Entries(&config.Config{DisabledTaskProviders: []string{"make"}}, root) {
+	for _, e := range Entries(&config.Config{DisabledTaskProviders: []string{"make"}}, root, []string{".", "web"}) {
 		got = append(got, e.String())
 	}
 	expect(t, got,
@@ -147,5 +148,6 @@ func TestEntries(t *testing.T) {
 		line("pre-commit", ".pre-commit-config.yaml", "-", ".", "fmt", "-", "gofmt -l {files}"),
 		line("nx", "nx.json", "-", ".", "lint", "-", "nx affected -t lint"),
 		line("package-scripts", "package.json", "-", ".", "test", "-", "vitest run"),
+		line("package-scripts", "web/package.json", "-", "web", "lint", "-", "eslint ."),
 	)
 }

@@ -23,12 +23,13 @@ type Resolution struct {
 
 // Where a Resolution comes from.
 const (
-	Local     = "local" // a gitignored bin directory of the project
-	GoTool    = "go.mod tool"
-	ActiveEnv = "active environment"
-	Pinned    = "pinned"
-	Toolchain = "toolchain"
-	Manager   = "package manager"
+	Local       = "local" // a gitignored bin directory of the project
+	GoModTool   = "go.mod tool"
+	Environment = "active environment"
+	Pinned      = "pinned"
+	Toolchain   = "toolchain"
+	Manager     = "package manager"
+	System      = "system"
 )
 
 // Resolver resolves binaries for one project root.
@@ -92,7 +93,7 @@ func (r *Resolver) Command(dir string, words []string) Resolution {
 // tool, an active environment inside the project; a package a manifest
 // declares but nothing installed is refused; then PATH, only when a pin
 // file names it and it runs from that manager, a manifest's toolchain
-// provides it, or it is a verified package manager.
+// provides it, it is a verified package manager, or the system ships it.
 func (r *Resolver) Bin(dir, name string) Resolution {
 	if strings.Contains(name, "/") {
 		path := name
@@ -107,11 +108,11 @@ func (r *Resolver) Bin(dir, name string) Resolution {
 	if res, ok := r.local(dir, name); ok {
 		return res
 	}
-	if path := goTool(dir, r.root, name); path != "" {
-		return Resolution{Path: path, Source: GoTool}
+	if path := GoTool(dir, r.root, name); path != "" {
+		return Resolution{Path: path, Source: GoModTool}
 	}
-	if path := activeEnv(r.root, name); path != "" {
-		return Resolution{Path: path, Source: ActiveEnv}
+	if path := ActiveEnv(r.root, name); path != "" {
+		return Resolution{Path: path, Source: Environment}
 	}
 	if manifest := declared(dir, r.root, name); manifest != "" {
 		return Resolution{Skip: name + " declared in " + manifest + " but not installed"}
@@ -132,10 +133,11 @@ func (r *Resolver) Bin(dir, name string) Resolution {
 	if slices.Contains(r.managers, name) {
 		return Resolution{Path: path, Source: Manager}
 	}
-	return Resolution{Skip: name + " only on PATH (" + path + "); nothing in the project pins or provides it. Pin it (" + strings.Join(pinExamples, ", ") + ")"}
+	if system(path) {
+		return Resolution{Path: path, Source: System}
+	}
+	return Resolution{Skip: name + " only on PATH (" + path + "); nothing in the project pins or provides it. Pin it (.tool-versions, mise.toml, Brewfile)"}
 }
-
-var pinExamples = []string{".tool-versions", "mise.toml", "Brewfile"}
 
 // local is name in the nearest gitignored bin directory serving dir, with
 // its declared version range checked when it is a node package.
@@ -150,13 +152,13 @@ func (r *Resolver) local(dir, name string) (Resolution, bool) {
 		}
 		res := Resolution{Path: found, Source: Local}
 		if pkg := nodePackage(found); pkg != "" {
-			if owner, spec := jsOwner(dir, r.root, pkg); owner != "" {
+			if owner, spec := JSOwner(dir, r.root, pkg); owner != "" {
 				installed := filepath.Dir(filepath.Dir(b.path))
-				switch version, v := satisfies(installed, pkg, spec); v {
-				case mismatch:
+				switch version, v := Satisfies(installed, pkg, spec); v {
+				case OutOfRange:
 					return Resolution{Skip: fsx.Rel(r.root, filepath.Join(owner, "package.json")) + " declares " + pkg + " " + spec +
 						", installed is " + version + " at " + fsx.Rel(r.root, installed) + "; reinstall the project's packages"}, true
-				case unchecked:
+				case Unchecked:
 					res.Note = pkg + " " + spec + " not checked against the installed copy"
 				}
 			}

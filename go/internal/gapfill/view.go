@@ -15,10 +15,10 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/sources"
 )
 
-// project is what the model sees of the project besides its entries: its
+// view is what the model sees of the project besides its entries: its
 // file names, shallowest first, the text of its config files, and its
 // lockfile directories. Key names the facts answered for it.
-type project struct {
+type view struct {
 	Files        []string          `json:"files"`
 	Contents     map[string]string `json:"contents"`
 	LockfileDirs []lockDir         `json:"lockfile_dirs"`
@@ -43,18 +43,18 @@ const (
 // dependencies in.
 var configExts = []string{".json", ".toml", ".yaml", ".yml", ".ini", ".cfg", ".mod"}
 
-// readProject reads root for the model. Contents hold the entries' own
+// readView reads root for the model. Contents hold the entries' own
 // config files, then each config-format file and root dotfile at the root
 // or beside a lockfile: what states a tool or a dependency. Source files
 // never do, so editing one never asks again: the key covers the entries,
 // the contents, and the lockfile directories, not the file list.
-func readProject(cfg *config.Config, root string, entries []sources.Entry) project {
+func readView(cfg *config.Config, root string, entries []sources.Entry) view {
 	files, err := git.Files(root)
 	if err != nil || len(files) == 0 {
 		files = topLevel(root)
 	}
 	slices.SortStableFunc(files, func(a, b string) int { return cmp.Compare(strings.Count(a, "/"), strings.Count(b, "/")) })
-	p := project{Files: files[:min(len(files), maxFiles)], Contents: map[string]string{}, LockfileDirs: lockDirs(cfg, root, files)}
+	p := view{Files: files[:min(len(files), maxFiles)], Contents: map[string]string{}, LockfileDirs: lockDirs(cfg, root, files)}
 
 	var candidates []string
 	for _, e := range entries {

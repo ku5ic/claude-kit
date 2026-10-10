@@ -182,6 +182,7 @@ func TestVerification(t *testing.T) {
 	f := newFixture(t, "")
 	testutil.Put(t, f.root, "src/a.ts", "")
 	testutil.Put(t, f.root, "pnpm-lock.yaml", "")
+	testutil.Put(t, f.root, "package.json", `{"devDependencies":{"eslint":"9.12.0"}}`)
 	ci := entry("ci", "eslint src && tsc --noEmit && vitest run")
 	fetch := entry("fmt", "prettier --check .")
 	invent := entry("test", "jest")
@@ -235,14 +236,13 @@ func TestVerification(t *testing.T) {
 	if len(r.Managers) != 1 || r.Managers[0].Manager != "pnpm" {
 		t.Errorf("only the manager whose lockfile exists stands: %+v", r.Managers)
 	}
-	if len(r.Proposals) != 0 {
-		t.Errorf("an enforced kind, a fetching fixer, and missing evidence all go: %+v", r.Proposals)
+	if len(r.Proposals) != 1 || r.Proposals[0].Command != "pnpm exec eslint ." {
+		t.Errorf("a fetching fixer and missing evidence go; a lint the entries cover stays, for the plan to weigh: %+v", r.Proposals)
 	}
 	for _, want := range []string{
 		`package-scripts fmt: file form "npx prettier --check {files}": fetches (npx prettier with no local copy)`,
 		`package-scripts test: file form "node -e require('jest').run({files})": not the body's own words`,
 		`manager for .: no lockfile yarn.lock`,
-		`proposal "pnpm exec eslint .": lint is enforced already`,
 		`proposal "pnpm dlx prettier --write .": fetches (pnpm dlx)`,
 		`proposal "gitleaks detect": no evidence file ".gitleaks.toml"`,
 	} {

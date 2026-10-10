@@ -110,7 +110,7 @@ echo "$GOPROXY|$GOFLAGS" >`+envFile+`
 	if err := os.Chmod(filepath.Join(e.path, "go"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	e.wantRuns(e.bin(e.repo, "deadcode"), built, GoTool)
+	e.wantRuns(e.bin(e.repo, "deadcode"), built, GoModTool)
 	if got := strings.TrimSpace(testutil.Read(t, envFile)); got != "off|-mod=readonly" {
 		t.Errorf("go ran with GOPROXY|GOFLAGS %q", got)
 	}
@@ -130,7 +130,7 @@ func TestGoModToolNotInTheCacheIsDeclaredNotInstalled(t *testing.T) {
 func TestGoModDeclaresNamesTheBinaryBeforeAMajorSuffix(t *testing.T) {
 	dir := t.TempDir()
 	testutil.Put(t, dir, "go.mod", "module x\n\ntool example.com/foo/v2\n")
-	if !goModDeclares(filepath.Join(dir, "go.mod"), "foo") {
+	if !GoModDeclares(filepath.Join(dir, "go.mod"), "foo") {
 		t.Error("example.com/foo/v2 should provide foo")
 	}
 }
@@ -139,7 +139,7 @@ func TestActiveVirtualenvOnlyInsideTheProject(t *testing.T) {
 	e := setup(t)
 	inside := e.exe(filepath.Join(e.repo, "envs/dev/bin/ruff"))
 	t.Setenv("VIRTUAL_ENV", filepath.Join(e.repo, "envs/dev"))
-	e.wantRuns(e.bin(e.repo, "ruff"), inside, ActiveEnv)
+	e.wantRuns(e.bin(e.repo, "ruff"), inside, Environment)
 
 	outside := filepath.Join(filepath.Dir(e.repo), "elsewhere")
 	e.exe(filepath.Join(outside, "bin/ruff"))
@@ -177,6 +177,24 @@ func TestAManifestsToolchainRunsFromPATH(t *testing.T) {
 	e.wantSkip(e.bin(e.repo, "gofmt"), "only on PATH")
 	testutil.Put(t, e.repo, "go.mod", "module x\n")
 	e.wantRuns(e.bin(filepath.Join(e.repo, "cmd"), "gofmt"), gofmt, Toolchain)
+}
+
+func TestATaskRunnersManifestStatesTheRunner(t *testing.T) {
+	e := setup(t)
+	just := e.exe(filepath.Join(e.path, "just"))
+	e.wantSkip(e.bin(e.repo, "just"), "only on PATH")
+	testutil.Put(t, e.repo, "justfile", "lint:\n    echo\n")
+	e.wantRuns(e.bin(e.repo, "just"), just, Toolchain)
+}
+
+func TestTheSystemsOwnCommandsRun(t *testing.T) {
+	e := setup(t)
+	t.Setenv("PATH", e.path+":/usr/bin:/bin")
+	sh, err := exec.LookPath("sh")
+	if err != nil {
+		t.Skip("no sh in /usr/bin or /bin")
+	}
+	e.wantRuns(e.bin(e.repo, "sh"), sh, System)
 }
 
 func TestAVerifiedManagerRunsFromPATH(t *testing.T) {
@@ -305,19 +323,19 @@ func TestSatisfiesFollowsNpmRangeRules(t *testing.T) {
 	dir := t.TempDir()
 	for _, c := range []struct {
 		spec, version string
-		want          verdict
+		want          Range
 	}{
-		{"^3.6.0", "3.7.0-beta.1", mismatch}, // a plain range never takes a prerelease
-		{"^3.7.0-beta.0", "3.7.0-beta.1", matches},
-		{">=3.6 <4", "3.9.6", matches},
-		{"~3.6.0", "3.7.0", mismatch},
-		{"3.6.2", "3.6.2", matches},
-		{"*", "1.0.0", matches},
-		{"npm:other@^1", "1.0.0", unchecked},
+		{"^3.6.0", "3.7.0-beta.1", OutOfRange}, // a plain range never takes a prerelease
+		{"^3.7.0-beta.0", "3.7.0-beta.1", InRange},
+		{">=3.6 <4", "3.9.6", InRange},
+		{"~3.6.0", "3.7.0", OutOfRange},
+		{"3.6.2", "3.6.2", InRange},
+		{"*", "1.0.0", InRange},
+		{"npm:other@^1", "1.0.0", Unchecked},
 	} {
 		testutil.Put(t, dir, "node_modules/p/package.json", `{"version":"`+c.version+`"}`)
-		if _, got := satisfies(dir, "p", c.spec); got != c.want {
-			t.Errorf("%s vs %s: verdict %d, want %d", c.spec, c.version, got, c.want)
+		if _, got := Satisfies(dir, "p", c.spec); got != c.want {
+			t.Errorf("%s vs %s: range %d, want %d", c.spec, c.version, got, c.want)
 		}
 	}
 }

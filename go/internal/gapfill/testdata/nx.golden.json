@@ -3,20 +3,20 @@
   "structured_output": {
     "entries": [
       {
-        "id": "ef15eadfb3e50663",
+        "id": "9c1b5ae65f917dcd",
         "role": "build",
         "mutates": false,
         "affected_form": "nx affected -t build --base={base}"
       },
       {
-        "id": "1d96794fffe0819f",
+        "id": "b82d53ff005a1a32",
         "role": "check",
         "kind": "lint",
         "mutates": false,
         "affected_form": "nx affected -t lint --base={base}"
       },
       {
-        "id": "f22da93a1dc81703",
+        "id": "a89a4fb140bb567a",
         "role": "check",
         "kind": "test",
         "mutates": false,
@@ -35,7 +35,8 @@
         ],
         "dlx": "npx",
         "dir_flags": [
-          "--prefix"
+          "--prefix",
+          "--workspace"
         ],
         "rivals": [
           "pnpm",

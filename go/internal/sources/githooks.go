@@ -87,16 +87,15 @@ func lefthookEntries(root string) []Entry {
 	for _, stage := range slices.Sorted(maps.Keys(config)) {
 		hook, _ := config[stage].(map[string]any)
 		h.stage = stage
-		for _, list := range []string{"commands", "scripts"} {
-			named, _ := hook[list].(map[string]any)
-			for _, name := range slices.Sorted(maps.Keys(named)) {
-				job, _ := named[name].(map[string]any)
-				script := ""
-				if list == "scripts" {
-					script = name
-				}
-				out = h.add(out, name, script, job, nil)
-			}
+		commands, _ := hook["commands"].(map[string]any)
+		for _, name := range slices.Sorted(maps.Keys(commands)) {
+			job, _ := commands[name].(map[string]any)
+			out = h.add(out, name, "", job, nil)
+		}
+		scripts, _ := hook["scripts"].(map[string]any)
+		for _, name := range slices.Sorted(maps.Keys(scripts)) {
+			job, _ := scripts[name].(map[string]any)
+			out = h.add(out, name, name, job, nil)
 		}
 		out = append(out, h.jobs(hook["jobs"], nil)...)
 	}
@@ -121,11 +120,7 @@ func (h lefthookHook) jobs(list any, parent map[string]any) []Entry {
 			out = append(out, h.jobs(group["jobs"], inherited)...)
 			continue
 		}
-		name := str(job["name"])
-		if name == "" {
-			name = strconv.Itoa(i + 1)
-		}
-		out = h.add(out, name, str(job["script"]), job, parent)
+		out = h.add(out, cmp.Or(str(job["name"]), strconv.Itoa(i+1)), str(job["script"]), job, parent)
 	}
 	return out
 }

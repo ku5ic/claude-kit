@@ -10,23 +10,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/sources"
 	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
-
-// goldenFixtures are projects under testdata, each with the lockfiles the
-// test writes into its copy (a lockfile is never hand-written in the repo).
-var goldenFixtures = map[string][]string{
-	"turbo":       {"pnpm-lock.yaml"},
-	"nx":          {"package-lock.json"},
-	"poetry":      {"poetry.lock"},
-	"yarn-pnp":    {"yarn.lock"},
-	"makefile":    nil,
-	"pre-commit":  nil,
-	"lint-staged": {"package-lock.json"},
-	"go-noci":     nil,
-	"rust":        {"Cargo.lock"},
-}
 
 // golden is one fixture's verified result, read back by name.
 type golden struct {
@@ -164,31 +151,19 @@ func TestGoldenVerdicts(t *testing.T) {
 			}
 		},
 	}
-	for name, lockfiles := range goldenFixtures {
+	for name := range testutil.Fixtures(t, "testdata") {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			root := t.TempDir()
-			if err := os.CopyFS(root, os.DirFS(filepath.Join("testdata", name))); err != nil {
-				t.Fatal(err)
-			}
-			for _, lock := range lockfiles {
-				testutil.Put(t, root, lock, "")
-			}
-			testutil.Git(t, root, "init", "-q")
+			root := testutil.Fixture(t, "testdata", name)
 			recording, _ := filepath.Abs(filepath.Join("testdata", name+".golden.json"))
 			c := *cfg
-			stub := filepath.Join(t.TempDir(), "classifier")
+			c.Classifier = testutil.Replayer(t, recording)
 			if record {
-				testutil.Put(t, filepath.Dir(stub), "classifier", fmt.Sprintf("#!/bin/sh\n\"$@\" | tee %q\n", recording))
+				stub := filepath.Join(t.TempDir(), "classifier")
+				testutil.FakeTool(t, stub, filepath.Join(t.TempDir(), "calls"), fmt.Sprintf("\"$@\" | tee %q", recording))
 				c.Classifier = append([]string{stub}, claude()...)
-			} else {
-				testutil.Put(t, filepath.Dir(stub), "classifier", fmt.Sprintf("#!/bin/sh\ncat >/dev/null\ncat %q\n", recording))
-				c.Classifier = []string{stub}
 			}
-			if err := os.Chmod(stub, 0o755); err != nil {
-				t.Fatal(err)
-			}
-			entries := sources.Entries(&c, root)
+			entries := sources.Entries(&c, root, project.Subprojects(&c, root))
 			r := Run(&c, Options{Root: root, CacheDir: t.TempDir(), Entries: entries, Ask: true, Timeout: 2 * time.Minute})
 			if record {
 				trim(t, recording)

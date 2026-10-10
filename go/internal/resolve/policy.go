@@ -16,23 +16,20 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/sources"
 )
 
-// toolchains are the binaries a language manifest's own toolchain
-// provides: a project with the manifest states them.
-var toolchains = map[string][]string{
-	"go.mod":         {"go", "gofmt"},
-	"Cargo.toml":     {"cargo", "rustc", "rustfmt"},
-	"package.json":   {"node", "npm", "npx"},
-	"pyproject.toml": {"python", "python3"},
-	"Gemfile":        {"ruby", "bundle"},
-	"composer.json":  {"php", "composer"},
-}
-
 // toolchainOf is the manifest, from dir up to root, whose toolchain
-// provides name; "" when none does.
+// provides name, a task runner's included (a Makefile, make); "" when none
+// does.
 func toolchainOf(dir, root, name string) string {
-	for manifest, bins := range toolchains {
+	for manifest, bins := range sources.Toolchains {
 		if slices.Contains(bins, name) {
 			if path := fsx.FindUp(dir, root, manifest); path != "" {
+				return fsx.Rel(root, path)
+			}
+		}
+	}
+	for _, tp := range sources.TaskProviders {
+		if runner, _, _ := strings.Cut(tp.Run, " "); runner == name {
+			if path := fsx.FindUp(dir, root, tp.Manifests...); path != "" {
 				return fsx.Rel(root, path)
 			}
 		}
@@ -40,8 +37,17 @@ func toolchainOf(dir, root, name string) string {
 	return ""
 }
 
+// systemDirs hold the operating system's own commands.
+var systemDirs = []string{"/bin", "/usr/bin", "/sbin", "/usr/sbin"}
+
+// system is true for a binary the operating system ships: no project
+// states it, and none needs to.
+func system(path string) bool {
+	return slices.Contains(systemDirs, filepath.Dir(path))
+}
+
 // pinAliases are plugin names that differ from the binary they install.
-var pinAliases = map[string]string{"golang": "go", "nodejs": "node", "opentofu": "tofu"}
+var pinAliases = map[string]string{"golang": "go", "nodejs": "node", "opentofu": "tofu", "bats-core": "bats"}
 
 // pinned is the pin file, from dir up to root, that names name; "" when
 // none does.
@@ -99,7 +105,7 @@ func declared(dir, root, name string) string {
 			manifest = "pyproject.toml"
 		case sources.RubyDeps(d)[name]:
 			manifest = "Gemfile.lock"
-		case fsx.IsFile(filepath.Join(d, "go.mod")) && goModDeclares(filepath.Join(d, "go.mod"), name):
+		case fsx.IsFile(filepath.Join(d, "go.mod")) && GoModDeclares(filepath.Join(d, "go.mod"), name):
 			manifest = "go.mod"
 		}
 		if manifest != "" {
@@ -111,9 +117,9 @@ func declared(dir, root, name string) string {
 	}
 }
 
-// activeEnv is name in an activated virtualenv or conda env, only when that
+// ActiveEnv is name in an activated virtualenv or conda env, only when that
 // env lives inside the project: an unrelated env says nothing about it.
-func activeEnv(root, name string) string {
+func ActiveEnv(root, name string) string {
 	physRoot := fsx.PhysicalPath(root)
 	for _, key := range []string{"VIRTUAL_ENV", "CONDA_PREFIX"} {
 		env := os.Getenv(key)
@@ -130,12 +136,12 @@ func activeEnv(root, name string) string {
 	return ""
 }
 
-// goTool is the binary `go tool -n` builds for a tool go.mod declares, ""
+// GoTool is the binary `go tool -n` builds for a tool go.mod declares, ""
 // when go.mod doesn't declare name or it can't be built. GOPROXY=off keeps
 // it from downloading; a module not in the cache counts as not installed.
-func goTool(dir, root, name string) string {
+func GoTool(dir, root, name string) string {
 	mod := fsx.FindUp(dir, root, "go.mod")
-	if mod == "" || !goModDeclares(mod, name) {
+	if mod == "" || !GoModDeclares(mod, name) {
 		return ""
 	}
 	if _, err := exec.LookPath("go"); err != nil {
@@ -161,10 +167,10 @@ func goTool(dir, root, name string) string {
 
 var majorSuffix = regexp.MustCompile(`^v[0-9]+$`)
 
-// goModDeclares is true when go.mod has a tool directive whose package
+// GoModDeclares is true when go.mod has a tool directive whose package
 // builds a binary called name: the last path element, or the one before a
 // /vN major-version suffix.
-func goModDeclares(mod, name string) bool {
+func GoModDeclares(mod, name string) bool {
 	found, inBlock := false, false
 	sources.EachLine(mod, func(line string) {
 		line = strings.TrimSpace(line)
@@ -214,10 +220,10 @@ func nodePackage(bin string) string {
 	return parts[0]
 }
 
-// jsOwner is the nearest directory, from dir up to root, whose package.json
+// JSOwner is the nearest directory, from dir up to root, whose package.json
 // declares pkg, with the spec it declares: in a workspace, that package's
 // version is the one that counts. "" when none does.
-func jsOwner(dir, root, pkg string) (owner, spec string) {
+func JSOwner(dir, root, pkg string) (owner, spec string) {
 	for d := dir; ; d = filepath.Dir(d) {
 		if s, ok := sources.JSSpecs(d)[pkg]; ok {
 			return d, s
@@ -228,34 +234,35 @@ func jsOwner(dir, root, pkg string) (owner, spec string) {
 	}
 }
 
-type verdict int
+// Range is how an installed version stands against a declared range.
+type Range int
 
 const (
-	matches verdict = iota
-	mismatch
-	unchecked // a spec semver can't read (workspace:, catalog:, git...), or no readable version
+	InRange Range = iota
+	OutOfRange
+	Unchecked // a spec semver can't read (workspace:, catalog:, git...), or no readable version
 )
 
-// satisfies checks the version of pkg installed under dir/node_modules
+// Satisfies checks the version of pkg installed under dir/node_modules
 // against spec, returning the installed version.
-func satisfies(dir, pkg, spec string) (string, verdict) {
+func Satisfies(dir, pkg, spec string) (string, Range) {
 	constraint, err := semver.NewConstraint(spec)
 	if err != nil {
-		return "", unchecked
+		return "", Unchecked
 	}
 	var manifest struct {
 		Version string `json:"version"`
 	}
 	data, err := os.ReadFile(filepath.Join(dir, "node_modules", pkg, "package.json"))
 	if err != nil || json.Unmarshal(data, &manifest) != nil {
-		return "", unchecked
+		return "", Unchecked
 	}
 	version, err := semver.NewVersion(manifest.Version)
 	if err != nil {
-		return manifest.Version, unchecked
+		return manifest.Version, Unchecked
 	}
 	if constraint.Check(version) {
-		return manifest.Version, matches
+		return manifest.Version, InRange
 	}
-	return manifest.Version, mismatch
+	return manifest.Version, OutOfRange
 }

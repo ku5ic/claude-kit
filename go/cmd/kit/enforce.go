@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
@@ -24,7 +23,7 @@ func cmdEnforce(e *env, cfg *config.Config, args []string) int {
 		return 2
 	}
 	root, _ := project.Root(cfg, e.cwd)
-	entries := sources.Entries(cfg, root)
+	entries := sources.Entries(cfg, root, project.Subprojects(cfg, root))
 	if args[0] == "--list" {
 		for _, entry := range entries {
 			fmt.Fprintln(e.stdout, entry)
@@ -36,7 +35,7 @@ func cmdEnforce(e *env, cfg *config.Config, args []string) int {
 		key := gapfill.Key(entry)
 		answer := r.Skipped[key]
 		if v, ok := r.Verdicts[key]; ok {
-			answer = verdictLine(v)
+			answer = v.String()
 		}
 		fmt.Fprintln(e.stdout, entry.String()+"\t"+answer)
 	}
@@ -44,7 +43,7 @@ func cmdEnforce(e *env, cfg *config.Config, args []string) int {
 		fmt.Fprintf(e.stdout, "manager\t%s\t%s\t%s\tcites %s\n", m.Dir, m.Manager, m.RunPrefix, m.Cites)
 	}
 	for _, p := range r.Proposals {
-		fmt.Fprintf(e.stdout, "proposal\t%s\t%s\t%s\tevidence %s\n", roleKind(p.Role, p.Kind), p.Dir, p.Command, p.Evidence)
+		fmt.Fprintf(e.stdout, "proposal\t%s\t%s\t%s\tevidence %s\n", gapfill.RoleKind(p.Role, p.Kind), p.Dir, p.Command, p.Evidence)
 	}
 	for _, d := range r.Dropped {
 		fmt.Fprintln(e.stdout, "dropped\t"+d)
@@ -53,29 +52,4 @@ func cmdEnforce(e *env, cfg *config.Config, args []string) int {
 		return exitUnclassified
 	}
 	return 0
-}
-
-// verdictLine is v as one column: role:kind, then what else it says.
-func verdictLine(v gapfill.Verdict) string {
-	parts := []string{roleKind(v.Role, v.Kind)}
-	if v.Mutates {
-		parts = append(parts, "mutates")
-	}
-	for _, s := range v.Segments {
-		parts = append(parts, fmt.Sprintf("segment %q %s", s.Text, roleKind(s.Role, s.Kind)))
-	}
-	if v.FileForm != "" {
-		parts = append(parts, "files: "+v.FileForm)
-	}
-	if v.Affected != "" {
-		parts = append(parts, "affected: "+v.Affected)
-	}
-	return strings.Join(parts, "; ")
-}
-
-func roleKind(role, kind string) string {
-	if kind == "" {
-		return role
-	}
-	return role + ":" + kind
 }

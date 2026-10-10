@@ -37,7 +37,6 @@ func verify(cfg *config.Config, root string, entries []sources.Entry, s store, f
 	if failure != "" {
 		unclassified += " (" + failure + ")"
 	}
-	var covered []string
 	for _, e := range entries {
 		key := Key(e)
 		if token := denied(cfg, e); token != "" {
@@ -58,10 +57,9 @@ func verify(cfg *config.Config, root string, entries []sources.Entry, s store, f
 			r.Dropped = append(r.Dropped, e.Source+" "+e.Name+": "+d)
 		}
 		r.Verdicts[key] = v
-		covered = appendKinds(covered, v)
 	}
 	for _, p := range s.Proposals {
-		if err := at(p.Dir).proposal(cfg, p, covered); err != nil {
+		if err := at(p.Dir).proposal(cfg, p); err != nil {
 			r.Dropped = append(r.Dropped, fmt.Sprintf("proposal %q: %v", p.Command, err))
 			continue
 		}
@@ -76,20 +74,6 @@ func verify(cfg *config.Config, root string, entries []sources.Entry, s store, f
 // denied is the deny_commands token e's body holds, "" when none.
 func denied(cfg *config.Config, e sources.Entry) string {
 	return cfg.GateDiscovery.DeniedCommand(strings.Fields(e.Body.Text))
-}
-
-// appendKinds adds the check kinds v enforces, itself or in a segment.
-func appendKinds(kinds []string, v Verdict) []string {
-	add := func(role, kind string) {
-		if role == "check" && kind != "" && !slices.Contains(kinds, kind) {
-			kinds = append(kinds, kind)
-		}
-	}
-	add(v.Role, v.Kind)
-	for _, s := range v.Segments {
-		add(s.Role, s.Kind)
-	}
-	return kinds
 }
 
 // checkRole is an error for a role the schema doesn't list, or a check
@@ -164,10 +148,11 @@ func (f forms) verdict(e sources.Entry, v Verdict) (Verdict, []string, error) {
 	return v, dropped, nil
 }
 
-// proposal is an error unless p is a check of a kind nothing enforces, or a
-// fixer, whose evidence exists, which the deny list allows, and which never
-// fetches.
-func (f forms) proposal(cfg *config.Config, p Proposal, covered []string) error {
+// proposal is an error unless p is a check of a known kind, or a fixer,
+// whose evidence exists, which the deny list allows, and which never
+// fetches. Whether the project already enforces its kind where it runs is
+// the plan's call.
+func (f forms) proposal(cfg *config.Config, p Proposal) error {
 	words := strings.Fields(p.Command)
 	switch {
 	case len(words) == 0:
@@ -176,8 +161,6 @@ func (f forms) proposal(cfg *config.Config, p Proposal, covered []string) error 
 		return fmt.Errorf("role %q", p.Role)
 	case p.Role == "check" && !slices.Contains(kinds, p.Kind):
 		return fmt.Errorf("check kind %q", p.Kind)
-	case p.Role == "check" && slices.Contains(covered, p.Kind):
-		return fmt.Errorf("%s is enforced already", p.Kind)
 	case p.Evidence == "" || !fsx.IsFile(filepath.Join(f.root, p.Evidence)) && !fsx.IsFile(filepath.Join(f.dir, p.Evidence)):
 		return fmt.Errorf("no evidence file %q", p.Evidence)
 	}

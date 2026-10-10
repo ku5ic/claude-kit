@@ -30,16 +30,22 @@ type Entry struct {
 // source, file, stage, dir, name, files, and the command, its env first,
 // {files} last when files are appended, newlines as \n.
 func (e Entry) String() string {
-	command := strings.Join(append(slices.Clone(e.Env), e.Body.Text), " ")
+	command := e.Command()
 	if e.PassFiles {
 		command += " {files}"
 	}
 	return strings.Join([]string{e.Source, e.File, cmp.Or(e.Stage, "-"), e.Dir, e.Name, cmp.Or(strings.Join(e.Files, ","), "-"), strings.ReplaceAll(command, "\n", `\n`)}, "\t")
 }
 
+// Command is the body with its env in front, as a shell line.
+func (e Entry) Command() string {
+	return strings.Join(append(slices.Clone(e.Env), e.Body.Text), " ")
+}
+
 // Entries lists what root's configs say to run: CI steps, the git-hook
-// managers' commands, turbo's and nx's tasks, and the task runners' tasks.
-func Entries(cfg *config.Config, root string) []Entry {
+// managers' commands, turbo's and nx's tasks, and the task runners' tasks
+// in each of dirs, the subprojects relative to root.
+func Entries(cfg *config.Config, root string, dirs []string) []Entry {
 	var out []Entry
 	for _, s := range Steps(cfg, root) {
 		source := "github-actions"
@@ -51,15 +57,19 @@ func Entries(cfg *config.Config, root string) []Entry {
 	for _, read := range []func(string) []Entry{preCommitEntries, lintStagedEntries, lefthookEntries, huskyEntries, commitlintEntries, turboEntries, nxEntries} {
 		out = append(out, read(root)...)
 	}
-	return append(out, taskEntries(cfg, root)...)
+	for _, dir := range dirs {
+		out = append(out, taskEntries(cfg, root, dir)...)
+	}
+	return out
 }
 
-// taskEntries are the tasks of each task runner with a manifest in root.
+// taskEntries are the tasks of each task runner with a manifest in dir.
 // pre-commit's hooks are preCommitEntries, which keep their stages.
-func taskEntries(cfg *config.Config, root string) []Entry {
+func taskEntries(cfg *config.Config, root, dir string) []Entry {
 	var out []Entry
+	abs := filepath.Join(root, dir)
 	for _, tp := range TaskProviders {
-		manifest := fsx.FindUp(root, root, tp.Manifests...)
+		manifest := fsx.FindUp(abs, abs, tp.Manifests...)
 		if manifest == "" || tp.Name == "pre-commit" || slices.Contains(cfg.DisabledTaskProviders, tp.Name) {
 			continue
 		}
@@ -67,7 +77,7 @@ func taskEntries(cfg *config.Config, root string) []Entry {
 		bodies := Bodies(tp.Extractor, manifest, tp.Arg)
 		for _, name := range names {
 			if name != "" {
-				out = append(out, Entry{Source: tp.Name, File: fsx.Rel(root, manifest), Name: name, Dir: ".", Body: tp.Wrap(bodies[name])})
+				out = append(out, Entry{Source: tp.Name, File: fsx.Rel(root, manifest), Name: name, Dir: dir, Body: tp.Wrap(bodies[name])})
 			}
 		}
 	}

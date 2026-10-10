@@ -5,10 +5,35 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
+
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 )
+
+// Toolchains are the language manifests and the binaries each one's own
+// toolchain provides: a project with the manifest states them.
+var Toolchains = map[string][]string{
+	"go.mod":         {"go", "gofmt"},
+	"Cargo.toml":     {"cargo", "rustc", "rustfmt"},
+	"package.json":   {"node", "npm", "npx"},
+	"pyproject.toml": {"python", "python3"},
+	"Gemfile":        {"ruby", "bundle"},
+	"composer.json":  {"php", "composer"},
+}
+
+// HasManifest is true when dir holds a language manifest or a task
+// runner's: something there states how it is built and checked.
+func HasManifest(dir string) bool {
+	for manifest := range Toolchains {
+		if fsx.IsFile(filepath.Join(dir, manifest)) {
+			return true
+		}
+	}
+	return slices.ContainsFunc(TaskProviders, func(tp TaskProvider) bool { return fsx.FindUp(dir, dir, tp.Manifests...) != "" })
+}
 
 // Deps are the packages a manifest declares, by normalized name.
 type Deps map[string]bool

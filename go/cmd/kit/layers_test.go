@@ -31,6 +31,7 @@ var layers = map[string]int{
 	"internal/gapfill":    4,
 	"internal/tools":      4,
 	"internal/checks":     5,
+	"internal/enforce":    5,
 	"internal/bashguard":  5,
 	"internal/hooks":      5,
 	"internal/stackctx":   5,

@@ -122,14 +122,6 @@ func TestResolveGoModToolNotInTheCacheIsDeclaredNotInstalled(t *testing.T) {
 	e.wantSkip(e.resolve("golangci-lint", Default), "declared in go.mod but not installed; run go mod download")
 }
 
-func TestGoModDeclaresNamesTheBinaryBeforeAMajorSuffix(t *testing.T) {
-	dir := t.TempDir()
-	testutil.Put(t, dir, "go.mod", "module x\n\ntool example.com/foo/v2\n")
-	if !goModDeclares(filepath.Join(dir, "go.mod"), "foo") {
-		t.Error("example.com/foo/v2 should provide foo")
-	}
-}
-
 func TestResolveActiveVirtualenvOnlyInsideTheRepo(t *testing.T) {
 	e := resolveSetup(t)
 	inside := e.exe(filepath.Join(e.repo, "envs/dev/bin/ruff"), "")
@@ -295,27 +287,6 @@ func TestResolveUnreadableSpecRunsWithANote(t *testing.T) {
 	e.wantRuns(res, hoisted, SourceLocal)
 	if !strings.Contains(res.Note, "workspace:* not checked") {
 		t.Errorf("note %q", res.Note)
-	}
-}
-
-func TestSatisfiesFollowsNpmRangeRules(t *testing.T) {
-	dir := t.TempDir()
-	for _, c := range []struct {
-		spec, version string
-		want          verdict
-	}{
-		{"^3.6.0", "3.7.0-beta.1", mismatch}, // a plain range never takes a prerelease
-		{"^3.7.0-beta.0", "3.7.0-beta.1", matches},
-		{">=3.6 <4", "3.9.6", matches},
-		{"~3.6.0", "3.7.0", mismatch},
-		{"3.6.2", "3.6.2", matches},
-		{"*", "1.0.0", matches},
-		{"npm:other@^1", "1.0.0", unchecked},
-	} {
-		testutil.Put(t, dir, "node_modules/p/package.json", `{"version":"`+c.version+`"}`)
-		if _, got := satisfies(dir, "p", c.spec); got != c.want {
-			t.Errorf("%s vs %s: verdict %d, want %d", c.spec, c.version, got, c.want)
-		}
 	}
 }
 

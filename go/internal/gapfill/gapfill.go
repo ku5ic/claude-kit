@@ -11,6 +11,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,7 +29,7 @@ import (
 const Guard = "KIT_CLASSIFIER"
 
 // promptVersion is part of every cache key: a changed prompt asks again.
-const promptVersion = "3"
+const promptVersion = "6"
 
 // unseenDays is how long an answer for an entry no run has seen is kept.
 const unseenDays = 30
@@ -43,6 +44,32 @@ type Verdict struct {
 	Globs      []string  `json:"globs,omitempty"`
 	Affected   string    `json:"affected_form,omitempty"`
 	Exclusions string    `json:"exclusions,omitempty"`
+}
+
+// String is v in one line: role:kind, then what else it says.
+func (v Verdict) String() string {
+	parts := []string{RoleKind(v.Role, v.Kind)}
+	if v.Mutates {
+		parts = append(parts, "mutates")
+	}
+	for _, s := range v.Segments {
+		parts = append(parts, fmt.Sprintf("segment %q %s", s.Text, RoleKind(s.Role, s.Kind)))
+	}
+	if v.FileForm != "" {
+		parts = append(parts, "files: "+v.FileForm)
+	}
+	if v.Affected != "" {
+		parts = append(parts, "affected: "+v.Affected)
+	}
+	return strings.Join(parts, "; ")
+}
+
+// RoleKind is a role with its check kind, as "check:lint".
+func RoleKind(role, kind string) string {
+	if kind == "" {
+		return role
+	}
+	return role + ":" + kind
 }
 
 // Segment is one command of a body that runs several.
@@ -135,53 +162,47 @@ type answer struct {
 // what it lacks when o.Ask allows.
 func Run(cfg *config.Config, o Options) Result {
 	path := filepath.Join(o.CacheDir, cache.Enforce, cache.RootKey(o.Root))
-	p := readProject(cfg, o.Root, o.Entries)
+	p := readView(cfg, o.Root, o.Entries)
 	s := load(path + ".json")
 	// A read is use: cache.Prune drops only a file no run has read.
 	now := time.Now()
 	_ = os.Chtimes(path+".json", now, now)
 	failure := ""
 	if o.Ask && os.Getenv(Guard) != "1" && s.stale(cfg, o.Entries, p.Key) {
-		failure = ask(cfg, o, p, path)
-		s = load(path + ".json")
+		s, failure = ask(cfg, o, p, path, s)
 	}
 	return verify(cfg, o.Root, o.Entries, s, failure)
 }
 
-// ask calls the classifier under the repo's lock and stores its answers;
-// the failure, when it can't, is "".
-func ask(cfg *config.Config, o Options, p project, path string) string {
+// ask calls the classifier under the repo's lock, stores its answers, and
+// returns the store they're in; failure says why it couldn't, and s comes
+// back as it was.
+func ask(cfg *config.Config, o Options, p view, path string, s store) (_ store, failure string) {
 	ctx, cancel := context.WithTimeout(context.Background(), o.Timeout)
 	defer cancel()
 	unlock, err := cache.Lock(ctx, path+".lock")
 	if err != nil {
-		return "waiting for another run: " + err.Error()
+		return s, "waiting for another run: " + err.Error()
 	}
 	defer unlock()
 	// Another run may have answered while this one waited.
-	s := load(path + ".json")
-	if !s.stale(cfg, o.Entries, p.Key) {
-		return ""
+	locked := load(path + ".json")
+	if !locked.stale(cfg, o.Entries, p.Key) {
+		return locked, ""
 	}
-	var todo []sources.Entry
-	for _, e := range o.Entries {
-		if s.Entries[Key(e)] == nil && denied(cfg, e) == "" {
-			todo = append(todo, e)
-		}
-	}
-	resp, err := classify(ctx, cfg, o, request{Entries: todo, Project: p, Covered: s.covered(o.Entries), Facts: s.Context != p.Key})
+	resp, err := classify(ctx, cfg, o, request{Entries: locked.missing(cfg, o.Entries), View: p, Facts: locked.Context != p.Key})
 	if err != nil {
-		return "classifier: " + err.Error()
+		return locked, "classifier: " + err.Error()
 	}
 	now := time.Now()
 	for _, a := range resp.Entries {
-		s.Entries[a.ID] = &answer{Verdict: a.Verdict, Seen: now}
+		locked.Entries[a.ID] = &answer{Verdict: a.Verdict, Seen: now}
 	}
-	if s.Context != p.Key {
-		s.Context, s.Managers, s.Proposals = p.Key, resp.Managers, resp.Proposals
+	if locked.Context != p.Key {
+		locked.Context, locked.Managers, locked.Proposals = p.Key, resp.Managers, resp.Proposals
 	}
-	s.save(path+".json", o.Entries, now)
-	return ""
+	locked.save(path+".json", o.Entries, now)
+	return locked, ""
 }
 
 func load(file string) store {
@@ -195,26 +216,18 @@ func load(file string) store {
 // stale is true when an entry the policy allows has no answer, or the
 // project facts answer another project.
 func (s store) stale(cfg *config.Config, entries []sources.Entry, context string) bool {
-	if s.Context != context {
-		return true
-	}
-	for _, e := range entries {
-		if s.Entries[Key(e)] == nil && denied(cfg, e) == "" {
-			return true
-		}
-	}
-	return false
+	return s.Context != context || len(s.missing(cfg, entries)) > 0
 }
 
-// covered is the check kinds entries' answers already enforce.
-func (s store) covered(entries []sources.Entry) []string {
-	var kinds []string
+// missing is the entries the policy allows that have no answer.
+func (s store) missing(cfg *config.Config, entries []sources.Entry) []sources.Entry {
+	var out []sources.Entry
 	for _, e := range entries {
-		if a := s.Entries[Key(e)]; a != nil {
-			kinds = appendKinds(kinds, a.Verdict)
+		if s.Entries[Key(e)] == nil && denied(cfg, e) == "" {
+			out = append(out, e)
 		}
 	}
-	return kinds
+	return out
 }
 
 // save marks entries seen, drops answers unseen for unseenDays, and writes

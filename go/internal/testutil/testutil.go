@@ -3,6 +3,7 @@
 package testutil
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -32,6 +33,35 @@ func Put(t *testing.T, dir, name, body string) {
 	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// Fixtures maps each project under the testdata directory dir to the
+// lockfiles Fixture writes into its copy, as dir/fixtures.json lists them:
+// a lockfile is never hand-written in the repo.
+func Fixtures(t *testing.T, dir string) map[string][]string {
+	t.Helper()
+	var fixtures map[string][]string
+	if err := json.Unmarshal([]byte(Read(t, filepath.Join(dir, "fixtures.json"))), &fixtures); err != nil {
+		t.Fatal(err)
+	}
+	return fixtures
+}
+
+// Fixture copies project name from dir into a fresh git repository, with
+// its lockfiles, all staged (subprojects are found among tracked files),
+// and returns the repository's root.
+func Fixture(t *testing.T, dir, name string) string {
+	t.Helper()
+	root := t.TempDir()
+	if err := os.CopyFS(root, os.DirFS(filepath.Join(dir, name))); err != nil {
+		t.Fatal(err)
+	}
+	for _, lock := range Fixtures(t, dir)[name] {
+		Put(t, root, lock, "")
+	}
+	Git(t, root, "init", "-q")
+	Git(t, root, "add", "-A")
+	return root
 }
 
 // Read is path's contents.

@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
@@ -35,8 +34,7 @@ const budgetUSD = "0.50"
 // proposals too: the project changed since they were answered.
 type request struct {
 	Entries []sources.Entry
-	Project project
-	Covered []string
+	View    view
 	Facts   bool
 }
 
@@ -54,16 +52,15 @@ func (r request) MarshalJSON() ([]byte, error) {
 	}
 	entries := []entry{}
 	for _, e := range r.Entries {
-		entries = append(entries, entry{Key(e), e.Source, e.File, e.Name, e.Dir, e.Stage, strings.Join(append(append([]string{}, e.Env...), e.Body.Text), " "), e.Files, e.PassFiles})
+		entries = append(entries, entry{Key(e), e.Source, e.File, e.Name, e.Dir, e.Stage, e.Command(), e.Files, e.PassFiles})
 	}
 	return json.Marshal(struct {
 		Entries      []entry           `json:"entries"`
-		CoveredKinds []string          `json:"covered_kinds"`
 		Facts        bool              `json:"ask_project_facts"`
 		Files        []string          `json:"files"`
 		Contents     map[string]string `json:"contents"`
 		LockfileDirs []lockDir         `json:"lockfile_dirs"`
-	}{entries, r.Covered, r.Facts, r.Project.Files, r.Project.Contents, r.Project.LockfileDirs})
+	}{entries, r.Facts, r.View.Files, r.View.Contents, r.View.LockfileDirs})
 }
 
 // response is the classifier's structured answer.
