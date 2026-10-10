@@ -57,7 +57,7 @@ func GuardEdit(h *hook.Hook) error {
 	if tool == "Read" {
 		return nil
 	}
-	if guard.IsGuardedLockfile(cfg, path) {
+	if guard.IsGuardedLockfile(cfg, path) && !project.IsScratch(h.Paths, path) {
 		if err := h.Block("lockfile edit. Use the package manager.", "lockfile-edit"); err != nil {
 			return err
 		}

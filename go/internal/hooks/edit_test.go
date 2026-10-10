@@ -53,6 +53,7 @@ func TestGuardEdit(t *testing.T) {
 		{"block: Pipfile.lock", "/tmp/project/Pipfile.lock", 2},
 		{"block: Cargo.lock", "/tmp/project/Cargo.lock", 2},
 		{"allow: requirements.txt is hand-edited", "/tmp/project/requirements.txt", 0},
+		{"allow: a lockfile in scratch is a fixture, not the project's", "/tmp/project/.claude/scratch/fixture/pnpm-lock.yaml", 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
