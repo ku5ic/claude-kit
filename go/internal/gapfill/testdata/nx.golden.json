@@ -1,0 +1,49 @@
+{
+  "is_error": false,
+  "structured_output": {
+    "entries": [
+      {
+        "id": "ef15eadfb3e50663",
+        "role": "build",
+        "mutates": false,
+        "affected_form": "nx affected -t build --base={base}"
+      },
+      {
+        "id": "1d96794fffe0819f",
+        "role": "check",
+        "kind": "lint",
+        "mutates": false,
+        "affected_form": "nx affected -t lint --base={base}"
+      },
+      {
+        "id": "f22da93a1dc81703",
+        "role": "check",
+        "kind": "test",
+        "mutates": false,
+        "affected_form": "nx affected -t test --base={base}"
+      }
+    ],
+    "managers": [
+      {
+        "dir": ".",
+        "cites": "package-lock.json",
+        "manager": "npm",
+        "run_prefix": "npm exec --",
+        "add_verbs": [
+          "npm install",
+          "npm i"
+        ],
+        "dlx": "npx",
+        "dir_flags": [
+          "--prefix"
+        ],
+        "rivals": [
+          "pnpm",
+          "yarn"
+        ]
+      }
+    ],
+    "proposals": []
+  },
+  "subtype": "success"
+}

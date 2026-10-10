@@ -1,0 +1,76 @@
+{
+  "is_error": false,
+  "structured_output": {
+    "entries": [
+      {
+        "id": "65598c2af0cd8f2d",
+        "role": "build",
+        "mutates": false
+      },
+      {
+        "id": "e36abf3d67844c63",
+        "role": "check",
+        "kind": "lint",
+        "mutates": false,
+        "affected_form": "turbo run lint --filter=...[{base}]"
+      },
+      {
+        "id": "7d122c835edc9da7",
+        "role": "check",
+        "kind": "test",
+        "mutates": false,
+        "affected_form": "turbo run test --filter=...[{base}]"
+      },
+      {
+        "id": "40257eb867a609ef",
+        "role": "build",
+        "mutates": false
+      },
+      {
+        "id": "12dde604635387e7",
+        "role": "check",
+        "kind": "lint",
+        "mutates": false,
+        "affected_form": "turbo run lint --filter=...[{base}]"
+      },
+      {
+        "id": "145e2af6ee760c33",
+        "role": "check",
+        "kind": "test",
+        "mutates": false,
+        "affected_form": "turbo run test --filter=...[{base}]"
+      }
+    ],
+    "managers": [
+      {
+        "dir": ".",
+        "cites": "pnpm-lock.yaml",
+        "manager": "pnpm",
+        "run_prefix": "pnpm exec",
+        "add_verbs": [
+          "pnpm add"
+        ],
+        "dlx": "pnpm dlx",
+        "dir_flags": [
+          "--filter",
+          "-C"
+        ],
+        "rivals": [
+          "npm",
+          "yarn"
+        ]
+      }
+    ],
+    "proposals": [
+      {
+        "role": "check",
+        "command": "pnpm exec eslint .",
+        "dir": "packages/a",
+        "evidence": "packages/a/eslint.config.js",
+        "kind": "lint",
+        "mutates": false
+      }
+    ]
+  },
+  "subtype": "success"
+}

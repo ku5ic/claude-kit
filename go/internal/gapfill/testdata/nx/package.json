@@ -1,0 +1,9 @@
+{
+  "name": "ws",
+  "private": true,
+  "devDependencies": {
+    "@nx/eslint": "20.0.0",
+    "@nx/vite": "20.0.0",
+    "nx": "20.0.0"
+  }
+}

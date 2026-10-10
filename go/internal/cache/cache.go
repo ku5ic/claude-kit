@@ -4,11 +4,14 @@
 package cache
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"syscall"
 	"time"
 )
 
@@ -21,6 +24,7 @@ const (
 	ReplyLimit   = "reply-limit"
 	Stack        = "stack"
 	StopReports  = "stop-reports"
+	Enforce      = "enforce"
 )
 
 // Dir is one state dir: its name, what a file in it is, and the days one
@@ -41,6 +45,7 @@ var Dirs = []Dir{
 	{ReplyLimit, "reply-limit marker(s)", 1},
 	{Stack, "stack report(s)", 30},
 	{StopReports, "stop-checks report(s)", 1},
+	{Enforce, "gap-fill verdict file(s)", 30},
 }
 
 // RootKey names a project's files in a state dir: its root hashed, so
@@ -76,6 +81,34 @@ func Expired(dir string, days int, now time.Time) []string {
 		}
 	}
 	return old
+}
+
+// Lock takes an exclusive lock on path, created with its directory if
+// missing, waiting until ctx ends. unlock releases it.
+func Lock(ctx context.Context, path string) (unlock func(), err error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return nil, err
+	}
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o644)
+	if err != nil {
+		return nil, err
+	}
+	for {
+		err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+		if err == nil {
+			return func() { _ = f.Close() }, nil // closing the file unlocks it
+		}
+		if !errors.Is(err, syscall.EWOULDBLOCK) {
+			_ = f.Close()
+			return nil, err
+		}
+		select {
+		case <-ctx.Done():
+			_ = f.Close()
+			return nil, ctx.Err()
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
 }
 
 // Prune deletes every state dir's expired files under cacheDir.

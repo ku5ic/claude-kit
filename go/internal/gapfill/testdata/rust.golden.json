@@ -1,0 +1,81 @@
+{
+  "is_error": false,
+  "structured_output": {
+    "entries": [],
+    "managers": [
+      {
+        "dir": ".",
+        "cites": "Cargo.lock",
+        "manager": "cargo",
+        "run_prefix": "cargo run",
+        "add_verbs": [
+          "cargo add"
+        ],
+        "dlx": "",
+        "dir_flags": [
+          "--manifest-path"
+        ],
+        "rivals": []
+      }
+    ],
+    "proposals": [
+      {
+        "role": "check",
+        "command": "cargo clippy",
+        "dir": ".",
+        "evidence": "Cargo.toml",
+        "kind": "lint",
+        "mutates": false,
+        "globs": [
+          "**/*.rs"
+        ]
+      },
+      {
+        "role": "check",
+        "command": "cargo check",
+        "dir": ".",
+        "evidence": "Cargo.toml",
+        "kind": "typecheck",
+        "mutates": false,
+        "globs": [
+          "**/*.rs"
+        ]
+      },
+      {
+        "role": "check",
+        "command": "cargo test",
+        "dir": ".",
+        "evidence": "Cargo.toml",
+        "kind": "test",
+        "mutates": false,
+        "globs": [
+          "**/*.rs"
+        ]
+      },
+      {
+        "role": "check",
+        "command": "cargo fmt --check",
+        "dir": ".",
+        "evidence": "Cargo.toml",
+        "kind": "format-check",
+        "mutates": false,
+        "globs": [
+          "**/*.rs"
+        ]
+      },
+      {
+        "role": "fixer",
+        "command": "cargo fmt",
+        "dir": ".",
+        "evidence": "Cargo.toml",
+        "kind": "format-check",
+        "mutates": true,
+        "file_form": "cargo fmt -- {files}",
+        "globs": [
+          "**/*.rs"
+        ]
+      }
+    ]
+  },
+  "subtype": "success"
+}

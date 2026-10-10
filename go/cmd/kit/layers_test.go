@@ -27,6 +27,7 @@ var layers = map[string]int{
 	"internal/sources":    2,
 	"internal/hook":       3,
 	"internal/classify":   4,
+	"internal/gapfill":    4,
 	"internal/tools":      4,
 	"internal/checks":     5,
 	"internal/bashguard":  5,
@@ -62,6 +63,9 @@ func TestImportsGoDown(t *testing.T) {
 	err = filepath.WalkDir(root, func(dir string, d fs.DirEntry, err error) error {
 		if err != nil || !d.IsDir() {
 			return err
+		}
+		if d.Name() == "testdata" {
+			return filepath.SkipDir // fixtures, never built
 		}
 		pkg, err := build.ImportDir(dir, 0)
 		if _, none := errors.AsType[*build.NoGoError](err); none {

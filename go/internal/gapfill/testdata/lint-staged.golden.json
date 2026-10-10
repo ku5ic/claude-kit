@@ -1,0 +1,108 @@
+{
+  "is_error": false,
+  "structured_output": {
+    "entries": [
+      {
+        "id": "c25f39d4617ee049",
+        "role": "check",
+        "kind": "format-check",
+        "mutates": false,
+        "file_form": "prettier --check {files}",
+        "globs": [
+          "*.md"
+        ]
+      },
+      {
+        "id": "1702f8d235bb97eb",
+        "role": "fixer",
+        "kind": "lint",
+        "mutates": true,
+        "file_form": "eslint --fix {files}",
+        "globs": [
+          "*.{ts,tsx}"
+        ]
+      },
+      {
+        "id": "d8264464eb7945e8",
+        "role": "fixer",
+        "kind": "format-check",
+        "mutates": true,
+        "file_form": "prettier --write {files}",
+        "globs": [
+          "*.{ts,tsx}"
+        ]
+      },
+      {
+        "id": "01a59fc8967d462c",
+        "role": "other",
+        "mutates": true
+      },
+      {
+        "id": "6408b6607f071c76",
+        "role": "check",
+        "kind": "test",
+        "mutates": false
+      }
+    ],
+    "managers": [
+      {
+        "dir": ".",
+        "cites": "package-lock.json",
+        "manager": "npm",
+        "run_prefix": "npx",
+        "add_verbs": [
+          "npm install",
+          "npm i"
+        ],
+        "dlx": "npx",
+        "dir_flags": [
+          "--prefix",
+          "-w"
+        ],
+        "rivals": [
+          "pnpm",
+          "yarn"
+        ]
+      }
+    ],
+    "proposals": [
+      {
+        "role": "check",
+        "command": "npx eslint .",
+        "dir": ".",
+        "evidence": "package.json",
+        "kind": "lint",
+        "mutates": false
+      },
+      {
+        "role": "check",
+        "command": "npx vitest run",
+        "dir": ".",
+        "evidence": "package.json",
+        "kind": "test",
+        "mutates": false
+      },
+      {
+        "role": "check",
+        "command": "npx prettier --check .",
+        "dir": ".",
+        "evidence": "package.json",
+        "kind": "format-check",
+        "mutates": false
+      },
+      {
+        "role": "fixer",
+        "command": "npx prettier --write .",
+        "dir": ".",
+        "evidence": "package.json",
+        "kind": "format-check",
+        "mutates": true,
+        "file_form": "npx prettier --write {files}",
+        "globs": [
+          "**/*.{ts,tsx,md}"
+        ]
+      }
+    ]
+  },
+  "subtype": "success"
+}

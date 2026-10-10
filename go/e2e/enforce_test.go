@@ -3,6 +3,9 @@ package e2e
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/ku5ic/claude-kit/go/internal/gapfill"
+	"github.com/ku5ic/claude-kit/go/internal/sources"
 )
 
 // Wiring for `kit enforce --list`: the readers' own cases are the sources
@@ -23,10 +26,51 @@ func TestEnforceList(t *testing.T) {
 			t.Errorf("stdout:\n%s", r.Stdout)
 		}
 	})
-	t.Run("anything but --list is a usage error", func(t *testing.T) {
+	t.Run("anything but --list or classify is a usage error", func(t *testing.T) {
 		t.Parallel()
 		r := New(t).Run("", "enforce")
 		r.Want(t, 2)
-		r.Has(t, "usage: kit enforce --list")
+		r.Has(t, "usage: kit enforce --list | classify")
+	})
+}
+
+// Wiring for `kit enforce classify`, with kit.yml's classifier key
+// pointing at a stub: the gapfill package's tests cover the verdicts.
+func TestEnforceClassify(t *testing.T) {
+	t.Parallel()
+	setup := func(t *testing.T, stub string) (*Kit, string) {
+		k := New(t)
+		root := k.Repo(filepath.Join(t.TempDir(), "repo"))
+		Write(t, filepath.Join(root, "turbo.json"), `{"tasks":{"lint":{}}}`)
+		path := filepath.Join(t.TempDir(), "classifier")
+		Stub(t, path, stub)
+		k.Overlay("classifier: [" + path + "]\n")
+		k.Dir = root
+		return k, root
+	}
+	lint := sources.Entry{Source: "turbo", File: "turbo.json", Name: "lint", Dir: ".", Body: sources.Body{Text: "turbo run lint"}}
+
+	t.Run("prints each entry's verified verdict", func(t *testing.T) {
+		t.Parallel()
+		answer := `{"is_error":false,"subtype":"success","structured_output":{"entries":[{"id":"` + gapfill.Key(lint) + `","role":"check","kind":"lint","mutates":false,"affected_form":"turbo run lint --filter=...[{base}]"}],"managers":[],"proposals":[]}}`
+		k, _ := setup(t, "cat >/dev/null\necho '"+answer+"'\n")
+		r := k.Run("", "enforce", "classify")
+		r.Want(t, 0)
+		r.Has(t, "turbo\tturbo.json\t-\t.\tlint\t-\tturbo run lint\tcheck:lint; affected: turbo run lint --filter=...[{base}]\n")
+	})
+	t.Run("a classifier that fails leaves entries unclassified, with its own exit code", func(t *testing.T) {
+		t.Parallel()
+		k, _ := setup(t, "cat >/dev/null\nexit 1\n")
+		r := k.Run("", "enforce", "classify")
+		r.Want(t, 125)
+		r.Has(t, "turbo run lint\tunclassified (classifier: exit status 1)\n")
+	})
+	t.Run("under the classifier's guard, a hook does nothing", func(t *testing.T) {
+		t.Parallel()
+		k := New(t)
+		k.Setenv(gapfill.Guard, "1")
+		r := k.Hook("guard-dispatch", Payload("Write", filepath.Join(k.Home, ".ssh", "id_rsa"), "s1", k.Home))
+		r.Want(t, 0)
+		r.Empty(t)
 	})
 }

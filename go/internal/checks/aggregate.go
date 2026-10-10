@@ -570,7 +570,7 @@ func (p *planner) ciLeaves(labelsOnly bool) map[string][]leaf {
 			body = "export " + strings.Join(quoted, " ") + "\n" + body
 		}
 		r := classify.Body(p.cfg, body, a.lookup(dir))
-		if r.Opaque != "" || slices.ContainsFunc(r.Commands, func(c classify.Command) bool { return deniedCommand(p.cfg, c.Words) }) {
+		if r.Opaque != "" || slices.ContainsFunc(r.Commands, func(c classify.Command) bool { return p.cfg.GateDiscovery.DeniedCommand(c.Words) != "" }) {
 			continue
 		}
 		task := project.Task{Provider: "ci", Name: step.File}
@@ -583,20 +583,6 @@ func (p *planner) ciLeaves(labelsOnly bool) map[string][]leaf {
 		}
 	}
 	return out
-}
-
-// deniedCommand is true when words hold a deny_commands token: one word
-// anywhere, or several in a row.
-func deniedCommand(cfg *config.Config, words []string) bool {
-	for _, token := range cfg.GateDiscovery.DenyCommands {
-		t := strings.Fields(token)
-		for i := 0; i+len(t) <= len(words); i++ {
-			if slices.Equal(words[i:i+len(t)], t) {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 func setupNote(agg string, setup []string) string {

@@ -1,0 +1,98 @@
+{
+  "is_error": false,
+  "structured_output": {
+    "entries": [
+      {
+        "id": "1e84280f7a892e7a",
+        "role": "fixer",
+        "kind": "lint",
+        "mutates": true,
+        "file_form": "ruff --fix {files}",
+        "globs": [
+          "*.py"
+        ]
+      },
+      {
+        "id": "b498ec7d9259684a",
+        "role": "fixer",
+        "kind": "format-check",
+        "mutates": true,
+        "file_form": "ruff-format {files}",
+        "globs": [
+          "*.py"
+        ]
+      },
+      {
+        "id": "bed20c64b2c92f3c",
+        "role": "check",
+        "kind": "typecheck",
+        "mutates": false,
+        "file_form": "mypy {files}",
+        "globs": [
+          "*.py"
+        ]
+      },
+      {
+        "id": "d525bdc9ca03d084",
+        "role": "check",
+        "kind": "lint",
+        "mutates": false,
+        "file_form": "check-yaml {files}",
+        "globs": [
+          "*.yaml",
+          "*.yml"
+        ]
+      },
+      {
+        "id": "ad8d9421d955de5b",
+        "role": "fixer",
+        "kind": "format-check",
+        "mutates": true,
+        "file_form": "end-of-file-fixer {files}",
+        "globs": [
+          "*"
+        ]
+      }
+    ],
+    "managers": [],
+    "proposals": [
+      {
+        "role": "check",
+        "command": "ruff check",
+        "dir": ".",
+        "evidence": "pyproject.toml",
+        "mutates": false,
+        "kind": "lint"
+      },
+      {
+        "role": "check",
+        "command": "mypy .",
+        "dir": ".",
+        "evidence": ".pre-commit-config.yaml",
+        "mutates": false,
+        "kind": "typecheck"
+      },
+      {
+        "role": "check",
+        "command": "ruff-format --check",
+        "dir": ".",
+        "evidence": "pyproject.toml",
+        "mutates": false,
+        "kind": "format-check"
+      },
+      {
+        "role": "fixer",
+        "command": "ruff-format",
+        "dir": ".",
+        "evidence": "pyproject.toml",
+        "mutates": true,
+        "kind": "format-check",
+        "file_form": "ruff-format {files}",
+        "globs": [
+          "*.py"
+        ]
+      }
+    ]
+  },
+  "subtype": "success"
+}

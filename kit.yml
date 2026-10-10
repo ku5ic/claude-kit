@@ -179,6 +179,15 @@ package_managers:
 # Lockfiles guard-dispatch blocks on top of the package_managers ones.
 extra_lockfiles: [Gemfile.lock, Cargo.lock, composer.lock, pdm.lock, go.sum]
 
+# Lockfile names. Each directory holding one gets package-manager facts
+# from gap-fill (go/internal/gapfill), accepted only when they cite it.
+lockfile_globs: [bun.lockb, bun.lock, pnpm-lock.yaml, yarn.lock, package-lock.json, npm-shrinkwrap.json, uv.lock, poetry.lock,
+  Pipfile.lock, pdm.lock, Gemfile.lock, Cargo.lock, composer.lock, go.sum]
+
+# The gap-fill classifier's command, in place of claude -p: the request on
+# its stdin, claude's --output-format json envelope on its stdout.
+# classifier: [/path/to/classifier]
+
 # Branches git push, and git reset --hard to, are blocked for.
 protected_branches: [main, master, develop, production, release]
 

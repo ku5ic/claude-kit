@@ -49,6 +49,8 @@ type Config struct {
 	Versions           map[string][]string `yaml:"versions"`
 	VersionSources     map[string][]Source `yaml:"version_sources"`
 	Stacks             map[string]Stack    `yaml:"stacks"`
+	LockfileGlobs      []string            `yaml:"lockfile_globs"`
+	Classifier         []string            `yaml:"classifier"`
 
 	// Document order of the map-keyed sections, which a Go map loses:
 	// detection reports stacks, and versions, in the order kit.yml (then
@@ -266,6 +268,20 @@ type GateDiscovery struct {
 	DenyCommands []string `yaml:"deny_commands"`
 	DenyNames    []string `yaml:"deny_names"`
 	DenyActions  []string `yaml:"deny_actions"`
+}
+
+// DeniedCommand is the deny_commands token words hold, one word anywhere
+// or several in a row; "" when none.
+func (g GateDiscovery) DeniedCommand(words []string) string {
+	for _, token := range g.DenyCommands {
+		t := strings.Fields(token)
+		for i := 0; i+len(t) <= len(words); i++ {
+			if slices.Equal(words[i:i+len(t)], t) {
+				return token
+			}
+		}
+	}
+	return ""
 }
 
 type ToolchainCheck struct {

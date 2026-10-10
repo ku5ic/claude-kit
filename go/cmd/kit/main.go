@@ -254,18 +254,6 @@ func cmdTasks(e *env, cfg *config.Config, args []string) int {
 	return 0
 }
 
-func cmdEnforce(e *env, cfg *config.Config, args []string) int {
-	if len(args) != 1 || args[0] != "--list" {
-		fmt.Fprintln(e.stderr, "usage: kit enforce --list")
-		return 2
-	}
-	root, _ := project.Root(cfg, e.cwd)
-	for _, entry := range sources.Entries(cfg, root) {
-		fmt.Fprintln(e.stdout, entry)
-	}
-	return 0
-}
-
 func cmdProjectRoot(e *env, cfg *config.Config, args []string) int {
 	root, anchored := project.Root(cfg, e.cwd)
 	if len(args) > 0 && args[0] == "--check" {

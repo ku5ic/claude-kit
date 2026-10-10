@@ -1,0 +1,82 @@
+{
+  "is_error": false,
+  "structured_output": {
+    "entries": [
+      {
+        "id": "c69b6401cdce64c9",
+        "role": "check",
+        "mutates": false
+      },
+      {
+        "id": "10a49f8adeed0e7d",
+        "role": "check",
+        "kind": "lint",
+        "mutates": false
+      },
+      {
+        "id": "22be77ad4c0d86dd",
+        "role": "check",
+        "kind": "test",
+        "mutates": false
+      },
+      {
+        "id": "057fb0be25814bbc",
+        "role": "build",
+        "mutates": false
+      },
+      {
+        "id": "a39a032524454df4",
+        "role": "deploy",
+        "mutates": false
+      }
+    ],
+    "managers": [],
+    "proposals": [
+      {
+        "role": "check",
+        "command": "golangci-lint run ./...",
+        "dir": ".",
+        "evidence": ".golangci.yml",
+        "kind": "lint",
+        "mutates": false
+      },
+      {
+        "role": "check",
+        "command": "go vet ./...",
+        "dir": ".",
+        "evidence": "go.mod",
+        "kind": "typecheck",
+        "mutates": false
+      },
+      {
+        "role": "check",
+        "command": "go test ./...",
+        "dir": ".",
+        "evidence": "go.mod",
+        "kind": "test",
+        "mutates": false
+      },
+      {
+        "role": "check",
+        "command": "gofmt -l .",
+        "dir": ".",
+        "evidence": "go.mod",
+        "kind": "format-check",
+        "mutates": false
+      },
+      {
+        "role": "fixer",
+        "command": "gofmt -w .",
+        "dir": ".",
+        "evidence": "go.mod",
+        "file_form": "gofmt -w {files}",
+        "globs": [
+          "**/*.go"
+        ],
+        "kind": "format-check",
+        "mutates": true
+      }
+    ]
+  },
+  "subtype": "success"
+}

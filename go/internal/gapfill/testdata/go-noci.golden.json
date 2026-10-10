@@ -1,0 +1,46 @@
+{
+  "is_error": false,
+  "structured_output": {
+    "entries": [],
+    "managers": [],
+    "proposals": [
+      {
+        "role": "check",
+        "kind": "lint",
+        "command": "go vet ./...",
+        "dir": ".",
+        "evidence": "go.mod",
+        "mutates": false
+      },
+      {
+        "role": "check",
+        "kind": "test",
+        "command": "go test ./...",
+        "dir": ".",
+        "evidence": "go.mod",
+        "mutates": false
+      },
+      {
+        "role": "check",
+        "kind": "format-check",
+        "command": "gofmt -l .",
+        "dir": ".",
+        "evidence": "go.mod",
+        "mutates": false
+      },
+      {
+        "role": "fixer",
+        "kind": "format-check",
+        "command": "gofmt -w .",
+        "dir": ".",
+        "evidence": "go.mod",
+        "file_form": "gofmt -w {files}",
+        "globs": [
+          "**/*.go"
+        ],
+        "mutates": true
+      }
+    ]
+  },
+  "subtype": "success"
+}
