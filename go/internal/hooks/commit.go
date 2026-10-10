@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/md"
 	"github.com/ku5ic/claude-kit/go/internal/proc"
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
@@ -21,7 +22,6 @@ var (
 	messageDQ    = regexp.MustCompile(`(-m|--message=?)[[:space:]]*"[^"]*"`)
 	messageSQ    = regexp.MustCompile(`(-m|--message=?)[[:space:]]*'[^']*'`)
 	aiTell       = regexp.MustCompile(`(?i)^(feat|fix|chore|refactor|docs|test|perf|build|ci|style)?:?[[:space:]]*(certainly|here is|i have|let me|in this commit|this commit)`)
-	frontmatter  = regexp.MustCompile(`^---[[:space:]]*$`)
 	nonProseLine = regexp.MustCompile(`^[[:space:]]*([0-9]+[.)]|[-*+][[:space:]]|#{1,6}[[:space:]]|>|\|)`)
 )
 
@@ -207,18 +207,10 @@ func quotedMessages(cmd string, re *regexp.Regexp, quote byte) string {
 // as a wall, blocking every agent and skill header.
 func longestProseRun(text string) int {
 	best, run := 0, 0
-	inFront, inFence := false, false
-	for i, line := range strings.Split(strings.TrimSuffix(text, "\n"), "\n") {
+	for l := range md.Lines(text) {
+		line := strings.TrimRight(l.Text, "\r\n")
 		switch {
-		case i == 0 && frontmatter.MatchString(line):
-			inFront = true
-		case inFront:
-			if frontmatter.MatchString(line) {
-				inFront = false
-			}
-		case strings.HasPrefix(line, "```"):
-			inFence = !inFence
-		case inFence:
+		case l.Kind != md.Prose:
 		case strings.TrimSpace(line) == "":
 			run = 0
 		case nonProseLine.MatchString(line):

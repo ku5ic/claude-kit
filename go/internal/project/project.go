@@ -15,22 +15,6 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/git"
 )
 
-// Toplevel is the git worktree root holding dir, "" outside a repo. Git
-// resolves symlinks, so it's the physical path.
-func Toplevel(dir string) string {
-	top, err := git.Line(dir, "rev-parse", "--show-toplevel")
-	if err != nil {
-		return ""
-	}
-	return top
-}
-
-// Branch is the branch checked out in dir's repo, "" on a detached HEAD; it
-// errors outside a repo.
-func Branch(dir string) (string, error) {
-	return git.Line(dir, "branch", "--show-current")
-}
-
 // Lockfile is a package manager and the lockfile that names it.
 type Lockfile struct {
 	Manager string
@@ -41,7 +25,7 @@ type Lockfile struct {
 // repo) and returns the first lockfile of ecosystem, in kit.yml order per
 // directory. Zero when there is none: greenfield. dir must be physical.
 func NearestLockfile(cfg *config.Config, dir, ecosystem string) (Lockfile, bool) {
-	top := Toplevel(dir)
+	top := git.Toplevel(dir)
 	for {
 		for _, pm := range cfg.PackageManagers {
 			if pm.Ecosystem != ecosystem {

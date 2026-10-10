@@ -13,6 +13,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
@@ -91,7 +92,7 @@ func newRootArtifact(cfg *config.Config, path string) bool {
 		return false
 	}
 	dir := fsx.PhysicalPath(filepath.Dir(path))
-	return dir == project.Toplevel(dir)
+	return dir == git.Toplevel(dir)
 }
 
 // GuardSkills blocks edits of mapped file types until the patterns skill

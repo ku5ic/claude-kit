@@ -22,6 +22,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/detect"
 	"github.com/ku5ic/claude-kit/go/internal/explain"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/gitbase"
 	"github.com/ku5ic/claude-kit/go/internal/hooks"
 	"github.com/ku5ic/claude-kit/go/internal/kitcmd"
@@ -162,7 +163,7 @@ func cmdRunChecks(e *env, cfg *config.Config, args []string) int {
 		fmt.Fprintf(e.stderr, "kit run-checks: %v\nusage: kit run-checks [--plan] [--only sub...]\n", err)
 		return 2
 	}
-	root := cmp.Or(project.Toplevel(e.cwd), e.cwd)
+	root := cmp.Or(git.Toplevel(e.cwd), e.cwd)
 	subs := project.Subprojects(cfg, root)
 	for _, sub := range only {
 		if !slices.Contains(subs, sub) {
@@ -261,7 +262,7 @@ func cmdConfig(e *env, args []string) int {
 }
 
 func cmdSubprojects(e *env, cfg *config.Config, args []string) int {
-	root := cmp.Or(first(args), project.Toplevel(e.cwd), e.cwd)
+	root := cmp.Or(first(args), git.Toplevel(e.cwd), e.cwd)
 	for _, dir := range project.Subprojects(cfg, root) {
 		fmt.Fprintln(e.stdout, dir)
 	}

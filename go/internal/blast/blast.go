@@ -90,7 +90,7 @@ func Run(cfg *config.Config, args []string, stdout, stderr io.Writer) int {
 	dir, _ := filepath.Abs(filepath.Dir(target))
 	dir, _ = filepath.EvalSymlinks(dir)
 	abs := filepath.Join(dir, filepath.Base(target))
-	root := project.Toplevel(dir)
+	root := git.Toplevel(dir)
 	if root == "" {
 		fmt.Fprintln(stderr, "blast-radius: not inside a git repository")
 		return 2

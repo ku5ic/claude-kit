@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
 
@@ -23,7 +24,7 @@ func TestToplevelIsPhysicalThroughASymlink(t *testing.T) {
 	if err := os.Symlink(real, link); err != nil {
 		t.Fatal(err)
 	}
-	if top := Toplevel(filepath.Join(link, "sub")); top != real {
+	if top := git.Toplevel(filepath.Join(link, "sub")); top != real {
 		t.Errorf("Toplevel = %q, want %q", top, real)
 	}
 }

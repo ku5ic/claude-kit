@@ -35,7 +35,7 @@ func StopChecks(h *hook.Hook) error {
 	if !fsx.IsFile(path) {
 		return nil
 	}
-	root := project.Toplevel(cwd) // "" outside a work tree
+	root := git.Toplevel(cwd) // "" outside a work tree
 	cfg := h.Config()
 	if root == "" || cfg == nil {
 		return nil

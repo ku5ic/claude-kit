@@ -136,7 +136,7 @@ func InjectSubagentContext(h *hook.Hook) error {
 }
 
 func branch(root string) string {
-	b, err := project.Branch(root)
+	b, err := git.Branch(root)
 	if err != nil {
 		return "unknown"
 	}

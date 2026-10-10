@@ -25,7 +25,6 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
-	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
@@ -248,7 +247,7 @@ func gitStatus(home, cwd, sessionID string) string {
 		data, _ := os.ReadFile(file)
 		return strings.TrimSuffix(string(data), "\n")
 	}
-	top := project.Toplevel(cwd)
+	top := git.Toplevel(cwd)
 	if top == "" {
 		return ""
 	}
@@ -258,7 +257,7 @@ func gitStatus(home, cwd, sessionID string) string {
 	// cwd's subtree, numstat the whole repo.
 	var branch, unstaged, staged, untracked string
 	var wg sync.WaitGroup
-	wg.Go(func() { branch, _ = project.Branch(cwd) })
+	wg.Go(func() { branch, _ = git.Branch(cwd) })
 	wg.Go(func() { unstaged, _ = git.Output(cwd, "diff", "--numstat") })
 	wg.Go(func() { staged, _ = git.Output(cwd, "diff", "--cached", "--numstat") })
 	wg.Go(func() { untracked, _ = git.Output(top, "ls-files", "--others", "--exclude-standard", "-z") })

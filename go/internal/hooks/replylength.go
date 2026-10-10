@@ -13,6 +13,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/md"
 )
 
 // writeCommand is a typed /write and its kind; command is any leading
@@ -145,22 +146,21 @@ func hasTrigger(text string, triggers []string) bool {
 // A fence closes only on its own marker; one never closed was prose.
 func countWords(text string, all bool) int {
 	n, inFence := 0, 0
-	fence := ""
-	for line := range strings.Lines(text) {
-		if trimmed := strings.TrimSpace(line); fence == "" && (strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~")) {
-			fence = trimmed[:3]
+	for l := range md.Lines(text) {
+		switch l.Kind {
+		case md.FenceOpen:
 			continue
-		} else if fence != "" && strings.HasPrefix(trimmed, fence) {
-			fence, inFence = "", 0
+		case md.FenceClose:
+			inFence = 0
 			continue
 		}
 		words := 0
-		for _, f := range strings.Fields(line) {
+		for _, f := range strings.Fields(l.Text) {
 			if strings.IndexFunc(f, func(r rune) bool { return unicode.IsLetter(r) || unicode.IsDigit(r) }) >= 0 {
 				words++
 			}
 		}
-		if fence != "" && !all {
+		if l.Kind == md.Code && !all {
 			inFence += words
 			continue
 		}

@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/checks"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
-	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
@@ -91,7 +91,7 @@ func ReviewChecks(h *hook.Hook) error {
 	if forkedSkill(transcript, p.String("transcript_path")) != reviewSkill {
 		return nil
 	}
-	if h.Config() == nil || project.Toplevel(h.Payload.Cwd()) == "" || ranChecks(transcript) {
+	if h.Config() == nil || git.Toplevel(h.Payload.Cwd()) == "" || ranChecks(transcript) {
 		return nil
 	}
 	return h.Block("before you return: run `kit run-checks` in the checkout you reviewed, timed per rules/tooling.md section 2. "+

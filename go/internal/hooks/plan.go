@@ -1,7 +1,6 @@
 package hooks
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/md"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
@@ -33,14 +33,9 @@ func steps(plan []byte) []byte {
 		}
 	}
 	var kept []byte
-	fenced := false
-	for line := range bytes.Lines(plan) {
-		if trimmed := bytes.TrimSpace(line); bytes.HasPrefix(trimmed, []byte("```")) || bytes.HasPrefix(trimmed, []byte("~~~")) {
-			fenced = !fenced
-			continue
-		}
-		if !fenced {
-			kept = append(kept, line...)
+	for l := range md.Lines(string(plan)) {
+		if l.Kind == md.Prose || l.Kind == md.Front {
+			kept = append(kept, l.Text...)
 		}
 	}
 	return kept

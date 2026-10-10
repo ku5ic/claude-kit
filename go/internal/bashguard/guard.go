@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/kitcmd"
@@ -333,7 +334,7 @@ func (st *state) inWorktree() bool {
 	if st.cwd == "" || project.IsScratch(st.h.Paths, st.cwd) {
 		return false
 	}
-	return project.Toplevel(st.cwd) != ""
+	return git.Toplevel(st.cwd) != ""
 }
 
 // looseWriteTarget is true for a relative target that would land loose in
@@ -421,7 +422,7 @@ func (st *state) currentBranch(gitDir string) string {
 	if gitDir != "" {
 		dir = st.abs(gitDir)
 	}
-	branch, _ := project.Branch(dir)
+	branch, _ := git.Branch(dir)
 	return branch
 }
 

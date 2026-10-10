@@ -12,6 +12,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/proc"
 	"github.com/ku5ic/claude-kit/go/internal/project"
@@ -41,7 +42,7 @@ func FormatDispatch(h *hook.Hook) error {
 	if err != nil || cfg == nil {
 		return nil
 	}
-	root := cmp.Or(project.Toplevel(dir), dir)
+	root := cmp.Or(git.Toplevel(dir), dir)
 	hits, blocked, fallbacks := claims(cfg, ext, dir, root, path)
 	also := ""
 	if len(hits) == 0 && len(blocked) > 0 {

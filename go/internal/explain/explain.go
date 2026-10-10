@@ -136,7 +136,7 @@ func edit(paths config.Paths, cfg *config.Config, cwd, path, tool string, w io.W
 }
 
 func stop(paths config.Paths, cfg *config.Config, cwd string, files []string, w, stderr io.Writer) int {
-	root := project.Toplevel(cwd)
+	root := git.Toplevel(cwd)
 	if root == "" {
 		fmt.Fprintln(stderr, "kit explain stop: not inside a git repository")
 		return 1

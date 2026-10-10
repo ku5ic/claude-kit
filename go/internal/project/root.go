@@ -10,6 +10,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 )
 
 // Root resolves the project root for cwd, as `kit project-root`:
@@ -17,7 +18,7 @@ import (
 //  2. cwd or up to 2 ancestors holding an anchor sentinel;
 //  3. cwd itself, with anchored false.
 func Root(cfg *config.Config, cwd string) (root string, anchored bool) {
-	if top := Toplevel(cwd); top != "" {
+	if top := git.Toplevel(cwd); top != "" {
 		return top, true
 	}
 	anchors := cfg.AnchorSentinels()

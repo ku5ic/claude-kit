@@ -18,6 +18,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/proc"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/tools"
@@ -57,7 +58,7 @@ func Run(cfg *config.Config, paths config.Paths, cwd string, args []string, stdo
 	}
 	url := args[0]
 	physical, _ := filepath.EvalSymlinks(cwd)
-	root := cmp.Or(project.Toplevel(cwd), physical)
+	root := cmp.Or(git.Toplevel(cwd), physical)
 	axe := tools.Resolve(cfg, physical, root, "axe", tools.AnyPath)
 	if axe.Words == nil {
 		fmt.Fprintln(stdout, "a11y-check: axe not found. Install it: npm install -D @axe-core/cli (or -g)")

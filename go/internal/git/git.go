@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/proc"
@@ -60,6 +61,29 @@ func Files(dir string, pathspecs ...string) ([]string, error) {
 		}
 	}
 	return files, err
+}
+
+var toplevels sync.Map // dir -> its work tree's root, "" outside one
+
+// Toplevel is the root of the git work tree holding dir, "" outside one;
+// git resolves symlinks, so it's the physical path. Asked once per dir per
+// process: a hook asks it from several places.
+func Toplevel(dir string) string {
+	if top, ok := toplevels.Load(dir); ok {
+		return top.(string)
+	}
+	top, err := Line(dir, "rev-parse", "--show-toplevel")
+	if err != nil {
+		top = ""
+	}
+	toplevels.Store(dir, top)
+	return top
+}
+
+// Branch is the branch checked out in dir's repo, "" on a detached HEAD; it
+// errors outside a repo.
+func Branch(dir string) (string, error) {
+	return Line(dir, "branch", "--show-current")
 }
 
 // IsBinary is git's binary heuristic: a NUL byte in the first 8000 bytes.
