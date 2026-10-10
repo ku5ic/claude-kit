@@ -139,11 +139,11 @@ func branch(root string) string {
 }
 
 func dirtyCount(root string) string {
-	out, err := git.Output(root, "status", "--porcelain")
+	changes, err := git.Status(root, false)
 	if err != nil {
 		return "unknown"
 	}
-	return strconv.Itoa(strings.Count(out, "\n"))
+	return strconv.Itoa(len(changes))
 }
 
 // tooling is the <tooling> block, computed live: the package manager, then

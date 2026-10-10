@@ -10,7 +10,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -19,6 +18,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
+	"github.com/ku5ic/claude-kit/go/internal/proc"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/tools"
 )
@@ -73,7 +73,7 @@ func Run(cfg *config.Config, paths config.Paths, cwd string, args []string, stdo
 		fmt.Fprintln(stderr, "a11y-check:", err)
 		return 1
 	}
-	out, err := exec.Command(axe.Words[0], append(axe.Words[1:], url, "--stdout")...).Output()
+	out, err := proc.Command(time.Minute, axe.Words[0], append(axe.Words[1:], url, "--stdout")...).Output()
 	if err != nil || os.WriteFile(raw, out, 0o644) != nil || digest(out, url, raw, stdout) != nil {
 		fmt.Fprintf(stderr, "a11y-check: axe failed on %s\n", url)
 		return 1

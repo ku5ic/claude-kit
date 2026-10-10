@@ -14,6 +14,7 @@ import (
 // only test files may import it.
 var layers = map[string]int{
 	"internal/fsx":        0,
+	"internal/proc":       0,
 	"internal/config":     1,
 	"internal/git":        1,
 	"internal/transcript": 1,
@@ -47,7 +48,6 @@ var allowed = map[string]bool{
 	"internal/ci -> internal/project":      true,
 	"internal/project -> internal/extract": true,
 	"internal/tools -> internal/classify":  true,
-	"internal/checks -> internal/gitbase":  true,
 	"internal/hooks -> internal/checks":    true,
 	"internal/hooks -> internal/stackctx":  true,
 	"internal/stackctx -> internal/detect": true,

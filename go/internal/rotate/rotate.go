@@ -159,13 +159,13 @@ func (r *rotator) worktrees(dir string, stderr io.Writer) {
 // remove a locked one, and --force would drop uncommitted work.
 func keepWorktree(wt string) string {
 	gitDir, err := git.Line(wt, "rev-parse", "--absolute-git-dir")
-	status, statusErr := git.Output(wt, "status", "--porcelain")
+	changes, statusErr := git.Status(wt, false)
 	switch {
 	case err != nil || statusErr != nil:
 		return "unreadable review worktree"
 	case fsx.IsFile(filepath.Join(gitDir, "locked")):
 		return "locked review worktree"
-	case status != "":
+	case len(changes) > 0:
 		return "review worktree with uncommitted changes"
 	}
 	return ""

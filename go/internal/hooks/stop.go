@@ -45,7 +45,7 @@ func StopChecks(h *hook.Hook) error {
 	}
 	// A clean tree means the edits were committed, which already went
 	// through verification.
-	if status, err := git.Output(cwd, "status", "--porcelain"); err != nil || status == "" {
+	if changes, err := git.Status(cwd, false); err != nil || len(changes) == 0 {
 		return nil
 	}
 	edited, err := checks.EditedFiles(transcript)

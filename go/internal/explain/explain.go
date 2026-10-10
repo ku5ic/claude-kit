@@ -190,20 +190,15 @@ func stop(cfg *config.Config, cwd string, files []string, w, stderr io.Writer) i
 
 // changedFiles is every modified or untracked file in the working tree.
 func changedFiles(root string) []string {
-	out, err := git.Output(root, "status", "--porcelain", "--untracked-files=all")
+	changes, err := git.Status(root, true)
 	if err != nil {
 		return nil
 	}
 	var files []string
-	for line := range strings.SplitSeq(out, "\n") {
-		if len(line) < 4 || strings.Contains(line[:2], "D") {
-			continue
+	for _, c := range changes {
+		if !strings.Contains(c.XY, "D") {
+			files = append(files, filepath.Join(root, c.Path))
 		}
-		path := line[3:]
-		if _, after, ok := strings.Cut(path, " -> "); ok {
-			path = after
-		}
-		files = append(files, filepath.Join(root, path))
 	}
 	return files
 }

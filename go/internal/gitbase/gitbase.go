@@ -1,7 +1,5 @@
-// Package gitbase finds the base ref of the current checkout, as
-// kit git-base: an explicit ref, else the upstream (unless it is only this
-// branch's own push target), else origin/HEAD, else main, master, develop,
-// or trunk.
+// Package gitbase is kit git-base: the base ref of the current checkout
+// (git.Base), or the diff or log against it.
 package gitbase
 
 import (
@@ -58,7 +56,7 @@ func parse(argv []string) (Args, error) {
 			inPaths = true
 		case strings.HasPrefix(arg, "-"):
 			a.Extra = append(a.Extra, arg)
-		case a.Explicit == "" && verifyIn("", arg):
+		case a.Explicit == "" && git.Verify("", arg):
 			a.Explicit = arg
 		case strings.HasPrefix(prev, "-") && !strings.Contains(prev, "="):
 			a.Extra = append(a.Extra, arg)
@@ -70,43 +68,6 @@ func parse(argv []string) (Args, error) {
 	return a, nil
 }
 
-func verifyIn(dir, ref string) bool {
-	_, err := git.Line(dir, "rev-parse", "--verify", "--quiet", ref)
-	return err == nil
-}
-
-// Resolve returns the base ref for the repository at dir ("" is the
-// working directory), or false when nothing resolves.
-func Resolve(dir, explicit string) (string, bool) {
-	run := func(args ...string) (string, error) { return git.Line(dir, args...) }
-	verify := func(ref string) bool { return verifyIn(dir, ref) }
-	if explicit != "" && verify(explicit) {
-		return explicit, true
-	}
-	if upstream, err := run("rev-parse", "--abbrev-ref", "@{upstream}"); err == nil {
-		current, _ := run("rev-parse", "--abbrev-ref", "HEAD")
-		// ${upstream#*/}: drop the remote name; no slash leaves it whole.
-		branch := upstream
-		if _, rest, found := strings.Cut(upstream, "/"); found {
-			branch = rest
-		}
-		if branch != current {
-			return upstream, true
-		}
-	}
-	if _, err := run("symbolic-ref", "refs/remotes/origin/HEAD"); err == nil {
-		if resolved, err := run("symbolic-ref", "--short", "refs/remotes/origin/HEAD"); err == nil && verify(resolved) {
-			return resolved, true
-		}
-	}
-	for _, b := range []string{"main", "master", "develop", "trunk"} {
-		if verify(b) {
-			return b, true
-		}
-	}
-	return "", false
-}
-
 // Run executes kit git-base's behavior and returns its exit status.
 func Run(argv []string, stdout, stderr io.Writer) int {
 	a, err := parse(argv)
@@ -114,7 +75,7 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, err)
 		return 1
 	}
-	base, ok := Resolve("", a.Explicit)
+	base, ok := git.Base("", a.Explicit)
 	if !ok {
 		return 1
 	}

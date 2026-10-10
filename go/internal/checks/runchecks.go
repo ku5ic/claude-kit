@@ -14,12 +14,14 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/ci"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/extract"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
+	"github.com/ku5ic/claude-kit/go/internal/proc"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/tools"
 )
@@ -210,11 +212,15 @@ func PrintPlan(cfg *config.Config, root string, only []string, out io.Writer) {
 	}
 }
 
+// gateTimeout bounds one gate: the Bash tool's own ceiling, past which the
+// whole run would be killed anyway.
+const gateTimeout = 10 * time.Minute
+
 // gateCommand is g's command, run in its directory. pnpm 10+ installs
 // before `pnpm run` when node_modules is out of sync with the lockfile, and
 // run-checks never installs.
-func gateCommand(g Gate) *exec.Cmd {
-	cmd := exec.Command(g.Words[0], g.Words[1:]...)
+func gateCommand(g Gate) *proc.Cmd {
+	cmd := proc.Command(gateTimeout, g.Words[0], g.Words[1:]...)
 	cmd.Dir = g.Dir
 	cmd.Env = append(cmd.Environ(), "pnpm_config_verify_deps_before_run=false")
 	return cmd

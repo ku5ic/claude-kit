@@ -52,20 +52,3 @@ func TestParseBranchNamedDiffIsABase(t *testing.T) {
 		t.Errorf("a=%+v err=%v", a, err)
 	}
 }
-
-func TestResolveFallsBackToMain(t *testing.T) {
-	repo(t)
-	if base, ok := Resolve("", ""); !ok || base != "main" {
-		t.Errorf("base=%q ok=%v", base, ok)
-	}
-}
-
-func TestResolveFailsWithNoCandidate(t *testing.T) {
-	dir := t.TempDir()
-	testutil.Git(t, dir, "init", "-q", "-b", "solo")
-	testutil.Put(t, dir, "x", "")
-	t.Chdir(dir)
-	if base, ok := Resolve("", ""); ok {
-		t.Errorf("resolved %q in a repo with no commits", base)
-	}
-}

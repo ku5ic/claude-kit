@@ -8,6 +8,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
+	"github.com/ku5ic/claude-kit/go/internal/proc"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
@@ -136,7 +137,7 @@ func envBin(l config.EnvLookup, dir, name string) []string {
 		if _, err := exec.LookPath(l.VenvCmd[0]); err != nil {
 			return nil
 		}
-		cmd := exec.Command(l.VenvCmd[0], l.VenvCmd[1:]...)
+		cmd := proc.Command(proc.Quick, l.VenvCmd[0], l.VenvCmd[1:]...)
 		cmd.Dir = dir
 		out, err := cmd.Output()
 		if venv := strings.TrimSpace(string(out)); err == nil && venv != "" {
@@ -153,7 +154,7 @@ func envBin(l config.EnvLookup, dir, name string) []string {
 	if _, err := exec.LookPath(probe[0]); err != nil {
 		return nil
 	}
-	cmd := exec.Command(probe[0], probe[1:]...)
+	cmd := proc.Command(proc.Quick, probe[0], probe[1:]...)
 	cmd.Dir = dir
 	if cmd.Run() != nil {
 		return nil

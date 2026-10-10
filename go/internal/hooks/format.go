@@ -5,14 +5,15 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/proc"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/tools"
 )
@@ -61,7 +62,7 @@ func FormatDispatch(h *hook.Hook) error {
 	apply(hits, also, path, dir, h.Stderr)
 	if ext == "sh" || ext == "bash" {
 		if res := tools.Resolve(cfg, dir, root, "shellcheck", tools.Default); res.Words != nil {
-			cmd := exec.Command(res.Words[0], append(res.Words[1:], path)...)
+			cmd := proc.Command(formatTimeout, res.Words[0], append(res.Words[1:], path)...)
 			cmd.Stdout, cmd.Stderr = h.Stderr, h.Stderr
 			_ = cmd.Run() // advisory: its findings are on stderr already
 		}
@@ -134,6 +135,10 @@ func apply(hits []claim, also, path, dir string, stderr io.Writer) {
 	}
 }
 
+// formatTimeout bounds one formatter run, inside post-edit-dispatch's 20s
+// in hooks.json.
+const formatTimeout = 15 * time.Second
+
 // runFormatter runs f on path with bin filling {bin}, word by word so a
 // path with spaces stays one argument. A stdout formatter reads the file on
 // stdin; its output replaces the file only when it exits 0 with output.
@@ -142,7 +147,7 @@ func runFormatter(f config.Formatter, bin []string, path, dir string, stderr io.
 	for _, word := range tools.Fill(strings.Fields(f.Cmd), "{bin}", bin) {
 		parts = append(parts, strings.ReplaceAll(word, "{file}", path))
 	}
-	cmd := exec.Command(parts[0], parts[1:]...)
+	cmd := proc.Command(formatTimeout, parts[0], parts[1:]...)
 	cmd.Dir, cmd.Stderr = dir, stderr
 	if !f.Stdout {
 		_ = cmd.Run() // a formatter that fails leaves the file as it was
@@ -179,7 +184,7 @@ func hasSignal(f config.Formatter, bin []string, dir, root, path string) bool {
 		return true
 	}
 	if f.SignalPrettier && bin != nil {
-		cmd := exec.Command(bin[0], append(bin[1:], "--find-config-path", path)...)
+		cmd := proc.Command(proc.Quick, bin[0], append(bin[1:], "--find-config-path", path)...)
 		cmd.Dir = dir
 		out, err := cmd.Output()
 		found := strings.TrimSpace(string(out))

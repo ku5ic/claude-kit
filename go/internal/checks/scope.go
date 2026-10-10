@@ -11,7 +11,6 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/classify"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/git"
-	"github.com/ku5ic/claude-kit/go/internal/gitbase"
 	"github.com/ku5ic/claude-kit/go/internal/tools"
 )
 
@@ -74,7 +73,7 @@ type changes struct {
 }
 
 func changedSince(root string) changes {
-	base, ok := gitbase.Resolve(root, "")
+	base, ok := git.Base(root, "")
 	if !ok {
 		return changes{}
 	}

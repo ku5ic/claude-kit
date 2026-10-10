@@ -2,19 +2,17 @@ package checks
 
 import (
 	"bytes"
-	"context"
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
+	"github.com/ku5ic/claude-kit/go/internal/proc"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/tools"
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
@@ -234,17 +232,12 @@ type result struct {
 // runGroup runs one check in its own process group, so a timeout kills the
 // workers a test runner spawned too, not only the runner.
 func runGroup(g *Group, timeout time.Duration) result {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
 	var res result
-	cmd := exec.CommandContext(ctx, g.Words[0], g.Words[1:]...)
+	cmd := proc.Command(timeout, g.Words[0], g.Words[1:]...)
 	cmd.Dir, cmd.Stdout, cmd.Stderr = g.Dir, &res.out, &res.out
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
-	// A killed group's orphans could hold the output pipe open.
-	cmd.WaitDelay = 2 * time.Second
+	cmd.KillGroup()
 	res.err = cmd.Run()
-	res.timedOut = ctx.Err() != nil
+	res.timedOut = cmd.TimedOut()
 	return res
 }
 

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/proc"
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
@@ -102,7 +103,7 @@ func scanStaged(h *hook.Hook) error {
 	if _, err := exec.LookPath("gitleaks"); err != nil {
 		return nil
 	}
-	err := exec.Command("gitleaks", "git", "--staged", "--no-banner", "--redact", "--log-level", "error", h.Payload.Cwd()).Run()
+	err := proc.Command(proc.Quick, "gitleaks", "git", "--staged", "--no-banner", "--redact", "--log-level", "error", h.Payload.Cwd()).Run()
 	if err == nil {
 		return nil
 	}

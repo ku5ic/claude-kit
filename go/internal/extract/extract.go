@@ -16,6 +16,8 @@ import (
 	"github.com/pelletier/go-toml/v2"
 	"github.com/pelletier/go-toml/v2/unstable"
 	"go.yaml.in/yaml/v3"
+
+	"github.com/ku5ic/claude-kit/go/internal/proc"
 )
 
 // Run dispatches kit.yml's extractor names. Only names listed here run; any
@@ -302,7 +304,7 @@ func JustRecipes(file string) []string {
 		return nil
 	}
 	if _, err := exec.LookPath("just"); err == nil {
-		out, err := exec.Command("just", "--justfile", file, "--summary").Output()
+		out, err := proc.Command(proc.Quick, "just", "--justfile", file, "--summary").Output()
 		if err != nil {
 			return nil
 		}

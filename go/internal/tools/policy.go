@@ -11,6 +11,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/extract"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
+	"github.com/ku5ic/claude-kit/go/internal/proc"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
@@ -30,7 +31,7 @@ func goTool(dir, root, name string) string {
 	if !fsx.IsDir(filepath.Join(modDir, "vendor")) {
 		flags = strings.TrimSpace(flags + " -mod=readonly")
 	}
-	cmd := exec.Command("go", "tool", "-n", name)
+	cmd := proc.Command(proc.Quick, "go", "tool", "-n", name)
 	cmd.Dir = modDir
 	cmd.Env = append(os.Environ(), "GOPROXY=off", "GOFLAGS="+flags)
 	out, err := cmd.Output()
