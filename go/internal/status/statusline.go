@@ -271,8 +271,16 @@ func gitStatus(home, cwd, sessionID string) string {
 	if branch == "" {
 		branch = "detached"
 	}
-	add, del := 0, 0
-	for _, out := range []string{unstaged, staged} {
+	add, del := numstat(unstaged, staged)
+	add += untrackedLines(top, untracked, file+".untracked")
+	segment := fmt.Sprintf("%s\t%d\t%d", branch, add, del)
+	_ = fsx.WriteAtomic(file, []byte(segment+"\n"), 0o600)
+	return segment
+}
+
+// numstat sums the additions and deletions of git diff --numstat outputs.
+func numstat(outputs ...string) (add, del int) {
+	for _, out := range outputs {
 		for line := range strings.SplitSeq(out, "\n") {
 			f := strings.Fields(line)
 			if len(f) >= 2 {
@@ -282,18 +290,23 @@ func gitStatus(home, cwd, sessionID string) string {
 			}
 		}
 	}
-	// Untracked files count as all-new lines, as they will once added. This
-	// runs on every refresh, so only regular files are read, a file's count
-	// is kept until its size or mtime changes, and reads stay within a byte
-	// budget: past it, or for one larger file, the count runs low.
-	countsFile := file + ".untracked"
+	return add, del
+}
+
+// untrackedLines counts the untracked files names, under top, as all-new
+// lines, as they will once added. This runs on every refresh, so only
+// regular files are read, a file's count is kept in countsFile until its
+// size or mtime changes, and reads stay within a byte budget: past it, or
+// for one larger file, the count runs low.
+func untrackedLines(top string, names []string, countsFile string) int {
 	var counts map[string]lineCount
 	if data, err := os.ReadFile(countsFile); err != nil || json.Unmarshal(data, &counts) != nil {
 		counts = map[string]lineCount{}
 	}
+	add := 0
 	kept := map[string]lineCount{}
 	budget := int64(untrackedReadBudget)
-	for _, name := range untracked {
+	for _, name := range names {
 		path := filepath.Join(top, name)
 		info, err := os.Lstat(path)
 		switch {
@@ -314,9 +327,7 @@ func gitStatus(home, cwd, sessionID string) string {
 	if data, err := json.Marshal(kept); err == nil {
 		_ = fsx.WriteAtomic(countsFile, data, 0o600)
 	}
-	segment := fmt.Sprintf("%s\t%d\t%d", branch, add, del)
-	_ = fsx.WriteAtomic(file, []byte(segment+"\n"), 0o600)
-	return segment
+	return add
 }
 
 // untrackedReadBudget caps the bytes one refresh reads to count untracked lines.
