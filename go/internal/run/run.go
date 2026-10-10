@@ -137,7 +137,7 @@ func (r *runner) gate(g enforce.Gate) {
 	switch {
 	case len(o.changed) > 0:
 		_ = enforce.AddMark(r.cacheDir, r.plan.Root, g, enforce.Mark{Label: g.Label, Paths: o.changed, Ref: r.ref})
-		detail := "  changed: " + strings.Join(o.changed, ", ") + "; it won't run again until kit gates reset, and kit gates reset --restore puts them back\n"
+		detail := changedLine(o.changed)
 		if o.err != nil {
 			detail += head(o.out)
 		}
@@ -207,6 +207,11 @@ func searchPath(g enforce.Gate) string {
 		dirs = append(dirs, path)
 	}
 	return strings.Join(dirs, string(os.PathListSeparator))
+}
+
+// changedLine is the detail under a gate that changed paths.
+func changedLine(paths []string) string {
+	return "  changed: " + strings.Join(paths, ", ") + "; it won't run again until kit gates reset, and kit gates reset --restore puts them back\n"
 }
 
 // head is out's first maxOutputLines lines, each ending in a newline.

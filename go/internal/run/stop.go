@@ -53,14 +53,25 @@ func Files(p enforce.Plan, cacheDir string, timeout time.Duration) Checked {
 		}
 	}
 	wg.Wait()
-	t := tally{plan: p, lines: sync.OnceValue(func() git.ChangedLines { return git.LinesChanged(p.Root, "HEAD", edited(p.Gates)) })}
-	for i, g := range p.Gates {
-		t.record(g, results[i], timeout)
-	}
+	var suspects map[int]bool
+	var changed []string
 	if before != "" {
 		if after, err := git.Snapshot(p.Root); err == nil && after != before {
-			t.mutated(before, after, cacheDir)
+			suspects, changed = mutators(p, before, after, cacheDir)
 		}
+	}
+	t := tally{plan: p, lines: sync.OnceValue(func() git.ChangedLines { return git.LinesChanged(p.Root, "HEAD", edited(p.Gates)) })}
+	for i, g := range p.Gates {
+		if !suspects[i] {
+			t.record(g, results[i], timeout)
+			continue
+		}
+		// As in the full gate: a gate that changed files fails as that.
+		detail := changedLine(changed)
+		if results[i].err != nil {
+			detail += tail(results[i].out)
+		}
+		t.fail(g, detail)
 	}
 	summary := fmt.Sprintf("checks: %d passed, %d failed, %d skipped\n", t.res.Pass, t.res.Fail, t.res.Skip)
 	return Checked{Report: t.report.String() + summary, Failures: t.failures.String() + summary, Failed: t.res.Fail > 0, lines: t.report.String(), summary: summary}
@@ -143,39 +154,34 @@ func (t *tally) fail(g enforce.Gate, detail string) {
 	t.res.Fail++
 }
 
-// mutated reports a batch that changed files as a failure, and marks the
-// gates that checked them, or, when none did, every gate that ran. The
-// snapshot before the batch is kept as their restore point.
-func (t *tally) mutated(before, after, cacheDir string) {
-	root := t.plan.Root
-	changed, _ := git.TreeDiff(root, before, after)
+// mutators are the gates of a batch that changed files, by index: those
+// that checked a changed file, or, when none did, every gate that ran. Each
+// is marked, the snapshot before the batch its restore point; changed is
+// the files.
+func mutators(p enforce.Plan, before, after, cacheDir string) (suspects map[int]bool, changed []string) {
+	changed, _ = git.TreeDiff(p.Root, before, after)
 	if len(changed) == 0 {
-		return
+		return nil, nil
 	}
-	var ran, suspects []enforce.Gate
-	for _, g := range t.plan.Gates {
+	suspects, ran := map[int]bool{}, map[int]bool{}
+	for i, g := range p.Gates {
 		if g.Skip != "" {
 			continue
 		}
-		ran = append(ran, g)
-		if slices.ContainsFunc(changed, func(path string) bool { return slices.Contains(g.Files, root+"/"+path) }) {
-			suspects = append(suspects, g)
+		ran[i] = true
+		if slices.ContainsFunc(changed, func(path string) bool { return slices.Contains(g.Files, p.Root+"/"+path) }) {
+			suspects[i] = true
 		}
 	}
 	if len(suspects) == 0 {
 		suspects = ran
 	}
-	ref := keep(root, before, time.Now())
-	var labels []string
-	for _, g := range suspects {
-		_ = enforce.AddMark(cacheDir, root, g, enforce.Mark{Label: g.Label, Paths: changed, Ref: ref})
-		labels = append(labels, g.Label)
+	ref := keep(p.Root, before, time.Now())
+	for i := range suspects {
+		g := p.Gates[i]
+		_ = enforce.AddMark(cacheDir, p.Root, g, enforce.Mark{Label: g.Label, Paths: changed, Ref: ref})
 	}
-	line := fmt.Sprintf("FAIL checks changed %s; %s won't run again until kit gates reset, and kit gates reset --restore puts the files back\n",
-		strings.Join(changed, ", "), strings.Join(labels, ", "))
-	t.report.WriteString(line)
-	t.failures.WriteString(line)
-	t.res.Fail++
+	return suspects, changed
 }
 
 // edited is every file p's gates check.

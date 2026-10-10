@@ -156,7 +156,11 @@ func TestACheckThatChangesFilesBlocksAndIsMarked(t *testing.T) {
 	r.write("a.ts", "let x\n")
 	r.write("b.ts", "let y\n")
 	out := r.stop(r.check("lint", "lint", "echo fixed > a.ts", "a.ts"), r.check("test", "test", "true", "b.ts"))
-	has(t, out.Failures, "FAIL checks changed a.ts; lint won't run again until kit gates reset")
+	// The gate that changed a file counts once, as its FAIL, as in the full
+	// gate.
+	has(t, out.Failures, "FAIL lint\n  cmd: echo fixed > a.ts\n  changed: a.ts; it won't run again until kit gates reset, and kit gates reset --restore puts them back\n")
+	has(t, out.Report, "PASS test\n", "checks: 1 passed, 1 failed, 0 skipped\n")
+	lacks(t, out.Report, "PASS lint")
 	if !out.Failed {
 		t.Error("didn't block")
 	}
