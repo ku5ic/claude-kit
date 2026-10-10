@@ -22,11 +22,21 @@ var (
 )
 
 // turn is what UserPromptSubmit records for the Stops that follow: the
-// ceiling, whether code counts, and how far Stop has judged it.
+// ceiling and whether code counts; Stop adds whether it judged the turn and,
+// when the reply ran over, by how much, for the next prompt to correct.
 type turn struct {
-	Limit int    `json:"limit"`
-	All   bool   `json:"all"`
-	State string `json:"state"` // "", then "passed" or "blocked", then "released"
+	Limit     int  `json:"limit"`
+	All       bool `json:"all"`
+	Judged    bool `json:"judged"`
+	OverWords int  `json:"over_words"`
+	OverLimit int  `json:"over_limit"`
+}
+
+func readTurn(marker string, fallback turn) turn {
+	if data, err := os.ReadFile(marker); err == nil {
+		_ = json.Unmarshal(data, &fallback)
+	}
+	return fallback
 }
 
 func writeTurn(marker string, t turn) {
@@ -36,9 +46,11 @@ func writeTurn(marker string, t turn) {
 }
 
 // ReplyLength holds chat replies to the word ceilings in kit.yml
-// reply_limits (rules/output.md section 0). On UserPromptSubmit it picks the
-// turn's ceiling from the prompt, records it, and says it; at Stop it blocks
-// a final reply over it, once per turn.
+// reply_limits (rules/output.md section 0), silently: on UserPromptSubmit it
+// picks the turn's ceiling from the prompt, records it, and says it in
+// context the user never sees, with a correction when the last reply ran
+// over. At Stop it only measures: a Stop runs after the reply is on screen,
+// so a block would show it twice.
 func ReplyLength(h *hook.Hook) error {
 	p := h.Payload
 	cfg := h.Config()
@@ -47,54 +59,47 @@ func ReplyLength(h *hook.Hook) error {
 	}
 	l := cfg.ReplyLimits
 	marker := h.Paths.SessionFile(config.ReplyLimit, p.SessionID())
+	if marker == "" {
+		return nil
+	}
 	switch p.String("hook_event_name") {
 	case "UserPromptSubmit":
+		last := readTurn(marker, turn{})
 		t := turnLimit(l, p.String("prompt"))
 		writeTurn(marker, t)
+		var lines []string
+		if last.OverWords > 0 {
+			lines = append(lines, fmt.Sprintf("Your last reply ran %d words against a %d-word ceiling: run section 0's cut test before sending this one.", last.OverWords, last.OverLimit))
+		}
 		if t.Limit > 0 {
 			counted := "fenced code excluded"
 			if t.All {
 				counted = "code included"
 			}
-			hook.AddContext(h.Stdout, "UserPromptSubmit", "", fmt.Sprintf("Reply ceiling this turn: %d words, %s (rules/output.md section 0).", t.Limit, counted))
+			lines = append(lines, fmt.Sprintf("Reply ceiling this turn: %d words, %s (rules/output.md section 0).", t.Limit, counted))
+		}
+		if len(lines) > 0 {
+			hook.AddContext(h.Stdout, "UserPromptSubmit", "", strings.Join(lines, "\n"))
 		}
 	case "Stop":
-		// Its own state, not stop_hook_active: another Stop hook's block sets
-		// that too, and a long reply after it still counts. After its own
-		// block the turn is released; a turn with no prompt of its own (a task
-		// notification) gets the chat ceiling.
-		t := turn{Limit: l.Chat}
-		if data, err := os.ReadFile(marker); err == nil {
-			_ = json.Unmarshal(data, &t)
-		}
+		t := readTurn(marker, turn{Limit: l.Chat})
 		active := p.Bool("stop_hook_active")
 		switch {
-		case marker == "":
-			// No session to keep "once per turn" in: never block, never loop.
-			return nil
-		case t.State == "" && active:
+		case !t.Judged && active:
 			// A continuation before this turn's first Stop belongs to the
 			// turn before a queued prompt: leave the new turn's marker alone.
 			return nil
-		case t.State == "blocked":
-			t.State = "released"
-			writeTurn(marker, t)
-			return nil
-		case t.State == "released" && active:
-			return nil
-		case t.State != "" && !active:
-			t = turn{Limit: l.Chat}
+		case t.Judged && !active:
+			// A turn with no prompt of its own (a task notification).
+			t.Limit, t.All = l.Chat, false
 		}
-		n := countWords(p.String("last_assistant_message"), t.All)
-		t.State = "passed"
-		if t.Limit > 0 && n > t.Limit {
-			t.State = "blocked"
+		// Every reply was shown, so any one over counts; the next prompt
+		// reports and clears it.
+		t.Judged = true
+		if n := countWords(p.String("last_assistant_message"), t.All); t.Limit > 0 && n > t.Limit {
+			t.OverWords, t.OverLimit = n, t.Limit
 		}
 		writeTurn(marker, t)
-		if t.State == "blocked" {
-			return h.Block(fmt.Sprintf("your reply was %d words; this turn's ceiling is %d (rules/output.md section 0). "+
-				"Send only the cut version, at most %d words: the answer or next action first, nothing the reader already saw.", n, t.Limit, t.Limit), "reply-length")
-		}
 	}
 	return nil
 }

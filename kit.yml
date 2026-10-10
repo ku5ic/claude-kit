@@ -529,8 +529,9 @@ disabled_file_checks: []
 # reported as a SKIP, never a block. The Stop hook itself allows 300.
 check_timeout: 90
 
-# Chat reply word ceilings (rules/output.md section 0), set per prompt and
-# enforced at Stop by the reply-length hook. Fenced code doesn't count.
+# Chat reply word ceilings (rules/output.md section 0), set per prompt by the
+# reply-length hook, which corrects an overrun silently on the next prompt.
+# Fenced code doesn't count.
 # A prompt with a detail trigger has no ceiling; with an explain trigger,
 # the explain one. uncapped_commands: slash commands (as typed, without the
 # slash) whose turn is a report, so none. write: the /write kinds that print
