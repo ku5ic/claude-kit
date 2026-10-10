@@ -215,6 +215,9 @@ func TestVerification(t *testing.T) {
 			map[string]any{"role": "check", "kind": "lint", "command": "pnpm exec eslint .", "dir": ".", "evidence": "package.json"},
 			map[string]any{"role": "fixer", "command": "pnpm dlx prettier --write .", "dir": ".", "evidence": "pnpm-lock.yaml"},
 			map[string]any{"role": "check", "kind": "security", "command": "gitleaks detect", "dir": ".", "evidence": ".gitleaks.toml"},
+			map[string]any{"role": "check", "kind": "lint", "command": "eslint . ; rm -rf build", "dir": ".", "evidence": "package.json"},
+			map[string]any{"role": "check", "kind": "lint", "command": "eslint . > out.log", "dir": ".", "evidence": "package.json"},
+			map[string]any{"role": "fixer", "command": `eval "$FIX"`, "dir": ".", "evidence": "package.json"},
 		},
 	})
 	r := f.run(ci, fetch, invent, strayed, badKind, aggregate, blank)
@@ -254,6 +257,9 @@ func TestVerification(t *testing.T) {
 		`manager for .: no lockfile yarn.lock`,
 		`proposal "pnpm dlx prettier --write .": fetches (pnpm dlx)`,
 		`proposal "gitleaks detect": no evidence file ".gitleaks.toml"`,
+		`proposal "eslint . ; rm -rf build": not one plain command`,
+		`proposal "eslint . > out.log": not one plain command`,
+		`proposal "eval \"$FIX\"": not one plain command`,
 	} {
 		if !strings.Contains(strings.Join(r.Dropped, "\n"), want) {
 			t.Errorf("dropped lacks %q:\n%s", want, strings.Join(r.Dropped, "\n"))

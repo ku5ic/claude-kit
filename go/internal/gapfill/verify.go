@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strings"
 
+	// Aliased: gapfill has a classify function of its own.
+	shellcalls "github.com/ku5ic/claude-kit/go/internal/classify"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
@@ -194,6 +196,9 @@ func (f forms) proposal(p Proposal) error {
 		return fmt.Errorf("role %q", p.Role)
 	case p.Role == "check" && !slices.Contains(kinds, p.Kind):
 		return fmt.Errorf("check kind %q", p.Kind)
+	// Model output: a second command, a redirect, or eval could hide in it.
+	case !shellcalls.Single(p.Command):
+		return fmt.Errorf("not one plain command")
 	case p.Evidence == "" || !fsx.IsFile(filepath.Join(f.root, p.Evidence)) && !fsx.IsFile(filepath.Join(f.dir, p.Evidence)):
 		return fmt.Errorf("no evidence file %q", p.Evidence)
 	}

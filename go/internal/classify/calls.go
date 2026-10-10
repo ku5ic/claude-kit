@@ -11,6 +11,31 @@ import (
 var builtins = []string{"[", "[[", "test", "echo", "printf", "exit", "return", "cd", "export", "set", "unset", "true", "false", ":",
 	"read", "shift", "eval", "source", ".", "local", "declare", "trap", "wait", "pushd", "popd", "command", "type", "hash", "umask", "alias"}
 
+// Single is true when body runs exactly one binary, named literally, with
+// builtins around it at most (test -z "$(deadcode ./...)"): no second
+// command, no redirect, and no eval, source, or . to run code unseen.
+func Single(body string) bool {
+	calls, ok := Calls(body)
+	if !ok || len(calls) != 1 || calls[0][0] == "$" {
+		return false
+	}
+	file, _ := parse(body)
+	syntax.Walk(file, func(node syntax.Node) bool {
+		switch n := node.(type) {
+		case *syntax.Redirect:
+			ok = false
+		case *syntax.CallExpr:
+			if len(n.Args) > 0 {
+				if name, _ := literal(n.Args[0]); name == "eval" || name == "source" || name == "." {
+					ok = false
+				}
+			}
+		}
+		return ok
+	})
+	return ok
+}
+
 // Statements is body's top-level commands in order, each printed back as
 // shell: statements a newline or && separates come apart, anything else (a
 // pipe, ||, a subshell) stays whole. ok is false when body doesn't parse.
