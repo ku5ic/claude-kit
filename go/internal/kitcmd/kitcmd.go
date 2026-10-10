@@ -34,7 +34,7 @@ var Commands = []Command{
 	{Name: "blast-radius", Args: "<file> [symbol]", Desc: "the files that import <file>", Path: "file", ReadOnly: true},
 	{Name: "a11y-check", Args: "<url>", Desc: "digest of axe violations on a running page"},
 	{Name: "skills-report", Args: "[days]", Desc: "skill activation telemetry from skills.jsonl", ReadOnly: true},
-	{Name: "scratch-rotate", Args: "[days] [--dry-run]", Desc: "prune old scratch artifacts, trim the logs", Words: []string{"--dry-run"}},
+	{Name: "scratch-rotate", Args: "[days] [--dry-run]", Desc: "prune old scratch artifacts and caches", Words: []string{"--dry-run"}},
 	{Name: "hook", Args: "<name>", Desc: "run a Claude Code hook; payload on stdin"},
 	{Name: "statusline", Desc: "the statusLine rows; payload on stdin"},
 	{Name: "subagent-statusline", Desc: "subagentStatusLine JSON lines; payload on stdin"},

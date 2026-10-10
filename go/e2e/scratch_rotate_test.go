@@ -372,18 +372,4 @@ func TestScratchRotate(t *testing.T) {
 		r.Want(t, 0)
 		r.Lacks(t, "skill-loaded marker")
 	})
-	t.Run("trims every JSONL log to log_max_lines from the overlay", func(t *testing.T) {
-		t.Parallel()
-		k, _, _ := setup(t)
-		logs := filepath.Join(k.Claude, "logs")
-		k.Overlay("log_max_lines: 2\n")
-		Write(t, filepath.Join(logs, "skills.jsonl"), "{\"n\":1}\n{\"n\":2}\n{\"n\":3}\n{\"n\":4}\n")
-		Write(t, filepath.Join(logs, "guards.jsonl"), "{\"n\":1}\n{\"n\":2}\n{\"n\":3}\n")
-		r := k.Run("", "scratch-rotate")
-		r.Want(t, 0)
-		r.Has(t, "trimmed skills.jsonl from 4 to 2 lines", "trimmed guards.jsonl from 3 to 2 lines")
-		if got := strings.TrimRight(Read(t, filepath.Join(logs, "guards.jsonl")), "\n"); got != "{\"n\":2}\n{\"n\":3}" {
-			t.Errorf("guards.jsonl %q", got)
-		}
-	})
 }

@@ -16,12 +16,12 @@ import (
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
-	"github.com/ku5ic/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 )
 
 // entry is one log row with what the report derives from it.
 type entry struct {
-	hook.Entry
+	kitlog.Entry
 
 	category string
 	skill    *string
@@ -92,9 +92,9 @@ func classify(e *entry) bool {
 			return false
 		}
 		e.skill = &m[1]
-	case e.Event == hook.EventRequiredSkill:
+	case e.Event == kitlog.EventRequiredSkill:
 		e.category, e.skill = "surfaced_required", e.SkillFile
-	case e.Event == hook.EventSuggestedSkill:
+	case e.Event == kitlog.EventSuggestedSkill:
 		e.category, e.skill = "surfaced_suggested", e.SkillFile
 	default:
 		return false
@@ -147,8 +147,8 @@ func count(rows []entry, category string) int {
 
 // Run is `kit skills-report [days]`.
 func Run(cfg *config.Config, paths config.Paths, days int, stdout io.Writer) int {
-	cutoff := time.Now().UTC().AddDate(0, 0, -days).Format(hook.TimeLayout)
-	entries, status, ok := window(paths.LogFile(hook.SkillsLog), cutoff, days, stdout)
+	cutoff := time.Now().UTC().AddDate(0, 0, -days).Format(kitlog.TimeLayout)
+	entries, status, ok := window(paths.LogFile(kitlog.Skills), cutoff, days, stdout)
 	if !ok {
 		return status
 	}
@@ -303,7 +303,7 @@ func suggestedSection(rows, active []entry, stdout io.Writer) {
 
 func guardsSection(paths config.Paths, cutoff string, stdout io.Writer) {
 	fmt.Fprintln(stdout, "\n== 6: guard rules fired in the window (guards.jsonl) ==")
-	guards, _, err := readLog(paths.LogFile(hook.GuardsLog))
+	guards, _, err := readLog(paths.LogFile(kitlog.Guards))
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		fmt.Fprintf(stdout, "(could not read it: %v)\n", err)
 		return

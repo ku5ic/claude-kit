@@ -19,6 +19,7 @@ var layers = map[string]int{
 	"internal/git":        1,
 	"internal/transcript": 1,
 	"internal/kitcmd":     1,
+	"internal/kitlog":     1,
 	"internal/project":    2,
 	"internal/guard":      2,
 	"internal/ci":         2,

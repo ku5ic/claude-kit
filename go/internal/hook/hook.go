@@ -19,7 +19,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/extract"
-	"github.com/ku5ic/claude-kit/go/internal/fsx"
+	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 )
 
 // Payload is the hook's stdin JSON. A payload that doesn't parse is kept as
@@ -151,10 +151,10 @@ func (h *Hook) ruleDisabled(rule string) bool {
 // on as if it hadn't matched.
 func (h *Hook) Block(reason, rule string) error {
 	if rule != "" && h.ruleDisabled(rule) {
-		h.Log(GuardsLog, "disabled", "rule", rule)
+		h.Log(kitlog.Guards, "disabled", "rule", rule)
 		return nil
 	}
-	h.Log(GuardsLog, "block", "rule", rule)
+	h.Log(kitlog.Guards, "block", "rule", rule)
 	msg := "Blocked by " + h.Name + ": " + reason
 	if h.context != "" {
 		msg += "\n" + h.context
@@ -216,74 +216,25 @@ func WriteJSON(w io.Writer, v any) {
 	}
 }
 
-// The kit's JSONL logs, the skills log's events that mark a skill as only
-// surfaced, and a line's ts layout.
-const (
-	SkillsLog           = "skills"
-	GuardsLog           = "guards"
-	EventRequiredSkill  = "required-skill"
-	EventSuggestedSkill = "suggested-skill"
-	TimeLayout          = "2006-01-02T15:04:05Z"
-)
-
-// Entry is one log line as the readers use it; a pointer keeps a null
-// distinct from "".
-type Entry struct {
-	TS            *string `json:"ts"`
-	Event         string  `json:"event"`
-	SessionID     *string `json:"session_id"`
-	ExpansionType string  `json:"expansion_type"`
-	CommandName   *string `json:"command_name"`
-	SkillFile     *string `json:"skill_file"`
-	ToolName      string  `json:"tool_name"`
-	Rule          *string `json:"rule"`
-}
-
-// Surfaced is true for a skills log line that says a skill was shown, not
-// loaded.
-func (e Entry) Surfaced() bool {
-	return e.Event == EventRequiredSkill || e.Event == EventSuggestedSkill
-}
-
 // Log appends one line to <log dir>/<log>.jsonl: ts, hook, event, the
 // payload's session_id, then each key/value pair in order, an empty value
-// as null. Never fails its caller: a log that can't be written is skipped.
+// as null; the log is capped at kit.yml's log_max_lines. Never fails its
+// caller: a log that can't be written is skipped.
 func (h *Hook) Log(log, event string, pairs ...string) {
 	if h.DryRun {
 		return
 	}
-	fields := []string{
-		"ts", h.now().UTC().Format(TimeLayout),
+	fields := append([]string{
+		"ts", h.now().UTC().Format(kitlog.TimeLayout),
 		"hook", h.Name,
 		"event", event,
 		"session_id", h.Payload.SessionID(),
+	}, pairs...)
+	maxLines := 0
+	if cfg := h.Config(); cfg != nil {
+		maxLines = cfg.LogMaxLines
 	}
-	fields = append(fields, pairs...)
-
-	var line bytes.Buffer
-	line.WriteByte('{')
-	for i := 0; i+1 < len(fields); i += 2 {
-		if i > 0 {
-			line.WriteByte(',')
-		}
-		writeJSONValue(&line, fields[i])
-		line.WriteByte(':')
-		if fields[i+1] == "" {
-			line.WriteString("null")
-		} else {
-			writeJSONValue(&line, fields[i+1])
-		}
-	}
-	line.WriteString("}\n")
-	_ = fsx.Append(h.Paths.LogFile(log), line.Bytes())
-}
-
-func writeJSONValue(buf *bytes.Buffer, s string) {
-	var tmp bytes.Buffer
-	enc := json.NewEncoder(&tmp)
-	enc.SetEscapeHTML(false)
-	_ = enc.Encode(s) // a string always encodes
-	buf.Write(bytes.TrimSuffix(tmp.Bytes(), []byte("\n")))
+	_ = kitlog.Append(h.Paths.LogFile(log), kitlog.Line(fields...), maxLines)
 }
 
 func (h *Hook) now() time.Time {
@@ -311,7 +262,7 @@ func RunCheck(h *Hook, name string, check Check) (blocked bool) {
 	h.Name = name
 	failOpen := func() {
 		FailOpen(h.Stderr, name)
-		h.Log(GuardsLog, "fail-open")
+		h.Log(kitlog.Guards, "fail-open")
 	}
 	defer func() {
 		if r := recover(); r != nil {

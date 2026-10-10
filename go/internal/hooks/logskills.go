@@ -6,6 +6,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 )
 
 // LogSkills appends one skills.jsonl line per skill activation: a typed
@@ -45,7 +46,7 @@ func LogSkills(h *hook.Hook) error {
 		return nil
 	}
 	// `kit scratch-rotate` trims the log to log_max_lines.
-	h.Log(hook.SkillsLog, event,
+	h.Log(kitlog.Skills, event,
 		"expansion_type", expansion,
 		"command_name", p.String("command_name"),
 		"skill_file", cmp.Or(p.String("tool_input.skill"), p.FilePath()),

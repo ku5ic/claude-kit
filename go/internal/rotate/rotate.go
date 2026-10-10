@@ -9,7 +9,6 @@
 package rotate
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"io/fs"
@@ -21,11 +20,11 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
-	"github.com/ku5ic/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 )
 
 // Run is `kit scratch-rotate [days] [--dry-run]`; it returns the exit status.
-func Run(cfg *config.Config, paths config.Paths, n int, dryRun bool, stdout, stderr io.Writer) int {
+func Run(paths config.Paths, n int, dryRun bool, stdout, stderr io.Writer) int {
 	r := &rotator{now: time.Now(), dryRun: dryRun, log: filepath.Join(paths.LogDir(), "scratch-rotate.log"),
 		verb: "deleted", pruned: "pruned", stdout: stdout}
 	if dryRun {
@@ -54,7 +53,6 @@ func Run(cfg *config.Config, paths config.Paths, n int, dryRun bool, stdout, std
 		}
 	}
 	r.registry(paths.ScratchRegistry(), n, stderr)
-	r.trimLogs(paths.LogDir(), cfg.LogMaxLines)
 	return 0
 }
 
@@ -88,33 +86,6 @@ func (r *rotator) registry(registry string, n int, stderr io.Writer) {
 	}
 	if !r.dryRun {
 		writeLines(registry, keep)
-	}
-}
-
-// trimLogs caps every JSONL log in dir at maxLines, keeping the newest; the
-// hooks that append to them never trim.
-func (r *rotator) trimLogs(dir string, maxLines int) {
-	logs, _ := filepath.Glob(filepath.Join(dir, "*.jsonl"))
-	for _, log := range logs {
-		if !fsx.IsFile(log) {
-			continue
-		}
-		name := filepath.Base(log)
-		lines, err := readLines(log)
-		if err != nil {
-			// Trimming what was read so far would drop the unread rest.
-			fmt.Fprintf(r.stdout, "scratch-rotate: %s not trimmed, unreadable: %v\n", name, err)
-			continue
-		}
-		switch total := len(lines); {
-		case total <= maxLines:
-			fmt.Fprintf(r.stdout, "scratch-rotate: %s has %d lines, no trim needed\n", name, total)
-		case r.dryRun:
-			fmt.Fprintf(r.stdout, "scratch-rotate: would trim %s from %d to %d lines\n", name, total, maxLines)
-		default:
-			writeLines(log, lines[total-maxLines:])
-			fmt.Fprintf(r.stdout, "scratch-rotate: trimmed %s from %d to %d lines\n", name, total, maxLines)
-		}
 	}
 }
 
@@ -214,7 +185,7 @@ func (r *rotator) record(paths []string) {
 	if len(paths) == 0 {
 		return
 	}
-	prefix := r.now.UTC().Format(hook.TimeLayout) + " " + r.verb + " "
+	prefix := r.now.UTC().Format(kitlog.TimeLayout) + " " + r.verb + " "
 	var lines strings.Builder
 	for _, p := range paths {
 		lines.WriteString(prefix + p + "\n")
@@ -241,21 +212,6 @@ func validScratchDir(dir, home string) bool {
 	}
 	_, err = os.Lstat(filepath.Join(dir, ".git"))
 	return os.IsNotExist(err)
-}
-
-func readLines(path string) ([]string, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	var lines []string
-	s := bufio.NewScanner(f)
-	s.Buffer(make([]byte, 1024*1024), 64*1024*1024)
-	for s.Scan() {
-		lines = append(lines, s.Text())
-	}
-	return lines, s.Err()
 }
 
 // writeLines replaces path atomically with lines, one per line.

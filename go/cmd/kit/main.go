@@ -103,6 +103,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdConfig(e, rest)
 	case "git-base":
 		return gitbase.Run(rest, stdout, stderr)
+	case "scratch-rotate":
+		return cmdScratchRotate(e, rest)
 	case "hook":
 		return cmdHook(e, rest, os.Stdin)
 	case "statusline":
@@ -130,16 +132,15 @@ func run(args []string, stdout, stderr io.Writer) int {
 
 // configCommands are the commands that read kit.yml.
 var configCommands = map[string]func(*env, *config.Config, []string) int{
-	"subprojects":    cmdSubprojects,
-	"tasks":          cmdTasks,
-	"project-root":   cmdProjectRoot,
-	"project-name":   cmdProjectName,
-	"scratch-dir":    cmdScratchDir,
-	"plans-dir":      cmdPlansDir,
-	"detect-stack":   cmdDetectStack,
-	"run-checks":     cmdRunChecks,
-	"scratch-rotate": cmdScratchRotate,
-	"skills-report":  cmdSkillsReport,
+	"subprojects":   cmdSubprojects,
+	"tasks":         cmdTasks,
+	"project-root":  cmdProjectRoot,
+	"project-name":  cmdProjectName,
+	"scratch-dir":   cmdScratchDir,
+	"plans-dir":     cmdPlansDir,
+	"detect-stack":  cmdDetectStack,
+	"run-checks":    cmdRunChecks,
+	"skills-report": cmdSkillsReport,
 	"blast-radius": func(e *env, cfg *config.Config, args []string) int {
 		return blast.Run(cfg, args, e.stdout, e.stderr)
 	},
@@ -176,7 +177,7 @@ func cmdRunChecks(e *env, cfg *config.Config, args []string) int {
 	return min(checks.RunAll(cfg, root, only, e.stdout), 125)
 }
 
-func cmdScratchRotate(e *env, cfg *config.Config, args []string) int {
+func cmdScratchRotate(e *env, args []string) int {
 	dryRun, arg := false, ""
 	for _, a := range args {
 		if a == "--dry-run" {
@@ -189,7 +190,7 @@ func cmdScratchRotate(e *env, cfg *config.Config, args []string) int {
 	if !ok {
 		return 2
 	}
-	return rotate.Run(cfg, e.paths, days, dryRun, e.stdout, e.stderr)
+	return rotate.Run(e.paths, days, dryRun, e.stdout, e.stderr)
 }
 
 // cmdSkillsReport runs with a nil cfg when kit.yml can't load.

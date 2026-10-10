@@ -2,10 +2,8 @@
 package hooks
 
 import (
-	"bufio"
 	"cmp"
 	"encoding/json"
-	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -16,6 +14,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/stackctx"
 )
@@ -142,7 +141,7 @@ func GuardSkills(h *hook.Hook) error {
 // loaded; each it does show gets its marker, so the log is read once per
 // skill. A missing or unreadable log fails open: none.
 func notLoaded(h *hook.Hook, session string, toCheck []string, marker func(string) string) []string {
-	loaded, err := loadedSkills(h.Paths.LogFile(hook.SkillsLog), session)
+	loaded, err := loadedSkills(h.Paths.LogFile(kitlog.Skills), session)
 	if err != nil {
 		return nil
 	}
@@ -171,25 +170,14 @@ func notLoaded(h *hook.Hook, session string, toCheck []string, marker func(strin
 // skipping inject-context's required-skill and suggested-skill markers:
 // those mean "surfaced", not "loaded".
 func loadedSkills(logPath, session string) (map[string]bool, error) {
-	f, err := os.Open(logPath)
-	if err != nil {
+	if _, err := os.Stat(logPath); err != nil {
 		return nil, err
 	}
-	defer f.Close()
 	loaded := map[string]bool{}
-	// A Reader, not a Scanner: one oversized line must not end the read.
-	reader := bufio.NewReader(f)
-	for {
-		line, err := reader.ReadBytes('\n')
-		if err == io.EOF && len(line) == 0 {
-			return loaded, nil
-		}
-		if err != nil && err != io.EOF {
-			return nil, err
-		}
-		var entry hook.Entry
+	err := kitlog.Each(logPath, func(line []byte) {
+		var entry kitlog.Entry
 		if json.Unmarshal(line, &entry) != nil {
-			continue
+			return
 		}
 		if entry.SessionID != nil && *entry.SessionID == session && entry.SkillFile != nil && !entry.Surfaced() {
 			loaded[*entry.SkillFile] = true
@@ -198,7 +186,11 @@ func loadedSkills(logPath, session string) (map[string]bool, error) {
 				loaded[skill] = true
 			}
 		}
+	})
+	if err != nil {
+		return nil, err
 	}
+	return loaded, nil
 }
 
 // GuardDispatch runs guard-edit's and, with CLAUDE_GUARD_SKILLS=1,
