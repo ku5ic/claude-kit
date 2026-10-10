@@ -15,7 +15,7 @@ Consistent format for findings reports: audits, reviews, dependency runs, and an
 
 Generated: <ISO timestamp>
 Scope: <file, component, or module>
-Stack: <line from kit detect-stack, if applicable>
+Stack: <the language lines kit detect-stack prints, if applicable>
 
 ## Summary
 

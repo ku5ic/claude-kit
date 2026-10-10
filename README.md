@@ -38,11 +38,11 @@ Zero config. Works in any repo on macOS and Linux. Every hook is a deterministic
 | run `rm -rf` on the wrong path, or `git push --force` to main  | Blocked. Every command is parsed, including pipelines, `$(...)`, and `sudo`/`env` wrappers             |
 | say "done" while lint, types, or tests are failing             | Your checks run on the files it edited; a failure sends it back                                        |
 | get stuck on old warnings in a file it barely touched          | Linters block only on lines Claude changed                                                             |
-| not know your check commands, or guess them wrong              | Read from `package.json`, Makefile, justfile, cargo aliases, and your GitHub/GitLab CI                 |
+| not know your check commands, or guess them wrong              | Read from your CI, git hooks, and task runners; a small model sorts what they leave open, once         |
 | run a global `eslint` of the wrong version, or `npx` something | Tools resolve from the project first: `node_modules`, `.venv`, `go tool`, poetry, bundler. Never `npx` |
 | read `.env` or `~/.ssh` keys                                   | Blocked, whatever your permission rules say                                                            |
-| put an AI signature or a secret in a commit                    | Blocked at commit time, with `gitleaks` when installed                                                 |
-| leave files unformatted, or formatted with the wrong config    | Each edit is formatted with your project's own formatter and config                                    |
+| put an AI signature or a secret in a commit                    | Blocked at commit time, with `gitleaks` when installed; your commit-msg hooks check the message        |
+| leave files unformatted, or formatted with the wrong config    | Each edit is formatted by your project's own fixers and config                                         |
 | drop `out.log` and downloads in your repo root                 | Temporary files go to a gitignored `.claude/scratch/`                                                  |
 | invent paths, APIs, versions, or test results                  | Rules require evidence and a confidence label                                                          |
 | refactor half the repo for a one-line bug, or commit unasked   | Rules hold it to the smallest change and never commit without being asked                              |
@@ -60,6 +60,7 @@ claude plugin install kit@ku5ic
 ```
 
 - **Needs:** `git` and any bash, on macOS or Linux. Formatters and linters are used when installed and skipped when not; the kit never installs anything.
+- **Gap-fill:** the `claude` CLI, logged in. Once per repo, and again when its configs change, Haiku sorts the commands your CI, hooks, and task runners hold into checks and fixers, capped at $0.50 a call; the answers are cached and verified against your files. Without it, those commands are skipped and named.
 - **Claude Code only.** claude.ai and Cowork don't install a plugin with a top-level `bin/`.
 - **Rules ship with the plugin.** Nothing to link. If an older install left `~/.claude/rules/claude-kit`, remove it; the session-start notice names it.
 - **Your own CLAUDE.md:** start from `templates/CLAUDE.md`.
@@ -81,8 +82,8 @@ Nothing to learn up front. After install:
 session starts   -> Claude gets the rules, your stack, your check commands, and the skills that fit
 Claude runs bash -> dangerous commands are blocked, ambiguous ones ask you first
 Claude edits     -> credential files are off limits; the file is formatted with your formatter
-Claude commits   -> AI signatures and secrets in the staged diff are blocked
-Claude says done -> your linters, type checkers, and tests run on what it edited
+Claude commits   -> AI signatures and secrets are blocked; your commit-msg hooks check the message
+Claude says done -> your git hooks' checks run on what it edited
 ```
 
 **Block** means Claude sees the reason and tries another way; you aren't interrupted. **Ask** means a normal permission prompt, with the reason in it.
@@ -93,27 +94,28 @@ Claude says done -> your linters, type checkers, and tests run on what it edited
 | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **guard-bash**   | Parses every command with a real bash parser and sees through `sudo`, `doas`, `env`. Blocks `rm -rf ~`, force pushes, pushes to protected branches, `curl \| sh`, `eval`, `sh -c`, credential reads, rc-file writes, global installs, a package manager other than the lockfile's. Asks before `git push`, adding a dependency, or a file written into the repo root |
 | **guard-edit**   | Blocks reading or writing `.env`, keys, and credential files, and editing lockfiles, `.git/`, or shell rc files. Asks before editing a CI workflow                                                                                                                                                                                                                   |
-| **guard-commit** | Blocks AI signatures and AI-tell phrasing in commit messages, and secrets in the staged diff                                                                                                                                                                                                                                                                         |
+| **guard-commit** | Blocks AI signatures and AI-tell phrasing in commit messages, and secrets in the staged diff. Runs your commit-msg checks (pre-commit, husky, lefthook, commitlint) on the message                                                                                                                                                                                   |
 | **downloads**    | `curl` and `wget` may write only into `.claude/scratch/`                                                                                                                                                                                                                                                                                                             |
 | **sanitize**     | Strips invisible bidi characters (Trojan Source) from every written file                                                                                                                                                                                                                                                                                             |
 
 ### Checks before "done"
 
-When Claude finishes a turn, the Stop hook runs your linters, type checkers, and tests on just the files it edited, in parallel. A failure sends Claude back to fix it or report it.
+The kit enforces your project's own rules, not its own list of tools. It reads what your project already runs, and asks gap-fill only about what those configs leave open.
 
-- **Built in:** linters, type checkers, and test runners for JS/TS, CSS, Python, Go, Ruby, Markdown, YAML, OpenTofu, and shell. Each runs only where the project configures it; `kit explain stop <file>` shows which claim a file and the exact command.
+When Claude finishes a turn, the Stop hook runs the checks your git hooks would run on a commit (pre-commit, lint-staged, lefthook) on just the files it edited, in parallel. A project with none gets the file-scoped form of its CI checks. A failure sends Claude back to fix it or report it.
+
 - **Changed lines only.** A linter blocks on findings in lines Claude changed, so old warnings don't trap it.
-- **Your flags.** It reuses the flags from your own scripts.
+- **Your commands, your flags.** Every command is one your project states; `kit explain stop <file>` shows which claim a file and the exact command.
 
-For the whole project, `kit run-checks` runs every quality gate the repo declares, in every subproject. It finds them without config:
+For the whole project, `kit run-checks` runs every quality gate, in every subproject:
 
-- **Tasks:** `package.json` scripts, Makefile, justfile, and cargo aliases, matched to five slots: `typecheck`, `lint`, `format-check`, `test`, `deadcode`. An odd-named task counts when its body runs a known tool.
+- **CI first:** the check steps of GitHub Actions and GitLab CI, and the tasks they run. `kit.yml` `gate_discovery` says which jobs and steps are never read.
+- **Then each kind CI leaves out:** lint, typecheck, format-check, test, and dead code, from turbo and nx (affected packages only), task runners (`package.json` scripts, Makefile, justfile, and more), and pre-commit; last, a check the project states only by a tool's config or its language's manifest (`go.mod` states `go vet`).
 - **Aggregates:** a `ci` script that chains `lint && test` runs each gate once, not twice.
-- **CI:** gates from GitHub Actions and GitLab CI, run only with tools the project has. `kit.yml` `gate_discovery` says which jobs and steps are read.
 - **Dead code:** dead-code findings block only on lines changed against the base branch.
-- **Monorepos:** turbo and nx run affected packages once through the orchestrator.
+- **Hands off your files:** a check that changes files fails, is never run again until `kit gates reset`, and `kit gates reset --restore` puts the files back.
 
-`kit run-checks --plan` shows what would run, and why, without running it.
+`kit run-checks --plan` shows what would run, where each comes from, and why, without running it.
 
 - **On review:** at the end of every `/code-review`, the reviewer runs `kit run-checks` in the checkout it reviewed and opens its report with the result; a failing gate becomes a finding once the reviewer has verified its cause. How a PR or another branch is checked out: `rules/workflow.md` section 1.
 - **At the end of a plan:** ticking its last step without a `/code-review` since the last code edit blocks the stop until one runs.
@@ -126,7 +128,7 @@ A tool the project declares but hasn't installed is skipped with the install com
 
 ### Formatting
 
-Each edited file is formatted with the project's own formatter and config (`kit.yml` `formatters` lists the supported ones). Two formatters claiming one file (a migration mid-way) means neither runs. In a repo with no Markdown formatter config, edited Markdown still gets formatted by a fallback formatter found on PATH.
+Each edited file is formatted by the fixers your git hooks would run on it (pre-commit, lint-staged, lefthook), else by the one formatter your project's config or dependencies state. Two formatters claiming one file (a migration mid-way) means neither runs. A file nothing claims gets `kit.yml` `on_edit`: Markdown is formatted by the first formatter found on PATH.
 
 ### Context
 
@@ -188,14 +190,16 @@ Two rows: model, agent, directory, and git state; then context used, cost, durat
 
 ### The kit CLI
 
-| Command                                            | What it does                                                    |
-| -------------------------------------------------- | --------------------------------------------------------------- |
-| `kit run-checks [--plan]`                          | Every quality gate, in every subproject; `--plan` lists them    |
-| `kit explain bash\|edit\|stop`                     | Why a guard or the Stop hook decides what it does. Runs nothing |
-| `kit blast-radius <file> [symbol]`                 | Which files import it, tests and source counted apart           |
-| `kit detect-stack`, `kit tasks`, `kit subprojects` | What the kit sees in this repo                                  |
-| `kit config [--check]`                             | The merged config, or only its warnings                         |
-| `kit scratch-rotate [days]`                        | Prune old scratch artifacts and caches                          |
+| Command                                            | What it does                                                     |
+| -------------------------------------------------- | ---------------------------------------------------------------- |
+| `kit run-checks [--plan]`                          | Every quality gate, in every subproject; `--plan` lists them     |
+| `kit explain bash\|edit\|stop`                     | Why a guard or the Stop hook decides what it does. Runs nothing  |
+| `kit blast-radius <file> [symbol]`                 | Which files import it, tests and source counted apart            |
+| `kit detect-stack`, `kit tasks`, `kit subprojects` | What the kit sees in this repo                                   |
+| `kit enforce --list\|classify`                     | Every command the project's configs hold, and gap-fill's verdict |
+| `kit gates reset [--restore]`                      | Let gates seen changing files run again, and put the files back  |
+| `kit config [--check]`                             | The merged config, or only its warnings                          |
+| `kit scratch-rotate [days]`                        | Prune old scratch artifacts and caches                           |
 
 ## The recommended flow
 
@@ -213,15 +217,16 @@ Side trips: `/audit` for a read-only report, `/simplify <path>` to cut over-engi
 
 Defaults live in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml`, merged on top: maps merge, lists append.
 
-| Key                       | For                                                                   |
-| ------------------------- | --------------------------------------------------------------------- |
-| `protected_branches`      | Branches Claude can't push to                                         |
-| `sensitive_paths`         | Extra credential files to guard                                       |
-| `disabled_rules`          | Guard rules to let through, by the slug `kit explain` prints          |
-| `disabled_checks`         | Turn a `run-checks` gate off, by check kind or by the label it prints |
-| `disabled_task_providers` | Stop reading a task source (`make`, `package-scripts`, ...) at all    |
-| `on_edit`                 | Format a file type the project's own fixers don't claim               |
-| `gate_timeout`            | Seconds before a Stop check is skipped                                |
+| Key                       | For                                                                    |
+| ------------------------- | ---------------------------------------------------------------------- |
+| `protected_branches`      | Branches Claude can't push to                                          |
+| `sensitive_paths`         | Extra credential files to guard                                        |
+| `disabled_rules`          | Guard rules to let through, by the slug `kit explain` prints           |
+| `disabled_checks`         | Turn a `run-checks` gate off, by check kind or by the label it prints  |
+| `disabled_task_providers` | Stop reading a task source (`make`, `package-scripts`, ...) at all     |
+| `on_edit`                 | Format a file type the project's own fixers don't claim                |
+| `gate_timeout`            | Seconds before a Stop check is skipped                                 |
+| `user_pins`               | Your own Brewfile or `.tool-versions`, pinning tools for every project |
 
 `kit config` prints the merged result; `kit config --check` flags unknown keys and wrong types.
 
