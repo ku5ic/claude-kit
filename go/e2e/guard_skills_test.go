@@ -13,8 +13,8 @@ const guardSkillsBashMap = `skill_file_map:
     skills: [bash-patterns]
 `
 
-// `kit hook guard-skills` wiring: a block exits 2 under the hook's name and
-// is logged like every other guard; a log or kit.yml it can't read fails
+// `kit hook guard-skills` wiring: a deny exits 0 with the decision on stdout
+// and is logged like every other guard; a log or kit.yml it can't read fails
 // open. The gate's matching and caching are tested in process, in
 // internal/hooks.
 func TestGuardSkills(t *testing.T) {
@@ -30,11 +30,11 @@ func TestGuardSkills(t *testing.T) {
 		return k.Hook("guard-skills", Payload("Edit", path, "s1", ""))
 	}
 
-	t.Run("a block names the hook and is logged like every other guard", func(t *testing.T) {
+	t.Run("a deny is a permission decision, logged like every other guard", func(t *testing.T) {
 		k := sandbox(t, guardSkillsBashMap)
 		r := guard(k, "/tmp/project/x.sh")
-		r.Want(t, 2)
-		r.Has(t, "Blocked by guard-skills:", "bash-patterns")
+		r.Want(t, 0)
+		r.Has(t, `"permissionDecision":"deny"`, "bash-patterns")
 		if log := Read(t, filepath.Join(k.Claude, "logs/guards.jsonl")); !strings.Contains(log, `"rule":"skills-gate"`) {
 			t.Errorf("guards.jsonl has no skills-gate block:\n%s", log)
 		}

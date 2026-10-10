@@ -169,12 +169,25 @@ func (h *Hook) Block(reason, rule string) error {
 	return &Blocked{msg, rule}
 }
 
-// Decide records a PreToolUse permission decision (allow or ask). Several
-// checks in one run may decide: ask outranks allow, and asks join their
-// reasons. Run prints the result once, since stdout takes one JSON object.
+// Deny is Block as a permission decision: Claude gets reason, and the user
+// sees no hook error.
+func (h *Hook) Deny(reason, rule string) {
+	if h.ruleDisabled(rule) {
+		h.Log(kitlog.Guards, "disabled", "rule", rule)
+		return
+	}
+	h.Log(kitlog.Guards, "block", "rule", rule)
+	h.Decide("deny", reason)
+}
+
+// Decide records a PreToolUse permission decision (allow, ask, or deny).
+// Several checks in one run may decide: deny outranks ask, ask outranks
+// allow, and asks join their reasons. Run prints the result once, since
+// stdout takes one JSON object.
 func (h *Hook) Decide(decision, reason string) {
 	switch {
-	case h.decision == "" || decision == "ask" && h.decision == "allow":
+	case h.decision == "deny":
+	case h.decision == "" || decision == "deny" || decision == "ask" && h.decision == "allow":
 		h.decision, h.reason = decision, reason
 	case decision == "ask" && h.decision == "ask":
 		h.reason += "; " + reason

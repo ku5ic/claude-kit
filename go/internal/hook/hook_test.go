@@ -103,6 +103,8 @@ func TestDecide(t *testing.T) {
 			`{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"confirm"}}` + "\n"},
 		"asks join": {[]NamedCheck{decide("ask", "a"), decide("ask", "b")},
 			`{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"a; b"}}` + "\n"},
+		"deny outranks ask": {[]NamedCheck{decide("ask", "confirm"), decide("deny", "load x"), decide("ask", "later")},
+			`{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"load x"}}` + "\n"},
 		"none": {[]NamedCheck{{"c", func(*Hook) error { return nil }}}, ""},
 	}
 	for name, tc := range tests {

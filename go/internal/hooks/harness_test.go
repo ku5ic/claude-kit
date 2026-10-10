@@ -242,6 +242,25 @@ func (r result) Empty(t *testing.T) {
 	}
 }
 
+const denied = `"permissionDecision":"deny"`
+
+// Denied fails unless the hook denied the tool call: exit 0, a deny on
+// stdout, nothing on stderr for the user to see.
+func (r result) Denied(t *testing.T) {
+	t.Helper()
+	if r.Status != 0 || !strings.Contains(r.Stdout, denied) || r.Stderr != "" {
+		t.Fatalf("want a quiet deny; status %d, output:\n%s", r.Status, r.Output)
+	}
+}
+
+// Allowed fails unless the hook exited 0 without denying.
+func (r result) Allowed(t *testing.T) {
+	t.Helper()
+	if r.Status != 0 || strings.Contains(r.Stdout, denied) {
+		t.Fatalf("want an allow; status %d, output:\n%s", r.Status, r.Output)
+	}
+}
+
 // repo makes dir a git repository with one empty commit, and returns its
 // physical path.
 func repo(t *testing.T, dir string) string {

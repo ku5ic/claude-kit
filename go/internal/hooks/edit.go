@@ -136,7 +136,8 @@ func GuardSkills(h *hook.Hook) error {
 	if len(missing) == 0 {
 		return nil
 	}
-	return h.Block("This edit touches "+path+". Load the following skills via the Skill tool first, then retry the edit: "+strings.Join(missing, ", "), "skills-gate")
+	h.Deny("Load "+strings.Join(missing, ", ")+" via the Skill tool, then retry the edit.", "skills-gate")
+	return nil
 }
 
 // notLoaded is the skills of toCheck the session's skills log doesn't show

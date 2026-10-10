@@ -137,12 +137,12 @@ func TestGuardDispatch(t *testing.T) {
 	t.Run("clean write with no kit.yml and no risky path passes both checks", func(t *testing.T) {
 		dispatch(newPlugin(t), "/tmp/project/notes.md", "A normal sentence with nothing wrong.", "Write").Want(t, 0)
 	})
-	t.Run("guard-skills' check blocks when a required skill has not been loaded", func(t *testing.T) {
+	t.Run("guard-skills' check denies when a required skill has not been loaded", func(t *testing.T) {
 		k := newPlugin(t)
 		k.kitYML(bashSkillMap)
 		skillsLog(k, "")
 		r := dispatch(k, "/tmp/project/deploy.sh", "harmless content", "Write")
-		r.Want(t, 2)
+		r.Denied(t)
 		r.Has(t, "bash-patterns")
 	})
 	t.Run("guard-skills' check is skipped unless CLAUDE_GUARD_SKILLS=1", func(t *testing.T) {
@@ -150,7 +150,7 @@ func TestGuardDispatch(t *testing.T) {
 		k.kitYML(bashSkillMap)
 		skillsLog(k, "")
 		t.Setenv("CLAUDE_GUARD_SKILLS", "0")
-		dispatch(k, "/tmp/project/deploy.sh", "harmless content", "Write").Want(t, 0)
+		dispatch(k, "/tmp/project/deploy.sh", "harmless content", "Write").Allowed(t)
 	})
 	t.Run("ordering: a lockfile edit that would also trip the skills-gate surfaces only guard-edit's message", func(t *testing.T) {
 		k := newPlugin(t)
@@ -171,7 +171,7 @@ skill_file_map:
 		k := newPlugin(t)
 		k.kitYML(bashSkillMap)
 		skillsLog(k, bashSkillLoaded+"\n")
-		dispatch(k, "/tmp/project/deploy.sh", "A perfectly ordinary comment.", "Write").Want(t, 0)
+		dispatch(k, "/tmp/project/deploy.sh", "A perfectly ordinary comment.", "Write").Allowed(t)
 	})
 
 	// Read: guard-edit's credential check applies; the skills gate does not.
@@ -213,7 +213,7 @@ skill_file_map:
 	})
 	t.Run("the same .tsx is still gated for an Edit", func(t *testing.T) {
 		r := dispatch(readGuards(t), "/tmp/project/App.tsx", "x", "Edit")
-		r.Want(t, 2)
+		r.Denied(t)
 		r.Has(t, "react-patterns")
 	})
 	t.Run("Read of a lockfile passes; the lockfile check guards writes only", func(t *testing.T) {
@@ -251,7 +251,7 @@ func TestGuardSkills(t *testing.T) {
 		}
 	}
 
-	t.Run("every skill_file_map entry in the real kit.yml blocks until its skill is loaded", func(t *testing.T) {
+	t.Run("every skill_file_map entry in the real kit.yml denies until its skill is loaded", func(t *testing.T) {
 		t.Parallel()
 		rules := testutil.KitConfig(t).SkillFileMap
 		if len(rules) == 0 {
@@ -263,14 +263,14 @@ func TestGuardSkills(t *testing.T) {
 				t.Fatalf("skill_file_map entry with no globs: %+v", rule)
 			}
 			r := guard(k, "/tmp/project/"+strings.ReplaceAll(rule.Globs[0], "*", "sample"), "s1")
-			r.Want(t, 2)
+			r.Denied(t)
 			r.Has(t, rule.Skills...)
 		}
 	})
 	t.Run("declaration order: a .test.tsx file picks up test-patterns before typescript-patterns", func(t *testing.T) {
 		t.Parallel()
 		r := guard(skillsSandbox(t, "", ""), "/tmp/project/foo.test.tsx", "s1")
-		r.Want(t, 2)
+		r.Denied(t)
 		// Position, not membership: a missing name counts as at the end.
 		test, ts := strings.Index(r.Output, "test-patterns"), strings.Index(r.Output, "typescript-patterns")
 		if ts < 0 {
@@ -286,18 +286,18 @@ func TestGuardSkills(t *testing.T) {
 	t.Run("cumulative matching: a .test.tsx file requires skills from every matching entry, not just one", func(t *testing.T) {
 		t.Parallel()
 		r := guard(skillsSandbox(t, "", ""), "/tmp/project/foo.test.tsx", "s1")
-		r.Want(t, 2)
+		r.Denied(t)
 		r.Has(t, "test-patterns", "typescript-patterns", "react-patterns")
 	})
 	t.Run("only a .claude/scratch file skips the gate, not any dir named scratch", func(t *testing.T) {
 		t.Parallel()
 		k := skillsSandbox(t, bashSkillMap, "")
-		guard(k, "/tmp/project/src/scratch/x.sh", "s1").Want(t, 2)
-		guard(k, "/tmp/project/.claude/scratch/x.sh", "s1").Want(t, 0)
+		guard(k, "/tmp/project/src/scratch/x.sh", "s1").Denied(t)
+		guard(k, "/tmp/project/.claude/scratch/x.sh", "s1").Allowed(t)
 	})
 	t.Run("disabled_rules: skills-gate turns the gate off", func(t *testing.T) {
 		t.Parallel()
-		guard(skillsSandbox(t, bashSkillMap+"disabled_rules: [skills-gate]\n", ""), "/tmp/project/x.sh", "s1").Want(t, 0)
+		guard(skillsSandbox(t, bashSkillMap+"disabled_rules: [skills-gate]\n", ""), "/tmp/project/x.sh", "s1").Allowed(t)
 	})
 	// The real kit.yml has no catch-all row, so a synthetic map exercises
 	// the composing itself.
@@ -312,7 +312,7 @@ func TestGuardSkills(t *testing.T) {
     skills: [typescript-patterns]
 `, "")
 		r := guard(k, "/tmp/project/foo.ts", "s1")
-		r.Want(t, 2)
+		r.Denied(t)
 		r.Has(t, "typescript-patterns", "fix-sizing")
 	})
 	t.Run("on: path entries match the full path, not just the basename", func(t *testing.T) {
@@ -328,41 +328,47 @@ func TestGuardSkills(t *testing.T) {
 	t.Run("an upper-case extension matches like its lower-case glob", func(t *testing.T) {
 		t.Parallel()
 		r := guard(skillsSandbox(t, bashSkillMap, ""), "/tmp/project/FOO.SH", "s1")
-		r.Want(t, 2)
+		r.Denied(t)
 		r.Has(t, "bash-patterns")
 	})
-	t.Run("blocks when the required skill has not been loaded this session", func(t *testing.T) {
+	t.Run("denies when the required skill has not been loaded this session", func(t *testing.T) {
 		t.Parallel()
 		r := guard(skillsSandbox(t, bashSkillMap, ""), "/tmp/project/foo.sh", "s1")
-		r.Want(t, 2)
+		r.Denied(t)
 		r.Has(t, "bash-patterns")
 	})
-	t.Run("Edit tool_name produces an edit-verb block message", func(t *testing.T) {
+	t.Run("the deny names only the skills to load, not the path", func(t *testing.T) {
 		t.Parallel()
 		r := guard(skillsSandbox(t, bashSkillMap, ""), "/tmp/project/foo.sh", "s1")
-		r.Want(t, 2)
-		r.Has(t, "This edit touches")
+		r.Denied(t)
+		r.Has(t, "Load bash-patterns via the Skill tool, then retry the edit.")
+		r.Lacks(t, "/tmp/project/foo.sh", "Blocked by")
 	})
 
 	for _, tc := range []struct {
 		name, log, session string
-		status             int
+		denies             bool
 	}{
-		{"allows when the required skill was loaded this session via the Skill tool", bashSkillLoaded, "s1", 0},
+		{"allows when the required skill was loaded this session via the Skill tool", bashSkillLoaded, "s1", false},
 		{"allows a plugin-namespaced skill name (kit:bash-patterns)",
-			strings.Replace(bashSkillLoaded, `"skill_file":"bash-patterns"`, `"skill_file":"kit:bash-patterns"`, 1), "s1", 0},
+			strings.Replace(bashSkillLoaded, `"skill_file":"bash-patterns"`, `"skill_file":"kit:bash-patterns"`, 1), "s1", false},
 		{"allows when the required skill's SKILL.md was read this session (Read fallback)",
-			`{"ts":"2026-01-01T00:00:00Z","hook":"log-skills","event":"PostToolUse","session_id":"s1","cwd":"/x","expansion_type":null,"command_name":null,"command_args":null,"command_source":null,"skill_file":"/Users/x/.claude/skills/bash-patterns/SKILL.md","tool_name":"Read"}`, "s1", 0},
+			`{"ts":"2026-01-01T00:00:00Z","hook":"log-skills","event":"PostToolUse","session_id":"s1","cwd":"/x","expansion_type":null,"command_name":null,"command_args":null,"command_source":null,"skill_file":"/Users/x/.claude/skills/bash-patterns/SKILL.md","tool_name":"Read"}`, "s1", false},
 		{"a session_id mismatch does not count as loaded",
-			`{"ts":"2026-01-01T00:00:00Z","hook":"log-skills","event":"PreToolUse","session_id":"other-session","cwd":"/x","expansion_type":null,"command_name":null,"command_args":null,"command_source":null,"skill_file":"bash-patterns","tool_name":"Skill"}`, "s1", 2},
+			`{"ts":"2026-01-01T00:00:00Z","hook":"log-skills","event":"PreToolUse","session_id":"other-session","cwd":"/x","expansion_type":null,"command_name":null,"command_args":null,"command_source":null,"skill_file":"bash-patterns","tool_name":"Skill"}`, "s1", true},
 		{"an oversized log line doesn't switch the gate off",
-			`{"command_name":"` + strings.Repeat("x", 5<<20) + `"}`, "s1", 2},
+			`{"command_name":"` + strings.Repeat("x", 5<<20) + `"}`, "s1", true},
 		{"an oversized log line doesn't hide a later load",
-			`{"command_name":"` + strings.Repeat("x", 5<<20) + `"}` + "\n" + bashSkillLoaded, "s1", 0},
+			`{"command_name":"` + strings.Repeat("x", 5<<20) + `"}` + "\n" + bashSkillLoaded, "s1", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			guard(skillsSandbox(t, bashSkillMap, tc.log+"\n"), "/tmp/project/foo.sh", tc.session).Want(t, tc.status)
+			r := guard(skillsSandbox(t, bashSkillMap, tc.log+"\n"), "/tmp/project/foo.sh", tc.session)
+			if tc.denies {
+				r.Denied(t)
+			} else {
+				r.Allowed(t)
+			}
 		})
 	}
 
@@ -377,7 +383,7 @@ func TestGuardSkills(t *testing.T) {
 			k := skillsSandbox(t, "skill_file_map:\n  - on: basename\n    globs: [\""+tc.glob+"\"]\n    skills: ["+tc.skill+"]\n",
 				`{"ts":"2026-01-01T00:00:00Z","hook":"inject-context","event":"`+tc.event+`","session_id":"s1","cwd":"/x","expansion_type":null,"command_name":null,"command_args":null,"command_source":null,"skill_file":"`+tc.skill+`","tool_name":null}`+"\n")
 			r := guard(k, "/tmp/project/"+tc.file, "s1")
-			r.Want(t, 2)
+			r.Denied(t)
 			r.Has(t, tc.skill)
 		})
 	}
@@ -386,7 +392,7 @@ func TestGuardSkills(t *testing.T) {
 	t.Run("an allowed session/skill pair writes a marker file to the cache", func(t *testing.T) {
 		t.Parallel()
 		k := skillsSandbox(t, bashSkillMap, bashSkillLoaded+"\n")
-		guard(k, "/tmp/project/foo.sh", "s1").Want(t, 0)
+		guard(k, "/tmp/project/foo.sh", "s1").Allowed(t)
 		marker := filepath.Join(k.claude, "cache/skills-loaded/s1-bash-patterns")
 		if info, err := os.Stat(marker); err != nil || !info.Mode().IsRegular() {
 			t.Errorf("no marker file at %s: %v", marker, err)
@@ -395,29 +401,29 @@ func TestGuardSkills(t *testing.T) {
 	t.Run("a cached marker allows a second call even when the skills log becomes unreadable", func(t *testing.T) {
 		t.Parallel()
 		k := skillsSandbox(t, bashSkillMap, bashSkillLoaded+"\n")
-		guard(k, "/tmp/project/foo.sh", "s1").Want(t, 0)
+		guard(k, "/tmp/project/foo.sh", "s1").Allowed(t)
 		log := k.paths.LogFile(kitlog.Skills)
 		chmod(t, log, 0)
 		r := guard(k, "/tmp/project/bar.sh", "s1")
 		chmod(t, log, 0o644)
-		r.Want(t, 0)
+		r.Allowed(t)
 	})
 	t.Run("a marker for one session does not satisfy a different session's check", func(t *testing.T) {
 		t.Parallel()
 		k := skillsSandbox(t, bashSkillMap, bashSkillLoaded+"\n")
-		guard(k, "/tmp/project/foo.sh", "s1").Want(t, 0)
-		guard(k, "/tmp/project/foo.sh", "s2").Want(t, 2)
+		guard(k, "/tmp/project/foo.sh", "s1").Allowed(t)
+		guard(k, "/tmp/project/foo.sh", "s2").Denied(t)
 	})
 	// No skill-map cache stands between a kit.yml edit and its effect.
 	t.Run("a kit.yml change takes effect on the next call", func(t *testing.T) {
 		t.Parallel()
 		k := skillsSandbox(t, bashSkillMap, "")
 		r := guard(k, "/tmp/project/foo.sh", "s1")
-		r.Want(t, 2)
+		r.Denied(t)
 		r.Has(t, "bash-patterns")
 		k.kitYML(strings.ReplaceAll(bashSkillMap, "bash-patterns", "python-patterns"))
 		r = guard(k, "/tmp/project/bar.sh", "s1")
-		r.Want(t, 2)
+		r.Denied(t)
 		r.Has(t, "python-patterns")
 		r.Lacks(t, "bash-patterns")
 	})
