@@ -4,6 +4,7 @@ package config
 import (
 	"fmt"
 	"maps"
+	"regexp"
 	"slices"
 	"strings"
 )
@@ -78,6 +79,18 @@ func (c *Config) unknownDisables() []error {
 	for _, d := range c.DisabledChecks {
 		if !strings.Contains(d, " ") && !slices.Contains(CheckKinds, d) {
 			errs = append(errs, fmt.Errorf("disabled_checks: %q is no check kind (%s) or gate label", d, strings.Join(CheckKinds, ", ")))
+		}
+	}
+	return errs
+}
+
+// badInstallPatterns are the global_installs patterns that don't compile;
+// guard-bash blocks every command while one is there.
+func (c *Config) badInstallPatterns() []error {
+	var errs []error
+	for _, p := range c.GlobalInstalls {
+		if _, err := regexp.Compile(p); err != nil {
+			errs = append(errs, fmt.Errorf("global_installs: %q doesn't compile, so guard-bash blocks every command: %w", p, err))
 		}
 	}
 	return errs

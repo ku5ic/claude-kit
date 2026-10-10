@@ -136,6 +136,21 @@ func TestDisablesThatCanNameNothingWarn(t *testing.T) {
 	}
 }
 
+// A global_installs pattern that doesn't compile blocks every command it's
+// checked against, so load says so.
+func TestABadGlobalInstallPatternWarns(t *testing.T) {
+	dir := t.TempDir()
+	base := write(t, dir, "kit.yml", "global_installs: ['npm (i|install) -g']\n")
+	overlay := write(t, dir, "over.yml", "global_installs: ['pip install (--user']\n")
+	_, warnings, err := Load(Paths{Base: base, Overlay: overlay})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(warnings) != 1 || warnings[0].File != overlay || !strings.Contains(warnings[0].Err.Error(), `global_installs: "pip install (--user"`) {
+		t.Errorf("warnings = %v, want one naming the overlay's bad pattern", warnings)
+	}
+}
+
 func TestDeniedFlag(t *testing.T) {
 	cfg := &Config{DenyFlags: []string{"--fix", "--watch"}}
 	for words, want := range map[string]string{

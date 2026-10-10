@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
@@ -139,7 +140,7 @@ func load(p Paths) (*Config, []Warning, error) {
 	if tag == "merged" {
 		from = p.Overlay
 	}
-	for _, err := range append(cfg.unknownDisables(), cfg.ReplyLimits.negatives()...) {
+	for _, err := range slices.Concat(cfg.unknownDisables(), cfg.badInstallPatterns(), cfg.ReplyLimits.negatives()) {
 		warnings = append(warnings, Warning{from, err})
 	}
 	cfg.Tag = tag

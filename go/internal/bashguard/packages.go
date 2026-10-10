@@ -19,7 +19,10 @@ import (
 // pattern blocks too: this is a guard.
 func (c *command) globalInstall() error {
 	patterns, ok := c.st.installs()
-	if !ok || slices.ContainsFunc(patterns, func(re *regexp.Regexp) bool { return re.MatchString(c.text) }) {
+	if !ok {
+		return c.block("a global_installs pattern doesn't compile, so every command is held; kit config --check names it", "pkg-global-install")
+	}
+	if slices.ContainsFunc(patterns, func(re *regexp.Regexp) bool { return re.MatchString(c.text) }) {
 		return c.block("global package install. Use a project-local install or asdf shim.", "pkg-global-install")
 	}
 	return nil
