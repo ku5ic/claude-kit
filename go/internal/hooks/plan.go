@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 )
@@ -65,7 +65,7 @@ func PlanModeContext(h *hook.Hook) error {
 		fmt.Fprintln(h.Stdout, "Plan mode: load the investigate skill and follow it; its findings feed the plan.")
 		return nil
 	}
-	marker := h.Paths.SessionFile(config.PlanActive, p.SessionID())
+	marker := h.Paths.SessionFile(cache.PlanActive, p.SessionID())
 	if marker == "" {
 		return nil
 	}

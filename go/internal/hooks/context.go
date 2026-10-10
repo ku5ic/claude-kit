@@ -7,7 +7,9 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/checks"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/git"
@@ -43,6 +45,9 @@ func InjectContext(h *hook.Hook) error {
 			"systemMessage": "claude-kit guards fail open until this is fixed. Missing: " + missing,
 		})
 		return nil
+	}
+	if !h.DryRun {
+		cache.Prune(h.Paths.CacheDir(), time.Now())
 	}
 	var out strings.Builder
 	cfg := h.Config()

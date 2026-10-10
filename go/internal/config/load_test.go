@@ -334,14 +334,14 @@ func TestBrokenOverlayIsIgnoredWithAWarning(t *testing.T) {
 
 func TestSessionFile(t *testing.T) {
 	p := Paths{Home: "/h"}
-	if got := p.SessionFile(SkillsLoaded, "s1", "bash-patterns"); got != "/h/cache/skills-loaded/s1-bash-patterns" {
+	if got := p.SessionFile("skills-loaded", "s1", "bash-patterns"); got != "/h/cache/skills-loaded/s1-bash-patterns" {
 		t.Errorf("got %q", got)
 	}
-	if got := p.SessionFile(PlanActive, "s1"); got != "/h/cache/plan-active/s1" {
+	if got := p.SessionFile("plan-active", "s1"); got != "/h/cache/plan-active/s1" {
 		t.Errorf("got %q", got)
 	}
 	for _, bad := range []string{"", "../x", `a\b`} {
-		if got := p.SessionFile(PlanActive, bad); got != "" {
+		if got := p.SessionFile("plan-active", bad); got != "" {
 			t.Errorf("session %q: %q, want none", bad, got)
 		}
 	}

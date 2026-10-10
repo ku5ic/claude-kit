@@ -10,6 +10,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 )
@@ -58,7 +59,7 @@ func ReplyLength(h *hook.Hook) error {
 		return nil
 	}
 	l := cfg.ReplyLimits
-	marker := h.Paths.SessionFile(config.ReplyLimit, p.SessionID())
+	marker := h.Paths.SessionFile(cache.ReplyLimit, p.SessionID())
 	if marker == "" {
 		return nil
 	}

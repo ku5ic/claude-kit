@@ -16,6 +16,7 @@ var layers = map[string]int{
 	"internal/fsx":        0,
 	"internal/proc":       0,
 	"internal/config":     1,
+	"internal/cache":      1,
 	"internal/git":        1,
 	"internal/transcript": 1,
 	"internal/kitcmd":     1,

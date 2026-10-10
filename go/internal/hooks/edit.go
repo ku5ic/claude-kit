@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
@@ -113,13 +114,13 @@ func GuardSkills(h *hook.Hook) error {
 	}
 	session := h.Payload.SessionID()
 	cfg := h.Config()
-	if h.Paths.SessionFile(config.SkillsLoaded, session) == "" || cfg == nil {
+	if h.Paths.SessionFile(cache.SkillsLoaded, session) == "" || cfg == nil {
 		return nil
 	}
 
 	required := stackctx.FileMapSkills(cfg.SkillFileMap, path)
 
-	marker := func(skill string) string { return h.Paths.SessionFile(config.SkillsLoaded, session, skill) }
+	marker := func(skill string) string { return h.Paths.SessionFile(cache.SkillsLoaded, session, skill) }
 	var toCheck []string
 	for _, skill := range required {
 		if _, err := os.Stat(marker(skill)); err != nil {
@@ -145,7 +146,7 @@ func notLoaded(h *hook.Hook, session string, toCheck []string, marker func(strin
 	if err != nil {
 		return nil
 	}
-	_ = os.MkdirAll(filepath.Join(h.Paths.CacheDir(), config.SkillsLoaded), 0o755)
+	_ = os.MkdirAll(filepath.Join(h.Paths.CacheDir(), cache.SkillsLoaded), 0o755)
 	var missing []string
 	for _, skill := range toCheck {
 		// An exact skill_file (the Skill tool), or a logged path holding

@@ -31,16 +31,6 @@ func (p Paths) LogFile(name string) string { return filepath.Join(p.LogDir(), na
 // ScratchRegistry lists every project scratch dir, for scratch-rotate.
 func (p Paths) ScratchRegistry() string { return filepath.Join(p.LogDir(), "scratch-registry.txt") }
 
-// The cache dirs of per-session markers, which scratch-rotate prunes after
-// a day.
-const (
-	SkillsLoaded = "skills-loaded"
-	FileSkills   = "file-skills"
-	PlanActive   = "plan-active"
-	Statusline   = "statusline"
-	ReplyLimit   = "reply-limit"
-)
-
 // SessionFile is <cache>/<kind>/<session>[-<part>...]: one session's marker.
 // "" for an empty session ID or one holding a path separator, which would
 // land outside kind's dir.

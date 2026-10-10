@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
@@ -34,22 +35,12 @@ func Run(paths config.Paths, n int, dryRun bool, stdout, stderr io.Writer) int {
 
 	scratch := paths.ScratchHome()
 	if fsx.IsDir(scratch) {
-		// .md artifacts by the retention window; .injected-* session
-		// markers after a day: they only dedupe within a session.
-		removed := r.prune(scratch, n, false, func(name string) bool { return strings.HasSuffix(name, ".md") })
-		markers := r.prune(scratch, 1, true, func(name string) bool { return strings.HasPrefix(name, ".injected-") })
+		removed := r.prune(scratch, n, func(name string) bool { return strings.HasSuffix(name, ".md") })
 		fmt.Fprintf(stdout, "scratch-rotate: %s %d artifact(s) older than %dd from %s\n", r.pruned, removed, n, scratch)
-		fmt.Fprintf(stdout, "scratch-rotate: %s %d session marker(s) older than 1d from %s\n", r.pruned, markers, scratch)
 	}
-	for _, m := range []struct{ kind, what string }{
-		{config.SkillsLoaded, "skill-loaded marker(s)"},
-		{config.FileSkills, "file-skills cache(s)"},
-		{config.PlanActive, "plan-active marker(s)"},
-		{config.Statusline, "statusline cache(s)"},
-		{config.ReplyLimit, "reply-limit marker(s)"},
-	} {
-		if dir := filepath.Join(paths.CacheDir(), m.kind); fsx.IsDir(dir) {
-			fmt.Fprintf(stdout, "scratch-rotate: %s %d %s older than 1d from %s\n", r.pruned, r.prune(dir, 1, false, nil), m.what, dir)
+	for _, d := range cache.Dirs {
+		if dir := filepath.Join(paths.CacheDir(), d.Name); fsx.IsDir(dir) {
+			fmt.Fprintf(stdout, "scratch-rotate: %s %d %s older than %dd from %s\n", r.pruned, r.prune(dir, d.Days, nil), d.What, d.Days, dir)
 		}
 	}
 	r.registry(paths.ScratchRegistry(), n, stderr)
@@ -80,7 +71,7 @@ func (r *rotator) registry(registry string, n int, stderr io.Writer) {
 			keep = append(keep, dir)
 		default:
 			r.worktrees(dir, stderr)
-			fmt.Fprintf(r.stdout, "scratch-rotate: %s %d artifact(s) older than %dd from %s\n", r.pruned, r.prune(dir, n, false, nil), n, dir)
+			fmt.Fprintf(r.stdout, "scratch-rotate: %s %d artifact(s) older than %dd from %s\n", r.pruned, r.prune(dir, n, nil), n, dir)
 			keep = append(keep, dir)
 		}
 	}
@@ -147,18 +138,18 @@ func (r *rotator) older(info fs.FileInfo, days int) bool {
 	return r.now.Sub(info.ModTime()) > time.Duration(days)*24*time.Hour
 }
 
-// prune deletes the regular files under dir (only dir itself with
-// topOnly) matching keep whose modification is more than days whole days
-// old, and records each in the rotate log. It never enters a nested git
+// prune deletes the regular files under dir matching keep (every one when
+// nil) whose modification is more than days whole days old, and records
+// each in the rotate log. It never enters a nested git
 // checkout: deleting its old files would corrupt it.
-func (r *rotator) prune(dir string, days int, topOnly bool, keep func(string) bool) int {
+func (r *rotator) prune(dir string, days int, keep func(string) bool) int {
 	var matched []string
 	_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
 		if d.IsDir() {
-			if path != dir && (topOnly || isCheckout(path)) {
+			if path != dir && isCheckout(path) {
 				return filepath.SkipDir
 			}
 			return nil

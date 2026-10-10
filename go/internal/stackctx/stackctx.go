@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/detect"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
@@ -25,7 +26,7 @@ import (
 // cacheFile is <cache>/stack/<name>-<sha256(root)[:8]>.<tag>.txt: the root
 // is hashed in so same-named projects elsewhere on disk can't collide.
 func cacheFile(paths config.Paths, cfg *config.Config, name, root string) string {
-	return filepath.Join(paths.CacheDir(), "stack", name+"-"+rootKey(cfg, root)+".txt")
+	return filepath.Join(paths.CacheDir(), cache.Stack, name+"-"+rootKey(cfg, root)+".txt")
 }
 
 // rootKey is <sha256(root)[:8]>.<tag>, the suffix every per-project cache
@@ -45,20 +46,20 @@ func configTime(paths config.Paths) int64 {
 // any detection-relevant file at root or kit.yml itself (adding a stack must
 // re-detect every project). Times compare in whole seconds, as stat(1) did,
 // so a cache written in the same second as kit.yml still counts as fresh.
-func refresh(paths config.Paths, cfg *config.Config, root, cache string) {
+func refresh(paths config.Paths, cfg *config.Config, root, file string) {
 	newest := int64(0)
 	for _, name := range cfg.DetectFiles() {
 		newest = max(newest, mtime(filepath.Join(root, name)))
 	}
 	newest = max(newest, configTime(paths))
 
-	if info, err := os.Stat(cache); err == nil && info.Size() > 0 && info.ModTime().Unix() >= newest {
+	if info, err := os.Stat(file); err == nil && info.Size() > 0 && info.ModTime().Unix() >= newest {
 		return
 	}
-	if os.MkdirAll(filepath.Dir(cache), 0o755) != nil {
+	if os.MkdirAll(filepath.Dir(file), 0o755) != nil {
 		return
 	}
-	_ = fsx.WriteAtomic(cache, []byte(detect.Report(cfg, root)), 0o600)
+	_ = fsx.WriteAtomic(file, []byte(detect.Report(cfg, root)), 0o600)
 }
 
 func mtime(path string) int64 {
@@ -103,9 +104,9 @@ type Context struct {
 // Build refreshes root's stack cache and derives its report and skills;
 // Suggested stays empty when there's no report.
 func Build(paths config.Paths, cfg *config.Config, name, root, session string) Context {
-	cache := cacheFile(paths, cfg, name, root)
-	refresh(paths, cfg, root, cache)
-	report, _ := os.ReadFile(cache)
+	file := cacheFile(paths, cfg, name, root)
+	refresh(paths, cfg, root, file)
+	report, _ := os.ReadFile(file)
 	c := Context{Report: string(report), Required: required(cfg)}
 	if c.Report != "" {
 		c.Suggested = Suggested(cfg, Signals(c.Report), FileSkills(paths, cfg, root, session))
@@ -163,16 +164,16 @@ func FileSkills(paths config.Paths, cfg *config.Config, root, session string) []
 	if !SkillsEnforced() || root == "" {
 		return nil
 	}
-	cache := paths.SessionFile(config.FileSkills, session, rootKey(cfg, root))
-	if cache != "" && mtime(cache) >= configTime(paths) {
-		if data, err := os.ReadFile(cache); err == nil {
+	file := paths.SessionFile(cache.FileSkills, session, rootKey(cfg, root))
+	if file != "" && mtime(file) >= configTime(paths) {
+		if data, err := os.ReadFile(file); err == nil {
 			return strings.Fields(string(data))
 		}
 	}
 	skills := scanFileSkills(cfg, root)
-	if cache != "" && os.MkdirAll(filepath.Dir(cache), 0o755) == nil {
+	if file != "" && os.MkdirAll(filepath.Dir(file), 0o755) == nil {
 		// Atomic: parallel SubagentStart hooks read it while one rewrites it.
-		_ = fsx.WriteAtomic(cache, []byte(strings.Join(skills, "\n")), 0o644)
+		_ = fsx.WriteAtomic(file, []byte(strings.Join(skills, "\n")), 0o644)
 	}
 	return skills
 }

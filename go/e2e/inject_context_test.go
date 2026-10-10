@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
 
 // The project is real: a git repo named testproject, resolved from the
@@ -111,6 +113,18 @@ func injectContextCopyRules(t *testing.T, dst string) {
 func TestInjectContext(t *testing.T) {
 	t.Parallel()
 	tree := Tree(t)
+	t.Run("SessionStart prunes expired state files and keeps fresh ones", func(t *testing.T) {
+		t.Parallel()
+		e := injectContextSetup(t, tree)
+		old := filepath.Join(e.Claude, "cache", "skills-loaded", "s0-bash-patterns")
+		fresh := filepath.Join(e.Claude, "cache", "skills-loaded", "s1-bash-patterns")
+		Touch(t, old, fresh)
+		testutil.Age(t, 48*time.Hour, old)
+		e.run("s1", "").Want(t, 0)
+		if Exists(old) || !Exists(fresh) {
+			t.Errorf("old kept %v, fresh kept %v; want only the fresh one", Exists(old), Exists(fresh))
+		}
+	})
 	t.Run("<required-skills> contains every global_skills entry", func(t *testing.T) {
 		t.Parallel()
 		e := injectContextSetup(t, tree)
