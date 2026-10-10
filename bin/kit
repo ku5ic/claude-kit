@@ -55,10 +55,11 @@ fi
 # hooks running in parallel from exec'ing a half-written binary.
 tmp="$bin.$$"
 # Other versions' binaries and backoff markers, and temps a killed hook
-# stranded, once old enough not to be in flight.
+# stranded, once old enough not to be in flight. This version's release
+# name stays even under KIT_DEV: go/build.sh writes it, and e2e runs it.
 prune() {
   find "$dir" -maxdepth 1 \( -name "kit-*-$os-$arch" -o -name "kit-*-$os-$arch.failed" \) \
-    ! -name "${bin##*/}*" ! -name "kit-dev-$os-$arch*" -delete 2>/dev/null
+    ! -name "kit-$ver-$os-$arch*" ! -name "kit-dev-$os-$arch*" -delete 2>/dev/null
   find "$dir" -maxdepth 1 -name "kit-*-$os-$arch.[0-9]*" -mmin +10 -delete 2>/dev/null
 }
 if [[ ${KIT_DEV:-} == 1 ]]; then

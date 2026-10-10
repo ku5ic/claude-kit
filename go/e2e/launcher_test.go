@@ -90,21 +90,36 @@ func TestLauncher(t *testing.T) {
 		return k, filepath.Join(root, "bin/kit"), log
 	}
 
-	t.Run("a missing binary is downloaded from the matching release once", func(t *testing.T) {
-		k, launcher, log := install(t, `while [ "$1" != -o ]; do shift; done
-printf '#!/bin/sh\necho fetched "$@"\n' >"$2"`)
+	// release is a curl that serves a fake binary, and as its .sha256 the
+	// checksum of sum's output.
+	release := func(sum string) string {
+		return `bin='#!/bin/sh\necho fetched "$@"\n'
+case "$*" in *.sha256*) ` + sum + ` | { sha256sum 2>/dev/null || shasum -a 256; }; exit ;; esac
+while [ "$1" != -o ]; do shift; done
+printf "$bin" >"$2"`
+	}
+
+	t.Run("a missing binary is downloaded from the matching release once, checksum first", func(t *testing.T) {
+		k, launcher, log := install(t, release(`printf "$bin"`))
 		r := k.exec("bash", "", launcher, "version")
 		r.Want(t, 0)
 		r.Has(t, "fetched version")
 		k.exec("bash", "", launcher, "version").Has(t, "fetched version")
 		calls := testutil.Calls(t, log)
-		if len(calls) != 1 {
-			t.Errorf("curl ran %d times, want once:\n%s", len(calls), strings.Join(calls, "\n"))
+		if len(calls) != 2 {
+			t.Errorf("curl ran %d times, want twice, the .sha256 and the binary:\n%s", len(calls), strings.Join(calls, "\n"))
 		}
 		want := "releases/download/v9.9.9/kit-9.9.9-" + runtime.GOOS + "-" + runtime.GOARCH
-		if !strings.Contains(strings.Join(calls, "\n"), want) {
-			t.Errorf("curl URL lacks %s:\n%s", want, strings.Join(calls, "\n"))
+		if !strings.Contains(strings.Join(calls, "\n"), want+".sha256") {
+			t.Errorf("curl URL lacks %s.sha256:\n%s", want, strings.Join(calls, "\n"))
 		}
+	})
+
+	t.Run("a download whose checksum doesn't match never runs", func(t *testing.T) {
+		k, launcher, _ := install(t, release(`printf 'something else'`))
+		r := k.exec("bash", "", launcher, "version")
+		r.Want(t, 127)
+		r.Has(t, "no binary for")
 	})
 
 	t.Run("KIT_DEV builds into bin/ when the launcher is called by a relative path", func(t *testing.T) {
