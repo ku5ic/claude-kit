@@ -91,7 +91,9 @@ func (e *formatDispatchEnv) callsWant(want string) {
 }
 
 func TestFormatDispatch(t *testing.T) {
+	t.Parallel()
 	t.Run("no formatter signal leaves the file untouched", func(t *testing.T) {
+		t.Parallel()
 		e := formatDispatchSetup(t)
 		r := e.format(filepath.Join(e.repo, "app.ts"))
 		r.Want(t, 0)
@@ -104,6 +106,7 @@ func TestFormatDispatch(t *testing.T) {
 	// Markdown is the one opinionated exception: with no formatter claiming
 	// it, the first fallback that resolves formats it, PATH allowed.
 	t.Run("unclaimed Markdown is formatted by the fallback, from PATH", func(t *testing.T) {
+		t.Parallel()
 		e := formatDispatchSetup(t)
 		e.remove(filepath.Join(e.repo, "node_modules/.bin/prettier"))
 		r := e.format(filepath.Join(e.repo, "README.md"))
@@ -111,6 +114,7 @@ func TestFormatDispatch(t *testing.T) {
 		e.callsWant("prettier --write " + e.repo + "/README.md")
 	})
 	t.Run("prettierd comes first, and its stdout replaces the file", func(t *testing.T) {
+		t.Parallel()
 		e := formatDispatchSetup(t)
 		Stub(t, filepath.Join(e.stubs, "prettierd"), `cat >/dev/null
 echo "prettierd $*" >>"`+e.calls+`"
@@ -123,6 +127,7 @@ echo formatted
 		}
 	})
 	t.Run("prettierd's output goes through a symlink, which stays a symlink", func(t *testing.T) {
+		t.Parallel()
 		e := formatDispatchSetup(t)
 		Stub(t, filepath.Join(e.stubs, "prettierd"), "cat >/dev/null\necho formatted\n")
 		Write(t, filepath.Join(e.repo, "AGENTS.md"), "content\n")
@@ -138,6 +143,7 @@ echo formatted
 		}
 	})
 	t.Run("a declared but uninstalled prettier with a config blocks the Markdown fallback", func(t *testing.T) {
+		t.Parallel()
 		e := formatDispatchSetup(t)
 		Write(t, filepath.Join(e.repo, "package.json"), `{"devDependencies":{"prettier":"^3"}}`+"\n")
 		Touch(t, filepath.Join(e.repo, ".prettierrc"))
@@ -148,6 +154,7 @@ echo formatted
 		e.callsWant("")
 	})
 	t.Run("a configured Biome that can't run also names a declared prettier that can't", func(t *testing.T) {
+		t.Parallel()
 		e := formatDispatchSetup(t)
 		Write(t, filepath.Join(e.repo, "package.json"), `{"devDependencies":{"prettier":"^3"}}`+"\n")
 		Write(t, filepath.Join(e.repo, "biome.json"), "{}\n")
@@ -158,6 +165,7 @@ echo formatted
 		e.callsWant("")
 	})
 	t.Run("a stale prettier dependency doesn't stop a configured Biome", func(t *testing.T) {
+		t.Parallel()
 		e := formatDispatchSetup(t)
 		Write(t, filepath.Join(e.repo, "package.json"), `{"devDependencies":{"prettier":"^3"}}`+"\n")
 		Write(t, filepath.Join(e.repo, "biome.json"), "{}\n")
@@ -166,6 +174,7 @@ echo formatted
 		e.callsWant("biome format --write " + e.repo + "/app.ts")
 	})
 	t.Run("a prettierd failure leaves the file as it was", func(t *testing.T) {
+		t.Parallel()
 		e := formatDispatchSetup(t)
 		Stub(t, filepath.Join(e.stubs, "prettierd"), "cat >/dev/null\necho partial\nexit 2\n")
 		e.format(filepath.Join(e.repo, "README.md"))
@@ -174,12 +183,14 @@ echo formatted
 		}
 	})
 	t.Run("a project formatter claiming Markdown beats the fallback", func(t *testing.T) {
+		t.Parallel()
 		e := formatDispatchSetup(t)
 		Write(t, filepath.Join(e.repo, "dprint.json"), "{}\n")
 		e.format(filepath.Join(e.repo, "README.md"))
 		e.callsWant("dprint fmt " + e.repo + "/README.md")
 	})
 	t.Run("a declared but uninstalled prettier stops the fallback chain with its reason", func(t *testing.T) {
+		t.Parallel()
 		e := formatDispatchSetup(t)
 		Write(t, filepath.Join(e.repo, "package.json"), `{"devDependencies":{"prettier":"^3.6.0"}}`+"\n")
 		e.remove(filepath.Join(e.repo, "node_modules/.bin/prettier"))
@@ -190,6 +201,7 @@ echo formatted
 		e.callsWant("")
 	})
 	t.Run("Markdown is left alone when no fallback is installed", func(t *testing.T) {
+		t.Parallel()
 		e := formatDispatchSetup(t)
 		e.remove(filepath.Join(e.repo, "node_modules/.bin/prettier"), filepath.Join(e.stubs, "prettier"))
 		r := e.format(filepath.Join(e.repo, "README.md"))
@@ -198,6 +210,7 @@ echo formatted
 	})
 
 	t.Run("a Biome-only repo runs Biome, not Prettier", func(t *testing.T) {
+		t.Parallel()
 		e := formatDispatchSetup(t)
 		Write(t, filepath.Join(e.repo, "biome.json"), "{}\n")
 		r := e.format(filepath.Join(e.repo, "src", "app.ts"))
@@ -206,6 +219,7 @@ echo formatted
 	})
 
 	t.Run("Biome and Prettier both configured: untouched, with a notice", func(t *testing.T) {
+		t.Parallel()
 		e := formatDispatchSetup(t)
 		Write(t, filepath.Join(e.repo, "biome.json"), "{}\n")
 		Touch(t, filepath.Join(e.repo, ".prettierrc"))
@@ -217,6 +231,7 @@ echo formatted
 	})
 
 	t.Run("a Prettier config in the project formats with Prettier", func(t *testing.T) {
+		t.Parallel()
 		e := formatDispatchSetup(t)
 		Touch(t, filepath.Join(e.repo, ".prettierrc"))
 		e.Setenv("FAKE_PRETTIER_CONFIG", ".prettierrc")
@@ -225,6 +240,7 @@ echo formatted
 	})
 
 	t.Run("only a ~/.prettierrc leaves the file untouched", func(t *testing.T) {
+		t.Parallel()
 		e := formatDispatchSetup(t)
 		Touch(t, filepath.Join(e.Home, ".prettierrc"))
 		e.Setenv("FAKE_PRETTIER_CONFIG", filepath.Join(e.Home, ".prettierrc"))
@@ -233,6 +249,7 @@ echo formatted
 	})
 
 	t.Run("a project-local binary wins over the one on PATH", func(t *testing.T) {
+		t.Parallel()
 		e := formatDispatchSetup(t)
 		Write(t, filepath.Join(e.repo, "biome.json"), "{}\n")
 		e.stub(filepath.Join(e.repo, "node_modules", ".bin", "biome"), "local-biome")
@@ -241,6 +258,7 @@ echo formatted
 	})
 
 	t.Run("a bare [tool.ruff] table picks Ruff over Black", func(t *testing.T) {
+		t.Parallel()
 		e := formatDispatchSetup(t)
 		Write(t, filepath.Join(e.repo, "pyproject.toml"), "[tool.ruff]\n")
 		e.format(filepath.Join(e.repo, "app.py"))
@@ -248,6 +266,7 @@ echo formatted
 	})
 
 	t.Run("[tool.ruff] at the root counts past a nearer pyproject.toml without it", func(t *testing.T) {
+		t.Parallel()
 		e := formatDispatchSetup(t)
 		Write(t, filepath.Join(e.repo, "pyproject.toml"), "[tool.ruff]\n")
 		Write(t, filepath.Join(e.repo, "pkg/pyproject.toml"), "[project]\nname = \"pkg\"\n")
@@ -256,6 +275,7 @@ echo formatted
 	})
 
 	t.Run("shfmt runs with no indent flag, so .editorconfig decides", func(t *testing.T) {
+		t.Parallel()
 		e := formatDispatchSetup(t)
 		Write(t, filepath.Join(e.repo, ".editorconfig"), "root = true\n")
 		e.format(filepath.Join(e.repo, "run.sh"))
@@ -263,6 +283,7 @@ echo formatted
 	})
 
 	t.Run("a signal above the project root is ignored", func(t *testing.T) {
+		t.Parallel()
 		e := formatDispatchSetup(t)
 		Write(t, filepath.Join(e.tmp, ".editorconfig"), "root = true\n")
 		e.format(filepath.Join(e.repo, "run.sh"))
@@ -270,6 +291,7 @@ echo formatted
 	})
 
 	t.Run("a path with spaces stays one argument", func(t *testing.T) {
+		t.Parallel()
 		e := formatDispatchSetup(t)
 		Write(t, filepath.Join(e.repo, "biome.json"), "{}\n")
 		e.format(filepath.Join(e.repo, "my dir", "app.ts"))
@@ -277,6 +299,7 @@ echo formatted
 	})
 
 	t.Run("disabled_formatters in the overlay turns one off", func(t *testing.T) {
+		t.Parallel()
 		e := formatDispatchSetup(t)
 		Write(t, filepath.Join(e.repo, "biome.json"), "{}\n")
 		e.Overlay("disabled_formatters: [biome]\n")
@@ -285,6 +308,7 @@ echo formatted
 	})
 
 	t.Run("an overlay-only formatter for .toml runs", func(t *testing.T) {
+		t.Parallel()
 		e := formatDispatchSetup(t)
 		e.Overlay(`formatters:
   - name: taplo
@@ -299,6 +323,7 @@ echo formatted
 	})
 
 	t.Run("a configured formatter only on PATH, undeclared and unpinned, can't run", func(t *testing.T) {
+		t.Parallel()
 		e := formatDispatchSetup(t)
 		Write(t, filepath.Join(e.repo, "biome.json"), "{}\n")
 		e.remove(filepath.Join(e.repo, "node_modules/.bin/biome"))
@@ -309,6 +334,7 @@ echo formatted
 	})
 
 	t.Run("a pinned formatter runs from the version manager's shims", func(t *testing.T) {
+		t.Parallel()
 		e := formatDispatchSetup(t)
 		Write(t, filepath.Join(e.repo, "biome.json"), "{}\n")
 		Write(t, filepath.Join(e.repo, ".tool-versions"), "biome 2.0.0\n")
@@ -322,6 +348,7 @@ echo formatted
 	})
 
 	t.Run("a configured formatter that isn't installed leaves the file alone", func(t *testing.T) {
+		t.Parallel()
 		e := formatDispatchSetup(t)
 		Write(t, filepath.Join(e.repo, "biome.json"), "{}\n")
 		e.remove(filepath.Join(e.stubs, "biome"), filepath.Join(e.repo, "node_modules/.bin/biome"))

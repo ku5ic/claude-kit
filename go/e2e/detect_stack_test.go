@@ -15,6 +15,7 @@ import (
 // Runs against the real kit.yml; HOME is faked so the stack-list cache
 // lands in the test's sandbox.
 func TestDetectStack(t *testing.T) {
+	t.Parallel()
 	output := func(r Result) string { return strings.TrimRight(r.Output, "\n") }
 	// repo makes a git repo at name, the cwd of every run, and returns its
 	// physical path, which is what git rev-parse (and so the report's root:

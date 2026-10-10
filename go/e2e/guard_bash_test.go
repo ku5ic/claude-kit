@@ -44,6 +44,7 @@ func guardBashOverlay(t *testing.T) (*Kit, string) {
 // Each test feeds a synthetic tool-call payload to the hook on stdin and
 // asserts the exit code: 0 = allow, 2 = block.
 func TestGuardBash(t *testing.T) {
+	t.Parallel()
 	guard := func(k *Kit, cmd string) Result {
 		k.t.Helper()
 		return k.Hook("guard-bash", Payload("Bash", cmd, "", ""))
@@ -267,6 +268,7 @@ func TestGuardBash(t *testing.T) {
 
 	// A bare > name asks only where it lands in a work tree, after any cd.
 	t.Run("loose redirects", func(t *testing.T) {
+		t.Parallel()
 		k := New(t)
 		k.Dir = k.Repo(filepath.Join(k.Home, "repo"))
 		Mkdir(t, filepath.Join(k.Dir, ".claude/scratch"))
@@ -329,18 +331,21 @@ func TestGuardBash(t *testing.T) {
 	}
 
 	t.Run("ask: bare git push from a feature branch", func(t *testing.T) {
+		t.Parallel()
 		k := New(t)
 		r := guardIn(k, guardBashRepo(k, t.TempDir(), "feat"), "git push")
 		r.Want(t, 0)
 		r.Has(t, `"permissionDecision":"ask"`)
 	})
 	t.Run("block: bare git push from main", func(t *testing.T) {
+		t.Parallel()
 		k := New(t)
 		r := guardIn(k, guardBashRepo(k, t.TempDir(), "main"), "git push")
 		r.Want(t, 2)
 		r.Has(t, "push to a protected branch")
 	})
 	t.Run("ask: git push --tags from main pushes tags, not the branch", func(t *testing.T) {
+		t.Parallel()
 		k := New(t)
 		repo := guardBashRepo(k, t.TempDir(), "main")
 		r := guardIn(k, repo, "git push --tags")
@@ -349,16 +354,19 @@ func TestGuardBash(t *testing.T) {
 		guardIn(k, repo, "git push --follow-tags").Want(t, 2)
 	})
 	t.Run("block: git push HEAD while on main", func(t *testing.T) {
+		t.Parallel()
 		k := New(t)
 		guardIn(k, guardBashRepo(k, t.TempDir(), "main"), "git push origin HEAD").Want(t, 2)
 	})
 	t.Run("block: git -C <repo on main> push with no refspec", func(t *testing.T) {
+		t.Parallel()
 		k := New(t)
 		base := t.TempDir()
 		repo := guardBashRepo(k, base, "main")
 		guardIn(k, base, "git -C "+filepath.Base(repo)+" push").Want(t, 2)
 	})
 	t.Run("block: cd into a repo on main, then a bare git push", func(t *testing.T) {
+		t.Parallel()
 		k := New(t)
 		base := t.TempDir()
 		mainRepo := guardBashRepo(k, base, "main")
@@ -375,6 +383,7 @@ func TestGuardBash(t *testing.T) {
 
 	// Hard rule: curl and wget downloads land only in scratch.
 	t.Run("download blocks: every target outside scratch", func(t *testing.T) {
+		t.Parallel()
 		k := New(t)
 		tmp := t.TempDir()
 		for _, cmd := range []string{
@@ -401,6 +410,7 @@ func TestGuardBash(t *testing.T) {
 		}
 	})
 	t.Run("download asks: a target behind a variable can't be checked", func(t *testing.T) {
+		t.Parallel()
 		k := New(t)
 		for _, cmd := range []string{
 			`curl -o "$OUT" https://x.example/a.js`,
@@ -412,6 +422,7 @@ func TestGuardBash(t *testing.T) {
 		}
 	})
 	t.Run("download passes: stdout, /dev/null, and scratch targets", func(t *testing.T) {
+		t.Parallel()
 		k := New(t)
 		tmp := t.TempDir()
 		for _, cmd := range []string{
@@ -483,6 +494,7 @@ func TestGuardBash(t *testing.T) {
 		{"pm: --version is exempt", `npm --version`, 0, "", false},
 	} {
 		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
 			k := New(t)
 			r := guardIn(k, guardBashMono(k, t.TempDir()), c.cmd)
 			r.Want(t, c.status)
@@ -495,6 +507,7 @@ func TestGuardBash(t *testing.T) {
 		})
 	}
 	t.Run("pm: the rerun command uses the lockfile manager's own flags and verbs", func(t *testing.T) {
+		t.Parallel()
 		k := New(t)
 		repo := guardBashMono(k, t.TempDir())
 		Touch(t, filepath.Join(repo, "packages/y/yarn.lock"), filepath.Join(repo, "packages/b/bun.lockb"))
@@ -510,6 +523,7 @@ func TestGuardBash(t *testing.T) {
 		}
 	})
 	t.Run("pm: no lockfile at all is greenfield", func(t *testing.T) {
+		t.Parallel()
 		k := New(t)
 		guardIn(k, guardBashRepo(k, t.TempDir(), "empty"), `npm install`).Want(t, 0)
 	})
@@ -562,6 +576,7 @@ func TestGuardBash(t *testing.T) {
 		guard(shared, "bash <<'EOF'\necho x >> ~/.zshrc\nEOF").Want(t, 2)
 	})
 	t.Run("tee into the current directory asks like > does", func(t *testing.T) {
+		t.Parallel()
 		k := New(t)
 		repo := guardBashRepo(k, t.TempDir(), "feat")
 		r := guardIn(k, repo, `cat foo | tee report.md`)

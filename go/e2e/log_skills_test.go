@@ -19,6 +19,7 @@ import (
 // Each test fakes $HOME so the log never lands in the real
 // ~/.claude/logs/skills.jsonl.
 func TestLogSkills(t *testing.T) {
+	t.Parallel()
 	setup := func(t *testing.T) (*Kit, string) {
 		k := New(t)
 		return k, filepath.Join(k.Claude, "logs", "skills.jsonl")
@@ -28,6 +29,7 @@ func TestLogSkills(t *testing.T) {
 	// loggable shapes: each must append exactly one line
 
 	t.Run("PostToolUse Skill-tool call is logged with skill_file from tool_input.skill", func(t *testing.T) {
+		t.Parallel()
 		k, log := setup(t)
 		k.Hook("log-skills", `{"hook_event_name":"PostToolUse","tool_name":"Skill","tool_input":{"skill":"bash-patterns"},"session_id":"s1","cwd":"/x"}`)
 		if n := lineCount(t, log); n != 1 {
@@ -42,6 +44,7 @@ func TestLogSkills(t *testing.T) {
 	})
 
 	t.Run("PostToolUse Read of a SKILL.md path is logged with skill_file from the file path", func(t *testing.T) {
+		t.Parallel()
 		k, log := setup(t)
 		k.Hook("log-skills", `{"hook_event_name":"PostToolUse","tool_name":"Read","tool_input":{"file_path":"/Users/x/.claude/skills/bash-patterns/SKILL.md"},"session_id":"s1","cwd":"/x"}`)
 		if n := lineCount(t, log); n != 1 {
@@ -53,6 +56,7 @@ func TestLogSkills(t *testing.T) {
 	})
 
 	t.Run("UserPromptExpansion with expansion_type slash_command is logged", func(t *testing.T) {
+		t.Parallel()
 		k, log := setup(t)
 		k.Hook("log-skills", `{"hook_event_name":"UserPromptExpansion","expansion_type":"slash_command","command_name":"flow-test","session_id":"s1","cwd":"/x"}`)
 		if n := lineCount(t, log); n != 1 {
@@ -84,6 +88,7 @@ func TestLogSkills(t *testing.T) {
 			`{"hook_event_name":"UserPromptExpansion","expansion_type":"keyword","command_name":"/some-Skill-name","session_id":"s1","cwd":"/x"}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			k, log := setup(t)
 			k.Hook("log-skills", tc.payload)
 			if n := lineCount(t, log); n != 0 {
@@ -116,6 +121,7 @@ func TestLogSkills(t *testing.T) {
 	}
 
 	t.Run("a payload with none of the three substrings exits clean even without jq on PATH", func(t *testing.T) {
+		t.Parallel()
 		k, log := setup(t)
 		bash, launcher := noJQ(t, k)
 		r := k.exec(bash, `{"hook_event_name":"PostToolUse","tool_name":"Read","tool_input":{"file_path":"/tmp/foo.ts"}}`, launcher, "hook", "log-skills")
@@ -127,6 +133,7 @@ func TestLogSkills(t *testing.T) {
 	})
 
 	t.Run("a loggable payload is logged even without jq on PATH", func(t *testing.T) {
+		t.Parallel()
 		k, log := setup(t)
 		bash, launcher := noJQ(t, k)
 		r := k.exec(bash, `{"hook_event_name":"PostToolUse","tool_name":"Skill","tool_input":{"skill":"bash-patterns"}}`, launcher, "hook", "log-skills")

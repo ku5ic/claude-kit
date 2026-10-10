@@ -19,6 +19,7 @@ var (
 )
 
 func TestSanitizeOutput(t *testing.T) {
+	t.Parallel()
 	setup := func(t *testing.T) (*Kit, string) {
 		k := New(t)
 		return k, filepath.Join(t.TempDir(), "work")
@@ -46,6 +47,7 @@ func TestSanitizeOutput(t *testing.T) {
 	}
 
 	t.Run("baseline: a non-excluded path gets its em dash rewritten", func(t *testing.T) {
+		t.Parallel()
 		k, work := setup(t)
 		fixture(t, work, "src/app.ts")
 		r := hook(k, work, "src/app.ts", true)
@@ -57,6 +59,7 @@ func TestSanitizeOutput(t *testing.T) {
 	})
 
 	t.Run("default: typography is kept, bidi control characters are stripped", func(t *testing.T) {
+		t.Parallel()
 		k, work := setup(t)
 		bidiFixture(t, work, "src/app.ts")
 		r := hook(k, work, "src/app.ts", false)
@@ -71,6 +74,7 @@ func TestSanitizeOutput(t *testing.T) {
 	})
 
 	t.Run("typography flag on: bidi control characters are stripped too", func(t *testing.T) {
+		t.Parallel()
 		k, work := setup(t)
 		bidiFixture(t, work, "src/app.ts")
 		r := hook(k, work, "src/app.ts", true)
@@ -84,6 +88,7 @@ func TestSanitizeOutput(t *testing.T) {
 	})
 
 	t.Run("typography flag on: quotes, ellipsis, and arrows become ASCII", func(t *testing.T) {
+		t.Parallel()
 		k, work := setup(t)
 		q := func(r rune) string { return string(r) }
 		Write(t, filepath.Join(work, "src/q.md"), q(0x201c)+"q"+q(0x201d)+" "+q(0x2018)+"s"+q(0x2019)+" "+q(0x2026)+" "+q(0x2192)+" "+q(0x2190)+" "+q(0x21d2)+" "+q(0x2013)+"\n")
@@ -111,6 +116,7 @@ func TestSanitizeOutput(t *testing.T) {
 		{"no false positive: a .snap.bak file does not match the *.snap extension pattern", "foo.snap.bak", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			k, work := setup(t)
 			fixture(t, work, tc.rel)
 			hook(k, work, tc.rel, true).Want(t, 0)

@@ -18,6 +18,7 @@ import (
 // in the real ~/.claude/cache, and builds a throwaway git repo for the
 // branch/counts assertions so real repo state never leaks in either.
 func TestStatusline(t *testing.T) {
+	t.Parallel()
 	const (
 		green  = "\033[32m"
 		yellow = "\033[33m"
@@ -64,6 +65,7 @@ func TestStatusline(t *testing.T) {
 	}
 
 	t.Run("renders model name, dir basename, and context percentage", func(t *testing.T) {
+		t.Parallel()
 		k, repo := setup(t)
 		r := render(k, statuslinePayload(repo, "t1", 50))
 		r.Want(t, 0)
@@ -84,17 +86,20 @@ func TestStatusline(t *testing.T) {
 		{"context bar turns red exactly at the red threshold", 90, red},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			k, repo := setup(t)
 			render(k, statuslinePayload(repo, "tctx", tc.ctx)).Has(t, tc.color)
 		})
 	}
 
 	t.Run("negative context percentage clamps to zero and renders green", func(t *testing.T) {
+		t.Parallel()
 		k, repo := setup(t)
 		render(k, statuslinePayload(repo, "t4e", -15)).Has(t, "0%", green)
 	})
 
 	t.Run("context percentage above 100 clamps to 100 and renders red", func(t *testing.T) {
+		t.Parallel()
 		k, repo := setup(t)
 		render(k, statuslinePayload(repo, "t4f", 150)).Has(t, "100%", red)
 	})
@@ -102,6 +107,7 @@ func TestStatusline(t *testing.T) {
 	// make_payload omits agent keys because a plain interactive session has
 	// none; only a main thread running as a named agent gets them.
 	t.Run("agent name renders beside the model when present", func(t *testing.T) {
+		t.Parallel()
 		k, repo := setup(t)
 		p := statuslinePayload(repo, "t4g", 50)
 		p["agent"] = map[string]any{"name": "scout"}
@@ -111,6 +117,7 @@ func TestStatusline(t *testing.T) {
 	})
 
 	t.Run("agent name falls back to agent_type when the agent key is absent", func(t *testing.T) {
+		t.Parallel()
 		k, repo := setup(t)
 		p := statuslinePayload(repo, "t4h", 50)
 		p["agent_type"] = "reviewer"
@@ -118,6 +125,7 @@ func TestStatusline(t *testing.T) {
 	})
 
 	t.Run("agent key wins over agent_type when both are present", func(t *testing.T) {
+		t.Parallel()
 		k, repo := setup(t)
 		p := statuslinePayload(repo, "t4i", 50)
 		p["agent"] = map[string]any{"name": "scout"}
@@ -128,6 +136,7 @@ func TestStatusline(t *testing.T) {
 	})
 
 	t.Run("agent segment is omitted for a plain interactive session", func(t *testing.T) {
+		t.Parallel()
 		k, repo := setup(t)
 		r := render(k, statuslinePayload(repo, "t4j", 50))
 		statuslinePrefix(t, r, "Opus  "+filepath.Base(repo))
@@ -135,6 +144,7 @@ func TestStatusline(t *testing.T) {
 	})
 
 	t.Run("effort segment renders when present", func(t *testing.T) {
+		t.Parallel()
 		k, repo := setup(t)
 		p := statuslinePayload(repo, "t5", 50)
 		p["effort"] = map[string]any{"level": "high"}
@@ -142,11 +152,13 @@ func TestStatusline(t *testing.T) {
 	})
 
 	t.Run("effort segment is omitted when absent", func(t *testing.T) {
+		t.Parallel()
 		k, repo := setup(t)
 		render(k, statuslinePayload(repo, "t6", 50)).Lacks(t, "effort:")
 	})
 
 	t.Run("5h segment renders when present", func(t *testing.T) {
+		t.Parallel()
 		k, repo := setup(t)
 		p := statuslinePayload(repo, "t7", 50)
 		p["rate_limits"] = map[string]any{"five_hour": map[string]any{"used_percentage": 12.7}}
@@ -154,6 +166,7 @@ func TestStatusline(t *testing.T) {
 	})
 
 	t.Run("5h segment is omitted when absent", func(t *testing.T) {
+		t.Parallel()
 		k, repo := setup(t)
 		render(k, statuslinePayload(repo, "t8", 50)).Lacks(t, "5h:")
 	})
@@ -165,6 +178,7 @@ func TestStatusline(t *testing.T) {
 	}
 
 	t.Run("duration under a minute renders as seconds only", func(t *testing.T) {
+		t.Parallel()
 		k, repo := setup(t)
 		out := statuslinePlain(render(k, withDuration(repo, "tdur1", 46000)).Output)
 		if !strings.Contains(out, " 46s") {
@@ -173,6 +187,7 @@ func TestStatusline(t *testing.T) {
 	})
 
 	t.Run("duration under an hour renders as minutes only, seconds dropped", func(t *testing.T) {
+		t.Parallel()
 		k, repo := setup(t)
 		out := statuslinePlain(render(k, withDuration(repo, "tdur2", 125000)).Output)
 		if !strings.HasSuffix(out, " 2m") {
@@ -181,6 +196,7 @@ func TestStatusline(t *testing.T) {
 	})
 
 	t.Run("duration of an hour or more rolls into space-separated hours and minutes", func(t *testing.T) {
+		t.Parallel()
 		k, repo := setup(t)
 		out := statuslinePlain(render(k, withDuration(repo, "tdur3", 16546000)).Output)
 		if !strings.HasSuffix(out, " 4h 35m") {
@@ -189,6 +205,7 @@ func TestStatusline(t *testing.T) {
 	})
 
 	t.Run("git segment shows branch and additions/deletions across staged and unstaged changes", func(t *testing.T) {
+		t.Parallel()
 		k, repo := setup(t)
 		Write(t, filepath.Join(repo, "a.txt"), "one")
 		k.Git(repo, "add", "a.txt")
@@ -200,6 +217,7 @@ func TestStatusline(t *testing.T) {
 	})
 
 	t.Run("git segment counts untracked files repo-wide, not ignored or binary ones", func(t *testing.T) {
+		t.Parallel()
 		k, repo := setup(t)
 		Write(t, filepath.Join(repo, ".gitignore"), "*.log\n")
 		k.Git(repo, "add", ".gitignore")
@@ -221,6 +239,7 @@ func TestStatusline(t *testing.T) {
 	})
 
 	t.Run("git segment is omitted outside a git repo", func(t *testing.T) {
+		t.Parallel()
 		k, _ := setup(t)
 		plain := filepath.Join(Physical(t, t.TempDir()), "plain")
 		Mkdir(t, plain)
@@ -239,6 +258,7 @@ func TestStatusline(t *testing.T) {
 	// deterministically, with no sleep.
 
 	t.Run("git status cache is reused within the TTL", func(t *testing.T) {
+		t.Parallel()
 		k, repo := setup(t)
 		k.Setenv("STATUSLINE_CACHE_TTL", "3600")
 		dirty(t, k, repo)
@@ -248,6 +268,7 @@ func TestStatusline(t *testing.T) {
 	})
 
 	t.Run("git status cache regenerates after the TTL expires", func(t *testing.T) {
+		t.Parallel()
 		k, repo := setup(t)
 		dirty(t, k, repo)
 		statuslineContains(t, render(k, statuslinePayload(repo, "tcache2", 50)), "+1 ~1")
@@ -257,6 +278,7 @@ func TestStatusline(t *testing.T) {
 	})
 
 	t.Run("git status cache regenerates exactly at the TTL boundary (age == CACHE_TTL)", func(t *testing.T) {
+		t.Parallel()
 		k, repo := setup(t)
 		dirty(t, k, repo)
 		statuslineContains(t, render(k, statuslinePayload(repo, "tboundary1", 50)), "+1 ~1")
@@ -280,6 +302,7 @@ func TestStatusline(t *testing.T) {
 	})
 
 	t.Run("a non-numeric STATUSLINE_CACHE_TTL falls back instead of blanking the line", func(t *testing.T) {
+		t.Parallel()
 		k, repo := setup(t)
 		k.Setenv("STATUSLINE_CACHE_TTL", "notanumber")
 		dirty(t, k, repo)
@@ -333,6 +356,7 @@ func TestStatusline(t *testing.T) {
 	}
 
 	t.Run("actual model differs from the session model renders the yellow divergence arrow", func(t *testing.T) {
+		t.Parallel()
 		k, repo := setup(t)
 		r := render(k, withTranscript(t, repo, "tact",
 			user("hi", "2026-01-01T00:00:01Z"),
@@ -341,6 +365,7 @@ func TestStatusline(t *testing.T) {
 	})
 
 	t.Run("actual model differs from the session model renders the yellow divergence arrow (array-shaped message content)", func(t *testing.T) {
+		t.Parallel()
 		k, repo := setup(t)
 		r := render(k, withTranscript(t, repo, "tactarr",
 			userArray("hi", "2026-01-01T00:00:01Z"),
@@ -349,6 +374,7 @@ func TestStatusline(t *testing.T) {
 	})
 
 	t.Run("a sidechain (subagent) assistant entry is excluded from the actual model", func(t *testing.T) {
+		t.Parallel()
 		k, repo := setup(t)
 		r := render(k, withTranscript(t, repo, "tside",
 			user("hi", "2026-01-01T00:00:01Z"),
@@ -359,6 +385,7 @@ func TestStatusline(t *testing.T) {
 	})
 
 	t.Run("a declared override that silently falls back to the session model shows only the declared marker", func(t *testing.T) {
+		t.Parallel()
 		k, repo := setup(t)
 		r := render(k, withTranscript(t, repo, "tdecl1",
 			user("hi", "2026-01-01T00:00:01Z"),
@@ -369,6 +396,7 @@ func TestStatusline(t *testing.T) {
 	})
 
 	t.Run("a declared override that diverges from both the session and actual model shows the three-way arrow", func(t *testing.T) {
+		t.Parallel()
 		k, repo := setup(t)
 		r := render(k, withTranscript(t, repo, "tdecl2",
 			user("hi", "2026-01-01T00:00:01Z"),
@@ -378,6 +406,7 @@ func TestStatusline(t *testing.T) {
 	})
 
 	t.Run("a declared attachment older than the last user prompt is ignored as stale", func(t *testing.T) {
+		t.Parallel()
 		k, repo := setup(t)
 		r := render(k, withTranscript(t, repo, "tstale",
 			declared("claude-sonnet-5", "2026-01-01T00:00:01Z"),
@@ -387,6 +416,7 @@ func TestStatusline(t *testing.T) {
 	})
 
 	t.Run("a missing transcript file renders the plain row with no divergence segment", func(t *testing.T) {
+		t.Parallel()
 		k, repo := setup(t)
 		p := statuslinePayload(repo, "tmiss", 50)
 		p["transcript_path"] = filepath.Join(t.TempDir(), "does-not-exist.jsonl")

@@ -110,6 +110,7 @@ type runChecksCase struct {
 }
 
 func TestRunChecks(t *testing.T) {
+	t.Parallel()
 	cases := []runChecksCase{
 		// JS/TS: declared package.json scripts run via the package manager.
 		{name: "js: lint script runs via the package manager",
@@ -321,6 +322,7 @@ func TestRunChecks(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
 			e := runChecksSetup(t)
 			for rel, body := range c.files {
 				e.write(rel, body)
@@ -341,6 +343,7 @@ func TestRunChecks(t *testing.T) {
 	}
 
 	t.Run("--only checks just the named subprojects", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"lint":"eslint ."}}`+"\n")
 		e.write("packages/a/package.json", `{"scripts":{"test":"vitest"}}`+"\n")
@@ -353,6 +356,7 @@ func TestRunChecks(t *testing.T) {
 		r.Lacks(t, "packages/a", "js: lint")
 	})
 	t.Run("--only repeated adds to the list, and takes subprojects written as paths", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"lint":"eslint ."}}`+"\n")
 		e.write("packages/a/package.json", `{"scripts":{"test":"vitest"}}`+"\n")
@@ -365,6 +369,7 @@ func TestRunChecks(t *testing.T) {
 		r.Lacks(t, "js: lint (lint)\n")
 	})
 	t.Run("an excluded task names the glob that turned it away", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"lint:fix":"eslint --fix ."}}`+"\n")
 		e.run().Has(t, `SKIP js: lint (no lint task; lint:fix matches the exclude glob "*fix*")`)
@@ -385,6 +390,7 @@ func TestRunChecks(t *testing.T) {
 	})
 
 	t.Run("a flag after --only says where it belongs", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"lint":"eslint ."}}`+"\n")
 		r := e.run("--only", ".", "--plan")
@@ -393,6 +399,7 @@ func TestRunChecks(t *testing.T) {
 	})
 
 	t.Run("pnpm runs a task with its install-before-run turned off", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"lint":"eslint ."}}`+"\n")
 		e.write("pnpm-lock.yaml", "")
@@ -404,6 +411,7 @@ func TestRunChecks(t *testing.T) {
 
 	// Orchestrators: turbo or nx run JS checks once, for affected packages.
 	t.Run("turbo: an edit in packages/a runs turbo once per check, no per-package task", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.orchestrated("turbo", `{"tasks":{"test":{},"lint":{},"build":{}}}`)
 		r := e.run("--only", "packages/a")
@@ -416,16 +424,19 @@ func TestRunChecks(t *testing.T) {
 		r.Lacks(t, "(test) [packages/a]", "(lint) [packages/a]")
 	})
 	t.Run("turbo: a 1.x pipeline key is read too", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.orchestrated("turbo", `{"pipeline":{"test":{}}}`)
 		e.run("--only", "packages/a").Has(t, "PASS js: test (turbo affected: test)")
 	})
 	t.Run("turbo: checks turbo declares no task for still run per package", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.orchestrated("turbo", `{"tasks":{"test":{}}}`)
 		e.run("--only", "packages/a").Has(t, "PASS js: test (turbo affected: test)", "PASS js: lint (lint) [packages/a]")
 	})
 	t.Run("turbo: a Python-only scope never runs turbo", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.orchestrated("turbo", `{"tasks":{"test":{}}}`)
 		e.run("--only", "services/api").Has(t, "PASS python: test (test) [services/api]")
@@ -434,6 +445,7 @@ func TestRunChecks(t *testing.T) {
 		}
 	})
 	t.Run("turbo: without its binary in node_modules/.bin, packages run their own tasks", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.orchestrated("turbo", `{"tasks":{"test":{}}}`)
 		if err := os.Remove(filepath.Join(e.project, "node_modules/.bin/turbo")); err != nil {
@@ -444,6 +456,7 @@ func TestRunChecks(t *testing.T) {
 		r.Lacks(t, "turbo affected")
 	})
 	t.Run("nx: targetDefaults run through nx affected --uncommitted", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.orchestrated("nx", `{"targetDefaults":{"test":{},"typecheck":{}}}`)
 		r := e.run("--only", "packages/a")
@@ -452,6 +465,7 @@ func TestRunChecks(t *testing.T) {
 	})
 
 	t.Run("composer.json scripts run through composer", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("composer.json", `{"scripts": {"test": "phpunit"}}`)
 		e.stub("composer", 0)
@@ -461,6 +475,7 @@ func TestRunChecks(t *testing.T) {
 
 	// Toolchain checks resolve {bin} like file checks: the project's copy first.
 	t.Run("a toolchain check runs the project-local bin before a PATH copy", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.localFakefmt("")
 		local := Physical(t, filepath.Join(e.project, "node_modules/.bin/fakefmt"))
@@ -468,12 +483,14 @@ func TestRunChecks(t *testing.T) {
 		e.callsEqual("fakefmt", "local --check .")
 	})
 	t.Run("a failing toolchain check names its binary before the output", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("go.mod", "module example.com/x\n")
 		Stub(t, filepath.Join(e.stubs, "go"), "echo vet output\nexit 1\n")
 		e.run().Has(t, "FAIL go: vet ("+filepath.Join(e.stubs, "go")+" vet ./...)\n  bin: "+filepath.Join(e.stubs, "go")+" (PATH)\nvet output\n")
 	})
 	t.Run("go test skips an end-to-end module, not a lookalike name", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		for _, dir := range []string{"", "e2e/end2end/", "services/delivery/"} {
 			e.write(dir+"go.mod", "module example.com/x\n")
@@ -485,12 +502,14 @@ func TestRunChecks(t *testing.T) {
 			"RUN go: vet [e2e/end2end]", "RUN go: test [services/delivery]", "RUN go: test\n")
 	})
 	t.Run("a resolved bin path with a space stays one word", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.localFakefmt("my app/")
 		e.run().Has(t, "PASS js: fmt [my app]")
 		e.callsEqual("fakefmt", "local --check .")
 	})
 	t.Run("turbo: a repo path with a space still orchestrates", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetupIn(t, "my project")
 		e.orchestrated("turbo", `{"tasks":{"test":{}}}`)
 		e.run("--only", "packages/a").Has(t, "PASS js: test (turbo affected: test)")
@@ -499,6 +518,7 @@ func TestRunChecks(t *testing.T) {
 
 	// Task bodies: a task whose name matches no slot counts by what it runs.
 	t.Run("an odd-named task whose body is one gate fills that slot, run as itself", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"verify-style":"cross-env CI=1 eslint .","types":"tsc --noEmit"}}`+"\n")
 		e.stub("npm", 0)
@@ -507,6 +527,7 @@ func TestRunChecks(t *testing.T) {
 		e.callsEqual("npm", e.phys(".")+" run types\n"+e.phys(".")+" run verify-style")
 	})
 	t.Run("a body that isn't one readable gate never runs", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"fixup":"eslint --fix .","piped":"eslint . | tee out","build":"tsc -b"}}`+"\n")
 		e.stub("npm", 0)
@@ -517,6 +538,7 @@ func TestRunChecks(t *testing.T) {
 		}
 	})
 	t.Run("a slot-named task whose body fixes or watches is skipped, and covers nothing", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"check":"npm run lint && npm run unit","lint":"eslint . --fix","test":"jest --watch","unit":"vitest run"}}`+"\n")
 		e.stub("npm", 0)
@@ -526,6 +548,7 @@ func TestRunChecks(t *testing.T) {
 		e.callsEqual("npm", e.phys(".")+" run unit")
 	})
 	t.Run("a forbidden flag skips a task even without the required flags; one set off doesn't", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"typecheck":"tsc --watch","format:check":"prettier --write .","test":"vitest --watch=false"}}`+"\n")
 		e.stub("npm", 0)
@@ -535,6 +558,7 @@ func TestRunChecks(t *testing.T) {
 		e.callsEqual("npm", e.phys(".")+" run test")
 	})
 	t.Run("an odd-named gofmt -l task is no gate: it can't fail", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("go.mod", "module example.com/x\n")
 		e.write("Makefile", "gofmtcheck:\n\tgofmt -l .\n")
@@ -545,12 +569,14 @@ func TestRunChecks(t *testing.T) {
 		r.Lacks(t, "(gofmtcheck)")
 	})
 	t.Run("a slot's exclude globs hold for body-classified tasks too", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"unit-watch":"vitest"}}`+"\n")
 		e.stub("npm", 0)
 		e.run().Has(t, "SKIP js: test (no test task)")
 	})
 	t.Run("a Make target whose recipe is one gate fills that slot", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("go.mod", "module example.com/x\n")
 		e.write("Makefile", "golint:\n\t@golangci-lint run ./...\n")
@@ -561,6 +587,7 @@ func TestRunChecks(t *testing.T) {
 
 	// Cargo aliases are tasks, read as the cargo command they expand to.
 	t.Run("rust: a cargo alias fills its slot by name or by what it runs", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("Cargo.toml", "[package]\nname = \"x\"\n")
 		e.write(".cargo/config.toml", "[alias]\nlint = \"clippy --all-targets -- -D warnings\"\nck = [\"fmt\", \"--check\"]\nxtask = \"run --package xtask --\"\n")
@@ -570,6 +597,7 @@ func TestRunChecks(t *testing.T) {
 		r.Lacks(t, "(xtask)")
 	})
 	t.Run("rust: no .cargo/config.toml, no alias tasks", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("Cargo.toml", "[package]\nname = \"x\"\n")
 		e.stub("cargo", 0)
@@ -578,6 +606,7 @@ func TestRunChecks(t *testing.T) {
 	})
 
 	t.Run("--plan lists every check with its command and runs none", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"lint":"eslint ."}}`+"\n")
 		e.write("go.mod", "module example.com/x\n")
@@ -595,6 +624,7 @@ func TestRunChecks(t *testing.T) {
 		}
 	})
 	t.Run("--plan takes --only too", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"lint":"eslint ."}}`+"\n")
 		e.write("services/api/pyproject.toml", "[tool.pdm.scripts]\ntest = \"pytest\"\n")
@@ -605,6 +635,7 @@ func TestRunChecks(t *testing.T) {
 
 	// Overlay control: turning checks off, and updating a default by key.
 	t.Run("disabled_checks turns a slot off, and one task by its label", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"typecheck":"tsc","lint":"eslint .","lint:css":"stylelint"}}`+"\n")
 		e.stub("npm", 0)
@@ -614,12 +645,14 @@ func TestRunChecks(t *testing.T) {
 		e.callsEqual("npm", e.phys(".")+" run lint")
 	})
 	t.Run("disabled_checks on a slot with no task says so", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("package.json", "{}\n")
 		e.k.Overlay("disabled_checks: [test]\n")
 		e.run().Has(t, "SKIP js: test (disabled_checks)")
 	})
 	t.Run("disabled_toolchain_checks skips one by <stack>:<name>", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("go.mod", "module example.com/x\n")
 		e.stub("go", 0)
@@ -629,6 +662,7 @@ func TestRunChecks(t *testing.T) {
 		e.callsEqual("go", e.phys(".")+" test ./...")
 	})
 	t.Run("disabled_task_providers stops a provider's tasks being read", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"lint":"eslint ."}}`+"\n")
 		e.write("Makefile", "lint:\n\techo lint\n")
@@ -640,6 +674,7 @@ func TestRunChecks(t *testing.T) {
 		r.Lacks(t, "make: lint")
 	})
 	t.Run("an overlay toolchain check with a default's key replaces it, not runs beside it", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("go.mod", "module example.com/x\n")
 		e.stub("go", 0)
@@ -648,6 +683,7 @@ func TestRunChecks(t *testing.T) {
 		e.callsEqual("go", e.phys(".")+" vet ./...\n"+e.phys(".")+" test -race ./...")
 	})
 	t.Run("an overlay check with a default's name updates its globs", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"verify-types":"tsc"}}`+"\n")
 		e.stub("npm", 0)
@@ -662,6 +698,7 @@ func TestRunChecks(t *testing.T) {
 	// A copy of the launcher beside the freshly built binary, so its
 	// relative-path resolution is tested against this tree's code.
 	t.Run("a relative launcher path from a subdirectory still finds the binary", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("go.mod", "module example.com/fixture\n\ngo 1.22\n")
 		Mkdir(t, filepath.Join(e.project, "sub"))

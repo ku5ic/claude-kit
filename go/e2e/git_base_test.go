@@ -9,6 +9,7 @@ import (
 // Characterization tests for `kit git-base`: pins which base it picks at
 // each step of its detection order.
 func TestGitBase(t *testing.T) {
+	t.Parallel()
 	// output is bats' $output: trailing newlines dropped.
 	output := func(r Result) string { return strings.TrimRight(r.Output, "\n") }
 	// subjects is `cut -d' ' -f2-` over --log output: the hashes dropped.

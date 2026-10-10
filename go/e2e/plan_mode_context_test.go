@@ -9,6 +9,7 @@ import (
 )
 
 func TestPlanStepPause(t *testing.T) {
+	t.Parallel()
 	setup := func(t *testing.T) (*Kit, string) {
 		k := New(t)
 		proj := filepath.Join(k.Home, "proj")
@@ -30,6 +31,7 @@ func TestPlanStepPause(t *testing.T) {
 	}
 
 	t.Run("ExitPlanMode asks for step 1 only and names the newest open plan", func(t *testing.T) {
+		t.Parallel()
 		k, proj := setup(t)
 		plans := filepath.Join(proj, ".claude", "plans")
 		old := filepath.Join(plans, "plan-old.md")
@@ -42,6 +44,7 @@ func TestPlanStepPause(t *testing.T) {
 	})
 
 	t.Run("a later prompt reminds while the plan has an open step, then goes silent", func(t *testing.T) {
+		t.Parallel()
 		k, proj := setup(t)
 		plan := filepath.Join(proj, ".claude", "plans", "plan-x.md")
 		Write(t, plan, "- [ ] one\n")
@@ -55,6 +58,7 @@ func TestPlanStepPause(t *testing.T) {
 	})
 
 	t.Run("a reminded plan's marker stays fresh, so scratch-rotate keeps it", func(t *testing.T) {
+		t.Parallel()
 		k, proj := setup(t)
 		Write(t, filepath.Join(proj, ".claude", "plans", "plan-x.md"), "- [ ] one\n")
 		approve(k, proj, "s1").Want(t, 0)
@@ -69,6 +73,7 @@ func TestPlanStepPause(t *testing.T) {
 	})
 
 	t.Run("ExitPlanMode with no open plan still asks for one step", func(t *testing.T) {
+		t.Parallel()
 		k, proj := setup(t)
 		r := approve(k, proj, "s1")
 		r.Want(t, 0)
@@ -77,6 +82,7 @@ func TestPlanStepPause(t *testing.T) {
 	})
 
 	t.Run("another tool's PostToolUse is silent", func(t *testing.T) {
+		t.Parallel()
 		k, proj := setup(t)
 		r := k.Hook("plan-mode-context", map[string]string{
 			"hook_event_name": "PostToolUse", "tool_name": "Edit", "session_id": "s1", "cwd": proj,
@@ -87,6 +93,7 @@ func TestPlanStepPause(t *testing.T) {
 }
 
 func TestPlanModeContext(t *testing.T) {
+	t.Parallel()
 	k := New(t)
 	t.Run("plan mode prints the investigate pointer", func(t *testing.T) {
 		r := k.Hook("plan-mode-context", `{"permission_mode":"plan"}`)

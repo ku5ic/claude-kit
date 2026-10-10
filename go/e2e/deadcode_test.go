@@ -25,6 +25,7 @@ func (e *runChecksEnv) prints(name, out string, code int) {
 }
 
 func TestDeadcode(t *testing.T) {
+	t.Parallel()
 	knip := func(t *testing.T) *runChecksEnv {
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"knip":"knip"}}`+"\n")
@@ -68,6 +69,7 @@ func TestDeadcode(t *testing.T) {
 		e.run().Has(t, "PASS js: deadcode (knip) (1 finding on unchanged lines)")
 	})
 	t.Run("a new line's finding fails in a tracked spaced path, whatever the diff prefix config", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"knip":"knip"}}`+"\n")
 		e.write("src/my old.ts", "export const old = 1\n")
@@ -90,6 +92,7 @@ func TestDeadcode(t *testing.T) {
 		r.Lacks(t, "old  src/old.ts:1:14")
 	})
 	t.Run("a finding in a changed file whose path has a space still fails", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"knip":"knip"}}`+"\n")
 		e.branchOff()
@@ -98,6 +101,7 @@ func TestDeadcode(t *testing.T) {
 		e.run().Has(t, "FAIL js: deadcode (knip)")
 	})
 	t.Run("python: vulture's exit 3 with only unchanged findings passes", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("pyproject.toml", "[tool.pdm.scripts]\ndeadcode = \"vulture src\"\n")
 		e.write("src/old.py", "def old(): pass\n")
@@ -107,6 +111,7 @@ func TestDeadcode(t *testing.T) {
 		e.run().Has(t, "PASS python: deadcode (deadcode) (1 finding on unchanged lines)")
 	})
 	t.Run("go: deadcode's exit 0 with a finding in a changed file fails", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("go.mod", "module example.com/x\n")
 		e.write("Makefile", "deadcode:\n\tdeadcode ./...\n")
@@ -117,6 +122,7 @@ func TestDeadcode(t *testing.T) {
 		e.run().Has(t, "FAIL make: deadcode (deadcode)", "new.go:1:1: unreachable func: fresh")
 	})
 	t.Run("go: with no deadcode task, the toolchain row runs it, scoped", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("go.mod", "module example.com/x\n\ntool golang.org/x/tools/cmd/deadcode\n")
 		e.write("old.go", "package main\n")
@@ -133,6 +139,7 @@ func TestDeadcode(t *testing.T) {
 		r.Lacks(t, "old.go:1:1: unreachable func: old")
 	})
 	t.Run("opentofu: tflint limited to unused declarations is dead code, scoped", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write(".terraform.lock.hcl", "")
 		e.write("Makefile", "unused-vars:\n\ttflint --only=terraform_unused_declarations\n")
@@ -144,6 +151,7 @@ func TestDeadcode(t *testing.T) {
 		e.run().Has(t, "PASS make: deadcode (unused-vars) (1 finding on unchanged lines)")
 	})
 	t.Run("ruby: debride is advisory, so even a changed file's finding passes", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("Gemfile", "source 'https://rubygems.org'\n")
 		e.write("Makefile", "deadcode:\n\tdebride lib\n")
@@ -153,6 +161,7 @@ func TestDeadcode(t *testing.T) {
 		e.run().Has(t, "PASS make: deadcode (deadcode) (advisory: output not mapped to files)")
 	})
 	t.Run("a deadcode task whose body can't be read is advisory", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"deadcode":"node scripts/dead.js"}}`+"\n")
 		e.branchOff()
@@ -161,6 +170,7 @@ func TestDeadcode(t *testing.T) {
 		e.run().Has(t, "PASS js: deadcode (deadcode) (advisory: output not mapped to files)")
 	})
 	t.Run("with no git base, dead code is skipped", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"knip":"knip"}}`+"\n")
 		e.stub("npm", 0)
@@ -170,6 +180,7 @@ func TestDeadcode(t *testing.T) {
 		}
 	})
 	t.Run("with nothing changed since the base, dead code passes without running", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"knip":"knip"}}`+"\n")
 		e.branchOff()
@@ -180,6 +191,7 @@ func TestDeadcode(t *testing.T) {
 		}
 	})
 	t.Run("--plan says how dead code is judged", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"knip":"knip","dead":"node x.js"}}`+"\n")
 		r := e.run("--plan")

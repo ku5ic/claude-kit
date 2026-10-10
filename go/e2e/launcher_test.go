@@ -15,6 +15,7 @@ import (
 // the real launcher, so they need go/build.sh run first (CI builds before
 // testing).
 func TestLauncher(t *testing.T) {
+	t.Parallel()
 	k := New(t)
 	kitFile := func(name string) string { return filepath.Join(kitRoot, name) }
 	t.Run("a hook blocks through the built binary", func(t *testing.T) {

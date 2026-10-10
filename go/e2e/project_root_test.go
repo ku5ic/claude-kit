@@ -9,6 +9,7 @@ import (
 // Characterization tests for `kit project-root`: git toplevel, the
 // sentinel walk, the bare-$PWD fallback, and --check.
 func TestProjectRoot(t *testing.T) {
+	t.Parallel()
 	output := func(r Result) string { return strings.TrimRight(r.Output, "\n") }
 	// cd is bats' cd: the run's cwd, and $PWD as the logical path.
 	cd := func(k *Kit, dir string) {
@@ -17,6 +18,7 @@ func TestProjectRoot(t *testing.T) {
 	}
 
 	t.Run("prints the git toplevel from a nested subdirectory", func(t *testing.T) {
+		t.Parallel()
 		k := New(t)
 		tmp := t.TempDir()
 		k.Git(tmp, "init", "-q", "-b", "main", filepath.Join(tmp, "repo"))
@@ -30,6 +32,7 @@ func TestProjectRoot(t *testing.T) {
 		}
 	})
 	t.Run("--check inside a repo exits 0 and prints nothing", func(t *testing.T) {
+		t.Parallel()
 		k := New(t)
 		tmp := t.TempDir()
 		k.Git(tmp, "init", "-q", "-b", "main", filepath.Join(tmp, "repo"))
@@ -40,6 +43,7 @@ func TestProjectRoot(t *testing.T) {
 		r.Empty(t)
 	})
 	t.Run("outside a repo, an anchor sentinel two levels up is the root", func(t *testing.T) {
+		t.Parallel()
 		k := New(t)
 		tmp := t.TempDir()
 		Mkdir(t, filepath.Join(tmp, "proj/a/b"))
@@ -53,6 +57,7 @@ func TestProjectRoot(t *testing.T) {
 		k.Run("", "project-root", "--check").Want(t, 0)
 	})
 	t.Run("outside a repo with no sentinel, prints $PWD and --check exits 1", func(t *testing.T) {
+		t.Parallel()
 		k := New(t)
 		dir := filepath.Join(t.TempDir(), "plain/a/b")
 		Mkdir(t, dir)

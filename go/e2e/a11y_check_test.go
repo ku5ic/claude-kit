@@ -13,6 +13,7 @@ import (
 // kit a11y-check with a fake axe: digest format, and the exit codes for a
 // missing axe (3) and a URL that does not answer (4).
 func TestA11yCheck(t *testing.T) {
+	t.Parallel()
 	setup := func(t *testing.T) (k *Kit, repo, page string) {
 		k = New(t)
 		repo = filepath.Join(Physical(t, t.TempDir()), "repo")
@@ -36,6 +37,7 @@ JSON
 	}
 
 	t.Run("digest: one line per rule with impact, wcag tags, node count, selector", func(t *testing.T) {
+		t.Parallel()
 		k, repo, page := setup(t)
 		fakeAxe(t, repo)
 		r := k.Run("", "a11y-check", page)
@@ -80,6 +82,7 @@ JSON
 	})
 
 	t.Run("a URL that does not answer exits 4 and names the start script", func(t *testing.T) {
+		t.Parallel()
 		k, repo, _ := setup(t)
 		fakeAxe(t, repo)
 		Write(t, filepath.Join(repo, "package.json"), `{"scripts":{"dev":"vite","storybook":"storybook dev"}}`+"\n")

@@ -8,6 +8,7 @@ import (
 // `kit explain` shows a guard's or the Stop hook's decision and evidence,
 // and logs, blocks, and runs nothing.
 func TestExplain(t *testing.T) {
+	t.Parallel()
 	setup := func(t *testing.T) (*Kit, string) {
 		k := New(t)
 		k.Setenv("CLAUDE_CONFIG_DIR", k.Claude)
@@ -20,6 +21,7 @@ func TestExplain(t *testing.T) {
 	}
 
 	t.Run("bash: shows the parse and the block with its rule, and logs nothing", func(t *testing.T) {
+		t.Parallel()
 		k, _ := setup(t)
 		r := k.Run("", "explain", "bash", "cd /tmp && echo x | git push --force origin main")
 		r.Want(t, 0)
@@ -30,12 +32,14 @@ func TestExplain(t *testing.T) {
 	})
 
 	t.Run("bash: an ordinary command passes; a lone kit script is allowed", func(t *testing.T) {
+		t.Parallel()
 		k, _ := setup(t)
 		k.Run("", "explain", "bash", "git status").Has(t, "guard-bash: pass")
 		k.Run("", "explain", "bash", "kit scratch-dir").Has(t, "guard-bash: allow")
 	})
 
 	t.Run("edit: a credential read blocks, a plain write passes", func(t *testing.T) {
+		t.Parallel()
 		k, repo := setup(t)
 		k.Run("", "explain", "edit", filepath.Join(k.Home, ".ssh/id_rsa"), "Read").Has(t, "guard-edit: block  sensitive-read")
 		k.Run("", "explain", "edit", filepath.Join(repo, "docs/notes.md")).Has(t, "guard-edit: pass")
@@ -43,6 +47,7 @@ func TestExplain(t *testing.T) {
 	})
 
 	t.Run("stop: names what claims a file, where it runs, and the command", func(t *testing.T) {
+		t.Parallel()
 		k, repo := setup(t)
 		Touch(t, filepath.Join(repo, ".shellcheckrc"))
 		Write(t, filepath.Join(repo, "run.sh"), "echo hi\n")
@@ -53,6 +58,7 @@ func TestExplain(t *testing.T) {
 	})
 
 	t.Run("stop: names the config a check needs besides where it runs", func(t *testing.T) {
+		t.Parallel()
 		k, repo := setup(t)
 		Write(t, filepath.Join(repo, "go.mod"), "module example.com/x\n")
 		Touch(t, filepath.Join(repo, ".golangci.yml"))
@@ -61,6 +67,7 @@ func TestExplain(t *testing.T) {
 	})
 
 	t.Run("stop: with no files, uses the working tree's changes", func(t *testing.T) {
+		t.Parallel()
 		k, repo := setup(t)
 		Touch(t, filepath.Join(repo, ".shellcheckrc"))
 		Write(t, filepath.Join(repo, "run.sh"), "echo hi\n")

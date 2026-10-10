@@ -35,8 +35,10 @@ func (e *runChecksEnv) installed(dir, version, label string) string {
 func (e *runChecksEnv) phys(rel string) string { return Physical(e.t, filepath.Join(e.project, rel)) }
 
 func TestResolutionMatrix(t *testing.T) {
+	t.Parallel()
 	// A project-local or package-manager copy beats one on PATH.
 	t.Run("python: a .venv copy beats PATH", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("pyproject.toml", "[project]\nname = \"x\"\n")
 		e.probe("python", "fakepy", "")
@@ -46,6 +48,7 @@ func TestResolutionMatrix(t *testing.T) {
 		e.callsEqual("rec", "local")
 	})
 	t.Run("python: a poetry env beats PATH", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("pyproject.toml", "[tool.poetry]\nname = \"x\"\n")
 		e.write("poetry.lock", "")
@@ -57,6 +60,7 @@ func TestResolutionMatrix(t *testing.T) {
 		e.callsEqual("rec", "poetry")
 	})
 	t.Run("python: an activated virtualenv inside the repo beats PATH", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("pyproject.toml", "[project]\nname = \"x\"\n")
 		e.probe("python", "fakepy", "")
@@ -67,6 +71,7 @@ func TestResolutionMatrix(t *testing.T) {
 		e.callsEqual("rec", "venv")
 	})
 	t.Run("ruby: a bundled gem runs through bundle exec, not PATH", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("Gemfile", "source 'https://rubygems.org'\n")
 		e.write("Gemfile.lock", "GEM\n  specs:\n    fakerb (1.0)\n")
@@ -77,6 +82,7 @@ func TestResolutionMatrix(t *testing.T) {
 		e.callsEqual("rec", "bundle fakerb")
 	})
 	t.Run("go: a go.mod tool beats PATH", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("go.mod", "module example.com/x\n\ntool example.com/cmd/fakego\n")
 		e.probe("go", "fakego", "")
@@ -89,6 +95,7 @@ func TestResolutionMatrix(t *testing.T) {
 	})
 
 	t.Run("a nested subproject without its own copy uses the root's before PATH", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("package.json", "{}\n")
 		e.write("packages/b/package.json", "{}\n")
@@ -139,6 +146,7 @@ func TestResolutionMatrix(t *testing.T) {
 	// Declared but not installed: skipped with the install command, even
 	// with a copy on PATH.
 	t.Run("js: declared but not installed skips with pnpm's install", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("package.json", `{"devDependencies":{"fakefmt":"1.0.0"}}`+"\n")
 		e.write("pnpm-lock.yaml", "")
@@ -151,6 +159,7 @@ func TestResolutionMatrix(t *testing.T) {
 		}
 	})
 	t.Run("python: declared but not installed skips with uv's install", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("pyproject.toml", "[dependency-groups]\ndev = [\"fakepy>=1\"]\n")
 		e.write("uv.lock", "")
@@ -162,6 +171,7 @@ func TestResolutionMatrix(t *testing.T) {
 		}
 	})
 	t.Run("ruby: a locked gem bundler can't find skips with bundle install", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("Gemfile", "source 'https://rubygems.org'\n")
 		e.write("Gemfile.lock", "GEM\n  specs:\n    fakerb (1.0)\n")
@@ -173,6 +183,7 @@ func TestResolutionMatrix(t *testing.T) {
 
 	// Version-manager pins: PATH is fine only when the copy is the manager's.
 	t.Run("pin: an asdf shim for a .tool-versions tool runs", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("package.json", "{}\n")
 		e.write(".tool-versions", "fakefmt 1.0.0\n")
@@ -185,6 +196,7 @@ func TestResolutionMatrix(t *testing.T) {
 		e.callsEqual("rec", "shim")
 	})
 	t.Run("pin: a mise install dir on PATH runs", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("package.json", "{}\n")
 		e.write("mise.toml", "[tools]\nfakefmt = \"1.0.0\"\n")
@@ -198,6 +210,7 @@ func TestResolutionMatrix(t *testing.T) {
 		e.callsEqual("rec", "mise")
 	})
 	t.Run("pin: a pinned tool's non-manager PATH copy is skipped", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("package.json", "{}\n")
 		e.write(".tool-versions", "fakefmt 1.0.0\n")
@@ -209,6 +222,7 @@ func TestResolutionMatrix(t *testing.T) {
 	// Standalone toolchains run from PATH; rust and opentofu have no
 	// project-local install, so this row covers them.
 	t.Run("standalone: cargo and tofu run from PATH", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("Cargo.toml", "[package]\nname = \"x\"\n")
 		e.write(".terraform.lock.hcl", "")
@@ -220,6 +234,7 @@ func TestResolutionMatrix(t *testing.T) {
 	})
 
 	t.Run("a toolchain check with no {bin} gets no bin line", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("package.json", "{}\n")
 		e.k.Overlay("toolchain_checks:\n  - {stack: js, name: plain, cmd: \"fakeplain --probe\"}\n")
@@ -230,6 +245,7 @@ func TestResolutionMatrix(t *testing.T) {
 	})
 
 	t.Run("ambiguous: an undeclared, unpinned PATH-only tool is skipped with the reason", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("package.json", "{}\n")
 		e.probe("js", "fakefmt", "")

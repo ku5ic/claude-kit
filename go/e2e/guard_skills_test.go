@@ -20,6 +20,7 @@ const guardSkillsBashMap = `skill_file_map:
 const guardSkillsLoaded = `{"ts":"2026-01-01T00:00:00Z","hook":"log-skills","event":"PreToolUse","session_id":"s1","cwd":"/x","expansion_type":null,"command_name":null,"command_args":null,"command_source":null,"skill_file":"bash-patterns","tool_name":"Skill"}`
 
 func TestGuardSkills(t *testing.T) {
+	t.Parallel()
 	// guard-skills reads kit.yml (skill_file_map) and logs/skills.jsonl (what
 	// has been loaded this session) on every Edit/Write/MultiEdit. Each test
 	// fakes $HOME so real machine state never leaks into the assertions;

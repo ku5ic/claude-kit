@@ -12,6 +12,7 @@ import (
 // root's kit.yml. Each test fakes $HOME to a fixture dir so real machine
 // state never leaks into the assertions.
 func TestSkillsReport(t *testing.T) {
+	t.Parallel()
 	setup := func(t *testing.T) *Kit { return NewPlugin(t) }
 	writeLog := func(t *testing.T, k *Kit, lines ...string) {
 		Write(t, filepath.Join(k.Claude, "logs", "skills.jsonl"), strings.Join(lines, "\n")+"\n")
@@ -38,6 +39,7 @@ func TestSkillsReport(t *testing.T) {
 	// The real emitter, not a hand-written line: a field renamed in the
 	// log-skills hook breaks this, where the fixture-line tests below can't.
 	t.Run("a line the log-skills hook writes counts as an activation", func(t *testing.T) {
+		t.Parallel()
 		k := setup(t)
 		Mkdir(t, filepath.Join(k.Claude, "logs"))
 		k.Hook("log-skills", map[string]any{
@@ -59,12 +61,14 @@ func TestSkillsReport(t *testing.T) {
 	})
 
 	t.Run("missing log exits 0 with a clear message", func(t *testing.T) {
+		t.Parallel()
 		r := setup(t).Run("", "skills-report")
 		r.Want(t, 0)
 		r.Has(t, "no log at")
 	})
 
 	t.Run("empty log exits 0 with a clear message", func(t *testing.T) {
+		t.Parallel()
 		k := setup(t)
 		Touch(t, filepath.Join(k.Claude, "logs", "skills.jsonl"))
 		r := k.Run("", "skills-report")
@@ -73,6 +77,7 @@ func TestSkillsReport(t *testing.T) {
 	})
 
 	t.Run("an unreadable log fails loudly, not as an empty report", func(t *testing.T) {
+		t.Parallel()
 		k := setup(t)
 		Mkdir(t, filepath.Join(k.Claude, "logs", "skills.jsonl", "x"))
 		r := k.Run("", "skills-report")
@@ -81,6 +86,7 @@ func TestSkillsReport(t *testing.T) {
 	})
 
 	t.Run("malformed lines are counted and reported, not fatal", func(t *testing.T) {
+		t.Parallel()
 		k := setup(t)
 		writeLog(t, k, skillUse(stamp(time.Now()), "bash-patterns"), "not valid json{{{")
 		r := k.Run("", "skills-report")
@@ -89,6 +95,7 @@ func TestSkillsReport(t *testing.T) {
 	})
 
 	t.Run("window filter excludes entries older than the requested window", func(t *testing.T) {
+		t.Parallel()
 		k := setup(t)
 		writeLog(t, k,
 			skillUse(stamp(time.Now().AddDate(0, 0, -90)), "old-skill"),
@@ -103,12 +110,14 @@ func TestSkillsReport(t *testing.T) {
 	})
 
 	t.Run("one PostToolUse Skill entry counts as one Skill-tool activation", func(t *testing.T) {
+		t.Parallel()
 		k := setup(t)
 		writeLog(t, k, skillUse(stamp(time.Now()), "bash-patterns"))
 		k.Run("", "skills-report").Has(t, "1  bash-patterns")
 	})
 
 	t.Run("required-skill and suggested-skill synthetic entries are reported separately, not counted as activations", func(t *testing.T) {
+		t.Parallel()
 		k := setup(t)
 		ts := stamp(time.Now())
 		writeLog(t, k,
@@ -118,6 +127,7 @@ func TestSkillsReport(t *testing.T) {
 	})
 
 	t.Run("zero-activation cross-reference against a fixture kit.yml", func(t *testing.T) {
+		t.Parallel()
 		k := setup(t)
 		k.KitYML(`global_skills:
   - fix-sizing
@@ -149,6 +159,7 @@ stacks:
 	})
 
 	t.Run("sessions with a suggested skill surfaced but never activated are reported", func(t *testing.T) {
+		t.Parallel()
 		k := setup(t)
 		k.KitYML(`global_skills: []
 skill_file_map: []
@@ -163,6 +174,7 @@ stacks:
 	})
 
 	t.Run("guards section counts each rule, its disabled hits, and the last time", func(t *testing.T) {
+		t.Parallel()
 		k := setup(t)
 		ts := stamp(time.Now())
 		writeLog(t, k, `{"ts":"`+ts+`","event":"PostToolUse","session_id":"s1","skill_file":"bash-patterns","tool_name":"Skill"}`)

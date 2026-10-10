@@ -35,6 +35,7 @@ func prose(n int) string { return strings.Repeat("a line of plain prose\n", n) }
 // rules/workflow.md section 1: a commit's message is shown before it runs,
 // so a commit whose subject no earlier turn showed gets a prompt.
 func TestGuardCommitAsksForAnUnshownMessage(t *testing.T) {
+	t.Parallel()
 	commit := func(k *Kit, transcript ...any) Result {
 		p := guardCommitPayload(`git commit -m "fix: add sums"`, "")
 		if transcript != nil {
@@ -60,6 +61,7 @@ func TestGuardCommitAsksForAnUnshownMessage(t *testing.T) {
 }
 
 func TestGuardCommit(t *testing.T) {
+	t.Parallel()
 	// Each test feeds a synthetic Bash payload (a git commit command) to the
 	// hook and asserts the exit code: 0 = allow, 2 = block.
 	for _, tc := range []struct {
@@ -149,6 +151,7 @@ func TestGuardCommit(t *testing.T) {
 	}
 
 	t.Run("allow: gitleaks not installed, scan is skipped silently", func(t *testing.T) {
+		t.Parallel()
 		k := New(t)
 		k.Setenv("PATH", t.TempDir())
 		r := k.Hook("guard-commit", `{"tool_input":{"command":"git commit -m \"feat: add foo\""}}`)
@@ -160,6 +163,7 @@ func TestGuardCommit(t *testing.T) {
 	})
 
 	t.Run("gitleaks is invoked against payload .cwd, not the hook's own cwd", func(t *testing.T) {
+		t.Parallel()
 		k := New(t)
 		stubs := t.TempDir()
 		calls := filepath.Join(stubs, "gitleaks.calls")

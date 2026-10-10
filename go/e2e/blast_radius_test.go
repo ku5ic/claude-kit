@@ -9,6 +9,7 @@ import (
 // `kit blast-radius`: consumers of a file across relative, alias,
 // workspace, and Python imports, split into source and test.
 func TestBlastRadius(t *testing.T) {
+	t.Parallel()
 	output := func(r Result) string { return strings.TrimRight(r.Output, "\n") }
 	// repo makes a git repo named name, the cwd of every run, and returns a
 	// writer for files in it (content plus a newline, like printf '%s\n').

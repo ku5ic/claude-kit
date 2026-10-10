@@ -12,6 +12,7 @@ import (
 // cover the version-gated fields (model, contextWindowSize, effort) that older
 // builds omit.
 func TestSubagentStatusline(t *testing.T) {
+	t.Parallel()
 	k := New(t)
 	// envelope wraps task objects in the payload Claude Code sends.
 	envelope := func(tasks ...string) string {

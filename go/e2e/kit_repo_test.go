@@ -17,6 +17,7 @@ import (
 // names exists, skill and agent frontmatter is valid, and two skills that
 // share a report shape still share it.
 func TestKitRepo(t *testing.T) {
+	t.Parallel()
 	t.Run("kit.yml holds only known keys", func(t *testing.T) {
 		_, warnings, err := config.Load(config.Paths{Base: filepath.Join(kitRoot, "kit.yml"), Overlay: filepath.Join(t.TempDir(), "none.yml")})
 		if err != nil || len(warnings) > 0 {

@@ -24,7 +24,9 @@ func (e *runChecksEnv) localTool(dir, name string) string {
 }
 
 func TestCIDiscovery(t *testing.T) {
+	t.Parallel()
 	t.Run("a tool a CI step runs directly runs when it resolves from the project", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("pyproject.toml", "[project]\nname = \"x\"\n")
 		pytest := e.localTool(".venv/bin", "pytest")
@@ -34,6 +36,7 @@ func TestCIDiscovery(t *testing.T) {
 		e.callsEqual("pytest", "pytest -q")
 	})
 	t.Run("a CI-only tool with no project copy is listed, not run", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("pyproject.toml", "[project]\nname = \"x\"\n")
 		e.stub("pytest", 0)
@@ -44,6 +47,7 @@ func TestCIDiscovery(t *testing.T) {
 		}
 	})
 	t.Run("a task CI runs is the project's task, run once", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"test":"vitest run"}}`+"\n")
 		e.stub("npm", 0)
@@ -55,6 +59,7 @@ func TestCIDiscovery(t *testing.T) {
 		e.callsEqual("npm", e.phys(".")+" run test")
 	})
 	t.Run("a CI tool line yields to the project task that fills its check", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"test":"vitest run"}}`+"\n")
 		e.localTool("node_modules/.bin", "vitest")
@@ -67,6 +72,7 @@ func TestCIDiscovery(t *testing.T) {
 		}
 	})
 	t.Run("a CI gate covers the toolchain check that stands in for its check", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("Cargo.toml", "[package]\nname = \"x\"\n")
 		e.stub("cargo", 0)
@@ -75,6 +81,7 @@ func TestCIDiscovery(t *testing.T) {
 		r.Has(t, "PASS rust: test (.github/workflows/ci.yml: cargo)", "SKIP rust: test (covered by rust: test (.github/workflows/ci.yml: cargo))")
 	})
 	t.Run("npx in CI reads as the tool, run from the project copy", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("package.json", "{}\n")
 		eslint := e.localTool("node_modules/.bin", "eslint")
@@ -83,6 +90,7 @@ func TestCIDiscovery(t *testing.T) {
 		e.callsEqual("eslint", "eslint .")
 	})
 	t.Run("jobs a laptop shouldn't repeat are skipped whole", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("pyproject.toml", "[project]\nname = \"x\"\n")
 		e.localTool(".venv/bin", "pytest")
@@ -120,6 +128,7 @@ func TestCIDiscovery(t *testing.T) {
 		}
 	})
 	t.Run("steps that use an action, deploy, publish, or need CI expressions are skipped", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("package.json", "{}\n")
 		e.localTool("node_modules/.bin", "eslint")
@@ -142,6 +151,7 @@ func TestCIDiscovery(t *testing.T) {
 		}
 	})
 	t.Run("gitlab: a job's extends template supplies its script", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("pyproject.toml", "[project]\nname = \"x\"\n")
 		e.localTool(".venv/bin", "pytest")
@@ -153,6 +163,7 @@ func TestCIDiscovery(t *testing.T) {
 		}
 	})
 	t.Run("workflow-level defaults.run.working-directory holds for every step", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("services/api/pyproject.toml", "[project]\nname = \"api\"\n")
 		e.localTool("services/api/.venv/bin", "pytest")
@@ -160,6 +171,7 @@ func TestCIDiscovery(t *testing.T) {
 		e.run().Has(t, "PASS python: test (.github/workflows/ci.yml: pytest) [services/api]")
 	})
 	t.Run("workflow-level secrets, OIDC, or a pwsh default shell skip it all", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("pyproject.toml", "[project]\nname = \"x\"\n")
 		e.localTool(".venv/bin", "pytest")
@@ -169,6 +181,7 @@ func TestCIDiscovery(t *testing.T) {
 		e.run().Lacks(t, ": pytest)")
 	})
 	t.Run("a path-qualified tool in CI runs from that path", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("package.json", "{}\n")
 		eslint := e.localTool("node_modules/.bin", "eslint")
@@ -176,6 +189,7 @@ func TestCIDiscovery(t *testing.T) {
 		e.run().Has(t, "PASS js: lint (.github/workflows/ci.yml: eslint)\n  bin: "+eslint+" (local)\n")
 	})
 	t.Run("gitlab: before_script and script run in one shell", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("tools/Makefile", "lint:\n\tgolangci-lint run\n")
 		e.write("go.mod", "module example.com/x\n")
@@ -183,6 +197,7 @@ func TestCIDiscovery(t *testing.T) {
 		e.run("--plan").Has(t, "RUN go: lint (lint) [tools]\n  cmd: make lint\n  dir: tools\n")
 	})
 	t.Run("working-directory files a step under its subproject", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("services/api/pyproject.toml", "[project]\nname = \"api\"\n")
 		e.localTool("services/api/.venv/bin", "pytest")

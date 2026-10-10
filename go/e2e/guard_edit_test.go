@@ -8,6 +8,7 @@ import (
 )
 
 func TestGuardEdit(t *testing.T) {
+	t.Parallel()
 	// Each test feeds a synthetic Edit payload to the hook and asserts the
 	// exit code: 0 = allow, 2 = block.
 	// A leading ~/ is the sandbox HOME.
@@ -44,6 +45,7 @@ func TestGuardEdit(t *testing.T) {
 		{"allow: requirements.txt is hand-edited", "/tmp/project/requirements.txt", 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			k := New(t)
 			path := tc.path
 			if rest, ok := strings.CutPrefix(path, "~/"); ok {
@@ -78,16 +80,19 @@ func TestGuardEdit(t *testing.T) {
 		r.Has(t, `"permissionDecision":"ask"`)
 	})
 	t.Run("ask: Edit a CI workflow, which rules/workflow.md says needs confirmation", func(t *testing.T) {
+		t.Parallel()
 		r := New(t).Hook("guard-edit", Payload("Edit", "/tmp/project/.github/workflows/ci.yml", "", ""))
 		r.Want(t, 0)
 		r.Has(t, `"permissionDecision":"ask"`, "CI workflow")
 	})
 	t.Run("allow: Read a CI workflow", func(t *testing.T) {
+		t.Parallel()
 		r := New(t).Hook("guard-edit", Payload("Read", "/tmp/project/.github/workflows/ci.yml", "", ""))
 		r.Want(t, 0)
 		r.Empty(t)
 	})
 	t.Run("ask: Write a new report-like file at the repo root; scratch is its place", func(t *testing.T) {
+		t.Parallel()
 		k := New(t)
 		repo := k.Repo(filepath.Join(t.TempDir(), "repo"))
 		Touch(t, filepath.Join(repo, "existing.md"))

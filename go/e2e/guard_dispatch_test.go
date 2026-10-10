@@ -23,6 +23,7 @@ const guardDispatchSkillMap = `skill_file_map:
 `
 
 func TestGuardDispatch(t *testing.T) {
+	t.Parallel()
 	// guard-dispatch is the single PreToolUse hook wired to Edit|Write|
 	// MultiEdit|Read. It runs guard-edit's and guard-skills' checks in
 	// declared order (edit-safety, then skills-gate), each isolated so one

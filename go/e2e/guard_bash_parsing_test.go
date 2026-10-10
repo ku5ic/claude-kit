@@ -12,7 +12,9 @@ import (
 // still reach its check, and data must not look like commands. One test,
 // so a failure lists every mismatch at once.
 func TestGuardBashParsing(t *testing.T) {
+	t.Parallel()
 	t.Run("parsing matrix: hidden commands are checked, data isn't", func(t *testing.T) {
+		t.Parallel()
 		k := New(t)
 		cwd := t.TempDir()
 		// probe reports a mismatch when cmd's verdict isn't want: block,

@@ -191,8 +191,10 @@ func (e *stopChecksEnv) finish(id, status string) {
 }
 
 func TestStopPlanDone(t *testing.T) {
+	t.Parallel()
 	const done = "## Steps\n\n- [x] 1. a\n- [x] 2. b\n"
 	t.Run("ticking the last step with no review since the last edit blocks once", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.turn("Edit", e.path("a.ts"))
 		e.turn("Edit", e.plan(done))
@@ -202,6 +204,7 @@ func TestStopPlanDone(t *testing.T) {
 		e.stop(true).Want(t, 0)
 	})
 	t.Run("a review after the last edit, even in an earlier turn, lets it through", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.turn("Edit", e.path("a.ts"))
 		e.review()
@@ -210,6 +213,7 @@ func TestStopPlanDone(t *testing.T) {
 		e.stop(false).Want(t, 0)
 	})
 	t.Run("a typed /code-review counts once its notification says completed", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.turn("Edit", e.path("a.ts"))
 		e.line(map[string]any{"type": "user", "message": map[string]any{"content": "/code-review high"}})
@@ -220,6 +224,7 @@ func TestStopPlanDone(t *testing.T) {
 		e.stop(false).Want(t, 0)
 	})
 	t.Run("a review that was stopped, or hasn't finished, doesn't count", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.turn("Edit", e.path("a.ts"))
 		e.review()
@@ -230,6 +235,7 @@ func TestStopPlanDone(t *testing.T) {
 		e.stop(false).Want(t, 2)
 	})
 	t.Run("an edit made while the review ran needs a new one", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.review()
 		e.turn("Edit", e.path("a.ts"))
@@ -238,6 +244,7 @@ func TestStopPlanDone(t *testing.T) {
 		e.stop(false).Want(t, 2)
 	})
 	t.Run("an edit after the review needs a new one", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.review()
 		e.finish("<tool-use-id>toolu_r1</tool-use-id>", "completed")
@@ -245,6 +252,7 @@ func TestStopPlanDone(t *testing.T) {
 		e.stop(false).Want(t, 2)
 	})
 	t.Run("a plan with an open step, or one ticked in an earlier turn, doesn't gate", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.turn("Edit", e.path("a.ts"))
 		e.turn("Edit", e.plan("## Steps\n\n- [x] 1. a\n- [ ] 2. b\n"))
@@ -268,13 +276,16 @@ func TestStopPlanDone(t *testing.T) {
 }
 
 func TestStopChecks(t *testing.T) {
+	t.Parallel()
 	t.Run("missing transcript runs nothing", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.stop(false).Want(t, 0)
 		e.noCalls()
 	})
 
 	t.Run("stop_hook_active lets the stop through even when checks would fail", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.turn("Edit", e.path("a.ts"))
 		Touch(t, e.path("fail"))
@@ -283,6 +294,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("an edit runs the check on only the edited file, from the signal directory", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.turn("Edit", e.path("a.ts"))
 		r := e.stop(false)
@@ -296,6 +308,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("kit explain stop names the binary's source", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.k.Dir = e.repo
 		r := e.k.Run("", "explain", "stop", e.path("a.ts"))
@@ -304,6 +317,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("several edited files go to one call, each file once", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.turn("Write", e.path("a.ts"), e.path("b.ts"), e.path("a.ts"))
 		r := e.stop(false)
@@ -312,6 +326,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("a failing check blocks with its output", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.turn("Edit", e.path("a.ts"))
 		Touch(t, e.path("fail"))
@@ -321,6 +336,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("a nested signal file groups its files and runs from there", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		Touch(t, e.path("packages/a/.fakelintrc"))
 		Write(t, e.path("packages/a/c.ts"), "x\n")
@@ -333,6 +349,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("{dirs} passes each edited file's directory once, relative to the signal", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.k.KitYML(`file_checks:
   - name: fakevet
@@ -349,6 +366,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("a word holding {files} repeats once per file, prefix kept", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.k.KitYML(`file_checks:
   - name: fakelint
@@ -363,6 +381,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("an & in a path survives the {files} substitution", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		Write(t, e.path("R&D/a.ts"), "x\n")
 		e.turn("Edit", e.path("R&D/a.ts"))
@@ -374,6 +393,7 @@ func TestStopChecks(t *testing.T) {
 	// jest and vitest declared, the package.json test script picks.
 
 	t.Run("a declared test runner runs the edited file's related tests", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.runner("vitest")
 		Write(t, e.path("package.json"), `{"devDependencies":{"vitest":"^4"},"scripts":{"test":"vitest run"}}`+"\n")
@@ -383,6 +403,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("with jest and vitest both declared, the test script picks the runner", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.runner("vitest")
 		e.runner("jest")
@@ -396,6 +417,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("the project's own test script carries its env and allow-listed flags", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.k.KitYML(stopChecksKitYML)
 		e.bin("jest", fmt.Sprintf("echo \"$PWD|NODE_ENV=$NODE_ENV jest $*\" >>%q\n", e.calls))
@@ -406,6 +428,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("a malformed package.json drops the test runners, not the other checks", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.runner("jest")
 		Write(t, e.path("package.json"), `{"devDependencies": {"jest": "^30",}}`+"\n")
@@ -415,6 +438,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("signal_toml claims a file when the pyproject table exists, else not", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.k.KitYML(`file_checks:
   - name: fakelint
@@ -432,6 +456,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("signal_toml walks past a nearer pyproject.toml without the table", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.k.KitYML(`file_checks:
   - name: fakelint
@@ -449,6 +474,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("a poetry project runs the bin from the environment poetry reports", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.usePMs()
 		Touch(t, e.path("poetry.lock"))
@@ -459,6 +485,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("a Yarn PnP project wraps the bin in yarn run", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.usePMs()
 		Touch(t, e.path(".pnp.cjs"))
@@ -468,6 +495,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("a package manager without the bin falls through to a skip", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.usePMs()
 		Touch(t, e.path(".pnp.cjs"), e.path("nopm"))
@@ -479,6 +507,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("a project-local bin wins over a package-manager environment", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.usePMs()
 		Touch(t, e.path(".pnp.cjs"))
@@ -489,6 +518,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("disabled_file_checks in the overlay turns a check off", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.k.Overlay("disabled_file_checks: [fakelint]\n")
 		e.turn("Edit", e.path("a.ts"))
@@ -497,6 +527,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("golangci-lint runs from the Go module, only with a .golangci config at or above it", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.k.KitYML("disabled_file_checks: [go-vet]\ntool_resolution:\n  path_fallback: [golangci-lint]\n")
 		Write(t, e.path("mod/go.mod"), "module example.com/m\n")
@@ -513,6 +544,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("a finding on a changed line blocks; one on an unchanged line doesn't", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.lintLines()
 		Write(t, e.path("a.sh"), "one\ntwo\nTHREE\n")
@@ -524,6 +556,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("findings only on unchanged lines pass, and say so", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.lintLines()
 		Write(t, e.path("a.sh"), "one\nTWO\nthree\n")
@@ -534,6 +567,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("every line of a file HEAD doesn't have counts as changed", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.lintLines()
 		e.k.Git(e.repo, "reset", "-q", "--soft", "HEAD~1")
@@ -544,6 +578,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("a failure the parser can't read blocks with the output tail", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.lintLines()
 		e.bin("shellcheck", "echo \"shellcheck: crashed\"\nexit 1\n")
@@ -555,6 +590,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("exclude_toml drops files matching the project's exclude regexes", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.oneCheck(`    exclude_toml: "pyproject.toml .tool.fake.exclude"`)
 		Write(t, e.path("pyproject.toml"), "[tool.fake]\nexclude = [\"^migrations/\", \"_gen\\\\.ts$\"]\n")
@@ -566,6 +602,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("exclude_toml takes a single-string exclude too", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.oneCheck(`    exclude_toml: "pyproject.toml .tool.fake.exclude"`)
 		Write(t, e.path("pyproject.toml"), "[tool.fake]\nexclude = \"^a\\\\.ts$\"\n")
@@ -575,6 +612,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("local_only skips a bin found only on PATH", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.oneCheck("    local_only: true")
 		e.fakelintOnPath()
@@ -586,6 +624,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("a bin found only on PATH, undeclared and unpinned, is skipped with the reason", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.oneCheck("")
 		e.fakelintOnPath()
@@ -597,6 +636,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("a declared but uninstalled bin is skipped with the install command, not run from PATH", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.oneCheck(stopChecksPMs)
 		Write(t, e.path("package.json"), `{"devDependencies":{"fakelint":"1.0.0"}}`+"\n")
@@ -609,6 +649,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("a pinned bin runs from the version manager's shims", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.oneCheck("tool_resolution:\n  pin_files: [.tool-versions]\n  manager_dirs: [\"$ASDF_DATA_DIR/shims\"]")
 		Write(t, e.path(".tool-versions"), "fakelint 1.0.0\n")
@@ -626,6 +667,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("a bin in path_fallback runs from PATH", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.oneCheck("tool_resolution:\n  path_fallback: [fakelint]")
 		e.fakelintOnPath()
@@ -637,6 +679,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("a gitignored file is not checked", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		Write(t, e.path(".gitignore"), "scratch/\n")
 		Write(t, e.path("scratch/tmp.ts"), "x\n")
@@ -646,6 +689,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("an edit outside the repo doesn't unignore the ones after it", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		Write(t, e.path(".gitignore"), "scratch/\n")
 		Write(t, e.path("scratch/tmp.ts"), "x\n")
@@ -657,6 +701,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("a file check without a cmd is skipped, not a crash", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.k.KitYML("file_checks:\n  - name: fakelint\n    ext: [ts]\n    signal_files: [.fakelintrc]\n    bin: fakelint\n")
 		e.turn("Edit", e.path("a.ts"))
@@ -666,6 +711,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("a block names why the skipped checks skipped", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.k.KitYML(stopChecksKitYML + "  - name: nocmd\n    ext: [ts]\n    signal_files: [.fakelintrc]\n    bin: fakelint\n")
 		Touch(t, e.path("fail"))
@@ -676,6 +722,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("a file no check claims runs nothing", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.turn("Write", e.path("notes.md"))
 		e.stop(false).Want(t, 0)
@@ -683,6 +730,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("a file without the signal above it runs nothing", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		if err := os.Remove(e.path(".fakelintrc")); err != nil {
 			t.Fatal(err)
@@ -693,6 +741,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("a missing binary is skipped, not failed", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		if err := os.Remove(e.path("node_modules/.bin/fakelint")); err != nil {
 			t.Fatal(err)
@@ -704,6 +753,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("a deleted file is not checked", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.turn("Edit", e.path("gone.ts"))
 		e.stop(false)
@@ -711,6 +761,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("an edit outside the repo checks nothing", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		x := filepath.Join(e.tmp, "elsewhere/x.ts")
 		Write(t, x, "x\n")
@@ -720,6 +771,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("edits committed in the turn skip the checks", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.turn("Edit", e.path("a.ts"))
 		// The hook's HOME: a developer's global excludes must not hide node_modules.
@@ -730,6 +782,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("a turn without edit tools skips the checks", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.turn("Read", e.path("a.ts"))
 		e.stop(false)
@@ -737,6 +790,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("an edit in an earlier turn does not count", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.turn("Edit", e.path("a.ts"))
 		e.turn("Read", e.path("a.ts"))
@@ -745,6 +799,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("a meta user entry does not start a new turn", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.turn("Edit", e.path("a.ts"))
 		e.line(map[string]any{"type": "user", "isMeta": true, "message": map[string]any{"content": "skill loaded"}})
@@ -755,6 +810,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("outside a git worktree exits clean", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.repo = filepath.Join(e.tmp, "plain")
 		Write(t, e.path("a.ts"), "x\n")
@@ -764,6 +820,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("a hung check times out as a skip, its children killed with it", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.k.KitYML(stopChecksKitYML + "check_timeout: 1\n")
 		pid := filepath.Join(e.tmp, "child.pid")
@@ -787,6 +844,7 @@ func TestStopChecks(t *testing.T) {
 	})
 
 	t.Run("checks run in parallel", func(t *testing.T) {
+		t.Parallel()
 		e := stopChecksSetup(t)
 		e.k.KitYML(stopChecksKitYML + "  - name: slowlint\n    ext: [ts]\n    signal_files: [.fakelintrc]\n    bin: slowlint\n    cmd: \"{bin} {files}\"\n")
 		for _, name := range []string{"fakelint", "slowlint"} {

@@ -10,6 +10,7 @@ import (
 // bash-dispatch runs guard-bash then guard-commit in one process: a block
 // from either exits 2, and asks from both print one decision object.
 func TestBashDispatch(t *testing.T) {
+	t.Parallel()
 	k := guardCommitStubbed(t, 0)
 	k.Hook("bash-dispatch", guardCommitPayload("rm -rf ~", "")).Want(t, 2)
 
@@ -32,6 +33,7 @@ func TestBashDispatch(t *testing.T) {
 
 // post-edit-dispatch runs sanitize-output before format-dispatch.
 func TestPostEditDispatch(t *testing.T) {
+	t.Parallel()
 	k := New(t)
 	k.Setenv("CLAUDE_SANITIZE_TYPOGRAPHY", "1")
 	file := filepath.Join(t.TempDir(), "notes.txt")

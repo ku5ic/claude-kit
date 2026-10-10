@@ -8,7 +8,9 @@ import (
 )
 
 func TestInjectSubagentContext(t *testing.T) {
+	t.Parallel()
 	t.Run("wraps the context in hookSpecificOutput, the only shape SubagentStart reads", func(t *testing.T) {
+		t.Parallel()
 		k := New(t)
 		proj := filepath.Join(t.TempDir(), "testproject")
 		Mkdir(t, proj)

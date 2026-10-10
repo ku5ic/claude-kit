@@ -109,8 +109,10 @@ func injectContextCopyRules(t *testing.T, dst string) {
 }
 
 func TestInjectContext(t *testing.T) {
+	t.Parallel()
 	tree := Tree(t)
 	t.Run("<required-skills> contains every global_skills entry", func(t *testing.T) {
+		t.Parallel()
 		e := injectContextSetup(t, tree)
 		e.kitYML("global_skills:\n  - fix-sizing\n  - context-gathering\nskill_triggers: {}\nstacks: {}\n")
 		e.writeCache("root: "+e.root, "js: yes")
@@ -120,6 +122,7 @@ func TestInjectContext(t *testing.T) {
 	})
 
 	t.Run("<suggested-skills> has one line per detected stack skill with its trigger phrase", func(t *testing.T) {
+		t.Parallel()
 		e := injectContextSetup(t, tree)
 		e.kitYML(`global_skills:
   - fix-sizing
@@ -196,6 +199,7 @@ stacks:
     skills: [go-patterns]
 `
 	t.Run("a subagent reuses its session's file scan; another session rescans", func(t *testing.T) {
+		t.Parallel()
 		e := injectContextSetup(t, tree)
 		e.kitYML(fileSkillsYML)
 		e.writeCache("root: "+e.root, "go: yes")
@@ -217,6 +221,7 @@ stacks:
 	})
 
 	t.Run("a kit.yml edit after the scan makes the session rescan", func(t *testing.T) {
+		t.Parallel()
 		e := injectContextSetup(t, tree)
 		e.kitYML("global_skills: []\nskill_triggers: {}\nstacks:\n  go:\n    skills: [go-patterns]\n")
 		e.writeCache("root: "+e.root, "go: yes")
@@ -236,6 +241,7 @@ stacks:
 	})
 
 	t.Run("outside a git work tree, a directory walk finds the files", func(t *testing.T) {
+		t.Parallel()
 		e := injectContextSetup(t, tree)
 		e.kitYML(fileSkillsYML + "skip_dirs: [node_modules, dist]\n")
 		e.writeCache("root: "+e.root, "go: yes")
@@ -254,6 +260,7 @@ stacks:
 	})
 
 	t.Run("a non-project context (home) produces no injection", func(t *testing.T) {
+		t.Parallel()
 		e := injectContextSetup(t, tree)
 		e.kitYML("global_skills:\n  - fix-sizing\n")
 		r := e.run("s1", e.Home)
@@ -262,6 +269,7 @@ stacks:
 	})
 
 	t.Run("a suggested skill logs a suggested-skill marker to skills.jsonl", func(t *testing.T) {
+		t.Parallel()
 		e := injectContextSetup(t, tree)
 		e.kitYML(`global_skills: []
 skill_triggers:
@@ -298,6 +306,7 @@ stacks:
 	// no repo-context, no required/suggested skills, no marker touch. Fixed by
 	// falling back to a "dirty-files: unknown" line instead of aborting.
 	t.Run("a non-git project root degrades to dirty-files: unknown instead of failing open", func(t *testing.T) {
+		t.Parallel()
 		e := injectContextSetup(t, tree)
 		nonGit := filepath.Join(e.tmp, "non-git-project")
 		Mkdir(t, nonGit)
@@ -313,6 +322,7 @@ stacks:
 	// kit itself needs no jq, yq, or bash 4.
 
 	t.Run("no tool prerequisites: stock bash with no jq or yq on PATH still gets context", func(t *testing.T) {
+		t.Parallel()
 		e := injectContextSetup(t, tree)
 		e.kitYML("global_skills:\n  - fix-sizing\n")
 		bin := filepath.Join(e.tmp, "git-only")
@@ -340,6 +350,7 @@ stacks:
 	})
 
 	t.Run("prereqs: a missing kit.yml gets a warning naming the plugin fix", func(t *testing.T) {
+		t.Parallel()
 		e := injectContextSetup(t, tree)
 		os.Remove(filepath.Join(e.Claude, "kit.yml"))
 		r := e.run("s1", "")
@@ -348,6 +359,7 @@ stacks:
 	})
 
 	t.Run("a kit.yml that fails to load is reported, since every guard then runs with no config", func(t *testing.T) {
+		t.Parallel()
 		e := injectContextSetup(t, tree)
 		e.kitYML("protected_branches: main\n")
 		e.Overlay("global_skills: [fix-sizing]\n")
@@ -369,6 +381,7 @@ stacks:
 	})
 
 	t.Run("an overlay that breaks the merge is reported to the user and to Claude, with the context intact", func(t *testing.T) {
+		t.Parallel()
 		e := injectContextSetup(t, tree)
 		e.kitYML("global_skills:\n  - fix-sizing\nprotected_branches: [main]\n")
 		e.Overlay("protected_branches: main\n")
@@ -394,6 +407,7 @@ stacks:
 	})
 
 	t.Run("a leftover install-rules.sh link is reported, since the rules would load twice", func(t *testing.T) {
+		t.Parallel()
 		e := injectContextSetup(t, tree)
 		clone := filepath.Join(e.tmp, "clone-rules")
 		injectContextCopyRules(t, clone)
@@ -406,6 +420,7 @@ stacks:
 	})
 
 	t.Run("a claude-kit link to an older clone missing a rule file is still reported", func(t *testing.T) {
+		t.Parallel()
 		e := injectContextSetup(t, tree)
 		partial := filepath.Join(e.tmp, "partial-rules")
 		injectContextCopyRules(t, partial)
@@ -419,12 +434,14 @@ stacks:
 	})
 
 	t.Run("a claude-kit dir holding none of the kit's rule files is not the kit's", func(t *testing.T) {
+		t.Parallel()
 		e := injectContextSetup(t, tree)
 		Write(t, filepath.Join(e.Claude, "rules", "claude-kit", "my-notes.md"), "mine\n")
 		e.run("s1", "").Lacks(t, "load twice")
 	})
 
 	t.Run("an unrelated rules dir missing one of the kit's rule files is not the kit's", func(t *testing.T) {
+		t.Parallel()
 		e := injectContextSetup(t, tree)
 		partial := filepath.Join(e.tmp, "partial-rules")
 		injectContextCopyRules(t, partial)
@@ -440,6 +457,7 @@ stacks:
 	// <tooling>: run forms from kit.yml's task_providers and toolchain_checks.
 
 	t.Run("tooling: a Python project's justfile recipes are listed as just <recipe>", func(t *testing.T) {
+		t.Parallel()
 		e := injectContextSetup(t, tree)
 		e.useRealKitYML()
 		Write(t, filepath.Join(e.root, "pyproject.toml"), "[project]\nname = \"x\"\n")
@@ -453,6 +471,7 @@ stacks:
 	})
 
 	t.Run("tooling: a Rust project lists only its toolchain checks", func(t *testing.T) {
+		t.Parallel()
 		e := injectContextSetup(t, tree)
 		e.useRealKitYML()
 		Write(t, filepath.Join(e.root, "Cargo.toml"), "[package]\nname = \"x\"\n")
@@ -469,6 +488,7 @@ stacks:
 	})
 
 	t.Run("tooling: an OpenTofu project gets {bin} filled, and validate only after init", func(t *testing.T) {
+		t.Parallel()
 		e := injectContextSetup(t, tree)
 		e.useRealKitYML()
 		Touch(t, filepath.Join(e.root, ".terraform.lock.hcl"))
@@ -493,6 +513,7 @@ stacks:
 	})
 
 	t.Run("tooling: lists exactly the toolchain checks run-checks runs", func(t *testing.T) {
+		t.Parallel()
 		e := injectContextSetup(t, tree)
 		e.kitYML(`toolchain_checks:
   - {stack: js, name: local, cmd: "{bin} --probe", bin: [fakefmt]}
@@ -523,6 +544,7 @@ stacks:
 	})
 
 	t.Run("tooling: leaves out toolchain checks run-checks disables or excludes", func(t *testing.T) {
+		t.Parallel()
 		e := injectContextSetup(t, tree)
 		e.kitYML(`checks:
   - {name: test, exclude_dirs: [e2e]}
@@ -557,6 +579,7 @@ stacks:
 	})
 
 	t.Run("tooling: lists the gates run-checks takes from CI config", func(t *testing.T) {
+		t.Parallel()
 		e := injectContextSetup(t, tree)
 		e.useRealKitYML()
 		Write(t, filepath.Join(e.root, "pyproject.toml"), "[project]\nname = \"x\"\n")
@@ -571,6 +594,7 @@ stacks:
 	})
 
 	t.Run("tooling: workspace packages get their own section with the root's package manager", func(t *testing.T) {
+		t.Parallel()
 		e := injectContextSetup(t, tree)
 		e.useRealKitYML()
 		Write(t, filepath.Join(e.root, "package.json"), `{"name":"root","scripts":{"lint":"eslint ."}}`+"\n")
@@ -589,6 +613,7 @@ stacks:
 	})
 
 	t.Run("tooling: tasks with no package manager get no package-manager guidance", func(t *testing.T) {
+		t.Parallel()
 		e := injectContextSetup(t, tree)
 		e.useRealKitYML()
 		Write(t, filepath.Join(e.root, "go.mod"), "module x\n\ngo 1.26\n")
@@ -599,6 +624,7 @@ stacks:
 		}
 	})
 	t.Run("tooling: a project with no providers or toolchain gets tools only, no tasks or guidance", func(t *testing.T) {
+		t.Parallel()
 		e := injectContextSetup(t, tree)
 		e.useRealKitYML()
 		r := e.run("s1", "")
@@ -615,6 +641,7 @@ stacks:
 	})
 
 	t.Run("tooling: tools are split into available and missing by PATH", func(t *testing.T) {
+		t.Parallel()
 		e := injectContextSetup(t, tree)
 		e.kitYML("tools: [jq, definitely-not-a-real-tool-xyz, git]\n")
 		r := e.run("s1", "")
@@ -628,6 +655,7 @@ stacks:
 	})
 
 	t.Run("tooling: no tools and no tasks means no block", func(t *testing.T) {
+		t.Parallel()
 		e := injectContextSetup(t, tree)
 		r := e.run("s1", "")
 		r.Want(t, 0)
@@ -635,6 +663,7 @@ stacks:
 	})
 
 	t.Run("repo-context names the scratch dir without creating it", func(t *testing.T) {
+		t.Parallel()
 		e := injectContextSetup(t, tree)
 		e.writeCache("root: "+e.root, "js: yes")
 		r := e.run("s1", "")

@@ -29,7 +29,9 @@ func wantVerdicts(t *testing.T, r Result, want ...string) {
 }
 
 func TestTypicalProjects(t *testing.T) {
+	t.Parallel()
 	t.Run("js: scripts, an aggregate ci script, and a CI workflow", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"dev":"vite","build":"vite build","lint":"eslint .","typecheck":"tsc --noEmit",`+
 			`"format":"prettier --write .","format:check":"prettier --check .","test":"vitest run","test:watch":"vitest",`+
@@ -49,6 +51,7 @@ func TestTypicalProjects(t *testing.T) {
 			"SKIP js: deadcode (covered by js: deadcode (knip))")
 	})
 	t.Run("python: pdm scripts, uv-free", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("pyproject.toml", "[project]\nname = \"x\"\n\n[tool.pdm.scripts]\nlint = \"ruff check .\"\ntypecheck = \"mypy src\"\n"+
 			"format-check = \"ruff format --check .\"\ntest = \"pytest\"\ndeadcode = \"vulture src\"\n")
@@ -65,6 +68,7 @@ func TestTypicalProjects(t *testing.T) {
 			"SKIP python: deadcode (covered by python: deadcode (deadcode))")
 	})
 	t.Run("ruby: rake lint and test", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("Gemfile", "source 'https://rubygems.org'\n")
 		e.write("Rakefile", "task :lint do\nend\n\ntask :test do\nend\n")
@@ -77,6 +81,7 @@ func TestTypicalProjects(t *testing.T) {
 			"SKIP ruby: deadcode (no deadcode task)")
 	})
 	t.Run("go: a Makefile with lint, fmt-check, and test", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("go.mod", "module example.com/x\n")
 		e.write("Makefile", "lint:\n\tgolangci-lint run ./...\n\nfmt-check:\n\ttest -z \"$$(gofmt -l .)\"\n\ntest:\n\tgo test ./...\n")
@@ -93,6 +98,7 @@ func TestTypicalProjects(t *testing.T) {
 			"SKIP go: deadcode (deadcode not installed)")
 	})
 	t.Run("rust: Cargo.toml alone gets cargo's own checks", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("Cargo.toml", "[package]\nname = \"x\"\n")
 		e.stub("cargo", 0)
@@ -103,6 +109,7 @@ func TestTypicalProjects(t *testing.T) {
 			"PASS rust: test")
 	})
 	t.Run("opentofu: fmt runs, validate waits for init", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write(".terraform.lock.hcl", "")
 		e.write("main.tf", "terraform {}\n")
@@ -112,6 +119,7 @@ func TestTypicalProjects(t *testing.T) {
 			"SKIP opentofu: validate (no .terraform/ yet)")
 	})
 	t.Run("docker: a Dockerfile alone has no gates", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("Dockerfile", "FROM alpine\n")
 		r := e.run()
