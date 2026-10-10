@@ -131,6 +131,41 @@ func Each(path string, fn func(Entry)) error {
 	return scanner.Err()
 }
 
+// Load is every parseable entry of the transcript at path, in order: one
+// read for a hook that asks it several questions.
+func Load(path string) ([]Entry, error) {
+	var entries []Entry
+	err := Each(path, func(e Entry) { entries = append(entries, e) })
+	return entries, err
+}
+
+// LastTurn is the entries after the last real user prompt; all of them
+// when there is none.
+func LastTurn(entries []Entry) []Entry {
+	for i := len(entries) - 1; i >= 0; i-- {
+		if entries[i].StartsTurn() {
+			return entries[i+1:]
+		}
+	}
+	return entries
+}
+
+// Edits is the file each write tool call in entries targets, in order.
+func Edits(entries []Entry) []string {
+	var paths []string
+	for _, e := range entries {
+		if e.Type != "assistant" {
+			continue
+		}
+		for _, b := range e.ToolUses() {
+			if slices.Contains(EditTools, b.Name) {
+				paths = append(paths, b.Path())
+			}
+		}
+	}
+	return paths
+}
+
 // Tail is the parsed entries among the last n lines of the transcript,
 // reading only its final 4MB. Line stays 0: the start isn't read.
 func Tail(path string, n int) ([]Entry, error) {

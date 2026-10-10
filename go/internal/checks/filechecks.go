@@ -15,31 +15,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/proc"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/tools"
-	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
-
-// EditedFiles lists the file_path (or notebook_path) of every Edit, Write,
-// MultiEdit, and NotebookEdit call in the last turn of a transcript: the
-// entries after the last real user prompt. A tool result is not a prompt;
-// neither is a meta entry.
-func EditedFiles(path string) ([]string, error) {
-	var edited []string
-	err := transcript.Each(path, func(e transcript.Entry) {
-		if e.StartsTurn() {
-			edited = edited[:0]
-			return
-		}
-		if e.Type != "assistant" {
-			return
-		}
-		for _, b := range e.ToolUses() {
-			if slices.Contains(transcript.EditTools, b.Name) {
-				edited = append(edited, b.Path())
-			}
-		}
-	})
-	return edited, err
-}
 
 // Group is one planned check run: the files an adapter claims under one
 // directory, which is where it runs, and the command (nil when the tool

@@ -10,6 +10,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
 // StopChecks is the Stop hook: when the turn created or edited files through
@@ -29,8 +30,8 @@ func StopChecks(h *hook.Hook) error {
 		return nil
 	}
 	cwd := h.Payload.Cwd()
-	transcript := h.Payload.String("transcript_path")
-	if !fsx.IsFile(transcript) {
+	path := h.Payload.String("transcript_path")
+	if !fsx.IsFile(path) {
 		return nil
 	}
 	root := project.Toplevel(cwd) // "" outside a work tree
@@ -38,9 +39,11 @@ func StopChecks(h *hook.Hook) error {
 	if root == "" || cfg == nil {
 		return nil
 	}
+	// A read error leaves what was read: the hook fails open.
+	entries, _ := transcript.Load(path)
 	// Before the clean-tree return: plans are gitignored, so ticking the
 	// last step leaves the tree clean.
-	if err := planGate(h, cfg, cwd, root, transcript); err != nil {
+	if err := planGate(h, cfg, cwd, root, entries); err != nil {
 		return err
 	}
 	// A clean tree means the edits were committed, which already went
@@ -48,8 +51,8 @@ func StopChecks(h *hook.Hook) error {
 	if changes, err := git.Status(cwd, false); err != nil || len(changes) == 0 {
 		return nil
 	}
-	edited, err := checks.EditedFiles(transcript)
-	if err != nil || len(edited) == 0 {
+	edited := transcript.Edits(transcript.LastTurn(entries))
+	if len(edited) == 0 {
 		return nil
 	}
 	out := checks.FileChecks(cfg, root, cwd, edited)
@@ -67,7 +70,7 @@ func StopChecks(h *hook.Hook) error {
 
 // planGate blocks the stop when this turn ticked a plan's last step without
 // a review since the last code edit.
-func planGate(h *hook.Hook, cfg *config.Config, cwd, root, transcript string) error {
+func planGate(h *hook.Hook, cfg *config.Config, cwd, root string, entries []transcript.Entry) error {
 	dir, err := project.Dir(cfg, h.Paths, cwd, "plans", false)
 	if err != nil {
 		return nil
@@ -76,7 +79,7 @@ func planGate(h *hook.Hook, cfg *config.Config, cwd, root, transcript string) er
 		return strings.HasPrefix(fsx.PhysicalPath(path), root+"/") && !project.IsScratch(h.Paths, path)
 	}
 	// A finished plan waits for /code-review since the last code edit (rules/verify.md).
-	if plan, reviewed := planDone(transcript, dir, isCode); plan != "" && !reviewed {
+	if plan, reviewed := planDone(entries, dir, isCode); plan != "" && !reviewed {
 		return h.Block(fmt.Sprintf("plan %s is done, but /code-review hasn't finished since the last code edit. Run it now, or wait for the one running, then the runtime pass (/verify) when the change has observable behavior.", project.Rel(root, plan)), "plan-done")
 	}
 	return nil

@@ -69,3 +69,24 @@ func TestPromptTextAndTail(t *testing.T) {
 		t.Error("missing file: no error")
 	}
 }
+
+func TestLastTurnEdits(t *testing.T) {
+	path := write(t,
+		`{"type":"user","message":{"content":"first"}}`,
+		`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Edit","input":{"file_path":"/old.go"}}]}}`,
+		`{"type":"user","message":{"content":"second"}}`,
+		`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Write","input":{"file_path":"/a.go"}},{"type":"tool_use","name":"Read","input":{"file_path":"/r.go"}}]}}`,
+		`{"type":"user","message":{"content":[{"type":"tool_result","content":"ok"}]}}`,
+		`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"NotebookEdit","input":{"notebook_path":"/b.ipynb"}}]}}`,
+	)
+	entries, err := Load(path)
+	if err != nil || len(entries) != 6 {
+		t.Fatalf("Load: %d entries, %v", len(entries), err)
+	}
+	if got := Edits(LastTurn(entries)); !slices.Equal(got, []string{"/a.go", "/b.ipynb"}) {
+		t.Errorf("last turn's edits = %q", got)
+	}
+	if got := Edits(entries); !slices.Equal(got, []string{"/old.go", "/a.go", "/b.ipynb"}) {
+		t.Errorf("all edits = %q", got)
+	}
+}
