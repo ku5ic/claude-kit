@@ -189,6 +189,7 @@ func TestVerification(t *testing.T) {
 	strayed := entry("types", "tsc --noEmit")
 	badKind := entry("check", "make check")
 	aggregate := entry("all", "make lint\nmake test")
+	blank := entry("both", "eslint . && eslint . --fix")
 	f.answer(map[string]any{
 		"entries": []any{
 			verdict(ci, map[string]any{"role": "check", "kind": "lint", "mutates": false, "file_form": "pnpm exec eslint --max-warnings=0 {files}", "segments": []any{
@@ -201,6 +202,10 @@ func TestVerification(t *testing.T) {
 			verdict(strayed, map[string]any{"role": "check", "kind": "typecheck", "mutates": false, "segments": []any{map[string]any{"text": "tsc -b", "role": "check", "kind": "typecheck"}}}),
 			verdict(badKind, map[string]any{"role": "check", "kind": "style", "mutates": false}),
 			verdict(aggregate, map[string]any{"role": "check", "mutates": false}),
+			verdict(blank, map[string]any{"role": "check", "mutates": false, "segments": []any{
+				map[string]any{"text": "eslint .", "role": "check", "kind": "lint"},
+				map[string]any{"text": " ", "role": "check", "kind": "lint"},
+			}}),
 		},
 		"managers": []any{
 			map[string]any{"dir": ".", "cites": "pnpm-lock.yaml", "manager": "pnpm", "run_prefix": "pnpm exec", "add_verbs": []string{"pnpm add"}, "dlx": "pnpm dlx", "dir_flags": []string{"--filter"}, "rivals": []string{"npm"}},
@@ -212,7 +217,7 @@ func TestVerification(t *testing.T) {
 			map[string]any{"role": "check", "kind": "security", "command": "gitleaks detect", "dir": ".", "evidence": ".gitleaks.toml", "mutates": false},
 		},
 	})
-	r := f.run(ci, fetch, invent, strayed, badKind, aggregate)
+	r := f.run(ci, fetch, invent, strayed, badKind, aggregate, blank)
 	if v, ok := r.Verdicts[Key(aggregate)]; !ok || v.Role != "check" {
 		t.Errorf("an aggregate is a check of no one kind: %+v", r.Skipped[Key(aggregate)])
 	}
@@ -232,6 +237,10 @@ func TestVerification(t *testing.T) {
 	}
 	if why := r.Skipped[Key(badKind)]; why != `rejected (check kind "style")` {
 		t.Errorf("bad kind: %q", why)
+	}
+	// An empty segment is in every body, and would hold every statement.
+	if why := r.Skipped[Key(blank)]; why != `rejected (segment " " is empty)` {
+		t.Errorf("empty segment: %q", why)
 	}
 	if len(r.Managers) != 1 || r.Managers[0].Manager != "pnpm" {
 		t.Errorf("only the manager whose lockfile exists stands: %+v", r.Managers)

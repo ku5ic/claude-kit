@@ -175,21 +175,26 @@ func (b *builder) fansOut(body string) bool {
 	return slices.ContainsFunc(r.Commands, func(c classify.Command) bool { return c.Kind == classify.FanOut })
 }
 
-// segmentKind is the check kind of the segment of v holding stmt; for a
-// body of one statement, v's own. isCheck is false for a segment that isn't
-// a check, and for a statement no segment holds.
+// segmentKind is the check kind of the segment of v closest to stmt: the
+// one it is, else the nearest in length that holds it or that it holds; for
+// a body of one statement, v's own. isCheck is false for a segment that
+// isn't a check, and for a statement no segment holds.
 func segmentKind(v gapfill.Verdict, stmt string, statements int) (kind string, isCheck bool) {
 	if len(v.Segments) == 0 && statements == 1 {
 		return v.Kind, v.Role == "check"
 	}
 	text := strings.Join(strings.Fields(stmt), " ")
+	best := -1
 	for _, s := range v.Segments {
 		seg := strings.Join(strings.Fields(s.Text), " ")
-		if seg == text || strings.Contains(seg, text) || strings.Contains(text, seg) {
-			return s.Kind, s.Role == "check"
+		if seg == "" || !strings.Contains(seg, text) && !strings.Contains(text, seg) {
+			continue
+		}
+		if d := max(len(seg)-len(text), len(text)-len(seg)); best < 0 || d < best {
+			best, kind, isCheck = d, s.Kind, s.Role == "check"
 		}
 	}
-	return "", false
+	return kind, isCheck
 }
 
 // checks is true when v is a check, itself or in a segment.

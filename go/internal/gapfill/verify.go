@@ -142,6 +142,9 @@ func (f forms) verdict(e sources.Entry, v Verdict) (Verdict, []string, error) {
 		if err := checkRole(s.Role, s.Kind); err != nil {
 			return v, nil, fmt.Errorf("segment %q: %w", s.Text, err)
 		}
+		if strings.TrimSpace(s.Text) == "" {
+			return v, nil, fmt.Errorf("segment %q is empty", s.Text)
+		}
 		if !strings.Contains(body, strings.Join(strings.Fields(s.Text), " ")) {
 			return v, nil, fmt.Errorf("segment %q isn't in the body", s.Text)
 		}
