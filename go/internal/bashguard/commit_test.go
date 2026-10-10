@@ -240,4 +240,16 @@ func TestGuardCommitScansTheStagedDiff(t *testing.T) {
 			t.Errorf("gitleaks runs %q lack %q", runs, fixture)
 		}
 	})
+
+	// No $ in the name: the stub's calls path is under t.TempDir, in a shell string.
+	t.Run("git -C naming home as a variable is scanned at home, not the cwd", func(t *testing.T) {
+		for _, dir := range []string{"$HOME", "${HOME}/"} {
+			calls := gitleaksStub(t, 0)
+			k := newSandbox(t)
+			k.commit(t.TempDir(), "git -C "+dir+" commit -m test").Want(t, 0)
+			if runs := strings.Join(testutil.Calls(t, calls), "\n"); !strings.Contains(runs, k.home) {
+				t.Errorf("%s: gitleaks runs %q lack %q", dir, runs, k.home)
+			}
+		}
+	})
 }

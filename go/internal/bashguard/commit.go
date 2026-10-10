@@ -12,6 +12,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/enforce"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
+	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/md"
 	"github.com/ku5ic/claude-kit/go/internal/proc"
@@ -44,11 +45,11 @@ func CheckCommit(h *hook.Hook) error {
 		return nil
 	}
 	// The repo it commits to: its git -C directory, else the cwd. An
-	// expansion can't be resolved here; most name the cwd's repo ("$PWD",
-	// "$(git rev-parse --show-toplevel)").
+	// expansion other than $HOME can't be resolved here; most name the cwd's
+	// repo ("$PWD", "$(git rev-parse --show-toplevel)").
 	repo := h.Payload.Cwd()
-	if !strings.ContainsAny(c.dir, "$`") {
-		repo = resolveDir(h.Home, repo, c.dir)
+	if dir := guard.ExpandHome(h.Home, c.dir); !strings.ContainsAny(dir, "$`") {
+		repo = resolveDir(h.Home, repo, dir)
 	}
 
 	// Line by line, as grep: the trailer sits on a line of its own. The

@@ -162,13 +162,10 @@ func rcRedirect(cfg *config.Config, home string) *regexp.Regexp {
 	return regexp.MustCompile(`>+[[:space:]]*(\$HOME|\$\{HOME\}|~|` + regexp.QuoteMeta(home) + `)/(` + strings.Join(alts, "|") + `)([[:space:]]|$)`)
 }
 
-// resolveDir resolves dir (relative or ~-prefixed) against base, physically
-// when it exists, so it compares equal to git's toplevel.
+// resolveDir resolves dir (relative, or under ~ or $HOME) against base,
+// physically when it exists, so it compares equal to git's toplevel.
 func resolveDir(home, base, dir string) string {
-	if strings.HasPrefix(dir, "~") {
-		dir = home + dir[1:]
-	}
-	dir = fsx.Abs(base, dir)
+	dir = fsx.Abs(base, guard.ExpandHome(home, dir))
 	if real, err := filepath.EvalSymlinks(dir); err == nil {
 		return real
 	}
