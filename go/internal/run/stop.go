@@ -2,6 +2,7 @@ package run
 
 import (
 	"fmt"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -29,8 +30,9 @@ func (c Checked) Notice() string {
 	return "stop " + strings.TrimSuffix(c.summary, "\n") + "\n  " + indented
 }
 
-// Files runs p's gates, the Stop hook's checks of the turn's edits, all at
-// once, each killed with its children once timeout passes. A gate of a
+// Files runs p's gates, the Stop hook's checks of the turn's edits, one per
+// CPU at a time so they don't starve each other into timeouts, each killed
+// with its children once timeout passes. A gate of a
 // lint-like kind fails only on findings on lines changed since HEAD in the
 // files it checked; any other on any failure. A snapshot around the batch
 // catches a gate that changed files: the block names them, and the gates
@@ -39,9 +41,12 @@ func Files(p enforce.Plan, cacheDir string, timeout time.Duration) Checked {
 	before, _ := git.Snapshot(p.Root)
 	results := make([]outcome, len(p.Gates))
 	var wg sync.WaitGroup
+	slots := make(chan struct{}, runtime.NumCPU())
 	for i, g := range p.Gates {
 		if g.Skip == "" {
 			wg.Go(func() {
+				slots <- struct{}{}
+				defer func() { <-slots }()
 				// A panic here would exit 2, which Claude Code reads as a
 				// block; the hook's recover can't reach this goroutine.
 				defer func() {

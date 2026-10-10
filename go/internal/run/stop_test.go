@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -148,6 +149,31 @@ func TestChecksRunInParallel(t *testing.T) {
 	}
 	out := r.stop(r.check("a", "test", wait("a", "b")), r.check("b", "test", wait("b", "a")))
 	has(t, out.Report(), "PASS a\n", "PASS b\n")
+}
+
+// More gates than CPUs: each counts the gates running beside it, and none
+// sees more than a CPU's worth.
+func TestChecksRunAtMostOnePerCPU(t *testing.T) {
+	t.Parallel()
+	r := newRepo(t, "repo")
+	running := filepath.Join(r.aside, "running")
+	testutil.Mkdir(t, running)
+	var gates []enforce.Gate
+	for i := range runtime.NumCPU() + 1 {
+		me := filepath.Join(running, strconv.Itoa(i))
+		count := filepath.Join(r.aside, "count-"+strconv.Itoa(i))
+		gates = append(gates, r.check(strconv.Itoa(i), "test", fmt.Sprintf("touch %s; sleep 0.3; ls %s | wc -l > %s; rm %s", me, running, count, me)))
+	}
+	r.stop(gates...)
+	for i := range len(gates) {
+		data, err := os.ReadFile(filepath.Join(r.aside, "count-"+strconv.Itoa(i)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n, _ := strconv.Atoi(strings.TrimSpace(string(data))); n > runtime.NumCPU() {
+			t.Errorf("gate %d saw %d running, want at most %d", i, n, runtime.NumCPU())
+		}
+	}
 }
 
 func TestACheckThatChangesFilesBlocksAndIsMarked(t *testing.T) {
