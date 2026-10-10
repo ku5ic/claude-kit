@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-// Characterization tests for `kit scratch-dir` and `kit plans-dir`: the
+// Characterization tests for `kit scratch-dir`: the
 // project tier inside a git repo, the home fallback outside one.
 func TestScratchDir(t *testing.T) {
 	t.Parallel()
@@ -100,28 +100,6 @@ func TestScratchDir(t *testing.T) {
 			t.Error("home tier was registered")
 		}
 	})
-	t.Run("kit plans-dir inside a repo prints and creates the project tier", func(t *testing.T) {
-		t.Parallel()
-		k, repo, _ := setup(t)
-		cd(k, filepath.Join(repo, "src"))
-		r := k.Run("", "plans-dir")
-		r.Want(t, 0)
-		if got, want := output(r), filepath.Join(repo, ".claude/plans"); got != want {
-			t.Errorf("got %q, want %q", got, want)
-		}
-		if !isDir(filepath.Join(repo, ".claude/plans")) {
-			t.Error("project plans not created")
-		}
-	})
-	t.Run("kit plans-dir registers nothing", func(t *testing.T) {
-		t.Parallel()
-		k, repo, _ := setup(t)
-		cd(k, repo)
-		k.Run("", "plans-dir")
-		if Exists(filepath.Join(k.Claude, "logs/scratch-registry.txt")) {
-			t.Error("plans-dir registered something")
-		}
-	})
 	t.Run("CLAUDE_CONFIG_DIR relocates the fallback and the registry", func(t *testing.T) {
 		t.Parallel()
 		k, repo, outside := setup(t)
@@ -140,16 +118,6 @@ func TestScratchDir(t *testing.T) {
 		}
 		if Exists(filepath.Join(k.Claude, "logs/scratch-registry.txt")) {
 			t.Error("registered under HOME despite CLAUDE_CONFIG_DIR")
-		}
-	})
-	t.Run("kit plans-dir outside a project falls back to home", func(t *testing.T) {
-		t.Parallel()
-		k, _, outside := setup(t)
-		cd(k, outside)
-		r := k.Run("", "plans-dir")
-		r.Want(t, 0)
-		if got, want := output(r), filepath.Join(k.Home, ".claude/plans"); got != want {
-			t.Errorf("got %q, want %q", got, want)
 		}
 	})
 }

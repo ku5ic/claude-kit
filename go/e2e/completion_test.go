@@ -53,7 +53,6 @@ complete_words blast-radius f`)
 		r.Want(t, 0)
 		r.Has(t, "#compdef kit", "compdef _kit kit",
 			"'explain:why a guard or the Stop hook decides what it does; logs, blocks, and runs nothing'",
-			"'agent-context:a subagent'\\''s startup context'",
 			"'run-checks:every declared check, in every subproject; exits with the failure count. --plan lists them, with commands, without running any'",
 			"'git-base'\n",
 			"blast-radius) _files ;;",

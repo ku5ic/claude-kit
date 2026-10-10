@@ -16,7 +16,6 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
-	"github.com/ku5ic/claude-kit/go/internal/a11y"
 	"github.com/ku5ic/claude-kit/go/internal/blast"
 	"github.com/ku5ic/claude-kit/go/internal/checks"
 	"github.com/ku5ic/claude-kit/go/internal/config"
@@ -24,10 +23,8 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/explain"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/gitbase"
-	"github.com/ku5ic/claude-kit/go/internal/hooks"
 	"github.com/ku5ic/claude-kit/go/internal/kitcmd"
 	"github.com/ku5ic/claude-kit/go/internal/project"
-	"github.com/ku5ic/claude-kit/go/internal/report"
 	"github.com/ku5ic/claude-kit/go/internal/rotate"
 	"github.com/ku5ic/claude-kit/go/internal/status"
 )
@@ -122,9 +119,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	cfg, err := e.config()
-	// A report reads logs first; without kit.yml it skips the sections that
-	// need it rather than failing.
-	if err != nil && name != "skills-report" {
+	if err != nil {
 		fmt.Fprintln(stderr, "kit:", err)
 		return 1
 	}
@@ -133,27 +128,17 @@ func run(args []string, stdout, stderr io.Writer) int {
 
 // configCommands are the commands that read kit.yml.
 var configCommands = map[string]func(*env, *config.Config, []string) int{
-	"subprojects":   cmdSubprojects,
-	"tasks":         cmdTasks,
-	"project-root":  cmdProjectRoot,
-	"project-name":  cmdProjectName,
-	"scratch-dir":   cmdScratchDir,
-	"plans-dir":     cmdPlansDir,
-	"detect-stack":  cmdDetectStack,
-	"run-checks":    cmdRunChecks,
-	"skills-report": cmdSkillsReport,
+	"subprojects":  cmdSubprojects,
+	"tasks":        cmdTasks,
+	"project-root": cmdProjectRoot,
+	"scratch-dir":  cmdScratchDir,
+	"detect-stack": cmdDetectStack,
+	"run-checks":   cmdRunChecks,
 	"blast-radius": func(e *env, cfg *config.Config, args []string) int {
 		return blast.Run(cfg, args, e.stdout, e.stderr)
 	},
-	"a11y-check": func(e *env, cfg *config.Config, args []string) int {
-		return a11y.Run(cfg, e.paths, e.cwd, args, e.stdout, e.stderr)
-	},
 	"explain": func(e *env, cfg *config.Config, args []string) int {
 		return explain.Run(e.paths, cfg, e.cwd, args, e.stdout, e.stderr)
-	},
-	"agent-context": func(e *env, cfg *config.Config, _ []string) int {
-		fmt.Fprint(e.stdout, hooks.AgentContext(e.paths, cfg, e.cwd, ""))
-		return 0
 	},
 }
 
@@ -192,15 +177,6 @@ func cmdScratchRotate(e *env, args []string) int {
 		return 2
 	}
 	return rotate.Run(e.paths, days, dryRun, e.stdout, e.stderr)
-}
-
-// cmdSkillsReport runs with a nil cfg when kit.yml can't load.
-func cmdSkillsReport(e *env, cfg *config.Config, args []string) int {
-	days, ok := parseDays("skills-report", first(args), e.stderr)
-	if !ok {
-		return 2
-	}
-	return report.Run(cfg, e.paths, days, e.stdout)
 }
 
 // parseRunChecksArgs reads [--plan] [--only sub...]. Anything else is an
@@ -288,12 +264,6 @@ func cmdProjectRoot(e *env, cfg *config.Config, args []string) int {
 	return 0
 }
 
-func cmdProjectName(e *env, cfg *config.Config, _ []string) int {
-	root, _ := project.Root(cfg, e.cwd)
-	fmt.Fprintln(e.stdout, project.Name(root))
-	return 0
-}
-
 func cmdScratchDir(e *env, cfg *config.Config, args []string) int {
 	dir, err := project.Dir(cfg, e.paths, e.cwd, "scratch", true)
 	if err != nil {
@@ -309,16 +279,6 @@ func cmdScratchDir(e *env, cfg *config.Config, args []string) int {
 		slug = args[1]
 	}
 	fmt.Fprintln(e.stdout, project.ReportPath(dir, args[0], slug, time.Now().Format("20060102-1504")))
-	return 0
-}
-
-func cmdPlansDir(e *env, cfg *config.Config, _ []string) int {
-	dir, err := project.Dir(cfg, e.paths, e.cwd, "plans", true)
-	if err != nil {
-		fmt.Fprintln(e.stderr, "kit plans-dir:", err)
-		return 1
-	}
-	fmt.Fprintln(e.stdout, dir)
 	return 0
 }
 

@@ -494,7 +494,7 @@ tool_resolution:
     - "$XDG_DATA_HOME/mise/installs"
     - "~/.local/share/mise/shims"
     - "~/.local/share/mise/installs"
-  bin_packages: {biome: "@biomejs/biome", tsc: typescript, axe: "@axe-core/cli"}
+  bin_packages: {biome: "@biomejs/biome", tsc: typescript}
   install:
     npm: npm install
     pnpm: pnpm install

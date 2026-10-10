@@ -12,8 +12,8 @@ type Command struct {
 	Name, Args, Desc string
 	Words            []string // completion words for its first argument
 	Path             string   // its argument is a path: "file" or "dir"
-	// ReadOnly: it only reads state or creates the scratch and plans
-	// directories, so a lone call needs no permission prompt. Never
+	// ReadOnly: it only reads state or creates the scratch
+	// directory, so a lone call needs no permission prompt. Never
 	// run-checks: it runs project scripts.
 	ReadOnly bool
 }
@@ -23,17 +23,12 @@ var Commands = []Command{
 	{Name: "subprojects", Args: "[root]", Desc: `".", then each subproject directory, sorted`, Path: "dir"},
 	{Name: "tasks", Args: "[dir]", Desc: "provider, stack, task, command (tab-separated)", Path: "dir"},
 	{Name: "project-root", Args: "[--check]", Desc: "the project root; --check: exit 1 if unanchored", Words: []string{"--check"}, ReadOnly: true},
-	{Name: "project-name", Desc: "slug-safe project identifier", ReadOnly: true},
 	{Name: "scratch-dir", Args: "[kind [slug]]", Desc: "scratch directory, or a report path in it", ReadOnly: true},
-	{Name: "plans-dir", Desc: "plans directory", ReadOnly: true},
 	{Name: "detect-stack", Desc: "compact stack report", ReadOnly: true},
-	{Name: "agent-context", Desc: "a subagent's startup context"},
 	{Name: "run-checks", Args: "[--plan] [--only sub...]", Desc: "every declared check, in every subproject;\nexits with the failure count. --plan lists\nthem, with commands, without running any", Words: []string{"--plan", "--only"}},
 	{Name: "git-base", Args: "[--diff|--log] [base] [flags] [-- paths]", Words: []string{"--diff", "--log"}, ReadOnly: true},
 	{Name: "explain", Args: "bash|edit|stop ...", Desc: "why a guard or the Stop hook decides what it\ndoes; logs, blocks, and runs nothing", Words: []string{"bash", "edit", "stop"}},
 	{Name: "blast-radius", Args: "<file> [symbol]", Desc: "the files that import <file>", Path: "file", ReadOnly: true},
-	{Name: "a11y-check", Args: "<url>", Desc: "digest of axe violations on a running page"},
-	{Name: "skills-report", Args: "[days]", Desc: "skill activation telemetry from skills.jsonl", ReadOnly: true},
 	{Name: "scratch-rotate", Args: "[days] [--dry-run]", Desc: "prune old scratch artifacts and caches", Words: []string{"--dry-run"}},
 	{Name: "hook", Args: "<name>", Desc: "run a Claude Code hook; payload on stdin"},
 	{Name: "statusline", Desc: "the statusLine rows; payload on stdin"},

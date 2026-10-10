@@ -17,7 +17,7 @@ func TestCommandsDescribed(t *testing.T) {
 func TestUsageLayout(t *testing.T) {
 	usage := Usage()
 	for _, want := range []string{
-		"\n  plans-dir                  plans directory\n",
+		"\n  detect-stack               compact stack report\n",
 		"\n  run-checks [--plan] [--only sub...]\n                             every declared check, in every subproject;\n                             exits with the failure count.",
 		"\n  git-base [--diff|--log] [base] [flags] [-- paths]\n  explain",
 	} {

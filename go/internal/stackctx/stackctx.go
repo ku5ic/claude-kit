@@ -1,5 +1,5 @@
 // Package stackctx builds what inject-context (SessionStart) and
-// agent-context (SubagentStart) share: the cached stack report and the
+// inject-subagent-context (SubagentStart) share: the cached stack report and the
 // required and suggested skills derived from it. One derivation, two
 // consumers, so a subagent sees exactly the framing the main session does.
 package stackctx

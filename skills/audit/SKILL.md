@@ -5,7 +5,6 @@ argument-hint: <a11y|debt|doc-drift|perf|verify> <target, or a link to an extern
 disable-model-invocation: true
 allowed-tools:
   - Bash(git log *)
-  - Bash(kit a11y-check *)
 ---
 
 ## Dispatch

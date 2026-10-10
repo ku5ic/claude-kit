@@ -188,15 +188,14 @@ Two rows: model, agent, directory, and git state; then context used, cost, durat
 
 ### The kit CLI
 
-| Command                                                 | What it does                                                    |
-| ------------------------------------------------------- | --------------------------------------------------------------- |
-| `kit run-checks [--plan]`                               | Every quality gate, in every subproject; `--plan` lists them    |
-| `kit explain bash\|edit\|stop`                          | Why a guard or the Stop hook decides what it does. Runs nothing |
-| `kit blast-radius <file> [symbol]`                      | Which files import it, tests and source counted apart           |
-| `kit detect-stack`, `kit tasks`, `kit subprojects`      | What the kit sees in this repo                                  |
-| `kit a11y-check <url>`                                  | A digest of axe violations on a running page                    |
-| `kit config [--check]`                                  | The merged config, or only its warnings                         |
-| `kit scratch-rotate [days]`, `kit skills-report [days]` | Prune old scratch and logs; skill usage telemetry               |
+| Command                                            | What it does                                                    |
+| -------------------------------------------------- | --------------------------------------------------------------- |
+| `kit run-checks [--plan]`                          | Every quality gate, in every subproject; `--plan` lists them    |
+| `kit explain bash\|edit\|stop`                     | Why a guard or the Stop hook decides what it does. Runs nothing |
+| `kit blast-radius <file> [symbol]`                 | Which files import it, tests and source counted apart           |
+| `kit detect-stack`, `kit tasks`, `kit subprojects` | What the kit sees in this repo                                  |
+| `kit config [--check]`                             | The merged config, or only its warnings                         |
+| `kit scratch-rotate [days]`                        | Prune old scratch artifacts and caches                          |
 
 ## The recommended flow
 

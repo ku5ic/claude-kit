@@ -39,8 +39,6 @@ var layers = map[string]int{
 	"internal/status":     6,
 	"internal/gitbase":    6,
 	"internal/detect":     6,
-	"internal/report":     6,
-	"internal/a11y":       6,
 	"cmd/kit":             7,
 }
 

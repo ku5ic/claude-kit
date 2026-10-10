@@ -24,10 +24,10 @@ func TestLauncher(t *testing.T) {
 		r.Has(t, "Blocked by guard-bash:")
 	})
 	t.Run("a subcommand prints through the built binary", func(t *testing.T) {
-		r := k.exec(kitFile("bin/kit"), "", "plans-dir")
+		r := k.exec(kitFile("bin/kit"), "", "version")
 		r.Want(t, 0)
 		if r.Stdout == "" {
-			t.Error("plans-dir printed nothing")
+			t.Error("version printed nothing")
 		}
 	})
 
@@ -70,7 +70,7 @@ func TestLauncher(t *testing.T) {
 		}
 	})
 	t.Run("without a binary a command fails with 127", func(t *testing.T) {
-		r := k.exec("bash", "", bare, "plans-dir")
+		r := k.exec("bash", "", bare, "version")
 		r.Want(t, 127)
 		r.Has(t, "build it with go/build.sh")
 	})
@@ -93,10 +93,10 @@ func TestLauncher(t *testing.T) {
 	t.Run("a missing binary is downloaded from the matching release once", func(t *testing.T) {
 		k, launcher, log := install(t, `while [ "$1" != -o ]; do shift; done
 printf '#!/bin/sh\necho fetched "$@"\n' >"$2"`)
-		r := k.exec("bash", "", launcher, "plans-dir")
+		r := k.exec("bash", "", launcher, "version")
 		r.Want(t, 0)
-		r.Has(t, "fetched plans-dir")
-		k.exec("bash", "", launcher, "plans-dir").Has(t, "fetched plans-dir")
+		r.Has(t, "fetched version")
+		k.exec("bash", "", launcher, "version").Has(t, "fetched version")
 		calls := testutil.Calls(t, log)
 		if len(calls) != 1 {
 			t.Errorf("curl ran %d times, want once:\n%s", len(calls), strings.Join(calls, "\n"))

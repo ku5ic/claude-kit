@@ -85,8 +85,8 @@ func writeContext(h *hook.Hook, cfg *config.Config, out *strings.Builder) {
 	for _, skill := range ctx.Required {
 		h.Log(kitlog.Skills, kitlog.EventRequiredSkill, "cwd", h.Payload.String("cwd"), "skill_file", skill)
 	}
-	// Logged as surfaced, not loaded, so skills-report can measure whether a
-	// suggestion was ever acted on.
+	// Logged as surfaced, not loaded: the log shows whether a suggestion was
+	// ever acted on, and guard-skills never counts one as a load.
 	out.WriteString(stackctx.SuggestedBlock(cfg, ctx.Suggested))
 	for _, skill := range ctx.Suggested {
 		h.Log(kitlog.Skills, kitlog.EventSuggestedSkill, "cwd", h.Payload.String("cwd"), "skill_file", skill)
@@ -94,10 +94,10 @@ func writeContext(h *hook.Hook, cfg *config.Config, out *strings.Builder) {
 	out.WriteString(tooling(cfg, root))
 }
 
-// AgentContext is the subagent counterpart: the resolved scratch path (which
+// agentContext is the subagent counterpart: the resolved scratch path (which
 // overrides the harness's /tmp scratchpad line), then the same repo context
 // and skill blocks, unlogged.
-func AgentContext(paths config.Paths, cfg *config.Config, cwd, session string) string {
+func agentContext(paths config.Paths, cfg *config.Config, cwd, session string) string {
 	var b strings.Builder
 	if scratch, err := project.Dir(cfg, paths, cwd, "scratch", true); err == nil {
 		fmt.Fprintf(&b, "<scratch>\npath: %s\n", scratch)
@@ -127,7 +127,7 @@ func InjectSubagentContext(h *hook.Hook) error {
 	if cfg == nil {
 		return nil
 	}
-	context := strings.TrimRight(AgentContext(h.Paths, cfg, h.Payload.Cwd(), h.Payload.SessionID()), "\n")
+	context := strings.TrimRight(agentContext(h.Paths, cfg, h.Payload.Cwd(), h.Payload.SessionID()), "\n")
 	if context == "" {
 		return nil
 	}
