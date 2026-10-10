@@ -66,6 +66,13 @@ func pinned(dir, root, name string) string {
 	return ""
 }
 
+// userPinned is true when a user_pins file names name.
+func (r *Resolver) userPinned(name string) bool {
+	return slices.ContainsFunc(r.userPins, func(path string) bool {
+		return slices.ContainsFunc(sources.Pins(path), func(pin string) bool { return pin == name || pinAliases[pin] == name })
+	})
+}
+
 // underManager is true when path, or the file it links to, sits where asdf,
 // mise, or Homebrew install: a pinned tool runs only from its manager.
 func underManager(path string) bool {

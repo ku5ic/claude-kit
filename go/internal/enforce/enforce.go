@@ -180,7 +180,7 @@ func newBuilder(cfg *config.Config, root string, entries []sources.Entry, facts 
 			managers = append(managers, runner)
 		}
 	}
-	b.resolver = resolve.New(root, managers)
+	b.resolver = resolve.New(root, managers, cfg.UserPins)
 	return b
 }
 

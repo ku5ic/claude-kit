@@ -16,6 +16,7 @@ type env struct {
 	t          *testing.T
 	repo, path string
 	managers   []string
+	userPins   []string
 }
 
 func setup(t *testing.T) *env {
@@ -51,7 +52,7 @@ func (e *env) exe(path string) string {
 }
 
 func (e *env) bin(dir, name string) Resolution {
-	return New(e.repo, e.managers).Bin(dir, name)
+	return New(e.repo, e.managers, e.userPins).Bin(dir, name)
 }
 
 func (e *env) wantRuns(res Resolution, path, source string) {
@@ -246,6 +247,33 @@ func TestABrewfileFormulaRunsFromHomebrew(t *testing.T) {
 	e.wantRuns(e.bin(e.repo, "shellcheck"), link, Pinned)
 }
 
+// A user_pins file pins for every project, after the project's own.
+func TestAUserPinCountsForEveryProject(t *testing.T) {
+	e := setup(t)
+	prefix := filepath.Join(filepath.Dir(e.repo), "brew")
+	t.Setenv("HOMEBREW_PREFIX", prefix)
+	real := e.exe(filepath.Join(prefix, "Cellar/jq/1.8.1/bin/jq"))
+	t.Setenv("PATH", filepath.Dir(real)+":"+e.path)
+	e.wantSkip(e.bin(e.repo, "jq"), "only on PATH")
+
+	dotfiles := filepath.Join(filepath.Dir(e.repo), "dotfiles")
+	testutil.Put(t, dotfiles, "Brewfile", "brew 'jq'  # JSON\n")
+	e.userPins = []string{filepath.Join(dotfiles, "Brewfile")}
+	e.wantRuns(e.bin(e.repo, "jq"), real, Pinned)
+}
+
+// A user pin only allows: a formula named like a binary PATH finds outside
+// Homebrew (brew 'grep' installs ggrep) leaves that binary to the other
+// rules.
+func TestAUserPinNeverRefuses(t *testing.T) {
+	e := setup(t)
+	dotfiles := filepath.Join(filepath.Dir(e.repo), "dotfiles")
+	testutil.Put(t, dotfiles, "Brewfile", "brew 'yamllint'\n")
+	e.userPins = []string{filepath.Join(dotfiles, "Brewfile")}
+	stray := e.exe(filepath.Join(e.path, "yamllint"))
+	e.wantSkip(e.bin(e.repo, "yamllint"), "only on PATH ("+stray+")")
+}
+
 // install puts prettier at version under dir/node_modules, its binary in
 // dir/node_modules/.bin, and returns the binary's path.
 func (e *env) install(dir, version string) string {
@@ -342,7 +370,7 @@ func TestSatisfiesFollowsNpmRangeRules(t *testing.T) {
 
 func TestCommandNeverFetches(t *testing.T) {
 	e := setup(t)
-	r := New(e.repo, nil)
+	r := New(e.repo, nil, nil)
 	for words, why := range map[string]string{
 		"npx prettier --check .":       "npx prettier with no local copy",
 		"npm exec -- eslint .":         "npm exec eslint with no local copy",
@@ -360,7 +388,7 @@ func TestCommandNeverFetches(t *testing.T) {
 	e.exe(filepath.Join(e.repo, "node_modules/.bin/prettier"))
 	e.exe(filepath.Join(e.path, "npx"))
 	testutil.Put(t, e.repo, "package.json", `{}`)
-	if res := New(e.repo, nil).Command(e.repo, strings.Fields("npx prettier --check .")); res.Source != Toolchain {
+	if res := New(e.repo, nil, nil).Command(e.repo, strings.Fields("npx prettier --check .")); res.Source != Toolchain {
 		t.Errorf("npx with a local copy runs, npx from package.json's toolchain: %+v", res)
 	}
 }

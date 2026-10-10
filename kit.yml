@@ -240,6 +240,13 @@ gate_env: [pnpm_config_verify_deps_before_run=false]
 # and reported as a SKIP, never a block. The Stop hook itself allows 300.
 gate_timeout: 90
 
+# Pin files that pin tools for every project, after the project's own: a
+# tool a project doesn't provide runs from PATH only when a pin names it
+# and PATH's copy is its manager's. Each is named like a project pin file
+# (Brewfile, .tool-versions, mise.toml); "~/" is $HOME. Meant for the
+# overlay: [~/.dotfiles/Brewfile].
+user_pins: []
+
 # Turning gates off from the overlay.
 #   disabled_task_providers  provider names (package-scripts, make, just,
 #                            pdm, poe, rake, cargo-alias, composer,

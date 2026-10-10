@@ -6,6 +6,7 @@
 package resolve
 
 import (
+	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
@@ -37,6 +38,7 @@ type Resolver struct {
 	root     string
 	bins     []binDir
 	managers []string
+	userPins []string
 }
 
 // binDir is a gitignored directory of binaries and the directory whose
@@ -45,9 +47,18 @@ type binDir struct{ path, serves string }
 
 // New is a Resolver for root. managers are the binaries the project's
 // verified package managers run as (pnpm, poetry): a lockfile states them,
-// so their PATH copy runs.
-func New(root string, managers []string) *Resolver {
-	return &Resolver{root: root, bins: ignoredBins(root), managers: managers}
+// so their PATH copy runs. userPins are pin files that pin for every
+// project, after its own; a "~/" one is under $HOME.
+func New(root string, managers, userPins []string) *Resolver {
+	home, _ := os.UserHomeDir()
+	pins := make([]string, len(userPins))
+	for i, p := range userPins {
+		if rest, ok := strings.CutPrefix(p, "~/"); ok {
+			p = filepath.Join(home, rest)
+		}
+		pins[i] = p
+	}
+	return &Resolver{root: root, bins: ignoredBins(root), managers: managers, userPins: pins}
 }
 
 // ignoredBins are the directories gitignore hides that hold binaries: an
@@ -127,6 +138,11 @@ func (r *Resolver) Bin(dir, name string) Resolution {
 		}
 		return Resolution{Skip: name + " pinned in " + pin + ", but PATH has " + path}
 	}
+	// A user pin only allows: a formula needn't be the binary PATH finds
+	// (brew 'grep' installs ggrep).
+	if r.userPinned(name) && underManager(path) {
+		return Resolution{Path: path, Source: Pinned}
+	}
 	if manifest := toolchainOf(dir, r.root, name); manifest != "" {
 		return Resolution{Path: path, Source: Toolchain, Note: manifest}
 	}
@@ -136,7 +152,7 @@ func (r *Resolver) Bin(dir, name string) Resolution {
 	if system(path) {
 		return Resolution{Path: path, Source: System}
 	}
-	return Resolution{Skip: name + " only on PATH (" + path + "); nothing in the project pins or provides it. Pin it (.tool-versions, mise.toml, Brewfile)"}
+	return Resolution{Skip: name + " only on PATH (" + path + "); nothing in the project pins or provides it. Pin it (.tool-versions, mise.toml, Brewfile, or a user_pins file)"}
 }
 
 // local is name in the nearest gitignored bin directory serving dir, with

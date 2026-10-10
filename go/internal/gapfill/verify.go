@@ -24,7 +24,7 @@ func verify(cfg *config.Config, root string, entries []sources.Entry, s store, f
 	for _, m := range r.Managers {
 		prefixes = append(prefixes, m.RunPrefix)
 	}
-	resolver := resolve.New(root, nil)
+	resolver := resolve.New(root, nil, cfg.UserPins)
 	at := func(dir string) forms {
 		return forms{cfg: cfg, root: root, dir: filepath.Join(root, dir), prefixes: prefixes, resolver: resolver}
 	}
