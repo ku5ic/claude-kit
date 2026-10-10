@@ -1,5 +1,7 @@
 package classify
 
+import "github.com/ku5ic/claude-kit/go/internal/sources"
+
 // CommandGrammar is how the gate classifier reads a command line. A line it
 // can't read with certainty (a pipe, ||, a subshell, command substitution)
 // holds no gate.
@@ -19,41 +21,27 @@ type CommandGrammar struct {
 	FanOutCommands []string
 }
 
-// Reference is a command prefix that runs another task of Provider: the
-// word after it, or Task when set. With Shorthand, a word that names no such
-// task is a tool instead (pnpm eslint).
+// Reference is a command prefix that runs another task of Provider.
 type Reference struct {
-	Prefix    string
-	Provider  string
-	Task      string
-	Shorthand bool
+	sources.Prefix
+	Provider string
+}
+
+// references are every task provider's prefixes.
+func references() []Reference {
+	var refs []Reference
+	for _, tp := range sources.TaskProviders {
+		for _, p := range tp.Prefixes {
+			refs = append(refs, Reference{p, tp.Name})
+		}
+	}
+	return refs
 }
 
 var Grammar = CommandGrammar{
-	Wrappers:    []string{"env", "cross-env"},
-	ToolRunners: []string{"npx", "pnpm exec", "pnpm dlx", "bunx", "yarn dlx", "yarn exec", "npm exec", "uv run", "pipx run", "bundle exec", "poetry run", "go tool"},
-	References: []Reference{
-		{Prefix: "npm run", Provider: "package-scripts"},
-		{Prefix: "npm run-script", Provider: "package-scripts"},
-		{Prefix: "npm test", Provider: "package-scripts", Task: "test"},
-		{Prefix: "npm t", Provider: "package-scripts", Task: "test"},
-		{Prefix: "pnpm run", Provider: "package-scripts"},
-		{Prefix: "pnpm", Provider: "package-scripts", Shorthand: true},
-		{Prefix: "yarn run", Provider: "package-scripts"},
-		{Prefix: "yarn", Provider: "package-scripts", Shorthand: true},
-		{Prefix: "bun run", Provider: "package-scripts"},
-		{Prefix: "node --run", Provider: "package-scripts"},
-		{Prefix: "make", Provider: "make"},
-		{Prefix: "just", Provider: "just"},
-		{Prefix: "rake", Provider: "rake"},
-		{Prefix: "bin/rake", Provider: "rake"},
-		{Prefix: "pdm run", Provider: "pdm", Shorthand: true},
-		{Prefix: "poe", Provider: "poe"},
-		{Prefix: "composer run", Provider: "composer"},
-		{Prefix: "composer run-script", Provider: "composer"},
-		{Prefix: "task", Provider: "taskfile"},
-		{Prefix: "pre-commit run", Provider: "pre-commit"},
-	},
+	Wrappers:       []string{"env", "cross-env"},
+	ToolRunners:    []string{"npx", "pnpm exec", "pnpm dlx", "bunx", "yarn dlx", "yarn exec", "npm exec", "uv run", "pipx run", "bundle exec", "poetry run", "go tool"},
+	References:     references(),
 	ScriptRunners:  []string{"run-s", "run-p", "npm-run-all", "npm-run-all2"},
 	FanOutFlags:    []string{"-r", "--recursive", "--filter", "-F", "--workspaces", "--ws", "-ws", "--workspace"},
 	FanOutCommands: []string{"turbo run", "turbo", "nx run-many", "nx affected", "lerna run", "yarn workspaces foreach", "pnpm -r"},

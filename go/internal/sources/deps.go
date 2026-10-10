@@ -12,37 +12,123 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 )
 
-// Toolchains are the language manifests and the binaries each one's own
-// toolchain provides: a project with the manifest states them.
-var Toolchains = map[string][]string{
-	"go.mod":         {"go", "gofmt"},
-	"Cargo.toml":     {"cargo", "rustc", "rustfmt"},
-	"package.json":   {"node", "npm", "npx"},
-	"pyproject.toml": {"python", "python3"},
-	"Gemfile":        {"ruby", "bundle"},
-	"composer.json":  {"php", "composer"},
-}
-
-// Anchors are the language manifests, sorted: a directory holding one is a
-// project root, or a subproject below one.
-func Anchors() []string { return slices.Sorted(maps.Keys(Toolchains)) }
-
-// Language is a language the manifests in a directory state, and the
-// dependencies they declare.
+// Language is everything the kit knows about one language, so adding one is
+// adding a row. A directory holding any of Manifests uses it; Manifests[0]
+// anchors a project or subproject, and states the toolchain binaries Bins.
+// Deps are the dependencies the manifests declare, Declares the manifest
+// in a directory that declares a tool by its binary name, and Workspaces
+// where a root manifest lists workspace members. Nil or empty: none.
 type Language struct {
-	Name      string
-	Manifests []string
-	Deps      func(dir string) Deps
+	Name       string
+	Manifests  []string
+	Bins       []string
+	Deps       func(dir string) Deps
+	Declares   func(dir, name string) string
+	Workspaces []Members
 }
+
+// Members is where a root manifest lists workspace member patterns: the
+// path, or pattern, Read takes.
+type Members struct {
+	Manifest string
+	Path     string
+	Read     func(file, path string) []string
+}
+
+const goWorkUse = `^[[:space:]]*(use[[:space:]]+)?\(?[[:space:]]*(\.[^[:space:]()]*)`
 
 // Languages are in the order a stack report lists them.
 var Languages = []Language{
-	{"js", []string{"package.json"}, JSDeps},
-	{"python", []string{"pyproject.toml", "Pipfile", "requirements.txt"}, PythonDeps},
-	{"go", []string{"go.mod"}, nil},
-	{"rust", []string{"Cargo.toml"}, nil},
-	{"ruby", []string{"Gemfile"}, RubyDeps},
-	{"php", []string{"composer.json"}, nil},
+	{
+		Name: "js", Manifests: []string{"package.json"}, Bins: []string{"node", "npm", "npx"},
+		Deps: JSDeps, Declares: jsDeclares,
+		Workspaces: []Members{
+			{"package.json", ".workspaces", JSONArray},
+			{"package.json", ".workspaces.packages", JSONArray},
+			{"pnpm-workspace.yaml", ".packages", YAMLArray},
+		},
+	},
+	{
+		Name: "python", Manifests: []string{"pyproject.toml", "Pipfile", "requirements.txt"}, Bins: []string{"python", "python3"},
+		Deps: PythonDeps, Declares: pythonDeclares,
+		Workspaces: []Members{{"pyproject.toml", ".tool.uv.workspace.members", TOMLArray}},
+	},
+	{
+		Name: "go", Manifests: []string{"go.mod"}, Bins: []string{"go", "gofmt"},
+		Declares:   goDeclares,
+		Workspaces: []Members{{"go.work", goWorkUse, RegexLines}},
+	},
+	{
+		Name: "rust", Manifests: []string{"Cargo.toml"}, Bins: []string{"cargo", "rustc", "rustfmt"},
+		Workspaces: []Members{{"Cargo.toml", ".workspace.members", TOMLArray}},
+	},
+	{Name: "ruby", Manifests: []string{"Gemfile"}, Bins: []string{"ruby", "bundle"}, Deps: RubyDeps, Declares: rubyDeclares},
+	{Name: "php", Manifests: []string{"composer.json"}, Bins: []string{"php", "composer"}},
+}
+
+// Anchors are the languages' anchor manifests, sorted: a directory holding
+// one is a project root, or a subproject below one.
+func Anchors() []string {
+	var anchors []string
+	for _, l := range Languages {
+		anchors = append(anchors, l.Manifests[0])
+	}
+	slices.Sort(anchors)
+	return anchors
+}
+
+func jsDeclares(dir, name string) string { return cite(JSDeps(dir)[name], "package.json") }
+
+func pythonDeclares(dir, name string) string {
+	return cite(PythonDeps(dir)[PyName(name)], "pyproject.toml")
+}
+
+func rubyDeclares(dir, name string) string { return cite(RubyDeps(dir)[name], "Gemfile.lock") }
+
+func goDeclares(dir, name string) string {
+	mod := filepath.Join(dir, "go.mod")
+	return cite(fsx.IsFile(mod) && GoModDeclares(mod, name), "go.mod")
+}
+
+// cite is manifest when declared, "" otherwise.
+func cite(declared bool, manifest string) string {
+	if declared {
+		return manifest
+	}
+	return ""
+}
+
+var majorSuffix = regexp.MustCompile(`^v[0-9]+$`)
+
+// GoModDeclares is true when go.mod has a tool directive whose package
+// builds a binary called name: the last path element, or the one before a
+// /vN major-version suffix.
+func GoModDeclares(mod, name string) bool {
+	found, inBlock := false, false
+	EachLine(mod, func(line string) {
+		line = strings.TrimSpace(line)
+		var pkg string
+		switch {
+		case inBlock && line == ")":
+			inBlock = false
+		case inBlock:
+			pkg = line
+		case line == "tool (":
+			inBlock = true
+		case strings.HasPrefix(line, "tool "):
+			pkg = strings.TrimSpace(strings.TrimPrefix(line, "tool "))
+		}
+		if pkg == "" || strings.HasPrefix(pkg, "//") {
+			return
+		}
+		parts := strings.Split(strings.Fields(pkg)[0], "/")
+		bin := parts[len(parts)-1]
+		if majorSuffix.MatchString(bin) && len(parts) > 1 {
+			bin = parts[len(parts)-2]
+		}
+		found = found || bin == name
+	})
+	return found
 }
 
 // Declared are the dependencies every language's manifests in dir declare.
@@ -62,8 +148,8 @@ func (deps Deps) Has(name string) bool { return deps[name] || deps[PyName(name)]
 // HasManifest is true when dir holds a language manifest or a task
 // runner's: something there states how it is built and checked.
 func HasManifest(dir string) bool {
-	for manifest := range Toolchains {
-		if fsx.IsFile(filepath.Join(dir, manifest)) {
+	for _, anchor := range Anchors() {
+		if fsx.IsFile(filepath.Join(dir, anchor)) {
 			return true
 		}
 	}

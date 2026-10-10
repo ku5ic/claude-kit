@@ -303,8 +303,8 @@ func (c *classifier) reference(words, env []string) (Command, bool) {
 	var best *Reference
 	bestLen := 0
 	for i, r := range Grammar.References {
-		n := len(strings.Fields(r.Prefix))
-		if n > bestLen && hasPrefix(words, strings.Fields(r.Prefix)) {
+		n := len(strings.Fields(r.Words))
+		if n > bestLen && hasPrefix(words, strings.Fields(r.Words)) {
 			best, bestLen = &Grammar.References[i], n
 		}
 	}

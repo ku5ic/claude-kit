@@ -38,12 +38,10 @@ func SubLabel(sub string) string {
 	return " [" + sub + "]"
 }
 
-const goWorkUse = `^[[:space:]]*(use[[:space:]]+)?\(?[[:space:]]*(\.[^[:space:]()]*)`
-
 // Subprojects lists ".", then every subproject directory relative to root,
 // sorted: each directory holding a tracked language manifest at most
 // maxDepth levels down, and each member a workspace manifest names
-// (package.json workspaces, pnpm-workspace.yaml, Cargo, uv, go.work).
+// (each sources.Languages row's Workspaces).
 // Tracked files only, so node_modules and virtualenvs never count.
 func Subprojects(root string) []string { return memo(&subprojects, root, subprojectsOf) }
 
@@ -90,18 +88,16 @@ func subprojectsOf(root string) []string {
 }
 
 // Workspace is every member directory, relative to root, a workspace
-// manifest at root names: package.json workspaces, pnpm-workspace.yaml,
-// Cargo, uv, go.work.
+// manifest at root names (each sources.Languages row's Workspaces).
 func Workspace(root string) []string { return memo(&workspaces, root, workspaceOf) }
 
 func workspaceOf(root string) []string {
 	var patterns, out []string
-	patterns = append(patterns, sources.JSONArray(filepath.Join(root, "package.json"), ".workspaces")...)
-	patterns = append(patterns, sources.JSONArray(filepath.Join(root, "package.json"), ".workspaces.packages")...)
-	patterns = append(patterns, sources.YAMLArray(filepath.Join(root, "pnpm-workspace.yaml"), ".packages")...)
-	patterns = append(patterns, sources.TOMLArray(filepath.Join(root, "Cargo.toml"), ".workspace.members")...)
-	patterns = append(patterns, sources.TOMLArray(filepath.Join(root, "pyproject.toml"), ".tool.uv.workspace.members")...)
-	patterns = append(patterns, sources.RegexLines(filepath.Join(root, "go.work"), goWorkUse)...)
+	for _, l := range sources.Languages {
+		for _, m := range l.Workspaces {
+			patterns = append(patterns, m.Read(filepath.Join(root, m.Manifest), m.Path)...)
+		}
+	}
 	for _, pattern := range patterns {
 		// Negated entries only narrow a pnpm glob; nothing to add.
 		if strings.HasPrefix(pattern, "!") {

@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 
@@ -20,9 +19,9 @@ import (
 // provides name, a task runner's included (a Makefile, make); "" when none
 // does.
 func toolchainOf(dir, root, name string) string {
-	for manifest, bins := range sources.Toolchains {
-		if slices.Contains(bins, name) {
-			if path := fsx.FindUp(dir, root, manifest); path != "" {
+	for _, l := range sources.Languages {
+		if slices.Contains(l.Bins, name) {
+			if path := fsx.FindUp(dir, root, l.Manifests[0]); path != "" {
 				return fsx.Rel(root, path)
 			}
 		}
@@ -101,19 +100,13 @@ func underManager(path string) bool {
 // named name; "" when none does.
 func declared(dir, root, name string) string {
 	for d := dir; ; d = filepath.Dir(d) {
-		var manifest string
-		switch {
-		case sources.JSDeps(d)[name]:
-			manifest = "package.json"
-		case sources.PythonDeps(d)[sources.PyName(name)]:
-			manifest = "pyproject.toml"
-		case sources.RubyDeps(d)[name]:
-			manifest = "Gemfile.lock"
-		case fsx.IsFile(filepath.Join(d, "go.mod")) && GoModDeclares(filepath.Join(d, "go.mod"), name):
-			manifest = "go.mod"
-		}
-		if manifest != "" {
-			return fsx.Rel(root, filepath.Join(d, manifest))
+		for _, l := range sources.Languages {
+			if l.Declares == nil {
+				continue
+			}
+			if manifest := l.Declares(d, name); manifest != "" {
+				return fsx.Rel(root, filepath.Join(d, manifest))
+			}
 		}
 		if d == root || d == "/" || !strings.HasPrefix(d, root) {
 			return ""
@@ -145,7 +138,7 @@ func ActiveEnv(root, name string) string {
 // it from downloading; a module not in the cache counts as not installed.
 func GoTool(dir, root, name string) string {
 	mod := fsx.FindUp(dir, root, "go.mod")
-	if mod == "" || !GoModDeclares(mod, name) {
+	if mod == "" || !sources.GoModDeclares(mod, name) {
 		return ""
 	}
 	if _, err := exec.LookPath("go"); err != nil {
@@ -167,39 +160,6 @@ func GoTool(dir, root, name string) string {
 		return fields[0]
 	}
 	return ""
-}
-
-var majorSuffix = regexp.MustCompile(`^v[0-9]+$`)
-
-// GoModDeclares is true when go.mod has a tool directive whose package
-// builds a binary called name: the last path element, or the one before a
-// /vN major-version suffix.
-func GoModDeclares(mod, name string) bool {
-	found, inBlock := false, false
-	sources.EachLine(mod, func(line string) {
-		line = strings.TrimSpace(line)
-		var pkg string
-		switch {
-		case inBlock && line == ")":
-			inBlock = false
-		case inBlock:
-			pkg = line
-		case line == "tool (":
-			inBlock = true
-		case strings.HasPrefix(line, "tool "):
-			pkg = strings.TrimSpace(strings.TrimPrefix(line, "tool "))
-		}
-		if pkg == "" || strings.HasPrefix(pkg, "//") {
-			return
-		}
-		parts := strings.Split(strings.Fields(pkg)[0], "/")
-		bin := parts[len(parts)-1]
-		if majorSuffix.MatchString(bin) && len(parts) > 1 {
-			bin = parts[len(parts)-2]
-		}
-		found = found || bin == name
-	})
-	return found
 }
 
 // nodePackage is the package a node_modules/.bin link points into, ""

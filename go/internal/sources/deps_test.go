@@ -1,10 +1,19 @@
 package sources
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
+
+func TestGoModDeclaresNamesTheBinaryBeforeAMajorSuffix(t *testing.T) {
+	dir := t.TempDir()
+	testutil.Put(t, dir, "go.mod", "module x\n\ntool example.com/foo/v2\n")
+	if !GoModDeclares(filepath.Join(dir, "go.mod"), "foo") {
+		t.Error("example.com/foo/v2 should provide foo")
+	}
+}
 
 func TestPythonDepsReadsEveryDeclarationForm(t *testing.T) {
 	dir := t.TempDir()

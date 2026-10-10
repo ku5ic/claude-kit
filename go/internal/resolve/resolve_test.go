@@ -128,14 +128,6 @@ func TestGoModToolNotInTheCacheIsDeclaredNotInstalled(t *testing.T) {
 	e.wantSkip(e.bin(e.repo, "golangci-lint"), "golangci-lint declared in go.mod but not installed")
 }
 
-func TestGoModDeclaresNamesTheBinaryBeforeAMajorSuffix(t *testing.T) {
-	dir := t.TempDir()
-	testutil.Put(t, dir, "go.mod", "module x\n\ntool example.com/foo/v2\n")
-	if !GoModDeclares(filepath.Join(dir, "go.mod"), "foo") {
-		t.Error("example.com/foo/v2 should provide foo")
-	}
-}
-
 func TestActiveVirtualenvOnlyInsideTheProject(t *testing.T) {
 	e := setup(t)
 	inside := e.exe(filepath.Join(e.repo, "envs/dev/bin/ruff"))
