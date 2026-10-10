@@ -29,7 +29,8 @@ func LoadConfig(p config.Paths) (*config.Config, []config.Warning, error) {
 }
 
 // TaskProvider is a task-runner format: the manifests it lives in (the first
-// present is read), how to list its tasks (Tasks) and what each runs
+// present is read), how to list its tasks (Tasks, nil for a format whose
+// entries another reader lists) and what each runs
 // (Bodies, nil for a format whose manifest holds no commands; recipes list
 // their dependencies first, as "make <dep>" lines), and the command that
 // runs one ({task} the task, {pm} the directory's package manager: PM, or a

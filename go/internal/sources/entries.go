@@ -64,13 +64,15 @@ func Entries(cfg *config.Config, root string, dirs []string) []Entry {
 }
 
 // taskEntries are the tasks of each task runner with a manifest in dir.
-// pre-commit's hooks are preCommitEntries, which keep their stages.
 func taskEntries(cfg *config.Config, root, dir string) []Entry {
 	var out []Entry
 	abs := filepath.Join(root, dir)
 	for _, tp := range TaskProviders {
+		if tp.Tasks == nil {
+			continue
+		}
 		manifest := fsx.FindUp(abs, abs, tp.Manifests...)
-		if manifest == "" || tp.Name == "pre-commit" || slices.Contains(cfg.DisabledTaskProviders, tp.Name) {
+		if manifest == "" || slices.Contains(cfg.DisabledTaskProviders, tp.Name) {
 			continue
 		}
 		var bodies map[string]Body

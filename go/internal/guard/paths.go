@@ -85,8 +85,7 @@ func GlobAny(patterns []string, s string) bool {
 // cross "/", [...] is a bracket expression ([!...] or [^...] negates), and
 // a backslash escapes the next character.
 func Glob(pattern, s string) bool {
-	// A literal pattern needs no regexp: each hook is a fresh process, so
-	// globCache never saves a compile.
+	// A literal pattern needs no regexp.
 	if !strings.ContainsAny(pattern, `*?[\`) {
 		return pattern == s
 	}
