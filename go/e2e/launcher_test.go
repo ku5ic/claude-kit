@@ -107,6 +107,31 @@ printf '#!/bin/sh\necho fetched "$@"\n' >"$2"`)
 		}
 	})
 
+	t.Run("KIT_DEV builds into bin/ when the launcher is called by a relative path", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		Write(t, filepath.Join(root, "bin/kit"), string(raw))
+		Write(t, filepath.Join(root, ".claude-plugin/plugin.json"), `{"name": "claude-kit", "version": "9.9.9"}`)
+		Write(t, filepath.Join(root, "go/cmd/kit/main.go"), "package main\n")
+		stubs := t.TempDir()
+		// go build -o <out>: writes a fake binary at out, as go does.
+		Stub(t, filepath.Join(stubs, "go"), `while [ "$1" != -o ]; do shift; done
+mkdir -p "$(dirname "$2")"
+printf '#!/bin/sh\necho built "$@"\n' >"$2"
+chmod +x "$2"
+`)
+		k := New(t)
+		k.Dir = root
+		k.PrependPath(stubs)
+		k.Setenv("KIT_DEV", "1")
+		r := k.exec("bash", "", "bin/kit", "x")
+		r.Want(t, 0)
+		r.Has(t, "built x")
+		if Exists(filepath.Join(root, "go/bin")) {
+			t.Error("the build wrote under go/bin")
+		}
+	})
+
 	t.Run("a failed download is not retried within a minute", func(t *testing.T) {
 		k, launcher, log := install(t, "exit 22")
 		k.exec("bash", "{}", launcher, "hook", "inject-context").Want(t, 0)

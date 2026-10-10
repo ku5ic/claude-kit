@@ -29,6 +29,8 @@ while [[ -L $self ]]; do
 done
 dir=${self%/*}
 [[ $dir == "$self" ]] && dir=.
+# Absolute: the KIT_DEV build runs in go/, and its -o must still land in bin/.
+[[ $dir == /* ]] || dir=$PWD/$dir
 ver=
 manifest="$dir/../.claude-plugin/plugin.json"
 if [[ -r $manifest ]]; then
