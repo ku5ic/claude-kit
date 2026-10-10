@@ -513,41 +513,59 @@ func (c *command) gitPush(args []string, dir string) error {
 	return nil
 }
 
-// gitCommit treats -n as --no-verify. Short clusters are scanned up to the
-// first option that takes a value: in -mn the n is the message.
+// gitCommit treats -n as --no-verify.
 func (c *command) gitCommit(args []string) error {
+	noVerify := false
+	commitOptions(args, func(opt, _ string) { noVerify = noVerify || opt == "-n" })
+	if noVerify {
+		return c.block("git commit -n bypasses pre-commit hooks, same as --no-verify", "git-no-verify")
+	}
+	return nil
+}
+
+// commitOptions walks git commit's args as git reads them, up to "--",
+// calling fn with each option and its value ("" for none): a long one by
+// name, a short cluster's letters one by one, up to the first that takes a
+// value (in -mn the n is the message).
+func commitOptions(args []string, fn func(opt, value string)) {
 	valued := []string{"--message", "--file", "--author", "--date", "--template", "--trailer", "--cleanup",
 		"--reuse-message", "--reedit-message", "--fixup", "--squash", "--pathspec-from-file"}
-	wantValue := false
-	for _, a := range args {
-		if wantValue {
-			wantValue = false
-			continue
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		next := func() string {
+			if i+1 < len(args) {
+				i++
+				return args[i]
+			}
+			return ""
 		}
 		switch {
 		case a == "--":
-			return nil
+			return
 		case slices.Contains(valued, a):
-			wantValue = true
+			fn(a, next())
 		case strings.HasPrefix(a, "--"):
+			name, value, _ := strings.Cut(a, "=")
+			fn(name, value)
 		case strings.HasPrefix(a, "-"):
-		cluster:
-			for i := 1; i < len(a); i++ {
-				switch a[i] {
-				case 'n':
-					if err := c.block("git commit -n bypasses pre-commit hooks, same as --no-verify", "git-no-verify"); err != nil {
-						return err
-					}
-					break cluster
+			for j := 1; j < len(a); j++ {
+				opt := "-" + a[j:j+1]
+				switch a[j] {
 				case 'm', 'F', 'C', 'c', 't':
-					wantValue = i == len(a)-1
-					break cluster
+					value := a[j+1:]
+					if value == "" {
+						value = next()
+					}
+					fn(opt, value)
+					j = len(a)
 				case 'u', 'S':
 					// Optional values, only ever attached: -uno, -S<keyid>.
-					break cluster
+					fn(opt, a[j+1:])
+					j = len(a)
+				default:
+					fn(opt, "")
 				}
 			}
 		}
 	}
-	return nil
 }

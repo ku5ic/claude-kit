@@ -3,13 +3,19 @@ package bashguard
 import (
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"regexp"
 	"strings"
+	"time"
 
+	"github.com/ku5ic/claude-kit/go/internal/enforce"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/md"
 	"github.com/ku5ic/claude-kit/go/internal/proc"
+	"github.com/ku5ic/claude-kit/go/internal/run"
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
@@ -72,6 +78,9 @@ func CheckCommit(h *hook.Hook) error {
 	if subject != "" && aiTell.MatchString(subject) {
 		return h.Block("AI-tell phrasing in commit subject", "ai-commit-tell")
 	}
+	if failed := commitMsg(h, cmd); failed != "" {
+		return h.Block("the project's commit-msg checks reject this message; fix it to their convention:\n"+failed, "commit-msg")
+	}
 	if !shownBefore(h.Payload.String("transcript_path"), subject) {
 		h.Decide("ask", "rules/workflow.md section 1: show the commit message and staged diff summary, then wait for the user's go; confirm only if they've seen this message")
 	}
@@ -83,6 +92,14 @@ func CheckCommit(h *hook.Hook) error {
 // parse, the raw text is matched instead, so a commit whose heredoc never
 // closes still counts.
 func committing(cmd string) bool {
+	_, _, found, unparsed := commitCall(cmd)
+	return found || unparsed && commitLine.MatchString(cmd)
+}
+
+// commitCall is the args and -C directory of cmd's first parsed git commit
+// call; found is false when none commits, unparsed true when part of cmd
+// didn't parse.
+func commitCall(cmd string) (args []string, dir string, found, unparsed bool) {
 	segs, unparsed := parseAll(cmd)
 	for _, seg := range segs {
 		for _, call := range seg.Calls {
@@ -94,12 +111,71 @@ func committing(cmd string) bool {
 			for _, w := range call.Words[i+1:] {
 				words = append(words, w.Value)
 			}
-			if sub, _, _ := gitSubcommand(words); sub == "commit" {
-				return true
+			if sub, args, dir := gitSubcommand(words); sub == "commit" {
+				return args, dir, true, unparsed
 			}
 		}
 	}
-	return unparsed && commitLine.MatchString(cmd)
+	return nil, "", false, unparsed
+}
+
+// message is the message cmd's git commit gives, as the commit-msg hook
+// would read it: the commit line's heredoc, else its -m messages as
+// paragraphs, else the file -F names, from dir. ok is false when it can't
+// be told: no message, or one an expansion builds.
+func message(cmd, dir string) (msg string, ok bool) {
+	if body := heredocBody(cmd); body != "" {
+		return body + "\n", true
+	}
+	args, cdir, found, _ := commitCall(cmd)
+	if !found {
+		return "", false
+	}
+	var paragraphs []string
+	file := ""
+	commitOptions(args, func(opt, value string) {
+		switch opt {
+		case "-m", "--message":
+			paragraphs = append(paragraphs, value)
+		case "-F", "--file":
+			file = value
+		}
+	})
+	switch {
+	case len(paragraphs) > 0 && !strings.Contains(strings.Join(paragraphs, ""), "$"):
+		return strings.Join(paragraphs, "\n\n") + "\n", true
+	case len(paragraphs) == 0 && file != "" && file != "-":
+		data, err := os.ReadFile(fsx.Abs(fsx.Abs(dir, cdir), file))
+		return string(data), err == nil
+	}
+	return "", false
+}
+
+// commitMsgBudget bounds the project's commit-msg checks, inside
+// bash-dispatch's timeout in hooks.json, gitleaks' share apart.
+const commitMsgBudget = 12 * time.Second
+
+// commitMsg runs the project's commit-msg enforcement on the message cmd
+// commits, from a temp file, and returns what failed; "" when it passes,
+// the message can't be told, or the project has none.
+func commitMsg(h *hook.Hook, cmd string) string {
+	cwd := h.Payload.Cwd()
+	root, cfg := git.Toplevel(cwd), h.Config()
+	msg, ok := message(cmd, cwd)
+	if !ok || root == "" || cfg == nil {
+		return ""
+	}
+	tmp, err := os.CreateTemp("", "kit-commit-msg-*")
+	if err != nil {
+		return ""
+	}
+	defer func() { _ = os.Remove(tmp.Name()) }()
+	_, err = tmp.WriteString(msg)
+	if cerr := tmp.Close(); err != nil || cerr != nil {
+		return ""
+	}
+	p := enforce.CommitMsg(cfg, enforce.Options{Root: root, CacheDir: h.Paths.CacheDir()}, tmp.Name())
+	return run.Commit(p, commitMsgBudget)
 }
 
 // shownBefore reports whether an assistant reply before the current prompt

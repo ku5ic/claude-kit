@@ -57,6 +57,17 @@ type result struct {
 // with that payload; an empty cwd is the sandbox's $HOME.
 func (k *sandbox) hook(session, cwd, cmd string) result {
 	k.t.Helper()
+	return k.run(hook.NamedCheck{Name: "guard-bash", Check: Check}, session, cwd, cmd)
+}
+
+// commit runs guard-commit on cmd in process.
+func (k *sandbox) commit(cwd, cmd string) result {
+	k.t.Helper()
+	return k.run(hook.NamedCheck{Name: "guard-commit", Check: CheckCommit}, "", cwd, cmd)
+}
+
+func (k *sandbox) run(check hook.NamedCheck, session, cwd, cmd string) result {
+	k.t.Helper()
 	if cwd == "" {
 		cwd = k.home
 	}
@@ -70,7 +81,7 @@ func (k *sandbox) hook(session, cwd, cmd string) result {
 	}
 	var out bytes.Buffer
 	h := &hook.Hook{
-		Name:    "guard-bash",
+		Name:    check.Name,
 		Payload: hook.ParsePayload(raw),
 		Paths: config.Paths{
 			Root:    filepath.Dir(kitYML),
@@ -82,7 +93,7 @@ func (k *sandbox) hook(session, cwd, cmd string) result {
 		Stderr: &out,
 		Home:   k.home,
 	}
-	status := hook.Run(h, hook.NamedCheck{Name: "guard-bash", Check: Check})
+	status := hook.Run(h, check)
 	return result{status, out.String()}
 }
 

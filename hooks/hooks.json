@@ -3,7 +3,7 @@
     "PreToolUse": [
       {
         "matcher": "Bash",
-        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook bash-dispatch", "timeout": 15 }]
+        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook bash-dispatch", "timeout": 30 }]
       },
       {
         "matcher": "Edit|Write|MultiEdit|Read",
