@@ -14,20 +14,19 @@ import (
 // Config mirrors kit.yml. Every key kit.yml may hold is a field here, so a
 // strict decode reports an unknown or misspelled key instead of dropping it.
 type Config struct {
-	GlobalSkills      []string            `yaml:"global_skills"`
-	SkillFileMap      []SkillFileRule     `yaml:"skill_file_map"`
-	SkillTriggers     map[string]string   `yaml:"skill_triggers"`
-	PackageManagers   []PackageManager    `yaml:"package_managers"`
-	ExtraLockfiles    []string            `yaml:"extra_lockfiles"`
-	ProtectedBranches []string            `yaml:"protected_branches"`
-	DependencyAdds    map[string][]string `yaml:"dependency_adds"`
-	RootArtifactExts  []string            `yaml:"root_artifact_exts"`
-	RCFiles           []string            `yaml:"rc_files"`
-	SensitivePaths    []string            `yaml:"sensitive_paths"`
-	LogMaxLines       int                 `yaml:"log_max_lines"`
-	DisabledRules     []string            `yaml:"disabled_rules"`
-	Checks            []Check             `yaml:"checks"`
-	ToolchainChecks   []ToolchainCheck    `yaml:"toolchain_checks"`
+	GlobalSkills      []string          `yaml:"global_skills"`
+	SkillFileMap      []SkillFileRule   `yaml:"skill_file_map"`
+	SkillTriggers     map[string]string `yaml:"skill_triggers"`
+	PackageManagers   []PackageManager  `yaml:"package_managers"`
+	ProtectedBranches []string          `yaml:"protected_branches"`
+	GlobalInstalls    []string          `yaml:"global_installs"`
+	RootArtifactExts  []string          `yaml:"root_artifact_exts"`
+	RCFiles           []string          `yaml:"rc_files"`
+	SensitivePaths    []string          `yaml:"sensitive_paths"`
+	LogMaxLines       int               `yaml:"log_max_lines"`
+	DisabledRules     []string          `yaml:"disabled_rules"`
+	Checks            []Check           `yaml:"checks"`
+	ToolchainChecks   []ToolchainCheck  `yaml:"toolchain_checks"`
 
 	GateDiscovery           GateDiscovery `yaml:"gate_discovery"`
 	DisabledTaskProviders   []string      `yaml:"disabled_task_providers"`
@@ -194,30 +193,11 @@ type SkillFileRule struct {
 }
 
 type PackageManager struct {
-	Lockfile   string `yaml:"lockfile"`
-	Manager    string `yaml:"manager"`
-	Ecosystem  string `yaml:"ecosystem"`
-	HandEdited bool   `yaml:"hand_edited"`
+	Lockfile  string `yaml:"lockfile"`
+	Manager   string `yaml:"manager"`
+	Ecosystem string `yaml:"ecosystem"`
 	// Per manager, on its first entry.
-	Default       bool     `yaml:"default"`
-	Aliases       []string `yaml:"aliases"`
-	Dlx           string   `yaml:"dlx"`
-	DirFlags      []string `yaml:"dir_flags"`
-	GlobalInstall string   `yaml:"global_install"`
-	// Its verbs where another manager's "install" means something else.
-	AddVerb  string `yaml:"add_verb"`
-	SyncVerb string `yaml:"sync_verb"`
-}
-
-// Manager is the first package_managers entry for a manager, or for a
-// command that runs one (npx runs npm).
-func (c *Config) Manager(command string) (PackageManager, bool) {
-	for _, pm := range c.PackageManagers {
-		if pm.Manager == command || slices.Contains(pm.Aliases, command) {
-			return pm, true
-		}
-	}
-	return PackageManager{}, false
+	Default bool `yaml:"default"`
 }
 
 // DefaultManager is an ecosystem's manager when no lockfile names one.

@@ -5,6 +5,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/ku5ic/claude-kit/go/internal/cache"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 )
 
 // guardBashRepo is a throwaway repo under base whose current branch is
@@ -14,14 +17,23 @@ func guardBashRepo(k *sandbox, base, branch string) string {
 	return gitRepo(k.t, filepath.Join(base, "repo-"+branch), branch)
 }
 
-// guardBashMono is a pnpm root, a uv service at services/api, and a bare JS
-// package at packages/a.
-func guardBashMono(k *sandbox, base string) string {
+// guardBashMono is a pnpm root, a uv service at services/api, a yarn
+// package at packages/y, and a bare JS package at packages/a. With facts,
+// the gap-fill cache holds each manager's, and a yarn fact for packages/a
+// that cites a lockfile it lacks.
+func guardBashMono(k *sandbox, base string, facts bool) string {
 	k.t.Helper()
 	dir := guardBashRepo(k, base, "mono")
 	write(k.t, filepath.Join(dir, "package.json"), `{"name":"root","private":true}`+"\n")
-	touch(k.t, filepath.Join(dir, "pnpm-lock.yaml"), filepath.Join(dir, "services/api/uv.lock"))
+	touch(k.t, filepath.Join(dir, "pnpm-lock.yaml"), filepath.Join(dir, "services/api/uv.lock"), filepath.Join(dir, "packages/y/yarn.lock"))
 	mkdir(k.t, filepath.Join(dir, "packages/a"))
+	if facts {
+		write(k.t, filepath.Join(k.claude, "cache", cache.Enforce, cache.RootKey(git.Toplevel(dir))+".json"), `{"managers":[
+			{"dir":".","cites":"pnpm-lock.yaml","manager":"pnpm","add_verbs":["pnpm add"],"dlx":"pnpm dlx","dir_flags":["--dir","-C"],"rivals":["npm","yarn"]},
+			{"dir":"services/api","cites":"uv.lock","manager":"uv","add_verbs":["uv add"],"dir_flags":["--directory"],"rivals":["pip","poetry"]},
+			{"dir":"packages/y","cites":"yarn.lock","manager":"yarn","add_verbs":["yarn add"],"rivals":["npm","pnpm"]},
+			{"dir":"packages/a","cites":"yarn.lock","manager":"yarn","add_verbs":["yarn add"],"rivals":["npm","pnpm"]}]}`)
+	}
 	return dir
 }
 
@@ -173,7 +185,6 @@ func TestGuardBash(t *testing.T) {
 		{"ask: git push -o value is not read as the remote", `git push -o ci.skip origin feat`, 0, []string{`"permissionDecision":"ask"`}, false},
 		{"block: git push -o value does not hide a protected destination", `git push -o ci.skip origin main`, 2, nil, false},
 		{"block: ask in an earlier segment does not skip a later block", `git push origin feat; rm -rf ~`, 2, nil, false},
-		{"block: pnpm install ask does not skip a later block", `pnpm install && rm -rf ~`, 2, nil, false},
 		{"block: git commit -n", `git commit -n -m x`, 2, []string{`--no-verify`}, false},
 		{"block: git commit -anm x (n before m in a cluster)", `git commit -anm x`, 2, nil, false},
 		{"allow: git commit -mn (n is the message)", `git commit -mn`, 0, nil, true},
@@ -192,24 +203,14 @@ func TestGuardBash(t *testing.T) {
 		{"allow: git branch creating one", `git branch feat`, 0, nil, true},
 		{"ask: git tag -d", `git tag -d v1`, 0, []string{`"permissionDecision":"ask"`}, false},
 		{"allow: git tag creating one", `git tag v1`, 0, nil, true},
-		{"ask: npm install <pkg>", `npm install --save-dev lodash`, 0, []string{`"permissionDecision":"ask"`}, false},
-		{"allow: npm install from the lockfile", `npm install`, 0, nil, true},
-		{"ask: go get", `go get github.com/stretchr/testify`, 0, []string{`"permissionDecision":"ask"`}, false},
-		{"ask: cargo add", `cargo add serde`, 0, []string{`"permissionDecision":"ask"`}, false},
-		{"ask: pip install", `pip install requests`, 0, []string{`"permissionDecision":"ask"`}, false},
-		{"ask: uv add", `uv add requests`, 0, []string{`"permissionDecision":"ask"`}, false},
 		{"allow: go build", `go build ./...`, 0, nil, true},
 		{"block: git -C . config --global", `git -C . config --global user.name x`, 2, nil, false},
 		{"allow: git config --local", `git config --local user.name x`, 0, nil, false},
-		// pnpm install --frozen-lockfile: force_ask when the flag is missing.
-		{"ask: pnpm install without any flags", `pnpm install`, 0, []string{`"permissionDecision":"ask"`}, false},
-		{"allow: pnpm install --frozen-lockfile passes straight through (no ask JSON)", `pnpm install --frozen-lockfile`, 0, nil, true},
-		{"ask: pnpm install --no-frozen-lockfile is not mistaken for satisfying the flag", `pnpm install --no-frozen-lockfile`, 0, []string{`"permissionDecision":"ask"`}, false},
-		{"ask: pnpm install --frozen-lockfile-extra is not mistaken for satisfying the flag (trailing boundary)", `pnpm install --frozen-lockfile-extra`, 0, []string{`"permissionDecision":"ask"`}, false},
-		{"allow: pnpm installer is not mistaken for the install subcommand (leading boundary)", `pnpm installer`, 0, nil, true},
-		{"ask: pnpm i (install alias) without any flags", `pnpm i`, 0, []string{`"permissionDecision":"ask"`}, false},
-		{"allow: pnpm i --frozen-lockfile passes straight through (no ask JSON)", `pnpm i --frozen-lockfile`, 0, nil, true},
-		{"ask: pnpm add asks as a dependency add, not the frozen-lockfile check", `pnpm add react`, 0, []string{"adds a dependency"}, false},
+		// Global installs are kit policy, so they block with no manager facts.
+		{"block: pnpm add --global", `pnpm add --global typescript`, 2, []string{"global package install"}, false},
+		{"block: command bun add -g", `command bun add -g typescript`, 2, nil, false},
+		{"allow: npm install --global-style is not a global install", `npm install --global-style`, 0, nil, true},
+		{"allow: a package manager with no facts says nothing", `npm install lodash`, 0, nil, true},
 		// Wrappers and assignments don't hide the command from its checks.
 		{"block: command rm -rf ~", `command rm -rf ~`, 2, nil, false},
 		{"block: env rm -rf ~", `env rm -rf ~`, 2, nil, false},
@@ -472,28 +473,30 @@ func TestGuardBash(t *testing.T) {
 		}
 	})
 
-	// Package-manager mismatch: compared within one ecosystem, nearest lockfile.
+	// Package managers: the verified facts of the nearest lockfile directory
+	// whose manager or rivals name the command.
 	for _, c := range []struct {
 		name, cmd string
 		status    int
 		has       string
 		empty     bool
 	}{
-		{"pm: uv sync at a pnpm root passes (no Python lockfile)", `uv sync`, 0, "", false},
-		{"pm: cd into the uv service, then uv sync passes", `cd services/api && uv sync`, 0, "", false},
-		{"pm: uv --directory services/api sync passes", `uv --directory services/api sync`, 0, "", false},
-		{"pm: poetry in the uv service blocks and names uv", `cd services/api && poetry install`, 2, "uses uv (uv.lock)", false},
-		{"pm: npm at the pnpm root blocks and suggests pnpm", `npm install`, 2, "rerun as: pnpm install", false},
-		{"pm: npm in a workspace package finds the root pnpm lockfile", `cd packages/a && npm install`, 2, "", false},
-		{"pm: npm --prefix into a workspace package finds the root pnpm lockfile", `npm --prefix packages/a install`, 2, "", false},
-		{"pm: npx at a pnpm root suggests pnpm dlx", `npx foo`, 2, "pnpm dlx foo", false},
-		{"pm: pnpm install --frozen-lockfile at the pnpm root passes silently", `pnpm install --frozen-lockfile`, 0, "", true},
-		{"pm: --version is exempt", `npm --version`, 0, "", false},
+		{"pm: uv sync at the pnpm root passes: uv is no rival of pnpm", `uv sync`, 0, "", true},
+		{"pm: cd into the uv service, then uv sync passes", `cd services/api && uv sync`, 0, "", true},
+		{"pm: poetry in the uv service blocks and names uv", `cd services/api && poetry install`, 2, "services/api uses uv (uv.lock), not poetry", false},
+		{"pm: npm at the pnpm root blocks with pnpm's facts", `npm install`, 2, "this repo uses pnpm (pnpm-lock.yaml), not npm; rerun it with pnpm (add a dependency: pnpm add; run a package: pnpm dlx; another directory: --dir, -C)", false},
+		{"pm: npm in the uv service finds the root's pnpm", `cd services/api && npm install`, 2, "uses pnpm", false},
+		{"pm: a directory flag moves the command to its lockfile", `pnpm --dir packages/y install`, 2, "packages/y uses yarn (yarn.lock), not pnpm", false},
+		{"pm: --version is exempt", `npm --version`, 0, "", true},
+		{"pm: the add verb with a package asks", `pnpm add react`, 0, "adds a dependency", false},
+		{"pm: the add verb after a flag asks", `pnpm -C . add -D react`, 0, "adds a dependency", false},
+		{"pm: an install from the lockfile passes silently", `pnpm install --frozen-lockfile`, 0, "", true},
+		{"pm: the add verb with only flags passes", `uv --directory services/api add --help`, 0, "", true},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 			k := newSandbox(t)
-			r := guardIn(k, guardBashMono(k, t.TempDir()), c.cmd)
+			r := guardIn(k, guardBashMono(k, t.TempDir(), true), c.cmd)
 			r.Want(t, c.status)
 			if c.has != "" {
 				r.Has(t, c.has)
@@ -503,26 +506,23 @@ func TestGuardBash(t *testing.T) {
 			}
 		})
 	}
-	t.Run("pm: the rerun command uses the lockfile manager's own flags and verbs", func(t *testing.T) {
+	t.Run("pm: a cold cache says nothing", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
-		repo := guardBashMono(k, t.TempDir())
-		touch(t, filepath.Join(repo, "packages/y/yarn.lock"), filepath.Join(repo, "packages/b/bun.lockb"))
-		for cmd, want := range map[string]string{
-			`pnpm --dir packages/y add left-pad`:      "rerun as: yarn --cwd packages/y add left-pad",
-			`npm --prefix packages/y install`:         "rerun as: yarn --cwd packages/y install",
-			`npm --prefix packages/b install`:         "rerun as: cd packages/b && bun install",
-			`cd services/api && pip install requests`: "rerun as: uv add requests",
-		} {
+		repo := guardBashMono(k, t.TempDir(), false)
+		for _, cmd := range []string{`npm install`, `pnpm add react`} {
 			r := guardIn(k, repo, cmd)
-			r.Want(t, 2)
-			r.Has(t, want)
+			r.Want(t, 0)
+			r.Empty(t)
 		}
 	})
-	t.Run("pm: no lockfile at all is greenfield", func(t *testing.T) {
+	t.Run("pm: facts whose lockfile is gone say nothing", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
-		guardIn(k, guardBashRepo(k, t.TempDir(), "empty"), `npm install`).Want(t, 0)
+		repo := guardBashMono(k, t.TempDir(), true)
+		r := guardIn(k, repo, `cd packages/a && pnpm install`)
+		r.Want(t, 0)
+		r.Empty(t)
 	})
 
 	// Shell writes to the kit overlay get a prompt.

@@ -19,14 +19,9 @@ import (
 // and never fetch, or it is dropped.
 func verify(cfg *config.Config, root string, entries []sources.Entry, s store, failure string) Result {
 	r := Result{Verdicts: map[string]Verdict{}, Skipped: map[string]string{}}
+	r.Managers, r.Dropped = managers(cfg, root, s.Managers)
 	var prefixes []string
-	for _, m := range s.Managers {
-		m.Manager, _, _ = strings.Cut(m.Manager, "@") // yarn@4.5.0 names yarn
-		if err := checkManager(cfg, root, m); err != nil {
-			r.Dropped = append(r.Dropped, fmt.Sprintf("manager for %s: %v", m.Dir, err))
-			continue
-		}
-		r.Managers = append(r.Managers, m)
+	for _, m := range r.Managers {
 		prefixes = append(prefixes, m.RunPrefix)
 	}
 	resolver := resolve.New(root, nil)
@@ -86,6 +81,20 @@ func checkRole(role, kind string) error {
 		return fmt.Errorf("check kind %q", kind)
 	}
 	return nil
+}
+
+// managers are the facts of ms that verify, each manager named alone;
+// dropped says why the rest don't.
+func managers(cfg *config.Config, root string, ms []Manager) (kept []Manager, dropped []string) {
+	for _, m := range ms {
+		m.Manager, _, _ = strings.Cut(m.Manager, "@") // yarn@4.5.0 names yarn
+		if err := checkManager(cfg, root, m); err != nil {
+			dropped = append(dropped, fmt.Sprintf("manager for %s: %v", m.Dir, err))
+			continue
+		}
+		kept = append(kept, m)
+	}
+	return kept, dropped
 }
 
 // checkManager is an error unless m cites a lockfile in its directory, or

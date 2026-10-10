@@ -48,8 +48,7 @@ func resolveSetup(t *testing.T) *resolveEnv {
 	}
 	// The default manager and environment lookups, as kit.yml has them.
 	real := testutil.KitConfig(t)
-	npm, _ := real.Manager("npm")
-	e.cfg.PackageManagers = append(e.cfg.PackageManagers, npm)
+	e.cfg.PackageManagers = append(e.cfg.PackageManagers, config.PackageManager{Lockfile: "package-lock.json", Manager: "npm", Ecosystem: "js", Default: true})
 	e.cfg.ToolResolution.EnvLookups = real.ToolResolution.EnvLookups
 	return e
 }

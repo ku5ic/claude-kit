@@ -38,10 +38,10 @@ func TestGuardEdit(t *testing.T) {
 		{"block: ~/.zshrc", "~/.zshrc", 2},
 		{"block: ~/.zprofile", "~/.zprofile", 2},
 		{"block: ~/.bashrc", "~/.bashrc", 2},
-		// Guarded lockfiles come from kit.yml's package_managers and extra_lockfiles.
-		{"block: bun.lock (a package_managers lockfile the old list missed)", "/tmp/project/bun.lock", 2},
+		// Guarded lockfiles come from kit.yml's lockfile_globs.
+		{"block: bun.lock", "/tmp/project/bun.lock", 2},
 		{"block: Pipfile.lock", "/tmp/project/Pipfile.lock", 2},
-		{"block: Cargo.lock (extra_lockfiles)", "/tmp/project/Cargo.lock", 2},
+		{"block: Cargo.lock", "/tmp/project/Cargo.lock", 2},
 		{"allow: requirements.txt is hand-edited", "/tmp/project/requirements.txt", 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

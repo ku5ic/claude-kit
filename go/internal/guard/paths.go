@@ -65,17 +65,9 @@ func IsRCFile(cfg *config.Config, home, path string) bool {
 	return false
 }
 
-// IsGuardedLockfile is true when path's basename is a tool-generated
-// lockfile: package_managers lockfiles not marked hand_edited, plus
-// extra_lockfiles.
+// IsGuardedLockfile is true when path's basename matches lockfile_globs.
 func IsGuardedLockfile(cfg *config.Config, path string) bool {
-	base := path[strings.LastIndex(path, "/")+1:]
-	for _, pm := range cfg.PackageManagers {
-		if !pm.HandEdited && pm.Lockfile == base {
-			return true
-		}
-	}
-	return slices.Contains(cfg.ExtraLockfiles, base)
+	return GlobAny(cfg.LockfileGlobs, path[strings.LastIndex(path, "/")+1:])
 }
 
 // IsOverlay is true when path is the overlay, reached through any path or

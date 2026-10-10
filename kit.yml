@@ -112,56 +112,32 @@ skill_triggers:
   bash-patterns: "before writing or modifying shell scripts"
 
 # Ordered lockfile-to-manager table. First match wins.
-# Read by package-manager resolution and guard-bash's PM mismatch guard,
-# which only compares managers sharing an ecosystem.
-#   default:        the ecosystem's manager when no lockfile names one
-#   aliases:        other commands that run the manager (npx runs npm)
-#   dlx:            its command for running a package without installing it
-#   dir_flags:      flags that pick the directory it works in
-#   global_install: regex on its arguments that marks a global install
-#   add_verb:       its verb for adding a package, when not "install"
-#   sync_verb:      its verb for installing from the lockfile, when not "install"
+# Read by package-manager resolution and stack detection.
+#   default: the ecosystem's manager when no lockfile names one
 # A manager's fields go on its first entry.
 package_managers:
   - lockfile: bun.lockb
     manager: bun
     ecosystem: js
-    aliases: [bunx]
-    dlx: bunx
-    global_install: '^(add|install)[[:space:]]+.*(-g|--global)'
   - lockfile: bun.lock
     manager: bun
     ecosystem: js
   - lockfile: pnpm-lock.yaml
     manager: pnpm
     ecosystem: js
-    dlx: pnpm dlx
-    dir_flags: [--dir, -C]
-    global_install: '^(install|add|i)[[:space:]]+.*(-g|--global)'
   - lockfile: yarn.lock
     manager: yarn
     ecosystem: js
-    dlx: yarn dlx
-    dir_flags: [--cwd]
-    global_install: '^((install|add|i)[[:space:]]+.*(-g|--global)|global[[:space:]]+add[[:space:]])'
   - lockfile: package-lock.json
     manager: npm
     ecosystem: js
     default: true
-    aliases: [npx]
-    dlx: npx
-    dir_flags: [--prefix]
-    global_install: '^(install|add|i)[[:space:]]+.*(-g|--global)'
   - lockfile: uv.lock
     manager: uv
     ecosystem: python
-    dir_flags: [--directory, --project]
-    add_verb: add
-    sync_verb: sync
   - lockfile: poetry.lock
     manager: poetry
     ecosystem: python
-    add_verb: add
   - lockfile: Pipfile.lock
     manager: pipenv
     ecosystem: python
@@ -169,18 +145,13 @@ package_managers:
     manager: pip
     ecosystem: python
     default: true
-    aliases: [pip3]
-    # Hand-maintained, so edits to it are normal; every other lockfile here is
-    # tool-generated and guard-dispatch blocks direct edits to it.
-    hand_edited: true
 
 # Guard lists. An overlay can append to any of them.
 
-# Lockfiles guard-dispatch blocks on top of the package_managers ones.
-extra_lockfiles: [Gemfile.lock, Cargo.lock, composer.lock, pdm.lock, go.sum]
-
-# Lockfile names. Each directory holding one gets package-manager facts
-# from gap-fill (go/internal/gapfill), accepted only when they cite it.
+# Lockfile names, all tool-generated: guard-dispatch blocks direct edits
+# to them (requirements.txt is hand-maintained, so it isn't one). Each
+# directory holding one gets package-manager facts from gap-fill
+# (go/internal/gapfill), accepted only when they cite it.
 lockfile_globs: [bun.lockb, bun.lock, pnpm-lock.yaml, yarn.lock, package-lock.json, npm-shrinkwrap.json, uv.lock, poetry.lock,
   Pipfile.lock, pdm.lock, Gemfile.lock, Cargo.lock, composer.lock, go.sum]
 
@@ -195,22 +166,12 @@ protected_branches: [main, master, develop, production, release]
 # report or log there belongs in scratch (rules/output.md section 3).
 root_artifact_exts: [md, txt, log, html, csv]
 
-# Commands that add a dependency, which rules/workflow.md section 2 asks
-# before: <command>: [verbs]. guard-bash asks when a verb is followed by a
-# package operand; a bare `npm install` from the lockfile adds nothing.
-dependency_adds:
-  npm: [install, i, add]
-  pnpm: [add, install, i]
-  yarn: [add]
-  bun: [add, install, i]
-  pip: [install]
-  pip3: [install]
-  uv: [add]
-  poetry: [add]
-  go: [get]
-  cargo: [add]
-  gem: [install]
-  bundle: [add]
+# Global package installs guard-bash blocks: regexes on a command's name
+# and arguments. Which manager a directory uses, and its add verbs, come
+# from the project (gap-fill's verified facts), not from here.
+global_installs:
+  - '^(npm|pnpm|yarn|bun)[[:space:]]+(install|add|i)[[:space:]]+(.*[[:space:]])?(-g|--global)([[:space:]]|$)'
+  - '^yarn[[:space:]]+global[[:space:]]+add([[:space:]]|$)'
 
 # Dependency and build-output dirs a file walk never enters (hidden dirs are
 # skipped too); rules/tooling.md's skip list matches it.

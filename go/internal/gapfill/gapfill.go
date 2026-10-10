@@ -174,6 +174,13 @@ func Run(cfg *config.Config, o Options) Result {
 	return verify(cfg, o.Root, o.Entries, s, failure)
 }
 
+// Managers are root's cached package-manager facts that verify, read
+// without asking: a cold cache has none.
+func Managers(cfg *config.Config, root, cacheDir string) []Manager {
+	ms, _ := managers(cfg, root, load(filepath.Join(cacheDir, cache.Enforce, cache.RootKey(root))+".json").Managers)
+	return ms
+}
+
 // ask calls the classifier under the repo's lock, stores its answers, and
 // returns the store they're in; failure says why it couldn't, and s comes
 // back as it was.

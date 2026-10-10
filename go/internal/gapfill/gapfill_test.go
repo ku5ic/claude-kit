@@ -257,6 +257,23 @@ func TestVerification(t *testing.T) {
 	}
 }
 
+func TestManagersReadsVerifiedFactsWithoutAsking(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t, "")
+	testutil.Put(t, f.root, "pnpm-lock.yaml", "")
+	if ms := Managers(f.cfg, f.root, f.cacheDir); len(ms) != 0 || len(f.calls()) != 0 {
+		t.Errorf("a cold cache: %+v, %d calls", ms, len(f.calls()))
+	}
+	f.answer(map[string]any{"entries": []any{}, "proposals": []any{}, "managers": []any{
+		map[string]any{"dir": ".", "cites": "pnpm-lock.yaml", "manager": "pnpm@9.1.0", "add_verbs": []string{"pnpm add"}},
+		map[string]any{"dir": ".", "cites": "yarn.lock", "manager": "yarn"},
+	}})
+	f.run(entry("lint", "eslint ."))
+	if ms := Managers(f.cfg, f.root, f.cacheDir); len(ms) != 1 || ms[0].Manager != "pnpm" || len(f.calls()) != 1 {
+		t.Errorf("only the fact whose lockfile exists, named alone: %+v, %d calls", ms, len(f.calls()))
+	}
+}
+
 func TestAPlaceholderReplacesAListOfPaths(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t, "")

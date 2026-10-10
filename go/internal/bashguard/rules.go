@@ -74,8 +74,6 @@ var (
 	findDelete  = regexp.MustCompile(`find[[:space:]].*-delete($|[[:space:]])`)
 	findExecRm  = regexp.MustCompile(`find[[:space:]].*-exec[[:space:]]+rm([[:space:]]|$)`)
 	keychainDel = regexp.MustCompile(`security[[:space:]]+delete-keychain`)
-	pnpmInstall = regexp.MustCompile(`^(install|i)([[:space:]]|$)`)
-	frozen      = regexp.MustCompile(`(^|[[:space:]])--frozen-lockfile([[:space:]]|$)`)
 	gitWriters  = regexp.MustCompile(` (checkout|restore|apply|mv|rm|stash|reset) `)
 )
 
@@ -128,7 +126,9 @@ func (c *command) check() error {
 			}
 		}
 	}
-	c.dependencyAdd()
+	if err := c.globalInstall(); err != nil {
+		return err
+	}
 	switch c.name {
 	case "cd":
 		c.cd()
@@ -170,12 +170,10 @@ func (c *command) check() error {
 			c.st.looseWrite("tee", p)
 		}
 	default:
-		if _, ok := c.st.cfg.Manager(c.name); ok {
-			return c.packageManager()
-		}
 		if strings.HasPrefix(c.name, "mkfs.") {
 			return c.block("low level disk or filesystem tool", "disk-tool")
 		}
+		return c.packageManager()
 	}
 	return nil
 }
@@ -289,17 +287,6 @@ func (c *command) overlayWrite() {
 			c.st.ask(overlayAsk)
 			return
 		}
-	}
-}
-
-// dependencyAdd asks before a kit.yml dependency_adds verb with a package
-// operand after it (rules/workflow.md section 2).
-func (c *command) dependencyAdd() {
-	verbs := c.st.cfg.DependencyAdds[c.name]
-	values := c.values()
-	i := slices.IndexFunc(values, func(v string) bool { return slices.Contains(verbs, v) })
-	if i >= 0 && slices.ContainsFunc(values[i+1:], func(v string) bool { return !strings.HasPrefix(v, "-") }) {
-		c.st.ask("this adds a dependency; rules/workflow.md section 2 asks before installing: confirm the package")
 	}
 }
 

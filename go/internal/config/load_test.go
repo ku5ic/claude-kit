@@ -59,14 +59,12 @@ func TestRealKitYMLLoadsCleanly(t *testing.T) {
 			t.Errorf("no default manager for %s", eco)
 		}
 	}
-	for _, name := range []string{"npx", "bunx", "pip3"} {
-		if _, ok := cfg.Manager(name); !ok {
-			t.Errorf("no package manager answers to %s", name)
-		}
+	if len(cfg.GlobalInstalls) == 0 {
+		t.Error("global_installs is empty")
 	}
-	for _, pm := range cfg.PackageManagers {
-		if _, err := regexp.Compile(pm.GlobalInstall); err != nil {
-			t.Errorf("%s global_install: %v", pm.Manager, err)
+	for _, pattern := range cfg.GlobalInstalls {
+		if _, err := regexp.Compile(pattern); err != nil {
+			t.Errorf("global_installs %q: %v", pattern, err)
 		}
 	}
 }

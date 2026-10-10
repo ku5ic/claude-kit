@@ -72,9 +72,8 @@ func TestIsSensitive(t *testing.T) {
 func TestIsRCFileAndLockfile(t *testing.T) {
 	t.Parallel()
 	cfg := &config.Config{
-		RCFiles:         []string{"~/.zshrc", ".bashrc"},
-		PackageManagers: []config.PackageManager{{Lockfile: "pnpm-lock.yaml"}, {Lockfile: "requirements.txt", HandEdited: true}},
-		ExtraLockfiles:  []string{"Gemfile.lock"},
+		RCFiles:       []string{"~/.zshrc", ".bashrc"},
+		LockfileGlobs: []string{"pnpm-lock.yaml", "Gemfile.lock"},
 	}
 	if !IsRCFile(cfg, "/h", "/h/.zshrc") || !IsRCFile(cfg, "/h", "~/.bashrc") || IsRCFile(cfg, "/h", "/p/.zshrc") {
 		t.Error("IsRCFile")

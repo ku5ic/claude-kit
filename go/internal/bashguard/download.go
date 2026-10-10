@@ -1,12 +1,7 @@
 package bashguard
 
 import (
-	"regexp"
-	"slices"
 	"strings"
-
-	"github.com/ku5ic/claude-kit/go/internal/config"
-	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
 // Downloads land only in scratch (rules/tooling.md): every output file and
@@ -160,106 +155,4 @@ func (c *command) checkTargets(tool, flag string, targets []string) error {
 		}
 	}
 	return nil
-}
-
-// pmDir is the directory a package manager works in: its own directory
-// flag, else the segment's cwd. Only a long flag takes =value.
-func (c *command) pmDir(dirFlags []string) string {
-	dir, wantDir := c.st.cwd, false
-	for _, w := range c.values() {
-		if wantDir {
-			dir, wantDir = resolveDir(c.st.home, c.st.cwd, w), false
-			continue
-		}
-		flag, value, hasValue := strings.Cut(w, "=")
-		switch {
-		case slices.Contains(dirFlags, w):
-			wantDir = true
-		case hasValue && slices.Contains(dirFlags, flag) && strings.HasPrefix(flag, "--"):
-			dir = resolveDir(c.st.home, c.st.cwd, value)
-		}
-	}
-	return dir
-}
-
-// packageManager guards installs: pnpm install without --frozen-lockfile
-// asks, global installs block, and a manager other than the one the nearest
-// lockfile of its own ecosystem names blocks with the rerun command.
-func (c *command) packageManager() error {
-	rest := strings.TrimLeft(c.rest, " ")
-	if c.name == "pnpm" && pnpmInstall.MatchString(rest) && !frozen.MatchString(c.text) {
-		c.st.ask("pnpm install without --frozen-lockfile can change the lockfile; confirm before running")
-	}
-	pm, _ := c.st.cfg.Manager(c.name)
-	if pm.GlobalInstall != "" {
-		// An unreadable pattern blocks: this is a guard.
-		global, err := regexp.Compile(pm.GlobalInstall)
-		if err != nil || global.MatchString(rest) {
-			if err := c.block("global package install. Use a project-local install or asdf shim.", "pkg-global-install"); err != nil {
-				return err
-			}
-		}
-	}
-	// --version and -v never touch project files.
-	if rest == "--version" || rest == "-v" {
-		return nil
-	}
-	if pm.Ecosystem == "" || pm.Ecosystem == "none" {
-		return nil
-	}
-	dir := c.pmDir(pm.DirFlags)
-	// Greenfield (no lockfile in this ecosystem) is always allowed.
-	lock, ok := project.NearestLockfile(c.st.cfg, dir, pm.Ecosystem)
-	if !ok || lock.Manager == pm.Manager {
-		return nil
-	}
-	// A dlx command (npx) suggests the lockfile manager's own.
-	other, _ := c.st.cfg.Manager(lock.Manager)
-	suggest := lock.Manager
-	if c.name == pm.Dlx && other.Dlx != "" {
-		suggest = other.Dlx
-	}
-	return c.block("this repo uses "+lock.Manager+" ("+lock.File+"); rerun as: "+c.rerun(pm, other, suggest), "pm-mismatch")
-}
-
-// rerun is the command in the lockfile manager's own terms: its directory
-// flag (or a cd when it has none) and its verbs for add and install.
-func (c *command) rerun(pm, other config.PackageManager, name string) string {
-	words := strings.Fields(c.rest)
-	var out []string
-	cd := ""
-	dir := func(d string) {
-		if len(other.DirFlags) == 0 {
-			cd = "cd " + d + " && "
-			return
-		}
-		out = append(out, other.DirFlags[0], d)
-	}
-	verbAt := -1
-	for i := 0; i < len(words); i++ {
-		w := words[i]
-		flag, value, hasValue := strings.Cut(w, "=")
-		switch {
-		case slices.Contains(pm.DirFlags, w) && i+1 < len(words):
-			i++
-			dir(words[i])
-		case hasValue && slices.Contains(pm.DirFlags, flag):
-			dir(value)
-		default:
-			if verbAt < 0 && !strings.HasPrefix(w, "-") {
-				verbAt = len(out)
-			}
-			out = append(out, w)
-		}
-	}
-	if verbAt >= 0 && slices.Contains([]string{"install", "i", "add"}, out[verbAt]) {
-		hasPackage := slices.ContainsFunc(out[verbAt+1:], func(w string) bool { return !strings.HasPrefix(w, "-") })
-		switch {
-		case hasPackage && other.AddVerb != "":
-			out[verbAt] = other.AddVerb
-		case !hasPackage && other.SyncVerb != "":
-			out[verbAt] = other.SyncVerb
-		}
-	}
-	return cd + strings.Join(append([]string{name}, out...), " ")
 }

@@ -48,7 +48,7 @@ func TestGuardDispatch(t *testing.T) {
 	t.Run("guard-edit's check fires first and blocks a lockfile edit", func(t *testing.T) {
 		k := sandbox(t)
 		// The guarded lockfile list comes from kit.yml.
-		k.KitYML("extra_lockfiles: [package-lock.json]\n")
+		k.KitYML("lockfile_globs: [package-lock.json]\n")
 		r := dispatch(k, "/tmp/project/package-lock.json", "harmless content", "Write")
 		r.Want(t, 2)
 		r.Has(t, "Blocked by guard-edit:")
@@ -73,7 +73,7 @@ func TestGuardDispatch(t *testing.T) {
 
 	t.Run("ordering: a lockfile edit that would also trip the skills-gate surfaces only guard-edit's message", func(t *testing.T) {
 		k := sandbox(t)
-		k.KitYML(`extra_lockfiles: [yarn.lock]
+		k.KitYML(`lockfile_globs: [yarn.lock]
 skill_file_map:
   - on: basename
     globs: ["*.lock"]
@@ -131,7 +131,7 @@ skill_file_map:
 	readGuards := func(t *testing.T) *Kit {
 		k := sandbox(t)
 		k.KitYML(`sensitive_paths: [".env", ".env.*", "~/.ssh/"]
-extra_lockfiles: [package-lock.json]
+lockfile_globs: [package-lock.json]
 skill_file_map:
   - on: basename
     globs: ["*.tsx", "*.sh"]
