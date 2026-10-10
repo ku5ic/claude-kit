@@ -44,7 +44,7 @@ var Dirs = []Dir{
 	{Statusline, "statusline cache(s)", 1},
 	{ReplyLimit, "reply-limit marker(s)", 1},
 	{Stack, "stack report(s)", 30},
-	{StopReports, "stop-checks report(s)", 1},
+	{StopReports, "stop-checks and per-edit report(s)", 1},
 	{Enforce, "gap-fill verdict and gate mark file(s)", 30},
 }
 
@@ -59,6 +59,12 @@ func RootKey(root string) string {
 // root, for kit explain stop: the hook itself is silent unless it blocks.
 func StopReport(cacheDir, root string) string {
 	return filepath.Join(cacheDir, StopReports, RootKey(root))
+}
+
+// EditReport is where format-dispatch keeps its last report for the repo
+// at root, for kit explain stop.
+func EditReport(cacheDir, root string) string {
+	return filepath.Join(cacheDir, StopReports, RootKey(root)+".edit")
 }
 
 // Older reports whether info was last modified more than days whole days

@@ -142,8 +142,13 @@ func stop(paths config.Paths, cfg *config.Config, cwd string, files []string, w,
 	}
 	if len(files) == 0 {
 		// The hook is silent on a pass: its last report says what ran and what was skipped.
-		if report, err := os.ReadFile(cache.StopReport(paths.CacheDir(), root)); err == nil {
-			fmt.Fprintf(w, "last stop-checks run:\n%s\n\n", strings.TrimRight(string(report), "\n"))
+		for _, last := range []struct{ name, path string }{
+			{"stop-checks", cache.StopReport(paths.CacheDir(), root)},
+			{"per-edit", cache.EditReport(paths.CacheDir(), root)},
+		} {
+			if report, err := os.ReadFile(last.path); err == nil {
+				fmt.Fprintf(w, "last %s run:\n%s\n\n", last.name, strings.TrimRight(string(report), "\n"))
+			}
 		}
 		files = changedFiles(root)
 		if len(files) == 0 {

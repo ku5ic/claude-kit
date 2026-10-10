@@ -38,8 +38,7 @@ func Stop(cfg *config.Config, o Options, files []string) Plan {
 	b.unclassified(func(e sources.Entry) bool {
 		return (e.Stage == "" || e.Stage == "pre-commit") && e.Source != "husky" && e.Source != "commitlint"
 	})
-	b.resolve()
-	skipMarked(b.gates, o.CacheDir, o.Root)
+	b.settle(o.CacheDir)
 	p.Gates, p.Unclassified = b.gates, b.skipped
 	return p
 }
@@ -191,14 +190,14 @@ func (g Gate) Command() string {
 		}
 		out := make([]string, len(values))
 		for i, v := range values {
-			out[i] = strings.ReplaceAll(word, placeholder, quote(v))
+			out[i] = strings.ReplaceAll(word, placeholder, Quote(v))
 		}
 		return strings.Join(out, " ")
 	})
 }
 
-// quote is s as one shell word.
-func quote(s string) string {
+// Quote is s as one shell word.
+func Quote(s string) string {
 	if q, err := syntax.Quote(s, syntax.LangBash); err == nil {
 		return q
 	}

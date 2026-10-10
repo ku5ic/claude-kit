@@ -21,19 +21,15 @@ const (
 )
 
 // Resolution is how a tool runs: the words that run it and where they come
-// from, or, when Words is nil, why it can't run. Missing is true only when
-// no copy exists anywhere, the one skip a fallback formatter moves past;
-// Project is true when the project itself names the tool (declared, pinned,
-// a range the copy misses), so it claims the file even though it can't run.
-// OnPath is the PATH copy a skip passed over. Note qualifies a copy that
+// from, or, when Words is nil, why it can't run. Project is true when the
+// project itself names the tool (declared, pinned, a range the copy
+// misses), so the skip is the project's to fix. Note qualifies a copy that
 // runs (its declared range couldn't be checked).
 type Resolution struct {
 	Words   []string
 	Source  string
 	Skip    string
-	Missing bool
 	Project bool
-	OnPath  string
 	Note    string
 }
 
@@ -46,8 +42,6 @@ const (
 	// LocalOnly never takes PATH: a copy from there can't see the
 	// project's packages.
 	LocalOnly
-	// AnyPath takes any PATH copy, for fallback formatters.
-	AnyPath
 )
 
 // Resolve finds name for dir, in tool_resolution's order (kit.yml): a
@@ -106,21 +100,18 @@ func Resolve(cfg *config.Config, dir, root, name string, mode Mode) Resolution {
 	}
 	path, err := exec.LookPath(name)
 	if err != nil {
-		return Resolution{Skip: name + " not installed", Missing: true}
-	}
-	if mode == AnyPath {
-		return Resolution{Words: []string{path}, Source: SourcePATH}
+		return Resolution{Skip: name + " not installed"}
 	}
 	if pin := pinned(cfg, dir, root, name); pin != "" {
 		if underManagerDir(cfg, path) {
 			return Resolution{Words: []string{path}, Source: SourceManager}
 		}
-		return Resolution{Skip: name + " pinned in " + pin + ", but PATH has " + path, Project: true, OnPath: path}
+		return Resolution{Skip: name + " pinned in " + pin + ", but PATH has " + path, Project: true}
 	}
 	if slices.Contains(cfg.ToolResolution.PathFallback, name) {
 		return Resolution{Words: []string{path}, Source: SourcePATH}
 	}
-	return Resolution{Skip: name + " only on PATH (" + path + "); nothing in the project declares or pins it. Pin it (.tool-versions), or add it to tool_resolution.path_fallback in ~/.claude/claude-kit.local.yml to allow", OnPath: path}
+	return Resolution{Skip: name + " only on PATH (" + path + "); nothing in the project declares or pins it. Pin it (.tool-versions), or add it to tool_resolution.path_fallback in ~/.claude/claude-kit.local.yml to allow"}
 }
 
 // envBin runs an env_lookups entry (kit.yml) for name from dir: the words

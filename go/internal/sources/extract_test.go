@@ -69,13 +69,6 @@ func TestTOMLArrayWorkspaceMembers(t *testing.T) {
 	expect(t, TOMLArray(f, ".workspace.members"), "crates/a", "crates/b")
 }
 
-func TestTOMLHasEmptyTable(t *testing.T) {
-	f := fixture(t, "pyproject.toml", "[tool.ruff]\n[tool.other]\nx = 1\n")
-	if !TOMLHas(f, ".tool.ruff") || TOMLHas(f, ".tool.black") {
-		t.Error("TOMLHas: want ruff true, black false")
-	}
-}
-
 func TestTOMLPackageVersionIgnoresCase(t *testing.T) {
 	f := fixture(t, "uv.lock", "[[package]]\nname = \"Django\"\nversion = \"6.0.7\"\n")
 	if got := TOMLPackageVersion(f, "django"); got != "6.0.7" {

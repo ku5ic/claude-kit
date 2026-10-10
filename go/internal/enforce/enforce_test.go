@@ -246,6 +246,19 @@ func TestAGateSeenChangingFilesIsASkipUntilReset(t *testing.T) {
 	has(t, e.plan(), "RUN format-check (.github/workflows/ci.yml: fmt/1)")
 }
 
+// disabled_checks turns a kind off everywhere, and one entry by its label.
+func TestDisabledChecksTurnsAKindOrAnEntryOff(t *testing.T) {
+	e := setup(t)
+	e.tool(filepath.Join(e.path, "go"))
+	e.write("go.mod", "module x\n")
+	e.write(".github/workflows/ci.yml", "jobs:\n  go:\n    steps:\n      - run: go vet ./...\n      - run: go test ./...\n")
+	e.check("go/1", check("lint"))
+	e.check("go/2", check("test"))
+	e.cfg.DisabledChecks = []string{"lint", "test (.github/workflows/ci.yml: go/2)"}
+	p := e.plan()
+	has(t, p, "SKIP lint (.github/workflows/ci.yml: go/1) (disabled_checks)", "SKIP test (.github/workflows/ci.yml: go/2) (disabled_checks)")
+}
+
 func TestAnUnclassifiedEntryIsASkipAndCounted(t *testing.T) {
 	e := setup(t)
 	e.write("package.json", `{"scripts":{"lint":"eslint ."}}`)

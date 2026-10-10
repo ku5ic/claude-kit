@@ -230,7 +230,6 @@ func validate(path string) []Warning {
 // keyedSequences are the sequences whose entries an overlay entry with the
 // same values at the named fields updates instead of appending beside.
 var keyedSequences = map[string][]string{
-	"formatters":       {"name"},
 	"checks":           {"name"},
 	"toolchain_checks": {"stack", "name"},
 }

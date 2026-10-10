@@ -35,8 +35,6 @@ type Config struct {
 	DisabledToolchainChecks []string      `yaml:"disabled_toolchain_checks"`
 
 	SubprojectMaxDepth int                 `yaml:"subproject_max_depth"`
-	Formatters         []Formatter         `yaml:"formatters"`
-	DisabledFormatters []string            `yaml:"disabled_formatters"`
 	FileChecks         []FileCheck         `yaml:"file_checks"`
 	DisabledFileChecks []string            `yaml:"disabled_file_checks"`
 	CheckTimeout       int                 `yaml:"check_timeout"`
@@ -51,6 +49,7 @@ type Config struct {
 	Stacks             map[string]Stack    `yaml:"stacks"`
 	LockfileGlobs      []string            `yaml:"lockfile_globs"`
 	Classifier         []string            `yaml:"classifier"`
+	OnEdit             []EditRule          `yaml:"on_edit"`
 
 	// Document order of the map-keyed sections, which a Go map loses:
 	// detection reports stacks, and versions, in the order kit.yml (then
@@ -293,16 +292,21 @@ type ToolchainCheck struct {
 	Slot    string   `yaml:"slot"`
 }
 
-type Formatter struct {
-	Name           string   `yaml:"name"`
-	Ext            []string `yaml:"ext"`
-	SignalFiles    []string `yaml:"signal_files"`
-	SignalTOML     string   `yaml:"signal_toml"`
-	SignalPrettier bool     `yaml:"signal_prettier"`
-	Bin            string   `yaml:"bin"`
-	Cmd            string   `yaml:"cmd"`
-	Fallback       bool     `yaml:"fallback"`
-	Stdout         bool     `yaml:"stdout"`
+// EditRule is the user's policy for an edited file its globs match: Run
+// formats it when no fixer of the project's claims it, the first command
+// whose binary is on PATH; Note runs on it whatever claims it, its output
+// shown, nothing changed.
+type EditRule struct {
+	Globs []string      `yaml:"globs"`
+	Run   []EditCommand `yaml:"run"`
+	Note  string        `yaml:"note"`
+}
+
+// EditCommand is one formatter in an EditRule's chain, {file} its path;
+// Stdout replaces the file with what it prints.
+type EditCommand struct {
+	Cmd    string `yaml:"cmd"`
+	Stdout bool   `yaml:"stdout"`
 }
 
 // ToolResolution is where a tool's binary may come from beyond the

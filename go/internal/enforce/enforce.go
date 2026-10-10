@@ -84,8 +84,7 @@ const Discovery = "nothing in this project states a check: no CI step, task, hoo
 func Build(cfg *config.Config, o Options) Plan {
 	b, subs := fullGate(cfg, o)
 	b.unclassified(func(e sources.Entry) bool { return !gitHook(e.Source) })
-	b.resolve()
-	skipMarked(b.gates, o.CacheDir, o.Root)
+	b.settle(o.CacheDir)
 	p := Plan{Root: o.Root, Unclassified: b.skipped}
 	for _, g := range b.gates {
 		if len(o.Only) == 0 || slices.Contains(o.Only, b.subOf(g.Dir, subs)) {
@@ -101,15 +100,21 @@ func Build(cfg *config.Config, o Options) Plan {
 // fullGate is a builder holding o.Root's full gate, unresolved, and the
 // subprojects it planned.
 func fullGate(cfg *config.Config, o Options) (*builder, []string) {
-	subs := project.Subprojects(cfg, o.Root)
-	entries := sources.Entries(cfg, o.Root, subs)
-	facts := gapfill.Run(cfg, gapfill.Options{Root: o.Root, CacheDir: o.CacheDir, Entries: entries, Ask: o.Ask, Timeout: o.Timeout})
-	b := newBuilder(cfg, o.Root, entries, facts)
+	b, subs := plan(cfg, o)
 	b.ci()
 	for _, sub := range subs {
 		b.fill(sub)
 	}
 	return b, subs
+}
+
+// plan is an empty builder for o.Root: its entries and their verified
+// verdicts, and its subprojects.
+func plan(cfg *config.Config, o Options) (*builder, []string) {
+	subs := project.Subprojects(cfg, o.Root)
+	entries := sources.Entries(cfg, o.Root, subs)
+	facts := gapfill.Run(cfg, gapfill.Options{Root: o.Root, CacheDir: o.CacheDir, Entries: entries, Ask: o.Ask, Timeout: o.Timeout})
+	return newBuilder(cfg, o.Root, entries, facts), subs
 }
 
 // gitHook is true for a source that only a git hook runs: the full gate
@@ -292,6 +297,20 @@ func (b *builder) unclassified(runs func(sources.Entry) bool) {
 			b.skipped++
 		}
 	}
+}
+
+// settle skips each gate disabled_checks names, by a kind it checks or by
+// its label, then finds the rest's binaries, then skips each gate seen
+// changing files.
+func (b *builder) settle(cacheDir string) {
+	for i := range b.gates {
+		g := &b.gates[i]
+		if g.Skip == "" && (b.cfg.CheckDisabled("", g.Label) || slices.ContainsFunc(g.Kinds, func(k string) bool { return b.cfg.CheckDisabled(k, g.Label) })) {
+			g.Skip = "disabled_checks"
+		}
+	}
+	b.resolve()
+	skipMarked(b.gates, cacheDir, b.root)
 }
 
 // resolve finds each gate's binaries; the first that can't run skips it.

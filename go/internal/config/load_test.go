@@ -40,7 +40,7 @@ func TestRealKitYMLLoadsCleanly(t *testing.T) {
 		"toolchain_checks":   len(cfg.ToolchainChecks),
 		"orchestrators":      len(cfg.Orchestrators),
 		"tools":              len(cfg.Tools),
-		"formatters":         len(cfg.Formatters),
+		"on_edit":            len(cfg.OnEdit),
 		"stacks":             len(cfg.Stacks),
 	}
 	for name, n := range lists {
@@ -93,20 +93,18 @@ func TestOverlayMergesMapsAndAppendsSequences(t *testing.T) {
 	}
 }
 
-func TestOverlayFormatterWithADefaultsNameUpdatesItFieldByField(t *testing.T) {
+// The overlay's on_edit rules come after kit.yml's, so the last match, the
+// overlay's, wins.
+func TestOverlayOnEditRulesAppend(t *testing.T) {
 	dir := t.TempDir()
-	base := write(t, dir, "kit.yml", "formatters:\n  - {name: a, ext: [md], bin: a, cmd: \"{bin} {file}\"}\n  - {name: b, ext: [py], bin: b}\n")
-	overlay := write(t, dir, "over.yml", "formatters:\n  - {name: a, ext: [mdx]}\n  - {name: c, ext: [toml], bin: c}\n")
+	base := write(t, dir, "kit.yml", "on_edit:\n  - {globs: [\"*.md\"], run: [{cmd: \"a {file}\"}]}\n")
+	overlay := write(t, dir, "over.yml", "on_edit:\n  - {globs: [\"*.toml\"], run: [{cmd: \"c {file}\", stdout: true}]}\n")
 	cfg, warnings, err := Load(Paths{Base: base, Overlay: overlay})
 	if err != nil || len(warnings) > 0 {
 		t.Fatalf("err=%v warnings=%v", err, warnings)
 	}
-	var got []string
-	for _, f := range cfg.Formatters {
-		got = append(got, f.Name+":"+strings.Join(f.Ext, ",")+":"+f.Bin+":"+f.Cmd)
-	}
-	if want := "a:mdx:a:{bin} {file}|b:py:b:|c:toml:c:"; strings.Join(got, "|") != want {
-		t.Errorf("formatters = %s, want %s", strings.Join(got, "|"), want)
+	if len(cfg.OnEdit) != 2 || cfg.OnEdit[1].Globs[0] != "*.toml" || !cfg.OnEdit[1].Run[0].Stdout {
+		t.Errorf("on_edit = %+v", cfg.OnEdit)
 	}
 }
 
@@ -205,7 +203,7 @@ func TestNegativeReplyLimitsWarn(t *testing.T) {
 
 func TestUnknownKeysWarnWithTheirFile(t *testing.T) {
 	dir := t.TempDir()
-	base := write(t, dir, "kit.yml", "protected_branches: [main]\nformatters:\n  - name: x\n    signal_fies: [a]\n")
+	base := write(t, dir, "kit.yml", "protected_branches: [main]\non_edit:\n  - globs: [a]\n    signal_fies: [a]\n")
 	overlay := write(t, dir, "over.yml", "protected_brnches: [dev]\n")
 	cfg, warnings, err := Load(Paths{Base: base, Overlay: overlay})
 	if err != nil {

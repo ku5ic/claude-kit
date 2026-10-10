@@ -2,29 +2,29 @@ package hooks
 
 import (
 	"cmp"
-	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
-	"slices"
 	"strings"
 	"time"
 
+	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/enforce"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/proc"
 	"github.com/ku5ic/claude-kit/go/internal/project"
-	"github.com/ku5ic/claude-kit/go/internal/tools"
+	"github.com/ku5ic/claude-kit/go/internal/run"
 )
 
-// FormatDispatch formats an edited file with the project's own formatter
-// and config, per kit.yml's formatters table. A file two formatters claim (a
-// migration in progress) is left byte-identical, and so is one none claims,
-// unless a fallback entry (Markdown) resolves.
-// Never installs anything. Shell files also get a non-blocking shellcheck
-// pass on stderr. PostToolUse for Edit, Write, MultiEdit.
+// FormatDispatch formats an edited file (PostToolUse for Edit, Write,
+// MultiEdit): with the project's fixers (enforce.Edit), else with the
+// first on_edit formatter on PATH for it. Then each on_edit note for it
+// runs, its output on stderr. It never installs anything and prints
+// nothing else: what ran is kept for kit explain stop.
 func FormatDispatch(h *hook.Hook) error {
 	if h.Payload.Err != nil {
 		return h.Payload.Err
@@ -33,124 +33,70 @@ func FormatDispatch(h *hook.Hook) error {
 	if path == "" || !fsx.IsFile(path) || project.IsScratch(h.Paths, path) {
 		return nil
 	}
-	ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(path), "."))
-	if ext == "" {
-		return nil
-	}
 	dir, err := filepath.EvalSymlinks(filepath.Dir(path))
 	cfg := h.Config()
 	if err != nil || cfg == nil {
 		return nil
 	}
+	path = filepath.Join(dir, filepath.Base(path))
 	root := cmp.Or(git.Toplevel(dir), dir)
-	hits, blocked, fallbacks := claims(cfg, ext, dir, root, path)
-	also := ""
-	if len(hits) == 0 && len(blocked) > 0 {
-		hits, blocked = blocked[:1], blocked[1:]
+	p := enforce.Edit(cfg, enforce.Options{Root: root, CacheDir: h.Paths.CacheDir()}, path)
+	report := run.Fix(p, formatTimeout)
+	chain, notes := enforce.OnEdit(cfg, root, path)
+	if !p.Claims() && len(chain) > 0 {
+		report += onEdit(chain, path, dir)
 	}
-	if len(blocked) > 0 {
-		// Can't tell whether it's configured too without running it.
-		also = fmt.Sprintf(" (%s is also declared here but can't run: %s)", blocked[0].fmt.Name, blocked[0].res.Skip)
-	}
-	if len(hits) == 0 {
-		for _, f := range fallbacks {
-			if res := tools.Resolve(cfg, dir, root, f.Bin, tools.AnyPath); !res.Missing {
-				hits = append(hits, claim{f, res})
-				break
-			}
+	for _, note := range notes {
+		if onPath(note) {
+			cmd := proc.Command(formatTimeout, "bash", "-c", fill(note, path))
+			cmd.Dir, cmd.Stdout, cmd.Stderr = dir, h.Stderr, h.Stderr
+			_ = cmd.Run() // a note only shows what it finds
 		}
 	}
-	apply(hits, also, path, dir, h.Stderr)
-	if ext == "sh" || ext == "bash" {
-		if res := tools.Resolve(cfg, dir, root, "shellcheck", tools.Default); res.Words != nil {
-			cmd := proc.Command(formatTimeout, res.Words[0], append(res.Words[1:], path)...)
-			cmd.Stdout, cmd.Stderr = h.Stderr, h.Stderr
-			_ = cmd.Run() // advisory: its findings are on stderr already
-		}
+	if report != "" && !h.DryRun {
+		_ = fsx.WriteAtomic(cache.EditReport(h.Paths.CacheDir(), root), []byte(report), 0o600)
 	}
 	return nil
-}
-
-// claim is a formatter that claims the file, and how it runs.
-type claim struct {
-	fmt config.Formatter
-	res tools.Resolution
-}
-
-// claims sorts the formatters for ext: hits have a signal for the file,
-// blocked are ones the project names but that can't run, and fallbacks
-// claim a file nothing else does.
-func claims(cfg *config.Config, ext, dir, root, path string) (hits, blocked []claim, fallbacks []config.Formatter) {
-	for _, f := range cfg.Formatters {
-		if slices.Contains(cfg.DisabledFormatters, f.Name) || !slices.Contains(f.Ext, ext) {
-			continue
-		}
-		if f.Fallback {
-			fallbacks = append(fallbacks, f)
-			continue
-		}
-		// Resolving can start a package manager (poetry env info, bundle
-		// info), so only a formatter with a signal, or Prettier's own lookup,
-		// which needs the binary, pays for it.
-		signaled := hasSignal(f, nil, dir, root, path)
-		if !signaled && !f.SignalPrettier {
-			continue
-		}
-		res := tools.Resolve(cfg, dir, root, f.Bin, tools.Default)
-		switch {
-		case signaled:
-		case res.Project:
-			// The project names the tool (declared, pinned) but it can't
-			// run: no fallback may swap another formatter in.
-			blocked = append(blocked, claim{f, res})
-		case res.Words != nil:
-			signaled = hasSignal(f, res.Words, dir, root, path)
-		case res.OnPath != "":
-			// Any copy can answer Prettier's config lookup, even one the
-			// policy won't format with.
-			signaled = hasSignal(f, []string{res.OnPath}, dir, root, path)
-		}
-		if signaled {
-			hits = append(hits, claim{f, res})
-		}
-	}
-	return hits, blocked, fallbacks
-}
-
-// apply runs the one formatter that claims the file, or says why none ran.
-func apply(hits []claim, also, path, dir string, stderr io.Writer) {
-	base := filepath.Base(path)
-	switch {
-	case len(hits) > 1:
-		var names []string
-		for _, c := range hits {
-			names = append(names, c.fmt.Name)
-		}
-		fmt.Fprintf(stderr, "format-dispatch: left %s unformatted; %s are all configured for it here\n", base, strings.Join(names, " "))
-	case len(hits) == 1 && hits[0].res.Missing:
-		fmt.Fprintf(stderr, "format-dispatch: %s is configured here but not installed; %s left unformatted%s\n", hits[0].fmt.Name, base, also)
-	case len(hits) == 1 && hits[0].res.Words == nil:
-		fmt.Fprintf(stderr, "format-dispatch: %s is configured here but can't run: %s; %s left unformatted%s\n", hits[0].fmt.Name, hits[0].res.Skip, base, also)
-	case len(hits) == 1:
-		runFormatter(hits[0].fmt, hits[0].res.Words, path, dir, stderr)
-	}
 }
 
 // formatTimeout bounds one formatter run, inside post-edit-dispatch's 20s
 // in hooks.json.
 const formatTimeout = 15 * time.Second
 
-// runFormatter runs f on path with bin filling {bin}, word by word so a
-// path with spaces stays one argument. A stdout formatter reads the file on
-// stdin; its output replaces the file only when it exits 0 with output.
-func runFormatter(f config.Formatter, bin []string, path, dir string, stderr io.Writer) {
-	var parts []string
-	for _, word := range tools.Fill(strings.Fields(f.Cmd), "{bin}", bin) {
-		parts = append(parts, strings.ReplaceAll(word, "{file}", path))
+// onEdit formats path with the first of chain whose binary is on PATH, and
+// says which ran, or that none could.
+func onEdit(chain []config.EditCommand, path, dir string) string {
+	var tried []string
+	for _, c := range chain {
+		if !onPath(c.Cmd) {
+			tried = append(tried, strings.Fields(c.Cmd)[0])
+			continue
+		}
+		runFormatter(c, path, dir)
+		return "RAN on_edit: " + c.Cmd + "\n"
 	}
-	cmd := proc.Command(formatTimeout, parts[0], parts[1:]...)
-	cmd.Dir, cmd.Stderr = dir, stderr
-	if !f.Stdout {
+	return "SKIP on_edit (none on PATH: " + strings.Join(tried, ", ") + ")\n"
+}
+
+// onPath is true when cmd's first word is on PATH.
+func onPath(cmd string) bool {
+	words := strings.Fields(cmd)
+	if len(words) == 0 {
+		return false
+	}
+	_, err := exec.LookPath(words[0])
+	return err == nil
+}
+
+// fill is cmd with {file} as path, one shell word.
+func fill(cmd, path string) string { return strings.ReplaceAll(cmd, "{file}", enforce.Quote(path)) }
+
+// runFormatter runs c on path. A stdout formatter reads the file on stdin;
+// its output replaces the file only when it exits 0 with output.
+func runFormatter(c config.EditCommand, path, dir string) {
+	cmd := proc.Command(formatTimeout, "bash", "-c", fill(c.Cmd, path))
+	cmd.Dir, cmd.Stderr = dir, io.Discard
+	if !c.Stdout {
 		_ = cmd.Run() // a formatter that fails leaves the file as it was
 		return
 	}
@@ -174,27 +120,4 @@ func runFormatter(f config.Formatter, bin []string, path, dir string, stderr io.
 		return
 	}
 	_ = fsx.WriteAtomic(target, out, info.Mode().Perm())
-}
-
-// hasSignal is true when formatter f has a signal for the file: a config
-// file or TOML table (tools.HasSignal), or Prettier's
-// own config lookup, accepted only when what it finds is inside root (it
-// also finds a ~/.prettierrc, and every repo would get Prettier).
-func hasSignal(f config.Formatter, bin []string, dir, root, path string) bool {
-	if _, ok := tools.HasSignal(f.SignalFiles, f.SignalTOML, dir, root); ok {
-		return true
-	}
-	if f.SignalPrettier && bin != nil {
-		cmd := proc.Command(proc.Quick, bin[0], append(bin[1:], "--find-config-path", path)...)
-		cmd.Dir = dir
-		out, err := cmd.Output()
-		found := strings.TrimSpace(string(out))
-		if err == nil && found != "" {
-			if !filepath.IsAbs(found) {
-				found = filepath.Join(dir, found)
-			}
-			return strings.HasPrefix(fsx.PhysicalPath(found), root+"/")
-		}
-	}
-	return false
 }

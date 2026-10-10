@@ -250,12 +250,6 @@ func TOMLArray(file, path string) []string {
 	return strings_(GetPath(readTOML(file), path))
 }
 
-// TOMLHas is true when path exists, even as an empty table: a bare
-// [tool.ruff] means "use ruff with defaults".
-func TOMLHas(file, path string) bool {
-	return GetPath(readTOML(file), path) != nil
-}
-
 // TOMLPackageVersion is the version of [[package]] name in a uv.lock or
 // poetry.lock, matched case-insensitively as pip names are.
 func TOMLPackageVersion(file, name string) string {

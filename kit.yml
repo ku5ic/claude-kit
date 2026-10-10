@@ -397,79 +397,21 @@ disabled_toolchain_checks: []
 # directory a subproject (`kit subprojects`).
 subproject_max_depth: 4
 
-# Formatters for the format-dispatch hook (go/internal/hooks/format.go). A
-# signal is found walking up from the file to the project root:
-#   signal_files     a config file by name
-#   signal_toml      a table in a TOML file ("<file> <dotted path>")
-#   signal_prettier  Prettier's own config lookup, inside the project root
-#   fallback         no signal needed; tried in order when nothing claims the file
-#   stdout           reads the file on stdin, prints the result
-# disabled_formatters turns one off by name.
-formatters:
-  - name: biome
-    ext: [js, jsx, mjs, cjs, ts, tsx, mts, cts, json, jsonc, css]
-    signal_files: [biome.json, biome.jsonc]
-    bin: biome
-    cmd: "{bin} format --write {file}"
-  - name: prettier
-    ext: [js, jsx, mjs, cjs, ts, tsx, mts, cts, css, scss, json, md, mdx, yaml, yml, html]
-    signal_prettier: true
-    bin: prettier
-    cmd: "{bin} --write {file}"
-  - name: dprint
-    ext: [js, jsx, mjs, cjs, ts, tsx, mts, cts, json, jsonc, md, toml]
-    signal_files: [dprint.json, .dprint.json]
-    bin: dprint
-    cmd: "{bin} fmt {file}"
-  - name: ruff
-    ext: [py]
-    signal_files: [ruff.toml, .ruff.toml]
-    signal_toml: "pyproject.toml .tool.ruff"
-    bin: ruff
-    cmd: "{bin} format {file}"
-  - name: black
-    ext: [py]
-    signal_toml: "pyproject.toml .tool.black"
-    bin: black
-    cmd: "{bin} --quiet {file}"
-  - name: shfmt
-    ext: [sh, bash]
-    signal_files: [.editorconfig]
-    bin: shfmt
-    cmd: "{bin} -w {file}"
-  - name: stylua
-    ext: [lua]
-    signal_files: [stylua.toml, .stylua.toml]
-    bin: stylua
-    cmd: "{bin} {file}"
-  - name: gofmt
-    ext: [go]
-    signal_files: [go.mod]
-    bin: gofmt
-    cmd: "{bin} -w {file}"
-  - name: prettierd
-    ext: [md, mdx, markdown]
-    fallback: true
-    bin: prettierd
-    cmd: "{bin} {file}"
-    stdout: true
-  - name: prettier-markdown
-    ext: [md, mdx, markdown]
-    fallback: true
-    bin: prettier
-    cmd: "{bin} --write {file}"
-  - name: deno-markdown
-    ext: [md, mdx, markdown]
-    fallback: true
-    bin: deno
-    cmd: "{bin} fmt {file}"
-  - name: mdformat
-    ext: [md, markdown]
-    fallback: true
-    bin: mdformat
-    cmd: "{bin} {file}"
-
-disabled_formatters: []
+# What the format-dispatch hook runs on an edited file the project's own
+# fixers don't claim (go/internal/hooks/format.go). Per rule, by globs:
+#   run   the first command on PATH formats it; {file} is its path, and
+#         stdout: true replaces the file with what the command prints.
+#         The last rule that matches wins, so an overlay's rule overrides.
+#   note  runs whatever claims the file, its output shown, nothing changed.
+on_edit:
+  - globs: ["*.md", "*.mdx", "*.markdown"]
+    run:
+      - {cmd: "prettierd {file}", stdout: true}
+      - {cmd: "prettier --write {file}"}
+      - {cmd: "deno fmt {file}"}
+      - {cmd: "mdformat {file}"}
+  - globs: ["*.sh", "*.bash"]
+    note: "shellcheck {file}"
 
 # Where a tool's binary comes from; the order is tools.Resolve's.
 #   path_fallback  standalone toolchains whose PATH copy is safe to run

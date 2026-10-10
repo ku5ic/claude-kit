@@ -140,7 +140,7 @@ func TestResolveDeclaredButNotInstalledSkipsEvenWithAPATHCopy(t *testing.T) {
 	e.exe(filepath.Join(e.path, "prettier"), "")
 	testutil.Put(t, e.repo, "package.json", `{"devDependencies":{"prettier":"3.6.2"}}`)
 	testutil.Put(t, e.repo, "pnpm-lock.yaml", "")
-	e.wantSkip(e.resolve("prettier", AnyPath), "prettier declared in package.json but not installed; run pnpm install")
+	e.wantSkip(e.resolve("prettier", Default), "prettier declared in package.json but not installed; run pnpm install")
 }
 
 func TestResolveDeclaredPythonToolNamesTheManagersInstall(t *testing.T) {
@@ -167,13 +167,9 @@ func TestResolveLocalOnlyNeverTakesPATH(t *testing.T) {
 	e.wantSkip(e.resolve("mypy", LocalOnly), "mypy not in the project environment")
 }
 
-func TestResolveNothingAnywhereIsMissing(t *testing.T) {
+func TestResolveNothingAnywhereIsNotInstalled(t *testing.T) {
 	e := resolveSetup(t)
-	res := e.resolve("tsc", Default)
-	e.wantSkip(res, "tsc not installed")
-	if !res.Missing {
-		t.Error("Missing is false")
-	}
+	e.wantSkip(e.resolve("tsc", Default), "tsc not installed")
 }
 
 func TestResolvePinnedToolRunsOnlyFromTheVersionManager(t *testing.T) {
@@ -209,7 +205,6 @@ func TestResolvePathFallbackAndAmbiguousPATHCopies(t *testing.T) {
 
 	yl := e.exe(filepath.Join(e.path, "yamllint"), "")
 	e.wantSkip(e.resolve("yamllint", Default), "yamllint only on PATH ("+yl+")", "path_fallback")
-	e.wantRuns(e.resolve("yamllint", AnyPath), yl, SourcePATH)
 }
 
 func TestResolveToolchainTakesTheFirstCandidateThatRuns(t *testing.T) {

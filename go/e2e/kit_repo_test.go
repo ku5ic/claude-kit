@@ -118,9 +118,6 @@ func TestKitRepo(t *testing.T) {
 				}
 			}
 		}
-		for _, f := range cfg.Formatters {
-			covers("formatter "+f.Name, f.Ext)
-		}
 		// skill_file_map: per skill, the basename globs of every rule naming it.
 		bySkill := map[string][]string{}
 		for _, rule := range cfg.SkillFileMap {
