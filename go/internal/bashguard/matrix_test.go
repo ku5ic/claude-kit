@@ -1,4 +1,4 @@
-package e2e
+package bashguard
 
 import (
 	"fmt"
@@ -15,13 +15,13 @@ func TestGuardBashParsing(t *testing.T) {
 	t.Parallel()
 	t.Run("parsing matrix: hidden commands are checked, data isn't", func(t *testing.T) {
 		t.Parallel()
-		k := New(t)
+		k := newSandbox(t)
 		cwd := t.TempDir()
 		// probe reports a mismatch when cmd's verdict isn't want: block,
 		// ask, allow, or pass.
 		probe := func(want, cmd string) {
 			t.Helper()
-			r := k.Hook("guard-bash", Payload("Bash", cmd, "", cwd))
+			r := k.hook("", cwd, cmd)
 			verdict := "pass"
 			switch {
 			case r.Status == 2:
@@ -201,7 +201,7 @@ func TestGuardBashParsing(t *testing.T) {
 		probe("pass", `cp ~/.zshrc /tmp/x`)
 		probe("pass", `ln -sf ~/.dotfiles/.zshrc ~/.zshrc`)
 		// Overlay writes by any command, not only >, sed -i, and sd.
-		Touch(t, filepath.Join(k.Claude, "claude-kit.local.yml"))
+		touch(t, filepath.Join(k.claude, "claude-kit.local.yml"))
 		probe("ask", `tee -a ~/.claude/claude-kit.local.yml`)
 		probe("ask", `echo x | tee ~/.claude/claude-kit.local.yml`)
 		probe("ask", `cp /tmp/x ~/.claude/claude-kit.local.yml`)
