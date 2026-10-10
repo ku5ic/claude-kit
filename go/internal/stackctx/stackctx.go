@@ -17,9 +17,9 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/detect"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
-	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
 // cacheFile is <cache>/stack/<name>-<sha256(root)[:8]>.<tag>.txt: the root
@@ -58,7 +58,7 @@ func refresh(paths config.Paths, cfg *config.Config, root, cache string) {
 	if os.MkdirAll(filepath.Dir(cache), 0o755) != nil {
 		return
 	}
-	_ = project.WriteAtomic(cache, []byte(detect.Report(cfg, root)), 0o600)
+	_ = fsx.WriteAtomic(cache, []byte(detect.Report(cfg, root)), 0o600)
 }
 
 func mtime(path string) int64 {
@@ -172,7 +172,7 @@ func FileSkills(paths config.Paths, cfg *config.Config, root, session string) []
 	skills := scanFileSkills(cfg, root)
 	if cache != "" && os.MkdirAll(filepath.Dir(cache), 0o755) == nil {
 		// Atomic: parallel SubagentStart hooks read it while one rewrites it.
-		_ = project.WriteAtomic(cache, []byte(strings.Join(skills, "\n")), 0o644)
+		_ = fsx.WriteAtomic(cache, []byte(strings.Join(skills, "\n")), 0o644)
 	}
 	return skills
 }

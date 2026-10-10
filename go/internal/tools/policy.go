@@ -10,6 +10,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/extract"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
@@ -17,7 +18,7 @@ import (
 // when go.mod doesn't declare name or it can't be built. GOPROXY=off keeps
 // it from downloading; a module not in the cache counts as not installed.
 func goTool(dir, root, name string) string {
-	mod := project.FindUp(dir, root, "go.mod")
+	mod := fsx.FindUp(dir, root, "go.mod")
 	if mod == "" || !goModDeclares(mod, name) {
 		return ""
 	}
@@ -26,7 +27,7 @@ func goTool(dir, root, name string) string {
 	}
 	modDir := filepath.Dir(mod)
 	flags := os.Getenv("GOFLAGS")
-	if !project.IsDir(filepath.Join(modDir, "vendor")) {
+	if !fsx.IsDir(filepath.Join(modDir, "vendor")) {
 		flags = strings.TrimSpace(flags + " -mod=readonly")
 	}
 	cmd := exec.Command("go", "tool", "-n", name)
@@ -36,7 +37,7 @@ func goTool(dir, root, name string) string {
 	if err != nil {
 		return ""
 	}
-	if fields := strings.Fields(string(out)); len(fields) > 0 && project.IsExecutable(fields[0]) {
+	if fields := strings.Fields(string(out)); len(fields) > 0 && fsx.IsExecutable(fields[0]) {
 		return fields[0]
 	}
 	return ""
@@ -78,16 +79,16 @@ func goModDeclares(mod, name string) bool {
 // activeEnv is name in an activated virtualenv or conda env, only when that
 // env lives inside the repo: an unrelated env says nothing about the project.
 func activeEnv(root, name string) string {
-	physRoot := project.PhysicalPath(root)
+	physRoot := fsx.PhysicalPath(root)
 	for _, key := range []string{"VIRTUAL_ENV", "CONDA_PREFIX"} {
 		env := os.Getenv(key)
 		if env == "" {
 			continue
 		}
-		if rel, err := filepath.Rel(physRoot, project.PhysicalPath(env)); err != nil || rel == ".." || strings.HasPrefix(rel, "../") {
+		if rel, err := filepath.Rel(physRoot, fsx.PhysicalPath(env)); err != nil || rel == ".." || strings.HasPrefix(rel, "../") {
 			continue
 		}
-		if bin := filepath.Join(env, "bin", name); project.IsExecutable(bin) {
+		if bin := filepath.Join(env, "bin", name); fsx.IsExecutable(bin) {
 			return bin
 		}
 	}
@@ -106,7 +107,7 @@ func declared(cfg *config.Config, dir, root, name string) (manifest, install str
 			return manifestName(Python, d, root), installCmd(cfg, d, "python")
 		case RubyDeps(d)[pkg]:
 			return project.Rel(root, filepath.Join(d, "Gemfile.lock")), installCmd(cfg, d, "bundler")
-		case project.IsFile(filepath.Join(d, "go.mod")) && goModDeclares(filepath.Join(d, "go.mod"), name):
+		case fsx.IsFile(filepath.Join(d, "go.mod")) && goModDeclares(filepath.Join(d, "go.mod"), name):
 			return project.Rel(root, filepath.Join(d, "go.mod")), installCmd(cfg, d, "go")
 		}
 		if d == root || d == "/" || !strings.HasPrefix(d, root) {
@@ -120,7 +121,7 @@ func declared(cfg *config.Config, dir, root, name string) (manifest, install str
 // package_managers doesn't list (bundler, go) names its manager itself.
 func installCmd(cfg *config.Config, dir, ecosystem string) string {
 	manager := cmp.Or(cfg.DefaultManager(ecosystem), ecosystem)
-	if lock, ok := project.NearestLockfile(cfg, project.PhysicalPath(dir), ecosystem); ok {
+	if lock, ok := project.NearestLockfile(cfg, fsx.PhysicalPath(dir), ecosystem); ok {
 		manager = lock.Manager
 	}
 	if cmd := cfg.ToolResolution.Install[manager]; cmd != "" {
@@ -134,7 +135,7 @@ func installCmd(cfg *config.Config, dir, ecosystem string) string {
 // count by their last segment, and pin_aliases maps it to a binary.
 func pinned(cfg *config.Config, dir, root, name string) string {
 	for _, file := range cfg.ToolResolution.PinFiles {
-		path := project.FindUp(dir, root, file)
+		path := fsx.FindUp(dir, root, file)
 		if path == "" {
 			continue
 		}

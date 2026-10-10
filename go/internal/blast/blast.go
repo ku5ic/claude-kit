@@ -26,6 +26,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/extract"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/project"
@@ -80,7 +81,7 @@ func Run(cfg *config.Config, args []string, stdout, stderr io.Writer) int {
 	if len(args) == 2 {
 		symbol = args[1]
 	}
-	if !project.IsFile(target) {
+	if !fsx.IsFile(target) {
 		fmt.Fprintf(stderr, "blast-radius: no such file: %s\n", target)
 		return 2
 	}
@@ -307,9 +308,9 @@ func (s *scan) javascript(cfg *config.Config) (dynamic bool) {
 func (s *scan) pyModule(p string) string {
 	dir := parent(p)
 	mod := strings.TrimSuffix(strings.TrimSuffix(p, ".py"), "/__init__")
-	if dir != "" && project.IsFile(filepath.Join(s.root, dir, "__init__.py")) {
+	if dir != "" && fsx.IsFile(filepath.Join(s.root, dir, "__init__.py")) {
 		pkgRoot := dir
-		for pkgRoot != "" && project.IsFile(filepath.Join(s.root, pkgRoot, "__init__.py")) {
+		for pkgRoot != "" && fsx.IsFile(filepath.Join(s.root, pkgRoot, "__init__.py")) {
 			pkgRoot = parent(pkgRoot)
 		}
 		if pkgRoot != "" {

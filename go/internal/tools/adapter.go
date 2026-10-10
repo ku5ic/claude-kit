@@ -9,6 +9,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/extract"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
@@ -80,7 +81,7 @@ func (a Adapter) Claims(path, root string) (Claim, bool) {
 		return Claim{}, false
 	}
 	if len(a.Needs) > 0 {
-		needed := project.FindUp(claim.Dir, root, a.Needs...)
+		needed := fsx.FindUp(claim.Dir, root, a.Needs...)
 		if needed == "" {
 			return Claim{}, false
 		}
@@ -98,7 +99,7 @@ func (a Adapter) Claims(path, root string) (Claim, bool) {
 // goes past a nearer file without the table, as ruff's lookup does.
 func HasSignal(files []string, toml, dir, root string) (Claim, bool) {
 	if len(files) > 0 {
-		if found := project.FindUp(dir, root, files...); found != "" {
+		if found := fsx.FindUp(dir, root, files...); found != "" {
 			return Claim{filepath.Dir(found), "config " + project.Rel(root, found)}, true
 		}
 	}
@@ -107,7 +108,7 @@ func HasSignal(files []string, toml, dir, root string) (Claim, bool) {
 	}
 	file, table, _ := strings.Cut(toml, " ")
 	for from := dir; ; {
-		found := project.FindUp(from, root, file)
+		found := fsx.FindUp(from, root, file)
 		if found == "" {
 			return Claim{}, false
 		}

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/tools"
@@ -74,8 +75,8 @@ func Plan(cfg *config.Config, root, base string, edited []string) []*Group {
 		if path == "" {
 			continue
 		}
-		path = project.PhysicalPath(absUnder(base, path))
-		if !strings.HasPrefix(path, root+"/") || seen[path] || !project.IsFile(path) || ignored[path] {
+		path = fsx.PhysicalPath(absUnder(base, path))
+		if !strings.HasPrefix(path, root+"/") || seen[path] || !fsx.IsFile(path) || ignored[path] {
 			continue
 		}
 		seen[path] = true
@@ -280,10 +281,10 @@ func editedFile(path string, g *Group) string {
 	if slices.Contains(g.Files, path) {
 		return path
 	}
-	if physical := project.PhysicalPath(path); slices.Contains(g.Files, physical) {
+	if physical := fsx.PhysicalPath(path); slices.Contains(g.Files, physical) {
 		return physical
 	}
-	if project.IsFile(path) {
+	if fsx.IsFile(path) {
 		return ""
 	}
 	for _, f := range g.Files {
@@ -323,7 +324,7 @@ func gitIgnored(root string, edited []string, base string) map[string]bool {
 		}
 		// A path outside the repo is fatal to check-ignore, dropping every
 		// path after it.
-		if p = project.PhysicalPath(absUnder(base, p)); strings.HasPrefix(p, root+"/") {
+		if p = fsx.PhysicalPath(absUnder(base, p)); strings.HasPrefix(p, root+"/") {
 			paths = append(paths, p)
 		}
 	}

@@ -14,6 +14,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/bashguard"
 	"github.com/ku5ic/claude-kit/go/internal/checks"
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/hooks"
@@ -180,7 +181,7 @@ func stop(cfg *config.Config, cwd string, files []string, w, stderr io.Writer) i
 		if !filepath.IsAbs(abs) {
 			abs = filepath.Join(cwd, f)
 		}
-		if !claimed[project.PhysicalPath(abs)] {
+		if !claimed[fsx.PhysicalPath(abs)] {
 			fmt.Fprintf(w, "unclaimed  %s (no check applies, or the file is ignored, deleted, or outside the repo)\n", f)
 		}
 	}

@@ -18,6 +18,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/ci"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/extract"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/tools"
@@ -336,7 +337,7 @@ func (p *planner) orchestrate() {
 	for _, o := range p.cfg.Orchestrators {
 		signal := filepath.Join(p.root, o.Signal)
 		bin := filepath.Join(p.root, "node_modules", ".bin", o.Name)
-		if !project.IsFile(signal) || !project.IsExecutable(bin) {
+		if !fsx.IsFile(signal) || !fsx.IsExecutable(bin) {
 			continue
 		}
 		var tasks []string

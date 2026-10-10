@@ -19,6 +19,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/extract"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 )
 
 // Payload is the hook's stdin JSON. A payload that doesn't parse is kept as
@@ -274,17 +275,7 @@ func (h *Hook) Log(log, event string, pairs ...string) {
 		}
 	}
 	line.WriteString("}\n")
-
-	dir := h.Paths.LogDir()
-	if os.MkdirAll(dir, 0o755) != nil {
-		return
-	}
-	f, err := os.OpenFile(h.Paths.LogFile(log), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	if err != nil {
-		return
-	}
-	defer f.Close()
-	_, _ = f.Write(line.Bytes())
+	_ = fsx.Append(h.Paths.LogFile(log), line.Bytes())
 }
 
 func writeJSONValue(buf *bytes.Buffer, s string) {

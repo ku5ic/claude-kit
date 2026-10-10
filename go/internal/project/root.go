@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 )
 
 // Root resolves the project root for cwd, as `kit project-root`:
@@ -23,7 +24,7 @@ func Root(cfg *config.Config, cwd string) (root string, anchored bool) {
 	dir := cwd
 	for depth := 0; dir != "/" && depth < 3; depth++ {
 		for _, name := range anchors {
-			if IsFile(filepath.Join(dir, name)) {
+			if fsx.IsFile(filepath.Join(dir, name)) {
 				return dir, true
 			}
 		}
@@ -86,9 +87,6 @@ func Dir(cfg *config.Config, paths config.Paths, cwd, kind string, create bool) 
 }
 
 func register(paths config.Paths, dir string) error {
-	if err := os.MkdirAll(paths.LogDir(), 0o755); err != nil {
-		return err
-	}
 	registry := paths.ScratchRegistry()
 	data, err := os.ReadFile(registry)
 	if err != nil && !os.IsNotExist(err) {
@@ -97,13 +95,7 @@ func register(paths config.Paths, dir string) error {
 	if slices.Contains(strings.Split(string(data), "\n"), dir) {
 		return nil
 	}
-	f, err := os.OpenFile(registry, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	_, err = fmt.Fprintln(f, dir)
-	return err
+	return fsx.Append(registry, []byte(dir+"\n"))
 }
 
 var unsafeName = regexp.MustCompile(`[^A-Za-z0-9._-]`)

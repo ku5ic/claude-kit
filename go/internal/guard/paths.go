@@ -11,7 +11,7 @@ import (
 	"sync"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
-	"github.com/ku5ic/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 )
 
 // ExpandHome turns a leading ~, $HOME, or ${HOME} into home.
@@ -81,7 +81,7 @@ func IsGuardedLockfile(cfg *config.Config, path string) bool {
 // IsOverlay is true when path is the overlay, reached through any path or
 // symlink. Writes to it get a prompt: it can switch the kit's guards off.
 func IsOverlay(paths config.Paths, path string) bool {
-	return project.PhysicalPath(path) == project.PhysicalPath(paths.Overlay)
+	return fsx.PhysicalPath(path) == fsx.PhysicalPath(paths.Overlay)
 }
 
 // GlobAny is true when s matches any of patterns.

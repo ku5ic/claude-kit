@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
-	"github.com/ku5ic/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 )
 
 // Toolchain is how a toolchain_checks entry runs in one directory.
@@ -20,7 +20,7 @@ type Toolchain struct {
 // <tooling> block both use it, so Claude is never told about a check the
 // checks skip.
 func ResolveToolchain(cfg *config.Config, tc config.ToolchainCheck, dir, root string) Toolchain {
-	if tc.WhenDir != "" && !project.IsDir(filepath.Join(dir, tc.WhenDir)) {
+	if tc.WhenDir != "" && !fsx.IsDir(filepath.Join(dir, tc.WhenDir)) {
 		return Toolchain{Resolution: Resolution{Skip: "no " + tc.WhenDir + "/ yet"}}
 	}
 	template := strings.Fields(tc.Cmd)

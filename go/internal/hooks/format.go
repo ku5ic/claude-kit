@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/tools"
@@ -27,7 +28,7 @@ func FormatDispatch(h *hook.Hook) error {
 		return h.Payload.Err
 	}
 	path := h.Payload.FilePath()
-	if path == "" || !project.IsFile(path) || project.IsScratch(h.Paths, path) {
+	if path == "" || !fsx.IsFile(path) || project.IsScratch(h.Paths, path) {
 		return nil
 	}
 	ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(path), "."))
@@ -166,7 +167,7 @@ func runFormatter(f config.Formatter, bin []string, path, dir string, stderr io.
 	if err != nil {
 		return
 	}
-	_ = project.WriteAtomic(target, out, info.Mode().Perm())
+	_ = fsx.WriteAtomic(target, out, info.Mode().Perm())
 }
 
 // hasSignal is true when formatter f has a signal for the file: a config
@@ -186,7 +187,7 @@ func hasSignal(f config.Formatter, bin []string, dir, root, path string) bool {
 			if !filepath.IsAbs(found) {
 				found = filepath.Join(dir, found)
 			}
-			return strings.HasPrefix(project.PhysicalPath(found), root+"/")
+			return strings.HasPrefix(fsx.PhysicalPath(found), root+"/")
 		}
 	}
 	return false

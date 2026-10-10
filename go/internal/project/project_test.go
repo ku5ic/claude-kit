@@ -139,18 +139,6 @@ func TestGlobDirsGlobstarSkipsDotDirs(t *testing.T) {
 	}
 }
 
-func TestFindUpStopsAtStop(t *testing.T) {
-	dir := tmp(t)
-	testutil.Put(t, dir, "marker", "")
-	testutil.Put(t, dir, "repo/sub/x", "")
-	if got := FindUp(filepath.Join(dir, "repo/sub"), filepath.Join(dir, "repo"), "marker"); got != "" {
-		t.Errorf("found above stop: %q", got)
-	}
-	if got := FindUp(filepath.Join(dir, "repo/sub"), dir, "marker"); got != filepath.Join(dir, "marker") {
-		t.Errorf("got %q", got)
-	}
-}
-
 func TestIsScratch(t *testing.T) {
 	for path, want := range map[string]bool{
 		"/repo/.claude/scratch":            true,

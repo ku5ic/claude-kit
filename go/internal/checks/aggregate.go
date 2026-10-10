@@ -11,6 +11,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/ci"
 	"github.com/ku5ic/claude-kit/go/internal/classify"
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/tools"
 )
@@ -439,7 +440,7 @@ func (a *aggregator) resolveWord(dir, word string) tools.Resolution {
 		return tools.Resolve(a.cfg, dir, a.root, word, tools.Default)
 	}
 	path := absUnder(dir, word)
-	if project.IsExecutable(path) && strings.HasPrefix(path, a.root+"/") {
+	if fsx.IsExecutable(path) && strings.HasPrefix(path, a.root+"/") {
 		return tools.Resolution{Words: []string{path}, Source: tools.SourceLocal}
 	}
 	return tools.Resolution{Skip: word + " not found in the repo"}

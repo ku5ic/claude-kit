@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 )
 
 // cached is Load's result as stored on disk; a Warning's error is kept as
@@ -73,15 +75,7 @@ func storeCached(file, key string, cfg *Config, warnings []Warning) {
 		c.Warnings = append(c.Warnings, [2]string{w.File, w.Err.Error()})
 	}
 	var buf bytes.Buffer
-	if gob.NewEncoder(&buf).Encode(c) != nil || os.MkdirAll(filepath.Dir(file), 0o755) != nil {
-		return
-	}
-	tmp, err := os.CreateTemp(filepath.Dir(file), ".config-*.gob")
-	if err != nil {
-		return
-	}
-	_, werr := tmp.Write(buf.Bytes())
-	if cerr := tmp.Close(); werr != nil || cerr != nil || os.Rename(tmp.Name(), file) != nil {
-		_ = os.Remove(tmp.Name())
+	if gob.NewEncoder(&buf).Encode(c) == nil {
+		_ = fsx.WriteAtomic(file, buf.Bytes(), 0o600)
 	}
 }

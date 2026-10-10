@@ -4,7 +4,6 @@
 package project
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -12,47 +11,9 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/extract"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 )
-
-// FindUp returns the first dir/name for each dir from start up to and
-// including stop, never above it; "" when none exists. A start outside stop
-// is checked on its own.
-func FindUp(start, stop string, names ...string) string {
-	dir := start
-	for {
-		for _, name := range names {
-			candidate := filepath.Join(dir, name)
-			if _, err := os.Lstat(candidate); err == nil {
-				return candidate
-			}
-		}
-		if dir == stop || dir == "/" || !strings.HasPrefix(dir, stop+"/") {
-			return ""
-		}
-		dir = filepath.Dir(dir)
-	}
-}
-
-// PhysicalPath follows a symlink at path itself, then resolves its
-// directory. Works for paths that don't exist yet.
-func PhysicalPath(path string) string {
-	for range 40 {
-		target, err := os.Readlink(path)
-		if err != nil {
-			break
-		}
-		if !filepath.IsAbs(target) {
-			target = filepath.Join(filepath.Dir(path), target)
-		}
-		path = target
-	}
-	dir, err := filepath.EvalSymlinks(filepath.Dir(path))
-	if err != nil {
-		return path
-	}
-	return filepath.Join(dir, filepath.Base(path))
-}
 
 // Toplevel is the git worktree root holding dir, "" outside a repo. Git
 // resolves symlinks, so it's the physical path.
@@ -86,7 +47,7 @@ func NearestLockfile(cfg *config.Config, dir, ecosystem string) (Lockfile, bool)
 			if pm.Ecosystem != ecosystem {
 				continue
 			}
-			if IsFile(filepath.Join(dir, pm.Lockfile)) {
+			if fsx.IsFile(filepath.Join(dir, pm.Lockfile)) {
 				return Lockfile{pm.Manager, pm.Lockfile}, true
 			}
 		}
@@ -124,45 +85,6 @@ func SubLabel(sub string) string {
 	return " [" + sub + "]"
 }
 
-// WriteAtomic replaces path with data through a temp file in its directory,
-// so a reader never sees a partial write; on any error path is untouched.
-func WriteAtomic(path string, data []byte, perm os.FileMode) error {
-	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*")
-	if err != nil {
-		return err
-	}
-	_, err = tmp.Write(data)
-	// Rename only after every earlier step succeeded: a failed write must
-	// leave path untouched.
-	if err = errors.Join(err, tmp.Close()); err == nil {
-		if err = os.Chmod(tmp.Name(), perm); err == nil {
-			err = os.Rename(tmp.Name(), path)
-		}
-	}
-	if err != nil {
-		os.Remove(tmp.Name())
-	}
-	return err
-}
-
-// IsFile is true for an existing regular file.
-func IsFile(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && info.Mode().IsRegular()
-}
-
-// IsExecutable is true for an existing non-directory with an execute bit.
-func IsExecutable(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && !info.IsDir() && info.Mode()&0o111 != 0
-}
-
-// IsDir is true for an existing directory.
-func IsDir(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && info.IsDir()
-}
-
 // Provider is a task_providers entry whose manifest is in a directory.
 type Provider struct {
 	Name     string
@@ -179,7 +101,7 @@ func Providers(cfg *config.Config, dir string) []Provider {
 			continue
 		}
 		for _, manifest := range tp.Manifests {
-			if path := filepath.Join(dir, manifest); IsFile(path) {
+			if path := filepath.Join(dir, manifest); fsx.IsFile(path) {
 				out = append(out, Provider{tp.Name, tp.Stack, path, i})
 				break
 			}
@@ -312,7 +234,7 @@ func globDirs(root, pattern string) []string {
 	walk = func(rel string, rest []string) {
 		abs := filepath.Join(root, rel)
 		if len(rest) == 0 {
-			if IsDir(abs) {
+			if fsx.IsDir(abs) {
 				out = append(out, rel)
 			}
 			return

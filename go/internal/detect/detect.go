@@ -20,6 +20,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/extract"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/tools"
 )
@@ -121,7 +122,7 @@ func matchRule(rule config.Rule, dir string) bool {
 	case rule.PyDep != "":
 		return tools.PythonDeps(dir)[rule.PyDep]
 	case rule.File != "":
-		return project.IsFile(filepath.Join(dir, rule.File))
+		return fsx.IsFile(filepath.Join(dir, rule.File))
 	case rule.Grep != "":
 		return grepAny(dir, rule.Grep, rule.In)
 	}
@@ -156,9 +157,9 @@ func versions(cfg *config.Config, root, dir string) []string {
 				file := strings.ReplaceAll(src.File, "{name}", name)
 				path := filepath.Join(dir, file)
 				if src.Up {
-					path = project.FindUp(dir, root, file)
+					path = fsx.FindUp(dir, root, file)
 				}
-				if path == "" || !project.IsFile(path) {
+				if path == "" || !fsx.IsFile(path) {
 					continue
 				}
 				arg := strings.ReplaceAll(src.Arg, "{name}", name)

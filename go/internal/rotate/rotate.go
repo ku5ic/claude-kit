@@ -19,9 +19,9 @@ import (
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
-	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
 // Run is `kit scratch-rotate [days] [--dry-run]`; it returns the exit status.
@@ -34,7 +34,7 @@ func Run(cfg *config.Config, paths config.Paths, n int, dryRun bool, stdout, std
 	_ = os.MkdirAll(paths.LogDir(), 0o755)
 
 	scratch := paths.ScratchHome()
-	if project.IsDir(scratch) {
+	if fsx.IsDir(scratch) {
 		// .md artifacts by the retention window; .injected-* session
 		// markers after a day: they only dedupe within a session.
 		removed := r.prune(scratch, n, false, func(name string) bool { return strings.HasSuffix(name, ".md") })
@@ -49,7 +49,7 @@ func Run(cfg *config.Config, paths config.Paths, n int, dryRun bool, stdout, std
 		{config.Statusline, "statusline cache(s)"},
 		{config.ReplyLimit, "reply-limit marker(s)"},
 	} {
-		if dir := filepath.Join(paths.CacheDir(), m.kind); project.IsDir(dir) {
+		if dir := filepath.Join(paths.CacheDir(), m.kind); fsx.IsDir(dir) {
 			fmt.Fprintf(stdout, "scratch-rotate: %s %d %s older than 1d from %s\n", r.pruned, r.prune(dir, 1, false, nil), m.what, dir)
 		}
 	}
@@ -75,7 +75,7 @@ func (r *rotator) registry(registry string, n int, stderr io.Writer) {
 	for dir := range strings.SplitSeq(string(data), "\n") {
 		switch {
 		case dir == "":
-		case !project.IsDir(dir):
+		case !fsx.IsDir(dir):
 			fmt.Fprintf(r.stdout, "scratch-rotate: %s stale registry entry %s (directory no longer exists)\n", dropping, dir)
 		case !validScratchDir(dir, home):
 			fmt.Fprintf(stderr, "scratch-rotate: REFUSING registry entry %s (not a plain scratch/ dir under $HOME)\n", dir)
@@ -96,7 +96,7 @@ func (r *rotator) registry(registry string, n int, stderr io.Writer) {
 func (r *rotator) trimLogs(dir string, maxLines int) {
 	logs, _ := filepath.Glob(filepath.Join(dir, "*.jsonl"))
 	for _, log := range logs {
-		if !project.IsFile(log) {
+		if !fsx.IsFile(log) {
 			continue
 		}
 		name := filepath.Base(log)
@@ -163,7 +163,7 @@ func keepWorktree(wt string) string {
 	switch {
 	case err != nil || statusErr != nil:
 		return "unreadable review worktree"
-	case project.IsFile(filepath.Join(gitDir, "locked")):
+	case fsx.IsFile(filepath.Join(gitDir, "locked")):
 		return "locked review worktree"
 	case status != "":
 		return "review worktree with uncommitted changes"
@@ -214,13 +214,12 @@ func (r *rotator) record(paths []string) {
 	if len(paths) == 0 {
 		return
 	}
-	if f, err := os.OpenFile(r.log, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644); err == nil {
-		prefix := r.now.UTC().Format(hook.TimeLayout) + " " + r.verb + " "
-		for _, p := range paths {
-			fmt.Fprintln(f, prefix+p)
-		}
-		f.Close()
+	prefix := r.now.UTC().Format(hook.TimeLayout) + " " + r.verb + " "
+	var lines strings.Builder
+	for _, p := range paths {
+		lines.WriteString(prefix + p + "\n")
 	}
+	_ = fsx.Append(r.log, []byte(lines.String()))
 }
 
 // isCheckout reports whether dir is a git checkout: a repo or a worktree.
@@ -266,5 +265,5 @@ func writeLines(path string, lines []string) {
 		b.WriteString(l)
 		b.WriteByte('\n')
 	}
-	_ = project.WriteAtomic(path, []byte(b.String()), 0o600)
+	_ = fsx.WriteAtomic(path, []byte(b.String()), 0o600)
 }

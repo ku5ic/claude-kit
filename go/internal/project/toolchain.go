@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 )
 
 // ResolvePackageManager is the manager of the first package_managers
@@ -15,7 +16,7 @@ func ResolvePackageManager(cfg *config.Config, dir string) string {
 		if pm.Lockfile == "" || pm.Manager == "" {
 			continue
 		}
-		if IsFile(filepath.Join(dir, pm.Lockfile)) || (top != "" && IsFile(filepath.Join(top, pm.Lockfile))) {
+		if fsx.IsFile(filepath.Join(dir, pm.Lockfile)) || (top != "" && fsx.IsFile(filepath.Join(top, pm.Lockfile))) {
 			return pm.Manager
 		}
 	}

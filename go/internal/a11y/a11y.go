@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/tools"
 )
@@ -106,7 +107,7 @@ func rawPath(cfg *config.Config, paths config.Paths, cwd, url string) (string, e
 	}
 	stem := strings.TrimSuffix(project.ReportPath(dir, "a11y-runtime", slug, time.Now().Format("20060102-1504")), ".md")
 	raw := stem + ".json"
-	for n := 2; project.IsFile(raw); n++ {
+	for n := 2; fsx.IsFile(raw); n++ {
 		raw = fmt.Sprintf("%s-%d.json", stem, n)
 	}
 	return raw, nil

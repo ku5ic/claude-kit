@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
-	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
 // rulePartLimit keeps each part under Claude Code's 10,000-character cap on
@@ -89,7 +89,7 @@ func leftoverRulesLink(paths config.Paths) string {
 	entries, _ := os.ReadDir(filepath.Join(paths.Home, "rules"))
 	for _, entry := range entries {
 		dir := filepath.Join(paths.Home, "rules", entry.Name())
-		if !project.IsDir(dir) {
+		if !fsx.IsDir(dir) {
 			continue
 		}
 		if physical, err := filepath.EvalSymlinks(dir); err == nil && physical == kitRules {
@@ -97,7 +97,7 @@ func leftoverRulesLink(paths config.Paths) string {
 		}
 		present := 0
 		for _, rule := range ruleFiles {
-			if project.IsFile(filepath.Join(dir, filepath.Base(rule))) {
+			if fsx.IsFile(filepath.Join(dir, filepath.Base(rule))) {
 				present++
 			}
 		}

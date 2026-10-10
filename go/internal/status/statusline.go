@@ -21,6 +21,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/extract"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/project"
@@ -294,7 +295,7 @@ func gitStatus(home, cwd, sessionID string) string {
 		}
 	}
 	segment := fmt.Sprintf("%s\t%d\t%d", branch, add, del)
-	_ = project.WriteAtomic(file, []byte(segment+"\n"), 0o600)
+	_ = fsx.WriteAtomic(file, []byte(segment+"\n"), 0o600)
 	return segment
 }
 

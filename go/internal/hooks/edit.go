@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/project"
@@ -86,10 +87,10 @@ func GuardEdit(h *hook.Hook) error {
 // repo's toplevel, with a root_artifact_exts extension.
 func newRootArtifact(cfg *config.Config, path string) bool {
 	ext := strings.TrimPrefix(filepath.Ext(path), ".")
-	if !slices.Contains(cfg.RootArtifactExts, ext) || project.IsFile(path) {
+	if !slices.Contains(cfg.RootArtifactExts, ext) || fsx.IsFile(path) {
 		return false
 	}
-	dir := project.PhysicalPath(filepath.Dir(path))
+	dir := fsx.PhysicalPath(filepath.Dir(path))
 	return dir == project.Toplevel(dir)
 }
 

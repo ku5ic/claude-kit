@@ -6,6 +6,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/checks"
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/project"
@@ -29,7 +30,7 @@ func StopChecks(h *hook.Hook) error {
 	}
 	cwd := h.Payload.Cwd()
 	transcript := h.Payload.String("transcript_path")
-	if !project.IsFile(transcript) {
+	if !fsx.IsFile(transcript) {
 		return nil
 	}
 	root := project.Toplevel(cwd) // "" outside a work tree
@@ -72,7 +73,7 @@ func planGate(h *hook.Hook, cfg *config.Config, cwd, root, transcript string) er
 		return nil
 	}
 	isCode := func(path string) bool {
-		return strings.HasPrefix(project.PhysicalPath(path), root+"/") && !project.IsScratch(h.Paths, path)
+		return strings.HasPrefix(fsx.PhysicalPath(path), root+"/") && !project.IsScratch(h.Paths, path)
 	}
 	// A finished plan waits for /code-review since the last code edit (rules/verify.md).
 	if plan, reviewed := planDone(transcript, dir, isCode); plan != "" && !reviewed {
