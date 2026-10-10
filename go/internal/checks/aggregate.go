@@ -439,7 +439,7 @@ func (a *aggregator) resolveWord(dir, word string) tools.Resolution {
 	if !strings.Contains(word, "/") {
 		return tools.Resolve(a.cfg, dir, a.root, word, tools.Default)
 	}
-	path := absUnder(dir, word)
+	path := fsx.Abs(dir, word)
 	if fsx.IsExecutable(path) && strings.HasPrefix(path, a.root+"/") {
 		return tools.Resolution{Words: []string{path}, Source: tools.SourceLocal}
 	}

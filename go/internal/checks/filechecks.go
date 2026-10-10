@@ -49,7 +49,7 @@ func Plan(cfg *config.Config, root, base string, edited []string) []*Group {
 		if path == "" {
 			continue
 		}
-		path = fsx.PhysicalPath(absUnder(base, path))
+		path = fsx.PhysicalPath(fsx.Abs(base, path))
 		if !strings.HasPrefix(path, root+"/") || seen[path] || !fsx.IsFile(path) || ignored[path] {
 			continue
 		}
@@ -155,7 +155,7 @@ type tally struct {
 	groups           []*Group
 	rep, fails       strings.Builder
 	pass, fail, skip int
-	changed          map[string]map[int]bool
+	changed          git.ChangedLines
 	changedKnown     bool
 }
 
@@ -175,7 +175,7 @@ func (t *tally) record(g *Group, res *result) {
 		return
 	}
 	if !t.changedKnown {
-		t.changed, t.changedKnown = changedLines(t.root, "HEAD", planned(t.groups)), true
+		t.changed, t.changedKnown = git.LinesChanged(t.root, "HEAD", planned(t.groups)), true
 	}
 	blocking, old, ok := newFindings(g, res.out.String(), t.root, t.changed)
 	if ok && len(blocking) == 0 {
@@ -221,7 +221,7 @@ func runGroup(g *Group, timeout time.Duration) result {
 // the working tree changed (their text, blocking) and a count of the rest.
 // ok is false when the output can't be trusted to list them all: no
 // parser, nothing parsed, or findings left out.
-func newFindings(g *Group, out, root string, changed map[string]map[int]bool) (blocking []string, old int, ok bool) {
+func newFindings(g *Group, out, root string, changed git.ChangedLines) (blocking []string, old int, ok bool) {
 	if g.Adapter.Findings == nil {
 		return nil, 0, false
 	}
@@ -231,7 +231,7 @@ func newFindings(g *Group, out, root string, changed map[string]map[int]bool) (b
 	}
 	for _, f := range found {
 		file := editedFile(f.File, g)
-		touched := file != "" && onChangedLine(changed, file, f.Line)
+		touched := file != "" && changed.Touches(file, f.Line)
 		if !touched {
 			old++
 			continue
@@ -246,7 +246,7 @@ func newFindings(g *Group, out, root string, changed map[string]map[int]bool) (b
 // prints paths relative to its config), matched by suffix. "" for a file
 // the turn didn't edit.
 func editedFile(path string, g *Group) string {
-	path = absUnder(g.Dir, path)
+	path = fsx.Abs(g.Dir, path)
 	if slices.Contains(g.Files, path) {
 		return path
 	}
@@ -293,7 +293,7 @@ func gitIgnored(root string, edited []string, base string) map[string]bool {
 		}
 		// A path outside the repo is fatal to check-ignore, dropping every
 		// path after it.
-		if p = fsx.PhysicalPath(absUnder(base, p)); strings.HasPrefix(p, root+"/") {
+		if p = fsx.PhysicalPath(fsx.Abs(base, p)); strings.HasPrefix(p, root+"/") {
 			paths = append(paths, p)
 		}
 	}

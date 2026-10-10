@@ -16,6 +16,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 	"github.com/ku5ic/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/run"
 	"github.com/ku5ic/claude-kit/go/internal/stackctx"
 	"github.com/ku5ic/claude-kit/go/internal/tools"
 )
@@ -45,7 +46,11 @@ func InjectContext(h *hook.Hook) error {
 		return nil
 	}
 	if !h.DryRun {
-		cache.Prune(h.Paths.CacheDir(), time.Now())
+		now := time.Now()
+		cache.Prune(h.Paths.CacheDir(), now)
+		if top := git.Toplevel(h.Payload.Cwd()); top != "" {
+			run.PruneRestorePoints(top, now)
+		}
 	}
 	var out strings.Builder
 	cfg := h.Config()

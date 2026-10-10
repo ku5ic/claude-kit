@@ -32,16 +32,17 @@ var layers = map[string]int{
 	"internal/tools":      4,
 	"internal/checks":     5,
 	"internal/enforce":    5,
-	"internal/bashguard":  5,
-	"internal/hooks":      5,
-	"internal/stackctx":   5,
-	"internal/explain":    6,
-	"internal/rotate":     6,
-	"internal/blast":      6,
-	"internal/status":     6,
-	"internal/gitbase":    6,
-	"internal/detect":     6,
-	"cmd/kit":             7,
+	"internal/run":        6,
+	"internal/bashguard":  7,
+	"internal/hooks":      7,
+	"internal/stackctx":   7,
+	"internal/explain":    8,
+	"internal/rotate":     8,
+	"internal/blast":      8,
+	"internal/status":     8,
+	"internal/gitbase":    8,
+	"internal/detect":     8,
+	"cmd/kit":             9,
 }
 
 // allowed are the same-layer and upward imports that exist today. The
@@ -49,7 +50,6 @@ var layers = map[string]int{
 var allowed = map[string]bool{
 	"internal/project -> internal/sources": true,
 	"internal/tools -> internal/classify":  true,
-	"internal/hooks -> internal/checks":    true,
 	"internal/hooks -> internal/stackctx":  true,
 	"internal/stackctx -> internal/detect": true,
 }

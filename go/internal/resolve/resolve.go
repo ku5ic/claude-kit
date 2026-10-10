@@ -54,9 +54,9 @@ func New(root string, managers []string) *Resolver {
 // ignored bin or .bin, or one directly inside an ignored directory
 // (node_modules/.bin, .venv/bin, vendor/bin).
 func ignoredBins(root string) []binDir {
-	out, _ := git.Output(root, "ls-files", "-z", "--others", "--ignored", "--exclude-standard", "--directory")
+	dirs, _ := git.Paths(root, "ls-files", "-z", "--others", "--ignored", "--exclude-standard", "--directory")
 	var bins []binDir
-	for d := range strings.SplitSeq(out, "\x00") {
+	for _, d := range dirs {
 		d = filepath.Join(root, strings.TrimSuffix(d, "/"))
 		if d == root || !fsx.IsDir(d) {
 			continue

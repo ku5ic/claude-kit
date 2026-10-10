@@ -79,6 +79,7 @@ func Build(cfg *config.Config, o Options) Plan {
 	}
 	b.unclassified()
 	b.resolve()
+	skipMarked(b.gates, o.CacheDir, o.Root)
 	p := Plan{Root: o.Root, Unclassified: b.skipped}
 	for _, g := range b.gates {
 		if len(o.Only) == 0 || slices.Contains(o.Only, b.subOf(g.Dir, subs)) {

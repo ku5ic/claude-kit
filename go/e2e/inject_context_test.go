@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -123,6 +124,19 @@ func TestInjectContext(t *testing.T) {
 		e.run("s1", "").Want(t, 0)
 		if Exists(old) || !Exists(fresh) {
 			t.Errorf("old kept %v, fresh kept %v; want only the fresh one", Exists(old), Exists(fresh))
+		}
+	})
+	t.Run("SessionStart prunes the repo's gate restore points older than a month", func(t *testing.T) {
+		t.Parallel()
+		e := injectContextSetup(t, tree)
+		tree := e.Git(e.root, "write-tree")
+		old := "refs/kit/gates/" + strconv.FormatInt(time.Now().Add(-31*24*time.Hour).UnixNano(), 10)
+		fresh := "refs/kit/gates/" + strconv.FormatInt(time.Now().Add(-29*24*time.Hour).UnixNano(), 10)
+		e.Git(e.root, "update-ref", old, tree)
+		e.Git(e.root, "update-ref", fresh, tree)
+		e.run("s1", "").Want(t, 0)
+		if refs := e.Git(e.root, "for-each-ref", "--format=%(refname)", "refs/kit/gates/"); refs != fresh {
+			t.Errorf("refs = %q, want only %s", refs, fresh)
 		}
 	})
 	t.Run("<required-skills> contains every global_skills entry", func(t *testing.T) {

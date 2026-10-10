@@ -45,7 +45,7 @@ var Dirs = []Dir{
 	{ReplyLimit, "reply-limit marker(s)", 1},
 	{Stack, "stack report(s)", 30},
 	{StopReports, "stop-checks report(s)", 1},
-	{Enforce, "gap-fill verdict file(s)", 30},
+	{Enforce, "gap-fill verdict and gate mark file(s)", 30},
 }
 
 // RootKey names a project's files in a state dir: its root hashed, so

@@ -50,17 +50,22 @@ func Lines(dir string, args ...string) ([]string, error) {
 	return lines, err
 }
 
+// Paths is git's NUL-separated stdout (a -z listing), empty ones dropped.
+func Paths(dir string, args ...string) ([]string, error) {
+	out, err := Output(dir, args...)
+	var paths []string
+	for path := range strings.SplitSeq(out, "\x00") {
+		if path != "" {
+			paths = append(paths, path)
+		}
+	}
+	return paths, err
+}
+
 // Files is dir's tracked and untracked-but-not-ignored files matching
 // pathspecs (all when none), relative to dir.
 func Files(dir string, pathspecs ...string) ([]string, error) {
-	out, err := Output(dir, append([]string{"ls-files", "-z", "--cached", "--others", "--exclude-standard", "--"}, pathspecs...)...)
-	var files []string
-	for file := range strings.SplitSeq(out, "\x00") {
-		if file != "" {
-			files = append(files, file)
-		}
-	}
-	return files, err
+	return Paths(dir, append([]string{"ls-files", "-z", "--cached", "--others", "--exclude-standard", "--"}, pathspecs...)...)
 }
 
 var toplevels sync.Map // dir -> its work tree's root, "" outside one
@@ -158,6 +163,12 @@ func Snapshot(dir string) (string, error) {
 		return "", err
 	}
 	return withIndex("write-tree")
+}
+
+// TreeDiff is the paths, from the repo root, whose content differs between
+// trees from and to.
+func TreeDiff(dir, from, to string) ([]string, error) {
+	return Paths(dir, "diff-tree", "-r", "-z", "--name-only", "--no-renames", from, to)
 }
 
 // Verify reports whether ref names a commit in dir's repo.

@@ -10,7 +10,6 @@ import (
 	"io"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -230,12 +229,10 @@ const maxOutputLines = 30
 
 func skipLine(label, reason string) string { return "SKIP " + label + " (" + reason + ")\n" }
 
+// summary is the line review-checks matches (run.Summary).
 func summary(pass, fail, skip int) string {
 	return fmt.Sprintf("checks: %d passed, %d failed, %d skipped", pass, fail, skip)
 }
-
-// Summary matches the line summary prints; --plan doesn't print it.
-var Summary = regexp.MustCompile(`checks: \d+ passed, \d+ failed, \d+ skipped`)
 
 // head is lines' first maxOutputLines.
 func head(lines []string) []string { return lines[:min(len(lines), maxOutputLines)] }

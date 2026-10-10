@@ -95,6 +95,14 @@ func Rel(root, path string) string {
 	return strings.TrimPrefix(path, root+"/")
 }
 
+// Abs is path, cleaned, made absolute against dir when it's relative.
+func Abs(dir, path string) string {
+	if !filepath.IsAbs(path) {
+		return filepath.Join(dir, path)
+	}
+	return filepath.Clean(path)
+}
+
 // FindUp returns the first dir/name for each dir from start up to and
 // including stop, never above it; "" when none exists. A start outside stop
 // is checked on its own.

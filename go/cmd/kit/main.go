@@ -20,7 +20,6 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/checks"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/detect"
-	"github.com/ku5ic/claude-kit/go/internal/enforce"
 	"github.com/ku5ic/claude-kit/go/internal/explain"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/gitbase"
@@ -105,6 +104,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return gitbase.Run(rest, stdout, stderr)
 	case "scratch-rotate":
 		return cmdScratchRotate(e, rest)
+	case "gates":
+		return cmdGates(e, rest)
 	case "hook":
 		return cmdHook(e, rest, os.Stdin)
 	case "statusline":
@@ -159,14 +160,10 @@ func cmdRunChecks(e *env, cfg *config.Config, args []string) int {
 			return 2
 		}
 	}
-	switch {
-	case a.engine == "enforce" && a.plan:
-		enforce.Build(cfg, enforce.Options{Root: root, CacheDir: e.paths.CacheDir(), Only: a.only, Ask: true, Timeout: classifyTimeout}).Print(e.stdout)
-		return 0
-	case a.engine == "enforce":
-		fmt.Fprintln(e.stderr, "kit run-checks: --engine=enforce runs nothing yet; add --plan")
-		return 2
-	case a.plan:
+	if a.engine == "enforce" {
+		return runGates(e, cfg, root, a)
+	}
+	if a.plan {
 		checks.PrintPlan(cfg, root, a.only, e.stdout)
 		return 0
 	}

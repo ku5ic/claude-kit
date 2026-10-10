@@ -1,4 +1,4 @@
-package checks
+package git
 
 import (
 	"path/filepath"
@@ -7,34 +7,64 @@ import (
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
-	"github.com/ku5ic/claude-kit/go/internal/git"
 )
 
-// onChangedLine is true for a finding changedLines can't rule out: one
-// without a line, or in a file whose every line counts.
-func onChangedLine(changed map[string]map[int]bool, file string, line int) bool {
-	return line == 0 || changed[file] == nil || changed[file][line]
+// Since is what changed in a repo since its git base: the base, its
+// merge-base with HEAD, and the files changed since that merge-base, by
+// absolute path: committed, staged, unstaged, and untracked, deletions left
+// out.
+type Since struct {
+	Base, MergeBase string
+	Files           map[string]bool
 }
 
-// absUnder is path, cleaned, made absolute against dir when it's relative.
-func absUnder(dir, path string) string {
-	if !filepath.IsAbs(path) {
-		return filepath.Join(dir, path)
+// ChangedSince is what changed in root's repo since its git base; false
+// when no base resolves.
+func ChangedSince(root string) (Since, bool) {
+	base, ok := Base(root, "")
+	if !ok {
+		return Since{}, false
 	}
-	return filepath.Clean(path)
+	run := func(args ...string) []string {
+		lines, err := Lines(root, append([]string{"-c", "core.quotePath=false"}, args...)...)
+		if err != nil {
+			return nil
+		}
+		return lines
+	}
+	mb := run("merge-base", base, "HEAD")
+	if len(mb) != 1 {
+		return Since{}, false
+	}
+	s := Since{Base: base, MergeBase: mb[0], Files: map[string]bool{}}
+	for _, f := range append(run("diff", "--name-only", "--diff-filter=d", mb[0]), run("ls-files", "--others", "--exclude-standard")...) {
+		s.Files[filepath.Join(root, f)] = true
+	}
+	return s, true
 }
 
-// changedLines maps each of files (absolute, under root) to the lines the
-// working tree changed against rev; a nil entry means every line (a file
-// rev doesn't have). A file tracked and unchanged maps to no lines. The
-// whole map is nil, every line of every file counting, when git can't say.
-func changedLines(root, rev string, files []string) map[string]map[int]bool {
+// ChangedLines maps files (absolute) to the lines the working tree changed
+// against a rev; a nil entry means every line (a file the rev doesn't have).
+// A whole nil map, every line of every file counting, means git couldn't
+// say.
+type ChangedLines map[string]map[int]bool
+
+// Touches is true for a finding ChangedLines can't rule out: one without a
+// line, or in a file whose every line counts.
+func (c ChangedLines) Touches(file string, line int) bool {
+	return line == 0 || c[file] == nil || c[file][line]
+}
+
+// LinesChanged maps each of files (absolute, under root) to the lines the
+// working tree changed against rev. A file tracked and unchanged maps to no
+// lines.
+func LinesChanged(root, rev string, files []string) ChangedLines {
 	var rel []string
 	for _, f := range files {
 		rel = append(rel, fsx.Rel(root, f))
 	}
 	run := func(args ...string) (string, error) {
-		return git.Output(root, append([]string{"-c", "core.quotePath=false"}, args...)...)
+		return Output(root, append([]string{"-c", "core.quotePath=false"}, args...)...)
 	}
 	tracked, err := run(append([]string{"ls-tree", "-r", "--name-only", rev, "--"}, rel...)...)
 	if err != nil {
@@ -45,7 +75,7 @@ func changedLines(root, rev string, files []string) map[string]map[int]bool {
 	if err != nil {
 		return nil
 	}
-	changed := map[string]map[int]bool{}
+	changed := ChangedLines{}
 	for _, f := range files {
 		changed[f] = nil
 	}
@@ -74,7 +104,7 @@ func hunkCount(s string) int {
 
 // markDiff marks each file's lines a -U0 diff adds or touches in changed;
 // false when a file's name doesn't map back, and git can't say.
-func markDiff(diff, root string, changed map[string]map[int]bool) bool {
+func markDiff(diff, root string, changed ChangedLines) bool {
 	var current map[int]bool
 	body := 0 // lines of the hunk still to come: content, whatever they start with
 	for line := range strings.SplitSeq(diff, "\n") {

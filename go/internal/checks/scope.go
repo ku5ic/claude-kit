@@ -3,13 +3,13 @@ package checks
 import (
 	"fmt"
 	"io"
-	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/classify"
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/tools"
 )
@@ -64,35 +64,16 @@ func checkNamed(cfg *config.Config, slot string) config.Check {
 	return config.Check{}
 }
 
-// changes is the git base and the files changed since its merge-base with
-// HEAD: committed, staged, unstaged, and untracked, deletions left out.
+// changes is what changed since the git base, ok false when none resolves.
 type changes struct {
-	root, base, mergeBase string
-	files                 map[string]bool // absolute paths
-	ok                    bool
+	root string
+	git.Since
+	ok bool
 }
 
 func changedSince(root string) changes {
-	base, ok := git.Base(root, "")
-	if !ok {
-		return changes{}
-	}
-	run := func(args ...string) []string {
-		lines, err := git.Lines(root, append([]string{"-c", "core.quotePath=false"}, args...)...)
-		if err != nil {
-			return nil
-		}
-		return lines
-	}
-	mb := run("merge-base", base, "HEAD")
-	if len(mb) != 1 {
-		return changes{}
-	}
-	c := changes{root: root, base: base, mergeBase: mb[0], files: map[string]bool{}, ok: true}
-	for _, f := range append(run("diff", "--name-only", "--diff-filter=d", mb[0]), run("ls-files", "--others", "--exclude-standard")...) {
-		c.files[filepath.Join(root, f)] = true
-	}
-	return c
+	s, ok := git.ChangedSince(root)
+	return changes{root, s, ok}
 }
 
 // blockingFindings is the text of each finding on a line changed since the
@@ -101,20 +82,20 @@ func blockingFindings(found []tools.Finding, dir string, ch changes) []string {
 	paths := make([]string, len(found))
 	var touched []string
 	for i, f := range found {
-		paths[i] = absUnder(dir, f.File)
-		if ch.files[paths[i]] {
+		paths[i] = fsx.Abs(dir, f.File)
+		if ch.Files[paths[i]] {
 			touched = append(touched, paths[i])
 		}
 	}
-	var lines map[string]map[int]bool
+	var lines git.ChangedLines
 	if len(touched) > 0 {
 		// Each file once: thousands of findings in one file mustn't swell git's argv.
 		slices.Sort(touched)
-		lines = changedLines(ch.root, ch.mergeBase, slices.Compact(touched))
+		lines = git.LinesChanged(ch.root, ch.MergeBase, slices.Compact(touched))
 	}
 	var blocking []string
 	for i, f := range found {
-		if ch.files[paths[i]] && onChangedLine(lines, paths[i], f.Line) {
+		if ch.Files[paths[i]] && lines.Touches(paths[i], f.Line) {
 			blocking = append(blocking, f.Text)
 		}
 	}
@@ -133,8 +114,8 @@ func runScoped(g Gate, ch changes, w io.Writer) string {
 		fmt.Fprint(w, skipLine(g.Label, "no git base"))
 		return "skip"
 	}
-	if len(ch.files) == 0 {
-		fmt.Fprintf(w, "PASS %s (nothing changed since %s)\n", g.Label, ch.base)
+	if len(ch.Files) == 0 {
+		fmt.Fprintf(w, "PASS %s (nothing changed since %s)\n", g.Label, ch.Base)
 		return "pass"
 	}
 	out, err := capture(g)

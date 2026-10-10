@@ -20,12 +20,12 @@ import (
 // its own (git aside), and a stub classifier answering with verdicts set by
 // entry name.
 type env struct {
-	t                 *testing.T
-	root, path, stubs string
-	cfg               *config.Config
-	verdicts          map[string]map[string]any // by entry name
-	proposals         []map[string]any
-	managers          []map[string]any
+	t                        *testing.T
+	root, path, stubs, cache string
+	cfg                      *config.Config
+	verdicts                 map[string]map[string]any // by entry name
+	proposals                []map[string]any
+	managers                 []map[string]any
 }
 
 // Not parallel: each test sets PATH.
@@ -34,7 +34,7 @@ func setup(t *testing.T) *env {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e := &env{t: t, root: filepath.Join(tmp, "repo"), path: filepath.Join(tmp, "path"), stubs: filepath.Join(tmp, "stubs"), verdicts: map[string]map[string]any{}}
+	e := &env{t: t, root: filepath.Join(tmp, "repo"), path: filepath.Join(tmp, "path"), stubs: filepath.Join(tmp, "stubs"), cache: filepath.Join(tmp, "cache"), verdicts: map[string]map[string]any{}}
 	git, err := exec.LookPath("git")
 	if err != nil {
 		t.Fatal(err)
@@ -87,7 +87,7 @@ func (e *env) plan() Plan {
 	}
 	testutil.Put(e.t, e.stubs, "answer.json", string(envelope))
 	e.cfg.Classifier = testutil.Replayer(e.t, filepath.Join(e.stubs, "answer.json"))
-	return Build(e.cfg, Options{Root: e.root, CacheDir: e.t.TempDir(), Ask: true, Timeout: 10 * time.Second})
+	return Build(e.cfg, Options{Root: e.root, CacheDir: e.cache, Ask: true, Timeout: 10 * time.Second})
 }
 
 func orEmpty(m []map[string]any) []map[string]any {
@@ -228,6 +228,22 @@ func TestCICoversItsKindsBeforeTasksAndEvidence(t *testing.T) {
 	p := e.plan()
 	has(t, p, "RUN lint (.github/workflows/ci.yml: lint/1)")
 	lacks(t, p, "package.json: lint", "evidence package.json")
+}
+
+func TestAGateSeenChangingFilesIsASkipUntilReset(t *testing.T) {
+	e := setup(t)
+	e.tool("bin/black")
+	e.write(".github/workflows/ci.yml", "jobs:\n  fmt:\n    steps:\n      - run: black --check .\n")
+	e.check("fmt/1", check("format-check"))
+	p := e.plan()
+	if err := AddMark(e.cache, e.root, p.Gates[0], Mark{Label: p.Gates[0].Label, Paths: []string{"a.py", "b.py"}}); err != nil {
+		t.Fatal(err)
+	}
+	has(t, e.plan(), "SKIP format-check (.github/workflows/ci.yml: fmt/1) (changed a.py, b.py when it last ran; kit gates reset lets it run again)")
+	if err := ResetMarks(e.cache, e.root); err != nil {
+		t.Fatal(err)
+	}
+	has(t, e.plan(), "RUN format-check (.github/workflows/ci.yml: fmt/1)")
 }
 
 func TestAnUnclassifiedEntryIsASkipAndCounted(t *testing.T) {

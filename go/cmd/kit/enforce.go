@@ -1,18 +1,75 @@
 package main
 
 import (
+	"cmp"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/enforce"
 	"github.com/ku5ic/claude-kit/go/internal/gapfill"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/project"
+	gaterun "github.com/ku5ic/claude-kit/go/internal/run"
 	"github.com/ku5ic/claude-kit/go/internal/sources"
 )
 
 // exitUnclassified is a run that left an entry with no verdict: apart from
 // any count of failures a command exits with.
 const exitUnclassified = 125
+
+// runGates is run-checks on the enforcement plan: --plan prints it, else it
+// runs, exiting with the failure count, or exitUnclassified when nothing
+// failed but an entry has no verdict.
+func runGates(e *env, cfg *config.Config, root string, a runChecksArgs) int {
+	p := enforce.Build(cfg, enforce.Options{Root: root, CacheDir: e.paths.CacheDir(), Only: a.only, Ask: true, Timeout: classifyTimeout})
+	if a.plan {
+		p.Print(e.stdout)
+		return 0
+	}
+	switch r := gaterun.Gates(p, e.paths.CacheDir(), e.stdout); {
+	case r.Fail > 0:
+		return min(r.Fail, exitUnclassified-1)
+	case p.Unclassified > 0:
+		return exitUnclassified
+	}
+	return 0
+}
+
+// cmdGates is kit gates reset [--restore]: it forgets the gates seen
+// changing files, so they run again; --restore first puts those files back.
+func cmdGates(e *env, args []string) int {
+	restore := len(args) == 2 && args[1] == "--restore"
+	if len(args) == 0 || args[0] != "reset" || len(args) > 1 && !restore {
+		fmt.Fprintln(e.stderr, "usage: kit gates reset [--restore]")
+		return 2
+	}
+	root := cmp.Or(git.Toplevel(e.cwd), e.cwd)
+	marks := enforce.Marks(e.paths.CacheDir(), root)
+	if len(marks) == 0 {
+		fmt.Fprintln(e.stdout, "no gate was seen changing files")
+		return 0
+	}
+	if restore {
+		for _, m := range marks {
+			restored, err := gaterun.Restore(root, m)
+			if err != nil {
+				fmt.Fprintf(e.stderr, "kit gates: restoring what %s changed: %v\n", m.Label, err)
+				return 1
+			}
+			if len(restored) > 0 {
+				fmt.Fprintf(e.stdout, "restored %s\n", strings.Join(restored, ", "))
+			}
+		}
+	}
+	if err := enforce.ResetMarks(e.paths.CacheDir(), root); err != nil {
+		fmt.Fprintln(e.stderr, "kit gates:", err)
+		return 1
+	}
+	fmt.Fprintf(e.stdout, "%d gate(s) will run again\n", len(marks))
+	return 0
+}
 
 // classifyTimeout caps a foreground gap-fill run, waiting included.
 const classifyTimeout = 60 * time.Second

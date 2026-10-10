@@ -6,9 +6,9 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/ku5ic/claude-kit/go/internal/checks"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/run"
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
@@ -37,7 +37,7 @@ func ranChecks(path string) bool {
 					text = string(data)
 				}
 			}
-			ran = checks.Summary.MatchString(text)
+			ran = run.Summary.MatchString(text)
 		}
 	})
 	return ran
