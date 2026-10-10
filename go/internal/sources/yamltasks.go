@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"go.yaml.in/yaml/v3"
+
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 )
 
 // yamlRoot is file's top-level mapping node, nil when unreadable.
@@ -120,7 +122,7 @@ func eachTaskfileTask(file string, fn func(string, Body)) {
 // order, each once.
 func PreCommitHooks(file string) []string {
 	var ids []string
-	eachPreCommitHook(file, func(id string, _ Body) {
+	eachPreCommitHook(yamlRoot(file), func(id string, _ Body, _ *yaml.Node) {
 		if !slices.Contains(ids, id) {
 			ids = append(ids, id)
 		}
@@ -133,7 +135,7 @@ func PreCommitHooks(file string) []string {
 // own definition.
 func preCommitBodies(file string) map[string]Body {
 	out := map[string]Body{}
-	eachPreCommitHook(file, func(id string, body Body) {
+	eachPreCommitHook(yamlRoot(file), func(id string, body Body, _ *yaml.Node) {
 		if _, ok := out[id]; !ok {
 			out[id] = body
 		}
@@ -141,8 +143,36 @@ func preCommitBodies(file string) map[string]Body {
 	return out
 }
 
-func eachPreCommitHook(file string, fn func(string, Body)) {
-	for _, repo := range items(field(yamlRoot(file), "repos")) {
+// preCommitStages are pre-commit's stage names before 3.2, as git hooks.
+var preCommitStages = map[string]string{"commit": "pre-commit", "push": "pre-push", "merge-commit": "pre-merge-commit"}
+
+// preCommitEntries are the hooks root's pre-commit config runs, one per
+// stage it names (its own stages, else default_stages). A hook naming none
+// runs at the stages its repo's manifest declares, which the config
+// doesn't hold: its Stage is "". pre-commit filters files itself.
+func preCommitEntries(root string) []Entry {
+	file := fsx.FindUp(root, root, ".pre-commit-config.yaml", ".pre-commit-config.yml")
+	doc := yamlRoot(file)
+	var out []Entry
+	eachPreCommitHook(doc, func(id string, body Body, hook *yaml.Node) {
+		stages := items(field(hook, "stages"))
+		if stages == nil {
+			stages = items(field(doc, "default_stages"))
+		}
+		entry := Entry{Source: "pre-commit", File: fsx.Rel(root, file), Name: id, Dir: ".", Body: body, PassFiles: value(hook, "pass_filenames") != "false"}
+		if stages == nil {
+			out = append(out, entry)
+		}
+		for _, stage := range stages {
+			entry.Stage = cmp.Or(preCommitStages[stage.Value], stage.Value)
+			out = append(out, entry)
+		}
+	})
+	return out
+}
+
+func eachPreCommitHook(doc *yaml.Node, fn func(string, Body, *yaml.Node)) {
+	for _, repo := range items(field(doc, "repos")) {
 		local := value(repo, "repo") == "local"
 		for _, hook := range items(field(repo, "hooks")) {
 			id := value(hook, "id")
@@ -157,7 +187,7 @@ func eachPreCommitHook(file string, fn func(string, Body)) {
 			for _, arg := range items(field(hook, "args")) {
 				args = append(args, arg.Value)
 			}
-			fn(id, Body{Text: strings.Join(append([]string{cmd}, args...), " ")})
+			fn(id, Body{Text: strings.Join(append([]string{cmd}, args...), " ")}, hook)
 		}
 	}
 }

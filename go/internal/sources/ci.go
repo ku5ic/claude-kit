@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
@@ -17,13 +18,16 @@ import (
 )
 
 // Step is one shell step a CI config runs: its file (relative to the
-// root), the directory it runs in (relative), its literal env, and its
-// script.
+// root), its name (the GitLab job, or GitHub's job/step, the step by its
+// position when unnamed), the directory it runs in (relative), its literal
+// env, and its script.
 type Step struct {
-	File, Dir string
-	Env       []string
-	Run       string
+	File, Name, Dir string
+	Env             []string
+	Run             string
 }
+
+const gitlabCI = ".gitlab-ci.yml"
 
 // maxDepth bounds how deep GitLab extends: chains are followed.
 const maxDepth = 8
@@ -43,14 +47,14 @@ func Steps(cfg *config.Config, root string) []Step {
 	for _, file := range workflows {
 		steps = append(steps, githubSteps(cfg, root, file)...)
 	}
-	steps = append(steps, gitlabSteps(cfg, root, filepath.Join(root, ".gitlab-ci.yml"))...)
+	steps = append(steps, gitlabSteps(cfg, root, filepath.Join(root, gitlabCI))...)
 	return steps
 }
 
 // Has is true when root has a CI config Steps reads.
 func Has(root string) bool {
 	workflows, _ := filepath.Glob(filepath.Join(root, ".github/workflows/*.y*ml"))
-	_, err := os.Stat(filepath.Join(root, ".gitlab-ci.yml"))
+	_, err := os.Stat(filepath.Join(root, gitlabCI))
 	return len(workflows) > 0 || err == nil
 }
 
@@ -89,10 +93,11 @@ func githubSteps(cfg *config.Config, root, file string) []Step {
 			jobShell = "pwsh"
 		}
 		steps, _ := job["steps"].([]any)
-		for _, s := range steps {
+		for i, s := range steps {
 			step, _ := s.(map[string]any)
 			if st, ok := githubStep(cfg, step, jobDir, jobShell); ok {
 				st.File, st.Env = rel, append(slices.Clone(jobEnv), st.Env...)
+				st.Name = id + "/" + cmp.Or(str(step["name"]), strconv.Itoa(i+1))
 				out = append(out, st)
 			}
 		}
@@ -212,7 +217,7 @@ func gitlabSteps(cfg *config.Config, root, file string) []Step {
 		if !ok || !ok2 || len(script) == 0 {
 			continue
 		}
-		out = append(out, Step{File: rel, Dir: ".", Env: env, Run: strings.Join(append(lines, script...), "\n")})
+		out = append(out, Step{File: rel, Name: name, Dir: ".", Env: env, Run: strings.Join(append(lines, script...), "\n")})
 	}
 	return out
 }

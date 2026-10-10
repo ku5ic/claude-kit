@@ -26,6 +26,7 @@ var Commands = []Command{
 	{Name: "scratch-dir", Args: "[kind [slug]]", Desc: "scratch directory, or a report path in it", ReadOnly: true},
 	{Name: "detect-stack", Desc: "compact stack report", ReadOnly: true},
 	{Name: "run-checks", Args: "[--plan] [--only sub...]", Desc: "every declared check, in every subproject;\nexits with the failure count. --plan lists\nthem, with commands, without running any", Words: []string{"--plan", "--only"}},
+	{Name: "enforce", Args: "--list", Desc: "what the project's configs say to run: source,\nfile, stage, dir, name, files, command", Words: []string{"--list"}},
 	{Name: "git-base", Args: "[--diff|--log] [base] [flags] [-- paths]", Words: []string{"--diff", "--log"}, ReadOnly: true},
 	{Name: "explain", Args: "bash|edit|stop ...", Desc: "why a guard or the Stop hook decides what it\ndoes; logs, blocks, and runs nothing", Words: []string{"bash", "edit", "stop"}},
 	{Name: "blast-radius", Args: "<file> [symbol]", Desc: "the files that import <file>", Path: "file", ReadOnly: true},

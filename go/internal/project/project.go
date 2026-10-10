@@ -136,10 +136,7 @@ func Tasks(cfg *config.Config, dir string) []Task {
 			if name == "" {
 				continue
 			}
-			body := bodies[name]
-			if tp.Body != "" && body.Text != "" {
-				body.Text = strings.ReplaceAll(tp.Body, "{body}", body.Text)
-			}
+			body := tp.Wrap(bodies[name])
 			out = append(out, Task{Provider: tp.Name, Stack: tp.Stack, Name: name, Cmd: strings.ReplaceAll(run, "{task}", name), Body: body.Text, PerLine: body.PerLine})
 		}
 	}

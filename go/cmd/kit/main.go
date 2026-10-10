@@ -135,6 +135,7 @@ var configCommands = map[string]func(*env, *config.Config, []string) int{
 	"scratch-dir":  cmdScratchDir,
 	"detect-stack": cmdDetectStack,
 	"run-checks":   cmdRunChecks,
+	"enforce":      cmdEnforce,
 	"blast-radius": func(e *env, cfg *config.Config, args []string) int {
 		return blast.Run(cfg, args, e.stdout, e.stderr)
 	},
@@ -249,6 +250,18 @@ func cmdSubprojects(e *env, cfg *config.Config, args []string) int {
 func cmdTasks(e *env, cfg *config.Config, args []string) int {
 	for _, task := range project.Tasks(cfg, cmp.Or(first(args), ".")) {
 		fmt.Fprintln(e.stdout, strings.Join([]string{task.Provider, cmp.Or(task.Stack, "-"), task.Name, task.Cmd}, "\t"))
+	}
+	return 0
+}
+
+func cmdEnforce(e *env, cfg *config.Config, args []string) int {
+	if len(args) != 1 || args[0] != "--list" {
+		fmt.Fprintln(e.stderr, "usage: kit enforce --list")
+		return 2
+	}
+	root, _ := project.Root(cfg, e.cwd)
+	for _, entry := range sources.Entries(cfg, root) {
+		fmt.Fprintln(e.stdout, entry)
 	}
 	return 0
 }

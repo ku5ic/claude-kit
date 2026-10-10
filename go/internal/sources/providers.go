@@ -3,6 +3,7 @@ package sources
 import (
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 )
@@ -43,6 +44,14 @@ type TaskProvider struct {
 	Run       string
 	RunByPM   map[string]string
 	Body      string
+}
+
+// Wrap is body as the shell its task runs: inside tp.Body, when tp has one.
+func (tp TaskProvider) Wrap(body Body) Body {
+	if tp.Body != "" && body.Text != "" {
+		body.Text = strings.ReplaceAll(tp.Body, "{body}", body.Text)
+	}
+	return body
 }
 
 var TaskProviders = []TaskProvider{
