@@ -43,8 +43,13 @@ func CheckCommit(h *hook.Hook) error {
 	if !c.commits(cmd) {
 		return nil
 	}
-	// The repo it commits to: its git -C directory, else the cwd.
-	repo := fsx.Abs(h.Payload.Cwd(), c.dir)
+	// The repo it commits to: its git -C directory, else the cwd. An
+	// expansion can't be resolved here; most name the cwd's repo ("$PWD",
+	// "$(git rev-parse --show-toplevel)").
+	repo := h.Payload.Cwd()
+	if !strings.ContainsAny(c.dir, "$`") {
+		repo = resolveDir(h.Home, repo, c.dir)
+	}
 
 	// Line by line, as grep: the trailer sits on a line of its own. The
 	// whole command, since a message can come from anywhere in it (a file a
@@ -129,9 +134,9 @@ func commitCall(cmd string) commit {
 
 // message is the message cmd's git commit c gives, as the commit-msg hook
 // would read it: the commit line's heredoc, else its -m messages as
-// paragraphs, else the file -F names, from dir. ok is false when it can't
+// paragraphs, else the file -F names, from repo. ok is false when it can't
 // be told: no message, or one an expansion builds.
-func message(cmd string, c commit, dir string) (msg string, ok bool) {
+func message(cmd string, c commit, repo string) (msg string, ok bool) {
 	if body := heredocBody(cmd); body != "" {
 		return body + "\n", true
 	}
@@ -152,7 +157,7 @@ func message(cmd string, c commit, dir string) (msg string, ok bool) {
 	case len(paragraphs) > 0 && !strings.Contains(strings.Join(paragraphs, ""), "$"):
 		return strings.Join(paragraphs, "\n\n") + "\n", true
 	case len(paragraphs) == 0 && file != "" && file != "-":
-		data, err := os.ReadFile(fsx.Abs(fsx.Abs(dir, c.dir), file))
+		data, err := os.ReadFile(fsx.Abs(repo, file))
 		return string(data), err == nil
 	}
 	return "", false
@@ -167,7 +172,7 @@ const commitMsgBudget = 12 * time.Second
 // when it passes, the message can't be told, or the project has none.
 func commitMsg(h *hook.Hook, cmd string, c commit, repo string) string {
 	root, cfg := git.Toplevel(repo), h.Config()
-	msg, ok := message(cmd, c, h.Payload.Cwd())
+	msg, ok := message(cmd, c, repo)
 	if !ok || root == "" || cfg == nil {
 		return ""
 	}
@@ -209,8 +214,8 @@ func scanStaged(h *hook.Hook, repo string) error {
 	if _, err := exec.LookPath("gitleaks"); err != nil {
 		return nil
 	}
-	// gitleaks exits 1, a leak's code, on a path it can't stat: a git -C
-	// directory that's missing or an expansion.
+	// gitleaks exits 1, a leak's code, on a path it can't stat: a missing
+	// git -C directory.
 	if info, err := os.Stat(repo); err != nil || !info.IsDir() {
 		fmt.Fprintf(h.Stderr, "%s: %s is not a directory; skipping scan\n", h.Name, repo)
 		return nil

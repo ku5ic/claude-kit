@@ -45,7 +45,8 @@ func TestMessageIsWhatTheCommitMsgHookWouldRead(t *testing.T) {
 		`git commit -m "$MSG"`:                                     "",
 		`git commit --amend --no-edit`:                             "",
 	} {
-		if got, _ := message(cmd, commitCall(cmd), dir); got != want {
+		c := commitCall(cmd)
+		if got, _ := message(cmd, c, filepath.Join(dir, c.dir)); got != want {
 			t.Errorf("message(%q) = %q, want %q", cmd, got, want)
 		}
 	}
@@ -206,7 +207,9 @@ func TestGuardCommitScansTheStagedDiff(t *testing.T) {
 		{"allow: plain git commit (no -C) is unaffected by the -C entry guard fix", "git commit -m test", 0, 0, ""},
 		// gitleaks exits 1 on a path it can't stat, the same code as a leak.
 		{"allow (fail open): git -C names a missing directory", "git -C " + filepath.Join(t.TempDir(), "missing") + " commit -m test", 1, 0, "skipping scan"},
-		{"allow (fail open): git -C names an unexpanded variable", "git -C $REPO commit -m test", 1, 0, "skipping scan"},
+		{"block: git -C ~ resolves against home and is scanned", "git -C ~ commit -m test", 1, 2, "gitleaks flagged a secret"},
+		// Most expansions name the cwd's repo: "$PWD", "$(git rev-parse --show-toplevel)".
+		{"block: git -C names an expansion, so the cwd's repo is scanned", `git -C "$PWD" commit -m test`, 1, 2, "gitleaks flagged a secret"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			gitleaksStub(t, c.code)
