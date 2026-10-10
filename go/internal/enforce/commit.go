@@ -2,9 +2,9 @@ package enforce
 
 import (
 	"path/filepath"
-	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/sources"
 )
 
 // CommitMsg plans the project's commit-msg enforcement on msg, a file
@@ -14,31 +14,25 @@ import (
 // the message, so it needs no verdict; its binaries go through resolve.
 func CommitMsg(cfg *config.Config, o Options, msg string) Plan {
 	b := hookPlan(cfg, o)
-	var commitlint *Gate
+	var fallback *Gate
 	for _, e := range b.entries {
-		if e.Stage != "commit-msg" {
+		src := sources.SourceOf(e.Source)
+		if e.Stage != "commit-msg" || src.CommitMsg == nil {
 			continue
 		}
-		g := Gate{Label: "commit-msg (" + e.File + ": " + e.Name + ")", Dir: filepath.Join(b.root, e.Dir), Env: e.Env, Files: []string{msg}, Verdict: "commit-msg"}
-		switch e.Source {
-		case "pre-commit":
-			g.Label, g.Body = "commit-msg ("+e.File+")", "pre-commit run --hook-stage commit-msg --commit-msg-filename {files}"
-		case "husky":
-			// A husky hook reads the message file as $1.
-			g.Body = "set -- {files}\n" + e.Body.Text
-		case "lefthook":
-			g.Body = strings.ReplaceAll(e.Body.Text, "{1}", "{files}")
-		case "commitlint":
-			g.Body = e.Body.Text + " {files}"
-			commitlint = &g
-			continue
-		default:
+		name := e.File + ": " + e.Name
+		if src.WholeStage {
+			name = e.File
+		}
+		g := Gate{Label: "commit-msg (" + name + ")", Dir: filepath.Join(b.root, e.Dir), Env: e.Env, Files: []string{msg}, Verdict: "commit-msg", Body: src.CommitMsg(e)}
+		if src.Fallback {
+			fallback = &g
 			continue
 		}
 		b.add(g)
 	}
-	if commitlint != nil && len(b.gates) == 0 {
-		b.add(*commitlint)
+	if fallback != nil && len(b.gates) == 0 {
+		b.add(*fallback)
 	}
 	b.settle(o.CacheDir)
 	return Plan{Root: o.Root, Gates: b.gates}

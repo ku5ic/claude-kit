@@ -86,7 +86,7 @@ const Discovery = "nothing in this project states a check: no CI step, task, hoo
 // Build plans the full gate for o.Root.
 func Build(cfg *config.Config, o Options) Plan {
 	b, subs := fullGate(cfg, o)
-	b.unclassified(func(e sources.Entry) bool { return !gitHook(e.Source) })
+	b.unclassified(func(e sources.Entry) bool { return !sources.SourceOf(e.Source).GitHook })
 	b.settle(o.CacheDir)
 	p := Plan{Root: o.Root, Unclassified: b.skipped, Managed: len(b.facts.Managers) > 0}
 	// A fan-out gate belongs to each member it runs across.
@@ -150,16 +150,6 @@ func Tasks(cfg *config.Config, root, cacheDir, sub string) []Task {
 		}
 	}
 	return out
-}
-
-// gitHook is true for a source that only a git hook runs: the full gate
-// leaves it out, and Stop runs its pre-commit checks.
-func gitHook(source string) bool {
-	switch source {
-	case "lint-staged", "lefthook", "husky", "commitlint":
-		return true
-	}
-	return false
 }
 
 type taskKey struct{ provider, dir, name string }
@@ -232,7 +222,7 @@ func (b *builder) covered(dir, kind string) bool {
 // nothing, and one gap-fill couldn't classify is reported by unclassified.
 func (b *builder) ci() {
 	for _, e := range b.entries {
-		if e.Source != "github-actions" && e.Source != "gitlab-ci" {
+		if !sources.SourceOf(e.Source).CI {
 			continue
 		}
 		if v, why := b.verdict(e); why == "" && checks(v) {
@@ -269,7 +259,7 @@ func (b *builder) graph(sub, kind string) {
 		return
 	}
 	for _, e := range b.entries {
-		if v, why := b.verdict(e); (e.Source == "turbo" || e.Source == "nx") && why == "" && slices.Contains(kindsOf(v), kind) {
+		if v, why := b.verdict(e); sources.SourceOf(e.Source).Graph && why == "" && slices.Contains(kindsOf(v), kind) {
 			b.add(b.entryGate(e, v, b.root, e.Env))
 		}
 	}

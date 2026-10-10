@@ -1,6 +1,7 @@
 package enforce
 
 import (
+	"cmp"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -36,7 +37,8 @@ func Stop(cfg *config.Config, o Options, files []string) Plan {
 		b.fileForm(g, files, checked)
 	}
 	b.unclassified(func(e sources.Entry) bool {
-		return (e.Stage == "" || e.Stage == "pre-commit") && e.Source != "husky" && e.Source != "commitlint"
+		src := sources.SourceOf(e.Source)
+		return (e.Stage == "" || e.Stage == "pre-commit") && (!src.GitHook || src.PreCommit != nil)
 	})
 	b.settle(o.CacheDir)
 	p.Gates, p.Unclassified = b.gates, b.skipped
@@ -79,22 +81,24 @@ func (b *builder) hookChecks(files []string) map[string][]string {
 }
 
 // hookRun is how a git-hook manager's entry e, run from dir, runs on files:
-// its body and the files it takes. pre-commit filters files itself, so its
-// hooks take every file; a source no hook manager runs takes none.
+// its body and the files it takes, every one when the tool filters them
+// itself; a source no hook manager runs takes none.
 func hookRun(e sources.Entry, dir string, files []string) (body string, taken []string) {
-	switch e.Source {
-	case "pre-commit":
-		return "pre-commit run " + e.Name + " --hook-stage pre-commit --files {files}", files
-	case "lint-staged", "lefthook":
-		return e.FileBody(), matching(files, dir, e.Files)
+	run := sources.SourceOf(e.Source).PreCommit
+	if run == nil {
+		return "", nil
 	}
-	return "", nil
+	body, all := run(e)
+	if all {
+		return body, files
+	}
+	return body, matching(files, dir, e.Files)
 }
 
 // atPreCommit is true for an entry git's pre-commit hook runs: one staged
-// there, or a pre-commit hook whose repo's manifest sets its stages.
+// there, or one whose source puts an unstaged entry there.
 func atPreCommit(e sources.Entry) bool {
-	return e.Stage == "pre-commit" || e.Source == "pre-commit" && e.Stage == ""
+	return cmp.Or(e.Stage, sources.SourceOf(e.Source).DefaultStage) == "pre-commit"
 }
 
 // fileForm plans full gate g's file form on the files under its directory
