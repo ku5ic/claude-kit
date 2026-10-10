@@ -26,8 +26,6 @@ var (
 	commitLine   = regexp.MustCompile(`\bgit(?:[ \t]|\\\n)+(?:[^[:space:];&|]+(?:[ \t]|\\\n)+)*commit(?:[^-[:alnum:]_.]|$)`)
 	aiSignature  = regexp.MustCompile(`(?i)Co-Authored-By:[[:space:]]*Claude|Generated[[:space:]]+(by|with)[[:space:]]+Claude|🤖[[:space:]]*Generated`)
 	heredocOpen  = regexp.MustCompile(`<<(-?)[[:space:]]*['"]?([A-Za-z_][A-Za-z0-9_]*)['"]?`)
-	messageDQ    = regexp.MustCompile(`(-m|--message=?)[[:space:]]*"[^"]*"`)
-	messageSQ    = regexp.MustCompile(`(-m|--message=?)[[:space:]]*'[^']*'`)
 	aiTell       = regexp.MustCompile(`(?i)^(feat|fix|chore|refactor|docs|test|perf|build|ci|style)?:?[[:space:]]*(certainly|here is|i have|let me|in this commit|this commit)`)
 	nonProseLine = regexp.MustCompile(`^[[:space:]]*([0-9]+[.)]|[-*+][[:space:]]|#{1,6}[[:space:]]|>|\|)`)
 )
@@ -79,11 +77,12 @@ func CheckCommit(h *hook.Hook) error {
 		}
 	}
 
-	subject := subject(cmd, body)
+	msg, ok := message(cmd, c, repo)
+	subject := subject(msg)
 	if subject != "" && aiTell.MatchString(subject) {
 		return h.Block("AI-tell phrasing in commit subject", "ai-commit-tell")
 	}
-	if failed := commitMsg(h, cmd, c, repo); failed != "" {
+	if failed := commitMsg(h, msg, ok, repo); failed != "" {
 		return h.Block("the project's commit-msg checks reject this message; fix it to their convention:\n"+failed, "commit-msg")
 	}
 	if !shownBefore(h.Payload.String("transcript_path"), subject) {
@@ -146,46 +145,66 @@ func commitCall(cmd, home, cwd string) commit {
 }
 
 // message is the message cmd's git commit c gives, as the commit-msg hook
-// would read it: the commit line's heredoc, else its -m messages as
-// paragraphs, else the file -F names, from repo. ok is false when it can't
-// be told: no message, or one an expansion builds.
+// would read it: its -m messages as paragraphs, a $(cat <<EOF) one read as
+// its body, else the file -F names, from repo, or the commit line's heredoc
+// for -F - or a command that didn't parse. ok is false when it can't be
+// told: no message, or one an expansion builds.
 func message(cmd string, c commit, repo string) (msg string, ok bool) {
-	if body := heredocBody(cmd); body != "" {
-		return body + "\n", true
-	}
 	if !c.found {
-		return "", false
+		body := heredocBody(cmd)
+		return body + "\n", body != ""
 	}
 	var paragraphs []string
-	file := ""
+	file, expanded := "", false
 	commitOptions(c.args, func(opt, value string) {
 		switch opt {
 		case "-m", "--message":
+			if body, ok := catHeredoc(value); ok {
+				value = body
+			} else if strings.Contains(value, "$") {
+				expanded = true
+			}
 			paragraphs = append(paragraphs, value)
 		case "-F", "--file":
 			file = value
 		}
 	})
 	switch {
-	case len(paragraphs) > 0 && !strings.Contains(strings.Join(paragraphs, ""), "$"):
+	case len(paragraphs) > 0 && !expanded:
 		return strings.Join(paragraphs, "\n\n") + "\n", true
-	case len(paragraphs) == 0 && file != "" && file != "-":
+	case len(paragraphs) == 0 && file == "-":
+		body := heredocBody(cmd)
+		return body + "\n", body != ""
+	case len(paragraphs) == 0 && file != "":
 		data, err := os.ReadFile(fsx.Abs(repo, file))
 		return string(data), err == nil
 	}
 	return "", false
 }
 
+// catHeredoc is the body of a -m value that is one $(cat <<EOF ... EOF)
+// substitution.
+func catHeredoc(value string) (string, bool) {
+	head, rest, ok := strings.Cut(value, "\n")
+	if !ok || !strings.HasPrefix(head, "$(cat ") || !strings.HasSuffix(value, ")") {
+		return "", false
+	}
+	m := heredocOpen.FindStringSubmatch(head)
+	if m == nil {
+		return "", false
+	}
+	return readHeredoc(rest, m[2], m[1] == "-")
+}
+
 // commitMsgBudget bounds the project's commit-msg checks, inside
 // bash-dispatch's timeout in hooks.json, gitleaks' share apart.
 const commitMsgBudget = 12 * time.Second
 
-// commitMsg runs the commit-msg enforcement of repo, which cmd's commit c
-// commits to, on the message, from a temp file, and returns what failed; ""
-// when it passes, the message can't be told, or the project has none.
-func commitMsg(h *hook.Hook, cmd string, c commit, repo string) string {
+// commitMsg runs the commit-msg enforcement of repo on msg, from a temp
+// file, and returns what failed; "" when it passes, the message can't be
+// told (!ok), or the project has none.
+func commitMsg(h *hook.Hook, msg string, ok bool, repo string) string {
 	root, cfg := git.Toplevel(repo), h.Config()
-	msg, ok := message(cmd, c, repo)
 	if !ok || root == "" || cfg == nil {
 		return ""
 	}
@@ -252,24 +271,31 @@ func scanStaged(h *hook.Hook, repo string) error {
 // of the heredoc opened on the git commit line (-m "$(cat <<'EOF'", -F -
 // <<'MSG'). A message from elsewhere (a file a heredoc writes for -F, a
 // heredoc opened on a continuation line) isn't read here; the signature
-// scan covers it, the wall-of-text and subject checks don't. One never
+// scan covers it, the wall-of-text check doesn't. One never
 // closed runs to the end, as the shell reads it.
 func heredocBody(cmd string) string {
-	var lines []string
-	delim, tabs := "", false
-	for line := range strings.SplitSeq(cmd, "\n") {
-		switch {
-		case delim != "" && closes(line, delim, tabs):
-			return strings.Join(lines, "\n")
-		case delim != "":
-			lines = append(lines, line)
-		case commitLine.MatchString(line):
-			if m := heredocOpen.FindStringSubmatch(line); m != nil {
-				delim, tabs = m[2], m[1] == "-"
-			}
+	for rest := cmd; rest != ""; {
+		line, after, _ := strings.Cut(rest, "\n")
+		if m := heredocOpen.FindStringSubmatch(line); m != nil && commitLine.MatchString(line) {
+			body, _ := readHeredoc(after, m[2], m[1] == "-")
+			return body
 		}
+		rest = after
 	}
-	return strings.Join(lines, "\n")
+	return ""
+}
+
+// readHeredoc is text's lines up to the one closing delim; ok is false when
+// none does.
+func readHeredoc(text, delim string, tabs bool) (string, bool) {
+	var lines []string
+	for line := range strings.SplitSeq(text, "\n") {
+		if closes(line, delim, tabs) {
+			return strings.Join(lines, "\n"), true
+		}
+		lines = append(lines, line)
+	}
+	return strings.Join(lines, "\n"), false
 }
 
 // closes is true when line ends a heredoc delimited by delim; with tabs
@@ -278,56 +304,14 @@ func closes(line, delim string, tabs bool) bool {
 	return line == delim || tabs && strings.TrimLeft(line, "\t") == delim
 }
 
-// subject is the commit message's first line: the commit heredoc's when
-// it opens before any quoted -m on the commit line, else the first quoted
-// -m's.
-func subject(cmd, body string) string {
-	for line := range strings.SplitSeq(cmd, "\n") {
-		if !commitLine.MatchString(line) {
-			continue
-		}
-		open := heredocOpen.FindStringIndex(line)
-		quoted := firstQuoted(line)
-		if body != "" && open != nil && (quoted < 0 || open[0] < quoted) {
-			first, _, _ := strings.Cut(strings.TrimLeft(body, "\n"), "\n")
-			return strings.TrimLeft(first, " \t")
-		}
-		break
-	}
-	first, _, _ := strings.Cut(quotedMessages(cmd, messageDQ, '"')+quotedMessages(cmd, messageSQ, '\''), "\n")
-	return first
-}
-
-// firstQuoted is where line's first quoted -m message starts, or -1. A
-// command substitution ("$(cat <<'EOF'") isn't one.
-func firstQuoted(line string) int {
-	first := -1
-	for _, re := range []*regexp.Regexp{messageDQ, messageSQ} {
-		for _, loc := range re.FindAllStringIndex(line, -1) {
-			if !strings.Contains(line[loc[0]:loc[1]], "$(") && (first < 0 || loc[0] < first) {
-				first = loc[0]
-			}
+// subject is msg's first non-blank line, as git takes it.
+func subject(msg string) string {
+	for line := range strings.SplitSeq(msg, "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			return line
 		}
 	}
-	return first
-}
-
-// quotedMessages is `$(grep -oE '<re>' | sed 's/.*<q>([^<q>]*)<q>/\1/')`:
-// the quoted text of every -m/--message match, one per line, matched line by
-// line, with no trailing newline (command substitution strips it, so the
-// double- and single-quoted results concatenate directly). A command
-// substitution's opening ("$(cat << ") isn't a message.
-func quotedMessages(cmd string, re *regexp.Regexp, quote byte) string {
-	var out []string
-	for line := range strings.SplitSeq(cmd, "\n") {
-		for _, match := range re.FindAllString(line, -1) {
-			inner := strings.TrimSuffix(match, string(quote))
-			if msg := inner[strings.LastIndexByte(inner, quote)+1:]; !strings.HasPrefix(msg, "$(") {
-				out = append(out, msg)
-			}
-		}
-	}
-	return strings.Join(out, "\n")
+	return ""
 }
 
 // longestProseRun is the longest run of consecutive non-blank lines that

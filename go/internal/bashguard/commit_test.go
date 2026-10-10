@@ -36,14 +36,15 @@ func TestMessageIsWhatTheCommitMsgHookWouldRead(t *testing.T) {
 	dir := t.TempDir()
 	testutil.Write(t, filepath.Join(dir, "sub", "msg.txt"), "fix: from a file\n")
 	for cmd, want := range map[string]string{
-		"git commit -m \"$(cat <<'EOF'\nfeat: x\n\nbody\nEOF\n)\"": "feat: x\n\nbody\n",
-		"git commit -F - <<'EOF'\nfix: y\nEOF":                     "fix: y\n",
-		`git commit -m "feat: a" -m "body"`:                        "feat: a\n\nbody\n",
-		`git commit -am "feat: cluster"`:                           "feat: cluster\n",
-		`git commit --message="feat: long"`:                        "feat: long\n",
-		`git -C sub commit -F msg.txt`:                             "fix: from a file\n",
-		`git commit -m "$MSG"`:                                     "",
-		`git commit --amend --no-edit`:                             "",
+		"git commit -m \"$(cat <<'EOF'\nfeat: x\n\nbody\nEOF\n)\"":     "feat: x\n\nbody\n",
+		"git commit -F - <<'EOF'\nfix: y\nEOF":                         "fix: y\n",
+		`git commit -m "feat: a" -m "body"`:                            "feat: a\n\nbody\n",
+		`git commit -am "feat: cluster"`:                               "feat: cluster\n",
+		"git commit -m \"feat: a\" -m \"$(cat <<'EOF'\nbody\nEOF\n)\"": "feat: a\n\nbody\n",
+		`git commit --message="feat: long"`:                            "feat: long\n",
+		`git -C sub commit -F msg.txt`:                                 "fix: from a file\n",
+		`git commit -m "$MSG"`:                                         "",
+		`git commit --amend --no-edit`:                                 "",
 	} {
 		c := commitCall(cmd, "", dir)
 		if got, _ := message(cmd, c, c.repo); got != want {
@@ -167,6 +168,8 @@ func TestGuardCommit(t *testing.T) {
 		{"block: i have at start of subject", `git commit -m "I have refactored the loop"`, 2},
 		{"block: let me at start of subject", `git commit -m "let me clean this up"`, 2},
 		{"block: in this commit phrasing", `git commit -m "in this commit we add the API"`, 2},
+		{"block: AI-tell phrasing in a clustered -am subject", `git commit -am "feat: certainly add foo"`, 2},
+		{"block: AI-tell phrasing in a --message= subject", `git commit --message="let me clean this up"`, 2},
 		// wall of text: only the heredoc opened on the git commit line is the message
 		{"block: wall of text in a -m heredoc", "git commit -m \"$(cat <<'EOF'\nfeat: x\n\n" + prose(5) + "EOF\n)\"", 2},
 		{"block: wall of text in a -F - heredoc", "git commit -F - <<'EOF'\nfeat: x\n\n" + prose(5) + "EOF", 2},
