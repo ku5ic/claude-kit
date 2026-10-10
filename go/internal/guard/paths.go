@@ -5,6 +5,7 @@ package guard
 
 import (
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -27,7 +28,8 @@ func ExpandHome(home, path string) string {
 // IsSensitive is true when path is a credential or key file per
 // sensitive_paths. A "~/" entry is a path under home, a directory when it
 // ends in "/"; any other entry is a basename glob. The path may still carry
-// the quotes of a shell word: cat "$HOME/.ssh/id_rsa".
+// the quotes of a shell word: cat "$HOME/.ssh/id_rsa". An absolute path
+// also matches cleaned and with its symlinks resolved.
 func IsSensitive(cfg *config.Config, home, path string) bool {
 	if path != "" && (path[0] == '"' || path[0] == '\'') {
 		path = path[1:]
@@ -36,19 +38,24 @@ func IsSensitive(cfg *config.Config, home, path string) bool {
 		path = path[:len(path)-1]
 	}
 	path = ExpandHome(home, path)
-	base := path[strings.LastIndex(path, "/")+1:]
+	forms := []string{path}
+	if filepath.IsAbs(path) {
+		forms = []string{filepath.Clean(path), fsx.PhysicalPath(filepath.Clean(path))}
+	}
 	for _, entry := range cfg.SensitivePaths {
-		if rest, ok := strings.CutPrefix(entry, "~/"); ok {
-			homePath := home + "/" + rest
-			if strings.HasSuffix(homePath, "/") {
-				if strings.HasPrefix(path, homePath) {
-					return true
-				}
-			} else if path == homePath {
+		rest, ok := strings.CutPrefix(entry, "~/")
+		if !ok {
+			if slices.ContainsFunc(forms, func(f string) bool { return Glob(entry, filepath.Base(f)) }) {
 				return true
 			}
-		} else if Glob(entry, base) {
-			return true
+			continue
+		}
+		target := filepath.Join(home, rest)
+		isDir := strings.HasSuffix(rest, "/")
+		for _, t := range []string{target, fsx.PhysicalPath(target)} {
+			if slices.ContainsFunc(forms, func(f string) bool { return f == t || isDir && strings.HasPrefix(f, t+"/") }) {
+				return true
+			}
 		}
 	}
 	return false

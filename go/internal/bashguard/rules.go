@@ -28,11 +28,12 @@ func shortCluster(a, letters string) bool {
 	return strings.HasPrefix(a, "-") && !strings.HasPrefix(a, "--") && strings.ContainsAny(a, letters)
 }
 
-// readsSensitive blocks when any of paths is a credential file. nil when
-// none is, or when sensitive-read is disabled, so the caller carries on.
+// readsSensitive blocks when any of paths, resolved against the cwd, is a
+// credential file. nil when none is, or when sensitive-read is disabled, so
+// the caller carries on.
 func (c *command) readsSensitive(paths []string) error {
 	for _, p := range paths {
-		if guard.IsSensitive(c.st.cfg, c.st.home, p) {
+		if guard.IsSensitive(c.st.cfg, c.st.home, c.st.abs(unquote(p))) {
 			return c.block("reading a sensitive file is not permitted", "sensitive-read")
 		}
 	}
@@ -85,6 +86,19 @@ var readers = map[string]bool{
 	"readlink": true, "test": true, "[": true, "echo": true, "printf": true, "sed": true, "sd": true,
 }
 
+// metadataOnly commands act on a file's name or metadata and never print
+// its content, so naming a credential file is no read.
+var metadataOnly = map[string]bool{
+	"ls": true, "stat": true, "test": true, "[": true, "touch": true, "rm": true, "rmdir": true, "mv": true,
+	"chmod": true, "chown": true, "mkdir": true, "ln": true, "realpath": true, "readlink": true, "file": true,
+	"wc": true, "du": true, "basename": true, "dirname": true, "echo": true, "printf": true, "cd": true,
+	"tee": true, "git": true,
+}
+
+// patternFirst is how many leading operands are a pattern, script, or
+// filter rather than a path.
+var patternFirst = map[string]int{"grep": 1, "rg": 1, "sed": 1, "awk": 1, "jq": 1, "yq": 1, "sd": 2}
+
 // destructive is the commands blocked by pattern: one of names, with every
 // regex matching its text. %s in reason is the command's name.
 var destructive = []struct {
@@ -116,6 +130,13 @@ func (c *command) check() error {
 	if err := c.readsSensitive(c.inputs); err != nil {
 		return err
 	}
+	if !metadataOnly[c.name] {
+		ops := c.operands()
+		ops = ops[min(patternFirst[c.name], len(ops)):]
+		if err := c.readsSensitive(ops); err != nil {
+			return err
+		}
+	}
 	if err := c.rcWrite(); err != nil {
 		return err
 	}
@@ -144,16 +165,7 @@ func (c *command) check() error {
 		return c.curl()
 	case "wget":
 		return c.wget()
-	case "cat", "bat", "head", "tail", "less", "more", "strings":
-		return c.readsSensitive(c.operands())
-	case "grep", "rg":
-		// The first non-option argument is the pattern, not a path.
-		ops := c.operands()
-		if len(ops) > 0 {
-			ops = ops[1:]
-		}
-		return c.readsSensitive(ops)
-	case "sh", "bash", "zsh", "dash":
+	case "fish":
 		return c.interpreterC()
 	case "eval":
 		return c.block("eval runs a command string that bypasses the permission allow list; run the command directly as a Bash tool call", "interpreter-c-wrap")
@@ -170,6 +182,9 @@ func (c *command) check() error {
 			c.st.looseWrite("tee", p)
 		}
 	default:
+		if shells[c.name] {
+			return c.interpreterC()
+		}
 		if strings.HasPrefix(c.name, "mkfs.") {
 			return c.block("low level disk or filesystem tool", "disk-tool")
 		}

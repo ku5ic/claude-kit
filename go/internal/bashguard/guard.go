@@ -2,6 +2,7 @@ package bashguard
 
 import (
 	"cmp"
+	"maps"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -258,7 +259,15 @@ func takesNextWord(wrapper, opt string) bool {
 	return false
 }
 
-var interpreters = map[string]bool{"sh": true, "bash": true, "zsh": true, "dash": true, "fish": true, "su": true, "node": true, "ruby": true, "perl": true}
+// interpreters run a script piped into them: every shell, and the script
+// runtimes.
+var interpreters = func() map[string]bool {
+	m := maps.Clone(shells)
+	for _, name := range []string{"fish", "su", "node", "ruby", "perl"} {
+		m[name] = true
+	}
+	return m
+}()
 
 // pipeToShell blocks a download piped into an interpreter later in the
 // same pipeline (curl x | sh, wget -O- x | tee log | sudo bash). Parsed

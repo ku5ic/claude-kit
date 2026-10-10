@@ -61,6 +61,10 @@ func TestIsSensitive(t *testing.T) {
 		"/p/keys/id_ed25519":      true,
 		"'/p/.env'":               true,
 		"/other/.ssh/known_hosts": false,
+		"/h/.aws/../.netrc":       true,
+		"/h//.ssh/id_rsa":         true,
+		"/h/.ssh":                 true,
+		"/h/.sshx":                false,
 	}
 	for path, want := range cases {
 		if got := IsSensitive(cfg, "/h", path); got != want {

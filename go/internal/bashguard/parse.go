@@ -72,8 +72,9 @@ func normalize(s string) string {
 	return s
 }
 
-// shells are the commands a heredoc body is fed to as a script.
-var shells = map[string]bool{"sh": true, "bash": true, "zsh": true, "dash": true, "ksh": true}
+// shells are the POSIX-family shells: a heredoc body fed to one is a
+// script, and -c runs its string.
+var shells = map[string]bool{"sh": true, "bash": true, "zsh": true, "dash": true, "ksh": true, "mksh": true, "yash": true}
 
 // Segments parses src and returns every pipeline in it, substitution and
 // process-substitution bodies included (inner ones first, as they run
