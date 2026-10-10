@@ -1,6 +1,6 @@
 ---
 name: engineering-fundamentals
-description: Concrete design and code-level checks for planning, review, and writing code - modularity, separation of concerns, reversibility, verifiability, function and file size, nesting, naming, magic values, error handling, requirements clarity, and verification vs validation. Complements rules/change.md, which owns the principles (minimal change, KISS, YAGNI, DRY, SOLID, comments). Use when planning or reviewing a change or design, or writing source code in any language, even if "fundamentals" is not mentioned by name.
+description: Concrete design and code-level checks for planning, review, and writing code - modularity, separation of concerns, reversibility, verifiability, function and file size, nesting, naming, magic values, error handling, requirements clarity, verification vs validation, and the red-green-refactor cycle. Complements rules/change.md, which owns the principles (minimal change, KISS, YAGNI, DRY, SOLID, comments). Use when planning or reviewing a change or design, or writing source code in any language, even if "fundamentals" is not mentioned by name.
 ---
 
 # Engineering fundamentals
@@ -11,6 +11,7 @@ Concrete checks that turn `rules/change.md`'s principles into questions with obs
 | --------------------------------------- | -------------------------------------------------------- |
 | Planning a change or reviewing a design | Requirements clarity, Design integrity                   |
 | Writing or reviewing code               | Code-level integrity, Metric thresholds, Design patterns |
+| Adding behavior or fixing a bug         | Red-green-refactor                                       |
 | Reviewing whether a change is right     | Verification and validation                              |
 
 Apply only what fits. Do not pad findings to fill sections.
@@ -23,5 +24,6 @@ Apply only what fits. Do not pad findings to fill sections.
 | [reference/metric-thresholds.md](reference/metric-thresholds.md)                     | The one set of size, nesting, branch, and coupling numbers                 |
 | [reference/design-patterns.md](reference/design-patterns.md)                         | Which pattern a size, spread, or repetition signal calls for               |
 | [reference/verification-and-validation.md](reference/verification-and-validation.md) | Built it right vs built the right thing                                    |
+| [reference/red-green-refactor.md](reference/red-green-refactor.md)                   | The test-first cycle for new behavior and bug fixes                        |
 
 Test design is `test-patterns`.

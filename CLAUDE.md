@@ -10,25 +10,26 @@ Every behavior the kit applies everywhere has exactly one owner, listed below. B
 - When two files disagree, the owner wins and the other file is fixed.
 - A topic missing from this table gets a row before it gets text anywhere else.
 
-| Topic                                                                                                               | Owner                                                            |
-| ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| Reply length, shape, where output goes, writing files with Edit/Write, code-block tags, external-communication tone | `rules/output.md`                                                |
-| Evidence, confidence labels, never invent, stop after three failed fixes                                            | `rules/evidence.md`                                              |
-| Minimal change, precedent, blast radius, dead code, comments, abstractions, simplification criteria, less code      | `rules/change.md`                                                |
-| Which pattern a size, spread, or repetition signal calls for                                                        | `skills/engineering-fundamentals/reference/design-patterns.md`   |
-| Size, nesting, branch, and coupling thresholds                                                                      | `skills/engineering-fundamentals/reference/metric-thresholds.md` |
-| Done and verification                                                                                               | `rules/verify.md`                                                |
-| Git and commit policy, side effects, ask vs proceed, AskUserQuestion, which skills are procedure skills             | `rules/workflow.md`                                              |
-| Subagent use and agent defaults                                                                                     | `rules/subagents.md`                                             |
-| CLI choice, calling bin scripts, scratch location                                                                   | `rules/tooling.md`                                               |
-| Artifact naming and path                                                                                            | `kit scratch-dir`                                                |
-| Resolving a linked ticket or doc before work starts                                                                 | `skills/investigate` step 0                                      |
-| Report shape and severity                                                                                           | `skills/report-format`                                           |
-| Test design                                                                                                         | `skills/test-patterns`                                           |
-| Stack detection, guards, checks, formatters, tools                                                                  | `kit.yml`                                                        |
-| Where a tool's binary comes from, and when PATH is allowed                                                          | `kit.yml` `tool_resolution`, `tools.Resolve`                     |
-| Which commands count as a quality gate, and how task bodies are read                                                | `kit.yml` `checks` `tools`; `config/grammar.go`, `classify`      |
-| Personal register and typography                                                                                    | the user's own `~/.claude/rules/voice.md`, never the kit         |
+| Topic                                                                                                               | Owner                                                             |
+| ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Reply length, shape, where output goes, writing files with Edit/Write, code-block tags, external-communication tone | `rules/output.md`                                                 |
+| Evidence, confidence labels, never invent, stop after three failed fixes                                            | `rules/evidence.md`                                               |
+| Minimal change, precedent, blast radius, dead code, comments, abstractions, simplification criteria, less code      | `rules/change.md`                                                 |
+| Which pattern a size, spread, or repetition signal calls for                                                        | `skills/engineering-fundamentals/reference/design-patterns.md`    |
+| Size, nesting, branch, and coupling thresholds                                                                      | `skills/engineering-fundamentals/reference/metric-thresholds.md`  |
+| Done and verification                                                                                               | `rules/verify.md`                                                 |
+| Git and commit policy, side effects, ask vs proceed, AskUserQuestion, which skills are procedure skills             | `rules/workflow.md`                                               |
+| Subagent use and agent defaults                                                                                     | `rules/subagents.md`                                              |
+| CLI choice, calling bin scripts, scratch location                                                                   | `rules/tooling.md`                                                |
+| Artifact naming and path                                                                                            | `kit scratch-dir`                                                 |
+| Resolving a linked ticket or doc before work starts                                                                 | `skills/investigate` step 0                                       |
+| Report shape and severity                                                                                           | `skills/report-format`                                            |
+| Test design                                                                                                         | `skills/test-patterns`                                            |
+| Red-green-refactor cycle                                                                                            | `skills/engineering-fundamentals/reference/red-green-refactor.md` |
+| Stack detection, guards, checks, formatters, tools                                                                  | `kit.yml`                                                         |
+| Where a tool's binary comes from, and when PATH is allowed                                                          | `kit.yml` `tool_resolution`, `tools.Resolve`                      |
+| Which commands count as a quality gate, and how task bodies are read                                                | `kit.yml` `checks` `tools`; `config/grammar.go`, `classify`       |
+| Personal register and typography                                                                                    | the user's own `~/.claude/rules/voice.md`, never the kit          |
 
 Skills and agents carry procedure and stack knowledge only. When one needs a rule above, it cites `rules/<file>.md` instead of restating it.
 
