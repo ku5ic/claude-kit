@@ -290,6 +290,24 @@ func execTarget(words []string) (inner []string) {
 
 // reference reads words as a task reference, by the longest matching
 // reference prefix.
+// runnerGrammar is the command line of a runner that takes several task
+// names: flags naming another file, setting the directory (dirGlued when
+// glued to its value), or taking a value (numeric ones only before a
+// number). make runs every target it's given; just (namesLookedUp) runs
+// each word that names a recipe, the rest being arguments to the recipe
+// before it.
+type runnerGrammar struct {
+	file, dir, numeric, valued []string
+	dirGlued                   string
+	namesLookedUp              bool
+}
+
+var runnerFlags = map[string]runnerGrammar{
+	"make": {file: []string{"-f", "--file", "--makefile", "--justfile"}, dir: []string{"-C", "--directory"}, dirGlued: "-C",
+		numeric: []string{"-j", "-l"}, valued: []string{"-o", "-W", "-I"}},
+	"just": {file: []string{"-f", "--file", "--makefile", "--justfile"}, dir: []string{"-d", "--working-directory"}, namesLookedUp: true},
+}
+
 func (c *classifier) reference(words, env []string) (Command, bool) {
 	var best *Reference
 	bestLen := 0
@@ -304,37 +322,34 @@ func (c *classifier) reference(words, env []string) (Command, bool) {
 	}
 	rest := words[bestLen:]
 	ref := TaskRef{Provider: best.Provider, Name: best.Task}
-	runner := best.Provider == "make" || best.Provider == "just"
-	// make runs every target it's given; just runs each word that names a
-	// recipe, the rest being arguments to the recipe before it.
+	flags, runner := runnerFlags[best.Provider]
 	var more []string
 	for i := 0; i < len(rest); i++ {
 		w := rest[i]
+		next := i+1 < len(rest)
 		switch {
 		case w == "--":
 			ref.Args = rest[i+1:]
 			i = len(rest)
 		case slices.Contains(Grammar.FanOutFlags, w) || slices.ContainsFunc(Grammar.FanOutFlags, func(f string) bool { return strings.HasPrefix(w, f+"=") }):
 			return Command{Kind: FanOut, Words: words, Env: env}, true
-		case runner && slices.Contains([]string{"-f", "--file", "--makefile", "--justfile"}, w):
+		case runner && slices.Contains(flags.file, w):
 			// Another file's targets: the kit can't look them up.
 			return Command{Kind: Other, Words: words, Env: env}, true
-		case best.Provider == "make" && (w == "-C" || w == "--directory") && i+1 < len(rest),
-			best.Provider == "just" && (w == "-d" || w == "--working-directory") && i+1 < len(rest):
+		case runner && slices.Contains(flags.dir, w) && next:
 			ref.Dir = rest[i+1]
 			i++
-		case best.Provider == "make" && strings.HasPrefix(w, "-C"):
-			ref.Dir = strings.TrimPrefix(w, "-C")
-		case best.Provider == "make" && slices.Contains([]string{"-j", "-l"}, w) && i+1 < len(rest) && isNumber(rest[i+1]),
-			best.Provider == "make" && slices.Contains([]string{"-o", "-W", "-I"}, w) && i+1 < len(rest):
+		case runner && flags.dirGlued != "" && strings.HasPrefix(w, flags.dirGlued):
+			ref.Dir = strings.TrimPrefix(w, flags.dirGlued)
+		case runner && slices.Contains(flags.numeric, w) && next && isNumber(rest[i+1]),
+			runner && slices.Contains(flags.valued, w) && next:
 			i++ // a flag's value (make -j 4), not a target
 		case runner && strings.Contains(w, "="):
 			// make GOARCH=arm64 build, just os=linux build: a variable.
 		case strings.HasPrefix(w, "-"):
 		case ref.Name == "":
 			ref.Name = w
-		case best.Provider == "make",
-			best.Provider == "just" && len(ref.Args) == 0 && c.lookup(ref.Provider, ref.Dir, w):
+		case runner && (!flags.namesLookedUp || len(ref.Args) == 0 && c.lookup(ref.Provider, ref.Dir, w)):
 			more = append(more, w)
 		default:
 			ref.Args = append(ref.Args, w)
