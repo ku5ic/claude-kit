@@ -41,14 +41,15 @@ func FormatDispatch(h *hook.Hook) error {
 	path = filepath.Join(dir, filepath.Base(path))
 	root := cmp.Or(git.Toplevel(dir), dir)
 	p := enforce.Edit(cfg, enforce.Options{Root: root, CacheDir: h.Paths.CacheDir()}, path)
-	report := run.Fix(p, formatTimeout)
+	deadline := time.Now().Add(formatBudget)
+	report := run.Fix(p, deadline)
 	chain, notes := enforce.OnEdit(cfg, root, path)
 	if !p.Claims() && len(chain) > 0 {
-		report += onEdit(chain, path, dir)
+		report += onEdit(chain, path, dir, deadline)
 	}
 	for _, note := range notes {
-		if onPath(note) {
-			cmd := proc.Command(formatTimeout, "bash", "-c", fill(note, path))
+		if left := time.Until(deadline); left > 0 && onPath(note) {
+			cmd := proc.Command(left, "bash", "-c", fill(note, path))
 			cmd.Dir, cmd.Stdout, cmd.Stderr = dir, h.Stderr, h.Stderr
 			_ = cmd.Run() // a note only shows what it finds
 		}
@@ -59,20 +60,24 @@ func FormatDispatch(h *hook.Hook) error {
 	return nil
 }
 
-// formatTimeout bounds one formatter run, inside post-edit-dispatch's 20s
-// in hooks.json.
-const formatTimeout = 15 * time.Second
+// formatBudget bounds everything one edit runs, fixers, on_edit, and notes
+// together, inside post-edit-dispatch's 20s in hooks.json.
+const formatBudget = 15 * time.Second
 
-// onEdit formats path with the first of chain whose binary is on PATH, and
-// says which ran, or that none could.
-func onEdit(chain []config.EditCommand, path, dir string) string {
+// onEdit formats path with the first of chain whose binary is on PATH, by
+// deadline, and says which ran, or that none could.
+func onEdit(chain []config.EditCommand, path, dir string, deadline time.Time) string {
 	var tried []string
 	for _, c := range chain {
 		if !onPath(c.Cmd) {
 			tried = append(tried, strings.Fields(c.Cmd)[0])
 			continue
 		}
-		runFormatter(c, path, dir)
+		left := time.Until(deadline)
+		if left <= 0 {
+			return "SKIP on_edit: " + c.Cmd + " (out of time)\n"
+		}
+		runFormatter(c, path, dir, left)
 		return "RAN on_edit: " + c.Cmd + "\n"
 	}
 	return "SKIP on_edit (none on PATH: " + strings.Join(tried, ", ") + ")\n"
@@ -91,10 +96,11 @@ func onPath(cmd string) bool {
 // fill is cmd with {file} as path, one shell word.
 func fill(cmd, path string) string { return strings.ReplaceAll(cmd, "{file}", enforce.Quote(path)) }
 
-// runFormatter runs c on path. A stdout formatter reads the file on stdin;
-// its output replaces the file only when it exits 0 with output.
-func runFormatter(c config.EditCommand, path, dir string) {
-	cmd := proc.Command(formatTimeout, "bash", "-c", fill(c.Cmd, path))
+// runFormatter runs c on path, for at most timeout. A stdout formatter
+// reads the file on stdin; its output replaces the file only when it exits
+// 0 with output.
+func runFormatter(c config.EditCommand, path, dir string, timeout time.Duration) {
+	cmd := proc.Command(timeout, "bash", "-c", fill(c.Cmd, path))
 	cmd.Dir, cmd.Stderr = dir, io.Discard
 	if !c.Stdout {
 		_ = cmd.Run() // a formatter that fails leaves the file as it was
