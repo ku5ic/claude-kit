@@ -1,7 +1,7 @@
 // Package classify reads a task body or a CI step as shell and says what
-// each command in it is: a quality gate (a tool kit.yml's checks name), a
-// reference to another task, a fan-out across workspace packages, or
-// something else. Nothing it can't read with certainty counts as a gate.
+// each command in it is: a reference to another task, a fan-out across
+// workspace packages, a cd or an export the commands after it depend on,
+// or something else, whose role gap-fill answers.
 package classify
 
 import (
@@ -11,16 +11,13 @@ import (
 	"strings"
 
 	"mvdan.cc/sh/v3/syntax"
-
-	"github.com/ku5ic/claude-kit/go/internal/config"
 )
 
 // Kind is what one command is.
 type Kind int
 
 const (
-	Other  Kind = iota // runs, but isn't a gate (build, codegen, echo)
-	Gate               // a tool a check's pattern names
+	Other  Kind = iota // any other command: a tool, a build, an echo
 	Ref                // runs other tasks
 	FanOut             // runs a task across workspace packages
 	Cd                 // a literal cd, which later commands depend on
@@ -38,21 +35,14 @@ type TaskRef struct {
 
 // Command is one simple command of a body.
 type Command struct {
-	Kind    Kind
-	Words   []string            // after wrappers and tool runners
-	ToolAt  int                 // Gate: Tool's word in Words (find -exec runs it later)
-	Env     []string            // K=V assignments in front of it, or in a wrapper
-	Slot    string              // Gate: the check it counts as
-	Tool    string              // Gate: the pattern's bin
-	Pattern *config.ToolPattern // Gate: the pattern it matched
-	Refs    []TaskRef
+	Kind  Kind
+	Words []string // after wrappers and tool runners
+	Env   []string // K=V assignments in front of it, or in a wrapper
+	Refs  []TaskRef
 	// Expansion: a word held a variable; Words ends at it with "$".
 	Expansion bool
 	Line      uint     // the body line its statement starts on
 	Globs     []string // words with an unquoted glob, which a shell expands
-	// Other: a check's tool run with a flag the check forbids ("eslint
-	// --fix"), which no gate may run.
-	Forbidden string
 }
 
 // Result is a whole body. Opaque says why it can't be read (a pipe, ||,
@@ -68,12 +58,12 @@ type Result struct {
 type Lookup func(provider, dir, name string) bool
 
 // Body classifies body.
-func Body(cfg *config.Config, body string, lookup Lookup) Result {
+func Body(body string, lookup Lookup) Result {
 	file, err := syntax.NewParser(syntax.Variant(syntax.LangBash)).Parse(strings.NewReader(body), "")
 	if err != nil {
 		return Result{Opaque: "parse error"}
 	}
-	c := &classifier{cfg: cfg, lookup: lookup}
+	c := &classifier{lookup: lookup}
 	for _, stmt := range file.Stmts {
 		n := len(c.out)
 		c.stmt(stmt)
@@ -88,7 +78,6 @@ func Body(cfg *config.Config, body string, lookup Lookup) Result {
 }
 
 type classifier struct {
-	cfg    *config.Config
 	lookup Lookup
 	out    []Command
 	opaque string
@@ -268,27 +257,20 @@ func (c *classifier) words(words, env []string) []Command {
 	if cmd, ok := c.reference(words, env); ok {
 		return []Command{cmd}
 	}
-	if at, inner := execTarget(words); inner != nil {
-		if cmd := c.tool(inner, env); cmd.Kind == Gate {
-			cmd.Words, cmd.ToolAt = words, at
-			return []Command{cmd}
-		}
-	}
-	return []Command{c.tool(words, env)}
+	return []Command{{Kind: Other, Words: words, Env: env}}
 }
 
 // xargsValueFlags take the next word as their value.
 var xargsValueFlags = []string{"-n", "-P", "-I", "-L", "-d", "-s", "-a", "-E", "--max-args", "--max-procs", "--replace", "--delimiter", "--arg-file", "--max-lines"}
 
 // execTarget is the command find -exec/-execdir or xargs runs on the files
-// they pick, without find's {} and terminator, and where it starts in words;
-// nil when words is neither.
-func execTarget(words []string) (at int, inner []string) {
+// they pick, without find's {} and terminator; nil when words is neither.
+func execTarget(words []string) (inner []string) {
 	switch words[0] {
 	case "find":
 		i := slices.IndexFunc(words, func(w string) bool { return w == "-exec" || w == "-execdir" })
 		if i < 0 || i+1 >= len(words) {
-			return 0, nil
+			return nil
 		}
 		for _, w := range words[i+1:] {
 			if w == ";" || w == `\;` || w == "+" {
@@ -298,7 +280,7 @@ func execTarget(words []string) (at int, inner []string) {
 				inner = append(inner, w)
 			}
 		}
-		return i + 1, inner
+		return inner
 	case "xargs":
 		i := 1
 		for i < len(words) && strings.HasPrefix(words[i], "-") {
@@ -308,11 +290,11 @@ func execTarget(words []string) (at int, inner []string) {
 			i++
 		}
 		if i >= len(words) {
-			return 0, nil
+			return nil
 		}
-		return i, words[i:]
+		return words[i:]
 	}
-	return 0, nil
+	return nil
 }
 
 // reference reads words as a task reference, by the longest matching
@@ -380,7 +362,7 @@ func (c *classifier) reference(words, env []string) (Command, bool) {
 	}
 	if best.Shorthand && !c.lookup(ref.Provider, ref.Dir, ref.Name) {
 		// pnpm eslint: no such script, so pnpm runs the eslint binary.
-		return c.tool(words[bestLen:], env), true
+		return Command{Kind: Other, Words: words[bestLen:], Env: env}, true
 	}
 	return Command{Kind: Ref, Words: words, Env: env, Refs: []TaskRef{ref}}, true
 }
@@ -395,7 +377,7 @@ func (c *classifier) concurrently(args, env []string) []Command {
 			i++
 		case strings.HasPrefix(args[i], "-"):
 		default:
-			r := Body(c.cfg, args[i], c.lookup)
+			r := Body(args[i], c.lookup)
 			if r.Opaque != "" {
 				c.opaque = r.Opaque
 				return nil
@@ -409,80 +391,6 @@ func (c *classifier) concurrently(args, env []string) []Command {
 		}
 	}
 	return out
-}
-
-// tool matches words against every check's tool patterns; the pattern with
-// the most required flags present wins (tflint --only=terraform_unused_...
-// is dead code, plain tflint is lint), the first on a tie.
-func (c *classifier) tool(words, env []string) Command {
-	best, bestScore := Command{Kind: Other, Words: words, Env: env}, -1
-	forbidden := ""
-	for ci := range c.cfg.Checks {
-		check := &c.cfg.Checks[ci]
-		for pi := range check.Tools {
-			p := &check.Tools[pi]
-			score, flag := match(words, *p)
-			if score > bestScore {
-				best, bestScore = Command{Kind: Gate, Words: words, Env: env, Slot: check.Name, Tool: p.Bin, Pattern: p}, score
-			}
-			if forbidden == "" && flag != "" {
-				forbidden = p.Bin + " " + flag
-			}
-		}
-	}
-	if best.Kind == Other {
-		best.Forbidden = forbidden
-	}
-	return best
-}
-
-// match scores words against p: -1 when they don't match, else the number
-// of required flags (all of which are present). flag is a forbidden flag
-// words set, whatever the required ones; one set off (--watch=false) isn't.
-func match(words []string, p config.ToolPattern) (score int, flag string) {
-	bin := words[0]
-	if i := strings.LastIndex(bin, "/"); i >= 0 {
-		bin = bin[i+1:]
-	}
-	if bin != p.Bin {
-		return -1, ""
-	}
-	args := words[1:]
-	if len(p.Sub) > 0 {
-		sub := ""
-		for _, a := range args {
-			if !strings.HasPrefix(a, "-") && !strings.HasPrefix(a, "+") {
-				sub = a
-				break
-			}
-		}
-		if !slices.Contains(p.Sub, sub) {
-			return -1, ""
-		}
-	}
-	// set: the flag alone, or flag=value with a value that doesn't turn it off.
-	set := func(flag string) bool {
-		return slices.ContainsFunc(args, func(a string) bool {
-			value, ok := strings.CutPrefix(a, flag+"=")
-			return a == flag || ok && !off(value)
-		})
-	}
-	for _, f := range p.Forbid {
-		if set(f) {
-			return -1, f
-		}
-	}
-	for _, f := range p.Require {
-		if !set(f) {
-			return -1, ""
-		}
-	}
-	return len(p.Require), ""
-}
-
-// off is true for a flag value that turns the flag off (--watch=false).
-func off(value string) bool {
-	return slices.Contains([]string{"false", "0", "no", "off"}, strings.ToLower(value))
 }
 
 // matchPrefix is the length of the first of prefixes (each one or more

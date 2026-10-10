@@ -168,7 +168,7 @@ func TestGoldenVerdicts(t *testing.T) {
 				testutil.FakeTool(t, stub, filepath.Join(t.TempDir(), "calls"), fmt.Sprintf("\"$@\" | tee %q", recording))
 				c.Classifier = append([]string{stub}, claude()...)
 			}
-			entries := sources.Entries(&c, root, project.Subprojects(&c, root))
+			entries := sources.Entries(&c, root, project.Subprojects(root))
 			r := Run(&c, Options{Root: root, CacheDir: t.TempDir(), Entries: entries, Ask: true, Timeout: 2 * time.Minute})
 			if record {
 				trim(t, recording)

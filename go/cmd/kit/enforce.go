@@ -79,8 +79,8 @@ func cmdEnforce(e *env, cfg *config.Config, args []string) int {
 		fmt.Fprintln(e.stderr, "usage: kit enforce --list | classify")
 		return 2
 	}
-	root, _ := project.Root(cfg, e.cwd)
-	entries := sources.Entries(cfg, root, project.Subprojects(cfg, root))
+	root, _ := project.Root(e.cwd)
+	entries := sources.Entries(cfg, root, project.Subprojects(root))
 	if args[0] == "--list" {
 		for _, entry := range entries {
 			fmt.Fprintln(e.stdout, entry)

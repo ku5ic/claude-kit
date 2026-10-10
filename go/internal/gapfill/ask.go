@@ -21,7 +21,7 @@ import (
 // give; only a check has a kind.
 var (
 	roles = []string{"check", "fixer", "setup", "build", "deploy", "dev", "e2e", "other"}
-	kinds = []string{"lint", "typecheck", "test", "format-check", "deadcode", "security"}
+	kinds = config.CheckKinds
 )
 
 //go:embed prompt.txt

@@ -142,20 +142,8 @@ func load(p Paths) (*Config, []Warning, error) {
 	for _, err := range append(cfg.unknownDisables(), cfg.ReplyLimits.negatives()...) {
 		warnings = append(warnings, Warning{from, err})
 	}
-	cfg.StackOrder = mappingKeys(mappingValue(merged, "stacks"))
 	cfg.Tag = tag
 	return &cfg, warnings, nil
-}
-
-func mappingKeys(m *yaml.Node) []string {
-	if m == nil || m.Kind != yaml.MappingNode {
-		return nil
-	}
-	keys := make([]string, 0, len(m.Content)/2)
-	for i := 0; i+1 < len(m.Content); i += 2 {
-		keys = append(keys, m.Content[i].Value)
-	}
-	return keys
 }
 
 // Merged returns the effective merged document, for `kit config`.
@@ -174,11 +162,8 @@ func applyDefaults(cfg *Config) {
 	if cfg.LogMaxLines == 0 {
 		cfg.LogMaxLines = 10000
 	}
-	if cfg.SubprojectMaxDepth == 0 {
-		cfg.SubprojectMaxDepth = 4
-	}
-	if cfg.CheckTimeout == 0 {
-		cfg.CheckTimeout = 90
+	if cfg.GateTimeout == 0 {
+		cfg.GateTimeout = 90
 	}
 }
 
@@ -226,27 +211,15 @@ func validate(path string) []Warning {
 	}
 }
 
-// keyedSequences are the sequences whose entries an overlay entry with the
-// same values at the named fields updates instead of appending beside.
-var keyedSequences = map[string][]string{
-	"checks":           {"name"},
-	"toolchain_checks": {"stack", "name"},
-}
-
 // mergeNode merges src into dst in place, as yq's `*+`: mappings merge key by
-// key in dst's order with src's new keys after, sequences append (keyed ones
-// update a same-named entry field by field), and any other pairing takes
-// src's value.
+// key in dst's order with src's new keys after, sequences append, and any
+// other pairing takes src's value.
 func mergeNode(dst, src *yaml.Node) {
 	switch {
 	case dst.Kind == yaml.MappingNode && src.Kind == yaml.MappingNode:
 		for i := 0; i+1 < len(src.Content); i += 2 {
 			key, value := src.Content[i], src.Content[i+1]
 			if existing := mappingValue(dst, key.Value); existing != nil {
-				if fields, ok := keyedSequences[key.Value]; ok && existing.Kind == yaml.SequenceNode && value.Kind == yaml.SequenceNode {
-					mergeKeyed(existing, value, fields)
-					continue
-				}
 				mergeNode(existing, value)
 				continue
 			}
@@ -256,48 +229,6 @@ func mergeNode(dst, src *yaml.Node) {
 		dst.Content = append(dst.Content, src.Content...)
 	default:
 		*dst = *src
-	}
-}
-
-// mergeKeyed appends each src entry to dst, except one whose key fields all
-// match a dst entry's: that entry takes the fields src sets and keeps the
-// rest.
-func mergeKeyed(dst, src *yaml.Node, fields []string) {
-	key := func(n *yaml.Node) (string, bool) {
-		if n.Kind != yaml.MappingNode {
-			return "", false
-		}
-		var parts []string
-		for _, f := range fields {
-			v := mappingValue(n, f)
-			if v == nil {
-				return "", false
-			}
-			parts = append(parts, v.Value)
-		}
-		return strings.Join(parts, "\x00"), true
-	}
-	for _, item := range src.Content {
-		var target *yaml.Node
-		if k, ok := key(item); ok {
-			for _, d := range dst.Content {
-				if dk, ok := key(d); ok && dk == k {
-					target = d
-					break
-				}
-			}
-		}
-		if target == nil {
-			dst.Content = append(dst.Content, item)
-			continue
-		}
-		for i := 0; i+1 < len(item.Content); i += 2 {
-			if existing := mappingValue(target, item.Content[i].Value); existing != nil {
-				*existing = *item.Content[i+1]
-				continue
-			}
-			target.Content = append(target.Content, item.Content[i], item.Content[i+1])
-		}
 	}
 }
 

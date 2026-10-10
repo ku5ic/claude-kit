@@ -19,7 +19,9 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/blast"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/detect"
+	"github.com/ku5ic/claude-kit/go/internal/enforce"
 	"github.com/ku5ic/claude-kit/go/internal/explain"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/gitbase"
 	"github.com/ku5ic/claude-kit/go/internal/kitcmd"
@@ -152,7 +154,7 @@ func cmdRunChecks(e *env, cfg *config.Config, args []string) int {
 		return 2
 	}
 	root := cmp.Or(git.Toplevel(e.cwd), e.cwd)
-	subs := project.Subprojects(cfg, root)
+	subs := project.Subprojects(root)
 	for _, sub := range a.only {
 		if !slices.Contains(subs, sub) {
 			fmt.Fprintf(e.stderr, "kit run-checks: %q is not a subproject; kit subprojects lists them\n", sub)
@@ -243,23 +245,25 @@ func cmdConfig(e *env, args []string) int {
 	return 0
 }
 
-func cmdSubprojects(e *env, cfg *config.Config, args []string) int {
+func cmdSubprojects(e *env, _ *config.Config, args []string) int {
 	root := cmp.Or(first(args), git.Toplevel(e.cwd), e.cwd)
-	for _, dir := range project.Subprojects(cfg, root) {
+	for _, dir := range project.Subprojects(root) {
 		fmt.Fprintln(e.stdout, dir)
 	}
 	return 0
 }
 
 func cmdTasks(e *env, cfg *config.Config, args []string) int {
-	for _, task := range project.Tasks(cfg, cmp.Or(first(args), ".")) {
+	dir := fsx.PhysicalPath(fsx.Abs(e.cwd, cmp.Or(first(args), ".")))
+	root, _ := project.Root(dir)
+	for _, task := range enforce.Tasks(cfg, root, e.paths.CacheDir(), fsx.Rel(root, dir)) {
 		fmt.Fprintln(e.stdout, strings.Join([]string{task.Provider, cmp.Or(task.Stack, "-"), task.Name, task.Cmd}, "\t"))
 	}
 	return 0
 }
 
-func cmdProjectRoot(e *env, cfg *config.Config, args []string) int {
-	root, anchored := project.Root(cfg, e.cwd)
+func cmdProjectRoot(e *env, _ *config.Config, args []string) int {
+	root, anchored := project.Root(e.cwd)
 	if len(args) > 0 && args[0] == "--check" {
 		if anchored {
 			return 0
@@ -270,8 +274,8 @@ func cmdProjectRoot(e *env, cfg *config.Config, args []string) int {
 	return 0
 }
 
-func cmdScratchDir(e *env, cfg *config.Config, args []string) int {
-	dir, err := project.Dir(cfg, e.paths, e.cwd, "scratch", true)
+func cmdScratchDir(e *env, _ *config.Config, args []string) int {
+	dir, err := project.Dir(e.paths, e.cwd, "scratch", true)
 	if err != nil {
 		fmt.Fprintln(e.stderr, "kit scratch-dir:", err)
 		return 1
@@ -289,7 +293,7 @@ func cmdScratchDir(e *env, cfg *config.Config, args []string) int {
 }
 
 func cmdDetectStack(e *env, cfg *config.Config, _ []string) int {
-	root, _ := project.Root(cfg, e.cwd)
+	root, _ := project.Root(e.cwd)
 	fmt.Fprint(e.stdout, detect.Report(cfg, root, e.paths.CacheDir()))
 	return 0
 }

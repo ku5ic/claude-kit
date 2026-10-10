@@ -25,8 +25,8 @@ import (
 
 // projectOf resolves the project for cwd; ok is false for a non-project
 // context (home, /, or a name that sanitizes to nothing).
-func projectOf(cfg *config.Config, cwd string) (name, root string, ok bool) {
-	root, _ = project.Root(cfg, cwd)
+func projectOf(cwd string) (name, root string, ok bool) {
+	root, _ = project.Root(cwd)
 	name = project.Name(root)
 	switch name {
 	case "home", "root", "unknown":
@@ -78,7 +78,7 @@ func InjectContext(h *hook.Hook) error {
 
 func writeContext(h *hook.Hook, cfg *config.Config, out *strings.Builder) {
 	cwd := h.Payload.Cwd()
-	name, root, ok := projectOf(cfg, cwd)
+	name, root, ok := projectOf(cwd)
 	if !ok {
 		return
 	}
@@ -87,7 +87,7 @@ func writeContext(h *hook.Hook, cfg *config.Config, out *strings.Builder) {
 	}
 	ctx := stackctx.Build(h.Paths, cfg, name, root, h.Payload.SessionID())
 	if ctx.Report != "" {
-		scratch, _ := project.Dir(cfg, h.Paths, root, "scratch", false)
+		scratch, _ := project.Dir(h.Paths, root, "scratch", false)
 		fmt.Fprintf(out, "\n<repo-context>\n%sbranch (at session start): %s\ndirty-files (at session start): %s\nscratch: %s\n</repo-context>\n",
 			ctx.Report, branch(root), dirtyCount(root), scratch)
 	}
@@ -109,14 +109,14 @@ func writeContext(h *hook.Hook, cfg *config.Config, out *strings.Builder) {
 // and skill blocks, unlogged.
 func agentContext(paths config.Paths, cfg *config.Config, cwd, session string) string {
 	var b strings.Builder
-	if scratch, err := project.Dir(cfg, paths, cwd, "scratch", true); err == nil {
+	if scratch, err := project.Dir(paths, cwd, "scratch", true); err == nil {
 		fmt.Fprintf(&b, "<scratch>\npath: %s\n", scratch)
 		b.WriteString("Write every file you produce here - reports, previews, logs, downloads, test artifacts, POC scripts.\n" +
 			`This overrides the "Scratchpad directory" line in your system prompt: use this path, never the /private/tmp session scratchpad.` + "\n" +
 			"Name structured artifacts with `kit scratch-dir <kind> <scope-slug>`, which prints the full path with a real timestamp.\n" +
 			"</scratch>\n")
 	}
-	name, root, ok := projectOf(cfg, cwd)
+	name, root, ok := projectOf(cwd)
 	if !ok {
 		return b.String()
 	}

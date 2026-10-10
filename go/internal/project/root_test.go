@@ -59,23 +59,22 @@ func TestReportPath(t *testing.T) {
 }
 
 func TestDirHomeFallbackAndRegistry(t *testing.T) {
-	cfg := &config.Config{}
 	home := tmp(t)
 	paths := config.Paths{Home: home}
 	outside := filepath.Join(tmp(t), "plain")
 
-	dir, err := Dir(cfg, paths, outside, "scratch", false)
+	dir, err := Dir(paths, outside, "scratch", false)
 	if err != nil || dir != filepath.Join(home, "scratch") {
 		t.Errorf("unanchored scratch = %q, %v", dir, err)
 	}
-	if _, err := Dir(cfg, paths, outside, "bogus", false); err == nil {
+	if _, err := Dir(paths, outside, "bogus", false); err == nil {
 		t.Error("unknown kind accepted")
 	}
 
 	repo := tmp(t)
 	testutil.Git(t, repo, "init", "-q", "-b", "main")
 	for range 2 {
-		if _, err := Dir(cfg, paths, repo, "scratch", true); err != nil {
+		if _, err := Dir(paths, repo, "scratch", true); err != nil {
 			t.Fatal(err)
 		}
 	}

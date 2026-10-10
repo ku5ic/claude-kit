@@ -44,18 +44,19 @@ func configTime(paths config.Paths) int64 {
 }
 
 // refresh regenerates the cache when it is missing, empty, or older than
-// any detection-relevant file at root, kit.yml itself (adding a stack must
-// re-detect every project), or the gap-fill cache its package managers come
+// a language manifest at root, kit.yml itself (its dependency_skills name
+// what the report lists), or the gap-fill cache its package managers come
 // from. Times compare in whole seconds, as stat(1) did, so a cache written
 // in the same second as kit.yml still counts as fresh; gap-fill's answers,
 // which land in the background moments after a session starts, compare in
 // full.
 func refresh(paths config.Paths, cfg *config.Config, root, file string) {
-	newest := int64(0)
-	for _, name := range cfg.DetectFiles() {
-		newest = max(newest, mtime(filepath.Join(root, name)))
+	newest := configTime(paths)
+	for _, lang := range sources.Languages {
+		for _, name := range lang.Manifests {
+			newest = max(newest, mtime(filepath.Join(root, name)))
+		}
 	}
-	newest = max(newest, configTime(paths))
 
 	answered, _ := os.Stat(gapfill.CacheFile(paths.CacheDir(), root))
 	if info, err := os.Stat(file); err == nil && info.Size() > 0 && info.ModTime().Unix() >= newest &&
@@ -113,19 +114,15 @@ func suggested(required []string, lists ...[]string) []string {
 }
 
 // dependencySkills are the dependency_skills skills, in rule order, for
-// the dependencies root's subprojects declare: package.json's, Python
-// manifests' (names normalized), and the Gemfile's.
+// the dependencies root's subprojects declare.
 func dependencySkills(cfg *config.Config, root string) []string {
 	declared := sources.Deps{}
-	for _, sub := range project.Subprojects(cfg, root) {
-		dir := filepath.Join(root, sub)
-		for _, deps := range []sources.Deps{sources.JSDeps(dir), sources.PythonDeps(dir), sources.RubyDeps(dir)} {
-			maps.Copy(declared, deps)
-		}
+	for _, sub := range project.Subprojects(root) {
+		maps.Copy(declared, sources.Declared(filepath.Join(root, sub)))
 	}
 	var out []string
 	for _, rule := range cfg.DependencySkills {
-		if slices.ContainsFunc(rule.Deps, func(dep string) bool { return declared[dep] || declared[sources.PyName(dep)] }) {
+		if slices.ContainsFunc(rule.Deps, declared.Has) {
 			out = append(out, rule.Skills...)
 		}
 	}

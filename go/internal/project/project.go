@@ -1,6 +1,5 @@
-// Package project answers questions about a checkout: where its
-// subprojects are, which task providers they have, and which package
-// manager owns a directory.
+// Package project answers questions about a checkout: where it starts,
+// and where its subprojects are.
 package project
 
 import (
@@ -15,32 +14,9 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/sources"
 )
 
-// Lockfile is a package manager and the lockfile that names it.
-type Lockfile struct {
-	Manager string
-	File    string
-}
-
-// NearestLockfile walks from dir up to its git toplevel (dir alone outside a
-// repo) and returns the first lockfile of ecosystem, in kit.yml order per
-// directory. Zero when there is none: greenfield. dir must be physical.
-func NearestLockfile(cfg *config.Config, dir, ecosystem string) (Lockfile, bool) {
-	top := git.Toplevel(dir)
-	for {
-		for _, pm := range cfg.PackageManagers {
-			if pm.Ecosystem != ecosystem {
-				continue
-			}
-			if fsx.IsFile(filepath.Join(dir, pm.Lockfile)) {
-				return Lockfile{pm.Manager, pm.Lockfile}, true
-			}
-		}
-		if top == "" || dir == top || dir == "/" {
-			return Lockfile{}, false
-		}
-		dir = filepath.Dir(dir)
-	}
-}
+// maxDepth is how deep below the root a manifest still makes its directory
+// a subproject.
+const maxDepth = 4
 
 // IsScratch is true for a path in, or at, a project's .claude/scratch or
 // the home scratch, which $CLAUDE_CONFIG_DIR can move. Any other directory
@@ -61,111 +37,25 @@ func SubLabel(sub string) string {
 	return " [" + sub + "]"
 }
 
-// Provider is a task_providers entry whose manifest is in a directory.
-type Provider struct {
-	Name     string
-	Stack    string // "" when the provider has no stack
-	Manifest string
-	index    int
-}
-
-// Providers lists the task providers with a manifest in dir, tasks or not.
-func Providers(cfg *config.Config, dir string) []Provider {
-	var out []Provider
-	for i, tp := range sources.TaskProviders {
-		if slices.Contains(cfg.DisabledTaskProviders, tp.Name) {
-			continue
-		}
-		for _, manifest := range tp.Manifests {
-			if path := filepath.Join(dir, manifest); fsx.IsFile(path) {
-				out = append(out, Provider{tp.Name, tp.Stack, path, i})
-				break
-			}
-		}
-	}
-	return out
-}
-
-// Task is one runnable task: its provider, name, the command that runs it,
-// and, where the manifest holds it, the shell it runs (its body).
-type Task struct {
-	Provider string
-	Stack    string
-	Name     string
-	Cmd      string
-	Body     string
-	PerLine  bool // each line of Body runs in its own shell (make, just)
-}
-
-// Tasks lists every task of every provider in dir. {pm} is the nearest
-// lockfile's manager for the provider's stack, else the stack's default, so a
-// poetry service under a pnpm root runs poe through poetry.
-func Tasks(cfg *config.Config, dir string) []Task {
-	pmByStack := map[string]string{}
-	physical := ""
-	var out []Task
-	for _, p := range Providers(cfg, dir) {
-		tp := sources.TaskProviders[p.index]
-		pm, cached := pmByStack[p.Stack]
-		if !cached {
-			if physical == "" {
-				physical, _ = filepath.EvalSymlinks(dir)
-			}
-			if p.Stack != "" && physical != "" {
-				if lock, ok := NearestLockfile(cfg, physical, p.Stack); ok {
-					pm = lock.Manager
-				}
-			}
-			pmByStack[p.Stack] = pm
-		}
-		run := tp.Run
-		if override, ok := tp.RunByPM[pm]; ok {
-			run = override
-		}
-		if pm == "" {
-			pm = cfg.DefaultManager(p.Stack)
-		}
-		run = strings.ReplaceAll(run, "{pm}", pm)
-		names, err := sources.Run(tp.Extractor, p.Manifest, tp.Arg)
-		if err != nil {
-			_, _ = os.Stderr.WriteString("kit: " + err.Error() + "\n")
-			continue
-		}
-		bodies := sources.Bodies(tp.Extractor, p.Manifest, tp.Arg)
-		for _, name := range names {
-			if name == "" {
-				continue
-			}
-			body := tp.Wrap(bodies[name])
-			out = append(out, Task{Provider: tp.Name, Stack: tp.Stack, Name: name, Cmd: strings.ReplaceAll(run, "{task}", name), Body: body.Text, PerLine: body.PerLine})
-		}
-	}
-	return out
-}
-
 const goWorkUse = `^[[:space:]]*(use[[:space:]]+)?\(?[[:space:]]*(\.[^[:space:]()]*)`
 
 // Subprojects lists ".", then every subproject directory relative to root,
-// sorted: each directory holding a tracked anchor sentinel at most
-// subproject_max_depth levels down, and each member a workspace manifest
-// names (package.json workspaces, pnpm-workspace.yaml, Cargo, uv, go.work).
+// sorted: each directory holding a tracked language manifest at most
+// maxDepth levels down, and each member a workspace manifest names
+// (package.json workspaces, pnpm-workspace.yaml, Cargo, uv, go.work).
 // Tracked files only, so node_modules and virtualenvs never count.
-func Subprojects(cfg *config.Config, root string) []string {
-	var found []string
-
-	var pathspecs []string
-	for _, name := range cfg.AnchorSentinels() {
+func Subprojects(root string) []string {
+	var found, pathspecs []string
+	for _, name := range sources.Anchors() {
 		pathspecs = append(pathspecs, ":(glob)**/"+name)
 	}
-	if len(pathspecs) > 0 {
-		paths, _ := git.Lines(root, append([]string{"ls-files", "--"}, pathspecs...)...)
-		for _, path := range paths {
-			dir := filepath.Dir(path)
-			if !strings.Contains(path, "/") || strings.Count(dir, "/")+1 > cfg.SubprojectMaxDepth {
-				continue
-			}
-			found = append(found, dir)
+	paths, _ := git.Lines(root, append([]string{"ls-files", "--"}, pathspecs...)...)
+	for _, path := range paths {
+		dir := filepath.Dir(path)
+		if !strings.Contains(path, "/") || strings.Count(dir, "/")+1 > maxDepth {
+			continue
 		}
+		found = append(found, dir)
 	}
 
 	found = append(found, Workspace(root)...)

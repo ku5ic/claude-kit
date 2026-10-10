@@ -182,9 +182,7 @@ func command(g enforce.Gate, body string, timeout time.Duration) *proc.Cmd {
 	// GitHub Actions' default shell for a run step.
 	cmd := proc.Command(timeout, "bash", "-e", "-o", "pipefail", "-c", body)
 	cmd.Dir = g.Dir
-	// pnpm 10+ installs before `pnpm run` when node_modules is out of sync
-	// with the lockfile, and a gate never installs.
-	cmd.Env = append(append(os.Environ(), g.Env...), "pnpm_config_verify_deps_before_run=false", "PATH="+searchPath(g))
+	cmd.Env = append(append(os.Environ(), g.Env...), "PATH="+searchPath(g))
 	return cmd
 }
 

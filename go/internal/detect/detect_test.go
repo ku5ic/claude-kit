@@ -46,16 +46,16 @@ func TestReport(t *testing.T) {
 		{"a uv Django repo reports python with django and uv", `[{"dir":".","cites":"uv.lock","manager":"uv"}]`,
 			map[string]string{"pyproject.toml": "[project]\nname = \"x\"\ndependencies = [\"django>=5.0\"]\n", "uv.lock": "", "manage.py": ""},
 			"python: yes (django)\npackage-manager: uv (uv.lock)\n"},
-		{"python extras read declared dependencies, not a name prefix", "",
+		{"python dependencies are the declared ones dependency_skills names, normalized, in its order", "",
 			map[string]string{"Pipfile": "[packages]\nFastAPI = \"*\"\nruff-lsp = \"*\"\n", "requirements-dev.txt": "pytest==8.3\n"},
-			"python: yes (fastapi,pytest)\n"},
+			"python: yes (pytest,fastapi)\n"},
 		{"every subproject is detected, and each lockfile directory's manager", "[" + pnpm + `,{"dir":"services/api","cites":"uv.lock","manager":"uv"}]`,
 			map[string]string{
 				"package.json": `{"name":"root","private":true}`, "pnpm-workspace.yaml": "packages:\n  - \"packages/*\"\n", "pnpm-lock.yaml": "",
 				"packages/a/package.json":     `{"name":"a","dependencies":{"react":"19.0.0"}}`,
 				"services/api/pyproject.toml": "[project]\nname = \"api\"\n", "services/api/uv.lock": "",
 			},
-			"js: yes (react) at ., packages/a\npython: yes at services/api\nmonorepo: yes (pnpm-workspaces)\npackage-manager: pnpm (pnpm-lock.yaml)\npackage-manager [services/api]: uv (uv.lock)\n"},
+			"js: yes (react) at ., packages/a\npython: yes at services/api\npackage-manager: pnpm (pnpm-lock.yaml)\npackage-manager [services/api]: uv (uv.lock)\n"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()

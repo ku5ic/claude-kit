@@ -49,6 +49,8 @@ func setup(t *testing.T) *env {
 	testutil.Put(t, e.root, ".gitignore", "node_modules\n/bin\n")
 	testutil.Git(t, e.root, "init", "-q")
 	e.cfg = testutil.KitConfig(t)
+	// Plans print gate_env on every gate; TestGateEnvComesFirst sets it.
+	e.cfg.GateEnv = nil
 	return e
 }
 
@@ -70,7 +72,7 @@ func (e *env) check(name string, v map[string]any) { e.verdicts[name] = v }
 func (e *env) plan() Plan {
 	e.t.Helper()
 	testutil.Git(e.t, e.root, "add", "-A")
-	entries := sources.Entries(e.cfg, e.root, project.Subprojects(e.cfg, e.root))
+	entries := sources.Entries(e.cfg, e.root, project.Subprojects(e.root))
 	var answers []map[string]any
 	for _, entry := range entries {
 		if v, ok := e.verdicts[entry.Name]; ok {
@@ -258,6 +260,17 @@ func TestDisabledChecksTurnsAKindOrAnEntryOff(t *testing.T) {
 	e.cfg.DisabledChecks = []string{"lint", "test (.github/workflows/ci.yml: go/2)"}
 	p := e.plan()
 	has(t, p, "SKIP lint (.github/workflows/ci.yml: go/1) (disabled_checks)", "SKIP test (.github/workflows/ci.yml: go/2) (disabled_checks)")
+}
+
+// gate_env reaches every gate, before the entry's own env.
+func TestGateEnvComesFirst(t *testing.T) {
+	e := setup(t)
+	e.tool(filepath.Join(e.path, "go"))
+	e.write("go.mod", "module x\n")
+	e.write(".github/workflows/ci.yml", "jobs:\n  go:\n    env:\n      MODE: ci\n    steps:\n      - run: go test ./...\n")
+	e.check("go/1", check("test"))
+	e.cfg.GateEnv = []string{"pnpm_config_verify_deps_before_run=false"}
+	has(t, e.plan(), "  env: pnpm_config_verify_deps_before_run=false MODE=ci\n")
 }
 
 func TestAnUnclassifiedEntryIsASkipAndCounted(t *testing.T) {

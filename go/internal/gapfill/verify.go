@@ -26,7 +26,7 @@ func verify(cfg *config.Config, root string, entries []sources.Entry, s store, f
 	}
 	resolver := resolve.New(root, nil)
 	at := func(dir string) forms {
-		return forms{root: root, dir: filepath.Join(root, dir), prefixes: prefixes, resolver: resolver}
+		return forms{cfg: cfg, root: root, dir: filepath.Join(root, dir), prefixes: prefixes, resolver: resolver}
 	}
 	unclassified := "unclassified"
 	if failure != "" {
@@ -54,7 +54,7 @@ func verify(cfg *config.Config, root string, entries []sources.Entry, s store, f
 		r.Verdicts[key] = v
 	}
 	for _, p := range s.Proposals {
-		if err := at(p.Dir).proposal(cfg, p); err != nil {
+		if err := at(p.Dir).proposal(p); err != nil {
 			r.Dropped = append(r.Dropped, fmt.Sprintf("proposal %q: %v", p.Command, err))
 			continue
 		}
@@ -116,20 +116,25 @@ func checkManager(cfg *config.Config, root string, m Manager) error {
 
 // forms checks commands an answer gives against the place they run.
 type forms struct {
+	cfg       *config.Config
 	root, dir string
 	prefixes  []string // the verified managers' run prefixes
 	resolver  *resolve.Resolver
 }
 
-// verdict is v once it holds up against e: its role and kind, and its
-// segments copied from the body, or an error. A form that doesn't hold up
-// is dropped, with why; the rest of the verdict stands.
+// verdict is v once it holds up against e: its role and kind, its segments
+// copied from the body, and no check setting a deny_flags flag; or an
+// error. A form that doesn't hold up is dropped, with why; the rest of the
+// verdict stands.
 func (f forms) verdict(e sources.Entry, v Verdict) (Verdict, []string, error) {
 	if err := checkRole(v.Role, v.Kind); err != nil {
 		return v, nil, err
 	}
 	if v.Role != "check" {
 		v.Kind = ""
+	}
+	if flag := f.cfg.DeniedFlag(strings.Fields(e.Body.Text)); v.Role == "check" && len(v.Segments) == 0 && flag != "" {
+		return v, nil, fmt.Errorf("a check that sets %s", flag)
 	}
 	body := strings.Join(strings.Fields(e.Body.Text), " ")
 	bodies := []string{e.Body.Text}
@@ -140,28 +145,40 @@ func (f forms) verdict(e sources.Entry, v Verdict) (Verdict, []string, error) {
 		if !strings.Contains(body, strings.Join(strings.Fields(s.Text), " ")) {
 			return v, nil, fmt.Errorf("segment %q isn't in the body", s.Text)
 		}
+		if flag := f.cfg.DeniedFlag(strings.Fields(s.Text)); s.Role == "check" && flag != "" {
+			return v, nil, fmt.Errorf("segment %q: a check that sets %s", s.Text, flag)
+		}
 		if s.Role != "check" {
 			v.Segments[i].Kind = ""
 		}
 		bodies = append(bodies, s.Text)
 	}
 	var dropped []string
-	if why := f.form(v.FileForm, bodies, "{files}", "{dirs}"); v.FileForm != "" && why != "" {
+	if why := f.checkForm(v, v.FileForm, bodies, "{files}", "{dirs}"); v.FileForm != "" && why != "" {
 		dropped = append(dropped, fmt.Sprintf("file form %q: %s", v.FileForm, why))
 		v.FileForm, v.Globs = "", nil
 	}
-	if why := f.form(v.Affected, bodies, "{base}"); v.Affected != "" && why != "" {
+	if why := f.checkForm(v, v.Affected, bodies, "{base}"); v.Affected != "" && why != "" {
 		dropped = append(dropped, fmt.Sprintf("affected form %q: %s", v.Affected, why))
 		v.Affected = ""
 	}
 	return v, dropped, nil
 }
 
+// checkForm is form's verdict from form, with a check's form also turned
+// away for setting a deny_flags flag.
+func (f forms) checkForm(v Verdict, form string, bodies []string, placeholders ...string) string {
+	if flag := f.cfg.DeniedFlag(strings.Fields(form)); v.Role == "check" && flag != "" {
+		return "sets " + flag
+	}
+	return f.form(form, bodies, placeholders...)
+}
+
 // proposal is an error unless p is a check of a known kind, or a fixer,
-// whose evidence exists, which the deny list allows, and which never
+// whose evidence exists, which the deny lists allow, and which never
 // fetches. Whether the project already enforces its kind where it runs is
 // the plan's call.
-func (f forms) proposal(cfg *config.Config, p Proposal) error {
+func (f forms) proposal(p Proposal) error {
 	words := strings.Fields(p.Command)
 	switch {
 	case len(words) == 0:
@@ -173,13 +190,16 @@ func (f forms) proposal(cfg *config.Config, p Proposal) error {
 	case p.Evidence == "" || !fsx.IsFile(filepath.Join(f.root, p.Evidence)) && !fsx.IsFile(filepath.Join(f.dir, p.Evidence)):
 		return fmt.Errorf("no evidence file %q", p.Evidence)
 	}
-	if token := cfg.GateDiscovery.DeniedCommand(words); token != "" {
+	if token := f.cfg.GateDiscovery.DeniedCommand(words); token != "" {
 		return fmt.Errorf("denied (%s)", token)
+	}
+	if flag := f.cfg.DeniedFlag(words); p.Role == "check" && flag != "" {
+		return fmt.Errorf("a check that sets %s", flag)
 	}
 	if why := f.resolver.Fetches(f.dir, words); why != "" {
 		return fmt.Errorf("fetches (%s)", why)
 	}
-	if why := f.form(p.FileForm, []string{p.Command}, "{files}", "{dirs}"); p.FileForm != "" && why != "" {
+	if why := f.checkForm(Verdict{Role: p.Role}, p.FileForm, []string{p.Command}, "{files}", "{dirs}"); p.FileForm != "" && why != "" {
 		return fmt.Errorf("file form %q: %s", p.FileForm, why)
 	}
 	return nil

@@ -11,17 +11,18 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
+	"github.com/ku5ic/claude-kit/go/internal/sources"
 )
 
 // Root resolves the project root for cwd, as `kit project-root`:
 //  1. the git worktree root;
-//  2. cwd or up to 2 ancestors holding an anchor sentinel;
+//  2. cwd or up to 2 ancestors holding a language manifest;
 //  3. cwd itself, with anchored false.
-func Root(cfg *config.Config, cwd string) (root string, anchored bool) {
+func Root(cwd string) (root string, anchored bool) {
 	if top := git.Toplevel(cwd); top != "" {
 		return top, true
 	}
-	anchors := cfg.AnchorSentinels()
+	anchors := sources.Anchors()
 	dir := cwd
 	for depth := 0; dir != "/" && depth < 3; depth++ {
 		for _, name := range anchors {
@@ -62,12 +63,12 @@ func Name(root string) string {
 // when the project is anchored, else the global one under the kit home.
 // With create, it makes the directory, and registers a project scratch dir
 // in scratch-registry.txt so `kit scratch-rotate`'s cwd-less run can prune it.
-func Dir(cfg *config.Config, paths config.Paths, cwd, kind string, create bool) (string, error) {
+func Dir(paths config.Paths, cwd, kind string, create bool) (string, error) {
 	if kind != "scratch" && kind != "plans" {
 		return "", fmt.Errorf("unknown kind: %s", kind)
 	}
 	var dir string
-	if root, anchored := Root(cfg, cwd); anchored {
+	if root, anchored := Root(cwd); anchored {
 		dir = filepath.Join(root, ".claude", kind)
 		if create && kind == "scratch" {
 			if err := register(paths, dir); err != nil {

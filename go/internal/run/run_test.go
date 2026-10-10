@@ -115,13 +115,13 @@ func TestAFailureNamesItsBinaryBeforeItsOutput(t *testing.T) {
 	has(t, out, "FAIL lint\n  cmd: lint src\n  bin: "+bin+" (local)\nboom\n")
 }
 
-func TestAGateRunsWithItsEnvAndNeverInstalls(t *testing.T) {
+func TestAGateRunsWithItsEnv(t *testing.T) {
 	t.Parallel()
 	r := newRepo(t, "repo")
-	g := r.gate("test", `echo "verify=$pnpm_config_verify_deps_before_run mode=$MODE"; exit 1`)
+	g := r.gate("test", `echo "mode=$MODE"; exit 1`)
 	g.Env = []string{"MODE=ci"}
 	out, _ := r.run(g)
-	has(t, out, "verify=false mode=ci")
+	has(t, out, "mode=ci")
 }
 
 func TestACommandNotFoundIsASkip(t *testing.T) {

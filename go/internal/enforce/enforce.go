@@ -113,10 +113,31 @@ func fullGate(cfg *config.Config, o Options) (*builder, []string) {
 // plan is an empty builder for o.Root: its entries and their verified
 // verdicts, and its subprojects.
 func plan(cfg *config.Config, o Options) (*builder, []string) {
-	subs := project.Subprojects(cfg, o.Root)
+	subs := project.Subprojects(o.Root)
 	entries := sources.Entries(cfg, o.Root, subs)
 	facts := gapfill.Run(cfg, gapfill.Options{Root: o.Root, CacheDir: o.CacheDir, Entries: entries, Ask: o.Ask, Timeout: o.Timeout})
 	return newBuilder(cfg, o.Root, entries, facts), subs
+}
+
+// Task is one task a task runner holds in a subproject, and the command the
+// full gate runs it by.
+type Task struct {
+	Provider, Stack, Name, Cmd string
+}
+
+// Tasks are sub's tasks, each run through the nearest package manager
+// gap-fill verified, as the full gate runs it; npm for package.json's
+// scripts when none is.
+func Tasks(cfg *config.Config, root, cacheDir, sub string) []Task {
+	entries := sources.Entries(cfg, root, []string{sub})
+	b := newBuilder(cfg, root, entries, gapfill.Result{Managers: gapfill.Managers(cfg, root, cacheDir)})
+	var out []Task
+	for _, e := range entries {
+		if tp, ok := provider(e.Source); ok && e.Dir == sub {
+			out = append(out, Task{tp.Name, tp.Stack, e.Name, b.runCommand(tp, sub, e.Name)})
+		}
+	}
+	return out
 }
 
 // gitHook is true for a source that only a git hook runs: the full gate
@@ -133,7 +154,6 @@ type taskKey struct{ provider, dir, name string }
 
 type builder struct {
 	cfg      *config.Config
-	nocat    *config.Config // classify reads bodies without the old check catalog
 	root     string
 	entries  []sources.Entry
 	facts    gapfill.Result
@@ -146,9 +166,7 @@ type builder struct {
 }
 
 func newBuilder(cfg *config.Config, root string, entries []sources.Entry, facts gapfill.Result) *builder {
-	nocat := *cfg
-	nocat.Checks = nil
-	b := &builder{cfg: cfg, nocat: &nocat, root: root, entries: entries, facts: facts, tasks: map[taskKey]sources.Entry{}, planned: map[string]bool{}, members: map[string]bool{}}
+	b := &builder{cfg: cfg, root: root, entries: entries, facts: facts, tasks: map[taskKey]sources.Entry{}, planned: map[string]bool{}, members: map[string]bool{}}
 	for _, member := range project.Workspace(root) {
 		b.members[filepath.Join(root, member)] = true
 	}
@@ -326,14 +344,15 @@ func (b *builder) unclassified(runs func(sources.Entry) bool) {
 }
 
 // settle skips each gate disabled_checks names, by a kind it checks or by
-// its label, then finds the rest's binaries, then skips each gate seen
-// changing files.
+// its label, gives each gate_env, then finds the rest's binaries, then skips
+// each gate seen changing files.
 func (b *builder) settle(cacheDir string) {
 	for i := range b.gates {
 		g := &b.gates[i]
 		if g.Skip == "" && (b.cfg.CheckDisabled("", g.Label) || slices.ContainsFunc(g.Kinds, func(k string) bool { return b.cfg.CheckDisabled(k, g.Label) })) {
 			g.Skip = "disabled_checks"
 		}
+		g.Env = append(slices.Clone(b.cfg.GateEnv), g.Env...)
 	}
 	b.resolve()
 	skipMarked(b.gates, cacheDir, b.root)

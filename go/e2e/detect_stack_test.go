@@ -51,45 +51,27 @@ func TestDetectStack(t *testing.T) {
 
 	// The user overlay at ~/.claude/claude-kit.local.yml merges over kit.yml.
 
-	const customOverlay = `stacks:
-  custom:
-    sentinels:
-      - name: custom.marker
-`
-	t.Run("a stack added by the overlay is detected", func(t *testing.T) {
-		k, root := repo(t, "custom")
-		Touch(t, filepath.Join(root, "custom.marker"))
-		k.Overlay(customOverlay)
-		r := k.Run("", "detect-stack")
-		r.Want(t, 0)
-		exact(t, r, "root: "+root+"\ncustom: yes")
-	})
+	const markedOverlay = "dependency_skills:\n  - {deps: [marked], skills: [javascript-patterns]}\n"
 	t.Run("the overlay's arrays append to kit.yml's instead of replacing them", func(t *testing.T) {
 		k, root := repo(t, "next")
-		Write(t, filepath.Join(root, "package.json"), `{"dependencies":{"react":"19.0.0"}}`+"\n")
-		Touch(t, filepath.Join(root, "extra.marker"))
-		k.Overlay(`stacks:
-  js:
-    extras:
-      - name: marked
-        file: extra.marker
-`)
+		Write(t, filepath.Join(root, "package.json"), `{"dependencies":{"react":"19.0.0","marked":"14.0.0"}}`+"\n")
+		k.Overlay(markedOverlay)
 		r := k.Run("", "detect-stack")
 		r.Want(t, 0)
 		r.Has(t, "js: yes (react,marked)\n")
 	})
 	t.Run("editing the overlay invalidates the merged copy", func(t *testing.T) {
-		k, root := repo(t, "custom")
-		Touch(t, filepath.Join(root, "custom.marker"))
-		k.Overlay("stacks: {}\n")
-		k.Run("", "detect-stack").Empty(t)
+		k, root := repo(t, "next")
+		Write(t, filepath.Join(root, "package.json"), `{"dependencies":{"marked":"14.0.0"}}`+"\n")
+		k.Overlay("dependency_skills: []\n")
+		k.Run("", "detect-stack").Has(t, "js: yes\n")
 
-		k.Overlay(customOverlay)
+		k.Overlay(markedOverlay)
 		// A future mtime: the rewrite can land in the same second as the merge.
 		future := time.Date(2099, 1, 1, 0, 0, 0, 0, time.Local)
 		if err := os.Chtimes(filepath.Join(k.Claude, "claude-kit.local.yml"), future, future); err != nil {
 			t.Fatal(err)
 		}
-		k.Run("", "detect-stack").Has(t, "custom: yes")
+		k.Run("", "detect-stack").Has(t, "js: yes (marked)\n")
 	})
 }

@@ -10,8 +10,6 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
 
-// kit_tasks and kit_subprojects against the real kit.yml.
-
 func tmp(t *testing.T) string {
 	t.Helper()
 	dir, err := filepath.EvalSymlinks(t.TempDir())
@@ -19,57 +17,6 @@ func tmp(t *testing.T) string {
 		t.Fatal(err)
 	}
 	return dir
-}
-
-func taskLines(tasks []Task) string {
-	var lines []string
-	for _, task := range tasks {
-		stack := task.Stack
-		if stack == "" {
-			stack = "-"
-		}
-		lines = append(lines, strings.Join([]string{task.Provider, stack, task.Name, task.Cmd}, "\t"))
-	}
-	return strings.Join(lines, "\n")
-}
-
-func TestTasksResolvePMFromLockfile(t *testing.T) {
-	dir := tmp(t)
-	testutil.Git(t, dir, "init", "-q", "-b", "main")
-	testutil.Put(t, dir, "package.json", `{"scripts":{"test":"vitest"}}`)
-	testutil.Put(t, dir, "pnpm-lock.yaml", "")
-	if got := taskLines(Tasks(testutil.KitConfig(t), dir)); got != "package-scripts\tjs\ttest\tpnpm run test" {
-		t.Errorf("got %q", got)
-	}
-}
-
-func TestTasksDefaultPMIsNpm(t *testing.T) {
-	dir := tmp(t)
-	testutil.Put(t, dir, "package.json", `{"scripts":{"lint":"eslint ."}}`)
-	if got := taskLines(Tasks(testutil.KitConfig(t), dir)); got != "package-scripts\tjs\tlint\tnpm run lint" {
-		t.Errorf("got %q", got)
-	}
-}
-
-func TestTasksRunByPMForPoeUnderPoetry(t *testing.T) {
-	dir := tmp(t)
-	testutil.Put(t, dir, "pyproject.toml", "[tool.poe.tasks]\ntest = \"pytest\"\n")
-	testutil.Put(t, dir, "poetry.lock", "")
-	if got := taskLines(Tasks(testutil.KitConfig(t), dir)); got != "poe\tpython\ttest\tpoetry run poe test" {
-		t.Errorf("got %q", got)
-	}
-}
-
-func TestTasksSeveralProviders(t *testing.T) {
-	dir := tmp(t)
-	testutil.Put(t, dir, "Makefile", "test:\n\tgo test\n")
-	testutil.Put(t, dir, "pyproject.toml", "[tool.pdm.scripts]\nlint = \"ruff\"\n")
-	got := taskLines(Tasks(testutil.KitConfig(t), dir))
-	for _, want := range []string{"make\t-\ttest\tmake test", "pdm\tpython\tlint\tpdm run lint"} {
-		if !strings.Contains(got, want) {
-			t.Errorf("missing %q in %q", want, got)
-		}
-	}
 }
 
 // pnpm root with packages/a, a uv project at services/api, and an untracked
@@ -90,7 +37,7 @@ func monorepo(t *testing.T) string {
 
 func TestSubprojectsRootWorkspaceAndNested(t *testing.T) {
 	dir := monorepo(t)
-	if got := strings.Join(Subprojects(testutil.KitConfig(t), dir), "\n"); got != ".\npackages/a\nservices/api" {
+	if got := strings.Join(Subprojects(dir), "\n"); got != ".\npackages/a\nservices/api" {
 		t.Errorf("got %q", got)
 	}
 }
@@ -101,7 +48,7 @@ func TestSubprojectsRespectMaxDepth(t *testing.T) {
 	testutil.Put(t, dir, "a/b/c/d/package.json", "{}")
 	testutil.Put(t, dir, "a/b/c/d/e/package.json", "{}")
 	testutil.Git(t, dir, "add", "a")
-	if got := strings.Join(Subprojects(testutil.KitConfig(t), dir), "\n"); got != ".\na/b/c/d" {
+	if got := strings.Join(Subprojects(dir), "\n"); got != ".\na/b/c/d" {
 		t.Errorf("got %q", got)
 	}
 }
@@ -116,7 +63,7 @@ func TestSubprojectsGoWorkAndCargoMembers(t *testing.T) {
 	}
 	testutil.Put(t, dir, "go.work", "go 1.22\n\nuse (\n\t./svc\n)\nuse ./tools\n")
 	testutil.Put(t, dir, "Cargo.toml", "[workspace]\nmembers = [\"crates/*\"]\n")
-	if got := strings.Join(Subprojects(testutil.KitConfig(t), dir), "\n"); got != ".\ncrates/x\nsvc\ntools" {
+	if got := strings.Join(Subprojects(dir), "\n"); got != ".\ncrates/x\nsvc\ntools" {
 		t.Errorf("got %q", got)
 	}
 }

@@ -260,7 +260,7 @@ func (s *scan) javascript(cfg *config.Config) (dynamic bool) {
 		indexDir = parent(stem)
 	}
 	var wsNames []string
-	for _, dir := range project.Subprojects(cfg, s.root) {
+	for _, dir := range project.Subprojects(s.root) {
 		if dir != "." && strings.HasPrefix(s.rel, dir+"/") {
 			if name := sources.JSONValue(filepath.Join(s.root, dir, "package.json"), ".name"); name != "" {
 				wsNames = append(wsNames, name)

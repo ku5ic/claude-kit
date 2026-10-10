@@ -72,7 +72,7 @@ func Calls(body string) (calls [][]string, ok bool) {
 			calls = append(calls, []string{"$"})
 		case !slices.Contains(builtins, words[0]):
 			calls = append(calls, words)
-			if _, inner := execTarget(words); len(inner) > 0 {
+			if inner := execTarget(words); len(inner) > 0 {
 				calls = append(calls, inner)
 			}
 		}

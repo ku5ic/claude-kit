@@ -104,7 +104,7 @@ func newestOpenPlan(h *hook.Hook) string {
 	if cfg == nil {
 		return ""
 	}
-	dir, err := project.Dir(cfg, h.Paths, h.Payload.Cwd(), "plans", false)
+	dir, err := project.Dir(h.Paths, h.Payload.Cwd(), "plans", false)
 	if err != nil {
 		return ""
 	}

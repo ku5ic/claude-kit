@@ -2,6 +2,7 @@ package sources
 
 import (
 	"encoding/json"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -23,6 +24,42 @@ var Toolchains = map[string][]string{
 	"Gemfile":        {"ruby", "bundle"},
 	"composer.json":  {"php", "composer"},
 }
+
+// Anchors are the language manifests, sorted: a directory holding one is a
+// project root, or a subproject below one.
+func Anchors() []string { return slices.Sorted(maps.Keys(Toolchains)) }
+
+// Language is a language the manifests in a directory state, and the
+// dependencies they declare.
+type Language struct {
+	Name      string
+	Manifests []string
+	Deps      func(dir string) Deps
+}
+
+// Languages are in the order a stack report lists them.
+var Languages = []Language{
+	{"js", []string{"package.json"}, JSDeps},
+	{"python", []string{"pyproject.toml", "Pipfile", "requirements.txt"}, PythonDeps},
+	{"go", []string{"go.mod"}, nil},
+	{"rust", []string{"Cargo.toml"}, nil},
+	{"ruby", []string{"Gemfile"}, RubyDeps},
+	{"php", []string{"composer.json"}, nil},
+}
+
+// Declared are the dependencies every language's manifests in dir declare.
+func Declared(dir string) Deps {
+	deps := Deps{}
+	for _, l := range Languages {
+		if l.Deps != nil {
+			maps.Copy(deps, l.Deps(dir))
+		}
+	}
+	return deps
+}
+
+// Has is true when deps holds name as written or, for Python, normalized.
+func (deps Deps) Has(name string) bool { return deps[name] || deps[PyName(name)] }
 
 // HasManifest is true when dir holds a language manifest or a task
 // runner's: something there states how it is built and checked.

@@ -257,6 +257,40 @@ func TestVerification(t *testing.T) {
 	}
 }
 
+// deny_flags hold for checks: their bodies, segments, and forms. A fixer
+// may set one.
+func TestADenyFlagRejectsACheckButNotAFixer(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t, "")
+	f.cfg.DenyFlags = []string{"--fix", "--watch"}
+	lint := entry("lint", "eslint --fix .")
+	fix := entry("fix", "eslint --fix .")
+	unit := entry("unit", "vitest --watch=false")
+	ci := entry("ci", "vitest --watch && eslint .")
+	f.answer(answers(
+		verdict(lint, map[string]any{"role": "check", "kind": "lint", "mutates": false}),
+		verdict(fix, map[string]any{"role": "fixer", "mutates": true, "file_form": "eslint --fix {files}"}),
+		verdict(unit, map[string]any{"role": "check", "kind": "test", "mutates": false, "file_form": "vitest --watch=false --watch {files}"}),
+		verdict(ci, map[string]any{"role": "check", "mutates": false, "segments": []any{
+			map[string]any{"text": "vitest --watch", "role": "check", "kind": "test"},
+			map[string]any{"text": "eslint .", "role": "check", "kind": "lint"},
+		}}),
+	))
+	r := f.run(lint, fix, unit, ci)
+	if why := r.Skipped[Key(lint)]; why != "rejected (a check that sets --fix)" {
+		t.Errorf("lint: %q", why)
+	}
+	if v := r.Verdicts[Key(fix)]; v.Role != "fixer" || v.FileForm != "eslint --fix {files}" {
+		t.Errorf("fix: %+v", v)
+	}
+	if v, ok := r.Verdicts[Key(unit)]; !ok || v.FileForm != "" {
+		t.Errorf("unit: a flag set off is no flag; the form setting it goes: %+v", v)
+	}
+	if why := r.Skipped[Key(ci)]; why != `rejected (segment "vitest --watch": a check that sets --watch)` {
+		t.Errorf("ci: %q", why)
+	}
+}
+
 func TestManagersReadsVerifiedFactsWithoutAsking(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t, "")

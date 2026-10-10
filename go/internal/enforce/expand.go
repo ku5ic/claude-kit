@@ -91,7 +91,7 @@ func (b *builder) split(body, dir string, env []string, v gapfill.Verdict, depth
 	ok = true
 	env = slices.Clone(env)
 	for _, stmt := range stmts {
-		r := classify.Body(b.nocat, stmt, b.lookup(dir))
+		r := classify.Body(stmt, b.lookup(dir))
 		var cmd classify.Command
 		if r.Opaque == "" && len(r.Commands) == 1 {
 			cmd = r.Commands[0]
@@ -171,7 +171,7 @@ func (b *builder) cd(dir string, words []string) (string, bool) {
 
 // fansOut is true when body runs across workspace packages.
 func (b *builder) fansOut(body string) bool {
-	r := classify.Body(b.nocat, body, func(string, string, string) bool { return false })
+	r := classify.Body(body, func(string, string, string) bool { return false })
 	return slices.ContainsFunc(r.Commands, func(c classify.Command) bool { return c.Kind == classify.FanOut })
 }
 

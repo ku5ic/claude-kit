@@ -120,7 +120,7 @@ For the whole project, `kit run-checks` runs every quality gate the repo declare
 
 ### Project-first tools
 
-Every tool the kit runs takes its binary from the project before anything else: a local install, a `go.mod` tool directive, the package manager's environment, or a version pinned by asdf or mise (`kit.yml` `tool_resolution`). In a JS workspace, the installed version is checked against the declaring package's range.
+Every tool the kit runs takes its binary from the project before anything else: a local install, a `go.mod` tool directive, the package manager's environment, or a version pinned by asdf, mise, or a Brewfile. In a JS workspace, the installed version is checked against the declaring package's range.
 
 A tool the project declares but hasn't installed is skipped with the install command to run. It never falls back to a random global copy, and never to `npx`, `pnpm dlx`, or `uv run`, which can install packages.
 
@@ -211,19 +211,17 @@ Side trips: `/audit` for a read-only report, `/simplify <path>` to cut over-engi
 
 ## Configure
 
-Defaults live in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml`, merged on top: maps merge, lists append, and an entry in `checks`, `toolchain_checks`, or `formatters` named like a default updates that default's fields.
+Defaults live in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml`, merged on top: maps merge, lists append.
 
-| Key                                            | For                                                                |
-| ---------------------------------------------- | ------------------------------------------------------------------ |
-| `protected_branches`                           | Branches Claude can't push to                                      |
-| `sensitive_paths`                              | Extra credential files to guard                                    |
-| `disabled_rules`                               | Guard rules to let through, by the slug `kit explain` prints       |
-| `file_checks`, `disabled_file_checks`          | Add your own Stop checks, or turn a built-in off                   |
-| `disabled_checks`, `disabled_toolchain_checks` | Turn a `run-checks` gate off, by slot or by the label it prints    |
-| `disabled_task_providers`                      | Stop reading a task source (`make`, `package-scripts`, ...) at all |
-| `disabled_formatters`                          | Turn a formatter off                                               |
-| `check_timeout`                                | Seconds before a Stop check is skipped                             |
-| `tool_resolution.path_fallback`                | Tools the project doesn't declare that may still run from PATH     |
+| Key                       | For                                                                   |
+| ------------------------- | --------------------------------------------------------------------- |
+| `protected_branches`      | Branches Claude can't push to                                         |
+| `sensitive_paths`         | Extra credential files to guard                                       |
+| `disabled_rules`          | Guard rules to let through, by the slug `kit explain` prints          |
+| `disabled_checks`         | Turn a `run-checks` gate off, by check kind or by the label it prints |
+| `disabled_task_providers` | Stop reading a task source (`make`, `package-scripts`, ...) at all    |
+| `on_edit`                 | Format a file type the project's own fixers don't claim               |
+| `gate_timeout`            | Seconds before a Stop check is skipped                                |
 
 `kit config` prints the merged result; `kit config --check` flags unknown keys and wrong types.
 

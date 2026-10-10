@@ -1,15 +1,14 @@
 # kit.yml
 #
-# Single source of truth for the kit's data: stacks, guards, checks,
-# formatters, and tools. Read by the kit binary (go/internal/config), which
+# The kit's own policy and data: skill maps, guard lists, what gap-fill may
+# and may not accept, and the formatting kit applies when the project's own
+# fixers don't. No tool, package manager, stack, or check catalog: those
+# come from the project's configs and gap-fill's verified answers
+# (go/internal/gapfill). Read by the kit binary (go/internal/config), which
 # decodes it strictly: `bin/kit config --check` reports an unknown key.
 # The overlay at ~/.claude/claude-kit.local.yml merges over it (maps merge,
 # lists append); `bin/kit config` prints the result.
 #
-# stacks (at the end): a new stack is one stanza there.
-#   sentinels  name: a file marking the stack in a subproject; anchor: true
-#              adds it to the project-root walk (keep few: each slows it)
-#   extras     dep (package.json), pydep, file, grep + in, or any_of of those
 # security-patterns and wcag-audit are never mapped: invoked by hand.
 
 # Skills loaded for every project regardless of detected stack.
@@ -88,6 +87,7 @@ skill_file_map:
 # Declared-dependency-to-skills map for <suggested-skills>: a rule any of
 # whose deps a subproject's package.json, Python manifests, or Gemfile
 # declares suggests its skills. Python names match normalized (PEP 503).
+# The stack report lists the deps it finds.
 dependency_skills:
   - deps: [typescript]
     skills: [typescript-patterns]
@@ -140,41 +140,6 @@ skill_triggers:
   docker-patterns: "before authoring or changing Dockerfiles or compose services"
   opentofu-patterns: "before writing or changing OpenTofu/Terraform resources, modules, variables, or state moves"
   bash-patterns: "before writing or modifying shell scripts"
-
-# Ordered lockfile-to-manager table. First match wins.
-# Read by package-manager resolution and stack detection.
-#   default: the ecosystem's manager when no lockfile names one
-# A manager's fields go on its first entry.
-package_managers:
-  - lockfile: bun.lockb
-    manager: bun
-    ecosystem: js
-  - lockfile: bun.lock
-    manager: bun
-    ecosystem: js
-  - lockfile: pnpm-lock.yaml
-    manager: pnpm
-    ecosystem: js
-  - lockfile: yarn.lock
-    manager: yarn
-    ecosystem: js
-  - lockfile: package-lock.json
-    manager: npm
-    ecosystem: js
-    default: true
-  - lockfile: uv.lock
-    manager: uv
-    ecosystem: python
-  - lockfile: poetry.lock
-    manager: poetry
-    ecosystem: python
-  - lockfile: Pipfile.lock
-    manager: pipenv
-    ecosystem: python
-  - lockfile: requirements.txt
-    manager: pip
-    ecosystem: python
-    default: true
 
 # Guard lists. An overlay can append to any of them.
 
@@ -249,96 +214,6 @@ log_max_lines: 10000
 # the overlay: a disabled rule is still logged, as "disabled".
 disabled_rules: []
 
-# Canonical checks: the task names that count as each, as globs, and the
-# commands that count as each when a task's name matches no glob (its body
-# is read by go/internal/classify). A task matching an exclude glob never
-# counts, whatever its body.
-#   tools           {bin, sub, require, forbid}: bin by name; its first
-#                   non-flag argument one of sub; every require flag present;
-#                   no forbid flag (alone or as flag=value). A task whose
-#                   body runs a forbid flag (eslint --fix) is skipped even
-#                   when its name matches, and fills nothing. A scoped check's
-#                   patterns add findings, unmapped, advisory (see deadcode)
-#   fallback_tasks  names that count only when no tasks glob matches, and
-#                   then only the first present; the others are covered by
-#                   it, so test:unit and test:ci never both run
-#   scope           changed: see deadcode
-#   exclude_dirs    globs matched against each path segment of a
-#                   subproject: a toolchain check standing in for the check
-#                   (go test ./...) skips it there, as an e2e module needs
-#                   infrastructure a quality gate can't assume
-# The globs, fallbacks, and excludes follow a survey of 140 popular repos.
-checks:
-  - name: typecheck
-    tasks: [typecheck, type-check, "typecheck:*", "type-check:*", types, typing, check-types, "check:types", "test:types", test-types, "test:typecheck"]
-    exclude: ["*watch*"]
-    tools:
-      - {bin: tsc, require: [--noEmit], forbid: [--watch, -w]}
-      - {bin: vue-tsc, require: [--noEmit], forbid: [--watch, -w]}
-      - {bin: mypy}
-      - {bin: pyright, forbid: [--watch, -w]}
-      - {bin: ty, sub: [check], forbid: [--watch]}
-  - name: lint
-    tasks: [lint, eslint, stylelint, "lint:*", "lint-*", "eslint:*", "stylelint:*"]
-    exclude: ["*fix*", "*watch*", "*staged*", "*changed*", "*unused*", "*deadcode*", "*dead-code*", "lint:prettier"]
-    tools:
-      - {bin: eslint, forbid: [--fix]}
-      - {bin: biome, sub: [lint, check, ci], forbid: [--write, --fix, --apply, --apply-unsafe]}
-      - {bin: oxlint, forbid: [--fix]}
-      - {bin: stylelint, forbid: [--fix]}
-      - {bin: ruff, sub: [check], forbid: [--fix, --watch]}
-      - {bin: rubocop, forbid: [-a, -A, -x, --autocorrect, --autocorrect-all, --auto-correct, --auto-correct-all, --safe-auto-correct, --fix-layout, --disable-uncorrectable]}
-      - {bin: golangci-lint, sub: [run], forbid: [--fix]}
-      - {bin: cargo, sub: [clippy], forbid: [--fix]}
-      - {bin: markdownlint-cli2, forbid: [--fix]}
-      - {bin: shellcheck}
-      - {bin: yamllint}
-      - {bin: tflint, forbid: [--fix]}
-  - name: format-check
-    tasks: ["format:check", "fmt:check", format-check, fmt-check, check-format, "check:format", check-fmt, "check:fmt", prettier-check, "prettier:check", "lint:prettier", style-check, "style:check", "format:diff"]
-    exclude: ["*watch*"]
-    tools:
-      - {bin: prettier, require: [--check], forbid: [--write, -w]}
-      - {bin: biome, sub: [format], forbid: [--write, --fix, --apply]}
-      - {bin: ruff, sub: [format], require: [--check]}
-      - {bin: black, require: [--check]}
-      - {bin: dprint, sub: [check]}
-      - {bin: cargo, sub: [fmt], require: [--check]}
-      # No gofmt: gofmt -l exits 0 whatever it lists, so it would always pass.
-      - {bin: shfmt, require: [-d], forbid: [-w]}
-      - {bin: stylua, require: [--check]}
-      - {bin: tofu, sub: [fmt], require: [-check]}
-      - {bin: terraform, sub: [fmt], require: [-check]}
-  - name: test
-    tasks: [test]
-    fallback_tasks: ["test:unit", test-unit, "test:ci", test-ci, "test:all", test-all, tests, unit-test, "unit:test"]
-    exclude: ["*watch*", "*e2e*", "*integration*", "*bench*", "*:update*", "*snapshot*", "*storybook*", "*browser*", "*playwright*", "*visual*", "*smoke*", "*live*"]
-    exclude_dirs: [e2e, "*-e2e", "e2e-*", "*_e2e", end2end, endtoend, end-to-end, integration, integration-tests, integration_tests]
-    tools:
-      - {bin: vitest, forbid: [--watch, -w, --ui]}
-      - {bin: jest, forbid: [--watch, --watchAll]}
-      - {bin: mocha, forbid: [--watch, -w]}
-      - {bin: pytest}
-      - {bin: rspec}
-      - {bin: go, sub: [test]}
-      - {bin: cargo, sub: [test, nextest]}
-      - {bin: bun, sub: [test], forbid: [--watch]}
-      - {bin: deno, sub: [test], forbid: [--watch]}
-  # scope: changed fails only on findings on lines changed since kit
-  # git-base (go/internal/checks). rust has none: clippy -D warnings fails
-  # dead_code already.
-  - name: deadcode
-    tasks: [deadcode, dead-code, "deadcode:*", "dead-code:*", knip, "knip:*", unused, "unused:*", "lint:unused", "lint:deadcode", unimported, vulture]
-    exclude: ["*fix*", "*watch*"]
-    scope: changed
-    tools:
-      - {bin: knip, forbid: [--fix, --watch], unmapped: [--reporter], findings: '^(?:\S+\s+(?P<file>\S.*?):(?P<line>\d+):\d+|(?P<file>[^\s:]+\.\w+))\s*$'}
-      - {bin: vulture, findings: '^(?P<file>[^\s:]+):(?P<line>\d+): unused '}
-      - {bin: deadcode, findings: '^(?P<file>[^\s:]+\.go):(?P<line>\d+):\d+: unreachable func: '}
-      - {bin: debride, advisory: true}
-      - {bin: tflint, require: [--only=terraform_unused_declarations], forbid: [--fix], findings: '^(?P<file>[^\s:]+):(?P<line>\d+):\d+: \w+ - .*\(terraform_unused_declarations\)$'}
-      - {bin: cargo, sub: [machete, udeps], advisory: true}
-
 # CI steps and jobs the kit never runs (go/internal/ci).
 gate_discovery:
   #   deny_commands  a step holding one of these words (or word runs) is skipped
@@ -351,42 +226,30 @@ gate_discovery:
   deny_actions: [aws-actions/, google-github-actions/auth, google-github-actions/setup-gcloud, azure/login, docker/login-action,
     docker/build-push-action, hashicorp/setup-terraform, pulumi/]
 
-# Checks a stack's own toolchain provides, run where that stack is detected.
-#   bin:      candidate binaries; the first that resolves (tool_resolution)
-#             fills the {bin} word
-#   when_dir: a directory that must exist first, else the check is skipped
-#   slot:     the check it stands in for; a project task or CI gate that
-#             fills that check covers it, so the two don't both run
-toolchain_checks:
-  - {stack: rust, name: check, cmd: "{bin} check", bin: [cargo]}
-  - {stack: rust, name: clippy, cmd: "{bin} clippy -- -D warnings", bin: [cargo], slot: lint}
-  - {stack: rust, name: fmt, cmd: "{bin} fmt --check", bin: [cargo], slot: format-check}
-  - {stack: rust, name: test, cmd: "{bin} test", bin: [cargo], slot: test}
-  - {stack: go, name: vet, cmd: "{bin} vet ./...", bin: [go]}
-  - {stack: go, name: test, cmd: "{bin} test ./...", bin: [go], slot: test}
-  - {stack: go, name: deadcode, cmd: "{bin} -test ./...", bin: [deadcode], slot: deadcode}
-  - {stack: js, name: deadcode, cmd: "{bin}", bin: [knip], slot: deadcode}
-  - {stack: python, name: deadcode, cmd: "{bin} . --exclude .venv,venv,node_modules,build,dist", bin: [vulture], slot: deadcode}
-  # validate needs the providers `init` installs, so it waits for .terraform/.
-  - {stack: opentofu, name: fmt, cmd: "{bin} fmt -check -recursive", bin: [tofu, terraform], slot: format-check}
-  - {stack: opentofu, name: validate, cmd: "{bin} validate", bin: [tofu, terraform], when_dir: .terraform}
+# Flags no check may set, alone or as flag=value that doesn't turn them off
+# (--watch=false does): a check verdict, segment, form, or proposal setting
+# one is rejected, since it writes files or never exits. Fixers may.
+deny_flags: [--fix, --write, --watch, --watchAll, --apply, --apply-unsafe, --autocorrect, --autocorrect-all, --auto-correct,
+  --auto-correct-all, --ui]
 
-# Turning checks off from the overlay. An overlay entry in checks (by name)
-# or toolchain_checks (by stack and name) with a default's key updates the
-# fields it sets instead of adding a second entry.
-#   disabled_task_providers    provider names; their tasks aren't read at all
-#   disabled_checks            a slot ("lint"), or a label as run-checks
-#                              prints it, with or without the stack prefix
-#                              ("lint (lint:css) [web]"); without its
-#                              "[dir]", it names every subproject's copy
-#   disabled_toolchain_checks  "<stack>:<name>" ("go:vet")
+# Environment every gate runs with, as NAME=value. pnpm would otherwise
+# install before a script runs, changing node_modules mid-check.
+gate_env: [pnpm_config_verify_deps_before_run=false]
+
+# Seconds the Stop hook's checks run, in parallel, each killed after this
+# and reported as a SKIP, never a block. The Stop hook itself allows 300.
+gate_timeout: 90
+
+# Turning gates off from the overlay.
+#   disabled_task_providers  provider names (package-scripts, make, just,
+#                            pdm, poe, rake, cargo-alias, composer,
+#                            taskfile); their tasks aren't read at all
+#   disabled_checks          a check kind ("lint"), or a gate's label as
+#                            run-checks prints it ("lint (package.json:
+#                            lint:css) [web]"); without its "[dir]", it
+#                            names every subproject's copy
 disabled_task_providers: []
 disabled_checks: []
-disabled_toolchain_checks: []
-
-# How deep below the repo root a tracked anchor sentinel still makes its
-# directory a subproject (`kit subprojects`).
-subproject_max_depth: 4
 
 # What the format-dispatch hook runs on an edited file the project's own
 # fixers don't claim (go/internal/hooks/format.go). Per rule, by globs:
@@ -403,73 +266,6 @@ on_edit:
       - {cmd: "mdformat {file}"}
   - globs: ["*.sh", "*.bash"]
     note: "shellcheck {file}"
-
-# Where a tool's binary comes from; the order is tools.Resolve's.
-#   path_fallback  standalone toolchains whose PATH copy is safe to run
-#   pin_files      version-manager files naming tools (.tool-versions, mise)
-#   pin_aliases    a pin file's plugin name -> the binary it provides
-#   manager_dirs   where version managers put the binaries they pin
-#   bin_packages   binary -> the package that declares it, when they differ
-#   install        package manager -> the command that installs declared tools
-tool_resolution:
-  path_fallback: [go, gofmt, cargo, rustfmt, shellcheck, shfmt, stylua, tofu, terraform]
-  pin_files: [.tool-versions, mise.toml, .mise.toml]
-  pin_aliases: {opentofu: tofu, golang: go}
-  # A binary inside a package manager's environment, for a project without
-  # node_modules/.bin or a .venv. Only commands that never create an
-  # environment or install anything: poetry run and uv run would.
-  # bundle info, not `bundle exec which`: which also finds a global gem stub
-  # that bundle exec then refuses to load. Assumes gem name == bin.
-  env_lookups:
-    - {marker: poetry.lock, venv_cmd: [poetry, env, info, -p]}
-    - {marker: Pipfile.lock, venv_cmd: [pipenv, --venv]}
-    - {marker: .pnp.cjs, probe: [yarn, bin, "{bin}"], run: [yarn, run, "{bin}"]}
-    - {marker: Gemfile.lock, probe: [bundle, info, "{bin}"], run: [bundle, exec, "{bin}"]}
-  manager_dirs:
-    - "$ASDF_DATA_DIR/shims"
-    - "$ASDF_DATA_DIR/installs"
-    - "~/.asdf/shims"
-    - "~/.asdf/installs"
-    - "$MISE_DATA_DIR/shims"
-    - "$MISE_DATA_DIR/installs"
-    - "$XDG_DATA_HOME/mise/shims"
-    - "$XDG_DATA_HOME/mise/installs"
-    - "~/.local/share/mise/shims"
-    - "~/.local/share/mise/installs"
-  bin_packages: {biome: "@biomejs/biome", tsc: typescript}
-  install:
-    npm: npm install
-    pnpm: pnpm install
-    yarn: yarn install
-    bun: bun install
-    uv: uv sync
-    poetry: poetry install
-    pipenv: pipenv install --dev
-    pip: pip install -r requirements.txt
-    pdm: pdm install
-    bundler: bundle install
-    go: go mod download
-
-# Stop-hook checks on edited files; built-ins live in go/internal/tools, and
-# `bin/kit explain stop <file>...` shows what claims a file.
-# file_checks adds your own; an entry named like a built-in replaces it.
-#   name, ext, bin, cmd   cmd: {bin} (a whole word) is the resolved binary, a
-#                         word holding {files} repeats once per edited file,
-#                         {dirs} once per their directories as ./<relative>
-#   signal_files          a config file by name, walking up to the root
-#   signal_toml           "<file> <dotted path>": a table in a TOML file
-#   exclude_toml          "<file> <dotted path>" to a regex or regex list;
-#                         matching files (relative to the run dir) are dropped
-#   local_only            never take a PATH copy, even a pinned one
-# disabled_file_checks turns one off by name.
-
-file_checks: []
-
-disabled_file_checks: []
-
-# The checks run in parallel, each killed after this many seconds and
-# reported as a SKIP, never a block. The Stop hook itself allows 300.
-check_timeout: 90
 
 # Chat reply word ceilings (rules/output.md section 0), set per prompt by the
 # reply-length hook, which corrects an overrun silently on the next prompt.
@@ -494,158 +290,3 @@ reply_limits:
 # are on PATH as available: and missing: lines, so a rule never sends Claude
 # to a binary this machine lacks.
 tools: [rg, sg, fd, tokei, gitleaks, trufflehog, hyperfine, jq, gron, yq, qsv, sd, sponge, git-absorb, actionlint]
-
-# JS monorepo task runners that know package dependents and cache results.
-# When a signal file is at the repo root and {bin} resolves from the root's
-# node_modules/.bin (never npx), `kit run-checks` runs each JS check matching one
-# of task_paths' task names once through the orchestrator, instead of per
-# package. Flags checked against the docs on 2026-09-26, no local install:
-# turbo 2.x (`--filter=...[ref]` is changed packages plus dependents; 1.x
-# named tasks `pipeline`) and nx.dev's current `nx affected` reference.
-# `--uncommitted` misses brand-new untracked files.
-orchestrators:
-  - name: turbo
-    signal: turbo.json
-    task_paths: [.tasks, .pipeline]
-    run: "{bin} run {task} --filter=...[HEAD]"
-  - name: nx
-    signal: nx.json
-    task_paths: [.targetDefaults]
-    run: "{bin} affected -t {task} --uncommitted"
-
-stacks:
-  js:
-    sentinels:
-      - name: package.json
-        anchor: true
-    extras:
-      - name: typescript
-        file: tsconfig.json
-      - name: next
-        dep: next
-      - name: react
-        dep: react
-      - name: nuxt
-        dep: nuxt
-      - name: vue
-        dep: vue
-      - name: tailwindcss
-        dep: tailwindcss
-      - name: graphql
-        any_of:
-          - file: codegen.ts
-          - grep: '"(graphql|@apollo/client|urql|graphql-request)"[[:space:]]*:'
-            in: [package.json]
-      # The grep also matches a "storybook" script; either way Storybook is in use.
-      - name: storybook
-        any_of:
-          - file: .storybook/main.ts
-          - file: .storybook/main.js
-          - grep: '"storybook"[[:space:]]*:'
-            in: [package.json]
-      - name: vitest
-        dep: vitest
-      - name: jest
-        dep: jest
-      - name: playwright
-        dep: "@playwright/test"
-      - name: cypress
-        dep: cypress
-      - name: express
-        dep: express
-      - name: fastify
-        dep: fastify
-      - name: nestjs
-        dep: "@nestjs/core"
-      - name: angular
-        dep: "@angular/core"
-      - name: svelte
-        dep: svelte
-      - name: biome
-        dep: "@biomejs/biome"
-      - name: eslint
-        dep: eslint
-      - name: prettier
-        dep: prettier
-
-  python:
-    sentinels:
-      - name: pyproject.toml
-        anchor: true
-      - name: requirements.txt
-      - name: Pipfile
-      - name: manage.py
-      - name: uv.lock
-      - name: pdm.lock
-    extras:
-      # pydep: declared in pyproject.toml, requirements*.txt, or Pipfile.
-      - name: django
-        any_of:
-          - file: manage.py
-          - pydep: django
-      - name: drf
-        pydep: djangorestframework
-      - name: fastapi
-        pydep: fastapi
-      - name: flask
-        pydep: flask
-      - name: pytest
-        any_of:
-          - file: pytest.ini
-          - file: conftest.py
-          - pydep: pytest
-      - name: ruff
-        pydep: ruff
-      - name: mypy
-        pydep: mypy
-
-  ruby:
-    sentinels:
-      - name: Gemfile
-        anchor: true
-    extras:
-      - name: rails
-        any_of:
-          - file: config/routes.rb
-          - file: app/controllers/application_controller.rb
-
-  rust:
-    sentinels:
-      - name: Cargo.toml
-        anchor: true
-
-  go:
-    sentinels:
-      - name: go.mod
-        anchor: true
-
-  # OpenTofu, and Terraform where the two share syntax. The committed
-  # dependency lock file marks a root module.
-  opentofu:
-    sentinels:
-      - name: .terraform.lock.hcl
-        anchor: true
-
-  docker:
-    sentinels:
-      - name: Dockerfile
-      - name: docker-compose.yml
-      - name: docker-compose.yaml
-      - name: compose.yml
-      - name: compose.yaml
-
-  monorepo:
-    sentinels:
-      - name: pnpm-workspace.yaml
-      - name: turbo.json
-      - name: nx.json
-      - name: lerna.json
-    extras:
-      - name: pnpm-workspaces
-        file: pnpm-workspace.yaml
-      - name: turbo
-        file: turbo.json
-      - name: nx
-        file: nx.json
-      - name: lerna
-        file: lerna.json

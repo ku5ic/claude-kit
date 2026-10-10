@@ -4,8 +4,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-
-	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
 
 // scripts is the package.json the lookup answers for: lint, test, typecheck.
@@ -16,8 +14,8 @@ func scripts(provider, dir, name string) bool {
 	return provider == "package-scripts" && dir == "" && (name == "lint" || name == "test" || name == "typecheck")
 }
 
-// describe renders a result compactly: "gate:lint:eslint", "ref:make:web:lint",
-// "fanout", "cd", "export", "other", or "opaque:<why>".
+// describe renders a result compactly: "ref:make:web:lint", "fanout",
+// "cd", "export", "other", or "opaque:<why>".
 func describe(r Result) string {
 	if r.Opaque != "" {
 		return "opaque:" + r.Opaque
@@ -25,8 +23,6 @@ func describe(r Result) string {
 	var parts []string
 	for _, c := range r.Commands {
 		switch c.Kind {
-		case Gate:
-			parts = append(parts, "gate:"+c.Slot+":"+c.Tool)
 		case Ref:
 			for _, ref := range c.Refs {
 				s := "ref:" + ref.Provider + ":" + ref.Dir + ":" + ref.Name
@@ -49,57 +45,17 @@ func describe(r Result) string {
 }
 
 func TestBody(t *testing.T) {
-	cfg := testutil.KitConfig(t)
 	for _, c := range []struct{ body, want string }{
-		// Plain tools, by each slot's patterns.
-		{"eslint .", "gate:lint:eslint"},
-		{"eslint --fix .", "other"},
-		{"tsc --noEmit", "gate:typecheck:tsc"},
-		{"tsc -b", "other"},
-		{"tsc --noEmit=false", "other"}, // a required flag set off isn't set
-		{"prettier --check .", "gate:format-check:prettier"},
-		{"prettier --write .", "other"},
-		{"vitest", "gate:test:vitest"},
-		{"vitest --watch", "other"},
-		{"vitest --watch=false", "gate:test:vitest"}, // set off, not on
-		{"jest --watchAll=false", "gate:test:jest"},
-		{"jest -w 4", "gate:test:jest"}, // -w is max workers, not watch
-		{"ruff format --check .", "gate:format-check:ruff"},
-		{"gofmt -l .", "other"}, // exits 0 whatever it lists
-		{"shfmt -d .", "gate:format-check:shfmt"},
-		{"ruff check .", "gate:lint:ruff"},
-		{"cargo clippy -- -D warnings", "gate:lint:cargo"},
-		{"go test ./...", "gate:test:go"},
-		{"bun test", "gate:test:bun"},
-		{"tflint --only=terraform_unused_declarations", "gate:deadcode:tflint"}, // the most required flags wins
-		{"tflint", "gate:lint:tflint"},
-		{"knip --reporter compact", "gate:deadcode:knip"},
-		{"cargo machete", "gate:deadcode:cargo"},
-		{"./node_modules/.bin/eslint src", "gate:lint:eslint"},
-		// find -exec and xargs run the tool on the files they pick.
-		{"find scripts -name '*.sh' -exec shellcheck -S warning {} +", "gate:lint:shellcheck"},
-		{`find . -name '*.py' -execdir ruff check {} \;`, "gate:lint:ruff"},
-		{"find . -exec eslint --fix {} +", "other"},
-		{"find . -name '*.sh'", "other"},
-		{"xargs -n 1 -P 4 shellcheck", "gate:lint:shellcheck"},
-		// Wrappers and tool runners unwrap to the tool.
-		{"NODE_ENV=test vitest run", "gate:test:vitest"},
-		{"cross-env CI=1 jest", "gate:test:jest"},
-		{"pnpm exec eslint .", "gate:lint:eslint"},
-		{"npx tsc --noEmit", "gate:typecheck:tsc"},
-		{"bunx eslint .", "gate:lint:eslint"},
-		{"uv run pytest", "gate:test:pytest"},
-		{"bundle exec rubocop", "gate:lint:rubocop"},
-		{"go tool deadcode -test ./...", "gate:deadcode:deadcode"},
-		{"rubocop -x", "other"},
-		{"rubocop --auto-correct", "other"},
-		{"rubocop --disable-uncorrectable", "other"},
+		// Tools are other commands: gap-fill answers what they are.
+		{"eslint .", "other"},
+		{"find scripts -name '*.sh' -exec shellcheck -S warning {} +", "other"},
+		{"NODE_ENV=test vitest run", "other"},
 		// References.
 		{"npm run lint", "ref:package-scripts::lint"},
 		{"npm t", "ref:package-scripts::test"},
 		{"npm test -- --coverage", "ref:package-scripts::test:--coverage"},
 		{"pnpm lint", "ref:package-scripts::lint"},
-		{"pnpm eslint .", "gate:lint:eslint"}, // no eslint script: pnpm runs the binary
+		{"pnpm eslint .", "other"}, // no eslint script: pnpm runs the binary
 		{"yarn typecheck", "ref:package-scripts::typecheck"},
 		{"make -C web lint", "ref:make:web:lint"},
 		{"make lint", "ref:make::lint"},
@@ -115,76 +71,37 @@ func TestBody(t *testing.T) {
 		{"make -f Makefile.ci lint", "other"},
 		{"just os=linux build", "ref:just::build"},
 		{"just --justfile ci.just lint", "other"},
-		{`cd "$APP_DIR" && eslint .`, "other gate:lint:eslint"},
 		{"bundle exec rake spec", "ref:rake::spec"},
 		{"poetry run poe test", "ref:poe::test"},
 		{"run-s lint test", "ref:package-scripts::lint ref:package-scripts::test"},
-		{`concurrently -n a,b "pnpm lint" "vitest run"`, "ref:package-scripts::lint gate:test:vitest"},
+		{`concurrently -n a,b "pnpm lint" "vitest run"`, "ref:package-scripts::lint other"},
 		// Fan-out across workspace packages.
 		{"pnpm -r lint", "fanout"},
 		{"pnpm --filter web lint", "fanout"},
 		{"turbo run lint", "fanout"},
 		// Sequences and context.
-		{"cd web && tsc --noEmit", "cd gate:typecheck:tsc"},
-		{"export CI=1; jest", "export gate:test:jest"},
-		{"shellcheck scripts/*.sh", "gate:lint:shellcheck"},
-		{"shellcheck ~/a.sh", "other"},
-		{"shellcheck {a,b}.sh", "other"},
-		{"shellcheck '{a,b}.sh'", "gate:lint:shellcheck"},
+		{`cd "$APP_DIR" && eslint .`, "other other"},
+		{"cd web && tsc --noEmit", "cd other"},
+		{"export CI=1; jest", "export other"},
 		{"pnpm build && pnpm test", "other ref:package-scripts::test"},
-		{"eslint . 2>&1", "gate:lint:eslint"},
-		{"eslint . >/dev/null", "gate:lint:eslint"},
-		// Unreadable with certainty: nothing counts.
+		{"eslint . 2>&1", "other"},
+		{"eslint . >/dev/null", "other"},
+		// Unreadable with certainty.
 		{"eslint . || true", "opaque:||"},
 		{"eslint . | tee out", "opaque:|"},
 		{"(cd web && eslint .)", "opaque:compound command"},
 		{"eslint $(git diff --name-only)", "opaque:command substitution"},
 		{"eslint . > report.txt", "opaque:redirect"},
-		{"eslint $FILES", "other"},
-		{"node scripts/check.js", "other"},
 		{"if true; then eslint .; fi", "opaque:compound command"},
 	} {
-		if got := describe(Body(cfg, c.body, scripts)); got != c.want {
+		if got := describe(Body(c.body, scripts)); got != c.want {
 			t.Errorf("%q: %s, want %s", c.body, got, c.want)
 		}
 	}
 }
 
-// Every pattern kit.yml ships is detected from its minimal command, and
-// turned away by its first forbidden flag or a missing required one.
-func TestEveryToolPatternDetectsAndSkips(t *testing.T) {
-	cfg := testutil.KitConfig(t)
-	for _, check := range cfg.Checks {
-		for _, p := range check.Tools {
-			words := []string{p.Bin}
-			if len(p.Sub) > 0 {
-				words = append(words, p.Sub[0])
-			}
-			words = append(words, p.Require...)
-			name := check.Name + "/" + strings.Join(words, " ")
-			if got := describe(Body(cfg, strings.Join(words, " "), scripts)); !strings.HasPrefix(got, "gate:") {
-				t.Errorf("%s: %s, want a gate", name, got)
-				continue
-			}
-			if len(p.Forbid) > 0 {
-				body := strings.Join(append(slices.Clone(words), p.Forbid[0]), " ")
-				if got := describe(Body(cfg, body, scripts)); got == "gate:"+check.Name+":"+p.Bin {
-					t.Errorf("%s with %s still counts as %s", name, p.Forbid[0], check.Name)
-				}
-			}
-			if len(p.Require) > 0 {
-				body := strings.Join(words[:len(words)-len(p.Require)], " ")
-				if got := describe(Body(cfg, body, scripts)); got == "gate:"+check.Name+":"+p.Bin {
-					t.Errorf("%s without %s still counts as %s", name, p.Require[0], check.Name)
-				}
-			}
-		}
-	}
-}
-
 func TestBodyDetails(t *testing.T) {
-	cfg := testutil.KitConfig(t)
-	r := Body(cfg, "export PATH\nexport CI=1 NODE_ENV\ncd web && eslint 'a*' src/*.ts", scripts)
+	r := Body("export PATH\nexport CI=1 NODE_ENV\ncd web && eslint 'a*' src/*.ts", scripts)
 	if len(r.Commands) != 4 {
 		t.Fatalf("commands: %+v", r.Commands)
 	}
@@ -200,10 +117,5 @@ func TestBodyDetails(t *testing.T) {
 	}
 	if globs := r.Commands[3].Globs; !slices.Equal(globs, []string{"src/*.ts"}) {
 		t.Errorf("globs %q, want [src/*.ts]", globs)
-	}
-	// A find gate keeps the whole command, and says where its tool is.
-	find := Body(cfg, "find . -exec shellcheck {} +", scripts).Commands[0]
-	if !slices.Equal(find.Words, []string{"find", ".", "-exec", "shellcheck", "{}", "+"}) || find.ToolAt != 3 {
-		t.Errorf("find gate: words %q at %d", find.Words, find.ToolAt)
 	}
 }

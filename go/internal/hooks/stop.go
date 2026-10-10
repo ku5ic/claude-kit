@@ -65,7 +65,7 @@ func StopChecks(h *hook.Hook) error {
 	if len(p.Gates) == 0 {
 		return nil
 	}
-	out := run.Files(p, h.Paths.CacheDir(), time.Duration(cfg.CheckTimeout)*time.Second)
+	out := run.Files(p, h.Paths.CacheDir(), time.Duration(cfg.GateTimeout)*time.Second)
 	// Silent on a pass: what ran and what was skipped is kept for kit
 	// explain stop.
 	if !h.DryRun {
@@ -80,7 +80,7 @@ func StopChecks(h *hook.Hook) error {
 // planGate blocks the stop when this turn ticked a plan's last step without
 // a review since the last code edit.
 func planGate(h *hook.Hook, cfg *config.Config, cwd, root string, entries []transcript.Entry) error {
-	dir, err := project.Dir(cfg, h.Paths, cwd, "plans", false)
+	dir, err := project.Dir(h.Paths, cwd, "plans", false)
 	if err != nil {
 		return nil
 	}

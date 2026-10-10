@@ -42,7 +42,7 @@ func TestProjectRoot(t *testing.T) {
 		r.Want(t, 0)
 		r.Empty(t)
 	})
-	t.Run("outside a repo, an anchor sentinel two levels up is the root", func(t *testing.T) {
+	t.Run("outside a repo, a language manifest two levels up is the root", func(t *testing.T) {
 		t.Parallel()
 		k := New(t)
 		tmp := t.TempDir()
@@ -56,7 +56,7 @@ func TestProjectRoot(t *testing.T) {
 		}
 		k.Run("", "project-root", "--check").Want(t, 0)
 	})
-	t.Run("outside a repo with no sentinel, prints $PWD and --check exits 1", func(t *testing.T) {
+	t.Run("outside a repo with no manifest, prints $PWD and --check exits 1", func(t *testing.T) {
 		t.Parallel()
 		k := New(t)
 		dir := filepath.Join(t.TempDir(), "plain/a/b")
