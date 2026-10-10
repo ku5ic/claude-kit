@@ -4,8 +4,10 @@ package testutil
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
@@ -33,6 +35,58 @@ func Put(t *testing.T, dir, name, body string) {
 	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// Write writes body to path, creating its directories.
+func Write(t *testing.T, path, body string) {
+	t.Helper()
+	Put(t, filepath.Dir(path), filepath.Base(path), body)
+}
+
+// Touch writes each path empty.
+func Touch(t *testing.T, paths ...string) {
+	t.Helper()
+	for _, p := range paths {
+		Write(t, p, "")
+	}
+}
+
+func Mkdir(t *testing.T, dir string) {
+	t.Helper()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Physical resolves symlinks (macOS /var -> /private/var), as cd -P does.
+func Physical(t *testing.T, path string) string {
+	t.Helper()
+	p, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+// JSONLines decodes each line of a JSONL file; a missing file has none.
+func JSONLines(t *testing.T, path string) []map[string]any {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out []map[string]any
+	for l := range strings.Lines(string(data)) {
+		var m map[string]any
+		if err := json.Unmarshal([]byte(l), &m); err != nil {
+			t.Fatalf("%s: %v: %s", path, err, l)
+		}
+		out = append(out, m)
+	}
+	return out
 }
 
 // Fixtures maps each project under the testdata directory dir to the

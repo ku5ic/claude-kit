@@ -6,69 +6,23 @@ import (
 	"testing"
 )
 
-// Characterization tests for `kit project-root`: git toplevel, the
-// sentinel walk, the bare-$PWD fallback, and --check.
+// `kit project-root` wiring; the root rules are tested in internal/project,
+// --check and the $PWD cwd in cmd/kit.
 func TestProjectRoot(t *testing.T) {
 	t.Parallel()
-	output := func(r Result) string { return strings.TrimRight(r.Output, "\n") }
-	// cd is bats' cd: the run's cwd, and $PWD as the logical path.
-	cd := func(k *Kit, dir string) {
-		k.Dir = dir
-		k.Setenv("PWD", dir)
-	}
-
 	t.Run("prints the git toplevel from a nested subdirectory", func(t *testing.T) {
 		t.Parallel()
 		k := New(t)
 		tmp := t.TempDir()
 		k.Git(tmp, "init", "-q", "-b", "main", filepath.Join(tmp, "repo"))
 		root := Physical(t, filepath.Join(tmp, "repo"))
-		Mkdir(t, filepath.Join(root, "src/app"))
-		cd(k, filepath.Join(root, "src/app"))
+		k.Dir = filepath.Join(root, "src/app")
+		Mkdir(t, k.Dir)
+		k.Setenv("PWD", k.Dir)
 		r := k.Run("", "project-root")
 		r.Want(t, 0)
-		if got := output(r); got != root {
+		if got := strings.TrimRight(r.Output, "\n"); got != root {
 			t.Errorf("got %q, want %q", got, root)
 		}
-	})
-	t.Run("--check inside a repo exits 0 and prints nothing", func(t *testing.T) {
-		t.Parallel()
-		k := New(t)
-		tmp := t.TempDir()
-		k.Git(tmp, "init", "-q", "-b", "main", filepath.Join(tmp, "repo"))
-		Mkdir(t, filepath.Join(tmp, "repo/src"))
-		cd(k, filepath.Join(tmp, "repo/src"))
-		r := k.Run("", "project-root", "--check")
-		r.Want(t, 0)
-		r.Empty(t)
-	})
-	t.Run("outside a repo, a language manifest two levels up is the root", func(t *testing.T) {
-		t.Parallel()
-		k := New(t)
-		tmp := t.TempDir()
-		Mkdir(t, filepath.Join(tmp, "proj/a/b"))
-		Touch(t, filepath.Join(tmp, "proj/package.json"))
-		cd(k, filepath.Join(tmp, "proj/a/b"))
-		r := k.Run("", "project-root")
-		r.Want(t, 0)
-		if got, want := output(r), filepath.Join(tmp, "proj"); got != want {
-			t.Errorf("got %q, want %q", got, want)
-		}
-		k.Run("", "project-root", "--check").Want(t, 0)
-	})
-	t.Run("outside a repo with no manifest, prints $PWD and --check exits 1", func(t *testing.T) {
-		t.Parallel()
-		k := New(t)
-		dir := filepath.Join(t.TempDir(), "plain/a/b")
-		Mkdir(t, dir)
-		cd(k, dir)
-		r := k.Run("", "project-root")
-		r.Want(t, 0)
-		if got := output(r); got != dir {
-			t.Errorf("got %q, want %q", got, dir)
-		}
-		r = k.Run("", "project-root", "--check")
-		r.Want(t, 1)
-		r.Empty(t)
 	})
 }

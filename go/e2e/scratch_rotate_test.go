@@ -1,7 +1,6 @@
 package e2e
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -10,7 +9,9 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
 
-// Tests for `kit scratch-rotate`.
+// Tests for `kit scratch-rotate`: one wiring case, then the safety cases
+// (what it must never delete, what it refuses, dry runs), which stay on the
+// binary on purpose. Retention is tested in internal/rotate.
 //
 // The command's home-fallback target dir is $HOME/.claude/scratch and its
 // registry $HOME/.claude/logs/scratch-registry.txt, so every test fakes
@@ -75,35 +76,6 @@ func TestScratchRotate(t *testing.T) {
 		r.Lacks(t, "scratch-rotate: pruned")
 		kept(t, filepath.Join(scratch, "old.md"))
 	})
-	t.Run("keeps an .md artifact newer than the retention window", func(t *testing.T) {
-		t.Parallel()
-		k, scratch, _ := setup(t)
-		touch(t, filepath.Join(scratch, "fresh.md"), 3600)
-		r := k.Run("", "scratch-rotate", "30")
-		r.Want(t, 0)
-		r.Has(t, "pruned 0 artifact(s)")
-		kept(t, filepath.Join(scratch, "fresh.md"))
-	})
-	t.Run("no scratch dir: exits 0 without error", func(t *testing.T) {
-		t.Parallel()
-		k, scratch, _ := setup(t)
-		if err := os.RemoveAll(scratch); err != nil {
-			t.Fatal(err)
-		}
-		k.Run("", "scratch-rotate").Want(t, 0)
-	})
-	t.Run("prunes an old file in a registered project scratch dir", func(t *testing.T) {
-		t.Parallel()
-		k, _, registry := setup(t)
-		proj := filepath.Join(k.Home, "proj/scratch")
-		touch(t, filepath.Join(proj, "poc.py"), 40*day)
-		Write(t, registry, proj+"\n")
-		r := k.Run("", "scratch-rotate", "30")
-		r.Want(t, 0)
-		r.Has(t, "pruned 1 artifact(s) older than 30d from "+proj)
-		gone(t, filepath.Join(proj, "poc.py"))
-		registryIs(t, registry, proj)
-	})
 	// worktree adds a detached review worktree under a registered project
 	// scratch dir, created secs seconds ago, holding a 40-day-old file.
 	worktree := func(t *testing.T, k *Kit, registry, name string, secs int) (repo, wt string) {
@@ -120,18 +92,6 @@ func TestScratchRotate(t *testing.T) {
 		age(t, filepath.Join(wt, ".git"), secs)
 		return repo, wt
 	}
-	t.Run("removes a review worktree older than 1 day through git", func(t *testing.T) {
-		t.Parallel()
-		k, _, registry := setup(t)
-		repo, wt := worktree(t, k, registry, "review-pr-7", 3*day)
-		r := k.Run("", "scratch-rotate", "30")
-		r.Want(t, 0)
-		r.Has(t, "deleted review worktree older than 1d "+wt)
-		gone(t, wt)
-		if list := k.Git(repo, "worktree", "list"); strings.Contains(list, wt) {
-			t.Errorf("git still lists %s:\n%s", wt, list)
-		}
-	})
 	t.Run("keeps a fresh review worktree and never prunes inside it", func(t *testing.T) {
 		t.Parallel()
 		k, _, registry := setup(t)
@@ -147,13 +107,6 @@ func TestScratchRotate(t *testing.T) {
 		r := k.Run("", "scratch-rotate", "30", "--dry-run")
 		r.Has(t, "would-delete review worktree older than 1d "+wt)
 		kept(t, filepath.Join(wt, "old.txt"))
-	})
-	t.Run("removes a review worktree 30 hours old", func(t *testing.T) {
-		t.Parallel()
-		k, _, registry := setup(t)
-		_, wt := worktree(t, k, registry, "review-pr-7", 30*3600)
-		k.Run("", "scratch-rotate", "30").Has(t, "deleted review worktree older than 1d "+wt)
-		gone(t, wt)
 	})
 	t.Run("keeps an old review worktree holding uncommitted work, and dry-run says so", func(t *testing.T) {
 		t.Parallel()
@@ -179,29 +132,6 @@ func TestScratchRotate(t *testing.T) {
 		}
 		kept(t, filepath.Join(wt, ".git"))
 	})
-	t.Run("keeps a fresh file in a registered project scratch dir", func(t *testing.T) {
-		t.Parallel()
-		k, _, registry := setup(t)
-		proj := filepath.Join(k.Home, "proj/scratch")
-		touch(t, filepath.Join(proj, "poc.py"), 3600)
-		Write(t, registry, proj+"\n")
-		r := k.Run("", "scratch-rotate", "30")
-		r.Want(t, 0)
-		r.Has(t, "pruned 0 artifact(s) older than 30d from "+proj)
-		kept(t, filepath.Join(proj, "poc.py"))
-	})
-	t.Run("drops a registry entry whose project scratch dir no longer exists", func(t *testing.T) {
-		t.Parallel()
-		k, _, registry := setup(t)
-		proj := filepath.Join(Physical(t, t.TempDir()), "proj/scratch")
-		Write(t, registry, proj+"\n")
-		r := k.Run("", "scratch-rotate")
-		r.Want(t, 0)
-		r.Has(t, "dropping stale registry entry "+proj)
-		if Read(t, registry) != "" {
-			t.Errorf("registry not emptied: %q", Read(t, registry))
-		}
-	})
 	t.Run("--dry-run keeps a stale registry entry and says it would drop it", func(t *testing.T) {
 		t.Parallel()
 		k, _, registry := setup(t)
@@ -212,22 +142,8 @@ func TestScratchRotate(t *testing.T) {
 		r.Has(t, "would drop stale registry entry "+proj)
 		registryIs(t, registry, proj)
 	})
-	t.Run("prunes multiple registered project dirs and keeps existing entries", func(t *testing.T) {
-		t.Parallel()
-		k, _, registry := setup(t)
-		projA := filepath.Join(k.Home, "proj-a/scratch")
-		projB := filepath.Join(k.Home, "proj-b/scratch")
-		touch(t, filepath.Join(projA, "old.py"), 40*day)
-		touch(t, filepath.Join(projB, "fresh.py"), 3600)
-		Write(t, registry, projA+"\n"+projB+"\n")
-		k.Run("", "scratch-rotate", "30").Want(t, 0)
-		gone(t, filepath.Join(projA, "old.py"))
-		kept(t, filepath.Join(projB, "fresh.py"))
-		registryIs(t, registry, projA+"\n"+projB)
-	})
-	// The guard that makes every project dir above live under $HOME: a
-	// registry line is untrusted input, so anything outside $HOME is refused
-	// rather than pruned.
+	// A registry line is untrusted input, so anything outside $HOME is
+	// refused rather than pruned.
 	t.Run("refuses a registered dir outside HOME instead of pruning it", func(t *testing.T) {
 		t.Parallel()
 		k, _, registry := setup(t)
@@ -239,88 +155,5 @@ func TestScratchRotate(t *testing.T) {
 		r.Has(t, "REFUSING registry entry "+outside)
 		kept(t, filepath.Join(outside, "old.py"))
 		registryIs(t, registry, outside)
-	})
-	t.Run("no registry file: exits 0 without error", func(t *testing.T) {
-		t.Parallel()
-		k, _, registry := setup(t)
-		if err := os.Remove(registry); err != nil && !os.IsNotExist(err) {
-			t.Fatal(err)
-		}
-		k.Run("", "scratch-rotate").Want(t, 0)
-	})
-
-	// guard-skills' per-skill marker cache
-	// ($HOME/.claude/cache/skills-loaded/<session>-<skill>)
-
-	t.Run("prunes a skills-loaded marker older than 1 day", func(t *testing.T) {
-		t.Parallel()
-		k, _, _ := setup(t)
-		cache := filepath.Join(k.Claude, "cache/skills-loaded")
-		touch(t, filepath.Join(cache, "s1-bash-patterns"), 2*day)
-		r := k.Run("", "scratch-rotate")
-		r.Want(t, 0)
-		r.Has(t, "pruned 1 skill-loaded marker(s) older than 1d")
-		gone(t, filepath.Join(cache, "s1-bash-patterns"))
-	})
-	t.Run("prunes a file-skills cache older than 1 day and keeps a fresh one", func(t *testing.T) {
-		t.Parallel()
-		k, _, _ := setup(t)
-		cache := filepath.Join(k.Claude, "cache/file-skills")
-		touch(t, filepath.Join(cache, "s1-0123abcd"), 2*day)
-		touch(t, filepath.Join(cache, "s2-0123abcd"), 3600)
-		r := k.Run("", "scratch-rotate")
-		r.Want(t, 0)
-		r.Has(t, "pruned 1 file-skills cache(s) older than 1d")
-		gone(t, filepath.Join(cache, "s1-0123abcd"))
-		kept(t, filepath.Join(cache, "s2-0123abcd"))
-	})
-	t.Run("prunes a plan-active marker older than 1 day", func(t *testing.T) {
-		t.Parallel()
-		k, _, _ := setup(t)
-		cache := filepath.Join(k.Claude, "cache/plan-active")
-		touch(t, filepath.Join(cache, "s1"), 2*day)
-		r := k.Run("", "scratch-rotate")
-		r.Want(t, 0)
-		r.Has(t, "pruned 1 plan-active marker(s) older than 1d")
-		gone(t, filepath.Join(cache, "s1"))
-	})
-	t.Run("prunes a statusline git cache older than 1 day", func(t *testing.T) {
-		t.Parallel()
-		k, _, _ := setup(t)
-		cache := filepath.Join(k.Claude, "cache/statusline")
-		touch(t, filepath.Join(cache, "git-s1"), 2*day)
-		r := k.Run("", "scratch-rotate")
-		r.Want(t, 0)
-		r.Has(t, "pruned 1 statusline cache(s) older than 1d")
-		gone(t, filepath.Join(cache, "git-s1"))
-	})
-	t.Run("keeps a skills-loaded marker younger than 1 day", func(t *testing.T) {
-		t.Parallel()
-		k, _, _ := setup(t)
-		cache := filepath.Join(k.Claude, "cache/skills-loaded")
-		touch(t, filepath.Join(cache, "s1-bash-patterns"), 3600)
-		r := k.Run("", "scratch-rotate")
-		r.Want(t, 0)
-		r.Has(t, "pruned 0 skill-loaded marker(s) older than 1d")
-		kept(t, filepath.Join(cache, "s1-bash-patterns"))
-	})
-	t.Run("prunes only the stale markers, keeping fresh ones in the same cache dir", func(t *testing.T) {
-		t.Parallel()
-		k, _, _ := setup(t)
-		cache := filepath.Join(k.Claude, "cache/skills-loaded")
-		touch(t, filepath.Join(cache, "s1-bash-patterns"), 2*day)
-		touch(t, filepath.Join(cache, "s1-typescript-patterns"), 3600)
-		r := k.Run("", "scratch-rotate")
-		r.Want(t, 0)
-		r.Has(t, "pruned 1 skill-loaded marker(s) older than 1d")
-		gone(t, filepath.Join(cache, "s1-bash-patterns"))
-		kept(t, filepath.Join(cache, "s1-typescript-patterns"))
-	})
-	t.Run("no skills-loaded cache dir: exits 0 without error and skips that line", func(t *testing.T) {
-		t.Parallel()
-		k, _, _ := setup(t)
-		r := k.Run("", "scratch-rotate")
-		r.Want(t, 0)
-		r.Lacks(t, "skill-loaded marker")
 	})
 }

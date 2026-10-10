@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
 
 // Command-line parsing matrix for guard-bash: every way a command can hide
@@ -201,7 +203,7 @@ func TestGuardBashParsing(t *testing.T) {
 		probe("pass", `cp ~/.zshrc /tmp/x`)
 		probe("pass", `ln -sf ~/.dotfiles/.zshrc ~/.zshrc`)
 		// Overlay writes by any command, not only >, sed -i, and sd.
-		touch(t, filepath.Join(k.claude, "claude-kit.local.yml"))
+		testutil.Touch(t, filepath.Join(k.claude, "claude-kit.local.yml"))
 		probe("ask", `tee -a ~/.claude/claude-kit.local.yml`)
 		probe("ask", `echo x | tee ~/.claude/claude-kit.local.yml`)
 		probe("ask", `cp /tmp/x ~/.claude/claude-kit.local.yml`)

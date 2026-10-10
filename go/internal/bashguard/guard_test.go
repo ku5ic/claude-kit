@@ -8,6 +8,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/git"
+	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
 
 // guardBashRepo is a throwaway repo under base whose current branch is
@@ -24,11 +25,11 @@ func guardBashRepo(k *sandbox, base, branch string) string {
 func guardBashMono(k *sandbox, base string, facts bool) string {
 	k.t.Helper()
 	dir := guardBashRepo(k, base, "mono")
-	write(k.t, filepath.Join(dir, "package.json"), `{"name":"root","private":true}`+"\n")
-	touch(k.t, filepath.Join(dir, "pnpm-lock.yaml"), filepath.Join(dir, "services/api/uv.lock"), filepath.Join(dir, "packages/y/yarn.lock"))
-	mkdir(k.t, filepath.Join(dir, "packages/a"))
+	testutil.Write(k.t, filepath.Join(dir, "package.json"), `{"name":"root","private":true}`+"\n")
+	testutil.Touch(k.t, filepath.Join(dir, "pnpm-lock.yaml"), filepath.Join(dir, "services/api/uv.lock"), filepath.Join(dir, "packages/y/yarn.lock"))
+	testutil.Mkdir(k.t, filepath.Join(dir, "packages/a"))
 	if facts {
-		write(k.t, filepath.Join(k.claude, "cache", cache.Enforce, cache.RootKey(git.Toplevel(dir))+".json"), `{"managers":[
+		testutil.Write(k.t, filepath.Join(k.claude, "cache", cache.Enforce, cache.RootKey(git.Toplevel(dir))+".json"), `{"managers":[
 			{"dir":".","cites":"pnpm-lock.yaml","manager":"pnpm","add_verbs":["pnpm add"],"dlx":"pnpm dlx","dir_flags":["--dir","-C"],"rivals":["npm","yarn"]},
 			{"dir":"services/api","cites":"uv.lock","manager":"uv","add_verbs":["uv add"],"dir_flags":["--directory"],"rivals":["pip","poetry"]},
 			{"dir":"packages/y","cites":"yarn.lock","manager":"yarn","add_verbs":["yarn add"],"rivals":["npm","pnpm"]},
@@ -43,7 +44,7 @@ func guardBashOverlay(t *testing.T) (*sandbox, string) {
 	t.Helper()
 	k := newSandbox(t)
 	src := filepath.Join(t.TempDir(), "dotfiles/claude/claude-kit.local.yml")
-	touch(t, src)
+	testutil.Touch(t, src)
 	if err := os.Symlink(src, filepath.Join(k.claude, "claude-kit.local.yml")); err != nil {
 		t.Fatal(err)
 	}
@@ -269,7 +270,7 @@ func TestGuardBash(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
 		repo := guardBashRepo(k, k.home, "feat")
-		mkdir(t, filepath.Join(repo, ".claude/scratch"))
+		testutil.Mkdir(t, filepath.Join(repo, ".claude/scratch"))
 		for _, c := range []struct {
 			cmd, has string
 		}{
@@ -590,7 +591,7 @@ func TestGuardBash(t *testing.T) {
 	t.Run("a block is logged to guards.jsonl with its rule slug", func(t *testing.T) {
 		k, _ := guardBashOverlay(t)
 		k.hook("s9", "", "find . -delete")
-		recs := jsonLines(t, filepath.Join(k.claude, "logs/guards.jsonl"))
+		recs := testutil.JSONLines(t, filepath.Join(k.claude, "logs/guards.jsonl"))
 		if len(recs) != 1 {
 			t.Fatalf("want 1 record, got %d: %v", len(recs), recs)
 		}
@@ -603,16 +604,16 @@ func TestGuardBash(t *testing.T) {
 	})
 	t.Run("disabled_rules in the overlay lets the rule through and logs it as disabled", func(t *testing.T) {
 		k, src := guardBashOverlay(t)
-		write(t, src, "disabled_rules: [find-delete]\n")
+		testutil.Write(t, src, "disabled_rules: [find-delete]\n")
 		guard(k, `find . -delete`).Want(t, 0)
-		recs := jsonLines(t, filepath.Join(k.claude, "logs/guards.jsonl"))
+		recs := testutil.JSONLines(t, filepath.Join(k.claude, "logs/guards.jsonl"))
 		if len(recs) != 1 || recs[0]["event"] != "disabled" || recs[0]["rule"] != "find-delete" {
 			t.Errorf("want one disabled find-delete record, got %v", recs)
 		}
 	})
 	t.Run("deleting the overlay re-enables its disabled rules", func(t *testing.T) {
 		k, src := guardBashOverlay(t)
-		write(t, src, "disabled_rules: [find-delete]\n")
+		testutil.Write(t, src, "disabled_rules: [find-delete]\n")
 		guard(k, `find . -delete`).Want(t, 0)
 		// kit.yml is older than the caches the overlay run just wrote.
 		if err := os.Remove(filepath.Join(k.claude, "claude-kit.local.yml")); err != nil {
@@ -622,14 +623,14 @@ func TestGuardBash(t *testing.T) {
 	})
 	t.Run("disabling one rule leaves the others blocking", func(t *testing.T) {
 		k, src := guardBashOverlay(t)
-		write(t, src, "disabled_rules: [find-delete]\n")
+		testutil.Write(t, src, "disabled_rules: [find-delete]\n")
 		r := guard(k, `find . -delete && rm -rf ~`)
 		r.Want(t, 2)
 		r.Has(t, "rm with recursive force", "Command: find . -delete && rm -rf ~")
 	})
 	t.Run("a disabled rule doesn't end the checks for the rest of the same command", func(t *testing.T) {
 		k, src := guardBashOverlay(t)
-		write(t, src, "disabled_rules: [sensitive-read]\n")
+		testutil.Write(t, src, "disabled_rules: [sensitive-read]\n")
 		r := guard(k, `tee -a ~/.zshrc < .env`)
 		r.Want(t, 2)
 		r.Has(t, "direct write to a shell rc file")

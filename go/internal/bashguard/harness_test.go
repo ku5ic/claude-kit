@@ -3,7 +3,6 @@ package bashguard
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,16 +32,17 @@ func TestMain(m *testing.M) {
 // sandbox is one case's fake $HOME, with Claude's config dir under it
 // holding the logs and the overlay, as `kit hook` sees them.
 type sandbox struct {
-	t      *testing.T
-	home   string // $HOME, and the cwd of a run that names none
-	claude string // $HOME/.claude
+	t          *testing.T
+	home       string // $HOME, and the cwd of a run that names none
+	claude     string // $HOME/.claude
+	transcript string // transcript_path of each run; none when ""
 }
 
 func newSandbox(t *testing.T) *sandbox {
 	t.Helper()
-	home := physical(t, t.TempDir())
+	home := testutil.Physical(t, t.TempDir())
 	k := &sandbox{t: t, home: home, claude: filepath.Join(home, ".claude")}
-	mkdir(t, filepath.Join(k.claude, "logs"))
+	testutil.Mkdir(t, filepath.Join(k.claude, "logs"))
 	return k
 }
 
@@ -74,6 +74,9 @@ func (k *sandbox) run(check hook.NamedCheck, session, cwd, cmd string) result {
 	payload := map[string]any{"tool_name": "Bash", "tool_input": map[string]any{"command": cmd}, "cwd": cwd}
 	if session != "" {
 		payload["session_id"] = session
+	}
+	if k.transcript != "" {
+		payload["transcript_path"] = k.transcript
 	}
 	raw, err := json.Marshal(payload)
 	if err != nil {
@@ -123,57 +126,7 @@ func (r result) Empty(t *testing.T) {
 // gitRepo makes dir a repository on branch, with no commits.
 func gitRepo(t *testing.T, dir, branch string) string {
 	t.Helper()
-	mkdir(t, dir)
+	testutil.Mkdir(t, dir)
 	testutil.Git(t, dir, "init", "-q", "-b", branch)
 	return dir
-}
-
-func mkdir(t *testing.T, dir string) {
-	t.Helper()
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func write(t *testing.T, path, body string) {
-	t.Helper()
-	testutil.Put(t, filepath.Dir(path), filepath.Base(path), body)
-}
-
-func touch(t *testing.T, paths ...string) {
-	t.Helper()
-	for _, p := range paths {
-		write(t, p, "")
-	}
-}
-
-// physical resolves symlinks (macOS /var -> /private/var), as cd -P does.
-func physical(t *testing.T, path string) string {
-	t.Helper()
-	p, err := filepath.EvalSymlinks(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return p
-}
-
-// jsonLines decodes each line of a JSONL file; a missing file has none.
-func jsonLines(t *testing.T, path string) []map[string]any {
-	t.Helper()
-	data, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil
-	}
-	if err != nil {
-		t.Fatal(err)
-	}
-	var out []map[string]any
-	for l := range strings.Lines(string(data)) {
-		var m map[string]any
-		if err := json.Unmarshal([]byte(l), &m); err != nil {
-			t.Fatalf("%s: %v: %s", path, err, l)
-		}
-		out = append(out, m)
-	}
-	return out
 }
