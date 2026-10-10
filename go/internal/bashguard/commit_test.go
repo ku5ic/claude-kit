@@ -76,6 +76,15 @@ func TestTheProjectsCommitMsgCheckBlocksAMessageItRejects(t *testing.T) {
 	k.commit(repo, `git commit -m "$MSG"`).Want(t, 0)
 }
 
+func TestTheCommitMsgCheckIsTheRepoGitDashCNames(t *testing.T) {
+	t.Parallel()
+	k := newSandbox(t)
+	repo := commitlintRepo(t, k)
+	plain := gitRepo(t, filepath.Join(k.home, "plain"), "main")
+	k.commit(plain, `git -C ../repo commit -m "updated stuff"`).Want(t, 2)
+	k.commit(repo, `git -C ../plain commit -m "updated stuff"`).Want(t, 0)
+}
+
 // prose is n consecutive prose lines.
 func prose(n int) string { return strings.Repeat("a line of plain prose\n", n) }
 

@@ -155,12 +155,14 @@ func message(cmd, dir string) (msg string, ok bool) {
 // bash-dispatch's timeout in hooks.json, gitleaks' share apart.
 const commitMsgBudget = 12 * time.Second
 
-// commitMsg runs the project's commit-msg enforcement on the message cmd
-// commits, from a temp file, and returns what failed; "" when it passes,
-// the message can't be told, or the project has none.
+// commitMsg runs the commit-msg enforcement of the repo cmd commits to (its
+// git -C directory, else the cwd) on the message, from a temp file, and
+// returns what failed; "" when it passes, the message can't be told, or the
+// project has none.
 func commitMsg(h *hook.Hook, cmd string) string {
 	cwd := h.Payload.Cwd()
-	root, cfg := git.Toplevel(cwd), h.Config()
+	_, cdir, _, _ := commitCall(cmd)
+	root, cfg := git.Toplevel(fsx.Abs(cwd, cdir)), h.Config()
 	msg, ok := message(cmd, cwd)
 	if !ok || root == "" || cfg == nil {
 		return ""
