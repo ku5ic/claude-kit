@@ -1,6 +1,4 @@
-// Package ci reads a repo's CI config for the shell steps a local run
-// could repeat.
-package ci
+package sources
 
 import (
 	"cmp"
@@ -15,8 +13,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
-	"github.com/ku5ic/claude-kit/go/internal/extract"
-	"github.com/ku5ic/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 )
 
 // Step is one shell step a CI config runs: its file (relative to the
@@ -58,7 +55,7 @@ func Has(root string) bool {
 }
 
 func readYAML(file string) map[string]any {
-	return extract.Decode[map[string]any](file, yaml.Unmarshal)
+	return Decode[map[string]any](file, yaml.Unmarshal)
 }
 
 func githubSteps(cfg *config.Config, root, file string) []Step {
@@ -73,7 +70,7 @@ func githubSteps(cfg *config.Config, root, file string) []Step {
 		return nil
 	}
 	workflowDir, workflowShell := runDefaults(doc)
-	rel := project.Rel(root, file)
+	rel := fsx.Rel(root, file)
 	var out []Step
 	for _, id := range slices.Sorted(maps.Keys(jobs)) {
 		job, _ := jobs[id].(map[string]any)
@@ -183,7 +180,7 @@ func gitlabSteps(cfg *config.Config, root, file string) []Step {
 		return nil
 	}
 	def, _ := merged["default"].(map[string]any)
-	rel := project.Rel(root, file)
+	rel := fsx.Rel(root, file)
 	var out []Step
 	for _, name := range slices.Sorted(maps.Keys(merged)) {
 		job, _ := merged[name].(map[string]any)

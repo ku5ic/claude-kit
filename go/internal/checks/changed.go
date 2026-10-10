@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
-	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
 // onChangedLine is true for a finding changedLines can't rule out: one
@@ -31,7 +31,7 @@ func absUnder(dir, path string) string {
 func changedLines(root, rev string, files []string) map[string]map[int]bool {
 	var rel []string
 	for _, f := range files {
-		rel = append(rel, project.Rel(root, f))
+		rel = append(rel, fsx.Rel(root, f))
 	}
 	run := func(args ...string) (string, error) {
 		return git.Output(root, append([]string{"-c", "core.quotePath=false"}, args...)...)

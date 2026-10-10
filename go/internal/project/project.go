@@ -10,9 +10,9 @@ import (
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
-	"github.com/ku5ic/claude-kit/go/internal/extract"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
+	"github.com/ku5ic/claude-kit/go/internal/sources"
 )
 
 // Lockfile is a package manager and the lockfile that names it.
@@ -52,14 +52,6 @@ func IsScratch(paths config.Paths, path string) bool {
 		strings.HasSuffix(p, "/.claude/scratch") || strings.Contains(p, "/.claude/scratch/")
 }
 
-// Rel is path relative to root, "." for root itself.
-func Rel(root, path string) string {
-	if path == root {
-		return "."
-	}
-	return strings.TrimPrefix(path, root+"/")
-}
-
 // SubLabel is the " [sub]" a subproject's label ends with, "" for the
 // root (".").
 func SubLabel(sub string) string {
@@ -80,7 +72,7 @@ type Provider struct {
 // Providers lists the task providers with a manifest in dir, tasks or not.
 func Providers(cfg *config.Config, dir string) []Provider {
 	var out []Provider
-	for i, tp := range config.TaskProviders {
+	for i, tp := range sources.TaskProviders {
 		if slices.Contains(cfg.DisabledTaskProviders, tp.Name) {
 			continue
 		}
@@ -113,7 +105,7 @@ func Tasks(cfg *config.Config, dir string) []Task {
 	physical := ""
 	var out []Task
 	for _, p := range Providers(cfg, dir) {
-		tp := config.TaskProviders[p.index]
+		tp := sources.TaskProviders[p.index]
 		pm, cached := pmByStack[p.Stack]
 		if !cached {
 			if physical == "" {
@@ -134,12 +126,12 @@ func Tasks(cfg *config.Config, dir string) []Task {
 			pm = cfg.DefaultManager(p.Stack)
 		}
 		run = strings.ReplaceAll(run, "{pm}", pm)
-		names, err := extract.Run(tp.Extractor, p.Manifest, tp.Arg)
+		names, err := sources.Run(tp.Extractor, p.Manifest, tp.Arg)
 		if err != nil {
 			_, _ = os.Stderr.WriteString("kit: " + err.Error() + "\n")
 			continue
 		}
-		bodies := extract.Bodies(tp.Extractor, p.Manifest, tp.Arg)
+		bodies := sources.Bodies(tp.Extractor, p.Manifest, tp.Arg)
 		for _, name := range names {
 			if name == "" {
 				continue
@@ -180,12 +172,12 @@ func Subprojects(cfg *config.Config, root string) []string {
 	}
 
 	var patterns []string
-	patterns = append(patterns, extract.JSONArray(filepath.Join(root, "package.json"), ".workspaces")...)
-	patterns = append(patterns, extract.JSONArray(filepath.Join(root, "package.json"), ".workspaces.packages")...)
-	patterns = append(patterns, extract.YAMLArray(filepath.Join(root, "pnpm-workspace.yaml"), ".packages")...)
-	patterns = append(patterns, extract.TOMLArray(filepath.Join(root, "Cargo.toml"), ".workspace.members")...)
-	patterns = append(patterns, extract.TOMLArray(filepath.Join(root, "pyproject.toml"), ".tool.uv.workspace.members")...)
-	patterns = append(patterns, extract.RegexLines(filepath.Join(root, "go.work"), goWorkUse)...)
+	patterns = append(patterns, sources.JSONArray(filepath.Join(root, "package.json"), ".workspaces")...)
+	patterns = append(patterns, sources.JSONArray(filepath.Join(root, "package.json"), ".workspaces.packages")...)
+	patterns = append(patterns, sources.YAMLArray(filepath.Join(root, "pnpm-workspace.yaml"), ".packages")...)
+	patterns = append(patterns, sources.TOMLArray(filepath.Join(root, "Cargo.toml"), ".workspace.members")...)
+	patterns = append(patterns, sources.TOMLArray(filepath.Join(root, "pyproject.toml"), ".tool.uv.workspace.members")...)
+	patterns = append(patterns, sources.RegexLines(filepath.Join(root, "go.work"), goWorkUse)...)
 	for _, pattern := range patterns {
 		// Negated entries only narrow a pnpm glob; nothing to add.
 		if strings.HasPrefix(pattern, "!") {

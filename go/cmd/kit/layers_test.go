@@ -24,8 +24,7 @@ var layers = map[string]int{
 	"internal/kitlog":     1,
 	"internal/project":    2,
 	"internal/guard":      2,
-	"internal/ci":         2,
-	"internal/extract":    2,
+	"internal/sources":    2,
 	"internal/hook":       3,
 	"internal/classify":   4,
 	"internal/tools":      4,
@@ -45,9 +44,7 @@ var layers = map[string]int{
 // allowed are the same-layer and upward imports that exist today. The
 // step that removes one deletes its entry; a stale entry fails the test.
 var allowed = map[string]bool{
-	"internal/ci -> internal/extract":      true,
-	"internal/ci -> internal/project":      true,
-	"internal/project -> internal/extract": true,
+	"internal/project -> internal/sources": true,
 	"internal/tools -> internal/classify":  true,
 	"internal/hooks -> internal/checks":    true,
 	"internal/hooks -> internal/stackctx":  true,

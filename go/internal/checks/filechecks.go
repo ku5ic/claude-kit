@@ -71,7 +71,7 @@ func Plan(cfg *config.Config, root, base string, edited []string) []*Group {
 	}
 	for _, g := range groups {
 		g.label = fmt.Sprintf("%s (%d file%s)", g.Adapter.Name, len(g.Files), plural(len(g.Files)))
-		g.label += project.SubLabel(project.Rel(root, g.Dir))
+		g.label += project.SubLabel(fsx.Rel(root, g.Dir))
 		if strings.TrimSpace(g.Adapter.Cmd) == "" {
 			g.Skip = "no cmd in kit.yml"
 			continue

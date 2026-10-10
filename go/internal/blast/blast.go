@@ -25,11 +25,11 @@ import (
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
-	"github.com/ku5ic/claude-kit/go/internal/extract"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/sources"
 	"github.com/ku5ic/claude-kit/go/internal/tools"
 )
 
@@ -95,7 +95,7 @@ func Run(cfg *config.Config, args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "blast-radius: not inside a git repository")
 		return 2
 	}
-	s := &scan{root: root, rel: project.Rel(root, abs), symbol: symbol, seen: map[string]bool{}}
+	s := &scan{root: root, rel: fsx.Rel(root, abs), symbol: symbol, seen: map[string]bool{}}
 	for _, rule := range cfg.SkillFileMap {
 		if slices.Contains(rule.Skills, "test-patterns") {
 			s.testGlobs = append(s.testGlobs, rule.Globs...)
@@ -257,7 +257,7 @@ func (s *scan) javascript(cfg *config.Config) (dynamic bool) {
 	var wsNames []string
 	for _, dir := range project.Subprojects(cfg, s.root) {
 		if dir != "." && strings.HasPrefix(s.rel, dir+"/") {
-			if name := extract.JSONValue(filepath.Join(s.root, dir, "package.json"), ".name"); name != "" {
+			if name := sources.JSONValue(filepath.Join(s.root, dir, "package.json"), ".name"); name != "" {
 				wsNames = append(wsNames, name)
 			}
 		}

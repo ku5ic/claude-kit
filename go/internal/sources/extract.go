@@ -1,8 +1,10 @@
-// Package extract reads task names, workspace members, and versions out of
-// manifests. Each extractor takes a file and a dotted path (".scripts",
-// ".tool.poe.tasks") and returns nothing, not an error, when the file or the
-// path is missing: absence is the common case, not a failure.
-package extract
+// Package sources reads the files where a project states what it enforces:
+// its CI config, and its task runners' manifests (task names, workspace
+// members, versions). Each extractor takes a file and a dotted path
+// (".scripts", ".tool.poe.tasks") and returns nothing, not an error, when
+// the file or the path is missing: absence is the common case, not a
+// failure.
+package sources
 
 import (
 	"bytes"

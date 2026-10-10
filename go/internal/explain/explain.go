@@ -19,7 +19,6 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/hooks"
-	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/stackctx"
 )
 
@@ -159,7 +158,7 @@ func stop(paths config.Paths, cfg *config.Config, cwd string, files []string, w,
 		fmt.Fprintf(w, "  runs in  %s\n", g.Dir)
 		for _, f := range g.Files {
 			claimed[f] = true
-			fmt.Fprintf(w, "  file     %s\n", project.Rel(root, f))
+			fmt.Fprintf(w, "  file     %s\n", fsx.Rel(root, f))
 		}
 		if g.Skip != "" {
 			fmt.Fprintf(w, "  skip     %s\n", g.Skip)

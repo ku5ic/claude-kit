@@ -8,9 +8,8 @@ import (
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
-	"github.com/ku5ic/claude-kit/go/internal/extract"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
-	"github.com/ku5ic/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/sources"
 )
 
 // Ecosystem is where an adapter's declared dependency is looked up.
@@ -86,7 +85,7 @@ func (a Adapter) Claims(path, root string) (Claim, bool) {
 			return Claim{}, false
 		}
 		// The signal says where it runs (go.mod); this is the config it reads.
-		claim.Why += ", needs " + project.Rel(root, needed)
+		claim.Why += ", needs " + fsx.Rel(root, needed)
 	}
 	if a.ExcludeTOML != "" && excluded(claim.Dir, path, a.ExcludeTOML) {
 		return Claim{}, false
@@ -100,7 +99,7 @@ func (a Adapter) Claims(path, root string) (Claim, bool) {
 func HasSignal(files []string, toml, dir, root string) (Claim, bool) {
 	if len(files) > 0 {
 		if found := fsx.FindUp(dir, root, files...); found != "" {
-			return Claim{filepath.Dir(found), "config " + project.Rel(root, found)}, true
+			return Claim{filepath.Dir(found), "config " + fsx.Rel(root, found)}, true
 		}
 	}
 	if toml == "" {
@@ -112,8 +111,8 @@ func HasSignal(files []string, toml, dir, root string) (Claim, bool) {
 		if found == "" {
 			return Claim{}, false
 		}
-		if extract.TOMLHas(found, table) {
-			return Claim{filepath.Dir(found), "[" + strings.TrimPrefix(table, ".") + "] in " + project.Rel(root, found)}, true
+		if sources.TOMLHas(found, table) {
+			return Claim{filepath.Dir(found), "[" + strings.TrimPrefix(table, ".") + "] in " + fsx.Rel(root, found)}, true
 		}
 		if filepath.Dir(found) == root {
 			return Claim{}, false
@@ -199,7 +198,7 @@ func (a Adapter) chosenRunner(dir string) bool {
 	if others == 0 {
 		return true
 	}
-	return slices.Contains(strings.Fields(nonWord.ReplaceAllString(extract.JSONValue(filepath.Join(dir, "package.json"), ".scripts.test"), " ")), a.Name)
+	return slices.Contains(strings.Fields(nonWord.ReplaceAllString(sources.JSONValue(filepath.Join(dir, "package.json"), ".scripts.test"), " ")), a.Name)
 }
 
 var nonWord = regexp.MustCompile(`[^A-Za-z0-9_-]`)
@@ -216,7 +215,7 @@ func manifestName(eco Ecosystem, dir, root string) string {
 	}
 	for _, n := range names {
 		if _, err := os.Stat(filepath.Join(dir, n)); err == nil {
-			return project.Rel(root, filepath.Join(dir, n))
+			return fsx.Rel(root, filepath.Join(dir, n))
 		}
 	}
 	return strings.TrimPrefix(dir, root+"/")
@@ -229,9 +228,9 @@ func excluded(dir, path, spec string) bool {
 	file, table, _ := strings.Cut(spec, " ")
 	tomlPath := filepath.Join(dir, file)
 	rel := strings.TrimPrefix(path, dir+"/")
-	patterns := extract.TOMLArray(tomlPath, table)
+	patterns := sources.TOMLArray(tomlPath, table)
 	if len(patterns) == 0 {
-		if v := extract.TOMLString(tomlPath, table); v != "" {
+		if v := sources.TOMLString(tomlPath, table); v != "" {
 			patterns = []string{v}
 		}
 	}

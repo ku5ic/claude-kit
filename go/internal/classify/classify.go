@@ -245,7 +245,7 @@ func unquoted(w *syntax.Word) string {
 // words classifies one command's literal words; concurrently can make one
 // command several.
 func (c *classifier) words(words, env []string) []Command {
-	g := config.Grammar
+	g := Grammar
 	for {
 		if prefix, ok := matchPrefix(words, g.Wrappers); ok {
 			words = words[prefix:]
@@ -336,12 +336,12 @@ func execTarget(words []string) (at int, inner []string) {
 // reference reads words as a task reference, by the longest matching
 // reference prefix.
 func (c *classifier) reference(words, env []string) (Command, bool) {
-	var best *config.Reference
+	var best *Reference
 	bestLen := 0
-	for i, r := range config.Grammar.References {
+	for i, r := range Grammar.References {
 		n := len(strings.Fields(r.Prefix))
 		if n > bestLen && hasPrefix(words, strings.Fields(r.Prefix)) {
-			best, bestLen = &config.Grammar.References[i], n
+			best, bestLen = &Grammar.References[i], n
 		}
 	}
 	if best == nil {
@@ -359,7 +359,7 @@ func (c *classifier) reference(words, env []string) (Command, bool) {
 		case w == "--":
 			ref.Args = rest[i+1:]
 			i = len(rest)
-		case slices.Contains(config.Grammar.FanOutFlags, w) || slices.ContainsFunc(config.Grammar.FanOutFlags, func(f string) bool { return strings.HasPrefix(w, f+"=") }):
+		case slices.Contains(Grammar.FanOutFlags, w) || slices.ContainsFunc(Grammar.FanOutFlags, func(f string) bool { return strings.HasPrefix(w, f+"=") }):
 			return Command{Kind: FanOut, Words: words, Env: env}, true
 		case runner && slices.Contains([]string{"-f", "--file", "--makefile", "--justfile"}, w):
 			// Another file's targets: the kit can't look them up.

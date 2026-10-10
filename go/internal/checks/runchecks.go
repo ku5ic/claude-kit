@@ -16,13 +16,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ku5ic/claude-kit/go/internal/ci"
 	"github.com/ku5ic/claude-kit/go/internal/config"
-	"github.com/ku5ic/claude-kit/go/internal/extract"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/proc"
 	"github.com/ku5ic/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/sources"
 	"github.com/ku5ic/claude-kit/go/internal/tools"
 )
 
@@ -115,7 +114,7 @@ func (p *planner) subprojects() []string {
 // resolving their tools: run-checks runs each one whose tool the project
 // has, unless a gate running the same tool already fills its check.
 func CIGates(cfg *config.Config, root string) []string {
-	if !ci.Has(root) {
+	if !sources.Has(root) {
 		return nil
 	}
 	p := &planner{cfg: cfg, root: root}
@@ -200,7 +199,7 @@ func PrintPlan(cfg *config.Config, root string, only []string, out io.Writer) {
 		}
 		fmt.Fprintf(out, "RUN %s\n  cmd: %s\n", g.Label, tools.ShellJoin(g.Words))
 		if g.Dir != root && g.Dir != "" {
-			fmt.Fprintf(out, "  dir: %s\n", project.Rel(root, g.Dir))
+			fmt.Fprintf(out, "  dir: %s\n", fsx.Rel(root, g.Dir))
 		}
 		switch {
 		case g.Scope != nil && g.Scope.Findings == nil:
@@ -348,7 +347,7 @@ func (p *planner) orchestrate() {
 		}
 		var tasks []string
 		for _, path := range o.TaskPaths {
-			tasks = append(tasks, extract.JSONKeys(signal, path)...)
+			tasks = append(tasks, sources.JSONKeys(signal, path)...)
 		}
 		origin := tools.Resolution{Words: []string{bin}, Source: tools.SourceLocal}
 		for _, c := range p.cfg.Checks {

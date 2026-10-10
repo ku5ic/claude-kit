@@ -21,10 +21,10 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/config"
-	"github.com/ku5ic/claude-kit/go/internal/extract"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/sources"
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
@@ -48,7 +48,7 @@ const (
 // jqString is jq -r's rendering of `.a.b // default`: a missing, null, or
 // false value gives default; a number prints in jq's shortest form.
 func jqString(data map[string]any, path, def string) string {
-	switch x := extract.GetPath(data, path).(type) {
+	switch x := sources.GetPath(data, path).(type) {
 	case nil:
 		return def
 	case bool:

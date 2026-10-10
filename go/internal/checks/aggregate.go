@@ -8,11 +8,11 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/ku5ic/claude-kit/go/internal/ci"
 	"github.com/ku5ic/claude-kit/go/internal/classify"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/sources"
 	"github.com/ku5ic/claude-kit/go/internal/tools"
 )
 
@@ -518,7 +518,7 @@ func (a *aggregator) reference(ref classify.TaskRef, globs []string, agg taskAt,
 		sub, stack, sfx = a.place(target.dir)
 	}
 	if target.dir != a.home {
-		sfx = " [" + project.Rel(a.root, target.dir) + "]"
+		sfx = " [" + fsx.Rel(a.root, target.dir) + "]"
 	}
 	label := fmt.Sprintf("%s: %s (%s)%s", stack, slot, target.task.Name, sfx)
 	gate := Gate{Label: label, Dir: target.dir, Words: words, Scope: scopeFor(checkNamed(a.cfg, slot), single)}
@@ -550,11 +550,11 @@ func (p *planner) ciLeaves(labelsOnly bool) map[string][]leaf {
 	out := map[string][]leaf{}
 	place := func(dir string) (string, string, string) {
 		owner := ownerOf(p.root, p.subDirs, dir)
-		sub := project.Rel(p.root, owner)
+		sub := fsx.Rel(p.root, owner)
 		return sub, p.stackFor(owner), project.SubLabel(sub)
 	}
 	cache := map[string][]project.Task{}
-	for _, step := range ci.Steps(p.cfg, p.root) {
+	for _, step := range sources.Steps(p.cfg, p.root) {
 		dir := filepath.Clean(filepath.Join(p.root, step.Dir))
 		if !within(dir, p.root) {
 			continue

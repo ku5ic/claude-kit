@@ -26,6 +26,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/kitcmd"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/rotate"
+	"github.com/ku5ic/claude-kit/go/internal/sources"
 	"github.com/ku5ic/claude-kit/go/internal/status"
 )
 
@@ -68,7 +69,7 @@ func (e *env) config() (*config.Config, error) {
 	if e.cfg != nil {
 		return e.cfg, nil
 	}
-	cfg, warnings, err := config.Load(e.paths)
+	cfg, warnings, err := sources.LoadConfig(e.paths)
 	for _, w := range warnings {
 		fmt.Fprintln(e.stderr, "kit: warning:", w)
 	}

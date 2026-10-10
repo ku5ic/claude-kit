@@ -9,10 +9,10 @@ import (
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
-	"github.com/ku5ic/claude-kit/go/internal/extract"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/proc"
 	"github.com/ku5ic/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/sources"
 )
 
 // goTool is the binary `go tool -n` builds for a tool go.mod declares, ""
@@ -51,7 +51,7 @@ var majorSuffix = regexp.MustCompile(`^v[0-9]+$`)
 // /vN major-version suffix.
 func goModDeclares(mod, name string) bool {
 	found, inBlock := false, false
-	extract.EachLine(mod, func(line string) {
+	sources.EachLine(mod, func(line string) {
 		line = strings.TrimSpace(line)
 		var pkg string
 		switch {
@@ -103,13 +103,13 @@ func declared(cfg *config.Config, dir, root, name string) (manifest, install str
 	for d := dir; ; d = filepath.Dir(d) {
 		switch {
 		case JSDeps(d)[pkg]:
-			return project.Rel(root, filepath.Join(d, "package.json")), installCmd(cfg, d, "js")
+			return fsx.Rel(root, filepath.Join(d, "package.json")), installCmd(cfg, d, "js")
 		case PythonDeps(d)[normalize(pkg)]:
 			return manifestName(Python, d, root), installCmd(cfg, d, "python")
 		case RubyDeps(d)[pkg]:
-			return project.Rel(root, filepath.Join(d, "Gemfile.lock")), installCmd(cfg, d, "bundler")
+			return fsx.Rel(root, filepath.Join(d, "Gemfile.lock")), installCmd(cfg, d, "bundler")
 		case fsx.IsFile(filepath.Join(d, "go.mod")) && goModDeclares(filepath.Join(d, "go.mod"), name):
-			return project.Rel(root, filepath.Join(d, "go.mod")), installCmd(cfg, d, "go")
+			return fsx.Rel(root, filepath.Join(d, "go.mod")), installCmd(cfg, d, "go")
 		}
 		if d == root || d == "/" || !strings.HasPrefix(d, root) {
 			return "", ""
@@ -142,13 +142,13 @@ func pinned(cfg *config.Config, dir, root, name string) string {
 		}
 		var names []string
 		if filepath.Base(path) == ".tool-versions" {
-			extract.EachLine(path, func(line string) {
+			sources.EachLine(path, func(line string) {
 				if f := strings.Fields(line); len(f) > 0 && !strings.HasPrefix(f[0], "#") {
 					names = append(names, f[0])
 				}
 			})
 		} else {
-			names = extract.TOMLKeys(path, ".tools")
+			names = sources.TOMLKeys(path, ".tools")
 		}
 		for _, t := range names {
 			t = t[strings.LastIndex(t, ":")+1:]
@@ -157,7 +157,7 @@ func pinned(cfg *config.Config, dir, root, name string) string {
 				t = alias
 			}
 			if t == name {
-				return project.Rel(root, path)
+				return fsx.Rel(root, path)
 			}
 		}
 	}

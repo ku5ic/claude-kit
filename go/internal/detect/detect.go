@@ -19,9 +19,9 @@ import (
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
-	"github.com/ku5ic/claude-kit/go/internal/extract"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/sources"
 	"github.com/ku5ic/claude-kit/go/internal/tools"
 )
 
@@ -167,7 +167,7 @@ func versions(cfg *config.Config, root, dir string) []string {
 				if src.Extractor == "regex_lines" {
 					arg = "(?i)" + arg
 				}
-				values, err := extract.Run(src.Extractor, path, arg)
+				values, err := sources.Run(src.Extractor, path, arg)
 				if err == nil && len(values) > 0 && values[0] != "" {
 					parts = append(parts, name+" "+values[0]+" ("+src.Label+")")
 					break

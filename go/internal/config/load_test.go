@@ -165,8 +165,7 @@ func TestDisablesThatMatchNothingWarn(t *testing.T) {
 	base := write(t, dir, "kit.yml", "checks:\n  - {name: lint}\n"+
 		"toolchain_checks:\n  - {stack: go, name: vet, cmd: x}\n")
 	overlay := write(t, dir, "over.yml", "disabled_checks: [lint, \"js: lint (lint:css) [web]\", vet, bogus, \"js: lnt (x)\", \"lint (.github/workflows/ci.yml: eslint)\", \"\"]\n"+
-		"disabled_toolchain_checks: [\"go:vet\", \"go:nope\", vet]\n"+
-		"disabled_task_providers: [make, mkae]\n")
+		"disabled_toolchain_checks: [\"go:vet\", \"go:nope\", vet]\n")
 	_, warnings, err := Load(Paths{Base: base, Overlay: overlay})
 	if err != nil {
 		t.Fatal(err)
@@ -181,8 +180,7 @@ func TestDisablesThatMatchNothingWarn(t *testing.T) {
 	want := `disabled_checks: "bogus" names no check|disabled_checks: "js: lnt (x)" names no check|` +
 		`disabled_checks: "" names no check|` +
 		`disabled_toolchain_checks: "go:nope" names no toolchain check (<stack>:<name>)|` +
-		`disabled_toolchain_checks: "vet" names no toolchain check (<stack>:<name>)|` +
-		`disabled_task_providers: "mkae" names no task provider`
+		`disabled_toolchain_checks: "vet" names no toolchain check (<stack>:<name>)`
 	if strings.Join(got, "|") != want {
 		t.Errorf("warnings =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.ReplaceAll(want, "|", "\n"))
 	}

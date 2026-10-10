@@ -96,10 +96,11 @@ func rootLabel(label string) string {
 	return label
 }
 
-// unknownDisables names the disabled_checks, disabled_toolchain_checks, and
-// disabled_task_providers entries that match nothing, so a typo doesn't
-// silently disable nothing. A disabled_checks label is judged by its check
-// name, the word its label starts with after any "<stack>: ".
+// unknownDisables names the disabled_checks and disabled_toolchain_checks
+// entries that match nothing, so a typo doesn't silently disable nothing
+// (sources.LoadConfig judges disabled_task_providers). A disabled_checks
+// label is judged by its check name, the word its label starts with after
+// any "<stack>: ".
 func (c *Config) unknownDisables() []error {
 	var errs []error
 	known := func(name string) bool {
@@ -114,11 +115,6 @@ func (c *Config) unknownDisables() []error {
 	for _, d := range c.DisabledToolchainChecks {
 		if !slices.ContainsFunc(c.ToolchainChecks, func(tc ToolchainCheck) bool { return tc.Stack+":"+tc.Name == d }) {
 			errs = append(errs, fmt.Errorf("disabled_toolchain_checks: %q names no toolchain check (<stack>:<name>)", d))
-		}
-	}
-	for _, d := range c.DisabledTaskProviders {
-		if !slices.ContainsFunc(TaskProviders, func(tp TaskProvider) bool { return tp.Name == d }) {
-			errs = append(errs, fmt.Errorf("disabled_task_providers: %q names no task provider", d))
 		}
 	}
 	return errs

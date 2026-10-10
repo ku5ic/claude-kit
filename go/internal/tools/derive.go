@@ -6,10 +6,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/ku5ic/claude-kit/go/internal/ci"
 	"github.com/ku5ic/claude-kit/go/internal/classify"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/sources"
 )
 
 // Derived is what a project's own invocation of a tool adds to the
@@ -62,7 +62,7 @@ func (a Adapter) Derive(cfg *config.Config, dir, root string) (Derived, bool) {
 	// job's --max-warnings: the first step carrying flags wins.
 	var first Derived
 	found := false
-	for _, step := range ci.Steps(cfg, root) {
+	for _, step := range sources.Steps(cfg, root) {
 		if filepath.Join(root, step.Dir) != dir {
 			continue
 		}

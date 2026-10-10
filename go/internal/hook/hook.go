@@ -19,8 +19,8 @@ import (
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
-	"github.com/ku5ic/claude-kit/go/internal/extract"
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
+	"github.com/ku5ic/claude-kit/go/internal/sources"
 )
 
 // Payload is the hook's stdin JSON. A payload that doesn't parse is kept as
@@ -44,13 +44,13 @@ func ParsePayload(raw []byte) *Payload {
 
 // Bool is the boolean at a dotted path, false when absent or not a bool.
 func (p *Payload) Bool(path string) bool {
-	b, _ := extract.GetPath(p.data, path).(bool)
+	b, _ := sources.GetPath(p.data, path).(bool)
 	return b
 }
 
 // String is the string at a dotted path, "" when absent or not a string.
 func (p *Payload) String(path string) string {
-	s, _ := extract.GetPath(p.data, path).(string)
+	s, _ := sources.GetPath(p.data, path).(string)
 	return s
 }
 
@@ -112,7 +112,7 @@ type Hook struct {
 func (h *Hook) Config() *config.Config {
 	if !h.loaded {
 		h.loaded = true
-		cfg, warnings, err := config.Load(h.Paths)
+		cfg, warnings, err := sources.LoadConfig(h.Paths)
 		h.warnings = warnings
 		if err == nil {
 			h.cfg = cfg

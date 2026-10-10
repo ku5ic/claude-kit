@@ -87,6 +87,14 @@ func PhysicalPath(path string) string {
 	return filepath.Join(dir, filepath.Base(path))
 }
 
+// Rel is path relative to root, "." for root itself.
+func Rel(root, path string) string {
+	if path == root {
+		return "."
+	}
+	return strings.TrimPrefix(path, root+"/")
+}
+
 // FindUp returns the first dir/name for each dir from start up to and
 // including stop, never above it; "" when none exists. A start outside stop
 // is checked on its own.

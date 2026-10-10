@@ -9,7 +9,6 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/proc"
-	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
 // Where a Resolution's words come from.
@@ -70,8 +69,8 @@ func Resolve(cfg *config.Config, dir, root, name string, mode Mode) Resolution {
 			installed := filepath.Dir(filepath.Dir(filepath.Dir(found)))
 			switch version, verdict := satisfies(installed, pkg, spec); verdict {
 			case mismatch:
-				return Resolution{Skip: project.Rel(root, filepath.Join(owner, "package.json")) + " declares " + pkg + " " + spec +
-					", installed is " + version + " at " + project.Rel(root, installed) + "; run " + installCmd(cfg, owner, "js"), Project: true}
+				return Resolution{Skip: fsx.Rel(root, filepath.Join(owner, "package.json")) + " declares " + pkg + " " + spec +
+					", installed is " + version + " at " + fsx.Rel(root, installed) + "; run " + installCmd(cfg, owner, "js"), Project: true}
 			case unchecked:
 				res.Note = pkg + " " + spec + " not checked against the installed copy"
 			}
