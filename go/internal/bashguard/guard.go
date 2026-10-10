@@ -79,14 +79,6 @@ func (st *state) ask(reason string) {
 	}
 }
 
-var (
-	forkBomb    = regexp.MustCompile(`:\(\)[[:space:]]*\{`)
-	deviceWrite = regexp.MustCompile(`>[[:space:]]*/dev/(sd|nvme|disk|rdisk)`)
-	xargsRm     = regexp.MustCompile(`xargs[[:space:]]+((-[^[:space:]]+[[:space:]]+)*)rm[[:space:]]+-[a-zA-Z]*[rRfF]`)
-	sqQuoted    = regexp.MustCompile(`'[^']*'`)
-	dqQuoted    = regexp.MustCompile(`"[^"]*"`)
-)
-
 // Check is the PreToolUse hook for Bash.
 func Check(h *hook.Hook) error {
 	if h.Payload.Err != nil {

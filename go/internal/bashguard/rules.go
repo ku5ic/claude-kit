@@ -76,6 +76,11 @@ var (
 	findExecRm  = regexp.MustCompile(`find[[:space:]].*-exec[[:space:]]+rm([[:space:]]|$)`)
 	keychainDel = regexp.MustCompile(`security[[:space:]]+delete-keychain`)
 	gitWriters  = regexp.MustCompile(` (checkout|restore|apply|mv|rm|stash|reset) `)
+	forkBomb    = regexp.MustCompile(`:\(\)[[:space:]]*\{`)
+	deviceWrite = regexp.MustCompile(`>[[:space:]]*/dev/(sd|nvme|disk|rdisk)`)
+	xargsRm     = regexp.MustCompile(`xargs[[:space:]]+((-[^[:space:]]+[[:space:]]+)*)rm[[:space:]]+-[a-zA-Z]*[rRfF]`)
+	sqQuoted    = regexp.MustCompile(`'[^']*'`)
+	dqQuoted    = regexp.MustCompile(`"[^"]*"`)
 )
 
 // readers only read the files they're given; any other command naming the
