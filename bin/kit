@@ -8,8 +8,9 @@
 # The version comes from .claude-plugin/plugin.json, so a checkout that a
 # release moved never reuses an older binary. A missing binary is built from
 # source with KIT_DEV=1 (and rebuilt when go/ is newer), else downloaded from
-# the matching GitHub release. Still none: a hook fails open (exit 0), the
-# SessionStart hook says so, and any other command fails with the reason.
+# the matching GitHub release and checked against its .sha256. Still none: a
+# hook fails open (exit 0), the SessionStart hook says so, and any other
+# command fails with the reason.
 case $OSTYPE in
 darwin*) os=darwin ;;
 linux*) os=linux ;;
@@ -63,8 +64,13 @@ if [[ ${KIT_DEV:-} == 1 ]]; then
 elif [[ -n $ver && ((${1:-} != hook && ${1:-} != *statusline) ||
   ${2:-} == inject-context || ${2:-} == inject-rules) &&
   -z $(find "$bin.failed" -mmin -1 2>/dev/null) ]]; then
-  if curl -fsSL --max-time 20 -o "$tmp" \
-    "https://github.com/ku5ic/claude-kit/releases/download/v$ver/kit-$ver-$os-$arch" &&
+  url="https://github.com/ku5ic/claude-kit/releases/download/v$ver/kit-$ver-$os-$arch"
+  # The release's .sha256 must match before the binary runs: a truncated or
+  # altered download never gets exec'd.
+  if want=$(curl -fsSL --max-time 5 "$url.sha256") &&
+    curl -fsSL --max-time 20 -o "$tmp" "$url" &&
+    { got=$(sha256sum "$tmp" 2>/dev/null) || got=$(shasum -a 256 "$tmp"); } &&
+    [[ -n ${want%% *} && ${got%% *} == "${want%% *}" ]] &&
     chmod +x "$tmp" && mv -f "$tmp" "$bin"; then
     rm -f "$bin.failed"
   else
