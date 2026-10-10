@@ -37,6 +37,22 @@ func TestEditRunsEveryHookFixerThatClaimsTheFile(t *testing.T) {
 	}
 }
 
+func TestALefthookFixerClaimsOnlyFilesUnderItsRoot(t *testing.T) {
+	e := setup(t)
+	e.write("lefthook.yml", "pre-commit:\n  commands:\n    fmt:\n      root: svc/\n      glob: \"*.go\"\n      run: gofmt -w {staged_files}\n")
+	e.tool(filepath.Join(e.path, "gofmt"))
+	e.write("svc/go.mod", "module svc\n")
+	e.write("svc/a.go", "package svc\n")
+	e.write("tools/b.go", "package tools\n")
+	e.check("fmt", fixer())
+	if got := commands(e.edit("svc/a.go")); got != "fix (lefthook.yml: fmt): gofmt -w a.go" {
+		t.Errorf("plan:\n%s", got)
+	}
+	if p := e.edit("tools/b.go"); p.Claims() {
+		t.Errorf("claims a file outside its root:\n%s", commands(p))
+	}
+}
+
 func TestEditFallsBackToTheEvidenceFormatter(t *testing.T) {
 	e := setup(t)
 	e.write(".prettierrc", "{}\n")

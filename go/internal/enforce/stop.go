@@ -76,7 +76,7 @@ func (b *builder) hookChecks(files []string) map[string][]string {
 			if e.PassFiles {
 				g.Body += " {files}"
 			}
-			g.Files = matching(files, b.root, e.Files)
+			g.Files = matching(files, g.Dir, e.Files)
 		default:
 			continue
 		}

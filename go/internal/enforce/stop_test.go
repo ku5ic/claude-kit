@@ -73,8 +73,10 @@ func TestStopRunsLefthookCommandsWithTheirFilesInPlace(t *testing.T) {
 	e.write("svc/go.mod", "module svc\n")
 	e.write("svc/pkg/a.go", "package pkg\n")
 	e.write("svc/README", "")
+	e.write("tools/b.go", "package tools\n")
 	e.check("vet", check("lint"))
-	if got := commands(e.stop("svc/pkg/a.go", "svc/README")); got != "lint (lefthook.yml: vet): go vet pkg/a.go" {
+	// A file outside root: isn't the command's, whatever its glob matches.
+	if got := commands(e.stop("svc/pkg/a.go", "svc/README", "tools/b.go")); got != "lint (lefthook.yml: vet): go vet pkg/a.go" {
 		t.Errorf("plan:\n%s", got)
 	}
 }

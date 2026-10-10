@@ -27,7 +27,7 @@ func Edit(cfg *config.Config, o Options, file string) Plan {
 		b.evidenceFixer(files)
 	}
 	b.unclassified(func(e sources.Entry) bool {
-		return atPreCommit(e) && (e.Source == "pre-commit" || gitHook(e.Source)) && len(matching(files, b.root, e.Files)) > 0
+		return atPreCommit(e) && (e.Source == "pre-commit" || gitHook(e.Source)) && len(matching(files, filepath.Join(b.root, e.Dir), e.Files)) > 0
 	})
 	b.settle(o.CacheDir)
 	p.Gates, p.Unclassified = b.gates, b.skipped
@@ -75,7 +75,7 @@ func (b *builder) hookFixers(files []string) {
 			if e.PassFiles {
 				g.Body += " {files}"
 			}
-			g.Files = matching(files, b.root, e.Files)
+			g.Files = matching(files, g.Dir, e.Files)
 		}
 		if len(g.Files) > 0 {
 			b.add(g)
