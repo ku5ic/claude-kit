@@ -10,8 +10,18 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/hooks"
 )
 
-// singleChecks are hooks that run one check; dispatchers get their own case.
-var singleChecks = map[string]hook.Check{
+// hookDef is one `kit hook` name: the hooks.json events that run it (none
+// for a check run only inside a dispatcher, or by hand), and the checks it
+// runs in order against one payload read, or its own run for a dispatcher
+// with a rule of its own.
+type hookDef struct {
+	events []string
+	steps  []string
+	run    func(*hook.Hook) int
+}
+
+// hookChecks are the single checks, by the name they report under.
+var hookChecks = map[string]hook.Check{
 	"plan-mode-context":       hooks.PlanModeContext,
 	"guard-edit":              hooks.GuardEdit,
 	"guard-skills":            hooks.GuardSkills,
@@ -28,11 +38,26 @@ var singleChecks = map[string]hook.Check{
 	"guard-bash":              bashguard.Check,
 }
 
-// dispatchers run several single checks, in order, against one process and
-// payload read: one hooks.json entry per event instead of one per check.
-var dispatchers = map[string][]string{
-	"bash-dispatch":      {"guard-bash", "guard-commit"},
-	"post-edit-dispatch": {"sanitize-output", "format-dispatch"},
+// registry is every `kit hook` name. A test holds it and hooks/hooks.json
+// to each other.
+var registry = map[string]hookDef{
+	"bash-dispatch":           {events: []string{"PreToolUse"}, steps: []string{"guard-bash", "guard-commit"}},
+	"guard-dispatch":          {events: []string{"PreToolUse"}, run: hooks.GuardDispatch},
+	"post-edit-dispatch":      {events: []string{"PostToolUse"}, steps: []string{"sanitize-output", "format-dispatch"}},
+	"log-skills":              {events: []string{"PostToolUse", "UserPromptExpansion"}},
+	"plan-mode-context":       {events: []string{"PostToolUse", "UserPromptSubmit"}},
+	"reply-length":            {events: []string{"UserPromptSubmit", "Stop"}},
+	"inject-context":          {events: []string{"SessionStart"}},
+	"inject-rules":            {events: []string{"SessionStart", "SubagentStart"}},
+	"inject-subagent-context": {events: []string{"SubagentStart"}},
+	"stop-checks":             {events: []string{"Stop"}},
+	"review-checks":           {events: []string{"SubagentStop"}},
+	"guard-bash":              {},
+	"guard-commit":            {},
+	"guard-edit":              {},
+	"guard-skills":            {},
+	"sanitize-output":         {},
+	"format-dispatch":         {},
 }
 
 // cmdHook runs `kit hook <name>`: stdin is the payload, the exit status is
@@ -43,6 +68,11 @@ func cmdHook(e *env, args []string, stdin io.Reader) (status int) {
 		return 0
 	}
 	name := args[0]
+	def, ok := registry[name]
+	if !ok {
+		fmt.Fprintf(e.stderr, "kit hook: unknown hook %q\n", name)
+		return 0
+	}
 	defer func() {
 		if r := recover(); r != nil {
 			hook.FailOpen(e.stderr, name)
@@ -64,21 +94,16 @@ func cmdHook(e *env, args []string, stdin io.Reader) (status int) {
 		Stderr:  e.stderr,
 		Home:    os.Getenv("HOME"),
 	}
-
-	if args[0] == "guard-dispatch" {
-		return hooks.GuardDispatch(h)
+	if def.run != nil {
+		return def.run(h)
 	}
-	if names, ok := dispatchers[args[0]]; ok {
-		var checks []hook.NamedCheck
-		for _, n := range names {
-			checks = append(checks, hook.NamedCheck{Name: n, Check: singleChecks[n]})
-		}
-		return hook.Run(h, checks...)
+	steps := def.steps
+	if steps == nil {
+		steps = []string{name}
 	}
-	check, ok := singleChecks[args[0]]
-	if !ok {
-		fmt.Fprintf(e.stderr, "kit hook: unknown hook %q\n", args[0])
-		return 0
+	named := make([]hook.NamedCheck, len(steps))
+	for i, s := range steps {
+		named[i] = hook.NamedCheck{Name: s, Check: hookChecks[s]}
 	}
-	return hook.Run(h, hook.NamedCheck{Name: name, Check: check})
+	return hook.Run(h, named...)
 }

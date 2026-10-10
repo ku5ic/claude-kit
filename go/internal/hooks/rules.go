@@ -67,10 +67,10 @@ func InjectRules(h *hook.Hook) error {
 		return nil
 	}
 	if h.Payload.String("hook_event_name") != "SubagentStart" {
-		fmt.Fprint(h.Stdout, parts[n-1])
+		h.Print(parts[n-1])
 		return nil
 	}
-	hook.AddContext(h.Stdout, "SubagentStart", "", parts[n-1])
+	h.AddContext("SubagentStart", parts[n-1])
 	return nil
 }
 

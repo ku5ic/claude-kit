@@ -2,12 +2,12 @@
 
 What must happen before a change is called done, and when. This file is the one definition of "done" and "verify"; others point here.
 
-| When                                                                                                                 | What runs                                                                                      |
-| -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| After every edit                                                                                                     | The Stop hook's checks on the edited files. Automatic; a failure blocks the turn               |
-| Calling an ordinary change done                                                                                      | Nothing more. Cite the Stop hook's result, and name in one line anything not run               |
-| End of a plan, or when the user asks                                                                                 | `/code-review` (section 1); the reviewer runs the full suite at its end, so never run it apart |
-| Same moment, when the change has observable behavior (a response, output, an exit code, data written, a side effect) | The runtime pass (section 2)                                                                   |
+| When                                                                                                                 | What runs                                                                                                                                        |
+| -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| After every edit                                                                                                     | The Stop hook's checks on the edited files. Automatic; a failure blocks the turn                                                                 |
+| Calling an ordinary change done                                                                                      | Nothing more. The Stop hook is silent unless it blocks: cite `kit explain stop`, which shows its last run, and name in one line anything not run |
+| End of a plan, or when the user asks                                                                                 | `/code-review` (section 1); the reviewer runs the full suite at its end, so never run it apart                                                   |
+| Same moment, when the change has observable behavior (a response, output, an exit code, data written, a side effect) | The runtime pass (section 2)                                                                                                                     |
 
 Tests and type checks prove the code compiles and the asserted paths pass. They don't prove the change works for whoever consumes it; that is what the runtime pass is for. A pure refactor with no behavior change is covered by the existing tests.
 

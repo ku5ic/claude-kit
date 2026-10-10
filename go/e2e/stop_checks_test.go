@@ -105,6 +105,22 @@ func (e *stopChecksEnv) stop(active bool) Result {
 	})
 }
 
+// stopReport stops, wants the hook silent unless it blocks, and returns
+// its status with kit explain stop's output, which holds the run's report.
+func (e *stopChecksEnv) stopReport() Result {
+	e.t.Helper()
+	r := e.stop(false)
+	if r.Status == 0 && r.Output != "" {
+		e.t.Errorf("stop-checks printed on a pass:\n%s", r.Output)
+	}
+	dir := e.k.Dir
+	e.k.Dir = e.repo
+	defer func() { e.k.Dir = dir }()
+	report := e.k.Run("", "explain", "stop")
+	report.Status = r.Status
+	return report
+}
+
 func (e *stopChecksEnv) callsIs(want string) {
 	e.t.Helper()
 	if got := strings.TrimRight(Read(e.t, e.calls), "\n"); got != want {
@@ -297,13 +313,13 @@ func TestStopChecks(t *testing.T) {
 		t.Parallel()
 		e := stopChecksSetup(t)
 		e.turn("Edit", e.path("a.ts"))
-		r := e.stop(false)
+		r := e.stopReport()
 		r.Want(t, 0)
 		r.Has(t, "PASS fakelint (1 file)")
 		// The hook name gets its own line, so every check starts one.
-		r.Has(t, `stop-checks:\nPASS fakelint`)
+		r.Has(t, "last stop-checks run:\nPASS fakelint")
 		// And the binary that ran, with where it came from.
-		r.Has(t, `PASS fakelint (1 file)\n  bin: `+e.path("node_modules/.bin/fakelint")+` (local)`)
+		r.Has(t, "PASS fakelint (1 file)\n  bin: "+e.path("node_modules/.bin/fakelint")+` (local)`)
 		e.callsIs(e.repo + "|--check " + e.path("a.ts"))
 	})
 
@@ -320,7 +336,7 @@ func TestStopChecks(t *testing.T) {
 		t.Parallel()
 		e := stopChecksSetup(t)
 		e.turn("Write", e.path("a.ts"), e.path("b.ts"), e.path("a.ts"))
-		r := e.stop(false)
+		r := e.stopReport()
 		e.callsIs(e.repo + "|--check " + e.path("a.ts") + " " + e.path("b.ts"))
 		r.Has(t, "PASS fakelint (2 files)")
 	})
@@ -341,7 +357,7 @@ func TestStopChecks(t *testing.T) {
 		Touch(t, e.path("packages/a/.fakelintrc"))
 		Write(t, e.path("packages/a/c.ts"), "x\n")
 		e.turn("Edit", e.path("a.ts"), e.path("packages/a/c.ts"))
-		r := e.stop(false)
+		r := e.stopReport()
 		r.Want(t, 0)
 		r.Has(t, "PASS fakelint (1 file) [packages/a]")
 		e.callsHasLine(e.path("packages/a") + "|--check " + e.path("packages/a/c.ts"))
@@ -500,7 +516,7 @@ func TestStopChecks(t *testing.T) {
 		e.usePMs()
 		Touch(t, e.path(".pnp.cjs"), e.path("nopm"))
 		e.turn("Edit", e.path("a.ts"))
-		r := e.stop(false)
+		r := e.stopReport()
 		r.Want(t, 0)
 		r.Has(t, "SKIP fakelint (1 file) (fakelint not installed)")
 		e.noCalls()
@@ -561,7 +577,7 @@ func TestStopChecks(t *testing.T) {
 		e.lintLines()
 		Write(t, e.path("a.sh"), "one\nTWO\nthree\n")
 		e.turn("Edit", e.path("a.sh"))
-		r := e.stop(false)
+		r := e.stopReport()
 		r.Want(t, 0)
 		r.Has(t, "PASS shellcheck (1 file) (2 findings on unchanged lines)")
 	})
@@ -617,7 +633,7 @@ func TestStopChecks(t *testing.T) {
 		e.oneCheck("    local_only: true")
 		e.fakelintOnPath()
 		e.turn("Edit", e.path("a.ts"))
-		r := e.stop(false)
+		r := e.stopReport()
 		r.Want(t, 0)
 		r.Has(t, "SKIP fakelint (1 file) (fakelint not in the project environment)")
 		e.noCalls()
@@ -629,7 +645,7 @@ func TestStopChecks(t *testing.T) {
 		e.oneCheck("")
 		e.fakelintOnPath()
 		e.turn("Edit", e.path("a.ts"))
-		r := e.stop(false)
+		r := e.stopReport()
 		r.Want(t, 0)
 		r.Has(t, "SKIP fakelint (1 file) (fakelint only on PATH (", "add it to tool_resolution.path_fallback in ~/.claude/claude-kit.local.yml to allow")
 		e.noCalls()
@@ -642,7 +658,7 @@ func TestStopChecks(t *testing.T) {
 		Write(t, e.path("package.json"), `{"devDependencies":{"fakelint":"1.0.0"}}`+"\n")
 		e.fakelintOnPath()
 		e.turn("Edit", e.path("a.ts"))
-		r := e.stop(false)
+		r := e.stopReport()
 		r.Want(t, 0)
 		r.Has(t, "SKIP fakelint (1 file) (fakelint declared in package.json but not installed; run npm install)")
 		e.noCalls()
@@ -662,8 +678,8 @@ func TestStopChecks(t *testing.T) {
 		e.k.Setenv("ASDF_DATA_DIR", asdf)
 		e.k.PrependPath(filepath.Dir(shim))
 		e.turn("Edit", e.path("a.ts"))
-		r := e.stop(false)
-		r.Has(t, `PASS fakelint (1 file)\n  bin: `+shim+` (version manager)`)
+		r := e.stopReport()
+		r.Has(t, "PASS fakelint (1 file)\n  bin: "+shim+` (version manager)`)
 	})
 
 	t.Run("a bin in path_fallback runs from PATH", func(t *testing.T) {
@@ -705,7 +721,7 @@ func TestStopChecks(t *testing.T) {
 		e := stopChecksSetup(t)
 		e.k.KitYML("file_checks:\n  - name: fakelint\n    ext: [ts]\n    signal_files: [.fakelintrc]\n    bin: fakelint\n")
 		e.turn("Edit", e.path("a.ts"))
-		r := e.stop(false)
+		r := e.stopReport()
 		r.Want(t, 0)
 		r.Has(t, "SKIP fakelint (1 file) (no cmd in kit.yml)")
 	})
@@ -747,7 +763,7 @@ func TestStopChecks(t *testing.T) {
 			t.Fatal(err)
 		}
 		e.turn("Edit", e.path("a.ts"))
-		r := e.stop(false)
+		r := e.stopReport()
 		r.Want(t, 0)
 		r.Has(t, "SKIP fakelint (1 file) (fakelint not installed)")
 	})
@@ -827,7 +843,7 @@ func TestStopChecks(t *testing.T) {
 		e.bin("fakelint", fmt.Sprintf("sleep 30 &\necho $! >%q\nwait\n", pid))
 		e.turn("Edit", e.path("a.ts"))
 		start := time.Now()
-		r := e.stop(false)
+		r := e.stopReport()
 		r.Want(t, 0)
 		r.Has(t, "SKIP fakelint (1 file) (timed out after 1s)")
 		if took := time.Since(start); took > 10*time.Second {
@@ -854,6 +870,6 @@ func TestStopChecks(t *testing.T) {
 			e.bin(name, fmt.Sprintf("touch %q\nfor _ in $(seq 100); do [ -e %q ] && exit 0; sleep 0.1; done\nexit 1\n", mark(name), mark(other)))
 		}
 		e.turn("Edit", e.path("a.ts"))
-		e.stop(false).Has(t, "PASS fakelint (1 file)", "PASS slowlint (1 file)")
+		e.stopReport().Has(t, "PASS fakelint (1 file)", "PASS slowlint (1 file)")
 	})
 }

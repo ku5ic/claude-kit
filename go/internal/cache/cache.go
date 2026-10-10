@@ -4,6 +4,8 @@
 package cache
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"time"
@@ -17,6 +19,7 @@ const (
 	Statusline   = "statusline"
 	ReplyLimit   = "reply-limit"
 	Stack        = "stack"
+	StopReports  = "stop-reports"
 )
 
 // Dir is one state dir: its name, what a file in it is, and the days one
@@ -36,6 +39,14 @@ var Dirs = []Dir{
 	{Statusline, "statusline cache(s)", 1},
 	{ReplyLimit, "reply-limit marker(s)", 1},
 	{Stack, "stack report(s)", 30},
+	{StopReports, "stop-checks report(s)", 1},
+}
+
+// StopReport is where stop-checks keeps its last report for the repo at
+// root, for kit explain stop: the hook itself is silent unless it blocks.
+func StopReport(cacheDir, root string) string {
+	sum := sha256.Sum256([]byte(root))
+	return filepath.Join(cacheDir, StopReports, hex.EncodeToString(sum[:])[:8])
 }
 
 // Expired is every regular file in dir modified more than days whole days

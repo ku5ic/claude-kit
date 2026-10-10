@@ -15,6 +15,7 @@ import (
 	"io"
 	"os"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
@@ -97,6 +98,12 @@ type Hook struct {
 	context  string // printed after a block reason, e.g. "Path: <path>"
 	decision string // the strongest Decide so far; Run prints it once
 	reason   string
+	// What checks add for Run to print: context for Claude on event,
+	// notices for the user, plain text.
+	event    string
+	contexts []string
+	notices  []string
+	plain    strings.Builder
 }
 
 // Config loads kit.yml on first use; hooks that never need it never pay.
@@ -178,31 +185,45 @@ func (h *Hook) Decide(decision, reason string) {
 // no check decided.
 func (h *Hook) Decision() (decision, reason string) { return h.decision, h.reason }
 
-func (h *Hook) printDecision() {
-	if h.decision == "" {
-		return
-	}
-	type specific struct {
-		HookEventName            string `json:"hookEventName"`
-		PermissionDecision       string `json:"permissionDecision"`
-		PermissionDecisionReason string `json:"permissionDecisionReason"`
-	}
-	WriteJSON(h.Stdout, struct {
-		HookSpecificOutput specific `json:"hookSpecificOutput"`
-	}{specific{"PreToolUse", h.decision, h.reason}})
+// AddContext adds text for Claude on event.
+func (h *Hook) AddContext(event, text string) {
+	h.event = event
+	h.contexts = append(h.contexts, text)
 }
 
-// AddContext prints context for Claude on event, plus systemMessage for the
-// user when it isn't empty.
-func AddContext(w io.Writer, event, systemMessage, context string) {
+// Notify adds a message for the user.
+func (h *Hook) Notify(text string) { h.notices = append(h.notices, text) }
+
+// Print adds plain text, which SessionStart and UserPromptSubmit take as
+// context for Claude.
+func (h *Hook) Print(text string) { h.plain.WriteString(text) }
+
+// flush prints what the run's checks added, once, since stdout takes one
+// JSON object: a permission decision, else context and notices, else plain
+// text.
+func (h *Hook) flush() {
 	type specific struct {
-		HookEventName     string `json:"hookEventName"`
-		AdditionalContext string `json:"additionalContext"`
+		HookEventName            string `json:"hookEventName"`
+		PermissionDecision       string `json:"permissionDecision,omitempty"`
+		PermissionDecisionReason string `json:"permissionDecisionReason,omitempty"`
+		AdditionalContext        string `json:"additionalContext,omitempty"`
 	}
-	WriteJSON(w, struct {
-		SystemMessage      string   `json:"systemMessage,omitempty"`
-		HookSpecificOutput specific `json:"hookSpecificOutput"`
-	}{systemMessage, specific{event, context}})
+	type output struct {
+		SystemMessage      string    `json:"systemMessage,omitempty"`
+		HookSpecificOutput *specific `json:"hookSpecificOutput,omitempty"`
+	}
+	switch {
+	case h.decision != "":
+		WriteJSON(h.Stdout, output{HookSpecificOutput: &specific{HookEventName: "PreToolUse", PermissionDecision: h.decision, PermissionDecisionReason: h.reason}})
+	case h.contexts != nil || h.notices != nil:
+		out := output{SystemMessage: strings.Join(h.notices, "\n")}
+		if h.contexts != nil {
+			out.HookSpecificOutput = &specific{HookEventName: h.event, AdditionalContext: strings.Join(h.contexts, "\n")}
+		}
+		WriteJSON(h.Stdout, out)
+	case h.plain.Len() > 0:
+		_, _ = io.WriteString(h.Stdout, h.plain.String())
+	}
 }
 
 // WriteJSON writes v as one compact line with <, >, and & left as they are:
@@ -292,7 +313,7 @@ func Run(h *Hook, checks ...NamedCheck) int {
 			return 2
 		}
 	}
-	h.printDecision()
+	h.flush()
 	return 0
 }
 

@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/bashguard"
+	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/checks"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
@@ -56,7 +57,7 @@ func Run(paths config.Paths, cfg *config.Config, cwd string, args []string, stdo
 		}
 		return edit(paths, cfg, cwd, args[1], tool, stdout)
 	case "stop":
-		return stop(cfg, cwd, args[1:], stdout, stderr)
+		return stop(paths, cfg, cwd, args[1:], stdout, stderr)
 	}
 	fmt.Fprint(stderr, usage)
 	return 2
@@ -134,13 +135,17 @@ func edit(paths config.Paths, cfg *config.Config, cwd, path, tool string, w io.W
 	return 0
 }
 
-func stop(cfg *config.Config, cwd string, files []string, w, stderr io.Writer) int {
+func stop(paths config.Paths, cfg *config.Config, cwd string, files []string, w, stderr io.Writer) int {
 	root := project.Toplevel(cwd)
 	if root == "" {
 		fmt.Fprintln(stderr, "kit explain stop: not inside a git repository")
 		return 1
 	}
 	if len(files) == 0 {
+		// The hook is silent on a pass: its last report says what ran and what was skipped.
+		if report, err := os.ReadFile(cache.StopReport(paths.CacheDir(), root)); err == nil {
+			fmt.Fprintf(w, "last stop-checks run:\n%s\n\n", strings.TrimRight(string(report), "\n"))
+		}
 		files = changedFiles(root)
 		if len(files) == 0 {
 			fmt.Fprintln(w, "no changed files; name some: kit explain stop <file>...")

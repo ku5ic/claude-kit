@@ -62,7 +62,7 @@ func PlanModeContext(h *hook.Hook) error {
 		return nil
 	}
 	if p.String("permission_mode") == "plan" {
-		fmt.Fprintln(h.Stdout, "Plan mode: load the investigate skill and follow it; its findings feed the plan.")
+		h.Print("Plan mode: load the investigate skill and follow it; its findings feed the plan.\n")
 		return nil
 	}
 	marker := h.Paths.SessionFile(cache.PlanActive, p.SessionID())
@@ -82,7 +82,7 @@ func PlanModeContext(h *hook.Hook) error {
 			_ = os.WriteFile(marker, []byte(plan), 0o644)
 			msg = "Plan approved (" + plan + "): " + pause
 		}
-		hook.AddContext(h.Stdout, "PostToolUse", "", msg)
+		h.AddContext("PostToolUse", msg)
 		return nil
 	}
 
@@ -97,7 +97,7 @@ func PlanModeContext(h *hook.Hook) error {
 	// scratch-rotate prunes markers by age: a plan still in use stays fresh.
 	now := time.Now()
 	_ = os.Chtimes(marker, now, now)
-	fmt.Fprintf(h.Stdout, "Active plan %s has open steps: do only the next unchecked one, then stop for review, per rules/workflow.md section 3.\n", plan)
+	h.Print(fmt.Sprintf("Active plan %s has open steps: do only the next unchecked one, then stop for review, per rules/workflow.md section 3.\n", plan))
 	return nil
 }
 

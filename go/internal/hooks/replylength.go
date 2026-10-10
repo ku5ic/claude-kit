@@ -80,7 +80,7 @@ func ReplyLength(h *hook.Hook) error {
 			lines = append(lines, fmt.Sprintf("Reply ceiling this turn: %d words, %s (rules/output.md section 0).", t.Limit, counted))
 		}
 		if len(lines) > 0 {
-			hook.AddContext(h.Stdout, "UserPromptSubmit", "", strings.Join(lines, "\n"))
+			h.AddContext("UserPromptSubmit", strings.Join(lines, "\n"))
 		}
 	case "Stop":
 		t := readTurn(marker, turn{Limit: l.Chat})

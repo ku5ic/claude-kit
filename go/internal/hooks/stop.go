@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/checks"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
@@ -59,12 +60,14 @@ func StopChecks(h *hook.Hook) error {
 	if out == nil {
 		return nil
 	}
-	if out.Failed {
-		if err := h.Block("file checks failed; fix them or report and stop.\n"+out.Failures+out.Summary, "checks-failed"); err != nil {
-			return err
-		}
+	// Silent on a pass: what ran and what was skipped is kept for kit
+	// explain stop.
+	if !h.DryRun {
+		_ = fsx.WriteAtomic(cache.StopReport(h.Paths.CacheDir(), root), []byte(out.Report+out.Summary), 0o600)
 	}
-	hook.WriteJSON(h.Stdout, map[string]string{"systemMessage": h.Name + ":\n" + out.Report + out.Summary})
+	if out.Failed {
+		return h.Block("file checks failed; fix them or report and stop.\n"+out.Failures+out.Summary, "checks-failed")
+	}
 	return nil
 }
 

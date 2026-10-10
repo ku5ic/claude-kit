@@ -41,9 +41,7 @@ func projectOf(cfg *config.Config, cwd string) (name, root string, ok bool) {
 // the context to Claude.
 func InjectContext(h *hook.Hook) error {
 	if missing := prerequisites(h.Paths); missing != "" {
-		hook.WriteJSON(h.Stdout, map[string]string{
-			"systemMessage": "claude-kit guards fail open until this is fixed. Missing: " + missing,
-		})
+		h.Notify("claude-kit guards fail open until this is fixed. Missing: " + missing)
 		return nil
 	}
 	if !h.DryRun {
@@ -62,11 +60,12 @@ func InjectContext(h *hook.Hook) error {
 		lines = append(lines, dir+" holds the claude-kit rules, which now ship with the plugin: remove it, or they load twice")
 	}
 	if len(lines) == 0 {
-		fmt.Fprint(h.Stdout, out.String())
+		h.Print(out.String())
 		return nil
 	}
 	notice := "claude-kit install problems:\n" + strings.Join(lines, "\n")
-	hook.AddContext(h.Stdout, "SessionStart", notice, notice+"\n"+out.String())
+	h.Notify(notice)
+	h.AddContext("SessionStart", notice+"\n"+out.String())
 	return nil
 }
 
@@ -132,7 +131,7 @@ func InjectSubagentContext(h *hook.Hook) error {
 	if context == "" {
 		return nil
 	}
-	hook.AddContext(h.Stdout, "SubagentStart", "", context)
+	h.AddContext("SubagentStart", context)
 	return nil
 }
 
