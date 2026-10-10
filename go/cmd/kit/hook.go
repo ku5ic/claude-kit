@@ -25,7 +25,7 @@ var hookChecks = map[string]hook.Check{
 	"plan-mode-context":       hooks.PlanModeContext,
 	"guard-edit":              hooks.GuardEdit,
 	"guard-skills":            hooks.GuardSkills,
-	"guard-commit":            hooks.GuardCommit,
+	"guard-commit":            bashguard.CheckCommit,
 	"log-skills":              hooks.LogSkills,
 	"sanitize-output":         hooks.SanitizeOutput,
 	"inject-context":          hooks.InjectContext,

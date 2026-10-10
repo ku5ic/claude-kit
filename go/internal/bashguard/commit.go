@@ -1,4 +1,4 @@
-package hooks
+package bashguard
 
 import (
 	"errors"
@@ -16,7 +16,7 @@ import (
 var (
 	// git, any global options, then commit as a word, all in one simple
 	// command: the gap crosses no separator or newline but a line continuation.
-	gitCommit    = regexp.MustCompile(`\bgit(?:[ \t]|\\\n)+(?:[^[:space:];&|]+(?:[ \t]|\\\n)+)*commit(?:[^-[:alnum:]_.]|$)`)
+	commitLine   = regexp.MustCompile(`\bgit(?:[ \t]|\\\n)+(?:[^[:space:];&|]+(?:[ \t]|\\\n)+)*commit(?:[^-[:alnum:]_.]|$)`)
 	aiSignature  = regexp.MustCompile(`(?i)Co-Authored-By:[[:space:]]*Claude|Generated[[:space:]]+(by|with)[[:space:]]+Claude|🤖[[:space:]]*Generated`)
 	heredocOpen  = regexp.MustCompile(`<<(-?)[[:space:]]*['"]?([A-Za-z_][A-Za-z0-9_]*)['"]?`)
 	messageDQ    = regexp.MustCompile(`(-m|--message=?)[[:space:]]*"[^"]*"`)
@@ -25,15 +25,15 @@ var (
 	nonProseLine = regexp.MustCompile(`^[[:space:]]*([0-9]+[.)]|[-*+][[:space:]]|#{1,6}[[:space:]]|>|\|)`)
 )
 
-// GuardCommit inspects git commit commands for AI signatures, a staged
+// CheckCommit is guard-commit: it inspects git commit commands for AI signatures, a staged
 // secret (gitleaks), an unchunked wall of text in the body (rules/output.md
 // section 1), and AI-tell phrasing in the subject.
-func GuardCommit(h *hook.Hook) error {
+func CheckCommit(h *hook.Hook) error {
 	if h.Payload.Err != nil {
 		return h.Payload.Err
 	}
 	cmd := h.Payload.String("tool_input.command")
-	if !gitCommit.MatchString(cmd) {
+	if !committing(cmd) {
 		return nil
 	}
 
@@ -76,6 +76,30 @@ func GuardCommit(h *hook.Hook) error {
 		h.Decide("ask", "rules/workflow.md section 1: show the commit message and staged diff summary, then wait for the user's go; confirm only if they've seen this message")
 	}
 	return nil
+}
+
+// committing reports whether cmd runs git commit: a parsed call whose real
+// command is git with commit as its subcommand. Where part of cmd didn't
+// parse, the raw text is matched instead, so a commit whose heredoc never
+// closes still counts.
+func committing(cmd string) bool {
+	segs, unparsed := parseAll(cmd)
+	for _, seg := range segs {
+		for _, call := range seg.Calls {
+			i := lead(call.Words)
+			if i >= len(call.Words) || baseName(call.Words[i].Value) != "git" {
+				continue
+			}
+			var words []string
+			for _, w := range call.Words[i+1:] {
+				words = append(words, w.Value)
+			}
+			if sub, _, _ := gitSubcommand(words); sub == "commit" {
+				return true
+			}
+		}
+	}
+	return unparsed && commitLine.MatchString(cmd)
 }
 
 // shownBefore reports whether an assistant reply before the current prompt
@@ -133,7 +157,7 @@ func heredocBody(cmd string) string {
 			return strings.Join(lines, "\n")
 		case delim != "":
 			lines = append(lines, line)
-		case gitCommit.MatchString(line):
+		case commitLine.MatchString(line):
 			if m := heredocOpen.FindStringSubmatch(line); m != nil {
 				delim, tabs = m[2], m[1] == "-"
 			}
@@ -153,7 +177,7 @@ func closes(line, delim string, tabs bool) bool {
 // -m's.
 func subject(cmd, body string) string {
 	for line := range strings.SplitSeq(cmd, "\n") {
-		if !gitCommit.MatchString(line) {
+		if !commitLine.MatchString(line) {
 			continue
 		}
 		open := heredocOpen.FindStringIndex(line)
