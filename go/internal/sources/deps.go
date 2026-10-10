@@ -3,7 +3,6 @@ package sources
 import (
 	"encoding/json"
 	"maps"
-	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -181,17 +180,10 @@ func JSDeps(dir string) Deps {
 // JSSpecs maps package.json's dependencies and devDependencies to the
 // version specs they declare; devDependencies win a clash.
 func JSSpecs(dir string) map[string]string {
-	data, err := os.ReadFile(filepath.Join(dir, "package.json"))
-	if err != nil {
-		return nil
-	}
-	var pkg struct {
+	pkg := Decode[struct {
 		Dependencies    map[string]any `json:"dependencies"`
 		DevDependencies map[string]any `json:"devDependencies"`
-	}
-	if json.Unmarshal(data, &pkg) != nil {
-		return nil
-	}
+	}](filepath.Join(dir, "package.json"), json.Unmarshal)
 	specs := map[string]string{}
 	for _, table := range []map[string]any{pkg.Dependencies, pkg.DevDependencies} {
 		for name, spec := range table {
@@ -249,11 +241,8 @@ func (d Deps) addReq(req string) {
 
 // addList adds a list of requirement strings.
 func (d Deps) addList(v any) {
-	items, _ := v.([]any)
-	for _, item := range items {
-		if s, ok := item.(string); ok {
-			d.addReq(s)
-		}
+	for _, s := range strings_(v) {
+		d.addReq(s)
 	}
 }
 

@@ -169,7 +169,7 @@ func TestStatuslineCacheExpiry(t *testing.T) {
 		s.change("a.txt", "one", "x")
 		has(t, plain(s.render(payload(s.repo, 50))), "+1 ~1")
 		s.change("b.txt", "two", "y")
-		time.Sleep(2 * time.Second)
+		testutil.Age(t, 2*time.Second, s.cacheFile())
 		has(t, plain(s.render(payload(s.repo, 50))), "+2 ~2")
 	})
 

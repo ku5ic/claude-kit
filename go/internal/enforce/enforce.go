@@ -430,28 +430,21 @@ func row(name string) (sources.TaskProvider, bool) {
 // runCommand is how tp runs task in sub: through the package manager the
 // nearest verified lockfile names, when tp runs by it, else tp.PM.
 func (b *builder) runCommand(tp sources.TaskProvider, sub, task string) string {
-	pm := b.manager(sub, func(m gapfill.Manager) bool {
+	pm := ""
+	for _, m := range gapfill.Nearest(b.root, filepath.Join(b.root, sub), b.facts.Managers) {
 		_, override := tp.RunByPM[m.Manager]
 		// {pm} is tp.PM, or a manager that rivals it.
-		return override || tp.PM != "" && (m.Manager == tp.PM || slices.Contains(m.Rivals, tp.PM))
-	})
+		if override || tp.PM != "" && (m.Manager == tp.PM || slices.Contains(m.Rivals, tp.PM)) {
+			pm = m.Manager
+			break
+		}
+	}
 	run := tp.Run
 	if override, ok := tp.RunByPM[pm]; ok {
 		run = override
 	}
 	pm = cmp.Or(pm, tp.PM)
 	return strings.NewReplacer("{pm}", pm, "{task}", task).Replace(run)
-}
-
-// manager is the verified manager ok accepts of the nearest lockfile
-// directory at or above sub, "" when none is.
-func (b *builder) manager(sub string, ok func(gapfill.Manager) bool) string {
-	for _, m := range gapfill.Nearest(b.root, filepath.Join(b.root, sub), b.facts.Managers) {
-		if ok(m) {
-			return m.Manager
-		}
-	}
-	return ""
 }
 
 // label is a gate's line: the kinds it checks ("check" for an aggregate the

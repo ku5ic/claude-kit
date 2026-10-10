@@ -59,7 +59,7 @@ type Lookup func(provider, dir, name string) bool
 
 // Body classifies body.
 func Body(body string, lookup Lookup) Result {
-	file, err := syntax.NewParser(syntax.Variant(syntax.LangBash)).Parse(strings.NewReader(body), "")
+	file, err := parse(body)
 	if err != nil {
 		return Result{Opaque: "parse error"}
 	}
@@ -217,17 +217,8 @@ func unquoted(w *syntax.Word) string {
 // command several.
 func (c *classifier) words(words, env []string) []Command {
 	g := Grammar
-	for {
-		if prefix, ok := matchPrefix(words, g.Wrappers); ok {
-			words = words[prefix:]
-			for len(words) > 0 && strings.Contains(words[0], "=") && !strings.HasPrefix(words[0], "-") {
-				env = append(env, words[0])
-				words = words[1:]
-			}
-			continue
-		}
-		break
-	}
+	words, assigned := unwrap(words)
+	env = append(env, assigned...)
 	if len(words) == 0 {
 		return []Command{{Kind: Export, Env: env}}
 	}
@@ -395,6 +386,27 @@ func (c *classifier) concurrently(args, env []string) []Command {
 
 // matchPrefix is the length of the first of prefixes (each one or more
 // space-separated words) that words start with.
+// unwrap drops the wrappers words starts with, each with the K=V words
+// after it, which it returns as env.
+func unwrap(words []string) (rest, env []string) {
+	for {
+		prefix, ok := matchPrefix(words, Grammar.Wrappers)
+		if !ok {
+			return words, env
+		}
+		words = words[prefix:]
+		for len(words) > 0 && strings.Contains(words[0], "=") && !strings.HasPrefix(words[0], "-") {
+			env = append(env, words[0])
+			words = words[1:]
+		}
+	}
+}
+
+// parse is body as a bash file.
+func parse(body string) (*syntax.File, error) {
+	return syntax.NewParser(syntax.Variant(syntax.LangBash)).Parse(strings.NewReader(body), "")
+}
+
 func matchPrefix(words, prefixes []string) (int, bool) {
 	for _, p := range prefixes {
 		if f := strings.Fields(p); hasPrefix(words, f) {

@@ -6,35 +6,13 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
 
 // Claude Code caps one hook's context at 10,000 characters and shows only a
 // 2,000-character preview past it, so each part must stay under the cap.
 const hookContextCap = 10000
-
-// registeredRuleParts counts hooks.json's inject-rules entries for event.
-func registeredRuleParts(t *testing.T, event string) int {
-	t.Helper()
-	var cfg struct {
-		Hooks map[string][]struct {
-			Hooks []struct {
-				Command string `json:"command"`
-			} `json:"hooks"`
-		} `json:"hooks"`
-	}
-	if err := json.Unmarshal([]byte(Read(t, filepath.Join(kitRoot, "hooks/hooks.json"))), &cfg); err != nil {
-		t.Fatal(err)
-	}
-	n := 0
-	for _, group := range cfg.Hooks[event] {
-		for _, h := range group.Hooks {
-			if strings.Contains(h.Command, "hook inject-rules ") {
-				n++
-			}
-		}
-	}
-	return n
-}
 
 // `kit hook inject-rules N` wiring: the part number comes from argv, and
 // SubagentStart gets each part as hookSpecificOutput JSON. SessionStart's
@@ -48,7 +26,7 @@ func TestInjectRules(t *testing.T) {
 	t.Run("SubagentStart: the registered parts carry every rule file, each part under the cap", func(t *testing.T) {
 		t.Parallel()
 		k := New(t)
-		registered := registeredRuleParts(t, "SubagentStart")
+		registered := testutil.RegisteredRuleParts(t, kitRoot, "SubagentStart")
 		if registered == 0 {
 			t.Fatal("hooks.json registers no inject-rules entries for SubagentStart")
 		}

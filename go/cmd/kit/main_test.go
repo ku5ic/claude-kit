@@ -34,11 +34,7 @@ func TestParseRunChecksArgs(t *testing.T) {
 // tmp is a physical temp dir, as git rev-parse reports paths.
 func tmp(t *testing.T) string {
 	t.Helper()
-	dir, err := filepath.EvalSymlinks(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	return dir
+	return testutil.Physical(t, t.TempDir())
 }
 
 func mkdir(t *testing.T, dir string) string {
@@ -55,13 +51,12 @@ func gitInit(t *testing.T, dir string) string {
 	return dir
 }
 
-// call runs one command's func from cwd with a throwaway kit home, as run
-// does once it has loaded kit.yml.
-func call(t *testing.T, cmd func(*env, *config.Config, []string) int, cwd string, args ...string) (code int, stdout, stderr string) {
+// call runs one command's func from cwd with a throwaway kit home.
+func call(t *testing.T, cmd func(*env, []string) int, cwd string, args ...string) (code int, stdout, stderr string) {
 	t.Helper()
 	var out, errOut strings.Builder
 	e := &env{paths: config.Paths{Home: filepath.Join(tmp(t), ".claude")}, stdout: &out, stderr: &errOut, cwd: cwd}
-	code = cmd(e, testutil.KitConfig(t), args)
+	code = cmd(e, args)
 	return code, out.String(), errOut.String()
 }
 

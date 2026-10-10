@@ -48,7 +48,7 @@ func formatSetup(t *testing.T) *formatEnv {
 
 // stub writes an executable that records "<label> <args>".
 func (e *formatEnv) stub(path, label string) {
-	stub(e.t, path, `echo "`+label+` $*" >>"`+e.calls+"\"\n")
+	testutil.Stub(e.t, path, `echo "`+label+` $*" >>"`+e.calls+"\"\n")
 }
 
 func (e *formatEnv) format(file string) result {
@@ -65,9 +65,7 @@ func (e *formatEnv) callsWant(want string) {
 	}
 }
 
-func fixerProposal(command, evidence string, globs ...string) map[string]any {
-	return map[string]any{"role": "fixer", "command": command, "file_form": command + " {files}", "globs": globs, "dir": ".", "evidence": evidence}
-}
+var fixerProposal = testutil.FixerProposal
 
 // Not parallel: each case sets PATH.
 func TestFormatDispatch(t *testing.T) {
@@ -106,7 +104,7 @@ func TestFormatDispatch(t *testing.T) {
 	})
 	t.Run("prettierd's stdout replaces the file through a symlink, which stays one; a failure leaves it", func(t *testing.T) {
 		e := formatSetup(t)
-		stub(t, filepath.Join(e.stubs, "prettierd"), "[[ -e "+strconv.Quote(filepath.Join(e.tmp, "fail"))+" ]] && { echo partial; exit 1; }\necho formatted\n")
+		testutil.Stub(t, filepath.Join(e.stubs, "prettierd"), "[[ -e "+strconv.Quote(filepath.Join(e.tmp, "fail"))+" ]] && { echo partial; exit 1; }\necho formatted\n")
 		e.k.classify(e.repo, envelope(t, nil, nil, nil))
 		testutil.Write(t, filepath.Join(e.repo, "AGENTS.md"), "x\n")
 		link := filepath.Join(e.repo, "CLAUDE.md")
@@ -148,7 +146,7 @@ func TestFormatDispatch(t *testing.T) {
 	})
 	t.Run("a shell file's shellcheck note shows its output on stderr", func(t *testing.T) {
 		e := formatSetup(t)
-		stub(t, filepath.Join(e.stubs, "shellcheck"), "echo \"SC2086 in $1\" >&2\nexit 1\n")
+		testutil.Stub(t, filepath.Join(e.stubs, "shellcheck"), "echo \"SC2086 in $1\" >&2\nexit 1\n")
 		e.k.classify(e.repo, envelope(t, nil, nil, nil))
 		r := e.format(filepath.Join(e.repo, "run.sh"))
 		r.Want(t, 0)

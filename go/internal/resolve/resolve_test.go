@@ -20,10 +20,7 @@ type env struct {
 }
 
 func setup(t *testing.T) *env {
-	tmp, err := filepath.EvalSymlinks(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	tmp := testutil.Physical(t, t.TempDir())
 	e := &env{t: t, repo: filepath.Join(tmp, "repo"), path: filepath.Join(tmp, "path")}
 	git, err := exec.LookPath("git")
 	if err != nil {

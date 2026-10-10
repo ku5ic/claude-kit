@@ -105,6 +105,12 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return gitbase.Run(rest, stdout, stderr)
 	case "scratch-rotate":
 		return cmdScratchRotate(e, rest)
+	case "scratch-dir":
+		return cmdScratchDir(e, rest)
+	case "project-root":
+		return cmdProjectRoot(e, rest)
+	case "subprojects":
+		return cmdSubprojects(e, rest)
 	case "gates":
 		return cmdGates(e, rest)
 	case "hook":
@@ -132,10 +138,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 
 // configCommands are the commands that read kit.yml.
 var configCommands = map[string]func(*env, *config.Config, []string) int{
-	"subprojects":  cmdSubprojects,
 	"tasks":        cmdTasks,
-	"project-root": cmdProjectRoot,
-	"scratch-dir":  cmdScratchDir,
 	"detect-stack": cmdDetectStack,
 	"run-checks":   cmdRunChecks,
 	"enforce":      cmdEnforce,
@@ -173,7 +176,7 @@ func cmdScratchRotate(e *env, args []string) int {
 			arg = a
 		}
 	}
-	days, ok := parseDays("scratch-rotate", arg, e.stderr)
+	days, ok := parseDays(arg, e.stderr)
 	if !ok {
 		return 2
 	}
@@ -245,7 +248,7 @@ func cmdConfig(e *env, args []string) int {
 	return 0
 }
 
-func cmdSubprojects(e *env, _ *config.Config, args []string) int {
+func cmdSubprojects(e *env, args []string) int {
 	root := cmp.Or(first(args), git.Toplevel(e.cwd), e.cwd)
 	for _, dir := range project.Subprojects(root) {
 		fmt.Fprintln(e.stdout, dir)
@@ -262,7 +265,7 @@ func cmdTasks(e *env, cfg *config.Config, args []string) int {
 	return 0
 }
 
-func cmdProjectRoot(e *env, _ *config.Config, args []string) int {
+func cmdProjectRoot(e *env, args []string) int {
 	root, anchored := project.Root(e.cwd)
 	if len(args) > 0 && args[0] == "--check" {
 		if anchored {
@@ -274,7 +277,7 @@ func cmdProjectRoot(e *env, _ *config.Config, args []string) int {
 	return 0
 }
 
-func cmdScratchDir(e *env, _ *config.Config, args []string) int {
+func cmdScratchDir(e *env, args []string) int {
 	dir, err := project.Dir(e.paths, e.cwd, "scratch", true)
 	if err != nil {
 		fmt.Fprintln(e.stderr, "kit scratch-dir:", err)
@@ -301,12 +304,12 @@ func cmdDetectStack(e *env, cfg *config.Config, _ []string) int {
 var positive = regexp.MustCompile(`^[1-9][0-9]*$`)
 
 // parseDays reads a [days] argument: a positive integer, 30 when absent.
-func parseDays(name, arg string, stderr io.Writer) (int, bool) {
+func parseDays(arg string, stderr io.Writer) (int, bool) {
 	if arg == "" {
 		return 30, true
 	}
 	if !positive.MatchString(arg) {
-		fmt.Fprintf(stderr, "%s: [days] must be a positive integer, got '%s'\n", name, arg)
+		fmt.Fprintf(stderr, "scratch-rotate: [days] must be a positive integer, got '%s'\n", arg)
 		return 0, false
 	}
 	n, err := strconv.Atoi(arg)

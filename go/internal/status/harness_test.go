@@ -99,20 +99,4 @@ func firstLine(out string) string {
 	return line
 }
 
-func has(t *testing.T, out string, subs ...string) {
-	t.Helper()
-	for _, s := range subs {
-		if !strings.Contains(out, s) {
-			t.Errorf("output lacks %q:\n%q", s, out)
-		}
-	}
-}
-
-func lacks(t *testing.T, out string, subs ...string) {
-	t.Helper()
-	for _, s := range subs {
-		if strings.Contains(out, s) {
-			t.Errorf("output has %q:\n%q", s, out)
-		}
-	}
-}
+var has, lacks = testutil.Has, testutil.Lacks

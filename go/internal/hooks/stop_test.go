@@ -30,7 +30,7 @@ func stopSetup(t *testing.T) *stopEnv {
 	e := &stopEnv{t: t, k: newSandbox(t), tmp: tmp, transcript: filepath.Join(tmp, "transcript.jsonl"), calls: filepath.Join(tmp, "calls")}
 	testutil.Mkdir(t, filepath.Join(tmp, "repo/node_modules/.bin"))
 	e.repo = repo(t, filepath.Join(tmp, "repo"))
-	stub(t, e.path("node_modules/.bin/fakelint"), fmt.Sprintf("echo \"$PWD|$*\" >>%q\necho \"lint noise\"\n[[ ! -e %q ]]\n", e.calls, e.path("fail")))
+	testutil.Stub(t, e.path("node_modules/.bin/fakelint"), fmt.Sprintf("echo \"$PWD|$*\" >>%q\necho \"lint noise\"\n[[ ! -e %q ]]\n", e.calls, e.path("fail")))
 	testutil.Write(t, e.path(".gitignore"), "node_modules\n")
 	testutil.Write(t, e.path("package.json"), `{"lint-staged":{"*.ts":"fakelint --check"}}`)
 	for _, f := range []string{"a.ts", "b.ts", "notes.md"} {

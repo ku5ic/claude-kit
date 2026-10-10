@@ -23,10 +23,7 @@ type repo struct {
 
 func newRepo(t *testing.T, name string) *repo {
 	t.Helper()
-	tmp, err := filepath.EvalSymlinks(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	tmp := testutil.Physical(t, t.TempDir())
 	r := &repo{t: t, root: filepath.Join(tmp, name), cache: filepath.Join(tmp, "cache"), aside: filepath.Join(tmp, "aside")}
 	testutil.Put(t, r.aside, ".keep", "")
 	testutil.Put(t, r.root, ".keep", "")
@@ -39,7 +36,7 @@ func (r *repo) write(name, body string) { testutil.Put(r.t, r.root, name, body) 
 func (r *repo) commit() {
 	r.t.Helper()
 	testutil.Git(r.t, r.root, "add", "-A")
-	testutil.Git(r.t, r.root, "-c", "user.email=t@t", "-c", "user.name=t", "-c", "commit.gpgsign=false", "commit", "-q", "--allow-empty", "-m", "x")
+	testutil.GitID(r.t, r.root, "commit", "-q", "--allow-empty", "-m", "x")
 }
 
 // branchOff commits everything on main and checks out a feature branch, so
@@ -61,23 +58,7 @@ func (r *repo) run(gates ...enforce.Gate) (string, Result) {
 	return out.String(), res
 }
 
-func has(t *testing.T, out string, parts ...string) {
-	t.Helper()
-	for _, part := range parts {
-		if !strings.Contains(out, part) {
-			t.Errorf("output lacks %q:\n%s", part, out)
-		}
-	}
-}
-
-func lacks(t *testing.T, out string, parts ...string) {
-	t.Helper()
-	for _, part := range parts {
-		if strings.Contains(out, part) {
-			t.Errorf("output has %q:\n%s", part, out)
-		}
-	}
-}
+var has, lacks = testutil.Has, testutil.Lacks
 
 // The summary is the line review-checks reads as proof the gate ran.
 func TestTheSummaryCountsEachVerdict(t *testing.T) {

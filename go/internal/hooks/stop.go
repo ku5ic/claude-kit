@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
-	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/enforce"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
@@ -45,7 +44,7 @@ func StopChecks(h *hook.Hook) error {
 	entries, _ := transcript.Load(path)
 	// Before the clean-tree return: plans are gitignored, so ticking the
 	// last step leaves the tree clean.
-	if err := planGate(h, cfg, cwd, root, entries); err != nil {
+	if err := planGate(h, cwd, root, entries); err != nil {
 		return err
 	}
 	// A clean tree means the edits were committed, which already went
@@ -79,7 +78,7 @@ func StopChecks(h *hook.Hook) error {
 
 // planGate blocks the stop when this turn ticked a plan's last step without
 // a review since the last code edit.
-func planGate(h *hook.Hook, cfg *config.Config, cwd, root string, entries []transcript.Entry) error {
+func planGate(h *hook.Hook, cwd, root string, entries []transcript.Entry) error {
 	dir, err := project.Dir(h.Paths, cwd, "plans", false)
 	if err != nil {
 		return nil

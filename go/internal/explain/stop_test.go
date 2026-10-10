@@ -1,7 +1,6 @@
 package explain
 
 import (
-	"encoding/json"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -21,27 +20,19 @@ import (
 // config, and the repo's root.
 func stopRepo(t *testing.T) (config.Paths, *config.Config, string) {
 	t.Helper()
-	tmp, err := filepath.EvalSymlinks(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	tmp := testutil.Physical(t, t.TempDir())
 	root := filepath.Join(tmp, "repo")
 	testutil.FakeTool(t, filepath.Join(root, "node_modules/.bin/fakelint"), filepath.Join(tmp, "calls"), "")
 	testutil.Git(t, root, "init", "-q")
-	testutil.Git(t, root, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "init")
+	testutil.GitID(t, root, "commit", "-q", "--allow-empty", "-m", "init")
 	testutil.Put(t, root, ".gitignore", "node_modules\n")
 	testutil.Put(t, root, "package.json", `{"lint-staged":{"*.ts":"fakelint --check"}}`)
 	for _, f := range []string{"a.ts", "b.ts", "notes.md"} {
 		testutil.Put(t, root, f, "x\n")
 	}
 	lint := sources.Entry{Source: "lint-staged", File: "package.json", Name: "*.ts", Dir: ".", Body: sources.Body{Text: "fakelint --check"}, Files: []string{"*.ts"}, PassFiles: true, Stage: "pre-commit"}
-	envelope, err := json.Marshal(map[string]any{"is_error": false, "subtype": "success", "structured_output": map[string]any{
-		"entries":  []any{map[string]any{"id": gapfill.Key(lint), "role": "check", "kind": "lint", "mutates": false}},
-		"managers": []any{}, "proposals": []any{}}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	testutil.Put(t, tmp, "answer.json", string(envelope))
+	answer := map[string]any{"id": gapfill.Key(lint), "role": "check", "kind": "lint", "mutates": false}
+	testutil.Put(t, tmp, "answer.json", testutil.Envelope(t, []map[string]any{answer}, nil, nil))
 	cfg := testutil.KitConfig(t)
 	cfg.Classifier = testutil.Replayer(t, filepath.Join(tmp, "answer.json"))
 	paths := config.Paths{Home: filepath.Join(tmp, "kit")}

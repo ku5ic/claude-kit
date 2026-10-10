@@ -43,6 +43,15 @@ func Write(t *testing.T, path, body string) {
 	Put(t, filepath.Dir(path), filepath.Base(path), body)
 }
 
+// Stub writes an executable bash script to path; body follows the shebang.
+func Stub(t *testing.T, path, body string) {
+	t.Helper()
+	Write(t, path, "#!/usr/bin/env bash\n"+body)
+	if err := os.Chmod(path, 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // Touch writes each path empty.
 func Touch(t *testing.T, paths ...string) {
 	t.Helper()
@@ -134,4 +143,56 @@ func Git(t *testing.T, dir string, args ...string) {
 	if out, err := git.Command(dir, args...).CombinedOutput(); err != nil {
 		t.Fatalf("git %v: %v\n%s", args, err, out)
 	}
+}
+
+// GitID is Git with a fixed identity and no signing, so commits work
+// whatever the developer's config.
+func GitID(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	Git(t, dir, append([]string{"-c", "user.email=t@t", "-c", "user.name=t", "-c", "commit.gpgsign=false"}, args...)...)
+}
+
+// Has fails t for each of parts out doesn't contain.
+func Has(t *testing.T, out string, parts ...string) {
+	t.Helper()
+	for _, part := range parts {
+		if !strings.Contains(out, part) {
+			t.Errorf("output lacks %q:\n%s", part, out)
+		}
+	}
+}
+
+// Lacks fails t for each of parts out contains.
+func Lacks(t *testing.T, out string, parts ...string) {
+	t.Helper()
+	for _, part := range parts {
+		if strings.Contains(out, part) {
+			t.Errorf("output has %q:\n%s", part, out)
+		}
+	}
+}
+
+// RegisteredRuleParts is how many inject-rules commands kitRoot's
+// hooks.json registers for event.
+func RegisteredRuleParts(t *testing.T, kitRoot, event string) int {
+	t.Helper()
+	var cfg struct {
+		Hooks map[string][]struct {
+			Hooks []struct {
+				Command string `json:"command"`
+			} `json:"hooks"`
+		} `json:"hooks"`
+	}
+	if err := json.Unmarshal([]byte(Read(t, filepath.Join(kitRoot, "hooks/hooks.json"))), &cfg); err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, group := range cfg.Hooks[event] {
+		for _, h := range group.Hooks {
+			if strings.Contains(h.Command, "hook inject-rules ") {
+				n++
+			}
+		}
+	}
+	return n
 }

@@ -15,10 +15,7 @@ import (
 // Callers drop their own symlink resolving on the strength of this; outside
 // git, Root keeps the path as given (kit project-root prints $PWD).
 func TestToplevelIsPhysicalThroughASymlink(t *testing.T) {
-	tmp, err := filepath.EvalSymlinks(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	tmp := testutil.Physical(t, t.TempDir())
 	real, link := filepath.Join(tmp, "real"), filepath.Join(tmp, "link")
 	testutil.Put(t, real, "sub/x.go", "package x\n")
 	testutil.Git(t, real, "init", "-q")

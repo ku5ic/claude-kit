@@ -24,6 +24,30 @@ func FakeTool(t *testing.T, path, calls, extra string) {
 	}
 }
 
+// Envelope is a classifier reply, as Replayer replays it: entries'
+// verdicts, managers, and proposals, each a list (empty when nil).
+func Envelope(t *testing.T, entries, managers, proposals []map[string]any) string {
+	t.Helper()
+	orEmpty := func(m []map[string]any) []map[string]any {
+		if m == nil {
+			return []map[string]any{}
+		}
+		return m
+	}
+	data, err := json.Marshal(map[string]any{"is_error": false, "subtype": "success", "structured_output": map[string]any{
+		"entries": orEmpty(entries), "managers": orEmpty(managers), "proposals": orEmpty(proposals)}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
+}
+
+// FixerProposal is a classifier's proposed formatter: command, run on
+// files matching globs, as evidence states it.
+func FixerProposal(command, evidence string, globs ...string) map[string]any {
+	return map[string]any{"role": "fixer", "command": command, "file_form": command + " {files}", "globs": globs, "dir": ".", "evidence": evidence}
+}
+
 // Replayer is a classifier command answering every request with the
 // envelope recorded at path.
 func Replayer(t *testing.T, path string) []string {

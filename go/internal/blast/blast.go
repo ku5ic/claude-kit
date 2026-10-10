@@ -110,7 +110,7 @@ func Run(cfg *config.Config, args []string, stdout, stderr io.Writer) int {
 	dynamic := false
 	switch ext := path.Ext(s.rel); {
 	case slices.Contains(jsExt, strings.TrimPrefix(ext, ".")):
-		dynamic = s.javascript(cfg)
+		dynamic = s.javascript()
 	case ext == ".py":
 		s.python()
 	default:
@@ -252,7 +252,7 @@ func normPath(p string) string {
 	return strings.TrimPrefix(path.Clean("/"+p), "/")
 }
 
-func (s *scan) javascript(cfg *config.Config) (dynamic bool) {
+func (s *scan) javascript() (dynamic bool) {
 	stem := stripJSExt(s.rel)
 	isIndex := path.Base(stem) == "index"
 	indexDir := ""

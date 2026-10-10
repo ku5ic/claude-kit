@@ -29,11 +29,17 @@ func keep(root, tree string, now time.Time) string {
 // PruneRestorePoints deletes root's restore points older than keepDays.
 func PruneRestorePoints(root string, now time.Time) {
 	refs, _ := git.Lines(root, "for-each-ref", "--format=%(refname)", refPrefix)
+	var deletes strings.Builder
 	for _, ref := range refs {
 		nanos, err := strconv.ParseInt(strings.TrimPrefix(ref, refPrefix), 10, 64)
 		if err == nil && cache.Older(time.Unix(0, nanos), keepDays, now) {
-			_, _ = git.Output(root, "update-ref", "-d", ref)
+			deletes.WriteString("delete " + ref + "\n")
 		}
+	}
+	if deletes.Len() > 0 {
+		cmd := git.Command(root, "update-ref", "--stdin")
+		cmd.Stdin = strings.NewReader(deletes.String())
+		_ = cmd.Run()
 	}
 }
 

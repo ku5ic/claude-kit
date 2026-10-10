@@ -1,20 +1,19 @@
 package sources
 
 import (
-	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
 
 func fixture(t *testing.T, name, body string) string {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), name)
-	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	return path
+	dir := t.TempDir()
+	testutil.Put(t, dir, name, body)
+	return filepath.Join(dir, name)
 }
 
 func expect(t *testing.T, got []string, want ...string) {

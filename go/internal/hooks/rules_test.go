@@ -1,7 +1,6 @@
 package hooks
 
 import (
-	"encoding/json"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -14,30 +13,6 @@ import (
 // Claude sees only a 2,000-character preview.
 const hookContextCap = 10000
 
-// registeredRuleParts counts hooks.json's inject-rules entries for event.
-func registeredRuleParts(t *testing.T, event string) int {
-	t.Helper()
-	var cfg struct {
-		Hooks map[string][]struct {
-			Hooks []struct {
-				Command string `json:"command"`
-			} `json:"hooks"`
-		} `json:"hooks"`
-	}
-	if err := json.Unmarshal([]byte(testutil.Read(t, filepath.Join(kitRoot, "hooks/hooks.json"))), &cfg); err != nil {
-		t.Fatal(err)
-	}
-	n := 0
-	for _, group := range cfg.Hooks[event] {
-		for _, h := range group.Hooks {
-			if strings.Contains(h.Command, "hook inject-rules ") {
-				n++
-			}
-		}
-	}
-	return n
-}
-
 func TestInjectRules(t *testing.T) {
 	t.Parallel()
 	rule := func(k *sandbox, part int) result {
@@ -47,7 +22,7 @@ func TestInjectRules(t *testing.T) {
 	t.Run("SessionStart: the registered parts carry every rule file, each part under the cap", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
-		registered := registeredRuleParts(t, "SessionStart")
+		registered := testutil.RegisteredRuleParts(t, kitRoot, "SessionStart")
 		if registered == 0 {
 			t.Fatal("hooks.json registers no inject-rules entries for SessionStart")
 		}

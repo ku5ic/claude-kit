@@ -14,10 +14,7 @@ import (
 // guard's verdict line in stdout. HOME is the sandbox's, since guard-edit
 // expands ~ from it, so no t.Parallel.
 func TestExplain(t *testing.T) {
-	home, err := filepath.EvalSymlinks(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	home := testutil.Physical(t, t.TempDir())
 	t.Setenv("HOME", home)
 	kitYML, err := filepath.Abs("../../../kit.yml")
 	if err != nil {

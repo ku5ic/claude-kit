@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
 
 var (
@@ -295,38 +297,15 @@ func Payload(tool, target, session, cwd string) map[string]any {
 	return p
 }
 
-// Write writes body to path, creating its directories.
-func Write(t *testing.T, path, body string) {
-	t.Helper()
-	Mkdir(t, filepath.Dir(path))
-	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
-		t.Fatal(err)
-	}
-}
-
-// Stub writes an executable bash script to path; body follows the shebang.
-func Stub(t *testing.T, path, body string) {
-	t.Helper()
-	Write(t, path, "#!/usr/bin/env bash\n"+body)
-	if err := os.Chmod(path, 0o755); err != nil {
-		t.Fatal(err)
-	}
-}
-
-// Touch creates empty files, and their directories.
-func Touch(t *testing.T, paths ...string) {
-	t.Helper()
-	for _, p := range paths {
-		Write(t, p, "")
-	}
-}
-
-func Mkdir(t *testing.T, dir string) {
-	t.Helper()
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-}
+// The file helpers every suite shares.
+var (
+	Write     = testutil.Write
+	Stub      = testutil.Stub
+	Touch     = testutil.Touch
+	Mkdir     = testutil.Mkdir
+	Physical  = testutil.Physical
+	JSONLines = testutil.JSONLines
+)
 
 // Read is path's content; a missing file reads as "".
 func Read(t *testing.T, path string) string {
@@ -343,16 +322,6 @@ func Exists(path string) bool {
 	return err == nil
 }
 
-// Physical resolves symlinks (macOS /var -> /private/var), as cd -P does.
-func Physical(t *testing.T, path string) string {
-	t.Helper()
-	p, err := filepath.EvalSymlinks(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return p
-}
-
 // Lines is the non-empty lines of a log or output.
 func Lines(s string) []string {
 	var out []string
@@ -360,20 +329,6 @@ func Lines(s string) []string {
 		if l != "" {
 			out = append(out, l)
 		}
-	}
-	return out
-}
-
-// JSONLines decodes each line of a JSONL file.
-func JSONLines(t *testing.T, path string) []map[string]any {
-	t.Helper()
-	var out []map[string]any
-	for _, l := range Lines(Read(t, path)) {
-		var m map[string]any
-		if err := json.Unmarshal([]byte(l), &m); err != nil {
-			t.Fatalf("%s: %v: %s", path, err, l)
-		}
-		out = append(out, m)
 	}
 	return out
 }

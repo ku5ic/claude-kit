@@ -95,7 +95,7 @@ type DependencyRule struct {
 	Skills []string `yaml:"skills"`
 }
 
-// GateDiscovery is the CI steps and jobs the kit never runs (go/internal/ci).
+// GateDiscovery is the CI steps and jobs the kit never runs (go/internal/sources/ci.go).
 type GateDiscovery struct {
 	DenyCommands []string `yaml:"deny_commands"`
 	DenyNames    []string `yaml:"deny_names"`

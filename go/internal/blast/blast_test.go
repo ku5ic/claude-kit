@@ -14,10 +14,7 @@ import (
 // newline, and returns its physical path.
 func repo(t *testing.T, files map[string]string) string {
 	t.Helper()
-	dir, err := filepath.EvalSymlinks(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	dir := testutil.Physical(t, t.TempDir())
 	testutil.Git(t, dir, "init", "-q", "-b", "main")
 	for name, body := range files {
 		testutil.Put(t, dir, name, body+"\n")

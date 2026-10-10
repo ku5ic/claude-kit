@@ -9,12 +9,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
 
-// gitID is testutil.Git with a fixed identity and no signing, so commits
-// work whatever the developer's config.
-func gitID(t *testing.T, dir string, args ...string) {
-	t.Helper()
-	testutil.Git(t, dir, append([]string{"-c", "user.email=t@t", "-c", "user.name=t", "-c", "commit.gpgsign=false"}, args...)...)
-}
+var gitID = testutil.GitID
 
 // repo makes a git repo with main and a feature branch, and chdirs into it.
 func repo(t *testing.T) {

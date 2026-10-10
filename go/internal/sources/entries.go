@@ -52,14 +52,7 @@ func (e Entry) FileBody() string {
 // managers' commands, turbo's and nx's tasks, and the task runners' tasks
 // in each of dirs, the subprojects relative to root.
 func Entries(cfg *config.Config, root string, dirs []string) []Entry {
-	var out []Entry
-	for _, s := range Steps(cfg, root) {
-		source := "github-actions"
-		if s.File == gitlabCI {
-			source = "gitlab-ci"
-		}
-		out = append(out, Entry{Source: source, File: s.File, Name: s.Name, Dir: s.Dir, Env: s.Env, Body: Body{Text: s.Run}})
-	}
+	out := ciEntries(cfg, root)
 	out = append(out, HookEntries(root)...)
 	for _, read := range []func(string) []Entry{turboEntries, nxEntries} {
 		out = append(out, read(root)...)

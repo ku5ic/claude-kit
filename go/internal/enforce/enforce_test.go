@@ -1,7 +1,6 @@
 package enforce
 
 import (
-	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -31,10 +30,7 @@ type env struct {
 
 // Not parallel: each test sets PATH.
 func setup(t *testing.T) *env {
-	tmp, err := filepath.EvalSymlinks(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	tmp := testutil.Physical(t, t.TempDir())
 	e := &env{t: t, root: filepath.Join(tmp, "repo"), path: filepath.Join(tmp, "path"), stubs: filepath.Join(tmp, "stubs"), cache: filepath.Join(tmp, "cache"), verdicts: map[string]map[string]any{}}
 	git, err := exec.LookPath("git")
 	if err != nil {
@@ -83,21 +79,9 @@ func (e *env) plan() Plan {
 			answers = append(answers, a)
 		}
 	}
-	envelope, err := json.Marshal(map[string]any{"is_error": false, "subtype": "success", "structured_output": map[string]any{
-		"entries": answers, "managers": orEmpty(e.managers), "proposals": orEmpty(e.proposals)}})
-	if err != nil {
-		e.t.Fatal(err)
-	}
-	testutil.Put(e.t, e.stubs, "answer.json", string(envelope))
+	testutil.Put(e.t, e.stubs, "answer.json", testutil.Envelope(e.t, answers, e.managers, e.proposals))
 	e.cfg.Classifier = testutil.Replayer(e.t, filepath.Join(e.stubs, "answer.json"))
 	return Build(e.cfg, Options{Root: e.root, CacheDir: e.cache, Only: e.only, Ask: true, Timeout: 10 * time.Second})
-}
-
-func orEmpty(m []map[string]any) []map[string]any {
-	if m == nil {
-		return []map[string]any{}
-	}
-	return m
 }
 
 // printed is p as --plan prints it.
@@ -109,22 +93,12 @@ func printed(p Plan) string {
 
 func has(t *testing.T, p Plan, parts ...string) {
 	t.Helper()
-	out := printed(p)
-	for _, part := range parts {
-		if !strings.Contains(out, part) {
-			t.Errorf("plan lacks %q:\n%s", part, out)
-		}
-	}
+	testutil.Has(t, printed(p), parts...)
 }
 
 func lacks(t *testing.T, p Plan, parts ...string) {
 	t.Helper()
-	out := printed(p)
-	for _, part := range parts {
-		if strings.Contains(out, part) {
-			t.Errorf("plan has %q:\n%s", part, out)
-		}
-	}
+	testutil.Lacks(t, printed(p), parts...)
 }
 
 func check(kind string) map[string]any { return map[string]any{"role": "check", "kind": kind} }

@@ -15,7 +15,7 @@ var builtins = []string{"[", "[[", "test", "echo", "printf", "exit", "return", "
 // shell: statements a newline or && separates come apart, anything else (a
 // pipe, ||, a subshell) stays whole. ok is false when body doesn't parse.
 func Statements(body string) (stmts []string, ok bool) {
-	file, err := syntax.NewParser(syntax.Variant(syntax.LangBash)).Parse(strings.NewReader(body), "")
+	file, err := parse(body)
 	if err != nil {
 		return nil, false
 	}
@@ -44,7 +44,7 @@ func Statements(body string) (stmts []string, ok bool) {
 // literal is ["$"]; shell builtins aren't listed. ok is false when body
 // doesn't parse.
 func Calls(body string) (calls [][]string, ok bool) {
-	file, err := syntax.NewParser(syntax.Variant(syntax.LangBash)).Parse(strings.NewReader(body), "")
+	file, err := parse(body)
 	if err != nil {
 		return nil, false
 	}
@@ -61,12 +61,7 @@ func Calls(body string) (calls [][]string, ok bool) {
 			}
 			words = append(words, v)
 		}
-		if prefix, wrapped := matchPrefix(words, Grammar.Wrappers); wrapped {
-			words = words[prefix:]
-			for len(words) > 0 && strings.Contains(words[0], "=") && !strings.HasPrefix(words[0], "-") {
-				words = words[1:]
-			}
-		}
+		words, _ = unwrap(words)
 		switch {
 		case len(words) == 0:
 			calls = append(calls, []string{"$"})

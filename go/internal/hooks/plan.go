@@ -100,8 +100,7 @@ func PlanModeContext(h *hook.Hook) error {
 // plans dir that still has an open step. Picking by open step skips
 // plan-critic reports, which share the directory.
 func newestOpenPlan(h *hook.Hook) string {
-	cfg := h.Config()
-	if cfg == nil {
+	if h.Config() == nil {
 		return ""
 	}
 	dir, err := project.Dir(h.Paths, h.Payload.Cwd(), "plans", false)

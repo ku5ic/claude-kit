@@ -12,11 +12,7 @@ import (
 
 func tmp(t *testing.T) string {
 	t.Helper()
-	dir, err := filepath.EvalSymlinks(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	return dir
+	return testutil.Physical(t, t.TempDir())
 }
 
 // pnpm root with packages/a, a uv project at services/api, and an untracked

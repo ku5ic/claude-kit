@@ -170,23 +170,7 @@ func (k *sandbox) classify(root, envelope string) {
 	gapfill.Run(cfg, gapfill.Options{Root: root, CacheDir: k.paths.CacheDir(), Entries: stated, Ask: true, Timeout: time.Minute})
 }
 
-// envelope is a classifier answer: entries' verdicts, managers, and
-// proposals, each a list of objects.
-func envelope(t *testing.T, entries, managers, proposals []map[string]any) string {
-	t.Helper()
-	orEmpty := func(m []map[string]any) []map[string]any {
-		if m == nil {
-			return []map[string]any{}
-		}
-		return m
-	}
-	data, err := json.Marshal(map[string]any{"is_error": false, "subtype": "success", "structured_output": map[string]any{
-		"entries": orEmpty(entries), "managers": orEmpty(managers), "proposals": orEmpty(proposals)}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return string(data)
-}
+var envelope = testutil.Envelope
 
 // verdict is one entry's answer: its key, and the fields v sets.
 func verdict(e sources.Entry, v map[string]any) map[string]any {
@@ -280,15 +264,6 @@ func gitOut(t *testing.T, dir string, args ...string) string {
 		t.Fatalf("git %v: %v", args, err)
 	}
 	return out
-}
-
-// stub writes an executable bash script to path; body follows the shebang.
-func stub(t *testing.T, path, body string) {
-	t.Helper()
-	testutil.Write(t, path, "#!/usr/bin/env bash\n"+body)
-	if err := os.Chmod(path, 0o755); err != nil {
-		t.Fatal(err)
-	}
 }
 
 // read is path's content; a missing file reads as "".

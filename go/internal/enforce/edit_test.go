@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
 
 // edit plans the fixers of file, relative to the root, after a full plan
@@ -16,9 +17,7 @@ func (e *env) edit(file string) Plan {
 	return Edit(e.cfg, Options{Root: e.root, CacheDir: e.cache}, filepath.Join(e.root, file))
 }
 
-func fixerProposal(command, evidence string, globs ...string) map[string]any {
-	return map[string]any{"role": "fixer", "command": command, "file_form": command + " {files}", "globs": globs, "dir": ".", "evidence": evidence}
-}
+var fixerProposal = testutil.FixerProposal
 
 func TestEditRunsEveryHookFixerThatClaimsTheFile(t *testing.T) {
 	e := setup(t)

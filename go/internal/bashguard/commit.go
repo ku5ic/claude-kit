@@ -229,7 +229,7 @@ func scanStaged(h *hook.Hook, repo string) error {
 	}
 	// gitleaks exits 1, a leak's code, on a path it can't stat: a missing
 	// git -C directory.
-	if info, err := os.Stat(repo); err != nil || !info.IsDir() {
+	if !fsx.IsDir(repo) {
 		fmt.Fprintf(h.Stderr, "%s: %s is not a directory; skipping scan\n", h.Name, repo)
 		return nil
 	}
