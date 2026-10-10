@@ -163,9 +163,19 @@ func Snapshot(dir string) (string, error) {
 	// No index yet (a repo with nothing staged) leaves none to seed: git
 	// reads a missing index as empty, and an empty file as corrupt.
 	tmp := filepath.Join(tmpDir, "index")
-	switch index, err := os.ReadFile(filepath.Join(gitDir, "index")); {
+	real := filepath.Join(gitDir, "index")
+	switch index, err := os.ReadFile(real); {
 	case err == nil:
 		if err := os.WriteFile(tmp, index, 0o600); err != nil {
+			return "", err
+		}
+		// Git rehashes an entry no older than the index file (a racy one);
+		// a copy dated now would make it trust a same-size rewrite's stat.
+		info, err := os.Stat(real)
+		if err == nil {
+			err = os.Chtimes(tmp, info.ModTime(), info.ModTime())
+		}
+		if err != nil {
 			return "", err
 		}
 	case !errors.Is(err, os.ErrNotExist):

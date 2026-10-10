@@ -1,8 +1,11 @@
 package git_test
 
 import (
+	"os"
+	"path/filepath"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/testutil"
@@ -56,6 +59,33 @@ func TestStatusParsesRenamesAndOddNames(t *testing.T) {
 	all, _ := git.Status(dir, true)
 	if want := []git.Change{{"R ", "b c.txt"}, {"??", "new/one.txt"}, {"??", "new/two.txt"}}; !slices.Equal(all, want) {
 		t.Errorf("Status all = %q, want %q", all, want)
+	}
+}
+
+// A same-size rewrite that keeps the stat data of its index entry is
+// rehashed only while the entry is racy: no older than the index file. A
+// copy of the index made later must keep the index's mtime, or the entry
+// stops being racy and the snapshot keeps the old content.
+func TestSnapshotSeesARacyRewrite(t *testing.T) {
+	t.Parallel()
+	dir := repo(t)
+	// The rewrite can't keep its ctime; this makes mtime and size the match.
+	testutil.Git(t, dir, "config", "core.trustctime", "false")
+	path := filepath.Join(dir, "a.txt")
+	past := time.Now().Add(-time.Hour).Truncate(time.Second)
+	touch := func(path string) {
+		if err := os.Chtimes(path, past, past); err != nil {
+			t.Fatal(err)
+		}
+	}
+	touch(path)
+	testutil.Git(t, dir, "update-index", "--refresh")
+	touch(filepath.Join(dir, ".git", "index"))
+	testutil.Put(t, dir, "a.txt", "ONE\n")
+	touch(path)
+	head, _ := git.Line(dir, "rev-parse", "HEAD^{tree}")
+	if s, _ := git.Snapshot(dir); s == head {
+		t.Error("the snapshot kept the committed content of a rewritten file")
 	}
 }
 
