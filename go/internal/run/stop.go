@@ -16,6 +16,14 @@ import (
 type Checked struct {
 	Report, Failures string
 	Failed           bool
+	lines, summary   string
+}
+
+// Notice is the report for the user: the summary, then each gate's line
+// under it.
+func (c Checked) Notice() string {
+	indented := strings.ReplaceAll(strings.TrimSuffix(c.lines, "\n"), "\n", "\n  ")
+	return "stop " + strings.TrimSuffix(c.summary, "\n") + "\n  " + indented
 }
 
 // Files runs p's gates, the Stop hook's checks of the turn's edits, all at
@@ -55,7 +63,7 @@ func Files(p enforce.Plan, cacheDir string, timeout time.Duration) Checked {
 		}
 	}
 	summary := fmt.Sprintf("checks: %d passed, %d failed, %d skipped\n", t.res.Pass, t.res.Fail, t.res.Skip)
-	return Checked{Report: t.report.String() + summary, Failures: t.failures.String() + summary, Failed: t.res.Fail > 0}
+	return Checked{Report: t.report.String() + summary, Failures: t.failures.String() + summary, Failed: t.res.Fail > 0, lines: t.report.String(), summary: summary}
 }
 
 // tally builds a Stop run's report and block message.

@@ -37,6 +37,22 @@ func TestAStopPassIsReportedOnly(t *testing.T) {
 	}
 }
 
+// The notice for the user is the report verbatim: the summary first, then
+// each check's line under it.
+func TestTheNoticeLeadsWithTheSummary(t *testing.T) {
+	t.Parallel()
+	r := newRepo(t, "repo")
+	skipped := r.check("lint (lint-staged: *.ts)", "lint", "")
+	skipped.Skip = "eslint not installed"
+	out := r.stop(r.check("test (lefthook.yml: test)", "test", "true"), skipped)
+	want := "stop checks: 1 passed, 0 failed, 1 skipped\n" +
+		"  PASS test (lefthook.yml: test)\n" +
+		"  SKIP lint (lint-staged: *.ts) (eslint not installed)"
+	if got := out.Notice(); got != want {
+		t.Errorf("got:\n%s\nwant:\n%s", got, want)
+	}
+}
+
 func TestAFailingTestBlocksWithItsBinaryThenItsOutputTail(t *testing.T) {
 	t.Parallel()
 	r := newRepo(t, "repo")

@@ -66,14 +66,15 @@ func StopChecks(h *hook.Hook) error {
 		return nil
 	}
 	out := run.Files(p, h.Paths.CacheDir(), time.Duration(cfg.GateTimeout)*time.Second)
-	// Silent on a pass: what ran and what was skipped is kept for kit
-	// explain stop.
 	if !h.DryRun {
 		_ = fsx.WriteAtomic(cache.StopReport(h.Paths.CacheDir(), root), []byte(out.Report), 0o600)
 	}
 	if out.Failed {
 		return h.Block("file checks failed; fix them or report and stop.\n"+out.Failures, "checks-failed")
 	}
+	// What ran and what was skipped goes to the user alone: Claude has
+	// nothing to act on.
+	h.Notify(out.Notice())
 	return nil
 }
 

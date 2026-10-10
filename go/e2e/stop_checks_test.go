@@ -97,13 +97,15 @@ func (e *stopChecksEnv) explain(args ...string) Result {
 	return e.k.Run("", append([]string{"explain", "stop"}, args...)...)
 }
 
-// stopReport stops, wants the hook silent unless it blocks, and returns
-// its status with kit explain stop's output, which holds the run's report.
+// stopReport stops, wants a run that doesn't block to tell the user alone,
+// in a systemMessage, and returns its status with kit explain stop's
+// output, which holds the run's report.
 func (e *stopChecksEnv) stopReport() Result {
 	e.t.Helper()
 	r := e.stop(false)
-	if r.Status == 0 && r.Output != "" {
-		e.t.Errorf("stop-checks printed on a pass:\n%s", r.Output)
+	var out map[string]string
+	if err := json.Unmarshal([]byte(r.Stdout), &out); r.Status == 0 && (err != nil || len(out) != 1 || !strings.HasPrefix(out["systemMessage"], "stop checks: ")) {
+		e.t.Errorf("stop-checks printed more than a systemMessage on a pass:\n%s", r.Output)
 	}
 	report := e.explain()
 	report.Status = r.Status
@@ -245,7 +247,7 @@ func TestStopChecks(t *testing.T) {
 		e.stop(true).Want(t, 0)
 		e.noCalls()
 	})
-	t.Run("an edit runs the project's check on only the edited file, silent on a pass", func(t *testing.T) {
+	t.Run("an edit runs the project's check on only the edited file, and a pass tells the user alone", func(t *testing.T) {
 		t.Parallel()
 		e := stopChecksSetup(t)
 		e.turn("Edit", e.path("a.ts"))
