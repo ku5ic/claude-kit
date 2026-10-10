@@ -44,15 +44,28 @@ if [[ -r $manifest ]]; then
   done <"$manifest"
 fi
 bin="$dir/kit-$ver-$os-$arch"
-if [[ -x $bin && ${KIT_DEV:-} != 1 ]]; then
+if [[ ${KIT_DEV:-} == 1 ]]; then
+  # Its own name: a release name always means the release asset.
+  bin="$dir/kit-dev-$os-$arch"
+elif [[ -x $bin ]]; then
   exec "$bin" "$@"
 fi
 
 # Slow path, once per version: forks are fine here. The temp name keeps
 # hooks running in parallel from exec'ing a half-written binary.
 tmp="$bin.$$"
+# Other versions' binaries and backoff markers, and temps a killed hook
+# stranded, once old enough not to be in flight.
+prune() {
+  find "$dir" -maxdepth 1 \( -name "kit-*-$os-$arch" -o -name "kit-*-$os-$arch.failed" \) \
+    ! -name "${bin##*/}*" ! -name "kit-dev-$os-$arch*" -delete 2>/dev/null
+  find "$dir" -maxdepth 1 -name "kit-*-$os-$arch.[0-9]*" -mmin +10 -delete 2>/dev/null
+}
 if [[ ${KIT_DEV:-} == 1 ]]; then
-  if [[ ! -x $bin || -n $(find "$dir/../go" -name '*.go' -newer "$bin" -print -quit 2>/dev/null) ]]; then
+  # Any source file counts: embedded prompts and go.mod change the build too.
+  if [[ ! -x $bin || -n $(find "$dir/../go" -type f ! -name '*_test.go' -newer "$bin" -print -quit 2>/dev/null) ]]; then
+    # Before the build: a hook's timeout can kill this shell mid-build.
+    prune
     (cd "$dir/../go" && CGO_ENABLED=0 go build -trimpath -buildvcs=false \
       -ldflags="-s -w -buildid= -X main.version=$ver" -o "$tmp" ./cmd/kit) >&2 &&
       mv -f "$tmp" "$bin"
@@ -73,6 +86,7 @@ elif [[ -n $ver && ((${1:-} != hook && ${1:-} != *statusline) ||
     [[ -n ${want%% *} && ${got%% *} == "${want%% *}" ]] &&
     chmod +x "$tmp" && mv -f "$tmp" "$bin"; then
     rm -f "$bin.failed"
+    prune
   else
     touch "$bin.failed"
   fi
