@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/md"
 )
@@ -42,8 +42,8 @@ func readTurn(marker string, fallback turn) turn {
 }
 
 func writeTurn(marker string, t turn) {
-	if data, err := json.Marshal(t); err == nil && marker != "" && os.MkdirAll(filepath.Dir(marker), 0o755) == nil {
-		_ = os.WriteFile(marker, data, 0o644)
+	if data, err := json.Marshal(t); err == nil && marker != "" {
+		_ = fsx.WriteAtomic(marker, data, 0o644)
 	}
 }
 

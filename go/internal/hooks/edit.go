@@ -147,7 +147,6 @@ func notLoaded(h *hook.Hook, session string, toCheck []string, marker func(strin
 	if err != nil {
 		return nil
 	}
-	_ = os.MkdirAll(filepath.Join(h.Paths.CacheDir(), cache.SkillsLoaded), 0o755)
 	var missing []string
 	for _, skill := range toCheck {
 		// An exact skill_file (the Skill tool), or a logged path holding
@@ -161,8 +160,8 @@ func notLoaded(h *hook.Hook, session string, toCheck []string, marker func(strin
 		}
 		if !found {
 			missing = append(missing, skill)
-		} else if f, err := os.Create(marker(skill)); err == nil {
-			f.Close()
+		} else {
+			_ = fsx.WriteAtomic(marker(skill), nil, 0o644)
 		}
 	}
 	return missing

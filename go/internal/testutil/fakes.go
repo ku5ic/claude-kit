@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 )
 
 // FakeTool writes an executable at path that appends one line per run to
@@ -67,15 +69,7 @@ func AppendJSONL(t *testing.T, path string, lines ...any) {
 		}
 		b.WriteString(s + "\n")
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Close()
-	if _, err := f.WriteString(b.String()); err != nil {
+	if err := fsx.Append(path, []byte(b.String())); err != nil {
 		t.Fatal(err)
 	}
 }

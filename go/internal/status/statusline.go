@@ -251,7 +251,6 @@ func gitStatus(home, cwd, sessionID string) string {
 	if top == "" {
 		return ""
 	}
-	_ = os.MkdirAll(dir, 0o755) // without it, the segment just isn't cached
 	// Independent git reads, run at once: this renders every second.
 	// Untracked files are listed from the top: ls-files --others lists only
 	// cwd's subtree, numstat the whole repo.

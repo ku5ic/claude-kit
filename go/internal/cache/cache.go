@@ -6,6 +6,7 @@ package cache
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"time"
@@ -42,15 +43,26 @@ var Dirs = []Dir{
 	{StopReports, "stop-checks report(s)", 1},
 }
 
+// RootKey names a project's files in a state dir: its root hashed, so
+// same-named projects elsewhere on disk can't collide.
+func RootKey(root string) string {
+	sum := sha256.Sum256([]byte(root))
+	return hex.EncodeToString(sum[:])[:8]
+}
+
 // StopReport is where stop-checks keeps its last report for the repo at
 // root, for kit explain stop: the hook itself is silent unless it blocks.
 func StopReport(cacheDir, root string) string {
-	sum := sha256.Sum256([]byte(root))
-	return filepath.Join(cacheDir, StopReports, hex.EncodeToString(sum[:])[:8])
+	return filepath.Join(cacheDir, StopReports, RootKey(root))
 }
 
-// Expired is every regular file in dir modified more than days whole days
-// before now.
+// Older reports whether info was last modified more than days whole days
+// before now: the one expiry rule for state, scratch, and worktrees.
+func Older(info fs.FileInfo, days int, now time.Time) bool {
+	return now.Sub(info.ModTime()) > time.Duration(days)*24*time.Hour
+}
+
+// Expired is every regular file in dir Older than days.
 func Expired(dir string, days int, now time.Time) []string {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -59,7 +71,7 @@ func Expired(dir string, days int, now time.Time) []string {
 	var old []string
 	for _, e := range entries {
 		info, err := e.Info()
-		if err == nil && info.Mode().IsRegular() && now.Sub(info.ModTime()) > time.Duration(days)*24*time.Hour {
+		if err == nil && info.Mode().IsRegular() && Older(info, days, now) {
 			old = append(old, filepath.Join(dir, e.Name()))
 		}
 	}

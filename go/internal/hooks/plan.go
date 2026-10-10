@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/md"
 	"github.com/ku5ic/claude-kit/go/internal/project"
@@ -73,8 +74,7 @@ func PlanModeContext(h *hook.Hook) error {
 		msg := "Plan approved: " + pause
 		if plan := newestOpenPlan(h); plan != "" {
 			// Best effort: without the marker, later prompts just aren't reminded.
-			_ = os.MkdirAll(filepath.Dir(marker), 0o755)
-			_ = os.WriteFile(marker, []byte(plan), 0o644)
+			_ = fsx.WriteAtomic(marker, []byte(plan), 0o644)
 			msg = "Plan approved (" + plan + "): " + pause
 		}
 		h.AddContext("PostToolUse", msg)

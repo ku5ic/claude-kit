@@ -132,30 +132,25 @@ func Snapshot(dir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	tmp, err := os.CreateTemp("", "kit-index-*")
+	tmpDir, err := os.MkdirTemp("", "kit-index-*")
 	if err != nil {
 		return "", err
 	}
-	defer os.Remove(tmp.Name())
-	index, err := os.ReadFile(filepath.Join(gitDir, "index"))
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		tmp.Close()
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+	// No index yet (a repo with nothing staged) leaves none to seed: git
+	// reads a missing index as empty, and an empty file as corrupt.
+	tmp := filepath.Join(tmpDir, "index")
+	switch index, err := os.ReadFile(filepath.Join(gitDir, "index")); {
+	case err == nil:
+		if err := os.WriteFile(tmp, index, 0o600); err != nil {
+			return "", err
+		}
+	case !errors.Is(err, os.ErrNotExist):
 		return "", err
-	}
-	if _, err := tmp.Write(index); err != nil {
-		tmp.Close()
-		return "", err
-	}
-	if err := tmp.Close(); err != nil {
-		return "", err
-	}
-	if index == nil {
-		// git reads an empty file as a corrupt index; a missing one is empty.
-		os.Remove(tmp.Name())
 	}
 	withIndex := func(args ...string) (string, error) {
 		cmd := Command(dir, args...)
-		cmd.Env = append(cmd.Environ(), "GIT_INDEX_FILE="+tmp.Name())
+		cmd.Env = append(cmd.Environ(), "GIT_INDEX_FILE="+tmp)
 		out, err := cmd.Output()
 		return strings.TrimSpace(string(out)), err
 	}

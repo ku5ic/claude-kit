@@ -5,8 +5,6 @@
 package stackctx
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"io/fs"
 	"os"
@@ -29,11 +27,10 @@ func cacheFile(paths config.Paths, cfg *config.Config, name, root string) string
 	return filepath.Join(paths.CacheDir(), cache.Stack, name+"-"+rootKey(cfg, root)+".txt")
 }
 
-// rootKey is <sha256(root)[:8]>.<tag>, the suffix every per-project cache
-// file shares.
+// rootKey is cache.RootKey(root) and the config's tag: the suffix every
+// per-project cache file shares, so a config change starts fresh files.
 func rootKey(cfg *config.Config, root string) string {
-	sum := sha256.Sum256([]byte(root))
-	return hex.EncodeToString(sum[:])[:8] + "." + cfg.Tag
+	return cache.RootKey(root) + "." + cfg.Tag
 }
 
 // configTime is the newest kit.yml mtime, base or overlay: a cache older
@@ -54,9 +51,6 @@ func refresh(paths config.Paths, cfg *config.Config, root, file string) {
 	newest = max(newest, configTime(paths))
 
 	if info, err := os.Stat(file); err == nil && info.Size() > 0 && info.ModTime().Unix() >= newest {
-		return
-	}
-	if os.MkdirAll(filepath.Dir(file), 0o755) != nil {
 		return
 	}
 	_ = fsx.WriteAtomic(file, []byte(detect.Report(cfg, root)), 0o600)
@@ -171,7 +165,7 @@ func FileSkills(paths config.Paths, cfg *config.Config, root, session string) []
 		}
 	}
 	skills := scanFileSkills(cfg, root)
-	if file != "" && os.MkdirAll(filepath.Dir(file), 0o755) == nil {
+	if file != "" {
 		// Atomic: parallel SubagentStart hooks read it while one rewrites it.
 		_ = fsx.WriteAtomic(file, []byte(strings.Join(skills, "\n")), 0o644)
 	}

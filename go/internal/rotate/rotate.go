@@ -31,8 +31,6 @@ func Run(paths config.Paths, n int, dryRun bool, stdout, stderr io.Writer) int {
 	if dryRun {
 		r.verb, r.pruned = "would-delete", "would prune"
 	}
-	_ = os.MkdirAll(paths.LogDir(), 0o755)
-
 	scratch := paths.ScratchHome()
 	if fsx.IsDir(scratch) {
 		removed := r.prune(scratch, n, func(name string) bool { return strings.HasSuffix(name, ".md") })
@@ -97,7 +95,7 @@ func (r *rotator) worktrees(dir string, stderr io.Writer) {
 	var removed []string
 	for _, gitFile := range gitFiles {
 		info, err := os.Lstat(gitFile)
-		if err != nil || !info.Mode().IsRegular() || !r.older(info, 1) {
+		if err != nil || !info.Mode().IsRegular() || !cache.Older(info, 1, r.now) {
 			continue
 		}
 		wt := filepath.Dir(gitFile)
@@ -133,11 +131,6 @@ func keepWorktree(wt string) string {
 	return ""
 }
 
-// older reports whether info's modification is more than days days old.
-func (r *rotator) older(info fs.FileInfo, days int) bool {
-	return r.now.Sub(info.ModTime()) > time.Duration(days)*24*time.Hour
-}
-
 // prune deletes the regular files under dir matching keep (every one when
 // nil) whose modification is more than days whole days old, and records
 // each in the rotate log. It never enters a nested git
@@ -158,7 +151,7 @@ func (r *rotator) prune(dir string, days int, keep func(string) bool) int {
 			return nil
 		}
 		info, err := d.Info()
-		if err != nil || !r.older(info, days) {
+		if err != nil || !cache.Older(info, days, r.now) {
 			return nil
 		}
 		if !r.dryRun && os.Remove(path) != nil {
