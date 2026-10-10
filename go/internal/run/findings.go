@@ -30,36 +30,56 @@ var (
 )
 
 // Findings reads a check's output, run in dir, for the files it names,
-// whatever the tool: a path:line[:col] anywhere in a line, a file's line
-// followed by indented line:col lines, or a line that is only a file's
-// path. A path counts only when it names an existing file.
+// whatever the tool: a path:line[:col] anywhere in a line; a line led by a
+// file's path, then the indented line:col lines under it, up to a blank
+// line (eslint's stylish); or, with none under it, that line alone, a
+// finding without a line (an unused file, a file to format). A path counts
+// only when it names an existing file.
 func Findings(out, dir string) []Finding {
 	var found []Finding
-	var listed *Finding // a line that is only a file's path
-	listedUsed := false
-	flush := func() {
-		if listed != nil && !listedUsed {
-			found = append(found, *listed)
+	var led *Finding // the last line led by a file's path
+	listed := false  // indented findings followed it
+	end := func() {
+		if led != nil && !listed {
+			found = append(found, *led)
 		}
-		listed = nil
+		led = nil
 	}
 	for line := range strings.Lines(out) {
 		line = strings.TrimRight(line, "\r\n")
-		if m := indented.FindStringSubmatch(line); m != nil && listed != nil {
+		if m := indented.FindStringSubmatch(line); m != nil && led != nil {
 			n, _ := strconv.Atoi(m[1])
-			found = append(found, Finding{File: listed.File, Line: n, Text: listed.Text + " " + strings.TrimSpace(line)})
-			listedUsed = true
+			found = append(found, Finding{File: led.File, Line: n, Text: led.File + ":" + strings.TrimSpace(line)})
+			listed = true
 			continue
 		}
-		flush()
 		if f, ok := located(line, dir); ok {
+			end()
 			found = append(found, f)
-		} else if path := strings.TrimSpace(line); path != "" && fsx.IsFile(fsx.Abs(dir, path)) {
-			listed, listedUsed = &Finding{File: fsx.Abs(dir, path), Text: path}, false
+		} else if file := leadingFile(line, dir); file != "" {
+			end()
+			led, listed = &Finding{File: file, Text: strings.TrimSpace(line)}, false
+		} else if strings.TrimSpace(line) == "" {
+			end()
 		}
 	}
-	flush()
+	end()
 	return found
+}
+
+// leadingFile is the existing file whose path leads line, the longest run
+// of its words that names one; "" when none does.
+func leadingFile(line, dir string) string {
+	line = strings.TrimSpace(line)
+	for end := len(line); end > 0; end-- {
+		if end < len(line) && !unicode.IsSpace(rune(line[end])) {
+			continue
+		}
+		if path := fsx.Abs(dir, line[:end]); fsx.IsFile(path) {
+			return path
+		}
+	}
+	return ""
 }
 
 // located is the finding a path:line[:col] in line names: the longest

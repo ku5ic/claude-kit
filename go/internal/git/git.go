@@ -68,6 +68,24 @@ func Files(dir string, pathspecs ...string) ([]string, error) {
 	return Paths(dir, append([]string{"ls-files", "-z", "--cached", "--others", "--exclude-standard", "--"}, pathspecs...)...)
 }
 
+// Ignored is which of paths (absolute, inside dir's repo) git ignores; a
+// failure reads as none.
+func Ignored(dir string, paths []string) map[string]bool {
+	ignored := map[string]bool{}
+	if len(paths) == 0 {
+		return ignored
+	}
+	cmd := Command(dir, "check-ignore", "-z", "--stdin")
+	cmd.Stdin = strings.NewReader(strings.Join(paths, "\x00") + "\x00")
+	out, _ := cmd.Output() // exit 1 means none ignored
+	for path := range strings.SplitSeq(string(out), "\x00") {
+		if path != "" {
+			ignored[path] = true
+		}
+	}
+	return ignored
+}
+
 var toplevels sync.Map // dir -> its work tree's root, "" outside one
 
 // Toplevel is the root of the git work tree holding dir, "" outside one;

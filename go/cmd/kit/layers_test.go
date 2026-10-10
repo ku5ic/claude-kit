@@ -49,7 +49,6 @@ var layers = map[string]int{
 // step that removes one deletes its entry; a stale entry fails the test.
 var allowed = map[string]bool{
 	"internal/project -> internal/sources": true,
-	"internal/tools -> internal/classify":  true,
 	"internal/hooks -> internal/stackctx":  true,
 	"internal/stackctx -> internal/detect": true,
 }

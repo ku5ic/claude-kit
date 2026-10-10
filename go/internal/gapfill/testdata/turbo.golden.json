@@ -3,69 +3,79 @@
   "structured_output": {
     "entries": [
       {
-        "id": "9b5d052161d485af",
-        "role": "build",
-        "mutates": false,
-        "affected_form": "turbo run build --filter=...[{base}]"
-      },
-      {
-        "id": "2ecd02d8ba957f85",
-        "role": "check",
-        "kind": "lint",
-        "mutates": false,
-        "affected_form": "turbo run lint --filter=...[{base}]"
-      },
-      {
-        "id": "ffc25ee6644e696e",
-        "role": "check",
-        "kind": "test",
-        "mutates": false,
-        "affected_form": "turbo run test --filter=...[{base}]"
-      },
-      {
-        "id": "48c13614c356b44f",
-        "role": "build",
-        "mutates": false,
-        "affected_form": "turbo run build --filter=...[{base}]"
-      },
-      {
-        "id": "5543ee7d48751e53",
-        "role": "check",
-        "kind": "lint",
-        "mutates": false,
-        "affected_form": "turbo run lint --filter=...[{base}]"
-      },
-      {
-        "id": "6facfcf16cf5fe80",
-        "role": "check",
-        "kind": "test",
-        "mutates": false,
-        "affected_form": "turbo run test --filter=...[{base}]"
-      },
-      {
-        "id": "6f5d1b1d82d83e70",
+        "id": "ca1a00d84ea9377a",
         "role": "build",
         "mutates": false
       },
       {
-        "id": "9cd0a2258a81659d",
+        "id": "7d995a44415991ea",
+        "role": "check",
+        "kind": "lint",
+        "mutates": false,
+        "affected_form": "turbo run lint --filter=...[{base}]"
+      },
+      {
+        "id": "d9808d6aa7e2a2e0",
+        "role": "check",
+        "kind": "test",
+        "mutates": false,
+        "affected_form": "turbo run test --filter=...[{base}]"
+      },
+      {
+        "id": "8fe375d7c7963519",
+        "role": "build",
+        "mutates": false
+      },
+      {
+        "id": "3f56e9d7e8ab1ca3",
+        "role": "check",
+        "kind": "lint",
+        "mutates": false,
+        "affected_form": "turbo run lint --filter=...[{base}]"
+      },
+      {
+        "id": "8a84594c1ccc3595",
+        "role": "check",
+        "kind": "test",
+        "mutates": false,
+        "affected_form": "turbo run test --filter=...[{base}]"
+      },
+      {
+        "id": "68c408f57b486b6f",
+        "role": "build",
+        "mutates": false
+      },
+      {
+        "id": "6922992e1e77ff23",
         "role": "check",
         "kind": "lint",
         "mutates": false,
         "file_form": "eslint {files}",
         "globs": [
-          "packages/a/**/*.{js,cjs,mjs,jsx,ts,tsx}"
+          "**/*.js",
+          "**/*.jsx",
+          "**/*.ts",
+          "**/*.tsx",
+          "**/*.mjs",
+          "**/*.cjs"
         ],
         "exclusions": "packages/a/eslint.config.js"
       },
       {
-        "id": "8019617d72c0b057",
+        "id": "fd6a4135831425f4",
         "role": "check",
         "kind": "test",
         "mutates": false,
         "file_form": "vitest run {files}",
         "globs": [
-          "packages/a/**/*.{test,spec}.{js,jsx,ts,tsx}"
+          "**/*.test.js",
+          "**/*.test.jsx",
+          "**/*.test.ts",
+          "**/*.test.tsx",
+          "**/*.spec.js",
+          "**/*.spec.jsx",
+          "**/*.spec.ts",
+          "**/*.spec.tsx"
         ]
       }
     ],
@@ -96,6 +106,14 @@
         "command": "pnpm exec eslint . --max-warnings=0",
         "dir": "packages/a",
         "evidence": "packages/a/eslint.config.js",
+        "globs": [
+          "**/*.js",
+          "**/*.jsx",
+          "**/*.ts",
+          "**/*.tsx",
+          "**/*.mjs",
+          "**/*.cjs"
+        ],
         "mutates": false
       },
       {
@@ -104,6 +122,10 @@
         "command": "pnpm exec tsc --noEmit",
         "dir": "packages/a",
         "evidence": "packages/a/package.json",
+        "globs": [
+          "**/*.ts",
+          "**/*.tsx"
+        ],
         "mutates": false
       },
       {
@@ -112,6 +134,16 @@
         "command": "pnpm exec vitest run",
         "dir": "packages/a",
         "evidence": "packages/a/package.json",
+        "globs": [
+          "**/*.test.js",
+          "**/*.test.jsx",
+          "**/*.test.ts",
+          "**/*.test.tsx",
+          "**/*.spec.js",
+          "**/*.spec.jsx",
+          "**/*.spec.ts",
+          "**/*.spec.tsx"
+        ],
         "mutates": false
       }
     ]

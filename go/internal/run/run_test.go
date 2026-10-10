@@ -201,7 +201,7 @@ func TestRestorePointsOlderThanAMonthArePruned(t *testing.T) {
 func TestFindingsNameExistingFiles(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	for _, f := range []string{"src/my module.ts", "src/old.py", "new.go", "src/new.ts", "src/a.js"} {
+	for _, f := range []string{"src/my module.ts", "src/old.py", "new.go", "src/new.ts", "src/a.js", "src/a.ts", "src/b.ts", "a.css", "zz.py", "zz.rb", "a.sh", "pkg/c.go"} {
 		testutil.Put(t, dir, f, "")
 	}
 	tests := []struct {
@@ -214,6 +214,15 @@ func TestFindingsNameExistingFiles(t *testing.T) {
 		{"a bare path", "Unused files (1)\nsrc/new.ts", []string{"src/new.ts:0"}},
 		{"a file's line, then its findings indented", dir + "/src/a.js\n  3:5  error  no-unused-vars\n  7:1  warning  eqeqeq\n\n1 problem", []string{"src/a.js:3", "src/a.js:7"}},
 		{"nothing naming a file", "> knip\n12:30:45 started\nError: Cannot read knip.json\nsrc/gone.ts:1:1", nil},
+		// Captured from the real tools (eslint 10, stylelint 17, ruff 0.15,
+		// rubocop 1.89, shellcheck 0.11, biome, golangci-lint).
+		{"eslint, a message line among a file's findings", "\n" + dir + "/src/a.ts\n  0:0  error  Parsing error: nope\nThe file was not found\n  3:7  warning  Unexpected any  no-explicit-any\n\n\x1b[31m✖ 2 problems\x1b[0m\n", []string{"src/a.ts:0", "src/a.ts:3"}},
+		{"stylelint", dir + "/a.css:1:18: Unknown property \"colr\" (property-no-unknown) [error]\n\n1 problem (1 error, 0 warnings)\n", []string{"a.css:1"}},
+		{"ruff", "zz.py:2:5: F821 Undefined name `a`\nFound 1 error.\n", []string{"zz.py:2"}},
+		{"rubocop, after an indented preamble", "Please also note that you can opt-in:\n  AllCops:\n" + dir + "/zz.rb:1:7: C: [Correctable] Layout/SpaceInsideParens: Space inside parentheses detected.\n", []string{"zz.rb:1"}},
+		{"shellcheck", "a.sh:2:6: note: Double quote to prevent globbing. [SC2086]\n", []string{"a.sh:2"}},
+		{"biome, a file to format without a line", "src/a.ts:1:1 lint/style/useConst  FIXABLE  ━━━\n  × Use const\nsrc/b.ts format ━━━━━━\n", []string{"src/a.ts:1", "src/b.ts:0"}},
+		{"golangci-lint, its source line after", "pkg/c.go:3:2: ineffectual assignment to x (ineffassign)\n\tx := 1\n1 issues:\n", []string{"pkg/c.go:3"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

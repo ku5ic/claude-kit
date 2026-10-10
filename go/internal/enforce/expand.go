@@ -60,7 +60,7 @@ func (b *builder) reference(p part, depth int) {
 			return
 		}
 	}
-	g := Gate{Label: label(p.kinds, t.File+": "+t.Name, b.rel(p.dir)), Kinds: p.kinds, Dir: p.dir, Env: p.env, Body: p.text, Verdict: v.String()}
+	g := Gate{Label: label(p.kinds, t.File+": "+t.Name, b.rel(p.dir)), Kinds: p.kinds, Dir: p.dir, Env: p.env, Body: p.text, Verdict: v.String(), FileForm: v.FileForm, Globs: v.Globs}
 	if v.Affected != "" {
 		g.Dir, g.Body = filepath.Join(b.root, t.Dir), v.Affected
 	}
@@ -72,7 +72,7 @@ func (b *builder) reference(p part, depth int) {
 // one, labeled with every kind it checks.
 func (b *builder) entryGate(e sources.Entry, v gapfill.Verdict, dir string, env []string) Gate {
 	kinds := b.taskKinds(e, v, 0)
-	g := Gate{Label: label(kinds, e.File+": "+e.Name, b.rel(dir)), Kinds: kinds, Dir: dir, Env: env, Body: cmp.Or(v.Affected, e.Body.Text), Verdict: v.String()}
+	g := Gate{Label: label(kinds, e.File+": "+e.Name, b.rel(dir)), Kinds: kinds, Dir: dir, Env: env, Body: cmp.Or(v.Affected, e.Body.Text), Verdict: v.String(), FileForm: v.FileForm, Globs: v.Globs}
 	g.FanOut = b.fansOut(g.Body)
 	return g
 }

@@ -5,7 +5,7 @@ Answer every entry, by its id:
 - kind, for a check of one kind only: lint, typecheck, test, format-check, deadcode, or security. Omit it for a check that runs several kinds, such as an aggregate of other tasks. A command that runs one task across packages (turbo run lint, nx affected -t test, pnpm -r test) has that task's kind.
 - mutates: true when running it changes tracked files.
 - segments: only when the body runs more than one command that isn't a reference to another task; each segment's text copied exactly from the body, with its role, and its kind when it is a check.
-- file_form: the body run on given files, when its tool takes file arguments: the body's own words with path arguments replaced by {files}, or {files} appended, adding flags only. Omit it when unsure.
+- file_form: the body run on given files, when its tool takes file arguments: the body's own words with path arguments replaced by {files}, or {files} appended, adding flags only. When the tool takes directories or packages rather than single files (go vet and go test take packages), use {dirs} instead: each given file's directory. Omit it when unsure.
 - globs: the files file_form applies to, as globs.
 - affected_form: the body's own words plus flags that limit it to what changed since the git ref {base}, when its tool supports that (turbo run x --filter=...[{base}], nx affected -t x --base={base}). Omit it otherwise.
 - exclusions: the path of the config file holding the tool's excludes, when there is one.

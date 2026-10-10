@@ -33,7 +33,7 @@ func (p Plan) Print(w io.Writer) {
 // Describe writes, indented under g's line, its command, where it runs
 // unless at the root, its env, and its binaries.
 func (p Plan) Describe(w io.Writer, g Gate) {
-	fmt.Fprintf(w, "  cmd: %s\n", strings.ReplaceAll(strings.TrimSpace(g.Body), "\n", "\n       "))
+	fmt.Fprintf(w, "  cmd: %s\n", strings.ReplaceAll(strings.TrimSpace(g.Command()), "\n", "\n       "))
 	if g.Dir != p.Root {
 		fmt.Fprintf(w, "  dir: %s\n", fsx.Rel(p.Root, g.Dir))
 	}

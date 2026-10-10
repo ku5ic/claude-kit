@@ -250,12 +250,6 @@ func TOMLArray(file, path string) []string {
 	return strings_(GetPath(readTOML(file), path))
 }
 
-// TOMLString is the string at path, "" otherwise.
-func TOMLString(file, path string) string {
-	s, _ := GetPath(readTOML(file), path).(string)
-	return s
-}
-
 // TOMLHas is true when path exists, even as an empty table: a bare
 // [tool.ruff] means "use ruff with defaults".
 func TOMLHas(file, path string) bool {

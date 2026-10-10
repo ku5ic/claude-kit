@@ -6,7 +6,8 @@ import (
 )
 
 // `kit explain` shows a guard's or the Stop hook's decision and evidence,
-// and logs, blocks, and runs nothing.
+// and logs, blocks, and runs nothing. explain stop's cases are with the
+// Stop hook's, in stop_checks_test.go.
 func TestExplain(t *testing.T) {
 	t.Parallel()
 	setup := func(t *testing.T) (*Kit, string) {
@@ -46,31 +47,4 @@ func TestExplain(t *testing.T) {
 		k.Run("", "explain", "edit", filepath.Join(repo, "notes.md")).Has(t, "guard-edit: ask")
 	})
 
-	t.Run("stop: names what claims a file, where it runs, and the command", func(t *testing.T) {
-		t.Parallel()
-		k, repo := setup(t)
-		Touch(t, filepath.Join(repo, ".shellcheckrc"))
-		Write(t, filepath.Join(repo, "run.sh"), "echo hi\n")
-		Write(t, filepath.Join(repo, "notes.md"), "x\n")
-		r := k.Run("", "explain", "stop", "run.sh", "notes.md")
-		r.Want(t, 0)
-		r.Has(t, "shellcheck  (config .shellcheckrc)", "file     run.sh", "unclaimed  notes.md")
-	})
-
-	t.Run("stop: names the config a check needs besides where it runs", func(t *testing.T) {
-		t.Parallel()
-		k, repo := setup(t)
-		Write(t, filepath.Join(repo, "go.mod"), "module example.com/x\n")
-		Touch(t, filepath.Join(repo, ".golangci.yml"))
-		Write(t, filepath.Join(repo, "main.go"), "package main\n")
-		k.Run("", "explain", "stop", "main.go").Has(t, "golangci-lint  (config go.mod, needs .golangci.yml)")
-	})
-
-	t.Run("stop: with no files, uses the working tree's changes", func(t *testing.T) {
-		t.Parallel()
-		k, repo := setup(t)
-		Touch(t, filepath.Join(repo, ".shellcheckrc"))
-		Write(t, filepath.Join(repo, "run.sh"), "echo hi\n")
-		k.Run("", "explain", "stop").Has(t, "file     run.sh")
-	})
 }

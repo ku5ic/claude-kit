@@ -71,8 +71,3 @@ func group(names, m []string, name string) string {
 	}
 	return ""
 }
-
-// lines is a Findings with one finding per line, file and line leading.
-func lines(item string) *Findings {
-	return &Findings{Item: regexp.MustCompile(item)}
-}

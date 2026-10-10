@@ -137,11 +137,11 @@ func (f forms) verdict(e sources.Entry, v Verdict) (Verdict, []string, error) {
 		bodies = append(bodies, s.Text)
 	}
 	var dropped []string
-	if why := f.form(v.FileForm, "{files}", bodies); v.FileForm != "" && why != "" {
+	if why := f.form(v.FileForm, bodies, "{files}", "{dirs}"); v.FileForm != "" && why != "" {
 		dropped = append(dropped, fmt.Sprintf("file form %q: %s", v.FileForm, why))
 		v.FileForm, v.Globs = "", nil
 	}
-	if why := f.form(v.Affected, "{base}", bodies); v.Affected != "" && why != "" {
+	if why := f.form(v.Affected, bodies, "{base}"); v.Affected != "" && why != "" {
 		dropped = append(dropped, fmt.Sprintf("affected form %q: %s", v.Affected, why))
 		v.Affected = ""
 	}
@@ -170,7 +170,7 @@ func (f forms) proposal(cfg *config.Config, p Proposal) error {
 	if why := f.resolver.Fetches(f.dir, words); why != "" {
 		return fmt.Errorf("fetches (%s)", why)
 	}
-	if why := f.form(p.FileForm, "{files}", []string{p.Command}); p.FileForm != "" && why != "" {
+	if why := f.form(p.FileForm, []string{p.Command}, "{files}", "{dirs}"); p.FileForm != "" && why != "" {
 		return fmt.Errorf("file form %q: %s", p.FileForm, why)
 	}
 	return nil
@@ -178,11 +178,11 @@ func (f forms) proposal(cfg *config.Config, p Proposal) error {
 
 // form is why form isn't one of bodies' own words, behind at most a
 // verified run prefix, with path arguments replaced by placeholders and
-// only flags and placeholders added; or why it fetches, or lacks
-// placeholder. "" when it holds up.
-func (f forms) form(form, placeholder string, bodies []string) string {
-	if !strings.Contains(form, placeholder) {
-		return "no " + placeholder
+// only flags and placeholders added; or why it fetches, or lacks every one
+// of placeholders. "" when it holds up.
+func (f forms) form(form string, bodies []string, placeholders ...string) string {
+	if !slices.ContainsFunc(placeholders, func(p string) bool { return strings.Contains(form, p) }) {
+		return "no " + strings.Join(placeholders, " or ")
 	}
 	words := strings.Fields(form)
 	if why := f.resolver.Fetches(f.dir, words); why != "" {

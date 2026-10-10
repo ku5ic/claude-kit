@@ -3,7 +3,7 @@
   "structured_output": {
     "entries": [
       {
-        "id": "0f918c6b2dfafd33",
+        "id": "313bb4b30faf6d96",
         "role": "check",
         "kind": "format-check",
         "mutates": false,
@@ -13,7 +13,7 @@
         ]
       },
       {
-        "id": "3395355c5459a22d",
+        "id": "e6c4be71506c52fa",
         "role": "fixer",
         "mutates": true,
         "file_form": "eslint --fix {files}",
@@ -22,7 +22,7 @@
         ]
       },
       {
-        "id": "7173ad2053618696",
+        "id": "b7edb44006e443a7",
         "role": "fixer",
         "mutates": true,
         "file_form": "prettier --write {files}",
@@ -31,15 +31,16 @@
         ]
       },
       {
-        "id": "8dd03f3d84e4306c",
-        "role": "fixer",
+        "id": "5c77103c432b8c6e",
+        "role": "other",
         "mutates": true
       },
       {
-        "id": "327523eda977c632",
+        "id": "da7bb0f1918eadf4",
         "role": "check",
         "kind": "test",
-        "mutates": false
+        "mutates": false,
+        "affected_form": "vitest run --changed={base}"
       }
     ],
     "managers": [
@@ -49,7 +50,8 @@
         "manager": "npm",
         "run_prefix": "npx",
         "add_verbs": [
-          "npm install"
+          "npm install",
+          "npm add"
         ],
         "dlx": "npx",
         "dir_flags": [
@@ -64,26 +66,26 @@
     "proposals": [
       {
         "role": "check",
-        "command": "npx eslint . --max-warnings=0",
+        "kind": "lint",
+        "command": "npx eslint --max-warnings=0 .",
         "dir": ".",
         "evidence": "package.json",
-        "kind": "lint",
         "mutates": false
       },
       {
         "role": "check",
+        "kind": "test",
         "command": "npx vitest run",
         "dir": ".",
         "evidence": "package.json",
-        "kind": "test",
         "mutates": false
       },
       {
         "role": "check",
+        "kind": "format-check",
         "command": "npx prettier --check .",
         "dir": ".",
         "evidence": "package.json",
-        "kind": "format-check",
         "mutates": false
       },
       {
@@ -93,7 +95,7 @@
         "evidence": "package.json",
         "file_form": "npx prettier --write {files}",
         "globs": [
-          "**/*.{js,jsx,ts,tsx,json,md,css}"
+          "**/*.{ts,tsx,js,jsx,json,md}"
         ],
         "mutates": true
       }

@@ -68,12 +68,21 @@ type runner struct {
 	changes  func() (git.Since, bool)
 }
 
-// outcome is one gate's run: its combined output, its error, and the paths,
-// from the root, whose content it changed.
+// outcome is one gate's run: its combined output, its error, whether its
+// deadline killed it, and the paths, from the root, whose content it
+// changed.
 type outcome struct {
-	out     string
-	err     error
-	changed []string
+	out      string
+	err      error
+	timedOut bool
+	crashed  bool
+	changed  []string
+}
+
+// notFound is true when the shell couldn't find a command the gate runs.
+func (o outcome) notFound() bool {
+	exit, ok := errors.AsType[*exec.ExitError](o.err)
+	return ok && exit.ExitCode() == 127
 }
 
 func (r *runner) skip(label, why string) {
@@ -125,7 +134,6 @@ func (r *runner) gate(g enforce.Gate) {
 		}
 	}
 	o := r.exec(g, body)
-	exit, exited := errors.AsType[*exec.ExitError](o.err)
 	switch {
 	case len(o.changed) > 0:
 		_ = enforce.AddMark(r.cacheDir, r.plan.Root, g, enforce.Mark{Label: g.Label, Paths: o.changed, Ref: r.ref})
@@ -134,7 +142,7 @@ func (r *runner) gate(g enforce.Gate) {
 			detail += head(o.out)
 		}
 		r.fail(g, body, detail)
-	case exited && exit.ExitCode() == 127:
+	case o.notFound():
 		r.skip(g.Label, "not installed: "+lastLine(o.out))
 	case g.Scoped():
 		r.judge(g, body, o)
@@ -155,18 +163,10 @@ func (r *runner) exec(g enforce.Gate, body string) outcome {
 			r.ref = keep(root, r.tree, time.Now())
 		}
 	}
-	var buf bytes.Buffer
-	// GitHub Actions' default shell for a run step.
-	cmd := proc.Command(gateTimeout, "bash", "-e", "-o", "pipefail", "-c", body)
-	cmd.Dir, cmd.Stdout, cmd.Stderr = g.Dir, &buf, &buf
-	// pnpm 10+ installs before `pnpm run` when node_modules is out of sync
-	// with the lockfile, and a gate never installs.
-	cmd.Env = append(append(os.Environ(), g.Env...), "pnpm_config_verify_deps_before_run=false", "PATH="+searchPath(g))
-	o := outcome{err: cmd.Run()}
-	if cmd.TimedOut() {
-		fmt.Fprintf(&buf, "\ntimed out after %s\n", gateTimeout)
+	o := execute(command(g, body, gateTimeout))
+	if o.timedOut {
+		o.out += fmt.Sprintf("\ntimed out after %s\n", gateTimeout)
 	}
-	o.out = buf.String()
 	if r.tree != "" {
 		if after, err := git.Snapshot(root); err == nil {
 			o.changed, _ = git.TreeDiff(root, r.tree, after)
@@ -174,6 +174,26 @@ func (r *runner) exec(g enforce.Gate, body string) outcome {
 		}
 	}
 	return o
+}
+
+// command is body run as g says, in its directory with its env, killed
+// once timeout passes.
+func command(g enforce.Gate, body string, timeout time.Duration) *proc.Cmd {
+	// GitHub Actions' default shell for a run step.
+	cmd := proc.Command(timeout, "bash", "-e", "-o", "pipefail", "-c", body)
+	cmd.Dir = g.Dir
+	// pnpm 10+ installs before `pnpm run` when node_modules is out of sync
+	// with the lockfile, and a gate never installs.
+	cmd.Env = append(append(os.Environ(), g.Env...), "pnpm_config_verify_deps_before_run=false", "PATH="+searchPath(g))
+	return cmd
+}
+
+// execute runs cmd for its combined output.
+func execute(cmd *proc.Cmd) outcome {
+	var buf bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &buf, &buf
+	err := cmd.Run()
+	return outcome{out: buf.String(), err: err, timedOut: cmd.TimedOut()}
 }
 
 // searchPath is PATH with the directory of each binary g resolved ahead of

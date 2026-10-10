@@ -3,31 +3,39 @@
   "structured_output": {
     "entries": [
       {
-        "id": "9f38f0b6a72a4a71",
+        "id": "3ecc40202062fde6",
         "role": "check",
         "mutates": false
       },
       {
-        "id": "48c033c16f7f68c2",
+        "id": "165989bd87f8039b",
         "role": "check",
         "kind": "lint",
-        "mutates": false
+        "mutates": false,
+        "file_form": "golangci-lint run {dirs}",
+        "globs": [
+          "**/*.go"
+        ]
       },
       {
-        "id": "d615c811f2d3a808",
+        "id": "cfaf74e33d05ba41",
         "role": "check",
         "kind": "test",
+        "mutates": false,
+        "file_form": "go test {dirs}",
+        "globs": [
+          "**/*.go"
+        ]
+      },
+      {
+        "id": "9f7ecc7e8bcb8a13",
+        "role": "build",
         "mutates": false
       },
       {
-        "id": "f55c72c7639ff8c5",
-        "role": "build",
-        "mutates": true
-      },
-      {
-        "id": "a16704706418d0eb",
+        "id": "0a1219c29227382d",
         "role": "deploy",
-        "mutates": true
+        "mutates": false
       }
     ],
     "managers": [],
@@ -38,7 +46,11 @@
         "dir": ".",
         "evidence": ".golangci.yml",
         "kind": "lint",
-        "mutates": false
+        "mutates": false,
+        "file_form": "golangci-lint run {dirs}",
+        "globs": [
+          "**/*.go"
+        ]
       },
       {
         "role": "check",
@@ -46,7 +58,11 @@
         "dir": ".",
         "evidence": "go.mod",
         "kind": "typecheck",
-        "mutates": false
+        "mutates": false,
+        "file_form": "go vet {dirs}",
+        "globs": [
+          "**/*.go"
+        ]
       },
       {
         "role": "check",
@@ -54,7 +70,11 @@
         "dir": ".",
         "evidence": "go.mod",
         "kind": "test",
-        "mutates": false
+        "mutates": false,
+        "file_form": "go test {dirs}",
+        "globs": [
+          "**/*.go"
+        ]
       },
       {
         "role": "check",
@@ -69,11 +89,11 @@
         "command": "gofmt -w .",
         "dir": ".",
         "evidence": "go.mod",
+        "mutates": true,
         "file_form": "gofmt -w {files}",
         "globs": [
           "**/*.go"
-        ],
-        "mutates": true
+        ]
       }
     ]
   },

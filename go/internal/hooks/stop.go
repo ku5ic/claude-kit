@@ -3,21 +3,23 @@ package hooks
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
-	"github.com/ku5ic/claude-kit/go/internal/checks"
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/enforce"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/run"
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
 // StopChecks is the Stop hook: when the turn created or edited files through
-// Edit/Write/MultiEdit/NotebookEdit and left the tree dirty, it runs
-// kit.yml's file_checks on just those files and blocks the stop on a
-// failure, so Claude fixes or reports it. A question-only turn costs
+// Edit/Write/MultiEdit/NotebookEdit and left the tree dirty, it runs the
+// project's file-scoped checks (enforce.Stop) on just those files and blocks
+// the stop on a failure, so Claude fixes or reports it. A question-only turn costs
 // nothing. When the turn ticked a plan's last open step, it also blocks
 // until /code-review has run since the last code
 // edit; it never runs the suite itself.
@@ -56,17 +58,21 @@ func StopChecks(h *hook.Hook) error {
 	if len(edited) == 0 {
 		return nil
 	}
-	out := checks.FileChecks(cfg, root, cwd, edited)
-	if out == nil {
+	for i, path := range edited {
+		edited[i] = fsx.Abs(cwd, path)
+	}
+	p := enforce.Stop(cfg, enforce.Options{Root: root, CacheDir: h.Paths.CacheDir()}, edited)
+	if len(p.Gates) == 0 {
 		return nil
 	}
+	out := run.Files(p, h.Paths.CacheDir(), time.Duration(cfg.CheckTimeout)*time.Second)
 	// Silent on a pass: what ran and what was skipped is kept for kit
 	// explain stop.
 	if !h.DryRun {
-		_ = fsx.WriteAtomic(cache.StopReport(h.Paths.CacheDir(), root), []byte(out.Report+out.Summary), 0o600)
+		_ = fsx.WriteAtomic(cache.StopReport(h.Paths.CacheDir(), root), []byte(out.Report), 0o600)
 	}
 	if out.Failed {
-		return h.Block("file checks failed; fix them or report and stop.\n"+out.Failures+out.Summary, "checks-failed")
+		return h.Block("file checks failed; fix them or report and stop.\n"+out.Failures, "checks-failed")
 	}
 	return nil
 }

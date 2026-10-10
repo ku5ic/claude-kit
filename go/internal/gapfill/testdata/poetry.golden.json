@@ -12,10 +12,7 @@
           "poetry add"
         ],
         "dlx": "",
-        "dir_flags": [
-          "-C",
-          "--directory"
-        ],
+        "dir_flags": [],
         "rivals": [
           "uv",
           "pipenv"
@@ -25,59 +22,58 @@
     "proposals": [
       {
         "role": "check",
-        "kind": "lint",
         "command": "poetry run ruff check .",
         "dir": ".",
         "evidence": "pyproject.toml",
-        "mutates": false,
+        "kind": "lint",
         "globs": [
           "**/*.py"
         ],
-        "file_form": "poetry run ruff check {files}"
+        "mutates": false
       },
       {
         "role": "check",
-        "kind": "typecheck",
         "command": "poetry run mypy .",
         "dir": ".",
         "evidence": "pyproject.toml",
-        "mutates": false,
+        "kind": "typecheck",
         "globs": [
           "**/*.py"
-        ]
+        ],
+        "mutates": false
       },
       {
         "role": "check",
-        "kind": "test",
         "command": "poetry run pytest",
         "dir": ".",
         "evidence": "pyproject.toml",
-        "mutates": false,
+        "kind": "test",
         "globs": [
           "**/*.py"
-        ]
+        ],
+        "mutates": false
       },
       {
         "role": "check",
-        "kind": "format-check",
         "command": "poetry run ruff format --check .",
         "dir": ".",
         "evidence": "pyproject.toml",
-        "mutates": false,
+        "kind": "format-check",
         "globs": [
           "**/*.py"
         ],
-        "file_form": "poetry run ruff format --check {files}"
+        "mutates": false
       },
       {
         "role": "fixer",
-        "command": "poetry run ruff format {files}",
+        "command": "poetry run ruff format .",
         "dir": ".",
         "evidence": "pyproject.toml",
-        "mutates": true,
+        "kind": "format-check",
         "globs": [
           "**/*.py"
         ],
+        "mutates": true,
         "file_form": "poetry run ruff format {files}"
       }
     ]

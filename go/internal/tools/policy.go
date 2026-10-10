@@ -22,7 +22,11 @@ func declared(cfg *config.Config, dir, root, name string) (manifest, install str
 		case sources.JSDeps(d)[pkg]:
 			return fsx.Rel(root, filepath.Join(d, "package.json")), installCmd(cfg, d, "js")
 		case sources.PythonDeps(d)[sources.PyName(pkg)]:
-			return manifestName(Python, d, root), installCmd(cfg, d, "python")
+			manifest := filepath.Join(d, "pyproject.toml")
+			if !fsx.IsFile(manifest) {
+				manifest = filepath.Join(d, "requirements.txt")
+			}
+			return fsx.Rel(root, manifest), installCmd(cfg, d, "python")
 		case sources.RubyDeps(d)[pkg]:
 			return fsx.Rel(root, filepath.Join(d, "Gemfile.lock")), installCmd(cfg, d, "bundler")
 		case fsx.IsFile(filepath.Join(d, "go.mod")) && resolve.GoModDeclares(filepath.Join(d, "go.mod"), name):

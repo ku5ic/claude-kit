@@ -13,8 +13,8 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/bashguard"
 	"github.com/ku5ic/claude-kit/go/internal/cache"
-	"github.com/ku5ic/claude-kit/go/internal/checks"
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/enforce"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
@@ -27,9 +27,9 @@ const usage = `usage: kit explain <what> ...
   bash '<command>'          how guard-bash parses the command, and its decision
   edit <path> [tool]        guard-edit's (and the skills gate's) decision on a
                             Read/Edit/Write of path; tool defaults to Write
-  stop [file...]            which file checks claim each file, where they run,
-                            and the exact command; defaults to the files the
-                            working tree has changed
+  stop [file...]            which checks claim each file, where they run, the
+                            exact command, and what blocks; defaults to the
+                            files the working tree has changed
 `
 
 // Run dispatches kit explain.
@@ -151,41 +151,36 @@ func stop(paths config.Paths, cfg *config.Config, cwd string, files []string, w,
 			return 0
 		}
 	}
-	groups := checks.Plan(cfg, root, cwd, files)
+	abs := make([]string, len(files))
+	for i, f := range files {
+		abs[i] = fsx.Abs(cwd, f)
+	}
+	p := enforce.Stop(cfg, enforce.Options{Root: root, CacheDir: paths.CacheDir()}, abs)
 	claimed := map[string]bool{}
-	for _, g := range groups {
-		fmt.Fprintf(w, "%s  (%s)\n", g.Adapter.Name, g.Why)
-		fmt.Fprintf(w, "  runs in  %s\n", g.Dir)
-		for _, f := range g.Files {
-			claimed[f] = true
-			fmt.Fprintf(w, "  file     %s\n", fsx.Rel(root, f))
-		}
+	for _, g := range p.Gates {
+		fmt.Fprintln(w, g.Label)
 		if g.Skip != "" {
 			fmt.Fprintf(w, "  skip     %s\n", g.Skip)
 			continue
 		}
-		if g.Derived.Source != "" {
-			carried := append(append([]string{}, g.Derived.Env...), g.Derived.Flags...)
-			what := "no flags on the carry list"
-			if len(carried) > 0 {
-				what = "carries " + strings.Join(carried, " ")
-			}
-			fmt.Fprintf(w, "  from     %s (%s)\n", g.Derived.Source, what)
+		fmt.Fprintf(w, "  runs in  %s\n", fsx.Rel(root, g.Dir))
+		for _, f := range g.Files {
+			claimed[f] = true
+			fmt.Fprintf(w, "  file     %s\n", fsx.Rel(root, f))
 		}
-		fmt.Fprintf(w, "  command  %s\n", strings.Join(g.Words, " "))
-		fmt.Fprintf(w, "  source   %s\n", g.Bin.Origin())
-		blocks := "any failure (whole file)"
-		if g.Adapter.Findings != nil {
+		fmt.Fprintf(w, "  command  %s\n", g.Command())
+		for _, bin := range g.Bins {
+			fmt.Fprintf(w, "  source   %s (%s)\n", bin.Path, bin.Source)
+		}
+		blocks := "any failure"
+		if g.LintLike() {
 			blocks = "findings on changed lines"
 		}
 		fmt.Fprintf(w, "  blocks   %s\n", blocks)
+		fmt.Fprintf(w, "  verdict  %s\n", g.Verdict)
 	}
-	for _, f := range files {
-		abs := f
-		if !filepath.IsAbs(abs) {
-			abs = filepath.Join(cwd, f)
-		}
-		if !claimed[fsx.PhysicalPath(abs)] {
+	for i, f := range files {
+		if !claimed[fsx.PhysicalPath(abs[i])] {
 			fmt.Fprintf(w, "unclaimed  %s (no check applies, or the file is ignored, deleted, or outside the repo)\n", f)
 		}
 	}

@@ -40,11 +40,24 @@ type Gate struct {
 	Skip    string
 	Verdict string // what gap-fill said of its source
 	FanOut  bool   // it runs across every subproject
+	// FileForm is the body run on given files ({files}, {dirs}) and Globs
+	// the files it applies to, when its source states one; Stop runs it.
+	FileForm string
+	Globs    []string
+	Files    []string // the files a Stop gate checks, absolute
 }
 
 // Scoped is true for a dead-code gate: only findings on lines changed since
 // the git base fail it.
 func (g Gate) Scoped() bool { return slices.Contains(g.Kinds, "deadcode") }
+
+// LintLike is true for a gate whose findings, not its exit code, decide it
+// at Stop: only those on changed lines block.
+func (g Gate) LintLike() bool {
+	return slices.ContainsFunc(g.Kinds, func(k string) bool {
+		return slices.Contains([]string{"lint", "format-check", "deadcode", "security"}, k)
+	})
+}
 
 // Plan is the full gate for one root. Discovery is set when the project
 // states nothing to check; Unclassified counts the entries with no verdict.
@@ -69,15 +82,8 @@ const Discovery = "nothing in this project states a check: no CI step, task, hoo
 
 // Build plans the full gate for o.Root.
 func Build(cfg *config.Config, o Options) Plan {
-	subs := project.Subprojects(cfg, o.Root)
-	entries := sources.Entries(cfg, o.Root, subs)
-	facts := gapfill.Run(cfg, gapfill.Options{Root: o.Root, CacheDir: o.CacheDir, Entries: entries, Ask: o.Ask, Timeout: o.Timeout})
-	b := newBuilder(cfg, o.Root, entries, facts)
-	b.ci()
-	for _, sub := range subs {
-		b.fill(sub)
-	}
-	b.unclassified()
+	b, subs := fullGate(cfg, o)
+	b.unclassified(func(e sources.Entry) bool { return !gitHook(e.Source) })
 	b.resolve()
 	skipMarked(b.gates, o.CacheDir, o.Root)
 	p := Plan{Root: o.Root, Unclassified: b.skipped}
@@ -90,6 +96,30 @@ func Build(cfg *config.Config, o Options) Plan {
 		p.Discovery = Discovery
 	}
 	return p
+}
+
+// fullGate is a builder holding o.Root's full gate, unresolved, and the
+// subprojects it planned.
+func fullGate(cfg *config.Config, o Options) (*builder, []string) {
+	subs := project.Subprojects(cfg, o.Root)
+	entries := sources.Entries(cfg, o.Root, subs)
+	facts := gapfill.Run(cfg, gapfill.Options{Root: o.Root, CacheDir: o.CacheDir, Entries: entries, Ask: o.Ask, Timeout: o.Timeout})
+	b := newBuilder(cfg, o.Root, entries, facts)
+	b.ci()
+	for _, sub := range subs {
+		b.fill(sub)
+	}
+	return b, subs
+}
+
+// gitHook is true for a source that only a git hook runs: the full gate
+// leaves it out, and Stop runs its pre-commit checks.
+func gitHook(source string) bool {
+	switch source {
+	case "lint-staged", "lefthook", "husky", "commitlint":
+		return true
+	}
+	return false
 }
 
 type taskKey struct{ provider, dir, name string }
@@ -213,7 +243,7 @@ func (b *builder) taskRunners(sub, kind string) {
 		kinds := b.taskKinds(e, v, 0)
 		switch {
 		case len(kinds) == 1 && kinds[0] == kind:
-			b.add(Gate{Label: label(kinds, e.File+": "+e.Name, sub), Kinds: kinds, Dir: dir, Body: b.runCommand(tp, sub, e.Name), Verdict: v.String()})
+			b.add(Gate{Label: label(kinds, e.File+": "+e.Name, sub), Kinds: kinds, Dir: dir, Body: b.runCommand(tp, sub, e.Name), Verdict: v.String(), FileForm: v.FileForm, Globs: v.Globs})
 		case slices.Contains(kinds, kind):
 			aggregates = append(aggregates, e)
 		}
@@ -245,17 +275,16 @@ func (b *builder) evidence(sub, kind string) {
 	for _, p := range b.facts.Proposals {
 		if p.Role == "check" && p.Kind == kind && filepath.Clean(p.Dir) == sub {
 			dir := filepath.Join(b.root, sub)
-			b.add(Gate{Label: label([]string{kind}, "evidence "+p.Evidence, sub), Kinds: []string{kind}, Dir: dir, Body: p.Command, Verdict: "proposed: " + p.Command})
+			b.add(Gate{Label: label([]string{kind}, "evidence "+p.Evidence, sub), Kinds: []string{kind}, Dir: dir, Body: p.Command, Verdict: "proposed: " + p.Command, FileForm: p.FileForm, Globs: p.Globs})
 		}
 	}
 }
 
-// unclassified reports every entry the full gate could run that has no
-// verdict: CI steps, the task graph's, task runners', and pre-commit's.
-func (b *builder) unclassified() {
+// unclassified reports every entry the plan could run, as runs says, that
+// has no verdict.
+func (b *builder) unclassified(runs func(sources.Entry) bool) {
 	for _, e := range b.entries {
-		switch e.Source {
-		case "lint-staged", "lefthook", "husky", "commitlint":
+		if !runs(e) {
 			continue
 		}
 		if _, why := b.verdict(e); why != "" && !strings.HasPrefix(why, "denied") {

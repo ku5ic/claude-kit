@@ -234,6 +234,13 @@ func summary(pass, fail, skip int) string {
 	return fmt.Sprintf("checks: %d passed, %d failed, %d skipped", pass, fail, skip)
 }
 
+func plural(n int) string {
+	if n == 1 {
+		return ""
+	}
+	return "s"
+}
+
 // head is lines' first maxOutputLines.
 func head(lines []string) []string { return lines[:min(len(lines), maxOutputLines)] }
 

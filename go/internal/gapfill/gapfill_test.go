@@ -269,6 +269,17 @@ func TestAPlaceholderReplacesAListOfPaths(t *testing.T) {
 	}
 }
 
+// A tool taking packages runs on the edited files' directories.
+func TestADirsPlaceholderReplacesAPackagePattern(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t, "")
+	vet := entry("vet", "go vet ./...")
+	f.answer(answers(verdict(vet, map[string]any{"role": "check", "kind": "lint", "mutates": false, "file_form": "go vet {dirs}"})))
+	if v := f.run(vet).Verdicts[Key(vet)]; v.FileForm != "go vet {dirs}" {
+		t.Errorf("%+v", v)
+	}
+}
+
 // npx is npm's run prefix, and it fetches what isn't installed: a form
 // through it holds up only once the project has its own copy.
 func TestNpxHoldsUpWithALocalCopy(t *testing.T) {

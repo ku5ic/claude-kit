@@ -3,29 +3,27 @@
   "structured_output": {
     "entries": [
       {
-        "id": "255f0a59565d97fd",
+        "id": "956a73f40854e080",
         "role": "fixer",
         "kind": "lint",
         "mutates": true,
         "file_form": "ruff --fix {files}",
         "globs": [
           "**/*.py"
-        ],
-        "exclusions": "pyproject.toml"
+        ]
       },
       {
-        "id": "ba966970c323099c",
+        "id": "e5d996d124a5e26f",
         "role": "fixer",
         "kind": "format-check",
         "mutates": true,
         "file_form": "ruff-format {files}",
         "globs": [
           "**/*.py"
-        ],
-        "exclusions": "pyproject.toml"
+        ]
       },
       {
-        "id": "d8d65d77c3fb7410",
+        "id": "5cfb4656ca372a02",
         "role": "check",
         "kind": "typecheck",
         "mutates": false,
@@ -35,7 +33,7 @@
         ]
       },
       {
-        "id": "3452bd4159990e9e",
+        "id": "5f0575bba54ddfdc",
         "role": "check",
         "kind": "lint",
         "mutates": false,
@@ -46,8 +44,9 @@
         ]
       },
       {
-        "id": "412ace5907ddbc95",
+        "id": "684cde181dedb73b",
         "role": "fixer",
+        "kind": "format-check",
         "mutates": true,
         "file_form": "end-of-file-fixer {files}",
         "globs": [
@@ -59,31 +58,31 @@
     "proposals": [
       {
         "role": "check",
-        "command": "ruff check",
+        "kind": "lint",
+        "command": "ruff check .",
         "dir": ".",
         "evidence": "pyproject.toml",
-        "kind": "lint",
         "mutates": false
       },
       {
         "role": "check",
-        "command": "ruff format --check",
+        "kind": "format-check",
+        "command": "ruff format --check .",
         "dir": ".",
         "evidence": "pyproject.toml",
-        "kind": "format-check",
         "mutates": false
       },
       {
         "role": "fixer",
-        "command": "ruff format",
+        "kind": "format-check",
+        "command": "ruff format .",
         "dir": ".",
         "evidence": "pyproject.toml",
-        "kind": "format-check",
-        "mutates": true,
         "file_form": "ruff format {files}",
         "globs": [
           "**/*.py"
-        ]
+        ],
+        "mutates": true
       }
     ]
   },
