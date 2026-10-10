@@ -20,9 +20,7 @@ func Commit(p enforce.Plan, budget time.Duration) string {
 		if g.Skip != "" || left <= 0 {
 			continue
 		}
-		cmd := command(g, g.Command(), left)
-		cmd.KillGroup()
-		if o := execute(cmd); o.err != nil && !o.timedOut && !o.notFound() {
+		if o := execute(command(g, g.Command(), left)); o.err != nil && !o.timedOut && !o.notFound() {
 			fmt.Fprintf(&failures, "FAIL %s\n%s", g.Label, tail(o.out))
 		}
 	}

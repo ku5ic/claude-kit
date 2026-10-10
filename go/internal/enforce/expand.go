@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/classify"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/gapfill"
 	"github.com/ku5ic/claude-kit/go/internal/sources"
 )
@@ -28,11 +29,12 @@ type part struct {
 // parts all check runs as its parts, each on its own line; anything else
 // runs whole.
 func (b *builder) expand(e sources.Entry, v gapfill.Verdict, dir string, env []string) {
-	b.expandAt(e, v, dir, env, 0)
+	parts, ok := b.split(e.Body.Text, dir, env, v, 0)
+	b.plan(e, v, dir, env, parts, ok, 0)
 }
 
-func (b *builder) expandAt(e sources.Entry, v gapfill.Verdict, dir string, env []string, depth int) {
-	parts, ok := b.split(e.Body.Text, dir, env, v, depth)
+// plan plans e from its parts, split at depth.
+func (b *builder) plan(e sources.Entry, v gapfill.Verdict, dir string, env []string, parts []part, ok bool, depth int) {
 	switch {
 	case ok && len(parts) == 1 && parts[0].task != nil:
 		b.reference(parts[0], depth)
@@ -57,7 +59,7 @@ func (b *builder) reference(p part, depth int) {
 	v, _ := b.verdict(t)
 	if depth < maxDepth {
 		if parts, ok := b.split(t.Body.Text, p.dir, p.env, v, depth+1); ok && (len(parts) > 1 || len(parts) == 1 && parts[0].task != nil) {
-			b.expandAt(t, v, p.dir, p.env, depth+1)
+			b.plan(t, v, p.dir, p.env, parts, ok, depth+1)
 			return
 		}
 	}
@@ -97,13 +99,13 @@ func (b *builder) split(body, dir string, env []string, v gapfill.Verdict, depth
 			cmd = r.Commands[0]
 		}
 		switch {
-		case cmd.Kind == classify.Cd && r.Opaque == "" && len(r.Commands) == 1:
+		case cmd.Kind == classify.Cd:
 			next, can := b.cd(dir, cmd.Words)
 			if !can {
 				return nil, false
 			}
 			dir = next
-		case cmd.Kind == classify.Export && r.Opaque == "" && len(r.Commands) == 1:
+		case cmd.Kind == classify.Export:
 			env = append(env, cmd.Env...)
 		case cmd.Kind == classify.Ref && len(cmd.Refs) == 1:
 			ref := cmd.Refs[0]
@@ -161,12 +163,8 @@ func (b *builder) cd(dir string, words []string) (string, bool) {
 	if len(words) != 2 || strings.HasPrefix(words[1], "-") {
 		return "", false
 	}
-	next := words[1]
-	if !filepath.IsAbs(next) {
-		next = filepath.Join(dir, next)
-	}
-	next = filepath.Clean(next)
-	return next, next == b.root || strings.HasPrefix(next, b.root+"/")
+	next := fsx.Abs(dir, words[1])
+	return next, fsx.Within(b.root, next)
 }
 
 // fansOut is true when body runs across workspace packages.

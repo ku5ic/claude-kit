@@ -85,20 +85,9 @@ func Build(paths config.Paths, cfg *config.Config, name, root, session string) C
 	file := cacheFile(paths, cfg, name, root)
 	refresh(paths, cfg, root, file)
 	report, _ := os.ReadFile(file)
-	c := Context{Report: string(report), Required: required(cfg)}
+	c := Context{Report: string(report), Required: suggested(nil, cfg.GlobalSkills)}
 	c.Suggested = suggested(c.Required, FileSkills(paths, cfg, root, session), dependencySkills(cfg, root))
 	return c
-}
-
-// required is kit.yml's global_skills, deduped in first-seen order.
-func required(cfg *config.Config) []string {
-	var out []string
-	for _, skill := range cfg.GlobalSkills {
-		if skill != "" && !slices.Contains(out, skill) {
-			out = append(out, skill)
-		}
-	}
-	return out
 }
 
 // suggested is the skills of lists, deduped in first-seen order, leaving

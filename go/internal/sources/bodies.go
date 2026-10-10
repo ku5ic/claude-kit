@@ -13,28 +13,10 @@ type Body struct {
 	PerLine bool
 }
 
-// Bodies maps each task an extractor finds to the shell it runs, for the
-// gate classifier. Only extractors whose manifest holds commands have
-// bodies: json_keys and toml_keys (script strings), make_targets,
-// just_recipes, and taskfile_tasks (recipes, with dependencies first, as
-// "make <dep>", "just <dep>", and "task <dep>" lines), and precommit_hooks
-// (each hook's command and args). Any other extractor has none.
-func Bodies(name, file, arg string) map[string]Body {
-	switch name {
-	case "json_keys":
-		return stringValues(GetPath(readJSON(file), arg))
-	case "toml_keys":
-		return stringValues(GetPath(readTOML(file), arg))
-	case "make_targets":
-		return makeBodies(file)
-	case "just_recipes":
-		return justBodies(file)
-	case "taskfile_tasks":
-		return taskfileBodies(file)
-	case "precommit_hooks":
-		return preCommitBodies(file)
-	}
-	return nil
+// scripts maps each key of the table at path, in a file read reads, to its
+// script.
+func scripts(read func(string) any) func(file, path string) map[string]Body {
+	return func(file, path string) map[string]Body { return stringValues(GetPath(read(file), path)) }
 }
 
 // stringValues maps a table's keys to their command: a string, a list of

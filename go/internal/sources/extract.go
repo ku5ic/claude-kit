@@ -22,45 +22,6 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/proc"
 )
 
-// Run dispatches kit.yml's extractor names. Only names listed here run; any
-// other name is an error, never a command.
-func Run(name, file, arg string) ([]string, error) {
-	switch name {
-	case "json_keys":
-		return JSONKeys(file, arg), nil
-	case "json_array":
-		return JSONArray(file, arg), nil
-	case "json_value":
-		return single(JSONValue(file, arg)), nil
-	case "toml_keys":
-		return TOMLKeys(file, arg), nil
-	case "toml_array":
-		return TOMLArray(file, arg), nil
-	case "yaml_array":
-		return YAMLArray(file, arg), nil
-	case "toml_package_version":
-		return single(TOMLPackageVersion(file, arg)), nil
-	case "regex_lines":
-		return RegexLines(file, arg), nil
-	case "make_targets":
-		return MakeTargets(file), nil
-	case "just_recipes":
-		return JustRecipes(file), nil
-	case "taskfile_tasks":
-		return TaskfileTasks(file), nil
-	case "precommit_hooks":
-		return PreCommitHooks(file), nil
-	}
-	return nil, fmt.Errorf("unknown extractor in kit.yml: %s", name)
-}
-
-func single(value string) []string {
-	if value == "" {
-		return nil
-	}
-	return []string{value}
-}
-
 // splitPath turns ".a.b" into [a b], as jq's getpath with empty parts dropped.
 func splitPath(path string) []string {
 	var parts []string
@@ -115,10 +76,14 @@ func readJSON(file string) any { return Decode[any](file, json.Unmarshal) }
 // readTOML is untyped nil, not a nil map, when file can't be read, so a
 // GetPath on it never looks like a table.
 func readTOML(file string) any {
-	if doc := Decode[map[string]any](file, toml.Unmarshal); doc != nil {
+	if doc := readTOMLTable(file); doc != nil {
 		return doc
 	}
 	return nil
+}
+
+func readTOMLTable(file string) map[string]any {
+	return Decode[map[string]any](file, toml.Unmarshal)
 }
 
 // JSONKeys lists the keys of the object at path, in file order.
@@ -248,23 +213,6 @@ func keyParts(node *unstable.Node) []string {
 // TOMLArray lists the string items of the array at path.
 func TOMLArray(file, path string) []string {
 	return strings_(GetPath(readTOML(file), path))
-}
-
-// TOMLPackageVersion is the version of [[package]] name in a uv.lock or
-// poetry.lock, matched case-insensitively as pip names are.
-func TOMLPackageVersion(file, name string) string {
-	packages, _ := GetPath(readTOML(file), ".package").([]any)
-	for _, pkg := range packages {
-		m, ok := pkg.(map[string]any)
-		if !ok {
-			continue
-		}
-		if pkgName, _ := m["name"].(string); strings.EqualFold(pkgName, name) {
-			version, _ := m["version"].(string)
-			return version
-		}
-	}
-	return ""
 }
 
 // YAMLArray lists the string items of the sequence at path.

@@ -164,7 +164,6 @@ func (r *runner) exec(g enforce.Gate, body string) outcome {
 		}
 	}
 	cmd := command(g, body, gateTimeout)
-	// A timeout kills the workers a test runner spawned, not only bash.
 	cmd.Interruptible()
 	o := execute(cmd)
 	if o.timedOut {
@@ -186,6 +185,8 @@ func command(g enforce.Gate, body string, timeout time.Duration) *proc.Cmd {
 	cmd := proc.Command(timeout, "bash", "-e", "-o", "pipefail", "-c", body)
 	cmd.Dir = g.Dir
 	cmd.Env = append(append(os.Environ(), g.Env...), "PATH="+searchPath(g))
+	// A timeout kills the workers a test runner spawned, not only bash.
+	cmd.KillGroup()
 	return cmd
 }
 

@@ -34,9 +34,7 @@ func fix(g enforce.Gate, deadline time.Time) string {
 	if left <= 0 {
 		return "out of time"
 	}
-	cmd := command(g, g.Command(), left)
-	cmd.KillGroup()
-	switch o := execute(cmd); {
+	switch o := execute(command(g, g.Command(), left)); {
 	case o.timedOut:
 		return "out of time"
 	case o.notFound():

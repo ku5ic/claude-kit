@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/enforce"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 )
@@ -30,7 +31,7 @@ func PruneRestorePoints(root string, now time.Time) {
 	refs, _ := git.Lines(root, "for-each-ref", "--format=%(refname)", refPrefix)
 	for _, ref := range refs {
 		nanos, err := strconv.ParseInt(strings.TrimPrefix(ref, refPrefix), 10, 64)
-		if err == nil && now.Sub(time.Unix(0, nanos)) > keepDays*24*time.Hour {
+		if err == nil && cache.Older(time.Unix(0, nanos), keepDays, now) {
 			_, _ = git.Output(root, "update-ref", "-d", ref)
 		}
 	}

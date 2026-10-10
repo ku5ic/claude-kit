@@ -11,11 +11,11 @@ import (
 
 func TestSuggestedSkipsGlobalAndDedupes(t *testing.T) {
 	cfg := &config.Config{GlobalSkills: []string{"fix-sizing"}}
-	got := suggested(required(cfg), []string{"javascript-patterns", "fix-sizing"}, []string{"react-patterns", "javascript-patterns"})
+	got := suggested(suggested(nil, cfg.GlobalSkills), []string{"javascript-patterns", "fix-sizing"}, []string{"react-patterns", "javascript-patterns"})
 	if want := []string{"javascript-patterns", "react-patterns"}; !slices.Equal(got, want) {
 		t.Errorf("got %q, want %q", got, want)
 	}
-	if (Context{Required: required(cfg)}).RequiredBlock() != "\n<required-skills>\nBLOCKING REQUIREMENT: invoke the Skill tool for each of these skills NOW, before any other action: fix-sizing\n</required-skills>\n" {
+	if (Context{Required: suggested(nil, cfg.GlobalSkills)}).RequiredBlock() != "\n<required-skills>\nBLOCKING REQUIREMENT: invoke the Skill tool for each of these skills NOW, before any other action: fix-sizing\n</required-skills>\n" {
 		t.Error("required block shape changed")
 	}
 }

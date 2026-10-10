@@ -9,8 +9,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/pelletier/go-toml/v2"
-
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 )
 
@@ -154,10 +152,6 @@ func PythonDeps(dir string) Deps {
 		})
 	}
 	return deps
-}
-
-func readTOMLTable(file string) map[string]any {
-	return Decode[map[string]any](file, toml.Unmarshal)
 }
 
 // addReq adds a PEP 508 requirement's name.

@@ -95,7 +95,7 @@ func (r *rotator) worktrees(dir string, stderr io.Writer) {
 	var removed []string
 	for _, gitFile := range gitFiles {
 		info, err := os.Lstat(gitFile)
-		if err != nil || !info.Mode().IsRegular() || !cache.Older(info, 1, r.now) {
+		if err != nil || !info.Mode().IsRegular() || !cache.Older(info.ModTime(), 1, r.now) {
 			continue
 		}
 		wt := filepath.Dir(gitFile)
@@ -151,7 +151,7 @@ func (r *rotator) prune(dir string, days int, keep func(string) bool) int {
 			return nil
 		}
 		info, err := d.Info()
-		if err != nil || !cache.Older(info, days, r.now) {
+		if err != nil || !cache.Older(info.ModTime(), days, r.now) {
 			return nil
 		}
 		if !r.dryRun && os.Remove(path) != nil {

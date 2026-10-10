@@ -247,20 +247,24 @@ func gitStatus(home, cwd, sessionID string) string {
 		data, _ := os.ReadFile(file)
 		return strings.TrimSuffix(string(data), "\n")
 	}
-	top := git.Toplevel(cwd)
-	if top == "" {
-		return ""
-	}
 	// Independent git reads, run at once: this renders every second.
 	// Untracked files are listed from the top: ls-files --others lists only
 	// cwd's subtree, numstat the whole repo.
-	var branch, unstaged, staged, untracked string
+	var top, branch, unstaged, staged string
+	var untracked []string
 	var wg sync.WaitGroup
 	wg.Go(func() { branch, _ = git.Branch(cwd) })
 	wg.Go(func() { unstaged, _ = git.Output(cwd, "diff", "--numstat") })
 	wg.Go(func() { staged, _ = git.Output(cwd, "diff", "--cached", "--numstat") })
-	wg.Go(func() { untracked, _ = git.Output(top, "ls-files", "--others", "--exclude-standard", "-z") })
+	wg.Go(func() {
+		if top = git.Toplevel(cwd); top != "" {
+			untracked, _ = git.Paths(top, "ls-files", "--others", "--exclude-standard", "-z")
+		}
+	})
 	wg.Wait()
+	if top == "" {
+		return ""
+	}
 	if branch == "" {
 		branch = "detached"
 	}
@@ -279,10 +283,7 @@ func gitStatus(home, cwd, sessionID string) string {
 	// runs on every refresh, so only regular files are read, within a byte
 	// budget: past it, or for one larger file, the count runs low.
 	budget := int64(untrackedReadBudget)
-	for name := range strings.SplitSeq(untracked, "\x00") {
-		if name == "" {
-			continue
-		}
+	for _, name := range untracked {
 		path := filepath.Join(top, name)
 		switch info, err := os.Lstat(path); {
 		case err != nil:

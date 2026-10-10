@@ -73,9 +73,11 @@ func taskEntries(cfg *config.Config, root, dir string) []Entry {
 		if manifest == "" || tp.Name == "pre-commit" || slices.Contains(cfg.DisabledTaskProviders, tp.Name) {
 			continue
 		}
-		names, _ := Run(tp.Extractor, manifest, tp.Arg)
-		bodies := Bodies(tp.Extractor, manifest, tp.Arg)
-		for _, name := range names {
+		var bodies map[string]Body
+		if tp.Bodies != nil {
+			bodies = tp.Bodies(manifest)
+		}
+		for _, name := range tp.Tasks(manifest) {
 			if name != "" {
 				out = append(out, Entry{Source: tp.Name, File: fsx.Rel(root, manifest), Name: name, Dir: dir, Body: tp.Wrap(bodies[name])})
 			}

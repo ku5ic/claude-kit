@@ -35,7 +35,7 @@ func verify(cfg *config.Config, root string, entries []sources.Entry, s store, f
 	for _, e := range entries {
 		key := Key(e)
 		if token := denied(cfg, e); token != "" {
-			r.Skipped[key] = "denied (" + token + ")"
+			r.Skipped[key] = deniedReason + " (" + token + ")"
 			continue
 		}
 		a := s.Entries[key]
@@ -157,21 +157,24 @@ func (f forms) verdict(e sources.Entry, v Verdict) (Verdict, []string, error) {
 		bodies = append(bodies, s.Text)
 	}
 	var dropped []string
-	if why := f.checkForm(v, v.FileForm, bodies, "{files}", "{dirs}"); v.FileForm != "" && why != "" {
+	if why := f.checkForm(v.Role, v.FileForm, bodies, "{files}", "{dirs}"); why != "" {
 		dropped = append(dropped, fmt.Sprintf("file form %q: %s", v.FileForm, why))
 		v.FileForm, v.Globs = "", nil
 	}
-	if why := f.checkForm(v, v.Affected, bodies, "{base}"); v.Affected != "" && why != "" {
+	if why := f.checkForm(v.Role, v.Affected, bodies, "{base}"); why != "" {
 		dropped = append(dropped, fmt.Sprintf("affected form %q: %s", v.Affected, why))
 		v.Affected = ""
 	}
 	return v, dropped, nil
 }
 
-// checkForm is form's verdict from form, with a check's form also turned
-// away for setting a deny_flags flag.
-func (f forms) checkForm(v Verdict, form string, bodies []string, placeholders ...string) string {
-	if flag := f.cfg.DeniedFlag(strings.Fields(form)); v.Role == "check" && flag != "" {
+// checkForm is why form, of an entry in role, fails form, with a check's
+// form also turned away for setting a deny_flags flag; "" for no form.
+func (f forms) checkForm(role, form string, bodies []string, placeholders ...string) string {
+	if form == "" {
+		return ""
+	}
+	if flag := f.cfg.DeniedFlag(strings.Fields(form)); role == "check" && flag != "" {
 		return "sets " + flag
 	}
 	return f.form(form, bodies, placeholders...)
@@ -202,7 +205,7 @@ func (f forms) proposal(p Proposal) error {
 	if why := f.resolver.Fetches(f.dir, words); why != "" {
 		return fmt.Errorf("fetches (%s)", why)
 	}
-	if why := f.checkForm(Verdict{Role: p.Role}, p.FileForm, []string{p.Command}, "{files}", "{dirs}"); p.FileForm != "" && why != "" {
+	if why := f.checkForm(p.Role, p.FileForm, []string{p.Command}, "{files}", "{dirs}"); why != "" {
 		return fmt.Errorf("file form %q: %s", p.FileForm, why)
 	}
 	return nil

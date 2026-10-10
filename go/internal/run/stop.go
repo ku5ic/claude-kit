@@ -14,10 +14,13 @@ import (
 // Checked is one Stop run: a line per gate for kit explain stop, the
 // message a block shows, and whether to block.
 type Checked struct {
-	Report, Failures string
-	Failed           bool
-	lines, summary   string
+	Failures       string
+	Failed         bool
+	lines, summary string
 }
+
+// Report is every gate's line, then the summary.
+func (c Checked) Report() string { return c.lines + c.summary }
 
 // Notice is the report for the user: the summary, then each gate's line
 // under it.
@@ -46,9 +49,7 @@ func Files(p enforce.Plan, cacheDir string, timeout time.Duration) Checked {
 						results[i] = outcome{crashed: true}
 					}
 				}()
-				cmd := command(g, g.Command(), timeout)
-				cmd.KillGroup()
-				results[i] = execute(cmd)
+				results[i] = execute(command(g, g.Command(), timeout))
 			})
 		}
 	}
@@ -74,7 +75,7 @@ func Files(p enforce.Plan, cacheDir string, timeout time.Duration) Checked {
 		t.fail(g, detail)
 	}
 	summary := fmt.Sprintf("checks: %d passed, %d failed, %d skipped\n", t.res.Pass, t.res.Fail, t.res.Skip)
-	return Checked{Report: t.report.String() + summary, Failures: t.failures.String() + summary, Failed: t.res.Fail > 0, lines: t.report.String(), summary: summary}
+	return Checked{Failures: t.failures.String() + summary, Failed: t.res.Fail > 0, lines: t.report.String(), summary: summary}
 }
 
 // tally builds a Stop run's report and block message.

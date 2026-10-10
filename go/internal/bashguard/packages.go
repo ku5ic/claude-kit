@@ -18,10 +18,9 @@ import (
 // globalInstall blocks a command global_installs matches. An unreadable
 // pattern blocks too: this is a guard.
 func (c *command) globalInstall() error {
-	for _, pattern := range c.st.cfg.GlobalInstalls {
-		if re, err := regexp.Compile(pattern); err != nil || re.MatchString(c.text) {
-			return c.block("global package install. Use a project-local install or asdf shim.", "pkg-global-install")
-		}
+	patterns, ok := c.st.installs()
+	if !ok || slices.ContainsFunc(patterns, func(re *regexp.Regexp) bool { return re.MatchString(c.text) }) {
+		return c.block("global package install. Use a project-local install or asdf shim.", "pkg-global-install")
 	}
 	return nil
 }
@@ -46,7 +45,7 @@ func (c *command) packageManager() error {
 			dirFlags = append(dirFlags, m.DirFlags...)
 		}
 	}
-	for _, m := range nearest(root, c.pmDir(dirFlags), facts) {
+	for _, m := range gapfill.Nearest(root, c.pmDir(dirFlags), facts) {
 		switch {
 		case m.Manager == c.name:
 			c.dependencyAdd(m.AddVerbs)
@@ -76,22 +75,6 @@ func (c *command) pmDir(dirFlags []string) string {
 		}
 	}
 	return dir
-}
-
-// nearest are the facts of the lockfile directories holding dir, the
-// deepest first.
-func nearest(root, dir string, facts []gapfill.Manager) []gapfill.Manager {
-	var out []gapfill.Manager
-	for _, m := range facts {
-		if d := filepath.Join(root, m.Dir); dir == d || strings.HasPrefix(dir, d+"/") {
-			out = append(out, m)
-		}
-	}
-	// Every one holds dir, so the longer path is the deeper.
-	slices.SortStableFunc(out, func(a, b gapfill.Manager) int {
-		return len(filepath.Join(root, b.Dir)) - len(filepath.Join(root, a.Dir))
-	})
-	return out
 }
 
 // dependencyAdd asks when one of verbs ("pnpm add", or "add") has a

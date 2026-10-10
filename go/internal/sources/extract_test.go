@@ -69,13 +69,6 @@ func TestTOMLArrayWorkspaceMembers(t *testing.T) {
 	expect(t, TOMLArray(f, ".workspace.members"), "crates/a", "crates/b")
 }
 
-func TestTOMLPackageVersionIgnoresCase(t *testing.T) {
-	f := fixture(t, "uv.lock", "[[package]]\nname = \"Django\"\nversion = \"6.0.7\"\n")
-	if got := TOMLPackageVersion(f, "django"); got != "6.0.7" {
-		t.Errorf("got %q", got)
-	}
-}
-
 func TestYAMLArrayPnpmPackages(t *testing.T) {
 	f := fixture(t, "pnpm-workspace.yaml", "packages:\n  - \"packages/*\"\n  - apps/web\n")
 	expect(t, YAMLArray(f, ".packages"), "packages/*", "apps/web")
@@ -97,10 +90,4 @@ func TestJustRecipesFallback(t *testing.T) {
 func TestRegexLinesLastCaptureGroup(t *testing.T) {
 	f := fixture(t, "Rakefile", "task :build do\nend\n  task \"db:migrate\" do\nputs 1\n")
 	expect(t, RegexLines(f, `^[[:space:]]*task[[:space:]]+:?"?([A-Za-z0-9_:]+)`), "build", "db:migrate")
-}
-
-func TestUnknownExtractorRefused(t *testing.T) {
-	if _, err := Run("rm", "x", "y"); err == nil || !strings.Contains(err.Error(), "unknown extractor in kit.yml: rm") {
-		t.Errorf("err = %v", err)
-	}
 }

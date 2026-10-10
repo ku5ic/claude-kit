@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"os"
 	"regexp"
-	"slices"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
@@ -116,31 +115,6 @@ func eachTaskfileTask(file string, fn func(string, Body)) {
 		}
 		fn(name, Body{Text: strings.Join(lines, "\n"), PerLine: true})
 	}
-}
-
-// PreCommitHooks lists the hook ids a .pre-commit-config.yaml runs, in file
-// order, each once.
-func PreCommitHooks(file string) []string {
-	var ids []string
-	eachPreCommitHook(yamlRoot(file), func(id string, _ Body, _ *yaml.Node) {
-		if !slices.Contains(ids, id) {
-			ids = append(ids, id)
-		}
-	})
-	return ids
-}
-
-// preCommitBodies maps each hook id to the command it runs with its args: a
-// local hook's entry, else the id, which names the tool in a hook repo's
-// own definition.
-func preCommitBodies(file string) map[string]Body {
-	out := map[string]Body{}
-	eachPreCommitHook(yamlRoot(file), func(id string, body Body, _ *yaml.Node) {
-		if _, ok := out[id]; !ok {
-			out[id] = body
-		}
-	})
-	return out
 }
 
 // preCommitStages are pre-commit's stage names before 3.2, as git hooks.

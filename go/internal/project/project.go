@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
@@ -24,14 +25,14 @@ const maxDepth = 4
 func IsScratch(paths config.Paths, path string) bool {
 	p := filepath.Clean(path)
 	home := paths.ScratchHome()
-	return p == home || strings.HasPrefix(p, home+"/") ||
+	return fsx.Within(home, p) ||
 		strings.HasSuffix(p, "/.claude/scratch") || strings.Contains(p, "/.claude/scratch/")
 }
 
 // SubLabel is the " [sub]" a subproject's label ends with, "" for the
-// root (".").
+// root ("." or "").
 func SubLabel(sub string) string {
-	if sub == "." {
+	if sub == "." || sub == "" {
 		return ""
 	}
 	return " [" + sub + "]"
@@ -44,7 +45,21 @@ const goWorkUse = `^[[:space:]]*(use[[:space:]]+)?\(?[[:space:]]*(\.[^[:space:](
 // maxDepth levels down, and each member a workspace manifest names
 // (package.json workspaces, pnpm-workspace.yaml, Cargo, uv, go.work).
 // Tracked files only, so node_modules and virtualenvs never count.
-func Subprojects(root string) []string {
+func Subprojects(root string) []string { return memo(&subprojects, root, subprojectsOf) }
+
+// Asked once per root per process, as git.Toplevel is: a hook asks from
+// several places.
+var subprojects, workspaces sync.Map // root -> []string
+
+func memo(m *sync.Map, root string, of func(string) []string) []string {
+	v, ok := m.Load(root)
+	if !ok {
+		v, _ = m.LoadOrStore(root, of(root))
+	}
+	return slices.Clone(v.([]string))
+}
+
+func subprojectsOf(root string) []string {
 	var found, pathspecs []string
 	for _, name := range sources.Anchors() {
 		pathspecs = append(pathspecs, ":(glob)**/"+name)
@@ -77,7 +92,9 @@ func Subprojects(root string) []string {
 // Workspace is every member directory, relative to root, a workspace
 // manifest at root names: package.json workspaces, pnpm-workspace.yaml,
 // Cargo, uv, go.work.
-func Workspace(root string) []string {
+func Workspace(root string) []string { return memo(&workspaces, root, workspaceOf) }
+
+func workspaceOf(root string) []string {
 	var patterns, out []string
 	patterns = append(patterns, sources.JSONArray(filepath.Join(root, "package.json"), ".workspaces")...)
 	patterns = append(patterns, sources.JSONArray(filepath.Join(root, "package.json"), ".workspaces.packages")...)

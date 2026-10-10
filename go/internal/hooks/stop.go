@@ -67,7 +67,7 @@ func StopChecks(h *hook.Hook) error {
 	}
 	out := run.Files(p, h.Paths.CacheDir(), time.Duration(cfg.GateTimeout)*time.Second)
 	if !h.DryRun {
-		_ = fsx.WriteAtomic(cache.StopReport(h.Paths.CacheDir(), root), []byte(out.Report), 0o600)
+		_ = fsx.WriteAtomic(cache.StopReport(h.Paths.CacheDir(), root), []byte(out.Report()), 0o600)
 	}
 	if out.Failed {
 		return h.Block("file checks failed; fix them or report and stop.\n"+out.Failures, "checks-failed")

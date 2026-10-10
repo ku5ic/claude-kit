@@ -95,6 +95,11 @@ func Rel(root, path string) string {
 	return strings.TrimPrefix(path, root+"/")
 }
 
+// Within reports whether path is dir or below it. Both must be clean.
+func Within(dir, path string) bool {
+	return path == dir || strings.HasPrefix(path, dir+"/")
+}
+
 // Abs is path, cleaned, made absolute against dir when it's relative.
 func Abs(dir, path string) string {
 	if !filepath.IsAbs(path) {
@@ -115,7 +120,7 @@ func FindUp(start, stop string, names ...string) string {
 				return candidate
 			}
 		}
-		if dir == stop || dir == "/" || !strings.HasPrefix(dir, stop+"/") {
+		if dir == stop || dir == "/" || !Within(stop, dir) {
 			return ""
 		}
 		dir = filepath.Dir(dir)

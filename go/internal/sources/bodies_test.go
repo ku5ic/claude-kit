@@ -24,26 +24,27 @@ func TestBodies(t *testing.T) {
 	poe := write("pyproject.toml", "[tool.poe.tasks]\nlint = \"ruff check .\"\ntest = {cmd = \"pytest\"}\nall = [\"lint\", \"test\"]\n")
 
 	for _, c := range []struct {
-		name, file, arg string
-		want            map[string]string
-		perLine         bool
+		name, file string
+		bodies     func(string) map[string]Body
+		want       map[string]string
+		perLine    bool
 	}{
-		{"json_keys", pkg, ".scripts", map[string]string{"lint": "eslint .", "test": "vitest run"}, false},
-		{"make_targets", mk, "", map[string]string{
+		{"json", pkg, at(scripts(readJSON), ".scripts"), map[string]string{"lint": "eslint .", "test": "vitest run"}, false},
+		{"make", mk, makeBodies, map[string]string{
 			"check": "make lint\nmake test",
 			"lint":  "golangci-lint run ./...",
 			"test":  "",
 			"ci":    "make check\ngo vet ./...",
 		}, true},
 		// A variable the Makefile sets expands; an unset one stays.
-		{"make_targets", vars, "", map[string]string{"lint": "uv run ruff check .\nuv run mypy $(SRC)"}, true},
-		{"make_targets", oneShell, "", map[string]string{"lint": "cd web\neslint ."}, false},
-		{"just_recipes", just, "", map[string]string{"check": "just lint\njust test\necho done", "lint": "eslint $JUST_VAR", "sh": "#!/usr/bin/env bash\ncd web\neslint .", "py": ""}, true},
+		{"make", vars, makeBodies, map[string]string{"lint": "uv run ruff check .\nuv run mypy $(SRC)"}, true},
+		{"make", oneShell, makeBodies, map[string]string{"lint": "cd web\neslint ."}, false},
+		{"just", just, justBodies, map[string]string{"check": "just lint\njust test\necho done", "lint": "eslint $JUST_VAR", "sh": "#!/usr/bin/env bash\ncd web\neslint .", "py": ""}, true},
 		// A list joins with spaces (a cargo alias); a poe sequence reads as one
 		// unknown command, so it never counts as a gate.
-		{"toml_keys", poe, ".tool.poe.tasks", map[string]string{"lint": "ruff check .", "test": "pytest", "all": "lint test"}, false},
+		{"toml", poe, at(scripts(readTOML), ".tool.poe.tasks"), map[string]string{"lint": "ruff check .", "test": "pytest", "all": "lint test"}, false},
 	} {
-		got := Bodies(c.name, c.file, c.arg)
+		got := c.bodies(c.file)
 		if len(got) != len(c.want) {
 			t.Errorf("%s: %v, want %q", c.name, got, c.want)
 			continue
@@ -58,17 +59,11 @@ func TestBodies(t *testing.T) {
 			}
 		}
 	}
-	if b := Bodies("regex_lines", mk, "x"); b != nil {
-		t.Errorf("regex_lines has bodies: %v", b)
-	}
 }
 
-func TestTaskfileAndPreCommit(t *testing.T) {
-	dir := t.TempDir()
-	taskfile := filepath.Join(dir, "Taskfile.yml")
-	precommit := filepath.Join(dir, ".pre-commit-config.yaml")
-	for path, body := range map[string]string{
-		taskfile: `version: '3'
+func TestTaskfile(t *testing.T) {
+	taskfile := filepath.Join(t.TempDir(), "Taskfile.yml")
+	if err := os.WriteFile(taskfile, []byte(`version: '3'
 tasks:
   lint:
     cmds:
@@ -84,24 +79,8 @@ tasks:
       - task: lint
       - cmd: go vet ./...
   short: echo hi
-`,
-		precommit: `repos:
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    hooks:
-      - id: ruff
-        args: [--fix]
-      - id: ruff-format
-  - repo: local
-    hooks:
-      - id: pytest
-        entry: uv run pytest
-        args: [-q]
-      - id: ruff
-`,
-	} {
-		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
-			t.Fatal(err)
-		}
+`), 0o644); err != nil {
+		t.Fatal(err)
 	}
 
 	if got := strings.Join(TaskfileTasks(taskfile), " "); got != "lint test ci short" {
@@ -113,18 +92,8 @@ tasks:
 		"ci":    "task lint\ngo vet ./...",
 		"short": "echo hi",
 	} {
-		if got := Bodies("taskfile_tasks", taskfile, "")[name]; got.Text != want || !got.PerLine {
+		if got := taskfileBodies(taskfile)[name]; got.Text != want || !got.PerLine {
 			t.Errorf("taskfile %s: %+v, want %q per line", name, got, want)
-		}
-	}
-
-	if got := strings.Join(PreCommitHooks(precommit), " "); got != "ruff ruff-format pytest" {
-		t.Errorf("hooks: %q, want each id once in file order", got)
-	}
-	// The first hook with an id wins: its args say what running it does.
-	for id, want := range map[string]string{"ruff": "ruff --fix", "ruff-format": "ruff-format", "pytest": "uv run pytest -q"} {
-		if got := Bodies("precommit_hooks", precommit, "")[id].Text; got != want {
-			t.Errorf("pre-commit %s: %q, want %q", id, got, want)
 		}
 	}
 }
@@ -135,7 +104,7 @@ func TestBodiesReadPastALongLine(t *testing.T) {
 	if err := os.WriteFile(path, []byte(long+"\nlint:\n\teslint .\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if got := Bodies("make_targets", path, "")["lint"].Text; got != "eslint ." {
+	if got := makeBodies(path)["lint"].Text; got != "eslint ." {
 		t.Errorf("lint after a 100KB line: %q, want %q", got, "eslint .")
 	}
 }

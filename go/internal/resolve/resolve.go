@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
@@ -36,7 +37,7 @@ const (
 // Resolver resolves binaries for one project root.
 type Resolver struct {
 	root     string
-	bins     []binDir
+	bins     func() []binDir // listed on first use: most resolvers never look
 	managers []string
 	userPins []string
 }
@@ -58,7 +59,7 @@ func New(root string, managers, userPins []string) *Resolver {
 		}
 		pins[i] = p
 	}
-	return &Resolver{root: root, bins: ignoredBins(root), managers: managers, userPins: pins}
+	return &Resolver{root: root, bins: sync.OnceValue(func() []binDir { return ignoredBins(root) }), managers: managers, userPins: pins}
 }
 
 // ignoredBins are the directories gitignore hides that hold binaries: an
@@ -158,8 +159,8 @@ func (r *Resolver) Bin(dir, name string) Resolution {
 // local is name in the nearest gitignored bin directory serving dir, with
 // its declared version range checked when it is a node package.
 func (r *Resolver) local(dir, name string) (Resolution, bool) {
-	for _, b := range r.bins {
-		if dir != b.serves && !strings.HasPrefix(dir, b.serves+"/") {
+	for _, b := range r.bins() {
+		if !fsx.Within(b.serves, dir) {
 			continue
 		}
 		found := filepath.Join(b.path, name)

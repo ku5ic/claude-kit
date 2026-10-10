@@ -6,8 +6,10 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
@@ -27,6 +29,21 @@ type state struct {
 	cwd     string
 	prev    string // the cwd before the last cd, for cd -
 	pending string
+	// installs is global_installs compiled, once per command; ok is false
+	// when a pattern doesn't compile.
+	installs func() (patterns []*regexp.Regexp, ok bool)
+}
+
+func (st *state) compileInstalls() ([]*regexp.Regexp, bool) {
+	var out []*regexp.Regexp
+	for _, pattern := range st.cfg.GlobalInstalls {
+		re, err := regexp.Compile(pattern)
+		if err != nil {
+			return nil, false
+		}
+		out = append(out, re)
+	}
+	return out, true
 }
 
 func (st *state) ask(reason string) {
@@ -60,6 +77,7 @@ func Check(h *hook.Hook) error {
 		return err
 	}
 	st := &state{h: h, cfg: cfg, home: home, cwd: resolveDir(home, "/", h.Payload.Cwd())}
+	st.installs = sync.OnceValues(st.compileInstalls)
 	// The raw command, not norm: <<- strips tabs only, and norm would turn a
 	// tab-indented terminator into spaces that no longer close the heredoc.
 	segs, unparsed := parseAll(cmd)
@@ -150,13 +168,11 @@ func resolveDir(home, base, dir string) string {
 	if strings.HasPrefix(dir, "~") {
 		dir = home + dir[1:]
 	}
-	if !filepath.IsAbs(dir) {
-		dir = filepath.Join(base, dir)
-	}
+	dir = fsx.Abs(base, dir)
 	if real, err := filepath.EvalSymlinks(dir); err == nil {
 		return real
 	}
-	return filepath.Clean(dir)
+	return dir
 }
 
 // Wrappers that only change how (or as whom) a command runs, and their

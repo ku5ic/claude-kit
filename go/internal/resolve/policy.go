@@ -53,14 +53,8 @@ var pinAliases = map[string]string{"golang": "go", "nodejs": "node", "opentofu":
 // none does.
 func pinned(dir, root, name string) string {
 	for _, file := range sources.PinFiles {
-		path := fsx.FindUp(dir, root, file)
-		if path == "" {
-			continue
-		}
-		for _, pin := range sources.Pins(path) {
-			if pin == name || pinAliases[pin] == name {
-				return fsx.Rel(root, path)
-			}
+		if path := fsx.FindUp(dir, root, file); path != "" && names(path, name) {
+			return fsx.Rel(root, path)
 		}
 	}
 	return ""
@@ -68,9 +62,12 @@ func pinned(dir, root, name string) string {
 
 // userPinned is true when a user_pins file names name.
 func (r *Resolver) userPinned(name string) bool {
-	return slices.ContainsFunc(r.userPins, func(path string) bool {
-		return slices.ContainsFunc(sources.Pins(path), func(pin string) bool { return pin == name || pinAliases[pin] == name })
-	})
+	return slices.ContainsFunc(r.userPins, func(path string) bool { return names(path, name) })
+}
+
+// names is true when the pin file at path pins name, by name or alias.
+func names(path, name string) bool {
+	return slices.ContainsFunc(sources.Pins(path), func(pin string) bool { return pin == name || pinAliases[pin] == name })
 }
 
 // underManager is true when path, or the file it links to, sits where asdf,
@@ -257,13 +254,10 @@ func Satisfies(dir, pkg, spec string) (string, Range) {
 	if err != nil {
 		return "", Unchecked
 	}
-	var manifest struct {
+	// An unreadable manifest has no version, which semver rejects.
+	manifest := sources.Decode[struct {
 		Version string `json:"version"`
-	}
-	data, err := os.ReadFile(filepath.Join(dir, "node_modules", pkg, "package.json"))
-	if err != nil || json.Unmarshal(data, &manifest) != nil {
-		return "", Unchecked
-	}
+	}](filepath.Join(dir, "node_modules", pkg, "package.json"), json.Unmarshal)
 	version, err := semver.NewVersion(manifest.Version)
 	if err != nil {
 		return manifest.Version, Unchecked

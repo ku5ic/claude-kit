@@ -7,6 +7,7 @@
 package enforce
 
 import (
+	"cmp"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -246,7 +247,7 @@ func (b *builder) fill(sub string) {
 		}
 	}
 	if len(missing) > 0 && sources.HasManifest(dir) {
-		b.gates = append(b.gates, Gate{Label: strings.Join(missing, ", ") + suffix(sub), Dir: dir, Skip: "nothing enforces it"})
+		b.gates = append(b.gates, Gate{Label: strings.Join(missing, ", ") + project.SubLabel(sub), Dir: dir, Skip: "nothing enforces it"})
 	}
 }
 
@@ -336,8 +337,8 @@ func (b *builder) unclassified(runs func(sources.Entry) bool) {
 		if !runs(e) {
 			continue
 		}
-		if _, why := b.verdict(e); why != "" && !strings.HasPrefix(why, "denied") {
-			b.gates = append(b.gates, Gate{Label: e.File + ": " + e.Name + suffix(e.Dir), Dir: filepath.Join(b.root, e.Dir), Skip: why})
+		if _, why := b.verdict(e); why != "" && !gapfill.Denied(why) {
+			b.gates = append(b.gates, Gate{Label: e.File + ": " + e.Name + project.SubLabel(e.Dir), Dir: filepath.Join(b.root, e.Dir), Skip: why})
 			b.skipped++
 		}
 	}
@@ -392,7 +393,7 @@ func (b *builder) subOf(dir string, subs []string) string {
 	best := "."
 	for _, sub := range subs {
 		abs := filepath.Join(b.root, sub)
-		if (dir == abs || strings.HasPrefix(dir, abs+"/")) && len(sub) > len(best) {
+		if fsx.Within(abs, dir) && len(sub) > len(best) {
 			best = sub
 		}
 	}
@@ -409,42 +410,30 @@ func provider(source string) (sources.TaskProvider, bool) {
 }
 
 // runCommand is how tp runs task in sub: through the package manager the
-// nearest verified lockfile names, when tp runs by it, else package.json's
-// own npm.
+// nearest verified lockfile names, when tp runs by it, else tp.PM.
 func (b *builder) runCommand(tp sources.TaskProvider, sub, task string) string {
 	pm := b.manager(sub, func(m gapfill.Manager) bool {
 		_, override := tp.RunByPM[m.Manager]
-		// {pm} is package.json's manager: npm, or one that rivals it.
-		return override || strings.Contains(tp.Run, "{pm}") && (m.Manager == "npm" || slices.Contains(m.Rivals, "npm"))
+		// {pm} is tp.PM, or a manager that rivals it.
+		return override || tp.PM != "" && (m.Manager == tp.PM || slices.Contains(m.Rivals, tp.PM))
 	})
 	run := tp.Run
 	if override, ok := tp.RunByPM[pm]; ok {
 		run = override
 	}
-	if pm == "" {
-		pm = "npm"
-	}
+	pm = cmp.Or(pm, tp.PM)
 	return strings.NewReplacer("{pm}", pm, "{task}", task).Replace(run)
 }
 
 // manager is the verified manager ok accepts of the nearest lockfile
 // directory at or above sub, "" when none is.
 func (b *builder) manager(sub string, ok func(gapfill.Manager) bool) string {
-	best, name := -1, ""
-	for _, m := range b.facts.Managers {
-		d := filepath.Clean(m.Dir)
-		if (d == "." || sub == d || strings.HasPrefix(sub, d+"/")) && len(d) > best && ok(m) {
-			best, name = len(d), m.Manager
+	for _, m := range gapfill.Nearest(b.root, filepath.Join(b.root, sub), b.facts.Managers) {
+		if ok(m) {
+			return m.Manager
 		}
 	}
-	return name
-}
-
-func suffix(sub string) string {
-	if sub == "." || sub == "" {
-		return ""
-	}
-	return " [" + sub + "]"
+	return ""
 }
 
 // label is a gate's line: the kinds it checks ("check" for an aggregate the
@@ -454,7 +443,7 @@ func label(kinds []string, origin, sub string) string {
 	if what == "" {
 		what = "check"
 	}
-	return what + " (" + origin + ")" + suffix(sub)
+	return what + " (" + origin + ")" + project.SubLabel(sub)
 }
 
 // rel is dir relative to the root, for a label.

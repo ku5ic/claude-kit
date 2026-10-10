@@ -39,9 +39,12 @@ func CheckCommit(h *hook.Hook) error {
 		return h.Payload.Err
 	}
 	cmd := h.Payload.String("tool_input.command")
-	if !committing(cmd) {
+	c := commitCall(cmd)
+	if !c.commits(cmd) {
 		return nil
 	}
+	// The repo it commits to: its git -C directory, else the cwd.
+	repo := fsx.Abs(h.Payload.Cwd(), c.dir)
 
 	// Line by line, as grep: the trailer sits on a line of its own. The
 	// whole command, since a message can come from anywhere in it (a file a
@@ -57,7 +60,7 @@ func CheckCommit(h *hook.Hook) error {
 
 	// Before the subject parsing: secret scanning must not depend on
 	// whether -m used a quoted message.
-	if err := scanStaged(h); err != nil {
+	if err := scanStaged(h, repo); err != nil {
 		return err
 	}
 
@@ -78,7 +81,7 @@ func CheckCommit(h *hook.Hook) error {
 	if subject != "" && aiTell.MatchString(subject) {
 		return h.Block("AI-tell phrasing in commit subject", "ai-commit-tell")
 	}
-	if failed := commitMsg(h, cmd); failed != "" {
+	if failed := commitMsg(h, cmd, c, repo); failed != "" {
 		return h.Block("the project's commit-msg checks reject this message; fix it to their convention:\n"+failed, "commit-msg")
 	}
 	if !shownBefore(h.Payload.String("transcript_path"), subject) {
@@ -87,19 +90,24 @@ func CheckCommit(h *hook.Hook) error {
 	return nil
 }
 
-// committing reports whether cmd runs git commit: a parsed call whose real
-// command is git with commit as its subcommand. Where part of cmd didn't
-// parse, the raw text is matched instead, so a commit whose heredoc never
-// closes still counts.
-func committing(cmd string) bool {
-	_, _, found, unparsed := commitCall(cmd)
-	return found || unparsed && commitLine.MatchString(cmd)
+// commit is the args and -C directory of a command's first parsed git
+// commit call; found is false when none commits, unparsed true when part of
+// the command didn't parse.
+type commit struct {
+	args            []string
+	dir             string
+	found, unparsed bool
 }
 
-// commitCall is the args and -C directory of cmd's first parsed git commit
-// call; found is false when none commits, unparsed true when part of cmd
-// didn't parse.
-func commitCall(cmd string) (args []string, dir string, found, unparsed bool) {
+// commits reports whether cmd, parsed as c, runs git commit: a parsed call
+// whose real command is git with commit as its subcommand. Where part of
+// cmd didn't parse, the raw text is matched instead, so a commit whose
+// heredoc never closes still counts.
+func (c commit) commits(cmd string) bool {
+	return c.found || c.unparsed && commitLine.MatchString(cmd)
+}
+
+func commitCall(cmd string) commit {
 	segs, unparsed := parseAll(cmd)
 	for _, seg := range segs {
 		for _, call := range seg.Calls {
@@ -112,28 +120,27 @@ func commitCall(cmd string) (args []string, dir string, found, unparsed bool) {
 				words = append(words, w.Value)
 			}
 			if sub, args, dir := gitSubcommand(words); sub == "commit" {
-				return args, dir, true, unparsed
+				return commit{args: args, dir: dir, found: true, unparsed: unparsed}
 			}
 		}
 	}
-	return nil, "", false, unparsed
+	return commit{unparsed: unparsed}
 }
 
-// message is the message cmd's git commit gives, as the commit-msg hook
+// message is the message cmd's git commit c gives, as the commit-msg hook
 // would read it: the commit line's heredoc, else its -m messages as
 // paragraphs, else the file -F names, from dir. ok is false when it can't
 // be told: no message, or one an expansion builds.
-func message(cmd, dir string) (msg string, ok bool) {
+func message(cmd string, c commit, dir string) (msg string, ok bool) {
 	if body := heredocBody(cmd); body != "" {
 		return body + "\n", true
 	}
-	args, cdir, found, _ := commitCall(cmd)
-	if !found {
+	if !c.found {
 		return "", false
 	}
 	var paragraphs []string
 	file := ""
-	commitOptions(args, func(opt, value string) {
+	commitOptions(c.args, func(opt, value string) {
 		switch opt {
 		case "-m", "--message":
 			paragraphs = append(paragraphs, value)
@@ -145,7 +152,7 @@ func message(cmd, dir string) (msg string, ok bool) {
 	case len(paragraphs) > 0 && !strings.Contains(strings.Join(paragraphs, ""), "$"):
 		return strings.Join(paragraphs, "\n\n") + "\n", true
 	case len(paragraphs) == 0 && file != "" && file != "-":
-		data, err := os.ReadFile(fsx.Abs(fsx.Abs(dir, cdir), file))
+		data, err := os.ReadFile(fsx.Abs(fsx.Abs(dir, c.dir), file))
 		return string(data), err == nil
 	}
 	return "", false
@@ -155,15 +162,12 @@ func message(cmd, dir string) (msg string, ok bool) {
 // bash-dispatch's timeout in hooks.json, gitleaks' share apart.
 const commitMsgBudget = 12 * time.Second
 
-// commitMsg runs the commit-msg enforcement of the repo cmd commits to (its
-// git -C directory, else the cwd) on the message, from a temp file, and
-// returns what failed; "" when it passes, the message can't be told, or the
-// project has none.
-func commitMsg(h *hook.Hook, cmd string) string {
-	cwd := h.Payload.Cwd()
-	_, cdir, _, _ := commitCall(cmd)
-	root, cfg := git.Toplevel(fsx.Abs(cwd, cdir)), h.Config()
-	msg, ok := message(cmd, cwd)
+// commitMsg runs the commit-msg enforcement of repo, which cmd's commit c
+// commits to, on the message, from a temp file, and returns what failed; ""
+// when it passes, the message can't be told, or the project has none.
+func commitMsg(h *hook.Hook, cmd string, c commit, repo string) string {
+	root, cfg := git.Toplevel(repo), h.Config()
+	msg, ok := message(cmd, c, h.Payload.Cwd())
 	if !ok || root == "" || cfg == nil {
 		return ""
 	}
@@ -199,13 +203,13 @@ func shownBefore(path, subject string) bool {
 	return strings.Contains(earlier.String(), subject)
 }
 
-// scanStaged runs gitleaks on the staged diff. Its exit codes: 0 clean, 1 a
+// scanStaged runs gitleaks on repo's staged diff. Its exit codes: 0 clean, 1 a
 // leak, anything else an operational error that fails open with a notice.
-func scanStaged(h *hook.Hook) error {
+func scanStaged(h *hook.Hook, repo string) error {
 	if _, err := exec.LookPath("gitleaks"); err != nil {
 		return nil
 	}
-	err := proc.Command(proc.Quick, "gitleaks", "git", "--staged", "--no-banner", "--redact", "--log-level", "error", h.Payload.Cwd()).Run()
+	err := proc.Command(proc.Quick, "gitleaks", "git", "--staged", "--no-banner", "--redact", "--log-level", "error", repo).Run()
 	if err == nil {
 		return nil
 	}

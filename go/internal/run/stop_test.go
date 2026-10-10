@@ -32,7 +32,7 @@ func TestAStopPassIsReportedOnly(t *testing.T) {
 	t.Parallel()
 	r := newRepo(t, "repo")
 	out := r.stop(r.check("test", "test", "true"))
-	if out.Failed || !strings.Contains(out.Report, "PASS test\n") || !Summary.MatchString(out.Report) {
+	if out.Failed || !strings.Contains(out.Report(), "PASS test\n") || !Summary.MatchString(out.Report()) {
 		t.Errorf("%+v", out)
 	}
 }
@@ -93,7 +93,7 @@ func TestALintFailsOnlyOnFindingsOnChangedLines(t *testing.T) {
 			r.write("a.sh", tt.change)
 			testutil.Put(t, r.aside, "out", tt.out+"\n")
 			out := r.stop(r.check("lint", "lint", "cat "+filepath.Join(r.aside, "out")+"; exit 1", "a.sh"))
-			has(t, out.Report+out.Failures, tt.has...)
+			has(t, out.Report()+out.Failures, tt.has...)
 			lacks(t, out.Failures, tt.lacks...)
 			if out.Failed != tt.failed {
 				t.Errorf("failed = %v", out.Failed)
@@ -124,7 +124,7 @@ func TestAHungCheckTimesOutAsASkipWithItsChildren(t *testing.T) {
 	pid := filepath.Join(r.aside, "pid")
 	g := r.check("test", "test", "sleep 60 & echo $! > "+pid+"; wait")
 	out := Files(enforce.Plan{Root: r.root, Gates: []enforce.Gate{g}}, r.cache, time.Second)
-	has(t, out.Report, "SKIP test (timed out after 1s)")
+	has(t, out.Report(), "SKIP test (timed out after 1s)")
 	n, err := strconv.Atoi(strings.TrimSpace(testutil.Read(t, pid)))
 	if err != nil {
 		t.Fatal(err)
@@ -147,7 +147,7 @@ func TestChecksRunInParallel(t *testing.T) {
 		return fmt.Sprintf("touch %s; for i in $(seq 100); do [ -e %s ] && exit 0; sleep 0.05; done; exit 1", filepath.Join(r.aside, mine), filepath.Join(r.aside, theirs))
 	}
 	out := r.stop(r.check("a", "test", wait("a", "b")), r.check("b", "test", wait("b", "a")))
-	has(t, out.Report, "PASS a\n", "PASS b\n")
+	has(t, out.Report(), "PASS a\n", "PASS b\n")
 }
 
 func TestACheckThatChangesFilesBlocksAndIsMarked(t *testing.T) {
@@ -159,8 +159,8 @@ func TestACheckThatChangesFilesBlocksAndIsMarked(t *testing.T) {
 	// The gate that changed a file counts once, as its FAIL, as in the full
 	// gate.
 	has(t, out.Failures, "FAIL lint\n  cmd: echo fixed > a.ts\n  changed: a.ts; it won't run again until kit gates reset, and kit gates reset --restore puts them back\n")
-	has(t, out.Report, "PASS test\n", "checks: 1 passed, 1 failed, 0 skipped\n")
-	lacks(t, out.Report, "PASS lint")
+	has(t, out.Report(), "PASS test\n", "checks: 1 passed, 1 failed, 0 skipped\n")
+	lacks(t, out.Report(), "PASS lint")
 	if !out.Failed {
 		t.Error("didn't block")
 	}

@@ -8,7 +8,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -67,10 +66,11 @@ func EditReport(cacheDir, root string) string {
 	return filepath.Join(cacheDir, StopReports, RootKey(root)+".edit")
 }
 
-// Older reports whether info was last modified more than days whole days
-// before now: the one expiry rule for state, scratch, and worktrees.
-func Older(info fs.FileInfo, days int, now time.Time) bool {
-	return now.Sub(info.ModTime()) > time.Duration(days)*24*time.Hour
+// Older reports whether t is more than days whole days before now: the one
+// expiry rule for state, scratch, worktrees, restore points, and gap-fill
+// answers.
+func Older(t time.Time, days int, now time.Time) bool {
+	return now.Sub(t) > time.Duration(days)*24*time.Hour
 }
 
 // Expired is every regular file in dir Older than days.
@@ -82,7 +82,7 @@ func Expired(dir string, days int, now time.Time) []string {
 	var old []string
 	for _, e := range entries {
 		info, err := e.Info()
-		if err == nil && info.Mode().IsRegular() && Older(info, days, now) {
+		if err == nil && info.Mode().IsRegular() && Older(info.ModTime(), days, now) {
 			old = append(old, filepath.Join(dir, e.Name()))
 		}
 	}

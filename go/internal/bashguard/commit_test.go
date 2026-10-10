@@ -25,7 +25,7 @@ func TestCommitting(t *testing.T) {
 		// mvdan can't parse the unterminated heredoc: the raw text decides.
 		"git commit -m \"$(cat <<EOF\nfeat: x\n)\"": true,
 	} {
-		if got := committing(cmd); got != want {
+		if got := commitCall(cmd).commits(cmd); got != want {
 			t.Errorf("committing(%q) = %v, want %v", cmd, got, want)
 		}
 	}
@@ -45,7 +45,7 @@ func TestMessageIsWhatTheCommitMsgHookWouldRead(t *testing.T) {
 		`git commit -m "$MSG"`:                                     "",
 		`git commit --amend --no-edit`:                             "",
 	} {
-		if got, _ := message(cmd, dir); got != want {
+		if got, _ := message(cmd, commitCall(cmd), dir); got != want {
 			t.Errorf("message(%q) = %q, want %q", cmd, got, want)
 		}
 	}

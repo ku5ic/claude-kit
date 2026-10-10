@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -138,12 +139,20 @@ type Result struct {
 func (r Result) Unclassified() int {
 	n := 0
 	for _, why := range r.Skipped {
-		if !strings.HasPrefix(why, "denied") {
+		if !Denied(why) {
 			n++
 		}
 	}
 	return n
 }
+
+// Denied reports whether a Skipped reason is the kit's policy denying the
+// entry, not a missing or rejected verdict.
+func Denied(why string) bool {
+	return strings.HasPrefix(why, deniedReason)
+}
+
+const deniedReason = "denied"
 
 // store is the cache file: the model's answers as given, verified on read.
 type store struct {
@@ -162,14 +171,16 @@ type answer struct {
 // what it lacks when o.Ask allows.
 func Run(cfg *config.Config, o Options) Result {
 	file := CacheFile(o.CacheDir, o.Root)
-	p := readView(cfg, o.Root, o.Entries)
 	s := load(file)
 	// A read is use: cache.Prune drops only a file no run has read.
 	now := time.Now()
 	_ = os.Chtimes(file, now, now)
 	failure := ""
-	if o.Ask && os.Getenv(Guard) != "1" && s.stale(cfg, o.Entries, p.Key) {
-		s, failure = ask(cfg, o, p, file, s)
+	if o.Ask && os.Getenv(Guard) != "1" {
+		// The view reads the whole repo: only a run that may ask builds it.
+		if p := readView(cfg, o.Root, o.Entries); s.stale(cfg, o.Entries, p.Key) {
+			s, failure = ask(cfg, o, p, file, s)
+		}
 	}
 	return verify(cfg, o.Root, o.Entries, s, failure)
 }
@@ -184,6 +195,22 @@ func CacheFile(cacheDir, root string) string {
 func Managers(cfg *config.Config, root, cacheDir string) []Manager {
 	ms, _ := managers(cfg, root, load(CacheFile(cacheDir, root)).Managers)
 	return ms
+}
+
+// Nearest are the managers whose lockfile directory holds dir, the deepest
+// first; ties keep ms's order.
+func Nearest(root, dir string, ms []Manager) []Manager {
+	var out []Manager
+	for _, m := range ms {
+		if fsx.Within(filepath.Join(root, m.Dir), dir) {
+			out = append(out, m)
+		}
+	}
+	// Every one holds dir, so the longer path is the deeper.
+	slices.SortStableFunc(out, func(a, b Manager) int {
+		return len(filepath.Join(root, b.Dir)) - len(filepath.Join(root, a.Dir))
+	})
+	return out
 }
 
 // ask calls the classifier under the repo's lock, stores its answers, and
@@ -251,7 +278,7 @@ func (s store) save(file string, entries []sources.Entry, now time.Time) {
 		}
 	}
 	for key, a := range s.Entries {
-		if now.Sub(a.Seen) > unseenDays*24*time.Hour {
+		if cache.Older(a.Seen, unseenDays, now) {
 			delete(s.Entries, key)
 		}
 	}

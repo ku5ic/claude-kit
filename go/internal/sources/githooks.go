@@ -11,8 +11,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/pelletier/go-toml/v2"
-
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 )
 
@@ -24,7 +22,7 @@ func readConfig(file string) map[string]any {
 	case ".yaml", ".yml":
 		return readYAML(file)
 	case ".toml":
-		return Decode[map[string]any](file, toml.Unmarshal)
+		return readTOMLTable(file)
 	}
 	if m := Decode[map[string]any](file, json.Unmarshal); m != nil {
 		return m
