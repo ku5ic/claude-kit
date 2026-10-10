@@ -47,8 +47,11 @@ func (c planCase) run(t *testing.T) {
 	lacks(t, p, c.lacks...)
 }
 
+// manager is a lockfile directory's facts, its rivals as gap-fill states
+// them.
 func manager(dir, cites, name string) map[string]any {
-	return map[string]any{"dir": dir, "cites": cites, "manager": name}
+	rivals := map[string][]string{"npm": {"pnpm", "yarn"}, "pnpm": {"npm", "yarn"}, "yarn": {"npm", "pnpm"}, "pdm": {"poetry", "uv"}, "poetry": {"pdm", "uv"}, "uv": {"pdm", "poetry"}}
+	return map[string]any{"dir": dir, "cites": cites, "manager": name, "rivals": rivals[name]}
 }
 
 func proposal(kind, command, dir, evidence string) map[string]any {
@@ -105,6 +108,18 @@ func TestTaskRunnerPlans(t *testing.T) {
 			verdicts: map[string]map[string]any{"test": check("test")},
 			managers: []map[string]any{manager(".", "pnpm-lock.yaml", "pnpm"), manager("web", "yarn.lock", "yarn")},
 			has:      []string{"RUN test (web/package.json: test) [web]\n  cmd: yarn run test\n  dir: web\n"}},
+		{name: "a script beside a Python lockfile runs through the JS manager, whichever fact comes first",
+			files:    map[string]string{"package.json": `{"scripts":{"lint":"eslint ."}}`, "pnpm-lock.yaml": "", "pyproject.toml": "[project]\nname = \"x\"\n", "poetry.lock": ""},
+			tools:    []string{"PATH/pnpm"},
+			verdicts: map[string]map[string]any{"lint": check("lint")},
+			managers: []map[string]any{manager(".", "poetry.lock", "poetry"), manager(".", "pnpm-lock.yaml", "pnpm")},
+			has:      []string{"RUN lint (package.json: lint)\n  cmd: pnpm run lint\n"}},
+		{name: "a package.json with no lockfile under a uv root runs through npm",
+			files:    map[string]string{"pyproject.toml": "[project]\nname = \"x\"\n", "uv.lock": "", "docs/package.json": `{"scripts":{"lint":"markdownlint ."}}`},
+			tools:    []string{"PATH/npm"},
+			verdicts: map[string]map[string]any{"lint": check("lint")},
+			managers: []map[string]any{manager(".", "uv.lock", "uv")},
+			has:      []string{"cmd: npm run lint\n  dir: docs\n"}},
 		{name: "pdm and poe tasks run through their runners",
 			files:    map[string]string{"pyproject.toml": "[tool.pdm.scripts]\nlint = \"ruff check .\"\n[tool.poe.tasks]\ntest = \"pytest\"\n", "pdm.lock": "", ".gitignore": ".venv\n"},
 			tools:    []string{"PATH/pdm", ".venv/bin/poe"},

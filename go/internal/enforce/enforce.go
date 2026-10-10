@@ -409,9 +409,14 @@ func provider(source string) (sources.TaskProvider, bool) {
 }
 
 // runCommand is how tp runs task in sub: through the package manager the
-// nearest verified lockfile names, else package.json's own npm.
+// nearest verified lockfile names, when tp runs by it, else package.json's
+// own npm.
 func (b *builder) runCommand(tp sources.TaskProvider, sub, task string) string {
-	pm := b.manager(sub)
+	pm := b.manager(sub, func(m gapfill.Manager) bool {
+		_, override := tp.RunByPM[m.Manager]
+		// {pm} is package.json's manager: npm, or one that rivals it.
+		return override || strings.Contains(tp.Run, "{pm}") && (m.Manager == "npm" || slices.Contains(m.Rivals, "npm"))
+	})
 	run := tp.Run
 	if override, ok := tp.RunByPM[pm]; ok {
 		run = override
@@ -422,13 +427,13 @@ func (b *builder) runCommand(tp sources.TaskProvider, sub, task string) string {
 	return strings.NewReplacer("{pm}", pm, "{task}", task).Replace(run)
 }
 
-// manager is the verified manager of the nearest lockfile directory at or
-// above sub, "" when none is.
-func (b *builder) manager(sub string) string {
+// manager is the verified manager ok accepts of the nearest lockfile
+// directory at or above sub, "" when none is.
+func (b *builder) manager(sub string, ok func(gapfill.Manager) bool) string {
 	best, name := -1, ""
 	for _, m := range b.facts.Managers {
 		d := filepath.Clean(m.Dir)
-		if (d == "." || sub == d || strings.HasPrefix(sub, d+"/")) && len(d) > best {
+		if (d == "." || sub == d || strings.HasPrefix(sub, d+"/")) && len(d) > best && ok(m) {
 			best, name = len(d), m.Manager
 		}
 	}
