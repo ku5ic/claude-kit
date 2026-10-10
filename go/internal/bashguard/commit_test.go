@@ -204,6 +204,9 @@ func TestGuardCommitScansTheStagedDiff(t *testing.T) {
 		{"block: gitleaks leak is still caught with no -m at all (--allow-empty)", "git commit --allow-empty", 1, 2, ""},
 		{"block: git -C <dir> commit is still caught by the entry guard (gitleaks leak)", "git -C " + t.TempDir() + " commit -m test", 1, 2, "gitleaks flagged a secret"},
 		{"allow: plain git commit (no -C) is unaffected by the -C entry guard fix", "git commit -m test", 0, 0, ""},
+		// gitleaks exits 1 on a path it can't stat, the same code as a leak.
+		{"allow (fail open): git -C names a missing directory", "git -C " + filepath.Join(t.TempDir(), "missing") + " commit -m test", 1, 0, "skipping scan"},
+		{"allow (fail open): git -C names an unexpanded variable", "git -C $REPO commit -m test", 1, 0, "skipping scan"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			gitleaksStub(t, c.code)

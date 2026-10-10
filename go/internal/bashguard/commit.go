@@ -209,6 +209,12 @@ func scanStaged(h *hook.Hook, repo string) error {
 	if _, err := exec.LookPath("gitleaks"); err != nil {
 		return nil
 	}
+	// gitleaks exits 1, a leak's code, on a path it can't stat: a git -C
+	// directory that's missing or an expansion.
+	if info, err := os.Stat(repo); err != nil || !info.IsDir() {
+		fmt.Fprintf(h.Stderr, "%s: %s is not a directory; skipping scan\n", h.Name, repo)
+		return nil
+	}
 	err := proc.Command(proc.Quick, "gitleaks", "git", "--staged", "--no-banner", "--redact", "--log-level", "error", repo).Run()
 	if err == nil {
 		return nil
