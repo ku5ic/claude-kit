@@ -10,6 +10,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
+	"github.com/ku5ic/claude-kit/go/internal/gapfill"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
@@ -55,6 +56,8 @@ type state struct {
 	// installs is global_installs compiled, once per command; ok is false
 	// when a pattern doesn't compile.
 	installs func() (patterns []*regexp.Regexp, ok bool)
+	// managers is each repo root's verified manager facts, read once per command.
+	managers map[string][]gapfill.Manager
 }
 
 func (st *state) compileInstalls() ([]*regexp.Regexp, bool) {
@@ -99,7 +102,7 @@ func Check(h *hook.Hook) error {
 	if err := wholeString(h, cfg, cmd, norm, home); err != nil {
 		return err
 	}
-	st := &state{dirs: dirs{home: home, cwd: resolveDir(home, "/", h.Payload.Cwd())}, h: h, cfg: cfg}
+	st := &state{dirs: dirs{home: home, cwd: resolveDir(home, "/", h.Payload.Cwd())}, h: h, cfg: cfg, managers: map[string][]gapfill.Manager{}}
 	st.installs = sync.OnceValues(st.compileInstalls)
 	// The raw command, not norm: <<- strips tabs only, and norm would turn a
 	// tab-indented terminator into spaces that no longer close the heredoc.

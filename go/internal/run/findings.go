@@ -1,7 +1,6 @@
 package run
 
 import (
-	"fmt"
 	"regexp"
 	"slices"
 	"strconv"
@@ -104,7 +103,7 @@ func located(line, dir string) (Finding, bool) {
 // changed since the merge-base, in a file that changed, fails it, so
 // touching a file doesn't inherit its old dead code; a failure with none
 // parsed is a tool error.
-func (r *runner) judge(g enforce.Gate, body string, o outcome) {
+func (r *runner) judge(g enforce.Gate, o outcome) {
 	since, _ := r.changes()
 	found := Findings(o.out, g.Dir)
 	var touched []string
@@ -119,19 +118,14 @@ func (r *runner) judge(g enforce.Gate, body string, o outcome) {
 		slices.Sort(touched)
 		lines = git.LinesChanged(r.plan.Root, since.MergeBase, slices.Compact(touched))
 	}
-	var blocking []string
-	for _, f := range found {
-		if since.Files[f.File] && lines.Touches(f.File, f.Line) {
-			blocking = append(blocking, f.Text)
-		}
-	}
+	blocked := blocking(found, func(f Finding) bool { return since.Files[f.File] && lines.Touches(f.File, f.Line) })
 	switch {
-	case len(blocking) > 0:
-		r.fail(g, body, head(strings.Join(blocking, "\n")))
+	case len(blocked) > 0:
+		r.fail(g, head(strings.Join(blocked, "\n")))
 	case o.err != nil && len(found) == 0:
-		r.fail(g, body, head(o.out))
+		r.fail(g, head(o.out))
 	case len(found) > 0:
-		r.pass(g.Label, fmt.Sprintf("%d finding%s on unchanged lines", len(found), plural(len(found))))
+		r.pass(g.Label, unchanged(len(found)))
 	default:
 		r.pass(g.Label, "")
 	}

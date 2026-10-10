@@ -13,8 +13,7 @@ import (
 // alone only when no hook manager runs one. A command at commit-msg checks
 // the message, so it needs no verdict; its binaries go through resolve.
 func CommitMsg(cfg *config.Config, o Options, msg string) Plan {
-	o.Ask = false
-	b, _ := plan(cfg, o)
+	b := hookPlan(cfg, o)
 	var commitlint *Gate
 	for _, e := range b.entries {
 		if e.Stage != "commit-msg" {

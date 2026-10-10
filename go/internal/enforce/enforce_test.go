@@ -214,7 +214,7 @@ func TestEachSubprojectFillsItsOwnKinds(t *testing.T) {
 	e.write("package.json", `{"scripts":{"test":"vitest run"}}`)
 	e.write("svc/go.mod", "module svc\n")
 	e.check("test", check("test"))
-	e.proposals = []map[string]any{{"role": "check", "kind": "test", "command": "go test ./...", "dir": "svc", "evidence": "svc/go.mod", "mutates": false}}
+	e.proposals = []map[string]any{{"role": "check", "kind": "test", "command": "go test ./...", "dir": "svc", "evidence": "svc/go.mod"}}
 	has(t, e.plan(), "RUN test (package.json: test)\n  cmd: npm run test\n", "RUN test (evidence svc/go.mod) [svc]\n  cmd: go test ./...\n  dir: svc\n")
 }
 
@@ -227,7 +227,7 @@ func TestCICoversItsKindsBeforeTasksAndEvidence(t *testing.T) {
 	e.write(".github/workflows/ci.yml", "jobs:\n  lint:\n    steps:\n      - run: eslint src\n")
 	e.check("lint/1", check("lint"))
 	e.check("lint", check("lint"))
-	e.proposals = []map[string]any{{"role": "check", "kind": "lint", "command": "eslint .", "dir": ".", "evidence": "package.json", "mutates": false}}
+	e.proposals = []map[string]any{{"role": "check", "kind": "lint", "command": "eslint .", "dir": ".", "evidence": "package.json"}}
 	p := e.plan()
 	has(t, p, "RUN lint (.github/workflows/ci.yml: lint/1)")
 	lacks(t, p, "package.json: lint", "evidence package.json")

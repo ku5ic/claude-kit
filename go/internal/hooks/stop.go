@@ -2,7 +2,6 @@ package hooks
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
@@ -86,7 +85,7 @@ func planGate(h *hook.Hook, cfg *config.Config, cwd, root string, entries []tran
 		return nil
 	}
 	isCode := func(path string) bool {
-		return strings.HasPrefix(fsx.PhysicalPath(path), root+"/") && !project.IsScratch(h.Paths, path)
+		return fsx.Within(root, fsx.PhysicalPath(path)) && !project.IsScratch(h.Paths, path)
 	}
 	// A finished plan waits for /code-review since the last code edit (rules/verify.md).
 	if plan, reviewed := planDone(entries, dir, isCode); plan != "" && !reviewed {

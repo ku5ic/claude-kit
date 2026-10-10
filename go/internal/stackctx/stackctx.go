@@ -49,8 +49,8 @@ func configTime(paths config.Paths) int64 {
 // from. Times compare in whole seconds, as stat(1) did, so a cache written
 // in the same second as kit.yml still counts as fresh; gap-fill's answers,
 // which land in the background moments after a session starts, compare in
-// full.
-func refresh(paths config.Paths, cfg *config.Config, root, file string) {
+// full. It reports whether it regenerated.
+func refresh(paths config.Paths, cfg *config.Config, root, file string) bool {
 	newest := configTime(paths)
 	for _, lang := range sources.Languages {
 		for _, name := range lang.Manifests {
@@ -61,9 +61,10 @@ func refresh(paths config.Paths, cfg *config.Config, root, file string) {
 	answered, _ := os.Stat(gapfill.CacheFile(paths.CacheDir(), root))
 	if info, err := os.Stat(file); err == nil && info.Size() > 0 && info.ModTime().Unix() >= newest &&
 		(answered == nil || !answered.ModTime().After(info.ModTime())) {
-		return
+		return false
 	}
 	_ = fsx.WriteAtomic(file, []byte(detect.Report(cfg, root, paths.CacheDir())), 0o600)
+	return true
 }
 
 func mtime(path string) int64 {
@@ -83,11 +84,26 @@ type Context struct {
 // Build refreshes root's stack cache and derives its report and skills.
 func Build(paths config.Paths, cfg *config.Config, name, root, session string) Context {
 	file := cacheFile(paths, cfg, name, root)
-	refresh(paths, cfg, root, file)
+	fresh := refresh(paths, cfg, root, file)
 	report, _ := os.ReadFile(file)
 	c := Context{Report: string(report), Required: suggested(nil, cfg.GlobalSkills)}
-	c.Suggested = suggested(c.Required, FileSkills(paths, cfg, root, session), dependencySkills(cfg, root))
+	c.Suggested = suggested(c.Required, FileSkills(paths, cfg, root, session), cachedDependencySkills(cfg, root, file, fresh))
 	return c
+}
+
+// cachedDependencySkills is dependencySkills, cached beside the stack
+// report at file and rebuilt with it: it costs a git ls-files and a parse
+// of every subproject's manifests, and SubagentStart has a 5s timeout.
+func cachedDependencySkills(cfg *config.Config, root, file string, fresh bool) []string {
+	deps := strings.TrimSuffix(file, ".txt") + ".deps.txt"
+	if !fresh {
+		if data, err := os.ReadFile(deps); err == nil {
+			return strings.Fields(string(data))
+		}
+	}
+	skills := dependencySkills(cfg, root)
+	_ = fsx.WriteAtomic(deps, []byte(strings.Join(skills, "\n")), 0o600)
+	return skills
 }
 
 // suggested is the skills of lists, deduped in first-seen order, leaving

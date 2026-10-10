@@ -14,7 +14,6 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/enforce"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
-	"github.com/ku5ic/claude-kit/go/internal/gapfill"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
@@ -169,7 +168,7 @@ const guidance = "Run each directory's scripts through the package manager <repo
 // kit.yml's tools split by whether PATH has them.
 func tooling(cfg *config.Config, root, cacheDir string) string {
 	p := enforce.Build(cfg, enforce.Options{Root: root, CacheDir: cacheDir})
-	return toolingBlock(p, len(gapfill.Managers(cfg, root, cacheDir)) > 0, cliLines(cfg))
+	return toolingBlock(p, p.Managed, cliLines(cfg))
 }
 
 // toolingBlock is p's gates, its unclassified entries or discovery

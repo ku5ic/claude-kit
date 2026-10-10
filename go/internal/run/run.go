@@ -34,15 +34,12 @@ const maxOutputLines = 30
 // the reviewer ran the full gate.
 var Summary = regexp.MustCompile(`checks: \d+ passed, \d+ failed, \d+ skipped`)
 
-// Result counts a run's verdicts.
-type Result struct{ Pass, Fail, Skip int }
-
 // Gates runs p's gates in order, writing a PASS, FAIL, or SKIP line for
 // each, then a blank line and the summary. A failure's line has its command,
 // where it ran, and its binaries under it, then the first lines of its
 // output. cacheDir holds the marks of gates that changed files.
 func Gates(p enforce.Plan, cacheDir string, w io.Writer) Result {
-	r := &runner{plan: p, cacheDir: cacheDir, w: w,
+	r := &runner{reporter: reporter{plan: p, report: w}, cacheDir: cacheDir,
 		base:    sync.OnceValue(func() string { base, _ := git.Base(p.Root, ""); return base }),
 		changes: sync.OnceValues(func() (git.Since, bool) { return git.ChangedSince(p.Root) }),
 	}
@@ -52,15 +49,13 @@ func Gates(p enforce.Plan, cacheDir string, w io.Writer) Result {
 	for _, g := range p.Gates {
 		r.gate(g)
 	}
-	fmt.Fprintf(w, "\nchecks: %d passed, %d failed, %d skipped\n", r.res.Pass, r.res.Fail, r.res.Skip)
+	fmt.Fprintf(w, "\n%s\n", r.res)
 	return r.res
 }
 
 type runner struct {
-	plan     enforce.Plan
+	reporter
 	cacheDir string
-	w        io.Writer
-	res      Result
 	started  bool
 	tree     string // the work tree's snapshot after the last gate; "" outside a repo
 	ref      string // the restore point taken before the first gate
@@ -83,28 +78,6 @@ type outcome struct {
 func (o outcome) notFound() bool {
 	exit, ok := errors.AsType[*exec.ExitError](o.err)
 	return ok && exit.ExitCode() == 127
-}
-
-func (r *runner) skip(label, why string) {
-	fmt.Fprintf(r.w, "SKIP %s (%s)\n", label, why)
-	r.res.Skip++
-}
-
-func (r *runner) pass(label, note string) {
-	if note != "" {
-		label += " (" + note + ")"
-	}
-	fmt.Fprintf(r.w, "PASS %s\n", label)
-	r.res.Pass++
-}
-
-// fail writes g's FAIL line, what it ran under it, and detail.
-func (r *runner) fail(g enforce.Gate, body, detail string) {
-	fmt.Fprintf(r.w, "FAIL %s\n", g.Label)
-	g.Body = body
-	r.plan.Describe(r.w, g)
-	fmt.Fprint(r.w, detail)
-	r.res.Fail++
 }
 
 // gate runs g and reports it. A dead-code gate is judged by its findings
@@ -134,6 +107,9 @@ func (r *runner) gate(g enforce.Gate) {
 		}
 	}
 	o := r.exec(g, body)
+	// A failure describes what ran: the body with {base} filled in.
+	ran := g
+	ran.Body = body
 	switch {
 	case len(o.changed) > 0:
 		_ = enforce.AddMark(r.cacheDir, r.plan.Root, g, enforce.Mark{Label: g.Label, Paths: o.changed, Ref: r.ref})
@@ -141,13 +117,13 @@ func (r *runner) gate(g enforce.Gate) {
 		if o.err != nil {
 			detail += head(o.out)
 		}
-		r.fail(g, body, detail)
+		r.fail(ran, detail)
 	case o.notFound():
 		r.skip(g.Label, "not installed: "+lastLine(o.out))
 	case g.Scoped():
-		r.judge(g, body, o)
+		r.judge(ran, o)
 	case o.err != nil:
-		r.fail(g, body, head(o.out))
+		r.fail(ran, head(o.out))
 	default:
 		r.pass(g.Label, "")
 	}

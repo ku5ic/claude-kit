@@ -61,7 +61,8 @@ func Files(p enforce.Plan, cacheDir string, timeout time.Duration) Checked {
 			suspects, changed = mutators(p, before, after, cacheDir)
 		}
 	}
-	t := tally{plan: p, lines: sync.OnceValue(func() git.ChangedLines { return git.LinesChanged(p.Root, "HEAD", edited(p.Gates)) })}
+	var report, failures strings.Builder
+	t := tally{reporter: reporter{plan: p, report: &report, failures: &failures}, lines: sync.OnceValue(func() git.ChangedLines { return git.LinesChanged(p.Root, "HEAD", edited(p.Gates)) })}
 	for i, g := range p.Gates {
 		if !suspects[i] {
 			t.record(g, results[i], timeout)
@@ -74,16 +75,14 @@ func Files(p enforce.Plan, cacheDir string, timeout time.Duration) Checked {
 		}
 		t.fail(g, detail)
 	}
-	summary := fmt.Sprintf("checks: %d passed, %d failed, %d skipped\n", t.res.Pass, t.res.Fail, t.res.Skip)
-	return Checked{Failures: t.failures.String() + summary, Failed: t.res.Fail > 0, lines: t.report.String(), summary: summary}
+	summary := t.res.String() + "\n"
+	return Checked{Failures: failures.String() + summary, Failed: t.res.Fail > 0, lines: report.String(), summary: summary}
 }
 
 // tally builds a Stop run's report and block message.
 type tally struct {
-	plan             enforce.Plan
-	lines            func() git.ChangedLines
-	res              Result
-	report, failures strings.Builder
+	reporter
+	lines func() git.ChangedLines
 }
 
 func (t *tally) record(g enforce.Gate, o outcome, timeout time.Duration) {
@@ -114,45 +113,16 @@ func (t *tally) findings(g enforce.Gate, o outcome) {
 		t.fail(g, tail(o.out))
 		return
 	}
-	var blocking []string
-	for _, f := range found {
-		if slices.Contains(g.Files, f.File) && t.lines().Touches(f.File, f.Line) {
-			blocking = append(blocking, f.Text)
-		}
-	}
-	old := len(found) - len(blocking)
+	blocked := blocking(found, func(f Finding) bool { return slices.Contains(g.Files, f.File) && t.lines().Touches(f.File, f.Line) })
+	old := len(found) - len(blocked)
 	switch {
-	case len(blocking) == 0:
-		t.pass(g.Label, fmt.Sprintf("%d finding%s on unchanged lines", old, plural(old)))
+	case len(blocked) == 0:
+		t.pass(g.Label, unchanged(old))
 	case old > 0:
-		t.fail(g, head(strings.Join(blocking, "\n"))+fmt.Sprintf("(%d more on unchanged lines don't block)\n", old))
+		t.fail(g, head(strings.Join(blocked, "\n"))+fmt.Sprintf("(%d more on unchanged lines don't block)\n", old))
 	default:
-		t.fail(g, head(strings.Join(blocking, "\n")))
+		t.fail(g, head(strings.Join(blocked, "\n")))
 	}
-}
-
-func (t *tally) skip(label, why string) {
-	line := fmt.Sprintf("SKIP %s (%s)\n", label, why)
-	// In a block's message too, so the skipped count has its reasons.
-	t.report.WriteString(line)
-	t.failures.WriteString(line)
-	t.res.Skip++
-}
-
-func (t *tally) pass(label, note string) {
-	if note != "" {
-		label += " (" + note + ")"
-	}
-	fmt.Fprintf(&t.report, "PASS %s\n", label)
-	t.res.Pass++
-}
-
-func (t *tally) fail(g enforce.Gate, detail string) {
-	fmt.Fprintf(&t.report, "FAIL %s\n", g.Label)
-	fmt.Fprintf(&t.failures, "FAIL %s\n", g.Label)
-	t.plan.Describe(&t.failures, g)
-	t.failures.WriteString(detail)
-	t.res.Fail++
 }
 
 // mutators are the gates of a batch that changed files, by index: those

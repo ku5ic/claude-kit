@@ -20,8 +20,7 @@ func Edit(cfg *config.Config, o Options, file string) Plan {
 	if len(files) == 0 {
 		return p
 	}
-	o.Ask = false
-	b, _ := plan(cfg, o)
+	b := hookPlan(cfg, o)
 	b.hookFixers(files)
 	if len(b.gates) == 0 {
 		b.evidenceFixer(files)
@@ -67,17 +66,7 @@ func (b *builder) hookFixers(files []string) {
 			continue
 		}
 		g := Gate{Label: "fix (" + e.File + ": " + e.Name + ")", Dir: filepath.Join(b.root, e.Dir), Env: e.Env, Verdict: "fixer"}
-		switch e.Source {
-		case "pre-commit":
-			g.Body, g.Files = "pre-commit run "+e.Name+" --hook-stage pre-commit --files {files}", files
-		case "lint-staged", "lefthook":
-			g.Body = e.Body.Text
-			if e.PassFiles {
-				g.Body += " {files}"
-			}
-			g.Files = matching(files, g.Dir, e.Files)
-		}
-		if len(g.Files) > 0 {
+		if g.Body, g.Files = hookRun(e, g.Dir, files); len(g.Files) > 0 {
 			b.add(g)
 		}
 	}

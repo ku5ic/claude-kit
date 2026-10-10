@@ -48,7 +48,7 @@ func Stop(cfg *config.Config, o Options, files []string) Plan {
 func stopFiles(root string, files []string) []string {
 	var kept []string
 	for _, f := range files {
-		if f = fsx.PhysicalPath(f); strings.HasPrefix(f, root+"/") && fsx.IsFile(f) && !slices.Contains(kept, f) {
+		if f = fsx.PhysicalPath(f); fsx.Within(root, f) && fsx.IsFile(f) && !slices.Contains(kept, f) {
 			kept = append(kept, f)
 		}
 	}
@@ -57,8 +57,7 @@ func stopFiles(root string, files []string) []string {
 }
 
 // hookChecks plans the git-hook managers' pre-commit checks on files, and
-// returns, per file, the kinds they check it for. pre-commit filters files
-// itself, so its hooks check every file.
+// returns, per file, the kinds they check it for.
 func (b *builder) hookChecks(files []string) map[string][]string {
 	checked := map[string][]string{}
 	for _, e := range b.entries {
@@ -68,19 +67,7 @@ func (b *builder) hookChecks(files []string) map[string][]string {
 			continue
 		}
 		g := Gate{Label: label(kinds, e.File+": "+e.Name, "."), Kinds: kinds, Dir: filepath.Join(b.root, e.Dir), Env: e.Env, Verdict: v.String()}
-		switch e.Source {
-		case "pre-commit":
-			g.Body, g.Files = "pre-commit run "+e.Name+" --hook-stage pre-commit --files {files}", files
-		case "lint-staged", "lefthook":
-			g.Body = e.Body.Text
-			if e.PassFiles {
-				g.Body += " {files}"
-			}
-			g.Files = matching(files, g.Dir, e.Files)
-		default:
-			continue
-		}
-		if len(g.Files) == 0 {
+		if g.Body, g.Files = hookRun(e, g.Dir, files); len(g.Files) == 0 {
 			continue
 		}
 		b.add(g)
@@ -89,6 +76,19 @@ func (b *builder) hookChecks(files []string) map[string][]string {
 		}
 	}
 	return checked
+}
+
+// hookRun is how a git-hook manager's entry e, run from dir, runs on files:
+// its body and the files it takes. pre-commit filters files itself, so its
+// hooks take every file; a source no hook manager runs takes none.
+func hookRun(e sources.Entry, dir string, files []string) (body string, taken []string) {
+	switch e.Source {
+	case "pre-commit":
+		return "pre-commit run " + e.Name + " --hook-stage pre-commit --files {files}", files
+	case "lint-staged", "lefthook":
+		return e.FileBody(), matching(files, dir, e.Files)
+	}
+	return "", nil
 }
 
 // atPreCommit is true for an entry git's pre-commit hook runs: one staged
@@ -120,7 +120,7 @@ func (b *builder) fileForm(g Gate, files []string, checked map[string][]string) 
 func matching(files []string, dir string, globs []string) []string {
 	var out []string
 	for _, f := range files {
-		if !strings.HasPrefix(f, dir+"/") {
+		if !fsx.Within(dir, f) {
 			continue
 		}
 		rel := fsx.Rel(dir, f)

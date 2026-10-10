@@ -12,6 +12,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/git"
+	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/sources"
 )
 
@@ -72,7 +73,7 @@ func readView(cfg *config.Config, root string, entries []sources.Entry) view {
 	}
 	total := 0
 	for _, f := range candidates {
-		if _, seen := p.Contents[f]; seen || f == "" || lockfile(cfg, f) {
+		if _, seen := p.Contents[f]; seen || f == "" || guard.IsGuardedLockfile(cfg, f) {
 			continue
 		}
 		data, err := os.ReadFile(filepath.Join(root, f))
@@ -110,14 +111,6 @@ func topLevel(root string) []string {
 	return out
 }
 
-// lockfile is true when file's name matches a lockfile_globs pattern.
-func lockfile(cfg *config.Config, file string) bool {
-	return slices.ContainsFunc(cfg.LockfileGlobs, func(glob string) bool {
-		ok, _ := filepath.Match(glob, filepath.Base(file))
-		return ok
-	})
-}
-
 // lockDirs groups files' lockfiles by directory, and adds each directory
 // whose package.json names a packageManager, the root first.
 func lockDirs(cfg *config.Config, root string, files []string) []lockDir {
@@ -135,7 +128,7 @@ func lockDirs(cfg *config.Config, root string, files []string) []lockDir {
 		add(".")
 	}
 	for _, f := range files {
-		if lockfile(cfg, f) {
+		if guard.IsGuardedLockfile(cfg, f) {
 			d := add(filepath.Dir(f))
 			d.Lockfiles = append(d.Lockfiles, filepath.Base(f))
 		}

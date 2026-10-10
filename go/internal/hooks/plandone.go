@@ -3,11 +3,11 @@ package hooks
 import (
 	"encoding/json"
 	"os"
-	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
 
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
@@ -88,7 +88,7 @@ func planDone(entries []transcript.Entry, plansDir string, isCode func(string) b
 			case b.Name == "Skill" && b.Input.Skill == reviewSkill:
 				started[b.ID] = e.Line
 			case slices.Contains(transcript.EditTools, b.Name):
-				if p := b.Path(); strings.HasPrefix(p, plansDir+string(filepath.Separator)) {
+				if p := b.Path(); fsx.Within(plansDir, p) {
 					ticked = append(ticked, p)
 				} else if isCode(p) {
 					lastEdit = e.Line

@@ -7,8 +7,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/gapfill"
-	"github.com/ku5ic/claude-kit/go/internal/git"
 )
 
 // Package managers: global installs are kit policy (global_installs); the
@@ -34,11 +34,18 @@ func (c *command) packageManager() error {
 	if rest := strings.TrimSpace(c.rest); rest == "--version" || rest == "-v" {
 		return nil
 	}
-	root := git.Toplevel(c.st.cwd)
-	if root == "" {
+	// Found by walking up for .git, not git rev-parse: this runs for every
+	// command the switch doesn't name, and an exec costs more than the check.
+	dotGit := fsx.FindUp(c.st.cwd, "/", ".git")
+	if dotGit == "" {
 		return nil
 	}
-	facts := gapfill.Managers(c.st.cfg, root, c.st.h.Paths.CacheDir())
+	root := fsx.PhysicalPath(filepath.Dir(dotGit))
+	facts, ok := c.st.managers[root]
+	if !ok {
+		facts = gapfill.Managers(c.st.cfg, root, c.st.h.Paths.CacheDir())
+		c.st.managers[root] = facts
+	}
 	var dirFlags []string
 	for _, m := range facts {
 		if m.Manager == c.name {

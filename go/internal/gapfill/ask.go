@@ -136,14 +136,14 @@ func schema() string {
 		"entries": array(object([]string{"id", "role", "mutates"}, map[string]any{
 			"id": str, "role": role, "kind": kind, "mutates": map[string]any{"type": "boolean"},
 			"segments":  array(object([]string{"text", "role"}, map[string]any{"text": str, "role": role, "kind": kind})),
-			"file_form": str, "globs": list, "affected_form": str, "exclusions": str,
+			"file_form": str, "globs": list, "affected_form": str,
 		})),
 		"managers": array(object([]string{"dir", "cites", "manager", "run_prefix", "add_verbs", "dlx", "dir_flags", "rivals"}, map[string]any{
 			"dir": str, "cites": str, "manager": str, "run_prefix": str, "add_verbs": list, "dlx": str, "dir_flags": list, "rivals": list,
 		})),
-		"proposals": array(object([]string{"role", "command", "dir", "evidence", "mutates"}, map[string]any{
+		"proposals": array(object([]string{"role", "command", "dir", "evidence"}, map[string]any{
 			"role": map[string]any{"enum": []string{"check", "fixer"}}, "kind": kind, "command": str, "file_form": str,
-			"globs": list, "dir": str, "evidence": str, "mutates": map[string]any{"type": "boolean"},
+			"globs": list, "dir": str, "evidence": str,
 		})),
 	}))
 	return string(b)

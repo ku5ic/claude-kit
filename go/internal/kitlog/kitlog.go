@@ -72,15 +72,11 @@ func writeString(buf *bytes.Buffer, s string) {
 	buf.Write(bytes.TrimSuffix(tmp.Bytes(), []byte("\n")))
 }
 
-// minLineBytes is less than any line Line writes for a hook: ts, hook,
-// event, and session_id alone take more. A log no bigger than maxLines of
-// these can't be over its cap, so most appends never read the file.
-const minLineBytes = 64
-
 // Append adds line to path, creating it and its directory. Past maxLines
 // lines plus a tenth, it trims the log to its newest maxLines, so a full log
 // is rewritten once per tenth instead of on every append; maxLines 0 never
-// trims.
+// trims. line's length stands in for the log's line size: the file is read
+// only once its size says it could be past the cap.
 func Append(path string, line []byte, maxLines int) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
@@ -97,7 +93,7 @@ func Append(path string, line []byte, maxLines int) error {
 	if info, serr := f.Stat(); serr == nil {
 		size = info.Size()
 	}
-	if err = errors.Join(err, f.Close()); err != nil || maxLines <= 0 || size <= int64(maxLines)*minLineBytes {
+	if err = errors.Join(err, f.Close()); err != nil || maxLines <= 0 || size <= int64(maxLines+max(1, maxLines/10))*int64(len(line)) {
 		return err
 	}
 	return trim(path, maxLines)

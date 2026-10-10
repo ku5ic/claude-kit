@@ -17,7 +17,7 @@ func (e *env) edit(file string) Plan {
 }
 
 func fixerProposal(command, evidence string, globs ...string) map[string]any {
-	return map[string]any{"role": "fixer", "command": command, "file_form": command + " {files}", "globs": globs, "dir": ".", "evidence": evidence, "mutates": true}
+	return map[string]any{"role": "fixer", "command": command, "file_form": command + " {files}", "globs": globs, "dir": ".", "evidence": evidence}
 }
 
 func TestEditRunsEveryHookFixerThatClaimsTheFile(t *testing.T) {

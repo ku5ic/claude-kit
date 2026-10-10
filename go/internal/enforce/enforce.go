@@ -62,11 +62,13 @@ func (g Gate) LintLike() bool {
 
 // Plan is the full gate for one root. Discovery is set when the project
 // states nothing to check; Unclassified counts the entries with no verdict.
+// Managed is true when gap-fill has verified a package manager.
 type Plan struct {
 	Root         string
 	Gates        []Gate
 	Unclassified int
 	Discovery    string
+	Managed      bool
 }
 
 // Options says which root to plan, which subprojects to keep, and whether
@@ -86,7 +88,7 @@ func Build(cfg *config.Config, o Options) Plan {
 	b, subs := fullGate(cfg, o)
 	b.unclassified(func(e sources.Entry) bool { return !gitHook(e.Source) })
 	b.settle(o.CacheDir)
-	p := Plan{Root: o.Root, Unclassified: b.skipped}
+	p := Plan{Root: o.Root, Unclassified: b.skipped, Managed: len(b.facts.Managers) > 0}
 	// A fan-out gate belongs to each member it runs across.
 	member := func(sub string) bool { return b.members[filepath.Join(o.Root, sub)] }
 	for _, g := range b.gates {
@@ -118,6 +120,15 @@ func plan(cfg *config.Config, o Options) (*builder, []string) {
 	entries := sources.Entries(cfg, o.Root, subs)
 	facts := gapfill.Run(cfg, gapfill.Options{Root: o.Root, CacheDir: o.CacheDir, Entries: entries, Ask: o.Ask, Timeout: o.Timeout})
 	return newBuilder(cfg, o.Root, entries, facts), subs
+}
+
+// hookPlan is plan narrowed to the git-hook managers' entries, never
+// asked: all an edit or a commit message needs, without reading CI, task
+// graphs, or subprojects.
+func hookPlan(cfg *config.Config, o Options) *builder {
+	entries := sources.HookEntries(o.Root)
+	facts := gapfill.Run(cfg, gapfill.Options{Root: o.Root, CacheDir: o.CacheDir, Entries: entries})
+	return newBuilder(cfg, o.Root, entries, facts)
 }
 
 // Task is one task a task runner holds in a subproject, and the command the
@@ -312,9 +323,10 @@ func (b *builder) preCommit(sub, kind string) {
 	if sub != "." {
 		return
 	}
+	tp, _ := row("pre-commit")
 	for _, e := range b.entries {
-		if v, why := b.verdict(e); e.Source == "pre-commit" && why == "" && slices.Contains(kindsOf(v), kind) {
-			b.add(Gate{Label: label(kindsOf(v), e.File+": "+e.Name, sub), Kinds: kindsOf(v), Dir: b.root, Body: "pre-commit run " + e.Name + " --all-files", Verdict: v.String(), FanOut: true})
+		if v, why := b.verdict(e); e.Source == tp.Name && why == "" && slices.Contains(kindsOf(v), kind) {
+			b.add(Gate{Label: label(kindsOf(v), e.File+": "+e.Name, sub), Kinds: kindsOf(v), Dir: b.root, Body: b.runCommand(tp, sub, e.Name), Verdict: v.String(), FanOut: true})
 		}
 	}
 }
@@ -400,10 +412,16 @@ func (b *builder) subOf(dir string, subs []string) string {
 	return best
 }
 
-// provider is the task runner a source names.
+// provider is the task runner a source names, when its entries are tasks.
 func provider(source string) (sources.TaskProvider, bool) {
-	i := slices.IndexFunc(sources.TaskProviders, func(tp sources.TaskProvider) bool { return tp.Name == source })
-	if i < 0 || source == "pre-commit" {
+	tp, ok := row(source)
+	return tp, ok && tp.Tasks != nil
+}
+
+// row is the TaskProviders row named name.
+func row(name string) (sources.TaskProvider, bool) {
+	i := slices.IndexFunc(sources.TaskProviders, func(tp sources.TaskProvider) bool { return tp.Name == name })
+	if i < 0 {
 		return sources.TaskProvider{}, false
 	}
 	return sources.TaskProviders[i], true

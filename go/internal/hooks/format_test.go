@@ -66,7 +66,7 @@ func (e *formatEnv) callsWant(want string) {
 }
 
 func fixerProposal(command, evidence string, globs ...string) map[string]any {
-	return map[string]any{"role": "fixer", "command": command, "file_form": command + " {files}", "globs": globs, "dir": ".", "evidence": evidence, "mutates": true}
+	return map[string]any{"role": "fixer", "command": command, "file_form": command + " {files}", "globs": globs, "dir": ".", "evidence": evidence}
 }
 
 // Not parallel: each case sets PATH.

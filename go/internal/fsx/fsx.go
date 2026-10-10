@@ -5,6 +5,7 @@ package fsx
 
 import (
 	"errors"
+	"iter"
 	"os"
 	"path/filepath"
 	"strings"
@@ -112,17 +113,25 @@ func Abs(dir, path string) string {
 // including stop, never above it; "" when none exists. A start outside stop
 // is checked on its own.
 func FindUp(start, stop string, names ...string) string {
-	dir := start
-	for {
+	for dir := range Up(start, stop) {
 		for _, name := range names {
 			candidate := filepath.Join(dir, name)
 			if _, err := os.Lstat(candidate); err == nil {
 				return candidate
 			}
 		}
-		if dir == stop || dir == "/" || !Within(stop, dir) {
-			return ""
+	}
+	return ""
+}
+
+// Up yields each dir from start up to and including stop, never above it.
+// A start outside stop is yielded on its own.
+func Up(start, stop string) iter.Seq[string] {
+	return func(yield func(string) bool) {
+		for dir := start; yield(dir); dir = filepath.Dir(dir) {
+			if dir == stop || dir == "/" || !Within(stop, dir) {
+				return
+			}
 		}
-		dir = filepath.Dir(dir)
 	}
 }

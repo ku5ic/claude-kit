@@ -30,16 +30,22 @@ type Entry struct {
 // source, file, stage, dir, name, files, and the command, its env first,
 // {files} last when files are appended, newlines as \n.
 func (e Entry) String() string {
-	command := e.Command()
-	if e.PassFiles {
-		command += " {files}"
-	}
+	command := strings.Join(append(slices.Clone(e.Env), e.FileBody()), " ")
 	return strings.Join([]string{e.Source, e.File, cmp.Or(e.Stage, "-"), e.Dir, e.Name, cmp.Or(strings.Join(e.Files, ","), "-"), strings.ReplaceAll(command, "\n", `\n`)}, "\t")
 }
 
 // Command is the body with its env in front, as a shell line.
 func (e Entry) Command() string {
 	return strings.Join(append(slices.Clone(e.Env), e.Body.Text), " ")
+}
+
+// FileBody is the body as it runs on files: {files} appended when the
+// matched files are passed to it.
+func (e Entry) FileBody() string {
+	if e.PassFiles {
+		return e.Body.Text + " {files}"
+	}
+	return e.Body.Text
 }
 
 // Entries lists what root's configs say to run: CI steps, the git-hook
@@ -54,11 +60,22 @@ func Entries(cfg *config.Config, root string, dirs []string) []Entry {
 		}
 		out = append(out, Entry{Source: source, File: s.File, Name: s.Name, Dir: s.Dir, Env: s.Env, Body: Body{Text: s.Run}})
 	}
-	for _, read := range []func(string) []Entry{preCommitEntries, lintStagedEntries, lefthookEntries, huskyEntries, commitlintEntries, turboEntries, nxEntries} {
+	out = append(out, HookEntries(root)...)
+	for _, read := range []func(string) []Entry{turboEntries, nxEntries} {
 		out = append(out, read(root)...)
 	}
 	for _, dir := range dirs {
 		out = append(out, taskEntries(cfg, root, dir)...)
+	}
+	return out
+}
+
+// HookEntries are what root's git-hook managers run: pre-commit,
+// lint-staged, lefthook, husky, and commitlint.
+func HookEntries(root string) []Entry {
+	var out []Entry
+	for _, read := range []func(string) []Entry{preCommitEntries, lintStagedEntries, lefthookEntries, huskyEntries, commitlintEntries} {
+		out = append(out, read(root)...)
 	}
 	return out
 }

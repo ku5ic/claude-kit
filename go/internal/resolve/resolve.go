@@ -108,11 +108,7 @@ func (r *Resolver) Command(dir string, words []string) Resolution {
 // provides it, it is a verified package manager, or the system ships it.
 func (r *Resolver) Bin(dir, name string) Resolution {
 	if strings.Contains(name, "/") {
-		path := name
-		if !filepath.IsAbs(path) {
-			path = filepath.Join(dir, path)
-		}
-		if strings.HasPrefix(path, r.root+"/") && fsx.IsExecutable(path) {
+		if path := fsx.Abs(dir, name); fsx.Within(r.root, path) && fsx.IsExecutable(path) {
 			return Resolution{Path: path, Source: Local}
 		}
 		return Resolution{Skip: name + " not found in the project"}

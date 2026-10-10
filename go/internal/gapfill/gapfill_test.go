@@ -212,9 +212,9 @@ func TestVerification(t *testing.T) {
 			map[string]any{"dir": ".", "cites": "yarn.lock", "manager": "yarn", "run_prefix": "yarn", "add_verbs": []string{}, "dlx": "", "dir_flags": []string{}, "rivals": []string{}},
 		},
 		"proposals": []any{
-			map[string]any{"role": "check", "kind": "lint", "command": "pnpm exec eslint .", "dir": ".", "evidence": "package.json", "mutates": false},
-			map[string]any{"role": "fixer", "command": "pnpm dlx prettier --write .", "dir": ".", "evidence": "pnpm-lock.yaml", "mutates": true},
-			map[string]any{"role": "check", "kind": "security", "command": "gitleaks detect", "dir": ".", "evidence": ".gitleaks.toml", "mutates": false},
+			map[string]any{"role": "check", "kind": "lint", "command": "pnpm exec eslint .", "dir": ".", "evidence": "package.json"},
+			map[string]any{"role": "fixer", "command": "pnpm dlx prettier --write .", "dir": ".", "evidence": "pnpm-lock.yaml"},
+			map[string]any{"role": "check", "kind": "security", "command": "gitleaks detect", "dir": ".", "evidence": ".gitleaks.toml"},
 		},
 	})
 	r := f.run(ci, fetch, invent, strayed, badKind, aggregate, blank)

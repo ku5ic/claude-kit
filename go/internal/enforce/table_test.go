@@ -55,7 +55,7 @@ func manager(dir, cites, name string) map[string]any {
 }
 
 func proposal(kind, command, dir, evidence string) map[string]any {
-	return map[string]any{"role": "check", "kind": kind, "command": command, "dir": dir, "evidence": evidence, "mutates": false}
+	return map[string]any{"role": "check", "kind": kind, "command": command, "dir": dir, "evidence": evidence}
 }
 
 // The projects the old engine's run-checks suite planned, each through the

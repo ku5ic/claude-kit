@@ -92,14 +92,14 @@ func underManager(path string) bool {
 	}
 	real, _ := filepath.EvalSymlinks(path)
 	return slices.ContainsFunc(dirs, func(d string) bool {
-		return strings.HasPrefix(path, d+"/") || real != "" && strings.HasPrefix(real, d+"/")
+		return fsx.Within(d, path) || real != "" && fsx.Within(d, real)
 	})
 }
 
 // declared is the manifest, from dir up to root, that declares a package
 // named name; "" when none does.
 func declared(dir, root, name string) string {
-	for d := dir; ; d = filepath.Dir(d) {
+	for d := range fsx.Up(dir, root) {
 		for _, l := range sources.Languages {
 			if l.Declares == nil {
 				continue
@@ -108,10 +108,8 @@ func declared(dir, root, name string) string {
 				return fsx.Rel(root, filepath.Join(d, manifest))
 			}
 		}
-		if d == root || d == "/" || !strings.HasPrefix(d, root) {
-			return ""
-		}
 	}
+	return ""
 }
 
 // ActiveEnv is name in an activated virtualenv or conda env, only when that
@@ -123,7 +121,7 @@ func ActiveEnv(root, name string) string {
 		if env == "" {
 			continue
 		}
-		if rel, err := filepath.Rel(physRoot, fsx.PhysicalPath(env)); err != nil || rel == ".." || strings.HasPrefix(rel, "../") {
+		if !fsx.Within(physRoot, fsx.PhysicalPath(env)) {
 			continue
 		}
 		if bin := filepath.Join(env, "bin", name); fsx.IsExecutable(bin) {
@@ -188,14 +186,12 @@ func nodePackage(bin string) string {
 // declares pkg, with the spec it declares: in a workspace, that package's
 // version is the one that counts. "" when none does.
 func JSOwner(dir, root, pkg string) (owner, spec string) {
-	for d := dir; ; d = filepath.Dir(d) {
+	for d := range fsx.Up(dir, root) {
 		if s, ok := sources.JSSpecs(d)[pkg]; ok {
 			return d, s
 		}
-		if d == root || d == "/" || !strings.HasPrefix(d, root) {
-			return "", ""
-		}
 	}
+	return "", ""
 }
 
 // Range is how an installed version stands against a declared range.

@@ -224,6 +224,9 @@ func models(path, modelName string) (actualShort, actualDisplay, sessionShort, d
 	return
 }
 
+// unsafeSessionChars are what a session id loses to name a cache file.
+var unsafeSessionChars = regexp.MustCompile(`[^a-zA-Z0-9_-]`)
+
 // gitStatus is "branch\tadditions\tdeletions" for cwd's repo, cached per
 // session for STATUSLINE_CACHE_TTL seconds (default 1, statusLine's
 // refreshInterval), or "" outside a repo. Staged plus unstaged numstat, as
@@ -237,7 +240,7 @@ func gitStatus(home, cwd, sessionID string) string {
 	if err != nil || ttl < 0 {
 		ttl = 1
 	}
-	safe := regexp.MustCompile(`[^a-zA-Z0-9_-]`).ReplaceAllString(sessionID, "")
+	safe := unsafeSessionChars.ReplaceAllString(sessionID, "")
 	if safe == "" {
 		safe = "nosession"
 	}
@@ -280,19 +283,36 @@ func gitStatus(home, cwd, sessionID string) string {
 		}
 	}
 	// Untracked files count as all-new lines, as they will once added. This
-	// runs on every refresh, so only regular files are read, within a byte
+	// runs on every refresh, so only regular files are read, a file's count
+	// is kept until its size or mtime changes, and reads stay within a byte
 	// budget: past it, or for one larger file, the count runs low.
+	countsFile := file + ".untracked"
+	var counts map[string]lineCount
+	if data, err := os.ReadFile(countsFile); err != nil || json.Unmarshal(data, &counts) != nil {
+		counts = map[string]lineCount{}
+	}
+	kept := map[string]lineCount{}
 	budget := int64(untrackedReadBudget)
 	for _, name := range untracked {
 		path := filepath.Join(top, name)
-		switch info, err := os.Lstat(path); {
+		info, err := os.Lstat(path)
+		switch {
 		case err != nil:
 		case info.Mode()&fs.ModeSymlink != 0:
 			add++ // git counts a symlink as one line, its target
-		case info.Mode().IsRegular() && info.Size() <= budget:
+		case !info.Mode().IsRegular():
+		case counts[path].Size == info.Size() && counts[path].Mtime == info.ModTime().UnixNano():
+			kept[path] = counts[path]
+			add += counts[path].Lines
+		case info.Size() <= budget:
 			budget -= info.Size()
-			add += newLines(path)
+			c := lineCount{Size: info.Size(), Mtime: info.ModTime().UnixNano(), Lines: newLines(path)}
+			kept[path] = c
+			add += c.Lines
 		}
+	}
+	if data, err := json.Marshal(kept); err == nil {
+		_ = fsx.WriteAtomic(countsFile, data, 0o600)
 	}
 	segment := fmt.Sprintf("%s\t%d\t%d", branch, add, del)
 	_ = fsx.WriteAtomic(file, []byte(segment+"\n"), 0o600)
@@ -301,6 +321,13 @@ func gitStatus(home, cwd, sessionID string) string {
 
 // untrackedReadBudget caps the bytes one refresh reads to count untracked lines.
 const untrackedReadBudget = 8 << 20
+
+// lineCount is an untracked file's line count, kept while its size and
+// mtime are unchanged.
+type lineCount struct {
+	Size, Mtime int64
+	Lines       int
+}
 
 // newLines is a new file's line count as git diff --numstat shows it: a
 // last line without a newline counts, and a binary file (a NUL in its first

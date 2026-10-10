@@ -37,14 +37,13 @@ const unseenDays = 30
 
 // Verdict is one entry's answer.
 type Verdict struct {
-	Role       string    `json:"role"`
-	Kind       string    `json:"kind,omitempty"`
-	Mutates    bool      `json:"mutates"`
-	Segments   []Segment `json:"segments,omitempty"`
-	FileForm   string    `json:"file_form,omitempty"`
-	Globs      []string  `json:"globs,omitempty"`
-	Affected   string    `json:"affected_form,omitempty"`
-	Exclusions string    `json:"exclusions,omitempty"`
+	Role     string    `json:"role"`
+	Kind     string    `json:"kind,omitempty"`
+	Mutates  bool      `json:"mutates"`
+	Segments []Segment `json:"segments,omitempty"`
+	FileForm string    `json:"file_form,omitempty"`
+	Globs    []string  `json:"globs,omitempty"`
+	Affected string    `json:"affected_form,omitempty"`
 }
 
 // String is v in one line: role:kind, then what else it says.
@@ -102,7 +101,6 @@ type Proposal struct {
 	Globs    []string `json:"globs,omitempty"`
 	Dir      string   `json:"dir"`
 	Evidence string   `json:"evidence"`
-	Mutates  bool     `json:"mutates"`
 }
 
 // Key names e's answer: its place, name, and body, and the prompt version,

@@ -8,6 +8,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
+	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/resolve"
 	"github.com/ku5ic/claude-kit/go/internal/sources"
 )
@@ -108,7 +109,7 @@ func checkManager(cfg *config.Config, root string, m Manager) error {
 		}
 		return nil
 	}
-	if !lockfile(cfg, m.Cites) || !fsx.IsFile(filepath.Join(dir, m.Cites)) {
+	if !guard.IsGuardedLockfile(cfg, m.Cites) || !fsx.IsFile(filepath.Join(dir, m.Cites)) {
 		return fmt.Errorf("no lockfile %s", m.Cites)
 	}
 	return nil
