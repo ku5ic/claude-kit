@@ -6,7 +6,6 @@ package proc
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -83,7 +82,11 @@ func (c *Cmd) Run() error {
 		<-waited
 		signal.Reset(s)
 		_ = syscall.Kill(os.Getpid(), s)
-		return fmt.Errorf("stopped by %s", s)
+		// The kill lands asynchronously; returning would let the caller
+		// run on, or exit 0, first.
+		time.Sleep(time.Second)
+		os.Exit(128 + int(s))
+		return nil
 	}
 }
 
