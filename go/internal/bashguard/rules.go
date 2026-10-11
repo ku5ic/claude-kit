@@ -230,15 +230,23 @@ func (c *command) cd() {
 }
 
 // interpreterC blocks sh -c and its kin: the command string never surfaces
-// as its own Bash tool call, bypassing the allow list. Short-option
-// clusters only.
+// as its own Bash tool call, bypassing the allow list. A -c in any
+// short-option cluster before the script counts, past the values that -o,
+// +O, --rcfile, and their kin take.
 func (c *command) interpreterC() error {
-	for _, v := range c.values() {
-		if v == "--" || !strings.HasPrefix(v, "-") {
-			break
-		}
-		if !strings.HasPrefix(v, "--") && strings.Contains(v, "c") {
+	values := c.values()
+	for i := 0; i < len(values); i++ {
+		v := values[i]
+		switch {
+		case v == "--" || !strings.HasPrefix(v, "-") && !strings.HasPrefix(v, "+"):
+			return nil
+		case v == "--rcfile" || v == "--init-file":
+			i++ // its file, not an option
+		case strings.HasPrefix(v, "--"):
+		case v[0] == '-' && strings.Contains(v, "c"):
 			return c.block("interpreter -c wrapping bypasses the permission allow list; run the command directly as a Bash tool call", "interpreter-c-wrap")
+		case strings.ContainsAny(v[len(v)-1:], "oO"):
+			i++ // -o pipefail, +O extglob: the option's name
 		}
 	}
 	return nil
