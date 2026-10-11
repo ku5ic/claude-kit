@@ -52,13 +52,27 @@ func IsSensitive(cfg *config.Config, home, path string) bool {
 		}
 		target := filepath.Join(home, rest)
 		isDir := strings.HasSuffix(rest, "/")
-		for _, t := range []string{target, fsx.PhysicalPath(target)} {
+		for _, t := range []string{target, physicalTarget(target)} {
 			if slices.ContainsFunc(forms, func(f string) bool { return f == t || isDir && strings.HasPrefix(f, t+"/") }) {
 				return true
 			}
 		}
 	}
 	return false
+}
+
+var physicalTargets sync.Map // sensitive_paths target -> its physical path
+
+// physicalTarget is fsx.PhysicalPath of a sensitive_paths target, resolved
+// once per process: every operand of every command is checked against all
+// of them.
+func physicalTarget(target string) string {
+	if p, ok := physicalTargets.Load(target); ok {
+		return p.(string)
+	}
+	p := fsx.PhysicalPath(target)
+	physicalTargets.Store(target, p)
+	return p
 }
 
 // IsRCFile is true when path is a shell rc file under home per rc_files.
