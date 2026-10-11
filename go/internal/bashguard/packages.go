@@ -1,6 +1,7 @@
 package bashguard
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -16,11 +17,12 @@ import (
 // command runs under, so a cold cache says nothing.
 
 // globalInstall blocks a command global_installs matches. An unreadable
-// pattern blocks too: this is a guard.
+// pattern blocks too: this is a guard. Its reason names the pattern, as
+// kit config --check would be held as well.
 func (c *command) globalInstall() error {
 	patterns, bad := c.st.cfg.InstallPatterns()
 	if len(bad) > 0 {
-		return c.block("a global_installs pattern doesn't compile, so every command is held; kit config --check names it", "pkg-global-install")
+		return c.block(fmt.Sprintf("%v\nfix it in %s or kit.yml with the Edit tool", errors.Join(bad...), c.st.h.Paths.Overlay), "global-installs-invalid")
 	}
 	if slices.ContainsFunc(patterns, func(re *regexp.Regexp) bool { return re.MatchString(c.text) }) {
 		return c.block("global package install. Use a project-local install or asdf shim.", "pkg-global-install")

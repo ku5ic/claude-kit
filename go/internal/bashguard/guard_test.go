@@ -638,4 +638,17 @@ func TestGuardBash(t *testing.T) {
 		r.Want(t, 2)
 		r.Has(t, "direct write to a shell rc file")
 	})
+	// Every command is held, kit config --check too, so the block itself
+	// names the pattern and where to fix it.
+	t.Run("a global_installs pattern that doesn't compile names itself and its file", func(t *testing.T) {
+		k, src := guardBashOverlay(t)
+		testutil.Write(t, src, "global_installs: ['brew install (x']\n")
+		r := guard(k, `ls`)
+		r.Want(t, 2)
+		r.Has(t, `"brew install (x"`, filepath.Join(k.claude, "claude-kit.local.yml"))
+		recs := testutil.JSONLines(t, filepath.Join(k.claude, "logs/guards.jsonl"))
+		if len(recs) != 1 || recs[0]["rule"] != "global-installs-invalid" {
+			t.Errorf("want one global-installs-invalid record, got %v", recs)
+		}
+	})
 }
