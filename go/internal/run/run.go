@@ -72,6 +72,10 @@ type outcome struct {
 	timedOut bool
 	crashed  bool
 	changed  []string
+	// limit is the time a Stop gate had; outOfTime is true for one that
+	// never started, the batch's deadline already past.
+	limit     time.Duration
+	outOfTime bool
 }
 
 // notFound is true when the shell couldn't find a command the gate runs.

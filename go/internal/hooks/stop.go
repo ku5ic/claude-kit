@@ -30,6 +30,7 @@ func StopChecks(h *hook.Hook) error {
 	if h.Payload.Bool("stop_hook_active") {
 		return nil
 	}
+	deadline := time.Now().Add(stopBudget)
 	cwd := h.Payload.Cwd()
 	path := h.Payload.String("transcript_path")
 	if !fsx.IsFile(path) {
@@ -63,7 +64,7 @@ func StopChecks(h *hook.Hook) error {
 	if len(p.Gates) == 0 {
 		return nil
 	}
-	out := run.Files(p, h.Paths.CacheDir(), time.Duration(cfg.GateTimeout)*time.Second)
+	out := run.Files(p, h.Paths.CacheDir(), time.Duration(cfg.GateTimeout)*time.Second, deadline)
 	if !h.DryRun {
 		_ = fsx.WriteAtomic(cache.StopReport(h.Paths.CacheDir(), root), []byte(out.Report()), 0o600)
 	}
@@ -75,6 +76,10 @@ func StopChecks(h *hook.Hook) error {
 	h.Notify(out.Notice())
 	return nil
 }
+
+// stopBudget bounds a Stop run, planning and every gate, inside
+// stop-checks' 300s in hooks.json, with room left to write the report.
+const stopBudget = 280 * time.Second
 
 // planGate blocks the stop when this turn ticked a plan's last step without
 // a review since the last code edit.

@@ -32,12 +32,13 @@ func (c Checked) Notice() string {
 
 // Files runs p's gates, the Stop hook's checks of the turn's edits, one per
 // CPU at a time so they don't starve each other into timeouts, each killed
-// with its children once timeout passes. A gate of a
-// lint-like kind fails only on findings on lines changed since HEAD in the
-// files it checked; any other on any failure. A snapshot around the batch
-// catches a gate that changed files: the block names them, and the gates
-// that checked them are marked so they never run again.
-func Files(p enforce.Plan, cacheDir string, timeout time.Duration) Checked {
+// with its children once timeout passes or the batch's deadline does,
+// whichever is first. A gate of a lint-like kind fails only on findings on
+// lines changed since HEAD in the files it checked; any other on any
+// failure. A snapshot around the batch catches a gate that changed files:
+// the block names them, and the gates that checked them are marked so they
+// never run again.
+func Files(p enforce.Plan, cacheDir string, timeout time.Duration, deadline time.Time) Checked {
 	before, _ := git.Snapshot(p.Root)
 	results := make([]outcome, len(p.Gates))
 	var wg sync.WaitGroup
@@ -54,7 +55,13 @@ func Files(p enforce.Plan, cacheDir string, timeout time.Duration) Checked {
 						results[i] = outcome{crashed: true}
 					}
 				}()
-				results[i] = execute(command(g, g.Command(), timeout))
+				limit := min(timeout, time.Until(deadline))
+				if limit <= 0 {
+					results[i] = outcome{outOfTime: true}
+					return
+				}
+				results[i] = execute(command(g, g.Command(), limit))
+				results[i].limit = limit
 			})
 		}
 	}
@@ -70,7 +77,7 @@ func Files(p enforce.Plan, cacheDir string, timeout time.Duration) Checked {
 	t := tally{reporter: reporter{plan: p, report: &report, failures: &failures}, lines: sync.OnceValue(func() git.ChangedLines { return git.LinesChanged(p.Root, "HEAD", edited(p.Gates)) })}
 	for i, g := range p.Gates {
 		if !suspects[i] {
-			t.record(g, results[i], timeout)
+			t.record(g, results[i])
 			continue
 		}
 		// As in the full gate: a gate that changed files fails as that.
@@ -90,14 +97,16 @@ type tally struct {
 	lines func() git.ChangedLines
 }
 
-func (t *tally) record(g enforce.Gate, o outcome, timeout time.Duration) {
+func (t *tally) record(g enforce.Gate, o outcome) {
 	switch {
 	case g.Skip != "":
 		t.skip(g.Label, g.Skip)
 	case o.crashed:
 		t.skip(g.Label, "crashed; failing open")
+	case o.outOfTime:
+		t.skip(g.Label, "no time left in the Stop hook's budget")
 	case o.timedOut:
-		t.skip(g.Label, fmt.Sprintf("timed out after %s", timeout))
+		t.skip(g.Label, fmt.Sprintf("timed out after %s", o.limit.Round(100*time.Millisecond)))
 	case o.notFound():
 		t.skip(g.Label, "not installed: "+lastLine(o.out))
 	case o.err == nil:

@@ -26,7 +26,7 @@ func (r *repo) check(label, kind, body string, files ...string) enforce.Gate {
 }
 
 func (r *repo) stop(gates ...enforce.Gate) Checked {
-	return Files(enforce.Plan{Root: r.root, Gates: gates}, r.cache, 5*time.Second)
+	return Files(enforce.Plan{Root: r.root, Gates: gates}, r.cache, 5*time.Second, time.Now().Add(time.Minute))
 }
 
 func TestAStopPassIsReportedOnly(t *testing.T) {
@@ -124,7 +124,7 @@ func TestAHungCheckTimesOutAsASkipWithItsChildren(t *testing.T) {
 	r := newRepo(t, "repo")
 	pid := filepath.Join(r.aside, "pid")
 	g := r.check("test", "test", "sleep 60 & echo $! > "+pid+"; wait")
-	out := Files(enforce.Plan{Root: r.root, Gates: []enforce.Gate{g}}, r.cache, time.Second)
+	out := Files(enforce.Plan{Root: r.root, Gates: []enforce.Gate{g}}, r.cache, time.Second, time.Now().Add(time.Minute))
 	has(t, out.Report(), "SKIP test (timed out after 1s)")
 	n, err := strconv.Atoi(strings.TrimSpace(testutil.Read(t, pid)))
 	if err != nil {
@@ -174,6 +174,21 @@ func TestChecksRunAtMostOnePerCPU(t *testing.T) {
 			t.Errorf("gate %d saw %d running, want at most %d", i, n, runtime.NumCPU())
 		}
 	}
+}
+
+// The batch shares one deadline, the Stop hook's: a gate gets what's left
+// of it, and one that starts past it is skipped.
+func TestChecksStopAtTheBatchDeadline(t *testing.T) {
+	t.Parallel()
+	r := newRepo(t, "repo")
+	plan := enforce.Plan{Root: r.root, Gates: []enforce.Gate{r.check("slow", "test", "sleep 5")}}
+	start := time.Now()
+	out := Files(plan, r.cache, 5*time.Second, start.Add(500*time.Millisecond))
+	if took := time.Since(start); took > 3*time.Second {
+		t.Errorf("took %s, past the deadline", took)
+	}
+	has(t, out.Report(), "SKIP slow (timed out after ")
+	has(t, Files(plan, r.cache, 5*time.Second, start).Report(), "SKIP slow (no time left in the Stop hook's budget)")
 }
 
 func TestACheckThatChangesFilesBlocksAndIsMarked(t *testing.T) {
