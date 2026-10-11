@@ -91,18 +91,22 @@ var readers = map[string]bool{
 	"readlink": true, "test": true, "[": true, "echo": true, "printf": true, "sed": true, "sd": true,
 }
 
-// metadataOnly commands act on a file's name or metadata and never print
-// its content, so naming a credential file is no read.
+// metadataOnly commands act on a file's name or metadata, or use a key
+// without printing it, so naming a credential file is no read. git is
+// read per subcommand, by gitPrinters.
 var metadataOnly = map[string]bool{
 	"ls": true, "stat": true, "test": true, "[": true, "touch": true, "rm": true, "rmdir": true, "mv": true,
 	"chmod": true, "chown": true, "mkdir": true, "ln": true, "realpath": true, "readlink": true, "file": true,
 	"wc": true, "du": true, "basename": true, "dirname": true, "echo": true, "printf": true, "cd": true,
-	"tee": true, "git": true,
+	"tee": true, "ssh": true, "ssh-add": true,
 }
+
+// gitPrinters are the git subcommands that print the files they name.
+var gitPrinters = map[string]bool{"diff": true, "show": true, "log": true, "grep": true, "blame": true, "annotate": true, "cat-file": true}
 
 // patternFirst is how many leading operands are a pattern, script, or
 // filter rather than a path.
-var patternFirst = map[string]int{"grep": 1, "rg": 1, "sed": 1, "awk": 1, "jq": 1, "yq": 1, "sd": 2}
+var patternFirst = map[string]int{"grep": 1, "rg": 1, "sed": 1, "awk": 1, "jq": 1, "yq": 1, "sd": 2, "git grep": 1}
 
 // destructive is the commands blocked by pattern: one of names, with every
 // regex matching its text. %s in reason is the command's name.
@@ -135,12 +139,8 @@ func (c *command) check() error {
 	if err := c.readsSensitive(c.inputs); err != nil {
 		return err
 	}
-	if !metadataOnly[c.name] {
-		ops := c.operands()
-		ops = ops[min(patternFirst[c.name], len(ops)):]
-		if err := c.readsSensitive(ops); err != nil {
-			return err
-		}
+	if err := c.readsSensitive(c.readOperands()); err != nil {
+		return err
 	}
 	if err := c.rcWrite(); err != nil {
 		return err
@@ -196,6 +196,29 @@ func (c *command) check() error {
 		return c.packageManager()
 	}
 	return nil
+}
+
+// readOperands are the operands the command reads as files: none for a
+// metadataOnly command or a git subcommand that prints none, and never a
+// leading pattern. git show HEAD:.env names .env.
+func (c *command) readOperands() []string {
+	name, ops := c.name, c.operands()
+	if name == "git" {
+		sub, args, _ := gitSubcommand(c.values())
+		if !gitPrinters[sub] {
+			return nil
+		}
+		name, ops = "git "+sub, nonOptions(args)
+		for i, op := range ops {
+			if _, path, ok := strings.Cut(op, ":"); ok {
+				ops[i] = path
+			}
+		}
+	}
+	if metadataOnly[name] {
+		return nil
+	}
+	return ops[min(patternFirst[name], len(ops)):]
 }
 
 // cd tracks the directory a later command runs in, so it checks the right
