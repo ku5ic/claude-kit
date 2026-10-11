@@ -21,9 +21,6 @@ import (
 
 const overlayAsk = "this writes the claude-kit overlay, which can switch the kit's own guards off; confirm the change"
 
-// state is one command's evaluation: the first ask reason wins, and the
-// directory tracks cd segments so a later push or install checks the right
-// repo.
 // dirs is where a command line's next command runs: cwd, which each cd
 // moves, and prev, the cwd before the last cd, for cd -.
 type dirs struct {
@@ -49,6 +46,9 @@ func (d *dirs) cd(args []Word) {
 	d.prev = prev
 }
 
+// state is one command's evaluation: the first ask reason wins, and the
+// directory tracks cd segments so a later push or install checks the right
+// repo.
 type state struct {
 	dirs
 	h       *hook.Hook

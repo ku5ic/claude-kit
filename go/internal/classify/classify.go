@@ -288,8 +288,6 @@ func execTarget(words []string) (inner []string) {
 	return nil
 }
 
-// reference reads words as a task reference, by the longest matching
-// reference prefix.
 // runnerGrammar is the command line of a runner that takes several task
 // names: flags naming another file, setting the directory (dirGlued when
 // glued to its value), or taking a value (numeric ones only before a
@@ -308,6 +306,8 @@ var runnerFlags = map[string]runnerGrammar{
 	"just": {file: []string{"-f", "--file", "--makefile", "--justfile"}, dir: []string{"-d", "--working-directory"}, namesLookedUp: true},
 }
 
+// reference reads words as a task reference, by the longest matching
+// reference prefix.
 func (c *classifier) reference(words, env []string) (Command, bool) {
 	var best *Reference
 	bestLen := 0
@@ -399,8 +399,6 @@ func (c *classifier) concurrently(args, env []string) []Command {
 	return out
 }
 
-// matchPrefix is the length of the first of prefixes (each one or more
-// space-separated words) that words start with.
 // unwrap drops the wrappers words starts with, each with the K=V words
 // after it, which it returns as env.
 func unwrap(words []string) (rest, env []string) {
@@ -422,6 +420,8 @@ func parse(body string) (*syntax.File, error) {
 	return syntax.NewParser(syntax.Variant(syntax.LangBash)).Parse(strings.NewReader(body), "")
 }
 
+// matchPrefix is the length of the first of prefixes (each one or more
+// space-separated words) that words start with.
 func matchPrefix(words, prefixes []string) (int, bool) {
 	for _, p := range prefixes {
 		if f := strings.Fields(p); hasPrefix(words, f) {
