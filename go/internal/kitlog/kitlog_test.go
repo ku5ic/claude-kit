@@ -63,6 +63,27 @@ func TestALongLinePastTheMarginTrims(t *testing.T) {
 	}
 }
 
+// Long lines after a log full of short ones still trim past the margin,
+// though the recent ones alone would say the log holds fewer lines.
+func TestLongLinesAfterShortOnesTrim(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "logs", "guards.jsonl")
+	for n := 1; n <= 100; n++ {
+		if err := Append(path, line(n), 100); err != nil {
+			t.Fatal(err)
+		}
+	}
+	long := Line("ts", "2026-01-01T00:00:00Z", "detail", strings.Repeat("x", 400))
+	for range 11 {
+		if err := Append(path, long, 100); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := lines(t, path); len(got) != 100 {
+		t.Errorf("%d lines, want the cap, 100", len(got))
+	}
+}
+
 func TestAppendWaitsForATrimAndLandsAfterIt(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "skills.jsonl")
