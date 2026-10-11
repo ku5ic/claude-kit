@@ -49,8 +49,10 @@ func CheckCommit(h *hook.Hook) error {
 
 	// Line by line, as grep: the trailer sits on a line of its own. The
 	// whole command, since a message can come from anywhere in it (a file a
-	// heredoc writes, then -F); a signature in an unrelated heredoc blocks too.
-	for line := range strings.SplitSeq(cmd, "\n") {
+	// heredoc writes, then -F); a signature in an unrelated heredoc blocks
+	// too. Then the message, for a file -F reads from disk.
+	msg, ok := message(cmd, c, repo)
+	for line := range strings.SplitSeq(cmd+"\n"+msg, "\n") {
 		if aiSignature.MatchString(line) {
 			if err := h.Block("AI signature in commit message", "ai-commit-sig"); err != nil {
 				return err
@@ -78,7 +80,6 @@ func CheckCommit(h *hook.Hook) error {
 		}
 	}
 
-	msg, ok := message(cmd, c, repo)
 	subject := subject(msg)
 	if subject != "" && aiTell.MatchString(subject) {
 		return h.Block("AI-tell phrasing in commit subject", "ai-commit-tell")

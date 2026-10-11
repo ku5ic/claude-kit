@@ -212,6 +212,14 @@ func TestGuardCommit(t *testing.T) {
 	}
 }
 
+// The file -F names is the message, so a signature in it blocks as one in
+// the command does.
+func TestGuardCommitReadsSignaturesInTheFFile(t *testing.T) {
+	k := newSandbox(t)
+	testutil.Write(t, filepath.Join(k.home, "signed.txt"), "fix: x\n\nCo-Authored-By: Claude <c@a.com>\n")
+	k.commit("", "git commit -F signed.txt && rm signed.txt").Want(t, 2)
+}
+
 // gitleaks scans the staged diff: exit 0 is clean, 1 a leak, anything else
 // an operational error that fails open. The scan runs before the subject
 // parsing, so a commit with an unquoted -m, or none, is still scanned, and
