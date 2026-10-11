@@ -42,9 +42,9 @@ type Segment struct {
 	Calls []Call
 	end   int // source offset where the pipeline ends
 	src   string
-	// substituted is a pipeline inside a $( ), backtick, or <( ): it runs in
-	// a subshell, so a cd there moves nothing after it.
-	substituted bool
+	// subshell is a pipeline inside ( ), $( ), backticks, or <( ): a cd
+	// there moves nothing after it.
+	subshell bool
 }
 
 // Rest is the normalized source text after call's word, to the end of the
@@ -103,7 +103,7 @@ func parseAll(src string) ([]Segment, bool) {
 type collector struct {
 	segs     []Segment
 	depth    int // of the parse in progress: error reparses and nested heredocs
-	words    int // how many command words the walk is inside: >0 in a substitution
+	subshell int // how many subshells the walk is inside
 	unparsed bool
 }
 
@@ -213,7 +213,7 @@ func (c *collector) stmt(src string, s *syntax.Stmt) {
 			end = max(end, int(r.End().Offset()))
 		}
 	}
-	seg := Segment{src: src, end: end, substituted: c.words > 0}
+	seg := Segment{src: src, end: end, subshell: c.subshell > 0}
 	feedsShell := false
 	for _, p := range parts {
 		call, ok := p.Cmd.(*syntax.CallExpr)
@@ -245,7 +245,6 @@ func (c *collector) stmt(src string, s *syntax.Stmt) {
 // call reads one simple command of a pipeline: its words, assignments, and
 // redirects, parsing any string env -S runs and any substitution in them.
 func (c *collector) call(src string, p *syntax.Stmt, call *syntax.CallExpr) Call {
-	c.words++
 	for _, a := range call.Assigns {
 		c.inner(src, a)
 	}
@@ -255,7 +254,6 @@ func (c *collector) call(src string, p *syntax.Stmt, call *syntax.CallExpr) Call
 	for _, r := range p.Redirs {
 		c.inner(src, r.Word)
 	}
-	c.words--
 	var cl Call
 	for _, a := range call.Assigns {
 		if a.Name == nil {
@@ -362,11 +360,24 @@ func (c *collector) inner(src string, n syntax.Node) {
 		return
 	}
 	syntax.Walk(n, func(node syntax.Node) bool {
-		if st, ok := node.(*syntax.Stmt); ok {
-			c.stmt(src, st)
+		var stmts []*syntax.Stmt
+		switch v := node.(type) {
+		case *syntax.Stmt:
+			c.stmt(src, v)
 			return false
+		case *syntax.Subshell:
+			stmts = v.Stmts
+		case *syntax.CmdSubst:
+			stmts = v.Stmts
+		case *syntax.ProcSubst:
+			stmts = v.Stmts
+		default:
+			return true
 		}
-		return true
+		c.subshell++
+		c.stmts(src, stmts)
+		c.subshell--
+		return false
 	})
 }
 

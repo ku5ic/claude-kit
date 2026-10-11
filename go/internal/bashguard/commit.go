@@ -121,9 +121,8 @@ func commitCall(cmd, home, cwd string) commit {
 				continue
 			}
 			name := baseName(call.Words[i].Value)
-			// In a pipeline or a substitution, cd runs in a subshell and
-			// moves nothing.
-			if name == "cd" && len(seg.Calls) == 1 && !seg.substituted {
+			// In a pipeline or a subshell, cd moves nothing after it.
+			if name == "cd" && len(seg.Calls) == 1 && !seg.subshell {
 				d.cd(call.Words[i+1:])
 			}
 			if name != "git" {

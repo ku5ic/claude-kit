@@ -17,7 +17,7 @@ type command struct {
 	inputs []string // < redirect sources
 	rest   string   // normalized source after the name, to the pipeline's end
 	text   string   // name + rest: what the per-command regexes read
-	alone  bool     // the only command of its pipeline, outside a substitution
+	alone  bool     // the only command of its pipeline, outside a subshell
 }
 
 func (c *command) block(reason, rule string) error { return c.st.h.Block(reason, rule) }
@@ -222,8 +222,7 @@ func (c *command) readOperands() []string {
 }
 
 // cd tracks the directory a later command runs in, so it checks the right
-// repo; a cd inside a pipeline or a substitution runs in a subshell and
-// moves nothing.
+// repo; a cd inside a pipeline or a subshell moves nothing after it.
 func (c *command) cd() {
 	if c.alone {
 		c.st.cd(c.args)
