@@ -43,13 +43,18 @@ func TestMessageIsWhatTheCommitMsgHookWouldRead(t *testing.T) {
 		"git commit -m \"feat: a\" -m \"$(cat <<'EOF'\nbody\nEOF\n)\"": "feat: a\n\nbody\n",
 		`git commit --message="feat: long"`:                            "feat: long\n",
 		`git -C sub commit -F msg.txt`:                                 "fix: from a file\n",
-		`git commit -m "$MSG"`:                                         "",
 		`git commit --amend --no-edit`:                                 "",
 	} {
 		c := commitCall(cmd, "", dir)
 		if got, _ := message(cmd, c, c.repo); got != want {
 			t.Errorf("message(%q) = %q, want %q", cmd, got, want)
 		}
+	}
+	// An expansion: the text as written, but not the message git gets.
+	cmd := `git commit -m "fix: $MSG"`
+	c := commitCall(cmd, "", dir)
+	if got, ok := message(cmd, c, c.repo); got != "fix: $MSG\n" || ok {
+		t.Errorf("message(%q) = %q, %v, want the text as written and not ok", cmd, got, ok)
 	}
 }
 
@@ -170,6 +175,8 @@ func TestGuardCommit(t *testing.T) {
 		{"block: in this commit phrasing", `git commit -m "in this commit we add the API"`, 2},
 		{"block: AI-tell phrasing in a clustered -am subject", `git commit -am "feat: certainly add foo"`, 2},
 		{"block: AI-tell phrasing in a --message= subject", `git commit --message="let me clean this up"`, 2},
+		{"block: AI-tell phrasing in a subject with an expansion", `git commit -m "Let me fix $X"`, 2},
+		{"block: AI-tell phrasing when a later paragraph has a $", `git commit -m "let me fix it" -m "costs \$5"`, 2},
 		// wall of text: only the heredoc opened on the git commit line is the message
 		{"block: wall of text in a -m heredoc", "git commit -m \"$(cat <<'EOF'\nfeat: x\n\n" + prose(5) + "EOF\n)\"", 2},
 		{"block: wall of text in a -F - heredoc", "git commit -F - <<'EOF'\nfeat: x\n\n" + prose(5) + "EOF", 2},

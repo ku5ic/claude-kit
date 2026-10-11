@@ -148,7 +148,8 @@ func commitCall(cmd, home, cwd string) commit {
 // would read it: its -m messages as paragraphs, a $(cat <<EOF) one read as
 // its body, else the file -F names, from repo, or the commit line's heredoc
 // for -F - or a command that didn't parse. ok is false when it can't be
-// told: no message, or one an expansion builds.
+// told exactly: no message, or one an expansion builds, whose -m text is
+// still msg, as written, for the subject checks.
 func message(cmd string, c commit, repo string) (msg string, ok bool) {
 	if !c.found {
 		body := heredocBody(cmd)
@@ -170,8 +171,8 @@ func message(cmd string, c commit, repo string) (msg string, ok bool) {
 		}
 	})
 	switch {
-	case len(paragraphs) > 0 && !expanded:
-		return strings.Join(paragraphs, "\n\n") + "\n", true
+	case len(paragraphs) > 0:
+		return strings.Join(paragraphs, "\n\n") + "\n", !expanded
 	case len(paragraphs) == 0 && file == "-":
 		body := heredocBody(cmd)
 		return body + "\n", body != ""
