@@ -14,12 +14,32 @@ var builtins = []string{"[", "[[", "test", "echo", "printf", "exit", "return", "
 // codeRunners are the builtins that run a command or a string of code.
 var codeRunners = []string{"eval", "source", ".", "command", "trap"}
 
+// interpreters run code handed to them in an argument after one of
+// inlineCodeFlags: sh -c, node -e, python -c.
+var (
+	interpreters    = []string{"sh", "bash", "zsh", "dash", "ksh", "fish", "node", "deno", "bun", "ruby", "perl", "php"}
+	inlineCodeFlags = []string{"-c", "-e", "--eval", "-p", "--print", "-r"}
+)
+
+// inlineCode is true when words, anywhere along them (pnpm exec node -e),
+// hand an interpreter code to run.
+func inlineCode(words []string) bool {
+	for i, w := range words {
+		name := w[strings.LastIndex(w, "/")+1:]
+		if (slices.Contains(interpreters, name) || strings.HasPrefix(name, "python")) &&
+			slices.ContainsFunc(words[i+1:], func(arg string) bool { return slices.Contains(inlineCodeFlags, arg) }) {
+			return true
+		}
+	}
+	return false
+}
+
 // Single is true when body runs exactly one binary, named literally, with
 // builtins around it at most (test -z "$(deadcode ./...)"): no second
-// command, no redirect, and no codeRunners to run one unseen.
+// command, no redirect, and no codeRunners or inlineCode to run one unseen.
 func Single(body string) bool {
 	calls, ok := Calls(body)
-	if !ok || len(calls) != 1 || calls[0][0] == "$" {
+	if !ok || len(calls) != 1 || calls[0][0] == "$" || inlineCode(calls[0]) {
 		return false
 	}
 	file, _ := parse(body)
