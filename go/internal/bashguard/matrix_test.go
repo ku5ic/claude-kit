@@ -224,6 +224,11 @@ func TestGuardBashParsing(t *testing.T) {
 		probe("block", `base64 ~/.netrc`)
 		probe("block", `diff ~/.netrc /dev/null`)
 		probe("block", `cp ~/.ssh/id_rsa /tmp/k`)
+		// A link or a move to the key is read later under a name that isn't one.
+		probe("block", `ln -s ~/.ssh/id_rsa k && cat k`)
+		probe("block", `mv ~/.aws/credentials /tmp/c`)
+		probe("pass", `ln -sf ~/.dotfiles/.npmrc ~/.npmrc`)
+		probe("pass", `mv /tmp/npmrc ~/.npmrc`)
 		probe("pass", `ls ~/.ssh/`)
 		probe("pass", `chmod 600 ~/.ssh/id_rsa`)
 		probe("pass", `touch .env`)

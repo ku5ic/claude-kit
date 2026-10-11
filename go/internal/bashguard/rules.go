@@ -95,8 +95,8 @@ var readers = map[string]bool{
 // without printing it, so naming a credential file is no read. git is
 // read per subcommand, by gitPrinters.
 var metadataOnly = map[string]bool{
-	"ls": true, "stat": true, "test": true, "[": true, "touch": true, "rm": true, "rmdir": true, "mv": true,
-	"chmod": true, "chown": true, "mkdir": true, "ln": true, "realpath": true, "readlink": true, "file": true,
+	"ls": true, "stat": true, "test": true, "[": true, "touch": true, "rm": true, "rmdir": true,
+	"chmod": true, "chown": true, "mkdir": true, "realpath": true, "readlink": true, "file": true,
 	"wc": true, "du": true, "basename": true, "dirname": true, "echo": true, "printf": true, "cd": true,
 	"tee": true, "ssh": true, "ssh-add": true,
 }
@@ -217,6 +217,11 @@ func (c *command) readOperands() []string {
 	}
 	if metadataOnly[name] {
 		return nil
+	}
+	// ln and mv read their sources: the key reached by a new name is read
+	// under it later. Their target is only written.
+	if (name == "ln" || name == "mv") && len(ops) > 1 {
+		ops = ops[:len(ops)-1]
 	}
 	return ops[min(patternFirst[name], len(ops)):]
 }
