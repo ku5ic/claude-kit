@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -146,7 +147,8 @@ func commitCall(cmd, home, cwd string) commit {
 
 // message is the message cmd's git commit c gives, as the commit-msg hook
 // would read it: its -m messages as paragraphs, a $(cat <<EOF) one read as
-// its body, else the file -F names, from repo, or the commit line's heredoc
+// its body, else the file -F names, from repo, unless the command names it
+// again, or the commit line's heredoc
 // for -F - or a command that didn't parse. ok is false when it can't be
 // told exactly: no message, or one an expansion builds, whose -m text is
 // still msg, as written, for the subject checks.
@@ -176,7 +178,9 @@ func message(cmd string, c commit, repo string) (msg string, ok bool) {
 	case len(paragraphs) == 0 && file == "-":
 		body := heredocBody(cmd)
 		return body + "\n", body != ""
-	case len(paragraphs) == 0 && file != "":
+	// Named elsewhere in the command, the file is likely written there
+	// first: what's on disk now is a stale message.
+	case len(paragraphs) == 0 && file != "" && strings.Count(cmd, filepath.Base(file)) == 1:
 		data, err := os.ReadFile(fsx.Abs(repo, file))
 		return string(data), err == nil
 	}

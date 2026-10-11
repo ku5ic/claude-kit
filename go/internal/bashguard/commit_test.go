@@ -43,7 +43,9 @@ func TestMessageIsWhatTheCommitMsgHookWouldRead(t *testing.T) {
 		"git commit -m \"feat: a\" -m \"$(cat <<'EOF'\nbody\nEOF\n)\"": "feat: a\n\nbody\n",
 		`git commit --message="feat: long"`:                            "feat: long\n",
 		`git -C sub commit -F msg.txt`:                                 "fix: from a file\n",
-		`git commit --amend --no-edit`:                                 "",
+		// Written by the command itself: what's on disk now is stale.
+		`echo "feat: new" > sub/msg.txt && git -C sub commit -F msg.txt`: "",
+		`git commit --amend --no-edit`:                                   "",
 	} {
 		c := commitCall(cmd, "", dir)
 		if got, _ := message(cmd, c, c.repo); got != want {
