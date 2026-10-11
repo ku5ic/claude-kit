@@ -216,6 +216,11 @@ func TestGuardBashParsing(t *testing.T) {
 		probe("pass", "cat <<EOF | sh\nls\nEOF")
 		probe("pass", `echo x | bash scripts/check.sh`)
 		probe("pass", `ls | bash -o pipefail scripts/check.sh`)
+		// Only cat passes its heredoc on unchanged; anything else rewrites it.
+		probe("block", "base64 -d <<EOF | bash\ncm0gLXJmIH4K\nEOF")
+		probe("block", "sed s/X/rm/ <<EOF | sh\nX -rf ~\nEOF")
+		probe("block", "cat cmds.txt <<EOF | bash\nls\nEOF")
+		probe("pass", "cat - <<'EOF' | bash\nls\nEOF")
 		// Any command naming a credential file reads it, unless it only
 		// touches names and metadata, or the word is its pattern.
 		probe("block", `jq . ~/.aws/config`)

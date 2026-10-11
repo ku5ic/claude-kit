@@ -247,8 +247,9 @@ var interpreters = func() map[string]bool {
 // pipeToShell blocks a download piped into an interpreter later in the
 // same pipeline (curl x | sh, wget -O- x | tee log | sudo bash), and any
 // other output piped into a shell reading stdin (echo ls | bash), a -c by
-// another name. A heredoc's isn't: the parse checks it as commands. Parsed
-// calls, not the raw string: "curl x | sh" as quoted text is data.
+// another name. A heredoc cat passes on unchanged isn't: the parse checks
+// it as commands. Parsed calls, not the raw string: "curl x | sh" as quoted
+// text is data.
 func (st *state) pipeToShell(seg Segment) error {
 	fetched, fed := false, false
 	for _, call := range seg.Calls {
@@ -270,9 +271,20 @@ func (st *state) pipeToShell(seg Segment) error {
 		if name == "curl" || name == "wget" {
 			fetched = true
 		}
-		fed = fed || len(call.Heredocs) == 0
+		fed = fed || !catsHeredoc(name, words[1:], call.Heredocs)
 	}
 	return nil
+}
+
+// catsHeredoc is true for a cat whose only input is its heredoc: no file
+// operand (cat x <<EOF prints x), and no other command, which could rewrite
+// the body (base64 -d <<EOF).
+func catsHeredoc(name string, args []Word, heredocs []string) bool {
+	if name != "cat" || len(heredocs) == 0 {
+		return false
+	}
+	cat := command{args: args}
+	return !slices.ContainsFunc(cat.operands(), func(op string) bool { return op != "-" })
 }
 
 // rootShell is true for sudo or doas told to start a shell (sudo -s, sudo -i,
