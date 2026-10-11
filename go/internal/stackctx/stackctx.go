@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/config"
@@ -92,18 +93,60 @@ func Build(paths config.Paths, cfg *config.Config, name, root, session string) C
 }
 
 // cachedDependencySkills is dependencySkills, cached beside the stack
-// report at file and rebuilt with it: it costs a git ls-files and a parse
-// of every subproject's manifests, and SubagentStart has a 5s timeout.
+// report at file: it costs a git ls-files and a parse of every subproject's
+// manifests, and SubagentStart has a 5s timeout. The cache holds the skills,
+// a blank line, then the manifests read; it is rebuilt with the report, or
+// once one of those manifests or the git index, where a new subproject
+// shows, is newer.
 func cachedDependencySkills(cfg *config.Config, root, file string, fresh bool) []string {
 	deps := strings.TrimSuffix(file, ".txt") + ".deps.txt"
-	if !fresh {
-		if data, err := os.ReadFile(deps); err == nil {
-			return strings.Fields(string(data))
+	if info, err := os.Stat(deps); err == nil && !fresh {
+		data, _ := os.ReadFile(deps)
+		skills, manifests, _ := strings.Cut(string(data), "\n\n")
+		inputs := append(strings.Fields(manifests), indexFile(root))
+		stale := slices.ContainsFunc(inputs, func(path string) bool { return newer(path, info.ModTime()) })
+		if !stale {
+			return strings.Fields(skills)
 		}
 	}
 	skills := dependencySkills(cfg, root)
-	_ = fsx.WriteAtomic(deps, []byte(strings.Join(skills, "\n")), 0o600)
+	_ = fsx.WriteAtomic(deps, []byte(strings.Join(skills, "\n")+"\n\n"+strings.Join(subprojectManifests(root), "\n")), 0o600)
 	return skills
+}
+
+// subprojectManifests are the manifests of root's subprojects that
+// dependencySkills reads.
+func subprojectManifests(root string) []string {
+	var out []string
+	for _, sub := range project.Subprojects(root) {
+		for _, lang := range sources.Languages {
+			if lang.Deps == nil {
+				continue
+			}
+			for _, name := range lang.Manifests {
+				if path := filepath.Join(root, sub, name); fsx.IsFile(path) {
+					out = append(out, path)
+				}
+			}
+		}
+	}
+	return out
+}
+
+// indexFile is root's git index: .git/index, or where git says for a
+// worktree.
+func indexFile(root string) string {
+	if fsx.IsDir(filepath.Join(root, ".git")) {
+		return filepath.Join(root, ".git", "index")
+	}
+	path, _ := git.Line(root, "rev-parse", "--git-path", "index")
+	return fsx.Abs(root, path)
+}
+
+// newer is true when path was modified after t.
+func newer(path string, t time.Time) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.ModTime().After(t)
 }
 
 // suggested is the skills of lists, deduped in first-seen order, leaving

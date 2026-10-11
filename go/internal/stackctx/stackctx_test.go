@@ -1,8 +1,11 @@
 package stackctx
 
 import (
+	"os"
+	"path/filepath"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
@@ -40,5 +43,47 @@ func TestDependencySkills(t *testing.T) {
 	}
 	if got, want := dependencySkills(cfg, root), []string{"django-patterns", "react-patterns", "test-patterns"}; !slices.Equal(got, want) {
 		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+// The cached skills follow a subproject's manifest, and a subproject
+// added since, though no root manifest changed.
+func TestCachedDependencySkillsFollowSubprojects(t *testing.T) {
+	t.Parallel()
+	root := fsx.PhysicalPath(t.TempDir())
+	testutil.Git(t, root, "init", "-q")
+	testutil.Put(t, root, "packages/a/package.json", `{"name":"a"}`)
+	testutil.Git(t, root, "add", "-A")
+	cfg := testutil.KitConfig(t)
+	cfg.DependencySkills = []config.DependencyRule{
+		{Deps: []string{"react"}, Skills: []string{"react-patterns"}},
+		{Deps: []string{"django"}, Skills: []string{"django-patterns"}},
+	}
+	file := filepath.Join(t.TempDir(), "stack.txt")
+	if got := cachedDependencySkills(cfg, root, file, true); len(got) != 0 {
+		t.Fatalf("got %q, want none yet", got)
+	}
+	later := time.Now().Add(2 * time.Second)
+	testutil.Put(t, root, "packages/a/package.json", `{"name":"a","dependencies":{"react":"19.0.0"}}`)
+	if err := os.Chtimes(filepath.Join(root, "packages/a/package.json"), later, later); err != nil {
+		t.Fatal(err)
+	}
+	if got := cachedDependencySkills(cfg, root, file, false); !slices.Equal(got, []string{"react-patterns"}) {
+		t.Errorf("after a subproject's manifest changed: got %q", got)
+	}
+
+	// A fresh repo, its cache left by an earlier hook process: Subprojects
+	// is memoized per process, as each hook run is one.
+	added := fsx.PhysicalPath(t.TempDir())
+	testutil.Git(t, added, "init", "-q")
+	testutil.Put(t, added, "services/api/pyproject.toml", "[project]\nname = \"api\"\ndependencies = [\"Django>=5\"]\n")
+	testutil.Git(t, added, "add", "-A")
+	file = filepath.Join(t.TempDir(), "stack.txt")
+	testutil.Put(t, filepath.Dir(file), "stack.deps.txt", "\n\n")
+	if err := os.Chtimes(filepath.Join(added, ".git/index"), later, later); err != nil {
+		t.Fatal(err)
+	}
+	if got := cachedDependencySkills(cfg, added, file, false); !slices.Equal(got, []string{"django-patterns"}) {
+		t.Errorf("after a subproject was added: got %q", got)
 	}
 }
