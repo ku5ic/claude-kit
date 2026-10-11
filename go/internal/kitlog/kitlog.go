@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -75,13 +76,14 @@ func writeString(buf *bytes.Buffer, s string) {
 // Append adds line to path, creating it and its directory. Past maxLines
 // lines plus a tenth, it trims the log to its newest maxLines, so a full log
 // is rewritten once per tenth instead of on every append; maxLines 0 never
-// trims. line's length stands in for the log's line size: the file is read
-// only once its size says it could be past the cap.
+// trims. The shorter of line and the log's recent lines stands in for its
+// line size: the file is read whole only once its size says it could be
+// past the cap.
 func Append(path string, line []byte, maxLines int) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0o644)
 	if err != nil {
 		return err
 	}
@@ -93,10 +95,26 @@ func Append(path string, line []byte, maxLines int) error {
 	if info, serr := f.Stat(); serr == nil {
 		size = info.Size()
 	}
-	if err = errors.Join(err, f.Close()); err != nil || maxLines <= 0 || size <= int64(maxLines+max(1, maxLines/10))*int64(len(line)) {
+	full := false
+	if maxLines > 0 {
+		lineSize := min(int64(len(line)), recentLineSize(f, size-int64(len(line))))
+		full = size > int64(maxLines+max(1, maxLines/10))*lineSize
+	}
+	if err = errors.Join(err, f.Close()); err != nil || !full {
 		return err
 	}
 	return trim(path, maxLines)
+}
+
+// recentLineSize is the average length of the lines in f's 4KB before end;
+// the most an int64 holds when no line ends there.
+func recentLineSize(f *os.File, end int64) int64 {
+	buf := make([]byte, max(0, min(end, 4096)))
+	n, _ := f.ReadAt(buf, end-int64(len(buf)))
+	if ends := int64(bytes.Count(buf[:n], []byte("\n"))); ends > 0 {
+		return int64(n) / ends
+	}
+	return math.MaxInt64
 }
 
 // trim rewrites path in place to its newest maxLines lines once it holds

@@ -44,6 +44,25 @@ func TestAppendTrimsToTheNewestPastATenth(t *testing.T) {
 	}
 }
 
+// A long line appended past the margin still trims: the log's own lines,
+// not the new one, say how many it holds.
+func TestALongLinePastTheMarginTrims(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "logs", "guards.jsonl")
+	for n := 1; n <= 11; n++ {
+		if err := Append(path, line(n), 10); err != nil {
+			t.Fatal(err)
+		}
+	}
+	long := Line("ts", "2026-01-01T00:00:00Z", "detail", strings.Repeat("x", 4096))
+	if err := Append(path, long, 10); err != nil {
+		t.Fatal(err)
+	}
+	if got := lines(t, path); len(got) != 10 {
+		t.Errorf("%d lines, want the cap, 10", len(got))
+	}
+}
+
 func TestAppendWaitsForATrimAndLandsAfterIt(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "skills.jsonl")
