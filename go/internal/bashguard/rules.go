@@ -170,8 +170,6 @@ func (c *command) check() error {
 		return c.curl()
 	case "wget":
 		return c.wget()
-	case "fish":
-		return c.interpreterC()
 	case "eval":
 		return c.block("eval runs a command string that bypasses the permission allow list; run the command directly as a Bash tool call", "interpreter-c-wrap")
 	case "kit":
@@ -187,7 +185,9 @@ func (c *command) check() error {
 			c.st.looseWrite("tee", p)
 		}
 	default:
-		if shells[c.name] {
+		// fish isn't in shells, whose heredoc bodies parse as POSIX, but its
+		// -c runs a string all the same.
+		if shells[c.name] || c.name == "fish" {
 			return c.interpreterC()
 		}
 		if strings.HasPrefix(c.name, "mkfs.") {
