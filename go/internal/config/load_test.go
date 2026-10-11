@@ -149,6 +149,19 @@ func TestABadGlobalInstallPatternWarns(t *testing.T) {
 	if len(warnings) != 1 || warnings[0].File != overlay || !strings.Contains(warnings[0].Err.Error(), `global_installs: "pip install (--user"`) {
 		t.Errorf("warnings = %v, want one naming the overlay's bad pattern", warnings)
 	}
+	// With the overlay merged in, a bad pattern kit.yml holds still names kit.yml.
+	write(t, dir, "kit.yml", "global_installs: ['npm (i|install']\n")
+	write(t, dir, "over.yml", "global_installs: ['pip install --user']\n")
+	cfg, warnings, err := Load(Paths{Base: base, Overlay: overlay})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(warnings) != 1 || warnings[0].File != base {
+		t.Errorf("warnings = %v, want one naming kit.yml", warnings)
+	}
+	if _, bad := cfg.InstallPatterns(Paths{Base: base, Overlay: overlay}); len(bad) != 1 || bad[0].File != base {
+		t.Errorf("InstallPatterns bad = %v, want one naming kit.yml", bad)
+	}
 }
 
 func TestDeniedFlag(t *testing.T) {

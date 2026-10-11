@@ -140,11 +140,18 @@ func load(p Paths) (*Config, []Warning, error) {
 	if tag == "merged" {
 		from = p.Overlay
 	}
-	patterns, bad := compileInstalls(cfg.GlobalInstalls)
+	// mergeNode appends the overlay's list to kit.yml's.
+	if tag == "merged" {
+		if seq := mappingValue(overlay, "global_installs"); seq != nil && seq.Kind == yaml.SequenceNode {
+			cfg.OverlayInstalls = len(seq.Content)
+		}
+	}
+	patterns, bad := cfg.compileInstalls(p)
 	cfg.installs = &installPatterns{patterns, bad}
-	for _, err := range slices.Concat(cfg.unknownDisables(), bad, cfg.ReplyLimits.negatives()) {
+	for _, err := range slices.Concat(cfg.unknownDisables(), cfg.ReplyLimits.negatives()) {
 		warnings = append(warnings, Warning{from, err})
 	}
+	warnings = append(warnings, bad...)
 	cfg.Tag = tag
 	return &cfg, warnings, nil
 }

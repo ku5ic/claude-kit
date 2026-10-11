@@ -45,13 +45,17 @@ type Config struct {
 	// overlay can't leave its derived state in use.
 	Tag string `yaml:"-"`
 
+	// OverlayInstalls counts the GlobalInstalls entries, at its end, that
+	// the overlay added. Exported so the on-disk cache keeps it.
+	OverlayInstalls int `yaml:"-"`
+
 	// installs is GlobalInstalls compiled, once, by load.
 	installs *installPatterns
 }
 
 type installPatterns struct {
 	patterns []*regexp.Regexp
-	errs     []error
+	bad      []Warning
 }
 
 // CheckKinds are the kinds of check gap-fill sorts a check into.
@@ -92,26 +96,32 @@ func (c *Config) unknownDisables() []error {
 	return errs
 }
 
-// InstallPatterns is global_installs compiled, and an error for each
-// pattern that doesn't compile: guard-bash blocks every command while one
-// is there. A Config load built is compiled once; any other, per call.
-func (c *Config) InstallPatterns() ([]*regexp.Regexp, []error) {
+// InstallPatterns is global_installs compiled, and a warning naming the
+// file of each pattern that doesn't compile: guard-bash blocks every
+// command while one is there. A Config load built is compiled once; any
+// other, per call.
+func (c *Config) InstallPatterns(p Paths) ([]*regexp.Regexp, []Warning) {
 	if c.installs == nil {
-		return compileInstalls(c.GlobalInstalls)
+		return c.compileInstalls(p)
 	}
-	return c.installs.patterns, c.installs.errs
+	return c.installs.patterns, c.installs.bad
 }
 
-func compileInstalls(exprs []string) (patterns []*regexp.Regexp, errs []error) {
-	for _, p := range exprs {
-		re, err := regexp.Compile(p)
+func (c *Config) compileInstalls(p Paths) (patterns []*regexp.Regexp, bad []Warning) {
+	fromOverlay := len(c.GlobalInstalls) - c.OverlayInstalls
+	for i, expr := range c.GlobalInstalls {
+		re, err := regexp.Compile(expr)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("global_installs: %q doesn't compile, so guard-bash blocks every command: %w", p, err))
+			file := p.Base
+			if i >= fromOverlay {
+				file = p.Overlay
+			}
+			bad = append(bad, Warning{file, fmt.Errorf("global_installs: %q doesn't compile, so guard-bash blocks every command: %w", expr, err)})
 			continue
 		}
 		patterns = append(patterns, re)
 	}
-	return patterns, errs
+	return patterns, bad
 }
 
 type SkillFileRule struct {
