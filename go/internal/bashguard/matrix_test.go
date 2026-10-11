@@ -234,6 +234,11 @@ func TestGuardBashParsing(t *testing.T) {
 		probe("block", `mv ~/.aws/credentials /tmp/c`)
 		probe("pass", `ln -sf ~/.dotfiles/.npmrc ~/.npmrc`)
 		probe("pass", `mv /tmp/npmrc ~/.npmrc`)
+		// -t names the target, so the last operand is a source.
+		probe("block", `mv -t dest ~/.aws/credentials`)
+		probe("block", `ln -st dir ~/.ssh/id_rsa`)
+		probe("block", `mv --target dest ~/.aws/credentials`)
+		probe("pass", `mv -t ~/.ssh /tmp/known_hosts`)
 		probe("pass", `ls ~/.ssh/`)
 		probe("pass", `chmod 600 ~/.ssh/id_rsa`)
 		probe("pass", `touch .env`)

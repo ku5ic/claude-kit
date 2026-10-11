@@ -220,10 +220,49 @@ func (c *command) readOperands() []string {
 	}
 	// ln and mv read their sources: the key reached by a new name is read
 	// under it later. Their target is only written.
-	if (name == "ln" || name == "mv") && len(ops) > 1 {
-		ops = ops[:len(ops)-1]
+	if name == "ln" || name == "mv" {
+		return sources(c.values())
 	}
 	return ops[min(patternFirst[name], len(ops)):]
+}
+
+// sources are the operands ln or mv reads: all but the target, which is
+// the last one unless -t or --target-directory names it. -S and --suffix
+// take a value too.
+func sources(values []string) []string {
+	var ops []string
+	targeted := false
+	for i := 0; i < len(values); i++ {
+		v := values[i]
+		switch {
+		case v == "--":
+			ops = append(ops, values[i+1:]...)
+			i = len(values)
+		case strings.HasPrefix(v, "--"):
+			// GNU takes any unambiguous prefix: --target, --suf.
+			name, _, attached := strings.Cut(v, "=")
+			isTarget := len(name) > 2 && strings.HasPrefix("--target-directory", name)
+			targeted = targeted || isTarget
+			if !attached && (isTarget || len(name) > 2 && strings.HasPrefix("--suffix", name)) {
+				i++
+			}
+		case strings.HasPrefix(v, "-"):
+			// In a cluster, the first value-taking letter takes the rest of
+			// the word, or the next word when it's last.
+			if at := strings.IndexAny(v, "tS"); at > 0 {
+				targeted = targeted || v[at] == 't'
+				if at == len(v)-1 {
+					i++
+				}
+			}
+		default:
+			ops = append(ops, v)
+		}
+	}
+	if !targeted && len(ops) > 1 {
+		ops = ops[:len(ops)-1]
+	}
+	return ops
 }
 
 // cd tracks the directory a later command runs in, so it checks the right
