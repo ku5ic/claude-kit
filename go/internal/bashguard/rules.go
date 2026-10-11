@@ -234,22 +234,38 @@ func (c *command) cd() {
 // short-option cluster before the script counts, past the values that -o,
 // +O, --rcfile, and their kin take.
 func (c *command) interpreterC() error {
-	values := c.values()
+	if wrap, _ := shellMode(c.values()); wrap {
+		return c.block(wrapReason, "interpreter-c-wrap")
+	}
+	return nil
+}
+
+const wrapReason = "interpreter -c wrapping bypasses the permission allow list; run the command directly as a Bash tool call"
+
+// shellMode reads a shell's arguments: wrap when a -c runs a string, script
+// when an operand names a script file; neither, it reads stdin.
+func shellMode(values []string) (wrap, script bool) {
 	for i := 0; i < len(values); i++ {
 		v := values[i]
 		switch {
-		case v == "--" || !strings.HasPrefix(v, "-") && !strings.HasPrefix(v, "+"):
-			return nil
+		case v == "--":
+			return false, i+1 < len(values)
+		case v == "-":
+			return false, false
+		case !strings.HasPrefix(v, "-") && !strings.HasPrefix(v, "+"):
+			return false, true
 		case v == "--rcfile" || v == "--init-file":
 			i++ // its file, not an option
 		case strings.HasPrefix(v, "--"):
 		case v[0] == '-' && strings.Contains(v, "c"):
-			return c.block("interpreter -c wrapping bypasses the permission allow list; run the command directly as a Bash tool call", "interpreter-c-wrap")
+			return true, false
+		case v[0] == '-' && strings.Contains(v, "s"):
+			return false, false // -s: operands are positional parameters
 		case strings.ContainsAny(v[len(v)-1:], "oO"):
 			i++ // -o pipefail, +O extglob: the option's name
 		}
 	}
-	return nil
+	return false, false
 }
 
 // inPlaceEdit guards sed -i and sd, which is always in place when given a

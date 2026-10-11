@@ -245,10 +245,12 @@ var interpreters = func() map[string]bool {
 }()
 
 // pipeToShell blocks a download piped into an interpreter later in the
-// same pipeline (curl x | sh, wget -O- x | tee log | sudo bash). Parsed
+// same pipeline (curl x | sh, wget -O- x | tee log | sudo bash), and any
+// other output piped into a shell reading stdin (echo ls | bash), a -c by
+// another name. A heredoc's isn't: the parse checks it as commands. Parsed
 // calls, not the raw string: "curl x | sh" as quoted text is data.
 func (st *state) pipeToShell(seg Segment) error {
-	fetched := false
+	fetched, fed := false, false
 	for _, call := range seg.Calls {
 		start := lead(call.Words)
 		words := call.Words[start:]
@@ -259,9 +261,16 @@ func (st *state) pipeToShell(seg Segment) error {
 		if fetched && (interpreters[name] || strings.HasPrefix(name, "python") || rootShell(call.Words[:start+1])) {
 			return st.h.Block("piping network content into an interpreter", "pipe-to-shell")
 		}
+		if fed && (shells[name] || name == "fish") {
+			shell := command{args: words[1:]}
+			if wrap, script := shellMode(shell.values()); !wrap && !script {
+				return st.h.Block(wrapReason, "interpreter-c-wrap")
+			}
+		}
 		if name == "curl" || name == "wget" {
 			fetched = true
 		}
+		fed = fed || len(call.Heredocs) == 0
 	}
 	return nil
 }
