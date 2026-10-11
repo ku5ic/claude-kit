@@ -278,6 +278,7 @@ func TestGuardBash(t *testing.T) {
 			{`echo a > /tmp/x 2> err.log`, `err.log`},
 			{`kit scratch-dir > f`, `"permissionDecision":"ask"`},
 			{`cd /tmp; cd -; echo x > out.txt`, `out.txt`},
+			{`echo "$(cd /tmp)" && echo x > out.txt`, `out.txt`},
 		} {
 			r := guardIn(k, repo, c.cmd)
 			r.Want(t, 0)

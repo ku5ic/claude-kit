@@ -42,6 +42,9 @@ type Segment struct {
 	Calls []Call
 	end   int // source offset where the pipeline ends
 	src   string
+	// substituted is a pipeline inside a $( ), backtick, or <( ): it runs in
+	// a subshell, so a cd there moves nothing after it.
+	substituted bool
 }
 
 // Rest is the normalized source text after call's word, to the end of the
@@ -100,6 +103,7 @@ func parseAll(src string) ([]Segment, bool) {
 type collector struct {
 	segs     []Segment
 	depth    int // of the parse in progress: error reparses and nested heredocs
+	words    int // how many command words the walk is inside: >0 in a substitution
 	unparsed bool
 }
 
@@ -209,7 +213,7 @@ func (c *collector) stmt(src string, s *syntax.Stmt) {
 			end = max(end, int(r.End().Offset()))
 		}
 	}
-	seg := Segment{src: src, end: end}
+	seg := Segment{src: src, end: end, substituted: c.words > 0}
 	feedsShell := false
 	for _, p := range parts {
 		call, ok := p.Cmd.(*syntax.CallExpr)
@@ -241,6 +245,7 @@ func (c *collector) stmt(src string, s *syntax.Stmt) {
 // call reads one simple command of a pipeline: its words, assignments, and
 // redirects, parsing any string env -S runs and any substitution in them.
 func (c *collector) call(src string, p *syntax.Stmt, call *syntax.CallExpr) Call {
+	c.words++
 	for _, a := range call.Assigns {
 		c.inner(src, a)
 	}
@@ -250,6 +255,7 @@ func (c *collector) call(src string, p *syntax.Stmt, call *syntax.CallExpr) Call
 	for _, r := range p.Redirs {
 		c.inner(src, r.Word)
 	}
+	c.words--
 	var cl Call
 	for _, a := range call.Assigns {
 		if a.Name == nil {

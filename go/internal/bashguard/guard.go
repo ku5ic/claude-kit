@@ -329,7 +329,7 @@ func (st *state) segment(seg Segment) error {
 		c := command{st: st, name: baseName(call.Words[start].Value), args: call.Words[start+1:], redirs: call.Redirs, inputs: call.Inputs}
 		c.rest = seg.Rest(ci, start)
 		c.text = c.name + c.rest
-		c.alone = len(seg.Calls) == 1
+		c.alone = len(seg.Calls) == 1 && !seg.substituted
 		if err := c.check(); err != nil {
 			return err
 		}

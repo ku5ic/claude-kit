@@ -95,6 +95,10 @@ func TestTheCommitMsgCheckIsTheRepoGitDashCNames(t *testing.T) {
 	k.commit(repo, `cd ../plain; git commit -m "updated stuff"`).Want(t, 0)
 	k.commit(plain, `cd ../repo | true && git commit -m "updated stuff"`).Want(t, 0)
 	k.commit(plain, `cd .. && git -C repo commit -m "updated stuff"`).Want(t, 2)
+	// A cd in a substitution runs in a subshell: the commit stays put.
+	if c := commitCall(`git commit -m "$(cd /tmp && echo x)"`, "", repo); c.repo != repo {
+		t.Errorf("repo = %q, want %q", c.repo, repo)
+	}
 }
 
 // prose is n consecutive prose lines.
