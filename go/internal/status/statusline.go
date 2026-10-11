@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -324,8 +325,11 @@ func untrackedLines(top string, names []string, countsFile string) int {
 			add += c.Lines
 		}
 	}
-	if data, err := json.Marshal(kept); err == nil {
-		_ = fsx.WriteAtomic(countsFile, data, 0o600)
+	// Only on a change: this runs every second while a session idles.
+	if !maps.Equal(kept, counts) {
+		if data, err := json.Marshal(kept); err == nil {
+			_ = fsx.WriteAtomic(countsFile, data, 0o600)
+		}
 	}
 	return add
 }
