@@ -50,14 +50,16 @@ func TestDependencySkills(t *testing.T) {
 // added since, though no root manifest changed.
 func TestCachedDependencySkillsFollowSubprojects(t *testing.T) {
 	t.Parallel()
-	root := fsx.PhysicalPath(t.TempDir())
-	testutil.Git(t, root, "init", "-q")
+	root := filepath.Join(fsx.PhysicalPath(t.TempDir()), "My Projects")
 	testutil.Put(t, root, "packages/a/package.json", `{"name":"a"}`)
+	testutil.Put(t, root, "gems/b/Gemfile", "source 'https://rubygems.org'\n")
+	testutil.Git(t, root, "init", "-q")
 	testutil.Git(t, root, "add", "-A")
 	cfg := testutil.KitConfig(t)
 	cfg.DependencySkills = []config.DependencyRule{
 		{Deps: []string{"react"}, Skills: []string{"react-patterns"}},
 		{Deps: []string{"django"}, Skills: []string{"django-patterns"}},
+		{Deps: []string{"rails"}, Skills: []string{"rails-patterns"}},
 	}
 	file := filepath.Join(t.TempDir(), "stack.txt")
 	if got := cachedDependencySkills(cfg, root, file, true); len(got) != 0 {
@@ -70,6 +72,14 @@ func TestCachedDependencySkillsFollowSubprojects(t *testing.T) {
 	}
 	if got := cachedDependencySkills(cfg, root, file, false); !slices.Equal(got, []string{"react-patterns"}) {
 		t.Errorf("after a subproject's manifest changed: got %q", got)
+	}
+	// A lockfile the reader opens counts, though it's no manifest.
+	testutil.Put(t, root, "gems/b/Gemfile.lock", "GEM\n  specs:\n    rails (7.1.0)\n")
+	if err := os.Chtimes(filepath.Join(root, "gems/b/Gemfile.lock"), later.Add(time.Second), later.Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	if got := cachedDependencySkills(cfg, root, file, false); !slices.Equal(got, []string{"react-patterns", "rails-patterns"}) {
+		t.Errorf("after a subproject's lockfile changed: got %q", got)
 	}
 
 	// A fresh repo, its cache left by an earlier hook process: Subprojects

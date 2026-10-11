@@ -95,42 +95,37 @@ func Build(paths config.Paths, cfg *config.Config, name, root, session string) C
 // cachedDependencySkills is dependencySkills, cached beside the stack
 // report at file: it costs a git ls-files and a parse of every subproject's
 // manifests, and SubagentStart has a 5s timeout. The cache holds the skills,
-// a blank line, then the manifests read; it is rebuilt with the report, or
-// once one of those manifests or the git index, where a new subproject
-// shows, is newer.
+// a blank line, then the subproject directories, one per line; it is
+// rebuilt with the report, or once the git index, where a new subproject
+// shows, or a file at the top of one of those directories, where the
+// readers look, is newer.
 func cachedDependencySkills(cfg *config.Config, root, file string, fresh bool) []string {
 	deps := strings.TrimSuffix(file, ".txt") + ".deps.txt"
 	if info, err := os.Stat(deps); err == nil && !fresh {
 		data, _ := os.ReadFile(deps)
-		skills, manifests, _ := strings.Cut(string(data), "\n\n")
-		inputs := append(strings.Fields(manifests), indexFile(root))
-		stale := slices.ContainsFunc(inputs, func(path string) bool { return newer(path, info.ModTime()) })
-		if !stale {
+		skills, dirs, _ := strings.Cut(string(data), "\n\n")
+		built := info.ModTime()
+		changed := func(dir string) bool { return changedIn(dir, built) }
+		if !newer(indexFile(root), built) && !slices.ContainsFunc(strings.Split(dirs, "\n"), changed) {
 			return strings.Fields(skills)
 		}
 	}
 	skills := dependencySkills(cfg, root)
-	_ = fsx.WriteAtomic(deps, []byte(strings.Join(skills, "\n")+"\n\n"+strings.Join(subprojectManifests(root), "\n")), 0o600)
+	var dirs []string
+	for _, sub := range project.Subprojects(root) {
+		dirs = append(dirs, filepath.Join(root, sub))
+	}
+	_ = fsx.WriteAtomic(deps, []byte(strings.Join(skills, "\n")+"\n\n"+strings.Join(dirs, "\n")), 0o600)
 	return skills
 }
 
-// subprojectManifests are the manifests of root's subprojects that
-// dependencySkills reads.
-func subprojectManifests(root string) []string {
-	var out []string
-	for _, sub := range project.Subprojects(root) {
-		for _, lang := range sources.Languages {
-			if lang.Deps == nil {
-				continue
-			}
-			for _, name := range lang.Manifests {
-				if path := filepath.Join(root, sub, name); fsx.IsFile(path) {
-					out = append(out, path)
-				}
-			}
-		}
-	}
-	return out
+// changedIn is true when a file at the top of dir was modified after t.
+func changedIn(dir string, t time.Time) bool {
+	entries, _ := os.ReadDir(dir)
+	return slices.ContainsFunc(entries, func(e fs.DirEntry) bool {
+		info, err := e.Info()
+		return err == nil && info.Mode().IsRegular() && info.ModTime().After(t)
+	})
 }
 
 // indexFile is root's git index: .git/index, or where git says for a
