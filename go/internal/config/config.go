@@ -44,6 +44,14 @@ type Config struct {
 	// derived from the config carry it in their file name, so deleting the
 	// overlay can't leave its derived state in use.
 	Tag string `yaml:"-"`
+
+	// installs is GlobalInstalls compiled, once, by load.
+	installs *installPatterns
+}
+
+type installPatterns struct {
+	patterns []*regexp.Regexp
+	errs     []error
 }
 
 // CheckKinds are the kinds of check gap-fill sorts a check into.
@@ -84,16 +92,26 @@ func (c *Config) unknownDisables() []error {
 	return errs
 }
 
-// badInstallPatterns are the global_installs patterns that don't compile;
-// guard-bash blocks every command while one is there.
-func (c *Config) badInstallPatterns() []error {
-	var errs []error
-	for _, p := range c.GlobalInstalls {
-		if _, err := regexp.Compile(p); err != nil {
-			errs = append(errs, fmt.Errorf("global_installs: %q doesn't compile, so guard-bash blocks every command: %w", p, err))
-		}
+// InstallPatterns is global_installs compiled, and an error for each
+// pattern that doesn't compile: guard-bash blocks every command while one
+// is there. A Config load built is compiled once; any other, per call.
+func (c *Config) InstallPatterns() ([]*regexp.Regexp, []error) {
+	if c.installs == nil {
+		return compileInstalls(c.GlobalInstalls)
 	}
-	return errs
+	return c.installs.patterns, c.installs.errs
+}
+
+func compileInstalls(exprs []string) (patterns []*regexp.Regexp, errs []error) {
+	for _, p := range exprs {
+		re, err := regexp.Compile(p)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("global_installs: %q doesn't compile, so guard-bash blocks every command: %w", p, err))
+			continue
+		}
+		patterns = append(patterns, re)
+	}
+	return patterns, errs
 }
 
 type SkillFileRule struct {

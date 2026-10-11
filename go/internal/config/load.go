@@ -140,7 +140,9 @@ func load(p Paths) (*Config, []Warning, error) {
 	if tag == "merged" {
 		from = p.Overlay
 	}
-	for _, err := range slices.Concat(cfg.unknownDisables(), cfg.badInstallPatterns(), cfg.ReplyLimits.negatives()) {
+	patterns, bad := compileInstalls(cfg.GlobalInstalls)
+	cfg.installs = &installPatterns{patterns, bad}
+	for _, err := range slices.Concat(cfg.unknownDisables(), bad, cfg.ReplyLimits.negatives()) {
 		warnings = append(warnings, Warning{from, err})
 	}
 	cfg.Tag = tag

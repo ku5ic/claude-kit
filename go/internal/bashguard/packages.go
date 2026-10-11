@@ -18,8 +18,8 @@ import (
 // globalInstall blocks a command global_installs matches. An unreadable
 // pattern blocks too: this is a guard.
 func (c *command) globalInstall() error {
-	patterns, ok := c.st.installs()
-	if !ok {
+	patterns, bad := c.st.cfg.InstallPatterns()
+	if len(bad) > 0 {
 		return c.block("a global_installs pattern doesn't compile, so every command is held; kit config --check names it", "pkg-global-install")
 	}
 	if slices.ContainsFunc(patterns, func(re *regexp.Regexp) bool { return re.MatchString(c.text) }) {
