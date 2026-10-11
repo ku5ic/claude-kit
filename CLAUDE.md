@@ -36,6 +36,10 @@ Every behavior the kit applies everywhere has exactly one owner, listed below. B
 
 Skills and agents carry procedure and stack knowledge only. When one needs a rule above, it cites `rules/<file>.md` instead of restating it.
 
+## Run the checkout's kit
+
+In this repo, call `bin/kit`, never bare `kit`: on PATH, `kit` is the installed release, which plans and checks with the old code. With `KIT_DEV=1`, `bin/kit` builds from `go/`. This overrides `rules/tooling.md` section 2 here only.
+
 ## Rules are live
 
 The SessionStart and SubagentStart hooks inject `rules/*.md` from the plugin root they run from. A session running the hooks from this checkout picks up a rule edit at its next start or compaction, so finish a rules change in one sitting.
