@@ -11,9 +11,12 @@ import (
 var builtins = []string{"[", "[[", "test", "echo", "printf", "exit", "return", "cd", "export", "set", "unset", "true", "false", ":",
 	"read", "shift", "eval", "source", ".", "local", "declare", "trap", "wait", "pushd", "popd", "command", "type", "hash", "umask", "alias"}
 
+// codeRunners are the builtins that run a command or a string of code.
+var codeRunners = []string{"eval", "source", ".", "command", "trap"}
+
 // Single is true when body runs exactly one binary, named literally, with
 // builtins around it at most (test -z "$(deadcode ./...)"): no second
-// command, no redirect, and no eval, source, or . to run code unseen.
+// command, no redirect, and no codeRunners to run one unseen.
 func Single(body string) bool {
 	calls, ok := Calls(body)
 	if !ok || len(calls) != 1 || calls[0][0] == "$" {
@@ -26,7 +29,7 @@ func Single(body string) bool {
 			ok = false
 		case *syntax.CallExpr:
 			if len(n.Args) > 0 {
-				if name, _ := literal(n.Args[0]); name == "eval" || name == "source" || name == "." {
+				if name, _ := literal(n.Args[0]); slices.Contains(codeRunners, name) {
 					ok = false
 				}
 			}

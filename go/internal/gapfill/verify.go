@@ -180,7 +180,14 @@ func (f forms) checkForm(role, form string, bodies []string, placeholders ...str
 	if flag := f.cfg.DeniedFlag(strings.Fields(form)); role == "check" && flag != "" {
 		return "sets " + flag
 	}
-	return f.form(form, bodies, placeholders...)
+	if why := f.form(form, bodies, placeholders...); why != "" {
+		return why
+	}
+	// sameWords lets any added word starting with "-" through as a flag.
+	if !shellcalls.Single(form) {
+		return "not one plain command"
+	}
+	return ""
 }
 
 // proposal is an error unless p is a check of a known kind, or a fixer,
