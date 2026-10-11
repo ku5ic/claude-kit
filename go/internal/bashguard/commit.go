@@ -101,6 +101,7 @@ type commit struct {
 	// where the cds before it moved, "" when an expansion names it.
 	repo            string
 	found, unparsed bool
+	start           int // source offset of the git call
 }
 
 // commits reports whether cmd, parsed as c, runs git commit: a parsed call
@@ -138,7 +139,7 @@ func commitCall(cmd, home, cwd string) commit {
 				if strings.ContainsAny(repo, "$`") {
 					repo = ""
 				}
-				return commit{args: args, repo: repo, found: true, unparsed: unparsed}
+				return commit{args: args, repo: repo, found: true, unparsed: unparsed, start: call.start}
 			}
 		}
 	}
@@ -148,7 +149,7 @@ func commitCall(cmd, home, cwd string) commit {
 // message is the message cmd's git commit c gives, as the commit-msg hook
 // would read it: its -m messages as paragraphs, a $(cat <<EOF) one read as
 // its body, else the file -F names, from repo, unless the command names it
-// again, or the commit line's heredoc
+// before the commit, or the commit line's heredoc
 // for -F - or a command that didn't parse. ok is false when it can't be
 // told exactly: no message, or one an expansion builds, whose -m text is
 // still msg, as written, for the subject checks.
@@ -178,9 +179,9 @@ func message(cmd string, c commit, repo string) (msg string, ok bool) {
 	case len(paragraphs) == 0 && file == "-":
 		body := heredocBody(cmd)
 		return body + "\n", body != ""
-	// Named elsewhere in the command, the file is likely written there
-	// first: what's on disk now is a stale message.
-	case len(paragraphs) == 0 && file != "" && strings.Count(cmd, filepath.Base(file)) == 1:
+	// Named before the commit, the file is likely written there first:
+	// what's on disk now is a stale message. Named after (an rm) it isn't.
+	case len(paragraphs) == 0 && file != "" && !strings.Contains(cmd[:c.start], filepath.Base(file)):
 		data, err := os.ReadFile(fsx.Abs(repo, file))
 		return string(data), err == nil
 	}
