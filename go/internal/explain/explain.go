@@ -25,9 +25,9 @@ import (
 const usage = `usage: kit explain <what> ...
 
   bash '<command>'          how guard-bash parses the command, and its decision
-  edit <path> [tool]        guard-edit's (and the skills gate's) decision on a
+  edit <path> [tool [glob]] guard-edit's (and the skills gate's) decision on a
                             Read/Grep/Edit/Write of path; tool defaults to
-                            Write
+                            Write, and a Grep may filter by glob
   stop [file...]            which checks claim each file, where they run, the
                             exact command, and what blocks; defaults to the
                             files the working tree has changed
@@ -47,15 +47,18 @@ func Run(paths config.Paths, cfg *config.Config, cwd string, args []string, stdo
 		}
 		return bash(paths, cfg, cwd, args[1], stdout)
 	case "edit":
-		if len(args) < 2 || len(args) > 3 {
+		if len(args) < 2 || len(args) > 4 || len(args) == 4 && args[2] != "Grep" {
 			fmt.Fprint(stderr, usage)
 			return 2
 		}
-		tool := "Write"
-		if len(args) == 3 {
+		tool, glob := "Write", ""
+		if len(args) >= 3 {
 			tool = args[2]
 		}
-		return edit(paths, cfg, cwd, args[1], tool, stdout)
+		if len(args) == 4 {
+			glob = args[3]
+		}
+		return edit(paths, cfg, cwd, args[1], tool, glob, stdout)
 	case "stop":
 		return stop(paths, cfg, cwd, args[1:], stdout, stderr)
 	}
@@ -119,15 +122,15 @@ func bash(paths config.Paths, cfg *config.Config, cwd, command string, w io.Writ
 	return 0
 }
 
-func edit(paths config.Paths, cfg *config.Config, cwd, path, tool string, w io.Writer) int {
+func edit(paths config.Paths, cfg *config.Config, cwd, path, tool, glob string, w io.Writer) int {
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(cwd, path)
 	}
-	key := "file_path"
+	input := map[string]any{"file_path": path}
 	if tool == "Grep" {
-		key = "path"
+		input = map[string]any{"path": path, "glob": glob}
 	}
-	payload := map[string]any{"tool_name": tool, "session_id": "explain", "cwd": cwd, "tool_input": map[string]any{key: path}}
+	payload := map[string]any{"tool_name": tool, "session_id": "explain", "cwd": cwd, "tool_input": input}
 	h := dryHook(paths, cfg, "guard-edit", payload)
 	verdict(w, "guard-edit", hooks.GuardEdit(h), h)
 	h = dryHook(paths, cfg, "guard-skills", payload)

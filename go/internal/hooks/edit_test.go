@@ -241,8 +241,13 @@ skill_file_map:
 		{"Grep of a repo with glob **/*.key is blocked", "/tmp/project", "**/*.key", "/tmp/project", 2},
 		{"Grep of a repo with glob *.ts passes", "/tmp/project", "*.ts", "/tmp/project", 0},
 		{"Grep of a repo with the generic glob * passes", "/tmp/project", "*", "/tmp/project", 0},
+		{"Grep of a repo with glob *.env is blocked", "/tmp/project", "*.env", "/tmp/project", 2},
+		{"Grep of a repo with glob *.key* is blocked", "/tmp/project", "*.key*", "/tmp/project", 2},
+		{"Grep of a repo with the generic glob ** passes", "/tmp/project", "**", "/tmp/project", 0},
 		{"Grep of a repo with no glob passes", "/tmp/project", "", "/tmp/project", 0},
-		{"Grep with no path or cwd passes", "", "", "", 0},
+		{"Grep of ~ itself is blocked", "~", "", "/tmp/project", 2},
+		{"Grep with no path from ~ passes", "", "", "~", 0},
+		{"Grep with no path from ~/.ssh is blocked", "", "", "~/.ssh", 2},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			k := newPlugin(t)

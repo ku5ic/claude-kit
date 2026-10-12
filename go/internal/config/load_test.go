@@ -199,7 +199,7 @@ func TestNegativeReplyLimitsWarn(t *testing.T) {
 func TestEmptyOnEditCmdWarns(t *testing.T) {
 	dir := t.TempDir()
 	base := write(t, dir, "kit.yml", "on_edit:\n  - globs: [\"*.toml\"]\n    run: [{cmd: \"taplo fmt {file}\"}, {cmd: \" \"}]\n")
-	_, warnings, err := Load(Paths{Base: base})
+	cfg, warnings, err := Load(Paths{Base: base})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -207,9 +207,12 @@ func TestEmptyOnEditCmdWarns(t *testing.T) {
 	for _, w := range warnings {
 		got = append(got, w.Err.Error())
 	}
-	want := `on_edit: run entry 2 for ["*.toml"] has no cmd; it's skipped`
+	want := `on_edit: run entry 2 for ["*.toml"] has no cmd; it's dropped`
 	if strings.Join(got, "|") != want {
 		t.Errorf("warnings = %q, want %q", got, want)
+	}
+	if run := cfg.OnEdit[0].Run; len(run) != 1 || run[0].Cmd != "taplo fmt {file}" {
+		t.Errorf("run = %v, want only the taplo entry", run)
 	}
 }
 

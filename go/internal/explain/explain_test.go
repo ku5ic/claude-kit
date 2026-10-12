@@ -39,6 +39,7 @@ func TestExplain(t *testing.T) {
 		{"edit: a credential read blocks", []string{"edit", filepath.Join(home, ".ssh/id_rsa"), "Read"}, "guard-edit: block  sensitive-read"},
 		{"edit: a Grep of a credential dir blocks", []string{"edit", filepath.Join(home, ".ssh"), "Grep"}, "guard-edit: block  sensitive-read"},
 		{"edit: a Grep of the repo passes", []string{"edit", repo, "Grep"}, "guard-edit: pass"},
+		{"edit: a Grep of the repo for .env files blocks", []string{"edit", repo, "Grep", ".env*"}, "guard-edit: block  sensitive-read"},
 		{"edit: a plain write passes", []string{"edit", filepath.Join(repo, "docs/notes.md")}, "guard-edit: pass"},
 		{"edit: a new report at the repo root asks", []string{"edit", filepath.Join(repo, "notes.md")}, "guard-edit: ask"},
 	} {

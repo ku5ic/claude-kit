@@ -84,7 +84,7 @@ Claude runs bash -> dangerous commands are blocked, ambiguous ones ask you first
 Claude edits     -> credential files are off limits; the file is formatted with your formatter
 Claude commits   -> AI signatures and secrets are blocked; your commit-msg hooks check the message
 Claude says done -> your git hooks' checks run on what it edited
-Claude replies   -> each prompt carries a word ceiling (40 for chat); a reply that ran over is told so next turn
+Claude replies   -> each prompt carries its `reply_limits` word ceiling; a reply that ran over is told so next turn
 ```
 
 **Block** means Claude sees the reason and tries another way; you aren't interrupted. **Ask** means a normal permission prompt, with the reason in it.
@@ -237,7 +237,7 @@ Opt-in switches, in your settings `env`:
 
 - **See why:** `kit explain bash '<cmd>'`, `kit explain edit <path>`, or `kit explain stop <file>` shows the decision and the exact rule. Nothing runs, blocks, or logs.
 - **Turn one rule off:** add its slug to `disabled_rules`. Every block is logged with its slug in `~/.claude/logs/guards.jsonl`.
-- **A kit bug never blocks you.** A crashing hook or a missing binary fails open. A missing binary is reported at session start; every other fail-open is logged. The binary goes missing when the first download can't finish: offline, a read-only plugin directory, a link slower than about 280 KB/s, or a platform other than macOS or Linux on arm64 or amd64. Until it lands, every guard is off.
+- **A kit bug never blocks you.** A crashing hook or a missing binary fails open. A missing binary is reported at session start; every other fail-open is logged. The binary goes missing when the first download can't finish: offline, a read-only plugin directory, a link too slow for `bin/kit`'s download timeout, or a platform other than macOS or Linux on arm64 or amd64. Until it lands, every guard is off.
 - **A bad overlay never turns guards off.** If `claude-kit.local.yml` doesn't merge, the kit uses `kit.yml` alone and says why at session start.
 
 ## How it's built

@@ -144,11 +144,11 @@ func TestFormatDispatch(t *testing.T) {
 		e.format(filepath.Join(e.repo, "a.toml")).Want(t, 0)
 		e.callsWant("taplo fmt " + filepath.Join(e.repo, "a.toml"))
 	})
-	t.Run("an on_edit run entry with an empty cmd is skipped for the next", func(t *testing.T) {
+	t.Run("an on_edit rule whose only cmd is empty leaves the earlier rule's chain", func(t *testing.T) {
 		e := formatSetup(t)
 		e.stub(filepath.Join(e.stubs, "taplo"), "taplo")
 		e.k.classify(e.repo, envelope(t, nil, nil, nil))
-		e.k.overlay(read(t, e.k.paths.Overlay) + "on_edit:\n  - {globs: [\"*.toml\"], run: [{cmd: \"\"}, {cmd: \"taplo fmt {file}\"}]}\n")
+		e.k.overlay(read(t, e.k.paths.Overlay) + "on_edit:\n  - {globs: [\"*.toml\"], run: [{cmd: \"taplo fmt {file}\"}]}\n  - {globs: [\"*.toml\"], run: [{cmd: \"\"}]}\n")
 		r := e.format(filepath.Join(e.repo, "a.toml"))
 		r.Want(t, 0)
 		r.Lacks(t, "failing open")

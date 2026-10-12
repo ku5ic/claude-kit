@@ -96,16 +96,21 @@ func (c *Config) unknownDisables() []error {
 	return errs
 }
 
-// emptyEditCmds names the on_edit run entries with no cmd, which the format
-// hook skips.
-func (c *Config) emptyEditCmds() []error {
+// dropEmptyEditCmds removes the on_edit run entries with no cmd and names
+// each, so a rule left with none never replaces an earlier rule's chain.
+func (c *Config) dropEmptyEditCmds() []error {
 	var errs []error
-	for _, rule := range c.OnEdit {
+	for r := range c.OnEdit {
+		rule := &c.OnEdit[r]
+		var kept []EditCommand
 		for i, cmd := range rule.Run {
 			if strings.TrimSpace(cmd.Cmd) == "" {
-				errs = append(errs, fmt.Errorf("on_edit: run entry %d for %q has no cmd; it's skipped", i+1, rule.Globs))
+				errs = append(errs, fmt.Errorf("on_edit: run entry %d for %q has no cmd; it's dropped", i+1, rule.Globs))
+				continue
 			}
+			kept = append(kept, cmd)
 		}
+		rule.Run = kept
 	}
 	return errs
 }

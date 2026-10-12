@@ -157,7 +157,8 @@ func TestProjectRootUnanchoredPrintsTheLogicalPWD(t *testing.T) {
 	}
 }
 
-// Help and version need no paths, so they answer where none resolve.
+// Help, version, and completion need no paths, so they answer where none
+// resolve.
 func TestHelpAndVersionNeedNoHome(t *testing.T) {
 	sandbox(t)
 	t.Setenv("CLAUDE_CONFIG_DIR", "")
@@ -167,8 +168,9 @@ func TestHelpAndVersionNeedNoHome(t *testing.T) {
 		{"--version", version + "\n"},
 		{"--help", "git-base"},
 		{"help", "the base ref of this checkout"},
+		{"completion bash", "-F _kit kit"},
 	} {
-		code, stdout, stderr := runFrom(t, tmp(t), c.arg)
+		code, stdout, stderr := runFrom(t, tmp(t), strings.Fields(c.arg)...)
 		if code != 0 || !strings.Contains(stdout, c.want) {
 			t.Errorf("kit %s: exit %d, stdout %q lacks %q; stderr %q", c.arg, code, stdout, c.want, stderr)
 		}

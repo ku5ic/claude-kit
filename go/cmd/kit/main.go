@@ -91,6 +91,10 @@ func run(args []string, stdout, stderr io.Writer) int {
 	case "version", "--version":
 		fmt.Fprintln(stdout, version)
 		return 0
+	case "completion":
+		return cmdCompletion(rest, stdout, stderr)
+	case "git-base":
+		return gitbase.Run(rest, stdout, stderr)
 	}
 	e, err := newEnv(stdout, stderr)
 	if err != nil {
@@ -99,12 +103,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 
 	switch name {
-	case "completion":
-		return cmdCompletion(rest, stdout, stderr)
 	case "config":
 		return cmdConfig(e, rest)
-	case "git-base":
-		return gitbase.Run(rest, stdout, stderr)
 	case "scratch-rotate":
 		return cmdScratchRotate(e, rest)
 	case "scratch-dir":

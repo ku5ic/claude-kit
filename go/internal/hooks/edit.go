@@ -89,16 +89,19 @@ func GuardEdit(h *hook.Hook) error {
 }
 
 // guardSearch blocks a Grep that can read a credential file. Its root is
-// tool_input.path, else cwd, which is also what a relative path joins.
+// tool_input.path, else cwd, which is also what a relative path joins. Only
+// a path given blocks for a "~/" entry under it: a pathless Grep in ~ is the
+// common case, not a reach for ~/.ssh.
 func guardSearch(h *hook.Hook, cfg *config.Config) error {
-	cwd := h.Payload.String("cwd")
-	root := guard.ExpandHome(h.Home, cmp.Or(h.Payload.String("tool_input.path"), cwd))
+	cwd := h.Payload.Cwd()
+	path := h.Payload.String("tool_input.path")
+	root := guard.ExpandHome(h.Home, cmp.Or(path, cwd))
 	if root != "" && !filepath.IsAbs(root) {
 		root = filepath.Join(cwd, root)
 	}
 	glob := h.Payload.String("tool_input.glob")
 	h.SetContext("Path: " + root + "\nGlob: " + glob)
-	if guard.SearchesSensitive(cfg, h.Home, root, glob) {
+	if guard.SearchesSensitive(cfg, h.Home, root, glob, path != "") {
 		return h.Block("searching a credential or key file is not permitted", "sensitive-read")
 	}
 	return nil

@@ -14,7 +14,7 @@ Draft a pattern skill pack for a stack from current docs and this repo's precede
    One source per claim. A claim it returns without a source doesn't go in the pack.
 
 3. Precedent. If `<repo-context>` or `kit detect-stack` shows the current repo uses the stack, load the `investigate` skill and answer "how does this repo use <stack>: file layout, conventions, config" with `file:line` citations. A pack rule that contradicts the repo's own consistent usage gets named in the draft, not silently dropped.
-4. Draft. Work in the kit's source checkout: the current repo, when its `.claude-plugin/plugin.json` `name` is `kit` and it isn't under `~/.claude/plugins/` (an installed copy or the marketplace clone). Otherwise stop and ask where the checkout is. Copy `templates/pattern-skill/` to `skills/<name>/` and fill it:
+4. Draft. Work in the kit's source checkout: the current repo, when its `.claude-plugin/plugin.json` `name` is `kit` and it isn't under `plugins/` in the Claude config dir (`$CLAUDE_CONFIG_DIR`, else `~/.claude`), where installed copies and the marketplace clone live. Otherwise stop and ask where the checkout is. Copy `templates/pattern-skill/` to `skills/<name>/` and fill it:
    - `description`: the file and dependency signals, then the concepts, in the template's shape.
    - One `reference/<area>.md` per area with enough verified material; three to five areas is typical. Every rule cites its source URL or library id.
    - `reference/anti-patterns.md`: the mistakes from step 2, each with a severity from the rubric.
