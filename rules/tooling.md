@@ -4,7 +4,7 @@ Which CLI to reach for, how to call the bin scripts, and where temporary files g
 
 ## 1. Reach for the CLI first
 
-When a deterministic CLI can answer the question, call it before reading files and reasoning. Fewer tokens wins: one CLI call beats a targeted read beats a broad grep beats reasoning from memory. The `<tooling>` block's `available:` and `missing:` lines say which of these are on PATH; don't reach for a missing one.
+When a deterministic CLI can answer the question, call it before reading files and reasoning. Fewer tokens wins: one CLI call beats a targeted read beats a broad grep beats reasoning from memory. When the `<tooling>` block is present, its `available:` and `missing:` lines say which of these are on PATH; don't reach for a missing one.
 
 | Question                           | Tool                               | Over                               |
 | ---------------------------------- | ---------------------------------- | ---------------------------------- |

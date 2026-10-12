@@ -9,7 +9,8 @@
 # The overlay at ~/.claude/claude-kit.local.yml merges over it (maps merge,
 # lists append); `bin/kit config` prints the result.
 #
-# security-patterns and wcag-audit are never mapped: invoked by hand.
+# security-patterns and wcag-audit are never mapped: they load by their own
+# descriptions or when another skill names them.
 
 # Skills loaded for every project regardless of detected stack.
 # Empty by design: an always-blocking skill is paid for before the task is
@@ -214,7 +215,7 @@ log_max_lines: 10000
 # the overlay: a disabled rule is still logged, as "disabled".
 disabled_rules: []
 
-# CI steps and jobs the kit never runs (go/internal/ci).
+# CI steps and jobs the kit never runs (go/internal/sources/ci.go).
 gate_discovery:
   #   deny_commands  a step holding one of these words (or word runs) is skipped
   #   deny_names     a job or step whose name holds one of these words is skipped

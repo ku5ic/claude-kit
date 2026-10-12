@@ -8,7 +8,7 @@
     {
       "name": "kit",
       "source": "./",
-      "description": "Guard hooks, context injection, read-only exploration, /audit and /write, stack pattern skills, and review agents for Claude Code."
+      "description": "Blocks destructive commands, runs your project's own checks before Claude says done, and starts every session knowing your stack: guard hooks, a formatter and sanitizer, /audit, /write, /deps and /meta, stack pattern skills, and review agents."
     }
   ]
 }
