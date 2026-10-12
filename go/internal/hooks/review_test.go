@@ -84,6 +84,13 @@ func TestReviewChecks(t *testing.T) {
 			stop(e, e.project, "").Want(t, 2)
 		})
 	}
+	t.Run("a review whose transcript can't be read stops freely", func(t *testing.T) {
+		e := setup(t, `{"skillName":"code-review"}`)
+		if err := os.Remove(e.transcript); err != nil {
+			t.Fatal(err)
+		}
+		quiet(t, e, stop(e, e.project, ""))
+	})
 	t.Run("a review outside any project stops freely", func(t *testing.T) {
 		e := setup(t, `{"skillName":"code-review"}`)
 		quiet(t, e, stop(e, t.TempDir(), ""))

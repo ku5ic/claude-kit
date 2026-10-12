@@ -22,11 +22,11 @@ var persisted = regexp.MustCompile(`(?s)^\s*<persisted-output>.*?saved to: (\S+)
 // run, by its summary line in a tool result (or the file a large one was
 // saved to), so a reviewer that already ran it isn't sent back to re-emit
 // its report. Reading the output, not the command, needs no shell parsing:
-// a mention in quotes prints no summary.
+// a mention in quotes prints no summary. A transcript it can't read counts
+// as a run, so a kit read failure never sends the reviewer back.
 func ranChecks(path string) bool {
 	ran := false
-	// A read error leaves what was read: the hook fails open.
-	_ = transcript.Each(path, func(e transcript.Entry) {
+	err := transcript.Each(path, func(e transcript.Entry) {
 		for _, b := range e.Blocks {
 			if ran || b.Type != "tool_result" {
 				continue
@@ -40,7 +40,7 @@ func ranChecks(path string) bool {
 			ran = run.Summary.MatchString(text)
 		}
 	})
-	return ran
+	return ran || err != nil
 }
 
 // forkedSkill is the skill a forked subagent runs: from Claude Code's
