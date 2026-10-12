@@ -45,7 +45,7 @@ Fetch all alerts with one bare GET and filter `state` client-side in jq.
 - Do not use a bare `?state=open` either; an unquoted `?` is a zsh glob.
 - Let gh follow the Link header with `--paginate`; never construct `page`/`first`/`last`, removed for these endpoints on 2025-10-14.
 
-```
+```bash
 gh api "repos/<slug>/dependabot/alerts" --paginate \
   --jq '.[] | select(.state=="open") | {number, severity: .security_vulnerability.severity, cvss: .security_advisory.cvss.score, ghsa: .security_advisory.ghsa_id, pkg: .dependency.package.name, ecosystem: .dependency.package.ecosystem, scope: .dependency.scope, relationship: .dependency.relationship, manifest: .dependency.manifest_path, fixed: .security_vulnerability.first_patched_version.identifier, range: .security_vulnerability.vulnerable_version_range}'
 ```

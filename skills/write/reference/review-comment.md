@@ -32,10 +32,11 @@ Write to the path `kit scratch-dir review-comment <scope-slug>` prints. `<scope-
 
 Structure (GitHub markdown, no frontmatter, no metadata - copy-paste ready as a single PR comment):
 
-```
+```markdown
 @<author>
 
 <1-3 actionable issues, each as:>
+
 - [path:line](link) - plain-language description of the problem, framed as "this one's a real bug" or "worth fixing".
 
 <Non-issues, if any, framed as "feel free to drop this one" - grouped separately from the actionable issues, not interleaved.>

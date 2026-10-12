@@ -15,7 +15,7 @@ Review checklist and the handful of git behaviors that are easy to get wrong. Co
 
 ## Conventional Commits
 
-```
+```text
 <type>[optional scope]: <description>
 
 [optional body]

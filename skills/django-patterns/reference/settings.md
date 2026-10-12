@@ -4,7 +4,7 @@
 
 Separate settings into a package with one file per environment:
 
-```
+```text
 myproject/settings/
     __init__.py
     base.py      # shared across all environments

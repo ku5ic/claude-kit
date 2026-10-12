@@ -56,14 +56,14 @@ dpkg-reconfigure --priority=low unattended-upgrades
 
 `dpkg-reconfigure` enables the service and writes `/etc/apt/apt.conf.d/20auto-upgrades`:
 
-```
+```text
 APT::Periodic::Update-Package-Lists "1";
 APT::Periodic::Unattended-Upgrade "1";
 ```
 
 The main config is `/etc/apt/apt.conf.d/50unattended-upgrades`. The defaults apply security updates only. Edit `/etc/apt/apt.conf.d/52unattended-upgrades-local` to override without touching the package-managed file:
 
-```
+```text
 // Enable email on error
 Unattended-Upgrade::Mail "you@example.com";
 Unattended-Upgrade::MailOnlyOnError "true";

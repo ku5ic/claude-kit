@@ -31,7 +31,7 @@ Write it the way you'd say it to a teammate in chat, casually. No file paths, li
 
 A note on a teammate's PR after testing it locally. What was checked, what it showed, then one optional nit with a direction:
 
-```
+```text
 I ran it locally and everything I tried behaved as described: the redirect on /, the settings menu and the export button switch correctly with the feature flag on and off.
 
 A nit: the `useFeatureFlags` test mock is repeated in 8 test files, maybe worth folding into the follow-up PR.

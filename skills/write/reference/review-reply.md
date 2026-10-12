@@ -45,7 +45,7 @@ Write to the path `kit scratch-dir pr <pr-number>-<reviewer>-review-replies` pri
 
 Structure:
 
-```
+```text
 # PR #<n> - replies to <reviewer>'s latest review
 
 <One line noting the round scoped to, and what was excluded (older rounds, already-answered threads).>

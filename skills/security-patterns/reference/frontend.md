@@ -51,7 +51,7 @@ When a directive contains nonce or hash expressions, browsers IGNORE `unsafe-inl
 
 Example minimal strict CSP:
 
-```
+```text
 Content-Security-Policy:
   script-src 'nonce-{RANDOM}' 'strict-dynamic';
   object-src 'none';

@@ -44,7 +44,7 @@ Reproduce the template verbatim and fill it in. This branch is mandatory and exc
 
 Use this default structure:
 
-```
+```markdown
 ## Summary
 
 <Why this change, now. Lead with motivation or context the diff itself can't convey; do not restate what changed. One short paragraph, no bullet list.>

@@ -31,7 +31,7 @@ Write to the path `kit scratch-dir prompt <slug>` prints.
 
 Structure:
 
-```
+```markdown
 # Task: <clear one-line title>
 
 ## Goal

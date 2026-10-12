@@ -29,7 +29,7 @@ Verify you can log in as `deploy` with the SSH key before proceeding.
 
 Edit `/etc/ssh/sshd_config`:
 
-```
+```text
 PasswordAuthentication no
 PermitRootLogin no
 PubkeyAuthentication yes
@@ -60,7 +60,7 @@ ssh-keygen -t ed25519 -C "deploy@hostname" -f ~/.ssh/id_ed25519_deploy
 
 For automation scripts that need to run specific privileged commands:
 
-```
+```text
 # /etc/sudoers.d/deploy-limited
 deploy ALL=(ALL) NOPASSWD: /bin/systemctl restart myapp, /usr/bin/certbot renew
 ```

@@ -10,7 +10,7 @@ Consistent format for findings reports: audits, reviews, dependency runs, and an
 
 ## Required sections
 
-```
+```markdown
 # <Report type>: <target>
 
 Generated: <ISO timestamp>
@@ -33,6 +33,7 @@ Stack: <the language lines kit detect-stack prints, if applicable>
 - Refs: <WCAG criterion, CVE, doc link, etc., if relevant>
 
 ### <Next finding>
+
 ...
 
 ## Cannot be verified statically

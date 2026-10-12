@@ -6,7 +6,7 @@ Check reference skills against the current language or framework release and upd
 
 Reference skills are every `skills/*/SKILL.md` except the procedure skills `audit`, `write`, `deps`, `investigate`, `report-format`, and `meta`. Each carries a `## Version notes` section that this skill owns:
 
-```
+```markdown
 ## Version notes
 
 Checked: <YYYY-MM-DD> against <source: library id or URL>

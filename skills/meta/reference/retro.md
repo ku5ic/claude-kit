@@ -18,7 +18,7 @@ Write to the path `kit scratch-dir retro <type>-<slug>` prints.
 
 ## Incident template
 
-```
+```markdown
 # Incident retro: <short name>
 
 ## Timeline
@@ -52,7 +52,7 @@ Write to the path `kit scratch-dir retro <type>-<slug>` prints.
 
 ## Sprint or iteration template
 
-```
+```markdown
 # Sprint retro: <sprint label>
 
 ## What shipped
@@ -78,7 +78,7 @@ Write to the path `kit scratch-dir retro <type>-<slug>` prints.
 
 ## Feature or project template
 
-```
+```markdown
 # Retro: <feature name>
 
 ## Outcome vs goal

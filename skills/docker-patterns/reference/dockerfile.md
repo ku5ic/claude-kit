@@ -117,7 +117,7 @@ Do not use `RUN cd /some/dir` to change directories across instructions. `WORKDI
 
 Place `.dockerignore` alongside the Dockerfile (or the build context root). It reduces build context size and prevents secrets from reaching the build:
 
-```
+```text
 .git
 .env
 .env.*

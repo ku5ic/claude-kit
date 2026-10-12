@@ -27,7 +27,7 @@ Write to the path `kit scratch-dir release-notes <branch-or-range-slug>` prints.
 
 Structure:
 
-```
+```markdown
 # Release <branch or range>
 
 Base: <detected base branch or explicit range>
