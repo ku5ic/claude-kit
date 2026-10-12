@@ -309,7 +309,7 @@ func RunCheck(h *Hook, name string, check Check) (blocked bool) {
 	if err == nil {
 		return false
 	}
-	if b, ok := err.(*Blocked); ok {
+	if b, ok := errors.AsType[*Blocked](err); ok {
 		fmt.Fprintln(h.Stderr, b.Reason)
 		return true
 	}

@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"errors"
 	"os/exec"
 	"path/filepath"
 	"slices"
@@ -18,7 +19,7 @@ func TestFakeToolRecordsEachRun(t *testing.T) {
 	cmd := exec.Command(tool, "--fix", "a b.go")
 	cmd.Dir = dir
 	err := cmd.Run()
-	exit, ok := err.(*exec.ExitError)
+	exit, ok := errors.AsType[*exec.ExitError](err)
 	if !ok || exit.ExitCode() != 3 {
 		t.Fatalf("exit = %v, want status 3", err)
 	}

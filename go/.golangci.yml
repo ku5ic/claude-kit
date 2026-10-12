@@ -3,10 +3,11 @@ version: "2"
 linters:
   # dupl flags copied blocks before they drift. Threshold is in tokens: the
   # lowest that passes on today's tree; lower it as copies are removed.
-  enable: [dupl]
+  # errorlint: an error type assertion or == misses a wrapped error.
+  enable: [dupl, errorlint]
   settings:
     dupl:
-      threshold: 35
+      threshold: 32
     errcheck:
       # Output and cleanup: a failed write to stdout or a failed close has no
       # recovery here, and hooks fail open by design.

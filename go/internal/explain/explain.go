@@ -5,6 +5,7 @@ package explain
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -77,7 +78,7 @@ func dryHook(paths config.Paths, cfg *config.Config, name string, payload map[st
 // verdict prints a check's outcome: block with its rule, ask or allow with
 // the reason, or pass.
 func verdict(w io.Writer, name string, err error, h *hook.Hook) {
-	if b, ok := err.(*hook.Blocked); ok {
+	if b, ok := errors.AsType[*hook.Blocked](err); ok {
 		rule := b.Rule
 		if rule == "" {
 			rule = "(no slug)"

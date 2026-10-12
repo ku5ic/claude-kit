@@ -23,6 +23,16 @@ func argCommands() []kitcmd.Command {
 	return out
 }
 
+// wordCases writes one case line per command with completion words, format
+// taking its name and its words joined by spaces.
+func wordCases(b *strings.Builder, format string) {
+	for _, c := range argCommands() {
+		if len(c.Words) > 0 {
+			fmt.Fprintf(b, format, c.Name, strings.Join(c.Words, " "))
+		}
+	}
+}
+
 // hookNames is every name `kit hook` accepts.
 func hookNames() []string {
 	return slices.Sorted(maps.Keys(registry))
@@ -56,11 +66,7 @@ func bashCompletion() string {
 	fmt.Fprintf(&b, "  if ((COMP_CWORD == 1)); then\n    COMPREPLY=($(compgen -W %q -- \"$cur\"))\n    return\n  fi\n", strings.Join(names, " "))
 	b.WriteString("  ((COMP_CWORD == 2)) || return\n  case ${COMP_WORDS[1]} in\n")
 	fmt.Fprintf(&b, "  hook) COMPREPLY=($(compgen -W %q -- \"$cur\")) ;;\n", strings.Join(hookNames(), " "))
-	for _, c := range argCommands() {
-		if len(c.Words) > 0 {
-			fmt.Fprintf(&b, "  %s) COMPREPLY=($(compgen -W %q -- \"$cur\")) ;;\n", c.Name, strings.Join(c.Words, " "))
-		}
-	}
+	wordCases(&b, "  %s) COMPREPLY=($(compgen -W %q -- \"$cur\")) ;;\n")
 	for _, c := range argCommands() {
 		if c.Path != "" {
 			fmt.Fprintf(&b, "  %s) local IFS=$'\\n'; COMPREPLY=($(compgen -%c -- \"$cur\")) ;;\n", c.Name, c.Path[0])
@@ -83,11 +89,7 @@ func zshCompletion() string {
 	b.WriteString("  )\n  if ((CURRENT == 2)); then\n    _describe 'kit command' cmds\n    return\n  fi\n")
 	b.WriteString("  ((CURRENT == 3)) || return\n  case $words[2] in\n")
 	fmt.Fprintf(&b, "  hook) compadd -- %s ;;\n", strings.Join(hookNames(), " "))
-	for _, c := range argCommands() {
-		if len(c.Words) > 0 {
-			fmt.Fprintf(&b, "  %s) compadd -- %s ;;\n", c.Name, strings.Join(c.Words, " "))
-		}
-	}
+	wordCases(&b, "  %s) compadd -- %s ;;\n")
 	for _, c := range argCommands() {
 		switch c.Path {
 		case "file":
