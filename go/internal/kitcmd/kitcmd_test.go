@@ -5,10 +5,10 @@ import (
 	"testing"
 )
 
-// Every command is described, except one whose args leave no room.
+// Every command is described; one whose args leave no room wraps.
 func TestCommandsDescribed(t *testing.T) {
 	for _, c := range Commands {
-		if c.Desc == "" && c.Name != "git-base" {
+		if c.Desc == "" {
 			t.Errorf("%s has no description", c.Name)
 		}
 	}
@@ -19,7 +19,7 @@ func TestUsageLayout(t *testing.T) {
 	for _, want := range []string{
 		"\n  detect-stack               compact stack report\n",
 		"\n  run-checks [--plan] [--only sub...]\n                             every declared check, in every subproject;\n                             exits with the failure count.",
-		"\n  git-base [--diff|--log] [base] [flags] [-- paths]\n  explain",
+		"\n  git-base [--diff|--log] [base] [flags] [-- paths]\n                             the base ref of this checkout, or the diff\n                             or log against it\n  explain",
 	} {
 		if !strings.Contains(usage, want) {
 			t.Errorf("usage lacks %q:\n%s", want, usage)

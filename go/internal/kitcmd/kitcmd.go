@@ -28,7 +28,7 @@ var Commands = []Command{
 	{Name: "run-checks", Args: "[--plan] [--only sub...]", Desc: "every declared check, in every subproject;\nexits with the failure count. --plan lists\nthem, with commands, without running any", Words: []string{"--plan", "--only"}},
 	{Name: "enforce", Args: "--list|classify", Desc: "what the project's configs say to run: source,\nfile, stage, dir, name, files, command;\nclassify adds each verified verdict, asking\nthe classifier for what the cache lacks", Words: []string{"--list", "classify"}},
 	{Name: "gates", Args: "reset [--restore]", Desc: "let the gates seen changing files run again;\n--restore first puts those files back as the\nrun that saw it found them", Words: []string{"reset"}},
-	{Name: "git-base", Args: "[--diff|--log] [base] [flags] [-- paths]", Words: []string{"--diff", "--log"}, ReadOnly: true},
+	{Name: "git-base", Args: "[--diff|--log] [base] [flags] [-- paths]", Desc: "the base ref of this checkout, or the diff\nor log against it", Words: []string{"--diff", "--log"}, ReadOnly: true},
 	{Name: "explain", Args: "bash|edit|stop ...", Desc: "why a guard or the Stop hook decides what it\ndoes; logs, blocks, and runs nothing", Words: []string{"bash", "edit", "stop"}},
 	{Name: "blast-radius", Args: "<file> [symbol]", Desc: "the files that import <file>", Path: "file", ReadOnly: true},
 	{Name: "scratch-rotate", Args: "[days] [--dry-run]", Desc: "prune old scratch artifacts and caches", Words: []string{"--dry-run"}},

@@ -1,5 +1,5 @@
 // Command kit is claude-kit's single binary: hooks and helper scripts as
-// subcommands, reached through same-name shims in hooks/ and bin/.
+// subcommands, reached through the bin/kit launcher.
 package main
 
 import (
@@ -83,20 +83,22 @@ func run(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprint(stderr, kitcmd.Usage())
 		return 2
 	}
+	name, rest := args[0], args[1:]
+	switch name {
+	case "-h", "--help", "help":
+		fmt.Fprint(stdout, kitcmd.Usage())
+		return 0
+	case "version", "--version":
+		fmt.Fprintln(stdout, version)
+		return 0
+	}
 	e, err := newEnv(stdout, stderr)
 	if err != nil {
 		fmt.Fprintln(stderr, "kit:", err)
 		return 1
 	}
 
-	name, rest := args[0], args[1:]
 	switch name {
-	case "-h", "--help", "help":
-		fmt.Fprint(stdout, kitcmd.Usage())
-		return 0
-	case "version":
-		fmt.Fprintln(stdout, version)
-		return 0
 	case "completion":
 		return cmdCompletion(rest, stdout, stderr)
 	case "config":

@@ -157,6 +157,24 @@ func TestProjectRootUnanchoredPrintsTheLogicalPWD(t *testing.T) {
 	}
 }
 
+// Help and version need no paths, so they answer where none resolve.
+func TestHelpAndVersionNeedNoHome(t *testing.T) {
+	sandbox(t)
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
+	t.Setenv("HOME", "")
+	for _, c := range []struct{ arg, want string }{
+		{"version", version + "\n"},
+		{"--version", version + "\n"},
+		{"--help", "git-base"},
+		{"help", "the base ref of this checkout"},
+	} {
+		code, stdout, stderr := runFrom(t, tmp(t), c.arg)
+		if code != 0 || !strings.Contains(stdout, c.want) {
+			t.Errorf("kit %s: exit %d, stdout %q lacks %q; stderr %q", c.arg, code, stdout, c.want, stderr)
+		}
+	}
+}
+
 func TestScratchDirFollowsClaudeConfigDir(t *testing.T) {
 	home, configDir := sandbox(t)
 	outside := mkdir(t, filepath.Join(tmp(t), "plain/a/b"))
