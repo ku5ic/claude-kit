@@ -19,11 +19,15 @@ import (
 const Timeout = 30 * time.Second
 
 // Command is git with args, run in dir ("" is the working directory).
+// Optional locks are off: a status or diff refreshing the index would hold
+// index.lock against the user's own git add or commit.
 func Command(dir string, args ...string) *proc.Cmd {
 	if dir != "" {
 		args = append([]string{"-C", dir}, args...)
 	}
-	return proc.Command(Timeout, "git", args...)
+	cmd := proc.Command(Timeout, "git", args...)
+	cmd.Env = append(cmd.Environ(), "GIT_OPTIONAL_LOCKS=0")
+	return cmd
 }
 
 // Output is git's stdout, as written.

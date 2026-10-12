@@ -28,6 +28,32 @@ func repo(t *testing.T) string {
 	return dir
 }
 
+// A status with stale stat info would rewrite the index under index.lock,
+// racing the user's own git add or commit.
+func TestStatusLeavesTheIndexAlone(t *testing.T) {
+	t.Parallel()
+	dir := repo(t)
+	old := time.Now().Add(-time.Hour)
+	if err := os.Chtimes(filepath.Join(dir, "a.txt"), old, old); err != nil {
+		t.Fatal(err)
+	}
+	index := filepath.Join(dir, ".git", "index")
+	before, err := os.Stat(index)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := git.Output(dir, "status", "--porcelain"); err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.Stat(index)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !os.SameFile(before, after) {
+		t.Error("git status rewrote .git/index")
+	}
+}
+
 func TestBaseFallsBackToMain(t *testing.T) {
 	t.Parallel()
 	if base, ok := git.Base(repo(t), ""); !ok || base != "main" {
