@@ -9,130 +9,140 @@
 package rotate
 
 import (
-	"bufio"
-	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
+	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
+	"github.com/ku5ic/claude-kit/go/internal/git"
+	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 )
 
-var positive = regexp.MustCompile(`^[1-9][0-9]*$`)
-
 // Run is `kit scratch-rotate [days] [--dry-run]`; it returns the exit status.
-func Run(cfg *config.Config, paths config.Paths, args []string, stdout, stderr io.Writer) int {
-	dryRun, days := false, "30"
-	for _, a := range args {
-		if a == "--dry-run" {
-			dryRun = true
-		} else {
-			days = a
-		}
-	}
-	if !positive.MatchString(days) {
-		fmt.Fprintf(stderr, "scratch-rotate: retention window must be a positive integer, got '%s'\n", days)
-		return 2
-	}
-	n, _ := strconv.Atoi(days)
-	home := os.Getenv("HOME")
-	r := &rotator{now: time.Now(), dryRun: dryRun, log: filepath.Join(paths.LogDir(), "scratch-rotate.log")}
-	pruned, dropping := "pruned", "dropping"
-	r.verb = "deleted"
+func Run(paths config.Paths, n int, dryRun bool, stdout, stderr io.Writer) int {
+	r := &rotator{now: time.Now(), dryRun: dryRun, log: filepath.Join(paths.LogDir(), "scratch-rotate.log"),
+		verb: "deleted", pruned: "pruned", stdout: stdout}
 	if dryRun {
-		r.verb, pruned, dropping = "would-delete", "would prune", "would drop"
+		r.verb, r.pruned = "would-delete", "would prune"
 	}
-	_ = os.MkdirAll(paths.LogDir(), 0o755)
-
 	scratch := paths.ScratchHome()
-	if isDir(scratch) {
-		// .md artifacts by the retention window; .injected-* session
-		// markers after a day: they only dedupe within a session.
-		removed := r.prune(scratch, n, false, func(name string) bool { return strings.HasSuffix(name, ".md") })
-		markers := r.prune(scratch, 1, true, func(name string) bool { return strings.HasPrefix(name, ".injected-") })
-		fmt.Fprintf(stdout, "scratch-rotate: %s %d artifact(s) older than %dd from %s\n", pruned, removed, n, scratch)
-		fmt.Fprintf(stdout, "scratch-rotate: %s %d session marker(s) older than 1d from %s\n", pruned, markers, scratch)
+	if fsx.IsDir(scratch) {
+		removed := r.prune(scratch, n, func(name string) bool { return strings.HasSuffix(name, ".md") })
+		fmt.Fprintf(stdout, "scratch-rotate: %s %d artifact(s) older than %dd from %s\n", r.pruned, removed, n, scratch)
 	}
-
-	loaded := filepath.Join(paths.CacheDir(), "skills-loaded")
-	if isDir(loaded) {
-		fmt.Fprintf(stdout, "scratch-rotate: %s %d skill-loaded marker(s) older than 1d from %s\n", pruned, r.prune(loaded, 1, false, nil), loaded)
-	}
-
-	registry := filepath.Join(paths.LogDir(), "scratch-registry.txt")
-	if data, err := os.ReadFile(registry); err == nil {
-		var keep []string
-		for dir := range strings.SplitSeq(string(data), "\n") {
-			switch {
-			case dir == "":
-			case !isDir(dir):
-				fmt.Fprintf(stdout, "scratch-rotate: %s stale registry entry %s (directory no longer exists)\n", dropping, dir)
-			case !validScratchDir(dir, home):
-				fmt.Fprintf(stderr, "scratch-rotate: REFUSING registry entry %s (not a plain scratch/ dir under $HOME)\n", dir)
-				keep = append(keep, dir)
-			default:
-				// Project scratch holds test artifacts and POC files of any
-				// extension, so it prunes by age alone.
-				fmt.Fprintf(stdout, "scratch-rotate: %s %d artifact(s) older than %dd from %s\n", pruned, r.prune(dir, n, false, nil), n, dir)
-				keep = append(keep, dir)
-			}
-		}
-		if !dryRun {
-			writeLines(registry, keep)
+	for _, d := range cache.Dirs {
+		if dir := filepath.Join(paths.CacheDir(), d.Name); fsx.IsDir(dir) {
+			fmt.Fprintf(stdout, "scratch-rotate: %s %d %s older than %dd from %s\n", r.pruned, r.prune(dir, d.Days, nil), d.What, d.Days, dir)
 		}
 	}
-
-	// Every JSONL log the kit writes is capped here; the hooks that append
-	// to them never trim.
-	logs, _ := filepath.Glob(filepath.Join(paths.LogDir(), "*.jsonl"))
-	for _, log := range logs {
-		if !isFile(log) {
-			continue
-		}
-		name := filepath.Base(log)
-		lines, err := readLines(log)
-		if err != nil {
-			// Trimming what was read so far would drop the unread rest.
-			fmt.Fprintf(stdout, "scratch-rotate: %s not trimmed, unreadable: %v\n", name, err)
-			continue
-		}
-		switch total := len(lines); {
-		case total <= cfg.LogMaxLines:
-			fmt.Fprintf(stdout, "scratch-rotate: %s has %d lines, no trim needed\n", name, total)
-		case dryRun:
-			fmt.Fprintf(stdout, "scratch-rotate: would trim %s from %d to %d lines\n", name, total, cfg.LogMaxLines)
-		default:
-			writeLines(log, lines[total-cfg.LogMaxLines:])
-			fmt.Fprintf(stdout, "scratch-rotate: trimmed %s from %d to %d lines\n", name, total, cfg.LogMaxLines)
-		}
-	}
+	r.registry(paths.ScratchRegistry(), n, stderr)
 	return 0
+}
+
+// registry prunes every project scratch dir the registry lists by age
+// alone (project scratch holds test artifacts and POC files of any
+// extension), dropping entries whose directory is gone.
+func (r *rotator) registry(registry string, n int, stderr io.Writer) {
+	data, err := os.ReadFile(registry)
+	if err != nil {
+		return
+	}
+	dropping := "dropping"
+	if r.dryRun {
+		dropping = "would drop"
+	}
+	home := os.Getenv("HOME")
+	var keep []string
+	for dir := range strings.SplitSeq(string(data), "\n") {
+		switch {
+		case dir == "":
+		case !fsx.IsDir(dir):
+			fmt.Fprintf(r.stdout, "scratch-rotate: %s stale registry entry %s (directory no longer exists)\n", dropping, dir)
+		case !validScratchDir(dir, home):
+			fmt.Fprintf(stderr, "scratch-rotate: REFUSING registry entry %s (not a plain scratch/ dir under $HOME)\n", dir)
+			keep = append(keep, dir)
+		default:
+			r.worktrees(dir, stderr)
+			fmt.Fprintf(r.stdout, "scratch-rotate: %s %d artifact(s) older than %dd from %s\n", r.pruned, r.prune(dir, n, nil), n, dir)
+			keep = append(keep, dir)
+		}
+	}
+	if !r.dryRun {
+		writeLines(registry, keep)
+	}
 }
 
 type rotator struct {
 	now    time.Time
 	dryRun bool
-	verb   string
+	verb   string // the rotate log's word for a delete
+	pruned string // the output's
 	log    string
+	stdout io.Writer
 }
 
-// prune deletes the regular files under dir (only dir itself with
-// topOnly) matching keep whose modification is more than days whole days
-// old, as find's -mtime +days, and records each in the rotate log.
-func (r *rotator) prune(dir string, days int, topOnly bool, keep func(string) bool) int {
+// worktrees removes the review-* git worktrees directly under a project
+// scratch dir whose creation (their .git file) is more than a day old: a
+// review that ended without cleaning up leaves one behind.
+func (r *rotator) worktrees(dir string, stderr io.Writer) {
+	gitFiles, _ := filepath.Glob(filepath.Join(dir, "review-*", ".git"))
+	var removed []string
+	for _, gitFile := range gitFiles {
+		info, err := os.Lstat(gitFile)
+		if err != nil || !info.Mode().IsRegular() || !cache.Older(info.ModTime(), 1, r.now) {
+			continue
+		}
+		wt := filepath.Dir(gitFile)
+		if why := keepWorktree(wt); why != "" {
+			fmt.Fprintf(r.stdout, "scratch-rotate: kept %s %s\n", why, wt)
+			continue
+		}
+		if !r.dryRun {
+			if out, err := git.Command(wt, "worktree", "remove", "--force", wt).CombinedOutput(); err != nil {
+				fmt.Fprintf(stderr, "scratch-rotate: can't remove review worktree %s: %s\n", wt, strings.TrimSpace(string(out)))
+				continue
+			}
+		}
+		fmt.Fprintf(r.stdout, "scratch-rotate: %s review worktree older than 1d %s\n", r.verb, wt)
+		removed = append(removed, wt)
+	}
+	r.record(removed)
+}
+
+// keepWorktree is why a review worktree must stay, or "": git refuses to
+// remove a locked one, and --force would drop uncommitted work.
+func keepWorktree(wt string) string {
+	gitDir, err := git.Line(wt, "rev-parse", "--absolute-git-dir")
+	changes, statusErr := git.Status(wt, false)
+	switch {
+	case err != nil || statusErr != nil:
+		return "unreadable review worktree"
+	case fsx.IsFile(filepath.Join(gitDir, "locked")):
+		return "locked review worktree"
+	case len(changes) > 0:
+		return "review worktree with uncommitted changes"
+	}
+	return ""
+}
+
+// prune deletes the regular files under dir matching keep (every one when
+// nil) whose modification is more than days whole days old, and records
+// each in the rotate log. It never enters a nested git
+// checkout: deleting its old files would corrupt it.
+func (r *rotator) prune(dir string, days int, keep func(string) bool) int {
 	var matched []string
 	_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
 		if d.IsDir() {
-			if topOnly && path != dir {
+			if path != dir && isCheckout(path) {
 				return filepath.SkipDir
 			}
 			return nil
@@ -141,7 +151,7 @@ func (r *rotator) prune(dir string, days int, topOnly bool, keep func(string) bo
 			return nil
 		}
 		info, err := d.Info()
-		if err != nil || int(r.now.Sub(info.ModTime())/(24*time.Hour)) <= days {
+		if err != nil || !cache.Older(info.ModTime(), days, r.now) {
 			return nil
 		}
 		if !r.dryRun && os.Remove(path) != nil {
@@ -150,16 +160,27 @@ func (r *rotator) prune(dir string, days int, topOnly bool, keep func(string) bo
 		matched = append(matched, path)
 		return nil
 	})
-	if len(matched) > 0 {
-		if f, err := os.OpenFile(r.log, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644); err == nil {
-			prefix := r.now.UTC().Format("2006-01-02T15:04:05Z") + " " + r.verb + " "
-			for _, m := range matched {
-				fmt.Fprintln(f, prefix+m)
-			}
-			f.Close()
-		}
-	}
+	r.record(matched)
 	return len(matched)
+}
+
+// record appends each deleted path to the rotate log.
+func (r *rotator) record(paths []string) {
+	if len(paths) == 0 {
+		return
+	}
+	prefix := r.now.UTC().Format(kitlog.TimeLayout) + " " + r.verb + " "
+	var lines strings.Builder
+	for _, p := range paths {
+		lines.WriteString(prefix + p + "\n")
+	}
+	_ = fsx.Append(r.log, []byte(lines.String()))
+}
+
+// isCheckout reports whether dir is a git checkout: a repo or a worktree.
+func isCheckout(dir string) bool {
+	_, err := os.Lstat(filepath.Join(dir, ".git"))
+	return err == nil
 }
 
 // validScratchDir treats a registry line as untrusted: absolute, no "..",
@@ -177,49 +198,12 @@ func validScratchDir(dir, home string) bool {
 	return os.IsNotExist(err)
 }
 
-func isDir(p string) bool {
-	info, err := os.Stat(p)
-	return err == nil && info.IsDir()
-}
-
-func isFile(p string) bool {
-	info, err := os.Stat(p)
-	return err == nil && info.Mode().IsRegular()
-}
-
-func readLines(path string) ([]string, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	var lines []string
-	s := bufio.NewScanner(f)
-	s.Buffer(make([]byte, 1024*1024), 64*1024*1024)
-	for s.Scan() {
-		lines = append(lines, s.Text())
-	}
-	return lines, s.Err()
-}
-
 // writeLines replaces path atomically with lines, one per line.
 func writeLines(path string, lines []string) {
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".rotate-*")
-	if err != nil {
-		return
-	}
-	w := bufio.NewWriter(tmp)
+	var b strings.Builder
 	for _, l := range lines {
-		// bufio errors are sticky: Flush below reports any of them.
-		_, _ = w.WriteString(l)
-		_ = w.WriteByte('\n')
+		b.WriteString(l)
+		b.WriteByte('\n')
 	}
-	// A short write must not replace the log with a truncated copy.
-	if err := errors.Join(w.Flush(), tmp.Close()); err != nil {
-		os.Remove(tmp.Name())
-		return
-	}
-	if os.Rename(tmp.Name(), path) != nil {
-		os.Remove(tmp.Name())
-	}
+	_ = fsx.WriteAtomic(path, []byte(b.String()), 0o600)
 }

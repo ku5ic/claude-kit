@@ -2,22 +2,32 @@
 
 What must happen before a change is called done, and when. This file is the one definition of "done" and "verify"; others point here.
 
-| When                                                                                                                 | What runs                                                                        |
-| -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| After every edit                                                                                                     | The Stop hook's checks on the edited files. Automatic; a failure blocks the turn |
-| Calling an ordinary change done                                                                                      | Nothing more. Cite the Stop hook's result, and name in one line anything not run |
-| End of a plan, or when the user asks                                                                                 | `/code-review` (section 1); its hook runs the full suite, so never run it apart  |
-| Same moment, when the change has observable behavior (a response, output, an exit code, data written, a side effect) | The runtime pass (section 2)                                                     |
+| When                                                                                                                 | What runs                                                                                                                                                                                                                                                                                                        |
+| -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| After every edit                                                                                                     | The Stop hook's checks on the edited files. Automatic; a failure blocks the turn                                                                                                                                                                                                                                 |
+| Calling an ordinary change done                                                                                      | The refactor pass first: first green is never done (`skills/engineering-fundamentals/reference/red-green-refactor.md`). Then nothing more. The Stop hook is silent unless it blocks: cite `kit explain stop`, which shows its last run, and name in one line what the refactor pass changed and anything not run |
+| End of a plan, or when the user asks                                                                                 | `/code-review` (section 1); the reviewer runs the full suite at its end, so never run it apart                                                                                                                                                                                                                   |
+| Same moment, when the change has observable behavior (a response, output, an exit code, data written, a side effect) | The runtime pass (section 2)                                                                                                                                                                                                                                                                                     |
 
 Tests and type checks prove the code compiles and the asserted paths pass. They don't prove the change works for whoever consumes it; that is what the runtime pass is for. A pure refactor with no behavior change is covered by the existing tests.
 
 ## 1. Self-review (`/code-review`)
 
-Read your own diff as a reviewer who didn't write it and doesn't trust it. Its hook hands it the full suite's result; each failure there is a finding. Ticking a plan's last step without one since the last edit blocks the stop.
+Read your own diff as a reviewer who didn't write it and doesn't trust it. Before it reports, a SubagentStop hook sends it back to run `kit run-checks` unless it already has. Ticking a plan's last step blocks the stop until a review started after the last edit has finished.
+
+The reviewer's report follows these, whoever prompted the checks:
+
+- It opens with the `checks: N passed, M failed` result, or, for a target it didn't check out, one line saying local checks didn't run. Only the branch-left line from `rules/workflow.md` section 1 goes above it.
+- Under that line, one line per check, as `kit run-checks` labels it: PASS, FAIL, or SKIP, and for each SKIP the reason it printed. A count alone doesn't say what ran.
+- A FAIL becomes a finding only once its cause is verified in the code and you're at least 90% sure, and never twice for something already reported.
+- A FAIL left unreported gets one line saying why: pre-existing, flaky, or unrelated.
+
+A PR or another branch is reviewed checked out, never from its diff alone; this applies to `/verify` too. How it's checked out: `rules/workflow.md` section 1.
 
 - Every new helper, module, type, or abstraction names what was searched for and not found, per `rules/change.md` section 2. "I didn't look" is a finding against the change.
 - Every non-obvious decision gets one line answering "why this, not the obvious alternative". A decision you can't justify is a decision you took from a generated draft without checking it.
-- Review findings are claims, per `rules/workflow.md` section 4. Check each against the code before applying it.
+- What a refactor pass would have removed is a finding: duplication, a redundant call, a leftover, a helper restating another. Code committed at first green skipped that pass.
+- Review findings are claims, per `rules/workflow.md` section 4.
 
 ## 2. Use it until it breaks (the runtime pass, with `/verify`)
 
@@ -55,7 +65,7 @@ The report lists three things, one line per case:
 2. **Not exercised**: the case and why (no data, no access, out of scope).
 3. **Raise with**: see section 3.
 
-"Looked fine" is not a result. A case that broke goes back to the fix loop before anything else.
+"Looked fine" is not a result. A case that broke goes back to the fix loop when section 5 says it's a regression; anything else is a follow-up.
 
 ## 3. Raise upstream gaps
 
@@ -69,4 +79,13 @@ An edge case the spec, the contract, or the design doesn't cover is a question f
 The agent proposes; the human decides and owns the result. Agent output, including a generated plan, review, or fix, is a draft with its reasons attached, never a decision already taken.
 
 - Present a non-obvious choice with its alternative and the reason, so the human can overrule it.
-- Don't claim done on behalf of the human. Done means the checks the table at the top requires ran after the last edit, with output cited, per `rules/evidence.md` section 1.
+- Don't claim done on behalf of the human. Done means the checks the table at the top requires ran after the last edit, with their output cited; without that, say what was not run.
+
+## 5. One cycle, then stop
+
+A change gets one `/code-review` and one runtime pass. A finding from either goes back to the fix loop only when it's a regression: the change leaves something worse than on the base branch (`kit git-base`). That means a new failure, a path that worked and now breaks, or a guard or check weakened.
+
+Everything else is a follow-up line in the report and the PR description, never another cycle: a pre-existing problem, an edge case the base already had, a hardening idea, a gap in new code that still improves on the base.
+
+- Fixing a regression re-runs only the case or check that found it, not the whole review or runtime pass.
+- Another full review or runtime pass runs only when the user asks for one.

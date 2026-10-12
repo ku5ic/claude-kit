@@ -4,18 +4,29 @@
 package status
 
 import (
-	"bufio"
+	"bytes"
+	"cmp"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
+	"io/fs"
+	"maps"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
+	"syscall"
 	"time"
+
+	"github.com/ku5ic/claude-kit/go/internal/cache"
+	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
+	"github.com/ku5ic/claude-kit/go/internal/git"
+	"github.com/ku5ic/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/sources"
+	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
 const (
@@ -38,15 +49,7 @@ const (
 // jqString is jq -r's rendering of `.a.b // default`: a missing, null, or
 // false value gives default; a number prints in jq's shortest form.
 func jqString(data map[string]any, path, def string) string {
-	var v any = data
-	for part := range strings.SplitSeq(path, ".") {
-		m, ok := v.(map[string]any)
-		if !ok {
-			return def
-		}
-		v = m[part]
-	}
-	switch x := v.(type) {
+	switch x := sources.GetPath(data, path).(type) {
 	case nil:
 		return def
 	case bool:
@@ -71,56 +74,52 @@ func Statusline(stdin io.Reader, stdout io.Writer, home string) {
 	raw, _ := io.ReadAll(stdin)
 	var data map[string]any
 	_ = json.Unmarshal(raw, &data) // bad input renders the defaults
+	fmt.Fprintf(stdout, "%s\n%s\n", modelRow(data, home), usageRow(data))
+}
 
+// modelRow is the model, any model divergence, the agent, the directory,
+// and the git segment.
+func modelRow(data map[string]any, home string) string {
 	modelName := jqString(data, "model.display_name", "unknown")
 	cwd := jqString(data, "workspace.current_dir", "")
-	sessionID := jqString(data, "session_id", "")
-	ctxPct := jqString(data, "context_window.used_percentage", "0")
-	cost := jqString(data, "cost.total_cost_usd", "0")
-	durationMS := jqString(data, "cost.total_duration_ms", "0")
-	effort := jqString(data, "effort.level", "")
-	fiveH := jqString(data, "rate_limits.five_hour.used_percentage", "")
-	agent := jqString(data, "agent.name", "")
-	if agent == "" {
-		agent = jqString(data, "agent_type", "")
-	}
-	transcript := jqString(data, "transcript_path", "")
+	agent := cmp.Or(jqString(data, "agent.name", ""), jqString(data, "agent_type", ""))
+	actualShort, actualDisplay, sessionShort, declaredShort, declaredDisplay := models(jqString(data, "transcript_path", ""), modelName)
 
-	actualShort, actualDisplay, sessionShort, declaredShort, declaredDisplay := models(transcript, modelName)
-
-	dirName := filepath.Base(cwd)
-	if cwd == "" {
-		dirName = "."
-	}
-	gitSegment := gitStatus(home, cwd, sessionID)
-
-	row1 := modelColor + modelName + reset
+	row := modelColor + modelName + reset
 	switch {
 	case declaredShort != "":
 		// Usually the override silently fell back to the session model,
 		// already shown first; name the actual model only when it's a
 		// third, different one.
 		if actualShort == sessionShort {
-			row1 += "  " + red + "!" + declaredDisplay + reset
+			row += "  " + red + "!" + declaredDisplay + reset
 		} else {
-			row1 += "  " + red + "!" + declaredDisplay + "->  " + actualDisplay + reset
+			row += "  " + red + "!" + declaredDisplay + "->  " + actualDisplay + reset
 		}
 	case actualShort != "" && actualShort != sessionShort:
-		row1 += "  " + yellow + "->  " + actualDisplay + reset
+		row += "  " + yellow + "->  " + actualDisplay + reset
 	}
 	if agent != "" {
-		row1 += " (" + agent + ")"
+		row += " (" + agent + ")"
 	}
-	row1 += "  " + dirColor + dirName + reset
-	if gitSegment != "" {
-		parts := strings.SplitN(gitSegment, "\t", 3)
+	dirName := filepath.Base(cwd)
+	if cwd == "" {
+		dirName = "."
+	}
+	row += "  " + dirColor + dirName + reset
+	if seg := gitStatus(home, cwd, jqString(data, "session_id", "")); seg != "" {
+		parts := strings.SplitN(seg, "\t", 3)
 		for len(parts) < 3 {
 			parts = append(parts, "")
 		}
-		row1 += "  " + branchColor + parts[0] + reset + " " + addColor + "+" + parts[1] + reset + " " + delColor + "~" + parts[2] + reset
+		row += "  " + branchColor + parts[0] + reset + " " + addColor + "+" + parts[1] + reset + " " + delColor + "~" + parts[2] + reset
 	}
+	return row
+}
 
-	ctx, _ := strconv.Atoi(strings.SplitN(ctxPct, ".", 2)[0])
+// usageRow is the context bar, cost, duration, effort, and 5h rate limit.
+func usageRow(data map[string]any) string {
+	ctx, _ := strconv.Atoi(strings.SplitN(jqString(data, "context_window.used_percentage", "0"), ".", 2)[0])
 	ctx = min(max(ctx, 0), 100)
 	filled := ctx / (100 / barWidth)
 	color := green
@@ -131,35 +130,35 @@ func Statusline(stdin io.Reader, stdout io.Writer, home string) {
 		color = yellow
 	}
 	bar := strings.Repeat("█", filled) + strings.Repeat("░", barWidth-filled)
-
-	costFmt := cost
+	cost := jqString(data, "cost.total_cost_usd", "0")
 	if f, err := strconv.ParseFloat(cost, 64); err == nil {
-		costFmt = fmt.Sprintf("%.2f", f)
+		cost = fmt.Sprintf("%.2f", f)
 	}
-	ms, _ := strconv.ParseFloat(durationMS, 64)
-	seconds := int(ms) / 1000
-	var duration string
-	switch {
-	case seconds >= 3600:
-		duration = fmt.Sprintf("%dh %dm", seconds/3600, seconds%3600/60)
-	case seconds >= 60:
-		duration = fmt.Sprintf("%dm", seconds/60)
-	default:
-		duration = fmt.Sprintf("%ds", seconds)
-	}
-
-	row2 := fmt.Sprintf("%s%s%s %d%%  $%s   %s%s%s", color, bar, reset, ctx, costFmt, durationColor, duration, reset)
+	ms, _ := strconv.ParseFloat(jqString(data, "cost.total_duration_ms", "0"), 64)
+	row := fmt.Sprintf("%s%s%s %d%%  $%s   %s%s%s", color, bar, reset, ctx, cost, durationColor, duration(int(ms)/1000), reset)
 	tail := ""
-	if effort != "" {
+	if effort := jqString(data, "effort.level", ""); effort != "" {
 		tail += "  effort:" + effort
 	}
-	if fiveH != "" {
+	if fiveH := jqString(data, "rate_limits.five_hour.used_percentage", ""); fiveH != "" {
 		tail += "  5h:" + strings.SplitN(fiveH, ".", 2)[0] + "%"
 	}
 	if tail != "" {
-		row2 += " " + tail
+		row += " " + tail
 	}
-	fmt.Fprintf(stdout, "%s\n%s\n", row1, row2)
+	return row
+}
+
+// duration is seconds as "1h 2m", "3m", or "45s".
+func duration(seconds int) string {
+	switch {
+	case seconds >= 3600:
+		return fmt.Sprintf("%dh %dm", seconds/3600, seconds%3600/60)
+	case seconds >= 60:
+		return fmt.Sprintf("%dm", seconds/60)
+	default:
+		return fmt.Sprintf("%ds", seconds)
+	}
 }
 
 var (
@@ -191,35 +190,14 @@ func modelShort(id string) string {
 // skill's per-turn override. It also finds a model a skill declared this
 // turn (a command_permissions attachment newer than the turn's prompt)
 // that didn't take.
-func models(transcript, modelName string) (actualShort, actualDisplay, sessionShort, declaredShort, declaredDisplay string) {
-	if transcript == "" {
+func models(path, modelName string) (actualShort, actualDisplay, sessionShort, declaredShort, declaredDisplay string) {
+	if path == "" {
 		return
 	}
-	lines := tailLines(transcript, 60)
-	type entry struct {
-		Type        string `json:"type"`
-		IsMeta      bool   `json:"isMeta"`
-		IsSidechain bool   `json:"isSidechain"`
-		Timestamp   string `json:"timestamp"`
-		Message     struct {
-			Model   string          `json:"model"`
-			Content json.RawMessage `json:"content"`
-		} `json:"message"`
-		Attachment struct {
-			Type  string `json:"type"`
-			Model string `json:"model"`
-		} `json:"attachment"`
-	}
-	var entries []entry
-	for _, line := range lines {
-		var e entry
-		if json.Unmarshal([]byte(line), &e) == nil {
-			entries = append(entries, e)
-		}
-	}
+	entries, _ := transcript.Tail(path, 60)
 	since, actualID := "", ""
 	for _, e := range entries {
-		if e.Type == "user" && !e.IsMeta && promptText(e.Message.Content) != "" {
+		if e.Type == "user" && !e.IsMeta && e.PromptText() != "" {
 			since = e.Timestamp
 		}
 		if e.Type == "assistant" && !e.IsSidechain && e.Message.Model != "" {
@@ -247,52 +225,8 @@ func models(transcript, modelName string) (actualShort, actualDisplay, sessionSh
 	return
 }
 
-// promptText is a user entry's text: the string content, or its text
-// blocks joined.
-func promptText(content json.RawMessage) string {
-	var s string
-	if json.Unmarshal(content, &s) == nil {
-		return s
-	}
-	var blocks []struct {
-		Type string `json:"type"`
-		Text string `json:"text"`
-	}
-	if json.Unmarshal(content, &blocks) != nil {
-		return ""
-	}
-	var texts []string
-	for _, b := range blocks {
-		if b.Type == "text" {
-			texts = append(texts, b.Text)
-		}
-	}
-	return strings.Join(texts, "\n")
-}
-
-func tailLines(path string, n int) []string {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil
-	}
-	defer f.Close()
-	// Transcripts grow large; read only the end.
-	const window = 4 << 20
-	if info, err := f.Stat(); err == nil && info.Size() > window {
-		_, _ = f.Seek(-window, io.SeekEnd) // failing, it reads from the start: slower, same tail
-	}
-	var lines []string
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 1024*1024), 32*1024*1024)
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-	if scanner.Err() != nil {
-		// What was read before the error is not the file's tail.
-		return nil
-	}
-	return lines[max(0, len(lines)-n):]
-}
+// unsafeSessionChars are what a session id loses to name a cache file.
+var unsafeSessionChars = regexp.MustCompile(`[^a-zA-Z0-9_-]`)
 
 // gitStatus is "branch\tadditions\tdeletions" for cwd's repo, cached per
 // session for STATUSLINE_CACHE_TTL seconds (default 1, statusLine's
@@ -300,33 +234,56 @@ func tailLines(path string, n int) []string {
 // `git diff --shortstat` counts; not `git diff HEAD`, which fails on an
 // unborn branch.
 func gitStatus(home, cwd, sessionID string) string {
-	if cwd == "" || exec.Command("git", "-C", cwd, "rev-parse", "--is-inside-work-tree").Run() != nil {
+	if cwd == "" {
 		return ""
 	}
 	ttl, err := strconv.Atoi(os.Getenv("STATUSLINE_CACHE_TTL"))
 	if err != nil || ttl < 0 {
 		ttl = 1
 	}
-	safe := regexp.MustCompile(`[^a-zA-Z0-9_-]`).ReplaceAllString(sessionID, "")
+	safe := unsafeSessionChars.ReplaceAllString(sessionID, "")
 	if safe == "" {
 		safe = "nosession"
 	}
-	dir := filepath.Join(home, "cache", "statusline")
+	dir := filepath.Join(config.Paths{Home: home}.CacheDir(), cache.Statusline)
 	file := filepath.Join(dir, "git-"+safe)
 	if info, err := os.Stat(file); err == nil && info.Size() > 0 && time.Now().Unix()-info.ModTime().Unix() < int64(ttl) {
 		data, _ := os.ReadFile(file)
 		return strings.TrimSuffix(string(data), "\n")
 	}
-	_ = os.MkdirAll(dir, 0o755) // without it, the segment just isn't cached
-	out, _ := exec.Command("git", "-C", cwd, "branch", "--show-current").Output()
-	branch := strings.TrimSpace(string(out))
+	// Independent git reads, run at once: this renders every second.
+	// Untracked files are listed from the top: ls-files --others lists only
+	// cwd's subtree, numstat the whole repo. diff-files, not diff: a worktree
+	// diff refreshes the index under index.lock even with optional locks off.
+	var top, branch, unstaged, staged string
+	var untracked []string
+	var wg sync.WaitGroup
+	wg.Go(func() { branch, _ = git.Branch(cwd) })
+	wg.Go(func() { unstaged, _ = git.Output(cwd, "diff-files", "--numstat") })
+	wg.Go(func() { staged, _ = git.Output(cwd, "diff", "--cached", "--numstat") })
+	wg.Go(func() {
+		if top = git.Toplevel(cwd); top != "" {
+			untracked, _ = git.Paths(top, "ls-files", "--others", "--exclude-standard", "-z")
+		}
+	})
+	wg.Wait()
+	if top == "" {
+		return ""
+	}
 	if branch == "" {
 		branch = "detached"
 	}
-	add, del := 0, 0
-	for _, args := range [][]string{{"diff", "--numstat"}, {"diff", "--cached", "--numstat"}} {
-		out, _ := exec.Command("git", append([]string{"-C", cwd}, args...)...).Output()
-		for line := range strings.SplitSeq(string(out), "\n") {
+	add, del := numstat(unstaged, staged)
+	add += untrackedLines(top, untracked, file+".untracked")
+	segment := fmt.Sprintf("%s\t%d\t%d", branch, add, del)
+	_ = fsx.WriteAtomic(file, []byte(segment+"\n"), 0o600)
+	return segment
+}
+
+// numstat sums the additions and deletions of git diff --numstat outputs.
+func numstat(outputs ...string) (add, del int) {
+	for _, out := range outputs {
+		for line := range strings.SplitSeq(out, "\n") {
 			f := strings.Fields(line)
 			if len(f) >= 2 {
 				a, _ := strconv.Atoi(f[0]) // "-" for binary files counts 0
@@ -335,15 +292,93 @@ func gitStatus(home, cwd, sessionID string) string {
 			}
 		}
 	}
-	segment := fmt.Sprintf("%s\t%d\t%d", branch, add, del)
-	if tmp, err := os.CreateTemp(dir, ".git-*"); err == nil {
-		_, werr := tmp.WriteString(segment + "\n")
-		// A short write must not be cached for the whole ttl.
-		if errors.Join(werr, tmp.Close()) != nil || os.Rename(tmp.Name(), file) != nil {
-			os.Remove(tmp.Name())
+	return add, del
+}
+
+// untrackedLines counts the untracked files names, under top, as all-new
+// lines, as they will once added. This runs on every refresh, so only
+// regular files are read, a file's count is kept in countsFile until its
+// size or mtime changes, and reads stay within a byte budget: past it, or
+// for one larger file, the count runs low.
+func untrackedLines(top string, names []string, countsFile string) int {
+	var counts map[string]lineCount
+	if data, err := os.ReadFile(countsFile); err != nil || json.Unmarshal(data, &counts) != nil {
+		counts = map[string]lineCount{}
+	}
+	add := 0
+	kept := map[string]lineCount{}
+	budget := int64(untrackedReadBudget)
+	for _, name := range names {
+		path := filepath.Join(top, name)
+		info, err := os.Lstat(path)
+		switch {
+		case err != nil:
+		case info.Mode()&fs.ModeSymlink != 0:
+			add++ // git counts a symlink as one line, its target
+		case !info.Mode().IsRegular():
+		case counts[path].Size == info.Size() && counts[path].Mtime == info.ModTime().UnixNano():
+			kept[path] = counts[path]
+			add += counts[path].Lines
+		case info.Size() <= budget:
+			budget -= info.Size()
+			c := lineCount{Size: info.Size(), Mtime: info.ModTime().UnixNano(), Lines: newLines(path)}
+			kept[path] = c
+			add += c.Lines
 		}
 	}
-	return segment
+	// Only on a change: this runs every second while a session idles.
+	if !maps.Equal(kept, counts) {
+		if data, err := json.Marshal(kept); err == nil {
+			_ = fsx.WriteAtomic(countsFile, data, 0o600)
+		}
+	}
+	return add
+}
+
+// untrackedReadBudget caps the bytes one refresh reads to count untracked lines.
+const untrackedReadBudget = 8 << 20
+
+// lineCount is an untracked file's line count, kept while its size and
+// mtime are unchanged.
+type lineCount struct {
+	Size, Mtime int64
+	Lines       int
+}
+
+// newLines is a new file's line count as git diff --numstat shows it: a
+// last line without a newline counts, and a binary file (a NUL in its first
+// 8000 bytes, git's test) counts 0.
+func newLines(path string) int {
+	// Non-blocking, then Fstat: a path swapped for a FIFO since the caller's
+	// Lstat can't hang the open.
+	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+	if err != nil {
+		return 0
+	}
+	defer f.Close()
+	if info, err := f.Stat(); err != nil || !info.Mode().IsRegular() {
+		return 0
+	}
+	buf := make([]byte, 64*1024)
+	n, last, first := 0, byte('\n'), true
+	for {
+		k, err := f.Read(buf)
+		if first && git.IsBinary(buf[:k]) {
+			return 0
+		}
+		first = false
+		if k > 0 {
+			n += bytes.Count(buf[:k], []byte{'\n'})
+			last = buf[k-1]
+		}
+		if err != nil {
+			break
+		}
+	}
+	if last != '\n' {
+		n++
+	}
+	return n
 }
 
 // SubagentStatusline prints one {"id","content"} JSON object per task:
@@ -365,13 +400,7 @@ func SubagentStatusline(stdin io.Reader, stdout io.Writer) {
 		if id == "" {
 			continue
 		}
-		name := jqString(t, "name", "")
-		if _, ok := t["name"]; !ok || t["name"] == nil || t["name"] == false {
-			name = jqString(t, "label", "")
-			if _, ok := t["label"]; !ok || t["label"] == nil || t["label"] == false {
-				name = jqString(t, "description", "task")
-			}
-		}
+		name := jqString(t, "name", jqString(t, "label", jqString(t, "description", "task")))
 		head := name
 		if status := jqString(t, "status", ""); status != "" {
 			head = name + " [" + status + "]"
@@ -387,15 +416,10 @@ func SubagentStatusline(stdin io.Reader, stdout io.Writer) {
 		if tokens, ok := t["tokenCount"].(float64); ok && size > 0 {
 			fields = append(fields, strconv.Itoa(int(tokens*100/size))+"%")
 		}
-		// Not json.Marshal: it escapes <, >, and &, which jq -c doesn't.
-		enc := json.NewEncoder(&out)
-		enc.SetEscapeHTML(false)
-		if enc.Encode(struct {
+		hook.WriteJSON(&out, struct {
 			ID      string `json:"id"`
 			Content string `json:"content"`
-		}{id, strings.Join(fields, "  ")}) != nil {
-			return
-		}
+		}{id, strings.Join(fields, "  ")})
 	}
 	fmt.Fprint(stdout, out.String())
 }

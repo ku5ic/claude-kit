@@ -92,3 +92,11 @@ Writing, reviewing, or simplifying code, these are what to cut, each replaced by
 - **Boilerplate**: wrappers that only forward, "for later" stubs, code that restates what the framework does.
 
 Never simplification targets: input validation at trust boundaries, error handling that prevents data loss, security controls, and accessibility. Like any refactor, a simplification changes no behavior (section 6).
+
+## 10. Less code is the goal
+
+A long change, one concept touching many files, and a repeated shape are signals to stop before writing it out. Size thresholds: `skills/engineering-fundamentals/reference/metric-thresholds.md`.
+
+1. Copies with divergent lifecycles stay apart (section 8, DRY).
+2. Otherwise take the first that shrinks the code: a language or platform feature, then the pattern `skills/engineering-fundamentals/reference/design-patterns.md` names for the signal, then new code.
+3. A pattern stays only if it removes more lines than it adds across call sites that exist now. Otherwise it's the speculative abstraction section 9 cuts.

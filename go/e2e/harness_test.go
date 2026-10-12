@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
 
 var (
@@ -19,6 +21,13 @@ var (
 	kitRoot string // claude-kit/, the real plugin root
 	// kitBinName is the file bin/kit runs: kit-<plugin.json version>-<os>-<arch>.
 	kitBinName string
+	// fakes is first on every run's PATH: its claude fails, so no run can
+	// reach the real classifier.
+	fakes string
+	// homes holds every sandbox's HOME, removed with the run rather than
+	// with each test: the gap-fill run SessionStart starts in the
+	// background can still be writing to its cache when the test ends.
+	homes string
 )
 
 func TestMain(m *testing.M) {
@@ -32,6 +41,18 @@ func TestMain(m *testing.M) {
 		kitBin = filepath.Join(dir, "kit")
 		if out, err := exec.Command("go", "build", "-o", kitBin, "../cmd/kit").CombinedOutput(); err != nil {
 			fmt.Fprintf(os.Stderr, "build kit: %v\n%s", err, out)
+			return 1
+		}
+		fakes, homes = filepath.Join(dir, "fakes"), filepath.Join(dir, "homes")
+		err = os.MkdirAll(homes, 0o755)
+		if err == nil {
+			err = os.MkdirAll(fakes, 0o755)
+		}
+		if err == nil {
+			err = os.WriteFile(filepath.Join(fakes, "claude"), []byte("#!/bin/sh\nexit 1\n"), 0o755)
+		}
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
 			return 1
 		}
 		root, err := filepath.Abs("../..")
@@ -69,7 +90,11 @@ type Kit struct {
 // New is a sandbox reading the real kit.yml.
 func New(t *testing.T) *Kit {
 	t.Helper()
-	home := Physical(t, t.TempDir())
+	dir, err := os.MkdirTemp(homes, "home")
+	if err != nil {
+		t.Fatal(err)
+	}
+	home := Physical(t, dir)
 	k := &Kit{t: t, Home: home, Claude: filepath.Join(home, ".claude"), Root: kitRoot, Dir: home}
 	Mkdir(t, filepath.Join(k.Claude, "logs"))
 	return k
@@ -170,6 +195,7 @@ func (k *Kit) environ() []string {
 		env = append(env, kv)
 	}
 	env = append(env,
+		"PATH="+basePath(),
 		"HOME="+k.Home,
 		"PWD="+k.Dir, // the kit reads its cwd from PWD, as a shell's cd sets it
 		"CLAUDE_PLUGIN_ROOT="+k.Root,
@@ -181,13 +207,17 @@ func (k *Kit) environ() []string {
 	return append(env, k.Env...)
 }
 
+// basePath is every run's PATH before PrependPath: the fakes, then the
+// test process's own.
+func basePath() string { return fakes + ":" + os.Getenv("PATH") }
+
 // Setenv adds KEY=value to every later run.
 func (k *Kit) Setenv(key, value string) { k.Env = append(k.Env, key+"="+value) }
 
 // PrependPath puts dir first on PATH for every later run, ahead of any
 // dir an earlier call prepended.
 func (k *Kit) PrependPath(dir string) {
-	path := os.Getenv("PATH")
+	path := basePath()
 	for _, kv := range k.Env {
 		if v, ok := strings.CutPrefix(kv, "PATH="); ok {
 			path = v
@@ -267,38 +297,15 @@ func Payload(tool, target, session, cwd string) map[string]any {
 	return p
 }
 
-// Write writes body to path, creating its directories.
-func Write(t *testing.T, path, body string) {
-	t.Helper()
-	Mkdir(t, filepath.Dir(path))
-	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
-		t.Fatal(err)
-	}
-}
-
-// Stub writes an executable bash script to path; body follows the shebang.
-func Stub(t *testing.T, path, body string) {
-	t.Helper()
-	Write(t, path, "#!/usr/bin/env bash\n"+body)
-	if err := os.Chmod(path, 0o755); err != nil {
-		t.Fatal(err)
-	}
-}
-
-// Touch creates empty files, and their directories.
-func Touch(t *testing.T, paths ...string) {
-	t.Helper()
-	for _, p := range paths {
-		Write(t, p, "")
-	}
-}
-
-func Mkdir(t *testing.T, dir string) {
-	t.Helper()
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-}
+// The file helpers every suite shares.
+var (
+	Write     = testutil.Write
+	Stub      = testutil.Stub
+	Touch     = testutil.Touch
+	Mkdir     = testutil.Mkdir
+	Physical  = testutil.Physical
+	JSONLines = testutil.JSONLines
+)
 
 // Read is path's content; a missing file reads as "".
 func Read(t *testing.T, path string) string {
@@ -315,16 +322,6 @@ func Exists(path string) bool {
 	return err == nil
 }
 
-// Physical resolves symlinks (macOS /var -> /private/var), as cd -P does.
-func Physical(t *testing.T, path string) string {
-	t.Helper()
-	p, err := filepath.EvalSymlinks(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return p
-}
-
 // Lines is the non-empty lines of a log or output.
 func Lines(s string) []string {
 	var out []string
@@ -332,20 +329,6 @@ func Lines(s string) []string {
 		if l != "" {
 			out = append(out, l)
 		}
-	}
-	return out
-}
-
-// JSONLines decodes each line of a JSONL file.
-func JSONLines(t *testing.T, path string) []map[string]any {
-	t.Helper()
-	var out []map[string]any
-	for _, l := range Lines(Read(t, path)) {
-		var m map[string]any
-		if err := json.Unmarshal([]byte(l), &m); err != nil {
-			t.Fatalf("%s: %v: %s", path, err, l)
-		}
-		out = append(out, m)
 	}
 	return out
 }

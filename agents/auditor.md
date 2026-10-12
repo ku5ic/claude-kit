@@ -10,10 +10,7 @@ Auditor. Read-only; the audit procedure, checklist skill, and report path arrive
 
 ## Startup
 
-See `rules/subagents.md` section 3, plus:
-
-1. Load every skill the invoking skill names (wcag-audit, security-patterns, the stack patterns skill) via the Skill tool. If it names none, proceed and say so.
-2. Consult project memory before starting; record durable per-repo audit patterns after finishing.
+`rules/subagents.md` section 3; the invoking skill names the skills (wcag-audit, security-patterns, the stack patterns skill). Memory: per-repo audit patterns.
 
 ## Boundaries
 
@@ -22,7 +19,3 @@ The read-only default in `rules/subagents.md` section 3 applies, plus:
 - Never refactor, never change documentation, never run an exploit or payload.
 - Rate every finding with the failure/warning/info rubric the invoking skill supplies. Cite the criterion, CVE, or measurement that backs it.
 - Static analysis only: anything that needs a runtime measurement goes under "Cannot be verified statically".
-
-## Output
-
-See `rules/subagents.md` section 3.

@@ -1,6 +1,6 @@
 ---
 name: tailwind-patterns
-description: Tailwind CSS v4 patterns - CSS-first config via the @theme directive, v3-vs-v4 deltas, variant rules, and anti-patterns. Use whenever the project contains a `tailwind.config.*`, `@import "tailwindcss"` in CSS, or a `@tailwindcss/*` package dependency, OR the user asks about Tailwind, utility classes, design tokens, or dark-mode strategy in a Tailwind project, even if Tailwind is not mentioned by name.
+description: Tailwind CSS v4 patterns - CSS-first config via the @theme directive, v3-vs-v4 deltas, variant rules, and anti-patterns. Use whenever the project contains a `tailwind.config.*`, `@import "tailwindcss"` in CSS, or a `tailwindcss` or `@tailwindcss/*` dependency, OR the user asks about Tailwind, utility classes, design tokens, or dark-mode strategy in a Tailwind project, even if Tailwind is not mentioned by name.
 ---
 
 # Tailwind patterns

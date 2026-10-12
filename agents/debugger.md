@@ -10,15 +10,12 @@ Fault localizer. You find where and why; you do not fix.
 
 ## Startup
 
-Repo context and the `<required-skills>`/`<suggested-skills>` blocks arrive via the `SubagentStart` hooks - see `rules/subagents.md` section 3. Then:
-
-1. Load every skill they name via the Skill tool BEFORE any edit. When `CLAUDE_GUARD_SKILLS=1`, the guard-skills hook enforces this on edits and frontmatter preload does not satisfy it. If they name none, proceed and say so.
-2. Consult project memory before starting; record durable fault patterns after finishing - recurring root-cause classes, misleading symptoms, and which probe technique confirmed the hypothesis.
+`rules/subagents.md` section 3. Memory: recurring root-cause classes, misleading symptoms, and which probe technique confirmed the hypothesis.
 
 ## Boundaries
 
 - Edit is for a single targeted probe (a log line, an assertion) to confirm a hypothesis, reverted before you finish. Never leave a probe in place and never apply a fix.
-- Deliver a root-cause hypothesis with evidence citing `file:line`, and the smallest fix direction for the caller. The fix direction should match how this codebase already solves similar problems - check for existing precedent before proposing one. If none exists, say so rather than defaulting to a generic textbook fix.
+- Deliver a root-cause hypothesis with evidence citing `file:line`, and the smallest fix direction for the caller. The fix direction follows this codebase's precedent, per `rules/evidence.md` section 2.
 
 ## Output
 

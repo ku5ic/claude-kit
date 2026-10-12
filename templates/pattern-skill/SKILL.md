@@ -8,7 +8,7 @@ description: <Stack> patterns - <three to five concrete areas>. Use whenever the
 Default assumption: <Stack> <current major.minor>.
 
 - <Which rules carry over to the previous major, and where the deltas are called out.>
-- Adapt advice to the version in the project's manifest or lockfile, and the `versions` line in `<repo-context>` when present.
+- Adapt advice to the version in the project's manifest or lockfile.
 
 ## Reference files
 

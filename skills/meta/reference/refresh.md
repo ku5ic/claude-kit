@@ -6,7 +6,7 @@ Check reference skills against the current language or framework release and upd
 
 Reference skills are every `skills/*/SKILL.md` except the procedure skills `audit`, `write`, `deps`, `investigate`, `report-format`, and `meta`. Each carries a `## Version notes` section that this skill owns:
 
-```
+```markdown
 ## Version notes
 
 Checked: <YYYY-MM-DD> against <source: library id or URL>
@@ -19,7 +19,7 @@ Retention: at most 3 version entries, newest first. A pattern that changed moves
 
 ## Procedure
 
-1. Scope. Get the scratch directory: `!`kit scratch-dir``. The arguments are: $ARGUMENTS
+1. Scope. The arguments are: $ARGUMENTS
    - One or more skill names: refresh those.
    - `--all`: every reference skill.
    - Blank: list every reference skill with its `Checked:` date (or "never"), oldest first, and ask which to refresh via AskUserQuestion (multi-select, at most 5 unless the user picks `--all`).
@@ -45,7 +45,6 @@ Retention: at most 3 version entries, newest first. A pattern that changed moves
    - One finding per `guidance changed` skill: severity `warning`, what changed, files edited, source.
    - One finding per `version bump`: severity `info`.
    - "Cannot be verified statically": every `could not verify` item with what a manual check needs.
-     Print the path.
 
 ## Rules
 

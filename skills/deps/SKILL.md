@@ -16,7 +16,7 @@ The core (Phases 1-4) is ecosystem-agnostic: GitHub normalizes Dependabot PRs an
 
 This command names no specific package manager, lockfile, or manifest.
 
-- Package manager and stack are already injected at session start (`<tooling>` block: `package-manager: <pm>`; `<repo-context>` block: stack and location). Read them from there. For any install, audit, tree query, lockfile regen, or override, derive the correct command from that manager at runtime.
+- Package manager and stack are already injected at session start (`<repo-context>` block: stack and location, and a `package-manager` line per lockfile directory). Read them from there. For any install, audit, tree query, lockfile regen, or override, derive the correct command from that manager at runtime.
 - Do not detect the stack.
 - Do not re-list lockfiles.
 - Do not hardcode any tool's syntax.
@@ -24,11 +24,10 @@ This command names no specific package manager, lockfile, or manifest.
 
 ## Preconditions
 
-1. Stack and package manager are in the injected `<repo-context>` and `<tooling>` blocks. Scratch directory: `!`kit scratch-dir``.
-2. Require `gh`. If absent: stop and report. Confirm auth: `gh auth status`. If unauthenticated, stop.
-3. Resolve the repo slug: `gh repo view --json nameWithOwner -q .nameWithOwner`. Call it `<slug>`. If this fails there is no GitHub remote; stop, this command is GitHub-only.
-4. Base branch: `!`kit git-base``. Merge target and rebase base; do not re-derive it.
-5. Working tree must be clean. If `git status --porcelain` is non-empty, stop and surface.
+1. Require `gh`. If absent: stop and report. Confirm auth: `gh auth status`. If unauthenticated, stop.
+2. Resolve the repo slug: `gh repo view --json nameWithOwner -q .nameWithOwner`. Call it `<slug>`. If this fails there is no GitHub remote; stop, this command is GitHub-only.
+3. Base branch: `!`kit git-base``. Merge target and rebase base; do not re-derive it.
+4. Working tree must be clean. If `git status --porcelain` is non-empty, stop and surface.
 
 ## Phase 1: inventory
 
@@ -46,7 +45,7 @@ Fetch all alerts with one bare GET and filter `state` client-side in jq.
 - Do not use a bare `?state=open` either; an unquoted `?` is a zsh glob.
 - Let gh follow the Link header with `--paginate`; never construct `page`/`first`/`last`, removed for these endpoints on 2025-10-14.
 
-```
+```bash
 gh api "repos/<slug>/dependabot/alerts" --paginate \
   --jq '.[] | select(.state=="open") | {number, severity: .security_vulnerability.severity, cvss: .security_advisory.cvss.score, ghsa: .security_advisory.ghsa_id, pkg: .dependency.package.name, ecosystem: .dependency.package.ecosystem, scope: .dependency.scope, relationship: .dependency.relationship, manifest: .dependency.manifest_path, fixed: .security_vulnerability.first_patched_version.identifier, range: .security_vulnerability.vulnerable_version_range}'
 ```
@@ -73,7 +72,7 @@ If $ARGUMENTS scopes to an ecosystem or PR number, filter to it.
 
 ## Phase 2: triage and present
 
-Stop for approval before mutating (`rules/workflow.md` section 3 pause discipline).
+Stop for approval before mutating (`rules/workflow.md` sections 2 and 4).
 
 - Severity is from 1b when available; where audit and alerts disagree, trust the alert.
 - Map each open alert to a PR by package and fixed version.
@@ -94,11 +93,11 @@ Present a table: severity, package, ecosystem, scope, relationship, current -> f
 1. `gh pr comment <n> --body "@dependabot rebase"`. Poll `mergeStateStatus`.
 2. If still conflicting, resolve locally:
    - `gh pr checkout <n>`
-   - `git rebase <base>` (base from Precondition 4)
+   - `git rebase <base>` (base from Precondition 3)
    - Lockfile conflict: take the incoming dependency change, then regenerate the lockfile with the injected manager's lockfile-only install. Never hand-merge a lockfile.
    - Manifest conflict: merge both edits keeping the higher compatible version, then regenerate the lockfile.
    - `git add` resolved files, `git rebase --continue`.
-3. Dependabot branches are bot-owned. Confirm before `git push --force-with-lease`. Never force push a branch you do not own.
+3. Dependabot branches are bot-owned; force pushing one is `rules/workflow.md` sections 1 and 2.
 
 ## Phase 4: verify then merge
 
@@ -106,9 +105,9 @@ Never merge on GitHub mergeability alone. Verify each candidate first.
 
 Per candidate, in turn:
 
-1. `gh pr checkout <n>`.
+1. Check the PR out here or in a worktree, per `rules/workflow.md` section 1. Ask once per run, not per PR.
 2. Reinstall against the PR's lockfile using the injected manager's reproducible (frozen/locked) install mode.
-3. Run `!`kit run-checks``. On a non-zero failed count: do not merge, record the failing label, leave the PR open, move on. `kit run-checks` owns runner detection across every stack; do not reimplement it.
+3. Run `kit run-checks` with Bash, timed per `rules/tooling.md` section 2. On a non-zero failed count: do not merge, record the failing label, leave the PR open, move on.
 4. On pass: merge with the project's convention (read recent merges). Default `gh pr merge <n> --squash --delete-branch`.
 5. After each merge, return to base and pull before the next PR. Re-check mergeability; a merge can newly conflict a sibling.
 
@@ -120,7 +119,7 @@ Runs only when $ARGUMENTS contains `--fix-transitive`; then read [reference/fix-
 
 ## Phase 6: report
 
-Load the report-format skill and use its format. Write to the path `kit scratch-dir deps` prints. Print the path.
+Load the report-format skill and use its format. Write to the path `kit scratch-dir deps` prints.
 
 Per PR/alert, report these fields:
 
@@ -145,29 +144,22 @@ Per PR/alert, report these fields:
 ## Rules
 
 - Core (Phases 1-4) is ecosystem-agnostic. Read the `ecosystem` field on each alert; never assume a default ecosystem.
-- Phase 5 is opt-in (`--fix-transitive`) and best-effort. Without the flag, report alerts with no PR and stop.
 - In Phase 5, prefer a parent bump over a transitive pin. A pin is the fallback, not the default, and it is standing debt; record every one. If the ecosystem's pin mechanism is uncertain, stop and hand back rather than guess.
-- Do not re-derive the base branch. Use `kit git-base` (Precondition 4). All checks go through `kit run-checks`.
 - Severity is from the GitHub alert list when available, not local audit.
 - Only `state == "open"` alerts are actionable. `fixed`, `dismissed`, `auto_dismissed` are not.
-- Do not push to or merge into a protected branch directly.
 - No opportunistic bumps. Touch only deps named in an open alert or open Dependabot PR.
-- One mutating operation per Bash call.
+- Pushing, protected branches, and mutating Bash calls: `rules/workflow.md` sections 1 and 2.
 
 ## Stop conditions
 
 Stop and hand back to the user, without proceeding further, when:
 
-- `gh` is absent or unauthenticated (Precondition 2).
-- No GitHub remote resolves (Precondition 3).
-- The working tree is dirty at start (Precondition 5).
+- `gh` is absent or unauthenticated (Precondition 1).
+- No GitHub remote resolves (Precondition 2).
+- The working tree is dirty at start (Precondition 4).
 - The alerts endpoint returns 403 (Phase 1b) - token lacks scope.
 - Phase 2's proposal table is presented - wait for approval before any mutation.
 - A transitive-pin mechanism can't be confirmed for the ecosystem (Phase 5).
 - A merge would land on or push to a protected branch (Rules).
 
 A failed-checks PR (Phase 4) is not a full stop - record it as held and continue to the next candidate.
-
-## Output
-
-Report: the path `kit scratch-dir deps` prints, in the report-format skill's format, per-PR/alert fields defined in Phase 6, ending with a "Still open, needs you" list.

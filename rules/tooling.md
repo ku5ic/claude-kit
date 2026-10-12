@@ -4,7 +4,7 @@ Which CLI to reach for, how to call the bin scripts, and where temporary files g
 
 ## 1. Reach for the CLI first
 
-When a deterministic CLI can answer the question, call it before reading files and reasoning. Fewer tokens wins: one CLI call beats a targeted read beats a broad grep beats reasoning from memory. The `<tooling>` block's `available:` and `missing:` lines say which of these are on PATH; don't reach for a missing one.
+When a deterministic CLI can answer the question, call it before reading files and reasoning. Fewer tokens wins: one CLI call beats a targeted read beats a broad grep beats reasoning from memory. When the `<tooling>` block is present, its `available:` and `missing:` lines say which of these are on PATH; don't reach for a missing one.
 
 | Question                           | Tool                               | Over                               |
 | ---------------------------------- | ---------------------------------- | ---------------------------------- |
@@ -18,8 +18,6 @@ When a deterministic CLI can answer the question, call it before reading files a
 | JSON                               | `jq`, or `gron` to grep flat paths | substring matching                 |
 | YAML/TOML                          | `yq`                               | manual parsing                     |
 | CSV/TSV                            | `qsv`                              | ad-hoc awk                         |
-| In-place substitution              | `sd 'find' 'repl' file`            | sed -i                             |
-| Buffer stdin for in-place pipes    | `cmd \| sponge file`               | temp-file dance                    |
 | Fixup commits from staged hunks    | `git absorb`                       | rebase -i + fixup                  |
 | Git outside cwd                    | `git -C <dir>`                     | cd <dir> && git                    |
 | Validate a GitHub Actions workflow | `actionlint`                       | reading YAML by eye                |
@@ -40,9 +38,11 @@ Factual question (how big, what secrets, how fast, what is in this JSON): reach 
 
 The plugin's `bin/` is on PATH, so its tools are `kit <subcommand>`: `kit scratch-dir`, `kit run-checks`, `kit git-base`. Never call it by path or through `bash`. Permission allows are written against the bare command, so a pathful or wrapped call misses them and prompts.
 
+`kit run-checks` runs the full suite: give its Bash call a 600000 ms timeout, since the 120s default cuts it short.
+
 ## 3. Scratch
 
-Scratch is whatever `kit scratch-dir` prints: `<project-root>/.claude/scratch/` inside a recognized project, `$HOME/.claude/scratch/` everywhere else.
+Scratch is whatever `kit scratch-dir` prints, the `scratch:` line of `<repo-context>`.
 
 Three sibling directories under a project's `.claude/`, each with one job:
 

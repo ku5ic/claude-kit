@@ -37,7 +37,7 @@ Passing a Server Component as `children` of a Client Component is allowed and co
 
 `headers()` and `cookies()` are async server-only APIs (they return promises that resolve to read interfaces). Calling them from a file that ends up in the client bundle is a build-time error. To enforce one-way isolation, import `server-only` at the top of any module that contains secrets or server-only logic; if it ever gets imported by a Client Component, the build fails clearly.
 
-For `process.env`: only variables prefixed with `NEXT_PUBLIC_` are inlined into the client bundle. Unprefixed variables are replaced with the empty string in client code.
+For `process.env` in client code: `reference/runtime.md`'s environment-variables section.
 
 ## References
 

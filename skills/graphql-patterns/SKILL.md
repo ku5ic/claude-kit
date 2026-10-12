@@ -9,7 +9,7 @@ Default assumption: a TypeScript client on Apollo Client 4.3 with documents type
 
 - Document rules (`reference/documents.md`) hold for every client: Apollo, urql, graphql-request.
 - Apollo Client 3 projects: the v4 deltas (entry points, the unified `error`, `LocalState`) are called out in `reference/apollo-client.md`.
-- Adapt advice to the version in the project's `package.json` or lockfile, and the `versions` line in `<repo-context>` when present.
+- Adapt advice to the version in the project's `package.json` or lockfile.
 
 ## Reference files
 

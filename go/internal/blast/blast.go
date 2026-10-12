@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -26,12 +25,31 @@ import (
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
-	"github.com/ku5ic/claude-kit/go/internal/extract"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/sources"
 )
 
-var jsFiles = []string{"*.js", "*.jsx", "*.ts", "*.tsx", "*.mjs", "*.cjs", "*.mts", "*.cts", "*.vue", "*.svelte", "*.astro"}
+// JSExtensions and TSExtensions are each language's file extensions.
+var (
+	JSExtensions = []string{"js", "jsx", "mjs", "cjs"}
+	TSExtensions = []string{"ts", "tsx", "mts", "cts"}
+)
+
+var (
+	jsExt   = slices.Concat(JSExtensions, TSExtensions)
+	jsFiles = globs(slices.Concat(jsExt, []string{"vue", "svelte", "astro"}))
+)
+
+func globs(exts []string) []string {
+	out := make([]string, len(exts))
+	for i, e := range exts {
+		out[i] = "*." + e
+	}
+	return out
+}
 
 // The matchers compile POSIX so alternation is leftmost-longest: the
 // longer of two matching import forms wins.
@@ -68,7 +86,7 @@ func Run(cfg *config.Config, args []string, stdout, stderr io.Writer) int {
 	if len(args) == 2 {
 		symbol = args[1]
 	}
-	if info, err := os.Stat(target); err != nil || !info.Mode().IsRegular() {
+	if !fsx.IsFile(target) {
 		fmt.Fprintf(stderr, "blast-radius: no such file: %s\n", target)
 		return 2
 	}
@@ -77,12 +95,12 @@ func Run(cfg *config.Config, args []string, stdout, stderr io.Writer) int {
 	dir, _ := filepath.Abs(filepath.Dir(target))
 	dir, _ = filepath.EvalSymlinks(dir)
 	abs := filepath.Join(dir, filepath.Base(target))
-	root := project.Toplevel(dir)
+	root := git.Toplevel(dir)
 	if root == "" {
 		fmt.Fprintln(stderr, "blast-radius: not inside a git repository")
 		return 2
 	}
-	s := &scan{root: root, rel: strings.TrimPrefix(abs, root+"/"), symbol: symbol, seen: map[string]bool{}}
+	s := &scan{root: root, rel: fsx.Rel(root, abs), symbol: symbol, seen: map[string]bool{}}
 	for _, rule := range cfg.SkillFileMap {
 		if slices.Contains(rule.Skills, "test-patterns") {
 			s.testGlobs = append(s.testGlobs, rule.Globs...)
@@ -90,19 +108,25 @@ func Run(cfg *config.Config, args []string, stdout, stderr io.Writer) int {
 	}
 
 	dynamic := false
-	switch ext := path.Ext(s.rel); ext {
-	case ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".mts", ".cts":
-		dynamic = s.javascript(cfg)
-	case ".py":
+	switch ext := path.Ext(s.rel); {
+	case slices.Contains(jsExt, strings.TrimPrefix(ext, ".")):
+		dynamic = s.javascript()
+	case ext == ".py":
 		s.python()
 	default:
 		fmt.Fprintf(stderr, "blast-radius: no import scanner for %s\n", filepath.Base(s.rel))
 		return 2
 	}
 
+	s.print(dynamic, stdout)
+	return 0
+}
+
+// print writes the consumer list, the first 50 sorted.
+func (s *scan) print(dynamic bool, stdout io.Writer) {
 	header := "blast-radius: " + s.rel
-	if symbol != "" {
-		header += " (symbol " + symbol + ")"
+	if s.symbol != "" {
+		header += " (symbol " + s.symbol + ")"
 	}
 	fmt.Fprintln(stdout, header)
 	fmt.Fprintf(stdout, "consumers: %d (source %d, test %d)\n", len(s.results), len(s.results)-s.tests, s.tests)
@@ -116,20 +140,16 @@ func Run(cfg *config.Config, args []string, stdout, stderr io.Writer) int {
 	if dynamic {
 		fmt.Fprintln(stdout, "unresolvable imports present")
 	}
-	return 0
 }
 
 // grepFiles is every line matching re in the repo's tracked and
 // untracked-but-not-ignored files matching the pathspecs.
 func (s *scan) grepFiles(re *regexp.Regexp, pathspecs ...string) []hit {
-	out, _ := exec.Command("git", append([]string{"-C", s.root, "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--"}, pathspecs...)...).Output()
+	files, _ := git.Files(s.root, pathspecs...)
 	var hits []hit
-	for file := range strings.SplitSeq(string(out), "\x00") {
-		if file == "" {
-			continue
-		}
+	for _, file := range files {
 		data, err := os.ReadFile(filepath.Join(s.root, file))
-		if err != nil || bytes.IndexByte(data[:min(len(data), 8000)], 0) >= 0 {
+		if err != nil || git.IsBinary(data) {
 			continue
 		}
 		sc := bufio.NewScanner(bytes.NewReader(data))
@@ -178,7 +198,7 @@ func (s *scan) add(file string, line int, label string) {
 	}
 	kind := "source"
 	base := filepath.Base(file)
-	if slices.ContainsFunc(s.testGlobs, func(g string) bool { return guard.Glob(g, base) }) {
+	if guard.GlobAny(s.testGlobs, base) {
 		kind = "test"
 		s.tests++
 	}
@@ -213,8 +233,7 @@ func containsWord(file, word string) bool {
 }
 
 func stripJSExt(p string) string {
-	switch path.Ext(p) {
-	case ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".mts", ".cts":
+	if slices.Contains(jsExt, strings.TrimPrefix(path.Ext(p), ".")) {
 		return strings.TrimSuffix(p, path.Ext(p))
 	}
 	return p
@@ -230,71 +249,75 @@ func parent(p string) string {
 
 // normPath resolves . and .. segments; "" for the root.
 func normPath(p string) string {
-	var out []string
-	for part := range strings.SplitSeq(p, "/") {
-		switch part {
-		case "", ".":
-		case "..":
-			if len(out) > 0 {
-				out = out[:len(out)-1]
-			}
-		default:
-			out = append(out, part)
-		}
-	}
-	return strings.Join(out, "/")
+	return strings.TrimPrefix(path.Clean("/"+p), "/")
 }
 
-func (s *scan) javascript(cfg *config.Config) (dynamic bool) {
-	stem := stripJSExt(s.rel)
-	isIndex := path.Base(stem) == "index"
-	indexDir := ""
-	if isIndex {
-		indexDir = parent(stem)
+// jsTarget is the file a JS import has to reach: its extensionless stem,
+// for an index the directory it stands for, and the names of the
+// workspace packages holding it.
+type jsTarget struct {
+	stem     string
+	isIndex  bool
+	indexDir string
+	wsNames  []string
+}
+
+// match is whether spec, imported from file, reaches t, and the label
+// saying how.
+func (t jsTarget) match(file, spec string) (label string, ok bool) {
+	switch {
+	case strings.HasPrefix(spec, "."):
+		resolved := stripJSExt(normPath(parent(file) + "/" + spec))
+		return "", resolved == t.stem || t.isIndex && resolved == t.indexDir
+	case strings.HasPrefix(spec, "@/") || strings.HasPrefix(spec, "~/"):
+		suffix := stripJSExt(spec[2:])
+		return "alias-match", endsInPath(t.stem, suffix) || t.isIndex && endsInPath(t.indexDir, suffix)
 	}
-	var wsNames []string
-	for _, dir := range project.Subprojects(cfg, s.root) {
+	for _, name := range t.wsNames {
+		if spec == name || strings.HasPrefix(spec, name+"/") {
+			return "workspace-match", true
+		}
+	}
+	return "", false
+}
+
+// endsInPath is true when p is suffix or ends in "/"+suffix.
+func endsInPath(p, suffix string) bool {
+	return p == suffix || strings.HasSuffix(p, "/"+suffix)
+}
+
+// workspaceNames are the package.json names of the subprojects holding the
+// scanned file.
+func (s *scan) workspaceNames() []string {
+	var names []string
+	for _, dir := range project.Subprojects(s.root) {
 		if dir != "." && strings.HasPrefix(s.rel, dir+"/") {
-			if name := extract.JSONValue(filepath.Join(s.root, dir, "package.json"), ".name"); name != "" {
-				wsNames = append(wsNames, name)
+			if name := sources.JSONValue(filepath.Join(s.root, dir, "package.json"), ".name"); name != "" {
+				names = append(names, name)
 			}
 		}
 	}
-	needles := append([]string{path.Base(stem), path.Base(indexDir)}, wsNames...)
-	if indexDir == "" {
-		needles[1] = ""
+	return names
+}
+
+func (s *scan) javascript() (dynamic bool) {
+	t := jsTarget{stem: stripJSExt(s.rel), wsNames: s.workspaceNames()}
+	t.isIndex = path.Base(t.stem) == "index"
+	if t.isIndex {
+		t.indexDir = parent(t.stem)
 	}
-	if isIndex {
+	needles := append([]string{path.Base(t.stem), ""}, t.wsNames...)
+	if t.indexDir != "" {
+		needles[1] = path.Base(t.indexDir)
+	}
+	if t.isIndex {
 		// An index is also reached by a bare '.', '..', or './'.
 		needles = append(needles, ".'", `."`, "/'", `/"`)
 	}
 	for _, h := range s.candidates(jsCandidate, needles, jsFiles...) {
-		content := h.content
-		for {
-			m := jsSpec.FindStringSubmatchIndex(content)
-			if m == nil {
-				break
-			}
-			spec := content[m[4]:m[5]]
-			content = content[m[1]:]
-			switch {
-			case strings.HasPrefix(spec, "."):
-				resolved := stripJSExt(normPath(parent(h.file) + "/" + spec))
-				if resolved == stem || (isIndex && resolved == indexDir) {
-					s.add(h.file, h.line, "")
-				}
-			case strings.HasPrefix(spec, "@/") || strings.HasPrefix(spec, "~/"):
-				suffix := stripJSExt(spec[2:])
-				if stem == suffix || strings.HasSuffix(stem, "/"+suffix) ||
-					(isIndex && (indexDir == suffix || strings.HasSuffix(indexDir, "/"+suffix))) {
-					s.add(h.file, h.line, "alias-match")
-				}
-			default:
-				for _, name := range wsNames {
-					if spec == name || strings.HasPrefix(spec, name+"/") {
-						s.add(h.file, h.line, "workspace-match")
-					}
-				}
+		for _, m := range jsSpec.FindAllStringSubmatch(h.content, -1) {
+			if label, ok := t.match(h.file, m[2]); ok {
+				s.add(h.file, h.line, label)
 			}
 		}
 	}
@@ -306,9 +329,9 @@ func (s *scan) javascript(cfg *config.Config) (dynamic bool) {
 func (s *scan) pyModule(p string) string {
 	dir := parent(p)
 	mod := strings.TrimSuffix(strings.TrimSuffix(p, ".py"), "/__init__")
-	if dir != "" && project.IsFile(filepath.Join(s.root, dir, "__init__.py")) {
+	if dir != "" && fsx.IsFile(filepath.Join(s.root, dir, "__init__.py")) {
 		pkgRoot := dir
-		for pkgRoot != "" && project.IsFile(filepath.Join(s.root, pkgRoot, "__init__.py")) {
+		for pkgRoot != "" && fsx.IsFile(filepath.Join(s.root, pkgRoot, "__init__.py")) {
 			pkgRoot = parent(pkgRoot)
 		}
 		if pkgRoot != "" {

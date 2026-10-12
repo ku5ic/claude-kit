@@ -1,10 +1,6 @@
 # Anti-patterns
 
-Severity rubric:
-
-- `failure`: a concrete defect or violation that should not ship.
-- `warning`: a smell or pattern that compounds with other findings.
-- `info`: a hardening opportunity or note, not a defect.
+Severity levels: the report-format skill.
 
 ## A rename or module move without a `moved` block
 

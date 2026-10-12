@@ -1,10 +1,6 @@
 # Anti-patterns
 
-Severity rubric:
-
-- `failure`: a concrete defect or violation that should not ship.
-- `warning`: a smell or pattern that compounds with other findings.
-- `info`: a hardening opportunity or note, not a defect.
+Severity levels: the report-format skill.
 
 ## `useState` set from props inside an effect
 
@@ -24,7 +20,7 @@ Severity rubric:
 
 ## `dangerouslySetInnerHTML` with unsanitized input
 
-`failure`. Direct XSS vector. Either sanitize with a library that handles the full HTML parsing surface (DOMPurify) or render as text. Never inject user-derived strings as HTML without sanitization.
+`failure`. Direct XSS vector: render as text, or sanitize with DOMPurify first. The rest of the XSS surface (URL schemes, open redirects): security-patterns' `reference/frontend.md`.
 
 ## `fetch` in a client component without error handling
 

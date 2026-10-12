@@ -1,0 +1,104 @@
+{
+  "is_error": false,
+  "structured_output": {
+    "entries": [
+      {
+        "id": "234c2b49105fc331",
+        "role": "check",
+        "kind": "format-check",
+        "mutates": false,
+        "file_form": "prettier --check {files}",
+        "globs": [
+          "*.md"
+        ]
+      },
+      {
+        "id": "0a9166276c99c89b",
+        "role": "fixer",
+        "mutates": true,
+        "file_form": "eslint --fix {files}",
+        "globs": [
+          "*.{ts,tsx}"
+        ]
+      },
+      {
+        "id": "1835bf25dea005a2",
+        "role": "fixer",
+        "mutates": true,
+        "file_form": "prettier --write {files}",
+        "globs": [
+          "*.{ts,tsx}"
+        ]
+      },
+      {
+        "id": "fd3961ca2b302c14",
+        "role": "other",
+        "mutates": true
+      },
+      {
+        "id": "5115d15e5c016849",
+        "role": "check",
+        "kind": "test",
+        "mutates": false
+      }
+    ],
+    "managers": [
+      {
+        "dir": ".",
+        "cites": "package-lock.json",
+        "manager": "npm",
+        "run_prefix": "npm exec --",
+        "add_verbs": [
+          "npm install",
+          "npm add"
+        ],
+        "dlx": "npx",
+        "dir_flags": [
+          "--prefix"
+        ],
+        "rivals": [
+          "pnpm",
+          "yarn"
+        ]
+      }
+    ],
+    "proposals": [
+      {
+        "role": "check",
+        "kind": "lint",
+        "command": "npm exec -- eslint --max-warnings=0 .",
+        "dir": ".",
+        "evidence": "package.json",
+        "mutates": false
+      },
+      {
+        "role": "check",
+        "kind": "test",
+        "command": "npm exec -- vitest run",
+        "dir": ".",
+        "evidence": "package.json",
+        "mutates": false
+      },
+      {
+        "role": "check",
+        "kind": "format-check",
+        "command": "npm exec -- prettier --check .",
+        "dir": ".",
+        "evidence": "package.json",
+        "mutates": false
+      },
+      {
+        "role": "fixer",
+        "command": "npm exec -- prettier --write .",
+        "dir": ".",
+        "evidence": "package.json",
+        "file_form": "npm exec -- prettier --write {files}",
+        "globs": [
+          "**/*.{ts,tsx,js,jsx,json,md,css,yml,yaml}"
+        ],
+        "mutates": true
+      }
+    ]
+  },
+  "subtype": "success"
+}

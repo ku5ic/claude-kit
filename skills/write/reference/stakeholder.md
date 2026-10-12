@@ -4,35 +4,24 @@ Reframe a technical finding or proposal for a non-technical audience. Arguments:
 
 ## Procedure
 
-1. Get the scratch directory: `!`kit scratch-dir``.
-2. Read the input. If $ARGUMENTS looks like a file path, read the file. Otherwise treat $ARGUMENTS as the content directly.
-3. Identify the audience implied by the input or default to PM-level.
-4. Reframe.
+1. Read the input. If $ARGUMENTS looks like a file path, read the file. Otherwise treat $ARGUMENTS as the content directly.
+2. Identify the audience implied by the input or default to PM-level.
+3. Reframe.
 
 ## Output file
 
-Write to the path `kit scratch-dir stakeholder <topic-slug>` prints. Print the path.
+Write to the path `kit scratch-dir stakeholder <topic-slug>` prints.
 
-Structure:
+Plain paragraphs in this order, no headers or labels (`rules/output.md` section 4):
 
-```
-# <Topic>
-
-**Audience**: <CEO | PM | client | leadership>
-
-## Situation
+```text
+<Topic, one line.>
 
 <What is going on, in plain language. No jargon unless defined.>
 
-## Why it matters
-
 <Business or user impact. Not the technical mechanism.>
 
-## Options
-
-<Only if there is a decision to make. One line per option with its tradeoff. Otherwise omit.>
-
-## Recommendation
+<Only if there is a decision to make: one line per option with its tradeoff. Otherwise omit.>
 
 <What you propose, in one or two sentences, with the core reason.>
 ```
@@ -48,5 +37,5 @@ Structure:
 - Replace jargon with plain language without oversimplifying to the point of being inaccurate.
 - Keep tradeoffs intact. Do not hide risk or complexity, just express it in outcomes.
 - Tone: direct. Not apologetic, not hedged.
-- Do not invent context. If something in the input is ambiguous, note it as an open question rather than guessing.
+- Do not invent context. Ask about an ambiguity in the input per `rules/workflow.md` section 4 rather than guessing.
 - No padding. If a section has nothing meaningful, omit it.

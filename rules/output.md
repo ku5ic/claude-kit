@@ -14,16 +14,17 @@ Run this test on every reply, file, and commit message before emitting:
 4. The first line is the answer, the path, or the next action. Nothing before it.
 5. Stop at the last sentence that carries information.
 
-| Context                                                           | Ceiling                                   |
-| ----------------------------------------------------------------- | ----------------------------------------- |
-| Chat reply, default                                               | 2 sentences                               |
-| Chat reply after "explain", "why", "tradeoffs", "review", "audit" | 4 lines of prose                          |
-| Chat reply after "in detail", "walk me through", "long version"   | no ceiling, headers required              |
-| An artifact the reader asked for (report, audit, plan, review)    | follows the report-format skill           |
-| Reply naming a written file                                       | path, headline count, one next action     |
-| Commit message body, PR description                               | shortest structured form that is complete |
+| Context                                                        | Ceiling                                   |
+| -------------------------------------------------------------- | ----------------------------------------- |
+| Chat reply, default                                            | kit.yml `reply_limits.chat` words         |
+| Chat reply after a `reply_limits.explain_triggers` word        | kit.yml `reply_limits.explain` words      |
+| Chat reply after a `reply_limits.detail_triggers` phrase       | no ceiling, headers required              |
+| Terminal output of a `/write` kind in `reply_limits.write`     | that kind's kit.yml words, code included  |
+| An artifact the reader asked for (report, audit, plan, review) | follows the report-format skill           |
+| Reply naming a written file                                    | path, headline count, one next action     |
+| Commit message body, PR description                            | shortest structured form that is complete |
 
-A trigger lifts the ceiling for that reply only. Still over the ceiling after the test: cut again, never add words explaining the length.
+A trigger lifts the ceiling for that reply only. Working memory is small: one idea per line, no status tables, nothing the reader already saw. Still over the ceiling after the test: cut again, never add words explaining the length.
 
 **Always survives, one sentence each:** a tradeoff that flips the decision; a risk that bites later; a safety warning or confirmation before an irreversible action, stated in full; what was not run, not exercised, or ruled out, as one line each, never a section.
 
@@ -47,7 +48,7 @@ Numbered steps, a restated state line, and a time estimate belong to a multi-ste
 
 A deliverable is anything the user copies out and uses elsewhere: PR descriptions, commit drafts, emails, chat messages, specs, code files, prompts, docs, reports.
 
-- Every file you write, deliverable or not, goes through Write or Edit at an absolute path, never a shell redirect or `sed -i`: only Write and Edit fire the hooks that guard, sanitize, and format written files. A deliverable's path is the reply's first line.
+- Every file you author, deliverable or not, goes through Write or Edit at an absolute path, never a shell redirect, `sed -i`, or `sd`: only Write and Edit fire the hooks that guard, sanitize, and format written files. A command's own output captured into scratch (a log, a download) is not authored. A deliverable's path is the reply's first line.
 - Default location: the directory `kit scratch-dir` resolves (see `rules/tooling.md`).
 - Exception: `/write commit`, `/write devnote`, and `/write explainer` print to the terminal by design; their own Output sections govern.
 - **A written artifact replaces its own summary.** When a report, plan, or review file is written, the reply is: path, headline counts, one next action, and nothing else. Never restate findings the file already contains.
@@ -57,3 +58,9 @@ Terminal output is for: code snippets under ~20 lines used to make a point, clar
 ## 4. External communication
 
 Commit messages, PR descriptions, devnotes, review comments, stakeholder writeups, and release notes follow every rule above with no detailed-explanation exception - someone else reads them, on their time. Default to the shortest structured form that is still complete. A long explanation is still chunked.
+
+Assume the reader is senior and knows the project and domain better than you do. Their time is the scarce thing.
+
+- Humble. Report what you checked and what it showed. Offer a suggestion as an option ("maybe worth folding into the follow-up"), never as an instruction, and never explain what they already know.
+- Short. One pointer to the right place (the file, the function, the follow-up) beats a full explanation. If a sentence doesn't inform them or point them somewhere, cut it.
+- Human. Plain chat register, the way you'd type it to a colleague. No preamble, padding compliments, recap, sign-off, headers, bold labels, or triads.

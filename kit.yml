@@ -1,51 +1,16 @@
 # kit.yml
 #
-# Single source of truth for the kit's data: stacks, guards, checks,
-# formatters, and tools. Read by the kit binary (go/internal/config), which
+# The kit's own policy and data: skill maps, guard lists, what gap-fill may
+# and may not accept, and the formatting kit applies when the project's own
+# fixers don't. No tool, package manager, stack, or check catalog: those
+# come from the project's configs and gap-fill's verified answers
+# (go/internal/gapfill). Read by the kit binary (go/internal/config), which
 # decodes it strictly: `bin/kit config --check` reports an unknown key.
 # The overlay at ~/.claude/claude-kit.local.yml merges over it (maps merge,
 # lists append); `bin/kit config` prints the result.
 #
-# ADDING A NEW STACK
-# ------------------
-# Add one stanza here. Nothing else needs editing.
-#
-#   mystack:
-#     sentinels:
-#       - name: mystack.lock
-#         anchor: true          # include in kit project-root ancestor walk
-#     skills: [mystack-patterns]
-#     extras:
-#       - name: myframework
-#         dep: myframework      # found in package.json dependencies
-#         skills: [myframework-patterns]
-#
-# DETECTION RULE TYPES (extras)
-# --------------------------------
-# dep: <pkg>                   package.json dep or devDep key match (js only)
-# file: <path>                 file exists relative to stack root
-# grep: <pattern>              ERE grep across files listed in `in:`
-#   in: [file1, file2, ...]
-# any_of:                      OR of any of the above rule types
-#   - file: <path>
-#   - grep: <pattern>
-#     in: [...]
-#
-# SKILLS
-# ------
-# skills: at the stack level  -> loaded for bare stack signal (js, python)
-# skills: at the extra level  -> loaded when that extra is detected
-# Skills are deduplicated in first-seen order across all matched signals.
-#
-# NEVER AUTO-LOAD (no skills: entry; invoke manually when the task warrants)
-#   security-patterns, wcag-audit
-#
-# SENTINEL FIELDS
-# ---------------
-# name: <filename>    the sentinel file, looked for in every subproject
-#                     (`bin/kit subprojects`)
-# anchor: true        include in the fast ancestor walk (kit project-root)
-#                     keep this list minimal; every entry slows the walk
+# security-patterns and wcag-audit are never mapped: they load by their own
+# descriptions or when another skill names them.
 
 # Skills loaded for every project regardless of detected stack.
 # Empty by design: an always-blocking skill is paid for before the task is
@@ -54,7 +19,8 @@
 # CLAUDE_GUARD_SKILLS=1.
 global_skills: []
 
-# File-to-skills map consumed by guard-dispatch's skills gate.
+# File-to-skills map consumed by guard-dispatch's skills gate, and by
+# <suggested-skills> for every file in the repo.
 # Evaluated against every Edit/Write/MultiEdit target; matching is
 # cumulative (a single file can satisfy multiple entries). Order matters:
 # test entries precede extension entries so a .test.tsx file picks up
@@ -65,16 +31,16 @@ global_skills: []
 # globs: [...]  -> shell-style globs (go/internal/guard Glob)
 skill_file_map:
   - on: basename
-    globs: ["*.ts", "*.tsx", "*.js", "*.jsx", "*.mjs", "*.cjs", "*.py", "*.rb", "*.go", "*.rs", "*.java", "*.sh", "*.vue"]
+    globs: ["*.ts", "*.tsx", "*.mts", "*.cts", "*.js", "*.jsx", "*.mjs", "*.cjs", "*.py", "*.rb", "*.go", "*.rs", "*.java", "*.sh", "*.vue"]
     skills: [engineering-fundamentals]
   - on: basename
-    globs: ["*.test.*", "*.spec.*", "test_*.py", "*_test.py"]
+    globs: ["*.test.*", "*.spec.*", "test_*.py", "*_test.py", "*_test.go", "*_spec.rb"]
     skills: [test-patterns]
   - on: basename
     globs: ["*.tsx"]
     skills: [typescript-patterns, react-patterns]
   - on: basename
-    globs: ["*.ts"]
+    globs: ["*.ts", "*.mts", "*.cts"]
     skills: [typescript-patterns]
   - on: basename
     globs: ["*.jsx"]
@@ -95,7 +61,7 @@ skill_file_map:
     globs: ["Dockerfile", "docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"]
     skills: [docker-patterns]
   - on: basename
-    globs: ["tailwind.config.js", "tailwind.config.ts"]
+    globs: ["tailwind.config.js", "tailwind.config.ts", "tailwind.config.mjs", "tailwind.config.cjs"]
     skills: [tailwind-patterns]
   - on: basename
     globs: ["next.config.js", "next.config.mjs", "next.config.ts"]
@@ -107,7 +73,7 @@ skill_file_map:
     globs: ["manage.py"]
     skills: [django-patterns]
   - on: basename
-    globs: ["*.graphql", "*.gql"]
+    globs: ["*.graphql", "*.gql", "codegen.ts"]
     skills: [graphql-patterns]
   - on: basename
     globs: ["*.stories.*"]
@@ -119,7 +85,38 @@ skill_file_map:
     globs: ["*.tf", "*.tfvars"]
     skills: [opentofu-patterns]
 
-# Action-conditioned trigger phrases for every skill any stack/extra maps to.
+# Declared-dependency-to-skills map for <suggested-skills>: a rule any of
+# whose deps a subproject's package.json, Python manifests, or Gemfile
+# declares suggests its skills. Python names match normalized (PEP 503).
+# The stack report lists the deps it finds.
+dependency_skills:
+  - deps: [typescript]
+    skills: [typescript-patterns]
+  - deps: [next]
+    skills: [react-patterns, next-app-router-patterns]
+  - deps: [react]
+    skills: [react-patterns]
+  - deps: [nuxt]
+    skills: [vue-patterns, nuxt-patterns]
+  - deps: [vue]
+    skills: [vue-patterns]
+  - deps: [tailwindcss]
+    skills: [tailwind-patterns]
+  - deps: [graphql, "@apollo/client", urql, graphql-request]
+    skills: [graphql-patterns]
+  - deps: [storybook]
+    skills: [storybook-patterns]
+  - deps: [vitest, jest, "@playwright/test", cypress, pytest]
+    skills: [test-patterns]
+  - deps: [django]
+    skills: [django-patterns]
+  - deps: [djangorestframework]
+    skills: [drf-patterns]
+  - deps: [fastapi]
+    skills: [fastapi-patterns]
+
+# Action-conditioned trigger phrases for every skill skill_file_map and
+# dependency_skills suggest.
 # Consumed by the inject-context hook to build the <suggested-skills> block.
 # Phrases name a concrete action, not a topic, so the reader knows when to load.
 # global_skills entries, if any, are excluded; they are required, not
@@ -134,8 +131,9 @@ skill_triggers:
   tailwind-patterns: "before utility-class styling or design-token work"
   graphql-patterns: "before writing GraphQL operations or fragments, or changing the Apollo cache or codegen config"
   storybook-patterns: "before writing or changing stories, play functions, or Storybook config"
-  go-patterns: "before writing or changing Go packages, error handling, goroutines, or tests"
+  go-patterns: "before writing or changing Go packages, error handling, or goroutines"
   test-patterns: "before writing or restructuring tests, fixtures, or assertions"
+  engineering-fundamentals: "before the first edit to a source file"
   python-patterns: "before writing or restructuring Python modules, classes, or packaging"
   django-patterns: "before modeling, migrations, or view work in a Django app"
   drf-patterns: "before building serializers, viewsets, or API endpoints with Django REST Framework"
@@ -144,48 +142,41 @@ skill_triggers:
   opentofu-patterns: "before writing or changing OpenTofu/Terraform resources, modules, variables, or state moves"
   bash-patterns: "before writing or modifying shell scripts"
 
-# Ordered lockfile-to-manager table. First match wins.
-# Read by package-manager resolution and guard-bash's PM mismatch guard,
-# which only compares managers sharing an ecosystem.
-package_managers:
-  - lockfile: bun.lockb
-    manager: bun
-    ecosystem: js
-  - lockfile: bun.lock
-    manager: bun
-    ecosystem: js
-  - lockfile: pnpm-lock.yaml
-    manager: pnpm
-    ecosystem: js
-  - lockfile: yarn.lock
-    manager: yarn
-    ecosystem: js
-  - lockfile: package-lock.json
-    manager: npm
-    ecosystem: js
-  - lockfile: uv.lock
-    manager: uv
-    ecosystem: python
-  - lockfile: poetry.lock
-    manager: poetry
-    ecosystem: python
-  - lockfile: Pipfile.lock
-    manager: pipenv
-    ecosystem: python
-  - lockfile: requirements.txt
-    manager: pip
-    ecosystem: python
-    # Hand-maintained, so edits to it are normal; every other lockfile here is
-    # tool-generated and guard-dispatch blocks direct edits to it.
-    hand_edited: true
-
 # Guard lists. An overlay can append to any of them.
 
-# Lockfiles guard-dispatch blocks on top of the package_managers ones.
-extra_lockfiles: [Gemfile.lock, Cargo.lock, composer.lock, pdm.lock, go.sum]
+# Lockfile names, all tool-generated: guard-dispatch blocks direct edits
+# to them (requirements.txt is hand-maintained, so it isn't one). Each
+# directory holding one gets package-manager facts from gap-fill
+# (go/internal/gapfill), accepted only when they cite it.
+lockfile_globs: [bun.lockb, bun.lock, pnpm-lock.yaml, yarn.lock, package-lock.json, npm-shrinkwrap.json, uv.lock, poetry.lock,
+  Pipfile.lock, pdm.lock, Gemfile.lock, Cargo.lock, composer.lock, go.sum]
+
+# The gap-fill classifier's command, in place of claude -p: the request on
+# its stdin, claude's --output-format json envelope on its stdout.
+# classifier: [/path/to/classifier]
 
 # Branches git push, and git reset --hard to, are blocked for.
 protected_branches: [main, master, develop, production, release]
+
+# Extensions of a new file Write gets a prompt for at the repo root: a
+# report or log there belongs in scratch (rules/output.md section 3).
+root_artifact_exts: [md, txt, log, html, csv]
+
+# Global package installs guard-bash blocks: regexes on a command's name
+# and arguments. Which manager a directory uses, and its add verbs, come
+# from the project (gap-fill's verified facts), not from here.
+global_installs:
+  - '^(npm|pnpm|yarn|bun)[[:space:]]+(install|add|i)[[:space:]]+(.*[[:space:]])?(-g|--global)([[:space:]]|$)'
+  - '^yarn[[:space:]]+global[[:space:]]+add([[:space:]]|$)'
+
+# Dependency and build-output dirs a file walk never enters (hidden dirs are
+# skipped too); rules/tooling.md's skip list matches it.
+skip_dirs: [node_modules, vendor, dist, build, out, target, coverage, storybook-static, __pycache__, venv, .next, .turbo, .cache, .pnpm-store, .venv]
+
+# Files sanitize-output leaves alone: translations, templates, snapshots, and
+# fixtures, whose characters are content.
+sanitize_skip: ["*.po", "*.pot", "*.svg", "*.html.j2", "*.j2", "*.jinja", "*.jinja2", "*.hbs", "*.erb", "*.liquid",
+  "*/locales/*", "*/messages/*", "*/i18n/*", "*.snap", "*/fixtures/*", "*/__snapshots__/*", "*/testdata/*"]
 
 # Shell rc files: direct writes are blocked, the dotfiles repo is the source.
 rc_files: ["~/.zshrc", "~/.zprofile", "~/.bashrc", "~/.bash_profile", "~/.profile"]
@@ -224,207 +215,8 @@ log_max_lines: 10000
 # the overlay: a disabled rule is still logged, as "disabled".
 disabled_rules: []
 
-# Task runners and where their task names live (`bin/kit tasks`); nothing
-# here reaches eval.
-#   manifests: file names checked in order; the first that exists is read
-#   extractor: one of json_keys, json_array, toml_keys, toml_array,
-#              yaml_array, make_targets, just_recipes, regex_lines
-#   arg:       the extractor's argument: a dotted path, or an ERE whose last
-#              capture group is the task name (regex_lines)
-#   run:       command template; {task} is the task, {pm} the package manager
-#              resolved for the directory (npm when none)
-#   run_by_pm: run templates that replace run under a given package manager
-#   body:      template for the shell a task runs, as the gate classifier
-#              reads it; {body} is what the manifest holds (a cargo alias
-#              holds "clippy ...", which runs as "cargo clippy ...")
-task_providers:
-  - name: package-scripts
-    stack: js
-    manifests: [package.json]
-    extractor: json_keys
-    arg: .scripts
-    run: "{pm} run {task}"
-  - name: make
-    manifests: [Makefile, makefile, GNUmakefile]
-    extractor: make_targets
-    run: "make {task}"
-  - name: just
-    manifests: [justfile, Justfile, .justfile]
-    extractor: just_recipes
-    run: "just {task}"
-  - name: pdm
-    stack: python
-    manifests: [pyproject.toml]
-    extractor: toml_keys
-    arg: .tool.pdm.scripts
-    run: "pdm run {task}"
-  - name: poe
-    stack: python
-    manifests: [pyproject.toml]
-    extractor: toml_keys
-    arg: .tool.poe.tasks
-    run: "poe {task}"
-    run_by_pm: {poetry: "poetry run poe {task}"}
-  - name: rake
-    stack: ruby
-    manifests: [Rakefile]
-    extractor: regex_lines
-    arg: '^[[:space:]]*task[[:space:]]+:?"?([A-Za-z0-9_:]+)'
-    run: "bundle exec rake {task}"
-  - name: cargo-alias
-    stack: rust
-    manifests: [.cargo/config.toml, .cargo/config]
-    extractor: toml_keys
-    arg: .alias
-    run: "cargo {task}"
-    body: "cargo {body}"
-
-# Canonical checks: the task names that count as each, as globs, and the
-# commands that count as each when a task's name matches no glob (its body
-# is read by go/internal/classify). A task matching an exclude glob never
-# counts, whatever its body.
-#   tools           {bin, sub, require, forbid}: bin by name; its first
-#                   non-flag argument one of sub; every require flag present;
-#                   no forbid flag (alone or as flag=value). A task whose
-#                   body runs a forbid flag (eslint --fix) is skipped even
-#                   when its name matches, and fills nothing. A scoped check's
-#                   patterns add findings, unmapped, advisory (see deadcode)
-#   fallback_tasks  names that count only when no tasks glob matches, and
-#                   then only the first present; the others are covered by
-#                   it, so test:unit and test:ci never both run
-#   scope           changed: see deadcode
-#   exclude_dirs    globs matched against each path segment of a
-#                   subproject: a toolchain check standing in for the check
-#                   (go test ./...) skips it there, as an e2e module needs
-#                   infrastructure a quality gate can't assume
-# The globs, fallbacks, and excludes follow a survey of 140 popular repos.
-checks:
-  - name: typecheck
-    tasks: [typecheck, type-check, "typecheck:*", "type-check:*", types, typing, check-types, "check:types", "test:types", test-types, "test:typecheck"]
-    exclude: ["*watch*"]
-    tools:
-      - {bin: tsc, require: [--noEmit], forbid: [--watch, -w]}
-      - {bin: vue-tsc, require: [--noEmit], forbid: [--watch, -w]}
-      - {bin: mypy}
-      - {bin: pyright, forbid: [--watch, -w]}
-      - {bin: ty, sub: [check], forbid: [--watch]}
-  - name: lint
-    tasks: [lint, eslint, stylelint, "lint:*", "lint-*", "eslint:*", "stylelint:*"]
-    exclude: ["*fix*", "*watch*", "*staged*", "*changed*", "*unused*", "*deadcode*", "*dead-code*", "lint:prettier"]
-    tools:
-      - {bin: eslint, forbid: [--fix]}
-      - {bin: biome, sub: [lint, check, ci], forbid: [--write, --fix, --apply, --apply-unsafe]}
-      - {bin: oxlint, forbid: [--fix]}
-      - {bin: stylelint, forbid: [--fix]}
-      - {bin: ruff, sub: [check], forbid: [--fix, --watch]}
-      - {bin: rubocop, forbid: [-a, -A, -x, --autocorrect, --autocorrect-all, --auto-correct, --auto-correct-all, --safe-auto-correct, --fix-layout, --disable-uncorrectable]}
-      - {bin: golangci-lint, sub: [run], forbid: [--fix]}
-      - {bin: cargo, sub: [clippy], forbid: [--fix]}
-      - {bin: markdownlint-cli2, forbid: [--fix]}
-      - {bin: shellcheck}
-      - {bin: yamllint}
-      - {bin: tflint, forbid: [--fix]}
-  - name: format-check
-    tasks: ["format:check", "fmt:check", format-check, fmt-check, check-format, "check:format", check-fmt, "check:fmt", prettier-check, "prettier:check", "lint:prettier", style-check, "style:check", "format:diff"]
-    exclude: ["*watch*"]
-    tools:
-      - {bin: prettier, require: [--check], forbid: [--write, -w]}
-      - {bin: biome, sub: [format], forbid: [--write, --fix, --apply]}
-      - {bin: ruff, sub: [format], require: [--check]}
-      - {bin: black, require: [--check]}
-      - {bin: dprint, sub: [check]}
-      - {bin: cargo, sub: [fmt], require: [--check]}
-      # No gofmt: gofmt -l exits 0 whatever it lists, so it would always pass.
-      - {bin: shfmt, require: [-d], forbid: [-w]}
-      - {bin: stylua, require: [--check]}
-      - {bin: tofu, sub: [fmt], require: [-check]}
-      - {bin: terraform, sub: [fmt], require: [-check]}
-  - name: test
-    tasks: [test]
-    fallback_tasks: ["test:unit", test-unit, "test:ci", test-ci, "test:all", test-all, tests, unit-test, "unit:test"]
-    exclude: ["*watch*", "*e2e*", "*integration*", "*bench*", "*:update*", "*snapshot*", "*storybook*", "*browser*", "*playwright*", "*visual*", "*smoke*", "*live*"]
-    exclude_dirs: [e2e, "*-e2e", "e2e-*", "*_e2e", end2end, endtoend, end-to-end, integration, integration-tests, integration_tests]
-    tools:
-      - {bin: vitest, forbid: [--watch, -w, --ui]}
-      - {bin: jest, forbid: [--watch, --watchAll]}
-      - {bin: mocha, forbid: [--watch, -w]}
-      - {bin: pytest}
-      - {bin: rspec}
-      - {bin: go, sub: [test]}
-      - {bin: cargo, sub: [test, nextest]}
-      - {bin: bun, sub: [test], forbid: [--watch]}
-      - {bin: deno, sub: [test], forbid: [--watch]}
-  # Dead code runs whole-program, but only findings on lines changed since
-  # the git base (kit git-base) fail it, judged from its output, never its
-  # exit code; with no git base it's skipped. A finding with no line counts
-  # for its whole file. A tool whose output can't be mapped to files
-  # (debride's heuristic list, cargo machete/udeps' crate names) is
-  # advisory: it runs and reports, but never fails. Dead code a change
-  # leaves behind on an unchanged line (removing a function's last caller)
-  # isn't caught.
-  # Per stack: js knip, python vulture, go deadcode (golangci-lint's unused
-  # is a lint gate), ruby debride (advisory), opentofu tflint limited to
-  # terraform_unused_declarations (plain tflint is lint). rust: none here;
-  # rustc's dead_code lint fails the existing clippy -D warnings. docker:
-  # none; images have no unused-code concept.
-  - name: deadcode
-    tasks: [deadcode, dead-code, "deadcode:*", "dead-code:*", knip, "knip:*", unused, "unused:*", "lint:unused", "lint:deadcode", unimported, vulture]
-    exclude: ["*fix*", "*watch*"]
-    scope: changed
-    tools:
-      - {bin: knip, forbid: [--fix, --watch], unmapped: [--reporter], findings: '^(?:\S+\s+(?P<file>\S.*?):(?P<line>\d+):\d+|(?P<file>[^\s:]+\.\w+))\s*$'}
-      - {bin: vulture, findings: '^(?P<file>[^\s:]+):(?P<line>\d+): unused '}
-      - {bin: deadcode, findings: '^(?P<file>[^\s:]+\.go):(?P<line>\d+):\d+: unreachable func: '}
-      - {bin: debride, advisory: true}
-      - {bin: tflint, require: [--only=terraform_unused_declarations], forbid: [--fix], findings: '^(?P<file>[^\s:]+):(?P<line>\d+):\d+: \w+ - .*\(terraform_unused_declarations\)$'}
-      - {bin: cargo, sub: [machete, udeps], advisory: true}
-
-# How the gate classifier reads a task body. A body it can't read with
-# certainty (a pipe, ||, a subshell, command substitution) holds no gate.
-#   wrappers          run the rest of the line, after any K=V words; never
-#                     one that loads env (dotenv --), which the gate needs
-#   tool_runners      run the word after them as a tool; the kit reads the
-#                     tool, so the project's own copy is what counts
-#   references        a prefix that runs another task of a provider: the word
-#                     after it, or task. shorthand: a word that names no such
-#                     task is a tool (pnpm eslint)
-#   script_runners    every non-flag argument is a package script
-#   fan_out_flags     on a reference, run it across workspace packages, which
-#                     run-checks covers per subproject already
-#   fan_out_commands  the same, as whole commands
+# CI steps and jobs the kit never runs (go/internal/sources/ci.go).
 gate_discovery:
-  wrappers: [env, cross-env]
-  tool_runners: [npx, "pnpm exec", "pnpm dlx", bunx, "yarn dlx", "yarn exec", "npm exec", "uv run", "pipx run", "bundle exec", "poetry run", "go tool"]
-  references:
-    - {prefix: "npm run", provider: package-scripts}
-    - {prefix: "npm run-script", provider: package-scripts}
-    - {prefix: "npm test", provider: package-scripts, task: test}
-    - {prefix: "npm t", provider: package-scripts, task: test}
-    - {prefix: "pnpm run", provider: package-scripts}
-    - {prefix: "pnpm", provider: package-scripts, shorthand: true}
-    - {prefix: "yarn run", provider: package-scripts}
-    - {prefix: "yarn", provider: package-scripts, shorthand: true}
-    - {prefix: "bun run", provider: package-scripts}
-    - {prefix: "node --run", provider: package-scripts}
-    - {prefix: make, provider: make}
-    - {prefix: just, provider: just}
-    - {prefix: rake, provider: rake}
-    - {prefix: bin/rake, provider: rake}
-    - {prefix: "pdm run", provider: pdm, shorthand: true}
-    - {prefix: poe, provider: poe}
-  script_runners: [run-s, run-p, npm-run-all, npm-run-all2]
-  fan_out_flags: [-r, --recursive, --filter, -F, --workspaces, --ws, -ws, --workspace]
-  fan_out_commands: ["turbo run", turbo, "nx run-many", "nx affected", "lerna run", "yarn workspaces foreach", "pnpm -r"]
-  # CI steps (GitHub Actions workflows, .gitlab-ci.yml) are read like task
-  # bodies; a step's task references run those tasks, and a tool it runs
-  # directly runs only when that tool resolves from the project
-  # (tool_resolution), and only when no gate running the same tool already
-  # fills its check. A cd in a step files its gates under the subproject
-  # they run in. Jobs
-  # with services, a container, OIDC (id-token: write), a deployment
-  # environment, secrets in their env, or a reusable workflow are skipped
-  # whole, and so are steps that use an action, a non-sh shell, secrets, or
-  # a CI expression.
   #   deny_commands  a step holding one of these words (or word runs) is skipped
   #   deny_names     a job or step whose name holds one of these words is skipped
   #   deny_actions   a job using an action with one of these prefixes is skipped
@@ -435,416 +227,74 @@ gate_discovery:
   deny_actions: [aws-actions/, google-github-actions/auth, google-github-actions/setup-gcloud, azure/login, docker/login-action,
     docker/build-push-action, hashicorp/setup-terraform, pulumi/]
 
-# Checks a stack's own toolchain provides, run where that stack is detected.
-#   bin:      candidate binaries; the first that resolves (tool_resolution)
-#             fills the {bin} word
-#   when_dir: a directory that must exist first, else the check is skipped
-#   slot:     the check it stands in for; a project task or CI gate that
-#             fills that check covers it, so the two don't both run
-toolchain_checks:
-  - {stack: rust, name: check, cmd: "{bin} check", bin: [cargo]}
-  - {stack: rust, name: clippy, cmd: "{bin} clippy -- -D warnings", bin: [cargo], slot: lint}
-  - {stack: rust, name: fmt, cmd: "{bin} fmt --check", bin: [cargo], slot: format-check}
-  - {stack: rust, name: test, cmd: "{bin} test", bin: [cargo], slot: test}
-  - {stack: go, name: vet, cmd: "{bin} vet ./...", bin: [go]}
-  - {stack: go, name: test, cmd: "{bin} test ./...", bin: [go], slot: test}
-  # validate needs the providers `init` installs, so it waits for .terraform/.
-  - {stack: opentofu, name: fmt, cmd: "{bin} fmt -check -recursive", bin: [tofu, terraform], slot: format-check}
-  - {stack: opentofu, name: validate, cmd: "{bin} validate", bin: [tofu, terraform], when_dir: .terraform}
+# Flags no check may set, alone or as flag=value that doesn't turn them off
+# (--watch=false does): a check verdict, segment, form, or proposal setting
+# one is rejected, since it writes files or never exits. Fixers may.
+deny_flags: [--fix, --write, --watch, --watchAll, --apply, --apply-unsafe, --autocorrect, --autocorrect-all, --auto-correct,
+  --auto-correct-all, --ui]
 
-# Turning checks off from the overlay. An overlay entry in checks (by name)
-# or toolchain_checks (by stack and name) with a default's key updates the
-# fields it sets instead of adding a second entry.
-#   disabled_task_providers    provider names; their tasks aren't read at all
-#   disabled_checks            a slot ("lint"), or a label as run-checks
-#                              prints it, with or without the stack prefix
-#                              ("lint (lint:css) [web]")
-#   disabled_toolchain_checks  "<stack>:<name>" ("go:vet")
+# Environment every gate runs with, as NAME=value. pnpm would otherwise
+# install before a script runs, changing node_modules mid-check.
+gate_env: [pnpm_config_verify_deps_before_run=false]
+
+# Seconds the Stop hook's checks run, in parallel, each killed after this
+# and reported as a SKIP, never a block. The Stop hook itself allows 300.
+gate_timeout: 90
+
+# Pin files that pin tools for every project, after the project's own: a
+# tool a project doesn't provide runs from PATH only when a pin names it
+# and PATH's copy is its manager's. Each is named like a project pin file
+# (Brewfile, .tool-versions, mise.toml); "~/" is $HOME. Meant for the
+# overlay: [~/.dotfiles/Brewfile].
+user_pins: []
+
+# Turning gates off from the overlay.
+#   disabled_task_providers  provider names (package-scripts, make, just,
+#                            pdm, poe, rake, cargo-alias, composer,
+#                            taskfile); their tasks aren't read at all
+#   disabled_checks          a check kind ("lint"), or a gate's label as
+#                            run-checks prints it ("lint (package.json:
+#                            lint:css) [web]"); without its "[dir]", it
+#                            names every subproject's copy
 disabled_task_providers: []
 disabled_checks: []
-disabled_toolchain_checks: []
 
-# How deep below the repo root a tracked anchor sentinel still makes its
-# directory a subproject (`kit subprojects`).
-subproject_max_depth: 4
+# What the format-dispatch hook runs on an edited file the project's own
+# fixers don't claim (go/internal/hooks/format.go). Per rule, by globs:
+#   run   the first command on PATH formats it; {file} is its path, and
+#         stdout: true replaces the file with what the command prints.
+#         The last rule that matches wins, so an overlay's rule overrides.
+#   note  runs whatever claims the file, its output shown, nothing changed.
+on_edit:
+  - globs: ["*.md", "*.mdx", "*.markdown"]
+    run:
+      - {cmd: "prettierd {file}", stdout: true}
+      - {cmd: "prettier --write {file}"}
+      - {cmd: "deno fmt {file}"}
+      - {cmd: "mdformat {file}"}
+  - globs: ["*.sh", "*.bash"]
+    note: "shellcheck {file}"
 
-# Formatters run on each edited file by the format-dispatch hook, only where
-# the project opts in. A formatter is a candidate for a file when its ext
-# lists the file's extension and one of its signals is found walking up from
-# the file to the project root (never above it):
-#   signal_files     a config file by name
-#   signal_toml      a table in a TOML file ("<file> <dotted path>")
-#   signal_prettier  Prettier's own config lookup, accepted only when the
-#                    config it finds is inside the project root
-# Exactly one candidate formats the file; none, or two (a Biome/Prettier
-# migration mid-way), leaves it alone. {bin} resolves as tool_resolution
-# says. When no candidate claims the file, the fallback entries are tried in
-# order and the first that resolves formats it, PATH allowed: an opinionated
-# exception so edited Markdown is formatted even in a repo with no config.
-# A project-side reason it can't run (declared but not installed) stops the
-# chain; only a binary found nowhere moves on.
-#   fallback  no signal needed; used only when nothing else claims the file
-#   stdout    the command reads the file on stdin and prints the result,
-#             which replaces the file when it exits 0
-# disabled_formatters in the overlay turns an entry off by name; an overlay
-# entry with the same name updates the fields it sets.
-formatters:
-  - name: biome
-    ext: [js, jsx, ts, tsx, json, jsonc, css]
-    signal_files: [biome.json, biome.jsonc]
-    bin: biome
-    cmd: "{bin} format --write {file}"
-  - name: prettier
-    ext: [js, jsx, ts, tsx, css, scss, json, md, mdx, yaml, yml, html]
-    signal_prettier: true
-    bin: prettier
-    cmd: "{bin} --write {file}"
-  - name: dprint
-    ext: [js, jsx, ts, tsx, json, jsonc, md, toml]
-    signal_files: [dprint.json, .dprint.json]
-    bin: dprint
-    cmd: "{bin} fmt {file}"
-  - name: ruff
-    ext: [py]
-    signal_files: [ruff.toml, .ruff.toml]
-    signal_toml: "pyproject.toml .tool.ruff"
-    bin: ruff
-    cmd: "{bin} format {file}"
-  - name: black
-    ext: [py]
-    signal_toml: "pyproject.toml .tool.black"
-    bin: black
-    cmd: "{bin} --quiet {file}"
-  - name: shfmt
-    ext: [sh, bash]
-    signal_files: [.editorconfig]
-    bin: shfmt
-    cmd: "{bin} -w {file}"
-  - name: stylua
-    ext: [lua]
-    signal_files: [stylua.toml, .stylua.toml]
-    bin: stylua
-    cmd: "{bin} {file}"
-  - name: gofmt
-    ext: [go]
-    signal_files: [go.mod]
-    bin: gofmt
-    cmd: "{bin} -w {file}"
-  - name: prettierd
-    ext: [md, mdx, markdown]
-    fallback: true
-    bin: prettierd
-    cmd: "{bin} {file}"
-    stdout: true
-  - name: prettier-markdown
-    ext: [md, mdx, markdown]
-    fallback: true
-    bin: prettier
-    cmd: "{bin} --write {file}"
-  - name: deno-markdown
-    ext: [md, mdx, markdown]
-    fallback: true
-    bin: deno
-    cmd: "{bin} fmt {file}"
-  - name: mdformat
-    ext: [md, markdown]
-    fallback: true
-    bin: mdformat
-    cmd: "{bin} {file}"
-
-disabled_formatters: []
-
-# Where every tool the kit runs (toolchain checks, file checks, formatters)
-# gets its binary. First match wins:
-#   1. a project-local copy: node_modules/.bin, .venv/bin, venv/bin, from the
-#      file's directory up to the repo root
-#   2. a go.mod tool directive, as `go tool -n` builds it (never downloads)
-#   3. the project's package-manager environment (poetry, pipenv, Yarn PnP,
-#      bundler), or an activated $VIRTUAL_ENV / $CONDA_PREFIX inside the repo
-#   4. declared in a manifest but not installed: skipped, naming the install
-#      command
-#   5. a check that needs the project's packages (local_only): skipped
-#   6. on PATH, when a pin file names the tool and the copy is the version
-#      manager's (under manager_dirs), or the tool is in path_fallback
-# Anything else on PATH is skipped with the reason. Never npx, pnpm dlx, or
-# uv run, which can install packages.
-#   path_fallback  standalone toolchains whose PATH copy is safe to run
-#   pin_files      version-manager files naming tools (.tool-versions, mise)
-#   pin_aliases    a pin file's plugin name -> the binary it provides
-#   manager_dirs   where version managers put the binaries they pin
-#   bin_packages   binary -> the package that declares it, when they differ
-#   install        package manager -> the command that installs declared tools
-tool_resolution:
-  path_fallback: [go, gofmt, cargo, rustfmt, shellcheck, shfmt, stylua, tofu, terraform]
-  pin_files: [.tool-versions, mise.toml, .mise.toml]
-  pin_aliases: {opentofu: tofu, golang: go}
-  manager_dirs:
-    - "$ASDF_DATA_DIR/shims"
-    - "$ASDF_DATA_DIR/installs"
-    - "~/.asdf/shims"
-    - "~/.asdf/installs"
-    - "$MISE_DATA_DIR/shims"
-    - "$MISE_DATA_DIR/installs"
-    - "$XDG_DATA_HOME/mise/shims"
-    - "$XDG_DATA_HOME/mise/installs"
-    - "~/.local/share/mise/shims"
-    - "~/.local/share/mise/installs"
-  bin_packages: {biome: "@biomejs/biome", tsc: typescript}
-  install:
-    npm: npm install
-    pnpm: pnpm install
-    yarn: yarn install
-    bun: bun install
-    uv: uv sync
-    poetry: poetry install
-    pipenv: pipenv install --dev
-    pip: pip install -r requirements.txt
-    pdm: pdm install
-    bundler: bundle install
-    go: go mod download
-
-# The Stop hook runs file-scoped checks on only the files the turn edited.
-# The built-in ones (eslint, biome, stylelint, vitest, jest, ruff, mypy,
-# pyright, golangci-lint, go vet, rubocop, markdownlint, yamllint, tofu fmt,
-# shellcheck) live in go/internal/tools: each claims a file by its config
-# file, a pyproject table, or the tool declared as a dependency, runs from
-# that directory, and never writes. Linters block only on findings on lines
-# the working tree changed against HEAD; type checkers, test runners, and
-# your own file_checks block on any failure. `bin/kit explain stop <file>...`
-# shows what claims a file, the exact command, and what blocks.
-#
-# file_checks adds your own; an entry named like a built-in replaces it.
-#   name, ext, bin, cmd   cmd: {bin} (a whole word) is the resolved binary, a
-#                         word holding {files} repeats once per edited file,
-#                         {dirs} once per their directories as ./<relative>
-#   signal_files          a config file by name, walking up to the root
-#   signal_toml           "<file> <dotted path>": a table in a TOML file
-#   exclude_toml          "<file> <dotted path>" to a regex or regex list;
-#                         matching files (relative to the run dir) are dropped
-#   local_only            never take a PATH copy, even a pinned one
-# {bin} resolves as tool_resolution says. disabled_file_checks turns any
-# check off by name.
-# Whole-project checks (typecheck, the full test suite) are `kit run-checks`'s
-# job, run when rules/verify.md says.
-
-file_checks: []
-
-disabled_file_checks: []
-
-# The checks run in parallel, each killed after this many seconds and
-# reported as a SKIP, never a block. The Stop hook itself allows 300.
-check_timeout: 90
+# Chat reply word ceilings (rules/output.md section 0), set per prompt by the
+# reply-length hook, which corrects an overrun silently on the next prompt.
+# Fenced code doesn't count.
+# A prompt with a detail trigger has no ceiling; with an explain trigger,
+# the explain one. uncapped_commands: slash commands (as typed, without the
+# slash) whose turn is a report, so none. write: the /write kinds that print
+# to the terminal, code included; the others write a file and reply with its
+# path. 0 turns a ceiling off.
+reply_limits:
+  chat: 40
+  explain: 80
+  explain_triggers: [explain, why, tradeoff, tradeoffs, review, audit]
+  detail_triggers: [in detail, walk me through, long version]
+  uncapped_commands: [verify, code-review, kit:audit, kit:deps, audit, deps]
+  write:
+    commit: 40
+    devnote: 40
+    explainer: 150
 
 # The CLIs rules/tooling.md steers toward. <tooling> reports which of them
 # are on PATH as available: and missing: lines, so a rule never sends Claude
 # to a binary this machine lacks.
-tools: [rg, sg, fd, tokei, gitleaks, trufflehog, hyperfine, jq, gron, yq, qsv, sd, sponge, git-absorb, actionlint]
-
-# JS monorepo task runners that know package dependents and cache results.
-# When a signal file is at the repo root and {bin} resolves from the root's
-# node_modules/.bin (never npx), `kit run-checks` runs each JS check matching one
-# of task_paths' task names once through the orchestrator, instead of per
-# package. Flags checked against the docs on 2026-09-26, no local install:
-# turbo 2.x (`--filter=...[ref]` is changed packages plus dependents; 1.x
-# named tasks `pipeline`) and nx.dev's current `nx affected` reference.
-# `--uncommitted` misses brand-new untracked files.
-orchestrators:
-  - name: turbo
-    signal: turbo.json
-    task_paths: [.tasks, .pipeline]
-    run: "{bin} run {task} --filter=...[HEAD]"
-  - name: nx
-    signal: nx.json
-    task_paths: [.targetDefaults]
-    run: "{bin} affected -t {task} --uncommitted"
-
-# Key package versions for <repo-context>, one "versions" line per subproject
-# holding the stack. For each name, version_sources for that stack are tried
-# in order and the first hit is shown with its label. {name} fills file and
-# arg; up: true walks from the subproject to the root for the file (a
-# workspace-root lockfile). Matching ignores case: pip names do.
-versions:
-  js: [react, next, typescript, tailwindcss, vue, nuxt, storybook, graphql]
-  python: [django, djangorestframework, fastapi, pydantic]
-version_sources:
-  js:
-    - {file: "node_modules/{name}/package.json", extractor: json_value, arg: .version, label: installed}
-    - {file: package.json, extractor: json_value, arg: ".dependencies.{name}", label: declared}
-    - {file: package.json, extractor: json_value, arg: ".devDependencies.{name}", label: declared}
-  python:
-    - {file: uv.lock, extractor: toml_package_version, arg: "{name}", label: locked, up: true}
-    - {file: poetry.lock, extractor: toml_package_version, arg: "{name}", label: locked, up: true}
-    - {file: requirements.txt, extractor: regex_lines, arg: "^{name}==([^[:space:];#]+)", label: pinned}
-
-stacks:
-  js:
-    sentinels:
-      - name: package.json
-        anchor: true
-    skills: [javascript-patterns]
-    extras:
-      - name: typescript
-        file: tsconfig.json
-        skills: [typescript-patterns]
-      # next implies react: Next IS React; react rarely appears as a direct dep
-      - name: next
-        dep: next
-        skills: [react-patterns, next-app-router-patterns]
-      - name: react
-        dep: react
-        skills: [react-patterns]
-      # nuxt implies vue: Nuxt bundles Vue; vue rarely appears as a direct dep
-      - name: nuxt
-        dep: nuxt
-        skills: [vue-patterns, nuxt-patterns]
-      - name: vue
-        dep: vue
-        skills: [vue-patterns]
-      - name: tailwindcss
-        dep: tailwindcss
-        skills: [tailwind-patterns]
-      - name: graphql
-        any_of:
-          - file: codegen.ts
-          - grep: '"(graphql|@apollo/client|urql|graphql-request)"[[:space:]]*:'
-            in: [package.json]
-        skills: [graphql-patterns]
-      # The grep also matches a "storybook" script; either way Storybook is in use.
-      - name: storybook
-        any_of:
-          - file: .storybook/main.ts
-          - file: .storybook/main.js
-          - grep: '"storybook"[[:space:]]*:'
-            in: [package.json]
-        skills: [storybook-patterns]
-      - name: vitest
-        dep: vitest
-        skills: [test-patterns]
-      - name: jest
-        dep: jest
-        skills: [test-patterns]
-      - name: playwright
-        dep: "@playwright/test"
-        skills: [test-patterns]
-        rename: playwright
-      - name: cypress
-        dep: cypress
-        skills: [test-patterns]
-      - name: express
-        dep: express
-      - name: fastify
-        dep: fastify
-      - name: nestjs
-        dep: "@nestjs/core"
-        rename: nestjs
-      - name: angular
-        dep: "@angular/core"
-        rename: angular
-      - name: svelte
-        dep: svelte
-      - name: biome
-        dep: "@biomejs/biome"
-        rename: biome
-      - name: eslint
-        dep: eslint
-      - name: prettier
-        dep: prettier
-
-  python:
-    sentinels:
-      - name: pyproject.toml
-        anchor: true
-      - name: requirements.txt
-      - name: Pipfile
-      - name: manage.py
-      - name: uv.lock
-      - name: pdm.lock
-    skills: [python-patterns]
-    extras:
-      - name: django
-        any_of:
-          - file: manage.py
-          - grep: '^[[:space:]"]*[Dd]jango'
-            in: [pyproject.toml, requirements.txt, Pipfile]
-        skills: [django-patterns]
-      - name: drf
-        grep: '^[[:space:]"]*djangorestframework'
-        in: [pyproject.toml, requirements.txt, Pipfile]
-        skills: [drf-patterns]
-      - name: fastapi
-        grep: '^[[:space:]"]*fastapi'
-        in: [pyproject.toml, requirements.txt, Pipfile]
-        skills: [fastapi-patterns]
-      - name: flask
-        grep: '^[[:space:]"]*flask'
-        in: [pyproject.toml, requirements.txt, Pipfile]
-      - name: pytest
-        any_of:
-          - file: pytest.ini
-          - file: conftest.py
-          - grep: '^[[:space:]"]*pytest'
-            in: [pyproject.toml, requirements.txt, Pipfile]
-        skills: [test-patterns]
-      - name: ruff
-        grep: '^[[:space:]"]*ruff'
-        in: [pyproject.toml, requirements.txt, Pipfile]
-      - name: mypy
-        grep: '^[[:space:]"]*mypy'
-        in: [pyproject.toml, requirements.txt, Pipfile]
-
-  ruby:
-    sentinels:
-      - name: Gemfile
-        anchor: true
-    skills: []
-    extras:
-      - name: rails
-        any_of:
-          - file: config/routes.rb
-          - file: app/controllers/application_controller.rb
-
-  rust:
-    sentinels:
-      - name: Cargo.toml
-        anchor: true
-    skills: []
-
-  go:
-    sentinels:
-      - name: go.mod
-        anchor: true
-    skills: [go-patterns]
-
-  # OpenTofu, and Terraform where the two share syntax. The committed
-  # dependency lock file marks a root module.
-  opentofu:
-    sentinels:
-      - name: .terraform.lock.hcl
-        anchor: true
-    skills: [opentofu-patterns]
-
-  docker:
-    sentinels:
-      - name: Dockerfile
-      - name: docker-compose.yml
-      - name: docker-compose.yaml
-      - name: compose.yml
-      - name: compose.yaml
-    skills: [docker-patterns]
-
-  monorepo:
-    sentinels:
-      - name: pnpm-workspace.yaml
-      - name: turbo.json
-      - name: nx.json
-      - name: lerna.json
-    skills: []
-    extras:
-      - name: pnpm-workspaces
-        file: pnpm-workspace.yaml
-      - name: turbo
-        file: turbo.json
-      - name: nx
-        file: nx.json
-      - name: lerna
-        file: lerna.json
+tools: [rg, sg, fd, tokei, gitleaks, trufflehog, hyperfine, jq, gron, yq, qsv, git-absorb, actionlint]

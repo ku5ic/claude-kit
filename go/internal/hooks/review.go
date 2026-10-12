@@ -1,47 +1,100 @@
 package hooks
 
 import (
-	"bytes"
+	"encoding/json"
+	"os"
+	"regexp"
 	"strings"
 
-	"github.com/ku5ic/claude-kit/go/internal/checks"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
-	"github.com/ku5ic/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/run"
+	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
-// ReviewChecks makes every /code-review run the full suite (rules/verify.md),
-// typed (UserPromptExpansion) or invoked (PostToolUse on Skill), once, and
-// adds the result to Claude's context so the review reports it. It never
-// blocks: a failing suite is a finding, not a reason to skip the review.
+// reviewSkill is the skill whose forks the review hooks track.
+const reviewSkill = "code-review"
+
+// persisted is where Claude Code saved a tool result too large to inline.
+var persisted = regexp.MustCompile(`(?s)^\s*<persisted-output>.*?saved to: (\S+)`)
+
+// ranChecks reports whether the agent's transcript shows a kit run-checks
+// run, by its summary line in a tool result (or the file a large one was
+// saved to), so a reviewer that already ran it isn't sent back to re-emit
+// its report. Reading the output, not the command, needs no shell parsing:
+// a mention in quotes prints no summary. A transcript it can't read counts
+// as a run, so a kit read failure never sends the reviewer back.
+func ranChecks(path string) bool {
+	ran := false
+	err := transcript.Each(path, func(e transcript.Entry) {
+		for _, b := range e.Blocks {
+			if ran || b.Type != "tool_result" {
+				continue
+			}
+			text := b.ResultText()
+			if m := persisted.FindStringSubmatch(text); m != nil {
+				if data, err := os.ReadFile(m[1]); err == nil {
+					text = string(data)
+				}
+			}
+			ran = run.Summary.MatchString(text)
+		}
+	})
+	return ran || err != nil
+}
+
+// forkedSkill is the skill a forked subagent runs: from Claude Code's
+// .forked-skill.json sidecar, else, for a foreground fork that writes none,
+// "code-review" when the parent's code-review Skill call has no result yet.
+func forkedSkill(agentTranscript, parent string) string {
+	if data, err := os.ReadFile(strings.TrimSuffix(agentTranscript, ".jsonl") + ".forked-skill.json"); err == nil {
+		var fork struct {
+			SkillName string `json:"skillName"`
+		}
+		_ = json.Unmarshal(data, &fork)
+		return fork.SkillName
+	}
+	pending := map[string]bool{}
+	_ = transcript.Each(parent, func(e transcript.Entry) {
+		for _, b := range e.Blocks {
+			switch {
+			case b.Type == "tool_use" && b.Name == "Skill" && b.Input.Skill == reviewSkill:
+				pending[b.ID] = true
+			case b.Type == "tool_result":
+				delete(pending, b.ToolUseID)
+			}
+		}
+	})
+	if len(pending) > 0 {
+		return reviewSkill
+	}
+	return ""
+}
+
+// ReviewChecks holds a forked /code-review at its first stop (SubagentStop)
+// and sends it back to run the full suite (rules/verify.md) and open its
+// report with the result. The reviewer knows its own target, so it, not this
+// hook, decides whether local checks apply. stop_hook_active lets the second
+// stop through, so it nudges once and never loops.
 func ReviewChecks(h *hook.Hook) error {
 	p := h.Payload
-	if p.Err != nil {
+	if p.Err != nil || p.Bool("stop_hook_active") {
 		return nil
 	}
-	event := p.String("hook_event_name")
-	switch {
-	case event == "UserPromptExpansion" && p.String("command_name") == "code-review":
-	case event == "PostToolUse" && p.String("tool_name") == "Skill" && p.String("tool_input.skill") == "code-review":
-	default:
+	transcript := p.String("agent_transcript_path")
+	if transcript == "" {
 		return nil
 	}
-	cfg := h.Config()
-	if cfg == nil {
+	// A forked skill runs as agent_type "general-purpose"; only undocumented
+	// Claude Code records name the skill. If they move, the hook goes quiet
+	// rather than nudging every subagent.
+	if forkedSkill(transcript, p.String("transcript_path")) != reviewSkill {
 		return nil
 	}
-	root := project.Toplevel(cwdOf(h))
-	if root == "" {
+	if h.Config() == nil || git.Toplevel(h.Payload.Cwd()) == "" || ranChecks(transcript) {
 		return nil
 	}
-	var suite bytes.Buffer
-	failed := checks.RunAll(cfg, root, nil, &suite)
-	verdict := "passed"
-	if failed > 0 {
-		verdict = "FAILED; each failure is a finding of this review"
-	}
-	hook.WriteJSON(h.Stdout, map[string]any{"hookSpecificOutput": map[string]string{
-		"hookEventName":     event,
-		"additionalContext": "kit run-checks ran for this /code-review and " + verdict + "; don't run it again:\n" + strings.TrimSpace(suite.String()),
-	}})
-	return nil
+	return h.Block("before you return: run `kit run-checks` in the checkout you reviewed, timed per rules/tooling.md section 2. "+
+		"If you reviewed a target you didn't check out, don't run it. "+
+		"Then return your full report again, every finding you already had unchanged and in the same format, reporting the result per rules/verify.md section 1.", "review-checks")
 }

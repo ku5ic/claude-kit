@@ -36,13 +36,7 @@ Add a `threading.Lock` (or use `threading.local` if the state is genuinely per-t
 
 ## Testing-adjacent
 
-For test code review; depth lives in test-runner-specific references.
-
-- `pytest` over `unittest.TestCase`. Fewer ceremonies; better fixtures; better parametrize.
-- Fixture scope: `function` (default) unless setup is genuinely expensive. `module` / `session` scopes share state and create order coupling.
-- `monkeypatch` for clean test-local mutations of env vars, attributes, and module-level singletons. Auto-reverts.
-- `@pytest.mark.parametrize("input,expected", [...], ids=[...])`. The `ids` argument keeps test names readable when the inputs are objects.
-- Factory Boy (`factory.django.DjangoModelFactory`) or model_bakery for Django model fixtures. Stop hand-writing `Model.objects.create(...)` in every test.
+pytest conventions (fixtures, scope, parametrize, factories) are test-patterns' `reference/pytest.md`; Django test setup is django-patterns' `reference/testing.md`.
 
 ## References
 

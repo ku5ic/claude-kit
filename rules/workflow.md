@@ -1,11 +1,11 @@
 # Workflow
 
-Git, side effects, skills, and resolving external context.
+Git, side effects, plans, and when to ask.
 
 ## 1. Git
 
 - **Never commit or push without being asked.** Running code changes is not an implicit commit request.
-- Never push to `main`, `master`, `develop`, or any protected branch directly. Work on a feature branch.
+- Never push directly to `main`, `master`, or another protected branch (kit.yml `protected_branches`, which the bash guard enforces). Work on a feature branch.
 - Name a new branch by the project's convention: a documented rule, a branch-name script, or the shape of recent branches (`git branch -r --sort=-committerdate | head`). None found: `<type>/<slug>` with Conventional Commit types.
 - Never force push or rewrite history on a shared branch.
 - Read `git log --oneline -20` before writing a message. Match the project's style (Conventional Commits, ticket prefix, plain).
@@ -13,6 +13,13 @@ Git, side effects, skills, and resolving external context.
 - On a commit request, show the proposed message and the staged diff summary first. Wait for confirmation unless told to proceed.
 - Do not stage or commit unrelated changes. Flag incidental fixes and propose a separate commit.
 - Commit messages follow `rules/output.md` section 4 (External communication), with no detailed-explanation exception.
+
+### Checking out a PR or another branch
+
+Before `/code-review`, `/verify`, or a skill checks one out, ask with AskUserQuestion: local checkout first and preselected, worktree second. Pass the answer as `here` or `worktree` in the skill's args; whoever finds neither takes `here`.
+
+- `here`: on a dirty tree, stop and say so in one line. Otherwise `gh pr checkout <n>` or `git switch <branch>`, and name the branch you left in the report's first line so the user can switch back.
+- `worktree`: `git worktree add --detach "$(kit scratch-dir)/review-<target>"`, then `gh pr checkout <n>` or `git switch --detach <branch>` inside it. Work and run `kit run-checks` there, then `git worktree remove --force` it.
 
 ## 2. Side effects
 

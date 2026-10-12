@@ -1,7 +1,5 @@
-// Package gitbase finds the base ref of the current checkout, as
-// kit git-base: an explicit ref, else the upstream (unless it is only this
-// branch's own push target), else origin/HEAD, else main, master, develop,
-// or trunk.
+// Package gitbase is kit git-base: the base ref of the current checkout
+// (git.Base), or the diff or log against it.
 package gitbase
 
 import (
@@ -11,6 +9,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/ku5ic/claude-kit/go/internal/git"
 )
 
 // Mode is what to print for the base: the ref, the diff against it, or the
@@ -31,12 +31,12 @@ type Args struct {
 	Paths    []string // pathspecs after --
 }
 
-// Parse splits kit git-base's arguments. The mode is a flag (--diff, --log)
+// parse splits kit git-base's arguments. The mode is a flag (--diff, --log)
 // so a branch named diff or log still works as the base. The base is the
 // first word that resolves as a ref; a word right after a flag is that
 // flag's value (-n 5); any other word is an error, not a silent fallback
 // that would diff against the wrong branch.
-func Parse(argv []string) (Args, error) {
+func parse(argv []string) (Args, error) {
 	var a Args
 	if len(argv) > 0 {
 		switch argv[0] {
@@ -56,7 +56,7 @@ func Parse(argv []string) (Args, error) {
 			inPaths = true
 		case strings.HasPrefix(arg, "-"):
 			a.Extra = append(a.Extra, arg)
-		case a.Explicit == "" && verify(arg):
+		case a.Explicit == "" && git.Verify("", arg):
 			a.Explicit = arg
 		case strings.HasPrefix(prev, "-") && !strings.Contains(prev, "="):
 			a.Extra = append(a.Extra, arg)
@@ -68,64 +68,14 @@ func Parse(argv []string) (Args, error) {
 	return a, nil
 }
 
-func verify(ref string) bool { return verifyIn("", ref) }
-
-func verifyIn(dir, ref string) bool {
-	_, err := gitIn(dir, "rev-parse", "--verify", "--quiet", ref)
-	return err == nil
-}
-
-func gitIn(dir string, args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
-	cmd.Dir = dir
-	out, err := cmd.Output()
-	return strings.TrimSpace(string(out)), err
-}
-
-// Resolve returns the base ref for the working directory, or false when
-// nothing resolves.
-func Resolve(explicit string) (string, bool) { return ResolveIn("", explicit) }
-
-// ResolveIn is Resolve for the repository at dir ("" is the working
-// directory).
-func ResolveIn(dir, explicit string) (string, bool) {
-	git := func(args ...string) (string, error) { return gitIn(dir, args...) }
-	verify := func(ref string) bool { return verifyIn(dir, ref) }
-	if explicit != "" && verify(explicit) {
-		return explicit, true
-	}
-	if upstream, err := git("rev-parse", "--abbrev-ref", "@{upstream}"); err == nil {
-		current, _ := git("rev-parse", "--abbrev-ref", "HEAD")
-		// ${upstream#*/}: drop the remote name; no slash leaves it whole.
-		branch := upstream
-		if _, rest, found := strings.Cut(upstream, "/"); found {
-			branch = rest
-		}
-		if branch != current {
-			return upstream, true
-		}
-	}
-	if _, err := git("symbolic-ref", "refs/remotes/origin/HEAD"); err == nil {
-		if resolved, err := git("symbolic-ref", "--short", "refs/remotes/origin/HEAD"); err == nil && verify(resolved) {
-			return resolved, true
-		}
-	}
-	for _, b := range []string{"main", "master", "develop", "trunk"} {
-		if verify(b) {
-			return b, true
-		}
-	}
-	return "", false
-}
-
 // Run executes kit git-base's behavior and returns its exit status.
 func Run(argv []string, stdout, stderr io.Writer) int {
-	a, err := Parse(argv)
+	a, err := parse(argv)
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		return 1
 	}
-	base, ok := Resolve(a.Explicit)
+	base, ok := git.Base("", a.Explicit)
 	if !ok {
 		return 1
 	}
@@ -139,7 +89,7 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 	case Log:
 		args = append(append([]string{"log", "--oneline"}, a.Extra...), base+"..HEAD", "--")
 	}
-	cmd := exec.Command("git", append(args, a.Paths...)...)
+	cmd := git.Command("", append(args, a.Paths...)...)
 	cmd.Stdout, cmd.Stderr, cmd.Stdin = stdout, stderr, os.Stdin
 	if err := cmd.Run(); err != nil {
 		if exit, ok := errors.AsType[*exec.ExitError](err); ok {

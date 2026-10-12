@@ -2,21 +2,24 @@ package hooks
 
 import (
 	"fmt"
-	"os"
-	"os/exec"
-	"strings"
+	"time"
 
-	"github.com/ku5ic/claude-kit/go/internal/checks"
+	"github.com/ku5ic/claude-kit/go/internal/cache"
+	"github.com/ku5ic/claude-kit/go/internal/enforce"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/run"
+	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
 // StopChecks is the Stop hook: when the turn created or edited files through
-// Edit/Write/MultiEdit/NotebookEdit and left the tree dirty, it runs
-// kit.yml's file_checks on just those files and blocks the stop on a
-// failure, so Claude fixes or reports it. A question-only turn costs
+// Edit/Write/MultiEdit/NotebookEdit and left the tree dirty, it runs the
+// project's file-scoped checks (enforce.Stop) on just those files and blocks
+// the stop on a failure, so Claude fixes or reports it. A question-only turn costs
 // nothing. When the turn ticked a plan's last open step, it also blocks
-// until /code-review (which runs the full suite) has run since the last code
+// until /code-review has run since the last code
 // edit; it never runs the suite itself.
 func StopChecks(h *hook.Hook) error {
 	if h.Payload.Err != nil {
@@ -27,72 +30,68 @@ func StopChecks(h *hook.Hook) error {
 	if h.Payload.Bool("stop_hook_active") {
 		return nil
 	}
-	cwd := cwdOf(h)
-	git := func(args ...string) (string, error) {
-		cmd := exec.Command("git", args...)
-		cmd.Dir = cwd
-		out, err := cmd.Output()
-		return string(out), err
-	}
-	if out, err := git("rev-parse", "--is-inside-work-tree"); err != nil || strings.TrimSpace(out) != "true" {
+	deadline := time.Now().Add(stopBudget)
+	cwd := h.Payload.Cwd()
+	path := h.Payload.String("transcript_path")
+	if !fsx.IsFile(path) {
 		return nil
 	}
-	transcript := h.Payload.String("transcript_path")
-	if f, err := os.Open(transcript); err != nil {
-		return nil
-	} else {
-		f.Close()
-	}
-	top, err := git("rev-parse", "--show-toplevel")
-	if err != nil {
-		return nil
-	}
-	root := project.PhysicalPath(strings.TrimSpace(top))
+	root := git.Toplevel(cwd) // "" outside a work tree
 	cfg := h.Config()
-	if cfg == nil {
+	if root == "" || cfg == nil {
 		return nil
 	}
-
+	// A read error leaves what was read: the hook fails open.
+	entries, _ := transcript.Load(path)
 	// Before the clean-tree return: plans are gitignored, so ticking the
 	// last step leaves the tree clean.
-	if dir, err := project.Dir(cfg, h.Paths, cwd, "plans", false); err == nil {
-		isCode := func(path string) bool {
-			return strings.HasPrefix(project.PhysicalPath(path), root+"/") && !project.IsScratch(h.Paths, path)
-		}
-		if plan, reviewed := planDone(transcript, dir, isCode); plan != "" {
-			if err := endOfPlan(h, strings.TrimPrefix(plan, root+"/"), reviewed); err != nil {
-				return err
-			}
-		}
+	if err := planGate(h, cwd, root, entries); err != nil {
+		return err
 	}
-
 	// A clean tree means the edits were committed, which already went
 	// through verification.
-	if status, err := git("status", "--porcelain"); err != nil || status == "" {
+	if changes, err := git.Status(cwd, false); err != nil || len(changes) == 0 {
 		return nil
 	}
-	edited, err := checks.EditedFiles(transcript)
-	if err != nil || len(edited) == 0 {
+	edited := transcript.Edits(transcript.LastTurn(entries))
+	if len(edited) == 0 {
 		return nil
 	}
-	out := checks.FileChecks(cfg, root, cwd, edited)
-	if out == nil {
+	for i, path := range edited {
+		edited[i] = fsx.Abs(cwd, path)
+	}
+	p := enforce.Stop(cfg, enforce.Options{Root: root, CacheDir: h.Paths.CacheDir()}, edited)
+	if len(p.Gates) == 0 {
 		return nil
+	}
+	out := run.Files(p, h.Paths.CacheDir(), time.Duration(cfg.GateTimeout)*time.Second, deadline)
+	if !h.DryRun {
+		_ = fsx.WriteAtomic(cache.StopReport(h.Paths.CacheDir(), root), []byte(out.Report()), 0o600)
 	}
 	if out.Failed {
-		if err := h.Block("file checks failed; fix them or report and stop.\n"+out.Failures+out.Summary, "checks-failed"); err != nil {
-			return err
-		}
+		return h.Block("file checks failed; fix them or report and stop.\n"+out.Failures, "checks-failed")
 	}
-	hook.WriteJSON(h.Stdout, map[string]string{"systemMessage": h.Name + ":\n" + out.Report + out.Summary})
+	// What ran and what was skipped goes to the user alone: Claude has
+	// nothing to act on.
+	h.Notify(out.Notice())
 	return nil
 }
 
-// endOfPlan blocks a finished plan's stop until /code-review, which runs
-// the full suite, has run since the last code edit (rules/verify.md).
-func endOfPlan(h *hook.Hook, plan string, reviewed bool) error {
-	if reviewed {
-		return nil
+// stopBudget bounds a Stop run, planning and every gate, inside
+// stop-checks' 300s in hooks.json. The 60s left covers the snapshot and
+// diffs after the gates (git calls of up to git.Timeout each) and the report.
+const stopBudget = 240 * time.Second
+
+// planGate blocks the stop when this turn ticked a plan's last step without
+// a review since the last code edit.
+func planGate(h *hook.Hook, cwd, root string, entries []transcript.Entry) error {
+	dir := project.PlanDir(h.Paths, cwd)
+	isCode := func(path string) bool {
+		return fsx.Within(root, fsx.PhysicalPath(path)) && !project.IsScratch(h.Paths, path)
 	}
-	return h.Block(fmt.Sprintf("plan %s is done, but /code-review hasn't run since the last code edit. Run it now (it runs the full suite), then the runtime pass (/verify) when the change has observable behavior.", plan), "plan-done")
+	// A finished plan waits for /code-review since the last code edit (rules/verify.md).
+	if plan, reviewed := planDone(entries, dir, isCode); plan != "" && !reviewed {
+		return h.Block(fmt.Sprintf("plan %s is done, but /code-review hasn't finished since the last code edit. Run it now, or wait for the one running, then the runtime pass (/verify) when the change has observable behavior.", fsx.Rel(root, plan)), "plan-done")
+	}
+	return nil
 }

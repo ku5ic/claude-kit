@@ -1,0 +1,11 @@
+{
+  "turbo": ["pnpm-lock.yaml"],
+  "nx": ["package-lock.json"],
+  "poetry": ["poetry.lock"],
+  "yarn-pnp": ["yarn.lock"],
+  "makefile": [],
+  "pre-commit": [],
+  "lint-staged": ["package-lock.json"],
+  "go-noci": [],
+  "rust": ["Cargo.lock"]
+}

@@ -1,43 +1,39 @@
 package e2e
 
-import "testing"
+import (
+	"path/filepath"
+	"testing"
+)
 
-// review-checks runs the full suite once per /code-review, typed or invoked,
-// and hands the result to Claude as context.
+// `kit hook review-checks` wiring: a forked /code-review is held at its
+// first stop with exit 2 and let through on the second; the hook never runs
+// the suite itself. Which reviewers it holds is tested in process, in
+// internal/hooks.
 func TestReviewChecks(t *testing.T) {
-	setup := func(t *testing.T, code int) *runChecksEnv {
+	t.Parallel()
+	t.Run("a forked /code-review is sent back once to run the checks itself", func(t *testing.T) {
+		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"lint":"eslint ."}}`+"\n")
-		e.stub("npm", code)
-		return e
-	}
-	typed := func(e *runChecksEnv) Result {
-		return e.k.Hook("review-checks", map[string]any{"hook_event_name": "UserPromptExpansion", "command_name": "code-review", "cwd": e.project})
-	}
-	invoked := func(e *runChecksEnv, skill string) Result {
-		return e.k.Hook("review-checks", map[string]any{"hook_event_name": "PostToolUse", "tool_name": "Skill",
-			"tool_input": map[string]any{"skill": skill}, "cwd": e.project})
-	}
+		e.stub("npm", 0)
+		dir := t.TempDir()
+		transcript := filepath.Join(dir, "agent-x.jsonl")
+		Write(t, transcript, "")
+		Write(t, filepath.Join(dir, "agent-x.forked-skill.json"), `{"skillName":"code-review","effort":"medium"}`)
+		stop := func(active bool) Result {
+			return e.k.Hook("review-checks", map[string]any{"hook_event_name": "SubagentStop", "agent_type": "general-purpose",
+				"agent_transcript_path": transcript, "stop_hook_active": active, "cwd": e.project})
+		}
 
-	t.Run("a typed /code-review runs the suite and adds the result as context", func(t *testing.T) {
-		e := setup(t, 0)
-		r := typed(e)
+		r := stop(false)
+		r.Want(t, 2)
+		r.Has(t, "run `kit run-checks` in the checkout you reviewed", "timed per rules/tooling.md section 2", "a target you didn't check out, don't run it",
+			"return your full report again, every finding you already had unchanged", "per rules/verify.md section 1")
+		r = stop(true)
 		r.Want(t, 0)
-		r.Has(t, `"hookEventName":"UserPromptExpansion"`, "kit run-checks ran for this /code-review and passed", "PASS js: lint (lint)")
-		e.callsEqual("npm", e.phys(".")+" run lint")
-	})
-	t.Run("an invoked /code-review runs it too; a failure is a finding, never a block", func(t *testing.T) {
-		e := setup(t, 1)
-		r := invoked(e, "code-review")
-		r.Want(t, 0)
-		r.Has(t, `"hookEventName":"PostToolUse"`, "FAILED; each failure is a finding of this review", "FAIL js: lint (lint)")
-	})
-	t.Run("any other skill or command runs nothing", func(t *testing.T) {
-		e := setup(t, 0)
-		invoked(e, "simplify").Want(t, 0)
-		e.k.Hook("review-checks", map[string]any{"hook_event_name": "UserPromptExpansion", "command_name": "verify", "cwd": e.project}).Want(t, 0)
+		r.Empty(t)
 		if e.called("npm") {
-			t.Errorf("ran: %s", e.calls("npm"))
+			t.Errorf("the hook ran the suite: %s", e.calls("npm"))
 		}
 	})
 }

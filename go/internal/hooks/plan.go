@@ -5,15 +5,42 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strings"
+	"time"
 
+	"github.com/ku5ic/claude-kit/go/internal/cache"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/md"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
-// openStep matches an unticked checklist item, the shape rules/workflow.md
-// section 3 requires a plan's Steps list to take.
-var openStep = regexp.MustCompile(`(?m)^\s*[-*] \[ \]`)
+var (
+	// openStep matches an unticked checklist item, the shape rules/workflow.md
+	// section 3 requires a plan's Steps list to take.
+	openStep = regexp.MustCompile(`(?m)^\s*[-*] \[ \]`)
+	// stepsHeading opens that list; the next heading at its level or above ends it.
+	stepsHeading = regexp.MustCompile(`(?m)^##[ \t]+Steps[ \t]*$`)
+	nextHeading  = regexp.MustCompile(`(?m)^#{1,2}[ \t]`)
+)
+
+// steps is the part of a plan its steps are read from: the "## Steps"
+// section, else the whole plan, minus fenced code, whose checkboxes are
+// examples rather than steps.
+func steps(plan []byte) []byte {
+	if loc := stepsHeading.FindIndex(plan); loc != nil {
+		plan = plan[loc[1]:]
+		if next := nextHeading.FindIndex(plan); next != nil {
+			plan = plan[:next[0]]
+		}
+	}
+	var kept []byte
+	for l := range md.Lines(string(plan)) {
+		if l.Kind == md.Prose || l.Kind == md.Front {
+			kept = append(kept, l.Text...)
+		}
+	}
+	return kept
+}
 
 // PlanModeContext keeps plan work to one step per turn, which rule text
 // alone did not hold against an "execute autonomously" output style.
@@ -31,31 +58,26 @@ func PlanModeContext(h *hook.Hook) error {
 		return nil
 	}
 	if p.String("permission_mode") == "plan" {
-		fmt.Fprintln(h.Stdout, "Plan mode: load the investigate skill and follow it; its findings feed the plan.")
+		h.Print("Plan mode: load the investigate skill and follow it; its findings feed the plan.\n")
 		return nil
 	}
-	session := p.String("session_id")
-	if session == "" || strings.ContainsAny(session, `/\`) {
+	marker := h.Paths.SessionFile(cache.PlanActive, p.SessionID())
+	if marker == "" {
 		return nil
 	}
-	marker := filepath.Join(h.Paths.CacheDir(), "plan-active", session)
 
 	if p.String("hook_event_name") == "PostToolUse" {
 		if p.String("tool_name") != "ExitPlanMode" {
 			return nil
 		}
-		const pause = "implement only its first unchecked step, run the checks rules/verify.md requires, then stop for review. Tick it - [x] only after the user commits it. This pause outranks any output style."
+		const pause = "implement only its first unchecked step, then stop for review, per rules/workflow.md section 3."
 		msg := "Plan approved: " + pause
 		if plan := newestOpenPlan(h); plan != "" {
 			// Best effort: without the marker, later prompts just aren't reminded.
-			_ = os.MkdirAll(filepath.Dir(marker), 0o755)
-			_ = os.WriteFile(marker, []byte(plan), 0o644)
+			_ = fsx.WriteAtomic(marker, []byte(plan), 0o644)
 			msg = "Plan approved (" + plan + "): " + pause
 		}
-		hook.WriteJSON(h.Stdout, map[string]any{"hookSpecificOutput": map[string]string{
-			"hookEventName":     "PostToolUse",
-			"additionalContext": msg,
-		}})
+		h.AddContext("PostToolUse", msg)
 		return nil
 	}
 
@@ -67,22 +89,21 @@ func PlanModeContext(h *hook.Hook) error {
 		os.Remove(marker)
 		return nil
 	}
-	fmt.Fprintf(h.Stdout, "Active plan %s has open steps: do only the next unchecked one, run the checks rules/verify.md requires, then stop for review. Tick a step only after the user commits it.\n", plan)
+	// scratch-rotate prunes markers by age: a plan still in use stays fresh.
+	now := time.Now()
+	_ = os.Chtimes(marker, now, now)
+	h.Print(fmt.Sprintf("Active plan %s has open steps: do only the next unchecked one, then stop for review, per rules/workflow.md section 3.\n", plan))
 	return nil
 }
 
 // newestOpenPlan is the most recently modified plan file in the project's
-// plans dir that still has an open step. Picking by open step skips
-// plan-critic reports, which share the directory.
+// plans dir that still has an open step. In the default dir, shared by
+// every project, that is the one ExitPlanMode just wrote.
 func newestOpenPlan(h *hook.Hook) string {
-	cfg := h.Config()
-	if cfg == nil {
+	if h.Config() == nil {
 		return ""
 	}
-	dir, err := project.Dir(cfg, h.Paths, cwdOf(h), "plans", false)
-	if err != nil {
-		return ""
-	}
+	dir := project.PlanDir(h.Paths, h.Payload.Cwd())
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return ""
@@ -107,5 +128,5 @@ func newestOpenPlan(h *hook.Hook) string {
 
 func hasOpenStep(path string) bool {
 	data, err := os.ReadFile(path)
-	return err == nil && openStep.Match(data)
+	return err == nil && openStep.Match(steps(data))
 }

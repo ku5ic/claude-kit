@@ -4,7 +4,7 @@ Surface technical debt and architectural risks with severity and remediation pat
 
 ## Procedure
 
-1. Stack is in the `<repo-context>` block from the `SubagentStart` hook. Get the scratch directory via `kit scratch-dir`.
+1. Stack is in the `<repo-context>` block from the `SubagentStart` hook.
 2. Load the patterns skill for the detected stack (react-patterns, django-patterns, etc.) for the anti-pattern reference.
 3. Read the target.
    1. If $ARGUMENTS is a directory, run `tokei --files --sort code <path>` to get accurate line counts per language and per file.
@@ -24,13 +24,9 @@ Surface technical debt and architectural risks with severity and remediation pat
 - **Testing debt**: core paths with no tests, brittle tests, untestable designs
 - **Security debt**: authn/authz gaps, input validation, exposed secrets, dependency CVEs (if easy to check)
 - **Observability debt**: silently swallowed errors, no logging on critical paths, no telemetry where it matters
-- **Dead code and duplication**: unused exports, copy-paste logic with divergent lifecycles
+- **Dead code and duplication**: unused exports, and copies of one thing along a stable axis (copies with divergent lifecycles are correct, per `rules/change.md` section 8). Each finding names the pattern `skills/engineering-fundamentals/reference/design-patterns.md` gives for its signal.
 - **Build and dependency health**: deprecated APIs, ejected config, outdated patterns, unmaintained deps
-- **Metric thresholds breached**: use `tokei` for size and a quick scan for the rest. Each is a smell, not a failure; the audit's value is correlating these with high churn from `git log`.
-  - Files over 500 lines
-  - Functions over 50 lines
-  - Cyclomatic complexity: nested conditionals deeper than 3, or branches greater than 7, in a single function
-  - Modules with more than 10 internal imports
+- **Metric thresholds breached**: the numbers in `skills/engineering-fundamentals/reference/metric-thresholds.md`; use `tokei` for size and a quick scan for the rest. Each is a smell, not a failure; the audit's value is correlating these with high churn from `git log`.
 
 ## Output per finding
 
@@ -42,6 +38,6 @@ Surface technical debt and architectural risks with severity and remediation pat
 
 ## Output file
 
-Load the report-format skill and use its format. Write to the path `kit scratch-dir debt <target-slug>` prints. Print the path.
+Load the report-format skill and use its format. Write to the path `kit scratch-dir debt <target-slug>` prints.
 
 Sort findings by severity, then by effort (smallest first within each severity) so the quick wins are visible at the top.

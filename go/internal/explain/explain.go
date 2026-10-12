@@ -4,31 +4,35 @@
 package explain
 
 import (
-	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/bashguard"
-	"github.com/ku5ic/claude-kit/go/internal/checks"
+	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/enforce"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/hooks"
 	"github.com/ku5ic/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/stackctx"
 )
 
 const usage = `usage: kit explain <what> ...
 
   bash '<command>'          how guard-bash parses the command, and its decision
-  edit <path> [tool]        guard-edit's (and the skills gate's) decision on a
-                            Read/Edit/Write of path; tool defaults to Write
-  stop [file...]            which file checks claim each file, where they run,
-                            and the exact command; defaults to the files the
-                            working tree has changed
+  edit <path> [tool [glob]] guard-edit's (and the skills gate's) decision on a
+                            Read/Grep/Edit/Write of path; tool defaults to
+                            Write, and a Grep may filter by glob
+  stop [file...]            which checks claim each file, where they run, the
+                            exact command, and what blocks; defaults to the
+                            files the working tree has changed
 `
 
 // Run dispatches kit explain.
@@ -45,35 +49,37 @@ func Run(paths config.Paths, cfg *config.Config, cwd string, args []string, stdo
 		}
 		return bash(paths, cfg, cwd, args[1], stdout)
 	case "edit":
-		if len(args) < 2 || len(args) > 3 {
+		if len(args) < 2 || len(args) > 4 || len(args) == 4 && args[2] != "Grep" {
 			fmt.Fprint(stderr, usage)
 			return 2
 		}
-		tool := "Write"
-		if len(args) == 3 {
+		tool, glob := "Write", ""
+		if len(args) >= 3 {
 			tool = args[2]
 		}
-		return edit(paths, cfg, cwd, args[1], tool, stdout)
+		if len(args) == 4 {
+			glob = args[3]
+		}
+		return edit(paths, cfg, cwd, args[1], tool, glob, stdout)
 	case "stop":
-		return stop(cfg, cwd, args[1:], stdout, stderr)
+		return stop(paths, cfg, cwd, args[1:], stdout, stderr)
 	}
 	fmt.Fprint(stderr, usage)
 	return 2
 }
 
-// dryHook is a hook invocation that logs nothing, with its output captured.
-func dryHook(paths config.Paths, cfg *config.Config, name string, payload map[string]any) (*hook.Hook, *bytes.Buffer, *bytes.Buffer) {
+// dryHook is a hook invocation that logs nothing and prints nothing.
+func dryHook(paths config.Paths, cfg *config.Config, name string, payload map[string]any) *hook.Hook {
 	raw, _ := json.Marshal(payload)
-	var out, errs bytes.Buffer
-	h := &hook.Hook{Name: name, Payload: hook.ParsePayload(raw), Paths: paths, Stdout: &out, Stderr: &errs, DryRun: true}
+	h := &hook.Hook{Name: name, Payload: hook.ParsePayload(raw), Paths: paths, Stdout: io.Discard, Stderr: io.Discard, Home: os.Getenv("HOME"), DryRun: true}
 	h.SetConfig(cfg)
-	return h, &out, &errs
+	return h
 }
 
 // verdict prints a check's outcome: block with its rule, ask or allow with
 // the reason, or pass.
-func verdict(w io.Writer, name string, err error, out *bytes.Buffer) {
-	if b, ok := err.(*hook.Blocked); ok {
+func verdict(w io.Writer, name string, err error, h *hook.Hook) {
+	if b, ok := errors.AsType[*hook.Blocked](err); ok {
 		rule := b.Rule
 		if rule == "" {
 			rule = "(no slug)"
@@ -88,14 +94,8 @@ func verdict(w io.Writer, name string, err error, out *bytes.Buffer) {
 		fmt.Fprintf(w, "%s: fails open (%v)\n", name, err)
 		return
 	}
-	var decision struct {
-		HookSpecificOutput struct {
-			PermissionDecision       string `json:"permissionDecision"`
-			PermissionDecisionReason string `json:"permissionDecisionReason"`
-		} `json:"hookSpecificOutput"`
-	}
-	if json.Unmarshal(out.Bytes(), &decision) == nil && decision.HookSpecificOutput.PermissionDecision != "" {
-		fmt.Fprintf(w, "%s: %s\n  %s\n", name, decision.HookSpecificOutput.PermissionDecision, decision.HookSpecificOutput.PermissionDecisionReason)
+	if decision, reason := h.Decision(); decision != "" {
+		fmt.Fprintf(w, "%s: %s\n  %s\n", name, decision, reason)
 		return
 	}
 	fmt.Fprintf(w, "%s: pass\n", name)
@@ -117,78 +117,89 @@ func bash(paths config.Paths, cfg *config.Config, cwd, command string, w io.Writ
 		}
 		fmt.Fprintf(w, "  %d  %s\n", i+1, strings.Join(calls, "  |  "))
 	}
-	h, out, _ := dryHook(paths, cfg, "guard-bash", map[string]any{
+	h := dryHook(paths, cfg, "guard-bash", map[string]any{
 		"tool_name": "Bash", "cwd": cwd, "tool_input": map[string]any{"command": command},
 	})
-	verdict(w, "guard-bash", bashguard.Check(h), out)
+	verdict(w, "guard-bash", bashguard.Check(h), h)
 	return 0
 }
 
-func edit(paths config.Paths, cfg *config.Config, cwd, path, tool string, w io.Writer) int {
+func edit(paths config.Paths, cfg *config.Config, cwd, path, tool, glob string, w io.Writer) int {
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(cwd, path)
 	}
-	payload := map[string]any{"tool_name": tool, "session_id": "explain", "cwd": cwd, "tool_input": map[string]any{"file_path": path}}
-	h, out, _ := dryHook(paths, cfg, "guard-edit", payload)
-	verdict(w, "guard-edit", hooks.GuardEdit(h), out)
-	h, out, _ = dryHook(paths, cfg, "guard-skills", payload)
+	input := map[string]any{"file_path": path}
+	if tool == "Grep" {
+		input = map[string]any{"path": path, "glob": glob}
+	}
+	payload := map[string]any{"tool_name": tool, "session_id": "explain", "cwd": cwd, "tool_input": input}
+	h := dryHook(paths, cfg, "guard-edit", payload)
+	verdict(w, "guard-edit", hooks.GuardEdit(h), h)
+	h = dryHook(paths, cfg, "guard-skills", payload)
 	name := "skills gate"
-	if os.Getenv("CLAUDE_GUARD_SKILLS") != "1" {
+	if !stackctx.SkillsEnforced() {
 		name += " (off: CLAUDE_GUARD_SKILLS isn't 1)"
 	}
-	verdict(w, name, hooks.GuardSkills(h), out)
+	verdict(w, name, hooks.GuardSkills(h), h)
 	return 0
 }
 
-func stop(cfg *config.Config, cwd string, files []string, w, stderr io.Writer) int {
-	top := project.Toplevel(cwd)
-	if top == "" {
+func stop(paths config.Paths, cfg *config.Config, cwd string, files []string, w, stderr io.Writer) int {
+	root := git.Toplevel(cwd)
+	if root == "" {
 		fmt.Fprintln(stderr, "kit explain stop: not inside a git repository")
 		return 1
 	}
-	root := project.PhysicalPath(top)
 	if len(files) == 0 {
+		// The hook is silent on a pass: its last report says what ran and what was skipped.
+		for _, last := range []struct{ name, path string }{
+			{"stop-checks", cache.StopReport(paths.CacheDir(), root)},
+			{"per-edit", cache.EditReport(paths.CacheDir(), root)},
+		} {
+			if report, err := os.ReadFile(last.path); err == nil {
+				fmt.Fprintf(w, "last %s run:\n%s\n\n", last.name, strings.TrimRight(string(report), "\n"))
+			}
+		}
 		files = changedFiles(root)
 		if len(files) == 0 {
 			fmt.Fprintln(w, "no changed files; name some: kit explain stop <file>...")
 			return 0
 		}
 	}
-	groups := checks.Plan(cfg, root, cwd, files)
+	abs := make([]string, len(files))
+	for i, f := range files {
+		abs[i] = fsx.Abs(cwd, f)
+	}
+	p := enforce.Stop(cfg, enforce.Options{Root: root, CacheDir: paths.CacheDir()}, abs)
 	claimed := map[string]bool{}
-	for _, g := range groups {
-		fmt.Fprintf(w, "%s  (%s)\n", g.Adapter.Name, g.Why)
-		fmt.Fprintf(w, "  runs in  %s\n", g.Dir)
-		for _, f := range g.Files {
-			claimed[f] = true
-			fmt.Fprintf(w, "  file     %s\n", strings.TrimPrefix(f, root+"/"))
-		}
+	for _, g := range p.Gates {
+		fmt.Fprintln(w, g.Label)
 		if g.Skip != "" {
 			fmt.Fprintf(w, "  skip     %s\n", g.Skip)
 			continue
 		}
-		if g.Derived.Source != "" {
-			carried := append(append([]string{}, g.Derived.Env...), g.Derived.Flags...)
-			what := "no flags on the carry list"
-			if len(carried) > 0 {
-				what = "carries " + strings.Join(carried, " ")
-			}
-			fmt.Fprintf(w, "  from     %s (%s)\n", g.Derived.Source, what)
+		fmt.Fprintf(w, "  runs in  %s\n", fsx.Rel(root, g.Dir))
+		for _, f := range g.Files {
+			claimed[f] = true
+			fmt.Fprintf(w, "  file     %s\n", fsx.Rel(root, f))
 		}
-		fmt.Fprintf(w, "  command  %s\n", strings.Join(g.Words, " "))
-		fmt.Fprintf(w, "  source   %s\n", g.Bin.Origin())
-		blocks := "any failure (whole file)"
-		if g.Adapter.Findings != nil {
+		fmt.Fprintf(w, "  command  %s\n", g.Command())
+		for _, bin := range g.Bins {
+			fmt.Fprintf(w, "  source   %s (%s)\n", bin.Path, bin.Source)
+		}
+		blocks := "any failure"
+		if g.LintLike() {
 			blocks = "findings on changed lines"
 		}
 		fmt.Fprintf(w, "  blocks   %s\n", blocks)
+		fmt.Fprintf(w, "  verdict  %s\n", g.Verdict)
 	}
-	for _, f := range files {
-		abs := f
-		if !filepath.IsAbs(abs) {
-			abs = filepath.Join(cwd, f)
-		}
-		if !claimed[project.PhysicalPath(abs)] {
+	for i, f := range files {
+		switch {
+		case claimed[fsx.PhysicalPath(abs[i])]:
+		case project.IsScratch(paths, abs[i]):
+			fmt.Fprintf(w, "unclaimed  %s (in scratch: no check or formatter runs there)\n", f)
+		default:
 			fmt.Fprintf(w, "unclaimed  %s (no check applies, or the file is ignored, deleted, or outside the repo)\n", f)
 		}
 	}
@@ -197,20 +208,15 @@ func stop(cfg *config.Config, cwd string, files []string, w, stderr io.Writer) i
 
 // changedFiles is every modified or untracked file in the working tree.
 func changedFiles(root string) []string {
-	out, err := exec.Command("git", "-C", root, "status", "--porcelain", "--untracked-files=all").Output()
+	changes, err := git.Status(root, true)
 	if err != nil {
 		return nil
 	}
 	var files []string
-	for line := range strings.SplitSeq(string(out), "\n") {
-		if len(line) < 4 || strings.Contains(line[:2], "D") {
-			continue
+	for _, c := range changes {
+		if !strings.Contains(c.XY, "D") {
+			files = append(files, filepath.Join(root, c.Path))
 		}
-		path := line[3:]
-		if _, after, ok := strings.Cut(path, " -> "); ok {
-			path = after
-		}
-		files = append(files, filepath.Join(root, path))
 	}
 	return files
 }

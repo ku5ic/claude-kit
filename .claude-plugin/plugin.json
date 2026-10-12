@@ -1,10 +1,10 @@
 {
   "name": "kit",
-  "description": "Guard hooks, a formatter and sanitizer, stack-aware context injection, a read-only investigate skill, /audit and /write dispatchers, stack pattern skills, and review agents for Claude Code.",
+  "description": "Blocks destructive commands, runs your project's own checks before Claude says done, and starts every session knowing your stack: guard hooks, a formatter and sanitizer, /audit, /write, /deps and /meta, stack pattern skills, and review agents.",
   "author": {
     "name": "Sinisa Kusic"
   },
-  "version": "0.3.0",
+  "version": "0.4.0",
   "repository": "https://github.com/ku5ic/claude-kit",
   "license": "MIT"
 }

@@ -1,0 +1,286 @@
+package gapfill
+
+import (
+	"fmt"
+	"path/filepath"
+	"slices"
+	"strings"
+
+	// Aliased: gapfill has a classify function of its own.
+	shellcalls "github.com/ku5ic/claude-kit/go/internal/classify"
+	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
+	"github.com/ku5ic/claude-kit/go/internal/guard"
+	"github.com/ku5ic/claude-kit/go/internal/resolve"
+	"github.com/ku5ic/claude-kit/go/internal/sources"
+)
+
+// verify turns s's answers into a Result. Policy first: an entry the deny
+// lists catch is denied, answered or not. Then the project's files: manager
+// facts must cite a lockfile or field that exists, a verdict's segments
+// must be copied from its body, and a form must be its body's own words
+// and never fetch, or it is dropped.
+func verify(cfg *config.Config, root string, entries []sources.Entry, s store, failure string) Result {
+	r := Result{Verdicts: map[string]Verdict{}, Skipped: map[string]string{}}
+	r.Managers, r.Dropped = managers(cfg, root, s.Managers)
+	var prefixes []string
+	for _, m := range r.Managers {
+		prefixes = append(prefixes, m.RunPrefix)
+	}
+	resolver := resolve.New(root, nil, cfg.UserPins)
+	at := func(dir string) forms {
+		return forms{cfg: cfg, root: root, dir: filepath.Join(root, dir), prefixes: prefixes, resolver: resolver}
+	}
+	unclassified := "unclassified"
+	if failure != "" {
+		unclassified += " (" + failure + ")"
+	}
+	for _, e := range entries {
+		key := Key(e)
+		if token := denied(cfg, e); token != "" {
+			r.Skipped[key] = deniedReason + " (" + token + ")"
+			continue
+		}
+		a := s.Entries[key]
+		if a == nil {
+			r.Skipped[key] = unclassified
+			continue
+		}
+		v, dropped, err := at(e.Dir).verdict(e, a.Verdict)
+		if err != nil {
+			r.Skipped[key] = "rejected (" + err.Error() + ")"
+			continue
+		}
+		for _, d := range dropped {
+			r.Dropped = append(r.Dropped, e.Source+" "+e.Name+": "+d)
+		}
+		r.Verdicts[key] = v
+	}
+	for _, p := range s.Proposals {
+		if err := at(p.Dir).proposal(p); err != nil {
+			r.Dropped = append(r.Dropped, fmt.Sprintf("proposal %q: %v", p.Command, err))
+			continue
+		}
+		if p.Role != "check" {
+			p.Kind = ""
+		}
+		r.Proposals = append(r.Proposals, p)
+	}
+	return r
+}
+
+// denied is the deny_commands token e's body holds, "" when none.
+func denied(cfg *config.Config, e sources.Entry) string {
+	return cfg.GateDiscovery.DeniedCommand(strings.Fields(e.Body.Text))
+}
+
+// checkRole is an error for a role the schema doesn't list, or a check
+// kind it doesn't. A check of several kinds, an aggregate, has none.
+func checkRole(role, kind string) error {
+	if !slices.Contains(roles, role) {
+		return fmt.Errorf("role %q", role)
+	}
+	if role == "check" && kind != "" && !slices.Contains(kinds, kind) {
+		return fmt.Errorf("check kind %q", kind)
+	}
+	return nil
+}
+
+// managers are the facts of ms that verify, each manager named alone;
+// dropped says why the rest don't.
+func managers(cfg *config.Config, root string, ms []Manager) (kept []Manager, dropped []string) {
+	for _, m := range ms {
+		m.Manager, _, _ = strings.Cut(m.Manager, "@") // yarn@4.5.0 names yarn
+		if err := checkManager(cfg, root, m); err != nil {
+			dropped = append(dropped, fmt.Sprintf("manager for %s: %v", m.Dir, err))
+			continue
+		}
+		kept = append(kept, m)
+	}
+	return kept, dropped
+}
+
+// checkManager is an error unless m cites a lockfile in its directory, or
+// that directory's package.json packageManager naming m's manager.
+func checkManager(cfg *config.Config, root string, m Manager) error {
+	dir := filepath.Join(root, m.Dir)
+	if m.Cites == "package.json#packageManager" {
+		pm := sources.JSONValue(filepath.Join(dir, "package.json"), ".packageManager")
+		if name, _, _ := strings.Cut(pm, "@"); m.Manager == "" || name != m.Manager {
+			return fmt.Errorf("packageManager is %q, not %s", pm, m.Manager)
+		}
+		return nil
+	}
+	if !guard.IsGuardedLockfile(cfg, m.Cites) || !fsx.IsFile(filepath.Join(dir, m.Cites)) {
+		return fmt.Errorf("no lockfile %s", m.Cites)
+	}
+	return nil
+}
+
+// forms checks commands an answer gives against the place they run.
+type forms struct {
+	cfg       *config.Config
+	root, dir string
+	prefixes  []string // the verified managers' run prefixes
+	resolver  *resolve.Resolver
+}
+
+// verdict is v once it holds up against e: its role and kind, its segments
+// copied from the body, and no check setting a deny_flags flag; or an
+// error. A form that doesn't hold up is dropped, with why; the rest of the
+// verdict stands.
+func (f forms) verdict(e sources.Entry, v Verdict) (Verdict, []string, error) {
+	if err := checkRole(v.Role, v.Kind); err != nil {
+		return v, nil, err
+	}
+	if v.Role != "check" {
+		v.Kind = ""
+	}
+	if flag := f.cfg.DeniedFlag(strings.Fields(e.Body.Text)); v.Role == "check" && len(v.Segments) == 0 && flag != "" {
+		return v, nil, fmt.Errorf("a check that sets %s", flag)
+	}
+	body := strings.Join(strings.Fields(e.Body.Text), " ")
+	bodies := []string{e.Body.Text}
+	for i, s := range v.Segments {
+		if err := checkRole(s.Role, s.Kind); err != nil {
+			return v, nil, fmt.Errorf("segment %q: %w", s.Text, err)
+		}
+		if strings.TrimSpace(s.Text) == "" {
+			return v, nil, fmt.Errorf("segment %q is empty", s.Text)
+		}
+		if !strings.Contains(body, strings.Join(strings.Fields(s.Text), " ")) {
+			return v, nil, fmt.Errorf("segment %q isn't in the body", s.Text)
+		}
+		if flag := f.cfg.DeniedFlag(strings.Fields(s.Text)); s.Role == "check" && flag != "" {
+			return v, nil, fmt.Errorf("segment %q: a check that sets %s", s.Text, flag)
+		}
+		if s.Role != "check" {
+			v.Segments[i].Kind = ""
+		}
+		bodies = append(bodies, s.Text)
+	}
+	var dropped []string
+	if why := f.checkForm(v.Role, v.FileForm, bodies, "{files}", "{dirs}"); why != "" {
+		dropped = append(dropped, fmt.Sprintf("file form %q: %s", v.FileForm, why))
+		v.FileForm, v.Globs = "", nil
+	}
+	if why := f.checkForm(v.Role, v.Affected, bodies, "{base}"); why != "" {
+		dropped = append(dropped, fmt.Sprintf("affected form %q: %s", v.Affected, why))
+		v.Affected = ""
+	}
+	return v, dropped, nil
+}
+
+// checkForm is why form, of an entry in role, fails form, with a check's
+// form also turned away for setting a deny_flags flag; "" for no form.
+func (f forms) checkForm(role, form string, bodies []string, placeholders ...string) string {
+	if form == "" {
+		return ""
+	}
+	if flag := f.cfg.DeniedFlag(strings.Fields(form)); role == "check" && flag != "" {
+		return "sets " + flag
+	}
+	if why := f.form(form, bodies, placeholders...); why != "" {
+		return why
+	}
+	// sameWords lets any added word starting with "-" through as a flag.
+	if !shellcalls.Single(form) {
+		return "not one plain command"
+	}
+	return ""
+}
+
+// proposal is an error unless p is a check of a known kind, or a fixer,
+// whose evidence exists, which the deny lists allow, and which never
+// fetches. Whether the project already enforces its kind where it runs is
+// the plan's call.
+func (f forms) proposal(p Proposal) error {
+	words := strings.Fields(p.Command)
+	switch {
+	case len(words) == 0:
+		return fmt.Errorf("no command")
+	case p.Role != "check" && p.Role != "fixer":
+		return fmt.Errorf("role %q", p.Role)
+	case p.Role == "check" && !slices.Contains(kinds, p.Kind):
+		return fmt.Errorf("check kind %q", p.Kind)
+	// Model output: a second command, a redirect, or eval could hide in it.
+	case !shellcalls.Single(p.Command):
+		return fmt.Errorf("not one plain command")
+	case p.Evidence == "" || !fsx.IsFile(filepath.Join(f.root, p.Evidence)) && !fsx.IsFile(filepath.Join(f.dir, p.Evidence)):
+		return fmt.Errorf("no evidence file %q", p.Evidence)
+	}
+	if token := f.cfg.GateDiscovery.DeniedCommand(words); token != "" {
+		return fmt.Errorf("denied (%s)", token)
+	}
+	if flag := f.cfg.DeniedFlag(words); p.Role == "check" && flag != "" {
+		return fmt.Errorf("a check that sets %s", flag)
+	}
+	if why := f.resolver.Fetches(f.dir, words); why != "" {
+		return fmt.Errorf("fetches (%s)", why)
+	}
+	if why := f.checkForm(p.Role, p.FileForm, []string{p.Command}, "{files}", "{dirs}"); why != "" {
+		return fmt.Errorf("file form %q: %s", p.FileForm, why)
+	}
+	return nil
+}
+
+// form is why form isn't one of bodies' own words, behind at most a
+// verified run prefix, with path arguments replaced by placeholders and
+// only flags and placeholders added; or why it fetches, or lacks every one
+// of placeholders. "" when it holds up.
+func (f forms) form(form string, bodies []string, placeholders ...string) string {
+	if !slices.ContainsFunc(placeholders, func(p string) bool { return strings.Contains(form, p) }) {
+		return "no " + strings.Join(placeholders, " or ")
+	}
+	words := strings.Fields(form)
+	if why := f.resolver.Fetches(f.dir, words); why != "" {
+		return "fetches (" + why + ")"
+	}
+	for _, b := range bodies {
+		source := strings.Fields(b)
+		if f.sameWords(words, source) || f.sameWords(f.unprefixed(words), source) {
+			return ""
+		}
+	}
+	return "not the body's own words"
+}
+
+// unprefixed is words without a verified run prefix in front.
+func (f forms) unprefixed(words []string) []string {
+	for _, p := range f.prefixes {
+		if prefix := strings.Fields(p); len(prefix) > 0 && len(words) > len(prefix) && slices.Equal(words[:len(prefix)], prefix) {
+			return words[len(prefix):]
+		}
+	}
+	return words
+}
+
+// sameWords is true when form is source, in order, with runs of path
+// arguments replaced by placeholder words and flags or placeholders added.
+func (f forms) sameWords(form, source []string) bool {
+	i := 0
+	for _, w := range form {
+		switch {
+		case i < len(source) && w == source[i]:
+			i++
+		case placeholder(w) && i < len(source) && f.pathLike(source[i]):
+			for i < len(source) && f.pathLike(source[i]) {
+				i++
+			}
+		case strings.HasPrefix(w, "-") || placeholder(w):
+		default:
+			return false
+		}
+	}
+	return i == len(source)
+}
+
+func placeholder(w string) bool {
+	return strings.Contains(w, "{files}") || strings.Contains(w, "{dirs}") || strings.Contains(w, "{base}")
+}
+
+// pathLike is true for a word naming files: ".", a ./... package pattern,
+// a glob, or a path that exists where the command runs.
+func (f forms) pathLike(w string) bool {
+	return w == "." || strings.HasSuffix(w, "/...") || strings.ContainsAny(w, "*?[") || fsx.IsFile(filepath.Join(f.dir, w)) || fsx.IsDir(filepath.Join(f.dir, w))
+}

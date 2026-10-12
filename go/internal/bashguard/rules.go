@@ -11,25 +11,29 @@ import (
 // command is one command of a pipeline, past its assignments and wrappers.
 type command struct {
 	st     *state
-	seg    Segment
-	call   int
-	idx    int    // index of the command name in the call's words
 	name   string // basename, quotes removed: "rm", r''m, /bin/rm all read rm
 	args   []Word
 	redirs []Redir
 	inputs []string // < redirect sources
 	rest   string   // normalized source after the name, to the pipeline's end
 	text   string   // name + rest: what the per-command regexes read
-	alone  bool     // the only command of its pipeline
+	alone  bool     // the only command of its pipeline, outside a subshell
 }
 
 func (c *command) block(reason, rule string) error { return c.st.h.Block(reason, rule) }
 
-// readsSensitive blocks when any of paths is a credential file. nil when
-// none is, or when sensitive-read is disabled, so the caller carries on.
+// shortCluster is true when a is a short-option cluster (-xyz) holding any
+// of letters.
+func shortCluster(a, letters string) bool {
+	return strings.HasPrefix(a, "-") && !strings.HasPrefix(a, "--") && strings.ContainsAny(a, letters)
+}
+
+// readsSensitive blocks when any of paths, resolved against the cwd, is a
+// credential file. nil when none is, or when sensitive-read is disabled, so
+// the caller carries on.
 func (c *command) readsSensitive(paths []string) error {
 	for _, p := range paths {
-		if guard.IsSensitive(c.st.cfg, p) {
+		if guard.IsSensitive(c.st.cfg, c.st.home, c.st.abs(unquote(p))) {
 			return c.block("reading a sensitive file is not permitted", "sensitive-read")
 		}
 	}
@@ -46,23 +50,7 @@ func (c *command) values() []string {
 
 // operands are the non-option arguments: words starting with "-" are
 // skipped until a "--", after which every word counts.
-func (c *command) operands() []string {
-	var out []string
-	done := false
-	for _, v := range c.values() {
-		if !done {
-			if v == "--" {
-				done = true
-				continue
-			}
-			if strings.HasPrefix(v, "-") {
-				continue
-			}
-		}
-		out = append(out, v)
-	}
-	return out
-}
+func (c *command) operands() []string { return nonOptions(c.values()) }
 
 var (
 	chmod777    = regexp.MustCompile(`chmod[[:space:]]+(-R[[:space:]]+)?777([[:space:]]|$)`)
@@ -87,12 +75,12 @@ var (
 	findDelete  = regexp.MustCompile(`find[[:space:]].*-delete($|[[:space:]])`)
 	findExecRm  = regexp.MustCompile(`find[[:space:]].*-exec[[:space:]]+rm([[:space:]]|$)`)
 	keychainDel = regexp.MustCompile(`security[[:space:]]+delete-keychain`)
-	pnpmInstall = regexp.MustCompile(`^(install|i)([[:space:]]|$)`)
-	frozen      = regexp.MustCompile(`(^|[[:space:]])--frozen-lockfile([[:space:]]|$)`)
-	npmGlobal   = regexp.MustCompile(`(npm|pnpm|yarn)[[:space:]]+(install|add|i)[[:space:]]+.*(-g|--global)`)
-	yarnGlobal  = regexp.MustCompile(`yarn[[:space:]]+global[[:space:]]+add[[:space:]]`)
-	bunGlobal   = regexp.MustCompile(`bun[[:space:]]+(add|install)[[:space:]]+.*(-g|--global)`)
 	gitWriters  = regexp.MustCompile(` (checkout|restore|apply|mv|rm|stash|reset) `)
+	forkBomb    = regexp.MustCompile(`:\(\)[[:space:]]*\{`)
+	deviceWrite = regexp.MustCompile(`>[[:space:]]*/dev/(sd|nvme|disk|rdisk)`)
+	xargsRm     = regexp.MustCompile(`xargs[[:space:]]+((-[^[:space:]]+[[:space:]]+)*)rm[[:space:]]+-[a-zA-Z]*[rRfF]`)
+	sqQuoted    = regexp.MustCompile(`'[^']*'`)
+	dqQuoted    = regexp.MustCompile(`"[^"]*"`)
 )
 
 // readers only read the files they're given; any other command naming the
@@ -103,37 +91,73 @@ var readers = map[string]bool{
 	"readlink": true, "test": true, "[": true, "echo": true, "printf": true, "sed": true, "sd": true,
 }
 
+// metadataOnly commands act on a file's name or metadata, or use a key
+// without printing it, so naming a credential file is no read. git is
+// read per subcommand, by gitPrinters.
+var metadataOnly = map[string]bool{
+	"ls": true, "stat": true, "test": true, "[": true, "touch": true, "rm": true, "rmdir": true,
+	"chmod": true, "chown": true, "mkdir": true, "realpath": true, "readlink": true, "file": true,
+	"wc": true, "du": true, "basename": true, "dirname": true, "echo": true, "printf": true, "cd": true,
+	"tee": true, "ssh": true, "ssh-add": true,
+}
+
+// gitPrinters are the git subcommands that print the files they name.
+var gitPrinters = map[string]bool{"diff": true, "show": true, "log": true, "grep": true, "blame": true, "annotate": true, "cat-file": true}
+
+// patternFirst is how many leading operands are a pattern, script, or
+// filter rather than a path.
+var patternFirst = map[string]int{"grep": 1, "rg": 1, "sed": 1, "awk": 1, "jq": 1, "yq": 1, "sd": 2, "git grep": 1}
+
+// destructive is the commands blocked by pattern: one of names, with every
+// regex matching its text. %s in reason is the command's name.
+var destructive = []struct {
+	names        []string
+	all          []*regexp.Regexp
+	reason, rule string
+}{
+	{[]string{"psql"}, []*regexp.Regexp{psqlCommand, psqlDrop}, "destructive SQL via psql -c", "psql-destructive"},
+	{[]string{"redis-cli"}, []*regexp.Regexp{redisBad}, "destructive redis-cli command", "redis-destructive"},
+	{[]string{"aws"}, []*regexp.Regexp{awsS3Rm}, "aws s3 rm --recursive deletes an entire bucket prefix", "aws-s3-recursive-rm"},
+	{[]string{"aws"}, []*regexp.Regexp{awsS3Rb}, "aws s3 rb --force force-deletes a bucket and its contents", "aws-s3-force-rb"},
+	{[]string{"aws"}, []*regexp.Regexp{awsEc2}, "aws ec2 terminate-instances is irreversible", "aws-ec2-terminate"},
+	{[]string{"gcloud"}, []*regexp.Regexp{gcloudDel}, "gcloud delete operation", "gcloud-delete"},
+	{[]string{"kubectl"}, []*regexp.Regexp{kubectlDel}, "kubectl delete", "kubectl-delete"},
+	// OpenTofu shares Terraform's CLI; the same slugs cover both.
+	{[]string{"terraform", "tofu"}, []*regexp.Regexp{tfDestroy}, "%s destroy", "terraform-destroy"},
+	{[]string{"terraform", "tofu"}, []*regexp.Regexp{tfAuto}, "%s apply -auto-approve skips the plan review step", "terraform-auto-approve"},
+	// -a/-f are the only short flags these prune subcommands define, so any
+	// cluster holding both letters is --all --force.
+	{[]string{"docker"}, []*regexp.Regexp{dockerPrune, dockerAll, dockerForce}, "docker prune with --all --force wipes all unused resources", "docker-prune-all-force"},
+	{[]string{"find"}, []*regexp.Regexp{findDelete}, "find -delete", "find-delete"},
+	{[]string{"find"}, []*regexp.Regexp{findExecRm}, "find -exec rm", "find-exec-rm"},
+	{[]string{"security"}, []*regexp.Regexp{keychainDel}, "keychain deletion", "keychain-delete"},
+}
+
 func (c *command) check() error {
 	c.overlayWrite()
 	// Any command prints what < feeds it: sort < .env reads it as well as cat.
 	if err := c.readsSensitive(c.inputs); err != nil {
 		return err
 	}
+	if err := c.readsSensitive(c.readOperands()); err != nil {
+		return err
+	}
 	if err := c.rcWrite(); err != nil {
+		return err
+	}
+	for _, d := range destructive {
+		if slices.Contains(d.names, c.name) && !slices.ContainsFunc(d.all, func(re *regexp.Regexp) bool { return !re.MatchString(c.text) }) {
+			if err := c.block(strings.ReplaceAll(d.reason, "%s", c.name), d.rule); err != nil {
+				return err
+			}
+		}
+	}
+	if err := c.globalInstall(); err != nil {
 		return err
 	}
 	switch c.name {
 	case "cd":
-		// Tracked so a later command checks the right repo; a cd inside a
-		// pipeline runs in a subshell and moves nothing.
-		if !c.alone {
-			return nil
-		}
-		prev := c.st.cwd
-		switch {
-		case len(c.args) == 0:
-			c.st.cwd = c.st.home
-		case c.args[0].Value == "-":
-			if c.st.prev == "" {
-				return nil
-			}
-			c.st.cwd = c.st.prev
-		case strings.HasPrefix(c.args[0].Value, "-"):
-			return nil
-		default:
-			c.st.cwd = resolveDir(c.st.home, c.st.cwd, c.args[0].Value)
-		}
-		c.st.prev = prev
+		c.cd()
 	case "rm":
 		return c.rm()
 	case "dd", "shred", "wipefs", "mkfs":
@@ -142,92 +166,10 @@ func (c *command) check() error {
 		return c.chmod()
 	case "git":
 		return c.git()
-	case "psql":
-		if psqlCommand.MatchString(c.text) && psqlDrop.MatchString(c.text) {
-			return c.block("destructive SQL via psql -c", "psql-destructive")
-		}
-	case "redis-cli":
-		if redisBad.MatchString(c.text) {
-			return c.block("destructive redis-cli command", "redis-destructive")
-		}
-	case "aws":
-		for _, r := range []struct {
-			re           *regexp.Regexp
-			reason, rule string
-		}{
-			{awsS3Rm, "aws s3 rm --recursive deletes an entire bucket prefix", "aws-s3-recursive-rm"},
-			{awsS3Rb, "aws s3 rb --force force-deletes a bucket and its contents", "aws-s3-force-rb"},
-			{awsEc2, "aws ec2 terminate-instances is irreversible", "aws-ec2-terminate"},
-		} {
-			if r.re.MatchString(c.text) {
-				if err := c.block(r.reason, r.rule); err != nil {
-					return err
-				}
-			}
-		}
-	case "gcloud":
-		if gcloudDel.MatchString(c.text) {
-			return c.block("gcloud delete operation", "gcloud-delete")
-		}
-	case "kubectl":
-		if kubectlDel.MatchString(c.text) {
-			return c.block("kubectl delete", "kubectl-delete")
-		}
-	case "terraform", "tofu":
-		// OpenTofu shares Terraform's CLI; the same slugs cover both.
-		if tfDestroy.MatchString(c.text) {
-			if err := c.block(c.name+" destroy", "terraform-destroy"); err != nil {
-				return err
-			}
-		}
-		if tfAuto.MatchString(c.text) {
-			return c.block(c.name+" apply -auto-approve skips the plan review step", "terraform-auto-approve")
-		}
-	case "docker":
-		// -a/-f are the only short flags these prune subcommands define, so
-		// any cluster holding both letters is --all --force.
-		if dockerPrune.MatchString(c.text) && dockerAll.MatchString(c.text) && dockerForce.MatchString(c.text) {
-			return c.block("docker prune with --all --force wipes all unused resources", "docker-prune-all-force")
-		}
-	case "find":
-		if findDelete.MatchString(c.text) {
-			if err := c.block("find -delete", "find-delete"); err != nil {
-				return err
-			}
-		}
-		if findExecRm.MatchString(c.text) {
-			return c.block("find -exec rm", "find-exec-rm")
-		}
-	case "security":
-		if keychainDel.MatchString(c.text) {
-			return c.block("keychain deletion", "keychain-delete")
-		}
-	case "npm", "npx", "pnpm", "yarn", "bun", "bunx", "pip", "pip3", "poetry", "uv", "pipenv":
-		return c.packageManager()
 	case "curl":
 		return c.curl()
 	case "wget":
 		return c.wget()
-	case "cat", "bat", "head", "tail", "less", "more", "strings":
-		return c.readsSensitive(c.operands())
-	case "grep", "rg":
-		// The first non-option argument is the pattern, not a path.
-		ops := c.operands()
-		if len(ops) > 0 {
-			ops = ops[1:]
-		}
-		return c.readsSensitive(ops)
-	case "sh", "bash", "zsh", "dash":
-		// -c runs a command string that never surfaces as its own Bash tool
-		// call, bypassing the allow list. Short-option clusters only.
-		for _, v := range c.values() {
-			if v == "--" || !strings.HasPrefix(v, "-") {
-				break
-			}
-			if !strings.HasPrefix(v, "--") && strings.Contains(v, "c") {
-				return c.block("interpreter -c wrapping bypasses the permission allow list; run the command directly as a Bash tool call", "interpreter-c-wrap")
-			}
-		}
 	case "eval":
 		return c.block("eval runs a command string that bypasses the permission allow list; run the command directly as a Bash tool call", "interpreter-c-wrap")
 	case "kit":
@@ -237,32 +179,162 @@ func (c *command) check() error {
 			c.st.ask("kit git-base passes this flag to git, which can write files or run programs; confirm it")
 		}
 	case "sed", "sd":
-		// sed only with -i; sd is always in place when given a file.
-		inPlace := c.name == "sd"
-		for _, v := range c.values() {
-			if v == "--" {
-				break
-			}
-			if strings.HasPrefix(v, "-") && strings.Contains(v, "i") {
-				inPlace = true
-			}
-		}
-		if !inPlace {
-			return nil
-		}
+		return c.inPlaceEdit()
+	case "tee":
 		for _, p := range c.operands() {
-			if guard.IsRCFile(c.st.cfg, p) {
-				if err := c.block("in-place edit of a shell rc file. Use the dotfiles repo.", "rc-inplace-edit"); err != nil {
-					return err
-				}
-			}
-			if c.st.isOverlayArg(p) {
-				c.st.ask(overlayAsk)
-			}
+			c.st.looseWrite("tee", p)
 		}
 	default:
+		// fish isn't in shells, whose heredoc bodies parse as POSIX, but its
+		// -c runs a string all the same.
+		if shells[c.name] || c.name == "fish" {
+			return c.interpreterC()
+		}
 		if strings.HasPrefix(c.name, "mkfs.") {
 			return c.block("low level disk or filesystem tool", "disk-tool")
+		}
+		return c.packageManager()
+	}
+	return nil
+}
+
+// readOperands are the operands the command reads as files: none for a
+// metadataOnly command or a git subcommand that prints none, and never a
+// leading pattern. git show HEAD:.env names .env.
+func (c *command) readOperands() []string {
+	name, ops := c.name, c.operands()
+	if name == "git" {
+		sub, args, _ := gitSubcommand(c.values())
+		if !gitPrinters[sub] {
+			return nil
+		}
+		name, ops = "git "+sub, nonOptions(args)
+		for i, op := range ops {
+			if _, path, ok := strings.Cut(op, ":"); ok {
+				ops[i] = path
+			}
+		}
+	}
+	if metadataOnly[name] {
+		return nil
+	}
+	// ln and mv read their sources: the key reached by a new name is read
+	// under it later. Their target is only written.
+	if name == "ln" || name == "mv" {
+		return sources(c.values())
+	}
+	return ops[min(patternFirst[name], len(ops)):]
+}
+
+// sources are the operands ln or mv reads: all but the target, which is
+// the last one unless -t or --target-directory names it. -S and --suffix
+// take a value too.
+func sources(values []string) []string {
+	var ops []string
+	targeted := false
+	for i := 0; i < len(values); i++ {
+		v := values[i]
+		switch {
+		case v == "--":
+			ops = append(ops, values[i+1:]...)
+			i = len(values)
+		case strings.HasPrefix(v, "--"):
+			// GNU takes any unambiguous prefix: --target, --suf.
+			name, _, attached := strings.Cut(v, "=")
+			isTarget := len(name) > 2 && strings.HasPrefix("--target-directory", name)
+			targeted = targeted || isTarget
+			if !attached && (isTarget || len(name) > 2 && strings.HasPrefix("--suffix", name)) {
+				i++
+			}
+		case strings.HasPrefix(v, "-"):
+			// In a cluster, the first value-taking letter takes the rest of
+			// the word, or the next word when it's last.
+			if at := strings.IndexAny(v, "tS"); at > 0 {
+				targeted = targeted || v[at] == 't'
+				if at == len(v)-1 {
+					i++
+				}
+			}
+		default:
+			ops = append(ops, v)
+		}
+	}
+	if !targeted && len(ops) > 1 {
+		ops = ops[:len(ops)-1]
+	}
+	return ops
+}
+
+// cd tracks the directory a later command runs in, so it checks the right
+// repo; a cd inside a pipeline or a subshell moves nothing after it.
+func (c *command) cd() {
+	if c.alone {
+		c.st.cd(c.args)
+	}
+}
+
+// interpreterC blocks sh -c and its kin: the command string never surfaces
+// as its own Bash tool call, bypassing the allow list. A -c in any
+// short-option cluster before the script counts, past the values that -o,
+// +O, --rcfile, and their kin take.
+func (c *command) interpreterC() error {
+	if wrap, _ := shellMode(c.values()); wrap {
+		return c.block(wrapReason, "interpreter-c-wrap")
+	}
+	return nil
+}
+
+const wrapReason = "interpreter -c wrapping bypasses the permission allow list; run the command directly as a Bash tool call"
+
+// shellMode reads a shell's arguments: wrap when a -c runs a string, script
+// when an operand names a script file; neither, it reads stdin.
+func shellMode(values []string) (wrap, script bool) {
+	for i := 0; i < len(values); i++ {
+		v := values[i]
+		switch {
+		case v == "--":
+			return false, i+1 < len(values)
+		case v == "-":
+			return false, false
+		case !strings.HasPrefix(v, "-") && !strings.HasPrefix(v, "+"):
+			return false, true
+		case v == "--rcfile" || v == "--init-file":
+			i++ // its file, not an option
+		case strings.HasPrefix(v, "--"):
+		case v[0] == '-' && strings.Contains(v, "c"):
+			return true, false
+		case v[0] == '-' && strings.Contains(v, "s"):
+			return false, false // -s: operands are positional parameters
+		case strings.ContainsAny(v[len(v)-1:], "oO"):
+			i++ // -o pipefail, +O extglob: the option's name
+		}
+	}
+	return false, false
+}
+
+// inPlaceEdit guards sed -i and sd, which is always in place when given a
+// file: blocked on a shell rc file, asked on the overlay.
+func (c *command) inPlaceEdit() error {
+	inPlace := c.name == "sd"
+	for _, v := range c.values() {
+		if v == "--" {
+			break
+		}
+		if strings.HasPrefix(v, "-") && strings.Contains(v, "i") {
+			inPlace = true
+		}
+	}
+	if !inPlace {
+		return nil
+	}
+	for _, p := range c.operands() {
+		if guard.IsRCFile(c.st.cfg, c.st.home, p) {
+			if err := c.block("in-place edit of a shell rc file. Use the dotfiles repo.", "rc-inplace-edit"); err != nil {
+				return err
+			}
+		}
+		if c.st.isOverlayArg(p) {
+			c.st.ask(overlayAsk)
 		}
 	}
 	return nil
@@ -281,7 +353,7 @@ func (c *command) rcWrite() error {
 		}
 	}
 	for _, p := range targets {
-		if guard.IsRCFile(c.st.cfg, p) {
+		if guard.IsRCFile(c.st.cfg, c.st.home, p) {
 			return c.block("direct write to a shell rc file. Use the dotfiles repo.", "rc-redirect")
 		}
 	}
@@ -315,21 +387,27 @@ func (c *command) overlayWrite() {
 }
 
 func (c *command) rm() error {
-	// Whole words only: rm -rf *.log and rm -rf dist/* stay allowed.
-	force, broad := false, false
+	// Whole words only: rm -rf *.log and rm -rf dist/* are asked, not blocked.
+	force, recursive, broad := false, false, false
 	for _, v := range c.values() {
 		switch {
-		case v == "--recursive" || v == "--force":
+		case v == "--recursive":
+			force, recursive = true, true
+		case v == "--force":
 			force = true
 		case strings.HasPrefix(v, "--"):
-		case strings.HasPrefix(v, "-") && strings.ContainsAny(v, "rRfF"):
-			force = true
+		case strings.HasPrefix(v, "-"):
+			force = force || strings.ContainsAny(v, "rRfF")
+			recursive = recursive || strings.ContainsAny(v, "rR")
 		case slices.Contains([]string{"/", "/*", "~", "~/", "~/*", "$HOME", "${HOME}", "$HOME/", "${HOME}/", "$HOME/*", "${HOME}/*", ".", "..", "./", "../", "*"}, v):
 			broad = true
 		}
 	}
 	if force && broad {
 		return c.block("rm with recursive force against root, home, or cwd", "rm-recursive")
+	}
+	if recursive {
+		c.st.ask("rm -r deletes a directory tree; confirm the path")
 	}
 	return nil
 }
@@ -347,12 +425,9 @@ func (c *command) chmod() error {
 	return nil
 }
 
-// git splits past git's global options: the subcommand, its arguments, and
-// the -C directory.
-func (c *command) git() error {
-	words := c.values()
-	sub, dir := "", ""
-	var args []string
+// gitSubcommand splits git's words past its global options: the
+// subcommand, its arguments, and the -C directory.
+func gitSubcommand(words []string) (sub string, args []string, dir string) {
 	for i := 0; i < len(words); {
 		w := words[i]
 		switch {
@@ -361,17 +436,19 @@ func (c *command) git() error {
 				dir = words[i+1]
 			}
 			i += 2
-			continue
 		case slices.Contains([]string{"-c", "--git-dir", "--work-tree", "--namespace", "--config-env", "--super-prefix"}, w):
 			i += 2
-			continue
 		case strings.HasPrefix(w, "-"):
 			i++
-			continue
+		default:
+			return w, words[i+1:], dir
 		}
-		sub, args = w, words[i+1:]
-		break
 	}
+	return "", nil, dir
+}
+
+func (c *command) git() error {
+	sub, args, dir := gitSubcommand(c.values())
 	has := func(arg string) bool { return slices.Contains(args, arg) }
 
 	switch sub {
@@ -400,6 +477,18 @@ func (c *command) git() error {
 					}
 				}
 			}
+			c.st.ask("git reset --hard discards uncommitted changes; confirm")
+		}
+	case "clean":
+		dryRun := has("--dry-run") || slices.ContainsFunc(args, func(a string) bool { return shortCluster(a, "n") })
+		if !dryRun {
+			c.st.ask("git clean deletes untracked files; confirm, or run it with -n first")
+		}
+	case "branch", "tag":
+		if slices.ContainsFunc(args, func(a string) bool {
+			return a == "--delete" || shortCluster(a, "dD")
+		}) {
+			c.st.ask("git " + sub + " deletion; confirm the name")
 		}
 	case "config":
 		if has("--global") {
@@ -433,116 +522,133 @@ func nonOptions(words []string) []string {
 	return out
 }
 
-func (c *command) gitPush(args []string, dir string) error {
-	wantValue, optsDone, haveRemote, tagsOnly := false, false, false, false
-	var refspecs []string
+// push is git push's arguments as the guard reads them.
+type push struct {
+	forced   []string // block reasons for --force, -f, --mirror, in order
+	tagsOnly bool     // --tags: pushes tags, not the current branch
+	refspecs []string
+}
+
+func parsePush(args []string) push {
+	var p push
+	wantValue, optsDone, haveRemote := false, false, false
 	for _, a := range args {
-		if wantValue {
+		switch {
+		case wantValue:
 			wantValue = false
-			continue
-		}
-		if !optsDone {
-			switch {
-			case a == "--":
-				optsDone = true
-				continue
-			case a == "--force":
-				if err := c.block("git push --force. Use --force-with-lease if you must.", "git-force-push"); err != nil {
-					return err
-				}
-				continue
-			case a == "--mirror":
-				if err := c.block("git push --mirror overwrites every remote ref, protected branches included", "git-force-push"); err != nil {
-					return err
-				}
-				continue
-			case a == "--tags":
-				// Pushes tags, not the current branch.
-				tagsOnly = true
-				continue
-			case slices.Contains([]string{"--repo", "--push-option", "--receive-pack", "--exec"}, a):
-				wantValue = true
-				continue
-			case strings.HasPrefix(a, "--"):
-				continue
-			case strings.HasPrefix(a, "-"):
-				if strings.Contains(a, "f") {
-					if err := c.block("git push -f. Use --force-with-lease if you must.", "git-force-push"); err != nil {
-						return err
-					}
-				}
-				if strings.HasSuffix(a, "o") {
-					wantValue = true
-				}
-				continue
+		case optsDone || !strings.HasPrefix(a, "-"):
+			if haveRemote {
+				p.refspecs = append(p.refspecs, a)
 			}
-		}
-		if !haveRemote {
 			haveRemote = true
-			continue
-		}
-		refspecs = append(refspecs, a)
-	}
-	for _, ref := range refspecs {
-		if strings.HasPrefix(ref, "+") {
-			if err := c.block("force push via a +refspec. Use --force-with-lease if you must.", "git-force-push"); err != nil {
-				return err
+		case a == "--":
+			optsDone = true
+		case a == "--force":
+			p.forced = append(p.forced, "git push --force. Use --force-with-lease if you must.")
+		case a == "--mirror":
+			p.forced = append(p.forced, "git push --mirror overwrites every remote ref, protected branches included")
+		case a == "--tags":
+			p.tagsOnly = true
+		case slices.Contains([]string{"--repo", "--push-option", "--receive-pack", "--exec"}, a):
+			wantValue = true
+		case strings.HasPrefix(a, "--"):
+		default:
+			if strings.Contains(a, "f") {
+				p.forced = append(p.forced, "git push -f. Use --force-with-lease if you must.")
 			}
+			wantValue = strings.HasSuffix(a, "o")
 		}
+	}
+	for _, ref := range p.refspecs {
+		if strings.HasPrefix(ref, "+") {
+			p.forced = append(p.forced, "force push via a +refspec. Use --force-with-lease if you must.")
+		}
+	}
+	return p
+}
+
+func (c *command) gitPush(args []string, dir string) error {
+	p := parsePush(args)
+	for _, reason := range p.forced {
+		if err := c.block(reason, "git-force-push"); err != nil {
+			return err
+		}
+	}
+	dsts := make([]string, 0, len(p.refspecs))
+	for _, ref := range p.refspecs {
 		dst := ref[strings.LastIndexByte(ref, ':')+1:]
 		if dst == "HEAD" {
 			dst = c.st.currentBranch(dir)
 		}
+		dsts = append(dsts, dst)
+	}
+	if len(p.refspecs) == 0 && !p.tagsOnly {
+		dsts = append(dsts, c.st.currentBranch(dir))
+	}
+	for _, dst := range dsts {
 		if c.st.isProtected(dst) {
 			if err := c.block("push to a protected branch; use a feature branch", "git-push-protected"); err != nil {
 				return err
 			}
 		}
 	}
-	if len(refspecs) == 0 && !tagsOnly && c.st.isProtected(c.st.currentBranch(dir)) {
-		if err := c.block("push to a protected branch; use a feature branch", "git-push-protected"); err != nil {
-			return err
-		}
-	}
 	c.st.ask("git push publishes commits to a remote; confirm the destination")
 	return nil
 }
 
-// gitCommit treats -n as --no-verify. Short clusters are scanned up to the
-// first option that takes a value: in -mn the n is the message.
+// gitCommit treats -n as --no-verify.
 func (c *command) gitCommit(args []string) error {
+	noVerify := false
+	commitOptions(args, func(opt, _ string) { noVerify = noVerify || opt == "-n" })
+	if noVerify {
+		return c.block("git commit -n bypasses pre-commit hooks, same as --no-verify", "git-no-verify")
+	}
+	return nil
+}
+
+// commitOptions walks git commit's args as git reads them, up to "--",
+// calling fn with each option and its value ("" for none): a long one by
+// name, a short cluster's letters one by one, up to the first that takes a
+// value (in -mn the n is the message).
+func commitOptions(args []string, fn func(opt, value string)) {
 	valued := []string{"--message", "--file", "--author", "--date", "--template", "--trailer", "--cleanup",
 		"--reuse-message", "--reedit-message", "--fixup", "--squash", "--pathspec-from-file"}
-	wantValue := false
-	for _, a := range args {
-		if wantValue {
-			wantValue = false
-			continue
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		next := func() string {
+			if i+1 < len(args) {
+				i++
+				return args[i]
+			}
+			return ""
 		}
 		switch {
 		case a == "--":
-			return nil
+			return
 		case slices.Contains(valued, a):
-			wantValue = true
+			fn(a, next())
 		case strings.HasPrefix(a, "--"):
+			name, value, _ := strings.Cut(a, "=")
+			fn(name, value)
 		case strings.HasPrefix(a, "-"):
-		cluster:
-			for i := 1; i < len(a); i++ {
-				switch a[i] {
-				case 'n':
-					if err := c.block("git commit -n bypasses pre-commit hooks, same as --no-verify", "git-no-verify"); err != nil {
-						return err
-					}
-					break cluster
+			for j := 1; j < len(a); j++ {
+				opt := "-" + a[j:j+1]
+				switch a[j] {
 				case 'm', 'F', 'C', 'c', 't':
-					wantValue = i == len(a)-1
-					break cluster
+					value := a[j+1:]
+					if value == "" {
+						value = next()
+					}
+					fn(opt, value)
+					j = len(a)
 				case 'u', 'S':
 					// Optional values, only ever attached: -uno, -S<keyid>.
-					break cluster
+					fn(opt, a[j+1:])
+					j = len(a)
+				default:
+					fn(opt, "")
 				}
 			}
 		}
 	}
-	return nil
 }

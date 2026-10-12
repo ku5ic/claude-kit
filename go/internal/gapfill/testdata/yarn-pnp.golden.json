@@ -1,0 +1,94 @@
+{
+  "is_error": false,
+  "structured_output": {
+    "entries": [
+      {
+        "id": "441f593472c840ca",
+        "role": "check",
+        "kind": "lint",
+        "mutates": false,
+        "file_form": "eslint {files}",
+        "globs": [
+          "**/*.{js,jsx,mjs,cjs,ts,tsx}"
+        ]
+      },
+      {
+        "id": "bc6d9acdd7cfcce4",
+        "role": "check",
+        "kind": "test",
+        "mutates": false,
+        "file_form": "jest {files}",
+        "globs": [
+          "**/*.{test,spec}.{js,jsx,mjs,cjs,ts,tsx}"
+        ]
+      },
+      {
+        "id": "660c54936c3f8994",
+        "role": "check",
+        "mutates": false,
+        "segments": [
+          {
+            "text": "prettier --check .",
+            "role": "check",
+            "kind": "format-check"
+          }
+        ]
+      }
+    ],
+    "managers": [
+      {
+        "dir": ".",
+        "cites": "yarn.lock",
+        "manager": "yarn",
+        "run_prefix": "yarn",
+        "add_verbs": [
+          "yarn add"
+        ],
+        "dlx": "yarn dlx",
+        "dir_flags": [],
+        "rivals": [
+          "npm",
+          "pnpm"
+        ]
+      }
+    ],
+    "proposals": [
+      {
+        "role": "check",
+        "command": "yarn eslint . --max-warnings=0",
+        "dir": ".",
+        "evidence": "package.json",
+        "kind": "lint",
+        "mutates": false
+      },
+      {
+        "role": "check",
+        "command": "yarn jest",
+        "dir": ".",
+        "evidence": "package.json",
+        "kind": "test",
+        "mutates": false
+      },
+      {
+        "role": "check",
+        "command": "yarn prettier --check .",
+        "dir": ".",
+        "evidence": ".prettierrc",
+        "kind": "format-check",
+        "mutates": false
+      },
+      {
+        "role": "fixer",
+        "command": "yarn prettier --write .",
+        "dir": ".",
+        "evidence": ".prettierrc",
+        "file_form": "yarn prettier --write {files}",
+        "globs": [
+          "**/*.{js,jsx,mjs,cjs,ts,tsx,json,md,yml,yaml,css}"
+        ],
+        "mutates": true
+      }
+    ]
+  },
+  "subtype": "success"
+}

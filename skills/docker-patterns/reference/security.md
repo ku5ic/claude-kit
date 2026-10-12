@@ -51,7 +51,7 @@ Use Docker Scout or a dependency update tool to get notified when a pinned image
 
 Prevent secrets and unnecessary files from entering the build context:
 
-```
+```text
 .env
 .env.*
 *.pem

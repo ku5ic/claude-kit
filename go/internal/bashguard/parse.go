@@ -42,6 +42,9 @@ type Segment struct {
 	Calls []Call
 	end   int // source offset where the pipeline ends
 	src   string
+	// subshell is a pipeline inside ( ), $( ), backticks, or <( ): a cd
+	// there moves nothing after it.
+	subshell bool
 }
 
 // Rest is the normalized source text after call's word, to the end of the
@@ -72,8 +75,9 @@ func normalize(s string) string {
 	return s
 }
 
-// shells are the commands a heredoc body is fed to as a script.
-var shells = map[string]bool{"sh": true, "bash": true, "zsh": true, "dash": true, "ksh": true}
+// shells are the POSIX-family shells: a heredoc body fed to one is a
+// script, and -c runs its string.
+var shells = map[string]bool{"sh": true, "bash": true, "zsh": true, "dash": true, "ksh": true, "mksh": true, "yash": true}
 
 // Segments parses src and returns every pipeline in it, substitution and
 // process-substitution bodies included (inner ones first, as they run
@@ -99,6 +103,7 @@ func parseAll(src string) ([]Segment, bool) {
 type collector struct {
 	segs     []Segment
 	depth    int // of the parse in progress: error reparses and nested heredocs
+	subshell int // how many subshells the walk is inside
 	unparsed bool
 }
 
@@ -208,7 +213,7 @@ func (c *collector) stmt(src string, s *syntax.Stmt) {
 			end = max(end, int(r.End().Offset()))
 		}
 	}
-	seg := Segment{src: src, end: end}
+	seg := Segment{src: src, end: end, subshell: c.subshell > 0}
 	feedsShell := false
 	for _, p := range parts {
 		call, ok := p.Cmd.(*syntax.CallExpr)
@@ -218,66 +223,7 @@ func (c *collector) stmt(src string, s *syntax.Stmt) {
 			c.inner(src, p.Cmd)
 			continue
 		}
-		for _, a := range call.Assigns {
-			c.inner(src, a)
-		}
-		for _, w := range call.Args {
-			c.inner(src, w)
-		}
-		for _, r := range p.Redirs {
-			c.inner(src, r.Word)
-		}
-		cl := Call{}
-		for _, a := range call.Assigns {
-			if a.Name == nil {
-				continue
-			}
-			value := ""
-			if a.Value != nil {
-				value = wordValue(src, a.Value)
-			}
-			cl.Assigns = append(cl.Assigns, a.Name.Value+"="+value)
-		}
-		if len(call.Args) > 0 {
-			cl.start = int(call.Args[0].Pos().Offset())
-		} else {
-			cl.start = int(p.Pos().Offset())
-		}
-		for _, w := range call.Args {
-			cl.Words = append(cl.Words, Word{wordValue(src, w), src[w.Pos().Offset():w.End().Offset()], int(w.End().Offset())})
-		}
-		if cmd, ok := envSplitString(cl.Words); ok {
-			c.parse(cmd, c.depth+1)
-		}
-		for _, r := range p.Redirs {
-			if r.Hdoc != nil {
-				body := src[r.Hdoc.Pos().Offset():r.Hdoc.End().Offset()]
-				// The slice ends with the terminator line; it isn't body.
-				if nl := strings.LastIndexByte(body, '\n'); nl >= 0 && r.Word != nil &&
-					strings.TrimLeft(body[nl+1:], "\t") == wordValue(src, r.Word) {
-					body = body[:nl]
-				}
-				cl.Heredocs = append(cl.Heredocs, body)
-				c.inner(src, r.Hdoc)
-				continue
-			}
-			if r.Word == nil {
-				continue
-			}
-			value := wordValue(src, r.Word)
-			switch op := r.Op.String(); {
-			case r.Op == syntax.WordHdoc: // bash <<< "rm -rf ~" runs its word
-				cl.Heredocs = append(cl.Heredocs, value)
-			case r.Op == syntax.RdrIn:
-				cl.Inputs = append(cl.Inputs, value)
-			case strings.Contains(op, ">"):
-				// >&2 duplicates an fd: its target is "&2", never a file name.
-				if r.Op == syntax.DplOut {
-					value = "&" + value
-				}
-				cl.Redirs = append(cl.Redirs, Redir{op, Word{value, src[r.Word.Pos().Offset():r.Word.End().Offset()], int(r.Word.End().Offset())}})
-			}
-		}
+		cl := c.call(src, p, call)
 		if len(cl.Words) > 0 && shells[baseName(cl.Words[0].Value)] {
 			feedsShell = true
 		}
@@ -293,6 +239,77 @@ func (c *collector) stmt(src string, s *syntax.Stmt) {
 				c.parse(body, c.depth+1)
 			}
 		}
+	}
+}
+
+// call reads one simple command of a pipeline: its words, assignments, and
+// redirects, parsing any string env -S runs and any substitution in them.
+func (c *collector) call(src string, p *syntax.Stmt, call *syntax.CallExpr) Call {
+	for _, a := range call.Assigns {
+		c.inner(src, a)
+	}
+	for _, w := range call.Args {
+		c.inner(src, w)
+	}
+	for _, r := range p.Redirs {
+		c.inner(src, r.Word)
+	}
+	var cl Call
+	for _, a := range call.Assigns {
+		if a.Name == nil {
+			continue
+		}
+		value := ""
+		if a.Value != nil {
+			value = wordValue(src, a.Value)
+		}
+		cl.Assigns = append(cl.Assigns, a.Name.Value+"="+value)
+	}
+	if len(call.Args) > 0 {
+		cl.start = int(call.Args[0].Pos().Offset())
+	} else {
+		cl.start = int(p.Pos().Offset())
+	}
+	for _, w := range call.Args {
+		cl.Words = append(cl.Words, Word{wordValue(src, w), src[w.Pos().Offset():w.End().Offset()], int(w.End().Offset())})
+	}
+	if cmd, ok := envSplitString(cl.Words); ok {
+		c.parse(cmd, c.depth+1)
+	}
+	for _, r := range p.Redirs {
+		c.redirect(src, r, &cl)
+	}
+	return cl
+}
+
+// redirect records r on cl: a heredoc's body, a < input, or a > target.
+func (c *collector) redirect(src string, r *syntax.Redirect, cl *Call) {
+	if r.Hdoc != nil {
+		body := src[r.Hdoc.Pos().Offset():r.Hdoc.End().Offset()]
+		// The slice ends with the terminator line; it isn't body.
+		if nl := strings.LastIndexByte(body, '\n'); nl >= 0 && r.Word != nil &&
+			strings.TrimLeft(body[nl+1:], "\t") == wordValue(src, r.Word) {
+			body = body[:nl]
+		}
+		cl.Heredocs = append(cl.Heredocs, body)
+		c.inner(src, r.Hdoc)
+		return
+	}
+	if r.Word == nil {
+		return
+	}
+	value := wordValue(src, r.Word)
+	switch op := r.Op.String(); {
+	case r.Op == syntax.WordHdoc: // bash <<< "rm -rf ~" runs its word
+		cl.Heredocs = append(cl.Heredocs, value)
+	case r.Op == syntax.RdrIn:
+		cl.Inputs = append(cl.Inputs, value)
+	case strings.Contains(op, ">"):
+		// >&2 duplicates an fd: its target is "&2", never a file name.
+		if r.Op == syntax.DplOut {
+			value = "&" + value
+		}
+		cl.Redirs = append(cl.Redirs, Redir{op, Word{value, src[r.Word.Pos().Offset():r.Word.End().Offset()], int(r.Word.End().Offset())}})
 	}
 }
 
@@ -343,11 +360,24 @@ func (c *collector) inner(src string, n syntax.Node) {
 		return
 	}
 	syntax.Walk(n, func(node syntax.Node) bool {
-		if st, ok := node.(*syntax.Stmt); ok {
-			c.stmt(src, st)
+		var stmts []*syntax.Stmt
+		switch v := node.(type) {
+		case *syntax.Stmt:
+			c.stmt(src, v)
 			return false
+		case *syntax.Subshell:
+			stmts = v.Stmts
+		case *syntax.CmdSubst:
+			stmts = v.Stmts
+		case *syntax.ProcSubst:
+			stmts = v.Stmts
+		default:
+			return true
 		}
-		return true
+		c.subshell++
+		c.stmts(src, stmts)
+		c.subshell--
+		return false
 	})
 }
 

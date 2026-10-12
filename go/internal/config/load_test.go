@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -22,7 +23,6 @@ func TestRealKitYMLLoadsCleanly(t *testing.T) {
 	if dir := os.Getenv("CLAUDE_KIT_PERSONAL"); dir != "" {
 		overlay = filepath.Join(dir, "claude-kit.local.yml")
 	}
-	_, statErr := os.Stat(overlay)
 	cfg, warnings, err := Load(Paths{Base: "../../../kit.yml", Overlay: overlay})
 	if err != nil {
 		t.Fatal(err)
@@ -31,32 +31,33 @@ func TestRealKitYMLLoadsCleanly(t *testing.T) {
 		t.Errorf("warning: %s", w)
 	}
 	lists := map[string]int{
-		"package_managers":   len(cfg.PackageManagers),
 		"protected_branches": len(cfg.ProtectedBranches),
 		"rc_files":           len(cfg.RCFiles),
 		"sensitive_paths":    len(cfg.SensitivePaths),
-		"task_providers":     len(cfg.TaskProviders),
-		"checks":             len(cfg.Checks),
-		"toolchain_checks":   len(cfg.ToolchainChecks),
-		"orchestrators":      len(cfg.Orchestrators),
 		"tools":              len(cfg.Tools),
-		"formatters":         len(cfg.Formatters),
-		"stacks":             len(cfg.Stacks),
+		"on_edit":            len(cfg.OnEdit),
+		"dependency_skills":  len(cfg.DependencySkills),
+		"lockfile_globs":     len(cfg.LockfileGlobs),
+		"deny_flags":         len(cfg.DenyFlags),
+		"gate_env":           len(cfg.GateEnv),
+		"global_installs":    len(cfg.GlobalInstalls),
 	}
 	for name, n := range lists {
 		if n == 0 {
 			t.Errorf("%s is empty", name)
 		}
 	}
-	if _, ok := cfg.Stacks["dotfiles"]; statErr == nil && !ok {
-		t.Error("overlay stack dotfiles not merged")
+	for _, pattern := range cfg.GlobalInstalls {
+		if _, err := regexp.Compile(pattern); err != nil {
+			t.Errorf("global_installs %q: %v", pattern, err)
+		}
 	}
 }
 
 func TestOverlayMergesMapsAndAppendsSequences(t *testing.T) {
 	dir := t.TempDir()
-	base := write(t, dir, "kit.yml", "protected_branches: [main]\nlog_max_lines: 5\nstacks:\n  js:\n    skills: [a]\n")
-	overlay := write(t, dir, "over.yml", "protected_branches: [develop]\nlog_max_lines: 7\nstacks:\n  js:\n    skills: [b]\n  go:\n    skills: [c]\n")
+	base := write(t, dir, "kit.yml", "protected_branches: [main]\nlog_max_lines: 5\nreply_limits:\n  chat: 40\n  write: {commit: 50}\n")
+	overlay := write(t, dir, "over.yml", "protected_branches: [develop]\nlog_max_lines: 7\nreply_limits:\n  write: {pr: 80}\n")
 	cfg, warnings, err := Load(Paths{Base: base, Overlay: overlay})
 	if err != nil || len(warnings) > 0 {
 		t.Fatalf("err=%v warnings=%v", err, warnings)
@@ -67,79 +68,56 @@ func TestOverlayMergesMapsAndAppendsSequences(t *testing.T) {
 	if cfg.LogMaxLines != 7 {
 		t.Errorf("log_max_lines = %d, want the overlay's 7", cfg.LogMaxLines)
 	}
-	if got := strings.Join(cfg.Stacks["js"].Skills, ","); got != "a,b" {
-		t.Errorf("js skills = %s", got)
-	}
-	if got := strings.Join(cfg.Stacks["go"].Skills, ","); got != "c" {
-		t.Errorf("go skills = %s", got)
+	if l := cfg.ReplyLimits; l.Chat != 40 || l.Write["commit"] != 50 || l.Write["pr"] != 80 {
+		t.Errorf("reply_limits = %+v", l)
 	}
 }
 
-func TestOverlayFormatterWithADefaultsNameUpdatesItFieldByField(t *testing.T) {
+// The overlay's on_edit rules come after kit.yml's, so the last match, the
+// overlay's, wins.
+func TestOverlayOnEditRulesAppend(t *testing.T) {
 	dir := t.TempDir()
-	base := write(t, dir, "kit.yml", "formatters:\n  - {name: a, ext: [md], bin: a, cmd: \"{bin} {file}\"}\n  - {name: b, ext: [py], bin: b}\n")
-	overlay := write(t, dir, "over.yml", "formatters:\n  - {name: a, ext: [mdx]}\n  - {name: c, ext: [toml], bin: c}\n")
+	base := write(t, dir, "kit.yml", "on_edit:\n  - {globs: [\"*.md\"], run: [{cmd: \"a {file}\"}]}\n")
+	overlay := write(t, dir, "over.yml", "on_edit:\n  - {globs: [\"*.toml\"], run: [{cmd: \"c {file}\", stdout: true}]}\n")
 	cfg, warnings, err := Load(Paths{Base: base, Overlay: overlay})
 	if err != nil || len(warnings) > 0 {
 		t.Fatalf("err=%v warnings=%v", err, warnings)
 	}
-	var got []string
-	for _, f := range cfg.Formatters {
-		got = append(got, f.Name+":"+strings.Join(f.Ext, ",")+":"+f.Bin+":"+f.Cmd)
-	}
-	if want := "a:mdx:a:{bin} {file}|b:py:b:|c:toml:c:"; strings.Join(got, "|") != want {
-		t.Errorf("formatters = %s, want %s", strings.Join(got, "|"), want)
+	if len(cfg.OnEdit) != 2 || cfg.OnEdit[1].Globs[0] != "*.toml" || !cfg.OnEdit[1].Run[0].Stdout {
+		t.Errorf("on_edit = %+v", cfg.OnEdit)
 	}
 }
 
-func TestOverlayChecksAndToolchainChecksUpdateByKey(t *testing.T) {
-	dir := t.TempDir()
-	base := write(t, dir, "kit.yml", "checks:\n  - {name: test, tasks: [test], exclude: [\"*watch*\"]}\n"+
-		"toolchain_checks:\n  - {stack: go, name: test, cmd: \"{bin} test ./...\", bin: [go]}\n  - {stack: rust, name: test, cmd: \"{bin} test\", bin: [cargo]}\n")
-	overlay := write(t, dir, "over.yml", "checks:\n  - {name: test, tasks: [test, \"test:unit\"]}\n"+
-		"toolchain_checks:\n  - {stack: go, name: test, cmd: \"{bin} test -race ./...\"}\n")
-	cfg, warnings, err := Load(Paths{Base: base, Overlay: overlay})
-	if err != nil || len(warnings) > 0 {
-		t.Fatalf("err=%v warnings=%v", err, warnings)
-	}
-	if len(cfg.Checks) != 1 || strings.Join(cfg.Checks[0].Tasks, ",") != "test,test:unit" || strings.Join(cfg.Checks[0].Exclude, ",") != "*watch*" {
-		t.Errorf("checks = %+v", cfg.Checks)
-	}
-	var got []string
-	for _, tc := range cfg.ToolchainChecks {
-		got = append(got, tc.Stack+":"+tc.Cmd+":"+strings.Join(tc.Bin, ","))
-	}
-	if want := "go:{bin} test -race ./...:go|rust:{bin} test:cargo"; strings.Join(got, "|") != want {
-		t.Errorf("toolchain_checks = %s, want %s", strings.Join(got, "|"), want)
-	}
-}
-
-func TestCheckDisabledMatchesSlotOrLabel(t *testing.T) {
-	cfg := &Config{DisabledChecks: []string{"typecheck", "lint (lint:css) [web]", "js: test (test:unit)"}}
+func TestCheckDisabledMatchesKindOrLabel(t *testing.T) {
+	cfg := &Config{DisabledChecks: []string{"typecheck", "lint (package.json: lint:css) [web]", "test (package.json: test:unit)", ""}}
 	for _, c := range []struct {
-		slot, label string
+		kind, label string
 		want        bool
 	}{
-		{"typecheck", "js: typecheck (tsc)", true},
-		{"lint", "js: lint (lint:css) [web]", true},
-		{"lint", "js: lint (lint) [web]", false},
-		{"test", "js: test (test:unit)", true},
-		{"test", "js: test (test)", false},
+		{"typecheck", "typecheck (package.json: tsc)", true},
+		{"lint", "lint (package.json: lint:css) [web]", true},
+		{"lint", "lint (package.json: lint) [web]", false},
+		{"test", "test (package.json: test:unit)", true},
+		{"test", "test (package.json: test)", false},
+		// A label without " [dir]" names the gate in every subproject.
+		{"test", "test (package.json: test:unit) [e2e]", true},
+		// A "[dir]" label stays exact.
+		{"lint", "lint (package.json: lint:css) [api]", false},
+		// An empty entry names nothing, not a gate with no kind.
+		{"", "check (Makefile: all)", false},
 	} {
-		if got := cfg.CheckDisabled(c.slot, c.label); got != c.want {
-			t.Errorf("CheckDisabled(%q, %q) = %v, want %v", c.slot, c.label, got, c.want)
+		if got := cfg.CheckDisabled(c.kind, c.label); got != c.want {
+			t.Errorf("CheckDisabled(%q, %q) = %v, want %v", c.kind, c.label, got, c.want)
 		}
 	}
 }
 
-func TestDisablesThatMatchNothingWarn(t *testing.T) {
+// A single word that isn't a kind names nothing; a label can't be judged
+// without the project.
+func TestDisablesThatCanNameNothingWarn(t *testing.T) {
 	dir := t.TempDir()
-	base := write(t, dir, "kit.yml", "checks:\n  - {name: lint}\n"+
-		"toolchain_checks:\n  - {stack: go, name: vet, cmd: x}\n"+
-		"task_providers:\n  - {name: make}\n")
-	overlay := write(t, dir, "over.yml", "disabled_checks: [lint, \"js: lint (lint:css) [web]\", vet, bogus, \"js: lnt (x)\"]\n"+
-		"disabled_toolchain_checks: [\"go:vet\", \"go:nope\", vet]\n"+
-		"disabled_task_providers: [make, mkae]\n")
+	base := write(t, dir, "kit.yml", "")
+	overlay := write(t, dir, "over.yml", "disabled_checks: [lint, \"lint (package.json: lint:css) [web]\", vet, \"\"]\n")
 	_, warnings, err := Load(Paths{Base: base, Overlay: overlay})
 	if err != nil {
 		t.Fatal(err)
@@ -151,18 +129,96 @@ func TestDisablesThatMatchNothingWarn(t *testing.T) {
 		}
 		got = append(got, w.Err.Error())
 	}
-	want := `disabled_checks: "bogus" names no check|disabled_checks: "js: lnt (x)" names no check|` +
-		`disabled_toolchain_checks: "go:nope" names no toolchain check (<stack>:<name>)|` +
-		`disabled_toolchain_checks: "vet" names no toolchain check (<stack>:<name>)|` +
-		`disabled_task_providers: "mkae" names no task provider`
+	kinds := "lint, typecheck, test, format-check, deadcode, security"
+	want := `disabled_checks: "vet" is no check kind (` + kinds + `) or gate label|disabled_checks: "" is no check kind (` + kinds + `) or gate label`
 	if strings.Join(got, "|") != want {
 		t.Errorf("warnings =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.ReplaceAll(want, "|", "\n"))
 	}
 }
 
+// A global_installs pattern that doesn't compile blocks every command it's
+// checked against, so load says so.
+func TestABadGlobalInstallPatternWarns(t *testing.T) {
+	dir := t.TempDir()
+	base := write(t, dir, "kit.yml", "global_installs: ['npm (i|install) -g']\n")
+	overlay := write(t, dir, "over.yml", "global_installs: ['pip install (--user']\n")
+	_, warnings, err := Load(Paths{Base: base, Overlay: overlay})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(warnings) != 1 || warnings[0].File != overlay || !strings.Contains(warnings[0].Err.Error(), `global_installs: "pip install (--user"`) {
+		t.Errorf("warnings = %v, want one naming the overlay's bad pattern", warnings)
+	}
+	// With the overlay merged in, a bad pattern kit.yml holds still names kit.yml.
+	write(t, dir, "kit.yml", "global_installs: ['npm (i|install']\n")
+	write(t, dir, "over.yml", "global_installs: ['pip install --user']\n")
+	cfg, warnings, err := Load(Paths{Base: base, Overlay: overlay})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(warnings) != 1 || warnings[0].File != base {
+		t.Errorf("warnings = %v, want one naming kit.yml", warnings)
+	}
+	if _, bad := cfg.InstallPatterns(Paths{Base: base, Overlay: overlay}); len(bad) != 1 || bad[0].File != base {
+		t.Errorf("InstallPatterns bad = %v, want one naming kit.yml", bad)
+	}
+}
+
+func TestDeniedFlag(t *testing.T) {
+	cfg := &Config{DenyFlags: []string{"--fix", "--watch"}}
+	for words, want := range map[string]string{
+		"eslint --fix .":                 "--fix",
+		"vitest --watch=true":            "--watch",
+		"vitest run --watch=false":       "",
+		"eslint --fix-dry-run .":         "",
+		"prettier --check . --watch=off": "",
+	} {
+		if got := cfg.DeniedFlag(strings.Fields(words)); got != want {
+			t.Errorf("%q: %q, want %q", words, got, want)
+		}
+	}
+}
+
+func TestNegativeReplyLimitsWarn(t *testing.T) {
+	dir := t.TempDir()
+	base := write(t, dir, "kit.yml", "reply_limits:\n  chat: -5\n  explain: 80\n  write: {commit: -1}\n")
+	_, warnings, err := Load(Paths{Base: base})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, w := range warnings {
+		got = append(got, w.Err.Error())
+	}
+	want := `reply_limits: chat is -5; a ceiling is 0 (off) or more|reply_limits: write.commit is -1; a ceiling is 0 (off) or more`
+	if strings.Join(got, "|") != want {
+		t.Errorf("warnings = %q, want %q", got, want)
+	}
+}
+
+func TestEmptyOnEditCmdWarns(t *testing.T) {
+	dir := t.TempDir()
+	base := write(t, dir, "kit.yml", "on_edit:\n  - globs: [\"*.toml\"]\n    run: [{cmd: \"taplo fmt {file}\"}, {cmd: \" \"}]\n")
+	cfg, warnings, err := Load(Paths{Base: base})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, w := range warnings {
+		got = append(got, w.Err.Error())
+	}
+	want := `on_edit: the rule for ["*.toml"] has a run entry with no cmd (entry 2 of 2); it's dropped`
+	if strings.Join(got, "|") != want {
+		t.Errorf("warnings = %q, want %q", got, want)
+	}
+	if run := cfg.OnEdit[0].Run; len(run) != 1 || run[0].Cmd != "taplo fmt {file}" {
+		t.Errorf("run = %v, want only the taplo entry", run)
+	}
+}
+
 func TestUnknownKeysWarnWithTheirFile(t *testing.T) {
 	dir := t.TempDir()
-	base := write(t, dir, "kit.yml", "protected_branches: [main]\nformatters:\n  - name: x\n    signal_fies: [a]\n")
+	base := write(t, dir, "kit.yml", "protected_branches: [main]\non_edit:\n  - globs: [a]\n    signal_fies: [a]\n")
 	overlay := write(t, dir, "over.yml", "protected_brnches: [dev]\n")
 	cfg, warnings, err := Load(Paths{Base: base, Overlay: overlay})
 	if err != nil {
@@ -182,6 +238,47 @@ func TestUnknownKeysWarnWithTheirFile(t *testing.T) {
 	}
 }
 
+// With a Home, Load serves its cached result until a file changes: a
+// cached load matches a fresh one, warnings included, and an overlay
+// written, edited, or removed is seen on the next load.
+func TestLoadCacheFollowsTheFiles(t *testing.T) {
+	dir := t.TempDir()
+	p := Paths{Home: dir, Base: write(t, dir, "kit.yml", "protected_branches: [main]\n"), Overlay: filepath.Join(dir, "over.yml")}
+	branches := func(wantWarnings int) string {
+		t.Helper()
+		cfg, warnings, err := Load(p)
+		if err != nil || len(warnings) != wantWarnings {
+			t.Fatalf("err=%v warnings=%v, want %d", err, warnings, wantWarnings)
+		}
+		return strings.Join(cfg.ProtectedBranches, ",")
+	}
+	if got := branches(0); got != "main" {
+		t.Fatalf("first load = %s", got)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "cache", "config.gob")); err != nil {
+		t.Fatalf("no cache written: %v", err)
+	}
+	if got := branches(0); got != "main" {
+		t.Errorf("cached load = %s", got)
+	}
+	write(t, dir, "over.yml", "protected_branches: [dev]\nprotected_brnches: [x]\n")
+	for range 2 { // fresh, then cached
+		if got := branches(1); got != "main,dev" {
+			t.Errorf("after the overlay appears = %s", got)
+		}
+	}
+	write(t, dir, "over.yml", "protected_branches: [release]\n")
+	if got := branches(0); got != "main,release" {
+		t.Errorf("after the overlay changes = %s", got)
+	}
+	if err := os.Remove(p.Overlay); err != nil {
+		t.Fatal(err)
+	}
+	if got := branches(0); got != "main" {
+		t.Errorf("after the overlay goes = %s", got)
+	}
+}
+
 func TestDefaultsAndMissingOverlay(t *testing.T) {
 	dir := t.TempDir()
 	base := write(t, dir, "kit.yml", "tools: [rg]\n")
@@ -189,8 +286,8 @@ func TestDefaultsAndMissingOverlay(t *testing.T) {
 	if err != nil || len(warnings) > 0 {
 		t.Fatalf("err=%v warnings=%v", err, warnings)
 	}
-	if cfg.LogMaxLines != 10000 || cfg.SubprojectMaxDepth != 4 {
-		t.Errorf("defaults: log_max_lines=%d subproject_max_depth=%d", cfg.LogMaxLines, cfg.SubprojectMaxDepth)
+	if cfg.LogMaxLines != 10000 || cfg.GateTimeout != 90 {
+		t.Errorf("defaults: log_max_lines=%d gate_timeout=%d", cfg.LogMaxLines, cfg.GateTimeout)
 	}
 }
 
@@ -243,5 +340,20 @@ func TestBrokenOverlayIsIgnoredWithAWarning(t *testing.T) {
 	}
 	if strings.Join(cfg.ProtectedBranches, ",") != "main" {
 		t.Errorf("protected_branches = %v", cfg.ProtectedBranches)
+	}
+}
+
+func TestSessionFile(t *testing.T) {
+	p := Paths{Home: "/h"}
+	if got := p.SessionFile("skills-loaded", "s1", "bash-patterns"); got != "/h/cache/skills-loaded/s1-bash-patterns" {
+		t.Errorf("got %q", got)
+	}
+	if got := p.SessionFile("plan-active", "s1"); got != "/h/cache/plan-active/s1" {
+		t.Errorf("got %q", got)
+	}
+	for _, bad := range []string{"", "../x", `a\b`} {
+		if got := p.SessionFile("plan-active", bad); got != "" {
+			t.Errorf("session %q: %q, want none", bad, got)
+		}
 	}
 }

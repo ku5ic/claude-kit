@@ -2,29 +2,24 @@
 package hooks
 
 import (
-	"bufio"
+	"cmp"
 	"encoding/json"
-	"io"
 	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
 
+	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 	"github.com/ku5ic/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/stackctx"
 )
-
-// cfgOrEmpty is the loaded config, or an empty one when kit.yml can't load:
-// with nothing configured, nothing matches and every check fails open.
-func cfgOrEmpty(h *hook.Hook) *config.Config {
-	if cfg := h.Config(); cfg != nil {
-		return cfg
-	}
-	return &config.Config{}
-}
 
 var (
 	gitDir      = regexp.MustCompile(`/\.git/`)
@@ -34,20 +29,25 @@ var (
 // GuardEdit blocks reads and writes of credential files and writes to other
 // risky paths, regardless of permission rules. Plugins can't ship
 // settings.json deny rules, so for a plugin install this is the only
-// credential-read protection. PreToolUse for Read, Edit, Write, MultiEdit.
+// credential-read protection. PreToolUse for Read, Grep, Edit, Write,
+// MultiEdit.
 func GuardEdit(h *hook.Hook) error {
 	if h.Payload.Err != nil {
 		return h.Payload.Err
+	}
+	// Without kit.yml nothing is configured: nothing matches, every check fails open.
+	cfg := cmp.Or(h.Config(), &config.Config{})
+	tool := h.Payload.String("tool_name")
+	if tool == "Grep" {
+		return guardSearch(h, cfg)
 	}
 	path := h.Payload.FilePath()
 	if path == "" {
 		return nil
 	}
 	h.SetContext("Path: " + path)
-	cfg := cfgOrEmpty(h)
-	tool := h.Payload.String("tool_name")
 
-	if guard.IsSensitive(cfg, path) {
+	if guard.IsSensitive(cfg, h.Home, path) {
 		reason, rule := "writing a credential or key file is not permitted", "sensitive-write"
 		if tool == "Read" {
 			reason, rule = "reading a credential or key file is not permitted", "sensitive-read"
@@ -61,7 +61,7 @@ func GuardEdit(h *hook.Hook) error {
 	if tool == "Read" {
 		return nil
 	}
-	if guard.IsGuardedLockfile(cfg, path) {
+	if guard.IsGuardedLockfile(cfg, path) && !project.IsScratch(h.Paths, path) {
 		if err := h.Block("lockfile edit. Use the package manager.", "lockfile-edit"); err != nil {
 			return err
 		}
@@ -71,7 +71,7 @@ func GuardEdit(h *hook.Hook) error {
 			return err
 		}
 	}
-	if guard.IsRCFile(cfg, path) {
+	if guard.IsRCFile(cfg, h.Home, path) {
 		if err := h.Block("direct edit to a shell rc file. Use the dotfiles repo.", "rc-edit"); err != nil {
 			return err
 		}
@@ -82,7 +82,40 @@ func GuardEdit(h *hook.Hook) error {
 	if guard.IsOverlay(h.Paths, path) {
 		h.Decide("ask", "this is the claude-kit overlay, which can switch the kit's own guards off; confirm the change")
 	}
+	if tool == "Write" && newRootArtifact(cfg, path) {
+		h.Decide("ask", "a new "+filepath.Base(path)+" at the repo root; rules/output.md section 3 puts reports and logs in `kit scratch-dir`. Confirm only if it belongs in the repo")
+	}
 	return nil
+}
+
+// guardSearch blocks a Grep that can read a credential file. Its root is
+// tool_input.path, else cwd, which is also what a relative path joins. Only
+// a path given blocks for a "~/" entry under it: a pathless Grep in ~ is the
+// common case, not a reach for ~/.ssh.
+func guardSearch(h *hook.Hook, cfg *config.Config) error {
+	cwd := h.Payload.Cwd()
+	path := h.Payload.String("tool_input.path")
+	root := guard.ExpandHome(h.Home, cmp.Or(path, cwd))
+	if root != "" && !filepath.IsAbs(root) {
+		root = filepath.Join(cwd, root)
+	}
+	glob := h.Payload.String("tool_input.glob")
+	h.SetContext("Path: " + root + "\nGlob: " + glob)
+	if guard.SearchesSensitive(cfg, h.Home, root, glob, path != "") {
+		return h.Block("searching a credential or key file is not permitted", "sensitive-read")
+	}
+	return nil
+}
+
+// newRootArtifact is true for a file that doesn't exist yet, directly in a
+// repo's toplevel, with a root_artifact_exts extension.
+func newRootArtifact(cfg *config.Config, path string) bool {
+	ext := strings.TrimPrefix(filepath.Ext(path), ".")
+	if !slices.Contains(cfg.RootArtifactExts, ext) || fsx.IsFile(path) {
+		return false
+	}
+	dir := fsx.PhysicalPath(filepath.Dir(path))
+	return dir == git.Toplevel(dir)
 }
 
 // GuardSkills blocks edits of mapped file types until the patterns skill
@@ -92,6 +125,8 @@ func GuardSkills(h *hook.Hook) error {
 	if h.Payload.Err != nil {
 		return h.Payload.Err
 	}
+	// transcript.EditTools minus NotebookEdit: Payload.FilePath reads only
+	// file_path, and NotebookEdit sends notebook_path.
 	switch h.Payload.String("tool_name") {
 	case "Edit", "Write", "MultiEdit":
 	default:
@@ -101,38 +136,18 @@ func GuardSkills(h *hook.Hook) error {
 	if path == "" || project.IsScratch(h.Paths, path) {
 		return nil
 	}
-	session := h.Payload.String("session_id")
+	session := h.Payload.SessionID()
 	cfg := h.Config()
-	if session == "" || cfg == nil {
+	if h.Paths.SessionFile(cache.SkillsLoaded, session) == "" || cfg == nil {
 		return nil
 	}
 
-	var required []string
-	base := filepath.Base(path)
-	for _, rule := range cfg.SkillFileMap {
-		target := ""
-		switch rule.On {
-		case "basename":
-			target = base
-		case "path":
-			target = path
-		default:
-			continue
-		}
-		if !slices.ContainsFunc(rule.Globs, func(g string) bool { return guard.Glob(g, target) }) {
-			continue
-		}
-		for _, skill := range rule.Skills {
-			if skill != "" && !slices.Contains(required, skill) {
-				required = append(required, skill)
-			}
-		}
-	}
+	required := stackctx.FileMapSkills(cfg.SkillFileMap, path)
 
-	cacheDir := filepath.Join(h.Paths.CacheDir(), "skills-loaded")
+	marker := func(skill string) string { return h.Paths.SessionFile(cache.SkillsLoaded, session, skill) }
 	var toCheck []string
 	for _, skill := range required {
-		if _, err := os.Stat(filepath.Join(cacheDir, session+"-"+skill)); err != nil {
+		if _, err := os.Stat(marker(skill)); err != nil {
 			toCheck = append(toCheck, skill)
 		}
 	}
@@ -140,13 +155,22 @@ func GuardSkills(h *hook.Hook) error {
 		return nil
 	}
 
-	// A missing or unreadable log fails open rather than block on uncertainty.
-	loaded, err := loadedSkills(filepath.Join(h.Paths.LogDir(), "skills.jsonl"), session)
+	missing := notLoaded(h, session, toCheck, marker)
+	if len(missing) == 0 {
+		return nil
+	}
+	h.Deny("Load "+strings.Join(missing, ", ")+" via the Skill tool, then retry the edit.", "skills-gate")
+	return nil
+}
+
+// notLoaded is the skills of toCheck the session's skills log doesn't show
+// loaded; each it does show gets its marker, so the log is read once per
+// skill. A missing or unreadable log fails open: none.
+func notLoaded(h *hook.Hook, session string, toCheck []string, marker func(string) string) []string {
+	loaded, err := loadedSkills(h.Paths.LogFile(kitlog.Skills), session)
 	if err != nil {
 		return nil
 	}
-	_ = os.MkdirAll(cacheDir, 0o755)
-
 	var missing []string
 	for _, skill := range toCheck {
 		// An exact skill_file (the Skill tool), or a logged path holding
@@ -158,57 +182,40 @@ func GuardSkills(h *hook.Hook) error {
 			}
 			found = strings.Contains(file, "/skills/"+skill+"/")
 		}
-		if found {
-			if f, err := os.Create(filepath.Join(cacheDir, session+"-"+skill)); err == nil {
-				f.Close()
-			}
-		} else {
+		if !found {
 			missing = append(missing, skill)
+		} else {
+			_ = fsx.WriteAtomic(marker(skill), nil, 0o644)
 		}
 	}
-	if len(missing) == 0 {
-		return nil
-	}
-	return h.Block("This edit touches "+path+". Load the following skills via the Skill tool first, then retry the edit: "+strings.Join(missing, ", "), "skills-gate")
+	return missing
 }
 
 // loadedSkills streams skills.jsonl once for session's skill_file values,
 // skipping inject-context's required-skill and suggested-skill markers:
 // those mean "surfaced", not "loaded".
 func loadedSkills(logPath, session string) (map[string]bool, error) {
-	f, err := os.Open(logPath)
-	if err != nil {
+	if _, err := os.Stat(logPath); err != nil {
 		return nil, err
 	}
-	defer f.Close()
 	loaded := map[string]bool{}
-	// A Reader, not a Scanner: one oversized line must not end the read.
-	reader := bufio.NewReader(f)
-	for {
-		line, err := reader.ReadBytes('\n')
-		if err == io.EOF && len(line) == 0 {
-			return loaded, nil
-		}
-		if err != nil && err != io.EOF {
-			return nil, err
-		}
-		var entry struct {
-			SessionID string  `json:"session_id"`
-			SkillFile *string `json:"skill_file"`
-			Event     string  `json:"event"`
-		}
+	err := kitlog.Each(logPath, func(line []byte) {
+		var entry kitlog.Entry
 		if json.Unmarshal(line, &entry) != nil {
-			continue
+			return
 		}
-		if entry.SessionID == session && entry.SkillFile != nil &&
-			entry.Event != "required-skill" && entry.Event != "suggested-skill" {
+		if entry.SessionID != nil && *entry.SessionID == session && entry.SkillFile != nil && !entry.Surfaced() {
 			loaded[*entry.SkillFile] = true
 			// A plugin's skills log as <plugin>:<skill>; kit.yml maps bare names.
 			if _, skill, ok := strings.Cut(*entry.SkillFile, ":"); ok && !strings.Contains(skill, "/") {
 				loaded[skill] = true
 			}
 		}
+	})
+	if err != nil {
+		return nil, err
 	}
+	return loaded, nil
 }
 
 // GuardDispatch runs guard-edit's and, with CLAUDE_GUARD_SKILLS=1,
@@ -217,7 +224,7 @@ func loadedSkills(logPath, session string) (map[string]bool, error) {
 // edits until a patterns skill loads is a personal policy, not a default.
 func GuardDispatch(h *hook.Hook) int {
 	checks := []hook.NamedCheck{{Name: "guard-edit", Check: GuardEdit}}
-	if os.Getenv("CLAUDE_GUARD_SKILLS") == "1" {
+	if stackctx.SkillsEnforced() {
 		checks = append(checks, hook.NamedCheck{Name: "guard-skills", Check: GuardSkills})
 	}
 	return hook.Run(h, checks...)

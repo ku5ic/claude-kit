@@ -1,98 +1,107 @@
 package hooks
 
 import (
-	"bufio"
-	"cmp"
 	"encoding/json"
 	"os"
-	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
+
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
+	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
 var (
 	// doneStep matches a ticked checklist item.
-	doneStep    = regexp.MustCompile(`(?m)^\s*[-*] \[[xX]\]`)
-	typedReview = regexp.MustCompile(`^\s*/code-review(\s|$)|<command-name>/code-review</command-name>`)
+	doneStep = regexp.MustCompile(`(?m)^\s*[-*] \[[xX]\]`)
+	// A typed /code-review forks with this launch record; a Skill call is
+	// known by its tool_use id. Either one's task-notification names it.
+	launchTag   = regexp.MustCompile(`<forked-skill-launch>(.*?)</forked-skill-launch>`)
+	notifyField = regexp.MustCompile(`<(task-id|tool-use-id|status)>([^<]*)</`)
 )
 
+// launchedReview is the task id of a /code-review that text records forking, or "".
+func launchedReview(text string) string {
+	m := launchTag.FindStringSubmatch(text)
+	if m == nil {
+		return ""
+	}
+	var launch struct {
+		AgentID   string `json:"agentId"`
+		SkillName string `json:"skillName"`
+	}
+	if json.Unmarshal([]byte(m[1]), &launch) != nil || launch.SkillName != reviewSkill {
+		return ""
+	}
+	return launch.AgentID
+}
+
+// finishedReview is the transcript line where the review a completed
+// task-notification reports was started, or -1. A killed review never counts.
+func finishedReview(text string, started map[string]int) int {
+	if !strings.HasPrefix(strings.TrimSpace(text), "<task-notification>") {
+		return -1
+	}
+	fields := map[string]string{}
+	for _, m := range notifyField.FindAllStringSubmatch(text, -1) {
+		if _, seen := fields[m[1]]; !seen {
+			fields[m[1]] = m[2]
+		}
+	}
+	if fields["status"] != "completed" {
+		return -1
+	}
+	for _, id := range []string{fields["tool-use-id"], fields["task-id"]} {
+		if line, ok := started[id]; ok && id != "" {
+			return line
+		}
+	}
+	return -1
+}
+
 // planDone reads the Stop hook's end-of-plan moment (rules/verify.md) from
-// the transcript: plan is the plan in plansDir whose last open step this
-// turn ticked, else ""; reviewed is whether /code-review ran after the last
-// code edit, anywhere in the transcript. isCode is false for paths whose
-// edits aren't code (scratch, outside the repo).
-func planDone(transcript, plansDir string, isCode func(string) bool) (plan string, reviewed bool) {
-	f, err := os.Open(transcript)
-	if err != nil {
-		return "", false
-	}
-	defer f.Close()
-
-	type entry struct {
-		Type    string `json:"type"`
-		IsMeta  bool   `json:"isMeta"`
-		Message struct {
-			Content json.RawMessage `json:"content"`
-		} `json:"message"`
-	}
-	type block struct {
-		Type  string `json:"type"`
-		Name  string `json:"name"`
-		Input struct {
-			FilePath     string `json:"file_path"`
-			NotebookPath string `json:"notebook_path"`
-			Skill        string `json:"skill"`
-		} `json:"input"`
-	}
-
+// the transcript's entries: plan is the plan in plansDir whose last open
+// step this turn ticked, else ""; reviewed is whether a /code-review started
+// after the last code edit, anywhere in the transcript, has finished.
+// isCode is false for paths whose edits aren't code (scratch, outside the
+// repo).
+func planDone(entries []transcript.Entry, plansDir string, isCode func(string) bool) (plan string, reviewed bool) {
 	// Transcript line numbers; -1 is never.
 	lastEdit, lastReview := -1, -1
-	var ticked []string // plans this turn edited
-	n := 0
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 1024*1024), 64*1024*1024)
-	for scanner.Scan() {
-		n++
-		var e entry
-		if json.Unmarshal(scanner.Bytes(), &e) != nil {
+	var ticked []string         // plans this turn edited
+	started := map[string]int{} // review tool_use or task id -> its start line
+	for _, e := range entries {
+		if id := launchedReview(e.Notice); id != "" {
+			started[id] = e.Line
+		}
+		// A notification arrives as a user message or a queued command.
+		lastReview = max(lastReview, finishedReview(e.Text, started), finishedReview(e.Notice, started))
+		if e.StartsTurn() {
+			ticked = ticked[:0]
 			continue
 		}
-		var blocks []block
-		isArray := json.Unmarshal(e.Message.Content, &blocks) == nil
-		switch e.Type {
-		case "user":
-			// A typed /code-review arrives as the user's own message:
-			// "/code-review high", or a <command-name> block.
-			var text string
-			if json.Unmarshal(e.Message.Content, &text) == nil && typedReview.MatchString(text) {
-				lastReview = n
-			}
-			if e.IsMeta || isArray && slices.ContainsFunc(blocks, func(b block) bool { return b.Type == "tool_result" }) {
-				continue
-			}
-			ticked = ticked[:0] // a new turn starts
-		case "assistant":
-			for _, b := range blocks {
-				switch {
-				case b.Type != "tool_use":
-				case b.Name == "Skill" && b.Input.Skill == "code-review":
-					lastReview = n
-				case slices.Contains([]string{"Edit", "Write", "MultiEdit", "NotebookEdit"}, b.Name):
-					path := cmp.Or(b.Input.FilePath, b.Input.NotebookPath)
-					if strings.HasPrefix(path, plansDir+string(filepath.Separator)) {
-						ticked = append(ticked, path)
-					} else if isCode(path) {
-						lastEdit = n
-					}
+		if e.Type != "assistant" {
+			continue
+		}
+		for _, b := range e.ToolUses() {
+			switch {
+			case b.Name == "Skill" && b.Input.Skill == reviewSkill:
+				started[b.ID] = e.Line
+			case slices.Contains(transcript.EditTools, b.Name):
+				if p := b.Path(); fsx.Within(plansDir, p) {
+					ticked = append(ticked, p)
+				} else if isCode(p) {
+					lastEdit = e.Line
 				}
 			}
 		}
 	}
 
 	for _, path := range ticked {
-		if data, err := os.ReadFile(path); err == nil && !openStep.Match(data) && doneStep.Match(data) {
-			plan = path
+		if data, err := os.ReadFile(path); err == nil {
+			if s := steps(data); !openStep.Match(s) && doneStep.Match(s) {
+				plan = path
+			}
 		}
 	}
 	return plan, lastReview > lastEdit

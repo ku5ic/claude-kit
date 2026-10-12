@@ -1,18 +1,18 @@
 # Anti-patterns
 
-Severity: `failure` = do not ship. `warning` = smell that compounds. `info` = hardening opportunity.
+Severity levels: the report-format skill.
 
 ---
 
 **`failure`: `DEBUG = True` in production**
 
-Exposes full tracebacks, local variable values, SQL query history, and settings to any exception response. Confirmed security risk in Django security docs.
+See `reference/settings.md`.
 
 ---
 
-**`failure`: `|safe` filter on user-controlled content**
+**`failure`: `|safe`, `{% autoescape off %}`, or `mark_safe()` on user-controlled content**
 
-Bypasses auto-escaping. A documented XSS vector. If you see `{{ user_input|safe }}` or `{% autoescape off %}` wrapping user data, it will execute arbitrary HTML and JavaScript.
+See `reference/templates.md`.
 
 ---
 
@@ -34,9 +34,9 @@ Django signals decouple sender from receiver, which also hides the execution pat
 
 ---
 
-**`warning`: Fat views over ~200 lines**
+**`warning`: Fat views**
 
-A view function or method exceeding ~200 lines typically contains business logic that belongs in a service, manager method, or form validator. The threshold is judgment; the signal is a view that is hard to test in isolation.
+A view function or method past the function-size threshold in `skills/engineering-fundamentals/reference/metric-thresholds.md` typically contains business logic that belongs in a service, manager method, or form validator. The signal is a view that is hard to test in isolation.
 
 ---
 

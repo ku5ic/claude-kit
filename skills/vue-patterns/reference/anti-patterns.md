@@ -1,10 +1,6 @@
 # Anti-patterns
 
-Severity rubric:
-
-- `failure`: a concrete defect or violation that should not ship.
-- `warning`: a smell or pattern that compounds with other findings.
-- `info`: a hardening opportunity or note, not a defect.
+Severity levels: the report-format skill.
 
 ## `v-if` and `v-for` on the same element
 
@@ -30,7 +26,7 @@ Severity rubric:
 
 ## `v-html` with user input
 
-`failure`. Renders the string as raw HTML, bypassing Vue's escaping. Direct XSS vector. Either render as text (`{{ value }}`), restrict to trusted content, or sanitize with DOMPurify before binding.
+`failure`. Renders the string as raw HTML, bypassing Vue's escaping: a direct XSS vector. Render as text (`{{ value }}`), restrict to trusted content, or sanitize with DOMPurify first. The rest of the XSS surface: security-patterns' `reference/frontend.md`.
 
 ## Mutating props in a child component
 

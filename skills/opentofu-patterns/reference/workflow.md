@@ -2,7 +2,7 @@
 
 ## Checks
 
-kit.yml's `toolchain_checks` owns which tofu checks `kit run-checks` runs; `kit run-checks --plan` shows them for a repo. What the two commands need:
+The project's CI and task runners decide which tofu checks `kit run-checks` runs; `kit run-checks --plan` shows them for a repo. What the two commands need:
 
 - `fmt -check -recursive`: formatting only, needs nothing installed.
 - `validate`: syntax and internal consistency. It contacts no backend or provider API, but it needs an initialized directory with providers and modules installed. To initialize without touching the backend, run `tofu init -backend=false`.

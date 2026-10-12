@@ -1,0 +1,120 @@
+{
+  "is_error": false,
+  "structured_output": {
+    "entries": [
+      {
+        "id": "23af6bc5a10e2eaa",
+        "role": "build",
+        "mutates": false,
+        "affected_form": "turbo run build --filter=...[{base}]"
+      },
+      {
+        "id": "696de58f1215ddb8",
+        "role": "check",
+        "kind": "lint",
+        "mutates": false,
+        "affected_form": "turbo run lint --filter=...[{base}]"
+      },
+      {
+        "id": "26f2485fb467f335",
+        "role": "check",
+        "kind": "test",
+        "mutates": false,
+        "affected_form": "turbo run test --filter=...[{base}]"
+      },
+      {
+        "id": "25ca41b4a0bd5d8c",
+        "role": "build",
+        "mutates": false,
+        "affected_form": "turbo run build --filter=...[{base}]"
+      },
+      {
+        "id": "af4d28b0fcad60ef",
+        "role": "check",
+        "kind": "lint",
+        "mutates": false,
+        "affected_form": "turbo run lint --filter=...[{base}]"
+      },
+      {
+        "id": "b9779b105c88f399",
+        "role": "check",
+        "kind": "test",
+        "mutates": false,
+        "affected_form": "turbo run test --filter=...[{base}]"
+      },
+      {
+        "id": "96039140df15adf3",
+        "role": "build",
+        "mutates": false
+      },
+      {
+        "id": "ecafb20dff80662a",
+        "role": "check",
+        "kind": "lint",
+        "mutates": false,
+        "file_form": "eslint {files}",
+        "globs": [
+          "packages/a/**/*.{js,cjs,mjs,jsx,ts,tsx}"
+        ],
+        "exclusions": "packages/a/eslint.config.js"
+      },
+      {
+        "id": "df50fa7092526ba2",
+        "role": "check",
+        "kind": "test",
+        "mutates": false,
+        "file_form": "vitest run {files}",
+        "globs": [
+          "packages/a/**/*.{test,spec}.{js,cjs,mjs,jsx,ts,tsx}"
+        ]
+      }
+    ],
+    "managers": [
+      {
+        "dir": ".",
+        "cites": "pnpm-lock.yaml",
+        "manager": "pnpm",
+        "run_prefix": "pnpm exec",
+        "add_verbs": [
+          "pnpm add"
+        ],
+        "dlx": "pnpm dlx",
+        "dir_flags": [
+          "--filter",
+          "-C"
+        ],
+        "rivals": [
+          "npm",
+          "yarn"
+        ]
+      }
+    ],
+    "proposals": [
+      {
+        "role": "check",
+        "kind": "lint",
+        "command": "pnpm exec eslint . --max-warnings 0",
+        "dir": "packages/a",
+        "evidence": "packages/a/eslint.config.js",
+        "mutates": false
+      },
+      {
+        "role": "check",
+        "kind": "typecheck",
+        "command": "pnpm exec tsc --noEmit",
+        "dir": "packages/a",
+        "evidence": "packages/a/package.json",
+        "mutates": false
+      },
+      {
+        "role": "check",
+        "kind": "test",
+        "command": "pnpm exec vitest run",
+        "dir": "packages/a",
+        "evidence": "packages/a/package.json",
+        "mutates": false
+      }
+    ]
+  },
+  "subtype": "success"
+}

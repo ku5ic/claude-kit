@@ -1,0 +1,198 @@
+// Package testutil holds the helpers the internal packages' tests share.
+// The config package's own tests can't use it: it imports config.
+package testutil
+
+import (
+	"encoding/json"
+	"errors"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/git"
+)
+
+// KitConfig is the repo's kit.yml with no overlay, for a test in
+// go/internal/<package>.
+func KitConfig(t *testing.T) *config.Config {
+	t.Helper()
+	cfg, _, err := config.Load(config.Paths{Base: "../../../kit.yml", Overlay: filepath.Join(t.TempDir(), "none.yml")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return cfg
+}
+
+// Put writes body to dir/name, creating its directories.
+func Put(t *testing.T, dir, name, body string) {
+	t.Helper()
+	path := filepath.Join(dir, name)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Write writes body to path, creating its directories.
+func Write(t *testing.T, path, body string) {
+	t.Helper()
+	Put(t, filepath.Dir(path), filepath.Base(path), body)
+}
+
+// Stub writes an executable bash script to path; body follows the shebang.
+func Stub(t *testing.T, path, body string) {
+	t.Helper()
+	Write(t, path, "#!/usr/bin/env bash\n"+body)
+	if err := os.Chmod(path, 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Touch writes each path empty.
+func Touch(t *testing.T, paths ...string) {
+	t.Helper()
+	for _, p := range paths {
+		Write(t, p, "")
+	}
+}
+
+func Mkdir(t *testing.T, dir string) {
+	t.Helper()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Physical resolves symlinks (macOS /var -> /private/var), as cd -P does.
+func Physical(t *testing.T, path string) string {
+	t.Helper()
+	p, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+// JSONLines decodes each line of a JSONL file; a missing file has none.
+func JSONLines(t *testing.T, path string) []map[string]any {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out []map[string]any
+	for l := range strings.Lines(string(data)) {
+		var m map[string]any
+		if err := json.Unmarshal([]byte(l), &m); err != nil {
+			t.Fatalf("%s: %v: %s", path, err, l)
+		}
+		out = append(out, m)
+	}
+	return out
+}
+
+// Fixtures maps each project under the testdata directory dir to the
+// lockfiles Fixture writes into its copy, as dir/fixtures.json lists them:
+// a lockfile is never hand-written in the repo.
+func Fixtures(t *testing.T, dir string) map[string][]string {
+	t.Helper()
+	var fixtures map[string][]string
+	if err := json.Unmarshal([]byte(Read(t, filepath.Join(dir, "fixtures.json"))), &fixtures); err != nil {
+		t.Fatal(err)
+	}
+	return fixtures
+}
+
+// Fixture copies project name from dir into a fresh git repository, with
+// its lockfiles, all staged (subprojects are found among tracked files),
+// and returns the repository's root.
+func Fixture(t *testing.T, dir, name string) string {
+	t.Helper()
+	root := t.TempDir()
+	if err := os.CopyFS(root, os.DirFS(filepath.Join(dir, name))); err != nil {
+		t.Fatal(err)
+	}
+	for _, lock := range Fixtures(t, dir)[name] {
+		Put(t, root, lock, "")
+	}
+	Git(t, root, "init", "-q")
+	Git(t, root, "add", "-A")
+	return root
+}
+
+// Read is path's contents.
+func Read(t *testing.T, path string) string {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
+}
+
+// Git runs git in dir, failing the test on an error.
+func Git(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	if out, err := git.Command(dir, args...).CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
+}
+
+// GitID is Git with a fixed identity and no signing, so commits work
+// whatever the developer's config.
+func GitID(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	Git(t, dir, append([]string{"-c", "user.email=t@t", "-c", "user.name=t", "-c", "commit.gpgsign=false"}, args...)...)
+}
+
+// Has fails t for each of parts out doesn't contain.
+func Has(t *testing.T, out string, parts ...string) {
+	t.Helper()
+	for _, part := range parts {
+		if !strings.Contains(out, part) {
+			t.Errorf("output lacks %q:\n%s", part, out)
+		}
+	}
+}
+
+// Lacks fails t for each of parts out contains.
+func Lacks(t *testing.T, out string, parts ...string) {
+	t.Helper()
+	for _, part := range parts {
+		if strings.Contains(out, part) {
+			t.Errorf("output has %q:\n%s", part, out)
+		}
+	}
+}
+
+// RegisteredRuleParts is how many inject-rules commands kitRoot's
+// hooks.json registers for event.
+func RegisteredRuleParts(t *testing.T, kitRoot, event string) int {
+	t.Helper()
+	var cfg struct {
+		Hooks map[string][]struct {
+			Hooks []struct {
+				Command string `json:"command"`
+			} `json:"hooks"`
+		} `json:"hooks"`
+	}
+	if err := json.Unmarshal([]byte(Read(t, filepath.Join(kitRoot, "hooks/hooks.json"))), &cfg); err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, group := range cfg.Hooks[event] {
+		for _, h := range group.Hooks {
+			if strings.Contains(h.Command, "hook inject-rules ") {
+				n++
+			}
+		}
+	}
+	return n
+}

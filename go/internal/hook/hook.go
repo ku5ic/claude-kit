@@ -14,12 +14,13 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/kitlog"
+	"github.com/ku5ic/claude-kit/go/internal/sources"
 )
 
 // Payload is the hook's stdin JSON. A payload that doesn't parse is kept as
@@ -43,26 +44,26 @@ func ParsePayload(raw []byte) *Payload {
 
 // Bool is the boolean at a dotted path, false when absent or not a bool.
 func (p *Payload) Bool(path string) bool {
-	b, _ := p.value(path).(bool)
+	b, _ := sources.GetPath(p.data, path).(bool)
 	return b
-}
-
-func (p *Payload) value(path string) any {
-	var value any = p.data
-	for part := range strings.SplitSeq(path, ".") {
-		m, ok := value.(map[string]any)
-		if !ok {
-			return nil
-		}
-		value = m[part]
-	}
-	return value
 }
 
 // String is the string at a dotted path, "" when absent or not a string.
 func (p *Payload) String(path string) string {
-	s, _ := p.value(path).(string)
+	s, _ := sources.GetPath(p.data, path).(string)
 	return s
+}
+
+// SessionID is the payload's session_id.
+func (p *Payload) SessionID() string { return p.String("session_id") }
+
+// Cwd is the payload's cwd, else the process's working directory.
+func (p *Payload) Cwd() string {
+	if cwd := p.String("cwd"); cwd != "" {
+		return cwd
+	}
+	cwd, _ := os.Getwd()
+	return cwd
 }
 
 // FilePath is the tool's target file; Read, Edit, Write, and MultiEdit all
@@ -86,6 +87,7 @@ type Hook struct {
 	Stdout  io.Writer
 	Stderr  io.Writer
 	Now     func() time.Time
+	Home    string // $HOME, read once by the caller so checks never touch the environment
 	// DryRun skips every log write: kit explain evaluates without leaving
 	// a trace in guards.jsonl.
 	DryRun bool
@@ -94,6 +96,14 @@ type Hook struct {
 	warnings []config.Warning
 	loaded   bool
 	context  string // printed after a block reason, e.g. "Path: <path>"
+	decision string // the strongest Decide so far; Run prints it once
+	reason   string
+	// What checks add for Run to print: context for Claude on event,
+	// notices for the user, plain text.
+	event    string
+	contexts []string
+	notices  []string
+	plain    strings.Builder
 }
 
 // Config loads kit.yml on first use; hooks that never need it never pay.
@@ -102,7 +112,7 @@ type Hook struct {
 func (h *Hook) Config() *config.Config {
 	if !h.loaded {
 		h.loaded = true
-		cfg, warnings, err := config.Load(h.Paths)
+		cfg, warnings, err := sources.LoadConfig(h.Paths)
 		h.warnings = warnings
 		if err == nil {
 			h.cfg = cfg
@@ -137,8 +147,8 @@ func (h *Hook) SetConfig(cfg *config.Config) { h.cfg, h.loaded = cfg, true }
 // SetContext sets the line printed under every block reason.
 func (h *Hook) SetContext(context string) { h.context = context }
 
-// RuleDisabled is true when rule is in kit.yml's disabled_rules.
-func (h *Hook) RuleDisabled(rule string) bool {
+// ruleDisabled is true when rule is in kit.yml's disabled_rules.
+func (h *Hook) ruleDisabled(rule string) bool {
 	cfg := h.Config()
 	return cfg != nil && slices.Contains(cfg.DisabledRules, rule)
 }
@@ -147,11 +157,11 @@ func (h *Hook) RuleDisabled(rule string) bool {
 // disabled_rules is logged as disabled and returns nil, so the check carries
 // on as if it hadn't matched.
 func (h *Hook) Block(reason, rule string) error {
-	if rule != "" && h.RuleDisabled(rule) {
-		h.Log("guards", "disabled", "rule", rule)
+	if rule != "" && h.ruleDisabled(rule) {
+		h.Log(kitlog.Guards, "disabled", "rule", rule)
 		return nil
 	}
-	h.Log("guards", "block", "rule", rule)
+	h.Log(kitlog.Guards, "block", "rule", rule)
 	msg := "Blocked by " + h.Name + ": " + reason
 	if h.context != "" {
 		msg += "\n" + h.context
@@ -159,30 +169,74 @@ func (h *Hook) Block(reason, rule string) error {
 	return &Blocked{msg, rule}
 }
 
-// Decide prints a PreToolUse permission decision (allow or ask).
-func (h *Hook) Decide(decision, reason string) {
-	type specific struct {
-		HookEventName            string `json:"hookEventName"`
-		PermissionDecision       string `json:"permissionDecision"`
-		PermissionDecisionReason string `json:"permissionDecisionReason"`
+// Deny is Block as a permission decision: Claude gets reason, and the user
+// sees no hook error.
+func (h *Hook) Deny(reason, rule string) {
+	if h.ruleDisabled(rule) {
+		h.Log(kitlog.Guards, "disabled", "rule", rule)
+		return
 	}
-	out := struct {
-		HookSpecificOutput specific `json:"hookSpecificOutput"`
-	}{specific{"PreToolUse", decision, reason}}
-	WriteJSON(h.Stdout, out)
+	h.Log(kitlog.Guards, "block", "rule", rule)
+	h.Decide("deny", reason)
 }
 
-// AddContext prints context for Claude on event, plus systemMessage for the
-// user when it isn't empty.
-func AddContext(w io.Writer, event, systemMessage, context string) {
-	type specific struct {
-		HookEventName     string `json:"hookEventName"`
-		AdditionalContext string `json:"additionalContext"`
+// Decide records a PreToolUse permission decision (allow, ask, or deny).
+// Several checks in one run may decide: deny outranks ask, ask outranks
+// allow, and asks join their reasons. Run prints the result once, since
+// stdout takes one JSON object.
+func (h *Hook) Decide(decision, reason string) {
+	switch {
+	case h.decision == "deny":
+	case h.decision == "" || decision == "deny" || decision == "ask" && h.decision == "allow":
+		h.decision, h.reason = decision, reason
+	case decision == "ask" && h.decision == "ask":
+		h.reason += "; " + reason
 	}
-	WriteJSON(w, struct {
-		SystemMessage      string   `json:"systemMessage,omitempty"`
-		HookSpecificOutput specific `json:"hookSpecificOutput"`
-	}{systemMessage, specific{event, context}})
+}
+
+// Decision is the permission decision and reason recorded so far, "" when
+// no check decided.
+func (h *Hook) Decision() (decision, reason string) { return h.decision, h.reason }
+
+// AddContext adds text for Claude on event.
+func (h *Hook) AddContext(event, text string) {
+	h.event = event
+	h.contexts = append(h.contexts, text)
+}
+
+// Notify adds a message for the user.
+func (h *Hook) Notify(text string) { h.notices = append(h.notices, text) }
+
+// Print adds plain text, which SessionStart and UserPromptSubmit take as
+// context for Claude.
+func (h *Hook) Print(text string) { h.plain.WriteString(text) }
+
+// flush prints what the run's checks added, once, since stdout takes one
+// JSON object: a permission decision, else context and notices, else plain
+// text.
+func (h *Hook) flush() {
+	type specific struct {
+		HookEventName            string `json:"hookEventName"`
+		PermissionDecision       string `json:"permissionDecision,omitempty"`
+		PermissionDecisionReason string `json:"permissionDecisionReason,omitempty"`
+		AdditionalContext        string `json:"additionalContext,omitempty"`
+	}
+	type output struct {
+		SystemMessage      string    `json:"systemMessage,omitempty"`
+		HookSpecificOutput *specific `json:"hookSpecificOutput,omitempty"`
+	}
+	switch {
+	case h.decision != "":
+		WriteJSON(h.Stdout, output{HookSpecificOutput: &specific{HookEventName: "PreToolUse", PermissionDecision: h.decision, PermissionDecisionReason: h.reason}})
+	case h.contexts != nil || h.notices != nil:
+		out := output{SystemMessage: strings.Join(h.notices, "\n")}
+		if h.contexts != nil {
+			out.HookSpecificOutput = &specific{HookEventName: h.event, AdditionalContext: strings.Join(h.contexts, "\n")}
+		}
+		WriteJSON(h.Stdout, out)
+	case h.plain.Len() > 0:
+		_, _ = io.WriteString(h.Stdout, h.plain.String())
+	}
 }
 
 // WriteJSON writes v as one compact line with <, >, and & left as they are:
@@ -198,53 +252,23 @@ func WriteJSON(w io.Writer, v any) {
 
 // Log appends one line to <log dir>/<log>.jsonl: ts, hook, event, the
 // payload's session_id, then each key/value pair in order, an empty value
-// as null. Never fails its caller: a log that can't be written is skipped.
+// as null; the log is capped at kit.yml's log_max_lines. Never fails its
+// caller: a log that can't be written is skipped.
 func (h *Hook) Log(log, event string, pairs ...string) {
 	if h.DryRun {
 		return
 	}
-	fields := []string{
-		"ts", h.now().UTC().Format("2006-01-02T15:04:05Z"),
+	fields := append([]string{
+		"ts", h.now().UTC().Format(kitlog.TimeLayout),
 		"hook", h.Name,
 		"event", event,
-		"session_id", h.Payload.String("session_id"),
+		"session_id", h.Payload.SessionID(),
+	}, pairs...)
+	maxLines := 0
+	if cfg := h.Config(); cfg != nil {
+		maxLines = cfg.LogMaxLines
 	}
-	fields = append(fields, pairs...)
-
-	var line bytes.Buffer
-	line.WriteByte('{')
-	for i := 0; i+1 < len(fields); i += 2 {
-		if i > 0 {
-			line.WriteByte(',')
-		}
-		writeJSONValue(&line, fields[i])
-		line.WriteByte(':')
-		if fields[i+1] == "" {
-			line.WriteString("null")
-		} else {
-			writeJSONValue(&line, fields[i+1])
-		}
-	}
-	line.WriteString("}\n")
-
-	dir := h.Paths.LogDir()
-	if os.MkdirAll(dir, 0o755) != nil {
-		return
-	}
-	f, err := os.OpenFile(filepath.Join(dir, log+".jsonl"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	if err != nil {
-		return
-	}
-	defer f.Close()
-	_, _ = f.Write(line.Bytes())
-}
-
-func writeJSONValue(buf *bytes.Buffer, s string) {
-	var tmp bytes.Buffer
-	enc := json.NewEncoder(&tmp)
-	enc.SetEscapeHTML(false)
-	_ = enc.Encode(s) // a string always encodes
-	buf.Write(bytes.TrimSuffix(tmp.Bytes(), []byte("\n")))
+	_ = kitlog.Append(h.Paths.LogFile(log), kitlog.Line(fields...), maxLines)
 }
 
 func (h *Hook) now() time.Time {
@@ -252,6 +276,11 @@ func (h *Hook) now() time.Time {
 		return h.Now()
 	}
 	return time.Now()
+}
+
+// FailOpen prints the notice for a hook that allows because it failed.
+func FailOpen(stderr io.Writer, name string) {
+	fmt.Fprintf(stderr, "%s: unexpected error, failing open\n", name)
 }
 
 // Check is one policy check. It returns *Blocked to block, nil to allow, and
@@ -266,8 +295,8 @@ func RunCheck(h *Hook, name string, check Check) (blocked bool) {
 	saved := h.Name
 	h.Name = name
 	failOpen := func() {
-		fmt.Fprintf(h.Stderr, "%s: unexpected error, failing open\n", name)
-		h.Log("guards", "fail-open")
+		FailOpen(h.Stderr, name)
+		h.Log(kitlog.Guards, "fail-open")
 	}
 	defer func() {
 		if r := recover(); r != nil {
@@ -280,7 +309,7 @@ func RunCheck(h *Hook, name string, check Check) (blocked bool) {
 	if err == nil {
 		return false
 	}
-	if b, ok := err.(*Blocked); ok {
+	if b, ok := errors.AsType[*Blocked](err); ok {
 		fmt.Fprintln(h.Stderr, b.Reason)
 		return true
 	}
@@ -297,6 +326,7 @@ func Run(h *Hook, checks ...NamedCheck) int {
 			return 2
 		}
 	}
+	h.flush()
 	return 0
 }
 

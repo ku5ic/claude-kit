@@ -1,0 +1,88 @@
+{
+  "is_error": false,
+  "structured_output": {
+    "entries": [
+      {
+        "id": "9fffd53d9ba79a86",
+        "role": "fixer",
+        "mutates": true,
+        "kind": "lint",
+        "file_form": "ruff --fix {files}",
+        "globs": [
+          "**/*.py"
+        ]
+      },
+      {
+        "id": "e745eea606a832d8",
+        "role": "fixer",
+        "mutates": true,
+        "file_form": "ruff-format {files}",
+        "globs": [
+          "**/*.py"
+        ]
+      },
+      {
+        "id": "a479a9bbfe3285aa",
+        "role": "check",
+        "kind": "typecheck",
+        "mutates": false,
+        "file_form": "mypy {files}",
+        "globs": [
+          "**/*.py"
+        ]
+      },
+      {
+        "id": "8a74ca99dcc5ce11",
+        "role": "check",
+        "kind": "lint",
+        "mutates": false,
+        "file_form": "check-yaml {files}",
+        "globs": [
+          "**/*.yaml",
+          "**/*.yml"
+        ]
+      },
+      {
+        "id": "2ad2a72f89c688dd",
+        "role": "fixer",
+        "mutates": true,
+        "file_form": "end-of-file-fixer {files}",
+        "globs": [
+          "**/*"
+        ]
+      }
+    ],
+    "managers": [],
+    "proposals": [
+      {
+        "role": "check",
+        "kind": "lint",
+        "command": "ruff check",
+        "dir": ".",
+        "evidence": "pyproject.toml",
+        "mutates": false
+      },
+      {
+        "role": "check",
+        "kind": "format-check",
+        "command": "ruff format --check",
+        "dir": ".",
+        "evidence": "pyproject.toml",
+        "mutates": false
+      },
+      {
+        "role": "fixer",
+        "kind": "format-check",
+        "command": "ruff format {files}",
+        "dir": ".",
+        "evidence": "pyproject.toml",
+        "file_form": "ruff format {files}",
+        "globs": [
+          "**/*.py"
+        ],
+        "mutates": true
+      }
+    ]
+  },
+  "subtype": "success"
+}
