@@ -14,6 +14,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/enforce"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
+	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/md"
 	"github.com/ku5ic/claude-kit/go/internal/proc"
@@ -51,7 +52,7 @@ func CheckCommit(h *hook.Hook) error {
 	// whole command, since a message can come from anywhere in it (a file a
 	// heredoc writes, then -F); a signature in an unrelated heredoc blocks
 	// too. Then the message, for a file -F reads from disk.
-	msg, ok := message(cmd, c, repo)
+	msg, ok := message(cmd, c, repo, h.Home)
 	for line := range strings.SplitSeq(cmd+"\n"+msg, "\n") {
 		if aiSignature.MatchString(line) {
 			if err := h.Block("AI signature in commit message", "ai-commit-sig"); err != nil {
@@ -149,12 +150,12 @@ func commitCall(cmd, home, cwd string) commit {
 
 // message is the message cmd's git commit c gives, as the commit-msg hook
 // would read it: its -m messages as paragraphs, a $(cat <<EOF) one read as
-// its body, else the file -F names, from repo, unless the command names it
+// its body, else the file -F names, from repo or under home, unless the command names it
 // before the commit, or the commit line's heredoc
 // for -F - or a command that didn't parse. ok is false when it can't be
 // told exactly: no message, or one an expansion builds, whose -m text is
 // still msg, as written, for the subject checks.
-func message(cmd string, c commit, repo string) (msg string, ok bool) {
+func message(cmd string, c commit, repo, home string) (msg string, ok bool) {
 	if !c.found {
 		body := heredocBody(cmd)
 		return body + "\n", body != ""
@@ -183,7 +184,7 @@ func message(cmd string, c commit, repo string) (msg string, ok bool) {
 	// Named before the commit, the file is likely written there first:
 	// what's on disk now is a stale message. Named after (an rm) it isn't.
 	case len(paragraphs) == 0 && file != "" && !strings.Contains(cmd[:c.start], filepath.Base(file)):
-		data, err := os.ReadFile(fsx.Abs(repo, file))
+		data, err := os.ReadFile(fsx.Abs(repo, guard.ExpandHome(home, file)))
 		return string(data), err == nil
 	}
 	return "", false

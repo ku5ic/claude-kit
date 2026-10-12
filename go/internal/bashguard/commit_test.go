@@ -50,14 +50,14 @@ func TestMessageIsWhatTheCommitMsgHookWouldRead(t *testing.T) {
 		`git commit --amend --no-edit`:                   "",
 	} {
 		c := commitCall(cmd, "", dir)
-		if got, _ := message(cmd, c, c.repo); got != want {
+		if got, _ := message(cmd, c, c.repo, ""); got != want {
 			t.Errorf("message(%q) = %q, want %q", cmd, got, want)
 		}
 	}
 	// An expansion: the text as written, but not the message git gets.
 	cmd := `git commit -m "fix: $MSG"`
 	c := commitCall(cmd, "", dir)
-	if got, ok := message(cmd, c, c.repo); got != "fix: $MSG\n" || ok {
+	if got, ok := message(cmd, c, c.repo, ""); got != "fix: $MSG\n" || ok {
 		t.Errorf("message(%q) = %q, %v, want the text as written and not ok", cmd, got, ok)
 	}
 }
@@ -218,6 +218,10 @@ func TestGuardCommitReadsSignaturesInTheFFile(t *testing.T) {
 	k := newSandbox(t)
 	testutil.Write(t, filepath.Join(k.home, "signed.txt"), "fix: x\n\nCo-Authored-By: Claude <c@a.com>\n")
 	k.commit("", "git commit -F signed.txt && rm signed.txt").Want(t, 2)
+	// Under ~ or $HOME, from a cwd elsewhere.
+	elsewhere := t.TempDir()
+	k.commit(elsewhere, "git commit -F ~/signed.txt").Want(t, 2)
+	k.commit(elsewhere, `git commit -F "$HOME/signed.txt"`).Want(t, 2)
 }
 
 // gitleaks scans the staged diff: exit 0 is clean, 1 a leak, anything else
