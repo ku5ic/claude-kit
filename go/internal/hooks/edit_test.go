@@ -243,6 +243,7 @@ skill_file_map:
 		{"Grep of a repo with glob {.env,README} is blocked", "/tmp/project", "{.env,README}", "/tmp/project", 2},
 		{"Grep of a repo with glob {src,config}/*.key is blocked", "/tmp/project", "{src,config}/*.key", "/tmp/project", 2},
 		{"Grep of a repo with glob *.{ts,tsx} passes", "/tmp/project", "*.{ts,tsx}", "/tmp/project", 0},
+		{"Grep with more {a,b} alternatives than the guard checks is blocked", "/tmp/project", strings.Repeat("{a,b}", 11) + "*.ts", "/tmp/project", 2},
 		{"Grep of a repo with glob *.ts passes", "/tmp/project", "*.ts", "/tmp/project", 0},
 		{"Grep of a repo with the generic glob * passes", "/tmp/project", "*", "/tmp/project", 0},
 		{"Grep of a repo with glob *.env is blocked", "/tmp/project", "*.env", "/tmp/project", 2},

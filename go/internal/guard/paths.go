@@ -82,12 +82,18 @@ func matchSensitive(cfg *config.Config, home, path string, holds bool) bool {
 // namesSensitive is true when glob picks out a credential file by name: a
 // basename entry matches its last element taken literally (*.pem), or that
 // element, unless it's only wildcards, matches an entry (*.env -> .env).
-// Each {a,b} alternative is checked on its own.
+// Each {a,b} alternative is checked on its own; a glob with more than
+// MaxBraces of them counts as naming one, since expanding them all would
+// outrun the hook's timeout, which fails open.
 func namesSensitive(cfg *config.Config, glob string) bool {
 	if glob == "" {
 		return false
 	}
-	return slices.ContainsFunc(Braces(glob), func(alt string) bool {
+	alts, ok := Braces(glob)
+	if !ok {
+		return true
+	}
+	return slices.ContainsFunc(alts, func(alt string) bool {
 		base := alt[strings.LastIndex(alt, "/")+1:]
 		generic := strings.Trim(base, "*?") == ""
 		return slices.ContainsFunc(cfg.SensitivePaths, func(entry string) bool {
@@ -96,16 +102,30 @@ func namesSensitive(cfg *config.Config, glob string) bool {
 	})
 }
 
-// Braces expands a glob's {a,b} alternatives, innermost first.
-func Braces(glob string) []string {
+// MaxBraces caps how many {a,b} alternatives Braces expands: each group
+// doubles them or more.
+const MaxBraces = 1024
+
+// Braces expands a glob's {a,b} alternatives, innermost first. Past
+// MaxBraces it stops, with ok false and the alternatives so far.
+func Braces(glob string) (alts []string, ok bool) {
+	alts = expandBraces(glob, nil)
+	if len(alts) > MaxBraces {
+		return alts[:MaxBraces], false
+	}
+	return alts, true
+}
+
+func expandBraces(glob string, out []string) []string {
 	end := strings.Index(glob, "}")
 	start := strings.LastIndex(glob[:max(end, 0)], "{")
 	if end < 0 || start < 0 {
-		return []string{glob}
+		return append(out, glob)
 	}
-	var out []string
 	for alt := range strings.SplitSeq(glob[start+1:end], ",") {
-		out = append(out, Braces(glob[:start]+alt+glob[end+1:])...)
+		if out = expandBraces(glob[:start]+alt+glob[end+1:], out); len(out) > MaxBraces {
+			break
+		}
 	}
 	return out
 }

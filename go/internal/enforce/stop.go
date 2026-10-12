@@ -136,7 +136,8 @@ func matching(files []string, dir string, globs []string) []string {
 }
 
 func globMatch(glob, rel string) bool {
-	for _, pattern := range guard.Braces(strings.TrimPrefix(glob, "./")) {
+	alts, _ := guard.Braces(strings.TrimPrefix(glob, "./")) // a config glob past the cap matches by the alternatives kept
+	for _, pattern := range alts {
 		switch {
 		case !strings.Contains(pattern, "/"):
 			if guard.Glob(pattern, filepath.Base(rel)) {
