@@ -252,56 +252,72 @@ func normPath(p string) string {
 	return strings.TrimPrefix(path.Clean("/"+p), "/")
 }
 
-func (s *scan) javascript() (dynamic bool) {
-	stem := stripJSExt(s.rel)
-	isIndex := path.Base(stem) == "index"
-	indexDir := ""
-	if isIndex {
-		indexDir = parent(stem)
+// jsTarget is the file a JS import has to reach: its extensionless stem,
+// for an index the directory it stands for, and the names of the
+// workspace packages holding it.
+type jsTarget struct {
+	stem     string
+	isIndex  bool
+	indexDir string
+	wsNames  []string
+}
+
+// match is whether spec, imported from file, reaches t, and the label
+// saying how.
+func (t jsTarget) match(file, spec string) (label string, ok bool) {
+	switch {
+	case strings.HasPrefix(spec, "."):
+		resolved := stripJSExt(normPath(parent(file) + "/" + spec))
+		return "", resolved == t.stem || t.isIndex && resolved == t.indexDir
+	case strings.HasPrefix(spec, "@/") || strings.HasPrefix(spec, "~/"):
+		suffix := stripJSExt(spec[2:])
+		return "alias-match", endsInPath(t.stem, suffix) || t.isIndex && endsInPath(t.indexDir, suffix)
 	}
-	var wsNames []string
+	for _, name := range t.wsNames {
+		if spec == name || strings.HasPrefix(spec, name+"/") {
+			return "workspace-match", true
+		}
+	}
+	return "", false
+}
+
+// endsInPath is true when p is suffix or ends in "/"+suffix.
+func endsInPath(p, suffix string) bool {
+	return p == suffix || strings.HasSuffix(p, "/"+suffix)
+}
+
+// workspaceNames are the package.json names of the subprojects holding the
+// scanned file.
+func (s *scan) workspaceNames() []string {
+	var names []string
 	for _, dir := range project.Subprojects(s.root) {
 		if dir != "." && strings.HasPrefix(s.rel, dir+"/") {
 			if name := sources.JSONValue(filepath.Join(s.root, dir, "package.json"), ".name"); name != "" {
-				wsNames = append(wsNames, name)
+				names = append(names, name)
 			}
 		}
 	}
-	needles := append([]string{path.Base(stem), path.Base(indexDir)}, wsNames...)
-	if indexDir == "" {
-		needles[1] = ""
+	return names
+}
+
+func (s *scan) javascript() (dynamic bool) {
+	t := jsTarget{stem: stripJSExt(s.rel), wsNames: s.workspaceNames()}
+	t.isIndex = path.Base(t.stem) == "index"
+	if t.isIndex {
+		t.indexDir = parent(t.stem)
 	}
-	if isIndex {
+	needles := append([]string{path.Base(t.stem), ""}, t.wsNames...)
+	if t.indexDir != "" {
+		needles[1] = path.Base(t.indexDir)
+	}
+	if t.isIndex {
 		// An index is also reached by a bare '.', '..', or './'.
 		needles = append(needles, ".'", `."`, "/'", `/"`)
 	}
 	for _, h := range s.candidates(jsCandidate, needles, jsFiles...) {
-		content := h.content
-		for {
-			m := jsSpec.FindStringSubmatchIndex(content)
-			if m == nil {
-				break
-			}
-			spec := content[m[4]:m[5]]
-			content = content[m[1]:]
-			switch {
-			case strings.HasPrefix(spec, "."):
-				resolved := stripJSExt(normPath(parent(h.file) + "/" + spec))
-				if resolved == stem || (isIndex && resolved == indexDir) {
-					s.add(h.file, h.line, "")
-				}
-			case strings.HasPrefix(spec, "@/") || strings.HasPrefix(spec, "~/"):
-				suffix := stripJSExt(spec[2:])
-				if stem == suffix || strings.HasSuffix(stem, "/"+suffix) ||
-					(isIndex && (indexDir == suffix || strings.HasSuffix(indexDir, "/"+suffix))) {
-					s.add(h.file, h.line, "alias-match")
-				}
-			default:
-				for _, name := range wsNames {
-					if spec == name || strings.HasPrefix(spec, name+"/") {
-						s.add(h.file, h.line, "workspace-match")
-					}
-				}
+		for _, m := range jsSpec.FindAllStringSubmatch(h.content, -1) {
+			if label, ok := t.match(h.file, m[2]); ok {
+				s.add(h.file, h.line, label)
 			}
 		}
 	}

@@ -306,9 +306,9 @@ var runnerFlags = map[string]runnerGrammar{
 	"just": {file: []string{"-f", "--file", "--makefile", "--justfile"}, dir: []string{"-d", "--working-directory"}, namesLookedUp: true},
 }
 
-// reference reads words as a task reference, by the longest matching
-// reference prefix.
-func (c *classifier) reference(words, env []string) (Command, bool) {
+// longestReference is the reference whose words are the longest prefix of
+// words, and that prefix's length in words.
+func longestReference(words []string) (*Reference, int) {
 	var best *Reference
 	bestLen := 0
 	for i, r := range Grammar.References {
@@ -317,13 +317,15 @@ func (c *classifier) reference(words, env []string) (Command, bool) {
 			best, bestLen = &Grammar.References[i], n
 		}
 	}
-	if best == nil {
-		return Command{}, false
-	}
-	rest := words[bestLen:]
-	ref := TaskRef{Provider: best.Provider, Name: best.Task}
-	flags, runner := runnerFlags[best.Provider]
-	var more []string
+	return best, bestLen
+}
+
+// refArgs reads the words after a reference prefix into ref: its directory,
+// name, and arguments, plus the further task names of a runner that takes
+// several. kind is Ref, or FanOut or Other when one word makes the whole
+// command that.
+func (c *classifier) refArgs(ref TaskRef, rest []string) (_ TaskRef, more []string, kind Kind) {
+	flags, runner := runnerFlags[ref.Provider]
 	for i := 0; i < len(rest); i++ {
 		w := rest[i]
 		next := i+1 < len(rest)
@@ -332,10 +334,10 @@ func (c *classifier) reference(words, env []string) (Command, bool) {
 			ref.Args = rest[i+1:]
 			i = len(rest)
 		case slices.Contains(Grammar.FanOutFlags, w) || slices.ContainsFunc(Grammar.FanOutFlags, func(f string) bool { return strings.HasPrefix(w, f+"=") }):
-			return Command{Kind: FanOut, Words: words, Env: env}, true
+			return ref, nil, FanOut
 		case runner && slices.Contains(flags.file, w):
 			// Another file's targets: the kit can't look them up.
-			return Command{Kind: Other, Words: words, Env: env}, true
+			return ref, nil, Other
 		case runner && slices.Contains(flags.dir, w) && next:
 			ref.Dir = rest[i+1]
 			i++
@@ -354,6 +356,20 @@ func (c *classifier) reference(words, env []string) (Command, bool) {
 		default:
 			ref.Args = append(ref.Args, w)
 		}
+	}
+	return ref, more, Ref
+}
+
+// reference reads words as a task reference, by the longest matching
+// reference prefix.
+func (c *classifier) reference(words, env []string) (Command, bool) {
+	best, bestLen := longestReference(words)
+	if best == nil {
+		return Command{}, false
+	}
+	ref, more, kind := c.refArgs(TaskRef{Provider: best.Provider, Name: best.Task}, words[bestLen:])
+	if kind != Ref {
+		return Command{Kind: kind, Words: words, Env: env}, true
 	}
 	if ref.Name == "" || filepath.IsAbs(ref.Dir) || strings.HasPrefix(ref.Dir, "~") {
 		// make -C /opt/app: outside the repo, so not a task the kit can read.
