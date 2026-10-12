@@ -1,6 +1,7 @@
 package enforce
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
@@ -22,6 +24,9 @@ type Mark struct {
 	Paths []string `json:"paths"`
 	Ref   string   `json:"ref"`
 }
+
+// markLockWait bounds how long AddMark waits for another run's write.
+const markLockWait = 5 * time.Second
 
 // marksFile holds root's marks, by gate key.
 func marksFile(cacheDir, root string) string {
@@ -44,8 +49,16 @@ func Marks(cacheDir, root string) map[string]Mark {
 }
 
 // AddMark records that g changed files, so it never runs again until
-// ResetMarks.
+// ResetMarks. The read-modify-write holds a lock: concurrent runs on one
+// root would otherwise drop each other's marks.
 func AddMark(cacheDir, root string, g Gate, m Mark) error {
+	ctx, cancel := context.WithTimeout(context.Background(), markLockWait)
+	defer cancel()
+	unlock, err := cache.Lock(ctx, strings.TrimSuffix(marksFile(cacheDir, root), ".json")+".lock")
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	marks := Marks(cacheDir, root)
 	marks[g.key(root)] = m
 	data, err := json.Marshal(marks)
