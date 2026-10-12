@@ -136,7 +136,7 @@ func matching(files []string, dir string, globs []string) []string {
 }
 
 func globMatch(glob, rel string) bool {
-	for _, pattern := range braces(strings.TrimPrefix(glob, "./")) {
+	for _, pattern := range guard.Braces(strings.TrimPrefix(glob, "./")) {
 		switch {
 		case !strings.Contains(pattern, "/"):
 			if guard.Glob(pattern, filepath.Base(rel)) {
@@ -149,20 +149,6 @@ func globMatch(glob, rel string) bool {
 		}
 	}
 	return false
-}
-
-// braces expands a glob's {a,b} alternatives, innermost first.
-func braces(glob string) []string {
-	end := strings.Index(glob, "}")
-	start := strings.LastIndex(glob[:max(end, 0)], "{")
-	if end < 0 || start < 0 {
-		return []string{glob}
-	}
-	var out []string
-	for alt := range strings.SplitSeq(glob[start+1:end], ",") {
-		out = append(out, braces(glob[:start]+alt+glob[end+1:])...)
-	}
-	return out
 }
 
 // placeholderWord is a word holding {files} or {dirs}.

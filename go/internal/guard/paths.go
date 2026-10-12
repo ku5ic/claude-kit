@@ -82,17 +82,32 @@ func matchSensitive(cfg *config.Config, home, path string, holds bool) bool {
 // namesSensitive is true when glob picks out a credential file by name: a
 // basename entry matches its last element taken literally (*.pem), or that
 // element, unless it's only wildcards, matches an entry (*.env -> .env).
-// shortcut: no brace expansion, so *.{pem,key} slips through; matching
-// rg's glob semantics fixes it.
+// Each {a,b} alternative is checked on its own.
 func namesSensitive(cfg *config.Config, glob string) bool {
 	if glob == "" {
 		return false
 	}
-	base := glob[strings.LastIndex(glob, "/")+1:]
-	generic := strings.Trim(base, "*?") == ""
-	return slices.ContainsFunc(cfg.SensitivePaths, func(entry string) bool {
-		return !strings.HasPrefix(entry, "~/") && (Glob(entry, base) || !generic && Glob(base, entry))
+	return slices.ContainsFunc(Braces(glob), func(alt string) bool {
+		base := alt[strings.LastIndex(alt, "/")+1:]
+		generic := strings.Trim(base, "*?") == ""
+		return slices.ContainsFunc(cfg.SensitivePaths, func(entry string) bool {
+			return !strings.HasPrefix(entry, "~/") && (Glob(entry, base) || !generic && Glob(base, entry))
+		})
 	})
+}
+
+// Braces expands a glob's {a,b} alternatives, innermost first.
+func Braces(glob string) []string {
+	end := strings.Index(glob, "}")
+	start := strings.LastIndex(glob[:max(end, 0)], "{")
+	if end < 0 || start < 0 {
+		return []string{glob}
+	}
+	var out []string
+	for alt := range strings.SplitSeq(glob[start+1:end], ",") {
+		out = append(out, Braces(glob[:start]+alt+glob[end+1:])...)
+	}
+	return out
 }
 
 var physicalTargets sync.Map // sensitive_paths target -> its physical path
