@@ -1,10 +1,6 @@
 # Anti-patterns
 
-Severity rubric:
-
-- `failure`: exploitable, or direct leak of credentials, or missing CSRF on authenticated mutating endpoint.
-- `warning`: mitigated but weak, or pattern that will become exploitable if misused.
-- `info`: hardening opportunity, not currently exploitable.
+Severity rubric: [../SKILL.md](../SKILL.md#severity-rubric).
 
 ## String-interpolated SQL
 

@@ -1,10 +1,6 @@
 # Anti-patterns
 
-Severity rubric:
-
-- `failure`: a direct Level AA violation that will block certification or cause a usable defect.
-- `warning`: likely to cause issues in some assistive tech configurations, or violates A level and relied on by AA.
-- `info`: best practice not required at AA, or a pattern likely to regress if not fixed now.
+Severity rubric: [../SKILL.md](../SKILL.md#severity-rubric).
 
 ## `<div>` or `<span>` as an interactive element
 

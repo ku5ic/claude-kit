@@ -12,26 +12,16 @@ Reframe a technical finding or proposal for a non-technical audience. Arguments:
 
 Write to the path `kit scratch-dir stakeholder <topic-slug>` prints.
 
-Structure:
+Plain paragraphs in this order, no headers or labels (`rules/output.md` section 4):
 
-```
-# <Topic>
-
-**Audience**: <CEO | PM | client | leadership>
-
-## Situation
+```text
+<Topic, one line.>
 
 <What is going on, in plain language. No jargon unless defined.>
 
-## Why it matters
-
 <Business or user impact. Not the technical mechanism.>
 
-## Options
-
-<Only if there is a decision to make. One line per option with its tradeoff. Otherwise omit.>
-
-## Recommendation
+<Only if there is a decision to make: one line per option with its tradeoff. Otherwise omit.>
 
 <What you propose, in one or two sentences, with the core reason.>
 ```

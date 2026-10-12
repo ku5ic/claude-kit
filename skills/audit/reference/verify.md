@@ -26,6 +26,10 @@ Write to the path `kit scratch-dir verify <original-slug>` prints, where `<origi
 Generated: <ISO timestamp>
 Original report: <absolute path>
 
+## Summary
+
+<counts per classification, e.g. "3 resolved, 1 unresolved, 1 moved, 0 regressed, 1 unverifiable">
+
 ## Classifications
 
 ### <Finding title>
@@ -38,10 +42,6 @@ Original report: <absolute path>
 
 ### <Next finding>
 ...
-
-## Summary
-
-<counts per classification, e.g. "3 resolved, 1 unresolved, 1 moved, 0 regressed, 1 unverifiable">
 ```
 
 ## Rules
