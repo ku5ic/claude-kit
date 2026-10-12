@@ -167,7 +167,7 @@ Commands work bare (`/audit`) or namespaced (`/kit:audit`).
 | Agent             | Use it to                                                                     |
 | ----------------- | ----------------------------------------------------------------------------- |
 | `kit:auditor`     | Run a read-only audit for an `/audit` kind                                    |
-| `kit:checker`     | Get a one-line pass/fail from `kit run-checks`                                |
+| `kit:checker`     | Get a one-line pass/fail from `kit run-checks`, when you want no review       |
 | `kit:debugger`    | Find where and why something breaks. Hands the fix back                       |
 | `kit:plan-critic` | Attack a plan against the real repo before you approve it                     |
 | `kit:researcher`  | Look up library docs and web pages, keeping network access out of code work   |

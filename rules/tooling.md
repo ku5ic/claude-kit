@@ -18,8 +18,6 @@ When a deterministic CLI can answer the question, call it before reading files a
 | JSON                               | `jq`, or `gron` to grep flat paths | substring matching                 |
 | YAML/TOML                          | `yq`                               | manual parsing                     |
 | CSV/TSV                            | `qsv`                              | ad-hoc awk                         |
-| In-place substitution              | `sd 'find' 'repl' file`            | sed -i                             |
-| Buffer stdin for in-place pipes    | `cmd \| sponge file`               | temp-file dance                    |
 | Fixup commits from staged hunks    | `git absorb`                       | rebase -i + fixup                  |
 | Git outside cwd                    | `git -C <dir>`                     | cd <dir> && git                    |
 | Validate a GitHub Actions workflow | `actionlint`                       | reading YAML by eye                |

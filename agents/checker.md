@@ -1,6 +1,6 @@
 ---
 name: checker
-description: Runs the project verification checklist via kit run-checks and returns a one-line status plus any failing labels. Use for a fast pass/fail signal after a change, without pulling check output into the main context.
+description: Runs the project verification checklist via kit run-checks and returns a one-line status plus any failing labels. Use when the user asks for a pass/fail without a review, keeping check output out of the main context.
 tools: Read, Bash, Grep, Glob
 color: blue
 model: haiku

@@ -296,4 +296,4 @@ reply_limits:
 # The CLIs rules/tooling.md steers toward. <tooling> reports which of them
 # are on PATH as available: and missing: lines, so a rule never sends Claude
 # to a binary this machine lacks.
-tools: [rg, sg, fd, tokei, gitleaks, trufflehog, hyperfine, jq, gron, yq, qsv, sd, sponge, git-absorb, actionlint]
+tools: [rg, sg, fd, tokei, gitleaks, trufflehog, hyperfine, jq, gron, yq, qsv, git-absorb, actionlint]
