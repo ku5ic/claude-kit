@@ -69,8 +69,12 @@ const formatBudget = 15 * time.Second
 func onEdit(chain []config.EditCommand, path, dir string, deadline time.Time) string {
 	var tried []string
 	for _, c := range chain {
-		if !onPath(c.Cmd) {
-			tried = append(tried, strings.Fields(c.Cmd)[0])
+		words := strings.Fields(c.Cmd)
+		if len(words) == 0 {
+			continue // kit config --check names it
+		}
+		if !onPath(words[0]) {
+			tried = append(tried, words[0])
 			continue
 		}
 		left := time.Until(deadline)

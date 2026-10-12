@@ -96,6 +96,20 @@ func (c *Config) unknownDisables() []error {
 	return errs
 }
 
+// emptyEditCmds names the on_edit run entries with no cmd, which the format
+// hook skips.
+func (c *Config) emptyEditCmds() []error {
+	var errs []error
+	for _, rule := range c.OnEdit {
+		for i, cmd := range rule.Run {
+			if strings.TrimSpace(cmd.Cmd) == "" {
+				errs = append(errs, fmt.Errorf("on_edit: run entry %d for %q has no cmd; it's skipped", i+1, rule.Globs))
+			}
+		}
+	}
+	return errs
+}
+
 // InstallPatterns is global_installs compiled, and a warning naming the
 // file of each pattern that doesn't compile: guard-bash blocks every
 // command while one is there. A Config load built is compiled once; any

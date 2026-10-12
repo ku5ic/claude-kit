@@ -196,6 +196,23 @@ func TestNegativeReplyLimitsWarn(t *testing.T) {
 	}
 }
 
+func TestEmptyOnEditCmdWarns(t *testing.T) {
+	dir := t.TempDir()
+	base := write(t, dir, "kit.yml", "on_edit:\n  - globs: [\"*.toml\"]\n    run: [{cmd: \"taplo fmt {file}\"}, {cmd: \" \"}]\n")
+	_, warnings, err := Load(Paths{Base: base})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, w := range warnings {
+		got = append(got, w.Err.Error())
+	}
+	want := `on_edit: run entry 2 for ["*.toml"] has no cmd; it's skipped`
+	if strings.Join(got, "|") != want {
+		t.Errorf("warnings = %q, want %q", got, want)
+	}
+}
+
 func TestUnknownKeysWarnWithTheirFile(t *testing.T) {
 	dir := t.TempDir()
 	base := write(t, dir, "kit.yml", "protected_branches: [main]\non_edit:\n  - globs: [a]\n    signal_fies: [a]\n")
