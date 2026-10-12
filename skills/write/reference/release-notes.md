@@ -65,7 +65,7 @@ Range: <base>..HEAD (N commits)
 ## Rules
 
 - User-facing language. The audience is users of the project, not the authors.
-- No AI signatures. No commit SHAs in the output unless the project convention includes them.
+- Signatures: `rules/workflow.md` section 1. No commit SHAs in the output unless the project convention includes them.
 - Skip merge commits, formatting commits, and dependency bumps unless a bump is itself the release reason.
 - If the range has nothing worth noting, say so and propose skipping the release.
 - If a commit is ambiguous ("fix stuff", "wip"): flag it in an "Unclear" section rather than inventing intent.

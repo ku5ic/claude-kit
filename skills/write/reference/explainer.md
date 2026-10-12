@@ -37,10 +37,9 @@ Where it goes:
 - Default to terminal. Only write to a file when asked - honor an exact location if one is given (e.g. "on desktop").
 - Otherwise use the path `kit scratch-dir <kind> <scope-slug>` prints.
 
-Invoking this skill sets the kit.yml `reply_limits.write.explainer` ceiling in place of the chat one. That covers how much gets said, not how it's structured: within each header's section, still short paragraphs (no more than 4 prose lines, per rules/output.md section 1) and one hop or one point per paragraph, never one long undifferentiated block under a header.
+Invoking this skill sets the kit.yml `reply_limits.write.explainer` ceiling in place of the chat one. That covers how much gets said, not how it's structured: within each header's section, paragraphs still follow `rules/output.md` section 1, one hop or one point per paragraph, never one long undifferentiated block under a header.
 
 ## Rules
 
-- State plainly when something is inferred vs. verified (e.g., "confirmed via the actual refetch call" vs. "likely, based on the naming").
+- Confidence labels: `rules/evidence.md` section 1.
 - Multiple mechanisms sharing one subject - one ticket, one feature, one module - are not automatically one story. Check before merging them into a single narrative.
-- Don't pad with a closing summary that restates what was just explained.

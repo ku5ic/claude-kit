@@ -23,4 +23,4 @@ After any manifest edit:
 5. Branch.
 6. Commit.
 7. `gh pr create`.
-8. Do not push to a protected branch; stop before merging your own PR.
+8. Stop before merging your own PR.

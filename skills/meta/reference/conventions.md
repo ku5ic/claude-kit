@@ -10,7 +10,7 @@ Find the conventions this repo actually follows and write them down once, as pat
    - Whether to write the rules under `<root>/.claude/rules/conventions/` (one file per area) or only report them. These files are meant to be committed, so writing needs a yes.
 3. Investigate each chosen area with the `investigate` skill: "What convention does this repo follow for <area>? Cite every instance as `file:line`." For independent areas, fan out as the skill allows.
 4. Keep a convention only when it has **at least two** cited `file:line` instances that you've read yourself, and no cited counter-examples that outnumber them. A single instance is an example, not a convention. An area left with nothing is recorded as `no convention found` in the report. It gets no rule file, since an empty rule costs context and says nothing.
-5. Write one file per area with at least one convention: `<root>/.claude/rules/conventions/<area>.md`. Use Write, never a shell redirect:
+5. Write one file per area with at least one convention: `<root>/.claude/rules/conventions/<area>.md`, per `rules/output.md` section 3:
 
    ```markdown
    ---

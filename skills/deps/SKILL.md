@@ -97,7 +97,7 @@ Present a table: severity, package, ecosystem, scope, relationship, current -> f
    - Lockfile conflict: take the incoming dependency change, then regenerate the lockfile with the injected manager's lockfile-only install. Never hand-merge a lockfile.
    - Manifest conflict: merge both edits keeping the higher compatible version, then regenerate the lockfile.
    - `git add` resolved files, `git rebase --continue`.
-3. Dependabot branches are bot-owned. Confirm before `git push --force-with-lease`. Never force push a branch you do not own.
+3. Dependabot branches are bot-owned; force pushing one is `rules/workflow.md` sections 1 and 2.
 
 ## Phase 4: verify then merge
 
@@ -147,9 +147,8 @@ Per PR/alert, report these fields:
 - In Phase 5, prefer a parent bump over a transitive pin. A pin is the fallback, not the default, and it is standing debt; record every one. If the ecosystem's pin mechanism is uncertain, stop and hand back rather than guess.
 - Severity is from the GitHub alert list when available, not local audit.
 - Only `state == "open"` alerts are actionable. `fixed`, `dismissed`, `auto_dismissed` are not.
-- Do not push to or merge into a protected branch directly.
 - No opportunistic bumps. Touch only deps named in an open alert or open Dependabot PR.
-- One mutating operation per Bash call.
+- Pushing, protected branches, and mutating Bash calls: `rules/workflow.md` sections 1 and 2.
 
 ## Stop conditions
 

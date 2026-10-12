@@ -34,9 +34,9 @@ Django signals decouple sender from receiver, which also hides the execution pat
 
 ---
 
-**`warning`: Fat views over ~200 lines**
+**`warning`: Fat views**
 
-A view function or method exceeding ~200 lines typically contains business logic that belongs in a service, manager method, or form validator. The threshold is judgment; the signal is a view that is hard to test in isolation.
+A view function or method past the function-size threshold in `skills/engineering-fundamentals/reference/metric-thresholds.md` typically contains business logic that belongs in a service, manager method, or form validator. The signal is a view that is hard to test in isolation.
 
 ---
 

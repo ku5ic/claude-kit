@@ -49,7 +49,6 @@ Stack: <the language lines kit detect-stack prints, if applicable>
 - Severity is one of `failure` (a defect or violation that should not ship), `warning` (a smell that compounds with other findings), `info` (a hardening opportunity or note, not a defect). Nothing else. A consumer may narrow a level's meaning for its domain, never add one.
 - Sort findings by severity, failures first.
 - If a section would be empty, omit it. Do not leave placeholder text.
-- Code snippets use fenced blocks with language tag.
 - No ASCII decoration, no banner comments, no emoji.
 - File naming and location: the path `kit scratch-dir <kind> <target-slug>` prints.
 - Does not govern `/write` output (commit messages, PR descriptions, release notes, stakeholder summaries) - those have their own formats per `rules/output.md`.
@@ -70,6 +69,4 @@ The "overall health in one word" at the end of the Summary helps quick scanning:
 - `failure`: omitting the `## Summary` section or the `## Findings` section when findings exist, in a report this format governs.
 - `warning`: inventing severity levels outside `failure`, `warning`, `info` -- e.g. `critical`, `high`, `medium`, `low`, `error`. The rubric has three levels; anything else breaks downstream tooling that parses reports.
 - `warning`: leaving placeholder text in empty sections (e.g. `<none>`, `N/A`) rather than omitting the section.
-- `warning`: hardcoding a literal `~/.claude/scratch/` or `scratch/` path instead of resolving it via `kit scratch-dir`.
-- `warning`: not printing the absolute file path after writing -- the user cannot open the file without it.
 - `info`: not sorting findings by severity (failures first, then warnings, then info).

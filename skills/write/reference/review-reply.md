@@ -69,7 +69,7 @@ Structure:
 ## Rules
 
 - Verify before agreeing (`rules/workflow.md` section 4): every "confirmed" or "agreed" answer points at something read this session, not a paraphrase of the reviewer's claim.
-- Tone: short, peer-to-peer - the PR author replying to a colleague, not a report. No "Thank you for the feedback", no groveling, no corporate hedging.
+- Tone: short, peer-to-peer - the PR author replying to a colleague, not a report. No groveling, no corporate hedging. Acknowledging a finding: `rules/workflow.md` section 4.
 - Disagree plainly when the code contradicts the reviewer. State the evidence, don't soften it.
 - Never post anything to GitHub. This drafts a file only - posting the replies is a separate, explicit action the user takes themselves.
 - If a comment's thread already has a reply from the current user (step 8), it's excluded silently from the per-comment sections, but counted in the round-summary line at the top.
