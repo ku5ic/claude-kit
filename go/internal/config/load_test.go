@@ -207,7 +207,7 @@ func TestEmptyOnEditCmdWarns(t *testing.T) {
 	for _, w := range warnings {
 		got = append(got, w.Err.Error())
 	}
-	want := `on_edit: run entry 2 for ["*.toml"] has no cmd; it's dropped`
+	want := `on_edit: the rule for ["*.toml"] has a run entry with no cmd (entry 2 of 2); it's dropped`
 	if strings.Join(got, "|") != want {
 		t.Errorf("warnings = %q, want %q", got, want)
 	}

@@ -105,7 +105,7 @@ func (c *Config) dropEmptyEditCmds() []error {
 		var kept []EditCommand
 		for i, cmd := range rule.Run {
 			if strings.TrimSpace(cmd.Cmd) == "" {
-				errs = append(errs, fmt.Errorf("on_edit: run entry %d for %q has no cmd; it's dropped", i+1, rule.Globs))
+				errs = append(errs, fmt.Errorf("on_edit: the rule for %q has a run entry with no cmd (entry %d of %d); it's dropped", rule.Globs, i+1, len(rule.Run)))
 				continue
 			}
 			kept = append(kept, cmd)

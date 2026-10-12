@@ -20,6 +20,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/hooks"
+	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/stackctx"
 )
 
@@ -194,7 +195,11 @@ func stop(paths config.Paths, cfg *config.Config, cwd string, files []string, w,
 		fmt.Fprintf(w, "  verdict  %s\n", g.Verdict)
 	}
 	for i, f := range files {
-		if !claimed[fsx.PhysicalPath(abs[i])] {
+		switch {
+		case claimed[fsx.PhysicalPath(abs[i])]:
+		case project.IsScratch(paths, abs[i]):
+			fmt.Fprintf(w, "unclaimed  %s (in scratch: no check or formatter runs there)\n", f)
+		default:
 			fmt.Fprintf(w, "unclaimed  %s (no check applies, or the file is ignored, deleted, or outside the repo)\n", f)
 		}
 	}

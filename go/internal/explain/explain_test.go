@@ -42,6 +42,7 @@ func TestExplain(t *testing.T) {
 		{"edit: a Grep of the repo for .env files blocks", []string{"edit", repo, "Grep", ".env*"}, "guard-edit: block  sensitive-read"},
 		{"edit: a plain write passes", []string{"edit", filepath.Join(repo, "docs/notes.md")}, "guard-edit: pass"},
 		{"edit: a new report at the repo root asks", []string{"edit", filepath.Join(repo, "notes.md")}, "guard-edit: ask"},
+		{"stop: a scratch file says scratch is why", []string{"stop", filepath.Join(repo, ".claude/scratch/probe.go")}, "unclaimed  " + filepath.Join(repo, ".claude/scratch/probe.go") + " (in scratch: no check or formatter runs there)"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			var stdout, stderr strings.Builder

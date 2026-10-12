@@ -19,8 +19,9 @@ import (
 const Timeout = 30 * time.Second
 
 // Command is git with args, run in dir ("" is the working directory).
-// Optional locks are off: a status or diff refreshing the index would hold
-// index.lock against the user's own git add or commit.
+// Optional locks are off: a status refreshing the index would hold
+// index.lock against the user's own git add or commit. A worktree git diff
+// refreshes it anyway; read that diff with diff-files.
 func Command(dir string, args ...string) *proc.Cmd {
 	if dir != "" {
 		args = append([]string{"-C", dir}, args...)

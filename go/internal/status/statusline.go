@@ -253,12 +253,13 @@ func gitStatus(home, cwd, sessionID string) string {
 	}
 	// Independent git reads, run at once: this renders every second.
 	// Untracked files are listed from the top: ls-files --others lists only
-	// cwd's subtree, numstat the whole repo.
+	// cwd's subtree, numstat the whole repo. diff-files, not diff: a worktree
+	// diff refreshes the index under index.lock even with optional locks off.
 	var top, branch, unstaged, staged string
 	var untracked []string
 	var wg sync.WaitGroup
 	wg.Go(func() { branch, _ = git.Branch(cwd) })
-	wg.Go(func() { unstaged, _ = git.Output(cwd, "diff", "--numstat") })
+	wg.Go(func() { unstaged, _ = git.Output(cwd, "diff-files", "--numstat") })
 	wg.Go(func() { staged, _ = git.Output(cwd, "diff", "--cached", "--numstat") })
 	wg.Go(func() {
 		if top = git.Toplevel(cwd); top != "" {

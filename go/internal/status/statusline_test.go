@@ -144,6 +144,31 @@ func TestStatuslineGitSegment(t *testing.T) {
 		has(t, plain(s.render(payload(sub, 50))), "main +4")
 	})
 
+	// A worktree git diff refreshes stale stat info under index.lock even
+	// with optional locks off, racing the user's own git add or commit.
+	t.Run("git segment leaves the index alone when stat info is stale", func(t *testing.T) {
+		t.Parallel()
+		s := newSandbox(t)
+		s.change("a.txt", "one", "")
+		old := time.Now().Add(-time.Hour)
+		if err := os.Chtimes(filepath.Join(s.repo, "a.txt"), old, old); err != nil {
+			t.Fatal(err)
+		}
+		index := filepath.Join(s.repo, ".git", "index")
+		before, err := os.Stat(index)
+		if err != nil {
+			t.Fatal(err)
+		}
+		has(t, plain(s.render(payload(s.repo, 50))), "main +0 ~0")
+		after, err := os.Stat(index)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !os.SameFile(before, after) {
+			t.Error("the statusline rewrote .git/index")
+		}
+	})
+
 	t.Run("git segment is omitted outside a git repo", func(t *testing.T) {
 		t.Parallel()
 		s := newSandbox(t)
