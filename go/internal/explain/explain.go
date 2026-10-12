@@ -26,7 +26,8 @@ const usage = `usage: kit explain <what> ...
 
   bash '<command>'          how guard-bash parses the command, and its decision
   edit <path> [tool]        guard-edit's (and the skills gate's) decision on a
-                            Read/Edit/Write of path; tool defaults to Write
+                            Read/Grep/Edit/Write of path; tool defaults to
+                            Write
   stop [file...]            which checks claim each file, where they run, the
                             exact command, and what blocks; defaults to the
                             files the working tree has changed
@@ -122,7 +123,11 @@ func edit(paths config.Paths, cfg *config.Config, cwd, path, tool string, w io.W
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(cwd, path)
 	}
-	payload := map[string]any{"tool_name": tool, "session_id": "explain", "cwd": cwd, "tool_input": map[string]any{"file_path": path}}
+	key := "file_path"
+	if tool == "Grep" {
+		key = "path"
+	}
+	payload := map[string]any{"tool_name": tool, "session_id": "explain", "cwd": cwd, "tool_input": map[string]any{key: path}}
 	h := dryHook(paths, cfg, "guard-edit", payload)
 	verdict(w, "guard-edit", hooks.GuardEdit(h), h)
 	h = dryHook(paths, cfg, "guard-skills", payload)

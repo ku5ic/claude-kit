@@ -37,6 +37,8 @@ func TestExplain(t *testing.T) {
 		{"bash: an ordinary command passes", []string{"bash", "git status"}, "guard-bash: pass"},
 		{"bash: a lone kit script is allowed", []string{"bash", "kit scratch-dir"}, "guard-bash: allow"},
 		{"edit: a credential read blocks", []string{"edit", filepath.Join(home, ".ssh/id_rsa"), "Read"}, "guard-edit: block  sensitive-read"},
+		{"edit: a Grep of a credential dir blocks", []string{"edit", filepath.Join(home, ".ssh"), "Grep"}, "guard-edit: block  sensitive-read"},
+		{"edit: a Grep of the repo passes", []string{"edit", repo, "Grep"}, "guard-edit: pass"},
 		{"edit: a plain write passes", []string{"edit", filepath.Join(repo, "docs/notes.md")}, "guard-edit: pass"},
 		{"edit: a new report at the repo root asks", []string{"edit", filepath.Join(repo, "notes.md")}, "guard-edit: ask"},
 	} {

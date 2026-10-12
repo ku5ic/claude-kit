@@ -29,19 +29,23 @@ var (
 // GuardEdit blocks reads and writes of credential files and writes to other
 // risky paths, regardless of permission rules. Plugins can't ship
 // settings.json deny rules, so for a plugin install this is the only
-// credential-read protection. PreToolUse for Read, Edit, Write, MultiEdit.
+// credential-read protection. PreToolUse for Read, Grep, Edit, Write,
+// MultiEdit.
 func GuardEdit(h *hook.Hook) error {
 	if h.Payload.Err != nil {
 		return h.Payload.Err
+	}
+	// Without kit.yml nothing is configured: nothing matches, every check fails open.
+	cfg := cmp.Or(h.Config(), &config.Config{})
+	tool := h.Payload.String("tool_name")
+	if tool == "Grep" {
+		return guardSearch(h, cfg)
 	}
 	path := h.Payload.FilePath()
 	if path == "" {
 		return nil
 	}
 	h.SetContext("Path: " + path)
-	// Without kit.yml nothing is configured: nothing matches, every check fails open.
-	cfg := cmp.Or(h.Config(), &config.Config{})
-	tool := h.Payload.String("tool_name")
 
 	if guard.IsSensitive(cfg, h.Home, path) {
 		reason, rule := "writing a credential or key file is not permitted", "sensitive-write"
@@ -80,6 +84,22 @@ func GuardEdit(h *hook.Hook) error {
 	}
 	if tool == "Write" && newRootArtifact(cfg, path) {
 		h.Decide("ask", "a new "+filepath.Base(path)+" at the repo root; rules/output.md section 3 puts reports and logs in `kit scratch-dir`. Confirm only if it belongs in the repo")
+	}
+	return nil
+}
+
+// guardSearch blocks a Grep that can read a credential file. Its root is
+// tool_input.path, else cwd, which is also what a relative path joins.
+func guardSearch(h *hook.Hook, cfg *config.Config) error {
+	cwd := h.Payload.String("cwd")
+	root := guard.ExpandHome(h.Home, cmp.Or(h.Payload.String("tool_input.path"), cwd))
+	if root != "" && !filepath.IsAbs(root) {
+		root = filepath.Join(cwd, root)
+	}
+	glob := h.Payload.String("tool_input.glob")
+	h.SetContext("Path: " + root + "\nGlob: " + glob)
+	if guard.SearchesSensitive(cfg, h.Home, root, glob) {
+		return h.Block("searching a credential or key file is not permitted", "sensitive-read")
 	}
 	return nil
 }

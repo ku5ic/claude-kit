@@ -61,6 +61,48 @@ func IsSensitive(cfg *config.Config, home, path string) bool {
 	return false
 }
 
+// SearchesSensitive is true when a recursive search from root, its files
+// filtered by glob, can read a credential or key file: root is one or holds
+// a "~/" entry, or glob names one. Root is absolute, or "" for none.
+func SearchesSensitive(cfg *config.Config, home, root, glob string) bool {
+	if root != "" {
+		if IsSensitive(cfg, home, root) {
+			return true
+		}
+		root = filepath.Clean(root)
+		forms := []string{root, fsx.PhysicalPath(root)}
+		for _, entry := range cfg.SensitivePaths {
+			rest, ok := strings.CutPrefix(entry, "~/")
+			if !ok {
+				continue
+			}
+			target := filepath.Join(home, rest)
+			for _, t := range []string{target, physicalTarget(target)} {
+				if slices.ContainsFunc(forms, func(f string) bool { return f == "/" || strings.HasPrefix(t, f+"/") }) {
+					return true
+				}
+			}
+		}
+	}
+	return namesSensitive(cfg, glob)
+}
+
+// namesSensitive is true when glob picks out a credential file by name: a
+// basename entry matches its last element taken literally (*.pem), or that
+// element, not leading with a wildcard, matches an entry (.env* -> .env).
+// shortcut: no brace expansion, and a leading * or ? reads as generic, so
+// *.{pem,key} or *env slip through; matching rg's glob semantics fixes it.
+func namesSensitive(cfg *config.Config, glob string) bool {
+	if glob == "" {
+		return false
+	}
+	base := glob[strings.LastIndex(glob, "/")+1:]
+	generic := strings.HasPrefix(base, "*") || strings.HasPrefix(base, "?")
+	return slices.ContainsFunc(cfg.SensitivePaths, func(entry string) bool {
+		return !strings.HasPrefix(entry, "~/") && (Glob(entry, base) || !generic && Glob(base, entry))
+	})
+}
+
 var physicalTargets sync.Map // sensitive_paths target -> its physical path
 
 // physicalTarget is fsx.PhysicalPath of a sensitive_paths target, resolved

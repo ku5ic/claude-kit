@@ -225,6 +225,45 @@ skill_file_map:
 		k.overlay("disabled_rules: [sensitive-read]\n")
 		dispatch(k, "/tmp/project/.env", "", "Read").Want(t, 0)
 	})
+
+	// Grep: a search that can read a credential file is a read of it. A
+	// leading ~/ in path or cwd is the sandbox HOME.
+	for _, tc := range []struct {
+		name, path, glob, cwd string
+		status                int
+	}{
+		{"Grep of ~/.ssh is blocked", "~/.ssh", "", "/tmp/project", 2},
+		{"Grep of a key under ~/.ssh is blocked", "~/.ssh/id_rsa", "", "/tmp/project", 2},
+		{"Grep of a dir holding a ~/ entry is blocked", "~/.aws", "", "/tmp/project", 2},
+		{"Grep of a relative .ssh from HOME is blocked", ".ssh", "", "~", 2},
+		{"Grep of a repo with glob .env* is blocked", "/tmp/project", ".env*", "/tmp/project", 2},
+		{"Grep with no path and glob .env is blocked", "", ".env", "/tmp/project", 2},
+		{"Grep of a repo with glob **/*.key is blocked", "/tmp/project", "**/*.key", "/tmp/project", 2},
+		{"Grep of a repo with glob *.ts passes", "/tmp/project", "*.ts", "/tmp/project", 0},
+		{"Grep of a repo with the generic glob * passes", "/tmp/project", "*", "/tmp/project", 0},
+		{"Grep of a repo with no glob passes", "/tmp/project", "", "/tmp/project", 0},
+		{"Grep with no path or cwd passes", "", "", "", 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			k := newPlugin(t)
+			k.kitYML(`sensitive_paths: [".env", ".env.*", "*.key", id_rsa, "~/.ssh/", "~/.aws/credentials"]` + "\n")
+			home := func(p string) string { return strings.Replace(p, "~", k.home, 1) }
+			input := map[string]any{"pattern": "secret"}
+			if tc.path != "" {
+				input["path"] = tc.path
+			}
+			if tc.glob != "" {
+				input["glob"] = tc.glob
+			}
+			r := k.run("guard-dispatch", map[string]any{
+				"tool_input": input, "session_id": "s1", "tool_name": "Grep", "cwd": home(tc.cwd),
+			})
+			r.Want(t, tc.status)
+			if tc.status == 2 {
+				r.Has(t, "searching a credential or key file")
+			}
+		})
+	}
 }
 
 func TestGuardSkills(t *testing.T) {

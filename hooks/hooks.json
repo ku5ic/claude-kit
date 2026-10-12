@@ -6,7 +6,7 @@
         "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook bash-dispatch", "timeout": 30 }]
       },
       {
-        "matcher": "Edit|Write|MultiEdit|Read",
+        "matcher": "Edit|Write|MultiEdit|Read|Grep",
         "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook guard-dispatch", "timeout": 5 }]
       }
     ],
