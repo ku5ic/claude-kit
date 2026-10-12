@@ -65,7 +65,7 @@ The report lists three things, one line per case:
 2. **Not exercised**: the case and why (no data, no access, out of scope).
 3. **Raise with**: see section 3.
 
-"Looked fine" is not a result. A case that broke goes back to the fix loop before anything else.
+"Looked fine" is not a result. A case that broke goes back to the fix loop when section 5 says it's a regression; anything else is a follow-up.
 
 ## 3. Raise upstream gaps
 
@@ -80,3 +80,12 @@ The agent proposes; the human decides and owns the result. Agent output, includi
 
 - Present a non-obvious choice with its alternative and the reason, so the human can overrule it.
 - Don't claim done on behalf of the human. Done means the checks the table at the top requires ran after the last edit, with their output cited; without that, say what was not run.
+
+## 5. One cycle, then stop
+
+A change gets one `/code-review` and one runtime pass. A finding from either goes back to the fix loop only when it's a regression: the change leaves something worse than on the base branch (`kit git-base`). That means a new failure, a path that worked and now breaks, or a guard or check weakened.
+
+Everything else is a follow-up line in the report and the PR description, never another cycle: a pre-existing problem, an edge case the base already had, a hardening idea, a gap in new code that still improves on the base.
+
+- Fixing a regression re-runs only the case or check that found it, not the whole review or runtime pass.
+- Another full review or runtime pass runs only when the user asks for one.
