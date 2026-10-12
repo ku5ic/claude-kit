@@ -235,18 +235,16 @@ func MakeTargets(file string) []string {
 	})
 }
 
-// JustRecipes lists recipe names: `just --summary` when just is installed,
-// else recipe header lines.
+// JustRecipes lists recipe names: `just --summary` when just is installed
+// and parses the file, else recipe header lines.
 func JustRecipes(file string) []string {
 	if _, err := os.Stat(file); err != nil {
 		return nil
 	}
 	if _, err := exec.LookPath("just"); err == nil {
-		out, err := proc.Command(proc.Quick, "just", "--justfile", file, "--summary").Output()
-		if err != nil {
-			return nil
+		if out, err := proc.Command(proc.Quick, "just", "--justfile", file, "--summary").Output(); err == nil {
+			return strings.Fields(string(out))
 		}
-		return strings.Fields(string(out))
 	}
 	return matchLines(file, justRecipe, func(line string) string {
 		return justName.FindStringSubmatch(line)[1]

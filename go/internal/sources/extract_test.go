@@ -1,7 +1,6 @@
 package sources
 
 import (
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -78,12 +77,28 @@ func TestMakeTargetsSkipsSpecialPatternAndAssignments(t *testing.T) {
 	expect(t, MakeTargets(f), "test", "build")
 }
 
-func TestJustRecipesFallback(t *testing.T) {
-	if _, err := exec.LookPath("just"); err == nil {
-		t.Skip("just is installed; this covers the fallback")
+// Not parallel: each case sets PATH to its own just, or none.
+func TestJustRecipes(t *testing.T) {
+	justfile := "set shell := [\"bash\", \"-c\"]\nversion := \"1\"\n\ntest *args:\n  cargo test {{args}}\n@lint:\n  cargo clippy\n"
+	withJust := func(t *testing.T, script string) {
+		bin := t.TempDir()
+		if script != "" {
+			testutil.FakeTool(t, filepath.Join(bin, "just"), filepath.Join(t.TempDir(), "calls"), script)
+		}
+		t.Setenv("PATH", bin)
 	}
-	f := fixture(t, "justfile", "set shell := [\"bash\", \"-c\"]\nversion := \"1\"\n\ntest *args:\n  cargo test {{args}}\n@lint:\n  cargo clippy\n")
-	expect(t, JustRecipes(f), "test", "lint")
+	t.Run("with no just installed, recipe header lines", func(t *testing.T) {
+		withJust(t, "")
+		expect(t, JustRecipes(fixture(t, "justfile", justfile)), "test", "lint")
+	})
+	t.Run("just --summary when it succeeds", func(t *testing.T) {
+		withJust(t, "echo build check")
+		expect(t, JustRecipes(fixture(t, "justfile", justfile)), "build", "check")
+	})
+	t.Run("recipe header lines when just --summary fails", func(t *testing.T) {
+		withJust(t, "exit 1")
+		expect(t, JustRecipes(fixture(t, "justfile", justfile)), "test", "lint")
+	})
 }
 
 func TestRegexLinesLastCaptureGroup(t *testing.T) {

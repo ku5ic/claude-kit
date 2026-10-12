@@ -9,8 +9,8 @@ import (
 )
 
 // LoadConfig is config.Load plus the warning only the task providers can
-// give: a disabled_task_providers entry that names none, so a typo doesn't
-// silently disable nothing.
+// give: a disabled_task_providers entry that names none, or one with no
+// tasks, so neither silently disables nothing.
 func LoadConfig(p config.Paths) (*config.Config, []config.Warning, error) {
 	cfg, warnings, err := config.Load(p)
 	if err != nil {
@@ -21,8 +21,12 @@ func LoadConfig(p config.Paths) (*config.Config, []config.Warning, error) {
 		from = p.Overlay
 	}
 	for _, d := range cfg.DisabledTaskProviders {
-		if !slices.ContainsFunc(TaskProviders, func(tp TaskProvider) bool { return tp.Name == d }) {
+		i := slices.IndexFunc(TaskProviders, func(tp TaskProvider) bool { return tp.Name == d })
+		switch {
+		case i < 0:
 			warnings = append(warnings, config.Warning{File: from, Err: fmt.Errorf("disabled_task_providers: %q names no task provider", d)})
+		case TaskProviders[i].Tasks == nil:
+			warnings = append(warnings, config.Warning{File: from, Err: fmt.Errorf("disabled_task_providers: %q lists no tasks, so there's nothing to disable", d)})
 		}
 	}
 	return cfg, warnings, nil
