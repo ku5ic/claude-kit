@@ -86,7 +86,7 @@ func writeContext(h *hook.Hook, cfg *config.Config, out *strings.Builder) {
 	}
 	ctx := stackctx.Build(h.Paths, cfg, name, root, h.Payload.SessionID())
 	if ctx.Report != "" {
-		scratch, _ := project.Dir(h.Paths, root, "scratch", false)
+		scratch, _ := project.ScratchDir(h.Paths, root, false)
 		fmt.Fprintf(out, "\n<repo-context>\n%sbranch (at session start): %s\ndirty-files (at session start): %s\nscratch: %s\n</repo-context>\n",
 			ctx.Report, branch(root), dirtyCount(root), scratch)
 	}
@@ -108,7 +108,7 @@ func writeContext(h *hook.Hook, cfg *config.Config, out *strings.Builder) {
 // and skill blocks, unlogged.
 func agentContext(paths config.Paths, cfg *config.Config, cwd, session string) string {
 	var b strings.Builder
-	if scratch, err := project.Dir(paths, cwd, "scratch", true); err == nil {
+	if scratch, err := project.ScratchDir(paths, cwd, true); err == nil {
 		fmt.Fprintf(&b, "<scratch>\npath: %s\n", scratch)
 		b.WriteString("Write every file you produce here - reports, previews, logs, downloads, test artifacts, POC scripts.\n" +
 			`This overrides the "Scratchpad directory" line in your system prompt: use this path, never the /private/tmp session scratchpad.` + "\n" +

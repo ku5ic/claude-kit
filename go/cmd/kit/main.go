@@ -280,7 +280,7 @@ func cmdProjectRoot(e *env, args []string) int {
 }
 
 func cmdScratchDir(e *env, args []string) int {
-	dir, err := project.Dir(e.paths, e.cwd, "scratch", true)
+	dir, err := project.ScratchDir(e.paths, e.cwd, true)
 	if err != nil {
 		fmt.Fprintln(e.stderr, "kit scratch-dir:", err)
 		return 1

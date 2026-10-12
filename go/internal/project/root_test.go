@@ -56,23 +56,20 @@ func TestReportPath(t *testing.T) {
 	}
 }
 
-func TestDirHomeFallbackAndRegistry(t *testing.T) {
+func TestScratchDirHomeFallbackAndRegistry(t *testing.T) {
 	home := tmp(t)
 	paths := config.Paths{Home: home}
 	outside := filepath.Join(tmp(t), "plain")
 
-	dir, err := Dir(paths, outside, "scratch", false)
+	dir, err := ScratchDir(paths, outside, false)
 	if err != nil || dir != filepath.Join(home, "scratch") {
 		t.Errorf("unanchored scratch = %q, %v", dir, err)
-	}
-	if _, err := Dir(paths, outside, "bogus", false); err == nil {
-		t.Error("unknown kind accepted")
 	}
 
 	repo := tmp(t)
 	testutil.Git(t, repo, "init", "-q", "-b", "main")
 	for range 2 {
-		if _, err := Dir(paths, repo, "scratch", true); err != nil {
+		if _, err := ScratchDir(paths, repo, true); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -84,14 +81,14 @@ func TestDirHomeFallbackAndRegistry(t *testing.T) {
 
 // Only a project scratch dir is registered: the home fallback isn't one for
 // scratch-rotate to prune.
-func TestDirScratchOutsideAProjectFallsBackToTheKitHomeUnregistered(t *testing.T) {
+func TestScratchDirOutsideAProjectFallsBackToTheKitHomeUnregistered(t *testing.T) {
 	t.Parallel()
 	home := tmp(t)
 	cwd := filepath.Join(tmp(t), "plain", "a", "b")
 	testutil.Put(t, cwd, ".keep", "")
-	dir, err := Dir(config.Paths{Home: home}, cwd, "scratch", true)
+	dir, err := ScratchDir(config.Paths{Home: home}, cwd, true)
 	if want := filepath.Join(home, "scratch"); err != nil || dir != want {
-		t.Fatalf("Dir = %q, %v; want %q", dir, err, want)
+		t.Fatalf("ScratchDir = %q, %v; want %q", dir, err, want)
 	}
 	if !fsx.IsDir(dir) {
 		t.Errorf("%s not created", dir)
@@ -99,6 +96,37 @@ func TestDirScratchOutsideAProjectFallsBackToTheKitHomeUnregistered(t *testing.T
 	if _, err := os.Stat(filepath.Join(home, "logs", "scratch-registry.txt")); err == nil {
 		t.Error("registered the home tier")
 	}
+}
+
+// PlanDir follows plansDirectory as Claude Code resolves it: the project's
+// local settings over its shared ones over the user's, relative to the
+// project root, else ~/.claude/plans.
+func TestPlanDir(t *testing.T) {
+	t.Parallel()
+	settings := func(dir, body string) {
+		testutil.Write(t, filepath.Join(dir, "settings.json"), body)
+	}
+	home := tmp(t)
+	paths := config.Paths{Home: home}
+	repo := tmp(t)
+	testutil.Git(t, repo, "init", "-q", "-b", "main")
+	sub := filepath.Join(repo, "src")
+	testutil.Mkdir(t, sub)
+	want := func(name, got, want string) {
+		if got != want {
+			t.Errorf("%s: PlanDir = %q, want %q", name, got, want)
+		}
+	}
+
+	want("unset, no project plans dir", PlanDir(paths, sub), filepath.Join(home, "plans"))
+	testutil.Mkdir(t, filepath.Join(repo, ".claude", "plans"))
+	want("unset, project plans dir", PlanDir(paths, sub), filepath.Join(repo, ".claude", "plans"))
+	settings(home, `{"plansDirectory": "user-plans"}`)
+	want("user settings", PlanDir(paths, sub), filepath.Join(repo, "user-plans"))
+	settings(filepath.Join(repo, ".claude"), `{"plansDirectory": "docs/plans"}`)
+	want("project over user", PlanDir(paths, sub), filepath.Join(repo, "docs", "plans"))
+	testutil.Write(t, filepath.Join(repo, ".claude", "settings.local.json"), `{"plansDirectory": "./my-plans"}`)
+	want("local over project", PlanDir(paths, sub), filepath.Join(repo, "my-plans"))
 }
 
 func TestRoot(t *testing.T) {

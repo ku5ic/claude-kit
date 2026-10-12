@@ -2,6 +2,7 @@ package hooks
 
 import (
 	"io"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -17,6 +18,7 @@ func TestPlanStepPause(t *testing.T) {
 		proj := filepath.Join(k.home, "proj")
 		testutil.Mkdir(t, proj)
 		testutil.Git(t, proj, "init", "-q")
+		testutil.Write(t, filepath.Join(proj, ".claude", "settings.json"), `{"plansDirectory": ".claude/plans"}`)
 		return k, proj
 	}
 	approve := func(k *sandbox, proj, session string) result {
@@ -43,6 +45,25 @@ func TestPlanStepPause(t *testing.T) {
 		r := approve(k, proj, "s1")
 		r.Want(t, 0)
 		r.Has(t, `"hookEventName":"PostToolUse"`, "plan-new.md", "first unchecked step")
+	})
+	t.Run("with plansDirectory unset and no project plans dir, the plan in ~/.claude/plans is named", func(t *testing.T) {
+		t.Parallel()
+		k, proj := setup(t)
+		if err := os.Remove(filepath.Join(proj, ".claude", "settings.json")); err != nil {
+			t.Fatal(err)
+		}
+		testutil.Write(t, filepath.Join(k.paths.PlansHome(), "plan-home.md"), "## Steps\n\n- [ ] one\n")
+		approve(k, proj, "s1").Has(t, "plan-home.md")
+	})
+	t.Run("with plansDirectory unset, an existing project plans dir comes first", func(t *testing.T) {
+		t.Parallel()
+		k, proj := setup(t)
+		if err := os.Remove(filepath.Join(proj, ".claude", "settings.json")); err != nil {
+			t.Fatal(err)
+		}
+		testutil.Write(t, filepath.Join(proj, ".claude", "plans", "plan-proj.md"), "## Steps\n\n- [ ] one\n")
+		testutil.Write(t, filepath.Join(k.paths.PlansHome(), "plan-home.md"), "## Steps\n\n- [ ] one\n")
+		approve(k, proj, "s1").Has(t, "plan-proj.md")
 	})
 	t.Run("a later prompt reminds while the plan has an open step, then goes silent", func(t *testing.T) {
 		t.Parallel()

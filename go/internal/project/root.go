@@ -1,7 +1,6 @@
 package project
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -59,26 +58,19 @@ func Name(root string) string {
 	return slug
 }
 
-// Dir resolves the scratch or plans directory for cwd: <root>/.claude/<kind>
+// ScratchDir resolves the scratch directory for cwd: <root>/.claude/scratch
 // when the project is anchored, else the global one under the kit home.
 // With create, it makes the directory, and registers a project scratch dir
 // in scratch-registry.txt so `kit scratch-rotate`'s cwd-less run can prune it.
-func Dir(paths config.Paths, cwd, kind string, create bool) (string, error) {
-	if kind != "scratch" && kind != "plans" {
-		return "", fmt.Errorf("unknown kind: %s", kind)
-	}
-	var dir string
+func ScratchDir(paths config.Paths, cwd string, create bool) (string, error) {
+	dir := paths.ScratchHome()
 	if root, anchored := Root(cwd); anchored {
-		dir = filepath.Join(root, ".claude", kind)
-		if create && kind == "scratch" {
+		dir = filepath.Join(root, ".claude", "scratch")
+		if create {
 			if err := register(paths, dir); err != nil {
 				return "", err
 			}
 		}
-	} else if kind == "scratch" {
-		dir = paths.ScratchHome()
-	} else {
-		dir = paths.PlansHome()
 	}
 	if create {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -86,6 +78,28 @@ func Dir(paths config.Paths, cwd, kind string, create bool) (string, error) {
 		}
 	}
 	return dir, nil
+}
+
+// PlanDir is where plan mode writes cwd's plans: plansDirectory from the
+// first settings file setting it (the project's local, then shared, then the
+// user's), resolved against the project root as Claude Code does, else
+// <root>/.claude/plans when it exists, else Claude Code's default under the
+// config home. Managed settings aren't read.
+func PlanDir(paths config.Paths, cwd string) string {
+	root, _ := Root(cwd)
+	for _, file := range []string{
+		filepath.Join(root, ".claude", "settings.local.json"),
+		filepath.Join(root, ".claude", "settings.json"),
+		filepath.Join(paths.Home, "settings.json"),
+	} {
+		if dir := sources.JSONValue(file, ".plansDirectory"); dir != "" {
+			return filepath.Join(root, dir)
+		}
+	}
+	if dir := filepath.Join(root, ".claude", "plans"); fsx.IsDir(dir) {
+		return dir
+	}
+	return paths.PlansHome()
 }
 
 func register(paths config.Paths, dir string) error {

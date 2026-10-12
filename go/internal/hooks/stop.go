@@ -85,10 +85,7 @@ const stopBudget = 240 * time.Second
 // planGate blocks the stop when this turn ticked a plan's last step without
 // a review since the last code edit.
 func planGate(h *hook.Hook, cwd, root string, entries []transcript.Entry) error {
-	dir, err := project.Dir(h.Paths, cwd, "plans", false)
-	if err != nil {
-		return nil
-	}
+	dir := project.PlanDir(h.Paths, cwd)
 	isCode := func(path string) bool {
 		return fsx.Within(root, fsx.PhysicalPath(path)) && !project.IsScratch(h.Paths, path)
 	}

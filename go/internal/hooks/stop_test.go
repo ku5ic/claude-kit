@@ -83,8 +83,10 @@ func (e *stopEnv) noCalls() {
 	}
 }
 
-// plan writes a plan file in the repo's plans dir and returns its path.
+// plan writes a plan file in the repo's plans dir, set by plansDirectory,
+// and returns its path.
 func (e *stopEnv) plan(body string) string {
+	testutil.Write(e.t, e.path(".claude/settings.json"), `{"plansDirectory": ".claude/plans"}`)
 	path := e.path(".claude/plans/plan-x.md")
 	testutil.Write(e.t, path, body)
 	return path
@@ -115,6 +117,15 @@ func TestStopPlanDone(t *testing.T) {
 		r.Want(t, 2)
 		r.Has(t, "plan-x.md is done, but /code-review hasn't finished since the last code edit")
 		e.stop(true).Want(t, 0)
+	})
+	t.Run("a plan in Claude Code's default ~/.claude/plans is gated too", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		plan := filepath.Join(e.k.paths.PlansHome(), "plan-x.md")
+		testutil.Write(t, plan, done)
+		e.turn("Edit", e.path("a.ts"))
+		e.turn("Edit", plan)
+		e.stop(false).Has(t, "plan-x.md is done")
 	})
 	t.Run("a review after the last edit, even in an earlier turn, lets it through", func(t *testing.T) {
 		t.Parallel()

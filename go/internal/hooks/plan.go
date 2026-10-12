@@ -97,16 +97,13 @@ func PlanModeContext(h *hook.Hook) error {
 }
 
 // newestOpenPlan is the most recently modified plan file in the project's
-// plans dir that still has an open step. Picking by open step skips
-// plan-critic reports, which share the directory.
+// plans dir that still has an open step. In the default dir, shared by
+// every project, that is the one ExitPlanMode just wrote.
 func newestOpenPlan(h *hook.Hook) string {
 	if h.Config() == nil {
 		return ""
 	}
-	dir, err := project.Dir(h.Paths, h.Payload.Cwd(), "plans", false)
-	if err != nil {
-		return ""
-	}
+	dir := project.PlanDir(h.Paths, h.Payload.Cwd())
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return ""
