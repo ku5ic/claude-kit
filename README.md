@@ -63,7 +63,7 @@ claude plugin install kit@ku5ic
 - **Gap-fill:** the `claude` CLI, logged in. Once per repo, and again when its configs change, Haiku sorts the commands your CI, hooks, and task runners hold into checks and fixers, capped at $0.50 a call; the answers are cached and verified against your files. Without it, those commands are skipped and named.
 - **Claude Code only.** claude.ai and Cowork don't install a plugin with a top-level `bin/`.
 - **Rules ship with the plugin.** Nothing to link. If an older install left `~/.claude/rules/claude-kit`, remove it; the session-start notice names it.
-- **Your own CLAUDE.md:** start from `templates/CLAUDE.md`.
+- **Your own CLAUDE.md:** copy `templates/CLAUDE.md` to `~/.claude/CLAUDE.md` and fill it in.
 
 ### Shell completion (optional)
 
@@ -84,19 +84,21 @@ Claude runs bash -> dangerous commands are blocked, ambiguous ones ask you first
 Claude edits     -> credential files are off limits; the file is formatted with your formatter
 Claude commits   -> AI signatures and secrets are blocked; your commit-msg hooks check the message
 Claude says done -> your git hooks' checks run on what it edited
+Claude replies   -> each prompt carries a word ceiling (40 for chat); a reply that ran over is told so next turn
 ```
 
 **Block** means Claude sees the reason and tries another way; you aren't interrupted. **Ask** means a normal permission prompt, with the reason in it.
 
 ### Guards
 
-| Guard            | What it stops                                                                                                                                                                                                                                                                                                                                                        |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **guard-bash**   | Parses every command with a real bash parser and sees through `sudo`, `doas`, `env`. Blocks `rm -rf ~`, force pushes, pushes to protected branches, `curl \| sh`, `eval`, `sh -c`, credential reads, rc-file writes, global installs, a package manager other than the lockfile's. Asks before `git push`, adding a dependency, or a file written into the repo root |
-| **guard-edit**   | Blocks reading or writing `.env`, keys, and credential files, and editing lockfiles, `.git/`, or shell rc files. Asks before editing a CI workflow                                                                                                                                                                                                                   |
-| **guard-commit** | Blocks AI signatures and AI-tell phrasing in commit messages, and secrets in the staged diff. Runs your commit-msg checks (pre-commit, husky, lefthook, commitlint) on the message                                                                                                                                                                                   |
-| **downloads**    | `curl` and `wget` may write only into `.claude/scratch/`                                                                                                                                                                                                                                                                                                             |
-| **sanitize**     | Strips invisible bidi characters (Trojan Source) from every written file                                                                                                                                                                                                                                                                                             |
+| Guard                                  | What it stops                                                                                                                                                                                                                                                                                                                                                        |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **guard-bash**                         | Parses every command with a real bash parser and sees through `sudo`, `doas`, `env`. Blocks `rm -rf ~`, force pushes, pushes to protected branches, `curl \| sh`, `eval`, `sh -c`, credential reads, rc-file writes, global installs, a package manager other than the lockfile's. Asks before `git push`, adding a dependency, or a file written into the repo root |
+| **guard-edit**                         | Blocks reading, grepping, or writing `.env`, keys, and credential files, and editing lockfiles, `.git/`, or shell rc files. Asks before editing a CI workflow                                                                                                                                                                                                        |
+| **guard-commit**                       | Blocks AI signatures and AI-tell phrasing in commit messages, and secrets in the staged diff. Runs your commit-msg checks (pre-commit, husky, lefthook, commitlint) on the message                                                                                                                                                                                   |
+| **guard-bash** rule `download-to-repo` | `curl` and `wget` may write only into `.claude/scratch/`                                                                                                                                                                                                                                                                                                             |
+| **sanitize-output**                    | Strips invisible bidi characters (Trojan Source) from every written file except those `sanitize_skip` names: translations, templates, snapshots, fixtures                                                                                                                                                                                                            |
+| **guard-skills**                       | Off by default; see `CLAUDE_GUARD_SKILLS` under Configure                                                                                                                                                                                                                                                                                                            |
 
 ### Checks before "done"
 
@@ -110,7 +112,7 @@ When Claude finishes a turn, the Stop hook runs the checks your git hooks would 
 For the whole project, `kit run-checks` runs every quality gate, in every subproject:
 
 - **CI first:** the check steps of GitHub Actions and GitLab CI, and the tasks they run. `kit.yml` `gate_discovery` says which jobs and steps are never read.
-- **Then each kind CI leaves out:** lint, typecheck, format-check, test, and dead code, from turbo and nx (affected packages only), task runners (`package.json` scripts, Makefile, justfile, and more), and pre-commit; last, a check the project states only by a tool's config or its language's manifest (`go.mod` states `go vet`).
+- **Then each kind CI leaves out:** lint, typecheck, format-check, test, dead code, and security, from turbo and nx (affected packages only), task runners (`package.json` scripts, Makefile, justfile, and more), and pre-commit; last, a check the project states only by a tool's config or its language's manifest (`go.mod` states `go vet`).
 - **Aggregates:** a `ci` script that chains `lint && test` runs each gate once, not twice.
 - **Dead code:** dead-code findings block only on lines changed against the base branch.
 - **Hands off your files:** a check that changes files fails, is never run again until `kit gates reset`, and `kit gates reset --restore` puts the files back.
@@ -206,18 +208,23 @@ Side trips: `/audit` for a read-only report, `/simplify <path>` to cut over-engi
 
 ## Configure
 
-Defaults live in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml`, merged on top: maps merge, lists append.
+Defaults live in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml`, merged on top: maps merge, lists append, so an overlay adds to a default list and can't remove from it. Every `~/.claude` path in this README is `$CLAUDE_CONFIG_DIR` when that's set.
 
-| Key                       | For                                                                    |
-| ------------------------- | ---------------------------------------------------------------------- |
-| `protected_branches`      | Branches Claude can't push to                                          |
-| `sensitive_paths`         | Extra credential files to guard                                        |
-| `disabled_rules`          | Guard rules to let through, by the slug `kit explain` prints           |
-| `disabled_checks`         | Turn a `run-checks` gate off, by check kind or by the label it prints  |
-| `disabled_task_providers` | Stop reading a task source (`make`, `package-scripts`, ...) at all     |
-| `on_edit`                 | Format a file type the project's own fixers don't claim                |
-| `gate_timeout`            | Seconds before a Stop check is skipped                                 |
-| `user_pins`               | Your own Brewfile or `.tool-versions`, pinning tools for every project |
+| Key                       | For                                                                                                                                |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `protected_branches`      | Branches Claude can't push to                                                                                                      |
+| `sensitive_paths`         | Extra credential files to guard                                                                                                    |
+| `disabled_rules`          | Guard rules to let through, by the slug `kit explain` prints                                                                       |
+| `disabled_checks`         | Turn a `run-checks` gate off, by check kind or by the label it prints                                                              |
+| `disabled_task_providers` | Stop reading a task source (`make`, `package-scripts`, ...) at all                                                                 |
+| `on_edit`                 | Format a file type the project's own fixers don't claim                                                                            |
+| `gate_timeout`            | Seconds before a Stop check is skipped                                                                                             |
+| `user_pins`               | Your own Brewfile or `.tool-versions`, pinning tools for every project                                                             |
+| `reply_limits`            | Word ceilings per reply: `chat`, `explain` and its trigger words, `detail_triggers` that lift the cap, per-`/write` kind; 0 is off |
+| `skip_dirs`               | Directories a file walk never enters                                                                                               |
+| `sanitize_skip`           | Files `sanitize-output` leaves alone                                                                                               |
+| `deny_flags`              | Flags no check may set (`--fix`, `--watch`, ...)                                                                                   |
+| `tools`                   | The CLIs session start reports as available or missing                                                                             |
 
 `kit config` prints the merged result; `kit config --check` flags unknown keys and wrong types.
 
@@ -230,7 +237,7 @@ Opt-in switches, in your settings `env`:
 
 - **See why:** `kit explain bash '<cmd>'`, `kit explain edit <path>`, or `kit explain stop <file>` shows the decision and the exact rule. Nothing runs, blocks, or logs.
 - **Turn one rule off:** add its slug to `disabled_rules`. Every block is logged with its slug in `~/.claude/logs/guards.jsonl`.
-- **A kit bug never blocks you.** A crashing hook or a missing binary fails open. A missing binary is reported at session start; every other fail-open is logged.
+- **A kit bug never blocks you.** A crashing hook or a missing binary fails open. A missing binary is reported at session start; every other fail-open is logged. The binary goes missing when the first download can't finish: offline, a read-only plugin directory, a link slower than about 280 KB/s, or a platform other than macOS or Linux on arm64 or amd64. Until it lands, every guard is off.
 - **A bad overlay never turns guards off.** If `claude-kit.local.yml` doesn't merge, the kit uses `kit.yml` alone and says why at session start.
 
 ## How it's built
