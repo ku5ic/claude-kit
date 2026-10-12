@@ -46,12 +46,26 @@ jobs:
         run: ./build.sh
 
       - name: test
-        run: go test ./...
+        run: go test -race ./...
 
   shell:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # A fresh install copies main's hooks.json under the current version and
+      # downloads that version's released binary, so shipped Go or hook changes
+      # without a bump pair new hooks with an old binary.
+      - name: shipped change bumps the version
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git diff --quiet "$BASE" HEAD -- go hooks/hooks.json ':!go/*_test.go' ':!go/*testdata*' ':!go/e2e' ':!go/build.sh' && exit 0
+          old="$(git show "$BASE:.claude-plugin/plugin.json" | jq -r .version)"
+          [ "$old" != "$(jq -r .version .claude-plugin/plugin.json)" ] || { echo "go/ or hooks/hooks.json changed; bump .claude-plugin/plugin.json version (still $old)"; exit 1; }
 
       - name: Install shellcheck
         run: |
