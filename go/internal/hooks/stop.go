@@ -78,8 +78,9 @@ func StopChecks(h *hook.Hook) error {
 }
 
 // stopBudget bounds a Stop run, planning and every gate, inside
-// stop-checks' 300s in hooks.json, with room left to write the report.
-const stopBudget = 280 * time.Second
+// stop-checks' 300s in hooks.json. The 60s left covers the snapshot and
+// diffs after the gates (git calls of up to git.Timeout each) and the report.
+const stopBudget = 240 * time.Second
 
 // planGate blocks the stop when this turn ticked a plan's last step without
 // a review since the last code edit.
