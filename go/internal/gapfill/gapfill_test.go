@@ -163,6 +163,96 @@ func TestConcurrentRunsAskOnce(t *testing.T) {
 	}
 }
 
+// batched swaps f's classifier for one that saves each request under
+// requests/ and exits 1 on a request naming an id listed in the file fail.
+func (f *fixture) batched() {
+	f.t.Helper()
+	stub := filepath.Join(f.dir, "batched")
+	testutil.FakeTool(f.t, stub, filepath.Join(f.dir, "calls"), fmt.Sprintf(`mkdir -p %[1]q/requests
+req=$(cat)
+printf '%%s' "$req" >%[1]q/requests/$$.json
+for id in $(cat %[1]q/fail 2>/dev/null); do case "$req" in *"$id"*) exit 1;; esac; done
+cat %[1]q/response.json`, f.dir))
+	f.cfg.Classifier = []string{stub}
+}
+
+// requests are the batched classifier's requests: each one's entry ids,
+// and whether it asked for the project facts.
+func (f *fixture) requests() (ids [][]string, facts int) {
+	f.t.Helper()
+	paths, _ := filepath.Glob(filepath.Join(f.dir, "requests", "*.json"))
+	for _, p := range paths {
+		var req struct {
+			Entries []struct{ ID string } `json:"entries"`
+			Facts   bool                  `json:"ask_project_facts"`
+		}
+		if err := json.Unmarshal([]byte(testutil.Read(f.t, p)), &req); err != nil {
+			f.t.Fatal(err)
+		}
+		var batch []string
+		for _, e := range req.Entries {
+			batch = append(batch, e.ID)
+		}
+		ids = append(ids, batch)
+		if req.Facts {
+			facts++
+		}
+	}
+	return ids, facts
+}
+
+func lints(n int) (entries []sources.Entry, verdicts []map[string]any) {
+	for i := range n {
+		e := entry(fmt.Sprintf("lint%d", i), fmt.Sprintf("eslint src/%d", i))
+		entries = append(entries, e)
+		verdicts = append(verdicts, verdict(e, map[string]any{"role": "check", "kind": "lint", "mutates": false}))
+	}
+	return entries, verdicts
+}
+
+func TestManyEntriesAreAskedInBatchesWithTheFactsOnce(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t, "")
+	f.batched()
+	entries, verdicts := lints(2*batchSize + 1)
+	f.answer(answers(verdicts...))
+	r := f.run(entries...)
+	if len(r.Verdicts) != len(entries) || r.Unclassified() != 0 {
+		t.Errorf("%d of %d classified: %+v", len(r.Verdicts), len(entries), r.Skipped)
+	}
+	ids, facts := f.requests()
+	if len(ids) != 3 || facts != 1 {
+		t.Errorf("%d requests, %d asking for the facts; want 3 and 1", len(ids), facts)
+	}
+	for _, batch := range ids {
+		if len(batch) > batchSize {
+			t.Errorf("a request holds %d entries", len(batch))
+		}
+	}
+}
+
+func TestAFailedBatchKeepsTheOthersAnswers(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t, "")
+	f.batched()
+	entries, verdicts := lints(2*batchSize + 1)
+	last := entries[len(entries)-1]
+	testutil.Put(t, f.dir, "fail", Key(last))
+	f.answer(answers(verdicts[:2*batchSize]...))
+	r := f.run(entries...)
+	if len(r.Verdicts) != 2*batchSize || !strings.HasPrefix(r.Skipped[Key(last)], "unclassified (classifier: ") {
+		t.Fatalf("%d classified, the failed one skipped as %q", len(r.Verdicts), r.Skipped[Key(last)])
+	}
+
+	testutil.Put(t, f.dir, "fail", "")
+	f.answer(answers(verdicts...))
+	before := len(f.calls())
+	r = f.run(entries...)
+	if len(f.calls()) != before+1 || len(r.Verdicts) != len(entries) {
+		t.Errorf("the rerun made %d calls and classified %d", len(f.calls())-before, len(r.Verdicts))
+	}
+}
+
 func TestDeniedEntriesAreNeverAsked(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t, "")

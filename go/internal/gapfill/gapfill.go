@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
@@ -31,6 +32,11 @@ const Guard = "KIT_CLASSIFIER"
 
 // promptVersion is part of every cache key: a changed prompt asks again.
 const promptVersion = "8"
+
+// batchSize caps the entries one classifier call answers: the calls run in
+// parallel, so a cold project costs ceil(n/batchSize) calls of budgetUSD
+// at most, and a batch that fails or times out loses only its own.
+const batchSize = 15
 
 // unseenDays is how long an answer for an entry no run has seen is kept.
 const unseenDays = 30
@@ -211,9 +217,10 @@ func Nearest(root, dir string, ms []Manager) []Manager {
 	return out
 }
 
-// ask calls the classifier under the repo's lock, stores its answers, and
-// returns the store they're in; failure says why it couldn't, and s comes
-// back as it was.
+// ask calls the classifier under the repo's lock, one call per batch,
+// stores the answers of every batch that answered, and returns the store
+// they're in; failure says why a batch couldn't, and s comes back as it
+// was when none did.
 func ask(cfg *config.Config, o Options, p view, file string, s store) (_ store, failure string) {
 	ctx, cancel := context.WithTimeout(context.Background(), o.Timeout)
 	defer cancel()
@@ -227,19 +234,41 @@ func ask(cfg *config.Config, o Options, p view, file string, s store) (_ store, 
 	if !locked.stale(cfg, o.Entries, p.Key) {
 		return locked, ""
 	}
-	resp, err := classify(ctx, cfg, o, request{Entries: locked.missing(cfg, o.Entries), View: p, Facts: locked.Context != p.Key})
-	if err != nil {
-		return locked, "classifier: " + err.Error()
+	// A stale context with nothing missing still asks once, for the facts.
+	batches := slices.Collect(slices.Chunk(locked.missing(cfg, o.Entries), batchSize))
+	if len(batches) == 0 {
+		batches = [][]sources.Entry{nil}
 	}
+	// The first batch alone asks for the facts.
+	facts := locked.Context != p.Key
+	resps, errs := make([]response, len(batches)), make([]error, len(batches))
+	var wg sync.WaitGroup
+	for i, batch := range batches {
+		req := request{Entries: batch, View: p, Facts: facts && i == 0}
+		wg.Go(func() { resps[i], errs[i] = classify(ctx, cfg, o, req) })
+	}
+	wg.Wait()
 	now := time.Now()
-	for _, a := range resp.Entries {
-		locked.Entries[a.ID] = &answer{Verdict: a.Verdict, Seen: now}
+	answered := false
+	for i, resp := range resps {
+		if errs[i] != nil {
+			if failure == "" {
+				failure = "classifier: " + errs[i].Error()
+			}
+			continue
+		}
+		answered = true
+		for _, a := range resp.Entries {
+			locked.Entries[a.ID] = &answer{Verdict: a.Verdict, Seen: now}
+		}
+		if facts && i == 0 {
+			locked.Context, locked.Managers, locked.Proposals = p.Key, resp.Managers, resp.Proposals
+		}
 	}
-	if locked.Context != p.Key {
-		locked.Context, locked.Managers, locked.Proposals = p.Key, resp.Managers, resp.Proposals
+	if answered {
+		locked.save(file, o.Entries, now)
 	}
-	locked.save(file, o.Entries, now)
-	return locked, ""
+	return locked, failure
 }
 
 func load(file string) store {
