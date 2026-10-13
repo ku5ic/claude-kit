@@ -129,7 +129,8 @@ func (r *Resolver) Bin(dir, name string) Resolution {
 	if err != nil {
 		return Resolution{Skip: name + " not installed"}
 	}
-	if pin := pinned(dir, r.root, name); pin != "" {
+	tool := toolNames(name, path)
+	if pin := pinned(dir, r.root, tool); pin != "" {
 		if underManager(path) {
 			return Resolution{Path: path, Source: Pinned}
 		}
@@ -137,7 +138,7 @@ func (r *Resolver) Bin(dir, name string) Resolution {
 	}
 	// A user pin only allows: a formula needn't be the binary PATH finds
 	// (brew 'grep' installs ggrep).
-	if r.userPinned(name) && underManager(path) {
+	if r.userPinned(tool) && underManager(path) {
 		return Resolution{Path: path, Source: Pinned}
 	}
 	if manifest := toolchainOf(dir, r.root, name); manifest != "" {

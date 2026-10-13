@@ -8,37 +8,44 @@
         "role": "check",
         "kind": "lint",
         "command": "go vet ./...",
+        "file_form": "go vet {dirs}",
+        "globs": [
+          "*.go"
+        ],
         "dir": ".",
-        "evidence": "go.mod",
-        "mutates": false
+        "evidence": "go.mod"
       },
       {
         "role": "check",
         "kind": "test",
         "command": "go test ./...",
+        "file_form": "go test {dirs}",
+        "globs": [
+          "*.go"
+        ],
         "dir": ".",
-        "evidence": "go.mod",
-        "mutates": false
+        "evidence": "go.mod"
       },
       {
         "role": "check",
         "kind": "format-check",
         "command": "test -z \"$(gofmt -l .)\"",
+        "file_form": "test -z \"$(gofmt -l {files})\"",
+        "globs": [
+          "*.go"
+        ],
         "dir": ".",
-        "evidence": "go.mod",
-        "mutates": false
+        "evidence": "go.mod"
       },
       {
         "role": "fixer",
-        "kind": "format-check",
         "command": "gofmt -w .",
-        "dir": ".",
-        "evidence": "go.mod",
-        "mutates": true,
         "file_form": "gofmt -w {files}",
         "globs": [
           "*.go"
-        ]
+        ],
+        "dir": ".",
+        "evidence": "go.mod"
       }
     ]
   },

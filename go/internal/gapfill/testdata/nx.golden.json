@@ -3,24 +3,24 @@
   "structured_output": {
     "entries": [
       {
-        "id": "cbc13bdf382cd56d",
-        "role": "build",
-        "mutates": false,
-        "affected_form": "nx affected -t build --base={base}"
-      },
-      {
-        "id": "9e78f260c4e2ea1b",
+        "id": "563f662a1945fa04",
         "role": "check",
         "kind": "lint",
         "mutates": false,
         "affected_form": "nx affected -t lint --base={base}"
       },
       {
-        "id": "70f6ad83fc23d729",
+        "id": "592ab460fcfeb6bc",
         "role": "check",
         "kind": "test",
         "mutates": false,
         "affected_form": "nx affected -t test --base={base}"
+      },
+      {
+        "id": "b7f8a681663d6d3f",
+        "role": "build",
+        "mutates": false,
+        "affected_form": "nx affected -t build --base={base}"
       }
     ],
     "managers": [
@@ -28,15 +28,16 @@
         "dir": ".",
         "cites": "package-lock.json",
         "manager": "npm",
-        "run_prefix": "npm exec --",
+        "run_prefix": "npx",
         "add_verbs": [
           "npm install",
-          "npm i"
+          "npm i",
+          "npm add"
         ],
         "dlx": "npx",
         "dir_flags": [
           "--prefix",
-          "-w"
+          "--workspace"
         ],
         "rivals": [
           "pnpm",
@@ -44,7 +45,34 @@
         ]
       }
     ],
-    "proposals": []
+    "proposals": [
+      {
+        "role": "check",
+        "kind": "lint",
+        "command": "npx eslint .",
+        "file_form": "npx eslint {files}",
+        "globs": [
+          "**/*.js",
+          "**/*.jsx",
+          "**/*.ts",
+          "**/*.tsx"
+        ],
+        "dir": ".",
+        "evidence": "package.json (devDependency @nx/eslint)"
+      },
+      {
+        "role": "check",
+        "kind": "test",
+        "command": "npx vitest run",
+        "file_form": "npx vitest run {files}",
+        "globs": [
+          "**/*.test.*",
+          "**/*.spec.*"
+        ],
+        "dir": ".",
+        "evidence": "nx.json (targetDefaults \"@nx/vite:test\"; devDependency @nx/vite)"
+      }
+    ]
   },
   "subtype": "success"
 }

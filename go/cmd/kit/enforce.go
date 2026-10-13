@@ -105,6 +105,9 @@ func cmdEnforce(e *env, cfg *config.Config, args []string) int {
 	for _, d := range r.Dropped {
 		fmt.Fprintln(e.stdout, "dropped\t"+d)
 	}
+	if r.Failure != "" {
+		fmt.Fprintln(e.stdout, "failure\t"+r.Failure)
+	}
 	if r.Unclassified() > 0 {
 		return exitUnclassified
 	}

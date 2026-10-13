@@ -21,7 +21,7 @@ import (
 // must be copied from its body, and a form must be its body's own words
 // and never fetch, or it is dropped.
 func verify(cfg *config.Config, root string, entries []sources.Entry, s store, failure string) Result {
-	r := Result{Verdicts: map[string]Verdict{}, Skipped: map[string]string{}}
+	r := Result{Verdicts: map[string]Verdict{}, Skipped: map[string]string{}, Failure: failure}
 	r.Managers, r.Dropped = managers(cfg, root, s.Managers)
 	var prefixes []string
 	for _, m := range r.Managers {

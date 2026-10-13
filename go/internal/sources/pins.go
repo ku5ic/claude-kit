@@ -10,10 +10,10 @@ import (
 // installs them: asdf's and mise's versions, and Homebrew's Brewfile.
 var PinFiles = []string{".tool-versions", "mise.toml", ".mise.toml", "Brewfile"}
 
-var brewFormula = regexp.MustCompile(`^\s*brew\s+["']([^"']+)["']`)
+var brewPin = regexp.MustCompile(`^\s*(?:brew|cask)\s+["']([^"']+)["']`)
 
 // Pins are the tools a pin file names, each by its last segment: a pin
-// names a plugin or a formula, and "npm:prettier", "aqua:owner/tool", and
+// names a plugin, a formula, or a cask, and "npm:prettier", "aqua:owner/tool", and
 // "owner/tap/tool" count as the tool at their end.
 func Pins(file string) []string {
 	var names []string
@@ -26,7 +26,7 @@ func Pins(file string) []string {
 		})
 	case "Brewfile":
 		EachLine(file, func(line string) {
-			if m := brewFormula.FindStringSubmatch(line); m != nil {
+			if m := brewPin.FindStringSubmatch(line); m != nil {
 				names = append(names, m[1])
 			}
 		})

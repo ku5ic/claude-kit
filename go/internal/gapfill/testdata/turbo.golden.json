@@ -3,70 +3,70 @@
   "structured_output": {
     "entries": [
       {
-        "id": "23af6bc5a10e2eaa",
-        "role": "build",
-        "mutates": false,
-        "affected_form": "turbo run build --filter=...[{base}]"
-      },
-      {
-        "id": "696de58f1215ddb8",
+        "id": "2a49290863bf9788",
         "role": "check",
         "kind": "lint",
         "mutates": false,
         "affected_form": "turbo run lint --filter=...[{base}]"
       },
       {
-        "id": "26f2485fb467f335",
-        "role": "check",
-        "kind": "test",
-        "mutates": false,
-        "affected_form": "turbo run test --filter=...[{base}]"
-      },
-      {
-        "id": "25ca41b4a0bd5d8c",
-        "role": "build",
-        "mutates": false,
-        "affected_form": "turbo run build --filter=...[{base}]"
-      },
-      {
-        "id": "af4d28b0fcad60ef",
+        "id": "5902e527fb87de9b",
         "role": "check",
         "kind": "lint",
         "mutates": false,
         "affected_form": "turbo run lint --filter=...[{base}]"
       },
       {
-        "id": "b9779b105c88f399",
-        "role": "check",
-        "kind": "test",
-        "mutates": false,
-        "affected_form": "turbo run test --filter=...[{base}]"
-      },
-      {
-        "id": "96039140df15adf3",
+        "id": "7488253b2b2f061d",
         "role": "build",
         "mutates": false
       },
       {
-        "id": "ecafb20dff80662a",
-        "role": "check",
-        "kind": "lint",
-        "mutates": false,
-        "file_form": "eslint {files}",
-        "globs": [
-          "packages/a/**/*.{js,cjs,mjs,jsx,ts,tsx}"
-        ],
-        "exclusions": "packages/a/eslint.config.js"
-      },
-      {
-        "id": "df50fa7092526ba2",
+        "id": "86dc55a18d848d9c",
         "role": "check",
         "kind": "test",
         "mutates": false,
         "file_form": "vitest run {files}",
         "globs": [
-          "packages/a/**/*.{test,spec}.{js,cjs,mjs,jsx,ts,tsx}"
+          "**/*.{test,spec}.{js,jsx,ts,tsx,mjs,cjs}"
+        ],
+        "affected_form": "vitest run --changed={base}"
+      },
+      {
+        "id": "8c322330381f0c1a",
+        "role": "check",
+        "kind": "test",
+        "mutates": false,
+        "affected_form": "turbo run test --filter=...[{base}]"
+      },
+      {
+        "id": "bcdcb36c7a4a1f81",
+        "role": "build",
+        "mutates": false,
+        "affected_form": "turbo run build --filter=...[{base}]"
+      },
+      {
+        "id": "c022dc07a3490f1e",
+        "role": "check",
+        "kind": "lint",
+        "mutates": false,
+        "file_form": "eslint {files}",
+        "globs": [
+          "**/*.{js,jsx,ts,tsx,mjs,cjs}"
         ]
+      },
+      {
+        "id": "caf5a9a439858067",
+        "role": "build",
+        "mutates": false,
+        "affected_form": "turbo run build --filter=...[{base}]"
+      },
+      {
+        "id": "e9fca54579afc573",
+        "role": "check",
+        "kind": "test",
+        "mutates": false,
+        "affected_form": "turbo run test --filter=...[{base}]"
       }
     ],
     "managers": [
@@ -93,26 +93,23 @@
       {
         "role": "check",
         "kind": "lint",
-        "command": "pnpm exec eslint . --max-warnings 0",
+        "command": "pnpm exec eslint . --max-warnings=0",
         "dir": "packages/a",
-        "evidence": "packages/a/eslint.config.js",
-        "mutates": false
+        "evidence": "packages/a/eslint.config.js"
       },
       {
         "role": "check",
         "kind": "typecheck",
         "command": "pnpm exec tsc --noEmit",
         "dir": "packages/a",
-        "evidence": "packages/a/package.json",
-        "mutates": false
+        "evidence": "packages/a/package.json"
       },
       {
         "role": "check",
         "kind": "test",
         "command": "pnpm exec vitest run",
         "dir": "packages/a",
-        "evidence": "packages/a/package.json",
-        "mutates": false
+        "evidence": "packages/a/package.json"
       }
     ]
   },

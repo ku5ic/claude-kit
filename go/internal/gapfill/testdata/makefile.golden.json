@@ -3,12 +3,12 @@
   "structured_output": {
     "entries": [
       {
-        "id": "caf7cdcaebbec578",
+        "id": "2bee5f8fc345afae",
         "role": "check",
         "mutates": false
       },
       {
-        "id": "2dba2ee63b3da748",
+        "id": "311683dca20546aa",
         "role": "check",
         "kind": "lint",
         "mutates": false,
@@ -18,22 +18,7 @@
         ]
       },
       {
-        "id": "791dc3e3d7c1249c",
-        "role": "check",
-        "kind": "test",
-        "mutates": false,
-        "file_form": "go test {dirs}",
-        "globs": [
-          "**/*.go"
-        ]
-      },
-      {
-        "id": "0d1463f1ba2faee5",
-        "role": "build",
-        "mutates": false
-      },
-      {
-        "id": "fb4da3f13165c6f0",
+        "id": "59e266d4d3db0ed3",
         "role": "deploy",
         "mutates": true,
         "segments": [
@@ -41,6 +26,21 @@
             "text": "./scripts/deploy.sh",
             "role": "deploy"
           }
+        ]
+      },
+      {
+        "id": "6fc73fbf89780f62",
+        "role": "build",
+        "mutates": false
+      },
+      {
+        "id": "7417f7b9631925df",
+        "role": "check",
+        "kind": "test",
+        "mutates": false,
+        "file_form": "go test {dirs}",
+        "globs": [
+          "**/*.go"
         ]
       }
     ],
@@ -51,44 +51,39 @@
         "kind": "lint",
         "command": "golangci-lint run ./...",
         "dir": ".",
-        "evidence": ".golangci.yml",
-        "mutates": false
+        "evidence": ".golangci.yml"
       },
       {
         "role": "check",
-        "kind": "typecheck",
+        "kind": "lint",
         "command": "go vet ./...",
         "dir": ".",
-        "evidence": "go.mod",
-        "mutates": false
+        "evidence": "go.mod"
       },
       {
         "role": "check",
         "kind": "test",
         "command": "go test ./...",
         "dir": ".",
-        "evidence": "go.mod",
-        "mutates": false
+        "evidence": "go.mod"
       },
       {
         "role": "check",
         "kind": "format-check",
         "command": "test -z \"$(gofmt -l .)\"",
         "dir": ".",
-        "evidence": "go.mod",
-        "mutates": false
+        "evidence": "go.mod"
       },
       {
         "role": "fixer",
         "kind": "format-check",
         "command": "gofmt -w .",
-        "dir": ".",
-        "evidence": "go.mod",
         "file_form": "gofmt -w {files}",
         "globs": [
           "**/*.go"
         ],
-        "mutates": true
+        "dir": ".",
+        "evidence": "go.mod"
       }
     ]
   },

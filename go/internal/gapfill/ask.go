@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
@@ -65,12 +66,14 @@ func (r request) MarshalJSON() ([]byte, error) {
 
 // response is the classifier's structured answer.
 type response struct {
-	Entries []struct {
-		ID string `json:"id"`
-		Verdict
-	} `json:"entries"`
-	Managers  []Manager  `json:"managers"`
-	Proposals []Proposal `json:"proposals"`
+	Entries   []entryVerdict `json:"entries"`
+	Managers  []Manager      `json:"managers"`
+	Proposals []Proposal     `json:"proposals"`
+}
+
+type entryVerdict struct {
+	ID string `json:"id"`
+	Verdict
 }
 
 // classify runs the classifier on req: claude -p with no tools, no MCP, no
@@ -113,6 +116,10 @@ func classify(ctx context.Context, cfg *config.Config, o Options, req request) (
 	if err := json.Unmarshal(envelope.Structured, &resp); err != nil {
 		return response{}, fmt.Errorf("malformed answer: %w", err)
 	}
+	// A verdict counts only for an entry whose body req sent.
+	resp.Entries = slices.DeleteFunc(resp.Entries, func(a entryVerdict) bool {
+		return !slices.ContainsFunc(req.Entries, func(e sources.Entry) bool { return Key(e) == a.ID })
+	})
 	return resp, nil
 }
 

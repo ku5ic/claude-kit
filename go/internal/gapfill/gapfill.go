@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
@@ -30,7 +31,13 @@ import (
 const Guard = "KIT_CLASSIFIER"
 
 // promptVersion is part of every cache key: a changed prompt asks again.
-const promptVersion = "8"
+const promptVersion = "10"
+
+// batchSize caps the entries one classifier call answers.
+const batchSize = 8
+
+// maxCalls caps the classifier calls running at once.
+const maxCalls = 10
 
 // unseenDays is how long an answer for an entry no run has seen is kept.
 const unseenDays = 30
@@ -130,6 +137,7 @@ type Result struct {
 	Managers  []Manager
 	Proposals []Proposal
 	Dropped   []string // answers verification threw away, each with why
+	Failure   string   // why a classifier call failed, when one did
 }
 
 // Unclassified counts the entries with no verdict that the kit's policy
@@ -211,9 +219,9 @@ func Nearest(root, dir string, ms []Manager) []Manager {
 	return out
 }
 
-// ask calls the classifier under the repo's lock, stores its answers, and
-// returns the store they're in; failure says why it couldn't, and s comes
-// back as it was.
+// ask calls the classifier under the repo's lock, a batch per call in
+// parallel, stores each answered batch's own entries, and returns the
+// store; failure says why a batch couldn't.
 func ask(cfg *config.Config, o Options, p view, file string, s store) (_ store, failure string) {
 	ctx, cancel := context.WithTimeout(context.Background(), o.Timeout)
 	defer cancel()
@@ -227,19 +235,50 @@ func ask(cfg *config.Config, o Options, p view, file string, s store) (_ store, 
 	if !locked.stale(cfg, o.Entries, p.Key) {
 		return locked, ""
 	}
-	resp, err := classify(ctx, cfg, o, request{Entries: locked.missing(cfg, o.Entries), View: p, Facts: locked.Context != p.Key})
-	if err != nil {
-		return locked, "classifier: " + err.Error()
-	}
-	now := time.Now()
-	for _, a := range resp.Entries {
-		locked.Entries[a.ID] = &answer{Verdict: a.Verdict, Seen: now}
-	}
+	// The facts get a call of their own: they take the model longest.
+	var reqs []request
 	if locked.Context != p.Key {
-		locked.Context, locked.Managers, locked.Proposals = p.Key, resp.Managers, resp.Proposals
+		reqs = append(reqs, request{View: p, Facts: true})
 	}
-	locked.save(file, o.Entries, now)
-	return locked, ""
+	for batch := range slices.Chunk(locked.missing(cfg, o.Entries), batchSize) {
+		reqs = append(reqs, request{Entries: batch, View: p})
+	}
+	resps, errs := classifyAll(ctx, cfg, o, reqs)
+	now := time.Now()
+	for i, resp := range resps {
+		if errs[i] != nil {
+			if failure == "" {
+				failure = "classifier: " + errs[i].Error()
+			}
+			continue
+		}
+		for _, a := range resp.Entries {
+			locked.Entries[a.ID] = &answer{Verdict: a.Verdict, Seen: now}
+		}
+		if reqs[i].Facts {
+			locked.Context, locked.Managers, locked.Proposals = p.Key, resp.Managers, resp.Proposals
+		}
+	}
+	if slices.Contains(errs, nil) {
+		locked.save(file, o.Entries, now)
+	}
+	return locked, failure
+}
+
+// classifyAll runs reqs, at most maxCalls at once.
+func classifyAll(ctx context.Context, cfg *config.Config, o Options, reqs []request) ([]response, []error) {
+	resps, errs := make([]response, len(reqs)), make([]error, len(reqs))
+	var wg sync.WaitGroup
+	slots := make(chan struct{}, maxCalls)
+	for i, req := range reqs {
+		wg.Go(func() {
+			slots <- struct{}{}
+			defer func() { <-slots }()
+			resps[i], errs[i] = classify(ctx, cfg, o, req)
+		})
+	}
+	wg.Wait()
+	return resps, errs
 }
 
 func load(file string) store {

@@ -14,63 +14,50 @@
         "dlx": "",
         "dir_flags": [],
         "rivals": [
-          "pdm",
-          "uv"
+          "uv",
+          "pdm"
         ]
       }
     ],
     "proposals": [
       {
         "role": "check",
-        "command": "poetry run ruff check .",
-        "dir": ".",
-        "evidence": "pyproject.toml",
         "kind": "lint",
-        "mutates": false,
-        "globs": [
-          "**/*.py"
-        ]
+        "command": "poetry run ruff check",
+        "dir": ".",
+        "evidence": "pyproject.toml"
       },
       {
         "role": "check",
+        "kind": "typecheck",
         "command": "poetry run mypy .",
         "dir": ".",
-        "evidence": "pyproject.toml",
-        "kind": "typecheck",
-        "mutates": false,
-        "globs": [
-          "**/*.py"
-        ]
+        "evidence": "pyproject.toml"
       },
       {
         "role": "check",
+        "kind": "test",
         "command": "poetry run pytest",
         "dir": ".",
-        "evidence": "pyproject.toml",
-        "kind": "test",
-        "mutates": false
+        "evidence": "pyproject.toml"
       },
       {
         "role": "check",
-        "command": "poetry run ruff format --check .",
-        "dir": ".",
-        "evidence": "pyproject.toml",
         "kind": "format-check",
-        "mutates": false,
-        "globs": [
-          "**/*.py"
-        ]
+        "command": "poetry run ruff format --check",
+        "dir": ".",
+        "evidence": "pyproject.toml"
       },
       {
         "role": "fixer",
+        "kind": "format-check",
         "command": "poetry run ruff format {files}",
-        "dir": ".",
-        "evidence": "pyproject.toml",
-        "mutates": true,
         "file_form": "poetry run ruff format {files}",
         "globs": [
           "**/*.py"
-        ]
+        ],
+        "dir": ".",
+        "evidence": "pyproject.toml"
       }
     ]
   },
