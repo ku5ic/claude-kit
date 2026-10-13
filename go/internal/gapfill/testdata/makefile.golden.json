@@ -3,12 +3,12 @@
   "structured_output": {
     "entries": [
       {
-        "id": "caf7cdcaebbec578",
+        "id": "1cf5ba84c508b6da",
         "role": "check",
         "mutates": false
       },
       {
-        "id": "2dba2ee63b3da748",
+        "id": "b3402ac0145a9e28",
         "role": "check",
         "kind": "lint",
         "mutates": false,
@@ -18,7 +18,7 @@
         ]
       },
       {
-        "id": "791dc3e3d7c1249c",
+        "id": "3853d4b672eb56fe",
         "role": "check",
         "kind": "test",
         "mutates": false,
@@ -28,12 +28,12 @@
         ]
       },
       {
-        "id": "0d1463f1ba2faee5",
+        "id": "55307e439e5803d8",
         "role": "build",
         "mutates": false
       },
       {
-        "id": "fb4da3f13165c6f0",
+        "id": "5adfe267c8883b88",
         "role": "deploy",
         "mutates": true,
         "segments": [
@@ -51,44 +51,39 @@
         "kind": "lint",
         "command": "golangci-lint run ./...",
         "dir": ".",
-        "evidence": ".golangci.yml",
-        "mutates": false
+        "evidence": ".golangci.yml"
       },
       {
         "role": "check",
-        "kind": "typecheck",
+        "kind": "lint",
         "command": "go vet ./...",
         "dir": ".",
-        "evidence": "go.mod",
-        "mutates": false
+        "evidence": "go.mod"
       },
       {
         "role": "check",
         "kind": "test",
         "command": "go test ./...",
         "dir": ".",
-        "evidence": "go.mod",
-        "mutates": false
+        "evidence": "go.mod"
       },
       {
         "role": "check",
         "kind": "format-check",
         "command": "test -z \"$(gofmt -l .)\"",
         "dir": ".",
-        "evidence": "go.mod",
-        "mutates": false
+        "evidence": "go.mod"
       },
       {
         "role": "fixer",
         "kind": "format-check",
         "command": "gofmt -w .",
-        "dir": ".",
-        "evidence": "go.mod",
         "file_form": "gofmt -w {files}",
         "globs": [
           "**/*.go"
         ],
-        "mutates": true
+        "dir": ".",
+        "evidence": "go.mod"
       }
     ]
   },

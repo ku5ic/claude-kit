@@ -3,18 +3,19 @@
   "structured_output": {
     "entries": [
       {
-        "id": "9fffd53d9ba79a86",
+        "id": "7787b6414e8116a2",
         "role": "fixer",
-        "mutates": true,
         "kind": "lint",
+        "mutates": true,
         "file_form": "ruff --fix {files}",
         "globs": [
           "**/*.py"
         ]
       },
       {
-        "id": "e745eea606a832d8",
+        "id": "73277987d7e1f05e",
         "role": "fixer",
+        "kind": "format-check",
         "mutates": true,
         "file_form": "ruff-format {files}",
         "globs": [
@@ -22,7 +23,7 @@
         ]
       },
       {
-        "id": "a479a9bbfe3285aa",
+        "id": "ddd7df68978e8a29",
         "role": "check",
         "kind": "typecheck",
         "mutates": false,
@@ -32,7 +33,7 @@
         ]
       },
       {
-        "id": "8a74ca99dcc5ce11",
+        "id": "9f633bc8640b7881",
         "role": "check",
         "kind": "lint",
         "mutates": false,
@@ -43,8 +44,9 @@
         ]
       },
       {
-        "id": "2ad2a72f89c688dd",
+        "id": "5f7e82f0641c053d",
         "role": "fixer",
+        "kind": "format-check",
         "mutates": true,
         "file_form": "end-of-file-fixer {files}",
         "globs": [
@@ -57,30 +59,45 @@
       {
         "role": "check",
         "kind": "lint",
-        "command": "ruff check",
+        "command": "ruff check .",
+        "file_form": "ruff check {files}",
+        "globs": [
+          "**/*.py"
+        ],
         "dir": ".",
-        "evidence": "pyproject.toml",
-        "mutates": false
+        "evidence": "pyproject.toml ([tool.ruff] section)"
       },
       {
         "role": "check",
         "kind": "format-check",
-        "command": "ruff format --check",
+        "command": "ruff format --check .",
+        "file_form": "ruff format --check {files}",
+        "globs": [
+          "**/*.py"
+        ],
         "dir": ".",
-        "evidence": "pyproject.toml",
-        "mutates": false
+        "evidence": "pyproject.toml ([tool.ruff] section)"
       },
       {
         "role": "fixer",
-        "kind": "format-check",
-        "command": "ruff format {files}",
-        "dir": ".",
-        "evidence": "pyproject.toml",
+        "command": "ruff format .",
         "file_form": "ruff format {files}",
         "globs": [
           "**/*.py"
         ],
-        "mutates": true
+        "dir": ".",
+        "evidence": "pyproject.toml ([tool.ruff] section)"
+      },
+      {
+        "role": "check",
+        "kind": "typecheck",
+        "command": "mypy .",
+        "file_form": "mypy {files}",
+        "globs": [
+          "**/*.py"
+        ],
+        "dir": ".",
+        "evidence": ".pre-commit-config.yaml (mirrors-mypy hook); mypy is not listed in pyproject.toml dependencies"
       }
     ]
   },

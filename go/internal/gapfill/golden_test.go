@@ -163,15 +163,16 @@ func TestGoldenVerdicts(t *testing.T) {
 			recording, _ := filepath.Abs(filepath.Join("testdata", name+".golden.json"))
 			c := *cfg
 			c.Classifier = testutil.Replayer(t, recording)
+			replies := t.TempDir()
 			if record {
 				stub := filepath.Join(t.TempDir(), "classifier")
-				testutil.FakeTool(t, stub, filepath.Join(t.TempDir(), "calls"), fmt.Sprintf("\"$@\" | tee %q", recording))
+				testutil.FakeTool(t, stub, filepath.Join(t.TempDir(), "calls"), fmt.Sprintf("\"$@\" | tee %q/$$.json", replies))
 				c.Classifier = append([]string{stub}, claude()...)
 			}
 			entries := sources.Entries(&c, root, project.Subprojects(root))
 			r := Run(&c, Options{Root: root, CacheDir: t.TempDir(), Entries: entries, Ask: true, Timeout: 2 * time.Minute})
 			if record {
-				trim(t, recording)
+				merge(t, replies, recording)
 			}
 			if r.Unclassified() != 0 {
 				t.Errorf("unclassified: %v", r.Skipped)
@@ -184,18 +185,26 @@ func TestGoldenVerdicts(t *testing.T) {
 	}
 }
 
-// trim rewrites a recorded envelope as the fields Run reads, indented.
-func trim(t *testing.T, recording string) {
+// merge writes the envelopes recorded in replies, one per call, as one
+// envelope holding every call's answers, indented: replayed to every call,
+// each keeps what it asked for.
+func merge(t *testing.T, replies, recording string) {
 	t.Helper()
-	var envelope struct {
-		IsError    bool            `json:"is_error"`
-		Subtype    string          `json:"subtype"`
-		Structured json.RawMessage `json:"structured_output"`
+	paths, _ := filepath.Glob(filepath.Join(replies, "*.json"))
+	merged := response{Entries: []entryVerdict{}, Managers: []Manager{}, Proposals: []Proposal{}}
+	for _, p := range paths {
+		var envelope struct {
+			IsError    bool     `json:"is_error"`
+			Structured response `json:"structured_output"`
+		}
+		if err := json.Unmarshal([]byte(testutil.Read(t, p)), &envelope); err != nil || envelope.IsError {
+			t.Fatalf("recording %s: %v", p, err)
+		}
+		merged.Entries = append(merged.Entries, envelope.Structured.Entries...)
+		merged.Managers = append(merged.Managers, envelope.Structured.Managers...)
+		merged.Proposals = append(merged.Proposals, envelope.Structured.Proposals...)
 	}
-	if err := json.Unmarshal([]byte(testutil.Read(t, recording)), &envelope); err != nil {
-		t.Fatal(err)
-	}
-	data, err := json.MarshalIndent(map[string]any{"is_error": envelope.IsError, "subtype": envelope.Subtype, "structured_output": envelope.Structured}, "", "  ")
+	data, err := json.MarshalIndent(map[string]any{"is_error": false, "subtype": "success", "structured_output": merged}, "", "  ")
 	if err != nil {
 		t.Fatal(err)
 	}
