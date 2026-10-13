@@ -3,24 +3,24 @@
   "structured_output": {
     "entries": [
       {
-        "id": "2f5b4836523ff95b",
-        "role": "build",
-        "mutates": false,
-        "affected_form": "nx affected -t build --base={base}"
-      },
-      {
-        "id": "2c7f7dade9aa0f08",
+        "id": "563f662a1945fa04",
         "role": "check",
         "kind": "lint",
         "mutates": false,
         "affected_form": "nx affected -t lint --base={base}"
       },
       {
-        "id": "5c87f115a4b49f91",
+        "id": "592ab460fcfeb6bc",
         "role": "check",
         "kind": "test",
         "mutates": false,
         "affected_form": "nx affected -t test --base={base}"
+      },
+      {
+        "id": "b7f8a681663d6d3f",
+        "role": "build",
+        "mutates": false,
+        "affected_form": "nx affected -t build --base={base}"
       }
     ],
     "managers": [
@@ -36,7 +36,8 @@
         ],
         "dlx": "npx",
         "dir_flags": [
-          "--prefix"
+          "--prefix",
+          "--workspace"
         ],
         "rivals": [
           "pnpm",
@@ -44,7 +45,34 @@
         ]
       }
     ],
-    "proposals": []
+    "proposals": [
+      {
+        "role": "check",
+        "kind": "lint",
+        "command": "npx eslint .",
+        "file_form": "npx eslint {files}",
+        "globs": [
+          "**/*.js",
+          "**/*.jsx",
+          "**/*.ts",
+          "**/*.tsx"
+        ],
+        "dir": ".",
+        "evidence": "package.json (devDependency @nx/eslint)"
+      },
+      {
+        "role": "check",
+        "kind": "test",
+        "command": "npx vitest run",
+        "file_form": "npx vitest run {files}",
+        "globs": [
+          "**/*.test.*",
+          "**/*.spec.*"
+        ],
+        "dir": ".",
+        "evidence": "nx.json (targetDefaults \"@nx/vite:test\"; devDependency @nx/vite)"
+      }
+    ]
   },
   "subtype": "success"
 }

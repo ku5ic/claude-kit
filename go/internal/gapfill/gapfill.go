@@ -31,7 +31,7 @@ import (
 const Guard = "KIT_CLASSIFIER"
 
 // promptVersion is part of every cache key: a changed prompt asks again.
-const promptVersion = "9"
+const promptVersion = "10"
 
 // batchSize caps the entries one classifier call answers.
 const batchSize = 8

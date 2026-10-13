@@ -3,12 +3,12 @@
   "structured_output": {
     "entries": [
       {
-        "id": "1cf5ba84c508b6da",
+        "id": "2bee5f8fc345afae",
         "role": "check",
         "mutates": false
       },
       {
-        "id": "b3402ac0145a9e28",
+        "id": "311683dca20546aa",
         "role": "check",
         "kind": "lint",
         "mutates": false,
@@ -18,22 +18,7 @@
         ]
       },
       {
-        "id": "3853d4b672eb56fe",
-        "role": "check",
-        "kind": "test",
-        "mutates": false,
-        "file_form": "go test {dirs}",
-        "globs": [
-          "**/*.go"
-        ]
-      },
-      {
-        "id": "55307e439e5803d8",
-        "role": "build",
-        "mutates": false
-      },
-      {
-        "id": "5adfe267c8883b88",
+        "id": "59e266d4d3db0ed3",
         "role": "deploy",
         "mutates": true,
         "segments": [
@@ -41,6 +26,21 @@
             "text": "./scripts/deploy.sh",
             "role": "deploy"
           }
+        ]
+      },
+      {
+        "id": "6fc73fbf89780f62",
+        "role": "build",
+        "mutates": false
+      },
+      {
+        "id": "7417f7b9631925df",
+        "role": "check",
+        "kind": "test",
+        "mutates": false,
+        "file_form": "go test {dirs}",
+        "globs": [
+          "**/*.go"
         ]
       }
     ],

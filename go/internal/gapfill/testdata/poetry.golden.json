@@ -12,14 +12,10 @@
           "poetry add"
         ],
         "dlx": "",
-        "dir_flags": [
-          "--directory",
-          "-C"
-        ],
+        "dir_flags": [],
         "rivals": [
-          "pip",
           "uv",
-          "pipenv"
+          "pdm"
         ]
       }
     ],
@@ -27,7 +23,7 @@
       {
         "role": "check",
         "kind": "lint",
-        "command": "poetry run ruff check .",
+        "command": "poetry run ruff check",
         "dir": ".",
         "evidence": "pyproject.toml"
       },
@@ -48,14 +44,14 @@
       {
         "role": "check",
         "kind": "format-check",
-        "command": "poetry run ruff format --check .",
+        "command": "poetry run ruff format --check",
         "dir": ".",
         "evidence": "pyproject.toml"
       },
       {
         "role": "fixer",
         "kind": "format-check",
-        "command": "poetry run ruff format .",
+        "command": "poetry run ruff format {files}",
         "file_form": "poetry run ruff format {files}",
         "globs": [
           "**/*.py"
