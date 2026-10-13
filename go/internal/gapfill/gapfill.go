@@ -34,10 +34,10 @@ const Guard = "KIT_CLASSIFIER"
 const promptVersion = "8"
 
 // batchSize caps the entries one classifier call answers.
-const batchSize = 15
+const batchSize = 8
 
 // maxCalls caps the classifier calls running at once.
-const maxCalls = 4
+const maxCalls = 10
 
 // unseenDays is how long an answer for an entry no run has seen is kept.
 const unseenDays = 30
@@ -234,12 +234,12 @@ func ask(cfg *config.Config, o Options, p view, file string, s store) (_ store, 
 	if !locked.stale(cfg, o.Entries, p.Key) {
 		return locked, ""
 	}
-	// The first request alone asks for the facts, with no entries when none
-	// are missing.
-	missing := locked.missing(cfg, o.Entries)
-	first := min(len(missing), batchSize)
-	reqs := []request{{Entries: missing[:first], View: p, Facts: locked.Context != p.Key}}
-	for batch := range slices.Chunk(missing[first:], batchSize) {
+	// The facts get a call of their own: they take the model longest.
+	var reqs []request
+	if locked.Context != p.Key {
+		reqs = append(reqs, request{View: p, Facts: true})
+	}
+	for batch := range slices.Chunk(locked.missing(cfg, o.Entries), batchSize) {
 		reqs = append(reqs, request{Entries: batch, View: p})
 	}
 	resps, errs := classifyAll(ctx, cfg, o, reqs)

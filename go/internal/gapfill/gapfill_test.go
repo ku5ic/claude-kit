@@ -3,7 +3,9 @@ package gapfill
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -18,7 +20,8 @@ import (
 )
 
 // fixture is a project root, a cache dir, and a stub classifier that saves
-// each request and answers with whatever answer last wrote.
+// each request under requests/, fails one naming an id listed in the file
+// fail, and answers with whatever answer last wrote.
 type fixture struct {
 	t                   *testing.T
 	root, cacheDir, dir string
@@ -29,7 +32,12 @@ func newFixture(t *testing.T, extra string) *fixture {
 	t.Helper()
 	f := &fixture{t: t, root: t.TempDir(), cacheDir: t.TempDir(), dir: t.TempDir()}
 	stub := filepath.Join(f.dir, "classifier")
-	testutil.FakeTool(t, stub, filepath.Join(f.dir, "calls"), fmt.Sprintf("cat >%q\n%s\ncat %q", filepath.Join(f.dir, "request.json"), extra, filepath.Join(f.dir, "response.json")))
+	testutil.FakeTool(t, stub, filepath.Join(f.dir, "calls"), fmt.Sprintf(`req=$(cat)
+mkdir -p %[1]q/requests
+printf '%%s' "$req" >%[1]q/requests/$$.json
+for id in $(cat %[1]q/fail 2>/dev/null); do case "$req" in *"$id"*) exit 1;; esac; done
+%[2]s
+cat %[1]q/response.json`, f.dir, extra))
 	f.cfg = &config.Config{
 		Classifier:    []string{stub},
 		LockfileGlobs: []string{"pnpm-lock.yaml", "package-lock.json", "yarn.lock"},
@@ -48,16 +56,36 @@ func (f *fixture) answer(structured any) {
 	testutil.Put(f.t, f.dir, "response.json", string(data))
 }
 
+// run clears the last run's requests, then runs.
 func (f *fixture) run(entries ...sources.Entry) Result {
+	if err := os.RemoveAll(filepath.Join(f.dir, "requests")); err != nil {
+		f.t.Fatal(err)
+	}
 	return Run(f.cfg, Options{Root: f.root, CacheDir: f.cacheDir, Entries: entries, Ask: true, Timeout: 10 * time.Second})
 }
 
 func (f *fixture) calls() []string { return testutil.Calls(f.t, filepath.Join(f.dir, "calls")) }
 
-// asked is the ids of the entries the last request held.
+// asked is the ids of the entries the last run asked for.
 func (f *fixture) asked() []string {
-	ids, _ := readRequest(f.t, filepath.Join(f.dir, "request.json"))
-	return ids
+	ids, _ := f.requests()
+	return slices.Concat(ids...)
+}
+
+// requests are the last run's entry requests' ids, and how many requests
+// asked for the project facts.
+func (f *fixture) requests() (ids [][]string, facts int) {
+	f.t.Helper()
+	paths, _ := filepath.Glob(filepath.Join(f.dir, "requests", "*.json"))
+	for _, p := range paths {
+		batch, asksFacts := readRequest(f.t, p)
+		if asksFacts {
+			facts++
+		} else {
+			ids = append(ids, batch)
+		}
+	}
+	return ids, facts
 }
 
 // readRequest is the ids of the entries the request at path held, and
@@ -99,19 +127,26 @@ func TestCacheHitAndPerBodyInvalidation(t *testing.T) {
 	if got := r.Verdicts[Key(lint)]; got.Role != "check" || got.Kind != "lint" || r.Unclassified() != 0 {
 		t.Fatalf("first run: %+v", r)
 	}
-	if calls := f.calls(); len(calls) != 1 || !strings.HasPrefix(calls[0], filepath.Join(fsx.PhysicalPath(f.cacheDir), cache.Enforce)+"|") {
-		t.Fatalf("the classifier runs once, from the cache dir: %q", calls)
+	// One call for the facts, one for the entries.
+	calls := f.calls()
+	if len(calls) != 2 {
+		t.Fatalf("%d calls, want 2", len(calls))
+	}
+	for _, c := range calls {
+		if !strings.HasPrefix(c, filepath.Join(fsx.PhysicalPath(f.cacheDir), cache.Enforce)+"|") {
+			t.Fatalf("the classifier runs from the cache dir: %q", c)
+		}
 	}
 
-	if r := f.run(lint, test); len(f.calls()) != 1 || r.Verdicts[Key(test)].Kind != "test" {
+	if r := f.run(lint, test); len(f.calls()) != len(calls) || r.Verdicts[Key(test)].Kind != "test" {
 		t.Errorf("a second run asks again (%d calls) or loses the answer: %+v", len(f.calls()), r)
 	}
 
 	changed := entry("test", "vitest run --coverage")
 	f.answer(answers(verdict(changed, map[string]any{"role": "check", "kind": "test", "mutates": false})))
 	f.run(lint, changed)
-	if asked := f.asked(); len(f.calls()) != 2 || len(asked) != 1 || asked[0] != Key(changed) {
-		t.Errorf("a changed body asks for that entry alone: %d calls, asked %q", len(f.calls()), asked)
+	if asked := f.asked(); len(asked) != 1 || asked[0] != Key(changed) {
+		t.Errorf("a changed body asks for that entry alone: asked %q", asked)
 	}
 }
 
@@ -124,9 +159,8 @@ func TestMalformedOutputLeavesEntriesUnclassifiedAndUncached(t *testing.T) {
 	if why := r.Skipped[Key(lint)]; !strings.HasPrefix(why, "unclassified (classifier: malformed output") || r.Unclassified() != 1 {
 		t.Errorf("skipped = %q", why)
 	}
-	f.run(lint)
-	if len(f.calls()) != 2 {
-		t.Errorf("a failed answer is cached: %d calls", len(f.calls()))
+	if f.run(lint); len(f.asked()) != 1 {
+		t.Errorf("a failed answer is cached: the rerun asked %q", f.asked())
 	}
 }
 
@@ -161,7 +195,8 @@ func TestConcurrentRunsAskOnce(t *testing.T) {
 		wg.Go(func() { results[i] = f.run(lint) })
 	}
 	wg.Wait()
-	if len(f.calls()) != 1 {
+	// One run's calls: one for the facts, one for the entries.
+	if len(f.calls()) != 2 {
 		t.Errorf("%d calls; the waiting run should read the first one's answer", len(f.calls()))
 	}
 	for _, r := range results {
@@ -169,34 +204,6 @@ func TestConcurrentRunsAskOnce(t *testing.T) {
 			t.Errorf("a run lacks the answer: %+v", r)
 		}
 	}
-}
-
-// batched swaps f's classifier for one that saves each request under
-// requests/ and exits 1 on a request naming an id listed in the file fail.
-func (f *fixture) batched() {
-	f.t.Helper()
-	stub := filepath.Join(f.dir, "batched")
-	testutil.FakeTool(f.t, stub, filepath.Join(f.dir, "calls"), fmt.Sprintf(`mkdir -p %[1]q/requests
-req=$(cat)
-printf '%%s' "$req" >%[1]q/requests/$$.json
-for id in $(cat %[1]q/fail 2>/dev/null); do case "$req" in *"$id"*) exit 1;; esac; done
-cat %[1]q/response.json`, f.dir))
-	f.cfg.Classifier = []string{stub}
-}
-
-// requests are the batched classifier's requests' entry ids, and how many
-// asked for the project facts.
-func (f *fixture) requests() (ids [][]string, facts int) {
-	f.t.Helper()
-	paths, _ := filepath.Glob(filepath.Join(f.dir, "requests", "*.json"))
-	for _, p := range paths {
-		batch, asksFacts := readRequest(f.t, p)
-		ids = append(ids, batch)
-		if asksFacts {
-			facts++
-		}
-	}
-	return ids, facts
 }
 
 func lints(n int) (entries []sources.Entry, verdicts []map[string]any) {
@@ -211,7 +218,6 @@ func lints(n int) (entries []sources.Entry, verdicts []map[string]any) {
 func TestManyEntriesAreAskedInBatchesWithTheFactsOnce(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t, "")
-	f.batched()
 	entries, verdicts := lints(2*batchSize + 1)
 	f.answer(answers(verdicts...))
 	r := f.run(entries...)
@@ -249,7 +255,6 @@ ls "$d/running" | wc -l >>"$d/widths"; sleep 0.3; rm "$d/running/$$"`)
 func TestAFailedBatchKeepsTheOthersAnswers(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t, "")
-	f.batched()
 	entries, verdicts := lints(2*batchSize + 1)
 	last := entries[len(entries)-1]
 	testutil.Put(t, f.dir, "fail", Key(last))
@@ -433,8 +438,9 @@ func TestManagersReadsVerifiedFactsWithoutAsking(t *testing.T) {
 		map[string]any{"dir": ".", "cites": "yarn.lock", "manager": "yarn"},
 	}})
 	f.run(entry("lint", "eslint ."))
-	if ms := Managers(f.cfg, f.root, f.cacheDir); len(ms) != 1 || ms[0].Manager != "pnpm" || len(f.calls()) != 1 {
-		t.Errorf("only the fact whose lockfile exists, named alone: %+v, %d calls", ms, len(f.calls()))
+	calls := len(f.calls())
+	if ms := Managers(f.cfg, f.root, f.cacheDir); len(ms) != 1 || ms[0].Manager != "pnpm" || len(f.calls()) != calls {
+		t.Errorf("only the fact whose lockfile exists, named alone, read without asking: %+v, %d calls", ms, len(f.calls())-calls)
 	}
 }
 
