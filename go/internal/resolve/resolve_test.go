@@ -236,6 +236,36 @@ func TestABrewfileFormulaRunsFromHomebrew(t *testing.T) {
 	e.wantRuns(e.bin(e.repo, "shellcheck"), link, Pinned)
 }
 
+// A cask pins the binary it links into Caskroom, whatever the cask's name:
+// cask 'claude-code@latest' installs claude.
+func TestABrewfileCaskPinsTheBinaryItLinks(t *testing.T) {
+	for _, user := range []bool{false, true} {
+		t.Run(map[bool]string{false: "project Brewfile", true: "user_pins Brewfile"}[user], func(t *testing.T) {
+			e := setup(t)
+			prefix := filepath.Join(filepath.Dir(e.repo), "brew")
+			t.Setenv("HOMEBREW_PREFIX", prefix)
+			real := e.exe(filepath.Join(prefix, "Caskroom/claude-code@latest/2.1.296/claude"))
+			link := filepath.Join(prefix, "bin/claude")
+			testutil.Put(t, filepath.Dir(link), ".keep", "")
+			if err := os.Symlink(real, link); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("PATH", filepath.Dir(link)+":"+e.path)
+			e.wantSkip(e.bin(e.repo, "claude"), "only on PATH")
+
+			brewfile := "cask 'claude-code@latest'  # CLI\n"
+			if user {
+				dotfiles := filepath.Join(filepath.Dir(e.repo), "dotfiles")
+				testutil.Put(t, dotfiles, "Brewfile", brewfile)
+				e.userPins = []string{filepath.Join(dotfiles, "Brewfile")}
+			} else {
+				testutil.Put(t, e.repo, "Brewfile", brewfile)
+			}
+			e.wantRuns(e.bin(e.repo, "claude"), link, Pinned)
+		})
+	}
+}
+
 // A user_pins file pins for every project, after the project's own.
 func TestAUserPinCountsForEveryProject(t *testing.T) {
 	e := setup(t)

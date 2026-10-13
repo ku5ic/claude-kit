@@ -48,25 +48,48 @@ func system(path string) bool {
 // pinAliases are plugin names that differ from the binary they install.
 var pinAliases = map[string]string{"golang": "go", "nodejs": "node", "opentofu": "tofu", "bats-core": "bats"}
 
-// pinned is the pin file, from dir up to root, that names name; "" when
-// none does.
-func pinned(dir, root, name string) string {
+// pinned is the pin file, from dir up to root, that names one of tool's
+// names; "" when none does.
+func pinned(dir, root string, tool []string) string {
 	for _, file := range sources.PinFiles {
-		if path := fsx.FindUp(dir, root, file); path != "" && names(path, name) {
+		if path := fsx.FindUp(dir, root, file); path != "" && names(path, tool) {
 			return fsx.Rel(root, path)
 		}
 	}
 	return ""
 }
 
-// userPinned is true when a user_pins file names name.
-func (r *Resolver) userPinned(name string) bool {
-	return slices.ContainsFunc(r.userPins, func(path string) bool { return names(path, name) })
+// userPinned is true when a user_pins file names one of tool's names.
+func (r *Resolver) userPinned(tool []string) bool {
+	return slices.ContainsFunc(r.userPins, func(path string) bool { return names(path, tool) })
 }
 
-// names is true when the pin file at path pins name, by name or alias.
-func names(path, name string) bool {
-	return slices.ContainsFunc(sources.Pins(path), func(pin string) bool { return pin == name || pinAliases[pin] == name })
+// names is true when the pin file at path pins one of tool's names, by
+// name or alias.
+func names(path string, tool []string) bool {
+	return slices.ContainsFunc(sources.Pins(path), func(pin string) bool {
+		return slices.Contains(tool, pin) || slices.Contains(tool, pinAliases[pin])
+	})
+}
+
+// toolNames are what a pin may call the binary at path: name, and the cask
+// whose Caskroom it links into (cask 'claude-code@latest' installs claude).
+func toolNames(name, path string) []string {
+	real, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return []string{name}
+	}
+	for _, prefix := range brewPrefixes() {
+		if rel, err := filepath.Rel(filepath.Join(prefix, "Caskroom"), real); err == nil && filepath.IsLocal(rel) {
+			cask, _, _ := strings.Cut(rel, string(filepath.Separator))
+			return []string{name, cask}
+		}
+	}
+	return []string{name}
+}
+
+func brewPrefixes() []string {
+	return []string{os.Getenv("HOMEBREW_PREFIX"), "/opt/homebrew", "/usr/local", "/home/linuxbrew/.linuxbrew"}
 }
 
 // underManager is true when path, or the file it links to, sits where asdf,
@@ -87,8 +110,8 @@ func underManager(path string) bool {
 	if xdg := os.Getenv("XDG_DATA_HOME"); xdg != "" {
 		add(filepath.Join(xdg, "mise"), "shims", "installs")
 	}
-	for _, prefix := range []string{os.Getenv("HOMEBREW_PREFIX"), "/opt/homebrew", "/usr/local", "/home/linuxbrew/.linuxbrew"} {
-		add(prefix, "Cellar")
+	for _, prefix := range brewPrefixes() {
+		add(prefix, "Cellar", "Caskroom")
 	}
 	real, _ := filepath.EvalSymlinks(path)
 	return slices.ContainsFunc(dirs, func(d string) bool {
