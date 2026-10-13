@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -55,18 +56,25 @@ func (f *fixture) calls() []string { return testutil.Calls(f.t, filepath.Join(f.
 
 // asked is the ids of the entries the last request held.
 func (f *fixture) asked() []string {
-	f.t.Helper()
+	ids, _ := readRequest(f.t, filepath.Join(f.dir, "request.json"))
+	return ids
+}
+
+// readRequest is the ids of the entries the request at path held, and
+// whether it asked for the project facts.
+func readRequest(t *testing.T, path string) (ids []string, facts bool) {
+	t.Helper()
 	var req struct {
 		Entries []struct{ ID string } `json:"entries"`
+		Facts   bool                  `json:"ask_project_facts"`
 	}
-	if err := json.Unmarshal([]byte(testutil.Read(f.t, filepath.Join(f.dir, "request.json"))), &req); err != nil {
-		f.t.Fatal(err)
+	if err := json.Unmarshal([]byte(testutil.Read(t, path)), &req); err != nil {
+		t.Fatal(err)
 	}
-	var ids []string
 	for _, e := range req.Entries {
 		ids = append(ids, e.ID)
 	}
-	return ids
+	return ids, req.Facts
 }
 
 func entry(name, body string) sources.Entry {
@@ -176,25 +184,15 @@ cat %[1]q/response.json`, f.dir))
 	f.cfg.Classifier = []string{stub}
 }
 
-// requests are the batched classifier's requests: each one's entry ids,
-// and whether it asked for the project facts.
+// requests are the batched classifier's requests' entry ids, and how many
+// asked for the project facts.
 func (f *fixture) requests() (ids [][]string, facts int) {
 	f.t.Helper()
 	paths, _ := filepath.Glob(filepath.Join(f.dir, "requests", "*.json"))
 	for _, p := range paths {
-		var req struct {
-			Entries []struct{ ID string } `json:"entries"`
-			Facts   bool                  `json:"ask_project_facts"`
-		}
-		if err := json.Unmarshal([]byte(testutil.Read(f.t, p)), &req); err != nil {
-			f.t.Fatal(err)
-		}
-		var batch []string
-		for _, e := range req.Entries {
-			batch = append(batch, e.ID)
-		}
+		batch, asksFacts := readRequest(f.t, p)
 		ids = append(ids, batch)
-		if req.Facts {
+		if asksFacts {
 			facts++
 		}
 	}
@@ -227,6 +225,23 @@ func TestManyEntriesAreAskedInBatchesWithTheFactsOnce(t *testing.T) {
 	for _, batch := range ids {
 		if len(batch) > batchSize {
 			t.Errorf("a request holds %d entries", len(batch))
+		}
+	}
+}
+
+func TestAtMostMaxCallsRunAtOnce(t *testing.T) {
+	t.Parallel()
+	// Each call notes how many calls are running alongside it.
+	f := newFixture(t, `d=$(dirname "$0"); mkdir -p "$d/running"; touch "$d/running/$$"
+ls "$d/running" | wc -l >>"$d/widths"; sleep 0.3; rm "$d/running/$$"`)
+	entries, verdicts := lints((maxCalls + 2) * batchSize)
+	f.answer(answers(verdicts...))
+	if r := f.run(entries...); len(r.Verdicts) != len(entries) {
+		t.Fatalf("%d of %d classified", len(r.Verdicts), len(entries))
+	}
+	for _, w := range strings.Fields(testutil.Read(t, filepath.Join(f.dir, "widths"))) {
+		if n, _ := strconv.Atoi(w); n > maxCalls {
+			t.Errorf("%d calls ran at once; the cap is %d", n, maxCalls)
 		}
 	}
 }

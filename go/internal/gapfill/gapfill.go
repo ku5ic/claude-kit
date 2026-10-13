@@ -33,10 +33,11 @@ const Guard = "KIT_CLASSIFIER"
 // promptVersion is part of every cache key: a changed prompt asks again.
 const promptVersion = "8"
 
-// batchSize caps the entries one classifier call answers: the calls run in
-// parallel, so a cold project costs ceil(n/batchSize) calls of budgetUSD
-// at most, and a batch that fails or times out loses only its own.
+// batchSize caps the entries one classifier call answers.
 const batchSize = 15
+
+// maxCalls caps the classifier calls running at once.
+const maxCalls = 4
 
 // unseenDays is how long an answer for an entry no run has seen is kept.
 const unseenDays = 30
@@ -217,10 +218,9 @@ func Nearest(root, dir string, ms []Manager) []Manager {
 	return out
 }
 
-// ask calls the classifier under the repo's lock, one call per batch,
-// stores the answers of every batch that answered, and returns the store
-// they're in; failure says why a batch couldn't, and s comes back as it
-// was when none did.
+// ask calls the classifier under the repo's lock, a batch per call in
+// parallel, stores each answered batch's own entries, and returns the
+// store; failure says why a batch couldn't.
 func ask(cfg *config.Config, o Options, p view, file string, s store) (_ store, failure string) {
 	ctx, cancel := context.WithTimeout(context.Background(), o.Timeout)
 	defer cancel()
@@ -234,22 +234,16 @@ func ask(cfg *config.Config, o Options, p view, file string, s store) (_ store, 
 	if !locked.stale(cfg, o.Entries, p.Key) {
 		return locked, ""
 	}
-	// A stale context with nothing missing still asks once, for the facts.
-	batches := slices.Collect(slices.Chunk(locked.missing(cfg, o.Entries), batchSize))
-	if len(batches) == 0 {
-		batches = [][]sources.Entry{nil}
+	// The first request alone asks for the facts, with no entries when none
+	// are missing.
+	missing := locked.missing(cfg, o.Entries)
+	first := min(len(missing), batchSize)
+	reqs := []request{{Entries: missing[:first], View: p, Facts: locked.Context != p.Key}}
+	for batch := range slices.Chunk(missing[first:], batchSize) {
+		reqs = append(reqs, request{Entries: batch, View: p})
 	}
-	// The first batch alone asks for the facts.
-	facts := locked.Context != p.Key
-	resps, errs := make([]response, len(batches)), make([]error, len(batches))
-	var wg sync.WaitGroup
-	for i, batch := range batches {
-		req := request{Entries: batch, View: p, Facts: facts && i == 0}
-		wg.Go(func() { resps[i], errs[i] = classify(ctx, cfg, o, req) })
-	}
-	wg.Wait()
+	resps, errs := classifyAll(ctx, cfg, o, reqs)
 	now := time.Now()
-	answered := false
 	for i, resp := range resps {
 		if errs[i] != nil {
 			if failure == "" {
@@ -257,18 +251,33 @@ func ask(cfg *config.Config, o Options, p view, file string, s store) (_ store, 
 			}
 			continue
 		}
-		answered = true
 		for _, a := range resp.Entries {
 			locked.Entries[a.ID] = &answer{Verdict: a.Verdict, Seen: now}
 		}
-		if facts && i == 0 {
+		if reqs[i].Facts {
 			locked.Context, locked.Managers, locked.Proposals = p.Key, resp.Managers, resp.Proposals
 		}
 	}
-	if answered {
+	if slices.Contains(errs, nil) {
 		locked.save(file, o.Entries, now)
 	}
 	return locked, failure
+}
+
+// classifyAll runs reqs, at most maxCalls at once.
+func classifyAll(ctx context.Context, cfg *config.Config, o Options, reqs []request) ([]response, []error) {
+	resps, errs := make([]response, len(reqs)), make([]error, len(reqs))
+	var wg sync.WaitGroup
+	slots := make(chan struct{}, maxCalls)
+	for i, req := range reqs {
+		wg.Go(func() {
+			slots <- struct{}{}
+			defer func() { <-slots }()
+			resps[i], errs[i] = classify(ctx, cfg, o, req)
+		})
+	}
+	wg.Wait()
+	return resps, errs
 }
 
 func load(file string) store {
