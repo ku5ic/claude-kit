@@ -72,17 +72,20 @@ func names(path string, tool []string) bool {
 	})
 }
 
-// toolNames are what a pin may call the binary at path: name, and the cask
-// whose Caskroom it links into (cask 'claude-code@latest' installs claude).
+// toolNames are what a pin may call the binary at path: name, and the
+// formula or cask whose Cellar or Caskroom it links into (brew 'ripgrep'
+// installs rg, cask 'claude-code@latest' installs claude).
 func toolNames(name, path string) []string {
 	real, err := filepath.EvalSymlinks(path)
 	if err != nil {
 		return []string{name}
 	}
 	for _, prefix := range brewPrefixes() {
-		if rel, err := filepath.Rel(filepath.Join(prefix, "Caskroom"), real); err == nil && filepath.IsLocal(rel) {
-			cask, _, _ := strings.Cut(rel, string(filepath.Separator))
-			return []string{name, cask}
+		for _, room := range []string{"Cellar", "Caskroom"} {
+			if dir := filepath.Join(prefix, room); prefix != "" && fsx.Within(dir, real) {
+				pkg, _, _ := strings.Cut(fsx.Rel(dir, real), string(filepath.Separator))
+				return []string{name, pkg}
+			}
 		}
 	}
 	return []string{name}

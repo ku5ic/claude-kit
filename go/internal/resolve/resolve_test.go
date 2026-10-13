@@ -266,6 +266,23 @@ func TestABrewfileCaskPinsTheBinaryItLinks(t *testing.T) {
 	}
 }
 
+// A formula pins the binary it installs, whatever the binary's name:
+// brew 'ripgrep' installs rg.
+func TestABrewfileFormulaPinsABinaryNamedOtherwise(t *testing.T) {
+	e := setup(t)
+	prefix := filepath.Join(filepath.Dir(e.repo), "brew")
+	t.Setenv("HOMEBREW_PREFIX", prefix)
+	testutil.Put(t, e.repo, "Brewfile", "brew 'ripgrep'\n")
+	real := e.exe(filepath.Join(prefix, "Cellar/ripgrep/14.1.1/bin/rg"))
+	link := filepath.Join(prefix, "bin/rg")
+	testutil.Put(t, filepath.Dir(link), ".keep", "")
+	if err := os.Symlink(real, link); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", filepath.Dir(link)+":"+e.path)
+	e.wantRuns(e.bin(e.repo, "rg"), link, Pinned)
+}
+
 // A user_pins file pins for every project, after the project's own.
 func TestAUserPinCountsForEveryProject(t *testing.T) {
 	e := setup(t)
