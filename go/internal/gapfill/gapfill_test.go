@@ -235,7 +235,7 @@ func TestManyEntriesAreAskedInBatchesWithTheFactsOnce(t *testing.T) {
 	}
 }
 
-func TestAtMostMaxCallsRunAtOnce(t *testing.T) {
+func TestCallsRunInParallelUpToMaxCalls(t *testing.T) {
 	t.Parallel()
 	// Each call notes how many calls are running alongside it.
 	f := newFixture(t, `d=$(dirname "$0"); mkdir -p "$d/running"; touch "$d/running/$$"
@@ -245,10 +245,13 @@ ls "$d/running" | wc -l >>"$d/widths"; sleep 0.3; rm "$d/running/$$"`)
 	if r := f.run(entries...); len(r.Verdicts) != len(entries) {
 		t.Fatalf("%d of %d classified", len(r.Verdicts), len(entries))
 	}
+	widest := 0
 	for _, w := range strings.Fields(testutil.Read(t, filepath.Join(f.dir, "widths"))) {
-		if n, _ := strconv.Atoi(w); n > maxCalls {
-			t.Errorf("%d calls ran at once; the cap is %d", n, maxCalls)
-		}
+		n, _ := strconv.Atoi(w)
+		widest = max(widest, n)
+	}
+	if widest < 2 || widest > maxCalls {
+		t.Errorf("at most %d calls ran at once; want 2 to %d", widest, maxCalls)
 	}
 }
 

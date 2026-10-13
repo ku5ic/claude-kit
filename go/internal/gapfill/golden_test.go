@@ -190,20 +190,29 @@ func TestGoldenVerdicts(t *testing.T) {
 // each keeps what it asked for.
 func merge(t *testing.T, replies, recording string) {
 	t.Helper()
-	paths, _ := filepath.Glob(filepath.Join(replies, "*.json"))
+	paths, err := filepath.Glob(filepath.Join(replies, "*.json"))
+	if err != nil || len(paths) == 0 {
+		t.Fatalf("no replies recorded in %s: %v", replies, err)
+	}
 	merged := response{Entries: []entryVerdict{}, Managers: []Manager{}, Proposals: []Proposal{}}
 	for _, p := range paths {
 		var envelope struct {
 			IsError    bool     `json:"is_error"`
+			Subtype    string   `json:"subtype"`
 			Structured response `json:"structured_output"`
 		}
-		if err := json.Unmarshal([]byte(testutil.Read(t, p)), &envelope); err != nil || envelope.IsError {
+		if err := json.Unmarshal([]byte(testutil.Read(t, p)), &envelope); err != nil {
 			t.Fatalf("recording %s: %v", p, err)
+		}
+		if envelope.IsError {
+			t.Fatalf("recording %s: no answer (%s)", p, envelope.Subtype)
 		}
 		merged.Entries = append(merged.Entries, envelope.Structured.Entries...)
 		merged.Managers = append(merged.Managers, envelope.Structured.Managers...)
 		merged.Proposals = append(merged.Proposals, envelope.Structured.Proposals...)
 	}
+	// Calls finish in any order: sorting keeps a re-recording's diff to what changed.
+	slices.SortFunc(merged.Entries, func(a, b entryVerdict) int { return strings.Compare(a.ID, b.ID) })
 	data, err := json.MarshalIndent(map[string]any{"is_error": false, "subtype": "success", "structured_output": merged}, "", "  ")
 	if err != nil {
 		t.Fatal(err)

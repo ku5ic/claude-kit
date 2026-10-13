@@ -137,6 +137,7 @@ type Result struct {
 	Managers  []Manager
 	Proposals []Proposal
 	Dropped   []string // answers verification threw away, each with why
+	Failure   string   // why a classifier call failed, when one did
 }
 
 // Unclassified counts the entries with no verdict that the kit's policy

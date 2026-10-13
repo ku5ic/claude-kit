@@ -87,6 +87,14 @@ func TestEnforceClassify(t *testing.T) {
 		r.Want(t, 125)
 		r.Has(t, "turbo run lint\tunclassified (classifier: exit status 1)\n")
 	})
+	t.Run("a facts call that fails is reported though every entry answered", func(t *testing.T) {
+		t.Parallel()
+		answer := `{"is_error":false,"subtype":"success","structured_output":{"entries":[{"id":"` + gapfill.Key(lint) + `","role":"check","kind":"lint","mutates":false}],"managers":[],"proposals":[]}}`
+		k, _ := setup(t, "case \"$(cat)\" in *'\"ask_project_facts\":true'*) exit 1 ;; esac\necho '"+answer+"'\n")
+		r := k.Run("", "enforce", "classify")
+		r.Want(t, 0)
+		r.Has(t, "\tcheck:lint\n", "failure\tclassifier: exit status 1\n")
+	})
 	t.Run("run-checks on the plan exits with its failure count", func(t *testing.T) {
 		t.Parallel()
 		answer := `{"is_error":false,"subtype":"success","structured_output":{"entries":[{"id":"` + gapfill.Key(lint) + `","role":"check","kind":"lint","mutates":false}],"managers":[],"proposals":[]}}`
