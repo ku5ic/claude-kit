@@ -3,24 +3,24 @@
   "structured_output": {
     "entries": [
       {
-        "id": "827f7bf1bdfe1df8",
+        "id": "3d14596cdc860e02",
         "role": "check",
         "kind": "lint",
         "mutates": false,
         "affected_form": "nx affected -t lint --base={base}"
       },
       {
-        "id": "fbbe14cfdbdbfd99",
+        "id": "6d9d5c5b01091fda",
+        "role": "build",
+        "mutates": false,
+        "affected_form": "nx affected -t build --base={base}"
+      },
+      {
+        "id": "f40e4be141fbd481",
         "role": "check",
         "kind": "test",
         "mutates": false,
         "affected_form": "nx affected -t test --base={base}"
-      },
-      {
-        "id": "fcd3418941c336de",
-        "role": "build",
-        "mutates": false,
-        "affected_form": "nx affected -t build --base={base}"
       }
     ],
     "managers": [
@@ -36,7 +36,8 @@
         ],
         "dlx": "npx",
         "dir_flags": [
-          "--prefix"
+          "--prefix",
+          "--workspace"
         ],
         "rivals": [
           "pnpm",
@@ -44,19 +45,7 @@
         ]
       }
     ],
-    "proposals": [
-      {
-        "role": "check",
-        "kind": "lint",
-        "command": "npm exec eslint --max-warnings=0 .",
-        "file_form": "npm exec eslint --max-warnings=0 {files}",
-        "globs": [
-          "**/*.{js,jsx,ts,tsx,cjs,mjs}"
-        ],
-        "dir": ".",
-        "evidence": "package.json (declares devDependency @nx/eslint 20.0.0, which provides ESLint linting)"
-      }
-    ]
+    "proposals": []
   },
   "subtype": "success"
 }

@@ -3,7 +3,17 @@
   "structured_output": {
     "entries": [
       {
-        "id": "1a9c7b0b26b3e0a8",
+        "id": "40a26f364871cc6b",
+        "role": "check",
+        "kind": "test",
+        "mutates": false,
+        "file_form": "go test {dirs}",
+        "globs": [
+          "**/*.go"
+        ]
+      },
+      {
+        "id": "640d9333b6ef0b90",
         "role": "check",
         "kind": "lint",
         "mutates": false,
@@ -13,7 +23,12 @@
         ]
       },
       {
-        "id": "2732b89bfd67bf12",
+        "id": "696d2a1e27bce8fd",
+        "role": "check",
+        "mutates": false
+      },
+      {
+        "id": "933cc0b0fff0650d",
         "role": "deploy",
         "mutates": true,
         "segments": [
@@ -24,23 +39,8 @@
         ]
       },
       {
-        "id": "39440e77f4d6712d",
-        "role": "check",
-        "kind": "test",
-        "mutates": false,
-        "file_form": "go test {dirs}",
-        "globs": [
-          "**/*.go"
-        ]
-      },
-      {
-        "id": "a9b9890a35526e1e",
+        "id": "bfb93d6ab5c38b9e",
         "role": "build",
-        "mutates": false
-      },
-      {
-        "id": "b04c61a69a6c66dc",
-        "role": "check",
         "mutates": false
       }
     ],
@@ -72,7 +72,7 @@
         "role": "check",
         "kind": "format-check",
         "command": "test -z \"$(gofmt -l .)\"",
-        "file_form": "test -z \"$(gofmt -l {dirs})\"",
+        "file_form": "test -z \"$(gofmt -l {files})\"",
         "globs": [
           "**/*.go"
         ],

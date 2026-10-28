@@ -7,7 +7,7 @@
         "dir": ".",
         "cites": "Cargo.lock",
         "manager": "cargo",
-        "run_prefix": "",
+        "run_prefix": "cargo run --",
         "add_verbs": [
           "cargo add"
         ],
@@ -36,7 +36,7 @@
       {
         "role": "check",
         "kind": "format-check",
-        "command": "cargo fmt --check",
+        "command": "cargo fmt --check -- {files}",
         "file_form": "cargo fmt --check -- {files}",
         "globs": [
           "**/*.rs"
@@ -46,7 +46,7 @@
       },
       {
         "role": "fixer",
-        "command": "cargo fmt",
+        "command": "cargo fmt -- {files}",
         "file_form": "cargo fmt -- {files}",
         "globs": [
           "**/*.rs"

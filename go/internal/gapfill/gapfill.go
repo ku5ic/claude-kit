@@ -31,7 +31,7 @@ import (
 const Guard = "KIT_CLASSIFIER"
 
 // promptVersion is part of every cache key: a changed prompt asks again.
-const promptVersion = "11"
+const promptVersion = "12"
 
 // batchSize caps the entries one classifier call answers.
 const batchSize = 8
@@ -51,6 +51,9 @@ type Verdict struct {
 	FileForm string    `json:"file_form,omitempty"`
 	Globs    []string  `json:"globs,omitempty"`
 	Affected string    `json:"affected_form,omitempty"`
+	// CoveredBy is the key of a check of the same kind, in the same
+	// directory, whose run already does this one's.
+	CoveredBy string `json:"covered_by,omitempty"`
 }
 
 // String is v in one line: role:kind, then what else it says.

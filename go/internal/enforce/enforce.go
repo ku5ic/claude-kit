@@ -51,6 +51,9 @@ type Gate struct {
 	Affected    string
 	AffectedDir string
 	Unchanged   string // the git base a scoped gate's files didn't change since: it passes unrun
+	// Entry is the gap-fill key of the entry it runs, and CoveredBy that of
+	// a check whose run already does this one's.
+	Entry, CoveredBy string
 }
 
 // Scoped is true for a dead-code gate: only findings on lines changed since
@@ -120,7 +123,23 @@ func fullGate(cfg *config.Config, o Options) (*builder, []string) {
 	for _, sub := range subs {
 		b.fill(sub)
 	}
+	b.skipCovered()
 	return b, subs
+}
+
+// skipCovered skips each gate a planned gate covers, naming that gate.
+func (b *builder) skipCovered() {
+	label := map[string]string{}
+	for _, g := range b.gates {
+		if g.Entry != "" && g.Skip == "" && g.CoveredBy == "" {
+			label[g.Entry] = g.Label
+		}
+	}
+	for i := range b.gates {
+		if g := &b.gates[i]; g.Skip == "" && label[g.CoveredBy] != "" {
+			g.Skip = "covered by " + label[g.CoveredBy]
+		}
+	}
 }
 
 // plan is an empty builder for o.Root: its entries and their verified
@@ -306,7 +325,7 @@ func (b *builder) taskRunners(sub, kind string) {
 		if !called[b.key(e)] {
 			tp, _ := provider(e.Source)
 			v, _ := b.verdict(e)
-			b.add(Gate{Label: label([]string{kind}, e.File+": "+e.Name, sub), Kinds: []string{kind}, Dir: dir, Body: b.runCommand(tp, sub, e.Name), Verdict: v.String(), FileForm: v.FileForm, Globs: v.Globs, Affected: v.Affected, AffectedDir: dir})
+			b.add(Gate{Label: label([]string{kind}, e.File+": "+e.Name, sub), Kinds: []string{kind}, Dir: dir, Body: b.runCommand(tp, sub, e.Name), Verdict: v.String(), FileForm: v.FileForm, Globs: v.Globs, Affected: v.Affected, AffectedDir: dir, Entry: gapfill.Key(e), CoveredBy: v.CoveredBy})
 		}
 	}
 	if !b.covered(dir, kind) {

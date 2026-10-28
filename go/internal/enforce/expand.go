@@ -64,7 +64,7 @@ func (b *builder) reference(p part, depth int) {
 			return
 		}
 	}
-	g := Gate{Label: label(p.kinds, t.File+": "+t.Name, b.rel(p.dir)), Kinds: p.kinds, Dir: p.dir, Env: p.env, Body: p.text, Verdict: v.String(), FileForm: v.FileForm, Globs: v.Globs, Affected: v.Affected, AffectedDir: filepath.Join(b.root, t.Dir)}
+	g := Gate{Label: label(p.kinds, t.File+": "+t.Name, b.rel(p.dir)), Kinds: p.kinds, Dir: p.dir, Env: p.env, Body: p.text, Verdict: v.String(), FileForm: v.FileForm, Globs: v.Globs, Affected: v.Affected, AffectedDir: filepath.Join(b.root, t.Dir), Entry: gapfill.Key(t), CoveredBy: v.CoveredBy}
 	g.FanOut = b.fansOut(cmp.Or(g.Affected, g.Body))
 	b.add(g)
 }
@@ -73,7 +73,7 @@ func (b *builder) reference(p part, depth int) {
 // has one, labeled with every kind it checks.
 func (b *builder) entryGate(e sources.Entry, v gapfill.Verdict, dir string, env []string) Gate {
 	kinds := b.taskKinds(e, v, 0)
-	g := Gate{Label: label(kinds, e.File+": "+e.Name, b.rel(dir)), Kinds: kinds, Dir: dir, Env: env, Body: e.Body.Text, Verdict: v.String(), FileForm: v.FileForm, Globs: v.Globs, Affected: v.Affected, AffectedDir: dir}
+	g := Gate{Label: label(kinds, e.File+": "+e.Name, b.rel(dir)), Kinds: kinds, Dir: dir, Env: env, Body: e.Body.Text, Verdict: v.String(), FileForm: v.FileForm, Globs: v.Globs, Affected: v.Affected, AffectedDir: dir, Entry: gapfill.Key(e), CoveredBy: v.CoveredBy}
 	g.FanOut = b.fansOut(cmp.Or(g.Affected, g.Body))
 	return g
 }

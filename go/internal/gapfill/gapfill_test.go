@@ -395,6 +395,45 @@ func TestVerification(t *testing.T) {
 	}
 }
 
+// covered_by holds only for a check whose coverer is another verified check
+// of the same kind in the same directory, itself covered by nothing.
+func TestCoveredByNeedsACheckOfTheSameKind(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t, "")
+	broad := entry("a11y", "A11Y=true vitest run --project=storybook")
+	narrow := entry("stories", "vitest --project=storybook")
+	otherKind := entry("lint", "eslint .")
+	wrongKind := entry("types", "tsc --noEmit")
+	missing := entry("unit", "vitest run")
+	chained := entry("smoke", "vitest run --project=storybook --bail")
+	sub := sources.Entry{Source: "package-scripts", File: "packages/a/package.json", Name: "stories", Dir: "packages/a", Body: sources.Body{Text: "vitest --project=storybook"}}
+	test := func(coveredBy string) map[string]any {
+		v := map[string]any{"role": "check", "kind": "test", "mutates": false}
+		if coveredBy != "" {
+			v["covered_by"] = coveredBy
+		}
+		return v
+	}
+	f.answer(map[string]any{"entries": []any{
+		verdict(broad, test("")),
+		verdict(narrow, test(Key(broad))),
+		verdict(otherKind, map[string]any{"role": "check", "kind": "lint", "mutates": false}),
+		verdict(wrongKind, map[string]any{"role": "check", "kind": "typecheck", "mutates": false, "covered_by": Key(otherKind)}),
+		verdict(missing, test("no-such-id")),
+		verdict(chained, test(Key(narrow))),
+		verdict(sub, test(Key(broad))),
+	}, "managers": []any{}, "proposals": []any{}})
+	r := f.run(broad, narrow, otherKind, wrongKind, missing, chained, sub)
+	if got := r.Verdicts[Key(narrow)].CoveredBy; got != Key(broad) {
+		t.Errorf("a test covered by a broader test in its dir: %q", got)
+	}
+	for name, e := range map[string]sources.Entry{"another kind": wrongKind, "an unknown id": missing, "a covered coverer": chained, "another dir": sub} {
+		if v, ok := r.Verdicts[Key(e)]; !ok || v.CoveredBy != "" {
+			t.Errorf("covered by %s: the claim goes, the verdict stays: %+v", name, v)
+		}
+	}
+}
+
 // deny_flags hold for checks: their bodies, segments, and forms. A fixer
 // may set one.
 func TestADenyFlagRejectsACheckButNotAFixer(t *testing.T) {

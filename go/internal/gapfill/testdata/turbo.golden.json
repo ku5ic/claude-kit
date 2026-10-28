@@ -3,7 +3,12 @@
   "structured_output": {
     "entries": [
       {
-        "id": "06d1ae81b53fc240",
+        "id": "1a24649547e260e6",
+        "role": "build",
+        "mutates": false
+      },
+      {
+        "id": "266b71435b365530",
         "role": "check",
         "kind": "lint",
         "mutates": false,
@@ -13,56 +18,53 @@
         ]
       },
       {
-        "id": "39fb79eb4f2403d0",
+        "id": "2a2ed2d4503c3981",
+        "role": "check",
+        "kind": "lint",
+        "mutates": false,
+        "affected_form": "turbo run lint --filter=...[{base}]",
+        "covered_by": "5016c4f8e0754cbe"
+      },
+      {
+        "id": "4d21d55fd4b9b5db",
         "role": "check",
         "kind": "test",
         "mutates": false,
-        "affected_form": "turbo run test --filter=...[{base}]"
+        "affected_form": "turbo run test --filter=...[{base}]",
+        "covered_by": "8bef695d26274ad0"
       },
       {
-        "id": "4116cc69c378fa7b",
+        "id": "5016c4f8e0754cbe",
         "role": "check",
         "kind": "lint",
         "mutates": false,
         "affected_form": "turbo run lint --filter=...[{base}]"
       },
       {
-        "id": "728fe266bebc741c",
+        "id": "65e40f2a583a2fa3",
+        "role": "build",
+        "mutates": false
+      },
+      {
+        "id": "8bef695d26274ad0",
         "role": "check",
         "kind": "test",
         "mutates": false,
         "affected_form": "turbo run test --filter=...[{base}]"
       },
       {
-        "id": "75e798f995bb6d83",
-        "role": "check",
-        "kind": "lint",
-        "mutates": false,
-        "affected_form": "turbo run lint --filter=...[{base}]"
-      },
-      {
-        "id": "78bb5114a4d161b0",
+        "id": "b4c4628a3478caac",
         "role": "build",
         "mutates": false
       },
       {
-        "id": "97077411bb20430f",
-        "role": "build",
-        "mutates": false
-      },
-      {
-        "id": "c70f78637af98a7d",
-        "role": "build",
-        "mutates": false
-      },
-      {
-        "id": "d4c9ecc783d9d211",
+        "id": "de45462e621bf436",
         "role": "check",
         "kind": "test",
         "mutates": false,
         "file_form": "vitest run {files}",
         "globs": [
-          "**/*.{test,spec}.{js,jsx,ts,tsx,mjs,cjs,mts,cts}"
+          "**/*.{test,spec}.?(c|m)[jt]s?(x)"
         ],
         "affected_form": "vitest run --changed={base}"
       }
@@ -91,10 +93,10 @@
       {
         "role": "check",
         "kind": "lint",
-        "command": "pnpm exec eslint --max-warnings 0 .",
+        "command": "pnpm exec eslint --max-warnings 0 {files}",
         "file_form": "pnpm exec eslint --max-warnings 0 {files}",
         "globs": [
-          "**/*.js"
+          "**/*.{js,mjs,cjs,jsx,ts,tsx}"
         ],
         "dir": "packages/a",
         "evidence": "packages/a/eslint.config.js"
@@ -112,8 +114,8 @@
         "command": "pnpm exec vitest run",
         "file_form": "pnpm exec vitest run {files}",
         "globs": [
-          "**/*.test.js",
-          "**/*.spec.js"
+          "**/*.test.{js,mjs,cjs,jsx,ts,tsx}",
+          "**/*.spec.{js,mjs,cjs,jsx,ts,tsx}"
         ],
         "dir": "packages/a",
         "evidence": "packages/a/package.json"

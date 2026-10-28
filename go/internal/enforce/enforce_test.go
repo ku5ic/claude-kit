@@ -184,6 +184,19 @@ func TestTurboAndNxRunTheirAffectedForms(t *testing.T) {
 	has(t, e.plan(), "RUN lint (turbo.json: lint)\n  cmd: turbo run lint --filter=...[{base}]\n", "RUN test (nx.json: test)\n  cmd: nx affected -t test --base={base}\n")
 }
 
+// A check another one covers is skipped, naming the one that runs.
+func TestACoveredCheckIsSkipped(t *testing.T) {
+	e := setup(t)
+	e.tool("node_modules/.bin/vitest")
+	e.tool(filepath.Join(e.path, "npm"))
+	e.write("package.json", `{"scripts":{"stories":"vitest --project=storybook","a11y":"A11Y=true vitest run --project=storybook"}}`)
+	a11y := sources.Entry{Source: "package-scripts", File: "package.json", Dir: ".", Name: "a11y", Body: sources.Body{Text: "A11Y=true vitest run --project=storybook"}}
+	e.check("a11y", check("test"))
+	e.check("stories", map[string]any{"role": "check", "kind": "test", "covered_by": gapfill.Key(a11y)})
+	p := e.plan()
+	has(t, p, "RUN test (package.json: a11y)\n", "SKIP test (package.json: stories) (covered by test (package.json: a11y))\n")
+}
+
 // A scoped plan runs a task's affected form, a single-kind lint or format
 // check's file form on the changed files it covers, and anything else whole;
 // git's list of changed files leaves out what any of its ignore files do.

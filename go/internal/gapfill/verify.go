@@ -2,6 +2,7 @@ package gapfill
 
 import (
 	"fmt"
+	"maps"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -56,6 +57,7 @@ func verify(cfg *config.Config, root string, entries []sources.Entry, s store, f
 		}
 		r.Verdicts[key] = v
 	}
+	r.Dropped = append(r.Dropped, coverage(entries, r.Verdicts)...)
 	for _, p := range s.Proposals {
 		if err := at(p.Dir).proposal(p); err != nil {
 			r.Dropped = append(r.Dropped, fmt.Sprintf("proposal %q: %v", p.Command, err))
@@ -67,6 +69,47 @@ func verify(cfg *config.Config, root string, entries []sources.Entry, s store, f
 		r.Proposals = append(r.Proposals, p)
 	}
 	return r
+}
+
+// coverage drops each covered_by claim but one naming another verified check
+// of the same kind in the same directory that claims no coverer of its own:
+// a wrong claim drops a check from the gate, so anything less goes. It
+// returns what it dropped.
+func coverage(entries []sources.Entry, verdicts map[string]Verdict) []string {
+	byKey := map[string]sources.Entry{}
+	for _, e := range entries {
+		byKey[Key(e)] = e
+	}
+	// Judged against the claims as answered, so the order verdicts are
+	// visited in never changes the outcome.
+	claims := map[string]string{}
+	for key, v := range verdicts {
+		if v.CoveredBy != "" {
+			claims[key] = v.CoveredBy
+		}
+	}
+	var dropped []string
+	for _, key := range slices.Sorted(maps.Keys(claims)) {
+		v, e := verdicts[key], byKey[key]
+		coverer, verified := verdicts[v.CoveredBy]
+		var why string
+		switch {
+		case !verified:
+			why = "no verified entry has that id"
+		case v.Role != "check" || v.Kind == "" || coverer.Role != "check" || coverer.Kind != v.Kind:
+			why = "not a check of the same kind"
+		case byKey[v.CoveredBy].Dir != e.Dir:
+			why = "in another directory"
+		case claims[v.CoveredBy] != "":
+			why = "its coverer claims a coverer too"
+		default:
+			continue
+		}
+		dropped = append(dropped, e.Source+" "+e.Name+": covered_by: "+why)
+		v.CoveredBy = ""
+		verdicts[key] = v
+	}
+	return dropped
 }
 
 // denied is the deny_commands token e's body holds, "" when none.

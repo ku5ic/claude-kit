@@ -23,29 +23,8 @@
       {
         "role": "check",
         "kind": "lint",
-        "command": "poetry run ruff check",
+        "command": "poetry run ruff check .",
         "file_form": "poetry run ruff check {files}",
-        "globs": [
-          "**/*.py"
-        ],
-        "dir": ".",
-        "evidence": "pyproject.toml"
-      },
-      {
-        "role": "check",
-        "kind": "format-check",
-        "command": "poetry run ruff format --check",
-        "file_form": "poetry run ruff format --check {files}",
-        "globs": [
-          "**/*.py"
-        ],
-        "dir": ".",
-        "evidence": "pyproject.toml"
-      },
-      {
-        "role": "fixer",
-        "command": "poetry run ruff format",
-        "file_form": "poetry run ruff format {files}",
         "globs": [
           "**/*.py"
         ],
@@ -63,6 +42,32 @@
         "role": "check",
         "kind": "test",
         "command": "poetry run pytest",
+        "file_form": "poetry run pytest {files}",
+        "globs": [
+          "**/test_*.py",
+          "**/*_test.py"
+        ],
+        "dir": ".",
+        "evidence": "pyproject.toml"
+      },
+      {
+        "role": "check",
+        "kind": "format-check",
+        "command": "poetry run ruff format --check .",
+        "file_form": "poetry run ruff format --check {files}",
+        "globs": [
+          "**/*.py"
+        ],
+        "dir": ".",
+        "evidence": "pyproject.toml"
+      },
+      {
+        "role": "fixer",
+        "command": "poetry run ruff format .",
+        "file_form": "poetry run ruff format {files}",
+        "globs": [
+          "**/*.py"
+        ],
         "dir": ".",
         "evidence": "pyproject.toml"
       }
