@@ -85,13 +85,42 @@ func Statements(body string) (stmts []string, ok bool) {
 	return stmts, true
 }
 
+// GitSubcommand splits git's words past its global options: the
+// subcommand, its arguments, and the -C directory.
+func GitSubcommand(words []string) (sub string, args []string, dir string) {
+	for i := 0; i < len(words); {
+		w := words[i]
+		switch {
+		case w == "-C":
+			if i+1 < len(words) {
+				dir = words[i+1]
+			}
+			i += 2
+		case slices.Contains([]string{"-c", "--git-dir", "--work-tree", "--namespace", "--config-env", "--super-prefix"}, w):
+			i += 2
+		case strings.HasPrefix(w, "-"):
+			i++
+		default:
+			return w, words[i+1:], dir
+		}
+	}
+	return "", nil, dir
+}
+
 // Calls is every simple command body runs, as its literal words, in order:
 // inside pipes, lists, subshells, and command substitutions too, with
 // wrappers and the assignments after them dropped, and a find -exec or
 // xargs target listed after its command. A command whose first word isn't
 // literal is ["$"]; shell builtins aren't listed. ok is false when body
 // doesn't parse.
-func Calls(body string) (calls [][]string, ok bool) {
+func Calls(body string) (calls [][]string, ok bool) { return walkCalls(body, false) }
+
+// Words is Calls with a word that isn't literal kept as "$" instead of
+// ending its command's words: enough to read what a command does past a
+// variable argument, never to resolve what it runs.
+func Words(body string) (calls [][]string, ok bool) { return walkCalls(body, true) }
+
+func walkCalls(body string, keepVariables bool) (calls [][]string, ok bool) {
 	file, err := parse(body)
 	if err != nil {
 		return nil, false
@@ -105,7 +134,11 @@ func Calls(body string) (calls [][]string, ok bool) {
 		for _, w := range call.Args {
 			v, literal := literal(w)
 			if !literal {
-				break
+				// A command named by a variable stays ["$"].
+				if !keepVariables || len(words) == 0 {
+					break
+				}
+				v = "$"
 			}
 			words = append(words, v)
 		}

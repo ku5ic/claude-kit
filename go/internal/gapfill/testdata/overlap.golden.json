@@ -1,0 +1,97 @@
+{
+  "is_error": false,
+  "structured_output": {
+    "entries": [
+      {
+        "id": "1a30667797cd5796",
+        "role": "check",
+        "kind": "lint",
+        "mutates": false,
+        "file_form": "eslint {files}",
+        "globs": [
+          "**/*.{js,jsx,ts,tsx,mjs,cjs}"
+        ]
+      },
+      {
+        "id": "40a7cd052b3199fd",
+        "role": "check",
+        "kind": "test",
+        "mutates": false,
+        "file_form": "A11Y=true vitest run --project=storybook --silent=passed-only {files}",
+        "globs": [
+          "**/*.stories.{js,jsx,ts,tsx}"
+        ],
+        "affected_form": "A11Y=true vitest run --project=storybook --silent=passed-only --changed={base}"
+      },
+      {
+        "id": "5fc382155af418a7",
+        "role": "check",
+        "kind": "test",
+        "mutates": false,
+        "file_form": "vitest --project=storybook {files}",
+        "globs": [
+          "**/*.stories.{js,jsx,ts,tsx}"
+        ],
+        "affected_form": "vitest --project=storybook --changed={base}",
+        "covered_by": "40a7cd052b3199fd"
+      },
+      {
+        "id": "7570ff6eafd0c265",
+        "role": "check",
+        "kind": "test",
+        "mutates": false,
+        "file_form": "jest {files}",
+        "globs": [
+          "**/*.{test,spec}.{js,jsx,ts,tsx}"
+        ],
+        "affected_form": "jest --changedSince={base}"
+      }
+    ],
+    "managers": [
+      {
+        "dir": ".",
+        "cites": "pnpm-lock.yaml",
+        "manager": "pnpm",
+        "run_prefix": "pnpm exec",
+        "add_verbs": [
+          "pnpm add"
+        ],
+        "dlx": "pnpm dlx",
+        "dir_flags": [
+          "--filter",
+          "-C"
+        ],
+        "rivals": [
+          "npm",
+          "yarn"
+        ]
+      }
+    ],
+    "proposals": [
+      {
+        "role": "check",
+        "kind": "lint",
+        "command": "pnpm exec eslint . --max-warnings=0",
+        "file_form": "pnpm exec eslint {files} --max-warnings=0",
+        "globs": [
+          "**/*.js",
+          "**/*.jsx",
+          "**/*.mjs",
+          "**/*.cjs",
+          "**/*.ts",
+          "**/*.tsx"
+        ],
+        "dir": ".",
+        "evidence": "package.json (devDependency eslint ^9.12.0 and the \"lint\" script)"
+      },
+      {
+        "role": "check",
+        "kind": "test",
+        "command": "pnpm exec jest",
+        "dir": ".",
+        "evidence": "package.json (devDependency jest ^29.7.0 and the \"test\" script)"
+      }
+    ]
+  },
+  "subtype": "success"
+}

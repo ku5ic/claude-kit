@@ -284,3 +284,71 @@ func TestRunRemovesAReviewWorktreeOlderThanADay(t *testing.T) {
 		})
 	}
 }
+
+// A project scratch dir loses the folders the run left empty, deepest
+// first, when they're past the window by their mtime before the run: never
+// the scratch dir itself, a fresh folder, or a nested checkout.
+func TestRunRemovesEmptyProjectFolders(t *testing.T) {
+	tests := []struct {
+		name   string
+		files  map[string]time.Duration // under the scratch dir
+		dirs   map[string]time.Duration // aged after the files
+		dryRun bool
+		gone   []string
+		kept   []string
+		logged []string // rotate log lines, the scratch dir as $S
+	}{
+		{name: "nested empty folders go bottom-up, and the scratch dir stays",
+			dirs: map[string]time.Duration{"a": 40 * day, "a/b": 40 * day, "a/b/c": 40 * day},
+			gone: []string{"a"}, kept: []string{"."},
+			logged: []string{"deleted $S/a/b/c\n", "deleted $S/a/b\n", "deleted $S/a\n"}},
+		{name: "a folder whose only file this run prunes goes in the same run",
+			files: map[string]time.Duration{"d/old.py": 40 * day},
+			dirs:  map[string]time.Duration{"d": 40 * day},
+			gone:  []string{"d"}},
+		{name: "a dry run removes nothing and logs what it would",
+			files:  map[string]time.Duration{"d/old.py": 40 * day},
+			dirs:   map[string]time.Duration{"d": 40 * day},
+			dryRun: true,
+			kept:   []string{"d/old.py"},
+			logged: []string{"would-delete $S/d/old.py\n", "would-delete $S/d\n"}},
+		{name: "a folder holding a fresh file stays",
+			files: map[string]time.Duration{"e/new.py": time.Hour},
+			dirs:  map[string]time.Duration{"e": 40 * day},
+			kept:  []string{"e/new.py"}},
+		{name: "a fresh empty folder stays",
+			dirs: map[string]time.Duration{"f": time.Hour},
+			kept: []string{"f"}},
+		{name: "a nested checkout is never entered or removed",
+			files: map[string]time.Duration{"g/.git": 40 * day},
+			dirs:  map[string]time.Duration{"g": 40 * day},
+			kept:  []string{"g/.git"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			home := physicalTemp(t)
+			t.Setenv("HOME", home)
+			paths := kitHome(t, home)
+			scratch := filepath.Join(home, "proj", "scratch")
+			testutil.Mkdir(t, scratch)
+			for rel := range tt.dirs {
+				testutil.Mkdir(t, filepath.Join(scratch, rel))
+			}
+			for rel, age := range tt.files {
+				touch(t, scratch, rel, age)
+			}
+			for rel, age := range tt.dirs {
+				testutil.Age(t, age, filepath.Join(scratch, rel))
+			}
+			testutil.Put(t, paths.LogDir(), "scratch-registry.txt", scratch+"\n")
+
+			var stdout, stderr strings.Builder
+			if code := Run(paths, 30, tt.dryRun, &stdout, &stderr); code != 0 || stderr.Len() > 0 {
+				t.Fatalf("exit %d, stderr %q", code, stderr.String())
+			}
+			wantFiles(t, scratch, tt.gone, tt.kept)
+			data, _ := os.ReadFile(filepath.Join(paths.LogDir(), "scratch-rotate.log"))
+			testutil.Has(t, strings.ReplaceAll(string(data), scratch, "$S"), tt.logged...)
+		})
+	}
+}

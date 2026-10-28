@@ -148,4 +148,9 @@ func TestCommandPutsEachFileInItsWord(t *testing.T) {
 			t.Errorf("%q: %s, want %s", tt.body, got, tt.want)
 		}
 	}
+	// A file named like a flag stays a file.
+	g = Gate{Dir: root, Body: "prettier --check {files}", Files: []string{root + "/--write.ts"}}
+	if got, want := g.Command(), "prettier --check ./--write.ts"; got != want {
+		t.Errorf("a dash-led file: %s, want %s", got, want)
+	}
 }

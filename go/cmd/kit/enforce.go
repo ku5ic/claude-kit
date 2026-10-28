@@ -23,12 +23,12 @@ const exitUnclassified = 125
 // runs, exiting with the failure count, or exitUnclassified when nothing
 // failed but an entry has no verdict.
 func runGates(e *env, cfg *config.Config, root string, a runChecksArgs) int {
-	p := enforce.Build(cfg, enforce.Options{Root: root, CacheDir: e.paths.CacheDir(), Only: a.only, Ask: true, Timeout: classifyTimeout})
+	p := enforce.Build(cfg, enforce.Options{Root: root, CacheDir: e.paths.CacheDir(), Only: a.only, Ask: true, Timeout: gapfill.ClassifyTimeout, Changed: !a.all})
 	if a.plan {
 		p.Print(e.stdout)
 		return 0
 	}
-	switch r := gaterun.Gates(p, e.paths.CacheDir(), e.stdout); {
+	switch r, _ := gaterun.Gates(p, e.paths.CacheDir(), e.stdout, time.Time{}); {
 	case r.Fail > 0:
 		return min(r.Fail, exitUnclassified-1)
 	case p.Unclassified > 0:
@@ -71,9 +71,6 @@ func cmdGates(e *env, args []string) int {
 	return 0
 }
 
-// classifyTimeout caps a foreground gap-fill run, waiting included.
-const classifyTimeout = 60 * time.Second
-
 func cmdEnforce(e *env, cfg *config.Config, args []string) int {
 	if len(args) != 1 || args[0] != "--list" && args[0] != "classify" {
 		fmt.Fprintln(e.stderr, "usage: kit enforce --list | classify")
@@ -87,7 +84,7 @@ func cmdEnforce(e *env, cfg *config.Config, args []string) int {
 		}
 		return 0
 	}
-	r := gapfill.Run(cfg, gapfill.Options{Root: root, CacheDir: e.paths.CacheDir(), Entries: entries, Ask: true, Timeout: classifyTimeout})
+	r := gapfill.Run(cfg, gapfill.Options{Root: root, CacheDir: e.paths.CacheDir(), Entries: entries, Ask: true, Timeout: gapfill.ClassifyTimeout})
 	for _, entry := range entries {
 		key := gapfill.Key(entry)
 		answer := r.Skipped[key]

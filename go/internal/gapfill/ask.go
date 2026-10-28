@@ -35,8 +35,11 @@ const budgetUSD = "0.50"
 // proposals too: the project changed since they were answered.
 type request struct {
 	Entries []sources.Entry
-	View    view
-	Facts   bool
+	// Others are the project's entries outside Entries, in their
+	// directories, sent unasked so covered_by can name one.
+	Others []sources.Entry
+	View   view
+	Facts  bool
 }
 
 func (r request) MarshalJSON() ([]byte, error) {
@@ -51,17 +54,22 @@ func (r request) MarshalJSON() ([]byte, error) {
 		Files     []string `json:"files,omitempty"`
 		PassFiles bool     `json:"pass_files,omitempty"`
 	}
-	entries := []entry{}
-	for _, e := range r.Entries {
-		entries = append(entries, entry{Key(e), e.Source, e.File, e.Name, e.Dir, e.Stage, e.Command(), e.Files, e.PassFiles})
+	encode := func(es []sources.Entry) []entry {
+		out := []entry{}
+		for _, e := range es {
+			out = append(out, entry{Key(e), e.Source, e.File, e.Name, e.Dir, e.Stage, e.Command(), e.Files, e.PassFiles})
+		}
+		return out
 	}
+	entries, others := encode(r.Entries), encode(r.Others)
 	return json.Marshal(struct {
 		Entries      []entry           `json:"entries"`
+		Others       []entry           `json:"other_entries"`
 		Facts        bool              `json:"ask_project_facts"`
 		Files        []string          `json:"files"`
 		Contents     map[string]string `json:"contents"`
 		LockfileDirs []lockDir         `json:"lockfile_dirs"`
-	}{entries, r.Facts, r.View.Files, r.View.Contents, r.View.LockfileDirs})
+	}{entries, others, r.Facts, r.View.Files, r.View.Contents, r.View.LockfileDirs})
 }
 
 // response is the classifier's structured answer.
@@ -143,7 +151,7 @@ func schema() string {
 		"entries": array(object([]string{"id", "role", "mutates"}, map[string]any{
 			"id": str, "role": role, "kind": kind, "mutates": map[string]any{"type": "boolean"},
 			"segments":  array(object([]string{"text", "role"}, map[string]any{"text": str, "role": role, "kind": kind})),
-			"file_form": str, "globs": list, "affected_form": str,
+			"file_form": str, "globs": list, "affected_form": str, "covered_by": str,
 		})),
 		"managers": array(object([]string{"dir", "cites", "manager", "run_prefix", "add_verbs", "dlx", "dir_flags", "rivals"}, map[string]any{
 			"dir": str, "cites": str, "manager": str, "run_prefix": str, "add_verbs": list, "dlx": str, "dir_flags": list, "rivals": list,

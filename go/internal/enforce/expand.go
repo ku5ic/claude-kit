@@ -1,7 +1,6 @@
 package enforce
 
 import (
-	"cmp"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -53,7 +52,8 @@ func (b *builder) plan(e sources.Entry, v gapfill.Verdict, dir string, env []str
 }
 
 // reference plans the task p runs: its own parts when it splits into more
-// than one, else p as written, or the task's affected form when it has one.
+// than one, else p as written, with the task's affected form when it has
+// one.
 func (b *builder) reference(p part, depth int) {
 	t := *p.task
 	v, _ := b.verdict(t)
@@ -63,19 +63,18 @@ func (b *builder) reference(p part, depth int) {
 			return
 		}
 	}
-	g := Gate{Label: label(p.kinds, t.File+": "+t.Name, b.rel(p.dir)), Kinds: p.kinds, Dir: p.dir, Env: p.env, Body: p.text, Verdict: v.String(), FileForm: v.FileForm, Globs: v.Globs}
-	if v.Affected != "" {
-		g.Dir, g.Body = filepath.Join(b.root, t.Dir), v.Affected
-	}
-	g.FanOut = b.fansOut(g.Body)
+	g := verdictGate(t, v, p.dir)
+	g.Label, g.Kinds, g.Env, g.Body = label(p.kinds, t.File+": "+t.Name, b.rel(p.dir)), p.kinds, p.env, p.text
+	g.AffectedDir, g.FanOut = filepath.Join(b.root, t.Dir), b.fansOut(g.Body)
 	b.add(g)
 }
 
-// entryGate is e's body run whole in dir: its affected form when it has
-// one, labeled with every kind it checks.
+// entryGate is e's body run whole in dir, with its affected form when it
+// has one, labeled with every kind it checks.
 func (b *builder) entryGate(e sources.Entry, v gapfill.Verdict, dir string, env []string) Gate {
 	kinds := b.taskKinds(e, v, 0)
-	g := Gate{Label: label(kinds, e.File+": "+e.Name, b.rel(dir)), Kinds: kinds, Dir: dir, Env: env, Body: cmp.Or(v.Affected, e.Body.Text), Verdict: v.String(), FileForm: v.FileForm, Globs: v.Globs}
+	g := verdictGate(e, v, dir)
+	g.Label, g.Kinds, g.Env, g.Body = label(kinds, e.File+": "+e.Name, b.rel(dir)), kinds, env, e.Body.Text
 	g.FanOut = b.fansOut(g.Body)
 	return g
 }

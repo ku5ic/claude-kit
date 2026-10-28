@@ -33,8 +33,12 @@ func marksFile(cacheDir, root string) string {
 	return filepath.Join(cacheDir, cache.Enforce, cache.RootKey(root)+".mutated.json")
 }
 
-// key names g among root's gates: where it runs and what it runs.
+// key names g among root's gates: where it runs and what it runs, as
+// planned whole.
 func (g Gate) key(root string) string {
+	if g.markKey != "" {
+		return g.markKey
+	}
 	sum := sha256.Sum256([]byte(fsx.Rel(root, g.Dir) + "\x00" + g.Body))
 	return hex.EncodeToString(sum[:8])
 }

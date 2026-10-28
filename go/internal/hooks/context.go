@@ -161,7 +161,7 @@ func dirtyCount(root string) string {
 }
 
 // guidance follows the gates when gap-fill has verified a package manager.
-const guidance = "Run each directory's scripts through the package manager <repo-context> names for it, prefer these commands and kit run-checks over direct tool invocation, and never substitute a different package manager."
+const guidance = "Run each directory's scripts through the package manager <repo-context> names for it, prefer these commands over direct tool invocation, and never substitute a different package manager."
 
 // tooling is the <tooling> block: what kit run-checks runs, planned from
 // the gap-fill cache (a session start never waits on the classifier), then

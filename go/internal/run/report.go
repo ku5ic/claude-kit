@@ -3,14 +3,16 @@ package run
 import (
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/enforce"
 )
 
-// Result counts a run's verdicts.
-type Result struct{ Pass, Fail, Skip int }
+// Result counts a run's verdicts; Cut counts the skips the deadline cut
+// short, which leave the run incomplete.
+type Result struct{ Pass, Fail, Skip, Cut int }
 
-// String is the summary line Summary matches.
+// String is the summary line a run ends with.
 func (res Result) String() string {
 	return fmt.Sprintf("checks: %d passed, %d failed, %d skipped", res.Pass, res.Fail, res.Skip)
 }
@@ -23,11 +25,24 @@ type reporter struct {
 	report   io.Writer
 	failures io.Writer
 	res      Result
+	verdicts []string // each gate's verdict line, for the user's notice
+}
+
+// notice is the run for the user: what ran it, the summary, then each
+// gate's verdict line under it, never a failure's detail.
+func (r *reporter) notice(by string) string {
+	return by + " " + r.res.String() + strings.Join(r.verdicts, "")
+}
+
+// verdict writes line to the report and keeps it for the notice.
+func (r *reporter) verdict(line string) {
+	fmt.Fprint(r.report, line)
+	r.verdicts = append(r.verdicts, "\n  "+strings.TrimSuffix(line, "\n"))
 }
 
 func (r *reporter) skip(label, why string) {
 	line := fmt.Sprintf("SKIP %s (%s)\n", label, why)
-	fmt.Fprint(r.report, line)
+	r.verdict(line)
 	if r.failures != nil {
 		// In a block's message too, so the skipped count has its reasons.
 		fmt.Fprint(r.failures, line)
@@ -35,17 +50,23 @@ func (r *reporter) skip(label, why string) {
 	r.res.Skip++
 }
 
+// cut skips label for the deadline.
+func (r *reporter) cut(label string) {
+	r.skip(label, "no time left in the hook's budget")
+	r.res.Cut++
+}
+
 func (r *reporter) pass(label, note string) {
 	if note != "" {
 		label += " (" + note + ")"
 	}
-	fmt.Fprintf(r.report, "PASS %s\n", label)
+	r.verdict(fmt.Sprintf("PASS %s\n", label))
 	r.res.Pass++
 }
 
 // fail writes g's FAIL line, then what it ran and detail under it.
 func (r *reporter) fail(g enforce.Gate, detail string) {
-	fmt.Fprintf(r.report, "FAIL %s\n", g.Label)
+	r.verdict(fmt.Sprintf("FAIL %s\n", g.Label))
 	described := r.report
 	if r.failures != nil {
 		described = r.failures

@@ -20,7 +20,7 @@ This command names no specific package manager, lockfile, or manifest.
 - Do not detect the stack.
 - Do not re-list lockfiles.
 - Do not hardcode any tool's syntax.
-- All check-running goes through `kit run-checks`.
+- Never run checks locally: a PR's CI (`gh pr checks`) is its gate.
 
 ## Preconditions
 
@@ -101,15 +101,13 @@ Present a table: severity, package, ecosystem, scope, relationship, current -> f
 
 ## Phase 4: verify then merge
 
-Never merge on GitHub mergeability alone. Verify each candidate first.
+Never merge on GitHub mergeability alone. The PR's CI is its gate.
 
 Per candidate, in turn:
 
-1. Check the PR out here or in a worktree, per `rules/workflow.md` section 1. Ask once per run, not per PR.
-2. Reinstall against the PR's lockfile using the injected manager's reproducible (frozen/locked) install mode.
-3. Run `kit run-checks` with Bash, timed per `rules/tooling.md` section 2. On a non-zero failed count: do not merge, record the failing label, leave the PR open, move on.
-4. On pass: merge with the project's convention (read recent merges). Default `gh pr merge <n> --squash --delete-branch`.
-5. After each merge, return to base and pull before the next PR. Re-check mergeability; a merge can newly conflict a sibling.
+1. Wait for the PR's CI: `gh pr checks <n> --watch`. On any failing or missing check: do not merge, record the failing check, leave the PR open, move on.
+2. On pass: merge with the project's convention (read recent merges). Default `gh pr merge <n> --squash --delete-branch`.
+3. After each merge, re-check the next PR's mergeability; a merge can newly conflict a sibling.
 
 Process priority-tier alerts first.
 

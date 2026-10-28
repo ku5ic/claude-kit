@@ -14,18 +14,34 @@ func TestCalls(t *testing.T) {
 		"env FOO=1 eslint . && (cd web && npm test)":                                             "eslint . | npm test",
 		"$RUNNER test": "$",
 	} {
-		calls, ok := Calls(body)
-		var got []string
-		for _, c := range calls {
-			got = append(got, strings.Join(c, " "))
-		}
-		if !ok || strings.Join(got, " | ") != want {
-			t.Errorf("%q: got %q (ok %v), want %q", body, got, ok, want)
+		if calls, ok := Calls(body); !ok || flat(calls) != want {
+			t.Errorf("%q: got %q (ok %v), want %q", body, flat(calls), ok, want)
 		}
 	}
 	if _, ok := Calls("if then"); ok {
 		t.Error("a body that doesn't parse is not ok")
 	}
+}
+
+// Words reads past a variable argument; Calls stops at it.
+func TestWordsKeepAVariableArgument(t *testing.T) {
+	t.Parallel()
+	body := `git -C "$REPO" worktree add /tmp/r && $RUNNER test`
+	if calls, _ := Calls(body); flat(calls) != "git -C | $" {
+		t.Errorf("Calls: got %q", flat(calls))
+	}
+	if calls, _ := Words(body); flat(calls) != "git -C $ worktree add /tmp/r | $" {
+		t.Errorf("Words: got %q", flat(calls))
+	}
+}
+
+// flat is calls as one line: each call's words, calls joined by " | ".
+func flat(calls [][]string) string {
+	var out []string
+	for _, c := range calls {
+		out = append(out, strings.Join(c, " "))
+	}
+	return strings.Join(out, " | ")
 }
 
 func TestStatements(t *testing.T) {

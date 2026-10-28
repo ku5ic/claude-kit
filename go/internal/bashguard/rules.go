@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/ku5ic/claude-kit/go/internal/classify"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 )
 
@@ -173,10 +174,15 @@ func (c *command) check() error {
 	case "eval":
 		return c.block("eval runs a command string that bypasses the permission allow list; run the command directly as a Bash tool call", "interpreter-c-wrap")
 	case "kit":
-		// An explicit ask: with no decision, a Bash(kit git-base *) allow
-		// rule would approve --output=<file> silently.
-		if words := strings.Fields(c.rest); len(words) > 0 && words[0] == "git-base" && !gitBaseFlagsSafe(words[1:]) {
+		words := strings.Fields(c.rest)
+		switch {
+		case len(words) == 0:
+		case words[0] == "git-base" && !gitBaseFlagsSafe(words[1:]):
+			// An explicit ask: with no decision, a Bash(kit git-base *) allow
+			// rule would approve --output=<file> silently.
 			c.st.ask("kit git-base passes this flag to git, which can write files or run programs; confirm it")
+		case words[0] == "run-checks" && !slices.Contains(words[1:], "--plan"):
+			return c.block("the hooks run the gates and show the user every result; don't run them yourself (kit run-checks --plan only lists them)", "run-checks-by-hook")
 		}
 	case "sed", "sd":
 		return c.inPlaceEdit()
@@ -204,7 +210,7 @@ func (c *command) check() error {
 func (c *command) readOperands() []string {
 	name, ops := c.name, c.operands()
 	if name == "git" {
-		sub, args, _ := gitSubcommand(c.values())
+		sub, args, _ := classify.GitSubcommand(c.values())
 		if !gitPrinters[sub] {
 			return nil
 		}
@@ -425,30 +431,8 @@ func (c *command) chmod() error {
 	return nil
 }
 
-// gitSubcommand splits git's words past its global options: the
-// subcommand, its arguments, and the -C directory.
-func gitSubcommand(words []string) (sub string, args []string, dir string) {
-	for i := 0; i < len(words); {
-		w := words[i]
-		switch {
-		case w == "-C":
-			if i+1 < len(words) {
-				dir = words[i+1]
-			}
-			i += 2
-		case slices.Contains([]string{"-c", "--git-dir", "--work-tree", "--namespace", "--config-env", "--super-prefix"}, w):
-			i += 2
-		case strings.HasPrefix(w, "-"):
-			i++
-		default:
-			return w, words[i+1:], dir
-		}
-	}
-	return "", nil, dir
-}
-
 func (c *command) git() error {
-	sub, args, dir := gitSubcommand(c.values())
+	sub, args, dir := classify.GitSubcommand(c.values())
 	has := func(arg string) bool { return slices.Contains(args, arg) }
 
 	switch sub {

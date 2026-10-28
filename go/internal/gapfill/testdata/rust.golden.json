@@ -36,13 +36,17 @@
       {
         "role": "check",
         "kind": "format-check",
-        "command": "cargo fmt --check",
+        "command": "cargo fmt --check -- {files}",
+        "file_form": "cargo fmt --check -- {files}",
+        "globs": [
+          "**/*.rs"
+        ],
         "dir": ".",
         "evidence": "Cargo.toml"
       },
       {
         "role": "fixer",
-        "command": "cargo fmt",
+        "command": "cargo fmt -- {files}",
         "file_form": "cargo fmt -- {files}",
         "globs": [
           "**/*.rs"

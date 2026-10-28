@@ -31,7 +31,11 @@ import (
 const Guard = "KIT_CLASSIFIER"
 
 // promptVersion is part of every cache key: a changed prompt asks again.
-const promptVersion = "10"
+const promptVersion = "12"
+
+// ClassifyTimeout caps a foreground run that asks the classifier, waiting
+// included.
+const ClassifyTimeout = 60 * time.Second
 
 // batchSize caps the entries one classifier call answers.
 const batchSize = 8
@@ -51,6 +55,9 @@ type Verdict struct {
 	FileForm string    `json:"file_form,omitempty"`
 	Globs    []string  `json:"globs,omitempty"`
 	Affected string    `json:"affected_form,omitempty"`
+	// CoveredBy is the key of a check of the same kind, in the same
+	// directory, whose run already does this one's.
+	CoveredBy string `json:"covered_by,omitempty"`
 }
 
 // String is v in one line: role:kind, then what else it says.
@@ -240,8 +247,15 @@ func ask(cfg *config.Config, o Options, p view, file string, s store) (_ store, 
 	if locked.Context != p.Key {
 		reqs = append(reqs, request{View: p, Facts: true})
 	}
+	allowed := slices.DeleteFunc(slices.Clone(o.Entries), func(e sources.Entry) bool { return denied(cfg, e) != "" })
 	for batch := range slices.Chunk(locked.missing(cfg, o.Entries), batchSize) {
-		reqs = append(reqs, request{Entries: batch, View: p})
+		asked, dirs := map[string]bool{}, map[string]bool{}
+		for _, e := range batch {
+			asked[Key(e)], dirs[e.Dir] = true, true
+		}
+		// coverage keeps a coverer only in its claimant's directory.
+		others := slices.DeleteFunc(slices.Clone(allowed), func(e sources.Entry) bool { return asked[Key(e)] || !dirs[e.Dir] })
+		reqs = append(reqs, request{Entries: batch, Others: others, View: p})
 	}
 	resps, errs := classifyAll(ctx, cfg, o, reqs)
 	now := time.Now()

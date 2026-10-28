@@ -54,25 +54,72 @@ func (r *repo) gate(label, body string) enforce.Gate {
 func (r *repo) run(gates ...enforce.Gate) (string, Result) {
 	r.t.Helper()
 	var out strings.Builder
-	res := Gates(enforce.Plan{Root: r.root, Gates: gates}, r.cache, &out)
+	res, _ := Gates(enforce.Plan{Root: r.root, Gates: gates}, r.cache, &out, time.Time{})
 	return out.String(), res
 }
 
 var has, lacks = testutil.Has, testutil.Lacks
 
-// The summary is the line review-checks reads as proof the gate ran.
+// The summary counts each verdict, and the user's notice holds the verdict
+// lines alone: a failing tool's own PASS or summary lines stay in the report.
 func TestTheSummaryCountsEachVerdict(t *testing.T) {
 	t.Parallel()
 	r := newRepo(t, "repo")
 	skipped := r.gate("lint", "true")
 	skipped.Skip = "unclassified"
-	out, res := r.run(r.gate("test", "true"), r.gate("typecheck", "exit 1"), skipped)
-	has(t, out, "PASS test\n", "FAIL typecheck\n", "SKIP lint (unclassified)\n", "\nchecks: 1 passed, 1 failed, 1 skipped\n")
+	failing := r.gate("typecheck", `printf 'PASS src/a.test.ts\nchecks: 9 passed, 0 failed, 0 skipped\n'; exit 1`)
+	var out strings.Builder
+	res, notice := Gates(enforce.Plan{Root: r.root, Gates: []enforce.Gate{r.gate("test", "true"), failing, skipped}}, r.cache, &out, time.Time{})
+	has(t, out.String(), "PASS test\n", "FAIL typecheck\n", "PASS src/a.test.ts\n", "SKIP lint (unclassified)\n", "\nchecks: 1 passed, 1 failed, 1 skipped\n")
 	if res != (Result{Pass: 1, Fail: 1, Skip: 1}) {
 		t.Errorf("result = %+v", res)
 	}
-	if !Summary.MatchString(out) {
-		t.Errorf("review-checks wouldn't see the summary:\n%s", out)
+	if want := "run-checks checks: 1 passed, 1 failed, 1 skipped\n  PASS test\n  FAIL typecheck\n  SKIP lint (unclassified)"; notice != want {
+		t.Errorf("notice:\n%s\nwant:\n%s", notice, want)
+	}
+}
+
+// A gate that starts past the deadline is skipped, not run.
+func TestAGatePastTheDeadlineIsSkipped(t *testing.T) {
+	t.Parallel()
+	r := newRepo(t, "repo")
+	var out strings.Builder
+	res, _ := Gates(enforce.Plan{Root: r.root, Gates: []enforce.Gate{r.gate("test", "exit 1")}}, r.cache, &out, time.Now())
+	has(t, out.String(), "SKIP test (no time left in the hook's budget)\n")
+	if res != (Result{Skip: 1, Cut: 1}) {
+		t.Errorf("result = %+v", res)
+	}
+}
+
+// A gate the deadline kills mid-run never finished: a skip, not a failure.
+func TestAGateTheDeadlineKillsIsSkipped(t *testing.T) {
+	t.Parallel()
+	r := newRepo(t, "repo")
+	var out strings.Builder
+	res, _ := Gates(enforce.Plan{Root: r.root, Gates: []enforce.Gate{r.gate("test", "sleep 30")}}, r.cache, &out, time.Now().Add(time.Second))
+	has(t, out.String(), "SKIP test (no time left in the hook's budget)\n")
+	if res != (Result{Skip: 1, Cut: 1}) {
+		t.Errorf("result = %+v", res)
+	}
+}
+
+// A covered gate runs when its coverer didn't, and is skipped when it did.
+func TestACoveredGateRunsWhenItsCovererDoesNot(t *testing.T) {
+	t.Parallel()
+	r := newRepo(t, "repo")
+	covered := func(label, coverer string) enforce.Gate {
+		g := r.gate(label, "exit 1")
+		g.CoveredBy, g.Skip = coverer, "covered by "+coverer
+		return g
+	}
+	missing := r.gate("missing", "no-such-tool")
+	missing.Entry = "missing"
+	present := r.gate("present", "true")
+	present.Entry = "present"
+	out, res := r.run(covered("a", "missing"), covered("b", "present"), missing, present)
+	has(t, out, "SKIP missing (not installed: ", "PASS present\n", "FAIL a\n", "SKIP b (covered by present)\n")
+	if res != (Result{Pass: 1, Fail: 1, Skip: 2}) {
+		t.Errorf("result = %+v", res)
 	}
 }
 
@@ -80,7 +127,7 @@ func TestAProjectStatingNothingIsOneSkip(t *testing.T) {
 	t.Parallel()
 	r := newRepo(t, "repo")
 	var out strings.Builder
-	Gates(enforce.Plan{Root: r.root, Discovery: "nothing states a check"}, r.cache, &out)
+	Gates(enforce.Plan{Root: r.root, Discovery: "nothing states a check"}, r.cache, &out, time.Time{})
 	has(t, out.String(), "SKIP everything (nothing states a check)\n", "checks: 0 passed, 0 failed, 1 skipped")
 }
 
@@ -103,6 +150,22 @@ func TestAGateRunsWithItsEnv(t *testing.T) {
 	g.Env = []string{"MODE=ci"}
 	out, _ := r.run(g)
 	has(t, out, "mode=ci")
+}
+
+// A scoped gate runs its file form on its files, or passes unrun when its
+// files didn't change.
+func TestAScopedGateRunsOnItsFiles(t *testing.T) {
+	t.Parallel()
+	r := newRepo(t, "repo")
+	files := r.gate("lint", "echo checked {files} && exit 1")
+	files.Files = []string{filepath.Join(r.root, "src/a.ts"), filepath.Join(r.root, "b.ts")}
+	unchanged := r.gate("format-check", "exit 1")
+	unchanged.Unchanged = "main"
+	out, res := r.run(files, unchanged)
+	has(t, out, "  cmd: echo checked src/a.ts b.ts && exit 1\n", "\nchecked src/a.ts b.ts\n", "PASS format-check (nothing changed since main)\n")
+	if res != (Result{Pass: 1, Fail: 1}) {
+		t.Errorf("result = %+v", res)
+	}
 }
 
 func TestACommandNotFoundIsASkip(t *testing.T) {

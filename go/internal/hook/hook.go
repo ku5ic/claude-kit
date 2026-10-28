@@ -212,9 +212,9 @@ func (h *Hook) Notify(text string) { h.notices = append(h.notices, text) }
 func (h *Hook) Print(text string) { h.plain.WriteString(text) }
 
 // flush prints what the run's checks added, once, since stdout takes one
-// JSON object: a permission decision, else context and notices, else plain
-// text.
-func (h *Hook) flush() {
+// JSON object: block, a block's reason, with the notices; else a permission
+// decision, else context and notices, else plain text.
+func (h *Hook) flush(block string) {
 	type specific struct {
 		HookEventName            string `json:"hookEventName"`
 		PermissionDecision       string `json:"permissionDecision,omitempty"`
@@ -222,10 +222,14 @@ func (h *Hook) flush() {
 		AdditionalContext        string `json:"additionalContext,omitempty"`
 	}
 	type output struct {
+		Decision           string    `json:"decision,omitempty"`
+		Reason             string    `json:"reason,omitempty"`
 		SystemMessage      string    `json:"systemMessage,omitempty"`
 		HookSpecificOutput *specific `json:"hookSpecificOutput,omitempty"`
 	}
 	switch {
+	case block != "":
+		WriteJSON(h.Stdout, output{Decision: "block", Reason: block, SystemMessage: strings.Join(h.notices, "\n")})
 	case h.decision != "":
 		WriteJSON(h.Stdout, output{HookSpecificOutput: &specific{HookEventName: "PreToolUse", PermissionDecision: h.decision, PermissionDecisionReason: h.reason}})
 	case h.contexts != nil || h.notices != nil:
@@ -289,9 +293,9 @@ type Check func(*Hook) error
 
 // RunCheck runs check under name, failing open on a panic or error: the
 // notice goes to stderr, which only the debug log sees, so it is also logged
-// to guards.jsonl, and the result is "allow". It reports whether the check
-// blocked, having printed the block to stderr.
-func RunCheck(h *Hook, name string, check Check) (blocked bool) {
+// to guards.jsonl, and the result is "allow". It returns the check's block,
+// nil when it allowed.
+func RunCheck(h *Hook, name string, check Check) (blocked *Blocked) {
 	saved := h.Name
 	h.Name = name
 	failOpen := func() {
@@ -301,32 +305,40 @@ func RunCheck(h *Hook, name string, check Check) (blocked bool) {
 	defer func() {
 		if r := recover(); r != nil {
 			failOpen()
-			blocked = false
+			blocked = nil
 		}
 		h.Name = saved
 	}()
 	err := check(h)
 	if err == nil {
-		return false
+		return nil
 	}
 	if b, ok := errors.AsType[*Blocked](err); ok {
-		fmt.Fprintln(h.Stderr, b.Reason)
-		return true
+		return b
 	}
 	failOpen()
-	return false
+	return nil
 }
 
 // Run executes checks in order against one payload read, the dispatcher
 // contract: each check is isolated (one failing open never skips the next),
-// and the first block ends the run with exit 2.
+// and the first block ends the run with exit 2. A block after a notice is a
+// JSON decision instead, since exit 2 shows Claude the reason and drops the
+// notice meant for the user.
 func Run(h *Hook, checks ...NamedCheck) int {
 	for _, c := range checks {
-		if RunCheck(h, c.Name, c.Check) {
+		b := RunCheck(h, c.Name, c.Check)
+		if b == nil {
+			continue
+		}
+		if h.notices == nil {
+			fmt.Fprintln(h.Stderr, b.Reason)
 			return 2
 		}
+		h.flush(b.Reason)
+		return 0
 	}
-	h.flush()
+	h.flush("")
 	return 0
 }
 

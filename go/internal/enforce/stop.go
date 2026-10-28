@@ -165,6 +165,10 @@ func (g Gate) Command() string {
 	var files, dirs []string
 	for _, f := range g.Files {
 		rel := fsx.Rel(g.Dir, f)
+		// A file named like a flag would be read as one.
+		if strings.HasPrefix(rel, "-") {
+			rel = "./" + rel
+		}
 		files = append(files, rel)
 		if dir := filepath.Dir(rel); dir == "." {
 			dirs = append(dirs, ".")

@@ -148,6 +148,17 @@ func TestGoldenVerdicts(t *testing.T) {
 				}
 			}
 		},
+		"overlap": func(g golden) {
+			a11y := g.verdict("package-scripts", "a11y-test-storybook")
+			if v := g.verdict("package-scripts", "test-storybook"); v.Kind != "test" || v.CoveredBy == "" || a11y.CoveredBy != "" {
+				g.t.Errorf("the plain storybook run is covered by the a11y one: %+v, a11y %+v", v, a11y)
+			}
+			for _, name := range []string{"test", "lint"} {
+				if v := g.verdict("package-scripts", name); v.CoveredBy != "" {
+					g.t.Errorf("%s covers nothing it shares a tool with: %+v", name, v)
+				}
+			}
+		},
 		"rust": func(g golden) {
 			for _, kind := range []string{"lint", "test", "format-check"} {
 				if !slices.Contains(g.proposed(), kind) {
@@ -181,6 +192,13 @@ func TestGoldenVerdicts(t *testing.T) {
 				t.Logf("dropped: %s", d)
 			}
 			checks[name](golden{t, entries, r})
+			// The full gate scopes a format check to what changed through its
+			// file form.
+			for _, p := range r.Proposals {
+				if p.Kind == "format-check" && p.FileForm == "" {
+					t.Errorf("format-check proposal without a file form: %+v", p)
+				}
+			}
 		})
 	}
 }

@@ -5,13 +5,13 @@ import (
 	"testing"
 )
 
-// `kit hook review-checks` wiring: a forked /code-review is held at its
-// first stop with exit 2 and let through on the second; the hook never runs
-// the suite itself. Which reviewers it holds is tested in process, in
-// internal/hooks.
+// `kit hook review-checks` wiring: at a forked /code-review's first stop the
+// hook runs the full gate itself and shows the user every verdict; the
+// second stop goes through untouched. Which reviewers it gates, and a
+// failing gate, are tested in process, in internal/hooks.
 func TestReviewChecks(t *testing.T) {
 	t.Parallel()
-	t.Run("a forked /code-review is sent back once to run the checks itself", func(t *testing.T) {
+	t.Run("a forked /code-review's first stop runs the full gate once", func(t *testing.T) {
 		t.Parallel()
 		e := runChecksSetup(t)
 		e.write("package.json", `{"scripts":{"lint":"eslint ."}}`+"\n")
@@ -26,14 +26,10 @@ func TestReviewChecks(t *testing.T) {
 		}
 
 		r := stop(false)
-		r.Want(t, 2)
-		r.Has(t, "run `kit run-checks` in the checkout you reviewed", "timed per rules/tooling.md section 2", "a target you didn't check out, don't run it",
-			"return your full report again, every finding you already had unchanged", "per rules/verify.md section 1")
+		r.Want(t, 0)
+		r.Has(t, `"systemMessage":"run-checks checks: `)
 		r = stop(true)
 		r.Want(t, 0)
 		r.Empty(t)
-		if e.called("npm") {
-			t.Errorf("the hook ran the suite: %s", e.calls("npm"))
-		}
 	})
 }

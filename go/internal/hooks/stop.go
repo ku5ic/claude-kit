@@ -2,6 +2,7 @@ package hooks
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
@@ -20,7 +21,8 @@ import (
 // the stop on a failure, so Claude fixes or reports it. A question-only turn costs
 // nothing. When the turn ticked a plan's last open step, it also blocks
 // until /code-review has run since the last code
-// edit; it never runs the suite itself.
+// edit; that review's hook runs the full gate. A tree the full gate already
+// checked isn't checked again.
 func StopChecks(h *hook.Hook) error {
 	if h.Payload.Err != nil {
 		return h.Payload.Err
@@ -57,6 +59,10 @@ func StopChecks(h *hook.Hook) error {
 	if len(edited) == 0 {
 		return nil
 	}
+	if coveredByFullGate(h, root) {
+		h.Notify("stop checks: skipped, the full gate already checked this tree")
+		return nil
+	}
 	for i, path := range edited {
 		edited[i] = fsx.Abs(cwd, path)
 	}
@@ -68,13 +74,32 @@ func StopChecks(h *hook.Hook) error {
 	if !h.DryRun {
 		_ = fsx.WriteAtomic(cache.StopReport(h.Paths.CacheDir(), root), []byte(out.Report()), 0o600)
 	}
+	// Every verdict goes to the user, a block's too; what to fix goes to
+	// Claude in the block's reason.
+	h.Notify(out.Notice)
 	if out.Failed {
 		return h.Block("file checks failed; fix them or report and stop.\n"+out.Failures, "checks-failed")
 	}
-	// What ran and what was skipped goes to the user alone: Claude has
-	// nothing to act on.
-	h.Notify(out.Notice())
 	return nil
+}
+
+// coveredByFullGate is true when review-checks' last full gate checked the
+// work tree as it is now. Once the tree moves on, the record goes, so later
+// turns don't snapshot the tree for it again.
+func coveredByFullGate(h *hook.Hook, root string) bool {
+	file := cache.FullGateTree(h.Paths.CacheDir(), root)
+	checked, err := os.ReadFile(file)
+	if err != nil {
+		return false
+	}
+	tree, err := git.Snapshot(root)
+	if err != nil {
+		return false
+	}
+	if tree != string(checked) && !h.DryRun {
+		_ = os.Remove(file)
+	}
+	return tree == string(checked)
 }
 
 // stopBudget bounds a Stop run, planning and every gate, inside

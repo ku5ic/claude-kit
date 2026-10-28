@@ -20,6 +20,7 @@ type planCase struct {
 	proposals []map[string]any
 	only      []string
 	cfg       func(*config.Config)
+	changed   bool // plan scoped, on a branch off a committed base
 	has       []string
 	lacks     []string
 }
@@ -41,6 +42,9 @@ func (c planCase) run(t *testing.T) {
 	e.managers, e.proposals, e.only = c.managers, c.proposals, c.only
 	if c.cfg != nil {
 		c.cfg(e.cfg)
+	}
+	if c.changed {
+		e.base()
 	}
 	p := e.plan()
 	has(t, p, c.has...)
@@ -236,6 +240,7 @@ func TestTaskGraphPlans(t *testing.T) {
 			tools:    tools,
 			verdicts: map[string]map[string]any{"test": affected("test"), "lint": affected("lint"), "build": {"role": "build"}},
 			managers: managers,
+			changed:  true,
 			has:      []string{"RUN test (turbo.json: test)\n  cmd: turbo run test --filter=...[{base}]\n", "RUN lint (turbo.json: lint)\n  cmd: turbo run lint --filter=...[{base}]\n"},
 			lacks:    []string{"(packages/a/package.json: test)", "(packages/a/package.json: lint)", "turbo run build"}},
 		{name: "a check turbo declares no task for still runs per package",

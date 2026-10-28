@@ -18,7 +18,7 @@ Before synthesizing a fan-out, each agent's findings get one more pass: identify
 
 No agent file restates these, except where noted:
 
-- **Startup**: the rules, the resolved `<scratch>` path, repo context, and the `<required-skills>`/`<suggested-skills>` blocks arrive through the SubagentStart hooks, whatever the agent's tools. `checker` and `researcher` ignore the repo context and the skill blocks.
+- **Startup**: the rules, the resolved `<scratch>` path, repo context, and the `<required-skills>`/`<suggested-skills>` blocks arrive through the SubagentStart hooks, whatever the agent's tools. `researcher` ignores the repo context and the skill blocks.
 - **Skills**: load every skill those blocks or the invoking skill name via the Skill tool before any edit or before reading the work under review; a frontmatter preload doesn't count. None named: proceed and say so.
 - **Memory**: an agent with `memory: local` consults it before starting and records durable patterns after finishing; its Startup names which patterns.
 - **Read-only by default**: Edit and Write exist only for memory and a scratch report. Never touch project source; state fixes as instructions. `tester` and `debugger` hold scoped write grants instead, and each states its scope in its Boundaries section.
