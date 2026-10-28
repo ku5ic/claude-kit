@@ -14,6 +14,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -33,12 +34,13 @@ func Run(paths config.Paths, n int, dryRun bool, stdout, stderr io.Writer) int {
 	}
 	scratch := paths.ScratchHome()
 	if fsx.IsDir(scratch) {
-		removed := r.prune(scratch, n, func(name string) bool { return strings.HasSuffix(name, ".md") })
-		fmt.Fprintf(stdout, "scratch-rotate: %s %d artifact(s) older than %dd from %s\n", r.pruned, removed, n, scratch)
+		removed, _ := r.prune(scratch, n, func(name string) bool { return strings.HasSuffix(name, ".md") })
+		fmt.Fprintf(stdout, "scratch-rotate: %s %d artifact(s) older than %dd from %s\n", r.pruned, len(removed), n, scratch)
 	}
 	for _, d := range cache.Dirs {
 		if dir := filepath.Join(paths.CacheDir(), d.Name); fsx.IsDir(dir) {
-			fmt.Fprintf(stdout, "scratch-rotate: %s %d %s older than %dd from %s\n", r.pruned, r.prune(dir, d.Days, nil), d.What, d.Days, dir)
+			removed, _ := r.prune(dir, d.Days, nil)
+			fmt.Fprintf(stdout, "scratch-rotate: %s %d %s older than %dd from %s\n", r.pruned, len(removed), d.What, d.Days, dir)
 		}
 	}
 	r.registry(paths.ScratchRegistry(), n, stderr)
@@ -69,7 +71,9 @@ func (r *rotator) registry(registry string, n int, stderr io.Writer) {
 			keep = append(keep, dir)
 		default:
 			r.worktrees(dir, stderr)
-			fmt.Fprintf(r.stdout, "scratch-rotate: %s %d artifact(s) older than %dd from %s\n", r.pruned, r.prune(dir, n, nil), n, dir)
+			removed, folders := r.prune(dir, n, nil)
+			r.emptyFolders(folders, n, removed)
+			fmt.Fprintf(r.stdout, "scratch-rotate: %s %d artifact(s) older than %dd from %s\n", r.pruned, len(removed), n, dir)
 			keep = append(keep, dir)
 		}
 	}
@@ -131,19 +135,29 @@ func keepWorktree(wt string) string {
 	return ""
 }
 
+// folder is a folder under a pruned dir and its mtime before the prune:
+// deleting a file inside sets it to now.
+type folder struct {
+	path string
+	mod  time.Time
+}
+
 // prune deletes the regular files under dir matching keep (every one when
-// nil) whose modification is more than days whole days old, and records
-// each in the rotate log. It never enters a nested git
-// checkout: deleting its old files would corrupt it.
-func (r *rotator) prune(dir string, days int, keep func(string) bool) int {
-	var matched []string
+// nil) whose modification is more than days whole days old, records each
+// in the rotate log, and returns them with the folders under dir, parents
+// before children. It never enters a nested git checkout: deleting its old
+// files would corrupt it.
+func (r *rotator) prune(dir string, days int, keep func(string) bool) (matched []string, folders []folder) {
 	_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
+		if err != nil || path == dir {
 			return nil
 		}
 		if d.IsDir() {
-			if path != dir && isCheckout(path) {
+			if isCheckout(path) {
 				return filepath.SkipDir
+			}
+			if info, err := d.Info(); err == nil {
+				folders = append(folders, folder{path, info.ModTime()})
 			}
 			return nil
 		}
@@ -161,7 +175,34 @@ func (r *rotator) prune(dir string, days int, keep func(string) bool) int {
 		return nil
 	})
 	r.record(matched)
-	return len(matched)
+	return matched, folders
+}
+
+// emptyFolders deletes, deepest first, each of folders past days by its
+// mtime before the prune that holds nothing but what this run removed
+// (would remove, on a dry run), and records each in the rotate log.
+func (r *rotator) emptyFolders(folders []folder, days int, removed []string) {
+	gone := map[string]bool{}
+	for _, p := range removed {
+		gone[p] = true
+	}
+	var deleted []string
+	for _, f := range slices.Backward(folders) {
+		if !cache.Older(f.mod, days, r.now) {
+			continue
+		}
+		entries, err := os.ReadDir(f.path)
+		if err != nil || slices.ContainsFunc(entries, func(e fs.DirEntry) bool { return !gone[filepath.Join(f.path, e.Name())] }) {
+			continue
+		}
+		// os.Remove refuses a folder that isn't empty: the last guard.
+		if !r.dryRun && os.Remove(f.path) != nil {
+			continue
+		}
+		gone[f.path] = true
+		deleted = append(deleted, f.path)
+	}
+	r.record(deleted)
 }
 
 // record appends each deleted path to the rotate log.
