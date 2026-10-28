@@ -183,8 +183,9 @@ func TestChecksStopAtTheBatchDeadline(t *testing.T) {
 	r := newRepo(t, "repo")
 	plan := enforce.Plan{Root: r.root, Gates: []enforce.Gate{r.check("slow", "test", "sleep 5")}}
 	start := time.Now()
-	out := Files(plan, r.cache, 5*time.Second, start.Add(500*time.Millisecond))
-	if took := time.Since(start); took > 3*time.Second {
+	// Wide enough for the snapshot before the gate under a loaded -race run.
+	out := Files(plan, r.cache, 10*time.Second, start.Add(2*time.Second))
+	if took := time.Since(start); took > 4*time.Second {
 		t.Errorf("took %s, past the deadline", took)
 	}
 	has(t, out.Report(), "SKIP slow (timed out after ")

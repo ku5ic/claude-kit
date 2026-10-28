@@ -26,6 +26,7 @@ type env struct {
 	proposals                []map[string]any
 	managers                 []map[string]any
 	only                     []string
+	changed                  bool // plan as kit run-checks does: scoped to what changed
 }
 
 // Not parallel: each test sets PATH.
@@ -81,7 +82,18 @@ func (e *env) plan() Plan {
 	}
 	testutil.Put(e.t, e.stubs, "answer.json", testutil.Envelope(e.t, answers, e.managers, e.proposals))
 	e.cfg.Classifier = testutil.Replayer(e.t, filepath.Join(e.stubs, "answer.json"))
-	return Build(e.cfg, Options{Root: e.root, CacheDir: e.cache, Only: e.only, Ask: true, Timeout: 10 * time.Second})
+	return Build(e.cfg, Options{Root: e.root, CacheDir: e.cache, Only: e.only, Ask: true, Timeout: 10 * time.Second, Changed: e.changed})
+}
+
+// base commits everything on master, the git base, and checks out a feature
+// branch, so later writes are the change; plans after it are scoped.
+func (e *env) base() {
+	e.t.Helper()
+	testutil.Git(e.t, e.root, "add", "-A")
+	testutil.GitID(e.t, e.root, "commit", "-q", "--allow-empty", "-m", "base")
+	testutil.Git(e.t, e.root, "branch", "-M", "master")
+	testutil.Git(e.t, e.root, "checkout", "-q", "-b", "feat")
+	e.changed = true
 }
 
 // printed is p as --plan prints it.
@@ -167,7 +179,47 @@ func TestTurboAndNxRunTheirAffectedForms(t *testing.T) {
 	e.write("nx.json", `{"targetDefaults":{"test":{}}}`)
 	e.check("lint", map[string]any{"role": "check", "kind": "lint", "affected_form": "turbo run lint --filter=...[{base}]"})
 	e.check("test", map[string]any{"role": "check", "kind": "test", "affected_form": "nx affected -t test --base={base}"})
+	has(t, e.plan(), "cmd: turbo run lint\n", "cmd: nx affected -t test\n")
+	e.base()
 	has(t, e.plan(), "RUN lint (turbo.json: lint)\n  cmd: turbo run lint --filter=...[{base}]\n", "RUN test (nx.json: test)\n  cmd: nx affected -t test --base={base}\n")
+}
+
+// A scoped plan runs a task's affected form, a single-kind lint or format
+// check's file form on the changed files it covers, and anything else whole;
+// git's list of changed files leaves out what any of its ignore files do.
+func TestAScopedPlanRunsWhatChanged(t *testing.T) {
+	e := setup(t)
+	e.tool("node_modules/.bin/jest")
+	e.tool("node_modules/.bin/eslint")
+	e.tool("node_modules/.bin/prettier")
+	e.tool("node_modules/.bin/tsc")
+	e.tool("node_modules/.bin/vitest")
+	e.tool(filepath.Join(e.path, "npm"))
+	e.write("package.json", `{"scripts":{"test":"jest","lint":"eslint .","format":"prettier --check .","typecheck":"tsc","unit":"vitest run"}}`)
+	e.write("src/a.ts", "a\n")
+	e.write("src/b.ts", "b\n")
+	e.check("test", map[string]any{"role": "check", "kind": "test", "affected_form": "jest --changedSince={base}", "file_form": "jest {files}", "globs": []string{"**/*.test.ts"}})
+	e.check("lint", map[string]any{"role": "check", "kind": "lint", "file_form": "eslint {files}", "globs": []string{"**/*.ts"}})
+	e.check("format", map[string]any{"role": "check", "kind": "format-check", "file_form": "prettier --check {files}", "globs": []string{"**/*.md"}})
+	e.check("typecheck", check("typecheck"))
+	e.check("unit", map[string]any{"role": "check", "kind": "test", "file_form": "vitest run {files}", "globs": []string{"**/*.ts"}})
+	whole := []string{"cmd: npm run test\n", "cmd: npm run lint\n", "cmd: npm run format\n", "cmd: npm run typecheck\n", "cmd: npm run unit\n"}
+	has(t, e.plan(), whole...)
+
+	e.base()
+	e.write("src/b.ts", "changed\n")
+	e.write("src/new.ts", "new\n")
+	excludes := filepath.Join(e.t.TempDir(), "ignore")
+	testutil.Write(t, excludes, "scratch/\n")
+	t.Setenv("GIT_CONFIG_GLOBAL", filepath.Join(e.t.TempDir(), "gitconfig"))
+	testutil.Git(t, e.root, "config", "--global", "core.excludesFile", excludes)
+	e.write(".claude/scratch/c.ts", "scratch\n")
+	p := e.plan()
+	has(t, p, "RUN test (package.json: test)\n  cmd: jest --changedSince={base}\n",
+		"RUN lint (package.json: lint)\n  cmd: eslint src/b.ts src/new.ts\n",
+		"PASS format-check (package.json: format) (nothing changed since master)\n",
+		"cmd: npm run typecheck\n", "cmd: npm run unit\n")
+	lacks(t, p, "src/a.ts", "scratch")
 }
 
 func TestNpxWithNoLocalCopyIsASkip(t *testing.T) {

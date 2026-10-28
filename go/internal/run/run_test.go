@@ -105,6 +105,22 @@ func TestAGateRunsWithItsEnv(t *testing.T) {
 	has(t, out, "mode=ci")
 }
 
+// A scoped gate runs its file form on its files, or passes unrun when its
+// files didn't change.
+func TestAScopedGateRunsOnItsFiles(t *testing.T) {
+	t.Parallel()
+	r := newRepo(t, "repo")
+	files := r.gate("lint", "echo checked {files} && exit 1")
+	files.Files = []string{filepath.Join(r.root, "src/a.ts"), filepath.Join(r.root, "b.ts")}
+	unchanged := r.gate("format-check", "exit 1")
+	unchanged.Unchanged = "main"
+	out, res := r.run(files, unchanged)
+	has(t, out, "  cmd: echo checked src/a.ts b.ts && exit 1\n", "\nchecked src/a.ts b.ts\n", "PASS format-check (nothing changed since main)\n")
+	if res != (Result{Pass: 1, Fail: 1}) {
+		t.Errorf("result = %+v", res)
+	}
+}
+
 func TestACommandNotFoundIsASkip(t *testing.T) {
 	t.Parallel()
 	r := newRepo(t, "repo")

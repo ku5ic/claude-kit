@@ -21,6 +21,10 @@ func (p Plan) Print(w io.Writer) {
 			fmt.Fprintf(w, "SKIP %s (%s)\n", g.Label, g.Skip)
 			continue
 		}
+		if g.Unchanged != "" {
+			fmt.Fprintf(w, "PASS %s (nothing changed since %s)\n", g.Label, g.Unchanged)
+			continue
+		}
 		fmt.Fprintf(w, "RUN %s\n", g.Label)
 		p.Describe(w, g)
 		fmt.Fprintf(w, "  verdict: %s\n", g.Verdict)

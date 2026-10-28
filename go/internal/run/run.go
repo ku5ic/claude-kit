@@ -92,7 +92,11 @@ func (r *runner) gate(g enforce.Gate) {
 		r.skip(g.Label, g.Skip)
 		return
 	}
-	body := g.Body
+	if g.Unchanged != "" {
+		r.pass(g.Label, "nothing changed since "+g.Unchanged)
+		return
+	}
+	body := g.Command()
 	if strings.Contains(body, "{base}") {
 		if r.base() == "" {
 			r.skip(g.Label, "no git base")
@@ -111,9 +115,10 @@ func (r *runner) gate(g enforce.Gate) {
 		}
 	}
 	o := r.exec(g, body)
-	// A failure describes what ran: the body with {base} filled in.
+	// A failure describes what ran: the body with its files and {base}
+	// filled in.
 	ran := g
-	ran.Body = body
+	ran.Body, ran.Files = body, nil
 	switch {
 	case len(o.changed) > 0:
 		_ = enforce.AddMark(r.cacheDir, r.plan.Root, g, enforce.Mark{Label: g.Label, Paths: o.changed, Ref: r.ref})

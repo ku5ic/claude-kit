@@ -14,14 +14,16 @@ import (
 
 func TestParseRunChecksArgs(t *testing.T) {
 	t.Parallel()
-	a, err := parseRunChecksArgs([]string{"--plan", "--only", "./services/api/", "--only", "packages/a/"})
-	if err != nil || !a.plan || !slices.Equal(a.only, []string{"services/api", "packages/a"}) {
-		t.Errorf("--plan with --only repeated, paths cleaned: %+v, %v", a, err)
+	a, err := parseRunChecksArgs([]string{"--plan", "--all", "--only", "./services/api/", "--only", "packages/a/"})
+	if err != nil || !a.plan || !a.all || !slices.Equal(a.only, []string{"services/api", "packages/a"}) {
+		t.Errorf("--plan --all with --only repeated, paths cleaned: %+v, %v", a, err)
 	}
 	for want, args := range map[string][]string{
 		`unknown argument "--plann"`:     {"--plann"},
+		`unknown argument "--al"`:        {"--al"},
 		"--only needs at least one":      {"--only"},
 		"--plan must come before --only": {"--only", ".", "--plan"},
+		"--all must come before --only":  {"--only", ".", "--all"},
 		`unknown argument "-x"`:          {"--only", ".", "-x"},
 		`unknown argument "extra"`:       {"--plan", "extra"},
 	} {

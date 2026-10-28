@@ -25,7 +25,7 @@ var Commands = []Command{
 	{Name: "project-root", Args: "[--check]", Desc: "the project root; --check: exit 1 if unanchored", Words: []string{"--check"}, ReadOnly: true},
 	{Name: "scratch-dir", Args: "[kind [slug]]", Desc: "scratch directory, or a report path in it", ReadOnly: true},
 	{Name: "detect-stack", Desc: "compact stack report", ReadOnly: true},
-	{Name: "run-checks", Args: "[--plan] [--only sub...]", Desc: "every declared check, in every subproject;\nexits with the failure count. --plan lists\nthem, with commands, without running any", Words: []string{"--plan", "--only"}},
+	{Name: "run-checks", Args: "[--plan] [--all] [--only sub...]", Desc: "every declared check, in every subproject,\non what changed since the git base (--all:\nthe whole tree); exits with the failure count.\n--plan lists them, with commands, without\nrunning any", Words: []string{"--plan", "--all", "--only"}},
 	{Name: "enforce", Args: "--list|classify", Desc: "what the project's configs say to run: source,\nfile, stage, dir, name, files, command;\nclassify adds each verified verdict, asking\nthe classifier for what the cache lacks", Words: []string{"--list", "classify"}},
 	{Name: "gates", Args: "reset [--restore]", Desc: "let the gates seen changing files run again;\n--restore first puts those files back as the\nrun that saw it found them", Words: []string{"reset"}},
 	{Name: "git-base", Args: "[--diff|--log] [base] [flags] [-- paths]", Desc: "the base ref of this checkout, or the diff\nor log against it", Words: []string{"--diff", "--log"}, ReadOnly: true},

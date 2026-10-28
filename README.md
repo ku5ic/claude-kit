@@ -113,8 +113,9 @@ When Claude finishes a turn, the Stop hook runs the checks your git hooks would 
 For the whole project, `kit run-checks` runs every quality gate, in every subproject:
 
 - **CI first:** the check steps of GitHub Actions and GitLab CI, and the tasks they run. `kit.yml` `gate_discovery` says which jobs and steps are never read.
-- **Then each kind CI leaves out:** lint, typecheck, format-check, test, dead code, and security, from turbo and nx (affected packages only), task runners (`package.json` scripts, Makefile, justfile, and more), and pre-commit; last, a check the project states only by a tool's config or its language's manifest (`go.mod` states `go vet`).
+- **Then each kind CI leaves out:** lint, typecheck, format-check, test, dead code, and security, from turbo and nx, task runners (`package.json` scripts, Makefile, justfile, and more), and pre-commit; last, a check the project states only by a tool's config or its language's manifest (`go.mod` states `go vet`).
 - **Aggregates:** a `ci` script that chains `lint && test` runs each gate once, not twice.
+- **What changed only:** on a branch, a gate with an affected form runs it, and a lint or format check runs on the changed files git doesn't ignore; the rest run whole. `--all` runs every gate on the whole tree.
 - **Dead code:** dead-code findings block only on lines changed against the base branch.
 - **Hands off your files:** a check that changes files fails, is never run again until `kit gates reset`, and `kit gates reset --restore` puts the files back.
 

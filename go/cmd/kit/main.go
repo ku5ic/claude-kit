@@ -155,7 +155,7 @@ var configCommands = map[string]func(*env, *config.Config, []string) int{
 func cmdRunChecks(e *env, cfg *config.Config, args []string) int {
 	a, err := parseRunChecksArgs(args)
 	if err != nil {
-		fmt.Fprintf(e.stderr, "kit run-checks: %v\nusage: kit run-checks [--plan] [--only sub...]\n", err)
+		fmt.Fprintf(e.stderr, "kit run-checks: %v\nusage: kit run-checks [--plan] [--all] [--only sub...]\n", err)
 		return 2
 	}
 	root := cmp.Or(git.Toplevel(e.cwd), e.cwd)
@@ -188,10 +188,11 @@ func cmdScratchRotate(e *env, args []string) int {
 // runChecksArgs are run-checks' arguments.
 type runChecksArgs struct {
 	plan bool
+	all  bool // the whole tree, not only what changed since the git base
 	only []string
 }
 
-// parseRunChecksArgs reads [--plan] [--only sub...].
+// parseRunChecksArgs reads [--plan] [--all] [--only sub...].
 // Anything else is an error: a typo'd --plan must never fall through to a
 // real run. A repeated --only adds to the list; a subproject written as a
 // path (./api, api/) is cleaned to its name.
@@ -201,11 +202,13 @@ func parseRunChecksArgs(args []string) (runChecksArgs, error) {
 		switch arg {
 		case "--plan":
 			a.plan = true
+		case "--all":
+			a.all = true
 		case "--only":
 			for _, sub := range args[i+1:] {
 				switch {
 				case sub == "--only":
-				case sub == "--plan":
+				case sub == "--plan" || sub == "--all":
 					return a, fmt.Errorf("%s must come before --only", sub)
 				case strings.HasPrefix(sub, "-"):
 					return a, fmt.Errorf("unknown argument %q", sub)

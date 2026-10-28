@@ -23,7 +23,7 @@ const exitUnclassified = 125
 // runs, exiting with the failure count, or exitUnclassified when nothing
 // failed but an entry has no verdict.
 func runGates(e *env, cfg *config.Config, root string, a runChecksArgs) int {
-	p := enforce.Build(cfg, enforce.Options{Root: root, CacheDir: e.paths.CacheDir(), Only: a.only, Ask: true, Timeout: classifyTimeout})
+	p := enforce.Build(cfg, enforce.Options{Root: root, CacheDir: e.paths.CacheDir(), Only: a.only, Ask: true, Timeout: classifyTimeout, Changed: !a.all})
 	if a.plan {
 		p.Print(e.stdout)
 		return 0

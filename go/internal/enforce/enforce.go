@@ -46,6 +46,11 @@ type Gate struct {
 	FileForm string
 	Globs    []string
 	Files    []string // the files a Stop gate checks, absolute
+	// Affected is the body limited to what changed since {base}, run in
+	// AffectedDir, when its source states one; a scoped plan runs it.
+	Affected    string
+	AffectedDir string
+	Unchanged   string // the git base a scoped gate's files didn't change since: it passes unrun
 }
 
 // Scoped is true for a dead-code gate: only findings on lines changed since
@@ -71,13 +76,15 @@ type Plan struct {
 	Managed      bool
 }
 
-// Options says which root to plan, which subprojects to keep, and whether
-// gap-fill may ask the classifier for what its cache lacks.
+// Options says which root to plan, which subprojects to keep, whether
+// gap-fill may ask the classifier for what its cache lacks, and whether to
+// scope the gates to what changed since the git base.
 type Options struct {
 	Root, CacheDir string
 	Only           []string
 	Ask            bool
 	Timeout        time.Duration
+	Changed        bool
 }
 
 // Discovery is the instruction for a project that states no check.
@@ -87,6 +94,9 @@ const Discovery = "nothing in this project states a check: no CI step, task, hoo
 func Build(cfg *config.Config, o Options) Plan {
 	b, subs := fullGate(cfg, o)
 	b.unclassified(func(e sources.Entry) bool { return !sources.SourceOf(e.Source).GitHook })
+	if o.Changed {
+		b.scope()
+	}
 	b.settle(o.CacheDir)
 	p := Plan{Root: o.Root, Unclassified: b.skipped, Managed: len(b.facts.Managers) > 0}
 	// A fan-out gate belongs to each member it runs across.
@@ -296,7 +306,7 @@ func (b *builder) taskRunners(sub, kind string) {
 		if !called[b.key(e)] {
 			tp, _ := provider(e.Source)
 			v, _ := b.verdict(e)
-			b.add(Gate{Label: label([]string{kind}, e.File+": "+e.Name, sub), Kinds: []string{kind}, Dir: dir, Body: b.runCommand(tp, sub, e.Name), Verdict: v.String(), FileForm: v.FileForm, Globs: v.Globs})
+			b.add(Gate{Label: label([]string{kind}, e.File+": "+e.Name, sub), Kinds: []string{kind}, Dir: dir, Body: b.runCommand(tp, sub, e.Name), Verdict: v.String(), FileForm: v.FileForm, Globs: v.Globs, Affected: v.Affected, AffectedDir: dir})
 		}
 	}
 	if !b.covered(dir, kind) {
