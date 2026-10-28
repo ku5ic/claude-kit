@@ -3,21 +3,21 @@
   "structured_output": {
     "entries": [
       {
-        "id": "563f662a1945fa04",
+        "id": "827f7bf1bdfe1df8",
         "role": "check",
         "kind": "lint",
         "mutates": false,
         "affected_form": "nx affected -t lint --base={base}"
       },
       {
-        "id": "592ab460fcfeb6bc",
+        "id": "fbbe14cfdbdbfd99",
         "role": "check",
         "kind": "test",
         "mutates": false,
         "affected_form": "nx affected -t test --base={base}"
       },
       {
-        "id": "b7f8a681663d6d3f",
+        "id": "fcd3418941c336de",
         "role": "build",
         "mutates": false,
         "affected_form": "nx affected -t build --base={base}"
@@ -28,7 +28,7 @@
         "dir": ".",
         "cites": "package-lock.json",
         "manager": "npm",
-        "run_prefix": "npx",
+        "run_prefix": "npm exec",
         "add_verbs": [
           "npm install",
           "npm i",
@@ -36,8 +36,7 @@
         ],
         "dlx": "npx",
         "dir_flags": [
-          "--prefix",
-          "--workspace"
+          "--prefix"
         ],
         "rivals": [
           "pnpm",
@@ -49,28 +48,13 @@
       {
         "role": "check",
         "kind": "lint",
-        "command": "npx eslint .",
-        "file_form": "npx eslint {files}",
+        "command": "npm exec eslint --max-warnings=0 .",
+        "file_form": "npm exec eslint --max-warnings=0 {files}",
         "globs": [
-          "**/*.js",
-          "**/*.jsx",
-          "**/*.ts",
-          "**/*.tsx"
+          "**/*.{js,jsx,ts,tsx,cjs,mjs}"
         ],
         "dir": ".",
-        "evidence": "package.json (devDependency @nx/eslint)"
-      },
-      {
-        "role": "check",
-        "kind": "test",
-        "command": "npx vitest run",
-        "file_form": "npx vitest run {files}",
-        "globs": [
-          "**/*.test.*",
-          "**/*.spec.*"
-        ],
-        "dir": ".",
-        "evidence": "nx.json (targetDefaults \"@nx/vite:test\"; devDependency @nx/vite)"
+        "evidence": "package.json (declares devDependency @nx/eslint 20.0.0, which provides ESLint linting)"
       }
     ]
   },

@@ -3,32 +3,17 @@
   "structured_output": {
     "entries": [
       {
-        "id": "01d0aa6c9bf09309",
+        "id": "3852b7e04ba6aed5",
         "role": "fixer",
+        "kind": "lint",
         "mutates": true,
-        "file_form": "prettier --write {files}",
+        "file_form": "eslint --fix {files}",
         "globs": [
           "*.{ts,tsx}"
         ]
       },
       {
-        "id": "b44405fce99e7fec",
-        "role": "other",
-        "mutates": true
-      },
-      {
-        "id": "b5563ee346863782",
-        "role": "check",
-        "kind": "test",
-        "mutates": false,
-        "file_form": "vitest run {files}",
-        "globs": [
-          "**/*.{test,spec}.{ts,tsx,js,jsx}"
-        ],
-        "affected_form": "vitest run --changed={base}"
-      },
-      {
-        "id": "b7e1dcdc4144a1ae",
+        "id": "84325e5a9ccb01d9",
         "role": "check",
         "kind": "format-check",
         "mutates": false,
@@ -38,10 +23,27 @@
         ]
       },
       {
-        "id": "c9dc8e439c65a37e",
+        "id": "94f47292d1df4238",
+        "role": "check",
+        "kind": "test",
+        "mutates": false,
+        "file_form": "vitest run {files}",
+        "globs": [
+          "**/*.{test,spec}.{ts,tsx,js,jsx,mjs,cjs}"
+        ],
+        "affected_form": "vitest run --changed={base}"
+      },
+      {
+        "id": "965b08b59e784daf",
         "role": "fixer",
+        "mutates": true
+      },
+      {
+        "id": "fbe46073f8e1f1d9",
+        "role": "fixer",
+        "kind": "format-check",
         "mutates": true,
-        "file_form": "eslint --fix {files}",
+        "file_form": "prettier --write {files}",
         "globs": [
           "*.{ts,tsx}"
         ]
@@ -52,7 +54,7 @@
         "dir": ".",
         "cites": "package-lock.json",
         "manager": "npm",
-        "run_prefix": "npx",
+        "run_prefix": "npm exec --",
         "add_verbs": [
           "npm install",
           "npm i",
@@ -72,45 +74,45 @@
       {
         "role": "check",
         "kind": "lint",
-        "command": "npx eslint --max-warnings=0 .",
-        "file_form": "npx eslint --max-warnings=0 {files}",
+        "command": "npm exec -- eslint .",
+        "file_form": "npm exec -- eslint {files}",
         "globs": [
           "**/*.{ts,tsx}"
         ],
         "dir": ".",
-        "evidence": "package.json"
+        "evidence": "package.json (devDependencies: eslint ^9.12.0)"
       },
       {
         "role": "check",
         "kind": "test",
-        "command": "npx vitest run",
-        "file_form": "npx vitest run {files}",
+        "command": "npm exec -- vitest run",
+        "file_form": "npm exec -- vitest run {files}",
         "globs": [
           "**/*.{test,spec}.{ts,tsx}"
         ],
         "dir": ".",
-        "evidence": "package.json"
+        "evidence": "package.json (devDependencies: vitest ^2.1.0; scripts.test: vitest run)"
       },
       {
         "role": "check",
         "kind": "format-check",
-        "command": "npx prettier --check .",
-        "file_form": "npx prettier --check {files}",
+        "command": "npm exec -- prettier --check .",
+        "file_form": "npm exec -- prettier --check {files}",
         "globs": [
           "**/*.{ts,tsx,md}"
         ],
         "dir": ".",
-        "evidence": "package.json"
+        "evidence": "package.json (devDependencies: prettier ^3.3.0; lint-staged: prettier --check for *.md)"
       },
       {
         "role": "fixer",
-        "command": "npx prettier --write .",
-        "file_form": "npx prettier --write {files}",
+        "command": "npm exec -- prettier --write .",
+        "file_form": "npm exec -- prettier --write {files}",
         "globs": [
           "**/*.{ts,tsx,md}"
         ],
         "dir": ".",
-        "evidence": "package.json"
+        "evidence": "package.json (devDependencies: prettier ^3.3.0; lint-staged: prettier --write for *.{ts,tsx})"
       }
     ]
   },

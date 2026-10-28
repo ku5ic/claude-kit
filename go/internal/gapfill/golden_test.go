@@ -181,6 +181,13 @@ func TestGoldenVerdicts(t *testing.T) {
 				t.Logf("dropped: %s", d)
 			}
 			checks[name](golden{t, entries, r})
+			// The full gate scopes a format check to what changed through its
+			// file form.
+			for _, p := range r.Proposals {
+				if p.Kind == "format-check" && p.FileForm == "" {
+					t.Errorf("format-check proposal without a file form: %+v", p)
+				}
+			}
 		})
 	}
 }
