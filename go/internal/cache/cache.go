@@ -55,9 +55,15 @@ func RootKey(root string) string {
 }
 
 // StopReport is where stop-checks keeps its last report for the repo at
-// root, for kit explain stop: the hook itself is silent unless it blocks.
+// root, for kit explain stop.
 func StopReport(cacheDir, root string) string {
 	return filepath.Join(cacheDir, StopReports, RootKey(root))
+}
+
+// FullGateTree is where review-checks keeps the work tree snapshot its last
+// full gate checked for the repo at root, so stop-checks skips that tree.
+func FullGateTree(cacheDir, root string) string {
+	return filepath.Join(cacheDir, StopReports, RootKey(root)+".full")
 }
 
 // EditReport is where format-dispatch keeps its last report for the repo

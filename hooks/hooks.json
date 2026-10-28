@@ -22,10 +22,6 @@
       {
         "matcher": "ExitPlanMode",
         "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook plan-mode-context", "timeout": 5 }]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook report-checks", "timeout": 5 }]
       }
     ],
     "SessionStart": [
@@ -68,7 +64,7 @@
     "SubagentStop": [
       {
         "matcher": "general-purpose",
-        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook review-checks", "timeout": 5 }]
+        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook review-checks", "timeout": 1200 }]
       }
     ],
     "SubagentStart": [

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/sources"
 	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
@@ -227,6 +228,26 @@ func TestStopChecks(t *testing.T) {
 		}
 		if got := strings.TrimRight(read(t, e.calls), "\n"); got != e.repo+"|--check b.ts" {
 			t.Errorf("calls %q, want %q", got, e.repo+"|--check b.ts")
+		}
+	})
+	t.Run("a tree the full gate already checked isn't checked again", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		e.turn("Edit", e.path("a.ts"))
+		testutil.Touch(t, e.path("fail"))
+		tree, err := git.Snapshot(e.repo)
+		if err != nil {
+			t.Fatal(err)
+		}
+		testutil.Write(t, cache.FullGateTree(e.k.paths.CacheDir(), e.repo), tree)
+		r := e.stop(false)
+		r.Want(t, 0)
+		r.Has(t, `"systemMessage":"stop checks: skipped, the full gate already checked this tree"`)
+		e.noCalls()
+		testutil.Write(t, e.path("a.ts"), "changed after the gate\n")
+		e.stop(false).Want(t, 0)
+		if !exists(e.calls) {
+			t.Error("a tree changed after the full gate went unchecked")
 		}
 	})
 	t.Run("a failing check blocks and still shows the user every verdict", func(t *testing.T) {

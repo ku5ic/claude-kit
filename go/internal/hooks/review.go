@@ -3,9 +3,12 @@ package hooks
 import (
 	"encoding/json"
 	"os"
-	"regexp"
 	"strings"
+	"time"
 
+	"github.com/ku5ic/claude-kit/go/internal/cache"
+	"github.com/ku5ic/claude-kit/go/internal/enforce"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/run"
@@ -15,33 +18,9 @@ import (
 // reviewSkill is the skill whose forks the review hooks track.
 const reviewSkill = "code-review"
 
-// persisted is where Claude Code saved a tool result too large to inline.
-var persisted = regexp.MustCompile(`(?s)^\s*<persisted-output>.*?saved to: (\S+)`)
-
-// ranChecks reports whether the agent's transcript shows a kit run-checks
-// run, by its summary line in a tool result (or the file a large one was
-// saved to), so a reviewer that already ran it isn't sent back to re-emit
-// its report. Reading the output, not the command, needs no shell parsing:
-// a mention in quotes prints no summary. A transcript it can't read counts
-// as a run, so a kit read failure never sends the reviewer back.
-func ranChecks(path string) bool {
-	ran := false
-	err := transcript.Each(path, func(e transcript.Entry) {
-		for _, b := range e.Blocks {
-			if ran || b.Type != "tool_result" {
-				continue
-			}
-			text := b.ResultText()
-			if m := persisted.FindStringSubmatch(text); m != nil {
-				if data, err := os.ReadFile(m[1]); err == nil {
-					text = string(data)
-				}
-			}
-			ran = run.Summary.MatchString(text)
-		}
-	})
-	return ran || err != nil
-}
+// classifyTimeout bounds asking the classifier for what the gap-fill cache
+// lacks, as kit run-checks does.
+const classifyTimeout = 60 * time.Second
 
 // forkedSkill is the skill a forked subagent runs: from Claude Code's
 // .forked-skill.json sidecar, else, for a foreground fork that writes none,
@@ -71,11 +50,12 @@ func forkedSkill(agentTranscript, parent string) string {
 	return ""
 }
 
-// ReviewChecks holds a forked /code-review at its first stop (SubagentStop)
-// and sends it back to run the full suite (rules/verify.md) and report
-// what it found. The reviewer knows its own target, so it, not this
-// hook, decides whether local checks apply. stop_hook_active lets the second
-// stop through, so it nudges once and never loops.
+// ReviewChecks runs the full gate, scoped to what changed, when a forked
+// /code-review first stops (SubagentStop) in a checkout, and shows the user
+// every verdict. A failure sends the reviewer back with it, to handle per
+// rules/verify.md section 1; stop_hook_active lets the second stop through,
+// so it runs once and never loops. The tree it checked is kept, so the
+// turn's Stop doesn't check it again.
 func ReviewChecks(h *hook.Hook) error {
 	p := h.Payload
 	if p.Err != nil || p.Bool("stop_hook_active") {
@@ -91,10 +71,23 @@ func ReviewChecks(h *hook.Hook) error {
 	if forkedSkill(transcript, p.String("transcript_path")) != reviewSkill {
 		return nil
 	}
-	if h.Config() == nil || git.Toplevel(h.Payload.Cwd()) == "" || ranChecks(transcript) {
+	cfg, root := h.Config(), git.Toplevel(h.Payload.Cwd())
+	if cfg == nil || root == "" {
 		return nil
 	}
-	return h.Block("before you return: run `kit run-checks` in the checkout you reviewed, timed per rules/tooling.md section 2. "+
-		"If you reviewed a target you didn't check out, don't run it. "+
-		"Then return your full report again, every finding you already had unchanged and in the same format, handling any FAIL per rules/verify.md section 1.", "review-checks")
+	cacheDir := h.Paths.CacheDir()
+	plan := enforce.Build(cfg, enforce.Options{Root: root, CacheDir: cacheDir, Ask: true, Timeout: classifyTimeout, Changed: true})
+	var report strings.Builder
+	res := run.Gates(plan, cacheDir, &report)
+	if tree, err := git.Snapshot(root); err == nil && !h.DryRun {
+		_ = fsx.WriteAtomic(cache.FullGateTree(cacheDir, root), []byte(tree), 0o600)
+	}
+	if notice := run.Notice(report.String()); notice != "" {
+		h.Notify("run-checks " + notice)
+	}
+	if res.Fail == 0 {
+		return nil
+	}
+	return h.Block("the full gate failed. Handle each FAIL per rules/verify.md section 1, then return your full report again, "+
+		"every finding you already had unchanged and in the same format.\n"+report.String(), "review-checks")
 }

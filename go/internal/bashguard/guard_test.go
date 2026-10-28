@@ -242,7 +242,8 @@ func TestGuardBash(t *testing.T) {
 		{"auto-allow: kit scratch-dir", `kit scratch-dir`, 0, []string{`"permissionDecision":"allow"`}, false},
 		{"auto-allow: kit git-base with an argument", `kit git-base main`, 0, []string{`"permissionDecision":"allow"`}, false},
 		{"auto-allow: kit blast-radius with a file and symbol", `kit blast-radius src/lib/format.ts formatDate`, 0, []string{`"permissionDecision":"allow"`}, false},
-		{"no decision: kit run-checks is not auto-allowed", `kit run-checks`, 0, nil, true},
+		{"block: kit run-checks, which only the hooks run", `kit run-checks`, 2, []string{"the hooks run the gates"}, false},
+		{"no decision: kit run-checks --plan is not auto-allowed", `kit run-checks --plan`, 0, nil, true},
 		{"no decision: a subcommand that only starts with a read-only one", `kit git-base.evil`, 0, nil, true},
 		{"no decision: a kit called by path", `/tmp/kit scratch-dir`, 0, nil, true},
 		// Sensitive reads through shell commands (kit.yml sensitive_paths).

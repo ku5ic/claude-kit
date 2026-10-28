@@ -35,7 +35,6 @@ var hookChecks = map[string]hook.Check{
 	"format-dispatch":         hooks.FormatDispatch,
 	"stop-checks":             hooks.StopChecks,
 	"review-checks":           hooks.ReviewChecks,
-	"report-checks":           hooks.ReportChecks,
 	"reply-length":            hooks.ReplyLength,
 	"guard-bash":              bashguard.Check,
 }
@@ -54,7 +53,6 @@ var registry = map[string]hookDef{
 	"inject-subagent-context": {events: []string{"SubagentStart"}},
 	"stop-checks":             {events: []string{"Stop"}},
 	"review-checks":           {events: []string{"SubagentStop"}},
-	"report-checks":           {events: []string{"PostToolUse"}},
 	"guard-bash":              {},
 	"guard-commit":            {},
 	"guard-edit":              {},

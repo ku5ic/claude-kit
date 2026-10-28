@@ -19,7 +19,7 @@ Git, side effects, plans, and when to ask.
 Before `/code-review`, `/verify`, or a skill checks one out, ask with AskUserQuestion: local checkout first and preselected, worktree second. Pass the answer as `here` or `worktree` in the skill's args; whoever finds neither takes `here`.
 
 - `here`: on a dirty tree, stop and say so in one line. Otherwise `gh pr checkout <n>` or `git switch <branch>`, and name the branch you left in the report's first line so the user can switch back.
-- `worktree`: `git worktree add --detach "$(kit scratch-dir)/review-<target>"`, then `gh pr checkout <n>` or `git switch --detach <branch>` inside it. Work and run `kit run-checks` there, then `git worktree remove --force` it.
+- `worktree`: `git worktree add --detach "$(kit scratch-dir)/review-<target>"`, then `gh pr checkout <n>` or `git switch --detach <branch>` inside it. Work there, take the gate from the PR's CI (`gh pr checks <n>`), then `git worktree remove --force` it.
 
 ## 2. Side effects
 

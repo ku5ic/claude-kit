@@ -2,6 +2,7 @@ package hooks
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
@@ -20,7 +21,8 @@ import (
 // the stop on a failure, so Claude fixes or reports it. A question-only turn costs
 // nothing. When the turn ticked a plan's last open step, it also blocks
 // until /code-review has run since the last code
-// edit; it never runs the suite itself.
+// edit; that review's hook runs the full gate. A tree the full gate already
+// checked isn't checked again.
 func StopChecks(h *hook.Hook) error {
 	if h.Payload.Err != nil {
 		return h.Payload.Err
@@ -53,6 +55,10 @@ func StopChecks(h *hook.Hook) error {
 	if changes, err := git.Status(cwd, false); err != nil || len(changes) == 0 {
 		return nil
 	}
+	if coveredByFullGate(h.Paths.CacheDir(), root) {
+		h.Notify("stop checks: skipped, the full gate already checked this tree")
+		return nil
+	}
 	edited := transcript.Edits(transcript.LastTurn(entries))
 	if len(edited) == 0 {
 		return nil
@@ -75,6 +81,17 @@ func StopChecks(h *hook.Hook) error {
 		return h.Block("file checks failed; fix them or report and stop.\n"+out.Failures, "checks-failed")
 	}
 	return nil
+}
+
+// coveredByFullGate is true when review-checks' last full gate checked the
+// work tree as it is now.
+func coveredByFullGate(cacheDir, root string) bool {
+	checked, err := os.ReadFile(cache.FullGateTree(cacheDir, root))
+	if err != nil {
+		return false
+	}
+	tree, err := git.Snapshot(root)
+	return err == nil && tree == string(checked)
 }
 
 // stopBudget bounds a Stop run, planning and every gate, inside

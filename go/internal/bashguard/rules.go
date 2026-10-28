@@ -173,10 +173,15 @@ func (c *command) check() error {
 	case "eval":
 		return c.block("eval runs a command string that bypasses the permission allow list; run the command directly as a Bash tool call", "interpreter-c-wrap")
 	case "kit":
+		words := strings.Fields(c.rest)
+		switch {
+		case len(words) == 0:
 		// An explicit ask: with no decision, a Bash(kit git-base *) allow
 		// rule would approve --output=<file> silently.
-		if words := strings.Fields(c.rest); len(words) > 0 && words[0] == "git-base" && !gitBaseFlagsSafe(words[1:]) {
+		case words[0] == "git-base" && !gitBaseFlagsSafe(words[1:]):
 			c.st.ask("kit git-base passes this flag to git, which can write files or run programs; confirm it")
+		case words[0] == "run-checks" && !slices.Contains(words[1:], "--plan"):
+			return c.block("the hooks run the gates and show the user every result; don't run them yourself (kit run-checks --plan only lists them)", "run-checks-by-hook")
 		}
 	case "sed", "sd":
 		return c.inPlaceEdit()

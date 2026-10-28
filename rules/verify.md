@@ -9,17 +9,17 @@ What must happen before a change is called done, and when. This file is the one 
 | End of a plan, or when the user asks                                                                                 | `/code-review` (section 1); the reviewer runs the full suite at its end, so never run it apart                                                                                                                                                                    |
 | Same moment, when the change has observable behavior (a response, output, an exit code, data written, a side effect) | The runtime pass (section 2)                                                                                                                                                                                                                                      |
 
-**Check results reach the user through hooks, once.** Hooks show the user every PASS, FAIL, and SKIP line of each Stop run (`stop checks:`) and each `kit run-checks` run (`run-checks checks:`), whoever ran it. A reply never repeats those lines or their counts. It acts on a FAIL, or says what wasn't run. The hook reads the Bash output, so never cut a `kit run-checks` run short with `tail` or `head`; filter it, if at all, with `rg '^(PASS|FAIL|SKIP|checks:)'`.
+**Hooks run the gates and show their results; Claude does neither.** The Stop hook checks a turn's edits (`stop checks:`). The `/code-review` hook runs the full gate (`run-checks checks:`), and Stop skips a tree it already checked. Each shows the user every PASS, FAIL, and SKIP line. Claude never runs `kit run-checks` (the bash guard blocks it; `--plan` only lists the gates). A reply never repeats verdict lines or counts: it acts on a FAIL, or says what wasn't run. A targeted test while developing is fine.
 
 Tests and type checks prove the code compiles and the asserted paths pass. They don't prove the change works for whoever consumes it; that is what the runtime pass is for. A pure refactor with no behavior change is covered by the existing tests.
 
 ## 1. Self-review (`/code-review`)
 
-Read your own diff as a reviewer who didn't write it and doesn't trust it. Before it reports, a SubagentStop hook sends it back to run `kit run-checks` unless it already has. Ticking a plan's last step blocks the stop until a review started after the last edit has finished.
+Read your own diff as a reviewer who didn't write it and doesn't trust it. When it first stops, a SubagentStop hook runs the full gate on the checkout and sends it back with any FAIL. A PR reviewed in a worktree is gated by its CI (`gh pr checks`), not locally. Ticking a plan's last step blocks the stop until a review started after the last edit has finished.
 
 The reviewer's report follows these, whoever prompted the checks:
 
-- It never lists the checks or their counts: the hook already showed the user every line. For a target it didn't check out, it opens with one line saying local checks didn't run. Only the branch-left line from `rules/workflow.md` section 1 goes above it.
+- It never lists the checks or their counts: the hook already showed the user every line. For a worktree review, it opens with the PR's CI state from `gh pr checks`. Only the branch-left line from `rules/workflow.md` section 1 goes above it.
 - A FAIL becomes a finding only once its cause is verified in the code and you're at least 90% sure, and never twice for something already reported.
 - A FAIL left unreported gets one line saying why: pre-existing, flaky, or unrelated.
 

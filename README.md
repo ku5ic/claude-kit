@@ -110,7 +110,7 @@ When Claude finishes a turn, the Stop hook runs the checks your git hooks would 
 - **Changed lines only.** A linter blocks on findings in lines Claude changed, so old warnings don't trap it.
 - **Your commands, your flags.** Every command is one your project states; `kit explain stop <file>` shows which claim a file and the exact command.
 
-For the whole project, `kit run-checks` runs every quality gate, in every subproject:
+For the whole project, `kit run-checks` runs every quality gate, in every subproject. The `/code-review` hook runs it for you; Claude itself never does:
 
 - **CI first:** the check steps of GitHub Actions and GitLab CI, and the tasks they run. `kit.yml` `gate_discovery` says which jobs and steps are never read.
 - **Then each kind CI leaves out:** lint, typecheck, format-check, test, dead code, and security, from turbo and nx, task runners (`package.json` scripts, Makefile, justfile, and more), and pre-commit; last, a check the project states only by a tool's config or its language's manifest (`go.mod` states `go vet`).
@@ -170,7 +170,6 @@ Commands work bare (`/audit`) or namespaced (`/kit:audit`).
 | Agent             | Use it to                                                                     |
 | ----------------- | ----------------------------------------------------------------------------- |
 | `kit:auditor`     | Run a read-only audit for an `/audit` kind                                    |
-| `kit:checker`     | Get a one-line pass/fail from `kit run-checks`, when you want no review       |
 | `kit:debugger`    | Find where and why something breaks. Hands the fix back                       |
 | `kit:plan-critic` | Attack a plan against the real repo before you approve it                     |
 | `kit:researcher`  | Look up library docs and web pages, keeping network access out of code work   |
@@ -202,7 +201,7 @@ For anything bigger than a one-line fix:
 1. **Ask.** "How does X work?" loads `investigate`, which reads the code and edits nothing.
 2. **Plan** with the built-in `/plan`. For a big one, have `kit:plan-critic` check it against the repo.
 3. **Build one step at a time.** Claude stops after each step so you can review and commit. The Stop hook has already checked what it touched.
-4. **Review** at the end: `/code-review`, which ends by running `kit run-checks`, then `/verify` to watch the change work.
+4. **Review** at the end: `/code-review`, whose hook runs the full gate, then `/verify` to watch the change work.
 5. **Ship** with `/write commit` and `/write pr`. Claude never commits or pushes unasked.
 
 Side trips: `/audit` for a read-only report, `/simplify <path>` to cut over-engineering, `/deps` for dependency PRs.
