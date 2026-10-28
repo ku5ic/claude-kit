@@ -91,6 +91,14 @@ func TestReviewChecks(t *testing.T) {
 			!strings.HasPrefix(out["systemMessage"], "run-checks checks: 0 passed, 1 failed") {
 			t.Errorf("want a block naming the failure: %+v", out)
 		}
+		if _, err := os.Stat(cache.FullGateTree(e.k.paths.CacheDir(), testutil.Physical(t, e.project))); err == nil {
+			t.Error("a failed tree was kept, so Stop would skip a known failure")
+		}
+	})
+	t.Run("a review of a PR checked out in a worktree is left to its CI", func(t *testing.T) {
+		e := setup(t, `{"skillName":"code-review"}`, "")
+		testutil.AppendJSONL(t, e.transcript, testutil.ToolUse("t1", "Bash", map[string]any{"command": `git worktree add --detach "$(kit scratch-dir)/review-7"`}))
+		quiet(t, e, stop(e, e.project, ""))
 	})
 	t.Run("a review outside any project stops freely", func(t *testing.T) {
 		e := setup(t, `{"skillName":"code-review"}`, "")

@@ -13,7 +13,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -30,16 +29,14 @@ const gateTimeout = 10 * time.Minute
 // maxOutputLines bounds the output a failing gate shows.
 const maxOutputLines = 30
 
-// Summary matches the line a run ends with; review-checks reads it as proof
-// the reviewer ran the full gate.
-var Summary = regexp.MustCompile(`checks: \d+ passed, \d+ failed, \d+ skipped`)
-
 // Gates runs p's gates in order, writing a PASS, FAIL, or SKIP line for
 // each, then a blank line and the summary. A failure's line has its command,
 // where it ran, and its binaries under it, then the first lines of its
-// output. cacheDir holds the marks of gates that changed files.
-func Gates(p enforce.Plan, cacheDir string, w io.Writer) Result {
-	r := &runner{reporter: reporter{plan: p, report: w}, cacheDir: cacheDir,
+// output. cacheDir holds the marks of gates that changed files. A gate gets
+// what's left before deadline, when one is set, and one starting past it is
+// skipped. It returns the counts and the run's notice for the user.
+func Gates(p enforce.Plan, cacheDir string, w io.Writer, deadline time.Time) (Result, string) {
+	r := &runner{reporter: reporter{plan: p, report: w}, cacheDir: cacheDir, deadline: deadline,
 		base:    sync.OnceValue(func() string { base, _ := git.Base(p.Root, ""); return base }),
 		changes: sync.OnceValues(func() (git.Since, bool) { return git.ChangedSince(p.Root) }),
 	}
@@ -50,12 +47,13 @@ func Gates(p enforce.Plan, cacheDir string, w io.Writer) Result {
 		r.gate(g)
 	}
 	fmt.Fprintf(w, "\n%s\n", r.res)
-	return r.res
+	return r.res, r.notice("run-checks")
 }
 
 type runner struct {
 	reporter
 	cacheDir string
+	deadline time.Time // zero: no budget past each gate's own timeout
 	started  bool
 	tree     string // the work tree's snapshot after the last gate; "" outside a repo
 	ref      string // the restore point taken before the first gate
@@ -114,7 +112,14 @@ func (r *runner) gate(g enforce.Gate) {
 			return
 		}
 	}
-	o := r.exec(g, body)
+	timeout := gateTimeout
+	if !r.deadline.IsZero() {
+		if timeout = min(timeout, time.Until(r.deadline)); timeout <= 0 {
+			r.skip(g.Label, "no time left in the hook's budget")
+			return
+		}
+	}
+	o := r.exec(g, body, timeout)
 	// A failure describes what ran: the body with its files and {base}
 	// filled in.
 	ran := g
@@ -138,9 +143,9 @@ func (r *runner) gate(g enforce.Gate) {
 	}
 }
 
-// exec runs body as g says, with the snapshots around it. The first
-// snapshot is kept as the run's restore point.
-func (r *runner) exec(g enforce.Gate, body string) outcome {
+// exec runs body as g says, killed after timeout, with the snapshots around
+// it. The first snapshot is kept as the run's restore point.
+func (r *runner) exec(g enforce.Gate, body string, timeout time.Duration) outcome {
 	root := r.plan.Root
 	if !r.started {
 		r.started = true
@@ -148,11 +153,11 @@ func (r *runner) exec(g enforce.Gate, body string) outcome {
 			r.ref = keep(root, r.tree, time.Now())
 		}
 	}
-	cmd := command(g, body, gateTimeout)
+	cmd := command(g, body, timeout)
 	cmd.Interruptible()
 	o := execute(cmd)
 	if o.timedOut {
-		o.out += fmt.Sprintf("\ntimed out after %s\n", gateTimeout)
+		o.out += fmt.Sprintf("\ntimed out after %s\n", timeout.Round(time.Second))
 	}
 	if r.tree != "" {
 		if after, err := git.Snapshot(root); err == nil {

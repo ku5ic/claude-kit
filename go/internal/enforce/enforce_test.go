@@ -195,6 +195,11 @@ func TestACoveredCheckIsSkipped(t *testing.T) {
 	e.check("stories", map[string]any{"role": "check", "kind": "test", "covered_by": gapfill.Key(a11y)})
 	p := e.plan()
 	has(t, p, "RUN test (package.json: a11y)\n", "SKIP test (package.json: stories) (covered by test (package.json: a11y))\n")
+
+	// A coverer that doesn't run covers nothing.
+	e.cfg.DisabledChecks = []string{"test (package.json: a11y)"}
+	p = e.plan()
+	has(t, p, "SKIP test (package.json: a11y) (disabled_checks)\n", "RUN test (package.json: stories)\n")
 }
 
 // A scoped plan runs a task's affected form, a single-kind lint or format

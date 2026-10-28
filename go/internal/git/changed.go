@@ -25,22 +25,23 @@ func ChangedSince(root string) (Since, bool) {
 	if !ok {
 		return Since{}, false
 	}
+	// A git error fails the whole answer: an empty list would read as
+	// nothing changed, and scoped gates would pass unrun.
+	failed := false
 	run := func(args ...string) []string {
 		lines, err := Lines(root, append([]string{"-c", "core.quotePath=false"}, args...)...)
-		if err != nil {
-			return nil
-		}
+		failed = failed || err != nil
 		return lines
 	}
 	mb := run("merge-base", base, "HEAD")
-	if len(mb) != 1 {
+	if failed || len(mb) != 1 {
 		return Since{}, false
 	}
 	s := Since{Base: base, MergeBase: mb[0], Files: map[string]bool{}}
 	for _, f := range append(run("diff", "--name-only", "--diff-filter=d", mb[0]), run("ls-files", "--others", "--exclude-standard")...) {
 		s.Files[filepath.Join(root, f)] = true
 	}
-	return s, true
+	return s, !failed
 }
 
 // ChangedLines maps files (absolute) to the lines the working tree changed

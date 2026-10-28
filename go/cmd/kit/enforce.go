@@ -28,7 +28,7 @@ func runGates(e *env, cfg *config.Config, root string, a runChecksArgs) int {
 		p.Print(e.stdout)
 		return 0
 	}
-	switch r := gaterun.Gates(p, e.paths.CacheDir(), e.stdout); {
+	switch r, _ := gaterun.Gates(p, e.paths.CacheDir(), e.stdout, time.Time{}); {
 	case r.Fail > 0:
 		return min(r.Fail, exitUnclassified-1)
 	case p.Unclassified > 0:

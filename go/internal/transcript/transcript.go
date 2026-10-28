@@ -56,6 +56,7 @@ type Block struct {
 		FilePath     string `json:"file_path"`
 		NotebookPath string `json:"notebook_path"`
 		Skill        string `json:"skill"`
+		Command      string `json:"command"` // a Bash call's
 	} `json:"input"`
 }
 

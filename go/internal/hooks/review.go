@@ -22,6 +22,23 @@ const reviewSkill = "code-review"
 // lacks, as kit run-checks does.
 const classifyTimeout = 60 * time.Second
 
+// reviewBudget bounds the full gate inside review-checks' 1200s in
+// hooks.json, leaving room for planning and the snapshot: a gate starting
+// past it is skipped, so the user always gets the notice.
+const reviewBudget = 1050 * time.Second
+
+// worktreeReview reports whether the reviewer checked its target out in a
+// worktree: a PR reviewed there is gated by its CI, not the checkout here.
+func worktreeReview(path string) bool {
+	found := false
+	_ = transcript.Each(path, func(e transcript.Entry) {
+		for _, b := range e.Blocks {
+			found = found || b.Type == "tool_use" && b.Name == "Bash" && strings.Contains(b.Input.Command, "git worktree add")
+		}
+	})
+	return found
+}
+
 // forkedSkill is the skill a forked subagent runs: from Claude Code's
 // .forked-skill.json sidecar, else, for a foreground fork that writes none,
 // "code-review" when the parent's code-review Skill call has no result yet.
@@ -72,20 +89,22 @@ func ReviewChecks(h *hook.Hook) error {
 		return nil
 	}
 	cfg, root := h.Config(), git.Toplevel(h.Payload.Cwd())
-	if cfg == nil || root == "" {
+	if cfg == nil || root == "" || worktreeReview(transcript) {
 		return nil
 	}
+	deadline := time.Now().Add(reviewBudget)
 	cacheDir := h.Paths.CacheDir()
+	// Before the gates: an edit made while they run isn't one they checked.
+	tree, snapErr := git.Snapshot(root)
 	plan := enforce.Build(cfg, enforce.Options{Root: root, CacheDir: cacheDir, Ask: true, Timeout: classifyTimeout, Changed: true})
 	var report strings.Builder
-	res := run.Gates(plan, cacheDir, &report)
-	if tree, err := git.Snapshot(root); err == nil && !h.DryRun {
-		_ = fsx.WriteAtomic(cache.FullGateTree(cacheDir, root), []byte(tree), 0o600)
-	}
-	if notice := run.Notice(report.String()); notice != "" {
-		h.Notify("run-checks " + notice)
-	}
+	res, notice := run.Gates(plan, cacheDir, &report, deadline)
+	h.Notify(notice)
 	if res.Fail == 0 {
+		// Only a pass lets Stop skip the tree: a known failure must still block.
+		if snapErr == nil && !h.DryRun {
+			_ = fsx.WriteAtomic(cache.FullGateTree(cacheDir, root), []byte(tree), 0o600)
+		}
 		return nil
 	}
 	return h.Block("the full gate failed. Handle each FAIL per rules/verify.md section 1, then return your full report again, "+

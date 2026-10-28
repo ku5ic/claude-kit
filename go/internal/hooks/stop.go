@@ -55,12 +55,12 @@ func StopChecks(h *hook.Hook) error {
 	if changes, err := git.Status(cwd, false); err != nil || len(changes) == 0 {
 		return nil
 	}
-	if coveredByFullGate(h.Paths.CacheDir(), root) {
-		h.Notify("stop checks: skipped, the full gate already checked this tree")
-		return nil
-	}
 	edited := transcript.Edits(transcript.LastTurn(entries))
 	if len(edited) == 0 {
+		return nil
+	}
+	if coveredByFullGate(h.Paths.CacheDir(), root) {
+		h.Notify("stop checks: skipped, the full gate already checked this tree")
 		return nil
 	}
 	for i, path := range edited {
@@ -76,7 +76,7 @@ func StopChecks(h *hook.Hook) error {
 	}
 	// Every verdict goes to the user, a block's too; what to fix goes to
 	// Claude in the block's reason.
-	h.Notify(out.Notice())
+	h.Notify(out.Notice)
 	if out.Failed {
 		return h.Block("file checks failed; fix them or report and stop.\n"+out.Failures, "checks-failed")
 	}

@@ -33,7 +33,7 @@ func TestAStopPassIsReportedOnly(t *testing.T) {
 	t.Parallel()
 	r := newRepo(t, "repo")
 	out := r.stop(r.check("test", "test", "true"))
-	if out.Failed || !strings.Contains(out.Report(), "PASS test\n") || !Summary.MatchString(out.Report()) {
+	if out.Failed || !strings.Contains(out.Report(), "PASS test\n") || !strings.HasSuffix(out.Report(), "checks: 1 passed, 0 failed, 0 skipped\n") {
 		t.Errorf("%+v", out)
 	}
 }
@@ -49,7 +49,7 @@ func TestTheNoticeLeadsWithTheSummary(t *testing.T) {
 	want := "stop checks: 1 passed, 0 failed, 1 skipped\n" +
 		"  PASS test (lefthook.yml: test)\n" +
 		"  SKIP lint (lint-staged: *.ts) (eslint not installed)"
-	if got := out.Notice(); got != want {
+	if got := out.Notice; got != want {
 		t.Errorf("got:\n%s\nwant:\n%s", got, want)
 	}
 }
@@ -181,11 +181,12 @@ func TestChecksRunAtMostOnePerCPU(t *testing.T) {
 func TestChecksStopAtTheBatchDeadline(t *testing.T) {
 	t.Parallel()
 	r := newRepo(t, "repo")
-	plan := enforce.Plan{Root: r.root, Gates: []enforce.Gate{r.check("slow", "test", "sleep 5")}}
+	plan := enforce.Plan{Root: r.root, Gates: []enforce.Gate{r.check("slow", "test", "sleep 30")}}
 	start := time.Now()
-	// Wide enough for the snapshot before the gate under a loaded -race run.
-	out := Files(plan, r.cache, 10*time.Second, start.Add(2*time.Second))
-	if took := time.Since(start); took > 4*time.Second {
+	// Seconds to spare for the snapshot before the gate under a loaded -race
+	// run, and far short of both the gate's timeout and its sleep.
+	out := Files(plan, r.cache, time.Minute, start.Add(5*time.Second))
+	if took := time.Since(start); took > 15*time.Second {
 		t.Errorf("took %s, past the deadline", took)
 	}
 	has(t, out.Report(), "SKIP slow (timed out after ")

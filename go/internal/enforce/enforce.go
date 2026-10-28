@@ -101,6 +101,7 @@ func Build(cfg *config.Config, o Options) Plan {
 		b.scope()
 	}
 	b.settle(o.CacheDir)
+	b.skipCovered()
 	p := Plan{Root: o.Root, Unclassified: b.skipped, Managed: len(b.facts.Managers) > 0}
 	// A fan-out gate belongs to each member it runs across.
 	member := func(sub string) bool { return b.members[filepath.Join(o.Root, sub)] }
@@ -123,15 +124,16 @@ func fullGate(cfg *config.Config, o Options) (*builder, []string) {
 	for _, sub := range subs {
 		b.fill(sub)
 	}
-	b.skipCovered()
 	return b, subs
 }
 
-// skipCovered skips each gate a planned gate covers, naming that gate.
+// skipCovered skips each gate another gate covers, naming it, when that
+// gate runs its whole or affected body: one skipped, passed unrun, or
+// narrowed to a file form may not do the covered gate's work.
 func (b *builder) skipCovered() {
 	label := map[string]string{}
 	for _, g := range b.gates {
-		if g.Entry != "" && g.Skip == "" && g.CoveredBy == "" {
+		if g.Entry != "" && g.Skip == "" && g.Unchanged == "" && len(g.Files) == 0 && g.CoveredBy == "" {
 			label[g.Entry] = g.Label
 		}
 	}

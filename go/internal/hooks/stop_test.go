@@ -250,6 +250,16 @@ func TestStopChecks(t *testing.T) {
 			t.Error("a tree changed after the full gate went unchecked")
 		}
 	})
+	t.Run("a question-only turn after a full gate stays silent", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		testutil.Write(t, e.path("a.ts"), "dirty\n")
+		testutil.Write(t, cache.FullGateTree(e.k.paths.CacheDir(), e.repo), "any")
+		e.turn("Read", e.path("a.ts"))
+		r := e.stop(false)
+		r.Want(t, 0)
+		r.Empty(t)
+	})
 	t.Run("a failing check blocks and still shows the user every verdict", func(t *testing.T) {
 		t.Parallel()
 		e := stopSetup(t)

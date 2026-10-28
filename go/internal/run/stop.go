@@ -13,19 +13,16 @@ import (
 )
 
 // Checked is one Stop run: a line per gate for kit explain stop, the
-// message a block shows, and whether to block.
+// message a block shows, whether to block, and the notice for the user.
 type Checked struct {
 	Failures       string
 	Failed         bool
+	Notice         string
 	lines, summary string
 }
 
 // Report is every gate's line, then the summary.
 func (c Checked) Report() string { return c.lines + c.summary }
-
-// Notice is the report for the user: the summary, then each gate's line
-// under it.
-func (c Checked) Notice() string { return "stop " + Notice(c.Report()) }
 
 // Files runs p's gates, the Stop hook's checks of the turn's edits, one per
 // CPU at a time so they don't starve each other into timeouts, each killed
@@ -85,7 +82,7 @@ func Files(p enforce.Plan, cacheDir string, timeout time.Duration, deadline time
 		t.fail(g, detail)
 	}
 	summary := t.res.String() + "\n"
-	return Checked{Failures: failures.String() + summary, Failed: t.res.Fail > 0, lines: report.String(), summary: summary}
+	return Checked{Failures: failures.String() + summary, Failed: t.res.Fail > 0, Notice: t.notice("stop"), lines: report.String(), summary: summary}
 }
 
 // tally builds a Stop run's report and block message.
