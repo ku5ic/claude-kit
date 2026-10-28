@@ -86,7 +86,39 @@ func TestAGatePastTheDeadlineIsSkipped(t *testing.T) {
 	var out strings.Builder
 	res, _ := Gates(enforce.Plan{Root: r.root, Gates: []enforce.Gate{r.gate("test", "exit 1")}}, r.cache, &out, time.Now())
 	has(t, out.String(), "SKIP test (no time left in the hook's budget)\n")
-	if res != (Result{Skip: 1}) {
+	if res != (Result{Skip: 1, Cut: 1}) {
+		t.Errorf("result = %+v", res)
+	}
+}
+
+// A gate the deadline kills mid-run never finished: a skip, not a failure.
+func TestAGateTheDeadlineKillsIsSkipped(t *testing.T) {
+	t.Parallel()
+	r := newRepo(t, "repo")
+	var out strings.Builder
+	res, _ := Gates(enforce.Plan{Root: r.root, Gates: []enforce.Gate{r.gate("test", "sleep 30")}}, r.cache, &out, time.Now().Add(time.Second))
+	has(t, out.String(), "SKIP test (no time left in the hook's budget)\n")
+	if res != (Result{Skip: 1, Cut: 1}) {
+		t.Errorf("result = %+v", res)
+	}
+}
+
+// A covered gate runs when its coverer didn't, and is skipped when it did.
+func TestACoveredGateRunsWhenItsCovererDoesNot(t *testing.T) {
+	t.Parallel()
+	r := newRepo(t, "repo")
+	covered := func(label, coverer string) enforce.Gate {
+		g := r.gate(label, "exit 1")
+		g.CoveredBy, g.Skip = coverer, "covered by "+coverer
+		return g
+	}
+	missing := r.gate("missing", "no-such-tool")
+	missing.Entry = "missing"
+	present := r.gate("present", "true")
+	present.Entry = "present"
+	out, res := r.run(covered("a", "missing"), covered("b", "present"), missing, present)
+	has(t, out, "SKIP missing (not installed: ", "PASS present\n", "FAIL a\n", "SKIP b (covered by present)\n")
+	if res != (Result{Pass: 1, Fail: 1, Skip: 2}) {
 		t.Errorf("result = %+v", res)
 	}
 }

@@ -1,6 +1,7 @@
 package enforce
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -238,6 +239,45 @@ func TestAScopedPlanRunsWhatChanged(t *testing.T) {
 		"PASS format-check (package.json: format) (nothing changed since master)\n",
 		"cmd: npm run typecheck\n", "cmd: npm run unit\n")
 	lacks(t, p, "src/a.ts", "scratch")
+}
+
+// Two checks that narrow to one command run it once; a file form whose
+// paths would overflow one shell argument stays whole.
+func TestAScopedPlanRunsEachCommandOnceAndWithinTheArgLimit(t *testing.T) {
+	e := setup(t)
+	e.tool("node_modules/.bin/eslint")
+	e.tool(filepath.Join(e.path, "npm"))
+	e.write("package.json", `{"scripts":{"lint":"eslint .","lint:src":"eslint src"}}`)
+	e.check("lint", map[string]any{"role": "check", "kind": "lint", "file_form": "eslint {files}", "globs": []string{"**/*.ts"}})
+	e.check("lint:src", map[string]any{"role": "check", "kind": "lint", "file_form": "eslint {files}", "globs": []string{"**/*.ts"}})
+	e.base()
+	e.write("src/a.ts", "a\n")
+	p := e.plan()
+	has(t, p, "RUN lint (package.json: lint)\n  cmd: eslint src/a.ts\n")
+	lacks(t, p, "package.json: lint:src")
+
+	name := strings.Repeat("x", 200)
+	for i := range maxFileBytes / 200 {
+		e.write(fmt.Sprintf("src/%s%d.ts", name, i), "")
+	}
+	has(t, e.plan(), "cmd: npm run lint\n", "cmd: npm run lint:src\n")
+}
+
+// A mark a scoped run sets holds for a whole run, and the other way round.
+func TestAMarkHoldsWhetherTheGateRanScopedOrWhole(t *testing.T) {
+	e := setup(t)
+	e.tool("node_modules/.bin/eslint")
+	e.tool(filepath.Join(e.path, "npm"))
+	e.write("package.json", `{"scripts":{"lint":"eslint ."}}`)
+	e.check("lint", map[string]any{"role": "check", "kind": "lint", "file_form": "eslint {files}", "globs": []string{"**/*.ts"}})
+	e.base()
+	e.write("src/a.ts", "a\n")
+	scoped := e.plan()
+	if err := AddMark(e.cache, e.root, scoped.Gates[0], Mark{Label: scoped.Gates[0].Label, Paths: []string{"src/a.ts"}}); err != nil {
+		t.Fatal(err)
+	}
+	e.changed = false
+	has(t, e.plan(), "SKIP lint (package.json: lint) (changed src/a.ts when it last ran")
 }
 
 func TestNpxWithNoLocalCopyIsASkip(t *testing.T) {

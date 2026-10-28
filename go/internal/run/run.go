@@ -29,21 +29,34 @@ const gateTimeout = 10 * time.Minute
 // maxOutputLines bounds the output a failing gate shows.
 const maxOutputLines = 30
 
-// Gates runs p's gates in order, writing a PASS, FAIL, or SKIP line for
+// Gates runs p's gates in order, covered ones last, writing a PASS, FAIL, or SKIP line for
 // each, then a blank line and the summary. A failure's line has its command,
 // where it ran, and its binaries under it, then the first lines of its
 // output. cacheDir holds the marks of gates that changed files. A gate gets
 // what's left before deadline, when one is set, and one starting past it is
 // skipped. It returns the counts and the run's notice for the user.
 func Gates(p enforce.Plan, cacheDir string, w io.Writer, deadline time.Time) (Result, string) {
-	r := &runner{reporter: reporter{plan: p, report: w}, cacheDir: cacheDir, deadline: deadline,
+	r := &runner{reporter: reporter{plan: p, report: w}, cacheDir: cacheDir, deadline: deadline, ran: map[string]bool{},
 		base:    sync.OnceValue(func() string { base, _ := git.Base(p.Root, ""); return base }),
 		changes: sync.OnceValues(func() (git.Since, bool) { return git.ChangedSince(p.Root) }),
 	}
 	if p.Discovery != "" {
 		r.skip("everything", p.Discovery)
 	}
+	var covered []enforce.Gate
 	for _, g := range p.Gates {
+		if g.Covered() {
+			covered = append(covered, g)
+			continue
+		}
+		r.gate(g)
+	}
+	// Last, so each coverer has had its turn: one that didn't run covers
+	// nothing.
+	for _, g := range covered {
+		if !r.ran[g.CoveredBy] {
+			g.Skip = ""
+		}
 		r.gate(g)
 	}
 	fmt.Fprintf(w, "\n%s\n", r.res)
@@ -55,8 +68,9 @@ type runner struct {
 	cacheDir string
 	deadline time.Time // zero: no budget past each gate's own timeout
 	started  bool
-	tree     string // the work tree's snapshot after the last gate; "" outside a repo
-	ref      string // the restore point taken before the first gate
+	tree     string          // the work tree's snapshot after the last gate; "" outside a repo
+	ref      string          // the restore point taken before the first gate
+	ran      map[string]bool // the gap-fill keys of the entries whose gates ran
 	base     func() string
 	changes  func() (git.Since, bool)
 }
@@ -115,11 +129,16 @@ func (r *runner) gate(g enforce.Gate) {
 	timeout := gateTimeout
 	if !r.deadline.IsZero() {
 		if timeout = min(timeout, time.Until(r.deadline)); timeout <= 0 {
-			r.skip(g.Label, "no time left in the hook's budget")
+			r.cut(g.Label)
 			return
 		}
 	}
 	o := r.exec(g, body, timeout)
+	// Killed for the budget, not its own timeout: it never got to finish.
+	cut := o.timedOut && timeout < gateTimeout
+	if g.Entry != "" && !cut && !o.notFound() {
+		r.ran[g.Entry] = true
+	}
 	// A failure describes what ran: the body with its files and {base}
 	// filled in.
 	ran := g
@@ -134,6 +153,8 @@ func (r *runner) gate(g enforce.Gate) {
 		r.fail(ran, detail)
 	case o.notFound():
 		r.skip(g.Label, "not installed: "+lastLine(o.out))
+	case cut:
+		r.cut(g.Label)
 	case g.Scoped():
 		r.judge(ran, o)
 	case o.err != nil:

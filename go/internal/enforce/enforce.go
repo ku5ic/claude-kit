@@ -54,6 +54,7 @@ type Gate struct {
 	// Entry is the gap-fill key of the entry it runs, and CoveredBy that of
 	// a check whose run already does this one's.
 	Entry, CoveredBy string
+	markKey          string // its key before scope narrowed it
 }
 
 // Scoped is true for a dead-code gate: only findings on lines changed since
@@ -139,10 +140,16 @@ func (b *builder) skipCovered() {
 	}
 	for i := range b.gates {
 		if g := &b.gates[i]; g.Skip == "" && label[g.CoveredBy] != "" {
-			g.Skip = "covered by " + label[g.CoveredBy]
+			g.Skip = coveredBy + label[g.CoveredBy]
 		}
 	}
 }
+
+const coveredBy = "covered by "
+
+// Covered is true for a gate skipped because another gate's run does its
+// work; it runs after all when that gate doesn't.
+func (g Gate) Covered() bool { return g.CoveredBy != "" && strings.HasPrefix(g.Skip, coveredBy) }
 
 // plan is an empty builder for o.Root: its entries and their verified
 // verdicts, and its subprojects.

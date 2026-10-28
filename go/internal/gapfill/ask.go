@@ -35,8 +35,11 @@ const budgetUSD = "0.50"
 // proposals too: the project changed since they were answered.
 type request struct {
 	Entries []sources.Entry
-	View    view
-	Facts   bool
+	// Others are the project's entries outside Entries, sent unasked so
+	// covered_by can name one.
+	Others []sources.Entry
+	View   view
+	Facts  bool
 }
 
 func (r request) MarshalJSON() ([]byte, error) {
@@ -51,17 +54,22 @@ func (r request) MarshalJSON() ([]byte, error) {
 		Files     []string `json:"files,omitempty"`
 		PassFiles bool     `json:"pass_files,omitempty"`
 	}
-	entries := []entry{}
-	for _, e := range r.Entries {
-		entries = append(entries, entry{Key(e), e.Source, e.File, e.Name, e.Dir, e.Stage, e.Command(), e.Files, e.PassFiles})
+	encode := func(es []sources.Entry) []entry {
+		out := []entry{}
+		for _, e := range es {
+			out = append(out, entry{Key(e), e.Source, e.File, e.Name, e.Dir, e.Stage, e.Command(), e.Files, e.PassFiles})
+		}
+		return out
 	}
+	entries, others := encode(r.Entries), encode(r.Others)
 	return json.Marshal(struct {
 		Entries      []entry           `json:"entries"`
+		Others       []entry           `json:"other_entries"`
 		Facts        bool              `json:"ask_project_facts"`
 		Files        []string          `json:"files"`
 		Contents     map[string]string `json:"contents"`
 		LockfileDirs []lockDir         `json:"lockfile_dirs"`
-	}{entries, r.Facts, r.View.Files, r.View.Contents, r.View.LockfileDirs})
+	}{entries, others, r.Facts, r.View.Files, r.View.Contents, r.View.LockfileDirs})
 }
 
 // response is the classifier's structured answer.

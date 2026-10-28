@@ -20,8 +20,8 @@ import (
 )
 
 // fixture is a project root, a cache dir, and a stub classifier that saves
-// each request under requests/, fails one naming an id listed in the file
-// fail, and answers with whatever answer last wrote.
+// each request under requests/, fails one asking for an id listed in the
+// file fail, and answers with whatever answer last wrote.
 type fixture struct {
 	t                   *testing.T
 	root, cacheDir, dir string
@@ -35,7 +35,8 @@ func newFixture(t *testing.T, extra string) *fixture {
 	testutil.FakeTool(t, stub, filepath.Join(f.dir, "calls"), fmt.Sprintf(`req=$(cat)
 mkdir -p %[1]q/requests
 printf '%%s' "$req" >%[1]q/requests/$$.json
-for id in $(cat %[1]q/fail 2>/dev/null); do case "$req" in *"$id"*) exit 1;; esac; done
+asked=${req%%%%'"other_entries"'*}
+for id in $(cat %[1]q/fail 2>/dev/null); do case "$asked" in *"$id"*) exit 1;; esac; done
 %[2]s
 cat %[1]q/response.json`, f.dir, extra))
 	f.cfg = &config.Config{
@@ -232,6 +233,41 @@ func TestManyEntriesAreAskedInBatchesWithTheFactsOnce(t *testing.T) {
 		if len(batch) > batchSize {
 			t.Errorf("a request holds %d entries", len(batch))
 		}
+	}
+}
+
+// Each batch lists the entries outside it, so covered_by can name one.
+func TestEachBatchListsTheOtherEntries(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t, "")
+	entries, verdicts := lints(batchSize + 1)
+	f.answer(answers(verdicts...))
+	f.run(entries...)
+	paths, _ := filepath.Glob(filepath.Join(f.dir, "requests", "*.json"))
+	batches := 0
+	for _, p := range paths {
+		var req struct {
+			Entries []struct{ ID string } `json:"entries"`
+			Others  []struct{ ID string } `json:"other_entries"`
+		}
+		if err := json.Unmarshal([]byte(testutil.Read(t, p)), &req); err != nil {
+			t.Fatal(err)
+		}
+		if len(req.Entries) == 0 {
+			continue
+		}
+		batches++
+		var ids []string
+		for _, e := range slices.Concat(req.Entries, req.Others) {
+			ids = append(ids, e.ID)
+		}
+		slices.Sort(ids)
+		if len(ids) != len(entries) || len(slices.Compact(ids)) != len(entries) {
+			t.Errorf("a batch of %d lists %d others; want every entry once", len(req.Entries), len(req.Others))
+		}
+	}
+	if batches != 2 {
+		t.Errorf("%d batches, want 2", batches)
 	}
 }
 

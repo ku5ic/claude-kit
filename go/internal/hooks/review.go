@@ -3,12 +3,14 @@ package hooks
 import (
 	"encoding/json"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/enforce"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
+	"github.com/ku5ic/claude-kit/go/internal/gapfill"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/run"
@@ -18,14 +20,14 @@ import (
 // reviewSkill is the skill whose forks the review hooks track.
 const reviewSkill = "code-review"
 
-// classifyTimeout bounds asking the classifier for what the gap-fill cache
-// lacks, as kit run-checks does.
-const classifyTimeout = 60 * time.Second
-
 // reviewBudget bounds the full gate inside review-checks' 1200s in
 // hooks.json, leaving room for planning and the snapshot: a gate starting
 // past it is skipped, so the user always gets the notice.
 const reviewBudget = 1050 * time.Second
+
+// worktreeAdd matches a command that runs git worktree add, git's own
+// options allowed between, and not one that only quotes it.
+var worktreeAdd = regexp.MustCompile(`(?:^|[;&|(]\s*)git(?:\s+-\S+(?:\s+[^-\s]\S*)?)*\s+worktree\s+add\b`)
 
 // worktreeReview reports whether the reviewer checked its target out in a
 // worktree: a PR reviewed there is gated by its CI, not the checkout here.
@@ -33,7 +35,7 @@ func worktreeReview(path string) bool {
 	found := false
 	_ = transcript.Each(path, func(e transcript.Entry) {
 		for _, b := range e.Blocks {
-			found = found || b.Type == "tool_use" && b.Name == "Bash" && strings.Contains(b.Input.Command, "git worktree add")
+			found = found || b.Type == "tool_use" && (b.Name == "EnterWorktree" || b.Name == "Bash" && worktreeAdd.MatchString(b.Input.Command))
 		}
 	})
 	return found
@@ -96,13 +98,14 @@ func ReviewChecks(h *hook.Hook) error {
 	cacheDir := h.Paths.CacheDir()
 	// Before the gates: an edit made while they run isn't one they checked.
 	tree, snapErr := git.Snapshot(root)
-	plan := enforce.Build(cfg, enforce.Options{Root: root, CacheDir: cacheDir, Ask: true, Timeout: classifyTimeout, Changed: true})
+	plan := enforce.Build(cfg, enforce.Options{Root: root, CacheDir: cacheDir, Ask: true, Timeout: gapfill.ClassifyTimeout, Changed: true})
 	var report strings.Builder
 	res, notice := run.Gates(plan, cacheDir, &report, deadline)
 	h.Notify(notice)
 	if res.Fail == 0 {
-		// Only a pass lets Stop skip the tree: a known failure must still block.
-		if snapErr == nil && !h.DryRun {
+		// Only a whole pass lets Stop skip the tree: a known failure must
+		// still block, and a gate the budget cut checked nothing.
+		if snapErr == nil && res.Cut == 0 && !h.DryRun {
 			_ = fsx.WriteAtomic(cache.FullGateTree(cacheDir, root), []byte(tree), 0o600)
 		}
 		return nil

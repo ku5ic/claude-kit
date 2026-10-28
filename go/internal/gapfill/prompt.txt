@@ -9,7 +9,7 @@ Answer every entry, by its id:
 - globs: the files file_form applies to, as globs.
 - affected_form: the body's own words plus flags that limit it to what changed since the git ref {base}, when its tool supports that (turbo run x --filter=...[{base}], nx affected -t x --base={base}, jest --changedSince={base}, vitest --changed={base}). Omit it otherwise.
 - A body that only runs another task (pnpm run x, npm run x, make x) gets neither file_form nor affected_form: that task's own entry carries them.
-- covered_by: for a check whose whole run another check entry of the same kind, in the same directory, already does (the same tool on the same files or project, the other only adding assertions, flags, or settings), that entry's id. The other entry must not have a covered_by of its own. Omit it whenever unsure: a wrong one drops a check.
+- covered_by: for a check whose whole run another check entry of the same kind, in the same directory, already does (the same tool on the same files or project, the other only adding assertions, flags, or settings), that entry's id. The other entry may be one of entries or of other_entries, the project's entries outside this request, listed only for this: answer none of them. It must not have a covered_by of its own. Omit it whenever unsure: a wrong one drops a check.
 
 Never invent a command: a form keeps every word of its body, in order, and only adds flags and placeholders.
 

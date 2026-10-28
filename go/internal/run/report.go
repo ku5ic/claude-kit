@@ -8,8 +8,9 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/enforce"
 )
 
-// Result counts a run's verdicts.
-type Result struct{ Pass, Fail, Skip int }
+// Result counts a run's verdicts; Cut counts the skips the deadline cut
+// short, which leave the run incomplete.
+type Result struct{ Pass, Fail, Skip, Cut int }
 
 // String is the summary line a run ends with.
 func (res Result) String() string {
@@ -47,6 +48,12 @@ func (r *reporter) skip(label, why string) {
 		fmt.Fprint(r.failures, line)
 	}
 	r.res.Skip++
+}
+
+// cut skips label for the deadline.
+func (r *reporter) cut(label string) {
+	r.skip(label, "no time left in the hook's budget")
+	r.res.Cut++
 }
 
 func (r *reporter) pass(label, note string) {
