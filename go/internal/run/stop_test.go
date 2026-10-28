@@ -190,7 +190,7 @@ func TestChecksStopAtTheBatchDeadline(t *testing.T) {
 		t.Errorf("took %s, past the deadline", took)
 	}
 	has(t, out.Report(), "SKIP slow (timed out after ")
-	has(t, Files(plan, r.cache, 5*time.Second, start).Report(), "SKIP slow (no time left in the Stop hook's budget)")
+	has(t, Files(plan, r.cache, 5*time.Second, start).Report(), "SKIP slow (no time left in the hook's budget)")
 }
 
 func TestACheckThatChangesFilesBlocksAndIsMarked(t *testing.T) {

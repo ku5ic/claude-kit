@@ -1,10 +1,13 @@
 package enforce
 
 import (
+	"cmp"
 	"maps"
 	"slices"
 
+	"github.com/ku5ic/claude-kit/go/internal/gapfill"
 	"github.com/ku5ic/claude-kit/go/internal/git"
+	"github.com/ku5ic/claude-kit/go/internal/sources"
 )
 
 // fileScoped are the kinds a file form checks as fully as the whole body:
@@ -16,47 +19,42 @@ var fileScoped = []string{"lint", "format-check"}
 // bash -c argument, which Linux caps at 128 KiB.
 const maxFileBytes = 64 << 10
 
-// scope narrows each gate to what changed since the git base: its affected
-// form when it has one; else, for a lint or format check of one kind, its
-// file form on the changed files its globs match, passing unrun when none
-// does; else the whole body. Git lists the changed files without anything
-// its ignore files leave out, the user's global excludes included. With no
-// base every gate stays whole. Gates that narrow to one command run once.
-func (b *builder) scope() {
-	since, ok := git.ChangedSince(b.root)
+// verdictGate is a gate in dir carrying what v says of e: its verdict, its
+// forms, and its coverer.
+func verdictGate(e sources.Entry, v gapfill.Verdict, dir string) Gate {
+	return Gate{Dir: dir, Verdict: v.String(), FileForm: v.FileForm, Globs: v.Globs, Affected: v.Affected, Entry: gapfill.Key(e), CoveredBy: v.CoveredBy}
+}
+
+// scopeTo scopes the gates b adds to what changed since the git base. Git
+// lists the changed files without anything its ignore files leave out, the
+// user's global excludes included. With no base every gate stays whole.
+func (b *builder) scopeTo(root string) {
+	since, ok := git.ChangedSince(root)
 	if !ok {
 		return
 	}
-	changed := slices.Sorted(maps.Keys(since.Files))
-	for i := range b.gates {
-		g := &b.gates[i]
-		// Its marks stay those of the gate as planned whole.
-		g.markKey = g.key(b.root)
-		switch {
-		case g.Skip != "":
-		case g.Affected != "":
-			g.Dir, g.Body = g.AffectedDir, g.Affected
-		case len(g.Kinds) == 1 && slices.Contains(fileScoped, g.Kinds[0]) && g.FileForm != "" && len(g.Globs) > 0:
-			switch files := matching(changed, g.Dir, g.Globs); {
-			case len(files) == 0:
-				g.Unchanged = since.Base
-			case pathBytes(files) <= maxFileBytes:
-				g.Files, g.Body = files, g.FileForm
-			}
+	b.since, b.changed = &since, slices.Sorted(maps.Keys(since.Files))
+}
+
+// narrow limits g to what changed, in a scoped plan: its affected form when
+// it has one; else, for a lint or format check of one kind, its file form
+// on the changed files its globs match, passing unrun when none does; else
+// the whole body. A file form whose paths would overflow its argument runs
+// whole too.
+func (b *builder) narrow(g *Gate) {
+	switch {
+	case b.since == nil || g.Skip != "":
+	case g.Affected != "":
+		g.Dir, g.Body = cmp.Or(g.AffectedDir, g.Dir), g.Affected
+		g.FanOut = b.fansOut(g.Body)
+	case len(g.Kinds) == 1 && slices.Contains(fileScoped, g.Kinds[0]) && g.FileForm != "" && len(g.Globs) > 0:
+		switch files := matching(b.changed, g.Dir, g.Globs); {
+		case len(files) == 0:
+			g.Unchanged = b.since.Base
+		case pathBytes(files) <= maxFileBytes:
+			g.Files, g.Body = files, g.FileForm
 		}
 	}
-	seen := map[string]bool{}
-	b.gates = slices.DeleteFunc(b.gates, func(g Gate) bool {
-		if g.Skip != "" || g.Unchanged != "" {
-			return false
-		}
-		key := g.Dir + "\x00" + g.Command()
-		if seen[key] {
-			return true
-		}
-		seen[key] = true
-		return false
-	})
 }
 
 // pathBytes is the length of files joined by spaces.

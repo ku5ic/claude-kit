@@ -17,6 +17,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/gapfill"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/resolve"
 	"github.com/ku5ic/claude-kit/go/internal/sources"
@@ -47,14 +48,16 @@ type Gate struct {
 	Globs    []string
 	Files    []string // the files a Stop gate checks, absolute
 	// Affected is the body limited to what changed since {base}, run in
-	// AffectedDir, when its source states one; a scoped plan runs it.
+	// AffectedDir when set, else Dir, when its source states one; a scoped
+	// plan runs it.
 	Affected    string
 	AffectedDir string
 	Unchanged   string // the git base a scoped gate's files didn't change since: it passes unrun
 	// Entry is the gap-fill key of the entry it runs, and CoveredBy that of
-	// a check whose run already does this one's.
+	// a check whose run already does this one's, once the plan skips it for
+	// that.
 	Entry, CoveredBy string
-	markKey          string // its key before scope narrowed it
+	markKey          string // its key before add narrowed it
 }
 
 // Scoped is true for a dead-code gate: only findings on lines changed since
@@ -71,13 +74,15 @@ func (g Gate) LintLike() bool {
 
 // Plan is the full gate for one root. Discovery is set when the project
 // states nothing to check; Unclassified counts the entries with no verdict.
-// Managed is true when gap-fill has verified a package manager.
+// Managed is true when gap-fill has verified a package manager. Since is
+// what changed since the git base, for a scoped plan that found one.
 type Plan struct {
 	Root         string
 	Gates        []Gate
 	Unclassified int
 	Discovery    string
 	Managed      bool
+	Since        *git.Since
 }
 
 // Options says which root to plan, which subprojects to keep, whether
@@ -98,12 +103,9 @@ const Discovery = "nothing in this project states a check: no CI step, task, hoo
 func Build(cfg *config.Config, o Options) Plan {
 	b, subs := fullGate(cfg, o)
 	b.unclassified(func(e sources.Entry) bool { return !sources.SourceOf(e.Source).GitHook })
-	if o.Changed {
-		b.scope()
-	}
 	b.settle(o.CacheDir)
 	b.skipCovered()
-	p := Plan{Root: o.Root, Unclassified: b.skipped, Managed: len(b.facts.Managers) > 0}
+	p := Plan{Root: o.Root, Unclassified: b.skipped, Managed: len(b.facts.Managers) > 0, Since: b.since}
 	// A fan-out gate belongs to each member it runs across.
 	member := func(sub string) bool { return b.members[filepath.Join(o.Root, sub)] }
 	for _, g := range b.gates {
@@ -140,16 +142,16 @@ func (b *builder) skipCovered() {
 	}
 	for i := range b.gates {
 		if g := &b.gates[i]; g.Skip == "" && label[g.CoveredBy] != "" {
-			g.Skip = coveredBy + label[g.CoveredBy]
+			g.Skip = "covered by " + label[g.CoveredBy]
+		} else {
+			g.CoveredBy = ""
 		}
 	}
 }
 
-const coveredBy = "covered by "
-
 // Covered is true for a gate skipped because another gate's run does its
 // work; it runs after all when that gate doesn't.
-func (g Gate) Covered() bool { return g.CoveredBy != "" && strings.HasPrefix(g.Skip, coveredBy) }
+func (g Gate) Covered() bool { return g.CoveredBy != "" }
 
 // plan is an empty builder for o.Root: its entries and their verified
 // verdicts, and its subprojects.
@@ -157,7 +159,11 @@ func plan(cfg *config.Config, o Options) (*builder, []string) {
 	subs := project.Subprojects(o.Root)
 	entries := sources.Entries(cfg, o.Root, subs)
 	facts := gapfill.Run(cfg, gapfill.Options{Root: o.Root, CacheDir: o.CacheDir, Entries: entries, Ask: o.Ask, Timeout: o.Timeout})
-	return newBuilder(cfg, o.Root, entries, facts), subs
+	b := newBuilder(cfg, o.Root, entries, facts)
+	if o.Changed {
+		b.scopeTo(o.Root)
+	}
+	return b, subs
 }
 
 // hookPlan is plan narrowed to the git-hook managers' entries, never
@@ -200,9 +206,11 @@ type builder struct {
 	tasks    map[taskKey]sources.Entry
 	resolver *resolve.Resolver
 	gates    []Gate
-	planned  map[string]bool // gates by dir and body
+	planned  map[string]bool // gates by dir and command
 	members  map[string]bool // the workspace's member dirs, which a fan-out gate covers
 	skipped  int
+	since    *git.Since // what changed since the git base, in a scoped plan
+	changed  []string   // since's files, sorted
 }
 
 func newBuilder(cfg *config.Config, root string, entries []sources.Entry, facts gapfill.Result) *builder {
@@ -238,9 +246,13 @@ func (b *builder) verdict(e sources.Entry) (gapfill.Verdict, string) {
 	return gapfill.Verdict{}, b.facts.Skipped[key]
 }
 
-// add appends g unless the same body already runs in the same directory.
+// add appends g, narrowed to what changed when the plan is scoped, unless
+// the same command already runs in the same directory.
 func (b *builder) add(g Gate) {
-	key := g.Dir + "\x00" + g.Body
+	// Its marks stay those of the gate as planned whole.
+	g.markKey = g.key(b.root)
+	b.narrow(&g)
+	key := g.Dir + "\x00" + g.Command()
 	if b.planned[key] {
 		return
 	}
@@ -334,7 +346,9 @@ func (b *builder) taskRunners(sub, kind string) {
 		if !called[b.key(e)] {
 			tp, _ := provider(e.Source)
 			v, _ := b.verdict(e)
-			b.add(Gate{Label: label([]string{kind}, e.File+": "+e.Name, sub), Kinds: []string{kind}, Dir: dir, Body: b.runCommand(tp, sub, e.Name), Verdict: v.String(), FileForm: v.FileForm, Globs: v.Globs, Affected: v.Affected, AffectedDir: dir, Entry: gapfill.Key(e), CoveredBy: v.CoveredBy})
+			g := verdictGate(e, v, dir)
+			g.Label, g.Kinds, g.Body = label([]string{kind}, e.File+": "+e.Name, sub), []string{kind}, b.runCommand(tp, sub, e.Name)
+			b.add(g)
 		}
 	}
 	if !b.covered(dir, kind) {

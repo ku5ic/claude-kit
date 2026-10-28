@@ -3,11 +3,12 @@ package hooks
 import (
 	"encoding/json"
 	"os"
-	"regexp"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
+	"github.com/ku5ic/claude-kit/go/internal/classify"
 	"github.com/ku5ic/claude-kit/go/internal/enforce"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/gapfill"
@@ -25,9 +26,19 @@ const reviewSkill = "code-review"
 // past it is skipped, so the user always gets the notice.
 const reviewBudget = 1050 * time.Second
 
-// worktreeAdd matches a command that runs git worktree add, git's own
-// options allowed between, and not one that only quotes it.
-var worktreeAdd = regexp.MustCompile(`(?:^|[;&|(]\s*)git(?:\s+-\S+(?:\s+[^-\s]\S*)?)*\s+worktree\s+add\b`)
+// worktreeAdd is true when cmd runs git worktree add.
+func worktreeAdd(cmd string) bool {
+	calls, _ := classify.Calls(cmd)
+	for _, words := range calls {
+		if filepath.Base(words[0]) != "git" {
+			continue
+		}
+		if sub, args, _ := classify.GitSubcommand(words[1:]); sub == "worktree" && len(args) > 0 && args[0] == "add" {
+			return true
+		}
+	}
+	return false
+}
 
 // worktreeReview reports whether the reviewer checked its target out in a
 // worktree: a PR reviewed there is gated by its CI, not the checkout here.
@@ -35,7 +46,7 @@ func worktreeReview(path string) bool {
 	found := false
 	_ = transcript.Each(path, func(e transcript.Entry) {
 		for _, b := range e.Blocks {
-			found = found || b.Type == "tool_use" && (b.Name == "EnterWorktree" || b.Name == "Bash" && worktreeAdd.MatchString(b.Input.Command))
+			found = found || b.Type == "tool_use" && (b.Name == "EnterWorktree" || b.Name == "Bash" && worktreeAdd(b.Input.Command))
 		}
 	})
 	return found

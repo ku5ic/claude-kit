@@ -249,9 +249,12 @@ func ask(cfg *config.Config, o Options, p view, file string, s store) (_ store, 
 	}
 	allowed := slices.DeleteFunc(slices.Clone(o.Entries), func(e sources.Entry) bool { return denied(cfg, e) != "" })
 	for batch := range slices.Chunk(locked.missing(cfg, o.Entries), batchSize) {
-		others := slices.DeleteFunc(slices.Clone(allowed), func(e sources.Entry) bool {
-			return slices.ContainsFunc(batch, func(b sources.Entry) bool { return Key(b) == Key(e) })
-		})
+		asked, dirs := map[string]bool{}, map[string]bool{}
+		for _, e := range batch {
+			asked[Key(e)], dirs[e.Dir] = true, true
+		}
+		// coverage keeps a coverer only in its claimant's directory.
+		others := slices.DeleteFunc(slices.Clone(allowed), func(e sources.Entry) bool { return asked[Key(e)] || !dirs[e.Dir] })
 		reqs = append(reqs, request{Entries: batch, Others: others, View: p})
 	}
 	resps, errs := classifyAll(ctx, cfg, o, reqs)

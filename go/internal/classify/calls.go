@@ -85,6 +85,28 @@ func Statements(body string) (stmts []string, ok bool) {
 	return stmts, true
 }
 
+// GitSubcommand splits git's words past its global options: the
+// subcommand, its arguments, and the -C directory.
+func GitSubcommand(words []string) (sub string, args []string, dir string) {
+	for i := 0; i < len(words); {
+		w := words[i]
+		switch {
+		case w == "-C":
+			if i+1 < len(words) {
+				dir = words[i+1]
+			}
+			i += 2
+		case slices.Contains([]string{"-c", "--git-dir", "--work-tree", "--namespace", "--config-env", "--super-prefix"}, w):
+			i += 2
+		case strings.HasPrefix(w, "-"):
+			i++
+		default:
+			return w, words[i+1:], dir
+		}
+	}
+	return "", nil, dir
+}
+
 // Calls is every simple command body runs, as its literal words, in order:
 // inside pipes, lists, subshells, and command substitutions too, with
 // wrappers and the assignments after them dropped, and a find -exec or

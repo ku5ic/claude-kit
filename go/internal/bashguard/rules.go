@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/ku5ic/claude-kit/go/internal/classify"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 )
 
@@ -209,7 +210,7 @@ func (c *command) check() error {
 func (c *command) readOperands() []string {
 	name, ops := c.name, c.operands()
 	if name == "git" {
-		sub, args, _ := gitSubcommand(c.values())
+		sub, args, _ := classify.GitSubcommand(c.values())
 		if !gitPrinters[sub] {
 			return nil
 		}
@@ -430,30 +431,8 @@ func (c *command) chmod() error {
 	return nil
 }
 
-// gitSubcommand splits git's words past its global options: the
-// subcommand, its arguments, and the -C directory.
-func gitSubcommand(words []string) (sub string, args []string, dir string) {
-	for i := 0; i < len(words); {
-		w := words[i]
-		switch {
-		case w == "-C":
-			if i+1 < len(words) {
-				dir = words[i+1]
-			}
-			i += 2
-		case slices.Contains([]string{"-c", "--git-dir", "--work-tree", "--namespace", "--config-env", "--super-prefix"}, w):
-			i += 2
-		case strings.HasPrefix(w, "-"):
-			i++
-		default:
-			return w, words[i+1:], dir
-		}
-	}
-	return "", nil, dir
-}
-
 func (c *command) git() error {
-	sub, args, dir := gitSubcommand(c.values())
+	sub, args, dir := classify.GitSubcommand(c.values())
 	has := func(arg string) bool { return slices.Contains(args, arg) }
 
 	switch sub {

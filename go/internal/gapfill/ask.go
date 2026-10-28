@@ -35,8 +35,8 @@ const budgetUSD = "0.50"
 // proposals too: the project changed since they were answered.
 type request struct {
 	Entries []sources.Entry
-	// Others are the project's entries outside Entries, sent unasked so
-	// covered_by can name one.
+	// Others are the project's entries outside Entries, in their
+	// directories, sent unasked so covered_by can name one.
 	Others []sources.Entry
 	View   view
 	Facts  bool

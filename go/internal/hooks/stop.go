@@ -59,7 +59,7 @@ func StopChecks(h *hook.Hook) error {
 	if len(edited) == 0 {
 		return nil
 	}
-	if coveredByFullGate(h.Paths.CacheDir(), root) {
+	if coveredByFullGate(h, root) {
 		h.Notify("stop checks: skipped, the full gate already checked this tree")
 		return nil
 	}
@@ -84,14 +84,22 @@ func StopChecks(h *hook.Hook) error {
 }
 
 // coveredByFullGate is true when review-checks' last full gate checked the
-// work tree as it is now.
-func coveredByFullGate(cacheDir, root string) bool {
-	checked, err := os.ReadFile(cache.FullGateTree(cacheDir, root))
+// work tree as it is now. Once the tree moves on, the record goes, so later
+// turns don't snapshot the tree for it again.
+func coveredByFullGate(h *hook.Hook, root string) bool {
+	file := cache.FullGateTree(h.Paths.CacheDir(), root)
+	checked, err := os.ReadFile(file)
 	if err != nil {
 		return false
 	}
 	tree, err := git.Snapshot(root)
-	return err == nil && tree == string(checked)
+	if err != nil {
+		return false
+	}
+	if tree != string(checked) && !h.DryRun {
+		_ = os.Remove(file)
+	}
+	return tree == string(checked)
 }
 
 // stopBudget bounds a Stop run, planning and every gate, inside

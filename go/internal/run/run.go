@@ -40,6 +40,11 @@ func Gates(p enforce.Plan, cacheDir string, w io.Writer, deadline time.Time) (Re
 		base:    sync.OnceValue(func() string { base, _ := git.Base(p.Root, ""); return base }),
 		changes: sync.OnceValues(func() (git.Since, bool) { return git.ChangedSince(p.Root) }),
 	}
+	// A scoped plan already asked git.
+	if s := p.Since; s != nil {
+		r.base = func() string { return s.Base }
+		r.changes = func() (git.Since, bool) { return *s, true }
+	}
 	if p.Discovery != "" {
 		r.skip("everything", p.Discovery)
 	}
@@ -126,17 +131,16 @@ func (r *runner) gate(g enforce.Gate) {
 			return
 		}
 	}
-	timeout := gateTimeout
-	if !r.deadline.IsZero() {
-		if timeout = min(timeout, time.Until(r.deadline)); timeout <= 0 {
-			r.cut(g.Label)
-			return
-		}
+	timeout, ok := limit(gateTimeout, r.deadline)
+	if !ok {
+		r.cut(g.Label)
+		return
 	}
 	o := r.exec(g, body, timeout)
 	// Killed for the budget, not its own timeout: it never got to finish.
 	cut := o.timedOut && timeout < gateTimeout
-	if g.Entry != "" && !cut && !o.notFound() {
+	// Only a run of its whole or affected body covers another gate.
+	if g.Entry != "" && len(g.Files) == 0 && !cut && !o.notFound() {
 		r.ran[g.Entry] = true
 	}
 	// A failure describes what ran: the body with its files and {base}
@@ -162,6 +166,15 @@ func (r *runner) gate(g enforce.Gate) {
 	default:
 		r.pass(g.Label, "")
 	}
+}
+
+// limit is timeout cut to what's left before deadline, when one is set;
+// false when nothing is left.
+func limit(timeout time.Duration, deadline time.Time) (time.Duration, bool) {
+	if !deadline.IsZero() {
+		timeout = min(timeout, time.Until(deadline))
+	}
+	return timeout, timeout > 0
 }
 
 // exec runs body as g says, killed after timeout, with the snapshots around

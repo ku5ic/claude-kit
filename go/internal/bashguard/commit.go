@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ku5ic/claude-kit/go/internal/classify"
 	"github.com/ku5ic/claude-kit/go/internal/enforce"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
@@ -136,7 +137,7 @@ func commitCall(cmd, home, cwd string) commit {
 			for _, w := range call.Words[i+1:] {
 				words = append(words, w.Value)
 			}
-			if sub, args, dir := gitSubcommand(words); sub == "commit" {
+			if sub, args, dir := classify.GitSubcommand(words); sub == "commit" {
 				repo := resolveDir(home, d.cwd, dir)
 				if strings.ContainsAny(repo, "$`") {
 					repo = ""

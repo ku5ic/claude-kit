@@ -348,12 +348,7 @@ func TestRunRemovesEmptyProjectFolders(t *testing.T) {
 			}
 			wantFiles(t, scratch, tt.gone, tt.kept)
 			data, _ := os.ReadFile(filepath.Join(paths.LogDir(), "scratch-rotate.log"))
-			log := strings.ReplaceAll(string(data), scratch, "$S")
-			for _, line := range tt.logged {
-				if !strings.Contains(log, line) {
-					t.Errorf("rotate log lacks %q:\n%s", line, log)
-				}
-			}
+			testutil.Has(t, strings.ReplaceAll(string(data), scratch, "$S"), tt.logged...)
 		})
 	}
 }

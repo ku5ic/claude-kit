@@ -49,13 +49,13 @@ func Files(p enforce.Plan, cacheDir string, timeout time.Duration, deadline time
 						results[i] = outcome{crashed: true}
 					}
 				}()
-				limit := min(timeout, time.Until(deadline))
-				if limit <= 0 {
+				left, ok := limit(timeout, deadline)
+				if !ok {
 					results[i] = outcome{outOfTime: true}
 					return
 				}
-				results[i] = execute(command(g, g.Command(), limit))
-				results[i].limit = limit
+				results[i] = execute(command(g, g.Command(), left))
+				results[i].limit = left
 			})
 		}
 	}
@@ -98,7 +98,7 @@ func (t *tally) record(g enforce.Gate, o outcome) {
 	case o.crashed:
 		t.skip(g.Label, "crashed; failing open")
 	case o.outOfTime:
-		t.skip(g.Label, "no time left in the Stop hook's budget")
+		t.cut(g.Label)
 	case o.timedOut:
 		t.skip(g.Label, fmt.Sprintf("timed out after %s", o.limit.Round(100*time.Millisecond)))
 	case o.notFound():
