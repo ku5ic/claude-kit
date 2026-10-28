@@ -68,12 +68,12 @@ func StopChecks(h *hook.Hook) error {
 	if !h.DryRun {
 		_ = fsx.WriteAtomic(cache.StopReport(h.Paths.CacheDir(), root), []byte(out.Report()), 0o600)
 	}
+	// Every verdict goes to the user, a block's too; what to fix goes to
+	// Claude in the block's reason.
+	h.Notify(out.Notice())
 	if out.Failed {
 		return h.Block("file checks failed; fix them or report and stop.\n"+out.Failures, "checks-failed")
 	}
-	// What ran and what was skipped goes to the user alone: Claude has
-	// nothing to act on.
-	h.Notify(out.Notice())
 	return nil
 }
 

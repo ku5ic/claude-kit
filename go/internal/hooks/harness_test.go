@@ -58,6 +58,7 @@ var entries = map[string]func(*hook.Hook) int{
 	"plan-mode-context":       single("plan-mode-context", PlanModeContext),
 	"reply-length":            single("reply-length", ReplyLength),
 	"review-checks":           single("review-checks", ReviewChecks),
+	"report-checks":           single("report-checks", ReportChecks),
 	"stop-checks":             single("stop-checks", StopChecks),
 	"inject-context":          single("inject-context", InjectContext),
 	"inject-subagent-context": single("inject-subagent-context", InjectSubagentContext),

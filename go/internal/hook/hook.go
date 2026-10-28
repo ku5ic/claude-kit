@@ -98,6 +98,7 @@ type Hook struct {
 	context  string // printed after a block reason, e.g. "Path: <path>"
 	decision string // the strongest Decide so far; Run prints it once
 	reason   string
+	blocked  string // a block's reason, held for Run to print with the notices
 	// What checks add for Run to print: context for Claude on event,
 	// notices for the user, plain text.
 	event    string
@@ -310,7 +311,11 @@ func RunCheck(h *Hook, name string, check Check) (blocked bool) {
 		return false
 	}
 	if b, ok := errors.AsType[*Blocked](err); ok {
-		fmt.Fprintln(h.Stderr, b.Reason)
+		if h.notices != nil {
+			h.blocked = b.Reason
+		} else {
+			fmt.Fprintln(h.Stderr, b.Reason)
+		}
 		return true
 	}
 	failOpen()
@@ -319,12 +324,23 @@ func RunCheck(h *Hook, name string, check Check) (blocked bool) {
 
 // Run executes checks in order against one payload read, the dispatcher
 // contract: each check is isolated (one failing open never skips the next),
-// and the first block ends the run with exit 2.
+// and the first block ends the run with exit 2. A block after a notice is a
+// JSON decision instead, since exit 2 shows Claude the reason and drops the
+// notice meant for the user.
 func Run(h *Hook, checks ...NamedCheck) int {
 	for _, c := range checks {
-		if RunCheck(h, c.Name, c.Check) {
+		if !RunCheck(h, c.Name, c.Check) {
+			continue
+		}
+		if h.blocked == "" {
 			return 2
 		}
+		WriteJSON(h.Stdout, struct {
+			Decision      string `json:"decision"`
+			Reason        string `json:"reason"`
+			SystemMessage string `json:"systemMessage"`
+		}{"block", h.blocked, strings.Join(h.notices, "\n")})
+		return 0
 	}
 	h.flush()
 	return 0

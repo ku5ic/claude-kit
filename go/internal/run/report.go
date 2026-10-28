@@ -3,9 +3,32 @@ package run
 import (
 	"fmt"
 	"io"
+	"regexp"
+	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/enforce"
 )
+
+// verdict matches a report's PASS, FAIL, or SKIP line.
+var verdict = regexp.MustCompile(`^(PASS|FAIL|SKIP) `)
+
+// Notice is report for the user: its summary, then each verdict line under
+// it, indented; a failure's detail is left out. "" when report has no
+// summary, so it ran no gate.
+func Notice(report string) string {
+	summary := Summary.FindString(report)
+	if summary == "" {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString(summary)
+	for line := range strings.Lines(report) {
+		if verdict.MatchString(line) {
+			b.WriteString("\n  " + strings.TrimSuffix(line, "\n"))
+		}
+	}
+	return b.String()
+}
 
 // Result counts a run's verdicts.
 type Result struct{ Pass, Fail, Skip int }

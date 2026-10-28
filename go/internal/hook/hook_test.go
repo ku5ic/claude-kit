@@ -59,6 +59,19 @@ func TestRunStopsAtTheFirstBlock(t *testing.T) {
 	}
 }
 
+// A block after a notice prints as JSON so the notice still reaches the
+// user: exit 2 would show Claude the reason and drop it.
+func TestABlockKeepsTheNotice(t *testing.T) {
+	h, stdout, stderr := newHook(t, `{}`)
+	notifyThenBlock := func(h *Hook) error { h.Notify("checks: 0 passed, 1 failed, 0 skipped"); return blocker(h) }
+	if status := Run(h, NamedCheck{"a.sh", notifyThenBlock}); status != 0 || stderr.Len() > 0 {
+		t.Fatalf("status %d, stderr %q", status, stderr)
+	}
+	if got, want := stdout.String(), `{"decision":"block","reason":"Blocked by a.sh: nope","systemMessage":"checks: 0 passed, 1 failed, 0 skipped"}`+"\n"; got != want {
+		t.Errorf("stdout %s, want %s", got, want)
+	}
+}
+
 func TestBlockLogsAndHonorsDisabledRules(t *testing.T) {
 	h, _, _ := newHook(t, `{"session_id":"s1"}`)
 	h.SetContext("Path: /x")

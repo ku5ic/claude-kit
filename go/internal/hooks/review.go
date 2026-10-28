@@ -72,8 +72,8 @@ func forkedSkill(agentTranscript, parent string) string {
 }
 
 // ReviewChecks holds a forked /code-review at its first stop (SubagentStop)
-// and sends it back to run the full suite (rules/verify.md) and open its
-// report with the result. The reviewer knows its own target, so it, not this
+// and sends it back to run the full suite (rules/verify.md) and report
+// what it found. The reviewer knows its own target, so it, not this
 // hook, decides whether local checks apply. stop_hook_active lets the second
 // stop through, so it nudges once and never loops.
 func ReviewChecks(h *hook.Hook) error {
@@ -96,5 +96,5 @@ func ReviewChecks(h *hook.Hook) error {
 	}
 	return h.Block("before you return: run `kit run-checks` in the checkout you reviewed, timed per rules/tooling.md section 2. "+
 		"If you reviewed a target you didn't check out, don't run it. "+
-		"Then return your full report again, every finding you already had unchanged and in the same format, reporting the result per rules/verify.md section 1.", "review-checks")
+		"Then return your full report again, every finding you already had unchanged and in the same format, handling any FAIL per rules/verify.md section 1.", "review-checks")
 }

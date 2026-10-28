@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/ku5ic/claude-kit/go/internal/gapfill"
@@ -58,6 +59,14 @@ func TestStopChecks(t *testing.T) {
 
 	Touch(t, path("fail"))
 	r = stop()
-	r.Want(t, 2)
-	r.Has(t, "FAIL lint (package.json: *.ts)\n  cmd: fakelint --check a.ts\n", "lint noise", "checks: 0 passed, 1 failed, 0 skipped")
+	r.Want(t, 0)
+	out = nil
+	if err := json.Unmarshal([]byte(r.Stdout), &out); err != nil || out["decision"] != "block" || out["systemMessage"] != "stop checks: 0 passed, 1 failed, 0 skipped\n  FAIL lint (package.json: *.ts)" {
+		t.Errorf("a failure blocks and shows the user every verdict:\n%s", r.Output)
+	}
+	for _, s := range []string{"FAIL lint (package.json: *.ts)\n  cmd: fakelint --check a.ts\n", "lint noise", "checks: 0 passed, 1 failed, 0 skipped"} {
+		if !strings.Contains(out["reason"], s) {
+			t.Errorf("the block's reason lacks %q:\n%s", s, out["reason"])
+		}
+	}
 }

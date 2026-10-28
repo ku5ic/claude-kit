@@ -25,10 +25,7 @@ func (c Checked) Report() string { return c.lines + c.summary }
 
 // Notice is the report for the user: the summary, then each gate's line
 // under it.
-func (c Checked) Notice() string {
-	indented := strings.ReplaceAll(strings.TrimSuffix(c.lines, "\n"), "\n", "\n  ")
-	return "stop " + strings.TrimSuffix(c.summary, "\n") + "\n  " + indented
-}
+func (c Checked) Notice() string { return "stop " + Notice(c.Report()) }
 
 // Files runs p's gates, the Stop hook's checks of the turn's edits, one per
 // CPU at a time so they don't starve each other into timeouts, each killed

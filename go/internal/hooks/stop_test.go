@@ -229,6 +229,19 @@ func TestStopChecks(t *testing.T) {
 			t.Errorf("calls %q, want %q", got, e.repo+"|--check b.ts")
 		}
 	})
+	t.Run("a failing check blocks and still shows the user every verdict", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		e.turn("Edit", e.path("a.ts"))
+		testutil.Touch(t, e.path("fail"))
+		r := e.stop(false)
+		r.Want(t, 0)
+		var out map[string]string
+		if err := json.Unmarshal([]byte(r.Stdout), &out); err != nil || out["decision"] != "block" ||
+			!strings.Contains(out["reason"], "file checks failed") || out["systemMessage"] != "stop checks: 0 passed, 1 failed, 0 skipped\n  FAIL lint (package.json: *.ts)" {
+			t.Errorf("want a block with every verdict for the user:\n%s", r.Output)
+		}
+	})
 	t.Run("an entry with no verdict is recorded for kit explain stop, not run", func(t *testing.T) {
 		t.Parallel()
 		e := stopSetup(t)
