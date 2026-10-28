@@ -103,6 +103,7 @@ func TestReviewChecks(t *testing.T) {
 	t.Run("git -C or EnterWorktree is a worktree review too", func(t *testing.T) {
 		for _, call := range []map[string]any{
 			testutil.ToolUse("t1", "Bash", map[string]any{"command": "cd /x && git -C /repo worktree add --detach /tmp/review-7"}),
+			testutil.ToolUse("t1", "Bash", map[string]any{"command": `git -C "$REPO" worktree add --detach "$(kit scratch-dir)/review-7"`}),
 			testutil.ToolUse("t1", "EnterWorktree", map[string]any{"name": "review-7"}),
 		} {
 			e := setup(t, `{"skillName":"code-review"}`, "")

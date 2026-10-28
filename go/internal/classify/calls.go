@@ -113,7 +113,14 @@ func GitSubcommand(words []string) (sub string, args []string, dir string) {
 // xargs target listed after its command. A command whose first word isn't
 // literal is ["$"]; shell builtins aren't listed. ok is false when body
 // doesn't parse.
-func Calls(body string) (calls [][]string, ok bool) {
+func Calls(body string) (calls [][]string, ok bool) { return walkCalls(body, false) }
+
+// Words is Calls with a word that isn't literal kept as "$" instead of
+// ending its command's words: enough to read what a command does past a
+// variable argument, never to resolve what it runs.
+func Words(body string) (calls [][]string, ok bool) { return walkCalls(body, true) }
+
+func walkCalls(body string, keepVariables bool) (calls [][]string, ok bool) {
 	file, err := parse(body)
 	if err != nil {
 		return nil, false
@@ -127,7 +134,11 @@ func Calls(body string) (calls [][]string, ok bool) {
 		for _, w := range call.Args {
 			v, literal := literal(w)
 			if !literal {
-				break
+				// A command named by a variable stays ["$"].
+				if !keepVariables || len(words) == 0 {
+					break
+				}
+				v = "$"
 			}
 			words = append(words, v)
 		}

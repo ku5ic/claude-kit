@@ -28,7 +28,7 @@ const reviewBudget = 1050 * time.Second
 
 // worktreeAdd is true when cmd runs git worktree add.
 func worktreeAdd(cmd string) bool {
-	calls, _ := classify.Calls(cmd)
+	calls, _ := classify.Words(cmd)
 	for _, words := range calls {
 		if filepath.Base(words[0]) != "git" {
 			continue
