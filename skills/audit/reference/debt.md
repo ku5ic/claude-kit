@@ -31,6 +31,7 @@ Surface technical debt and architectural risks with severity and remediation pat
 ## Output per finding
 
 - What it is
+- Evidence: what was checked and what it showed (a `tokei` size, a churn count from `git log`, the quoted line)
 - Why it is a problem (scale, maintainability, correctness, security, performance, or operability)
 - Severity: failure / warning / info (per the report-format skill's rubric; "failure" here means active liability, not future risk)
 - Effort to remediate: small (hours), medium (days), large (weeks)

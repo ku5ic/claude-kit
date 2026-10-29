@@ -52,7 +52,7 @@ Replies to <reviewer>. <One line noting the round scoped to, and what was exclud
 
 ## Replies
 
-### [<path>:<line>](html_url) reply to <comment id>
+### [<path>:<line>](html_url) reply to <thread id>
 
 > <quoted original comment body>
 
@@ -69,7 +69,7 @@ Replies to <reviewer>. <One line noting the round scoped to, and what was exclud
 <Numbered list of agreed action items, deduped where multiple comments point at the same fix. Omit if nothing was agreed to.>
 ```
 
-One `###` section per comment, in the order the reviewer posted them. `publish` posts each section's text after the quote; the heading and the quote are not posted, and neither is "Fixes to make". A `review` section answers a review-level body, which has no thread to reply in.
+One `###` section per comment, in the order the reviewer posted them. The id after "reply to" is the comment's `in_reply_to_id` when set, else its `id`: GitHub's replies endpoint takes only a thread's top-level comment. `publish` posts each section's text after the quote; the heading and the quote are not posted, and neither is "Fixes to make". A `review` section answers a review-level body, which has no thread to reply in.
 
 ## Rules
 
