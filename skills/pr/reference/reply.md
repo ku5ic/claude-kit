@@ -1,14 +1,14 @@
-# /write review-reply
+# /pr reply
 
-Draft replies to a reviewer's PR comments, verifying each claim against the actual code before answering. Arguments: `<reviewer username> [PR number] [--all]`.
+Draft replies to a reviewer's comments on your PR, verifying each claim against the actual code before answering. Arguments: `[PR number] [reviewer username] [--all]`.
 
 ## Procedure
 
 1. Resolve the repo slug: `gh repo view --json nameWithOwner -q .nameWithOwner`. If this fails (no remote, no auth), stop and say so.
 2. Resolve the current GitHub user: `gh api user -q .login`. Used later to detect already-answered threads.
 3. Parse `$ARGUMENTS`:
-   - First non-flag token: reviewer username.
    - A bare number: PR number.
+   - The other non-flag token: reviewer username.
    - `--all`: include every review round, not just the newest (see step 6).
 4. If no PR number was given, resolve the current branch's PR: `gh pr view --json number,url`. If that fails (not on a PR branch, no open PR), ask for the PR number or URL via the AskUserQuestion tool instead of guessing.
 5. If no reviewer username was given:
@@ -41,36 +41,41 @@ For each comment, once investigated:
 
 ## Output
 
-Write to the path `kit scratch-dir pr <pr-number>-<reviewer>-review-replies` prints.
+Write to the path `kit scratch-dir pr-reply <n>` prints, opening with the draft header from SKILL.md (`Head:` is `headRefOid` from `gh pr view <n> --json headRefOid`).
 
 Structure:
 
-```text
-# PR #<n> - replies to <reviewer>'s latest review
+```markdown
+<draft header>
 
-<One line noting the round scoped to, and what was excluded (older rounds, already-answered threads).>
+Replies to <reviewer>. <One line noting the round scoped to, and what was excluded (older rounds, already-answered threads).>
 
----
+## Replies
 
-### <n>. <short title for the comment's topic>
-[<path>:<line>](<html_url>)
+### [<path>:<line>](html_url) reply to <thread id>
+
 > <quoted original comment body>
 
-**Answer:**
-<Short bullets if the answer has more than one point. One or two plain sentences if it doesn't - don't force bullets on a one-liner.>
+<The reply. One to three sentences; short bullets only when it answers more than one point.>
 
----
-<repeat per comment>
+### [review](html_url) review <review id>
+
+> <quoted review body>
+
+<The reply.>
 
 ## Fixes to make
+
 <Numbered list of agreed action items, deduped where multiple comments point at the same fix. Omit if nothing was agreed to.>
 ```
+
+One `###` section per comment, in the order the reviewer posted them. The id after "reply to" is the comment's `in_reply_to_id` when set, else its `id`: GitHub's replies endpoint takes only a thread's top-level comment. `publish` posts each section's text after the quote; the heading and the quote are not posted, and neither is "Fixes to make". A `review` section answers a review-level body, which has no thread to reply in.
 
 ## Rules
 
 - Verify before agreeing (`rules/workflow.md` section 4): every "confirmed" or "agreed" answer points at something read this session, not a paraphrase of the reviewer's claim.
-- Tone: short, peer-to-peer - the PR author replying to a colleague, not a report. No groveling, no corporate hedging. Acknowledging a finding: `rules/workflow.md` section 4.
+- Tone and shape: `rules/output.md` section 4. Acknowledging a finding: `rules/workflow.md` section 4.
 - Disagree plainly when the code contradicts the reviewer. State the evidence, don't soften it.
-- Never post anything to GitHub. This drafts a file only - posting the replies is a separate, explicit action the user takes themselves.
+- Post nothing. Posting the approved file is `/pr publish`.
 - If a comment's thread already has a reply from the current user (step 8), it's excluded silently from the per-comment sections, but counted in the round-summary line at the top.
 - If zero comments remain after scoping and filtering, say so and stop - do not write an empty file.

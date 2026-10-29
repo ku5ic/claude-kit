@@ -28,6 +28,7 @@ Stack: <the language lines kit detect-stack prints, if applicable>
 - Severity: <failure | warning | info>
 - Location: <file>:<line> or <region>
 - What: <problem in one or two sentences>
+- Evidence: <what was checked and what it showed: a count, a repro and its rate, a quoted line>
 - Why it matters: <one sentence>
 - Fix: <code snippet or concrete instruction>
 - Refs: <WCAG criterion, CVE, doc link, etc., if relevant>
@@ -52,7 +53,7 @@ Stack: <the language lines kit detect-stack prints, if applicable>
 - If a section would be empty, omit it. Do not leave placeholder text.
 - No ASCII decoration, no banner comments, no emoji.
 - File naming and location: the path `kit scratch-dir <kind> <target-slug>` prints.
-- Does not govern `/write` output (commit messages, PR descriptions, release notes, stakeholder summaries) - those have their own formats per `rules/output.md`.
+- Does not govern `/write` or `/pr` output (commit messages, release notes, stakeholder summaries, PR descriptions, review comments) - those have their own formats per `rules/output.md`.
 
 ## Summary line rubric
 

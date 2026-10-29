@@ -46,6 +46,7 @@ Performance audit focused on statically detectable issues. Arguments: `<file, di
 
 - Location
 - What: the specific pattern
+- Evidence: what was checked and what it showed (a render count, a `hyperfine` result, the quoted line)
 - Why it matters: estimated impact (render count, query count, payload size)
 - Verification: how to measure, if not statically obvious (e.g. "profile with React DevTools, expect re-render on every parent state change")
 - Fix: concrete code change or pattern switch
