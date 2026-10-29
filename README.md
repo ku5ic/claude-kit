@@ -156,13 +156,14 @@ Seven short files, injected into every session and every subagent:
 
 ### Commands
 
-| Command         | What it does                                                                                                  |
-| --------------- | ------------------------------------------------------------------------------------------------------------- |
-| `investigate`   | Read-only answer to "how", "why", or "where". Loads on its own; never edits                                   |
-| `/audit <kind>` | `a11y`, `debt`, `doc-drift`, `perf`, or `verify` a prior report. Writes a report to scratch                   |
-| `/write <kind>` | `commit`, `pr`, `release-notes`, `devnote`, `explainer`, `review-comment`, `review-reply`, `stakeholder`      |
-| `/deps`         | Merge Dependabot PRs and reconcile security alerts                                                            |
-| `/meta <kind>`  | `prompt` sharpening, `refresh` the pattern skills, draft a new `skill`, write a repo's `conventions`, `retro` |
+| Command         | What it does                                                                                                        |
+| --------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `investigate`   | Read-only answer to "how", "why", or "where". Loads on its own; never edits                                         |
+| `/audit <kind>` | `a11y`, `debt`, `doc-drift`, `perf`, or `verify` a prior report. Writes a report to scratch                         |
+| `/write <kind>` | `commit`, `release-notes`, `devnote`, `explainer`, `stakeholder`                                                    |
+| `/pr <kind>`    | Draft a `description`, a `review` of someone's PR, or a `reply` to your reviewer; `publish` posts an approved draft |
+| `/deps`         | Merge Dependabot PRs and reconcile security alerts                                                                  |
+| `/meta <kind>`  | `prompt` sharpening, `refresh` the pattern skills, draft a new `skill`, write a repo's `conventions`, `retro`       |
 
 Commands work bare (`/audit`) or namespaced (`/kit:audit`).
 
@@ -203,7 +204,7 @@ For anything bigger than a one-line fix:
 2. **Plan** with the built-in `/plan`. For a big one, have `kit:plan-critic` check it against the repo.
 3. **Build one step at a time.** Claude stops after each step so you can review and commit. The Stop hook has already checked what it touched.
 4. **Review** at the end: `/code-review`, whose hook runs the full gate, then `/verify` to watch the change work.
-5. **Ship** with `/write commit` and `/write pr`. Claude never commits or pushes unasked.
+5. **Ship** with `/write commit` and `/pr description`. Claude never commits or pushes unasked.
 
 Side trips: `/audit` for a read-only report, `/simplify <path>` to cut over-engineering, `/deps` for dependency PRs.
 

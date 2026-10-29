@@ -53,7 +53,7 @@ Stack: <the language lines kit detect-stack prints, if applicable>
 - If a section would be empty, omit it. Do not leave placeholder text.
 - No ASCII decoration, no banner comments, no emoji.
 - File naming and location: the path `kit scratch-dir <kind> <target-slug>` prints.
-- Does not govern `/write` output (commit messages, PR descriptions, release notes, stakeholder summaries) - those have their own formats per `rules/output.md`.
+- Does not govern `/write` or `/pr` output (commit messages, release notes, stakeholder summaries, PR descriptions, review comments) - those have their own formats per `rules/output.md`.
 
 ## Summary line rubric
 

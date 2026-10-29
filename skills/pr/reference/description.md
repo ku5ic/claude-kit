@@ -1,6 +1,6 @@
-# /write pr
+# /pr description
 
-Generate a pull request description from the current diff. Arguments: `<optional: commit range like main..HEAD>`.
+Generate a pull request title and description from the current diff. Arguments: `<optional: commit range like main..HEAD>`.
 
 ## Procedure
 
@@ -27,7 +27,7 @@ Generate a pull request description from the current diff. Arguments: `<optional
 
 ## Output
 
-Write the PR description to the path `kit scratch-dir pr <branch-slug>` prints.
+Write the PR description to the path `kit scratch-dir pr-description <branch>` prints. It opens with the draft header from SKILL.md, `Head:` being `git rev-parse HEAD` and `PR:` the branch's open PR from `gh pr view --json number`, else `Branch:`. Under the header, a `Title: <title>` line, a blank line, then the body below; `publish` posts everything after the `Title:` line as the body.
 
 ### If step 1 found a project PR template
 
@@ -72,6 +72,7 @@ Use this default structure:
 
 ## Rules
 
+- Title: one line in the shape the step 4 log uses (Conventional Commits, ticket prefix, plain), naming the change's purpose.
 - Why, not what. Hard rule, not a preference: the reviewer already has the diff for what changed and the test files for what's covered. Never restate either. A bullet that only narrates the diff ("renamed X to Y", "added a null check") earns no place in the description - only the bullet's reason for existing does.
 - Don't assert an impact or failure mode the diff and commit log don't establish. A one-line diff description ("remove stray character") is not license to invent what would have broken - if the actual runtime consequence isn't in the commit message or a linked issue, describe the change itself and stay silent on severity rather than guessing ("could cause X to fail").
 - If a section would only restate the diff or the tests, cut it - default structure only. Under a project template, an empty section keeps its heading and gets `N/A`.

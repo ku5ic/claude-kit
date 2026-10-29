@@ -40,7 +40,7 @@ Destructive operations require explicit confirmation before running: `rm`, `git 
 
 ## 3. Skills and plans
 
-The kit's procedure skills (`/audit`, `/write`, `/meta`, `/deps`) are user-only: they run when typed, never on model initiative.
+The kit's procedure skills (`/audit`, `/write`, `/pr`, `/meta`, `/deps`) are user-only: they run when typed, never on model initiative.
 
 Explore, plan, implement, and verify use the kit's `investigate` (read-only) and the built-ins `/plan`, `/code-review`, and `/verify`. Which checks run when is `rules/verify.md`.
 
