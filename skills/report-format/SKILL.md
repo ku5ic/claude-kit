@@ -28,6 +28,7 @@ Stack: <the language lines kit detect-stack prints, if applicable>
 - Severity: <failure | warning | info>
 - Location: <file>:<line> or <region>
 - What: <problem in one or two sentences>
+- Evidence: <what was checked and what it showed: a count, a repro and its rate, a quoted line>
 - Why it matters: <one sentence>
 - Fix: <code snippet or concrete instruction>
 - Refs: <WCAG criterion, CVE, doc link, etc., if relevant>

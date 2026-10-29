@@ -179,7 +179,7 @@ func TestKitRepo(t *testing.T) {
 	t.Run("audit verify parses every per-finding field the report format requires", func(t *testing.T) {
 		format := Read(t, filepath.Join(kitRoot, "skills/report-format/SKILL.md"))
 		verify := Read(t, filepath.Join(kitRoot, "skills/audit/reference/verify.md"))
-		for _, field := range []string{"Severity", "Location", "What", "Why it matters", "Fix", "Refs"} {
+		for _, field := range []string{"Severity", "Location", "What", "Evidence", "Why it matters", "Fix", "Refs"} {
 			word := regexp.MustCompile(`\b` + regexp.QuoteMeta(field) + `\b`)
 			if !word.MatchString(format) {
 				t.Errorf("report-format no longer documents %q", field)
