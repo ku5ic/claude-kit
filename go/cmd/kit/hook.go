@@ -26,6 +26,7 @@ var hookChecks = map[string]hook.Check{
 	"plan-mode-context":       hooks.PlanModeContext,
 	"guard-edit":              hooks.GuardEdit,
 	"guard-skills":            hooks.GuardSkills,
+	"guard-slop":              hooks.GuardSlop,
 	"guard-commit":            bashguard.CheckCommit,
 	"log-skills":              hooks.LogSkills,
 	"sanitize-output":         hooks.SanitizeOutput,
@@ -57,6 +58,7 @@ var registry = map[string]hookDef{
 	"guard-commit":            {},
 	"guard-edit":              {},
 	"guard-skills":            {},
+	"guard-slop":              {},
 	"sanitize-output":         {},
 	"format-dispatch":         {},
 }

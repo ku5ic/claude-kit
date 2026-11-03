@@ -218,12 +218,16 @@ func loadedSkills(logPath, session string) (map[string]bool, error) {
 	return loaded, nil
 }
 
-// GuardDispatch runs guard-edit's and, with CLAUDE_GUARD_SKILLS=1,
-// guard-skills' checks against one payload read, each isolated so one
-// failing open never skips the other. The skills gate is opt-in: blocking
-// edits until a patterns skill loads is a personal policy, not a default.
+// GuardDispatch runs guard-edit's, guard-slop's, and, with
+// CLAUDE_GUARD_SKILLS=1, guard-skills' checks against one payload read,
+// each isolated so one failing open never skips the others. The skills gate
+// is opt-in: blocking edits until a patterns skill loads is a personal
+// policy, not a default.
 func GuardDispatch(h *hook.Hook) int {
 	checks := []hook.NamedCheck{{Name: "guard-edit", Check: GuardEdit}}
+	if tool := h.Payload.String("tool_name"); tool == "Edit" || tool == "Write" || tool == "MultiEdit" {
+		checks = append(checks, hook.NamedCheck{Name: "guard-slop", Check: GuardSlop})
+	}
 	if stackctx.SkillsEnforced() {
 		checks = append(checks, hook.NamedCheck{Name: "guard-skills", Check: GuardSkills})
 	}

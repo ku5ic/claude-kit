@@ -205,6 +205,11 @@ func TestGuardCommit(t *testing.T) {
 		{"block: AI-tell phrasing in a heredoc subject", "git -C . commit -m \"$(cat <<'EOF'\nlet me fix this\nEOF\n)\"", 2},
 		{"block: AI-tell phrasing in a <<- heredoc subject with a spaced opener", "git commit -F - <<- \"MSG\"\n\there is the patch\n\tMSG", 2},
 		{"allow: a quoted -m subject before a heredoc body", "git commit -m \"feat: x\" -m \"$(cat <<'EOF'\nlet me explain\nEOF\n)\"", 0},
+		// slop: a tier in slop.block_tiers blocks anywhere in the message, the rest is logged
+		{"block: a tier 1 tell in a -m body", `git commit -m "feat: x" -m "I hope this helps."`, 2},
+		{"block: a tier 1 tell in a -F - heredoc body", "git commit -F - <<'EOF'\nfeat: x\n\nI hope this helps.\nEOF", 2},
+		{"allow: a tier 2 tell is only logged", `git commit -m "fix: x" -m "Addressed review feedback."`, 0},
+		{"allow: a tell quoted in the body", "git commit -m \"docs: x\" -m 'Ban the phrase \"I hope this helps\".'", 0},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			shared.commit("", c.cmd).Want(t, c.status)
@@ -222,6 +227,21 @@ func TestGuardCommitReadsSignaturesInTheFFile(t *testing.T) {
 	elsewhere := t.TempDir()
 	k.commit(elsewhere, "git commit -F ~/signed.txt").Want(t, 2)
 	k.commit(elsewhere, `git commit -F "$HOME/signed.txt"`).Want(t, 2)
+}
+
+// The -F file is scanned for AI tells too; a blocked one names the tell and
+// its slug, a logged one lands in the guards log with its rule.
+func TestGuardCommitScansTheMessageForAITells(t *testing.T) {
+	k := newSandbox(t)
+	testutil.Write(t, filepath.Join(k.home, "msg.txt"), "fix: x\n\nI hope this helps.\n")
+	r := k.commit("", "git commit -F msg.txt")
+	r.Want(t, 2)
+	r.Has(t, `L3 "I hope this helps" -> cut it`, "slop-patterns")
+
+	k.commit("", `git commit -m "fix: x" -m "Addressed review feedback."`).Want(t, 0)
+	if log, _ := os.ReadFile(filepath.Join(k.claude, "logs", "guards.jsonl")); !strings.Contains(string(log), "slop-addressed-feedback") {
+		t.Errorf("guards log lacks the tier 2 hit:\n%s", log)
+	}
 }
 
 // gitleaks scans the staged diff: exit 0 is clean, 1 a leak, anything else

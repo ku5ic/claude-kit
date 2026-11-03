@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
@@ -104,6 +105,39 @@ func (d *Detector) Blocking(r Result) []Hit {
 		}
 	}
 	return out
+}
+
+// Unblocked is the hits of r that don't block, for the caller to log.
+func (d *Detector) Unblocked(r Result) []Hit {
+	var out []Hit
+	for _, h := range r.Hits {
+		if !d.Blocks(h) {
+			out = append(out, h)
+		}
+	}
+	return out
+}
+
+// LogPairs is the key/value pairs a guard logs for a hit it lets through.
+func LogPairs(h Hit, where string) []string {
+	return []string{"rule", "slop-" + h.Rule, "tier", strconv.Itoa(h.Tier), "path", where, "line", strconv.Itoa(h.Line), "match", h.Match}
+}
+
+// Message is a deny reason: each blocking hit in where with its line and
+// fix, then the instruction to rewrite, not swap words.
+func Message(where string, hits []Hit) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "unslop: %d AI tell(s) in %s:\n", len(hits), where)
+	for _, h := range hits {
+		fmt.Fprintf(&b, "- L%d %q -> %s\n", h.Line, h.Match, h.Fix)
+	}
+	b.WriteString("Rewrite each sentence around the fact it points at, or cut it; a synonym keeps the tell. Load the slop-patterns skill for how.")
+	return b.String()
+}
+
+// DensityNote is the context a guard adds when r is dense.
+func DensityNote(where string, r Result) string {
+	return fmt.Sprintf("unslop: %s reads dense with AI-era vocabulary (%.1f tier 3 hits per 100 words). Not blocked; consider rewriting the passage around specifics (slop-patterns skill).", where, r.Score)
 }
 
 // Scan matches every rule that applies to surface against segs.

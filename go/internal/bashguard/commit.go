@@ -17,9 +17,11 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 	"github.com/ku5ic/claude-kit/go/internal/md"
 	"github.com/ku5ic/claude-kit/go/internal/proc"
 	"github.com/ku5ic/claude-kit/go/internal/run"
+	"github.com/ku5ic/claude-kit/go/internal/slop"
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
@@ -86,11 +88,36 @@ func CheckCommit(h *hook.Hook) error {
 	if subject != "" && aiTell.MatchString(subject) {
 		return h.Block("AI-tell phrasing in commit subject", "ai-commit-tell")
 	}
+	if err := scanMessage(h, msg); err != nil {
+		return err
+	}
 	if failed := commitMsg(h, msg, ok, repo); failed != "" {
 		return h.Block("the project's commit-msg checks reject this message; fix it to their convention:\n"+failed, "commit-msg")
 	}
 	if !shownBefore(h.Payload.String("transcript_path"), subject) {
 		h.Decide("ask", "rules/workflow.md section 1: show the commit message and staged diff summary, then wait for the user's go; confirm only if they've seen this message")
+	}
+	return nil
+}
+
+// scanMessage blocks a commit message holding AI tells in a
+// slop.block_tiers tier and logs the rest. Without kit.yml it fails open.
+func scanMessage(h *hook.Hook, msg string) error {
+	cfg := h.Config()
+	if cfg == nil || strings.TrimSpace(msg) == "" {
+		return nil
+	}
+	d, err := slop.New(cfg)
+	if err != nil {
+		return err
+	}
+	segs, _ := slop.Prose(msg)
+	res := d.Scan(segs, "commit")
+	for _, hit := range d.Unblocked(res) {
+		h.Log(kitlog.Guards, "slop", slop.LogPairs(hit, "commit message")...)
+	}
+	if hits := d.Blocking(res); len(hits) > 0 {
+		return h.Block(slop.Message("the commit message", hits), "slop")
 	}
 	return nil
 }

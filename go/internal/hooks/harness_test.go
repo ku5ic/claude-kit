@@ -52,6 +52,7 @@ var entries = map[string]func(*hook.Hook) int{
 	"guard-dispatch":          GuardDispatch,
 	"guard-edit":              single("guard-edit", GuardEdit),
 	"guard-skills":            single("guard-skills", GuardSkills),
+	"guard-slop":              single("guard-slop", GuardSlop),
 	"log-skills":              single("log-skills", LogSkills),
 	"sanitize-output":         single("sanitize-output", SanitizeOutput),
 	"format-dispatch":         single("format-dispatch", FormatDispatch),
