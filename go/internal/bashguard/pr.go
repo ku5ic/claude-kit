@@ -16,15 +16,20 @@ import (
 )
 
 var (
-	// ghPosts are the gh pr and gh issue subcommands that post text.
-	ghPosts = map[string]map[string]bool{
-		"pr":    {"create": true, "edit": true, "comment": true, "review": true},
-		"issue": {"create": true, "edit": true, "comment": true},
+	// The gh flags that carry PR text, by the spellings pflag accepts, to
+	// one name. Per subcommand: pr review's -c is a bool, merge's -t the
+	// commit subject.
+	textFlags    = map[string]string{"-b": "body", "--body": "body", "-F": "body-file", "--body-file": "body-file", "-t": "title", "--title": "title"}
+	mergeFlags   = map[string]string{"-b": "body", "--body": "body", "-F": "body-file", "--body-file": "body-file", "-t": "subject", "--subject": "subject"}
+	commentFlags = map[string]string{"-c": "comment", "--comment": "comment"}
+	apiFlags     = map[string]string{"-f": "raw-field", "--raw-field": "raw-field", "-F": "field", "--field": "field", "--input": "input"}
+	// ghPosts are the gh pr and gh issue subcommands that post text, each
+	// with the flags that carry it.
+	ghPosts = map[string]map[string]map[string]string{
+		"pr": {"create": textFlags, "edit": textFlags, "comment": textFlags, "review": textFlags,
+			"merge": mergeFlags, "close": commentFlags, "reopen": commentFlags},
+		"issue": {"create": textFlags, "edit": textFlags, "comment": textFlags, "close": commentFlags, "reopen": commentFlags},
 	}
-	// prFlags and apiFlags are the gh flags that carry PR text, by the
-	// spellings pflag accepts, to one name.
-	prFlags  = map[string]string{"-b": "body", "--body": "body", "-F": "body-file", "--body-file": "body-file", "-t": "title", "--title": "title"}
-	apiFlags = map[string]string{"-f": "raw-field", "--raw-field": "raw-field", "-F": "field", "--field": "field", "--input": "input"}
 	// prKeys are the API fields that hold PR text.
 	prKeys = []string{"body", "title"}
 )
@@ -86,9 +91,9 @@ func (s ghCall) texts(from int) []prText {
 	}
 	var out []prText
 	switch {
-	case len(args) >= 2 && ghPosts[args[0]][args[1]]:
+	case len(args) >= 2 && ghPosts[args[0]][args[1]] != nil:
 		cmd := "gh " + args[0] + " " + args[1]
-		ghFlags(args[2:], prFlags, func(flag, value string) {
+		ghFlags(args[2:], ghPosts[args[0]][args[1]], func(flag, value string) {
 			if flag == "body-file" {
 				out = append(out, s.read(cmd+" --body-file", value))
 				return
