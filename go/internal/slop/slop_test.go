@@ -28,8 +28,7 @@ func rules(r Result) []string {
 }
 
 func scan(d *Detector, text, surface string) Result {
-	segs, _ := Prose(text)
-	return d.Scan(segs, surface)
+	return d.Scan(Prose(text), surface)
 }
 
 func TestTiers(t *testing.T) {
@@ -161,8 +160,8 @@ func TestProse(t *testing.T) {
 		"It has `code` and \"a quote\" in it.",    // 7
 		"Name `unslop: allow <reason>` in prose.", // 8: a mention
 	}, "\n")
-	segs, allows := Prose(text)
-	if len(allows) != 1 || allows[0] != (Allow{2, "quoting the research"}) {
+	segs := Prose(text)
+	if _, allows, _ := Segments("a.md", "", text); len(allows) != 1 || allows[0] != (Allow{2, "quoting the research"}) {
 		t.Errorf("allows = %+v", allows)
 	}
 	var lines []int

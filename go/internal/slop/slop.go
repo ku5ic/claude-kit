@@ -56,7 +56,6 @@ type Detector struct {
 	words   *regexp.Regexp
 	density config.SlopDensity
 	block   []int
-	skip    []string
 }
 
 type rule struct {
@@ -69,7 +68,7 @@ type rule struct {
 // config load already warned about: an empty one would hit everywhere.
 func New(cfg *config.Config) *Detector {
 	s := cfg.Slop
-	d := &Detector{density: s.Density, block: s.BlockTiers, skip: s.Skip}
+	d := &Detector{density: s.Density, block: s.BlockTiers}
 	for _, r := range s.Rules {
 		if r.Match == "" || slices.Contains(cfg.DisabledRules, "slop-"+r.ID) {
 			continue
@@ -88,8 +87,8 @@ func New(cfg *config.Config) *Detector {
 	return d
 }
 
-// Skips reports whether slop.skip names path.
-func (d *Detector) Skips(path string) bool { return guard.GlobAny(d.skip, path) }
+// Skips reports whether cfg's slop.skip names path.
+func Skips(cfg *config.Config, path string) bool { return guard.GlobAny(cfg.Slop.Skip, path) }
 
 // Blocks reports whether h's tier is one slop.block_tiers blocks.
 func (d *Detector) Blocks(h Hit) bool { return slices.Contains(d.block, h.Tier) }
@@ -103,6 +102,16 @@ func (d *Detector) Blocking(r Result) []Hit {
 		}
 	}
 	return out
+}
+
+// Check scans segs on surface, hands every hit to logHit, and returns the
+// result and the hits that block: what each guard does with a scan.
+func (d *Detector) Check(segs []Segment, surface string, logHit func(Hit)) (Result, []Hit) {
+	res := d.Scan(segs, surface)
+	for _, hit := range res.Hits {
+		logHit(hit)
+	}
+	return res, d.Blocking(res)
 }
 
 // LogPairs is the key/value pairs a guard logs for a hit, blocked or not.
@@ -123,8 +132,8 @@ func Message(where string, hits []Hit) string {
 }
 
 // DensityNote is the context a guard adds when r is dense.
-func DensityNote(where string, r Result) string {
-	return fmt.Sprintf("unslop: %s reads dense with AI-era vocabulary (%.1f tier 3 hits per 100 words). Not blocked; consider rewriting the passage around specifics (slop-patterns skill).", where, r.Score)
+func (d *Detector) DensityNote(where string, r Result) string {
+	return fmt.Sprintf("unslop: %s reads dense with AI-era vocabulary (%.1f tier 3 hits per %d words). Not blocked; consider rewriting the passage around specifics (slop-patterns skill).", where, r.Score, d.density.PerWords)
 }
 
 // Scan matches every rule that applies to surface against segs.
@@ -189,15 +198,17 @@ var (
 	// Straight and curly double quotes; a single quote is too often an
 	// apostrophe to pair.
 	quoted = regexp.MustCompile(`"[^"]*"|\x{201C}[^\x{201D}]*\x{201D}`)
+	// quoteOpeners are the characters a quoted match starts with.
+	quoteOpeners = `"` + string(rune(0x201C))
 )
 
 // Prose is the scannable lines of a Markdown or plain text: prose outside
 // frontmatter, fences, and blockquotes, with code spans and quoted spans
 // taken out, so a tell named as an example never counts. An allow marker
-// and the next non-blank line are left out; the markers come back too, for
-// the caller to log.
-func Prose(text string) ([]Segment, []Allow) {
-	return finish(strings.Split(text, "\n"), proseLines(text))
+// and the next non-blank line are left out.
+func Prose(text string) []Segment {
+	segs, _ := finish(strings.Split(text, "\n"), proseLines(text))
+	return segs
 }
 
 // proseLines is each prose line of text with its code spans taken out.
@@ -223,8 +234,11 @@ func finish(lines []string, segs []Segment) ([]Segment, []Allow) {
 	var allows []Allow
 	exempt := map[int]bool{}
 	for _, s := range segs {
+		if s.Raw || !strings.Contains(s.Text, "unslop: allow") {
+			continue
+		}
 		m := allowMarker.FindStringSubmatch(s.Text)
-		if s.Raw || m == nil || m[1] == "" {
+		if m == nil || m[1] == "" {
 			continue
 		}
 		allows = append(allows, Allow{s.Line, m[1]})
@@ -241,7 +255,8 @@ func finish(lines []string, segs []Segment) ([]Segment, []Allow) {
 		if exempt[s.Line] {
 			continue
 		}
-		if !s.Raw {
+		// The regexp has no literal prefix to skip lines by; most have no quote.
+		if !s.Raw && strings.ContainsAny(s.Text, quoteOpeners) {
 			s.Text = quoted.ReplaceAllString(s.Text, " ")
 		}
 		out = append(out, s)

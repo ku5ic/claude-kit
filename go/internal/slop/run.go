@@ -11,7 +11,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/config"
 )
 
-const usage = "usage: kit slop [--surface file|commit|pr|report|chat] <file...|->"
+var usage = "usage: kit slop [--surface " + strings.Join(config.SlopSurfaces, "|") + "] <file...|->"
 
 // Run is `kit slop`: every hit in each file, or stdin, one line each. It
 // exits 1 when any hit blocks, 2 on a usage error.
@@ -31,7 +31,7 @@ func Run(cfg *config.Config, args []string, stdin io.Reader, stdout, stderr io.W
 		var data []byte
 		if path == "-" {
 			data, err = io.ReadAll(stdin)
-		} else if abs, _ := filepath.Abs(path); d.Skips(abs) {
+		} else if abs, _ := filepath.Abs(path); Skips(cfg, abs) {
 			fmt.Fprintf(stderr, "%s: skipped (slop.skip)\n", path)
 			continue
 		} else {

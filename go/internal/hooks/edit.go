@@ -125,11 +125,7 @@ func GuardSkills(h *hook.Hook) error {
 	if h.Payload.Err != nil {
 		return h.Payload.Err
 	}
-	// transcript.EditTools minus NotebookEdit: Payload.FilePath reads only
-	// file_path, and NotebookEdit sends notebook_path.
-	switch h.Payload.String("tool_name") {
-	case "Edit", "Write", "MultiEdit":
-	default:
+	if !slices.Contains(filePathTools, h.Payload.String("tool_name")) {
 		return nil
 	}
 	path := h.Payload.FilePath()
@@ -218,6 +214,10 @@ func loadedSkills(logPath, session string) (map[string]bool, error) {
 	return loaded, nil
 }
 
+// filePathTools are transcript.EditTools minus NotebookEdit: Payload.FilePath
+// reads only file_path, and NotebookEdit sends notebook_path.
+var filePathTools = []string{"Edit", "Write", "MultiEdit"}
+
 // GuardDispatch runs guard-edit's, guard-slop's, and, with
 // CLAUDE_GUARD_SKILLS=1, guard-skills' checks against one payload read,
 // each isolated so one failing open never skips the others. The skills gate
@@ -225,7 +225,7 @@ func loadedSkills(logPath, session string) (map[string]bool, error) {
 // policy, not a default.
 func GuardDispatch(h *hook.Hook) int {
 	checks := []hook.NamedCheck{{Name: "guard-edit", Check: GuardEdit}}
-	if tool := h.Payload.String("tool_name"); tool == "Edit" || tool == "Write" || tool == "MultiEdit" {
+	if slices.Contains(filePathTools, h.Payload.String("tool_name")) {
 		checks = append(checks, hook.NamedCheck{Name: "guard-slop", Check: GuardSlop})
 	}
 	if stackctx.SkillsEnforced() {

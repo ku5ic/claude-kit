@@ -10,7 +10,6 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
-	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 	"github.com/ku5ic/claude-kit/go/internal/slop"
 )
 
@@ -48,19 +47,16 @@ func ChatSlop(h *hook.Hook) error {
 		if cfg == nil {
 			return nil
 		}
-		d := slop.New(cfg)
-		segs, _ := slop.Prose(p.String("last_assistant_message"))
-		res := d.Scan(segs, "chat")
-		for _, hit := range res.Hits {
-			h.Log(kitlog.Guards, "slop", slop.LogPairs(hit, "chat reply")...)
+		_, blocking := slop.New(cfg).Check(slop.Prose(p.String("last_assistant_message")), "chat", logHit(h, "chat reply"))
+		if len(blocking) == 0 || h.DryRun {
+			return nil
 		}
-		blocking := d.Blocking(res)
 		for _, hit := range blocking {
 			if c := (chatHit{hit.Match, hit.Fix}); !slices.Contains(kept, c) {
 				kept = append(kept, c)
 			}
 		}
-		if data, err := json.Marshal(kept); err == nil && len(blocking) > 0 && !h.DryRun {
+		if data, err := json.Marshal(kept); err == nil {
 			_ = fsx.WriteAtomic(marker, data, 0o644)
 		}
 	}

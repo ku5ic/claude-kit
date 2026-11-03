@@ -12,6 +12,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
+	"github.com/ku5ic/claude-kit/go/internal/slop"
 )
 
 var (
@@ -38,32 +39,24 @@ func CheckPR(h *hook.Hook) error {
 		return nil
 	}
 	segs, _ := parseAll(cmd)
-	d := dirs{home: h.Home, cwd: h.Payload.Cwd()}
-	for _, seg := range segs {
-		for _, call := range seg.Calls {
-			i := lead(call.Words)
-			if i >= len(call.Words) {
+	var det *slop.Detector
+	for w := range walk(segs, h.Home, h.Payload.Cwd()) {
+		if w.name != "gh" {
+			continue
+		}
+		// call.start is an offset into seg.src, which for a heredoc fed to a
+		// shell is that body, not cmd.
+		src := ghCall{call: w.call, before: w.seg.src[:min(w.call.start, len(w.seg.src))], home: h.Home, cwd: w.cwd}
+		for _, t := range src.texts(w.i + 1) {
+			if t.unread != "" {
+				h.Log(kitlog.Guards, "slop-unread", "source", t.where, "why", t.unread)
 				continue
 			}
-			name := baseName(call.Words[i].Value)
-			// In a pipeline or a subshell, cd moves nothing after it.
-			if name == "cd" && len(seg.Calls) == 1 && !seg.subshell {
-				d.cd(call.Words[i+1:])
+			if det == nil {
+				det = detector(h) // once per command, not per text
 			}
-			if name != "gh" {
-				continue
-			}
-			// call.start is an offset into seg.src, which for a heredoc fed
-			// to a shell is that body, not cmd.
-			src := ghCall{call: call, before: seg.src[:min(call.start, len(seg.src))], home: h.Home, cwd: d.cwd}
-			for _, t := range src.texts(i + 1) {
-				if t.unread != "" {
-					h.Log(kitlog.Guards, "slop-unread", "source", t.where, "why", t.unread)
-					continue
-				}
-				if err := scanSlop(h, t.text, "pr", t.where); err != nil {
-					return err
-				}
+			if err := scanSlop(h, det, t.text, "pr", t.where); err != nil {
+				return err
 			}
 		}
 	}

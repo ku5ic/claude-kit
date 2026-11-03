@@ -84,7 +84,7 @@ func CheckCommit(h *hook.Hook) error {
 	}
 
 	subject := subject(msg)
-	if err := scanSlop(h, msg, "commit", "the commit message"); err != nil {
+	if err := scanSlop(h, detector(h), msg, "commit", "the commit message"); err != nil {
 		return err
 	}
 	if failed := commitMsg(h, msg, ok, repo); failed != "" {
@@ -98,20 +98,24 @@ func CheckCommit(h *hook.Hook) error {
 
 // scanSlop blocks text, read as surface, when it holds AI tells in a
 // slop.block_tiers tier, and logs every hit; where names the text in both.
-// Without kit.yml it fails open.
-func scanSlop(h *hook.Hook, text, surface, where string) error {
-	cfg := h.Config()
-	if cfg == nil || strings.TrimSpace(text) == "" {
+// A nil d (no kit.yml) fails open.
+func scanSlop(h *hook.Hook, d *slop.Detector, text, surface, where string) error {
+	if d == nil || strings.TrimSpace(text) == "" {
 		return nil
 	}
-	d := slop.New(cfg)
-	segs, _ := slop.Prose(text)
-	res := d.Scan(segs, surface)
-	for _, hit := range res.Hits {
+	_, hits := d.Check(slop.Prose(text), surface, func(hit slop.Hit) {
 		h.Log(kitlog.Guards, "slop", slop.LogPairs(hit, where)...)
-	}
-	if hits := d.Blocking(res); len(hits) > 0 {
+	})
+	if len(hits) > 0 {
 		return h.Block(slop.Message(where, hits), "slop")
+	}
+	return nil
+}
+
+// detector is h's slop detector; nil without kit.yml.
+func detector(h *hook.Hook) *slop.Detector {
+	if cfg := h.Config(); cfg != nil {
+		return slop.New(cfg)
 	}
 	return nil
 }
@@ -139,32 +143,20 @@ func (c commit) commits(cmd string) bool {
 // commitCall parses cmd, run from cwd, for its first git commit call.
 func commitCall(cmd, home, cwd string) commit {
 	segs, unparsed := parseAll(cmd)
-	d := dirs{home: home, cwd: cwd}
-	for _, seg := range segs {
-		for _, call := range seg.Calls {
-			i := lead(call.Words)
-			if i >= len(call.Words) {
-				continue
+	for w := range walk(segs, home, cwd) {
+		if w.name != "git" {
+			continue
+		}
+		var words []string
+		for _, word := range w.call.Words[w.i+1:] {
+			words = append(words, word.Value)
+		}
+		if sub, args, dir := classify.GitSubcommand(words); sub == "commit" {
+			repo := resolveDir(home, w.cwd, dir)
+			if strings.ContainsAny(repo, "$`") {
+				repo = ""
 			}
-			name := baseName(call.Words[i].Value)
-			// In a pipeline or a subshell, cd moves nothing after it.
-			if name == "cd" && len(seg.Calls) == 1 && !seg.subshell {
-				d.cd(call.Words[i+1:])
-			}
-			if name != "git" {
-				continue
-			}
-			var words []string
-			for _, w := range call.Words[i+1:] {
-				words = append(words, w.Value)
-			}
-			if sub, args, dir := classify.GitSubcommand(words); sub == "commit" {
-				repo := resolveDir(home, d.cwd, dir)
-				if strings.ContainsAny(repo, "$`") {
-					repo = ""
-				}
-				return commit{args: args, repo: repo, found: true, unparsed: unparsed, start: call.start}
-			}
+			return commit{args: args, repo: repo, found: true, unparsed: unparsed, start: w.call.start}
 		}
 	}
 	return commit{unparsed: unparsed}

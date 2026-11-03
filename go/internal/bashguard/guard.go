@@ -2,6 +2,7 @@ package bashguard
 
 import (
 	"cmp"
+	"iter"
 	"maps"
 	"path/filepath"
 	"regexp"
@@ -43,6 +44,41 @@ func (d *dirs) cd(args []Word) {
 		d.cwd = resolveDir(d.home, d.cwd, args[0].Value)
 	}
 	d.prev = prev
+}
+
+// walked is one parsed call as walk yields it: its segment, the call, the
+// index of its real command word, that command's base name, and the
+// directory it runs in.
+type walked struct {
+	seg  Segment
+	call Call
+	i    int
+	name string
+	cwd  string
+}
+
+// walk yields each call of segs with a command word, run from cwd, a cd
+// moving the directory for the calls after it.
+func walk(segs []Segment, home, cwd string) iter.Seq[walked] {
+	return func(yield func(walked) bool) {
+		d := dirs{home: home, cwd: cwd}
+		for _, seg := range segs {
+			for _, call := range seg.Calls {
+				i := lead(call.Words)
+				if i >= len(call.Words) {
+					continue
+				}
+				name := baseName(call.Words[i].Value)
+				// In a pipeline or a subshell, cd moves nothing after it.
+				if name == "cd" && len(seg.Calls) == 1 && !seg.subshell {
+					d.cd(call.Words[i+1:])
+				}
+				if !yield(walked{seg, call, i, name, d.cwd}) {
+					return
+				}
+			}
+		}
+	}
 }
 
 // state is one command's evaluation: the first ask reason wins, and the

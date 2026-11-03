@@ -27,7 +27,6 @@ func GuardSlop(h *hook.Hook) error {
 	if path == "" || cfg == nil {
 		return nil
 	}
-	d := slop.New(cfg)
 	surface := "file"
 	if project.IsScratch(h.Paths, path) {
 		if !strings.EqualFold(filepath.Ext(path), ".md") {
@@ -38,30 +37,27 @@ func GuardSlop(h *hook.Hook) error {
 			surface = "pr"
 		}
 	}
-	if d.Skips(path) {
+	// The path decides these, so a skipped or unread type costs no file
+	// read and no regexp compile.
+	if slop.Skips(cfg, path) || !slop.Reads(path) {
 		return nil
 	}
 	before, after, ok := written(h.Payload, path)
 	if !ok {
 		return nil
 	}
-	segs, allows, ok := slop.Segments(path, before, after)
-	if !ok {
-		return nil
-	}
+	segs, allows, _ := slop.Segments(path, before, after)
 	for _, a := range allows {
 		h.Log(kitlog.Guards, "slop-allow", "path", path, "line", strconv.Itoa(a.Line), "reason", a.Reason)
 	}
-	res := d.Scan(segs, surface)
-	for _, hit := range res.Hits {
-		h.Log(kitlog.Guards, "slop", slop.LogPairs(hit, path)...)
-	}
-	if hits := d.Blocking(res); len(hits) > 0 {
+	d := slop.New(cfg)
+	res, hits := d.Check(segs, surface, logHit(h, path))
+	if len(hits) > 0 {
 		h.Deny(slop.Message(filepath.Base(path)+" (new lines)", hits), "slop")
 		return nil
 	}
 	if res.Dense {
-		h.AddContext("PreToolUse", slop.DensityNote(filepath.Base(path), res))
+		h.AddContext("PreToolUse", d.DensityNote(filepath.Base(path), res))
 	}
 	return nil
 }

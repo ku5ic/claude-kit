@@ -53,34 +53,47 @@ var (
 // new work. The state a line depends on (a fence, a block comment, a marker
 // above it) comes from all of after. False for a type with no reader.
 func Segments(path, before, after string) ([]Segment, []Allow, bool) {
-	ext := strings.ToLower(filepath.Ext(path))
-	var segs []Segment
-	syn, ok := byName[filepath.Base(path)]
-	if ext == "" && strings.HasPrefix(after, "#!") {
-		syn, ok = hash, true
-	}
-	switch {
-	case slices.Contains(proseExts, ext) && !ok:
-		segs = proseLines(after)
-	case ok:
-		segs = commentLines(after, syn)
-	default:
-		syn, ok := byExt[ext]
-		if !ok {
-			return nil, nil, false
-		}
-		segs = commentLines(after, syn)
-		if slices.Contains(uiExts, ext) {
-			segs = append(segs, rawLines(after)...)
-			slices.SortStableFunc(segs, func(a, b Segment) int { return a.Line - b.Line })
-		}
+	syn, code, ok := reader(path, after)
+	if !ok {
+		return nil, nil, false
 	}
 	lines := strings.Split(after, "\n")
+	var segs []Segment
+	if !code {
+		segs = proseLines(after)
+	} else if segs = commentLines(lines, syn); slices.Contains(uiExts, strings.ToLower(filepath.Ext(path))) {
+		segs = append(segs, rawLines(lines)...)
+	}
 	segs, allows := finish(lines, segs)
 	added := addedLines(before, lines)
 	segs = slices.DeleteFunc(segs, func(s Segment) bool { return !added[s.Line] })
 	allows = slices.DeleteFunc(allows, func(a Allow) bool { return !added[a.Line] })
 	return segs, allows, true
+}
+
+// reader is how Segments reads path: its comment syntax, or code false for
+// prose; ok false for a type with no reader. With no extension, a shebang
+// opening after makes it a script.
+func reader(path, after string) (syn syntax, code, ok bool) {
+	ext := strings.ToLower(filepath.Ext(path))
+	if syn, ok := byName[filepath.Base(path)]; ok {
+		return syn, true, true
+	}
+	if ext == "" && strings.HasPrefix(after, "#!") {
+		return hash, true, true
+	}
+	if slices.Contains(proseExts, ext) {
+		return syntax{}, false, true
+	}
+	syn, ok = byExt[ext]
+	return syn, true, ok
+}
+
+// Reads reports whether Segments has a reader for path's type, which the
+// path alone decides.
+func Reads(path string) bool {
+	_, _, ok := reader(path, "")
+	return ok
 }
 
 // addedLines is the 1-based lines of after that before doesn't hold, each
@@ -103,9 +116,9 @@ func addedLines(before string, after []string) map[int]bool {
 	return added
 }
 
-func rawLines(text string) []Segment {
+func rawLines(lines []string) []Segment {
 	var segs []Segment
-	for i, line := range strings.Split(text, "\n") {
+	for i, line := range lines {
 		if strings.TrimSpace(line) != "" {
 			segs = append(segs, Segment{Line: i + 1, Text: line, Raw: true})
 		}
@@ -133,16 +146,16 @@ type span struct {
 // quoted or not; a YAML merge key (<<:) has none.
 var heredocOpener = regexp.MustCompile(`^<<[-~]?[ \t]*['"]?([A-Za-z_][A-Za-z0-9_]*)['"]?`)
 
-// commentLines is the comment text on each line of text, code spans taken
+// commentLines is the comment text on each of lines, code spans taken
 // out. shortcut: a line-at-a-time scan, not a lexer. A string or heredoc
 // spanning lines is followed to its closer, but ${} inside a template
 // literal isn't, and a Rust lifetime reads as an opening quote, which can
 // hide the rest of its line. A tell wrapped across two comment lines is
 // missed.
-func commentLines(text string, syn syntax) []Segment {
+func commentLines(lines []string, syn syntax) []Segment {
 	var segs []Segment
 	var open span // the block comment, docstring, string, or heredoc a line starts inside
-	for i, line := range strings.Split(text, "\n") {
+	for i, line := range lines {
 		if open.kind == heredoc {
 			if strings.TrimSpace(line) == open.close {
 				open = span{}

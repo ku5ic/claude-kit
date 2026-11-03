@@ -29,10 +29,7 @@ func GuardHandback(h *hook.Hook) error {
 	if marker == "" {
 		return nil
 	}
-	hits, err := reportHits(h, p.String("tool_input.message"))
-	if err != nil {
-		return err
-	}
+	hits := reportHits(h, p.String("tool_input.message"))
 	if prev, _ := os.ReadFile(marker); string(prev) == "sent-back" {
 		return nil
 	}
@@ -60,9 +57,9 @@ func SubagentSlop(h *hook.Hook) error {
 	if marker := handbackMarker(h); marker != "" && fsx.IsFile(marker) {
 		return nil
 	}
-	hits, err := reportHits(h, p.String("last_assistant_message"))
-	if err != nil || len(hits) == 0 {
-		return err
+	hits := reportHits(h, p.String("last_assistant_message"))
+	if len(hits) == 0 {
+		return nil
 	}
 	return h.Block(slop.Message("your report", hits)+sendBack, "slop")
 }
@@ -78,17 +75,17 @@ func handbackMarker(h *hook.Hook) string {
 }
 
 // reportHits scans a subagent report and returns the hits in a block tier,
-// logging the rest. Without kit.yml it finds none.
-func reportHits(h *hook.Hook, text string) ([]slop.Hit, error) {
+// logging every hit. Without kit.yml it finds none.
+func reportHits(h *hook.Hook, text string) []slop.Hit {
 	cfg := h.Config()
 	if cfg == nil || strings.TrimSpace(text) == "" {
-		return nil, nil
+		return nil
 	}
-	d := slop.New(cfg)
-	segs, _ := slop.Prose(text)
-	res := d.Scan(segs, "report")
-	for _, hit := range res.Hits {
-		h.Log(kitlog.Guards, "slop", slop.LogPairs(hit, "subagent report")...)
-	}
-	return d.Blocking(res), nil
+	_, blocking := slop.New(cfg).Check(slop.Prose(text), "report", logHit(h, "subagent report"))
+	return blocking
+}
+
+// logHit logs a slop hit in where to the guards log.
+func logHit(h *hook.Hook, where string) func(slop.Hit) {
+	return func(hit slop.Hit) { h.Log(kitlog.Guards, "slop", slop.LogPairs(hit, where)...) }
 }
