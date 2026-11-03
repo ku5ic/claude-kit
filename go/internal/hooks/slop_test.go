@@ -9,7 +9,12 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
 
-const tell = "I hope this helps."
+// tell blocks; dense is tier 3 vocabulary dense enough to report, the only
+// kind of hit the guards log without blocking.
+const (
+	tell  = "I hope this helps."
+	dense = "A robust, seamless, comprehensive tool."
+)
 
 // slopCall is a tool call on path with input as tool_input, file_path set.
 func slopCall(tool, path string, input map[string]any) map[string]any {
@@ -22,7 +27,7 @@ func edit(from, to string) map[string]any {
 }
 
 // Each case writes on (when set) to the file first, then runs one tool call
-// against it with the real kit.yml (block_tiers [1]).
+// against it with the real kit.yml.
 func TestGuardSlop(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -45,7 +50,8 @@ func TestGuardSlop(t *testing.T) {
 		{"allow: kit.yml is skipped", "kit.yml", "", "Write", map[string]any{"content": "# " + tell + "\nx: 1\n"}, false, ""},
 		{"deny: a tell in a Go comment", "x.go", "", "Write", map[string]any{"content": "package x\n\n// " + tell + "\nfunc f() {}\n"}, true, ""},
 		{"allow: a tell in a Go string literal", "x.go", "", "Write", map[string]any{"content": "package x\n\nvar s = \"" + tell + "\"\n"}, false, ""},
-		{"allow: a tier 2 tell is only logged", "doc.md", "", "Write", map[string]any{"content": "It serves as the entry point.\n"}, false, ""},
+		{"deny: a tier 2 tell", "doc.md", "", "Write", map[string]any{"content": "It serves as the entry point.\n"}, true, "serves as the"},
+		{"allow: a dense tier 3 passage is only logged", "doc.md", "", "Write", map[string]any{"content": dense + "\n"}, false, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -70,13 +76,13 @@ func TestGuardSlop(t *testing.T) {
 
 func TestGuardSlopLogs(t *testing.T) {
 	t.Parallel()
-	t.Run("a tier 2 tell logs its rule, path, line and match", func(t *testing.T) {
+	t.Run("a dense tier 3 passage logs its rule, path, line and match", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
 		path := filepath.Join(t.TempDir(), "doc.md")
-		k.run("guard-slop", slopCall("Write", path, map[string]any{"content": "# Doc\n\nIt serves as the entry point.\n"})).Allowed(t)
+		k.run("guard-slop", slopCall("Write", path, map[string]any{"content": "# Doc\n\n" + dense + "\n"})).Allowed(t)
 		log := read(t, k.paths.LogFile(kitlog.Guards))
-		for _, want := range []string{`"slop-copula"`, `"line":"3"`, `"match":"serves as the"`} {
+		for _, want := range []string{`"slop-vocabulary"`, `"line":"3"`, `"match":"robust"`} {
 			if !strings.Contains(log, want) {
 				t.Errorf("guards log lacks %s:\n%s", want, log)
 			}

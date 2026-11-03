@@ -186,7 +186,7 @@ sanitize_skip: ["*.po", "*.pot", "*.svg", "*.html.j2", "*.j2", "*.jinja", "*.jin
 # spans, quoted spans, fences, and blockquotes are never scanned. Turn a rule
 # off with disabled_rules: slop-<id>, or slop-vocabulary for the word list.
 slop:
-  block_tiers: [1]
+  block_tiers: [1, 2]
   skip: ["*/testdata/*", "*/fixtures/*", "*.snap", "*/__snapshots__/*", "*/kit.yml", "*/claude-kit.local.yml"]
   density:
     per_words: 100
@@ -246,7 +246,7 @@ slop:
       on: [commit, pr, report]
       match: '(?i)\b(improv|enhanc)(e|es|ed|ing) (the )?(readability|maintainability|clarity|code quality|consistency|robustness)\b|\bfor (better )?(readability|maintainability|clarity)\b'
       fix: say what changed and why it matters
-    - {id: while-preserving, tier: 2, on: [commit, pr], match: '(?i)\bwhile (preserving|maintaining|retaining|keeping)\b', fix: cut it; the diff shows what stayed}
+    - {id: while-preserving, tier: 3, on: [commit, pr], match: '(?i)\bwhile (preserving|maintaining|retaining|keeping)\b'}
     - {id: addressed-feedback, tier: 2, on: [commit, pr], match: '(?i)\baddress(es|ed|ing)? (the )?(review |PR )?(feedback|comments)\b', fix: say what changed}
     - {id: streamlined, tier: 2, on: [commit, pr], match: '(?i)\bstreamlin(e|es|ed|ing)\b', fix: say what was removed or merged}
     - {id: rather-than, tier: 3, match: '(?i)\brather than\b'}

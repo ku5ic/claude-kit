@@ -11,7 +11,7 @@ import (
 
 // Each case runs guard-pr from a cwd holding tell.md (a tier 1 tell),
 // clean.md, and tell.json and clean.json request bodies, against the real
-// kit.yml (block_tiers [1]).
+// kit.yml.
 func TestGuardPR(t *testing.T) {
 	t.Parallel()
 	k := newSandbox(t)
@@ -42,7 +42,7 @@ func TestGuardPR(t *testing.T) {
 		{"allow (logged): a file the command writes first", "printf x > tell.md && gh pr edit 3 -F tell.md", 0},
 		{"allow (logged): a missing file", `gh pr edit 3 -F missing.md`, 0},
 		{"allow: the tell quoted in the body", `gh pr comment 3 -b 'Bans "I hope this helps".'`, 0},
-		{"allow: a tier 2 tell is only logged", `gh pr comment 3 -b "Addressed review feedback."`, 0},
+		{"allow: a dense tier 3 passage is only logged", `gh pr comment 3 -b "A robust, seamless, comprehensive tool."`, 0},
 		{"block: gh api -f body=", `gh api repos/o/r/pulls/3 -X PATCH -f body="I hope this helps."`, 2},
 		{"block: gh api --raw-field body=", `gh api repos/o/r/issues/3/comments --raw-field "body=I hope this helps."`, 2},
 		{"block: gh api -F body=text", `gh api repos/o/r/issues/3/comments -F "body=I hope this helps."`, 2},

@@ -23,7 +23,7 @@ Each model generation has its own overused words; a word that marks 2024 output 
 | Tier | What                                                                     | What happens                                                |
 | ---- | ------------------------------------------------------------------------ | ----------------------------------------------------------- |
 | 1    | Unambiguous: chat filler in a file, leaked citation markup, placeholders | Blocks                                                      |
-| 2    | Structural constructions                                                 | Logged; blocks once `slop.block_tiers` has 2                |
+| 2    | Structural constructions                                                 | Blocks                                                      |
 | 3    | Era vocabulary and soft markers, counted per 100 prose words             | A note when the density crosses the threshold; never blocks |
 
 ## Sources

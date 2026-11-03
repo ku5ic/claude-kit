@@ -61,10 +61,10 @@ func TestTiers(t *testing.T) {
 		{"corrective framing", "A cache hit should not be confused with a pass.", "chat", []string{"corrective-framing"}},
 		{"generic reason in a commit", "Refactor the loader to improve readability.", "commit", []string{"generic-reason"}},
 		{"generic reason in a file", "Refactor the loader to improve readability.", "file", nil},
-		{"preserving in a PR", "Split the parser while preserving behavior.", "pr", []string{"while-preserving"}},
 		{"addressed feedback", "Addressed review feedback.", "commit", []string{"addressed-feedback"}},
 		// Tier 3 alone never reports.
 		{"one rather than", "It runs the file form rather than the tree.", "file", nil},
+		{"preserving in a PR", "Split the parser while preserving behavior.", "pr", nil},
 		{"one era word", "A robust estimator of the median.", "file", nil},
 	}
 	for _, c := range cases {
@@ -142,10 +142,14 @@ func TestDisabledRules(t *testing.T) {
 func TestBlocks(t *testing.T) {
 	t.Parallel()
 	d := detector(t)
-	r := scan(d, "The hook serves as the entry point. I hope this helps.", "chat")
-	got := d.Blocking(r)
-	if len(got) != 1 || got[0].Rule != "hope-helps" {
-		t.Errorf("blocking = %+v, want only tier 1 hope-helps", got)
+	r := scan(d, "The hook serves as the entry point. I hope this helps. A robust, seamless, comprehensive tool.", "chat")
+	var blocked []string
+	for _, h := range d.Blocking(r) {
+		blocked = append(blocked, h.Rule)
+	}
+	slices.Sort(blocked)
+	if !slices.Equal(blocked, []string{"copula", "hope-helps"}) {
+		t.Errorf("blocking = %v, want tiers 1 and 2 only: [copula hope-helps]", blocked)
 	}
 }
 
@@ -203,6 +207,7 @@ func TestRun(t *testing.T) {
 	}
 	tell := put("tell.md", "Done. I hope this helps.\n")
 	soft := put("soft.md", "The hook serves as the entry point.\n")
+	dense := put("dense.md", "A robust, seamless, comprehensive tool.\n")
 	clean := put("clean.md", "The hook is the entry point.\n")
 	code := put("logo.png", "PNG\n")
 	skipped := put("testdata/x.md", "I hope this helps.\n")
@@ -216,11 +221,12 @@ func TestRun(t *testing.T) {
 		errOut string
 	}{
 		{"tier 1 blocks", []string{tell}, "", 1, `:1: T1 hope-helps "I hope this helps" -> cut it`, ""},
-		{"tier 2 is logged, not blocked", []string{soft}, "", 0, `:1: T2 copula "serves as the" -> is`, ""},
+		{"tier 2 blocks", []string{soft}, "", 1, `:1: T2 copula "serves as the" -> is`, ""},
+		{"dense tier 3 is reported, not blocked", []string{dense}, "", 0, "tier 3 density", ""},
 		{"clean", []string{clean}, "", 0, "", ""},
 		{"no reader", []string{code}, "", 0, "", "not scanned"},
 		{"skipped", []string{skipped}, "", 0, "", "skipped (slop.skip)"},
-		{"stdin", []string{"--surface", "commit", "-"}, "Addressed review feedback.\n", 0, "-:1: T2 addressed-feedback", ""},
+		{"stdin", []string{"--surface", "commit", "-"}, "Addressed review feedback.\n", 1, "-:1: T2 addressed-feedback", ""},
 		{"stdin needs a surface", []string{"-"}, "x", 2, "", "stdin needs --surface"},
 		{"unknown surface", []string{"--surface=email", clean}, "", 2, "", "is no surface"},
 		{"no file", nil, "", 2, "", "no file"},

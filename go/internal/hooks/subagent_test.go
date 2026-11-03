@@ -35,7 +35,7 @@ func TestGuardHandback(t *testing.T) {
 	for _, tc := range []struct{ name, agent, message string }{
 		{"a clean report goes through", "a1", "## Findings\n\nThe parser drops the last line."},
 		{"a tell quoted in the report goes through", "a1", `Flagged "I hope this helps" in README.md.`},
-		{"a tier 2 tell goes through", "a1", "The module serves as the entry point."},
+		{"a dense tier 3 passage goes through", "a1", dense},
 		{"no agent id: nothing to track, so nothing is sent back", "", tell},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -43,11 +43,11 @@ func TestGuardHandback(t *testing.T) {
 			newSandbox(t).run("guard-handback", handback(tc.agent, tc.message)).Allowed(t)
 		})
 	}
-	t.Run("a tier 2 tell is logged as a subagent report hit", func(t *testing.T) {
+	t.Run("a dense tier 3 passage is logged as a subagent report hit", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
-		k.run("guard-handback", handback("a1", "The module serves as the entry point.")).Allowed(t)
-		if log := read(t, k.paths.LogFile(kitlog.Guards)); !strings.Contains(log, "slop-copula") || !strings.Contains(log, "subagent report") {
+		k.run("guard-handback", handback("a1", dense)).Allowed(t)
+		if log := read(t, k.paths.LogFile(kitlog.Guards)); !strings.Contains(log, "slop-vocabulary") || !strings.Contains(log, "subagent report") {
 			t.Errorf("guards log lacks the hit:\n%s", log)
 		}
 	})

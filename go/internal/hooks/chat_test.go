@@ -39,7 +39,7 @@ func TestChatSlop(t *testing.T) {
 		{"a clean reply", "The parser drops the last line; fixed in parse.go."},
 		{"a quoted tell", `The rule bans "I hope this helps".`},
 		{"a tell in a code span", "Matches `I hope this helps`."},
-		{"a tier 2 tell", "It serves as the entry point."},
+		{"a dense tier 3 passage", dense},
 	} {
 		t.Run("nothing to correct after "+tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -51,9 +51,9 @@ func TestChatSlop(t *testing.T) {
 	t.Run("every hit is logged", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
-		k.run("chat-slop", chatStop("It serves as the entry point. "+tell))
+		k.run("chat-slop", chatStop(dense+" "+tell))
 		log := read(t, k.paths.LogFile(kitlog.Guards))
-		for _, want := range []string{"slop-copula", "slop-hope-helps", "chat reply"} {
+		for _, want := range []string{"slop-vocabulary", "slop-hope-helps", "chat reply"} {
 			if !strings.Contains(log, want) {
 				t.Errorf("guards log lacks %s:\n%s", want, log)
 			}

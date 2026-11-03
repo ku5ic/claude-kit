@@ -208,7 +208,8 @@ func TestGuardCommit(t *testing.T) {
 		// slop: a tier in slop.block_tiers blocks anywhere in the message, the rest is logged
 		{"block: a tier 1 tell in a -m body", `git commit -m "feat: x" -m "I hope this helps."`, 2},
 		{"block: a tier 1 tell in a -F - heredoc body", "git commit -F - <<'EOF'\nfeat: x\n\nI hope this helps.\nEOF", 2},
-		{"allow: a tier 2 tell is only logged", `git commit -m "fix: x" -m "Addressed review feedback."`, 0},
+		{"block: a tier 2 tell", `git commit -m "fix: x" -m "Addressed review feedback."`, 2},
+		{"allow: a dense tier 3 passage is only logged", `git commit -m "fix: x" -m "A robust, seamless, comprehensive tool."`, 0},
 		{"allow: a tell quoted in the body", "git commit -m \"docs: x\" -m 'Ban the phrase \"I hope this helps\".'", 0},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -238,9 +239,9 @@ func TestGuardCommitScansTheMessageForAITells(t *testing.T) {
 	r.Want(t, 2)
 	r.Has(t, `L3 "I hope this helps" -> cut it`, "slop-patterns")
 
-	k.commit("", `git commit -m "fix: x" -m "Addressed review feedback."`).Want(t, 0)
-	if log, _ := os.ReadFile(filepath.Join(k.claude, "logs", "guards.jsonl")); !strings.Contains(string(log), "slop-addressed-feedback") {
-		t.Errorf("guards log lacks the tier 2 hit:\n%s", log)
+	k.commit("", `git commit -m "fix: x" -m "A robust, seamless, comprehensive tool."`).Want(t, 0)
+	if log, _ := os.ReadFile(filepath.Join(k.claude, "logs", "guards.jsonl")); !strings.Contains(string(log), "slop-vocabulary") {
+		t.Errorf("guards log lacks the tier 3 hit:\n%s", log)
 	}
 }
 
