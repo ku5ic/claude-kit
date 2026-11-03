@@ -58,7 +58,7 @@ func TestTiers(t *testing.T) {
 		{"ing tail", "The gate reruns, ensuring consistent output.", "file", []string{"ing-tail"}},
 		{"significance", "Caching plays a crucial role in the gate.", "file", []string{"significance"}},
 		{"vague connection", "He was associated with the review hook.", "file", []string{"vague-connection"}},
-		{"corrective framing", "The count should be treated as a floor.", "chat", []string{"corrective-framing"}},
+		{"corrective framing", "A cache hit should not be confused with a pass.", "chat", []string{"corrective-framing"}},
 		{"generic reason in a commit", "Refactor the loader to improve readability.", "commit", []string{"generic-reason"}},
 		{"generic reason in a file", "Refactor the loader to improve readability.", "file", nil},
 		{"preserving in a PR", "Split the parser while preserving behavior.", "pr", []string{"while-preserving"}},
@@ -93,6 +93,7 @@ func TestNotTells(t *testing.T) {
 		"technical relation":  "The token associated with the session expires.",
 		"acts as":             "nginx acts as a reverse proxy.",
 		"preserving in files": "The formatter runs while preserving comments.",
+		"spec wording":        "Such values should be treated as declarations.",
 	}
 	for name, text := range texts {
 		t.Run(name, func(t *testing.T) {

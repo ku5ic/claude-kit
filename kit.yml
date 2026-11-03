@@ -239,7 +239,7 @@ slop:
     - {id: worth-noting, tier: 2, match: '(?i)\b(it''?s|it is) (important|worth) (to note|noting|mentioning)\b', fix: cut it; state the point}
     - id: corrective-framing
       tier: 2
-      match: '(?i)\bshould (be treated as|not be confused with)\b|\bdoes not by itself establish\b'
+      match: '(?i)\bshould not be confused with\b|\bdoes not by itself establish\b'
       fix: state the claim directly
     - id: generic-reason
       tier: 2
@@ -252,7 +252,7 @@ slop:
     - {id: rather-than, tier: 3, match: '(?i)\brather than\b'}
     - {id: bold-in-prose, tier: 3, match: '\w[^*\n]*\s\*\*[^*\n]+\*\*'}
     # UI code as written (on: [ui]): .tsx, .jsx, .vue, .svelte, .html, .css, .scss.
-    - {id: ui-placeholder, tier: 1, on: [ui], match: '(?i)\blorem ipsum\b|>\s*Feature (one|two|1|2)\s*<', fix: put the real content in}
+    - {id: ui-placeholder, tier: 2, on: [ui], match: '(?i)\blorem ipsum\b|>\s*Feature (one|two|1|2)\s*<', fix: put the real content in}
     - id: ui-emoji-label
       tier: 2
       on: [ui]
@@ -271,7 +271,7 @@ slop:
     - id: ui-marketing
       tier: 2
       on: [ui]
-      match: '(?i)\b(supercharge[sd]?|empower(s|ed)?|elevate[sd]?|world-class|enterprise-grade|reimagined)\b|\bthe future of\b|\boops!'
+      match: '(?i)\b(supercharge[sd]?|empower(s|ed)?|world-class|enterprise-grade|reimagined)\b|\bthe future of\b|\boops!'
       fix: say what the product does, or what went wrong and how to fix it
     - {id: ui-glass, tier: 3, on: [ui], match: '\bbackdrop-blur(-\w+)?\b|\bblur-3xl\b|\bshadow-\[0_0_'}
     - {id: ui-eyebrow, tier: 3, on: [ui], match: '\buppercase\b.*\btracking-(widest|\[0\.\d+em\])'}

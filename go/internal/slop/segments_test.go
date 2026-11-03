@@ -89,6 +89,7 @@ func TestUI(t *testing.T) {
 		// False positives from the design reference: tokens and one-sided
 		// palette classes are choices, not tells.
 		{"brand token", "theme.css", `--color-brand: #7c3aed;`, nil},
+		{"elevation variant", "Card.tsx", `<Card variant="elevated">`, nil},
 		{"one palette class", "Badge.tsx", `<span className="bg-purple-500 rounded-lg shadow-md">`, nil},
 		{"prose rules skip code", "Card.tsx", `const label = "it serves as the entry point";`, nil},
 		{"ui rules skip non-UI files", "theme.go", `// from-purple-500 to-blue-500`, nil},
