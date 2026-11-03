@@ -88,7 +88,7 @@ func CheckCommit(h *hook.Hook) error {
 	if subject != "" && aiTell.MatchString(subject) {
 		return h.Block("AI-tell phrasing in commit subject", "ai-commit-tell")
 	}
-	if err := scanMessage(h, msg); err != nil {
+	if err := scanSlop(h, msg, "commit", "the commit message"); err != nil {
 		return err
 	}
 	if failed := commitMsg(h, msg, ok, repo); failed != "" {
@@ -100,24 +100,25 @@ func CheckCommit(h *hook.Hook) error {
 	return nil
 }
 
-// scanMessage blocks a commit message holding AI tells in a
-// slop.block_tiers tier and logs the rest. Without kit.yml it fails open.
-func scanMessage(h *hook.Hook, msg string) error {
+// scanSlop blocks text, read as surface, when it holds AI tells in a
+// slop.block_tiers tier, and logs the rest; where names the text in both.
+// Without kit.yml it fails open.
+func scanSlop(h *hook.Hook, text, surface, where string) error {
 	cfg := h.Config()
-	if cfg == nil || strings.TrimSpace(msg) == "" {
+	if cfg == nil || strings.TrimSpace(text) == "" {
 		return nil
 	}
 	d, err := slop.New(cfg)
 	if err != nil {
 		return err
 	}
-	segs, _ := slop.Prose(msg)
-	res := d.Scan(segs, "commit")
+	segs, _ := slop.Prose(text)
+	res := d.Scan(segs, surface)
 	for _, hit := range d.Unblocked(res) {
-		h.Log(kitlog.Guards, "slop", slop.LogPairs(hit, "commit message")...)
+		h.Log(kitlog.Guards, "slop", slop.LogPairs(hit, where)...)
 	}
 	if hits := d.Blocking(res); len(hits) > 0 {
-		return h.Block(slop.Message("the commit message", hits), "slop")
+		return h.Block(slop.Message(where, hits), "slop")
 	}
 	return nil
 }
