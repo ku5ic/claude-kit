@@ -55,6 +55,7 @@ var entries = map[string]func(*hook.Hook) int{
 	"guard-slop":              single("guard-slop", GuardSlop),
 	"guard-handback":          single("guard-handback", GuardHandback),
 	"subagent-slop":           single("subagent-slop", SubagentSlop),
+	"chat-slop":               single("chat-slop", ChatSlop),
 	"log-skills":              single("log-skills", LogSkills),
 	"sanitize-output":         single("sanitize-output", SanitizeOutput),
 	"format-dispatch":         single("format-dispatch", FormatDispatch),

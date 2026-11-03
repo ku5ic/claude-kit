@@ -53,7 +53,8 @@
       {
         "hooks": [
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook plan-mode-context", "timeout": 5 },
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook reply-length", "timeout": 5 }
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook reply-length", "timeout": 5 },
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook chat-slop", "timeout": 5 }
         ]
       }
     ],
@@ -61,7 +62,8 @@
       {
         "hooks": [
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook stop-checks", "timeout": 300 },
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook reply-length", "timeout": 5 }
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook reply-length", "timeout": 5 },
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook chat-slop", "timeout": 5 }
         ]
       }
     ],
