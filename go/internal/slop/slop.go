@@ -65,20 +65,18 @@ type rule struct {
 }
 
 // New compiles cfg's slop block, leaving out each rule whose slop-<id> slug
-// disabled_rules names. A rule that doesn't compile is an error: config
-// load already warned about it, so a caller fails open.
-func New(cfg *config.Config) (*Detector, error) {
+// disabled_rules names, and each with an empty or uncompilable match, which
+// config load already warned about: an empty one would hit everywhere.
+func New(cfg *config.Config) *Detector {
 	s := cfg.Slop
 	d := &Detector{density: s.Density, block: s.BlockTiers, skip: s.Skip}
 	for _, r := range s.Rules {
-		if slices.Contains(cfg.DisabledRules, "slop-"+r.ID) {
+		if r.Match == "" || slices.Contains(cfg.DisabledRules, "slop-"+r.ID) {
 			continue
 		}
-		re, err := regexp.Compile(r.Match)
-		if err != nil {
-			return nil, fmt.Errorf("slop rule %s: %w", r.ID, err)
+		if re, err := regexp.Compile(r.Match); err == nil {
+			d.rules = append(d.rules, rule{r, re})
 		}
-		d.rules = append(d.rules, rule{r, re})
 	}
 	if len(s.Density.Words) > 0 && !slices.Contains(cfg.DisabledRules, "slop-vocabulary") {
 		quoted := make([]string, len(s.Density.Words))
@@ -87,7 +85,7 @@ func New(cfg *config.Config) (*Detector, error) {
 		}
 		d.words = regexp.MustCompile(`(?i)\b(?:` + strings.Join(quoted, "|") + `)\b`)
 	}
-	return d, nil
+	return d
 }
 
 // Skips reports whether slop.skip names path.
@@ -145,7 +143,9 @@ func (d *Detector) Scan(segs []Segment, surface string) Result {
 	var hits, dense []Hit
 	words := 0
 	for _, seg := range segs {
-		words += len(strings.Fields(seg.Text))
+		if !seg.Raw {
+			words += len(strings.Fields(seg.Text))
+		}
 		for _, r := range d.rules {
 			if !applies(r.SlopRule, surface, seg.Raw) {
 				continue

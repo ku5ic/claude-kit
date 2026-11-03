@@ -15,11 +15,7 @@ func detector(t *testing.T, disabled ...string) *Detector {
 	t.Helper()
 	cfg := testutil.KitConfig(t)
 	cfg.DisabledRules = disabled
-	d, err := New(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return d
+	return New(cfg)
 }
 
 // rules is the rule id of each hit, in order.
@@ -249,15 +245,25 @@ func TestRun(t *testing.T) {
 	}
 }
 
-// TestShippedLexicon guards the shipped kit.yml: every rule compiles, so
-// New never fails open in a hook.
+// TestShippedLexicon guards the shipped kit.yml: config load has nothing to
+// warn about, so New leaves no rule out.
 func TestShippedLexicon(t *testing.T) {
 	t.Parallel()
-	cfg, warnings, err := config.Load(config.Paths{Base: "../../../kit.yml", Overlay: filepath.Join(t.TempDir(), "none.yml")})
+	_, warnings, err := config.Load(config.Paths{Base: "../../../kit.yml", Overlay: filepath.Join(t.TempDir(), "none.yml")})
 	if err != nil || len(warnings) > 0 {
 		t.Fatalf("err %v, warnings %v", err, warnings)
 	}
-	if _, err := New(cfg); err != nil {
-		t.Fatal(err)
+}
+
+// A rule with no match would hit at every position, and one that doesn't
+// compile would take the rest down with it; New leaves out just that rule.
+func TestNewLeavesOutABrokenRule(t *testing.T) {
+	t.Parallel()
+	cfg := testutil.KitConfig(t)
+	cfg.Slop.Rules = append(cfg.Slop.Rules,
+		config.SlopRule{ID: "empty", Tier: 1, Fix: "x"},
+		config.SlopRule{ID: "unbalanced", Tier: 1, Match: "(foo", Fix: "x"})
+	if got := rules(scan(New(cfg), "Plain text. I hope this helps.", "file")); !slices.Equal(got, []string{"hope-helps"}) {
+		t.Errorf("hits = %v, want [hope-helps]", got)
 	}
 }

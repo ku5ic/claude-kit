@@ -31,13 +31,12 @@ var (
 	commitLine   = regexp.MustCompile(`\bgit(?:[ \t]|\\\n)+(?:[^[:space:];&|]+(?:[ \t]|\\\n)+)*commit(?:[^-[:alnum:]_.]|$)`)
 	aiSignature  = regexp.MustCompile(`(?i)Co-Authored-By:[[:space:]]*Claude|Generated[[:space:]]+(by|with)[[:space:]]+Claude|🤖[[:space:]]*Generated`)
 	heredocOpen  = regexp.MustCompile(`<<(-?)[[:space:]]*['"]?([A-Za-z_][A-Za-z0-9_]*)['"]?`)
-	aiTell       = regexp.MustCompile(`(?i)^(feat|fix|chore|refactor|docs|test|perf|build|ci|style)?:?[[:space:]]*(certainly|here is|i have|let me|in this commit|this commit)`)
 	nonProseLine = regexp.MustCompile(`^[[:space:]]*([0-9]+[.)]|[-*+][[:space:]]|#{1,6}[[:space:]]|>|\|)`)
 )
 
 // CheckCommit is guard-commit: it inspects git commit commands for AI signatures, a staged
 // secret (gitleaks), an unchunked wall of text in the body (rules/output.md
-// section 1), and AI-tell phrasing in the subject.
+// section 1), and AI tells in the message (kit.yml slop).
 func CheckCommit(h *hook.Hook) error {
 	if h.Payload.Err != nil {
 		return h.Payload.Err
@@ -85,9 +84,6 @@ func CheckCommit(h *hook.Hook) error {
 	}
 
 	subject := subject(msg)
-	if subject != "" && aiTell.MatchString(subject) {
-		return h.Block("AI-tell phrasing in commit subject", "ai-commit-tell")
-	}
 	if err := scanSlop(h, msg, "commit", "the commit message"); err != nil {
 		return err
 	}
@@ -108,10 +104,7 @@ func scanSlop(h *hook.Hook, text, surface, where string) error {
 	if cfg == nil || strings.TrimSpace(text) == "" {
 		return nil
 	}
-	d, err := slop.New(cfg)
-	if err != nil {
-		return err
-	}
+	d := slop.New(cfg)
 	segs, _ := slop.Prose(text)
 	res := d.Scan(segs, surface)
 	for _, hit := range d.Unblocked(res) {

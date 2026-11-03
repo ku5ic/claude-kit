@@ -17,4 +17,4 @@ The more improvements stack up in one summary, the stronger the signal. One conc
 
 ## Subjects
 
-`guard-commit` already blocks subjects that open with "Certainly", "Here is", "This commit" and similar (`ai-commit-tell`). The `slop` scan covers the body.
+A subject or body line that opens with "Certainly", "Here is", "This commit" and similar is blocked (`commit-opener`).

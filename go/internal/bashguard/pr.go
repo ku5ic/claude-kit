@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -27,7 +28,7 @@ var (
 // CheckPR is guard-pr: it scans the text a gh command posts to a pull
 // request (body, title, comment, review) for AI tells, as guard-commit scans
 // a commit message. Text it can't read (a pipe on stdin, a file the command
-// writes first) is logged, not blocked.
+// writes first, an expansion) is logged, not blocked.
 func CheckPR(h *hook.Hook) error {
 	if h.Payload.Err != nil {
 		return h.Payload.Err
@@ -52,7 +53,9 @@ func CheckPR(h *hook.Hook) error {
 			if name != "gh" {
 				continue
 			}
-			src := ghCall{call: call, before: cmd[:call.start], home: h.Home, cwd: d.cwd}
+			// call.start is an offset into seg.src, which for a heredoc fed
+			// to a shell is that body, not cmd.
+			src := ghCall{call: call, before: seg.src[:min(call.start, len(seg.src))], home: h.Home, cwd: d.cwd}
 			for _, t := range src.texts(i + 1) {
 				if t.unread != "" {
 					h.Log(kitlog.Guards, "slop-unread", "source", t.where, "why", t.unread)
@@ -94,7 +97,7 @@ func (s ghCall) texts(from int) []prText {
 				out = append(out, s.read(cmd+" --body-file", value))
 				return
 			}
-			out = append(out, prText{where: cmd + " --" + flag, text: inline(value)})
+			out = append(out, inline(cmd+" --"+flag, value))
 		})
 	case len(args) >= 1 && args[0] == "api":
 		ghFlags(args[1:], apiFlags, func(flag, value string) {
@@ -111,7 +114,7 @@ func (s ghCall) texts(from int) []prText {
 				out = append(out, s.read(where, file))
 				return
 			}
-			out = append(out, prText{where: where, text: inline(val)})
+			out = append(out, inline(where, val))
 		})
 	}
 	return out
@@ -166,13 +169,20 @@ func (s ghCall) inputJSON(file string) []prText {
 	return out
 }
 
-// inline is a flag value's text: a "$(cat <<EOF ... EOF)" value's body.
-func inline(value string) string {
+// inline is a flag value's text: a "$(cat <<EOF ... EOF)" value's body, or
+// unread when any other expansion builds it ($(cat f), $BODY, backticks).
+func inline(where, value string) prText {
 	if body, ok := catHeredoc(value); ok {
-		return body
+		return prText{where: where, text: body}
 	}
-	return value
+	if expansion.MatchString(value) {
+		return prText{where: where, unread: "an expansion builds the text"}
+	}
+	return prText{where: where, text: value}
 }
+
+// expansion is a $ or backtick the shell expands; $5 isn't one.
+var expansion = regexp.MustCompile("\\$[({A-Za-z_]|`")
 
 // ghFlags walks gh args as pflag reads them, up to "--", calling fn with
 // the name valued gives each flag it holds and the flag's value: the next

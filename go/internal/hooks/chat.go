@@ -48,10 +48,7 @@ func ChatSlop(h *hook.Hook) error {
 		if cfg == nil {
 			return nil
 		}
-		d, err := slop.New(cfg)
-		if err != nil {
-			return err
-		}
+		d := slop.New(cfg)
 		segs, _ := slop.Prose(p.String("last_assistant_message"))
 		res := d.Scan(segs, "chat")
 		for _, hit := range res.Hits {

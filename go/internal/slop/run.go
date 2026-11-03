@@ -21,11 +21,7 @@ func Run(cfg *config.Config, args []string, stdin io.Reader, stdout, stderr io.W
 		fmt.Fprintf(stderr, "kit slop: %v\n%s\n", err, usage)
 		return 2
 	}
-	d, err := New(cfg)
-	if err != nil {
-		fmt.Fprintln(stderr, "kit slop:", err)
-		return 2
-	}
+	d := New(cfg)
 	blocked := false
 	for _, path := range paths {
 		var data []byte

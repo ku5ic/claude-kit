@@ -84,10 +84,7 @@ func reportHits(h *hook.Hook, text string) ([]slop.Hit, error) {
 	if cfg == nil || strings.TrimSpace(text) == "" {
 		return nil, nil
 	}
-	d, err := slop.New(cfg)
-	if err != nil {
-		return nil, err
-	}
+	d := slop.New(cfg)
 	segs, _ := slop.Prose(text)
 	res := d.Scan(segs, "report")
 	for _, hit := range d.Unblocked(res) {

@@ -14,7 +14,7 @@ allowed-tools:
 1. Load `slop-patterns`. It says how to rewrite; this skill only says what to run on.
 2. Resolve the target from the arguments:
    - Files: each path.
-   - `diff`: the files `git diff --name-only` lists, and only their changed lines count.
+   - `diff`: the files `git diff --name-only` lists. `kit slop` scans whole files, so keep only the hits on lines `git diff -U0 <file>` adds, and rewrite nothing else.
    - `-` or no argument: ask for the text, then treat it as one file.
 3. Scan: `kit slop <files>`. For pasted text, `kit slop --surface <file|commit|pr|chat> -` with the text on stdin; ask which surface when it isn't obvious.
 4. Rewrite every tier 1 and 2 hit, and every passage the scan reports as dense, per `slop-patterns` `reference/rewrite.md`. Then read the whole text once for what no regexp sees: sentences that carry nothing, sections that restate others (`reference/principles.md`). For UI files, also walk `reference/design.md` section 12.

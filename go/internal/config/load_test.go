@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -71,6 +72,28 @@ func TestOverlayMergesMapsAndAppendsSequences(t *testing.T) {
 	}
 	if l := cfg.ReplyLimits; l.Chat != 40 || l.Write["commit"] != 50 || l.Write["pr"] != 80 {
 		t.Errorf("reply_limits = %+v", l)
+	}
+}
+
+// slop.block_tiers is a setting, not a list to add to, and a slop rule is
+// keyed by its id: the overlay replaces both rather than appending.
+func TestOverlayReplacesBlockTiersAndRulesByID(t *testing.T) {
+	dir := t.TempDir()
+	base := write(t, dir, "kit.yml", "slop:\n  block_tiers: [1, 2]\n  rules:\n    - {id: a, tier: 2, match: x, fix: y}\n    - {id: b, tier: 1, match: x, fix: y}\n")
+	overlay := write(t, dir, "over.yml", "slop:\n  block_tiers: [1]\n  rules:\n    - {id: a, tier: 3, match: z}\n    - {id: c, tier: 1, match: x, fix: y}\n")
+	cfg, warnings, err := Load(Paths{Base: base, Overlay: overlay})
+	if err != nil || len(warnings) > 0 {
+		t.Fatalf("err=%v warnings=%v", err, warnings)
+	}
+	if got := cfg.Slop.BlockTiers; !slices.Equal(got, []int{1}) {
+		t.Errorf("block_tiers = %v, want [1]", got)
+	}
+	var got []string
+	for _, r := range cfg.Slop.Rules {
+		got = append(got, fmt.Sprintf("%s:%d:%s", r.ID, r.Tier, r.Match))
+	}
+	if want := []string{"a:3:z", "b:1:x", "c:1:x"}; !slices.Equal(got, want) {
+		t.Errorf("rules = %v, want %v", got, want)
 	}
 }
 

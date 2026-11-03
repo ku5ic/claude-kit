@@ -63,6 +63,28 @@ func TestComments(t *testing.T) {
 		), []string{"2:copula"}},
 		{"jsx comment", "a.tsx", `return <div>{/* serves as the root */}</div>`, []string{"1:copula"}},
 		{"html comment", "a.html", "<!-- I hope this helps -->", []string{"1:hope-helps"}},
+		{"python string closing at a line start isn't a docstring", "a.py", lines(
+			`s = """`,
+			`# serves as the heading`,
+			`"""`,
+			`boasts = 3  # it serves as the key`,
+		), []string{"4:copula"}},
+		{"template literal lines aren't comments", "a.ts", lines(
+			"const md = `",
+			"// this serves as the text",
+			"`; // it serves as the key",
+		), []string{"3:copula"}},
+		{"template literal opened and closed on one line", "a.ts", "const s = `x`; // it serves as the key", []string{"1:copula"}},
+		{"heredoc lines aren't comments", "a.sh", lines(
+			`cat <<-'EOF' # it serves as the key`,
+			`# serves as the heading`,
+			`EOF`,
+			`# I hope this helps`,
+		), []string{"1:copula", "4:hope-helps"}},
+		{"yaml merge key isn't a heredoc", "a.yml", lines(
+			`<<: *base`,
+			`# I hope this helps`,
+		), []string{"2:hope-helps"}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -101,6 +123,20 @@ func TestUI(t *testing.T) {
 				t.Errorf("hits = %v, want %v", got, c.want)
 			}
 		})
+	}
+}
+
+// A UI file's code lines are scanned raw for the ui rules but aren't prose,
+// so they don't dilute the density of its comments.
+func TestUIDensityCountsOnlyProse(t *testing.T) {
+	t.Parallel()
+	comment := "// A robust, seamless, comprehensive tool."
+	text := comment + strings.Repeat("\n<div className=\"p-4 flex items-center gap-2\">x</div>", 40)
+	for _, path := range []string{"a.ts", "a.tsx"} {
+		segs, _, _ := Segments(path, "", text)
+		if r := detector(t).Scan(segs, "file"); !r.Dense {
+			t.Errorf("%s: score %.1f, want dense", path, r.Score)
+		}
 	}
 }
 

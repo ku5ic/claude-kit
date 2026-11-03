@@ -79,7 +79,8 @@ type Warning struct {
 func (w Warning) String() string { return w.File + ": " + w.Err.Error() }
 
 // Load reads kit.yml and, when present, the overlay merged over it: maps
-// merge and sequences append, so an overlay can add but never remove.
+// merge and sequences append, so an overlay can add but never remove
+// (mergeNode names the two exceptions).
 // Each file is also decoded strictly on its own, and what that rejects comes
 // back as warnings naming the file. The result is cached on disk until
 // either file changes, since every hook call would otherwise pay the parse.
@@ -223,23 +224,57 @@ func validate(path string) []Warning {
 
 // mergeNode merges src into dst in place, as yq's `*+`: mappings merge key by
 // key in dst's order with src's new keys after, sequences append, and any
-// other pairing takes src's value.
+// other pairing takes src's value. Two exceptions: a replacedLists key takes
+// src's list, and an item with an id (a slop rule) replaces dst's item of
+// that id in place.
 func mergeNode(dst, src *yaml.Node) {
 	switch {
 	case dst.Kind == yaml.MappingNode && src.Kind == yaml.MappingNode:
 		for i := 0; i+1 < len(src.Content); i += 2 {
 			key, value := src.Content[i], src.Content[i+1]
-			if existing := mappingValue(dst, key.Value); existing != nil {
+			switch existing := mappingValue(dst, key.Value); {
+			case existing == nil:
+				dst.Content = append(dst.Content, key, value)
+			case replacedLists[key.Value]:
+				*existing = *value
+			default:
 				mergeNode(existing, value)
-				continue
 			}
-			dst.Content = append(dst.Content, key, value)
 		}
 	case dst.Kind == yaml.SequenceNode && src.Kind == yaml.SequenceNode:
-		dst.Content = append(dst.Content, src.Content...)
+		for _, item := range src.Content {
+			if i := itemWithID(dst, item); i >= 0 {
+				dst.Content[i] = item
+				continue
+			}
+			dst.Content = append(dst.Content, item)
+		}
 	default:
 		*dst = *src
 	}
+}
+
+// replacedLists are the lists that are a setting, not a set to add to.
+var replacedLists = map[string]bool{"block_tiers": true}
+
+// itemWithID is the index of seq's mapping with item's id, -1 when item has
+// no id or seq none with it.
+func itemWithID(seq, item *yaml.Node) int {
+	if item.Kind != yaml.MappingNode {
+		return -1
+	}
+	id := mappingValue(item, "id")
+	if id == nil {
+		return -1
+	}
+	for i, existing := range seq.Content {
+		if existing.Kind == yaml.MappingNode {
+			if other := mappingValue(existing, "id"); other != nil && other.Value == id.Value {
+				return i
+			}
+		}
+	}
+	return -1
 }
 
 func mappingValue(m *yaml.Node, key string) *yaml.Node {

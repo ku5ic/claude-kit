@@ -41,6 +41,10 @@ func TestGuardPR(t *testing.T) {
 		{"allow (logged): -F - from a pipe", `cat tell.md | gh pr comment 3 -F -`, 0},
 		{"allow (logged): a file the command writes first", "printf x > tell.md && gh pr edit 3 -F tell.md", 0},
 		{"allow (logged): a missing file", `gh pr edit 3 -F missing.md`, 0},
+		{"allow (logged): a file a shell heredoc writes first", "bash <<'EOF'\nprintf x > tell.md\ngh pr edit 3 -F tell.md\nEOF", 0},
+		{"allow (logged): a body built by $(cat file)", `gh pr create -t x -b "$(cat tell.md)"`, 0},
+		{"allow (logged): a body in a variable", `gh pr comment 3 -b "$BODY"`, 0},
+		{"block: a tell next to a literal dollar amount", `gh pr comment 3 -b "Costs $5. I hope this helps."`, 2},
 		{"allow: the tell quoted in the body", `gh pr comment 3 -b 'Bans "I hope this helps".'`, 0},
 		{"allow: a dense tier 3 passage is only logged", `gh pr comment 3 -b "A robust, seamless, comprehensive tool."`, 0},
 		{"block: gh api -f body=", `gh api repos/o/r/pulls/3 -X PATCH -f body="I hope this helps."`, 2},
@@ -78,4 +82,8 @@ func TestGuardPRLogsWhatItCantRead(t *testing.T) {
 		}
 	}
 	k.pr(cwd, `gh pr create -t x -b "I hope this helps."`).Has(t, "gh pr create --body")
+	k.pr(cwd, `gh pr create -t x -b "$(cat pr.md)"`).Want(t, 0)
+	if log, _ := os.ReadFile(filepath.Join(k.claude, "logs", "guards.jsonl")); !strings.Contains(string(log), "an expansion builds the text") {
+		t.Errorf("guards log lacks the unread body:\n%s", log)
+	}
 }

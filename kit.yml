@@ -7,7 +7,8 @@
 # (go/internal/gapfill). Read by the kit binary (go/internal/config), which
 # decodes it strictly: `bin/kit config --check` reports an unknown key.
 # The overlay at ~/.claude/claude-kit.local.yml merges over it (maps merge,
-# lists append); `bin/kit config` prints the result.
+# lists append, but slop.block_tiers is replaced and a slop rule replaces
+# the one with its id); `bin/kit config` prints the result.
 #
 # security-patterns and wcag-audit are never mapped: they load by their own
 # descriptions or when another skill names them.
@@ -207,6 +208,11 @@ slop:
       tier: 1
       match: '(?i)^\W*(certainly|absolutely|of course)!|^\W*(great|good|excellent) question\b'
       fix: cut the opener; start with the answer
+    - id: commit-opener
+      tier: 1
+      on: [commit]
+      match: '(?i)^\W*(?:(?:feat|fix|chore|refactor|docs|test|perf|build|ci|style)(?:\([^)]*\))?!?:)?\s*(?:certainly|here is|i have|let me|in this commit|this commit)\b'
+      fix: open with what changed
     - {id: absolutely-right, tier: 1, match: '(?i)\byou''?re (absolutely|completely|totally) right\b', fix: cut it; say what changes}
     - {id: as-an-ai, tier: 1, match: '(?i)\bas an AI( language)? model\b|\bI''?m (just )?an AI\b', fix: cut it}
     - {id: in-conclusion, tier: 1, match: '(?i)^\W*in conclusion\b', fix: cut the recap}

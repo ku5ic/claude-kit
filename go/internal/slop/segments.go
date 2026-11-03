@@ -2,27 +2,31 @@ package slop
 
 import (
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 )
 
 // syntax is how a file type writes comments: line-comment openers, block
 // comment pairs, the characters that open a string (a comment marker inside
-// one isn't one), and whether a line opening with triple quotes is a
-// docstring.
+// one isn't one), those of them a string may span lines in, whether triple
+// quotes open a string (a docstring when they open the line), and whether
+// << opens a heredoc.
 type syntax struct {
-	line   []string
-	block  [][2]string
-	quotes string
-	doc    bool
+	line    []string
+	block   [][2]string
+	quotes  string
+	multi   string
+	doc     bool
+	heredoc bool
 }
 
 var (
-	cLike  = syntax{line: []string{"//"}, block: [][2]string{{"/*", "*/"}}, quotes: "\"'`"}
+	cLike  = syntax{line: []string{"//"}, block: [][2]string{{"/*", "*/"}}, quotes: "\"'`", multi: "`"}
 	css    = syntax{block: [][2]string{{"/*", "*/"}}, quotes: `"'`}
-	hash   = syntax{line: []string{"#"}, quotes: `"'`}
+	hash   = syntax{line: []string{"#"}, quotes: `"'`, heredoc: true}
 	python = syntax{line: []string{"#"}, quotes: `"'`, doc: true}
-	markup = syntax{line: []string{"//"}, block: [][2]string{{"<!--", "-->"}, {"/*", "*/"}}, quotes: "\"'`"}
+	markup = syntax{line: []string{"//"}, block: [][2]string{{"<!--", "-->"}, {"/*", "*/"}}, quotes: "\"'`", multi: "`"}
 
 	byExt = map[string]syntax{
 		".go": cLike, ".js": cLike, ".jsx": cLike, ".mjs": cLike, ".cjs": cLike, ".ts": cLike, ".tsx": cLike,
@@ -109,40 +113,77 @@ func rawLines(text string) []Segment {
 	return segs
 }
 
+// The kinds of span commentLines tracks: a comment to the end of the line, a
+// block comment or docstring, a string, and a heredoc.
+const (
+	lineComment = iota + 1
+	blockComment
+	str
+	heredoc
+)
+
+// span is an opened comment, string, or heredoc: its opener and closer (a
+// heredoc's closer is its delimiter word).
+type span struct {
+	kind        int
+	open, close string
+}
+
+// heredocOpener is << (not <<<) with an optional - or ~, then the delimiter,
+// quoted or not; a YAML merge key (<<:) has none.
+var heredocOpener = regexp.MustCompile(`^<<[-~]?[ \t]*['"]?([A-Za-z_][A-Za-z0-9_]*)['"]?`)
+
 // commentLines is the comment text on each line of text, code spans taken
-// out. shortcut: a line-at-a-time scan, not a lexer. A string spanning lines
-// (a template literal, a Go raw string) isn't tracked, and a Rust lifetime
-// reads as an opening quote; both can hide a comment, never invent one. A
-// tell wrapped across two comment lines is missed.
+// out. shortcut: a line-at-a-time scan, not a lexer. A string or heredoc
+// spanning lines is followed to its closer, but ${} inside a template
+// literal isn't, and a Rust lifetime reads as an opening quote, which can
+// hide the rest of its line. A tell wrapped across two comment lines is
+// missed.
 func commentLines(text string, syn syntax) []Segment {
 	var segs []Segment
-	closer := "" // set while inside a block comment or docstring
+	var open span // the block comment, docstring, string, or heredoc a line starts inside
 	for i, line := range strings.Split(text, "\n") {
+		if open.kind == heredoc {
+			if strings.TrimSpace(line) == open.close {
+				open = span{}
+			}
+			continue
+		}
 		var got []string
-		rest := line
-		if t := strings.TrimSpace(line); closer == "" && syn.doc && (strings.HasPrefix(t, `"""`) || strings.HasPrefix(t, `'''`)) {
-			closer, rest = t[:3], t[3:]
+		rest, pending := line, "" // pending: a heredoc this line opens
+		if t := strings.TrimSpace(line); open.kind == 0 && syn.doc && (strings.HasPrefix(t, `"""`) || strings.HasPrefix(t, `'''`)) {
+			open, rest = span{blockComment, t[:3], t[:3]}, t[3:]
 		}
 		for rest != "" {
-			if closer != "" {
-				end := strings.Index(rest, closer)
+			if open.kind != 0 {
+				end := closeAt(rest, open)
+				if open.kind == blockComment {
+					if end < 0 {
+						got = append(got, rest)
+					} else {
+						got = append(got, rest[:end])
+					}
+				}
 				if end < 0 {
-					got = append(got, rest)
 					break
 				}
-				got = append(got, rest[:end])
-				rest, closer = rest[end+len(closer):], ""
+				rest, open = rest[end+len(open.close):], span{}
 				continue
 			}
-			at, open, close := nextComment(rest, syn)
-			if at < 0 {
-				break
+			at, next := nextSpan(rest, syn)
+			switch {
+			case at < 0:
+				rest = ""
+			case next.kind == lineComment:
+				got, rest = append(got, rest[at+len(next.open):]), ""
+			case next.kind == heredoc:
+				pending, rest = next.close, rest[at+len(next.open):]
+			default:
+				open, rest = next, rest[at+len(next.open):]
 			}
-			if close == "" {
-				got = append(got, rest[at+len(open):])
-				break
-			}
-			rest, closer = rest[at+len(open):], close
+		}
+		if pending != "" && open.kind == 0 {
+			open = span{kind: heredoc, close: pending}
 		}
 		if t := strings.TrimSpace(strings.Join(got, " ")); t != "" {
 			segs = append(segs, Segment{Line: i + 1, Text: stripCode(t)})
@@ -151,11 +192,27 @@ func commentLines(text string, syn syntax) []Segment {
 	return segs
 }
 
-// nextComment is where the first comment outside a string opens in s, its
-// opener, and its closer ("" for a line comment); -1 when none does. A "#"
-// opens one only at the start or after a blank, a "//" not after a ":", so
-// $#, ${#x}, and a URL aren't comments.
-func nextComment(s string, syn syntax) (int, string, string) {
+// closeAt is where open's closer is in s, -1 when it isn't. Inside a string
+// a backslash escapes the next character; inside a comment nothing does.
+func closeAt(s string, open span) int {
+	if open.kind == blockComment {
+		return strings.Index(s, open.close)
+	}
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\\' {
+			i++
+		} else if strings.HasPrefix(s[i:], open.close) {
+			return i
+		}
+	}
+	return -1
+}
+
+// nextSpan is where the first comment, heredoc, or string the line doesn't
+// close opens in s, and that span; -1 when none does. A "#" opens a comment
+// only at the start or after a blank, a "//" not after a ":", so $#, ${#x},
+// and a URL aren't comments.
+func nextSpan(s string, syn syntax) (int, span) {
 	var quote byte
 	for i := 0; i < len(s); i++ {
 		c := s[i]
@@ -166,6 +223,24 @@ func nextComment(s string, syn syntax) (int, string, string) {
 			case quote:
 				quote = 0
 			}
+			continue
+		}
+		if syn.doc && (strings.HasPrefix(s[i:], `"""`) || strings.HasPrefix(s[i:], `'''`)) {
+			triple := span{str, s[i : i+3], s[i : i+3]}
+			end := closeAt(s[i+3:], triple)
+			if end < 0 {
+				return i, triple
+			}
+			i += 3 + end + 2
+			continue
+		}
+		if strings.IndexByte(syn.multi, c) >= 0 {
+			multi := span{str, s[i : i+1], s[i : i+1]}
+			end := closeAt(s[i+1:], multi)
+			if end < 0 {
+				return i, multi
+			}
+			i += 1 + end
 			continue
 		}
 		if strings.IndexByte(syn.quotes, c) >= 0 {
@@ -179,13 +254,18 @@ func nextComment(s string, syn syntax) (int, string, string) {
 			if open == "#" && i > 0 && s[i-1] != ' ' && s[i-1] != '\t' || open == "//" && i > 0 && s[i-1] == ':' {
 				continue
 			}
-			return i, open, ""
+			return i, span{kind: lineComment, open: open}
 		}
 		for _, b := range syn.block {
 			if strings.HasPrefix(s[i:], b[0]) {
-				return i, b[0], b[1]
+				return i, span{blockComment, b[0], b[1]}
+			}
+		}
+		if syn.heredoc && c == '<' && (i == 0 || s[i-1] != '<') {
+			if m := heredocOpener.FindStringSubmatch(s[i:]); m != nil {
+				return i, span{heredoc, m[0], m[1]}
 			}
 		}
 	}
-	return -1, "", ""
+	return -1, span{}
 }

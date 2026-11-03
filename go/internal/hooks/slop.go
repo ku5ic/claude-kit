@@ -27,10 +27,7 @@ func GuardSlop(h *hook.Hook) error {
 	if path == "" || cfg == nil {
 		return nil
 	}
-	d, err := slop.New(cfg)
-	if err != nil {
-		return err
-	}
+	d := slop.New(cfg)
 	surface := "file"
 	if project.IsScratch(h.Paths, path) {
 		if !strings.EqualFold(filepath.Ext(path), ".md") {

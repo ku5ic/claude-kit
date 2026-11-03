@@ -204,7 +204,8 @@ func TestGuardCommit(t *testing.T) {
 		{"block: a signature in a -m variable set earlier in the command", "MSG=\"Generated with Claude\"\ngit commit -m \"$MSG\"", 2},
 		{"block: AI-tell phrasing in a heredoc subject", "git -C . commit -m \"$(cat <<'EOF'\nlet me fix this\nEOF\n)\"", 2},
 		{"block: AI-tell phrasing in a <<- heredoc subject with a spaced opener", "git commit -F - <<- \"MSG\"\n\there is the patch\n\tMSG", 2},
-		{"allow: a quoted -m subject before a heredoc body", "git commit -m \"feat: x\" -m \"$(cat <<'EOF'\nlet me explain\nEOF\n)\"", 0},
+		{"allow: a quoted -m subject before a heredoc body", "git commit -m \"feat: x\" -m \"$(cat <<'EOF'\nThe parser dropped the last line.\nEOF\n)\"", 0},
+		{"block: AI-tell phrasing opening a heredoc body line", "git commit -m \"feat: x\" -m \"$(cat <<'EOF'\nlet me explain\nEOF\n)\"", 2},
 		// slop: a tier in slop.block_tiers blocks anywhere in the message, the rest is logged
 		{"block: a tier 1 tell in a -m body", `git commit -m "feat: x" -m "I hope this helps."`, 2},
 		{"block: a tier 1 tell in a -F - heredoc body", "git commit -F - <<'EOF'\nfeat: x\n\nI hope this helps.\nEOF", 2},
