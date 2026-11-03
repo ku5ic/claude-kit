@@ -183,6 +183,8 @@ func TestCarried(t *testing.T) {
 		{"a moved line keeps its old tell", lines("The hook serves as the entry point.", "", "# Notes"), nil},
 		{"a second tell on the edited line blocks", strings.Replace(old, "point.", "point. I hope this helps.", 1), []string{"3:hope-helps"}},
 		{"a copy of an old line blocks", old + "\n\nThe hook serves as the entry point.", []string{"5:copula"}},
+		{"a tell moved onto an unrelated line blocks", lines("# Notes", "", "A cache serves as a buffer."), []string{"3:copula"}},
+		{"a rewritten line keeping the tell passes", lines("# Notes", "", "The hook serves as the entry point for now."), nil},
 		{"an edit that adds the same tell again blocks one", strings.Replace(old, "point.", "point, and serves as a gate.", 1), []string{"3:copula"}},
 	}
 	for _, c := range cases {

@@ -115,24 +115,39 @@ func (d *Detector) Check(segs []Segment, surface string, logHit func(Hit)) (Resu
 }
 
 // Carried drops each hit that a line the write removes already held, by
-// rule and match, one old hit for one new. A line edited in place (a typo
-// fixed) keeps its old tells without blocking; a copy of an old line still
-// blocks, since the old line stays.
+// rule and match, on a line the new one edits in place; one old hit
+// excuses one new. A typo fixed on a line keeps its old tells without
+// blocking; a copy of an old line, or the tell moved onto an unrelated
+// line, still blocks.
 func (d *Detector) Carried(path, before, after, surface string, hits []Hit) []Hit {
 	// Swapped, Segments yields before's lines that after doesn't hold.
 	removed, _, _ := Segments(path, after, before)
-	old := map[[2]string]int{}
-	for _, h := range d.Blocking(d.Scan(removed, surface)) {
-		old[[2]string{h.Rule, strings.ToLower(h.Match)}]++
-	}
+	old := d.Blocking(d.Scan(removed, surface))
+	oldLines, newLines := strings.Split(before, "\n"), strings.Split(after, "\n")
 	return slices.DeleteFunc(hits, func(h Hit) bool {
-		k := [2]string{h.Rule, strings.ToLower(h.Match)}
-		if old[k] == 0 {
+		i := slices.IndexFunc(old, func(o Hit) bool {
+			return o.Rule == h.Rule && strings.EqualFold(o.Match, h.Match) && editedInPlace(oldLines[o.Line-1], newLines[h.Line-1])
+		})
+		if i < 0 {
 			return false
 		}
-		old[k]--
+		old = slices.Delete(old, i, i+1)
 		return true
 	})
+}
+
+// editedInPlace reports whether b is a with a local change: their common
+// prefix and suffix cover at least half the longer line.
+func editedInPlace(a, b string) bool {
+	p := 0
+	for p < len(a) && p < len(b) && a[p] == b[p] {
+		p++
+	}
+	s := 0
+	for s < len(a)-p && s < len(b)-p && a[len(a)-1-s] == b[len(b)-1-s] {
+		s++
+	}
+	return 2*(p+s) >= max(len(a), len(b))
 }
 
 // LogPairs is the key/value pairs a guard logs for a hit, blocked or not.
