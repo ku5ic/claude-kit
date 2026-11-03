@@ -26,7 +26,10 @@ func TestGuardPR(t *testing.T) {
 	}{
 		{"passthrough: not gh", `echo "I hope this helps."`, 0},
 		{"passthrough: gh pr view", `gh pr view 3 --json body`, 0},
-		{"passthrough: gh issue create isn't PR text", `gh issue create -b "I hope this helps."`, 0},
+		{"block: gh issue create -b", `gh issue create -t x -b "I hope this helps."`, 2},
+		{"block: gh issue comment --body-file", `gh issue comment 3 --body-file tell.md`, 2},
+		{"passthrough: gh issue view", `gh issue view 3 --json body`, 0},
+		{"passthrough: gh issue review isn't a subcommand", `gh issue review 3 -b "I hope this helps."`, 0},
 		{"allow: a clean body", `gh pr create -t "fix: x" -b "Reads the body from disk."`, 0},
 		{"block: --body", `gh pr create --title "fix: x" --body "I hope this helps."`, 2},
 		{"block: -b", `gh pr comment 3 -b "I hope this helps."`, 2},

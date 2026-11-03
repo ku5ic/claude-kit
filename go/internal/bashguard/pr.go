@@ -16,8 +16,11 @@ import (
 )
 
 var (
-	// prPosts are the gh pr subcommands that post text.
-	prPosts = map[string]bool{"create": true, "edit": true, "comment": true, "review": true}
+	// ghPosts are the gh pr and gh issue subcommands that post text.
+	ghPosts = map[string]map[string]bool{
+		"pr":    {"create": true, "edit": true, "comment": true, "review": true},
+		"issue": {"create": true, "edit": true, "comment": true},
+	}
 	// prFlags and apiFlags are the gh flags that carry PR text, by the
 	// spellings pflag accepts, to one name.
 	prFlags  = map[string]string{"-b": "body", "--body": "body", "-F": "body-file", "--body-file": "body-file", "-t": "title", "--title": "title"}
@@ -27,7 +30,7 @@ var (
 )
 
 // CheckPR is guard-pr: it scans the text a gh command posts to a pull
-// request (body, title, comment, review) for AI tells, as guard-commit scans
+// request or an issue (body, title, comment, review) for AI tells, as guard-commit scans
 // a commit message. Text it can't read (a pipe on stdin, a file the command
 // writes first, an expansion) is logged, not blocked.
 func CheckPR(h *hook.Hook) error {
@@ -83,8 +86,8 @@ func (s ghCall) texts(from int) []prText {
 	}
 	var out []prText
 	switch {
-	case len(args) >= 2 && args[0] == "pr" && prPosts[args[1]]:
-		cmd := "gh pr " + args[1]
+	case len(args) >= 2 && ghPosts[args[0]][args[1]]:
+		cmd := "gh " + args[0] + " " + args[1]
 		ghFlags(args[2:], prFlags, func(flag, value string) {
 			if flag == "body-file" {
 				out = append(out, s.read(cmd+" --body-file", value))
