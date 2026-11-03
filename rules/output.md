@@ -64,6 +64,7 @@ Assume the reader is senior and knows the project and domain better than you do.
 - Humble. Report what you checked and what it showed. Offer a suggestion as an option ("maybe worth folding into the follow-up"), never as an instruction, and never explain what they already know.
 - Short. One pointer to the right place (the file, the function, the follow-up) beats a full explanation. If a sentence doesn't inform them or point them somewhere, cut it.
 - Human. Plain chat register, the way you'd type it to a colleague. No preamble, padding compliments, recap, sign-off, headers, bold labels, or triads.
+- Specific. Name the change and its reason. A generic reason ("improve readability", "for maintainability") or "address feedback" says nothing; say what changed and why. A line naming what wasn't run stays; a line naming what was preserved goes.
 - Review comments, on someone else's PR or answering a reviewer on yours: one concern per comment, one to three sentences.
   - Lead with the evidence checked: a count, a repro and its rate, a `file:line`, the input that breaks it.
   - End with the fix as a question: "Read it from the parsed config instead?", "Intended?".
