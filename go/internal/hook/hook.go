@@ -258,7 +258,9 @@ func (h *Hook) flush(block string) {
 	case block != "":
 		WriteJSON(h.Stdout, output{Decision: "block", Reason: block, SystemMessage: strings.Join(h.notices, "\n")})
 	case h.decision != "":
-		WriteJSON(h.Stdout, output{HookSpecificOutput: &specific{HookEventName: "PreToolUse", PermissionDecision: h.decision, PermissionDecisionReason: h.reason}})
+		// A check's context (a density note) still reaches Claude when
+		// another check decides; only a defer would drop it.
+		WriteJSON(h.Stdout, output{HookSpecificOutput: &specific{HookEventName: "PreToolUse", PermissionDecision: h.decision, PermissionDecisionReason: h.reason, AdditionalContext: strings.Join(h.contexts, "\n")}})
 	case h.contexts != nil || h.notices != nil:
 		out := output{SystemMessage: strings.Join(h.notices, "\n")}
 		if h.contexts != nil {

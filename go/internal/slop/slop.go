@@ -105,18 +105,7 @@ func (d *Detector) Blocking(r Result) []Hit {
 	return out
 }
 
-// Unblocked is the hits of r that don't block, for the caller to log.
-func (d *Detector) Unblocked(r Result) []Hit {
-	var out []Hit
-	for _, h := range r.Hits {
-		if !d.Blocks(h) {
-			out = append(out, h)
-		}
-	}
-	return out
-}
-
-// LogPairs is the key/value pairs a guard logs for a hit it lets through.
+// LogPairs is the key/value pairs a guard logs for a hit, blocked or not.
 func LogPairs(h Hit, where string) []string {
 	return []string{"rule", "slop-" + h.Rule, "tier", strconv.Itoa(h.Tier), "path", where, "line", strconv.Itoa(h.Line), "match", h.Match}
 }

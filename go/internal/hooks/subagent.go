@@ -87,7 +87,7 @@ func reportHits(h *hook.Hook, text string) ([]slop.Hit, error) {
 	d := slop.New(cfg)
 	segs, _ := slop.Prose(text)
 	res := d.Scan(segs, "report")
-	for _, hit := range d.Unblocked(res) {
+	for _, hit := range res.Hits {
 		h.Log(kitlog.Guards, "slop", slop.LogPairs(hit, "subagent report")...)
 	}
 	return d.Blocking(res), nil

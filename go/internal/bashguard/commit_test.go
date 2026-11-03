@@ -241,8 +241,11 @@ func TestGuardCommitScansTheMessageForAITells(t *testing.T) {
 	r.Has(t, `L3 "I hope this helps" -> cut it`, "slop-patterns")
 
 	k.commit("", `git commit -m "fix: x" -m "A robust, seamless, comprehensive tool."`).Want(t, 0)
-	if log, _ := os.ReadFile(filepath.Join(k.claude, "logs", "guards.jsonl")); !strings.Contains(string(log), "slop-vocabulary") {
-		t.Errorf("guards log lacks the tier 3 hit:\n%s", log)
+	log, _ := os.ReadFile(filepath.Join(k.claude, "logs", "guards.jsonl"))
+	for _, want := range []string{"slop-hope-helps", "slop-vocabulary"} {
+		if !strings.Contains(string(log), want) {
+			t.Errorf("guards log lacks %s:\n%s", want, log)
+		}
 	}
 }
 

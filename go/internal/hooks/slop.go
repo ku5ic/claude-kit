@@ -15,8 +15,8 @@ import (
 )
 
 // GuardSlop denies a Write, Edit, or MultiEdit that adds AI tells in a
-// slop.block_tiers tier, naming each with its line and fix, and logs the
-// rest. Only the lines the write adds count. In scratch it reads Markdown
+// slop.block_tiers tier, naming each with its line and fix, and logs every
+// hit. Only the lines the write adds count. In scratch it reads Markdown
 // only: reports and PR drafts are written there, logs and downloads too.
 // PreToolUse for Edit, Write, MultiEdit.
 func GuardSlop(h *hook.Hook) error {
@@ -53,7 +53,7 @@ func GuardSlop(h *hook.Hook) error {
 		h.Log(kitlog.Guards, "slop-allow", "path", path, "line", strconv.Itoa(a.Line), "reason", a.Reason)
 	}
 	res := d.Scan(segs, surface)
-	for _, hit := range d.Unblocked(res) {
+	for _, hit := range res.Hits {
 		h.Log(kitlog.Guards, "slop", slop.LogPairs(hit, path)...)
 	}
 	if hits := d.Blocking(res); len(hits) > 0 {

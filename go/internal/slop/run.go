@@ -16,6 +16,10 @@ const usage = "usage: kit slop [--surface file|commit|pr|report|chat] <file...|-
 // Run is `kit slop`: every hit in each file, or stdin, one line each. It
 // exits 1 when any hit blocks, 2 on a usage error.
 func Run(cfg *config.Config, args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	if slices.Contains(args, "-h") || slices.Contains(args, "--help") {
+		fmt.Fprintln(stdout, usage)
+		return 0
+	}
 	surface, paths, err := parseArgs(args)
 	if err != nil {
 		fmt.Fprintf(stderr, "kit slop: %v\n%s\n", err, usage)

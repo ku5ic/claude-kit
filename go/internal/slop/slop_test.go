@@ -226,6 +226,8 @@ func TestRun(t *testing.T) {
 		{"stdin needs a surface", []string{"-"}, "x", 2, "", "stdin needs --surface"},
 		{"unknown surface", []string{"--surface=email", clean}, "", 2, "", "is no surface"},
 		{"no file", nil, "", 2, "", "no file"},
+		{"help", []string{"--help"}, "", 0, "usage: kit slop", ""},
+		{"-h", []string{"-h", clean}, "", 0, "usage: kit slop", ""},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

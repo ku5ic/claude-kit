@@ -97,7 +97,7 @@ func CheckCommit(h *hook.Hook) error {
 }
 
 // scanSlop blocks text, read as surface, when it holds AI tells in a
-// slop.block_tiers tier, and logs the rest; where names the text in both.
+// slop.block_tiers tier, and logs every hit; where names the text in both.
 // Without kit.yml it fails open.
 func scanSlop(h *hook.Hook, text, surface, where string) error {
 	cfg := h.Config()
@@ -107,7 +107,7 @@ func scanSlop(h *hook.Hook, text, surface, where string) error {
 	d := slop.New(cfg)
 	segs, _ := slop.Prose(text)
 	res := d.Scan(segs, surface)
-	for _, hit := range d.Unblocked(res) {
+	for _, hit := range res.Hits {
 		h.Log(kitlog.Guards, "slop", slop.LogPairs(hit, where)...)
 	}
 	if hits := d.Blocking(res); len(hits) > 0 {

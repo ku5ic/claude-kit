@@ -88,6 +88,18 @@ func TestGuardSlopLogs(t *testing.T) {
 			}
 		}
 	})
+	t.Run("a blocked tell logs its rule and match too", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		path := filepath.Join(t.TempDir(), "doc.md")
+		k.run("guard-slop", slopCall("Write", path, map[string]any{"content": "It serves as the entry point.\n"})).Denied(t)
+		log := read(t, k.paths.LogFile(kitlog.Guards))
+		for _, want := range []string{`"slop-copula"`, `"tier":"2"`, `"match":"serves as the"`} {
+			if !strings.Contains(log, want) {
+				t.Errorf("guards log lacks %s:\n%s", want, log)
+			}
+		}
+	})
 	t.Run("an allow marker logs its reason", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
