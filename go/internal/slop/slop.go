@@ -15,10 +15,12 @@ import (
 )
 
 // Segment is one line of scannable text: Line is its 1-based line in the
-// source, Text the line with code spans and quoted spans taken out.
+// source, Text the line with code spans and quoted spans taken out. A Raw
+// segment is a line of UI code as written, which only on: [ui] rules scan.
 type Segment struct {
 	Line int
 	Text string
+	Raw  bool
 }
 
 // Allow is an `unslop: allow <reason>` marker, which exempts the next
@@ -111,7 +113,7 @@ func (d *Detector) Scan(segs []Segment, surface string) Result {
 	for _, seg := range segs {
 		words += len(strings.Fields(seg.Text))
 		for _, r := range d.rules {
-			if len(r.On) > 0 && !slices.Contains(r.On, surface) {
+			if !applies(r.SlopRule, surface, seg.Raw) {
 				continue
 			}
 			for _, m := range r.re.FindAllString(seg.Text, -1) {
@@ -123,7 +125,7 @@ func (d *Detector) Scan(segs []Segment, surface string) Result {
 				}
 			}
 		}
-		if d.words != nil {
+		if d.words != nil && !seg.Raw {
 			for _, m := range d.words.FindAllString(seg.Text, -1) {
 				dense = append(dense, Hit{seg.Line, 3, "vocabulary", clip(m), ""})
 			}
@@ -140,6 +142,15 @@ func (d *Detector) Scan(segs []Segment, surface string) Result {
 	slices.SortStableFunc(hits, func(a, b Hit) int { return a.Line - b.Line })
 	res.Hits = hits
 	return res
+}
+
+// applies reports whether r scans a segment on surface: a raw UI line only
+// for an on: [ui] rule, any other line for a rule naming surface or none.
+func applies(r config.SlopRule, surface string, raw bool) bool {
+	if raw {
+		return slices.Contains(r.On, "ui")
+	}
+	return len(r.On) == 0 || slices.Contains(r.On, surface)
 }
 
 func clip(s string) string {
@@ -163,33 +174,56 @@ var (
 // and the next non-blank line are left out; the markers come back too, for
 // the caller to log.
 func Prose(text string) ([]Segment, []Allow) {
+	return finish(strings.Split(text, "\n"), proseLines(text))
+}
+
+// proseLines is each prose line of text with its code spans taken out.
+func proseLines(text string) []Segment {
 	var segs []Segment
-	var allows []Allow
-	exempt := false
 	n := 0
 	for l := range md.Lines(text) {
 		n++
 		line := strings.TrimRight(l.Text, "\r\n")
-		if l.Kind != md.Prose || strings.TrimSpace(line) == "" {
+		if l.Kind != md.Prose || strings.TrimSpace(line) == "" || blockquote.MatchString(line) {
 			continue
 		}
-		// A marker named in a code span is a mention, not a marker.
-		text := stripCode(line)
-		if m := allowMarker.FindStringSubmatch(text); m != nil && m[1] != "" {
-			allows = append(allows, Allow{n, m[1]})
-			exempt = true
-			continue
-		}
-		if exempt {
-			exempt = false
-			continue
-		}
-		if blockquote.MatchString(line) {
-			continue
-		}
-		segs = append(segs, Segment{n, quoted.ReplaceAllString(text, " ")})
+		segs = append(segs, Segment{Line: n, Text: stripCode(line)})
 	}
-	return segs, allows
+	return segs
+}
+
+// finish takes the allow markers out of segs, sorted by line, along with
+// the next non-blank line of lines after each, and the quoted spans out of
+// the rest. Code spans are already gone, so a marker named in one is a
+// mention, not a marker.
+func finish(lines []string, segs []Segment) ([]Segment, []Allow) {
+	var allows []Allow
+	exempt := map[int]bool{}
+	for _, s := range segs {
+		m := allowMarker.FindStringSubmatch(s.Text)
+		if s.Raw || m == nil || m[1] == "" {
+			continue
+		}
+		allows = append(allows, Allow{s.Line, m[1]})
+		exempt[s.Line] = true
+		for n := s.Line + 1; n <= len(lines); n++ {
+			if strings.TrimSpace(lines[n-1]) != "" {
+				exempt[n] = true
+				break
+			}
+		}
+	}
+	out := segs[:0:0]
+	for _, s := range segs {
+		if exempt[s.Line] {
+			continue
+		}
+		if !s.Raw {
+			s.Text = quoted.ReplaceAllString(s.Text, " ")
+		}
+		out = append(out, s)
+	}
+	return out, allows
 }
 
 // stripCode replaces each code span (a backtick run, closed by a run of the

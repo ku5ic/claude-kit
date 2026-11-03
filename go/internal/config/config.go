@@ -210,8 +210,9 @@ type EditCommand struct {
 }
 
 // SlopSurfaces are where text is scanned for AI tells: a written file, a
-// commit message, PR text, a subagent's report, a chat reply.
-var SlopSurfaces = []string{"file", "commit", "pr", "report", "chat"}
+// commit message, PR text, a subagent's report, a chat reply, and ui, the
+// lines of a UI file as written, which only rules naming it scan.
+var SlopSurfaces = []string{"file", "commit", "pr", "report", "chat", "ui"}
 
 // Slop is the AI-tell lexicon go/internal/slop scans with. Hits in a
 // BlockTiers tier block; the rest are logged. Tier 3 rules and Density.Words

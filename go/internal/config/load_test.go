@@ -218,7 +218,7 @@ func TestBrokenSlopRulesWarn(t *testing.T) {
 	want := []string{
 		`slop.rules ok: id repeated`,
 		`slop.rules ok: tier 4; a tier is 1, 2, or 3`,
-		`slop.rules ok: "email" is no surface (file, commit, pr, report, chat)`,
+		`slop.rules ok: "email" is no surface (file, commit, pr, report, chat, ui)`,
 		`slop.rules ok: match doesn't compile: "("`,
 		`slop.rules #3: no id`,
 		`slop.rules #3: a tier 2 rule needs a fix`,

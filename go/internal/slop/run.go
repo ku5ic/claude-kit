@@ -41,7 +41,7 @@ func Run(cfg *config.Config, args []string, stdin io.Reader, stdout, stderr io.W
 			fmt.Fprintln(stderr, "kit slop:", err)
 			return 2
 		}
-		segs, allows, ok := FileSegments(path, string(data))
+		segs, allows, ok := Segments(path, "", string(data))
 		if !ok {
 			fmt.Fprintf(stderr, "%s: not scanned (no reader for this file type)\n", path)
 			continue
@@ -96,15 +96,4 @@ func parseArgs(args []string) (surface string, paths []string, err error) {
 		return "", nil, fmt.Errorf("stdin needs --surface")
 	}
 	return surface, paths, nil
-}
-
-// FileSegments is what to scan in a file of path's type, and false for a
-// type with no reader. Stdin ("-") and Markdown or text files are prose.
-func FileSegments(path, text string) ([]Segment, []Allow, bool) {
-	switch strings.ToLower(filepath.Ext(path)) {
-	case "", ".md", ".markdown", ".mdx", ".txt":
-		segs, allows := Prose(text)
-		return segs, allows, true
-	}
-	return nil, nil, false
 }

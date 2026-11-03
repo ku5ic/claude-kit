@@ -203,7 +203,7 @@ func TestRun(t *testing.T) {
 	tell := put("tell.md", "Done. I hope this helps.\n")
 	soft := put("soft.md", "The hook serves as the entry point.\n")
 	clean := put("clean.md", "The hook is the entry point.\n")
-	code := put("main.go", "package main\n")
+	code := put("logo.png", "PNG\n")
 	skipped := put("testdata/x.md", "I hope this helps.\n")
 
 	cases := []struct {

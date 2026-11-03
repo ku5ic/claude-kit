@@ -251,6 +251,31 @@ slop:
     - {id: streamlined, tier: 2, on: [commit, pr], match: '(?i)\bstreamlin(e|es|ed|ing)\b', fix: say what was removed or merged}
     - {id: rather-than, tier: 3, match: '(?i)\brather than\b'}
     - {id: bold-in-prose, tier: 3, match: '\w[^*\n]*\s\*\*[^*\n]+\*\*'}
+    # UI code as written (on: [ui]): .tsx, .jsx, .vue, .svelte, .html, .css, .scss.
+    - {id: ui-placeholder, tier: 1, on: [ui], match: '(?i)\blorem ipsum\b|>\s*Feature (one|two|1|2)\s*<', fix: put the real content in}
+    - id: ui-emoji-label
+      tier: 2
+      on: [ui]
+      match: '<(h[1-6]|button|a|li)\b[^>]*>[^<]*[\x{1F300}-\x{1FAFF}\x{2600}-\x{27BF}]'
+      fix: drop the emoji; the words carry the label
+    - id: ui-default-gradient
+      tier: 2
+      on: [ui]
+      match: '\bfrom-(purple|violet|indigo|fuchsia)-\d+\b.*\bto-(blue|indigo|pink|cyan)-\d+\b'
+      fix: take the colors from the project's tokens, or drop the gradient
+    - id: ui-gradient-text
+      tier: 2
+      on: [ui]
+      match: '\bbg-clip-text\b.*\btext-transparent\b|\btext-transparent\b.*\bbg-clip-text\b'
+      fix: solid text in a token color
+    - id: ui-marketing
+      tier: 2
+      on: [ui]
+      match: '(?i)\b(supercharge[sd]?|empower(s|ed)?|elevate[sd]?|world-class|enterprise-grade|reimagined)\b|\bthe future of\b|\boops!'
+      fix: say what the product does, or what went wrong and how to fix it
+    - {id: ui-glass, tier: 3, on: [ui], match: '\bbackdrop-blur(-\w+)?\b|\bblur-3xl\b|\bshadow-\[0_0_'}
+    - {id: ui-eyebrow, tier: 3, on: [ui], match: '\buppercase\b.*\btracking-(widest|\[0\.\d+em\])'}
+    - {id: ui-chrome-glyph, tier: 3, on: [ui], match: '\x{00B7}|\x{2192}'}
 
 # Shell rc files: direct writes are blocked, the dotfiles repo is the source.
 rc_files: ["~/.zshrc", "~/.zprofile", "~/.bashrc", "~/.bash_profile", "~/.profile"]
