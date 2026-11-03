@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -193,6 +194,38 @@ func TestNegativeReplyLimitsWarn(t *testing.T) {
 	want := `reply_limits: chat is -5; a ceiling is 0 (off) or more|reply_limits: write.commit is -1; a ceiling is 0 (off) or more`
 	if strings.Join(got, "|") != want {
 		t.Errorf("warnings = %q, want %q", got, want)
+	}
+}
+
+func TestBrokenSlopRulesWarn(t *testing.T) {
+	dir := t.TempDir()
+	base := write(t, dir, "kit.yml", `slop:
+  block_tiers: [1, 3]
+  rules:
+    - {id: ok, tier: 1, match: 'x', fix: cut}
+    - {id: ok, tier: 4, on: [email], match: '(', fix: cut}
+    - {tier: 2, match: 'y'}
+    - {id: dense, tier: 3, match: 'z'}
+`)
+	_, warnings, err := Load(Paths{Base: base})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, w := range warnings {
+		got = append(got, w.Err.Error())
+	}
+	want := []string{
+		`slop.rules ok: id repeated`,
+		`slop.rules ok: tier 4; a tier is 1, 2, or 3`,
+		`slop.rules ok: "email" is no surface (file, commit, pr, report, chat)`,
+		`slop.rules ok: match doesn't compile: "("`,
+		`slop.rules #3: no id`,
+		`slop.rules #3: a tier 2 rule needs a fix`,
+		`slop.block_tiers: 3; only tiers 1 and 2 block`,
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("warnings =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 }
 

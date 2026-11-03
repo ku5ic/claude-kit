@@ -27,6 +27,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/kitcmd"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/rotate"
+	"github.com/ku5ic/claude-kit/go/internal/slop"
 	"github.com/ku5ic/claude-kit/go/internal/sources"
 	"github.com/ku5ic/claude-kit/go/internal/status"
 )
@@ -146,6 +147,9 @@ var configCommands = map[string]func(*env, *config.Config, []string) int{
 	"enforce":      cmdEnforce,
 	"blast-radius": func(e *env, cfg *config.Config, args []string) int {
 		return blast.Run(cfg, args, e.stdout, e.stderr)
+	},
+	"slop": func(e *env, cfg *config.Config, args []string) int {
+		return slop.Run(cfg, args, os.Stdin, e.stdout, e.stderr)
 	},
 	"explain": func(e *env, cfg *config.Config, args []string) int {
 		return explain.Run(e.paths, cfg, e.cwd, args, e.stdout, e.stderr)

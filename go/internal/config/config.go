@@ -39,6 +39,7 @@ type Config struct {
 	LockfileGlobs []string    `yaml:"lockfile_globs"`
 	Classifier    []string    `yaml:"classifier"`
 	OnEdit        []EditRule  `yaml:"on_edit"`
+	Slop          Slop        `yaml:"slop"`
 
 	// Tag is "merged" when an overlay was merged in, else "base". Caches
 	// derived from the config carry it in their file name, so deleting the
@@ -206,6 +207,77 @@ type EditRule struct {
 type EditCommand struct {
 	Cmd    string `yaml:"cmd"`
 	Stdout bool   `yaml:"stdout"`
+}
+
+// SlopSurfaces are where text is scanned for AI tells: a written file, a
+// commit message, PR text, a subagent's report, a chat reply.
+var SlopSurfaces = []string{"file", "commit", "pr", "report", "chat"}
+
+// Slop is the AI-tell lexicon go/internal/slop scans with. Hits in a
+// BlockTiers tier block; the rest are logged. Tier 3 rules and Density.Words
+// only count toward the density score, never block on their own.
+type Slop struct {
+	BlockTiers []int       `yaml:"block_tiers"`
+	Skip       []string    `yaml:"skip"`
+	Density    SlopDensity `yaml:"density"`
+	Rules      []SlopRule  `yaml:"rules"`
+}
+
+// SlopDensity flags a text once it holds at least Min tier 3 hits and at
+// least Threshold of them per PerWords prose words.
+type SlopDensity struct {
+	PerWords  int      `yaml:"per_words"`
+	Threshold int      `yaml:"threshold"`
+	Min       int      `yaml:"min"`
+	Words     []string `yaml:"words"`
+}
+
+// SlopRule is one tell: a regexp, the tier it belongs to, the surfaces it
+// applies to (all when empty), and the rewrite direction a hit reports.
+type SlopRule struct {
+	ID    string   `yaml:"id"`
+	Tier  int      `yaml:"tier"`
+	On    []string `yaml:"on"`
+	Match string   `yaml:"match"`
+	Fix   string   `yaml:"fix"`
+}
+
+// problems names each rule that can't work as written: no id or a repeated
+// one, a tier outside 1-3, an unknown surface, a regexp that doesn't
+// compile, or a tier 1-2 rule with no fix to report.
+func (s Slop) problems() []error {
+	var errs []error
+	seen := map[string]bool{}
+	for i, r := range s.Rules {
+		name := r.ID
+		if name == "" {
+			name = fmt.Sprintf("#%d", i+1)
+			errs = append(errs, fmt.Errorf("slop.rules %s: no id", name))
+		} else if seen[name] {
+			errs = append(errs, fmt.Errorf("slop.rules %s: id repeated", name))
+		}
+		seen[name] = true
+		if r.Tier < 1 || r.Tier > 3 {
+			errs = append(errs, fmt.Errorf("slop.rules %s: tier %d; a tier is 1, 2, or 3", name, r.Tier))
+		}
+		for _, on := range r.On {
+			if !slices.Contains(SlopSurfaces, on) {
+				errs = append(errs, fmt.Errorf("slop.rules %s: %q is no surface (%s)", name, on, strings.Join(SlopSurfaces, ", ")))
+			}
+		}
+		if _, err := regexp.Compile(r.Match); err != nil || r.Match == "" {
+			errs = append(errs, fmt.Errorf("slop.rules %s: match doesn't compile: %q", name, r.Match))
+		}
+		if r.Tier < 3 && r.Fix == "" {
+			errs = append(errs, fmt.Errorf("slop.rules %s: a tier %d rule needs a fix", name, r.Tier))
+		}
+	}
+	for _, t := range s.BlockTiers {
+		if t < 1 || t > 2 {
+			errs = append(errs, fmt.Errorf("slop.block_tiers: %d; only tiers 1 and 2 block", t))
+		}
+	}
+	return errs
 }
 
 // ReplyLimits are the word ceilings rules/output.md section 0 names. A
