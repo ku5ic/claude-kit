@@ -171,6 +171,35 @@ func TestAddedLines(t *testing.T) {
 	}
 }
 
+func TestCarried(t *testing.T) {
+	t.Parallel()
+	d := detector(t)
+	old := lines("# Notes", "", "The hook serves as the entry point.")
+	cases := []struct {
+		name, after string
+		want        []string
+	}{
+		{"an edited line keeps its old tell", strings.Replace(old, "hook", "Hook", 1), nil},
+		{"a moved line keeps its old tell", lines("The hook serves as the entry point.", "", "# Notes"), nil},
+		{"a second tell on the edited line blocks", strings.Replace(old, "point.", "point. I hope this helps.", 1), []string{"3:hope-helps"}},
+		{"a copy of an old line blocks", old + "\n\nThe hook serves as the entry point.", []string{"5:copula"}},
+		{"an edit that adds the same tell again blocks one", strings.Replace(old, "point.", "point, and serves as a gate.", 1), []string{"3:copula"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			segs, _, _ := Segments("notes.md", old, c.after)
+			var got []string
+			for _, h := range d.Carried("notes.md", old, c.after, "file", d.Blocking(d.Scan(segs, "file"))) {
+				got = append(got, fmt.Sprintf("%d:%s", h.Line, h.Rule))
+			}
+			if !slices.Equal(got, c.want) {
+				t.Errorf("hits = %v, want %v", got, c.want)
+			}
+		})
+	}
+}
+
 func TestAllowMarkerInCode(t *testing.T) {
 	t.Parallel()
 	d := detector(t)

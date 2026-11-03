@@ -114,6 +114,27 @@ func (d *Detector) Check(segs []Segment, surface string, logHit func(Hit)) (Resu
 	return res, d.Blocking(res)
 }
 
+// Carried drops each hit that a line the write removes already held, by
+// rule and match, one old hit for one new. A line edited in place (a typo
+// fixed) keeps its old tells without blocking; a copy of an old line still
+// blocks, since the old line stays.
+func (d *Detector) Carried(path, before, after, surface string, hits []Hit) []Hit {
+	// Swapped, Segments yields before's lines that after doesn't hold.
+	removed, _, _ := Segments(path, after, before)
+	old := map[[2]string]int{}
+	for _, h := range d.Blocking(d.Scan(removed, surface)) {
+		old[[2]string{h.Rule, strings.ToLower(h.Match)}]++
+	}
+	return slices.DeleteFunc(hits, func(h Hit) bool {
+		k := [2]string{h.Rule, strings.ToLower(h.Match)}
+		if old[k] == 0 {
+			return false
+		}
+		old[k]--
+		return true
+	})
+}
+
 // LogPairs is the key/value pairs a guard logs for a hit, blocked or not.
 func LogPairs(h Hit, where string) []string {
 	return []string{"rule", "slop-" + h.Rule, "tier", strconv.Itoa(h.Tier), "path", where, "line", strconv.Itoa(h.Line), "match", h.Match}
