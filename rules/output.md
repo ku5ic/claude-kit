@@ -12,7 +12,7 @@ Run this test on every reply, file, and commit message before emitting:
 2. Delete any sentence the reader already knows: what they asked, what they watched happen, what a tool printed.
 3. Delete any sentence that names a category instead of the item ("there are tradeoffs" -> name the tradeoff or cut it).
 4. The first line is the answer, the path, or the next action. Nothing before it.
-5. Stop at the last sentence that carries information.
+5. Stop at the last sentence that answers what was asked. A related fact nobody asked for (the reverse case, a neighboring feature) is cut, however true.
 
 | Context                                                        | Ceiling                                   |
 | -------------------------------------------------------------- | ----------------------------------------- |
