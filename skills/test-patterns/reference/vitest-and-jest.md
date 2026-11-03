@@ -11,7 +11,7 @@
 
 Both are healthy projects in 2026. The choice is determined by build-tool fit, not feature parity.
 
-- **Vitest** (https://vitest.dev/): Vite-native test runner with a Jest-compatible API (expectations, snapshots, mocks). Currently in v4.x. Works for backend code too -- it does not require a Vite app, only the Vite transform pipeline. The natural default for any project that already uses Vite.
+- **Vitest** (https://vitest.dev/): Vite-native test runner with a Jest-compatible API (expectations, snapshots, mocks). Currently in v4.x. Works for backend code too: it does not require a Vite app, only the Vite transform pipeline. The natural default for any project that already uses Vite.
 - **Jest** (https://jestjs.io/): the older, broader-ecosystem incumbent. Still actively maintained. Many React ecosystem tools default to Jest config out of the box. The natural default for projects without a Vite-based build, especially ones with substantial existing Jest setup.
 
 Migration between the two is mostly find-and-replace because the API shapes overlap. The skill recommends staying with whichever the project uses; do not introduce a runner change as a side effect of an unrelated task.

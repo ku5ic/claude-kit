@@ -40,7 +40,7 @@ PPR ships stable in Next.js 16 and is the default rendering behavior when Cache 
 - **Static shell**: cached and deterministic content (`"use cache"`-marked, plus pure computation), rendered at build time and served immediately.
 - **Streamed content**: anything that touches runtime APIs (`cookies()`, `headers()`, `searchParams`, `params`) or uncached fetches, wrapped in `<Suspense>` and streamed at request time.
 
-With Cache Components, runtime-data components must be wrapped in `<Suspense>` or marked `"use cache"`; otherwise the build fails with a `blocking-route` error. This is by design - it forces the streaming boundary to be explicit.
+With Cache Components, runtime-data components must be wrapped in `<Suspense>` or marked `"use cache"`; otherwise the build fails with a `blocking-route` error. This is by design: it forces the streaming boundary to be explicit.
 
 ## Streaming caveats
 

@@ -44,11 +44,11 @@ Scratch is whatever `kit scratch-dir` prints, the `scratch:` line of `<repo-cont
 
 Three sibling directories under a project's `.claude/`, each with one job:
 
-| Directory          | Holds                                                               | Tracked?        |
-| ------------------ | ------------------------------------------------------------------- | --------------- |
-| `.claude/scratch/` | Throwaway work: POCs, one-off scripts, logs, downloads, screenshots | No - gitignored |
-| `.claude/plans/`   | Plan files, via `plansDirectory: ".claude/plans"`                   | No - gitignored |
-| `.claude/tasks/`   | Handover plans a person is meant to read, written by hand           | Yes             |
+| Directory          | Holds                                                               | Tracked?       |
+| ------------------ | ------------------------------------------------------------------- | -------------- |
+| `.claude/scratch/` | Throwaway work: POCs, one-off scripts, logs, downloads, screenshots | No, gitignored |
+| `.claude/plans/`   | Plan files, via `plansDirectory: ".claude/plans"`                   | No, gitignored |
+| `.claude/tasks/`   | Handover plans a person is meant to read, written by hand           | Yes            |
 
 **Everything temporary goes to scratch**: reports, previews, test artifacts, proof-of-concept scripts, one-off debug files, downloads, screenshots, logs. Plans are the exception; they have their own directory above. This overrides the harness's per-session `/tmp` scratchpad and ad hoc paths under `~/.claude/`.
 

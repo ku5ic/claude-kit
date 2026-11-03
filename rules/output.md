@@ -57,7 +57,7 @@ Terminal output is for: code snippets under ~20 lines used to make a point, clar
 
 ## 4. External communication
 
-Commit messages, PR descriptions, devnotes, review comments, stakeholder writeups, and release notes follow every rule above with no detailed-explanation exception - someone else reads them, on their time. Default to the shortest structured form that is still complete. A long explanation is still chunked.
+Commit messages, PR descriptions, devnotes, review comments, stakeholder writeups, and release notes follow every rule above with no detailed-explanation exception: someone else reads them, on their time. Default to the shortest structured form that is still complete. A long explanation is still chunked.
 
 Assume the reader is senior and knows the project and domain better than you do. Their time is the scarce thing.
 

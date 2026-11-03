@@ -16,7 +16,7 @@ Severity levels: the report-format skill.
 
 ## Mocking so many modules that the test no longer covers the subject
 
-`warning`. When `vi.mock` / `jest.mock` blankets every import the subject uses, the test only validates that the subject calls its dependencies -- not that the full behavior is correct. Integration tests and tests closer to the boundary are more reliable than heavily mocked unit tests for complex coordination logic.
+`warning`. When `vi.mock` / `jest.mock` blankets every import the subject uses, the test only validates that the subject calls its dependencies, not that the full behavior is correct. Integration tests and tests closer to the boundary are more reliable than heavily mocked unit tests for complex coordination logic.
 
 ## Large snapshot tests for behavior logic
 

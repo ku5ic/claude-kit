@@ -13,7 +13,7 @@
 
 ## Pathlib, context managers, caching
 
-- `pathlib.Path` over `os.path`. `Path("dir") / "file.txt"`, `path.read_text()`, `path.glob("*.py")` -- all clearer than the string-juggling equivalents.
+- `pathlib.Path` over `os.path`. `Path("dir") / "file.txt"`, `path.read_text()`, `path.glob("*.py")`: all clearer than the string-juggling equivalents.
 - Context managers: `@contextlib.contextmanager` for one-off setup/teardown; full `__enter__` / `__exit__` class for reusable infrastructure.
 - `functools.cache` (3.9+) for unbounded memoization.
 - `functools.lru_cache(maxsize=N)` when the cache must be bounded.

@@ -1,6 +1,6 @@
 ---
 name: opentofu-patterns
-description: OpenTofu and Terraform patterns - config-driven refactoring (moved, import, removed), for_each vs count, variables and secrets in state, version pinning and the lock file, fmt/validate in CI, and review-time anti-patterns. Use whenever the project contains `.tf`/`.tfvars` files or a `.terraform.lock.hcl`, OR the user asks about OpenTofu, Terraform, HCL, state, providers, or modules, even if neither tool is mentioned by name.
+description: OpenTofu and Terraform patterns for config-driven refactoring (moved, import, removed), for_each vs count, variables and secrets in state, version pinning and the lock file, fmt/validate in CI, and review-time anti-patterns. Use whenever the project contains `.tf`/`.tfvars` files or a `.terraform.lock.hcl`, OR the user asks about OpenTofu, Terraform, HCL, state, providers, or modules, even if neither tool is mentioned by name.
 ---
 
 # OpenTofu patterns

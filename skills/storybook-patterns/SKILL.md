@@ -1,6 +1,6 @@
 ---
 name: storybook-patterns
-description: Storybook patterns - CSF 3 stories and meta, args with fn() spies, play-function interaction tests, how story ids and URLs are formed, the a11y addon's test modes, and review-time anti-patterns. Use whenever the project contains `*.stories.*` files, a `.storybook/` directory, or `storybook` in `package.json`, OR the user asks about stories, play functions, Storybook addons, or component documentation, even if Storybook is not mentioned by name.
+description: Storybook patterns for CSF 3 stories and meta, args with fn() spies, play-function interaction tests, how story ids and URLs are formed, the a11y addon's test modes, and review-time anti-patterns. Use whenever the project contains `*.stories.*` files, a `.storybook/` directory, or `storybook` in `package.json`, OR the user asks about stories, play functions, Storybook addons, or component documentation, even if Storybook is not mentioned by name.
 ---
 
 # Storybook patterns

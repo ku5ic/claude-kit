@@ -20,7 +20,7 @@ Severity rubric: [../SKILL.md](../SKILL.md#severity-rubric).
 
 ## Form input without a programmatic label
 
-`failure`. An `<input>`, `<select>`, or `<textarea>` with no associated `<label>` (via `for`/`id` or wrapping), `aria-label`, or `aria-labelledby` has no accessible name. Screen readers announce only "edit" with no context. Placeholder text does not substitute for a label -- it disappears on entry.
+`failure`. An `<input>`, `<select>`, or `<textarea>` with no associated `<label>` (via `for`/`id` or wrapping), `aria-label`, or `aria-labelledby` has no accessible name. Screen readers announce only "edit" with no context. Placeholder text does not substitute for a label: it disappears on entry.
 
 ## Modal without a focus trap and a close mechanism
 

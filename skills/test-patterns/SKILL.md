@@ -1,6 +1,6 @@
 ---
 name: test-patterns
-description: Testing conventions - test design, fixtures, mocking, query priority, async handling, behavior-vs-implementation tests, boundary coverage, and what to skip. Use whenever the project contains a test config file (`vitest.config.*`, `jest.config.*`, `playwright.config.*`, `pytest.ini`, `conftest.py`) or a test directory (`tests/`, `__tests__/`, `spec/`), OR the user asks about tests at any level, mocking, fixtures, coverage, or a failing test, in any stack and even if a framework is not named.
+description: Testing conventions for test design, fixtures, mocking, query priority, async handling, behavior-vs-implementation tests, boundary coverage, and what to skip. Use whenever the project contains a test config file (`vitest.config.*`, `jest.config.*`, `playwright.config.*`, `pytest.ini`, `conftest.py`) or a test directory (`tests/`, `__tests__/`, `spec/`), OR the user asks about tests at any level, mocking, fixtures, coverage, or a failing test, in any stack and even if a framework is not named.
 ---
 
 # Test patterns

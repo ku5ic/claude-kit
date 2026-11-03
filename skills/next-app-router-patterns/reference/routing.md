@@ -55,7 +55,7 @@ A `default.tsx` in each parallel slot defines the fallback rendered when a navig
 
 ## Intercepting routes
 
-`(.)folder`, `(..)folder`, `(...)folder` intercept a navigation from another part of the tree to render a different UI for the same URL - e.g. clicking a thumbnail opens a modal that overlays the gallery, while a direct visit to that URL renders the full photo page.
+`(.)folder`, `(..)folder`, `(...)folder` intercept a navigation from another part of the tree to render a different UI for the same URL. For example, clicking a thumbnail opens a modal that overlays the gallery, while a direct visit to that URL renders the full photo page.
 
 Combined with parallel routes, this is the standard pattern for modal routes that survive page refresh as a real URL.
 

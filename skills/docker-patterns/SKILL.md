@@ -1,6 +1,6 @@
 ---
 name: docker-patterns
-description: Docker patterns - Dockerfile best practices, multi-stage builds, Compose service configuration, networking, volumes, and security. Use whenever the project contains a `Dockerfile`, a Compose file, or `.dockerignore`, OR the user asks about containers, image builds, or Compose service wiring, even if Docker is not mentioned by name.
+description: Docker patterns for Dockerfile best practices, multi-stage builds, Compose service configuration, networking, volumes, and security. Use whenever the project contains a `Dockerfile`, a Compose file, or `.dockerignore`, OR the user asks about containers, image builds, or Compose service wiring, even if Docker is not mentioned by name.
 ---
 
 # Docker patterns
@@ -30,7 +30,7 @@ Docker Engine 29.8.1. Compose Specification (current format, supersedes 2.x and 
 
 Checked: 2026-09-26 against https://docs.docker.com/engine/release-notes/ and https://docs.docker.com/compose/compose-file/04-version-and-name/
 
-Docker Engine and Docker Compose release independently. The Compose Specification supersedes the versioned format (version: "3") -- the `version` top-level key is now ignored.
+Docker Engine and Docker Compose release independently. The Compose Specification supersedes the versioned format (version: "3"), and the `version` top-level key is now ignored.
 
 - 29.8.1 (2026-09-15): bug fixes only (containerd image store, logging, networking); no guidance change.
 - 29.4.2 (2026-05-01): previous baseline.

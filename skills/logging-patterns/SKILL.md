@@ -15,12 +15,12 @@ Review checklist plus the configuration shapes that are easy to get wrong. Level
 ## stdlib gotchas
 
 - `basicConfig` is a no-op if the root logger already has handlers. Call it once at the entry point; pass `force=True` to replace existing handlers (useful in tests).
-- Records propagate up the dot-separated hierarchy to parent handlers. Set `propagate = False` only when you have deliberately attached a handler to that logger - otherwise you get every record twice.
+- Records propagate up the dot-separated hierarchy to parent handlers. Set `propagate = False` only when you have deliberately attached a handler to that logger; otherwise you get every record twice.
 - Silence a noisy dependency by name rather than lowering the global level: `logging.getLogger("httpx").setLevel(logging.WARNING)`.
 
 ## structlog configuration
 
-The processor chain is order-sensitive and the API shifts between minor versions - pin this shape and verify against the docs on upgrade.
+The processor chain is order-sensitive and the API shifts between minor versions: pin this shape and verify against the docs on upgrade.
 
 ```python
 import logging
@@ -43,7 +43,7 @@ structlog.configure(
 
 - Request-scoped context that survives awaits and task boundaries goes through `structlog.contextvars.bind_contextvars(...)`, which `merge_contextvars` folds into every record. `logger.bind(...)` returns a new logger and does not cross task boundaries.
 - Use the `a`-prefixed calls (`ainfo`, `aerror`) in async code so rendering does not block the loop.
-- `structlog.stdlib.recreate_defaults()` routes structlog through stdlib logging - needed when third-party libraries log too.
+- `structlog.stdlib.recreate_defaults()` routes structlog through stdlib logging, needed when third-party libraries log too.
 
 ---
 

@@ -8,7 +8,7 @@ Layouts and pages are React Server Components by default. They render on the ser
 
 Adding `"use client"` at the top of a file marks the boundary into the client module graph. Every file imported by a `"use client"` module is part of the client bundle, transitively. The directive is set per file, not per component, and it applies to the whole import subtree.
 
-Practical consequence: a wrapper Client Component upstream of a heavy library import pulls that library to the client. Move the boundary as deep as possible - keep layouts, pages, and presentational subtrees on the server; mark only the interactive leaf (search input, like button, modal) as client.
+Practical consequence: a wrapper Client Component upstream of a heavy library import pulls that library to the client. Move the boundary as deep as possible: keep layouts, pages, and presentational subtrees on the server; mark only the interactive leaf (search input, like button, modal) as client.
 
 ## What server components cannot do
 

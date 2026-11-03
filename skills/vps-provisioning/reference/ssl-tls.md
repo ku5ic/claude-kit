@@ -33,8 +33,8 @@ certbot certonly --nginx -d example.com -d www.example.com
 
 Certificates are stored at `/etc/letsencrypt/live/example.com/`:
 
-- `fullchain.pem` - certificate + intermediate chain (use for `ssl_certificate`)
-- `privkey.pem` - private key (use for `ssl_certificate_key`)
+- `fullchain.pem`: certificate + intermediate chain (use for `ssl_certificate`)
+- `privkey.pem`: private key (use for `ssl_certificate_key`)
 
 ## Authenticator plugins
 

@@ -1,6 +1,6 @@
 ---
 name: go-patterns
-description: Go patterns - error wrapping and inspection, context and goroutine lifetimes, Code Review Comments naming and interface placement, features from recent releases (generic methods, new(expr), errors.AsType, WaitGroup.Go, ServeMux patterns, json v2), testing helpers, and review-time anti-patterns. Use whenever the project contains `.go` files or a `go.mod`, OR the user asks about Go, goroutines, channels, contexts, or Go error handling, even if Go is not mentioned by name.
+description: Go patterns for error wrapping and inspection, context and goroutine lifetimes, Code Review Comments naming and interface placement, features from recent releases (generic methods, new(expr), errors.AsType, WaitGroup.Go, ServeMux patterns, json v2), testing helpers, and review-time anti-patterns. Use whenever the project contains `.go` files or a `go.mod`, OR the user asks about Go, goroutines, channels, contexts, or Go error handling, even if Go is not mentioned by name.
 ---
 
 # Go patterns

@@ -24,7 +24,7 @@ Three copies, two media, one offsite. A backup that lives only on the same serve
 - **`pg_dump -F c`** (custom) or **`-F d`** (directory) for anything over a few hundred MB. Only these support `-j` parallel restore; `-F p` plain SQL is the slowest both ways.
 - **`pg_dumpall`** when you need roles and tablespaces, not just one database's contents.
 - **Stream rather than stage**: `restic -r <repo> backup --stdin-filename mydb.dump --stdin-from-command -- pg_dump -F c mydb` avoids a plaintext temp file, and restic cancels the backup if `pg_dump` exits non-zero. A plain `pg_dump | restic backup --stdin` pipe cannot detect a truncated dump.
-- **`rsync --delete`** mirrors exactly - it deletes destination files missing from the source. Dry-run with `-n` before the first real run.
+- **`rsync --delete`** mirrors exactly: it deletes destination files missing from the source. Dry-run with `-n` before the first real run.
 - **restic retention** is `forget --keep-daily/--keep-weekly/--keep-monthly --prune`. Without it, storage grows unboundedly. `--dry-run` first.
 
 ## Restore testing
@@ -32,7 +32,7 @@ Three copies, two media, one offsite. A backup that lives only on the same serve
 A backup never tested is not a backup. On a schedule:
 
 1. Restore to a separate location (`/tmp/restore`, a staging server).
-2. Verify integrity - row counts, application startup, spot checks.
+2. Verify integrity: row counts, application startup, spot checks.
 3. Record the restore duration, so the RTO is known before an incident rather than during one.
 
 ---
@@ -52,7 +52,7 @@ A corrupted or incomplete backup discovered during an incident is worse than no 
 `PGPASSWORD=secret pg_dump ...` leaks the password into process listings. Use `~/.pgpass` or a `PGSERVICE` entry in `pg_service.conf`.
 
 **warning: restic password in the crontab or alongside the repo**
-restic encryption is strong enough that a lost password means permanent data loss, and a password stored next to the data defeats the encryption. Keep it in a password manager or secret manager, and source it from a protected env file in cron - never inline.
+restic encryption is strong enough that a lost password means permanent data loss, and a password stored next to the data defeats the encryption. Keep it in a password manager or secret manager, and source it from a protected env file in cron, never inline.
 
 **info: no retention policy on backups**
 Without `forget`/`prune`, backup storage grows unboundedly. Define and automate retention from day one.

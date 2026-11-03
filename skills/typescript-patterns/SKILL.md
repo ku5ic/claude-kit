@@ -1,6 +1,6 @@
 ---
 name: typescript-patterns
-description: TypeScript patterns - strictness flags, type-safety anti-patterns, and a review checklist covering any vs unknown, satisfies, branded types, discriminated unions, generic constraints, and module boundaries. Use whenever the project contains `.ts`/`.tsx` files, a `tsconfig*.json`, or `typescript` in `package.json`, OR the user asks about TypeScript, its type system, or its compiler config, even if "TypeScript" is not mentioned by name.
+description: TypeScript patterns for strictness flags, type-safety anti-patterns, and a review checklist covering any vs unknown, satisfies, branded types, discriminated unions, generic constraints, and module boundaries. Use whenever the project contains `.ts`/`.tsx` files, a `tsconfig*.json`, or `typescript` in `package.json`, OR the user asks about TypeScript, its type system, or its compiler config, even if "TypeScript" is not mentioned by name.
 ---
 
 # TypeScript patterns

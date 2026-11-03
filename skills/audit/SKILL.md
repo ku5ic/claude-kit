@@ -1,6 +1,6 @@
 ---
 name: audit
-description: Targeted read-only audit of a code surface - a11y, debt, doc-drift, perf - or re-verify a prior audit report
+description: Targeted read-only audit of a code surface (a11y, debt, doc-drift, perf), or re-verify a prior audit report
 argument-hint: <a11y|debt|doc-drift|perf|verify> <target, or a link to an external tracker/doc>
 disable-model-invocation: true
 allowed-tools:

@@ -1,6 +1,6 @@
 ---
 name: graphql-patterns
-description: GraphQL client patterns - operation and fragment authoring, typed documents with graphql-codegen's client preset, Apollo Client 4 caching and error handling, and review-time anti-patterns. Use whenever the project contains `.graphql`/`.gql` files, a `codegen.ts`, or `graphql`, `@apollo/client`, `urql`, or `graphql-request` in `package.json`, OR the user asks about GraphQL queries, mutations, fragments, the Apollo cache, or generated GraphQL types, even if GraphQL is not mentioned by name.
+description: GraphQL client patterns for operation and fragment authoring, typed documents with graphql-codegen's client preset, Apollo Client 4 caching and error handling, and review-time anti-patterns. Use whenever the project contains `.graphql`/`.gql` files, a `codegen.ts`, or `graphql`, `@apollo/client`, `urql`, or `graphql-request` in `package.json`, OR the user asks about GraphQL queries, mutations, fragments, the Apollo cache, or generated GraphQL types, even if GraphQL is not mentioned by name.
 ---
 
 # GraphQL patterns
