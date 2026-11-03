@@ -1,0 +1,5 @@
+schema_version: "1.1"
+name: slop-comment
+description: A requested doc comment states what the function does and its non-obvious cases, with no AI tells.
+context:
+  scaffold_script: fixture.sh
