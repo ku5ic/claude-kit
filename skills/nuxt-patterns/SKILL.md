@@ -1,6 +1,6 @@
 ---
 name: nuxt-patterns
-description: Nuxt 3+ patterns - rendering modes, data fetching (useFetch, useAsyncData, $fetch), server routes, SSR-safe state, file-based routing, the Nitro runtime, and review checklist. Use whenever the project contains a `nuxt.config.*`, `nuxt` in `package.json`, or `app/pages/`/`app/composables/` (Nuxt 4 `srcDir`), root-level `pages/`/`composables/` (Nuxt 3), or a root `server/` directory, OR the user asks about Nuxt, its data-fetching composables, its server routes, or its SSR behavior, even if Nuxt is not mentioned by name.
+description: Nuxt 3+ patterns for rendering modes, data fetching (useFetch, useAsyncData, $fetch), server routes, SSR-safe state, file-based routing, the Nitro runtime, and review checklist. Use whenever the project contains a `nuxt.config.*`, `nuxt` in `package.json`, or `app/pages/`/`app/composables/` (Nuxt 4 `srcDir`), root-level `pages/`/`composables/` (Nuxt 3), or a root `server/` directory, OR the user asks about Nuxt, its data-fetching composables, its server routes, or its SSR behavior, even if Nuxt is not mentioned by name.
 ---
 
 # Nuxt patterns

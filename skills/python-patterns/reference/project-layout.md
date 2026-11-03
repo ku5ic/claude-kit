@@ -15,7 +15,7 @@
 - Dependency manager:
   - uv: faster, single-tool replacement for pip/pip-tools/pipx/poetry/pyenv/twine/virtualenv.
   - Poetry: established, 2.x reads dependencies from `[project]` per PEP 621.
-  - Both ship lockfiles (`uv.lock`, `poetry.lock`) -- commit them.
+  - Both ship lockfiles (`uv.lock`, `poetry.lock`); commit them.
   - `requirements.txt` is acceptable as a deployment artifact, not as a development workflow.
 
 ## Packaging and imports

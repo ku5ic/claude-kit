@@ -28,7 +28,7 @@ Plain paragraphs in this order, no headers or labels (`rules/output.md` section 
 
 ## Length guidance
 
-- CEO brief: one screen, read standing up. Situation, impact, recommendation - nothing else.
+- CEO brief: one screen, read standing up. Situation, impact, recommendation. Nothing else.
 - PM writeup: enough to act on without a follow-up meeting. Options and their tradeoffs survive; mechanism does not.
 - Client note: as short as the CEO brief on the problem, longer on what happens next and when.
 

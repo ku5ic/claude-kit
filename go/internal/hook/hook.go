@@ -66,6 +66,33 @@ func (p *Payload) Cwd() string {
 	return cwd
 }
 
+// Edit is one replacement an Edit or MultiEdit makes.
+type Edit struct {
+	Old, New   string
+	ReplaceAll bool
+}
+
+// Edits is an Edit's replacement, or a MultiEdit's edits in order; nil for
+// any other tool.
+func (p *Payload) Edits() []Edit {
+	switch p.String("tool_name") {
+	case "Edit":
+		return []Edit{{p.String("tool_input.old_string"), p.String("tool_input.new_string"), p.Bool("tool_input.replace_all")}}
+	case "MultiEdit":
+		items, _ := sources.GetPath(p.data, "tool_input.edits").([]any)
+		var edits []Edit
+		for _, item := range items {
+			m, _ := item.(map[string]any)
+			old, _ := m["old_string"].(string)
+			repl, _ := m["new_string"].(string)
+			all, _ := m["replace_all"].(bool)
+			edits = append(edits, Edit{old, repl, all})
+		}
+		return edits
+	}
+	return nil
+}
+
 // FilePath is the tool's target file; Read, Edit, Write, and MultiEdit all
 // send it as file_path.
 func (p *Payload) FilePath() string {
@@ -231,7 +258,9 @@ func (h *Hook) flush(block string) {
 	case block != "":
 		WriteJSON(h.Stdout, output{Decision: "block", Reason: block, SystemMessage: strings.Join(h.notices, "\n")})
 	case h.decision != "":
-		WriteJSON(h.Stdout, output{HookSpecificOutput: &specific{HookEventName: "PreToolUse", PermissionDecision: h.decision, PermissionDecisionReason: h.reason}})
+		// A check's context (a density note) still reaches Claude when
+		// another check decides; only a defer would drop it.
+		WriteJSON(h.Stdout, output{HookSpecificOutput: &specific{HookEventName: "PreToolUse", PermissionDecision: h.decision, PermissionDecisionReason: h.reason, AdditionalContext: strings.Join(h.contexts, "\n")}})
 	case h.contexts != nil || h.notices != nil:
 		out := output{SystemMessage: strings.Join(h.notices, "\n")}
 		if h.contexts != nil {

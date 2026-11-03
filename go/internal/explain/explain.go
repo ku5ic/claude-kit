@@ -135,6 +135,12 @@ func edit(paths config.Paths, cfg *config.Config, cwd, path, tool, glob string, 
 	payload := map[string]any{"tool_name": tool, "session_id": "explain", "cwd": cwd, "tool_input": input}
 	h := dryHook(paths, cfg, "guard-edit", payload)
 	verdict(w, "guard-edit", hooks.GuardEdit(h), h)
+	if tool != "Read" && tool != "Grep" {
+		// Rewriting the file as it is adds no line; kit slop <path> lists
+		// what a new copy would hit. This shows a skip or a pass.
+		h = dryHook(paths, cfg, "guard-slop", payload)
+		verdict(w, "guard-slop (rule slop; per tell: slop-<id>)", hooks.GuardSlop(h), h)
+	}
 	h = dryHook(paths, cfg, "guard-skills", payload)
 	name := "skills gate"
 	if !stackctx.SkillsEnforced() {

@@ -1,6 +1,6 @@
 ---
 name: next-app-router-patterns
-description: Next.js App Router patterns - server/client boundary, data fetching and caching, server actions, streaming, parallel and intercepting routes, edge vs node runtime, and review checklist. Use whenever the project contains a `next.config.*`, an `app/` directory with `page`/`layout`/`route` files, or `next` in `package.json`, OR the user asks about the App Router, server and client components, server actions, or route handlers, even if Next.js is not mentioned by name.
+description: Next.js App Router patterns for server/client boundary, data fetching and caching, server actions, streaming, parallel and intercepting routes, edge vs node runtime, and review checklist. Use whenever the project contains a `next.config.*`, an `app/` directory with `page`/`layout`/`route` files, or `next` in `package.json`, OR the user asks about the App Router, server and client components, server actions, or route handlers, even if Next.js is not mentioned by name.
 ---
 
 # Next.js App Router patterns
@@ -8,7 +8,7 @@ description: Next.js App Router patterns - server/client boundary, data fetching
 Default assumption: Next.js 16 (current stable as of writing) with the App Router. Pages Router patterns are out of scope.
 
 - Cache Components is the new caching model in 16 (opt-in via `cacheComponents: true`); the previous caching model is still supported when the flag is off.
-- Verify via `package.json` or lockfile - caching model and `cacheComponents` flag differ between 15.x and 16.x.
+- Verify via `package.json` or lockfile: caching model and `cacheComponents` flag differ between 15.x and 16.x.
 
 ## Reference files
 

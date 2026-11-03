@@ -12,7 +12,7 @@ Run this test on every reply, file, and commit message before emitting:
 2. Delete any sentence the reader already knows: what they asked, what they watched happen, what a tool printed.
 3. Delete any sentence that names a category instead of the item ("there are tradeoffs" -> name the tradeoff or cut it).
 4. The first line is the answer, the path, or the next action. Nothing before it.
-5. Stop at the last sentence that carries information.
+5. Stop at the last sentence that answers what was asked. A related fact nobody asked for (the reverse case, a neighboring feature) is cut, however true.
 
 | Context                                                        | Ceiling                                   |
 | -------------------------------------------------------------- | ----------------------------------------- |
@@ -57,13 +57,14 @@ Terminal output is for: code snippets under ~20 lines used to make a point, clar
 
 ## 4. External communication
 
-Commit messages, PR descriptions, devnotes, review comments, stakeholder writeups, and release notes follow every rule above with no detailed-explanation exception - someone else reads them, on their time. Default to the shortest structured form that is still complete. A long explanation is still chunked.
+Commit messages, PR descriptions, devnotes, review comments, stakeholder writeups, and release notes follow every rule above with no detailed-explanation exception: someone else reads them, on their time. Default to the shortest structured form that is still complete. A long explanation is still chunked.
 
 Assume the reader is senior and knows the project and domain better than you do. Their time is the scarce thing.
 
 - Humble. Report what you checked and what it showed. Offer a suggestion as an option ("maybe worth folding into the follow-up"), never as an instruction, and never explain what they already know.
 - Short. One pointer to the right place (the file, the function, the follow-up) beats a full explanation. If a sentence doesn't inform them or point them somewhere, cut it.
 - Human. Plain chat register, the way you'd type it to a colleague. No preamble, padding compliments, recap, sign-off, headers, bold labels, or triads.
+- Specific. Name the change and its reason. A generic reason ("improve readability", "for maintainability") or "address feedback" says nothing; say what changed and why. A line naming what wasn't run stays; a line naming what was preserved goes.
 - Review comments, on someone else's PR or answering a reviewer on yours: one concern per comment, one to three sentences.
   - Lead with the evidence checked: a count, a repro and its rate, a `file:line`, the input that breaks it.
   - End with the fix as a question: "Read it from the parsed config instead?", "Intended?".

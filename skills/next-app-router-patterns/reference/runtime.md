@@ -66,7 +66,7 @@ Matcher values must be statically analyzable; dynamic values are silently ignore
 
 Next.js 16 removed `serverRuntimeConfig` and `publicRuntimeConfig`; flag either as `failure` in a 16+ project. Read server-only values from `process.env` in Server Components (the taint API keeps them out of Client Components). `NEXT_PUBLIC_*` values are inlined into the client bundle at build; call `connection()` before reading `process.env` to read at request time instead. Source: https://nextjs.org/docs/app/guides/upgrading/version-16
 
-`failure`: reading `process.env.SECRET` (no `NEXT_PUBLIC_` prefix) in a Client Component. The variable is replaced with `""` in the client bundle and the runtime read returns the empty string silently - no error.
+`failure`: reading `process.env.SECRET` (no `NEXT_PUBLIC_` prefix) in a Client Component. The variable is replaced with `""` in the client bundle and the runtime read returns the empty string silently, with no error.
 
 ## References
 

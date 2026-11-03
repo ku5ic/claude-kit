@@ -17,9 +17,9 @@ Review checklist for Prometheus instrumentation. Constructor signatures are in t
 
 | Type      | Use for                                                           | Goes down? |
 | --------- | ----------------------------------------------------------------- | ---------- |
-| Counter   | Requests, errors, bytes - totals that only increase               | No         |
-| Gauge     | Queue depth, active connections, memory - current state           | Yes        |
-| Histogram | Latency, payload size - distribution matters                      | No         |
+| Counter   | Requests, errors, bytes: totals that only increase                | No         |
+| Gauge     | Queue depth, active connections, memory: current state            | Yes        |
+| Histogram | Latency, payload size: distribution matters                       | No         |
 | Summary   | Avoid; the Python client exposes only count and sum, no quantiles | No         |
 
 Default to Histogram over Summary. Review the default buckets (.005 through 10, tuned for HTTP latency) against the operation's real distribution rather than accepting them.
@@ -31,7 +31,7 @@ Default to Histogram over Summary. Review the default buckets (.005 through 10, 
 - Counters end in `_total`: `myapp_errors_total`
 - `_seconds` not `_milliseconds`, `_bytes` not `_megabytes`
 - Name what is measured, not the measurement: `http_request_duration_seconds`, not `http_request_time`
-- Always set `namespace=` - unprefixed names collide across apps in a shared Prometheus
+- Always set `namespace=`: unprefixed names collide across apps in a shared Prometheus
 
 ## Exposing
 
@@ -46,7 +46,7 @@ Default to Histogram over Summary. Review the default buckets (.005 through 10, 
 | `/health/live`  | Process is running                     | Kubernetes liveness probe  |
 | `/health/ready` | Dependencies (DB, cache) are reachable | Kubernetes readiness probe |
 
-Return 503, not 500, when a dependency is down - readiness should fail only when the instance cannot serve traffic.
+Return 503, not 500, when a dependency is down: readiness should fail only when the instance cannot serve traffic.
 
 ---
 

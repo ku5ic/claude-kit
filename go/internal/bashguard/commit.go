@@ -17,9 +17,11 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 	"github.com/ku5ic/claude-kit/go/internal/md"
 	"github.com/ku5ic/claude-kit/go/internal/proc"
 	"github.com/ku5ic/claude-kit/go/internal/run"
+	"github.com/ku5ic/claude-kit/go/internal/slop"
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
@@ -29,13 +31,12 @@ var (
 	commitLine   = regexp.MustCompile(`\bgit(?:[ \t]|\\\n)+(?:[^[:space:];&|]+(?:[ \t]|\\\n)+)*commit(?:[^-[:alnum:]_.]|$)`)
 	aiSignature  = regexp.MustCompile(`(?i)Co-Authored-By:[[:space:]]*Claude|Generated[[:space:]]+(by|with)[[:space:]]+Claude|🤖[[:space:]]*Generated`)
 	heredocOpen  = regexp.MustCompile(`<<(-?)[[:space:]]*['"]?([A-Za-z_][A-Za-z0-9_]*)['"]?`)
-	aiTell       = regexp.MustCompile(`(?i)^(feat|fix|chore|refactor|docs|test|perf|build|ci|style)?:?[[:space:]]*(certainly|here is|i have|let me|in this commit|this commit)`)
 	nonProseLine = regexp.MustCompile(`^[[:space:]]*([0-9]+[.)]|[-*+][[:space:]]|#{1,6}[[:space:]]|>|\|)`)
 )
 
 // CheckCommit is guard-commit: it inspects git commit commands for AI signatures, a staged
 // secret (gitleaks), an unchunked wall of text in the body (rules/output.md
-// section 1), and AI-tell phrasing in the subject.
+// section 1), and AI tells in the message (kit.yml slop).
 func CheckCommit(h *hook.Hook) error {
 	if h.Payload.Err != nil {
 		return h.Payload.Err
@@ -83,14 +84,38 @@ func CheckCommit(h *hook.Hook) error {
 	}
 
 	subject := subject(msg)
-	if subject != "" && aiTell.MatchString(subject) {
-		return h.Block("AI-tell phrasing in commit subject", "ai-commit-tell")
+	if err := scanSlop(h, detector(h), msg, "commit", "the commit message"); err != nil {
+		return err
 	}
 	if failed := commitMsg(h, msg, ok, repo); failed != "" {
 		return h.Block("the project's commit-msg checks reject this message; fix it to their convention:\n"+failed, "commit-msg")
 	}
 	if !shownBefore(h.Payload.String("transcript_path"), subject) {
 		h.Decide("ask", "rules/workflow.md section 1: show the commit message and staged diff summary, then wait for the user's go; confirm only if they've seen this message")
+	}
+	return nil
+}
+
+// scanSlop blocks text, read as surface, when it holds AI tells in a
+// slop.block_tiers tier, and logs every hit; where names the text in both.
+// A nil d (no kit.yml) fails open.
+func scanSlop(h *hook.Hook, d *slop.Detector, text, surface, where string) error {
+	if d == nil || strings.TrimSpace(text) == "" {
+		return nil
+	}
+	_, hits := d.Check(slop.Prose(text), surface, func(hit slop.Hit) {
+		h.Log(kitlog.Guards, "slop", slop.LogPairs(hit, where)...)
+	})
+	if len(hits) > 0 {
+		return h.Block(slop.Message(where, hits), "slop")
+	}
+	return nil
+}
+
+// detector is h's slop detector; nil without kit.yml.
+func detector(h *hook.Hook) *slop.Detector {
+	if cfg := h.Config(); cfg != nil {
+		return slop.New(cfg)
 	}
 	return nil
 }
@@ -118,32 +143,20 @@ func (c commit) commits(cmd string) bool {
 // commitCall parses cmd, run from cwd, for its first git commit call.
 func commitCall(cmd, home, cwd string) commit {
 	segs, unparsed := parseAll(cmd)
-	d := dirs{home: home, cwd: cwd}
-	for _, seg := range segs {
-		for _, call := range seg.Calls {
-			i := lead(call.Words)
-			if i >= len(call.Words) {
-				continue
+	for w := range walk(segs, home, cwd) {
+		if w.name != "git" {
+			continue
+		}
+		var words []string
+		for _, word := range w.call.Words[w.i+1:] {
+			words = append(words, word.Value)
+		}
+		if sub, args, dir := classify.GitSubcommand(words); sub == "commit" {
+			repo := resolveDir(home, w.cwd, dir)
+			if strings.ContainsAny(repo, "$`") {
+				repo = ""
 			}
-			name := baseName(call.Words[i].Value)
-			// In a pipeline or a subshell, cd moves nothing after it.
-			if name == "cd" && len(seg.Calls) == 1 && !seg.subshell {
-				d.cd(call.Words[i+1:])
-			}
-			if name != "git" {
-				continue
-			}
-			var words []string
-			for _, w := range call.Words[i+1:] {
-				words = append(words, w.Value)
-			}
-			if sub, args, dir := classify.GitSubcommand(words); sub == "commit" {
-				repo := resolveDir(home, d.cwd, dir)
-				if strings.ContainsAny(repo, "$`") {
-					repo = ""
-				}
-				return commit{args: args, repo: repo, found: true, unparsed: unparsed, start: call.start}
-			}
+			return commit{args: args, repo: repo, found: true, unparsed: unparsed, start: w.call.start}
 		}
 	}
 	return commit{unparsed: unparsed}

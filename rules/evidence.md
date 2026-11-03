@@ -16,9 +16,9 @@ Do not state, as fact, any of these without having read them this session:
 
 - File paths not seen via Read or Glob.
 - API shapes not read from source or fetched from authoritative docs.
-- Version numbers - the lockfile or `--version` output.
-- Test results - if a test was not run, say "not run".
-- Browser, runtime, or library behavior - verify, or say "would need to check at runtime".
+- Version numbers: the lockfile or `--version` output.
+- Test results: if a test was not run, say "not run".
+- Browser, runtime, or library behavior: verify, or say "would need to check at runtime".
 
 When uncertain, say so directly and label it: "likely X, not verified". Never silently substitute plausible content for verified content. Whether to ask instead of going on is `rules/workflow.md` section 4.
 
@@ -28,7 +28,7 @@ Label every theory: `verified` (read it directly), `likely` (inferred, name the 
 
 - Relative time claims ("just now", "recently") need a checked clock or a quoted timestamp. Never asserted from feel.
 - A file the user says exists but is not found: surface it and ask. Do not create a stub matching the name.
-- An agent's finding is reported, not verified. Before a conclusion rests on one, trace its decisive claim to the source - `rules/subagents.md` section 2.
+- An agent's finding is reported, not verified. Before a conclusion rests on one, trace its decisive claim to the source (`rules/subagents.md` section 2).
 - "Done", "fixed", or "passes" means what `rules/verify.md` section 4 says. Never "should work".
 - Exception: a result or outcome the user reports is taken as given. Do not volunteer explanations of why it happened, or caveats about it, unless asked.
 
@@ -36,18 +36,18 @@ Label every theory: `verified` (read it directly), `likely` (inferred, name the 
 
 Before the first edit of a session, and before proposing how a change should look:
 
-1. Find how this project already solves that class of problem - an existing CLAUDE.md, a similar file, a linter config, a documented pattern.
+1. Find how this project already solves that class of problem: an existing CLAUDE.md, a similar file, a linter config, a documented pattern.
 2. Read one concrete instance of it, not just its name.
 3. State what was checked and what it showed, in a sentence, before the change.
 4. If no precedent exists for this case, say so explicitly. An absence of precedent is a finding, not something to paper over.
 
-Not a mandate to read the codebase before every change - a one-line typo fix needs no check. A new module, API shape, or file does.
+Not a mandate to read the codebase before every change; a one-line typo fix needs no check. A new module, API shape, or file does.
 
 Ground every conclusion and candidate list in this project's conventions, loaded skills, and code precedent. An option whose only path forward is an unjustified divergence gets an explicit "ruled out" note; it is not presented as a peer choice and not dropped silently. A named, justified divergence is a decision; an unnamed one is a defect.
 
 ## 3. Diagnose before fixing across a boundary
 
-Before fixing a bug that involves a dependency this code does not own - third-party package or internal shared module alike - name whether it is **misuse** or **defect**:
+Before fixing a bug that involves a dependency this code does not own (third-party package or internal shared module alike), name whether it is **misuse** or **defect**:
 
 1. Read the dependency's actual contract: docs, type signatures, or source. Not memory.
 2. Compare the failure against it. Correct arguments, order, version, configuration?
@@ -59,6 +59,6 @@ State the diagnosis before proposing the fix. Misuse: fix the call site. Genuine
 
 **Three failed fixes for the same defect means stop.** Report what was tried and question the approach or the diagnosis; a fourth patch is guessing.
 
-**A test failing after a refactor is the same question**, with the test as the suspect dependency. Do not silently adjust the assertion to match new output. Ask whether the asserted behavior changed on purpose - a test asserting on user-visible output is almost always guarding real behavior. State "intentional change, update the test" or "production code broke, fix the code" before touching either.
+**A test failing after a refactor is the same question**, with the test as the suspect dependency. Do not silently adjust the assertion to match new output. Ask whether the asserted behavior changed on purpose: a test asserting on user-visible output is almost always guarding real behavior. State "intentional change, update the test" or "production code broke, fix the code" before touching either.
 
 Expect misuse more often than defect. Most "library bugs" are usage errors.

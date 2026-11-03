@@ -1,0 +1,5 @@
+schema_version: "1.1"
+name: slop-commit
+description: A drafted commit message names the change and its reason, with no AI tells or generic reasons.
+context:
+  scaffold_script: fixture.sh

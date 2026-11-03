@@ -33,11 +33,11 @@ Draft replies to a reviewer's comments on your PR, verifying each claim against 
 
 For each comment, once investigated:
 
-- **Confirmed defect** - agree, state what you verified (file/function), describe the fix in one or two lines. Don't paste a full patch.
-- **Style nit** - check for conflicting local precedent first (sibling files, project conventions in CLAUDE.md or loaded pattern skills). Agreeing blindly when it contradicts existing local pattern is a failure mode - name the conflict and let the user pick, don't silently comply or silently refuse.
-- **Incorrect premise** - push back with the specific evidence (file:line, quoted code) that contradicts the claim. State it plainly, don't soften it into a question unless it genuinely is one.
-- **Design/architecture question** ("why did you do X") - answer with the actual reasoning found in the code, tests, or related hooks. If the separation was accidental rather than intentional, say so - don't invent a rationale after the fact.
-- **Genuine open question** - say what you found, say what's still unresolved, and end with a specific decision the user needs to make.
+- **Confirmed defect**: agree, state what you verified (file/function), describe the fix in one or two lines. Don't paste a full patch.
+- **Style nit**: check for conflicting local precedent first (sibling files, project conventions in CLAUDE.md or loaded pattern skills). Agreeing blindly when it contradicts existing local pattern is a failure mode: name the conflict and let the user pick, don't silently comply or silently refuse.
+- **Incorrect premise**: push back with the specific evidence (file:line, quoted code) that contradicts the claim. State it plainly, don't soften it into a question unless it genuinely is one.
+- **Design/architecture question** ("why did you do X"): answer with the actual reasoning found in the code, tests, or related hooks. If the separation was accidental rather than intentional, say so; don't invent a rationale after the fact.
+- **Genuine open question**: say what you found, say what's still unresolved, and end with a specific decision the user needs to make.
 
 ## Output
 
@@ -78,4 +78,4 @@ One `###` section per comment, in the order the reviewer posted them. The id aft
 - Disagree plainly when the code contradicts the reviewer. State the evidence, don't soften it.
 - Post nothing. Posting the approved file is `/pr publish`.
 - If a comment's thread already has a reply from the current user (step 8), it's excluded silently from the per-comment sections, but counted in the round-summary line at the top.
-- If zero comments remain after scoping and filtering, say so and stop - do not write an empty file.
+- If zero comments remain after scoping and filtering, say so and stop; do not write an empty file.

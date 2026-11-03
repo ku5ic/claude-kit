@@ -10,7 +10,7 @@ Test author. You write and run tests; you do not change the code under test.
 
 ## Startup
 
-`rules/subagents.md` section 3. Memory: per-repo test conventions - fixture patterns, mocking approach, naming, what the project's test runner needs.
+`rules/subagents.md` section 3. Memory: per-repo test conventions: fixture patterns, mocking approach, naming, what the project's test runner needs.
 
 ## Boundaries
 

@@ -163,6 +163,7 @@ Seven short files, injected into every session and every subagent:
 | `/write <kind>` | `commit`, `release-notes`, `devnote`, `explainer`, `stakeholder`                                                    |
 | `/pr <kind>`    | Draft a `description`, a `review` of someone's PR, or a `reply` to your reviewer; `publish` posts an approved draft |
 | `/deps`         | Merge Dependabot PRs and reconcile security alerts                                                                  |
+| `/unslop`       | Rewrite AI tells and filler in files, a `diff`, or pasted text; to scratch unless told `in place`                   |
 | `/meta <kind>`  | `prompt` sharpening, `refresh` the pattern skills, draft a new `skill`, write a repo's `conventions`, `retro`       |
 
 Commands work bare (`/audit`) or namespaced (`/kit:audit`).
@@ -179,7 +180,7 @@ Commands work bare (`/audit`) or namespaced (`/kit:audit`).
 
 ### Pattern skills
 
-Stack knowledge Claude loads when the repo calls for it: React, Next.js App Router, Vue, Nuxt, TypeScript, JavaScript, Tailwind, Storybook, GraphQL, Python, Django, DRF, FastAPI, Go, Bash, Docker, OpenTofu/Terraform, git, testing, security, logging, monitoring, backups, VPS provisioning, WCAG 2.2, and engineering fundamentals.
+Stack knowledge Claude loads when the repo calls for it: React, Next.js App Router, Vue, Nuxt, TypeScript, JavaScript, Tailwind, Storybook, GraphQL, Python, Django, DRF, FastAPI, Go, Bash, Docker, OpenTofu/Terraform, git, testing, security, logging, monitoring, backups, VPS provisioning, WCAG 2.2, and engineering fundamentals. `slop-patterns` teaches rewriting AI tells; the slop guards send Claude to it.
 
 `CLAUDE_GUARD_SKILLS=1` makes them required: see the switches under Configure.
 
@@ -210,7 +211,7 @@ Side trips: `/audit` for a read-only report, `/simplify <path>` to cut over-engi
 
 ## Configure
 
-Defaults live in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml`, merged on top: maps merge, lists append, so an overlay adds to a default list and can't remove from it. Every `~/.claude` path in this README is `$CLAUDE_CONFIG_DIR` when that's set.
+Defaults live in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml`, merged on top: maps merge, lists append, so an overlay adds to a default list and can't remove from it. Two exceptions: `slop.block_tiers` is replaced, and a `slop.rules` entry replaces the default with its `id`. Every `~/.claude` path in this README is `$CLAUDE_CONFIG_DIR` when that's set.
 
 | Key                       | For                                                                                                                                                                                     |
 | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -232,6 +233,7 @@ Defaults live in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml
 | `reply_limits`            | Word ceilings per reply: `chat`, `explain` and its trigger words, `detail_triggers` that lift the cap, per-`/write` kind; 0 is off. `uncapped_commands`: slash commands with no ceiling |
 | `skip_dirs`               | Directories a file walk never enters                                                                                                                                                    |
 | `sanitize_skip`           | Files `sanitize-output` leaves alone                                                                                                                                                    |
+| `slop`                    | The AI-tell lexicon `kit slop` scans with: rules by tier, the density word list and threshold, which tiers block, files to skip                                                         |
 | `deny_flags`              | Flags no check may set (`--fix`, `--watch`, ...)                                                                                                                                        |
 | `tools`                   | The CLIs session start reports as available or missing                                                                                                                                  |
 | `log_max_lines`           | Line cap for the kit's JSONL logs                                                                                                                                                       |
@@ -259,6 +261,6 @@ Every hook and helper is one Go binary (`bin/kit-<version>-<os>-<arch>`, darwin 
 
 - Guidance: `CLAUDE.md` maps every rule topic to the one file that owns it. Change a topic in its owner, or nowhere.
 - Code: `go/`. Run `go/build.sh` once, and again after a version bump (the launcher tests need this platform's binary for the `plugin.json` version), then `go test ./...` in `go/`; end-to-end tests live in `go/e2e`, and `go/e2e/kit_repo_test.go` checks the kit's own files agree (skill map, skill and agent frontmatter, `kit.yml` keys).
-- Behavior: `evals/` checks that the rules shape replies (answer first, ask before guessing, no unasked commits, artifacts in scratch). Run `claude plugin eval . --ablation none --scaffold --allow-tools Edit Write Bash --runs 5` before and after a rules change and compare the scores. About $10 a run.
+- Behavior: `evals/` checks that the rules shape replies (answer first, ask before guessing, no unasked commits, artifacts in scratch, no AI tells in a README, commit, comment, or landing page). Run `claude plugin eval . --ablation none --scaffold --allow-tools Edit Write Bash --runs 5` before and after a rules change and compare the scores. About $10 a run.
 - `go/build.sh` builds the binaries for the `plugin.json` version. With `KIT_DEV=1`, `bin/kit` runs `bin/kit-dev-<os>-<arch>` instead, building it and rebuilding it when `go/` changes; the release binaries stay as `go/build.sh` left them.
 - Release: work happens on feature branches off `main`, squash-merged by PR. A PR that bumps `.claude-plugin/plugin.json` `version` releases: on its merge, the `release` workflow publishes `v<version>` with the binaries. Installs take hooks, binaries, and rules only from a version bump.

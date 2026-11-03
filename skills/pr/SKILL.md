@@ -1,6 +1,6 @@
 ---
 name: pr
-description: Draft what lands in a PR thread - your PR's title and body, a review of someone else's PR, replies to the review on yours - then post an approved draft
+description: Draft what lands in a PR thread (your PR's title and body, a review of someone else's PR, replies to the review on yours), then post an approved draft
 argument-hint: <description|review|reply|publish> [kind arguments]
 disable-model-invocation: true
 allowed-tools:

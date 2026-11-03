@@ -1,6 +1,6 @@
 ---
 name: researcher
-description: Read-only external research - library docs via Context7, web pages via WebFetch. Delegate version checks, API verification, and docs lookups here to keep network access out of code-exploring agents. Returns findings with sources; never edits, never runs shell commands.
+description: Read-only external research in library docs via Context7 and web pages via WebFetch. Delegate version checks, API verification, and docs lookups here to keep network access out of code-exploring agents. Returns findings with sources; never edits, never runs shell commands.
 tools: Read, WebFetch, mcp__context7__resolve-library-id, mcp__context7__query-docs
 color: green
 model: sonnet
@@ -20,4 +20,4 @@ The dispatching skill passes you the stack, the library or URL in question, and 
 
 ## Output
 
-Return a short findings digest: per claim, verified / contradicted / could not verify, with the source. No scratch artifact - the dispatching skill owns any report file.
+Return a short findings digest: per claim, verified / contradicted / could not verify, with the source. No scratch artifact; the dispatching skill owns any report file.

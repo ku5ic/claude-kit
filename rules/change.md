@@ -12,13 +12,13 @@ Before proposing or applying a fix:
 4. Larger -> name the excess and the reason. Excess is: more files touched, a new abstraction, an adjacent refactor, or unrelated cleanup bundled in.
 5. Excess with no stated reason -> stop and ask, per `rules/workflow.md` section 4.
 
-"Minimal" is measured against the defect, not against caution. A one-line fix to a one-line bug is minimal. A one-line fix that papers over a genuinely broken abstraction is not - that is the justification to state, not skip.
+"Minimal" is measured against the defect, not against caution. A one-line fix to a one-line bug is minimal. A one-line fix that papers over a genuinely broken abstraction is not; that is the justification to state, not skip.
 
 Applies to bug fixes, patches, and "make X work". Does not apply to net-new features or to refactors requested as refactors; there is no defect to be minimal against.
 
 ## 2. Follow the existing pattern, or justify leaving it
 
-Before introducing a new library, state-management approach, folder shape, or naming convention, find how the codebase already solves that class of problem and match it. Divergence is allowed - name and justify it in the change rather than slipping it in.
+Before introducing a new library, state-management approach, folder shape, or naming convention, find how the codebase already solves that class of problem and match it. Divergence is allowed: name and justify it in the change rather than slipping it in.
 
 Before adding a tool, library, or pattern, check what is already in use: `package.json`, the lockfile, existing imports, config files.
 
@@ -65,7 +65,7 @@ The one exception is scaffolding explicitly requested or explicitly marked for a
 
 ## 7. Price the cheapest option
 
-Whenever options are enumerated - candidate directions, alternatives, approaches - one of them is the cheapest thing that could work: a data, config, or lookup-table row, an existing entry extended, or doing nothing.
+Whenever options are enumerated (candidate directions, alternatives, approaches), one of them is the cheapest thing that could work: a data, config, or lookup-table row, an existing entry extended, or doing nothing.
 
 It counts as an option even when it is not a code change, and it gets the same scope, risk, and fit treatment as the rest. Insufficient -> say why in one line and rule it out. The failure is never writing it down.
 

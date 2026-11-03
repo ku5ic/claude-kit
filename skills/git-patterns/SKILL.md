@@ -4,8 +4,8 @@ description: >
   Git workflow patterns covering Conventional Commits, interactive rebase,
   branch strategy, recovery with reflog, bisect, worktrees, and stash. Use
   whenever the project is a git repository (a `.git` directory present), OR
-  the task involves a git operation - commit, branch, rebase, bisect, merge
-  conflict, or recovering lost history - even if "git" is not mentioned by
+  the task involves a git operation (commit, branch, rebase, bisect, merge
+  conflict, or recovering lost history), even if "git" is not mentioned by
   name.
 ---
 
@@ -25,20 +25,20 @@ Review checklist and the handful of git behaviors that are easy to get wrong. Co
 
 - `feat` bumps MINOR, `fix` bumps PATCH, everything else (`docs`, `style`, `refactor`, `perf`, `test`, `chore`, `ci`) bumps nothing.
 - Breaking change: `!` after the type/scope, or a `BREAKING CHANGE:` footer. Either maps to MAJOR.
-- Match the project's existing style before assuming Conventional Commits - see `rules/workflow.md`.
+- Match the project's existing style before assuming Conventional Commits (`rules/workflow.md`).
 
 ---
 
 ## Reach for these
 
-| Situation                                | Tool                                                                     |
-| ---------------------------------------- | ------------------------------------------------------------------------ |
-| Commits lost after a bad rebase or reset | `git reflog` - every HEAD move is recorded; branch off `HEAD@{n}`        |
-| Need each commit in a series to build    | `exec` lines in the `rebase -i` todo (`exec make test`)                  |
-| Hunting the commit that broke something  | `git bisect run <cmd>` - automates the whole search; exit 0 = good       |
-| Reviewing a branch mid-edit on another   | `git worktree add <dir> <branch>` - separate working tree, shared `.git` |
-| Fixups for already-staged hunks          | `git absorb` (see `rules/tooling.md`) beats hand-written `rebase -i`     |
-| A file is ignored and you cannot see why | `git check-ignore -v <path>` names the rule and its source line          |
+| Situation                                | Tool                                                                    |
+| ---------------------------------------- | ----------------------------------------------------------------------- |
+| Commits lost after a bad rebase or reset | `git reflog`: every HEAD move is recorded; branch off `HEAD@{n}`        |
+| Need each commit in a series to build    | `exec` lines in the `rebase -i` todo (`exec make test`)                 |
+| Hunting the commit that broke something  | `git bisect run <cmd>`: automates the whole search; exit 0 = good       |
+| Reviewing a branch mid-edit on another   | `git worktree add <dir> <branch>`: separate working tree, shared `.git` |
+| Fixups for already-staged hunks          | `git absorb` (see `rules/tooling.md`) beats hand-written `rebase -i`    |
+| A file is ignored and you cannot see why | `git check-ignore -v <path>` names the rule and its source line         |
 
 ---
 

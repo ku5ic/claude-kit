@@ -15,7 +15,7 @@
 
 ## Process substitution: when and why
 
-Process substitution `<(cmd)` and `>(cmd)` give a command output (or input) the shape of a filename so that consumers expecting a path -- like `diff`, `comm`, `paste` -- can work on streams without temp files. Two practical reasons to reach for it:
+Process substitution `<(cmd)` and `>(cmd)` give a command output (or input) the shape of a filename so that consumers expecting a path (like `diff`, `comm`, `paste`) can work on streams without temp files. Two practical reasons to reach for it:
 
 - Avoiding temp files: `diff <(grep -v '^#' file_a) <(grep -v '^#' file_b)` is one line; the temp-file equivalent is three lines plus cleanup.
 - Avoiding the pipe-subshell trap: `while read -r line; do ...; done < <(cmd)` keeps the loop body in the parent shell, so variable assignments survive after the loop ends. Compare to `cmd | while read -r line; do count=$((count+1)); done` where the loop body's `count` is lost.

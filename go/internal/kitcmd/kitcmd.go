@@ -31,6 +31,7 @@ var Commands = []Command{
 	{Name: "git-base", Args: "[--diff|--log] [base] [flags] [-- paths]", Desc: "the base ref of this checkout, or the diff\nor log against it", Words: []string{"--diff", "--log"}, ReadOnly: true},
 	{Name: "explain", Args: "bash|edit|stop ...", Desc: "why a guard or the Stop hook decides what it\ndoes; logs, blocks, and runs nothing", Words: []string{"bash", "edit", "stop"}},
 	{Name: "blast-radius", Args: "<file> [symbol]", Desc: "the files that import <file>", Path: "file", ReadOnly: true},
+	{Name: "slop", Args: "[--surface S] <file...|->", Desc: "AI tells in each file, or stdin, by tier;\nexits 1 when one blocks", Words: []string{"--surface"}, Path: "file", ReadOnly: true},
 	{Name: "scratch-rotate", Args: "[days] [--dry-run]", Desc: "prune old scratch artifacts and caches", Words: []string{"--dry-run"}},
 	{Name: "hook", Args: "<name>", Desc: "run a Claude Code hook; payload on stdin"},
 	{Name: "statusline", Desc: "the statusLine rows; payload on stdin"},

@@ -2,10 +2,10 @@
 
 ShellCheck catches most quoting and word-splitting bugs statically. Run it on every committed script. Codes worth knowing:
 
-- `SC2086` -- "Double quote to prevent globbing and word splitting." The unquoted-expansion finding. Almost always a real bug; fix it, do not silence it.
+- `SC2086`: "Double quote to prevent globbing and word splitting." The unquoted-expansion finding. Almost always a real bug; fix it, do not silence it.
 - `SC2155` -- "Declare and assign separately to avoid masking return values." `local`/`export`/`readonly` with a command substitution on the same line drops the command's exit status. Split the declaration.
-- `SC2046` -- "Quote this to prevent word splitting." Unquoted command substitution on the right of an assignment or in argument position.
-- `SC2164` -- "Use `cd ... || exit` in case `cd` fails." Bare `cd` without an exit-on-failure guard.
+- `SC2046`: "Quote this to prevent word splitting." Unquoted command substitution on the right of an assignment or in argument position.
+- `SC2164`: "Use `cd ... || exit` in case `cd` fails." Bare `cd` without an exit-on-failure guard.
 
 Suppression: `# shellcheck disable=SCXXXX` on the line above the offending line, with a comment explaining why. Do not blanket-disable at file top; that hides real findings. The default answer to a ShellCheck warning is to fix it.
 

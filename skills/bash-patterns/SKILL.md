@@ -1,6 +1,6 @@
 ---
 name: bash-patterns
-description: Bash and shell script patterns - safety flags, quoting, conditionals, traps, functions, ShellCheck discipline, and review-worthy anti-patterns. Use whenever the project contains `.sh`/`.bash`/`.zsh` files, files with a bash/sh shebang, scripts in `bin/`, shell dotfiles, or Makefile recipes, OR the user asks about shell scripting or a shell pipeline, even if "bash" is not mentioned by name.
+description: Bash and shell script patterns for safety flags, quoting, conditionals, traps, functions, ShellCheck discipline, and review-worthy anti-patterns. Use whenever the project contains `.sh`/`.bash`/`.zsh` files, files with a bash/sh shebang, scripts in `bin/`, shell dotfiles, or Makefile recipes, OR the user asks about shell scripting or a shell pipeline, even if "bash" is not mentioned by name.
 ---
 
 # Bash patterns

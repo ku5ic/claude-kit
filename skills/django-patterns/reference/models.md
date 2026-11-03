@@ -6,10 +6,10 @@
 
 `on_delete` is required on `ForeignKey` and `OneToOneField`. Choose deliberately:
 
-- `CASCADE` - delete child when parent is deleted
-- `SET_NULL` - set to NULL (requires `null=True`)
-- `PROTECT` - prevent deletion of parent if children exist
-- `DO_NOTHING` - leave the FK dangling (requires manual DB constraint handling)
+- `CASCADE`: delete child when parent is deleted
+- `SET_NULL`: set to NULL (requires `null=True`)
+- `PROTECT`: prevent deletion of parent if children exist
+- `DO_NOTHING`: leave the FK dangling (requires manual DB constraint handling)
 
 See the full list at docs.djangoproject.com/en/stable/ref/models/fields/#django.db.models.ForeignKey.on_delete.
 

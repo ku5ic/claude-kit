@@ -10,7 +10,7 @@ For each open alert with no PR, work in this order and stop at the first that ap
    1. Determine the transitive-pin mechanism from the injected manager itself.
    2. If you are not certain the ecosystem supports a transitive pin, stop and hand back to the user with the alert details rather than guessing.
    3. Apply the transitive-pin mechanism for the injected manager.
-   4. Note: a transitive pin is debt - it persists even after the ecosystem moves on.
+   4. Note: a transitive pin is debt; it persists even after the ecosystem moves on.
    5. Record every pin applied.
 4. If neither applies and the advisory is not reachable in this project's usage, record it for dismissal rather than forcing a change.
 

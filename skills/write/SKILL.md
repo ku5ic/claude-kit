@@ -1,6 +1,6 @@
 ---
 name: write
-description: Draft outward-facing text - commit message, release notes, devnote, explainer, stakeholder summary
+description: Draft outward-facing text (commit message, release notes, devnote, explainer, stakeholder summary)
 argument-hint: <commit|release-notes|devnote|explainer|stakeholder> [kind arguments]
 disable-model-invocation: true
 allowed-tools:

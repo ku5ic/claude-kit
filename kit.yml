@@ -7,7 +7,8 @@
 # (go/internal/gapfill). Read by the kit binary (go/internal/config), which
 # decodes it strictly: `bin/kit config --check` reports an unknown key.
 # The overlay at ~/.claude/claude-kit.local.yml merges over it (maps merge,
-# lists append); `bin/kit config` prints the result.
+# lists append, but slop.block_tiers is replaced and a slop rule replaces
+# the one with its id); `bin/kit config` prints the result.
 #
 # security-patterns and wcag-audit are never mapped: they load by their own
 # descriptions or when another skill names them.
@@ -177,6 +178,110 @@ skip_dirs: [node_modules, vendor, dist, build, out, target, coverage, storybook-
 # fixtures, whose characters are content.
 sanitize_skip: ["*.po", "*.pot", "*.svg", "*.html.j2", "*.j2", "*.jinja", "*.jinja2", "*.hbs", "*.erb", "*.liquid",
   "*/locales/*", "*/messages/*", "*/i18n/*", "*.snap", "*/fixtures/*", "*/__snapshots__/*", "*/testdata/*"]
+
+# AI tells kit slop and the guards look for (skills/slop-patterns says what
+# each is and how to rewrite it). Tier 1 is unambiguous, tier 2 structural,
+# tier 3 counts only toward density: min hits, and threshold per per_words
+# prose words. block_tiers block; other hits are logged. on: the surfaces a
+# rule applies to (file, commit, pr, report, chat), all when absent. Code
+# spans, quoted spans, fences, and blockquotes are never scanned. Turn a rule
+# off with disabled_rules: slop-<id>, or slop-vocabulary for the word list.
+slop:
+  block_tiers: [1, 2]
+  skip: ["*/testdata/*", "*/fixtures/*", "*.snap", "*/__snapshots__/*", "*/kit.yml", "*/claude-kit.local.yml"]
+  density:
+    per_words: 100
+    threshold: 3
+    min: 3
+    words: [additionally, boasts, crucial, delve, delves, delving, garner, intricate, interplay, landscape, meticulous,
+      meticulously, pivotal, tapestry, testament, underscore, underscores, vibrant, bolstered, enhance, enhances,
+      foster, fosters, fostering, highlighting, showcase, showcasing, emphasizing, align with, leverage, leveraging,
+      multifaceted, prioritize, quietly, seamless, seamlessly, robust, comprehensive, dependable, echoed, universally,
+      steady, clearer, practical]
+  rules:
+    - {id: hope-helps, tier: 1, match: '(?i)\bI hope (this|that|it) helps\b', fix: cut it}
+    - id: offer-more
+      tier: 1
+      match: '(?i)\b(let me know if you|feel free to (ask|reach out)|happy to help|would you like me to)\b'
+      fix: cut it; end at the last sentence that informs
+    - id: stock-opener
+      tier: 1
+      match: '(?i)^\W*(certainly|absolutely|of course)!|^\W*(great|good|excellent) question\b'
+      fix: cut the opener; start with the answer
+    - id: commit-opener
+      tier: 1
+      on: [commit]
+      match: '(?i)^\W*(?:(?:feat|fix|chore|refactor|docs|test|perf|build|ci|style)(?:\([^)]*\))?!?:)?\s*(?:certainly|here is|i have|let me|in this commit|this commit)\b'
+      fix: open with what changed
+    - {id: absolutely-right, tier: 1, match: '(?i)\byou''?re (absolutely|completely|totally) right\b', fix: cut it; say what changes}
+    - {id: as-an-ai, tier: 1, match: '(?i)\bas an AI( language)? model\b|\bI''?m (just )?an AI\b', fix: cut it}
+    - {id: in-conclusion, tier: 1, match: '(?i)^\W*in conclusion\b', fix: cut the recap}
+    - id: citation-leak
+      tier: 1
+      match: 'contentReference\[oaicite|oai_citation|\bturn\d+(search|view|fetch)\d+\b'
+      fix: remove the leaked citation markup
+    - {id: ai-utm, tier: 1, match: 'utm_source=(chatgpt\.com|openai|copilot\.com)|referrer=grok\.com', fix: strip the tracking parameter}
+    - id: placeholder
+      tier: 1
+      match: '\[(Your Name|Name|Company( Name)?|Year|Date|Insert [^\]]+)\]|\b20\d\d-XX-XX\b|\bINSERT_[A-Z_]+\b|example\.com/source\d'
+      fix: fill in the real value, or cut it
+    - {id: copula, tier: 2, match: '(?i)\b(serves|serve|served|stands|stood|functions) as (a|an|the)\b', fix: is}
+    - {id: boasts, tier: 2, match: '(?i)\bboasts?\b', fix: has}
+    - {id: not-only, tier: 2, match: '(?i)\bnot only\b.*\bbut also\b', fix: 'state both plainly, or keep the one that matters'}
+    - id: not-x-but-y
+      tier: 2
+      match: '(?i)\b(it''?s|this is|that''?s) not (just |merely |only )?[^.,;:]{1,40}[,;] (it''?s|but)\b'
+      fix: state what it is
+    - id: ing-tail
+      tier: 2
+      match: '(?i),\s+(highlighting|underscoring|emphasizing|ensuring|reflecting|fostering|showcasing|contributing to|paving the way)\b'
+      fix: state the fact the clause gestures at, or cut it
+    - id: significance
+      tier: 2
+      match: '(?i)\b(plays?|played) an? (key|crucial|pivotal|vital|significant|central) role\b|\ba testament to\b|\bindelible mark\b|\bevolving landscape\b|\bsetting the stage for\b|\bunderscores? (its|the) importance\b'
+      fix: name the concrete effect, or cut it
+    - {id: vague-connection, tier: 2, match: '(?i)\b(is|are|was|were) (closely )?associated with\b', fix: name the actual relation}
+    - {id: despite-challenges, tier: 2, match: '(?i)\bdespite (its|their|these|this)\b.*\bchallenges\b', fix: state the specific problem}
+    - {id: worth-noting, tier: 2, match: '(?i)\b(it''?s|it is) (important|worth) (to note|noting|mentioning)\b', fix: cut it; state the point}
+    - id: corrective-framing
+      tier: 2
+      match: '(?i)\bshould not be confused with\b|\bdoes not by itself establish\b'
+      fix: state the claim directly
+    - id: generic-reason
+      tier: 2
+      on: [commit, pr, report]
+      match: '(?i)\b(improv|enhanc)(e|es|ed|ing) (the )?(readability|maintainability|clarity|code quality|consistency|robustness)\b|\bfor (better )?(readability|maintainability|clarity)\b'
+      fix: say what changed and why it matters
+    - {id: while-preserving, tier: 3, on: [commit, pr], match: '(?i)\bwhile (preserving|maintaining|retaining|keeping)\b'}
+    - {id: addressed-feedback, tier: 2, on: [commit, pr], match: '(?i)\baddress(es|ed|ing)? (the )?(review |PR )?(feedback|comments)\b', fix: say what changed}
+    - {id: streamlined, tier: 2, on: [commit, pr], match: '(?i)\bstreamlin(e|es|ed|ing)\b', fix: say what was removed or merged}
+    - {id: rather-than, tier: 3, match: '(?i)\brather than\b'}
+    - {id: bold-in-prose, tier: 3, match: '\w[^*\n]*\s\*\*[^*\n]+\*\*'}
+    # UI code as written (on: [ui]): .tsx, .jsx, .vue, .svelte, .html, .css, .scss.
+    - {id: ui-placeholder, tier: 2, on: [ui], match: '(?i)\blorem ipsum\b|>\s*Feature (one|two|1|2)\s*<', fix: put the real content in}
+    - id: ui-emoji-label
+      tier: 2
+      on: [ui]
+      match: '<(h[1-6]|button|a|li)\b[^>]*>[^<]*[\x{1F300}-\x{1FAFF}\x{2600}-\x{27BF}]'
+      fix: drop the emoji; the words carry the label
+    - id: ui-default-gradient
+      tier: 2
+      on: [ui]
+      match: '\bfrom-(purple|violet|indigo|fuchsia)-\d+\b.*\bto-(blue|indigo|pink|cyan)-\d+\b'
+      fix: take the colors from the project's tokens, or drop the gradient
+    - id: ui-gradient-text
+      tier: 2
+      on: [ui]
+      match: '\bbg-clip-text\b.*\btext-transparent\b|\btext-transparent\b.*\bbg-clip-text\b'
+      fix: solid text in a token color
+    - id: ui-marketing
+      tier: 2
+      on: [ui]
+      match: '(?i)\b(supercharge[sd]?|empower(s|ed)?|world-class|enterprise-grade|reimagined)\b|\bthe future of\b|\boops!'
+      fix: say what the product does, or what went wrong and how to fix it
+    - {id: ui-glass, tier: 3, on: [ui], match: '\bbackdrop-blur(-\w+)?\b|\bblur-3xl\b|\bshadow-\[0_0_'}
+    - {id: ui-eyebrow, tier: 3, on: [ui], match: '\buppercase\b.*\btracking-(widest|\[0\.\d+em\])'}
+    - {id: ui-chrome-glyph, tier: 3, on: [ui], match: '\x{00B7}|\x{2192}'}
 
 # Shell rc files: direct writes are blocked, the dotfiles repo is the source.
 rc_files: ["~/.zshrc", "~/.zprofile", "~/.bashrc", "~/.bash_profile", "~/.profile"]
