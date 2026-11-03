@@ -8,6 +8,10 @@
       {
         "matcher": "Edit|Write|MultiEdit|Read|Grep",
         "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook guard-dispatch", "timeout": 5 }]
+      },
+      {
+        "matcher": "SubagentHandback",
+        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook guard-handback", "timeout": 5 }]
       }
     ],
     "PostToolUse": [
@@ -65,6 +69,10 @@
       {
         "matcher": "general-purpose",
         "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook review-checks", "timeout": 1200 }]
+      },
+      {
+        "matcher": "*",
+        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook subagent-slop", "timeout": 5 }]
       }
     ],
     "SubagentStart": [

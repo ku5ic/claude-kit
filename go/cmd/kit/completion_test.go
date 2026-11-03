@@ -47,7 +47,7 @@ func TestBashCompletion(t *testing.T) {
 		want  string
 	}{
 		{"a command prefix completes to the commands it starts", []string{"sc"}, "scratch-dir scratch-rotate"},
-		{"hook completes hook names", []string{"hook", "guard-"}, "guard-bash guard-commit guard-dispatch guard-edit guard-pr guard-skills guard-slop"},
+		{"hook completes hook names", []string{"hook", "guard-"}, "guard-bash guard-commit guard-dispatch guard-edit guard-handback guard-pr guard-skills guard-slop"},
 		{"a command's flags complete after it", []string{"scratch-rotate", "--"}, "--dry-run"},
 		{"nothing completes past a command's first argument", []string{"hook", "guard-bash", "x"}, ""},
 		{"an unmatched hook prefix offers no filenames", []string{"hook", "gx"}, ""},

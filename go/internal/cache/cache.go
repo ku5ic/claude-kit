@@ -21,6 +21,7 @@ const (
 	PlanActive   = "plan-active"
 	Statusline   = "statusline"
 	ReplyLimit   = "reply-limit"
+	Slop         = "slop"
 	Stack        = "stack"
 	StopReports  = "stop-reports"
 	Enforce      = "enforce"
@@ -42,6 +43,7 @@ var Dirs = []Dir{
 	{PlanActive, "plan-active marker(s)", 1},
 	{Statusline, "statusline cache(s)", 1},
 	{ReplyLimit, "reply-limit marker(s)", 1},
+	{Slop, "unslop marker(s)", 1},
 	{Stack, "stack report(s)", 30},
 	{StopReports, "stop-checks and per-edit report(s)", 1},
 	{Enforce, "gap-fill verdict and gate mark file(s)", 30},
