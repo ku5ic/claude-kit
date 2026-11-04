@@ -17,6 +17,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"github.com/ku5ic/claude-kit/go/internal/blast"
+	"github.com/ku5ic/claude-kit/go/internal/chatbundle"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/detect"
 	"github.com/ku5ic/claude-kit/go/internal/enforce"
@@ -118,6 +119,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdGates(e, rest)
 	case "hook":
 		return cmdHook(e, rest, os.Stdin)
+	case "bundle":
+		return cmdBundle(e, rest)
 	case "statusline":
 		status.Statusline(os.Stdin, stdout, e.paths.Home)
 		return 0
@@ -154,6 +157,20 @@ var configCommands = map[string]func(*env, *config.Config, []string) int{
 	"explain": func(e *env, cfg *config.Config, args []string) int {
 		return explain.Run(e.paths, cfg, e.cwd, args, e.stdout, e.stderr)
 	},
+}
+
+// cmdBundle reads kit.yml alone: an overlay is this machine's, and what
+// ships isn't.
+func cmdBundle(e *env, args []string) int {
+	cfg, warnings, err := config.LoadBase(e.paths)
+	for _, w := range warnings {
+		fmt.Fprintln(e.stderr, "kit: warning:", w)
+	}
+	if err != nil {
+		fmt.Fprintln(e.stderr, "kit:", err)
+		return 1
+	}
+	return chatbundle.Run(e.paths.Root, cfg, args, e.stdout, e.stderr)
 }
 
 func cmdRunChecks(e *env, cfg *config.Config, args []string) int {

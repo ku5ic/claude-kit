@@ -40,6 +40,7 @@ type Config struct {
 	Classifier    []string    `yaml:"classifier"`
 	OnEdit        []EditRule  `yaml:"on_edit"`
 	Slop          Slop        `yaml:"slop"`
+	ChatBundle    ChatBundle  `yaml:"chat_bundle"`
 
 	// Tag is "merged" when an overlay was merged in, else "base". Caches
 	// derived from the config carry it in their file name, so deleting the
@@ -207,6 +208,12 @@ type EditRule struct {
 type EditCommand struct {
 	Cmd    string `yaml:"cmd"`
 	Stdout bool   `yaml:"stdout"`
+}
+
+// ChatBundle is what go/internal/chatbundle ships to claude.ai chat.
+type ChatBundle struct {
+	Description string   `yaml:"description"`
+	Skills      []string `yaml:"skills"`
 }
 
 // SlopSurfaces are where text is scanned for AI tells: a written file, a

@@ -43,6 +43,7 @@ func TestRealKitYMLLoadsCleanly(t *testing.T) {
 		"deny_flags":         len(cfg.DenyFlags),
 		"gate_env":           len(cfg.GateEnv),
 		"global_installs":    len(cfg.GlobalInstalls),
+		"chat_bundle.skills": len(cfg.ChatBundle.Skills),
 	}
 	for name, n := range lists {
 		if n == 0 {
@@ -344,6 +345,19 @@ func TestDefaultsAndMissingOverlay(t *testing.T) {
 	}
 	if cfg.LogMaxLines != 10000 || cfg.GateTimeout != 90 {
 		t.Errorf("defaults: log_max_lines=%d gate_timeout=%d", cfg.LogMaxLines, cfg.GateTimeout)
+	}
+}
+
+func TestLoadBaseIgnoresTheOverlay(t *testing.T) {
+	dir := t.TempDir()
+	base := write(t, dir, "kit.yml", "chat_bundle:\n  skills: [alpha]\n")
+	overlay := write(t, dir, "over.yml", "chat_bundle:\n  skills: [beta]\n")
+	cfg, warnings, err := LoadBase(Paths{Base: base, Overlay: overlay})
+	if err != nil || len(warnings) > 0 {
+		t.Fatalf("err=%v warnings=%v", err, warnings)
+	}
+	if !slices.Equal(cfg.ChatBundle.Skills, []string{"alpha"}) || cfg.Tag != "base" {
+		t.Errorf("skills %v, tag %q", cfg.ChatBundle.Skills, cfg.Tag)
 	}
 }
 

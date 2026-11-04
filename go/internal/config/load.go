@@ -99,6 +99,12 @@ func Load(p Paths) (*Config, []Warning, error) {
 	return cfg, warnings, err
 }
 
+// LoadBase reads kit.yml alone, for what must not vary by machine.
+func LoadBase(p Paths) (*Config, []Warning, error) {
+	p.Overlay = ""
+	return load(p)
+}
+
 func load(p Paths) (*Config, []Warning, error) {
 	base, err := readNode(p.Base)
 	if err != nil {

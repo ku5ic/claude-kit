@@ -283,6 +283,13 @@ slop:
     - {id: ui-eyebrow, tier: 3, on: [ui], match: '\buppercase\b.*\btracking-(widest|\[0\.\d+em\])'}
     - {id: ui-chrome-glyph, tier: 3, on: [ui], match: '\x{00B7}|\x{2192}'}
 
+# What kit bundle chat ships to claude.ai chat, where no hook, repo, or kit
+# on PATH exists. A skill stays out unless skills names it. description is
+# the plugin's, 500 characters at most.
+chat_bundle:
+  description: The kit's writing and investigation skills for claude.ai chat, working on pasted text and code. Hooks and guards stay in Claude Code.
+  skills: [engineering-fundamentals, investigate, slop-patterns, unslop, write]
+
 # Shell rc files: direct writes are blocked, the dotfiles repo is the source.
 rc_files: ["~/.zshrc", "~/.zprofile", "~/.bashrc", "~/.bash_profile", "~/.profile"]
 
