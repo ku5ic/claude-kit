@@ -103,6 +103,13 @@ Outside plan mode, stop at findings. In plan mode, the findings feed the plan fi
 
 ## Stop
 
-- Never edit source, beyond one reverted debugging probe.
+- Never edit source.
+
+<!-- chat: skip -->
+
+- The one exception is the debugger's single reverted probe.
+
+<!-- chat: end -->
+
 - Scope growing beyond the question or entry point: surface and ask.
 - Root cause in a dependency or external system: document the boundary and stop.

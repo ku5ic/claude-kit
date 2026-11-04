@@ -362,6 +362,26 @@ func TestLoadBaseIgnoresTheOverlay(t *testing.T) {
 	}
 }
 
+func TestResolveCheckoutIgnoresThePluginRoot(t *testing.T) {
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(dir, "bin"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	exe := write(t, filepath.Join(dir, "bin"), "kit", "")
+	t.Setenv("CLAUDE_PLUGIN_ROOT", t.TempDir())
+
+	p, err := ResolveCheckout(exe)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(dir, "kit.yml"); p.Root != dir || p.Base != want {
+		t.Errorf("root %q, base %q, want %q and %q", p.Root, p.Base, dir, want)
+	}
+}
+
 func TestEmptyOrCommentOnlyOverlayIsQuiet(t *testing.T) {
 	dir := t.TempDir()
 	base := write(t, dir, "kit.yml", "tools: [rg]\n")

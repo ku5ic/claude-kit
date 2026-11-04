@@ -47,12 +47,23 @@ func (p Paths) SessionFile(kind, session string, parts ...string) string {
 func ResolvePaths(exe string) (Paths, error) {
 	root := os.Getenv("CLAUDE_PLUGIN_ROOT")
 	if root == "" {
-		real, err := filepath.EvalSymlinks(exe)
-		if err != nil {
-			return Paths{}, fmt.Errorf("resolve kit root from %s: %w", exe, err)
-		}
-		root = filepath.Dir(filepath.Dir(real))
+		return ResolveCheckout(exe)
 	}
+	return pathsAt(root)
+}
+
+// ResolveCheckout is ResolvePaths rooted at the tree holding exe, for what
+// must read the checkout: a hook's process has CLAUDE_PLUGIN_ROOT set to the
+// installed plugin.
+func ResolveCheckout(exe string) (Paths, error) {
+	real, err := filepath.EvalSymlinks(exe)
+	if err != nil {
+		return Paths{}, fmt.Errorf("resolve kit root from %s: %w", exe, err)
+	}
+	return pathsAt(filepath.Dir(filepath.Dir(real)))
+}
+
+func pathsAt(root string) (Paths, error) {
 	home := os.Getenv("CLAUDE_CONFIG_DIR")
 	if home == "" {
 		userHome, err := os.UserHomeDir()

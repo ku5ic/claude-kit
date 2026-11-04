@@ -28,7 +28,17 @@ Label every theory: `verified` (read it directly), `likely` (inferred, name the 
 
 - Relative time claims ("just now", "recently") need a checked clock or a quoted timestamp. Never asserted from feel.
 - A file the user says exists but is not found: surface it and ask. Do not create a stub matching the name.
-- "Done", "fixed", or "passes" needs evidence. Never "should work".
+
+<!-- chat: skip -->
+
+- "Done", "fixed", or "passes" means what `rules/verify.md` section 4 says. Never "should work".
+
+<!-- chat: end -->
+
+<!-- chat: only
+In claude.ai chat, "done", "fixed", or "passes" needs evidence. Never "should work".
+-->
+
 - Exception: a result or outcome the user reports is taken as given. Do not volunteer explanations of why it happened, or caveats about it, unless asked.
 
 ## 2. Check the precedent before writing

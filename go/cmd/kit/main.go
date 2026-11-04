@@ -43,6 +43,7 @@ func main() {
 // env is what every command needs: the kit's paths and, loaded on first
 // use, its config.
 type env struct {
+	exe    string
 	paths  config.Paths
 	stdout io.Writer
 	stderr io.Writer
@@ -65,7 +66,7 @@ func newEnv(stdout, stderr io.Writer) (*env, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &env{paths: paths, stdout: stdout, stderr: stderr, cwd: cwd}, nil
+	return &env{exe: exe, paths: paths, stdout: stdout, stderr: stderr, cwd: cwd}, nil
 }
 
 func (e *env) config() (*config.Config, error) {
@@ -159,10 +160,15 @@ var configCommands = map[string]func(*env, *config.Config, []string) int{
 	},
 }
 
-// cmdBundle reads kit.yml alone: an overlay is this machine's, and what
-// ships isn't.
+// cmdBundle reads the checkout holding this binary, and kit.yml alone: an
+// overlay is this machine's, and what ships isn't.
 func cmdBundle(e *env, args []string) int {
-	cfg, warnings, err := config.LoadBase(e.paths)
+	paths, err := config.ResolveCheckout(e.exe)
+	if err != nil {
+		fmt.Fprintln(e.stderr, "kit:", err)
+		return 1
+	}
+	cfg, warnings, err := config.LoadBase(paths)
 	for _, w := range warnings {
 		fmt.Fprintln(e.stderr, "kit: warning:", w)
 	}
@@ -170,7 +176,7 @@ func cmdBundle(e *env, args []string) int {
 		fmt.Fprintln(e.stderr, "kit:", err)
 		return 1
 	}
-	return chatbundle.Run(e.paths.Root, cfg, args, e.stdout, e.stderr)
+	return chatbundle.Run(paths.Root, cfg, args, e.stdout, e.stderr)
 }
 
 func cmdRunChecks(e *env, cfg *config.Config, args []string) int {
