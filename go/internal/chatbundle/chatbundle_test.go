@@ -28,10 +28,22 @@ func checkout(t *testing.T) (string, *config.Config) {
 	testutil.Put(t, root, "skills/beta/SKILL.md", "---\nname: beta\ndescription: Left out.\n---\n")
 	testutil.Put(t, root, "rules/change.md", "# Change\n\n## 1. One\n")
 	testutil.Put(t, root, rulesHeadPath, "---\nname: kit-rules\ndescription: Load for coding.\n---\n\nThe head.\n")
-	if err := os.Mkdir(filepath.Join(root, "bin"), 0o755); err != nil {
-		t.Fatal(err)
-	}
 	return root, &config.Config{ChatBundle: config.ChatBundle{Description: "For chat.", Skills: []string{"alpha"}, Rules: []string{"rules/change.md"}}}
+}
+
+func run(root string, cfg *config.Config, args ...string) (code int, stdout, stderr string) {
+	var out, errOut bytes.Buffer
+	code = Run(root, cfg, args, &out, &errOut)
+	return code, out.String(), errOut.String()
+}
+
+// buildZip builds the bundle, which must succeed, and returns its files.
+func buildZip(t *testing.T, root string, cfg *config.Config) map[string]string {
+	t.Helper()
+	if code, _, stderr := run(root, cfg, "chat"); code != 0 {
+		t.Fatalf("exit %d, stderr %s", code, stderr)
+	}
+	return unzip(t, filepath.Join(root, "bin", "kit-chat-1.2.3.zip"))
 }
 
 func TestChatWritesTheNamedSkillsAndAChatManifest(t *testing.T) {
@@ -39,16 +51,12 @@ func TestChatWritesTheNamedSkillsAndAChatManifest(t *testing.T) {
 	root, cfg := checkout(t)
 	testutil.Put(t, root, "skills/alpha/.DS_Store", "junk")
 	testutil.Put(t, root, "skills/alpha/.SKILL.md.swp", "junk")
-	var stdout, stderr bytes.Buffer
-	if code := Run(root, cfg, []string{"chat"}, &stdout, &stderr); code != 0 {
-		t.Fatalf("exit %d, stderr %s", code, &stderr)
-	}
-	out := filepath.Join(root, "bin", "kit-chat-1.2.3.zip")
-	if got := strings.TrimSpace(stdout.String()); got != out {
-		t.Errorf("stdout %q, want the zip's path %q", got, out)
+	files := buildZip(t, root, cfg)
+	_, stdout, _ := run(root, cfg, "chat")
+	if got, want := strings.TrimSpace(stdout), filepath.Join(root, "bin", "kit-chat-1.2.3.zip"); got != want {
+		t.Errorf("stdout %q, want the zip's path %q", got, want)
 	}
 
-	files := unzip(t, out)
 	var names []string
 	for name := range files {
 		names = append(names, name)
@@ -71,22 +79,14 @@ func TestChatWritesTheNamedSkillsAndAChatManifest(t *testing.T) {
 func TestChatZipIsReproducible(t *testing.T) {
 	t.Parallel()
 	root, cfg := checkout(t)
-	out := filepath.Join(root, "bin", "kit-chat-1.2.3.zip")
-	build := func() []byte {
-		var stderr bytes.Buffer
-		if code := Run(root, cfg, []string{"chat"}, io.Discard, &stderr); code != 0 {
-			t.Fatalf("exit %d, stderr %s", code, &stderr)
-		}
-		data, err := os.ReadFile(out)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return data
+	zipBytes := func() string {
+		buildZip(t, root, cfg)
+		return testutil.Read(t, filepath.Join(root, "bin", "kit-chat-1.2.3.zip"))
 	}
-	first := build()
+	first := zipBytes()
 	// A newer mtime on a source must not reach the archive.
 	testutil.Put(t, root, "skills/alpha/SKILL.md", skillMD)
-	if !bytes.Equal(first, build()) {
+	if first != zipBytes() {
 		t.Error("two builds of the same sources differ")
 	}
 }
@@ -94,65 +94,87 @@ func TestChatZipIsReproducible(t *testing.T) {
 func TestCheckValidatesAndWritesNothing(t *testing.T) {
 	t.Parallel()
 	root, cfg := checkout(t)
-	var stdout, stderr bytes.Buffer
-	if code := Run(root, cfg, []string{"chat", "--check"}, &stdout, &stderr); code != 0 {
-		t.Fatalf("exit %d, stderr %s", code, &stderr)
+	code, stdout, stderr := run(root, cfg, "chat", "--check")
+	if code != 0 {
+		t.Fatalf("exit %d, stderr %s", code, stderr)
 	}
-	if stdout.Len() != 0 {
-		t.Errorf("stdout %q, want nothing", &stdout)
+	if stdout != "" {
+		t.Errorf("stdout %q, want nothing", stdout)
 	}
-	if entries, _ := os.ReadDir(filepath.Join(root, "bin")); len(entries) != 0 {
-		t.Errorf("bin holds %v, want nothing", entries)
+	if _, err := os.Stat(filepath.Join(root, "bin")); err == nil {
+		t.Error("--check wrote to bin")
 	}
 }
 
-func TestUploadRulesFailTheBuild(t *testing.T) {
+func TestBadBundlesFail(t *testing.T) {
 	t.Parallel()
-	skill := func(front string) func(*testing.T, string, *config.Config) {
+	type mutation = func(*testing.T, string, *config.Config)
+	put := func(name, body string) mutation {
+		return func(t *testing.T, root string, _ *config.Config) { testutil.Put(t, root, name, body) }
+	}
+	skill := func(front string) mutation { return put("skills/alpha/SKILL.md", "---\n"+front+"\n---\nBody.\n") }
+	more := func(body string) mutation { return put("skills/alpha/reference/more.md", body) }
+	bundling := func(c config.ChatBundle) mutation {
+		return func(_ *testing.T, _ string, cfg *config.Config) { cfg.ChatBundle = c }
+	}
+	remove := func(name string) mutation {
 		return func(t *testing.T, root string, _ *config.Config) {
-			testutil.Put(t, root, "skills/alpha/SKILL.md", "---\n"+front+"\n---\nBody.\n")
+			if err := os.RemoveAll(filepath.Join(root, name)); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
+	good := config.ChatBundle{Description: "For chat.", Skills: []string{"alpha"}, Rules: []string{"rules/change.md"}}
+	with := func(edit func(*config.ChatBundle)) config.ChatBundle {
+		c := good
+		edit(&c)
+		return c
+	}
 	for name, tc := range map[string]struct {
-		mutate func(*testing.T, string, *config.Config)
+		mutate mutation
 		want   string
 	}{
-		"no frontmatter": {func(t *testing.T, root string, _ *config.Config) {
-			testutil.Put(t, root, "skills/alpha/SKILL.md", "Body.\n")
-		}, "no frontmatter"},
-		"a longer dash line doesn't close frontmatter": {func(t *testing.T, root string, _ *config.Config) {
-			testutil.Put(t, root, "skills/alpha/SKILL.md", "---\nname: alpha\ndescription: x\n----\nBody.\n")
-		}, "no frontmatter"},
-		"broken frontmatter":    {skill("name: [alpha"), "frontmatter"},
-		"no description":        {skill("name: alpha"), "no description"},
-		"name isn't the folder": {skill("name: other\ndescription: x"), `name "other"`},
-		"long description":      {skill("name: alpha\ndescription: " + strings.Repeat("x", 1025)), "1024"},
-		"XML in a description":  {skill("name: alpha\ndescription: Use for <example> work."), "XML"},
-		"XML in a name":         {skill("name: <alpha>\ndescription: x"), "XML"},
-		"long plugin description": {func(_ *testing.T, _ string, cfg *config.Config) {
-			cfg.ChatBundle.Description = strings.Repeat("x", 501)
-		}, "500"},
-		"no plugin description": {func(_ *testing.T, _ string, cfg *config.Config) {
-			cfg.ChatBundle.Description = ""
-		}, "chat_bundle.description"},
-		"no skills": {func(_ *testing.T, _ string, cfg *config.Config) {
-			cfg.ChatBundle.Skills = nil
-		}, "chat_bundle.skills"},
-		"missing skill": {func(_ *testing.T, _ string, cfg *config.Config) {
-			cfg.ChatBundle.Skills = []string{"gone"}
-		}, "gone"},
+		"no frontmatter": {put("skills/alpha/SKILL.md", "Body.\n"), "no frontmatter"},
+		"a longer dash line doesn't close frontmatter": {put("skills/alpha/SKILL.md", "---\nname: alpha\ndescription: x\n----\nBody.\n"), "no frontmatter"},
+		"broken frontmatter":                           {skill("name: [alpha"), "frontmatter"},
+		"no description":                               {skill("name: alpha"), "no description"},
+		"name isn't the folder":                        {skill("name: other\ndescription: x"), `name "other"`},
+		"long description":                             {skill("name: alpha\ndescription: " + strings.Repeat("x", 1025)), "1024"},
+		"XML in a description":                         {skill("name: alpha\ndescription: Use for <example> work."), "XML"},
+		"XML in a name":                                {skill("name: <alpha>\ndescription: x"), "XML"},
+		"long plugin description":                      {bundling(with(func(c *config.ChatBundle) { c.Description = strings.Repeat("x", 501) })), "500"},
+		"no plugin description":                        {bundling(with(func(c *config.ChatBundle) { c.Description = "" })), "chat_bundle.description"},
+		"no skills":                                    {bundling(with(func(c *config.ChatBundle) { c.Skills = nil })), "chat_bundle.skills"},
+		"missing skill":                                {bundling(with(func(c *config.ChatBundle) { c.Skills = []string{"gone"} })), "gone"},
+		"no rules":                                     {bundling(with(func(c *config.ChatBundle) { c.Rules = nil })), "chat_bundle.rules"},
+		"missing rule":                                 {bundling(with(func(c *config.ChatBundle) { c.Rules = []string{"rules/gone.md"} })), "rules/gone.md"},
+		"no rules head":                                {remove(rulesHeadPath), "kit-rules.md"},
+		"no skills directory":                          {remove("skills"), "skills"},
+		"a rules skill too long":                       {put("rules/change.md", "# Change\n"+strings.Repeat("line\n", maxSkillLines)), "skills/kit-rules/SKILL.md: 500 lines"},
+		"rule with no title":                           {put("rules/change.md", "text\n"), "rules/change.md: no # title"},
+		"unclosed marker in a rule":                    {put("rules/change.md", "# Change\n<!-- chat: skip -->\n"), "rules/change.md: line 2"},
+		"unclosed marker in a skill":                   {more("<!-- chat: skip -->\n"), "skills/alpha/reference/more.md: line 1: marker never closed"},
+		"lint hit":                                     {more("ok\nRun `kit scratch-dir`.\n"), "skills/alpha/reference/more.md:2: kit command"},
+		"a left-out skill by name":                     {more("See `beta`.\n"), "skill not in the bundle"},
+		"section a marker dropped": {func(t *testing.T, root string, cfg *config.Config) {
+			put("rules/change.md", "# Change\n\n<!-- chat: skip -->\n\n## 1. One\n\n<!-- chat: end -->\n")(t, root, cfg)
+			more("`rules/change.md` section 1\n")(t, root, cfg)
+		}, "links rules/change.md section 1"},
+		"manifest isn't JSON":     {put(".claude-plugin/plugin.json", "{"), "plugin.json"},
+		"manifest has no name":    {put(".claude-plugin/plugin.json", `{"version":"1.0.0"}`), "name"},
+		"manifest has no version": {put(".claude-plugin/plugin.json", `{"name":"kit"}`), "version"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			root, cfg := checkout(t)
 			tc.mutate(t, root, cfg)
 			for _, args := range [][]string{{"chat"}, {"chat", "--check"}} {
-				var stdout, stderr bytes.Buffer
-				if code := Run(root, cfg, args, &stdout, &stderr); code != 1 {
+				code, _, stderr := run(root, cfg, args...)
+				if code != 1 {
 					t.Errorf("%v: exit %d, want 1", args, code)
 				}
-				if !strings.Contains(stderr.String(), tc.want) {
-					t.Errorf("%v: stderr %q lacks %q", args, &stderr, tc.want)
+				if !strings.Contains(stderr, tc.want) {
+					t.Errorf("%v: stderr %q lacks %q", args, stderr, tc.want)
 				}
 			}
 			if _, err := os.Stat(filepath.Join(root, "bin", "kit-chat-1.2.3.zip")); err == nil {
@@ -166,9 +188,8 @@ func TestCRLFFrontmatterPasses(t *testing.T) {
 	t.Parallel()
 	root, cfg := checkout(t)
 	testutil.Put(t, root, "skills/alpha/SKILL.md", "---\r\nname: alpha\r\ndescription: Use for alpha work.\r\n---\r\nBody.\r\n")
-	var stdout, stderr bytes.Buffer
-	if code := Run(root, cfg, []string{"chat", "--check"}, &stdout, &stderr); code != 0 {
-		t.Errorf("exit %d, stderr %s", code, &stderr)
+	if code, _, stderr := run(root, cfg, "chat", "--check"); code != 0 {
+		t.Errorf("exit %d, stderr %s", code, stderr)
 	}
 }
 
@@ -177,13 +198,8 @@ func TestEveryProblemIsReported(t *testing.T) {
 	root, cfg := checkout(t)
 	testutil.Put(t, root, "skills/alpha/SKILL.md", "---\nname: other\n---\n")
 	cfg.ChatBundle.Description = strings.Repeat("x", 501)
-	var stderr bytes.Buffer
-	Run(root, cfg, []string{"chat"}, io.Discard, &stderr)
-	for _, want := range []string{"500", "no description", `name "other"`} {
-		if !strings.Contains(stderr.String(), want) {
-			t.Errorf("stderr %q lacks %q", &stderr, want)
-		}
-	}
+	_, _, stderr := run(root, cfg, "chat")
+	testutil.Has(t, stderr, "500", "no description", `name "other"`)
 }
 
 func TestUsageErrors(t *testing.T) {
@@ -198,13 +214,11 @@ func TestUsageErrors(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			root, cfg := checkout(t)
-			var stderr bytes.Buffer
-			if code := Run(root, cfg, args, io.Discard, &stderr); code != 2 {
+			code, _, stderr := run(root, cfg, args...)
+			if code != 2 {
 				t.Errorf("exit %d, want 2", code)
 			}
-			if !strings.Contains(stderr.String(), "usage: kit bundle") {
-				t.Errorf("stderr %q has no usage", &stderr)
-			}
+			testutil.Has(t, stderr, "usage: kit bundle")
 		})
 	}
 }
@@ -212,49 +226,22 @@ func TestUsageErrors(t *testing.T) {
 func TestHelpGoesToStdout(t *testing.T) {
 	t.Parallel()
 	root, cfg := checkout(t)
-	var stdout bytes.Buffer
-	if code := Run(root, cfg, []string{"--help"}, &stdout, io.Discard); code != 0 {
+	code, stdout, _ := run(root, cfg, "--help")
+	if code != 0 {
 		t.Errorf("exit %d, want 0", code)
 	}
-	if !strings.Contains(stdout.String(), "usage: kit bundle") {
-		t.Errorf("stdout %q has no usage", &stdout)
-	}
-}
-
-func TestManifestProblems(t *testing.T) {
-	t.Parallel()
-	for name, tc := range map[string]struct{ manifest, want string }{
-		"not JSON":   {"{", "plugin.json"},
-		"no name":    {`{"version":"1.0.0"}`, "name"},
-		"no version": {`{"name":"kit"}`, "version"},
-	} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			root, cfg := checkout(t)
-			testutil.Put(t, root, ".claude-plugin/plugin.json", tc.manifest)
-			var stderr bytes.Buffer
-			if code := Run(root, cfg, []string{"chat"}, io.Discard, &stderr); code != 1 {
-				t.Errorf("exit %d, want 1", code)
-			}
-			if !strings.Contains(stderr.String(), tc.want) {
-				t.Errorf("stderr %q lacks %q", &stderr, tc.want)
-			}
-		})
-	}
+	testutil.Has(t, stdout, "usage: kit bundle")
 }
 
 func TestUnwritableOutputFails(t *testing.T) {
 	t.Parallel()
 	root, cfg := checkout(t)
-	if err := os.Remove(filepath.Join(root, "bin")); err != nil {
-		t.Fatal(err)
-	}
 	testutil.Put(t, root, "bin", "a file where the directory goes")
-	var stderr bytes.Buffer
-	if code := Run(root, cfg, []string{"chat"}, io.Discard, &stderr); code != 1 {
+	code, _, stderr := run(root, cfg, "chat")
+	if code != 1 {
 		t.Errorf("exit %d, want 1", code)
 	}
-	if stderr.Len() == 0 {
+	if stderr == "" {
 		t.Error("no error reported")
 	}
 }

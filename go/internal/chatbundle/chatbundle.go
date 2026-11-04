@@ -57,12 +57,12 @@ func Run(root string, cfg *config.Config, args []string, stdout, stderr io.Write
 		fmt.Fprintln(stdout, usage)
 		return 0
 	}
-	check, ok := parseArgs(args)
-	if !ok {
+	check := slices.Equal(args, []string{"chat", "--check"})
+	if !check && !slices.Equal(args, []string{"chat"}) {
 		fmt.Fprintln(stderr, usage)
 		return 2
 	}
-	b, err := build(root, cfg.ChatBundle)
+	b, err := build(root, cfg)
 	if err == nil {
 		err = errors.Join(b.transform(cfg.ChatBundle)...)
 	}
@@ -77,22 +77,16 @@ func Run(root string, cfg *config.Config, args []string, stdout, stderr io.Write
 		return 0
 	}
 	out := filepath.Join(root, "bin", "kit-chat-"+b.version+".zip")
-	if err := b.write(out); err != nil {
+	err = b.addBinary(root)
+	if err == nil {
+		err = b.write(out)
+	}
+	if err != nil {
 		fmt.Fprintln(stderr, "kit bundle:", err)
 		return 1
 	}
 	fmt.Fprintln(stdout, out)
 	return 0
-}
-
-func parseArgs(args []string) (check, ok bool) {
-	switch {
-	case len(args) == 1 && args[0] == "chat":
-		return false, true
-	case len(args) == 2 && args[0] == "chat" && args[1] == "--check":
-		return true, true
-	}
-	return false, false
 }
 
 // bundle is the plugin in memory: each file's slash path and content, the
@@ -106,7 +100,8 @@ type bundle struct {
 	others    []string
 }
 
-func build(root string, c config.ChatBundle) (*bundle, error) {
+func build(root string, cfg *config.Config) (*bundle, error) {
+	c := cfg.ChatBundle
 	data, version, err := manifest(root, c.Description)
 	if err != nil {
 		return nil, err
@@ -138,6 +133,9 @@ func build(root string, c config.ChatBundle) (*bundle, error) {
 		if skill.IsDir() && !slices.Contains(c.Skills, skill.Name()) {
 			b.others = append(b.others, skill.Name())
 		}
+	}
+	if err := b.addScan(source, cfg); err != nil {
+		return nil, err
 	}
 	return b, nil
 }
@@ -207,15 +205,17 @@ func (b *bundle) problems(c config.ChatBundle) []error {
 		errs = append(errs, errors.New("chat_bundle.rules is empty"))
 	}
 	for _, skill := range append(slices.Clone(c.Skills), rulesSkill) {
-		errs = append(errs, skillProblems(skill, b.files[path.Join("skills", skill, "SKILL.md")])...)
+		errs = append(errs, skillProblems(skill, b.files[skillFile(skill)])...)
 	}
 	return errs
 }
 
+func skillFile(skill string) string { return path.Join("skills", skill, "SKILL.md") }
+
 func skillProblems(skill string, data []byte) []error {
-	file := path.Join("skills", skill, "SKILL.md")
-	block, ok := frontmatter(data)
-	if !ok {
+	file := skillFile(skill)
+	block := frontmatter(string(data))
+	if block == "" {
 		return []error{fmt.Errorf("%s: no frontmatter", file)}
 	}
 	var front struct {
@@ -244,17 +244,17 @@ func skillProblems(skill string, data []byte) []error {
 	return errs
 }
 
-// frontmatter is a file's YAML block. Its --- lines stay: YAML reads them as
-// document markers.
-func frontmatter(data []byte) (string, bool) {
+// frontmatter is a file's YAML block, "" when it has none. Its --- lines
+// stay: YAML reads them as document markers.
+func frontmatter(text string) string {
 	var block strings.Builder
-	for line := range md.Lines(string(data)) {
+	for line := range md.Lines(text) {
 		if line.Kind != md.Front {
 			break
 		}
 		block.WriteString(line.Text)
 	}
-	return block.String(), block.Len() > 0
+	return block.String()
 }
 
 // write puts the zip at out: entries sorted and stamped alike, so the same

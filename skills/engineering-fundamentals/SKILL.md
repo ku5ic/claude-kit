@@ -25,9 +25,3 @@ Apply only what fits. Do not pad findings to fill sections.
 | [reference/design-patterns.md](reference/design-patterns.md)                         | Which pattern a size, spread, or repetition signal calls for               |
 | [reference/verification-and-validation.md](reference/verification-and-validation.md) | Built it right vs built the right thing                                    |
 | [reference/red-green-refactor.md](reference/red-green-refactor.md)                   | The test-first cycle for new behavior and bug fixes                        |
-
-<!-- chat: skip -->
-
-Test design is `test-patterns`.
-
-<!-- chat: end -->

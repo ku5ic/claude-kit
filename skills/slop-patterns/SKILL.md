@@ -17,6 +17,10 @@ Two layers, kept apart:
 
 <!-- chat: end -->
 
+<!-- chat: only
+In claude.ai chat, no guard runs. The word lists and tiers are in `reference/lexicon.md` in the unslop skill.
+-->
+
 Fixing the first without the second makes the text harder to spot and no better to read. A flagged sentence gets rewritten around a fact, never patched with a synonym: [reference/rewrite.md](reference/rewrite.md).
 
 | Writing                                   | Read                                                                                             |
@@ -31,10 +35,6 @@ Fixing the first without the second makes the text harder to spot and no better 
 | A hit that looks wrong                    | [reference/false-positives.md](reference/false-positives.md)                                     |
 | Second-guessing a rewrite as too stiff    | [reference/human-signals.md](reference/human-signals.md)                                         |
 
-<!-- chat: skip -->
-
-The word lists, tiers, and thresholds live only in `kit.yml` `slop:`; these references explain them and never copy them.
-
-<!-- chat: end -->
+The word lists, tiers, and thresholds live only in the lexicon; these references explain them and never copy them.
 
 Length and shape belong to `rules/output.md`; comment rules to `rules/change.md` section 5.

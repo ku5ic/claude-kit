@@ -16,10 +16,4 @@ A change no test can reach gets the runtime pass instead (`rules/verify.md` sect
 
 Then the next behavior.
 
-<!-- chat: skip -->
-
-How to design the test itself is `test-patterns`.
-
-<!-- chat: end -->
-
 In review, a bug fix whose test passes against the code before the fix is a `warning`: nothing shows it reproduces the bug.

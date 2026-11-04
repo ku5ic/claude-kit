@@ -1,14 +1,6 @@
 # /write commit
 
-<!-- chat: skip -->
-
-Generate a commit message from the staged diff, matching project style. Arguments: `<optional: short hint about the change intent>`.
-
-<!-- chat: end -->
-
-<!-- chat: only
-In claude.ai chat, generate a commit message from the diff the user pasted, matching the style of any history they pasted. With no history, use Conventional Commits.
--->
+Generate a commit message from the staged or pasted diff, matching project style; with no history to match, use Conventional Commits. Arguments: `<optional: short hint about the change intent>`.
 
 ## Procedure
 
@@ -45,12 +37,4 @@ In claude.ai chat, generate a commit message from the diff the user pasted, matc
 
 ## Output
 
-Print the proposed message in a fenced block. Then stop.
-
-<!-- chat: skip -->
-
-Do not run `git commit`.
-
-The user decides whether to pipe it: `git commit -m "$(pbpaste)"` or open an editor.
-
-<!-- chat: end -->
+Print the proposed message in a fenced block, then stop. Committing is the user's call.

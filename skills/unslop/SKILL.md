@@ -24,7 +24,7 @@ allowed-tools:
 <!-- chat: end -->
 
 <!-- chat: only
-In claude.ai chat, the target is the text in the user's message. If there's none, ask for it. Read it for tells before rewriting.
+In claude.ai chat, the target is the text in the user's message. If there's none, ask for it. Save it to a file, then from this skill's folder run `sh scripts/scan.sh <file|commit|pr|chat> < <that file>`, asking which surface when it isn't obvious. Exit 0 means nothing blocks and 1 means hits; both print what they found. Any other exit, or no way to run it, means the scan didn't happen: read the text against `reference/lexicon.md` by hand, and say so in the reply.
 -->
 
 4. Rewrite every tier 1 and 2 hit, and every passage the scan reports as dense, per `slop-patterns` `reference/rewrite.md`. Then read the whole text once for what no regexp sees: sentences that carry nothing, sections that restate others (`reference/principles.md`). For UI files, also walk `reference/design.md` section 12.
@@ -45,5 +45,5 @@ Arguments: `$ARGUMENTS`
 <!-- chat: end -->
 
 <!-- chat: only
-In claude.ai chat, reply with the rewritten text, what changed by tier, and a line for any hit left on purpose saying why. Nothing else.
+In claude.ai chat, scan the result the same way, then reply with the rewritten text, the hits before and after per tier, and a line for any hit left on purpose saying why. Nothing else.
 -->

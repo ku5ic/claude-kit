@@ -81,7 +81,7 @@ func (b *bundle) transform(c config.ChatBundle) []error {
 		}
 		texts = append(texts, text)
 	}
-	b.files[path.Join("skills", rulesSkill, "SKILL.md")] = []byte(strings.Join(texts, "\n"))
+	b.files[skillFile(rulesSkill)] = []byte(strings.Join(texts, "\n"))
 	for _, name := range slices.Sorted(maps.Keys(b.files)) {
 		if path.Ext(name) != ".md" {
 			continue
@@ -178,8 +178,8 @@ func (b *bundle) rewriteLinks(name, text string, rules map[string]rule) (string,
 // trimFrontmatter removes claudeCodeKeys. Frontmatter that doesn't parse
 // stays for skillProblems to report.
 func trimFrontmatter(text string) string {
-	block, ok := frontmatter([]byte(text))
-	if !ok {
+	block := frontmatter(text)
+	if block == "" {
 		return text
 	}
 	var doc yaml.Node

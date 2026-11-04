@@ -9,13 +9,7 @@ argument-hint: <a question, a symptom, or a link to an external ticket/doc>
 - A question: how, why, or where something works, what a module does, which approach fits.
 - A symptom: unexpected behavior without a clear failing signal to fix directly.
 
-Not for a request to change code.
-
-<!-- chat: skip -->
-
-That goes to plan mode (`/plan`) or a direct edit.
-
-<!-- chat: end -->
+Not for a request to change code: that's a plan or a direct edit.
 
 ## Procedure
 
@@ -109,13 +103,6 @@ Outside plan mode, stop at findings. In plan mode, the findings feed the plan fi
 
 ## Stop
 
-- Never edit source.
-
-<!-- chat: skip -->
-
-- The one exception is the debugger's single reverted probe.
-
-<!-- chat: end -->
-
+- Never edit source, beyond one reverted debugging probe.
 - Scope growing beyond the question or entry point: surface and ask.
 - Root cause in a dependency or external system: document the boundary and stop.

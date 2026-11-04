@@ -1,0 +1,27 @@
+# Lexicon
+
+The tells the scan looks for, to read a text against by hand when `scripts/scan.sh` can't run. Patterns are Go regular expressions; `(?i)` means case-insensitive and `\x{2192}` names a character by code point.
+
+## Tier 1
+
+A match is a hit to rewrite.
+
+- `hope-helps`: `(?i)\bI hope (this|that) helps\b` -> cut it
+
+## Tier 2
+
+A match is a hit to rewrite.
+
+- `arrow`: `\x{2192}` (on commit, pr) -> use ASCII
+
+## Tier 3
+
+A match counts toward density only.
+
+- `ui-glass`: `backdrop-blur` (on ui)
+
+## Density
+
+A text is dense at 3 or more tier 3 matches and 3 or more per 100 words of prose. These words count:
+
+delve, align with

@@ -4,16 +4,7 @@ Explain a completed change's key reasoning, or what you found testing someone el
 
 ## Procedure
 
-<!-- chat: skip -->
-
-1. Look at the current diff (`git diff` / `git diff --cached`) and the conversation so far.
-
-<!-- chat: end -->
-
-<!-- chat: only
-In claude.ai chat, look at the diff the user pasted and the conversation so far.
--->
-
+1. Look at the current diff, staged and unstaged, and the conversation so far.
 2. Identify the one or two decisions that were not obvious from the diff alone:
    - An assumption got checked instead of trusted.
    - A simpler option was passed over for a reason.

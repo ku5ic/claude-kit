@@ -1,14 +1,11 @@
 package chatbundle
 
 import (
-	"bytes"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
-	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
 
@@ -69,8 +66,6 @@ func TestBadMarkers(t *testing.T) {
 		"one-line only":    {"<!-- chat: only b -->\n", "bad marker"},
 		"nested":           {"<!-- chat: skip -->\n<!-- chat: only\n", "line 2: marker inside the one opened at line 1"},
 		"end in an only":   {"<!-- chat: only\n<!-- chat: end -->\n-->\n", "marker inside"},
-		"only in a skip":   {"<!-- chat: only\n<!-- chat: skip -->\n-->\n", "marker inside"},
-		"skip in a skip":   {"<!-- chat: skip -->\n<!-- chat: skip -->\n<!-- chat: end -->\n", "marker inside"},
 		"close is no skip": {"<!-- chat: skip -->\n-->\n", "never closed"},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -166,6 +161,7 @@ func TestLint(t *testing.T) {
 		want string // "" when the line is clean
 	}{
 		"shell block":         {"Today: !`date`", "shell block"},
+		"a span ending in !":  {"Rule `great!` and `(?i)oops!` (on pr)", ""},
 		"arguments":           {"Use $ARGUMENTS here", "$ARGUMENTS"},
 		"kit command":         {"Run `kit scratch-dir` first", "kit command"},
 		"kit.yml":             {"The lists live in kit.yml", "kit.yml"},
@@ -206,131 +202,33 @@ func TestLint(t *testing.T) {
 	}
 }
 
-func TestEveryKitCommandIsForbidden(t *testing.T) {
-	t.Parallel()
-	for _, name := range kitNames() {
-		if !forbidden["kit command"].MatchString("run kit " + name) {
-			t.Errorf("kit %s isn't forbidden", name)
-		}
-	}
-}
-
 func TestBundleRunsTheTransforms(t *testing.T) {
 	t.Parallel()
 	root, cfg := checkout(t)
 	testutil.Put(t, root, "skills/alpha/SKILL.md", "---\nname: alpha\ndescription: Use for alpha work.\nargument-hint: <x>\n---\n\n<!-- chat: skip -->\n\nDropped.\n\n<!-- chat: end -->\n\nSee `rules/change.md` section 1.\n")
-	var stdout, stderr bytes.Buffer
-	if code := Run(root, cfg, []string{"chat"}, &stdout, &stderr); code != 0 {
-		t.Fatalf("exit %d, stderr %s", code, &stderr)
-	}
-	got := unzip(t, filepath.Join(root, "bin", "kit-chat-1.2.3.zip"))["skills/alpha/SKILL.md"]
-	want := "---\nname: alpha\ndescription: Use for alpha work.\n---\n\nSee the kit-rules skill, Change section 1.\n"
-	if got != want {
-		t.Errorf("got %q, want %q", got, want)
-	}
-}
-
-func TestRulesBecomeASkill(t *testing.T) {
-	t.Parallel()
-	root, cfg := checkout(t)
 	testutil.Put(t, root, "rules/output.md", "# Output\n\n<!-- chat: skip -->\n\nDropped.\n\n<!-- chat: end -->\n\n## 4. External\n\nSee `rules/change.md` section 1.\n")
 	cfg.ChatBundle.Rules = []string{"rules/output.md", "rules/change.md"}
-	var stdout, stderr bytes.Buffer
-	if code := Run(root, cfg, []string{"chat"}, &stdout, &stderr); code != 0 {
-		t.Fatalf("exit %d, stderr %s", code, &stderr)
-	}
-	got := unzip(t, filepath.Join(root, "bin", "kit-chat-1.2.3.zip"))["skills/kit-rules/SKILL.md"]
-	want := "---\nname: kit-rules\ndescription: Load for coding.\n---\n\nThe head.\n\n# Output\n\n## 4. External\n\nSee the kit-rules skill, Change section 1.\n\n# Change\n\n## 1. One\n"
-	if got != want {
-		t.Errorf("got %q, want %q", got, want)
+	files := buildZip(t, root, cfg)
+	for name, want := range map[string]string{
+		"skills/alpha/SKILL.md":     "---\nname: alpha\ndescription: Use for alpha work.\n---\n\nSee the kit-rules skill, Change section 1.\n",
+		"skills/kit-rules/SKILL.md": "---\nname: kit-rules\ndescription: Load for coding.\n---\n\nThe head.\n\n# Output\n\n## 4. External\n\nSee the kit-rules skill, Change section 1.\n\n# Change\n\n## 1. One\n",
+	} {
+		if files[name] != want {
+			t.Errorf("%s: got %q, want %q", name, files[name], want)
+		}
 	}
 }
 
-// The real rules, with the real head, as chat gets them. Hits in other
-// files aren't this test's: the skills have their own markers.
-func TestRealRulesSkillIsClean(t *testing.T) {
+// The real bundle, as chat gets it. go test caches past edits to these
+// files, so CI's bundle chat --check stays the real gate.
+func TestRealBundleIsClean(t *testing.T) {
 	t.Parallel()
-	root := "../../.."
-	c := testutil.KitConfig(t).ChatBundle
-	b, err := build(root, c)
+	cfg := testutil.KitConfig(t)
+	b, err := build("../../..", cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
-	const file = "skills/kit-rules/SKILL.md"
-	for _, err := range slices.Concat(b.transform(c), b.lint()) {
-		if strings.HasPrefix(err.Error(), file) || strings.HasPrefix(err.Error(), "rules/") {
-			t.Error(err)
-		}
-	}
-	for _, err := range skillProblems(rulesSkill, b.files[file]) {
+	for _, err := range slices.Concat(b.transform(cfg.ChatBundle), b.problems(cfg.ChatBundle), b.lint()) {
 		t.Error(err)
-	}
-}
-
-func TestBuildProblems(t *testing.T) {
-	t.Parallel()
-	for name, tc := range map[string]struct {
-		mutate func(*testing.T, string, *config.Config)
-		want   string
-	}{
-		"unclosed marker in a skill": {func(t *testing.T, root string, _ *config.Config) {
-			testutil.Put(t, root, "skills/alpha/reference/more.md", "<!-- chat: skip -->\n")
-		}, "skills/alpha/reference/more.md: line 1: marker never closed"},
-		"unclosed marker in a rule": {func(t *testing.T, root string, _ *config.Config) {
-			testutil.Put(t, root, "rules/change.md", "# Change\n<!-- chat: skip -->\n")
-		}, "rules/change.md: line 2"},
-		"rule with no title": {func(t *testing.T, root string, _ *config.Config) {
-			testutil.Put(t, root, "rules/change.md", "text\n")
-		}, "rules/change.md: no # title"},
-		"missing rule": {func(_ *testing.T, _ string, cfg *config.Config) {
-			cfg.ChatBundle.Rules = []string{"rules/gone.md"}
-		}, "rules/gone.md"},
-		"no rules": {func(_ *testing.T, _ string, cfg *config.Config) {
-			cfg.ChatBundle.Rules = nil
-		}, "chat_bundle.rules"},
-		"no rules head": {func(t *testing.T, root string, _ *config.Config) {
-			if err := os.Remove(filepath.Join(root, rulesHeadPath)); err != nil {
-				t.Fatal(err)
-			}
-		}, "kit-rules.md"},
-		"a rules skill too long": {func(t *testing.T, root string, _ *config.Config) {
-			testutil.Put(t, root, "rules/change.md", "# Change\n"+strings.Repeat("line\n", maxSkillLines))
-		}, "skills/kit-rules/SKILL.md: 500 lines"},
-		"section a marker dropped": {func(t *testing.T, root string, _ *config.Config) {
-			testutil.Put(t, root, "rules/change.md", "# Change\n\n<!-- chat: skip -->\n\n## 1. One\n\n<!-- chat: end -->\n")
-			testutil.Put(t, root, "skills/alpha/reference/more.md", "`rules/change.md` section 1\n")
-		}, "links rules/change.md section 1"},
-		"lint hit": {func(t *testing.T, root string, _ *config.Config) {
-			testutil.Put(t, root, "skills/alpha/reference/more.md", "ok\nRun `kit scratch-dir`.\n")
-		}, "skills/alpha/reference/more.md:2: kit command"},
-		"a left-out skill by name": {func(t *testing.T, root string, _ *config.Config) {
-			testutil.Put(t, root, "skills/alpha/reference/more.md", "See `beta`.\n")
-		}, "skill not in the bundle"},
-	} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			root, cfg := checkout(t)
-			tc.mutate(t, root, cfg)
-			var stdout, stderr bytes.Buffer
-			if code := Run(root, cfg, []string{"chat", "--check"}, &stdout, &stderr); code != 1 {
-				t.Errorf("exit %d, want 1, stderr %s", code, &stderr)
-			}
-			if !strings.Contains(stderr.String(), tc.want) {
-				t.Errorf("stderr %q lacks %q", &stderr, tc.want)
-			}
-		})
-	}
-}
-
-func TestSkillsDirMissingFails(t *testing.T) {
-	t.Parallel()
-	root, cfg := checkout(t)
-	if err := os.RemoveAll(filepath.Join(root, "skills")); err != nil {
-		t.Fatal(err)
-	}
-	cfg.ChatBundle.Skills = nil
-	var stdout, stderr bytes.Buffer
-	if code := Run(root, cfg, []string{"chat", "--check"}, &stdout, &stderr); code != 1 {
-		t.Errorf("exit %d, want 1", code)
 	}
 }
