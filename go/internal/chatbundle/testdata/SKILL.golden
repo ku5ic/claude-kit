@@ -1,0 +1,14 @@
+---
+name: investigate
+description: Read-only investigation. Use when the user asks how, why, or where something works in the code, or reports unexpected behavior without asking for a change. Ends at findings, never edits.
+---
+
+## When to use this
+
+- A question: how, why, or where something works.
+
+### Question
+
+In claude.ai chat, answer from the pasted code.
+
+3. Answer, each claim labelled per the kit-rules skill, Evidence section 1.

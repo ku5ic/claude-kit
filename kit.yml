@@ -289,6 +289,7 @@ slop:
 chat_bundle:
   description: The kit's writing and investigation skills for claude.ai chat, working on pasted text and code. Hooks and guards stay in Claude Code.
   skills: [engineering-fundamentals, investigate, slop-patterns, unslop, write]
+  rules: [rules/change.md, rules/evidence.md, rules/output.md]
 
 # Shell rc files: direct writes are blocked, the dotfiles repo is the source.
 rc_files: ["~/.zshrc", "~/.zprofile", "~/.bashrc", "~/.bash_profile", "~/.profile"]

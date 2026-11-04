@@ -214,6 +214,7 @@ type EditCommand struct {
 type ChatBundle struct {
 	Description string   `yaml:"description"`
 	Skills      []string `yaml:"skills"`
+	Rules       []string `yaml:"rules"`
 }
 
 // SlopSurfaces are where text is scanned for AI tells: a written file, a

@@ -1,0 +1,19 @@
+# /write commit
+
+In claude.ai chat, generate a commit message from the diff in the user's message.
+
+## Procedure
+
+4. Detect the project's commit convention from the history.
+
+## Message rules
+
+- Subject line: imperative mood, under 72 characters, no trailing period.
+- Commit register: the kit-rules skill, Output section 4.
+
+- If the staged diff is empty: say so and stop.
+
+```html
+<!-- failure -->
+<!-- chat: skip -->
+```

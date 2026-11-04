@@ -44,6 +44,7 @@ func TestRealKitYMLLoadsCleanly(t *testing.T) {
 		"gate_env":           len(cfg.GateEnv),
 		"global_installs":    len(cfg.GlobalInstalls),
 		"chat_bundle.skills": len(cfg.ChatBundle.Skills),
+		"chat_bundle.rules":  len(cfg.ChatBundle.Rules),
 	}
 	for name, n := range lists {
 		if n == 0 {

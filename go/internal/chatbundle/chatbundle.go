@@ -59,7 +59,10 @@ func Run(root string, cfg *config.Config, args []string, stdout, stderr io.Write
 	}
 	b, err := build(root, cfg.ChatBundle)
 	if err == nil {
-		err = errors.Join(b.problems(cfg.ChatBundle)...)
+		err = errors.Join(b.transform()...)
+	}
+	if err == nil {
+		err = errors.Join(slices.Concat(b.problems(cfg.ChatBundle), b.lint())...)
 	}
 	if err != nil {
 		fmt.Fprintln(stderr, "kit bundle:", err)
@@ -87,10 +90,13 @@ func parseArgs(args []string) (check, ok bool) {
 	return false, false
 }
 
-// bundle is the plugin in memory: each file's slash path and content.
+// bundle is the plugin in memory: each file's slash path and content, the
+// rule files as written, and the skills left out.
 type bundle struct {
 	version string
 	files   map[string][]byte
+	rules   map[string]string
+	others  []string
 }
 
 func build(root string, c config.ChatBundle) (*bundle, error) {
@@ -98,11 +104,27 @@ func build(root string, c config.ChatBundle) (*bundle, error) {
 	if err != nil {
 		return nil, err
 	}
-	b := &bundle{version: version, files: map[string][]byte{manifestPath: data}}
+	b := &bundle{version: version, files: map[string][]byte{manifestPath: data}, rules: map[string]string{}}
 	source := os.DirFS(root)
 	for _, skill := range c.Skills {
 		if err := b.add(source, path.Join("skills", skill)); err != nil {
 			return nil, fmt.Errorf("skill %s: %w", skill, err)
+		}
+	}
+	for _, name := range c.Rules {
+		data, err := fs.ReadFile(source, name)
+		if err != nil {
+			return nil, err
+		}
+		b.rules[name] = string(data)
+	}
+	skills, err := fs.ReadDir(source, "skills")
+	if err != nil {
+		return nil, err
+	}
+	for _, skill := range skills {
+		if skill.IsDir() && !slices.Contains(c.Skills, skill.Name()) {
+			b.others = append(b.others, skill.Name())
 		}
 	}
 	return b, nil
