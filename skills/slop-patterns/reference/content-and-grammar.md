@@ -1,6 +1,6 @@
 # Content and grammar tells
 
-Each tell below has a rule in `kit.yml` `slop:`; the rule ids are in code spans. The fix is always a sentence that names something.
+Each tell below has a rule in the lexicon; the rule ids are in code spans. The fix is always a sentence that names something.
 
 ## Content
 

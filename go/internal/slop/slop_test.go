@@ -222,6 +222,8 @@ func TestRun(t *testing.T) {
 		{"no reader", []string{code}, "", 0, "", "not scanned"},
 		{"skipped", []string{skipped}, "", 0, "", "skipped (slop.skip)"},
 		{"stdin", []string{"--surface", "commit", "-"}, "Addressed review feedback.\n", 1, "-:1: T2 addressed-feedback", ""},
+		{"stdin as UI code", []string{"--surface", "ui", "-"}, `<h1 className="bg-clip-text text-transparent">`, 1, "-:1: T2 ui-gradient-text", ""},
+		{"stdin as prose skips UI rules", []string{"--surface", "chat", "-"}, `<h1 className="bg-clip-text text-transparent">`, 0, "", ""},
 		{"stdin needs a surface", []string{"-"}, "x", 2, "", "stdin needs --surface"},
 		{"unknown surface", []string{"--surface=email", clean}, "", 2, "", "is no surface"},
 		{"no file", nil, "", 2, "", "no file"},

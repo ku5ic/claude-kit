@@ -16,7 +16,7 @@ That one pattern, generic plus inflated, sits under most of the tells in this sk
 
 ## Why the word lists rotate
 
-Each model generation has its own overused words; a word that marks 2024 output is ordinary by 2026, and people pick up model vocabulary too. So `kit.yml` treats single era words as noise and only counts a cluster (tier 3, warn only). Structural patterns, the empty "-ing" clause, the importance claim, the copula swap, last across generations; they're tier 2.
+Each model generation has its own overused words; a word that marks 2024 output is ordinary by 2026, and people pick up model vocabulary too. So the lexicon treats single era words as noise and only counts a cluster (tier 3, warn only). Structural patterns, the empty "-ing" clause, the importance claim, the copula swap, last across generations; they're tier 2.
 
 ## Tiers
 

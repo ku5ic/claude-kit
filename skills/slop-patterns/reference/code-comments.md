@@ -2,7 +2,11 @@
 
 When to comment at all is `rules/change.md` section 5. This file covers how a comment reads once it has earned its place.
 
+<!-- chat: skip -->
+
 The guard scans only comment and docstring text, only on lines a write adds. Code and string literals are never scanned.
+
+<!-- chat: end -->
 
 | Tell                                                               | Instead                                                                       |
 | ------------------------------------------------------------------ | ----------------------------------------------------------------------------- |

@@ -48,6 +48,12 @@ jobs:
       - name: test
         run: go test -race ./...
 
+      # Not a Go test: go test caches past edits outside the module, and
+      # skills/ and rules/ are outside it.
+      - name: chat bundle
+        working-directory: .
+        run: KIT_DEV=1 bin/kit bundle chat --check
+
   shell:
     runs-on: ubuntu-latest
     steps:
@@ -78,7 +84,7 @@ jobs:
         run: jq -re .version .claude-plugin/plugin.json | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'
 
       - name: shellcheck
-        run: shellcheck -x -P SCRIPTDIR bin/kit go/build.sh
+        run: shellcheck -x -P SCRIPTDIR bin/kit go/build.sh templates/chat/scan.sh
 
       - name: Install Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code

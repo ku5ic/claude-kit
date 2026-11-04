@@ -10,7 +10,13 @@ Before proposing or applying a fix:
 2. Name the minimal change that resolves exactly that, nothing else.
 3. Compare it to what you are about to edit. Match -> proceed.
 4. Larger -> name the excess and the reason. Excess is: more files touched, a new abstraction, an adjacent refactor, or unrelated cleanup bundled in.
-5. Excess with no stated reason -> stop and ask, per `rules/workflow.md` section 4.
+5. Excess with no stated reason -> stop and ask.
+
+<!-- chat: skip -->
+
+How to ask: `rules/workflow.md` section 4.
+
+<!-- chat: end -->
 
 "Minimal" is measured against the defect, not against caution. A one-line fix to a one-line bug is minimal. A one-line fix that papers over a genuinely broken abstraction is not; that is the justification to state, not skip.
 
@@ -30,7 +36,7 @@ Before running a script, check the project defines it: `scripts` in `package.jso
 
 Before changing a shared component, utility, hook, type, or API contract, identify the consumers and state the impact. A one-line change to a widely imported module is a wide change wearing a small diff.
 
-Enumerate them with `kit blast-radius <file> [symbol]` (JS/TS and Python imports, test and source counted apart); fall back to `rg` for other languages. If consumers cannot be enumerated quickly, that difficulty is itself a finding to surface before proceeding.
+If consumers cannot be enumerated quickly, that difficulty is itself a finding to surface before proceeding.
 
 ## 4. Dead code does not land
 
@@ -52,7 +58,14 @@ The one exception is scaffolding explicitly requested or explicitly marked for a
 - One line. A "why" needing a paragraph belongs in the commit message or PR description.
 - Remove comments that restate the code.
 - No decorative comments: no banners, dividers, or headers made of `===`, `---`, `***`, `###`.
-- A deliberate shortcut with a known ceiling (a global lock, an O(n^2) scan, a naive heuristic) gets a `shortcut:` comment naming the ceiling and the upgrade path, so `/audit debt` can collect it.
+- A deliberate shortcut with a known ceiling (a global lock, an O(n^2) scan, a naive heuristic) gets a `shortcut:` comment naming the ceiling and the upgrade path.
+
+<!-- chat: skip -->
+
+- `/audit debt` collects those `shortcut:` comments.
+
+<!-- chat: end -->
+
 - ASCII box characters (`+`, `-`, `|`, `->`) only when actually drawing a diagram, never as decoration.
 
 ## 6. Scope

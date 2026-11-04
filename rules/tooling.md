@@ -18,6 +18,7 @@ When a deterministic CLI can answer the question, call it before reading files a
 | JSON                               | `jq`, or `gron` to grep flat paths | substring matching                 |
 | YAML/TOML                          | `yq`                               | manual parsing                     |
 | CSV/TSV                            | `qsv`                              | ad-hoc awk                         |
+| Who imports a file (JS/TS, Python) | `kit blast-radius <file> [symbol]` | `rg`, except in other languages    |
 | Fixup commits from staged hunks    | `git absorb`                       | rebase -i + fixup                  |
 | Git outside cwd                    | `git -C <dir>`                     | cd <dir> && git                    |
 | Validate a GitHub Actions workflow | `actionlint`                       | reading YAML by eye                |

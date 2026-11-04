@@ -1,6 +1,12 @@
 # Design slop
 
-Visual and interface output: React and JSX, Vue, HTML, CSS, Tailwind, and the copy inside them. Prose tells are in [content-and-grammar.md](content-and-grammar.md); accessibility is the `wcag-audit` skill.
+Visual and interface output: React and JSX, Vue, HTML, CSS, Tailwind, and the copy inside them. Prose tells are in [content-and-grammar.md](content-and-grammar.md); accessibility is a separate WCAG audit.
+
+<!-- chat: skip -->
+
+That audit is the `wcag-audit` skill, here and in section 12.
+
+<!-- chat: end -->
 
 ## 1. What design slop is
 
@@ -129,21 +135,35 @@ Interface copy follows [content-and-grammar.md](content-and-grammar.md). The UI-
 
 ## 11. What the scan catches
 
+<!-- chat: skip -->
+
 `kit slop` reads UI files (`.tsx`, `.jsx`, `.vue`, `.svelte`, `.html`, `.css`, `.scss`) line by line with the `on: [ui]` rules in `kit.yml`: `ui-placeholder`, `ui-emoji-label`, `ui-default-gradient`, `ui-gradient-text`, `ui-marketing`, and the tier 3 `ui-glass`, `ui-eyebrow`, `ui-chrome-glyph`.
 
-It can't see layout (identical card grids, hero metric blocks, section order, nested cards), motion without reduced-motion handling (that needs the whole project), or anything a token resolves at build time. Those belong to the review in section 12. A false block on a correct design costs more trust than a missed gradient, so the scan errs toward silence.
+<!-- chat: end -->
+
+The scan can't see layout (identical card grids, hero metric blocks, section order, nested cards), motion without reduced-motion handling (that needs the whole project), or anything a token resolves at build time. Those belong to the review in section 12. A false block on a correct design costs more trust than a missed gradient, so the scan errs toward silence.
 
 ## 12. Review
 
 For `/unslop` on UI work, or before calling a UI change done:
 
 1. Read the brief and the project's tokens (section 2). List the axes the brief fixes and the ones it leaves free.
-2. Run `kit slop` on the changed files; fix tier 1 and 2 hits.
+2. Scan the changed files; fix tier 1 and 2 hits.
+
+<!-- chat: skip -->
+
 3. Render the page and screenshot it at desktop and mobile widths. Judge the screenshot, not the code.
 4. Walk sections 3 to 9 against the screenshot. For each hit, ask the section 1 question; replace the default with a choice tied to the subject, or remove it.
+
+<!-- chat: end -->
+
+<!-- chat: only
+In claude.ai chat, nothing renders, so review the code. Check the pasted code against the project's design system or tokens, asking for them if they aren't in the conversation, then walk sections 3 to 9 against it. For each hit, ask the section 1 question; replace the default with a choice tied to the subject, or remove it. Name anything only a render could settle.
+-->
+
 5. Spend boldness in one place. One element is memorable; the rest is quiet. Remove one more decoration than feels necessary.
 6. Copy pass with section 10.
-7. Quality floor: visible keyboard focus, WCAG AA contrast (gradient text and gray on color fail most), reduced motion, ordered headings, line length, layout down to 320px. The full check is the `wcag-audit` skill.
+7. Quality floor: visible keyboard focus, WCAG AA contrast (gradient text and gray on color fail most), reduced motion, ordered headings, line length, layout down to 320px. The full check is a WCAG 2.2 AA audit.
 
 Don't fix wave 1 by reaching for wave 2. Purple to cream is the same mistake.
 

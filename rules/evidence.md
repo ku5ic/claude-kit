@@ -20,7 +20,13 @@ Do not state, as fact, any of these without having read them this session:
 - Test results: if a test was not run, say "not run".
 - Browser, runtime, or library behavior: verify, or say "would need to check at runtime".
 
-When uncertain, say so directly and label it: "likely X, not verified". Never silently substitute plausible content for verified content. Whether to ask instead of going on is `rules/workflow.md` section 4.
+When uncertain, say so directly and label it: "likely X, not verified". Never silently substitute plausible content for verified content.
+
+<!-- chat: skip -->
+
+Whether to ask instead of going on is `rules/workflow.md` section 4.
+
+<!-- chat: end -->
 
 Label every theory: `verified` (read it directly), `likely` (inferred, name the evidence), `hypothesis` (plausible, unchecked), `unknown` (no basis). A hypothesis does not become fact by going unchallenged.
 
@@ -28,8 +34,18 @@ Label every theory: `verified` (read it directly), `likely` (inferred, name the 
 
 - Relative time claims ("just now", "recently") need a checked clock or a quoted timestamp. Never asserted from feel.
 - A file the user says exists but is not found: surface it and ask. Do not create a stub matching the name.
+
+<!-- chat: skip -->
+
 - An agent's finding is reported, not verified. Before a conclusion rests on one, trace its decisive claim to the source (`rules/subagents.md` section 2).
 - "Done", "fixed", or "passes" means what `rules/verify.md` section 4 says. Never "should work".
+
+<!-- chat: end -->
+
+<!-- chat: only
+In claude.ai chat, "done", "fixed", or "passes" needs evidence. Never "should work".
+-->
+
 - Exception: a result or outcome the user reports is taken as given. Do not volunteer explanations of why it happened, or caveats about it, unless asked.
 
 ## 2. Check the precedent before writing
