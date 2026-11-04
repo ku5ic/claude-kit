@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -177,6 +178,7 @@ func TestLint(t *testing.T) {
 		"hyphenated skill":    {"Follow test-patterns for this", "skill not in the bundle"},
 		"code-spanned skill":  {"Load `pr` first", "skill not in the bundle"},
 		"typed skill":         {"Run /audit now", "skill not in the bundle"},
+		"typed in code":       {"So `/audit debt` finds it", "skill not in the bundle"},
 		"the word audit":      {"An audit of the pr is fine", ""},
 		"a bundled skill":     {"Use the write skill and slop-patterns", ""},
 		"the kit in prose":    {"The kit has a claude-kit config, and git history", ""},
@@ -216,8 +218,6 @@ func TestEveryKitCommandIsForbidden(t *testing.T) {
 func TestBundleRunsTheTransforms(t *testing.T) {
 	t.Parallel()
 	root, cfg := checkout(t)
-	testutil.Put(t, root, "rules/change.md", "# Change\n\n## 1. One\n")
-	cfg.ChatBundle.Rules = []string{"rules/change.md"}
 	testutil.Put(t, root, "skills/alpha/SKILL.md", "---\nname: alpha\ndescription: Use for alpha work.\nargument-hint: <x>\n---\n\n<!-- chat: skip -->\n\nDropped.\n\n<!-- chat: end -->\n\nSee `rules/change.md` section 1.\n")
 	var stdout, stderr bytes.Buffer
 	if code := Run(root, cfg, []string{"chat"}, &stdout, &stderr); code != 0 {
@@ -230,6 +230,43 @@ func TestBundleRunsTheTransforms(t *testing.T) {
 	}
 }
 
+func TestRulesBecomeASkill(t *testing.T) {
+	t.Parallel()
+	root, cfg := checkout(t)
+	testutil.Put(t, root, "rules/output.md", "# Output\n\n<!-- chat: skip -->\n\nDropped.\n\n<!-- chat: end -->\n\n## 4. External\n\nSee `rules/change.md` section 1.\n")
+	cfg.ChatBundle.Rules = []string{"rules/output.md", "rules/change.md"}
+	var stdout, stderr bytes.Buffer
+	if code := Run(root, cfg, []string{"chat"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("exit %d, stderr %s", code, &stderr)
+	}
+	got := unzip(t, filepath.Join(root, "bin", "kit-chat-1.2.3.zip"))["skills/kit-rules/SKILL.md"]
+	want := "---\nname: kit-rules\ndescription: Load for coding.\n---\n\nThe head.\n\n# Output\n\n## 4. External\n\nSee the kit-rules skill, Change section 1.\n\n# Change\n\n## 1. One\n"
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+// The real rules, with the real head, as chat gets them. Hits in other
+// files aren't this test's: the skills have their own markers.
+func TestRealRulesSkillIsClean(t *testing.T) {
+	t.Parallel()
+	root := "../../.."
+	c := testutil.KitConfig(t).ChatBundle
+	b, err := build(root, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const file = "skills/kit-rules/SKILL.md"
+	for _, err := range slices.Concat(b.transform(c), b.lint()) {
+		if strings.HasPrefix(err.Error(), file) || strings.HasPrefix(err.Error(), "rules/") {
+			t.Error(err)
+		}
+	}
+	for _, err := range skillProblems(rulesSkill, b.files[file]) {
+		t.Error(err)
+	}
+}
+
 func TestBuildProblems(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {
@@ -239,20 +276,28 @@ func TestBuildProblems(t *testing.T) {
 		"unclosed marker in a skill": {func(t *testing.T, root string, _ *config.Config) {
 			testutil.Put(t, root, "skills/alpha/reference/more.md", "<!-- chat: skip -->\n")
 		}, "skills/alpha/reference/more.md: line 1: marker never closed"},
-		"unclosed marker in a rule": {func(t *testing.T, root string, cfg *config.Config) {
+		"unclosed marker in a rule": {func(t *testing.T, root string, _ *config.Config) {
 			testutil.Put(t, root, "rules/change.md", "# Change\n<!-- chat: skip -->\n")
-			cfg.ChatBundle.Rules = []string{"rules/change.md"}
 		}, "rules/change.md: line 2"},
-		"rule with no title": {func(t *testing.T, root string, cfg *config.Config) {
+		"rule with no title": {func(t *testing.T, root string, _ *config.Config) {
 			testutil.Put(t, root, "rules/change.md", "text\n")
-			cfg.ChatBundle.Rules = []string{"rules/change.md"}
 		}, "rules/change.md: no # title"},
 		"missing rule": {func(_ *testing.T, _ string, cfg *config.Config) {
 			cfg.ChatBundle.Rules = []string{"rules/gone.md"}
 		}, "rules/gone.md"},
-		"section a marker dropped": {func(t *testing.T, root string, cfg *config.Config) {
+		"no rules": {func(_ *testing.T, _ string, cfg *config.Config) {
+			cfg.ChatBundle.Rules = nil
+		}, "chat_bundle.rules"},
+		"no rules head": {func(t *testing.T, root string, _ *config.Config) {
+			if err := os.Remove(filepath.Join(root, rulesHeadPath)); err != nil {
+				t.Fatal(err)
+			}
+		}, "kit-rules.md"},
+		"a rules skill too long": {func(t *testing.T, root string, _ *config.Config) {
+			testutil.Put(t, root, "rules/change.md", "# Change\n"+strings.Repeat("line\n", maxSkillLines))
+		}, "skills/kit-rules/SKILL.md: 500 lines"},
+		"section a marker dropped": {func(t *testing.T, root string, _ *config.Config) {
 			testutil.Put(t, root, "rules/change.md", "# Change\n\n<!-- chat: skip -->\n\n## 1. One\n\n<!-- chat: end -->\n")
-			cfg.ChatBundle.Rules = []string{"rules/change.md"}
 			testutil.Put(t, root, "skills/alpha/reference/more.md", "`rules/change.md` section 1\n")
 		}, "links rules/change.md section 1"},
 		"lint hit": {func(t *testing.T, root string, _ *config.Config) {

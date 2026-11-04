@@ -11,6 +11,7 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
+	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/md"
 )
 
@@ -64,12 +65,13 @@ func parseRule(text string) (rule, error) {
 	return r, nil
 }
 
-// transform turns the copied files into what chat reads, and reports every
-// marker or link that can't be resolved.
-func (b *bundle) transform() []error {
+// transform generates the rules skill, turns the copied files into what chat
+// reads, and reports every marker or link that can't be resolved.
+func (b *bundle) transform(c config.ChatBundle) []error {
 	var errs []error
 	rules := map[string]rule{}
-	for _, name := range slices.Sorted(maps.Keys(b.rules)) {
+	texts := []string{b.rulesHead}
+	for _, name := range c.Rules {
 		text, err := applyMarkers(b.rules[name])
 		if err == nil {
 			rules[name], err = parseRule(text)
@@ -77,7 +79,9 @@ func (b *bundle) transform() []error {
 		if err != nil {
 			errs = append(errs, fmt.Errorf("%s: %w", name, err))
 		}
+		texts = append(texts, text)
 	}
+	b.files[path.Join("skills", rulesSkill, "SKILL.md")] = []byte(strings.Join(texts, "\n"))
 	for _, name := range slices.Sorted(maps.Keys(b.files)) {
 		if path.Ext(name) != ".md" {
 			continue

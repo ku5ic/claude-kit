@@ -26,10 +26,12 @@ func checkout(t *testing.T) (string, *config.Config) {
 	testutil.Put(t, root, "skills/alpha/SKILL.md", skillMD)
 	testutil.Put(t, root, "skills/alpha/reference/more.md", "More.\n")
 	testutil.Put(t, root, "skills/beta/SKILL.md", "---\nname: beta\ndescription: Left out.\n---\n")
+	testutil.Put(t, root, "rules/change.md", "# Change\n\n## 1. One\n")
+	testutil.Put(t, root, rulesHeadPath, "---\nname: kit-rules\ndescription: Load for coding.\n---\n\nThe head.\n")
 	if err := os.Mkdir(filepath.Join(root, "bin"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	return root, &config.Config{ChatBundle: config.ChatBundle{Description: "For chat.", Skills: []string{"alpha"}}}
+	return root, &config.Config{ChatBundle: config.ChatBundle{Description: "For chat.", Skills: []string{"alpha"}, Rules: []string{"rules/change.md"}}}
 }
 
 func TestChatWritesTheNamedSkillsAndAChatManifest(t *testing.T) {
@@ -52,7 +54,7 @@ func TestChatWritesTheNamedSkillsAndAChatManifest(t *testing.T) {
 		names = append(names, name)
 	}
 	slices.Sort(names)
-	want := []string{".claude-plugin/plugin.json", "skills/alpha/SKILL.md", "skills/alpha/reference/more.md"}
+	want := []string{".claude-plugin/plugin.json", "skills/alpha/SKILL.md", "skills/alpha/reference/more.md", "skills/kit-rules/SKILL.md"}
 	if !slices.Equal(names, want) {
 		t.Errorf("entries %v, want %v", names, want)
 	}

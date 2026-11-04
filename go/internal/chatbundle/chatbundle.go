@@ -35,6 +35,11 @@ const (
 	// claude.ai's upload limits, in characters.
 	maxPluginDescription = 500
 	maxSkillDescription  = 1024
+
+	// The skills spec's ceiling for a SKILL.md, in lines.
+	maxSkillLines = 500
+
+	rulesHeadPath = "templates/chat/kit-rules.md"
 )
 
 // zipTime is every entry's time: a source's mtime would make two builds of
@@ -59,7 +64,7 @@ func Run(root string, cfg *config.Config, args []string, stdout, stderr io.Write
 	}
 	b, err := build(root, cfg.ChatBundle)
 	if err == nil {
-		err = errors.Join(b.transform()...)
+		err = errors.Join(b.transform(cfg.ChatBundle)...)
 	}
 	if err == nil {
 		err = errors.Join(slices.Concat(b.problems(cfg.ChatBundle), b.lint())...)
@@ -91,12 +96,14 @@ func parseArgs(args []string) (check, ok bool) {
 }
 
 // bundle is the plugin in memory: each file's slash path and content, the
-// rule files as written, and the skills left out.
+// rule files as written with the head of the skill they become, and the
+// skills left out.
 type bundle struct {
-	version string
-	files   map[string][]byte
-	rules   map[string]string
-	others  []string
+	version   string
+	files     map[string][]byte
+	rules     map[string]string
+	rulesHead string
+	others    []string
 }
 
 func build(root string, c config.ChatBundle) (*bundle, error) {
@@ -118,6 +125,11 @@ func build(root string, c config.ChatBundle) (*bundle, error) {
 		}
 		b.rules[name] = string(data)
 	}
+	head, err := fs.ReadFile(source, rulesHeadPath)
+	if err != nil {
+		return nil, err
+	}
+	b.rulesHead = string(head)
 	skills, err := fs.ReadDir(source, "skills")
 	if err != nil {
 		return nil, err
@@ -191,7 +203,10 @@ func (b *bundle) problems(c config.ChatBundle) []error {
 	if len(c.Skills) == 0 {
 		errs = append(errs, errors.New("chat_bundle.skills is empty"))
 	}
-	for _, skill := range c.Skills {
+	if len(c.Rules) == 0 {
+		errs = append(errs, errors.New("chat_bundle.rules is empty"))
+	}
+	for _, skill := range append(slices.Clone(c.Skills), rulesSkill) {
 		errs = append(errs, skillProblems(skill, b.files[path.Join("skills", skill, "SKILL.md")])...)
 	}
 	return errs
@@ -222,6 +237,9 @@ func skillProblems(skill string, data []byte) []error {
 	}
 	if xmlTag.MatchString(front.Name) || xmlTag.MatchString(front.Description) {
 		errs = append(errs, fmt.Errorf("%s: XML tag in the name or description", file))
+	}
+	if bytes.Count(data, []byte("\n")) >= maxSkillLines {
+		errs = append(errs, fmt.Errorf("%s: %d lines or more", file, maxSkillLines))
 	}
 	return errs
 }

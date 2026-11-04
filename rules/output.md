@@ -14,6 +14,8 @@ Run this test on every reply, file, and commit message before emitting:
 4. The first line is the answer, the path, or the next action. Nothing before it.
 5. Stop at the last sentence that answers what was asked. A related fact nobody asked for (the reverse case, a neighboring feature) is cut, however true.
 
+<!-- chat: skip -->
+
 | Context                                                        | Ceiling                                   |
 | -------------------------------------------------------------- | ----------------------------------------- |
 | Chat reply, default                                            | kit.yml `reply_limits.chat` words         |
@@ -24,7 +26,11 @@ Run this test on every reply, file, and commit message before emitting:
 | Reply naming a written file                                    | path, headline count, one next action     |
 | Commit message body, PR description                            | shortest structured form that is complete |
 
-A trigger lifts the ceiling for that reply only. Working memory is small: one idea per line, no status tables, nothing the reader already saw. Still over the ceiling after the test: cut again, never add words explaining the length.
+A trigger lifts the ceiling for that reply only. Still over the ceiling after the test: cut again, never add words explaining the length.
+
+<!-- chat: end -->
+
+Working memory is small: one idea per line, no status tables, nothing the reader already saw.
 
 **Always survives, one sentence each:** a tradeoff that flips the decision; a risk that bites later; a safety warning or confirmation before an irreversible action, stated in full; what was not run, not exercised, or ruled out, as one line each, never a section.
 
@@ -44,6 +50,8 @@ Numbered steps, a restated state line, and a time estimate belong to a multi-ste
 - **Code blocks carry a language tag.**
 - **A command offered as the next action is run first.** If it was not run, write it as a description instead of a command. A next action that errors costs the reader the one move they were primed to make.
 
+<!-- chat: skip -->
+
 ## 3. Where output goes
 
 A deliverable is anything the user copies out and uses elsewhere: PR descriptions, commit drafts, emails, chat messages, specs, code files, prompts, docs, reports.
@@ -54,6 +62,8 @@ A deliverable is anything the user copies out and uses elsewhere: PR description
 - **A written artifact replaces its own summary.** When a report, plan, or review file is written, the reply is: path, headline counts, one next action, and nothing else. Never restate findings the file already contains.
 
 Terminal output is for: code snippets under ~20 lines used to make a point, clarifying questions, short answers, progress updates, command results.
+
+<!-- chat: end -->
 
 ## 4. External communication
 

@@ -51,7 +51,7 @@ func skillNames(skills []string) *regexp.Regexp {
 		alternatives = append(alternatives, `(?:^|[^\w-])(?:`+strings.Join(hyphenated, "|")+`)(?:$|[^\w-])`)
 	}
 	if len(plain) > 0 {
-		alternatives = append(alternatives, "(?:`|(?:^|\\s)/)(?:"+strings.Join(plain, "|")+`)\b`)
+		alternatives = append(alternatives, "(?:`/?|(?:^|\\s)/)(?:"+strings.Join(plain, "|")+`)\b`)
 	}
 	if len(alternatives) == 0 {
 		return nil
