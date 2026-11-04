@@ -9,7 +9,7 @@ The subject is already understood well enough to explain (root cause from `inves
 ## Procedure
 
 1. Establish the subject and source.
-   - `$ARGUMENTS` may name a debug report or bug ticket, a feature or module name, a file or directory path, or nothing at all, in which case default to whatever's already been discussed in this conversation.
+   - The arguments may name a debug report or bug ticket, a feature or module name, a file or directory path, or nothing at all, in which case default to whatever's already been discussed in this conversation.
    - If a file is named, read it in full.
    - If it's a bug/ticket or feature/module name with no artifact, check the conversation and project memory for matching context before asking the user to point at one.
    - If nothing can be found, stop and ask what to explain.
@@ -34,10 +34,17 @@ Format:
 
 Where it goes:
 
-- Default to terminal. Only write to a file when asked; honor an exact location if one is given (e.g. "on desktop").
+- Default to the reply. Only write to a file when asked; honor an exact location if one is given (e.g. "on desktop").
+
+<!-- chat: skip -->
+
 - Otherwise use the path `kit scratch-dir <kind> <scope-slug>` prints.
 
-Invoking this skill sets the kit.yml `reply_limits.write.explainer` ceiling in place of the chat one. That covers how much gets said, not how it's structured: within each header's section, paragraphs still follow `rules/output.md` section 1, one hop or one point per paragraph, never one long undifferentiated block under a header.
+Invoking this skill sets the kit.yml `reply_limits.write.explainer` ceiling in place of the chat one.
+
+<!-- chat: end -->
+
+Length covers how much gets said, not how it's structured: within each header's section, paragraphs still follow `rules/output.md` section 1, one hop or one point per paragraph, never one long undifferentiated block under a header.
 
 ## Rules
 

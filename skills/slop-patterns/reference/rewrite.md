@@ -1,6 +1,12 @@
 # Rewriting a hit
 
-A guard's deny lists each hit with its line and a fix direction. Per hit:
+<!-- chat: skip -->
+
+A guard's deny lists each hit with its line and a fix direction.
+
+<!-- chat: end -->
+
+Per hit:
 
 1. Read the whole sentence, not the matched words.
 2. Ask what specific fact it points at. The number, the file, the behavior, the person, the reason.

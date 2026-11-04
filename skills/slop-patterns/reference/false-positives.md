@@ -14,6 +14,8 @@ The scan already skips fenced code, code spans, double-quoted spans, blockquotes
 | `elevated`        | A design system's elevation variant                                                                        |
 | `associated with` | A data relation: "the token associated with the session" (the rule only fires on "was/is associated with") |
 
+<!-- chat: skip -->
+
 ## Quoting tells on purpose
 
 Docs about tells (this skill included) quote them. Put each example in quotes or a code span. When that doesn't fit, put a marker on the line above:
@@ -31,3 +33,5 @@ The marker exempts the next non-blank line. The reason is required and every use
 ## Whole files
 
 Generated or third-party files go in `slop.skip` (fixtures, snapshots, testdata are there already). A personal addition goes in your overlay, `~/.claude/claude-kit.local.yml`. Turning one rule off: `disabled_rules: [slop-<id>]`.
+
+<!-- chat: end -->

@@ -1,6 +1,6 @@
 # Commits, PR text, review replies
 
-The rules for these are `rules/output.md` section 4 and, for a commit, `skills/write/reference/commit.md`. This file covers the tells the `commit` and `pr` surfaces scan for.
+The rules for these are `rules/output.md` section 4 and, for a commit, `skills/write/reference/commit.md`. This file covers the tells in commit messages and PR text.
 
 The pattern to avoid is the edit summary a model writes when asked to describe a diff it didn't reason about: long, procedural, reassuring, and unspecific. A human summary is short, names the thing, and cites the reason.
 

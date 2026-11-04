@@ -8,8 +8,14 @@ user-invocable: false
 
 Two layers, kept apart:
 
-- **AI tells**: surface patterns that show up far more in model output than in human writing. `kit slop` and the guards find these with the lexicon in `kit.yml` `slop:`.
+- **AI tells**: surface patterns that show up far more in model output than in human writing.
 - **Slop**: text that costs the reader more than it gives. No regexp sees it. Density, relevance, and specificity decide it.
+
+<!-- chat: skip -->
+
+`kit slop` and the guards find AI tells with the lexicon in `kit.yml` `slop:`.
+
+<!-- chat: end -->
 
 Fixing the first without the second makes the text harder to spot and no better to read. A flagged sentence gets rewritten around a fact, never patched with a synonym: [reference/rewrite.md](reference/rewrite.md).
 
@@ -25,4 +31,10 @@ Fixing the first without the second makes the text harder to spot and no better 
 | A hit that looks wrong                    | [reference/false-positives.md](reference/false-positives.md)                                     |
 | Second-guessing a rewrite as too stiff    | [reference/human-signals.md](reference/human-signals.md)                                         |
 
-The word lists, tiers, and thresholds live only in `kit.yml` `slop:`; these references explain them and never copy them. Length and shape belong to `rules/output.md`; comment rules to `rules/change.md` section 5.
+<!-- chat: skip -->
+
+The word lists, tiers, and thresholds live only in `kit.yml` `slop:`; these references explain them and never copy them.
+
+<!-- chat: end -->
+
+Length and shape belong to `rules/output.md`; comment rules to `rules/change.md` section 5.

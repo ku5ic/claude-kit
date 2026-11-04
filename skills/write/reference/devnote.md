@@ -4,7 +4,16 @@ Explain a completed change's key reasoning, or what you found testing someone el
 
 ## Procedure
 
+<!-- chat: skip -->
+
 1. Look at the current diff (`git diff` / `git diff --cached`) and the conversation so far.
+
+<!-- chat: end -->
+
+<!-- chat: only
+In claude.ai chat, look at the diff the user pasted and the conversation so far.
+-->
+
 2. Identify the one or two decisions that were not obvious from the diff alone:
    - An assumption got checked instead of trusted.
    - A simpler option was passed over for a reason.
@@ -12,12 +21,12 @@ Explain a completed change's key reasoning, or what you found testing someone el
 
    Skip anything that's just "what changed"; the diff already says that.
 
-3. If $ARGUMENTS names a specific decision, focus on only that one.
+3. If the arguments name a specific decision, focus on only that one.
 4. If nothing non-obvious happened (the change is mechanical, or the diff already speaks for itself), say so in one line instead of padding.
 
 ## Output
 
-Plain language, developer to developer. Assume the reader is a peer engineer who doesn't need the mechanism re-explained, just the reasoning. No restating the diff. Print directly to the terminal, not a file. A single decision is one or two short sentences; more than one decision gets a plain bullet per decision. Register and labels: `rules/output.md` section 4.
+Plain language, developer to developer. Assume the reader is a peer engineer who doesn't need the mechanism re-explained, just the reasoning. No restating the diff. Print it in the reply, not a file. A single decision is one or two short sentences; more than one decision gets a plain bullet per decision. Register and labels: `rules/output.md` section 4.
 
 Write it the way you'd say it to a teammate in chat, casually. No file paths, line numbers, or source citations; name the tool or concept instead ("fuzzysort scores by the best-matching key", not `fuzzysort.js:459`). Keep the evidence, drop the receipts.
 

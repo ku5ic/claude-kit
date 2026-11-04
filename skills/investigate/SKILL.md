@@ -9,20 +9,40 @@ argument-hint: <a question, a symptom, or a link to an external ticket/doc>
 - A question: how, why, or where something works, what a module does, which approach fits.
 - A symptom: unexpected behavior without a clear failing signal to fix directly.
 
-Not for a request to change code: that goes to plan mode (`/plan`) or a direct edit.
+Not for a request to change code.
+
+<!-- chat: skip -->
+
+That goes to plan mode (`/plan`) or a direct edit.
+
+<!-- chat: end -->
 
 ## Procedure
 
+<!-- chat: skip -->
+
 0. Resolve external context. If the arguments contain a URL with little inline description, resolve it before anything else: identify the service from the domain, find its fetch tool with ToolSearch (`app.clickup.com` -> ClickUp tools, `notion.so` -> Notion, `github.com` -> `gh` or the GitHub tools), call it, and take the scope and requirements from what comes back. The resolved text becomes the effective arguments. Never hand a bare link to a subagent.
+
+<!-- chat: end -->
 
 1. Classify the input as a question or a symptom. For a symptom, confirm observed behavior, expected behavior, entry point, and known repro steps; if observed vs expected is still missing, ask before continuing.
 
 ### Question
 
+<!-- chat: skip -->
+
 2. Skim: project CLAUDE.md, `rg` for the names involved, read the matched sections. Answer from what was read, citing `file:line`, each claim labelled per `rules/evidence.md` section 1.
 3. Only when the question spans 2-4 unfamiliar areas, fan out one built-in Explore subagent per area in a single message. Re-verify each result's decisive claim before using it (`rules/subagents.md` section 2). One of the areas is the cheapest option, per `rules/change.md` section 7.
 
+<!-- chat: end -->
+
+<!-- chat: only
+In claude.ai chat, the code the user pasted is all you have. Answer from it, citing the file and line where the paste shows them, each claim labelled per `rules/evidence.md` section 1. If the answer turns on code that isn't pasted, say which and ask for it. When the question compares approaches, one of them is the cheapest option, per `rules/change.md` section 7.
+-->
+
 ### Symptom
+
+<!-- chat: skip -->
 
 2. Delegate fault localization to the debugger agent (subagent_type: kit:debugger, foreground). It has no MCP tools, so its prompt carries fully resolved text, never a link. It follows:
    - Reproduce with the narrowest command; 3 attempts before calling it non-deterministic.
@@ -31,12 +51,30 @@ Not for a request to change code: that goes to plan mode (`/plan`) or a direct e
    - State one hypothesis ("caused by X in file Y at line Z") before checking it.
    - Probe least-invasive first: read closer, run an existing test, `git bisect`, then one reverted log line or assertion.
    - Max 3 hypothesis cycles; if exhausted, report what was ruled out.
+
+<!-- chat: end -->
+
+<!-- chat: only
+In claude.ai chat, nothing can be run, so read instead. Trace from the entry point to where observed diverges from expected, and stop at library boundaries. State one hypothesis ("caused by X in file Y at line Z") before checking it against the paste. Ask for logs or a missing file instead of guessing at them. After 3 hypothesis cycles, report what was ruled out.
+-->
+
 3. Across a dependency boundary, name misuse vs defect per `rules/evidence.md` section 3.
 
 ## Output
 
 - Short answer: inline, first line is the answer.
+
+<!-- chat: skip -->
+
 - Symptom, or a question that needed a fan-out: a report at the path `kit scratch-dir debug <scope-slug>` or `kit scratch-dir explore <scope-slug>` prints, then the reply `rules/output.md` section 3 describes, its headline the root cause or answer in one sentence.
+
+<!-- chat: end -->
+
+<!-- chat: only
+In claude.ai chat, a symptom gets the same sections in the reply, with no report file: the root cause or answer first, then findings with their labels, each hypothesis and its outcome, and the next step.
+-->
+
+<!-- chat: skip -->
 
 ```markdown
 # <Debug|Explore>: <one-line description>
@@ -67,8 +105,17 @@ Questions the requester can answer: `rules/workflow.md` section 4.
 
 Outside plan mode, stop at findings. In plan mode, the findings feed the plan file instead of a separate report.
 
+<!-- chat: end -->
+
 ## Stop
 
-- Never edit source. The one exception is the debugger's single reverted probe.
+- Never edit source.
+
+<!-- chat: skip -->
+
+- The one exception is the debugger's single reverted probe.
+
+<!-- chat: end -->
+
 - Scope growing beyond the question or entry point: surface and ask.
 - Root cause in a dependency or external system: document the boundary and stop.
