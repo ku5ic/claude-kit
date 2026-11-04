@@ -19,17 +19,17 @@ allowed-tools:
    - Files: each path.
    - `diff`: the files `git diff --name-only` lists. `kit slop` scans whole files, so keep only the hits on lines `git diff -U0 <file>` adds, and rewrite nothing else.
    - `-` or no argument: ask for the text, then treat it as one file.
-3. Scan: `kit slop <files>`. For pasted text, `kit slop --surface <file|commit|pr|chat> -` with the text on stdin; ask which surface when it isn't obvious.
+3. Scan: `kit slop <files>`. For pasted text, `kit slop --surface <file|commit|pr|chat|ui> -` with the text on stdin, `ui` for UI code; ask which surface when it isn't obvious.
 
 <!-- chat: end -->
 
 <!-- chat: only
-In claude.ai chat, the target is the text in the user's message. If there's none, ask for it. Run the scan before judging anything yourself: save the text to a file, then from this skill's folder run `sh scripts/scan.sh <file|commit|pr|chat> < <that file>`, asking which surface when it isn't obvious. Exit 0 means nothing blocks and 1 means hits; both print what they found.
+In claude.ai chat, the target is the text in the user's message. If there's none, ask for it. Run the scan before judging anything yourself: save the text to a file, then from this skill's folder run `sh scripts/scan.sh <file|commit|pr|chat|ui> < <that file>`, with `ui` for UI code, asking which surface when it isn't obvious. Exit 0 means nothing blocks and 1 means hits; both print what they found.
 
 In claude.ai chat, any other exit, or no way to run it, means the scan didn't happen. Your next action is then to read `reference/lexicon.md` in this skill's folder. Take every hit and tier from that file, never from memory, and say in the reply that these are a hand read.
 -->
 
-4. Rewrite every tier 1 and 2 hit, and every passage the scan reports as dense, per `slop-patterns` `reference/rewrite.md`. Then read the whole text once for what no regexp sees: sentences that carry nothing, sections that restate others (`reference/principles.md`). For UI files, also walk `reference/design.md` section 12.
+4. Rewrite every tier 1 and 2 hit, and every passage the scan reports as dense, per `slop-patterns` `reference/rewrite.md`. Then read the whole text once for what no regexp sees: sentences that carry nothing, sections that restate others (`slop-patterns` `reference/principles.md`). For UI files, also walk `slop-patterns` `reference/design.md` section 12.
 
 <!-- chat: skip -->
 

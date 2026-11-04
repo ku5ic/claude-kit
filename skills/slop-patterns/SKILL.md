@@ -1,6 +1,6 @@
 ---
 name: slop-patterns
-description: How to rewrite text a slop guard flagged, and how to keep AI tells and empty filler out of prose, commit messages, PR text, code comments, docs, chat replies, and UI. Load when a guard denies a write or a commit for AI tells, or before writing a README, docs, or a landing page.
+description: How to rewrite text a slop guard flagged, and how to keep AI tells and empty filler out of prose, commit messages, PR text, code comments, docs, chat replies, and UI. Load when a guard flags AI tells, or before drafting a commit message, PR text, a README, docs, or a landing page.
 user-invocable: false
 ---
 
@@ -26,7 +26,7 @@ Fixing the first without the second makes the text harder to spot and no better 
 | Writing                                   | Read                                                                                             |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------ |
 | Anything, first time                      | [reference/principles.md](reference/principles.md), [reference/rewrite.md](reference/rewrite.md) |
-| Prose a guard flagged                     | [reference/content-and-grammar.md](reference/content-and-grammar.md)                             |
+| Prose a scan or guard flagged             | [reference/content-and-grammar.md](reference/content-and-grammar.md)                             |
 | A commit message, PR text, a review reply | [reference/commits-and-prs.md](reference/commits-and-prs.md)                                     |
 | Code comments and docstrings              | [reference/code-comments.md](reference/code-comments.md)                                         |
 | A README or docs page                     | [reference/docs-and-readme.md](reference/docs-and-readme.md)                                     |

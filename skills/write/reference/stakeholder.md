@@ -42,4 +42,11 @@ Plain paragraphs in this order, no headers or labels (`rules/output.md` section 
 - Keep tradeoffs intact. Do not hide risk or complexity, just express it in outcomes.
 - Tone: direct. Not apologetic, not hedged.
 - Do not invent context. Ask about an ambiguity in the input.
+
+<!-- chat: skip -->
+
+- How to ask: `rules/workflow.md` section 4.
+
+<!-- chat: end -->
+
 - No padding. If a section has nothing meaningful, omit it.

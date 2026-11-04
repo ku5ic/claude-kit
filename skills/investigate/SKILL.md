@@ -11,6 +11,12 @@ argument-hint: <a question, a symptom, or a link to an external ticket/doc>
 
 Not for a request to change code: that's a plan or a direct edit.
 
+<!-- chat: skip -->
+
+A plan goes through plan mode (`/plan`).
+
+<!-- chat: end -->
+
 ## Procedure
 
 <!-- chat: skip -->

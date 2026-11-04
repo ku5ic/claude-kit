@@ -2,6 +2,12 @@
 
 Two review questions; either failing is a finding.
 
+<!-- chat: skip -->
+
+When each check runs is `rules/verify.md`.
+
+<!-- chat: end -->
+
 - **Verification: built it right.** Does the code do what the plan or spec said? If the plan moved during implementation, was it updated? Drift between plan and code is a `warning`.
 - **Validation: built the right thing.** Does the change solve the underlying problem? A technically correct change that misses the user's actual need fails, however clean the code.
 - **Traceability.** Each behavior change traces to a line in the spec, plan, or ticket. Behavior with no matching requirement is a `warning`; surface it.

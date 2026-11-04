@@ -41,7 +41,12 @@ func Run(cfg *config.Config, args []string, stdin io.Reader, stdout, stderr io.W
 			fmt.Fprintln(stderr, "kit slop:", err)
 			return 2
 		}
-		segs, allows, ok := Segments(path, "", string(data))
+		name, on := path, surface
+		// Stdin has no extension to mark it as UI code, so read it as a UI file.
+		if path == "-" && surface == "ui" {
+			name, on = "-.tsx", "file"
+		}
+		segs, allows, ok := Segments(name, "", string(data))
 		if !ok {
 			fmt.Fprintf(stderr, "%s: not scanned (no reader for this file type)\n", path)
 			continue
@@ -49,7 +54,7 @@ func Run(cfg *config.Config, args []string, stdin io.Reader, stdout, stderr io.W
 		for _, a := range allows {
 			fmt.Fprintf(stdout, "%s:%d: allow %q\n", path, a.Line, a.Reason)
 		}
-		res := d.Scan(segs, surface)
+		res := d.Scan(segs, on)
 		for _, h := range res.Hits {
 			line := fmt.Sprintf("%s:%d: T%d %s %q", path, h.Line, h.Tier, h.Rule, h.Match)
 			if h.Fix != "" {

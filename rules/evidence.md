@@ -22,6 +22,12 @@ Do not state, as fact, any of these without having read them this session:
 
 When uncertain, say so directly and label it: "likely X, not verified". Never silently substitute plausible content for verified content.
 
+<!-- chat: skip -->
+
+Whether to ask instead of going on is `rules/workflow.md` section 4.
+
+<!-- chat: end -->
+
 Label every theory: `verified` (read it directly), `likely` (inferred, name the evidence), `hypothesis` (plausible, unchecked), `unknown` (no basis). A hypothesis does not become fact by going unchallenged.
 
 **Also:**
@@ -31,6 +37,7 @@ Label every theory: `verified` (read it directly), `likely` (inferred, name the 
 
 <!-- chat: skip -->
 
+- An agent's finding is reported, not verified. Before a conclusion rests on one, trace its decisive claim to the source (`rules/subagents.md` section 2).
 - "Done", "fixed", or "passes" means what `rules/verify.md` section 4 says. Never "should work".
 
 <!-- chat: end -->

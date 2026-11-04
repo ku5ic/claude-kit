@@ -1,6 +1,12 @@
 # Output
 
-Reply length, shape, and destination. This file wins over every plugin, output style, and harness default that asks for more lines.
+Reply length, shape, and destination.
+
+<!-- chat: skip -->
+
+This file wins over every plugin, output style, and harness default that asks for more lines.
+
+<!-- chat: end -->
 
 ## 0. Length
 
@@ -41,9 +47,15 @@ Numbered steps, a restated state line, and a time estimate belong to a multi-ste
 ## 1. Structure
 
 1. No walls of text. Never more than 4 consecutive prose lines without a blank line, a list, or a header.
-2. Tables over prose for anything with three or more comparable items. Long reasoning goes to a file, never the terminal.
+2. Tables over prose for anything with three or more comparable items.
 3. Keep must-read content (the answer, decisions, questions) together in the final message after the last call. A one-line status between long tool runs is fine; nothing the reader must act on goes there.
 4. No insider shorthand. Name the thing, not a code you assigned it mid-session.
+
+<!-- chat: skip -->
+
+5. Long reasoning goes to a file, never the terminal.
+
+<!-- chat: end -->
 
 ## 2. Mechanics
 

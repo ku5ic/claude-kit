@@ -12,6 +12,12 @@ Before proposing or applying a fix:
 4. Larger -> name the excess and the reason. Excess is: more files touched, a new abstraction, an adjacent refactor, or unrelated cleanup bundled in.
 5. Excess with no stated reason -> stop and ask.
 
+<!-- chat: skip -->
+
+How to ask: `rules/workflow.md` section 4.
+
+<!-- chat: end -->
+
 "Minimal" is measured against the defect, not against caution. A one-line fix to a one-line bug is minimal. A one-line fix that papers over a genuinely broken abstraction is not; that is the justification to state, not skip.
 
 Applies to bug fixes, patches, and "make X work". Does not apply to net-new features or to refactors requested as refactors; there is no defect to be minimal against.
@@ -53,6 +59,13 @@ The one exception is scaffolding explicitly requested or explicitly marked for a
 - Remove comments that restate the code.
 - No decorative comments: no banners, dividers, or headers made of `===`, `---`, `***`, `###`.
 - A deliberate shortcut with a known ceiling (a global lock, an O(n^2) scan, a naive heuristic) gets a `shortcut:` comment naming the ceiling and the upgrade path.
+
+<!-- chat: skip -->
+
+- `/audit debt` collects those `shortcut:` comments.
+
+<!-- chat: end -->
+
 - ASCII box characters (`+`, `-`, `|`, `->`) only when actually drawing a diagram, never as decoration.
 
 ## 6. Scope
