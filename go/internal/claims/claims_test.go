@@ -196,11 +196,21 @@ func TestClaudeAllowsOnlyReads(t *testing.T) {
 	}
 }
 
+// result is a tool_result entry whose output is text.
+func result(t *testing.T, text string) transcript.Entry {
+	t.Helper()
+	content, err := json.Marshal(text)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return transcript.Entry{Type: "user", Blocks: []transcript.Block{{Type: "tool_result", Content: content}}}
+}
+
 func TestEvidenceCutsOldestFirst(t *testing.T) {
 	t.Parallel()
 	var entries []transcript.Entry
 	for i := range 40 {
-		entries = append(entries, transcript.Entry{Type: "user", Text: strings.Repeat("x", 10000) + "prompt-" + string(rune('A'+i%26))})
+		entries = append(entries, result(t, strings.Repeat("x", 10000)+"result-"+string(rune('A'+i%26))))
 	}
 	got := evidence(entries, "claim", false)
 	if len(got) > evidenceCap+1000 {
@@ -209,8 +219,29 @@ func TestEvidenceCutsOldestFirst(t *testing.T) {
 	if !strings.Contains(got, "older items cut") || !strings.HasSuffix(got, "## Text to verify\n\nclaim\n") {
 		t.Errorf("evidence lacks the cut note or the text:\n%s", got[:200])
 	}
-	if !strings.Contains(got, "prompt-N") { // the 40th entry, newest
+	if !strings.Contains(got, "result-N") { // the 40th entry, newest
 		t.Error("the newest entry was cut")
+	}
+}
+
+// A prompt past the cap once cut everything, itself included, so the
+// verifier saw no evidence and flagged every claim.
+func TestEvidenceKeepsEveryPromptWhole(t *testing.T) {
+	t.Parallel()
+	entries := []transcript.Entry{
+		{Type: "user", Text: "first prompt"},
+		result(t, "old result"),
+		{Type: "user", Text: strings.Repeat("y", evidenceCap+1) + "pasted log end"},
+		result(t, "new result"),
+	}
+	got := evidence(entries, "claim", false)
+	for _, want := range []string{"[2 older items cut]", "first prompt", "pasted log end", "## Text to verify\n\nclaim\n"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("evidence lacks %q", want)
+		}
+	}
+	if strings.Contains(got, "old result") || strings.Contains(got, "new result") {
+		t.Error("a result past the cap was kept")
 	}
 }
 

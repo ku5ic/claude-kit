@@ -170,45 +170,63 @@ const schema = `{"type":"object","additionalProperties":false,"required":["ok","
 	`"required":["claim","check"],"properties":{"claim":{"type":"string"},"check":{"type":"string"}}}}}}`
 
 // evidence is the verifier's input: the session's prompts, tool calls,
-// and results, oldest first and the oldest cut past evidenceCap, then text.
+// and results, oldest first, then text. Prompts are always whole; past
+// evidenceCap, the oldest of the rest are cut.
 // A forked skill's task is its first meta prompt, kept when forked.
 func evidence(entries []transcript.Entry, text string, forked bool) string {
+	type item struct {
+		text        string
+		prompt, cut bool
+	}
 	names := map[string]string{} // tool_use id -> tool name
-	var items []string
+	var items []item
+	add := func(text string) { items = append(items, item{text: text}) }
 	for _, e := range entries {
 		if e.IsMeta {
 			if forked && e.Type == "user" {
-				items = append(items, "### Task (forked skill prompt)\n\n"+e.PromptText())
+				items = append(items, item{text: "### Task (forked skill prompt)\n\n" + e.PromptText(), prompt: true})
 				forked = false
 			}
 			continue
 		}
 		switch {
 		case e.StartsTurn():
-			items = append(items, "### User prompt\n\n"+e.PromptText())
+			items = append(items, item{text: "### User prompt\n\n" + e.PromptText(), prompt: true})
 		case e.Type == "user":
 			for _, b := range e.Blocks {
 				if b.Type == "tool_result" {
-					items = append(items, fmt.Sprintf("#### Result of %s\n\n%s", names[b.ToolUseID], clip(b.ResultText(), resultCap)))
+					add(fmt.Sprintf("#### Result of %s\n\n%s", names[b.ToolUseID], clip(b.ResultText(), resultCap)))
 				}
 			}
 		case e.Type == "assistant":
 			for _, b := range e.Blocks {
 				switch b.Type {
 				case "text":
-					items = append(items, "### Assistant text (not evidence)\n\n"+clip(b.Text, assistCap))
+					add("### Assistant text (not evidence)\n\n" + clip(b.Text, assistCap))
 				case "tool_use":
 					names[b.ID] = b.Name
-					items = append(items, fmt.Sprintf("#### Tool %s\n\nInput: %s", b.Name, clip(string(b.RawInput), inputCap)))
+					add(fmt.Sprintf("#### Tool %s\n\nInput: %s", b.Name, clip(string(b.RawInput), inputCap)))
 				}
 			}
 		}
 	}
-	cut, size := 0, 0
+	size := 0
+	for _, it := range items {
+		if it.prompt {
+			size += len(it.text) + 2
+		}
+	}
+	cut := 0
 	for i := len(items) - 1; i >= 0; i-- {
-		if size += len(items[i]) + 2; size > evidenceCap {
-			cut = i + 1
-			break
+		if items[i].prompt {
+			continue
+		}
+		if cut == 0 {
+			size += len(items[i].text) + 2
+		}
+		if cut > 0 || size > evidenceCap {
+			items[i].cut = true
+			cut++
 		}
 	}
 	var b bytes.Buffer
@@ -216,8 +234,10 @@ func evidence(entries []transcript.Entry, text string, forked bool) string {
 	if cut > 0 {
 		fmt.Fprintf(&b, "[%d older items cut]\n\n", cut)
 	}
-	for _, item := range items[cut:] {
-		b.WriteString(item + "\n\n")
+	for _, it := range items {
+		if !it.cut {
+			b.WriteString(it.text + "\n\n")
+		}
 	}
 	b.WriteString("## Text to verify\n\n" + clip(text, textCap) + "\n")
 	return b.String()
