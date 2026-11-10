@@ -6,8 +6,12 @@
         "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook bash-dispatch", "timeout": 30 }]
       },
       {
-        "matcher": "Edit|Write|MultiEdit|Read|Grep",
+        "matcher": "Edit|Write|MultiEdit",
         "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook guard-dispatch", "timeout": 300 }]
+      },
+      {
+        "matcher": "Read|Grep",
+        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook guard-dispatch", "timeout": 5 }]
       },
       {
         "matcher": "SubagentHandback",
