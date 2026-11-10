@@ -30,6 +30,7 @@ var hookChecks = map[string]hook.Check{
 	"guard-slop":              hooks.GuardSlop,
 	"guard-weaken":            hooks.GuardWeaken,
 	"guard-imports":           hooks.GuardImports,
+	"guard-tokens":            hooks.GuardTokens,
 	"guard-handback":          hooks.GuardHandback,
 	"guard-connector":         hooks.GuardConnector,
 	"verify-claims":           hooks.VerifyClaims,
@@ -76,6 +77,7 @@ var registry = map[string]hookDef{
 	"guard-slop":              {},
 	"guard-weaken":            {},
 	"guard-imports":           {},
+	"guard-tokens":            {},
 	"sanitize-output":         {},
 	"format-dispatch":         {},
 }
