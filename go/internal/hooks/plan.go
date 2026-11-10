@@ -1,10 +1,13 @@
 package hooks
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
@@ -12,6 +15,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/md"
 	"github.com/ku5ic/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
 var (
@@ -94,6 +98,60 @@ func PlanModeContext(h *hook.Hook) error {
 	_ = os.Chtimes(marker, now, now)
 	h.Print(fmt.Sprintf("Active plan %s has open steps: do only the next unchecked one, then stop for review, per rules/workflow.md section 3.\n", plan))
 	return nil
+}
+
+// planCritic is the agent GuardPlan wants run on a plan before approval.
+const planCritic = "kit:plan-critic"
+
+// GuardPlan sends ExitPlanMode back once when no plan-critic ran after the
+// plan was written this session, so a plan whose sections contradict each
+// other or the repo isn't approved unchecked. The same plan, resent, goes
+// through. PreToolUse for ExitPlanMode.
+func GuardPlan(h *hook.Hook) error {
+	p := h.Payload
+	plan := p.String("tool_input.planFilePath")
+	if p.Err != nil || p.String("tool_name") != "ExitPlanMode" || plan == "" || h.RuleDisabled("plan-critic") {
+		return nil
+	}
+	entries, err := transcript.Load(p.String("transcript_path"))
+	if err != nil || critiqued(entries, plan) {
+		return nil
+	}
+	marker := h.Paths.SessionFile(cache.PlanCritic, p.SessionID(), filepath.Base(plan))
+	if marker == "" {
+		return nil
+	}
+	sum := sha256.Sum256([]byte(p.String("tool_input.plan")))
+	sent := hex.EncodeToString(sum[:])
+	if prev, err := os.ReadFile(marker); err == nil && string(prev) == sent {
+		return nil
+	}
+	if !h.DryRun {
+		_ = fsx.WriteAtomic(marker, []byte(sent), 0o644)
+	}
+	h.Deny(fmt.Sprintf("run the %s agent on %s before asking for approval. Raise each contradiction it finds, between the plan's sections or against the repo, as a question for the user. Calling ExitPlanMode again with the same plan goes through.", planCritic, plan), "plan-critic")
+	return nil
+}
+
+// critiqued reports whether a plan-critic call follows the first write to
+// plan. Revising the plan from its critique is the expected next step, so
+// later writes don't undo it.
+func critiqued(entries []transcript.Entry, plan string) bool {
+	written := false
+	for _, e := range entries {
+		if e.Type != "assistant" {
+			continue
+		}
+		for _, b := range e.ToolUses() {
+			switch {
+			case slices.Contains(transcript.EditTools, b.Name) && b.Path() == plan:
+				written = true
+			case b.Name == "Agent" && b.Input.SubagentType == planCritic && written:
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // newestOpenPlan is the most recently modified plan file in the project's

@@ -62,7 +62,8 @@ type Block struct {
 		FilePath     string `json:"file_path"`
 		NotebookPath string `json:"notebook_path"`
 		Skill        string `json:"skill"`
-		Command      string `json:"command"` // a Bash call's
+		Command      string `json:"command"`       // a Bash call's
+		SubagentType string `json:"subagent_type"` // an Agent call's
 	} `json:"input"`
 	// RawInput is a tool_use's whole input, as sent.
 	RawInput json.RawMessage `json:"-"`

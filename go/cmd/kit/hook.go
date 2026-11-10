@@ -25,6 +25,7 @@ type hookDef struct {
 // hookChecks are the single checks, by the name they report under.
 var hookChecks = map[string]hook.Check{
 	"plan-mode-context":       hooks.PlanModeContext,
+	"guard-plan":              hooks.GuardPlan,
 	"guard-edit":              hooks.GuardEdit,
 	"guard-skills":            hooks.GuardSkills,
 	"guard-slop":              hooks.GuardSlop,
@@ -67,6 +68,7 @@ var registry = map[string]hookDef{
 	"subagent-slop":           {events: []string{"SubagentStop"}},
 	"chat-slop":               {events: []string{"UserPromptSubmit", "Stop"}},
 	"guard-handback":          {events: []string{"PreToolUse"}},
+	"guard-plan":              {events: []string{"PreToolUse"}},
 	"guard-connector":         {events: []string{"PreToolUse"}},
 	"verify-claims":           {events: []string{"PreToolUse", "Stop", "SubagentStop"}},
 	"guard-bash":              {},

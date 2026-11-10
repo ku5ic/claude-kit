@@ -4,6 +4,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -111,6 +112,43 @@ func TestPlanStepPause(t *testing.T) {
 		})
 		r.Want(t, 0)
 		r.Empty(t)
+	})
+}
+
+func TestGuardPlan(t *testing.T) {
+	t.Parallel()
+	const plan = "/proj/.claude/plans/plan-x.md"
+	write := `{"type":"assistant","message":{"content":[{"type":"tool_use","id":"w","name":"Write","input":{"file_path":"` + plan + `"}}]}}`
+	critic := `{"type":"assistant","message":{"content":[{"type":"tool_use","id":"c","name":"Agent","input":{"subagent_type":"kit:plan-critic"}}]}}`
+	exit := func(k *sandbox, lines ...string) map[string]any {
+		path := filepath.Join(k.home, "session.jsonl")
+		testutil.Write(t, path, strings.Join(lines, "\n")+"\n")
+		return map[string]any{"hook_event_name": "PreToolUse", "session_id": "s", "tool_name": "ExitPlanMode",
+			"transcript_path": path, "tool_input": map[string]any{"plan": "# X", "planFilePath": plan}}
+	}
+	t.Run("no critique: sent back once, naming the critic and the plan; resent, it goes through", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		r := k.run("guard-plan", exit(k, write))
+		r.Denied(t)
+		r.Has(t, "kit:plan-critic", plan)
+		k.run("guard-plan", exit(k, write)).Allowed(t)
+	})
+	t.Run("a critique after the plan was written, then a revision: allowed", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		k.run("guard-plan", exit(k, write, critic, write)).Allowed(t)
+	})
+	t.Run("a critique only before the plan was written: sent back", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		k.run("guard-plan", exit(k, critic, write)).Denied(t)
+	})
+	t.Run("disabled: allowed", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		k.overlay("disabled_rules: [plan-critic]\n")
+		k.run("guard-plan", exit(k, write)).Allowed(t)
 	})
 }
 

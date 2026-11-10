@@ -65,6 +65,7 @@ var entries = map[string]func(*hook.Hook) int{
 	"sanitize-output":         single("sanitize-output", SanitizeOutput),
 	"format-dispatch":         single("format-dispatch", FormatDispatch),
 	"plan-mode-context":       single("plan-mode-context", PlanModeContext),
+	"guard-plan":              single("guard-plan", GuardPlan),
 	"reply-length":            single("reply-length", ReplyLength),
 	"review-checks":           single("review-checks", ReviewChecks),
 	"stop-checks":             single("stop-checks", StopChecks),

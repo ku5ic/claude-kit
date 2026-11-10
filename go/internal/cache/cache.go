@@ -19,6 +19,7 @@ const (
 	SkillsLoaded = "skills-loaded"
 	FileSkills   = "file-skills"
 	PlanActive   = "plan-active"
+	PlanCritic   = "plan-critic"
 	Statusline   = "statusline"
 	ReplyLimit   = "reply-limit"
 	Slop         = "slop"
@@ -42,6 +43,7 @@ var Dirs = []Dir{
 	{SkillsLoaded, "skill-loaded marker(s)", 1},
 	{FileSkills, "file-skills cache(s)", 1},
 	{PlanActive, "plan-active marker(s)", 1},
+	{PlanCritic, "plan-critic marker(s)", 1},
 	{Statusline, "statusline cache(s)", 1},
 	{ReplyLimit, "reply-limit marker(s)", 1},
 	{Slop, "unslop marker(s)", 1},
