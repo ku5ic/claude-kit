@@ -108,13 +108,14 @@ func (c *command) dependencyAdd(verbs []string, dir, root string) error {
 			if after > len(values) || !slices.Equal(values[i:after], words) {
 				continue
 			}
-			packages := nonOptions(values[after:])
-			if len(packages) == 0 {
+			if len(nonOptions(values[after:])) == 0 {
 				continue
 			}
 			if !c.st.h.RuleDisabled("pkg-missing") {
 				lookups := pkgcheck.NewLookups(c.st.cfg.PackageLookups, dir, root)
-				for _, p := range packages {
+				// A flag's value isn't looked up, but still counts above: a
+				// flag listed as taking a value may not take one (pnpm -w).
+				for _, p := range addOperands(values[after:], c.st.cfg.PackageLookups.ValueFlags(c.name)) {
 					if lookups.Missing(c.name, p) {
 						return c.block(p+" isn't on its registry; check the name before adding it", "pkg-missing")
 					}
@@ -125,6 +126,23 @@ func (c *command) dependencyAdd(verbs []string, dir, root string) error {
 		}
 	}
 	return nil
+}
+
+// addOperands is the operands of words after an add verb, minus the word
+// after each of valueFlags, which is that flag's value.
+func addOperands(words, valueFlags []string) []string {
+	var kept []string
+	for i := 0; i < len(words); i++ {
+		switch {
+		case words[i] == "--":
+			return nonOptions(append(kept, words[i:]...))
+		case slices.Contains(valueFlags, words[i]):
+			i++
+		default:
+			kept = append(kept, words[i])
+		}
+	}
+	return nonOptions(kept)
 }
 
 // rival is why a rival of m's manager blocks, with m's facts for the rerun.

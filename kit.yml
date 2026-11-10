@@ -323,6 +323,7 @@ weakened_checks:
 # Lookups run outside the project, so its config runs nothing before the
 # add is approved; a package whose scope, or every package, an rc_file
 # from the project up routes to another registry isn't looked up.
+# value_flags take the next word as their value, which is never a package.
 # timeout is seconds for all of one command's lookups; 0 turns them off.
 package_lookups:
   timeout: 15
@@ -333,6 +334,7 @@ package_lookups:
       cmd: [npm, view, "{pkg}", name]
       missing: '\bE404\b'
       rc_file: .npmrc
+      value_flags: [--prefix, -C, --dir, --cwd, -w, --workspace, -F, --filter, --tag, --registry, --save-prefix, --omit, --include, --userconfig, --cache]
     go:
       managers: [go]
       name: '^[a-z0-9.-]+\.[a-z]{2,}(/[\w.~-]+)+$'

@@ -307,6 +307,19 @@ type PackageLookup struct {
 	// RCFile names the registry config (.npmrc) whose registry lines send
 	// a package somewhere the lookup, run outside the project, can't see.
 	RCFile string `yaml:"rc_file"`
+	// ValueFlags take the next word as their value, never a package.
+	ValueFlags []string `yaml:"value_flags"`
+}
+
+// ValueFlags are the value-taking flags of every ecosystem covering manager.
+func (p PackageLookups) ValueFlags(manager string) []string {
+	var flags []string
+	for _, e := range p.Ecosystems {
+		if slices.Contains(e.Managers, manager) {
+			flags = append(flags, e.ValueFlags...)
+		}
+	}
+	return flags
 }
 
 // problems names each lookup that can't work: a pattern that doesn't
