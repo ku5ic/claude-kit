@@ -51,7 +51,7 @@ func TestVerifyClaimsStop(t *testing.T) {
 	}{
 		{"block: an unconfirmed claim", stop(claim, false), []string{claim}, 2, 1},
 		{"allow: every claim confirmed", stop(claim, false), nil, 0, 1},
-		{"allow: the stop after a block, unchecked", stop(claim, true), []string{claim}, 0, 0},
+		{"block: a reply rewritten after another hook's block", stop(claim, true), []string{claim}, 2, 1},
 		{"allow: nothing stated, unchecked", stop("Which branch?", false), []string{claim}, 0, 0},
 		{"block: a subagent's report", subagentStop("a1", claim, false), []string{claim}, 2, 1},
 		{"allow: a subagent's second stop", subagentStop("a1", claim, true), []string{claim}, 0, 0},
@@ -69,6 +69,20 @@ func TestVerifyClaimsStop(t *testing.T) {
 				t.Errorf("verifier ran %d times, want %d", got, tc.runs)
 			}
 		})
+	}
+}
+
+// A reply it sent back goes through rewritten, unchecked, so it never loops;
+// the next turn's first stop is checked again.
+func TestVerifyClaimsStopOncePerTurn(t *testing.T) {
+	t.Parallel()
+	k := newSandbox(t)
+	calls := k.verifier("", claim)
+	k.run("verify-claims", stop(claim, false)).Want(t, 2)
+	k.run("verify-claims", stop(claim, true)).Want(t, 0)
+	k.run("verify-claims", stop(claim, true)).Want(t, 2)
+	if got := len(testutil.Calls(t, calls)); got != 2 {
+		t.Errorf("verifier ran %d times, want 2", got)
 	}
 }
 

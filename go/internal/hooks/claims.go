@@ -39,10 +39,21 @@ func VerifyClaims(h *hook.Hook) error {
 	}
 	switch p.String("hook_event_name") {
 	case "Stop":
-		if p.Bool("stop_hook_active") {
+		// A reply this sent back goes through rewritten, so it never loops;
+		// one rewritten after another hook's block is checked.
+		marker := h.Paths.SessionFile(cache.Claims, p.SessionID(), "stop")
+		if marker == "" {
 			return nil
 		}
+		if p.Bool("stop_hook_active") && fsx.IsFile(marker) {
+			_ = os.Remove(marker)
+			return nil
+		}
+		_ = os.Remove(marker)
 		if u := unconfirmed(h, p.String("last_assistant_message"), p.String("transcript_path"), "reply"); len(u) > 0 {
+			if !h.DryRun {
+				_ = fsx.WriteAtomic(marker, nil, 0o644)
+			}
 			return h.Block(claimsMessage("your reply", u)+" Then give the corrected answer.", "claims")
 		}
 	case "SubagentStop":
