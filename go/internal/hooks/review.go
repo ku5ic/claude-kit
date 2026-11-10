@@ -56,7 +56,7 @@ func worktreeReview(path string) bool {
 // .forked-skill.json sidecar, else, for a foreground fork that writes none,
 // "code-review" when the parent's code-review Skill call has no result yet.
 func forkedSkill(agentTranscript, parent string) string {
-	if data, err := os.ReadFile(strings.TrimSuffix(agentTranscript, ".jsonl") + ".forked-skill.json"); err == nil {
+	if data, err := os.ReadFile(transcript.ForkSidecar(agentTranscript)); err == nil {
 		var fork struct {
 			SkillName string `json:"skillName"`
 		}

@@ -19,6 +19,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/connector"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/proc"
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
@@ -86,7 +87,8 @@ func Verify(cfg *config.Config, dir, text, transcriptPath string) (Verdict, erro
 	if len(argv) == 0 {
 		argv = claude(cfg, entries)
 	}
-	return run(cfg, argv, dir, evidence(entries, text))
+	forked := transcriptPath != "" && fsx.IsFile(transcript.ForkSidecar(transcriptPath))
+	return run(cfg, argv, dir, evidence(entries, text, forked))
 }
 
 // run runs the verifier command argv from dir on input, the evidence and
@@ -160,11 +162,16 @@ const schema = `{"type":"object","additionalProperties":false,"required":["ok","
 
 // evidence is the verifier's input: the session's prompts, tool calls,
 // and results, oldest first and the oldest cut past evidenceCap, then text.
-func evidence(entries []transcript.Entry, text string) string {
+// A forked skill's task is its first meta prompt, kept when forked.
+func evidence(entries []transcript.Entry, text string, forked bool) string {
 	names := map[string]string{} // tool_use id -> tool name
 	var items []string
 	for _, e := range entries {
 		if e.IsMeta {
+			if forked && e.Type == "user" {
+				items = append(items, "### Task (forked skill prompt)\n\n"+e.PromptText())
+				forked = false
+			}
 			continue
 		}
 		switch {

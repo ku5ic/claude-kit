@@ -110,6 +110,39 @@ func TestVerifyRunsInDirWithGuardAndEvidence(t *testing.T) {
 	}
 }
 
+func TestVerifyKeepsAForkedSkillsTask(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name   string
+		forked bool
+	}{{"a forked skill", true}, {"no sidecar", false}} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := baseConfig()
+			argv, dir := stub(t, envelope(map[string]any{"ok": true, "unsupported": []any{}}))
+			cfg.Claims.Command = argv
+			path := filepath.Join(t.TempDir(), "agent-a1.jsonl")
+			testutil.Write(t, path, strings.Join([]string{
+				`{"type":"user","isMeta":true,"isSidechain":true,"message":{"content":"review the diff"}}`,
+				`{"type":"user","isMeta":true,"isSidechain":true,"message":{"content":"skill body"}}`,
+			}, "\n")+"\n")
+			if tc.forked {
+				testutil.Write(t, strings.TrimSuffix(path, ".jsonl")+".forked-skill.json", `{"skillName":"code-review"}`)
+			}
+			if _, err := Verify(cfg, t.TempDir(), "The build fails.", path); err != nil {
+				t.Fatal(err)
+			}
+			stdin := testutil.Read(t, filepath.Join(dir, "stdin"))
+			if got := strings.Contains(stdin, "review the diff"); got != tc.forked {
+				t.Errorf("task in evidence = %v, want %v:\n%s", got, tc.forked, stdin)
+			}
+			if strings.Contains(stdin, "skill body") {
+				t.Errorf("a later meta entry got in:\n%s", stdin)
+			}
+		})
+	}
+}
+
 func TestVerifyOff(t *testing.T) {
 	t.Parallel()
 	for _, claims := range []config.Claims{{Timeout: 0, BudgetUSD: 1}, {Timeout: 30, BudgetUSD: 0}} {
@@ -169,7 +202,7 @@ func TestEvidenceCutsOldestFirst(t *testing.T) {
 	for i := range 40 {
 		entries = append(entries, transcript.Entry{Type: "user", Text: strings.Repeat("x", 10000) + "prompt-" + string(rune('A'+i%26))})
 	}
-	got := evidence(entries, "claim")
+	got := evidence(entries, "claim", false)
 	if len(got) > evidenceCap+1000 {
 		t.Errorf("evidence is %d bytes, cap %d", len(got), evidenceCap)
 	}

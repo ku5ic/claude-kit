@@ -13,6 +13,12 @@ import (
 	"strings"
 )
 
+// ForkSidecar is the .forked-skill.json Claude Code writes beside a forked
+// skill's transcript at path, naming the skill.
+func ForkSidecar(path string) string {
+	return strings.TrimSuffix(path, ".jsonl") + ".forked-skill.json"
+}
+
 // EditTools are the tools that write a file.
 var EditTools = []string{"Edit", "Write", "MultiEdit", "NotebookEdit"}
 
