@@ -112,10 +112,12 @@ func (c *command) dependencyAdd(verbs []string, dir, root string) error {
 			if len(packages) == 0 {
 				continue
 			}
-			lookups := pkgcheck.NewLookups(c.st.cfg.PackageLookups, dir, root)
-			for _, p := range packages {
-				if lookups.Missing(c.name, p) {
-					return c.block(p+" isn't on its registry; check the name before adding it", "pkg-missing")
+			if !c.st.h.RuleDisabled("pkg-missing") {
+				lookups := pkgcheck.NewLookups(c.st.cfg.PackageLookups, dir, root)
+				for _, p := range packages {
+					if lookups.Missing(c.name, p) {
+						return c.block(p+" isn't on its registry; check the name before adding it", "pkg-missing")
+					}
 				}
 			}
 			c.st.ask("this adds a dependency; rules/workflow.md section 2 asks before installing: confirm the package")

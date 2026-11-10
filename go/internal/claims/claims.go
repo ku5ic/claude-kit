@@ -128,27 +128,21 @@ func run(cfg *config.Config, argv []string, dir, input string) (Verdict, error) 
 // each read tool the session called, and kit.yml's claims.allow, less any
 // write tool.
 func claude(cfg *config.Config, entries []transcript.Entry) []string {
-	tools := slices.Clone(builtins)
 	allowed := slices.Clone(builtins)
-	add := func(name string) {
-		if name == "" || connector.IsWrite(cfg.Connectors, name) || slices.Contains(allowed, name) {
-			return
-		}
-		allowed = append(allowed, name)
-		if !strings.HasPrefix(name, "mcp__") {
-			tools = append(tools, name)
-		}
-	}
 	for _, e := range entries {
 		for _, b := range e.ToolUses() {
-			if connector.IsRead(cfg.Connectors, b.Name) {
-				add(b.Name)
+			if connector.IsRead(cfg.Connectors, b.Name) && !slices.Contains(allowed, b.Name) {
+				allowed = append(allowed, b.Name)
 			}
 		}
 	}
 	for _, name := range cfg.Claims.Allow {
-		add(name)
+		if name != "" && !connector.IsWrite(cfg.Connectors, name) && !slices.Contains(allowed, name) {
+			allowed = append(allowed, name)
+		}
 	}
+	// --tools names builtins; an MCP tool is reachable through --allowedTools alone.
+	tools := slices.DeleteFunc(slices.Clone(allowed), func(n string) bool { return strings.HasPrefix(n, "mcp__") })
 	argv := []string{"claude", "-p", "--restricted", "--permission-mode", "dontAsk",
 		"--tools", strings.Join(tools, ","), "--allowedTools", strings.Join(allowed, ","),
 		"--disable-slash-commands", "--no-session-persistence", "--system-prompt", systemPrompt,

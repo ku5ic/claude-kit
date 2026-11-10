@@ -2,7 +2,6 @@ package claims
 
 import (
 	"encoding/json"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -99,10 +98,10 @@ func TestVerifyRunsInDirWithGuardAndEvidence(t *testing.T) {
 	if calls := testutil.Calls(t, filepath.Join(dir, "calls")); len(calls) != 1 || !strings.HasPrefix(calls[0], work+"|") {
 		t.Errorf("calls = %q, want one run in %s", calls, work)
 	}
-	if guard := read(t, filepath.Join(dir, "guard")); guard != "1" {
+	if guard := testutil.Read(t, filepath.Join(dir, "guard")); guard != "1" {
 		t.Errorf("%s = %q, want 1", Guard, guard)
 	}
-	stdin := read(t, filepath.Join(dir, "stdin"))
+	stdin := testutil.Read(t, filepath.Join(dir, "stdin"))
 	for _, want := range []string{"why does the build fail?", `{"command":"go build ./..."}`, "Result of Bash", "undefined: Foo", "Foo was renamed.", "## Text to verify\n\nThe build fails."} {
 		if !strings.Contains(stdin, want) {
 			t.Errorf("evidence lacks %q:\n%s", want, stdin)
@@ -201,13 +200,4 @@ func TestDeclarative(t *testing.T) {
 			t.Errorf("Declarative(%q) = %v, want %v", text, got, want)
 		}
 	}
-}
-
-func read(t *testing.T, path string) string {
-	t.Helper()
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return string(data)
 }

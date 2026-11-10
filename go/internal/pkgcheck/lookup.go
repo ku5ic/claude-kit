@@ -95,8 +95,7 @@ func (l *Lookups) Missing(manager, operand string) bool {
 			return false
 		}
 		for p := name; ; p = parent(p) {
-			switch l.run(e.Cmd, p, missing) {
-			case found, unknown:
+			if !l.absent(e.Cmd, p, missing) {
 				return false
 			}
 			if !e.Parents || strings.Count(p, "/") < 2 {
@@ -107,20 +106,12 @@ func (l *Lookups) Missing(manager, operand string) bool {
 	return false
 }
 
-type answer int
-
-const (
-	found answer = iota
-	absent
-	unknown
-)
-
-// run is one lookup of name: found on exit 0, absent when the output
-// matches missing, unknown otherwise.
-func (l *Lookups) run(argv []string, name string, missing *regexp.Regexp) answer {
+// absent is true only when one lookup of name fails with output matching
+// missing; found, a timeout, and any other failure are false.
+func (l *Lookups) absent(argv []string, name string, missing *regexp.Regexp) bool {
 	left := time.Until(l.deadline)
 	if left <= 0 {
-		return unknown
+		return false
 	}
 	args := make([]string, len(argv))
 	for i, a := range argv {
@@ -129,15 +120,7 @@ func (l *Lookups) run(argv []string, name string, missing *regexp.Regexp) answer
 	cmd := proc.Command(left, args[0], args[1:]...)
 	cmd.Dir = os.TempDir() // outside the project: its config runs nothing before the add is approved
 	out, err := cmd.CombinedOutput()
-	switch {
-	case cmd.TimedOut():
-		return unknown
-	case err == nil:
-		return found
-	case missing.Match(out):
-		return absent
-	}
-	return unknown
+	return err != nil && !cmd.TimedOut() && missing.Match(out)
 }
 
 // bare is operand without its version, or "" when it's a path, a URL, an

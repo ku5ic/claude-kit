@@ -50,6 +50,10 @@ func Undeclared(skipDirs []string, path, before, after string) []string {
 }
 
 func goUndeclared(path, before, after string) []string {
+	imports := added(goImports(before), goImports(after))
+	if len(imports) == 0 {
+		return nil
+	}
 	gomod := fsx.FindUp(filepath.Dir(path), "/", "go.mod")
 	if gomod == "" {
 		return nil
@@ -61,7 +65,7 @@ func goUndeclared(path, before, after string) []string {
 		}
 	}
 	var out []string
-	for _, imp := range added(goImports(before), goImports(after)) {
+	for _, imp := range imports {
 		first, _, _ := strings.Cut(imp, "/")
 		if !strings.Contains(first, ".") { // the standard library's paths have no dot
 			continue
@@ -128,6 +132,10 @@ func goImports(src string) []string {
 }
 
 func jsUndeclared(path, before, after string) []string {
+	specs := added(jsSpecs(before), jsSpecs(after))
+	if len(specs) == 0 {
+		return nil
+	}
 	declared := map[string]bool{}
 	var roots []string
 	for dir := range fsx.Up(filepath.Dir(path), "/") {
@@ -155,7 +163,7 @@ func jsUndeclared(path, before, after string) []string {
 		return nil
 	}
 	var out []string
-	for _, spec := range added(jsSpecs(before), jsSpecs(after)) {
+	for _, spec := range specs {
 		name := jsPackage(spec)
 		if name == "" || declared[name] || slices.Contains(nodeBuiltins, name) || aliased(roots, name) || slices.Contains(out, name) {
 			continue

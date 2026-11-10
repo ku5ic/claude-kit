@@ -46,7 +46,7 @@ func VerifyClaims(h *hook.Hook) error {
 			return h.Block(claimsMessage("your reply", u)+" Then give the corrected answer.", "claims")
 		}
 	case "SubagentStop":
-		marker := agentMarker(h)
+		marker := handbackMarker(h, cache.Claims)
 		if p.Bool("stop_hook_active") || marker != "" && fsx.IsFile(marker) {
 			return nil
 		}
@@ -66,7 +66,7 @@ func verifyToolInput(h *hook.Hook) error {
 	var text, where, transcriptPath, marker, retry string
 	switch {
 	case tool == "SubagentHandback":
-		text, where, transcriptPath, marker = p.String("tool_input.message"), "your report", agentTranscript(p), agentMarker(h)
+		text, where, transcriptPath, marker = p.String("tool_input.message"), "your report", agentTranscript(p), handbackMarker(h, cache.Claims)
 		retry = sendBack
 	case slices.Contains(filePathTools, tool):
 		path := p.FilePath()
@@ -126,7 +126,7 @@ func verifyToolInput(h *hook.Hook) error {
 // which never blocks.
 func unconfirmed(h *hook.Hook, text, transcriptPath, where string) []claims.Unsupported {
 	cfg := h.Config()
-	if cfg == nil || h.DryRun || !claims.Declarative(text) {
+	if cfg == nil || h.DryRun || h.RuleDisabled("claims") || !claims.Declarative(text) {
 		return nil
 	}
 	v, err := claims.Verify(cfg, h.Payload.Cwd(), text, transcriptPath)
@@ -147,16 +147,6 @@ func claimsMessage(where string, u []claims.Unsupported) string {
 	}
 	b.WriteString("Run each check, or label the claim (likely, not verified, unverifiable) per rules/evidence.md section 1.")
 	return b.String()
-}
-
-// agentMarker is the session's claim-check marker for the payload's agent;
-// "" when either id is missing or isn't a plain name.
-func agentMarker(h *hook.Hook) string {
-	agent := h.Payload.String("agent_id")
-	if agent == "" || strings.ContainsAny(agent, `/\`) {
-		return ""
-	}
-	return h.Paths.SessionFile(cache.Claims, h.Payload.SessionID(), "agent", agent)
 }
 
 // agentTranscript is a subagent's own transcript, else the session's.

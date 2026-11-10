@@ -38,10 +38,18 @@ func Check(c config.WeakenedChecks, path, before, after string) Result {
 		return Result{}
 	}
 	test := guard.GlobAny(c.TestFiles, path)
-	skips, suppressions, assertions := compile(c.Skips), compile(c.Suppressions), compile(c.Assertions)
 	var r Result
+	if test {
+		assertions := compile(c.Assertions)
+		r.Lost = max(0, count(assertions, before)-count(assertions, after))
+	}
 	newLines := strings.Split(after, "\n")
-	for _, i := range added(before, newLines) {
+	lines := added(before, newLines)
+	if len(lines) == 0 {
+		return r
+	}
+	skips, suppressions := compile(c.Skips), compile(c.Suppressions)
+	for _, i := range lines {
 		line := newLines[i]
 		var kind string
 		switch {
@@ -60,9 +68,6 @@ func Check(c config.WeakenedChecks, path, before, after string) Result {
 			}
 		}
 		r.Hits = append(r.Hits, hit)
-	}
-	if test {
-		r.Lost = max(0, count(assertions, before)-count(assertions, after))
 	}
 	return r
 }
