@@ -129,7 +129,7 @@ func GuardPlan(h *hook.Hook) error {
 	if !h.DryRun {
 		_ = fsx.WriteAtomic(marker, []byte(sent), 0o644)
 	}
-	h.Deny(fmt.Sprintf("run the %s agent on %s before asking for approval. Raise each contradiction it finds, between the plan's sections or against the repo, as a question for the user. Calling ExitPlanMode again with the same plan goes through.", planCritic, plan), "plan-critic")
+	h.Deny(fmt.Sprintf("run the %s agent on %s before asking for approval. Raise each contradiction it finds, between the plan's sections or against the repo, as a question for the user. This check lets the same plan through when ExitPlanMode is called again.", planCritic, plan), "plan-critic")
 	return nil
 }
 
