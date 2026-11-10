@@ -49,15 +49,30 @@ func Check(c config.WeakenedChecks, path, before, after string) Result {
 		return r
 	}
 	skips, suppressions := compile(c.Skips), compile(c.Suppressions)
-	for _, i := range lines {
-		line := newLines[i]
-		var kind string
+	kindOf := func(line string) string {
 		switch {
 		case test && matches(skips, line):
-			kind = "skip"
+			return "skip"
 		case matches(suppressions, line):
-			kind = "suppression"
-		default:
+			return "suppression"
+		}
+		return ""
+	}
+	// A line of a kind that replaces a removed one of that kind (a skip's
+	// message reworded) edits a check the file already had.
+	replaced := map[string]int{}
+	oldLines := strings.Split(before, "\n")
+	for _, i := range added(after, oldLines) {
+		replaced[kindOf(oldLines[i])]++
+	}
+	for _, i := range lines {
+		line := newLines[i]
+		kind := kindOf(line)
+		if kind == "" {
+			continue
+		}
+		if replaced[kind] > 0 {
+			replaced[kind]--
 			continue
 		}
 		hit := Hit{Line: i + 1, Text: strings.TrimSpace(line), Kind: kind}

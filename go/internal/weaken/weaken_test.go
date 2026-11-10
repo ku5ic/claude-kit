@@ -43,6 +43,18 @@ func TestCheck(t *testing.T) {
 			lines(`t.Skip("old")`, "x := 1"),
 			lines(`t.Skip("old")`, "x := 2"),
 			nil, 0},
+		{"a skip reworded", "pkg/a_test.go",
+			lines(`t.Skip("flaky")`, "x := 1"),                // kit: allow fixture
+			lines(`t.Skip("flaky on CI, see #12")`, "x := 1"), // kit: allow fixture
+			nil, 0},
+		{"a skip reworded and another added", "pkg/a_test.go",
+			lines(`t.Skip("flaky")`),                                   // kit: allow fixture
+			lines(`t.Skip("flaky on CI")`, `t.Skip("slow")`),           // kit: allow fixture
+			[]Hit{{Line: 2, Text: `t.Skip("slow")`, Kind: "skip"}}, 0}, // kit: allow fixture
+		{"a suppression doesn't stand in for a removed skip", "pkg/a_test.go",
+			lines(`t.Skip("flaky")`), // kit: allow fixture
+			lines("x() //nolint"),    // kit: allow fixture
+			[]Hit{{Line: 1, Text: "x() //nolint", Kind: "suppression"}}, 0}, // kit: allow fixture
 		{"a skip outside a test file is not a test skip", "pkg/a.go",
 			"", `t.Skip("x")`,
 			nil, 0},
