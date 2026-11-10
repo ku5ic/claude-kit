@@ -44,17 +44,24 @@ const (
 	evidenceCap = 300000
 )
 
+// threeWords is three or more words on one line, with no question mark.
+const threeWords = `\pL[\pL\pN'-]*[^\pL\pN?\n]+\pL[\pL\pN'-]*[^\pL\pN?\n]+\pL[^?\n]*?`
+
 var (
 	fence = regexp.MustCompile("(?ms)^\\s*(```|~~~).*?^\\s*(```|~~~)")
 	// statement is three or more words ending a sentence with . or !.
-	statement = regexp.MustCompile(`\pL[\pL\pN'-]*[^\pL\pN?\n]+\pL[\pL\pN'-]*[^\pL\pN?\n]+\pL[^?\n]*?[.!](\s|$)`)
+	statement = regexp.MustCompile(threeWords + `[.!](\s|$)`)
+	// item is a list item or table row of three or more words, which
+	// often ends without punctuation.
+	item = regexp.MustCompile(`(?m)^\s*([-*+]|\d+[.)]|\|)\s*[^?\n]*?` + threeWords + `$`)
 )
 
-// Declarative is true when text, outside its code fences, holds a sentence
-// that states something: questions, code, and a word or two ("Done.") have
-// nothing to verify.
+// Declarative is true when text, outside its code fences, holds a sentence,
+// list item, or table row that states something: questions, code, and a
+// word or two ("Done.") have nothing to verify.
 func Declarative(text string) bool {
-	return statement.MatchString(fence.ReplaceAllString(text, ""))
+	prose := fence.ReplaceAllString(text, "")
+	return statement.MatchString(prose) || item.MatchString(prose)
 }
 
 // Verdict is the verifier's answer: OK when no claim is unsupported.

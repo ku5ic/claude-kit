@@ -225,7 +225,14 @@ func TestDeclarative(t *testing.T) {
 		"Want me to commit it? Or should I wait for review?":                        false,
 		"```go\nfunc main() { fmt.Println(\"it works.\") }\n```":                    false,
 		"Here it is:\n\n```sh\nmake build\n```\n\nIt writes the binary to bin/kit.": true,
-		"": false,
+		"":                                   false,
+		"- `foo.go:12` returns nil on error": true,
+		"| auth.go | token never expires |":  true,
+		"1. The cache is never pruned":       true,
+		"- Which branch should I use?":       false,
+		"- Done":                             false,
+		"|------|------|":                    false,
+		"## Verification: a header":          false,
 	} {
 		if got := Declarative(text); got != want {
 			t.Errorf("Declarative(%q) = %v, want %v", text, got, want)
