@@ -31,14 +31,14 @@ Review checklist and the handful of git behaviors that are easy to get wrong. Co
 
 ## Reach for these
 
-| Situation                                | Tool                                                                    |
-| ---------------------------------------- | ----------------------------------------------------------------------- |
-| Commits lost after a bad rebase or reset | `git reflog`: every HEAD move is recorded; branch off `HEAD@{n}`        |
-| Need each commit in a series to build    | `exec` lines in the `rebase -i` todo (`exec make test`)                 |
-| Hunting the commit that broke something  | `git bisect run <cmd>`: automates the whole search; exit 0 = good       |
-| Reviewing a branch mid-edit on another   | `git worktree add <dir> <branch>`: separate working tree, shared `.git` |
-| Fixups for already-staged hunks          | `git absorb` (see `rules/tooling.md`) beats hand-written `rebase -i`    |
-| A file is ignored and you cannot see why | `git check-ignore -v <path>` names the rule and its source line         |
+| Situation                                | Tool                                                                          |
+| ---------------------------------------- | ----------------------------------------------------------------------------- |
+| Commits lost after a bad rebase or reset | `git reflog`: every HEAD move is recorded; branch off `HEAD@{n}`              |
+| Need each commit in a series to build    | `exec` lines in the `rebase -i` todo (`exec make test`)                       |
+| Hunting the commit that broke something  | `git bisect run <cmd>`: automates the whole search; exit 0 = good, 125 = skip |
+| Reviewing a branch mid-edit on another   | `git worktree add <dir> <branch>`: separate working tree, shared `.git`       |
+| Fixups for already-staged hunks          | `git absorb` (see `rules/tooling.md`) beats hand-written `rebase -i`          |
+| A file is ignored and you cannot see why | `git check-ignore -v <path>` names the rule and its source line               |
 
 ---
 
@@ -54,7 +54,7 @@ The rule is `rules/workflow.md` section 1. To force-push your own remote branch,
 Merging `main` into a feature branch repeatedly to stay up to date produces a messy history. Prefer `git rebase main` on the feature branch to keep a linear history before merge.
 
 **warning: squashing a merge commit into a feature commit**
-Interactive rebase cannot squash across a merge commit. Resolve by rebasing onto `main` first to linearize history, then squash.
+A rebase drops merge commits from the todo list by default, and `--rebase-merges` recreates them rather than squashing them. Rebase onto `main` first to linearize history, then squash.
 
 **warning: committing with `--no-verify`**
 Skipping pre-commit hooks bypasses linting, type checks, and secret scanning. Only use if you understand exactly which hook is blocking you and why it is safe to skip in that moment.
@@ -79,8 +79,8 @@ An `.env` or `*.key` file not listed in `.gitignore` will eventually be committe
 
 ## Version notes
 
-Checked: 2026-09-26 against https://git-scm.com, https://github.com/git/git/blob/master/Documentation/RelNotes/2.30.0.adoc and https://www.conventionalcommits.org/en/v1.0.0/
+Checked: 2026-11-10 against https://git-scm.com, https://github.com/git/git/tags, https://git-scm.com/docs/git-rebase, https://git-scm.com/docs/git-bisect and https://www.conventionalcommits.org/en/v1.0.0/
 
-- git 2.55.0 (2026-06-29): no guidance change. `git switch` / `git restore` are the documented replacements for branch and file `checkout`; `checkout` still works.
+- git 2.56.0 (2026-09-28), 2.56.1 tagged: no guidance change. Corrected the merge-commit squash warning per git-rebase (merges are dropped by default) and added bisect's exit 125.
 - `--force-if-includes` (2.30+): pairs with `--force-with-lease` against the background-fetch gap; added to the force-push guidance 2026-09-12.
 - Conventional Commits spec is 1.0.0; unchanged.

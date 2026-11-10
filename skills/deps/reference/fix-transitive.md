@@ -5,7 +5,7 @@ Runs only when the arguments contain `--fix-transitive`. Without it, alerts with
 For each open alert with no PR, work in this order and stop at the first that applies:
 
 1. Fixed version from `security_vulnerability.first_patched_version.identifier`. If null, there is no patched release; record "no fix available" and leave open.
-2. Prefer the real fix: bump the parent. Using the injected manager's dependency-tree query, find the direct dependency that pulls the vulnerable transitive in. If a newer version of that direct dependency depends on a fixed version of the transitive, bump the direct dependency. This resolves the alert through normal resolution and leaves no standing pin.
+2. Prefer the real fix, which is bumping the parent. Using the injected manager's dependency-tree query, find the direct dependency that pulls the vulnerable transitive in. If a newer version of that direct dependency depends on a fixed version of the transitive, bump the direct dependency. This resolves the alert through normal resolution and leaves no standing pin.
 3. Only if no parent bump resolves it (parent abandoned, or its latest still pulls the vulnerable range):
    1. Determine the transitive-pin mechanism from the injected manager itself.
    2. If you are not certain the ecosystem supports a transitive pin, stop and hand back to the user with the alert details rather than guessing.

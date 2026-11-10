@@ -1,6 +1,6 @@
 # Server Functions and Server Actions
 
-In Next.js 16, **Server Function** is the broader term: an async function that runs on the server, callable from the client through a network request. **Server Action** is the narrower term: a Server Function used for form submissions or other mutations (passed to `<form action={fn}>` or `<button formAction={fn}>`). The same function is both: how it is invoked decides which name applies.
+In Next.js 16, **Server Function** is the broader term: an async function that runs on the server, callable from the client through a network request. **Server Action** is the narrower term: a Server Function used for form submissions or other mutations (passed to `<form action={fn}>` or `<button formAction={fn}>`). The same function is both, and how it is invoked decides which name applies.
 
 Server Actions are dispatched as `POST` requests by React's `startTransition`; this happens automatically when the function is passed to a `<form>` or `<button>` action prop.
 

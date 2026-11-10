@@ -60,7 +60,7 @@ Use `exec` as the safe default for processes that do not fork. It waits for the 
 | `on-abnormal` | Signal, timeout, or watchdog failure   |
 | `no`          | Never (default)                        |
 
-Use `on-failure` for most services. `always` restarts even on intentional `systemctl stop`.
+Use `on-failure` for most services. `always` restarts even after a clean exit. No policy restarts a service stopped with `systemctl stop`.
 
 ## EnvironmentFile
 

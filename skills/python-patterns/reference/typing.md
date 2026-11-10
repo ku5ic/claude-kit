@@ -26,7 +26,7 @@
 - `# type: ignore[error-code]` over bare `# type: ignore`. The bracketed form documents the intent and lets `--warn-unused-ignores` catch stale suppressions.
 - `Any` in a public function signature is a `failure`. Internal `Any` with a one-line comment is acceptable when interop demands it.
 - `cast(X, value)` is a smell unless the runtime invariant is documented adjacent to the call.
-- Ruff is the linter and formatter for new Python projects. It consolidates Flake8 (plus plugins), Black, isort, pydocstyle, pyupgrade, autoflake, with 800+ rules. Linter and formatter are one tool, two subcommands.
+- Ruff is the linter and formatter for new Python projects. It consolidates Flake8 (plus plugins), Black, isort, pydocstyle, pyupgrade, autoflake, with 900+ rules. Linter and formatter are one tool, two subcommands.
 
 ## Type-checker configuration patterns
 

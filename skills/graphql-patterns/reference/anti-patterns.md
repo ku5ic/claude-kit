@@ -4,7 +4,7 @@ Severity levels: the report-format skill.
 
 ## A runtime value interpolated into a document
 
-`failure`. `` gql`query { user(id: "${id}") { name } }` `` makes the value part of the document: the client builds GraphQL text at runtime and every value is a new document. Declare `$id: ID!` and pass `variables: { id }`. Source: https://graphql.org/learn/queries/
+`failure`. `` gql`query { user(id: "${id}") { name } }` `` makes the value part of the document. The client builds GraphQL text at runtime and every value is a new document. Declare `$id: ID!` and pass `variables: { id }`. Source: https://graphql.org/learn/queries/
 
 ## An object selected without its identifier field
 

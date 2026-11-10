@@ -99,6 +99,23 @@ func TestOverlayReplacesBlockTiersAndRulesByID(t *testing.T) {
 	}
 }
 
+// An argv is a setting: the overlay's replaces kit.yml's, never extends it.
+func TestOverlayReplacesArgvLists(t *testing.T) {
+	dir := t.TempDir()
+	base := write(t, dir, "kit.yml", "claims:\n  command: [a, b]\npackage_lookups:\n  ecosystems:\n    go:\n      private_cmd: [go, env, GOPRIVATE]\n")
+	overlay := write(t, dir, "over.yml", "claims:\n  command: [stub]\npackage_lookups:\n  ecosystems:\n    go:\n      private_cmd: [my-tool]\n")
+	cfg, _, err := Load(Paths{Base: base, Overlay: overlay})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.Claims.Command; !slices.Equal(got, []string{"stub"}) {
+		t.Errorf("claims.command = %q, want [stub]", got)
+	}
+	if got := cfg.PackageLookups.Ecosystems["go"].PrivateCmd; !slices.Equal(got, []string{"my-tool"}) {
+		t.Errorf("private_cmd = %q, want [my-tool]", got)
+	}
+}
+
 // The overlay's on_edit rules come after kit.yml's, so the last match, the
 // overlay's, wins.
 func TestOverlayOnEditRulesAppend(t *testing.T) {

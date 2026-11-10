@@ -4,7 +4,7 @@ Check reference skills against the current language or framework release and upd
 
 ## What this maintains
 
-Reference skills are every `skills/*/SKILL.md` except the procedure skills `audit`, `write`, `deps`, `investigate`, `report-format`, and `meta`. Each carries a `## Version notes` section that this skill owns:
+Reference skills are every `skills/*/SKILL.md` except the procedure skills `audit`, `write`, `deps`, `investigate`, `pr`, `unslop`, `report-format`, and `meta`. Each carries a `## Version notes` section that this skill owns:
 
 ```markdown
 ## Version notes
@@ -20,7 +20,7 @@ Retention: at most 3 version entries, newest first. A pattern that changed moves
 ## Procedure
 
 1. Scope. The arguments are: $ARGUMENTS
-   - One or more skill names: refresh those.
+   - Skill names: refresh those.
    - `--all`: every reference skill.
    - Blank: list every reference skill with its `Checked:` date (or "never"), oldest first, and ask which to refresh via AskUserQuestion (multi-select, at most 5 unless the user picks `--all`).
 2. Read each selected skill's SKILL.md and every file under its `reference/`. Extract: the claimed current version (intro lines and Version notes), every version-specific claim ("since 3.4", "renamed in 16", "deprecated"), and the References URLs.
@@ -29,6 +29,11 @@ Retention: at most 3 version entries, newest first. A pattern that changed moves
    - Each claim: verified / contradicted (with the current wording) / could not verify.
    - New deprecations or renames since the claimed version.
    - New official best-practice guidance that changes what this skill recommends. Official docs and release notes only; blog posts do not count.
+
+   slop-patterns has no release, so its brief differs. Ask for the Wikipedia page's current revision and its era word lists, papers since the `Checked:` date that measure LLM word or construction frequency, and vendor or community lists as weaker evidence. For each lexicon word or rule, the answer is confirmed, contradicted, or no longer cited.
+
+   Then probe before adding. A candidate word or rule goes into `kit.yml` `slop:` only if it stays quiet on human text. Run `kit slop` with the candidate as a tier 2 rule in a `CLAUDE_CONFIG_DIR` overlay against pre-2022 human prose: GOROOT `src` comments and a repo checked out at a commit before 2022-11. Record its hit count in the Version notes entry. A word with more than a handful of human hits stays out, whatever its source.
+
 4. Classify each skill:
    - `current`: version matches, no contradicted claims. Update only the `Checked:` line.
    - `version bump`: newer release, no guidance change. Add a Version notes entry; update the intro's default-version line.
@@ -51,11 +56,11 @@ Retention: at most 3 version entries, newest first. A pattern that changed moves
 - A claim the researcher could not source stays as it was. "Could not verify" is a valid outcome; a confident edit from training memory is not (`rules/evidence.md`).
 - Every Version notes entry cites its source. An entry without one is a defect.
 - Prefer the smallest edit that makes the guidance true. Rewriting a reference file is out of scope; propose it in the report instead.
-- engineering-fundamentals is exempt: it holds no version-dependent content. Refresh it only when named explicitly.
+- engineering-fundamentals is exempt, since it holds no version-dependent content. Refresh it only when named explicitly.
 - Stop after the report. Do not commit.
 
 ## Stop conditions
 
 - Researcher agent unavailable (no Context7, no network): stop and say so.
-- A skill has no References URLs and no library the researcher can resolve: report it as unverifiable and move on.
+- If a skill has no References URLs and no library the researcher can resolve, report it as unverifiable and move on.
 - More than 5 skills selected without `--all`: ask before continuing.

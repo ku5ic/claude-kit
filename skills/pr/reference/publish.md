@@ -7,7 +7,7 @@ Never push, approve, request changes, resolve threads, or edit or delete existin
 ## Find the draft
 
 1. With a PR number: the drafts in `kit scratch-dir` named `pr-review-<n>-*` and `pr-reply-<n>-*`, plus any `pr-description-*` whose header `PR:` line names `#<n>`. Without one: the current branch's `pr-description-<branch>-*` (`/` in the branch name becomes `-`), plus the review and reply drafts of its open PR (`gh pr view --json number`), if any.
-2. Take the newest file per kind (`ls -t`). None: stop and name the drafting kind to run. More than one kind: ask which via AskUserQuestion.
+2. Take the newest file per kind (`ls -t`). If there's none, stop and name the drafting kind to run. If there's more than one kind, ask which via AskUserQuestion.
 3. Read the draft's header: `Kind`, `PR` or `Branch`, `Head`. Every `gh pr` call below passes `-R <owner>/<repo>` from the `PR:` line, or from `gh repo view --json nameWithOwner` for a `Branch:` header.
 4. Read the draft's post log, `<draft path without .md>.posted.log`, if it exists. Sections it lists are already posted and are skipped. Every section posted: say so and stop.
 

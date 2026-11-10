@@ -43,7 +43,7 @@ Unban an IP manually:
 fail2ban-client set sshd unbanip 203.0.113.5
 ```
 
-fail2ban monitors log files for repeated failures and adds iptables/nftables rules to block offending IPs. The `sshd` jail watches `/var/log/auth.log` by default on Debian/Ubuntu.
+fail2ban monitors log files for repeated failures and adds iptables/nftables rules to block offending IPs. On Debian paths, fail2ban 1.1.1 switched the `sshd` jail to the `systemd` backend (the journal), since Debian 12 no longer ships rsyslog by default and `/var/log/auth.log` may not exist.
 
 ## Unattended security upgrades
 

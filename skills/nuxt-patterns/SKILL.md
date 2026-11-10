@@ -5,7 +5,7 @@ description: Nuxt 3+ patterns for rendering modes, data fetching (useFetch, useA
 
 # Nuxt patterns
 
-Default assumption: Nuxt 4 (current stable, latest 4.5.x) with Universal Rendering (SSR).
+Default assumption: Nuxt 4 (current stable, latest 4.6.x) with Universal Rendering (SSR).
 
 - Nuxt 3 reached end-of-life on 2026-07-31; Nuxt 3 projects are still common and most patterns here apply, but flag the EOL and the version notes below cover deltas.
 - Verify the installed version via `nuxt --version` or `package.json`; minor-version deltas may affect module resolution and Nitro config.
@@ -36,10 +36,9 @@ Default assumption: Nuxt 4 (current stable, latest 4.5.x) with Universal Renderi
 
 ## Version notes
 
-Checked: 2026-09-26 against https://nuxt.com/blog, https://github.com/nuxt/nuxt/releases and https://nuxt.com/docs/4.x/api/nuxt-config#srcdir
+Checked: 2026-11-10 against https://www.npmjs.com/package/nuxt, https://nuxt.com/docs/4.x/api/composables/use-fetch, https://nuxt.com/docs/4.x/api/composables/use-async-data and https://nuxt.com/docs/4.x/getting-started/routing
 
-- 4.5 (2026-07): `enabled` option on `useFetch`/`useAsyncData`, `useLayout` composable, stable error codes, named views by filename. No pattern here changed.
-- 4.4 (2026-03): custom `useFetch`/`useAsyncData` factories (unverified on 2026-09-12; release notes not reachable).
-- Nuxt 3: end-of-life 2026-07-31, final release 3.21.x. Nuxt 2: end-of-life 2024-06-30.
+- 4.6.4 (2026-11-02): corrected the key rule. `useFetch` and `useAsyncData` both auto-generate a call-site key; neither derives it from the URL or requires one.
+- 4.5 (2026-07): `enabled` option on `useFetch`/`useAsyncData`, `useLayout` composable, stable error codes, named views by filename. No pattern here changed.- Nuxt 3: end-of-life 2026-07-31, final release 3.21.11 (2026-08-05). Nuxt 2: end-of-life 2024-06-30.
 
 Nitro and h3 version independently of Nuxt; verify version-sensitive claims against the current docs.

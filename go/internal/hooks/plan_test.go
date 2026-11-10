@@ -4,6 +4,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -111,6 +112,95 @@ func TestPlanStepPause(t *testing.T) {
 		})
 		r.Want(t, 0)
 		r.Empty(t)
+	})
+}
+
+func TestGuardPlan(t *testing.T) {
+	t.Parallel()
+	const plan = "/proj/.claude/plans/plan-x.md"
+	write := `{"type":"assistant","message":{"content":[{"type":"tool_use","id":"w","name":"Write","input":{"file_path":"` + plan + `"}}]}}`
+	critic := `{"type":"assistant","message":{"content":[{"type":"tool_use","id":"c","name":"Agent","input":{"subagent_type":"kit:plan-critic"}}]}}`
+	exit := func(k *sandbox, lines ...string) map[string]any {
+		path := filepath.Join(k.home, "session.jsonl")
+		testutil.Write(t, path, strings.Join(lines, "\n")+"\n")
+		return map[string]any{"hook_event_name": "PreToolUse", "session_id": "s", "tool_name": "ExitPlanMode",
+			"transcript_path": path, "tool_input": map[string]any{"plan": "# X", "planFilePath": plan}}
+	}
+	t.Run("no critique: sent back once, naming the critic and the plan; resent, it goes through", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		r := k.run("guard-plan", exit(k, write))
+		r.Denied(t)
+		r.Has(t, "kit:plan-critic", plan)
+		k.run("guard-plan", exit(k, write)).Allowed(t)
+	})
+	t.Run("a critique after the plan was written, then a revision: allowed", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		k.run("guard-plan", exit(k, write, critic, write)).Allowed(t)
+	})
+	t.Run("a critique only before the plan was written: sent back", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		k.run("guard-plan", exit(k, critic, write)).Denied(t)
+	})
+	t.Run("disabled: allowed", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		k.overlay("disabled_rules: [plan-critic]\n")
+		k.run("guard-plan", exit(k, write)).Allowed(t)
+	})
+}
+
+// The plan's claims are checked before the user is asked to approve it,
+// once plan-critic has read it; an unconfirmed one sends it back once.
+func TestPlanDispatchVerifiesClaims(t *testing.T) {
+	t.Parallel()
+	const plan = "/proj/.claude/plans/plan-x.md"
+	write := `{"type":"assistant","message":{"content":[{"type":"tool_use","id":"w","name":"Write","input":{"file_path":"` + plan + `"}}]}}`
+	critic := `{"type":"assistant","message":{"content":[{"type":"tool_use","id":"c","name":"Agent","input":{"subagent_type":"kit:plan-critic"}}]}}`
+	exit := func(k *sandbox, text string, lines ...string) map[string]any {
+		path := filepath.Join(k.home, "session.jsonl")
+		testutil.Write(t, path, strings.Join(lines, "\n")+"\n")
+		return map[string]any{"hook_event_name": "PreToolUse", "session_id": "s", "tool_name": "ExitPlanMode",
+			"transcript_path": path, "tool_input": map[string]any{"plan": text, "planFilePath": plan}}
+	}
+	t.Run("an unconfirmed claim: sent back once; the same plan, resent, goes through", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		calls := k.verifier("", claim)
+		r := k.run("plan-dispatch", exit(k, "# Plan\n\n"+claim, write, critic))
+		r.Denied(t)
+		r.Has(t, "the plan plan-x.md", claim, "git log -S Foo", "ExitPlanMode again")
+		k.run("plan-dispatch", exit(k, "# Plan\n\n"+claim, write, critic)).Allowed(t)
+		if got := len(testutil.Calls(t, calls)); got != 1 {
+			t.Errorf("verifier ran %d times, want 1", got)
+		}
+	})
+	t.Run("a revised plan is checked again", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		calls := k.verifier("", claim)
+		k.run("plan-dispatch", exit(k, "# Plan\n\n"+claim, write, critic)).Denied(t)
+		k.run("plan-dispatch", exit(k, "# Plan v2\n\n"+claim, write, critic)).Denied(t)
+		if got := len(testutil.Calls(t, calls)); got != 2 {
+			t.Errorf("verifier ran %d times, want 2", got)
+		}
+	})
+	t.Run("no critique yet: the critic gate denies and the verifier never runs", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		calls := k.verifier("", claim)
+		k.run("plan-dispatch", exit(k, "# Plan\n\n"+claim, write)).Has(t, "kit:plan-critic")
+		if got := testutil.Calls(t, calls); got != nil {
+			t.Errorf("verifier ran before the critique: %q", got)
+		}
+	})
+	t.Run("every claim confirmed: allowed", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		k.verifier("")
+		k.run("plan-dispatch", exit(k, "# Plan\n\n"+claim, write, critic)).Allowed(t)
 	})
 }
 

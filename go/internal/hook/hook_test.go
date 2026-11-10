@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -141,6 +142,10 @@ func TestPayload(t *testing.T) {
 	}
 	if got := p.String("tool_input.n"); got != "" {
 		t.Errorf("String of a number = %q, want empty", got)
+	}
+	nested := ParsePayload([]byte(`{"in":{"code":"x","b":"y","c":[{"code":"z","d":"w"}]}}`))
+	if got := nested.Strings("in", "code"); !slices.Equal(got, []string{"y", "w"}) {
+		t.Errorf("Strings skipping code = %q, want [y w]", got)
 	}
 	if ParsePayload([]byte("not json")).Err == nil || ParsePayload(nil).Err == nil {
 		t.Error("bad payloads must set Err")

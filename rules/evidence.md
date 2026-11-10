@@ -30,10 +30,16 @@ Whether to ask instead of going on is `rules/workflow.md` section 4.
 
 Label every theory: `verified` (read it directly), `likely` (inferred, name the evidence), `hypothesis` (plausible, unchecked), `unknown` (no basis). A hypothesis does not become fact by going unchallenged.
 
+<!-- chat: skip -->
+
+The `verify-claims` hook sends back each claim in a plan, subagent report, scratch report, or connector post that nothing in the session confirms. Check it or label it. A chat reply goes unchecked, so check or label its claims before sending.
+
+<!-- chat: end -->
+
 **Also:**
 
 - Relative time claims ("just now", "recently") need a checked clock or a quoted timestamp. Never asserted from feel.
-- A file the user says exists but is not found: surface it and ask. Do not create a stub matching the name.
+- When a file the user says exists isn't found, surface it and ask. Do not create a stub matching the name.
 
 <!-- chat: skip -->
 
@@ -75,6 +81,6 @@ State the diagnosis before proposing the fix. Misuse: fix the call site. Genuine
 
 **Three failed fixes for the same defect means stop.** Report what was tried and question the approach or the diagnosis; a fourth patch is guessing.
 
-**A test failing after a refactor is the same question**, with the test as the suspect dependency. Do not silently adjust the assertion to match new output. Ask whether the asserted behavior changed on purpose: a test asserting on user-visible output is almost always guarding real behavior. State "intentional change, update the test" or "production code broke, fix the code" before touching either.
+**A test failing after a refactor is the same question**, with the test as the suspect dependency. Do not silently adjust the assertion to match new output. Ask whether the asserted behavior changed on purpose. A test asserting on user-visible output is almost always guarding real behavior. State "intentional change, update the test" or "production code broke, fix the code" before touching either.
 
 Expect misuse more often than defect. Most "library bugs" are usage errors.

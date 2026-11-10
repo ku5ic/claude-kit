@@ -60,7 +60,7 @@ Branch on the outcome (read it with `--include` and the `HTTP/2 <code>` line):
   2. Record "GitHub Dependabot alerts unavailable for <slug>" (name the slug).
   3. Fall through to audit-only, flagging every severity "from local audit, may understate".
   4. Do not assert "disabled" as fact.
-  5. If a 404 appears only when a filter is attached but not on the bare GET, it is a malformed request: re-issue the bare GET.
+  5. If a 404 appears only when a filter is attached but not on the bare GET, it is a malformed request. Re-issue the bare GET.
 - 403: token lacks scope. A classic PAT needs `repo` or `security_events`. Stop and tell the user to run `gh auth refresh -s security_events`.
 - Any other non-2xx: stop and surface status and body.
 
@@ -156,8 +156,8 @@ Stop and hand back to the user, without proceeding further, when:
 - No GitHub remote resolves (Precondition 2).
 - The working tree is dirty at start (Precondition 4).
 - The alerts endpoint returns 403 (Phase 1b): token lacks scope.
-- Phase 2's proposal table is presented: wait for approval before any mutation.
+- Phase 2's proposal table is presented. Wait for approval before any mutation.
 - A transitive-pin mechanism can't be confirmed for the ecosystem (Phase 5).
 - A merge would land on or push to a protected branch (Rules).
 
-A failed-checks PR (Phase 4) is not a full stop: record it as held and continue to the next candidate.
+A failed-checks PR (Phase 4) is not a full stop. Record it as held and continue to the next candidate.

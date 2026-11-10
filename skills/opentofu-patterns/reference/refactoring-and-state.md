@@ -13,7 +13,7 @@ moved {
 }
 ```
 
-Keep historical `moved` blocks in shared modules. Deleting one is a breaking change: a caller still on the old address plans to delete the object instead of moving it. Source: https://opentofu.org/docs/language/modules/develop/refactoring/
+Keep historical `moved` blocks in shared modules. Deleting one is a breaking change, because a caller still on the old address plans to delete the object instead of moving it. Source: https://opentofu.org/docs/language/modules/develop/refactoring/
 
 ## `import`: adopting existing objects
 
@@ -34,11 +34,11 @@ removed {
 
 Source: https://opentofu.org/docs/language/resources/syntax/
 
-OpenTofu 1.12+ also accepts `lifecycle { destroy = false }` on a managed resource itself. Source: https://opentofu.org/docs/intro/whats-new/
+OpenTofu 1.12+ also accepts `lifecycle { destroy = false }` on a managed resource itself. Source: https://opentofu.org/docs/v1.12/intro/whats-new/
 
 ## `lifecycle` guards
 
-In OpenTofu 1.12+, `prevent_destroy` may refer to other symbols in the module, such as input variables, so protection can differ per environment. Source: https://opentofu.org/docs/intro/whats-new/
+In OpenTofu 1.12+, `prevent_destroy` may refer to other symbols in the module, such as input variables, so protection can differ per environment. Source: https://opentofu.org/docs/v1.12/intro/whats-new/
 
 ## What state holds
 

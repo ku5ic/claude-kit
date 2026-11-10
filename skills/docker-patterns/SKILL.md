@@ -5,7 +5,7 @@ description: Docker patterns for Dockerfile best practices, multi-stage builds, 
 
 # Docker patterns
 
-Docker Engine 29.8.1. Compose Specification (current format, supersedes 2.x and 3.x). Verify at https://docs.docker.com/engine/release-notes/ and https://docs.docker.com/compose/compose-file/.
+Docker Engine 29.9.3. Compose Specification (current format, supersedes 2.x and 3.x). Verify at https://docs.docker.com/engine/release-notes/ and https://docs.docker.com/compose/compose-file/.
 
 ## Reference files
 
@@ -28,9 +28,10 @@ Docker Engine 29.8.1. Compose Specification (current format, supersedes 2.x and 
 
 ## Version notes
 
-Checked: 2026-09-26 against https://docs.docker.com/engine/release-notes/ and https://docs.docker.com/compose/compose-file/04-version-and-name/
+Checked: 2026-11-10 against https://docs.docker.com/engine/release-notes/29/, https://docs.docker.com/engine/deprecated/, https://docs.docker.com/engine/containers/start-containers-automatically/ and https://docs.docker.com/compose/compose-file/04-version-and-name/
 
 Docker Engine and Docker Compose release independently. The Compose Specification supersedes the versioned format (version: "3"), and the `version` top-level key is now ignored.
 
+- 29.9.3 (2026-11-03): corrected the `always` restart policy per the docs, and noted legacy link environment variables are disabled since 29.0, removal targeted for 30.0.
 - 29.8.1 (2026-09-15): bug fixes only (containerd image store, logging, networking); no guidance change.
 - 29.4.2 (2026-05-01): previous baseline.

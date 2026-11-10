@@ -5,7 +5,7 @@ description: FastAPI patterns, Pydantic schemas, dependency injection, async cor
 
 # FastAPI patterns
 
-FastAPI 0.141.x, Pydantic 2.13.x (baseline at time of writing). Verify current versions at https://pypi.org/project/fastapi/ and https://pypi.org/project/pydantic/. Adapt advice to the versions in the project's `requirements.txt`, `pyproject.toml`, or lockfile.
+FastAPI 0.162.x, Pydantic 2.14.x (baseline at time of writing). Verify current versions at https://pypi.org/project/fastapi/ and https://pypi.org/project/pydantic/. Adapt advice to the versions in the project's `requirements.txt`, `pyproject.toml`, or lockfile.
 
 Install: `pip install "fastapi[standard]"`
 
@@ -31,8 +31,8 @@ Install: `pip install "fastapi[standard]"`
 
 ## Version notes
 
-Checked: 2026-09-26 against https://pypi.org/project/fastapi/ and https://fastapi.tiangolo.com/release-notes/
+Checked: 2026-11-10 against https://pypi.org/project/fastapi/, https://pypi.org/project/pydantic/ and https://fastapi.tiangolo.com/release-notes/
 
+- 0.162.4 (2026-11-10) with Pydantic 2.14.3 (2026-11-05): no change to the patterns here. Since 0.141: `ORJSONResponse` and `UJSONResponse` deprecated (0.131), `strict_content_type` on by default (0.132), the `root_path` parameter deprecated (0.146), and `**extra` removed from `Path`, `Query` and friends in favor of `json_schema_extra`.
 - 0.141.1 (2026-07-29) with Pydantic 2.13.5 (2026-08-28): no guidance change. FastAPI stays on 0.x by design; there is no 1.x and no Pydantic 3.
 - 0.128.0: Pydantic v1 compatibility (`pydantic.v1` models) removed; unsupported on Python 3.14+.
-- 0.95.0: `Annotated` form for `Depends()` became the recommended shape.

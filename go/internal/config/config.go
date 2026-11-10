@@ -32,15 +32,19 @@ type Config struct {
 	DisabledTaskProviders []string      `yaml:"disabled_task_providers"`
 	DisabledChecks        []string      `yaml:"disabled_checks"`
 
-	ReplyLimits   ReplyLimits `yaml:"reply_limits"`
-	SanitizeSkip  []string    `yaml:"sanitize_skip"`
-	SkipDirs      []string    `yaml:"skip_dirs"`
-	Tools         []string    `yaml:"tools"`
-	LockfileGlobs []string    `yaml:"lockfile_globs"`
-	Classifier    []string    `yaml:"classifier"`
-	OnEdit        []EditRule  `yaml:"on_edit"`
-	Slop          Slop        `yaml:"slop"`
-	ChatBundle    ChatBundle  `yaml:"chat_bundle"`
+	ReplyLimits    ReplyLimits    `yaml:"reply_limits"`
+	SanitizeSkip   []string       `yaml:"sanitize_skip"`
+	SkipDirs       []string       `yaml:"skip_dirs"`
+	Tools          []string       `yaml:"tools"`
+	LockfileGlobs  []string       `yaml:"lockfile_globs"`
+	Classifier     []string       `yaml:"classifier"`
+	OnEdit         []EditRule     `yaml:"on_edit"`
+	Slop           Slop           `yaml:"slop"`
+	Connectors     Connectors     `yaml:"connectors"`
+	Claims         Claims         `yaml:"claims"`
+	WeakenedChecks WeakenedChecks `yaml:"weakened_checks"`
+	PackageLookups PackageLookups `yaml:"package_lookups"`
+	ChatBundle     ChatBundle     `yaml:"chat_bundle"`
 
 	// Tag is "merged" when an overlay was merged in, else "base". Caches
 	// derived from the config carry it in their file name, so deleting the
@@ -221,6 +225,133 @@ type ChatBundle struct {
 // commit message, PR text, a subagent's report, a chat reply, and ui, the
 // lines of a UI file as written, which only rules naming it scan.
 var SlopSurfaces = []string{"file", "commit", "pr", "report", "chat", "ui"}
+
+// Connectors are the verbs go/internal/connector reads an MCP tool's name
+// by, and CodeFields, the input fields that hold code, not prose.
+type Connectors struct {
+	WriteVerbs []string `yaml:"write_verbs"`
+	ReadVerbs  []string `yaml:"read_verbs"`
+	CodeFields []string `yaml:"code_fields"`
+}
+
+// Claims is go/internal/claims's verifier: the model and spend cap passed
+// to its claude -p call, its time limit in seconds, the tools it may call
+// besides its own read-only set, and Command, which replaces the call.
+type Claims struct {
+	Command   []string `yaml:"command"`
+	Model     string   `yaml:"model"`
+	Timeout   int      `yaml:"timeout"`
+	BudgetUSD float64  `yaml:"budget_usd"`
+	Allow     []string `yaml:"allow"`
+}
+
+// problems names a limit below 0, which would silently mean "off": 0, or
+// no claims block at all, turns the verifier off.
+func (c Claims) problems() []error {
+	var errs []error
+	if c.Timeout < 0 {
+		errs = append(errs, fmt.Errorf("claims: timeout is %d; 0 turns the verifier off", c.Timeout))
+	}
+	if c.BudgetUSD < 0 {
+		errs = append(errs, fmt.Errorf("claims: budget_usd is %g; 0 turns the verifier off", c.BudgetUSD))
+	}
+	return errs
+}
+
+// Off is true when the verifier has no time or no money to run with.
+func (c Claims) Off() bool { return c.Timeout <= 0 || c.BudgetUSD <= 0 }
+
+// WeakenedChecks are the paths and patterns go/internal/weaken reads an
+// edit by: the files it skips, the files that are tests, and the lines
+// that skip a test, silence a check, or assert.
+type WeakenedChecks struct {
+	Skip         []string `yaml:"skip"`
+	TestFiles    []string `yaml:"test_files"`
+	Skips        []string `yaml:"skips"`
+	Suppressions []string `yaml:"suppressions"`
+	Assertions   []string `yaml:"assertions"`
+}
+
+// problems names each pattern that doesn't compile.
+func (w WeakenedChecks) problems() []error {
+	var errs []error
+	for _, l := range []struct {
+		name     string
+		patterns []string
+	}{{"skips", w.Skips}, {"suppressions", w.Suppressions}, {"assertions", w.Assertions}} {
+		for _, p := range l.patterns {
+			if _, err := regexp.Compile(p); err != nil {
+				errs = append(errs, fmt.Errorf("weakened_checks.%s: %q doesn't compile", l.name, p))
+			}
+		}
+	}
+	return errs
+}
+
+// PackageLookups are the registry lookups go/internal/pkgcheck runs on a
+// package an add verb names: Timeout seconds for all of one command's
+// lookups (0 turns them off), and each ecosystem's lookup.
+type PackageLookups struct {
+	Timeout    int                      `yaml:"timeout"`
+	Ecosystems map[string]PackageLookup `yaml:"ecosystems"`
+}
+
+// PackageLookup is one ecosystem's: the managers it covers, the pattern a
+// package name matches, the command ({pkg} is the name), what its output
+// holds when no such package exists, and whether a missing path is tried
+// again at each parent, as a Go package path inside a module.
+type PackageLookup struct {
+	Managers []string `yaml:"managers"`
+	Name     string   `yaml:"name"`
+	Cmd      []string `yaml:"cmd"`
+	Missing  string   `yaml:"missing"`
+	Parents  bool     `yaml:"parents"`
+	// Private maps a registry config file to the line pattern ({scope} is
+	// the package's scope, without @) that sends a package somewhere the
+	// lookup, run outside the project, can't see.
+	Private map[string]string `yaml:"private"`
+	// PrivateCmd prints comma-separated globs of private package paths.
+	PrivateCmd []string `yaml:"private_cmd"`
+	// ValueFlags take the next word as their value, never a package.
+	ValueFlags []string `yaml:"value_flags"`
+	// RegistryFlags send the command's packages to another registry.
+	RegistryFlags []string `yaml:"registry_flags"`
+}
+
+// Flags are the value-taking and registry flags of every ecosystem
+// covering manager.
+func (p PackageLookups) Flags(manager string) (value, registry []string) {
+	for _, e := range p.Ecosystems {
+		if slices.Contains(e.Managers, manager) {
+			value = append(value, e.ValueFlags...)
+			registry = append(registry, e.RegistryFlags...)
+		}
+	}
+	return value, registry
+}
+
+// problems names each lookup that can't work: a pattern that doesn't
+// compile, or a command that never names the package.
+func (p PackageLookups) problems() []error {
+	var errs []error
+	for _, name := range slices.Sorted(maps.Keys(p.Ecosystems)) {
+		l := p.Ecosystems[name]
+		for _, f := range [][2]string{{"name", l.Name}, {"missing", l.Missing}} {
+			if _, err := regexp.Compile(f[1]); err != nil || f[1] == "" {
+				errs = append(errs, fmt.Errorf("package_lookups.%s: %s %q doesn't compile", name, f[0], f[1]))
+			}
+		}
+		for _, file := range slices.Sorted(maps.Keys(l.Private)) {
+			if _, err := regexp.Compile(strings.ReplaceAll(l.Private[file], "{scope}", "x")); err != nil {
+				errs = append(errs, fmt.Errorf("package_lookups.%s: private %s pattern doesn't compile", name, file))
+			}
+		}
+		if !slices.ContainsFunc(l.Cmd, func(arg string) bool { return strings.Contains(arg, "{pkg}") }) {
+			errs = append(errs, fmt.Errorf("package_lookups.%s: cmd never names {pkg}", name))
+		}
+	}
+	return errs
+}
 
 // Slop is the AI-tell lexicon go/internal/slop scans with. Hits in a
 // BlockTiers tier block; the rest are logged. Tier 3 rules and Density.Words

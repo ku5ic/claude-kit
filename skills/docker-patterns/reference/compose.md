@@ -106,7 +106,7 @@ Use `CMD-SHELL` form to run a shell command: `["CMD-SHELL", "pg_isready ..."]`. 
 | `unless-stopped` | Always restart unless manually stopped; does not start on daemon restart if it was stopped |
 | `on-failure`     | Restart only on non-zero exit; optionally `on-failure:5` for max retries                   |
 
-Prefer `unless-stopped` over `always` for long-running services: `always` restarts even containers you intentionally stopped, which is surprising in development.
+Prefer `unless-stopped` over `always` for long-running services. An `always` container you stopped by hand comes back when the Docker daemon restarts, which is surprising in development; `unless-stopped` leaves it stopped.
 
 ## Environment variables
 

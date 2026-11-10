@@ -26,7 +26,7 @@
 
 PEP 703 introduced an experimental no-GIL build in Python 3.13 (`python3.13t`); 3.14 graduated it to officially supported per PEP 779, with a roughly 5-10% single-threaded performance penalty depending on platform. The runtime is not the default in either release; opt-in builds and pip 24.1+ for installing C-extension packages remain the gating story.
 
-The implication for module-level mutable state: code that "happened to be safe" because the GIL serialized every bytecode is no longer safe under the free-threaded interpreter. Common patterns now needing a lock:
+For module-level mutable state, code that "happened to be safe" because the GIL serialized every bytecode is no longer safe under the free-threaded interpreter. Common patterns now needing a lock:
 
 - Module-level dict / list mutated by multiple worker threads (`_cache`, `_registry`, `_handlers`).
 - Lazy-initialization sentinels (`if _value is None: _value = compute()`).

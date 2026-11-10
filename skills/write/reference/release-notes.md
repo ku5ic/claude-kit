@@ -92,7 +92,7 @@ Range: <base>..HEAD (N commits)
 
 <!-- chat: skip -->
 
-- If `kit git-base` resolved no base: note that in the report and fall back to last 30 commits by running `git log --oneline --no-merges -30` explicitly.
+- If `kit git-base` resolved no base, note that in the report and fall back to last 30 commits by running `git log --oneline --no-merges -30` explicitly.
 
 <!-- chat: end -->
 

@@ -46,7 +46,7 @@ Default to Histogram over Summary. Review the default buckets (.005 through 10, 
 | `/health/live`  | Process is running                     | Kubernetes liveness probe  |
 | `/health/ready` | Dependencies (DB, cache) are reachable | Kubernetes readiness probe |
 
-Return 503, not 500, when a dependency is down: readiness should fail only when the instance cannot serve traffic.
+Return 503, not 500, when a dependency is down. Readiness should fail only when the instance cannot serve traffic.
 
 ---
 
@@ -82,6 +82,7 @@ The defaults suit general HTTP latency. For faster or slower operations, define 
 
 ## Version notes
 
-Checked: 2026-09-26 against Context7 `/prometheus/client_python`, https://prometheus.github.io/client_python/instrumenting/summary/, https://prometheus.io/download/
+Checked: 2026-11-10 against https://github.com/prometheus/client_python/releases, https://prometheus.github.io/client_python/instrumenting/summary/, https://prometheus.io/download/, https://github.com/prometheus/prometheus/releases
 
+- Prometheus 3.16.0 (2026-11-04), LTS 3.13.5; prometheus-client 0.26.0 still current: no guidance change.
 - prometheus-client 0.26.0 (2026-07-24), Prometheus 3.15.0 (2026-09-24): Summary row corrected; the Python client "does not compute quantiles locally".

@@ -24,11 +24,11 @@ Severity levels: the report-format skill.
 
 ## `"use client"` placed deep inside a subtree
 
-`warning`. Placing `"use client"` low in the component tree does not isolate the boundary: all imports of that component are also pulled into the client bundle. Place the directive at the outermost component that actually needs interactivity and keep server data-fetching above it.
+`warning`. Placing `"use client"` low in the component tree does not isolate the boundary, because all imports of that component are also pulled into the client bundle. Place the directive at the outermost component that actually needs interactivity and keep server data-fetching above it.
 
 ## Accessing `cookies()` or `headers()` outside an async context
 
-`warning`. In Next.js 15+, `cookies()` and `headers()` are async and must be awaited. Calling them synchronously returns a Promise in 16, silently returning `undefined` for most properties. Always `await cookies()` and `await headers()`.
+`warning`. In Next.js 15+, `cookies()` and `headers()` are async and must be awaited. Starting with 16, synchronous access is fully removed. Always `await cookies()` and `await headers()`.
 
 ## References
 

@@ -29,7 +29,7 @@ networks:
   backend:
 ```
 
-`api` can reach `db` at `db:5432`. The default bridge network does not support service name resolution; user-defined networks do.
+`api` can reach `db` at `db:5432`. The default bridge network does not support service name resolution; user-defined networks do. Use one instead of legacy `--link`, whose environment variables are off by default since Engine 29.0 and slated for removal in 30.0.
 
 ## Port publishing
 

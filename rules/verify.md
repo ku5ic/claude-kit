@@ -2,16 +2,16 @@
 
 What must happen before a change is called done, and when. This file is the one definition of "done" and "verify"; others point here.
 
-| When                                                                                                                 | What runs                                                                                                                                                                                                                                                         |
-| -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| After every edit                                                                                                     | The Stop hook's checks on the edited files. Automatic; a failure blocks the turn                                                                                                                                                                                  |
-| Calling an ordinary change done                                                                                      | The refactor pass first: first green is never done (`skills/engineering-fundamentals/reference/red-green-refactor.md`). Then nothing more. Name in one line what the refactor pass changed and anything not run; the Stop hook shows its own run (next paragraph) |
-| End of a plan, or when the user asks                                                                                 | `/code-review` (section 1); its hook runs the full gate                                                                                                                                                                                                           |
-| Same moment, when the change has observable behavior (a response, output, an exit code, data written, a side effect) | The runtime pass (section 2)                                                                                                                                                                                                                                      |
+| When                                                                                                                 | What runs                                                                                                                                                                                                                                                               |
+| -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| After every edit                                                                                                     | The Stop hook's checks on the edited files. Automatic; a failure blocks the turn                                                                                                                                                                                        |
+| Calling an ordinary change done                                                                                      | The refactor pass first, since first green is never done (`skills/engineering-fundamentals/reference/red-green-refactor.md`). Then nothing more. Name in one line what the refactor pass changed and anything not run; the Stop hook shows its own run (next paragraph) |
+| End of a plan, or when the user asks                                                                                 | `/code-review` (section 1); its hook runs the full gate                                                                                                                                                                                                                 |
+| Same moment, when the change has observable behavior (a response, output, an exit code, data written, a side effect) | The runtime pass (section 2)                                                                                                                                                                                                                                            |
 
-**Hooks run the gates and show their results; Claude does neither.** The Stop hook checks a turn's edits (`stop checks:`). The `/code-review` hook runs the full gate (`run-checks checks:`), and Stop skips a tree it already checked. Each shows the user every PASS, FAIL, and SKIP line. Claude never runs `kit run-checks` (the bash guard blocks it; `--plan` only lists the gates). A reply never repeats verdict lines or counts: it acts on a FAIL, or says what wasn't run. A targeted test while developing is fine.
+**Hooks run the gates and show their results; Claude does neither.** The Stop hook checks a turn's edits (`stop checks:`). The `/code-review` hook runs the full gate (`run-checks checks:`), and Stop skips a tree it already checked. Each shows the user every PASS, FAIL, and SKIP line. Claude never runs `kit run-checks` (the bash guard blocks it; `--plan` only lists the gates). A reply never repeats verdict lines or counts. It acts on a FAIL, or says what wasn't run. A targeted test while developing is fine.
 
-Tests and type checks prove the code compiles and the asserted paths pass. They don't prove the change works for whoever consumes it; that is what the runtime pass is for. A pure refactor with no behavior change is covered by the existing tests.
+Tests and type checks prove the code compiles and the asserted paths pass. They don't prove the change works for whoever consumes it; that is what the runtime pass is for. A pure refactor with no behavior change is covered by the existing tests, unless it touches UI: tests don't assert how a screen looks.
 
 ## 1. Self-review (`/code-review`)
 
@@ -19,7 +19,7 @@ Read your own diff as a reviewer who didn't write it and doesn't trust it. When 
 
 The reviewer's report follows these, whoever prompted the checks:
 
-- It never lists the checks or their counts: the hook already showed the user every line. For a worktree review, it opens with the PR's CI state from `gh pr checks`. Only the branch-left line from `rules/workflow.md` section 1 goes above it.
+- It never lists the checks or their counts, since the hook already showed the user every line. For a worktree review, it opens with the PR's CI state from `gh pr checks`. Only the branch-left line from `rules/workflow.md` section 1 goes above it.
 - A FAIL becomes a finding only once its cause is verified in the code and you're at least 90% sure, and never twice for something already reported.
 - A FAIL left unreported gets one line saying why: pre-existing, flaky, or unrelated.
 
@@ -43,6 +43,8 @@ Exercise the change through the interface its consumers use, the way they use it
 | Migration | running it on a copy of realistic data                             |
 | Infra     | `plan` or a dry run against the real target                        |
 
+A plan step that changes what a user sees gets this pass before its pause, not at plan end. A change whose contract is "unchanged" (a refactor, migration, or rewire) runs the same flow on the base branch (`kit git-base`) and on the change, side by side.
+
 Starting it and seeing it respond is not verification. The goal is to break it.
 
 Exercise every row that applies to the change:
@@ -56,7 +58,7 @@ Exercise every row that applies to the change:
 | UI only    | loading state, keyboard only, narrow viewport, back or refresh mid-flow                                                  |
 | CLI only   | no args and `--help`, invalid flags, piped stdin and non-TTY output, stdout vs stderr, exit codes, Ctrl-C mid-run        |
 
-The UI and CLI rows are additive: they apply only when the change touches that surface, and a change that doesn't never lists them as Not exercised.
+The UI and CLI rows are additive. They apply only when the change touches that surface, and a change that doesn't never lists them as Not exercised.
 
 When the setup can't produce a case (no fixture with many items, no limited-permission user), say so; don't skip it silently.
 
@@ -84,7 +86,7 @@ The agent proposes; the human decides and owns the result. Agent output, includi
 
 ## 5. One cycle, then stop
 
-A change gets one `/code-review` and one runtime pass. A finding from either goes back to the fix loop only when it's a regression: the change leaves something worse than on the base branch (`kit git-base`). That means a new failure, a path that worked and now breaks, or a guard or check weakened.
+A change gets one `/code-review` and one runtime pass. A finding from either goes back to the fix loop only when it's a regression, meaning the change leaves something worse than on the base branch (`kit git-base`). That means a new failure, a path that worked and now breaks, or a guard or check weakened.
 
 Everything else is a follow-up line in the report and the PR description, never another cycle: a pre-existing problem, an edge case the base already had, a hardening idea, a gap in new code that still improves on the base.
 

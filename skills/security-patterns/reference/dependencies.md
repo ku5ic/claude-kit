@@ -6,7 +6,7 @@
 
 ## Audit tools: lockfile vs full tree
 
-`npm audit` (and friends) consults the registry's advisories endpoint for the resolved package set in the lockfile. Cheap to run, narrow in scope: only flags advisories the registry knows about. Misses anything that has not been triaged into the npm advisories feed.
+`npm audit` (and friends) consults the registry's advisories endpoint for the resolved package set in the lockfile. Cheap to run, narrow in scope. It only flags advisories the registry knows about. Misses anything that has not been triaged into the npm advisories feed.
 
 OSV-Scanner (https://google.github.io/osv-scanner/) queries the OSV federated database, which aggregates GitHub Security Advisories, RustSec, PyPA, RubyAdvisory, and others. Broader coverage at the cost of more findings to triage; supports multiple ecosystems including npm, PyPI, Maven, Go modules, container images. Run both: ecosystem-native audit for fast feedback, OSV-Scanner for cross-ecosystem coverage.
 

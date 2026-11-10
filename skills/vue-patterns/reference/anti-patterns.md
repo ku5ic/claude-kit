@@ -4,7 +4,7 @@ Severity levels: the report-format skill.
 
 ## `v-if` and `v-for` on the same element
 
-`failure`. Vue documents this combination as a precedence trap: the two directives' relative priority is non-obvious and the resulting evaluation order is rarely what the author intended. Move `v-if` to a wrapper element (often `<template>`), or filter the array with a computed before the `v-for`.
+`failure`. Vue documents this combination as a precedence trap. The two directives' relative priority is non-obvious and the resulting evaluation order is rarely what the author intended. Move `v-if` to a wrapper element (often `<template>`), or filter the array with a computed before the `v-for`.
 
 ```vue
 <!-- failure -->
@@ -22,7 +22,7 @@ Severity levels: the report-format skill.
 
 ## Destructuring `reactive` at the top of `<script setup>`
 
-`failure`. The destructured bindings lose their connection to the proxy and stop updating. Use `toRefs(state)` to preserve reactivity, or reach for `ref()` in the first place. Reactive props destructure (Vue 3.5+) is a special case: that destructure pattern IS reactive because the compiler rewrites it. Plain destructure of an arbitrary `reactive(...)` object is not.
+`failure`. The destructured bindings lose their connection to the proxy and stop updating. Use `toRefs(state)` to preserve reactivity, or reach for `ref()` in the first place. Reactive props destructure (Vue 3.5+) is a special case. That destructure pattern IS reactive because the compiler rewrites it. Plain destructure of an arbitrary `reactive(...)` object is not.
 
 ## `v-html` with user input
 

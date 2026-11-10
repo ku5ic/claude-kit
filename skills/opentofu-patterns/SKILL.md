@@ -5,7 +5,7 @@ description: OpenTofu and Terraform patterns for config-driven refactoring (move
 
 # OpenTofu patterns
 
-Default assumption: OpenTofu 1.12. Most rules hold for Terraform too, since the language is shared.
+Default assumption: OpenTofu 1.13. Most rules hold for Terraform too, since the language is shared.
 
 - Features marked "OpenTofu 1.11+" or "1.12+" are OpenTofu releases; check Terraform's own docs before using one in a Terraform project.
 - Adapt advice to `required_version` in the project's `versions.tf` (or wherever the `terraform {}` block lives) and to which CLI the project runs (`tofu` or `terraform`).
@@ -22,13 +22,13 @@ Default assumption: OpenTofu 1.12. Most rules hold for Terraform too, since the 
 ## References
 
 - OpenTofu docs: https://opentofu.org/docs/
-- What's new in OpenTofu: https://opentofu.org/docs/intro/whats-new/
+- What's new in OpenTofu 1.12: https://opentofu.org/docs/v1.12/intro/whats-new/
 - Terraform language docs: https://developer.hashicorp.com/terraform/language
 
 ## Version notes
 
-Checked: 2026-09-26 against https://opentofu.org/docs and the GitHub releases of opentofu/opentofu and hashicorp/terraform
+Checked: 2026-11-10 against https://opentofu.org/docs/v1.12/intro/whats-new/ and the GitHub releases of opentofu/opentofu and hashicorp/terraform
 
-- OpenTofu 1.12.6 (2026-08-19); 1.12: `lifecycle { destroy = false }`, and `prevent_destroy` may refer to variables. 1.13.0-rc1 (2026-09-17) is a release candidate, not covered.
+- OpenTofu 1.13.0 (2026-09-30, latest 1.13.9 on 2026-11-05; 1.12.12 the same day). No pattern here changed. The unversioned what's-new URL now returns 404, so links point at the 1.12 page. Terraform 1.17.1 (2026-10-28), for reference only.
+- OpenTofu 1.12: `lifecycle { destroy = false }`, and `prevent_destroy` may refer to variables.
 - OpenTofu 1.11: the `enabled` meta-argument, ephemeral resources, variables and outputs, and write-only attributes.
-- Terraform 1.16.4 (2026-09-23), for reference only.

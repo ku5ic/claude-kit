@@ -32,6 +32,7 @@ var Commands = []Command{
 	{Name: "explain", Args: "bash|edit|stop ...", Desc: "why a guard or the Stop hook decides what it\ndoes; logs, blocks, and runs nothing", Words: []string{"bash", "edit", "stop"}},
 	{Name: "blast-radius", Args: "<file> [symbol]", Desc: "the files that import <file>", Path: "file", ReadOnly: true},
 	{Name: "slop", Args: "[--surface S] <file...|->", Desc: "AI tells in each file, or stdin, by tier;\nexits 1 when one blocks", Words: []string{"--surface"}, Path: "file", ReadOnly: true},
+	{Name: "contrast", Args: "<fg> <bg>", Desc: "the WCAG contrast ratio of two colors, and\nwhich AA and AAA levels it passes", ReadOnly: true},
 	{Name: "bundle", Args: "chat [--check]", Desc: "the claude.ai chat plugin zip, from the kit's\nown files; --check validates and writes nothing", Words: []string{"chat"}},
 	{Name: "scratch-rotate", Args: "[days] [--dry-run]", Desc: "prune old scratch artifacts and caches", Words: []string{"--dry-run"}},
 	{Name: "hook", Args: "<name>", Desc: "run a Claude Code hook; payload on stdin"},

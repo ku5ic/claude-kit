@@ -28,7 +28,8 @@ Default assumption: Storybook 10.6 with CSF 3 stories.
 
 ## Version notes
 
-Checked: 2026-09-26 against the npm registry and Context7 /storybookjs/storybook
+Checked: 2026-11-10 against the npm registry and https://storybook.js.org/docs
 
-- 10.6.0 (2026-09-02); 10.0.0 (2025-10-28). No change to the guidance in this pack.
+- 10.6.7 (2026-11-10) current; 11.0.0 is in beta (beta.1, 2026-11-09), not covered. No change to the guidance in this pack.
+- 10.6.0 (2026-09-02); 10.0.0 (2025-10-28).
 - 8.0: the `storiesOf` API was removed; stories are CSF.

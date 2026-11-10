@@ -4,7 +4,7 @@ Working on the kit itself. Build, test, and release steps live in README.md "Dev
 
 ## One source of truth
 
-Every behavior the kit applies everywhere has exactly one owner, listed below. Before adding or changing guidance, find its owner here: change it there, or nowhere. Every other file links to the owner or says nothing about the topic. It never restates, paraphrases, or reminds.
+Every behavior the kit applies everywhere has exactly one owner, listed below. Before adding or changing guidance, find its owner here. Change it there, or nowhere. Every other file links to the owner or says nothing about the topic. It never restates, paraphrases, or reminds.
 
 - Data and mechanics belong to code: `kit.yml` and the `kit` binary. Prose never re-describes what a subcommand does.
 - When two files disagree, the owner wins and the other file is fixed.
@@ -34,6 +34,11 @@ Every behavior the kit applies everywhere has exactly one owner, listed below. B
 | How task bodies and CI steps are read                                                                                                                               | `go/internal/classify`                                                                                    |
 | Finding AI tells in text, and the `unslop: allow` marker                                                                                                            | `go/internal/slop`                                                                                        |
 | What an AI tell is and how to rewrite one, in prose and in UI                                                                                                       | `skills/slop-patterns`                                                                                    |
+| What edit weakens a check: a skipped or focused test, a silenced linter, lost assertions                                                                            | `go/internal/weaken`, its patterns in `kit.yml` `weakened_checks:`                                        |
+| A package an add verb or a new import names that may not exist                                                                                                      | `go/internal/pkgcheck`, its registry lookups in `kit.yml` `package_lookups:`                              |
+| A design token a UI edit uses that the project never defines, and contrast ratios                                                                                   | `go/internal/design`                                                                                      |
+| Telling an MCP tool that writes from one that only reads                                                                                                            | `go/internal/connector`, its verbs in `kit.yml` `connectors:`                                             |
+| Checking a plan's, subagent report's, scratch report's, or post's claims against the session's evidence and tools before they're presented                          | `go/internal/claims`                                                                                      |
 | Which skills and rules the claude.ai chat bundle carries                                                                                                            | `kit.yml` `chat_bundle:`                                                                                  |
 | How the chat bundle is built from them                                                                                                                              | `go/internal/chatbundle`                                                                                  |
 | Personal register and typography                                                                                                                                    | the user's own `~/.claude/rules/voice.md`, never the kit                                                  |
@@ -47,3 +52,9 @@ In this repo, call `bin/kit`, never bare `kit`: on PATH, `kit` is the installed 
 ## Rules are live
 
 The SessionStart and SubagentStart hooks inject `rules/*.md` from the plugin root they run from. A session running the hooks from this checkout picks up a rule edit at its next start or compaction, so finish a rules change in one sitting.
+
+Each injected part has a size cap, and the Stop hook doesn't test it. After editing `rules/*.md`, run `go test ./internal/hooks -run TestInjectRules` from `go/`.
+
+## Hook changes
+
+Before applying a review finding to a hook, say what the user sees when it fires. If the answer is more blocks, ask first.

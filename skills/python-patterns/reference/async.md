@@ -9,7 +9,7 @@
 ## Core async hazards
 
 - `async def` is contagious. Sync I/O in an async function blocks the event loop. `time.sleep` in async is `failure`; use `await asyncio.sleep`. Synchronous `requests` in async is `warning`; use `httpx` (sync + async API) or `aiohttp`.
-- `asyncio.gather(*aws)` for parallel I/O without structured cancellation. `asyncio.TaskGroup` (3.11+, motivated by PEP 654) for structured concurrency: cancellations propagate, and child failures are collected as an `ExceptionGroup`.
+- `asyncio.gather(*aws)` for parallel I/O without structured cancellation: when one awaitable raises, the others keep running. `asyncio.TaskGroup` (3.11+, motivated by PEP 654) for structured concurrency: cancellations propagate, and child failures are collected as an `ExceptionGroup`.
 - `asyncio.to_thread(func, *args)` (3.9+) wraps a sync blocking call so it runs in a thread without blocking the loop.
 - `async with` for async context managers, `async for` for async iterators. Do not call sync `open(...)` on a hot path inside async; use `aiofiles` or hand off via `to_thread`.
 - Never call `asyncio.run(...)` inside a running event loop. From a coroutine, `await` directly; from sync code already inside a loop, schedule via `loop.create_task` or `asyncio.ensure_future`.
@@ -31,7 +31,7 @@ async def fetch_all(urls: list[str]) -> list[bytes]:
     return [t.result() for t in tasks]
 ```
 
-Compare to `asyncio.gather(*tasks, return_exceptions=False)`: gather will cancel siblings but does not collect multiple errors into an `ExceptionGroup`, and a leaked task created inside the gather call is not tied to its lexical scope. Reach for `gather` only when one of those properties is the goal.
+Compare to `asyncio.gather(*tasks, return_exceptions=False)`: when one awaitable raises, gather propagates that error but does not cancel the others ("Other awaitables in the aws sequence won't be cancelled and will continue to run"), does not collect multiple errors into an `ExceptionGroup`, and a leaked task created inside the gather call is not tied to its lexical scope. Reach for `gather` only when one of those properties is the goal.
 
 Cancellation semantics: a `CancelledError` raised inside the `async with` body is treated as the cooperative shutdown signal. The group cancels its children, awaits their cleanup, then re-raises. Code inside the body should not catch `CancelledError` indiscriminately; doing so swallows the shutdown signal and leaks tasks.
 
@@ -40,7 +40,7 @@ Cancellation semantics: a `CancelledError` raised inside the `async with` body i
 `anyio` provides asyncio-and-trio-compatible primitives, the most useful being cancel scopes.
 
 ```python
-async with anyio.move_on_after(5.0):
+with anyio.move_on_after(5.0):
     await long_running_call()
 # returns normally on timeout (no exception); use fail_after to raise instead
 ```

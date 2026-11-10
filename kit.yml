@@ -193,11 +193,12 @@ slop:
     per_words: 100
     threshold: 3
     min: 3
-    words: [additionally, boasts, crucial, delve, delves, delving, garner, intricate, interplay, landscape, meticulous,
-      meticulously, pivotal, tapestry, testament, underscore, underscores, vibrant, bolstered, enhance, enhances,
-      foster, fosters, fostering, highlighting, showcase, showcasing, emphasizing, align with, leverage, leveraging,
-      multifaceted, prioritize, quietly, seamless, seamlessly, robust, comprehensive, dependable, echoed, universally,
-      steady, clearer, practical]
+    words: [additionally, boasts, crucial, delve, delves, delved, delving, garner, garners, garnered, intricate,
+      intricacies, interplay, landscape, meticulous, meticulously, pivotal, tapestry, testament, underscore,
+      underscores, underscored, vibrant, bolstered, enhance, enhances, enhanced, enhancing, foster, fosters, fostered,
+      fostering, highlights, highlighting, showcase, showcases, showcased, showcasing, emphasizes, emphasized,
+      emphasizing, align with, aligns with, leverage, leverages, leveraged, leveraging, multifaceted, quietly, robust,
+      comprehensive, dependable, echoed, universally, realm, realms, groundbreaking, commendable, enduring, deep dive]
   rules:
     - {id: hope-helps, tier: 1, match: '(?i)\bI hope (this|that|it) helps\b', fix: cut it}
     - id: offer-more
@@ -215,7 +216,7 @@ slop:
       fix: open with what changed
     - {id: absolutely-right, tier: 1, match: '(?i)\byou''?re (absolutely|completely|totally) right\b', fix: cut it; say what changes}
     - {id: as-an-ai, tier: 1, match: '(?i)\bas an AI( language)? model\b|\bI''?m (just )?an AI\b', fix: cut it}
-    - {id: in-conclusion, tier: 1, match: '(?i)^\W*in conclusion\b', fix: cut the recap}
+    - {id: in-conclusion, tier: 1, match: '(?i)^\W*(in conclusion|in summary)\b|^\W*overall,', fix: cut the recap}
     - id: citation-leak
       tier: 1
       match: 'contentReference\[oaicite|oai_citation|\bturn\d+(search|view|fetch)\d+\b'
@@ -230,7 +231,8 @@ slop:
     - {id: not-only, tier: 2, match: '(?i)\bnot only\b.*\bbut also\b', fix: 'state both plainly, or keep the one that matters'}
     - id: not-x-but-y
       tier: 2
-      match: '(?i)\b(it''?s|this is|that''?s) not (just |merely |only )?[^.,;:]{1,40}[,;] (it''?s|but)\b'
+      # "but" counts only before a noun phrase; "not fast, but it works" concedes, it doesn't correct.
+      match: '(?i)\b(it''?s|this is|that''?s) not (just |merely |only )?[^.,;:]{1,40}[,;] (it''?s|but (rather )?(a|an|the)\b)'
       fix: state what it is
     - id: ing-tail
       tier: 2
@@ -238,8 +240,12 @@ slop:
       fix: state the fact the clause gestures at, or cut it
     - id: significance
       tier: 2
-      match: '(?i)\b(plays?|played) an? (key|crucial|pivotal|vital|significant|central) role\b|\ba testament to\b|\bindelible mark\b|\bevolving landscape\b|\bsetting the stage for\b|\bunderscores? (its|the) importance\b'
+      match: '(?i)\b(plays?|played) an? (key|crucial|pivotal|vital|significant|central) role\b|\ba testament to\b|\bindelible mark\b|\bevolving landscape\b|\bsetting the stage for\b|\bunderscores? (its|the) importance\b|\bsh(ed|eds|edding) (new )?light on\b'
       fix: name the concrete effect, or cut it
+    - id: navigating
+      tier: 2
+      match: '(?i)\bnavigat(e|es|ing) the (complexities|intricacies|landscape|nuances|challenges)\b'
+      fix: name the actual problem and what handles it
     - {id: vague-connection, tier: 2, match: '(?i)\b(is|are|was|were) (closely )?associated with\b', fix: name the actual relation}
     - {id: despite-challenges, tier: 2, match: '(?i)\bdespite (its|their|these|this)\b.*\bchallenges\b', fix: state the specific problem}
     - {id: worth-noting, tier: 2, match: '(?i)\b(it''?s|it is) (important|worth) (to note|noting|mentioning)\b', fix: cut it; state the point}
@@ -282,6 +288,81 @@ slop:
     - {id: ui-glass, tier: 3, on: [ui], match: '\bbackdrop-blur(-\w+)?\b|\bblur-3xl\b|\bshadow-\[0_0_'}
     - {id: ui-eyebrow, tier: 3, on: [ui], match: '\buppercase\b.*\btracking-(widest|\[0\.\d+em\])'}
     - {id: ui-chrome-glyph, tier: 3, on: [ui], match: '\x{00B7}|\x{2192}'}
+
+# MCP tools, by the verbs in the tool part of mcp__<server>__<tool>, split
+# on _, -, and case. A write verb means the tool sends text out of the
+# session, and guard-connector scans that text for AI tells. A read verb
+# with no write verb means it only reads. Anything else is neither.
+# code_fields are input fields that hold code, which neither the slop scan
+# nor the claim verifier reads.
+connectors:
+  write_verbs: [send, create, update, post, reply, comment, forward, publish, edit, write, share, schedule, upload,
+    save, add, set, respond, react, merge, move, delete, remove, trash, batch, generate, execute, use]
+  read_verbs: [get, read, search, list, fetch, query, find, view, lookup, resolve, describe, whoami]
+  code_fields: [code]
+
+# What guard-weaken reads an edit by (go/internal/weaken). An added line
+# matching skips (in a test file) or suppressions (in any file but skip's)
+# blocks unless `kit: allow <reason>` is on it or the line above. A test
+# file left with fewer lines matching assertions asks first.
+weakened_checks:
+  skip: ["*.md", "*.mdx", "*.txt", "*.rst", "*/testdata/*", "*/fixtures/*", "*/kit.yml", "*/claude-kit.local.yml"]
+  test_files: ["*_test.go", "*.test.[jt]s", "*.test.[jt]sx", "*.spec.[jt]s", "*.spec.[jt]sx", "*/test_*.py", "*_test.py",
+    "*/conftest.py", "*/tests/*", "*/__tests__/*"]
+  skips: ['\bt\.Skip(Now|f)?\(', '\b(it|test|describe|context)\.(skip|only|todo)\(', '(?:^|[^.\w$])x(it|test|describe)\(',
+    '(?:^|[^.\w$])f(it|describe)\(', '@pytest\.mark\.(skip|skipif|xfail)\b', '\bpytest\.skip\(', '@unittest\.skip']
+  suppressions: ['//\s*nolint\b', 'eslint-disable', '@ts-(ignore|nocheck|expect-error)\b', '#\s*type:\s*ignore\b',
+    '#\s*noqa\b', '#\s*pyright:\s*ignore\b', '#\s*pylint:\s*disable', '#\s*shellcheck\s+disable=', 'biome-ignore',
+    '//\s*lint:ignore\b']
+  assertions: ['\bt\.(Error|Errorf|Fatal|Fatalf|Fail|FailNow)\(', '\b(assert|require)\.[A-Z]\w*\(', '\bexpect\(',
+    '\bassert(\.\w+)?\(', '^\s*assert\b', '\bself\.assert\w+\(', '\bpytest\.raises\(']
+
+# Registry lookups for each package a manager's add verb names
+# (go/internal/pkgcheck): per ecosystem, the managers it covers, the
+# pattern a package name matches, the command ({pkg} is the name), and
+# what it prints when no such package exists. A missing package blocks; a
+# lookup that times out or fails any other way blocks nothing. parents
+# retries a missing path at each parent, for a Go package inside a module.
+# Lookups run outside the project, so its config runs nothing before the
+# add is approved. A package isn't looked up when a private file from the
+# project up has a line matching its pattern ({scope} is the package's
+# scope, without @), when a glob private_cmd prints matches its path, or
+# when the command has a registry_flags flag.
+# value_flags take the next word as their value, which is never a package.
+# timeout is seconds for all of one command's lookups; 0 turns them off.
+package_lookups:
+  timeout: 15
+  ecosystems:
+    npm:
+      managers: [npm, pnpm, yarn, bun]
+      name: '^(@[a-z0-9][\w.-]*/)?[a-z0-9][\w.-]*$'
+      cmd: [npm, view, "{pkg}", name]
+      missing: '\bE404\b'
+      private:
+        .npmrc: '^\s*(@{scope}:)?registry\s*='
+        .yarnrc.yml: '^npmRegistryServer\s*:|^\s+["'']?@?{scope}["'']?\s*:'
+        bunfig.toml: '^\s*registry\s*=|^\s*["'']?@?{scope}["'']?\s*='
+      value_flags: [--prefix, -C, --dir, --cwd, -w, --workspace, -F, --filter, --tag, --registry, --save-prefix, --omit, --include, --userconfig, --cache]
+      registry_flags: [--registry]
+    go:
+      managers: [go]
+      name: '^[a-z0-9.-]+\.[a-z]{2,}(/[\w.~-]+)+$'
+      cmd: [go, list, -m, "{pkg}@latest"]
+      missing: 'no matching versions|not found|410 Gone'
+      parents: true
+      private_cmd: [go, env, GOPRIVATE, GONOPROXY]
+
+# The claim verifier (go/internal/claims): a claude -p session that checks
+# each factual claim in a text against the session's tool results, and
+# checks what they don't cover with read-only tools. model and budget_usd
+# are passed to it, timeout is its limit in seconds (0 turns it off), and
+# allow names more tools it may call; a write tool is never let through.
+# command replaces the claude call.
+claims:
+  model: sonnet
+  timeout: 240
+  budget_usd: 1
+  allow: []
 
 # What kit bundle chat ships to claude.ai chat, where no hook, repo, or kit
 # on PATH exists. A skill stays out unless skills names it. description is
@@ -398,8 +479,8 @@ on_edit:
 # path. 0 turns a ceiling off.
 reply_limits:
   chat: 40
-  explain: 80
-  explain_triggers: [explain, why, tradeoff, tradeoffs, review, audit]
+  explain: 150
+  explain_triggers: [explain, why, tradeoff, tradeoffs, review, audit, elaborate, honest take]
   detail_triggers: [in detail, walk me through, long version]
   uncapped_commands: [verify, code-review, kit:audit, kit:deps, audit, deps]
   write:

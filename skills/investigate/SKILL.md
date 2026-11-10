@@ -9,7 +9,7 @@ argument-hint: <a question, a symptom, or a link to an external ticket/doc>
 - A question: how, why, or where something works, what a module does, which approach fits.
 - A symptom: unexpected behavior without a clear failing signal to fix directly.
 
-Not for a request to change code: that's a plan or a direct edit.
+Not for a request to change code. That's a plan or a direct edit.
 
 <!-- chat: skip -->
 
@@ -117,5 +117,5 @@ Outside plan mode, stop at findings. In plan mode, the findings feed the plan fi
 
 <!-- chat: end -->
 
-- Scope growing beyond the question or entry point: surface and ask.
-- Root cause in a dependency or external system: document the boundary and stop.
+- If scope grows beyond the question or entry point, surface it and ask.
+- If the root cause is in a dependency or external system, document the boundary and stop.

@@ -31,7 +31,7 @@ export default async function Page({
 
 ## Route groups
 
-`(marketing)/` is a route group: wraps a set of routes for organization without affecting the URL. Useful for sharing a layout across a subset of routes that do not share a URL prefix.
+`(marketing)/` is a route group. It wraps a set of routes for organization without affecting the URL. Useful for sharing a layout across a subset of routes that do not share a URL prefix.
 
 ## Parallel routes
 
@@ -51,7 +51,7 @@ export default function Layout({
 
 Use parallel routes for split-view dashboards, persistent modals, and conditional sub-trees that need independent loading/error states.
 
-A `default.tsx` in each parallel slot defines the fallback rendered when a navigation does not specify a value for that slot. Without it, missing slot state can break navigation.
+A `default.tsx` in each parallel slot defines the fallback rendered when a navigation does not specify a value for that slot. Since Next.js 16 every slot needs an explicit one: "Builds will fail without them" (version 16 upgrade guide).
 
 ## Intercepting routes
 

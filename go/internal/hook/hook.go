@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"slices"
 	"strings"
@@ -52,6 +53,31 @@ func (p *Payload) Bool(path string) bool {
 func (p *Payload) String(path string) string {
 	s, _ := sources.GetPath(p.data, path).(string)
 	return s
+}
+
+// Strings is every string at or under a dotted path, maps in key order,
+// passing over any map key named in skip.
+func (p *Payload) Strings(path string, skip ...string) []string {
+	var out []string
+	var walk func(any)
+	walk = func(v any) {
+		switch v := v.(type) {
+		case string:
+			out = append(out, v)
+		case []any:
+			for _, item := range v {
+				walk(item)
+			}
+		case map[string]any:
+			for _, k := range slices.Sorted(maps.Keys(v)) {
+				if !slices.Contains(skip, k) {
+					walk(v[k])
+				}
+			}
+		}
+	}
+	walk(sources.GetPath(p.data, path))
+	return out
 }
 
 // SessionID is the payload's session_id.
@@ -174,8 +200,9 @@ func (h *Hook) SetConfig(cfg *config.Config) { h.cfg, h.loaded = cfg, true }
 // SetContext sets the line printed under every block reason.
 func (h *Hook) SetContext(context string) { h.context = context }
 
-// ruleDisabled is true when rule is in kit.yml's disabled_rules.
-func (h *Hook) ruleDisabled(rule string) bool {
+// RuleDisabled is true when rule is in kit.yml's disabled_rules. A check
+// whose work costs (a model run, a network call) asks it before starting.
+func (h *Hook) RuleDisabled(rule string) bool {
 	cfg := h.Config()
 	return cfg != nil && slices.Contains(cfg.DisabledRules, rule)
 }
@@ -184,7 +211,7 @@ func (h *Hook) ruleDisabled(rule string) bool {
 // disabled_rules is logged as disabled and returns nil, so the check carries
 // on as if it hadn't matched.
 func (h *Hook) Block(reason, rule string) error {
-	if rule != "" && h.ruleDisabled(rule) {
+	if rule != "" && h.RuleDisabled(rule) {
 		h.Log(kitlog.Guards, "disabled", "rule", rule)
 		return nil
 	}
@@ -199,7 +226,7 @@ func (h *Hook) Block(reason, rule string) error {
 // Deny is Block as a permission decision: Claude gets reason, and the user
 // sees no hook error.
 func (h *Hook) Deny(reason, rule string) {
-	if h.ruleDisabled(rule) {
+	if h.RuleDisabled(rule) {
 		h.Log(kitlog.Guards, "disabled", "rule", rule)
 		return
 	}

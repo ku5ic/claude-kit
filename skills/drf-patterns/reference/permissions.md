@@ -46,7 +46,7 @@ Note: `has_permission` (view-level) is called before `has_object_permission`. Bo
 
 ## Composing permissions
 
-Multiple classes in `permission_classes` are ANDed. DRF does not natively support OR composition; use a custom permission class or a third-party helper if OR logic is needed.
+Multiple classes in `permission_classes` are ANDed. For other logic, classes inheriting `BasePermission` compose with `&` (and), `|` (or), and `~` (not): `permission_classes = [IsAuthenticated | ReadOnly]`.
 
 ## References
 

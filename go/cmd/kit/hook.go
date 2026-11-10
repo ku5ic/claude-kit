@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/ku5ic/claude-kit/go/internal/bashguard"
+	"github.com/ku5ic/claude-kit/go/internal/claims"
 	"github.com/ku5ic/claude-kit/go/internal/gapfill"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/hooks"
@@ -24,10 +25,16 @@ type hookDef struct {
 // hookChecks are the single checks, by the name they report under.
 var hookChecks = map[string]hook.Check{
 	"plan-mode-context":       hooks.PlanModeContext,
+	"guard-plan":              hooks.GuardPlan,
 	"guard-edit":              hooks.GuardEdit,
 	"guard-skills":            hooks.GuardSkills,
 	"guard-slop":              hooks.GuardSlop,
+	"guard-weaken":            hooks.GuardWeaken,
+	"guard-imports":           hooks.GuardImports,
+	"guard-tokens":            hooks.GuardTokens,
 	"guard-handback":          hooks.GuardHandback,
+	"guard-connector":         hooks.GuardConnector,
+	"verify-claims":           hooks.VerifyClaims,
 	"subagent-slop":           hooks.SubagentSlop,
 	"chat-slop":               hooks.ChatSlop,
 	"guard-commit":            bashguard.CheckCommit,
@@ -58,17 +65,28 @@ var registry = map[string]hookDef{
 	"inject-subagent-context": {events: []string{"SubagentStart"}},
 	"stop-checks":             {events: []string{"Stop"}},
 	"review-checks":           {events: []string{"SubagentStop"}},
-	"subagent-slop":           {events: []string{"SubagentStop"}},
 	"chat-slop":               {events: []string{"UserPromptSubmit", "Stop"}},
-	"guard-handback":          {events: []string{"PreToolUse"}},
-	"guard-bash":              {},
-	"guard-commit":            {},
-	"guard-edit":              {},
-	"guard-pr":                {},
-	"guard-skills":            {},
-	"guard-slop":              {},
-	"sanitize-output":         {},
-	"format-dispatch":         {},
+	"guard-plan":              {},
+	// verify-claims runs last, so a cheap guard's block saves its model run.
+	"handback-dispatch":  {events: []string{"PreToolUse"}, steps: []string{"guard-handback", "verify-claims"}},
+	"plan-dispatch":      {events: []string{"PreToolUse"}, steps: []string{"guard-plan", "verify-claims"}},
+	"connector-dispatch": {events: []string{"PreToolUse"}, steps: []string{"guard-connector", "verify-claims"}},
+	"subagent-dispatch":  {events: []string{"SubagentStop"}, steps: []string{"subagent-slop", "verify-claims"}},
+	"guard-handback":     {},
+	"guard-connector":    {},
+	"subagent-slop":      {},
+	"verify-claims":      {},
+	"guard-bash":         {},
+	"guard-commit":       {},
+	"guard-edit":         {},
+	"guard-pr":           {},
+	"guard-skills":       {},
+	"guard-slop":         {},
+	"guard-weaken":       {},
+	"guard-imports":      {},
+	"guard-tokens":       {},
+	"sanitize-output":    {},
+	"format-dispatch":    {},
 }
 
 // cmdHook runs `kit hook <name>`: stdin is the payload, the exit status is
@@ -78,8 +96,8 @@ func cmdHook(e *env, args []string, stdin io.Reader) (status int) {
 		fmt.Fprintln(e.stderr, "kit hook: missing hook name")
 		return 0
 	}
-	// The classifier's own claude session runs no kit hook.
-	if os.Getenv(gapfill.Guard) == "1" {
+	// The classifier's and the verifier's own claude sessions run no kit hook.
+	if os.Getenv(gapfill.Guard) == "1" || os.Getenv(claims.Guard) == "1" {
 		return 0
 	}
 	name := args[0]

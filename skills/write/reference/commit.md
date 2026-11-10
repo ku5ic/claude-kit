@@ -32,7 +32,7 @@ Generate a commit message from the staged or pasted diff, matching project style
 <!-- chat: end -->
 
 - If arguments are provided, use them as the intent hint and shape the subject around them.
-- If the staged diff is empty: say so and stop.
+- If the staged diff is empty, say so and stop.
 - If the staged diff mixes unrelated changes: say so, list the clusters, and propose splitting into separate commits.
 
 ## Output

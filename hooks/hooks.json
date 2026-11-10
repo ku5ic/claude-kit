@@ -6,12 +6,24 @@
         "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook bash-dispatch", "timeout": 30 }]
       },
       {
-        "matcher": "Edit|Write|MultiEdit|Read|Grep",
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook guard-dispatch", "timeout": 300 }]
+      },
+      {
+        "matcher": "Read|Grep",
         "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook guard-dispatch", "timeout": 5 }]
       },
       {
         "matcher": "SubagentHandback",
-        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook guard-handback", "timeout": 5 }]
+        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook handback-dispatch", "timeout": 300 }]
+      },
+      {
+        "matcher": "ExitPlanMode",
+        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook plan-dispatch", "timeout": 300 }]
+      },
+      {
+        "matcher": "mcp__.*",
+        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook connector-dispatch", "timeout": 300 }]
       }
     ],
     "PostToolUse": [
@@ -74,7 +86,7 @@
       },
       {
         "matcher": "*",
-        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook subagent-slop", "timeout": 5 }]
+        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook subagent-dispatch", "timeout": 300 }]
       }
     ],
     "SubagentStart": [

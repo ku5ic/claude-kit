@@ -25,7 +25,7 @@ func GuardHandback(h *hook.Hook) error {
 	if p.Err != nil {
 		return p.Err
 	}
-	marker := handbackMarker(h)
+	marker := handbackMarker(h, cache.Slop)
 	if marker == "" {
 		return nil
 	}
@@ -54,7 +54,7 @@ func SubagentSlop(h *hook.Hook) error {
 	if p.Err != nil || p.Bool("stop_hook_active") {
 		return nil
 	}
-	if marker := handbackMarker(h); marker != "" && fsx.IsFile(marker) {
+	if marker := handbackMarker(h, cache.Slop); marker != "" && fsx.IsFile(marker) {
 		return nil
 	}
 	hits := reportHits(h, p.String("last_assistant_message"))
@@ -64,14 +64,14 @@ func SubagentSlop(h *hook.Hook) error {
 	return h.Block(slop.Message("your report", hits)+sendBack, "slop")
 }
 
-// handbackMarker is the session's marker for the payload's agent; "" when
-// either id is missing or isn't a plain name.
-func handbackMarker(h *hook.Hook) string {
+// handbackMarker is the session's marker, in cache dir kind, for the
+// payload's agent; "" when either id is missing or isn't a plain name.
+func handbackMarker(h *hook.Hook, kind string) string {
 	agent := h.Payload.String("agent_id")
 	if agent == "" || strings.ContainsAny(agent, `/\`) {
 		return ""
 	}
-	return h.Paths.SessionFile(cache.Slop, h.Payload.SessionID(), agent, "handback")
+	return h.Paths.SessionFile(kind, h.Payload.SessionID(), agent, "handback")
 }
 
 // reportHits scans a subagent report and returns the hits in a block tier,

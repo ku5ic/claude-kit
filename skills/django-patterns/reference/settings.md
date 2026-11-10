@@ -25,7 +25,7 @@ This pattern is from "Two Scoops of Django" (Greenfeld/Greenfeld) and is indepen
 
 `DEBUG = False` in production. `DEBUG = True` exposes full tracebacks, SQL query lists, and settings values to any exception view.
 
-`ALLOWED_HOSTS` must be explicit. Django raises `SuspiciousOperation` on requests with unrecognized `Host` headers, but only when `DEBUG = False`.
+`ALLOWED_HOSTS` must be explicit. Django raises `SuspiciousOperation` on requests with unrecognized `Host` headers. With `DEBUG = True` and an empty list, the host is still validated, against `['.localhost', '127.0.0.1', '[::1]']`.
 
 `SECRET_KEY` comes from env, not from code. A leaked `SECRET_KEY` breaks session security and CSRF protection.
 
@@ -51,7 +51,7 @@ CSRF_COOKIE_SECURE = True
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")  # if behind a proxy
 ```
 
-`SECURE_HSTS_PRELOAD = True` submits the site to the HSTS preload list. This is irreversible for the lifetime of the preload entry. Only enable after the site is permanently HTTPS.
+`SECURE_HSTS_PRELOAD = True` adds the `preload` directive to the HSTS header, and has no effect unless `SECURE_HSTS_SECONDS` is non-zero. It submits nothing; the directive makes the site eligible for a browser preload list, and a listed site is hard to get off it. Only enable after the site is permanently HTTPS.
 
 ## django-environ
 

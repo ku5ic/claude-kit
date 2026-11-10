@@ -5,7 +5,7 @@ description: JavaScript language patterns for modern syntax, async handling, ESM
 
 # JavaScript patterns
 
-Default assumption: a project running on the current Node.js Active LTS (Node 24, "Krypton") or a modern browser baseline.
+Default assumption: a project running on the current Node.js Active LTS (Node 26, "Lithium") or a modern browser baseline.
 
 - If the project also uses TypeScript, the type-aware skill applies on top of these language patterns.
 - Adapt advice to the Node version in the project's `.nvmrc`, `.tool-versions`, or `engines` field in `package.json`.
@@ -36,8 +36,7 @@ Default assumption: a project running on the current Node.js Active LTS (Node 24
 
 ## Version notes
 
-Checked: 2026-09-26 against https://nodejs.org/en/about/previous-releases and https://github.com/tc39/proposals
+Checked: 2026-11-10 against https://raw.githubusercontent.com/nodejs/Release/main/schedule.json, https://nodejs.org/en/blog/release/v24.0.0, https://www.typescriptlang.org/docs/handbook/release-notes/typescript-5-0.html and https://github.com/tc39/proposals
 
-- Node 26 is Current (2026-05); Node 24 "Krypton" is Active LTS (2025-05). Default assumption above stays on the LTS.
+- Node 26 "Lithium" Active LTS since 2026-10-28; Node 24 "Krypton" Maintenance LTS since 2026-10-20. Default assumption moved to 26. Corrected: `using` syntax ships in Node 24.0.0 (V8 13.6), and the `@satisfies` JSDoc tag is TS 5.0+ (the `satisfies` operator is 4.9).
 - Explicit resource management (`using` / `await using`) reached Stage 4 in 2026; `reference/errors.md` updated, old `try`/`finally` advice kept as Legacy.
-- `@satisfies` JSDoc tag: TS 4.9+, unchanged.

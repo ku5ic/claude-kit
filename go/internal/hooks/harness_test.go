@@ -53,19 +53,38 @@ var entries = map[string]func(*hook.Hook) int{
 	"guard-edit":              single("guard-edit", GuardEdit),
 	"guard-skills":            single("guard-skills", GuardSkills),
 	"guard-slop":              single("guard-slop", GuardSlop),
+	"guard-weaken":            single("guard-weaken", GuardWeaken),
+	"guard-imports":           single("guard-imports", GuardImports),
+	"guard-tokens":            single("guard-tokens", GuardTokens),
 	"guard-handback":          single("guard-handback", GuardHandback),
+	"guard-connector":         single("guard-connector", GuardConnector),
+	"verify-claims":           single("verify-claims", VerifyClaims),
 	"subagent-slop":           single("subagent-slop", SubagentSlop),
 	"chat-slop":               single("chat-slop", ChatSlop),
 	"log-skills":              single("log-skills", LogSkills),
 	"sanitize-output":         single("sanitize-output", SanitizeOutput),
 	"format-dispatch":         single("format-dispatch", FormatDispatch),
 	"plan-mode-context":       single("plan-mode-context", PlanModeContext),
+	"guard-plan":              single("guard-plan", GuardPlan),
 	"reply-length":            single("reply-length", ReplyLength),
 	"review-checks":           single("review-checks", ReviewChecks),
 	"stop-checks":             single("stop-checks", StopChecks),
 	"inject-context":          single("inject-context", InjectContext),
 	"inject-subagent-context": single("inject-subagent-context", InjectSubagentContext),
 	"inject-rules":            single("inject-rules", InjectRules),
+	// As cmd/kit's registry composes them.
+	"handback-dispatch": func(h *hook.Hook) int {
+		return hook.Run(h, hook.NamedCheck{Name: "guard-handback", Check: GuardHandback}, hook.NamedCheck{Name: "verify-claims", Check: VerifyClaims})
+	},
+	"connector-dispatch": func(h *hook.Hook) int {
+		return hook.Run(h, hook.NamedCheck{Name: "guard-connector", Check: GuardConnector}, hook.NamedCheck{Name: "verify-claims", Check: VerifyClaims})
+	},
+	"plan-dispatch": func(h *hook.Hook) int {
+		return hook.Run(h, hook.NamedCheck{Name: "guard-plan", Check: GuardPlan}, hook.NamedCheck{Name: "verify-claims", Check: VerifyClaims})
+	},
+	"subagent-dispatch": func(h *hook.Hook) int {
+		return hook.Run(h, hook.NamedCheck{Name: "subagent-slop", Check: SubagentSlop}, hook.NamedCheck{Name: "verify-claims", Check: VerifyClaims})
+	},
 }
 
 func single(name string, check hook.Check) func(*hook.Hook) int {

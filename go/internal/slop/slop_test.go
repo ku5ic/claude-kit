@@ -52,6 +52,12 @@ func TestTiers(t *testing.T) {
 		{"not only", "It not only caches but also logs.", "file", []string{"not-only"}},
 		{"ing tail", "The gate reruns, ensuring consistent output.", "file", []string{"ing-tail"}},
 		{"significance", "Caching plays a crucial role in the gate.", "file", []string{"significance"}},
+		{"sheds light", "The trace sheds light on the race.", "file", []string{"significance"}},
+		{"not x but y", "It's not a cache, but a queue.", "file", []string{"not-x-but-y"}},
+		{"not x, it's y", "It's not a bug; it's the config.", "file", []string{"not-x-but-y"}},
+		{"in summary", "In summary, the gate is faster.", "chat", []string{"in-conclusion"}},
+		{"overall opener", "Overall, the change is small.", "chat", []string{"in-conclusion"}},
+		{"navigating", "It means navigating the complexities of auth.", "file", []string{"navigating"}},
 		{"vague connection", "He was associated with the review hook.", "file", []string{"vague-connection"}},
 		{"corrective framing", "A cache hit should not be confused with a pass.", "chat", []string{"corrective-framing"}},
 		{"generic reason in a commit", "Refactor the loader to improve readability.", "commit", []string{"generic-reason"}},
@@ -89,6 +95,9 @@ func TestNotTells(t *testing.T) {
 		"acts as":             "nginx acts as a reverse proxy.",
 		"preserving in files": "The formatter runs while preserving comments.",
 		"spec wording":        "Such values should be treated as declarations.",
+		"concessive but":      "This is not very efficient, but it works.",
+		"overall mid-text":    "The overall time dropped by half.",
+		"navigating a tree":   "Navigating the tree needs a parent pointer.",
 	}
 	for name, text := range texts {
 		t.Run(name, func(t *testing.T) {
@@ -116,6 +125,16 @@ func TestDensity(t *testing.T) {
 			t.Errorf("tier 3 hit %v blocks", h)
 		}
 	}
+	// Inflected forms count too.
+	inflected := "We delved into the intricacies and showcased groundbreaking work."
+	if r := scan(d, inflected, "file"); !r.Dense {
+		t.Errorf("inflected forms not dense: score %.1f, hits %v", r.Score, rules(r))
+	}
+	// Words common in human technical prose are off the list.
+	common := "A practical, clearer, steady way to prioritize seamless builds."
+	if r := scan(d, common, "file"); r.Score != 0 {
+		t.Errorf("common words scored %.1f, hits %v", r.Score, rules(r))
+	}
 	// The same words spread over a long text stay under the threshold.
 	sparse := dense + strings.Repeat(" The gate runs each check on the changed files and exits.", 20)
 	if r := scan(d, sparse, "file"); r.Dense || len(r.Hits) != 0 {
@@ -137,7 +156,7 @@ func TestDisabledRules(t *testing.T) {
 func TestBlocks(t *testing.T) {
 	t.Parallel()
 	d := detector(t)
-	r := scan(d, "The hook serves as the entry point. I hope this helps. A robust, seamless, comprehensive tool.", "chat")
+	r := scan(d, "The hook serves as the entry point. I hope this helps. A robust, meticulous, comprehensive tool.", "chat")
 	var blocked []string
 	for _, h := range d.Blocking(r) {
 		blocked = append(blocked, h.Rule)
@@ -202,7 +221,7 @@ func TestRun(t *testing.T) {
 	}
 	tell := put("tell.md", "Done. I hope this helps.\n")
 	soft := put("soft.md", "The hook serves as the entry point.\n")
-	dense := put("dense.md", "A robust, seamless, comprehensive tool.\n")
+	dense := put("dense.md", "A robust, meticulous, comprehensive tool.\n")
 	clean := put("clean.md", "The hook is the entry point.\n")
 	code := put("logo.png", "PNG\n")
 	skipped := put("testdata/x.md", "I hope this helps.\n")

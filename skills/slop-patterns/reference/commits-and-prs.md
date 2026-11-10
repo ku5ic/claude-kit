@@ -15,6 +15,8 @@ The pattern to avoid is the edit summary a model writes when asked to describe a
 
 The more improvements stack up in one summary, the stronger the signal. One concrete change beats four adjectives.
 
+`generic-reason`, `streamlined`, `addressed-feedback`, and `commit-opener` are house style, not sourced tells: no study names them, and pre-2022 human commits use "address PR comments" too. They block because each tells a reviewer nothing, whoever wrote it. `while-preserving` is sourced: Wikipedia lists "preserved" and "retained" information among AI edit-summary tells.
+
 ## Subjects
 
 A subject or body line that opens with "Certainly", "Here is", "This commit" and similar is blocked (`commit-opener`).

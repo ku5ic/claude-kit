@@ -39,15 +39,15 @@ For accessibility work, validate against WCAG 2.2 AA explicitly. Do not claim co
 - Understanding WCAG 2.2: https://www.w3.org/WAI/WCAG22/Understanding/
 - How to Meet WCAG 2.2 (Quick Reference): https://www.w3.org/WAI/WCAG22/quickref/
 - ARIA Authoring Practices Guide (APG): https://www.w3.org/WAI/ARIA/apg/
-- W3C Using ARIA (Notes): https://www.w3.org/TR/using-aria/
+- W3C Using ARIA (Discontinued Draft since 2026-02-24, kept for its rules; current guidance is the APG): https://www.w3.org/TR/using-aria/
 - WebAIM: https://webaim.org/
 - MDN Accessibility: https://developer.mozilla.org/en-US/docs/Web/Accessibility
 
 ## Version notes
 
-Checked: 2026-09-26 against https://www.w3.org/TR/WCAG22/ and https://www.w3.org/TR/using-aria/
+Checked: 2026-11-10 against https://www.w3.org/TR/WCAG22/, https://www.w3.org/TR/wcag-3.0/, https://www.w3.org/TR/wai-aria-1.3/ and https://www.w3.org/TR/using-aria/
 
-- WCAG 2.2 (Recommendation, updated 2024-12-12): current target; 4.1.1 Parsing obsolete; WAI-ARIA 1.2 still current. WCAG 3.0 remains a Working Draft.
+- WCAG 2.2 (Recommendation, updated 2024-12-12): current target; 4.1.1 Parsing obsolete; WAI-ARIA 1.2 still the current Recommendation (1.3 is a Working Draft, 2026-06-04). WCAG 3.0 remains a Working Draft (2026-09-10). Using ARIA became a Discontinued Draft on 2026-02-24.
 
 WCAG evolves:
 

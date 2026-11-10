@@ -1,18 +1,26 @@
 # claude-kit
 
-**Make Claude Code safe to leave alone.** One plugin that blocks destructive commands, runs your project's own checks before Claude says "done", and starts every session already knowing your stack.
+**Claude Code that shows its work.**
+
+Guardrails for developers who review what Claude does. It has to back its claims, pass your project's own checks before it says "done", and stop for your review after every step.
 
 ```sh
 claude plugin marketplace add ku5ic/claude-kit
 claude plugin install kit@ku5ic
 ```
 
-Zero config. Works in any repo on macOS and Linux. Every hook is a deterministic Go binary; the guards run in tens of milliseconds.
+Works in any repo on macOS and Linux with the defaults in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml` ([Configure](#configure)). Every hook is a deterministic Go binary; the guards run in tens of milliseconds.
+
+**It isn't an autopilot.** You approve the plan, review each step, and commit. The kit makes each review shorter, because what reaches you has already been checked.
 
 ## Contents
 
-- [What it fixes](#what-it-fixes)
+- [Enforced, not advised](#enforced-not-advised)
+- [What it catches](#what-it-catches)
+- [What it costs](#what-it-costs)
+- [How you work with it](#how-you-work-with-it)
 - [Install](#install)
+- [On by default, and what you switch on](#on-by-default-and-what-you-switch-on)
 - [Use it in claude.ai chat](#use-it-in-claudeai-chat)
 - [What you get](#what-you-get)
   - [Guards](#guards)
@@ -26,32 +34,58 @@ Zero config. Works in any repo on macOS and Linux. Every hook is a deterministic
   - [Pattern skills](#pattern-skills)
   - [Status line](#status-line)
   - [The kit CLI](#the-kit-cli)
-- [The recommended flow](#the-recommended-flow)
 - [Configure](#configure)
 - [When a guard gets in your way](#when-a-guard-gets-in-your-way)
 - [How it's built](#how-its-built)
 - [Develop](#develop)
 
-## What it fixes
+## Enforced, not advised
 
-| Without claude-kit, Claude will...                             | With it                                                                                                |
-| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| run `rm -rf` on the wrong path, or `git push --force` to main  | Blocked. Every command is parsed, including pipelines, `$(...)`, and `sudo`/`env` wrappers             |
-| say "done" while lint, types, or tests are failing             | Your checks run on the files it edited; a failure sends it back                                        |
-| get stuck on old warnings in a file it barely touched          | Linters block only on lines Claude changed                                                             |
-| not know your check commands, or guess them wrong              | Read from your CI, git hooks, and task runners; a small model sorts what they leave open, once         |
-| run a global `eslint` of the wrong version, or `npx` something | Tools resolve from the project first: `node_modules`, `.venv`, `go tool`, poetry, bundler. Never `npx` |
-| read `.env` or `~/.ssh` keys                                   | Blocked, whatever your permission rules say                                                            |
-| put an AI signature or a secret in a commit                    | Blocked at commit time, with `gitleaks` when installed; your commit-msg hooks check the message        |
-| leave files unformatted, or formatted with the wrong config    | Each edit is formatted by your project's own fixers and config                                         |
-| drop `out.log` and downloads in your repo root                 | Temporary files go to `.claude/scratch/`, pruned by `kit scratch-rotate`                               |
-| invent paths, APIs, versions, or test results                  | Rules require evidence and a confidence label                                                          |
-| refactor half the repo for a one-line bug, or commit unasked   | Rules hold it to the smallest change and never commit without being asked                              |
-| lose track of a plan halfway through                           | It's held to the next unchecked step and stops for your review after each                              |
-| give generic advice that ignores your stack                    | Stack-specific pattern skills load when the repo calls for them                                        |
-| spawn subagents that know none of the above                    | Every subagent gets the same rules and repo context                                                    |
+A rule in CLAUDE.md, a skill, or a prompt is advice, and Claude can skip it. The kit's rules run as hooks on every command, edit, plan, subagent report, and stop, and a broken rule sends Claude back to fix it.
 
-Permission rules can't do most of this. A prefix rule can't tell `git push` from `git push --force origin main`, never sees a command inside a pipeline, and a plugin can't ship deny rules at all. Hooks can.
+Permission rules can't do most of this either. A prefix rule can't tell `git push` from `git push --force origin main`, never sees a command inside a pipeline, and a plugin can't ship deny rules at all. Hooks can.
+
+## What it catches
+
+Each of these costs you a correction round when it gets through. The kit sends it back to Claude first.
+
+| Without claude-kit, Claude will...                                            | With it                                                                                                         |
+| ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| state a path, an API, or a test result in a plan or report that it never read | A second model checks each claim against what Claude read this session and sends back the ones nothing confirms |
+| skip or focus a test, or silence a linter, to get to green                    | Blocked, unless the line says why (`kit: allow <reason>`)                                                       |
+| import or add a package that may not exist                                    | Blocked until your manifest declares it, or its registry has it                                                 |
+| say "done" while lint, types, or tests are failing                            | Your checks run on the files it edited; a failure sends it back                                                 |
+| ask you to approve a plan nobody checked                                      | Sent to run `kit:plan-critic` against the repo first                                                            |
+| fill files, commits, PRs, and posts with AI filler                            | Sent back with each line and its fix                                                                            |
+| use a design token your project never defines                                 | Blocked                                                                                                         |
+| run `rm -rf` on the wrong path, or `git push --force` to main                 | Blocked. Every command is parsed, including pipelines, `$(...)`, and `sudo`/`env` wrappers                      |
+| read `.env` or `~/.ssh` keys                                                  | Blocked, whatever your permission rules say                                                                     |
+| put an AI signature or a secret in a commit                                   | Blocked at commit time, with `gitleaks` when installed; your commit-msg hooks check the message                 |
+| get stuck on old warnings in a file it barely touched                         | Linters block only on lines Claude changed                                                                      |
+| not know your check commands, or guess them wrong                             | Read from your CI, git hooks, and task runners; a small model sorts what they leave open, once                  |
+| run a global `eslint` of the wrong version, or `npx` something                | Tools resolve from the project first: `node_modules`, `.venv`, `go tool`, poetry, bundler. Never `npx`          |
+| leave files unformatted, or formatted with the wrong config                   | Each edit is formatted by your project's own fixers and config                                                  |
+| drop `out.log` and downloads in your repo root                                | Temporary files go to `.claude/scratch/`, pruned by `kit scratch-rotate`                                        |
+| refactor half the repo for a one-line bug, or commit unasked                  | Rules hold it to the smallest change and never commit without being asked                                       |
+| lose track of a plan halfway through                                          | It's held to the next unchecked step and stops for your review after each                                       |
+| give generic advice that ignores your stack                                   | Stack-specific pattern skills load when the repo calls for them                                                 |
+| spawn subagents that know none of the above                                   | Every subagent gets the same rules and repo context                                                             |
+
+## What it costs
+
+More per turn. The guards take tens of milliseconds, but the claim checker is a Sonnet run capped at $1 and 240 seconds (`kit.yml` `claims:`), and every block is a turn you wait through. In my use that's paid back in fewer correction rounds. I haven't measured it.
+
+## How you work with it
+
+For anything bigger than a one-line fix:
+
+1. **Ask.** "How does X work?" loads `investigate`, which reads the code and edits nothing.
+2. **Plan** with the built-in `/plan`. Before you're asked to approve it, `kit:plan-critic` reads it against the repo and its claims are checked.
+3. **Review each step.** Claude stops after every step so you can review and commit. The Stop hook has already checked what it touched.
+4. **Review the whole change** with `/code-review`, whose hook runs the full gate, then `/verify` to watch it work.
+5. **Ship** with `/write commit` and `/pr description`. Claude never commits or pushes unasked.
+
+Side trips: `/audit` for a read-only report, `/simplify <path>` to cut over-engineering, `/deps` for dependency PRs.
 
 ## Install
 
@@ -62,6 +96,7 @@ claude plugin install kit@ku5ic
 
 - **Needs:** `git` and any bash, on macOS or Linux. Formatters and linters are used when installed and skipped when not; the kit never installs anything.
 - **Gap-fill:** the `claude` CLI, logged in. Once per repo, and again when its configs change, Haiku sorts the commands your CI, hooks, and task runners hold into checks and fixers, capped at $0.50 a call; the answers are cached and verified against your files. Without it, those commands are skipped and named.
+- **Claim checker:** the same `claude` CLI. Without it, or when a run fails, claims go unchecked and nothing blocks.
 - **Claude Code only.** claude.ai and Cowork don't install a plugin with a top-level `bin/`. Chat has [its own zip](#use-it-in-claudeai-chat).
 - **Gitignore** `.claude/scratch/` and `.claude/plans/`, globally or per repo. The kit never edits your ignore files.
 - **Rules ship with the plugin.** Nothing to link. If an older install left `~/.claude/rules/claude-kit`, remove it; the session-start notice names it.
@@ -75,6 +110,20 @@ Claude Code puts `kit` on PATH only inside its sessions. To use it in your termi
 export PATH="$HOME/.claude/plugins/marketplaces/ku5ic/bin:$PATH"
 eval "$(kit completion zsh)"   # or: kit completion bash
 ```
+
+## On by default, and what you switch on
+
+| Feature                                                        | Default  | Needs, or how to change it                                                            |
+| -------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------- |
+| Guards, checks before "done", formatting, context, rules       | On       | Nothing. Each guard rule can be let through with `disabled_rules`                     |
+| Gap-fill: a small model sorts what your configs leave open     | On       | The `claude` CLI, logged in. Haiku, capped at $0.50 a call, cached per repo           |
+| Claim checker                                                  | On       | The `claude` CLI, logged in. Turn off with `disabled_rules: [claims]`                 |
+| plan-critic before a plan is approved                          | On       | Turn off with `disabled_rules: [plan-critic]`                                         |
+| Pattern skills required before the first edit of a file type   | Off      | `CLAUDE_GUARD_SKILLS=1` in your settings `env`                                        |
+| Em dashes, smart quotes, and Unicode arrows rewritten to ASCII | Off      | `CLAUDE_SANITIZE_TYPOGRAPHY=1` in your settings `env`                                 |
+| Status line                                                    | Off      | Two lines in `~/.claude/settings.json` ([Status line](#status-line))                  |
+| `kit` in your own terminal                                     | Off      | PATH and completion in your shell rc ([Shell completion](#shell-completion-optional)) |
+| claude.ai chat                                                 | Separate | Upload the release's chat zip ([Use it in claude.ai chat](#use-it-in-claudeai-chat))  |
 
 ## Use it in claude.ai chat
 
@@ -90,26 +139,36 @@ Each release attaches `kit-chat-<version>.zip`, a smaller plugin for chat on the
 Nothing to learn up front. After install:
 
 ```text
-session starts   -> Claude gets the rules, your stack, your check commands, and the skills that fit
-Claude runs bash -> dangerous commands are blocked, ambiguous ones ask you first
-Claude edits     -> credential files are off limits; the file is formatted with your formatter
-Claude commits   -> AI signatures and secrets are blocked; your commit-msg hooks check the message
-Claude says done -> your git hooks' checks run on what it edited
-Claude replies   -> each prompt carries its `reply_limits` word ceiling; a reply that ran over is told so next turn
+session starts     -> Claude gets the rules, your stack, your check commands, and the skills that fit
+Claude runs bash   -> dangerous commands are blocked, ambiguous ones ask you first
+Claude edits       -> credential files are off limits; skipping a test needs a stated reason; the file is formatted with your formatter
+Claude plans       -> plan-critic reads it against the repo, and its claims are checked, before you're asked to approve
+a subagent reports -> AI tells and unconfirmed claims are sent back before Claude reads the report
+Claude commits     -> AI signatures and secrets are blocked; your commit-msg hooks check the message
+Claude says done   -> your git hooks' checks run on what it edited
+Claude replies     -> each prompt carries its `reply_limits` word ceiling and a reminder to check its claims
 ```
 
 **Block** means Claude sees the reason and tries another way; you aren't interrupted. **Ask** means a normal permission prompt, with the reason in it.
 
 ### Guards
 
-| Guard                                  | What it stops                                                                                                                                                                                                                                                                                                                                                        |
-| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **guard-bash**                         | Parses every command with a real bash parser and sees through `sudo`, `doas`, `env`. Blocks `rm -rf ~`, force pushes, pushes to protected branches, `curl \| sh`, `eval`, `sh -c`, credential reads, rc-file writes, global installs, a package manager other than the lockfile's. Asks before `git push`, adding a dependency, or a file written into the repo root |
-| **guard-edit**                         | Blocks reading, grepping, or writing `.env`, keys, and credential files, and editing lockfiles, `.git/`, or shell rc files. Asks before editing a CI workflow or the kit overlay, or writing a new report-like file (`root_artifact_exts`) at the repo root                                                                                                          |
-| **guard-commit**                       | Blocks AI signatures and AI-tell phrasing in commit messages, and secrets in the staged diff. Runs your commit-msg checks (pre-commit, husky, lefthook, commitlint) on the message                                                                                                                                                                                   |
-| **guard-bash** rule `download-to-repo` | `curl` and `wget` may write only into `.claude/scratch/`                                                                                                                                                                                                                                                                                                             |
-| **sanitize-output**                    | Strips invisible bidi characters (Trojan Source) from every written file except those `sanitize_skip` names: translations, templates, snapshots, fixtures                                                                                                                                                                                                            |
-| **guard-skills**                       | Off by default; see `CLAUDE_GUARD_SKILLS` under Configure                                                                                                                                                                                                                                                                                                            |
+| Guard                                             | What it stops                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **guard-bash**                                    | Parses every command with a real bash parser and sees through `sudo`, `doas`, `env`. Blocks `rm -rf ~`, force pushes, pushes to protected branches, `curl \| sh`, `eval`, `sh -c`, credential reads, rc-file writes, global installs, a package manager other than the lockfile's, and adding a package its registry doesn't have. Asks before `git push`, adding a dependency, or a file written into the repo root |
+| **guard-edit**                                    | Blocks reading, grepping, or writing `.env`, keys, and credential files, and editing lockfiles, `.git/`, or shell rc files. Asks before editing a CI workflow or the kit overlay, or writing a new report-like file (`root_artifact_exts`) at the repo root                                                                                                                                                          |
+| **guard-weaken**                                  | Blocks an edit that skips or focuses a test, or silences a linter or type checker, unless the line carries `kit: allow <reason>`, which is logged. Asks before a test file is left with fewer assertions                                                                                                                                                                                                             |
+| **guard-imports**                                 | Blocks an edit that imports a package no manifest declares, so it's confirmed on its registry and added with your package manager first                                                                                                                                                                                                                                                                              |
+| **guard-tokens**                                  | Blocks a UI edit that uses a design token the project doesn't define: a `var()` with no fallback, or a Tailwind color shade outside the palette and your theme                                                                                                                                                                                                                                                       |
+| **guard-commit**                                  | Blocks AI signatures and AI-tell phrasing in commit messages, and secrets in the staged diff. Runs your commit-msg checks (pre-commit, husky, lefthook, commitlint) on the message                                                                                                                                                                                                                                   |
+| **guard-slop**, **guard-pr**, **guard-connector** | Block AI tells in the lines an edit adds, in the text a `gh` command posts to a PR or issue, and in what an MCP tool posts (a message, a comment, a page). Each names the line and its fix. A tool that only reads goes through                                                                                                                                                                                      |
+| **subagent-slop**, **guard-handback**             | Send a subagent's report back once when it holds AI tells                                                                                                                                                                                                                                                                                                                                                            |
+| **chat-slop**                                     | Points out AI tells in a chat reply on the next turn. A reply already on screen can't be stopped                                                                                                                                                                                                                                                                                                                     |
+| **guard-plan**                                    | Sends a plan back once, before you're asked to approve it, when `kit:plan-critic` hasn't read it since it was written                                                                                                                                                                                                                                                                                                |
+| **verify-claims**                                 | Checks each claim in a plan, a subagent report, an explore or debug report in scratch, or an MCP post against the session, and sends back the ones nothing confirms, once. A chat reply isn't checked; each prompt reminds Claude to check or label its claims. A failed run never blocks                                                                                                                            |
+| **guard-bash** rule `download-to-repo`            | `curl` and `wget` may write only into `.claude/scratch/`                                                                                                                                                                                                                                                                                                                                                             |
+| **sanitize-output**                               | Strips invisible bidi characters (Trojan Source) from every written file except those `sanitize_skip` names: translations, templates, snapshots, fixtures                                                                                                                                                                                                                                                            |
+| **guard-skills**                                  | Off by default; see `CLAUDE_GUARD_SKILLS` under Configure                                                                                                                                                                                                                                                                                                                                                            |
 
 ### Checks before "done"
 
@@ -192,7 +251,7 @@ Commands work bare (`/audit`) or namespaced (`/kit:audit`).
 
 Stack knowledge Claude loads when the repo calls for it: React, Next.js App Router, Vue, Nuxt, TypeScript, JavaScript, Tailwind, Storybook, GraphQL, Python, Django, DRF, FastAPI, Go, Bash, Docker, OpenTofu/Terraform, git, testing, security, logging, monitoring, backups, VPS provisioning, WCAG 2.2, and engineering fundamentals. `slop-patterns` teaches rewriting AI tells; the slop guards send Claude to it.
 
-`CLAUDE_GUARD_SKILLS=1` makes them required: see the switches under Configure.
+`CLAUDE_GUARD_SKILLS=1` makes them required. The switches are under Configure.
 
 ### Status line
 
@@ -206,18 +265,6 @@ Two rows: model, agent, directory, and git state; then context used, cost, durat
 ### The kit CLI
 
 `kit help` lists every command with its flags. The ones you'll reach for: `kit run-checks`, `kit explain`, `kit blast-radius`, `kit enforce --list`, `kit gates reset`, and `kit config --check`.
-
-## The recommended flow
-
-For anything bigger than a one-line fix:
-
-1. **Ask.** "How does X work?" loads `investigate`, which reads the code and edits nothing.
-2. **Plan** with the built-in `/plan`. For a big one, have `kit:plan-critic` check it against the repo.
-3. **Build one step at a time.** Claude stops after each step so you can review and commit. The Stop hook has already checked what it touched.
-4. **Review** at the end: `/code-review`, whose hook runs the full gate, then `/verify` to watch the change work.
-5. **Ship** with `/write commit` and `/pr description`. Claude never commits or pushes unasked.
-
-Side trips: `/audit` for a read-only report, `/simplify <path>` to cut over-engineering, `/deps` for dependency PRs.
 
 ## Configure
 
@@ -239,6 +286,10 @@ Defaults live in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml
 | `gate_env`                | `NAME=value` pairs every check runs with                                                                                                                                                |
 | `gate_discovery`          | CI jobs and steps never run as checks: deny lists of commands, names, and actions                                                                                                       |
 | `classifier`              | The command gap-fill runs instead of `claude`, as an argv list                                                                                                                          |
+| `claims`                  | The claim checker's model, timeout, budget, extra read-only tools, or a command run instead of `claude`                                                                                 |
+| `connectors`              | The verbs that tell an MCP tool that writes from one that reads, and the input fields that hold code                                                                                    |
+| `weakened_checks`         | What counts as a skipped or focused test, a silenced linter, and an assertion                                                                                                           |
+| `package_lookups`         | The registry lookup for each package manager's add command                                                                                                                              |
 | `user_pins`               | Your own Brewfile or `.tool-versions`, pinning tools for every project                                                                                                                  |
 | `reply_limits`            | Word ceilings per reply: `chat`, `explain` and its trigger words, `detail_triggers` that lift the cap, per-`/write` kind; 0 is off. `uncapped_commands`: slash commands with no ceiling |
 | `skip_dirs`               | Directories a file walk never enters                                                                                                                                                    |
@@ -246,6 +297,7 @@ Defaults live in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml
 | `slop`                    | The AI-tell lexicon `kit slop` scans with: rules by tier, the density word list and threshold, which tiers block, files to skip                                                         |
 | `deny_flags`              | Flags no check may set (`--fix`, `--watch`, ...)                                                                                                                                        |
 | `tools`                   | The CLIs session start reports as available or missing                                                                                                                                  |
+| `chat_bundle`             | The skills and rules the claude.ai chat zip carries                                                                                                                                     |
 | `log_max_lines`           | Line cap for the kit's JSONL logs                                                                                                                                                       |
 | Skill maps                | `skill_file_map`, `dependency_skills`, `skill_triggers`, `global_skills`: which pattern skills a file or dependency calls for                                                           |
 

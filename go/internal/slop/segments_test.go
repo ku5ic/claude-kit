@@ -130,7 +130,7 @@ func TestUI(t *testing.T) {
 // so they don't dilute the density of its comments.
 func TestUIDensityCountsOnlyProse(t *testing.T) {
 	t.Parallel()
-	comment := "// A robust, seamless, comprehensive tool."
+	comment := "// A robust, meticulous, comprehensive tool."
 	text := comment + strings.Repeat("\n<div className=\"p-4 flex items-center gap-2\">x</div>", 40)
 	for _, path := range []string{"a.ts", "a.tsx"} {
 		segs, _, _ := Segments(path, "", text)

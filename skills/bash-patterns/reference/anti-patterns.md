@@ -2,7 +2,7 @@
 
 - Parsing `ls`: `for f in $(ls)`. Breaks on filenames with spaces, newlines, or glob characters. `failure`. Use `for f in *` (with `shopt -s nullglob` to handle empty globs) or `find ... -print0 | xargs -0`.
 - `for f in $(find ...)`: same word-splitting hazard. `failure`. Use `find -print0 | xargs -0` or `while IFS= read -r -d '' f; do ...; done < <(find ... -print0)`.
-- Useless `cat`: `cat file | grep ...`. `warning`.
+- Useless `cat`: `cat file | grep ...`. `warning`. ShellCheck 0.11.0 no longer flags it (SC2002) unless run with `--enable=useless-use-of-cat`.
 - `cmd | while read line; do var=...; done` then reading `var` outside the loop. Pipe creates a subshell; assignment is lost. `failure`. Use input redirection or process substitution.
 - Unquoted expansions: `[ $var = "yes" ]`. `failure`. With unset or empty `$var` this becomes `[ = "yes" ]`, a syntax error. Quote it, or use `[[ ]]`.
 - Missing `set -euo pipefail` in non-trivial scripts. `warning`. Failure modes are silent.

@@ -20,7 +20,7 @@ Generate tokens: `manage.py drf_create_token <username>`, or via the built-in `o
 
 ## JWT via djangorestframework-simplejwt
 
-DRF does not include JWT out of the box. `djangorestframework-simplejwt` is the recommended third-party library (cited in DRF docs).
+DRF does not include JWT out of the box. The DRF docs name `djangorestframework-simplejwt` as a package for JWT authentication.
 
 ```python
 REST_FRAMEWORK = {

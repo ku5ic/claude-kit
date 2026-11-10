@@ -57,7 +57,7 @@ In current Node.js, an unhandled promise rejection is raised as an uncaught exce
 
 ## `using` and `await using`
 
-Explicit resource management adds `using` (sync) and `await using` (async) declarations that auto-dispose at scope exit. It reached TC39 Stage 4 in 2026 and is part of the ECMAScript spec; Node ships it unflagged (Context7 /nodejs/node cites 20.4.0 as the floor; confirm against the project's Node version before relying on it). Prefer it over hand-written `try`/`finally` for anything with a `[Symbol.dispose]` or `[Symbol.asyncDispose]` method.
+Explicit resource management adds `using` (sync) and `await using` (async) declarations that auto-dispose at scope exit. It reached TC39 Stage 4 in 2026 and is part of the ECMAScript spec; Node ships the syntax unflagged from 24.0.0 (V8 13.6); 20.4.0 only added `filehandle[Symbol.asyncDispose]`. Confirm against the project's Node version before relying on it. Prefer it over hand-written `try`/`finally` for anything with a `[Symbol.dispose]` or `[Symbol.asyncDispose]` method.
 
 ### Legacy (pre-Stage 4)
 

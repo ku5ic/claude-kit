@@ -8,7 +8,7 @@ Each hit comes with its line and a fix direction. Per hit:
 4. Found none: the sentence was filler. Cut it.
 5. Never swap the flagged word for a synonym. "Serves as" to "acts as" keeps the tell and dodges the regexp; the next reader still sees it.
 
-Then reread the paragraph: cutting one sentence often shows the one beside it was propping it up.
+Then reread the paragraph. Cutting one sentence often shows the one beside it was propping it up.
 
 ## Worked examples
 

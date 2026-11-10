@@ -9,6 +9,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/gapfill"
+	"github.com/ku5ic/claude-kit/go/internal/pkgcheck"
 )
 
 // Package managers: global installs are kit policy (global_installs); the
@@ -60,11 +61,11 @@ func (c *command) packageManager() error {
 			dirFlags = append(dirFlags, m.DirFlags...)
 		}
 	}
-	for _, m := range gapfill.Nearest(root, c.pmDir(dirFlags), facts) {
+	dir := c.pmDir(dirFlags)
+	for _, m := range gapfill.Nearest(root, dir, facts) {
 		switch {
 		case m.Manager == c.name:
-			c.dependencyAdd(m.AddVerbs)
-			return nil
+			return c.dependencyAdd(m.AddVerbs, dir, root)
 		case slices.Contains(m.Rivals, c.name):
 			return c.block(rival(m, c.name), "pm-mismatch")
 		}
@@ -93,8 +94,9 @@ func (c *command) pmDir(dirFlags []string) string {
 }
 
 // dependencyAdd asks when one of verbs ("pnpm add", or "add") has a
-// package operand after it.
-func (c *command) dependencyAdd(verbs []string) {
+// package operand after it, and blocks when its registry says one of them
+// doesn't exist, asking it from dir inside the repository at root.
+func (c *command) dependencyAdd(verbs []string, dir, root string) error {
 	values := c.values()
 	for _, verb := range verbs {
 		words := strings.Fields(verb)
@@ -103,12 +105,53 @@ func (c *command) dependencyAdd(verbs []string) {
 		}
 		for i := range values {
 			after := i + len(words)
-			if after <= len(values) && slices.Equal(values[i:after], words) && slices.ContainsFunc(values[after:], func(v string) bool { return !strings.HasPrefix(v, "-") }) {
-				c.st.ask("this adds a dependency; rules/workflow.md section 2 asks before installing: confirm the package")
-				return
+			if after > len(values) || !slices.Equal(values[i:after], words) {
+				continue
 			}
+			if len(nonOptions(values[after:])) == 0 {
+				continue
+			}
+			valueFlags, registryFlags := c.st.cfg.PackageLookups.Flags(c.name)
+			if !c.st.h.RuleDisabled("pkg-missing") && !hasFlag(values, registryFlags) {
+				lookups := pkgcheck.NewLookups(c.st.cfg.PackageLookups, dir, root)
+				// A flag's value isn't looked up, but still counts above: a
+				// flag listed as taking a value may not take one (pnpm -w).
+				for _, p := range addOperands(values[after:], valueFlags) {
+					if lookups.Missing(c.name, p) {
+						return c.block(p+" isn't on its registry; check the name before adding it", "pkg-missing")
+					}
+				}
+			}
+			c.st.ask("this adds a dependency; rules/workflow.md section 2 asks before installing: confirm the package")
+			return nil
 		}
 	}
+	return nil
+}
+
+// addOperands is the operands of words after an add verb, minus the word
+// after each of valueFlags, which is that flag's value.
+func addOperands(words, valueFlags []string) []string {
+	var kept []string
+	for i := 0; i < len(words); i++ {
+		switch {
+		case words[i] == "--":
+			return nonOptions(append(kept, words[i:]...))
+		case slices.Contains(valueFlags, words[i]):
+			i++
+		default:
+			kept = append(kept, words[i])
+		}
+	}
+	return nonOptions(kept)
+}
+
+// hasFlag is true when words hold one of flags, alone or as flag=value.
+func hasFlag(words, flags []string) bool {
+	return slices.ContainsFunc(words, func(w string) bool {
+		name, _, _ := strings.Cut(w, "=")
+		return slices.Contains(flags, name)
+	})
 }
 
 // rival is why a rival of m's manager blocks, with m's facts for the rerun.

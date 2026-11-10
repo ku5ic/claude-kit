@@ -5,7 +5,7 @@ description: VPS provisioning patterns for Linux servers covering initial setup,
 
 # VPS provisioning patterns
 
-Targeting Debian 12 (Bookworm) and Ubuntu 24.04 LTS. Commands and package names are Debian/Ubuntu unless noted. Verify against your distribution's current docs.
+Targeting Debian 13 (Trixie) and Ubuntu 24.04 or 26.04 LTS. Debian 12 (Bookworm) is on LTS only, until 2028-06-30. Commands and package names are Debian/Ubuntu unless noted. Verify against your distribution's current docs.
 
 ## Reference files
 
@@ -28,10 +28,11 @@ Targeting Debian 12 (Bookworm) and Ubuntu 24.04 LTS. Commands and package names 
 
 ## Version notes
 
-Checked: 2026-09-26 against https://ubuntu.com/about/release-cycle and https://eff-certbot.readthedocs.io/en/latest/using.html
+Checked: 2026-11-10 against https://ubuntu.com/about/release-cycle, https://www.debian.org/releases/, https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html, https://github.com/fail2ban/fail2ban/blob/master/ChangeLog and https://letsencrypt.org/2025/12/02/from-90-to-45
 
 Check distribution LTS support windows before provisioning.
 
+- Debian 13 and Ubuntu 26.04 LTS (2026-11-10): the new baseline. Corrected `Restart=always` (a `systemctl stop` is never restarted) and the fail2ban `sshd` backend on Debian.
 - Ubuntu 24.04 LTS support ends May 2029 (standard), May 2034 (ESM), May 2039 (Legacy add-on). Corrected from April.
 - Certbot 4.0.0: renewal threshold moved from a fixed 30 days to 1/3 of certificate lifetime; see ssl-tls.md.
 - Certbot version and plugin names change; verify `certbot --version` and available plugins.

@@ -69,7 +69,7 @@ Without `forget`/`prune`, backup storage grows unboundedly. Define and automate 
 
 ## Version notes
 
-Checked: 2026-09-26 against https://restic.readthedocs.io/en/stable/040_backup.html, https://github.com/restic/restic/releases, https://www.postgresql.org/support/versioning/
+Checked: 2026-11-10 against https://restic.readthedocs.io/en/stable/040_backup.html, https://github.com/restic/restic/releases, https://www.postgresql.org/support/versioning/
 
 - restic 0.19.1 (2026-07-05): docs warn `--stdin` "cannot detect if data read from stdin is complete"; streaming example switched to `--stdin-from-command`. PostgreSQL 18.6 current, 14 oldest supported.
 
