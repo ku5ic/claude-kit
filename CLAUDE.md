@@ -4,7 +4,7 @@ Working on the kit itself. Build, test, and release steps live in README.md "Dev
 
 ## One source of truth
 
-Every behavior the kit applies everywhere has exactly one owner, listed below. Before adding or changing guidance, find its owner here: change it there, or nowhere. Every other file links to the owner or says nothing about the topic. It never restates, paraphrases, or reminds.
+Every behavior the kit applies everywhere has exactly one owner, listed below. Before adding or changing guidance, find its owner here. Change it there, or nowhere. Every other file links to the owner or says nothing about the topic. It never restates, paraphrases, or reminds.
 
 - Data and mechanics belong to code: `kit.yml` and the `kit` binary. Prose never re-describes what a subcommand does.
 - When two files disagree, the owner wins and the other file is fixed.

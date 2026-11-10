@@ -12,7 +12,7 @@ An agent finishes its own task rather than spawning further subagents. Nested sp
 
 An agent's report describes what it intended, not necessarily what it did. Before committing, reporting, or handing a claim to another agent: claimed edits get a `git diff --stat` on the touched paths; claimed findings get one cited `file:line` spot-checked.
 
-Before synthesizing a fan-out, each agent's findings get one more pass: identify the single claim that result's viability rests on and trace it to the source yourself. Two agents disagreeing means neither is correct until traced. A couple of tool calls, not a re-run of the agent's work.
+Before synthesizing a fan-out, each agent's findings get one more pass. Identify the single claim that result's viability rests on and trace it to the source yourself. Two agents disagreeing means neither is correct until traced. A couple of tool calls, not a re-run of the agent's work.
 
 ## 3. What every agent definition can assume
 

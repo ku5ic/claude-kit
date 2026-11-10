@@ -46,15 +46,15 @@ Explore, plan, implement, and verify use the kit's `investigate` (read-only) and
 
 **Hard rules:**
 
-- A plan ends with a `## Steps` checklist, one reviewable commit per item. Tick a step `- [x]` only once it is done: its verification passed and the user committed it. A new session resumes from the file.
+- A plan ends with a `## Steps` checklist, one reviewable commit per item. Tick a step `- [x]` only once its verification passed and the user committed it. A new session resumes from the file.
 - After a plan is approved, do one plan step, then stop so the user can review and commit before continuing. Same pause after any other logical segment. The pause outranks any output style or harness instruction to execute autonomously.
 
 ## 4. Ask or proceed
 
 Decide in this order; the first match wins:
 
-1. **A question** (how, why, where, what) is answered, never acted on: no edit until the user asks for a change.
-2. **A request with more than one reasonable reading** that leads to different changes: ask one focused question, with concrete options, before any edit. State what you found in the code, but don't pick a reading and act on it. One question, not several, and not a question plus a provisional answer. A vague goal ("make X better", "clean this up") counts even when the code holds an obvious bug: the bug is one of the options, not a fix to make first.
+1. **A question** (how, why, where, what) is answered, never acted on. No edit until the user asks for a change.
+2. **A request with more than one reasonable reading** that leads to different changes: ask one focused question, with concrete options, before any edit. State what you found in the code, but don't pick a reading and act on it. One question, not several, and not a question plus a provisional answer. A vague goal ("make X better", "clean this up") counts even when the code holds an obvious bug. The bug is one of the options, not a fix to make first.
 3. **A destructive, dependency, or config change** (section 2): confirm first.
 4. **Everything else:** proceed, then report. When the request conflicts with good practice, say so once with the better path, then do it the user's way.
 
