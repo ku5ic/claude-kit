@@ -17,9 +17,10 @@ var (
 	varUse = regexp.MustCompile(`var\(\s*(--[\w-]+)\s*\)`)
 	// propDef is a custom property set: in CSS, an inline style object, or setProperty.
 	propDef = regexp.MustCompile(`(--[\w-]+)['"]?\s*:|setProperty\(\s*['"](--[\w-]+)`)
-	// shadedColor is a Tailwind color utility with a palette shade.
+	// shadedColor is a Tailwind color utility with a palette shade; its
+	// group is the color and shade, brand-500.
 	// Longer prefixes come first: RE2 takes the first alternative that matches.
-	shadedColor    = regexp.MustCompile(`(?:^|[\s"'\x60:{(!])(?:text-shadow|inset-shadow|inset-ring|drop-shadow|ring-offset|border(?:-[xytrblse])?|bg|text|ring|outline|fill|stroke|from|via|to|decoration|accent|caret|divide|placeholder|shadow)-([a-z]+(?:-[a-z]+)*)-(50|[1-9]00|950)(?:/\d+)?\b`)
+	shadedColor    = regexp.MustCompile(`(?:^|[\s"'\x60:{(!])(?:text-shadow|inset-shadow|inset-ring|drop-shadow|ring-offset|border(?:-[xytrblse])?|bg|text|ring|outline|fill|stroke|from|via|to|decoration|accent|caret|divide|placeholder|shadow)-([a-z]+(?:-[a-z]+)*-(?:50|[1-9]00|950))(?:/\d+)?\b`)
 	tailwindImport = regexp.MustCompile(`@import\s+['"]tailwindcss['"]`)
 	// palette is Tailwind v4's default colors (tailwindcss.com/docs/colors).
 	palette = []string{"red", "orange", "amber", "yellow", "lime", "green", "emerald", "teal", "cyan", "sky", "blue", "indigo",
@@ -38,12 +39,24 @@ const maxFiles = 5000
 
 // UndefinedTokens is each design token an edit of path adds that the
 // project doesn't define: a var(--x) with no fallback whose --x no project
-// file sets, and, in a Tailwind v4 project configured in CSS, a shaded
-// color utility (bg-brand-500) whose color is neither a default palette
-// color nor a --color-* the project sets. nil when path isn't a UI file,
-// isn't in a git repository, or the project is too big to read.
+// file sets, in a namespace (--x-*) the project sets others in, and, in a
+// Tailwind v4 project configured in CSS, a shaded color utility
+// (bg-brand-500) whose color is neither a default palette color nor a
+// --color-* the project sets. A var in a namespace the project never sets
+// is a dependency's, which git doesn't list. nil when path isn't a UI
+// file, isn't in a git repository, or the project is too big to read.
 func UndefinedTokens(path, before, after string) []string {
 	if !slices.Contains(uiExts, strings.ToLower(filepath.Ext(path))) {
+		return nil
+	}
+	vars := added(varUse, before, after)
+	var colors []string
+	for _, c := range added(shadedColor, before, after) {
+		if !slices.Contains(palette, c[:strings.LastIndex(c, "-")]) {
+			colors = append(colors, c)
+		}
+	}
+	if len(vars) == 0 && len(colors) == 0 {
 		return nil
 	}
 	root := git.Toplevel(filepath.Dir(path))
@@ -79,26 +92,30 @@ func UndefinedTokens(path, before, after string) []string {
 			tailwind = true
 		}
 	}
+	owned := map[string]bool{}
+	for v := range defined {
+		owned[namespace(v)] = true
+	}
 	var out []string
-	for _, v := range added(varUse, before, after) {
-		if !defined[v] && (!tailwind || !tailwindVar(v)) {
+	for _, v := range vars {
+		if !defined[v] && owned[namespace(v)] && (!tailwind || !tailwindVar(v)) {
 			out = append(out, "var("+v+")")
 		}
 	}
 	if tailwind && !jsConfig {
-		old := map[string]bool{}
-		for _, m := range shadedColor.FindAllStringSubmatch(before, -1) {
-			old[m[1]+"-"+m[2]] = true
-		}
-		for _, m := range shadedColor.FindAllStringSubmatch(after, -1) {
-			token := "--color-" + m[1] + "-" + m[2]
-			if old[m[1]+"-"+m[2]] || slices.Contains(palette, m[1]) || defined[token] || slices.Contains(out, token) {
-				continue
+		for _, c := range colors {
+			if token := "--color-" + c; !defined[token] {
+				out = append(out, token)
 			}
-			out = append(out, token)
 		}
 	}
 	return out
+}
+
+// namespace is the first word of a custom property, as accent is of --accent-9.
+func namespace(v string) string {
+	name, _, _ := strings.Cut(strings.TrimPrefix(v, "--"), "-")
+	return name
 }
 
 // added is each first group re matches in after and not in before, once.

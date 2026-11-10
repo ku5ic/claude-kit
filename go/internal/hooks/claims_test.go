@@ -81,23 +81,26 @@ func TestVerifyClaimsToolInput(t *testing.T) {
 		name string
 		call func(k *sandbox) map[string]any
 		runs int // per call: 0 when the tool is never checked
+		// rechecked: a third attempt, after the waived retry, is checked
+		// again. A handback is checked once per agent.
+		rechecked bool
 	}{
-		{"a subagent's handback", func(*sandbox) map[string]any { return handback("a1", claim) }, 1},
+		{"a subagent's handback", func(*sandbox) map[string]any { return handback("a1", claim) }, 1, false},
 		{"an investigation report", func(k *sandbox) map[string]any {
 			return toolCall("Write", map[string]any{"file_path": report(k), "content": "# Debug\n\n" + claim})
-		}, 1},
+		}, 1, true},
 		{"a connector post", func(*sandbox) map[string]any {
 			return toolCall("mcp__chat__send_message", map[string]any{"text": claim})
-		}, 1},
+		}, 1, true},
 		{"a connector read", func(*sandbox) map[string]any {
 			return toolCall("mcp__chat__search_messages", map[string]any{"query": claim})
-		}, 0},
+		}, 0, false},
 		{"a source file", func(k *sandbox) map[string]any {
 			return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", "README.md"), "content": claim})
-		}, 0},
+		}, 0, false},
 		{"another scratch file", func(k *sandbox) map[string]any {
 			return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "notes.md"), "content": claim})
-		}, 0},
+		}, 0, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -113,15 +116,43 @@ func TestVerifyClaimsToolInput(t *testing.T) {
 			}
 			first.Denied(t)
 			first.Has(t, claim, "git log -S Foo")
-			// Sent back once: the retry goes through unchecked, and the
-			// next attempt after it is checked again.
+			// Sent back once: the retry goes through unchecked.
 			k.run("verify-claims", tc.call(k)).Allowed(t)
-			k.run("verify-claims", tc.call(k)).Denied(t)
-			if got := len(testutil.Calls(t, calls)); got != 2 {
-				t.Errorf("verifier ran %d times, want 2", got)
+			third, want := k.run("verify-claims", tc.call(k)), 1
+			if tc.rechecked {
+				third.Denied(t)
+				want = 2
+			} else {
+				third.Allowed(t)
+			}
+			if got := len(testutil.Calls(t, calls)); got != want {
+				t.Errorf("verifier ran %d times, want %d", got, want)
 			}
 		})
 	}
+	t.Run("a sent-back post doesn't waive a different one", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		calls := k.verifier("", claim)
+		post := func(text string) map[string]any {
+			return toolCall("mcp__chat__send_message", map[string]any{"text": text})
+		}
+		k.run("verify-claims", post(claim)).Denied(t)
+		k.run("verify-claims", post("Deploys run at noon because the cron says 12.")).Denied(t)
+		if got := len(testutil.Calls(t, calls)); got != 2 {
+			t.Errorf("verifier ran %d times, want 2", got)
+		}
+	})
+	t.Run("a checked handback leaves the subagent's stop alone", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		calls := k.verifier("")
+		k.run("verify-claims", handback("a1", claim)).Allowed(t)
+		k.run("verify-claims", subagentStop("a1", claim, false)).Want(t, 0)
+		if got := len(testutil.Calls(t, calls)); got != 1 {
+			t.Errorf("verifier ran %d times, want 1", got)
+		}
+	})
 }
 
 func TestVerifyClaimsFailsOpen(t *testing.T) {

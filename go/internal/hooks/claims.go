@@ -1,6 +1,8 @@
 package hooks
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -28,7 +30,8 @@ import (
 //     scratch: the report, before it's written.
 //   - PreToolUse for an MCP tool that writes: the post, before it's sent.
 //
-// Each text is sent back once; the next attempt goes through.
+// Each text is sent back once, and resending it goes through. A handback
+// is checked once per agent.
 func VerifyClaims(h *hook.Hook) error {
 	p := h.Payload
 	if p.Err != nil {
@@ -89,18 +92,32 @@ func verifyToolInput(h *hook.Hook) error {
 	if marker == "" {
 		return nil
 	}
-	if fsx.IsFile(marker) {
-		_ = os.Remove(marker) // sent back once: this attempt goes through
+	// A handback's marker is per agent and stays, so SubagentStop knows the
+	// report was checked. A post's or report's names the text sent back, so
+	// only that text, resent, goes through.
+	handback := tool == "SubagentHandback"
+	sentBack := "sent-back"
+	if !handback {
+		sum := sha256.Sum256([]byte(text))
+		sentBack += " " + hex.EncodeToString(sum[:])
+	}
+	if prev, err := os.ReadFile(marker); err == nil && string(prev) == sentBack {
+		if !handback {
+			_ = os.Remove(marker)
+		}
 		return nil
 	}
 	u := unconfirmed(h, text, transcriptPath, where)
-	if len(u) == 0 {
-		return nil
+	state := "seen"
+	if len(u) > 0 {
+		state = sentBack
 	}
-	if !h.DryRun {
-		_ = fsx.WriteAtomic(marker, []byte("sent-back"), 0o644)
+	if (handback || len(u) > 0) && !h.DryRun {
+		_ = fsx.WriteAtomic(marker, []byte(state), 0o644)
 	}
-	h.Deny(claimsMessage(where, u)+retry, "claims")
+	if len(u) > 0 {
+		h.Deny(claimsMessage(where, u)+retry, "claims")
+	}
 	return nil
 }
 

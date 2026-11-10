@@ -4,14 +4,18 @@
 package pkgcheck
 
 import (
+	"encoding/json"
 	"maps"
 	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/proc"
 )
 
@@ -19,11 +23,58 @@ import (
 type Lookups struct {
 	c        config.PackageLookups
 	deadline time.Time
+	dir      string          // the command's directory, where registry config is read from
+	local    map[string]bool // names the repo's own package.json files declare, read on first use
+	root     string
 }
 
-// NewLookups starts c's time budget, shared by every lookup it runs.
-func NewLookups(c config.PackageLookups) *Lookups {
-	return &Lookups{c, time.Now().Add(time.Duration(c.Timeout) * time.Second)}
+// NewLookups starts c's time budget, shared by every lookup it runs for a
+// command in dir, inside the repository at root.
+func NewLookups(c config.PackageLookups, dir, root string) *Lookups {
+	return &Lookups{c: c, deadline: time.Now().Add(time.Duration(c.Timeout) * time.Second), dir: dir, root: root}
+}
+
+// private is true when an rc file from dir up to root has a registry line
+// for name's scope, or for every package.
+func (l *Lookups) private(rc, name string) bool {
+	if rc == "" {
+		return false
+	}
+	scope, _, scoped := strings.Cut(name, "/")
+	for dir := range fsx.Up(l.dir, l.root) {
+		data, err := os.ReadFile(filepath.Join(dir, rc))
+		if err != nil {
+			continue
+		}
+		for line := range strings.Lines(string(data)) {
+			key, _, _ := strings.Cut(strings.TrimSpace(line), "=")
+			key = strings.TrimSpace(key)
+			if key == "registry" || scoped && key == scope+":registry" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// workspace is true when a package.json in the repository is named name:
+// a workspace package, or a flag's value like --filter's.
+func (l *Lookups) workspace(name string) bool {
+	if l.local == nil {
+		l.local = map[string]bool{}
+		files, _ := git.Files(l.root, ":(glob)**/package.json")
+		for _, f := range files {
+			data, err := os.ReadFile(filepath.Join(l.root, f))
+			if err != nil {
+				continue
+			}
+			var manifest struct{ Name string }
+			if json.Unmarshal(data, &manifest) == nil && manifest.Name != "" {
+				l.local[manifest.Name] = true
+			}
+		}
+	}
+	return l.local[name]
 }
 
 // Missing is true only when manager's registry says operand doesn't exist.
@@ -40,7 +91,7 @@ func (l *Lookups) Missing(manager, operand string) bool {
 			continue
 		}
 		name, missing := bare(operand), compile(e.Missing)
-		if name == "" || missing == nil || len(e.Cmd) == 0 || !compileOK(e.Name, name) {
+		if name == "" || missing == nil || len(e.Cmd) == 0 || !compileOK(e.Name, name) || l.workspace(name) || l.private(e.RCFile, name) {
 			return false
 		}
 		for p := name; ; p = parent(p) {
@@ -76,7 +127,7 @@ func (l *Lookups) run(argv []string, name string, missing *regexp.Regexp) answer
 		args[i] = strings.ReplaceAll(a, "{pkg}", name)
 	}
 	cmd := proc.Command(left, args[0], args[1:]...)
-	cmd.Dir = os.TempDir() // outside any project, so no workspace config steers it
+	cmd.Dir = os.TempDir() // outside the project: its config runs nothing before the add is approved
 	out, err := cmd.CombinedOutput()
 	switch {
 	case cmd.TimedOut():

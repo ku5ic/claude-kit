@@ -10,12 +10,15 @@ import (
 var checks = config.WeakenedChecks{
 	Skip:         []string{"*.md", "*/testdata/*"},
 	TestFiles:    []string{"*_test.go", "*.test.ts", "*/test_*.py"},
-	Skips:        []string{`\bt\.Skip(Now|f)?\(`, `\b(it|test|describe)\.(skip|only)\(`, `@pytest\.mark\.(skip|skipif|xfail)\b`},
+	Skips:        []string{`\bt\.Skip(Now|f)?\(`, `\b(it|test|describe)\.(skip|only)\(`, `@pytest\.mark\.(skip|skipif|xfail)\b`, `(?:^|[^.\w$])f(it|describe)\(`},
 	Suppressions: []string{`//\s*nolint\b`, `eslint-disable`, `@ts-(ignore|expect-error)\b`, `#\s*noqa\b`},
 	Assertions:   []string{`\bt\.(Error|Errorf|Fatal|Fatalf)\(`, `\bexpect\(`, `^\s*assert\b`},
 }
 
 func lines(l ...string) string { return strings.Join(l, "\n") }
+
+// kit: allow fixture for the focus pattern, not a focused test
+const focused = "fit('works', () => {})"
 
 func TestCheck(t *testing.T) {
 	t.Parallel()
@@ -55,6 +58,8 @@ func TestCheck(t *testing.T) {
 			"it('works', () => {})",
 			"it.only('works', () => {})",
 			[]Hit{{Line: 1, Text: "it.only('works', () => {})", Kind: "skip"}}, 0},
+		{"a focused fit", "web/a.test.ts", "", focused, []Hit{{Line: 1, Text: focused, Kind: "skip"}}, 0},
+		{"a method named fit is no focus", "app/test_model.py", "", "model.fit(X, y)", nil, 0},
 		{"a pytest mark", "app/test_views.py",
 			"def test_a():",
 			lines("@pytest.mark.skip", "def test_a():"),

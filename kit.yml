@@ -289,24 +289,15 @@ slop:
     - {id: ui-eyebrow, tier: 3, on: [ui], match: '\buppercase\b.*\btracking-(widest|\[0\.\d+em\])'}
     - {id: ui-chrome-glyph, tier: 3, on: [ui], match: '\x{00B7}|\x{2192}'}
 
-# What kit bundle chat ships to claude.ai chat, where no hook, repo, or kit
-# on PATH exists. A skill stays out unless skills names it. description is
-# the plugin's, 500 characters at most.
 # MCP tools, by the verbs in the tool part of mcp__<server>__<tool>, split
 # on _, -, and case. A write verb means the tool sends text out of the
 # session, and guard-connector scans that text for AI tells. A read verb
 # with no write verb means it only reads. Anything else is neither.
 connectors:
   write_verbs: [send, create, update, post, reply, comment, forward, publish, edit, write, share, schedule, upload,
-    save, add, set, respond, react, merge, move, delete, remove, trash]
+    save, add, set, respond, react, merge, move, delete, remove, trash, batch, generate, execute, use]
   read_verbs: [get, read, search, list, fetch, query, find, download, export, view, lookup, resolve, describe, whoami]
 
-# The claim verifier (go/internal/claims): a claude -p session that checks
-# each factual claim in a text against the session's tool results, and
-# checks what they don't cover with read-only tools. model and budget_usd
-# are passed to it, timeout is its limit in seconds (0 turns it off), and
-# allow names more tools it may call; a write tool is never let through.
-# command replaces the claude call.
 # What guard-weaken reads an edit by (go/internal/weaken). An added line
 # matching skips (in a test file) or suppressions (in any file but skip's)
 # blocks unless `kit: allow <reason>` is on it or the line above. A test
@@ -315,8 +306,8 @@ weakened_checks:
   skip: ["*.md", "*.mdx", "*.txt", "*.rst", "*/testdata/*", "*/fixtures/*", "*/kit.yml", "*/claude-kit.local.yml"]
   test_files: ["*_test.go", "*.test.[jt]s", "*.test.[jt]sx", "*.spec.[jt]s", "*.spec.[jt]sx", "*/test_*.py", "*_test.py",
     "*/conftest.py", "*/tests/*", "*/__tests__/*"]
-  skips: ['\bt\.Skip(Now|f)?\(', '\b(it|test|describe|context)\.(skip|only|todo)\(', '\bx(it|test|describe)\(',
-    '\bf(it|describe)\(', '@pytest\.mark\.(skip|skipif|xfail)\b', '\bpytest\.skip\(', '@unittest\.skip']
+  skips: ['\bt\.Skip(Now|f)?\(', '\b(it|test|describe|context)\.(skip|only|todo)\(', '(?:^|[^.\w$])x(it|test|describe)\(',
+    '(?:^|[^.\w$])f(it|describe)\(', '@pytest\.mark\.(skip|skipif|xfail)\b', '\bpytest\.skip\(', '@unittest\.skip']
   suppressions: ['//\s*nolint\b', 'eslint-disable', '@ts-(ignore|nocheck|expect-error)\b', '#\s*type:\s*ignore\b',
     '#\s*noqa\b', '#\s*pyright:\s*ignore\b', '#\s*pylint:\s*disable', '#\s*shellcheck\s+disable=', 'biome-ignore',
     '//\s*lint:ignore\b']
@@ -329,6 +320,9 @@ weakened_checks:
 # what it prints when no such package exists. A missing package blocks; a
 # lookup that times out or fails any other way blocks nothing. parents
 # retries a missing path at each parent, for a Go package inside a module.
+# Lookups run outside the project, so its config runs nothing before the
+# add is approved; a package whose scope, or every package, an rc_file
+# from the project up routes to another registry isn't looked up.
 # timeout is seconds for all of one command's lookups; 0 turns them off.
 package_lookups:
   timeout: 15
@@ -338,6 +332,7 @@ package_lookups:
       name: '^(@[a-z0-9][\w.-]*/)?[a-z0-9][\w.-]*$'
       cmd: [npm, view, "{pkg}", name]
       missing: '\bE404\b'
+      rc_file: .npmrc
     go:
       managers: [go]
       name: '^[a-z0-9.-]+\.[a-z]{2,}(/[\w.~-]+)+$'
@@ -345,12 +340,21 @@ package_lookups:
       missing: 'no matching versions|not found|410 Gone'
       parents: true
 
+# The claim verifier (go/internal/claims): a claude -p session that checks
+# each factual claim in a text against the session's tool results, and
+# checks what they don't cover with read-only tools. model and budget_usd
+# are passed to it, timeout is its limit in seconds (0 turns it off), and
+# allow names more tools it may call; a write tool is never let through.
+# command replaces the claude call.
 claims:
   model: sonnet
   timeout: 240
   budget_usd: 1
   allow: []
 
+# What kit bundle chat ships to claude.ai chat, where no hook, repo, or kit
+# on PATH exists. A skill stays out unless skills names it. description is
+# the plugin's, 500 characters at most.
 chat_bundle:
   description: The kit's writing and investigation skills for claude.ai chat, working on pasted text and code. Hooks and guards stay in Claude Code.
   skills: [engineering-fundamentals, investigate, slop-patterns, unslop, write]

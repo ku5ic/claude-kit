@@ -67,6 +67,8 @@ func TestUndeclaredJS(t *testing.T) {
 	app := filepath.Join(root, "packages", "app")
 	testutil.Write(t, filepath.Join(app, "package.json"), `{"name":"@acme/app","dependencies":{"react":"^19","@tanstack/react-query":"^5"}}`)
 	testutil.Mkdir(t, filepath.Join(app, "src", "components"))
+	testutil.Write(t, filepath.Join(app, "tsconfig.json"), `{"compilerOptions": {"paths": {"@ui/*": ["src/ui/*"]}}}`)
+	testutil.Write(t, filepath.Join(root, "vite.config.ts"), "export default { resolve: { alias: { 'shared': '/src/shared' } } }")
 	path := filepath.Join(app, "src", "App.tsx")
 	for _, tc := range []struct {
 		name, before, after string
@@ -74,7 +76,7 @@ func TestUndeclaredJS(t *testing.T) {
 	}{
 		{"an undeclared package, scoped and not", "", "import x from 'made-up-lib'\nimport { y } from \"@made/up/sub\"\nconst z = require('another-one')\nconst w = await import('made-up-lib/deep')",
 			[]string{"made-up-lib", "@made/up", "another-one"}},
-		{"declared, hoisted, builtin, relative, aliased", "", "import React from 'react'\nimport { useQuery } from '@tanstack/react-query'\nimport { test } from 'vitest'\nimport fs from 'node:fs'\nimport path from 'path'\nimport a from './a'\nimport b from '@/lib/b'\nimport c from '~/c'\nimport Button from 'components/Button'\nimport self from '@acme/app/x'\nimport v from 'virtual:icons'",
+		{"declared, hoisted, builtin, relative, aliased", "", "import React from 'react'\nimport { useQuery } from '@tanstack/react-query'\nimport { test } from 'vitest'\nimport fs from 'node:fs'\nimport path from 'path'\nimport a from './a'\nimport b from '@/lib/b'\nimport c from '~/c'\nimport Button from 'components/Button'\nimport self from '@acme/app/x'\nimport v from 'virtual:icons'\nimport { Card } from '@ui/Card'\nimport s from 'shared/s'",
 			nil},
 		{"an import already there", "import x from 'made-up-lib'", "import x from 'made-up-lib'\nconst a = 1", nil},
 	} {
@@ -135,7 +137,7 @@ func TestLookupsMissing(t *testing.T) {
 	} {
 		t.Run(tc.manager+" "+tc.operand, func(t *testing.T) {
 			t.Parallel()
-			if got := NewLookups(conf(cmd)).Missing(tc.manager, tc.operand); got != tc.want {
+			if got := NewLookups(conf(cmd), t.TempDir(), t.TempDir()).Missing(tc.manager, tc.operand); got != tc.want {
 				t.Errorf("Missing = %v, want %v", got, tc.want)
 			}
 		})
@@ -144,7 +146,7 @@ func TestLookupsMissing(t *testing.T) {
 		t.Parallel()
 		c := conf(cmd)
 		c.Timeout = 1
-		if NewLookups(c).Missing("pnpm", "slow-lib") {
+		if NewLookups(c, t.TempDir(), t.TempDir()).Missing("pnpm", "slow-lib") {
 			t.Error("a lookup that timed out counted as missing")
 		}
 	})
@@ -152,8 +154,37 @@ func TestLookupsMissing(t *testing.T) {
 		t.Parallel()
 		c := conf(cmd)
 		c.Timeout = 0
-		if NewLookups(c).Missing("pnpm", "made-up-lib") {
+		if NewLookups(c, t.TempDir(), t.TempDir()).Missing("pnpm", "made-up-lib") {
 			t.Error("a lookup ran with timeout 0")
+		}
+	})
+	t.Run("a workspace package is never looked up", func(t *testing.T) {
+		t.Parallel()
+		root := testutil.Physical(t, t.TempDir())
+		testutil.Git(t, root, "init", "-q")
+		testutil.Write(t, filepath.Join(root, "apps", "web", "package.json"), `{"name":"my-app"}`)
+		if NewLookups(conf(cmd), root, root).Missing("pnpm", "my-app") {
+			t.Error("a workspace package counted as missing")
+		}
+	})
+	t.Run("a package an .npmrc sends to another registry is never looked up", func(t *testing.T) {
+		t.Parallel()
+		c := conf(cmd)
+		npm := c.Ecosystems["npm"]
+		npm.RCFile = ".npmrc"
+		c.Ecosystems["npm"] = npm
+		root := t.TempDir()
+		dir := filepath.Join(root, "apps", "web")
+		testutil.Write(t, filepath.Join(root, ".npmrc"), "# private\n@acme:registry = https://npm.acme.dev\n")
+		testutil.Mkdir(t, dir)
+		for operand, want := range map[string]bool{"@acme/ui": false, "@other/ui": true, "made-up-lib": true} {
+			if got := NewLookups(c, dir, root).Missing("pnpm", operand); got != want {
+				t.Errorf("Missing(%s) = %v, want %v", operand, got, want)
+			}
+		}
+		testutil.Write(t, filepath.Join(dir, ".npmrc"), "registry=https://npm.acme.dev\n")
+		if NewLookups(c, dir, root).Missing("pnpm", "made-up-lib") {
+			t.Error("a package under a project-wide registry was looked up")
 		}
 	})
 }

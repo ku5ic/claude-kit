@@ -61,10 +61,11 @@ func (c *command) packageManager() error {
 			dirFlags = append(dirFlags, m.DirFlags...)
 		}
 	}
-	for _, m := range gapfill.Nearest(root, c.pmDir(dirFlags), facts) {
+	dir := c.pmDir(dirFlags)
+	for _, m := range gapfill.Nearest(root, dir, facts) {
 		switch {
 		case m.Manager == c.name:
-			return c.dependencyAdd(m.AddVerbs)
+			return c.dependencyAdd(m.AddVerbs, dir, root)
 		case slices.Contains(m.Rivals, c.name):
 			return c.block(rival(m, c.name), "pm-mismatch")
 		}
@@ -94,8 +95,8 @@ func (c *command) pmDir(dirFlags []string) string {
 
 // dependencyAdd asks when one of verbs ("pnpm add", or "add") has a
 // package operand after it, and blocks when its registry says one of them
-// doesn't exist.
-func (c *command) dependencyAdd(verbs []string) error {
+// doesn't exist, asking it from dir inside the repository at root.
+func (c *command) dependencyAdd(verbs []string, dir, root string) error {
 	values := c.values()
 	for _, verb := range verbs {
 		words := strings.Fields(verb)
@@ -111,7 +112,7 @@ func (c *command) dependencyAdd(verbs []string) error {
 			if len(packages) == 0 {
 				continue
 			}
-			lookups := pkgcheck.NewLookups(c.st.cfg.PackageLookups)
+			lookups := pkgcheck.NewLookups(c.st.cfg.PackageLookups, dir, root)
 			for _, p := range packages {
 				if lookups.Missing(c.name, p) {
 					return c.block(p+" isn't on its registry; check the name before adding it", "pkg-missing")

@@ -64,8 +64,9 @@ func TestUndefinedTokens(t *testing.T) {
 		want          []string
 	}{
 		{"an undefined var and an undefined shade", tw, "",
-			`<div className="p-[var(--gap)] bg-brand-500 text-brand-600 hover:bg-primary-700" style={{color: "var(--accent)"}} />`,
-			[]string{"var(--accent)", "--color-brand-600", "--color-primary-700"}},
+			`<div className="p-[var(--gap)] bg-brand-500 text-brand-600 hover:bg-primary-700" style={{color: "var(--gap-lg)"}} />`,
+			[]string{"var(--gap-lg)", "--color-brand-600", "--color-primary-700"}},
+		{"a var in a namespace only a dependency sets", tw, "", `<p style={{c: "var(--accent-9)", m: "var(--mantine-color-blue-6)"}} />`, nil},
 		{"defined, default, fallback, and Tailwind's own", tw, "",
 			`<div className="bg-red-500 border-x-mauve-200 text-shadow-sky-300 bg-brand-500/50" style={{gap: "var(--gap)", c: "var(--other, red)", w: "var(--spacing)", k: "var(--color-blue-500)"}} />`,
 			nil},
@@ -74,7 +75,7 @@ func TestUndefinedTokens(t *testing.T) {
 		{"a JS config: shades aren't checked", map[string]string{"src/app.css": tw["src/app.css"], "tailwind.config.ts": "export default {}"}, "",
 			`<div className="bg-primary-700" />`, nil},
 		{"no Tailwind: only vars are checked", map[string]string{"src/app.css": ":root { --gap: 1rem; }"}, "",
-			`<div className="bg-primary-700" style={{c: "var(--spacing)"}} />`, []string{"var(--spacing)"}},
+			`<div className="bg-primary-700" style={{c: "var(--gap-lg)"}} />`, []string{"var(--gap-lg)"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

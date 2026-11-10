@@ -304,6 +304,9 @@ type PackageLookup struct {
 	Cmd      []string `yaml:"cmd"`
 	Missing  string   `yaml:"missing"`
 	Parents  bool     `yaml:"parents"`
+	// RCFile names the registry config (.npmrc) whose registry lines send
+	// a package somewhere the lookup, run outside the project, can't see.
+	RCFile string `yaml:"rc_file"`
 }
 
 // problems names each lookup that can't work: a pattern that doesn't

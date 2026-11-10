@@ -24,6 +24,9 @@ var (
 		"os", "path", "perf_hooks", "process", "punycode", "querystring", "readline", "repl", "stream", "string_decoder", "sys",
 		"timers", "tls", "trace_events", "tty", "url", "util", "v8", "vm", "wasi", "worker_threads", "zlib"}
 	depFields = []string{"dependencies", "devDependencies", "peerDependencies", "optionalDependencies"}
+	// aliasConfigs are the files that map an import prefix to a path.
+	aliasConfigs = []string{"tsconfig*.json", "jsconfig*.json", "vite.config.*", "vitest.config.*", "webpack.config.*",
+		"next.config.*", "nuxt.config.*", "svelte.config.*", "astro.config.*", "babel.config.*", ".babelrc*"}
 )
 
 // Undeclared is each package an edit of path adds an import of that no
@@ -187,9 +190,25 @@ func jsPackage(spec string) string {
 }
 
 // aliased is true when a project root, or its src, holds a file or
-// directory named like the package: a baseUrl or paths alias, not a package.
+// directory named like the package (a baseUrl alias), or a root's bundler
+// or tsconfig quotes its first path segment (a paths or resolve.alias key).
 func aliased(roots []string, name string) bool {
+	head, _, _ := strings.Cut(name, "/")
 	for _, root := range roots {
+		for _, pattern := range aliasConfigs {
+			matches, _ := filepath.Glob(filepath.Join(root, pattern))
+			for _, f := range matches {
+				data, err := os.ReadFile(f)
+				if err != nil {
+					continue
+				}
+				for _, q := range []string{`"`, `'`} {
+					if strings.Contains(string(data), q+head+"/") || strings.Contains(string(data), q+head+q) {
+						return true
+					}
+				}
+			}
+		}
 		for _, dir := range []string{root, filepath.Join(root, "src")} {
 			base := filepath.Join(dir, name)
 			if _, err := os.Lstat(base); err == nil {
