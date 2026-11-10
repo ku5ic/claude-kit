@@ -21,9 +21,7 @@ import (
 
 // VerifyClaims sends text back when the claim verifier finds a claim in it
 // that nothing in the session confirms, so each is checked or labeled
-// before anyone relies on it. A chat reply is never checked: it's on screen
-// by Stop, so a block would show it twice; reply-length asks for checked
-// claims before the reply instead.
+// before anyone relies on it. A chat reply is never checked; see checkClaims.
 //   - SubagentStop, and PreToolUse for SubagentHandback: a subagent's
 //     report, against its own transcript, before the parent reads it.
 //   - PreToolUse for a Write or Edit of an explore or debug report in

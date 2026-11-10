@@ -107,7 +107,6 @@ func TestReplyLength(t *testing.T) {
 			stop(t, k, words(500), false)
 		}
 	})
-	// verify-claims never checks a chat reply, so every prompt asks for it.
 	t.Run("every prompt asks for checked claims", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
