@@ -21,9 +21,9 @@ import (
 
 // VerifyClaims sends text back when the claim verifier finds a claim in it
 // that nothing in the session confirms, so each is checked or labeled
-// before anyone relies on it:
-//   - Stop: the reply. It's already shown, so the block makes Claude
-//     correct it in the same turn.
+// before anyone relies on it. A chat reply is never checked: it's on screen
+// by Stop, so a block would show it twice; reply-length asks for checked
+// claims before the reply instead.
 //   - SubagentStop, and PreToolUse for SubagentHandback: a subagent's
 //     report, against its own transcript, before the parent reads it.
 //   - PreToolUse for a Write or Edit of an explore or debug report in
@@ -38,24 +38,6 @@ func VerifyClaims(h *hook.Hook) error {
 		return nil
 	}
 	switch p.String("hook_event_name") {
-	case "Stop":
-		// A reply this sent back goes through rewritten, so it never loops;
-		// one rewritten after another hook's block is checked.
-		marker := h.Paths.SessionFile(cache.Claims, p.SessionID(), "stop")
-		if marker == "" {
-			return nil
-		}
-		if p.Bool("stop_hook_active") && fsx.IsFile(marker) {
-			_ = os.Remove(marker)
-			return nil
-		}
-		_ = os.Remove(marker)
-		if u := unconfirmed(h, p.String("last_assistant_message"), p.String("transcript_path"), "reply"); len(u) > 0 {
-			if !h.DryRun {
-				_ = fsx.WriteAtomic(marker, nil, 0o644)
-			}
-			return h.Block(claimsMessage("your reply", u)+" Then give the corrected answer.", "claims")
-		}
 	case "SubagentStop":
 		marker := handbackMarker(h, cache.Claims)
 		if p.Bool("stop_hook_active") || marker != "" && fsx.IsFile(marker) {

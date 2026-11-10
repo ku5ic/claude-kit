@@ -40,7 +40,7 @@ func toolCall(tool string, input map[string]any) map[string]any {
 	return map[string]any{"hook_event_name": "PreToolUse", "session_id": "s", "tool_name": tool, "tool_input": input}
 }
 
-func TestVerifyClaimsStop(t *testing.T) {
+func TestVerifyClaimsSubagentStop(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name        string
@@ -49,11 +49,10 @@ func TestVerifyClaimsStop(t *testing.T) {
 		status      int
 		runs        int
 	}{
-		{"block: an unconfirmed claim", stop(claim, false), []string{claim}, 2, 1},
-		{"allow: every claim confirmed", stop(claim, false), nil, 0, 1},
-		{"block: a reply rewritten after another hook's block", stop(claim, true), []string{claim}, 2, 1},
-		{"allow: nothing stated, unchecked", stop("Which branch?", false), []string{claim}, 0, 0},
-		{"block: a subagent's report", subagentStop("a1", claim, false), []string{claim}, 2, 1},
+		{"allow: a chat reply is never checked", stop(claim, false), []string{claim}, 0, 0},
+		{"block: an unconfirmed claim", subagentStop("a1", claim, false), []string{claim}, 2, 1},
+		{"allow: every claim confirmed", subagentStop("a1", claim, false), nil, 0, 1},
+		{"allow: nothing stated, unchecked", subagentStop("a1", "Which branch?", false), []string{claim}, 0, 0},
 		{"allow: a subagent's second stop", subagentStop("a1", claim, true), []string{claim}, 0, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -69,20 +68,6 @@ func TestVerifyClaimsStop(t *testing.T) {
 				t.Errorf("verifier ran %d times, want %d", got, tc.runs)
 			}
 		})
-	}
-}
-
-// A reply it sent back goes through rewritten, unchecked, so it never loops;
-// the next turn's first stop is checked again.
-func TestVerifyClaimsStopOncePerTurn(t *testing.T) {
-	t.Parallel()
-	k := newSandbox(t)
-	calls := k.verifier("", claim)
-	k.run("verify-claims", stop(claim, false)).Want(t, 2)
-	k.run("verify-claims", stop(claim, true)).Want(t, 0)
-	k.run("verify-claims", stop(claim, true)).Want(t, 2)
-	if got := len(testutil.Calls(t, calls)); got != 2 {
-		t.Errorf("verifier ran %d times, want 2", got)
 	}
 }
 
@@ -177,7 +162,7 @@ func TestVerifyClaimsFailsOpen(t *testing.T) {
 		stub := filepath.Join(t.TempDir(), "verifier")
 		testutil.FakeTool(t, stub, filepath.Join(t.TempDir(), "calls"), "cat >/dev/null\nexit 1")
 		k.overlay(fmt.Sprintf("claims:\n  command: [%q]\n", stub))
-		k.run("verify-claims", stop(claim, false)).Want(t, 0)
+		k.run("verify-claims", subagentStop("a1", claim, false)).Want(t, 0)
 		if log := read(t, k.paths.LogFile(kitlog.Guards)); !strings.Contains(log, "claims-error") {
 			t.Errorf("guards log lacks the error:\n%s", log)
 		}
@@ -186,13 +171,13 @@ func TestVerifyClaimsFailsOpen(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
 		k.verifier("disabled_rules: [claims]\n", claim)
-		k.run("verify-claims", stop(claim, false)).Want(t, 0)
+		k.run("verify-claims", subagentStop("a1", claim, false)).Want(t, 0)
 	})
 	t.Run("timeout 0 turns the verifier off", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
 		calls := k.verifier("  timeout: 0\n", claim)
-		k.run("verify-claims", stop(claim, false)).Want(t, 0)
+		k.run("verify-claims", subagentStop("a1", claim, false)).Want(t, 0)
 		if got := testutil.Calls(t, calls); got != nil {
 			t.Errorf("verifier ran: %q", got)
 		}

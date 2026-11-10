@@ -70,7 +70,7 @@ var registry = map[string]hookDef{
 	"guard-handback":          {events: []string{"PreToolUse"}},
 	"guard-plan":              {events: []string{"PreToolUse"}},
 	"guard-connector":         {events: []string{"PreToolUse"}},
-	"verify-claims":           {events: []string{"PreToolUse", "Stop", "SubagentStop"}},
+	"verify-claims":           {events: []string{"PreToolUse", "SubagentStop"}},
 	"guard-bash":              {},
 	"guard-commit":            {},
 	"guard-edit":              {},

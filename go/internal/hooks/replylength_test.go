@@ -89,7 +89,7 @@ func TestReplyLength(t *testing.T) {
 	t.Run("a detail trigger lifts a /write ceiling too", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
-		prompt(k, "/write explainer the cache in detail").Empty(t)
+		prompt(k, "/write explainer the cache in detail").Lacks(t, "Reply ceiling")
 		stop(t, k, words(500), false)
 		prompt(k, "go").Lacks(t, "Your last reply")
 	})
@@ -103,8 +103,16 @@ func TestReplyLength(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
 		for _, p := range []string{"/verify this branch", "/code-review high", "/kit:audit perf"} {
-			prompt(k, p).Empty(t)
+			prompt(k, p).Lacks(t, "Reply ceiling")
 			stop(t, k, words(500), false)
+		}
+	})
+	// verify-claims never checks a chat reply, so every prompt asks for it.
+	t.Run("every prompt asks for checked claims", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		for _, p := range []string{"go", "/verify this branch", "explain the cache in detail"} {
+			prompt(k, p).Has(t, "check each claim with a tool", "rules/evidence.md section 1")
 		}
 	})
 	t.Run("an unclosed fence doesn't hide the prose after it; a tilde fence is code", func(t *testing.T) {
