@@ -11,8 +11,8 @@ import (
 // GuardConnector blocks an MCP tool that sends text out of the session (a
 // message, a comment, a page) when that text holds AI tells in a
 // slop.block_tiers tier, as guard-pr does for gh. Every string in the
-// tool's input is scanned as one text on the pr surface; a tool that only
-// reads goes through untouched.
+// tool's input but connectors.code_fields is scanned as one text on the pr
+// surface; a tool that only reads goes through untouched.
 // PreToolUse for mcp__.*.
 func GuardConnector(h *hook.Hook) error {
 	p := h.Payload
