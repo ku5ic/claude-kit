@@ -296,7 +296,7 @@ slop:
 connectors:
   write_verbs: [send, create, update, post, reply, comment, forward, publish, edit, write, share, schedule, upload,
     save, add, set, respond, react, merge, move, delete, remove, trash, batch, generate, execute, use]
-  read_verbs: [get, read, search, list, fetch, query, find, download, export, view, lookup, resolve, describe, whoami]
+  read_verbs: [get, read, search, list, fetch, query, find, view, lookup, resolve, describe, whoami]
 
 # What guard-weaken reads an edit by (go/internal/weaken). An added line
 # matching skips (in a test file) or suppressions (in any file but skip's)

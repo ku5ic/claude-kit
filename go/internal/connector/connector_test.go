@@ -1,10 +1,30 @@
 package connector
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 )
+
+// The claim verifier may call any read tool, so a tool that writes files
+// to disk is never one under the shipped verbs.
+func TestShippedReadVerbsWriteNothing(t *testing.T) {
+	t.Parallel()
+	cfg, _, err := config.Load(config.Paths{Base: "../../../kit.yml", Overlay: filepath.Join(t.TempDir(), "none.yml")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tool := range []string{"mcp__claude_ai_Figma__download_assets", "mcp__claude_ai_Figma__export_video",
+		"mcp__claude_ai_ClickUp__clickup_download_task_attachment", "mcp__claude_ai_Notion__notion-download-attachment"} {
+		if IsRead(cfg.Connectors, tool) {
+			t.Errorf("%s counts as a read tool", tool)
+		}
+	}
+	if !IsRead(cfg.Connectors, "mcp__claude_ai_Figma__get_screenshot") {
+		t.Error("get_screenshot no longer counts as a read tool")
+	}
+}
 
 func TestClassify(t *testing.T) {
 	t.Parallel()
