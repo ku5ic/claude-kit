@@ -271,8 +271,9 @@ func mergeNode(dst, src *yaml.Node) {
 	}
 }
 
-// replacedLists are the lists that are a setting, not a set to add to.
-var replacedLists = map[string]bool{"block_tiers": true, "cmd": true}
+// replacedLists are the lists that are a setting, not a set to add to:
+// block_tiers, and the argv lists.
+var replacedLists = map[string]bool{"block_tiers": true, "cmd": true, "private_cmd": true, "command": true}
 
 // itemWithID is the index of seq's mapping with item's id, -1 when item has
 // no id or seq none with it.
