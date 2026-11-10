@@ -292,6 +292,15 @@ slop:
 # What kit bundle chat ships to claude.ai chat, where no hook, repo, or kit
 # on PATH exists. A skill stays out unless skills names it. description is
 # the plugin's, 500 characters at most.
+# MCP tools, by the verbs in the tool part of mcp__<server>__<tool>, split
+# on _, -, and case. A write verb means the tool sends text out of the
+# session, and guard-connector scans that text for AI tells. A read verb
+# with no write verb means it only reads. Anything else is neither.
+connectors:
+  write_verbs: [send, create, update, post, reply, comment, forward, publish, edit, write, share, schedule, upload,
+    save, add, set, respond, react, merge, move, delete, remove, trash]
+  read_verbs: [get, read, search, list, fetch, query, find, download, export, view, lookup, resolve, describe, whoami]
+
 chat_bundle:
   description: The kit's writing and investigation skills for claude.ai chat, working on pasted text and code. Hooks and guards stay in Claude Code.
   skills: [engineering-fundamentals, investigate, slop-patterns, unslop, write]

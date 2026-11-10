@@ -25,6 +25,7 @@ var layers = map[string]int{
 	"internal/project":    2,
 	"internal/guard":      2,
 	"internal/sources":    2,
+	"internal/connector":  2,
 	"internal/hook":       3,
 	"internal/resolve":    3,
 	"internal/classify":   3,

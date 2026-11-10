@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"slices"
 	"strings"
@@ -52,6 +53,28 @@ func (p *Payload) Bool(path string) bool {
 func (p *Payload) String(path string) string {
 	s, _ := sources.GetPath(p.data, path).(string)
 	return s
+}
+
+// Strings is every string at or under a dotted path, maps in key order.
+func (p *Payload) Strings(path string) []string {
+	var out []string
+	var walk func(any)
+	walk = func(v any) {
+		switch v := v.(type) {
+		case string:
+			out = append(out, v)
+		case []any:
+			for _, item := range v {
+				walk(item)
+			}
+		case map[string]any:
+			for _, k := range slices.Sorted(maps.Keys(v)) {
+				walk(v[k])
+			}
+		}
+	}
+	walk(sources.GetPath(p.data, path))
+	return out
 }
 
 // SessionID is the payload's session_id.

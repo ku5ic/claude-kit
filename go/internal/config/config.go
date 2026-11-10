@@ -40,6 +40,7 @@ type Config struct {
 	Classifier    []string    `yaml:"classifier"`
 	OnEdit        []EditRule  `yaml:"on_edit"`
 	Slop          Slop        `yaml:"slop"`
+	Connectors    Connectors  `yaml:"connectors"`
 	ChatBundle    ChatBundle  `yaml:"chat_bundle"`
 
 	// Tag is "merged" when an overlay was merged in, else "base". Caches
@@ -221,6 +222,12 @@ type ChatBundle struct {
 // commit message, PR text, a subagent's report, a chat reply, and ui, the
 // lines of a UI file as written, which only rules naming it scan.
 var SlopSurfaces = []string{"file", "commit", "pr", "report", "chat", "ui"}
+
+// Connectors are the verbs go/internal/connector reads an MCP tool's name by.
+type Connectors struct {
+	WriteVerbs []string `yaml:"write_verbs"`
+	ReadVerbs  []string `yaml:"read_verbs"`
+}
 
 // Slop is the AI-tell lexicon go/internal/slop scans with. Hits in a
 // BlockTiers tier block; the rest are logged. Tier 3 rules and Density.Words

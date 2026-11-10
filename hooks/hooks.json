@@ -12,6 +12,10 @@
       {
         "matcher": "SubagentHandback",
         "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook guard-handback", "timeout": 5 }]
+      },
+      {
+        "matcher": "mcp__.*",
+        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook guard-connector", "timeout": 5 }]
       }
     ],
     "PostToolUse": [
