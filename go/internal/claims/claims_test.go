@@ -102,13 +102,11 @@ func TestVerifyRunsInDirWithGuardAndEvidence(t *testing.T) {
 		t.Errorf("%s = %q, want 1", Guard, guard)
 	}
 	stdin := testutil.Read(t, filepath.Join(dir, "stdin"))
-	for _, want := range []string{"why does the build fail?", `{"command":"go build ./..."}`, "Result of Bash", "undefined: Foo", "Foo was renamed.", "## Text to verify\n\nThe build fails."} {
+	// A subagent's own transcript is all sidechain, so sidechain entries count.
+	for _, want := range []string{"why does the build fail?", `{"command":"go build ./..."}`, "Result of Bash", "undefined: Foo", "Foo was renamed.", "sidechain prompt", "## Text to verify\n\nThe build fails."} {
 		if !strings.Contains(stdin, want) {
 			t.Errorf("evidence lacks %q:\n%s", want, stdin)
 		}
-	}
-	if strings.Contains(stdin, "sidechain prompt") {
-		t.Error("evidence holds a sidechain entry")
 	}
 }
 

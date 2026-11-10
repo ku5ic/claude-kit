@@ -164,7 +164,7 @@ func evidence(entries []transcript.Entry, text string) string {
 	names := map[string]string{} // tool_use id -> tool name
 	var items []string
 	for _, e := range entries {
-		if e.IsSidechain || e.IsMeta {
+		if e.IsMeta {
 			continue
 		}
 		switch {
