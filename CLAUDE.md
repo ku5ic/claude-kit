@@ -52,3 +52,9 @@ In this repo, call `bin/kit`, never bare `kit`: on PATH, `kit` is the installed 
 ## Rules are live
 
 The SessionStart and SubagentStart hooks inject `rules/*.md` from the plugin root they run from. A session running the hooks from this checkout picks up a rule edit at its next start or compaction, so finish a rules change in one sitting.
+
+Each injected part has a size cap, and the Stop hook doesn't test it. After editing `rules/*.md`, run `go test ./internal/hooks -run TestInjectRules` from `go/`.
+
+## Hook changes
+
+Before applying a review finding to a hook, say what the user sees when it fires. If the answer is more blocks, ask first.
