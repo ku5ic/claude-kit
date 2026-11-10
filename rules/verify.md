@@ -6,12 +6,13 @@ What must happen before a change is called done, and when. This file is the one 
 | -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | After every edit                                                                                                     | The Stop hook's checks on the edited files. Automatic; a failure blocks the turn                                                                                                                                                                                        |
 | Calling an ordinary change done                                                                                      | The refactor pass first, since first green is never done (`skills/engineering-fundamentals/reference/red-green-refactor.md`). Then nothing more. Name in one line what the refactor pass changed and anything not run; the Stop hook shows its own run (next paragraph) |
+| Calling a plan step done when it changes what a user sees                                                            | The runtime pass (section 2) on that screen, before the step's pause, not at plan end                                                                                                                                                                                   |
 | End of a plan, or when the user asks                                                                                 | `/code-review` (section 1); its hook runs the full gate                                                                                                                                                                                                                 |
 | Same moment, when the change has observable behavior (a response, output, an exit code, data written, a side effect) | The runtime pass (section 2)                                                                                                                                                                                                                                            |
 
 **Hooks run the gates and show their results; Claude does neither.** The Stop hook checks a turn's edits (`stop checks:`). The `/code-review` hook runs the full gate (`run-checks checks:`), and Stop skips a tree it already checked. Each shows the user every PASS, FAIL, and SKIP line. Claude never runs `kit run-checks` (the bash guard blocks it; `--plan` only lists the gates). A reply never repeats verdict lines or counts. It acts on a FAIL, or says what wasn't run. A targeted test while developing is fine.
 
-Tests and type checks prove the code compiles and the asserted paths pass. They don't prove the change works for whoever consumes it; that is what the runtime pass is for. A pure refactor with no behavior change is covered by the existing tests.
+Tests and type checks prove the code compiles and the asserted paths pass. They don't prove the change works for whoever consumes it; that is what the runtime pass is for. A pure refactor with no behavior change is covered by the existing tests, unless it touches UI: tests don't assert how a screen looks.
 
 ## 1. Self-review (`/code-review`)
 
@@ -42,6 +43,8 @@ Exercise the change through the interface its consumers use, the way they use it
 | Library   | a scratch caller importing the public API                          |
 | Migration | running it on a copy of realistic data                             |
 | Infra     | `plan` or a dry run against the real target                        |
+
+A change whose contract is "unchanged" (a refactor, migration, or rewire) runs the same flow on the base branch (`kit git-base`) and on the change, side by side. Rendering only the new code shows it runs, not that it matches.
 
 Starting it and seeing it respond is not verification. The goal is to break it.
 
