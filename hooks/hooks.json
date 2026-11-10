@@ -15,7 +15,7 @@
       },
       {
         "matcher": "ExitPlanMode",
-        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook guard-plan", "timeout": 5 }]
+        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook plan-dispatch", "timeout": 300 }]
       },
       {
         "matcher": "mcp__.*",

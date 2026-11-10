@@ -24,6 +24,8 @@ import (
 // before anyone relies on it. A chat reply is never checked; see checkClaims.
 //   - SubagentStop, and PreToolUse for SubagentHandback: a subagent's
 //     report, against its own transcript, before the parent reads it.
+//   - PreToolUse for ExitPlanMode: the plan, before the user is asked to
+//     approve it.
 //   - PreToolUse for a Write or Edit of an explore or debug report in
 //     scratch: the report, before it's written.
 //   - PreToolUse for an MCP tool that writes: the post, before it's sent.
@@ -51,7 +53,8 @@ func VerifyClaims(h *hook.Hook) error {
 	return nil
 }
 
-// verifyToolInput checks a handback, a scratch report, or a connector post.
+// verifyToolInput checks a handback, a plan, a scratch report, or a
+// connector post.
 func verifyToolInput(h *hook.Hook) error {
 	p := h.Payload
 	tool := p.String("tool_name")
@@ -60,6 +63,12 @@ func verifyToolInput(h *hook.Hook) error {
 	case tool == "SubagentHandback":
 		text, where, transcriptPath, marker = p.String("tool_input.message"), "your report", agentTranscript(p), handbackMarker(h, cache.Claims)
 		retry = sendBack
+	case tool == "ExitPlanMode":
+		// Claude Code injects the plan's text and path (code.claude.com/docs/en/hooks).
+		plan := p.String("tool_input.planFilePath")
+		text, where, transcriptPath = p.String("tool_input.plan"), "the plan "+filepath.Base(plan), agentTranscript(p)
+		marker = h.Paths.SessionFile(cache.Claims, p.SessionID(), "plan", filepath.Base(plan))
+		retry = " Then call ExitPlanMode again."
 	case slices.Contains(filePathTools, tool):
 		path := p.FilePath()
 		if !isInvestigationReport(h, path) {

@@ -32,7 +32,7 @@ Label every theory: `verified` (read it directly), `likely` (inferred, name the 
 
 <!-- chat: skip -->
 
-The `verify-claims` hook sends back each claim in a subagent report, scratch report, or connector post that nothing in the session confirms. Check it or label it. A chat reply goes unchecked, so check or label its claims before sending.
+The `verify-claims` hook sends back each claim in a plan, subagent report, scratch report, or connector post that nothing in the session confirms. Check it or label it. A chat reply goes unchecked, so check or label its claims before sending.
 
 <!-- chat: end -->
 

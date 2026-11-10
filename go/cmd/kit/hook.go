@@ -66,9 +66,10 @@ var registry = map[string]hookDef{
 	"stop-checks":             {events: []string{"Stop"}},
 	"review-checks":           {events: []string{"SubagentStop"}},
 	"chat-slop":               {events: []string{"UserPromptSubmit", "Stop"}},
-	"guard-plan":              {events: []string{"PreToolUse"}},
+	"guard-plan":              {},
 	// verify-claims runs last, so a cheap guard's block saves its model run.
 	"handback-dispatch":  {events: []string{"PreToolUse"}, steps: []string{"guard-handback", "verify-claims"}},
+	"plan-dispatch":      {events: []string{"PreToolUse"}, steps: []string{"guard-plan", "verify-claims"}},
 	"connector-dispatch": {events: []string{"PreToolUse"}, steps: []string{"guard-connector", "verify-claims"}},
 	"subagent-dispatch":  {events: []string{"SubagentStop"}, steps: []string{"subagent-slop", "verify-claims"}},
 	"guard-handback":     {},
