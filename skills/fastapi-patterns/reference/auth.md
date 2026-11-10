@@ -83,7 +83,7 @@ def get_data(key: Annotated[str, Depends(verify_api_key)]):
     return {"data": "..."}
 ```
 
-`APIKeyQuery(name="api_key")` extracts from a query parameter. `APIKeyCookie(name="session")` extracts from a cookie. Prefer header over query: query parameters appear in server logs and browser history.
+`APIKeyQuery(name="api_key")` extracts from a query parameter. `APIKeyCookie(name="session")` extracts from a cookie. Prefer header over query, since query parameters appear in server logs and browser history.
 
 ## HTTP Basic
 

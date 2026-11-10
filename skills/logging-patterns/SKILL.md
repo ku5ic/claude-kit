@@ -20,7 +20,7 @@ Review checklist plus the configuration shapes that are easy to get wrong. Level
 
 ## structlog configuration
 
-The processor chain is order-sensitive and the API shifts between minor versions: pin this shape and verify against the docs on upgrade.
+The processor chain is order-sensitive and the API shifts between minor versions, so pin this shape and verify against the docs on upgrade.
 
 ```python
 import logging

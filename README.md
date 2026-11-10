@@ -192,7 +192,7 @@ Commands work bare (`/audit`) or namespaced (`/kit:audit`).
 
 Stack knowledge Claude loads when the repo calls for it: React, Next.js App Router, Vue, Nuxt, TypeScript, JavaScript, Tailwind, Storybook, GraphQL, Python, Django, DRF, FastAPI, Go, Bash, Docker, OpenTofu/Terraform, git, testing, security, logging, monitoring, backups, VPS provisioning, WCAG 2.2, and engineering fundamentals. `slop-patterns` teaches rewriting AI tells; the slop guards send Claude to it.
 
-`CLAUDE_GUARD_SKILLS=1` makes them required: see the switches under Configure.
+`CLAUDE_GUARD_SKILLS=1` makes them required. The switches are under Configure.
 
 ### Status line
 

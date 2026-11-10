@@ -13,7 +13,7 @@ moved {
 }
 ```
 
-Keep historical `moved` blocks in shared modules. Deleting one is a breaking change: a caller still on the old address plans to delete the object instead of moving it. Source: https://opentofu.org/docs/language/modules/develop/refactoring/
+Keep historical `moved` blocks in shared modules. Deleting one is a breaking change, because a caller still on the old address plans to delete the object instead of moving it. Source: https://opentofu.org/docs/language/modules/develop/refactoring/
 
 ## `import`: adopting existing objects
 

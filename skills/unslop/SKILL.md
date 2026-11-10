@@ -36,7 +36,7 @@ In claude.ai chat, any other exit, or no way to run it, means the scan didn't ha
 
 6. Write the result:
    - Default: a copy at the path `kit scratch-dir unslop <slug>` prints, one per file.
-   - `in place` in the arguments: edit the file itself.
+   - With `in place` in the arguments, edit the file itself.
 7. Re-scan the result with `kit slop`. A hit left on purpose gets a line in the reply saying why.
 
 ## Output

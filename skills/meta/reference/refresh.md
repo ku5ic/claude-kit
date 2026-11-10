@@ -20,7 +20,7 @@ Retention: at most 3 version entries, newest first. A pattern that changed moves
 ## Procedure
 
 1. Scope. The arguments are: $ARGUMENTS
-   - One or more skill names: refresh those.
+   - Skill names: refresh those.
    - `--all`: every reference skill.
    - Blank: list every reference skill with its `Checked:` date (or "never"), oldest first, and ask which to refresh via AskUserQuestion (multi-select, at most 5 unless the user picks `--all`).
 2. Read each selected skill's SKILL.md and every file under its `reference/`. Extract: the claimed current version (intro lines and Version notes), every version-specific claim ("since 3.4", "renamed in 16", "deprecated"), and the References URLs.
@@ -56,11 +56,11 @@ Retention: at most 3 version entries, newest first. A pattern that changed moves
 - A claim the researcher could not source stays as it was. "Could not verify" is a valid outcome; a confident edit from training memory is not (`rules/evidence.md`).
 - Every Version notes entry cites its source. An entry without one is a defect.
 - Prefer the smallest edit that makes the guidance true. Rewriting a reference file is out of scope; propose it in the report instead.
-- engineering-fundamentals is exempt: it holds no version-dependent content. Refresh it only when named explicitly.
+- engineering-fundamentals is exempt, since it holds no version-dependent content. Refresh it only when named explicitly.
 - Stop after the report. Do not commit.
 
 ## Stop conditions
 
 - Researcher agent unavailable (no Context7, no network): stop and say so.
-- A skill has no References URLs and no library the researcher can resolve: report it as unverifiable and move on.
+- If a skill has no References URLs and no library the researcher can resolve, report it as unverifiable and move on.
 - More than 5 skills selected without `--all`: ask before continuing.

@@ -8,7 +8,7 @@
 - The computation itself is genuinely expensive (heavy parsing, large transforms, sync work measured in ms).
 - The value is used as a `useEffect` / `useMemo` dependency where reference identity matters.
 
-The React docs are explicit: indiscriminate memoization makes code less readable without a perf payoff. If the only justification is "just in case", remove it.
+The React docs say indiscriminate memoization makes code less readable without a perf payoff. If the only justification is "just in case", remove it.
 
 ## `React.memo` requires referentially-stable props
 
@@ -36,7 +36,7 @@ When a single context truly must hold both, consider a context selector library 
 
 The React Compiler reaches stable status; it remains opt-in (not enabled by default) and is installed per build tool (Babel plugin, Vite, Next.js 15.3.1+, etc.). Enabling it auto-memoizes components that follow the Rules of React, often replacing manual `useMemo` / `useCallback` for re-render avoidance. Manual memoization remains valid (and necessary for projects that have not adopted the compiler), but in compiler-enabled projects the manual passes can usually be removed.
 
-When you adopt the compiler, treat every Rules-of-React violation it reports as a real defect: the compiler skips files it cannot prove safe.
+When you adopt the compiler, treat every Rules-of-React violation it reports as a real defect, because the compiler skips files it cannot prove safe.
 
 ## React 19: `useOptimistic`
 

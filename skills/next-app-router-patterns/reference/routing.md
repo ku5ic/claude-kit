@@ -31,7 +31,7 @@ export default async function Page({
 
 ## Route groups
 
-`(marketing)/` is a route group: wraps a set of routes for organization without affecting the URL. Useful for sharing a layout across a subset of routes that do not share a URL prefix.
+`(marketing)/` is a route group. It wraps a set of routes for organization without affecting the URL. Useful for sharing a layout across a subset of routes that do not share a URL prefix.
 
 ## Parallel routes
 

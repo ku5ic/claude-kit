@@ -2,7 +2,7 @@
 
 ## Explicit fields
 
-Always declare an explicit `fields` list. `fields = "__all__"` is a warning: it exposes every column including ones added later that should stay internal.
+Always declare an explicit `fields` list. `fields = "__all__"` is a warning, because it exposes every column including ones added later that should stay internal.
 
 ```python
 class ProductSerializer(serializers.ModelSerializer):

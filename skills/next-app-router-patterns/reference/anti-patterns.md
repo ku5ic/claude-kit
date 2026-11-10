@@ -24,7 +24,7 @@ Severity levels: the report-format skill.
 
 ## `"use client"` placed deep inside a subtree
 
-`warning`. Placing `"use client"` low in the component tree does not isolate the boundary: all imports of that component are also pulled into the client bundle. Place the directive at the outermost component that actually needs interactivity and keep server data-fetching above it.
+`warning`. Placing `"use client"` low in the component tree does not isolate the boundary, because all imports of that component are also pulled into the client bundle. Place the directive at the outermost component that actually needs interactivity and keep server data-fetching above it.
 
 ## Accessing `cookies()` or `headers()` outside an async context
 

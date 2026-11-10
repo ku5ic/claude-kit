@@ -24,7 +24,7 @@ The first word of the arguments is the kind; everything after it is the kind's a
 | `reply`       | answering the review on your PR     | [reference/reply.md](reference/reply.md)             |
 | `publish`     | posting an approved draft to GitHub | [reference/publish.md](reference/publish.md)         |
 
-1. Missing or unknown kind: ask via AskUserQuestion with the four kinds above as options.
+1. If the kind is missing or unknown, ask via AskUserQuestion with the four kinds above as options.
 2. Read the kind's reference file and follow it as the procedure.
 3. In the reference, the `ARGUMENTS` token (written with a leading dollar sign) means everything after the kind word in the Arguments line below, and a backticked command prefixed with an exclamation mark means run that command via Bash and use its output.
 4. Every kind follows `rules/output.md` section 4 (External communication). On tone and shape it wins over the reference file; the sections a reference file defines, such as the PR template handling, stay.

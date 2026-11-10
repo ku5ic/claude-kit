@@ -24,7 +24,7 @@ Write it the way you'd say it to a teammate in chat, casually. No file paths, li
 ## Rules
 
 - Say what turned out to be true and why, not what was built.
-- If something was verified empirically instead of assumed, that's the interesting part: lead with it.
+- If something was verified empirically instead of assumed, that's the interesting part, so lead with it.
 - Voice: first person, as the developer who did the work (made the change, or tested someone else's), as in "I checked X, turned out Y", never third-person narration of the change ("This commit does X", "The change adds Y"). Must read like the developer wrote it, not like a summary of the developer's work.
 
 ## Example

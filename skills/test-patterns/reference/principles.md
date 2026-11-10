@@ -8,7 +8,7 @@
 - Fixtures over factories over repetition. Extract when used three or more times.
 - Name tests as full sentences describing the expected behavior, not the method under test.
 - Flaky tests are failures. Fix or delete, never retry loop.
-- Tests don't depend on order: each sets up and tears down its own state.
+- Tests don't depend on order. Each sets up and tears down its own state.
 - No time, randomness, or network without explicit control (a fixed clock, a seed, a stub).
 
 ## Test pyramid vs testing trophy

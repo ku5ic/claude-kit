@@ -46,7 +46,7 @@ Default to Histogram over Summary. Review the default buckets (.005 through 10, 
 | `/health/live`  | Process is running                     | Kubernetes liveness probe  |
 | `/health/ready` | Dependencies (DB, cache) are reachable | Kubernetes readiness probe |
 
-Return 503, not 500, when a dependency is down: readiness should fail only when the instance cannot serve traffic.
+Return 503, not 500, when a dependency is down. Readiness should fail only when the instance cannot serve traffic.
 
 ---
 

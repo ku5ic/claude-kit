@@ -73,7 +73,7 @@ Use this default structure:
 ## Rules
 
 - Title: one line in the shape the step 4 log uses (Conventional Commits, ticket prefix, plain), naming the change's purpose.
-- Why, not what. Hard rule, not a preference: the reviewer already has the diff for what changed and the test files for what's covered. Never restate either. A bullet that only narrates the diff ("renamed X to Y", "added a null check") earns no place in the description; only the bullet's reason for existing does.
+- Why, not what. This is a hard rule. The reviewer already has the diff for what changed and the test files for what's covered. Never restate either. A bullet that only narrates the diff ("renamed X to Y", "added a null check") earns no place in the description; only the bullet's reason for existing does.
 - Don't assert an impact or failure mode the diff and commit log don't establish. A one-line diff description ("remove stray character") is not license to invent what would have broken. If the actual runtime consequence isn't in the commit message or a linked issue, describe the change itself and stay silent on severity rather than guessing ("could cause X to fail").
 - If a section would only restate the diff or the tests, cut it (default structure only). Under a project template, an empty section keeps its heading and gets `N/A`.
 - Shortest description that gives full context. Every sentence should help the reviewer approve faster, not pad the page.

@@ -2,7 +2,7 @@
 
 ## Tells and slop
 
-A tell is evidence a model wrote the text. Slop is a verdict on the text: the reader paid more attention than it returned. A text can carry tells and still be useful, or be free of tells and still be empty.
+A tell is evidence a model wrote the text. Slop is a verdict on the text, that the reader paid more attention than it returned. A text can carry tells and still be useful, or be free of tells and still be empty.
 
 When people label text as slop, three things predict the label far better than word choice: how dense it is, whether it's relevant to the reader's purpose, and its tone. Vocabulary is a small part of tone. (Measuring AI "Slop" in Text, arXiv 2509.19163.)
 

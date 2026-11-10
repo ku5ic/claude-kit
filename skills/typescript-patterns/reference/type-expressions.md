@@ -109,7 +109,7 @@ const r = defineRoutes({ home: "/", user: "/users/:id" });
 
 ## Return types
 
-- Return types on internal functions: inference is fine. On exported / public-API functions: explicit return types stop unintended widening as the implementation drifts.
+- Internal functions can infer their return types. On exported / public-API functions, explicit return types stop unintended widening as the implementation drifts.
 
 ## Common patterns
 

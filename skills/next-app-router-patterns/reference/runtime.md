@@ -60,7 +60,7 @@ Matcher values must be statically analyzable; dynamic values are silently ignore
 
 ## Proxy vs Server Function authentication
 
-`failure`. Proxy is defense in depth, never the gate: a matcher that excludes a path also skips the Server Function calls on it. The rule is `reference/server-actions.md`'s "Authenticate inside every Server Function".
+`failure`. Proxy is defense in depth, never the gate. A matcher that excludes a path also skips the Server Function calls on it. The rule is `reference/server-actions.md`'s "Authenticate inside every Server Function".
 
 ## Environment variables: server-only vs `NEXT_PUBLIC_`
 

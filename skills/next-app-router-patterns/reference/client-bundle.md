@@ -1,6 +1,6 @@
 # Client bundle
 
-The client bundle is everything that ships to the browser: every Client Component plus its transitive imports. Server Components, Server Functions, and their imports stay on the server. The boundary is set by the `"use client"` directive (see `server-and-client.md`).
+The client bundle is everything that ships to the browser, meaning every Client Component plus its transitive imports. Server Components, Server Functions, and their imports stay on the server. The boundary is set by the `"use client"` directive (see `server-and-client.md`).
 
 ## Audit what crosses the boundary
 

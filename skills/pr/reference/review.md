@@ -1,6 +1,6 @@
 # /pr review
 
-Turn this session's review findings on someone else's PR into a draft review file: inline comments plus one summary comment. Arguments: `<PR number or URL> [report path]`.
+Turn this session's review findings on someone else's PR into a draft review file with inline comments plus one summary comment. Arguments: `<PR number or URL> [report path]`.
 
 This kind never runs a review, checks out the PR, or runs its checks. It runs last, after `/code-review`, `/verify`, and `decision-review`.
 
@@ -22,12 +22,12 @@ zsh traps: write `"${head}:${file}"`, never `$head:src/...` (the `:s` history mo
 For every finding, before drafting:
 
 1. Name its decisive claim and trace it to the source at the head SHA: `git show <sha>:<file>`, a sibling file, a library's docs or source. Start from the finding's `Evidence:` line when it has one.
-2. Confirmed: draft it. Unconfirmed, like library behavior nobody checked: phrase it as a question. Disproved: drop it and say so in one line of the reply.
+2. Draft a confirmed point. Phrase an unconfirmed one, like library behavior nobody checked, as a question. Drop a disproved one and say so in one line of the reply.
 3. Merge duplicates.
 
 ## Anchor each point
 
-- Line: an inline comment on the RIGHT side, on a line inside the diff. Take the line number from `git show <sha>:<file>`, never from hunk offsets: a new or renamed file shows as "new file" in a pathspec-limited `git diff`. Confirm the line falls inside a hunk of `gh pr diff <n> -R <owner>/<repo>`.
+- Line: an inline comment on the RIGHT side, on a line inside the diff. Take the line number from `git show <sha>:<file>`, never from hunk offsets, since a new or renamed file shows as "new file" in a pathspec-limited `git diff`. Confirm the line falls inside a hunk of `gh pr diff <n> -R <owner>/<repo>`.
 - File: a point about a file's location or name is a file-level comment.
 - None: a point with no line, like cases to try, goes in the summary comment.
 
@@ -35,7 +35,7 @@ For every finding, before drafting:
 
 Shape and tone: `rules/output.md` section 4. No @mention, no praise, no summary of the change.
 
-The summary comment opens with one line pointing at the inline comments, then one bullet per direct answer to a question the PR description asks, then the unanchored points. Nothing beyond the pointer: omit the summary section.
+The summary comment opens with one line pointing at the inline comments, then one bullet per direct answer to a question the PR description asks, then the unanchored points. With nothing beyond the pointer, omit the summary section.
 
 ## Write the draft file
 
