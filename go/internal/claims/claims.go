@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -42,6 +43,19 @@ const (
 	evidenceCap = 300000
 )
 
+var (
+	fence = regexp.MustCompile("(?ms)^\\s*(```|~~~).*?^\\s*(```|~~~)")
+	// statement is three or more words ending a sentence with . or !.
+	statement = regexp.MustCompile(`\pL[\pL\pN'-]*[^\pL\pN?\n]+\pL[\pL\pN'-]*[^\pL\pN?\n]+\pL[^?\n]*?[.!](\s|$)`)
+)
+
+// Declarative is true when text, outside its code fences, holds a sentence
+// that states something: questions, code, and a word or two ("Done.") have
+// nothing to verify.
+func Declarative(text string) bool {
+	return statement.MatchString(fence.ReplaceAllString(text, ""))
+}
+
 // Verdict is the verifier's answer: OK when no claim is unsupported.
 type Verdict struct {
 	OK          bool          `json:"ok"`
@@ -72,10 +86,16 @@ func Verify(cfg *config.Config, dir, text, transcriptPath string) (Verdict, erro
 	if len(argv) == 0 {
 		argv = claude(cfg, entries)
 	}
+	return run(cfg, argv, dir, evidence(entries, text))
+}
+
+// run runs the verifier command argv from dir on input, the evidence and
+// the text to verify.
+func run(cfg *config.Config, argv []string, dir, input string) (Verdict, error) {
 	cmd := proc.Command(time.Duration(cfg.Claims.Timeout)*time.Second, argv[0], argv[1:]...)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), Guard+"=1")
-	cmd.Stdin = strings.NewReader(evidence(entries, text))
+	cmd.Stdin = strings.NewReader(input)
 	out, err := cmd.Output()
 	if cmd.TimedOut() {
 		return Verdict{}, errors.New("claims: timed out")

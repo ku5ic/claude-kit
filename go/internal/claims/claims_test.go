@@ -184,6 +184,25 @@ func TestEvidenceCutsOldestFirst(t *testing.T) {
 	}
 }
 
+func TestDeclarative(t *testing.T) {
+	t.Parallel()
+	for text, want := range map[string]bool{
+		"The build fails because Foo is undefined.": true,
+		"Committed as abc123.":                      true,
+		"Tests pass!":                               false,
+		"Done.":                                     false,
+		"Which branch should I use?":                false,
+		"Want me to commit it? Or should I wait for review?":                        false,
+		"```go\nfunc main() { fmt.Println(\"it works.\") }\n```":                    false,
+		"Here it is:\n\n```sh\nmake build\n```\n\nIt writes the binary to bin/kit.": true,
+		"": false,
+	} {
+		if got := Declarative(text); got != want {
+			t.Errorf("Declarative(%q) = %v, want %v", text, got, want)
+		}
+	}
+}
+
 func read(t *testing.T, path string) string {
 	t.Helper()
 	data, err := os.ReadFile(path)

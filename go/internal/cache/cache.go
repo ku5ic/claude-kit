@@ -22,6 +22,7 @@ const (
 	Statusline   = "statusline"
 	ReplyLimit   = "reply-limit"
 	Slop         = "slop"
+	Claims       = "claims"
 	Stack        = "stack"
 	StopReports  = "stop-reports"
 	Enforce      = "enforce"
@@ -44,6 +45,7 @@ var Dirs = []Dir{
 	{Statusline, "statusline cache(s)", 1},
 	{ReplyLimit, "reply-limit marker(s)", 1},
 	{Slop, "unslop marker(s)", 1},
+	{Claims, "claim-check marker(s)", 1},
 	{Stack, "stack report(s)", 30},
 	{StopReports, "stop-checks and per-edit report(s)", 1},
 	{Enforce, "gap-fill verdict and gate mark file(s)", 30},

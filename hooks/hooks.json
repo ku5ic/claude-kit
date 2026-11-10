@@ -16,6 +16,10 @@
       {
         "matcher": "mcp__.*",
         "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook guard-connector", "timeout": 5 }]
+      },
+      {
+        "matcher": "SubagentHandback|Write|Edit|MultiEdit|mcp__.*",
+        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook verify-claims", "timeout": 300 }]
       }
     ],
     "PostToolUse": [
@@ -67,7 +71,8 @@
         "hooks": [
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook stop-checks", "timeout": 300 },
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook reply-length", "timeout": 5 },
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook chat-slop", "timeout": 5 }
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook chat-slop", "timeout": 5 },
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook verify-claims", "timeout": 300 }
         ]
       }
     ],
@@ -78,7 +83,10 @@
       },
       {
         "matcher": "*",
-        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook subagent-slop", "timeout": 5 }]
+        "hooks": [
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook subagent-slop", "timeout": 5 },
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook verify-claims", "timeout": 300 }
+        ]
       }
     ],
     "SubagentStart": [

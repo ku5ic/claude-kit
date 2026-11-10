@@ -30,6 +30,12 @@ Whether to ask instead of going on is `rules/workflow.md` section 4.
 
 Label every theory: `verified` (read it directly), `likely` (inferred, name the evidence), `hypothesis` (plausible, unchecked), `unknown` (no basis). A hypothesis does not become fact by going unchallenged.
 
+<!-- chat: skip -->
+
+The `verify-claims` hook sends back each claim in a reply, report, or connector post that nothing in the session confirms. Check it or label it.
+
+<!-- chat: end -->
+
 **Also:**
 
 - Relative time claims ("just now", "recently") need a checked clock or a quoted timestamp. Never asserted from feel.
