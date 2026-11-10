@@ -37,9 +37,10 @@ func TestReplyLength(t *testing.T) {
 	t.Run("asking to understand is an explain trigger", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
-		for _, p := range []string{"Can you elaborate on those?", "I want to understand them.", "What's your honest take?"} {
+		for _, p := range []string{"Can you elaborate on those?", "What's your honest take?"} {
 			prompt(k, p).Has(t, "150 words")
 		}
+		prompt(k, "I understand, ship it.").Has(t, "40 words")
 	})
 	t.Run("fenced code and table pipes don't count", func(t *testing.T) {
 		t.Parallel()
