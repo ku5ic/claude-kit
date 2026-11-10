@@ -76,7 +76,7 @@ func verifyToolInput(h *hook.Hook) error {
 		if cfg == nil || !connector.IsWrite(cfg.Connectors, tool) {
 			return nil
 		}
-		text, where, transcriptPath = strings.Join(p.Strings("tool_input", cfg.Connectors.CodeFields...), "\n\n"), "the "+tool+" input", p.String("transcript_path")
+		text, where, transcriptPath = strings.Join(p.Strings("tool_input", cfg.Connectors.CodeFields...), "\n\n"), "the "+tool+" input", agentTranscript(p)
 		marker = h.Paths.SessionFile(cache.Claims, p.SessionID(), "tool", tool)
 		retry = " Then send it again."
 	}
@@ -145,7 +145,17 @@ func agentTranscript(p *hook.Payload) string {
 	if path := p.String("agent_transcript_path"); path != "" {
 		return path
 	}
-	return p.String("transcript_path")
+	// Only SubagentStop names the agent's transcript; a tool call inside a
+	// subagent carries agent_id, and the transcript sits at
+	// <session>/subagents/agent-<agent_id>.jsonl (code.claude.com/docs/en/sub-agents).
+	main := p.String("transcript_path")
+	if agent := p.String("agent_id"); agent != "" && main != "" && !strings.ContainsAny(agent, `/\`) {
+		path := filepath.Join(strings.TrimSuffix(main, ".jsonl"), "subagents", "agent-"+agent+".jsonl")
+		if fsx.IsFile(path) {
+			return path
+		}
+	}
+	return main
 }
 
 // isInvestigationReport is true for an explore or debug report in scratch,
