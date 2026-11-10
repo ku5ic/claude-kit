@@ -115,6 +115,13 @@ func TestReplyLength(t *testing.T) {
 			prompt(k, p).Has(t, "check each claim with a tool", "rules/evidence.md section 1")
 		}
 	})
+	t.Run("claims in disabled_rules drops the claims line", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		k.overlay("disabled_rules: [claims]\n")
+		prompt(k, "go").Lacks(t, "check each claim")
+		prompt(k, "/verify this branch").Empty(t)
+	})
 	t.Run("an unclosed fence doesn't hide the prose after it; a tilde fence is code", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)

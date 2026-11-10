@@ -55,8 +55,9 @@ const checkClaims = "Before replying, check each claim with a tool this session 
 // reply_limits (rules/output.md section 0), silently: on UserPromptSubmit it
 // picks the turn's ceiling from the prompt, records it, and says it in
 // context the user never sees, with a correction when the last reply ran
-// over. At Stop it only measures: a Stop runs after the reply is on screen,
-// so a block would show it twice.
+// over. It also carries checkClaims, unless claims is in disabled_rules. At
+// Stop it only measures: a Stop runs after the reply is on screen, so a
+// block would show it twice.
 func ReplyLength(h *hook.Hook) error {
 	p := h.Payload
 	cfg := h.Config()
@@ -84,8 +85,12 @@ func ReplyLength(h *hook.Hook) error {
 			}
 			lines = append(lines, fmt.Sprintf("Reply ceiling this turn: %d words, %s (rules/output.md section 0).", t.Limit, counted))
 		}
-		lines = append(lines, checkClaims)
-		h.AddContext("UserPromptSubmit", strings.Join(lines, "\n"))
+		if !h.RuleDisabled("claims") {
+			lines = append(lines, checkClaims)
+		}
+		if len(lines) > 0 {
+			h.AddContext("UserPromptSubmit", strings.Join(lines, "\n"))
+		}
 	case "Stop":
 		t := readTurn(marker, turn{Limit: l.Chat})
 		active := p.Bool("stop_hook_active")
