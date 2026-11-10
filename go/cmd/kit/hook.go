@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/ku5ic/claude-kit/go/internal/bashguard"
+	"github.com/ku5ic/claude-kit/go/internal/claims"
 	"github.com/ku5ic/claude-kit/go/internal/gapfill"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/hooks"
@@ -80,8 +81,8 @@ func cmdHook(e *env, args []string, stdin io.Reader) (status int) {
 		fmt.Fprintln(e.stderr, "kit hook: missing hook name")
 		return 0
 	}
-	// The classifier's own claude session runs no kit hook.
-	if os.Getenv(gapfill.Guard) == "1" {
+	// The classifier's and the verifier's own claude sessions run no kit hook.
+	if os.Getenv(gapfill.Guard) == "1" || os.Getenv(claims.Guard) == "1" {
 		return 0
 	}
 	name := args[0]

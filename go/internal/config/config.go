@@ -41,6 +41,7 @@ type Config struct {
 	OnEdit        []EditRule  `yaml:"on_edit"`
 	Slop          Slop        `yaml:"slop"`
 	Connectors    Connectors  `yaml:"connectors"`
+	Claims        Claims      `yaml:"claims"`
 	ChatBundle    ChatBundle  `yaml:"chat_bundle"`
 
 	// Tag is "merged" when an overlay was merged in, else "base". Caches
@@ -228,6 +229,33 @@ type Connectors struct {
 	WriteVerbs []string `yaml:"write_verbs"`
 	ReadVerbs  []string `yaml:"read_verbs"`
 }
+
+// Claims is go/internal/claims's verifier: the model and spend cap passed
+// to its claude -p call, its time limit in seconds, the tools it may call
+// besides its own read-only set, and Command, which replaces the call.
+type Claims struct {
+	Command   []string `yaml:"command"`
+	Model     string   `yaml:"model"`
+	Timeout   int      `yaml:"timeout"`
+	BudgetUSD float64  `yaml:"budget_usd"`
+	Allow     []string `yaml:"allow"`
+}
+
+// problems names a limit below 0, which would silently mean "off": 0, or
+// no claims block at all, turns the verifier off.
+func (c Claims) problems() []error {
+	var errs []error
+	if c.Timeout < 0 {
+		errs = append(errs, fmt.Errorf("claims: timeout is %d; 0 turns the verifier off", c.Timeout))
+	}
+	if c.BudgetUSD < 0 {
+		errs = append(errs, fmt.Errorf("claims: budget_usd is %g; 0 turns the verifier off", c.BudgetUSD))
+	}
+	return errs
+}
+
+// Off is true when the verifier has no time or no money to run with.
+func (c Claims) Off() bool { return c.Timeout <= 0 || c.BudgetUSD <= 0 }
 
 // Slop is the AI-tell lexicon go/internal/slop scans with. Hits in a
 // BlockTiers tier block; the rest are logged. Tier 3 rules and Density.Words

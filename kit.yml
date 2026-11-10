@@ -301,6 +301,18 @@ connectors:
     save, add, set, respond, react, merge, move, delete, remove, trash]
   read_verbs: [get, read, search, list, fetch, query, find, download, export, view, lookup, resolve, describe, whoami]
 
+# The claim verifier (go/internal/claims): a claude -p session that checks
+# each factual claim in a text against the session's tool results, and
+# checks what they don't cover with read-only tools. model and budget_usd
+# are passed to it, timeout is its limit in seconds (0 turns it off), and
+# allow names more tools it may call; a write tool is never let through.
+# command replaces the claude call.
+claims:
+  model: sonnet
+  timeout: 240
+  budget_usd: 1
+  allow: []
+
 chat_bundle:
   description: The kit's writing and investigation skills for claude.ai chat, working on pasted text and code. Hooks and guards stay in Claude Code.
   skills: [engineering-fundamentals, investigate, slop-patterns, unslop, write]

@@ -58,6 +58,26 @@ type Block struct {
 		Skill        string `json:"skill"`
 		Command      string `json:"command"` // a Bash call's
 	} `json:"input"`
+	// RawInput is a tool_use's whole input, as sent.
+	RawInput json.RawMessage `json:"-"`
+}
+
+// UnmarshalJSON decodes a block, keeping a tool_use's input raw as well.
+func (b *Block) UnmarshalJSON(data []byte) error {
+	type plain Block
+	var aux struct {
+		plain
+		RawInput json.RawMessage `json:"input"` // shallower, so it takes "input" from plain.Input
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	*b = Block(aux.plain)
+	b.RawInput = aux.RawInput
+	if len(b.RawInput) > 0 {
+		_ = json.Unmarshal(b.RawInput, &b.Input) // an input of another shape keeps only RawInput
+	}
+	return nil
 }
 
 // Path is the file a write tool targets: file_path, else notebook_path, else "".
