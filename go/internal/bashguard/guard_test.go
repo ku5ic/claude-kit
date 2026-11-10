@@ -502,6 +502,8 @@ func TestGuardBash(t *testing.T) {
 		{"pm: the add verb after a flag asks", `pnpm -C . add -D react`, 0, "adds a dependency", false},
 		{"pm: a package its registry doesn't know blocks", `pnpm add react made-up-lib`, 2, "made-up-lib isn't on its registry", false},
 		{"pm: a flag's value isn't a package", `pnpm add --filter my-app react`, 0, "adds a dependency", false},
+		{"pm: a package from another registry isn't looked up", `pnpm add --registry https://npm.acme.dev made-up-lib`, 0, "adds a dependency", false},
+		{"pm: a package from another registry, =value form", `pnpm add --registry=https://npm.acme.dev made-up-lib`, 0, "adds a dependency", false},
 		{"pm: a package read as a flag's value still asks", `pnpm add -w made-up-lib`, 0, "adds a dependency", false},
 		{"pm: a package after a flag's value is still checked", `pnpm add -F my-app made-up-lib`, 2, "made-up-lib isn't on its registry", false},
 		{"pm: an install from the lockfile passes silently", `pnpm install --frozen-lockfile`, 0, "", true},

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"maps"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -23,8 +24,9 @@ import (
 type Lookups struct {
 	c        config.PackageLookups
 	deadline time.Time
-	dir      string          // the command's directory, where registry config is read from
-	local    map[string]bool // names the repo's own package.json files declare, read on first use
+	dir      string              // the command's directory, where registry config is read from
+	local    map[string]bool     // names the repo's own package.json files declare, read on first use
+	printed  map[string][]string // each private_cmd's globs, read on first use
 	root     string
 }
 
@@ -34,27 +36,60 @@ func NewLookups(c config.PackageLookups, dir, root string) *Lookups {
 	return &Lookups{c: c, deadline: time.Now().Add(time.Duration(c.Timeout) * time.Second), dir: dir, root: root}
 }
 
-// private is true when an rc file from dir up to root has a registry line
-// for name's scope, or for every package.
-func (l *Lookups) private(rc, name string) bool {
-	if rc == "" {
-		return false
+// private is true when e routes name to a registry the lookup can't see: a
+// line in one of e's private files from dir up to root, or a glob
+// e.PrivateCmd prints matching name's leading path elements.
+func (l *Lookups) private(e config.PackageLookup, name string) bool {
+	scope := `[^\s\S]` // unscoped: a {scope} alternative never matches
+	if s, _, scoped := strings.Cut(name, "/"); scoped && strings.HasPrefix(s, "@") {
+		scope = regexp.QuoteMeta(s[1:])
 	}
-	scope, _, scoped := strings.Cut(name, "/")
 	for dir := range fsx.Up(l.dir, l.root) {
-		data, err := os.ReadFile(filepath.Join(dir, rc))
-		if err != nil {
-			continue
-		}
-		for line := range strings.Lines(string(data)) {
-			key, _, _ := strings.Cut(strings.TrimSpace(line), "=")
-			key = strings.TrimSpace(key)
-			if key == "registry" || scoped && key == scope+":registry" {
+		for file, pattern := range e.Private {
+			data, err := os.ReadFile(filepath.Join(dir, file))
+			if re := compile("(?m)" + strings.ReplaceAll(pattern, "{scope}", scope)); err == nil && re != nil && re.Match(data) {
 				return true
 			}
 		}
 	}
-	return false
+	return slices.ContainsFunc(l.globs(e.PrivateCmd), func(glob string) bool { return matchPrefix(glob, name) })
+}
+
+// globs is what cmd prints, split on commas and lines, read once per cmd.
+// A failure prints nothing, so it finds nothing private.
+func (l *Lookups) globs(cmd []string) []string {
+	if len(cmd) == 0 {
+		return nil
+	}
+	key := strings.Join(cmd, "\x00")
+	if globs, ok := l.printed[key]; ok {
+		return globs
+	}
+	var globs []string
+	if left := time.Until(l.deadline); left > 0 {
+		c := proc.Command(left, cmd[0], cmd[1:]...)
+		c.Dir = os.TempDir()
+		out, _ := c.Output()
+		globs = strings.FieldsFunc(string(out), func(r rune) bool { return r == ',' || r == '\n' })
+	}
+	if l.printed == nil {
+		l.printed = map[string][]string{}
+	}
+	l.printed[key] = globs
+	return globs
+}
+
+// matchPrefix is true when glob matches target's leading path elements, as
+// many as glob has: Go's rule for GOPRIVATE.
+func matchPrefix(glob, target string) bool {
+	glob = strings.TrimSpace(glob)
+	n := strings.Count(glob, "/") + 1
+	parts := strings.SplitN(target, "/", n+1)
+	if glob == "" || len(parts) < n {
+		return false
+	}
+	ok, _ := path.Match(glob, strings.Join(parts[:n], "/"))
+	return ok
 }
 
 // workspace is true when a package.json in the repository is named name:
@@ -91,7 +126,7 @@ func (l *Lookups) Missing(manager, operand string) bool {
 			continue
 		}
 		name, missing := bare(operand), compile(e.Missing)
-		if name == "" || missing == nil || len(e.Cmd) == 0 || !compileOK(e.Name, name) || l.workspace(name) || l.private(e.RCFile, name) {
+		if name == "" || missing == nil || len(e.Cmd) == 0 || !compileOK(e.Name, name) || l.workspace(name) || l.private(e, name) {
 			return false
 		}
 		for p := name; ; p = parent(p) {

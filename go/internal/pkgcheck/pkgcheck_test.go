@@ -167,24 +167,56 @@ func TestLookupsMissing(t *testing.T) {
 			t.Error("a workspace package counted as missing")
 		}
 	})
-	t.Run("a package an .npmrc sends to another registry is never looked up", func(t *testing.T) {
+	// The shipped private patterns, from the root's file or the command's dir.
+	shipped, _, err := config.Load(config.Paths{Base: "../../../kit.yml", Overlay: filepath.Join(t.TempDir(), "none.yml")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		file, body string
+		missing    map[string]bool // operand -> Missing
+	}{
+		{".npmrc", "# private\n@acme:registry = https://npm.acme.dev\n", map[string]bool{"@acme/ui": false, "@other/ui": true, "made-up-lib": true}},
+		{".npmrc", "registry=https://npm.acme.dev\n", map[string]bool{"made-up-lib": false}},
+		{".yarnrc.yml", "npmScopes:\n  acme:\n    npmRegistryServer: https://npm.acme.dev\n", map[string]bool{"@acme/ui": false, "@other/ui": true, "made-up-lib": true}},
+		{".yarnrc.yml", "npmRegistryServer: \"https://npm.acme.dev\"\n", map[string]bool{"made-up-lib": false}},
+		{"bunfig.toml", "[install.scopes]\nacme = { url = \"https://npm.acme.dev\" }\n", map[string]bool{"@acme/ui": false, "@other/ui": true, "made-up-lib": true}},
+		{"bunfig.toml", "[install]\nregistry = \"https://npm.acme.dev\"\n", map[string]bool{"made-up-lib": false}},
+	} {
+		t.Run("a package "+tc.file+" sends to another registry is never looked up: "+tc.body, func(t *testing.T) {
+			t.Parallel()
+			c := conf(cmd)
+			npm := c.Ecosystems["npm"]
+			npm.Private = shipped.PackageLookups.Ecosystems["npm"].Private
+			c.Ecosystems["npm"] = npm
+			root := t.TempDir()
+			dir := filepath.Join(root, "apps", "web")
+			testutil.Mkdir(t, dir)
+			for i, at := range []string{root, dir} {
+				testutil.Write(t, filepath.Join(at, tc.file), tc.body)
+				for operand, want := range tc.missing {
+					if got := NewLookups(c, dir, root).Missing("pnpm", operand); got != want {
+						t.Errorf("file in %d: Missing(%s) = %v, want %v", i, operand, got, want)
+					}
+				}
+			}
+		})
+	}
+	t.Run("a module a private_cmd glob matches is never looked up", func(t *testing.T) {
 		t.Parallel()
 		c := conf(cmd)
-		npm := c.Ecosystems["npm"]
-		npm.RCFile = ".npmrc"
-		c.Ecosystems["npm"] = npm
-		root := t.TempDir()
-		dir := filepath.Join(root, "apps", "web")
-		testutil.Write(t, filepath.Join(root, ".npmrc"), "# private\n@acme:registry = https://npm.acme.dev\n")
-		testutil.Mkdir(t, dir)
-		for operand, want := range map[string]bool{"@acme/ui": false, "@other/ui": true, "made-up-lib": true} {
-			if got := NewLookups(c, dir, root).Missing("pnpm", operand); got != want {
+		goEco := c.Ecosystems["go"]
+		goEco.PrivateCmd = []string{"sh", "-c", `printf '%s\n' 'git.acme.dev,*.corp.example/team' ''`}
+		c.Ecosystems["go"] = goEco
+		for operand, want := range map[string]bool{
+			"git.acme.dev/x/y":            false,
+			"src.corp.example/team/lib":   false,
+			"src.corp.example/other/lib":  true,
+			"github.com/made/up/pkg@v1.0": true,
+		} {
+			if got := NewLookups(c, t.TempDir(), t.TempDir()).Missing("go", operand); got != want {
 				t.Errorf("Missing(%s) = %v, want %v", operand, got, want)
 			}
-		}
-		testutil.Write(t, filepath.Join(dir, ".npmrc"), "registry=https://npm.acme.dev\n")
-		if NewLookups(c, dir, root).Missing("pnpm", "made-up-lib") {
-			t.Error("a package under a project-wide registry was looked up")
 		}
 	})
 }

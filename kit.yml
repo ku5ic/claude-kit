@@ -321,8 +321,10 @@ weakened_checks:
 # lookup that times out or fails any other way blocks nothing. parents
 # retries a missing path at each parent, for a Go package inside a module.
 # Lookups run outside the project, so its config runs nothing before the
-# add is approved; a package whose scope, or every package, an rc_file
-# from the project up routes to another registry isn't looked up.
+# add is approved. A package isn't looked up when a private file from the
+# project up has a line matching its pattern ({scope} is the package's
+# scope, without @), when a glob private_cmd prints matches its path, or
+# when the command has a registry_flags flag.
 # value_flags take the next word as their value, which is never a package.
 # timeout is seconds for all of one command's lookups; 0 turns them off.
 package_lookups:
@@ -333,14 +335,19 @@ package_lookups:
       name: '^(@[a-z0-9][\w.-]*/)?[a-z0-9][\w.-]*$'
       cmd: [npm, view, "{pkg}", name]
       missing: '\bE404\b'
-      rc_file: .npmrc
+      private:
+        .npmrc: '^\s*(@{scope}:)?registry\s*='
+        .yarnrc.yml: '^npmRegistryServer\s*:|^\s+["'']?@?{scope}["'']?\s*:'
+        bunfig.toml: '^\s*registry\s*=|^\s*["'']?@?{scope}["'']?\s*='
       value_flags: [--prefix, -C, --dir, --cwd, -w, --workspace, -F, --filter, --tag, --registry, --save-prefix, --omit, --include, --userconfig, --cache]
+      registry_flags: [--registry]
     go:
       managers: [go]
       name: '^[a-z0-9.-]+\.[a-z]{2,}(/[\w.~-]+)+$'
       cmd: [go, list, -m, "{pkg}@latest"]
       missing: 'no matching versions|not found|410 Gone'
       parents: true
+      private_cmd: [go, env, GOPRIVATE, GONOPROXY]
 
 # The claim verifier (go/internal/claims): a claude -p session that checks
 # each factual claim in a text against the session's tool results, and

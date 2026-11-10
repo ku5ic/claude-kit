@@ -111,11 +111,12 @@ func (c *command) dependencyAdd(verbs []string, dir, root string) error {
 			if len(nonOptions(values[after:])) == 0 {
 				continue
 			}
-			if !c.st.h.RuleDisabled("pkg-missing") {
+			valueFlags, registryFlags := c.st.cfg.PackageLookups.Flags(c.name)
+			if !c.st.h.RuleDisabled("pkg-missing") && !hasFlag(values, registryFlags) {
 				lookups := pkgcheck.NewLookups(c.st.cfg.PackageLookups, dir, root)
 				// A flag's value isn't looked up, but still counts above: a
 				// flag listed as taking a value may not take one (pnpm -w).
-				for _, p := range addOperands(values[after:], c.st.cfg.PackageLookups.ValueFlags(c.name)) {
+				for _, p := range addOperands(values[after:], valueFlags) {
 					if lookups.Missing(c.name, p) {
 						return c.block(p+" isn't on its registry; check the name before adding it", "pkg-missing")
 					}
@@ -143,6 +144,14 @@ func addOperands(words, valueFlags []string) []string {
 		}
 	}
 	return nonOptions(kept)
+}
+
+// hasFlag is true when words hold one of flags, alone or as flag=value.
+func hasFlag(words, flags []string) bool {
+	return slices.ContainsFunc(words, func(w string) bool {
+		name, _, _ := strings.Cut(w, "=")
+		return slices.Contains(flags, name)
+	})
 }
 
 // rival is why a rival of m's manager blocks, with m's facts for the rerun.

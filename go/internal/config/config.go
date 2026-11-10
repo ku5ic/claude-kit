@@ -304,22 +304,28 @@ type PackageLookup struct {
 	Cmd      []string `yaml:"cmd"`
 	Missing  string   `yaml:"missing"`
 	Parents  bool     `yaml:"parents"`
-	// RCFile names the registry config (.npmrc) whose registry lines send
-	// a package somewhere the lookup, run outside the project, can't see.
-	RCFile string `yaml:"rc_file"`
+	// Private maps a registry config file to the line pattern ({scope} is
+	// the package's scope, without @) that sends a package somewhere the
+	// lookup, run outside the project, can't see.
+	Private map[string]string `yaml:"private"`
+	// PrivateCmd prints comma-separated globs of private package paths.
+	PrivateCmd []string `yaml:"private_cmd"`
 	// ValueFlags take the next word as their value, never a package.
 	ValueFlags []string `yaml:"value_flags"`
+	// RegistryFlags send the command's packages to another registry.
+	RegistryFlags []string `yaml:"registry_flags"`
 }
 
-// ValueFlags are the value-taking flags of every ecosystem covering manager.
-func (p PackageLookups) ValueFlags(manager string) []string {
-	var flags []string
+// Flags are the value-taking and registry flags of every ecosystem
+// covering manager.
+func (p PackageLookups) Flags(manager string) (value, registry []string) {
 	for _, e := range p.Ecosystems {
 		if slices.Contains(e.Managers, manager) {
-			flags = append(flags, e.ValueFlags...)
+			value = append(value, e.ValueFlags...)
+			registry = append(registry, e.RegistryFlags...)
 		}
 	}
-	return flags
+	return value, registry
 }
 
 // problems names each lookup that can't work: a pattern that doesn't
@@ -331,6 +337,11 @@ func (p PackageLookups) problems() []error {
 		for _, f := range [][2]string{{"name", l.Name}, {"missing", l.Missing}} {
 			if _, err := regexp.Compile(f[1]); err != nil || f[1] == "" {
 				errs = append(errs, fmt.Errorf("package_lookups.%s: %s %q doesn't compile", name, f[0], f[1]))
+			}
+		}
+		for _, file := range slices.Sorted(maps.Keys(l.Private)) {
+			if _, err := regexp.Compile(strings.ReplaceAll(l.Private[file], "{scope}", "x")); err != nil {
+				errs = append(errs, fmt.Errorf("package_lookups.%s: private %s pattern doesn't compile", name, file))
 			}
 		}
 		if !slices.ContainsFunc(l.Cmd, func(arg string) bool { return strings.Contains(arg, "{pkg}") }) {
