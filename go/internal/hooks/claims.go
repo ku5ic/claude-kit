@@ -68,7 +68,7 @@ func verifyToolInput(h *hook.Hook) error {
 		if !ok {
 			return nil
 		}
-		text, where, transcriptPath = after, filepath.Base(path), p.String("transcript_path")
+		text, where, transcriptPath = after, filepath.Base(path), agentTranscript(p)
 		marker = h.Paths.SessionFile(cache.Claims, p.SessionID(), "file", filepath.Base(path))
 		retry = " Then write the report again."
 	default:

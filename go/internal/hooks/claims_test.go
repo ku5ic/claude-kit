@@ -160,6 +160,28 @@ func TestVerifyClaimsToolInput(t *testing.T) {
 	})
 }
 
+// A subagent's report is checked against what that subagent read.
+func TestVerifyClaimsReportUsesTheAgentsTranscript(t *testing.T) {
+	t.Parallel()
+	k := newSandbox(t)
+	dir := t.TempDir()
+	answer, _ := json.Marshal(map[string]any{"is_error": false, "subtype": "success", "structured_output": map[string]any{"ok": true, "unsupported": []any{}}})
+	testutil.Write(t, filepath.Join(dir, "answer"), string(answer))
+	stdin := filepath.Join(dir, "stdin")
+	stub := filepath.Join(dir, "verifier")
+	testutil.FakeTool(t, stub, filepath.Join(dir, "calls"), fmt.Sprintf("cat >%q\ncat %q", stdin, filepath.Join(dir, "answer")))
+	k.overlay(fmt.Sprintf("claims:\n  command: [%q]\n", stub))
+	parent, agent := filepath.Join(dir, "parent.jsonl"), filepath.Join(dir, "agent.jsonl")
+	testutil.Write(t, parent, `{"type":"user","message":{"content":"parent prompt"}}`+"\n")
+	testutil.Write(t, agent, `{"type":"user","isSidechain":true,"message":{"content":"agent prompt"}}`+"\n")
+	call := toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "explore-x-20261110-1200.md"), "content": "# Explore\n\n" + claim})
+	call["transcript_path"], call["agent_transcript_path"] = parent, agent
+	k.run("verify-claims", call).Allowed(t)
+	if got := read(t, stdin); !strings.Contains(got, "agent prompt") || strings.Contains(got, "parent prompt") {
+		t.Errorf("evidence isn't the agent's transcript:\n%s", got)
+	}
+}
+
 func TestVerifyClaimsFailsOpen(t *testing.T) {
 	t.Parallel()
 	t.Run("a verifier that fails is logged, never blocks", func(t *testing.T) {
