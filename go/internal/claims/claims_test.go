@@ -32,7 +32,7 @@ func session(t *testing.T) string {
 
 func baseConfig() *config.Config {
 	return &config.Config{
-		Connectors: config.Connectors{WriteVerbs: []string{"send", "create"}, ReadVerbs: []string{"get", "list"}},
+		Connectors: config.Connectors{WriteVerbs: []string{"send", "create"}, ReadVerbs: []string{"get", "list", "query"}},
 		Claims:     config.Claims{Model: "sonnet", Timeout: 30, BudgetUSD: 1},
 	}
 }
@@ -162,7 +162,7 @@ func TestVerifyOff(t *testing.T) {
 func TestClaudeAllowsOnlyReads(t *testing.T) {
 	t.Parallel()
 	cfg := baseConfig()
-	cfg.Claims.Allow = []string{"WebFetch", "mcp__docs__query_docs", "mcp__chat__create_post", "Bash", "Write", "Edit"}
+	cfg.Claims.Allow = []string{"WebFetch", "mcp__docs__query_docs", "mcp__chat__create_post", "Bash", "Write", "Edit", "mcp__chat", "mcp__chat__*", "mcp__browser__navigate"}
 	entries, err := transcript.Load(session(t))
 	if err != nil {
 		t.Fatal(err)
@@ -181,7 +181,7 @@ func TestClaudeAllowsOnlyReads(t *testing.T) {
 			t.Errorf("--allowedTools lacks %s: %q", want, allowed)
 		}
 	}
-	for _, never := range []string{"mcp__chat__send_message", "mcp__chat__create_post", "Bash", "Edit", "Write"} {
+	for _, never := range []string{"mcp__chat__send_message", "mcp__chat__create_post", "Bash", "Edit", "Write", "mcp__chat", "mcp__chat__*", "mcp__browser__navigate"} {
 		if slices.Contains(allowed, never) || slices.Contains(tools, never) {
 			t.Errorf("%s is let through: allowed %q, tools %q", never, allowed, tools)
 		}

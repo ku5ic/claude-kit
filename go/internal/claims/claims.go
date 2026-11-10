@@ -152,9 +152,11 @@ func claude(cfg *config.Config, entries []transcript.Entry) []string {
 		}
 	}
 	for _, name := range cfg.Claims.Allow {
+		// An allow rule of mcp__<server> or mcp__<server>__* grants every
+		// tool on the server, so an MCP name needs a read verb of its own.
 		read := slices.Contains(moreReads, name)
 		if strings.HasPrefix(name, "mcp__") {
-			read = !connector.IsWrite(cfg.Connectors, name)
+			read = connector.IsRead(cfg.Connectors, name)
 		}
 		if read && !slices.Contains(allowed, name) {
 			allowed = append(allowed, name)
