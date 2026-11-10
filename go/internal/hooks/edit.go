@@ -218,7 +218,7 @@ func loadedSkills(logPath, session string) (map[string]bool, error) {
 // reads only file_path, and NotebookEdit sends notebook_path.
 var filePathTools = []string{"Edit", "Write", "MultiEdit"}
 
-// GuardDispatch runs guard-edit's, guard-slop's, and, with
+// GuardDispatch runs guard-edit's, guard-slop's, guard-weaken's, and, with
 // CLAUDE_GUARD_SKILLS=1, guard-skills' checks against one payload read,
 // each isolated so one failing open never skips the others. The skills gate
 // is opt-in: blocking edits until a patterns skill loads is a personal
@@ -226,7 +226,7 @@ var filePathTools = []string{"Edit", "Write", "MultiEdit"}
 func GuardDispatch(h *hook.Hook) int {
 	checks := []hook.NamedCheck{{Name: "guard-edit", Check: GuardEdit}}
 	if slices.Contains(filePathTools, h.Payload.String("tool_name")) {
-		checks = append(checks, hook.NamedCheck{Name: "guard-slop", Check: GuardSlop})
+		checks = append(checks, hook.NamedCheck{Name: "guard-slop", Check: GuardSlop}, hook.NamedCheck{Name: "guard-weaken", Check: GuardWeaken})
 	}
 	if stackctx.SkillsEnforced() {
 		checks = append(checks, hook.NamedCheck{Name: "guard-skills", Check: GuardSkills})

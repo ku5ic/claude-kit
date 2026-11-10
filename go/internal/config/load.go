@@ -166,7 +166,7 @@ func load(p Paths) (*Config, []Warning, error) {
 	}
 	patterns, bad := cfg.compileInstalls(p)
 	cfg.installs = &installPatterns{patterns, bad}
-	for _, err := range slices.Concat(cfg.unknownDisables(), cfg.ReplyLimits.negatives(), cfg.Slop.problems(), cfg.Claims.problems(), cfg.dropEmptyEditCmds()) {
+	for _, err := range slices.Concat(cfg.unknownDisables(), cfg.ReplyLimits.negatives(), cfg.Slop.problems(), cfg.Claims.problems(), cfg.WeakenedChecks.problems(), cfg.dropEmptyEditCmds()) {
 		warnings = append(warnings, Warning{from, err})
 	}
 	warnings = append(warnings, bad...)

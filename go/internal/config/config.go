@@ -32,17 +32,18 @@ type Config struct {
 	DisabledTaskProviders []string      `yaml:"disabled_task_providers"`
 	DisabledChecks        []string      `yaml:"disabled_checks"`
 
-	ReplyLimits   ReplyLimits `yaml:"reply_limits"`
-	SanitizeSkip  []string    `yaml:"sanitize_skip"`
-	SkipDirs      []string    `yaml:"skip_dirs"`
-	Tools         []string    `yaml:"tools"`
-	LockfileGlobs []string    `yaml:"lockfile_globs"`
-	Classifier    []string    `yaml:"classifier"`
-	OnEdit        []EditRule  `yaml:"on_edit"`
-	Slop          Slop        `yaml:"slop"`
-	Connectors    Connectors  `yaml:"connectors"`
-	Claims        Claims      `yaml:"claims"`
-	ChatBundle    ChatBundle  `yaml:"chat_bundle"`
+	ReplyLimits    ReplyLimits    `yaml:"reply_limits"`
+	SanitizeSkip   []string       `yaml:"sanitize_skip"`
+	SkipDirs       []string       `yaml:"skip_dirs"`
+	Tools          []string       `yaml:"tools"`
+	LockfileGlobs  []string       `yaml:"lockfile_globs"`
+	Classifier     []string       `yaml:"classifier"`
+	OnEdit         []EditRule     `yaml:"on_edit"`
+	Slop           Slop           `yaml:"slop"`
+	Connectors     Connectors     `yaml:"connectors"`
+	Claims         Claims         `yaml:"claims"`
+	WeakenedChecks WeakenedChecks `yaml:"weakened_checks"`
+	ChatBundle     ChatBundle     `yaml:"chat_bundle"`
 
 	// Tag is "merged" when an overlay was merged in, else "base". Caches
 	// derived from the config carry it in their file name, so deleting the
@@ -256,6 +257,33 @@ func (c Claims) problems() []error {
 
 // Off is true when the verifier has no time or no money to run with.
 func (c Claims) Off() bool { return c.Timeout <= 0 || c.BudgetUSD <= 0 }
+
+// WeakenedChecks are the paths and patterns go/internal/weaken reads an
+// edit by: the files it skips, the files that are tests, and the lines
+// that skip a test, silence a check, or assert.
+type WeakenedChecks struct {
+	Skip         []string `yaml:"skip"`
+	TestFiles    []string `yaml:"test_files"`
+	Skips        []string `yaml:"skips"`
+	Suppressions []string `yaml:"suppressions"`
+	Assertions   []string `yaml:"assertions"`
+}
+
+// problems names each pattern that doesn't compile.
+func (w WeakenedChecks) problems() []error {
+	var errs []error
+	for _, l := range []struct {
+		name     string
+		patterns []string
+	}{{"skips", w.Skips}, {"suppressions", w.Suppressions}, {"assertions", w.Assertions}} {
+		for _, p := range l.patterns {
+			if _, err := regexp.Compile(p); err != nil {
+				errs = append(errs, fmt.Errorf("weakened_checks.%s: %q doesn't compile", l.name, p))
+			}
+		}
+	}
+	return errs
+}
 
 // Slop is the AI-tell lexicon go/internal/slop scans with. Hits in a
 // BlockTiers tier block; the rest are logged. Tier 3 rules and Density.Words

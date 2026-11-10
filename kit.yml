@@ -307,6 +307,22 @@ connectors:
 # are passed to it, timeout is its limit in seconds (0 turns it off), and
 # allow names more tools it may call; a write tool is never let through.
 # command replaces the claude call.
+# What guard-weaken reads an edit by (go/internal/weaken). An added line
+# matching skips (in a test file) or suppressions (in any file but skip's)
+# blocks unless `kit: allow <reason>` is on it or the line above. A test
+# file left with fewer lines matching assertions asks first.
+weakened_checks:
+  skip: ["*.md", "*.mdx", "*.txt", "*.rst", "*/testdata/*", "*/fixtures/*", "*/kit.yml", "*/claude-kit.local.yml"]
+  test_files: ["*_test.go", "*.test.[jt]s", "*.test.[jt]sx", "*.spec.[jt]s", "*.spec.[jt]sx", "*/test_*.py", "*_test.py",
+    "*/conftest.py", "*/tests/*", "*/__tests__/*"]
+  skips: ['\bt\.Skip(Now|f)?\(', '\b(it|test|describe|context)\.(skip|only|todo)\(', '\bx(it|test|describe)\(',
+    '\bf(it|describe)\(', '@pytest\.mark\.(skip|skipif|xfail)\b', '\bpytest\.skip\(', '@unittest\.skip']
+  suppressions: ['//\s*nolint\b', 'eslint-disable', '@ts-(ignore|nocheck|expect-error)\b', '#\s*type:\s*ignore\b',
+    '#\s*noqa\b', '#\s*pyright:\s*ignore\b', '#\s*pylint:\s*disable', '#\s*shellcheck\s+disable=', 'biome-ignore',
+    '//\s*lint:ignore\b']
+  assertions: ['\bt\.(Error|Errorf|Fatal|Fatalf|Fail|FailNow)\(', '\b(assert|require)\.[A-Z]\w*\(', '\bexpect\(',
+    '\bassert(\.\w+)?\(', '^\s*assert\b', '\bself\.assert\w+\(', '\bpytest\.raises\(']
+
 claims:
   model: sonnet
   timeout: 240
