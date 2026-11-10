@@ -24,6 +24,8 @@ func TestGuardConnector(t *testing.T) {
 		{"allow: a tool that is neither", toolCall("mcp__browser__navigate", map[string]any{"url": "https://example.com", "note": tell}), 0},
 		{"allow: a quoted tell", toolCall("mcp__chat__send_message", map[string]any{"text": `Flagged "I hope this helps" in the README.`}), 0},
 		{"allow: no text", toolCall("mcp__tracker__delete_task", map[string]any{"id": "123"}), 0},
+		{"allow: a tell in a code field", toolCall("mcp__claude_ai_Figma__use_figma", map[string]any{"code": "// " + tell, "description": "Rename the frame."}), 0},
+		{"block: a tell beside a code field", toolCall("mcp__claude_ai_Figma__use_figma", map[string]any{"code": "figma.root", "description": tell}), 2},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

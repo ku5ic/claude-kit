@@ -24,7 +24,7 @@ func GuardConnector(h *hook.Hook) error {
 	if cfg == nil || !connector.IsWrite(cfg.Connectors, tool) {
 		return nil
 	}
-	text := strings.Join(p.Strings("tool_input"), "\n\n")
+	text := strings.Join(p.Strings("tool_input", cfg.Connectors.CodeFields...), "\n\n")
 	if strings.TrimSpace(text) == "" {
 		return nil
 	}

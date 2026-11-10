@@ -293,10 +293,13 @@ slop:
 # on _, -, and case. A write verb means the tool sends text out of the
 # session, and guard-connector scans that text for AI tells. A read verb
 # with no write verb means it only reads. Anything else is neither.
+# code_fields are input fields that hold code, which neither the slop scan
+# nor the claim verifier reads.
 connectors:
   write_verbs: [send, create, update, post, reply, comment, forward, publish, edit, write, share, schedule, upload,
     save, add, set, respond, react, merge, move, delete, remove, trash, batch, generate, execute, use]
   read_verbs: [get, read, search, list, fetch, query, find, view, lookup, resolve, describe, whoami]
+  code_fields: [code]
 
 # What guard-weaken reads an edit by (go/internal/weaken). An added line
 # matching skips (in a test file) or suppressions (in any file but skip's)
@@ -354,14 +357,12 @@ package_lookups:
 # checks what they don't cover with read-only tools. model and budget_usd
 # are passed to it, timeout is its limit in seconds (0 turns it off), and
 # allow names more tools it may call; a write tool is never let through.
-# command replaces the claude call. skip_fields names connector input
-# fields it never reads, since they hold code, not claims.
+# command replaces the claude call.
 claims:
   model: sonnet
   timeout: 240
   budget_usd: 1
   allow: []
-  skip_fields: [code]
 
 # What kit bundle chat ships to claude.ai chat, where no hook, repo, or kit
 # on PATH exists. A skill stays out unless skills names it. description is

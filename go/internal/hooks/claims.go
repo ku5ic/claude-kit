@@ -76,7 +76,7 @@ func verifyToolInput(h *hook.Hook) error {
 		if cfg == nil || !connector.IsWrite(cfg.Connectors, tool) {
 			return nil
 		}
-		text, where, transcriptPath = strings.Join(p.Strings("tool_input", cfg.Claims.SkipFields...), "\n\n"), "the "+tool+" input", p.String("transcript_path")
+		text, where, transcriptPath = strings.Join(p.Strings("tool_input", cfg.Connectors.CodeFields...), "\n\n"), "the "+tool+" input", p.String("transcript_path")
 		marker = h.Paths.SessionFile(cache.Claims, p.SessionID(), "tool", tool)
 		retry = " Then send it again."
 	}

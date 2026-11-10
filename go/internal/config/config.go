@@ -226,23 +226,23 @@ type ChatBundle struct {
 // lines of a UI file as written, which only rules naming it scan.
 var SlopSurfaces = []string{"file", "commit", "pr", "report", "chat", "ui"}
 
-// Connectors are the verbs go/internal/connector reads an MCP tool's name by.
+// Connectors are the verbs go/internal/connector reads an MCP tool's name
+// by, and CodeFields, the input fields that hold code, not prose.
 type Connectors struct {
 	WriteVerbs []string `yaml:"write_verbs"`
 	ReadVerbs  []string `yaml:"read_verbs"`
+	CodeFields []string `yaml:"code_fields"`
 }
 
 // Claims is go/internal/claims's verifier: the model and spend cap passed
 // to its claude -p call, its time limit in seconds, the tools it may call
-// besides its own read-only set, Command, which replaces the call, and
-// SkipFields, the tool input fields it never reads.
+// besides its own read-only set, and Command, which replaces the call.
 type Claims struct {
-	Command    []string `yaml:"command"`
-	Model      string   `yaml:"model"`
-	Timeout    int      `yaml:"timeout"`
-	BudgetUSD  float64  `yaml:"budget_usd"`
-	Allow      []string `yaml:"allow"`
-	SkipFields []string `yaml:"skip_fields"`
+	Command   []string `yaml:"command"`
+	Model     string   `yaml:"model"`
+	Timeout   int      `yaml:"timeout"`
+	BudgetUSD float64  `yaml:"budget_usd"`
+	Allow     []string `yaml:"allow"`
 }
 
 // problems names a limit below 0, which would silently mean "off": 0, or
