@@ -234,13 +234,15 @@ type Connectors struct {
 
 // Claims is go/internal/claims's verifier: the model and spend cap passed
 // to its claude -p call, its time limit in seconds, the tools it may call
-// besides its own read-only set, and Command, which replaces the call.
+// besides its own read-only set, Command, which replaces the call, and
+// SkipFields, the tool input fields it never reads.
 type Claims struct {
-	Command   []string `yaml:"command"`
-	Model     string   `yaml:"model"`
-	Timeout   int      `yaml:"timeout"`
-	BudgetUSD float64  `yaml:"budget_usd"`
-	Allow     []string `yaml:"allow"`
+	Command    []string `yaml:"command"`
+	Model      string   `yaml:"model"`
+	Timeout    int      `yaml:"timeout"`
+	BudgetUSD  float64  `yaml:"budget_usd"`
+	Allow      []string `yaml:"allow"`
+	SkipFields []string `yaml:"skip_fields"`
 }
 
 // problems names a limit below 0, which would silently mean "off": 0, or

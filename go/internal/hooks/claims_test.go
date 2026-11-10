@@ -91,6 +91,12 @@ func TestVerifyClaimsToolInput(t *testing.T) {
 		{"a connector post", func(*sandbox) map[string]any {
 			return toolCall("mcp__chat__send_message", map[string]any{"text": claim})
 		}, 1, true},
+		{"a connector post's description, beside its code", func(*sandbox) map[string]any {
+			return toolCall("mcp__claude_ai_Figma__use_figma", map[string]any{"code": "figma.root", "description": claim})
+		}, 1, true},
+		{"a connector post's code", func(*sandbox) map[string]any {
+			return toolCall("mcp__claude_ai_Figma__use_figma", map[string]any{"code": "// " + claim, "description": "Rename it."})
+		}, 0, false},
 		{"a connector read", func(*sandbox) map[string]any {
 			return toolCall("mcp__chat__search_messages", map[string]any{"query": claim})
 		}, 0, false},

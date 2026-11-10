@@ -354,12 +354,14 @@ package_lookups:
 # checks what they don't cover with read-only tools. model and budget_usd
 # are passed to it, timeout is its limit in seconds (0 turns it off), and
 # allow names more tools it may call; a write tool is never let through.
-# command replaces the claude call.
+# command replaces the claude call. skip_fields names connector input
+# fields it never reads, since they hold code, not claims.
 claims:
   model: sonnet
   timeout: 240
   budget_usd: 1
   allow: []
+  skip_fields: [code]
 
 # What kit bundle chat ships to claude.ai chat, where no hook, repo, or kit
 # on PATH exists. A skill stays out unless skills names it. description is

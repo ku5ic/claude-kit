@@ -55,8 +55,9 @@ func (p *Payload) String(path string) string {
 	return s
 }
 
-// Strings is every string at or under a dotted path, maps in key order.
-func (p *Payload) Strings(path string) []string {
+// Strings is every string at or under a dotted path, maps in key order,
+// passing over any map key named in skip.
+func (p *Payload) Strings(path string, skip ...string) []string {
 	var out []string
 	var walk func(any)
 	walk = func(v any) {
@@ -69,7 +70,9 @@ func (p *Payload) Strings(path string) []string {
 			}
 		case map[string]any:
 			for _, k := range slices.Sorted(maps.Keys(v)) {
-				walk(v[k])
+				if !slices.Contains(skip, k) {
+					walk(v[k])
+				}
 			}
 		}
 	}
