@@ -198,6 +198,45 @@ func TestVerifyClaimsInsideASubagentUsesItsTranscript(t *testing.T) {
 	}
 }
 
+// Hooks on one event run in parallel (code.claude.com/docs/en/hooks), so
+// verify-claims runs last inside each dispatcher: a slop block stops it
+// before its model run, and clean text still gets checked.
+func TestVerifyClaimsRunsOnlyAfterTheCheapGuards(t *testing.T) {
+	t.Parallel()
+	report := func(k *sandbox, text string) map[string]any {
+		return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "explore-x-20261110-1200.md"), "content": "# Explore\n\n" + text})
+	}
+	for _, tc := range []struct {
+		hook string
+		call func(k *sandbox, text string) map[string]any
+	}{
+		{"guard-dispatch", report},
+		{"handback-dispatch", func(_ *sandbox, text string) map[string]any { return handback("a1", text) }},
+		{"connector-dispatch", func(_ *sandbox, text string) map[string]any {
+			return toolCall("mcp__chat__send_message", map[string]any{"text": text})
+		}},
+		{"subagent-dispatch", func(_ *sandbox, text string) map[string]any { return subagentStop("a1", text, false) }},
+	} {
+		t.Run(tc.hook, func(t *testing.T) {
+			t.Parallel()
+			k := newSandbox(t)
+			calls := k.verifier("", claim)
+			r := k.run(tc.hook, tc.call(k, claim+" "+tell))
+			r.Has(t, "I hope this helps")
+			r.Lacks(t, "git log -S Foo")
+			if got := testutil.Calls(t, calls); got != nil {
+				t.Errorf("verifier ran after a slop block: %q", got)
+			}
+			fresh := newSandbox(t)
+			freshCalls := fresh.verifier("", claim)
+			fresh.run(tc.hook, tc.call(fresh, claim)).Has(t, "git log -S Foo")
+			if got := len(testutil.Calls(t, freshCalls)); got != 1 {
+				t.Errorf("verifier ran %d times on clean text, want 1", got)
+			}
+		})
+	}
+}
+
 func TestVerifyClaimsFailsOpen(t *testing.T) {
 	t.Parallel()
 	t.Run("a verifier that fails is logged, never blocks", func(t *testing.T) {

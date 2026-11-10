@@ -29,10 +29,11 @@ import (
 //   - PreToolUse for an MCP tool that writes: the post, before it's sent.
 //
 // Each text is sent back once, and resending it goes through. A handback
-// is checked once per agent.
+// is checked once per agent. It runs last in its dispatcher and skips a
+// call an earlier check denied, so the model run is never wasted.
 func VerifyClaims(h *hook.Hook) error {
 	p := h.Payload
-	if p.Err != nil {
+	if decision, _ := h.Decision(); p.Err != nil || decision == "deny" {
 		return nil
 	}
 	switch p.String("hook_event_name") {
