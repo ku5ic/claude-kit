@@ -479,8 +479,8 @@ on_edit:
 # path. 0 turns a ceiling off.
 reply_limits:
   chat: 40
-  explain: 80
-  explain_triggers: [explain, why, tradeoff, tradeoffs, review, audit]
+  explain: 150
+  explain_triggers: [explain, why, tradeoff, tradeoffs, review, audit, elaborate, understand, honest take]
   detail_triggers: [in detail, walk me through, long version]
   uncapped_commands: [verify, code-review, kit:audit, kit:deps, audit, deps]
   write:

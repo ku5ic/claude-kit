@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// reply-length on the real kit.yml: chat 40, explain 80.
+// reply-length on the real kit.yml: chat 40, explain 150.
 func TestReplyLength(t *testing.T) {
 	t.Parallel()
 	prompt := func(k *sandbox, text string) result {
@@ -28,11 +28,18 @@ func TestReplyLength(t *testing.T) {
 	t.Run("an explain trigger raises the ceiling; a detail trigger lifts it", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
-		prompt(k, "Why does this fail?").Has(t, "80 words")
-		stop(t, k, words(81), false)
-		prompt(k, "walk me through it").Has(t, over(81, 80))
+		prompt(k, "Why does this fail?").Has(t, "150 words")
+		stop(t, k, words(151), false)
+		prompt(k, "walk me through it").Has(t, over(151, 150))
 		stop(t, k, words(500), false)
 		prompt(k, "go").Lacks(t, "Your last reply")
+	})
+	t.Run("asking to understand is an explain trigger", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		for _, p := range []string{"Can you elaborate on those?", "I want to understand them.", "What's your honest take?"} {
+			prompt(k, p).Has(t, "150 words")
+		}
 	})
 	t.Run("fenced code and table pipes don't count", func(t *testing.T) {
 		t.Parallel()
@@ -80,11 +87,11 @@ func TestReplyLength(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
 		prompt(k, "go")
-		prompt(k, "why did it stall?").Has(t, "80 words")
+		prompt(k, "why did it stall?").Has(t, "150 words")
 		// The previous turn's continuation Stop arrives after the new prompt.
 		stop(t, k, words(300), true)
-		stop(t, k, words(81), false)
-		prompt(k, "go").Has(t, over(81, 80))
+		stop(t, k, words(151), false)
+		prompt(k, "go").Has(t, over(151, 150))
 	})
 	t.Run("a detail trigger lifts a /write ceiling too", func(t *testing.T) {
 		t.Parallel()
