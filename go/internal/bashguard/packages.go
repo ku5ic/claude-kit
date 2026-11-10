@@ -9,6 +9,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/gapfill"
+	"github.com/ku5ic/claude-kit/go/internal/pkgcheck"
 )
 
 // Package managers: global installs are kit policy (global_installs); the
@@ -63,8 +64,7 @@ func (c *command) packageManager() error {
 	for _, m := range gapfill.Nearest(root, c.pmDir(dirFlags), facts) {
 		switch {
 		case m.Manager == c.name:
-			c.dependencyAdd(m.AddVerbs)
-			return nil
+			return c.dependencyAdd(m.AddVerbs)
 		case slices.Contains(m.Rivals, c.name):
 			return c.block(rival(m, c.name), "pm-mismatch")
 		}
@@ -93,8 +93,9 @@ func (c *command) pmDir(dirFlags []string) string {
 }
 
 // dependencyAdd asks when one of verbs ("pnpm add", or "add") has a
-// package operand after it.
-func (c *command) dependencyAdd(verbs []string) {
+// package operand after it, and blocks when its registry says one of them
+// doesn't exist.
+func (c *command) dependencyAdd(verbs []string) error {
 	values := c.values()
 	for _, verb := range verbs {
 		words := strings.Fields(verb)
@@ -103,12 +104,24 @@ func (c *command) dependencyAdd(verbs []string) {
 		}
 		for i := range values {
 			after := i + len(words)
-			if after <= len(values) && slices.Equal(values[i:after], words) && slices.ContainsFunc(values[after:], func(v string) bool { return !strings.HasPrefix(v, "-") }) {
-				c.st.ask("this adds a dependency; rules/workflow.md section 2 asks before installing: confirm the package")
-				return
+			if after > len(values) || !slices.Equal(values[i:after], words) {
+				continue
 			}
+			packages := nonOptions(values[after:])
+			if len(packages) == 0 {
+				continue
+			}
+			lookups := pkgcheck.NewLookups(c.st.cfg.PackageLookups)
+			for _, p := range packages {
+				if lookups.Missing(c.name, p) {
+					return c.block(p+" isn't on its registry; check the name before adding it", "pkg-missing")
+				}
+			}
+			c.st.ask("this adds a dependency; rules/workflow.md section 2 asks before installing: confirm the package")
+			return nil
 		}
 	}
+	return nil
 }
 
 // rival is why a rival of m's manager blocks, with m's facts for the rerun.

@@ -3,6 +3,7 @@ package bashguard
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -28,6 +29,10 @@ func guardBashMono(k *sandbox, base string, facts bool) string {
 	testutil.Write(k.t, filepath.Join(dir, "package.json"), `{"name":"root","private":true}`+"\n")
 	testutil.Touch(k.t, filepath.Join(dir, "pnpm-lock.yaml"), filepath.Join(dir, "services/api/uv.lock"), filepath.Join(dir, "packages/y/yarn.lock"))
 	testutil.Mkdir(k.t, filepath.Join(dir, "packages/a"))
+	// The npm registry, as a stub that knows only react.
+	stub := filepath.Join(k.t.TempDir(), "npm-view")
+	testutil.FakeTool(k.t, stub, filepath.Join(k.t.TempDir(), "calls"), `[ "$1" = react ] && exit 0; echo 'npm error code E404'; exit 1`)
+	testutil.Write(k.t, filepath.Join(k.claude, "claude-kit.local.yml"), "package_lookups:\n  ecosystems:\n    npm:\n      cmd: ["+strconv.Quote(stub)+", \"{pkg}\"]\n")
 	if facts {
 		testutil.Write(k.t, filepath.Join(k.claude, "cache", cache.Enforce, cache.RootKey(git.Toplevel(dir))+".json"), `{"managers":[
 			{"dir":".","cites":"pnpm-lock.yaml","manager":"pnpm","add_verbs":["pnpm add"],"dlx":"pnpm dlx","dir_flags":["--dir","-C"],"rivals":["npm","yarn"]},
@@ -495,6 +500,7 @@ func TestGuardBash(t *testing.T) {
 		{"pm: --version is exempt", `npm --version`, 0, "", true},
 		{"pm: the add verb with a package asks", `pnpm add react`, 0, "adds a dependency", false},
 		{"pm: the add verb after a flag asks", `pnpm -C . add -D react`, 0, "adds a dependency", false},
+		{"pm: a package its registry doesn't know blocks", `pnpm add react made-up-lib`, 2, "made-up-lib isn't on its registry", false},
 		{"pm: an install from the lockfile passes silently", `pnpm install --frozen-lockfile`, 0, "", true},
 		{"pm: the add verb with only flags passes", `uv --directory services/api add --help`, 0, "", true},
 	} {

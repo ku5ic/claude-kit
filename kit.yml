@@ -323,6 +323,28 @@ weakened_checks:
   assertions: ['\bt\.(Error|Errorf|Fatal|Fatalf|Fail|FailNow)\(', '\b(assert|require)\.[A-Z]\w*\(', '\bexpect\(',
     '\bassert(\.\w+)?\(', '^\s*assert\b', '\bself\.assert\w+\(', '\bpytest\.raises\(']
 
+# Registry lookups for each package a manager's add verb names
+# (go/internal/pkgcheck): per ecosystem, the managers it covers, the
+# pattern a package name matches, the command ({pkg} is the name), and
+# what it prints when no such package exists. A missing package blocks; a
+# lookup that times out or fails any other way blocks nothing. parents
+# retries a missing path at each parent, for a Go package inside a module.
+# timeout is seconds for all of one command's lookups; 0 turns them off.
+package_lookups:
+  timeout: 15
+  ecosystems:
+    npm:
+      managers: [npm, pnpm, yarn, bun]
+      name: '^(@[a-z0-9][\w.-]*/)?[a-z0-9][\w.-]*$'
+      cmd: [npm, view, "{pkg}", name]
+      missing: '\bE404\b'
+    go:
+      managers: [go]
+      name: '^[a-z0-9.-]+\.[a-z]{2,}(/[\w.~-]+)+$'
+      cmd: [go, list, -m, "{pkg}@latest"]
+      missing: 'no matching versions|not found|410 Gone'
+      parents: true
+
 claims:
   model: sonnet
   timeout: 240

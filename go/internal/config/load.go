@@ -166,7 +166,7 @@ func load(p Paths) (*Config, []Warning, error) {
 	}
 	patterns, bad := cfg.compileInstalls(p)
 	cfg.installs = &installPatterns{patterns, bad}
-	for _, err := range slices.Concat(cfg.unknownDisables(), cfg.ReplyLimits.negatives(), cfg.Slop.problems(), cfg.Claims.problems(), cfg.WeakenedChecks.problems(), cfg.dropEmptyEditCmds()) {
+	for _, err := range slices.Concat(cfg.unknownDisables(), cfg.ReplyLimits.negatives(), cfg.Slop.problems(), cfg.Claims.problems(), cfg.WeakenedChecks.problems(), cfg.PackageLookups.problems(), cfg.dropEmptyEditCmds()) {
 		warnings = append(warnings, Warning{from, err})
 	}
 	warnings = append(warnings, bad...)
@@ -272,7 +272,7 @@ func mergeNode(dst, src *yaml.Node) {
 }
 
 // replacedLists are the lists that are a setting, not a set to add to.
-var replacedLists = map[string]bool{"block_tiers": true}
+var replacedLists = map[string]bool{"block_tiers": true, "cmd": true}
 
 // itemWithID is the index of seq's mapping with item's id, -1 when item has
 // no id or seq none with it.

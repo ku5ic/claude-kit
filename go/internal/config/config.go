@@ -43,6 +43,7 @@ type Config struct {
 	Connectors     Connectors     `yaml:"connectors"`
 	Claims         Claims         `yaml:"claims"`
 	WeakenedChecks WeakenedChecks `yaml:"weakened_checks"`
+	PackageLookups PackageLookups `yaml:"package_lookups"`
 	ChatBundle     ChatBundle     `yaml:"chat_bundle"`
 
 	// Tag is "merged" when an overlay was merged in, else "base". Caches
@@ -280,6 +281,44 @@ func (w WeakenedChecks) problems() []error {
 			if _, err := regexp.Compile(p); err != nil {
 				errs = append(errs, fmt.Errorf("weakened_checks.%s: %q doesn't compile", l.name, p))
 			}
+		}
+	}
+	return errs
+}
+
+// PackageLookups are the registry lookups go/internal/pkgcheck runs on a
+// package an add verb names: Timeout seconds for all of one command's
+// lookups (0 turns them off), and each ecosystem's lookup.
+type PackageLookups struct {
+	Timeout    int                      `yaml:"timeout"`
+	Ecosystems map[string]PackageLookup `yaml:"ecosystems"`
+}
+
+// PackageLookup is one ecosystem's: the managers it covers, the pattern a
+// package name matches, the command ({pkg} is the name), what its output
+// holds when no such package exists, and whether a missing path is tried
+// again at each parent, as a Go package path inside a module.
+type PackageLookup struct {
+	Managers []string `yaml:"managers"`
+	Name     string   `yaml:"name"`
+	Cmd      []string `yaml:"cmd"`
+	Missing  string   `yaml:"missing"`
+	Parents  bool     `yaml:"parents"`
+}
+
+// problems names each lookup that can't work: a pattern that doesn't
+// compile, or a command that never names the package.
+func (p PackageLookups) problems() []error {
+	var errs []error
+	for _, name := range slices.Sorted(maps.Keys(p.Ecosystems)) {
+		l := p.Ecosystems[name]
+		for _, f := range [][2]string{{"name", l.Name}, {"missing", l.Missing}} {
+			if _, err := regexp.Compile(f[1]); err != nil || f[1] == "" {
+				errs = append(errs, fmt.Errorf("package_lookups.%s: %s %q doesn't compile", name, f[0], f[1]))
+			}
+		}
+		if !slices.ContainsFunc(l.Cmd, func(arg string) bool { return strings.Contains(arg, "{pkg}") }) {
+			errs = append(errs, fmt.Errorf("package_lookups.%s: cmd never names {pkg}", name))
 		}
 	}
 	return errs
