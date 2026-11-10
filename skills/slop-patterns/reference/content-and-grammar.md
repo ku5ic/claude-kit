@@ -37,4 +37,14 @@ Era words (`slop.density.words`) count only as a cluster. One "robust" is fine; 
 | Title Case Headings                                                            | none                                                           | Sentence case                                              |
 | Emoji leading headings or list items                                           | none                                                           | Words                                                      |
 | Markdown leaking into a commit, a YAML value, or a chat that doesn't render it | none                                                           | The target format's own markup                             |
-| The em dash (U+2014) cadence: punched-up clauses                               | sanitizer turns the character into a hyphen; the cadence stays | A comma, a colon, or two sentences                         |
+| The em dash (U+2014) cadence: punched-up clauses                               | sanitizer turns the character into a hyphen; the cadence stays | A comma or two sentences                                   |
+| A joining colon: a clause, a colon, then the reveal or a restatement           | none, judgment ([false-positives.md](false-positives.md))      | Two sentences, or a comma                                  |
+
+The joining colon is the em dash's cadence in other punctuation, so swapping one for the other fixes nothing. Colons in code, paths, key-value pairs, times, ratios, and a list's introduction are fine.
+
+## Sources
+
+- Wikipedia, "Signs of AI writing": its Content, Language and grammar, and Style sections cover every rule above. The em dash section says models use the dash where people use commas, parentheses, or colons.
+- Reinhart et al., arXiv 2410.16107: present participial clauses at 5.3x the human rate in GPT-4o (`ing-tail`).
+- Pangram, "Comprehensive guide to spotting AI writing patterns": "serves as", "is a testament to", "not only ... but also", "it's important to note".
+- blader/humanizer: negative parallelism, vague association, bold as decoration.

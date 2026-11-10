@@ -29,14 +29,15 @@ In claude.ai chat, the target is the text in the user's message. If there's none
 In claude.ai chat, any other exit, or no way to run it, means the scan didn't happen. Your next action is then to read `reference/lexicon.md` in this skill's folder. Take every hit and tier from that file, never from memory, and say in the reply that these are a hand read.
 -->
 
-4. Rewrite every tier 1 and 2 hit, and every passage the scan reports as dense, per `slop-patterns` `reference/rewrite.md`. Then read the whole text once for what no regexp sees: sentences that carry nothing, sections that restate others (`slop-patterns` `reference/principles.md`). For UI files, also walk `slop-patterns` `reference/design.md` section 12.
+4. Rewrite every tier 1 and 2 hit, and every passage the scan reports as dense, per `slop-patterns` `reference/rewrite.md`. Then read the whole text once for what no regexp sees. Look for sentences that carry nothing, sections that restate others (`slop-patterns` `reference/principles.md`), and every row marked "none, judgment" in `slop-patterns` `reference/content-and-grammar.md`. For UI files, also walk `slop-patterns` `reference/design.md` section 12.
+5. Check the facts. List each factual claim the text makes about code, versions, commands, or another system. Verify each with a tool that reaches the source, or label it per `rules/evidence.md` section 1. A rewrite that reads well but states something unchecked is still slop.
 
 <!-- chat: skip -->
 
-5. Write the result:
+6. Write the result:
    - Default: a copy at the path `kit scratch-dir unslop <slug>` prints, one per file.
    - `in place` in the arguments: edit the file itself.
-6. Re-scan the result with `kit slop`. A hit left on purpose gets a line in the reply saying why.
+7. Re-scan the result with `kit slop`. A hit left on purpose gets a line in the reply saying why.
 
 ## Output
 

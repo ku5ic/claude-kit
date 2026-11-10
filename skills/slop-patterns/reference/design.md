@@ -25,6 +25,8 @@ Slop comes in waves. Each look that gets called out spawns the next default:
 
 Wave 2 is what a model produces when told to look less generated. Banning wave 1 just moves the default. Target unchosen defaults, not a color list.
 
+Wave 2 comes from Anthropic's frontend-design skill, which lists those looks as defaults to avoid. Wave 1 is observation with no published source. It was a human default first: Laravel Jetstream's 2020 to 2022 scaffolding uses `indigo-*` 22 times.
+
 ## 2. The brief wins
 
 Every pattern below is fine when the brief, the brand, or the project's design system asks for it. Before flagging:
@@ -141,6 +143,8 @@ Interface copy follows [content-and-grammar.md](content-and-grammar.md). The UI-
 
 <!-- chat: end -->
 
+`ui-default-gradient`, `ui-gradient-text`, and `ui-glass` are house style, since no published source names them. On 1,217 pre-2022 human UI files and Laravel Jetstream's Tailwind stubs, they never fired. `ui-eyebrow` fired 6 times on Jetstream, which is why it's tier 3.
+
 The scan can't see layout (identical card grids, hero metric blocks, section order, nested cards), motion without reduced-motion handling (that needs the whole project), or anything a token resolves at build time. Those belong to the review in section 12. A false block on a correct design costs more trust than a missed gradient, so the scan errs toward silence.
 
 ## 12. Review
@@ -175,3 +179,8 @@ Don't fix wave 1 by reaching for wave 2. Purple to cream is the same mistake.
 - A dense dashboard repeats radius and shadow; that's consistency, if the values come from tokens.
 - Marketing pages use marketing language. Flag it when it's vague, not when it exists.
 - A design system or component library defines the defaults on purpose. Scan its docs and stories; don't flag its token definitions or its variant names (an `elevated` card).
+
+## 14. Sources
+
+- Anthropic, frontend-design skill (github.com/anthropics/skills): the wave 2 looks, the eyebrow, the arrow after link labels, and gradient washes.
+- Wikipedia, "Signs of AI writing": emoji in headings and promotional language (`ui-emoji-label`, `ui-marketing`).
