@@ -16,7 +16,7 @@ func GuardTokens(h *hook.Hook) error {
 		return h.Payload.Err
 	}
 	path := h.Payload.FilePath()
-	if path == "" {
+	if path == "" || h.RuleDisabled("ui-undefined-token") {
 		return nil
 	}
 	before, after, ok := written(h.Payload, path)
