@@ -36,12 +36,14 @@ var systemPrompt string
 var builtins = []string{"Read", "Grep", "Glob", "WebSearch", "ToolSearch"}
 
 // Size caps on the evidence, in bytes: per tool input, per tool result, per
-// earlier assistant text, and in all, the oldest dropped first.
+// earlier assistant text, and in all, the oldest dropped first; and on the
+// text to verify, so a page-sized post can't hold its tool call for long.
 const (
 	inputCap    = 4000
 	resultCap   = 20000
 	assistCap   = 1500
 	evidenceCap = 300000
+	textCap     = 40000
 )
 
 // threeWords is three or more words on one line, with no question mark.
@@ -217,7 +219,7 @@ func evidence(entries []transcript.Entry, text string, forked bool) string {
 	for _, item := range items[cut:] {
 		b.WriteString(item + "\n\n")
 	}
-	b.WriteString("## Text to verify\n\n" + text + "\n")
+	b.WriteString("## Text to verify\n\n" + clip(text, textCap) + "\n")
 	return b.String()
 }
 

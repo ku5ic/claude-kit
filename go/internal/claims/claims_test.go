@@ -214,6 +214,14 @@ func TestEvidenceCutsOldestFirst(t *testing.T) {
 	}
 }
 
+func TestEvidenceClipsTheText(t *testing.T) {
+	t.Parallel()
+	got := evidence(nil, strings.Repeat("The page says hello. ", 200000), false)
+	if len(got) > textCap+200 || !strings.Contains(got, "bytes cut]") {
+		t.Errorf("evidence is %d bytes, want the text clipped to %d with a note", len(got), textCap)
+	}
+}
+
 func TestDeclarative(t *testing.T) {
 	t.Parallel()
 	for text, want := range map[string]bool{
