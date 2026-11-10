@@ -53,7 +53,8 @@ func TestVerifyClaimsSubagentStop(t *testing.T) {
 		{"block: an unconfirmed claim", subagentStop("a1", claim, false), []string{claim}, 2, 1},
 		{"allow: every claim confirmed", subagentStop("a1", claim, false), nil, 0, 1},
 		{"allow: nothing stated, unchecked", subagentStop("a1", "Which branch?", false), []string{claim}, 0, 0},
-		{"allow: a subagent's second stop", subagentStop("a1", claim, true), []string{claim}, 0, 0},
+		{"block: a retry stop not yet checked", subagentStop("a1", claim, true), []string{claim}, 2, 1},
+		{"allow: a retry stop with no agent_id", subagentStop("", claim, true), []string{claim}, 0, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -234,6 +235,22 @@ func TestVerifyClaimsRunsOnlyAfterTheCheapGuards(t *testing.T) {
 				t.Errorf("verifier ran %d times on clean text, want 1", got)
 			}
 		})
+	}
+}
+
+// A report slop sent back still has its claims checked when the subagent
+// stops again, and only once.
+func TestSubagentDispatchChecksClaimsAfterASlopRetry(t *testing.T) {
+	t.Parallel()
+	k := newSandbox(t)
+	calls := k.verifier("", claim)
+	k.run("subagent-dispatch", subagentStop("a1", claim+" "+tell, false)).Has(t, "I hope this helps")
+	retry := k.run("subagent-dispatch", subagentStop("a1", claim, true))
+	retry.Want(t, 2)
+	retry.Has(t, "git log -S Foo")
+	k.run("subagent-dispatch", subagentStop("a1", claim, true)).Want(t, 0)
+	if got := len(testutil.Calls(t, calls)); got != 1 {
+		t.Errorf("verifier ran %d times, want 1", got)
 	}
 }
 

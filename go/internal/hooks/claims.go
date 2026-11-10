@@ -30,8 +30,8 @@ import (
 //     scratch: the report, before it's written.
 //   - PreToolUse for an MCP tool that writes: the post, before it's sent.
 //
-// Each text is sent back once, and resending it goes through. A handback
-// is checked once per agent. It runs last in its dispatcher and skips a
+// Each text is sent back once, and resending it goes through. A subagent's
+// report is checked once per agent, at its handback or its stop. It runs last in its dispatcher and skips a
 // call an earlier check denied, so the model run is never wasted.
 func VerifyClaims(h *hook.Hook) error {
 	p := h.Payload
@@ -40,11 +40,17 @@ func VerifyClaims(h *hook.Hook) error {
 	}
 	switch p.String("hook_event_name") {
 	case "SubagentStop":
+		// The marker, not stop_hook_active, ends the retry: a stop that
+		// follows subagent-slop's block is this check's first.
 		marker := handbackMarker(h, cache.Claims)
-		if p.Bool("stop_hook_active") || marker != "" && fsx.IsFile(marker) {
+		if marker == "" && p.Bool("stop_hook_active") || marker != "" && fsx.IsFile(marker) {
 			return nil
 		}
-		if u := unconfirmed(h, p.String("last_assistant_message"), agentTranscript(p), "subagent report"); len(u) > 0 {
+		u := unconfirmed(h, p.String("last_assistant_message"), agentTranscript(p), "subagent report")
+		if marker != "" && !h.DryRun {
+			_ = fsx.WriteAtomic(marker, []byte("seen"), 0o644)
+		}
+		if len(u) > 0 {
 			return h.Block(claimsMessage("your report", u)+sendBack, "claims")
 		}
 	case "PreToolUse":
