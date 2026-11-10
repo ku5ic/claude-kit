@@ -13,7 +13,7 @@ import (
 // kind of hit the guards log without blocking.
 const (
 	tell  = "I hope this helps."
-	dense = "A robust, seamless, comprehensive tool."
+	dense = "A robust, meticulous, comprehensive tool."
 )
 
 // slopCall is a tool call on path with input as tool_input, file_path set.

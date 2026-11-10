@@ -193,11 +193,12 @@ slop:
     per_words: 100
     threshold: 3
     min: 3
-    words: [additionally, boasts, crucial, delve, delves, delving, garner, intricate, interplay, landscape, meticulous,
-      meticulously, pivotal, tapestry, testament, underscore, underscores, vibrant, bolstered, enhance, enhances,
-      foster, fosters, fostering, highlighting, showcase, showcasing, emphasizing, align with, leverage, leveraging,
-      multifaceted, prioritize, quietly, seamless, seamlessly, robust, comprehensive, dependable, echoed, universally,
-      steady, clearer, practical]
+    words: [additionally, boasts, crucial, delve, delves, delved, delving, garner, garners, garnered, intricate,
+      intricacies, interplay, landscape, meticulous, meticulously, pivotal, tapestry, testament, underscore,
+      underscores, underscored, vibrant, bolstered, enhance, enhances, enhanced, enhancing, foster, fosters, fostered,
+      fostering, highlights, highlighting, showcase, showcases, showcased, showcasing, emphasizes, emphasized,
+      emphasizing, align with, aligns with, leverage, leverages, leveraged, leveraging, multifaceted, quietly, robust,
+      comprehensive, dependable, echoed, universally, realm, realms, groundbreaking, commendable, enduring, deep dive]
   rules:
     - {id: hope-helps, tier: 1, match: '(?i)\bI hope (this|that|it) helps\b', fix: cut it}
     - id: offer-more
@@ -215,7 +216,7 @@ slop:
       fix: open with what changed
     - {id: absolutely-right, tier: 1, match: '(?i)\byou''?re (absolutely|completely|totally) right\b', fix: cut it; say what changes}
     - {id: as-an-ai, tier: 1, match: '(?i)\bas an AI( language)? model\b|\bI''?m (just )?an AI\b', fix: cut it}
-    - {id: in-conclusion, tier: 1, match: '(?i)^\W*in conclusion\b', fix: cut the recap}
+    - {id: in-conclusion, tier: 1, match: '(?i)^\W*(in conclusion|in summary)\b|^\W*overall,', fix: cut the recap}
     - id: citation-leak
       tier: 1
       match: 'contentReference\[oaicite|oai_citation|\bturn\d+(search|view|fetch)\d+\b'
@@ -230,7 +231,8 @@ slop:
     - {id: not-only, tier: 2, match: '(?i)\bnot only\b.*\bbut also\b', fix: 'state both plainly, or keep the one that matters'}
     - id: not-x-but-y
       tier: 2
-      match: '(?i)\b(it''?s|this is|that''?s) not (just |merely |only )?[^.,;:]{1,40}[,;] (it''?s|but)\b'
+      # "but" counts only before a noun phrase; "not fast, but it works" concedes, it doesn't correct.
+      match: '(?i)\b(it''?s|this is|that''?s) not (just |merely |only )?[^.,;:]{1,40}[,;] (it''?s|but (rather )?(a|an|the)\b)'
       fix: state what it is
     - id: ing-tail
       tier: 2
@@ -238,8 +240,12 @@ slop:
       fix: state the fact the clause gestures at, or cut it
     - id: significance
       tier: 2
-      match: '(?i)\b(plays?|played) an? (key|crucial|pivotal|vital|significant|central) role\b|\ba testament to\b|\bindelible mark\b|\bevolving landscape\b|\bsetting the stage for\b|\bunderscores? (its|the) importance\b'
+      match: '(?i)\b(plays?|played) an? (key|crucial|pivotal|vital|significant|central) role\b|\ba testament to\b|\bindelible mark\b|\bevolving landscape\b|\bsetting the stage for\b|\bunderscores? (its|the) importance\b|\bsh(ed|eds|edding) (new )?light on\b'
       fix: name the concrete effect, or cut it
+    - id: navigating
+      tier: 2
+      match: '(?i)\bnavigat(e|es|ing) the (complexities|intricacies|landscape|nuances|challenges)\b'
+      fix: name the actual problem and what handles it
     - {id: vague-connection, tier: 2, match: '(?i)\b(is|are|was|were) (closely )?associated with\b', fix: name the actual relation}
     - {id: despite-challenges, tier: 2, match: '(?i)\bdespite (its|their|these|this)\b.*\bchallenges\b', fix: state the specific problem}
     - {id: worth-noting, tier: 2, match: '(?i)\b(it''?s|it is) (important|worth) (to note|noting|mentioning)\b', fix: cut it; state the point}

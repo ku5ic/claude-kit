@@ -210,7 +210,7 @@ func TestGuardCommit(t *testing.T) {
 		{"block: a tier 1 tell in a -m body", `git commit -m "feat: x" -m "I hope this helps."`, 2},
 		{"block: a tier 1 tell in a -F - heredoc body", "git commit -F - <<'EOF'\nfeat: x\n\nI hope this helps.\nEOF", 2},
 		{"block: a tier 2 tell", `git commit -m "fix: x" -m "Addressed review feedback."`, 2},
-		{"allow: a dense tier 3 passage is only logged", `git commit -m "fix: x" -m "A robust, seamless, comprehensive tool."`, 0},
+		{"allow: a dense tier 3 passage is only logged", `git commit -m "fix: x" -m "A robust, meticulous, comprehensive tool."`, 0},
 		{"allow: a tell quoted in the body", "git commit -m \"docs: x\" -m 'Ban the phrase \"I hope this helps\".'", 0},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -240,7 +240,7 @@ func TestGuardCommitScansTheMessageForAITells(t *testing.T) {
 	r.Want(t, 2)
 	r.Has(t, `L3 "I hope this helps" -> cut it`, "slop-patterns")
 
-	k.commit("", `git commit -m "fix: x" -m "A robust, seamless, comprehensive tool."`).Want(t, 0)
+	k.commit("", `git commit -m "fix: x" -m "A robust, meticulous, comprehensive tool."`).Want(t, 0)
 	log, _ := os.ReadFile(filepath.Join(k.claude, "logs", "guards.jsonl"))
 	for _, want := range []string{"slop-hope-helps", "slop-vocabulary"} {
 		if !strings.Contains(string(log), want) {

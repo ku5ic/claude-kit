@@ -54,7 +54,7 @@ func TestGuardPR(t *testing.T) {
 		{"allow (logged): a body in a variable", `gh pr comment 3 -b "$BODY"`, 0},
 		{"block: a tell next to a literal dollar amount", `gh pr comment 3 -b "Costs $5. I hope this helps."`, 2},
 		{"allow: the tell quoted in the body", `gh pr comment 3 -b 'Bans "I hope this helps".'`, 0},
-		{"allow: a dense tier 3 passage is only logged", `gh pr comment 3 -b "A robust, seamless, comprehensive tool."`, 0},
+		{"allow: a dense tier 3 passage is only logged", `gh pr comment 3 -b "A robust, meticulous, comprehensive tool."`, 0},
 		{"block: gh api -f body=", `gh api repos/o/r/pulls/3 -X PATCH -f body="I hope this helps."`, 2},
 		{"block: gh api --raw-field body=", `gh api repos/o/r/issues/3/comments --raw-field "body=I hope this helps."`, 2},
 		{"block: gh api -F body=text", `gh api repos/o/r/issues/3/comments -F "body=I hope this helps."`, 2},
