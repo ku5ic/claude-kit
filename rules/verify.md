@@ -6,7 +6,6 @@ What must happen before a change is called done, and when. This file is the one 
 | -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | After every edit                                                                                                     | The Stop hook's checks on the edited files. Automatic; a failure blocks the turn                                                                                                                                                                                        |
 | Calling an ordinary change done                                                                                      | The refactor pass first, since first green is never done (`skills/engineering-fundamentals/reference/red-green-refactor.md`). Then nothing more. Name in one line what the refactor pass changed and anything not run; the Stop hook shows its own run (next paragraph) |
-| Calling a plan step done when it changes what a user sees                                                            | The runtime pass (section 2) on that screen, before the step's pause, not at plan end                                                                                                                                                                                   |
 | End of a plan, or when the user asks                                                                                 | `/code-review` (section 1); its hook runs the full gate                                                                                                                                                                                                                 |
 | Same moment, when the change has observable behavior (a response, output, an exit code, data written, a side effect) | The runtime pass (section 2)                                                                                                                                                                                                                                            |
 
@@ -44,7 +43,7 @@ Exercise the change through the interface its consumers use, the way they use it
 | Migration | running it on a copy of realistic data                             |
 | Infra     | `plan` or a dry run against the real target                        |
 
-A change whose contract is "unchanged" (a refactor, migration, or rewire) runs the same flow on the base branch (`kit git-base`) and on the change, side by side. Rendering only the new code shows it runs, not that it matches.
+A plan step that changes what a user sees gets this pass before its pause, not at plan end. A change whose contract is "unchanged" (a refactor, migration, or rewire) runs the same flow on the base branch (`kit git-base`) and on the change, side by side.
 
 Starting it and seeing it respond is not verification. The goal is to break it.
 
