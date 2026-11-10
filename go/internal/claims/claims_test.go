@@ -162,7 +162,7 @@ func TestVerifyOff(t *testing.T) {
 func TestClaudeAllowsOnlyReads(t *testing.T) {
 	t.Parallel()
 	cfg := baseConfig()
-	cfg.Claims.Allow = []string{"WebFetch", "mcp__docs__query_docs", "mcp__chat__create_post"}
+	cfg.Claims.Allow = []string{"WebFetch", "mcp__docs__query_docs", "mcp__chat__create_post", "Bash", "Write", "Edit"}
 	entries, err := transcript.Load(session(t))
 	if err != nil {
 		t.Fatal(err)

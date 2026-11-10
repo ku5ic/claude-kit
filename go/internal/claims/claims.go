@@ -35,6 +35,10 @@ var systemPrompt string
 // loads the connector tools, which arrive deferred.
 var builtins = []string{"Read", "Grep", "Glob", "WebSearch", "ToolSearch"}
 
+// moreReads are the other read-only builtins claims.allow may name; any
+// other builtin, Bash included, may write.
+var moreReads = []string{"WebFetch"}
+
 // Size caps on the evidence, in bytes: per tool input, per tool result, per
 // earlier assistant text, and in all, the oldest dropped first; and on the
 // text to verify, so a page-sized post can't hold its tool call for long.
@@ -148,7 +152,11 @@ func claude(cfg *config.Config, entries []transcript.Entry) []string {
 		}
 	}
 	for _, name := range cfg.Claims.Allow {
-		if name != "" && !connector.IsWrite(cfg.Connectors, name) && !slices.Contains(allowed, name) {
+		read := slices.Contains(moreReads, name)
+		if strings.HasPrefix(name, "mcp__") {
+			read = !connector.IsWrite(cfg.Connectors, name)
+		}
+		if read && !slices.Contains(allowed, name) {
 			allowed = append(allowed, name)
 		}
 	}
