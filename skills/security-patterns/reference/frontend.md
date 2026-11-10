@@ -25,7 +25,7 @@ next-app-router-patterns owns these: `NEXT_PUBLIC_*` secrets (`reference/runtime
 - JWT: verify signature, check `exp`, `iss`, `aud`. Do not trust decoded claims as auth.
 - **State-changing GET requests are a defect** (RFC 9110: GET, HEAD, OPTIONS are safe methods; CSRF defenses generally exempt them, so a GET that mutates state has neither protection nor convention on its side).
 - **Session fixation**: regenerate the session ID at the auth boundary (login, privilege change). OWASP Session Management cheat sheet calls this out as mandatory.
-- **JWT versus server-managed sessions**: OWASP explicitly recommends server-managed sessions for first-party applications that do not need to be fully stateless. JWT belongs in genuinely stateless contexts (token federation across services); for single-tenant first-party login flows, sessions are simpler and safer.
+- **JWT versus server-managed sessions**: The OWASP JWT cheat sheet says using JWT for user sessions "is frowned upon" and suggests "a plain session system" instead. JWT belongs in genuinely stateless contexts (token federation across services); for single-tenant first-party login flows, sessions are simpler and safer.
 - **Refresh-token rotation**: when JWT is the right call, rotate the refresh token on every use and revoke any reused refresh token (treat reuse as theft). Persist a per-token state for revocation; pure stateless JWT cannot revoke until expiry.
 - **JWT vulnerabilities to flag**:
   - `alg: none` attack: `failure`.
@@ -64,5 +64,5 @@ Content-Security-Policy:
 - OWASP HTML5 Security: https://cheatsheetseries.owasp.org/cheatsheets/HTML5_Security_Cheat_Sheet.html
 - OWASP CSRF Prevention: https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html
 - OWASP Session Management: https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html
-- OWASP JWT Cheat Sheet: https://cheatsheetseries.owasp.org/cheatsheets/JSON_Web_Token_for_Java_Cheat_Sheet.html
+- OWASP JWT Cheat Sheet: https://cheatsheetseries.owasp.org/cheatsheets/JSON_Web_Token_Cheat_Sheet.html
 - MDN CSP: https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP

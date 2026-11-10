@@ -31,7 +31,7 @@ The list of conditions under which `set -e` does NOT exit is the most common sou
 1. **Inside an `if` test or `while`/`until` head.** `if cmd; then ...` does not exit even if `cmd` fails; `cmd`'s status is the test result. Same applies to `&&`/`||` chains except after the final operator.
 2. **Non-final pipeline commands without `pipefail`.** `failing_cmd | grep something` succeeds based on `grep`. With `pipefail`, the pipeline's exit code is the rightmost non-zero.
 3. **Command substitution masking.** `local foo=$(maybe_fail)` succeeds because `local`'s success is what `set -e` sees. ShellCheck SC2155. Split: `local foo; foo=$(maybe_fail)`.
-4. **Subshells need `inherit_errexit`.** A `(set -e is not inherited by subshells unless explicitly set)` subshell may have its own `set -e` state. Bash 4.4 added `shopt -s inherit_errexit` so subshells (including command substitution) see the parent's `errexit`.
+4. **Command substitution clears `errexit`.** Outside posix mode, bash clears `set -e` in the subshell that runs `$(...)`. Bash 4.4 added `shopt -s inherit_errexit` so command substitution keeps the parent's `errexit`.
 5. **Functions invoked in conditional context.** A function called as `if my_func; then ...` runs with `set -e` effectively suspended for that call; failures inside the function do not exit. To enforce the parent's `errexit`, the function body must check explicitly.
 
 These caveats are why `set -e` alone is not a complete safety story. `set -euo pipefail` plus explicit error checks at decision boundaries is what production scripts actually need.

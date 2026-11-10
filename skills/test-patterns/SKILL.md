@@ -36,8 +36,8 @@ Apply the runner-specific reference matching the detected test runner. Principle
 
 ## Version notes
 
-Checked: 2026-09-26 against https://pypi.org/project/pytest/ and the migration and release pages listed above
+Checked: 2026-11-10 against https://pypi.org/project/pytest/, https://docs.pytest.org/en/stable/changelog.html, https://vitest.dev/guide/migration, https://mswjs.io/docs/migrations/2.x-to-3.x and the npm registry
 
-- Vitest 4.x (Context7 /vitest-dev/vitest); the migration guide at vitest.dev lists for the next major: `vi.mock` / `vi.unmock` / `vi.hoisted` must be module-scoped, `clearMocks` defaults to true, automocked modules return `undefined` in browser mode. None of the patterns in `reference/vitest-and-jest.md` depend on the old behavior.
-- Jest 30 (2025-06): `--testPathPattern` renamed `--testPathPatterns`; `expect` aliases removed. pytest 9 (2025-11; 9.1.1 current): fixture visibility now decides precedence over registration order; `PytestRemovedIn9Warning` is an error.
-- MSW 2: `http` / `HttpResponse` replace `rest` and the `req, res, ctx` signature. Unchanged.
+- Vitest 5 (5.0.0 on 2026-09-03, latest 5.1.0): `vi.mock` / `vi.unmock` / `vi.hoisted` must be top-level, `clearMocks` defaults to true, automocked modules return `undefined` in browser mode. None of the patterns in `reference/vitest-and-jest.md` depend on the old behavior.
+- MSW 3 (latest 3.0.4): `http` and `HttpResponse` now import from `msw/http`. MSW 2 had replaced `rest` and the `req, res, ctx` signature with them.
+- Jest 30 (2025-06): `--testPathPattern` renamed `--testPathPatterns`; `expect` aliases removed. pytest 9 (2025-11; 9.2.0 current): `PytestRemovedIn9Warning` is an error; since 9.1.0, fixture visibility decides precedence over registration order.

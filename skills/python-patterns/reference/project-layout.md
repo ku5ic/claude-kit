@@ -9,7 +9,7 @@
 
 ## Project layout
 
-- `src/` layout for libraries and any project that will be packaged. PyPA documents three benefits, the load-bearing one being that it prevents accidentally importing the in-development source instead of the installed package. Flat layout is fine for scripts and small applications.
+- `src/` layout for libraries and any project that will be packaged. PyPA documents how it differs from flat layout; the load-bearing difference is that it prevents accidentally importing the in-development source instead of the installed package. Flat layout is fine for scripts and small applications.
 - `pyproject.toml` is the single source of truth. PEP 518 standardizes `[build-system]`; PEP 621 standardizes `[project]` metadata. No `setup.py` for new projects.
 - Tool config consolidated in `pyproject.toml`: `[tool.ruff]`, `[tool.mypy]`, `[tool.pyright]`, `[tool.pytest.ini_options]`. Avoid scattering across `setup.cfg`, `mypy.ini`, `pytest.ini` unless a tool requires it.
 - Dependency manager:

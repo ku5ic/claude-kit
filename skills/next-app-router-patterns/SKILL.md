@@ -43,8 +43,8 @@ Default assumption: Next.js 16 (current stable as of writing) with the App Route
 
 ## Version notes
 
-Checked: 2026-09-26 against https://nextjs.org/blog, https://nextjs.org/docs/app/api-reference/file-conventions/proxy and https://nextjs.org/docs/app/guides/upgrading/version-16
+Checked: 2026-11-10 against https://www.npmjs.com/package/next, https://nextjs.org/docs/app/guides/upgrading/version-16, https://nextjs.org/docs/app/guides/package-bundling and https://nextjs.org/docs/app/api-reference/file-conventions/proxy
 
+- 16.4 (2026-10-06, latest 16.4.6): corrected three 16.0 facts against the upgrade guide. Parallel slots without `default.js` fail the build, synchronous `cookies()`/`headers()` access is removed, and Turbopack's analyzer is `next analyze`.
 - 16.3 (2026-08-03): no guidance change. Proxy runs on Node.js only; a project that needs the Edge runtime keeps `middleware.ts` (proxy docs).
 - 16.0: `middleware` renamed to `proxy` (types `NextMiddleware` -> `NextProxy`, `MiddlewareConfig` -> `ProxyConfig`, `skipMiddlewareUrlNormalize` -> `skipProxyUrlNormalize`); PPR stable and default under Cache Components; one-argument `revalidateTag(tag)` deprecated, pass a `cacheLife` profile (upgrade guide; examples fixed 2026-09-26).
-- 15.0: `fetch()` and Route Handler `GET` no longer cached by default; 15.5 gave the middleware file stable Node.js runtime support.

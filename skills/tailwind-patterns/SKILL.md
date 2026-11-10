@@ -35,11 +35,11 @@ Default assumption: Tailwind v4 with CSS-first config. If the project has a `tai
 
 ## v3 patterns to avoid in v4
 
-- `tailwind.config.js`: do not create one in a v4 project. Move config into `@theme` blocks. If the file exists in a v4 project, it is dead code.
+- `tailwind.config.js`: do not create one in a v4 project. Move config into `@theme` blocks. v4 no longer detects the file automatically, so it is dead code unless a CSS file loads it with `@config` (still supported for backward compatibility).
 - `@tailwind base; @tailwind components; @tailwind utilities;`: v3 directive triple. v4 replaces these with a single `@import "tailwindcss"`.
 - `theme.extend`: v3 JS shape. In v4, all CSS-defined `--<namespace>-<name>` tokens extend the default theme automatically.
 - `content: [...]`: v3 path config. v4 auto-detects.
-- `@layer utilities { ... }` for arbitrary utility classes: still works, but prefer defining custom utilities with the `@utility` directive in v4 for better tree-shaking.
+- `@layer utilities { ... }` for custom utility classes: v4 uses native cascade layers and no longer hijacks `@layer`; the upgrade guide names `@utility` as the replacement.
 
 ## Using theme values from CSS
 
@@ -48,7 +48,7 @@ Default assumption: Tailwind v4 with CSS-first config. If the project has a `tai
 
 ## Variants and modifiers
 
-- v4 variant order: `hover:focus:bg-blue-500` applies hover AND focus, just like v3. No change.
+- v4 variant order: stacked variants apply left to right (v3 was right to left). `hover:focus:bg-blue-500` comes out the same. An order-sensitive stack flips, so v3 `first:*:pt-0` is v4 `*:first:pt-0`.
 - New in v4:
   - `not-` variant prefix (`not-hover:opacity-50`)
   - `nth-*` variants (`nth-3:`, `nth-[3n+1]:`); the `*:` direct-children variant predates v4 (3.4)
@@ -98,8 +98,8 @@ If both `tailwind.config.js` and `@import "tailwindcss"` are present, the projec
 
 ## Version notes
 
-Checked: 2026-09-26 against https://tailwindcss.com/blog, https://tailwindcss.com/blog/tailwindcss-v4, https://tailwindcss.com/blog/tailwindcss-v3-4 and https://tailwindcss.com/docs/theme
+Checked: 2026-11-10 against https://www.npmjs.com/package/tailwindcss, https://tailwindcss.com/docs/upgrade-guide, https://tailwindcss.com/blog/tailwindcss-v4-3 and https://tailwindcss.com/blog/tailwindcss-v4
 
-- 4.3 (2026-05-08): no directive or function syntax change; no v5 exists.
+- 4.3 (2026-05-08, latest 4.3.5 on 2026-11-06): stacked and compound variants in `@variant`; no v5 exists. Corrected the v4 variant stacking order, the `@config` path for a JS config, and the `@layer utilities` wording.
 - 4.0: CSS-first config (`@import "tailwindcss"`, `@theme`, `@utility`, `--alpha()`), automatic content detection, `not-`, `nth-*`, and `starting:` variants (`*:` is 3.4; build-speed figures and the `*:` example corrected 2026-09-26). Theme values are read with `var(--*)`, not a `--theme()` function (corrected 2026-09-12).
 - 3.x: `tailwind.config.js`, `@tailwind base/components/utilities`, `theme()` helper. See "v3 patterns to avoid in v4".

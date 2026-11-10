@@ -38,7 +38,7 @@ Default assumption: Vue 3 with the Composition API and `<script setup>` syntax.
 
 ## Version notes
 
-Checked: 2026-09-26 against https://github.com/vuejs/core/releases/latest (3.5.43, 2026-09-17), Context7 /vuejs/vue and https://vuejs.org/api/sfc-script-setup.html
+Checked: 2026-11-10 against https://github.com/vuejs/core/releases/latest (3.5.45, 2026-11-05; 3.6 still in release candidates), https://vuejs.org/guide/essentials/watchers.html and https://vuejs.org/api/sfc-script-setup.html
 
 - 3.5 (2024-09-01): Reactive Props Destructure is the recommended default-value form over `withDefaults` (which still works); `onWatcherCleanup`.
 - 3.4: `defineModel`; watcher `once: true`.

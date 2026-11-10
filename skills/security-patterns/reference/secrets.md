@@ -8,7 +8,7 @@
 
 Two complementary tools cover detection at different points in the workflow:
 
-- **gitleaks** (https://github.com/gitleaks/gitleaks): regex-plus-entropy scanner for git repos and arbitrary input. Run as a pre-commit hook for fast local feedback, and as a CI step on every PR. Useful flags: `gitleaks detect --no-banner --redact -v` for human-readable output that does not echo the secret value into the log.
+- **gitleaks** (https://github.com/gitleaks/gitleaks): regex-plus-entropy scanner for git repos and arbitrary input. Run as a pre-commit hook for fast local feedback, and as a CI step on every PR. Useful flags: `gitleaks git --no-banner --redact -v` (or `gitleaks dir` for files; `detect` and `protect` are deprecated since v8.19.0) for human-readable output that does not echo the secret value into the log.
 - **trufflehog** (https://github.com/trufflesecurity/trufflehog): credential-aware scanner that goes one step further by attempting live verification against the credential's issuer (where applicable). Slower but produces fewer false positives.
 
 GitHub also provides server-side scanning:

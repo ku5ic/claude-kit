@@ -33,8 +33,8 @@ Default assumption: React 19 with the modern (concurrent) renderer.
 
 ## Version notes
 
-Checked: 2026-09-26 against https://react.dev/blog and Context7 /react/react
+Checked: 2026-11-10 against https://react.dev/versions, https://react.dev/blog/2026/09/09/react-19-3 and https://react.dev/blog/2025/10/07/react-compiler-1
 
-- 19.3 (2026-09-09): patch-level; no guidance change.
+- 19.3 (2026-09-09): a minor release, not a patch. Adds View Transitions, Fragment Refs, `browser()`, and Trusted Types; not yet guidance here. Corrected the compiler advice on removing existing memoization.
 - 19.0 (2024-12-05): Actions, `use`, `useActionState`, `useFormStatus`, `useOptimistic`. Verify against the per-hook page on react.dev, not older blog posts.
 - React Compiler: stable, opt-in, installed per build tool; not present in every project.

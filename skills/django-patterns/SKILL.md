@@ -33,7 +33,7 @@ DRF-specific patterns load when the project includes `djangorestframework` in de
 
 ## Version notes
 
-Checked: 2026-09-26 against https://www.djangoproject.com/download/ and PyPI
+Checked: 2026-11-10 against https://www.djangoproject.com/download/, https://docs.djangoproject.com/en/stable/ref/settings/, https://docs.djangoproject.com/en/stable/ref/contrib/admin/, and PyPI
 
-- Django 6.1.1 current stable; 5.2 LTS supported to April 2028 (baseline here).
+- Django 6.1.3 current stable; 5.2 LTS (5.2.19) supported to April 2028 (baseline here). 6.1 deprecates `list_select_related = True`.
 - pytest-django 4.14.0 (2026-08-10), django-environ 0.14.0 (2026-06-18), Factory Boy 3.3.3 (2025-02-03): pins in the reference files match these.

@@ -10,7 +10,7 @@
 - [Separate input and output schemas](#separate-input-and-output-schemas)
 - [References](#references)
 
-Pydantic v2.13.x. Core module is Rust-based; performance is not a reason to avoid validation.
+Pydantic v2.14.x. Core module is Rust-based; performance is not a reason to avoid validation.
 
 ## BaseModel
 

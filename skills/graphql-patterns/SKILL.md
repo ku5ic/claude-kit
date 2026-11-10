@@ -5,7 +5,7 @@ description: GraphQL client patterns for operation and fragment authoring, typed
 
 # GraphQL patterns
 
-Default assumption: a TypeScript client on Apollo Client 4.3 with documents typed by `@graphql-codegen/client-preset` 6.x.
+Default assumption: a TypeScript client on Apollo Client 4.3 with documents typed by `@graphql-codegen/client-preset` 7.x.
 
 - Document rules (`reference/documents.md`) hold for every client: Apollo, urql, graphql-request.
 - Apollo Client 3 projects: the v4 deltas (entry points, the unified `error`, `LocalState`) are called out in `reference/apollo-client.md`.
@@ -29,8 +29,9 @@ Default assumption: a TypeScript client on Apollo Client 4.3 with documents type
 
 ## Version notes
 
-Checked: 2026-09-26 against npm registry, Context7 /apollographql/apollo-client and /dotansimha/graphql-code-generator
+Checked: 2026-11-10 against npm registry, Context7 /apollographql/apollo-client, and https://github.com/dotansimha/graphql-code-generator/blob/master/packages/presets/client/CHANGELOG.md
 
-- @apollo/client 4.3.1 (2026-09-18), 4.0.0 (2025-08-21): v4 moved React hooks to `@apollo/client/react`, replaced `ApolloError` with `CombinedGraphQLErrors` and a single `error` property, and moved local resolvers to `LocalState`.
+- @graphql-codegen/client-preset 7.0.0 and @graphql-codegen/cli 8.0.0 (2026-11-07): drop GraphQL 14 and 15 (peer `^16 || ^17`), need Node 22.18+, remove `emitLegacyCommonJSImports` (use `importExtension`). @apollo/client 4.3.8 (2026-11-09), graphql 17.1.0 (2026-11-04): no guidance change.
+- @apollo/client 4.0.0 (2025-08-21): v4 moved React hooks to `@apollo/client/react`, replaced `ApolloError` with `CombinedGraphQLErrors` and a single `error` property, and moved local resolvers to `LocalState`.
 - @graphql-codegen/client-preset 6.2.0 (2026-09-13), @graphql-codegen/cli 7.4.3 (2026-09-24): no guidance change.
 - graphql (graphql-js) 17.0.2; 17.0.0 (2026-06-15) followed 16.14. Server-side changes are out of this pack's scope.

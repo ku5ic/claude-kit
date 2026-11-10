@@ -34,7 +34,7 @@ description: Bash and shell script patterns for safety flags, quoting, condition
 
 ## Version notes
 
-Checked: 2026-09-26 against https://ftp.gnu.org/gnu/bash/, https://tiswww.case.edu/php/chet/bash/NEWS, https://github.com/koalaman/shellcheck/releases
+Checked: 2026-11-10 against https://ftp.gnu.org/gnu/bash/, https://tiswww.case.edu/php/chet/bash/NEWS, the bash 5.3.20 manual page, https://github.com/koalaman/shellcheck/blob/master/CHANGELOG.md
 
-- 5.3 (2025-07-30; Homebrew 5.3.20): no guidance change; no 6.0 release exists. ShellCheck 0.11.0 (2025-08-04) current.
+- 5.3 (2025-07-30; Homebrew 5.3.20): no 6.0 release exists. Corrected per the manual: `inherit_errexit` covers command substitution only, and every command of a multi-command pipeline runs in a subshell. ShellCheck 0.11.0 (2025-08-04) current; it disables SC2002 (useless cat) by default.
 - 4.4: `shopt -s inherit_errexit`, `${parameter@op}` (corrected from 4.0 per NEWS). 4.0: case modification, `mapfile`.

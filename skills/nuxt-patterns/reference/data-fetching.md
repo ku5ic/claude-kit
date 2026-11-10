@@ -54,7 +54,7 @@ The Nuxt docs are explicit: `useFetch(url)` is sugar for `useAsyncData(url, () =
 
 ## Keys matter for dedup
 
-Both `useFetch` and `useAsyncData` use a unique key to dedup requests across the SSR/hydration boundary. `useFetch` derives the key from the URL automatically; `useAsyncData` requires an explicit key. The key must be stable for the same logical request and unique across different requests.
+Both `useFetch` and `useAsyncData` use a unique key to dedup requests across the SSR/hydration boundary. Without an explicit key, both generate one unique to the call site (`useAsyncData`: "unique to the file name and line number"), so the same `useFetch` URL in two components does not share state. Pass a key when calls should share data. The key must be stable for the same logical request and unique across different requests.
 
 `failure`: `useAsyncData('user', ...)` on a per-route page. Every route reuses the same key, so the result of the first navigation persists across subsequent routes. Use a parametrized key: `` `user-${id}` ``.
 

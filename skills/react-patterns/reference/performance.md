@@ -34,7 +34,7 @@ When a single context truly must hold both, consider a context selector library 
 
 ## React Compiler
 
-The React Compiler reaches stable status; it remains opt-in (not enabled by default) and is installed per build tool (Babel plugin, Vite, Next.js 15.3.1+, etc.). Enabling it auto-memoizes components that follow the Rules of React, often replacing manual `useMemo` / `useCallback` for re-render avoidance. Manual memoization remains valid (and necessary for projects that have not adopted the compiler), but in compiler-enabled projects the manual passes can usually be removed.
+The React Compiler reaches stable status; it remains opt-in (not enabled by default) and is installed per build tool (Babel plugin, Vite, Next.js 15.3.1+, etc.). Enabling it auto-memoizes components that follow the Rules of React, often replacing manual `useMemo` / `useCallback` for re-render avoidance. Manual memoization remains valid (and necessary for projects that have not adopted the compiler), In compiler-enabled projects, new code relies on the compiler. For existing code the Compiler 1.0 post recommends "leaving existing memoization in place (removing it can change compilation output) or carefully testing before removing" it.
 
 When you adopt the compiler, treat every Rules-of-React violation it reports as a real defect, because the compiler skips files it cannot prove safe.
 

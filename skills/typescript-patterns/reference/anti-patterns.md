@@ -17,6 +17,6 @@
 
 - typescript-eslint `no-explicit-any`: https://typescript-eslint.io/rules/no-explicit-any/
 - typescript-eslint `no-empty-object-type`: https://typescript-eslint.io/rules/no-empty-object-type/
-- typescript-eslint `prefer-ts-expect-error`: https://typescript-eslint.io/rules/prefer-ts-expect-error/
+- typescript-eslint `ban-ts-comment` (replaces the deprecated `prefer-ts-expect-error`): https://typescript-eslint.io/rules/ban-ts-comment/
 - TypeScript 3.9 release notes (`@ts-expect-error`): https://www.typescriptlang.org/docs/handbook/release-notes/typescript-3-9.html
 - The Empty Object Type in TypeScript: https://www.totaltypescript.com/the-empty-object-type-in-typescript

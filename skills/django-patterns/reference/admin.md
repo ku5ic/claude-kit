@@ -20,7 +20,7 @@ class ProductAdmin(admin.ModelAdmin):
 
 `search_fields`: full-text search. Default lookup is `icontains`. Limit to indexed fields on large tables.
 
-`list_select_related`: prevents N+1 queries when displaying related object fields. Set to a list of field names, not `True` (which follows all relations).
+`list_select_related`: prevents N+1 queries when displaying related object fields. Set to a list of field names. `True` is deprecated since Django 6.1.
 
 ## readonly_fields
 

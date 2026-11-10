@@ -29,8 +29,8 @@ Default assumption: Go 1.27.
 
 ## Version notes
 
-Checked: 2026-09-26 against https://go.dev/dl/?mode=json and the release notes at https://go.dev/doc/go1.27, https://go.dev/doc/go1.26, https://go.dev/doc/go1.25
+Checked: 2026-11-10 against https://go.dev/dl/?mode=json and the release notes at https://go.dev/doc/go1.27, https://go.dev/doc/go1.26, https://go.dev/doc/go1.25
 
-- 1.27 (1.27.1 current): generic methods; `encoding/json` backed by the v2 implementation, with `GOEXPERIMENT=nojsonv2` as a temporary opt-out; new `uuid` package.
+- 1.27 (1.27.4 current; 1.26.11 the other supported release): generic methods; `encoding/json` backed by the v2 implementation, with `GOEXPERIMENT=nojsonv2` as a temporary opt-out; new `uuid` package.
 - 1.26: `new` accepts an expression; `errors.AsType`; `go fix` rebuilt around modernizers; `T.ArtifactDir`.
 - 1.25: `sync.WaitGroup.Go`; `testing/synctest` generally available; vet's `waitgroup` and `hostport` analyzers.

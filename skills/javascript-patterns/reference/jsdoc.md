@@ -26,7 +26,7 @@ Without `// @ts-check`, type errors in a `.js` file are silent. With it, mismatc
 - `@type {Type}` annotates a variable or expression: `/** @type {string[]} */ ([])`.
 - `@typedef {{ id: string, name: string }} User` defines a named type usable elsewhere as `@type {User}`.
 - `@template T` introduces a type parameter for generic functions.
-- `@satisfies {Type}` (TS 4.9+) checks that a value matches a type without widening.
+- `@satisfies {Type}` (TS 5.0+) checks that a value matches a type without widening.
 
 ## Project-wide enable
 

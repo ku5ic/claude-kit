@@ -11,7 +11,7 @@ A heavy library imported at the top of a `"use client"` file pulls the whole pac
 - Icon libraries: import per icon, not the whole pack.
 - `moment`: deprecated for new code; switch to `date-fns` or `dayjs`.
 
-Run `npx @next/bundle-analyzer` (or the equivalent for the deployment target) before assuming a bundle is small. Lee Robinson's bundle-audit pattern: open the analyzer, click the largest red rectangle, ask whether it should be on the client at all.
+Run `npx next analyze` under Turbopack, or the `@next/bundle-analyzer` plugin under webpack, before assuming a bundle is small. Lee Robinson's bundle-audit pattern: open the analyzer, click the largest red rectangle, ask whether it should be on the client at all.
 
 ## `next/image`
 

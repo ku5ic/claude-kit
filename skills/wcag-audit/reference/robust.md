@@ -5,7 +5,7 @@
 
 ## ARIA: prefer native semantics first
 
-Per the W3C "Using ARIA" Note, the **First Rule of ARIA Use** is:
+Per the W3C "Using ARIA" document (a Discontinued Draft since 2026-02-24, still the source of these rules), the **First Rule of ARIA Use** is:
 
 > "If you can use a native HTML element or attribute with the semantics and behavior you require already built in, instead of re-purposing an element and adding an ARIA role, state or property to make it accessible, then do so."
 

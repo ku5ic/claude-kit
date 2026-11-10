@@ -8,7 +8,7 @@ description: Python language-level patterns for type hints, strictness, project 
 Default assumption: Python 3.11 or later, type hints required on public function signatures, mypy or pyright in strict mode.
 
 - 3.11 is the floor: `TaskGroup`, `Self`, `StrEnum`, and `ExceptionGroup` all landed there.
-- 3.14 (current stable since 2025-10-07, latest 3.14.7) made deferred annotation evaluation the default; on older supported versions, `from __future__ import annotations` is still useful for forward references.
+- 3.15 is current stable (since 2026-10-09). 3.14 made deferred annotation evaluation the default; on older supported versions, `from __future__ import annotations` is still useful for forward references.
 - Adapt advice to the version in the project's `.tool-versions`, `pyproject.toml`, or `.python-version`.
 
 ## Reference files
@@ -36,8 +36,8 @@ Default assumption: Python 3.11 or later, type hints required on public function
 
 ## Version notes
 
-Checked: 2026-09-26 against https://www.python.org/downloads/ and https://docs.python.org/3/whatsnew/
+Checked: 2026-11-10 against https://www.python.org/downloads/, https://docs.python.org/3.15/whatsnew/3.15.html and https://docs.python.org/3/library/asyncio-task.html
 
-- 3.15 (pre-release, planned 2026-10-01): typing additions PEP 747 `TypeForm`, PEP 728 `TypedDict(closed=True, extra_items=...)`, PEP 800 disjoint bases. Not yet guidance here.
-- 3.14 (2025-10-07, latest 3.14.7 on 2026-08-05): deferred annotation evaluation by default (PEP 649); `from __future__ import annotations` on a deprecation path (PEP 749); free-threaded build officially supported (PEP 779), 5-10% single-threaded penalty, not the default build.
+- 3.15 (2026-10-09, latest 3.15.2): typing additions PEP 747 `TypeForm`, PEP 728 `TypedDict(closed=True, extra_items=...)`, PEP 800 disjoint bases; PEP 810 lazy imports; UTF-8 default encoding (PEP 686). Not yet guidance here. Also corrected: `gather` does not cancel siblings, `anyio.move_on_after` is a plain `with`, zero-cost `try` is bpo-40222.
+- 3.14 (2025-10-07, latest 3.14.10): deferred annotation evaluation by default (PEP 649); `from __future__ import annotations` on a deprecation path (PEP 749); free-threaded build officially supported (PEP 779), 5-10% single-threaded penalty, not the default build.
 - 3.13: free-threaded build experimental (PEP 703). Once 3.13 reaches EOL the floor here moves and the `from __future__` paragraph can go.

@@ -28,7 +28,7 @@ Severity levels: the report-format skill.
 
 ## Accessing `cookies()` or `headers()` outside an async context
 
-`warning`. In Next.js 15+, `cookies()` and `headers()` are async and must be awaited. Calling them synchronously returns a Promise in 16, silently returning `undefined` for most properties. Always `await cookies()` and `await headers()`.
+`warning`. In Next.js 15+, `cookies()` and `headers()` are async and must be awaited. Starting with 16, synchronous access is fully removed. Always `await cookies()` and `await headers()`.
 
 ## References
 

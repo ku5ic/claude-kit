@@ -30,7 +30,7 @@ Plain `ufw allow ssh` permits unlimited connection attempts from any IP. Use `uf
 
 ## warning: certbot timer not verified after install
 
-On some minimal Debian installs the certbot systemd timer is not active, leaving certificates to expire at 90 days. Verify with `systemctl status certbot.timer` and add a cron fallback if the timer is absent.
+On some minimal Debian installs the certbot systemd timer is not active, leaving certificates to expire (90 days on Let's Encrypt's default profile, 64 from 2027-02-10). Verify with `systemctl status certbot.timer` and add a cron fallback if the timer is absent.
 
 ## warning: nginx default site left enabled
 
@@ -38,7 +38,7 @@ The default nginx site at `/etc/nginx/sites-enabled/default` catches all unmatch
 
 ## warning: systemd Restart=always on a service that exits intentionally
 
-`Restart=always` restarts the service even after `systemctl stop`, causing it to immediately come back. Use `Restart=on-failure` for services that should stay stopped when explicitly halted.
+`Restart=always` restarts the service "regardless of whether it exited cleanly or not", so a service that exits 0 to signal it is done comes straight back. (`systemctl stop` never triggers a restart.) Use `Restart=on-failure` for services that should stay down after a clean exit.
 
 ## info: fail2ban not installed
 

@@ -29,7 +29,7 @@ When a script fails in CI or in production and the error message alone is not en
 
 - `$BASH_LINENO` is an array of line numbers in the call chain. `${BASH_LINENO[0]}` is the line in the parent that called the current function. Useful inside an `ERR` trap to log where a failure originated rather than where the trap fired.
 - `$BASH_SOURCE` is the parallel array of source filenames. `${BASH_SOURCE[0]}` is the file containing the current function.
-- `$BASH_SUBSHELL` is the subshell nesting level. Equal to 0 in the main shell; increments inside `(...)`, command substitution, and pipeline non-final stages. Distinguishing "I am running in the parent shell" from "I am running in a subshell" matters for variable-survival reasoning.
+- `$BASH_SUBSHELL` is the subshell nesting level. Equal to 0 in the main shell; increments inside `(...)`, command substitution, and every command of a multi-command pipeline (the last one runs in the shell only with `lastpipe` on and job control off). Distinguishing "I am running in the parent shell" from "I am running in a subshell" matters for variable-survival reasoning.
 - `caller [N]` builtin prints the line, function, and source file at depth N in the call chain. Pair with `BASH_LINENO` for human-readable backtraces in error reporters.
 
 A useful pattern for production scripts:
