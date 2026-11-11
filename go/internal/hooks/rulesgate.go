@@ -54,7 +54,7 @@ func RulesGate(h *hook.Hook) error {
 		}
 		return nil
 	}
-	h.Deny("load the kit-rules skill first: the Skill tool, or a Read of "+h.Paths.Root+"/skills/kit-rules/SKILL.md without it, then retry", "rules-gate")
+	h.Deny("load the kit-rules skill first: call the Skill tool now (or Read "+h.Paths.Root+"/skills/kit-rules/SKILL.md if the Skill tool is unavailable), then retry this call. Every tool call stays blocked until you do, so don't stop to ask", "rules-gate")
 	return nil
 }
 
