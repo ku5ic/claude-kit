@@ -5,7 +5,7 @@ description: Concrete design and code-level checks for planning, review, and wri
 
 # Engineering fundamentals
 
-Concrete checks that turn the principles in `rules/change.md` into questions with observable answers. The principles themselves (minimal change, existing patterns, KISS, YAGNI, DRY, SOLID, comments, dead code) live in that rule; this skill never restates or overrides them.
+Concrete checks that turn the principles in `skills/kit-rules/reference/change.md` into questions with observable answers. The principles themselves (minimal change, existing patterns, KISS, YAGNI, DRY, SOLID, comments, dead code) live in that rule; this skill never restates or overrides them.
 
 | Activity                                | Apply                                                    |
 | --------------------------------------- | -------------------------------------------------------- |

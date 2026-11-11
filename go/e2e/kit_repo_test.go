@@ -133,21 +133,21 @@ func TestKitRepo(t *testing.T) {
 		}
 	})
 
-	t.Run("rules/tooling.md's skip list is kit.yml's skip_dirs", func(t *testing.T) {
+	t.Run("skills/kit-rules/reference/tooling.md's skip list is kit.yml's skip_dirs", func(t *testing.T) {
 		cfg, _, err := config.Load(config.Paths{Base: filepath.Join(kitRoot, "kit.yml"), Overlay: filepath.Join(t.TempDir(), "none.yml")})
 		if err != nil {
 			t.Fatal(err)
 		}
-		line := regexp.MustCompile("(?m)^- Skip for any glob, grep, or read: (.*)$").FindStringSubmatch(Read(t, filepath.Join(kitRoot, "rules/tooling.md")))
+		line := regexp.MustCompile("(?m)^- Skip for any glob, grep, or read: (.*)$").FindStringSubmatch(Read(t, filepath.Join(kitRoot, "skills/kit-rules/reference/tooling.md")))
 		if line == nil {
-			t.Fatal("rules/tooling.md has no skip line")
+			t.Fatal("skills/kit-rules/reference/tooling.md has no skip line")
 		}
 		var listed []string
 		for _, m := range regexp.MustCompile("`([^`]+)/\\*\\*`").FindAllStringSubmatch(line[1], -1) {
 			listed = append(listed, m[1])
 		}
 		if !slices.Equal(slices.Sorted(slices.Values(listed)), slices.Sorted(slices.Values(cfg.SkipDirs))) {
-			t.Errorf("rules/tooling.md skips %q, kit.yml skip_dirs is %q", listed, cfg.SkipDirs)
+			t.Errorf("skills/kit-rules/reference/tooling.md skips %q, kit.yml skip_dirs is %q", listed, cfg.SkipDirs)
 		}
 	})
 
@@ -156,7 +156,7 @@ func TestKitRepo(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		rule := Read(t, filepath.Join(kitRoot, "rules/tooling.md"))
+		rule := Read(t, filepath.Join(kitRoot, "skills/kit-rules/reference/tooling.md"))
 		// Every word of every code span, and each word pair joined with -
 		// (`git absorb` is git-absorb).
 		var tools []string
@@ -171,7 +171,7 @@ func TestKitRepo(t *testing.T) {
 		}
 		for _, tool := range cfg.Tools {
 			if !slices.Contains(tools, tool) {
-				t.Errorf("kit.yml tools has %s, which rules/tooling.md section 1 doesn't name", tool)
+				t.Errorf("kit.yml tools has %s, which skills/kit-rules/reference/tooling.md section 1 doesn't name", tool)
 			}
 		}
 	})
@@ -213,8 +213,8 @@ func frontmatter(text string) (map[string]string, bool) {
 }
 
 var (
-	// rules/x.md section 2, with or without backticks, and "sections 2 and 4".
-	ruleSection = regexp.MustCompile("(rules/[a-z]+\\.md)`? sections? ([0-9]+(?:(?:, | and | or )[0-9]+)*)")
+	// A rule file's section 2, with or without backticks, and "sections 2 and 4".
+	ruleSection = regexp.MustCompile("(skills/kit-rules/reference/[a-z]+\\.md)`? sections? ([0-9]+(?:(?:, | and | or )[0-9]+)*)")
 	sectionNums = regexp.MustCompile(`[0-9]+`)
 	// A repo-root path, not one under ~/.claude or another directory, and not
 	// a link target (linkPath reads those).
@@ -228,7 +228,7 @@ var (
 func brokenPointers(t *testing.T) []string {
 	t.Helper()
 	var sources []string
-	for _, dir := range []string{"rules", "agents", "skills", "go"} {
+	for _, dir := range []string{"agents", "skills", "go"} {
 		_ = filepath.WalkDir(filepath.Join(kitRoot, dir), func(path string, d os.DirEntry, err error) error {
 			if err == nil && !d.IsDir() && (strings.HasSuffix(path, ".md") || strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, "_test.go")) {
 				sources = append(sources, path)

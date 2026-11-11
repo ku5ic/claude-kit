@@ -122,7 +122,7 @@ func gitleaksStub(t *testing.T, code int) string {
 	return calls
 }
 
-// rules/workflow.md section 1: a commit's message is shown before it runs,
+// skills/kit-rules/reference/workflow.md section 1: a commit's message is shown before it runs,
 // so a commit whose subject no earlier turn showed gets a prompt.
 func TestGuardCommitAsksForAnUnshownMessage(t *testing.T) {
 	gitleaksStub(t, 0)

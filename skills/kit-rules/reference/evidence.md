@@ -24,7 +24,7 @@ When uncertain, say so directly and label it: "likely X, not verified". Never si
 
 <!-- chat: skip -->
 
-Whether to ask instead of going on is `rules/workflow.md` section 4.
+Whether to ask instead of going on is `skills/kit-rules/reference/workflow.md` section 4.
 
 <!-- chat: end -->
 
@@ -43,8 +43,8 @@ The `verify-claims` hook sends back each claim in a plan, subagent report, scrat
 
 <!-- chat: skip -->
 
-- An agent's finding is reported, not verified. Before a conclusion rests on one, trace its decisive claim to the source (`rules/subagents.md` section 2).
-- "Done", "fixed", or "passes" means what `rules/verify.md` section 4 says. Never "should work".
+- An agent's finding is reported, not verified. Before a conclusion rests on one, trace its decisive claim to the source (`skills/kit-rules/reference/subagents.md` section 2).
+- "Done", "fixed", or "passes" means what `skills/kit-rules/reference/verify.md` section 4 says. Never "should work".
 
 <!-- chat: end -->
 

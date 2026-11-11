@@ -11,6 +11,6 @@ Requirements inferred from the code instead of stated make every later change a 
 
 <!-- chat: skip -->
 
-When one of the four fails, what to do is `rules/workflow.md` section 4.
+When one of the four fails, what to do is `skills/kit-rules/reference/workflow.md` section 4.
 
 <!-- chat: end -->

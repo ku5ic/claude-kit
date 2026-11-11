@@ -26,9 +26,9 @@ func checkout(t *testing.T) (string, *config.Config) {
 	testutil.Put(t, root, "skills/alpha/SKILL.md", skillMD)
 	testutil.Put(t, root, "skills/alpha/reference/more.md", "More.\n")
 	testutil.Put(t, root, "skills/beta/SKILL.md", "---\nname: beta\ndescription: Left out.\n---\n")
-	testutil.Put(t, root, "rules/change.md", "# Change\n\n## 1. One\n")
+	testutil.Put(t, root, "skills/kit-rules/reference/change.md", "# Change\n\n## 1. One\n")
 	testutil.Put(t, root, rulesHeadPath, "---\nname: kit-rules\ndescription: Load for coding.\n---\n\nThe head.\n")
-	return root, &config.Config{ChatBundle: config.ChatBundle{Description: "For chat.", Skills: []string{"alpha"}, Rules: []string{"rules/change.md"}}}
+	return root, &config.Config{ChatBundle: config.ChatBundle{Description: "For chat.", Skills: []string{"alpha"}, Rules: []string{"skills/kit-rules/reference/change.md"}}}
 }
 
 func run(root string, cfg *config.Config, args ...string) (code int, stdout, stderr string) {
@@ -124,7 +124,7 @@ func TestBadBundlesFail(t *testing.T) {
 			}
 		}
 	}
-	good := config.ChatBundle{Description: "For chat.", Skills: []string{"alpha"}, Rules: []string{"rules/change.md"}}
+	good := config.ChatBundle{Description: "For chat.", Skills: []string{"alpha"}, Rules: []string{"skills/kit-rules/reference/change.md"}}
 	with := func(edit func(*config.ChatBundle)) config.ChatBundle {
 		c := good
 		edit(&c)
@@ -147,19 +147,19 @@ func TestBadBundlesFail(t *testing.T) {
 		"no skills":                                    {bundling(with(func(c *config.ChatBundle) { c.Skills = nil })), "chat_bundle.skills"},
 		"missing skill":                                {bundling(with(func(c *config.ChatBundle) { c.Skills = []string{"gone"} })), "gone"},
 		"no rules":                                     {bundling(with(func(c *config.ChatBundle) { c.Rules = nil })), "chat_bundle.rules"},
-		"missing rule":                                 {bundling(with(func(c *config.ChatBundle) { c.Rules = []string{"rules/gone.md"} })), "rules/gone.md"},
+		"missing rule":                                 {bundling(with(func(c *config.ChatBundle) { c.Rules = []string{"skills/kit-rules/reference/gone.md"} })), "skills/kit-rules/reference/gone.md"},
 		"no rules head":                                {remove(rulesHeadPath), "kit-rules.md"},
 		"no skills directory":                          {remove("skills"), "skills"},
-		"a rules skill too long":                       {put("rules/change.md", "# Change\n"+strings.Repeat("line\n", maxSkillLines)), "skills/kit-rules/SKILL.md: 500 lines"},
-		"rule with no title":                           {put("rules/change.md", "text\n"), "rules/change.md: no # title"},
-		"unclosed marker in a rule":                    {put("rules/change.md", "# Change\n<!-- chat: skip -->\n"), "rules/change.md: line 2"},
+		"a rules skill too long":                       {put("skills/kit-rules/reference/change.md", "# Change\n"+strings.Repeat("line\n", maxSkillLines)), "skills/kit-rules/SKILL.md: 500 lines"},
+		"rule with no title":                           {put("skills/kit-rules/reference/change.md", "text\n"), "skills/kit-rules/reference/change.md: no # title"},
+		"unclosed marker in a rule":                    {put("skills/kit-rules/reference/change.md", "# Change\n<!-- chat: skip -->\n"), "skills/kit-rules/reference/change.md: line 2"},
 		"unclosed marker in a skill":                   {more("<!-- chat: skip -->\n"), "skills/alpha/reference/more.md: line 1: marker never closed"},
 		"lint hit":                                     {more("ok\nRun `kit scratch-dir`.\n"), "skills/alpha/reference/more.md:2: kit command"},
 		"a left-out skill by name":                     {more("See `beta`.\n"), "skill not in the bundle"},
 		"section a marker dropped": {func(t *testing.T, root string, cfg *config.Config) {
-			put("rules/change.md", "# Change\n\n<!-- chat: skip -->\n\n## 1. One\n\n<!-- chat: end -->\n")(t, root, cfg)
-			more("`rules/change.md` section 1\n")(t, root, cfg)
-		}, "links rules/change.md section 1"},
+			put("skills/kit-rules/reference/change.md", "# Change\n\n<!-- chat: skip -->\n\n## 1. One\n\n<!-- chat: end -->\n")(t, root, cfg)
+			more("`skills/kit-rules/reference/change.md` section 1\n")(t, root, cfg)
+		}, "links skills/kit-rules/reference/change.md section 1"},
 		"manifest isn't JSON":     {put(".claude-plugin/plugin.json", "{"), "plugin.json"},
 		"manifest has no name":    {put(".claude-plugin/plugin.json", `{"version":"1.0.0"}`), "name"},
 		"manifest has no version": {put(".claude-plugin/plugin.json", `{"name":"kit"}`), "version"},

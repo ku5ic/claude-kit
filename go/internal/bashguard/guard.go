@@ -400,7 +400,7 @@ func (st *state) redirects(call Call) error {
 // current directory.
 func (st *state) looseWrite(op, target string) {
 	if (!strings.Contains(target, "/") || strings.HasPrefix(target, "./")) && looseWriteTarget(target) && st.inWorktree() {
-		st.ask("'" + op + " " + target + "' writes into the current directory; rules/tooling.md wants " + op + " \"$(kit scratch-dir)/" + baseName(target) + "\". Confirm only if this file belongs in the project tree.")
+		st.ask("'" + op + " " + target + "' writes into the current directory; skills/kit-rules/reference/tooling.md wants " + op + " \"$(kit scratch-dir)/" + baseName(target) + "\". Confirm only if this file belongs in the project tree.")
 	}
 }
 

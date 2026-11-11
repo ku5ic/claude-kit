@@ -33,7 +33,7 @@ For every finding, before drafting:
 
 ## Write each comment
 
-Shape and tone: `rules/output.md` section 4. No @mention, no praise, no summary of the change.
+Shape and tone: `skills/kit-rules/reference/output.md` section 4. No @mention, no praise, no summary of the change.
 
 The summary comment opens with one line pointing at the inline comments, then one bullet per direct answer to a question the PR description asks, then the unanchored points. With nothing beyond the pointer, omit the summary section.
 

@@ -84,7 +84,7 @@ func forkedSkill(agentTranscript, parent string) string {
 // ReviewChecks runs the full gate, scoped to what changed, when a forked
 // /code-review first stops (SubagentStop) in a checkout, and shows the user
 // every verdict. A failure sends the reviewer back with it, to handle per
-// rules/verify.md section 1; stop_hook_active lets the second stop through,
+// skills/kit-rules/reference/verify.md section 1; stop_hook_active lets the second stop through,
 // so it runs once and never loops. The tree it checked is kept, so the
 // turn's Stop doesn't check it again.
 func ReviewChecks(h *hook.Hook) error {
@@ -125,6 +125,6 @@ func ReviewChecks(h *hook.Hook) error {
 		}
 		return nil
 	}
-	return h.Block("the full gate failed. Handle each FAIL per rules/verify.md section 1, then return your full report again, "+
+	return h.Block("the full gate failed. Handle each FAIL per skills/kit-rules/reference/verify.md section 1, then return your full report again, "+
 		"every finding you already had unchanged and in the same format.\n"+report.String(), "review-checks")
 }

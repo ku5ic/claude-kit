@@ -84,15 +84,18 @@ func contextSetup(t *testing.T) *contextEnv {
 	testutil.Git(t, proj, "init", "-q")
 	// Physical, as git reports the root the hook resolves.
 	e.root = testutil.Physical(t, proj)
-	copyRules(t, filepath.Join(e.claude, "rules"))
+	// The plugin root is the fake .claude: the rules it injects, and where
+	// an install-rules.sh link would be left.
+	copyRules(t, rulesDir(e.paths))
+	testutil.Mkdir(t, filepath.Join(e.claude, "rules"))
 	e.kitYML("")
 	return e
 }
 
-// copyRules copies the kit's rules dir to dst.
+// copyRules copies the kit's rule files to dst.
 func copyRules(t *testing.T, dst string) {
 	t.Helper()
-	if err := os.CopyFS(dst, os.DirFS(filepath.Join(kitRoot, "rules"))); err != nil {
+	if err := os.CopyFS(dst, os.DirFS(filepath.Join(kitRoot, "skills/kit-rules/reference"))); err != nil {
 		t.Fatal(err)
 	}
 }

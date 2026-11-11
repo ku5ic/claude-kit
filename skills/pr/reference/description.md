@@ -78,5 +78,5 @@ Use this default structure:
 - If a section would only restate the diff or the tests, cut it (default structure only). Under a project template, an empty section keeps its heading and gets `N/A`.
 - Shortest description that gives full context. Every sentence should help the reviewer approve faster, not pad the page.
 - Tone: direct, professional. Written by the author, not a summarizer.
-- Signatures and footers: `rules/workflow.md` section 1.
+- Signatures and footers: `skills/kit-rules/reference/workflow.md` section 1.
 - If the diff is empty, say so and stop.

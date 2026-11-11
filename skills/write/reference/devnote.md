@@ -17,7 +17,7 @@ Explain a completed change's key reasoning, or what you found testing someone el
 
 ## Output
 
-Plain language, developer to developer. Assume the reader is a peer engineer who doesn't need the mechanism re-explained, just the reasoning. No restating the diff. Print it in the reply, not a file. A single decision is one or two short sentences; more than one decision gets a plain bullet per decision. Register and labels: `rules/output.md` section 4.
+Plain language, developer to developer. Assume the reader is a peer engineer who doesn't need the mechanism re-explained, just the reasoning. No restating the diff. Print it in the reply, not a file. A single decision is one or two short sentences; more than one decision gets a plain bullet per decision. Register and labels: `skills/kit-rules/reference/output.md` section 4.
 
 Write it the way you'd say it to a teammate in chat, casually. No file paths, line numbers, or source citations; name the tool or concept instead ("fuzzysort scores by the best-matching key", not `fuzzysort.js:459`). Keep the evidence, drop the receipts.
 

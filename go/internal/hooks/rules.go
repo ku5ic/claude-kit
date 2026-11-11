@@ -16,11 +16,12 @@ import (
 // one hook's context: past it, Claude sees only a 2,000-character preview.
 const rulePartLimit = 9500
 
-// ruleParts packs rules/*.md, whole files in name order, into parts of at
-// most rulePartLimit characters each, wrapper included. A single file over
-// the limit still gets a part of its own, which tests then flag.
+// ruleParts packs the kit-rules skill's reference/*.md, whole files in name
+// order, into parts of at most rulePartLimit characters each, wrapper
+// included. A single file over the limit still gets a part of its own,
+// which tests then flag.
 func ruleParts(paths config.Paths) []string {
-	files, _ := filepath.Glob(filepath.Join(paths.Root, "rules", "*.md"))
+	files, _ := filepath.Glob(filepath.Join(rulesDir(paths), "*.md"))
 	var bodies []string
 	var body strings.Builder
 	for _, file := range files {
@@ -45,6 +46,11 @@ func ruleParts(paths config.Paths) []string {
 			"%s</claude-kit-rules>\n", i+1, len(bodies), i+1, len(bodies), b)
 	}
 	return parts
+}
+
+// rulesDir holds the kit's rule files.
+func rulesDir(paths config.Paths) string {
+	return filepath.Join(paths.Root, "skills", "kit-rules", "reference")
 }
 
 // ruleWrapperSize bounds what RuleParts adds around a part's files.
@@ -81,7 +87,7 @@ func InjectRules(h *hook.Hook) error {
 // run from), or, under the claude-kit name that script used, any of them.
 // Left in place, the rules would load twice.
 func leftoverRulesLink(paths config.Paths) string {
-	kitRules, err := filepath.EvalSymlinks(filepath.Join(paths.Root, "rules"))
+	kitRules, err := filepath.EvalSymlinks(rulesDir(paths))
 	if err != nil {
 		return ""
 	}

@@ -273,7 +273,8 @@ func Tree(t *testing.T) string {
 			t.Fatal(err)
 		}
 	}
-	if err := os.Symlink(filepath.Join(kitRoot, "rules"), filepath.Join(dir, "rules")); err != nil {
+	Mkdir(t, filepath.Join(dir, "skills"))
+	if err := os.Symlink(filepath.Join(kitRoot, "skills/kit-rules"), filepath.Join(dir, "skills/kit-rules")); err != nil {
 		t.Fatal(err)
 	}
 	return dir

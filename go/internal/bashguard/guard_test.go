@@ -198,7 +198,7 @@ func TestGuardBash(t *testing.T) {
 		{"block: -n after a quoted message is still --no-verify", `git commit -m "fix the thing" -n`, 2, nil, false},
 		{"block: git -C . commit --no-verify", `git -C . commit --no-verify -m x`, 2, nil, false},
 		{"block: git reset --hard release", `git reset --hard release`, 2, nil, false},
-		// rules/workflow.md section 2: destructive and dependency commands get a prompt.
+		// skills/kit-rules/reference/workflow.md section 2: destructive and dependency commands get a prompt.
 		{"ask: git reset --hard HEAD~1", `git reset --hard HEAD~1`, 0, []string{`"permissionDecision":"ask"`}, false},
 		{"allow: git reset --soft HEAD~1", `git reset --soft HEAD~1`, 0, nil, true},
 		{"ask: git clean -fdx", `git clean -fdx`, 0, []string{`"permissionDecision":"ask"`}, false},

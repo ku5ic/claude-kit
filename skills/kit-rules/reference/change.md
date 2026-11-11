@@ -14,7 +14,7 @@ Before proposing or applying a fix:
 
 <!-- chat: skip -->
 
-How to ask: `rules/workflow.md` section 4.
+How to ask: `skills/kit-rules/reference/workflow.md` section 4.
 
 <!-- chat: end -->
 
@@ -72,7 +72,7 @@ The one exception is scaffolding explicitly requested or explicitly marked for a
 
 - Stay in scope. Do not refactor unrelated code as part of a feature change.
 - Do not rewrite working code in a different style unless that is the task.
-- A refactor, requested or not, changes no behavior, so the existing tests pass unchanged before and after. A test that needs changing is a behavior change, per `rules/evidence.md` section 3. In UI, behavior includes what the user sees, so a refactor or migration keeps the look unless the user asked for a redesign.
+- A refactor, requested or not, changes no behavior, so the existing tests pass unchanged before and after. A test that needs changing is a behavior change, per `skills/kit-rules/reference/evidence.md` section 3. In UI, behavior includes what the user sees, so a refactor or migration keeps the look unless the user asked for a redesign.
 - If the task grows during execution, pause and confirm the expanded scope.
 - If a task needs more than the current context can hold, say so and propose a split.
 

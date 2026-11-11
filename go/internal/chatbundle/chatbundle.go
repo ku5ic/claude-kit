@@ -130,7 +130,8 @@ func build(root string, cfg *config.Config) (*bundle, error) {
 		return nil, err
 	}
 	for _, skill := range skills {
-		if skill.IsDir() && !slices.Contains(c.Skills, skill.Name()) {
+		// The rules skill is bundled, built from chat_bundle.rules.
+		if skill.IsDir() && skill.Name() != rulesSkill && !slices.Contains(c.Skills, skill.Name()) {
 			b.others = append(b.others, skill.Name())
 		}
 	}

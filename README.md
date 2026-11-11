@@ -191,7 +191,7 @@ For the whole project, `kit run-checks` runs every quality gate, in every subpro
 
 `kit run-checks --plan` shows what would run, where each comes from, and why, without running it.
 
-`/code-review` ends by running it, and ticking a plan's last step without a review blocks the stop until one runs: `rules/verify.md` section 1.
+`/code-review` ends by running it, and ticking a plan's last step without a review blocks the stop until one runs: `skills/kit-rules/reference/verify.md` section 1.
 
 ### Project-first tools
 

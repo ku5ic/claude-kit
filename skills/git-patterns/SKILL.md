@@ -25,27 +25,27 @@ Review checklist and the handful of git behaviors that are easy to get wrong. Co
 
 - `feat` bumps MINOR, `fix` bumps PATCH, everything else (`docs`, `style`, `refactor`, `perf`, `test`, `chore`, `ci`) bumps nothing.
 - Breaking change: `!` after the type/scope, or a `BREAKING CHANGE:` footer. Either maps to MAJOR.
-- Match the project's existing style before assuming Conventional Commits (`rules/workflow.md`).
+- Match the project's existing style before assuming Conventional Commits (`skills/kit-rules/reference/workflow.md`).
 
 ---
 
 ## Reach for these
 
-| Situation                                | Tool                                                                          |
-| ---------------------------------------- | ----------------------------------------------------------------------------- |
-| Commits lost after a bad rebase or reset | `git reflog`: every HEAD move is recorded; branch off `HEAD@{n}`              |
-| Need each commit in a series to build    | `exec` lines in the `rebase -i` todo (`exec make test`)                       |
-| Hunting the commit that broke something  | `git bisect run <cmd>`: automates the whole search; exit 0 = good, 125 = skip |
-| Reviewing a branch mid-edit on another   | `git worktree add <dir> <branch>`: separate working tree, shared `.git`       |
-| Fixups for already-staged hunks          | `git absorb` (see `rules/tooling.md`) beats hand-written `rebase -i`          |
-| A file is ignored and you cannot see why | `git check-ignore -v <path>` names the rule and its source line               |
+| Situation                                | Tool                                                                                      |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Commits lost after a bad rebase or reset | `git reflog`: every HEAD move is recorded; branch off `HEAD@{n}`                          |
+| Need each commit in a series to build    | `exec` lines in the `rebase -i` todo (`exec make test`)                                   |
+| Hunting the commit that broke something  | `git bisect run <cmd>`: automates the whole search; exit 0 = good, 125 = skip             |
+| Reviewing a branch mid-edit on another   | `git worktree add <dir> <branch>`: separate working tree, shared `.git`                   |
+| Fixups for already-staged hunks          | `git absorb` (see `skills/kit-rules/reference/tooling.md`) beats hand-written `rebase -i` |
+| A file is ignored and you cannot see why | `git check-ignore -v <path>` names the rule and its source line                           |
 
 ---
 
 ## Anti-patterns
 
 **failure: force-pushing to a shared branch**
-The rule is `rules/workflow.md` section 1. To force-push your own remote branch, use `--force-with-lease --force-if-includes`: the first fails if someone else pushed since your last fetch, the second also fails when a background fetch updated the ref without you seeing it.
+The rule is `skills/kit-rules/reference/workflow.md` section 1. To force-push your own remote branch, use `--force-with-lease --force-if-includes`: the first fails if someone else pushed since your last fetch, the second also fails when a background fetch updated the ref without you seeing it.
 
 **failure: committing secrets**
 `git rm` does not remove it from history; the secret is still in every clone. Remediation is rotation: security-patterns' `reference/secrets.md`.

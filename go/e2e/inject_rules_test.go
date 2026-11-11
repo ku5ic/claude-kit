@@ -52,7 +52,10 @@ func TestInjectRules(t *testing.T) {
 			}
 			all.WriteString(text)
 		}
-		files, _ := filepath.Glob(filepath.Join(kitRoot, "rules", "*.md"))
+		files, _ := filepath.Glob(filepath.Join(kitRoot, "skills/kit-rules/reference", "*.md"))
+		if len(files) == 0 {
+			t.Fatal("no rule files")
+		}
 		for _, file := range files {
 			first, _, _ := strings.Cut(Read(t, file), "\n")
 			if !strings.Contains(all.String(), first) {

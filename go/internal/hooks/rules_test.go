@@ -35,7 +35,10 @@ func TestInjectRules(t *testing.T) {
 			}
 			all.WriteString(r.Stdout)
 		}
-		files, _ := filepath.Glob(filepath.Join(kitRoot, "rules", "*.md"))
+		files, _ := filepath.Glob(filepath.Join(kitRoot, "skills/kit-rules/reference", "*.md"))
+		if len(files) == 0 {
+			t.Fatal("no rule files")
+		}
 		for _, file := range files {
 			first, _, _ := strings.Cut(testutil.Read(t, file), "\n")
 			if !strings.Contains(all.String(), first) {
@@ -51,7 +54,7 @@ func TestInjectRules(t *testing.T) {
 		t.Parallel()
 		k := newPlugin(t)
 		k.kitYML("")
-		if exists(filepath.Join(k.paths.Root, "rules")) {
+		if exists(rulesDir(k.paths)) {
 			t.Fatal("sandbox unexpectedly has rules")
 		}
 		rule(k, 1).Empty(t)

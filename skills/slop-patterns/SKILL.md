@@ -37,7 +37,7 @@ Fixing the first without the second makes the text harder to spot and no better 
 
 The word lists, tiers, and thresholds live only in the lexicon; these references explain them and never copy them.
 
-Length and shape belong to `rules/output.md`; comment rules to `rules/change.md` section 5.
+Length and shape belong to `skills/kit-rules/reference/output.md`; comment rules to `skills/kit-rules/reference/change.md` section 5.
 
 <!-- chat: skip -->
 

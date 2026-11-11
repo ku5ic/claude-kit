@@ -19,16 +19,16 @@ Read your own diff as a reviewer who didn't write it and doesn't trust it. When 
 
 The reviewer's report follows these, whoever prompted the checks:
 
-- It never lists the checks or their counts, since the hook already showed the user every line. For a worktree review, it opens with the PR's CI state from `gh pr checks`. Only the branch-left line from `rules/workflow.md` section 1 goes above it.
+- It never lists the checks or their counts, since the hook already showed the user every line. For a worktree review, it opens with the PR's CI state from `gh pr checks`. Only the branch-left line from `skills/kit-rules/reference/workflow.md` section 1 goes above it.
 - A FAIL becomes a finding only once its cause is verified in the code and you're at least 90% sure, and never twice for something already reported.
 - A FAIL left unreported gets one line saying why: pre-existing, flaky, or unrelated.
 
-A PR or another branch is reviewed checked out, never from its diff alone; this applies to `/verify` too. How it's checked out: `rules/workflow.md` section 1.
+A PR or another branch is reviewed checked out, never from its diff alone; this applies to `/verify` too. How it's checked out: `skills/kit-rules/reference/workflow.md` section 1.
 
-- Every new helper, module, type, or abstraction names what was searched for and not found, per `rules/change.md` section 2. "I didn't look" is a finding against the change.
+- Every new helper, module, type, or abstraction names what was searched for and not found, per `skills/kit-rules/reference/change.md` section 2. "I didn't look" is a finding against the change.
 - Every non-obvious decision gets one line answering "why this, not the obvious alternative". A decision you can't justify is a decision you took from a generated draft without checking it.
 - What a refactor pass would have removed is a finding: duplication, a redundant call, a leftover, a helper restating another. Code committed at first green skipped that pass.
-- Review findings are claims, per `rules/workflow.md` section 4.
+- Review findings are claims, per `skills/kit-rules/reference/workflow.md` section 4.
 
 ## 2. Use it until it breaks (the runtime pass, with `/verify`)
 

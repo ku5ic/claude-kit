@@ -72,7 +72,7 @@ If $ARGUMENTS scopes to an ecosystem or PR number, filter to it.
 
 ## Phase 2: triage and present
 
-Stop for approval before mutating (`rules/workflow.md` sections 2 and 4).
+Stop for approval before mutating (`skills/kit-rules/reference/workflow.md` sections 2 and 4).
 
 - Severity is from 1b when available; where audit and alerts disagree, trust the alert.
 - Map each open alert to a PR by package and fixed version.
@@ -97,7 +97,7 @@ Present a table: severity, package, ecosystem, scope, relationship, current -> f
    - Lockfile conflict: take the incoming dependency change, then regenerate the lockfile with the injected manager's lockfile-only install. Never hand-merge a lockfile.
    - Manifest conflict: merge both edits keeping the higher compatible version, then regenerate the lockfile.
    - `git add` resolved files, `git rebase --continue`.
-3. Dependabot branches are bot-owned; force pushing one is `rules/workflow.md` sections 1 and 2.
+3. Dependabot branches are bot-owned; force pushing one is `skills/kit-rules/reference/workflow.md` sections 1 and 2.
 
 ## Phase 4: verify then merge
 
@@ -146,7 +146,7 @@ Per PR/alert, report these fields:
 - Severity is from the GitHub alert list when available, not local audit.
 - Only `state == "open"` alerts are actionable. `fixed`, `dismissed`, `auto_dismissed` are not.
 - No opportunistic bumps. Touch only deps named in an open alert or open Dependabot PR.
-- Pushing, protected branches, and mutating Bash calls: `rules/workflow.md` sections 1 and 2.
+- Pushing, protected branches, and mutating Bash calls: `skills/kit-rules/reference/workflow.md` sections 1 and 2.
 
 ## Stop conditions
 

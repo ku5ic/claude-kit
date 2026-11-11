@@ -12,15 +12,15 @@ Every behavior the kit applies everywhere has exactly one owner, listed below. B
 
 | Topic                                                                                                                                                               | Owner                                                                                                     |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| Reply length, shape, where output goes, writing files with Edit/Write, code-block tags, external-communication tone, review comment shape                           | `rules/output.md`                                                                                         |
-| Evidence, confidence labels, never invent, stop after three failed fixes                                                                                            | `rules/evidence.md`                                                                                       |
-| Minimal change, precedent, blast radius, dead code, comments, abstractions, simplification criteria, less code                                                      | `rules/change.md`                                                                                         |
+| Reply length, shape, where output goes, writing files with Edit/Write, code-block tags, external-communication tone, review comment shape                           | `skills/kit-rules/reference/output.md`                                                                    |
+| Evidence, confidence labels, never invent, stop after three failed fixes                                                                                            | `skills/kit-rules/reference/evidence.md`                                                                  |
+| Minimal change, precedent, blast radius, dead code, comments, abstractions, simplification criteria, less code                                                      | `skills/kit-rules/reference/change.md`                                                                    |
 | Which pattern a size, spread, or repetition signal calls for                                                                                                        | `skills/engineering-fundamentals/reference/design-patterns.md`                                            |
 | Size, nesting, branch, and coupling thresholds                                                                                                                      | `skills/engineering-fundamentals/reference/metric-thresholds.md`                                          |
-| Done and verification                                                                                                                                               | `rules/verify.md`                                                                                         |
-| Git and commit policy, side effects, shell mechanics, plans and the step pause, ask vs proceed, AskUserQuestion, review findings, which skills are procedure skills | `rules/workflow.md`                                                                                       |
-| Subagent use and agent defaults                                                                                                                                     | `rules/subagents.md`                                                                                      |
-| CLI choice, read budget, calling bin scripts, scratch and plan location                                                                                             | `rules/tooling.md`                                                                                        |
+| Done and verification                                                                                                                                               | `skills/kit-rules/reference/verify.md`                                                                    |
+| Git and commit policy, side effects, shell mechanics, plans and the step pause, ask vs proceed, AskUserQuestion, review findings, which skills are procedure skills | `skills/kit-rules/reference/workflow.md`                                                                  |
+| Subagent use and agent defaults                                                                                                                                     | `skills/kit-rules/reference/subagents.md`                                                                 |
+| CLI choice, read budget, calling bin scripts, scratch and plan location                                                                                             | `skills/kit-rules/reference/tooling.md`                                                                   |
 | Artifact naming and path                                                                                                                                            | `kit scratch-dir`                                                                                         |
 | Resolving a linked ticket or doc before work starts                                                                                                                 | `skills/investigate` step 0                                                                               |
 | Report shape and severity                                                                                                                                           | `skills/report-format`                                                                                    |
@@ -43,17 +43,17 @@ Every behavior the kit applies everywhere has exactly one owner, listed below. B
 | How the chat bundle is built from them                                                                                                                              | `go/internal/chatbundle`                                                                                  |
 | Personal register and typography                                                                                                                                    | the user's own `~/.claude/rules/voice.md`, never the kit                                                  |
 
-Skills and agents carry procedure and stack knowledge only. When one needs a rule above, it cites `rules/<file>.md` instead of restating it.
+Skills and agents carry procedure and stack knowledge only. When one needs a rule above, it cites `skills/kit-rules/reference/<file>.md` instead of restating it.
 
 ## Run the checkout's kit
 
-In this repo, call `bin/kit`, never bare `kit`: on PATH, `kit` is the installed release, which plans and checks with the old code. With `KIT_DEV=1`, `bin/kit` builds from `go/`. This overrides `rules/tooling.md` section 2 here only.
+In this repo, call `bin/kit`, never bare `kit`: on PATH, `kit` is the installed release, which plans and checks with the old code. With `KIT_DEV=1`, `bin/kit` builds from `go/`. This overrides `skills/kit-rules/reference/tooling.md` section 2 here only.
 
 ## Rules are live
 
-The SessionStart and SubagentStart hooks inject `rules/*.md` from the plugin root they run from. A session running the hooks from this checkout picks up a rule edit at its next start or compaction, so finish a rules change in one sitting.
+The SessionStart and SubagentStart hooks inject `skills/kit-rules/reference/*.md` from the plugin root they run from. A session running the hooks from this checkout picks up a rule edit at its next start or compaction, so finish a rules change in one sitting.
 
-Each injected part has a size cap, and the Stop hook doesn't test it. After editing `rules/*.md`, run `go test ./internal/hooks -run TestInjectRules` from `go/`.
+Each injected part has a size cap, and the Stop hook doesn't test it. After editing `skills/kit-rules/reference/*.md`, run `go test ./internal/hooks -run TestInjectRules` from `go/`.
 
 ## Hook changes
 

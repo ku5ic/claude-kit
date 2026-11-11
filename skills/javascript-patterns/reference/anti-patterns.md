@@ -39,7 +39,7 @@ Severity levels: the report-format skill.
 
 ## `console.log` left in production code
 
-`warning`. Leftover debugging is dead code (`rules/change.md` section 4); logging that should stay goes through a structured logger (`pino`, `winston`, the platform's).
+`warning`. Leftover debugging is dead code (`skills/kit-rules/reference/change.md` section 4); logging that should stay goes through a structured logger (`pino`, `winston`, the platform's).
 
 ## Mutating function arguments
 

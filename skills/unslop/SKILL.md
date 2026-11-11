@@ -30,7 +30,7 @@ In claude.ai chat, any other exit, or no way to run it, means the scan didn't ha
 -->
 
 4. Rewrite every tier 1 and 2 hit, and every passage the scan reports as dense, per `slop-patterns` `reference/rewrite.md`. Then read the whole text once for what no regexp sees. Look for sentences that carry nothing, sections that restate others (`slop-patterns` `reference/principles.md`), and every row marked "none, judgment" in `slop-patterns` `reference/content-and-grammar.md`. For UI files, also walk `slop-patterns` `reference/design.md` section 12.
-5. Check the facts. List each factual claim the text makes about code, versions, commands, or another system. Verify each with a tool that reaches the source, or label it per `rules/evidence.md` section 1. A rewrite that reads well but states something unchecked is still slop.
+5. Check the facts. List each factual claim the text makes about code, versions, commands, or another system. Verify each with a tool that reaches the source, or label it per `skills/kit-rules/reference/evidence.md` section 1. A rewrite that reads well but states something unchecked is still slop.
 
 <!-- chat: skip -->
 
@@ -41,7 +41,7 @@ In claude.ai chat, any other exit, or no way to run it, means the scan didn't ha
 
 ## Output
 
-Per `rules/output.md` section 3: the path of each result, hits before and after per tier, and `git diff --no-index <original> <result>` for a copy. Nothing else.
+Per `skills/kit-rules/reference/output.md` section 3: the path of each result, hits before and after per tier, and `git diff --no-index <original> <result>` for a copy. Nothing else.
 
 Arguments: `$ARGUMENTS`
 

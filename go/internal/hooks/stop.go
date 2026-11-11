@@ -188,7 +188,7 @@ func planGate(h *hook.Hook, cwd, root string, entries []transcript.Entry) error 
 	isCode := func(path string) bool {
 		return fsx.Within(root, fsx.PhysicalPath(path)) && !project.IsScratch(h.Paths, path)
 	}
-	// A finished plan waits for /code-review since the last code edit (rules/verify.md).
+	// A finished plan waits for /code-review since the last code edit (skills/kit-rules/reference/verify.md).
 	if plan, reviewed := planDone(entries, dir, isCode); plan != "" && !reviewed {
 		return h.Block(fmt.Sprintf("plan %s is done, but /code-review hasn't finished since the last code edit. Run it now, or wait for the one running, then the runtime pass (/verify) when the change has observable behavior.", fsx.Rel(root, plan)), "plan-done")
 	}

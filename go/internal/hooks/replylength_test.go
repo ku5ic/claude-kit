@@ -119,7 +119,7 @@ func TestReplyLength(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
 		for _, p := range []string{"go", "/verify this branch", "explain the cache in detail"} {
-			prompt(k, p).Has(t, "check each claim with a tool", "rules/evidence.md section 1")
+			prompt(k, p).Has(t, "check each claim with a tool", "skills/kit-rules/reference/evidence.md section 1")
 		}
 	})
 	t.Run("claims in disabled_rules drops the claims line", func(t *testing.T) {

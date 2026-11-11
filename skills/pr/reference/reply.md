@@ -27,7 +27,7 @@ Draft replies to a reviewer's comments on your PR, verifying each claim against 
    - Read the referenced file at the given line, plus enough surrounding context to understand the claim (the function, its callers, related types/hooks).
    - Trace the actual behavior: if the comment claims something is dead code, unreachable, redundant, or inconsistent, verify it by reading the code paths involved, not by re-reading the comment.
    - If the comment concerns a contract this repo doesn't own (e.g. a backend API, an external service), check whether a project-specific scout/backend agent is configured (`/agents` in this session) and use it; otherwise verify from what's available (schema files, generated types, docs in-repo) and say plainly what could not be confirmed.
-   - Label what wasn't checked against the code, per `rules/evidence.md` section 1.
+   - Label what wasn't checked against the code, per `skills/kit-rules/reference/evidence.md` section 1.
 
 ## Deciding the answer
 
@@ -73,8 +73,8 @@ One `###` section per comment, in the order the reviewer posted them. The id aft
 
 ## Rules
 
-- Verify before agreeing (`rules/workflow.md` section 4): every "confirmed" or "agreed" answer points at something read this session, not a paraphrase of the reviewer's claim.
-- Tone and shape: `rules/output.md` section 4. Acknowledging a finding: `rules/workflow.md` section 4.
+- Verify before agreeing (`skills/kit-rules/reference/workflow.md` section 4): every "confirmed" or "agreed" answer points at something read this session, not a paraphrase of the reviewer's claim.
+- Tone and shape: `skills/kit-rules/reference/output.md` section 4. Acknowledging a finding: `skills/kit-rules/reference/workflow.md` section 4.
 - Disagree plainly when the code contradicts the reviewer. State the evidence, don't soften it.
 - Post nothing. Posting the approved file is `/pr publish`.
 - If a comment's thread already has a reply from the current user (step 8), it's excluded silently from the per-comment sections, but counted in the round-summary line at the top.

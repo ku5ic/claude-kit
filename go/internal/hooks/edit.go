@@ -84,7 +84,7 @@ func GuardEdit(h *hook.Hook) error {
 		h.Decide("ask", guard.KitSwitchAsk(what))
 	}
 	if tool == "Write" && newRootArtifact(cfg, path) {
-		h.Decide("ask", "a new "+filepath.Base(path)+" at the repo root; rules/output.md section 3 puts reports and logs in `kit scratch-dir`. Confirm only if it belongs in the repo")
+		h.Decide("ask", "a new "+filepath.Base(path)+" at the repo root; skills/kit-rules/reference/output.md section 3 puts reports and logs in `kit scratch-dir`. Confirm only if it belongs in the repo")
 	}
 	return nil
 }

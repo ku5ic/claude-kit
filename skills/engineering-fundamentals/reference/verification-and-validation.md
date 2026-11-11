@@ -4,7 +4,7 @@ Two review questions; either failing is a finding.
 
 <!-- chat: skip -->
 
-When each check runs is `rules/verify.md`.
+When each check runs is `skills/kit-rules/reference/verify.md`.
 
 <!-- chat: end -->
 

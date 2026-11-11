@@ -31,13 +31,13 @@ A plan goes through plan mode (`/plan`).
 
 <!-- chat: skip -->
 
-2. Skim: project CLAUDE.md, `rg` for the names involved, read the matched sections. Answer from what was read, citing `file:line`, each claim labelled per `rules/evidence.md` section 1.
-3. Only when the question spans 2-4 unfamiliar areas, fan out one built-in Explore subagent per area in a single message. Re-verify each result's decisive claim before using it (`rules/subagents.md` section 2). One of the areas is the cheapest option, per `rules/change.md` section 7.
+2. Skim: project CLAUDE.md, `rg` for the names involved, read the matched sections. Answer from what was read, citing `file:line`, each claim labelled per `skills/kit-rules/reference/evidence.md` section 1.
+3. Only when the question spans 2-4 unfamiliar areas, fan out one built-in Explore subagent per area in a single message. Re-verify each result's decisive claim before using it (`skills/kit-rules/reference/subagents.md` section 2). One of the areas is the cheapest option, per `skills/kit-rules/reference/change.md` section 7.
 
 <!-- chat: end -->
 
 <!-- chat: only
-In claude.ai chat, the code the user pasted is all you have. Answer from it, citing the file and line where the paste shows them, each claim labelled per `rules/evidence.md` section 1. If the answer turns on code that isn't pasted, say which and ask for it. When the question compares approaches, one of them is the cheapest option, per `rules/change.md` section 7.
+In claude.ai chat, the code the user pasted is all you have. Answer from it, citing the file and line where the paste shows them, each claim labelled per `skills/kit-rules/reference/evidence.md` section 1. If the answer turns on code that isn't pasted, say which and ask for it. When the question compares approaches, one of them is the cheapest option, per `skills/kit-rules/reference/change.md` section 7.
 -->
 
 ### Symptom
@@ -58,7 +58,7 @@ In claude.ai chat, the code the user pasted is all you have. Answer from it, cit
 In claude.ai chat, nothing can be run, so read instead. Trace from the entry point to where observed diverges from expected, and stop at library boundaries. State one hypothesis ("caused by X in file Y at line Z") before checking it against the paste. Ask for logs or a missing file instead of guessing at them. After 3 hypothesis cycles, report what was ruled out.
 -->
 
-3. Across a dependency boundary, name misuse vs defect per `rules/evidence.md` section 3.
+3. Across a dependency boundary, name misuse vs defect per `skills/kit-rules/reference/evidence.md` section 3.
 
 ## Output
 
@@ -66,7 +66,7 @@ In claude.ai chat, nothing can be run, so read instead. Trace from the entry poi
 
 <!-- chat: skip -->
 
-- Symptom, or a question that needed a fan-out: a report at the path `kit scratch-dir debug <scope-slug>` or `kit scratch-dir explore <scope-slug>` prints, then the reply `rules/output.md` section 3 describes, its headline the root cause or answer in one sentence.
+- Symptom, or a question that needed a fan-out: a report at the path `kit scratch-dir debug <scope-slug>` or `kit scratch-dir explore <scope-slug>` prints, then the reply `skills/kit-rules/reference/output.md` section 3 describes, its headline the root cause or answer in one sentence.
 
 <!-- chat: end -->
 
@@ -99,7 +99,7 @@ Scope: <entry point or area>
 <a one-line fix to make directly, or "plan it: <scope>">
 ```
 
-Questions the requester can answer: `rules/workflow.md` section 4.
+Questions the requester can answer: `skills/kit-rules/reference/workflow.md` section 4.
 
 ## Plan mode
 

@@ -171,7 +171,7 @@ func claimsMessage(where string, u []claims.Unsupported, then string) string {
 		}
 		lines = append(lines, layout.KV(strconv.Itoa(i+1), strconv.Quote(claim)), layout.KV("check", c.Check))
 	}
-	lines = append(lines, layout.KV("do", "run each check, or label the claim (likely, not verified, unverifiable) per rules/evidence.md section 1"))
+	lines = append(lines, layout.KV("do", "run each check, or label the claim (likely, not verified, unverifiable) per skills/kit-rules/reference/evidence.md section 1"))
 	if then != "" {
 		lines = append(lines, layout.KV("then", then))
 	}

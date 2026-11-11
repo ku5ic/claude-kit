@@ -25,4 +25,4 @@ user-invocable: false
 In claude.ai chat, answer from the pasted code.
 -->
 
-3. Answer, each claim labelled per `rules/evidence.md` section 1.
+3. Answer, each claim labelled per `skills/kit-rules/reference/evidence.md` section 1.

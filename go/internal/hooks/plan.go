@@ -19,7 +19,7 @@ import (
 )
 
 var (
-	// openStep matches an unticked checklist item, the shape rules/workflow.md
+	// openStep matches an unticked checklist item, the shape skills/kit-rules/reference/workflow.md
 	// section 3 requires a plan's Steps list to take.
 	openStep = regexp.MustCompile(`(?m)^\s*[-*] \[ \]`)
 	// stepsHeading opens that list; the next heading at its level or above ends it.
@@ -74,7 +74,7 @@ func PlanModeContext(h *hook.Hook) error {
 		if p.String("tool_name") != "ExitPlanMode" {
 			return nil
 		}
-		const pause = "implement only its first unchecked step, then stop for review, per rules/workflow.md section 3."
+		const pause = "implement only its first unchecked step, then stop for review, per skills/kit-rules/reference/workflow.md section 3."
 		msg := "Plan approved: " + pause
 		if plan := newestOpenPlan(h); plan != "" {
 			// Best effort: without the marker, later prompts just aren't reminded.
@@ -96,7 +96,7 @@ func PlanModeContext(h *hook.Hook) error {
 	// scratch-rotate prunes markers by age: a plan still in use stays fresh.
 	now := time.Now()
 	_ = os.Chtimes(marker, now, now)
-	h.Print(fmt.Sprintf("Active plan %s has open steps: do only the next unchecked one, then stop for review, per rules/workflow.md section 3.\n", plan))
+	h.Print(fmt.Sprintf("Active plan %s has open steps: do only the next unchecked one, then stop for review, per skills/kit-rules/reference/workflow.md section 3.\n", plan))
 	return nil
 }
 

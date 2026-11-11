@@ -160,7 +160,7 @@ lockfile_globs: [bun.lockb, bun.lock, pnpm-lock.yaml, yarn.lock, package-lock.js
 protected_branches: [main, master, develop, production, release]
 
 # Extensions of a new file Write gets a prompt for at the repo root: a
-# report or log there belongs in scratch (rules/output.md section 3).
+# report or log there belongs in scratch (skills/kit-rules/reference/output.md section 3).
 root_artifact_exts: [md, txt, log, html, csv]
 
 # Global package installs guard-bash blocks: regexes on a command's name
@@ -171,7 +171,7 @@ global_installs:
   - '^yarn[[:space:]]+global[[:space:]]+add([[:space:]]|$)'
 
 # Dependency and build-output dirs a file walk never enters (hidden dirs are
-# skipped too); rules/tooling.md's skip list matches it.
+# skipped too); skills/kit-rules/reference/tooling.md's skip list matches it.
 skip_dirs: [node_modules, vendor, dist, build, out, target, coverage, storybook-static, __pycache__, venv, .next, .turbo, .cache, .pnpm-store, .venv]
 
 # Files sanitize-output leaves alone: translations, templates, snapshots, and
@@ -370,7 +370,7 @@ claims:
 chat_bundle:
   description: The kit's writing and investigation skills for claude.ai chat, working on pasted text and code. Hooks and guards stay in Claude Code.
   skills: [engineering-fundamentals, investigate, slop-patterns, unslop, write]
-  rules: [rules/output.md, rules/evidence.md, rules/change.md]
+  rules: [skills/kit-rules/reference/output.md, skills/kit-rules/reference/evidence.md, skills/kit-rules/reference/change.md]
 
 # Shell rc files: direct writes are blocked, the dotfiles repo is the source.
 rc_files: ["~/.zshenv", "~/.zshrc", "~/.zprofile", "~/.bashrc", "~/.bash_profile", "~/.profile"]
@@ -475,7 +475,7 @@ on_edit:
   - globs: ["*.sh", "*.bash"]
     note: "shellcheck {file}"
 
-# Chat reply word ceilings (rules/output.md section 0), set per prompt by the
+# Chat reply word ceilings (skills/kit-rules/reference/output.md section 0), set per prompt by the
 # reply-length hook, which corrects an overrun silently on the next prompt.
 # Fenced code doesn't count.
 # A prompt with a detail trigger has no ceiling; with an explain trigger,
@@ -494,7 +494,7 @@ reply_limits:
     devnote: 40
     explainer: 150
 
-# The CLIs rules/tooling.md steers toward. <tooling> reports which of them
+# The CLIs skills/kit-rules/reference/tooling.md steers toward. <tooling> reports which of them
 # are on PATH as available: and missing: lines, so a rule never sends Claude
 # to a binary this machine lacks.
 tools: [rg, sg, fd, tokei, gitleaks, trufflehog, hyperfine, jq, gron, yq, qsv, git-absorb, actionlint]

@@ -63,7 +63,7 @@ func TestVerifyClaimsSubagentStop(t *testing.T) {
 			r := k.run("verify-claims", tc.payload)
 			r.Want(t, tc.status)
 			if tc.status == 2 {
-				r.Has(t, "nothing in the session confirms", claim, "git log -S Foo", "rules/evidence.md")
+				r.Has(t, "nothing in the session confirms", claim, "git log -S Foo", "skills/kit-rules/reference/evidence.md")
 			}
 			if got := len(testutil.Calls(t, calls)); got != tc.runs {
 				t.Errorf("verifier ran %d times, want %d", got, tc.runs)

@@ -49,10 +49,10 @@ func writeTurn(marker string, t turn) {
 
 // checkClaims stands in for verify-claims on chat replies: said before the
 // reply, since a check at Stop would show the reply twice.
-const checkClaims = "Before replying, check each claim with a tool this session or label it (likely, not verified) per rules/evidence.md section 1. Never state a guess as fact."
+const checkClaims = "Before replying, check each claim with a tool this session or label it (likely, not verified) per skills/kit-rules/reference/evidence.md section 1. Never state a guess as fact."
 
 // ReplyLength holds chat replies to the word ceilings in kit.yml
-// reply_limits (rules/output.md section 0), silently: on UserPromptSubmit it
+// reply_limits (skills/kit-rules/reference/output.md section 0), silently: on UserPromptSubmit it
 // picks the turn's ceiling from the prompt, records it, and says it in
 // context the user never sees, with a correction when the last reply ran
 // over. It also carries checkClaims, unless claims is in disabled_rules. At
@@ -83,7 +83,7 @@ func ReplyLength(h *hook.Hook) error {
 			if t.All {
 				counted = "code included"
 			}
-			lines = append(lines, fmt.Sprintf("Reply ceiling this turn: %d words, %s (rules/output.md section 0).", t.Limit, counted))
+			lines = append(lines, fmt.Sprintf("Reply ceiling this turn: %d words, %s (skills/kit-rules/reference/output.md section 0).", t.Limit, counted))
 		}
 		if !h.RuleDisabled("claims") {
 			lines = append(lines, checkClaims)
