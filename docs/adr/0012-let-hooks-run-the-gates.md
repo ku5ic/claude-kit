@@ -1,6 +1,6 @@
 # 12. Let hooks run the gates
 
-Date: 2026-11-11
+Date: 2026-10-28
 
 ## Status
 

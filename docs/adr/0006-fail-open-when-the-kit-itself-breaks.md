@@ -1,6 +1,6 @@
 # 6. Fail open when the kit itself breaks
 
-Date: 2026-11-11
+Date: 2026-09-25
 
 ## Status
 

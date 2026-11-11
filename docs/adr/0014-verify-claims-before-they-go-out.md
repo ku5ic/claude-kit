@@ -1,6 +1,6 @@
 # 14. Verify claims before they go out
 
-Date: 2026-11-11
+Date: 2026-11-10
 
 ## Status
 

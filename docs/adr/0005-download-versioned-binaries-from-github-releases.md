@@ -1,6 +1,6 @@
 # 5. Download versioned binaries from GitHub releases
 
-Date: 2026-11-11
+Date: 2026-10-01
 
 ## Status
 

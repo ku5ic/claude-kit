@@ -1,6 +1,6 @@
 # 3. Enforce rules with hooks, not prose
 
-Date: 2026-11-11
+Date: 2026-09-25
 
 ## Status
 

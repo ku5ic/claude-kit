@@ -1,6 +1,6 @@
 # 2. Use Claude Code built-ins over custom copies
 
-Date: 2026-11-11
+Date: 2026-09-25
 
 ## Status
 

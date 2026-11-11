@@ -70,3 +70,4 @@ Before applying a review finding to a hook, say what the user sees when it fires
 - Create one with `VISUAL=true adr new <title>` (`-s <n>` to supersede, `-l "<n>:Amends:Amended by"` to amend), then fill it in with Edit, so the write hooks run.
 - An accepted ADR changes only in its status line, which `adr` writes.
 - Every sentence traces to a commit, a PR body, the README, or the code. Name the source in the Context.
+- The `Date:` line is the day the decision landed on main: the merge of the PR it names, else the commit that made it. `adr new` writes today's date; replace it when the decision is older.

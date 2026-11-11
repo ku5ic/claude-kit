@@ -1,6 +1,6 @@
 # 4. Run every hook from one Go binary
 
-Date: 2026-11-11
+Date: 2026-09-29
 
 ## Status
 
