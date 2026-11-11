@@ -74,7 +74,7 @@ func PlanModeContext(h *hook.Hook) error {
 		if p.String("tool_name") != "ExitPlanMode" {
 			return nil
 		}
-		const pause = "implement only its first unchecked step, then stop for review, per skills/kit-rules/reference/workflow.md section 3."
+		pause := approvedPause[pauseOf(h)] + ", per kit.yml step_pause and skills/kit-rules/reference/workflow.md section 3."
 		msg := "Plan approved: " + pause
 		if plan := newestOpenPlan(h); plan != "" {
 			// Best effort: without the marker, later prompts just aren't reminded.
@@ -96,8 +96,31 @@ func PlanModeContext(h *hook.Hook) error {
 	// scratch-rotate prunes markers by age: a plan still in use stays fresh.
 	now := time.Now()
 	_ = os.Chtimes(marker, now, now)
-	h.Print(fmt.Sprintf("Active plan %s has open steps: do only the next unchecked one, then stop for review, per skills/kit-rules/reference/workflow.md section 3.\n", plan))
+	h.Print(fmt.Sprintf("Active plan %s has open steps: %s, per kit.yml step_pause and skills/kit-rules/reference/workflow.md section 3.\n", plan, openPause[pauseOf(h)]))
 	return nil
+}
+
+// approvedPause and openPause are the pause lines for each step_pause value,
+// on approval and on each later prompt.
+var (
+	approvedPause = map[string]string{
+		"step": "implement only its first unchecked step, then stop for review",
+		"plan": "implement its unchecked steps in order, then stop once for review after the last one",
+		"off":  "implement its unchecked steps in order without stopping for review",
+	}
+	openPause = map[string]string{
+		"step": "do only the next unchecked one, then stop for review",
+		"plan": "do the next unchecked one, and stop for review when every step is done",
+		"off":  "do the next unchecked one",
+	}
+)
+
+// pauseOf is the configured step_pause, step without a config.
+func pauseOf(h *hook.Hook) string {
+	if cfg := h.Config(); cfg != nil {
+		return cfg.Pause()
+	}
+	return "step"
 }
 
 // planCritic is the agent GuardPlan wants run on a plan before approval.

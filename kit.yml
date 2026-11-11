@@ -8,7 +8,8 @@
 # decodes it strictly: `bin/kit config --check` reports an unknown key.
 # The overlay at ~/.claude/claude-kit.local.yml merges over it (maps merge,
 # lists append, but slop.block_tiers is replaced and a slop rule replaces
-# the one with its id); `bin/kit config` prints the result.
+# the one with its id), after the presets/<name>.yml its `preset:` names;
+# `bin/kit config` prints the result.
 #
 # security-patterns and wcag-audit are never mapped: they load by their own
 # descriptions or when another skill names them.
@@ -18,7 +19,7 @@
 # any other always-blocking skill is paid for before the task is known.
 # engineering-fundamentals loads through its own model-invocable
 # description, and skill_file_map requires it on source edits when
-# CLAUDE_GUARD_SKILLS=1.
+# guard_skills is on.
 global_skills: [kit-rules]
 
 # File-to-skills map consumed by guard-dispatch's skills gate, and by
@@ -441,6 +442,10 @@ gate_timeout: 90
 # failed or skipped, or a file went unchecked). Hiding it never turns a
 # check off; kit explain stop shows the last one.
 receipt: all
+
+# When Claude stops a plan for your review: after each step, after the
+# whole plan, or never (step, plan, off).
+step_pause: step
 
 # Pin files that pin tools for every project, after the project's own: a
 # tool a project doesn't provide runs from PATH only when a pin names it

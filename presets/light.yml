@@ -1,0 +1,4 @@
+# light: fewer stops. Claude pauses once a plan is done, not after each
+# step, and plans and reports skip the plan-critic and claim-check passes.
+step_pause: plan
+disabled_rules: [plan-critic, claims]

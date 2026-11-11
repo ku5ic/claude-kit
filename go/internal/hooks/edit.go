@@ -214,7 +214,7 @@ func loadedSkills(logPath, session string, byAgent func(string) bool) (map[strin
 var filePathTools = []string{"Edit", "Write", "MultiEdit"}
 
 // GuardDispatch runs guard-edit's, guard-slop's, guard-weaken's,
-// guard-imports', guard-tokens', with CLAUDE_GUARD_SKILLS=1 guard-skills',
+// guard-imports', guard-tokens', with guard_skills on guard-skills',
 // and then verify-claims' checks against one payload read,
 // each isolated so one failing open never skips the others. The skills gate
 // is opt-in: blocking edits until a patterns skill loads is a personal
@@ -225,7 +225,7 @@ func GuardDispatch(h *hook.Hook) int {
 		checks = append(checks, hook.NamedCheck{Name: "guard-slop", Check: GuardSlop}, hook.NamedCheck{Name: "guard-weaken", Check: GuardWeaken},
 			hook.NamedCheck{Name: "guard-imports", Check: GuardImports}, hook.NamedCheck{Name: "guard-tokens", Check: GuardTokens})
 	}
-	if stackctx.SkillsEnforced() {
+	if stackctx.SkillsEnforced(h.Config()) {
 		checks = append(checks, hook.NamedCheck{Name: "guard-skills", Check: GuardSkills})
 	}
 	// Last, so a block from a cheap check saves its model run.

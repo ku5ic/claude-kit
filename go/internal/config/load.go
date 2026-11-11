@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -89,7 +90,8 @@ type Warning struct {
 
 func (w Warning) String() string { return w.File + ": " + w.Err.Error() }
 
-// Load reads kit.yml and, when present, the overlay merged over it: maps
+// Load reads kit.yml and, when present, the preset the overlay names and
+// then the overlay, each merged over the last: maps
 // merge and sequences append, so an overlay can add but never remove
 // (mergeNode names the two exceptions).
 // Each file is also decoded strictly on its own, and what that rejects comes
@@ -125,14 +127,10 @@ func load(p Paths) (*Config, []Warning, error) {
 
 	merged := base
 	tag := "base"
-	overlay, err := readNode(p.Overlay)
-	switch {
-	case errors.Is(err, os.ErrNotExist):
-	case err != nil:
-		warnings = append(warnings, Warning{p.Overlay, fmt.Errorf("ignored: %w", err)})
-	default:
-		warnings = append(warnings, validate(p.Overlay)...)
-		mergeNode(merged, overlay)
+	layers, layerWarnings := overlays(p)
+	warnings = append(warnings, layerWarnings...)
+	for _, layer := range layers {
+		mergeNode(merged, layer.node)
 		tag = "merged"
 	}
 
@@ -151,22 +149,21 @@ func load(p Paths) (*Config, []Warning, error) {
 		if err := merged.Decode(&cfg); err != nil {
 			return nil, warnings, fmt.Errorf("decode %s: %w", p.Base, err)
 		}
-		warnings = append(warnings, Warning{p.Overlay, errors.New("ignored: it doesn't merge with kit.yml, so only kit.yml applies")})
+		warnings = append(warnings, Warning{p.Overlay, errors.New("ignored, with its preset: it doesn't merge with kit.yml, so only kit.yml applies")})
 	}
 	applyDefaults(&cfg)
 	from := p.Base
 	if tag == "merged" {
 		from = p.Overlay
-	}
-	// mergeNode appends the overlay's list to kit.yml's.
-	if tag == "merged" {
+		// mergeNode appends the overlay's list to kit.yml's, after the preset's.
+		overlay := layers[len(layers)-1].node
 		if seq := mappingValue(overlay, "global_installs"); seq != nil && seq.Kind == yaml.SequenceNode {
 			cfg.OverlayInstalls = len(seq.Content)
 		}
 	}
 	patterns, bad := cfg.compileInstalls(p)
 	cfg.installs = &installPatterns{patterns, bad}
-	for _, err := range slices.Concat(cfg.unknownDisables(), cfg.ReplyLimits.negatives(), cfg.Slop.problems(), cfg.Claims.problems(), cfg.WeakenedChecks.problems(), cfg.PackageLookups.problems(), cfg.dropEmptyEditCmds()) {
+	for _, err := range slices.Concat(cfg.unknownDisables(), cfg.ReplyLimits.negatives(), cfg.Slop.problems(), cfg.Claims.problems(), cfg.WeakenedChecks.problems(), cfg.PackageLookups.problems(), cfg.dropEmptyEditCmds(), cfg.stepPauseProblems()) {
 		warnings = append(warnings, Warning{from, err})
 	}
 	warnings = append(warnings, bad...)
@@ -174,20 +171,107 @@ func load(p Paths) (*Config, []Warning, error) {
 	return &cfg, warnings, nil
 }
 
-// Merged returns the effective merged document, for `kit config`.
+// layer is one file merged over kit.yml.
+type layer struct {
+	path string
+	node *yaml.Node
+}
+
+// overlays are the files merged over kit.yml, in order: the preset the
+// overlay names, then the overlay itself. None when there's no overlay, and
+// one that can't be read is a warning.
+func overlays(p Paths) ([]layer, []Warning) {
+	overlay, err := readNode(p.Overlay)
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		return nil, nil
+	case err != nil:
+		return nil, []Warning{{p.Overlay, fmt.Errorf("ignored: %w", err)}}
+	}
+	warnings := validate(p.Overlay)
+	var out []layer
+	if name := mappingValue(overlay, "preset"); name != nil && name.Value != "" {
+		path := p.presetFile(name.Value)
+		preset, err := readNode(path)
+		switch {
+		case err == nil:
+			warnings = append(warnings, validate(path)...)
+			out = append(out, layer{path, preset})
+		case path == "" || errors.Is(err, os.ErrNotExist):
+			warnings = append(warnings, Warning{p.Overlay, fmt.Errorf("preset: no preset %q under %s", name.Value, filepath.Join(p.Root, "presets"))})
+		default:
+			warnings = append(warnings, Warning{path, fmt.Errorf("ignored: %w", err)})
+		}
+	}
+	return append(out, layer{p.Overlay, overlay}), warnings
+}
+
+// presetName is what a preset may be called: a file name, never a path.
+var presetName = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
+
+// presetFile is <root>/presets/<name>.yml, "" for a name that isn't one.
+func (p Paths) presetFile(name string) string {
+	if !presetName.MatchString(name) {
+		return ""
+	}
+	return filepath.Join(p.Root, "presets", name+".yml")
+}
+
+// Merged returns the effective merged document, for `kit config`: each
+// top-level key carries a line comment naming the files that set it.
 func Merged(p Paths) (*yaml.Node, error) {
 	base, err := readNode(p.Base)
 	if err != nil {
 		return nil, err
 	}
-	if overlay, err := readNode(p.Overlay); err == nil {
-		mergeNode(base, overlay)
+	layers, _ := overlays(p)
+	sources := map[string][]string{}
+	for _, l := range append([]layer{{p.Base, base}}, layers...) {
+		name := filepath.Base(l.path)
+		if filepath.Base(filepath.Dir(l.path)) == "presets" {
+			name = "presets/" + name
+		}
+		for i := 0; i+1 < len(l.node.Content); i += 2 {
+			key := l.node.Content[i].Value
+			sources[key] = append(sources[key], name)
+		}
+	}
+	for _, l := range layers {
+		mergeNode(base, l.node)
+	}
+	for i := 0; i+1 < len(base.Content); i += 2 {
+		key, value := base.Content[i], base.Content[i+1]
+		// The encoder drops a key's line comment before a flow-style value.
+		target := key
+		if value.Style&yaml.FlowStyle != 0 {
+			target = value
+		}
+		target.LineComment = strings.Join(sources[key.Value], ", ")
 	}
 	return base, nil
 }
 
 // ReceiptOnFailures is true when kit.yml's receipt hides a clean pass.
 func (c *Config) ReceiptOnFailures() bool { return c.Receipt == "failures" }
+
+// stepPauses are step_pause's values: stop after each plan step, after the
+// whole plan, or never.
+var stepPauses = []string{"step", "plan", "off"}
+
+// Pause is step_pause, "step" when it's unset or not one of stepPauses.
+func (c *Config) Pause() string {
+	if slices.Contains(stepPauses, c.StepPause) {
+		return c.StepPause
+	}
+	return "step"
+}
+
+func (c *Config) stepPauseProblems() []error {
+	if c.StepPause == "" || slices.Contains(stepPauses, c.StepPause) {
+		return nil
+	}
+	return []error{fmt.Errorf("step_pause: %q isn't one of %s, so step applies", c.StepPause, strings.Join(stepPauses, ", "))}
+}
 
 func applyDefaults(cfg *Config) {
 	if cfg.LogMaxLines == 0 {

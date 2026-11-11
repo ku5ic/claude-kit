@@ -104,6 +104,22 @@ func TestPlanStepPause(t *testing.T) {
 		r.Has(t, "first unchecked step")
 		prompt(k, proj, "s1").Empty(t)
 	})
+	t.Run("step_pause picks the pause line, from the overlay or the light preset", func(t *testing.T) {
+		t.Parallel()
+		for overlay, want := range map[string][]string{
+			"step_pause: plan\n": {"once for review after the last one", "stop for review when every step is done"},
+			"step_pause: off\n":  {"without stopping for review", "do the next unchecked one"},
+			"preset: light\n":    {"once for review after the last one", "stop for review when every step is done"},
+		} {
+			k, proj := setup(t)
+			k.overlay(overlay)
+			testutil.Write(t, filepath.Join(proj, ".claude", "plans", "plan-x.md"), "- [ ] one\n")
+			approve(k, proj, "s1").Has(t, want[0])
+			r := prompt(k, proj, "s1")
+			r.Has(t, "plan-x.md", want[1])
+			r.Lacks(t, "only the next unchecked one")
+		}
+	})
 	t.Run("another tool's PostToolUse is silent", func(t *testing.T) {
 		t.Parallel()
 		k, proj := setup(t)

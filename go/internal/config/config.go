@@ -29,6 +29,10 @@ type Config struct {
 	GateEnv               []string      `yaml:"gate_env"`
 	GateTimeout           int           `yaml:"gate_timeout"`
 	Receipt               string        `yaml:"receipt"`
+	StepPause             string        `yaml:"step_pause"`
+	GuardSkills           bool          `yaml:"guard_skills"`
+	SanitizeTypography    bool          `yaml:"sanitize_typography"`
+	Preset                string        `yaml:"preset"`
 	UserPins              []string      `yaml:"user_pins"`
 	DisabledTaskProviders []string      `yaml:"disabled_task_providers"`
 	DisabledChecks        []string      `yaml:"disabled_checks"`

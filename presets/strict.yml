@@ -1,0 +1,4 @@
+# strict: the opt-in guards on. The first edit of a file type waits for its
+# pattern skill, and written files get ASCII typography.
+guard_skills: true
+sanitize_typography: true

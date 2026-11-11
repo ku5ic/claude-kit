@@ -120,8 +120,10 @@ eval "$(kit completion zsh)"   # or: kit completion bash
 | Claim checker                                                               | On       | The `claude` CLI, logged in. Turn off with `disabled_rules: [claims]`                 |
 | plan-critic before a plan is approved                                       | On       | Turn off with `disabled_rules: [plan-critic]`                                         |
 | The kit-rules skill loaded before a session's or subagent's first tool call | On       | Turn off with `disabled_rules: [rules-gate]`                                          |
-| Pattern skills required before the first edit of a file type                | Off      | `CLAUDE_GUARD_SKILLS=1` in your settings `env`                                        |
-| Em dashes, smart quotes, and Unicode arrows rewritten to ASCII              | Off      | `CLAUDE_SANITIZE_TYPOGRAPHY=1` in your settings `env`                                 |
+| A finished plan held until `/code-review` ran after its last edit           | On       | Turn off with `disabled_rules: [plan-done]`                                           |
+| Claude stops for your review after each plan step                           | On       | `step_pause: plan` stops once at the plan's end, `off` never stops                    |
+| Pattern skills required before the first edit of a file type                | Off      | `guard_skills: true`, or `CLAUDE_GUARD_SKILLS=1` in your settings `env`               |
+| Em dashes, smart quotes, and Unicode arrows rewritten to ASCII              | Off      | `sanitize_typography: true`, or `CLAUDE_SANITIZE_TYPOGRAPHY=1` in your settings `env` |
 | Status line                                                                 | Off      | Two lines in `~/.claude/settings.json` ([Status line](#status-line))                  |
 | `kit` in your own terminal                                                  | Off      | PATH and completion in your shell rc ([Shell completion](#shell-completion-optional)) |
 | claude.ai chat                                                              | Separate | Upload the release's chat zip ([Use it in claude.ai chat](#use-it-in-claudeai-chat))  |
@@ -169,7 +171,7 @@ Claude replies     -> each prompt carries its `reply_limits` word ceiling and a 
 | **verify-claims**                                 | Checks each claim in a plan, a subagent report, an explore or debug report in scratch, or an MCP post against the session, and sends back the ones nothing confirms, once. A chat reply isn't checked; each prompt reminds Claude to check or label its claims. A failed run never blocks                                                                                                                                                                     |
 | **guard-bash** rule `download-to-repo`            | `curl` and `wget` may write only into `.claude/scratch/`                                                                                                                                                                                                                                                                                                                                                                                                      |
 | **sanitize-output**                               | Strips invisible bidi characters (Trojan Source) from every written file except those `sanitize_skip` names: translations, templates, snapshots, fixtures                                                                                                                                                                                                                                                                                                     |
-| **guard-skills**                                  | Off by default; see `CLAUDE_GUARD_SKILLS` under Configure                                                                                                                                                                                                                                                                                                                                                                                                     |
+| **guard-skills**                                  | Off by default; see `guard_skills` under Configure                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 ### Checks before "done"
 
@@ -252,7 +254,7 @@ Commands work bare (`/audit`) or namespaced (`/kit:audit`).
 
 Stack knowledge Claude loads when the repo calls for it: React, Next.js App Router, Vue, Nuxt, TypeScript, JavaScript, Tailwind, Storybook, GraphQL, Python, Django, DRF, FastAPI, Go, Bash, Docker, OpenTofu/Terraform, git, testing, security, logging, monitoring, backups, VPS provisioning, WCAG 2.2, and engineering fundamentals. `slop-patterns` teaches rewriting AI tells; the slop guards send Claude to it.
 
-`CLAUDE_GUARD_SKILLS=1` makes them required. The switches are under Configure.
+`guard_skills: true` makes them required. The switches are under Configure.
 
 ### Status line
 
@@ -279,6 +281,10 @@ Defaults live in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml
 | `rc_files`                | Shell rc files guard-bash and guard-edit won't let Claude write                                                                                                                         |
 | `lockfile_globs`          | Lockfiles guard-edit won't let Claude edit by hand                                                                                                                                      |
 | `root_artifact_exts`      | Extensions of a new file at the repo root that get a prompt                                                                                                                             |
+| `preset`                  | A preset to merge under your overlay ([Presets](#presets))                                                                                                                              |
+| `step_pause`              | When Claude stops a plan for your review: `step` (after each), `plan` (at its end), or `off`                                                                                            |
+| `guard_skills`            | Block the first edit of a file type until its pattern skill is loaded                                                                                                                   |
+| `sanitize_typography`     | Rewrite em dashes, smart quotes, and Unicode arrows to ASCII in edited files                                                                                                            |
 | `disabled_rules`          | Guard rules to let through, by the slug `kit explain` prints                                                                                                                            |
 | `disabled_checks`         | Turn a `run-checks` gate off, by check kind or by the label it prints                                                                                                                   |
 | `disabled_task_providers` | Stop reading a task source (`make`, `package-scripts`, ...) at all                                                                                                                      |
@@ -302,12 +308,19 @@ Defaults live in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml
 | `log_max_lines`           | Line cap for the kit's JSONL logs                                                                                                                                                       |
 | Skill maps                | `skill_file_map`, `dependency_skills`, `skill_triggers`, `global_skills`: which pattern skills a file or dependency calls for                                                           |
 
-`kit config` prints the merged result; `kit config --check` flags unknown keys and wrong types.
+`kit config` prints the merged result, each key marked with the files that set it; `kit config --check` flags unknown keys and wrong types.
 
-Opt-in switches, in your settings `env`:
+### Presets
 
-- `CLAUDE_GUARD_SKILLS=1`: block the first edit of a file type until its pattern skill is loaded.
-- `CLAUDE_SANITIZE_TYPOGRAPHY=1`: rewrite em dashes, smart quotes, and Unicode arrows to ASCII in edited files.
+A preset is a set of these keys under a name. Put `preset: <name>` in your overlay, and its file merges between `kit.yml` and your overlay, so your own keys still win. Each file in [`presets/`](presets) is a few lines:
+
+| Preset     | Sets                                                                                         |
+| ---------- | -------------------------------------------------------------------------------------------- |
+| `light`    | `step_pause: plan`, `disabled_rules: [plan-critic, claims]`: one stop per plan, fewer passes |
+| `standard` | Nothing: `kit.yml` as it is                                                                  |
+| `strict`   | `guard_skills: true`, `sanitize_typography: true`: both opt-in guards on                     |
+
+`CLAUDE_GUARD_SKILLS=1` and `CLAUDE_SANITIZE_TYPOGRAPHY=1` in your settings `env` still turn those two guards on.
 
 ## When a guard gets in your way
 

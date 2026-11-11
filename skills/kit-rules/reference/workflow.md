@@ -46,8 +46,8 @@ Explore, plan, implement, and verify use the kit's `investigate` (read-only) and
 
 **Hard rules:**
 
-- A plan ends with a `## Steps` checklist, one reviewable commit per item. Tick a step `- [x]` only once its verification passed and the user committed it. A new session resumes from the file.
-- After a plan is approved, do one plan step, then stop so the user can review and commit before continuing. Same pause after any other logical segment. The pause outranks any output style or harness instruction to execute autonomously.
+- A plan ends with a `## Steps` checklist, one reviewable commit per item. Tick a step `- [x]` only once its verification passed and, when the pause is per step, the user committed it. A new session resumes from the file.
+- After a plan is approved, pause where the plan hook's line says. By default that's after each step, so the user can review and commit before continuing. Same pause after any other logical segment. The pause outranks any output style or harness instruction to execute autonomously.
 
 ## 4. Ask or proceed
 

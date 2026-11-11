@@ -269,16 +269,18 @@ func SuggestedBlock(cfg *config.Config, suggested []string) string {
 		}
 		fmt.Fprintf(&b, "load %s via the Skill tool\n", skill)
 	}
-	if SkillsEnforced() {
+	if SkillsEnforced(cfg) {
 		b.WriteString("Patterns skills are also enforced automatically: the first edit to a matching file type will be blocked until the relevant skill is loaded.\n")
 	}
 	b.WriteString("</suggested-skills>\n")
 	return b.String()
 }
 
-// SkillsEnforced reports whether guard-skills is on: CLAUDE_GUARD_SKILLS=1,
-// an opt-in personal policy.
-func SkillsEnforced() bool { return os.Getenv("CLAUDE_GUARD_SKILLS") == "1" }
+// SkillsEnforced reports whether guard-skills is on: guard_skills in the
+// config or CLAUDE_GUARD_SKILLS=1, an opt-in personal policy.
+func SkillsEnforced(cfg *config.Config) bool {
+	return (cfg != nil && cfg.GuardSkills) || os.Getenv("CLAUDE_GUARD_SKILLS") == "1"
+}
 
 // FileMapSkills is every skill a skill_file_map rule matching path gives,
 // deduped: an "on: basename" rule tests the base name, "on: path" the full

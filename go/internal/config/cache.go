@@ -29,21 +29,22 @@ func (p Paths) cacheFile() string {
 }
 
 // cacheKey names the exact files behind Load's result: path, size, and
-// mtime of the base, the overlay, and the running binary, whose Config
-// struct shapes what was stored. Any edit or rebuild changes it; "" when the
-// base or binary can't be stat'ed, so Load skips the cache.
+// mtime of the base, the overlay, every preset file, and the running binary,
+// whose Config struct shapes what was stored. Any edit or rebuild changes
+// it; "" when the base or binary can't be stat'ed, so Load skips the cache.
 func cacheKey(p Paths) string {
 	exe, err := os.Executable()
 	if err != nil {
 		return ""
 	}
+	presets, _ := filepath.Glob(filepath.Join(p.Root, "presets", "*.yml"))
 	key := ""
-	for _, path := range []string{exe, p.Base, p.Overlay} {
+	for _, path := range append([]string{exe, p.Base, p.Overlay}, presets...) {
 		info, err := os.Stat(path)
 		switch {
 		case err == nil:
 			key += fmt.Sprintf("%s %d %d\n", path, info.Size(), info.ModTime().UnixNano())
-		case path != p.Overlay:
+		case path == exe || path == p.Base:
 			return ""
 		}
 	}
