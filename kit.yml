@@ -13,12 +13,13 @@
 # security-patterns and wcag-audit are never mapped: they load by their own
 # descriptions or when another skill names them.
 
-# Skills loaded for every project regardless of detected stack.
-# Empty by design: an always-blocking skill is paid for before the task is
-# known. engineering-fundamentals loads through its own model-invocable
+# Skills loaded for every project regardless of detected stack. Only
+# kit-rules: the rules-gate hook denies tool calls until it's loaded, and
+# any other always-blocking skill is paid for before the task is known.
+# engineering-fundamentals loads through its own model-invocable
 # description, and skill_file_map requires it on source edits when
 # CLAUDE_GUARD_SKILLS=1.
-global_skills: []
+global_skills: [kit-rules]
 
 # File-to-skills map consumed by guard-dispatch's skills gate, and by
 # <suggested-skills> for every file in the repo.

@@ -372,6 +372,10 @@ func (h *Hook) Log(log, event string, pairs ...string) {
 		"event", event,
 		"session_id", h.Payload.SessionID(),
 	}, pairs...)
+	// Inside a subagent, so its lines can be told from its parent's.
+	if agent := h.Payload.String("agent_id"); agent != "" {
+		fields = slices.Insert(fields, 8, "agent_id", agent)
+	}
 	maxLines := 0
 	if cfg := h.Config(); cfg != nil {
 		maxLines = cfg.LogMaxLines

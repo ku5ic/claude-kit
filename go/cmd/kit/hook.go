@@ -29,6 +29,7 @@ type hookDef struct {
 var hookChecks = map[string]hook.Check{
 	"plan-mode-context":       hooks.PlanModeContext,
 	"guard-plan":              hooks.GuardPlan,
+	"rules-gate":              hooks.RulesGate,
 	"guard-edit":              hooks.GuardEdit,
 	"guard-skills":            hooks.GuardSkills,
 	"guard-slop":              hooks.GuardSlop,
@@ -60,6 +61,7 @@ var hookChecks = map[string]hook.Check{
 var registry = map[string]hookDef{
 	"bash-dispatch":           {events: []string{"PreToolUse"}, steps: []string{"guard-bash", "guard-commit", "guard-pr"}},
 	"guard-dispatch":          {events: []string{"PreToolUse"}, run: hooks.GuardDispatch},
+	"rules-gate":              {events: []string{"PreToolUse"}},
 	"post-edit-dispatch":      {events: []string{"PostToolUse"}, steps: []string{"sanitize-output", "format-dispatch"}},
 	"log-skills":              {events: []string{"PostToolUse", "UserPromptExpansion"}},
 	"plan-mode-context":       {events: []string{"PostToolUse", "UserPromptSubmit"}},

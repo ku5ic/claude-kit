@@ -31,6 +31,7 @@ type Entry struct {
 	TS            *string `json:"ts"`
 	Event         string  `json:"event"`
 	SessionID     *string `json:"session_id"`
+	AgentID       string  `json:"agent_id"` // "" in the main session
 	ExpansionType string  `json:"expansion_type"`
 	CommandName   *string `json:"command_name"`
 	SkillFile     *string `json:"skill_file"`

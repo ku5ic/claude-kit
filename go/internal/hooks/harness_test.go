@@ -70,6 +70,7 @@ var entries = map[string]func(*hook.Hook) int{
 	"review-checks":           single("review-checks", ReviewChecks),
 	"stop-checks":             single("stop-checks", StopChecks),
 	"turn-tree":               single("turn-tree", TurnTree),
+	"rules-gate":              single("rules-gate", RulesGate),
 	"inject-context":          single("inject-context", InjectContext),
 	"inject-subagent-context": single("inject-subagent-context", InjectSubagentContext),
 	"inject-rules":            single("inject-rules", InjectRules),

@@ -164,22 +164,15 @@ func GuardSkills(h *hook.Hook) error {
 // loaded; each it does show gets its marker, so the log is read once per
 // skill. A missing or unreadable log fails open: none.
 func notLoaded(h *hook.Hook, session string, toCheck []string, marker func(string) string) []string {
-	loaded, err := loadedSkills(h.Paths.LogFile(kitlog.Skills), session)
+	// A subagent's load counts for the whole session here.
+	loaded, err := loadedSkills(h.Paths.LogFile(kitlog.Skills), session, nil)
 	if err != nil {
 		return nil
 	}
 	var missing []string
 	for _, skill := range toCheck {
-		// An exact skill_file (the Skill tool), or a logged path holding
-		// /skills/<name>/ (a Read of its SKILL.md).
-		found := loaded[skill]
-		for file := range loaded {
-			if found {
-				break
-			}
-			found = strings.Contains(file, "/skills/"+skill+"/")
-		}
-		if !found {
+		// An exact skill_file (the Skill tool), or a Read of its SKILL.md.
+		if !loaded[skill] && !anyUnder(loaded, skill) {
 			missing = append(missing, skill)
 		} else {
 			_ = fsx.WriteAtomic(marker(skill), nil, 0o644)
@@ -190,8 +183,9 @@ func notLoaded(h *hook.Hook, session string, toCheck []string, marker func(strin
 
 // loadedSkills streams skills.jsonl once for session's skill_file values,
 // skipping inject-context's required-skill and suggested-skill markers:
-// those mean "surfaced", not "loaded".
-func loadedSkills(logPath, session string) (map[string]bool, error) {
+// those mean "surfaced", not "loaded". With byAgent set, only lines whose
+// agent_id it accepts count; "" is the main session.
+func loadedSkills(logPath, session string, byAgent func(string) bool) (map[string]bool, error) {
 	if _, err := os.Stat(logPath); err != nil {
 		return nil, err
 	}
@@ -201,7 +195,7 @@ func loadedSkills(logPath, session string) (map[string]bool, error) {
 		if json.Unmarshal(line, &entry) != nil {
 			return
 		}
-		if entry.SessionID != nil && *entry.SessionID == session && entry.SkillFile != nil && !entry.Surfaced() {
+		if entry.SessionID != nil && *entry.SessionID == session && entry.SkillFile != nil && !entry.Surfaced() && (byAgent == nil || byAgent(entry.AgentID)) {
 			loaded[*entry.SkillFile] = true
 			// A plugin's skills log as <plugin>:<skill>; kit.yml maps bare names.
 			if _, skill, ok := strings.Cut(*entry.SkillFile, ":"); ok && !strings.Contains(skill, "/") {

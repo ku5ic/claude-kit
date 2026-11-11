@@ -2,6 +2,10 @@
   "hooks": {
     "PreToolUse": [
       {
+        "matcher": "*",
+        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook rules-gate", "timeout": 5 }]
+      },
+      {
         "matcher": "Bash",
         "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook bash-dispatch", "timeout": 30 }]
       },

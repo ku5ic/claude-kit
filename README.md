@@ -113,17 +113,18 @@ eval "$(kit completion zsh)"   # or: kit completion bash
 
 ## On by default, and what you switch on
 
-| Feature                                                        | Default  | Needs, or how to change it                                                            |
-| -------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------- |
-| Guards, checks before "done", formatting, context, rules       | On       | Nothing. Each guard rule can be let through with `disabled_rules`                     |
-| Gap-fill: a small model sorts what your configs leave open     | On       | The `claude` CLI, logged in. Haiku, capped at $0.50 a call, cached per repo           |
-| Claim checker                                                  | On       | The `claude` CLI, logged in. Turn off with `disabled_rules: [claims]`                 |
-| plan-critic before a plan is approved                          | On       | Turn off with `disabled_rules: [plan-critic]`                                         |
-| Pattern skills required before the first edit of a file type   | Off      | `CLAUDE_GUARD_SKILLS=1` in your settings `env`                                        |
-| Em dashes, smart quotes, and Unicode arrows rewritten to ASCII | Off      | `CLAUDE_SANITIZE_TYPOGRAPHY=1` in your settings `env`                                 |
-| Status line                                                    | Off      | Two lines in `~/.claude/settings.json` ([Status line](#status-line))                  |
-| `kit` in your own terminal                                     | Off      | PATH and completion in your shell rc ([Shell completion](#shell-completion-optional)) |
-| claude.ai chat                                                 | Separate | Upload the release's chat zip ([Use it in claude.ai chat](#use-it-in-claudeai-chat))  |
+| Feature                                                                     | Default  | Needs, or how to change it                                                            |
+| --------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------- |
+| Guards, checks before "done", formatting, context, rules                    | On       | Nothing. Each guard rule can be let through with `disabled_rules`                     |
+| Gap-fill: a small model sorts what your configs leave open                  | On       | The `claude` CLI, logged in. Haiku, capped at $0.50 a call, cached per repo           |
+| Claim checker                                                               | On       | The `claude` CLI, logged in. Turn off with `disabled_rules: [claims]`                 |
+| plan-critic before a plan is approved                                       | On       | Turn off with `disabled_rules: [plan-critic]`                                         |
+| The kit-rules skill loaded before a session's or subagent's first tool call | On       | Turn off with `disabled_rules: [rules-gate]`                                          |
+| Pattern skills required before the first edit of a file type                | Off      | `CLAUDE_GUARD_SKILLS=1` in your settings `env`                                        |
+| Em dashes, smart quotes, and Unicode arrows rewritten to ASCII              | Off      | `CLAUDE_SANITIZE_TYPOGRAPHY=1` in your settings `env`                                 |
+| Status line                                                                 | Off      | Two lines in `~/.claude/settings.json` ([Status line](#status-line))                  |
+| `kit` in your own terminal                                                  | Off      | PATH and completion in your shell rc ([Shell completion](#shell-completion-optional)) |
+| claude.ai chat                                                              | Separate | Upload the release's chat zip ([Use it in claude.ai chat](#use-it-in-claudeai-chat))  |
 
 ## Use it in claude.ai chat
 
