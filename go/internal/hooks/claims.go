@@ -3,6 +3,7 @@ package hooks
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -128,20 +129,25 @@ func verifyToolInput(h *hook.Hook) error {
 	return nil
 }
 
-// unconfirmed is what the verifier found unconfirmed in text, logged; nil
-// when text states nothing, without kit.yml, or when the verifier fails,
-// which never blocks.
+// unconfirmed is what the verifier found unconfirmed in text, logged with
+// its cost; nil when text states nothing, without kit.yml, or when the
+// verifier fails, which never blocks but tells the user the text went
+// unchecked.
 func unconfirmed(h *hook.Hook, text, transcriptPath, where string) []claims.Unsupported {
 	cfg := h.Config()
 	if cfg == nil || h.DryRun || h.RuleDisabled("claims") || !claims.Declarative(text) {
 		return nil
 	}
 	v, err := claims.Verify(cfg, h.Payload.Cwd(), text, transcriptPath)
-	if err != nil {
-		h.Log(kitlog.Guards, "claims-error", "where", where, "error", err.Error())
+	if errors.Is(err, claims.ErrOff) {
 		return nil
 	}
-	h.Log(kitlog.Guards, "claims", "where", where, "unconfirmed", strconv.Itoa(len(v.Unsupported)))
+	if err != nil {
+		h.Log(kitlog.Guards, "claims-error", append([]string{"where", where, "error", err.Error()}, v.Usage.Pairs()...)...)
+		h.Notify(fmt.Sprintf("kit claims: NOT CHECKED %s, the verifier failed: %s", where, err))
+		return nil
+	}
+	h.Log(kitlog.Guards, "claims", append([]string{"where", where, "unconfirmed", strconv.Itoa(len(v.Unsupported))}, v.Usage.Pairs()...)...)
 	return v.Unsupported
 }
 
@@ -156,9 +162,10 @@ func claimsMessage(where string, u []claims.Unsupported) string {
 	return b.String()
 }
 
-// agentTranscript is a subagent's own transcript, else the session's.
+// agentTranscript is a subagent's own transcript when it exists, else the
+// session's.
 func agentTranscript(p *hook.Payload) string {
-	if path := p.String("agent_transcript_path"); path != "" {
+	if path := p.String("agent_transcript_path"); path != "" && fsx.IsFile(path) {
 		return path
 	}
 	// Only SubagentStop names the agent's transcript; a tool call inside a

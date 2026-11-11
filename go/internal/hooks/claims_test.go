@@ -161,6 +161,31 @@ func TestVerifyClaimsToolInput(t *testing.T) {
 	})
 }
 
+// A SubagentStop whose agent_transcript_path names no file is checked
+// against the session's transcript, not left with no evidence at all.
+func TestVerifyClaimsMissingAgentTranscriptFallsBack(t *testing.T) {
+	t.Parallel()
+	k := newSandbox(t)
+	dir := t.TempDir()
+	answer, _ := json.Marshal(map[string]any{"is_error": false, "subtype": "success", "structured_output": map[string]any{"ok": true, "unsupported": []any{}}})
+	testutil.Write(t, filepath.Join(dir, "answer"), string(answer))
+	stdin, stub := filepath.Join(dir, "stdin"), filepath.Join(dir, "verifier")
+	testutil.FakeTool(t, stub, filepath.Join(dir, "calls"), fmt.Sprintf("cat >%q\ncat %q", stdin, filepath.Join(dir, "answer")))
+	k.overlay(fmt.Sprintf("claims:\n  command: [%q]\n", stub))
+	main := filepath.Join(dir, "sess.jsonl")
+	testutil.Write(t, main, `{"type":"user","message":{"content":"parent prompt"}}`+"\n")
+	payload := subagentStop("a1", claim, false)
+	payload["transcript_path"], payload["agent_transcript_path"] = main, filepath.Join(dir, "gone.jsonl")
+	r := k.run("verify-claims", payload)
+	r.Want(t, 0)
+	if strings.Contains(r.Output, "NOT CHECKED") {
+		t.Errorf("a missing agent transcript failed the check:\n%s", r.Output)
+	}
+	if got := read(t, stdin); !strings.Contains(got, "parent prompt") {
+		t.Errorf("evidence isn't the session's transcript:\n%s", got)
+	}
+}
+
 // A tool call inside a subagent carries agent_id, not agent_transcript_path
 // (code.claude.com/docs/en/hooks), so its text is checked against
 // <session>/subagents/agent-<agent_id>.jsonl, what that subagent read.
@@ -256,15 +281,29 @@ func TestSubagentDispatchChecksClaimsAfterASlopRetry(t *testing.T) {
 
 func TestVerifyClaimsFailsOpen(t *testing.T) {
 	t.Parallel()
-	t.Run("a verifier that fails is logged, never blocks", func(t *testing.T) {
+	t.Run("a verifier that fails is logged and named to the user, never blocks", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
 		stub := filepath.Join(t.TempDir(), "verifier")
 		testutil.FakeTool(t, stub, filepath.Join(t.TempDir(), "calls"), "cat >/dev/null\nexit 1")
 		k.overlay(fmt.Sprintf("claims:\n  command: [%q]\n", stub))
-		k.run("verify-claims", subagentStop("a1", claim, false)).Want(t, 0)
+		r := k.run("verify-claims", subagentStop("a1", claim, false))
+		r.Want(t, 0)
+		r.Has(t, "kit claims: NOT CHECKED subagent report, the verifier failed")
 		if log := read(t, k.paths.LogFile(kitlog.Guards)); !strings.Contains(log, "claims-error") {
 			t.Errorf("guards log lacks the error:\n%s", log)
+		}
+	})
+	t.Run("a verifier run logs what it cost", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		stub := filepath.Join(t.TempDir(), "verifier")
+		testutil.FakeTool(t, stub, filepath.Join(t.TempDir(), "calls"),
+			`cat >/dev/null; echo '{"is_error":false,"structured_output":{"ok":true,"unsupported":[]},"total_cost_usd":0.62,"duration_ms":9009}'`)
+		k.overlay(fmt.Sprintf("claims:\n  command: [%q]\n", stub))
+		k.run("verify-claims", subagentStop("a1", claim, false)).Want(t, 0)
+		if log := read(t, k.paths.LogFile(kitlog.Guards)); !strings.Contains(log, `"cost_usd":"0.6200","duration_ms":"9009"`) {
+			t.Errorf("guards log lacks the cost:\n%s", log)
 		}
 	})
 	t.Run("claims in disabled_rules lets it through", func(t *testing.T) {
@@ -277,7 +316,9 @@ func TestVerifyClaimsFailsOpen(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
 		calls := k.verifier("  timeout: 0\n", claim)
-		k.run("verify-claims", subagentStop("a1", claim, false)).Want(t, 0)
+		r := k.run("verify-claims", subagentStop("a1", claim, false))
+		r.Want(t, 0)
+		r.Empty(t)
 		if got := testutil.Calls(t, calls); got != nil {
 			t.Errorf("verifier ran: %q", got)
 		}

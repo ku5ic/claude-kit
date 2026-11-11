@@ -14,6 +14,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/gapfill"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 	"github.com/ku5ic/claude-kit/go/internal/run"
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
@@ -110,6 +111,9 @@ func ReviewChecks(h *hook.Hook) error {
 	// Before the gates: an edit made while they run isn't one they checked.
 	tree, snapErr := git.Snapshot(root)
 	plan := enforce.Build(cfg, enforce.Options{Root: root, CacheDir: cacheDir, Ask: true, Timeout: gapfill.ClassifyTimeout, Changed: true})
+	if plan.Classifier.Runs > 0 {
+		h.Log(kitlog.Guards, "gapfill", plan.Classifier.Pairs()...)
+	}
 	var report strings.Builder
 	res, notice := run.Gates(plan, cacheDir, &report, deadline)
 	h.Notify(notice)

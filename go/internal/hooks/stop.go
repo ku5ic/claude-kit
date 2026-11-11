@@ -15,8 +15,8 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
-// StopChecks is the Stop hook: when the turn created or edited files through
-// Edit/Write/MultiEdit/NotebookEdit and left the tree dirty, it runs the
+// StopChecks is the Stop hook: when the turn created or edited files, through
+// an edit tool or, by the turn-start snapshot, any other way, it runs the
 // project's file-scoped checks (enforce.Stop) on just those files and blocks
 // the stop on a failure, so Claude fixes or reports it. A question-only turn costs
 // nothing. When the turn ticked a plan's last open step, it also blocks
@@ -50,21 +50,23 @@ func StopChecks(h *hook.Hook) error {
 	if err := planGate(h, cwd, root, entries); err != nil {
 		return err
 	}
-	// A clean tree means the edits were committed, which already went
-	// through verification.
-	if changes, err := git.Status(cwd, false); err != nil || len(changes) == 0 {
+	edited := transcript.Edits(transcript.LastTurn(entries))
+	for i, path := range edited {
+		edited[i] = fsx.Abs(cwd, path)
+	}
+	// The turn-start snapshot also catches a Bash edit, and a file committed
+	// mid-turn. Without one, a clean tree means the edits were committed.
+	if changed, ok := turnChanges(h, root); ok {
+		edited = append(edited, changed...) // enforce.Stop drops repeats
+	} else if changes, err := git.Status(cwd, false); err != nil || len(changes) == 0 {
 		return nil
 	}
-	edited := transcript.Edits(transcript.LastTurn(entries))
 	if len(edited) == 0 {
 		return nil
 	}
 	if coveredByFullGate(h, root) {
 		h.Notify("stop checks: skipped, the full gate already checked this tree")
 		return nil
-	}
-	for i, path := range edited {
-		edited[i] = fsx.Abs(cwd, path)
 	}
 	p := enforce.Stop(cfg, enforce.Options{Root: root, CacheDir: h.Paths.CacheDir()}, edited)
 	if len(p.Gates) == 0 {

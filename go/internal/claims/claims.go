@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ku5ic/claude-kit/go/internal/claudecli"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/connector"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
@@ -70,11 +71,16 @@ func Declarative(text string) bool {
 	return statement.MatchString(prose) || item.MatchString(prose)
 }
 
-// Verdict is the verifier's answer: OK when no claim is unsupported.
+// Verdict is the verifier's answer: OK when no claim is unsupported. Usage
+// is what the run cost, set on a failed run too.
 type Verdict struct {
-	OK          bool          `json:"ok"`
-	Unsupported []Unsupported `json:"unsupported"`
+	OK          bool            `json:"ok"`
+	Unsupported []Unsupported   `json:"unsupported"`
+	Usage       claudecli.Usage `json:"-"`
 }
+
+// ErrOff is Verify's error when kit.yml turns the verifier off.
+var ErrOff = errors.New("claims: verifier is off")
 
 // Unsupported is a claim nothing confirmed, and the check that would.
 type Unsupported struct {
@@ -87,7 +93,7 @@ type Unsupported struct {
 // verdict; callers fail open on it.
 func Verify(cfg *config.Config, dir, text, transcriptPath string) (Verdict, error) {
 	if cfg.Claims.Off() {
-		return Verdict{}, errors.New("claims: verifier is off")
+		return Verdict{}, ErrOff
 	}
 	var entries []transcript.Entry
 	if transcriptPath != "" {
@@ -118,22 +124,16 @@ func run(cfg *config.Config, argv []string, dir, input string) (Verdict, error) 
 	if err != nil {
 		return Verdict{}, fmt.Errorf("claims: %w", err)
 	}
-	var envelope struct {
-		IsError    bool            `json:"is_error"`
-		Subtype    string          `json:"subtype"`
-		Structured json.RawMessage `json:"structured_output"`
-	}
-	if err := json.Unmarshal(out, &envelope); err != nil {
-		return Verdict{}, fmt.Errorf("claims: malformed output: %w", err)
-	}
-	if envelope.IsError || len(envelope.Structured) == 0 {
-		return Verdict{}, fmt.Errorf("claims: no answer (%s)", envelope.Subtype)
+	answer, usage, err := claudecli.Parse(out)
+	if err != nil {
+		return Verdict{Usage: usage}, fmt.Errorf("claims: %w", err)
 	}
 	var v Verdict
-	if err := json.Unmarshal(envelope.Structured, &v); err != nil {
-		return Verdict{}, fmt.Errorf("claims: malformed answer: %w", err)
+	if err := json.Unmarshal(answer, &v); err != nil {
+		return Verdict{Usage: usage}, fmt.Errorf("claims: malformed answer: %w", err)
 	}
 	v.OK = v.OK && len(v.Unsupported) == 0
+	v.Usage = usage
 	return v, nil
 }
 

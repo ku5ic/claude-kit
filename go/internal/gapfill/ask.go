@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
+	"github.com/ku5ic/claude-kit/go/internal/claudecli"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/proc"
 	"github.com/ku5ic/claude-kit/go/internal/sources"
@@ -88,10 +89,10 @@ type entryVerdict struct {
 // user settings, and a fixed prompt, from the cache dir, unless kit.yml's
 // classifier replaces it. Its stdout is claude's --output-format json
 // envelope.
-func classify(ctx context.Context, cfg *config.Config, o Options, req request) (response, error) {
+func classify(ctx context.Context, cfg *config.Config, o Options, req request) (response, claudecli.Usage, error) {
 	stdin, err := json.Marshal(req)
 	if err != nil {
-		return response{}, err
+		return response{}, claudecli.Usage{}, err
 	}
 	argv := cfg.Classifier
 	if len(argv) == 0 {
@@ -104,31 +105,24 @@ func classify(ctx context.Context, cfg *config.Config, o Options, req request) (
 	cmd.Stdin = bytes.NewReader(stdin)
 	out, err := cmd.Output()
 	if cmd.TimedOut() {
-		return response{}, errors.New("timed out")
+		return response{}, claudecli.Usage{Runs: 1}, errors.New("timed out")
 	}
 	if err != nil {
-		return response{}, err
+		return response{}, claudecli.Usage{Runs: 1}, err
 	}
-	var envelope struct {
-		IsError    bool            `json:"is_error"`
-		Subtype    string          `json:"subtype"`
-		Structured json.RawMessage `json:"structured_output"`
-	}
-	if err := json.Unmarshal(out, &envelope); err != nil {
-		return response{}, fmt.Errorf("malformed output: %w", err)
-	}
-	if envelope.IsError || len(envelope.Structured) == 0 {
-		return response{}, fmt.Errorf("no answer (%s)", envelope.Subtype)
+	answer, usage, err := claudecli.Parse(out)
+	if err != nil {
+		return response{}, usage, err
 	}
 	var resp response
-	if err := json.Unmarshal(envelope.Structured, &resp); err != nil {
-		return response{}, fmt.Errorf("malformed answer: %w", err)
+	if err := json.Unmarshal(answer, &resp); err != nil {
+		return response{}, usage, fmt.Errorf("malformed answer: %w", err)
 	}
 	// A verdict counts only for an entry whose body req sent.
 	resp.Entries = slices.DeleteFunc(resp.Entries, func(a entryVerdict) bool {
 		return !slices.ContainsFunc(req.Entries, func(e sources.Entry) bool { return Key(e) == a.ID })
 	})
-	return resp, nil
+	return resp, usage, nil
 }
 
 // claude is the default classifier command.

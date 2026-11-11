@@ -57,6 +57,21 @@ func (e *stopEnv) turn(tool string, paths ...string) {
 	}
 }
 
+// start runs turn-tree as a prompt would, snapshotting the tree.
+func (e *stopEnv) start() {
+	e.t.Helper()
+	e.k.run("turn-tree", map[string]any{"hook_event_name": "UserPromptSubmit", "session_id": "s1", "cwd": e.repo}).Want(e.t, 0)
+}
+
+// checked is the files fakelint ran on, in order.
+func (e *stopEnv) checked() string {
+	e.t.Helper()
+	if !exists(e.calls) {
+		return ""
+	}
+	return strings.TrimRight(read(e.t, e.calls), "\n")
+}
+
 func (e *stopEnv) stop(active bool) result {
 	e.t.Helper()
 	return e.k.run("stop-checks", map[string]any{
@@ -285,7 +300,53 @@ func TestStopChecks(t *testing.T) {
 		}
 		e.noCalls()
 	})
-	t.Run("edits committed in the turn skip the checks", func(t *testing.T) {
+	t.Run("a file changed through Bash is checked", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		e.start()
+		e.turn("Bash")
+		testutil.Write(t, e.path("a.ts"), "sed -i wrote this\n")
+		e.stop(false).Want(t, 0)
+		if got := e.checked(); got != e.repo+"|--check a.ts" {
+			t.Errorf("calls %q, want a.ts checked", got)
+		}
+	})
+	t.Run("a file already dirty is checked only when the turn changes it again", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		testutil.Write(t, e.path("a.ts"), "dirty before the turn\n")
+		testutil.Write(t, e.path("b.ts"), "dirty before the turn\n")
+		e.start()
+		e.turn("Bash")
+		testutil.Write(t, e.path("a.ts"), "changed again through Bash\n")
+		e.stop(false).Want(t, 0)
+		if got := e.checked(); got != e.repo+"|--check a.ts" {
+			t.Errorf("calls %q, want only a.ts checked", got)
+		}
+	})
+	t.Run("a file committed mid-turn is checked", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		e.start()
+		e.turn("Edit", e.path("a.ts"))
+		testutil.Write(t, e.path("a.ts"), "edited\n")
+		testutil.Git(t, e.repo, "add", "-A")
+		testutil.Git(t, e.repo, "commit", "-q", "-m", "edit")
+		e.stop(false).Want(t, 0)
+		if got := e.checked(); got != e.repo+"|--check a.ts" {
+			t.Errorf("calls %q, want a.ts checked", got)
+		}
+	})
+	t.Run("a turn that changes nothing runs nothing", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		testutil.Write(t, e.path("a.ts"), "dirty before the turn\n")
+		e.start()
+		e.turn("Read", e.path("a.ts"))
+		e.stop(false).Want(t, 0)
+		e.noCalls()
+	})
+	t.Run("without a turn-start snapshot, edits committed in the turn skip the checks", func(t *testing.T) {
 		t.Parallel()
 		e := stopSetup(t)
 		e.turn("Edit", e.path("a.ts"))
