@@ -95,7 +95,7 @@ func TestVerifyClaimsSubagentStop(t *testing.T) {
 			if tc.status == 2 {
 				// With the run's notice line, the block is a JSON decision.
 				r.Want(t, 0)
-				r.Has(t, `"decision":"block"`, "nothing in the session confirms", claim, "git log -S Foo", "skills/kit-rules/reference/evidence.md", "kit claims: checked")
+				r.Has(t, `"decision":"block"`, "nothing in the session confirms", claim, "git log -S Foo", "skills/kit-rules/reference/evidence.md", "kit claims: checked", "the hook's own kit:claim-checker run")
 			} else {
 				r.Want(t, tc.status)
 			}
