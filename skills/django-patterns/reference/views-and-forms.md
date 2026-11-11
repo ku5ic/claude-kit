@@ -1,76 +1,22 @@
-# Views and Forms
+# Views and forms
 
 ## Class-based vs function-based views
 
-Both are valid. The choice is a project-level convention, not a quality signal.
+- CBV or FBV is a project-level convention, not a quality signal. Both are valid.
+- CRUD flows with standard shapes: CBVs (`ListView`, `DetailView`, `CreateView`, `UpdateView`, `DeleteView`). Less code, but a deep inheritance chain that's harder to trace.
+- One-off endpoints, complex logic, or readability over code reduction: FBVs.
+- Pick one style per area. Never mix both for equivalent endpoints.
 
-CBVs (class-based views) are good for CRUD flows with standard shapes: `ListView`, `DetailView`, `CreateView`, `UpdateView`, `DeleteView`. Less code, but the inheritance chain is deep and harder to trace.
+## Views
 
-FBVs (function-based views) are good for one-off endpoints, complex logic, and when readability matters more than code reduction. Easier to understand, test, and debug.
+- A view parses the request and shapes the response. Business logic goes in services or model methods.
+- A single-object lookup: `get_object_or_404(Product, pk=pk)`, never a manual `DoesNotExist` catch.
+- A successful POST: redirect to a GET, never render a template.
 
-Pick one per area and stay consistent. Mixing both styles for equivalent endpoints creates confusion.
+## Forms
 
-## Thin views
-
-Views handle request parsing and response shaping only. Business logic belongs in services or model methods.
-
-```python
-def create_order(request):
-    form = OrderForm(request.POST)
-    if form.is_valid():
-        order = order_service.create(form.cleaned_data, user=request.user)
-        return redirect(order.get_absolute_url())
-    return render(request, "orders/create.html", {"form": form})
-```
-
-## get_object_or_404
-
-Use `get_object_or_404` for single object lookups. Do not catch `DoesNotExist` manually.
-
-```python
-from django.shortcuts import get_object_or_404
-
-product = get_object_or_404(Product, pk=pk)
-```
-
-## ModelForm
-
-`ModelForm` auto-generates form fields from a model class. Use it when the form maps directly to a model.
-
-```python
-class ProductForm(forms.ModelForm):
-    class Meta:
-        model = Product
-        fields = ["name", "price", "description"]
-```
-
-## Validation
-
-Three levels:
-
-1. `clean_<field>()` for field-level validation (runs after field's own validation)
-2. `clean()` for cross-field validation (runs after all field cleaners succeed)
-3. `Meta.constraints` for database-level enforcement (catches everything that bypasses forms)
-
-```python
-class OrderForm(forms.ModelForm):
-    def clean_quantity(self):
-        qty = self.cleaned_data["quantity"]
-        if qty <= 0:
-            raise forms.ValidationError("Quantity must be positive.")
-        return qty
-
-    def clean(self):
-        cleaned = super().clean()
-        start = cleaned.get("start_date")
-        end = cleaned.get("end_date")
-        if start and end and start >= end:
-            raise forms.ValidationError("Start date must be before end date.")
-        return cleaned
-```
-
-Always use `form.cleaned_data` after `is_valid()`. Never use `form.data` or `request.POST` directly for business logic.
-
-## Redirect after POST
-
-Never render a template in response to a POST. Redirect to a GET after successful form submission to prevent duplicate submissions on browser refresh.
+- A form that maps directly to a model: `ModelForm`, which generates fields from `Meta.model` and `Meta.fields`.
+- Field-level validation: `clean_<field>()`, which runs after the field's own validation.
+- Cross-field validation: `clean()`, starting from `super().clean()`. It runs after all field cleaners succeed.
+- Database-level enforcement: `Meta.constraints`, which catches everything that bypasses forms.
+- After `is_valid()`, read `form.cleaned_data`. Never use `form.data` or `request.POST` directly for business logic.

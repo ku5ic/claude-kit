@@ -2,57 +2,16 @@
 
 ## Throttling
 
-`UserRateThrottle` limits requests per authenticated user (falls back to IP for anonymous). `AnonRateThrottle` limits unauthenticated requests by IP.
-
-```python
-REST_FRAMEWORK = {
-    "DEFAULT_THROTTLE_CLASSES": [
-        "rest_framework.throttling.AnonRateThrottle",
-        "rest_framework.throttling.UserRateThrottle",
-    ],
-    "DEFAULT_THROTTLE_RATES": {
-        "anon": "100/day",
-        "user": "1000/day",
-    },
-}
-```
-
-Rate format: `<number>/<period>`. Periods: `s` (second), `m` (minute), `h` (hour), `d` (day).
-
-Throttle authentication and token endpoints more aggressively than general read endpoints. Credential stuffing targets login and token endpoints specifically. `ScopedRateThrottle` lets you assign separate rate limits per API section:
-
-```python
-class ObtainTokenView(APIView):
-    throttle_scope = "token_obtain"
-
-REST_FRAMEWORK = {
-    "DEFAULT_THROTTLE_RATES": {
-        "token_obtain": "5/minute",
-    }
-}
-```
-
-Override `throttle_classes` on individual viewsets or `@action` decorators for per-endpoint control.
+- `UserRateThrottle` limits requests per authenticated user and falls back to IP for anonymous ones. `AnonRateThrottle` limits unauthenticated requests by IP.
+- Enable them in `DEFAULT_THROTTLE_CLASSES` and set rates in `DEFAULT_THROTTLE_RATES`, as in `{"anon": "100/day", "user": "1000/day"}`.
+- The rate format is `<number>/<period>`, with periods `s` (second), `m` (minute), `h` (hour), and `d` (day).
+- Throttle authentication and token endpoints harder than general read endpoints. `ScopedRateThrottle` gives each API section its own rate, as in `throttle_scope = "token_obtain"` on the view with `"token_obtain": "5/minute"` in `DEFAULT_THROTTLE_RATES`.
+- For per-endpoint control, override `throttle_classes` on a viewset or an `@action`.
 
 ## Pagination
 
-`DEFAULT_PAGINATION_CLASS` and `PAGE_SIZE` default to `None` in DRF: no pagination until you configure it. An unconfigured list endpoint returns all rows, which will become a problem at scale.
-
-Set a global default:
-
-```python
-REST_FRAMEWORK = {
-    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
-    "PAGE_SIZE": 20,
-}
-```
-
-Three built-in styles:
-
-`PageNumberPagination`: `?page=2`. Simple. Returns `count`, `next`, `previous`, `results`.
-
-`LimitOffsetPagination`: `?limit=20&offset=40`. More flexible for clients. Slightly more expensive at high offsets.
-
-`CursorPagination`: opaque cursor, no random access. Best for large datasets with frequent inserts (prevents duplicate items from pagination drift). Requires a stable, unique ordering (typically `created_at`).
-
-Override `pagination_class` on individual viewsets when a different style is needed for that resource.
+- `DEFAULT_PAGINATION_CLASS` and `PAGE_SIZE` default to `None`, and an unconfigured list endpoint returns every row. Set a global default, such as `"rest_framework.pagination.PageNumberPagination"` with `"PAGE_SIZE": 20`.
+- `PageNumberPagination` takes `?page=2` and returns `count`, `next`, `previous`, and `results`.
+- `LimitOffsetPagination` takes `?limit=20&offset=40`. It's more flexible for clients and slightly more expensive at high offsets.
+- `CursorPagination` uses an opaque cursor with no random access. Use it for large datasets with frequent inserts; it needs a stable, unique ordering, typically `created_at`.
+- When one resource needs a different style, override `pagination_class` on its viewset.

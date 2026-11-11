@@ -21,7 +21,15 @@ Checked: 2026-11-10 against https://pypi.org/project/fastapi/, https://pypi.org/
 
 ### Claims
 
-- FastAPI patterns, FastAPI 0.162.x, Pydantic 2.14.x (baseline at time of wri...: https://pypi.org/project/fastapi/, https://pypi.org/project/pydantic/
+- Default assumption FastAPI 0.162.x, Pydantic 2.14.x: https://pypi.org/project/fastapi/, https://pypi.org/project/pydantic/
+
+### Left to linters
+
+Checked: 2026-11-11 with ruff 0.17.4 defaults (`uvx ruff check --isolated`, no config, no `--select`) on a probe package. No `FAST` rule is in the default set, and no rule was dropped.
+
+ruff `B008` reports `param: T = Depends(fn)`, but its suggested fix (call it inside the function, or use a module-level default) is wrong for FastAPI, so the `Annotated[T, Depends(fn)]` rule stays.
+
+Not caught by defaults, so kept: a sync ORM call in an `async def` route (`ASYNC210` and `ASYNC251` catch `requests` and `time.sleep`, not a sync DB driver), `return HTTPException(...)`, `detail=str(exc)`, Pydantic v1 `class Config` and `@validator`, bare integer status codes (`PLR2004` is off), `APIKeyQuery`, credentials compared with `==`, `dependency_overrides` never reset, a route with no `response_model`, docs left on in production, CPU-bound work in `async def`.
 
 ## reference/async-correctness.md
 

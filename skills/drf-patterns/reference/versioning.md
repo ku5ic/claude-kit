@@ -2,47 +2,18 @@
 
 ## Schemes
 
-DRF provides five built-in versioning schemes. Enable one via `DEFAULT_VERSIONING_CLASS`:
-
-```python
-REST_FRAMEWORK = {
-    "DEFAULT_VERSIONING_CLASS": "rest_framework.versioning.URLPathVersioning",
-    "DEFAULT_VERSION": "v1",
-    "ALLOWED_VERSIONS": ["v1", "v2"],
-    "VERSION_PARAM": "version",
-}
-```
-
-**URLPathVersioning**: version in the URL path (`/api/v1/orders/`). Requires URL patterns with a `version` keyword argument. Most common choice for public APIs.
-
-```python
-urlpatterns = [
-    path("api/<str:version>/orders/", OrderViewSet.as_view({"get": "list"})),
-]
-```
-
-**NamespaceVersioning**: version via Django URL namespaces. Looks identical to URLPathVersioning from the client. Cleaner for larger projects that already use URL namespaces.
-
-**AcceptHeaderVersioning**: version in the `Accept` header (`Accept: application/json; version=1.0`). Considered best practice for RESTful design by DRF docs because the URL stays stable. More complex for clients to implement.
-
-**QueryParameterVersioning**: version as a query param (`?version=1`). Simple but semantically weak.
-
-**HostNameVersioning**: version in the hostname (`v1.api.example.com`). Useful for routing to different backends per version. Difficult in local development.
+- Enable one of the five built-in schemes with `DEFAULT_VERSIONING_CLASS` in `REST_FRAMEWORK`, next to `DEFAULT_VERSION`, `ALLOWED_VERSIONS`, and `VERSION_PARAM`.
+- `URLPathVersioning` puts the version in the URL path (`/api/v1/orders/`), so URL patterns need a `version` keyword argument, as in `path("api/<str:version>/orders/", ...)`. It's the most common choice for public APIs.
+- `NamespaceVersioning` takes the version from Django URL namespaces and looks the same as `URLPathVersioning` to clients. Use it in larger projects that already use URL namespaces.
+- `AcceptHeaderVersioning` puts the version in the `Accept` header (`Accept: application/json; version=1.0`). The DRF docs consider it best practice for RESTful design; it's harder for clients to implement.
+- `QueryParameterVersioning` puts the version in a query param (`?version=1`). It's simple but semantically weak.
+- `HostNameVersioning` puts the version in the hostname (`v1.api.example.com`). It suits routing each version to a different backend and is hard in local development.
 
 ## Accessing the version
 
-`request.version` returns the version string determined by the scheme, or `None` if versioning is not configured.
-
-```python
-class OrderViewSet(viewsets.ModelViewSet):
-    def get_serializer_class(self):
-        if self.request.version == "v2":
-            return OrderV2Serializer
-        return OrderV1Serializer
-```
+- `request.version` holds the version the scheme determined, or `None` when versioning isn't configured. Branch on it in `get_serializer_class()`, as in `if self.request.version == "v2": return OrderV2Serializer`.
 
 ## Practical guidance
 
-URLPathVersioning or NamespaceVersioning are the most common choices. URL-based versioning is easy to document, test with curl, and visible in logs.
-
-Set `ALLOWED_VERSIONS` explicitly. DRF returns 404 for versions not in the list, preventing clients from reaching unintended code paths.
+- Pick `URLPathVersioning` or `NamespaceVersioning`, the most common choices.
+- Set `ALLOWED_VERSIONS` explicitly. DRF returns 404 for a version not in the list.

@@ -5,19 +5,19 @@ description: FastAPI and Pydantic v2 patterns for Depends, response models, asyn
 
 # FastAPI patterns
 
-FastAPI 0.162.x, Pydantic 2.14.x (baseline at time of writing). Adapt advice to the versions in the project's `requirements.txt`, `pyproject.toml`, or lockfile.
+Default assumption: FastAPI 0.162.x, Pydantic 2.14.x. Adapt advice to the versions in the project's `requirements.txt`, `pyproject.toml`, or lockfile.
 
 Install: `pip install "fastapi[standard]"`
 
 ## Reference files
 
-| File                                                         | Covers                                                                                                        |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
-| [pydantic-schemas.md](reference/pydantic-schemas.md)         | BaseModel, Field(), field_validator, model_validator, model_config, ConfigDict, separate input/output schemas |
-| [dependency-injection.md](reference/dependency-injection.md) | Depends(), Annotated pattern, yield dependencies, testing overrides                                           |
-| [async-correctness.md](reference/async-correctness.md)       | async def vs def, threadpool behavior, blocking I/O rules                                                     |
-| [response-models.md](reference/response-models.md)           | response_model, response_model_exclude_unset, separate schemas                                                |
-| [error-handling.md](reference/error-handling.md)             | HTTPException, custom exception handlers, status codes                                                        |
-| [openapi.md](reference/openapi.md)                           | Metadata, tags, disabling docs in production, route decorator params                                          |
-| [auth.md](reference/auth.md)                                 | OAuth2PasswordBearer, JWT, APIKeyHeader, HTTPBasic, timing attacks                                            |
-| [anti-patterns.md](reference/anti-patterns.md)               | Severity-labeled anti-patterns to flag in review                                                              |
+| File                                                         | Covers                                                                                          |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| [pydantic-schemas.md](reference/pydantic-schemas.md)         | `from_attributes`, `Field()`, `field_validator`, `model_validator`, `ConfigDict`, split schemas |
+| [dependency-injection.md](reference/dependency-injection.md) | `Annotated` dependencies, `yield` cleanup, class dependencies, caching, test overrides          |
+| [async-correctness.md](reference/async-correctness.md)       | `async def` vs `def`, blocking calls, CPU-bound work                                            |
+| [response-models.md](reference/response-models.md)           | `response_model`, `response_model_exclude_unset`, split schemas, status codes                   |
+| [error-handling.md](reference/error-handling.md)             | `HTTPException`, exception handlers, Starlette's `HTTPException`, `detail`, 422s                |
+| [openapi.md](reference/openapi.md)                           | SPDX license, metadata, tags, route docs, disabling docs in production                          |
+| [auth.md](reference/auth.md)                                 | `OAuth2PasswordBearer` and JWT, password hashing, `APIKeyHeader`, `HTTPBasic`, optional auth    |
+| [anti-patterns.md](reference/anti-patterns.md)               | Ten review-time anti-patterns with severity calls                                               |

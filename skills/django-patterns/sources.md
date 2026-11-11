@@ -19,6 +19,15 @@ Checked: 2026-11-10 against https://www.djangoproject.com/download/, https://doc
 - Django 6.1.3 current stable; 5.2 LTS (5.2.19) supported to April 2028 (baseline here). 6.1 deprecates `list_select_related = True`.
 - pytest-django 4.14.0 (2026-08-10), django-environ 0.14.0 (2026-06-18), Factory Boy 3.3.3 (2025-02-03): pins in the reference files match these.
 
+### Left to linters
+
+Checked: 2026-11-11 with ruff 0.17.4 defaults (`uvx ruff check --isolated`, no config, no `--select`) on a probe package. The default set has no `DJ` rules, and from `S` only `S102`, `S110`, and `S112`. This rule was dropped because a default check reports it; don't add it back.
+
+- ruff `invalid-syntax` reports a `Q()` placed after a keyword argument or after `**kwargs` in `filter()` or `get()`. Python rejects it at compile time as a `SyntaxError`.
+- ruff `B026` reports Q objects unpacked with `*args` after a keyword argument.
+
+Not caught by defaults, so kept: a hardcoded `SECRET_KEY` (`S105` is off), `DEBUG = True`, `mark_safe()` (`S308` is off), `@csrf_exempt`, `null=True` on a `CharField` (`DJ001` is off), a bare `admin.site.register(Model)`, `obj.field += 1; obj.save()`, a manual `DoesNotExist` catch, and logic in a `save()` override.
+
 ## reference/admin.md
 
 ### References

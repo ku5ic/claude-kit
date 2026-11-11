@@ -5,17 +5,20 @@ description: Django REST Framework patterns for serializers, viewsets, permissio
 
 # Django REST Framework patterns
 
-DRF 3.18.x. Supports Django 5.2, 6.0, and 6.1; 3.18.0 dropped Django 4.2, 5.0, and 5.1. Adapt advice to the version in the project's `requirements.txt`, `pyproject.toml`, or lockfile.
+DRF 3.18.x.
+
+- 3.18 supports Django 5.2, 6.0, and 6.1. 3.18.0 dropped Django 4.2, 5.0, and 5.1.
+- Adapt advice to the version in the project's `requirements.txt`, `pyproject.toml`, or lockfile.
 
 ## Reference files
 
-| File                                                                   | Covers                                                                                     |
-| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| [serializers.md](reference/serializers.md)                             | Explicit fields, validate(), nested serializers, SerializerMethodField, ModelSerializer    |
-| [viewsets-and-routers.md](reference/viewsets-and-routers.md)           | ModelViewSet vs GenericViewSet + mixins, @action, DefaultRouter                            |
-| [permissions.md](reference/permissions.md)                             | permission_classes, IsAuthenticated vs IsAuthenticatedOrReadOnly, object-level permissions |
-| [throttling-and-pagination.md](reference/throttling-and-pagination.md) | UserRateThrottle, AnonRateThrottle, pagination styles, page size config                    |
-| [filtering.md](reference/filtering.md)                                 | django-filter, SearchFilter, OrderingFilter, get_queryset override                         |
-| [auth.md](reference/auth.md)                                           | TokenAuthentication, SessionAuthentication, JWT via simplejwt                              |
-| [versioning.md](reference/versioning.md)                               | Versioning schemes, request.version, ALLOWED_VERSIONS                                      |
-| [anti-patterns.md](reference/anti-patterns.md)                         | Severity-labeled anti-patterns to flag in review                                           |
+| File                                                                   | Covers                                                                                           |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| [serializers.md](reference/serializers.md)                             | Explicit fields (3.5+), `validate()`, nested serializers, `SerializerMethodField`, read vs write |
+| [viewsets-and-routers.md](reference/viewsets-and-routers.md)           | `ModelViewSet` vs `GenericViewSet` + mixins, `@action`, `DefaultRouter`, `get_queryset`          |
+| [permissions.md](reference/permissions.md)                             | `AllowAny` default, `IsAuthenticated` vs `IsAuthenticatedOrReadOnly`, object-level, composition  |
+| [throttling-and-pagination.md](reference/throttling-and-pagination.md) | User, anon, and scoped throttles, pagination styles, page size config                            |
+| [filtering.md](reference/filtering.md)                                 | django-filter, `SearchFilter`, `OrderingFilter`, `get_queryset` override                         |
+| [auth.md](reference/auth.md)                                           | Token, session, and basic auth, JWT via simplejwt                                                |
+| [versioning.md](reference/versioning.md)                               | Five versioning schemes, `request.version`, `ALLOWED_VERSIONS`                                   |
+| [anti-patterns.md](reference/anti-patterns.md)                         | Eight severity-labeled anti-patterns to flag in review                                           |

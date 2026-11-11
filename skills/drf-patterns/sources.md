@@ -19,9 +19,15 @@ Checked: 2026-11-10 against https://pypi.org/project/djangorestframework/, https
 - 3.18.1 (2026-09-07): 3.18.0 dropped Django 4.2, 5.0, 5.1. A project pinned to one of those stays on 3.17.
 - 3.14: `NullBooleanField` removed; use `BooleanField(allow_null=True)`.
 
+### Left to linters
+
+Checked: 2026-11-11 with ruff 0.17.4 defaults (`uvx ruff check --isolated`, no config, no `--select`) on a probe module. No rule was dropped, since no default rule fired on any form a rule here targets.
+
+Not caught by defaults, so kept: `fields = "__all__"` (the `DJ` rules are off, and `DJ007` doesn't fire on a `ModelSerializer` even when selected), `filter(**request.query_params.dict())`, a viewset without `permission_classes`, `OrderingFilter` without `ordering_fields`, an authorization check in `validate()`, a query in a `SerializerMethodField`.
+
 ### Claims
 
-- Django REST Framework patterns, DRF 3.18.x. Supports Django 5.2, 6.0, and 6.1; 3.18.0 dro...: https://pypi.org/project/djangorestframework/
+- DRF 3.18.x supports Django 5.2, 6.0, and 6.1; 3.18.0 dropped Django 4.2, 5.0, and 5.1: https://pypi.org/project/djangorestframework/
 
 ## reference/auth.md
 

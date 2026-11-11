@@ -2,48 +2,20 @@
 
 ## Always set explicit permission_classes
 
-The default DRF permission policy is `AllowAny`: unrestricted access regardless of authentication. This is the right default for a framework (fail open for development), but the wrong posture for any production endpoint.
-
-Set `permission_classes` explicitly on every viewset or view. Do not rely on the global default:
-
-```python
-class OrderViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
-```
-
-Or set a safe global default in settings and override where looser access is genuinely required:
-
-```python
-REST_FRAMEWORK = {
-    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
-}
-```
+- DRF's default permission policy is `AllowAny`, unrestricted access regardless of authentication. Set `permission_classes` explicitly on every view or viewset, as in `permission_classes = [IsAuthenticated]`, and don't rely on the global default.
+- Or set a safe global default, `"DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"]` in `REST_FRAMEWORK`, and override it only where looser access is required.
 
 ## IsAuthenticated vs IsAuthenticatedOrReadOnly
 
-`IsAuthenticated`: all HTTP methods require authentication. Use for any resource with write semantics.
-
-`IsAuthenticatedOrReadOnly`: GET, HEAD, OPTIONS are open; POST, PUT, PATCH, DELETE require authentication. Use for public read + authenticated write patterns (e.g., a public product catalog where reviews require login).
-
-```python
-class ProductViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticatedOrReadOnly]
-```
+- A resource with write semantics: `IsAuthenticated`, which requires authentication for every HTTP method.
+- Public reads with authenticated writes, such as a public product catalog where reviews require login: `IsAuthenticatedOrReadOnly`. GET, HEAD, and OPTIONS stay open; POST, PUT, PATCH, and DELETE require authentication.
 
 ## Object-level permissions
 
-`has_object_permission(self, request, view, obj)` allows per-instance authorization. Generic views call it automatically via `.get_object()`. Custom views must call `check_object_permissions(request, obj)` explicitly.
-
-```python
-class IsOwnerOrReadOnly(permissions.BasePermission):
-    def has_object_permission(self, request, view, obj):
-        if request.method in permissions.SAFE_METHODS:
-            return True
-        return obj.owner == request.user
-```
-
-Note: `has_permission` (view-level) is called before `has_object_permission`. Both must pass.
+- Per-instance authorization: implement `has_object_permission(self, request, view, obj)`. Generic views call it through `.get_object()`; a custom view must call `check_object_permissions(request, obj)` itself.
+- `has_permission` (view-level) runs before `has_object_permission`, and both must pass.
+- An owner-or-read-only check returns `True` when `request.method in permissions.SAFE_METHODS` and `obj.owner == request.user` otherwise.
 
 ## Composing permissions
 
-Multiple classes in `permission_classes` are ANDed. For other logic, classes inheriting `BasePermission` compose with `&` (and), `|` (or), and `~` (not): `permission_classes = [IsAuthenticated | ReadOnly]`.
+- Several classes in `permission_classes` are ANDed. For other logic, `BasePermission` subclasses compose with `&` (and), `|` (or), and `~` (not), as in `permission_classes = [IsAuthenticated | ReadOnly]`.
