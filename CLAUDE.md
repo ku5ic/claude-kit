@@ -51,9 +51,7 @@ In this repo, call `bin/kit`, never bare `kit`: on PATH, `kit` is the installed 
 
 ## Rules are live
 
-The SessionStart and SubagentStart hooks inject `skills/kit-rules/reference/*.md` from the plugin root they run from. A session running the hooks from this checkout picks up a rule edit at its next start or compaction, so finish a rules change in one sitting.
-
-Each injected part has a size cap, and the Stop hook doesn't test it. After editing `skills/kit-rules/reference/*.md`, run `go test ./internal/hooks -run TestInjectRules` from `go/`.
+A session reads the rules from the plugin root it runs from, when it loads the kit-rules skill. A session running this checkout picks up a rule edit at its next load, so finish a rules change in one sitting.
 
 ## Hook changes
 

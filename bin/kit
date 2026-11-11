@@ -71,12 +71,13 @@ if [[ ${KIT_DEV:-} == 1 ]]; then
       -ldflags="-s -w -buildid= -X main.version=$ver" -o "$tmp" ./cmd/kit) >&2 &&
       mv -f "$tmp" "$bin"
   fi
-# Only the CLI and the context hooks with a 30s timeout download: every other
-# hook's timeout is shorter than curl's, and a status line is cancelled on each
-# refresh, so either would be killed mid-download and strand its temp file. A
-# failed download backs off for a minute so offline sessions start fast.
+# Only the CLI and the inject-context hook, with its 30s timeout, download:
+# every other hook's timeout is shorter than curl's, and a status line is
+# cancelled on each refresh, so either would be killed mid-download and strand
+# its temp file. A failed download backs off for a minute so offline sessions
+# start fast.
 elif [[ -n $ver && ((${1:-} != hook && ${1:-} != *statusline) ||
-  ${2:-} == inject-context || ${2:-} == inject-rules) &&
+  ${2:-} == inject-context) &&
   -z $(find "$bin.failed" -mmin -1 2>/dev/null) ]]; then
   url="https://github.com/ku5ic/claude-kit/releases/download/v$ver/kit-$ver-$os-$arch"
   # The release's .sha256 must match before the binary runs: a truncated or

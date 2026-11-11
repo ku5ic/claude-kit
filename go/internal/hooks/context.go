@@ -36,7 +36,7 @@ func projectOf(cwd string) (name, root string, ok bool) {
 
 // InjectContext is the SessionStart hook: <repo-context>,
 // <required-skills>, <suggested-skills>, and <tooling>. The rules come from
-// InjectRules.
+// the kit-rules skill, which RulesGate makes Claude load.
 // Plain stdout on SessionStart becomes context. Install problems switch it to
 // one JSON object, since a hook's stdout is either JSON or text, never both:
 // systemMessage shows them to the user, additionalContext carries them and

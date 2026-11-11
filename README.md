@@ -140,7 +140,7 @@ Each release attaches `kit-chat-<version>.zip`, a smaller plugin for chat on the
 Nothing to learn up front. After install:
 
 ```text
-session starts     -> Claude gets the rules, your stack, your check commands, and the skills that fit
+session starts     -> Claude loads the rules skill and gets your stack, your check commands, and the skills that fit
 Claude runs bash   -> dangerous commands are blocked, ambiguous ones ask you first
 Claude edits       -> credential files are off limits; skipping a test needs a stated reason; the file is formatted with your formatter
 Claude plans       -> plan-critic reads it against the repo, and its claims are checked, before you're asked to approve
@@ -206,8 +206,8 @@ Each edited file is formatted by the fixers your git hooks would run on it (pre-
 
 ### Context
 
-- **Session start:** the rules, stack, package managers, the check commands, the CLI tools on PATH, and which pattern skills to load. Gap-fill runs in the background to answer what the project's configs leave open.
-- **Subagents:** the same rules, repo context, and scratch path.
+- **Session start:** stack, package managers, the check commands, the CLI tools on PATH, and which pattern skills to load. Gap-fill runs in the background to answer what the project's configs leave open.
+- **Subagents:** the same repo context and scratch path.
 - **Plans:** in plan mode, Claude is pointed at `investigate`. Once a plan is approved, every prompt holds it to the next unchecked step.
 
 ### Rules
