@@ -31,13 +31,22 @@ A plan goes through plan mode (`/plan`).
 
 <!-- chat: skip -->
 
-2. Skim: project CLAUDE.md, `rg` for the names involved, read the matched sections. Answer from what was read, citing `file:line`, each claim labelled per `skills/kit-rules/reference/evidence.md` section 1.
-3. Only when the question spans 2-4 unfamiliar areas, fan out one built-in Explore subagent per area in a single message. Re-verify each result's decisive claim before using it (`skills/kit-rules/reference/subagents.md` section 2). One of the areas is the cheapest option, per `skills/kit-rules/reference/change.md` section 7.
+2. Skim: project CLAUDE.md, `rg` for the names involved, read the matched sections. Answer from what was read, citing `file:line`, each claim checked per `skills/kit-rules/reference/evidence.md` section 1.
+3. A plan step that changes existing code opens with the three gatherer questions below, sent to `kit:gatherer` in one message. Trace each report's decisive fact before building on it (`skills/kit-rules/reference/subagents.md` section 2).
+4. When the question compares approaches, one of them is the cheapest option, per `skills/kit-rules/reference/change.md` section 7.
+
+### Gatherer questions
+
+Each is the whole prompt for one `kit:gatherer` run, with the paths or symbols at stake filled in.
+
+1. Precedent: how does this project already do <the kind of change>? One instance per pattern found.
+2. Tests: which tests reference <the code about to change>, and what does each assert?
+3. History: what changed <the lines involved> and when, by `git log -L` and `git blame`: commit, date, subject.
 
 <!-- chat: end -->
 
 <!-- chat: only
-In claude.ai chat, the code the user pasted is all you have. Answer from it, citing the file and line where the paste shows them, each claim labelled per `skills/kit-rules/reference/evidence.md` section 1. If the answer turns on code that isn't pasted, say which and ask for it. When the question compares approaches, one of them is the cheapest option, per `skills/kit-rules/reference/change.md` section 7.
+In claude.ai chat, the code the user pasted is all you have. Answer from it, citing the file and line where the paste shows them, each claim checked against the paste per `skills/kit-rules/reference/evidence.md` section 1. If the answer turns on code that isn't pasted, say which and ask for it. When the question compares approaches, one of them is the cheapest option, per `skills/kit-rules/reference/change.md` section 7.
 -->
 
 ### Symptom
@@ -66,12 +75,12 @@ In claude.ai chat, nothing can be run, so read instead. Trace from the entry poi
 
 <!-- chat: skip -->
 
-- Symptom, or a question that needed a fan-out: a report at the path `kit scratch-dir debug <scope-slug>` or `kit scratch-dir explore <scope-slug>` prints, then the reply `skills/kit-rules/reference/output.md` section 3 describes, its headline the root cause or answer in one sentence.
+- Symptom, or a question that needed gatherers: a report at the path `kit scratch-dir debug <scope-slug>` or `kit scratch-dir explore <scope-slug>` prints, then the reply `skills/kit-rules/reference/output.md` section 3 describes, its headline the root cause or answer in one sentence.
 
 <!-- chat: end -->
 
 <!-- chat: only
-In claude.ai chat, a symptom gets the same sections in the reply, with no report file: the root cause or answer first, then findings with their labels, each hypothesis and its outcome, and the next step.
+In claude.ai chat, a symptom gets the same sections in the reply, with no report file: the root cause or answer first, then the findings, each hypothesis and its outcome, and the next step.
 -->
 
 <!-- chat: skip -->
@@ -86,7 +95,7 @@ Scope: <entry point or area>
 
 ## Findings
 
-<file:line citations, each labelled verified / likely / hypothesis / unknown>
+<file:line citations, each a fact read this session>
 
 ## Hypotheses (symptom)
 

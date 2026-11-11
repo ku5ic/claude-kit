@@ -47,11 +47,19 @@ var checkID = regexp.MustCompile(`claim-check [0-9a-f]{12}`)
 // checkerLine is a transcript line for a claim-checker run whose prompt
 // carries id.
 func checkerLine(id string) string {
-	line, _ := json.Marshal(map[string]any{"type": "assistant", "message": map[string]any{"content": []any{map[string]any{
+	return checkerCall(id, "No unconfirmed claims.", false)
+}
+
+// checkerCall is a claim-checker run on id and its result, as two lines.
+func checkerCall(id, result string, failed bool) string {
+	call, _ := json.Marshal(map[string]any{"type": "assistant", "message": map[string]any{"content": []any{map[string]any{
 		"type": "tool_use", "id": "cc", "name": "Agent",
 		"input": map[string]any{"subagent_type": "kit:claim-checker", "prompt": "Check the claims.\n" + id + "\n\nThe text."},
 	}}}})
-	return string(line)
+	done, _ := json.Marshal(map[string]any{"type": "user", "message": map[string]any{"content": []any{map[string]any{
+		"type": "tool_result", "tool_use_id": "cc", "is_error": failed, "content": result,
+	}}}})
+	return string(call) + "\n" + string(done)
 }
 
 // checkerRan points payload at a session transcript holding a claim-checker
@@ -179,6 +187,33 @@ func TestVerifyClaimsToolInput(t *testing.T) {
 		other.Denied(t)
 		if checkID.FindString(other.Stdout) == id {
 			t.Errorf("two texts share the id %s", id)
+		}
+	})
+	t.Run("a failed checker run counts as none", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		post := toolCall("mcp__chat__send_message", map[string]any{"text": claim})
+		id := checkID.FindString(k.run("verify-claims", post).Stdout)
+		path := filepath.Join(t.TempDir(), "session.jsonl")
+		testutil.Write(t, path, checkerCall(id, "The agent stopped: API error.", true)+"\n")
+		post["transcript_path"] = path
+		k.run("verify-claims", post).Denied(t)
+	})
+	t.Run("a session without the checker agent gets the hook's own run, once per text", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		calls := k.verifier("", claim)
+		post := toolCall("mcp__chat__send_message", map[string]any{"text": claim})
+		id := checkID.FindString(k.run("verify-claims", post).Stdout)
+		path := filepath.Join(t.TempDir(), "session.jsonl")
+		testutil.Write(t, path, checkerCall(id, "Agent type 'kit:claim-checker' not found. Available agents: Explore", true)+"\n")
+		post["transcript_path"] = path
+		r := k.run("verify-claims", post)
+		r.Denied(t)
+		r.Has(t, claim, "git log -S Foo")
+		k.run("verify-claims", post).Allowed(t)
+		if got := len(testutil.Calls(t, calls)); got != 1 {
+			t.Errorf("verifier ran %d times, want 1", got)
 		}
 	})
 	t.Run("disabled_rules: [claims] lets it through", func(t *testing.T) {

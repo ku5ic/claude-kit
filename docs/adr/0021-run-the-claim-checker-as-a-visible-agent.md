@@ -8,6 +8,8 @@ Accepted
 
 Amends [14. Verify claims before they go out](0014-verify-claims-before-they-go-out.md)
 
+Amended by [23. Fall back to the hook run when the claim checker is missing](0023-fall-back-to-the-hook-run-when-the-claim-checker-is-missing.md)
+
 ## Context
 
 The verifier from [14](0014-verify-claims-before-they-go-out.md) was a `claude -p` run the hook started out of sight, and a failed run was only logged. The user couldn't read what it checked or see what it cost.

@@ -1,6 +1,9 @@
 package hooks
 
 import (
+	"encoding/json"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
@@ -54,6 +57,52 @@ func TestRulesGate(t *testing.T) {
 		call(k, "Grep", "a1", map[string]any{"pattern": "x"}).Allowed(t)
 		call(k, "Bash", "", bash).Denied(t)
 		call(k, "Bash", "a2", bash).Denied(t)
+	})
+	// started is a session transcript whose subagent a1 began with lines.
+	started := func(t *testing.T, lines ...string) string {
+		main := filepath.Join(t.TempDir(), "s1.jsonl")
+		testutil.Write(t, main, "")
+		testutil.Write(t, filepath.Join(strings.TrimSuffix(main, ".jsonl"), "subagents", "agent-a1.jsonl"), strings.Join(lines, "\n")+"\n")
+		return main
+	}
+	inAgent := func(k *sandbox, main string) result {
+		return k.run("rules-gate", map[string]any{"hook_event_name": "PreToolUse", "session_id": "s1", "agent_id": "a1",
+			"agent_type": "web-fetch", "transcript_path": main, "tool_name": "WebFetch", "tool_input": map[string]any{"url": "https://example.com"}})
+	}
+	shape := func(tools ...string) string {
+		var named []map[string]any
+		for _, tool := range tools {
+			named = append(named, map[string]any{"name": tool})
+		}
+		line, _ := json.Marshal(map[string]any{"type": "api-request-shape", "shape": map[string]any{"system": []any{}, "tools": named}})
+		return string(line)
+	}
+	const prompt = `{"type":"user","message":{"role":"user","content":"Fetch it."}}`
+	t.Run("an agent Claude Code gave neither Skill nor Read passes, logged", func(t *testing.T) {
+		t.Parallel()
+		k := setup(t, "")
+		inAgent(k, started(t, prompt, shape("WebFetch", "SubagentHandback"))).Allowed(t)
+		if log := testutil.Read(t, k.paths.LogFile(kitlog.Guards)); !strings.Contains(log, "rules-gate-unloadable") {
+			t.Errorf("guards log lacks the skip:\n%s", log)
+		}
+	})
+	t.Run("an agent given Read or Skill is still gated", func(t *testing.T) {
+		t.Parallel()
+		k := setup(t, "")
+		inAgent(k, started(t, prompt, shape("WebFetch", "Read"))).Denied(t)
+		inAgent(k, started(t, prompt, shape("WebFetch", "Skill"))).Denied(t)
+	})
+	t.Run("an agent whose tools can't be read is gated", func(t *testing.T) {
+		t.Parallel()
+		k := setup(t, "")
+		inAgent(k, started(t, prompt)).Denied(t)
+		inAgent(k, filepath.Join(t.TempDir(), "none.jsonl")).Denied(t)
+	})
+	t.Run("a fork counts its parent's load", func(t *testing.T) {
+		t.Parallel()
+		fork := `{"type":"fork-context-ref","agentId":"a1"}`
+		inAgent(setup(t, mainLoad+"\n"), started(t, fork, prompt)).Allowed(t)
+		inAgent(setup(t, ""), started(t, fork, prompt)).Denied(t)
 	})
 	t.Run("no skills log fails open", func(t *testing.T) {
 		t.Parallel()

@@ -52,6 +52,7 @@ Each of these costs you a correction round when it gets through. The kit sends i
 | Without claude-kit, Claude will...                                            | With it                                                                                                         |
 | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | state a path, an API, or a test result in a plan or report that it never read | A second model checks each claim against what Claude read this session and sends back the ones nothing confirms |
+| cite a `file:line` that doesn't exist in a plan or a gatherer report          | Sent back with each bad citation, with no model run                                                             |
 | skip or focus a test, or silence a linter, to get to green                    | Blocked, unless the line says why (`kit: allow <reason>`)                                                       |
 | import or add a package that may not exist                                    | Blocked until your manifest declares it, or its registry has it                                                 |
 | say "done" while lint, types, or tests are failing                            | Your checks run on the files it edited; a failure sends it back                                                 |
@@ -247,6 +248,7 @@ Commands work bare (`/audit`) or namespaced (`/kit:audit`).
 | ----------------- | ----------------------------------------------------------------------------- |
 | `kit:auditor`     | Run a read-only audit for an `/audit` kind                                    |
 | `kit:debugger`    | Find where and why something breaks. Hands the fix back                       |
+| `kit:gatherer`    | Answer one fact question (precedent, tests, history) with `file:line` only    |
 | `kit:plan-critic` | Attack a plan against the real repo before you approve it                     |
 | `kit:researcher`  | Look up library docs and web pages, keeping network access out of code work   |
 | `kit:tester`      | Add or update tests for recent work. Never changes the code to make them pass |

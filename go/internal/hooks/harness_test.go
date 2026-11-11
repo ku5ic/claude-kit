@@ -59,6 +59,7 @@ var entries = map[string]func(*hook.Hook) int{
 	"guard-handback":          single("guard-handback", GuardHandback),
 	"guard-connector":         single("guard-connector", GuardConnector),
 	"verify-claims":           single("verify-claims", VerifyClaims),
+	"check-citations":         single("check-citations", CheckCitations),
 	"subagent-slop":           single("subagent-slop", SubagentSlop),
 	"chat-slop":               single("chat-slop", ChatSlop),
 	"log-skills":              single("log-skills", LogSkills),
@@ -77,16 +78,19 @@ var entries = map[string]func(*hook.Hook) int{
 	"inject-subagent-context": single("inject-subagent-context", InjectSubagentContext),
 	// As cmd/kit's registry composes them.
 	"handback-dispatch": func(h *hook.Hook) int {
-		return hook.Run(h, hook.NamedCheck{Name: "guard-handback", Check: GuardHandback}, hook.NamedCheck{Name: "verify-claims", Check: VerifyClaims})
+		return hook.Run(h, hook.NamedCheck{Name: "guard-handback", Check: GuardHandback}, hook.NamedCheck{Name: "check-citations", Check: CheckCitations},
+			hook.NamedCheck{Name: "verify-claims", Check: VerifyClaims})
 	},
 	"connector-dispatch": func(h *hook.Hook) int {
 		return hook.Run(h, hook.NamedCheck{Name: "guard-connector", Check: GuardConnector}, hook.NamedCheck{Name: "verify-claims", Check: VerifyClaims})
 	},
 	"plan-dispatch": func(h *hook.Hook) int {
-		return hook.Run(h, hook.NamedCheck{Name: "plan-changes", Check: PlanChanges}, hook.NamedCheck{Name: "guard-plan", Check: GuardPlan}, hook.NamedCheck{Name: "verify-claims", Check: VerifyClaims})
+		return hook.Run(h, hook.NamedCheck{Name: "plan-changes", Check: PlanChanges}, hook.NamedCheck{Name: "check-citations", Check: CheckCitations},
+			hook.NamedCheck{Name: "guard-plan", Check: GuardPlan}, hook.NamedCheck{Name: "verify-claims", Check: VerifyClaims})
 	},
 	"subagent-dispatch": func(h *hook.Hook) int {
-		return hook.Run(h, hook.NamedCheck{Name: "subagent-slop", Check: SubagentSlop}, hook.NamedCheck{Name: "verify-claims", Check: VerifyClaims})
+		return hook.Run(h, hook.NamedCheck{Name: "subagent-slop", Check: SubagentSlop}, hook.NamedCheck{Name: "check-citations", Check: CheckCitations},
+			hook.NamedCheck{Name: "verify-claims", Check: VerifyClaims})
 	},
 }
 

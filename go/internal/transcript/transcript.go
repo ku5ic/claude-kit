@@ -74,6 +74,7 @@ type Block struct {
 	Type      string `json:"type"`
 	ID        string `json:"id"`
 	ToolUseID string `json:"tool_use_id"` // a tool_result's tool_use
+	IsError   bool   `json:"is_error"`    // a tool_result's: the call failed
 	Name      string `json:"name"`
 	Text      string `json:"text"`
 	// Content is a tool_result's output: a string or an array of blocks.
@@ -178,6 +179,65 @@ func Each(path string, fn func(Entry)) error {
 		}
 	}
 	return scanner.Err()
+}
+
+// AgentStart is what a subagent's own transcript says it started with.
+type AgentStart struct {
+	// Tools are the tools Claude Code offered the agent, from the
+	// api-request-shape record written before its first request; nil when
+	// the record is missing.
+	Tools []string
+	// Fork is true for a fork, which starts from its parent's context and
+	// tools (a fork-context-ref record) and writes no shape record.
+	Fork bool
+}
+
+// ReadAgentStart reads the records Claude Code writes before a subagent's
+// first tool call. Neither record is documented; a transcript without
+// them gives a zero AgentStart.
+func ReadAgentStart(path string) (AgentStart, error) {
+	var start AgentStart
+	f, err := os.Open(path)
+	if err != nil {
+		return start, err
+	}
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 1024*1024), 64*1024*1024)
+	for scanner.Scan() {
+		var line struct {
+			Type  string          `json:"type"`
+			Shape json.RawMessage `json:"shape"`
+		}
+		if json.Unmarshal(scanner.Bytes(), &line) != nil {
+			continue
+		}
+		switch line.Type {
+		case "fork-context-ref":
+			start.Fork = true
+			return start, nil
+		case "api-request-shape":
+			// The shape is an object, or an object encoded as a string.
+			var encoded string
+			if json.Unmarshal(line.Shape, &encoded) == nil {
+				line.Shape = json.RawMessage(encoded)
+			}
+			var shape struct {
+				Tools []struct {
+					Name string `json:"name"`
+				} `json:"tools"`
+			}
+			if json.Unmarshal(line.Shape, &shape) != nil {
+				continue
+			}
+			start.Tools = []string{}
+			for _, t := range shape.Tools {
+				start.Tools = append(start.Tools, t.Name)
+			}
+			return start, nil
+		}
+	}
+	return start, scanner.Err()
 }
 
 // Load is every parseable entry of the transcript at path, in order: one

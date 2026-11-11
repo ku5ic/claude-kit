@@ -102,7 +102,7 @@ func verifyToolInput(h *hook.Hook) error {
 	if p.String("agent_id") != "" {
 		return verifyInSubagent(h, text, where, retry, marker)
 	}
-	return gateOnChecker(h, text, where, retry)
+	return gateOnChecker(h, text, where, retry, marker)
 }
 
 // verifyInSubagent checks a report or post written inside a subagent with
@@ -133,27 +133,56 @@ func verifyInSubagent(h *hook.Hook, text, where, retry, marker string) error {
 const claimChecker = "kit:claim-checker"
 
 // gateOnChecker denies the call until the transcript shows a claim-checker
-// run whose prompt carries this exact text's claim-check id, as GuardPlan
-// waits for plan-critic. The hook decides when a check must run, never the
-// model making the claims; whether Claude acted on the report is left to
-// the transcript.
-func gateOnChecker(h *hook.Hook, text, where, retry string) error {
+// run that finished, whose prompt carries this exact text's claim-check id,
+// as GuardPlan waits for plan-critic. The hook decides when a check must
+// run, never the model making the claims; whether Claude acted on the
+// report is left to the transcript. A session that started before the
+// agent was installed can't run it, so a not-found result falls back to
+// the hook's own run.
+func gateOnChecker(h *hook.Hook, text, where, retry, marker string) error {
 	cfg := h.Config()
 	if cfg == nil || h.RuleDisabled("claims") || cfg.Claims.Off() || !claims.Declarative(text) {
 		return nil
 	}
 	sum := sha256.Sum256([]byte(text))
 	id := "claim-check " + hex.EncodeToString(sum[:])[:12]
-	entries, _ := transcript.Load(h.Payload.String("transcript_path"))
-	for _, e := range entries {
-		for _, b := range e.ToolUses() {
-			if b.Name == "Agent" && b.Input.SubagentType == claimChecker && strings.Contains(b.Input.Prompt, id) {
-				return nil
-			}
-		}
+	switch checkerRun(h.Payload.String("transcript_path"), id) {
+	case checkerDone:
+		return nil
+	case checkerMissing:
+		return verifyInSubagent(h, text, where, retry, marker)
 	}
 	h.Deny(fmt.Sprintf("run the %s agent on %s first. Its prompt holds the line `%s` and the full text. Check or cut each claim it reports, per skills/kit-rules/reference/evidence.md section 1, then %s. A changed text needs its own run", claimChecker, where, id, retry), "claims")
 	return nil
+}
+
+// A claim-checker run's outcome, as the transcript shows it.
+const (
+	checkerNotRun  = iota // no finished run on this text
+	checkerDone           // a run on this text finished
+	checkerMissing        // the session has no claim-checker agent
+)
+
+// checkerRun is how the transcript's claim-checker runs on the text with
+// claim-check id ended. A failed run counts as none, so only a finished
+// check lets the text through.
+func checkerRun(path, id string) int {
+	entries, _ := transcript.Load(path)
+	calls := map[string]bool{}
+	outcome := checkerNotRun
+	for _, e := range entries {
+		for _, b := range e.Blocks {
+			switch {
+			case b.Type == "tool_use" && b.Name == "Agent" && b.Input.SubagentType == claimChecker && strings.Contains(b.Input.Prompt, id):
+				calls[b.ID] = true
+			case b.Type == "tool_result" && calls[b.ToolUseID] && !b.IsError:
+				return checkerDone
+			case b.Type == "tool_result" && calls[b.ToolUseID] && strings.Contains(b.ResultText(), "'"+claimChecker+"' not found"):
+				outcome = checkerMissing
+			}
+		}
+	}
+	return outcome
 }
 
 // verifyHandback checks a subagent's report with the hook's own run, once
@@ -236,16 +265,11 @@ func agentTranscript(p *hook.Payload) string {
 		return path
 	}
 	// Only SubagentStop names the agent's transcript; a tool call inside a
-	// subagent carries agent_id, and the transcript sits at
-	// <session>/subagents/agent-<agent_id>.jsonl (code.claude.com/docs/en/sub-agents).
-	main := p.String("transcript_path")
-	if agent := p.String("agent_id"); agent != "" && main != "" && !strings.ContainsAny(agent, `/\`) {
-		path := filepath.Join(strings.TrimSuffix(main, ".jsonl"), "subagents", "agent-"+agent+".jsonl")
-		if fsx.IsFile(path) {
-			return path
-		}
+	// subagent carries agent_id.
+	if path := subagentTranscript(p); path != "" && fsx.IsFile(path) {
+		return path
 	}
-	return main
+	return p.String("transcript_path")
 }
 
 // isInvestigationReport is true for an explore or debug report in scratch,

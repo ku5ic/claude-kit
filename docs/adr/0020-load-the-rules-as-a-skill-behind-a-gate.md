@@ -8,6 +8,8 @@ Accepted
 
 Supercedes [7. Ship the rules through hooks](0007-ship-the-rules-through-hooks.md)
 
+Amended by [22. Let agents that cannot load the rules through the gate](0022-let-agents-that-cannot-load-the-rules-through-the-gate.md)
+
 ## Context
 
 Injected rules loaded out of sight, 42,919 bytes at every session and subagent start ([7](0007-ship-the-rules-through-hooks.md)). The chat bundle already built a `kit-rules` skill ([13](0013-generate-the-chat-bundle-from-the-same-files.md)), so the name and shape had precedent.
