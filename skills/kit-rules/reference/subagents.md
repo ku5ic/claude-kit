@@ -7,6 +7,7 @@ The Agent tool takes the namespaced name, `kit:<name>`. `/agents` lists them.
 - Do the work yourself by default.
 - Before a plan step that changes existing code, send the gatherer questions in `skills/investigate` to `kit:gatherer`, in one message.
 - Spawn an agent only for a task matching its specialty, one needing isolation (a broad sweep, a read-only audit), or independent items that can run in parallel.
+- An agent whose definition sets no `model:` runs on the session's model. Pass `model` on the call to fit the task: `haiku` for lookups and fact gathering, `sonnet` for edits that follow a given brief or template, `opus` for judgment such as review, critique, or design.
 - An agent finishes its own task. A specialized agent may spawn one agent per run, only for a sub-task outside its own tools.
 
 ## 2. Verify an agent's work before building on it

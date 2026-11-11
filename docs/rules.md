@@ -84,6 +84,8 @@ A rule a hook already enforces isn't in the rule text. The block message carries
 
 **Spawning costs.** Each agent has its own request budget, and its report is a handoff that loses detail. Doing the work directly is cheaper unless the task needs isolation or parallelism.
 
+**The model fits the task.** An agent with no `model:` inherits the session's. In the 0.10.0 skill rewrite, template work ran on Opus at over 100k tokens per agent.
+
 **An agent's report describes intent.** It says what the agent meant to do, not necessarily what it did, so edits get a diff and findings get a spot check before anything rests on them. Two agents disagreeing means neither is correct until traced.
 
 ## Tooling
