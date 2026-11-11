@@ -366,6 +366,17 @@ claims:
   budget_usd: 1
   allow: []
 
+# The most prose words, fenced code excluded, a deliverable of each kind
+# runs before check-size (go/internal/hooks/size.go) sends it back, once per
+# text: plan at ExitPlanMode, report a subagent's handback or closing
+# message, scratch an explore or debug report, post a connector write.
+# 0 turns a budget off.
+size_budgets:
+  plan: 1500
+  report: 800
+  scratch: 1200
+  post: 300
+
 # What kit bundle chat ships to claude.ai chat, where no hook, repo, or kit
 # on PATH exists. A skill stays out unless skills names it. description is
 # the plugin's, 500 characters at most.

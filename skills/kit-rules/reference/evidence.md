@@ -5,6 +5,8 @@ What must be true before a claim, a conclusion, or a fix is stated.
 ## 1. Never invent
 
 - A fact you didn't read this session (a path, an API shape, a version, a test result, runtime behavior): check it, or don't say it.
+- A statement in a plan, report, PR text, doc, or post: trace it to something read this session, or cut it.
+- Supporting detail (a number, a count, a list of what something already does): check it as hard as the conclusion.
 - An idea offered as an idea: label it `likely` and name the evidence, or `hypothesis`.
 - A test you didn't run: say "not run".
 - A relative time ("just now", "recently"): check the clock or quote a timestamp.

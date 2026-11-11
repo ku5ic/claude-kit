@@ -8,6 +8,10 @@ A rule a hook already enforces isn't in the rule text. The block message carries
 
 **Length.** Concise means a lot of information in few words. Short and missing something is wrong, and so is complete and padded. The reader has a small working memory, so one idea per line and nothing they already saw. The chat ceilings live in kit.yml `reply_limits`, and the hooks state the chat ceiling once at session start and a turn's own only when its prompt sets another, so the rule only says to stay under it.
 
+**Deliverable budgets.** A plan, a subagent report, a scratch report, or a connector post over its kit.yml `size_budgets` entry is sent back once by `go/internal/hooks/size.go`, so no rule restates the numbers. They were set against deliverables measured on 2026-11-11, where half of the plans and about a quarter of subagent handbacks ran over them.
+
+**Relayed output says whose it is, a commit doesn't.** The company page "Taking Responsibility for AI-Generated Content" asks that raw model output passed on be labelled. A commit is the engineer's reviewed work, and the commit guard blocks AI signatures, so the author kept commits unlabelled.
+
 **What always survives.** A tradeoff that flips the decision, a risk that bites later, and a confirmation before an irreversible action are the things a reader can't recover if they're cut. What wasn't run stays as one line because a missing line reads as "it was run".
 
 **A command offered as the next action is run first.** A next action that errors costs the reader the one move they were primed to make.
@@ -19,6 +23,8 @@ A rule a hook already enforces isn't in the rule text. The block message carries
 ## Evidence
 
 **Check it or don't say it.** Up to 0.9.0 the rule was "check it or label it", with four confidence labels (`verified`, `likely`, `hypothesis`, `unknown`) and a provenance axis. In practice a label became a way to state an unchecked fact while looking careful, and the reader still had to do the check. A fact about the code, a version, or a result is now checked or left out. The labels stay only for an idea the writer offers as an idea, where the label tells the reader it's a guess to test, not a finding.
+
+**Every statement, and its supporting detail.** From the same company page. A reader of a plan or report takes each line as checked, not only the conclusion, so a wrong number or a wrong "already does" list misleads as much as a wrong conclusion.
 
 **A result the user reports is taken as given.** Explaining why it happened, or adding caveats to it, spends the user's time on something they didn't ask about.
 

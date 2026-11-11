@@ -148,7 +148,7 @@ Claude runs bash   -> dangerous commands are blocked, ambiguous ones ask you fir
 Claude edits       -> credential files are off limits; skipping a test needs a stated reason; the file is formatted with your formatter
 Claude plans       -> plan-critic reads it against the repo, and its claims are checked, before you're asked to approve; a resubmit lists what changed
 Claude ends a step -> a review sheet from git puts lockfiles, configs, markers, and files the plan never names first
-a subagent reports -> AI tells and unconfirmed claims are sent back before Claude reads the report
+a subagent reports -> AI tells, unconfirmed claims, and a report over its word budget are sent back before Claude reads it
 Claude commits     -> AI signatures and secrets are blocked; your commit-msg hooks check the message
 Claude says done   -> your git hooks' checks run on what it edited
 Claude replies     -> a `reply_limits` word ceiling, stated at session start and again when a prompt sets another; each prompt reminds it to check its claims
@@ -302,6 +302,7 @@ Defaults live in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml
 | `package_lookups`         | The registry lookup for each package manager's add command                                                                                                                              |
 | `user_pins`               | Your own Brewfile or `.tool-versions`, pinning tools for every project                                                                                                                  |
 | `reply_limits`            | Word ceilings per reply: `chat`, `explain` and its trigger words, `detail_triggers` that lift the cap, per-`/write` kind; 0 is off. `uncapped_commands`: slash commands with no ceiling |
+| `size_budgets`            | Word budgets, fenced code excluded, for a plan, a subagent report, a scratch report, and a connector post. Over one, the text is sent back once; 0 is off                               |
 | `skip_dirs`               | Directories a file walk never enters                                                                                                                                                    |
 | `sanitize_skip`           | Files `sanitize-output` leaves alone                                                                                                                                                    |
 | `slop`                    | The AI-tell lexicon `kit slop` scans with: rules by tier, the density word list and threshold, which tiers block, files to skip                                                         |

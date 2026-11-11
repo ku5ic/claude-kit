@@ -26,6 +26,7 @@ const (
 	Slop         = "slop"
 	Claims       = "claims"
 	Cites        = "cites"
+	Size         = "size"
 	Stack        = "stack"
 	StopReports  = "stop-reports"
 	TurnTree     = "turn-tree"
@@ -54,6 +55,7 @@ var Dirs = []Dir{
 	{Slop, "unslop marker(s)", 1},
 	{Claims, "claim-check marker(s)", 1},
 	{Cites, "citation-check marker(s)", 1},
+	{Size, "size-check marker(s)", 1},
 	{Stack, "stack report(s)", 30},
 	{StopReports, "stop-checks and per-edit report(s)", 1},
 	{TurnTree, "turn-start work tree snapshot(s)", 1},

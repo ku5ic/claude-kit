@@ -224,7 +224,7 @@ func TestDeniedFlag(t *testing.T) {
 
 func TestNegativeReplyLimitsWarn(t *testing.T) {
 	dir := t.TempDir()
-	base := write(t, dir, "kit.yml", "reply_limits:\n  chat: -5\n  explain: 80\n  write: {commit: -1}\n")
+	base := write(t, dir, "kit.yml", "reply_limits:\n  chat: -5\n  explain: 80\n  write: {commit: -1}\nsize_budgets: {plan: 1500, post: -3}\n")
 	_, warnings, err := Load(Paths{Base: base})
 	if err != nil {
 		t.Fatal(err)
@@ -233,7 +233,7 @@ func TestNegativeReplyLimitsWarn(t *testing.T) {
 	for _, w := range warnings {
 		got = append(got, w.Err.Error())
 	}
-	want := `reply_limits: chat is -5; a ceiling is 0 (off) or more|reply_limits: write.commit is -1; a ceiling is 0 (off) or more`
+	want := `reply_limits: chat is -5; a ceiling is 0 (off) or more|reply_limits: write.commit is -1; a ceiling is 0 (off) or more|size_budgets: post is -3; a budget is 0 (off) or more`
 	if strings.Join(got, "|") != want {
 		t.Errorf("warnings = %q, want %q", got, want)
 	}

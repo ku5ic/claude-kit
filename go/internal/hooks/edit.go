@@ -215,7 +215,7 @@ var filePathTools = []string{"Edit", "Write", "MultiEdit"}
 
 // GuardDispatch runs guard-edit's, guard-slop's, guard-weaken's,
 // guard-imports', guard-tokens', with guard_skills on guard-skills',
-// and then verify-claims' checks against one payload read,
+// and then check-size's and verify-claims' checks against one payload read,
 // each isolated so one failing open never skips the others. The skills gate
 // is opt-in: blocking edits until a patterns skill loads is a personal
 // policy, not a default.
@@ -229,6 +229,6 @@ func GuardDispatch(h *hook.Hook) int {
 		checks = append(checks, hook.NamedCheck{Name: "guard-skills", Check: GuardSkills})
 	}
 	// Last, so a block from a cheap check saves its model run.
-	checks = append(checks, hook.NamedCheck{Name: "verify-claims", Check: VerifyClaims})
+	checks = append(checks, hook.NamedCheck{Name: "check-size", Check: CheckSize}, hook.NamedCheck{Name: "verify-claims", Check: VerifyClaims})
 	return hook.Run(h, checks...)
 }

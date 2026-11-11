@@ -4,7 +4,7 @@ Check reference skills against the current language or framework release and upd
 
 ## What this maintains
 
-Reference skills are every `skills/*/SKILL.md` except the procedure skills `audit`, `write`, `deps`, `investigate`, `pr`, `unslop`, `report-format`, and `meta`. Each keeps its sources in `skills/<name>/sources.md`, which nothing links and only this procedure reads (slop-patterns: in its SKILL.md). There, per file, a References list, a Claims list naming each claim's source, and under `## SKILL.md` the Version notes this skill owns:
+Reference skills are every `skills/*/SKILL.md` except the procedure skills `audit`, `write`, `deps`, `investigate`, `pr`, `unslop`, `report-format`, and `meta`. Each keeps its sources in `skills/<name>/sources.md`, which nothing links and only this procedure reads. There, per file, a References list, a Claims list naming each claim's source, and under `## SKILL.md` the Version notes this skill owns:
 
 ```markdown
 ### Version notes
