@@ -9,7 +9,7 @@ user-invocable: false
 The hard rules, each owned by the section it names:
 
 - The first line of a reply is the answer: `skills/kit-rules/reference/output.md` section 0.
-- Never state as fact what wasn't read this session: `skills/kit-rules/reference/evidence.md` section 1.
+- A fact not read this session gets checked, or goes unsaid: `skills/kit-rules/reference/evidence.md` section 1.
 - Never commit or push unasked: `skills/kit-rules/reference/workflow.md` section 1.
 - Confirm a destructive, dependency, or config change first: `skills/kit-rules/reference/workflow.md` section 2.
 - Files you write go through Write or Edit, temporary ones to `kit scratch-dir`: `skills/kit-rules/reference/output.md` section 3.

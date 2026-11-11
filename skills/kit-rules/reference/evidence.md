@@ -2,85 +2,38 @@
 
 What must be true before a claim, a conclusion, or a fix is stated.
 
-Three labels answer three different questions. Do not flatten them:
-
-| Question                | Labels                                           |
-| ----------------------- | ------------------------------------------------ |
-| How sure am I?          | `verified` / `likely` / `hypothesis` / `unknown` |
-| Where did it come from? | reported / visible in the material / inferred    |
-| Measured against what?  | this project's conventions, not generic practice |
-
 ## 1. Never invent
 
-Do not state, as fact, any of these without having read them this session:
-
-- File paths not seen via Read or Glob.
-- API shapes not read from source or fetched from authoritative docs.
-- Version numbers: the lockfile or `--version` output.
-- Test results: if a test was not run, say "not run".
-- Browser, runtime, or library behavior: verify, or say "would need to check at runtime".
-
-When uncertain, say so directly and label it: "likely X, not verified". Never silently substitute plausible content for verified content.
+- A fact you didn't read this session (a path, an API shape, a version, a test result, runtime behavior): check it, or don't say it.
+- An idea offered as an idea: label it `likely` and name the evidence, or `hypothesis`.
+- A test you didn't run: say "not run".
+- A relative time ("just now", "recently"): check the clock or quote a timestamp.
+- A file the user names that you can't find: say so and ask. Never create a stub.
 
 <!-- chat: skip -->
 
-Whether to ask instead of going on is `skills/kit-rules/reference/workflow.md` section 4.
-
-<!-- chat: end -->
-
-Label every theory: `verified` (read it directly), `likely` (inferred, name the evidence), `hypothesis` (plausible, unchecked), `unknown` (no basis). A hypothesis does not become fact by going unchallenged.
-
-<!-- chat: skip -->
-
-The `verify-claims` hook sends back each claim in a plan, subagent report, scratch report, or connector post that nothing in the session confirms. Check it or label it. A chat reply goes unchecked, so check or label its claims before sending.
-
-<!-- chat: end -->
-
-**Also:**
-
-- Relative time claims ("just now", "recently") need a checked clock or a quoted timestamp. Never asserted from feel.
-- When a file the user says exists isn't found, surface it and ask. Do not create a stub matching the name.
-
-<!-- chat: skip -->
-
-- An agent's finding is reported, not verified. Before a conclusion rests on one, trace its decisive claim to the source (`skills/kit-rules/reference/subagents.md` section 2).
-- "Done", "fixed", or "passes" means what `skills/kit-rules/reference/verify.md` section 4 says. Never "should work".
+- An agent's finding: trace its decisive claim to the source before a conclusion rests on it.
+- "Done", "fixed", or "passes": only as `skills/kit-rules/reference/verify.md` section 4 defines them. Never "should work".
 
 <!-- chat: end -->
 
 <!-- chat: only
-In claude.ai chat, "done", "fixed", or "passes" needs evidence. Never "should work".
+- "Done", "fixed", or "passes": only with evidence. Never "should work".
 -->
 
-- Exception: a result or outcome the user reports is taken as given. Do not volunteer explanations of why it happened, or caveats about it, unless asked.
+- A result the user reports: take it as given, with no explanation or caveat unless asked.
 
 ## 2. Check the precedent before writing
 
-Before the first edit of a session, and before proposing how a change should look:
+- Before a new module, API shape, or file, find how this project already solves it, read one instance, and say in one sentence what it showed.
+- With no precedent for the case, say there is none.
+- An option that leaves the precedent without a stated reason is ruled out.
 
-1. Find how this project already solves that class of problem: an existing CLAUDE.md, a similar file, a linter config, a documented pattern.
-2. Read one concrete instance of it, not just its name.
-3. State what was checked and what it showed, in a sentence, before the change.
-4. If no precedent exists for this case, say so explicitly. An absence of precedent is a finding, not something to paper over.
-
-Not a mandate to read the codebase before every change; a one-line typo fix needs no check. A new module, API shape, or file does.
-
-Ground every conclusion and candidate list in this project's conventions, loaded skills, and code precedent. An option whose only path forward is an unjustified divergence gets an explicit "ruled out" note; it is not presented as a peer choice and not dropped silently. A named, justified divergence is a decision; an unnamed one is a defect.
+Applies to new code. Not to a one-line fix.
 
 ## 3. Diagnose before fixing across a boundary
 
-Before fixing a bug that involves a dependency this code does not own (third-party package or internal shared module alike), name whether it is **misuse** or **defect**:
-
-1. Read the dependency's actual contract: docs, type signatures, or source. Not memory.
-2. Compare the failure against it. Correct arguments, order, version, configuration?
-3. Call site deviates -> misuse. Fix the call site.
-4. Call site matches and it still misbehaves -> candidate defect. Check the issue tracker or changelog for a known report before calling it fresh.
-5. Still inconclusive -> say so, and say what a reproduction would need. That is a valid outcome.
-
-State the diagnosis before proposing the fix. Misuse: fix the call site. Genuine defect: workaround at the boundary, isolated, marked as a workaround.
-
-**Three failed fixes for the same defect means stop.** Report what was tried and question the approach or the diagnosis; a fourth patch is guessing.
-
-**A test failing after a refactor is the same question**, with the test as the suspect dependency. Do not silently adjust the assertion to match new output. Ask whether the asserted behavior changed on purpose. A test asserting on user-visible output is almost always guarding real behavior. State "intentional change, update the test" or "production code broke, fix the code" before touching either.
-
-Expect misuse more often than defect. Most "library bugs" are usage errors.
+- A bug involving code this project doesn't own: read its contract (docs, types, or source), then say misuse or defect before fixing.
+- Misuse: fix the call site. Defect: check its tracker, then work around it at the boundary, marked as a workaround. Inconclusive: say what a reproduction needs.
+- Three failed fixes for one defect: stop, report what was tried, and question the diagnosis.
+- A test failing after a refactor gets a verdict before either side changes, "intentional change, update the test" or "the code broke, fix the code". Ask when you can't tell.

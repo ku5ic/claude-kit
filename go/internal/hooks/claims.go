@@ -152,7 +152,7 @@ func gateOnChecker(h *hook.Hook, text, where, retry string) error {
 			}
 		}
 	}
-	h.Deny(fmt.Sprintf("run the %s agent on %s first. Its prompt holds the line `%s` and the full text. Fix or label each claim it reports, per skills/kit-rules/reference/evidence.md section 1, then %s. A changed text needs its own run", claimChecker, where, id, retry), "claims")
+	h.Deny(fmt.Sprintf("run the %s agent on %s first. Its prompt holds the line `%s` and the full text. Check or cut each claim it reports, per skills/kit-rules/reference/evidence.md section 1, then %s. A changed text needs its own run", claimChecker, where, id, retry), "claims")
 	return nil
 }
 
@@ -222,7 +222,7 @@ func claimsMessage(where string, u []claims.Unsupported, then string) string {
 		}
 		lines = append(lines, layout.KV(strconv.Itoa(i+1), strconv.Quote(claim)), layout.KV("check", c.Check))
 	}
-	lines = append(lines, layout.KV("do", "run each check, or label the claim (likely, not verified, unverifiable) per skills/kit-rules/reference/evidence.md section 1"))
+	lines = append(lines, layout.KV("do", "run each check, or cut the claim, per skills/kit-rules/reference/evidence.md section 1"))
 	if then != "" {
 		lines = append(lines, layout.KV("then", then))
 	}

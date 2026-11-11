@@ -43,6 +43,8 @@ Every behavior the kit applies everywhere has exactly one owner, listed below. B
 | Checking a plan's, subagent report's, scratch report's, or post's claims against the session's evidence and tools before they're presented                          | When: `go/internal/hooks/claims.go`. How: `agents/claim-checker.md`. The hook's own run: `go/internal/claims` |
 | Which skills and rules the claude.ai chat bundle carries                                                                                                            | `kit.yml` `chat_bundle:`                                                                                      |
 | How the chat bundle is built from them                                                                                                                              | `go/internal/chatbundle`                                                                                      |
+| Why each rule says what it says, for people (the model never loads it)                                                                                              | `docs/rules.md`                                                                                               |
+| Why an architecture decision was made, and what replaced it                                                                                                         | `docs/adr/`                                                                                                   |
 | Personal register and typography                                                                                                                                    | the user's own `~/.claude/rules/voice.md`, never the kit                                                      |
 
 Skills and agents carry procedure and stack knowledge only. When one needs a rule above, it cites `skills/kit-rules/reference/<file>.md` instead of restating it.
@@ -58,3 +60,10 @@ A session reads the rules from the plugin root it runs from, when it loads the k
 ## Hook changes
 
 Before applying a review finding to a hook, say what the user sees when it fires. If the answer is more blocks, ask first.
+
+## Architecture decisions
+
+- Before changing something an ADR in `docs/adr/` decided, read it. A change that contradicts it needs a new ADR that supersedes it, in the same change.
+- Create one with `VISUAL=true adr new <title>` (`-s <n>` to supersede, `-l "<n>:Amends:Amended by"` to amend), then fill it in with Edit, so the write hooks run.
+- An accepted ADR changes only in its status line, which `adr` writes.
+- Every sentence traces to a commit, a PR body, the README, or the code. Name the source in the Context.

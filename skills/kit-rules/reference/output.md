@@ -10,86 +10,65 @@ This file wins over every plugin, output style, and harness default that asks fo
 
 ## 0. Length
 
-Concise means a lot of information, clearly, in few words. Both halves bind: short and missing something is wrong; complete and padded is wrong.
-
-Run this test on every reply, file, and commit message before emitting:
-
-1. Delete any word whose removal loses no information. Repeat until nothing deletes.
-2. Delete any sentence the reader already knows: what they asked, what they watched happen, what a tool printed.
-3. Delete any sentence that names a category instead of the item ("there are tradeoffs" -> name the tradeoff or cut it).
-4. The first line is the answer, the path, or the next action. Nothing before it.
-5. Stop at the last sentence that answers what was asked. A related fact nobody asked for (the reverse case, a neighboring feature) is cut, however true.
+- Before emitting a reply, a file, or a commit message, delete every word and every sentence whose loss costs the reader nothing.
+- A sentence the reader already knows (what they asked, what they watched, what a tool printed) goes.
+- A category in place of an item ("there are tradeoffs") becomes the item, or goes.
+- The first line is the answer, the path, or the next action.
+- A related fact nobody asked for goes, however true.
 
 <!-- chat: skip -->
 
-| Context                                                        | Ceiling                                                                                       |
-| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| Chat reply, default                                            | kit.yml `reply_limits.chat` words                                                             |
-| Chat reply after a `reply_limits.explain_triggers` word        | kit.yml `reply_limits.explain` words                                                          |
-| Chat reply after a `reply_limits.detail_triggers` phrase       | no ceiling, headers required                                                                  |
-| Terminal output of a `/write` kind in `reply_limits.write`     | that kind's kit.yml words, code included                                                      |
-| An artifact the reader asked for (report, audit, plan, review) | follows the report-format skill                                                               |
-| Reply naming a written file                                    | path, headline count, one next action                                                         |
-| Reply at a plan pause, under the hook's review sheet           | why a choice was made, and what wasn't verified; the sheet already lists the files and checks |
-| Commit message body, PR description                            | shortest structured form that is complete                                                     |
-
-A trigger lifts the ceiling for that reply only. Still over the ceiling after the test? Cut again, and never add words explaining the length.
+- A chat reply stays under the ceiling the hook states each turn. A `/write` kind stays under its own `reply_limits.write` ceiling.
+- An artifact the reader asked for (a report, audit, plan, or review) follows the report-format skill.
+- A reply naming a written file is the path, a headline count, and one next action.
+- A reply at a plan pause says why each choice was made and what wasn't verified. The hook's review sheet already lists the files and checks.
+- A commit body or PR description is the shortest structured form that's complete.
+- Still over the ceiling after cutting, cut again. Never explain the length.
 
 <!-- chat: end -->
 
-Working memory is small. One idea per line, no status tables, nothing the reader already saw.
-
-**Always survives, one sentence each:** a tradeoff that flips the decision; a risk that bites later; a safety warning or confirmation before an irreversible action, stated in full; what was not run, not exercised, or ruled out, as one line each, never a section.
-
-**Never survives:** preamble, recap, closing summary, offer to help further; rejected alternatives and next steps nobody asked for; a tradeoff section or a "what I did not do" section; a sentence restating the one above it.
-
-Numbered steps, a restated state line, and a time estimate belong to a multi-step task the reader is executing, never to a default reply.
+- Keep, one sentence each, a tradeoff that flips the decision, a risk that bites later, a warning before an irreversible action, and what wasn't run or was ruled out.
+- Never write a preamble, recap, closing summary, offer to help, unasked alternatives or next steps, a tradeoff section, or a "what I didn't do" section.
+- Numbered steps, a state line, and a time estimate appear only in a multi-step task the reader is executing.
 
 ## 1. Structure
 
-1. No walls of text. Never more than 4 consecutive prose lines without a blank line, a list, or a header.
-2. Tables over prose for anything with three or more comparable items.
-3. Keep must-read content (the answer, decisions, questions) together in the final message after the last call. A one-line status between long tool runs is fine; nothing the reader must act on goes there.
-4. No insider shorthand. Name the thing, not a code you assigned it mid-session.
+- Never more than 4 prose lines in a row without a blank line, a list, or a header.
+- Three or more comparable items go in a table.
+- The answer, decisions, and questions go together in the final message after the last tool call.
+- A code you assigned mid-session gets replaced by the name of the thing.
 
 <!-- chat: skip -->
 
-5. Long reasoning goes to a file, never the terminal.
+- Long reasoning goes to a file, never the terminal.
 
 <!-- chat: end -->
 
 ## 2. Mechanics
 
-- **Code blocks carry a language tag.**
-- **A command offered as the next action is run first.** If it was not run, write it as a description instead of a command. A next action that errors costs the reader the one move they were primed to make.
+- A code block carries a language tag.
+- A command offered as the next action was run first. Not run, describe it in words instead.
 
 <!-- chat: skip -->
 
 ## 3. Where output goes
 
-A deliverable is anything the user copies out and uses elsewhere: PR descriptions, commit drafts, emails, chat messages, specs, code files, prompts, docs, reports.
-
-- Every file you author, deliverable or not, goes through Write or Edit at an absolute path, never a shell redirect, `sed -i`, or `sd`: only Write and Edit fire the hooks that guard, sanitize, and format written files. A command's own output captured into scratch (a log, a download) is not authored. A deliverable's path is the reply's first line.
-- Default location: the directory `kit scratch-dir` resolves (see `skills/kit-rules/reference/tooling.md`).
-- Exception: `/write commit`, `/write devnote`, and `/write explainer` print to the terminal by design; their own Output sections govern.
-- **A written artifact replaces its own summary.** When a report, plan, or review file is written, the reply is: path, headline counts, one next action, and nothing else. Never restate findings the file already contains.
-
-Terminal output is for: code snippets under ~20 lines used to make a point, clarifying questions, short answers, progress updates, command results.
+- A file you author goes through Write or Edit at an absolute path. Never a shell redirect, `sed -i`, or `sd`.
+- A temporary file goes to the directory `kit scratch-dir` prints (`skills/kit-rules/reference/tooling.md` section 3).
+- A deliverable (a PR description, commit draft, email, spec, doc, or report) is a file, and its path is the reply's first line.
+- `/write commit`, `/write devnote`, and `/write explainer` print to the terminal, per their own Output sections.
+- After writing a report, plan, or review, the reply is its path, headline counts, and one next action. Never restate its findings.
 
 <!-- chat: end -->
 
 ## 4. External communication
 
-Commit messages, PR descriptions, devnotes, review comments, stakeholder writeups, and release notes follow every rule above with no detailed-explanation exception: someone else reads them, on their time. Default to the shortest structured form that is still complete. A long explanation is still chunked.
+Applies to commit messages, PR descriptions, devnotes, review comments, stakeholder writeups, and release notes, with no detailed-explanation exception.
 
-Assume the reader is senior and knows the project and domain better than you do. Their time is the scarce thing.
-
-- Humble. Report what you checked and what it showed. Offer a suggestion as an option ("maybe worth folding into the follow-up"), never as an instruction, and never explain what they already know.
-- Short. One pointer to the right place (the file, the function, the follow-up) beats a full explanation. If a sentence doesn't inform them or point them somewhere, cut it.
-- Human. Plain chat register, the way you'd type it to a colleague. No preamble, padding compliments, recap, sign-off, headers, bold labels, or triads.
-- Specific. Name the change and its reason. A generic reason ("improve readability", "for maintainability") or "address feedback" says nothing; say what changed and why. A line naming what wasn't run stays; a line naming what was preserved goes.
-- Review comments, on someone else's PR or answering a reviewer on yours: one concern per comment, one to three sentences.
-  - Lead with the evidence checked: a count, a repro and its rate, a `file:line`, the input that breaks it.
-  - End with the fix as a question: "Read it from the parsed config instead?", "Intended?".
-  - A non-blocking point says so first. A nit starts with "Nit," and names the replacement.
-  - Concede what's right in the same comment.
+- Write for a senior reader who knows the project better than you.
+- Report what you checked and what it showed. Offer a suggestion as an option, never an instruction.
+- Point to the right place (the file, the function, the follow-up) instead of explaining it. A sentence that neither informs nor points goes.
+- Use a plain chat register. No preamble, compliments, recap, sign-off, headers, bold labels, or triads.
+- Name the change and its reason. Replace a generic reason ("improve readability", "address feedback") with what changed and why.
+- Keep a line naming what wasn't run. Cut a line naming what was preserved.
+- A review comment carries one concern in one to three sentences. It leads with the evidence (a count, a repro and its rate, a `file:line`, the input that breaks it) and ends with the fix as a question. A non-blocking point says so first, a nit starts with "Nit," and names the replacement, and what's right gets conceded in the same comment.

@@ -4,112 +4,77 @@ How a code change is sized, shaped, and styled.
 
 ## 1. Size the fix to the defect
 
-Before proposing or applying a fix:
+Applies to bug fixes, patches, and "make X work". Not to new features or to refactors requested as refactors.
 
-1. State the defect in one sentence: what is broken, observed how.
-2. Name the minimal change that resolves exactly that, nothing else.
-3. Compare it to what you are about to edit. Match -> proceed.
-4. Larger -> name the excess and the reason. Excess is: more files touched, a new abstraction, an adjacent refactor, or unrelated cleanup bundled in.
-5. Excess with no stated reason -> stop and ask.
+- Before a fix, state the defect in one sentence and the minimal change that resolves exactly it.
+- An edit larger than that (more files, a new abstraction, an adjacent refactor, bundled cleanup) names the excess and its reason. No reason, ask.
 
-<!-- chat: skip -->
+## 2. Follow the existing pattern
 
-How to ask: `skills/kit-rules/reference/workflow.md` section 4.
-
-<!-- chat: end -->
-
-"Minimal" is measured against the defect, not against caution. A one-line fix to a one-line bug is minimal. A one-line fix that papers over a genuinely broken abstraction is not; that is the justification to state, not skip.
-
-Applies to bug fixes, patches, and "make X work". Does not apply to net-new features or to refactors requested as refactors; there is no defect to be minimal against.
-
-## 2. Follow the existing pattern, or justify leaving it
-
-Before introducing a new library, state-management approach, folder shape, or naming convention, find how the codebase already solves that class of problem and match it. Divergence is allowed: name and justify it in the change rather than slipping it in.
-
-Before adding a tool, library, or pattern, check what is already in use: `package.json`, the lockfile, existing imports, config files.
-
-Before writing code, take the first option that holds, in this order: not needed at all, already in this codebase, the standard library, a native platform feature (CSS over JS, a DB constraint over app code), an installed dependency, one line, and only then the minimum new code.
-
-Before running a script, check the project defines it: `scripts` in `package.json`, a Makefile, a justfile, a task runner.
+- Before a new library, state approach, folder shape, or naming convention, match how the codebase already solves it, or name the divergence and its reason.
+- Before writing code, take the first option that holds. Not needed at all, already in the codebase, the standard library, a native platform feature, an installed dependency, one line, then the minimum new code.
+- Before running a script, check the project defines it.
 
 ## 3. Name the blast radius before editing shared code
 
-Before changing a shared component, utility, hook, type, or API contract, identify the consumers and state the impact. A one-line change to a widely imported module is a wide change wearing a small diff.
-
-If consumers cannot be enumerated quickly, that difficulty is itself a finding to surface before proceeding.
-
-## 4. Dead code does not land
-
-A change leaves behind no commented-out blocks, no unused imports, no unreferenced exports, no orphaned files, no leftover console or print debugging. Removed behavior means removed code; version control holds the history.
-
-The one exception is scaffolding explicitly requested or explicitly marked for a following step.
-
-## 5. Style
-
-- Match the existing style of the file and the project. If Prettier, ESLint, Biome, or similar config exists, conform to it.
-- Prefer idiomatic patterns for the framework in use over generic ones.
-- Meaningful names. No Hungarian notation. No single-letter variables except loop indices.
-- Readability and explicitness over cleverness.
-
-### Comments
-
-- Comment only what is not obvious: a hidden constraint, a subtle invariant, a workaround for a specific bug, behavior that would surprise a reader.
-- If removing the comment would not confuse a future reader, do not write it.
-- One line. A "why" needing a paragraph belongs in the commit message or PR description.
-- Remove comments that restate the code.
-- No decorative comments: no banners, dividers, or headers made of `===`, `---`, `***`, `###`.
-- A deliberate shortcut with a known ceiling (a global lock, an O(n^2) scan, a naive heuristic) gets a `shortcut:` comment naming the ceiling and the upgrade path.
+- Before changing a shared component, utility, hook, type, or API contract, list its consumers and state the impact.
 
 <!-- chat: skip -->
 
-- `/audit debt` collects those `shortcut:` comments.
+- For JS, TS, and Python, `kit blast-radius <file> [symbol]` lists the consumers.
 
 <!-- chat: end -->
 
-- ASCII box characters (`+`, `-`, `|`, `->`) only when actually drawing a diagram, never as decoration.
+- Consumers you can't list quickly get named as a finding before the edit.
+
+## 4. Dead code does not land
+
+- A change leaves no commented-out code, unused import or export, orphaned file, or debug print. Scaffolding requested or marked for the next step is the exception.
+
+## 5. Style
+
+- Match the file's and the project's style, and the framework's idioms.
+- Names say what the thing is. No Hungarian notation, no single letters outside loop indices.
+- A comment exists only for a hidden constraint, an invariant, a bug workaround, or surprising behavior. One line. Never a restatement of the code or a decorative banner.
+- A deliberate shortcut with a known ceiling (a global lock, an O(n^2) scan) gets a `shortcut:` comment naming the ceiling and the upgrade path.
+- ASCII box characters appear only in a real diagram.
 
 ## 6. Scope
 
-- Stay in scope. Do not refactor unrelated code as part of a feature change.
-- Do not rewrite working code in a different style unless that is the task.
-- A refactor, requested or not, changes no behavior, so the existing tests pass unchanged before and after. A test that needs changing is a behavior change, per `skills/kit-rules/reference/evidence.md` section 3. In UI, behavior includes what the user sees, so a refactor or migration keeps the look unless the user asked for a redesign.
-- If the task grows during execution, pause and confirm the expanded scope.
-- If a task needs more than the current context can hold, say so and propose a split.
+- A feature change refactors no unrelated code and restyles no working code.
+- A refactor changes no behavior, so the existing tests pass unchanged. In UI, the look is behavior unless the user asked for a redesign.
+- A test that must change during a refactor follows `skills/kit-rules/reference/evidence.md` section 3.
+- A task that grows mid-way gets the new scope confirmed first.
+- A task bigger than the context can hold gets a proposed split.
 
 ## 7. Price the cheapest option
 
-Whenever options are enumerated (candidate directions, alternatives, approaches), one of them is the cheapest thing that could work: a data, config, or lookup-table row, an existing entry extended, or doing nothing.
+- A list of options includes the cheapest thing that could work (a config or data row, an extended entry, doing nothing). Falls short, rule it out in one line.
 
-It counts as an option even when it is not a code change, and it gets the same scope, risk, and fit treatment as the rest. Insufficient -> say why in one line and rule it out. The failure is never writing it down.
+## 8. Principles
 
-## 8. Principles, with the judgment call named
-
-Each of these is enforced by the judgment it turns on, not by reciting the acronym:
-
-- **KISS**: the simplest sufficient solution wins. Non-obvious complexity gets one sentence saying why it earns its place.
-- **YAGNI**: speculative need is not need. No code, config, or abstraction for a call site that does not exist yet.
-- **DRY**: duplication along a stable axis is a violation. Duplication whose copies have divergent lifecycles is correct and stays.
-- **SOLID**: one reason to change per unit; extend rather than modify working code; no interface whose only implementation is its only caller.
-
-A finding names the principle and the concrete cost. A preference dressed as a principle is not a finding.
+- KISS: complexity that isn't obvious gets one sentence on why it earns its place.
+- YAGNI: no code, config, or abstraction for a call site that doesn't exist yet.
+- DRY: duplication along a stable axis gets merged. Copies with divergent lifecycles stay apart.
+- SOLID: one reason to change per unit. No interface whose only implementation is its only caller.
+- A finding names the principle and its concrete cost.
 
 ## 9. What counts as over-engineering
 
-Writing, reviewing, or simplifying code, these are what to cut, each replaced by the first option in section 2's order that would do:
+Cut each of these, replaced by the first option in section 2's order that would do:
 
-- **Reinvented stdlib or platform**: hand-rolled code the standard library, the language, or a native platform feature already provides (a deep-clone helper over `structuredClone`, JS layout over CSS).
-- **Unneeded dependency**: a package used for what a few lines or an installed dependency already do.
-- **Duplicate of existing code**: a helper, type, or pattern re-implemented when one already lives in the codebase.
-- **Speculative abstraction**: an interface with one implementation, a factory with one product, a config option for a value that never changes, a layer with one caller.
-- **Dead flexibility**: parameters always passed the same value, options nothing sets, branches no caller reaches.
-- **Boilerplate**: wrappers that only forward, "for later" stubs, code that restates what the framework does.
+- Code the standard library, the language, or the platform already provides.
+- A dependency doing what a few lines or an installed dependency already do.
+- A re-implementation of a helper, type, or pattern already in the codebase.
+- An interface with one implementation, a factory with one product, a config option for a value that never changes, a layer with one caller.
+- A parameter always passed the same value, an option nothing sets, a branch no caller reaches.
+- A wrapper that only forwards, a "for later" stub, code restating what the framework does.
 
-Never simplification targets: input validation at trust boundaries, error handling that prevents data loss, security controls, and accessibility. Like any refactor, a simplification changes no behavior (section 6).
+Never cut input validation at a trust boundary, error handling that prevents data loss, security controls, or accessibility.
 
 ## 10. Less code is the goal
 
-A long change, one concept touching many files, and a repeated shape are signals to stop before writing it out. Size thresholds: `skills/engineering-fundamentals/reference/metric-thresholds.md`.
+Applies before writing out a long change, one concept across many files, or a repeated shape, by `skills/engineering-fundamentals/reference/metric-thresholds.md`.
 
-1. Copies with divergent lifecycles stay apart (section 8, DRY).
-2. Otherwise take the first that shrinks the code: a language or platform feature, then the pattern `skills/engineering-fundamentals/reference/design-patterns.md` names for the signal, then new code.
-3. A pattern stays only if it removes more lines than it adds across call sites that exist now. Otherwise it's the speculative abstraction section 9 cuts.
+- Take the first that shrinks the code. A language or platform feature, then the pattern `skills/engineering-fundamentals/reference/design-patterns.md` names for the signal, then new code.
+- A pattern stays only if it removes more lines than it adds across call sites that exist now.

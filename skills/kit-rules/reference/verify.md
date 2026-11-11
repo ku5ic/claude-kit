@@ -1,38 +1,28 @@
 # Verify
 
-What must happen before a change is called done, and when. This file is the one definition of "done" and "verify"; others point here.
+What must happen before a change is called done. This file is the one definition of "done" and "verify".
 
-| When                                                                                                                 | What runs                                                                                                                                                                                                                                                               |
-| -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| After every edit                                                                                                     | The Stop hook's checks on the edited files. Automatic; a failure blocks the turn                                                                                                                                                                                        |
-| Calling an ordinary change done                                                                                      | The refactor pass first, since first green is never done (`skills/engineering-fundamentals/reference/red-green-refactor.md`). Then nothing more. Name in one line what the refactor pass changed and anything not run; the Stop hook shows its own run (next paragraph) |
-| End of a plan, or when the user asks                                                                                 | `/code-review` (section 1); its hook runs the full gate                                                                                                                                                                                                                 |
-| Same moment, when the change has observable behavior (a response, output, an exit code, data written, a side effect) | The runtime pass (section 2)                                                                                                                                                                                                                                            |
-
-**Hooks run the gates and show their results; Claude does neither.** The Stop hook checks a turn's edits (`kit stop:`). The `/code-review` hook runs the full gate (`kit full gate:`), and Stop skips a tree it already checked. Each shows the user a receipt of every gate's verdict, which kit.yml `receipt` can hide on a clean pass. Claude never runs `kit run-checks` (the bash guard blocks it; `--plan` only lists the gates). A reply never repeats verdict lines or counts. It acts on a FAIL, or says what wasn't run. A targeted test while developing is fine.
-
-Tests and type checks prove the code compiles and the asserted paths pass. They don't prove the change works for whoever consumes it; that is what the runtime pass is for. A pure refactor with no behavior change is covered by the existing tests, unless it touches UI: tests don't assert how a screen looks.
+- After an edit, run nothing. The Stop hook checks the edited files and shows its receipt.
+- Before calling an ordinary change done, do the refactor pass (`skills/engineering-fundamentals/reference/red-green-refactor.md`), then name in one line what it changed and what wasn't run.
+- At the end of a plan, or when the user asks, run `/code-review` (section 1). Its hook runs the full gate.
+- At the same moment, a change with observable behavior (a response, output, an exit code, data written, a side effect) gets the runtime pass (section 2).
+- A gate verdict is never repeated in a reply. Act on a FAIL, or say what wasn't run.
+- A targeted test while developing is fine.
+- A pure refactor that doesn't touch UI is covered by the existing tests.
 
 ## 1. Self-review (`/code-review`)
 
-Read your own diff as a reviewer who didn't write it and doesn't trust it. When it first stops, a SubagentStop hook runs the full gate on the checkout and sends it back with any FAIL. A PR reviewed in a worktree is gated by its CI (`gh pr checks`), not locally. Ticking a plan's last step blocks the stop until a review started after the last edit has finished.
-
-The reviewer's report follows these, whoever prompted the checks:
-
-- It never lists the checks or their counts, since the hook already showed the user every line. For a worktree review, it opens with the PR's CI state from `gh pr checks`. Only the branch-left line from `skills/kit-rules/reference/workflow.md` section 1 goes above it.
-- A FAIL becomes a finding only once its cause is verified in the code and you're at least 90% sure, and never twice for something already reported.
-- A FAIL left unreported gets one line saying why: pre-existing, flaky, or unrelated.
-
-A PR or another branch is reviewed checked out, never from its diff alone; this applies to `/verify` too. How it's checked out: `skills/kit-rules/reference/workflow.md` section 1.
-
-- Every new helper, module, type, or abstraction names what was searched for and not found, per `skills/kit-rules/reference/change.md` section 2. "I didn't look" is a finding against the change.
-- Every non-obvious decision gets one line answering "why this, not the obvious alternative". A decision you can't justify is a decision you took from a generated draft without checking it.
-- What a refactor pass would have removed is a finding: duplication, a redundant call, a leftover, a helper restating another. Code committed at first green skipped that pass.
-- Review findings are claims, per `skills/kit-rules/reference/workflow.md` section 4.
+- Read your own diff as a reviewer who didn't write it.
+- A PR or another branch gets reviewed checked out, per `skills/kit-rules/reference/workflow.md` section 1. In a worktree, its gate is the PR's CI (`gh pr checks`). This applies to `/verify` too.
+- The report never lists the checks or their counts. A worktree review opens with the PR's CI state, below only the branch-left line.
+- A FAIL becomes a finding once its cause is verified in the code at 90% or more, and only once. A FAIL left out gets one line, pre-existing, flaky, or unrelated.
+- A new helper, module, type, or abstraction names what was searched for and not found.
+- A non-obvious decision gets one line on why not the obvious alternative.
+- Whatever a refactor pass would have removed (duplication, a redundant call, a leftover) is a finding.
 
 ## 2. Use it until it breaks (the runtime pass, with `/verify`)
 
-Exercise the change through the interface its consumers use, the way they use it:
+Exercise the change through the interface its consumers use:
 
 | Surface   | Exercise it by                                                     |
 | --------- | ------------------------------------------------------------------ |
@@ -43,11 +33,9 @@ Exercise the change through the interface its consumers use, the way they use it
 | Migration | running it on a copy of realistic data                             |
 | Infra     | `plan` or a dry run against the real target                        |
 
-A plan step that changes what a user sees gets this pass before its pause, not at plan end. A change whose contract is "unchanged" (a refactor, migration, or rewire) runs the same flow on the base branch (`kit git-base`) and on the change, side by side.
-
-Starting it and seeing it respond is not verification. The goal is to break it.
-
-Exercise every row that applies to the change:
+- A plan step that changes what a user sees gets this pass before its pause.
+- A change whose contract is "unchanged" (a refactor, migration, or rewire) runs the same flow on the base branch (`kit git-base`) and on the change.
+- Try to break it, on every axis that applies:
 
 | Axis       | Cases                                                                                                                    |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------ |
@@ -58,37 +46,24 @@ Exercise every row that applies to the change:
 | UI only    | loading state, keyboard only, narrow viewport, back or refresh mid-flow                                                  |
 | CLI only   | no args and `--help`, invalid flags, piped stdin and non-TTY output, stdout vs stderr, exit codes, Ctrl-C mid-run        |
 
-The UI and CLI rows are additive. They apply only when the change touches that surface, and a change that doesn't never lists them as Not exercised.
-
-When the setup can't produce a case (no fixture with many items, no limited-permission user), say so; don't skip it silently.
-
-The report lists three things, one line per case:
-
-1. **Exercised**: the case and what happened.
-2. **Not exercised**: the case and why (no data, no access, out of scope).
-3. **Raise with**: see section 3.
-
-"Looked fine" is not a result. A case that broke goes back to the fix loop when section 5 says it's a regression; anything else is a follow-up.
+- The UI and CLI rows apply only to a change touching that surface.
+- A case the setup can't produce goes under Not exercised, with the reason.
+- The report gives one line per case under **Exercised** (what happened), **Not exercised** (why), and **Raise with** (section 3).
 
 ## 3. Raise upstream gaps
 
-An edge case the spec, the contract, or the design doesn't cover is a question for the person who owns it, not something to patch around quietly.
-
-- List each under **Raise with** naming the owner of the contract (upstream service, API, schema, design, product) and the concrete case: input, observed behavior, what's undefined.
-- A workaround on your side of the boundary is allowed only when named in the change and in the Raise with list. An unnamed one is a defect.
+- A case the spec, contract, or design leaves undefined goes under Raise with, naming the owner and the input, the observed behavior, and what's undefined.
+- A workaround on your side of the boundary is allowed only when named in the change and in Raise with.
 
 ## 4. The human orchestrates
 
-The agent proposes; the human decides and owns the result. Agent output, including a generated plan, review, or fix, is a draft with its reasons attached, never a decision already taken.
-
-- Present a non-obvious choice with its alternative and the reason, so the human can overrule it.
-- Don't claim done on behalf of the human. Done means the checks the table at the top requires ran after the last edit, with their output cited; without that, say what was not run.
+- A non-obvious choice is presented with its alternative and the reason, so the human can overrule it.
+- Done means the checks this file requires ran after the last edit, with their output cited. Otherwise, say what wasn't run.
 
 ## 5. One cycle, then stop
 
-A change gets one `/code-review` and one runtime pass. A finding from either goes back to the fix loop only when it's a regression, meaning the change leaves something worse than on the base branch (`kit git-base`). That means a new failure, a path that worked and now breaks, or a guard or check weakened.
-
-Everything else is a follow-up line in the report and the PR description, never another cycle: a pre-existing problem, an edge case the base already had, a hardening idea, a gap in new code that still improves on the base.
-
-- Fixing a regression re-runs only the case or check that found it, not the whole review or runtime pass.
-- Another full review or runtime pass runs only when the user asks for one.
+- A change gets one `/code-review` and one runtime pass.
+- A finding goes back to the fix loop only when it's a regression against the base branch (`kit git-base`), meaning a new failure, a path that worked and now breaks, or a weakened check.
+- Anything else is a follow-up line in the report and the PR description.
+- Fixing a regression re-runs only the case or check that found it.
+- Another full review or runtime pass runs only when the user asks.

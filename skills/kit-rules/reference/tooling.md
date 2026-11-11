@@ -4,7 +4,8 @@ Which CLI to reach for, how to call the bin scripts, and where temporary files g
 
 ## 1. Reach for the CLI first
 
-When a deterministic CLI can answer the question, call it before reading files and reasoning. Fewer tokens wins: one CLI call beats a targeted read beats a broad grep beats reasoning from memory. When the `<tooling>` block is present, its `available:` and `missing:` lines say which of these are on PATH; don't reach for a missing one.
+- A factual question (how big, what secrets, how fast, what's in this JSON) goes to a CLI before any file read. An interpretive one (is this correct, does this design hold) gets read and reasoned about.
+- A tool the `<tooling>` block's `missing:` line names stays unused.
 
 | Question                           | Tool                               | Over                               |
 | ---------------------------------- | ---------------------------------- | ---------------------------------- |
@@ -23,27 +24,23 @@ When a deterministic CLI can answer the question, call it before reading files a
 | Git outside cwd                    | `git -C <dir>`                     | cd <dir> && git                    |
 | Validate a GitHub Actions workflow | `actionlint`                       | reading YAML by eye                |
 
-Factual question (how big, what secrets, how fast, what is in this JSON): reach for the tool. Interpretive question (is this correct, does this design hold): reading and reasoning is correct.
-
 ### Budget
 
 - Cap `git log` at `-20` unless a wider window is justified.
-- Do not `cat` files over 500 lines without a reason. Use line ranges.
+- A file over 500 lines gets read by line range.
 - Once located, read the matched section, not the whole file.
-- Do not re-read a file in the same session unless an edit changed it.
-- For diffs, prefer `git diff <base>..HEAD -- <path>` over unfiltered diff.
-- Reference scratch artifacts by path; do not inline their contents.
+- A file already read this session gets re-read only after an edit changed it.
+- A diff gets a path filter, `git diff <base>..HEAD -- <path>`.
+- A scratch artifact gets referenced by path, never inlined.
 - Skip for any glob, grep, or read: `node_modules/**`, `.next/**`, `dist/**`, `build/**`, `coverage/**`, `.turbo/**`, `.cache/**`, `vendor/**`, `target/**`, `out/**`, `storybook-static/**`, `.pnpm-store/**`, `__pycache__/**`, `.venv/**`, `venv/**`.
 
 ## 2. Call kit by bare name
 
-The plugin's `bin/` is on PATH, so its tools are `kit <subcommand>`: `kit scratch-dir`, `kit git-base`, `kit blast-radius`. Never call it by path or through `bash`. Permission allows are written against the bare command, so a pathful or wrapped call misses them and prompts.
+- Call the plugin's tools as `kit <subcommand>` (`kit scratch-dir`, `kit git-base`, `kit blast-radius`). Never by path or through `bash`.
 
 ## 3. Scratch
 
 Scratch is whatever `kit scratch-dir` prints, the `scratch:` line of `<repo-context>`.
-
-Three sibling directories under a project's `.claude/`, each with one job:
 
 | Directory          | Holds                                                               | Tracked?       |
 | ------------------ | ------------------------------------------------------------------- | -------------- |
@@ -51,21 +48,9 @@ Three sibling directories under a project's `.claude/`, each with one job:
 | `.claude/plans/`   | Plan files, via `plansDirectory: ".claude/plans"`                   | No, gitignored |
 | `.claude/tasks/`   | Handover plans a person is meant to read, written by hand           | Yes            |
 
-**Everything temporary goes to scratch**: reports, previews, test artifacts, proof-of-concept scripts, one-off debug files, downloads, screenshots, logs. Plans are the exception; they have their own directory above. This overrides the harness's per-session `/tmp` scratchpad and ad hoc paths under `~/.claude/`.
-
-### Never the project root
-
-Resolve the destination first, then pass it explicitly:
-
-- `curl -o "$(kit scratch-dir)/<name>"`, not `curl -O`
-- a screenshot or export tool's `out_dir` argument, not its default
-- `cmd > "$(kit scratch-dir)/<name>.log"`, not `cmd > out.log`
-
-A stray file in the project root pollutes `git status`, risks being committed, and lands in every clone.
-
-- `curl` and `wget` download only into scratch.
-- Read web pages and docs with WebFetch, never `curl` to disk. If you only need to search a page, pipe it (`curl ... | rg`) instead of saving it.
-- After any download, and after any subagent that has Bash returns, run `git status --short`. A new untracked file you didn't intend to create gets moved to scratch or flagged before you do anything else.
-- A subagent prompt that may write files names `$(kit scratch-dir)` as the only place it may write.
-
-Structured artifacts (reports, reviews, audits) go to the path `kit scratch-dir <kind> <slug>` prints. A plan is `.claude/plans/plan-<task-slug>.md`, slug capped at four words.
+- A temporary file (a report, preview, test artifact, POC, debug file, download, screenshot, log) goes to scratch, over the harness's `/tmp` scratchpad and any ad hoc path under `~/.claude/`.
+- A command that writes a file gets the scratch path passed explicitly (`curl -o "$(kit scratch-dir)/<name>"`, a tool's `out_dir`, `> "$(kit scratch-dir)/<name>.log"`).
+- A web page or doc gets read with WebFetch, or searched with `curl ... | rg`. Never saved to disk to read.
+- After a download, or after a subagent with Bash returns, run `git status --short`. A file you didn't mean to create gets moved to scratch or flagged first.
+- A subagent prompt that may write files names `$(kit scratch-dir)` as its only place to write.
+- A structured artifact (a report, review, or audit) goes to the path `kit scratch-dir <kind> <slug>` prints. A plan is `.claude/plans/plan-<task-slug>.md`, slug capped at four words.

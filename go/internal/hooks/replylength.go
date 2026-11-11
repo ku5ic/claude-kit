@@ -49,7 +49,7 @@ func writeTurn(marker string, t turn) {
 
 // checkClaims stands in for verify-claims on chat replies: said before the
 // reply, since a check at Stop would show the reply twice.
-const checkClaims = "Before replying, check each claim with a tool this session or label it (likely, not verified) per skills/kit-rules/reference/evidence.md section 1. Never state a guess as fact."
+const checkClaims = "Before replying, check each claim with a tool this session, or cut it, per skills/kit-rules/reference/evidence.md section 1. Never state a guess as fact."
 
 // ReplyLength holds chat replies to the word ceilings in kit.yml
 // reply_limits (skills/kit-rules/reference/output.md section 0), silently: on UserPromptSubmit it

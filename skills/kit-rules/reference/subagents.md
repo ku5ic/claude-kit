@@ -1,25 +1,26 @@
 # Subagents
 
-Agent definitions live in the plugin's `agents/`; `/agents` lists them. The Agent tool takes the namespaced name, `kit:<name>`; a bare `auditor` fails as not found.
+The Agent tool takes the namespaced name, `kit:<name>`. `/agents` lists them.
 
 ## 1. Spawn discipline
 
-A subagent costs its own request budget, so default to doing the work directly. Spawn one only when the task matches an agent's specialty, needs isolation from the main context (a broad sweep, a read-only audit), or splits into independent items that can run in parallel.
-
-An agent finishes its own task rather than spawning further subagents. Nested spawning is allowed only from a specialized agent, for a sub-task outside its own tool grant, at most one per invocation.
+- Do the work yourself by default.
+- Spawn an agent only for a task matching its specialty, one needing isolation (a broad sweep, a read-only audit), or independent items that can run in parallel.
+- An agent finishes its own task. A specialized agent may spawn one agent per run, only for a sub-task outside its own tools.
 
 ## 2. Verify an agent's work before building on it
 
-An agent's report describes what it intended, not necessarily what it did. Before committing, reporting, or handing a claim to another agent: claimed edits get a `git diff --stat` on the touched paths; claimed findings get one cited `file:line` spot-checked.
-
-Before synthesizing a fan-out, each agent's findings get one more pass. Identify the single claim that result's viability rests on and trace it to the source yourself. Two agents disagreeing means neither is correct until traced. A couple of tool calls, not a re-run of the agent's work.
+- Before building on claimed edits, run `git diff --stat` on the touched paths.
+- Before building on claimed findings, spot-check one cited `file:line`.
+- Before synthesizing a fan-out, trace each result's decisive claim to the source.
+- When two agents disagree, trace before trusting either.
 
 ## 3. What every agent definition can assume
 
-No agent file restates these, except where noted:
+No agent file restates these, except where noted.
 
-- **Startup**: the rules, the resolved `<scratch>` path, repo context, and the `<required-skills>`/`<suggested-skills>` blocks arrive through the SubagentStart hooks, whatever the agent's tools. `researcher` ignores the repo context and the skill blocks.
-- **Skills**: load every skill those blocks or the invoking skill name via the Skill tool before any edit or before reading the work under review; a frontmatter preload doesn't count. None named: proceed and say so.
-- **Memory**: an agent with `memory: local` consults it before starting and records durable patterns after finishing; its Startup names which patterns.
-- **Read-only by default**: Edit and Write exist only for memory and a scratch report. Never touch project source; state fixes as instructions. `tester` and `debugger` hold scoped write grants instead, and each states its scope in its Boundaries section.
-- **Output**: follow the invoking skill's format and path. Unbounded output (logs, traces, a full map) goes to a scratch file plus a short digest. Output the agent's contract already bounds, like a pass/fail line or a ranked shortlist, comes back inline. Writing needs a real grant: `Write` in `tools:`, or the one `memory: local` implies.
+- **Startup**: the resolved `<scratch>` path, repo context, and the `<required-skills>` and `<suggested-skills>` blocks arrive through the SubagentStart hooks. `researcher` ignores the repo context and the skill blocks.
+- **Skills**: load every skill those blocks or the invoking skill name, via the Skill tool, before any edit or before reading the work under review. None named, proceed and say so.
+- **Memory**: an agent with `memory: local` reads it before starting and records durable patterns after. Its Startup names which patterns.
+- **Read-only by default**: Edit and Write exist only for memory and a scratch report. Fixes go back as instructions. `tester` and `debugger` state their write scope in their Boundaries section.
+- **Output**: the invoking skill's format and path. Unbounded output (logs, traces, a full map) goes to a scratch file plus a short digest. Bounded output (a pass/fail line, a ranked shortlist) comes back inline. Writing needs `Write` in `tools:` or `memory: local`.

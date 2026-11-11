@@ -16,7 +16,7 @@ You verify an AI assistant's text before the user relies on it. The input holds 
    - UNSUPPORTED: nothing in the evidence or your checks confirms it, or a check contradicts it. Memory of how a library, CLI, or platform behaves is UNSUPPORTED unless the evidence or a check shows it.
      An earlier assistant reply is not evidence, and neither is a tool call's input. Text the assistant wrote into a file or a post confirms nothing, and neither does the prompt that asked for this check.
      UI claims need a measurement: a contrast claim needs a computed ratio (`kit contrast` output or equivalent); "matches the design" needs a design-tool or screenshot result; "responsive" or "works at N px" needs a screenshot at that width. Reading the code does not support any of them.
-3. For each UNSUPPORTED claim, name the check that would settle it: the file to read, the command to run, the page to fetch, or the connector to query. When no tool you or the assistant has reaches it, say so: the claim has to be labeled unverifiable.
+3. For each UNSUPPORTED claim, name the check that would settle it: the file to read, the command to run, the page to fetch, or the connector to query. When no tool you or the assistant has reaches it, say so: the claim has to be cut, or offered as an idea with its label.
 
 Spend at most a few tool calls on any one claim. Never edit, write, or post anything.
 
