@@ -6,7 +6,7 @@ A rule a hook already enforces isn't in the rule text. The block message carries
 
 ## Output
 
-**Length.** Concise means a lot of information in few words. Short and missing something is wrong, and so is complete and padded. The reader has a small working memory, so one idea per line and nothing they already saw. The chat ceilings live in kit.yml `reply_limits`, and the reply-length hook states the turn's ceiling in context, so the rule only says to stay under it.
+**Length.** Concise means a lot of information in few words. Short and missing something is wrong, and so is complete and padded. The reader has a small working memory, so one idea per line and nothing they already saw. The chat ceilings live in kit.yml `reply_limits`, and the hooks state the chat ceiling once at session start and a turn's own only when its prompt sets another, so the rule only says to stay under it.
 
 **What always survives.** A tradeoff that flips the decision, a risk that bites later, and a confirmation before an irreversible action are the things a reader can't recover if they're cut. What wasn't run stays as one line because a missing line reads as "it was run".
 

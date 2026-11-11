@@ -61,19 +61,22 @@ var hookChecks = map[string]hook.Check{
 // registry is every `kit hook` name. A test holds it and hooks/hooks.json
 // to each other.
 var registry = map[string]hookDef{
-	"bash-dispatch":           {events: []string{"PreToolUse"}, steps: []string{"guard-bash", "guard-commit", "guard-pr"}},
-	"guard-dispatch":          {events: []string{"PreToolUse"}, run: hooks.GuardDispatch},
-	"rules-gate":              {events: []string{"PreToolUse"}},
-	"post-edit-dispatch":      {events: []string{"PostToolUse"}, steps: []string{"sanitize-output", "format-dispatch", "plan-tick"}},
-	"log-skills":              {events: []string{"PostToolUse", "UserPromptExpansion"}},
-	"plan-mode-context":       {events: []string{"PostToolUse", "UserPromptSubmit"}},
-	"reply-length":            {events: []string{"UserPromptSubmit", "Stop"}},
+	"bash-dispatch":      {events: []string{"PreToolUse"}, steps: []string{"guard-bash", "guard-commit", "guard-pr"}},
+	"guard-dispatch":     {events: []string{"PreToolUse"}, run: hooks.GuardDispatch},
+	"rules-gate":         {events: []string{"PreToolUse"}},
+	"post-edit-dispatch": {events: []string{"PostToolUse"}, steps: []string{"sanitize-output", "format-dispatch", "plan-tick"}},
+	"log-skills":         {events: []string{"PostToolUse", "UserPromptExpansion"}},
+	"plan-mode-context":  {events: []string{"PostToolUse"}},
+	"prompt-dispatch":    {events: []string{"UserPromptSubmit"}, steps: []string{"turn-tree", "plan-mode-context", "reply-length", "chat-slop"}},
+	// stop-checks runs last: the first block ends a run, and the others only record.
+	"stop-dispatch":           {events: []string{"Stop"}, steps: []string{"reply-length", "chat-slop", "stop-checks"}},
 	"inject-context":          {events: []string{"SessionStart"}},
 	"inject-subagent-context": {events: []string{"SubagentStart"}},
-	"stop-checks":             {events: []string{"Stop"}},
-	"turn-tree":               {events: []string{"UserPromptSubmit"}},
 	"review-checks":           {events: []string{"SubagentStop"}},
-	"chat-slop":               {events: []string{"UserPromptSubmit", "Stop"}},
+	"reply-length":            {},
+	"chat-slop":               {},
+	"stop-checks":             {},
+	"turn-tree":               {},
 	"guard-plan":              {},
 	// verify-claims runs last, so a cheap guard's block saves its model run.
 	"handback-dispatch":  {events: []string{"PreToolUse"}, steps: []string{"guard-handback", "check-citations", "verify-claims"}},

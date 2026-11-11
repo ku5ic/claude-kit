@@ -222,6 +222,19 @@ func TestVerifyClaimsToolInput(t *testing.T) {
 		k.verifier("disabled_rules: [claims]\n", claim)
 		k.run("verify-claims", toolCall("mcp__chat__send_message", map[string]any{"text": claim})).Allowed(t)
 	})
+	t.Run("a text the session already checked gets its verdict again, with no run", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		calls := k.verifier("", claim)
+		k.run("verify-claims", handback("a1", claim)).Denied(t)
+		again := k.run("verify-claims", handback("a2", claim))
+		again.Denied(t)
+		again.Has(t, claim, "git log -S Foo")
+		k.run("verify-claims", handback("a3", "Deploys run at noon because the cron says 12.")).Denied(t)
+		if got := len(testutil.Calls(t, calls)); got != 2 {
+			t.Errorf("verifier ran %d times, want 2: once per distinct text", got)
+		}
+	})
 	t.Run("a checked handback leaves the subagent's stop alone", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)

@@ -31,6 +31,38 @@ func TestBashDispatch(t *testing.T) {
 	}
 }
 
+// prompt-dispatch: plan-mode-context's plain text and reply-length's
+// context reach Claude in one JSON object, neither dropped.
+func TestPromptDispatch(t *testing.T) {
+	t.Parallel()
+	r := New(t).Hook("prompt-dispatch", map[string]any{"hook_event_name": "UserPromptSubmit", "session_id": "s1", "permission_mode": "plan", "prompt": "go"})
+	r.Want(t, 0)
+	var out struct {
+		HookSpecificOutput struct {
+			HookEventName     string `json:"hookEventName"`
+			AdditionalContext string `json:"additionalContext"`
+		} `json:"hookSpecificOutput"`
+	}
+	if err := json.Unmarshal([]byte(r.Stdout), &out); err != nil {
+		t.Fatalf("stdout isn't one JSON object: %v\n%s", err, r.Stdout)
+	}
+	ctx := out.HookSpecificOutput.AdditionalContext
+	if out.HookSpecificOutput.HookEventName != "UserPromptSubmit" || !strings.Contains(ctx, "load the investigate skill") || !strings.Contains(ctx, "check each claim") {
+		t.Errorf("want the plan line and the claims line in one context; got %+v", out.HookSpecificOutput)
+	}
+}
+
+// stop-dispatch measures the reply for the next prompt's correction.
+func TestStopDispatch(t *testing.T) {
+	t.Parallel()
+	k := New(t)
+	k.Hook("prompt-dispatch", map[string]any{"hook_event_name": "UserPromptSubmit", "session_id": "s1", "prompt": "go"}).Want(t, 0)
+	k.Hook("stop-dispatch", map[string]any{"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": false,
+		"last_assistant_message": strings.TrimSpace(strings.Repeat("word ", 41))}).Want(t, 0)
+	k.Hook("prompt-dispatch", map[string]any{"hook_event_name": "UserPromptSubmit", "session_id": "s1", "prompt": "next"}).
+		Has(t, "Your last reply ran 41 words against a 40-word ceiling")
+}
+
 // post-edit-dispatch runs sanitize-output before format-dispatch.
 func TestPostEditDispatch(t *testing.T) {
 	t.Parallel()

@@ -151,7 +151,7 @@ Claude ends a step -> a review sheet from git puts lockfiles, configs, markers, 
 a subagent reports -> AI tells and unconfirmed claims are sent back before Claude reads the report
 Claude commits     -> AI signatures and secrets are blocked; your commit-msg hooks check the message
 Claude says done   -> your git hooks' checks run on what it edited
-Claude replies     -> each prompt carries its `reply_limits` word ceiling and a reminder to check its claims
+Claude replies     -> a `reply_limits` word ceiling, stated at session start and again when a prompt sets another; each prompt reminds it to check its claims
 ```
 
 **Block** means Claude sees the reason and tries another way; you aren't interrupted. **Ask** means a normal permission prompt, with the reason in it.

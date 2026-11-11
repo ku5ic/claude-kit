@@ -80,6 +80,13 @@ func FullGateTree(cacheDir, root string) string {
 	return filepath.Join(cacheDir, StopReports, RootKey(root)+".full")
 }
 
+// StopPassTree is where stop-checks keeps the tree and gates of its last
+// clean pass for the repo at root, so the same checks on that tree are
+// skipped.
+func StopPassTree(cacheDir, root string) string {
+	return filepath.Join(cacheDir, StopReports, RootKey(root)+".pass")
+}
+
 // EditReport is where format-dispatch keeps its last report for the repo
 // at root, for kit explain stop.
 func EditReport(cacheDir, root string) string {

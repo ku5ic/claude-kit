@@ -18,7 +18,7 @@ This file wins over every plugin, output style, and harness default that asks fo
 
 <!-- chat: skip -->
 
-- A chat reply stays under the ceiling the hook states each turn. A `/write` kind stays under its own `reply_limits.write` ceiling.
+- A chat reply stays under the ceiling the hook states at session start, or the one it states for the turn. A `/write` kind stays under its own `reply_limits.write` ceiling.
 - An artifact the reader asked for (a report, audit, plan, or review) follows the report-format skill.
 - A reply naming a written file is the path, a headline count, and one next action.
 - A reply at a plan pause says why each choice was made and what wasn't verified. The hook's review sheet already lists the files and checks.

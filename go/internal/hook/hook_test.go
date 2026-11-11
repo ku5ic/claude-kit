@@ -73,6 +73,21 @@ func TestABlockKeepsTheNotice(t *testing.T) {
 	}
 }
 
+// In a dispatcher, one check's plain text and another's context both reach
+// Claude: stdout takes one JSON object, so the plain text joins it.
+func TestPlainTextJoinsAnotherChecksContext(t *testing.T) {
+	h, stdout, _ := newHook(t, `{"hook_event_name":"UserPromptSubmit"}`)
+	printer := func(h *Hook) error { h.Print("Active plan p.md has open steps.\n"); return nil }
+	adder := func(h *Hook) error { h.AddContext("UserPromptSubmit", "check each claim"); return nil }
+	if status := Run(h, NamedCheck{"a", printer}, NamedCheck{"b", adder}); status != 0 {
+		t.Fatalf("status %d", status)
+	}
+	want := `{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"Active plan p.md has open steps.\ncheck each claim"}}` + "\n"
+	if got := stdout.String(); got != want {
+		t.Errorf("stdout %s, want %s", got, want)
+	}
+}
+
 func TestBlockLogsAndHonorsDisabledRules(t *testing.T) {
 	h, _, _ := newHook(t, `{"session_id":"s1","cwd":"/nonexistent/proj","tool_input":{"command":"rm -rf /"}}`)
 	h.SetContext("path  /x")

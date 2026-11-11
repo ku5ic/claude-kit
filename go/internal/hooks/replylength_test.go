@@ -40,7 +40,7 @@ func TestReplyLength(t *testing.T) {
 		for _, p := range []string{"Can you elaborate on those?", "What's your honest take?"} {
 			prompt(k, p).Has(t, "150 words")
 		}
-		prompt(k, "I understand, ship it.").Has(t, "40 words")
+		prompt(k, "I understand, ship it.").Lacks(t, "Reply ceiling")
 	})
 	t.Run("fenced code and table pipes don't count", func(t *testing.T) {
 		t.Parallel()
@@ -97,7 +97,7 @@ func TestReplyLength(t *testing.T) {
 	t.Run("a detail trigger lifts a /write ceiling too", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
-		prompt(k, "/write explainer the cache in detail").Lacks(t, "Reply ceiling")
+		prompt(k, "/write explainer the cache in detail").Has(t, "No reply ceiling this turn")
 		stop(t, k, words(500), false)
 		prompt(k, "go").Lacks(t, "Your last reply")
 	})
@@ -111,7 +111,7 @@ func TestReplyLength(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
 		for _, p := range []string{"/verify this branch", "/code-review high", "/kit:audit perf"} {
-			prompt(k, p).Lacks(t, "Reply ceiling")
+			prompt(k, p).Has(t, "No reply ceiling this turn")
 			stop(t, k, words(500), false)
 		}
 	})
@@ -126,8 +126,8 @@ func TestReplyLength(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
 		k.overlay("disabled_rules: [claims]\n")
-		prompt(k, "go").Lacks(t, "check each claim")
-		prompt(k, "/verify this branch").Empty(t)
+		prompt(k, "/verify this branch").Lacks(t, "check each claim")
+		prompt(k, "go").Empty(t)
 	})
 	t.Run("an unclosed fence doesn't hide the prose after it; a tilde fence is code", func(t *testing.T) {
 		t.Parallel()
@@ -138,6 +138,15 @@ func TestReplyLength(t *testing.T) {
 		stop(t, k, words(30)+"\n```\n"+words(20), false)
 		prompt(k, "go").Has(t, over(50, 40))
 	})
+	t.Run("the chat ceiling, stated at session start, isn't repeated per prompt", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		prompt(k, "go").Lacks(t, "Reply ceiling", "No reply ceiling")
+		stop(t, k, words(41), false)
+		r := prompt(k, "go")
+		r.Has(t, over(41, 40))
+		r.Lacks(t, "Reply ceiling")
+	})
 	// The chat ceiling holds when what looks like a trigger isn't one.
 	for name, text := range map[string]string{
 		"a slash command's name isn't a trigger": "/security-review high",
@@ -146,7 +155,7 @@ func TestReplyLength(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			prompt(newSandbox(t), text).Has(t, "40 words")
+			prompt(newSandbox(t), text).Lacks(t, "Reply ceiling")
 		})
 	}
 }

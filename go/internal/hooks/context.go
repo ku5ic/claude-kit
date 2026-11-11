@@ -57,6 +57,7 @@ func InjectContext(h *hook.Hook) error {
 	cfg := h.Config()
 	if cfg != nil {
 		writeContext(h, cfg, &out)
+		out.WriteString(chatCeiling(cfg.ReplyLimits))
 	}
 	var lines []string
 	for _, w := range h.Warnings() {

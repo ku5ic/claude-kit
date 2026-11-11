@@ -276,6 +276,32 @@ func TestStopChecks(t *testing.T) {
 			t.Error("a tree changed after the full gate went unchecked")
 		}
 	})
+	t.Run("checks that passed on this tree aren't run again; other files, content, or a failure are", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		runs := func() int { return strings.Count(e.checked(), "\n") + min(len(e.checked()), 1) }
+		e.turn("Edit", e.path("a.ts"))
+		e.stop(false).Want(t, 0)
+		r := e.stop(false)
+		r.Want(t, 0)
+		r.Has(t, `"systemMessage":"kit stop: skipped, these checks already passed on this tree"`)
+		if runs() != 1 {
+			t.Fatalf("checks ran %d times, want 1:\n%s", runs(), e.checked())
+		}
+		e.turn("Edit", e.path("b.ts"))
+		e.stop(false).Want(t, 0)
+		testutil.Write(t, e.path("b.ts"), "changed\n")
+		e.stop(false).Want(t, 0)
+		if runs() != 3 {
+			t.Errorf("checks ran %d times, want 3: another file, then new content", runs())
+		}
+		testutil.Touch(t, e.path("fail"))
+		e.stop(false).Want(t, 0)
+		e.stop(false).Want(t, 0)
+		if runs() != 5 {
+			t.Errorf("checks ran %d times, want 5: a failure is never reused", runs())
+		}
+	})
 	t.Run("a question-only turn after a full gate stays silent", func(t *testing.T) {
 		t.Parallel()
 		e := stopSetup(t)

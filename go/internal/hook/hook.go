@@ -9,6 +9,7 @@ package hook
 
 import (
 	"bytes"
+	"cmp"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -337,9 +338,16 @@ func (h *Hook) flush(block string) {
 		// another check decides; only a defer would drop it.
 		WriteJSON(h.Stdout, output{SystemMessage: strings.Join(h.notices, "\n"), HookSpecificOutput: &specific{HookEventName: "PreToolUse", PermissionDecision: h.decision, PermissionDecisionReason: h.reason, AdditionalContext: strings.Join(h.contexts, "\n")}})
 	case h.contexts != nil || h.notices != nil:
+		contexts, event := h.contexts, h.event
+		// Plain text can't share stdout with JSON: in a dispatcher, one
+		// check's Print joins another's context.
+		if h.plain.Len() > 0 && h.Payload != nil {
+			contexts = append([]string{strings.TrimRight(h.plain.String(), "\n")}, contexts...)
+			event = cmp.Or(event, h.Payload.String("hook_event_name"))
+		}
 		out := output{SystemMessage: strings.Join(h.notices, "\n")}
-		if h.contexts != nil {
-			out.HookSpecificOutput = &specific{HookEventName: h.event, AdditionalContext: strings.Join(h.contexts, "\n")}
+		if contexts != nil {
+			out.HookSpecificOutput = &specific{HookEventName: event, AdditionalContext: strings.Join(contexts, "\n")}
 		}
 		WriteJSON(h.Stdout, out)
 	case h.plain.Len() > 0:

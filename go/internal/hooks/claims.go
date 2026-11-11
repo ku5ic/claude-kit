@@ -3,6 +3,7 @@ package hooks
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -212,11 +213,21 @@ func verifyHandback(h *hook.Hook) error {
 // unconfirmed is what the verifier found unconfirmed in text, logged with
 // its cost; nil when text states nothing, without kit.yml, or when the
 // verifier fails, which never blocks but tells the user the text went
-// unchecked.
+// unchecked. A text the session already checked gets that verdict again,
+// with no run.
 func unconfirmed(h *hook.Hook, text, transcriptPath, where string) []claims.Unsupported {
 	cfg := h.Config()
 	if cfg == nil || h.DryRun || h.RuleDisabled("claims") || !claims.Declarative(text) {
 		return nil
+	}
+	sum := sha256.Sum256([]byte(text))
+	cached := h.Paths.SessionFile(cache.Claims, h.Payload.SessionID(), "verdict", hex.EncodeToString(sum[:])[:16])
+	if data, err := os.ReadFile(cached); err == nil {
+		var u []claims.Unsupported
+		if json.Unmarshal(data, &u) == nil {
+			h.Log(kitlog.Guards, "claims-cached", "where", where, "unconfirmed", strconv.Itoa(len(u)))
+			return u
+		}
 	}
 	v, err := claims.Verify(cfg, h.Paths.Root, h.Paths.CacheDir(), h.Payload.Cwd(), text, transcriptPath)
 	if errors.Is(err, claims.ErrOff) {
@@ -228,6 +239,9 @@ func unconfirmed(h *hook.Hook, text, transcriptPath, where string) []claims.Unsu
 		// For the turn's receipt at Stop.
 		_ = fsx.Append(claimsUnchecked(h), []byte(where+"\n"))
 		return nil
+	}
+	if data, err := json.Marshal(v.Unsupported); err == nil && cached != "" {
+		_ = fsx.WriteAtomic(cached, data, 0o644)
 	}
 	h.Log(kitlog.Guards, "claims", append([]string{"where", where, "unconfirmed", strconv.Itoa(len(v.Unsupported))}, v.Usage.Pairs()...)...)
 	h.Notify(fmt.Sprintf("kit claims: checked %s with %s, %d unconfirmed, $%.2f in %s", where, claimChecker, len(v.Unsupported), v.Usage.CostUSD, v.Usage.Duration.Round(time.Second)))

@@ -53,11 +53,12 @@ const checkClaims = "Before replying, check each claim with a tool this session,
 
 // ReplyLength holds chat replies to the word ceilings in kit.yml
 // reply_limits (skills/kit-rules/reference/output.md section 0), silently: on UserPromptSubmit it
-// picks the turn's ceiling from the prompt, records it, and says it in
-// context the user never sees, with a correction when the last reply ran
-// over. It also carries checkClaims, unless claims is in disabled_rules. At
-// Stop it only measures: a Stop runs after the reply is on screen, so a
-// block would show it twice.
+// picks the turn's ceiling from the prompt and records it. In context the
+// user never sees, it says a ceiling other than the chat one, which
+// SessionStart states (chatCeiling), and a correction when the last reply
+// ran over. It also carries checkClaims, unless claims is in
+// disabled_rules. At Stop it only measures: a Stop runs after the reply is
+// on screen, so a block would show it twice.
 func ReplyLength(h *hook.Hook) error {
 	p := h.Payload
 	cfg := h.Config()
@@ -78,12 +79,16 @@ func ReplyLength(h *hook.Hook) error {
 		if last.OverWords > 0 {
 			lines = append(lines, fmt.Sprintf("Your last reply ran %d words against a %d-word ceiling: run section 0's cut test before sending this one.", last.OverWords, last.OverLimit))
 		}
-		if t.Limit > 0 {
+		switch {
+		case t == turn{Limit: l.Chat}:
+		case t.Limit > 0:
 			counted := "fenced code excluded"
 			if t.All {
 				counted = "code included"
 			}
 			lines = append(lines, fmt.Sprintf("Reply ceiling this turn: %d words, %s (skills/kit-rules/reference/output.md section 0).", t.Limit, counted))
+		default:
+			lines = append(lines, "No reply ceiling this turn.")
 		}
 		if !h.RuleDisabled("claims") {
 			lines = append(lines, checkClaims)
@@ -112,6 +117,15 @@ func ReplyLength(h *hook.Hook) error {
 		writeTurn(marker, t)
 	}
 	return nil
+}
+
+// chatCeiling is the ceiling a turn has unless its prompt sets another,
+// said once at SessionStart; "" when chat replies have none.
+func chatCeiling(l config.ReplyLimits) string {
+	if l.Chat <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("Reply ceiling: %d words, fenced code excluded, on every turn whose context names no other (skills/kit-rules/reference/output.md section 0).\n", l.Chat)
 }
 
 // turnLimit is what a prompt sets: none for an uncapped command or after a
