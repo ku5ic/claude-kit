@@ -31,9 +31,3 @@ Storing currency as a `Number` is `failure`. Either store integer minor units (c
 ## `BigInt`
 
 Arbitrary-precision integers. Literal suffix `n`: `1_000_000_000_000n`. Cannot mix `BigInt` and `Number` in arithmetic without explicit coercion. `JSON.stringify` does not serialize `BigInt`; use a replacer or convert to string at the boundary.
-
-## References
-
-- MDN equality comparisons: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Equality_comparisons_and_sameness
-- MDN Number: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number
-- MDN BigInt: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/BigInt

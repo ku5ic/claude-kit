@@ -31,9 +31,3 @@ When turning on strictness flags on an existing codebase, do it one flag at a ti
 - Order on a typical migration: `strict` first (umbrella) -> `noUncheckedIndexedAccess` (adds `| undefined` to indexed access; many call sites need narrowing) -> `exactOptionalPropertyTypes` (catches `undefined` assignments to optional props) -> `verbatimModuleSyntax` (forces `import type` discipline).
 - Before turning a flag on globally, search for the error pattern with the flag in a scratch branch. If the count is unmanageable, scope first via the language-server config or a per-file `// @ts-expect-error` annotation, then unblock the global flip.
 - `noUnusedLocals` and `noUnusedParameters` are linting concerns; ESLint catches the same conditions with better integration. Leaving them off in `tsconfig.json` and on in ESLint is fine.
-
-## References
-
-- tsconfig reference: https://www.typescriptlang.org/tsconfig
-- TypeScript handbook (compiler options): https://www.typescriptlang.org/docs/handbook/compiler-options.html
-- typescript-eslint shareable configs: https://typescript-eslint.io/users/configs/

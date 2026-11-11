@@ -86,7 +86,3 @@ ufw allow 'Nginx HTTPS'
 ```
 
 Use `Nginx Full` only during initial setup or before SSL is configured. In production, use `Nginx HTTPS` and redirect HTTP->HTTPS at the application level.
-
-## References
-
-- https://manpages.ubuntu.com/manpages/noble/man8/ufw.8.html

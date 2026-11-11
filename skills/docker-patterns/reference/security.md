@@ -113,8 +113,3 @@ services:
 ```
 
 A read-only root filesystem limits the blast radius of a container escape or RCE.
-
-## References
-
-- https://docs.docker.com/build/building/best-practices/
-- https://docs.docker.com/scout/

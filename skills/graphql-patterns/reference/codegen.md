@@ -1,7 +1,5 @@
 # graphql-codegen: the client preset
 
-Source for this file: https://github.com/dotansimha/graphql-code-generator/blob/master/website/src/pages/plugins/presets/preset-client.mdx (Context7 /dotansimha/graphql-code-generator).
-
 ## Config
 
 `codegen.ts` exports a `CodegenConfig` whose `generates` target uses `preset: 'client'`:

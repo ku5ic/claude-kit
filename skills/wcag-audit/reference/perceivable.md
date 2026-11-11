@@ -18,10 +18,4 @@ WCAG 2.x measures contrast as a luminance ratio (L1 + 0.05) / (L2 + 0.05). Pract
 - axe DevTools (browser extension): runs the checks across a page and lists every failing element.
 - Stark and Contrast (design-side plugins): catch contrast issues during design before they reach code.
 
-APCA (Advanced Perceptual Contrast Algorithm, https://www.myndex.com/APCA/) is an alternative contrast model authored outside the W3C process. It is NOT part of WCAG 2.2 and is NOT currently a normative algorithm in any published WCAG version. The WCAG 3 introduction does not name APCA at the time of writing. Treat it as research literature, not as a normative replacement: if a stakeholder cites APCA scores, ask whether the certification target is WCAG 2.2 (in which case the L1/L2 ratio is what counts) or some other policy.
-
-## References
-
-- WCAG 2.2 Contrast Minimum (1.4.3): https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum
-- WCAG 2.2 Non-text Contrast (1.4.11): https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast
-- axe DevTools: https://www.deque.com/axe/devtools/
+APCA (Advanced Perceptual Contrast Algorithm) is an alternative contrast model authored outside the W3C process. It is NOT part of WCAG 2.2 and is NOT currently a normative algorithm in any published WCAG version. The WCAG 3 introduction does not name APCA at the time of writing. Treat it as research literature, not as a normative replacement: if a stakeholder cites APCA scores, ask whether the certification target is WCAG 2.2 (in which case the L1/L2 ratio is what counts) or some other policy.

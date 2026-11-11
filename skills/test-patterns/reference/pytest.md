@@ -7,9 +7,3 @@
 - Django: use `pytest-django`, `@pytest.mark.django_db` only when DB needed. Prefer `--no-migrations` in CI if migrations are settled.
 - Factory Boy for model fixtures when the same model is used in many tests.
 - Avoid `unittest.TestCase` subclasses in a pytest codebase. Pick one style.
-
-## References
-
-- pytest: https://docs.pytest.org/en/stable/
-- pytest-django: https://pytest-django.readthedocs.io/
-- Factory Boy: https://factoryboy.readthedocs.io/en/stable/

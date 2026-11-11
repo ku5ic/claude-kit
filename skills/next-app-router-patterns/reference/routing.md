@@ -89,12 +89,3 @@ export async function generateMetadata({
 ```
 
 The returned object must be serializable. Streaming metadata is supported for crawlers that handle it; for crawlers that only see static HTML, Next.js falls back to blocking metadata before streaming the body.
-
-## References
-
-- App Router structure: https://nextjs.org/docs/app/getting-started/project-structure
-- Dynamic segments: https://nextjs.org/docs/app/api-reference/file-conventions/dynamic-routes
-- Parallel routes: https://nextjs.org/docs/app/api-reference/file-conventions/parallel-routes
-- Intercepting routes: https://nextjs.org/docs/app/api-reference/file-conventions/intercepting-routes
-- `generateStaticParams`: https://nextjs.org/docs/app/api-reference/functions/generate-static-params
-- `generateMetadata`: https://nextjs.org/docs/app/api-reference/functions/generate-metadata

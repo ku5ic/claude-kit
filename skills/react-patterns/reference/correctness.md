@@ -36,11 +36,4 @@ JSX nullish guards: `value ?? <Fallback />` is safer than `value || <Fallback />
 
 ## React 19: `use()` for promises and context
 
-`use(promise)` and `use(context)` are stable in React 19. Unlike other hooks, `use()` may be called inside conditionals and loops, because it is a special compiler primitive rather than a hook in the rules sense. `use(promise)` suspends the component until the promise resolves; pair it with a `<Suspense>` boundary upstream, and don't branch on the promise's own status before calling it. Source: https://react.dev/reference/react/use
-
-## References
-
-- React Rules of Hooks: https://react.dev/reference/rules/rules-of-hooks
-- `useEffect`: https://react.dev/reference/react/useEffect
-- React 19 release: https://react.dev/blog/2024/12/05/react-19
-- `use()`: https://react.dev/reference/react/use
+`use(promise)` and `use(context)` are stable in React 19. Unlike other hooks, `use()` may be called inside conditionals and loops, because it is a special compiler primitive rather than a hook in the rules sense. `use(promise)` suspends the component until the promise resolves; pair it with a `<Suspense>` boundary upstream, and don't branch on the promise's own status before calling it.

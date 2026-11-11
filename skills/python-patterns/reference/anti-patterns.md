@@ -37,11 +37,3 @@ Add a `threading.Lock` (or use `threading.local` if the state is genuinely per-t
 ## Testing-adjacent
 
 pytest conventions (fixtures, scope, parametrize, factories) are test-patterns' `reference/pytest.md`; Django test setup is django-patterns' `reference/testing.md`.
-
-## References
-
-- Ruff rules: https://docs.astral.sh/ruff/rules/
-- Python 3.13 free-threaded build: https://docs.python.org/3/whatsnew/3.13.html#free-threaded-cpython
-- Python 3.14 free-threaded improvements: https://docs.python.org/3/whatsnew/3.14.html
-- PEP 703 (optional GIL): https://peps.python.org/pep-0703/
-- PEP 779 (official support): https://peps.python.org/pep-0779/

@@ -132,8 +132,3 @@ services:
 ```
 
 `docker compose up` starts only `app`. `docker compose --profile debug up` also starts `debug-tools`. Use profiles for development-only services (mailhog, adminer, jaeger).
-
-## References
-
-- https://docs.docker.com/compose/compose-file/
-- https://docs.docker.com/compose/compose-file/05-services/

@@ -29,10 +29,3 @@ Severity levels: the report-format skill.
 ## Tests that call external network endpoints
 
 `failure` in CI. Tests that make real network calls are flaky (rate limits, outages, latency), slow, and costly. Mock HTTP at the network layer (MSW, `nock`, `httpretty`) rather than mocking individual client methods, so the real request serialization is exercised.
-
-## References
-
-- Testing Library guiding principles: https://testing-library.com/docs/guiding-principles/
-- Kent C. Dodds (avoid testing implementation details): https://kentcdodds.com/blog/testing-implementation-details
-- Vitest async handling: https://vitest.dev/guide/common-errors
-- MSW: https://mswjs.io/

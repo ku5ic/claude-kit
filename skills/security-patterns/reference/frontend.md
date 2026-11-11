@@ -57,12 +57,3 @@ Content-Security-Policy:
   object-src 'none';
   base-uri 'none';
 ```
-
-## References
-
-- OWASP Top 10: https://owasp.org/www-project-top-ten/
-- OWASP HTML5 Security: https://cheatsheetseries.owasp.org/cheatsheets/HTML5_Security_Cheat_Sheet.html
-- OWASP CSRF Prevention: https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html
-- OWASP Session Management: https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html
-- OWASP JWT Cheat Sheet: https://cheatsheetseries.owasp.org/cheatsheets/JSON_Web_Token_Cheat_Sheet.html
-- MDN CSP: https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP

@@ -69,11 +69,3 @@ definePageMeta({
 ```
 
 `validate` runs before the page renders; returning `false` produces a 404.
-
-## References
-
-- Pages directory: https://nuxt.com/docs/guide/directory-structure/pages
-- Layouts directory: https://nuxt.com/docs/guide/directory-structure/layouts
-- Middleware directory: https://nuxt.com/docs/guide/directory-structure/middleware
-- `definePageMeta`: https://nuxt.com/docs/api/utils/define-page-meta
-- `navigateTo`: https://nuxt.com/docs/api/utils/navigate-to

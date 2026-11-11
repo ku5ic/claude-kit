@@ -29,11 +29,3 @@ Severity levels: the report-format skill.
 ## Accessing `cookies()` or `headers()` outside an async context
 
 `warning`. In Next.js 15+, `cookies()` and `headers()` are async and must be awaited. Starting with 16, synchronous access is fully removed. Always `await cookies()` and `await headers()`.
-
-## References
-
-- Server and Client Components: https://nextjs.org/docs/app/getting-started/server-and-client-components
-- Caching: https://nextjs.org/docs/app/getting-started/caching
-- Server Functions: https://nextjs.org/docs/app/getting-started/mutating-data
-- `dynamic` segment config: https://nextjs.org/docs/app/api-reference/file-conventions/route-segment-config#dynamic
-- Error handling: https://nextjs.org/docs/app/getting-started/error-handling

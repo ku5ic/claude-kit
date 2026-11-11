@@ -119,8 +119,3 @@ location / {
     # ... other headers
 }
 ```
-
-## References
-
-- https://nginx.org/en/docs/http/ngx_http_proxy_module.html
-- https://nginx.org/en/docs/http/ngx_http_core_module.html

@@ -90,11 +90,3 @@ const model = defineModel<string>();
 ```
 
 Multiple `v-model:foo` bindings: `defineModel<T>("foo")`.
-
-## References
-
-- `<script setup>`: https://vuejs.org/api/sfc-script-setup.html
-- `defineProps` / `defineEmits` / `defineSlots`: https://vuejs.org/api/sfc-script-setup.html#defineprops-defineemits
-- `defineModel`: https://vuejs.org/api/sfc-script-setup.html#definemodel
-- Reactive Props Destructure (3.5+): https://vuejs.org/guide/components/props.html#reactive-props-destructure
-- Vue 3 changelog: https://github.com/vuejs/core/blob/main/CHANGELOG.md

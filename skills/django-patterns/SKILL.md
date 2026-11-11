@@ -1,6 +1,6 @@
 ---
 name: django-patterns
-description: Django patterns covering ORM gotchas, view design, migrations, settings, anti-patterns, and review checklist for Django backend work. Use whenever the project contains `manage.py`, `settings.py`, `apps.py`, or `django` in a Python manifest, OR the user asks about Django, its ORM, or any part of its request/model/template stack, even if Django is not mentioned by name.
+description: Django patterns for the ORM, views, migrations, and settings. Use for manage.py, settings.py, apps.py, django in a Python manifest, or Django questions.
 ---
 
 # Django patterns
@@ -22,18 +22,3 @@ DRF-specific patterns load when the project includes `djangorestframework` in de
 | [migrations.md](reference/migrations.md)           | Naming, atomic behavior, RunPython, makemigrations --check, squashing                       |
 | [admin.md](reference/admin.md)                     | ModelAdmin, list_display, list_filter, search_fields, permissions, production posture       |
 | [anti-patterns.md](reference/anti-patterns.md)     | Severity-labeled anti-patterns to flag in review                                            |
-
-## References
-
-- https://docs.djangoproject.com/en/stable/
-- https://www.djangoproject.com/download/ (LTS and stable versions)
-- https://pytest-django.readthedocs.io/en/latest/
-- https://factoryboy.readthedocs.io/en/stable/
-- https://github.com/joke2k/django-environ
-
-## Version notes
-
-Checked: 2026-11-10 against https://www.djangoproject.com/download/, https://docs.djangoproject.com/en/stable/ref/settings/, https://docs.djangoproject.com/en/stable/ref/contrib/admin/, and PyPI
-
-- Django 6.1.3 current stable; 5.2 LTS (5.2.19) supported to April 2028 (baseline here). 6.1 deprecates `list_select_related = True`.
-- pytest-django 4.14.0 (2026-08-10), django-environ 0.14.0 (2026-06-18), Factory Boy 3.3.3 (2025-02-03): pins in the reference files match these.

@@ -47,11 +47,3 @@ Severity levels: the report-format skill.
 ## Mutating `props` array / object via method calls
 
 `failure`. `props.items.push(...)` and `props.config.x = ...` are subtler forms of prop mutation. Vue's runtime warning catches reassignment but not in-place mutation. Treat all props as immutable; if the parent must apply a change, emit it.
-
-## References
-
-- `v-for` with `v-if`: https://vuejs.org/style-guide/rules-essential.html#avoid-v-if-with-v-for
-- `v-for` keys: https://vuejs.org/api/built-in-directives.html#v-for
-- One-way data flow: https://vuejs.org/guide/components/props.html#one-way-data-flow
-- Reactivity destructuring caveats: https://vuejs.org/guide/essentials/reactivity-fundamentals.html#limitations-of-reactive
-- `v-html` security: https://vuejs.org/api/built-in-directives.html#v-html

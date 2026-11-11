@@ -62,10 +62,3 @@ Explicit resource management adds `using` (sync) and `await using` (async) decla
 ### Legacy (pre-Stage 4)
 
 On a toolchain that does not yet parse `using`, keep `try`/`finally` for deterministic cleanup. The proposal was Stage 3 until 2026, so older transpiler configs may need a plugin.
-
-## References
-
-- MDN Error: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error
-- MDN Error.cause: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error/cause
-- Node.js process unhandledRejection: https://nodejs.org/api/process.html#event-unhandledrejection
-- TC39 explicit resource management: https://github.com/tc39/proposal-explicit-resource-management

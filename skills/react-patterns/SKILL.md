@@ -1,6 +1,6 @@
 ---
 name: react-patterns
-description: React core patterns for hooks rules, component design, rendering performance, anti-patterns, and review checklist, independent of any meta-framework. Use whenever the project contains `.jsx`/`.tsx` files or `react` in `package.json`, OR the user asks about React, its hooks, component structure, or rendering and hydration behavior, even if React is not mentioned by name.
+description: React patterns for hooks rules, component design, and rendering performance. Use for .jsx or .tsx files, react in package.json, or React questions.
 ---
 
 # React patterns
@@ -20,21 +20,3 @@ Default assumption: React 19 with the modern (concurrent) renderer.
 | [reference/structure.md](reference/structure.md)         | Controlled vs uncontrolled, derived state, prop drilling, effects vs handlers       |
 | [reference/anti-patterns.md](reference/anti-patterns.md) | Seven review-time anti-patterns with severity calls                                 |
 | [reference/when-to-split.md](reference/when-to-split.md) | Heuristics for component splitting and what does not justify a split                |
-
-## References
-
-- React docs: https://react.dev/
-- Rules of React: https://react.dev/reference/rules
-- React 19 release notes: https://react.dev/blog/2024/12/05/react-19
-- React Compiler: https://react.dev/learn/react-compiler/introduction
-- "You Might Not Need an Effect": https://react.dev/learn/you-might-not-need-an-effect
-- Dan Abramov on React internals: https://overreacted.io/
-- Mark Erikson on React state management: https://blog.isquaredsoftware.com/
-
-## Version notes
-
-Checked: 2026-11-10 against https://react.dev/versions, https://react.dev/blog/2026/09/09/react-19-3 and https://react.dev/blog/2025/10/07/react-compiler-1
-
-- 19.3 (2026-09-09): a minor release, not a patch. Adds View Transitions, Fragment Refs, `browser()`, and Trusted Types; not yet guidance here. Corrected the compiler advice on removing existing memoization.
-- 19.0 (2024-12-05): Actions, `use`, `useActionState`, `useFormStatus`, `useOptimistic`. Verify against the per-hook page on react.dev, not older blog posts.
-- React Compiler: stable, opt-in, installed per build tool; not present in every project.

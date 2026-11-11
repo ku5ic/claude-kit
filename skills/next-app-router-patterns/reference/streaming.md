@@ -47,9 +47,3 @@ With Cache Components, runtime-data components must be wrapped in `<Suspense>` o
 - `notFound()` and `redirect()` must be called before any `<Suspense>` boundary renders or before any `await` that suspends. Once headers have been sent, the HTTP status cannot change.
 - Some browsers buffer streamed responses below 1024 bytes; the symptom is "I don't see anything until the response is complete" on small payloads.
 - Streamed responses always return HTTP 200 because headers go out before the body finishes. SEO-relevant 404s need to be detected before the response body starts (e.g. in Proxy with a rewrite to a not-found route).
-
-## References
-
-- `loading.js`: https://nextjs.org/docs/app/api-reference/file-conventions/loading
-- Caching (Cache Components, PPR default): https://nextjs.org/docs/app/getting-started/caching
-- React `<Suspense>`: https://react.dev/reference/react/Suspense

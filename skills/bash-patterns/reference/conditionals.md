@@ -6,8 +6,3 @@
 - `(( expression ))` for arithmetic. Returns 0 if non-zero, 1 if zero, which inverts the natural reading; remember `(( count == 0 ))` returns 1 (false in shell, true in C).
 - `case "$x" in pattern) cmd ;; esac` for multi-branch dispatch. Patterns use the same glob syntax as pathname expansion.
 - `&&` and `||` for terse one-liners. Avoid for multi-statement flow; reach for `if/then/else`.
-
-## References
-
-- GNU Bash manual (Conditional Constructs): https://www.gnu.org/software/bash/manual/bash.html#Conditional-Constructs
-- BashGuide on tests: https://mywiki.wooledge.org/BashGuide/TestsAndConditionals

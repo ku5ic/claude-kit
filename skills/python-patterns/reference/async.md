@@ -51,11 +51,3 @@ Two semantic differences from raw `asyncio` worth knowing:
 - **Nested scopes.** Scopes nest cleanly; cancelling an outer scope cancels every inner scope. This is the structured-concurrency primitive the language `TaskGroup` formalizes for asyncio specifically.
 
 For application code that owns its event loop (web servers, CLI tools), `asyncio.TaskGroup` is enough. Reach for `anyio` when shipping a library that callers may run under either asyncio or trio; the cancel-scope semantics also benefit code with deep timeout discipline.
-
-## References
-
-- `asyncio.TaskGroup`: https://docs.python.org/3/library/asyncio-task.html#asyncio.TaskGroup
-- PEP 654 (exception groups): https://peps.python.org/pep-0654/
-- httpx: https://www.python-httpx.org/
-- aiohttp: https://docs.aiohttp.org/en/stable/
-- anyio cancellation: https://anyio.readthedocs.io/en/stable/cancellation.html

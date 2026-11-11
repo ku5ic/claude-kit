@@ -13,11 +13,11 @@ moved {
 }
 ```
 
-Keep historical `moved` blocks in shared modules. Deleting one is a breaking change, because a caller still on the old address plans to delete the object instead of moving it. Source: https://opentofu.org/docs/language/modules/develop/refactoring/
+Keep historical `moved` blocks in shared modules. Deleting one is a breaking change, because a caller still on the old address plans to delete the object instead of moving it.
 
 ## `import`: adopting existing objects
 
-An `import` block takes `to` (the address) and `id` or `identity` (`identity` is the newer, type-specific form), plus optional `provider` and `for_each`. Unlike the `tofu import` command it's previewed in `plan` and works in CI: write the import block and the resource block, plan, then apply. Configuration generation doesn't work together with `for_each` on an import block. Source: https://opentofu.org/docs/language/import/
+An `import` block takes `to` (the address) and `id` or `identity` (`identity` is the newer, type-specific form), plus optional `provider` and `for_each`. Unlike the `tofu import` command it's previewed in `plan` and works in CI: write the import block and the resource block, plan, then apply. Configuration generation doesn't work together with `for_each` on an import block.
 
 ## `removed`: stop managing without destroying
 
@@ -32,16 +32,14 @@ removed {
 }
 ```
 
-Source: https://opentofu.org/docs/language/resources/syntax/
-
-OpenTofu 1.12+ also accepts `lifecycle { destroy = false }` on a managed resource itself. Source: https://opentofu.org/docs/v1.12/intro/whats-new/
+OpenTofu 1.12+ also accepts `lifecycle { destroy = false }` on a managed resource itself.
 
 ## `lifecycle` guards
 
-In OpenTofu 1.12+, `prevent_destroy` may refer to other symbols in the module, such as input variables, so protection can differ per environment. Source: https://opentofu.org/docs/v1.12/intro/whats-new/
+In OpenTofu 1.12+, `prevent_destroy` may refer to other symbols in the module, such as input variables, so protection can differ per environment.
 
 ## What state holds
 
-- `sensitive = true` only hides a value in output. OpenTofu still records it in state in cleartext, so anyone who can read state reads it. Source: https://opentofu.org/docs/language/values/variables/
-- An `ephemeral = true` variable (OpenTofu 1.11+) is never stored in state; only its name goes into the plan. It can only be used where ephemeral values are allowed, such as ephemeral resources, ephemeral outputs, and provisioners. Source: https://opentofu.org/docs/language/values/variables/
+- `sensitive = true` only hides a value in output. OpenTofu still records it in state in cleartext, so anyone who can read state reads it.
+- An `ephemeral = true` variable (OpenTofu 1.11+) is never stored in state; only its name goes into the plan. It can only be used where ephemeral values are allowed, such as ephemeral resources, ephemeral outputs, and provisioners.
 - So a secret passed through a plain or `sensitive` variable is a state-access problem, not only a display problem.

@@ -6,9 +6,3 @@
 - `try/finally` for cleanup; `with` for context-managed resources. A `with` block is almost always cleaner than the matching `try/finally`.
 - Exceptions for control flow on hot paths: 3.11 made the success path effectively zero-cost (bpo-40222), but raised exceptions still allocate frames. `LBYL` (look-before-you-leap) when the check is cheap; `EAFP` (try/except) when it isn't.
 - `logger.exception("message")` inside an `except` block. It includes the traceback; `logger.error(str(e))` does not.
-
-## References
-
-- PEP 654 (exception groups): https://peps.python.org/pep-0654/
-- PEP 657 (fine-grained tracebacks): https://peps.python.org/pep-0657/
-- Python tutorial (errors and exceptions): https://docs.python.org/3/tutorial/errors.html

@@ -1,6 +1,6 @@
 ---
 name: vue-patterns
-description: Vue 3 patterns for the Composition API, reactivity, single-file components, anti-patterns, and review checklist. Use whenever the project contains `.vue` files, `vue` in `package.json`, or a `vite.config.*` with the Vue plugin, OR the user asks about Vue, its reactivity primitives, `script setup`, or Pinia, even if Vue is not mentioned by name.
+description: Vue 3 patterns for the Composition API, reactivity, and single-file components. Use for .vue files, vue in package.json, a Vite config with the Vue plugin, or Vue questions.
 ---
 
 # Vue patterns
@@ -25,21 +25,3 @@ Default assumption: Vue 3 with the Composition API and `<script setup>` syntax.
 
 - Vue 2 projects. The Options API is the default and the reactivity model is fundamentally different. Flag the project's Vue major and stop; the patterns here will mislead.
 - React projects. Despite surface similarities (component tree, hooks-like primitives), the reactivity models differ.
-
-## References
-
-- Vue docs: https://vuejs.org/guide/introduction.html
-- Vue API reference: https://vuejs.org/api/
-- Vue 3 changelog: https://github.com/vuejs/core/blob/main/CHANGELOG.md
-- Pinia: https://pinia.vuejs.org/
-- Vue blog (releases): https://blog.vuejs.org/
-- Anthony Fu (core team, Vite/Nuxt contributor): https://antfu.me/
-- Eduardo San Martin Morote (Vue Router, Pinia maintainer): https://esm.dev/
-
-## Version notes
-
-Checked: 2026-11-10 against https://github.com/vuejs/core/releases/latest (3.5.45, 2026-11-05; 3.6 still in release candidates), https://vuejs.org/guide/essentials/watchers.html and https://vuejs.org/api/sfc-script-setup.html
-
-- 3.5 (2024-09-01): Reactive Props Destructure is the recommended default-value form over `withDefaults` (which still works); `onWatcherCleanup`.
-- 3.4: `defineModel`; watcher `once: true`.
-- 3.3: `defineSlots`; tuple-style `defineEmits` types.

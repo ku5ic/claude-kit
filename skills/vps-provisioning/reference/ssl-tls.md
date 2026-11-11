@@ -114,11 +114,6 @@ ssl_protocols TLSv1.2 TLSv1.3;
 ssl_prefer_server_ciphers off;
 ```
 
-## References
-
-- https://eff-certbot.readthedocs.io/using.html
-- https://letsencrypt.org/docs/
-
 ### Legacy (certbot < 4.0.0)
 
 Before 4.0.0 the renewal threshold was a fixed 30 days before expiry. Older distro-packaged certbot builds still behave this way; check `certbot --version` before relying on the lifetime-fraction rule.

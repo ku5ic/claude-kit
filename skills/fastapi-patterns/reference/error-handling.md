@@ -73,7 +73,3 @@ except Exception as exc:
 ## Validation errors
 
 FastAPI automatically returns 422 Unprocessable Entity for Pydantic validation failures. The response body is a structured JSON with per-field error locations and messages. This is the default; no code needed. If you need to customize the 422 response shape, override the `RequestValidationError` handler from `fastapi.exceptions`.
-
-## References
-
-- https://fastapi.tiangolo.com/tutorial/handling-errors/

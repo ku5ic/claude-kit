@@ -33,12 +33,3 @@ Severity rubric: [../SKILL.md](../SKILL.md#severity-rubric).
 ## Missing `HttpOnly` and `Secure` flags on auth cookies
 
 `warning`. Without `HttpOnly`, JavaScript can read the cookie; without `Secure`, the cookie is sent over plain HTTP. Auth and session cookies must set both flags plus `SameSite=Lax` at minimum.
-
-## References
-
-- OWASP SQL Injection: https://owasp.org/www-community/attacks/SQL_Injection
-- OWASP XSS Prevention: https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html
-- OWASP CSRF Prevention: https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html
-- OWASP Session Management: https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html
-- CSP nonce/hash guidance: https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP
-- DOMPurify: https://github.com/cure53/DOMPurify

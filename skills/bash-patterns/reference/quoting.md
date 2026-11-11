@@ -67,9 +67,3 @@ The user's interactive shell on macOS is zsh; scripts run under bash via the she
 - Array indexing: zsh arrays are 1-indexed by default; bash arrays are 0-indexed. Set `setopt KSH_ARRAYS` in zsh for bash-compatible indexing, or test in bash directly.
 
 When in doubt, run the script with `bash -c` (or `bash script.sh`) before committing.
-
-## References
-
-- GNU Bash manual (Quoting): https://www.gnu.org/software/bash/manual/bash.html#Quoting
-- BashFAQ #50 (echo vs printf): https://mywiki.wooledge.org/BashFAQ/050
-- ShellCheck SC2086: https://www.shellcheck.net/wiki/SC2086

@@ -1,6 +1,6 @@
 ---
 name: tailwind-patterns
-description: Tailwind CSS v4 patterns for CSS-first config via the @theme directive, v3-vs-v4 deltas, variant rules, and anti-patterns. Use whenever the project contains a `tailwind.config.*`, `@import "tailwindcss"` in CSS, or a `tailwindcss` or `@tailwindcss/*` dependency, OR the user asks about Tailwind, utility classes, design tokens, or dark-mode strategy in a Tailwind project, even if Tailwind is not mentioned by name.
+description: Tailwind CSS v4 patterns for @theme config, v3-to-v4 changes, and variants. Use for tailwind.config.*, a tailwindcss import or dependency, or Tailwind questions.
 ---
 
 # Tailwind patterns
@@ -89,17 +89,3 @@ fd -t f 'tailwind.config'
 ```
 
 If both `tailwind.config.js` and `@import "tailwindcss"` are present, the project is mid-migration. Treat as v4 but expect leftover v3 patterns.
-
-## References
-
-- v4 release post: https://tailwindcss.com/blog/tailwindcss-v4
-- v3-to-v4 upgrade guide: https://tailwindcss.com/docs/upgrade-guide
-- v4 docs: https://tailwindcss.com/docs
-
-## Version notes
-
-Checked: 2026-11-10 against https://www.npmjs.com/package/tailwindcss, https://tailwindcss.com/docs/upgrade-guide, https://tailwindcss.com/blog/tailwindcss-v4-3 and https://tailwindcss.com/blog/tailwindcss-v4
-
-- 4.3 (2026-05-08, latest 4.3.5 on 2026-11-06): stacked and compound variants in `@variant`; no v5 exists. Corrected the v4 variant stacking order, the `@config` path for a JS config, and the `@layer utilities` wording.
-- 4.0: CSS-first config (`@import "tailwindcss"`, `@theme`, `@utility`, `--alpha()`), automatic content detection, `not-`, `nth-*`, and `starting:` variants (`*:` is 3.4; build-speed figures and the `*:` example corrected 2026-09-26). Theme values are read with `var(--*)`, not a `--theme()` function (corrected 2026-09-12).
-- 3.x: `tailwind.config.js`, `@tailwind base/components/utilities`, `theme()` helper. See "v3 patterns to avoid in v4".

@@ -46,7 +46,3 @@ class OrderViewSet(viewsets.ModelViewSet):
 URLPathVersioning or NamespaceVersioning are the most common choices. URL-based versioning is easy to document, test with curl, and visible in logs.
 
 Set `ALLOWED_VERSIONS` explicitly. DRF returns 404 for versions not in the list, preventing clients from reaching unintended code paths.
-
-## References
-
-- https://www.django-rest-framework.org/api-guide/versioning/

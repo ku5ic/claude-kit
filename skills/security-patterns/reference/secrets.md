@@ -8,12 +8,12 @@
 
 Two complementary tools cover detection at different points in the workflow:
 
-- **gitleaks** (https://github.com/gitleaks/gitleaks): regex-plus-entropy scanner for git repos and arbitrary input. Run as a pre-commit hook for fast local feedback, and as a CI step on every PR. Useful flags: `gitleaks git --no-banner --redact -v` (or `gitleaks dir` for files; `detect` and `protect` are deprecated since v8.19.0) for human-readable output that does not echo the secret value into the log.
-- **trufflehog** (https://github.com/trufflesecurity/trufflehog): credential-aware scanner that goes one step further by attempting live verification against the credential's issuer (where applicable). Slower but produces fewer false positives.
+- **gitleaks**: regex-plus-entropy scanner for git repos and arbitrary input. Run as a pre-commit hook for fast local feedback, and as a CI step on every PR. Useful flags: `gitleaks git --no-banner --redact -v` (or `gitleaks dir` for files; `detect` and `protect` are deprecated since v8.19.0) for human-readable output that does not echo the secret value into the log.
+- **trufflehog**: credential-aware scanner that goes one step further by attempting live verification against the credential's issuer (where applicable). Slower but produces fewer false positives.
 
 GitHub also provides server-side scanning:
 
-- **Secret-scanning push protection**: enabled at the repo or org level. Blocks any push that contains a secret pattern matching GitHub's detector list. Catches what slips past the local hook. Documented at <https://docs.github.com/en/code-security/secret-scanning/>.
+- **Secret-scanning push protection**: enabled at the repo or org level. Blocks any push that contains a secret pattern matching GitHub's detector list. Catches what slips past the local hook.
 
 ## Rotation, not redaction
 
@@ -35,9 +35,3 @@ For long-lived secrets that cannot be made short-lived (database passwords, encr
 - Rotate on a calendar (every 90 days is a common default for non-customer-facing secrets; high-stakes systems shorter).
 
 For credentials that support short-lived tokens (cloud IAM, OIDC federation), prefer those over long-lived keys: the rotation problem becomes the issuer's instead of yours.
-
-## References
-
-- gitleaks: https://github.com/gitleaks/gitleaks
-- trufflehog: https://github.com/trufflesecurity/trufflehog
-- GitHub Secret Scanning: https://docs.github.com/en/code-security/secret-scanning/

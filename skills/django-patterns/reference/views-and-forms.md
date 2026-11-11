@@ -74,10 +74,3 @@ Always use `form.cleaned_data` after `is_valid()`. Never use `form.data` or `req
 ## Redirect after POST
 
 Never render a template in response to a POST. Redirect to a GET after successful form submission to prevent duplicate submissions on browser refresh.
-
-## References
-
-- https://docs.djangoproject.com/en/stable/topics/class-based-views/
-- https://docs.djangoproject.com/en/stable/topics/forms/
-- https://docs.djangoproject.com/en/stable/ref/class-based-views/
-- https://docs.djangoproject.com/en/stable/topics/forms/modelforms/

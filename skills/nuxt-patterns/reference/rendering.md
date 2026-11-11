@@ -46,9 +46,3 @@ When deployed to a Nitro preset that targets edge runtimes (Vercel Edge, Cloudfl
 `failure`: a page that calls `useState`, `useFetch` with no SSR-safe key, or a runtime API on a route marked `prerender: true`. Prerender runs at build time without per-request context; per-request data leaks into the prerendered HTML and gets served to every visitor.
 
 `warning`: mixing `prerender: true` with frequently-changing data and no `swr`/`isr` fallback. Static HTML stays stale until the next build; users see old content.
-
-## References
-
-- Rendering concepts: https://nuxt.com/docs/guide/concepts/rendering
-- `routeRules`: https://nuxt.com/docs/guide/concepts/rendering#hybrid-rendering
-- Nitro presets / deployment: https://nuxt.com/deploy

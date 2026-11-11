@@ -1,6 +1,6 @@
 ---
 name: security-patterns
-description: Security checklist covering XSS, injection, authentication, authorization, sessions, CSRF, CSP, secrets, dependency CVEs, input validation, and severity calls. Use when writing or reviewing code that handles auth, sessions, secrets, user input, or external data, or when the user asks about security, hardening, vulnerabilities, authentication, authorization, cookies, XSS, CSRF, SQL injection, CSP, or headers, even if "security" is not mentioned by name. Not loaded just because a project has such code.
+description: Security checks for XSS, injection, auth, sessions, CSRF, CSP, secrets, and CVEs. Use when writing or reviewing code that handles auth, secrets, or user input, or for security questions.
 ---
 
 # Security patterns
@@ -23,20 +23,3 @@ Apply the references that match the detected stack. Severity rubric below applie
 | [reference/backend-node.md](reference/backend-node.md)     | Express/Fastify/Nest hardening, CSRF on JSON-only APIs                                                      |
 | [reference/dependencies.md](reference/dependencies.md)     | Lockfile audit vs OSV-Scanner, SLSA build levels                                                            |
 | [reference/secrets.md](reference/secrets.md)               | Detection (gitleaks, trufflehog, push protection), rotation cadence                                         |
-
-## References
-
-- OWASP Top 10: https://owasp.org/www-project-top-ten/
-- OWASP Cheat Sheet Series: https://cheatsheetseries.owasp.org/
-- OWASP ASVS: https://owasp.org/www-project-application-security-verification-standard/
-- MDN Web Security: https://developer.mozilla.org/en-US/docs/Web/Security
-- MDN CSP: https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP
-- WHATWG Fetch (CORS): https://fetch.spec.whatwg.org/
-
-## Version notes
-
-Checked: 2026-11-10 against https://slsa.dev/spec/v1.2/build-track-basics, https://docs.djangoproject.com/en/stable/ref/csp/, https://docs.npmjs.com/cli/v12/commands/npm-audit, https://github.com/gitleaks/gitleaks and https://cheatsheetseries.owasp.org/cheatsheets/JSON_Web_Token_Cheat_Sheet.html
-
-- SLSA 1.2: current spec; 1.0 retired. Build track is L0 (no requirements) through L3.
-- Django 6.0: built-in CSP middleware (`SECURE_CSP`, `csp_nonce`); 6.1 adds the `{% csp_nonce_attr %}` tag.
-- npm 12 (12.2.2): current CLI docs; v10 and v11 docs marked Legacy. Also corrected: gitleaks `detect` is deprecated for `gitleaks git`, the OWASP JWT cheat sheet moved, and its session advice is quoted.

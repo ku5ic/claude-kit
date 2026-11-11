@@ -40,13 +40,3 @@ A directory without `__init__.py` is treated as an implicit namespace package (P
 Use case: monorepo plugins where each plugin lives in its own directory but imports under one parent name (`mycompany.plugins.payments`, `mycompany.plugins.shipping`, etc.). Each plugin's directory contributes to the `mycompany.plugins` namespace; no central `__init__.py` exists.
 
 Use carefully. Mixing namespace packages with regular packages of the same name across the path silently breaks tooling that walks `__init__.py` (Sphinx autodoc, some packaging tools). When in doubt, prefer regular packages; reach for namespace packages only when the multi-distribution split is the actual requirement.
-
-## References
-
-- PyPA src vs flat layout: https://packaging.python.org/en/latest/discussions/src-layout-vs-flat-layout/
-- PEP 518 (build system requirements): https://peps.python.org/pep-0518/
-- PEP 621 (project metadata): https://peps.python.org/pep-0621/
-- PEP 561 (typed package marker): https://peps.python.org/pep-0561/
-- PEP 420 (implicit namespace packages): https://peps.python.org/pep-0420/
-- uv docs: https://docs.astral.sh/uv/
-- Poetry docs: https://python-poetry.org/docs/

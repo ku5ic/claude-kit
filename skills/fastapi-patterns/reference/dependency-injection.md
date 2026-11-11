@@ -85,9 +85,3 @@ app.dependency_overrides = {}
 ```
 
 Always reset overrides after tests. Leaving overrides in place leaks test state across modules.
-
-## References
-
-- https://fastapi.tiangolo.com/tutorial/dependencies/
-- https://fastapi.tiangolo.com/tutorial/dependencies/dependencies-with-yield/
-- https://fastapi.tiangolo.com/advanced/testing-dependencies/

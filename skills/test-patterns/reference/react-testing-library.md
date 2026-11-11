@@ -38,9 +38,3 @@ The Testing Library docs document the full priority chain:
 8. `getByTestId`: escape hatch when none of the above apply.
 
 The order is not arbitrary: it tracks the accessibility tree, which is what real users (and assistive tech) navigate. A component that cannot be found by `getByRole` is signaling that its accessibility surface is weak; fixing the component is usually better than reaching for `getByTestId`.
-
-## References
-
-- Testing Library queries: https://testing-library.com/docs/queries/about/
-- Testing Library guiding principles: https://testing-library.com/docs/guiding-principles/
-- userEvent: https://testing-library.com/docs/user-event/intro

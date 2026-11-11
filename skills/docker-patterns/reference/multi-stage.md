@@ -85,7 +85,3 @@ With BuildKit (the default since Docker 23.0), independent stages that do not de
 | `runtime`  | Final production image                     |
 
 The `test` stage exists purely to run tests inside CI (`--target test`). It is never used as the base for `runtime`.
-
-## References
-
-- https://docs.docker.com/build/building/multi-stage/

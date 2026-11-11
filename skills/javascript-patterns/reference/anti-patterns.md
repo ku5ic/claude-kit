@@ -64,9 +64,3 @@ Severity levels: the report-format skill.
 ## Missing `engines.node`
 
 `info`. Without an `engines.node` field, the package's supported Node range is implicit. Set it to the active LTS at minimum so consumers and CI fail loudly on incompatible runtimes.
-
-## References
-
-- Node.js process unhandledRejection: https://nodejs.org/api/process.html#event-unhandledrejection
-- Node.js packages (engines, type): https://nodejs.org/api/packages.html
-- MDN strict mode: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Strict_mode

@@ -29,9 +29,3 @@ Cleaner than tracking presence in an object or array. `Set` membership check is 
 Keys must be objects and are held weakly: when the key has no other references, the entry is eligible for garbage collection. Use them to attach metadata to objects you do not own (DOM nodes, third-party class instances) without preventing them from being collected.
 
 WeakMap and WeakSet are not iterable; this is by design (iteration order would expose GC timing).
-
-## References
-
-- MDN Map: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map
-- MDN Set: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Set
-- MDN WeakMap: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/WeakMap

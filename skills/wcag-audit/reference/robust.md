@@ -19,16 +19,9 @@ ARIA earns its place when there is no native element with the desired semantics.
 
 ## APG patterns worth bookmarking
 
-- **Dialog (Modal)**: focus trap, Esc to close, focus restoration on close. https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/
+- **Dialog (Modal)**: focus trap, Esc to close, focus restoration on close.
 - **Combobox**: ARIA 1.2 pattern with `aria-expanded`, `aria-controls`, `aria-activedescendant`. Native `<select>` covers the basic case; combobox is for typeahead-with-suggestions.
 - **Menu and menubar**: keyboard navigation with arrow keys, Home/End, type-to-select. Most app menus do not need this; it is for application menus mimicking desktop UI, not for site navigation (which uses `<nav>` and links).
 - **Tabs**: `role="tablist"` with `role="tab"` and `role="tabpanel"`. Arrow keys move between tabs; Tab moves into the active panel.
 
 For a custom widget that has no APG pattern, audit against 4.1.2: the user-agent must report a role, an accessible name, and the current state. Test with VoiceOver (macOS), NVDA (Windows), or the browser's accessibility tree inspector.
-
-## References
-
-- WCAG 2.2 Name, Role, Value (4.1.2): https://www.w3.org/WAI/WCAG22/Understanding/name-role-value
-- WCAG 2.2 Status Messages (4.1.3): https://www.w3.org/WAI/WCAG22/Understanding/status-messages
-- W3C Using ARIA: https://www.w3.org/TR/using-aria/
-- ARIA Authoring Practices Guide: https://www.w3.org/WAI/ARIA/apg/

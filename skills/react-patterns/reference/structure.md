@@ -49,10 +49,3 @@ The "You Might Not Need an Effect" page on react.dev catalogs the common misuses
 ## React 19: form actions and `useActionState`
 
 Form submission and other mutations can use Actions: an async function passed as `<form action={fn}>` or `useActionState(fn, initial)`. Actions auto-manage `isPending`, integrate with `useFormStatus` in nested controls, and reset the form on success. Use them when a mutation flows through React state; keep manual `fetch` + `useState` for cases that are not form-shaped.
-
-## References
-
-- "You Might Not Need an Effect": https://react.dev/learn/you-might-not-need-an-effect
-- React forms: https://react.dev/reference/react-dom/components/form
-- `useActionState`: https://react.dev/reference/react/useActionState
-- `useFormStatus`: https://react.dev/reference/react-dom/hooks/useFormStatus

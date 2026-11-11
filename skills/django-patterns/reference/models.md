@@ -63,9 +63,3 @@ class Product(models.Model):
 Fat models over fat views: business logic belongs in model methods and service functions, not in views. Views handle request/response shape only.
 
 `help_text` on fields used in admin or forms. It doubles as inline documentation.
-
-## References
-
-- https://docs.djangoproject.com/en/stable/topics/db/models/
-- https://docs.djangoproject.com/en/stable/ref/models/fields/
-- https://docs.djangoproject.com/en/stable/ref/models/options/

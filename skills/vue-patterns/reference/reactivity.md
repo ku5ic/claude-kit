@@ -54,10 +54,3 @@ const { count } = toRefs(state); // each property is a ref
 ## When to reach for `reactive`
 
 Reach for `reactive` when the state is a single object that lives for the lifetime of the component, has many properties, and is mutated in place rather than replaced. Even then, prefer `ref` if any consumer needs to destructure or if any property is a primitive at the top level. The Vue docs treat `reactive` as the secondary tool, not the default.
-
-## References
-
-- Reactivity Fundamentals: https://vuejs.org/guide/essentials/reactivity-fundamentals.html
-- Reactivity API: https://vuejs.org/api/reactivity-core.html
-- `toRefs`: https://vuejs.org/api/reactivity-utilities.html#torefs
-- `shallowRef`: https://vuejs.org/api/reactivity-advanced.html#shallowref

@@ -11,8 +11,8 @@
 
 Both are healthy projects in 2026. The choice is determined by build-tool fit, not feature parity.
 
-- **Vitest** (https://vitest.dev/): Vite-native test runner with a Jest-compatible API (expectations, snapshots, mocks). Currently in v5.x. Works for backend code too: it does not require a Vite app, only the Vite transform pipeline. The natural default for any project that already uses Vite.
-- **Jest** (https://jestjs.io/): the older, broader-ecosystem incumbent. Still actively maintained. Many React ecosystem tools default to Jest config out of the box. The natural default for projects without a Vite-based build, especially ones with substantial existing Jest setup.
+- **Vitest**: Vite-native test runner with a Jest-compatible API (expectations, snapshots, mocks). Currently in v5.x. Works for backend code too: it does not require a Vite app, only the Vite transform pipeline. The natural default for any project that already uses Vite.
+- **Jest**: the older, broader-ecosystem incumbent. Still actively maintained. Many React ecosystem tools default to Jest config out of the box. The natural default for projects without a Vite-based build, especially ones with substantial existing Jest setup.
 
 Migration between the two is mostly find-and-replace because the API shapes overlap. The skill recommends staying with whichever the project uses; do not introduce a runner change as a side effect of an unrelated task.
 
@@ -20,14 +20,7 @@ Migration between the two is mostly find-and-replace because the API shapes over
 
 When a test needs to fake an HTTP response, mock at the network layer rather than at the request client.
 
-- **Mock Service Worker (MSW, https://mswjs.io/)**: intercepts at the Service Worker layer (browser) or via a Node interceptor (test environment). The same mock definitions work in unit tests, integration tests, and e2e, plus in the dev server for offline development.
+- **Mock Service Worker (MSW)**: intercepts at the Service Worker layer (browser) or via a Node interceptor (test environment). The same mock definitions work in unit tests, integration tests, and e2e, plus in the dev server for offline development.
 - The reason to prefer MSW over `vi.fn()` / `jest.fn()` mocks of `fetch` or `axios`: client-level mocks break when you swap the client. MSW mocks survive a refactor from `fetch` to `axios` to `ky` because the contract is "what the network returns," not "what `fetch.mockReturnValue` is."
 
 Reach for MSW the moment a project has more than two test files mocking HTTP. For one-off mocks in a single test, `vi.fn()` is cheaper.
-
-## References
-
-- Vitest: https://vitest.dev/
-- Jest: https://jestjs.io/
-- Jest matchers: https://jestjs.io/docs/expect
-- MSW: https://mswjs.io/

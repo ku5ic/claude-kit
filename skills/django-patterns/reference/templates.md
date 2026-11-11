@@ -51,9 +51,3 @@ auto-escape handles it #} {{ comment }}
 Keep conditional logic minimal. A chain of `{% if %}` deeper than 3-4 levels is a sign that the view context or a template tag should handle the logic instead.
 
 Context processors for globally available data. Everything else goes in the view's context explicitly. Avoid implicit reliance on context processors for view-specific data.
-
-## References
-
-- https://docs.djangoproject.com/en/stable/topics/templates/
-- https://docs.djangoproject.com/en/stable/topics/security/ (XSS via |safe)
-- https://docs.djangoproject.com/en/stable/ref/csrf/

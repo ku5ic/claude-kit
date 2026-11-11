@@ -81,9 +81,3 @@ export function useMouse() {
 ```
 
 Composables are the right unit for sharing logic across components. They are testable in isolation, declarative, and naturally compose. Reach for them before extracting state into a Pinia store; many "shared logic" problems do not need cross-component state.
-
-## References
-
-- Provide / Inject: https://vuejs.org/guide/components/provide-inject.html
-- Pinia: https://pinia.vuejs.org/
-- Composables: https://vuejs.org/guide/reusability/composables.html

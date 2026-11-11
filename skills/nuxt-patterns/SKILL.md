@@ -1,6 +1,6 @@
 ---
 name: nuxt-patterns
-description: Nuxt 3+ patterns for rendering modes, data fetching (useFetch, useAsyncData, $fetch), server routes, SSR-safe state, file-based routing, the Nitro runtime, and review checklist. Use whenever the project contains a `nuxt.config.*`, `nuxt` in `package.json`, or `app/pages/`/`app/composables/` (Nuxt 4 `srcDir`), root-level `pages/`/`composables/` (Nuxt 3), or a root `server/` directory, OR the user asks about Nuxt, its data-fetching composables, its server routes, or its SSR behavior, even if Nuxt is not mentioned by name.
+description: Nuxt 3+ patterns for rendering modes, useFetch and useAsyncData, server routes, SSR state, and Nitro. Use for nuxt.config.*, nuxt in package.json, Nuxt app dirs, or Nuxt questions.
 ---
 
 # Nuxt patterns
@@ -20,25 +20,3 @@ Default assumption: Nuxt 4 (current stable, latest 4.6.x) with Universal Renderi
 | [reference/state.md](reference/state.md)                 | `useState` SSR-safety, module-level leakage, Pinia, composables                     |
 | [reference/routing.md](reference/routing.md)             | File-based routes, layouts, route middleware vs server middleware, `definePageMeta` |
 | [reference/server.md](reference/server.md)               | Nitro, server routes, validation, `runtimeConfig` and env-var conventions           |
-
-## References
-
-- Nuxt docs: https://nuxt.com/docs
-- Nuxt blog (releases): https://nuxt.com/blog
-- Rendering concepts: https://nuxt.com/docs/guide/concepts/rendering
-- Server engine (Nitro): https://nuxt.com/docs/guide/concepts/server-engine
-- Data fetching: https://nuxt.com/docs/getting-started/data-fetching
-- `useState`: https://nuxt.com/docs/api/composables/use-state
-- `runtimeConfig`: https://nuxt.com/docs/guide/going-further/runtime-config
-- Daniel Roe (Nuxt lead): https://roe.dev/
-- Anthony Fu (Vite/Nuxt overlap): https://antfu.me/
-- Sebastien Chopin (Nuxt creator): https://github.com/atinux
-
-## Version notes
-
-Checked: 2026-11-10 against https://www.npmjs.com/package/nuxt, https://nuxt.com/docs/4.x/api/composables/use-fetch, https://nuxt.com/docs/4.x/api/composables/use-async-data and https://nuxt.com/docs/4.x/getting-started/routing
-
-- 4.6.4 (2026-11-02): corrected the key rule. `useFetch` and `useAsyncData` both auto-generate a call-site key; neither derives it from the URL or requires one.
-- 4.5 (2026-07): `enabled` option on `useFetch`/`useAsyncData`, `useLayout` composable, stable error codes, named views by filename. No pattern here changed.- Nuxt 3: end-of-life 2026-07-31, final release 3.21.11 (2026-08-05). Nuxt 2: end-of-life 2024-06-30.
-
-Nitro and h3 version independently of Nuxt; verify version-sensitive claims against the current docs.

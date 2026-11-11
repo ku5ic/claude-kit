@@ -21,12 +21,3 @@ Two contexts where POSIX-only is the right call:
 - **Early init or recovery scripts.** Anything that runs before the package manager has installed bash, or in a recovery shell with a stripped-down environment, must use POSIX features only.
 
 For everything else: bash with `#!/usr/bin/env bash` and `set -euo pipefail`. The portability cost is zero on a developer machine and a CI runner; the safety wins are large.
-
-## References
-
-- ShellCheck wiki: https://www.shellcheck.net/wiki/
-- ShellCheck SC2086: https://www.shellcheck.net/wiki/SC2086
-- ShellCheck SC2155: https://www.shellcheck.net/wiki/SC2155
-- ShellCheck SC2046: https://www.shellcheck.net/wiki/SC2046
-- ShellCheck SC2164: https://www.shellcheck.net/wiki/SC2164
-- Google Shell Style Guide: https://google.github.io/styleguide/shellguide.html

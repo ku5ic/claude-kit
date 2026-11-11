@@ -107,9 +107,3 @@ Verify the running sshd config without restarting:
 ```bash
 sshd -T | grep -E "passwordauthentication|permitrootlogin|pubkeyauthentication"
 ```
-
-## References
-
-- https://wiki.debian.org/UnattendedUpgrades
-- https://help.ubuntu.com/community/AutomaticSecurityUpdates
-- https://www.fail2ban.org/wiki/index.php/MANUAL_0_8

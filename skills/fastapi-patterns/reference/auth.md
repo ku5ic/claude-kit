@@ -124,9 +124,3 @@ def get_optional_user(
         return None
     return get_current_user(token)
 ```
-
-## References
-
-- https://fastapi.tiangolo.com/tutorial/security/oauth2-jwt/
-- https://fastapi.tiangolo.com/advanced/security/http-basic-auth/
-- https://fastapi.tiangolo.com/reference/security/

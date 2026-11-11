@@ -45,8 +45,3 @@ def get_queryset(self, request):
 Admin is useful for incident investigation. Keep it simple and readable. Do not use it as a workflow UI for business processes; that is what the application is for.
 
 `show_full_result_count = False` on large tables avoids the expensive `COUNT(*)` query that powers the "X results" indicator.
-
-## References
-
-- https://docs.djangoproject.com/en/stable/ref/contrib/admin/
-- https://docs.djangoproject.com/en/stable/ref/contrib/admin/#modeladmin-options

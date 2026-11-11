@@ -68,10 +68,3 @@ DATABASES = {"default": env.db()}
 ```
 
 Alternatives: `python-decouple`, raw `os.environ`. The pattern matters more than the library.
-
-## References
-
-- https://docs.djangoproject.com/en/stable/topics/security/
-- https://docs.djangoproject.com/en/stable/ref/settings/#secure-ssl-redirect
-- https://docs.djangoproject.com/en/stable/ref/settings/#std-setting-ALLOWED_HOSTS
-- https://github.com/joke2k/django-environ

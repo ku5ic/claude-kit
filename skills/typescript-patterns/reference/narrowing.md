@@ -27,8 +27,3 @@ switch (msg.kind) {
 ```
 
 The compiler enforces that `assertNever`'s argument has type `never`, which is only true if the switch is exhaustive. Adding a new union variant breaks the typecheck at the `default` branch, exactly where the missing case needs to be handled.
-
-## References
-
-- TypeScript handbook (narrowing): https://www.typescriptlang.org/docs/handbook/2/narrowing.html
-- TypeScript handbook (discriminated unions): https://www.typescriptlang.org/docs/handbook/2/narrowing.html#discriminated-unions

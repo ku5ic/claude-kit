@@ -75,12 +75,3 @@ Note: `iterator()` does not use the queryset cache. Iterating a second time hits
 `QuerySet.bulk_create([...])` inserts multiple rows in fewer queries. `QuerySet.bulk_update([...], fields)` updates multiple rows without fetching each first.
 
 Both bypass `Model.save()` and post-save signals. Know what you are skipping.
-
-## References
-
-- https://docs.djangoproject.com/en/stable/ref/models/querysets/#select-related
-- https://docs.djangoproject.com/en/stable/ref/models/querysets/#prefetch-related
-- https://docs.djangoproject.com/en/stable/ref/models/expressions/#f-expressions
-- https://docs.djangoproject.com/en/stable/topics/db/queries/#complex-lookups-with-q-objects
-- https://docs.djangoproject.com/en/stable/ref/models/querysets/#iterator
-- https://docs.djangoproject.com/en/stable/ref/models/querysets/#bulk-create

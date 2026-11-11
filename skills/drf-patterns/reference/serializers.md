@@ -85,9 +85,3 @@ class ProductReadSerializer(serializers.ModelSerializer):
         model = Product
         fields = ["id", "name", "price", "category", "slug"]
 ```
-
-## References
-
-- https://www.django-rest-framework.org/api-guide/serializers/
-- https://www.django-rest-framework.org/api-guide/serializers/#modelserializer
-- https://www.django-rest-framework.org/api-guide/fields/#serializermethodfield

@@ -56,8 +56,3 @@ Three built-in styles:
 `CursorPagination`: opaque cursor, no random access. Best for large datasets with frequent inserts (prevents duplicate items from pagination drift). Requires a stable, unique ordering (typically `created_at`).
 
 Override `pagination_class` on individual viewsets when a different style is needed for that resource.
-
-## References
-
-- https://www.django-rest-framework.org/api-guide/throttling/
-- https://www.django-rest-framework.org/api-guide/pagination/

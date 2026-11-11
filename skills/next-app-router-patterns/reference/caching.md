@@ -66,14 +66,6 @@ export async function publishPost(id: string) {
 - `warning`: combining `force-cache` and `no-store` on different fetches in the same route. Allowed but confusing; prefer route segment `revalidate` or `dynamic` to express intent once.
 - `warning`: relying on `unstable_cache` long-term. The name signals API instability across releases.
 
-## References
-
-- Next.js Caching (Cache Components): https://nextjs.org/docs/app/getting-started/caching
-- Next.js previous caching model: https://nextjs.org/docs/app/guides/caching-without-cache-components
-- `cacheComponents` config: https://nextjs.org/docs/app/api-reference/config/next-config-js/cacheComponents
-- `revalidatePath`: https://nextjs.org/docs/app/api-reference/functions/revalidatePath
-- `revalidateTag`: https://nextjs.org/docs/app/api-reference/functions/revalidateTag
-
 ### Legacy (Next.js 15)
 
 `revalidateTag(tag)` with a single argument expired the tag immediately. On 16 it is deprecated and a TypeScript error; use `revalidateTag(tag, "max")` for stale-while-revalidate or `updateTag(tag)` in a Server Action for read-your-writes. The one-argument form is still correct on projects pinned to 15.

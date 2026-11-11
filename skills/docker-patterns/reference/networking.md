@@ -88,7 +88,3 @@ services:
 ```
 
 Other services on `backend` can reach this container at `api` or `api-service`.
-
-## References
-
-- https://docs.docker.com/engine/network/

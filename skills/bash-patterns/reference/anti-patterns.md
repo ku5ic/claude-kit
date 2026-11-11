@@ -15,7 +15,3 @@
 - `read` without `-r`. `warning`. The default mangles backslashes and treats `\<newline>` as line continuation.
 - `[[ "$x" == "yes" ]] && do_thing || do_other_thing`. `warning`. The `||` runs if `do_thing` itself fails, not just if the condition is false. Use `if/then/else`.
 - Globs without `nullglob`: `for f in *.log` runs once with the literal string `*.log` if no files match. `warning`. `shopt -s nullglob` at the top, or guard inside: `[[ -e "$f" ]] || continue`.
-
-## References
-
-- BashPitfalls: https://mywiki.wooledge.org/BashPitfalls

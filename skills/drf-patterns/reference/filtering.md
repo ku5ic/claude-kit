@@ -62,8 +62,3 @@ def get_queryset(self):
 def get_queryset(self):
     return Product.objects.filter(**self.request.query_params.dict())
 ```
-
-## References
-
-- https://www.django-rest-framework.org/api-guide/filtering/
-- https://django-filter.readthedocs.io/en/stable/

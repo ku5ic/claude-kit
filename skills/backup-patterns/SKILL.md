@@ -1,14 +1,6 @@
 ---
 name: backup-patterns
-description: >
-  Backup patterns for Linux servers and applications covering the 3-2-1 rule,
-  rsync file backups, PostgreSQL dumps with pg_dump, encrypted backups with
-  restic, retention policies, and restore testing. Use whenever the project
-  contains shell scripts using pg_dump, rsync, or restic, a Brewfile or
-  requirements file with restic or pgbackup tooling, cron job definitions for
-  backups, or backup-related systemd units, OR the user asks about backups,
-  disaster recovery, data retention, pg_dump, rsync, or restic, even if "backup"
-  is not mentioned by name.
+description: Backup patterns for the 3-2-1 rule, rsync, pg_dump, restic, retention, and restore tests. Use for backup scripts, cron or systemd backup jobs, or questions on backups or disaster recovery.
 ---
 
 # Backup Patterns
@@ -59,19 +51,7 @@ Without `forget`/`prune`, backup storage grows unboundedly. Define and automate 
 
 ---
 
-## References
-
-- https://restic.readthedocs.io/en/latest/
-- https://www.postgresql.org/docs/current/app-pgdump.html
-- https://www.postgresql.org/docs/current/app-pgrestore.html
-
 > Verify restic flags against the version you have installed; restic self-update keeps the binary current.
-
-## Version notes
-
-Checked: 2026-11-10 against https://restic.readthedocs.io/en/stable/040_backup.html, https://github.com/restic/restic/releases, https://www.postgresql.org/support/versioning/
-
-- restic 0.19.1 (2026-07-05): docs warn `--stdin` "cannot detect if data read from stdin is complete"; streaming example switched to `--stdin-from-command`. PostgreSQL 18.6 current, 14 oldest supported.
 
 ### Legacy (restic without --stdin-from-command)
 

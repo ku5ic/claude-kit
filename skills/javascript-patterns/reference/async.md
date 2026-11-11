@@ -28,9 +28,3 @@ Sequential by design. Use `Promise.all` over `Array.from(iter).map(fn)` when you
 ## Top-level `await`
 
 ESM only. Inside a CJS module, top-level `await` is a syntax error. In ESM, the module evaluation pauses until the awaited value resolves; if it never resolves, Node exits with code 13.
-
-## References
-
-- MDN Promise: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise
-- MDN async function: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/async_function
-- Node.js ESM (top-level await): https://nodejs.org/api/esm.html#top-level-await

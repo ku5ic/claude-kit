@@ -29,10 +29,3 @@ Severity levels: the report-format skill.
 ## Mutating props or state directly
 
 `failure`. `props.user.role = "admin"` and `state.items.push(item)` violate React's assumption of immutability: memoization compares by reference, so mutated objects never trigger re-renders, and shared state across components diverges silently. Always replace, never mutate (`setItems(prev => [...prev, item])`).
-
-## References
-
-- "You Might Not Need an Effect": https://react.dev/learn/you-might-not-need-an-effect
-- `React.memo` pitfalls: https://react.dev/reference/react/memo
-- React keys: https://react.dev/learn/rendering-lists#keeping-list-items-in-order-with-key
-- `dangerouslySetInnerHTML`: https://react.dev/reference/react-dom/components/common#common-props

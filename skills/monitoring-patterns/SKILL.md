@@ -1,12 +1,6 @@
 ---
 name: monitoring-patterns
-description: >
-  Application monitoring patterns covering Prometheus metrics (Counter, Gauge,
-  Histogram, Summary), the prometheus-client Python library, metric naming
-  conventions, labels, and health check endpoints. Use whenever a Python project
-  instruments metrics, uses prometheus-client, or the user asks about Prometheus,
-  metrics, monitoring, health checks, or observability, even if "Prometheus" is
-  not mentioned by name.
+description: Prometheus patterns for prometheus-client metric types, naming, labels, and health checks. Use for Python metrics code or monitoring questions.
 ---
 
 # Monitoring Patterns
@@ -72,17 +66,4 @@ The defaults suit general HTTP latency. For faster or slower operations, define 
 
 ---
 
-## References
-
-- https://prometheus.io/docs/concepts/metric_types/
-- https://prometheus.github.io/client_python/
-- https://prometheus.io/docs/practices/naming/
-
 > prometheus-client's API surface is stable but check the GitHub release notes before upgrading across minor versions.
-
-## Version notes
-
-Checked: 2026-11-10 against https://github.com/prometheus/client_python/releases, https://prometheus.github.io/client_python/instrumenting/summary/, https://prometheus.io/download/, https://github.com/prometheus/prometheus/releases
-
-- Prometheus 3.16.0 (2026-11-04), LTS 3.13.5; prometheus-client 0.26.0 still current: no guidance change.
-- prometheus-client 0.26.0 (2026-07-24), Prometheus 3.15.0 (2026-09-24): Summary row corrected; the Python client "does not compute quantiles locally".

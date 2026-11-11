@@ -41,10 +41,3 @@ When you adopt the compiler, treat every Rules-of-React violation it reports as 
 ## React 19: `useOptimistic`
 
 `useOptimistic(currentValue)` returns an immediate optimistic value plus a setter that overrides the value while an async action is in flight, then auto-reverts to the real state on settle. Use it for instant feedback on mutations (likes, votes, list reorders) without manual rollback bookkeeping.
-
-## References
-
-- `React.memo`: https://react.dev/reference/react/memo
-- `useState` lazy initializer: https://react.dev/reference/react/useState
-- React Compiler introduction: https://react.dev/learn/react-compiler/introduction
-- `useOptimistic`: https://react.dev/reference/react/useOptimistic

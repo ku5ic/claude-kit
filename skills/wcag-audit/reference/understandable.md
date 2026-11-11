@@ -34,9 +34,3 @@ A "cognitive function test" is something the user must memorize, transcribe, or 
 - **Biometric or device-bound auth** (passkeys, WebAuthn, Touch ID): the device proves identity without the user solving anything.
 
 CAPTCHA is a cognitive function test by definition. To meet 3.3.8, the page must offer at least one alternative path that is not a cognitive test (typically: SSO, magic link, or a passkey flow).
-
-## References
-
-- WCAG 2.2 Consistent Help (3.2.6): https://www.w3.org/WAI/WCAG22/Understanding/consistent-help
-- WCAG 2.2 Redundant Entry (3.3.7): https://www.w3.org/WAI/WCAG22/Understanding/redundant-entry
-- WCAG 2.2 Accessible Authentication Minimum (3.3.8): https://www.w3.org/WAI/WCAG22/Understanding/accessible-authentication-minimum

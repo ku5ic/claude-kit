@@ -15,7 +15,7 @@
 
 Two valid models for thinking about test distribution. They are not contradictory; they reflect different software architectures.
 
-**Martin Fowler's Test Pyramid** (https://martinfowler.com/articles/practical-test-pyramid.html):
+**Martin Fowler's Test Pyramid**:
 
 - Many fast unit tests at the base.
 - Some integration tests in the middle.
@@ -24,7 +24,7 @@ Two valid models for thinking about test distribution. They are not contradictor
 
 The pyramid suits backend-heavy systems with predominantly pure functions and clear unit boundaries. It also reflects the cost asymmetry: unit tests are fast and stable, E2E tests are slow and flakey, so the cheaper layer should carry more of the coverage.
 
-**Kent C. Dodds's Testing Trophy** (https://kentcdodds.com/blog/the-testing-trophy-and-testing-classifications):
+**Kent C. Dodds's Testing Trophy**:
 
 - Static (TypeScript, ESLint) at the foundation.
 - Unit, then integration, then E2E ascending.

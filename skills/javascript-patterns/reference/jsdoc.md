@@ -35,8 +35,3 @@ A `jsconfig.json` with `"checkJs": true` flips on type checking for every `.js` 
 ## When to graduate to TypeScript
 
 JSDoc + `@ts-check` is the right floor for small JS-only codebases and for libraries that ship without a build step. Once type definitions reach the size of a small module, or when generic helpers proliferate, the verbose JSDoc syntax stops paying off. Move to TypeScript and let the compiler emit the JS.
-
-## References
-
-- TypeScript handbook, JS in TS: https://www.typescriptlang.org/docs/handbook/intro-to-js-ts.html
-- JSDoc supported tags in TS: https://www.typescriptlang.org/docs/handbook/jsdoc-supported-types.html

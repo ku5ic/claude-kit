@@ -75,12 +75,3 @@ Wrap a Server Action in React 19's `useActionState`, and read `pending` in a for
 ## Limit return values
 
 Server Function return values are serialized and sent to the client. Return only what the UI needs. Never return raw database records; cherry-pick fields. The Next.js Data Security guide recommends a Data Access Layer that constrains return shapes in one place.
-
-## References
-
-- Next.js Mutating Data: https://nextjs.org/docs/app/getting-started/mutating-data
-- `use server` directive: https://nextjs.org/docs/app/api-reference/directives/use-server
-- React Server Functions: https://react.dev/reference/rsc/server-functions
-- `revalidatePath`: https://nextjs.org/docs/app/api-reference/functions/revalidatePath
-- `revalidateTag`: https://nextjs.org/docs/app/api-reference/functions/revalidateTag
-- `redirect`: https://nextjs.org/docs/app/api-reference/functions/redirect

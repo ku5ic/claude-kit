@@ -1,6 +1,6 @@
 ---
 name: next-app-router-patterns
-description: Next.js App Router patterns for server/client boundary, data fetching and caching, server actions, streaming, parallel and intercepting routes, edge vs node runtime, and review checklist. Use whenever the project contains a `next.config.*`, an `app/` directory with `page`/`layout`/`route` files, or `next` in `package.json`, OR the user asks about the App Router, server and client components, server actions, or route handlers, even if Next.js is not mentioned by name.
+description: Next.js App Router patterns for the server/client boundary, caching, server actions, streaming, and runtimes. Use for next.config.*, app/ route files, next in package.json, or Next.js questions.
 ---
 
 # Next.js App Router patterns
@@ -27,24 +27,3 @@ Default assumption: Next.js 16 (current stable as of writing) with the App Route
 
 - Pages Router projects (`pages/` only, no `app/` directory). The patterns differ enough that this skill would mislead.
 - React projects without Next.js (use the React skill alone).
-
-## References
-
-- Next.js docs: https://nextjs.org/docs
-- App Router structure: https://nextjs.org/docs/app/getting-started/project-structure
-- Caching (Cache Components): https://nextjs.org/docs/app/getting-started/caching
-- Caching (previous model): https://nextjs.org/docs/app/guides/caching-without-cache-components
-- Server and Client Components: https://nextjs.org/docs/app/getting-started/server-and-client-components
-- Mutating Data: https://nextjs.org/docs/app/getting-started/mutating-data
-- `proxy.js`: https://nextjs.org/docs/app/api-reference/file-conventions/proxy
-- Next.js blog: https://nextjs.org/blog
-- Lee Robinson (Vercel DX): https://leerob.io/
-- Vercel Engineering: https://vercel.com/blog
-
-## Version notes
-
-Checked: 2026-11-10 against https://www.npmjs.com/package/next, https://nextjs.org/docs/app/guides/upgrading/version-16, https://nextjs.org/docs/app/guides/package-bundling and https://nextjs.org/docs/app/api-reference/file-conventions/proxy
-
-- 16.4 (2026-10-06, latest 16.4.6): corrected three 16.0 facts against the upgrade guide. Parallel slots without `default.js` fail the build, synchronous `cookies()`/`headers()` access is removed, and Turbopack's analyzer is `next analyze`.
-- 16.3 (2026-08-03): no guidance change. Proxy runs on Node.js only; a project that needs the Edge runtime keeps `middleware.ts` (proxy docs).
-- 16.0: `middleware` renamed to `proxy` (types `NextMiddleware` -> `NextProxy`, `MiddlewareConfig` -> `ProxyConfig`, `skipMiddlewareUrlNormalize` -> `skipProxyUrlNormalize`); PPR stable and default under Cache Components; one-argument `revalidateTag(tag)` deprecated, pass a `cacheLife` profile (upgrade guide; examples fixed 2026-09-26).

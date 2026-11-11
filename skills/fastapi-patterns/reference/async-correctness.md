@@ -51,7 +51,3 @@ You can freely mix `async def` and `def` routes and dependencies in the same app
 ## CPU-bound work
 
 Neither `def` nor `async def` is appropriate for CPU-bound work (image processing, PDF generation, data crunching). Both will occupy their execution context (threadpool or event loop) for the duration. Offload CPU-bound tasks to a process pool (`concurrent.futures.ProcessPoolExecutor`) or a task queue (Celery, ARQ).
-
-## References
-
-- https://fastapi.tiangolo.com/async/

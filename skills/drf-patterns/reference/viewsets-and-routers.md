@@ -67,9 +67,3 @@ def get_serializer_class(self):
         return OrderWriteSerializer
     return OrderReadSerializer
 ```
-
-## References
-
-- https://www.django-rest-framework.org/api-guide/viewsets/
-- https://www.django-rest-framework.org/api-guide/routers/
-- https://www.django-rest-framework.org/api-guide/generic-views/

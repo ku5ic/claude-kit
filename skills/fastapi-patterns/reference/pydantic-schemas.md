@@ -130,9 +130,3 @@ class UserRead(BaseModel):
 ```
 
 Use `UserCreate` as the route body type and `UserRead` as the `response_model`. This makes the password-exclusion contract explicit at the type level, not a runtime filter.
-
-## References
-
-- https://pydantic.dev/docs/validation/latest/
-- https://pydantic.dev/docs/validation/latest/concepts/validators/
-- https://pydantic.dev/docs/validation/latest/concepts/fields/

@@ -104,7 +104,3 @@ docker compose down -v             # stop and remove all project volumes
 ```
 
 `docker compose down` without `-v` preserves named volumes. This is intentional: down is a normal stop, not a data wipe.
-
-## References
-
-- https://docs.docker.com/engine/storage/

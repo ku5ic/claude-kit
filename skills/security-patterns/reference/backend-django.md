@@ -23,9 +23,3 @@ Settings (`DEBUG`, `SECRET_KEY`, `ALLOWED_HOSTS`, HTTPS headers), template escap
 
 - Validate extension, MIME type, and content. Serve from non-executable location.
 - Size limits at web server and Django layer.
-
-## References
-
-- Django security topics: https://docs.djangoproject.com/en/stable/topics/security/
-- Django deployment checklist: https://docs.djangoproject.com/en/stable/howto/deployment/checklist/
-- DRF permissions: https://www.django-rest-framework.org/api-guide/permissions/

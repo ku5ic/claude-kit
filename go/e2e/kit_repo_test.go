@@ -92,6 +92,43 @@ func TestKitRepo(t *testing.T) {
 		}
 	})
 
+	t.Run("a reference skill keeps its sources in sources.md and fits its budget", func(t *testing.T) {
+		// The procedure skills, as skills/meta/reference/refresh.md lists them,
+		// plus kit-rules and slop-patterns, which aren't pattern skills.
+		exempt := []string{"audit", "write", "deps", "investigate", "pr", "unslop", "report-format", "meta", "kit-rules", "slop-patterns"}
+		// Set from the sizes after sources moved out; step 18's rewrite lowers them.
+		const maxDescription, maxSkill = 200, 5 * 1024
+		url := regexp.MustCompile(`https?://`)
+		dirs, _ := filepath.Glob(filepath.Join(kitRoot, "skills", "*", "SKILL.md"))
+		for _, skill := range dirs {
+			dir := filepath.Dir(skill)
+			if slices.Contains(exempt, filepath.Base(dir)) {
+				continue
+			}
+			text := Read(t, skill)
+			front, _ := frontmatter(text)
+			rel, _ := filepath.Rel(kitRoot, skill)
+			if n := len(front["description"]); n == 0 || n > maxDescription {
+				t.Errorf("%s: description is %d characters, want 1 to %d", rel, n, maxDescription)
+			}
+			if len(text) > maxSkill {
+				t.Errorf("%s: %d bytes, over the %d-byte budget", rel, len(text), maxSkill)
+			}
+			if strings.Contains(text, "sources.md") {
+				t.Errorf("%s: names sources.md, which a session must never load", rel)
+			}
+			refs, _ := filepath.Glob(filepath.Join(dir, "reference", "*.md"))
+			for _, file := range append(refs, skill) {
+				rel, _ := filepath.Rel(kitRoot, file)
+				for n, line := range proseLines(Read(t, file)) {
+					if line == "## References" || line == "## Version notes" || url.MatchString(line) {
+						t.Errorf("%s:%d: a source belongs in sources.md: %s", rel, n, line)
+					}
+				}
+			}
+		}
+	})
+
 	t.Run("every cited file and rules section exists", func(t *testing.T) {
 		for _, bad := range brokenPointers(t) {
 			t.Error(bad)
@@ -194,6 +231,24 @@ func TestKitRepo(t *testing.T) {
 // frontmatter is the top-level `key: value` lines between a file's opening
 // pair of --- lines. Line-based, not YAML: argument-hint values like
 // <a|b> aren't valid YAML scalars.
+// proseLines is text's lines by 1-based number, without fenced code and
+// with inline code spans blanked, so an example URL in code doesn't count.
+func proseLines(text string) map[int]string {
+	span := regexp.MustCompile("`[^`]*`")
+	lines := map[int]string{}
+	inFence := false
+	for i, line := range strings.Split(text, "\n") {
+		if trimmed := strings.TrimSpace(line); strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+			inFence = !inFence
+			continue
+		}
+		if !inFence {
+			lines[i+1] = span.ReplaceAllString(line, "``")
+		}
+	}
+	return lines
+}
+
 func frontmatter(text string) (map[string]string, bool) {
 	body, ok := strings.CutPrefix(text, "---\n")
 	if !ok {

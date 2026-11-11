@@ -84,11 +84,3 @@ Env-var override convention: `NUXT_*` overrides the server-only key, `NUXT_PUBLI
 `failure`: reading `process.env.SECRET` directly in a server handler. The variable might not be loaded; use `useRuntimeConfig().apiSecret` so Nuxt validates and merges from the configured shape.
 
 `failure`: reading `process.env.SECRET` (or any non-`NUXT_PUBLIC_` variable) in a Vue component or composable that ends up in the client bundle. The value is undefined at runtime and the secret leak is more likely the next time the variable name is recycled into the public namespace.
-
-## References
-
-- Server engine concept: https://nuxt.com/docs/guide/concepts/server-engine
-- Server directory: https://nuxt.com/docs/guide/directory-structure/server
-- `runtimeConfig`: https://nuxt.com/docs/guide/going-further/runtime-config
-- h3 framework: https://h3.unjs.io/
-- Nitro: https://nitro.unjs.io/

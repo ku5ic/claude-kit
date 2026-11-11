@@ -47,8 +47,3 @@ Note: `has_permission` (view-level) is called before `has_object_permission`. Bo
 ## Composing permissions
 
 Multiple classes in `permission_classes` are ANDed. For other logic, classes inheriting `BasePermission` compose with `&` (and), `|` (or), and `~` (not): `permission_classes = [IsAuthenticated | ReadOnly]`.
-
-## References
-
-- https://www.django-rest-framework.org/api-guide/permissions/
-- https://www.django-rest-framework.org/api-guide/permissions/#custom-permissions

@@ -1,7 +1,5 @@
 # Apollo Client 4
 
-Sources: the v4 migration guide, https://github.com/apollographql/apollo-client/blob/main/docs/source/migrating/apollo-client-4-migration.mdx, and the docs under https://github.com/apollographql/apollo-client/tree/main/docs/source (Context7 /apollographql/apollo-client).
-
 ## Entry points
 
 React hooks come from `@apollo/client/react`, not the package root: `import { useQuery } from "@apollo/client/react"`. Root imports of hooks are v3 code. Source: migration guide.

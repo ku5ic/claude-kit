@@ -115,13 +115,3 @@ const bits = 0b1010_0001_1000_0101;
 ```
 
 No more than one underscore in a row, not at the start or end, not after a leading `0`.
-
-## References
-
-- MDN JavaScript reference: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference
-- Optional chaining: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Optional_chaining
-- Nullish coalescing: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Nullish_coalescing
-- Logical assignment: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Logical_AND_assignment
-- `Array.prototype.at()`: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/at
-- `Object.hasOwn()`: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/hasOwn
-- Numeric separators: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Lexical_grammar#numeric_separators

@@ -62,9 +62,3 @@ watch(query, async (q) => {
 ```
 
 Older Vue versions used the third callback argument: `watch(source, async (val, _old, onCleanup) => { onCleanup(...) })`. Both forms still work.
-
-## References
-
-- Watchers guide: https://vuejs.org/guide/essentials/watchers.html
-- `watch`: https://vuejs.org/api/reactivity-core.html#watch
-- `watchEffect`: https://vuejs.org/api/reactivity-core.html#watcheffect

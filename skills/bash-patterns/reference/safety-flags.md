@@ -54,9 +54,3 @@ Other shopts worth knowing:
 ## Verification before shipping
 
 Non-obvious shell (case-pattern globs, regex, IFS games, complex parameter expansion, here-doc quoting) gets a quick test in `bash` before commit. A 30-second `bash -c '...'` run beats multiple debug rounds. ShellCheck is a static analyzer; runtime behavior with real inputs is the final check.
-
-## References
-
-- GNU Bash manual (`set` builtin): https://www.gnu.org/software/bash/manual/bash.html
-- BashFAQ on `set -e`: https://mywiki.wooledge.org/BashFAQ/105
-- ShellCheck SC2155 (declare-and-assign-separately): https://www.shellcheck.net/wiki/SC2155

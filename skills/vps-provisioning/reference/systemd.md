@@ -106,7 +106,3 @@ journalctl -u myapp -p err       # errors only
 - `Requires=`: hard dependency; if the required unit fails, this unit fails
 
 For most web apps: `After=network.target` is sufficient. `Requires=postgresql.service` is appropriate when the service cannot start without the database.
-
-## References
-
-- https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html

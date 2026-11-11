@@ -14,8 +14,3 @@ Component splitting is a judgment call. Reach for it when one of these holds:
 - "Just in case we reuse it" is not a reason. Wait for the second use site.
 
 The duplication-vs-abstraction tradeoff: three similar-looking blocks in one file is usually better than the wrong abstraction extracted across three files.
-
-## References
-
-- React: passing data as children: https://react.dev/learn/passing-props-to-a-component
-- React: extracting JSX: https://react.dev/learn/your-first-component

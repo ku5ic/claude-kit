@@ -61,10 +61,3 @@ Both `useFetch` and `useAsyncData` use a unique key to dedup requests across the
 ## Lazy fetching
 
 Add `{ lazy: true }` (or use `useLazyFetch` / `useLazyAsyncData`) to skip blocking the initial navigation. The page renders with `pending: true`, and the data fills in when ready. Pair with `<Suspense>` or a `v-if="!pending"` skeleton.
-
-## References
-
-- Data fetching guide: https://nuxt.com/docs/getting-started/data-fetching
-- `useFetch`: https://nuxt.com/docs/api/composables/use-fetch
-- `useAsyncData`: https://nuxt.com/docs/api/composables/use-async-data
-- `$fetch` / ofetch: https://nuxt.com/docs/api/utils/dollarfetch

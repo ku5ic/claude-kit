@@ -83,7 +83,3 @@ Set non-200 success codes on the decorator:
 ```
 
 Use `fastapi.status` constants (`status.HTTP_201_CREATED`, `status.HTTP_204_NO_CONTENT`) instead of bare integers for readability.
-
-## References
-
-- https://fastapi.tiangolo.com/tutorial/response-model/

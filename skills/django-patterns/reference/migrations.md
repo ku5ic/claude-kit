@@ -53,9 +53,3 @@ Squash when the migration history has grown large enough to slow down test setup
 Keep the old migrations alongside the squashed one until all deployments have run it. Then remove the old files in a follow-up.
 
 Never edit an applied migration. Add a new one.
-
-## References
-
-- https://docs.djangoproject.com/en/stable/topics/migrations/
-- https://docs.djangoproject.com/en/stable/ref/django-admin/#makemigrations
-- https://docs.djangoproject.com/en/stable/howto/writing-migrations/

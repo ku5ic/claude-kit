@@ -1,6 +1,6 @@
 ---
 name: bash-patterns
-description: Bash and shell script patterns for safety flags, quoting, conditionals, traps, functions, ShellCheck discipline, and review-worthy anti-patterns. Use whenever the project contains `.sh`/`.bash`/`.zsh` files, files with a bash/sh shebang, scripts in `bin/`, shell dotfiles, or Makefile recipes, OR the user asks about shell scripting or a shell pipeline, even if "bash" is not mentioned by name.
+description: Bash and shell patterns for safety flags, quoting, traps, and ShellCheck. Use for .sh, .bash, or .zsh files, shebang scripts, bin/ scripts, dotfiles, Makefile recipes, or shell questions.
 ---
 
 # Bash patterns
@@ -21,20 +21,3 @@ description: Bash and shell script patterns for safety flags, quoting, condition
 | [reference/subshells-and-pipes.md](reference/subshells-and-pipes.md) | Subshell semantics, `\|` pitfalls, process substitution `<(cmd)`, filesystem operations                      |
 | [reference/shellcheck.md](reference/shellcheck.md)                   | Top SC codes, suppression discipline, POSIX-only contexts (Alpine, BusyBox)                                  |
 | [reference/anti-patterns.md](reference/anti-patterns.md)             | Fifteen review-time anti-patterns with severity calls                                                        |
-
-## References
-
-- GNU Bash manual: https://www.gnu.org/software/bash/manual/bash.html
-- POSIX shell command language: https://pubs.opengroup.org/onlinepubs/9699919799/utilities/V3_chap02.html
-- ShellCheck wiki: https://www.shellcheck.net/wiki/
-- BashFAQ: https://mywiki.wooledge.org/BashFAQ
-- BashPitfalls: https://mywiki.wooledge.org/BashPitfalls
-- BashGuide: https://mywiki.wooledge.org/BashGuide
-- Google Shell Style Guide: https://google.github.io/styleguide/shellguide.html
-
-## Version notes
-
-Checked: 2026-11-10 against https://ftp.gnu.org/gnu/bash/, https://tiswww.case.edu/php/chet/bash/NEWS, the bash 5.3.20 manual page, https://github.com/koalaman/shellcheck/blob/master/CHANGELOG.md
-
-- 5.3 (2025-07-30; Homebrew 5.3.20): no 6.0 release exists. Corrected per the manual: `inherit_errexit` covers command substitution only, and every command of a multi-command pipeline runs in a subshell. ShellCheck 0.11.0 (2025-08-04) current; it disables SC2002 (useless cat) by default.
-- 4.4: `shopt -s inherit_errexit`, `${parameter@op}` (corrected from 4.0 per NEWS). 4.0: case modification, `mapfile`.

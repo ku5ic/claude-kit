@@ -133,8 +133,3 @@ docs/
 ```
 
 A large build context slows `docker build` because the entire context is sent to the daemon before the first instruction runs.
-
-## References
-
-- https://docs.docker.com/build/building/best-practices/
-- https://docs.docker.com/reference/dockerfile/

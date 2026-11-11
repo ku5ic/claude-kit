@@ -1,6 +1,6 @@
 ---
 name: python-patterns
-description: Python language-level patterns for type hints, strictness, project layout, async, error handling, packaging, and review-worthy anti-patterns. Use whenever the project contains `.py` files or a Python manifest (`pyproject.toml`, `requirements.txt`, `Pipfile`, `uv.lock`, `poetry.lock`), OR the user asks about Python, its typing and type checkers, its async model, or its packaging and project structure, even if "Python" is not mentioned by name.
+description: Python patterns for typing, project layout, async, errors, and packaging. Use for .py files, pyproject.toml, requirements.txt, uv.lock, poetry.lock, or Python questions.
 ---
 
 # Python patterns
@@ -21,23 +21,3 @@ Default assumption: Python 3.11 or later, type hints required on public function
 | [reference/errors.md](reference/errors.md)                   | Exception design, chaining, LBYL vs EAFP, `logger.exception`                                   |
 | [reference/common-patterns.md](reference/common-patterns.md) | Dataclasses, enums, `pathlib`, `functools.cache`, Pydantic v2 patterns                         |
 | [reference/anti-patterns.md](reference/anti-patterns.md)     | Thirteen language anti-patterns, free-threaded build implications, testing-adjacent items      |
-
-## References
-
-- PEP index: https://peps.python.org/
-- Python `What's New` (current stable): https://docs.python.org/3/whatsnew/
-- mypy command line: https://mypy.readthedocs.io/en/stable/command_line.html
-- mypy config (per-module overrides): https://mypy.readthedocs.io/en/stable/config_file.html
-- pyright configuration: https://microsoft.github.io/pyright/
-- Ruff rules: https://docs.astral.sh/ruff/rules/
-- uv docs: https://docs.astral.sh/uv/
-- PyPA src vs flat: https://packaging.python.org/en/latest/discussions/src-layout-vs-flat-layout/
-- Pydantic v2 models: https://pydantic.dev/docs/validation/latest/concepts/models/
-
-## Version notes
-
-Checked: 2026-11-10 against https://www.python.org/downloads/, https://docs.python.org/3.15/whatsnew/3.15.html and https://docs.python.org/3/library/asyncio-task.html
-
-- 3.15 (2026-10-09, latest 3.15.2): typing additions PEP 747 `TypeForm`, PEP 728 `TypedDict(closed=True, extra_items=...)`, PEP 800 disjoint bases; PEP 810 lazy imports; UTF-8 default encoding (PEP 686). Not yet guidance here. Also corrected: `gather` does not cancel siblings, `anyio.move_on_after` is a plain `with`, zero-cost `try` is bpo-40222.
-- 3.14 (2025-10-07, latest 3.14.10): deferred annotation evaluation by default (PEP 649); `from __future__ import annotations` on a deprecation path (PEP 749); free-threaded build officially supported (PEP 779), 5-10% single-threaded penalty, not the default build.
-- 3.13: free-threaded build experimental (PEP 703). Once 3.13 reaches EOL the floor here moves and the `from __future__` paragraph can go.

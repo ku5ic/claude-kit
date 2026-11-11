@@ -43,9 +43,3 @@ trap err_report ERR
 ```
 
 This logs the exact line where `set -e` triggered, not the line where the trap was installed.
-
-## References
-
-- GNU Bash manual (Functions): https://www.gnu.org/software/bash/manual/bash.html#Shell-Functions
-- GNU Bash manual (Bash Variables, BASH_LINENO etc.): https://www.gnu.org/software/bash/manual/bash.html#Bash-Variables
-- ShellCheck SC2164 (`cd ... || exit`): https://www.shellcheck.net/wiki/SC2164

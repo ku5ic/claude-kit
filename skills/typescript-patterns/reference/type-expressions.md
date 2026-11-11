@@ -123,13 +123,3 @@ const r = defineRoutes({ home: "/", user: "/users/:id" });
 ```ts
 type Awaited<T> = T extends Promise<infer U> ? U : T;
 ```
-
-## References
-
-- TypeScript handbook (utility types): https://www.typescriptlang.org/docs/handbook/utility-types.html
-- TypeScript handbook (template literal types): https://www.typescriptlang.org/docs/handbook/2/template-literal-types.html
-- TypeScript 4.9 announcement (`satisfies`): https://devblogs.microsoft.com/typescript/announcing-typescript-4-9/
-- TypeScript 5.0 announcement (`const` type parameters): https://devblogs.microsoft.com/typescript/announcing-typescript-5-0/
-- TypeScript 4.7 announcement (variance annotations): https://devblogs.microsoft.com/typescript/announcing-typescript-4-7/
-- Zod brand: https://zod.dev/
-- Valibot brand action: https://valibot.dev/api/brand/

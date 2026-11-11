@@ -46,7 +46,7 @@ The `runtime` config option is not available in Proxy files; setting it throws. 
 
 ### Legacy (Middleware, Edge runtime)
 
-A project that needs the Edge runtime for this file keeps `middleware.ts`; the proxy docs (https://nextjs.org/docs/app/api-reference/file-conventions/proxy) say Edge is not supported in `proxy.ts`. Treat that as the one case where the deprecated name still applies.
+A project that needs the Edge runtime for this file keeps `middleware.ts`; the proxy docs say Edge is not supported in `proxy.ts`. Treat that as the one case where the deprecated name still applies.
 
 ## Matchers
 
@@ -64,12 +64,6 @@ Matcher values must be statically analyzable; dynamic values are silently ignore
 
 ## Environment variables: server-only vs `NEXT_PUBLIC_`
 
-Next.js 16 removed `serverRuntimeConfig` and `publicRuntimeConfig`; flag either as `failure` in a 16+ project. Read server-only values from `process.env` in Server Components (the taint API keeps them out of Client Components). `NEXT_PUBLIC_*` values are inlined into the client bundle at build; call `connection()` before reading `process.env` to read at request time instead. Source: https://nextjs.org/docs/app/guides/upgrading/version-16
+Next.js 16 removed `serverRuntimeConfig` and `publicRuntimeConfig`; flag either as `failure` in a 16+ project. Read server-only values from `process.env` in Server Components (the taint API keeps them out of Client Components). `NEXT_PUBLIC_*` values are inlined into the client bundle at build; call `connection()` before reading `process.env` to read at request time instead.
 
 `failure`: reading `process.env.SECRET` (no `NEXT_PUBLIC_` prefix) in a Client Component. The variable is replaced with `""` in the client bundle and the runtime read returns the empty string silently, with no error.
-
-## References
-
-- Route segment config (runtime): https://nextjs.org/docs/app/api-reference/file-conventions/route-segment-config/runtime
-- Proxy file convention: https://nextjs.org/docs/app/api-reference/file-conventions/proxy
-- Edge runtime: https://nextjs.org/docs/app/api-reference/edge

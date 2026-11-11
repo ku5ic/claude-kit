@@ -25,11 +25,3 @@ Severity levels: the report-format skill.
 ## Mixing `useState` and raw `ref` for shared state
 
 `warning`. `ref` declared at the module level is shared across all server requests (same issue as plain module state). Even on the client, a module-level `ref` is not reset between navigations in the same Nuxt app instance. Use `useState` for any state that must survive navigation or be shared across components, and `ref` only for local component state.
-
-## References
-
-- `useState` docs: https://nuxt.com/docs/api/composables/use-state
-- `useFetch` docs: https://nuxt.com/docs/api/composables/use-fetch
-- `runtimeConfig`: https://nuxt.com/docs/guide/going-further/runtime-config
-- Server routes: https://nuxt.com/docs/guide/directory-structure/server
-- Data fetching guide: https://nuxt.com/docs/getting-started/data-fetching

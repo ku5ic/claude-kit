@@ -1,6 +1,6 @@
 ---
 name: engineering-fundamentals
-description: Concrete design and code-level checks for planning, review, and writing code, covering modularity, separation of concerns, reversibility, verifiability, function and file size, nesting, naming, magic values, error handling, requirements clarity, verification vs validation, and the red-green-refactor cycle. Complements the Change rules, which own the principles (minimal change, KISS, YAGNI, DRY, SOLID, comments). Use when planning or reviewing a change or design, or writing source code in any language, even if "fundamentals" is not mentioned by name.
+description: Design and code-level checks for modularity, size, nesting, naming, errors, and red-green-refactor. Use when planning, reviewing, or writing code in any language.
 ---
 
 # Engineering fundamentals

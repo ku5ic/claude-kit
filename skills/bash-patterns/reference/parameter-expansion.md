@@ -10,7 +10,3 @@ All forms below are bash-standard; the case-modification family is bash 4.0+.
 - `${var%suffix}` / `${var%%suffix}`: remove shortest / longest matching suffix.
 - `${var/pattern/replacement}` first match; `${var//pattern/replacement}` all matches.
 - `${var^^}` uppercase, `${var,,}` lowercase. Bash 4.0+; unsafe under stock macOS bash 3.2.
-
-## References
-
-- GNU Bash manual (Shell Parameter Expansion): https://www.gnu.org/software/bash/manual/bash.html#Shell-Parameter-Expansion

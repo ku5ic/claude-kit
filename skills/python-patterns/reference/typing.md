@@ -51,14 +51,3 @@ ignore_missing_imports = true
 The `[[tool.mypy.overrides]]` table accepts a `module` pattern (string or list) and any subset of mypy options. Inline `# type: ignore[code]` overrides any config; concrete module names override wildcards; wildcards override globals. This precedence order lets you ratchet strictness incrementally: turn a flag on globally, then add a temporary override for the modules that fail, and remove the overrides one at a time as the modules are typed.
 
 pyright uses a `pyrightconfig.json` (or a `[tool.pyright]` table) with per-path `executionEnvironments` for the same effect. Both checkers support a similar tightening workflow; the keys differ but the strategy does not.
-
-## References
-
-- PEP 585 (built-in generics): https://peps.python.org/pep-0585/
-- PEP 649 (deferred annotation evaluation): https://peps.python.org/pep-0649/
-- PEP 673 (`Self`): https://peps.python.org/pep-0673/
-- PEP 695 (type parameter syntax): https://peps.python.org/pep-0695/
-- mypy command line: https://mypy.readthedocs.io/en/stable/command_line.html
-- mypy config (per-module overrides): https://mypy.readthedocs.io/en/stable/config_file.html
-- pyright configuration: https://microsoft.github.io/pyright/
-- Ruff rules: https://docs.astral.sh/ruff/rules/

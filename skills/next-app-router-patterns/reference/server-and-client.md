@@ -38,9 +38,3 @@ Passing a Server Component as `children` of a Client Component is allowed and co
 `headers()` and `cookies()` are async server-only APIs (they return promises that resolve to read interfaces). Calling them from a file that ends up in the client bundle is a build-time error. To enforce one-way isolation, import `server-only` at the top of any module that contains secrets or server-only logic; if it ever gets imported by a Client Component, the build fails clearly.
 
 For `process.env` in client code: `reference/runtime.md`'s environment-variables section.
-
-## References
-
-- Next.js Server and Client Components: https://nextjs.org/docs/app/getting-started/server-and-client-components
-- React `use client`: https://react.dev/reference/rsc/use-client
-- React Server Components: https://react.dev/reference/rsc/server-components

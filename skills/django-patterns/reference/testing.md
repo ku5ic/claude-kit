@@ -58,9 +58,3 @@ Do not test Django itself. Do not write tests that verify `filter(x=1)` returns 
 ```bash
 pytest --reuse-db
 ```
-
-## References
-
-- https://pytest-django.readthedocs.io/en/latest/
-- https://factoryboy.readthedocs.io/en/stable/
-- https://model-bakery.readthedocs.io/en/latest/

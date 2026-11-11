@@ -7,7 +7,7 @@ The project's CI and task runners decide which tofu checks `kit run-checks` runs
 - `fmt -check -recursive`: formatting only, needs nothing installed.
 - `validate`: syntax and internal consistency. It contacts no backend or provider API, but it needs an initialized directory with providers and modules installed. To initialize without touching the backend, run `tofu init -backend=false`.
 
-`plan` and `apply` validate automatically; `validate` is for pre-commit and CI. Source: https://opentofu.org/docs/cli/commands/validate
+`plan` and `apply` validate automatically; `validate` is for pre-commit and CI.
 
 ## What the guard blocks
 

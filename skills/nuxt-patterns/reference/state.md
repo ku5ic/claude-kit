@@ -65,10 +65,3 @@ export function useCart() {
 ```
 
 The internal `useState` makes this SSR-safe. Without it, this composable would have the cross-request-leakage problem above.
-
-## References
-
-- `useState`: https://nuxt.com/docs/api/composables/use-state
-- State management guide: https://nuxt.com/docs/getting-started/state-management
-- Pinia for Nuxt: https://pinia.vuejs.org/ssr/nuxt.html
-- Composables auto-import: https://nuxt.com/docs/guide/directory-structure/composables

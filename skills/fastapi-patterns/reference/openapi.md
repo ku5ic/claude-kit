@@ -84,7 +84,3 @@ Rename the schema endpoint (useful when your API gateway or proxy expects a spec
 ```python
 app = FastAPI(openapi_url="/api/v1/openapi.json")
 ```
-
-## References
-
-- https://fastapi.tiangolo.com/tutorial/metadata/

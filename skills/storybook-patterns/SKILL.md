@@ -1,6 +1,6 @@
 ---
 name: storybook-patterns
-description: Storybook patterns for CSF 3 stories and meta, args with fn() spies, play-function interaction tests, how story ids and URLs are formed, the a11y addon's test modes, and review-time anti-patterns. Use whenever the project contains `*.stories.*` files, a `.storybook/` directory, or `storybook` in `package.json`, OR the user asks about stories, play functions, Storybook addons, or component documentation, even if Storybook is not mentioned by name.
+description: Storybook patterns for CSF 3, args and fn() spies, play functions, story ids, and the a11y addon. Use for *.stories.* files, .storybook/, storybook in package.json, or Storybook questions.
 ---
 
 # Storybook patterns
@@ -18,18 +18,3 @@ Default assumption: Storybook 10.6 with CSF 3 stories.
 | [reference/csf.md](reference/csf.md)                     | Meta, args and `fn()`, `play` functions, `beforeEach`                |
 | [reference/accessibility.md](reference/accessibility.md) | The a11y addon, `parameters.a11y.test`, and CI behavior              |
 | [reference/anti-patterns.md](reference/anti-patterns.md) | Six review-time anti-patterns with severity calls                    |
-
-## References
-
-- Storybook docs: https://storybook.js.org/docs
-- Sidebar and URLs: https://storybook.js.org/docs/configure/user-interface/sidebar-and-urls
-- Accessibility tests: https://storybook.js.org/docs/writing-tests/accessibility-testing
-- Migration notes: https://github.com/storybookjs/storybook/blob/next/MIGRATION.md
-
-## Version notes
-
-Checked: 2026-11-10 against the npm registry and https://storybook.js.org/docs
-
-- 10.6.7 (2026-11-10) current; 11.0.0 is in beta (beta.1, 2026-11-09), not covered. No change to the guidance in this pack.
-- 10.6.0 (2026-09-02); 10.0.0 (2025-10-28).
-- 8.0: the `storiesOf` API was removed; stories are CSF.

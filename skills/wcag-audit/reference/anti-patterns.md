@@ -33,12 +33,3 @@ Severity rubric: [../SKILL.md](../SKILL.md#severity-rubric).
 ## `aria-hidden="true"` on a focusable element
 
 `warning`. A focusable element (button, link, input) with `aria-hidden="true"` is hidden from the accessibility tree but still reachable by keyboard. A screen reader user tabs into it and hears nothing. Either remove `aria-hidden` or make the element non-focusable (`tabindex="-1"`, `disabled`).
-
-## References
-
-- WCAG 2.2 spec: https://www.w3.org/TR/WCAG22/
-- First Rule of ARIA: https://www.w3.org/TR/using-aria/#rule1
-- ARIA Authoring Practices Guide: https://www.w3.org/WAI/ARIA/apg/
-- WCAG 1.4.3 Contrast (Minimum): https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html
-- WCAG 2.5.3 Label in Name: https://www.w3.org/WAI/WCAG22/Understanding/label-in-name.html
-- WebAIM Contrast Checker: https://webaim.org/resources/contrastchecker/

@@ -64,10 +64,3 @@ class Pet(BaseModel):
 The discriminator gives Pydantic an O(1) dispatch on parse and a clear error message when the discriminator value is unknown. Without it, Pydantic walks the union and reports the first member that fails to validate, which is usually not what the caller wants to see.
 
 Construct branded / validated values only via the schema. The mistake to avoid is sharing a model class between "input shape" (untrusted) and "internal value" (trusted); use two models and a parse step between them.
-
-## References
-
-- Python `What's New` (current stable): https://docs.python.org/3/whatsnew/
-- Pydantic v2 models: https://pydantic.dev/docs/validation/latest/concepts/models/
-- Pydantic v2 fields: https://pydantic.dev/docs/validation/latest/concepts/fields/
-- Pydantic v2 unions: https://pydantic.dev/docs/validation/latest/concepts/unions/

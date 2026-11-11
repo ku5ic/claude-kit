@@ -42,8 +42,3 @@ Choose DRF tokens for simplicity and easy revocation. Choose JWT when you need s
 ## Throttle auth endpoints
 
 Apply tight rate limits to any endpoint that issues or refreshes tokens. See `throttling-and-pagination.md`.
-
-## References
-
-- https://www.django-rest-framework.org/api-guide/authentication/
-- https://django-rest-framework-simplejwt.readthedocs.io/en/latest/

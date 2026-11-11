@@ -41,8 +41,3 @@ Shipping the same package as both CJS and ESM via the `"exports"` `import` / `re
 ## Mixing `require` and `import` in the same file
 
 `failure`. The two systems are not interchangeable inside a single module. Pick one per file. To bridge from CJS to ESM, use dynamic `import()`. To bridge from ESM to CJS, use `module.createRequire()`.
-
-## References
-
-- Node.js packages: https://nodejs.org/api/packages.html
-- Node.js ESM: https://nodejs.org/api/esm.html
