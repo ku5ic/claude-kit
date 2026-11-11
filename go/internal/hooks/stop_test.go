@@ -324,7 +324,7 @@ func TestStopChecks(t *testing.T) {
 		t.Parallel()
 		e := stopSetup(t)
 		e.start()
-		e.turn("Bash")
+		e.turn("Bash", "")
 		testutil.Write(t, e.path("a.ts"), "sed -i wrote this\n")
 		e.stop(false).Want(t, 0)
 		if got := e.checked(); got != e.repo+"|--check a.ts" {
@@ -337,7 +337,7 @@ func TestStopChecks(t *testing.T) {
 		testutil.Write(t, e.path("a.ts"), "dirty before the turn\n")
 		testutil.Write(t, e.path("b.ts"), "dirty before the turn\n")
 		e.start()
-		e.turn("Bash")
+		e.turn("Bash", "")
 		testutil.Write(t, e.path("a.ts"), "changed again through Bash\n")
 		e.stop(false).Want(t, 0)
 		if got := e.checked(); got != e.repo+"|--check a.ts" {

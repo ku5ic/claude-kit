@@ -54,14 +54,19 @@ func StopChecks(h *hook.Hook) error {
 	if err := planGate(h, cwd, root, entries); err != nil {
 		return err
 	}
-	edited := transcript.Edits(transcript.LastTurn(entries))
+	turn := transcript.LastTurn(entries)
+	edited := transcript.Edits(turn)
 	for i, path := range edited {
 		edited[i] = fsx.Abs(cwd, path)
 	}
-	// The turn-start snapshot also catches a Bash edit, and a file committed
-	// mid-turn. Without one, a clean tree means the edits were committed.
+	// The turn-start snapshot also catches a Bash or subagent edit, and a
+	// file committed mid-turn. A turn whose every write is named leaves the
+	// rest to another session or the user, so the snapshot adds nothing.
+	// Without one, a clean tree means the edits were committed.
 	if changed, ok := turnChanges(h, root); ok {
-		edited = append(edited, changed...) // enforce.Stop drops repeats
+		if !transcript.NamesEveryWrite(turn) {
+			edited = append(edited, changed...) // enforce.Stop drops repeats
+		}
 	} else if changes, err := git.Status(cwd, false); err != nil || len(changes) == 0 {
 		return nil
 	}

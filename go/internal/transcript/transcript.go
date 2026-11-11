@@ -22,6 +22,26 @@ func ForkSidecar(path string) string {
 // EditTools are the tools that write a file.
 var EditTools = []string{"Edit", "Write", "MultiEdit", "NotebookEdit"}
 
+// readOnlyTools write no file. Any tool not here or in EditTools (Bash, a
+// subagent, an MCP tool) may write one the transcript never names.
+var readOnlyTools = []string{"Read", "Grep", "Glob", "WebFetch", "WebSearch", "ToolSearch", "Skill", "AskUserQuestion", "TodoWrite", "EnterPlanMode", "ExitPlanMode"}
+
+// NamesEveryWrite is true when every tool entries called is an edit tool,
+// whose paths Edits returns, or a read-only one.
+func NamesEveryWrite(entries []Entry) bool {
+	for _, e := range entries {
+		if e.Type != "assistant" {
+			continue
+		}
+		for _, b := range e.ToolUses() {
+			if !slices.Contains(EditTools, b.Name) && !slices.Contains(readOnlyTools, b.Name) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 // Entry is one transcript line.
 type Entry struct {
 	Line        int    `json:"-"` // 1-based
