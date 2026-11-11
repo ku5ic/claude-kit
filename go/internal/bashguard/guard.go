@@ -16,6 +16,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/kitcmd"
+	"github.com/ku5ic/claude-kit/go/internal/layout"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
@@ -106,7 +107,7 @@ func Check(h *hook.Hook) error {
 	if cmd == "" {
 		return nil
 	}
-	h.SetContext("Command: " + cmd)
+	h.SetContext(layout.KV("cmd", layout.Clip(cmd)))
 	cfg := cmp.Or(h.Config(), &config.Config{})
 	home := h.Home
 	norm := normalize(cmd)

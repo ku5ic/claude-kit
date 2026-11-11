@@ -12,6 +12,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
+	"github.com/ku5ic/claude-kit/go/internal/layout"
 	"github.com/ku5ic/claude-kit/go/internal/md"
 )
 
@@ -155,16 +156,26 @@ func LogPairs(h Hit, where string) []string {
 	return []string{"rule", "slop-" + h.Rule, "tier", strconv.Itoa(h.Tier), "path", where, "line", strconv.Itoa(h.Line), "match", h.Match}
 }
 
+// shownHits is how many hits a message lists before counting the rest.
+const shownHits = 6
+
 // Message is a deny reason: each blocking hit in where with its line and
-// fix, then the instruction to rewrite, not swap words.
-func Message(where string, hits []Hit) string {
-	var b strings.Builder
-	fmt.Fprintf(&b, "unslop: %d AI tell(s) in %s:\n", len(hits), where)
-	for _, h := range hits {
-		fmt.Fprintf(&b, "- L%d %q -> %s\n", h.Line, h.Match, h.Fix)
+// fix, then the instruction to rewrite, not swap words, and then, when
+// non-empty, what to do after.
+func Message(where string, hits []Hit, then string) string {
+	lines := []string{fmt.Sprintf("%d AI tell(s) in %s", len(hits), where)}
+	for _, h := range hits[:min(len(hits), shownHits)] {
+		lines = append(lines, layout.KV(fmt.Sprintf("L%d", h.Line), fmt.Sprintf("%q -> %s", h.Match, h.Fix)))
 	}
-	b.WriteString("Rewrite each sentence around the fact it points at, or cut it; a synonym keeps the tell. Load the slop-patterns skill for how.")
-	return b.String()
+	if len(hits) > shownHits {
+		lines = append(lines, layout.KV("more", fmt.Sprintf("%d more tells", len(hits)-shownHits)))
+	}
+	lines = append(lines, layout.KV("do", "rewrite each sentence around the fact it points at, or cut it; a synonym keeps the tell"))
+	if then != "" {
+		lines = append(lines, layout.KV("then", then))
+	}
+	lines = append(lines, layout.KV("how", "slop-patterns skill"))
+	return strings.Join(lines, "\n")
 }
 
 // DensityNote is the context a guard adds when r is dense.

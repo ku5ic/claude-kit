@@ -641,7 +641,7 @@ func TestGuardBash(t *testing.T) {
 		testutil.Write(t, src, "disabled_rules: [find-delete]\n")
 		r := guard(k, `find . -delete && rm -rf ~`)
 		r.Want(t, 2)
-		r.Has(t, "rm with recursive force", "Command: find . -delete && rm -rf ~")
+		r.Has(t, "rm with recursive force", "cmd   find . -delete && rm -rf ~")
 	})
 	t.Run("a disabled rule doesn't end the checks for the rest of the same command", func(t *testing.T) {
 		k, src := guardBashOverlay(t)

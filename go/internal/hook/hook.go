@@ -216,11 +216,34 @@ func (h *Hook) Block(reason, rule string) error {
 		return nil
 	}
 	h.Log(kitlog.Guards, "block", "rule", rule)
-	msg := "Blocked by " + h.Name + ": " + reason
+	return &Blocked{h.message(reason, rule), rule}
+}
+
+// message is reason in the layout every kit block and send-back shares: the
+// headline `kit <area>: BLOCKED <reason's first line> (<rule>)`, then the
+// reason's other lines, then the hook's context.
+func (h *Hook) message(reason, rule string) string {
+	head, rest, _ := strings.Cut(reason, "\n")
+	msg := "kit " + Area(h.Name) + ": BLOCKED " + head
+	if rule != "" {
+		msg += " (" + rule + ")"
+	}
+	if rest != "" {
+		msg += "\n" + rest
+	}
 	if h.context != "" {
 		msg += "\n" + h.context
 	}
-	return &Blocked{msg, rule}
+	return msg
+}
+
+// Area is the short name a message's headline gives a hook: guard-bash is
+// bash, verify-claims is claims, stop-checks is stop.
+func Area(name string) string {
+	for _, prefix := range []string{"guard-", "verify-", "subagent-", "chat-"} {
+		name = strings.TrimPrefix(name, prefix)
+	}
+	return strings.TrimSuffix(name, "-checks")
 }
 
 // Deny is Block as a permission decision: Claude gets reason, and the user
@@ -231,7 +254,7 @@ func (h *Hook) Deny(reason, rule string) {
 		return
 	}
 	h.Log(kitlog.Guards, "block", "rule", rule)
-	h.Decide("deny", reason)
+	h.Decide("deny", h.message(reason, rule))
 }
 
 // Decide records a PreToolUse permission decision (allow, ask, or deny).

@@ -21,7 +21,7 @@ func TestLauncher(t *testing.T) {
 	t.Run("a hook blocks through the built binary", func(t *testing.T) {
 		r := k.exec(kitFile("bin/kit"), `{"tool_name":"Bash","tool_input":{"command":"git push --force origin main"}}`, "hook", "guard-bash")
 		r.Want(t, 2)
-		r.Has(t, "Blocked by guard-bash:")
+		r.Has(t, "kit bash: BLOCKED ")
 	})
 	t.Run("a subcommand prints through the built binary", func(t *testing.T) {
 		r := k.exec(kitFile("bin/kit"), "", "version")

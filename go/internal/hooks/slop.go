@@ -57,7 +57,7 @@ func GuardSlop(h *hook.Hook) error {
 		hits = d.Carried(path, before, after, surface, hits)
 	}
 	if len(hits) > 0 {
-		h.Deny(slop.Message(filepath.Base(path)+" (new lines)", hits), "slop")
+		h.Deny(slop.Message(filepath.Base(path)+" (new lines)", hits, ""), "slop")
 		return nil
 	}
 	if res.Dense {

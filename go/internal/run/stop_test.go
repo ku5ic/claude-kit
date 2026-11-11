@@ -33,7 +33,7 @@ func TestAStopPassIsReportedOnly(t *testing.T) {
 	t.Parallel()
 	r := newRepo(t, "repo")
 	out := r.stop(r.check("test", "test", "true"))
-	if out.Failed || !strings.Contains(out.Report(), "PASS test\n") || !strings.HasSuffix(out.Report(), "checks: 1 passed, 0 failed, 0 skipped\n") {
+	if out.Failed() || !strings.Contains(out.Report(), "PASS test\n") || !strings.HasSuffix(out.Report(), "checks: 1 passed, 0 failed, 0 skipped\n") {
 		t.Errorf("%+v", out)
 	}
 }
@@ -63,9 +63,14 @@ func TestAFailingTestBlocksWithItsBinaryThenItsOutputTail(t *testing.T) {
 	g.Bins = []resolve.Resolution{{Path: bin, Source: resolve.Local}}
 	r.write("a.ts", "")
 	out := r.stop(g)
-	has(t, out.Failures, "FAIL test\n  cmd: vitest related a.ts\n  bin: "+bin+" (local)\n11\n", "\n40\n", "checks: 0 passed, 1 failed, 0 skipped")
-	lacks(t, out.Failures, "\n10\n")
-	if !out.Failed {
+	has(t, out.Detail, "FAIL test\n  cmd: vitest related a.ts\n  bin: "+bin+" (local)\n11\n", "\n40\n")
+	lacks(t, out.Detail, "\n10\n")
+	// The block shows the first lines and points at the rest.
+	if want := "FAIL  test\n      11\n      12\n      13\n      +27 more lines\n"; out.Failures != want {
+		t.Errorf("failures:\n%s\nwant:\n%s", out.Failures, want)
+	}
+	has(t, out.Report(), "checks: 0 passed, 1 failed, 0 skipped")
+	if !out.Failed() {
 		t.Error("didn't block")
 	}
 }
@@ -96,8 +101,8 @@ func TestALintFailsOnlyOnFindingsOnChangedLines(t *testing.T) {
 			out := r.stop(r.check("lint", "lint", "cat "+filepath.Join(r.aside, "out")+"; exit 1", "a.sh"))
 			has(t, out.Report()+out.Failures, tt.has...)
 			lacks(t, out.Failures, tt.lacks...)
-			if out.Failed != tt.failed {
-				t.Errorf("failed = %v", out.Failed)
+			if out.Failed() != tt.failed {
+				t.Errorf("failed = %v", out.Failed())
 			}
 		})
 	}
@@ -109,14 +114,15 @@ func TestEveryLineOfAFileHEADDoesntHaveCounts(t *testing.T) {
 	r.commit()
 	r.write("new.sh", "one\n")
 	out := r.stop(r.check("lint", "lint", "echo 'new.sh:1:1: finding'; exit 1", "new.sh"))
-	has(t, out.Failures, "FAIL lint\n", "new.sh:1:1: finding")
+	has(t, out.Failures, "FAIL  lint\n", "new.sh:1:1: finding")
 }
 
 func TestASkippedCheckIsNamedInTheBlock(t *testing.T) {
 	t.Parallel()
 	r := newRepo(t, "repo")
 	out := r.stop(r.check("typecheck", "typecheck", "no-such-tsc --noEmit"), r.check("test", "test", "echo broken; exit 1"))
-	has(t, out.Failures, "SKIP typecheck (not installed: ", "no-such-tsc: command not found)", "FAIL test\n", "checks: 0 passed, 1 failed, 1 skipped")
+	has(t, out.Failures, "skip  typecheck (not installed: ", "no-such-tsc: command not found)", "FAIL  test\n")
+	has(t, out.Report(), "checks: 0 passed, 1 failed, 1 skipped")
 }
 
 func TestAHungCheckTimesOutAsASkipWithItsChildren(t *testing.T) {
@@ -201,10 +207,11 @@ func TestACheckThatChangesFilesBlocksAndIsMarked(t *testing.T) {
 	out := r.stop(r.check("lint", "lint", "echo fixed > a.ts", "a.ts"), r.check("test", "test", "true", "b.ts"))
 	// The gate that changed a file counts once, as its FAIL, as in the full
 	// gate.
-	has(t, out.Failures, "FAIL lint\n  cmd: echo fixed > a.ts\n  changed: a.ts; it won't run again until kit gates reset, and kit gates reset --restore puts them back\n")
+	has(t, out.Detail, "FAIL lint\n  cmd: echo fixed > a.ts\n  changed: a.ts; it won't run again until kit gates reset, and kit gates reset --restore puts them back\n")
+	has(t, out.Failures, "FAIL  lint\n      changed: a.ts;")
 	has(t, out.Report(), "PASS test\n", "checks: 1 passed, 1 failed, 0 skipped\n")
 	lacks(t, out.Report(), "PASS lint")
-	if !out.Failed {
+	if !out.Failed() {
 		t.Error("didn't block")
 	}
 	marks := enforce.Marks(r.cache, r.root)

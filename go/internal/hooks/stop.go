@@ -3,6 +3,8 @@ package hooks
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
@@ -10,6 +12,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/layout"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/run"
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
@@ -79,10 +82,29 @@ func StopChecks(h *hook.Hook) error {
 	// Every verdict goes to the user, a block's too; what to fix goes to
 	// Claude in the block's reason.
 	h.Notify(out.Notice)
-	if out.Failed {
-		return h.Block("file checks failed; fix them or report and stop.\n"+out.Failures, "checks-failed")
+	if !out.Failed() {
+		return nil
 	}
-	return nil
+	msg := fmt.Sprintf("%d of %d checks failed; fix them, or report them and stop\n%s", out.Result.Fail, len(p.Gates), out.Failures)
+	if file := stopDetail(h, cwd, out.Detail); file != "" {
+		msg += layout.KV("more", file)
+	}
+	return h.Block(strings.TrimRight(msg, "\n"), "checks-failed")
+}
+
+// stopDetail writes a failing Stop's full detail (each gate's command,
+// directory, binaries, and output) to scratch, and returns the path; ""
+// when it can't.
+func stopDetail(h *hook.Hook, cwd, detail string) string {
+	dir, err := project.ScratchDir(h.Paths, cwd, !h.DryRun)
+	if err != nil || h.DryRun {
+		return ""
+	}
+	file := filepath.Join(dir, "kit-stop-failures.txt")
+	if fsx.WriteAtomic(file, []byte(detail), 0o600) != nil {
+		return ""
+	}
+	return file
 }
 
 // coveredByFullGate is true when review-checks' last full gate checked the

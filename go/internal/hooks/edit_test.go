@@ -184,7 +184,7 @@ skill_file_map:
 		skillsLog(k, "")
 		r := dispatch(k, "/tmp/project/yarn.lock", "harmless content", "Write")
 		r.Want(t, 2)
-		r.Has(t, "Blocked by guard-edit:")
+		r.Has(t, "kit edit: BLOCKED ")
 		// The first block ends the run, so the skills gate never adds its message.
 		r.Lacks(t, "bash-patterns")
 	})

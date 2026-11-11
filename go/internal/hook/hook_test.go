@@ -44,7 +44,7 @@ func TestRunIsolatesAFailingCheck(t *testing.T) {
 				t.Errorf("status = %d, want 2 from the second check", status)
 			}
 			out := stderr.String()
-			if !strings.Contains(out, "first.sh: unexpected error, failing open") || !strings.Contains(out, "Blocked by second.sh: nope") {
+			if !strings.Contains(out, "first.sh: unexpected error, failing open") || !strings.Contains(out, "kit second.sh: BLOCKED nope (some-rule)") {
 				t.Errorf("stderr = %q", out)
 			}
 		})
@@ -68,17 +68,17 @@ func TestABlockKeepsTheNotice(t *testing.T) {
 	if status := Run(h, NamedCheck{"a.sh", notifyThenBlock}); status != 0 || stderr.Len() > 0 {
 		t.Fatalf("status %d, stderr %q", status, stderr)
 	}
-	if got, want := stdout.String(), `{"decision":"block","reason":"Blocked by a.sh: nope","systemMessage":"checks: 0 passed, 1 failed, 0 skipped"}`+"\n"; got != want {
+	if got, want := stdout.String(), `{"decision":"block","reason":"kit a.sh: BLOCKED nope (some-rule)","systemMessage":"checks: 0 passed, 1 failed, 0 skipped"}`+"\n"; got != want {
 		t.Errorf("stdout %s, want %s", got, want)
 	}
 }
 
 func TestBlockLogsAndHonorsDisabledRules(t *testing.T) {
 	h, _, _ := newHook(t, `{"session_id":"s1"}`)
-	h.SetContext("Path: /x")
-	err := h.Block("nope", "some-rule")
+	h.SetContext("path  /x")
+	err := h.Block("nope\nwhy   because", "some-rule")
 	var b *Blocked
-	if !errors.As(err, &b) || b.Reason != "Blocked by test.sh: nope\nPath: /x" {
+	if !errors.As(err, &b) || b.Reason != "kit test.sh: BLOCKED nope (some-rule)\nwhy   because\npath  /x" {
 		t.Fatalf("err = %v", err)
 	}
 	h.SetConfig(&config.Config{DisabledRules: []string{"some-rule"}})

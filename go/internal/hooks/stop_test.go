@@ -284,8 +284,17 @@ func TestStopChecks(t *testing.T) {
 		r.Want(t, 0)
 		var out map[string]string
 		if err := json.Unmarshal([]byte(r.Stdout), &out); err != nil || out["decision"] != "block" ||
-			!strings.Contains(out["reason"], "file checks failed") || out["systemMessage"] != "stop checks: 0 passed, 1 failed, 0 skipped\n  FAIL lint (package.json: *.ts)" {
+			!strings.HasPrefix(out["reason"], "kit stop: BLOCKED 1 of 1 checks failed; fix them, or report them and stop (checks-failed)\nFAIL  lint (package.json: *.ts)\n      lint noise\nmore  ") ||
+			out["systemMessage"] != "stop checks: 0 passed, 1 failed, 0 skipped\n  FAIL lint (package.json: *.ts)" {
 			t.Errorf("want a block with every verdict for the user:\n%s", r.Output)
+		}
+		// The command and the rest of the output go to the file, not the block.
+		if strings.Contains(out["reason"], "cmd: ") {
+			t.Errorf("the block repeats the gate's command:\n%s", out["reason"])
+		}
+		file := strings.TrimPrefix(out["reason"][strings.LastIndex(out["reason"], "more  "):], "more  ")
+		if detail := read(t, file); !strings.Contains(detail, "FAIL lint (package.json: *.ts)\n  cmd: fakelint --check a.ts\n") {
+			t.Errorf("detail file:\n%s", detail)
 		}
 	})
 	t.Run("an entry with no verdict is recorded for kit explain stop, not run", func(t *testing.T) {

@@ -17,6 +17,7 @@ var layers = map[string]int{
 	"internal/proc":       0,
 	"internal/md":         0,
 	"internal/claudecli":  0,
+	"internal/layout":     0,
 	"internal/config":     1,
 	"internal/cache":      1,
 	"internal/git":        1,

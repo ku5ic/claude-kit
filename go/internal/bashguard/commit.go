@@ -107,7 +107,7 @@ func scanSlop(h *hook.Hook, d *slop.Detector, text, surface, where string) error
 		h.Log(kitlog.Guards, "slop", slop.LogPairs(hit, where)...)
 	})
 	if len(hits) > 0 {
-		return h.Block(slop.Message(where, hits), "slop")
+		return h.Block(slop.Message(where, hits, ""), "slop")
 	}
 	return nil
 }

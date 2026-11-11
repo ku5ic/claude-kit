@@ -13,7 +13,7 @@ func TestGuardBash(t *testing.T) {
 	k := New(t)
 	r := k.Hook("guard-bash", Payload("Bash", "rm -rf /", "", ""))
 	r.Want(t, 2)
-	r.Has(t, "Blocked by guard-bash:", "Command: rm -rf /")
+	r.Has(t, "kit bash: BLOCKED ", "\ncmd   rm -rf /")
 	r = k.Hook("guard-bash", Payload("Bash", "git push origin feat/thing", "", ""))
 	r.Want(t, 0)
 	r.Has(t, `"hookEventName":"PreToolUse"`, `"permissionDecision":"ask"`)

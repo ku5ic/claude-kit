@@ -17,6 +17,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
+	"github.com/ku5ic/claude-kit/go/internal/layout"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/stackctx"
 )
@@ -45,7 +46,7 @@ func GuardEdit(h *hook.Hook) error {
 	if path == "" {
 		return nil
 	}
-	h.SetContext("Path: " + path)
+	h.SetContext(layout.KV("path", path))
 
 	if guard.IsSensitive(cfg, h.Home, path) {
 		reason, rule := "writing a credential or key file is not permitted", "sensitive-write"
@@ -100,7 +101,7 @@ func guardSearch(h *hook.Hook, cfg *config.Config) error {
 		root = filepath.Join(cwd, root)
 	}
 	glob := h.Payload.String("tool_input.glob")
-	h.SetContext("Path: " + root + "\nGlob: " + glob)
+	h.SetContext(layout.KV("path", root) + "\n" + layout.KV("glob", glob))
 	if guard.SearchesSensitive(cfg, h.Home, root, glob, path != "") {
 		return h.Block("searching a credential or key file is not permitted", "sensitive-read")
 	}

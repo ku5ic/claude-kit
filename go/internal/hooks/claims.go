@@ -17,6 +17,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
+	"github.com/ku5ic/claude-kit/go/internal/layout"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
@@ -52,7 +53,7 @@ func VerifyClaims(h *hook.Hook) error {
 			_ = fsx.WriteAtomic(marker, []byte("seen"), 0o644)
 		}
 		if len(u) > 0 {
-			return h.Block(claimsMessage("your report", u)+sendBack, "claims")
+			return h.Block(claimsMessage("your report", u, sendBack), "claims")
 		}
 	case "PreToolUse":
 		return verifyToolInput(h)
@@ -75,7 +76,7 @@ func verifyToolInput(h *hook.Hook) error {
 		plan := p.String("tool_input.planFilePath")
 		text, where, transcriptPath = p.String("tool_input.plan"), "the plan "+filepath.Base(plan), agentTranscript(p)
 		marker = h.Paths.SessionFile(cache.Claims, p.SessionID(), "plan", filepath.Base(plan))
-		retry = " Then call ExitPlanMode again."
+		retry = "call ExitPlanMode again"
 	case slices.Contains(filePathTools, tool):
 		path := p.FilePath()
 		if !isInvestigationReport(h, path) {
@@ -87,7 +88,7 @@ func verifyToolInput(h *hook.Hook) error {
 		}
 		text, where, transcriptPath = after, filepath.Base(path), agentTranscript(p)
 		marker = h.Paths.SessionFile(cache.Claims, p.SessionID(), "file", filepath.Base(path))
-		retry = " Then write the report again."
+		retry = "write the report again"
 	default:
 		cfg := h.Config()
 		if cfg == nil || !connector.IsWrite(cfg.Connectors, tool) {
@@ -95,7 +96,7 @@ func verifyToolInput(h *hook.Hook) error {
 		}
 		text, where, transcriptPath = strings.Join(p.Strings("tool_input", cfg.Connectors.CodeFields...), "\n\n"), "the "+tool+" input", agentTranscript(p)
 		marker = h.Paths.SessionFile(cache.Claims, p.SessionID(), "tool", tool)
-		retry = " Then send it again."
+		retry = "send it again"
 	}
 	if marker == "" {
 		return nil
@@ -124,7 +125,7 @@ func verifyToolInput(h *hook.Hook) error {
 		_ = fsx.WriteAtomic(marker, []byte(state), 0o644)
 	}
 	if len(u) > 0 {
-		h.Deny(claimsMessage(where, u)+retry, "claims")
+		h.Deny(claimsMessage(where, u, retry), "claims")
 	}
 	return nil
 }
@@ -151,15 +152,22 @@ func unconfirmed(h *hook.Hook, text, transcriptPath, where string) []claims.Unsu
 	return v.Unsupported
 }
 
-// claimsMessage names each unconfirmed claim and the check that would settle it.
-func claimsMessage(where string, u []claims.Unsupported) string {
-	var b strings.Builder
-	fmt.Fprintf(&b, "claims: %d claim(s) in %s that nothing in the session confirms:\n", len(u), where)
-	for _, c := range u {
-		fmt.Fprintf(&b, "- %q -> %s\n", c.Claim, c.Check)
+// claimsMessage names each unconfirmed claim, enough of it to find, and the
+// check that would settle it, then what to do after.
+func claimsMessage(where string, u []claims.Unsupported, then string) string {
+	lines := []string{fmt.Sprintf("%d claim(s) in %s that nothing in the session confirms", len(u), where)}
+	for i, c := range u {
+		claim := c.Claim
+		if len(claim) > 60 {
+			claim = claim[:57] + "..."
+		}
+		lines = append(lines, layout.KV(strconv.Itoa(i+1), strconv.Quote(claim)), layout.KV("check", c.Check))
 	}
-	b.WriteString("Run each check, or label the claim (likely, not verified, unverifiable) per rules/evidence.md section 1.")
-	return b.String()
+	lines = append(lines, layout.KV("do", "run each check, or label the claim (likely, not verified, unverifiable) per rules/evidence.md section 1"))
+	if then != "" {
+		lines = append(lines, layout.KV("then", then))
+	}
+	return strings.Join(lines, "\n")
 }
 
 // agentTranscript is a subagent's own transcript when it exists, else the

@@ -3,9 +3,11 @@ package run
 import (
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/enforce"
+	"github.com/ku5ic/claude-kit/go/internal/layout"
 )
 
 // Result counts a run's verdicts; Cut counts the skips the deadline cut
@@ -18,15 +20,19 @@ func (res Result) String() string {
 }
 
 // reporter writes a run's PASS, FAIL, and SKIP lines to report and counts
-// them. With failures set, a failure is described there instead, under its
-// own FAIL line, and each skip is written there too.
+// them. With failures set, each failure gets a short entry there, its
+// first lines of detail under its FAIL line, and is described in full in
+// detail instead of report; each skip is written to failures too.
 type reporter struct {
-	plan     enforce.Plan
-	report   io.Writer
-	failures io.Writer
-	res      Result
-	verdicts []string // each gate's verdict line, for the user's notice
+	plan             enforce.Plan
+	report           io.Writer
+	failures, detail io.Writer
+	res              Result
+	verdicts         []string // each gate's verdict line, for the user's notice
 }
+
+// shownDetail is how many lines of a failure's detail a block shows.
+const shownDetail = 3
 
 // notice is the run for the user: what ran it, the summary, then each
 // gate's verdict line under it, never a failure's detail.
@@ -41,11 +47,10 @@ func (r *reporter) verdict(line string) {
 }
 
 func (r *reporter) skip(label, why string) {
-	line := fmt.Sprintf("SKIP %s (%s)\n", label, why)
-	r.verdict(line)
+	r.verdict(fmt.Sprintf("SKIP %s (%s)\n", label, why))
 	if r.failures != nil {
 		// In a block's message too, so the skipped count has its reasons.
-		fmt.Fprint(r.failures, line)
+		fmt.Fprintln(r.failures, layout.KV("skip", label+" ("+why+")"))
 	}
 	r.res.Skip++
 }
@@ -69,8 +74,17 @@ func (r *reporter) fail(g enforce.Gate, detail string) {
 	r.verdict(fmt.Sprintf("FAIL %s\n", g.Label))
 	described := r.report
 	if r.failures != nil {
-		described = r.failures
+		described = r.detail
 		fmt.Fprintf(described, "FAIL %s\n", g.Label)
+		fmt.Fprintln(r.failures, layout.KV("FAIL", g.Label))
+		lines := strings.Split(strings.TrimRight(detail, "\n"), "\n")
+		lines = slices.DeleteFunc(lines, func(l string) bool { return strings.TrimSpace(l) == "" })
+		for _, l := range lines[:min(len(lines), shownDetail)] {
+			fmt.Fprintln(r.failures, layout.KV("", strings.TrimSpace(l)))
+		}
+		if len(lines) > shownDetail {
+			fmt.Fprintln(r.failures, layout.KV("", fmt.Sprintf("+%d more lines", len(lines)-shownDetail)))
+		}
 	}
 	r.plan.Describe(described, g)
 	fmt.Fprint(described, detail)
