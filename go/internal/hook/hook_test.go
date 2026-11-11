@@ -74,7 +74,7 @@ func TestABlockKeepsTheNotice(t *testing.T) {
 }
 
 func TestBlockLogsAndHonorsDisabledRules(t *testing.T) {
-	h, _, _ := newHook(t, `{"session_id":"s1"}`)
+	h, _, _ := newHook(t, `{"session_id":"s1","cwd":"/nonexistent/proj","tool_input":{"command":"rm -rf /"}}`)
 	h.SetContext("path  /x")
 	err := h.Block("nope\nwhy   because", "some-rule")
 	var b *Blocked
@@ -86,10 +86,28 @@ func TestBlockLogsAndHonorsDisabledRules(t *testing.T) {
 		t.Errorf("disabled rule still blocked: %v", err)
 	}
 	data, _ := os.ReadFile(filepath.Join(h.Paths.LogDir(), "guards.jsonl"))
-	want := `{"ts":"2026-09-28T12:00:00Z","hook":"test.sh","event":"block","session_id":"s1","rule":"some-rule"}` + "\n" +
+	// The block names a hash of the command, never the command, and the project.
+	want := `{"ts":"2026-09-28T12:00:00Z","hook":"test.sh","event":"block","session_id":"s1","rule":"some-rule","target":"5c7923bd67b0","project":"proj"}` + "\n" +
 		`{"ts":"2026-09-28T12:00:00Z","hook":"test.sh","event":"disabled","session_id":"s1","rule":"some-rule"}` + "\n"
 	if string(data) != want {
 		t.Errorf("guards.jsonl =\n%s\nwant\n%s", data, want)
+	}
+	if info, err := os.Stat(filepath.Join(h.Paths.LogDir(), "guards.jsonl")); err != nil {
+		t.Error(err)
+	} else if info.Mode().Perm() != 0o600 {
+		t.Errorf("guards.jsonl is %v, want 0600", info.Mode())
+	}
+}
+
+func TestAFailOpenLogsItsError(t *testing.T) {
+	h, _, stderr := newHook(t, `{"session_id":"s1"}`)
+	RunCheck(h, "first.sh", func(*Hook) error { return errors.New("broken pipe") })
+	if !strings.Contains(stderr.String(), "first.sh: unexpected error, failing open: broken pipe") {
+		t.Errorf("stderr = %q", stderr)
+	}
+	data, _ := os.ReadFile(filepath.Join(h.Paths.LogDir(), "guards.jsonl"))
+	if !strings.Contains(string(data), `"event":"fail-open","session_id":"s1","error":"broken pipe"`) {
+		t.Errorf("guards.jsonl = %s", data)
 	}
 }
 

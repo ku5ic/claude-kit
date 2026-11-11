@@ -89,15 +89,40 @@ func rootLabel(label string) string {
 	return label
 }
 
-// unknownDisables names the disabled_checks entries that can name nothing:
-// a single word that isn't a check kind, so a typo doesn't silently disable
-// nothing. A label holds a space, and which gates have it depends on the
-// project.
+// Rules are the slugs disabled_rules can name, besides slop- and a slop
+// rule's id. TestRulesMatchTheCode holds it to the code's blocks; a slug
+// from a table or a variable is added by hand.
+var Rules = []string{
+	"ai-commit-sig", "aws-ec2-terminate", "aws-s3-force-rb", "aws-s3-recursive-rm",
+	"checks-failed", "chmod-777", "chmod-broad-x", "claims", "commit-msg", "commit-wall-of-text",
+	"device-write", "disk-tool", "docker-prune-all-force", "download-to-repo",
+	"find-delete", "find-exec-rm", "fork-bomb",
+	"gcloud-delete", "git-config-global", "git-dir-edit", "git-force-push", "git-no-verify",
+	"git-push-protected", "git-reset-hard", "git-tree-discard", "global-installs-invalid",
+	"interpreter-c-wrap", "keychain-delete", "kubectl-delete", "lockfile-edit",
+	"pipe-to-shell", "pkg-global-install", "pkg-missing", "pkg-undeclared", "plan-critic", "plan-done",
+	"pm-mismatch", "psql-destructive", "rc-edit", "rc-inplace-edit", "rc-redirect", "redis-destructive",
+	"review-checks", "rm-recursive", "run-checks-by-hook", "sensitive-read", "sensitive-write",
+	"skills-gate", "slop", "slop-vocabulary", "staged-secret", "terraform-auto-approve", "terraform-destroy",
+	"ui-undefined-token", "weaken", "xargs-rm",
+}
+
+// unknownDisables names the disabled_checks and disabled_rules entries that
+// can name nothing, so a typo doesn't silently disable nothing. A
+// disabled_checks entry with a space is a gate label, and which gates have
+// it depends on the project.
 func (c *Config) unknownDisables() []error {
 	var errs []error
 	for _, d := range c.DisabledChecks {
 		if !strings.Contains(d, " ") && !slices.Contains(CheckKinds, d) {
 			errs = append(errs, fmt.Errorf("disabled_checks: %q is no check kind (%s) or gate label", d, strings.Join(CheckKinds, ", ")))
+		}
+	}
+	for _, d := range c.DisabledRules {
+		id, slop := strings.CutPrefix(d, "slop-")
+		known := slices.Contains(Rules, d) || slop && slices.ContainsFunc(c.Slop.Rules, func(r SlopRule) bool { return r.ID == id })
+		if !known {
+			errs = append(errs, fmt.Errorf("disabled_rules: %q is no rule; kit explain prints a block's rule", d))
 		}
 	}
 	return errs

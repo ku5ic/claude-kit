@@ -9,17 +9,21 @@ package hook
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"maps"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 	"github.com/ku5ic/claude-kit/go/internal/sources"
 )
@@ -215,7 +219,7 @@ func (h *Hook) Block(reason, rule string) error {
 		h.Log(kitlog.Guards, "disabled", "rule", rule)
 		return nil
 	}
-	h.Log(kitlog.Guards, "block", "rule", rule)
+	h.logBlock(rule)
 	return &Blocked{h.message(reason, rule), rule}
 }
 
@@ -253,8 +257,29 @@ func (h *Hook) Deny(reason, rule string) {
 		h.Log(kitlog.Guards, "disabled", "rule", rule)
 		return
 	}
-	h.Log(kitlog.Guards, "block", "rule", rule)
+	h.logBlock(rule)
 	h.Decide("deny", h.message(reason, rule))
+}
+
+// logBlock logs a block of rule with what it blocked: a short hash of the
+// command or path, never the text, and the project it ran in.
+func (h *Hook) logBlock(rule string) {
+	pairs := []string{"rule", rule}
+	for _, key := range []string{"tool_input.command", "tool_input.file_path", "tool_input.notebook_path"} {
+		if v := h.Payload.String(key); v != "" {
+			sum := sha256.Sum256([]byte(v))
+			pairs = append(pairs, "target", hex.EncodeToString(sum[:6]))
+			break
+		}
+	}
+	if cwd := h.Payload.Cwd(); cwd != "" {
+		root := git.Toplevel(cwd)
+		if root == "" {
+			root = cwd
+		}
+		pairs = append(pairs, "project", filepath.Base(root))
+	}
+	h.Log(kitlog.Guards, "block", pairs...)
 }
 
 // Decide records a PreToolUse permission decision (allow, ask, or deny).
@@ -361,9 +386,10 @@ func (h *Hook) now() time.Time {
 	return time.Now()
 }
 
-// FailOpen prints the notice for a hook that allows because it failed.
-func FailOpen(stderr io.Writer, name string) {
-	fmt.Fprintf(stderr, "%s: unexpected error, failing open\n", name)
+// FailOpen prints the notice for a hook that allows because cause, an
+// error or a panic's value, made it fail.
+func FailOpen(stderr io.Writer, name string, cause any) {
+	fmt.Fprintf(stderr, "%s: unexpected error, failing open: %v\n", name, cause)
 }
 
 // Check is one policy check. It returns *Blocked to block, nil to allow, and
@@ -377,13 +403,13 @@ type Check func(*Hook) error
 func RunCheck(h *Hook, name string, check Check) (blocked *Blocked) {
 	saved := h.Name
 	h.Name = name
-	failOpen := func() {
-		FailOpen(h.Stderr, name)
-		h.Log(kitlog.Guards, "fail-open")
+	failOpen := func(cause any) {
+		FailOpen(h.Stderr, name, cause)
+		h.Log(kitlog.Guards, "fail-open", "error", fmt.Sprint(cause))
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			failOpen()
+			failOpen(r)
 			blocked = nil
 		}
 		h.Name = saved
@@ -395,7 +421,7 @@ func RunCheck(h *Hook, name string, check Check) (blocked *Blocked) {
 	if b, ok := errors.AsType[*Blocked](err); ok {
 		return b
 	}
-	failOpen()
+	failOpen(err)
 	return nil
 }
 

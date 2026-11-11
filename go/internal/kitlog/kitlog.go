@@ -83,7 +83,8 @@ func Append(path string, line []byte, maxLines int) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0o644)
+	// Lines carry session IDs and blocked targets, so only the owner reads them.
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return err
 	}
@@ -94,6 +95,10 @@ func Append(path string, line []byte, maxLines int) error {
 	var size int64
 	if info, serr := f.Stat(); serr == nil {
 		size = info.Size()
+		// A log an older kit created 0644.
+		if info.Mode().Perm() != 0o600 {
+			_ = f.Chmod(0o600)
+		}
 	}
 	full := false
 	if maxLines > 0 {

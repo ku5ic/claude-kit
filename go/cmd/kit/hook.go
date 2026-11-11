@@ -115,14 +115,14 @@ func cmdHook(e *env, args []string, stdin io.Reader) (status int) {
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			hook.FailOpen(e.stderr, name)
+			hook.FailOpen(e.stderr, name, r)
 			status = 0
 		}
 	}()
 
 	raw, err := io.ReadAll(stdin)
 	if err != nil {
-		hook.FailOpen(e.stderr, name)
+		hook.FailOpen(e.stderr, name, err)
 		return 0
 	}
 	h := &hook.Hook{

@@ -96,7 +96,7 @@ rm -f "$tmp"
 if [[ -x $bin ]]; then
   exec "$bin" "$@"
 fi
-reason="kit: no binary for $os-$arch at $bin; build it with go/build.sh, or set KIT_DEV=1"
+reason="kit: no binary for $os-$arch at $bin; the next session start downloads it if a release ships one for this platform, or build it with go/build.sh"
 if [[ ${1:-} == hook ]]; then
   reason=${reason/;/, so every claude-kit guard is off;}
   echo "$reason" >&2
