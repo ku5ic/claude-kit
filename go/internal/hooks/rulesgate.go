@@ -30,23 +30,20 @@ func RulesGate(h *hook.Hook) error {
 	if p.Err != nil {
 		return p.Err
 	}
+	tool := p.String("tool_name")
+	if gatePasses(tool) {
+		return nil
+	}
 	cfg := h.Config()
 	if cfg == nil {
 		return nil
 	}
 	required := []string{rulesSkill}
 	for _, skill := range cfg.GlobalSkills {
-		if !slices.Contains(required, skill) {
-			required = append(required, skill)
-		}
+		required = appendNew(required, skill)
 	}
-	switch p.String("tool_name") {
-	case "Skill", "SubagentHandback":
+	if tool == "Read" && slices.ContainsFunc(required, func(skill string) bool { return strings.Contains(p.FilePath(), "/skills/"+skill+"/") }) {
 		return nil
-	case "Read":
-		if slices.ContainsFunc(required, func(skill string) bool { return strings.Contains(p.FilePath(), "/skills/"+skill+"/") }) {
-			return nil
-		}
 	}
 	agent := p.String("agent_id")
 	marker := func(skill string) string {
@@ -56,13 +53,12 @@ func RulesGate(h *hook.Hook) error {
 		}
 		return h.Paths.SessionFile(cache.SkillsLoaded, p.SessionID(), parts...)
 	}
+	if marker(rulesSkill) == "" {
+		return nil
+	}
 	var missing []string
 	for _, skill := range required {
-		m := marker(skill)
-		if m == "" {
-			return nil
-		}
-		if _, err := os.Stat(m); err != nil {
+		if _, err := os.Stat(marker(skill)); err != nil {
 			missing = append(missing, skill)
 		}
 	}
@@ -74,16 +70,13 @@ func RulesGate(h *hook.Hook) error {
 		return nil
 	}
 	if len(missing) > 0 && agent != "" {
-		start, _ := transcript.ReadAgentStart(subagentTranscript(p))
+		start := subagentStart(p)
 		switch {
 		case start.Fork:
-			// A fork starts from its parent's context, skills included.
 			if missing, err = notLoadedBy(h, "", missing); err != nil {
 				return nil
 			}
-		case start.Tools != nil && !slices.Contains(start.Tools, "Skill") && !slices.Contains(start.Tools, "Read"):
-			// Claude Code gave this agent no way to load a skill, so a
-			// deny could only end its run.
+		case withoutTools(start, "Skill", "Read"):
 			h.Log(kitlog.Guards, "rules-gate-unloadable", "agent_type", p.String("agent_type"), "tools", strings.Join(start.Tools, ","))
 			return nil
 		}
@@ -115,13 +108,39 @@ func notLoadedBy(h *hook.Hook, agent string, want []string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	return notIn(loaded, want), nil
+}
+
+// notIn is the skills of want that loaded has neither by name (the Skill
+// tool) nor as a Read of its SKILL.md.
+func notIn(loaded map[string]bool, want []string) []string {
 	var missing []string
 	for _, skill := range want {
 		if !loaded[skill] && !anyUnder(loaded, skill) {
 			missing = append(missing, skill)
 		}
 	}
-	return missing, nil
+	return missing
+}
+
+// gatePasses is true for a tool both gates let through: the Skill tool is
+// how a skill loads, and a subagent's hand-back is its reply.
+func gatePasses(tool string) bool {
+	return tool == "Skill" || tool == "SubagentHandback"
+}
+
+// subagentStart is how the subagent making a tool call started; zero for
+// the main session or a transcript that can't be read.
+func subagentStart(p *hook.Payload) transcript.AgentStart {
+	start, _ := transcript.ReadAgentStart(subagentTranscript(p))
+	return start
+}
+
+// withoutTools is true when Claude Code gave the agent none of tools, so a
+// deny asking for them could only end its run. A fork starts from its
+// parent's context, skills included, and is handled before this.
+func withoutTools(start transcript.AgentStart, tools ...string) bool {
+	return start.Tools != nil && !slices.ContainsFunc(tools, func(tool string) bool { return slices.Contains(start.Tools, tool) })
 }
 
 // subagentTranscript is the transcript of the subagent making a tool call,

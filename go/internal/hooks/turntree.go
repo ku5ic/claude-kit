@@ -42,29 +42,35 @@ func TurnTree(h *hook.Hook) error {
 // exists. It records the tree now as the next start, for a turn no prompt
 // opens.
 func turnChanges(h *hook.Hook, root string) (changed []string, tree string, ok bool) {
-	file := turnTreeFile(h, root)
+	changed, _, tree, ok = changedSince(h, root, turnTreeFile(h, root))
+	return changed, tree, ok
+}
+
+// changedSince is the absolute paths whose content changed since the tree
+// file records, that tree, and the tree now, which replaces it in file;
+// false when file is "" or holds no tree.
+func changedSince(h *hook.Hook, root, file string) (changed []string, before, now string, ok bool) {
 	if file == "" {
-		return nil, "", false
+		return nil, "", "", false
 	}
-	before, err := os.ReadFile(file)
+	data, err := os.ReadFile(file)
 	if err != nil {
-		return nil, "", false
+		return nil, "", "", false
 	}
-	tree, err = git.Snapshot(root)
+	before = string(data)
+	now, err = git.Snapshot(root)
 	if err != nil {
-		return nil, "", false
+		return nil, before, "", false
 	}
-	if !h.DryRun {
-		_ = fsx.WriteAtomic(file, []byte(tree), 0o600)
-	}
-	changed, err = git.TreeDiff(root, string(before), tree)
+	saveTree(h, file, now)
+	changed, err = git.TreeDiff(root, before, now)
 	if err != nil {
-		return nil, tree, false
+		return nil, before, now, false
 	}
 	for i, path := range changed {
 		changed[i] = fsx.Abs(root, path)
 	}
-	return changed, tree, true
+	return changed, before, now, true
 }
 
 // turnTreeFile is where the session keeps root's turn-start snapshot; ""

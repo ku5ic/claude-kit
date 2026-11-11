@@ -2,6 +2,7 @@
 package hooks
 
 import (
+	"bytes"
 	"cmp"
 	"encoding/json"
 	"os"
@@ -169,12 +170,9 @@ func notLoaded(h *hook.Hook, session string, toCheck []string, marker func(strin
 	if err != nil {
 		return nil
 	}
-	var missing []string
+	missing := notIn(loaded, toCheck)
 	for _, skill := range toCheck {
-		// An exact skill_file (the Skill tool), or a Read of its SKILL.md.
-		if !loaded[skill] && !anyUnder(loaded, skill) {
-			missing = append(missing, skill)
-		} else {
+		if !slices.Contains(missing, skill) {
 			_ = fsx.WriteAtomic(marker(skill), nil, 0o644)
 		}
 	}
@@ -190,12 +188,8 @@ func loadedSkills(logPath, session string, byAgent func(string) bool) (map[strin
 		return nil, err
 	}
 	loaded := map[string]bool{}
-	err := kitlog.Each(logPath, func(line []byte) {
-		var entry kitlog.Entry
-		if json.Unmarshal(line, &entry) != nil {
-			return
-		}
-		if entry.SessionID != nil && *entry.SessionID == session && entry.SkillFile != nil && !entry.Surfaced() && (byAgent == nil || byAgent(entry.AgentID)) {
+	err := eachSkillEntry(logPath, session, func(entry kitlog.Entry) {
+		if entry.SkillFile != nil && entry.Loads() && (byAgent == nil || byAgent(entry.AgentID)) {
 			loaded[*entry.SkillFile] = true
 			// A plugin's skills log as <plugin>:<skill>; kit.yml maps bare names.
 			if _, skill, ok := strings.Cut(*entry.SkillFile, ":"); ok && !strings.Contains(skill, "/") {
@@ -207,6 +201,27 @@ func loadedSkills(logPath, session string, byAgent func(string) bool) (map[strin
 		return nil, err
 	}
 	return loaded, nil
+}
+
+// eachSkillEntry streams the skills log's lines for session to fn, in
+// order. The log is every session's, so a line is decoded only once it
+// holds the session's id.
+func eachSkillEntry(logPath, session string, fn func(kitlog.Entry)) error {
+	quoted := []byte(`"` + session + `"`)
+	return kitlog.Each(logPath, func(line []byte) {
+		var entry kitlog.Entry
+		if !bytes.Contains(line, quoted) || json.Unmarshal(line, &entry) != nil || entry.SessionID == nil || *entry.SessionID != session {
+			return
+		}
+		fn(entry)
+	})
+}
+
+// contentChecks judge what a write adds, for an Edit before it lands and
+// for a Bash command's changes after (bash-edits).
+var contentChecks = []hook.NamedCheck{
+	{Name: "guard-slop", Check: GuardSlop}, {Name: "guard-weaken", Check: GuardWeaken},
+	{Name: "guard-imports", Check: GuardImports}, {Name: "guard-tokens", Check: GuardTokens},
 }
 
 // filePathTools are transcript.EditTools minus NotebookEdit: Payload.FilePath
@@ -222,8 +237,7 @@ var filePathTools = []string{"Edit", "Write", "MultiEdit"}
 func GuardDispatch(h *hook.Hook) int {
 	checks := []hook.NamedCheck{{Name: "guard-edit", Check: GuardEdit}}
 	if slices.Contains(filePathTools, h.Payload.String("tool_name")) {
-		checks = append(checks, hook.NamedCheck{Name: "guard-slop", Check: GuardSlop}, hook.NamedCheck{Name: "guard-weaken", Check: GuardWeaken},
-			hook.NamedCheck{Name: "guard-imports", Check: GuardImports}, hook.NamedCheck{Name: "guard-tokens", Check: GuardTokens})
+		checks = append(checks, contentChecks...)
 	}
 	if stackctx.SkillsEnforced(h.Config()) {
 		checks = append(checks, hook.NamedCheck{Name: "guard-skills", Check: GuardSkills})

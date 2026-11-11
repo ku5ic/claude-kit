@@ -1,12 +1,14 @@
 package hooks
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -44,45 +46,42 @@ func BashEdits(h *hook.Hook) error {
 	if base == "" || h.Config() == nil {
 		return nil
 	}
-	before, err := os.ReadFile(base)
-	if errors.Is(err, os.ErrNotExist) {
-		before, err = os.ReadFile(turnTreeFile(h, root))
+	if _, err := os.Stat(base); errors.Is(err, os.ErrNotExist) {
+		// Until a command runs this turn, the diff starts at the turn's start.
+		if start, err := os.ReadFile(turnTreeFile(h, root)); err == nil {
+			saveTree(h, base, string(start))
+		}
 	}
-	now, snapErr := git.Snapshot(root)
-	if snapErr != nil {
-		return nil
-	}
-	if err != nil || gitMoves.MatchString(p.String("tool_input.command")) {
-		saveTree(h, base, now)
-		return nil
-	}
-	changed, err := git.TreeDiff(root, string(before), now)
-	if err != nil || len(changed) == 0 {
-		saveTree(h, base, now)
+	changed, before, _, ok := changedSince(h, root, base)
+	if !ok || len(changed) == 0 || gitMoves.MatchString(p.String("tool_input.command")) {
 		return nil
 	}
 	var problems []string
+	rewritten := false
 	// Each format may take formatBudget; past this, files are checked but
 	// left unformatted, inside hooks.json's 120s.
 	formatUntil := time.Now().Add(bashEditsFormatBudget)
-	for _, rel := range changed {
-		path := fsx.Abs(root, rel)
+	for _, path := range changed {
 		after, err := os.ReadFile(path)
 		if err != nil || git.IsBinary(after) || editSeen(h, path, after) {
 			continue
 		}
-		old, _ := git.Output(root, "cat-file", "blob", string(before)+":"+rel)
+		rel, _ := filepath.Rel(root, path)
+		old, _ := git.Output(root, "cat-file", "blob", before+":"+filepath.ToSlash(rel))
 		problems = append(problems, editChecks(h, path, old, string(after))...)
 		if time.Until(formatUntil) > formatBudget {
 			afterEdit(h, path)
+			if now, err := os.ReadFile(path); err == nil && !bytes.Equal(now, after) {
+				rewritten = true
+			}
 		}
 	}
-	// Sanitize and format may have changed files; the next command's diff
-	// starts from what they left.
-	if tree, err := git.Snapshot(root); err == nil {
-		now = tree
+	// The next command's diff starts from what sanitize and format left.
+	if rewritten {
+		if tree, err := git.Snapshot(root); err == nil {
+			saveTree(h, base, tree)
+		}
 	}
-	saveTree(h, base, now)
 	if len(problems) == 0 {
 		return nil
 	}
@@ -98,10 +97,7 @@ func editChecks(h *hook.Hook, path, before, after string) []string {
 		"tool_name": bashEditTool, "tool_input": map[string]any{"file_path": path, "before": before, "content": after},
 	})
 	var reasons []string
-	for _, c := range []hook.NamedCheck{
-		{Name: "guard-slop", Check: GuardSlop}, {Name: "guard-weaken", Check: GuardWeaken},
-		{Name: "guard-imports", Check: GuardImports}, {Name: "guard-tokens", Check: GuardTokens},
-	} {
+	for _, c := range contentChecks {
 		sub := subHook(h, c.Name, raw)
 		if b := hook.RunCheck(sub, c.Name, c.Check); b != nil {
 			reasons = append(reasons, b.Reason)
@@ -155,11 +151,8 @@ func MarkEditSeen(h *hook.Hook) error {
 
 // editSeen is true when an Edit or Write left path holding data.
 func editSeen(h *hook.Hook, path string, data []byte) bool {
-	m := seenMarker(h, path, data)
-	if m == "" {
-		return false
-	}
-	_, err := os.Stat(m)
+	// An empty marker (no session) fails the stat too.
+	_, err := os.Stat(seenMarker(h, path, data))
 	return err == nil
 }
 

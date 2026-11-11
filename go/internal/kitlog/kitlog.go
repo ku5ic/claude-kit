@@ -16,13 +16,14 @@ import (
 )
 
 // The kit's logs, the skills log's events that mark a skill as only
-// surfaced, its event for a compaction, after which no earlier reference
-// read counts, and a line's ts layout.
+// surfaced, a Read of a skill reference, and a compaction, after which no
+// earlier reference read counts, and a line's ts layout.
 const (
 	Skills              = "skills"
 	Guards              = "guards"
 	EventRequiredSkill  = "required-skill"
 	EventSuggestedSkill = "suggested-skill"
+	EventReferenceRead  = "reference-read"
 	EventCompacted      = "compacted"
 	TimeLayout          = "2006-01-02T15:04:05Z"
 )
@@ -45,6 +46,12 @@ type Entry struct {
 // loaded.
 func (e Entry) Surfaced() bool {
 	return e.Event == EventRequiredSkill || e.Event == EventSuggestedSkill
+}
+
+// Loads is true for a skills log line that says a skill was loaded: not
+// surfaced, a reference read, or a compaction.
+func (e Entry) Loads() bool {
+	return !e.Surfaced() && e.Event != EventReferenceRead && e.Event != EventCompacted
 }
 
 // Line is one log line: a JSON object of pairs' keys and values in order,

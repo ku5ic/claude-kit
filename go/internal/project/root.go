@@ -22,13 +22,8 @@ func Root(cwd string) (root string, anchored bool) {
 	if top := git.Toplevel(cwd); top != "" {
 		return top, true
 	}
-	for dir := cwd; ; dir = filepath.Dir(dir) {
-		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
-			return dir, true
-		}
-		if dir == filepath.Dir(dir) {
-			break
-		}
+	if dotGit := fsx.FindUp(cwd, "/", ".git"); dotGit != "" {
+		return filepath.Dir(dotGit), true
 	}
 	anchors := sources.Anchors()
 	dir := cwd

@@ -34,7 +34,7 @@ func TestReferenceGate(t *testing.T) {
 	}
 	loads := func(agent string) string { return line(agent, "skill_file", "kit:demo") }
 	reads := func(k *sandbox, agent, ref string) string {
-		return line(agent, "skill_file", filepath.Join(k.paths.Root, "skills", "demo", "reference", ref))
+		return `{"event":"reference-read","session_id":"s1","agent_id":"` + agent + `","skill_file":"` + filepath.Join(k.paths.Root, "skills", "demo", "reference", ref) + `"}` + "\n"
 	}
 	const compacted = `{"event":"compacted","session_id":"s1"}` + "\n"
 	call := func(k *sandbox, tool, agent string, input map[string]any) result {

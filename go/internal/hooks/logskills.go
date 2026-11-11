@@ -37,7 +37,11 @@ func LogSkills(h *hook.Hook) error {
 		case "Skill":
 		case "Read":
 			file := p.FilePath()
-			if !guard.Glob("*/skills/*/SKILL.md", file) && !guard.Glob("*/skills/*/reference/*.md", file) {
+			switch {
+			case guard.Glob("*/skills/*/reference/*.md", file):
+				// Its own event, so no reader takes it for a load.
+				event = kitlog.EventReferenceRead
+			case !guard.Glob("*/skills/*/SKILL.md", file):
 				return nil
 			}
 		default:
