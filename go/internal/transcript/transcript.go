@@ -84,6 +84,7 @@ type Block struct {
 		Skill        string `json:"skill"`
 		Command      string `json:"command"`       // a Bash call's
 		SubagentType string `json:"subagent_type"` // an Agent call's
+		Prompt       string `json:"prompt"`        // an Agent call's
 	} `json:"input"`
 	// RawInput is a tool_use's whole input, as sent.
 	RawInput json.RawMessage `json:"-"`

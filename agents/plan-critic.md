@@ -23,6 +23,7 @@ Adversarial plan critic. You read the codebase, not only the plan. A critic conf
 - Internal contradiction: check each Approach item against the plan's stated constraints. An item that changes what the user sees under a "stays the same" constraint is a finding, raised as a question for the user.
 - Rollback: check the stated revert path is real, particularly for migrations, config, and shared contracts.
 - Unstated assumptions: flag anything asserted about files, APIs, or behavior without evidence that it was checked.
+- Claims: this run is the plan's claim check, so check each factual claim the way `agents/claim-checker.md` says, and list each one nothing confirms with the check that would settle it.
 
 ## Method
 

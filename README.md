@@ -96,7 +96,7 @@ claude plugin install kit@ku5ic
 
 - **Needs:** `git` and any bash, on macOS or Linux. Formatters and linters are used when installed and skipped when not; the kit never installs anything.
 - **Gap-fill:** the `claude` CLI, logged in. Once per repo, and again when its configs change, Haiku sorts the commands your CI, hooks, and task runners hold into checks and fixers, capped at $0.50 a call; the answers are cached and verified against your files. Without it, those commands are skipped and named.
-- **Claim checker:** the same `claude` CLI. Without it, or when a run fails, claims go unchecked and nothing blocks.
+- **Claim checker:** the `kit:claim-checker` agent, which Claude runs where you can watch it before a scratch report or a post goes out; plan-critic covers a plan. Inside a subagent, which can't start an agent, the hook runs the same instructions through the `claude` CLI. Without it, or when a run fails, claims go unchecked and nothing blocks.
 - **Claude Code only.** claude.ai and Cowork don't install a plugin with a top-level `bin/`. Chat has [its own zip](#use-it-in-claudeai-chat).
 - **Gitignore** `.claude/scratch/` and `.claude/plans/`, globally or per repo. The kit never edits your ignore files.
 - **Rules ship with the plugin.** Nothing to link. If an older install left `~/.claude/rules/claude-kit`, remove it; the session-start notice names it.
@@ -113,20 +113,20 @@ eval "$(kit completion zsh)"   # or: kit completion bash
 
 ## On by default, and what you switch on
 
-| Feature                                                                     | Default  | Needs, or how to change it                                                            |
-| --------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------- |
-| Guards, checks before "done", formatting, context, rules                    | On       | Nothing. Each guard rule can be let through with `disabled_rules`                     |
-| Gap-fill: a small model sorts what your configs leave open                  | On       | The `claude` CLI, logged in. Haiku, capped at $0.50 a call, cached per repo           |
-| Claim checker                                                               | On       | The `claude` CLI, logged in. Turn off with `disabled_rules: [claims]`                 |
-| plan-critic before a plan is approved                                       | On       | Turn off with `disabled_rules: [plan-critic]`                                         |
-| The kit-rules skill loaded before a session's or subagent's first tool call | On       | Turn off with `disabled_rules: [rules-gate]`                                          |
-| A finished plan held until `/code-review` ran after its last edit           | On       | Turn off with `disabled_rules: [plan-done]`                                           |
-| Claude stops for your review after each plan step                           | On       | `step_pause: plan` stops once at the plan's end, `off` never stops                    |
-| Pattern skills required before the first edit of a file type                | Off      | `guard_skills: true`, or `CLAUDE_GUARD_SKILLS=1` in your settings `env`               |
-| Em dashes, smart quotes, and Unicode arrows rewritten to ASCII              | Off      | `sanitize_typography: true`, or `CLAUDE_SANITIZE_TYPOGRAPHY=1` in your settings `env` |
-| Status line                                                                 | Off      | Two lines in `~/.claude/settings.json` ([Status line](#status-line))                  |
-| `kit` in your own terminal                                                  | Off      | PATH and completion in your shell rc ([Shell completion](#shell-completion-optional)) |
-| claude.ai chat                                                              | Separate | Upload the release's chat zip ([Use it in claude.ai chat](#use-it-in-claudeai-chat))  |
+| Feature                                                                     | Default  | Needs, or how to change it                                                                  |
+| --------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------- |
+| Guards, checks before "done", formatting, context, rules                    | On       | Nothing. Each guard rule can be let through with `disabled_rules`                           |
+| Gap-fill: a small model sorts what your configs leave open                  | On       | The `claude` CLI, logged in. Haiku, capped at $0.50 a call, cached per repo                 |
+| Claim checker                                                               | On       | For subagent reports, the `claude` CLI, logged in. Turn off with `disabled_rules: [claims]` |
+| plan-critic before a plan is approved                                       | On       | Turn off with `disabled_rules: [plan-critic]`                                               |
+| The kit-rules skill loaded before a session's or subagent's first tool call | On       | Turn off with `disabled_rules: [rules-gate]`                                                |
+| A finished plan held until `/code-review` ran after its last edit           | On       | Turn off with `disabled_rules: [plan-done]`                                                 |
+| Claude stops for your review after each plan step                           | On       | `step_pause: plan` stops once at the plan's end, `off` never stops                          |
+| Pattern skills required before the first edit of a file type                | Off      | `guard_skills: true`, or `CLAUDE_GUARD_SKILLS=1` in your settings `env`                     |
+| Em dashes, smart quotes, and Unicode arrows rewritten to ASCII              | Off      | `sanitize_typography: true`, or `CLAUDE_SANITIZE_TYPOGRAPHY=1` in your settings `env`       |
+| Status line                                                                 | Off      | Two lines in `~/.claude/settings.json` ([Status line](#status-line))                        |
+| `kit` in your own terminal                                                  | Off      | PATH and completion in your shell rc ([Shell completion](#shell-completion-optional))       |
+| claude.ai chat                                                              | Separate | Upload the release's chat zip ([Use it in claude.ai chat](#use-it-in-claudeai-chat))        |
 
 ## Use it in claude.ai chat
 

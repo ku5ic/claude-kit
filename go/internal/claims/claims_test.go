@@ -77,7 +77,7 @@ func TestVerify(t *testing.T) {
 			t.Parallel()
 			cfg := baseConfig()
 			cfg.Claims.Command, _ = stub(t, tc.answer)
-			got, err := Verify(cfg, t.TempDir(), t.TempDir(), "The build fails because Foo was renamed.", session(t))
+			got, err := Verify(cfg, "", t.TempDir(), t.TempDir(), "The build fails because Foo was renamed.", session(t))
 			if (err != nil) != tc.wantErr {
 				t.Fatalf("err = %v, want error %v", err, tc.wantErr)
 			}
@@ -94,7 +94,7 @@ func TestVerifyRunsInDirWithGuardAndEvidence(t *testing.T) {
 	argv, dir := stub(t, envelope(map[string]any{"ok": true, "unsupported": []any{}}))
 	cfg.Claims.Command = argv
 	work, cacheDir := testutil.Physical(t, t.TempDir()), t.TempDir()
-	if _, err := Verify(cfg, cacheDir, work, "The build fails.", session(t)); err != nil {
+	if _, err := Verify(cfg, "", cacheDir, work, "The build fails.", session(t)); err != nil {
 		t.Fatal(err)
 	}
 	if calls := testutil.Calls(t, filepath.Join(dir, "calls")); len(calls) != 1 || !strings.HasPrefix(calls[0], work+"|") {
@@ -135,7 +135,7 @@ func TestVerifyKeepsAForkedSkillsTask(t *testing.T) {
 			if tc.forked {
 				testutil.Write(t, strings.TrimSuffix(path, ".jsonl")+".forked-skill.json", `{"skillName":"code-review"}`)
 			}
-			if _, err := Verify(cfg, t.TempDir(), t.TempDir(), "The build fails.", path); err != nil {
+			if _, err := Verify(cfg, "", t.TempDir(), t.TempDir(), "The build fails.", path); err != nil {
 				t.Fatal(err)
 			}
 			stdin := testutil.Read(t, filepath.Join(dir, "stdin"))
@@ -156,12 +156,27 @@ func TestVerifyOff(t *testing.T) {
 		cfg.Claims = claims
 		var calls string
 		cfg.Claims.Command, calls = stub(t, `{"structured_output":{"ok":true}}`)
-		if _, err := Verify(cfg, t.TempDir(), t.TempDir(), "text", ""); err == nil {
+		if _, err := Verify(cfg, "", t.TempDir(), t.TempDir(), "text", ""); err == nil {
 			t.Errorf("%+v: no error from a verifier that is off", claims)
 		}
 		if got := testutil.Calls(t, filepath.Join(calls, "calls")); got != nil {
 			t.Errorf("%+v: the verifier ran: %q", claims, got)
 		}
+	}
+}
+
+// The hook's own run and the agent Claude starts read one text.
+func TestSystemPromptIsTheAgentFilesBody(t *testing.T) {
+	t.Parallel()
+	prompt, err := systemPrompt("../../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(prompt, "You verify an AI assistant's text") || strings.Contains(prompt, "name: claim-checker") {
+		t.Errorf("prompt:\n%.200s", prompt)
+	}
+	if _, err := systemPrompt(t.TempDir()); err == nil {
+		t.Error("no error without the agent file")
 	}
 }
 
@@ -173,7 +188,7 @@ func TestClaudeAllowsOnlyReads(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	argv := claude(cfg, entries)
+	argv := claude(cfg, entries, "prompt")
 	flag := func(name string) []string {
 		i := slices.Index(argv, name)
 		if i < 0 || i+1 >= len(argv) {

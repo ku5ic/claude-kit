@@ -6,10 +6,10 @@ package claims
 
 import (
 	"bytes"
-	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -31,8 +31,25 @@ import (
 // recurse into another verification.
 const Guard = "KIT_VERIFIER"
 
-//go:embed prompt.txt
-var systemPrompt string
+// AgentFile is the claim-checker agent under the kit root. Its body is the
+// verifier's system prompt, so the hook's own run and the agent Claude
+// starts follow one text.
+func AgentFile(root string) string { return filepath.Join(root, "agents", "claim-checker.md") }
+
+// systemPrompt is the agent file's body, its frontmatter dropped.
+func systemPrompt(root string) (string, error) {
+	data, err := os.ReadFile(AgentFile(root))
+	if err != nil {
+		return "", fmt.Errorf("claims: %w", err)
+	}
+	text := string(data)
+	if rest, ok := strings.CutPrefix(text, "---\n"); ok {
+		if _, body, ok := strings.Cut(rest, "\n---\n"); ok {
+			text = body
+		}
+	}
+	return strings.TrimSpace(text), nil
+}
 
 // builtins are the read-only tools the verifier always has. ToolSearch
 // loads the connector tools, which arrive deferred.
@@ -91,9 +108,10 @@ type Unsupported struct {
 }
 
 // Verify runs the verifier on text from dir, with the session transcript
-// at transcriptPath (none when "") as its evidence. An error means no
-// verdict; callers fail open on it.
-func Verify(cfg *config.Config, cacheDir, dir, text, transcriptPath string) (Verdict, error) {
+// at transcriptPath (none when "") as its evidence and the agent file under
+// root as its instructions. An error means no verdict; callers fail open
+// on it.
+func Verify(cfg *config.Config, root, cacheDir, dir, text, transcriptPath string) (Verdict, error) {
 	if cfg.Claims.Off() {
 		return Verdict{}, ErrOff
 	}
@@ -106,7 +124,11 @@ func Verify(cfg *config.Config, cacheDir, dir, text, transcriptPath string) (Ver
 	}
 	argv := cfg.Claims.Command
 	if len(argv) == 0 {
-		argv = claude(cfg, entries)
+		prompt, err := systemPrompt(root)
+		if err != nil {
+			return Verdict{}, err
+		}
+		argv = claude(cfg, entries, prompt)
 	}
 	forked := transcriptPath != "" && fsx.IsFile(transcript.ForkSidecar(transcriptPath))
 	return run(cfg, argv, filepath.Join(cacheDir, cache.Guard), dir, evidence(entries, text, forked))
@@ -149,7 +171,7 @@ func run(cfg *config.Config, argv []string, markerDir, dir, input string) (Verdi
 // denies whatever --allowedTools doesn't name: the read-only builtins,
 // each read tool the session called, and kit.yml's claims.allow, less any
 // write tool.
-func claude(cfg *config.Config, entries []transcript.Entry) []string {
+func claude(cfg *config.Config, entries []transcript.Entry, systemPrompt string) []string {
 	allowed := slices.Clone(builtins)
 	for _, e := range entries {
 		for _, b := range e.ToolUses() {

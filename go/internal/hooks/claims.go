@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/claims"
@@ -19,22 +20,22 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 	"github.com/ku5ic/claude-kit/go/internal/layout"
 	"github.com/ku5ic/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
-// VerifyClaims sends text back when the claim verifier finds a claim in it
-// that nothing in the session confirms, so each is checked or labeled
-// before anyone relies on it. A chat reply is never checked; see checkClaims.
+// VerifyClaims holds a text until its claims were checked, so each is
+// checked or labeled before anyone relies on it. A chat reply is never
+// checked; see checkClaims.
 //   - SubagentStop, and PreToolUse for SubagentHandback: a subagent's
-//     report, against its own transcript, before the parent reads it.
-//   - PreToolUse for ExitPlanMode: the plan, before the user is asked to
-//     approve it.
+//     report, by the hook's own run against its transcript, once per agent.
+//   - PreToolUse for ExitPlanMode: the plan, which plan-critic's run covers,
+//     or with plan-critic off, the claim-checker agent.
 //   - PreToolUse for a Write or Edit of an explore or debug report in
-//     scratch: the report, before it's written.
-//   - PreToolUse for an MCP tool that writes: the post, before it's sent.
+//     scratch, and for an MCP tool that writes: the claim-checker agent on
+//     that exact text. Inside a subagent, the hook's own run, once per text.
 //
-// Each text is sent back once, and resending it goes through. A subagent's
-// report is checked once per agent, at its handback or its stop. It runs last in its dispatcher and skips a
-// call an earlier check denied, so the model run is never wasted.
+// It runs last in its dispatcher and skips a call an earlier check denied,
+// so no run is wasted.
 func VerifyClaims(h *hook.Hook) error {
 	p := h.Payload
 	if decision, _ := h.Decision(); p.Err != nil || decision == "deny" {
@@ -61,22 +62,24 @@ func VerifyClaims(h *hook.Hook) error {
 	return nil
 }
 
-// verifyToolInput checks a handback, a plan, a scratch report, or a
-// connector post.
+// verifyToolInput checks a handback with the hook's own run, and gates a
+// plan, a scratch report, or a connector post on the claim-checker agent.
 func verifyToolInput(h *hook.Hook) error {
 	p := h.Payload
 	tool := p.String("tool_name")
-	var text, where, transcriptPath, marker, retry string
+	var text, where, retry, marker string
 	switch {
 	case tool == "SubagentHandback":
-		text, where, transcriptPath, marker = p.String("tool_input.message"), "your report", agentTranscript(p), handbackMarker(h, cache.Claims)
-		retry = sendBack
+		return verifyHandback(h)
 	case tool == "ExitPlanMode":
+		// plan-critic checks a plan's claims in the run GuardPlan asks for.
+		if !h.RuleDisabled("plan-critic") {
+			return nil
+		}
 		// Claude Code injects the plan's text and path (code.claude.com/docs/en/hooks).
-		plan := p.String("tool_input.planFilePath")
-		text, where, transcriptPath = p.String("tool_input.plan"), "the plan "+filepath.Base(plan), agentTranscript(p)
-		marker = h.Paths.SessionFile(cache.Claims, p.SessionID(), "plan", filepath.Base(plan))
-		retry = "call ExitPlanMode again"
+		plan := filepath.Base(p.String("tool_input.planFilePath"))
+		text, where, retry = p.String("tool_input.plan"), "the plan "+plan, "call ExitPlanMode again"
+		marker = h.Paths.SessionFile(cache.Claims, p.SessionID(), "plan", plan)
 	case slices.Contains(filePathTools, tool):
 		path := p.FilePath()
 		if !isInvestigationReport(h, path) {
@@ -86,46 +89,93 @@ func verifyToolInput(h *hook.Hook) error {
 		if !ok {
 			return nil
 		}
-		text, where, transcriptPath = after, filepath.Base(path), agentTranscript(p)
+		text, where, retry = after, filepath.Base(path), "write the report again"
 		marker = h.Paths.SessionFile(cache.Claims, p.SessionID(), "file", filepath.Base(path))
-		retry = "write the report again"
 	default:
 		cfg := h.Config()
 		if cfg == nil || !connector.IsWrite(cfg.Connectors, tool) {
 			return nil
 		}
-		text, where, transcriptPath = strings.Join(p.Strings("tool_input", cfg.Connectors.CodeFields...), "\n\n"), "the "+tool+" input", agentTranscript(p)
+		text, where, retry = strings.Join(p.Strings("tool_input", cfg.Connectors.CodeFields...), "\n\n"), "the "+tool+" input", "send it again"
 		marker = h.Paths.SessionFile(cache.Claims, p.SessionID(), "tool", tool)
-		retry = "send it again"
 	}
+	if p.String("agent_id") != "" {
+		return verifyInSubagent(h, text, where, retry, marker)
+	}
+	return gateOnChecker(h, text, where, retry)
+}
+
+// verifyInSubagent checks a report or post written inside a subagent with
+// the hook's own run, since a subagent can't start the claim-checker agent.
+// The text is sent back once; that exact text, resent, goes through.
+func verifyInSubagent(h *hook.Hook, text, where, retry, marker string) error {
 	if marker == "" {
 		return nil
 	}
-	// A handback's marker is per agent and stays, so SubagentStop knows the
-	// report was checked. A post's or report's names the text sent back, so
-	// only that text, resent, goes through.
-	handback := tool == "SubagentHandback"
-	sentBack := "sent-back"
-	if !handback {
-		sum := sha256.Sum256([]byte(text))
-		sentBack += " " + hex.EncodeToString(sum[:])
-	}
+	sum := sha256.Sum256([]byte(text))
+	sentBack := "sent-back " + hex.EncodeToString(sum[:])
 	if prev, err := os.ReadFile(marker); err == nil && string(prev) == sentBack {
-		if !handback {
-			_ = os.Remove(marker)
-		}
+		_ = os.Remove(marker)
 		return nil
 	}
-	u := unconfirmed(h, text, transcriptPath, where)
+	u := unconfirmed(h, text, agentTranscript(h.Payload), where)
+	if len(u) == 0 {
+		return nil
+	}
+	if !h.DryRun {
+		_ = fsx.WriteAtomic(marker, []byte(sentBack), 0o644)
+	}
+	h.Deny(claimsMessage(where, u, retry), "claims")
+	return nil
+}
+
+// claimChecker is the agent a main-session text waits for.
+const claimChecker = "kit:claim-checker"
+
+// gateOnChecker denies the call until the transcript shows a claim-checker
+// run whose prompt carries this exact text's claim-check id, as GuardPlan
+// waits for plan-critic. The hook decides when a check must run, never the
+// model making the claims; whether Claude acted on the report is left to
+// the transcript.
+func gateOnChecker(h *hook.Hook, text, where, retry string) error {
+	cfg := h.Config()
+	if cfg == nil || h.RuleDisabled("claims") || cfg.Claims.Off() || !claims.Declarative(text) {
+		return nil
+	}
+	sum := sha256.Sum256([]byte(text))
+	id := "claim-check " + hex.EncodeToString(sum[:])[:12]
+	entries, _ := transcript.Load(h.Payload.String("transcript_path"))
+	for _, e := range entries {
+		for _, b := range e.ToolUses() {
+			if b.Name == "Agent" && b.Input.SubagentType == claimChecker && strings.Contains(b.Input.Prompt, id) {
+				return nil
+			}
+		}
+	}
+	h.Deny(fmt.Sprintf("run the %s agent on %s first. Its prompt holds the line `%s` and the full text. Fix or label each claim it reports, per skills/kit-rules/reference/evidence.md section 1, then %s. A changed text needs its own run", claimChecker, where, id, retry), "claims")
+	return nil
+}
+
+// verifyHandback checks a subagent's report with the hook's own run, once
+// per agent: a subagent can't start the claim-checker agent itself.
+func verifyHandback(h *hook.Hook) error {
+	marker := handbackMarker(h, cache.Claims)
+	if marker == "" {
+		return nil
+	}
+	if prev, err := os.ReadFile(marker); err == nil && string(prev) == "sent-back" {
+		return nil
+	}
+	u := unconfirmed(h, h.Payload.String("tool_input.message"), agentTranscript(h.Payload), "your report")
 	state := "seen"
 	if len(u) > 0 {
-		state = sentBack
+		state = "sent-back"
 	}
-	if (handback || len(u) > 0) && !h.DryRun {
+	if !h.DryRun {
 		_ = fsx.WriteAtomic(marker, []byte(state), 0o644)
 	}
 	if len(u) > 0 {
-		h.Deny(claimsMessage(where, u, retry), "claims")
+		h.Deny(claimsMessage("your report", u, sendBack), "claims")
 	}
 	return nil
 }
@@ -139,7 +189,7 @@ func unconfirmed(h *hook.Hook, text, transcriptPath, where string) []claims.Unsu
 	if cfg == nil || h.DryRun || h.RuleDisabled("claims") || !claims.Declarative(text) {
 		return nil
 	}
-	v, err := claims.Verify(cfg, h.Paths.CacheDir(), h.Payload.Cwd(), text, transcriptPath)
+	v, err := claims.Verify(cfg, h.Paths.Root, h.Paths.CacheDir(), h.Payload.Cwd(), text, transcriptPath)
 	if errors.Is(err, claims.ErrOff) {
 		return nil
 	}
@@ -151,6 +201,7 @@ func unconfirmed(h *hook.Hook, text, transcriptPath, where string) []claims.Unsu
 		return nil
 	}
 	h.Log(kitlog.Guards, "claims", append([]string{"where", where, "unconfirmed", strconv.Itoa(len(v.Unsupported))}, v.Usage.Pairs()...)...)
+	h.Notify(fmt.Sprintf("kit claims: checked %s with %s, %d unconfirmed, $%.2f in %s", where, claimChecker, len(v.Unsupported), v.Usage.CostUSD, v.Usage.Duration.Round(time.Second)))
 	return v.Unsupported
 }
 

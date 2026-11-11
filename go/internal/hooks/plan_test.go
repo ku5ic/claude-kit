@@ -185,8 +185,8 @@ func TestGuardPlan(t *testing.T) {
 	})
 }
 
-// The plan's claims are checked before the user is asked to approve it,
-// once plan-critic has read it; an unconfirmed one sends it back once.
+// plan-critic's run covers a plan's claims. With plan-critic off, the plan
+// waits for the claim-checker agent on its exact text.
 func TestPlanDispatchVerifiesClaims(t *testing.T) {
 	t.Parallel()
 	const plan = "/proj/.claude/plans/plan-x.md"
@@ -198,27 +198,32 @@ func TestPlanDispatchVerifiesClaims(t *testing.T) {
 		return map[string]any{"hook_event_name": "PreToolUse", "session_id": "s", "tool_name": "ExitPlanMode",
 			"transcript_path": path, "tool_input": map[string]any{"plan": text, "planFilePath": plan}}
 	}
-	t.Run("an unconfirmed claim: sent back once; the same plan, resent, goes through", func(t *testing.T) {
+	t.Run("with plan-critic on, its run covers the claims", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
 		calls := k.verifier("", claim)
-		r := k.run("plan-dispatch", exit(k, "# Plan\n\n"+claim, write, critic))
-		r.Denied(t)
-		r.Has(t, "the plan plan-x.md", claim, "git log -S Foo", "ExitPlanMode again")
 		k.run("plan-dispatch", exit(k, "# Plan\n\n"+claim, write, critic)).Allowed(t)
-		if got := len(testutil.Calls(t, calls)); got != 1 {
-			t.Errorf("verifier ran %d times, want 1", got)
+		if got := testutil.Calls(t, calls); got != nil {
+			t.Errorf("verifier ran: %q", got)
 		}
 	})
-	t.Run("a revised plan is checked again", func(t *testing.T) {
+	t.Run("with plan-critic off, denied until the claim-checker ran on that exact text", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
-		calls := k.verifier("", claim)
-		k.run("plan-dispatch", exit(k, "# Plan\n\n"+claim, write, critic)).Denied(t)
-		k.run("plan-dispatch", exit(k, "# Plan v2\n\n"+claim, write, critic)).Denied(t)
-		if got := len(testutil.Calls(t, calls)); got != 2 {
-			t.Errorf("verifier ran %d times, want 2", got)
-		}
+		k.verifier("disabled_rules: [plan-critic]\n", claim)
+		r := k.run("plan-dispatch", exit(k, "# Plan\n\n"+claim, write))
+		r.Denied(t)
+		r.Has(t, "kit:claim-checker", "the plan plan-x.md", "ExitPlanMode again")
+		id := checkID.FindString(r.Stdout)
+		k.run("plan-dispatch", exit(k, "# Plan\n\n"+claim, write, checkerLine(id))).Allowed(t)
+		// A changed plan needs its own run.
+		k.run("plan-dispatch", exit(k, "# Plan v2\n\n"+claim, write, checkerLine(id))).Denied(t)
+	})
+	t.Run("disabled_rules: [claims] lets the plan through", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		k.verifier("disabled_rules: [plan-critic, claims]\n", claim)
+		k.run("plan-dispatch", exit(k, "# Plan\n\n"+claim, write)).Allowed(t)
 	})
 	t.Run("no critique yet: the critic gate denies and the verifier never runs", func(t *testing.T) {
 		t.Parallel()
