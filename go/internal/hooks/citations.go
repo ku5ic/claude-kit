@@ -42,13 +42,16 @@ func CheckCitations(h *hook.Hook) error {
 	}
 	switch {
 	case p.String("hook_event_name") == "SubagentStop":
-		if !isGatherer(p) || p.Bool("stop_hook_active") {
-			return nil
-		}
-		if marker := handbackMarker(h, cache.Cites); marker != "" && fsx.IsFile(marker) {
+		// Sent back once, by the stop or the hand-back. A marker, not
+		// stop_hook_active: another check may have blocked the first stop.
+		marker := handbackMarker(h, cache.Cites)
+		if !isGatherer(p) || marker == "" && p.Bool("stop_hook_active") || marker != "" && fsx.IsFile(marker) {
 			return nil
 		}
 		if bad := cite.Broken(root, p.String("last_assistant_message")); len(bad) > 0 {
+			if marker != "" && !h.DryRun {
+				_ = fsx.WriteAtomic(marker, []byte("sent-back"), 0o644)
+			}
 			return h.Block(citesMessage("your report", bad, sendBack), "citations")
 		}
 	case p.String("tool_name") == "SubagentHandback":

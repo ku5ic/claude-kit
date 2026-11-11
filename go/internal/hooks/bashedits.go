@@ -47,10 +47,18 @@ func BashEdits(h *hook.Hook) error {
 		return nil
 	}
 	if _, err := os.Stat(base); errors.Is(err, os.ErrNotExist) {
-		// Until a command runs this turn, the diff starts at the turn's start.
-		if start, err := os.ReadFile(turnTreeFile(h, root)); err == nil {
-			saveTree(h, base, string(start))
+		// Until a command runs this turn, the diff starts at the turn's
+		// start. A repo the turn didn't start in has no snapshot of it, so
+		// this command's changes there go unchecked and the next one's diff
+		// starts here.
+		start, err := os.ReadFile(turnTreeFile(h, root))
+		if err != nil {
+			if tree, err := git.Snapshot(root); err == nil {
+				saveTree(h, base, tree)
+			}
+			return nil
 		}
+		saveTree(h, base, string(start))
 	}
 	changed, before, _, ok := changedSince(h, root, base)
 	if !ok || len(changed) == 0 || gitMoves.MatchString(p.String("tool_input.command")) {
@@ -63,11 +71,21 @@ func BashEdits(h *hook.Hook) error {
 	formatUntil := time.Now().Add(bashEditsFormatBudget)
 	for _, path := range changed {
 		after, err := os.ReadFile(path)
-		if err != nil || git.IsBinary(after) || editSeen(h, path, after) {
+		if err != nil || git.IsBinary(after) {
 			continue
 		}
-		rel, _ := filepath.Rel(root, path)
-		old, _ := git.Output(root, "cat-file", "blob", before+":"+filepath.ToSlash(rel))
+		// An Edit since the baseline was checked and confirmed then: the
+		// diff starts from what it left, and the baseline now holds it.
+		old, edited := lastEdit(h, path)
+		if edited {
+			_ = os.Remove(editedFile(h, path))
+			if old == string(after) {
+				continue
+			}
+		} else {
+			rel, _ := filepath.Rel(root, path)
+			old, _ = git.Output(root, "cat-file", "blob", before+":"+filepath.ToSlash(rel))
+		}
 		problems = append(problems, editChecks(h, path, old, string(after))...)
 		if time.Until(formatUntil) > formatBudget {
 			afterEdit(h, path)
@@ -133,7 +151,7 @@ func subHook(h *hook.Hook, name string, raw []byte) *hook.Hook {
 
 // MarkEditSeen is the PostToolUse step after an Edit or Write and its
 // formatting. It records the file as it now is, so BashEdits skips a file
-// no command touched since.
+// no command touched since and checks only what a command changed after.
 func MarkEditSeen(h *hook.Hook) error {
 	if h.Payload.Err != nil || h.DryRun {
 		return h.Payload.Err
@@ -143,25 +161,26 @@ func MarkEditSeen(h *hook.Hook) error {
 	if path == "" || err != nil {
 		return nil
 	}
-	if m := seenMarker(h, path, data); m != "" {
-		_ = fsx.WriteAtomic(m, nil, 0o600)
+	if file := editedFile(h, path); file != "" {
+		_ = fsx.WriteAtomic(file, data, 0o600)
 	}
 	return nil
 }
 
-// editSeen is true when an Edit or Write left path holding data.
-func editSeen(h *hook.Hook, path string, data []byte) bool {
-	// An empty marker (no session) fails the stat too.
-	_, err := os.Stat(seenMarker(h, path, data))
-	return err == nil
+// lastEdit is what the turn's last Edit or Write left in path, and whether
+// one did.
+func lastEdit(h *hook.Hook, path string) (string, bool) {
+	file := editedFile(h, path)
+	if file == "" {
+		return "", false
+	}
+	data, err := os.ReadFile(file)
+	return string(data), err == nil
 }
 
-func seenMarker(h *hook.Hook, path string, data []byte) string {
-	sum := sha256.New()
-	sum.Write([]byte(path))
-	sum.Write([]byte{0})
-	sum.Write(data)
-	return h.Paths.SessionFile(cache.TurnTree, h.Payload.SessionID(), "seen", hex.EncodeToString(sum.Sum(nil))[:16])
+func editedFile(h *hook.Hook, path string) string {
+	sum := sha256.Sum256([]byte(path))
+	return h.Paths.SessionFile(cache.TurnTree, h.Payload.SessionID(), "edited", hex.EncodeToString(sum[:])[:16])
 }
 
 // bashTreeFile is where the session keeps root's tree as the last Bash

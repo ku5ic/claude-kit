@@ -2,6 +2,7 @@ package hooks
 
 import (
 	"os"
+	"path/filepath"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
@@ -20,14 +21,20 @@ func TurnTree(h *hook.Hook) error {
 		return nil
 	}
 	_ = os.Remove(claimsUnchecked(h)) // the last turn's, shown by its Stop
+	// Every repo's snapshots, bash-edits' baselines, and edit records are
+	// the last turn's: an edit made between turns, by the user, is never
+	// charged to Claude.
+	if session := h.Paths.SessionFile(cache.TurnTree, h.Payload.SessionID()); session != "" {
+		stale, _ := filepath.Glob(session + "-*")
+		for _, f := range stale {
+			_ = os.Remove(f)
+		}
+	}
 	root := git.Toplevel(h.Payload.Cwd())
 	file := turnTreeFile(h, root)
 	if file == "" {
 		return nil
 	}
-	// bash-edits diffs from the turn's start until a command runs, so an
-	// edit made between turns, by the user, is never charged to Claude.
-	_ = os.Remove(bashTreeFile(h, root))
 	tree, err := git.Snapshot(root)
 	if err != nil {
 		// A stale snapshot would charge this turn with an earlier one's changes.

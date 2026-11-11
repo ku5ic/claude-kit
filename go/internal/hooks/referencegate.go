@@ -9,6 +9,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
+	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
 // ReferenceGate is the PreToolUse check after rules-gate on every tool: it
@@ -17,7 +18,7 @@ import (
 // naming all of them at once. A read counts until the next compaction. A
 // fork counts its parent's loads and reads. A Read of a skill's own files
 // passes, so the deny can always be met, and so does an agent Claude Code
-// gave no Read tool. A missing skills log fails open.
+// gave no Read tool or no edit tool. A missing skills log fails open.
 func ReferenceGate(h *hook.Hook) error {
 	p := h.Payload
 	if p.Err != nil {
@@ -33,21 +34,26 @@ func ReferenceGate(h *hook.Hook) error {
 		return nil
 	}
 	if start := subagentStart(p); start.Fork {
-		if missing, err = unreadReferences(h, ""); err != nil || len(missing) == 0 {
+		// A fork holds its parent's context: the parent's loads and reads
+		// count alongside its own.
+		if missing, err = unreadReferences(h, agent, ""); err != nil || len(missing) == 0 {
 			return nil
 		}
 	} else if withoutTools(start, "Read") {
 		h.Log(kitlog.Guards, "reference-gate-unreadable", "agent_type", p.String("agent_type"))
+		return nil
+	} else if withoutTools(start, transcript.EditTools...) {
+		// It writes only its report, which subagent-slop scans when it stops.
 		return nil
 	}
 	h.Deny("read "+strings.Join(missing, ", ")+" first, then retry this call. Each is in the table of a skill you loaded, and every tool call stays blocked until they're read, so don't stop to ask", "reference-gate")
 	return nil
 }
 
-// unreadReferences is the table references of the skills agent ("" for the
-// main session) loaded that it hasn't read since the last compaction, as
+// unreadReferences is the table references of the skills agents ("" for the
+// main session) loaded that they haven't read since the last compaction, as
 // absolute paths.
-func unreadReferences(h *hook.Hook, agent string) ([]string, error) {
+func unreadReferences(h *hook.Hook, agents ...string) ([]string, error) {
 	logPath := h.Paths.LogFile(kitlog.Skills)
 	if _, err := os.Stat(logPath); err != nil {
 		return nil, err
@@ -58,7 +64,7 @@ func unreadReferences(h *hook.Hook, agent string) ([]string, error) {
 		switch {
 		case entry.Event == kitlog.EventCompacted:
 			clear(read)
-		case entry.AgentID != agent || !entry.Loads() && entry.Event != kitlog.EventReferenceRead:
+		case !slices.Contains(agents, entry.AgentID) || !entry.Loads() && entry.Event != kitlog.EventReferenceRead:
 		case entry.Event == kitlog.EventReferenceRead:
 			if entry.SkillFile != nil {
 				read[filepath.Clean(*entry.SkillFile)] = true
@@ -122,17 +128,13 @@ func tableReferences(dir string) []string {
 	return refs
 }
 
-// kitSkillDir is the kit's dir for a skill named bare or as kit:<name>, ""
-// for another plugin's skill. A name the kit doesn't ship gives a dir with
-// no SKILL.md, which tableReferences reads as none.
+// kitSkillDir is the kit's dir for a skill named kit:<name>, "" for any
+// other: the kit's skills log with the plugin prefix, so a bare name is a
+// user's or project's skill. A name the kit doesn't ship gives a dir with no
+// SKILL.md, which tableReferences reads as none.
 func kitSkillDir(root, name string) string {
-	if plugin, skill, ok := strings.Cut(name, ":"); ok {
-		if plugin != "kit" {
-			return ""
-		}
-		name = skill
-	}
-	if name == "" || strings.ContainsAny(name, `/\`) {
+	name, ok := strings.CutPrefix(name, "kit:")
+	if !ok || name == "" || strings.ContainsAny(name, `/\`) {
 		return ""
 	}
 	return filepath.Join(root, "skills", name)

@@ -42,11 +42,16 @@ func CheckSize(h *hook.Hook) error {
 	var budget int
 	switch {
 	case p.String("hook_event_name") == "SubagentStop":
-		// A report sent back at handback isn't measured again at the stop.
-		if m := handbackMarker(h, cache.Size); p.Bool("stop_hook_active") || (m != "" && fsx.IsFile(m)) {
+		// Sent back once, by the stop or the hand-back. A marker, not
+		// stop_hook_active: another check may have blocked the first stop.
+		m := handbackMarker(h, cache.Size)
+		if m == "" && p.Bool("stop_hook_active") || m != "" && fsx.IsFile(m) {
 			return nil
 		}
 		if n := countWords(p.String("last_assistant_message"), false); b.Report > 0 && n > b.Report {
+			if m != "" && !h.DryRun {
+				_ = fsx.WriteAtomic(m, []byte("sent-back"), 0o644)
+			}
 			return h.Block(sizeMessage("your report", n, b.Report, "send the shorter report"), "size")
 		}
 		return nil

@@ -58,6 +58,12 @@ func TestCheckSize(t *testing.T) {
 		k.run("check-size", stop(long, true)).Want(t, 0)
 		k.run("check-size", stop(short, false)).Want(t, 0)
 	})
+	t.Run("a second stop another check caused is still measured", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		k.overlay(budgets)
+		k.run("check-size", stop(long, true)).Want(t, 2)
+	})
 	t.Run("the stop after a sent-back handback goes through", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)

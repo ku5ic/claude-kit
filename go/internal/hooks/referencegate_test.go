@@ -1,7 +1,9 @@
 package hooks
 
 import (
+	"encoding/json"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
@@ -45,6 +47,23 @@ func TestReferenceGate(t *testing.T) {
 		return k.run("reference-gate", p)
 	}
 	ls := map[string]any{"command": "ls"}
+	// withTools is a subagent transcript's first line: Claude Code gave it tools.
+	withTools := func(tools ...string) string {
+		var named []map[string]any
+		for _, tool := range tools {
+			named = append(named, map[string]any{"name": tool})
+		}
+		shape, _ := json.Marshal(map[string]any{"type": "api-request-shape", "shape": map[string]any{"system": []any{}, "tools": named}})
+		return string(shape)
+	}
+	// inAgent is a Bash call by subagent a1, whose transcript starts with first.
+	inAgent := func(t *testing.T, k *sandbox, first string) result {
+		main := filepath.Join(t.TempDir(), "s1.jsonl")
+		testutil.Write(t, main, "")
+		testutil.Write(t, filepath.Join(strings.TrimSuffix(main, ".jsonl"), "subagents", "agent-a1.jsonl"), first+"\n")
+		return k.run("reference-gate", map[string]any{"hook_event_name": "PreToolUse", "session_id": "s1", "agent_id": "a1",
+			"transcript_path": main, "tool_name": "Bash", "tool_input": ls})
+	}
 
 	t.Run("no skill loaded asks for nothing", func(t *testing.T) {
 		t.Parallel()
@@ -95,6 +114,33 @@ func TestReferenceGate(t *testing.T) {
 		call(k, "Bash", "a1", ls).Allowed(t)
 		call(k, "Bash", "", ls).Denied(t)
 		call(k, "Bash", "a2", ls).Allowed(t)
+	})
+	t.Run("a subagent that can't edit files isn't gated; one that can is", func(t *testing.T) {
+		t.Parallel()
+		k := setup(t, loads("a1"))
+		inAgent(t, k, withTools("Read", "Grep", "Bash")).Allowed(t)
+		inAgent(t, k, withTools("Read", "Bash", "Edit")).Denied(t)
+		inAgent(t, k, withTools("Read", "Write")).Denied(t)
+	})
+	t.Run("a fork counts its parent's loads and reads with its own", func(t *testing.T) {
+		t.Parallel()
+		const fork = `{"type":"fork-context-ref","agentId":"a1"}`
+		k := setup(t, "")
+		// The fork loaded the skill and the parent read the references.
+		testutil.Write(t, k.paths.LogFile(kitlog.Skills), loads("a1")+reads(k, "", "one.md")+reads(k, "", "two.md"))
+		inAgent(t, k, fork).Allowed(t)
+		// The parent loaded it, and each read one reference.
+		testutil.Write(t, k.paths.LogFile(kitlog.Skills), loads("")+reads(k, "", "one.md")+reads(k, "a1", "two.md"))
+		inAgent(t, k, fork).Allowed(t)
+		// The fork loaded it and nobody read anything.
+		testutil.Write(t, k.paths.LogFile(kitlog.Skills), loads("a1"))
+		inAgent(t, k, fork).Denied(t)
+	})
+	t.Run("a bare skill name is a user's skill, not the kit's", func(t *testing.T) {
+		t.Parallel()
+		call(setup(t, line("", "skill_file", "demo")), "Bash", "", ls).Allowed(t)
+		call(setup(t, line("", "command_name", "/demo")), "Bash", "", ls).Allowed(t)
+		call(setup(t, line("", "command_name", "/kit:demo")), "Bash", "", ls).Denied(t)
 	})
 	t.Run("a compaction forgets every read before it, not the load", func(t *testing.T) {
 		t.Parallel()

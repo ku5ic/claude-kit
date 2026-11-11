@@ -113,6 +113,7 @@ func TestRulesGate(t *testing.T) {
 	t.Run("every global_skills skill must load too, named in the same deny", func(t *testing.T) {
 		t.Parallel()
 		k := setup(t, mainLoad+"\n")
+		testutil.Write(t, filepath.Join(k.paths.Root, "skills", "slop-patterns", "SKILL.md"), "# Slop\n")
 		k.overlay("global_skills: [slop-patterns]\n")
 		r := call(k, "Bash", "", bash)
 		r.Denied(t)
@@ -120,6 +121,15 @@ func TestRulesGate(t *testing.T) {
 		call(k, "Read", "", map[string]any{"file_path": "/plugin/skills/slop-patterns/SKILL.md"}).Allowed(t)
 		testutil.Write(t, k.paths.LogFile(kitlog.Skills), mainLoad+"\n"+`{"event":"PostToolUse","session_id":"s1","skill_file":"kit:slop-patterns","tool_name":"Skill"}`+"\n")
 		call(k, "Bash", "", bash).Allowed(t)
+	})
+	t.Run("a global_skills skill with no SKILL.md is skipped, logged", func(t *testing.T) {
+		t.Parallel()
+		k := setup(t, mainLoad+"\n")
+		k.overlay("global_skills: [slop-pattern]\n")
+		call(k, "Bash", "", bash).Allowed(t)
+		if log := testutil.Read(t, k.paths.LogFile(kitlog.Guards)); !strings.Contains(log, `"rules-gate-unknown-skill"`) {
+			t.Errorf("guards log lacks the skip:\n%s", log)
+		}
 	})
 	t.Run("rules-gate in disabled_rules lets it through", func(t *testing.T) {
 		t.Parallel()

@@ -10,6 +10,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
+	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
@@ -62,6 +63,15 @@ func RulesGate(h *hook.Hook) error {
 			missing = append(missing, skill)
 		}
 	}
+	// A skill nothing can load (a typo, a removed skill) would deny every
+	// call for good, so it's logged and left out.
+	missing = slices.DeleteFunc(missing, func(skill string) bool {
+		if skill == rulesSkill || skillExists(h, skill) {
+			return false
+		}
+		h.Log(kitlog.Guards, "rules-gate-unknown-skill", "skill", skill)
+		return true
+	})
 	if len(missing) == 0 {
 		return nil
 	}
@@ -121,6 +131,26 @@ func notIn(loaded map[string]bool, want []string) []string {
 		}
 	}
 	return missing
+}
+
+// skillExists is true when name has a SKILL.md in the kit, the user's
+// skills, or the project's, or names another plugin's skill, which the kit
+// can't look up.
+func skillExists(h *hook.Hook, name string) bool {
+	if plugin, skill, ok := strings.Cut(name, ":"); ok {
+		if plugin != "kit" {
+			return true
+		}
+		name = skill
+	}
+	if name == "" || strings.ContainsAny(name, `/\`) {
+		return false
+	}
+	dirs := []string{h.Paths.Root, filepath.Join(h.Home, ".claude")}
+	if root, ok := project.Root(h.Payload.Cwd()); ok {
+		dirs = append(dirs, filepath.Join(root, ".claude"))
+	}
+	return slices.ContainsFunc(dirs, func(dir string) bool { return fsx.IsFile(filepath.Join(dir, "skills", name, "SKILL.md")) })
 }
 
 // gatePasses is true for a tool both gates let through: the Skill tool is

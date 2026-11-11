@@ -61,6 +61,31 @@ func TestBashEdits(t *testing.T) {
 			"tool_name": "Edit", "tool_input": map[string]any{"file_path": path}}).Want(t, 0)
 		ran(k, dir, "go test ./...").Want(t, 0)
 	})
+	t.Run("a command after an Edit is charged only with what it changed", func(t *testing.T) {
+		t.Parallel()
+		k, dir := setup(t)
+		path := filepath.Join(dir, "notes.md")
+		testutil.Write(t, path, "Notes.\n"+tell)
+		k.run("edit-seen", map[string]any{"hook_event_name": "PostToolUse", "session_id": "s1", "cwd": dir,
+			"tool_name": "Edit", "tool_input": map[string]any{"file_path": path}}).Want(t, 0)
+		testutil.Write(t, path, "Notes.\n"+tell+"A plain line.\n")
+		ran(k, dir, "sed -i '' '$a\\' notes.md").Want(t, 0)
+	})
+	t.Run("another repo's edits between turns aren't charged to the next", func(t *testing.T) {
+		t.Parallel()
+		k, dir := setup(t)
+		other := repo(t, filepath.Join(t.TempDir(), "other"))
+		testutil.Write(t, filepath.Join(other, "a.md"), "A.\n")
+		testutil.Git(t, other, "add", "-A")
+		testutil.Git(t, other, "commit", "-q", "-m", "a")
+		ran(k, other, "ls").Want(t, 0)
+		testutil.Write(t, filepath.Join(other, "a.md"), "A.\n"+tell)
+		k.run("turn-tree", map[string]any{"hook_event_name": "UserPromptSubmit", "session_id": "s1", "cwd": dir}).Want(t, 0)
+		ran(k, other, "ls").Want(t, 0)
+		// From there on, that repo's changes are checked.
+		testutil.Write(t, filepath.Join(other, "b.md"), tell)
+		ran(k, other, "ls").Want(t, 2)
+	})
 	t.Run("a git command that brings in others' content isn't checked", func(t *testing.T) {
 		t.Parallel()
 		k, dir := setup(t)

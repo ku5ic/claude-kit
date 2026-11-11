@@ -41,6 +41,11 @@ func TestCheckCitations(t *testing.T) {
 		k.run("check-citations", report(dir, "SubagentStop", "a1", "kit:gatherer", bad, false)).Want(t, 2)
 		k.run("check-citations", report(dir, "SubagentStop", "a1", "kit:gatherer", bad, true)).Want(t, 0)
 	})
+	t.Run("a second stop another check caused is still checked", func(t *testing.T) {
+		t.Parallel()
+		k, dir := newSandbox(t), project(t)
+		k.run("check-citations", report(dir, "SubagentStop", "a1", "kit:gatherer", bad, true)).Want(t, 2)
+	})
 	for name, tc := range map[string]struct{ agentType, text string }{
 		"good citations go through":           {"kit:gatherer", good},
 		"another agent's report goes through": {"Explore", bad},
