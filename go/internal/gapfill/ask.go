@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"slices"
 	"time"
@@ -98,10 +97,15 @@ func classify(ctx context.Context, cfg *config.Config, o Options, req request) (
 	if len(argv) == 0 {
 		argv = claude()
 	}
+	env, cleanup, err := claudecli.Guarded(filepath.Join(o.CacheDir, cache.Guard), Guard)
+	if err != nil {
+		return response{}, claudecli.Usage{}, err
+	}
+	defer cleanup()
 	deadline, _ := ctx.Deadline()
 	cmd := proc.Command(time.Until(deadline), argv[0], argv[1:]...)
 	cmd.Dir = filepath.Join(o.CacheDir, cache.Enforce)
-	cmd.Env = append(os.Environ(), Guard+"=1")
+	cmd.Env = env
 	cmd.Stdin = bytes.NewReader(stdin)
 	out, err := cmd.Output()
 	if cmd.TimedOut() {

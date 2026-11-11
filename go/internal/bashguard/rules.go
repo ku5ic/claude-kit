@@ -339,9 +339,7 @@ func (c *command) inPlaceEdit() error {
 				return err
 			}
 		}
-		if c.st.isOverlayArg(p) {
-			c.st.ask(overlayAsk)
-		}
+		c.st.askKitSwitch(p)
 	}
 	return nil
 }
@@ -366,8 +364,8 @@ func (c *command) rcWrite() error {
 	return nil
 }
 
-// overlayWrite asks when a command that isn't a pure reader names the
-// overlay: tee, cp, mv, install, ln all write it. yq writes only with -i,
+// overlayWrite asks when a command that isn't a pure reader names a kit
+// switch (guard.KitSwitch): tee, cp, mv, install, ln all write it. yq writes only with -i,
 // git only through checkout/restore/apply/mv/rm/stash/reset.
 func (c *command) overlayWrite() {
 	all := append([]string{c.name}, c.values()...)
@@ -385,8 +383,7 @@ func (c *command) overlayWrite() {
 	}
 	for _, v := range c.values() {
 		_, after, hasEq := strings.Cut(v, "=")
-		if c.st.isOverlayArg(v) || (hasEq && c.st.isOverlayArg(after)) {
-			c.st.ask(overlayAsk)
+		if c.st.askKitSwitch(v) || hasEq && c.st.askKitSwitch(after) {
 			return
 		}
 	}

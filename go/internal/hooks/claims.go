@@ -138,7 +138,7 @@ func unconfirmed(h *hook.Hook, text, transcriptPath, where string) []claims.Unsu
 	if cfg == nil || h.DryRun || h.RuleDisabled("claims") || !claims.Declarative(text) {
 		return nil
 	}
-	v, err := claims.Verify(cfg, h.Payload.Cwd(), text, transcriptPath)
+	v, err := claims.Verify(cfg, h.Paths.CacheDir(), h.Payload.Cwd(), text, transcriptPath)
 	if errors.Is(err, claims.ErrOff) {
 		return nil
 	}

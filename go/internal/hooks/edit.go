@@ -79,8 +79,8 @@ func GuardEdit(h *hook.Hook) error {
 	if ciWorkflows.MatchString(path) {
 		h.Decide("ask", "this is a CI workflow, which changes what runs on every push; confirm the change")
 	}
-	if guard.IsOverlay(h.Paths, path) {
-		h.Decide("ask", "this is the claude-kit overlay, which can switch the kit's own guards off; confirm the change")
+	if what := guard.KitSwitch(h.Paths, h.Payload.Cwd(), path); what != "" {
+		h.Decide("ask", guard.KitSwitchAsk(what))
 	}
 	if tool == "Write" && newRootArtifact(cfg, path) {
 		h.Decide("ask", "a new "+filepath.Base(path)+" at the repo root; rules/output.md section 3 puts reports and logs in `kit scratch-dir`. Confirm only if it belongs in the repo")

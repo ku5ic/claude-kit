@@ -26,9 +26,10 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/sources"
 )
 
-// Guard is set in the classifier's environment. A kit started under it
-// never asks, and its hooks do nothing, so the classifier's own session
-// can't recurse into the kit.
+// Guard is set in the classifier's environment, with a marker under the
+// cache (claudecli.Guarded), so its hooks do nothing. A kit started inside
+// any claude run the kit started never asks, so the classifier's own
+// session can't recurse into the kit.
 const Guard = "KIT_CLASSIFIER"
 
 // promptVersion is part of every cache key: a changed prompt asks again.
@@ -191,7 +192,7 @@ func Run(cfg *config.Config, o Options) Result {
 	now := time.Now()
 	_ = os.Chtimes(file, now, now)
 	failure, usage := "", claudecli.Usage{}
-	if o.Ask && os.Getenv(Guard) != "1" {
+	if o.Ask && os.Getenv(claudecli.DepthVar) == "" {
 		// The view reads the whole repo: only a run that may ask builds it.
 		if p := readView(cfg, o.Root, o.Entries); s.stale(cfg, o.Entries, p.Key) {
 			s, failure, usage = ask(cfg, o, p, file, s)

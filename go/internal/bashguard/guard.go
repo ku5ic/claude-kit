@@ -19,8 +19,6 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
-const overlayAsk = "this writes the claude-kit overlay, which can switch the kit's own guards off; confirm the change"
-
 // dirs is where a command line's next command runs: cwd, which each cd
 // moves, and prev, the cwd before the last cd, for cd -.
 type dirs struct {
@@ -391,9 +389,7 @@ func (st *state) redirects(call Call) error {
 				return err
 			}
 		}
-		if st.isOverlayArg(target) {
-			st.ask(overlayAsk)
-		}
+		st.askKitSwitch(target)
 		st.looseWrite(">", target)
 	}
 	return nil
@@ -471,15 +467,23 @@ func (st *state) abs(p string) string {
 	return p
 }
 
-// isOverlayArg is true when a word (quoted, ~- or $HOME-prefixed, or
-// relative to the segment's cwd) names the kit overlay. The basename test
-// keeps path resolution off every other argument.
-func (st *state) isOverlayArg(arg string) bool {
-	arg = unquote(arg)
-	if arg != "claude-kit.local.yml" && !strings.HasSuffix(arg, "/claude-kit.local.yml") {
+// askKitSwitch asks, and is true, when a word (quoted, ~- or
+// $HOME-prefixed, or relative to the segment's cwd) names a path
+// guard.KitSwitch protects. The name and prefix tests keep symlink
+// resolution off every other argument.
+func (st *state) askKitSwitch(arg string) bool {
+	p := st.abs(unquote(arg))
+	base := filepath.Base(p)
+	paths := st.h.Paths
+	if base != "claude-kit.local.yml" && base != "settings.json" && base != "settings.local.json" &&
+		!fsx.Within(paths.Home, p) && (paths.Root == "" || !fsx.Within(paths.Root, p)) {
 		return false
 	}
-	return guard.IsOverlay(st.h.Paths, st.abs(arg))
+	what := guard.KitSwitch(paths, st.cwd, p)
+	if what != "" {
+		st.ask(guard.KitSwitchAsk(what))
+	}
+	return what != ""
 }
 
 // isProtected is true when ref names a protected branch, ignoring

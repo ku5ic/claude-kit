@@ -373,7 +373,7 @@ chat_bundle:
   rules: [rules/output.md, rules/evidence.md, rules/change.md]
 
 # Shell rc files: direct writes are blocked, the dotfiles repo is the source.
-rc_files: ["~/.zshrc", "~/.zprofile", "~/.bashrc", "~/.bash_profile", "~/.profile"]
+rc_files: ["~/.zshenv", "~/.zshrc", "~/.zprofile", "~/.bashrc", "~/.bash_profile", "~/.profile"]
 
 # Credential and key files guard-bash refuses to read. A "~/" entry is a
 # path under $HOME, a directory when it ends in "/"; any other entry is a

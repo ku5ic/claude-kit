@@ -46,6 +46,7 @@ func TestGuardEdit(t *testing.T) {
 		{"block: edit inside .git/", "/tmp/repo/.git/HEAD", 2},
 		{"block: edit nested inside .git/", "/tmp/repo/.git/refs/heads/main", 2},
 		{"block: ~/.zshrc", "~/.zshrc", 2},
+		{"block: ~/.zshenv", "~/.zshenv", 2},
 		{"block: ~/.zprofile", "~/.zprofile", 2},
 		{"block: ~/.bashrc", "~/.bashrc", 2},
 		// Guarded lockfiles come from kit.yml's lockfile_globs.
@@ -80,6 +81,25 @@ func TestGuardEdit(t *testing.T) {
 		r := k.run("guard-edit", editPayload("Edit", src, "", ""))
 		r.Want(t, 0)
 		r.Has(t, `"permissionDecision":"ask"`)
+	})
+	for rel, what := range map[string]string{
+		"settings.json":       "a Claude Code settings file",
+		"settings.local.json": "a Claude Code settings file",
+		"logs/guards.jsonl":   "the kit's logs",
+		"cache/claims/s-plan": "the kit's state",
+	} {
+		t.Run("ask: Write to ~/.claude/"+rel, func(t *testing.T) {
+			t.Parallel()
+			k := newSandbox(t)
+			r := k.run("guard-edit", editPayload("Write", filepath.Join(k.paths.Home, rel), "", ""))
+			r.Want(t, 0)
+			r.Has(t, `"permissionDecision":"ask"`, "this writes "+what)
+		})
+	}
+	t.Run("ask: Write to a project's .claude/settings.local.json", func(t *testing.T) {
+		t.Parallel()
+		r := newSandbox(t).run("guard-edit", editPayload("Write", "/tmp/project/.claude/settings.local.json", "", ""))
+		r.Has(t, "this writes a Claude Code settings file")
 	})
 	t.Run("allow: a same-named file that is not the overlay", func(t *testing.T) {
 		t.Parallel()

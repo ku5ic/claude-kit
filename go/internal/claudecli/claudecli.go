@@ -3,11 +3,65 @@
 package claudecli
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 )
+
+// DepthVar is set in every claude run the kit starts, so a run whose hooks
+// didn't stand down can't start another.
+const DepthVar = "KIT_CLAUDE_DEPTH"
+
+// ErrNested is Guarded's error inside a claude run the kit started.
+var ErrNested = errors.New("already inside a claude run the kit started")
+
+// Guarded is the environment for a claude run the kit starts: guard set to
+// a fresh random value, with a marker named by its hash under markerDir
+// that tells the run's own hooks to stand down, and DepthVar set. cleanup
+// removes the marker. A value set any other way, by a user or an rc file,
+// has no marker, so it turns nothing off.
+func Guarded(markerDir, guard string) (env []string, cleanup func(), err error) {
+	if os.Getenv(DepthVar) != "" {
+		return nil, nil, ErrNested
+	}
+	token := make([]byte, 16)
+	if _, err := rand.Read(token); err != nil {
+		return nil, nil, err
+	}
+	value := hex.EncodeToString(token)
+	marker := markerPath(markerDir, value)
+	if err := os.MkdirAll(markerDir, 0o700); err != nil {
+		return nil, nil, err
+	}
+	if err := os.WriteFile(marker, nil, 0o600); err != nil {
+		return nil, nil, err
+	}
+	env = append(os.Environ(), guard+"="+value, DepthVar+"=1")
+	return env, func() { _ = os.Remove(marker) }, nil
+}
+
+// Honored is true when guard's value in this process's environment has its
+// marker under markerDir: this is a claude run the kit started.
+func Honored(markerDir, guard string) bool {
+	value := os.Getenv(guard)
+	if value == "" {
+		return false
+	}
+	_, err := os.Stat(markerPath(markerDir, value))
+	return err == nil
+}
+
+func markerPath(markerDir, value string) string {
+	sum := sha256.Sum256([]byte(value))
+	return filepath.Join(markerDir, hex.EncodeToString(sum[:]))
+}
 
 // Usage is how many runs there were, what they cost, and how long they
 // took, as their envelopes say.

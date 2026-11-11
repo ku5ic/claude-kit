@@ -1,9 +1,53 @@
 package claudecli
 
 import (
+	"errors"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 )
+
+// Not parallel: these set the process environment.
+func TestGuardedMarker(t *testing.T) {
+	const guard = "KIT_TEST_GUARD"
+	markers := filepath.Join(t.TempDir(), "guard")
+	t.Run("a value the user set has no marker and turns nothing off", func(t *testing.T) {
+		t.Setenv(guard, "1")
+		if Honored(markers, guard) {
+			t.Error("a hand-set value was honored")
+		}
+	})
+	t.Run("the value Guarded sets is honored until cleanup", func(t *testing.T) {
+		env, cleanup, err := Guarded(markers, guard)
+		if err != nil {
+			t.Fatal(err)
+		}
+		i := slices.IndexFunc(env, func(kv string) bool { return strings.HasPrefix(kv, guard+"=") })
+		if i < 0 || !slices.Contains(env, DepthVar+"=1") {
+			t.Fatalf("env lacks %s or %s: %q", guard, DepthVar, env)
+		}
+		t.Setenv(guard, strings.TrimPrefix(env[i], guard+"="))
+		if !Honored(markers, guard) {
+			t.Error("the kit's own value wasn't honored")
+		}
+		cleanup()
+		if Honored(markers, guard) {
+			t.Error("the value outlived its run")
+		}
+	})
+	t.Run("inside a run the kit started, another can't start", func(t *testing.T) {
+		t.Setenv(DepthVar, "1")
+		if _, _, err := Guarded(markers, guard); !errors.Is(err, ErrNested) {
+			t.Errorf("err = %v, want ErrNested", err)
+		}
+		if left, _ := os.ReadDir(markers); len(left) != 0 {
+			t.Errorf("a refused run left a marker: %v", left)
+		}
+	})
+}
 
 func TestParse(t *testing.T) {
 	t.Parallel()

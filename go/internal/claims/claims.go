@@ -10,13 +10,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/claudecli"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/connector"
@@ -25,8 +26,9 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
-// Guard is set in the verifier's environment, so its own session runs no
-// kit hook and can't recurse into another verification.
+// Guard is set in the verifier's environment, with a marker under the cache
+// (claudecli.Guarded), so its own session runs no kit hook and can't
+// recurse into another verification.
 const Guard = "KIT_VERIFIER"
 
 //go:embed prompt.txt
@@ -91,7 +93,7 @@ type Unsupported struct {
 // Verify runs the verifier on text from dir, with the session transcript
 // at transcriptPath (none when "") as its evidence. An error means no
 // verdict; callers fail open on it.
-func Verify(cfg *config.Config, dir, text, transcriptPath string) (Verdict, error) {
+func Verify(cfg *config.Config, cacheDir, dir, text, transcriptPath string) (Verdict, error) {
 	if cfg.Claims.Off() {
 		return Verdict{}, ErrOff
 	}
@@ -107,15 +109,20 @@ func Verify(cfg *config.Config, dir, text, transcriptPath string) (Verdict, erro
 		argv = claude(cfg, entries)
 	}
 	forked := transcriptPath != "" && fsx.IsFile(transcript.ForkSidecar(transcriptPath))
-	return run(cfg, argv, dir, evidence(entries, text, forked))
+	return run(cfg, argv, filepath.Join(cacheDir, cache.Guard), dir, evidence(entries, text, forked))
 }
 
 // run runs the verifier command argv from dir on input, the evidence and
-// the text to verify.
-func run(cfg *config.Config, argv []string, dir, input string) (Verdict, error) {
+// the text to verify, guarded by a marker under markerDir.
+func run(cfg *config.Config, argv []string, markerDir, dir, input string) (Verdict, error) {
+	env, cleanup, err := claudecli.Guarded(markerDir, Guard)
+	if err != nil {
+		return Verdict{}, fmt.Errorf("claims: %w", err)
+	}
+	defer cleanup()
 	cmd := proc.Command(time.Duration(cfg.Claims.Timeout)*time.Second, argv[0], argv[1:]...)
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), Guard+"=1")
+	cmd.Env = env
 	cmd.Stdin = strings.NewReader(input)
 	out, err := cmd.Output()
 	if cmd.TimedOut() {

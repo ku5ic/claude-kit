@@ -160,10 +160,32 @@ func IsGuardedLockfile(cfg *config.Config, path string) bool {
 	return GlobAny(cfg.LockfileGlobs, path[strings.LastIndex(path, "/")+1:])
 }
 
-// IsOverlay is true when path is the overlay, reached through any path or
-// symlink. Writes to it get a prompt: it can switch the kit's guards off.
-func IsOverlay(paths config.Paths, path string) bool {
-	return fsx.PhysicalPath(path) == fsx.PhysicalPath(paths.Overlay)
+// KitSwitch names what path is when a write to it can turn the kit off or
+// rewrite its record, so the write gets a prompt: the overlay, a Claude
+// Code settings file, the kit's logs and state, and the installed plugin.
+// "" for any other path. cwd inside the plugin is work on the kit itself.
+func KitSwitch(paths config.Paths, cwd, path string) string {
+	p := fsx.PhysicalPath(filepath.Clean(path))
+	dir, base := filepath.Dir(p), filepath.Base(p)
+	in := func(d string) bool { return fsx.Within(fsx.PhysicalPath(d), p) }
+	switch {
+	case p == fsx.PhysicalPath(paths.Overlay):
+		return "the claude-kit overlay"
+	case (base == "settings.json" || base == "settings.local.json") && (filepath.Base(dir) == ".claude" || dir == fsx.PhysicalPath(paths.Home)):
+		return "a Claude Code settings file"
+	case in(paths.LogDir()):
+		return "the kit's logs"
+	case in(paths.CacheDir()):
+		return "the kit's state"
+	case paths.Root != "" && in(paths.Root) && !fsx.Within(fsx.PhysicalPath(paths.Root), fsx.PhysicalPath(cwd)):
+		return "the installed claude-kit plugin"
+	}
+	return ""
+}
+
+// KitSwitchAsk is the prompt for a write to what, as KitSwitch names it.
+func KitSwitchAsk(what string) string {
+	return "this writes " + what + ", which can turn the kit's checks off or rewrite its record; confirm the change"
 }
 
 // GlobAny is true when s matches any of patterns.
