@@ -14,76 +14,114 @@ import (
 )
 
 // rulesSkill is the skill every session and subagent loads before its first
-// tool call.
+// tool call, whatever global_skills says.
 const rulesSkill = "kit-rules"
 
 // RulesGate is the PreToolUse hook on every tool: it denies the call until
-// the session, or the subagent making it, has loaded the kit-rules skill.
-// A subagent's load counts for it alone, by agent_id. The Skill tool and a
-// Read of the skill's own files are the way to load it, and a subagent's
-// hand-back is its reply, so those pass. A missing skills log fails open.
-// A fork counts its parent's load. An agent whose transcript shows Claude
-// Code gave it neither Skill nor Read passes, logged; one whose tools
-// can't be read is gated.
+// the session, or the subagent making it, has loaded kit-rules and every
+// global_skills skill. A subagent's load counts for it alone, by agent_id.
+// The Skill tool and a Read of a required skill's own files are the way to
+// load one, and a subagent's hand-back is its reply, so those pass. A
+// missing skills log fails open. A fork counts its parent's loads. An
+// agent whose transcript shows Claude Code gave it neither Skill nor Read
+// passes, logged; one whose tools can't be read is gated.
 func RulesGate(h *hook.Hook) error {
 	p := h.Payload
 	if p.Err != nil {
 		return p.Err
 	}
+	cfg := h.Config()
+	if cfg == nil {
+		return nil
+	}
+	required := []string{rulesSkill}
+	for _, skill := range cfg.GlobalSkills {
+		if !slices.Contains(required, skill) {
+			required = append(required, skill)
+		}
+	}
 	switch p.String("tool_name") {
 	case "Skill", "SubagentHandback":
 		return nil
 	case "Read":
-		if strings.Contains(p.FilePath(), "/skills/"+rulesSkill+"/") {
+		if slices.ContainsFunc(required, func(skill string) bool { return strings.Contains(p.FilePath(), "/skills/"+skill+"/") }) {
 			return nil
 		}
 	}
 	agent := p.String("agent_id")
-	parts := []string{rulesSkill}
-	if agent != "" {
-		parts = append(parts, agent)
+	marker := func(skill string) string {
+		parts := []string{skill}
+		if agent != "" {
+			parts = append(parts, agent)
+		}
+		return h.Paths.SessionFile(cache.SkillsLoaded, p.SessionID(), parts...)
 	}
-	marker := h.Paths.SessionFile(cache.SkillsLoaded, p.SessionID(), parts...)
-	if marker == "" || h.Config() == nil {
+	var missing []string
+	for _, skill := range required {
+		m := marker(skill)
+		if m == "" {
+			return nil
+		}
+		if _, err := os.Stat(m); err != nil {
+			missing = append(missing, skill)
+		}
+	}
+	if len(missing) == 0 {
 		return nil
 	}
-	if _, err := os.Stat(marker); err == nil {
-		return nil
-	}
-	loaded, err := rulesLoaded(h, agent)
+	missing, err := notLoadedBy(h, agent, missing)
 	if err != nil {
 		return nil
 	}
-	if !loaded && agent != "" {
+	if len(missing) > 0 && agent != "" {
 		start, _ := transcript.ReadAgentStart(subagentTranscript(p))
 		switch {
 		case start.Fork:
-			// A fork starts from its parent's context, rules included.
-			if loaded, err = rulesLoaded(h, ""); err != nil {
+			// A fork starts from its parent's context, skills included.
+			if missing, err = notLoadedBy(h, "", missing); err != nil {
 				return nil
 			}
 		case start.Tools != nil && !slices.Contains(start.Tools, "Skill") && !slices.Contains(start.Tools, "Read"):
-			// Claude Code gave this agent no way to load the skill, so a
+			// Claude Code gave this agent no way to load a skill, so a
 			// deny could only end its run.
 			h.Log(kitlog.Guards, "rules-gate-unloadable", "agent_type", p.String("agent_type"), "tools", strings.Join(start.Tools, ","))
 			return nil
 		}
 	}
-	if loaded {
-		if !h.DryRun {
-			_ = fsx.WriteAtomic(marker, nil, 0o600)
+	for _, skill := range required {
+		if !slices.Contains(missing, skill) && !h.DryRun {
+			_ = fsx.WriteAtomic(marker(skill), nil, 0o600)
 		}
+	}
+	if len(missing) == 0 {
 		return nil
 	}
-	h.Deny("load the kit-rules skill first: call the Skill tool now (or Read "+h.Paths.Root+"/skills/kit-rules/SKILL.md if the Skill tool is unavailable), then retry this call. Every tool call stays blocked until you do, so don't stop to ask", "rules-gate")
+	files := make([]string, len(missing))
+	for i, skill := range missing {
+		files[i] = h.Paths.Root + "/skills/" + skill + "/SKILL.md"
+	}
+	noun := "skill"
+	if len(missing) > 1 {
+		noun = "skills"
+	}
+	h.Deny("load the "+strings.Join(missing, " and ")+" "+noun+" first: call the Skill tool now (or Read "+strings.Join(files, " and ")+" if the Skill tool is unavailable), then retry this call. Every tool call stays blocked until you do, so don't stop to ask", "rules-gate")
 	return nil
 }
 
-// rulesLoaded reports whether the skills log shows agent ("" for the main
-// session) loading the kit-rules skill.
-func rulesLoaded(h *hook.Hook, agent string) (bool, error) {
+// notLoadedBy is the skills of want the skills log doesn't show agent (""
+// for the main session) loading.
+func notLoadedBy(h *hook.Hook, agent string, want []string) ([]string, error) {
 	loaded, err := loadedSkills(h.Paths.LogFile(kitlog.Skills), h.Payload.SessionID(), func(id string) bool { return id == agent })
-	return loaded[rulesSkill] || anyUnder(loaded, rulesSkill), err
+	if err != nil {
+		return nil, err
+	}
+	var missing []string
+	for _, skill := range want {
+		if !loaded[skill] && !anyUnder(loaded, skill) {
+			missing = append(missing, skill)
+		}
+	}
+	return missing, nil
 }
 
 // subagentTranscript is the transcript of the subagent making a tool call,
@@ -97,11 +135,11 @@ func subagentTranscript(p *hook.Payload) string {
 	return filepath.Join(strings.TrimSuffix(main, ".jsonl"), "subagents", "agent-"+agent+".jsonl")
 }
 
-// anyUnder is true when a logged path holds /skills/<skill>/: a Read of its
-// SKILL.md.
+// anyUnder is true when a logged path is /skills/<skill>/SKILL.md: a Read
+// of it. A Read of one of its references loads nothing.
 func anyUnder(loaded map[string]bool, skill string) bool {
 	for file := range loaded {
-		if strings.Contains(file, "/skills/"+skill+"/") {
+		if strings.HasSuffix(file, "/skills/"+skill+"/SKILL.md") {
 			return true
 		}
 	}

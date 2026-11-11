@@ -9,12 +9,14 @@ Default assumption: Docker Engine 29.9.3 and the Compose Specification, which su
 
 ## Reference files
 
-| File                                           | Covers                                                                                     |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| [dockerfile.md](reference/dockerfile.md)       | Base images, layer order, `apt-get`, COPY vs ADD, exec form, USER, WORKDIR, .dockerignore  |
-| [multi-stage.md](reference/multi-stage.md)     | BuildKit parallel stages, named stages, `COPY --from`, `--target`, stage names             |
-| [compose.md](reference/compose.md)             | `version:` key, depends_on with healthcheck, restart policies, env and secrets, profiles   |
-| [networking.md](reference/networking.md)       | Legacy `--link`, drivers, service discovery and aliases, port publishing, isolation        |
-| [volumes.md](reference/volumes.md)             | Named volumes vs bind mounts vs tmpfs, Compose declarations, `down -v`                     |
-| [security.md](reference/security.md)           | Non-root user, minimal and pinned images, build context, runtime secrets, Scout, read-only |
-| [anti-patterns.md](reference/anti-patterns.md) | Ten review-time anti-patterns with severity calls                                          |
+Read every file in this table as soon as this skill loads. A hook blocks every tool call until you have.
+
+| Before                                                                         | Read                                           |
+| ------------------------------------------------------------------------------ | ---------------------------------------------- |
+| Writing or changing a Dockerfile, or a `.dockerignore`                         | [dockerfile.md](reference/dockerfile.md)       |
+| Splitting a build into stages, or using `COPY --from` or `--target`            | [multi-stage.md](reference/multi-stage.md)     |
+| Writing or changing a Compose file, its services, env, or profiles             | [compose.md](reference/compose.md)             |
+| Connecting containers, publishing ports, or choosing a network driver          | [networking.md](reference/networking.md)       |
+| Persisting data with a volume, a bind mount, or tmpfs                          | [volumes.md](reference/volumes.md)             |
+| Setting the user, pinning images, or handling secrets in an image or container | [security.md](reference/security.md)           |
+| Reviewing Docker code                                                          | [anti-patterns.md](reference/anti-patterns.md) |

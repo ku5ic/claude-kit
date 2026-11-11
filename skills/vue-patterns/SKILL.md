@@ -13,13 +13,15 @@ Default assumption: Vue 3 with the Composition API and `<script setup>`.
 
 ## Reference files
 
-| File                                                     | Covers                                                                                    |
-| -------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| [reference/reactivity.md](reference/reactivity.md)       | `ref` vs `reactive`, `toRefs`, `shallowRef`, destructuring traps                          |
-| [reference/components.md](reference/components.md)       | Defaults (3.5+ vs 3.4), `defineModel` (3.4+), `defineEmits`/`Slots` (3.3+), `defineProps` |
-| [reference/watchers.md](reference/watchers.md)           | `onWatcherCleanup` (3.5+), `once` (3.4+), `watch` vs `watchEffect`, deep watchers         |
-| [reference/state.md](reference/state.md)                 | `provide`/`inject`, Pinia, composables                                                    |
-| [reference/anti-patterns.md](reference/anti-patterns.md) | Nine review-time anti-patterns with severity calls                                        |
+Read every file in this table as soon as this skill loads. A hook blocks every tool call until you have.
+
+| Before                                                                                                    | Read                                                     |
+| --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| Creating reactive state with `ref`, `reactive`, `toRefs`, or `shallowRef`, or destructuring reactive data | [reference/reactivity.md](reference/reactivity.md)       |
+| Writing a component's props, emits, slots, defaults, or `defineModel`                                     | [reference/components.md](reference/components.md)       |
+| Writing a `watch` or `watchEffect`, a deep watcher, or watcher cleanup                                    | [reference/watchers.md](reference/watchers.md)           |
+| Sharing state with `provide`/`inject`, a Pinia store, or a composable                                     | [reference/state.md](reference/state.md)                 |
+| Reviewing Vue code                                                                                        | [reference/anti-patterns.md](reference/anti-patterns.md) |
 
 ## Out of scope
 

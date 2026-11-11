@@ -15,11 +15,13 @@ Apply the references that match the detected stack. The severity rubric below ap
 
 ## Reference files
 
-| File                                                       | Covers                                                                                                      |
-| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| [reference/anti-patterns.md](reference/anti-patterns.md)   | Eight anti-patterns with severity calls: SQLi, XSS, token storage, CSRF, CSP, CORS, secrets, cookie flags   |
-| [reference/frontend.md](reference/frontend.md)             | XSS, Next.js client/server boundary, auth/sessions, JWT vs sessions, strict CSP (nonce/strict-dynamic/hash) |
-| [reference/backend-django.md](reference/backend-django.md) | Django 6.0+ CSP, middleware order, ORM safety, object-level permissions, file uploads                       |
-| [reference/backend-node.md](reference/backend-node.md)     | Express/Fastify/Nest hardening, CSRF on JSON-only APIs                                                      |
-| [reference/dependencies.md](reference/dependencies.md)     | Lockfile audit vs OSV-Scanner, SLSA build levels                                                            |
-| [reference/secrets.md](reference/secrets.md)               | Detection (gitleaks, trufflehog, push protection), rotation, rotation cadence                               |
+Read every file in this table as soon as this skill loads. A hook blocks every tool call until you have.
+
+| Before                                                                                        | Read                                                       |
+| --------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Reviewing code for security flaws, or rating a finding's severity                             | [reference/anti-patterns.md](reference/anti-patterns.md)   |
+| Writing frontend code that renders user input, stores tokens, handles sessions, or sets a CSP | [reference/frontend.md](reference/frontend.md)             |
+| Writing Django code that handles auth, queries, permissions, uploads, or middleware           | [reference/backend-django.md](reference/backend-django.md) |
+| Writing Express, Fastify, or Nest code that handles auth, headers, or CSRF                    | [reference/backend-node.md](reference/backend-node.md)     |
+| Auditing, adding, or updating a dependency                                                    | [reference/dependencies.md](reference/dependencies.md)     |
+| Handling a secret, scanning for leaked secrets, or rotating a credential                      | [reference/secrets.md](reference/secrets.md)               |

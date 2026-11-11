@@ -12,13 +12,15 @@ DRF 3.18.x.
 
 ## Reference files
 
-| File                                                                   | Covers                                                                                           |
-| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| [serializers.md](reference/serializers.md)                             | Explicit fields (3.5+), `validate()`, nested serializers, `SerializerMethodField`, read vs write |
-| [viewsets-and-routers.md](reference/viewsets-and-routers.md)           | `ModelViewSet` vs `GenericViewSet` + mixins, `@action`, `DefaultRouter`, `get_queryset`          |
-| [permissions.md](reference/permissions.md)                             | `AllowAny` default, `IsAuthenticated` vs `IsAuthenticatedOrReadOnly`, object-level, composition  |
-| [throttling-and-pagination.md](reference/throttling-and-pagination.md) | User, anon, and scoped throttles, pagination styles, page size config                            |
-| [filtering.md](reference/filtering.md)                                 | django-filter, `SearchFilter`, `OrderingFilter`, `get_queryset` override                         |
-| [auth.md](reference/auth.md)                                           | Token, session, and basic auth, JWT via simplejwt                                                |
-| [versioning.md](reference/versioning.md)                               | Five versioning schemes, `request.version`, `ALLOWED_VERSIONS`                                   |
-| [anti-patterns.md](reference/anti-patterns.md)                         | Eight severity-labeled anti-patterns to flag in review                                           |
+Read every file in this table as soon as this skill loads. A hook blocks every tool call until you have.
+
+| Before                                                               | Read                                                                   |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Writing or changing a serializer, its fields, validation, or nesting | [serializers.md](reference/serializers.md)                             |
+| Writing a viewset, a router, an `@action`, or `get_queryset`         | [viewsets-and-routers.md](reference/viewsets-and-routers.md)           |
+| Setting or changing `permission_classes`                             | [permissions.md](reference/permissions.md)                             |
+| Adding throttling or pagination                                      | [throttling-and-pagination.md](reference/throttling-and-pagination.md) |
+| Adding filtering, search, or ordering                                | [filtering.md](reference/filtering.md)                                 |
+| Setting up authentication, tokens, or JWT                            | [auth.md](reference/auth.md)                                           |
+| Versioning the API                                                   | [versioning.md](reference/versioning.md)                               |
+| Reviewing DRF code                                                   | [anti-patterns.md](reference/anti-patterns.md)                         |

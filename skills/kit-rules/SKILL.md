@@ -12,14 +12,17 @@ The hard rules, each owned by the section it names:
 - A fact not read this session gets checked, or goes unsaid: `skills/kit-rules/reference/evidence.md` section 1.
 - Never commit or push unasked: `skills/kit-rules/reference/workflow.md` section 1.
 - Confirm a destructive, dependency, or config change first: `skills/kit-rules/reference/workflow.md` section 2.
-- Files you write go through Write or Edit, temporary ones to `kit scratch-dir`: `skills/kit-rules/reference/output.md` section 3.
+- Temporary files go to `kit scratch-dir`: `skills/kit-rules/reference/output.md` section 3.
 
-| File                                             | Covers                                             |
-| ------------------------------------------------ | -------------------------------------------------- |
-| [reference/output.md](reference/output.md)       | Reply length, shape, and where output goes         |
-| [reference/evidence.md](reference/evidence.md)   | What must be true before a claim, a fix, or "done" |
-| [reference/change.md](reference/change.md)       | How a change is sized, shaped, and styled          |
-| [reference/verify.md](reference/verify.md)       | What runs before a change is done                  |
-| [reference/workflow.md](reference/workflow.md)   | Git, side effects, plans, and when to ask          |
-| [reference/subagents.md](reference/subagents.md) | When to spawn an agent, and checking its work      |
-| [reference/tooling.md](reference/tooling.md)     | Which CLI to use, read budget, and scratch         |
+Read every file in this table as soon as this skill loads. A hook blocks every tool call until you have.
+
+| Before                                                             | Read                                                     |
+| ------------------------------------------------------------------ | -------------------------------------------------------- |
+| The first edit of a task, or acting on a request with two readings | [reference/workflow.md](reference/workflow.md) section 4 |
+| A commit, push, branch, install, delete, or plan                   | [reference/workflow.md](reference/workflow.md)           |
+| Writing a file, a report, or a message someone else reads          | [reference/output.md](reference/output.md)               |
+| Editing code                                                       | [reference/change.md](reference/change.md)               |
+| A claim about code, a version, or a result                         | [reference/evidence.md](reference/evidence.md)           |
+| Saying done, fixed, or passes                                      | [reference/verify.md](reference/verify.md)               |
+| Spawning an agent                                                  | [reference/subagents.md](reference/subagents.md)         |
+| A search, a read over several files, or a scratch path             | [reference/tooling.md](reference/tooling.md)             |

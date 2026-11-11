@@ -12,7 +12,9 @@ Default assumption: <Stack> <current major.minor>.
 
 ## Reference files
 
-| File                                                     | Covers                                            |
-| -------------------------------------------------------- | ------------------------------------------------- |
-| [reference/<area>.md](reference/<area>.md)               | <what this file decides, in one line>             |
-| [reference/anti-patterns.md](reference/anti-patterns.md) | <N> review-time anti-patterns with severity calls |
+Read every file in this table as soon as this skill loads. A hook blocks every tool call until you have.
+
+| Before                                     | Read                                                     |
+| ------------------------------------------ | -------------------------------------------------------- |
+| <an action this file decides, in one line> | [reference/<area>.md](reference/<area>.md)               |
+| Reviewing <Stack> code                     | [reference/anti-patterns.md](reference/anti-patterns.md) |

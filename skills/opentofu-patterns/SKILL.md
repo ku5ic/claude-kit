@@ -12,9 +12,11 @@ Default assumption: OpenTofu 1.13. Most rules hold for Terraform too.
 
 ## Reference files
 
-| File                                                                     | Covers                                                                                  |
-| ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
-| [reference/refactoring-and-state.md](reference/refactoring-and-state.md) | `lifecycle` guards, ephemeral variables, `moved`, `import`, `removed`, what state holds |
-| [reference/configuration.md](reference/configuration.md)                 | `enabled`, `for_each` vs `count`, variables, pinning and the lock file, provisioners    |
-| [reference/workflow.md](reference/workflow.md)                           | `fmt` and `validate` in checks, and what the kit's guard blocks                         |
-| [reference/anti-patterns.md](reference/anti-patterns.md)                 | Seven review-time anti-patterns with severity calls                                     |
+Read every file in this table as soon as this skill loads. A hook blocks every tool call until you have.
+
+| Before                                                                                      | Read                                                                     |
+| ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Renaming, importing, or removing a resource, or touching `lifecycle` or state contents      | [reference/refactoring-and-state.md](reference/refactoring-and-state.md) |
+| Writing or changing resources, variables, `for_each` or `count`, versions, or the lock file | [reference/configuration.md](reference/configuration.md)                 |
+| Running or wiring `fmt` and `validate`, or running a command the kit's guard may block      | [reference/workflow.md](reference/workflow.md)                           |
+| Reviewing OpenTofu or Terraform code                                                        | [reference/anti-patterns.md](reference/anti-patterns.md)                 |

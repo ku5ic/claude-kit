@@ -12,16 +12,18 @@ Default assumption: Next.js 16 with the App Router.
 
 ## Reference files
 
-| File                                                             | Covers                                                                                       |
-| ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| [reference/anti-patterns.md](reference/anti-patterns.md)         | Seven anti-patterns with severity calls: async request APIs, cache scoping, boundaries       |
-| [reference/server-and-client.md](reference/server-and-client.md) | `"use client"` propagation, what each side can't do, serialization, `server-only`            |
-| [reference/caching.md](reference/caching.md)                     | Cache Components vs the previous model, `fetch` defaults, segment config, `revalidateTag`    |
-| [reference/server-actions.md](reference/server-actions.md)       | Pending state, `"use server"`, auth, validation, revalidation, return values                 |
-| [reference/streaming.md](reference/streaming.md)                 | Partial Prerendering, `loading.tsx`, error boundaries, `<Suspense>`, streaming caveats       |
-| [reference/routing.md](reference/routing.md)                     | Slot `default.tsx`, async `params`, file conventions, parallel/intercepting routes, metadata |
-| [reference/runtime.md](reference/runtime.md)                     | Proxy (renamed from Middleware in 16), environment variables, Node vs Edge                   |
-| [reference/client-bundle.md](reference/client-bundle.md)         | Bundle audits, `next/image`, `next/font`, `next/dynamic`, tree-shaking                       |
+Read every file in this table as soon as this skill loads. A hook blocks every tool call until you have.
+
+| Before                                                                               | Read                                                             |
+| ------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| Reviewing Next.js code                                                               | [reference/anti-patterns.md](reference/anti-patterns.md)         |
+| Adding `"use client"`, or passing props or data between server and client code       | [reference/server-and-client.md](reference/server-and-client.md) |
+| Fetching data, setting segment config, or caching or revalidating                    | [reference/caching.md](reference/caching.md)                     |
+| Writing or changing a server action or a `"use server"` function                     | [reference/server-actions.md](reference/server-actions.md)       |
+| Adding `loading.tsx`, an error boundary, a `<Suspense>` boundary, or PPR             | [reference/streaming.md](reference/streaming.md)                 |
+| Adding a route, a layout, `params`, a parallel or intercepting route, or metadata    | [reference/routing.md](reference/routing.md)                     |
+| Writing a proxy, reading environment variables, or choosing the Node or Edge runtime | [reference/runtime.md](reference/runtime.md)                     |
+| Adding `next/image`, `next/font`, or `next/dynamic`, or trimming the client bundle   | [reference/client-bundle.md](reference/client-bundle.md)         |
 
 ## Out of scope
 

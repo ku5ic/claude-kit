@@ -14,11 +14,13 @@ Default assumption: Python 3.11 or later, type hints required on public function
 
 ## Reference files
 
-| File                                                         | Covers                                                                               |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
-| [reference/typing.md](reference/typing.md)                   | Version-gated hints (`__future__`, PEP 695, `Self`), strictness, mypy/pyright config |
-| [reference/project-layout.md](reference/project-layout.md)   | `src/` layout, `pyproject.toml`, imports, `py.typed` (PEP 561), namespace packages   |
-| [reference/async.md](reference/async.md)                     | `TaskGroup` vs `gather`, `to_thread`, `asyncio.run`, `anyio` cancel scopes           |
-| [reference/errors.md](reference/errors.md)                   | LBYL vs EAFP, exception types, chaining, cleanup, `logger.exception`                 |
-| [reference/common-patterns.md](reference/common-patterns.md) | `itertools`, enums, dataclasses, `functools.cache`, `pathlib`, Pydantic v2           |
-| [reference/anti-patterns.md](reference/anti-patterns.md)     | Free-threaded build, nine language anti-patterns, testing-adjacent pointers          |
+Read every file in this table as soon as this skill loads. A hook blocks every tool call until you have.
+
+| Before                                                                             | Read                                                         |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Adding type hints, or setting mypy or pyright strictness                           | [reference/typing.md](reference/typing.md)                   |
+| Laying out a package, editing `pyproject.toml`, or organizing imports              | [reference/project-layout.md](reference/project-layout.md)   |
+| Writing async code, or running blocking work from it                               | [reference/async.md](reference/async.md)                     |
+| Raising, catching, or chaining an exception                                        | [reference/errors.md](reference/errors.md)                   |
+| Using `itertools`, an enum, a dataclass, `functools.cache`, `pathlib`, or Pydantic | [reference/common-patterns.md](reference/common-patterns.md) |
+| Reviewing Python code                                                              | [reference/anti-patterns.md](reference/anti-patterns.md)     |

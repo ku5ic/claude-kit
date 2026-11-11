@@ -24,11 +24,13 @@ Validate accessibility work against WCAG 2.2 AA explicitly. Never claim conforma
 
 ## Reference files
 
-| File                                                               | Covers                                                                                                     |
-| ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| [reference/anti-patterns.md](reference/anti-patterns.md)           | Eight anti-patterns with severity calls: non-semantic interactives, contrast, missing labels               |
-| [reference/perceivable.md](reference/perceivable.md)               | 1.1, 1.3, 1.4 (alt, semantics, contrast, reflow, text spacing) plus contrast tooling and APCA status       |
-| [reference/operable.md](reference/operable.md)                     | 2.2's 2.4.11, 2.5.7, 2.5.8 with fixes, then 2.1, 2.4, 2.5.3 (keyboard, focus) and SPA focus management     |
-| [reference/understandable.md](reference/understandable.md)         | 2.2's 3.2.6, 3.3.7, 3.3.8, then 3.2, 3.3 (consistent nav, errors, labels), plus 3.3.7 and 3.3.8 techniques |
-| [reference/robust.md](reference/robust.md)                         | 4.1.2 / 4.1.3 (name/role/value, status messages) plus the First and Second Rules of ARIA and APG patterns  |
-| [reference/cannot-be-verified.md](reference/cannot-be-verified.md) | Items requiring runtime / AT testing, plus React / Django template / plain HTML stack notes                |
+Read every file in this table as soon as this skill loads. A hook blocks every tool call until you have.
+
+| Before                                                                                                    | Read                                                               |
+| --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Rating a finding's severity, or reviewing for common accessibility anti-patterns                          | [reference/anti-patterns.md](reference/anti-patterns.md)           |
+| Checking alt text, semantics, color contrast, reflow, or text spacing                                     | [reference/perceivable.md](reference/perceivable.md)               |
+| Checking keyboard access, focus, target size, or SPA focus management                                     | [reference/operable.md](reference/operable.md)                     |
+| Checking consistent navigation, error handling, labels, redundant entry, or authentication                | [reference/understandable.md](reference/understandable.md)         |
+| Checking names, roles, values, status messages, or ARIA and APG patterns                                  | [reference/robust.md](reference/robust.md)                         |
+| Listing what static review cannot verify, or adapting the audit to React, Django templates, or plain HTML | [reference/cannot-be-verified.md](reference/cannot-be-verified.md) |

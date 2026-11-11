@@ -12,9 +12,11 @@ Default assumption: Storybook 10.6 with CSF 3 stories.
 
 ## Reference files
 
-| File                                                     | Covers                                                               |
-| -------------------------------------------------------- | -------------------------------------------------------------------- |
-| [reference/story-ids.md](reference/story-ids.md)         | How an id is formed, the manager and iframe URLs, what renames break |
-| [reference/csf.md](reference/csf.md)                     | Meta, args and `fn()`, `play` functions, `beforeEach`                |
-| [reference/accessibility.md](reference/accessibility.md) | The a11y addon, `parameters.a11y.test`, and CI behavior              |
-| [reference/anti-patterns.md](reference/anti-patterns.md) | Six review-time anti-patterns with severity calls                    |
+Read every file in this table as soon as this skill loads. A hook blocks every tool call until you have.
+
+| Before                                                                          | Read                                                     |
+| ------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| Linking to a story, renaming a story or its title, or building a story URL      | [reference/story-ids.md](reference/story-ids.md)         |
+| Writing or changing a story, its meta, args, a `play` function, or `beforeEach` | [reference/csf.md](reference/csf.md)                     |
+| Configuring the a11y addon, or setting `parameters.a11y.test`                   | [reference/accessibility.md](reference/accessibility.md) |
+| Reviewing Storybook code                                                        | [reference/anti-patterns.md](reference/anti-patterns.md) |

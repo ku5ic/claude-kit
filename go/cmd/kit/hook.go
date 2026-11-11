@@ -30,6 +30,7 @@ var hookChecks = map[string]hook.Check{
 	"plan-mode-context":       hooks.PlanModeContext,
 	"guard-plan":              hooks.GuardPlan,
 	"rules-gate":              hooks.RulesGate,
+	"reference-gate":          hooks.ReferenceGate,
 	"guard-edit":              hooks.GuardEdit,
 	"guard-skills":            hooks.GuardSkills,
 	"guard-slop":              hooks.GuardSlop,
@@ -54,6 +55,8 @@ var hookChecks = map[string]hook.Check{
 	"plan-changes":            hooks.PlanChanges,
 	"stop-checks":             hooks.StopChecks,
 	"turn-tree":               hooks.TurnTree,
+	"bash-edits":              hooks.BashEdits,
+	"edit-seen":               hooks.MarkEditSeen,
 	"review-checks":           hooks.ReviewChecks,
 	"reply-length":            hooks.ReplyLength,
 	"guard-bash":              bashguard.Check,
@@ -62,10 +65,16 @@ var hookChecks = map[string]hook.Check{
 // registry is every `kit hook` name. A test holds it and hooks/hooks.json
 // to each other.
 var registry = map[string]hookDef{
-	"bash-dispatch":      {events: []string{"PreToolUse"}, steps: []string{"guard-bash", "guard-commit", "guard-pr"}},
-	"guard-dispatch":     {events: []string{"PreToolUse"}, run: hooks.GuardDispatch},
-	"rules-gate":         {events: []string{"PreToolUse"}},
-	"post-edit-dispatch": {events: []string{"PostToolUse"}, steps: []string{"sanitize-output", "format-dispatch", "plan-tick"}},
+	"bash-dispatch":  {events: []string{"PreToolUse"}, steps: []string{"guard-bash", "guard-commit", "guard-pr"}},
+	"guard-dispatch": {events: []string{"PreToolUse"}, run: hooks.GuardDispatch},
+	// reference-gate runs second: until the rules load, its deny names files
+	// the model has no reason to trust.
+	"gate-dispatch":      {events: []string{"PreToolUse"}, steps: []string{"rules-gate", "reference-gate"}},
+	"rules-gate":         {},
+	"reference-gate":     {},
+	"post-edit-dispatch": {events: []string{"PostToolUse"}, steps: []string{"sanitize-output", "format-dispatch", "edit-seen", "plan-tick"}},
+	"edit-seen":          {},
+	"bash-edits":         {events: []string{"PostToolUse"}},
 	"log-skills":         {events: []string{"PostToolUse", "UserPromptExpansion"}},
 	"plan-mode-context":  {events: []string{"PostToolUse"}},
 	"prompt-dispatch":    {events: []string{"UserPromptSubmit"}, steps: []string{"turn-tree", "plan-mode-context", "reply-length", "chat-slop"}},

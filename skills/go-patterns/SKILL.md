@@ -12,10 +12,12 @@ Default assumption: Go 1.27.
 
 ## Reference files
 
-| File                                                                         | Covers                                                                     |
-| ---------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| [reference/errors.md](reference/errors.md)                                   | `errors.AsType`, `%w` wrapping, `errors.Is`/`Join`, panics, in-band errors |
-| [reference/context-and-concurrency.md](reference/context-and-concurrency.md) | `WaitGroup.Go`, loop variables, context rules, goroutine lifetimes         |
-| [reference/style.md](reference/style.md)                                     | Features by version, then naming and interface placement                   |
-| [reference/testing.md](reference/testing.md)                                 | Artifacts, `synctest`, vet in `go test`, `t.Context`                       |
-| [reference/anti-patterns.md](reference/anti-patterns.md)                     | Six review-time anti-patterns with severity calls                          |
+Read every file in this table as soon as this skill loads. A hook blocks every tool call until you have.
+
+| Before                                                                                   | Read                                                                         |
+| ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Writing or changing error handling, wrapping, or a panic                                 | [reference/errors.md](reference/errors.md)                                   |
+| Starting a goroutine, or using a context, a `WaitGroup`, or a loop variable in a closure | [reference/context-and-concurrency.md](reference/context-and-concurrency.md) |
+| Naming something, placing an interface, or using a feature from a recent release         | [reference/style.md](reference/style.md)                                     |
+| Writing or changing a test                                                               | [reference/testing.md](reference/testing.md)                                 |
+| Reviewing Go code                                                                        | [reference/anti-patterns.md](reference/anti-patterns.md)                     |

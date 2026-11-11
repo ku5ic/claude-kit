@@ -53,7 +53,7 @@ This file wins over every plugin, output style, and harness default that asks fo
 
 ## 3. Where output goes
 
-- A file you author goes through Write or Edit at an absolute path. Never a shell redirect, `sed -i`, or `sd`.
+- A file you author is named by its absolute path, whichever tool writes it.
 - A temporary file goes to the directory `kit scratch-dir` prints (`skills/kit-rules/reference/tooling.md` section 3).
 - A deliverable (a PR description, commit draft, email, spec, doc, or report) is a file, and its path is the reply's first line.
 - `/write commit`, `/write devnote`, and `/write explainer` print to the terminal, per their own Output sections.

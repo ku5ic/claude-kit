@@ -16,12 +16,14 @@ import (
 )
 
 // The kit's logs, the skills log's events that mark a skill as only
-// surfaced, and a line's ts layout.
+// surfaced, its event for a compaction, after which no earlier reference
+// read counts, and a line's ts layout.
 const (
 	Skills              = "skills"
 	Guards              = "guards"
 	EventRequiredSkill  = "required-skill"
 	EventSuggestedSkill = "suggested-skill"
+	EventCompacted      = "compacted"
 	TimeLayout          = "2006-01-02T15:04:05Z"
 )
 

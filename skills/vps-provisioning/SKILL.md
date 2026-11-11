@@ -12,12 +12,14 @@ Default assumption: Debian 13 (Trixie), Ubuntu 26.04 or 24.04 LTS.
 
 ## Reference files
 
-| File                                           | Covers                                                                        |
-| ---------------------------------------------- | ----------------------------------------------------------------------------- |
-| [initial-setup.md](reference/initial-setup.md) | Non-root sudo user, SSH key auth, disabling root/password login               |
-| [firewall.md](reference/firewall.md)           | ufw default policy, allow/deny rules, rate limiting                           |
-| [nginx.md](reference/nginx.md)                 | Server blocks, HTTPS redirect, reverse proxy, gzip, security headers          |
-| [ssl-tls.md](reference/ssl-tls.md)             | certbot 4.0.0 renewal threshold, issuance, auto-renewal, renewal hooks        |
-| [systemd.md](reference/systemd.md)             | Unit file structure, Type values, Restart, EnvironmentFile, journald          |
-| [hardening.md](reference/hardening.md)         | fail2ban 1.1.1 `sshd` backend, jails, unattended-upgrades, sshd config checks |
-| [anti-patterns.md](reference/anti-patterns.md) | Thirteen review-time anti-patterns with severity calls                        |
+Read every file in this table as soon as this skill loads. A hook blocks every tool call until you have.
+
+| Before                                                                                             | Read                                           |
+| -------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| Setting up a fresh server: the sudo user, SSH keys, or disabling root and password login           | [initial-setup.md](reference/initial-setup.md) |
+| Writing or changing ufw rules, the default policy, or rate limiting                                | [firewall.md](reference/firewall.md)           |
+| Writing or changing an nginx server block, an HTTPS redirect, a reverse proxy, or security headers | [nginx.md](reference/nginx.md)                 |
+| Issuing or renewing a certificate with certbot, or writing a renewal hook                          | [ssl-tls.md](reference/ssl-tls.md)             |
+| Writing or changing a systemd unit, its restart policy, or its environment file                    | [systemd.md](reference/systemd.md)             |
+| Configuring fail2ban, unattended-upgrades, or sshd hardening                                       | [hardening.md](reference/hardening.md)         |
+| Reviewing provisioning code or server config                                                       | [anti-patterns.md](reference/anti-patterns.md) |

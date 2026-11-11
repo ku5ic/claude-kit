@@ -23,17 +23,19 @@ In claude.ai chat, no guard runs. The word lists and tiers are in `reference/lex
 
 Fixing the first without the second makes the text harder to spot and no better to read. A flagged sentence gets rewritten around a fact, never patched with a synonym: [reference/rewrite.md](reference/rewrite.md).
 
-| Writing                                   | Read                                                                                             |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| Anything, first time                      | [reference/principles.md](reference/principles.md), [reference/rewrite.md](reference/rewrite.md) |
-| Prose a scan or guard flagged             | [reference/content-and-grammar.md](reference/content-and-grammar.md)                             |
-| A commit message, PR text, a review reply | [reference/commits-and-prs.md](reference/commits-and-prs.md)                                     |
-| Code comments and docstrings              | [reference/code-comments.md](reference/code-comments.md)                                         |
-| A README or docs page                     | [reference/docs-and-readme.md](reference/docs-and-readme.md)                                     |
-| A chat reply or a subagent report         | [reference/chat.md](reference/chat.md)                                                           |
-| UI: components, CSS, copy in the UI       | [reference/design.md](reference/design.md)                                                       |
-| A hit that looks wrong                    | [reference/false-positives.md](reference/false-positives.md)                                     |
-| Second-guessing a rewrite as too stiff    | [reference/human-signals.md](reference/human-signals.md)                                         |
+Read every file in this table as soon as this skill loads. A hook blocks every tool call until you have.
+
+| Before                                               | Read                                                                                             |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Writing any prose for the first time this session    | [reference/principles.md](reference/principles.md), [reference/rewrite.md](reference/rewrite.md) |
+| Rewriting prose a scan or guard flagged              | [reference/content-and-grammar.md](reference/content-and-grammar.md)                             |
+| Writing a commit message, PR text, or a review reply | [reference/commits-and-prs.md](reference/commits-and-prs.md)                                     |
+| Writing a code comment or docstring                  | [reference/code-comments.md](reference/code-comments.md)                                         |
+| Writing a README or docs page                        | [reference/docs-and-readme.md](reference/docs-and-readme.md)                                     |
+| Writing a chat reply or a subagent report            | [reference/chat.md](reference/chat.md)                                                           |
+| Writing UI, its CSS, or copy in it                   | [reference/design.md](reference/design.md)                                                       |
+| Acting on a hit that looks wrong                     | [reference/false-positives.md](reference/false-positives.md)                                     |
+| Undoing a rewrite because it reads stiff             | [reference/human-signals.md](reference/human-signals.md)                                         |
 
 The word lists, tiers, and thresholds live only in the lexicon; these references explain them and never copy them.
 

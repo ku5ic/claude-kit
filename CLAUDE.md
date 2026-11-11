@@ -7,6 +7,7 @@ Working on the kit itself. Build, test, and release steps live in README.md "Dev
 Every behavior the kit applies everywhere has exactly one owner, listed below. Before adding or changing guidance, find its owner here. Change it there, or nowhere. Every other file links to the owner or says nothing about the topic. It never restates, paraphrases, or reminds.
 
 - Data and mechanics belong to code: `kit.yml` and the `kit` binary. Prose never re-describes what a subcommand does.
+- `kit.yml` stays small enough for a person to read. Data another file already holds is derived from that file, and a new key needs the author's yes first.
 - When two files disagree, the owner wins and the other file is fixed.
 - A topic missing from this table gets a row before it gets text anywhere else.
 
@@ -42,6 +43,7 @@ Every behavior the kit applies everywhere has exactly one owner, listed below. B
 | A design token a UI edit uses that the project never defines, and contrast ratios                                                                                   | `go/internal/design`                                                                                          |
 | Telling an MCP tool that writes from one that only reads                                                                                                            | `go/internal/connector`, its verbs in `kit.yml` `connectors:`                                                 |
 | Checking a plan's, subagent report's, scratch report's, or post's claims against the session's evidence and tools before they're presented                          | When: `go/internal/hooks/claims.go`. How: `agents/claim-checker.md`. The hook's own run: `go/internal/claims` |
+| Which skill references get read before work: each skill's "Before \| Read" table                                                                                    | The gate: `go/internal/hooks/referencegate.go`                                                                |
 | Whether a plan's or a gatherer report's `file:line` citations exist                                                                                                 | When: `go/internal/hooks/citations.go`. How: `go/internal/cite`                                               |
 | A deliverable over its word budget for its kind                                                                                                                     | Budgets: `kit.yml` `size_budgets:`. The check: `go/internal/hooks/size.go`                                    |
 | What a gatherer is asked, and when a plan step asks it                                                                                                              | `skills/investigate`, "Gatherer questions"                                                                    |

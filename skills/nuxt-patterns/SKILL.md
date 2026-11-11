@@ -12,11 +12,13 @@ Default assumption: Nuxt 4 (current stable, latest 4.6.x) with Universal Renderi
 
 ## Reference files
 
-| File                                                     | Covers                                                                                                              |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| [reference/anti-patterns.md](reference/anti-patterns.md) | Six anti-patterns with severity calls: module-level state, `$fetch` in setup, `process.env`, server imports, `lazy` |
-| [reference/rendering.md](reference/rendering.md)         | SSR, SPA, SSG, hybrid via `routeRules`, edge rendering, prerender mismatches                                        |
-| [reference/data-fetching.md](reference/data-fetching.md) | `$fetch`, `useFetch`, `useAsyncData`, keys and dedup, lazy fetching                                                 |
-| [reference/state.md](reference/state.md)                 | `useState` SSR-safety, module-level leakage, Pinia, composables                                                     |
-| [reference/routing.md](reference/routing.md)             | File-based routes, layouts, route middleware vs server middleware, `definePageMeta`                                 |
-| [reference/server.md](reference/server.md)               | Nitro and h3, server routes, validation, `server/` directories, `runtimeConfig` and env vars                        |
+Read every file in this table as soon as this skill loads. A hook blocks every tool call until you have.
+
+| Before                                                                         | Read                                                     |
+| ------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| Reviewing Nuxt code                                                            | [reference/anti-patterns.md](reference/anti-patterns.md) |
+| Choosing a rendering mode, or setting `routeRules` or prerendering             | [reference/rendering.md](reference/rendering.md)         |
+| Fetching data with `$fetch`, `useFetch`, or `useAsyncData`                     | [reference/data-fetching.md](reference/data-fetching.md) |
+| Adding shared state, `useState`, a Pinia store, or a composable                | [reference/state.md](reference/state.md)                 |
+| Adding a page, a layout, route middleware, or `definePageMeta`                 | [reference/routing.md](reference/routing.md)             |
+| Writing a server route, Nitro or h3 code, `runtimeConfig`, or reading env vars | [reference/server.md](reference/server.md)               |

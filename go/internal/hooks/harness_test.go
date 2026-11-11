@@ -75,9 +75,15 @@ var entries = map[string]func(*hook.Hook) int{
 	"stop-checks":             single("stop-checks", StopChecks),
 	"turn-tree":               single("turn-tree", TurnTree),
 	"rules-gate":              single("rules-gate", RulesGate),
+	"reference-gate":          single("reference-gate", ReferenceGate),
+	"bash-edits":              single("bash-edits", BashEdits),
+	"edit-seen":               single("edit-seen", MarkEditSeen),
 	"inject-context":          single("inject-context", InjectContext),
 	"inject-subagent-context": single("inject-subagent-context", InjectSubagentContext),
 	// As cmd/kit's registry composes them.
+	"gate-dispatch": func(h *hook.Hook) int {
+		return hook.Run(h, hook.NamedCheck{Name: "rules-gate", Check: RulesGate}, hook.NamedCheck{Name: "reference-gate", Check: ReferenceGate})
+	},
 	"handback-dispatch": func(h *hook.Hook) int {
 		return hook.Run(h, hook.NamedCheck{Name: "guard-handback", Check: GuardHandback}, hook.NamedCheck{Name: "check-size", Check: CheckSize}, hook.NamedCheck{Name: "check-citations", Check: CheckCitations},
 			hook.NamedCheck{Name: "verify-claims", Check: VerifyClaims})

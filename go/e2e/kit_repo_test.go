@@ -188,6 +188,30 @@ func TestKitRepo(t *testing.T) {
 		}
 	})
 
+	t.Run("a skill with a Before | Read table links every reference it has", func(t *testing.T) {
+		skills, err := filepath.Glob(filepath.Join(kitRoot, "skills", "*", "SKILL.md"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		gated := 0
+		for _, skillMD := range skills {
+			text := Read(t, skillMD)
+			if !strings.Contains(text, "| Before ") {
+				continue
+			}
+			gated++
+			refs, _ := filepath.Glob(filepath.Join(filepath.Dir(skillMD), "reference", "*.md"))
+			for _, ref := range refs {
+				if !strings.Contains(text, "](reference/"+filepath.Base(ref)+")") {
+					t.Errorf("%s doesn't link reference/%s, so reference-gate never asks for it", skillMD, filepath.Base(ref))
+				}
+			}
+		}
+		if gated == 0 {
+			t.Fatal("no skill has a Before | Read table")
+		}
+	})
+
 	t.Run("the tooling rule's CLI table names every kit.yml tool", func(t *testing.T) {
 		cfg, _, err := config.Load(config.Paths{Base: filepath.Join(kitRoot, "kit.yml"), Overlay: filepath.Join(t.TempDir(), "none.yml")})
 		if err != nil {

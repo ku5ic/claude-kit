@@ -11,12 +11,13 @@ import (
 
 // LogSkills appends one skills.jsonl line per skill activation: a typed
 // /skill (UserPromptExpansion), the Skill tool, or a Read of a SKILL.md,
-// which is what guard-skills checks the log for.
+// which is what guard-skills checks the log for, or of a skill reference,
+// which is what reference-gate checks it for.
 func LogSkills(h *hook.Hook) error {
 	// Cheap substring gate before parsing; widen it first if a new shape
 	// is added, or nothing logs and guard-skills blocks everything mapped.
 	raw := string(h.Payload.Raw)
-	if !strings.Contains(raw, "SKILL.md") && !strings.Contains(raw, "Skill") && !strings.Contains(raw, "slash_command") {
+	if !strings.Contains(raw, "SKILL.md") && !strings.Contains(raw, "Skill") && !strings.Contains(raw, "slash_command") && !strings.Contains(raw, "/reference/") {
 		return nil
 	}
 	if h.Payload.Err != nil {
@@ -36,7 +37,7 @@ func LogSkills(h *hook.Hook) error {
 		case "Skill":
 		case "Read":
 			file := p.FilePath()
-			if !guard.Glob("*/skills/*/SKILL.md", file) {
+			if !guard.Glob("*/skills/*/SKILL.md", file) && !guard.Glob("*/skills/*/reference/*.md", file) {
 				return nil
 			}
 		default:

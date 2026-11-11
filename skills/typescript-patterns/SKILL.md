@@ -12,10 +12,12 @@ Default assumption: a TypeScript project with `strict` mode enabled.
 
 ## Reference files
 
-| File                                                             | Covers                                                                                                     |
-| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| [reference/strictness.md](reference/strictness.md)               | Flags by version, tsconfig review, turning flags on one at a time                                          |
-| [reference/type-expressions.md](reference/type-expressions.md)   | `const` type parameters, `satisfies`, variance, `unknown` vs `any`, unions, branded types, common patterns |
-| [reference/narrowing.md](reference/narrowing.md)                 | `typeof` / `in` / `instanceof`, predicates, `assertNever`                                                  |
-| [reference/module-boundaries.md](reference/module-boundaries.md) | `import type`, project references, circular imports, barrel files                                          |
-| [reference/anti-patterns.md](reference/anti-patterns.md)         | Twelve review-time anti-patterns with severity calls                                                       |
+Read every file in this table as soon as this skill loads. A hook blocks every tool call until you have.
+
+| Before                                                                                                   | Read                                                             |
+| -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Reviewing or changing a tsconfig, or turning on a compiler flag                                          | [reference/strictness.md](reference/strictness.md)               |
+| Writing a type: a generic, a union, a branded type, `satisfies`, or choosing between `unknown` and `any` | [reference/type-expressions.md](reference/type-expressions.md)   |
+| Narrowing a value with `typeof`, `in`, `instanceof`, a type predicate, or an exhaustive check            | [reference/narrowing.md](reference/narrowing.md)                 |
+| Adding an import, a barrel file, or a project reference, or untangling a circular import                 | [reference/module-boundaries.md](reference/module-boundaries.md) |
+| Reviewing TypeScript code                                                                                | [reference/anti-patterns.md](reference/anti-patterns.md)         |

@@ -14,14 +14,16 @@ Default assumption: Django 5.2 LTS.
 
 ## Reference files
 
-| File                                               | Covers                                                                                     |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| [models.md](reference/models.md)                   | null vs blank, on_delete, related_name, Meta.constraints, Meta.indexes, managers           |
-| [orm.md](reference/orm.md)                         | select_related, prefetch_related, F(), Q(), .only()/.defer(), .iterator(), bulk operations |
-| [views-and-forms.md](reference/views-and-forms.md) | CBV vs FBV, thin views, get_object_or_404, ModelForm, clean(), redirect after POST         |
-| [templates.md](reference/templates.md)             | Template inheritance, auto-escaping, \|safe risks, {% csrf_token %}, @csrf_exempt          |
-| [settings.md](reference/settings.md)               | Split settings, DEBUG, ALLOWED_HOSTS, SECRET_KEY, SECURE\_\* family, django-environ        |
-| [testing.md](reference/testing.md)                 | pytest-django, @pytest.mark.django_db, Factory Boy, model_bakery, --reuse-db               |
-| [migrations.md](reference/migrations.md)           | Naming, atomic behavior, RunPython, makemigrations --check, squashing                      |
-| [admin.md](reference/admin.md)                     | ModelAdmin, list_display, list_select_related, search_fields, permissions, production use  |
-| [anti-patterns.md](reference/anti-patterns.md)     | Nine anti-patterns with severity calls                                                     |
+Read every file in this table as soon as this skill loads. A hook blocks every tool call until you have.
+
+| Before                                                                             | Read                                               |
+| ---------------------------------------------------------------------------------- | -------------------------------------------------- |
+| Defining a model, its fields, constraints, indexes, or a manager                   | [models.md](reference/models.md)                   |
+| Writing a queryset, or using `F()`, `Q()`, `prefetch_related`, or a bulk operation | [orm.md](reference/orm.md)                         |
+| Writing a view or a form                                                           | [views-and-forms.md](reference/views-and-forms.md) |
+| Writing or changing a template                                                     | [templates.md](reference/templates.md)             |
+| Changing settings, secrets, or security headers                                    | [settings.md](reference/settings.md)               |
+| Writing or changing a test                                                         | [testing.md](reference/testing.md)                 |
+| Writing or squashing a migration                                                   | [migrations.md](reference/migrations.md)           |
+| Registering or changing a `ModelAdmin`                                             | [admin.md](reference/admin.md)                     |
+| Reviewing Django code                                                              | [anti-patterns.md](reference/anti-patterns.md)     |

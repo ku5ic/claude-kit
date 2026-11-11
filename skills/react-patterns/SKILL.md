@@ -13,10 +13,12 @@ Default assumption: React 19 with the modern (concurrent) renderer.
 
 ## Reference files
 
-| File                                                     | Covers                                                                                  |
-| -------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| [reference/correctness.md](reference/correctness.md)     | `use()`, Rules of Hooks, dependency arrays, keys, effect cleanup, conditional rendering |
-| [reference/performance.md](reference/performance.md)     | `useOptimistic`, memoization, React Compiler, virtualization, lazy init, context        |
-| [reference/structure.md](reference/structure.md)         | Actions, controlled vs uncontrolled, derived state, prop drilling, effects vs handlers  |
-| [reference/anti-patterns.md](reference/anti-patterns.md) | Seven review-time anti-patterns with severity calls                                     |
-| [reference/when-to-split.md](reference/when-to-split.md) | When to split a component, and what doesn't justify a split                             |
+Read every file in this table as soon as this skill loads. A hook blocks every tool call until you have.
+
+| Before                                                                | Read                                                     |
+| --------------------------------------------------------------------- | -------------------------------------------------------- |
+| Writing a hook, an effect, a list with keys, or conditional rendering | [reference/correctness.md](reference/correctness.md)     |
+| Memoizing, optimizing a render, or adding context                     | [reference/performance.md](reference/performance.md)     |
+| Handling a form or an action, or deciding where state lives           | [reference/structure.md](reference/structure.md)         |
+| Reviewing React code                                                  | [reference/anti-patterns.md](reference/anti-patterns.md) |
+| Splitting a component, or deciding whether to                         | [reference/when-to-split.md](reference/when-to-split.md) |

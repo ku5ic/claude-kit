@@ -25,6 +25,9 @@ func TurnTree(h *hook.Hook) error {
 	if file == "" {
 		return nil
 	}
+	// bash-edits diffs from the turn's start until a command runs, so an
+	// edit made between turns, by the user, is never charged to Claude.
+	_ = os.Remove(bashTreeFile(h, root))
 	tree, err := git.Snapshot(root)
 	if err != nil {
 		// A stale snapshot would charge this turn with an earlier one's changes.

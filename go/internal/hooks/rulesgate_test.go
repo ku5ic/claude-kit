@@ -110,6 +110,17 @@ func TestRulesGate(t *testing.T) {
 		k.kitYML("")
 		call(k, "Bash", "", bash).Allowed(t)
 	})
+	t.Run("every global_skills skill must load too, named in the same deny", func(t *testing.T) {
+		t.Parallel()
+		k := setup(t, mainLoad+"\n")
+		k.overlay("global_skills: [slop-patterns]\n")
+		r := call(k, "Bash", "", bash)
+		r.Denied(t)
+		r.Has(t, "load the slop-patterns skill first")
+		call(k, "Read", "", map[string]any{"file_path": "/plugin/skills/slop-patterns/SKILL.md"}).Allowed(t)
+		testutil.Write(t, k.paths.LogFile(kitlog.Skills), mainLoad+"\n"+`{"event":"PostToolUse","session_id":"s1","skill_file":"kit:slop-patterns","tool_name":"Skill"}`+"\n")
+		call(k, "Bash", "", bash).Allowed(t)
+	})
 	t.Run("rules-gate in disabled_rules lets it through", func(t *testing.T) {
 		t.Parallel()
 		k := setup(t, "")

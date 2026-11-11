@@ -13,9 +13,11 @@ Default assumption: a TypeScript client on Apollo Client 4.3 with documents type
 
 ## Reference files
 
-| File                                                     | Covers                                                                               |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| [reference/documents.md](reference/documents.md)         | Operation names, variables, fragments and colocation, identifier fields              |
-| [reference/codegen.md](reference/codegen.md)             | Client preset config, the `graphql()` function, fragment masking                     |
-| [reference/apollo-client.md](reference/apollo-client.md) | v4 entry points, errors, and `LocalState`; `errorPolicy`, fetch policies, cache keys |
-| [reference/anti-patterns.md](reference/anti-patterns.md) | Six review-time anti-patterns with severity calls                                    |
+Read every file in this table as soon as this skill loads. A hook blocks every tool call until you have.
+
+| Before                                                                                | Read                                                     |
+| ------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| Writing or changing an operation, a variable, or a fragment                           | [reference/documents.md](reference/documents.md)         |
+| Configuring codegen, or using the `graphql()` function or fragment masking            | [reference/codegen.md](reference/codegen.md)             |
+| Writing or changing Apollo Client code: imports, errors, fetch policies, or the cache | [reference/apollo-client.md](reference/apollo-client.md) |
+| Reviewing GraphQL client code                                                         | [reference/anti-patterns.md](reference/anti-patterns.md) |

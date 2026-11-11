@@ -81,6 +81,10 @@ func written(p *hook.Payload, path string) (before, after string, ok bool) {
 	switch p.String("tool_name") {
 	case "Write":
 		return before, p.String("tool_input.content"), true
+	case bashEditTool:
+		// The command already ran: the file holds after, and the snapshot
+		// before it gave before.
+		return p.String("tool_input.before"), p.String("tool_input.content"), true
 	case "Edit", "MultiEdit":
 		after = before
 		for _, e := range p.Edits() {
