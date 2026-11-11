@@ -1,18 +1,11 @@
 # Frontend (React, Next.js)
 
-## Contents
-
-- [XSS and injection](#xss-and-injection)
-- [Client / server boundary (Next.js)](#client--server-boundary-nextjs)
-- [Auth and sessions](#auth-and-sessions)
-- [Content Security Policy](#content-security-policy)
-
 ## XSS and injection
 
-- `dangerouslySetInnerHTML`: every occurrence. Must sanitize with DOMPurify or equivalent, or remove.
-- URLs in `href`, `src`, `action`, `formAction`: validate scheme. No `javascript:` URLs from user input. No unchecked `data:` URIs.
-- Open redirects: any `router.push(userValue)`, `window.location = userValue`, server action redirect with user input. Must validate against an allowlist.
-- Template injection: variables interpolated into raw HTML strings, Markdown renderers without sanitization.
+- `dangerouslySetInnerHTML`: check every occurrence. Sanitize with DOMPurify or an equivalent, or remove it.
+- URLs in `href`, `src`, `action`, `formAction`: validate the scheme. Never allow `javascript:` URLs from user input or unchecked `data:` URIs.
+- Check `router.push(userValue)`, `window.location = userValue`, and server action redirects with user input for open redirects, and validate the target against an allowlist.
+- Check for template injection: variables interpolated into raw HTML strings, and Markdown renderers without sanitization.
 
 ## Client / server boundary (Next.js)
 
@@ -21,39 +14,24 @@ next-app-router-patterns owns these: `NEXT_PUBLIC_*` secrets (`reference/runtime
 ## Auth and sessions
 
 - Session cookies: `httpOnly`, `secure`, `sameSite`. Audit Set-Cookie headers or middleware.
-- CSRF: double-submit cookie, origin check, or sameSite strict for cookie-based auth. Missing on mutations.
-- JWT: verify signature, check `exp`, `iss`, `aud`. Do not trust decoded claims as auth.
-- **State-changing GET requests are a defect** (RFC 9110: GET, HEAD, OPTIONS are safe methods; CSRF defenses generally exempt them, so a GET that mutates state has neither protection nor convention on its side).
-- **Session fixation**: regenerate the session ID at the auth boundary (login, privilege change). OWASP Session Management cheat sheet calls this out as mandatory.
-- **JWT versus server-managed sessions**: The OWASP JWT cheat sheet says using JWT for user sessions "is frowned upon" and suggests "a plain session system" instead. JWT belongs in genuinely stateless contexts (token federation across services); for single-tenant first-party login flows, sessions are simpler and safer.
-- **Refresh-token rotation**: when JWT is the right call, rotate the refresh token on every use and revoke any reused refresh token (treat reuse as theft). Persist a per-token state for revocation; pure stateless JWT cannot revoke until expiry.
-- **JWT vulnerabilities to flag**:
-  - `alg: none` attack: `failure`.
-  - Weak HMAC secrets allowing offline cracking: `failure`.
+- Cookie-based auth: flag a mutation that has no CSRF defense (double-submit cookie, origin check, or `sameSite` strict).
+- JWT: verify the signature, and check `exp`, `iss`, `aud`. Never trust decoded claims as auth.
+- A state-changing GET request is a defect. RFC 9110 makes GET, HEAD, and OPTIONS safe methods.
+- Session fixation: always regenerate the session ID at the auth boundary (login, privilege change).
+- Single-tenant first-party login flows: use a plain server-managed session, not JWT. Keep JWT for genuinely stateless contexts, such as token federation across services.
+- When JWT is the right call: rotate the refresh token on every use, revoke any reused refresh token as theft, and persist per-token state for revocation.
+- JWT vulnerabilities to flag:
+  - `alg: none` accepted: `failure`.
+  - A weak HMAC secret that allows offline cracking: `failure`.
   - Missing `exp`: `failure`.
-  - Missing revocation mechanism: at least `warning` for any high-stakes session.
+  - No revocation mechanism on a high-stakes session: at least `warning`.
 
 ## Content Security Policy
 
-- `unsafe-inline` in `script-src`: flag. Indicates a gap.
-- `unsafe-eval`: flag.
-- Missing CSP header entirely: flag.
-
-### Strict CSP patterns
-
-The current best-practice CSP is "strict CSP" using nonces or hashes per MDN. The Next.js docs document the corresponding pattern for App Router applications.
-
-- **Nonce-based** (recommended for server-rendered apps): the server generates a fresh random value per response and includes it in `script-src 'nonce-XXXX'` and on every `<script nonce="XXXX">` tag. Browser only loads scripts whose nonce matches. The nonce MUST be unique per response and unpredictable.
-- **`strict-dynamic`**: paired with a nonce or hash, allows scripts loaded by a trusted script to load further scripts without each carrying its own nonce. Practical for apps with bundler-emitted dynamic loads.
-- **Hash-based** (`sha256-...`, `sha384-...`, `sha512-...`): suits static pages because both CSP and content can stay constant. External scripts must include the matching `integrity` attribute.
-
-When a directive contains nonce or hash expressions, browsers IGNORE `unsafe-inline`. That is the migration path: keep `unsafe-inline` only as a fallback for older browsers, and add the nonce or hash to the same directive so modern browsers enforce strict policy.
-
-Example minimal strict CSP:
-
-```text
-Content-Security-Policy:
-  script-src 'nonce-{RANDOM}' 'strict-dynamic';
-  object-src 'none';
-  base-uri 'none';
-```
+- Flag `unsafe-inline` in `script-src`, `unsafe-eval`, and a missing CSP header.
+- Use a strict CSP built on nonces or hashes. For a Next.js App Router app, follow the pattern in the Next.js docs.
+- Server-rendered apps: nonce-based. Generate a fresh, unpredictable random value per response, and put it in `script-src 'nonce-XXXX'` and on every `<script nonce="XXXX">` tag.
+- Bundler-emitted dynamic loads: pair the nonce or hash with `strict-dynamic`, which lets a trusted script load further scripts that carry no nonce of their own.
+- Static pages: hash-based (`sha256-...`, `sha384-...`, `sha512-...`). External scripts must carry the matching `integrity` attribute.
+- Migrating off `unsafe-inline`: add the nonce or hash to the same directive, and keep `unsafe-inline` only as a fallback for older browsers. Browsers ignore `unsafe-inline` in a directive that has a nonce or hash.
+- A minimal strict CSP: `script-src 'nonce-{RANDOM}' 'strict-dynamic'; object-src 'none'; base-uri 'none';`.

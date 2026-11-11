@@ -21,6 +21,14 @@ Checked: 2026-11-10 against https://slsa.dev/spec/v1.2/build-track-basics, https
 - Django 6.0: built-in CSP middleware (`SECURE_CSP`, `csp_nonce`); 6.1 adds the `{% csp_nonce_attr %}` tag.
 - npm 12 (12.2.2): current CLI docs; v10 and v11 docs marked Legacy. Also corrected: gitleaks `detect` is deprecated for `gitleaks git`, the OWASP JWT cheat sheet moved, and its session advice is quoted.
 
+### Left to linters
+
+Checked: 2026-11-11 with ruff 0.17.4 defaults (`uvx ruff check --isolated`, no config, no `--select`), ESLint 10.14.0 with `js.configs.recommended` from `@eslint/js` 10.0.1, go vet from Go 1.27.0, and golangci-lint 2.14.0 defaults, on a probe in each language. From `S`, ruff's default set has only `S102`, `S110`, and `S112`, and no rule was dropped.
+
+ruff `UP031` reports the `%`-formatted SQL strings, but only as old-style formatting, and its suggested fix keeps the injection, so the SQL rule stays.
+
+Not caught by defaults, so kept: SQL built by concatenation, an f-string, or `%` in Python (`S608` is off), JS, or Go (go vet and golangci-lint defaults report nothing on `db.Query` with `+` or `fmt.Sprintf`), a hardcoded password or API key (`S105` is off), `mark_safe()` (`S308` is off), `raw()`, `extra()`, and `RawSQL` (`S611` is off), `.filter(**request.GET)`, an `innerHTML` assignment, a `javascript:` URL (`no-script-url` isn't in recommended), `window.location = userValue`, and a token in `localStorage`.
+
 ## reference/anti-patterns.md
 
 ### References

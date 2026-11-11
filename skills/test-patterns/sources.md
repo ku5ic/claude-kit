@@ -27,6 +27,12 @@ Checked: 2026-11-10 against https://pypi.org/project/pytest/, https://docs.pytes
 - MSW 3 (latest 3.0.4): `http` and `HttpResponse` now import from `msw/http`. MSW 2 had replaced `rest` and the `req, res, ctx` signature with them.
 - Jest 30 (2025-06): `--testPathPattern` renamed `--testPathPatterns`; `expect` aliases removed. pytest 9 (2025-11; 9.2.0 current): `PytestRemovedIn9Warning` is an error; since 9.1.0, fixture visibility decides precedence over registration order.
 
+### Left to linters
+
+Checked: 2026-11-11 with ruff 0.17.4 defaults (`uvx ruff check --isolated`, no config, no `--select`; the default `PT` set is `PT010`, `PT014`, `PT020`, `PT025`, `PT026`, `PT031`), ESLint 10.14.0 with `js.configs.recommended` from `@eslint/js` 10.0.1, and TypeScript 7.0.2 (`tsc --strict --noEmit`), on probe `test_*.py`, `.test.js`, and `.test.ts` files. No rule was dropped, because no default check reported any test-patterns rule.
+
+Not caught by defaults, so kept: an unawaited `expect(...).resolves`, `findBy*`, or `waitFor` (neither ESLint nor tsc flags a floating promise), a `.then` chain in a test, `findBy*` inside `waitFor`, a mutable variable reset in `beforeEach`, a `unittest.TestCase` subclass in a pytest codebase (`PT009` and `PT027` are off), `parametrize` without `id`s, a `session`-scoped fixture holding mutable state, `os.environ` set without `monkeypatch`, unseeded `random` and `time.time()` in a test (`S311` is off), a real network call in a test, an unawaited coroutine in an async test.
+
 ## reference/anti-patterns.md
 
 ### References
@@ -47,15 +53,15 @@ Checked: 2026-11-10 against https://pypi.org/project/pytest/, https://docs.pytes
 
 ### Claims
 
-- Property-based testing for invariants, **fast-check** for JavaScript / TypeScript. QuickCheck-in...: https://github.com/dubzzz/fast-check
-- Property-based testing for invariants, **hypothesis** for Python. The canonical property-based l...: https://hypothesis.readthedocs.io/en/latest/
+- fast-check for JavaScript / TypeScript, shrinking a failing case to a minimal counterexample: https://github.com/dubzzz/fast-check
+- hypothesis for Python: https://hypothesis.readthedocs.io/en/latest/
 
 ## reference/principles.md
 
 ### Claims
 
-- Test pyramid vs testing trophy, **Martin Fowler's Test Pyramid**:: https://martinfowler.com/articles/practical-test-pyramid.html
-- Test pyramid vs testing trophy, **Kent C. Dodds's Testing Trophy**:: https://kentcdodds.com/blog/the-testing-trophy-and-testing-classifications
+- Martin Fowler's Test Pyramid and its granularity quote: https://martinfowler.com/articles/practical-test-pyramid.html
+- Kent C. Dodds's Testing Trophy and its confidence quote: https://kentcdodds.com/blog/the-testing-trophy-and-testing-classifications
 
 ## reference/pytest.md
 
@@ -84,6 +90,6 @@ Checked: 2026-11-10 against https://pypi.org/project/pytest/, https://docs.pytes
 
 ### Claims
 
-- Choosing between Vitest and Jest, **Vitest**: Vite-native test runner with a Jest-compatibl...: https://vitest.dev/
-- Choosing between Vitest and Jest, **Jest**: the older, broader-ecosystem incumbent. Still a...: https://jestjs.io/
-- MSW for HTTP mocking, **Mock Service Worker (MSW)**: intercepts at the Service...: https://mswjs.io/
+- Vitest v5.x, a Jest-compatible API, needs only the Vite transform pipeline: https://vitest.dev/
+- Jest as the default for a project without a Vite-based build: https://jestjs.io/
+- MSW intercepts with a Service Worker in the browser and a Node interceptor in tests: https://mswjs.io/

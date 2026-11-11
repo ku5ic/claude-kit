@@ -9,50 +9,34 @@ Review checklist and the choices that are expensive to get wrong. Flag tables fo
 
 ## 3-2-1
 
-Three copies, two media, one offsite. A backup that lives only on the same server as the data is not a backup.
+Keep three copies on two media, one of them offsite. A copy on the same server as the data doesn't count.
 
 ## Choices that matter
 
-- **`pg_dump -F c`** (custom) or **`-F d`** (directory) for anything over a few hundred MB. Only these support `-j` parallel restore; `-F p` plain SQL is the slowest both ways.
-- **`pg_dumpall`** when you need roles and tablespaces, not just one database's contents.
-- **Stream rather than stage**: `restic -r <repo> backup --stdin-filename mydb.dump --stdin-from-command -- pg_dump -F c mydb` avoids a plaintext temp file, and restic cancels the backup if `pg_dump` exits non-zero. A plain `pg_dump | restic backup --stdin` pipe cannot detect a truncated dump.
-- **`rsync --delete`** mirrors exactly: it deletes destination files missing from the source. Dry-run with `-n` before the first real run.
-- **restic retention** is `forget --keep-daily/--keep-weekly/--keep-monthly --prune`. Without it, storage grows unboundedly. `--dry-run` first.
+- Streaming a dump into restic: `restic -r <repo> backup --stdin-filename mydb.dump --stdin-from-command -- pg_dump -F c mydb`. It writes no plaintext temp file, and restic cancels the backup if `pg_dump` exits non-zero. A plain `pg_dump | restic backup --stdin` pipe can't detect a truncated dump.
+- restic flags: check them against the installed version; `restic self-update` keeps the binary current.
+- A database over a few hundred MB: dump it with `pg_dump -F c` (custom) or `-F d` (directory). Only these support `-j` parallel restore; `-F p` plain SQL is the slowest both ways.
+- Roles and tablespaces, not just one database's contents: use `pg_dumpall`.
+- `rsync --delete` deletes destination files missing from the source. Dry-run it with `-n` before the first real run.
+- restic retention: `forget --keep-daily/--keep-weekly/--keep-monthly --prune`, with `--dry-run` first.
 
 ## Restore testing
 
-A backup never tested is not a backup. On a schedule:
+On a schedule:
 
-1. Restore to a separate location (`/tmp/restore`, a staging server).
+1. Restore to a separate location, such as `/tmp/restore` or a staging server.
 2. Verify integrity: row counts, application startup, spot checks.
-3. Record the restore duration, so the RTO is known before an incident rather than during one.
-
----
+3. Record the restore duration, so the RTO is known before an incident.
 
 ## Anti-patterns
 
-**failure: backup stored only on the same server as the data**
-A hardware failure, ransomware infection, or accidental `rm -rf` destroys both. The offsite copy in 3-2-1 exists for exactly this case.
-
-**failure: backup never tested with a restore**
-A corrupted or incomplete backup discovered during an incident is worse than no backup, because it delays the decision to use other recovery options.
-
-**warning: plain SQL format for large databases**
-`-F p` is the slowest to dump and restore and cannot use `-j` parallel workers. Use `-F c` or `-F d`.
-
-**warning: pg_dump password in a shell script**
-`PGPASSWORD=secret pg_dump ...` leaks the password into process listings. Use `~/.pgpass` or a `PGSERVICE` entry in `pg_service.conf`.
-
-**warning: restic password in the crontab or alongside the repo**
-restic encryption is strong enough that a lost password means permanent data loss, and a password stored next to the data defeats the encryption. Keep it in a password manager or secret manager, and source it from a protected env file in cron, never inline.
-
-**info: no retention policy on backups**
-Without `forget`/`prune`, backup storage grows unboundedly. Define and automate retention from day one.
-
----
-
-> Verify restic flags against the version you have installed; restic self-update keeps the binary current.
+- A backup stored only on the same server as the data: `failure`. Keep an offsite copy, per 3-2-1.
+- A backup never tested with a restore: `failure`. Restore-test it on a schedule.
+- Plain SQL format (`-F p`) for a large database: `warning`. Use `-F c` or `-F d`.
+- A pg_dump password in a shell script, as in `PGPASSWORD=secret pg_dump ...`: `warning`. Use `~/.pgpass` or a `PGSERVICE` entry in `pg_service.conf`.
+- A restic password in the crontab or alongside the repo: `warning`. Keep it in a password or secret manager; in cron, source it from a protected env file, never inline.
+- No retention policy on backups: `info`. Define and automate `forget`/`prune` retention from day one.
 
 ### Legacy (restic without --stdin-from-command)
 
-The earlier example piped `pg_dump -F c mydb | restic backup --stdin --stdin-filename mydb.dump`. Only use it on a restic build that lacks `--stdin-from-command`, and add `set -o pipefail` plus a post-backup size or `pg_restore --list` check, since restic records whatever arrived on stdin.
+Only on a restic build without `--stdin-from-command`, pipe `pg_dump -F c mydb | restic backup --stdin --stdin-filename mydb.dump` under `set -o pipefail`, then check the backup's size or run `pg_restore --list`.

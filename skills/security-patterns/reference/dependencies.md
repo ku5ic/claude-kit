@@ -1,21 +1,22 @@
 # Dependencies (all stacks)
 
-- Lockfile in repo. Dependabot or equivalent enabled or acknowledged.
-- Known CVEs: if `npm audit`, `pnpm audit`, `pip-audit`, or `bundler-audit` show findings at moderate or above, flag them.
-- Transitive deps: check `package.json` for unexpected scoped packages, typosquat risk.
+- Keep a lockfile in the repo, and Dependabot or an equivalent enabled or acknowledged.
+- Flag `npm audit`, `pnpm audit`, `pip-audit`, or `bundler-audit` findings at moderate or above.
+- Transitive deps: check `package.json` for unexpected scoped packages and typosquat risk.
 
 ## Audit tools: lockfile vs full tree
 
-`npm audit` (and friends) consults the registry's advisories endpoint for the resolved package set in the lockfile. Cheap to run, narrow in scope. It only flags advisories the registry knows about. Misses anything that has not been triaged into the npm advisories feed.
-
-OSV-Scanner queries the OSV federated database, which aggregates GitHub Security Advisories, RustSec, PyPA, RubyAdvisory, and others. Broader coverage at the cost of more findings to triage; supports multiple ecosystems including npm, PyPI, Maven, Go modules, container images. Run both: ecosystem-native audit for fast feedback, OSV-Scanner for cross-ecosystem coverage.
+- Run both: the ecosystem-native audit for fast feedback, and OSV-Scanner for cross-ecosystem coverage.
+- `npm audit` and its equivalents check the lockfile's resolved packages against the registry's advisories endpoint. They only flag advisories triaged into the npm advisories feed.
+- OSV-Scanner queries the OSV federated database, which aggregates GitHub Security Advisories, RustSec, PyPA, RubyAdvisory, and others. It covers npm, PyPI, Maven, Go modules, and container images, with more findings to triage.
 
 ## SLSA basics
 
-SLSA (Supply-chain Levels for Software Artifacts) is a framework for grading the trustworthiness of build provenance. v1.2 defines Build L0 (no requirements, the absence of SLSA) plus three graded build levels:
+SLSA (Supply-chain Levels for Software Artifacts) grades the trustworthiness of build provenance. v1.2 defines Build L0 (no requirements, the absence of SLSA) and three graded build levels:
 
-- **Build L1**: provenance exists. The package documents how it was built. Trivial to bypass or forge; useful for catching mistakes, not for adversarial defense.
-- **Build L2**: hosted build platform with signed provenance. Forging the provenance requires an explicit attack on the build platform.
-- **Build L3**: hardened builds. Strong tamper protection during the build, isolation between runs, signing secrets protected from user-defined steps. Forgery requires exploiting a build-platform vulnerability.
+- Build L1: provenance exists and documents how the package was built. It's trivial to bypass or forge, so it catches mistakes and doesn't defend against an adversary.
+- Build L2: a hosted build platform signs the provenance. Forging it requires an explicit attack on the build platform.
+- Build L3: hardened builds, with strong tamper protection during the build, isolation between runs, and signing secrets protected from user-defined steps. Forging it requires exploiting a build-platform vulnerability.
 
-For first-party application code, the practical question is whether the build runs on a trusted platform (GitHub Actions with signed artifacts is L2) and whether dependency artifacts come with provenance the build can verify. Reach for SLSA framing during a supply-chain review or when designing a build pipeline that needs to defend against compromise.
+- First-party application code: check that the build runs on a trusted platform (GitHub Actions with signed artifacts is L2) and that dependency artifacts carry provenance the build can verify.
+- Use SLSA framing in a supply-chain review, or when designing a build pipeline that must defend against compromise.

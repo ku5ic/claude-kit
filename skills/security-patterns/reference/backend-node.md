@@ -1,19 +1,19 @@
 # Backend (Node APIs: Express, Fastify, Nest)
 
-- Body parsing: size limits. Default is often no limit.
-- Input validation at route entry: zod, joi, or fastify schema. Not inside handlers.
+- Body parsing: set a size limit.
+- Validate input at route entry with zod, joi, or a fastify schema, never inside handlers.
 - SQL and ORM: parameterized queries only. Flag string concatenation into queries.
-- Error responses: do not leak stack traces to clients in production.
-- Rate limiting on auth endpoints, password reset, account enumeration vectors.
-- Helmet or equivalent security headers.
-- CORS: explicit origin list, not `*` with credentials.
+- Never leak stack traces to clients in production error responses.
+- Rate-limit auth endpoints, password reset, and account enumeration vectors.
+- Set security headers with Helmet or an equivalent.
+- CORS: an explicit origin list, never `*` with credentials.
 
 ## CSRF on JSON-only APIs
 
-For cookie-authenticated JSON APIs, the OWASP Cheat Sheet recommends defense in layers:
+A cookie-authenticated JSON API layers these defenses, per the OWASP CSRF cheat sheet:
 
-- Verify the `Origin` header matches the expected origin on every state-changing request. The browser sets `Origin` automatically and a script in another origin cannot forge it.
-- Require a custom header (e.g. `X-Requested-With`). Browsers do not auto-send custom headers cross-origin without a CORS preflight, which the server can refuse.
-- `SameSite=Lax` on the auth cookie as defense in depth, not as the primary control. Lax-mode cookies are still sent with top-level navigations of unsafe methods, so it is not a complete CSRF defense on its own.
+- On every state-changing request, verify that the `Origin` header matches the expected origin.
+- Require a custom header, such as `X-Requested-With`.
+- Set `SameSite=Lax` on the auth cookie as defense in depth. It's never the primary control or a complete CSRF defense on its own.
 
-A bearer-token API (where the token is in `Authorization: Bearer ...`, not a cookie) is not directly CSRF-vulnerable because the browser does not auto-send `Authorization` headers. The vulnerabilities shift to token theft (XSS extracting localStorage) and replay; neither is a CSRF case.
+A bearer-token API (the token in `Authorization: Bearer ...`, not a cookie) isn't directly CSRF-vulnerable. Review it for token theft (XSS reading `localStorage`) and replay instead.

@@ -1,27 +1,18 @@
 # 4. Robust
 
-- 4.1.2 Name, Role, Value (A): custom widgets expose correct role, state, properties via ARIA where native semantics insufficient.
-- 4.1.3 Status Messages (AA): live regions for async status without focus change.
+- 4.1.2 Name, Role, Value (A): custom widgets expose the correct role, state, and properties via ARIA where native semantics fall short.
+- 4.1.3 Status Messages (AA): live regions announce async status without a focus change.
 
-## ARIA: prefer native semantics first
+## ARIA: native semantics first
 
-Per the W3C "Using ARIA" document (a Discontinued Draft since 2026-02-24, still the source of these rules), the **First Rule of ARIA Use** is:
+- First Rule of ARIA Use: when a native HTML element or attribute already has the semantics and behavior you need, use it instead of adding ARIA to another element. `<button>` before `<div role="button">`, `<a href>` before `<div role="link">`, `<input type="checkbox">` before `<div role="checkbox">`.
+- Second Rule of ARIA Use: don't change native semantics unless you really have to.
+- Use ARIA when no native element has the semantics you need. Combobox, tablist, tree, treegrid, and certain landmark roles are legitimate ARIA territory, each with a canonical pattern in the ARIA Authoring Practices Guide (APG).
 
-> "If you can use a native HTML element or attribute with the semantics and behavior you require already built in, instead of re-purposing an element and adding an ARIA role, state or property to make it accessible, then do so."
+## APG patterns
 
-The **Second Rule of ARIA Use**:
-
-> "Do not change native semantics, unless you really have to."
-
-In practice: reach for `<button>` before `<div role="button">`, `<a href>` before `<div role="link">`, `<input type="checkbox">` before `<div role="checkbox">`. Native elements bring keyboard handling, focus behavior, and screen-reader announcements for free; the ARIA-on-div equivalent must reproduce all of that explicitly and rarely does.
-
-ARIA earns its place when there is no native element with the desired semantics. Combobox, tablist, tree, treegrid, and certain landmark roles ARE legitimate ARIA territory because HTML has no equivalent. The ARIA Authoring Practices Guide (APG) documents the canonical pattern for each.
-
-## APG patterns worth bookmarking
-
-- **Dialog (Modal)**: focus trap, Esc to close, focus restoration on close.
-- **Combobox**: ARIA 1.2 pattern with `aria-expanded`, `aria-controls`, `aria-activedescendant`. Native `<select>` covers the basic case; combobox is for typeahead-with-suggestions.
-- **Menu and menubar**: keyboard navigation with arrow keys, Home/End, type-to-select. Most app menus do not need this; it is for application menus mimicking desktop UI, not for site navigation (which uses `<nav>` and links).
-- **Tabs**: `role="tablist"` with `role="tab"` and `role="tabpanel"`. Arrow keys move between tabs; Tab moves into the active panel.
-
-For a custom widget that has no APG pattern, audit against 4.1.2: the user-agent must report a role, an accessible name, and the current state. Test with VoiceOver (macOS), NVDA (Windows), or the browser's accessibility tree inspector.
+- Dialog (Modal): focus trap, Esc to close, and focus restoration on close.
+- Combobox: the ARIA 1.2 pattern with `aria-expanded`, `aria-controls`, and `aria-activedescendant`, for typeahead with suggestions. Native `<select>` covers the basic case.
+- Menu and menubar: arrow keys, Home/End, and type-to-select. Use them only for application menus that mimic desktop UI, never for site navigation, which uses `<nav>` and links.
+- Tabs: `role="tablist"` with `role="tab"` and `role="tabpanel"`. Arrow keys move between tabs; Tab moves into the active panel.
+- A custom widget with no APG pattern: audit it against 4.1.2, where the user agent must report a role, an accessible name, and the current state. Test with VoiceOver (macOS), NVDA (Windows), or the browser's accessibility tree inspector.

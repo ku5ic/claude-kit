@@ -26,6 +26,12 @@ WCAG evolves:
 - APCA contrast research continues outside the W3C; treat any "use APCA instead of WCAG ratio" claim as out of scope until the W3C ships normative guidance.
 - When the W3C publishes a new WCAG version, reconcile this skill against the per-criterion Understanding pages.
 
+### Left to linters
+
+Checked: 2026-11-11. No default check in the kit's set (ESLint `js.configs.recommended`, `tsc --strict`, shellcheck with no flags, ruff defaults) reads accessibility semantics: ARIA, `alt`, labels, contrast, focus, or target size. No rule was dropped, and nothing was probed. axe, eslint-plugin-jsx-a11y, Lighthouse, and pa11y aren't in that set and don't count.
+
+`reference/robust.md` no longer names the source of the First and Second Rules of ARIA; that source and its Discontinued Draft status are in the SKILL.md References above.
+
 ## reference/anti-patterns.md
 
 ### References
@@ -56,7 +62,7 @@ WCAG evolves:
 
 ### Claims
 
-- Color contrast tooling and APCA, APCA (Advanced Perceptual Contrast Algorithm) is an alter...: https://www.myndex.com/APCA/
+- APCA, a contrast model from outside the W3C process: https://www.myndex.com/APCA/
 
 ## reference/robust.md
 
@@ -69,7 +75,7 @@ WCAG evolves:
 
 ### Claims
 
-- APG patterns worth bookmarking, **Dialog (Modal)**: focus trap, Esc to close, focus resto...: https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/
+- APG patterns, Dialog (Modal): focus trap, Esc to close, focus restoration on close: https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/
 
 ## reference/understandable.md
 

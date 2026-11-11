@@ -1,40 +1,14 @@
 # SSL/TLS
 
-## Contents
+- certbot 4.0.0+: `certbot renew` acts only once less than 1/3 of the certificate's lifetime remains, or 1/2 for a certificate valid 10 days or less. The twice-daily timer keeps working as Let's Encrypt shortens lifetimes.
+- certbot below 4.0.0, as in older distro-packaged builds: the renewal threshold is a fixed 30 days before expiry. Check `certbot --version` before relying on the lifetime fraction.
 
-- [Obtaining a certificate with certbot](#obtaining-a-certificate-with-certbot)
-- [Authenticator plugins](#authenticator-plugins)
-- [Auto-renewal](#auto-renewal)
-- [Renewal hooks](#renewal-hooks)
-- [Testing renewal](#testing-renewal)
-- [Certificate management](#certificate-management)
-- [Nginx SSL configuration](#nginx-ssl-configuration)
-- [References](#references)
+## Issuance
 
-## Obtaining a certificate with certbot
-
-Install certbot and the nginx plugin:
-
-```bash
-apt-get install certbot python3-certbot-nginx
-```
-
-Obtain and install in one step (certbot modifies nginx config automatically):
-
-```bash
-certbot --nginx -d example.com -d www.example.com
-```
-
-Or obtain only, then configure nginx manually:
-
-```bash
-certbot certonly --nginx -d example.com -d www.example.com
-```
-
-Certificates are stored at `/etc/letsencrypt/live/example.com/`:
-
-- `fullchain.pem`: certificate + intermediate chain (use for `ssl_certificate`)
-- `privkey.pem`: private key (use for `ssl_certificate_key`)
+- Install certbot and the nginx plugin: `apt-get install certbot python3-certbot-nginx`.
+- Obtaining and installing in one step, with certbot editing the nginx config: `certbot --nginx -d example.com -d www.example.com`.
+- Obtaining only, to configure nginx by hand: `certbot certonly --nginx -d example.com -d www.example.com`.
+- Certificates land in `/etc/letsencrypt/live/example.com/`: `fullchain.pem` (certificate plus intermediate chain) for `ssl_certificate`, and `privkey.pem` (private key) for `ssl_certificate_key`.
 
 ## Authenticator plugins
 
@@ -44,28 +18,15 @@ Certificates are stored at `/etc/letsencrypt/live/example.com/`:
 | `--standalone`               | Spins up a temporary HTTP server              | Port 80 free               |
 | `--webroot -w /var/www/html` | Places files in existing webroot              | Webserver serving that dir |
 
-Use `--webroot` when you want to renew without stopping nginx. Use `--standalone` only if nginx is not running.
+- Renewing without stopping nginx: `--webroot`. `--standalone` only when nginx isn't running.
 
-## Auto-renewal
+## Renewal
 
-On Debian/Ubuntu, certbot installs a systemd timer (`certbot.timer`) or cron job automatically on installation. Verify:
-
-```bash
-systemctl status certbot.timer
-```
-
-If not present, add to cron:
-
-```bash
-# /etc/cron.d/certbot
-0 */12 * * * root certbot renew --quiet
-```
-
-certbot renew only acts once less than 1/3 of the certificate's lifetime remains (1/2 for certificates valid 10 days or less), so the twice-daily timer keeps working as Let's Encrypt shortens lifetimes.
+- On Debian/Ubuntu, installing certbot adds a systemd timer (`certbot.timer`) or a cron job. Check it with `systemctl status certbot.timer`.
+- No timer: add `0 */12 * * * root certbot renew --quiet` to `/etc/cron.d/certbot`.
+- A dry run without renewing: `certbot renew --dry-run`.
 
 ## Renewal hooks
-
-Scripts in these directories run automatically around renewals:
 
 | Directory                                | Runs when                                   |
 | ---------------------------------------- | ------------------------------------------- |
@@ -73,47 +34,12 @@ Scripts in these directories run automatically around renewals:
 | `/etc/letsencrypt/renewal-hooks/deploy/` | After each successful renewal               |
 | `/etc/letsencrypt/renewal-hooks/post/`   | After renewal attempts (success or failure) |
 
-Reload nginx after renewal by placing a script in `deploy/`:
-
-```bash
-# /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
-#!/bin/bash
-systemctl reload nginx
-```
-
-```bash
-chmod +x /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
-```
-
-## Testing renewal
-
-Dry run without actually renewing:
-
-```bash
-certbot renew --dry-run
-```
+- Reloading nginx after renewal: a hook in `deploy/`, such as `/etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh`, a `#!/bin/bash` script running `systemctl reload nginx`, made executable with `chmod +x`.
 
 ## Certificate management
 
-```bash
-certbot certificates              # list all managed certificates
-certbot delete --cert-name example.com    # remove a certificate
-certbot revoke --cert-name example.com    # revoke and remove
-```
+- `certbot certificates` lists managed certificates, `certbot delete --cert-name example.com` removes one, and `certbot revoke --cert-name example.com` revokes and removes it.
 
-## Nginx SSL configuration
+## nginx
 
-After obtaining the certificate, reference the paths in nginx:
-
-```nginx
-ssl_certificate     /etc/letsencrypt/live/example.com/fullchain.pem;
-ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem;
-
-# Recommended: restrict to modern TLS versions
-ssl_protocols TLSv1.2 TLSv1.3;
-ssl_prefer_server_ciphers off;
-```
-
-### Legacy (certbot < 4.0.0)
-
-Before 4.0.0 the renewal threshold was a fixed 30 days before expiry. Older distro-packaged certbot builds still behave this way; check `certbot --version` before relying on the lifetime-fraction rule.
+- After issuance, point `ssl_certificate` and `ssl_certificate_key` at those paths, and restrict TLS with `ssl_protocols TLSv1.2 TLSv1.3;` and `ssl_prefer_server_ciphers off;`.

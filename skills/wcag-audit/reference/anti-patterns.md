@@ -2,34 +2,11 @@
 
 Severity rubric: [../SKILL.md](../SKILL.md#severity-rubric).
 
-## `<div>` or `<span>` as an interactive element
-
-`failure`. A non-semantic element clicked via JavaScript has no role, no keyboard access, and no accessible name. Screen reader users and keyboard-only users cannot reach it. Use `<button>` for actions and `<a href>` for navigation. If the element must be non-semantic for layout reasons, add `role`, `tabindex="0"`, and keyboard event handlers.
-
-## `<img>` with missing `alt` attribute
-
-`failure`. An image with no `alt` attribute is announced with its filename by most screen readers, which is meaningless. Informative images need a descriptive `alt` text. Decorative images that carry no information need `alt=""` so screen readers skip them.
-
-## Insufficient color contrast
-
-`failure`. WCAG 2.2 AA requires a contrast ratio of at least 4.5:1 for normal text (under 18pt / 14pt bold) and 3:1 for large text and UI components. Failing this criterion makes text unreadable for users with low vision. Measure with a tool (browser DevTools, axe, Colour Contrast Analyser) rather than estimating.
-
-## `aria-label` text that differs from visible label text
-
-`failure`. When an element has a visible text label and an `aria-label` or `aria-labelledby` that says something different, speech input users (Dragon NaturallySpeaking) cannot activate the element by speaking what they see. The accessible name must match or start with the visible text (WCAG 2.5.3).
-
-## Form input without a programmatic label
-
-`failure`. An `<input>`, `<select>`, or `<textarea>` with no associated `<label>` (via `for`/`id` or wrapping), `aria-label`, or `aria-labelledby` has no accessible name. Screen readers announce only "edit" with no context. Placeholder text does not substitute for a label, because it disappears on entry.
-
-## Modal without a focus trap and a close mechanism
-
-`failure`. When a modal or dialog opens, focus must move inside it and be constrained there until it closes. Focus that escapes to the background content disorients screen reader users. The modal must also be closeable via keyboard (Escape key) and have a visible close mechanism.
-
-## Conveying information through color alone
-
-`failure`. Error states shown only in red, required fields indicated only by a color asterisk, and chart series differentiated only by hue all fail WCAG 1.4.1. Pair color with an icon, label, pattern, or underline so the information survives in greyscale and for color-blind users.
-
-## `aria-hidden="true"` on a focusable element
-
-`warning`. A focusable element (button, link, input) with `aria-hidden="true"` is hidden from the accessibility tree but still reachable by keyboard. A screen reader user tabs into it and hears nothing. Either remove `aria-hidden` or make the element non-focusable (`tabindex="-1"`, `disabled`).
+- A `<div>` or `<span>` clicked via JavaScript as an interactive element: `failure`. Use `<button>` for actions and `<a href>` for navigation; if layout forces a non-semantic element, add `role`, `tabindex="0"`, and keyboard event handlers.
+- An `<img>` with no `alt` attribute: `failure`. Give an informative image descriptive `alt` text and a decorative one `alt=""`.
+- Contrast below 4.5:1 for normal text (under 18pt, or under 14pt bold), or below 3:1 for large text and UI components: `failure`. Measure it with a tool such as browser DevTools, axe, or Colour Contrast Analyser; never estimate it.
+- An `aria-label` or `aria-labelledby` that says something different from the visible text label: `failure`. Make the accessible name match or start with the visible text (2.5.3).
+- An `<input>`, `<select>`, or `<textarea>` with no associated `<label>` (via `for`/`id` or wrapping), `aria-label`, or `aria-labelledby`: `failure`. Add one; placeholder text doesn't substitute for a label.
+- A modal or dialog that lets focus escape, or that has no keyboard or visible close: `failure`. Move focus inside it on open and keep it there until it closes; close it with Escape and with a visible close control.
+- Information conveyed by color alone, such as errors shown only in red, required fields marked only by a colored asterisk, or chart series told apart only by hue: `failure` (1.4.1). Pair the color with an icon, label, pattern, or underline.
+- `aria-hidden="true"` on a focusable element such as a button, link, or input: `warning`. Remove `aria-hidden`, or make the element non-focusable with `tabindex="-1"` or `disabled`.

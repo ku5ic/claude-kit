@@ -1,88 +1,12 @@
 # Firewall
 
-## ufw basics
-
-ufw (Uncomplicated Firewall) defaults to: incoming deny, forwarding deny, outgoing allow. This is the correct default for most servers.
-
-```bash
-ufw default deny incoming
-ufw default allow outgoing
-ufw default deny forward
-```
-
-## Allow necessary services
-
-```bash
-ufw allow ssh          # port 22
-ufw allow http         # port 80
-ufw allow https        # port 443
-```
-
-Or by port number:
-
-```bash
-ufw allow 22/tcp
-ufw allow 80/tcp
-ufw allow 443/tcp
-```
-
-Enable the firewall after adding rules:
-
-```bash
-ufw enable
-```
-
-Check status and rules:
-
-```bash
-ufw status verbose
-ufw status numbered     # numbered for easier deletion
-```
-
-## Rate-limit SSH
-
-`ufw limit` blocks a source IP after 6 connection attempts within 30 seconds:
-
-```bash
-ufw limit ssh
-```
-
-This defends against brute-force attacks without completely blocking SSH. Prefer this over a plain `allow ssh`.
-
-## Restrict SSH to known IPs (when possible)
-
-If your public IP is static, restrict SSH to that address:
-
-```bash
-ufw allow from 203.0.113.0/24 to any port 22
-ufw deny 22
-```
-
-Order matters: `allow from` must come before `deny 22`.
-
-## Delete rules
-
-```bash
-ufw status numbered
-ufw delete 3           # delete rule number 3
-ufw delete allow ssh   # delete by specification
-```
-
-## Reset to defaults
-
-```bash
-ufw reset              # disables ufw and removes all rules
-```
-
-## Application profiles
-
-ufw includes application profiles for common software:
-
-```bash
-ufw app list           # show available profiles
-ufw allow 'Nginx Full' # allows HTTP + HTTPS
-ufw allow 'Nginx HTTP'
-ufw allow 'Nginx HTTPS'
-```
-
-Use `Nginx Full` only during initial setup or before SSL is configured. In production, use `Nginx HTTPS` and redirect HTTP->HTTPS at the application level.
+- ufw defaults to incoming deny, forwarding deny, outgoing allow. Keep that on most servers: `ufw default deny incoming`, `ufw default allow outgoing`, `ufw default deny forward`.
+- Allowing a service: by name, `ufw allow ssh` (port 22), `ufw allow http` (80), `ufw allow https` (443), or by port, `ufw allow 22/tcp`, `80/tcp`, `443/tcp`.
+- After adding rules: `ufw enable`.
+- Checking rules: `ufw status verbose`, or `ufw status numbered` for the numbers to delete by.
+- SSH: `ufw limit ssh` over a plain `ufw allow ssh`. It blocks a source IP after 6 connection attempts within 30 seconds.
+- A static public IP: restrict SSH to it with `ufw allow from 203.0.113.0/24 to any port 22`, then `ufw deny 22`. The `allow from` rule comes before `deny 22`.
+- Deleting a rule: by number, as in `ufw delete 3`, or by specification, as in `ufw delete allow ssh`.
+- `ufw reset` disables ufw and removes all rules.
+- Application profiles: `ufw app list` shows them. `ufw allow 'Nginx Full'` allows HTTP and HTTPS; `'Nginx HTTP'` and `'Nginx HTTPS'` allow one each.
+- `Nginx Full` while nginx redirects port 80 to HTTPS or certbot renews through `--nginx` or `--webroot`. `Nginx HTTPS` alone only when nothing needs port 80.

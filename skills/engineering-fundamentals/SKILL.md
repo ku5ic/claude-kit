@@ -14,7 +14,7 @@ Concrete checks that turn the principles in `skills/kit-rules/reference/change.m
 | Adding behavior or fixing a bug         | Red-green-refactor                                       |
 | Reviewing whether a change is right     | Verification and validation                              |
 
-Apply only what fits. Do not pad findings to fill sections.
+Apply only what fits. Don't pad findings to fill sections.
 
 | File                                                                                 | Covers                                                                     |
 | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |

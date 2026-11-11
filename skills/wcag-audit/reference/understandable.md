@@ -1,36 +1,29 @@
 # 3. Understandable
 
-- 3.2.3 Consistent Navigation (AA): repeated navigation in consistent order.
-- 3.2.4 Consistent Identification (AA): components with the same function labeled consistently.
-- 3.2.6 Consistent Help (A): help mechanisms in consistent location across pages (new in 2.2).
-- 3.3.1 Error Identification (A): errors identified in text.
+- 3.2.6 Consistent Help (A), new in 2.2: help mechanisms sit in a consistent location across pages.
+- 3.3.7 Redundant Entry (A), new in 2.2: a process never asks for the same information twice.
+- 3.3.8 Accessible Authentication (Minimum) (AA), new in 2.2: no cognitive function test without an alternative.
+- 3.2.3 Consistent Navigation (AA): repeated navigation keeps a consistent order.
+- 3.2.4 Consistent Identification (AA): components with the same function are labeled consistently.
+- 3.3.1 Error Identification (A): errors are identified in text.
 - 3.3.2 Labels or Instructions (A): controls have labels or instructions.
-- 3.3.3 Error Suggestion (AA): suggestions offered when known.
-- 3.3.4 Error Prevention (AA): for legal, financial, data submissions: reversible, checkable, or confirmable.
-- 3.3.7 Redundant Entry (A): do not ask the same info twice in a process (new in 2.2).
-- 3.3.8 Accessible Authentication Minimum (AA): no cognitive function test without alternative (new in 2.2).
+- 3.3.3 Error Suggestion (AA): suggestions are offered when known.
+- 3.3.4 Error Prevention (AA): legal, financial, and data submissions are reversible, checkable, or confirmable.
 
-## Cognitive accessibility patterns
+## 3.3.7 Redundant Entry implementations
 
-The two new 2.2 cognitive criteria have concrete implementation paths.
+- When a multi-step process collects the same information twice, auto-populate it the second time or offer a one-action select.
+- A "shipping address same as billing" checkbox copies the prior step's values.
+- Persist form state across steps, so going back and then forward doesn't ask for entered values again.
+- For a repeat customer, pre-fill from their saved profile.
+- Exceptions, per the Understanding doc: re-entering the value is essential (security verification, deliberate re-confirmation), or the previous value is no longer valid (a session timeout that forces re-auth).
 
-### 3.3.7 Redundant Entry implementations
+## 3.3.8 Accessible Authentication (Minimum) implementations
 
-When a multi-step process collects the same information twice, the second collection must auto-populate or offer a one-action select:
+A cognitive function test is anything the user must memorize, transcribe, or solve to log in, such as a password, image recognition, or a math puzzle. Sufficient techniques, per the Understanding doc:
 
-- A "shipping address same as billing" checkbox that, when checked, copies the prior step's values.
-- Persisted form state across steps so back-then-forward does not re-prompt for previously entered values.
-- For repeat customers, pre-fill from the user's saved profile.
-
-Exceptions per the Understanding doc: re-entering the value is essential (security verification, deliberate re-confirmation), or the previous value is no longer valid (a session timeout that forces re-auth).
-
-### 3.3.8 Accessible Authentication (Minimum) implementations
-
-A "cognitive function test" is something the user must memorize, transcribe, or solve to log in: passwords, image recognition, math puzzles. Per the Understanding doc, sufficient techniques include:
-
-- **Allow password manager autofill**: do not block paste, do not block autofill, expose `<input type="password" autocomplete="current-password">` correctly. The browser's password manager solves the cognitive test for the user.
-- **Magic link via email**: the user clicks a link in their inbox; no password to remember.
-- **Third-party SSO** (Sign in with Google / Apple / etc.): delegates the cognitive test to a system the user already keeps signed in.
-- **Biometric or device-bound auth** (passkeys, WebAuthn, Touch ID): the device proves identity without the user solving anything.
-
-CAPTCHA is a cognitive function test by definition. To meet 3.3.8, the page must offer at least one alternative path that is not a cognitive test (typically: SSO, magic link, or a passkey flow).
+- Password manager autofill: never block paste or autofill, and expose `<input type="password" autocomplete="current-password">` correctly.
+- A magic link via email.
+- Third-party SSO, such as Sign in with Google or Apple.
+- Biometric or device-bound auth: passkeys, WebAuthn, Touch ID.
+- A CAPTCHA is a cognitive function test. To meet 3.3.8, a page with one also offers at least one path without a cognitive test, typically SSO, a magic link, or a passkey flow.
