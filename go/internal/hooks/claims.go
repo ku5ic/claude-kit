@@ -150,7 +150,7 @@ func gateOnChecker(h *hook.Hook, text, where, retry, marker string) error {
 	switch checkerRun(h.Payload.String("transcript_path"), id) {
 	case checkerDone:
 		return nil
-	case checkerMissing:
+	case checkerFailed:
 		return verifyInSubagent(h, text, where, retry, marker)
 	}
 	h.Deny(fmt.Sprintf("run the %s agent on %s first. Its prompt holds the line `%s` and the full text. Check or cut each claim it reports, per skills/kit-rules/reference/evidence.md section 1, then %s. A changed text needs its own run", claimChecker, where, id, retry), "claims")
@@ -159,31 +159,63 @@ func gateOnChecker(h *hook.Hook, text, where, retry, marker string) error {
 
 // A claim-checker run's outcome, as the transcript shows it.
 const (
-	checkerNotRun  = iota // no finished run on this text
-	checkerDone           // a run on this text finished
-	checkerMissing        // the session has no claim-checker agent
+	checkerNotRun = iota // no run on this text has ended
+	checkerDone          // a run on this text finished
+	checkerFailed        // a run on this text failed, or the agent is missing
 )
 
 // checkerRun is how the transcript's claim-checker runs on the text with
-// claim-check id ended. A failed run counts as none, so only a finished
-// check lets the text through.
+// claim-check id ended. A failed run hands the text to the hook's own
+// verifier, so a checker that keeps failing can't block it for good.
 func checkerRun(path, id string) int {
 	entries, _ := transcript.Load(path)
 	calls := map[string]bool{}
+	var launched []string // background runs, ended once their notice says so
 	outcome := checkerNotRun
 	for _, e := range entries {
+		for _, call := range launched {
+			switch noticeStatus(e, call) {
+			case "":
+			case "completed":
+				return checkerDone
+			default:
+				outcome = checkerFailed
+			}
+		}
 		for _, b := range e.Blocks {
 			switch {
 			case b.Type == "tool_use" && b.Name == "Agent" && b.Input.SubagentType == claimChecker && strings.Contains(b.Input.Prompt, id):
 				calls[b.ID] = true
-			case b.Type == "tool_result" && calls[b.ToolUseID] && !b.IsError:
+			case b.Type != "tool_result" || !calls[b.ToolUseID]:
+			case b.IsError:
+				outcome = checkerFailed
+			case strings.HasPrefix(b.ResultText(), asyncLaunched):
+				launched = append(launched, b.ToolUseID)
+			default:
 				return checkerDone
-			case b.Type == "tool_result" && calls[b.ToolUseID] && strings.Contains(b.ResultText(), "'"+claimChecker+"' not found"):
-				outcome = checkerMissing
 			}
 		}
 	}
 	return outcome
+}
+
+// asyncLaunched opens the Agent tool's result for a run it started in the
+// background: the report comes later, in a task notification.
+const asyncLaunched = "Async agent launched"
+
+// noticeStatus is the status e's task notification gives the background
+// Agent call call, "" when e isn't one for it.
+func noticeStatus(e transcript.Entry, call string) string {
+	text := e.Notice + e.Text
+	for _, b := range e.Blocks {
+		text += b.Text
+	}
+	if !strings.Contains(text, "<tool-use-id>"+call+"</tool-use-id>") {
+		return ""
+	}
+	_, rest, _ := strings.Cut(text, "<status>")
+	status, _, _ := strings.Cut(rest, "</status>")
+	return status
 }
 
 // verifyHandback checks a subagent's report with the hook's own run, once

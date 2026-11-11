@@ -189,15 +189,46 @@ func TestVerifyClaimsToolInput(t *testing.T) {
 			t.Errorf("two texts share the id %s", id)
 		}
 	})
-	t.Run("a failed checker run counts as none", func(t *testing.T) {
+	t.Run("a background checker run counts once its notice says it completed", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
 		post := toolCall("mcp__chat__send_message", map[string]any{"text": claim})
 		id := checkID.FindString(k.run("verify-claims", post).Stdout)
 		path := filepath.Join(t.TempDir(), "session.jsonl")
-		testutil.Write(t, path, checkerCall(id, "The agent stopped: API error.", true)+"\n")
+		launched := checkerCall(id, "Async agent launched successfully.\nagentId: a9", false) + "\n"
+		testutil.Write(t, path, launched)
 		post["transcript_path"] = path
 		k.run("verify-claims", post).Denied(t)
+		notice, _ := json.Marshal(map[string]any{"type": "queue-operation", "operation": "enqueue",
+			"content": "<task-notification>\n<task-id>a9</task-id>\n<tool-use-id>cc</tool-use-id>\n<status>completed</status>\n</task-notification>"})
+		testutil.Write(t, path, launched+string(notice)+"\n")
+		k.run("verify-claims", post).Allowed(t)
+	})
+	t.Run("a failed checker run gets the hook's own run, once per text", func(t *testing.T) {
+		t.Parallel()
+		notice, _ := json.Marshal(map[string]any{"type": "queue-operation", "operation": "enqueue",
+			"content": "<task-notification>\n<tool-use-id>cc</tool-use-id>\n<status>failed</status>\n</task-notification>"})
+		for name, failed := range map[string]func(id string) string{
+			"in the foreground": func(id string) string { return checkerCall(id, "The agent stopped: API error.", true) },
+			"in the background": func(id string) string {
+				return checkerCall(id, "Async agent launched successfully.\nagentId: a9", false) + "\n" + string(notice)
+			},
+		} {
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+				k := newSandbox(t)
+				k.verifier("", claim)
+				post := toolCall("mcp__chat__send_message", map[string]any{"text": claim})
+				id := checkID.FindString(k.run("verify-claims", post).Stdout)
+				path := filepath.Join(t.TempDir(), "session.jsonl")
+				testutil.Write(t, path, failed(id)+"\n")
+				post["transcript_path"] = path
+				r := k.run("verify-claims", post)
+				r.Denied(t)
+				r.Has(t, claim, "git log -S Foo")
+				k.run("verify-claims", post).Allowed(t)
+			})
+		}
 	})
 	t.Run("a session without the checker agent gets the hook's own run, once per text", func(t *testing.T) {
 		t.Parallel()
