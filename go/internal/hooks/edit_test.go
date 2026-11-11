@@ -96,6 +96,18 @@ func TestGuardEdit(t *testing.T) {
 			r.Has(t, `"permissionDecision":"ask"`, "this writes "+what)
 		})
 	}
+	t.Run("ask: Write to ~/.claude/settings.json linked into a dotfiles tree", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		src := filepath.Join(testutil.Physical(t, t.TempDir()), "dotfiles/claude/settings.json")
+		testutil.Touch(t, src)
+		link := filepath.Join(k.paths.Home, "settings.json")
+		if err := os.Symlink(src, link); err != nil {
+			t.Fatal(err)
+		}
+		r := k.run("guard-edit", editPayload("Write", link, "", ""))
+		r.Has(t, `"permissionDecision":"ask"`, "this writes a Claude Code settings file")
+	})
 	t.Run("ask: Write to a project's .claude/settings.local.json", func(t *testing.T) {
 		t.Parallel()
 		r := newSandbox(t).run("guard-edit", editPayload("Write", "/tmp/project/.claude/settings.local.json", "", ""))

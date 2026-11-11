@@ -470,17 +470,10 @@ func (st *state) abs(p string) string {
 
 // askKitSwitch asks, and is true, when a word (quoted, ~- or
 // $HOME-prefixed, or relative to the segment's cwd) names a path
-// guard.KitSwitch protects. The name and prefix tests keep symlink
-// resolution off every other argument.
+// guard.KitSwitch protects, through a symlink or not. Only a writer's
+// operands and a redirect's target get here, so resolving each is cheap.
 func (st *state) askKitSwitch(arg string) bool {
-	p := st.abs(unquote(arg))
-	base := filepath.Base(p)
-	paths := st.h.Paths
-	if base != "claude-kit.local.yml" && base != "settings.json" && base != "settings.local.json" &&
-		!fsx.Within(paths.Home, p) && (paths.Root == "" || !fsx.Within(paths.Root, p)) {
-		return false
-	}
-	what := guard.KitSwitch(paths, st.cwd, p)
+	what := guard.KitSwitch(st.h.Paths, st.cwd, st.abs(unquote(arg)))
 	if what != "" {
 		st.ask(guard.KitSwitchAsk(what))
 	}
