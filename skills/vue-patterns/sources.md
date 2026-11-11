@@ -22,6 +22,14 @@ Checked: 2026-11-10 against https://github.com/vuejs/core/releases/latest (3.5.4
 - 3.4: `defineModel`; watcher `once: true`.
 - 3.3: `defineSlots`; tuple-style `defineEmits` types.
 
+### Left to linters
+
+Checked: 2026-11-11 with TypeScript 7.0.2 (`tsc --strict --noEmit`, no extra flags) and ESLint 10.14.0 with `@eslint/js` 10.0.1 `js.configs.recommended`, on a probe project with Vue 3.5.45. No rule was dropped, because no default check reports the form a rule targets.
+
+Not caught by defaults, so kept: destructuring a `reactive()` object, swapping a `reactive()` object, in-place prop mutation, an async watcher without cleanup, `deep: true`, `v-if` with `v-for`, `v-for` without a `key`, `v-html`, a provided unwrapped value.
+
+Caught by a default but kept: `reactive("hello")` (tsc `TS2345`) and reassigning a prop (tsc `TS2540`) fire only in a `.ts` file. Plain tsc rejects `.vue` files with `TS6054`, and default ESLint ignores them ("no matching configuration").
+
 ## reference/anti-patterns.md
 
 ### References

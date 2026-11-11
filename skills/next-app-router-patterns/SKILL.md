@@ -5,25 +5,25 @@ description: Next.js App Router patterns for the server/client boundary, caching
 
 # Next.js App Router patterns
 
-Default assumption: Next.js 16 (current stable as of writing) with the App Router. Pages Router patterns are out of scope.
+Default assumption: Next.js 16 with the App Router.
 
-- Cache Components is the new caching model in 16 (opt-in via `cacheComponents: true`); the previous caching model is still supported when the flag is off.
-- Verify via `package.json` or lockfile: caching model and `cacheComponents` flag differ between 15.x and 16.x.
+- From 16, `cacheComponents: true` opts into Cache Components; with the flag off, the previous caching model applies.
+- The caching model and the `cacheComponents` flag differ between 15.x and 16.x, so check `next` in `package.json` and the lockfile first.
 
 ## Reference files
 
-| File                                                             | Covers                                                                                  |
-| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| [reference/anti-patterns.md](reference/anti-patterns.md)         | Severity-labeled anti-patterns: cache scoping, server/client boundary, streaming errors |
-| [reference/server-and-client.md](reference/server-and-client.md) | `"use client"` propagation, server vs client constraints, serialization, `server-only`  |
-| [reference/caching.md](reference/caching.md)                     | Cache Components vs previous model, `fetch` defaults, segment config, revalidation      |
-| [reference/server-actions.md](reference/server-actions.md)       | Server Functions, `"use server"`, form actions, validation, revalidation                |
-| [reference/streaming.md](reference/streaming.md)                 | `loading.tsx`, `<Suspense>`, error boundaries, Partial Prerendering                     |
-| [reference/routing.md](reference/routing.md)                     | File conventions, dynamic segments, parallel/intercepting routes, metadata              |
-| [reference/runtime.md](reference/runtime.md)                     | Node vs Edge, Proxy (renamed from Middleware in v16), runtime config                    |
-| [reference/client-bundle.md](reference/client-bundle.md)         | `next/image`, `next/font`, `next/dynamic`, tree-shaking and bundle audits               |
+| File                                                             | Covers                                                                                       |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| [reference/anti-patterns.md](reference/anti-patterns.md)         | Seven anti-patterns with severity calls: async request APIs, cache scoping, boundaries       |
+| [reference/server-and-client.md](reference/server-and-client.md) | `"use client"` propagation, what each side can't do, serialization, `server-only`            |
+| [reference/caching.md](reference/caching.md)                     | Cache Components vs the previous model, `fetch` defaults, segment config, `revalidateTag`    |
+| [reference/server-actions.md](reference/server-actions.md)       | Pending state, `"use server"`, auth, validation, revalidation, return values                 |
+| [reference/streaming.md](reference/streaming.md)                 | Partial Prerendering, `loading.tsx`, error boundaries, `<Suspense>`, streaming caveats       |
+| [reference/routing.md](reference/routing.md)                     | Slot `default.tsx`, async `params`, file conventions, parallel/intercepting routes, metadata |
+| [reference/runtime.md](reference/runtime.md)                     | Proxy (renamed from Middleware in 16), environment variables, Node vs Edge                   |
+| [reference/client-bundle.md](reference/client-bundle.md)         | Bundle audits, `next/image`, `next/font`, `next/dynamic`, tree-shaking                       |
 
 ## Out of scope
 
-- Pages Router projects (`pages/` only, no `app/` directory). The patterns differ enough that this skill would mislead.
-- React projects without Next.js (use the React skill alone).
+- Pages Router projects (`pages/` only, no `app/` directory).
+- React projects without Next.js; use the React skill alone.

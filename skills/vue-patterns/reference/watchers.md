@@ -1,64 +1,9 @@
 # Watchers
 
-## `watch` vs `watchEffect`
-
-`watch(source, callback)` tracks a single explicit source. The callback fires only when that source changes and receives `(newValue, oldValue)`. Use it when:
-
-- The dependency is one specific ref or computed.
-- You need the previous value.
-- The callback is heavy and you want it to run only on real changes.
-
-`watchEffect(callback)` tracks every reactive value accessed inside the callback. It runs once immediately, then re-runs whenever any tracked dependency changes. Use it when:
-
-- Multiple dependencies should all trigger the same effect.
-- The dependency set is awkward to enumerate.
-- You want immediate execution without `{ immediate: true }`.
-
-```ts
-watch(userId, async (id) => {
-  user.value = await fetchUser(id);
-});
-
-watchEffect(async () => {
-  user.value = await fetchUser(userId.value); // dep auto-tracked
-});
-```
-
-## Options
-
-- `immediate: true` (`watch` only): run the callback immediately on setup. `watchEffect` already does this.
-- `deep: true`: recursively track nested properties of the source. Expensive (see below).
-- `flush: 'post'`: defer the callback until after Vue updates the DOM.
-- `flush: 'sync'`: run the callback synchronously, before the next microtask.
-- `once: true` (Vue 3.4+): the callback runs at most once.
-
-`flush: 'pre'` is the default; the callback runs before the DOM update for the same tick.
-
-## Deep watchers are expensive
-
-`{ deep: true }` (or `watchEffect` over a deeply nested path) recursively walks the entire reactive tree to set up tracking. Every nested property is tracked; every mutation re-traverses on the way out. On large objects this becomes the dominant cost in a render.
-
-Cheaper alternatives:
-
-- Watch a specific computed that derives only the field you care about.
-- Watch the path explicitly: `watch(() => state.user.email, ...)`.
-- Restructure the data so the watched field is at the top level.
-
-Treat `{ deep: true }` as a last resort; reach for `watchEffect` and let auto-tracking pick only the touched fields when possible.
-
-## Cleanup with `onWatcherCleanup`
-
-For async work inside a watcher, register cleanup with `onWatcherCleanup` (Vue 3.5+) so a stale request can be cancelled when a new dep change supersedes it:
-
-```ts
-import { watch, onWatcherCleanup } from "vue";
-
-watch(query, async (q) => {
-  const controller = new AbortController();
-  onWatcherCleanup(() => controller.abort());
-  const res = await fetch(`/search?q=${q}`, { signal: controller.signal });
-  results.value = await res.json();
-});
-```
-
-Older Vue versions used the third callback argument: `watch(source, async (val, _old, onCleanup) => { onCleanup(...) })`. Both forms still work.
+- Async work in a watcher on 3.5+: create an `AbortController`, register `onWatcherCleanup(() => controller.abort())`, and pass `controller.signal` to the request. Older versions: the third callback argument, `watch(source, async (val, _old, onCleanup) => { onCleanup(...) })`. Both forms still work.
+- A callback that should run at most once, on 3.4+: `once: true`.
+- One specific ref or computed as the dependency, a need for the previous value, or a heavy callback that should run only on real changes: `watch(source, (newValue, oldValue) => ...)`. It fires only when that source changes.
+- Several dependencies that trigger one effect, a dependency set awkward to enumerate, or immediate execution: `watchEffect`. It tracks every reactive value read inside it, runs once immediately, then re-runs when any of them changes.
+- A `watch` callback that should run on setup: `immediate: true`. `watchEffect` already does.
+- A callback that should run after Vue updates the DOM: `flush: 'post'`. Synchronously, before the next microtask: `flush: 'sync'`. The default, `flush: 'pre'`, runs before the DOM update in the same tick.
+- Use `deep: true`, or `watchEffect` over a deeply nested path, only as a last resort. Watch a computed that derives only the field you need, a path getter such as `watch(() => state.user.email, ...)`, or a field moved to the top level. Where it fits, let `watchEffect` auto-track only the touched fields.

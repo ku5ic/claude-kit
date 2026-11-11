@@ -22,6 +22,12 @@ Checked: 2026-11-10 against https://react.dev/versions, https://react.dev/blog/2
 - 19.0 (2024-12-05): Actions, `use`, `useActionState`, `useFormStatus`, `useOptimistic`. Verify against the per-hook page on react.dev, not older blog posts.
 - React Compiler: stable, opt-in, installed per build tool; not present in every project.
 
+### Left to linters
+
+Checked: 2026-11-11 with ESLint 10.14.0 and `js.configs.recommended` from `@eslint/js` 10.0.1 (JSX parsing on, no plugins), and TypeScript 7.0.2 (`tsc --strict --noEmit`, plus `--jsx react-jsx` so the probe parses) with `@types/react`, on a probe directory. No rule was dropped, because no default check reported any React rule.
+
+Not caught by defaults, so kept: a conditional hook, a hook after an early return, a missing effect dependency, `useState` synced from props in an effect, mutated props and state, `useState(compute())`, an effect with no cleanup, `fetch` with no `.catch()`, `items.length &&` in JSX, `||` as a JSX fallback, `key={index}`, `dangerouslySetInnerHTML`, inline literals passed to a `memo` child.
+
 ## reference/anti-patterns.md
 
 ### References
@@ -42,7 +48,7 @@ Checked: 2026-11-10 against https://react.dev/versions, https://react.dev/blog/2
 
 ### Claims
 
-- React 19: `use()` for promises and context, `use(promise)` and `use(context)` are stable in React 19....: https://react.dev/reference/react/use
+- `use(promise)` and `use(context)` on 19+, callable inside conditionals and loops: https://react.dev/reference/react/use
 
 ## reference/performance.md
 

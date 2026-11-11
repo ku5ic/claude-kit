@@ -21,9 +21,18 @@ The sources and version notes behind this skill, for `/meta refresh`. Nothing li
 
 Checked: 2026-11-10 against https://www.npmjs.com/package/next, https://nextjs.org/docs/app/guides/upgrading/version-16, https://nextjs.org/docs/app/guides/package-bundling and https://nextjs.org/docs/app/api-reference/file-conventions/proxy
 
+- 2026-11-11: the `"use client"` anti-pattern flagged a deep boundary. The Server and Client Components page ("Reducing JS bundle size") puts the directive on the interactive component, so the anti-pattern now flags a high one.
 - 16.4 (2026-10-06, latest 16.4.6): corrected three 16.0 facts against the upgrade guide. Parallel slots without `default.js` fail the build, synchronous `cookies()`/`headers()` access is removed, and Turbopack's analyzer is `next analyze`.
 - 16.3 (2026-08-03): no guidance change. Proxy runs on Node.js only; a project that needs the Edge runtime keeps `middleware.ts` (proxy docs).
 - 16.0: `middleware` renamed to `proxy` (types `NextMiddleware` -> `NextProxy`, `MiddlewareConfig` -> `ProxyConfig`, `skipMiddlewareUrlNormalize` -> `skipProxyUrlNormalize`); PPR stable and default under Cache Components; one-argument `revalidateTag(tag)` deprecated, pass a `cacheLife` profile (upgrade guide; examples fixed 2026-09-26).
+
+### Left to linters
+
+Checked: 2026-11-11 with TypeScript 7.0.2 (`tsc --strict --noEmit`, no extra flags) and ESLint 10.14.0 with `@eslint/js` 10.0.1 `js.configs.recommended`, against `next` 16.4.6 types, on a probe `.tsx` file and its `.jsx` twin. No rule was dropped, because no default check reports any of them in every form they cover.
+
+Five rules stay even though tsc fires on one form of them, because ESLint is silent on the same code in a `.js` or `.jsx` file and tsc misses other forms. `TS2339` reports `cookies().get(...)` and `headers().get(...)`, but not `const c = cookies()` held unawaited. `TS2554` reports one-argument `revalidateTag(tag)`. `TS2339` reports `params.id` when `params` is typed as a Promise, but not when it's typed as a plain object. `TS2322` reports `formData.get(...)` assigned to a `string`, but the rule asks for schema validation of every field. `TS2353` reports `serverRuntimeConfig` and `publicRuntimeConfig` on an object typed `NextConfig`, but not in an untyped `next.config.js`.
+
+Not caught by defaults, so kept: code after `redirect()` (`no-unreachable` doesn't know it throws), `useState` in a Server Component, `process.env.SECRET` in a Client Component, a missing `"use client"` or `"use server"`, `runtime` in a Proxy file, a `date-fns` namespace import, `lodash` over `lodash-es`, a raw `<img>`.
 
 ## reference/anti-patterns.md
 
@@ -75,8 +84,8 @@ Checked: 2026-11-10 against https://www.npmjs.com/package/next, https://nextjs.o
 
 ### Claims
 
-- Legacy (Middleware, Edge runtime), A project that needs the Edge runtime for this file keeps...: https://nextjs.org/docs/app/api-reference/file-conventions/proxy
-- Environment variables: server-only vs `NEXT_PUBLIC_`, Next.js 16 removed `serverRuntimeConfig` and `publicRunti...: https://nextjs.org/docs/app/guides/upgrading/version-16
+- Proxy runs on Node.js only, so a file that needs the Edge runtime keeps `middleware.ts`: https://nextjs.org/docs/app/api-reference/file-conventions/proxy
+- Next.js 16 removed `serverRuntimeConfig` and `publicRuntimeConfig`: https://nextjs.org/docs/app/guides/upgrading/version-16
 
 ## reference/server-actions.md
 

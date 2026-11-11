@@ -5,23 +5,23 @@ description: Vue 3 patterns for the Composition API, reactivity, and single-file
 
 # Vue patterns
 
-Default assumption: Vue 3 with the Composition API and `<script setup>` syntax.
+Default assumption: Vue 3 with the Composition API and `<script setup>`.
 
-- Current stable is Vue 3.5; deltas in 3.4+ (`defineModel`) and 3.5+ (Reactive Props Destructure, `onWatcherCleanup`) are called out where they matter.
-- Options API is acceptable for legacy code; flag as legacy when reviewed.
-- Adapt advice to the version in the project's `package.json` or lockfile.
+- Current stable is Vue 3.5. Rules for 3.5+ (Reactive Props Destructure, `onWatcherCleanup`) and 3.4+ (`defineModel`, `once`) carry their version.
+- Match advice to the Vue version in the project's `package.json` or lockfile.
+- Options API code: acceptable as legacy; flag it as legacy in review.
 
 ## Reference files
 
-| File                                                     | Covers                                                                          |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| [reference/reactivity.md](reference/reactivity.md)       | `ref` vs `reactive`, `toRefs`, `shallowRef`, destructuring traps                |
-| [reference/components.md](reference/components.md)       | `<script setup>`, `defineProps`/`Emits`/`Slots`/`Model`, defaults (3.5+ vs 3.4) |
-| [reference/watchers.md](reference/watchers.md)           | `watch` vs `watchEffect`, options, deep watchers, async cleanup                 |
-| [reference/state.md](reference/state.md)                 | `provide`/`inject`, Pinia, composables                                          |
-| [reference/anti-patterns.md](reference/anti-patterns.md) | Nine review-time anti-patterns with severity calls                              |
+| File                                                     | Covers                                                                                    |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| [reference/reactivity.md](reference/reactivity.md)       | `ref` vs `reactive`, `toRefs`, `shallowRef`, destructuring traps                          |
+| [reference/components.md](reference/components.md)       | Defaults (3.5+ vs 3.4), `defineModel` (3.4+), `defineEmits`/`Slots` (3.3+), `defineProps` |
+| [reference/watchers.md](reference/watchers.md)           | `onWatcherCleanup` (3.5+), `once` (3.4+), `watch` vs `watchEffect`, deep watchers         |
+| [reference/state.md](reference/state.md)                 | `provide`/`inject`, Pinia, composables                                                    |
+| [reference/anti-patterns.md](reference/anti-patterns.md) | Nine review-time anti-patterns with severity calls                                        |
 
 ## Out of scope
 
-- Vue 2 projects. The Options API is the default and the reactivity model is fundamentally different. Flag the project's Vue major and stop; the patterns here will mislead.
-- React projects. Despite surface similarities (component tree, hooks-like primitives), the reactivity models differ.
+- A Vue 2 project: flag the project's Vue major and stop. Its reactivity model differs and these patterns mislead.
+- A React project, despite the surface likeness (component tree, hooks-like primitives). The reactivity models differ.

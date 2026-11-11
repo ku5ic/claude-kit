@@ -1,77 +1,34 @@
 # Server Functions and Server Actions
 
-In Next.js 16, **Server Function** is the broader term: an async function that runs on the server, callable from the client through a network request. **Server Action** is the narrower term: a Server Function used for form submissions or other mutations (passed to `<form action={fn}>` or `<button formAction={fn}>`). The same function is both, and how it is invoked decides which name applies.
+A Server Function is an async function that runs on the server and that the client calls over the network. A Server Action is a Server Function used for a form submission or other mutation, passed to `<form action={fn}>` or `<button formAction={fn}>`; how it's invoked decides the name. React's `startTransition` dispatches a Server Action as a `POST`, automatically when it's passed to a `<form>` or `<button>` action prop.
 
-Server Actions are dispatched as `POST` requests by React's `startTransition`; this happens automatically when the function is passed to a `<form>` or `<button>` action prop.
+## Pending state
+
+- On React 19, wrap a Server Action in `useActionState`, and read `pending` in a form's child with `useFormStatus`. The hooks' semantics are react-patterns' `reference/structure.md`.
 
 ## `"use server"` directive
 
-Two placements:
-
-- File-top: every export from the file is a Server Function.
-- Function-top: the single async function is a Server Function.
-
-```ts
-"use server";
-import { auth } from "@/lib/auth";
-
-export async function createPost(formData: FormData) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
-  // mutate
-}
-```
-
-A Client Component cannot define a Server Function; it imports one from a `"use server"` file and invokes it.
-
-## Invoking from a form
-
-```tsx
-import { createPost } from "@/app/actions";
-
-export function CreatePostForm() {
-  return (
-    <form action={createPost}>
-      <input name="title" required />
-      <button type="submit">Create</button>
-    </form>
-  );
-}
-```
-
-The action receives a `FormData` instance. Use `formData.get("title")` to read fields.
+- At the top of a file, every export is a Server Function. At the top of an async function, that function is one.
+- A Client Component can't define a Server Function; it imports one from a `"use server"` file.
+- A form action receives a `FormData` instance; read fields with `formData.get("title")`.
 
 ## Authenticate inside every Server Function
 
-`failure`. Server Functions are reachable as direct `POST` requests, not just through your app's UI. The Next.js docs call this out explicitly: do not rely on Proxy / middleware to gate access; verify auth and authorization inside the function itself, every time. Read auth from cookies or headers via `auth()`, not from function parameters.
+- A Server Function without its own auth check: `failure`. Verify authentication and authorization inside the function every time, never only in Proxy or middleware.
+- Read auth from cookies or headers via `auth()`, never from function parameters.
 
 ## Validate input at the boundary
 
-Server Functions accept arbitrary `FormData` from the network. Validate every field with a schema library (Zod, Valibot) at the top of the function, before the database call. `formData.get("x")` returns `FormDataEntryValue | null`; treat absence and wrong-type as user input, not as a bug.
+- Validate every `FormData` field with a schema library (Zod, Valibot) at the top of the function, before the database call.
+- `formData.get("x")` returns `FormDataEntryValue | null`; treat a missing or wrong-typed field as user input, not as a bug.
 
 ## Mutate then revalidate
 
-After a mutation, call `revalidatePath()` or `revalidateTag()` from `next/cache` so the next read serves fresh data. With Cache Components, prefer `updateTag()` for `cacheTag`-marked content. To navigate after the mutation, call `redirect()` from `next/navigation` (it throws a control-flow exception; nothing after it executes).
-
-```ts
-"use server";
-import { revalidateTag } from "next/cache";
-import { redirect } from "next/navigation";
-
-export async function publishPost(id: string) {
-  // auth + validate
-  // mutate
-  revalidateTag("posts", "max");
-  redirect(`/posts/${id}`);
-}
-```
-
-`refresh()` from `next/cache` refreshes the client router but does not revalidate tagged data; reach for it only when the cache is already up-to-date and only a soft router refresh is needed.
-
-## Pending state: `useActionState`, `useFormStatus`
-
-Wrap a Server Action in React 19's `useActionState`, and read `pending` in a form's child with `useFormStatus`; the hooks' semantics are react-patterns' `reference/structure.md`.
+- After a mutation, call `revalidatePath()` or `revalidateTag()` from `next/cache`. Under Cache Components, prefer `updateTag()` for `cacheTag`-marked content.
+- To navigate after a mutation, call `redirect()` from `next/navigation`. It throws, so nothing after it runs.
+- Use `refresh()` from `next/cache` only when the cache is already current and the router needs a soft refresh; it doesn't revalidate tagged data.
 
 ## Limit return values
 
-Server Function return values are serialized and sent to the client. Return only what the UI needs. Never return raw database records; cherry-pick fields. The Next.js Data Security guide recommends a Data Access Layer that constrains return shapes in one place.
+- Return only the fields the UI needs, never raw database records; return values are serialized to the client.
+- Constrain return shapes in one place with a Data Access Layer, as the Next.js Data Security guide recommends.

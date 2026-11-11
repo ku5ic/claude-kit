@@ -1,69 +1,25 @@
 # Runtime: Node, Edge, Proxy
 
-## Node vs Edge per route segment
-
-Each segment (`page.tsx`, `layout.tsx`, `route.ts`) can declare its runtime via segment config:
-
-```ts
-export const runtime = "nodejs"; // default
-// or
-export const runtime = "edge";
-```
-
-Edge runtime is a constrained Web-API subset:
-
-- Smaller bundles.
-- Lower cold start.
-- No native Node modules (`fs`, `crypto` is partial, `process` is partial).
-- No long-lived background work.
-
-Use Edge for thin compute-bound handlers (auth check, geo header, redirect logic). Default to Node for anything that touches a database driver, file system, or large npm package.
-
-The `revalidate` route segment config is not available when `runtime = "edge"`.
-
 ## Proxy (formerly Middleware)
 
-In Next.js 16, the `middleware.ts|js` file convention was deprecated and renamed to `proxy.ts|js`. The function name is `proxy` (default export or named export). A codemod migrates: `npx @next/codemod@canary middleware-to-proxy .`
+- On 16, `middleware.ts|js` is deprecated: rename it to `proxy.ts|js` and the function to `proxy`, as a default or named export. The codemod is `npx @next/codemod@canary middleware-to-proxy .`.
+- Proxy runs on Node.js only, so a file that needs the Edge runtime keeps the deprecated `middleware.ts`. Middleware gained stable Node.js support in 15.5 and was Edge-only before.
+- Never set `runtime` in a Proxy file; it throws.
+- Put the file at the project root or in `src/`, beside `app/` or `pages/`.
+- `config.matcher` narrows the paths Proxy runs on. It takes a string (`'/about/:path*'`), an array of strings, or an array of objects with `source` and optional `has`, `missing`, and `locale` for header, cookie, and query conditions.
+- Keep matcher values statically analyzable; dynamic values are silently ignored.
+- Proxy as the only auth gate: `failure`. A matcher that excludes a path also skips that path's Server Function calls, so authenticate inside every Server Function (`server-actions.md`).
 
-```ts
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+## Environment variables
 
-export function proxy(request: NextRequest) {
-  if (!request.cookies.has("session")) {
-    return NextResponse.redirect(new URL("/login", request.url));
-  }
-}
+- `serverRuntimeConfig` or `publicRuntimeConfig` in a 16+ project: `failure`. Next.js 16 removed both.
+- `process.env.SECRET` (no `NEXT_PUBLIC_` prefix) read in a Client Component: `failure`. The client bundle gets `""` in its place, with no error.
+- Read server-only values from `process.env` in Server Components; the taint API keeps them out of Client Components.
+- `NEXT_PUBLIC_*` values are inlined into the client bundle at build. To read `process.env` at request time, call `connection()` first.
 
-export const config = {
-  matcher: ["/dashboard/:path*"],
-};
-```
+## Node vs Edge per route segment
 
-Place the file at the project root (or `src/`), at the same level as `app/` or `pages/`.
-
-The `runtime` config option is not available in Proxy files; setting it throws. Proxy runs on the Node.js runtime only. The file convention (Middleware before v16.0, Proxy after) gained stable Node.js runtime support in v15.5, having been Edge-only previously.
-
-### Legacy (Middleware, Edge runtime)
-
-A project that needs the Edge runtime for this file keeps `middleware.ts`; the proxy docs say Edge is not supported in `proxy.ts`. Treat that as the one case where the deprecated name still applies.
-
-## Matchers
-
-The `config.matcher` array narrows which paths the Proxy runs on. Three forms:
-
-- String: `'/about/:path*'`.
-- Array of strings: `['/about/:path*', '/dashboard/:path*']`.
-- Array of objects with `source`, optional `has`, `missing`, `locale` for header/cookie/query conditions.
-
-Matcher values must be statically analyzable; dynamic values are silently ignored.
-
-## Proxy vs Server Function authentication
-
-`failure`. Proxy is defense in depth, never the gate. A matcher that excludes a path also skips the Server Function calls on it. The rule is `reference/server-actions.md`'s "Authenticate inside every Server Function".
-
-## Environment variables: server-only vs `NEXT_PUBLIC_`
-
-Next.js 16 removed `serverRuntimeConfig` and `publicRuntimeConfig`; flag either as `failure` in a 16+ project. Read server-only values from `process.env` in Server Components (the taint API keeps them out of Client Components). `NEXT_PUBLIC_*` values are inlined into the client bundle at build; call `connection()` before reading `process.env` to read at request time instead.
-
-`failure`: reading `process.env.SECRET` (no `NEXT_PUBLIC_` prefix) in a Client Component. The variable is replaced with `""` in the client bundle and the runtime read returns the empty string silently, with no error.
+- Set a segment's runtime in `page.tsx`, `layout.tsx`, or `route.ts` with `export const runtime = "nodejs"` (the default) or `"edge"`.
+- Use Edge for thin compute-bound handlers such as an auth check, a geo header, or redirect logic. It's a Web-API subset with smaller bundles and lower cold starts, no native Node modules, partial `crypto` and `process`, and no long-lived background work.
+- Use Node for anything that touches a database driver, the file system, or a large npm package.
+- The `revalidate` segment config isn't available with `runtime = "edge"`.

@@ -7,16 +7,16 @@ description: React patterns for hooks rules, component design, and rendering per
 
 Default assumption: React 19 with the modern (concurrent) renderer.
 
-- Most rules apply unchanged to React 18; deltas (`use`, `useActionState`, `useFormStatus`, `useOptimistic`, Actions) are called out where they matter.
-- Server Components are a feature of frameworks built on React; framework-specific patterns load when those framework signals are present in the project.
-- Adapt advice to the version in the project's `package.json` or lockfile.
+- Most rules hold unchanged on React 18. The 19-only APIs (`use`, `useActionState`, `useFormStatus`, `useOptimistic`, Actions) say so where they appear.
+- Server Components are a feature of frameworks built on React; that framework's patterns load when its signals are in the project.
+- Match advice to the React version in the project's `package.json` or lockfile.
 
 ## Reference files
 
-| File                                                     | Covers                                                                              |
-| -------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| [reference/correctness.md](reference/correctness.md)     | Rules of Hooks, dependency arrays, key stability, effect cleanup, render pitfalls   |
-| [reference/performance.md](reference/performance.md)     | Memoization costs, `React.memo`, virtualization, lazy init, context, React Compiler |
-| [reference/structure.md](reference/structure.md)         | Controlled vs uncontrolled, derived state, prop drilling, effects vs handlers       |
-| [reference/anti-patterns.md](reference/anti-patterns.md) | Seven review-time anti-patterns with severity calls                                 |
-| [reference/when-to-split.md](reference/when-to-split.md) | Heuristics for component splitting and what does not justify a split                |
+| File                                                     | Covers                                                                                  |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| [reference/correctness.md](reference/correctness.md)     | `use()`, Rules of Hooks, dependency arrays, keys, effect cleanup, conditional rendering |
+| [reference/performance.md](reference/performance.md)     | `useOptimistic`, memoization, React Compiler, virtualization, lazy init, context        |
+| [reference/structure.md](reference/structure.md)         | Actions, controlled vs uncontrolled, derived state, prop drilling, effects vs handlers  |
+| [reference/anti-patterns.md](reference/anti-patterns.md) | Seven review-time anti-patterns with severity calls                                     |
+| [reference/when-to-split.md](reference/when-to-split.md) | When to split a component, and what doesn't justify a split                             |
