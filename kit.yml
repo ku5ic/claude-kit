@@ -439,7 +439,7 @@ gate_timeout: 90
 
 # When Stop and the full gate print their receipt, every gate's verdict:
 # all (every run that checked something) or failures (only when a gate
-# failed or skipped, or a file went unchecked). Hiding it never turns a
+# failed or skipped, or the claim verifier failed). Hiding it never turns a
 # check off; kit explain stop shows the last one.
 receipt: all
 

@@ -89,7 +89,7 @@ func StopChecks(h *hook.Hook) error {
 		return nil
 	}
 	p := enforce.Stop(cfg, enforce.Options{Root: root, CacheDir: h.Paths.CacheDir()}, edited)
-	unchecked := uncheckedLines(h, root, p.Unchecked)
+	unchecked := uncheckedLines(h)
 	if len(p.Gates) == 0 {
 		if len(unchecked) > 0 {
 			h.Notify(run.Receipt{By: "stop"}.String(append(unchecked, overrides(cfg)...)...))
@@ -135,17 +135,15 @@ func notifyReceipt(h *hook.Hook, cfg *config.Config, rc run.Receipt, unchecked [
 	h.Notify(rc.String(append(unchecked, overrides(cfg)...)...))
 }
 
-// uncheckedLines names each file no gate checked, then each text this
-// turn's claim verifier failed on, read from claims' marker and cleared.
-func uncheckedLines(h *hook.Hook, root string, files []string) []string {
+// uncheckedLines names each text this turn's claim verifier failed on,
+// read from claims' marker and cleared. A file no gate claims isn't named:
+// most are docs no check exists for.
+func uncheckedLines(h *hook.Hook) []string {
 	var lines []string
-	for _, f := range files {
-		lines = append(lines, layout.KV("unchecked", fsx.Rel(root, f)+"  no check claims it"))
-	}
 	marker := claimsUnchecked(h)
 	data, err := os.ReadFile(marker)
 	if err != nil {
-		return lines
+		return nil
 	}
 	for where := range strings.Lines(string(data)) {
 		lines = append(lines, layout.KV("unchecked", strings.TrimSpace(where)+"  verifier failed"))
