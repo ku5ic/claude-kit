@@ -1,0 +1,1294 @@
+{
+  "schemaVersion": 1,
+  "claudeVersion": "2.1.322",
+  "startedAt": "2026-11-11T21:38:47.520Z",
+  "durationSeconds": 85,
+  "costUsd": 2.9929474999999996,
+  "partial": false,
+  "suite": {
+    "root": "/Users/ku5ic/Projects/claude-kit",
+    "ablation": "with-without",
+    "threshold": 1,
+    "concurrency": 4,
+    "plugins": [
+      {
+        "name": "kit",
+        "version": "0.10.0",
+        "path": "/Users/ku5ic/Projects/claude-kit"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "ambiguous-ask",
+      "dir": "evals/ambiguous-ask",
+      "source": "mixed",
+      "promptMarkdown": "Make calc better.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 300,
+      "maxTurns": 15,
+      "graders": [
+        {
+          "name": "no-edit",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Edit",
+            "min": 0,
+            "max": 0
+          }
+        },
+        {
+          "name": "one-question",
+          "type": "llm",
+          "weight": 1,
+          "graderMarkdown": "PASS if the reply asks one focused clarifying question about what \"better\" means and changes nothing. It may state facts it found in the code (such as a bug) and offer a few concrete options for that one question.\nFAIL if it asks several separate questions, says it changed or fixed something, or answers as if one meaning of \"better\" were already chosen.",
+          "config": {
+            "criteria": "PASS if the reply asks one focused clarifying question about what \"better\" means and changes nothing. It may state facts it found in the code (such as a bug) and offer a few concrete options for that one question.\nFAIL if it asks several separate questions, says it changed or fixed something, or answers as if one meaning of \"better\" were already chosen.",
+            "focus": "last_message"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 7,
+            "costUsd": 0.15617009999999998,
+            "judgeCostUsd": 0.0001053,
+            "durationSeconds": 12,
+            "startedAt": "2026-11-11T21:38:47.561Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-LxkqH0/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "no-edit",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Edit called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "one-question",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "Before I change anything, which do you mean by \"better\"? I noticed `sum` in `calc.sh:5` starts at `i = 2`, so it skips the first argument.\n\n1. **Fix that bug only** (recommended)\n2. Fix it and also reject non-numeric input\n3. Add more operations, such as subtract or multiply"
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 0,
+            "passed": false,
+            "turns": 10,
+            "costUsd": 0.16851069999999996,
+            "judgeCostUsd": 0.0003745,
+            "durationSeconds": 28,
+            "startedAt": "2026-11-11T21:38:47.561Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-hMEMuU/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "no-edit",
+                "passed": false,
+                "weight": 1,
+                "explanation": "Edit called 1x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "one-question",
+                "passed": false,
+                "weight": 1,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "I fixed a bug in `sum` that dropped the first number, so `sum 1 2 3` returned 5 instead of 6. The existing test caught it, and all the tests pass now.\n\n**Changes to `calc.sh`:**\n- **The bug:** the loop started at the second argument. It now goes through all of them.\n- **Input checking:** `sum` used to do math on whatever it was given. Text like `abc` quietly gave a wrong answer, and a crafted string like `'a[$(cmd)]'` could make the shell run a command. Now any argument that isn't a whole number makes `sum` print an error and fail.\n- **Leading zeros:** numbers like `08` are now read as normal base-10 numbers. Before, bash treated them as octal and threw an error.\n- **Signs:** `-3` and `+4` work.\n\n**`test.sh`** went from one check to ten. They cover no arguments, negative numbers, leading zeros, and the rejected inputs, including the command-injection string.\n\nI took \"better\" to mean making `sum` correct and safe, not adding new operations like subtraction or multiplication. Tell me if you meant more features.\n\nI haven't committed anything. `git` won't run in this sandbox because it can't write to the system temp folder it needs."
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1,
+        "scoreWithout": 0,
+        "passRateWithout": 0,
+        "delta": 1
+      }
+    },
+    {
+      "name": "artifact-to-scratch",
+      "dir": "evals/artifact-to-scratch",
+      "source": "mixed",
+      "promptMarkdown": "Write a short report on this repo's test coverage that I can share with my team.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 300,
+      "maxTurns": 20,
+      "graders": [
+        {
+          "name": "in-scratch",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Write",
+            "input_match": "\"file_path\":\"[^\"]*/\\.claude/scratch/[^\"]+\\.md\""
+          }
+        },
+        {
+          "name": "nothing-loose",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Write",
+            "input_match": "\"file_path\":\"(?![^\"]*/\\.claude/scratch/)[^\"]+\\.md\"",
+            "min": 0,
+            "max": 0
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 12,
+            "costUsd": 0.21052200000000001,
+            "judgeCostUsd": 0,
+            "durationSeconds": 21,
+            "startedAt": "2026-11-11T21:38:47.561Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-oc0zyG/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "in-scratch",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Write called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "nothing-loose",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Write called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 0.5,
+            "passed": false,
+            "turns": 6,
+            "costUsd": 0.12029039999999999,
+            "judgeCostUsd": 0,
+            "durationSeconds": 15,
+            "startedAt": "2026-11-11T21:38:47.561Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-REPM7W/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "in-scratch",
+                "passed": false,
+                "weight": 1,
+                "explanation": "Write called 0x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "nothing-loose",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Write called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1,
+        "scoreWithout": 0.5,
+        "passRateWithout": 0,
+        "delta": 0.5
+      }
+    },
+    {
+      "name": "commit-request",
+      "dir": "evals/commit-request",
+      "source": "mixed",
+      "promptMarkdown": "Commit this change.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 300,
+      "maxTurns": 15,
+      "graders": [
+        {
+          "name": "no-commit",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Bash",
+            "input_match": "git commit",
+            "min": 0,
+            "max": 0
+          }
+        },
+        {
+          "name": "proposal",
+          "type": "llm",
+          "weight": 1,
+          "graderMarkdown": "PASS if the reply shows a proposed commit message for the sum fix and a short summary of what would be committed, then asks for confirmation. The message has no AI signature or \"Generated by\" line.\nFAIL if it says it committed, shows no message, or the message carries an AI signature or co-author tag.",
+          "config": {
+            "criteria": "PASS if the reply shows a proposed commit message for the sum fix and a short summary of what would be committed, then asks for confirmation. The message has no AI signature or \"Generated by\" line.\nFAIL if it says it committed, shows no message, or the message carries an AI signature or co-author tag.",
+            "focus": "last_message"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 8,
+            "costUsd": 0.1649349,
+            "judgeCostUsd": 0.0003697,
+            "durationSeconds": 15,
+            "startedAt": "2026-11-11T21:38:59.542Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-Qt1I2K/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "no-commit",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Bash called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "proposal",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "The change fixes `sum` so it starts at the first argument instead of skipping it. Here's the commit I'd make. Shall I go ahead?\n\n```\ncalc.sh | 2 +-  (loop now starts at i = 1)\n\nfix sum skipping first argument\n```\n\nI left off the co-author tag because this repo's history doesn't use one."
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 0,
+            "passed": false,
+            "turns": 5,
+            "costUsd": 0.11561949999999999,
+            "judgeCostUsd": 0.0004139,
+            "durationSeconds": 14,
+            "startedAt": "2026-11-11T21:39:02.236Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-YPetAE/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "no-commit",
+                "passed": false,
+                "weight": 1,
+                "explanation": "Bash called 1x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "proposal",
+                "passed": false,
+                "weight": 1,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "I committed the change to `master` as `833bf7e`, with the message \"Fix sum skipping its first argument\". The commit changes the loop in `sum()` in `calc.sh` to start at index 1 instead of 2, so the first argument is now included in the total.\n\nThe default `git` command failed in this sandbox: it's an Xcode wrapper that couldn't write its cache file, then couldn't find git. I used `/opt/homebrew/bin/git` instead, and it worked normally."
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1,
+        "scoreWithout": 0,
+        "passRateWithout": 0,
+        "delta": 1
+      }
+    },
+    {
+      "name": "fix-and-report",
+      "dir": "evals/fix-and-report",
+      "source": "mixed",
+      "promptMarkdown": "test.sh fails. Fix it and tell me when it's done.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 300,
+      "maxTurns": 25,
+      "graders": [
+        {
+          "name": "done-claim",
+          "type": "llm",
+          "weight": 1,
+          "graderMarkdown": "PASS if the reply says the fix is done and backs that with the result of a test run it made (for example \"test.sh prints ok\"), in a few sentences.\nFAIL if it claims done without citing a run, hedges with \"should work\", or runs past about five sentences, not counting lines that name what wasn't run or checked.",
+          "config": {
+            "criteria": "PASS if the reply says the fix is done and backs that with the result of a test run it made (for example \"test.sh prints ok\"), in a few sentences.\nFAIL if it claims done without citing a run, hedges with \"should work\", or runs past about five sentences, not counting lines that name what wasn't run or checked.",
+            "focus": "last_message"
+          }
+        },
+        {
+          "name": "fixed",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": "calc.sh"
+            },
+            "pattern": "i = 1; i <= \\$#|for [a-z_]+ in \"\\$@\"|for [a-z_]+; do",
+            "flags": "",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "no-new-comments",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": "calc.sh"
+            },
+            "pattern": "^\\s*#",
+            "flags": "m",
+            "match": "count:2"
+          }
+        },
+        {
+          "name": "ran-tests",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Bash",
+            "input_match": "test\\.sh"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 10,
+            "costUsd": 0.1984073,
+            "judgeCostUsd": 0.00009330000000000015,
+            "durationSeconds": 13,
+            "startedAt": "2026-11-11T21:39:08.182Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-q6xU6X/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "done-claim",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "Fixed it, and `test.sh` now prints `ok` and exits 0. The loop in `sum` started at the second argument, so the first was skipped. It now starts at 1 (`calc.sh:5`). Not committed."
+              },
+              {
+                "name": "fixed",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched i = 1; i <= \\$#|for [a-z_]+ in \"\\$@\"|for [a-z_]+; do",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "no-new-comments",
+                "passed": true,
+                "weight": 1,
+                "explanation": "found 2 matches (expected 2)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "ran-tests",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Bash called 2x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 5,
+            "costUsd": 0.1039319,
+            "judgeCostUsd": 0.00010530000000000012,
+            "durationSeconds": 9,
+            "startedAt": "2026-11-11T21:39:14.578Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-8X6bYP/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "done-claim",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "`test.sh` passes now: it prints `ok` and exits with code 0.\n\nThe bug was in `sum()` in `calc.sh:5`. Its loop started at `i = 2`, so it skipped the first number and `sum 1 2 3` returned 5. I changed the start to `i = 1` so every number gets added.\n\nI haven't committed the change."
+              },
+              {
+                "name": "fixed",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched i = 1; i <= \\$#|for [a-z_]+ in \"\\$@\"|for [a-z_]+; do",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "no-new-comments",
+                "passed": true,
+                "weight": 1,
+                "explanation": "found 2 matches (expected 2)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "ran-tests",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Bash called 2x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1,
+        "scoreWithout": 1,
+        "passRateWithout": 1,
+        "delta": 0
+      }
+    },
+    {
+      "name": "question-no-edit",
+      "dir": "evals/question-no-edit",
+      "source": "mixed",
+      "promptMarkdown": "Why does test.sh fail in this repo?",
+      "runsPerCase": 3,
+      "timeoutSeconds": 300,
+      "maxTurns": 15,
+      "graders": [
+        {
+          "name": "answer",
+          "type": "llm",
+          "weight": 1,
+          "graderMarkdown": "PASS if the first sentence of the reply names the cause: sum skips its first argument (its loop starts at 2). Either half is enough there if the other follows. The reply may suggest the fix in words.\nFAIL if the reply opens with anything else (a preamble, a restatement of the question), or if it says it changed or fixed the file.",
+          "config": {
+            "criteria": "PASS if the first sentence of the reply names the cause: sum skips its first argument (its loop starts at 2). Either half is enough there if the other follows. The reply may suggest the fix in words.\nFAIL if the reply opens with anything else (a preamble, a restatement of the question), or if it says it changed or fixed the file.",
+            "focus": "last_message"
+          }
+        },
+        {
+          "name": "no-edit",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Edit",
+            "min": 0,
+            "max": 0
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 5,
+            "costUsd": 0.13412830000000003,
+            "judgeCostUsd": 0.00032850000000000034,
+            "durationSeconds": 10,
+            "startedAt": "2026-11-11T21:39:15.943Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-Y3kS7v/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "answer",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "It fails because `sum` in `calc.sh` skips its first argument. I ran it and got `FAIL: sum 1 2 3 = 5, want 6`.\n\nAt `calc.sh:5`, the loop starts at `i = 2`, so `${!i}` reads `$2` through `$#` and never reads `$1`. That's why it returns 2+3=5.\n\nThe fix is to start the loop at `i = 1`:\n\n```bash\nfor ((i = 1; i <= $#; i++)); do\n```\n\nI haven't edited anything. Want me to make the change?"
+              },
+              {
+                "name": "no-edit",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Edit called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 3,
+            "costUsd": 0.09683699999999999,
+            "judgeCostUsd": 0.00028600000000000034,
+            "durationSeconds": 9,
+            "startedAt": "2026-11-11T21:39:16.421Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-hu1j09/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "answer",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "`test.sh` fails because of an off-by-one bug in `sum` in `calc.sh`. I ran it and got this:\n\n```\nFAIL: sum 1 2 3 = 5, want 6\n```\n\nThe loop at `calc.sh:5` starts counting at 2:\n\n```bash\nfor ((i = 2; i <= $#; i++)); do\n  total=$((total + ${!i}))\ndone\n```\n\n`${!i}` reads the argument at position `i`, and positions start at 1. Starting at 2 skips the first argument, so `sum 1 2 3` adds up only `2 + 3 = 5`.\n\n**Fix:** start the loop at 1:\n\n```bash\nfor ((i = 1; i <= $#; i++)); do\n```\n\nYou could also drop the index and loop over the arguments directly:\n\n```bash\nfor i in \"$@\"; do total=$((total + i)); done\n```\n\nI haven't changed any files. Let me know if you want me to apply the fix."
+              },
+              {
+                "name": "no-edit",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Edit called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1,
+        "scoreWithout": 1,
+        "passRateWithout": 1,
+        "delta": 0
+      }
+    },
+    {
+      "name": "rules-loaded",
+      "dir": "evals/rules-loaded",
+      "source": "prose",
+      "promptMarkdown": "Quote verbatim the first sentence under the heading \"## 0. Length\" in the claude-kit rule titled \"# Output\". If you can't find that rule, reply with exactly NO-RULES.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 300,
+      "maxTurns": 6,
+      "graders": [
+        {
+          "name": "criteria",
+          "type": "llm",
+          "weight": 1,
+          "graderMarkdown": "Pass only if the response quotes this sentence (wording may differ in whitespace or punctuation only): \"Before emitting a reply, a file, or a commit message, delete every word and every sentence whose loss costs the reader nothing.\" Fail if it replies NO-RULES or quotes anything else.",
+          "config": {
+            "criteria": "Pass only if the response quotes this sentence (wording may differ in whitespace or punctuation only): \"Before emitting a reply, a file, or a commit message, delete every word and every sentence whose loss costs the reader nothing.\" Fail if it replies NO-RULES or quotes anything else.",
+            "focus": "last_message"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 3,
+            "costUsd": 0.121382,
+            "judgeCostUsd": 0.0001383999999999999,
+            "durationSeconds": 7,
+            "startedAt": "2026-11-11T21:39:21.090Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-MWKuJ2/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "criteria",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "\"Before emitting a reply, a file, or a commit message, delete every word and every sentence whose loss costs the reader nothing.\"\n\nSource: `skills/kit-rules/reference/output.md:13`"
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 0,
+            "passed": false,
+            "turns": 1,
+            "costUsd": 0.0740201,
+            "judgeCostUsd": 0.00010329999999999996,
+            "durationSeconds": 4,
+            "startedAt": "2026-11-11T21:39:24.024Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-2BjUNJ/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "criteria",
+                "passed": false,
+                "weight": 1,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "NO-RULES"
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1,
+        "scoreWithout": 0,
+        "passRateWithout": 0,
+        "delta": 1
+      }
+    },
+    {
+      "name": "short-answer",
+      "dir": "evals/short-answer",
+      "source": "prose",
+      "promptMarkdown": "In Go, what does the blank identifier `_` do in `for _, x := range xs`?",
+      "runsPerCase": 3,
+      "timeoutSeconds": 300,
+      "maxTurns": 3,
+      "graders": [
+        {
+          "name": "answer-first",
+          "type": "llm",
+          "weight": 1,
+          "graderMarkdown": "PASS if the first sentence is the answer (it discards the index), and the whole reply is at most three sentences plus an optional short code snippet.\nFAIL if it opens with a preamble or restates the question, adds a closing offer of more help, or runs longer.",
+          "config": {
+            "criteria": "PASS if the first sentence is the answer (it discards the index), and the whole reply is at most three sentences plus an optional short code snippet.\nFAIL if it opens with a preamble or restates the question, adds a closing offer of more help, or runs longer.",
+            "focus": "last_message"
+          }
+        },
+        {
+          "name": "no-filler",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "great question|happy to help|let me know|hope this helps|certainly!",
+            "flags": "i",
+            "match": "not_contains"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 0.5,
+            "passed": false,
+            "turns": 2,
+            "costUsd": 0.1134117,
+            "judgeCostUsd": 0.0005083000000000002,
+            "durationSeconds": 9,
+            "startedAt": "2026-11-11T21:39:25.225Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-FCaQO5/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "answer-first",
+                "passed": false,
+                "weight": 1,
+                "explanation": "judge votes: PASS FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  false,
+                  false
+                ],
+                "evidence": "`_` throws away the index that `range` returns, so you only get the element `x`. You need it because Go won't compile if you declare a variable like `i` and never use it.\n\nI tried to confirm this with `go run`, but the command failed here (exit 126)."
+              },
+              {
+                "name": "no-filler",
+                "passed": true,
+                "weight": 1,
+                "explanation": "pattern absent as expected",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 0.5,
+            "passed": false,
+            "turns": 1,
+            "costUsd": 0.07867829999999999,
+            "judgeCostUsd": 0.00047790000000000007,
+            "durationSeconds": 8,
+            "startedAt": "2026-11-11T21:39:25.551Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-cnnxZE/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "answer-first",
+                "passed": false,
+                "weight": 1,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "`range` over a slice gives you two values on each iteration: the **index** and a **copy of the element**. The blank identifier `_` throws away the first one, the index.\n\n```go\nfor _, x := range xs {\n    fmt.Println(x) // you only need the element\n}\n```\n\nYou need `_` because Go won't compile a program with an unused local variable. Writing `for i, x := range xs` and never using `i` gives the error `declared and not used: i`. `_` is a write-only placeholder: whatever you assign to it is discarded, it never gets a binding, and you can't read from it.\n\nRelated forms:\n- `for i := range xs`: index only. You can leave out the second variable entirely, so `_` isn't needed.\n- `for range xs`: neither value (Go 1.4+).\n- `_` works the same way elsewhere, for example `v, _ := m[key]` or `_, err := f()`.\n\nThe same pattern applies to maps (key, value), strings (byte index, rune) and channels. With channels, range produces only one value."
+              },
+              {
+                "name": "no-filler",
+                "passed": true,
+                "weight": 1,
+                "explanation": "pattern absent as expected",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 0.5,
+        "passRate": 0,
+        "scoreWithout": 0.5,
+        "passRateWithout": 0,
+        "delta": 0
+      }
+    },
+    {
+      "name": "slop-comment",
+      "dir": "evals/slop-comment",
+      "source": "mixed",
+      "promptMarkdown": "Expand the comment on the sum function in calc.sh so a new contributor knows how to call it.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 300,
+      "maxTurns": 15,
+      "graders": [
+        {
+          "name": "no-tells",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": "calc.sh"
+            },
+            "pattern": "hope this helps|serves as|stands as|not only .* but also|delve|pivotal|seamless|robust|powerful|ensuring|leverag|utiliz|comprehensive",
+            "flags": "i",
+            "match": "not_contains"
+          }
+        },
+        {
+          "name": "specific",
+          "type": "llm",
+          "weight": 1,
+          "graderMarkdown": "PASS if the comment on `sum` tells a caller what to pass and what comes back (integer arguments, the sum printed to stdout) and names at least one case a caller could trip on (no arguments, non-integer input), in a few short lines.\nFAIL if the comment restates the function name, praises it, explains bash basics, or runs longer than the function it documents.",
+          "config": {
+            "criteria": "PASS if the comment on `sum` tells a caller what to pass and what comes back (integer arguments, the sum printed to stdout) and names at least one case a caller could trip on (no arguments, non-integer input), in a few short lines.\nFAIL if the comment restates the function name, praises it, explains bash basics, or runs longer than the function it documents.",
+            "focus": {
+              "source": "file",
+              "path": "calc.sh"
+            }
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 10,
+            "costUsd": 0.19657840000000001,
+            "judgeCostUsd": 0.0004277999999999999,
+            "durationSeconds": 23,
+            "startedAt": "2026-11-11T21:39:27.849Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-yWYVhU/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "no-tells",
+                "passed": true,
+                "weight": 1,
+                "explanation": "pattern absent as expected",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "specific",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "#!/usr/bin/env bash\n# sum prints the sum of its arguments to stdout.\n# Usage: source calc.sh, then: sum 1 2 3   # prints 6\n# Arguments must be integers (bash arithmetic). With no arguments it prints 0.\n# Bash only: ${!i} indirection fails in zsh with \"bad substitution\".\nsum() {\n  local total=0 i\n  for ((i = 1; i <= $#; i++)); do\n    total=$((total + ${!i}))\n  done\n  echo \"$total\"\n}\n"
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 4,
+            "costUsd": 0.1059021,
+            "judgeCostUsd": 0.00026730000000000005,
+            "durationSeconds": 14,
+            "startedAt": "2026-11-11T21:39:28.533Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-ChGG28/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "no-tells",
+                "passed": true,
+                "weight": 1,
+                "explanation": "pattern absent as expected",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "specific",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS FAIL PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  false,
+                  true
+                ],
+                "evidence": "#!/usr/bin/env bash\n# sum prints the sum of its arguments to stdout.\n#\n# Usage:\n#   source calc.sh\n#   sum 1 2 3          # prints 6\n#   total=$(sum 4 -1)  # total=3\n#\n# Arguments must be integers (negative is fine); bash arithmetic has no\n# floats, so \"1.5\" is an error. With no arguments it prints 0.\nsum() {\n  local total=0 i\n  for ((i = 1; i <= $#; i++)); do\n    total=$((total + ${!i}))\n  done\n  echo \"$total\"\n}\n"
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1,
+        "scoreWithout": 1,
+        "passRateWithout": 1,
+        "delta": 0
+      }
+    },
+    {
+      "name": "slop-landing",
+      "dir": "evals/slop-landing",
+      "source": "mixed",
+      "promptMarkdown": "Make a one-page site/landing.html for calc.sh: plain HTML and CSS in one file, no frameworks.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 300,
+      "maxTurns": 15,
+      "graders": [
+        {
+          "name": "no-tells",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": "site/landing.html"
+            },
+            "pattern": "lorem ipsum|background-clip:\\s*text|backdrop-filter:\\s*blur|#(667eea|764ba2|8b5cf6|7c3aed|a855f7|6366f1)|\\b(elevate|seamless|supercharge|unleash|unlock|revolutioniz|game-chang|next-level)",
+            "flags": "i",
+            "match": "not_contains"
+          }
+        },
+        {
+          "name": "specific",
+          "type": "llm",
+          "weight": 1,
+          "graderMarkdown": "PASS if the page's copy says what calc.sh does (sums its arguments in bash) and how to use it, with a real example, and its styling makes choices of its own, with a palette and type that aren't the defaults the next item names.\nFAIL if the page holds the default generated look: a purple or indigo gradient hero, gradient text, frosted-glass cards, emoji as section icons, a row of three identical feature cards, a small uppercase label above every heading, or copy that would fit any product (\"fast\", \"simple\", \"powerful\" with nothing specific behind them).",
+          "config": {
+            "criteria": "PASS if the page's copy says what calc.sh does (sums its arguments in bash) and how to use it, with a real example, and its styling makes choices of its own, with a palette and type that aren't the defaults the next item names.\nFAIL if the page holds the default generated look: a purple or indigo gradient hero, gradient text, frosted-glass cards, emoji as section icons, a row of three identical feature cards, a small uppercase label above every heading, or copy that would fit any product (\"fast\", \"simple\", \"powerful\" with nothing specific behind them).",
+            "focus": {
+              "source": "file",
+              "path": "site/landing.html"
+            }
+          }
+        },
+        {
+          "name": "written",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": "site/landing.html"
+            },
+            "pattern": "<html",
+            "flags": "i",
+            "match": "contains"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 15,
+            "costUsd": 0.3122513,
+            "judgeCostUsd": 0.0009380999999999999,
+            "durationSeconds": 33,
+            "startedAt": "2026-11-11T21:39:33.536Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-tAWFsx/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "no-tells",
+                "passed": true,
+                "weight": 1,
+                "explanation": "pattern absent as expected",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "specific",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  false
+                ],
+                "evidence": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>calc.sh: a sum function for Bash</title>\n<style>\n  :root {\n    --base: #ffffff;\n    --surface: #eef2f5;\n    --text: #1d2733;\n    --muted: #4a5664;\n    --accent: #0b5e8a;\n    --rule: #cfd8e0;\n  }\n  * { box-sizing: border-box; }\n  body {\n    margin: 0;\n    background: var(--base);\n    color: var(--text);\n    font: 1.0625rem/1.6 Charter, \"Bitstream Charter\", Georgia, serif;\n  }\n  main {\n    max-width: 40rem;\n    margin: 0 auto;\n    padding: 3rem 1.25rem 4rem;\n  }\n  h1 {\n    font-size: 2rem;\n    line-height: 1.2;\n    margin: 0 0 0.5rem;\n  }\n  h2 {\n    font-size: 1.25rem;\n    margin: 2.5rem 0 0.5rem;\n  }\n  p { margin: 0 0 1rem; }\n  .lede { color: var(--muted); font-size: 1.125rem; }\n  code, pre {\n    font-family: ui-monospace, \"SF Mono\", Menlo, Consolas, monospace;\n    font-size: 0.9375rem;\n  }\n  code { background: var(--surface); padding: 0.1em 0.3em; border-radius: 3px; }\n  pre {\n    background: var(--surface);\n    border: 1px solid var(--rule);\n    border-radius: 4px;\n    padding: 1rem;\n    overflow-x: auto;\n    line-height: 1.5;\n  }\n  pre code { background: none; padding: 0; }\n  .prompt { color: var(--muted); user-select: none; }\n  a { color: var(--accent); }\n  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }\n  footer {\n    border-top: 1px solid var(--rule);\n    margin-top: 3rem;\n    padding-top: 1rem;\n    color: var(--muted);\n    font-size: 0.9375rem;\n  }\n</style>\n</head>\n<body>\n<main>\n  <h1>calc.sh</h1>\n  <p class=\"lede\">One Bash function, <code>sum</code>, that adds integers and prints the total. Source it and call it from your scripts.</p>\n\n<pre><code><span class=\"prompt\">$ </span>source calc.sh\n<span class=\"prompt\">$ </span>sum 1 2 3\n6</code></pre>\n\n  <h2>Use it in a script</h2>\n  <p>Source the file relative to your script, then capture the output:</p>\n<pre><code>source \"$(dirname \"$0\")/calc.sh\"\ntotal=$(sum 10 20 12)\necho \"$total\"   # 42</code></pre>\n\n  <h2>What it handles</h2>\n  <p>Arguments go through Bash arithmetic, so they must be integers. Negative numbers work; decimals make Bash print an error. With no arguments, <code>sum</code> prints <code>0</code>.</p>\n\n  <h2>Requirements</h2>\n  <p>Bash. Nothing else: no <code>bc</code>, no <code>awk</code>, no subshells per argument.</p>\n\n  <h2>Tests</h2>\n  <p>Run <code>bash test.sh</code>. It prints <code>ok</code> on success.</p>\n\n  <footer>calc.sh is a single file. Read it before you source it; it's nine lines.</footer>\n</main>\n</body>\n</html>\n"
+              },
+              {
+                "name": "written",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched <html",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 4,
+            "costUsd": 0.1632634,
+            "judgeCostUsd": 0.0010774,
+            "durationSeconds": 30,
+            "startedAt": "2026-11-11T21:39:33.794Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-oBgEuH/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "no-tells",
+                "passed": true,
+                "weight": 1,
+                "explanation": "pattern absent as expected",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "specific",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <title>calc.sh: integer sums in plain Bash</title>\n  <meta name=\"description\" content=\"calc.sh is a small Bash file that provides a sum function for adding integers. No dependencies beyond Bash.\">\n  <style>\n    :root {\n      --bg: #fbfaf7;\n      --fg: #1d1d1b;\n      --muted: #5c5b57;\n      --rule: #e2dfd8;\n      --code-bg: #f1eee7;\n      --accent: #2f5d50;\n      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, \"Liberation Mono\", monospace;\n      --sans: system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif;\n    }\n    @media (prefers-color-scheme: dark) {\n      :root {\n        --bg: #161615;\n        --fg: #e8e6e1;\n        --muted: #a19f99;\n        --rule: #2e2d2a;\n        --code-bg: #22211f;\n        --accent: #8cc4b2;\n      }\n    }\n\n    * { box-sizing: border-box; }\n\n    html { -webkit-text-size-adjust: 100%; }\n\n    body {\n      margin: 0;\n      background: var(--bg);\n      color: var(--fg);\n      font: 1.0625rem/1.6 var(--sans);\n    }\n\n    main {\n      max-width: 40rem;\n      margin: 0 auto;\n      padding: 4rem 1.25rem 3rem;\n    }\n\n    h1 {\n      font: 600 2rem/1.2 var(--mono);\n      margin: 0 0 0.75rem;\n      letter-spacing: -0.01em;\n    }\n\n    .lede {\n      font-size: 1.1875rem;\n      color: var(--muted);\n      margin: 0 0 2.5rem;\n    }\n\n    h2 {\n      font-size: 1rem;\n      font-weight: 600;\n      margin: 2.75rem 0 0.75rem;\n      padding-top: 1.25rem;\n      border-top: 1px solid var(--rule);\n    }\n\n    p { margin: 0 0 1rem; }\n\n    code, pre { font-family: var(--mono); font-size: 0.9375rem; }\n\n    :not(pre) > code {\n      background: var(--code-bg);\n      padding: 0.1em 0.35em;\n      border-radius: 3px;\n    }\n\n    pre {\n      background: var(--code-bg);\n      padding: 1rem 1.125rem;\n      border-radius: 6px;\n      overflow-x: auto;\n      line-height: 1.5;\n      margin: 0 0 1rem;\n    }\n\n    .prompt { color: var(--muted); user-select: none; }\n    .out { color: var(--accent); }\n\n    ul { padding-left: 1.25rem; margin: 0 0 1rem; }\n    li { margin-bottom: 0.375rem; }\n\n    a { color: var(--accent); text-underline-offset: 2px; }\n\n    footer {\n      margin-top: 3.5rem;\n      padding-top: 1.25rem;\n      border-top: 1px solid var(--rule);\n      font-size: 0.875rem;\n      color: var(--muted);\n    }\n  </style>\n</head>\n<body>\n  <main>\n    <header>\n      <h1>calc.sh</h1>\n      <p class=\"lede\">A single Bash file with a <code>sum</code> function. Source it, pass it integers, get their total.</p>\n    </header>\n\n    <pre><code><span class=\"prompt\">$ </span>source calc.sh\n<span class=\"prompt\">$ </span>sum 1 2 3\n<span class=\"out\">6</span></code></pre>\n\n    <section>\n      <h2>Usage</h2>\n      <p>Load the function into your shell or script, then call it with any number of integer arguments. The result is printed to stdout, so you can capture it:</p>\n      <pre><code>source ./calc.sh\ntotal=$(sum 10 20 12)\necho \"$total\"   # 42</code></pre>\n    </section>\n\n    <section>\n      <h2>What it does</h2>\n      <ul>\n        <li>Adds integer arguments using Bash arithmetic: <code>$(( ))</code>.</li>\n        <li>Prints the total followed by a newline.</li>\n        <li>Uses only Bash built-ins. Nothing to install.</li>\n      </ul>\n    </section>\n\n    <section>\n      <h2>Limits</h2>\n      <ul>\n        <li>Integers only. Bash arithmetic has no floating point, so <code>sum 1.5 2</code> fails.</li>\n        <li>Needs Bash, not POSIX <code>sh</code>. It relies on indirect expansion (<code>${!i}</code>) and C-style <code>for</code> loops.</li>\n        <li>Arguments are not validated. Non-numeric input is handled however Bash arithmetic handles it.</li>\n      </ul>\n    </section>\n\n    <section>\n      <h2>Testing</h2>\n      <p>The repository includes <code>test.sh</code>, which sources <code>calc.sh</code> and checks that <code>sum 1 2 3</code> prints <code>6</code>:</p>\n      <pre><code><span class=\"prompt\">$ </span>bash test.sh\n<span class=\"out\">ok</span></code></pre>\n    </section>\n\n    <footer>\n      calc.sh. One function, one file.\n    </footer>\n  </main>\n</body>\n</html>\n"
+              },
+              {
+                "name": "written",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched <html",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1,
+        "scoreWithout": 1,
+        "passRateWithout": 1,
+        "delta": 0
+      }
+    },
+    {
+      "name": "slop-readme",
+      "dir": "evals/slop-readme",
+      "source": "mixed",
+      "promptMarkdown": "Write a proper README.md for this project, replacing the stub.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 300,
+      "maxTurns": 15,
+      "graders": [
+        {
+          "name": "no-tells",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": "README.md"
+            },
+            "pattern": "hope this helps|certainly!|serves as|stands as|not only .* but also|delve|tapestry|pivotal|seamless|robust and|powerful|comprehensive|in today's|let me know if",
+            "flags": "i",
+            "match": "not_contains"
+          }
+        },
+        {
+          "name": "specific",
+          "type": "llm",
+          "weight": 1,
+          "graderMarkdown": "PASS if the README names what the project has (a `sum` function in calc.sh and a test in test.sh), shows how to run the test, and every sentence states a fact a reader could check against the code.\nFAIL if it praises the project, promises features the code doesn't have, pads with sections that hold nothing specific (a generic \"Contributing\" or \"License\" with no content behind it), or reads as a template with the names swapped in.",
+          "config": {
+            "criteria": "PASS if the README names what the project has (a `sum` function in calc.sh and a test in test.sh), shows how to run the test, and every sentence states a fact a reader could check against the code.\nFAIL if it praises the project, promises features the code doesn't have, pads with sections that hold nothing specific (a generic \"Contributing\" or \"License\" with no content behind it), or reads as a template with the names swapped in.",
+            "focus": {
+              "source": "file",
+              "path": "README.md"
+            }
+          }
+        },
+        {
+          "name": "written",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": "README.md"
+            },
+            "pattern": "calc\\.sh",
+            "flags": "",
+            "match": "contains"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 15,
+            "costUsd": 0.22289920000000002,
+            "judgeCostUsd": 0.0022984,
+            "durationSeconds": 26,
+            "startedAt": "2026-11-11T21:39:42.117Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-eM94ae/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "no-tells",
+                "passed": true,
+                "weight": 1,
+                "explanation": "pattern absent as expected",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "specific",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "# calc\n\nA Bash function, `sum`, that prints the sum of its integer arguments.\n\n## Usage\n\nSource `calc.sh` into a Bash script or shell, then call `sum`:\n\n```bash\nsource ./calc.sh\nsum 1 2 3   # intended output: 6\n```\n\nArguments must be integers; `sum` uses Bash arithmetic, so decimals are not supported.\n\n## Known issue\n\n`sum` currently skips its first argument (the loop in `calc.sh` starts at index 2), so `sum 1 2 3` prints `5`. `test.sh` fails until this is fixed.\n\n## Testing\n\n```bash\nbash test.sh\n```\n\nPrints `ok` on success; otherwise prints the mismatch and exits 1.\n"
+              },
+              {
+                "name": "written",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched calc\\.sh",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 8,
+            "costUsd": 0.1352089,
+            "judgeCostUsd": 0.0009118999999999993,
+            "durationSeconds": 21,
+            "startedAt": "2026-11-11T21:39:51.101Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-vmu4lh/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "no-tells",
+                "passed": true,
+                "weight": 1,
+                "explanation": "pattern absent as expected",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "specific",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "# calc\n\nA small Bash library of arithmetic helpers. It currently has one function,\n`sum`.\n\n## Requirements\n\n- Bash. The script uses `((...))` arithmetic and `${!i}` indirect expansion,\n  so a POSIX `sh` won't work.\n\n## Usage\n\n`calc.sh` defines functions and has no entry point of its own, so source it\ninstead of running it:\n\n```bash\nsource ./calc.sh\n\nsum 1 2 3   # prints 6\n```\n\n### `sum [N...]`\n\nPrints the sum of its integer arguments to stdout. With no arguments it\nprints `0`.\n\nBash arithmetic only handles integers: `sum 1.5 2` gives an error rather than\n`3.5`.\n\n## Testing\n\n```bash\nbash test.sh\n```\n\nIt prints `ok` and exits 0 on success. On failure it prints a `FAIL:` line\nand exits 1.\n"
+              },
+              {
+                "name": "written",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched calc\\.sh",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1,
+        "scoreWithout": 1,
+        "passRateWithout": 1,
+        "delta": 0
+      }
+    }
+  ],
+  "aggregates": {
+    "casesTotal": 10,
+    "casesPassed": 9,
+    "overallScore": 0.95,
+    "overallPassRate": 0.9,
+    "meanDelta": 0.35
+  }
+}
