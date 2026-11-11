@@ -104,6 +104,23 @@ func TestPlanStepPause(t *testing.T) {
 		r.Has(t, "first unchecked step")
 		prompt(k, proj, "s1").Empty(t)
 	})
+	t.Run("one session with a plan in each of two worktrees keeps both", func(t *testing.T) {
+		t.Parallel()
+		k, main := setup(t)
+		testutil.Git(t, main, "commit", "-q", "--allow-empty", "-m", "init")
+		wt := filepath.Join(k.home, "wt")
+		testutil.Git(t, main, "worktree", "add", "-q", wt)
+		wt = testutil.Physical(t, wt)
+		testutil.Write(t, filepath.Join(wt, ".claude", "settings.json"), `{"plansDirectory": ".claude/plans"}`)
+		testutil.Write(t, filepath.Join(main, ".claude", "plans", "plan-main.md"), "- [ ] one\n")
+		testutil.Write(t, filepath.Join(wt, ".claude", "plans", "plan-wt.md"), "- [ ] one\n")
+		approve(k, main, "s1").Has(t, "plan-main.md")
+		approve(k, wt, "s1").Has(t, "plan-wt.md")
+		r := prompt(k, main, "s1")
+		r.Has(t, "plan-main.md")
+		r.Lacks(t, "plan-wt.md")
+		prompt(k, wt, "s1").Has(t, "plan-wt.md")
+	})
 	t.Run("step_pause picks the pause line, from the overlay or the light preset", func(t *testing.T) {
 		t.Parallel()
 		for overlay, want := range map[string][]string{

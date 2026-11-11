@@ -73,6 +73,7 @@ func StopChecks(h *hook.Hook) error {
 	if len(edited) == 0 {
 		return nil
 	}
+	reviewSheets(h, cfg, cwd, root)
 	if coveredByFullGate(h, root) {
 		if !cfg.ReceiptOnFailures() {
 			h.Notify("kit stop: skipped, the full gate already checked this tree")

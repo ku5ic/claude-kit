@@ -10,5 +10,6 @@ The one set of numbers. None is a hard limit; each is a `warning` signal, and th
 | Coupling      | a module importing more than ~10 internal modules, or a type with more than 7 public methods |
 | Cohesion      | a type whose methods work on disjoint subsets of its fields (two jobs)                       |
 | File size     | over 500 lines, unless genuinely one cohesive unit                                           |
+| Step size     | a plan step naming more than 10 files: more than one review sheet holds                      |
 
 If the project's static analysis already reports a metric (cyclomatic or cognitive complexity), its readings count as input alongside these.

@@ -22,15 +22,16 @@ Run this test on every reply, file, and commit message before emitting:
 
 <!-- chat: skip -->
 
-| Context                                                        | Ceiling                                   |
-| -------------------------------------------------------------- | ----------------------------------------- |
-| Chat reply, default                                            | kit.yml `reply_limits.chat` words         |
-| Chat reply after a `reply_limits.explain_triggers` word        | kit.yml `reply_limits.explain` words      |
-| Chat reply after a `reply_limits.detail_triggers` phrase       | no ceiling, headers required              |
-| Terminal output of a `/write` kind in `reply_limits.write`     | that kind's kit.yml words, code included  |
-| An artifact the reader asked for (report, audit, plan, review) | follows the report-format skill           |
-| Reply naming a written file                                    | path, headline count, one next action     |
-| Commit message body, PR description                            | shortest structured form that is complete |
+| Context                                                        | Ceiling                                                                                       |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Chat reply, default                                            | kit.yml `reply_limits.chat` words                                                             |
+| Chat reply after a `reply_limits.explain_triggers` word        | kit.yml `reply_limits.explain` words                                                          |
+| Chat reply after a `reply_limits.detail_triggers` phrase       | no ceiling, headers required                                                                  |
+| Terminal output of a `/write` kind in `reply_limits.write`     | that kind's kit.yml words, code included                                                      |
+| An artifact the reader asked for (report, audit, plan, review) | follows the report-format skill                                                               |
+| Reply naming a written file                                    | path, headline count, one next action                                                         |
+| Reply at a plan pause, under the hook's review sheet           | why a choice was made, and what wasn't verified; the sheet already lists the files and checks |
+| Commit message body, PR description                            | shortest structured form that is complete                                                     |
 
 A trigger lifts the ceiling for that reply only. Still over the ceiling after the test? Cut again, and never add words explaining the length.
 

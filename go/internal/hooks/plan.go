@@ -12,6 +12,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/md"
 	"github.com/ku5ic/claude-kit/go/internal/project"
@@ -65,7 +66,7 @@ func PlanModeContext(h *hook.Hook) error {
 		h.Print("Plan mode: load the investigate skill and follow it; its findings feed the plan.\n")
 		return nil
 	}
-	marker := h.Paths.SessionFile(cache.PlanActive, p.SessionID())
+	marker := planFile(h, cache.PlanActive, p.Cwd())
 	if marker == "" {
 		return nil
 	}
@@ -80,6 +81,13 @@ func PlanModeContext(h *hook.Hook) error {
 			// Best effort: without the marker, later prompts just aren't reminded.
 			_ = fsx.WriteAtomic(marker, []byte(plan), 0o644)
 			msg = "Plan approved (" + plan + "): " + pause
+			// A batched pause's first review sheet starts from the tree as approved.
+			_ = os.Remove(planFile(h, cache.PlanTicks, p.Cwd()))
+			if data, err := os.ReadFile(plan); err == nil {
+				if root := git.Toplevel(p.Cwd()); root != "" {
+					markTicks(h, root, data)
+				}
+			}
 		}
 		h.AddContext("PostToolUse", msg)
 		return nil
@@ -114,6 +122,16 @@ var (
 		"off":  "do the next unchecked one",
 	}
 )
+
+// planFile is the session's kind file (plan-active, plan-ticks) for the work
+// tree holding dir, keyed by its root too, so one session can run a plan in
+// each worktree; by the session alone outside a work tree.
+func planFile(h *hook.Hook, kind, dir string) string {
+	if root := git.Toplevel(dir); root != "" {
+		return h.Paths.SessionFile(kind, h.Payload.SessionID(), cache.RootKey(root))
+	}
+	return h.Paths.SessionFile(kind, h.Payload.SessionID())
+}
 
 // pauseOf is the configured step_pause, step without a config.
 func pauseOf(h *hook.Hook) string {

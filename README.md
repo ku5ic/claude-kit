@@ -145,7 +145,8 @@ Nothing to learn up front. After install:
 session starts     -> Claude loads the rules skill and gets your stack, your check commands, and the skills that fit
 Claude runs bash   -> dangerous commands are blocked, ambiguous ones ask you first
 Claude edits       -> credential files are off limits; skipping a test needs a stated reason; the file is formatted with your formatter
-Claude plans       -> plan-critic reads it against the repo, and its claims are checked, before you're asked to approve
+Claude plans       -> plan-critic reads it against the repo, and its claims are checked, before you're asked to approve; a resubmit lists what changed
+Claude ends a step -> a review sheet from git puts lockfiles, configs, markers, and files the plan never names first
 a subagent reports -> AI tells and unconfirmed claims are sent back before Claude reads the report
 Claude commits     -> AI signatures and secrets are blocked; your commit-msg hooks check the message
 Claude says done   -> your git hooks' checks run on what it edited

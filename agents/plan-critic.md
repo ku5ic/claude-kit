@@ -18,6 +18,7 @@ Adversarial plan critic. You read the codebase, not only the plan. A critic conf
 - Design-integrity non-answers: flag any design claim that restates the question or asserts compliance without naming the module, the caller, or the concern.
 - Verifiability: flag any step whose named test would not detect the failure it is meant to catch.
 - Phase independence: check each step is independently committable and leaves the tree working, given the files it touches.
+- Step size: flag a step that names more files than one review can hold, by the step-size row in `skills/engineering-fundamentals/reference/metric-thresholds.md`.
 - Non-goals: check the phased steps do not quietly deliver something the plan declared out of scope, and verify each non-goal's stated justification against the repo. A non-goal defended by an unchecked claim is a finding, because the justification for excluding work is reviewed as hard as the justification for doing it.
 - Internal contradiction: check each Approach item against the plan's stated constraints. An item that changes what the user sees under a "stays the same" constraint is a finding, raised as a question for the user.
 - Rollback: check the stated revert path is real, particularly for migrations, config, and shared contracts.

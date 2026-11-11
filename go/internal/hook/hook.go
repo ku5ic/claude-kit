@@ -315,7 +315,7 @@ func (h *Hook) Print(text string) { h.plain.WriteString(text) }
 
 // flush prints what the run's checks added, once, since stdout takes one
 // JSON object: block, a block's reason, with the notices; else a permission
-// decision, else context and notices, else plain text.
+// decision with the notices, else context and notices, else plain text.
 func (h *Hook) flush(block string) {
 	type specific struct {
 		HookEventName            string `json:"hookEventName"`
@@ -335,7 +335,7 @@ func (h *Hook) flush(block string) {
 	case h.decision != "":
 		// A check's context (a density note) still reaches Claude when
 		// another check decides; only a defer would drop it.
-		WriteJSON(h.Stdout, output{HookSpecificOutput: &specific{HookEventName: "PreToolUse", PermissionDecision: h.decision, PermissionDecisionReason: h.reason, AdditionalContext: strings.Join(h.contexts, "\n")}})
+		WriteJSON(h.Stdout, output{SystemMessage: strings.Join(h.notices, "\n"), HookSpecificOutput: &specific{HookEventName: "PreToolUse", PermissionDecision: h.decision, PermissionDecisionReason: h.reason, AdditionalContext: strings.Join(h.contexts, "\n")}})
 	case h.contexts != nil || h.notices != nil:
 		out := output{SystemMessage: strings.Join(h.notices, "\n")}
 		if h.contexts != nil {

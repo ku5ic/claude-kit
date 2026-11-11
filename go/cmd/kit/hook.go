@@ -48,6 +48,8 @@ var hookChecks = map[string]hook.Check{
 	"inject-context":          hooks.InjectContext,
 	"inject-subagent-context": hooks.InjectSubagentContext,
 	"format-dispatch":         hooks.FormatDispatch,
+	"plan-tick":               hooks.PlanTick,
+	"plan-changes":            hooks.PlanChanges,
 	"stop-checks":             hooks.StopChecks,
 	"turn-tree":               hooks.TurnTree,
 	"review-checks":           hooks.ReviewChecks,
@@ -61,7 +63,7 @@ var registry = map[string]hookDef{
 	"bash-dispatch":           {events: []string{"PreToolUse"}, steps: []string{"guard-bash", "guard-commit", "guard-pr"}},
 	"guard-dispatch":          {events: []string{"PreToolUse"}, run: hooks.GuardDispatch},
 	"rules-gate":              {events: []string{"PreToolUse"}},
-	"post-edit-dispatch":      {events: []string{"PostToolUse"}, steps: []string{"sanitize-output", "format-dispatch"}},
+	"post-edit-dispatch":      {events: []string{"PostToolUse"}, steps: []string{"sanitize-output", "format-dispatch", "plan-tick"}},
 	"log-skills":              {events: []string{"PostToolUse", "UserPromptExpansion"}},
 	"plan-mode-context":       {events: []string{"PostToolUse", "UserPromptSubmit"}},
 	"reply-length":            {events: []string{"UserPromptSubmit", "Stop"}},
@@ -74,7 +76,7 @@ var registry = map[string]hookDef{
 	"guard-plan":              {},
 	// verify-claims runs last, so a cheap guard's block saves its model run.
 	"handback-dispatch":  {events: []string{"PreToolUse"}, steps: []string{"guard-handback", "verify-claims"}},
-	"plan-dispatch":      {events: []string{"PreToolUse"}, steps: []string{"guard-plan", "verify-claims"}},
+	"plan-dispatch":      {events: []string{"PreToolUse"}, steps: []string{"plan-changes", "guard-plan", "verify-claims"}},
 	"connector-dispatch": {events: []string{"PreToolUse"}, steps: []string{"guard-connector", "verify-claims"}},
 	"subagent-dispatch":  {events: []string{"SubagentStop"}, steps: []string{"subagent-slop", "verify-claims"}},
 	"guard-handback":     {},
@@ -92,6 +94,8 @@ var registry = map[string]hookDef{
 	"guard-tokens":       {},
 	"sanitize-output":    {},
 	"format-dispatch":    {},
+	"plan-tick":          {},
+	"plan-changes":       {},
 }
 
 // cmdHook runs `kit hook <name>`: stdin is the payload, the exit status is
