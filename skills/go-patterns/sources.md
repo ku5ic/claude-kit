@@ -19,56 +19,60 @@ Checked: 2026-11-10 against https://go.dev/dl/?mode=json and the release notes a
 - 1.26: `new` accepts an expression; `errors.AsType`; `go fix` rebuilt around modernizers; `T.ArtifactDir`.
 - 1.25: `sync.WaitGroup.Go`; `testing/synctest` generally available; vet's `waitgroup` and `hostport` analyzers.
 
-## reference/anti-patterns.md
+### Left to linters
 
-### Claims
+Checked: 2026-11-11 with golangci-lint 2.14.0 defaults (errcheck, govet, ineffassign, staticcheck, unused) on a probe module. These rules were dropped because a default check reports them; don't add them back.
 
-- An error discarded with `_`, `failure`. The failure goes unnoticed and the next line r...: https://go.dev/wiki/CodeReviewComments#handle-errors
-- `err == ErrX` or a type assertion on a possibly wrapped error, `failure`. Once anything wraps the error with `%w`, the c...: https://pkg.go.dev/errors
-- Wrapping with `%v` where callers inspect the cause, `warning`. `%v` turns the cause into text, so `errors.Is`...: https://pkg.go.dev/fmt#Errorf
-- A Context stored in a struct field, `warning`. It ties cancellation to the object's lifetime...: https://pkg.go.dev/context
-- A `CancelFunc` that isn't called on every path, `failure`. The child context leaks until its parent is ca...: https://pkg.go.dev/context
-- A goroutine with no exit condition, `failure`. A goroutine blocked forever on a channel is a...: https://go.dev/wiki/CodeReviewComments#goroutine-lifetimes
-- An interface declared next to its only implementation, `info`. Interfaces belong with the consumer. Return the c...: https://go.dev/wiki/CodeReviewComments#interfaces
+- govet `lostcancel` reports a `CancelFunc` not called on every path.
+- staticcheck `SA1012` reports a nil Context.
+- staticcheck `ST1005` reports a capitalized or punctuated error string.
+- staticcheck `ST1006` reports `this` or `self` as a receiver name.
+- vet `waitgroup` (1.25, renamed `waitgroupgo` in 1.27) reports a misplaced `WaitGroup.Add`.
 
-## reference/context-and-concurrency.md
-
-### Claims
-
-- Context rules: https://pkg.go.dev/context
-- Goroutine lifetimes, When you start a goroutine, make it clear when, or whethe...: https://go.dev/wiki/CodeReviewComments#goroutine-lifetimes
-- `WaitGroup.Go` (1.25+), `wg.Go(func() { ... })` creates and counts the goroutine...: https://go.dev/doc/go1.25, https://go.dev/doc/go1.27
-- Loop variables (1.22+), From Go 1.22, each loop iteration creates new variables....: https://go.dev/doc/go1.22
+Not caught by defaults, so kept: `_` discards (errcheck skips blank assignments), `err ==` on wrapped errors, `%v` wraps, ctx in a struct, initialism case (`ST1003` is off), receiver consistency (`ST1016` is off), `else` after return, `v := v` copies.
 
 ## reference/errors.md
 
 ### Claims
 
-- Check every error, Don't discard an error with `_`. If a function returns an...: https://go.dev/wiki/CodeReviewComments#handle-errors
-- Wrap with `%w`, inspect with `errors`: https://pkg.go.dev/errors, https://go.dev/doc/go1.26
-- Error strings, Lowercase, unless the first word is a proper noun or acro...: https://go.dev/wiki/CodeReviewComments#error-strings
-- Don't panic for normal errors, Use an `error` return and multiple return values.: https://go.dev/wiki/CodeReviewComments#dont-panic
-- No in-band errors, Don't signal failure with a special value like `-1`, `""`...: https://go.dev/wiki/CodeReviewComments#in-band-errors
-- Indent the error path, Handle the error first and return early, keeping the norm...: https://go.dev/wiki/CodeReviewComments#indent-error-flow
+- `errors.AsType` 1.26+, `%w`, `errors.Is`, `errors.Join`: https://pkg.go.dev/errors, https://go.dev/doc/go1.26
+- Check every error: https://go.dev/wiki/CodeReviewComments#handle-errors
+- No panic for normal errors: https://go.dev/wiki/CodeReviewComments#dont-panic
+- No in-band errors: https://go.dev/wiki/CodeReviewComments#in-band-errors
+- Error path first, no `else` after return: https://go.dev/wiki/CodeReviewComments#indent-error-flow
+
+## reference/context-and-concurrency.md
+
+### Claims
+
+- `WaitGroup.Go` 1.25+: https://go.dev/doc/go1.25
+- Per-iteration loop variables 1.22+: https://go.dev/doc/go1.22
+- Context as first parameter, not in a struct; context values only for request-scoped data: https://pkg.go.dev/context
+- Goroutine exits: https://go.dev/wiki/CodeReviewComments#goroutine-lifetimes
 
 ## reference/style.md
 
 ### Claims
 
-- Code Review Comments: https://go.dev/wiki/CodeReviewComments
-- Newer language and stdlib features, row 1.22: https://go.dev/doc/go1.22
-- Newer language and stdlib features, row 1.22: https://go.dev/doc/go1.22
-- Newer language and stdlib features, row 1.26: https://go.dev/doc/go1.26
-- Newer language and stdlib features, row 1.27: https://go.dev/doc/go1.27
-- Newer language and stdlib features, row 1.27: https://go.dev/doc/go1.27
-- Newer language and stdlib features, row 1.27: https://go.dev/doc/go1.27
-- Newer language and stdlib features, `go fix` (rebuilt in 1.26) applies modernizers built on t...: https://go.dev/doc/go1.26
+- 1.27 rows (generic methods, json v2 and `nojsonv2`, `uuid`): https://go.dev/doc/go1.27
+- 1.26 rows (`new(expr)`, `go fix` modernizers): https://go.dev/doc/go1.26
+- 1.22 rows (range over int, ServeMux patterns): https://go.dev/doc/go1.22
+- Interfaces, receiver names, initialisms, package names, named results: https://go.dev/wiki/CodeReviewComments
 
 ## reference/testing.md
 
 ### Claims
 
-- `t.Context()`, A test's context is canceled just before its `Cleanup` fu...: https://github.com/golang/go/blob/master/src/testing/testing.go
-- `testing/synctest` (1.25+), Generally available since 1.25, after an experiment in 1....: https://go.dev/doc/go1.25
-- Test artifacts (1.26+), `T.ArtifactDir`, `B.ArtifactDir`, and `F.ArtifactDir` ret...: https://go.dev/doc/go1.26
-- Vet runs inside `go test`, `go test` runs a subset of vet checks automatically; 1.27...: https://go.dev/doc/go1.27
+- `T.ArtifactDir` 1.26+: https://go.dev/doc/go1.26
+- `testing/synctest` GA in 1.25: https://go.dev/doc/go1.25
+- `stdversion` in `go test`'s vet set, 1.27: https://go.dev/doc/go1.27
+- `t.Context()` canceled before Cleanup, fresh per subtest: https://github.com/golang/go/blob/master/src/testing/testing.go
+
+## reference/anti-patterns.md
+
+### Claims
+
+- `_` discard, goroutine lifetimes, interface placement: https://go.dev/wiki/CodeReviewComments
+- `err ==` and type assertions on wrapped errors: https://pkg.go.dev/errors
+- `%v` vs `%w`: https://pkg.go.dev/fmt#Errorf
+- Context in a struct: https://pkg.go.dev/context

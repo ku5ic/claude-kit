@@ -1,64 +1,9 @@
 # Errors
 
-## Throw `Error` instances, not strings
-
-`throw "bad input"` produces a value with no stack trace and bypasses `instanceof` checks. Always throw an `Error` (or a subclass). Future readers and runtime tooling rely on the `name`, `message`, `stack`, and `cause` properties.
-
-## Use specific Error subclasses
-
-The platform ships standard subclasses for common kinds of failure: `TypeError`, `RangeError`, `SyntaxError`, `URIError`, `ReferenceError`, plus `AggregateError` for batched failures. Throw the most specific one. Define your own subclass when callers will branch on the kind:
-
-```js
-class ValidationError extends Error {
-  constructor(message, fields) {
-    super(message);
-    this.name = "ValidationError";
-    this.fields = fields;
-  }
-}
-```
-
-## Narrow before reading custom properties
-
-In `catch (err)`, `err` is typed `unknown` (in TypeScript) or arbitrary at runtime: `throw` accepts any value. Always check `instanceof X` before reading `.fields`, `.code`, etc.
-
-```js
-try {
-  validate(input);
-} catch (err) {
-  if (err instanceof ValidationError) {
-    return { fields: err.fields };
-  }
-  throw err;
-}
-```
-
-## `Error.cause` (ES2022)
-
-Wrap a lower-level error while preserving the original via the `cause` option:
-
-```js
-try {
-  await connectToDatabase();
-} catch (err) {
-  throw new Error("Database connection failed", { cause: err });
-}
-```
-
-The wrapper carries context for human readers; `err.cause` carries the original for tooling.
-
-## Unhandled rejections terminate the process
-
-In current Node.js, an unhandled promise rejection is raised as an uncaught exception by default and the process exits with a non-zero code. The `--unhandled-rejections` flag (default `throw`) controls this. Always either `await`, `return`, or `.catch()` every promise. Fire-and-forget needs an explicit `.catch(logAndContinue)` so the rejection does not propagate.
-
-## Empty `catch {}`
-
-`failure`. Swallowing an error silently hides defects. If the failure is genuinely expected and recoverable, log it (with the value) and continue, or re-throw a wrapped error explaining why it was caught.
-
-## `using` and `await using`
-
-Explicit resource management adds `using` (sync) and `await using` (async) declarations that auto-dispose at scope exit. It reached TC39 Stage 4 in 2026 and is part of the ECMAScript spec; Node ships the syntax unflagged from 24.0.0 (V8 13.6); 20.4.0 only added `filehandle[Symbol.asyncDispose]`. Confirm against the project's Node version before relying on it. Prefer it over hand-written `try`/`finally` for anything with a `[Symbol.dispose]` or `[Symbol.asyncDispose]` method.
-
-### Legacy (pre-Stage 4)
-
-On a toolchain that does not yet parse `using`, keep `try`/`finally` for deterministic cleanup. The proposal was Stage 3 until 2026, so older transpiler configs may need a plugin.
+- Cleanup on Node 24.0.0+ (V8 13.6): `using` and `await using` over hand-written `try`/`finally` for anything with `[Symbol.dispose]` or `[Symbol.asyncDispose]`. Node 20.4.0 only added `filehandle[Symbol.asyncDispose]`.
+- A toolchain that can't parse `using` yet: keep `try`/`finally`. Older transpiler configs may need a plugin.
+- ES2022, wrapping a lower-level error: `throw new Error("Database connection failed", { cause: err })`.
+- Throwing: an `Error` or a subclass, never a string.
+- A failure kind: the most specific built-in (`TypeError`, `RangeError`, `SyntaxError`, `URIError`, `ReferenceError`, `AggregateError` for batches). When callers branch on the kind, define your own subclass that sets `this.name`.
+- In `catch (err)`: check `err instanceof X` before reading `.fields`, `.code`, or any custom property. `throw` accepts any value.
+- Every promise: `await` it, return it, or `.catch()` it. An unhandled rejection exits the process (`--unhandled-rejections` defaults to `throw`). Fire-and-forget needs an explicit `.catch(logAndContinue)`.

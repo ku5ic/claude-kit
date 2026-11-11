@@ -22,13 +22,21 @@ Checked: 2026-11-10 against https://raw.githubusercontent.com/nodejs/Release/mai
 - Node 26 "Lithium" Active LTS since 2026-10-28; Node 24 "Krypton" Maintenance LTS since 2026-10-20. Default assumption moved to 26. Corrected: `using` syntax ships in Node 24.0.0 (V8 13.6), and the `@satisfies` JSDoc tag is TS 5.0+ (the `satisfies` operator is 4.9).
 - Explicit resource management (`using` / `await using`) reached Stage 4 in 2026; `reference/errors.md` updated, old `try`/`finally` advice kept as Legacy.
 
+### Left to linters
+
+Checked: 2026-11-11 with ESLint 10.14.0 and `js.configs.recommended` from `@eslint/js` 10.0.1, no plugins and no extra rules, on a probe directory. These rules were dropped because a default check reports them; don't add them back.
+
+- ESLint `no-undef` reports an assignment to an undeclared variable, the implicit global, even in a non-strict `.cjs` file.
+- ESLint `no-empty` reports an empty `catch {}`.
+
+Not caught by defaults, so kept: `var` (`no-var` is off), `==` (`eqeqeq` is off), a missing `await`, an unhandled rejection, `eval` and `new Function` (`no-eval` and `no-new-func` are off), argument mutation (`no-param-reassign` is off), a thrown string (`no-throw-literal` is off), a `let` never reassigned (`prefer-const` is off), global `isNaN`, `Object.prototype.hasOwnProperty.call`, `instanceof Array`, float `===`, string concatenation, missing object shorthand, `arr[arr.length - 1]`. `console.log` and `require` in an ESM file hit `no-undef` only because the probe declared no globals, so those stay too.
+
 ## reference/anti-patterns.md
 
 ### References
 
 - Node.js process unhandledRejection: https://nodejs.org/api/process.html#event-unhandledrejection
 - Node.js packages (engines, type): https://nodejs.org/api/packages.html
-- MDN strict mode: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Strict_mode
 
 ## reference/async.md
 

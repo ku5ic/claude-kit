@@ -1,38 +1,23 @@
 # Anti-patterns to flag
 
-## Contents
+## Free-threaded Python and module-level state
 
-- [Language-level anti-patterns](#language-level-anti-patterns)
-- [Free-threaded Python and module-level state](#free-threaded-python-and-module-level-state)
-- [Testing-adjacent](#testing-adjacent)
+- The free-threaded build: experimental in 3.13 (`python3.13t`, PEP 703), officially supported in 3.14 (PEP 779) with a roughly 5-10% single-threaded penalty depending on platform. Neither release makes it the default, and installing C-extension packages on it needs pip 24.1+.
+- Code that runs on the free-threaded build: put a `threading.Lock` on module-level mutable state the GIL used to serialize, or use `threading.local` when the state is per-thread.
+- State that needs the lock: module-level dicts and lists mutated by worker threads (`_cache`, `_registry`, `_handlers`), lazy-init sentinels (`if _value is None: _value = compute()`), and class-level mutable defaults shared across instances.
+- Porting a library to the free-threaded build: the no-GIL build's behavior is the spec.
 
 ## Language-level anti-patterns
 
-- Mutable default arguments: `def f(x=[]):`, `def f(x={}):`. The default is shared across calls. `failure`. Use `None` and reassign inside the body.
-- Bare `except:` or `except Exception: pass`. Errors disappear silently. `failure`.
-- `from x import *` outside test fixtures or REPL. Pollutes the namespace; defeats lints. `warning`.
-- `== None`, `!= None`. Use `is None` / `is not None`. `warning`. (Ruff `E711`.)
-- Truthiness check where empty-vs-missing matters. `if value:` is False for `0`, `""`, `[]`, `{}`, AND `None`. Be explicit: `if value is None`, `if not value`, etc. `warning`.
-- `dict.get(key)` followed by a `None` check when `KeyError` would be the correct signal. The exception is louder than a missed branch. `info`.
-- `Optional[X] = None` parameter that callers must always provide. The type is lying. `info`. Use `X` and let mypy enforce.
-- `time.sleep(...)` in `async def`. Blocks the event loop. `failure`. Use `await asyncio.sleep(...)`.
-- Synchronous `requests.get/post` in `async def`. Blocks the event loop. `warning`. Use `httpx.AsyncClient` or `aiohttp.ClientSession`.
-- Calling a sync blocking function (DB query, slow file I/O, third-party SDK) directly inside `async def`. `warning`. Wrap with `await asyncio.to_thread(func, ...)` or use the library's async API.
-- Class with only `__init__` and one method. Should be a function. `info`.
-- Module-level mutable state (`_cache = {}`) without synchronization. Concurrency hazard, doubly so under free-threaded 3.13+. `warning`.
-- Tall inheritance hierarchies (3+ levels of `class A(B(C)):`) for code reuse. Prefer composition. `info`.
-
-## Free-threaded Python and module-level state
-
-PEP 703 introduced an experimental no-GIL build in Python 3.13 (`python3.13t`); 3.14 graduated it to officially supported per PEP 779, with a roughly 5-10% single-threaded performance penalty depending on platform. The runtime is not the default in either release; opt-in builds and pip 24.1+ for installing C-extension packages remain the gating story.
-
-For module-level mutable state, code that "happened to be safe" because the GIL serialized every bytecode is no longer safe under the free-threaded interpreter. Common patterns now needing a lock:
-
-- Module-level dict / list mutated by multiple worker threads (`_cache`, `_registry`, `_handlers`).
-- Lazy-initialization sentinels (`if _value is None: _value = compute()`).
-- Class-level mutable defaults shared across instances.
-
-Add a `threading.Lock` (or use `threading.local` if the state is genuinely per-thread) before reading code into the free-threaded build. The CPython documentation for 3.13/3.14 spells this out; treat the no-GIL build's behavior as the definitive spec when porting libraries to the new interpreter.
+- Module-level mutable state (`_cache = {}`) without synchronization: `warning`, doubly so under free-threaded 3.13+.
+- `from x import *` outside test fixtures or the REPL: `warning`.
+- `== None` or `!= None`: `warning`. Use `is None` or `is not None`.
+- `if value:` where empty and missing differ: `warning`. It's false for `0`, `""`, `[]`, `{}`, and `None`, so write `if value is None` or `if not value` on purpose.
+- A sync blocking call (DB query, slow file I/O, third-party SDK) inside `async def`: `warning`. Use `await asyncio.to_thread(func, ...)` or the library's async API.
+- `dict.get(key)` then a `None` check where `KeyError` is the right signal: `info`.
+- An `Optional[X] = None` parameter callers must always provide: `info`. Use `X`.
+- A class with only `__init__` and one method: `info`. Make it a function.
+- An inheritance hierarchy 3+ levels tall for code reuse: `info`. Use composition.
 
 ## Testing-adjacent
 

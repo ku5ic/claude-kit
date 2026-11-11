@@ -23,6 +23,19 @@ Checked: 2026-11-10 against https://devblogs.microsoft.com/typescript/announcing
 - 6.0: last JavaScript-based compiler; deprecated the options above. `strict` now defaults to `true` and `types` to `[]`, so `@types/*` globals load only when listed.
 - 5.0 (2023-03): `verbatimModuleSyntax`, `const` type parameters. 4.9: `satisfies`. 4.7: `in`/`out` variance annotations.
 
+### Left to linters
+
+Checked: 2026-11-11 with TypeScript 7.0.2 (`tsc --strict --noEmit`, no extra flags) and ESLint 10.14.0 with `@eslint/js` 10.0.1 `js.configs.recommended` on a probe project. These rules were dropped because a default check reports them; don't add them back.
+
+- tsc `TS7053` reports a `string` index into an unconstrained type parameter, and `TS2339` a property read on one.
+- tsc `TS6306` reports a referenced project without `composite: true`.
+- tsc `TS6304` reports a composite project that turns off declaration emit.
+- tsc `TS6307` reports a composite project's file missing from its `include` list.
+
+Not caught by defaults, so kept: `as any`, `as unknown as X`, explicit `any` parameters, `@ts-ignore`, `@ts-nocheck`, `{}` and `Function` parameters, `namespace`, enums, circular imports, unchecked `arr[0]`.
+
+Caught by a default but kept as flag advice: `noFallthroughCasesInSwitch` (ESLint `no-fallthrough` fires) and `forceConsistentCasingInFileNames` (tsc `TS1149` fires from 5.0, where the flag defaults on; the line is for older configs).
+
 ## reference/anti-patterns.md
 
 ### References
@@ -43,7 +56,7 @@ Checked: 2026-11-10 against https://devblogs.microsoft.com/typescript/announcing
 
 ### Claims
 
-- Module boundaries, Project references for monorepos: `composite: true` per p...: https://www.typescriptlang.org/docs/handbook/project-references.html
+- Project references, `composite: true` per package, a `references` array in the consumer: https://www.typescriptlang.org/docs/handbook/project-references.html
 
 ## reference/narrowing.md
 

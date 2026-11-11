@@ -2,65 +2,14 @@
 
 Severity levels: the report-format skill.
 
-## Table of contents
-
-- [`var` declarations](#var-declarations)
-- [`==` and `!=`](#-and-)
-- [Missing `await`](#missing-await)
-- [Unhandled promise rejection](#unhandled-promise-rejection)
-- [`eval()` and `Function()` constructor](#eval-and-function-constructor)
-- [`console.log` left in production code](#consolelog-left-in-production-code)
-- [Mutating function arguments](#mutating-function-arguments)
-- [Implicit globals](#implicit-globals)
-- [Float arithmetic for money](#float-arithmetic-for-money)
-- [Mixing CJS and ESM in one file](#mixing-cjs-and-esm-in-one-file)
-- [Missing or unchecked lockfile](#missing-or-unchecked-lockfile)
-- [Missing `engines.node`](#missing-enginesnode)
-
-## `var` declarations
-
-`warning`. Function-scoped, hoisted with `undefined`, and re-declarable. In modern JS, `const` and `let` are correct in every place `var` would have been.
-
-## `==` and `!=`
-
-`warning`. Loose equality coerces operands and produces surprising results (`0 == ""`, `"0" == false`). Use `===` and `!==`. The single defensible exception is `x == null` for "null or undefined", but the explicit form is preferable.
-
-## Missing `await`
-
-`failure`. Calling an async function without `await` (and without a deliberate fire-and-forget pattern with `.catch()`) drops the return value, loses errors, and breaks ordering. Linters like `@typescript-eslint/no-floating-promises` catch this in TS projects; configure the equivalent in JS via `eslint-plugin-promise`.
-
-## Unhandled promise rejection
-
-`failure`. In current Node, an unhandled rejection is raised as an uncaught exception and the process exits. Every promise must be `await`ed, returned, or attached to a `.catch()`.
-
-## `eval()` and `Function()` constructor
-
-`failure`. Executes arbitrary string input as code. Cannot be safely used with any value derived from user input. There is almost always a structural alternative (lookup table, JSON parse, dispatch object).
-
-## `console.log` left in production code
-
-`warning`. Leftover debugging is dead code (`skills/kit-rules/reference/change.md` section 4); logging that should stay goes through a structured logger (`pino`, `winston`, the platform's).
-
-## Mutating function arguments
-
-`warning`. A function that rewrites its inputs creates aliasing bugs at every call site that did not expect mutation. Either return a new value or document the mutation in the function name (`pushNewItem`, `mergeInto`).
-
-## Implicit globals
-
-`failure`. Assigning to an undeclared variable in non-strict mode silently creates a global. ES modules are strict by default; CJS files should start with `"use strict"` or run under `node --use-strict`. ESLint's `no-undef` catches this regardless of mode.
-
-## Float arithmetic for money
-
-`failure`. IEEE 754 doubles cannot represent most decimals exactly. Storing currency as a `Number` accumulates rounding error. Use integer minor units (cents, satoshis) or a decimal library.
-
-## Mixing CJS and ESM in one file
-
-`failure`. The two systems are not interchangeable inside a single module. Pick one per file. Cross-mode loading goes through dynamic `import()` (CJS to ESM) or `module.createRequire()` (ESM to CJS).
-
-## Missing or unchecked lockfile
-
-`warning`. Running `npm install`, `pnpm install`, etc. without a lockfile in the repo allows transitively-pulled versions to drift between environments. Always commit the lockfile that matches the package manager.
-
-## Missing `engines.node`
-
-`info`. Without an `engines.node` field, the package's supported Node range is implicit. Set it to the active LTS at minimum so consumers and CI fail loudly on incompatible runtimes.
+- An async call with no `await` and no deliberate fire-and-forget `.catch()`: `failure`. `@typescript-eslint/no-floating-promises` catches it in TS; in JS, configure `eslint-plugin-promise`.
+- A promise neither awaited, returned, nor `.catch()`ed: `failure`. Current Node exits on an unhandled rejection.
+- `eval()` or the `Function()` constructor: `failure`. Never on a value derived from user input; use a lookup table, `JSON.parse`, or a dispatch object.
+- Float arithmetic for money: `failure`. Use integer minor units (cents, satoshis) or a decimal library.
+- `require` and `import` in one file: `failure`. Pick one; bridge with `import()` (CJS to ESM) or `module.createRequire()` (ESM to CJS).
+- `var`: `warning`. Use `const`, or `let` when it's reassigned.
+- `==` or `!=`: `warning`. Use `===` and `!==`. `x == null` is the one defensible exception, and the explicit form is preferred.
+- `console.log` left in production code: `warning`. Delete leftover debugging (`skills/kit-rules/reference/change.md` section 4); logging that stays goes through a structured logger (`pino`, `winston`, the platform's).
+- A function that mutates its arguments: `warning`. Return a new value, or name the mutation (`pushNewItem`, `mergeInto`).
+- No committed lockfile: `warning`. Commit the one that matches the package manager.
+- No `engines.node`: `info`. Set it to the active LTS at minimum.

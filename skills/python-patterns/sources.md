@@ -24,6 +24,22 @@ Checked: 2026-11-10 against https://www.python.org/downloads/, https://docs.pyth
 - 3.14 (2025-10-07, latest 3.14.10): deferred annotation evaluation by default (PEP 649); `from __future__ import annotations` on a deprecation path (PEP 749); free-threaded build officially supported (PEP 779), 5-10% single-threaded penalty, not the default build.
 - 3.13: free-threaded build experimental (PEP 703). Once 3.13 reaches EOL the floor here moves and the `from __future__` paragraph can go.
 
+### Left to linters
+
+Checked: 2026-11-11 with ruff 0.17.4 defaults (`uvx ruff check`, no config, no `--select`) on a probe package. These rules were dropped because a default rule reports them; don't add them back.
+
+- ruff `E722` reports a bare `except`.
+- ruff `S110` reports `except Exception: pass`.
+- ruff `B006` reports a mutable default argument.
+- ruff `UP006` reports a `typing` alias such as `List[int]` where the built-in generic works.
+- ruff `ASYNC251` reports `time.sleep` in `async def`.
+- ruff `ASYNC210` reports a blocking HTTP call such as `requests.get` in `async def`.
+- ruff `ASYNC230` reports a sync `open` in `async def`.
+
+Not caught by defaults, so kept: `from x import *` (`F403` is off), `== None` (`E711` is off), a missing `raise ... from` (`B904` is off), `logger.error(str(e))` (`TRY400` is off), a bare `# type: ignore` (`PGH003` is off), `os.path` (`PTH118` is off), relative imports (`TID252` is off), PEP 695 generics (`UP046` fires only with a 3.12+ target).
+
+Three rules stay even though a default rule fires on one form of them, because the rule also covers forms the check misses. `PYI019` reports a `TypeVar` bound to the class where `Self` works, but not a quoted class name. `UP033` reports `lru_cache(maxsize=None)`, but not a hand-rolled memo. `RUF007` reports `zip(xs, xs[1:])`, but not a hand-rolled pairs loop.
+
 ## reference/anti-patterns.md
 
 ### References
@@ -40,8 +56,6 @@ Checked: 2026-11-10 against https://www.python.org/downloads/, https://docs.pyth
 
 - `asyncio.TaskGroup`: https://docs.python.org/3/library/asyncio-task.html#asyncio.TaskGroup
 - PEP 654 (exception groups): https://peps.python.org/pep-0654/
-- httpx: https://www.python-httpx.org/
-- aiohttp: https://docs.aiohttp.org/en/stable/
 - anyio cancellation: https://anyio.readthedocs.io/en/stable/cancellation.html
 
 ## reference/common-patterns.md
@@ -77,7 +91,6 @@ Checked: 2026-11-10 against https://www.python.org/downloads/, https://docs.pyth
 
 ### References
 
-- PEP 585 (built-in generics): https://peps.python.org/pep-0585/
 - PEP 649 (deferred annotation evaluation): https://peps.python.org/pep-0649/
 - PEP 673 (`Self`): https://peps.python.org/pep-0673/
 - PEP 695 (type parameter syntax): https://peps.python.org/pep-0695/

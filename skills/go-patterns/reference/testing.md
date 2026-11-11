@@ -1,17 +1,6 @@
 # Testing
 
-## `t.Context()`
-
-A test's context is canceled just before its `Cleanup` functions run, so cleanup can wait on `ctx.Done()`. Each test and subtest gets a fresh context, not one derived from its parent. Pass `t.Context()` to code under test instead of `context.Background()`.
-
-## `testing/synctest` (1.25+)
-
-Generally available since 1.25, after an experiment in 1.24. It tests concurrent code with virtualized time, so a timeout test doesn't have to sleep for real.
-
-## Test artifacts (1.26+)
-
-`T.ArtifactDir`, `B.ArtifactDir`, and `F.ArtifactDir` return the directory for test output files. Use it instead of writing next to the test source.
-
-## Vet runs inside `go test`
-
-`go test` runs a subset of vet checks automatically; 1.27 added `stdversion` to that default set.
+- Test output files on 1.26+: write them to `T.ArtifactDir` (or `B`, `F`), never next to the test source.
+- Concurrent code with timeouts on 1.25+: test it with `testing/synctest`, on virtual time, with no real sleeps.
+- `go test` runs a subset of vet checks; 1.27 added `stdversion` to it.
+- Code under test that takes a context: pass `t.Context()`, never `context.Background()`. It's canceled just before `Cleanup` runs, and each subtest gets a fresh one.

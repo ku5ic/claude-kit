@@ -21,65 +21,76 @@ Checked: 2026-11-10 against https://ftp.gnu.org/gnu/bash/, https://tiswww.case.e
 - 5.3 (2025-07-30; Homebrew 5.3.20): no 6.0 release exists. Corrected per the manual: `inherit_errexit` covers command substitution only, and every command of a multi-command pipeline runs in a subshell. ShellCheck 0.11.0 (2025-08-04) current; it disables SC2002 (useless cat) by default.
 - 4.4: `shopt -s inherit_errexit`, `${parameter@op}` (corrected from 4.0 per NEWS). 4.0: case modification, `mapfile`.
 
+### Left to linters
+
+Checked: 2026-11-11 with ShellCheck 0.11.0, run with no flags and no rc file (`--norc`) on a probe script. These rules were dropped because a default check reports them; don't add them back.
+
+- SC2006 reports legacy backticks.
+- SC2015 reports `A && B || C` used as if-then-else.
+- SC2030 and SC2031 report a variable set in a pipeline's subshell and read after the loop.
+- SC2044 reports a `for` loop over `find` output.
+- SC2045 reports a `for` loop over `ls` output.
+- SC2046 reports an unquoted command substitution.
+- SC2086 reports an unquoted expansion, including `[ $var = "yes" ]`.
+- SC2115 reports `rm -rf "$VAR/"`, which an empty `$VAR` turns into `/`.
+- SC2155 reports `local foo=$(cmd)`, which masks the command's status.
+- SC2162 reports `read` without `-r`.
+- SC2164 reports `cd` without `|| exit`.
+
+Not caught by defaults, so kept: useless `cat` (SC2002 is off), a missing `set -euo pipefail`, a hardcoded `/tmp` path, a function variable without `local`, `eval`, an unquoted heredoc delimiter, a glob without `nullglob`, `[ ]` over `[[ ]]` (`require-double-brackets` is optional), `==` on numbers, `echo -e`, `"${array[*]}"` outside a `for` loop, the `function` keyword.
+
 ## reference/anti-patterns.md
 
-### References
+### Claims
 
-- BashPitfalls: https://mywiki.wooledge.org/BashPitfalls
+- Review-time pitfalls: https://mywiki.wooledge.org/BashPitfalls
+- SC2002 off by default in ShellCheck 0.11.0: https://github.com/koalaman/shellcheck/blob/master/CHANGELOG.md
 
 ## reference/conditionals.md
 
-### References
+### Claims
 
-- GNU Bash manual (Conditional Constructs): https://www.gnu.org/software/bash/manual/bash.html#Conditional-Constructs
-- BashGuide on tests: https://mywiki.wooledge.org/BashGuide/TestsAndConditionals
+- `[[ ]]`, `==` patterns, `(( ))`, `case`: https://www.gnu.org/software/bash/manual/bash.html#Conditional-Constructs
+- Tests and conditionals: https://mywiki.wooledge.org/BashGuide/TestsAndConditionals
 
 ## reference/functions-and-traps.md
 
-### References
+### Claims
 
-- GNU Bash manual (Functions): https://www.gnu.org/software/bash/manual/bash.html#Shell-Functions
-- GNU Bash manual (Bash Variables, BASH_LINENO etc.): https://www.gnu.org/software/bash/manual/bash.html#Bash-Variables
-- ShellCheck SC2164 (`cd ... || exit`): https://www.shellcheck.net/wiki/SC2164
+- Functions and `local`: https://www.gnu.org/software/bash/manual/bash.html#Shell-Functions
+- `BASH_LINENO`, `BASH_SOURCE`, `BASH_SUBSHELL`: https://www.gnu.org/software/bash/manual/bash.html#Bash-Variables
 
 ## reference/parameter-expansion.md
 
-### References
+### Claims
 
-- GNU Bash manual (Shell Parameter Expansion): https://www.gnu.org/software/bash/manual/bash.html#Shell-Parameter-Expansion
+- Every form, case modification 4.0+: https://www.gnu.org/software/bash/manual/bash.html#Shell-Parameter-Expansion
 
 ## reference/quoting.md
 
-### References
+### Claims
 
-- GNU Bash manual (Quoting): https://www.gnu.org/software/bash/manual/bash.html#Quoting
-- BashFAQ #50 (echo vs printf): https://mywiki.wooledge.org/BashFAQ/050
-- ShellCheck SC2086: https://www.shellcheck.net/wiki/SC2086
+- Quote kinds, ANSI-C quoting, heredoc delimiters: https://www.gnu.org/software/bash/manual/bash.html#Quoting
+- `printf` over `echo`: https://mywiki.wooledge.org/BashFAQ/050
 
 ## reference/safety-flags.md
 
-### References
+### Claims
 
-- GNU Bash manual (`set` builtin): https://www.gnu.org/software/bash/manual/bash.html
-- BashFAQ on `set -e`: https://mywiki.wooledge.org/BashFAQ/105
-- ShellCheck SC2155 (declare-and-assign-separately): https://www.shellcheck.net/wiki/SC2155
+- `set -e`, `set -u`, `pipefail`, shopts: https://www.gnu.org/software/bash/manual/bash.html
+- `set -e` exceptions: https://mywiki.wooledge.org/BashFAQ/105
+- `lastpipe`: https://mywiki.wooledge.org/BashFAQ/024
 
 ## reference/shellcheck.md
 
-### References
+### Claims
 
-- ShellCheck wiki: https://www.shellcheck.net/wiki/
-- ShellCheck SC2086: https://www.shellcheck.net/wiki/SC2086
-- ShellCheck SC2155: https://www.shellcheck.net/wiki/SC2155
-- ShellCheck SC2046: https://www.shellcheck.net/wiki/SC2046
-- ShellCheck SC2164: https://www.shellcheck.net/wiki/SC2164
-- Google Shell Style Guide: https://google.github.io/styleguide/shellguide.html
+- Suppression and shell directives: https://www.shellcheck.net/wiki/
+- SC2086: https://www.shellcheck.net/wiki/SC2086
+- Bash only for executables: https://google.github.io/styleguide/shellguide.html
 
 ## reference/subshells-and-pipes.md
 
-### References
+### Claims
 
-- GNU Bash manual (Process Substitution): https://www.gnu.org/software/bash/manual/bash.html#Process-Substitution
-- GNU Bash manual (Command Substitution): https://www.gnu.org/software/bash/manual/bash.html#Command-Substitution
-- BashFAQ #24 (variables in pipelines): https://mywiki.wooledge.org/BashFAQ/024
-- ShellCheck SC2164 (cd-without-exit): https://www.shellcheck.net/wiki/SC2164
+- Process substitution: https://www.gnu.org/software/bash/manual/bash.html#Process-Substitution

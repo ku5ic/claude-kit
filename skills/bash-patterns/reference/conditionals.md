@@ -1,8 +1,9 @@
 # Conditionals and tests
 
-- `[[ ... ]]` over `[ ... ]` in bash scripts. `[[` does NOT word-split or pathname-expand its operands, so `[[ $var = pattern ]]` is safe even unquoted on the left side. `[ ]` is the POSIX `test` builtin and does both, so unquoted operands are bugs.
-- Inside `[[ ]]`: `==` and `=` are equivalent. `==` reads better. The right side of `==`/`!=` is treated as a glob pattern unless it is quoted: `[[ "$x" == *.log ]]` matches; `[[ "$x" == "*.log" ]]` is a literal-string compare.
-- Numeric comparison inside `[[ ]]`: `-eq`, `-ne`, `-lt`, `-le`, `-gt`, `-ge`. Do NOT use `==` for numbers; that is a string compare and `[[ 01 == 1 ]]` is false.
-- `(( expression ))` for arithmetic. Returns 0 if non-zero, 1 if zero, which inverts the natural reading; remember `(( count == 0 ))` returns 1 (false in shell, true in C).
-- `case "$x" in pattern) cmd ;; esac` for multi-branch dispatch. Patterns use the same glob syntax as pathname expansion.
-- `&&` and `||` for terse one-liners. Avoid for multi-statement flow; reach for `if/then/else`.
+- A test in a bash script: `[[ ]]`, not `[ ]`. `[[` doesn't word-split or glob its operands, so an unquoted left side is safe.
+- Inside `[[ ]]`, `==` and `=` are the same. Write `==`.
+- The right side of `==` or `!=` is a glob unless quoted: `[[ "$x" == *.log ]]` matches the pattern, `[[ "$x" == "*.log" ]]` compares the literal string.
+- Comparing numbers: `-eq`, `-ne`, `-lt`, `-le`, `-gt`, `-ge`. Never `==`, a string compare: `[[ 01 == 1 ]]` is false.
+- Arithmetic: `(( expression ))`. It returns 0 when the expression is non-zero and 1 when it's zero.
+- Multi-branch dispatch: `case "$x" in pattern) cmd ;; esac`. Its patterns use pathname-expansion glob syntax.
+- `&&` and `||`: terse one-liners only. Multi-statement flow gets `if/then/else`.
