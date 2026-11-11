@@ -435,6 +435,12 @@ gate_env: [pnpm_config_verify_deps_before_run=false]
 # and reported as a SKIP, never a block. The Stop hook itself allows 300.
 gate_timeout: 90
 
+# When Stop and the full gate print their receipt, every gate's verdict:
+# all (every run that checked something) or failures (only when a gate
+# failed or skipped, or a file went unchecked). Hiding it never turns a
+# check off; kit explain stop shows the last one.
+receipt: all
+
 # Pin files that pin tools for every project, after the project's own: a
 # tool a project doesn't provide runs from PATH only when a pin names it
 # and PATH's copy is its manager's. Each is named like a project pin file

@@ -86,7 +86,7 @@ func (e *stopEnv) stopReport() (int, string) {
 	e.t.Helper()
 	r := e.stop(false)
 	var out map[string]string
-	if err := json.Unmarshal([]byte(r.Stdout), &out); r.Status == 0 && (err != nil || len(out) != 1 || !strings.HasPrefix(out["systemMessage"], "stop checks: ")) {
+	if err := json.Unmarshal([]byte(r.Stdout), &out); r.Status == 0 && (err != nil || len(out) != 1 || !strings.HasPrefix(out["systemMessage"], "kit stop: ")) {
 		e.t.Errorf("a pass prints more or other than its systemMessage:\n%s", r.Output)
 	}
 	return r.Status, read(e.t, cache.StopReport(e.k.paths.CacheDir(), e.repo))
@@ -245,6 +245,17 @@ func TestStopChecks(t *testing.T) {
 			t.Errorf("calls %q, want %q", got, e.repo+"|--check b.ts")
 		}
 	})
+	t.Run("the receipt names a file no check claims and a report the verifier failed on, once", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		marker := e.k.paths.SessionFile(cache.Claims, "s1", "unchecked")
+		testutil.Write(t, marker, "your report\n")
+		e.turn("Edit", e.path("a.ts"), e.path("notes.md"))
+		e.stop(false).Has(t, `pass  lint (package.json: *.ts)\nunchecked  notes.md  no check claims it\nunchecked  your report  verifier failed"`)
+		if exists(marker) {
+			t.Error("the verifier's failure would show again next turn")
+		}
+	})
 	t.Run("a tree the full gate already checked isn't checked again", func(t *testing.T) {
 		t.Parallel()
 		e := stopSetup(t)
@@ -257,7 +268,7 @@ func TestStopChecks(t *testing.T) {
 		testutil.Write(t, cache.FullGateTree(e.k.paths.CacheDir(), e.repo), tree)
 		r := e.stop(false)
 		r.Want(t, 0)
-		r.Has(t, `"systemMessage":"stop checks: skipped, the full gate already checked this tree"`)
+		r.Has(t, `"systemMessage":"kit stop: skipped, the full gate already checked this tree"`)
 		e.noCalls()
 		testutil.Write(t, e.path("a.ts"), "changed after the gate\n")
 		e.stop(false).Want(t, 0)
@@ -285,7 +296,7 @@ func TestStopChecks(t *testing.T) {
 		var out map[string]string
 		if err := json.Unmarshal([]byte(r.Stdout), &out); err != nil || out["decision"] != "block" ||
 			!strings.HasPrefix(out["reason"], "kit stop: BLOCKED 1 of 1 checks failed; fix them, or report them and stop (checks-failed)\nFAIL  lint (package.json: *.ts)\n      lint noise\nmore  ") ||
-			out["systemMessage"] != "stop checks: 0 passed, 1 failed, 0 skipped\n  FAIL lint (package.json: *.ts)" {
+			out["systemMessage"] != "kit stop: 0 pass, 0 skipped, 1 failed\nFAIL  lint (package.json: *.ts)" {
 			t.Errorf("want a block with every verdict for the user:\n%s", r.Output)
 		}
 		// The command and the rest of the output go to the file, not the block.

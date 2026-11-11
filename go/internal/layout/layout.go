@@ -7,8 +7,9 @@ import (
 	"strings"
 )
 
-// KV is one aligned `key  value` line of a message.
-func KV(key, value string) string { return fmt.Sprintf("%-6s%s", key, value) }
+// KV is one aligned `key  value` line of a message; a key past the column
+// keeps two spaces after it.
+func KV(key, value string) string { return fmt.Sprintf("%-*s%s", max(6, len(key)+2), key, value) }
 
 // Clip is s cut to its first line and 80 characters, so a heredoc or a long
 // command can't wall the screen.

@@ -28,6 +28,7 @@ type Config struct {
 	DenyFlags             []string      `yaml:"deny_flags"`
 	GateEnv               []string      `yaml:"gate_env"`
 	GateTimeout           int           `yaml:"gate_timeout"`
+	Receipt               string        `yaml:"receipt"`
 	UserPins              []string      `yaml:"user_pins"`
 	DisabledTaskProviders []string      `yaml:"disabled_task_providers"`
 	DisabledChecks        []string      `yaml:"disabled_checks"`

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
+	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/enforce"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
@@ -68,11 +69,17 @@ func StopChecks(h *hook.Hook) error {
 		return nil
 	}
 	if coveredByFullGate(h, root) {
-		h.Notify("stop checks: skipped, the full gate already checked this tree")
+		if !cfg.ReceiptOnFailures() {
+			h.Notify("kit stop: skipped, the full gate already checked this tree")
+		}
 		return nil
 	}
 	p := enforce.Stop(cfg, enforce.Options{Root: root, CacheDir: h.Paths.CacheDir()}, edited)
+	unchecked := uncheckedLines(h, root, p.Unchecked)
 	if len(p.Gates) == 0 {
+		if len(unchecked) > 0 {
+			h.Notify(run.Receipt{By: "stop"}.String(append(unchecked, overrides(cfg)...)...))
+		}
 		return nil
 	}
 	out := run.Files(p, h.Paths.CacheDir(), time.Duration(cfg.GateTimeout)*time.Second, deadline)
@@ -81,7 +88,7 @@ func StopChecks(h *hook.Hook) error {
 	}
 	// Every verdict goes to the user, a block's too; what to fix goes to
 	// Claude in the block's reason.
-	h.Notify(out.Notice)
+	notifyReceipt(h, cfg, out.Receipt, unchecked)
 	if !out.Failed() {
 		return nil
 	}
@@ -90,6 +97,49 @@ func StopChecks(h *hook.Hook) error {
 		msg += layout.KV("more", file)
 	}
 	return h.Block(strings.TrimRight(msg, "\n"), "checks-failed")
+}
+
+// notifyReceipt shows the user rc, then unchecked and the overrides in
+// force. kit.yml's receipt: failures hides a clean pass with nothing
+// unchecked; the gates ran either way.
+func notifyReceipt(h *hook.Hook, cfg *config.Config, rc run.Receipt, unchecked []string) {
+	if cfg.ReceiptOnFailures() && rc.Clean() && len(unchecked) == 0 {
+		return
+	}
+	h.Notify(rc.String(append(unchecked, overrides(cfg)...)...))
+}
+
+// uncheckedLines names each file no gate checked, then each text this
+// turn's claim verifier failed on, read from claims' marker and cleared.
+func uncheckedLines(h *hook.Hook, root string, files []string) []string {
+	var lines []string
+	for _, f := range files {
+		lines = append(lines, layout.KV("unchecked", fsx.Rel(root, f)+"  no check claims it"))
+	}
+	marker := claimsUnchecked(h)
+	data, err := os.ReadFile(marker)
+	if err != nil {
+		return lines
+	}
+	for where := range strings.Lines(string(data)) {
+		lines = append(lines, layout.KV("unchecked", strings.TrimSpace(where)+"  verifier failed"))
+	}
+	if !h.DryRun {
+		_ = os.Remove(marker)
+	}
+	return lines
+}
+
+// overrides are the kit.yml switches in force that turn checks or rules off.
+func overrides(cfg *config.Config) []string {
+	var lines []string
+	if len(cfg.DisabledChecks) > 0 {
+		lines = append(lines, layout.KV("override", "disabled_checks: "+strings.Join(cfg.DisabledChecks, ", ")))
+	}
+	if len(cfg.DisabledRules) > 0 {
+		lines = append(lines, layout.KV("override", "disabled_rules: "+strings.Join(cfg.DisabledRules, ", ")))
+	}
+	return lines
 }
 
 // stopDetail writes a failing Stop's full detail (each gate's command,

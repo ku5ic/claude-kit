@@ -16,9 +16,13 @@ func TurnTree(h *hook.Hook) error {
 	if h.Payload.Err != nil {
 		return h.Payload.Err
 	}
+	if h.DryRun {
+		return nil
+	}
+	_ = os.Remove(claimsUnchecked(h)) // the last turn's, shown by its Stop
 	root := git.Toplevel(h.Payload.Cwd())
 	file := turnTreeFile(h, root)
-	if file == "" || h.DryRun {
+	if file == "" {
 		return nil
 	}
 	tree, err := git.Snapshot(root)

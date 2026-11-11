@@ -24,7 +24,7 @@ const reviewSkill = "code-review"
 
 // reviewBudget bounds the full gate inside review-checks' 1200s in
 // hooks.json, leaving room for planning and the snapshot: a gate starting
-// past it is skipped, so the user always gets the notice.
+// past it is skipped, so the user always gets the receipt.
 const reviewBudget = 1050 * time.Second
 
 // worktreeAdd is true when cmd runs git worktree add.
@@ -115,8 +115,8 @@ func ReviewChecks(h *hook.Hook) error {
 		h.Log(kitlog.Guards, "gapfill", plan.Classifier.Pairs()...)
 	}
 	var report strings.Builder
-	res, notice := run.Gates(plan, cacheDir, &report, deadline)
-	h.Notify(notice)
+	res, receipt := run.Gates(plan, cacheDir, &report, deadline)
+	notifyReceipt(h, cfg, receipt, nil)
 	if res.Fail == 0 {
 		// Only a whole pass lets Stop skip the tree: a known failure must
 		// still block, and a gate the budget cut checked nothing.

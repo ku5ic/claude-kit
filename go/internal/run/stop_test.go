@@ -38,18 +38,19 @@ func TestAStopPassIsReportedOnly(t *testing.T) {
 	}
 }
 
-// The notice for the user is the report verbatim: the summary first, then
-// each check's line under it.
-func TestTheNoticeLeadsWithTheSummary(t *testing.T) {
+// The receipt leads with the counts, then a line per check, skips before
+// passes, and the caller's extra lines last.
+func TestTheReceiptLeadsWithTheCounts(t *testing.T) {
 	t.Parallel()
 	r := newRepo(t, "repo")
 	skipped := r.check("lint (lint-staged: *.ts)", "lint", "")
 	skipped.Skip = "eslint not installed"
 	out := r.stop(r.check("test (lefthook.yml: test)", "test", "true"), skipped)
-	want := "stop checks: 1 passed, 0 failed, 1 skipped\n" +
-		"  PASS test (lefthook.yml: test)\n" +
-		"  SKIP lint (lint-staged: *.ts) (eslint not installed)"
-	if got := out.Notice; got != want {
+	want := "kit stop: 1 pass, 1 skipped, 0 failed\n" +
+		"skip  lint (lint-staged: *.ts)  eslint not installed\n" +
+		"pass  test (lefthook.yml: test)\n" +
+		"unchecked  notes.txt"
+	if got := out.Receipt.String("unchecked  notes.txt"); got != want {
 		t.Errorf("got:\n%s\nwant:\n%s", got, want)
 	}
 }

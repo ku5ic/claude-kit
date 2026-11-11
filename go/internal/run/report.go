@@ -28,26 +28,44 @@ type reporter struct {
 	report           io.Writer
 	failures, detail io.Writer
 	res              Result
-	verdicts         []string // each gate's verdict line, for the user's notice
+	verdicts         []string // each gate's receipt line, failures first once sorted
 }
 
 // shownDetail is how many lines of a failure's detail a block shows.
 const shownDetail = 3
 
-// notice is the run for the user: what ran it, the summary, then each
-// gate's verdict line under it, never a failure's detail.
-func (r *reporter) notice(by string) string {
-	return by + " " + r.res.String() + strings.Join(r.verdicts, "")
+// Receipt is a run's verdicts for the user. By names the run; the zero
+// rest is a run with no gates.
+type Receipt struct {
+	By    string
+	res   Result
+	lines []string
 }
 
-// verdict writes line to the report and keeps it for the notice.
-func (r *reporter) verdict(line string) {
+// String is the receipt: a headline with the counts, then one line per
+// gate, failures first, then skips, then passes, never a failure's detail.
+// extra lines (files nothing checked, overrides) go last.
+func (rc Receipt) String(extra ...string) string {
+	order := map[string]int{"FAIL": 0, "skip": 1, "pass": 2}
+	lines := slices.Clone(rc.lines)
+	slices.SortStableFunc(lines, func(a, b string) int { return order[strings.Fields(a)[0]] - order[strings.Fields(b)[0]] })
+	head := fmt.Sprintf("kit %s: %d pass, %d skipped, %d failed", rc.By, rc.res.Pass, rc.res.Skip, rc.res.Fail)
+	return strings.Join(append(append([]string{head}, lines...), extra...), "\n")
+}
+
+// Clean is true when every gate passed.
+func (rc Receipt) Clean() bool { return rc.res.Fail == 0 && rc.res.Skip == 0 }
+
+func (r *reporter) receipt(by string) Receipt { return Receipt{by, r.res, r.verdicts} }
+
+// verdict writes line to the report and keeps kind and text for the receipt.
+func (r *reporter) verdict(line, kind, text string) {
 	fmt.Fprint(r.report, line)
-	r.verdicts = append(r.verdicts, "\n  "+strings.TrimSuffix(line, "\n"))
+	r.verdicts = append(r.verdicts, layout.KV(kind, text))
 }
 
 func (r *reporter) skip(label, why string) {
-	r.verdict(fmt.Sprintf("SKIP %s (%s)\n", label, why))
+	r.verdict(fmt.Sprintf("SKIP %s (%s)\n", label, why), "skip", label+"  "+why)
 	if r.failures != nil {
 		// In a block's message too, so the skipped count has its reasons.
 		fmt.Fprintln(r.failures, layout.KV("skip", label+" ("+why+")"))
@@ -65,13 +83,13 @@ func (r *reporter) pass(label, note string) {
 	if note != "" {
 		label += " (" + note + ")"
 	}
-	r.verdict(fmt.Sprintf("PASS %s\n", label))
+	r.verdict(fmt.Sprintf("PASS %s\n", label), "pass", label)
 	r.res.Pass++
 }
 
 // fail writes g's FAIL line, then what it ran and detail under it.
 func (r *reporter) fail(g enforce.Gate, detail string) {
-	r.verdict(fmt.Sprintf("FAIL %s\n", g.Label))
+	r.verdict(fmt.Sprintf("FAIL %s\n", g.Label), "FAIL", g.Label)
 	described := r.report
 	if r.failures != nil {
 		described = r.detail

@@ -146,10 +146,18 @@ func unconfirmed(h *hook.Hook, text, transcriptPath, where string) []claims.Unsu
 	if err != nil {
 		h.Log(kitlog.Guards, "claims-error", append([]string{"where", where, "error", err.Error()}, v.Usage.Pairs()...)...)
 		h.Notify(fmt.Sprintf("kit claims: NOT CHECKED %s, the verifier failed: %s", where, err))
+		// For the turn's receipt at Stop.
+		_ = fsx.Append(claimsUnchecked(h), []byte(where+"\n"))
 		return nil
 	}
 	h.Log(kitlog.Guards, "claims", append([]string{"where", where, "unconfirmed", strconv.Itoa(len(v.Unsupported))}, v.Usage.Pairs()...)...)
 	return v.Unsupported
+}
+
+// claimsUnchecked is the session's list of texts the verifier failed on
+// this turn; the turn-tree hook clears it at each prompt.
+func claimsUnchecked(h *hook.Hook) string {
+	return h.Paths.SessionFile(cache.Claims, h.Payload.SessionID(), "unchecked")
 }
 
 // claimsMessage names each unconfirmed claim, enough of it to find, and the

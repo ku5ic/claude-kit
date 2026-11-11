@@ -14,11 +14,11 @@ import (
 
 // Checked is one Stop run: a line per gate for kit explain stop, the short
 // failure lines a block shows and the full detail behind them, the counts,
-// and the notice for the user.
+// and the receipt for the user.
 type Checked struct {
 	Failures, Detail string
 	Result           Result
-	Notice           string
+	Receipt          Receipt
 	lines, summary   string
 }
 
@@ -86,7 +86,7 @@ func Files(p enforce.Plan, cacheDir string, timeout time.Duration, deadline time
 		}
 		t.fail(g, detail)
 	}
-	return Checked{Failures: failures.String(), Detail: detail.String(), Result: t.res, Notice: t.notice("stop"), lines: report.String(), summary: t.res.String() + "\n"}
+	return Checked{Failures: failures.String(), Detail: detail.String(), Result: t.res, Receipt: t.receipt("stop"), lines: report.String(), summary: t.res.String() + "\n"}
 }
 
 // tally builds a Stop run's report and block message.

@@ -186,6 +186,9 @@ func Merged(p Paths) (*yaml.Node, error) {
 	return base, nil
 }
 
+// ReceiptOnFailures is true when kit.yml's receipt hides a clean pass.
+func (c *Config) ReceiptOnFailures() bool { return c.Receipt == "failures" }
+
 func applyDefaults(cfg *Config) {
 	if cfg.LogMaxLines == 0 {
 		cfg.LogMaxLines = 10000

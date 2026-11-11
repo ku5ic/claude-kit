@@ -85,6 +85,7 @@ type Plan struct {
 	Managed      bool
 	Since        *git.Since
 	Classifier   claudecli.Usage // what planning's gap-fill calls cost
+	Unchecked    []string        // Stop's files that no gate checks
 }
 
 // Options says which root to plan, which subprojects to keep, whether

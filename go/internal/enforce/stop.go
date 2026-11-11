@@ -42,6 +42,11 @@ func Stop(cfg *config.Config, o Options, files []string) Plan {
 	})
 	b.settle(o.CacheDir)
 	p.Gates, p.Unclassified = b.gates, b.skipped
+	for _, f := range files {
+		if !slices.ContainsFunc(p.Gates, func(g Gate) bool { return slices.Contains(g.Files, f) }) {
+			p.Unchecked = append(p.Unchecked, f)
+		}
+	}
 	return p
 }
 
