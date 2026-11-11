@@ -5,16 +5,16 @@ description: Docker patterns for Dockerfiles, multi-stage builds, Compose, netwo
 
 # Docker patterns
 
-Docker Engine 29.9.3. Compose Specification (current format, supersedes 2.x and 3.x).
+Default assumption: Docker Engine 29.9.3 and the Compose Specification, which supersedes the 2.x and 3.x formats.
 
 ## Reference files
 
-| File                                           | Covers                                                                                       |
-| ---------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| [dockerfile.md](reference/dockerfile.md)       | Base image selection, layer caching, RUN/COPY/ADD/CMD/ENTRYPOINT/USER/WORKDIR, .dockerignore |
-| [multi-stage.md](reference/multi-stage.md)     | Multi-stage builds, named stages, COPY --from, --target, BuildKit                            |
-| [compose.md](reference/compose.md)             | Services, build, ports, depends_on with healthcheck, restart, env_file, profiles, secrets    |
-| [networking.md](reference/networking.md)       | Bridge/host/none drivers, user-defined networks, service discovery, port publishing          |
-| [volumes.md](reference/volumes.md)             | Named volumes vs bind mounts vs tmpfs, when to use each, Compose volume declarations         |
-| [security.md](reference/security.md)           | Non-root user, minimal base images, image pinning, .dockerignore, Docker Scout, secrets      |
-| [anti-patterns.md](reference/anti-patterns.md) | Severity-labeled anti-patterns to flag in review                                             |
+| File                                           | Covers                                                                                     |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| [dockerfile.md](reference/dockerfile.md)       | Base images, layer order, `apt-get`, COPY vs ADD, exec form, USER, WORKDIR, .dockerignore  |
+| [multi-stage.md](reference/multi-stage.md)     | BuildKit parallel stages, named stages, `COPY --from`, `--target`, stage names             |
+| [compose.md](reference/compose.md)             | `version:` key, depends_on with healthcheck, restart policies, env and secrets, profiles   |
+| [networking.md](reference/networking.md)       | Legacy `--link`, drivers, service discovery and aliases, port publishing, isolation        |
+| [volumes.md](reference/volumes.md)             | Named volumes vs bind mounts vs tmpfs, Compose declarations, `down -v`                     |
+| [security.md](reference/security.md)           | Non-root user, minimal and pinned images, build context, runtime secrets, Scout, read-only |
+| [anti-patterns.md](reference/anti-patterns.md) | Ten review-time anti-patterns with severity calls                                          |

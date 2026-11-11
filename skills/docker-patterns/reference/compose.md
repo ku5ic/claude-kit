@@ -1,103 +1,20 @@
 # Docker Compose
 
-## Contents
+- The Compose Specification ignores the top-level `version:` key. Omit it.
 
-- [Service definition](#service-definition)
-- [depends_on with conditions](#depends_on-with-conditions)
-- [healthcheck](#healthcheck)
-- [restart policies](#restart-policies)
-- [Environment variables](#environment-variables)
-- [Profiles](#profiles)
-- [References](#references)
+## Services and builds
 
-Current format: Compose Specification. The `version:` top-level key is ignored and should be omitted.
+- A service built from a multi-stage Dockerfile: set `build.target` to the runtime stage, and pass build arguments under `build.args`.
+- A database password: mount it as a Compose secret and point the image at the file, as in `POSTGRES_PASSWORD_FILE: /run/secrets/db_password`.
 
-## Service definition
+## depends_on and healthcheck
 
-```yaml
-services:
-  api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: runtime
-      args:
-        BUILD_ENV: production
-    image: myorg/api:1.0
-    ports:
-      - "127.0.0.1:8000:8000"
-    env_file:
-      - .env
-    environment:
-      DATABASE_URL: postgresql://db:5432/app
-    depends_on:
-      db:
-        condition: service_healthy
-    restart: unless-stopped
-    networks:
-      - backend
-    volumes:
-      - static:/app/static
+- `depends_on` alone waits only for the dependency's container to start. To wait until it's ready, set `condition: service_healthy`; `condition: service_started` waits for the start only.
+- `condition: service_healthy` needs a `healthcheck` on the dependency. Without one, the condition is never met and the dependent service never starts.
+- `healthcheck` fields: `test`, `interval` between checks, `timeout` for one check, `retries` (consecutive failures before unhealthy), and `start_period` (grace period before failures count).
+- A healthcheck test that needs a shell uses the `CMD-SHELL` form, as in `["CMD-SHELL", "pg_isready ..."]`, and one that execs directly uses the `CMD` form.
 
-  db:
-    image: postgres:16
-    environment:
-      POSTGRES_DB: app
-      POSTGRES_USER: appuser
-      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
-    secrets:
-      - db_password
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U appuser -d app"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    networks:
-      - backend
-
-volumes:
-  pgdata:
-  static:
-
-networks:
-  backend:
-
-secrets:
-  db_password:
-    file: ./secrets/db_password.txt
-```
-
-## depends_on with conditions
-
-`depends_on` alone only waits for the container to start (not to be ready). Use `condition: service_healthy` to wait for a passing healthcheck:
-
-```yaml
-depends_on:
-  db:
-    condition: service_healthy # waits for healthcheck to pass
-  cache:
-    condition: service_started # waits for container start only
-```
-
-`condition: service_healthy` requires the dependency to define a `healthcheck`. Without one, the condition is never satisfied and the dependent service does not start.
-
-## healthcheck
-
-```yaml
-healthcheck:
-  test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-  interval: 30s # time between checks
-  timeout: 10s # how long a check can take
-  retries: 3 # consecutive failures to mark unhealthy
-  start_period: 40s # grace period before failures count
-```
-
-Use `CMD-SHELL` form to run a shell command: `["CMD-SHELL", "pg_isready ..."]`. Use `CMD` form for direct exec without shell.
-
-## restart policies
+## Restart policies
 
 | Policy           | Behavior                                                                                   |
 | ---------------- | ------------------------------------------------------------------------------------------ |
@@ -106,29 +23,18 @@ Use `CMD-SHELL` form to run a shell command: `["CMD-SHELL", "pg_isready ..."]`. 
 | `unless-stopped` | Always restart unless manually stopped; does not start on daemon restart if it was stopped |
 | `on-failure`     | Restart only on non-zero exit; optionally `on-failure:5` for max retries                   |
 
-Prefer `unless-stopped` over `always` for long-running services. An `always` container you stopped by hand comes back when the Docker daemon restarts, which is surprising in development; `unless-stopped` leaves it stopped.
+- A long-running service: `unless-stopped`, not `always`.
 
-## Environment variables
+## Environment and secrets
 
-Three options, in increasing order of security:
+From least to most secure:
 
-1. `environment:` inline values (visible in `docker inspect`; use for non-sensitive config)
-2. `env_file: [.env]` (file stays off CI/CD logs; still visible in inspect)
-3. `secrets:` (mounted as files at `/run/secrets/<name>`; not in inspect output)
+1. `environment:` inline values, visible in `docker inspect`. Only for non-sensitive config.
+2. `env_file: [.env]`, which keeps values out of CI/CD logs but not out of `docker inspect`.
+3. `secrets:`, mounted as files at `/run/secrets/<name>` and absent from `docker inspect`.
 
-Load sensitive values from secrets, not environment variables.
+- Sensitive values: `secrets:`, never environment variables.
 
 ## Profiles
 
-Profiles restrict which services start by default:
-
-```yaml
-services:
-  app:
-    image: myapp
-  debug-tools:
-    image: busybox
-    profiles: [debug]
-```
-
-`docker compose up` starts only `app`. `docker compose --profile debug up` also starts `debug-tools`. Use profiles for development-only services (mailhog, adminer, jaeger).
+- A development-only service (mailhog, adminer, jaeger): give it `profiles: [debug]`. `docker compose up` skips it, and `docker compose --profile debug up` starts it too.

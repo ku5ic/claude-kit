@@ -17,13 +17,19 @@ Checked: 2026-11-10 against https://docs.docker.com/engine/release-notes/29/, ht
 
 Docker Engine and Docker Compose release independently. The Compose Specification supersedes the versioned format (version: "3"), and the `version` top-level key is now ignored.
 
+- 2026-11-11: the Node `deps` stage used `npm ci --only=production`. `npm ci --help` on npm 11.17.0 lists `--omit` and no `--only`, so it's `npm ci --omit=dev`. The next refresh should check the distroless and slim image sizes in `reference/multi-stage.md`.
+
 - 29.9.3 (2026-11-03): corrected the `always` restart policy per the docs, and noted legacy link environment variables are disabled since 29.0, removal targeted for 30.0.
 - 29.8.1 (2026-09-15): bug fixes only (containerd image store, logging, networking); no guidance change.
 - 29.4.2 (2026-05-01): previous baseline.
 
+### Left to linters
+
+Checked: 2026-11-11. No default check in the kit's set (go vet and golangci-lint defaults, ruff defaults, ESLint `js.configs.recommended`, ShellCheck with no flags, `tsc --strict`) reads Dockerfiles or Compose files, so no rule was dropped. hadolint, `docker build --check`, dclint, and Compose validation aren't in that set and don't count.
+
 ### Claims
 
-- Docker patterns, Docker Engine 29.9.3. Compose Specification (current form...: https://docs.docker.com/engine/release-notes/, https://docs.docker.com/compose/compose-file/
+- Default assumption, Docker Engine 29.9.3 and the Compose Specification: https://docs.docker.com/engine/release-notes/, https://docs.docker.com/compose/compose-file/
 
 ## reference/compose.md
 

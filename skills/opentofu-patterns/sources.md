@@ -18,42 +18,43 @@ Checked: 2026-11-10 against https://opentofu.org/docs/v1.12/intro/whats-new/ and
 - OpenTofu 1.12: `lifecycle { destroy = false }`, and `prevent_destroy` may refer to variables.
 - OpenTofu 1.11: the `enabled` meta-argument, ephemeral resources, variables and outputs, and write-only attributes.
 
-## reference/anti-patterns.md
+### Left to linters
 
-### Claims
-
-- A rename or module move without a `moved` block, `failure`. The plan destroys the object at the old addres...: https://opentofu.org/docs/language/modules/develop/refactoring/
-- Deleting an old `moved` block from a shared module, `failure`. Callers still on the old address plan to delet...: https://opentofu.org/docs/language/modules/develop/refactoring/
-- Deleting a resource block to stop managing an object, `failure`. Removing the block destroys the object. Use a...: https://opentofu.org/docs/language/resources/syntax/
-- `count` over a list whose items can change, `warning`. Removing a middle item shifts every later inde...: https://opentofu.org/docs/language/meta-arguments/count/
-- A secret in a plain or `sensitive` variable, treated as protected, `warning`. `sensitive` only hides output; the value is in...: https://opentofu.org/docs/language/values/variables/
-- Remote module without an exact version, `warning`. The lock file doesn't lock modules, so every `...: https://opentofu.org/docs/language/files/dependency-lock/
-- A provisioner where a native mechanism exists, `info`. Provisioners are a last resort. Use `user_data` o...: https://opentofu.org/docs/language/resources/provisioners/syntax/
-
-## reference/configuration.md
-
-### Claims
-
-- `for_each` over `count` for collections, `count` identifies instances by index. Remove an element...: https://opentofu.org/docs/language/meta-arguments/count/
-- `enabled` for zero-or-one (OpenTofu 1.11+), For a resource or module that either exists or doesn't, `...: https://opentofu.org/docs/language/meta-arguments/enabled/
-- Variables: https://opentofu.org/docs/language/values/variables/
-- Pinning and the lock file: https://opentofu.org/docs/language/files/dependency-lock/
-- Provisioners are a last resort, Provisioners add complexity and uncertainty, and state ca...: https://opentofu.org/docs/language/resources/provisioners/syntax/
+Checked: 2026-11-11. No default check in the kit's set (go vet and golangci-lint defaults, ruff defaults, ESLint `js.configs.recommended`, shellcheck with no flags, `tsc --strict`) reads HCL, so no rule here was dropped.
 
 ## reference/refactoring-and-state.md
 
 ### Claims
 
-- `moved`: renames and restructuring, Keep historical `moved` blocks in shared modules. Deletin...: https://opentofu.org/docs/language/modules/develop/refactoring/
-- `import`: adopting existing objects, An `import` block takes `to` (the address) and `id` or `i...: https://opentofu.org/docs/language/import/
-- `removed`: stop managing without destroying: https://opentofu.org/docs/language/resources/syntax/
-- `removed`: stop managing without destroying, OpenTofu 1.12+ also accepts `lifecycle { destroy = false...: https://opentofu.org/docs/v1.12/intro/whats-new/
-- `lifecycle` guards, In OpenTofu 1.12+, `prevent_destroy` may refer to other s...: https://opentofu.org/docs/v1.12/intro/whats-new/
-- What state holds, `sensitive = true` only hides a value in output. OpenTofu...: https://opentofu.org/docs/language/values/variables/
-- What state holds, An `ephemeral = true` variable (OpenTofu 1.11+) is never...: https://opentofu.org/docs/language/values/variables/
+- `lifecycle { destroy = false }` on a managed resource 1.12+, `prevent_destroy` referring to variables 1.12+: https://opentofu.org/docs/v1.12/intro/whats-new/
+- Ephemeral variables 1.11+, `sensitive` only hiding output while state holds the value: https://opentofu.org/docs/language/values/variables/
+- `moved` blocks, keeping historical ones in shared modules: https://opentofu.org/docs/language/modules/develop/refactoring/
+- `import` block arguments, plan-then-apply, no configuration generation with `for_each`: https://opentofu.org/docs/language/import/
+- `removed` block with `lifecycle { destroy = false }`: https://opentofu.org/docs/language/resources/syntax/
+
+## reference/configuration.md
+
+### Claims
+
+- `enabled` in `lifecycle` 1.11+, `null` when disabled: https://opentofu.org/docs/language/meta-arguments/enabled/
+- `count` for identical things, `for_each` keyed by item: https://opentofu.org/docs/language/meta-arguments/count/
+- `validation` blocks, `nullable`: https://opentofu.org/docs/language/values/variables/
+- Committing the lock file, providers only, pinning remote modules: https://opentofu.org/docs/language/files/dependency-lock/
+- Native mechanisms before provisioners: https://opentofu.org/docs/language/resources/provisioners/syntax/
 
 ## reference/workflow.md
 
 ### Claims
 
-- Checks, `plan` and `apply` validate automatically; `validate` is...: https://opentofu.org/docs/cli/commands/validate
+- `plan` and `apply` validate on their own; `validate` for pre-commit and CI: https://opentofu.org/docs/cli/commands/validate
+
+## reference/anti-patterns.md
+
+### Claims
+
+- A rename without `moved`, deleting an old `moved` block: https://opentofu.org/docs/language/modules/develop/refactoring/
+- Deleting a resource block instead of a `removed` block: https://opentofu.org/docs/language/resources/syntax/
+- `count` over a changing list: https://opentofu.org/docs/language/meta-arguments/count/
+- A secret in a plain or `sensitive` variable: https://opentofu.org/docs/language/values/variables/
+- A remote module without an exact version: https://opentofu.org/docs/language/files/dependency-lock/
+- A provisioner where a native mechanism exists: https://opentofu.org/docs/language/resources/provisioners/syntax/

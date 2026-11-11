@@ -20,22 +20,38 @@ Checked: 2026-11-10 against npm registry, Context7 /apollographql/apollo-client,
 - @graphql-codegen/client-preset 6.2.0 (2026-09-13), @graphql-codegen/cli 7.4.3 (2026-09-24): no guidance change.
 - graphql (graphql-js) 17.0.2; 17.0.0 (2026-06-15) followed 16.14. Server-side changes are out of this pack's scope.
 
+### Left to linters
+
+Checked: 2026-11-11 with ESLint 10.14.0 and `js.configs.recommended` from `@eslint/js` 10.0.1, and TypeScript 7.0.2 (`tsc --strict --noEmit`, no extra flags), with @apollo/client 4.3.8 and graphql 16.15.0, on a probe directory. No rule was dropped, because ESLint's defaults reported none of them on the JavaScript probe.
+
+Not caught by defaults, so kept: a runtime value interpolated into a `gql` template, an anonymous operation, `getContext().getCacheKey` in a link.
+
+Caught by tsc in TypeScript but kept for JavaScript clients: a hook imported from the `@apollo/client` root (`TS2305`), an `ApolloError` import (`TS2305`), `result.errors` (`TS2551`), `error.graphQLErrors` (`TS2339`), `resolvers` passed to `new ApolloClient` (`TS2353`), `fetchPolicy: "cache-and-network"` on `client.query` (`TS2769`).
+
 ## reference/anti-patterns.md
 
 ### Claims
 
-- A runtime value interpolated into a document, `failure`. `` gql`query { user(id: "${id}") { name } }` `...: https://graphql.org/learn/queries/
-- An object selected without its identifier field, `warning`. Without `id` (or the type's `keyFields`), Apol...: https://github.com/apollographql/apollo-client/blob/main/docs/source/caching/cache-configuration.mdx
-- Reading v3's `errors` or `ApolloError` on Apollo Client 4, `failure`. v4 removed both, so `error.graphQLErrors` chec...: https://github.com/apollographql/apollo-client/blob/main/docs/source/migrating/apollo-client-4-migration.mdx
-- `errorPolicy: "all"` handled as all-or-nothing, `warning`. With `"all"`, data and errors come back togeth...: https://github.com/apollographql/apollo-client/blob/main/docs/agent-skills/apollo-client/references/mutations.md
-- `cache-and-network` passed to `client.query`, `failure`. `client.query` returns one result; the policy...: https://github.com/apollographql/apollo-client/blob/main/src/core/ApolloClient.ts
-- Hand edits in the codegen output directory, `failure`. The client preset regenerates it from `codegen...: https://github.com/dotansimha/graphql-code-generator/blob/master/website/src/pages/plugins/presets/preset-client.mdx
+- v3's `errors` and `ApolloError` on Apollo Client 4: https://github.com/apollographql/apollo-client/blob/main/docs/source/migrating/apollo-client-4-migration.mdx
+- A runtime value interpolated into a document: https://graphql.org/learn/queries/
+- An object selected without its identifier field: https://github.com/apollographql/apollo-client/blob/main/docs/source/caching/cache-configuration.mdx
+- `errorPolicy: "all"` handled as all-or-nothing: https://github.com/apollographql/apollo-client/blob/main/docs/agent-skills/apollo-client/references/mutations.md
+- `cache-and-network` passed to `client.query`: https://github.com/apollographql/apollo-client/blob/main/src/core/ApolloClient.ts
+- Hand edits in the codegen output directory: https://github.com/dotansimha/graphql-code-generator/blob/master/website/src/pages/plugins/presets/preset-client.mdx
 
 ## reference/apollo-client.md
 
 ### Claims
 
 - Apollo Client 4: the v4 migration guide, https://github.com/apollographql/apollo-client/blob/main/docs/source/migrating/apollo-client-4-migration.mdx, and the docs under https://github.com/apollographql/apollo-client/tree/main/docs/source (Context7 /apollographql/apollo-client)
+- Hook entry point, the unified `error` and removed `ApolloError`, `useLazyQuery` rejection, `notifyOnNetworkStatusChange` default, `getCacheKey` to `cache.identify`: the migration guide above
+- `CombinedGraphQLErrors.is`, `ErrorLink` placement: https://github.com/apollographql/apollo-client/blob/main/docs/source/data/error-handling.mdx
+- `errorPolicy: "all"` partial data: https://github.com/apollographql/apollo-client/blob/main/docs/agent-skills/apollo-client/references/mutations.md
+- `cache-and-network` invariant in `client.query`: https://github.com/apollographql/apollo-client/blob/main/src/core/ApolloClient.ts
+- `keyFields`, `keyFields: false`: https://github.com/apollographql/apollo-client/blob/main/docs/source/caching/cache-configuration.mdx
+- `cache.identify`: https://github.com/apollographql/apollo-client/blob/main/docs/source/caching/cache-interaction.mdx
+- `merge` and `mergeObjects`: https://github.com/apollographql/apollo-client/blob/main/docs/source/caching/cache-field-behavior.mdx
+- `LocalState`: https://github.com/apollographql/apollo-client/blob/main/docs/source/local-state/local-resolvers.mdx
 
 ## reference/codegen.md
 
@@ -47,7 +63,7 @@ Checked: 2026-11-10 against npm registry, Context7 /apollographql/apollo-client,
 
 ### Claims
 
-- Name every operation, Write `query UserProfile($id: ID!) { ... }`, not an anony...: https://graphql.org/learn/queries/
-- Dynamic values go in variables, Pass runtime values as `$variables` declared on the opera...: https://graphql.org/learn/queries/
-- Fragments are reusable field sets, A fragment names a set of fields on a type and is spread...: https://graphql.org/learn/queries/
-- Selections that feed a normalized cache, Select the type's identifier field (by default `id`, or w...: https://github.com/apollographql/apollo-client/blob/main/docs/source/caching/cache-configuration.mdx
+- Named operations: https://graphql.org/learn/queries/
+- Runtime values in variables: https://graphql.org/learn/queries/
+- Fragments as reusable field sets: https://graphql.org/learn/queries/
+- Identifier fields for a normalized cache: https://github.com/apollographql/apollo-client/blob/main/docs/source/caching/cache-configuration.mdx

@@ -21,3 +21,7 @@ Checked: 2026-11-10 against https://git-scm.com, https://github.com/git/git/tags
 - git 2.56.0 (2026-09-28), 2.56.1 tagged: no guidance change. Corrected the merge-commit squash warning per git-rebase (merges are dropped by default) and added bisect's exit 125.
 - `--force-if-includes` (2.30+): pairs with `--force-with-lease` against the background-fetch gap; added to the force-push guidance 2026-09-12.
 - Conventional Commits spec is 1.0.0; unchanged.
+
+### Left to linters
+
+Checked: 2026-11-11. No default check in the kit's set (go vet and golangci-lint defaults, ruff defaults, ESLint `js.configs.recommended`, shellcheck with no flags, `tsc --strict`) reads git workflow, so no rule here was dropped.

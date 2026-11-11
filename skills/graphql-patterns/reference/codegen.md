@@ -1,33 +1,10 @@
 # graphql-codegen: the client preset
 
-## Config
-
-`codegen.ts` exports a `CodegenConfig` whose `generates` target uses `preset: 'client'`:
-
-```ts
-import type { CodegenConfig } from "@graphql-codegen/cli";
-
-const config: CodegenConfig = {
-  schema: "schema.graphql",
-  documents: ["src/**/*.tsx", "!src/gql/**/*"],
-  generates: {
-    "./src/gql/": { preset: "client" },
-  },
-};
-
-export default config;
-```
-
-- `documents` excludes the output directory, so generated files are never re-scanned as sources.
-- The output directory is generated code: review `codegen.ts` and the source documents, never hand edits in `src/gql/`.
-
-## Typed documents through `graphql()`
-
-Import `graphql` from the generated directory and wrap each document in it: `graphql(/* GraphQL */ \`query ...\`)`. The result is a typed document node, so the client infers the result and variables types with no generic arguments or generated hooks. A hand-written generic on `useQuery<...>`next to a`graphql()` document is redundant and can drift.
-
-## Fragment masking
-
-On by default. A component takes `FragmentType<typeof ItemFragment>` as its prop and unmasks it with `useFragment(ItemFragment, props.item)`; the parent only sees the fragment reference, so it can't depend on fields it didn't select itself.
-
-- When the rules-of-hooks lint rule flags `useFragment` for its hook-like name, rename it with `presetConfig.fragmentMasking.unmaskFunctionName: 'getFragmentData'` instead of disabling the lint rule.
-- `presetConfig.fragmentMasking: false` turns masking off. Treat it as a deliberate project decision, not a fix for a type error.
+- `codegen.ts`: export a `CodegenConfig` whose `generates` target sets the preset, as in `generates: { "./src/gql/": { preset: "client" } }`.
+- `documents`: exclude the output directory, as in `["src/**/*.tsx", "!src/gql/**/*"]`.
+- The output directory: review `codegen.ts` and the source documents, never hand edits in `src/gql/`.
+- A document: import `graphql` from the generated directory and wrap the document in it, as in ``graphql(/* GraphQL */ `query ...`)``.
+- A `graphql()` document: pass it to the client with no generic arguments and no generated hooks. A hand-written generic on `useQuery<...>` next to one is a finding.
+- A component's fragment data, with fragment masking on (the default): type the prop as `FragmentType<typeof ItemFragment>` and unmask it with `useFragment(ItemFragment, props.item)`.
+- When the rules-of-hooks lint rule flags `useFragment` for its hook-like name, rename it with `presetConfig.fragmentMasking.unmaskFunctionName: 'getFragmentData'`, never by disabling the lint rule.
+- `presetConfig.fragmentMasking: false`: only as a deliberate project decision, never as a fix for a type error.

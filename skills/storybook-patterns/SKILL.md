@@ -7,7 +7,7 @@ description: Storybook patterns for CSF 3, args and fn() spies, play functions, 
 
 Default assumption: Storybook 10.6 with CSF 3 stories.
 
-- CSF Factories (`preview.meta({...})` and `meta.story({...})`) appear in current docs next to plain CSF 3 objects. Match whichever form the project already uses.
+- Current docs show CSF Factories (`preview.meta({...})`, `meta.story({...})`) next to plain CSF 3 objects. Match the form the project already uses.
 - Adapt advice to the version in the project's `package.json` or lockfile.
 
 ## Reference files

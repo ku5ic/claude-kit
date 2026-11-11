@@ -1,6 +1,8 @@
 # Networking
 
-## Network drivers
+- Legacy `--link`: replace it with a user-defined network. Its environment variables are off by default since Engine 29.0, and removal is slated for 30.0.
+
+## Drivers
 
 | Driver    | Isolation                                | Use when                                             |
 | --------- | ---------------------------------------- | ---------------------------------------------------- |
@@ -9,82 +11,18 @@
 | `none`    | Complete isolation; no network           | Batch jobs with no network needs                     |
 | `overlay` | Multi-host; requires Swarm               | Multi-host Docker Swarm clusters                     |
 
-## User-defined bridge networks
+## Service discovery
 
-Compose creates a user-defined bridge network for each project automatically. Services on the same network communicate by service name:
+- Compose creates a user-defined bridge network for each project. Services on the same network reach each other by service name, as in `db:5432`.
+- The default bridge network has no service name resolution; a user-defined network does.
+- Aliases listed under `networks: <net>: aliases:` give a service a second name, and other services on that network reach it by either.
 
-```yaml
-services:
-  api:
-    image: myapi
-    networks:
-      - backend
+## Ports
 
-  db:
-    image: postgres:16
-    networks:
-      - backend
+- A published port is reachable from outside the Docker host and from containers on other bridge networks.
+- `"8000:8000"` publishes on all interfaces, `"127.0.0.1:8000:8000"` on loopback only (the safer choice in development), and `"8080:80"` maps host 8080 to container 80.
+- An internal service (database, cache) in production: no `ports:`. Services on its network reach it without one.
 
-networks:
-  backend:
-```
+## Isolation
 
-`api` can reach `db` at `db:5432`. The default bridge network does not support service name resolution; user-defined networks do. Use one instead of legacy `--link`, whose environment variables are off by default since Engine 29.0 and slated for removal in 30.0.
-
-## Port publishing
-
-Publishing a port makes it reachable from outside the Docker host and from containers on other bridge networks.
-
-```yaml
-ports:
-  - "8000:8000" # all interfaces, host 8000 -> container 8000
-  - "127.0.0.1:8000:8000" # loopback only (more secure for dev)
-  - "8080:80" # host 8080 -> container 80
-```
-
-Internal services (databases, caches) should NOT publish ports in production. A database with a published port is reachable from any process on the host.
-
-```yaml
-db:
-  image: postgres:16
-  # No `ports:` -- only reachable from services on the same network
-  networks:
-    - backend
-```
-
-## Multiple networks for isolation
-
-Use separate networks to enforce that only certain services can communicate:
-
-```yaml
-services:
-  frontend:
-    networks: [public]
-
-  api:
-    networks: [public, backend]
-
-  db:
-    networks: [backend] # frontend cannot reach db directly
-
-networks:
-  public:
-  backend:
-```
-
-`frontend` can reach `api`, but cannot reach `db`. `api` can reach both.
-
-## DNS and service discovery
-
-On a user-defined network, each container gets a DNS entry matching its service name. Aliases can be added:
-
-```yaml
-services:
-  api:
-    networks:
-      backend:
-        aliases:
-          - api-service
-```
-
-Other services on `backend` can reach this container at `api` or `api-service`.
+- Split services across networks so each joins only the ones it needs. With `frontend` on `public`, `api` on `public` and `backend`, and `db` on `backend`, `frontend` reaches `api` but not `db`, and `api` reaches both.
