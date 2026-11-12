@@ -30,7 +30,6 @@ var hookChecks = map[string]hook.Check{
 	"plan-mode-context":       hooks.PlanModeContext,
 	"guard-plan":              hooks.GuardPlan,
 	"rules-gate":              hooks.RulesGate,
-	"reference-gate":          hooks.ReferenceGate,
 	"guard-edit":              hooks.GuardEdit,
 	"guard-skills":            hooks.GuardSkills,
 	"guard-slop":              hooks.GuardSlop,
@@ -65,13 +64,10 @@ var hookChecks = map[string]hook.Check{
 // registry is every `kit hook` name. A test holds it and hooks/hooks.json
 // to each other.
 var registry = map[string]hookDef{
-	"bash-dispatch":  {events: []string{"PreToolUse"}, steps: []string{"guard-bash", "guard-commit", "guard-pr"}},
-	"guard-dispatch": {events: []string{"PreToolUse"}, run: hooks.GuardDispatch},
-	// reference-gate runs second: until the rules load, its deny names files
-	// the model has no reason to trust.
-	"gate-dispatch":      {events: []string{"PreToolUse"}, steps: []string{"rules-gate", "reference-gate"}},
+	"bash-dispatch":      {events: []string{"PreToolUse"}, steps: []string{"guard-bash", "guard-commit", "guard-pr"}},
+	"guard-dispatch":     {events: []string{"PreToolUse"}, run: hooks.GuardDispatch},
+	"gate-dispatch":      {events: []string{"PreToolUse"}, steps: []string{"rules-gate"}},
 	"rules-gate":         {},
-	"reference-gate":     {},
 	"post-edit-dispatch": {events: []string{"PostToolUse"}, steps: []string{"sanitize-output", "format-dispatch", "edit-seen", "plan-tick"}},
 	"edit-seen":          {},
 	"bash-edits":         {events: []string{"PostToolUse"}},

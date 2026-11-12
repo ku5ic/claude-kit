@@ -203,7 +203,7 @@ func TestKitRepo(t *testing.T) {
 			refs, _ := filepath.Glob(filepath.Join(filepath.Dir(skillMD), "reference", "*.md"))
 			for _, ref := range refs {
 				if !strings.Contains(text, "](reference/"+filepath.Base(ref)+")") {
-					t.Errorf("%s doesn't link reference/%s, so reference-gate never asks for it", skillMD, filepath.Base(ref))
+					t.Errorf("%s doesn't link reference/%s, so no row ever sends Claude to it", skillMD, filepath.Base(ref))
 				}
 			}
 		}

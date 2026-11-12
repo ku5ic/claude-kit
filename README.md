@@ -127,21 +127,20 @@ eval "$(kit completion zsh)"   # or: kit completion bash
 
 ## On by default, and what you switch on
 
-| Feature                                                                      | Default  | Needs, or how to change it                                                                  |
-| ---------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------- |
-| Guards, checks before "done", formatting, context, rules                     | On       | Nothing. Each guard rule can be let through with `disabled_rules`                           |
-| Gap-fill: a small model sorts what your configs leave open                   | On       | The `claude` CLI, logged in. Haiku, capped at $0.50 a call, cached per repo                 |
-| Claim checker                                                                | On       | For subagent reports, the `claude` CLI, logged in. Turn off with `disabled_rules: [claims]` |
-| plan-critic before a plan is approved                                        | On       | Turn off with `disabled_rules: [plan-critic]`                                               |
-| kit-rules and every `global_skills` skill loaded before the first tool call  | On       | Turn off with `disabled_rules: [rules-gate]`                                                |
-| Every reference a loaded skill's table links, read before the next tool call | On       | Turn off with `disabled_rules: [reference-gate]`                                            |
-| A finished plan held until `/code-review` ran after its last edit            | On       | Turn off with `disabled_rules: [plan-done]`                                                 |
-| Claude stops for your review after each plan step                            | On       | `step_pause: plan` stops once at the plan's end, `off` never stops                          |
-| Pattern skills required before the first edit of a file type                 | Off      | `guard_skills: true`, or `CLAUDE_GUARD_SKILLS=1` in your settings `env`                     |
-| Em dashes, smart quotes, and Unicode arrows rewritten to ASCII               | Off      | `sanitize_typography: true`, or `CLAUDE_SANITIZE_TYPOGRAPHY=1` in your settings `env`       |
-| Status line                                                                  | Off      | Two lines in `~/.claude/settings.json` ([Status line](#status-line))                        |
-| `kit` in your own terminal                                                   | Off      | PATH and completion in your shell rc ([Shell completion](#shell-completion-optional))       |
-| claude.ai chat                                                               | Separate | Upload the release's chat zip ([Use it in claude.ai chat](#use-it-in-claudeai-chat))        |
+| Feature                                                                     | Default  | Needs, or how to change it                                                                  |
+| --------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------- |
+| Guards, checks before "done", formatting, context, rules                    | On       | Nothing. Each guard rule can be let through with `disabled_rules`                           |
+| Gap-fill: a small model sorts what your configs leave open                  | On       | The `claude` CLI, logged in. Haiku, capped at $0.50 a call, cached per repo                 |
+| Claim checker                                                               | On       | For subagent reports, the `claude` CLI, logged in. Turn off with `disabled_rules: [claims]` |
+| plan-critic before a plan is approved                                       | On       | Turn off with `disabled_rules: [plan-critic]`                                               |
+| kit-rules and every `global_skills` skill loaded before the first tool call | On       | Turn off with `disabled_rules: [rules-gate]`                                                |
+| A finished plan held until `/code-review` ran after its last edit           | On       | Turn off with `disabled_rules: [plan-done]`                                                 |
+| Claude stops for your review after each plan step                           | On       | `step_pause: plan` stops once at the plan's end, `off` never stops                          |
+| Pattern skills required before the first edit of a file type                | Off      | `guard_skills: true`, or `CLAUDE_GUARD_SKILLS=1` in your settings `env`                     |
+| Em dashes, smart quotes, and Unicode arrows rewritten to ASCII              | Off      | `sanitize_typography: true`, or `CLAUDE_SANITIZE_TYPOGRAPHY=1` in your settings `env`       |
+| Status line                                                                 | Off      | Two lines in `~/.claude/settings.json` ([Status line](#status-line))                        |
+| `kit` in your own terminal                                                  | Off      | PATH and completion in your shell rc ([Shell completion](#shell-completion-optional))       |
+| claude.ai chat                                                              | Separate | Upload the release's chat zip ([Use it in claude.ai chat](#use-it-in-claudeai-chat))        |
 
 ## Use it in claude.ai chat
 
@@ -184,7 +183,6 @@ Claude replies     -> a `reply_limits` word ceiling, stated at session start and
 | **guard-slop**, **guard-pr**, **guard-connector** | Block AI tells in the lines an edit adds, in the text a `gh` command posts to a PR or issue, and in what an MCP tool posts (a message, a comment, a page). Each names the line and its fix. A tool that only reads goes through                                                                                                                                                                                                                               |
 | **subagent-slop**, **guard-handback**             | Send a subagent's report back once when it holds AI tells                                                                                                                                                                                                                                                                                                                                                                                                     |
 | **chat-slop**                                     | Points out AI tells in a chat reply on the next turn. A reply already on screen can't be stopped                                                                                                                                                                                                                                                                                                                                                              |
-| **reference-gate**                                | Blocks every tool call until Claude has read each file in the "Before \| Read" table of every skill it loaded, kit-rules and slop-patterns included. A read counts until the next compaction. A subagent with no Edit or Write tool isn't gated                                                                                                                                                                                                               |
 | **guard-plan**                                    | Sends a plan back once, before you're asked to approve it, when `kit:plan-critic` hasn't read it since it was written                                                                                                                                                                                                                                                                                                                                         |
 | **verify-claims**                                 | Checks each claim in a plan, a subagent report, an explore or debug report in scratch, or an MCP post against the session, and sends back the ones nothing confirms, once. A chat reply isn't checked; each prompt reminds Claude to check or label its claims. A failed run never blocks                                                                                                                                                                     |
 | **guard-bash** rule `download-to-repo`            | `curl` and `wget` may write only into `.claude/scratch/`                                                                                                                                                                                                                                                                                                                                                                                                      |
@@ -334,11 +332,11 @@ Defaults live in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml
 
 A preset is a set of these keys under a name. Put `preset: <name>` in your overlay, and its file merges between `kit.yml` and your overlay, so your own keys still win. Each file in [`presets/`](presets) is a few lines:
 
-| Preset     | Sets                                                                                         |
-| ---------- | -------------------------------------------------------------------------------------------- |
+| Preset     | Sets                                                                                                                        |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `light`    | `step_pause: plan`, `disabled_rules: [plan-critic, claims]`: one stop per plan, fewer passes |
-| `standard` | Nothing: `kit.yml` as it is                                                                  |
-| `strict`   | `guard_skills: true`, `sanitize_typography: true`: both opt-in guards on                     |
+| `standard` | Nothing: `kit.yml` as it is                                                                                                 |
+| `strict`   | `guard_skills: true`, `sanitize_typography: true`: both opt-in guards on                                                    |
 
 `CLAUDE_GUARD_SKILLS=1` and `CLAUDE_SANITIZE_TYPOGRAPHY=1` in your settings `env` still turn those two guards on.
 

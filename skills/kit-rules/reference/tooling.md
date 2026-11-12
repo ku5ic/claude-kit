@@ -26,6 +26,7 @@ Which CLI to reach for, how to call the bin scripts, and where temporary files g
 
 ### Budget
 
+- A reference a loaded skill's "Before | Read" table links is outside this budget. Read it whole, because the skill's advice is written on top of it.
 - Cap `git log` at `-20` unless a wider window is justified.
 - A file over 500 lines gets read by line range.
 - Once located, read the matched section, not the whole file.

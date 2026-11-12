@@ -106,7 +106,7 @@ var Rules = []string{
 	"git-push-protected", "git-reset-hard", "git-tree-discard", "global-installs-invalid",
 	"interpreter-c-wrap", "keychain-delete", "kubectl-delete", "lockfile-edit",
 	"pipe-to-shell", "pkg-global-install", "pkg-missing", "pkg-undeclared", "plan-critic", "plan-done",
-	"pm-mismatch", "psql-destructive", "rc-edit", "rc-inplace-edit", "rc-redirect", "redis-destructive", "reference-gate",
+	"pm-mismatch", "psql-destructive", "rc-edit", "rc-inplace-edit", "rc-redirect", "redis-destructive",
 	"review-checks", "rm-recursive", "rules-gate", "run-checks-by-hook", "sensitive-read", "sensitive-write",
 	"size", "skills-gate", "slop", "slop-vocabulary", "staged-secret", "terraform-auto-approve", "terraform-destroy",
 	"ui-undefined-token", "weaken", "xargs-rm",

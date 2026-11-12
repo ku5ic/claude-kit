@@ -52,11 +52,6 @@ func InjectContext(h *hook.Hook) error {
 		if top := git.Toplevel(h.Payload.Cwd()); top != "" {
 			run.PruneRestorePoints(top, now)
 		}
-		if h.Payload.String("source") == "compact" {
-			// A compaction drops the references' text, so reference-gate
-			// counts no read before this line.
-			h.Log(kitlog.Skills, kitlog.EventCompacted)
-		}
 	}
 	var out strings.Builder
 	cfg := h.Config()

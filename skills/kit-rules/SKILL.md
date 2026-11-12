@@ -14,7 +14,7 @@ The hard rules, each owned by the section it names:
 - Confirm a destructive, dependency, or config change first: `skills/kit-rules/reference/workflow.md` section 2.
 - Temporary files go to `kit scratch-dir`: `skills/kit-rules/reference/output.md` section 3.
 
-Read every file in this table as soon as this skill loads. A hook blocks every tool call until you have.
+Read every file in this table as soon as this skill loads. The rules live in those files, and this one only points at them.
 
 | Before                                                             | Read                                                     |
 | ------------------------------------------------------------------ | -------------------------------------------------------- |

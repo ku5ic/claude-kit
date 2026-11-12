@@ -41,7 +41,9 @@ func RulesGate(h *hook.Hook) error {
 	}
 	required := []string{rulesSkill}
 	for _, skill := range cfg.GlobalSkills {
-		required = appendNew(required, skill)
+		if skill != "" && !slices.Contains(required, skill) {
+			required = append(required, skill)
+		}
 	}
 	if tool == "Read" && slices.ContainsFunc(required, func(skill string) bool { return strings.Contains(p.FilePath(), "/skills/"+skill+"/") }) {
 		return nil

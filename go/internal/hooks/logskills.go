@@ -12,7 +12,7 @@ import (
 // LogSkills appends one skills.jsonl line per skill activation: a typed
 // /skill (UserPromptExpansion), the Skill tool, or a Read of a SKILL.md,
 // which is what guard-skills checks the log for, or of a skill reference,
-// which is what reference-gate checks it for.
+// which counts how often a loaded skill's references get read.
 func LogSkills(h *hook.Hook) error {
 	// Cheap substring gate before parsing; widen it first if a new shape
 	// is added, or nothing logs and guard-skills blocks everything mapped.

@@ -4,7 +4,7 @@ The rules in `skills/kit-rules/reference/` are written for the model: one line e
 
 A rule a hook already enforces isn't in the rule text. The block message carries it at the moment it matters. Where that happened, the section below names the hook.
 
-Every skill with references lists them in a "Before | Read" table: an action, then the file to read before it. In real sessions before 0.10.0, 40 of 168 pattern-skill loads went on to read a reference, because the old tables listed files by topic and nothing tied a file to a moment. A one-line rule to read the reference that fits the work failed the `ambiguous-ask` eval in 3 of 3 runs. The trigger table in kit-rules passed 3 of 3. The tables still got skipped in the session that wrote them, so `reference-gate` now denies every tool call until each loaded skill's table files are read.
+Every skill with references lists them in a "Before | Read" table: an action, then the file to read before it. In real sessions before 0.10.0, 40 of 168 pattern-skill loads went on to read a reference, because the old tables listed files by topic and nothing tied a file to a moment. A one-line rule to read the reference that fits the work failed the `ambiguous-ask` eval in 3 of 3 runs. The trigger table in kit-rules passed 3 of 3. The tables still got skipped in the session that wrote them, so 0.10.0 added `reference-gate`, which denied every tool call until each loaded skill's table files were read. It was removed on 2026-11-12. It made every reference load whatever the task, so writing a six-line bash fixture pulled in the pytest, Playwright, and React Testing Library references. Without it, `slop-comment` passed 5 of 5 runs at 0.9.0 and 2 of 3 on 2026-11-12. The skills log still records each reference read, which is how the read rate gets measured now.
 
 ## Output
 
@@ -99,6 +99,8 @@ Every skill with references lists them in a "Before | Read" table: an action, th
 ## Tooling
 
 **CLI first.** One deterministic CLI call uses fewer tokens than reading files and reasoning, and its answer doesn't drift.
+
+**References are outside the read budget.** A skill's SKILL.md is a table of pointers, and the rules live in the references it links. A model that applies the budget rules to them reads the table, skips the rules, and follows the skill in name only.
 
 **Bare `kit`.** Permission allows are written against the bare command, so a pathful or wrapped call misses them and prompts.
 

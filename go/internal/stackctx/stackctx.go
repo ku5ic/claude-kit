@@ -246,13 +246,17 @@ func listFiles(cfg *config.Config, root string) []string {
 	return files
 }
 
+// requiredReferences is the only ask for a required skill's references. No
+// hook checks that they were read.
+const requiredReferences = `Then read every file each one's "Before | Read" table links. The rules live in those files, and SKILL.md only points at them.`
+
 // RequiredBlock is the <required-skills> block, "" when there are none.
 func (c Context) RequiredBlock() string {
 	if len(c.Required) == 0 {
 		return ""
 	}
 	return "\n<required-skills>\nBLOCKING REQUIREMENT: invoke the Skill tool for each of these skills NOW, before any other action: " +
-		strings.Join(c.Required, ",") + "\n</required-skills>\n"
+		strings.Join(c.Required, ",") + "\n" + requiredReferences + "\n</required-skills>\n"
 }
 
 // SuggestedBlock is the <suggested-skills> block, "" when there are none:
