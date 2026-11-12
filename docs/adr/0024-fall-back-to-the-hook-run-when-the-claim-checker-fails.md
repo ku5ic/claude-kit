@@ -8,6 +8,8 @@ Accepted
 
 Amends [23. Fall back to the hook run when the claim checker is missing](0023-fall-back-to-the-hook-run-when-the-claim-checker-is-missing.md)
 
+Amended by [28. Count a claim checker run that checked nothing as failed](0028-count-a-claim-checker-run-that-checked-nothing-as-failed.md)
+
 ## Context
 
 Under [23](0023-fall-back-to-the-hook-run-when-the-claim-checker-is-missing.md), a `kit:claim-checker` call that failed for any reason other than a missing agent counted as no check, and the text stayed denied. A checker that kept failing (an API error, a timeout) denied every retry, and only `disabled_rules: [claims]` let the text through. The README's verify-claims row already promised that a failed run never blocks. A CodeRabbit review of this branch named the gap.

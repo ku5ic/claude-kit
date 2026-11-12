@@ -179,7 +179,12 @@ func withoutTools(start transcript.AgentStart, tools ...string) bool {
 // at <session>/subagents/agent-<agent_id>.jsonl
 // (code.claude.com/docs/en/sub-agents), or "" when it can't be named.
 func subagentTranscript(p *hook.Payload) string {
-	main, agent := p.String("transcript_path"), p.String("agent_id")
+	return agentTranscriptPath(p.String("transcript_path"), p.String("agent_id"))
+}
+
+// agentTranscriptPath is the transcript of agent in the session whose
+// transcript is main, or "" when it can't be named.
+func agentTranscriptPath(main, agent string) string {
 	if main == "" || agent == "" || strings.ContainsAny(agent, `/\`) {
 		return ""
 	}

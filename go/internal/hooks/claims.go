@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -166,18 +167,20 @@ const (
 )
 
 // checkerRun is how the transcript's claim-checker runs on the text with
-// claim-check id ended. A failed run hands the text to the hook's own
-// verifier, so a checker that keeps failing can't block it for good.
+// claim-check id ended. A failed run, or one whose every check errored,
+// hands the text to the hook's own verifier, so a checker that keeps
+// failing can't block it for good, nor pass it unchecked.
 func checkerRun(path, id string) int {
 	entries, _ := transcript.Load(path)
 	calls := map[string]bool{}
-	var launched []string // background runs, ended once their notice says so
+	launched := map[string]string{} // background runs' agent ids, by call, ended once their notice says so
 	outcome := checkerNotRun
+	blind := func(agent string) bool { return checkedNothing(agentTranscriptPath(path, agent)) }
 	for _, e := range entries {
-		for _, call := range launched {
-			switch noticeStatus(e, call) {
-			case "":
-			case "completed":
+		for call, agent := range launched {
+			switch status := noticeStatus(e, call); {
+			case status == "":
+			case status == "completed" && !blind(agent):
 				return checkerDone
 			default:
 				outcome = checkerFailed
@@ -191,13 +194,54 @@ func checkerRun(path, id string) int {
 			case b.IsError:
 				outcome = checkerFailed
 			case strings.HasPrefix(b.ResultText(), asyncLaunched):
-				launched = append(launched, b.ToolUseID)
+				launched[b.ToolUseID] = agentID(b.ResultText())
+			case blind(agentID(b.ResultText())):
+				outcome = checkerFailed
 			default:
 				return checkerDone
 			}
 		}
 	}
 	return outcome
+}
+
+// agentIDLine is where the Agent tool's result names the run's agent, in
+// both a finished run's report and a background launch.
+var agentIDLine = regexp.MustCompile(`\bagentId: ([\w-]+)`)
+
+// agentID is the agent an Agent tool result names, "" when it names none.
+func agentID(result string) string {
+	if m := agentIDLine.FindStringSubmatch(result); m != nil {
+		return m[1]
+	}
+	return ""
+}
+
+// checkedNothing is true when the agent transcript at path shows checks,
+// any tool call but a Skill load, and every one of them errored: a run
+// the rules gate or a permission denial kept from reading anything. A
+// transcript that can't be read counts as a run that checked.
+func checkedNothing(path string) bool {
+	entries, err := transcript.Load(path)
+	if err != nil {
+		return false
+	}
+	checks := map[string]bool{}
+	answered := false
+	for _, e := range entries {
+		for _, b := range e.Blocks {
+			switch {
+			case b.Type == "tool_use" && b.Name != "Skill":
+				checks[b.ID] = true
+			case b.Type == "tool_result" && checks[b.ToolUseID]:
+				if !b.IsError {
+					return false
+				}
+				answered = true
+			}
+		}
+	}
+	return answered
 }
 
 // asyncLaunched opens the Agent tool's result for a run it started in the

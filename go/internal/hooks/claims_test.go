@@ -231,6 +231,69 @@ func TestVerifyClaimsToolInput(t *testing.T) {
 			})
 		}
 	})
+	t.Run("a checker run whose every check errored gets the hook's own run", func(t *testing.T) {
+		t.Parallel()
+		// The checker's own transcript: a Skill load that worked, then each
+		// of its checks, ok or denied.
+		agentLog := func(checks ...bool) string {
+			lines := []string{}
+			call := func(id, name string, ok bool) {
+				use, _ := json.Marshal(map[string]any{"type": "assistant", "message": map[string]any{"content": []any{
+					map[string]any{"type": "tool_use", "id": id, "name": name, "input": map[string]any{}}}}})
+				result, _ := json.Marshal(map[string]any{"type": "user", "message": map[string]any{"content": []any{
+					map[string]any{"type": "tool_result", "tool_use_id": id, "is_error": !ok, "content": "kit rules-gate: BLOCKED"}}}})
+				lines = append(lines, string(use), string(result))
+			}
+			call("s1", "Skill", true)
+			for i, ok := range checks {
+				call(fmt.Sprintf("r%d", i), "Read", ok)
+			}
+			return strings.Join(lines, "\n") + "\n"
+		}
+		notice, _ := json.Marshal(map[string]any{"type": "queue-operation", "operation": "enqueue",
+			"content": "<task-notification>\n<tool-use-id>cc</tool-use-id>\n<status>completed</status>\n</task-notification>"})
+		runs := map[string]func(id string) string{
+			"in the foreground": func(id string) string { return checkerCall(id, "No unconfirmed claims.\nagentId: a7", false) },
+			"in the background": func(id string) string {
+				return checkerCall(id, "Async agent launched successfully.\nagentId: a7", false) + "\n" + string(notice)
+			},
+		}
+		for name, run := range runs {
+			for _, tc := range []struct {
+				name    string
+				checks  []bool
+				blinded bool
+			}{
+				{"every check denied", []bool{false, false}, true},
+				{"one check went through", []bool{false, true}, false},
+				{"no check needed", nil, false},
+			} {
+				t.Run(name+", "+tc.name, func(t *testing.T) {
+					t.Parallel()
+					k := newSandbox(t)
+					calls := k.verifier("", claim)
+					post := toolCall("mcp__chat__send_message", map[string]any{"text": claim})
+					id := checkID.FindString(k.run("verify-claims", post).Stdout)
+					dir := t.TempDir()
+					path := filepath.Join(dir, "session.jsonl")
+					testutil.Write(t, path, run(id)+"\n")
+					testutil.Write(t, filepath.Join(dir, "session", "subagents", "agent-a7.jsonl"), agentLog(tc.checks...))
+					post["transcript_path"] = path
+					r := k.run("verify-claims", post)
+					if !tc.blinded {
+						r.Allowed(t)
+						if got := testutil.Calls(t, calls); got != nil {
+							t.Errorf("verifier ran: %q", got)
+						}
+						return
+					}
+					r.Denied(t)
+					r.Has(t, claim, "git log -S Foo")
+					k.run("verify-claims", post).Allowed(t)
+				})
+			}
+		}
+	})
 	t.Run("a session without the checker agent gets the hook's own run, once per text", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
