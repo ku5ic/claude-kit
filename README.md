@@ -56,6 +56,8 @@ Nothing to learn up front. After install:
 - [Measured, not promised](#measured-not-promised)
 - [What it costs](#what-it-costs)
 - [How you work with it](#how-you-work-with-it)
+  - [Commands](#commands)
+  - [Agents](#agents)
 - [Install](#install)
 - [On by default, and what you switch on](#on-by-default-and-what-you-switch-on)
 - [Use it in claude.ai chat](#use-it-in-claudeai-chat)
@@ -64,8 +66,6 @@ Nothing to learn up front. After install:
   - [Checks before "done"](#checks-before-done)
   - [Context](#context)
   - [Rules](#rules)
-  - [Commands](#commands)
-  - [Agents](#agents)
   - [Pattern skills](#pattern-skills)
   - [Status line](#status-line)
   - [The kit CLI](#the-kit-cli)
@@ -123,15 +123,45 @@ More per turn. The guards take tens of milliseconds, but the claim checker is a 
 
 ## How you work with it
 
-For anything bigger than a one-line fix:
+For anything bigger than a one-line fix, the kit holds Claude to five stages. Each one removes a way a session usually goes wrong:
 
-1. **Ask.** "How does X work?" loads `investigate`, which reads the code and edits nothing.
-2. **Plan** with the built-in `/plan`. Before you're asked to approve it, `kit:plan-critic` reads it against the repo and its claims are checked.
-3. **Review each step.** Claude stops after every step so you can review and commit. The Stop hook has already checked what it touched.
-4. **Review the whole change** with `/code-review`, whose hook runs the full gate, then `/verify` to watch it work.
-5. **Ship** with `/write commit` and `/pr description`. Claude never commits or pushes unasked.
+| Stage                | You                                       | Without it                                  | With the kit                                                                                                  |
+| -------------------- | ----------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| 1. Ask               | "How does X work?"                        | Claude starts editing when you only asked   | `investigate` loads, reads the code, and edits nothing                                                        |
+| 2. Plan              | `/plan` (built in)                        | You approve a plan nobody checked           | `kit:plan-critic` reads it against the repo, and its claims are checked, before you're asked to approve       |
+| 3. Review each step  | Approve the plan                          | Claude runs through the whole plan at once  | Claude stops after every step so you can review and commit. The Stop hook has already checked what it touched |
+| 4. Review the change | `/code-review`, then `/verify` (built in) | "Done" while checks fail                    | `/code-review`'s hook runs the full gate; `/verify` watches the change work                                   |
+| 5. Ship              | `/write commit`, `/pr description`        | Commits you didn't ask for, AI-sounding PRs | Messages and PR text in your project's style, checked for AI tells. Claude never commits or pushes unasked    |
 
 Side trips: `/audit` for a read-only report, `/simplify <path>` to cut over-engineering, `/deps` for dependency PRs.
+
+### Commands
+
+Each command is a procedure Claude follows step by step, so the same request gets the same shape of answer every time. They work bare (`/audit`) or namespaced (`/kit:audit`).
+
+| When you need                                                                             | Run             | What it does                                                                                                        |
+| ----------------------------------------------------------------------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------- |
+| To know how, why, or where something works                                                | `investigate`   | Read-only answer to "how", "why", or "where". Loads on its own; never edits                                         |
+| A report on accessibility, tech debt, doc drift, or performance                           | `/audit <kind>` | `a11y`, `debt`, `doc-drift`, `perf`, or `verify` a prior report. Writes a report to scratch                         |
+| A commit message, release notes, a devnote, an explainer, or a stakeholder summary        | `/write <kind>` | `commit`, `release-notes`, `devnote`, `explainer`, `stakeholder`                                                    |
+| PR text: your description, a review of someone's PR, or a reply to your reviewer          | `/pr <kind>`    | Draft a `description`, a `review` of someone's PR, or a `reply` to your reviewer; `publish` posts an approved draft |
+| Dependabot PRs merged and security alerts sorted                                          | `/deps`         | Merge Dependabot PRs and reconcile security alerts                                                                  |
+| AI tells and filler out of a text                                                         | `/unslop`       | Rewrite AI tells and filler in files, a `diff`, or pasted text; to scratch unless told `in place`                   |
+| A sharper prompt, refreshed pattern skills, a new skill, a repo's conventions, or a retro | `/meta <kind>`  | `prompt` sharpening, `refresh` the pattern skills, draft a new `skill`, write a repo's `conventions`, `retro`       |
+
+### Agents
+
+Each agent is a subagent with one job, the tools for it, and a boundary it keeps: the debugger hands the fix back instead of applying it, and the tester never changes the code to make a test pass. Claude starts one itself when a skill or hook calls for it, and you can ask for one by name.
+
+| When you need                                      | Agent               | What it does                                                                                 |
+| -------------------------------------------------- | ------------------- | -------------------------------------------------------------------------------------------- |
+| An audit for an `/audit` kind                      | `kit:auditor`       | Runs the audit read-only and writes the report                                               |
+| To find where and why something breaks             | `kit:debugger`      | Localizes the fault with at most one probe edit. Hands the fix back                          |
+| One fact: precedent, tests, or history             | `kit:gatherer`      | Answers with `file:line` only, never opinions                                                |
+| A plan attacked before you approve it              | `kit:plan-critic`   | Reads the plan against the real repo                                                         |
+| A text's claims checked before anyone relies on it | `kit:claim-checker` | Reports each claim nothing confirms, with the check that would settle it. A hook asks for it |
+| Library docs or a web page                         | `kit:researcher`    | Looks them up, keeping network access out of code work                                       |
+| Tests for recent work                              | `kit:tester`        | Adds or updates them and runs them. Never changes the code to make them pass                 |
 
 ## Install
 
@@ -199,31 +229,6 @@ Seven short files in the `kit-rules` skill, which every session and subagent loa
 | `tooling`   | Reach for a CLI before reasoning; temporary files go to scratch           |
 | `subagents` | When to spawn a subagent, and check its work before building on it        |
 | `verify`    | What has to happen before a change is called done                         |
-
-### Commands
-
-| Command         | What it does                                                                                                        |
-| --------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `investigate`   | Read-only answer to "how", "why", or "where". Loads on its own; never edits                                         |
-| `/audit <kind>` | `a11y`, `debt`, `doc-drift`, `perf`, or `verify` a prior report. Writes a report to scratch                         |
-| `/write <kind>` | `commit`, `release-notes`, `devnote`, `explainer`, `stakeholder`                                                    |
-| `/pr <kind>`    | Draft a `description`, a `review` of someone's PR, or a `reply` to your reviewer; `publish` posts an approved draft |
-| `/deps`         | Merge Dependabot PRs and reconcile security alerts                                                                  |
-| `/unslop`       | Rewrite AI tells and filler in files, a `diff`, or pasted text; to scratch unless told `in place`                   |
-| `/meta <kind>`  | `prompt` sharpening, `refresh` the pattern skills, draft a new `skill`, write a repo's `conventions`, `retro`       |
-
-Commands work bare (`/audit`) or namespaced (`/kit:audit`).
-
-### Agents
-
-| Agent             | Use it to                                                                     |
-| ----------------- | ----------------------------------------------------------------------------- |
-| `kit:auditor`     | Run a read-only audit for an `/audit` kind                                    |
-| `kit:debugger`    | Find where and why something breaks. Hands the fix back                       |
-| `kit:gatherer`    | Answer one fact question (precedent, tests, history) with `file:line` only    |
-| `kit:plan-critic` | Attack a plan against the real repo before you approve it                     |
-| `kit:researcher`  | Look up library docs and web pages, keeping network access out of code work   |
-| `kit:tester`      | Add or update tests for recent work. Never changes the code to make them pass |
 
 ### Pattern skills
 
