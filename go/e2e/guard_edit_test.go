@@ -7,7 +7,7 @@ import "testing"
 // process, in internal/hooks.
 func TestGuardEdit(t *testing.T) {
 	t.Parallel()
-	t.Run("ask: Edit a CI workflow, which rules/workflow.md says needs confirmation", func(t *testing.T) {
+	t.Run("ask: Edit a CI workflow, which skills/kit-rules/reference/workflow.md says needs confirmation", func(t *testing.T) {
 		t.Parallel()
 		r := New(t).Hook("guard-edit", Payload("Edit", "/tmp/project/.github/workflows/ci.yml", "", ""))
 		r.Want(t, 0)

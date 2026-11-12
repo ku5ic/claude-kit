@@ -9,17 +9,22 @@ package hook
 
 import (
 	"bytes"
+	"cmp"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"maps"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 	"github.com/ku5ic/claude-kit/go/internal/sources"
 )
@@ -215,12 +220,35 @@ func (h *Hook) Block(reason, rule string) error {
 		h.Log(kitlog.Guards, "disabled", "rule", rule)
 		return nil
 	}
-	h.Log(kitlog.Guards, "block", "rule", rule)
-	msg := "Blocked by " + h.Name + ": " + reason
+	h.logBlock(rule)
+	return &Blocked{h.message(reason, rule), rule}
+}
+
+// message is reason in the layout every kit block and send-back shares: the
+// headline `kit <area>: BLOCKED <reason's first line> (<rule>)`, then the
+// reason's other lines, then the hook's context.
+func (h *Hook) message(reason, rule string) string {
+	head, rest, _ := strings.Cut(reason, "\n")
+	msg := "kit " + Area(h.Name) + ": BLOCKED " + head
+	if rule != "" {
+		msg += " (" + rule + ")"
+	}
+	if rest != "" {
+		msg += "\n" + rest
+	}
 	if h.context != "" {
 		msg += "\n" + h.context
 	}
-	return &Blocked{msg, rule}
+	return msg
+}
+
+// Area is the short name a message's headline gives a hook: guard-bash is
+// bash, verify-claims is claims, stop-checks is stop.
+func Area(name string) string {
+	for _, prefix := range []string{"guard-", "verify-", "subagent-", "chat-"} {
+		name = strings.TrimPrefix(name, prefix)
+	}
+	return strings.TrimSuffix(name, "-checks")
 }
 
 // Deny is Block as a permission decision: Claude gets reason, and the user
@@ -230,8 +258,29 @@ func (h *Hook) Deny(reason, rule string) {
 		h.Log(kitlog.Guards, "disabled", "rule", rule)
 		return
 	}
-	h.Log(kitlog.Guards, "block", "rule", rule)
-	h.Decide("deny", reason)
+	h.logBlock(rule)
+	h.Decide("deny", h.message(reason, rule))
+}
+
+// logBlock logs a block of rule with what it blocked: a short hash of the
+// command or path, never the text, and the project it ran in.
+func (h *Hook) logBlock(rule string) {
+	pairs := []string{"rule", rule}
+	for _, key := range []string{"tool_input.command", "tool_input.file_path", "tool_input.notebook_path"} {
+		if v := h.Payload.String(key); v != "" {
+			sum := sha256.Sum256([]byte(v))
+			pairs = append(pairs, "target", hex.EncodeToString(sum[:6]))
+			break
+		}
+	}
+	if cwd := h.Payload.Cwd(); cwd != "" {
+		root := git.Toplevel(cwd)
+		if root == "" {
+			root = cwd
+		}
+		pairs = append(pairs, "project", filepath.Base(root))
+	}
+	h.Log(kitlog.Guards, "block", pairs...)
 }
 
 // Decide records a PreToolUse permission decision (allow, ask, or deny).
@@ -267,7 +316,7 @@ func (h *Hook) Print(text string) { h.plain.WriteString(text) }
 
 // flush prints what the run's checks added, once, since stdout takes one
 // JSON object: block, a block's reason, with the notices; else a permission
-// decision, else context and notices, else plain text.
+// decision with the notices, else context and notices, else plain text.
 func (h *Hook) flush(block string) {
 	type specific struct {
 		HookEventName            string `json:"hookEventName"`
@@ -287,11 +336,18 @@ func (h *Hook) flush(block string) {
 	case h.decision != "":
 		// A check's context (a density note) still reaches Claude when
 		// another check decides; only a defer would drop it.
-		WriteJSON(h.Stdout, output{HookSpecificOutput: &specific{HookEventName: "PreToolUse", PermissionDecision: h.decision, PermissionDecisionReason: h.reason, AdditionalContext: strings.Join(h.contexts, "\n")}})
+		WriteJSON(h.Stdout, output{SystemMessage: strings.Join(h.notices, "\n"), HookSpecificOutput: &specific{HookEventName: "PreToolUse", PermissionDecision: h.decision, PermissionDecisionReason: h.reason, AdditionalContext: strings.Join(h.contexts, "\n")}})
 	case h.contexts != nil || h.notices != nil:
+		contexts, event := h.contexts, h.event
+		// Plain text can't share stdout with JSON: in a dispatcher, one
+		// check's Print joins another's context.
+		if h.plain.Len() > 0 && h.Payload != nil {
+			contexts = append([]string{strings.TrimRight(h.plain.String(), "\n")}, contexts...)
+			event = cmp.Or(event, h.Payload.String("hook_event_name"))
+		}
 		out := output{SystemMessage: strings.Join(h.notices, "\n")}
-		if h.contexts != nil {
-			out.HookSpecificOutput = &specific{HookEventName: h.event, AdditionalContext: strings.Join(h.contexts, "\n")}
+		if contexts != nil {
+			out.HookSpecificOutput = &specific{HookEventName: event, AdditionalContext: strings.Join(contexts, "\n")}
 		}
 		WriteJSON(h.Stdout, out)
 	case h.plain.Len() > 0:
@@ -324,6 +380,10 @@ func (h *Hook) Log(log, event string, pairs ...string) {
 		"event", event,
 		"session_id", h.Payload.SessionID(),
 	}, pairs...)
+	// Inside a subagent, so its lines can be told from its parent's.
+	if agent := h.Payload.String("agent_id"); agent != "" {
+		fields = slices.Insert(fields, 8, "agent_id", agent)
+	}
 	maxLines := 0
 	if cfg := h.Config(); cfg != nil {
 		maxLines = cfg.LogMaxLines
@@ -338,9 +398,10 @@ func (h *Hook) now() time.Time {
 	return time.Now()
 }
 
-// FailOpen prints the notice for a hook that allows because it failed.
-func FailOpen(stderr io.Writer, name string) {
-	fmt.Fprintf(stderr, "%s: unexpected error, failing open\n", name)
+// FailOpen prints the notice for a hook that allows because cause, an
+// error or a panic's value, made it fail.
+func FailOpen(stderr io.Writer, name string, cause any) {
+	fmt.Fprintf(stderr, "%s: unexpected error, failing open: %v\n", name, cause)
 }
 
 // Check is one policy check. It returns *Blocked to block, nil to allow, and
@@ -354,13 +415,13 @@ type Check func(*Hook) error
 func RunCheck(h *Hook, name string, check Check) (blocked *Blocked) {
 	saved := h.Name
 	h.Name = name
-	failOpen := func() {
-		FailOpen(h.Stderr, name)
-		h.Log(kitlog.Guards, "fail-open")
+	failOpen := func(cause any) {
+		FailOpen(h.Stderr, name, cause)
+		h.Log(kitlog.Guards, "fail-open", "error", fmt.Sprint(cause))
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			failOpen()
+			failOpen(r)
 			blocked = nil
 		}
 		h.Name = saved
@@ -372,7 +433,7 @@ func RunCheck(h *Hook, name string, check Check) (blocked *Blocked) {
 	if b, ok := errors.AsType[*Blocked](err); ok {
 		return b
 	}
-	failOpen()
+	failOpen(err)
 	return nil
 }
 

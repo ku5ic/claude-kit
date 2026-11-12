@@ -1,6 +1,6 @@
 ---
-max_turns: 2
-allowed_tools: []
+max_turns: 6
+allowed_tools: [Skill, Read]
 ---
 
-Without using any tools, quote verbatim the first sentence under the heading "## 0. Length" in the always-loaded rules file titled "# Output". If no such rule is in your context, reply with exactly NO-RULES.
+Quote verbatim the first sentence under the heading "## 0. Length" in the claude-kit rule titled "# Output". If you can't find that rule, reply with exactly NO-RULES.

@@ -143,8 +143,8 @@ func edit(paths config.Paths, cfg *config.Config, cwd, path, tool, glob string, 
 	}
 	h = dryHook(paths, cfg, "guard-skills", payload)
 	name := "skills gate"
-	if !stackctx.SkillsEnforced() {
-		name += " (off: CLAUDE_GUARD_SKILLS isn't 1)"
+	if !stackctx.SkillsEnforced(cfg) {
+		name += " (off: guard_skills is off and CLAUDE_GUARD_SKILLS isn't 1)"
 	}
 	verdict(w, name, hooks.GuardSkills(h), h)
 	return 0

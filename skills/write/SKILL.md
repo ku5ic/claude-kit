@@ -36,7 +36,7 @@ The first word of the arguments is the kind; everything after it is the kind's a
 In claude.ai chat, the arguments are the user's message after the kind word, and the material is what they pasted. Nothing can be run: if the diff, log, or text a kind needs isn't in the conversation, ask for it.
 -->
 
-4. Every kind follows `rules/output.md` section 4 (External communication). On tone and length it wins over the reference file; the sections a reference file defines, such as the release-notes sections, stay.
+4. Every kind follows `skills/kit-rules/reference/output.md` section 4 (External communication). On tone and length it wins over the reference file; the sections a reference file defines, such as the release-notes sections, stay.
 
 <!-- chat: skip -->
 

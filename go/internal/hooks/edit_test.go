@@ -46,6 +46,7 @@ func TestGuardEdit(t *testing.T) {
 		{"block: edit inside .git/", "/tmp/repo/.git/HEAD", 2},
 		{"block: edit nested inside .git/", "/tmp/repo/.git/refs/heads/main", 2},
 		{"block: ~/.zshrc", "~/.zshrc", 2},
+		{"block: ~/.zshenv", "~/.zshenv", 2},
 		{"block: ~/.zprofile", "~/.zprofile", 2},
 		{"block: ~/.bashrc", "~/.bashrc", 2},
 		// Guarded lockfiles come from kit.yml's lockfile_globs.
@@ -80,6 +81,37 @@ func TestGuardEdit(t *testing.T) {
 		r := k.run("guard-edit", editPayload("Edit", src, "", ""))
 		r.Want(t, 0)
 		r.Has(t, `"permissionDecision":"ask"`)
+	})
+	for rel, what := range map[string]string{
+		"settings.json":       "a Claude Code settings file",
+		"settings.local.json": "a Claude Code settings file",
+		"logs/guards.jsonl":   "the kit's logs",
+		"cache/claims/s-plan": "the kit's state",
+	} {
+		t.Run("ask: Write to ~/.claude/"+rel, func(t *testing.T) {
+			t.Parallel()
+			k := newSandbox(t)
+			r := k.run("guard-edit", editPayload("Write", filepath.Join(k.paths.Home, rel), "", ""))
+			r.Want(t, 0)
+			r.Has(t, `"permissionDecision":"ask"`, "this writes "+what)
+		})
+	}
+	t.Run("ask: Write to ~/.claude/settings.json linked into a dotfiles tree", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		src := filepath.Join(testutil.Physical(t, t.TempDir()), "dotfiles/claude/settings.json")
+		testutil.Touch(t, src)
+		link := filepath.Join(k.paths.Home, "settings.json")
+		if err := os.Symlink(src, link); err != nil {
+			t.Fatal(err)
+		}
+		r := k.run("guard-edit", editPayload("Write", link, "", ""))
+		r.Has(t, `"permissionDecision":"ask"`, "this writes a Claude Code settings file")
+	})
+	t.Run("ask: Write to a project's .claude/settings.local.json", func(t *testing.T) {
+		t.Parallel()
+		r := newSandbox(t).run("guard-edit", editPayload("Write", "/tmp/project/.claude/settings.local.json", "", ""))
+		r.Has(t, "this writes a Claude Code settings file")
 	})
 	t.Run("allow: a same-named file that is not the overlay", func(t *testing.T) {
 		t.Parallel()
@@ -146,6 +178,19 @@ func TestGuardDispatch(t *testing.T) {
 		r.Denied(t)
 		r.Has(t, "bash-patterns")
 	})
+	t.Run("with the gate on, a read still nudges and a denied edit doesn't repeat it", func(t *testing.T) {
+		k := newPlugin(t)
+		k.kitYML(bashSkillMap)
+		skillsLog(k, "")
+		read := dispatch(k, "/tmp/project/deploy.sh", "", "Read")
+		read.Allowed(t)
+		read.Has(t, "bash-patterns covers this file")
+		edit := k.run("guard-dispatch", editPayload("Edit", "/tmp/project/deploy.sh", "s2", ""))
+		edit.Denied(t)
+		if strings.Contains(edit.Output, "covers this file") {
+			t.Errorf("the denied edit also nudged:\n%s", edit.Output)
+		}
+	})
 	t.Run("guard-skills' check is skipped unless CLAUDE_GUARD_SKILLS=1", func(t *testing.T) {
 		k := newPlugin(t)
 		k.kitYML(bashSkillMap)
@@ -164,7 +209,7 @@ skill_file_map:
 		skillsLog(k, "")
 		r := dispatch(k, "/tmp/project/yarn.lock", "harmless content", "Write")
 		r.Want(t, 2)
-		r.Has(t, "Blocked by guard-edit:")
+		r.Has(t, "kit edit: BLOCKED ")
 		// The first block ends the run, so the skills gate never adds its message.
 		r.Lacks(t, "bash-patterns")
 	})
@@ -207,10 +252,10 @@ skill_file_map:
 		r.Want(t, 2)
 		r.Has(t, "writing a credential or key file")
 	})
-	t.Run("Read of a .tsx passes with the skills gate on and no skills loaded", func(t *testing.T) {
+	t.Run("Read of a .tsx passes with the skills gate on and no skills loaded, nudged", func(t *testing.T) {
 		r := dispatch(readGuards(t), "/tmp/project/App.tsx", "", "Read")
-		r.Want(t, 0)
-		r.Empty(t)
+		r.Allowed(t)
+		r.Has(t, "react-patterns covers this file")
 	})
 	t.Run("the same .tsx is still gated for an Edit", func(t *testing.T) {
 		r := dispatch(readGuards(t), "/tmp/project/App.tsx", "x", "Edit")
@@ -271,6 +316,63 @@ skill_file_map:
 			r.Want(t, tc.status)
 			if tc.status == 2 {
 				r.Has(t, "searching a credential or key file")
+			}
+		})
+	}
+}
+
+func TestSkillsNudge(t *testing.T) {
+	t.Parallel()
+	k := newSandbox(t)
+	testutil.Write(t, k.paths.LogFile(kitlog.Skills), "")
+	nudge := func(session string) result {
+		t.Helper()
+		return k.run("skills-nudge", editPayload("Edit", "/tmp/project/run.sh", session, ""))
+	}
+
+	first := nudge("s1")
+	first.Allowed(t)
+	first.Has(t, "bash-patterns covers this file", "skills/bash-patterns/reference/safety-flags.md")
+
+	second := nudge("s1")
+	second.Allowed(t)
+	if strings.Contains(second.Output, "bash-patterns") {
+		t.Errorf("the second edit in a session nudged again:\n%s", second.Output)
+	}
+	nudge("s2").Has(t, "bash-patterns covers this file")
+
+	off := newPlugin(t)
+	off.kitYML(bashSkillMap + "\ndisabled_rules: [skills-nudge]\n")
+	testutil.Write(t, off.paths.LogFile(kitlog.Skills), "")
+	if r := off.run("skills-nudge", editPayload("Edit", "/tmp/project/run.sh", "s1", "")); strings.Contains(r.Output, "covers this file") {
+		t.Errorf("disabled_rules: [skills-nudge] still nudged:\n%s", r.Output)
+	}
+
+	read := k.run("skills-nudge", map[string]any{"tool_name": "Read", "session_id": "s3", "cwd": "/tmp/project", "tool_input": map[string]any{"file_path": "/tmp/project/run.sh"}})
+	read.Allowed(t)
+	read.Has(t, "bash-patterns covers this file")
+
+	dir := t.TempDir()
+	testutil.Write(t, filepath.Join(dir, "run.sh"), "echo hi\n")
+	grep := func(input map[string]any) map[string]any {
+		return map[string]any{"tool_name": "Grep", "cwd": dir, "tool_input": input}
+	}
+	for _, tc := range []struct {
+		name    string
+		payload map[string]any
+		nudges  bool
+	}{
+		{"a Grep of one file nudges", grep(map[string]any{"pattern": "hi", "path": filepath.Join(dir, "run.sh")}), true},
+		{"a Grep whose glob names the file type nudges", grep(map[string]any{"pattern": "hi", "glob": "**/*.sh"}), true},
+		{"a Grep of a directory with no glob doesn't", grep(map[string]any{"pattern": "hi", "path": dir}), false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			tc.payload["session_id"] = "s-" + tc.name
+			r := k.run("skills-nudge", tc.payload)
+			r.Allowed(t)
+			if got := strings.Contains(r.Output, "bash-patterns covers this file"); got != tc.nudges {
+				t.Errorf("nudged = %v, want %v:\n%s", got, tc.nudges, r.Output)
 			}
 		})
 	}

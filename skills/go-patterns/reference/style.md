@@ -1,26 +1,23 @@
 # Style and newer features
 
+## Features by version
+
+Suggest one only when the `go` directive is at least its version.
+
+| Since | Feature                                                                                                                       |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------- |
+| 1.27  | Generic methods: a method declares its own type parameters. Interface methods can't, and a generic method can't implement one |
+| 1.27  | `encoding/json` runs on v2. `GOEXPERIMENT=nojsonv2` restores v1 until the opt-out is removed                                  |
+| 1.27  | `uuid` package in the standard library                                                                                        |
+| 1.26  | `new(expr)` allocates and initializes in one step: `Age: new(yearsSince(born))`                                               |
+| 1.26  | `go fix` applies modernizers. Run it when raising the `go` directive                                                          |
+| 1.22  | `for i := range 10` ranges over an integer                                                                                    |
+| 1.22  | `http.ServeMux` patterns take a method and wildcards: `"POST /items/{id}"`, `r.PathValue("id")`, `{path...}` for the rest     |
+
 ## Code Review Comments
 
-Source for this section: https://go.dev/wiki/CodeReviewComments
-
-- **Interfaces** generally belong in the package that uses values of the interface type, not the package that implements them. A producer package returning its own interface for one implementation is a finding.
-- **Receiver names** reflect the type's identity, often a one or two letter abbreviation. Not `this` or `self`. Keep them consistent across a type's methods.
-- **Initialisms** keep a consistent case: `URL`, `ID`, `HTTP`, so `userID` and `ServeHTTP`, never `userId`.
-- **Package names**: callers refer to everything through the package name, so don't repeat it in identifiers (`chubby.File`, not `chubby.ChubbyFile`).
-- **Named result parameters**: name them when it helps the godoc, not to enable naked returns. Clarity of the docs wins.
-
-## Newer language and stdlib features
-
-Only suggest one when the module's `go` directive is at least that version.
-
-| Since | Feature                                                                                                                                 | Source                    |
-| ----- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
-| 1.22  | `for i := range 10` ranges over an integer                                                                                              | https://go.dev/doc/go1.22 |
-| 1.22  | `http.ServeMux` patterns take a method and wildcards: `"POST /items/{id}"`, read with `r.PathValue("id")`; `{path...}` matches the rest | https://go.dev/doc/go1.22 |
-| 1.26  | `new(expr)` allocates and initializes in one step, handy for optional pointer fields: `Age: new(yearsSince(born))`                      | https://go.dev/doc/go1.26 |
-| 1.27  | Generic methods: a method can declare its own type parameters. Interface methods can't, and a generic method can't implement one        | https://go.dev/doc/go1.27 |
-| 1.27  | `encoding/json` runs on the v2 implementation; `GOEXPERIMENT=nojsonv2` restores v1, and that opt-out is slated for removal              | https://go.dev/doc/go1.27 |
-| 1.27  | New `uuid` package in the standard library                                                                                              | https://go.dev/doc/go1.27 |
-
-`go fix` (rebuilt in 1.26) applies modernizers built on the same analysis framework as `go vet`; run it when raising the `go` directive. Source: https://go.dev/doc/go1.26
+- An interface: declare it in the package that uses it. A producer returning its own interface for one implementation is a finding.
+- Receiver names: a one or two letter abbreviation of the type, the same on every method.
+- Initialisms: one case throughout, `userID` and `ServeHTTP`, never `userId`.
+- Identifiers: don't repeat the package name, `chubby.File`, not `chubby.ChubbyFile`.
+- Named results: only when they help the godoc, never to enable naked returns.

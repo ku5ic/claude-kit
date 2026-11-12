@@ -12,6 +12,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/md"
 	"github.com/ku5ic/claude-kit/go/internal/project"
@@ -19,7 +20,7 @@ import (
 )
 
 var (
-	// openStep matches an unticked checklist item, the shape rules/workflow.md
+	// openStep matches an unticked checklist item, the shape skills/kit-rules/reference/workflow.md
 	// section 3 requires a plan's Steps list to take.
 	openStep = regexp.MustCompile(`(?m)^\s*[-*] \[ \]`)
 	// stepsHeading opens that list; the next heading at its level or above ends it.
@@ -65,7 +66,7 @@ func PlanModeContext(h *hook.Hook) error {
 		h.Print("Plan mode: load the investigate skill and follow it; its findings feed the plan.\n")
 		return nil
 	}
-	marker := h.Paths.SessionFile(cache.PlanActive, p.SessionID())
+	marker := planFile(h, cache.PlanActive, p.Cwd())
 	if marker == "" {
 		return nil
 	}
@@ -74,12 +75,19 @@ func PlanModeContext(h *hook.Hook) error {
 		if p.String("tool_name") != "ExitPlanMode" {
 			return nil
 		}
-		const pause = "implement only its first unchecked step, then stop for review, per rules/workflow.md section 3."
+		pause := approvedPause[pauseOf(h)] + ", per kit.yml step_pause and skills/kit-rules/reference/workflow.md section 3."
 		msg := "Plan approved: " + pause
 		if plan := newestOpenPlan(h); plan != "" {
 			// Best effort: without the marker, later prompts just aren't reminded.
 			_ = fsx.WriteAtomic(marker, []byte(plan), 0o644)
 			msg = "Plan approved (" + plan + "): " + pause
+			// A batched pause's first review sheet starts from the tree as approved.
+			_ = os.Remove(planFile(h, cache.PlanTicks, p.Cwd()))
+			if data, err := os.ReadFile(plan); err == nil {
+				if root := git.Toplevel(p.Cwd()); root != "" {
+					markTicks(h, root, data)
+				}
+			}
 		}
 		h.AddContext("PostToolUse", msg)
 		return nil
@@ -96,8 +104,41 @@ func PlanModeContext(h *hook.Hook) error {
 	// scratch-rotate prunes markers by age: a plan still in use stays fresh.
 	now := time.Now()
 	_ = os.Chtimes(marker, now, now)
-	h.Print(fmt.Sprintf("Active plan %s has open steps: do only the next unchecked one, then stop for review, per rules/workflow.md section 3.\n", plan))
+	h.Print(fmt.Sprintf("Active plan %s has open steps: %s, per kit.yml step_pause and skills/kit-rules/reference/workflow.md section 3.\n", plan, openPause[pauseOf(h)]))
 	return nil
+}
+
+// approvedPause and openPause are the pause lines for each step_pause value,
+// on approval and on each later prompt.
+var (
+	approvedPause = map[string]string{
+		"step": "implement only its first unchecked step, then stop for review",
+		"plan": "implement its unchecked steps in order, then stop once for review after the last one",
+		"off":  "implement its unchecked steps in order without stopping for review",
+	}
+	openPause = map[string]string{
+		"step": "do only the next unchecked one, then stop for review",
+		"plan": "do the next unchecked one, and stop for review when every step is done",
+		"off":  "do the next unchecked one",
+	}
+)
+
+// planFile is the session's kind file (plan-active, plan-ticks) for the work
+// tree holding dir, keyed by its root too, so one session can run a plan in
+// each worktree; by the session alone outside a work tree.
+func planFile(h *hook.Hook, kind, dir string) string {
+	if root := git.Toplevel(dir); root != "" {
+		return h.Paths.SessionFile(kind, h.Payload.SessionID(), cache.RootKey(root))
+	}
+	return h.Paths.SessionFile(kind, h.Payload.SessionID())
+}
+
+// pauseOf is the configured step_pause, step without a config.
+func pauseOf(h *hook.Hook) string {
+	if cfg := h.Config(); cfg != nil {
+		return cfg.Pause()
+	}
+	return "step"
 }
 
 // planCritic is the agent GuardPlan wants run on a plan before approval.
@@ -110,11 +151,12 @@ const planCritic = "kit:plan-critic"
 func GuardPlan(h *hook.Hook) error {
 	p := h.Payload
 	plan := p.String("tool_input.planFilePath")
-	if p.Err != nil || p.String("tool_name") != "ExitPlanMode" || plan == "" || h.RuleDisabled("plan-critic") {
+	// Under an earlier step's deny, the ask would be dropped but its marker
+	// kept, and the resent plan would pass with no critique.
+	if decision, _ := h.Decision(); decision == "deny" {
 		return nil
 	}
-	entries, err := transcript.Load(p.String("transcript_path"))
-	if err != nil || critiqued(entries, plan) {
+	if p.Err != nil || p.String("tool_name") != "ExitPlanMode" || plan == "" || h.RuleDisabled("plan-critic") || planCritiqued(p) {
 		return nil
 	}
 	marker := h.Paths.SessionFile(cache.PlanCritic, p.SessionID(), filepath.Base(plan))
@@ -131,6 +173,13 @@ func GuardPlan(h *hook.Hook) error {
 	}
 	h.Deny(fmt.Sprintf("run the %s agent on %s before asking for approval. Raise each contradiction it finds, between the plan's sections or against the repo, as a question for the user. This check lets the same plan through when ExitPlanMode is called again.", planCritic, plan), "plan-critic")
 	return nil
+}
+
+// planCritiqued reports whether the ExitPlanMode in p follows a plan-critic
+// run on its plan; an unreadable transcript counts as one, so it fails open.
+func planCritiqued(p *hook.Payload) bool {
+	entries, err := transcript.Load(p.String("transcript_path"))
+	return err != nil || critiqued(entries, p.String("tool_input.planFilePath"))
 }
 
 // critiqued reports whether a plan-critic call follows the first write to

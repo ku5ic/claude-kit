@@ -1,36 +1,26 @@
 ---
 name: drf-patterns
-description: Django REST Framework patterns, serializers, viewsets, permissions, throttling, filtering, pagination, and review checklist. Use whenever the project contains `djangorestframework` in dependencies, `rest_framework` in INSTALLED_APPS, files following DRF naming patterns (`serializers.py`, `viewsets.py`, `permissions.py`), OR the user asks about DRF, Django REST, serializers, viewsets, ModelViewSet, permission_classes, throttle_classes, even if DRF is not mentioned by name.
+description: Django REST Framework patterns for serializers, viewsets, permissions, and throttling. Load before any edit to a serializer, viewset, or API view, however small, and for DRF questions.
 ---
 
 # Django REST Framework patterns
 
-DRF 3.18.x. Supports Django 5.2, 6.0, and 6.1; 3.18.0 dropped Django 4.2, 5.0, and 5.1. Verify current version at https://pypi.org/project/djangorestframework/. Adapt advice to the version in the project's `requirements.txt`, `pyproject.toml`, or lockfile.
+DRF 3.18.x.
+
+- 3.18 supports Django 5.2, 6.0, and 6.1. 3.18.0 dropped Django 4.2, 5.0, and 5.1.
+- Adapt advice to the version in the project's `requirements.txt`, `pyproject.toml`, or lockfile.
 
 ## Reference files
 
-| File                                                                   | Covers                                                                                     |
-| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| [serializers.md](reference/serializers.md)                             | Explicit fields, validate(), nested serializers, SerializerMethodField, ModelSerializer    |
-| [viewsets-and-routers.md](reference/viewsets-and-routers.md)           | ModelViewSet vs GenericViewSet + mixins, @action, DefaultRouter                            |
-| [permissions.md](reference/permissions.md)                             | permission_classes, IsAuthenticated vs IsAuthenticatedOrReadOnly, object-level permissions |
-| [throttling-and-pagination.md](reference/throttling-and-pagination.md) | UserRateThrottle, AnonRateThrottle, pagination styles, page size config                    |
-| [filtering.md](reference/filtering.md)                                 | django-filter, SearchFilter, OrderingFilter, get_queryset override                         |
-| [auth.md](reference/auth.md)                                           | TokenAuthentication, SessionAuthentication, JWT via simplejwt                              |
-| [versioning.md](reference/versioning.md)                               | Versioning schemes, request.version, ALLOWED_VERSIONS                                      |
-| [anti-patterns.md](reference/anti-patterns.md)                         | Severity-labeled anti-patterns to flag in review                                           |
+Loading this skill isn't enough. Before your next edit, read the file of every row that matches it. The rules live in those files, and this one only points at them.
 
-## References
-
-- https://www.django-rest-framework.org/
-- https://www.django-rest-framework.org/api-guide/serializers/
-- https://www.django-rest-framework.org/api-guide/permissions/
-- https://django-rest-framework-simplejwt.readthedocs.io/en/latest/
-
-## Version notes
-
-Checked: 2026-11-10 against https://pypi.org/project/djangorestframework/, https://www.django-rest-framework.org/community/release-notes/ and https://www.django-rest-framework.org/api-guide/permissions/
-
-- 3.18.3 (2026-10-06): current. Corrected permission composition (`&`, `|`, `~` are built in) and the simplejwt wording to match the docs.
-- 3.18.1 (2026-09-07): 3.18.0 dropped Django 4.2, 5.0, 5.1. A project pinned to one of those stays on 3.17.
-- 3.14: `NullBooleanField` removed; use `BooleanField(allow_null=True)`.
+| Before                                                               | Read                                                                   |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Writing or changing a serializer, its fields, validation, or nesting | [serializers.md](reference/serializers.md)                             |
+| Writing a viewset, a router, an `@action`, or `get_queryset`         | [viewsets-and-routers.md](reference/viewsets-and-routers.md)           |
+| Setting or changing `permission_classes`                             | [permissions.md](reference/permissions.md)                             |
+| Adding throttling or pagination                                      | [throttling-and-pagination.md](reference/throttling-and-pagination.md) |
+| Adding filtering, search, or ordering                                | [filtering.md](reference/filtering.md)                                 |
+| Setting up authentication, tokens, or JWT                            | [auth.md](reference/auth.md)                                           |
+| Versioning the API                                                   | [versioning.md](reference/versioning.md)                               |
+| Writing, changing, or reviewing DRF code                             | [anti-patterns.md](reference/anti-patterns.md)                         |

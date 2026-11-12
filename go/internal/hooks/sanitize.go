@@ -32,7 +32,7 @@ var (
 )
 
 // SanitizeOutput strips bidi control characters from a written text file,
-// and with CLAUDE_SANITIZE_TYPOGRAPHY=1 rewrites em dashes, smart quotes,
+// and with sanitize_typography or CLAUDE_SANITIZE_TYPOGRAPHY=1 rewrites em dashes, smart quotes,
 // ellipses, and arrows to ASCII. PostToolUse for Write, Edit, MultiEdit.
 // Files kit.yml's sanitize_skip matches are left alone.
 func SanitizeOutput(h *hook.Hook) error {
@@ -50,14 +50,15 @@ func SanitizeOutput(h *hook.Hook) error {
 	if err != nil || bytes.IndexByte(data, 0xE2) < 0 || git.IsBinary(data) {
 		return nil
 	}
-	if cfg := h.Config(); cfg != nil && guard.GlobAny(cfg.SanitizeSkip, path) {
+	cfg := h.Config()
+	if cfg != nil && guard.GlobAny(cfg.SanitizeSkip, path) {
 		return nil
 	}
 	out := string(data)
 	for _, c := range bidi {
 		out = strings.ReplaceAll(out, string(c), "")
 	}
-	if os.Getenv("CLAUDE_SANITIZE_TYPOGRAPHY") == "1" {
+	if (cfg != nil && cfg.SanitizeTypography) || os.Getenv("CLAUDE_SANITIZE_TYPOGRAPHY") == "1" {
 		out = typography.Replace(out)
 	}
 	if out != string(data) {

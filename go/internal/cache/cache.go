@@ -17,15 +17,21 @@ import (
 // The state dirs, by name.
 const (
 	SkillsLoaded = "skills-loaded"
+	SkillsNudged = "skills-nudged"
 	FileSkills   = "file-skills"
 	PlanActive   = "plan-active"
 	PlanCritic   = "plan-critic"
+	PlanTicks    = "plan-ticks"
 	Statusline   = "statusline"
 	ReplyLimit   = "reply-limit"
 	Slop         = "slop"
 	Claims       = "claims"
+	Cites        = "cites"
+	Size         = "size"
 	Stack        = "stack"
 	StopReports  = "stop-reports"
+	TurnTree     = "turn-tree"
+	Guard        = "guard"
 	Enforce      = "enforce"
 )
 
@@ -41,15 +47,21 @@ type Dir struct {
 // pruned, so it lasts until a project goes unused for a month.
 var Dirs = []Dir{
 	{SkillsLoaded, "skill-loaded marker(s)", 1},
+	{SkillsNudged, "skill-nudged marker(s)", 1},
 	{FileSkills, "file-skills cache(s)", 1},
 	{PlanActive, "plan-active marker(s)", 1},
 	{PlanCritic, "plan-critic marker(s)", 1},
+	{PlanTicks, "plan step snapshot list(s)", 1},
 	{Statusline, "statusline cache(s)", 1},
 	{ReplyLimit, "reply-limit marker(s)", 1},
 	{Slop, "unslop marker(s)", 1},
 	{Claims, "claim-check marker(s)", 1},
+	{Cites, "citation-check marker(s)", 1},
+	{Size, "size-check marker(s)", 1},
 	{Stack, "stack report(s)", 30},
 	{StopReports, "stop-checks and per-edit report(s)", 1},
+	{TurnTree, "turn-start work tree snapshot(s)", 1},
+	{Guard, "verifier and classifier run marker(s)", 1},
 	{Enforce, "gap-fill verdict and gate mark file(s)", 30},
 }
 
@@ -70,6 +82,13 @@ func StopReport(cacheDir, root string) string {
 // full gate checked for the repo at root, so stop-checks skips that tree.
 func FullGateTree(cacheDir, root string) string {
 	return filepath.Join(cacheDir, StopReports, RootKey(root)+".full")
+}
+
+// StopPassTree is where stop-checks keeps the tree and gates of its last
+// clean pass for the repo at root, so the same checks on that tree are
+// skipped.
+func StopPassTree(cacheDir, root string) string {
+	return filepath.Join(cacheDir, StopReports, RootKey(root)+".pass")
 }
 
 // EditReport is where format-dispatch keeps its last report for the repo

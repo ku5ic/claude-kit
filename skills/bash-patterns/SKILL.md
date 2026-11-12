@@ -1,40 +1,26 @@
 ---
 name: bash-patterns
-description: Bash and shell script patterns for safety flags, quoting, conditionals, traps, functions, ShellCheck discipline, and review-worthy anti-patterns. Use whenever the project contains `.sh`/`.bash`/`.zsh` files, files with a bash/sh shebang, scripts in `bin/`, shell dotfiles, or Makefile recipes, OR the user asks about shell scripting or a shell pipeline, even if "bash" is not mentioned by name.
+description: Bash and shell patterns for safety flags, quoting, traps, and ShellCheck. Load before any edit to a .sh, .bash, or .zsh file, shebang script, or Makefile recipe, however small, or for shell questions.
 ---
 
 # Bash patterns
 
-- Default assumption: bash 5.x targeting macOS (via Homebrew bash) and Linux.
-- Scripts use `#!/usr/bin/env bash`, so the resolved binary is whatever is first on PATH -- on the user's machine that's the Homebrew 5.x build, not the stock macOS `/bin/bash` 3.2.
-- Anything that requires bash 4.0+ (case modification, `mapfile`) or 4.4+ (`${parameter@op}`) is unsafe under stock macOS bash; flagged here when the version cut matters.
+Default assumption: bash 5.x on macOS (Homebrew bash) and Linux.
+
+- Bash 4.4+ (`${parameter@op}`) and 4.0+ (case modification, `mapfile`) are unsafe under stock macOS `/bin/bash` 3.2.
+- `#!/usr/bin/env bash` runs the first bash on PATH. On the user's machine that's the Homebrew 5.x build, not stock 3.2.
 
 ## Reference files
 
-| File                                                                 | Covers                                                                                                       |
-| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| [reference/safety-flags.md](reference/safety-flags.md)               | Script preamble, `set -euo pipefail` edge cases, `inherit_errexit`, `nullglob`, verification before shipping |
-| [reference/quoting.md](reference/quoting.md)                         | Quoting rules, nested quoting, heredoc indentation, `printf` over `echo`, zsh-vs-bash differences            |
-| [reference/conditionals.md](reference/conditionals.md)               | `[[ ]]` over `[ ]`, glob vs literal, numeric vs string comparison, `(( ))`, `case`                           |
-| [reference/functions-and-traps.md](reference/functions-and-traps.md) | Functions and locals, `trap` patterns, `BASH_LINENO` / `BASH_SOURCE` / `caller` debug introspection          |
-| [reference/parameter-expansion.md](reference/parameter-expansion.md) | `${var:-}`, `${var:?}`, prefix/suffix removal, pattern substitution, case modification                       |
-| [reference/subshells-and-pipes.md](reference/subshells-and-pipes.md) | Subshell semantics, `\|` pitfalls, process substitution `<(cmd)`, filesystem operations                      |
-| [reference/shellcheck.md](reference/shellcheck.md)                   | Top SC codes, suppression discipline, POSIX-only contexts (Alpine, BusyBox)                                  |
-| [reference/anti-patterns.md](reference/anti-patterns.md)             | Fifteen review-time anti-patterns with severity calls                                                        |
+Loading this skill isn't enough. Before your next edit, read the file of every row that matches it. The rules live in those files, and this one only points at them.
 
-## References
-
-- GNU Bash manual: https://www.gnu.org/software/bash/manual/bash.html
-- POSIX shell command language: https://pubs.opengroup.org/onlinepubs/9699919799/utilities/V3_chap02.html
-- ShellCheck wiki: https://www.shellcheck.net/wiki/
-- BashFAQ: https://mywiki.wooledge.org/BashFAQ
-- BashPitfalls: https://mywiki.wooledge.org/BashPitfalls
-- BashGuide: https://mywiki.wooledge.org/BashGuide
-- Google Shell Style Guide: https://google.github.io/styleguide/shellguide.html
-
-## Version notes
-
-Checked: 2026-11-10 against https://ftp.gnu.org/gnu/bash/, https://tiswww.case.edu/php/chet/bash/NEWS, the bash 5.3.20 manual page, https://github.com/koalaman/shellcheck/blob/master/CHANGELOG.md
-
-- 5.3 (2025-07-30; Homebrew 5.3.20): no 6.0 release exists. Corrected per the manual: `inherit_errexit` covers command substitution only, and every command of a multi-command pipeline runs in a subshell. ShellCheck 0.11.0 (2025-08-04) current; it disables SC2002 (useless cat) by default.
-- 4.4: `shopt -s inherit_errexit`, `${parameter@op}` (corrected from 4.0 per NEWS). 4.0: case modification, `mapfile`.
+| Before                                                                                        | Read                                                                 |
+| --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Starting a script, or setting `set` flags, shopts, or an `inherit_errexit` preamble           | [reference/safety-flags.md](reference/safety-flags.md)               |
+| Quoting a variable, building an array, writing a heredoc, or printing with `printf` or `echo` | [reference/quoting.md](reference/quoting.md)                         |
+| Writing an `if`, `[[ ]]`, `(( ))`, or `case` test                                             | [reference/conditionals.md](reference/conditionals.md)               |
+| Writing a function, a `trap`, or cleanup code                                                 | [reference/functions-and-traps.md](reference/functions-and-traps.md) |
+| Using `${var:-default}`, `${var:?}`, case modification, or prefix and suffix removal          | [reference/parameter-expansion.md](reference/parameter-expansion.md) |
+| Using a pipe, a subshell, `<(cmd)`, `realpath`, or a filesystem operation                     | [reference/subshells-and-pipes.md](reference/subshells-and-pipes.md) |
+| Silencing a ShellCheck finding, or writing for POSIX sh (Alpine, BusyBox)                     | [reference/shellcheck.md](reference/shellcheck.md)                   |
+| Writing, changing, or reviewing bash code                                                     | [reference/anti-patterns.md](reference/anti-patterns.md)             |

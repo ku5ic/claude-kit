@@ -130,7 +130,8 @@ func build(root string, cfg *config.Config) (*bundle, error) {
 		return nil, err
 	}
 	for _, skill := range skills {
-		if skill.IsDir() && !slices.Contains(c.Skills, skill.Name()) {
+		// The rules skill is bundled, built from chat_bundle.rules.
+		if skill.IsDir() && skill.Name() != rulesSkill && !slices.Contains(c.Skills, skill.Name()) {
 			b.others = append(b.others, skill.Name())
 		}
 	}
@@ -173,10 +174,11 @@ func manifest(root, description string) ([]byte, string, error) {
 }
 
 // add copies the Markdown under dir, and only that: a .DS_Store or an
-// editor's swap file would change the zip's bytes.
+// editor's swap file would change the zip's bytes. A skill's sources.md is
+// for /meta refresh, which chat has no use for, so it stays out.
 func (b *bundle) add(source fs.FS, dir string) error {
 	return fs.WalkDir(source, dir, func(name string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || path.Ext(name) != ".md" {
+		if err != nil || d.IsDir() || path.Ext(name) != ".md" || name == path.Join(dir, "sources.md") {
 			return err
 		}
 		data, err := fs.ReadFile(source, name)

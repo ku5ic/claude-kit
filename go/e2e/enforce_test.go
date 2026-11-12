@@ -1,6 +1,8 @@
 package e2e
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"path/filepath"
 	"strconv"
 	"testing"
@@ -131,12 +133,21 @@ func TestEnforceClassify(t *testing.T) {
 		r.Want(t, 125)
 		r.Has(t, "SKIP turbo.json: lint (unclassified (classifier: exit status 1))\n", "checks: 0 passed, 0 failed, ")
 	})
-	t.Run("under the classifier's guard, a hook does nothing", func(t *testing.T) {
+	t.Run("under the classifier's guard with its marker, a hook does nothing", func(t *testing.T) {
 		t.Parallel()
 		k := New(t)
-		k.Setenv(gapfill.Guard, "1")
+		const value = "0123456789abcdef0123456789abcdef"
+		sum := sha256.Sum256([]byte(value))
+		Write(t, filepath.Join(k.Claude, "cache", "guard", hex.EncodeToString(sum[:])), "")
+		k.Setenv(gapfill.Guard, value)
 		r := k.Hook("guard-dispatch", Payload("Write", filepath.Join(k.Home, ".ssh", "id_rsa"), "s1", k.Home))
 		r.Want(t, 0)
 		r.Empty(t)
+	})
+	t.Run("a guard value set by hand, with no marker, turns nothing off", func(t *testing.T) {
+		t.Parallel()
+		k := New(t)
+		k.Setenv(gapfill.Guard, "1")
+		k.Hook("guard-dispatch", Payload("Write", filepath.Join(k.Home, ".ssh", "id_rsa"), "s1", k.Home)).Want(t, 2)
 	})
 }

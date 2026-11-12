@@ -14,6 +14,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/gapfill"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 	"github.com/ku5ic/claude-kit/go/internal/run"
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
@@ -23,7 +24,7 @@ const reviewSkill = "code-review"
 
 // reviewBudget bounds the full gate inside review-checks' 1200s in
 // hooks.json, leaving room for planning and the snapshot: a gate starting
-// past it is skipped, so the user always gets the notice.
+// past it is skipped, so the user always gets the receipt.
 const reviewBudget = 1050 * time.Second
 
 // worktreeAdd is true when cmd runs git worktree add.
@@ -83,7 +84,7 @@ func forkedSkill(agentTranscript, parent string) string {
 // ReviewChecks runs the full gate, scoped to what changed, when a forked
 // /code-review first stops (SubagentStop) in a checkout, and shows the user
 // every verdict. A failure sends the reviewer back with it, to handle per
-// rules/verify.md section 1; stop_hook_active lets the second stop through,
+// skills/kit-rules/reference/verify.md section 1; stop_hook_active lets the second stop through,
 // so it runs once and never loops. The tree it checked is kept, so the
 // turn's Stop doesn't check it again.
 func ReviewChecks(h *hook.Hook) error {
@@ -110,9 +111,12 @@ func ReviewChecks(h *hook.Hook) error {
 	// Before the gates: an edit made while they run isn't one they checked.
 	tree, snapErr := git.Snapshot(root)
 	plan := enforce.Build(cfg, enforce.Options{Root: root, CacheDir: cacheDir, Ask: true, Timeout: gapfill.ClassifyTimeout, Changed: true})
+	if plan.Classifier.Runs > 0 {
+		h.Log(kitlog.Guards, "gapfill", plan.Classifier.Pairs()...)
+	}
 	var report strings.Builder
-	res, notice := run.Gates(plan, cacheDir, &report, deadline)
-	h.Notify(notice)
+	res, receipt := run.Gates(plan, cacheDir, &report, deadline)
+	notifyReceipt(h, cfg, receipt, nil)
 	if res.Fail == 0 {
 		// Only a whole pass lets Stop skip the tree: a known failure must
 		// still block, and a gate the budget cut checked nothing.
@@ -121,6 +125,6 @@ func ReviewChecks(h *hook.Hook) error {
 		}
 		return nil
 	}
-	return h.Block("the full gate failed. Handle each FAIL per rules/verify.md section 1, then return your full report again, "+
+	return h.Block("the full gate failed. Handle each FAIL per skills/kit-rules/reference/verify.md section 1, then return your full report again, "+
 		"every finding you already had unchanged and in the same format.\n"+report.String(), "review-checks")
 }

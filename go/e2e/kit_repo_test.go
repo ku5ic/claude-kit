@@ -92,6 +92,43 @@ func TestKitRepo(t *testing.T) {
 		}
 	})
 
+	t.Run("a reference skill keeps its sources in sources.md and fits its budget", func(t *testing.T) {
+		// The skills that aren't reference skills, so keep no sources.md;
+		// skills/meta/reference/refresh.md points here for the list.
+		exempt := []string{"audit", "write", "deps", "investigate", "pr", "unslop", "report-format", "meta", "kit-rules", "slop-patterns"}
+		// Set from the sizes after sources moved out; step 18's rewrite lowers them.
+		const maxDescription, maxSkill = 200, 5 * 1024
+		url := regexp.MustCompile(`https?://`)
+		dirs, _ := filepath.Glob(filepath.Join(kitRoot, "skills", "*", "SKILL.md"))
+		for _, skill := range dirs {
+			dir := filepath.Dir(skill)
+			if slices.Contains(exempt, filepath.Base(dir)) {
+				continue
+			}
+			text := Read(t, skill)
+			front, _ := frontmatter(text)
+			rel, _ := filepath.Rel(kitRoot, skill)
+			if n := len(front["description"]); n == 0 || n > maxDescription {
+				t.Errorf("%s: description is %d characters, want 1 to %d", rel, n, maxDescription)
+			}
+			if len(text) > maxSkill {
+				t.Errorf("%s: %d bytes, over the %d-byte budget", rel, len(text), maxSkill)
+			}
+			if strings.Contains(text, "sources.md") {
+				t.Errorf("%s: names sources.md, which a session must never load", rel)
+			}
+			refs, _ := filepath.Glob(filepath.Join(dir, "reference", "*.md"))
+			for _, file := range append(refs, skill) {
+				rel, _ := filepath.Rel(kitRoot, file)
+				for n, line := range proseLines(Read(t, file)) {
+					if line == "## References" || line == "## Version notes" || url.MatchString(line) {
+						t.Errorf("%s:%d: a source belongs in sources.md: %s", rel, n, line)
+					}
+				}
+			}
+		}
+	})
+
 	t.Run("every cited file and rules section exists", func(t *testing.T) {
 		for _, bad := range brokenPointers(t) {
 			t.Error(bad)
@@ -133,21 +170,27 @@ func TestKitRepo(t *testing.T) {
 		}
 	})
 
-	t.Run("rules/tooling.md's skip list is kit.yml's skip_dirs", func(t *testing.T) {
-		cfg, _, err := config.Load(config.Paths{Base: filepath.Join(kitRoot, "kit.yml"), Overlay: filepath.Join(t.TempDir(), "none.yml")})
+	t.Run("a skill with a Before | Read table links every reference it has", func(t *testing.T) {
+		skills, err := filepath.Glob(filepath.Join(kitRoot, "skills", "*", "SKILL.md"))
 		if err != nil {
 			t.Fatal(err)
 		}
-		line := regexp.MustCompile("(?m)^- Skip for any glob, grep, or read: (.*)$").FindStringSubmatch(Read(t, filepath.Join(kitRoot, "rules/tooling.md")))
-		if line == nil {
-			t.Fatal("rules/tooling.md has no skip line")
+		gated := 0
+		for _, skillMD := range skills {
+			text := Read(t, skillMD)
+			if !strings.Contains(text, "| Before ") {
+				continue
+			}
+			gated++
+			refs, _ := filepath.Glob(filepath.Join(filepath.Dir(skillMD), "reference", "*.md"))
+			for _, ref := range refs {
+				if !strings.Contains(text, "](reference/"+filepath.Base(ref)+")") {
+					t.Errorf("%s doesn't link reference/%s, so no row ever sends Claude to it", skillMD, filepath.Base(ref))
+				}
+			}
 		}
-		var listed []string
-		for _, m := range regexp.MustCompile("`([^`]+)/\\*\\*`").FindAllStringSubmatch(line[1], -1) {
-			listed = append(listed, m[1])
-		}
-		if !slices.Equal(slices.Sorted(slices.Values(listed)), slices.Sorted(slices.Values(cfg.SkipDirs))) {
-			t.Errorf("rules/tooling.md skips %q, kit.yml skip_dirs is %q", listed, cfg.SkipDirs)
+		if gated == 0 {
+			t.Fatal("no skill has a Before | Read table")
 		}
 	})
 
@@ -156,7 +199,7 @@ func TestKitRepo(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		rule := Read(t, filepath.Join(kitRoot, "rules/tooling.md"))
+		rule := Read(t, filepath.Join(kitRoot, "skills/kit-rules/reference/tooling.md"))
 		// Every word of every code span, and each word pair joined with -
 		// (`git absorb` is git-absorb).
 		var tools []string
@@ -171,7 +214,7 @@ func TestKitRepo(t *testing.T) {
 		}
 		for _, tool := range cfg.Tools {
 			if !slices.Contains(tools, tool) {
-				t.Errorf("kit.yml tools has %s, which rules/tooling.md section 1 doesn't name", tool)
+				t.Errorf("kit.yml tools has %s, which skills/kit-rules/reference/tooling.md section 1 doesn't name", tool)
 			}
 		}
 	})
@@ -194,6 +237,24 @@ func TestKitRepo(t *testing.T) {
 // frontmatter is the top-level `key: value` lines between a file's opening
 // pair of --- lines. Line-based, not YAML: argument-hint values like
 // <a|b> aren't valid YAML scalars.
+// proseLines is text's lines by 1-based number, without fenced code and
+// with inline code spans blanked, so an example URL in code doesn't count.
+func proseLines(text string) map[int]string {
+	span := regexp.MustCompile("`[^`]*`")
+	lines := map[int]string{}
+	inFence := false
+	for i, line := range strings.Split(text, "\n") {
+		if trimmed := strings.TrimSpace(line); strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+			inFence = !inFence
+			continue
+		}
+		if !inFence {
+			lines[i+1] = span.ReplaceAllString(line, "``")
+		}
+	}
+	return lines
+}
+
 func frontmatter(text string) (map[string]string, bool) {
 	body, ok := strings.CutPrefix(text, "---\n")
 	if !ok {
@@ -213,8 +274,8 @@ func frontmatter(text string) (map[string]string, bool) {
 }
 
 var (
-	// rules/x.md section 2, with or without backticks, and "sections 2 and 4".
-	ruleSection = regexp.MustCompile("(rules/[a-z]+\\.md)`? sections? ([0-9]+(?:(?:, | and | or )[0-9]+)*)")
+	// A rule file's section 2, with or without backticks, and "sections 2 and 4".
+	ruleSection = regexp.MustCompile("(skills/kit-rules/reference/[a-z]+\\.md)`? sections? ([0-9]+(?:(?:, | and | or )[0-9]+)*)")
 	sectionNums = regexp.MustCompile(`[0-9]+`)
 	// A repo-root path, not one under ~/.claude or another directory, and not
 	// a link target (linkPath reads those).
@@ -228,15 +289,20 @@ var (
 func brokenPointers(t *testing.T) []string {
 	t.Helper()
 	var sources []string
-	for _, dir := range []string{"rules", "agents", "skills", "go"} {
+	for _, dir := range []string{"agents", "skills", "go", "docs"} {
 		_ = filepath.WalkDir(filepath.Join(kitRoot, dir), func(path string, d os.DirEntry, err error) error {
+			// An accepted ADR changes only in its status line, so a pointer
+			// in one that a later move breaks can't be fixed.
+			if err == nil && d.IsDir() && d.Name() == "adr" {
+				return filepath.SkipDir
+			}
 			if err == nil && !d.IsDir() && (strings.HasSuffix(path, ".md") || strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, "_test.go")) {
 				sources = append(sources, path)
 			}
 			return nil
 		})
 	}
-	sources = append(sources, filepath.Join(kitRoot, "README.md"), filepath.Join(kitRoot, "CLAUDE.md"))
+	sources = append(sources, filepath.Join(kitRoot, "README.md"), filepath.Join(kitRoot, "CLAUDE.md"), filepath.Join(kitRoot, "CONTRIBUTING.md"))
 
 	headings := map[string]bool{}
 	var bad []string

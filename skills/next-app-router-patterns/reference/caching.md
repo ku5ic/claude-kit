@@ -1,79 +1,33 @@
 # Caching
 
-Next.js 16 ships two coexisting caching models. Verify which one a project uses before reasoning about its caching behavior.
+Next.js 16 has two caching models; check which one a project uses before reasoning about its caching.
 
-## Cache Components (Next.js 16+ model)
+## Cache Components (16+)
 
-Opt in by setting `cacheComponents: true` in `next.config.ts`.
+- Opt in with `cacheComponents: true` in `next.config.ts`.
+- Cache explicitly with `"use cache"` at the top of an async function, file, or component.
+- Set time-based revalidation with `cacheLife()`, and tags with `cacheTag()` for `updateTag()` invalidation in Server Functions.
+- Partial Prerendering is the default: cached and deterministic content goes into a static shell at build time, and uncached or runtime-data subtrees stream at request time inside `<Suspense>`.
+- A component without `"use cache"` that touches `cookies`, `headers`, `searchParams`, or `params` must sit inside `<Suspense>`, or the build fails with a `blocking-route` error.
 
-- Caching becomes explicit via the `"use cache"` directive at the top of an async function, file, or component.
-- Partial Prerendering (PPR) becomes the default rendering behavior:
-  - Cached and deterministic content lands in a static shell at build time.
-  - Uncached or runtime-data-using subtrees stream at request time wrapped in `<Suspense>`.
+## Previous model (`cacheComponents` off)
 
-```tsx
-import { cacheLife, cacheTag } from "next/cache";
-
-export default async function BlogPosts() {
-  "use cache";
-  cacheLife("hours");
-  cacheTag("posts");
-
-  const res = await fetch("https://api.example.com/posts");
-  return res.json();
-}
-```
-
-- `cacheLife()` sets time-based revalidation.
-- `cacheTag()` attaches tags for `updateTag()` invalidation in Server Functions.
-- Without `"use cache"`, components that touch runtime APIs (`cookies`, `headers`, `searchParams`, `params`) must be wrapped in `<Suspense>` or Next will fail the build with a `blocking-route` error.
-
-## Previous caching model (still supported)
-
-When `cacheComponents` is not enabled, the previous model applies:
-
-- `fetch()` requests are **not cached by default**. Opt in with `cache: "force-cache"` or `next: { revalidate: N }`.
-- Route Handlers' `GET` is **not cached by default** (changed in v15.0.0-RC; previously was static by default).
-- `unstable_cache` wraps non-`fetch` async functions with a key + tags + revalidate.
-- Route segment config: `dynamic`, `revalidate`, `fetchCache` exported from a `page.tsx` / `layout.tsx` / `route.ts` set the route-wide behavior. The lowest `revalidate` across a route's layouts and page wins.
-
-```tsx
-export const revalidate = 60;
-export const dynamic = "auto";
-```
+- Route Handler `GET` isn't cached by default since 15.0.0-RC; before that it was static.
+- `fetch()` isn't cached by default; opt in with `cache: "force-cache"` or `next: { revalidate: N }`.
+- Wrap a non-`fetch` async function in `unstable_cache` with a key, tags, and `revalidate`.
+- Set route-wide behavior by exporting `dynamic`, `revalidate`, or `fetchCache` from `page.tsx`, `layout.tsx`, or `route.ts`. The lowest `revalidate` across a route's layouts and page wins.
 
 ## On-demand revalidation
 
-`revalidateTag(tag, profile)` and `revalidatePath(path)` from `next/cache` invalidate cached entries by tag or by path. `revalidateTag` takes a `cacheLife` profile as its second argument (`"max"` for stale-while-revalidate); the one-argument form is deprecated in 16. Both are safe to call inside Server Functions and Route Handlers. With Cache Components, `updateTag(tag)` is the equivalent for `cacheTag`-marked content.
-
-```ts
-"use server";
-import { revalidatePath, revalidateTag } from "next/cache";
-
-export async function publishPost(id: string) {
-  // mutate
-  revalidateTag("posts", "max");
-  revalidatePath(`/posts/${id}`);
-}
-```
-
-`refresh()` (from `next/cache`) refreshes the client router; it does not revalidate tagged data.
+- On 16, call `revalidateTag(tag, profile)` with a `cacheLife` profile as the second argument, `"max"` for stale-while-revalidate, or `updateTag(tag)` in a Server Action for read-your-writes. The one-argument form is deprecated there and a TypeScript error.
+- On a project pinned to 15, the one-argument `revalidateTag(tag)` is still correct, and it expires the tag immediately.
+- Invalidate by tag or by path with `revalidateTag` and `revalidatePath(path)` from `next/cache`, inside Server Functions or Route Handlers.
+- Under Cache Components, invalidate `cacheTag`-marked content with `updateTag(tag)`.
+- `refresh()` from `next/cache` refreshes the client router and doesn't revalidate tagged data.
 
 ## Common cache mistakes
 
-- `failure`: assuming `fetch()` is cached by default in Next.js 15+ / 16. It is not. Pages that depend on freshness without setting `cache` may still appear correct in dev (where pages always render on-demand) and break in production.
-- `failure`: a parent layout sets `export const dynamic = "force-static"` while a child page reads `cookies()`. The route-segment config wins for the route; the page errors at build.
-- `warning`: combining `force-cache` and `no-store` on different fetches in the same route. Allowed but confusing; prefer route segment `revalidate` or `dynamic` to express intent once.
-- `warning`: relying on `unstable_cache` long-term. The name signals API instability across releases.
-
-## References
-
-- Next.js Caching (Cache Components): https://nextjs.org/docs/app/getting-started/caching
-- Next.js previous caching model: https://nextjs.org/docs/app/guides/caching-without-cache-components
-- `cacheComponents` config: https://nextjs.org/docs/app/api-reference/config/next-config-js/cacheComponents
-- `revalidatePath`: https://nextjs.org/docs/app/api-reference/functions/revalidatePath
-- `revalidateTag`: https://nextjs.org/docs/app/api-reference/functions/revalidateTag
-
-### Legacy (Next.js 15)
-
-`revalidateTag(tag)` with a single argument expired the tag immediately. On 16 it is deprecated and a TypeScript error; use `revalidateTag(tag, "max")` for stale-while-revalidate or `updateTag(tag)` in a Server Action for read-your-writes. The one-argument form is still correct on projects pinned to 15.
+- Assuming `fetch()` is cached by default on 15+: `failure`, even when the page looks right in dev.
+- A parent layout with `export const dynamic = "force-static"` over a child page that reads `cookies()`: `failure`. The page errors at build.
+- `force-cache` and `no-store` on different fetches in one route: `warning`. State the intent once with the route segment `revalidate` or `dynamic`.
+- Relying on `unstable_cache` long-term: `warning`. The name marks the API as unstable across releases.

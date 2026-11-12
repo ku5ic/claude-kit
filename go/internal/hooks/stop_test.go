@@ -57,6 +57,21 @@ func (e *stopEnv) turn(tool string, paths ...string) {
 	}
 }
 
+// start runs turn-tree as a prompt would, snapshotting the tree.
+func (e *stopEnv) start() {
+	e.t.Helper()
+	e.k.run("turn-tree", map[string]any{"hook_event_name": "UserPromptSubmit", "session_id": "s1", "cwd": e.repo}).Want(e.t, 0)
+}
+
+// checked is the files fakelint ran on, in order.
+func (e *stopEnv) checked() string {
+	e.t.Helper()
+	if !exists(e.calls) {
+		return ""
+	}
+	return strings.TrimRight(read(e.t, e.calls), "\n")
+}
+
 func (e *stopEnv) stop(active bool) result {
 	e.t.Helper()
 	return e.k.run("stop-checks", map[string]any{
@@ -71,7 +86,7 @@ func (e *stopEnv) stopReport() (int, string) {
 	e.t.Helper()
 	r := e.stop(false)
 	var out map[string]string
-	if err := json.Unmarshal([]byte(r.Stdout), &out); r.Status == 0 && (err != nil || len(out) != 1 || !strings.HasPrefix(out["systemMessage"], "stop checks: ")) {
+	if err := json.Unmarshal([]byte(r.Stdout), &out); r.Status == 0 && (err != nil || len(out) != 1 || !strings.HasPrefix(out["systemMessage"], "kit stop: ")) {
 		e.t.Errorf("a pass prints more or other than its systemMessage:\n%s", r.Output)
 	}
 	return r.Status, read(e.t, cache.StopReport(e.k.paths.CacheDir(), e.repo))
@@ -230,6 +245,27 @@ func TestStopChecks(t *testing.T) {
 			t.Errorf("calls %q, want %q", got, e.repo+"|--check b.ts")
 		}
 	})
+	t.Run("the receipt names a report the verifier failed on, once, and no file a check doesn't claim", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		marker := e.k.paths.SessionFile(cache.Claims, "s1", "unchecked")
+		testutil.Write(t, marker, "your report\n")
+		e.turn("Edit", e.path("a.ts"), e.path("notes.md"))
+		r := e.stop(false)
+		r.Has(t, `pass  lint (package.json: *.ts)\nunchecked  your report  verifier failed"`)
+		r.Lacks(t, "notes.md")
+		if exists(marker) {
+			t.Error("the verifier's failure would show again next turn")
+		}
+	})
+	t.Run("an edit no check claims prints nothing", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		e.turn("Edit", e.path("notes.md"))
+		r := e.stop(false)
+		r.Want(t, 0)
+		r.Empty(t)
+	})
 	t.Run("a tree the full gate already checked isn't checked again", func(t *testing.T) {
 		t.Parallel()
 		e := stopSetup(t)
@@ -242,12 +278,38 @@ func TestStopChecks(t *testing.T) {
 		testutil.Write(t, cache.FullGateTree(e.k.paths.CacheDir(), e.repo), tree)
 		r := e.stop(false)
 		r.Want(t, 0)
-		r.Has(t, `"systemMessage":"stop checks: skipped, the full gate already checked this tree"`)
+		r.Has(t, `"systemMessage":"kit stop: skipped, the full gate already checked this tree"`)
 		e.noCalls()
 		testutil.Write(t, e.path("a.ts"), "changed after the gate\n")
 		e.stop(false).Want(t, 0)
 		if !exists(e.calls) {
 			t.Error("a tree changed after the full gate went unchecked")
+		}
+	})
+	t.Run("checks that passed on this tree aren't run again; other files, content, or a failure are", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		runs := func() int { return strings.Count(e.checked(), "\n") + min(len(e.checked()), 1) }
+		e.turn("Edit", e.path("a.ts"))
+		e.stop(false).Want(t, 0)
+		r := e.stop(false)
+		r.Want(t, 0)
+		r.Has(t, `"systemMessage":"kit stop: skipped, these checks already passed on this tree"`)
+		if runs() != 1 {
+			t.Fatalf("checks ran %d times, want 1:\n%s", runs(), e.checked())
+		}
+		e.turn("Edit", e.path("b.ts"))
+		e.stop(false).Want(t, 0)
+		testutil.Write(t, e.path("b.ts"), "changed\n")
+		e.stop(false).Want(t, 0)
+		if runs() != 3 {
+			t.Errorf("checks ran %d times, want 3: another file, then new content", runs())
+		}
+		testutil.Touch(t, e.path("fail"))
+		e.stop(false).Want(t, 0)
+		e.stop(false).Want(t, 0)
+		if runs() != 5 {
+			t.Errorf("checks ran %d times, want 5: a failure is never reused", runs())
 		}
 	})
 	t.Run("a question-only turn after a full gate stays silent", func(t *testing.T) {
@@ -269,8 +331,17 @@ func TestStopChecks(t *testing.T) {
 		r.Want(t, 0)
 		var out map[string]string
 		if err := json.Unmarshal([]byte(r.Stdout), &out); err != nil || out["decision"] != "block" ||
-			!strings.Contains(out["reason"], "file checks failed") || out["systemMessage"] != "stop checks: 0 passed, 1 failed, 0 skipped\n  FAIL lint (package.json: *.ts)" {
+			!strings.HasPrefix(out["reason"], "kit stop: BLOCKED 1 of 1 checks failed; fix them, or report them and stop (checks-failed)\nFAIL  lint (package.json: *.ts)\n      lint noise\nmore  ") ||
+			out["systemMessage"] != "kit stop: 0 pass, 0 skipped, 1 failed\nFAIL  lint (package.json: *.ts)" {
 			t.Errorf("want a block with every verdict for the user:\n%s", r.Output)
+		}
+		// The command and the rest of the output go to the file, not the block.
+		if strings.Contains(out["reason"], "cmd: ") {
+			t.Errorf("the block repeats the gate's command:\n%s", out["reason"])
+		}
+		file := strings.TrimPrefix(out["reason"][strings.LastIndex(out["reason"], "more  "):], "more  ")
+		if detail := read(t, file); !strings.Contains(detail, "FAIL lint (package.json: *.ts)\n  cmd: fakelint --check a.ts\n") {
+			t.Errorf("detail file:\n%s", detail)
 		}
 	})
 	t.Run("an entry with no verdict is recorded for kit explain stop, not run", func(t *testing.T) {
@@ -285,7 +356,53 @@ func TestStopChecks(t *testing.T) {
 		}
 		e.noCalls()
 	})
-	t.Run("edits committed in the turn skip the checks", func(t *testing.T) {
+	t.Run("a file changed through Bash is checked", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		e.start()
+		e.turn("Bash", "")
+		testutil.Write(t, e.path("a.ts"), "sed -i wrote this\n")
+		e.stop(false).Want(t, 0)
+		if got := e.checked(); got != e.repo+"|--check a.ts" {
+			t.Errorf("calls %q, want a.ts checked", got)
+		}
+	})
+	t.Run("a file already dirty is checked only when the turn changes it again", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		testutil.Write(t, e.path("a.ts"), "dirty before the turn\n")
+		testutil.Write(t, e.path("b.ts"), "dirty before the turn\n")
+		e.start()
+		e.turn("Bash", "")
+		testutil.Write(t, e.path("a.ts"), "changed again through Bash\n")
+		e.stop(false).Want(t, 0)
+		if got := e.checked(); got != e.repo+"|--check a.ts" {
+			t.Errorf("calls %q, want only a.ts checked", got)
+		}
+	})
+	t.Run("a file committed mid-turn is checked", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		e.start()
+		e.turn("Edit", e.path("a.ts"))
+		testutil.Write(t, e.path("a.ts"), "edited\n")
+		testutil.Git(t, e.repo, "add", "-A")
+		testutil.Git(t, e.repo, "commit", "-q", "-m", "edit")
+		e.stop(false).Want(t, 0)
+		if got := e.checked(); got != e.repo+"|--check a.ts" {
+			t.Errorf("calls %q, want a.ts checked", got)
+		}
+	})
+	t.Run("a turn that changes nothing runs nothing", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		testutil.Write(t, e.path("a.ts"), "dirty before the turn\n")
+		e.start()
+		e.turn("Read", e.path("a.ts"))
+		e.stop(false).Want(t, 0)
+		e.noCalls()
+	})
+	t.Run("without a turn-start snapshot, edits committed in the turn skip the checks", func(t *testing.T) {
 		t.Parallel()
 		e := stopSetup(t)
 		e.turn("Edit", e.path("a.ts"))

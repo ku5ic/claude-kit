@@ -1,63 +1,11 @@
 # Reactivity
 
-## `ref` is the primary API
-
-The Vue docs are explicit: "we recommend using `ref()` as the primary API for declaring reactive state." `ref(value)` wraps any value in a tracked container with a `.value` property. It works for primitives, objects, and arrays, survives destructuring (you destructure `.value`, not the ref itself), and unwraps automatically in templates and `reactive()` containers.
-
-```ts
-import { ref, computed } from "vue";
-
-const count = ref(0);
-const doubled = computed(() => count.value * 2);
-
-count.value++; // triggers updates
-```
-
-In `<script setup>`, top-level refs are auto-exposed to the template, where `.value` is implicit:
-
-```vue
-<template>
-  <button @click="count++">{{ count }}</button>
-</template>
-```
-
-## `reactive` and its three traps
-
-`reactive(obj)` wraps an object in a Proxy. The state is the object itself; no `.value` indirection. The trade-off is three documented limitations:
-
-- **Primitives are not allowed.** `reactive("hello")` returns the string unchanged.
-- **Cannot replace the whole object.** `state = reactive({...})` then later `state = reactive(otherObj)` breaks every consumer that captured the original reference.
-- **Destructuring loses reactivity.** Vue tracks property access on the proxy; pulling a property out into a local binding extracts the value and severs the link.
-
-```ts
-const state = reactive({ count: 0 });
-let { count } = state; // count is now a plain number
-count++; // does NOT update state.count
-```
-
-To destructure safely, use `toRefs(state)`:
-
-```ts
-import { toRefs } from "vue";
-const { count } = toRefs(state); // each property is a ref
-```
-
-## `shallowRef` and `shallowReactive`
-
-`ref` and `reactive` recurse: nested objects are also made reactive. `shallowRef` and `shallowReactive` track only the top level. Use them when:
-
-- The state is a large object replaced wholesale on each update (e.g. fetched server response). Deep tracking is wasted work.
-- The object is a third-party class instance whose internals should not be mutated through Vue.
-
-`triggerRef(ref)` manually triggers updates on a `shallowRef` after an in-place mutation, when needed.
-
-## When to reach for `reactive`
-
-Reach for `reactive` when the state is a single object that lives for the lifetime of the component, has many properties, and is mutated in place rather than replaced. Even then, prefer `ref` if any consumer needs to destructure or if any property is a primitive at the top level. The Vue docs treat `reactive` as the secondary tool, not the default.
-
-## References
-
-- Reactivity Fundamentals: https://vuejs.org/guide/essentials/reactivity-fundamentals.html
-- Reactivity API: https://vuejs.org/api/reactivity-core.html
-- `toRefs`: https://vuejs.org/api/reactivity-utilities.html#torefs
-- `shallowRef`: https://vuejs.org/api/reactivity-advanced.html#shallowref
+- Declaring reactive state: `ref()`, the primary API per the Vue docs. It takes primitives, objects, and arrays, and unwraps in templates and inside `reactive()` containers.
+- A `ref` in script: read and write `.value`. Top-level refs in `<script setup>` reach the template, where `.value` is implicit.
+- `reactive()` takes objects only, and `reactive("hello")` returns the string unchanged. Use `ref()` for a primitive.
+- A `reactive()` object: mutate it in place, never swap it with `state = reactive(otherObj)`. Every consumer holding the original reference stops updating.
+- Destructuring a `reactive()` object: `let { count } = state` copies a plain value that no longer updates `state`. Use `const { count } = toRefs(state)` for one ref per property.
+- A large object replaced wholesale on each update, such as a fetched server response: `shallowRef` or `shallowReactive`, which track only the top level.
+- A third-party class instance whose internals Vue shouldn't mutate: `shallowRef` or `shallowReactive`.
+- After mutating a `shallowRef` in place, call `triggerRef(ref)` to trigger updates.
+- Use `reactive` over `ref` only for one object that lives as long as the component, has many properties, and is mutated in place, not replaced. Even then, use `ref` when a consumer destructures it or a top-level property is a primitive.

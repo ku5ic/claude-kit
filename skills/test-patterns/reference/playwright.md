@@ -1,25 +1,15 @@
 # Playwright
 
-- `page.getByRole` mirrors RTL conventions. Prefer role and label selectors.
-- Wait for network idle is an anti pattern. Wait for the thing you actually need (a request, a visible element).
-- Page object pattern for flows used in three or more tests.
-- Use `test.step` to annotate long flows for better failure traces.
-- One browser context per test. Do not share state.
+- Prefer role and label selectors; `page.getByRole` mirrors RTL conventions.
+- Never wait for network idle; wait for the thing you need, such as a request or a visible element.
+- Use a page object for a flow used in three or more tests.
+- Annotate a long flow with `test.step` for better failure traces.
+- Give each test its own browser context, and never share state.
 
 ## Property-based testing for invariants
 
-For pure-function logic with provable invariants (sorting, parsing, encoding/decoding round-trips, mathematical relations), property-based testing is a stronger fit than example-based unit tests.
-
-- **fast-check** (https://github.com/dubzzz/fast-check) for JavaScript / TypeScript. QuickCheck-inspired, actively maintained, generates random inputs that satisfy the property declaration and shrinks failing cases to a minimal counterexample.
-- **hypothesis** (https://hypothesis.readthedocs.io/en/latest/) for Python. The canonical property-based library. Quoted: "you write tests which should pass for all inputs in whatever range you describe, and let Hypothesis randomly choose which of those inputs to check -- including edge cases you might not have thought about."
-
-The fit-check: can you state an invariant the function should preserve for all inputs in some class? Examples that fit: `parse(stringify(x)) === x` for round-trips; `sort(xs).length === xs.length` for sort invariants; `encode(decode(s)) === s` for codec correctness. Examples that do not fit: I/O-bound code where the "all inputs" set is hard to enumerate, code with environment-coupled side effects, code where the invariant is ill-defined.
-
-Property tests do not replace example-based tests. They complement them: example tests document the intended behavior on canonical inputs; property tests stress the function across the input space looking for cases the author did not consider.
-
-## References
-
-- Playwright: https://playwright.dev/
-- Playwright locators: https://playwright.dev/docs/locators
-- fast-check: https://github.com/dubzzz/fast-check
-- hypothesis: https://hypothesis.readthedocs.io/en/latest/
+- For pure-function logic with provable invariants (sorting, parsing, encoding/decoding round-trips, mathematical relations), property-based testing fits better than example-based unit tests.
+- Use fast-check for JavaScript / TypeScript; it shrinks a failing case to a minimal counterexample. Use hypothesis for Python.
+- It fits when you can state an invariant the function preserves for all inputs in some class: `parse(stringify(x)) === x`, `sort(xs).length === xs.length`, `encode(decode(s)) === s`.
+- It doesn't fit I/O-bound code where "all inputs" is hard to enumerate, code with environment-coupled side effects, or code with an ill-defined invariant.
+- Keep the example-based tests too: they document intended behavior on canonical inputs, and property tests search the input space for cases the author missed.

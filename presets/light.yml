@@ -1,0 +1,5 @@
+# light: fewer stops. Claude pauses once a plan is done, not after each
+# step, plans and reports skip the plan-critic and claim-check passes, and
+# reading or editing a file names no patterns skill to load.
+step_pause: plan
+disabled_rules: [plan-critic, claims, skills-nudge]

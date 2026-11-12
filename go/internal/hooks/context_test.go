@@ -84,15 +84,18 @@ func contextSetup(t *testing.T) *contextEnv {
 	testutil.Git(t, proj, "init", "-q")
 	// Physical, as git reports the root the hook resolves.
 	e.root = testutil.Physical(t, proj)
-	copyRules(t, filepath.Join(e.claude, "rules"))
+	// The plugin root is the fake .claude: the rules it injects, and where
+	// an install-rules.sh link would be left.
+	copyRules(t, rulesDir(e.paths))
+	testutil.Mkdir(t, filepath.Join(e.claude, "rules"))
 	e.kitYML("")
 	return e
 }
 
-// copyRules copies the kit's rules dir to dst.
+// copyRules copies the kit's rule files to dst.
 func copyRules(t *testing.T, dst string) {
 	t.Helper()
-	if err := os.CopyFS(dst, os.DirFS(filepath.Join(kitRoot, "rules"))); err != nil {
+	if err := os.CopyFS(dst, os.DirFS(filepath.Join(kitRoot, "skills/kit-rules/reference"))); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -204,6 +207,14 @@ func TestInjectContext(t *testing.T) {
 		r.Want(t, 0)
 		r.Has(t, "<required-skills>", "fix-sizing", "context-gathering")
 	})
+	t.Run("the chat reply ceiling is stated once, unless it's off", func(t *testing.T) {
+		t.Parallel()
+		e := contextSetup(t)
+		e.kitYML("reply_limits:\n  chat: 25\n")
+		e.inject("s1", "").Has(t, "Reply ceiling: 25 words, fenced code excluded")
+		e.kitYML("reply_limits:\n  chat: 0\n")
+		e.inject("s1", "").Lacks(t, "Reply ceiling")
+	})
 	t.Run("<suggested-skills> has one line per skill a declared dependency maps to, with its trigger phrase", func(t *testing.T) {
 		t.Parallel()
 		e := contextSetup(t)
@@ -307,6 +318,14 @@ dependency_skills:
 		r := e.inject("s1", nonGit)
 		r.Want(t, 0)
 		r.Has(t, "<required-skills>", "fix-sizing", "dirty-files (at session start): unknown")
+	})
+	t.Run("repo-context names kit.yml's skip_dirs, for the session and a subagent", func(t *testing.T) {
+		t.Parallel()
+		e := contextSetup(t)
+		e.kitYML("skip_dirs: [node_modules, .venv]\n")
+		e.writeCache("root: "+e.root, "js: yes")
+		e.inject("s1", "").Has(t, "skip-dirs: node_modules, .venv\n")
+		e.run("inject-subagent-context", map[string]any{"session_id": "s1", "cwd": e.root}).Has(t, "skip-dirs: node_modules, .venv")
 	})
 	t.Run("repo-context names the scratch dir without creating it", func(t *testing.T) {
 		t.Parallel()

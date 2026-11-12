@@ -1,52 +1,19 @@
 # Admin
 
-## ModelAdmin basics
+## ModelAdmin
 
-Register every user-facing model with an explicit `ModelAdmin`. The bare `admin.site.register(Model)` default is only acceptable for developer-only debug models.
-
-```python
-@admin.register(Product)
-class ProductAdmin(admin.ModelAdmin):
-    list_display = ["name", "price", "is_active", "created_at"]
-    list_filter = ["is_active", "category"]
-    search_fields = ["name", "sku"]
-    readonly_fields = ["created_at", "updated_at"]
-    list_select_related = ["category"]
-```
-
-`list_display`: fields shown on the changelist. Keep it to the columns actually useful in operations. Too many columns degrades performance and readability.
-
-`list_filter`: sidebar filter. For large tables, `show_facets = admin.ShowFacets.NEVER` avoids expensive COUNT queries per filter.
-
-`search_fields`: full-text search. Default lookup is `icontains`. Limit to indexed fields on large tables.
-
-`list_select_related`: prevents N+1 queries when displaying related object fields. Set to a list of field names. `True` is deprecated since Django 6.1.
-
-## readonly_fields
-
-Computed fields, timestamps, and any field you do not want changed through admin belong in `readonly_fields`. They must also appear in `fields` or `fieldsets` to display.
+- Every user-facing model: an explicit `ModelAdmin` via `@admin.register(Product)`. A bare `admin.site.register(Model)` is only acceptable for developer-only debug models.
+- `list_display`: only the columns that are useful in operations.
+- `list_select_related`: a list of the related field names the changelist shows, so it doesn't run N+1 queries. `True` is deprecated since Django 6.1.
+- `search_fields`: the default lookup is `icontains`. On a large table, list only indexed fields.
+- A large table: `show_facets = admin.ShowFacets.NEVER` skips the COUNT query per filter, and `show_full_result_count = False` skips the `COUNT(*)` behind the "X results" indicator.
+- Computed fields, timestamps, and fields admin mustn't change: `readonly_fields`. They also need to appear in `fields` or `fieldsets` to display.
 
 ## Permissions
 
-The permission methods (`has_add_permission`, `has_change_permission`, `has_delete_permission`, `has_view_permission`) mirror the application's own authorization rules. Do not rely on admin to enforce what the application does not.
+- `has_add_permission`, `has_change_permission`, `has_delete_permission`, and `has_view_permission` mirror the application's own authorization rules. Never rely on admin to enforce what the application doesn't.
+- Non-superusers: filter in `get_queryset()` explicitly, such as `qs.filter(owner=request.user)` when `request.user.is_superuser` is false.
 
-Filter querysets for non-superusers explicitly:
+## Production use
 
-```python
-def get_queryset(self, request):
-    qs = super().get_queryset(request)
-    if not request.user.is_superuser:
-        return qs.filter(owner=request.user)
-    return qs
-```
-
-## Production posture
-
-Admin is useful for incident investigation. Keep it simple and readable. Do not use it as a workflow UI for business processes; that is what the application is for.
-
-`show_full_result_count = False` on large tables avoids the expensive `COUNT(*)` query that powers the "X results" indicator.
-
-## References
-
-- https://docs.djangoproject.com/en/stable/ref/contrib/admin/
-- https://docs.djangoproject.com/en/stable/ref/contrib/admin/#modeladmin-options
+- Admin is for incident investigation. Keep it simple and readable, and never use it as a workflow UI for business processes.

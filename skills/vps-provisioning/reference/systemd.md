@@ -1,43 +1,11 @@
-# systemd Services
+# systemd services
 
-## Contents
+## Unit file
 
-- [Unit file structure](#unit-file-structure)
-- [Type values](#type-values)
-- [Restart policies](#restart-policies)
-- [EnvironmentFile](#environmentfile)
-- [Managing the service](#managing-the-service)
-- [Viewing logs (journald)](#viewing-logs-journald)
-- [After and Wants vs Requires](#after-and-wants-vs-requires)
-- [References](#references)
-
-## Unit file structure
-
-Place unit files in `/etc/systemd/system/`. Name the file `<service-name>.service`.
-
-```ini
-[Unit]
-Description=My Application
-After=network.target
-Wants=network.target
-
-[Service]
-Type=exec
-User=deploy
-Group=deploy
-WorkingDirectory=/opt/myapp
-EnvironmentFile=/opt/myapp/.env
-ExecStart=/opt/myapp/venv/bin/gunicorn --bind 127.0.0.1:8000 --workers 4 app:app
-ExecReload=/bin/kill -s HUP $MAINPID
-Restart=on-failure
-RestartSec=5s
-StandardOutput=journal
-StandardError=journal
-LimitNOFILE=65536
-
-[Install]
-WantedBy=multi-user.target
-```
+- A unit file goes in `/etc/systemd/system/`, named `<service-name>.service`.
+- `[Unit]`: `Description=My Application`, `After=network.target`.
+- `[Service]` for an app server: `Type=exec`, `User=deploy`, `Group=deploy`, `WorkingDirectory=/opt/myapp`, `EnvironmentFile=/opt/myapp/.env`, `ExecStart=/opt/myapp/venv/bin/gunicorn --bind 127.0.0.1:8000 --workers 4 app:app`, `ExecReload=/bin/kill -s HUP $MAINPID`, `Restart=on-failure`, `RestartSec=5s`, `StandardOutput=journal`, `StandardError=journal`, `LimitNOFILE=65536`.
+- `[Install]`: `WantedBy=multi-user.target`.
 
 ## Type values
 
@@ -49,7 +17,7 @@ WantedBy=multi-user.target
 | `notify`  | Services that signal readiness via sd_notify (systemd-aware apps)     |
 | `oneshot` | Scripts that run once and exit (e.g., init scripts, migrations)       |
 
-Use `exec` as the safe default for processes that do not fork. It waits for the exec syscall to succeed before marking the service started.
+- A process that doesn't fork: `Type=exec`. It waits for the exec syscall to succeed before marking the service started.
 
 ## Restart policies
 
@@ -60,53 +28,23 @@ Use `exec` as the safe default for processes that do not fork. It waits for the 
 | `on-abnormal` | Signal, timeout, or watchdog failure   |
 | `no`          | Never (default)                        |
 
-Use `on-failure` for most services. `always` restarts even after a clean exit. No policy restarts a service stopped with `systemctl stop`.
+- Most services: `Restart=on-failure`. `always` restarts even after a clean exit.
+- No policy restarts a service stopped with `systemctl stop`.
 
 ## EnvironmentFile
 
-Load environment variables from a file (one `KEY=VALUE` per line):
-
-```ini
-EnvironmentFile=/opt/myapp/.env
-```
-
-Set strict permissions on the env file:
-
-```bash
-chown deploy:deploy /opt/myapp/.env
-chmod 600 /opt/myapp/.env
-```
+- `EnvironmentFile=/opt/myapp/.env` loads one `KEY=VALUE` per line. Lock the file down with `chown deploy:deploy /opt/myapp/.env` and `chmod 600 /opt/myapp/.env`.
 
 ## Managing the service
 
-```bash
-systemctl daemon-reload          # after editing the unit file
-systemctl enable myapp           # start on boot
-systemctl start myapp
-systemctl stop myapp
-systemctl restart myapp
-systemctl reload myapp           # send SIGHUP (if ExecReload is set)
-systemctl status myapp           # current state and recent logs
-```
+- After editing a unit file, run `systemctl daemon-reload`.
+- Start on boot with `systemctl enable myapp`. `systemctl start`, `stop`, and `restart` take the same unit name.
+- `systemctl reload myapp` sends SIGHUP when `ExecReload` is set. `systemctl status myapp` shows the current state and recent logs.
+- Logs: `journalctl -u myapp`, with `-f` to follow, `--since "1 hour ago"`, `-n 100` for the last 100 lines, or `-p err` for errors only.
 
-## Viewing logs (journald)
+## Ordering and dependencies
 
-```bash
-journalctl -u myapp              # all logs for the unit
-journalctl -u myapp -f           # follow (tail -f equivalent)
-journalctl -u myapp --since "1 hour ago"
-journalctl -u myapp -n 100       # last 100 lines
-journalctl -u myapp -p err       # errors only
-```
-
-## After and Wants vs Requires
-
-- `After=network.target`: start after networking is up (ordering only)
-- `Wants=network.target`: weakly depends on another unit (starts without it if absent)
-- `Requires=`: hard dependency; if the required unit fails, this unit fails
-
-For most web apps: `After=network.target` is sufficient. `Requires=postgresql.service` is appropriate when the service cannot start without the database.
-
-## References
-
-- https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html
+- `After=network.target` orders the unit so it stops before the network goes down. It doesn't wait for the network at start. Never pair it with `Wants=` or `Requires=network.target`.
+- A service that can't start until the network is configured: `After=network-online.target` and `Wants=network-online.target`, with the network manager's wait-online service enabled.
+- `Requires=` is a hard dependency. If the required unit fails, this unit fails.
+- Most web apps need only `After=network.target`. A service that can't start without its database gets `Requires=postgresql.service`.

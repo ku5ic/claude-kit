@@ -2,48 +2,20 @@
 
 ## Built-in schemes
 
-**TokenAuthentication**: simple token in `Authorization: Token <key>` header. Tokens are stored in the database (one per user). Suitable for mobile and desktop clients. Requires HTTPS in production (token travels in every request header).
-
-```python
-REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework.authentication.TokenAuthentication",
-    ]
-}
-```
-
-Generate tokens: `manage.py drf_create_token <username>`, or via the built-in `obtain_auth_token` view, or automatically via signals on user creation.
-
-**SessionAuthentication**: uses Django's session backend. Appropriate for same-origin AJAX clients sharing the browser session. Requires CSRF tokens on unsafe methods (POST, PUT, PATCH, DELETE).
-
-**BasicAuthentication**: HTTP Basic Auth. Only for development or internal tools. Never use over plain HTTP.
+- Enable a scheme in `REST_FRAMEWORK["DEFAULT_AUTHENTICATION_CLASSES"]`, as in `"rest_framework.authentication.TokenAuthentication"`.
+- `TokenAuthentication` sends a token in the `Authorization: Token <key>` header, stored in the database, one per user. Use it for mobile and desktop clients, over HTTPS in production.
+- Generate tokens with `manage.py drf_create_token <username>`, the built-in `obtain_auth_token` view, or a signal on user creation.
+- `SessionAuthentication` uses Django's session backend. Use it for same-origin AJAX clients sharing the browser session; unsafe methods (POST, PUT, PATCH, DELETE) need a CSRF token.
+- `BasicAuthentication`: only for development or internal tools, never over plain HTTP.
 
 ## JWT via djangorestframework-simplejwt
 
-DRF does not include JWT out of the box. The DRF docs name `djangorestframework-simplejwt` as a package for JWT authentication.
-
-```python
-REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
-    ]
-}
-```
-
-Key properties: access token (short-lived, typically 5 minutes) + refresh token (longer-lived). The access token is stateless; the refresh token can be blacklisted via simplejwt's blacklist app.
-
-JWT vs DRF token:
-
-- DRF token: single long-lived token, requires database lookup per request, easy to revoke by deleting the token row.
-- JWT: stateless access token (no DB lookup per request), but cannot be revoked until expiry without a blacklist. The refresh token requires a DB lookup.
-
-Choose DRF tokens for simplicity and easy revocation. Choose JWT when you need stateless horizontal scaling or cross-service authentication.
+- JWT isn't built into DRF; the DRF docs name `djangorestframework-simplejwt`, whose class is `rest_framework_simplejwt.authentication.JWTAuthentication`.
+- simplejwt issues a short-lived access token (typically 5 minutes) and a longer-lived refresh token. The access token is stateless; simplejwt's blacklist app can blacklist the refresh token.
+- A DRF token is one long-lived token that needs a database lookup per request and is revoked by deleting its row.
+- A JWT access token needs no database lookup per request but can't be revoked before expiry without a blacklist. The refresh token needs a database lookup.
+- Pick DRF tokens for simplicity and easy revocation, JWT for stateless horizontal scaling or cross-service authentication.
 
 ## Throttle auth endpoints
 
-Apply tight rate limits to any endpoint that issues or refreshes tokens. See `throttling-and-pagination.md`.
-
-## References
-
-- https://www.django-rest-framework.org/api-guide/authentication/
-- https://django-rest-framework-simplejwt.readthedocs.io/en/latest/
+- Any endpoint that issues or refreshes tokens gets a tight rate limit. See `throttling-and-pagination.md`.

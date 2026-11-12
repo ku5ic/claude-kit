@@ -6,17 +6,19 @@ package claims
 
 import (
 	"bytes"
-	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/ku5ic/claude-kit/go/internal/cache"
+	"github.com/ku5ic/claude-kit/go/internal/claudecli"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/connector"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
@@ -24,12 +26,30 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
-// Guard is set in the verifier's environment, so its own session runs no
-// kit hook and can't recurse into another verification.
+// Guard is set in the verifier's environment, with a marker under the cache
+// (claudecli.Guarded), so its own session runs no kit hook and can't
+// recurse into another verification.
 const Guard = "KIT_VERIFIER"
 
-//go:embed prompt.txt
-var systemPrompt string
+// AgentFile is the claim-checker agent under the kit root. Its body is the
+// verifier's system prompt, so the hook's own run and the agent Claude
+// starts follow one text.
+func AgentFile(root string) string { return filepath.Join(root, "agents", "claim-checker.md") }
+
+// systemPrompt is the agent file's body, its frontmatter dropped.
+func systemPrompt(root string) (string, error) {
+	data, err := os.ReadFile(AgentFile(root))
+	if err != nil {
+		return "", fmt.Errorf("claims: %w", err)
+	}
+	text := string(data)
+	if rest, ok := strings.CutPrefix(text, "---\n"); ok {
+		if _, body, ok := strings.Cut(rest, "\n---\n"); ok {
+			text = body
+		}
+	}
+	return strings.TrimSpace(text), nil
+}
 
 // builtins are the read-only tools the verifier always has. ToolSearch
 // loads the connector tools, which arrive deferred.
@@ -70,11 +90,16 @@ func Declarative(text string) bool {
 	return statement.MatchString(prose) || item.MatchString(prose)
 }
 
-// Verdict is the verifier's answer: OK when no claim is unsupported.
+// Verdict is the verifier's answer: OK when no claim is unsupported. Usage
+// is what the run cost, set on a failed run too.
 type Verdict struct {
-	OK          bool          `json:"ok"`
-	Unsupported []Unsupported `json:"unsupported"`
+	OK          bool            `json:"ok"`
+	Unsupported []Unsupported   `json:"unsupported"`
+	Usage       claudecli.Usage `json:"-"`
 }
+
+// ErrOff is Verify's error when kit.yml turns the verifier off.
+var ErrOff = errors.New("claims: verifier is off")
 
 // Unsupported is a claim nothing confirmed, and the check that would.
 type Unsupported struct {
@@ -83,11 +108,12 @@ type Unsupported struct {
 }
 
 // Verify runs the verifier on text from dir, with the session transcript
-// at transcriptPath (none when "") as its evidence. An error means no
-// verdict; callers fail open on it.
-func Verify(cfg *config.Config, dir, text, transcriptPath string) (Verdict, error) {
+// at transcriptPath (none when "") as its evidence and the agent file under
+// root as its instructions. An error means no verdict; callers fail open
+// on it.
+func Verify(cfg *config.Config, root, cacheDir, dir, text, transcriptPath string) (Verdict, error) {
 	if cfg.Claims.Off() {
-		return Verdict{}, errors.New("claims: verifier is off")
+		return Verdict{}, ErrOff
 	}
 	var entries []transcript.Entry
 	if transcriptPath != "" {
@@ -98,18 +124,27 @@ func Verify(cfg *config.Config, dir, text, transcriptPath string) (Verdict, erro
 	}
 	argv := cfg.Claims.Command
 	if len(argv) == 0 {
-		argv = claude(cfg, entries)
+		prompt, err := systemPrompt(root)
+		if err != nil {
+			return Verdict{}, err
+		}
+		argv = claude(cfg, entries, prompt)
 	}
 	forked := transcriptPath != "" && fsx.IsFile(transcript.ForkSidecar(transcriptPath))
-	return run(cfg, argv, dir, evidence(entries, text, forked))
+	return run(cfg, argv, filepath.Join(cacheDir, cache.Guard), dir, evidence(entries, text, forked))
 }
 
 // run runs the verifier command argv from dir on input, the evidence and
-// the text to verify.
-func run(cfg *config.Config, argv []string, dir, input string) (Verdict, error) {
+// the text to verify, guarded by a marker under markerDir.
+func run(cfg *config.Config, argv []string, markerDir, dir, input string) (Verdict, error) {
+	env, cleanup, err := claudecli.Guarded(markerDir, Guard)
+	if err != nil {
+		return Verdict{}, fmt.Errorf("claims: %w", err)
+	}
+	defer cleanup()
 	cmd := proc.Command(time.Duration(cfg.Claims.Timeout)*time.Second, argv[0], argv[1:]...)
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), Guard+"=1")
+	cmd.Env = env
 	cmd.Stdin = strings.NewReader(input)
 	out, err := cmd.Output()
 	if cmd.TimedOut() {
@@ -118,22 +153,16 @@ func run(cfg *config.Config, argv []string, dir, input string) (Verdict, error) 
 	if err != nil {
 		return Verdict{}, fmt.Errorf("claims: %w", err)
 	}
-	var envelope struct {
-		IsError    bool            `json:"is_error"`
-		Subtype    string          `json:"subtype"`
-		Structured json.RawMessage `json:"structured_output"`
-	}
-	if err := json.Unmarshal(out, &envelope); err != nil {
-		return Verdict{}, fmt.Errorf("claims: malformed output: %w", err)
-	}
-	if envelope.IsError || len(envelope.Structured) == 0 {
-		return Verdict{}, fmt.Errorf("claims: no answer (%s)", envelope.Subtype)
+	answer, usage, err := claudecli.Parse(out)
+	if err != nil {
+		return Verdict{Usage: usage}, fmt.Errorf("claims: %w", err)
 	}
 	var v Verdict
-	if err := json.Unmarshal(envelope.Structured, &v); err != nil {
-		return Verdict{}, fmt.Errorf("claims: malformed answer: %w", err)
+	if err := json.Unmarshal(answer, &v); err != nil {
+		return Verdict{Usage: usage}, fmt.Errorf("claims: malformed answer: %w", err)
 	}
 	v.OK = v.OK && len(v.Unsupported) == 0
+	v.Usage = usage
 	return v, nil
 }
 
@@ -142,7 +171,7 @@ func run(cfg *config.Config, argv []string, dir, input string) (Verdict, error) 
 // denies whatever --allowedTools doesn't name: the read-only builtins,
 // each read tool the session called, and kit.yml's claims.allow, less any
 // write tool.
-func claude(cfg *config.Config, entries []transcript.Entry) []string {
+func claude(cfg *config.Config, entries []transcript.Entry, systemPrompt string) []string {
 	allowed := slices.Clone(builtins)
 	for _, e := range entries {
 		for _, b := range e.ToolUses() {

@@ -1,37 +1,22 @@
 ---
 name: docker-patterns
-description: Docker patterns for Dockerfile best practices, multi-stage builds, Compose service configuration, networking, volumes, and security. Use whenever the project contains a `Dockerfile`, a Compose file, or `.dockerignore`, OR the user asks about containers, image builds, or Compose service wiring, even if Docker is not mentioned by name.
+description: Docker patterns for Dockerfiles, multi-stage builds, Compose, networking, and volumes. Load before any edit to a Dockerfile, Compose file, or .dockerignore, however small, and for container questions.
 ---
 
 # Docker patterns
 
-Docker Engine 29.9.3. Compose Specification (current format, supersedes 2.x and 3.x). Verify at https://docs.docker.com/engine/release-notes/ and https://docs.docker.com/compose/compose-file/.
+Default assumption: Docker Engine 29.9.3 and the Compose Specification, which supersedes the 2.x and 3.x formats.
 
 ## Reference files
 
-| File                                           | Covers                                                                                       |
-| ---------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| [dockerfile.md](reference/dockerfile.md)       | Base image selection, layer caching, RUN/COPY/ADD/CMD/ENTRYPOINT/USER/WORKDIR, .dockerignore |
-| [multi-stage.md](reference/multi-stage.md)     | Multi-stage builds, named stages, COPY --from, --target, BuildKit                            |
-| [compose.md](reference/compose.md)             | Services, build, ports, depends_on with healthcheck, restart, env_file, profiles, secrets    |
-| [networking.md](reference/networking.md)       | Bridge/host/none drivers, user-defined networks, service discovery, port publishing          |
-| [volumes.md](reference/volumes.md)             | Named volumes vs bind mounts vs tmpfs, when to use each, Compose volume declarations         |
-| [security.md](reference/security.md)           | Non-root user, minimal base images, image pinning, .dockerignore, Docker Scout, secrets      |
-| [anti-patterns.md](reference/anti-patterns.md) | Severity-labeled anti-patterns to flag in review                                             |
+Loading this skill isn't enough. Before your next edit, read the file of every row that matches it. The rules live in those files, and this one only points at them.
 
-## References
-
-- https://docs.docker.com/build/building/best-practices/
-- https://docs.docker.com/compose/compose-file/
-- https://docs.docker.com/engine/network/
-- https://docs.docker.com/engine/storage/
-
-## Version notes
-
-Checked: 2026-11-10 against https://docs.docker.com/engine/release-notes/29/, https://docs.docker.com/engine/deprecated/, https://docs.docker.com/engine/containers/start-containers-automatically/ and https://docs.docker.com/compose/compose-file/04-version-and-name/
-
-Docker Engine and Docker Compose release independently. The Compose Specification supersedes the versioned format (version: "3"), and the `version` top-level key is now ignored.
-
-- 29.9.3 (2026-11-03): corrected the `always` restart policy per the docs, and noted legacy link environment variables are disabled since 29.0, removal targeted for 30.0.
-- 29.8.1 (2026-09-15): bug fixes only (containerd image store, logging, networking); no guidance change.
-- 29.4.2 (2026-05-01): previous baseline.
+| Before                                                                         | Read                                           |
+| ------------------------------------------------------------------------------ | ---------------------------------------------- |
+| Writing or changing a Dockerfile, or a `.dockerignore`                         | [dockerfile.md](reference/dockerfile.md)       |
+| Splitting a build into stages, or using `COPY --from` or `--target`            | [multi-stage.md](reference/multi-stage.md)     |
+| Writing or changing a Compose file, its services, env, or profiles             | [compose.md](reference/compose.md)             |
+| Connecting containers, publishing ports, or choosing a network driver          | [networking.md](reference/networking.md)       |
+| Persisting data with a volume, a bind mount, or tmpfs                          | [volumes.md](reference/volumes.md)             |
+| Setting the user, pinning images, or handling secrets in an image or container | [security.md](reference/security.md)           |
+| Writing, changing, or reviewing Docker code                                    | [anti-patterns.md](reference/anti-patterns.md) |

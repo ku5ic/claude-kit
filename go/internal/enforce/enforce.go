@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/classify"
+	"github.com/ku5ic/claude-kit/go/internal/claudecli"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/gapfill"
@@ -83,6 +84,7 @@ type Plan struct {
 	Discovery    string
 	Managed      bool
 	Since        *git.Since
+	Classifier   claudecli.Usage // what planning's gap-fill calls cost
 }
 
 // Options says which root to plan, which subprojects to keep, whether
@@ -105,7 +107,7 @@ func Build(cfg *config.Config, o Options) Plan {
 	b.unclassified(func(e sources.Entry) bool { return !sources.SourceOf(e.Source).GitHook })
 	b.settle(o.CacheDir)
 	b.skipCovered()
-	p := Plan{Root: o.Root, Unclassified: b.skipped, Managed: len(b.facts.Managers) > 0, Since: b.since}
+	p := Plan{Root: o.Root, Unclassified: b.skipped, Managed: len(b.facts.Managers) > 0, Since: b.since, Classifier: b.facts.Usage}
 	// A fan-out gate belongs to each member it runs across.
 	member := func(sub string) bool { return b.members[filepath.Join(o.Root, sub)] }
 	for _, g := range b.gates {

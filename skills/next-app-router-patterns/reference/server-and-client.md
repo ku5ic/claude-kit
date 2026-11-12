@@ -1,46 +1,28 @@
 # Server and client boundary
 
-## Default is Server
+- Layouts and pages are Server Components by default. They render on the server, can fetch inline in `async function Page()`, and never ship to the client; only their HTML and RSC payload do.
+- `"use client"` at the top of a file marks the boundary into the client module graph. Everything that file imports joins the client bundle, transitively; the directive is per file, not per component.
+- Keep the boundary deep: layouts, pages, and presentational subtrees stay on the server, and only the interactive leaf (search input, like button, modal) is a Client Component. A Client Component wrapper above a heavy library import ships that library.
 
-Layouts and pages are React Server Components by default. They render on the server, can fetch data inline (`async function Page()`), and produce an RSC payload that the client uses to update the DOM. Server components never ship to the client; only the resulting HTML and the RSC payload do.
+## What Server Components can't do
 
-## `"use client"` is a module-graph boundary
+- A file that uses state (`useState`, `useReducer`), effects (`useEffect`, `useLayoutEffect`), event handlers (`onClick`, `onChange`, `onSubmit`), browser APIs (`window`, `document`, `localStorage`), or renders a Context `<Provider>` needs `"use client"`, or that logic moves into a nested Client Component.
 
-Adding `"use client"` at the top of a file marks the boundary into the client module graph. Every file imported by a `"use client"` module is part of the client bundle, transitively. The directive is set per file, not per component, and it applies to the whole import subtree.
+## What Client Components can't do
 
-Practical consequence: a wrapper Client Component upstream of a heavy library import pulls that library to the client. Move the boundary as deep as possible: keep layouts, pages, and presentational subtrees on the server; mark only the interactive leaf (search input, like button, modal) as client.
-
-## What server components cannot do
-
-- React state (`useState`, `useReducer`).
-- Effects (`useEffect`, `useLayoutEffect`).
-- Event handlers (`onClick`, `onChange`, `onSubmit`).
-- Browser APIs (`window`, `document`, `localStorage`).
-- React Context (no `<Provider>` rendering).
-
-If any of these appear, the file needs `"use client"` or the logic moves into a Client Component nested inside.
-
-## What client components cannot do
-
-- Direct database access (no driver imports; the connection pool would ship to the browser).
-- Reading server-only secrets (`process.env.API_KEY` without the `NEXT_PUBLIC_` prefix is replaced with an empty string in client bundles).
-- Async function components (`async function Comp()` is server-only).
-- `headers()`, `cookies()`, and other request-time server APIs.
+- Import a database driver.
+- Read server-only secrets: `process.env.API_KEY` without the `NEXT_PUBLIC_` prefix is an empty string in client bundles.
+- Be async function components; `async function Comp()` is server-only.
+- Call `headers()`, `cookies()`, or other request-time server APIs.
 
 ## Serialization across the boundary
 
-Props passed from a Server Component to a Client Component must be serializable by React: primitives, plain objects, arrays, `Date`, `Map`, `Set`, typed arrays, promises (for streaming via `use()`), and certain other shapes. Functions are not serializable except for Server Functions (which are passed by reference). Class instances and non-plain objects fail at the boundary.
-
-Passing a Server Component as `children` of a Client Component is allowed and common: it lets server-rendered subtrees nest visually inside client wrappers (a `<Modal>` Client Component that wraps a `<Cart>` Server Component fetched from the database).
+- Props from a Server Component to a Client Component must be serializable by React: primitives, plain objects, arrays, `Date`, `Map`, `Set`, typed arrays, promises (streamed via `use()`), and some other shapes.
+- Functions fail at the boundary, except Server Functions, which pass by reference. Class instances and non-plain objects fail too.
+- A Server Component may be the `children` of a Client Component, such as a `<Cart>` Server Component inside a `<Modal>` Client Component.
 
 ## `headers()`, `cookies()`, `server-only`
 
-`headers()` and `cookies()` are async server-only APIs (they return promises that resolve to read interfaces). Calling them from a file that ends up in the client bundle is a build-time error. To enforce one-way isolation, import `server-only` at the top of any module that contains secrets or server-only logic; if it ever gets imported by a Client Component, the build fails clearly.
-
-For `process.env` in client code: `reference/runtime.md`'s environment-variables section.
-
-## References
-
-- Next.js Server and Client Components: https://nextjs.org/docs/app/getting-started/server-and-client-components
-- React `use client`: https://react.dev/reference/rsc/use-client
-- React Server Components: https://react.dev/reference/rsc/server-components
+- `headers()` and `cookies()` are async and server-only. Calling them from a file that ends up in the client bundle is a build error.
+- At the top of any module with secrets or server-only logic, `import "server-only"`, so a Client Component import of it fails the build.
+- For `process.env` in client code, see `runtime.md`'s environment variables section.

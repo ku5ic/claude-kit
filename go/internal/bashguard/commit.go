@@ -35,7 +35,7 @@ var (
 )
 
 // CheckCommit is guard-commit: it inspects git commit commands for AI signatures, a staged
-// secret (gitleaks), an unchunked wall of text in the body (rules/output.md
+// secret (gitleaks), an unchunked wall of text in the body (skills/kit-rules/reference/output.md
 // section 1), and AI tells in the message (kit.yml slop).
 func CheckCommit(h *hook.Hook) error {
 	if h.Payload.Err != nil {
@@ -76,7 +76,7 @@ func CheckCommit(h *hook.Hook) error {
 	body := heredocBody(cmd)
 	if body != "" {
 		if run := longestProseRun(body); run > 4 {
-			reason := fmt.Sprintf("commit message has an unchunked wall of text (%d consecutive prose lines). rules/output.md section 1: short paragraphs, no dense blocks.", run)
+			reason := fmt.Sprintf("commit message has an unchunked wall of text (%d consecutive prose lines). skills/kit-rules/reference/output.md section 1: short paragraphs, no dense blocks.", run)
 			if err := h.Block(reason, "commit-wall-of-text"); err != nil {
 				return err
 			}
@@ -91,7 +91,7 @@ func CheckCommit(h *hook.Hook) error {
 		return h.Block("the project's commit-msg checks reject this message; fix it to their convention:\n"+failed, "commit-msg")
 	}
 	if !shownBefore(h.Payload.String("transcript_path"), subject) {
-		h.Decide("ask", "rules/workflow.md section 1: show the commit message and staged diff summary, then wait for the user's go; confirm only if they've seen this message")
+		h.Decide("ask", "skills/kit-rules/reference/workflow.md section 1: show the commit message and staged diff summary, then wait for the user's go; confirm only if they've seen this message")
 	}
 	return nil
 }
@@ -107,7 +107,7 @@ func scanSlop(h *hook.Hook, d *slop.Detector, text, surface, where string) error
 		h.Log(kitlog.Guards, "slop", slop.LogPairs(hit, where)...)
 	})
 	if len(hits) > 0 {
-		return h.Block(slop.Message(where, hits), "slop")
+		return h.Block(slop.Message(where, hits, ""), "slop")
 	}
 	return nil
 }
@@ -338,7 +338,7 @@ func subject(msg string) string {
 
 // longestProseRun is the longest run of consecutive non-blank lines that
 // aren't list items, headings, blockquotes, or table rows, outside fenced
-// code and YAML frontmatter: a deterministic stand-in for rules/output.md
+// code and YAML frontmatter: a deterministic stand-in for skills/kit-rules/reference/output.md
 // section 1. Frontmatter is skipped because its key: value lines would read
 // as a wall, blocking every agent and skill header.
 func longestProseRun(text string) int {

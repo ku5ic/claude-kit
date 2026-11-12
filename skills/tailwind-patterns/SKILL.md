@@ -1,105 +1,43 @@
 ---
 name: tailwind-patterns
-description: Tailwind CSS v4 patterns for CSS-first config via the @theme directive, v3-vs-v4 deltas, variant rules, and anti-patterns. Use whenever the project contains a `tailwind.config.*`, `@import "tailwindcss"` in CSS, or a `tailwindcss` or `@tailwindcss/*` dependency, OR the user asks about Tailwind, utility classes, design tokens, or dark-mode strategy in a Tailwind project, even if Tailwind is not mentioned by name.
+description: Tailwind CSS v4 patterns for @theme config, v3-to-v4 changes, and variants. Load before any edit to a class list, stylesheet, or tailwind.config.*, however small, and for Tailwind questions.
 ---
 
 # Tailwind patterns
 
-Default assumption: Tailwind v4 with CSS-first config. If the project has a `tailwind.config.js` it is v3 and the v3 section applies; otherwise v4.
+Default assumption: Tailwind v4 with CSS-first config.
 
-## v4 vs v3 at a glance
+- `@tailwindcss/postcss` or `@tailwindcss/vite` in `package.json`, or `@import "tailwindcss"` in CSS: v4.
+- A `tailwind.config.js` or `.ts` and no v4 sign: v3, and the v3 lines apply.
+- Both: mid-migration. Treat it as v4 and expect leftover v3 patterns.
 
-- v4 setup: a single `@import "tailwindcss"` in the main CSS file. No `@tailwind base / components / utilities` directives.
-- v4 config: lives in CSS via the `@theme` directive. No `tailwind.config.js`. Theme tokens become CSS custom properties automatically.
-- v4 content detection: automatic. The compiler scans the project for class names; you do not configure `content` paths.
-- v4 plugins: still work. Container queries are built in; typography and forms remain separate `@tailwindcss/*` plugins. Check before installing.
-- v4 build: full builds ~3.8x and incremental rebuilds 8.8x faster than v3.4; `@import` bundling and vendor prefixing are built in (Lightning CSS under the hood).
+## v4 setup
 
-## Setting up v4 correctly
+- The main CSS file: one `@import "tailwindcss"`, never the v3 `@tailwind base; @tailwind components; @tailwind utilities;` triple.
+- Config: `@theme` blocks in CSS. Never create a `tailwind.config.js` in a v4 project; one is dead code unless a CSS file loads it with `@config`.
+- Theme keys: `--<namespace>-<name>`, with namespaces such as `color`, `font`, `text`, `spacing`, `breakpoint`, `radius`, `shadow`, `animate`. Each key generates its utility (`--color-brand` gives `text-brand`, `--breakpoint-3xl` gives `3xl:`).
+- Extending the default theme: any `--<namespace>-<name>` token in `@theme` extends it, so drop v3's `theme.extend`.
+- Content paths: v4 detects them, so drop v3's `content: [...]`.
+- New colors: `oklch()`, as in `--color-brand: oklch(0.7 0.15 250)`.
+- Custom utility classes: `@utility`, not v3's `@layer utilities { ... }`.
+- Plugins: container queries are built in; typography and forms are still separate `@tailwindcss/*` plugins. Check before installing one.
 
-```css
-/* app/globals.css or equivalent */
-@import "tailwindcss";
+## Theme values in CSS
 
-@theme {
-  --color-brand: oklch(0.7 0.15 250);
-  --font-display: "Inter", sans-serif;
-  --spacing-page: 4rem;
-  --breakpoint-3xl: 1920px;
-}
-```
+- Reading a theme value: `var(--color-brand)`. There's no read function in v4.
+- An alpha-modified color: `--alpha(var(--color-brand) / 50%)`. v3's `theme()` helper survives in v4 only for compatibility.
 
-- Theme keys follow the pattern `--<namespace>-<name>`. Namespaces: `color`, `font`, `text`, `spacing`, `breakpoint`, `radius`, `shadow`, `animate`, etc.
-- Defining a key generates the corresponding utility (`text-brand`, `font-display`, `p-page`, `3xl:`).
-- Use `oklch()` for new colors; v4's default palette is OKLCH-based for better wide-gamut support.
+## Variants
 
-## v3 patterns to avoid in v4
+- Stacked variants in v4 apply left to right, the reverse of v3. An order-sensitive stack flips, so v3 `first:*:pt-0` becomes v4 `*:first:pt-0`.
+- v4 adds `not-` (`not-hover:opacity-50`), `nth-*` (`nth-3:`, `nth-[3n+1]:`), and `starting:` for entry animations (`starting:opacity-0`). `*:` for direct children is from 3.4.
+- Container queries: `@container` on the parent, `@sm:flex` and the like on children. No plugin.
 
-- `tailwind.config.js`: do not create one in a v4 project. Move config into `@theme` blocks. v4 no longer detects the file automatically, so it is dead code unless a CSS file loads it with `@config` (still supported for backward compatibility).
-- `@tailwind base; @tailwind components; @tailwind utilities;`: v3 directive triple. v4 replaces these with a single `@import "tailwindcss"`.
-- `theme.extend`: v3 JS shape. In v4, all CSS-defined `--<namespace>-<name>` tokens extend the default theme automatically.
-- `content: [...]`: v3 path config. v4 auto-detects.
-- `@layer utilities { ... }` for custom utility classes: v4 uses native cascade layers and no longer hijacks `@layer`; the upgrade guide names `@utility` as the replacement.
+## Anti-patterns
 
-## Using theme values from CSS
-
-- `var(--color-brand)`: read a theme value in plain CSS. Every `@theme` key is a CSS custom property; there is no separate read function in the v4 docs.
-- `--alpha(var(--color-brand) / 50%)`: compute an alpha-modified color in v4. v3 used the `theme()` helper, kept in v4 only for compatibility.
-
-## Variants and modifiers
-
-- v4 variant order: stacked variants apply left to right (v3 was right to left). `hover:focus:bg-blue-500` comes out the same. An order-sensitive stack flips, so v3 `first:*:pt-0` is v4 `*:first:pt-0`.
-- New in v4:
-  - `not-` variant prefix (`not-hover:opacity-50`)
-  - `nth-*` variants (`nth-3:`, `nth-[3n+1]:`); the `*:` direct-children variant predates v4 (3.4)
-  - starting-style variants (`starting:opacity-0` for entry animations)
-- Container queries are built in: `@container` on the parent, `@sm:flex` etc. on children. No plugin install.
-
-## Anti-patterns to flag in review
-
-**warning: hardcoded hex colors when a theme token would work**
-`text-[#ff0000]` bypasses the design system. Use the existing token; if missing, add it to `@theme`.
-
-**warning: `@apply` chains longer than three utilities**
-They obscure the cascade and inhibit tree-shaking. Use a CSS class with raw properties instead, or compose at the markup level.
-
-**info: conditional `@apply` inside `@media` or selector blocks**
-Works, but readability falls off fast. Inline utilities or extract a component.
-
-**warning: `dark:` everywhere instead of a `[data-theme="dark"]` strategy**
-Inconsistent when the project already has a theme toggle. v4 supports both; pick one.
-
-**info: `animate-[...]` arbitrary values when a named animation exists**
-Define `--animate-<name>` in `@theme` and reuse it instead of repeating the arbitrary value.
-
-**warning: missing `text-` size on body copy**
-Relying on the browser default (16px) instead of setting the base size explicitly leaves typography undocumented and inconsistent across components.
-
-## Verifying which version is in use
-
-```sh
-# v4: postcss config has @tailwindcss/postcss, OR vite plugin @tailwindcss/vite
-rg '@tailwindcss/(postcss|vite)' package.json
-
-# v4 config in CSS
-rg '@import "tailwindcss"' --type css
-
-# v3 sentinel: a tailwind.config.js or .ts
-fd -t f 'tailwind.config'
-```
-
-If both `tailwind.config.js` and `@import "tailwindcss"` are present, the project is mid-migration. Treat as v4 but expect leftover v3 patterns.
-
-## References
-
-- v4 release post: https://tailwindcss.com/blog/tailwindcss-v4
-- v3-to-v4 upgrade guide: https://tailwindcss.com/docs/upgrade-guide
-- v4 docs: https://tailwindcss.com/docs
-
-## Version notes
-
-Checked: 2026-11-10 against https://www.npmjs.com/package/tailwindcss, https://tailwindcss.com/docs/upgrade-guide, https://tailwindcss.com/blog/tailwindcss-v4-3 and https://tailwindcss.com/blog/tailwindcss-v4
-
-- 4.3 (2026-05-08, latest 4.3.5 on 2026-11-06): stacked and compound variants in `@variant`; no v5 exists. Corrected the v4 variant stacking order, the `@config` path for a JS config, and the `@layer utilities` wording.
-- 4.0: CSS-first config (`@import "tailwindcss"`, `@theme`, `@utility`, `--alpha()`), automatic content detection, `not-`, `nth-*`, and `starting:` variants (`*:` is 3.4; build-speed figures and the `*:` example corrected 2026-09-26). Theme values are read with `var(--*)`, not a `--theme()` function (corrected 2026-09-12).
-- 3.x: `tailwind.config.js`, `@tailwind base/components/utilities`, `theme()` helper. See "v3 patterns to avoid in v4".
+- A hardcoded hex color where a theme token would work, such as `text-[#ff0000]`: `warning`. Use the token, or add one to `@theme`.
+- An `@apply` chain longer than three utilities: `warning`. Use a CSS class with raw properties, or compose in the markup.
+- `dark:` everywhere when the project already has a `[data-theme="dark"]` toggle: `warning`. Pick one strategy.
+- Body copy with no `text-` size: `warning`. Set the base size explicitly.
+- A conditional `@apply` inside `@media` or a selector block: `info`. Inline the utilities or extract a component.
+- An `animate-[...]` arbitrary value where a named animation exists: `info`. Define `--animate-<name>` in `@theme` and reuse it.

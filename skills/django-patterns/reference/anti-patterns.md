@@ -2,56 +2,12 @@
 
 Severity levels: the report-format skill.
 
----
-
-**`failure`: `DEBUG = True` in production**
-
-See `reference/settings.md`.
-
----
-
-**`failure`: `|safe`, `{% autoescape off %}`, or `mark_safe()` on user-controlled content**
-
-See `reference/templates.md`.
-
----
-
-**`failure`: N+1 query in a template loop**
-
-A database query inside a template loop (e.g., via a template tag that calls the ORM) scales with result count and cannot be caught statically. Measure with django-debug-toolbar. Fix with `select_related` or `prefetch_related` at the view or queryset level.
-
----
-
-**`warning`: Business logic in `model.save()` override**
-
-`QuerySet.update()` and `bulk_create()` / `bulk_update()` bypass `save()` and post-save signals. Logic in `save()` creates a false sense of coverage. Move to a service function that is called explicitly.
-
----
-
-**`warning`: Signals for business logic**
-
-Django signals decouple sender from receiver, which also hides the execution path from a code reader. Using signals for business logic creates invisible control flow that is hard to test, trace, and order. Signals are appropriate for cross-cutting concerns (audit logging, cache invalidation) where decoupling is the explicit goal. For business logic, call the function directly.
-
----
-
-**`warning`: Fat views**
-
-A view function or method past the function-size threshold in `skills/engineering-fundamentals/reference/metric-thresholds.md` typically contains business logic that belongs in a service, manager method, or form validator. The signal is a view that is hard to test in isolation.
-
----
-
-**`warning`: `request.user` access inside model methods**
-
-Models should not know about HTTP. Passing the request or `request.user` into a model method couples the model to the request lifecycle and makes it harder to test and reuse in management commands, async tasks, and admin actions.
-
----
-
-**`warning`: `get_queryset()` doing auth checks**
-
-Authorization belongs in permissions or explicit queryset filtering in the view, not inside `get_queryset()`. A queryset filtered by user inside `get_queryset()` is invisible to callers using `Model.objects.all()` and breaks admin access patterns.
-
----
-
-**`info`: Bare `admin.site.register(Model)` without ModelAdmin**
-
-Default admin registration gives a minimal interface. Explicit `ModelAdmin` with `list_display`, `search_fields`, and `list_select_related` is necessary for usable admin under incident conditions.
+- `DEBUG = True` in production: `failure`. See `reference/settings.md`.
+- `|safe`, `{% autoescape off %}`, or `mark_safe()` on user-controlled content: `failure`. See `reference/templates.md`.
+- A database query inside a template loop, such as a template tag that calls the ORM: `failure`. No static check catches it, so measure with django-debug-toolbar. Fix it with `select_related` or `prefetch_related` at the view or queryset level.
+- Business logic in a `model.save()` override: `warning`. `QuerySet.update()`, `bulk_create()`, and `bulk_update()` skip `save()` and post-save signals. Move the logic to a service function that's called explicitly.
+- Signals for business logic: `warning`. Call the function directly. Signals fit cross-cutting concerns such as audit logging and cache invalidation, where decoupling is the explicit goal.
+- A view past the function-size threshold in `skills/engineering-fundamentals/reference/metric-thresholds.md`: `warning`. Move its business logic to a service, manager method, or form validator.
+- The request or `request.user` passed into a model method: `warning`. Models don't know about HTTP.
+- Auth checks inside a model manager's `get_queryset()`: `warning`. Authorization goes in permissions or explicit queryset filtering in the view.
+- A bare `admin.site.register(Model)` without a `ModelAdmin`: `info`. Add one with `list_display`, `search_fields`, and `list_select_related`.

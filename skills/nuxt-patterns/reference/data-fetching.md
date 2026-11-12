@@ -1,70 +1,24 @@
 # Data fetching
 
-Three primitives, with overlapping but distinct responsibilities.
+## Choosing one
 
-## `$fetch` (the underlying transport)
+- An event handler, a Server Function, or a button click: `$fetch`, Nuxt's HTTP client built on ofetch.
+- A plain HTTP fetch during component setup: `useFetch(url)`, the shorthand for `useAsyncData(url, () => $fetch(url))`.
+- Any other async work during component setup (a CMS, GraphQL, or local database client, several awaited steps, or control `useFetch` doesn't expose): `useAsyncData(key, fn)`.
+- Wrap a `$fetch` call made during component setup in `useFetch` or `useAsyncData`.
 
-`$fetch` is Nuxt's HTTP client (built on ofetch). Use it directly inside event handlers, Server Functions, and any case that does not need SSR-aware behavior:
+## `useFetch` and `useAsyncData`
 
-```ts
-async function publish() {
-  await $fetch("/api/posts", { method: "POST", body: post });
-}
-```
+- Both fetch once on the server, serialize the result into the page payload, and reuse it on the client with no second request during hydration.
+- `useFetch` returns `data`, `pending`, `error`, `refresh`, and `clear` refs.
+- A URL that changes: pass `useFetch` a function returning the URL, or a ref. A URL change re-fetches automatically.
 
-`$fetch` alone has no server/client deduplication and no navigation-prevention. Calling it during component setup outside `useFetch` / `useAsyncData` causes the request to fire on the server AND again on the client during hydration.
+## Keys
 
-## `useFetch` (the SSR-safe HTTP wrapper)
-
-`useFetch(url, options)` wraps `$fetch` with SSR-aware behavior:
-
-- Fetches once on the server during SSR; the result is serialized into the page payload.
-- On the client, the payload is reused; no second request is fired during hydration.
-- Provides `data`, `pending`, `error`, `refresh`, `clear` refs.
-
-```vue
-<script setup>
-const { data: posts, pending, error } = await useFetch("/api/posts");
-</script>
-```
-
-The first argument can be a string, a function returning a string, or a ref. URL changes trigger a re-fetch automatically.
-
-## `useAsyncData` (the SSR-safe arbitrary-async wrapper)
-
-`useAsyncData(key, fn)` does the same SSR-aware orchestration but accepts any async function, not just an HTTP call. Use it when:
-
-- The data source is a CMS client, GraphQL client, or local database call (anything not HTTP).
-- The data depends on multiple awaited steps.
-- You need finer control than `useFetch` exposes.
-
-```ts
-const { data: post } = await useAsyncData(`post-${slug}`, () =>
-  cmsClient.getPost(slug),
-);
-```
-
-The Nuxt docs are explicit: `useFetch(url)` is sugar for `useAsyncData(url, () => $fetch(url))`. Prefer `useFetch` for plain HTTP fetches; reach for `useAsyncData` when the work is not a single HTTP call.
-
-## Choosing between them
-
-- **HTTP fetch tied to a URL** -> `useFetch`.
-- **Anything else async during component setup** -> `useAsyncData`.
-- **Event handler, Server Function, button click** -> `$fetch`.
-
-## Keys matter for dedup
-
-Both `useFetch` and `useAsyncData` use a unique key to dedup requests across the SSR/hydration boundary. Without an explicit key, both generate one unique to the call site (`useAsyncData`: "unique to the file name and line number"), so the same `useFetch` URL in two components does not share state. Pass a key when calls should share data. The key must be stable for the same logical request and unique across different requests.
-
-`failure`: `useAsyncData('user', ...)` on a per-route page. Every route reuses the same key, so the result of the first navigation persists across subsequent routes. Use a parametrized key: `` `user-${id}` ``.
+- With no explicit key, both generate one unique to the call site (`useAsyncData`: the file name and line number), so the same `useFetch` URL in two components doesn't share state.
+- Give calls that should share data the same explicit key, stable for one logical request and different across different requests.
+- `useAsyncData('user', ...)` on a per-route page: `failure`. Use a parametrized key, `` `user-${id}` ``.
 
 ## Lazy fetching
 
-Add `{ lazy: true }` (or use `useLazyFetch` / `useLazyAsyncData`) to skip blocking the initial navigation. The page renders with `pending: true`, and the data fills in when ready. Pair with `<Suspense>` or a `v-if="!pending"` skeleton.
-
-## References
-
-- Data fetching guide: https://nuxt.com/docs/getting-started/data-fetching
-- `useFetch`: https://nuxt.com/docs/api/composables/use-fetch
-- `useAsyncData`: https://nuxt.com/docs/api/composables/use-async-data
-- `$fetch` / ofetch: https://nuxt.com/docs/api/utils/dollarfetch
+- Data the initial navigation shouldn't wait for: `{ lazy: true }`, or `useLazyFetch` / `useLazyAsyncData`. The page renders with `pending: true`; pair it with `<Suspense>` or a `v-if="!pending"` skeleton.

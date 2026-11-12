@@ -1,6 +1,6 @@
 # Design patterns
 
-Which pattern a signal calls for, applied in the order and under the test `rules/change.md` section 10 sets. A pattern is a template for a recurring problem, not code to copy in; one applied where the signal is absent adds indirection and lines.
+Which pattern a signal calls for. Apply one only where its signal is present, in the order and under the test `skills/kit-rules/reference/change.md` section 10 sets, as a template to adapt, never code to copy in.
 
 | Signal                                                            | Pattern                                                                                         | Example                                                                            |
 | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
@@ -19,6 +19,6 @@ Which pattern a signal calls for, applied in the order and under the test `rules
 | Status read from flag combinations in many places                 | State machine: one explicit state and a table of allowed transitions                            | `isLoading && !error && !done` across a form -> one `state` with allowed moves     |
 | The same null or missing check before calls, repeated             | Null object, or an optional or default value                                                    | `if logger != nil` before every log call -> a no-op logger by default              |
 
-- Prefer what the language already gives: a map of functions over a strategy hierarchy, a generic over a template class, a closure over a command object. Many classic patterns exist only to work around a missing language feature.
-- An interface for dependency inversion earns its place with a second implementation; a test double counts. One with neither is the single-implementation interface `rules/change.md` section 8 rules out.
-- Concurrency patterns (worker pool, pipeline, fan-out) follow the same test: one only when the signal is a real wait or contention, not a guess about scale.
+- A language feature over a classic pattern: a map of functions over a strategy hierarchy, a generic over a template class, a closure over a command object.
+- An interface for dependency inversion needs a second implementation, and a test double counts. One with neither is the single-implementation interface `skills/kit-rules/reference/change.md` section 8 rules out.
+- A concurrency pattern (worker pool, pipeline, fan-out) only when the signal is a real wait or contention, never a guess about scale.

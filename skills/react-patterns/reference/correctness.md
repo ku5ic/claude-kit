@@ -1,46 +1,31 @@
 # Correctness
 
-Baseline: React 19. Most rules apply unchanged to React 18; differences are called out.
+- `use(promise)` and `use(context)` on 19+: `use()` may be called inside conditionals and loops, unlike every other hook.
+- `use(promise)` suspends until the promise resolves: put a `<Suspense>` boundary above it, and don't branch on the promise's status before the call.
 
 ## Rules of Hooks
 
-Hooks may only be called at the top level of a function component or another custom hook. Specifically not allowed:
-
-- Inside loops, conditions, nested functions, or `try`/`catch`/`finally` blocks.
-- After a conditional `return`.
-- In event handlers, in class components, or in functions passed to `useMemo`, `useReducer`, or `useEffect`.
-
-A conditional hook is `failure`. The `eslint-plugin-react-hooks` rule catches it; configure it.
+- Call hooks only at the top level of a function component or a custom hook.
+- Never call a hook inside a loop, a condition, a nested function, or a `try`/`catch`/`finally` block, or after a conditional `return`.
+- Never call a hook in an event handler, in a class component, or in a function passed to `useMemo`, `useReducer`, or `useEffect`.
+- A conditional hook: `failure`. Configure `eslint-plugin-react-hooks` to catch it.
 
 ## Dependency arrays
 
-Every reactive value (props, state, anything declared in the component body) referenced inside an effect, memo, or callback must appear in the dependency array. React compares with `Object.is`. Omitting a dependency creates a stale closure: the effect reads the value from the render that created it, not the current one.
+- An effect, memo, or callback: list every reactive value it reads (props, state, anything declared in the component body) in its dependency array. React compares them with `Object.is`.
+- Removing a dependency: first prove the value isn't reactive, by moving it outside the component or restructuring. Never suppress the lint rule.
 
-Removing a dependency must be earned by proving the value is not reactive (move it outside the component, or restructure). Suppressing the lint rule is not a fix.
+## Keys
 
-## Key stability for lists
-
-Keys must be stable and unique across renders for the same list. Use a stable id from the data (`item.id`), not the array index. Index-as-key is acceptable only when the list is static and append-only; for any list that reorders, filters, or inserts, index-as-key produces input-state mixups (focus jumps, controlled-input values bleed between rows).
+- A list: key each item with a stable, unique id from the data (`item.id`), the same across renders.
+- Index as key: only on a static, append-only list, never on one that reorders, filters, or inserts.
 
 ## Effect cleanup
 
-Any subscription, timer, event listener, or external connection set up in an effect must be torn down in the cleanup return. The cleanup runs before the effect re-runs (deps changed) and on unmount, and React docs explicitly call out that the cleanup should be symmetrical to the setup.
+- An effect that sets up a subscription, timer, event listener, or external connection: return a cleanup that tears it down, symmetrical to the setup.
+- Strict mode in development mounts, cleans up, and mounts again: treat a doubled side effect as a missing cleanup, never as a strict-mode quirk to turn off.
 
-In strict mode (development), React mounts -> cleans up -> mounts again to surface missing cleanups. Treat any "doubled side effect" warning as a real cleanup gap, not a strict-mode quirk to disable.
+## Conditional rendering
 
-## Conditional rendering pitfalls
-
-`{items.length && <List items={items} />}` renders `0` when `items.length === 0` because `0` is a valid React child. Use an explicit check (`items.length > 0 && ...`) or a ternary. Same trap with any numeric falsy value.
-
-JSX nullish guards: `value ?? <Fallback />` is safer than `value || <Fallback />` for similar reasons; `||` swallows `0`, `""`, and `false`.
-
-## React 19: `use()` for promises and context
-
-`use(promise)` and `use(context)` are stable in React 19. Unlike other hooks, `use()` may be called inside conditionals and loops, because it is a special compiler primitive rather than a hook in the rules sense. `use(promise)` suspends the component until the promise resolves; pair it with a `<Suspense>` boundary upstream, and don't branch on the promise's own status before calling it. Source: https://react.dev/reference/react/use
-
-## References
-
-- React Rules of Hooks: https://react.dev/reference/rules/rules-of-hooks
-- `useEffect`: https://react.dev/reference/react/useEffect
-- React 19 release: https://react.dev/blog/2024/12/05/react-19
-- `use()`: https://react.dev/reference/react/use
+- A numeric value before `&&` in JSX (`{items.length && <List items={items} />}` renders `0` on an empty list): compare explicitly, as in `items.length > 0 && ...`, or use a ternary.
+- A JSX fallback: `value ?? <Fallback />`, not `value || <Fallback />`, which also swallows `0`, `""`, and `false`.

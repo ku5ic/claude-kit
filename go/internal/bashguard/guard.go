@@ -16,10 +16,9 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/kitcmd"
+	"github.com/ku5ic/claude-kit/go/internal/layout"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 )
-
-const overlayAsk = "this writes the claude-kit overlay, which can switch the kit's own guards off; confirm the change"
 
 // dirs is where a command line's next command runs: cwd, which each cd
 // moves, and prev, the cwd before the last cd, for cd -.
@@ -108,7 +107,7 @@ func Check(h *hook.Hook) error {
 	if cmd == "" {
 		return nil
 	}
-	h.SetContext("Command: " + cmd)
+	h.SetContext(layout.KV("cmd", layout.Clip(cmd)))
 	cfg := cmp.Or(h.Config(), &config.Config{})
 	home := h.Home
 	norm := normalize(cmd)
@@ -391,9 +390,7 @@ func (st *state) redirects(call Call) error {
 				return err
 			}
 		}
-		if st.isOverlayArg(target) {
-			st.ask(overlayAsk)
-		}
+		st.askKitSwitch(target)
 		st.looseWrite(">", target)
 	}
 	return nil
@@ -403,7 +400,7 @@ func (st *state) redirects(call Call) error {
 // current directory.
 func (st *state) looseWrite(op, target string) {
 	if (!strings.Contains(target, "/") || strings.HasPrefix(target, "./")) && looseWriteTarget(target) && st.inWorktree() {
-		st.ask("'" + op + " " + target + "' writes into the current directory; rules/tooling.md wants " + op + " \"$(kit scratch-dir)/" + baseName(target) + "\". Confirm only if this file belongs in the project tree.")
+		st.ask("'" + op + " " + target + "' writes into the current directory; skills/kit-rules/reference/tooling.md wants " + op + " \"$(kit scratch-dir)/" + baseName(target) + "\". Confirm only if this file belongs in the project tree.")
 	}
 }
 
@@ -471,15 +468,16 @@ func (st *state) abs(p string) string {
 	return p
 }
 
-// isOverlayArg is true when a word (quoted, ~- or $HOME-prefixed, or
-// relative to the segment's cwd) names the kit overlay. The basename test
-// keeps path resolution off every other argument.
-func (st *state) isOverlayArg(arg string) bool {
-	arg = unquote(arg)
-	if arg != "claude-kit.local.yml" && !strings.HasSuffix(arg, "/claude-kit.local.yml") {
-		return false
+// askKitSwitch asks, and is true, when a word (quoted, ~- or
+// $HOME-prefixed, or relative to the segment's cwd) names a path
+// guard.KitSwitch protects, through a symlink or not. Only a writer's
+// operands and a redirect's target get here, so resolving each is cheap.
+func (st *state) askKitSwitch(arg string) bool {
+	what := guard.KitSwitch(st.h.Paths, st.cwd, st.abs(unquote(arg)))
+	if what != "" {
+		st.ask(guard.KitSwitchAsk(what))
 	}
-	return guard.IsOverlay(st.h.Paths, st.abs(arg))
+	return what != ""
 }
 
 // isProtected is true when ref names a protected branch, ignoring

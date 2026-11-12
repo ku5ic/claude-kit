@@ -79,6 +79,27 @@ func TestScratchDirHomeFallbackAndRegistry(t *testing.T) {
 	}
 }
 
+// A registry the session can't write, as in a sandbox that keeps Bash out of
+// the config dir, still gets the project's scratch dir back.
+func TestScratchDirWithAnUnwritableRegistry(t *testing.T) {
+	t.Parallel()
+	home := tmp(t)
+	testutil.Mkdir(t, filepath.Join(home, "logs"))
+	if err := os.Chmod(filepath.Join(home, "logs"), 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(filepath.Join(home, "logs"), 0o700) })
+	repo := tmp(t)
+	testutil.Git(t, repo, "init", "-q", "-b", "main")
+	dir, err := ScratchDir(config.Paths{Home: home}, repo, true)
+	if want := filepath.Join(repo, ".claude", "scratch"); err != nil || dir != want {
+		t.Fatalf("ScratchDir = %q, %v; want %q", dir, err, want)
+	}
+	if !fsx.IsDir(dir) {
+		t.Errorf("%s not created", dir)
+	}
+}
+
 // Only a project scratch dir is registered: the home fallback isn't one for
 // scratch-rotate to prune.
 func TestScratchDirOutsideAProjectFallsBackToTheKitHomeUnregistered(t *testing.T) {
@@ -140,6 +161,17 @@ func TestRoot(t *testing.T) {
 			name: "a repo's git toplevel, from a nested subdirectory",
 			setup: func(t *testing.T, dir string) (string, string) {
 				testutil.Git(t, dir, "init", "-q", "-b", "main")
+				testutil.Put(t, dir, "src/app/.keep", "")
+				return filepath.Join(dir, "src/app"), dir
+			},
+			anchored: true,
+		},
+		{
+			// As in a sandbox where the git binary can't run: rev-parse
+			// fails, and the .git entry still marks the repo.
+			name: "a .git entry git can't read, from a nested subdirectory",
+			setup: func(t *testing.T, dir string) (string, string) {
+				testutil.Mkdir(t, filepath.Join(dir, ".git"))
 				testutil.Put(t, dir, "src/app/.keep", "")
 				return filepath.Join(dir, "src/app"), dir
 			},

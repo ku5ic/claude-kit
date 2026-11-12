@@ -4,7 +4,7 @@ import (
 	"strings"
 )
 
-// Downloads land only in scratch (rules/tooling.md): every output file and
+// Downloads land only in scratch (skills/kit-rules/reference/tooling.md): every output file and
 // directory, and every > redirect, must be a scratch path.
 
 func (c *command) blockDownload(tool, target, flag string) error {

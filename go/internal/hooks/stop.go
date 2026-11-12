@@ -1,28 +1,36 @@
 package hooks
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
+	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/enforce"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/layout"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/run"
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
-// StopChecks is the Stop hook: when the turn created or edited files through
-// Edit/Write/MultiEdit/NotebookEdit and left the tree dirty, it runs the
+// StopChecks is the Stop hook: when the turn created or edited files, through
+// an edit tool or, by the turn-start snapshot, any other way, it runs the
 // project's file-scoped checks (enforce.Stop) on just those files and blocks
 // the stop on a failure, so Claude fixes or reports it. A question-only turn costs
 // nothing. When the turn ticked a plan's last open step, it also blocks
 // until /code-review has run since the last code
 // edit; that review's hook runs the full gate. A tree the full gate already
-// checked isn't checked again.
+// checked isn't checked again, nor are the same checks on a tree where they
+// all passed.
 func StopChecks(h *hook.Hook) error {
 	if h.Payload.Err != nil {
 		return h.Payload.Err
@@ -50,24 +58,50 @@ func StopChecks(h *hook.Hook) error {
 	if err := planGate(h, cwd, root, entries); err != nil {
 		return err
 	}
-	// A clean tree means the edits were committed, which already went
-	// through verification.
-	if changes, err := git.Status(cwd, false); err != nil || len(changes) == 0 {
-		return nil
-	}
-	edited := transcript.Edits(transcript.LastTurn(entries))
-	if len(edited) == 0 {
-		return nil
-	}
-	if coveredByFullGate(h, root) {
-		h.Notify("stop checks: skipped, the full gate already checked this tree")
-		return nil
-	}
+	turn := transcript.LastTurn(entries)
+	edited := transcript.Edits(turn)
 	for i, path := range edited {
 		edited[i] = fsx.Abs(cwd, path)
 	}
+	// The turn-start snapshot also catches a Bash or subagent edit, and a
+	// file committed mid-turn. A turn whose every write is named leaves the
+	// rest to another session or the user, so the snapshot adds nothing.
+	// Without one, a clean tree means the edits were committed.
+	changed, tree, ok := turnChanges(h, root)
+	if ok {
+		if !transcript.NamesEveryWrite(turn) {
+			edited = append(edited, changed...) // enforce.Stop drops repeats
+		}
+	} else if changes, err := git.Status(cwd, false); err != nil || len(changes) == 0 {
+		return nil
+	}
+	if len(edited) == 0 {
+		return nil
+	}
+	reviewSheets(h, cfg, cwd, root)
+	if tree == "" {
+		tree, _ = git.Snapshot(root)
+	}
+	if coveredByFullGate(h, root, tree) {
+		if !cfg.ReceiptOnFailures() {
+			h.Notify("kit stop: skipped, the full gate already checked this tree")
+		}
+		return nil
+	}
 	p := enforce.Stop(cfg, enforce.Options{Root: root, CacheDir: h.Paths.CacheDir()}, edited)
+	unchecked := uncheckedLines(h)
 	if len(p.Gates) == 0 {
+		if len(unchecked) > 0 {
+			h.Notify(run.Receipt{By: "stop"}.String(append(unchecked, overrides(cfg)...)...))
+		}
+		return nil
+	}
+	pass := passKey(tree, p.Gates)
+	passFile := cache.StopPassTree(h.Paths.CacheDir(), root)
+	if prev, err := os.ReadFile(passFile); err == nil && pass != "" && string(prev) == pass {
+		if !cfg.ReceiptOnFailures() || len(unchecked) > 0 {
+			h.Notify(strings.Join(append([]string{"kit stop: skipped, these checks already passed on this tree"}, unchecked...), "\n"))
+		}
 		return nil
 	}
 	out := run.Files(p, h.Paths.CacheDir(), time.Duration(cfg.GateTimeout)*time.Second, deadline)
@@ -76,30 +110,102 @@ func StopChecks(h *hook.Hook) error {
 	}
 	// Every verdict goes to the user, a block's too; what to fix goes to
 	// Claude in the block's reason.
-	h.Notify(out.Notice)
-	if out.Failed {
-		return h.Block("file checks failed; fix them or report and stop.\n"+out.Failures, "checks-failed")
+	notifyReceipt(h, cfg, out.Receipt, unchecked)
+	if !out.Failed() {
+		// A skipped gate checked nothing, so only a clean pass is reused.
+		if out.Result.Skip == 0 && pass != "" && !h.DryRun {
+			_ = fsx.WriteAtomic(passFile, []byte(pass), 0o600)
+		}
+		return nil
 	}
-	return nil
+	msg := fmt.Sprintf("%d of %d checks failed; fix them, or report them and stop\n%s", out.Result.Fail, len(p.Gates), out.Failures)
+	if file := stopDetail(h, cwd, out.Detail); file != "" {
+		msg += layout.KV("more", file)
+	}
+	return h.Block(strings.TrimRight(msg, "\n"), "checks-failed")
 }
 
-// coveredByFullGate is true when review-checks' last full gate checked the
-// work tree as it is now. Once the tree moves on, the record goes, so later
-// turns don't snapshot the tree for it again.
-func coveredByFullGate(h *hook.Hook, root string) bool {
+// notifyReceipt shows the user rc, then unchecked and the overrides in
+// force. kit.yml's receipt: failures hides a clean pass with nothing
+// unchecked; the gates ran either way.
+func notifyReceipt(h *hook.Hook, cfg *config.Config, rc run.Receipt, unchecked []string) {
+	if cfg.ReceiptOnFailures() && rc.Clean() && len(unchecked) == 0 {
+		return
+	}
+	h.Notify(rc.String(append(unchecked, overrides(cfg)...)...))
+}
+
+// uncheckedLines names each text this turn's claim verifier failed on,
+// read from claims' marker and cleared. A file no gate claims isn't named:
+// most are docs no check exists for.
+func uncheckedLines(h *hook.Hook) []string {
+	var lines []string
+	marker := claimsUnchecked(h)
+	data, err := os.ReadFile(marker)
+	if err != nil {
+		return nil
+	}
+	for where := range strings.Lines(string(data)) {
+		lines = append(lines, layout.KV("unchecked", strings.TrimSpace(where)+"  verifier failed"))
+	}
+	if !h.DryRun {
+		_ = os.Remove(marker)
+	}
+	return lines
+}
+
+// overrides are the kit.yml switches in force that turn checks or rules off.
+func overrides(cfg *config.Config) []string {
+	var lines []string
+	if len(cfg.DisabledChecks) > 0 {
+		lines = append(lines, layout.KV("override", "disabled_checks: "+strings.Join(cfg.DisabledChecks, ", ")))
+	}
+	if len(cfg.DisabledRules) > 0 {
+		lines = append(lines, layout.KV("override", "disabled_rules: "+strings.Join(cfg.DisabledRules, ", ")))
+	}
+	return lines
+}
+
+// stopDetail writes a failing Stop's full detail (each gate's command,
+// directory, binaries, and output) to scratch, and returns the path; ""
+// when it can't.
+func stopDetail(h *hook.Hook, cwd, detail string) string {
+	dir, err := project.ScratchDir(h.Paths, cwd, !h.DryRun)
+	if err != nil || h.DryRun {
+		return ""
+	}
+	file := filepath.Join(dir, "kit-stop-failures.txt")
+	if fsx.WriteAtomic(file, []byte(detail), 0o600) != nil {
+		return ""
+	}
+	return file
+}
+
+// coveredByFullGate is true when review-checks' last full gate checked
+// tree, the work tree as it is now ("" when it can't be read). Once the
+// tree moves on, the record goes.
+func coveredByFullGate(h *hook.Hook, root, tree string) bool {
 	file := cache.FullGateTree(h.Paths.CacheDir(), root)
 	checked, err := os.ReadFile(file)
-	if err != nil {
-		return false
-	}
-	tree, err := git.Snapshot(root)
-	if err != nil {
+	if err != nil || tree == "" {
 		return false
 	}
 	if tree != string(checked) && !h.DryRun {
 		_ = os.Remove(file)
 	}
 	return tree == string(checked)
+}
+
+// passKey names a Stop run by the tree it checked and its gates, which
+// carry the files and commands: a later Stop with the same key would run
+// the same checks on the same content. "" when the tree is unknown.
+func passKey(tree string, gates []enforce.Gate) string {
+	data, err := json.Marshal(gates)
+	if tree == "" || err != nil {
+		return ""
+	}
+	sum := sha256.Sum256(data)
+	return tree + " " + hex.EncodeToString(sum[:])
 }
 
 // stopBudget bounds a Stop run, planning and every gate, inside
@@ -114,7 +220,7 @@ func planGate(h *hook.Hook, cwd, root string, entries []transcript.Entry) error 
 	isCode := func(path string) bool {
 		return fsx.Within(root, fsx.PhysicalPath(path)) && !project.IsScratch(h.Paths, path)
 	}
-	// A finished plan waits for /code-review since the last code edit (rules/verify.md).
+	// A finished plan waits for /code-review since the last code edit (skills/kit-rules/reference/verify.md).
 	if plan, reviewed := planDone(entries, dir, isCode); plan != "" && !reviewed {
 		return h.Block(fmt.Sprintf("plan %s is done, but /code-review hasn't finished since the last code edit. Run it now, or wait for the one running, then the runtime pass (/verify) when the change has observable behavior.", fsx.Rel(root, plan)), "plan-done")
 	}

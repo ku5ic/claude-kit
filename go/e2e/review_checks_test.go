@@ -27,7 +27,7 @@ func TestReviewChecks(t *testing.T) {
 
 		r := stop(false)
 		r.Want(t, 0)
-		r.Has(t, `"systemMessage":"run-checks checks: `)
+		r.Has(t, `"systemMessage":"kit full gate: `)
 		r = stop(true)
 		r.Want(t, 0)
 		r.Empty(t)

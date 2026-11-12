@@ -1,56 +1,36 @@
 ---
 name: wcag-audit
-description: WCAG 2.2 AA audit checklist, severity rubric, and stack adaptation for accessibility review. Use when the user asks about accessibility, a11y, WCAG, screen readers, keyboard navigation, focus management, ARIA, contrast, semantic HTML, alt text, or form labels, or audits a component, page, or template for accessibility, in any stack, even if WCAG is not mentioned by name. Not loaded just because a project has UI code.
+description: WCAG 2.2 AA audit checklist and severity rubric. Use for accessibility, a11y, ARIA, keyboard, focus, contrast, or form-label questions, or an accessibility audit, in any stack.
 ---
 
 # WCAG 2.2 AA audit
 
-Target: WCAG 2.2 Level AA. Includes all Level A. Does not include AAA unless explicitly requested.
+Target: WCAG 2.2 Level AA, which includes all of Level A. Audit AAA only when asked.
 
 ## How to apply
 
 1. Go through the references in order.
-2. Skip criteria that do not apply to the scope (e.g. no forms -> skip form labeling).
-3. Record what was checked, what passed, what failed.
-4. Note items that require runtime or user testing. Axe settles some against a running page, such as contrast (1.4.3), where the project runs it; screen reader and keyboard behavior still need a person.
+2. Skip a criterion the scope doesn't touch, such as form labeling when there are no forms.
+3. Record what was checked, what passed, and what failed.
+4. Note each item that needs runtime or user testing. Where the project runs axe, it settles some against a running page, such as contrast (1.4.3); screen reader and keyboard behavior still need a person.
 
-For accessibility work, validate against WCAG 2.2 AA explicitly. Do not claim compliance without checking it against this list; an unaudited claim of conformance is a fabrication.
+Validate accessibility work against WCAG 2.2 AA explicitly. A conformance claim is checked against this list, per `skills/kit-rules/reference/evidence.md` section 1.
 
 ## Severity rubric
 
-- `failure`: a direct Level AA violation that will block certification or cause a usable defect.
-- `warning`: likely to cause issues in some assistive tech configurations, or violates A level and relied on by AA.
-- `info`: best practice not required at AA, or a pattern likely to regress if not fixed now.
+- `failure`: a direct Level AA violation that blocks certification or causes a usability defect.
+- `warning`: likely to cause issues in some assistive tech configurations, or a Level A violation that AA relies on.
+- `info`: a best practice AA doesn't require, or a pattern likely to regress if not fixed now.
 
 ## Reference files
 
-| File                                                               | Covers                                                                                                     |
-| ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| [reference/anti-patterns.md](reference/anti-patterns.md)           | Severity-labeled anti-patterns: non-semantic interactives, contrast, missing labels                        |
-| [reference/perceivable.md](reference/perceivable.md)               | 1.1, 1.3, 1.4 (alt, semantics, contrast, reflow, text spacing) plus contrast tooling and APCA status       |
-| [reference/operable.md](reference/operable.md)                     | 2.1, 2.4, 2.5 (keyboard, focus, target size, drag) plus SPA focus management and 2.2 new criteria examples |
-| [reference/understandable.md](reference/understandable.md)         | 3.2, 3.3 (consistent nav, errors, labels) plus 3.3.7 / 3.3.8 cognitive accessibility implementations       |
-| [reference/robust.md](reference/robust.md)                         | 4.1.2 / 4.1.3 (name/role/value, status messages) plus First Rule of ARIA and APG patterns                  |
-| [reference/cannot-be-verified.md](reference/cannot-be-verified.md) | Items requiring runtime / AT testing, plus React / Django template / plain HTML stack notes                |
+Loading this skill isn't enough. Before your next edit, read the file of every row that matches it. The rules live in those files, and this one only points at them.
 
-## References
-
-- WCAG 2.2 spec: https://www.w3.org/TR/WCAG22/
-- Understanding WCAG 2.2: https://www.w3.org/WAI/WCAG22/Understanding/
-- How to Meet WCAG 2.2 (Quick Reference): https://www.w3.org/WAI/WCAG22/quickref/
-- ARIA Authoring Practices Guide (APG): https://www.w3.org/WAI/ARIA/apg/
-- W3C Using ARIA (Discontinued Draft since 2026-02-24, kept for its rules; current guidance is the APG): https://www.w3.org/TR/using-aria/
-- WebAIM: https://webaim.org/
-- MDN Accessibility: https://developer.mozilla.org/en-US/docs/Web/Accessibility
-
-## Version notes
-
-Checked: 2026-11-10 against https://www.w3.org/TR/WCAG22/, https://www.w3.org/TR/wcag-3.0/, https://www.w3.org/TR/wai-aria-1.3/ and https://www.w3.org/TR/using-aria/
-
-- WCAG 2.2 (Recommendation, updated 2024-12-12): current target; 4.1.1 Parsing obsolete; WAI-ARIA 1.2 still the current Recommendation (1.3 is a Working Draft, 2026-06-04). WCAG 3.0 remains a Working Draft (2026-09-10). Using ARIA became a Discontinued Draft on 2026-02-24.
-
-WCAG evolves:
-
-- WCAG 3 is in early-draft form at the time of writing and will not replace WCAG 2.2 conformance until after a long sunset period.
-- APCA contrast research continues outside the W3C; treat any "use APCA instead of WCAG ratio" claim as out of scope until the W3C ships normative guidance.
-- When the W3C publishes a new WCAG version, reconcile this skill against the per-criterion Understanding pages.
+| Before                                                                                                    | Read                                                               |
+| --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Rating a finding's severity, or reviewing for common accessibility anti-patterns                          | [reference/anti-patterns.md](reference/anti-patterns.md)           |
+| Checking alt text, semantics, color contrast, reflow, or text spacing                                     | [reference/perceivable.md](reference/perceivable.md)               |
+| Checking keyboard access, focus, target size, or SPA focus management                                     | [reference/operable.md](reference/operable.md)                     |
+| Checking consistent navigation, error handling, labels, redundant entry, or authentication                | [reference/understandable.md](reference/understandable.md)         |
+| Checking names, roles, values, status messages, or ARIA and APG patterns                                  | [reference/robust.md](reference/robust.md)                         |
+| Listing what static review cannot verify, or adapting the audit to React, Django templates, or plain HTML | [reference/cannot-be-verified.md](reference/cannot-be-verified.md) |

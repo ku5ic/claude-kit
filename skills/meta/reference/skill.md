@@ -15,10 +15,10 @@ Draft a pattern skill pack for a stack from current docs and this repo's precede
 
 3. Precedent. If `<repo-context>` or `kit detect-stack` shows the current repo uses the stack, load the `investigate` skill and answer "how does this repo use <stack>: file layout, conventions, config" with `file:line` citations. A pack rule that contradicts the repo's own consistent usage gets named in the draft, not silently dropped.
 4. Draft. Work in the kit's source checkout: the current repo, when its `.claude-plugin/plugin.json` `name` is `kit` and it isn't under `plugins/` in the Claude config dir (`$CLAUDE_CONFIG_DIR`, else `~/.claude`), where installed copies and the marketplace clone live. Otherwise stop and ask where the checkout is. Copy `templates/pattern-skill/` to `skills/<name>/` and fill it:
-   - `description`: the file and dependency signals, then the concepts, in the template's shape.
-   - One `reference/<area>.md` per area with enough verified material; three to five areas is typical. Every rule cites its source URL or library id.
+   - `description`: the concepts, then the file and dependency signals, in the template's shape. Trigger words only.
+   - One `reference/<area>.md` per area with enough verified material; three to five areas is typical. Every rule's source URL or library id goes in `sources.md`, under that file's Claims, never inline.
    - `reference/anti-patterns.md`: the mistakes from step 2, each with a severity from the rubric.
-   - `## Version notes`: one entry for the current version, with today's date and the step 2 source, in the format `/meta refresh` maintains.
+   - `sources.md` Version notes: one entry for the current version, with today's date and the step 2 source, in the format `/meta refresh` maintains.
    - Leave no `<placeholder>` behind. `rg -n '<[a-z]' skills/<name>/` prints nothing when done.
 5. Wire it in `kit.yml`, reading two existing entries of each key first and matching their shape:
    - Detection: a `dependency_skills` entry whose `deps:` are the packages that signal the stack, as its manifests declare them, and whose `skills:` lists the pack.

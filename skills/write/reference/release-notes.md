@@ -81,7 +81,7 @@ Range: <base>..HEAD (N commits)
 
 <!-- chat: skip -->
 
-- Signatures: `rules/workflow.md` section 1.
+- Signatures: `skills/kit-rules/reference/workflow.md` section 1.
 
 <!-- chat: end -->
 

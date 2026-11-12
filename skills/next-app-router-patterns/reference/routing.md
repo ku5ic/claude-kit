@@ -1,100 +1,31 @@
 # Routing
 
-## File-based routing
+- On 16, give every parallel slot a `default.tsx`, or the build fails. It renders when a navigation sets no value for that slot.
+- On 15+, a page gets `params` as a Promise: type it `Promise<{ id: string }>` and `await params`. Catch-all `[...slug]` and optional catch-all `[[...slug]]` resolve to `string[]`.
 
-Routes live under `app/`. Each folder is a URL segment; special files in the folder define the segment's behavior:
+## File conventions
 
-- `page.tsx`: route UI for the segment.
-- `layout.tsx`: shared UI that wraps the segment and its children; persists across navigations.
-- `route.ts`: HTTP-method-based handler (replaces `page.tsx` in API-only segments).
-- `loading.tsx`: Suspense fallback for the segment.
-- `error.tsx`: error boundary for the segment.
-- `not-found.tsx`: rendered when `notFound()` is thrown in the segment.
-- `template.tsx`: like `layout.tsx` but re-mounts on navigation.
-- `default.tsx`: parallel-route fallback.
+Each folder under `app/` is a URL segment, and its special files define the segment:
 
-## Dynamic segments
+- `page.tsx`: the segment's route UI.
+- `layout.tsx`: shared UI around the segment and its children, kept across navigations.
+- `template.tsx`: a layout that re-mounts on navigation.
+- `route.ts`: an HTTP-method handler, in place of `page.tsx` in an API-only segment.
+- `loading.tsx`: the segment's Suspense fallback.
+- `error.tsx`: the segment's error boundary.
+- `not-found.tsx`: renders when `notFound()` is thrown in the segment.
+- `default.tsx`: a parallel slot's fallback.
 
-Folder named `[id]` becomes a dynamic segment. The page receives `params` as a Promise that resolves to the matched values:
+## Segments and groups
 
-```tsx
-export default async function Page({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-}
-```
+- A folder named `[id]` is a dynamic segment.
+- A route group such as `(marketing)/` shares a layout across routes with no common URL prefix, and leaves the URL alone.
+- `@slot` folders are named slots rendered in parallel in one layout, which gets each slot as a prop beside `children`. Use them for split-view dashboards, persistent modals, and sub-trees that need their own loading and error states.
+- `(.)folder`, `(..)folder`, and `(...)folder` intercept a navigation from elsewhere in the tree to render different UI for the same URL, such as a photo modal over the gallery while a direct visit renders the full photo page.
+- For a modal route that survives a refresh as a real URL, combine an intercepting route with a parallel route.
 
-`params` is a Promise in v15+ (this was a breaking change with a codemod). Catch-all (`[...slug]`) and optional catch-all (`[[...slug]]`) work the same way; the resolved type widens to `string[]`.
+## Static params and metadata
 
-## Route groups
-
-`(marketing)/` is a route group. It wraps a set of routes for organization without affecting the URL. Useful for sharing a layout across a subset of routes that do not share a URL prefix.
-
-## Parallel routes
-
-`@slot` folders define named slots that render in parallel within the same layout. The layout receives each slot as a prop alongside `children`:
-
-```tsx
-export default function Layout({
-  children,
-  modal,
-  sidebar,
-}: {
-  children: React.ReactNode;
-  modal: React.ReactNode;
-  sidebar: React.ReactNode;
-}) {}
-```
-
-Use parallel routes for split-view dashboards, persistent modals, and conditional sub-trees that need independent loading/error states.
-
-A `default.tsx` in each parallel slot defines the fallback rendered when a navigation does not specify a value for that slot. Since Next.js 16 every slot needs an explicit one: "Builds will fail without them" (version 16 upgrade guide).
-
-## Intercepting routes
-
-`(.)folder`, `(..)folder`, `(...)folder` intercept a navigation from another part of the tree to render a different UI for the same URL. For example, clicking a thumbnail opens a modal that overlays the gallery, while a direct visit to that URL renders the full photo page.
-
-Combined with parallel routes, this is the standard pattern for modal routes that survive page refresh as a real URL.
-
-## `generateStaticParams`
-
-Returns the list of `params` values to prerender at build time for a dynamic segment:
-
-```tsx
-export async function generateStaticParams() {
-  const posts = await fetch("https://...").then((r) => r.json());
-  return posts.map((p) => ({ slug: p.slug }));
-}
-```
-
-Combine with `dynamicParams` (route segment config) to control whether unknown params render at request time or 404.
-
-## `generateMetadata`
-
-Returns the page's `<head>` metadata, async, with access to `params` and `searchParams`:
-
-```tsx
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-  const post = await getPost(id);
-  return { title: post.title, description: post.summary };
-}
-```
-
-The returned object must be serializable. Streaming metadata is supported for crawlers that handle it; for crawlers that only see static HTML, Next.js falls back to blocking metadata before streaming the body.
-
-## References
-
-- App Router structure: https://nextjs.org/docs/app/getting-started/project-structure
-- Dynamic segments: https://nextjs.org/docs/app/api-reference/file-conventions/dynamic-routes
-- Parallel routes: https://nextjs.org/docs/app/api-reference/file-conventions/parallel-routes
-- Intercepting routes: https://nextjs.org/docs/app/api-reference/file-conventions/intercepting-routes
-- `generateStaticParams`: https://nextjs.org/docs/app/api-reference/functions/generate-static-params
-- `generateMetadata`: https://nextjs.org/docs/app/api-reference/functions/generate-metadata
+- To prerender a dynamic segment at build time, return its `params` values from `generateStaticParams`. Set `dynamicParams` to choose whether unknown params render at request time or 404.
+- `generateMetadata` is async, gets `params` and `searchParams`, and returns the page's `<head>` metadata as a serializable object.
+- Next.js streams metadata to crawlers that handle it, and blocks on metadata before the body for crawlers that only see static HTML.

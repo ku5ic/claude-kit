@@ -27,7 +27,7 @@ Generate a commit message from the staged or pasted diff, matching project style
 
 <!-- chat: skip -->
 
-- Signatures, footers, and co-author tags: `rules/workflow.md` section 1.
+- Signatures, footers, and co-author tags: `skills/kit-rules/reference/workflow.md` section 1.
 
 <!-- chat: end -->
 

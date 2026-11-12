@@ -2,58 +2,17 @@
 
 ## Inheritance
 
-Use `{% block %}` and `{% extends %}` for template inheritance. A base template defines structural blocks; child templates fill them.
+- Layout: `{% extends %}` with `{% block %}`. A base template defines structural blocks and child templates fill them.
+- Reusable partials without structural meaning: `{% include %}`. Never use it for structural layout pieces.
 
-```html
-{# base.html #}
-<!DOCTYPE html>
-<html>
-  <body>
-    <main>{% block content %}{% endblock %}</main>
-  </body>
-</html>
-```
+## Auto-escaping and CSRF
 
-```html
-{# product_detail.html #} {% extends "base.html" %} {% block content %}
-<h1>{{ product.name }}</h1>
-{% endblock %}
-```
-
-Use `{% include %}` for reusable partials (fragments without structural meaning). Do not use it for structural layout pieces; use `{% extends %}` instead.
-
-## Auto-escaping
-
-Django templates auto-escape all variable output by default. Characters like `<`, `>`, `"`, `'`, and `&` are converted to their HTML entity equivalents.
-
-The `|safe` filter, `{% autoescape off %}`, and `mark_safe()` in Python disable this escaping. Each is a `failure` when applied to user-controlled content. The Django security docs explicitly call this out as an XSS vector.
-
-```html
-{# WRONG: XSS if comment is user input #} {{ comment|safe }} {# Correct:
-auto-escape handles it #} {{ comment }}
-```
-
-## CSRF
-
-`{% csrf_token %}` is required in every POST form. It is not added automatically by Django's form rendering. Omitting it will cause 403 errors in production.
-
-```html
-<form method="post">
-  {% csrf_token %} {{ form.as_p }}
-  <button type="submit">Submit</button>
-</form>
-```
-
-`@csrf_exempt` on a view that mutates state is a `failure` unless the endpoint authenticates by API token rather than session; document why next to the decorator.
+- Templates auto-escape every variable by default (`<`, `>`, `"`, `'`, `&`).
+- `|safe`, `{% autoescape off %}`, or `mark_safe()` on user-controlled content: `failure` (XSS). Output it as plain `{{ comment }}`.
+- Every POST form: `{% csrf_token %}` inside it. Django's form rendering doesn't add it.
+- `@csrf_exempt` on a view that mutates state: `failure`, unless the endpoint authenticates by API token, not session. Then document why next to the decorator.
 
 ## Logic in templates
 
-Keep conditional logic minimal. A chain of `{% if %}` deeper than 3-4 levels is a sign that the view context or a template tag should handle the logic instead.
-
-Context processors for globally available data. Everything else goes in the view's context explicitly. Avoid implicit reliance on context processors for view-specific data.
-
-## References
-
-- https://docs.djangoproject.com/en/stable/topics/templates/
-- https://docs.djangoproject.com/en/stable/topics/security/ (XSS via |safe)
-- https://docs.djangoproject.com/en/stable/ref/csrf/
+- `{% if %}` nesting deeper than 3-4 levels: move the logic to the view context or a template tag.
+- Context processors: only for globally available data. View-specific data goes in the view's context explicitly.

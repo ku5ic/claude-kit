@@ -12,9 +12,9 @@ import (
 func TestChatTextMatchesTheGoldens(t *testing.T) {
 	t.Parallel()
 	rules := map[string]rule{
-		"rules/change.md":   {"Change", []string{"5", "8", "10"}},
-		"rules/evidence.md": {"Evidence", []string{"1"}},
-		"rules/output.md":   {"Output", []string{"1", "4"}},
+		"skills/kit-rules/reference/change.md":   {"Change", []string{"5", "8", "10"}},
+		"skills/kit-rules/reference/evidence.md": {"Evidence", []string{"1"}},
+		"skills/kit-rules/reference/output.md":   {"Output", []string{"1", "4"}},
 	}
 	b := &bundle{files: map[string][]byte{"skills/write/reference/commit.md": nil}}
 	for _, name := range []string{"commit", "chat", "SKILL"} {
@@ -93,15 +93,15 @@ func TestParseRule(t *testing.T) {
 
 func TestLinks(t *testing.T) {
 	t.Parallel()
-	rules := map[string]rule{"rules/change.md": {"Change", []string{"1", "2", "3"}}}
+	rules := map[string]rule{"skills/kit-rules/reference/change.md": {"Change", []string{"1", "2", "3"}}}
 	b := &bundle{files: map[string][]byte{"skills/a/reference/x.md": nil}}
 	for name, tc := range map[string]struct{ in, want string }{
-		"bare rule":        {"`rules/change.md`", "the kit-rules skill, Change"},
-		"possessive":       {"`rules/change.md`'s rule", "the kit-rules skill, Change's rule"},
-		"one section":      {"`rules/change.md` section 2.", "the kit-rules skill, Change section 2."},
-		"several sections": {"`rules/change.md` sections 1, 2, and 3", "the kit-rules skill, Change sections 1, 2, and 3"},
-		"two sections":     {"`rules/change.md` sections 1 and 2", "the kit-rules skill, Change sections 1 and 2"},
-		"unbundled rule":   {"`rules/verify.md` section 9", "`rules/verify.md` section 9"},
+		"bare rule":        {"`skills/kit-rules/reference/change.md`", "the kit-rules skill, Change"},
+		"possessive":       {"`skills/kit-rules/reference/change.md`'s rule", "the kit-rules skill, Change's rule"},
+		"one section":      {"`skills/kit-rules/reference/change.md` section 2.", "the kit-rules skill, Change section 2."},
+		"several sections": {"`skills/kit-rules/reference/change.md` sections 1, 2, and 3", "the kit-rules skill, Change sections 1, 2, and 3"},
+		"two sections":     {"`skills/kit-rules/reference/change.md` sections 1 and 2", "the kit-rules skill, Change sections 1 and 2"},
+		"unbundled rule":   {"`skills/kit-rules/reference/verify.md` section 9", "`skills/kit-rules/reference/verify.md` section 9"},
 		"bundled skill":    {"`skills/a/reference/x.md`", "`reference/x.md` in the a skill"},
 		"unbundled skill":  {"`skills/b/reference/x.md`", "`skills/b/reference/x.md`"},
 	} {
@@ -120,9 +120,9 @@ func TestLinks(t *testing.T) {
 
 func TestLinkToADroppedSectionFails(t *testing.T) {
 	t.Parallel()
-	rules := map[string]rule{"rules/change.md": {"Change", []string{"1", "3"}}}
-	_, errs := (&bundle{}).rewriteLinks("f.md", "`rules/change.md` sections 1, 2, and 4", rules)
-	if len(errs) != 2 || !strings.Contains(errs[0].Error(), "f.md: links rules/change.md section 2") {
+	rules := map[string]rule{"skills/kit-rules/reference/change.md": {"Change", []string{"1", "3"}}}
+	_, errs := (&bundle{}).rewriteLinks("f.md", "`skills/kit-rules/reference/change.md` sections 1, 2, and 4", rules)
+	if len(errs) != 2 || !strings.Contains(errs[0].Error(), "f.md: links skills/kit-rules/reference/change.md section 2") {
 		t.Errorf("errs %v", errs)
 	}
 }
@@ -165,7 +165,7 @@ func TestLint(t *testing.T) {
 		"arguments":           {"Use $ARGUMENTS here", "$ARGUMENTS"},
 		"kit command":         {"Run `kit scratch-dir` first", "kit command"},
 		"kit.yml":             {"The lists live in kit.yml", "kit.yml"},
-		"rule file":           {"See rules/verify.md", "rule file"},
+		"rule file":           {"See skills/kit-rules/reference/verify.md", "rule file"},
 		"skills path":         {"See skills/pr/SKILL.md", "skills/ path"},
 		"AskUserQuestion":     {"Ask with AskUserQuestion", "AskUserQuestion"},
 		"gh command":          {"Run gh pr view", "gh command"},
@@ -205,9 +205,9 @@ func TestLint(t *testing.T) {
 func TestBundleRunsTheTransforms(t *testing.T) {
 	t.Parallel()
 	root, cfg := checkout(t)
-	testutil.Put(t, root, "skills/alpha/SKILL.md", "---\nname: alpha\ndescription: Use for alpha work.\nargument-hint: <x>\n---\n\n<!-- chat: skip -->\n\nDropped.\n\n<!-- chat: end -->\n\nSee `rules/change.md` section 1.\n")
-	testutil.Put(t, root, "rules/output.md", "# Output\n\n<!-- chat: skip -->\n\nDropped.\n\n<!-- chat: end -->\n\n## 4. External\n\nSee `rules/change.md` section 1.\n")
-	cfg.ChatBundle.Rules = []string{"rules/output.md", "rules/change.md"}
+	testutil.Put(t, root, "skills/alpha/SKILL.md", "---\nname: alpha\ndescription: Use for alpha work.\nargument-hint: <x>\n---\n\n<!-- chat: skip -->\n\nDropped.\n\n<!-- chat: end -->\n\nSee `skills/kit-rules/reference/change.md` section 1.\n")
+	testutil.Put(t, root, "skills/kit-rules/reference/output.md", "# Output\n\n<!-- chat: skip -->\n\nDropped.\n\n<!-- chat: end -->\n\n## 4. External\n\nSee `skills/kit-rules/reference/change.md` section 1.\n")
+	cfg.ChatBundle.Rules = []string{"skills/kit-rules/reference/output.md", "skills/kit-rules/reference/change.md"}
 	files := buildZip(t, root, cfg)
 	for name, want := range map[string]string{
 		"skills/alpha/SKILL.md":     "---\nname: alpha\ndescription: Use for alpha work.\n---\n\nSee the kit-rules skill, Change section 1.\n",

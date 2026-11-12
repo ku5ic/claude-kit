@@ -2,6 +2,10 @@
   "hooks": {
     "PreToolUse": [
       {
+        "matcher": "*",
+        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook gate-dispatch", "timeout": 5 }]
+      },
+      {
         "matcher": "Bash",
         "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook bash-dispatch", "timeout": 30 }]
       },
@@ -32,6 +36,10 @@
         "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook post-edit-dispatch", "timeout": 20 }]
       },
       {
+        "matcher": "Bash",
+        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook bash-edits", "timeout": 120 }]
+      },
+      {
         "matcher": "Read|Skill",
         "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook log-skills", "timeout": 5 }]
       },
@@ -44,13 +52,7 @@
       {
         "matcher": "startup|resume|compact|clear",
         "hooks": [
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook inject-context", "timeout": 30 },
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook inject-rules 1", "timeout": 30 },
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook inject-rules 2", "timeout": 30 },
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook inject-rules 3", "timeout": 30 },
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook inject-rules 4", "timeout": 30 },
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook inject-rules 5", "timeout": 30 },
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook inject-rules 6", "timeout": 30 }
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook inject-context", "timeout": 30 }
         ]
       }
     ],
@@ -63,20 +65,12 @@
     ],
     "UserPromptSubmit": [
       {
-        "hooks": [
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook plan-mode-context", "timeout": 5 },
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook reply-length", "timeout": 5 },
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook chat-slop", "timeout": 5 }
-        ]
+        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook prompt-dispatch", "timeout": 15 }]
       }
     ],
     "Stop": [
       {
-        "hooks": [
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook stop-checks", "timeout": 300 },
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook reply-length", "timeout": 5 },
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook chat-slop", "timeout": 5 }
-        ]
+        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook stop-dispatch", "timeout": 300 }]
       }
     ],
     "SubagentStop": [
@@ -93,13 +87,7 @@
       {
         "matcher": "*",
         "hooks": [
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook inject-subagent-context", "timeout": 5 },
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook inject-rules 1", "timeout": 30 },
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook inject-rules 2", "timeout": 30 },
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook inject-rules 3", "timeout": 30 },
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook inject-rules 4", "timeout": 30 },
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook inject-rules 5", "timeout": 30 },
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook inject-rules 6", "timeout": 30 }
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook inject-subagent-context", "timeout": 5 }
         ]
       }
     ]

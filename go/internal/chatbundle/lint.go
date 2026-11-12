@@ -20,7 +20,7 @@ func forbidden() map[string]*regexp.Regexp {
 		"$ARGUMENTS":      regexp.MustCompile(`\$ARGUMENTS`),
 		"kit command":     regexp.MustCompile(`(?:^|[^\w-])kit (?:` + strings.Join(kitNames(), "|") + `)\b`),
 		"kit.yml":         regexp.MustCompile(`kit\.yml`),
-		"rule file":       regexp.MustCompile(`rules/[a-z]+\.md`),
+		"rule file":       regexp.MustCompile(`kit-rules/reference/[a-z]+\.md`),
 		"skills/ path":    regexp.MustCompile(`skills/`),
 		"AskUserQuestion": regexp.MustCompile(`AskUserQuestion`),
 		"gh command":      regexp.MustCompile(`\bgh (?:api|auth|issue|pr|release|repo|run|workflow)\b`),
