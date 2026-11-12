@@ -61,7 +61,7 @@ Nothing to learn up front. After install:
 - [Install](#install)
 - [On by default, and what you switch on](#on-by-default-and-what-you-switch-on)
 - [Use it in claude.ai chat](#use-it-in-claudeai-chat)
-- [What you get](#what-you-get)
+- [The pieces](#the-pieces)
   - [Guards](#guards)
   - [Checks before "done"](#checks-before-done)
   - [Context](#context)
@@ -200,11 +200,11 @@ Each release attaches `kit-chat-<version>.zip`, a smaller plugin for chat on the
 - **The rules can be skipped.** `kit-rules` loads when the model takes a task for writing or coding, and nothing enforces that. Only your claude.ai preferences reach every chat.
 - **Mobile has no `/` menu.** Skills load from what you ask for.
 
-## What you get
+## The pieces
 
 ### Guards
 
-Every guard, what it stops, and whether it blocks or asks: [docs/guards.md](docs/guards.md).
+The things that cost you a correction round if they get through: a force push, a read of `.env`, a skipped test, a package that doesn't exist. Every guard, what it stops, and whether it blocks or asks: what it stops, and whether it blocks or asks: [docs/guards.md](docs/guards.md).
 
 ### Checks before "done"
 
@@ -212,13 +212,15 @@ Your project's own checks run on the files Claude edited before it may say done,
 
 ### Context
 
+Claude starts a session knowing nothing about your repo, so it guesses your check commands and which tools to use. The kit tells it up front:
+
 - **Session start:** stack, package managers, the check commands, the CLI tools on PATH, and which pattern skills to load. Gap-fill runs in the background to answer what the project's configs leave open.
 - **Subagents:** the same repo context and scratch path.
 - **Plans:** in plan mode, Claude is pointed at `investigate`. Once a plan is approved, every prompt holds it to the next unchecked step.
 
 ### Rules
 
-Seven short files in the `kit-rules` skill, which every session and subagent loads before its first tool call:
+Hooks catch what a program can check. The rules cover the judgment calls a hook can't see: how long a reply is, whether a claim was read or guessed, how big a fix should be, when to ask. They're seven short files in the `kit-rules` skill, which every session and subagent loads before its first tool call; a hook denies every other tool until it does:
 
 | Rule        | In one line                                                               |
 | ----------- | ------------------------------------------------------------------------- |
@@ -230,24 +232,54 @@ Seven short files in the `kit-rules` skill, which every session and subagent loa
 | `subagents` | When to spawn a subagent, and check its work before building on it        |
 | `verify`    | What has to happen before a change is called done                         |
 
+Why each rule says what it says, with the evals behind it: [docs/rules.md](docs/rules.md).
+
 ### Pattern skills
 
-Stack knowledge Claude loads when the repo calls for it: React, Next.js App Router, Vue, Nuxt, TypeScript, JavaScript, Tailwind, Storybook, GraphQL, Python, Django, DRF, FastAPI, Go, Bash, Docker, OpenTofu/Terraform, git, testing, security, logging, monitoring, backups, VPS provisioning, WCAG 2.2, and engineering fundamentals. `slop-patterns` teaches rewriting AI tells; the slop guards send Claude to it.
+Without them, Claude gives generic advice that ignores your stack. Each is stack knowledge Claude loads when the repo calls for it: React, Next.js App Router, Vue, Nuxt, TypeScript, JavaScript, Tailwind, Storybook, GraphQL, Python, Django, DRF, FastAPI, Go, Bash, Docker, OpenTofu/Terraform, git, testing, security, logging, monitoring, backups, VPS provisioning, WCAG 2.2, and engineering fundamentals. `slop-patterns` teaches rewriting AI tells; the slop guards send Claude to it.
 
-`guard_skills: true` makes them required. The switches are in [docs/configuration.md](docs/configuration.md).
+Session start names the ones your repo needs. The first read or edit of a file type names its skill again, and `guard_skills: true` makes it required before the first edit. The switches are in [docs/configuration.md](docs/configuration.md).
 
 ### Status line
 
-Two rows: model, agent, directory, and git state; then context used, cost, duration, effort, and rate limit. Subagents get a line each. Git state is cached for `STATUSLINE_CACHE_TTL` seconds (default 1). Add to `~/.claude/settings.json`:
+What a session costs and how full its context is, without asking. Two rows: model, agent, directory, and git state; then context used, cost, duration, effort, and rate limit. Subagents get a line each. Git state is cached for `STATUSLINE_CACHE_TTL` seconds (default 1). Add to `~/.claude/settings.json`:
 
 ```json
 "statusLine": { "type": "command", "command": "~/.claude/plugins/marketplaces/ku5ic/bin/kit statusline" },
 "subagentStatusLine": { "type": "command", "command": "~/.claude/plugins/marketplaces/ku5ic/bin/kit subagent-statusline" }
 ```
 
+It looks like this, with colour:
+
+```text
+Opus 5.5  my-app  main +0 ~0
+███░░░░░░░ 32%  $15.62   1h 26m   effort:high  5h:31%
+```
+
+And a line for each subagent:
+
+```text
+kit:plan-critic [running]  claude-opus-5-5  effort:high  18%
+kit:gatherer [completed]  claude-haiku-5-5  effort:low  7%
+```
+
 ### The kit CLI
 
-`kit help` lists every command with its flags. The ones you'll reach for: `kit run-checks`, `kit explain`, `kit blast-radius`, `kit enforce --list`, `kit gates reset`, and `kit config --check`.
+Every hook runs through one `kit` binary, and the same binary answers the questions the hooks ask, so you can ask them too. `kit help` lists every command with its flags.
+
+| I want to                                                       | Run                                                   |
+| --------------------------------------------------------------- | ----------------------------------------------------- |
+| Know why a guard blocked a command or an edit                   | `kit explain bash '<cmd>'`, `kit explain edit <path>` |
+| Know which checks run on a file when Claude stops               | `kit explain stop <file>`                             |
+| See every check the project declares, and where each comes from | `kit run-checks --plan`                               |
+| Run every quality gate on what changed                          | `kit run-checks`                                      |
+| See what my project's configs say to run, and when              | `kit enforce --list`                                  |
+| Let a gate that changed files run again                         | `kit gates reset`                                     |
+| Find the files that import a file before I change it            | `kit blast-radius <file>`                             |
+| Check my overlay for unknown keys and wrong types               | `kit config --check`                                  |
+| Scan a text for AI tells                                        | `kit slop <file>`                                     |
+| Check two colours' contrast against WCAG                        | `kit contrast <fg> <bg>`                              |
+| Prune old scratch files                                         | `kit scratch-rotate`                                  |
 
 ## Configure
 
