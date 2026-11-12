@@ -184,7 +184,7 @@ Claude replies     -> a `reply_limits` word ceiling, stated at session start and
 | **subagent-slop**, **guard-handback**             | Send a subagent's report back once when it holds AI tells                                                                                                                                                                                                                                                                                                                                                                                                     |
 | **chat-slop**                                     | Points out AI tells in a chat reply on the next turn. A reply already on screen can't be stopped                                                                                                                                                                                                                                                                                                                                                              |
 | **guard-plan**                                    | Sends a plan back once, before you're asked to approve it, when `kit:plan-critic` hasn't read it since it was written                                                                                                                                                                                                                                                                                                                                         |
-| **verify-claims**                                 | Checks each claim in a plan, a subagent report, an explore or debug report in scratch, or an MCP post against the session, and sends back the ones nothing confirms, once. A chat reply isn't checked; each prompt reminds Claude to check or label its claims. A failed run never blocks                                                                                                                                                                     |
+| **verify-claims**                                 | Checks each claim in a plan, a subagent report, an explore or debug report in scratch, or an MCP post against the session, and sends back the ones nothing confirms, once. A chat reply isn't checked; each prompt reminds Claude to check its claims or cut them. A failed run never blocks                                                                                                                                                                  |
 | **guard-bash** rule `download-to-repo`            | `curl` and `wget` may write only into `.claude/scratch/`                                                                                                                                                                                                                                                                                                                                                                                                      |
 | **sanitize-output**                               | Strips invisible bidi characters (Trojan Source) from every written file except those `sanitize_skip` names: translations, templates, snapshots, fixtures                                                                                                                                                                                                                                                                                                     |
 | **guard-skills**                                  | Off by default; see `guard_skills` under Configure. With it on, the first edit of a mapped file type is blocked until its patterns skill loads                                                                                                                                                                                                                                                                                                                |
@@ -211,7 +211,7 @@ For the whole project, `kit run-checks` runs every quality gate, in every subpro
 
 `kit run-checks --plan` shows what would run, where each comes from, and why, without running it.
 
-`/code-review` ends by running it, and ticking a plan's last step without a review blocks the stop until one runs: `skills/kit-rules/reference/verify.md` section 1.
+`/code-review` ends by running it, and ticking a plan's last step without a review blocks the stop until one runs: `skills/kit-rules/reference/verify.md`.
 
 ### Project-first tools
 
@@ -231,7 +231,7 @@ Each edited file is formatted by the fixers your git hooks would run on it (pre-
 
 ### Rules
 
-Seven short files, injected into every session and every subagent:
+Seven short files in the `kit-rules` skill, which every session and subagent loads before its first tool call:
 
 | Rule        | In one line                                                               |
 | ----------- | ------------------------------------------------------------------------- |
@@ -289,7 +289,7 @@ Two rows: model, agent, directory, and git state; then context used, cost, durat
 
 ## Configure
 
-Defaults live in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml`, merged on top: maps merge, lists append, so an overlay adds to a default list and can't remove from it. Two exceptions: `slop.block_tiers` is replaced, and a `slop.rules` entry replaces the default with its `id`. Every `~/.claude` path in this README is `$CLAUDE_CONFIG_DIR` when that's set.
+Defaults live in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml`, merged on top: maps merge, lists append, so an overlay adds to a default list and can't remove from it. The exceptions: `slop.block_tiers` and every argv list (`cmd`, `private_cmd`, `command`) are replaced, and a `slop.rules` entry replaces the default with its `id`. Every `~/.claude` path in this README is `$CLAUDE_CONFIG_DIR` when that's set.
 
 | Key                       | For                                                                                                                                                                                     |
 | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

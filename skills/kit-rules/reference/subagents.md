@@ -21,7 +21,7 @@ The Agent tool takes the namespaced name, `kit:<name>`. `/agents` lists them.
 
 No agent file restates these, except where noted.
 
-- **Startup**: the resolved `<scratch>` path, repo context, and the `<required-skills>` and `<suggested-skills>` blocks arrive through the SubagentStart hooks. `researcher` ignores the repo context and the skill blocks.
+- **Startup**: the resolved `<scratch>` path, repo context, and the `<required-skills>` and `<suggested-skills>` blocks arrive through the SubagentStart hooks. `researcher` ignores the repo context and `<suggested-skills>`, and loads kit-rules like any agent with Read.
 - **Skills**: load every skill those blocks or the invoking skill name, via the Skill tool, before any edit or before reading the work under review. None named, proceed and say so.
 - **Memory**: an agent with `memory: local` reads it before starting and records durable patterns after. Its Startup names which patterns.
 - **Read-only by default**: Edit and Write exist only for memory and a scratch report. Fixes go back as instructions. `tester` and `debugger` state their write scope in their Boundaries section.

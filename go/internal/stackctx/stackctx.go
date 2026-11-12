@@ -246,8 +246,9 @@ func listFiles(cfg *config.Config, root string) []string {
 	return files
 }
 
-// requiredReferences is the only ask for a required skill's references. No
-// hook checks that they were read.
+// requiredReferences asks for every reference of a required skill, where a
+// skill's own table asks only for the rows that match. No hook checks that
+// they were read.
 const requiredReferences = `Then read every file each one's "Before | Read" table links. The rules live in those files, and SKILL.md only points at them.`
 
 // RequiredBlock is the <required-skills> block, "" when there are none.

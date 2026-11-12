@@ -155,7 +155,7 @@ func skillExists(h *hook.Hook, name string) bool {
 	return slices.ContainsFunc(dirs, func(dir string) bool { return fsx.IsFile(filepath.Join(dir, "skills", name, "SKILL.md")) })
 }
 
-// gatePasses is true for a tool both gates let through: the Skill tool is
+// gatePasses is true for a tool rules-gate lets through: the Skill tool is
 // how a skill loads, and a subagent's hand-back is its reply.
 func gatePasses(tool string) bool {
 	return tool == "Skill" || tool == "SubagentHandback"

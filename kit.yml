@@ -7,8 +7,9 @@
 # (go/internal/gapfill). Read by the kit binary (go/internal/config), which
 # decodes it strictly: `bin/kit config --check` reports an unknown key.
 # The overlay at ~/.claude/claude-kit.local.yml merges over it (maps merge,
-# lists append, but slop.block_tiers is replaced and a slop rule replaces
-# the one with its id), after the presets/<name>.yml its `preset:` names;
+# lists append, but slop.block_tiers and the argv lists cmd, private_cmd,
+# and command are replaced, and a slop rule replaces the one with its id),
+# after the presets/<name>.yml its `preset:` names;
 # `bin/kit config` prints the result.
 #
 # security-patterns and wcag-audit are never mapped: they load by their own
@@ -19,12 +20,13 @@
 # any other always-blocking skill is paid for before the task is known.
 # engineering-fundamentals loads through its own model-invocable
 # description, and skill_file_map requires it on source edits when
-# guard_skills is on.
+# guard_skills is on, or names it on a source read or edit when it's off.
 global_skills: [kit-rules]
 
-# File-to-skills map consumed by guard-dispatch's skills gate, and by
-# <suggested-skills> for every file in the repo.
-# Evaluated against every Edit/Write/MultiEdit target; matching is
+# File-to-skills map consumed by guard-dispatch's skills gate or skills
+# nudge, and by <suggested-skills> for every file in the repo.
+# The gate checks every Edit/Write/MultiEdit target, the nudge every Read
+# target too; matching is
 # cumulative (a single file can satisfy multiple entries). Order matters:
 # test entries precede extension entries so a .test.tsx file picks up
 # test-patterns first.
