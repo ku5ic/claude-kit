@@ -20,7 +20,7 @@ This command names no specific package manager, lockfile, or manifest.
 - Do not detect the stack.
 - Do not re-list lockfiles.
 - Do not hardcode any tool's syntax.
-- Never run checks locally: a PR's CI (`gh pr checks`) is its gate.
+- Never run checks locally. The gate: `skills/kit-rules/reference/verify.md` section 1.
 
 ## Preconditions
 
@@ -42,7 +42,7 @@ Classify each PR by semver bump from its title (`Bump x from 1.2.3 to 1.2.4`): p
 Fetch all alerts with one bare GET and filter `state` client-side in jq.
 
 - Do not pass `-f state=open`: `-f` sends a body field and makes gh issue a POST, which this read-only endpoint rejects with 404.
-- Do not use a bare `?state=open` either; an unquoted `?` is a zsh glob.
+- Do not use a bare `?state=open` either (`skills/bash-patterns/reference/quoting.md`, zsh).
 - Let gh follow the Link header with `--paginate`; never construct `page`/`first`/`last`, removed for these endpoints on 2025-10-14.
 
 ```bash
@@ -101,7 +101,7 @@ Present a table: severity, package, ecosystem, scope, relationship, current -> f
 
 ## Phase 4: verify then merge
 
-Never merge on GitHub mergeability alone. The PR's CI is its gate.
+Never merge on GitHub mergeability alone (`skills/kit-rules/reference/verify.md` section 1).
 
 Per candidate, in turn:
 

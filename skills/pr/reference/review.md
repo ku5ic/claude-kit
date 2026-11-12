@@ -15,7 +15,7 @@ This kind never runs a review, checks out the PR, or runs its checks. It runs la
 2. `git fetch <remote> "+pull/<n>/head:refs/pr/<n>"`, where `<remote>` is the one `git remote -v` shows for `<owner>/<repo>`, else `https://github.com/<owner>/<repo>.git`. The `+` lets a later run follow a force-push.
 3. `git rev-parse refs/pr/<n>` must equal `headRefOid`. Mismatch: stop and say so. Every later read uses that SHA.
 
-zsh traps: write `"${head}:${file}"`, never `$head:src/...` (the `:s` history modifier fires). Never name a variable `path`; zsh ties it to `PATH`.
+Write `"${head}:${file}"`; the zsh traps are `skills/bash-patterns/reference/quoting.md`.
 
 ## Verify each point
 

@@ -24,12 +24,22 @@ That one pattern, generic plus inflated, sits under most of the tells in this sk
 
 ## Why the word lists rotate
 
-Each model generation has its own overused words; a word that marks 2024 output is ordinary by 2026, and people pick up model vocabulary too. So the lexicon treats single era words as noise and only counts a cluster (tier 3, warn only). Structural patterns, the empty "-ing" clause, the importance claim, the copula swap, last across generations; they're tier 2.
+Each model generation has its own overused words; a word that marks 2024 output is ordinary by 2026, and people pick up model vocabulary too. So the lexicon treats single era words as noise and only counts a cluster (tier 3, density only). Structural patterns, the empty "-ing" clause, the importance claim, the copula swap, last across generations; they're tier 2.
 
 ## Tiers
 
-| Tier | What                                                                     | What happens                                                |
-| ---- | ------------------------------------------------------------------------ | ----------------------------------------------------------- |
-| 1    | Unambiguous: chat filler in a file, leaked citation markup, placeholders | Blocks                                                      |
-| 2    | Structural constructions                                                 | Blocks                                                      |
-| 3    | Era vocabulary and soft markers, counted per 100 prose words             | A note when the density crosses the threshold; never blocks |
+| Tier | What                                                                     |
+| ---- | ------------------------------------------------------------------------ |
+| 1    | Unambiguous: chat filler in a file, leaked citation markup, placeholders |
+| 2    | Structural constructions                                                 |
+| 3    | Era vocabulary and soft markers, counted per 100 prose words             |
+
+<!-- chat: skip -->
+
+Which tiers block, and the density threshold, are `kit.yml` `slop:`.
+
+<!-- chat: end -->
+
+<!-- chat: only
+In claude.ai chat, which tiers count and the density threshold are in `reference/lexicon.md` in the unslop skill.
+-->

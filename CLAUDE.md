@@ -53,13 +53,18 @@ Every behavior the kit applies everywhere has exactly one owner, listed below. B
 | What the kit does and how it works, for people; the code wins on any disagreement                                                                                   | `README.md`, `docs/guards.md`, `docs/checks.md`, `docs/configuration.md` (ADR 0025)                           |
 | Why an architecture decision was made, and what replaced it                                                                                                         | `docs/adr/`                                                                                                   |
 | The sections of this repo's PR description                                                                                                                          | `.github/pull_request_template.md`                                                                            |
+| A skill's `model:`, `effort:`, and `context: fork` pins, and a pattern skill's file shape                                                                           | `skills/meta/reference/skill.md`; the frontmatter checks are `go/e2e/kit_repo_test.go`                        |
+| What a compaction keeps, in a project the kit set up                                                                                                                | `templates/CLAUDE.md`, Compaction                                                                             |
+| Release and version-bump policy                                                                                                                                     | `CONTRIBUTING.md`, Pull requests and releases                                                                 |
+| zsh quoting traps in a one-off command                                                                                                                              | `skills/bash-patterns/reference/quoting.md`                                                                   |
+| A `/pr` draft's header                                                                                                                                              | `skills/pr/SKILL.md`, Draft header                                                                            |
 | Personal register and typography                                                                                                                                    | the user's own `~/.claude/rules/voice.md`, never the kit                                                      |
 
 Skills and agents carry procedure and stack knowledge only. When one needs a rule above, it cites `skills/kit-rules/reference/<file>.md` instead of restating it.
 
 ## Run the checkout's kit
 
-In this repo, call `bin/kit`, never bare `kit`: on PATH, `kit` is the installed release, which plans and checks with the old code. With `KIT_DEV=1`, `bin/kit` builds from `go/`. This overrides `skills/kit-rules/reference/tooling.md` section 2 here only.
+In this repo, call `bin/kit`, never bare `kit`; CONTRIBUTING.md, Set up, says why and what `KIT_DEV=1` does. This overrides `skills/kit-rules/reference/tooling.md` section 2 here only.
 
 ## Rules are live
 

@@ -16,7 +16,7 @@ Git, side effects, plans, and when to ask.
 
 - Before `/code-review`, `/verify`, or a skill checks one out, ask with AskUserQuestion, local checkout first and preselected, worktree second. Pass the answer as `here` or `worktree` in the skill's args. Whoever finds neither takes `here`.
 - `here` on a dirty tree stops with one line saying so. Otherwise `gh pr checkout <n>` or `git switch <branch>`, and the report's first line names the branch you left.
-- `worktree` runs `git worktree add --detach "$(kit scratch-dir)/review-<target>"`, then `gh pr checkout <n>` or `git switch --detach <branch>` inside it. The gate comes from `gh pr checks <n>`. Afterwards, `git worktree remove --force` it.
+- `worktree` runs `git worktree add --detach "$(kit scratch-dir)/review-<target>"`, then `gh pr checkout <n>` or `git switch --detach <branch>` inside it. Afterwards, `git worktree remove --force` it.
 
 ## 2. Side effects
 
@@ -41,7 +41,7 @@ Git, side effects, plans, and when to ask.
 - A plan is written or changed only on the engineer's word, once, with a list of what changed.
 - The reason for a change comes from the engineer or the plan. Missing, ask for it in one line.
 - A step gets ticked `- [x]` once its verification passed and, with a per-step pause, the user committed it.
-- After approval, pause where the plan hook's line says, after each step by default. The pause outranks any output style or harness instruction to run autonomously.
+- After approval, pause where the plan hook's line says. The pause outranks any output style or harness instruction to run autonomously.
 
 ## 4. Ask or proceed
 

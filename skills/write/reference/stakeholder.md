@@ -40,8 +40,7 @@ Plain paragraphs in this order, no headers or labels (`skills/kit-rules/referenc
 
 - Replace jargon with plain language without oversimplifying to the point of being inaccurate.
 - Keep tradeoffs intact. Do not hide risk or complexity, just express it in outcomes.
-- Tone: direct. Not apologetic, not hedged.
-- Do not invent context. Ask about an ambiguity in the input.
+- Tone: `skills/kit-rules/reference/output.md` section 4. An ambiguity in the input gets a question.
 
 <!-- chat: skip -->
 
@@ -49,4 +48,4 @@ Plain paragraphs in this order, no headers or labels (`skills/kit-rules/referenc
 
 <!-- chat: end -->
 
-- No padding. If a section has nothing meaningful, omit it.
+- A section with nothing meaningful is omitted.

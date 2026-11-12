@@ -11,7 +11,7 @@ Applies to bug fixes, patches, and "make X work". Not to new features or to refa
 
 ## 2. Follow the existing pattern
 
-- Before a new library, state approach, folder shape, or naming convention, match how the codebase already solves it, or name the divergence and its reason.
+- Before a new module, API shape, file, library, state approach, folder shape, or naming convention, read one instance of how this project already solves it and say in one sentence what it showed. Then match it, or name the divergence and its reason; an option that diverges with no reason is ruled out. With no precedent, say there is none. A one-line fix needs no check.
 - Before writing code, take the first option that holds. Not needed at all, already in the codebase, the standard library, a native platform feature, an installed dependency, one line, then the minimum new code.
 - Before running a script, check the project defines it.
 
@@ -43,7 +43,7 @@ Applies to bug fixes, patches, and "make X work". Not to new features or to refa
 
 - A feature change refactors no unrelated code and restyles no working code.
 - A refactor changes no behavior, so the existing tests pass unchanged. In UI, the look is behavior unless the user asked for a redesign.
-- A test that must change during a refactor follows `skills/kit-rules/reference/evidence.md` section 3.
+- A test that must change during a refactor follows `skills/kit-rules/reference/evidence.md` section 2.
 - A task that grows mid-way gets the new scope confirmed first.
 - A task bigger than the context can hold gets a proposed split.
 

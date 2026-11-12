@@ -93,8 +93,8 @@ func TestKitRepo(t *testing.T) {
 	})
 
 	t.Run("a reference skill keeps its sources in sources.md and fits its budget", func(t *testing.T) {
-		// The procedure skills, as skills/meta/reference/refresh.md lists them,
-		// plus kit-rules and slop-patterns, which aren't pattern skills.
+		// The skills that aren't reference skills, so keep no sources.md;
+		// skills/meta/reference/refresh.md points here for the list.
 		exempt := []string{"audit", "write", "deps", "investigate", "pr", "unslop", "report-format", "meta", "kit-rules", "slop-patterns"}
 		// Set from the sizes after sources moved out; step 18's rewrite lowers them.
 		const maxDescription, maxSkill = 200, 5 * 1024
@@ -167,24 +167,6 @@ func TestKitRepo(t *testing.T) {
 		}
 		for skill, exts := range bySkill {
 			covers("skill_file_map for "+skill, exts)
-		}
-	})
-
-	t.Run("skills/kit-rules/reference/tooling.md's skip list is kit.yml's skip_dirs", func(t *testing.T) {
-		cfg, _, err := config.Load(config.Paths{Base: filepath.Join(kitRoot, "kit.yml"), Overlay: filepath.Join(t.TempDir(), "none.yml")})
-		if err != nil {
-			t.Fatal(err)
-		}
-		line := regexp.MustCompile("(?m)^- Skip for any glob, grep, or read: (.*)$").FindStringSubmatch(Read(t, filepath.Join(kitRoot, "skills/kit-rules/reference/tooling.md")))
-		if line == nil {
-			t.Fatal("skills/kit-rules/reference/tooling.md has no skip line")
-		}
-		var listed []string
-		for _, m := range regexp.MustCompile("`([^`]+)/\\*\\*`").FindAllStringSubmatch(line[1], -1) {
-			listed = append(listed, m[1])
-		}
-		if !slices.Equal(slices.Sorted(slices.Values(listed)), slices.Sorted(slices.Values(cfg.SkipDirs))) {
-			t.Errorf("skills/kit-rules/reference/tooling.md skips %q, kit.yml skip_dirs is %q", listed, cfg.SkipDirs)
 		}
 	})
 

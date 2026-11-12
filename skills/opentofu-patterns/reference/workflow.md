@@ -5,6 +5,5 @@
 - `validate` checks syntax and internal consistency and contacts no backend or provider API.
 - Before `validate`: initialize the directory with providers and modules installed. `tofu init -backend=false` does it without touching the backend.
 - Run `validate` in pre-commit and CI; `plan` and `apply` validate on their own.
-- `guard-bash` blocks `destroy` and `apply -auto-approve` for both `tofu` and `terraform`, even after global options such as `-chdir`.
 - Apply a plan only after it's been reviewed.
-- When the guard blocks a command, never work around it. Ask the user to run it themselves.
+- A command the bash guard blocks goes to the user, per `skills/kit-rules/reference/workflow.md` section 4.

@@ -22,12 +22,12 @@ bin/kit help
 ## Test
 
 - **Everything CI runs:** `KIT_DEV=1 bin/kit run-checks --all`, or without `--all` for what changed since `main`. It reads the steps from `.github/workflows/ci.yml`, which are golangci-lint, `go vet`, deadcode, `go test -race`, the chat bundle check, shellcheck, and `claude plugin validate`.
-- **Go tests:** `go test ./...` in `go/`. End-to-end tests live in `go/e2e`, and `go/e2e/kit_repo_test.go` checks that the kit's own files agree: the skill map, skill and agent frontmatter, `kit.yml` keys, and every pointer to a file or rules section.
-- **Behavior:** `evals/` checks that the rules shape replies (answer first, ask before guessing, no unasked commits, artifacts in scratch, no AI tells in a README, comment, or landing page). It holds only cases whose score differs with and without the kit. Once per release, build this version's binary with `go/build.sh --host`, then run `PATH="$PWD/bin:$PATH" claude plugin eval . --ablation with-without --scaffold --allow-tools Edit Write Bash --runs 1 -j 4` and compare against `evals/scorecard/`. The PATH puts the checkout's `kit` ahead of an installed one.
+- **Go tests:** `go test ./...` in `go/`. End-to-end tests live in `go/e2e`, and `go/e2e/kit_repo_test.go` checks that the kit's own files agree.
+- **Behavior:** `evals/` checks that the rules shape replies. It holds only cases whose score differs with and without the kit. Once per release, build this version's binary with `go/build.sh --host`, then run `PATH="$PWD/bin:$PATH" claude plugin eval . --ablation with-without --scaffold --allow-tools Edit Write Bash --runs 1 -j 4` and compare against `evals/scorecard/`. The PATH puts the checkout's `kit` ahead of an installed one.
 
 ## The chat bundle
 
-The `release` workflow builds the claude.ai chat zip. `kit bundle chat --check` validates what would go in it, and CI runs it too, so a bundled skill can't gain a Claude Code dependency unnoticed. Mark up what differs in chat with whole-line `<!-- chat: skip -->` ... `<!-- chat: end -->` comments, or a `<!-- chat: only` block opening "In claude.ai chat,", since Claude Code reads that text too.
+The `release` workflow builds the claude.ai chat zip. `kit bundle chat --check` validates what would go in it, and CI runs it too, so a bundled skill can't gain a Claude Code dependency unnoticed. Mark up what differs in chat with the comment markers `go/internal/chatbundle` reads, since Claude Code reads that text too.
 
 ## Pull requests and releases
 

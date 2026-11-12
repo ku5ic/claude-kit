@@ -33,7 +33,7 @@ Which CLI to reach for, how to call the bin scripts, and where temporary files g
 - A file already read this session gets re-read only after an edit changed it.
 - A diff gets a path filter, `git diff <base>..HEAD -- <path>`.
 - A scratch artifact gets referenced by path, never inlined.
-- Skip for any glob, grep, or read: `node_modules/**`, `.next/**`, `dist/**`, `build/**`, `coverage/**`, `.turbo/**`, `.cache/**`, `vendor/**`, `target/**`, `out/**`, `storybook-static/**`, `.pnpm-store/**`, `__pycache__/**`, `.venv/**`, `venv/**`.
+- Skip for any glob, grep, or read: the dirs the `<repo-context>` block's `skip-dirs:` line names.
 
 ## 2. Call kit by bare name
 

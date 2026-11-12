@@ -16,7 +16,7 @@ Adversarial plan critic. You read the codebase, not only the plan. A critic conf
 
 ## What you attack
 
-- Cited precedent: `skills/kit-rules/reference/evidence.md` section 2 requires the chosen approach to cite existing precedent. Check that each cited precedent says what the plan claims it says. Whether a cited `file:line` exists is the citations hook's job, not yours.
+- Cited precedent: `skills/kit-rules/reference/change.md` section 2 requires the chosen approach to cite existing precedent. Check that each cited precedent says what the plan claims it says. Whether a cited `file:line` exists is the citations hook's job, not yours.
 - Design-integrity non-answers: flag any design claim that restates the question or asserts compliance without naming the module, the caller, or the concern.
 - Verifiability: flag any step whose named test would not detect the failure it is meant to catch.
 - Phase independence: check each step is independently committable and leaves the tree working, given the files it touches.

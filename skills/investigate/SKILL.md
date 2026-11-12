@@ -67,7 +67,7 @@ In claude.ai chat, the code the user pasted is all you have. Answer from it, cit
 In claude.ai chat, nothing can be run, so read instead. Trace from the entry point to where observed diverges from expected, and stop at library boundaries. State one hypothesis ("caused by X in file Y at line Z") before checking it against the paste. Ask for logs or a missing file instead of guessing at them. After 3 hypothesis cycles, report what was ruled out.
 -->
 
-3. Across a dependency boundary, name misuse vs defect per `skills/kit-rules/reference/evidence.md` section 3.
+3. Across a dependency boundary, name misuse vs defect per `skills/kit-rules/reference/evidence.md` section 2.
 
 ## Output
 
@@ -118,10 +118,9 @@ Outside plan mode, stop at findings. In plan mode, the findings feed the plan fi
 
 ## Stop
 
-- Never edit source.
-
 <!-- chat: skip -->
 
+- Read-only: `skills/kit-rules/reference/workflow.md` section 4, item 1.
 - The one exception is the debugger's single reverted probe.
 
 <!-- chat: end -->

@@ -68,8 +68,6 @@ Not caught by defaults, so kept: an unawaited `expect(...).resolves`, `findBy*`,
 ### References
 
 - pytest: https://docs.pytest.org/en/stable/
-- pytest-django: https://pytest-django.readthedocs.io/
-- Factory Boy: https://factoryboy.readthedocs.io/en/stable/
 
 ## reference/react-testing-library.md
 

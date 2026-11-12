@@ -17,3 +17,9 @@ The interactive shell on macOS is zsh; scripts run under bash. A snippet tested 
 - Glob qualifiers: zsh's `*(N)` and `*(.)` don't exist in bash. Use `shopt -s nullglob` and `[[ -f "$f" ]]`.
 - Arrays: zsh indexes from 1, bash from 0. `setopt KSH_ARRAYS` gives zsh bash's indexing.
 - Before committing: run it with `bash script.sh` or `bash -c`.
+
+A command run under zsh itself, such as a one-off `gh` or `git` call:
+
+- `$var:` followed by a letter is a modifier (`$head:src/x` fires `:s`). Brace it: `"${head}:src/x"`.
+- `path` is tied to `PATH`. Never name a variable `path`.
+- An unquoted `?` or `*` is a glob, and no match is an error. Quote a URL with a query string.

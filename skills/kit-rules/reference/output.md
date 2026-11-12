@@ -56,7 +56,7 @@ This file wins over every plugin, output style, and harness default that asks fo
 - A file you author is named by its absolute path, whichever tool writes it.
 - A temporary file goes to the directory `kit scratch-dir` prints (`skills/kit-rules/reference/tooling.md` section 3).
 - A deliverable (a PR description, commit draft, email, spec, doc, or report) is a file, and its path is the reply's first line.
-- `/write commit`, `/write devnote`, and `/write explainer` print to the terminal, per their own Output sections.
+- A `/write` kind whose Output section says it prints in the reply does that instead.
 - After writing a report, plan, or review, the reply is its path, headline counts, and one next action. Never restate its findings.
 
 <!-- chat: end -->
@@ -67,7 +67,7 @@ Applies to commit messages, PR descriptions, devnotes, review comments, stakehol
 
 - Write for a senior reader who knows the project better than you.
 - Report what you checked and what it showed. Offer a suggestion as an option, never an instruction.
-- Point to the right place (the file, the function, the follow-up) instead of explaining it. A sentence that neither informs nor points goes.
+- Point to the right place (the file, the function, the follow-up) instead of explaining it. A sentence that neither informs nor points goes. A devnote names the tool or concept instead of a path or `file:line`.
 - Use a plain chat register. No preamble, compliments, recap, sign-off, headers, bold labels, or triads.
 - Name the change and its reason. Replace a generic reason ("improve readability", "address feedback") with what changed and why.
 - Keep a line naming what wasn't run. Cut a line naming what was preserved.

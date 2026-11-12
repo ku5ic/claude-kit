@@ -72,6 +72,7 @@ Not caught by defaults, so kept: useless `cat` (SC2002 is off), a missing `set -
 
 - Quote kinds, ANSI-C quoting, heredoc delimiters: https://www.gnu.org/software/bash/manual/bash.html#Quoting
 - `printf` over `echo`: https://mywiki.wooledge.org/BashFAQ/050
+- zsh modifiers, the tied `path` array, and `NOMATCH`: https://zsh.sourceforge.io/Doc/Release/Expansion.html, https://zsh.sourceforge.io/Doc/Release/Parameters.html. Checked 2026-11-12 in zsh: `$head:src/x` gave "bad substitution", `typeset -p path` printed `typeset -aT PATH path`, and `echo foo?state=open` gave "no matches found".
 
 ## reference/safety-flags.md
 

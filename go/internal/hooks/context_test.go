@@ -319,6 +319,14 @@ dependency_skills:
 		r.Want(t, 0)
 		r.Has(t, "<required-skills>", "fix-sizing", "dirty-files (at session start): unknown")
 	})
+	t.Run("repo-context names kit.yml's skip_dirs, for the session and a subagent", func(t *testing.T) {
+		t.Parallel()
+		e := contextSetup(t)
+		e.kitYML("skip_dirs: [node_modules, .venv]\n")
+		e.writeCache("root: "+e.root, "js: yes")
+		e.inject("s1", "").Has(t, "skip-dirs: node_modules, .venv\n")
+		e.run("inject-subagent-context", map[string]any{"session_id": "s1", "cwd": e.root}).Has(t, "skip-dirs: node_modules, .venv")
+	})
 	t.Run("repo-context names the scratch dir without creating it", func(t *testing.T) {
 		t.Parallel()
 		e := contextSetup(t)

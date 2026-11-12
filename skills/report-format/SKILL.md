@@ -51,8 +51,8 @@ Stack: <the language lines kit detect-stack prints, if applicable>
 - Severity is one of `failure` (a defect or violation that should not ship), `warning` (a smell that compounds with other findings), `info` (a hardening opportunity or note, not a defect). Nothing else. A consumer may narrow a level's meaning for its domain, never add one.
 - Sort findings by severity, failures first.
 - If a section would be empty, omit it. Do not leave placeholder text.
-- No ASCII decoration, no banner comments, no emoji.
-- A report goes at the path `kit scratch-dir <kind> <target-slug>` prints.
+- No emoji. ASCII decoration: `skills/kit-rules/reference/change.md` section 5.
+- Where a report goes: `skills/kit-rules/reference/output.md` section 3.
 - Does not govern `/write` or `/pr` output (commit messages, release notes, stakeholder summaries, PR descriptions, review comments); those have their own formats per `skills/kit-rules/reference/output.md`.
 
 ## Summary line rubric
@@ -67,7 +67,7 @@ The "overall health in one word" at the end of the Summary helps quick scanning:
 
 ## Anti-patterns
 
-- `failure`: writing the report body to terminal output instead of a file, so the artifact becomes ephemeral and unreferenceable.
+- `failure`: a report body in the reply instead of its file (`skills/kit-rules/reference/output.md` section 3).
 - `failure`: omitting the `## Summary` section or the `## Findings` section when findings exist, in a report this format governs.
 - `warning`: inventing severity levels outside `failure`, `warning`, `info`, e.g. `critical`, `high`, `medium`, `low`, `error`. The rubric has three levels; anything else breaks downstream tooling that parses reports.
 - `warning`: leaving placeholder text in empty sections (e.g. `<none>`, `N/A`) rather than omitting the section.

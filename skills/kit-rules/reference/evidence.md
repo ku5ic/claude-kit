@@ -25,15 +25,7 @@ What must be true before a claim, a conclusion, or a fix is stated.
 
 - A result the user reports: take it as given, with no explanation or caveat unless asked.
 
-## 2. Check the precedent before writing
-
-- Before a new module, API shape, or file, find how this project already solves it, read one instance, and say in one sentence what it showed.
-- With no precedent for the case, say there is none.
-- An option that leaves the precedent without a stated reason is ruled out.
-
-Applies to new code. Not to a one-line fix.
-
-## 3. Diagnose before fixing across a boundary
+## 2. Diagnose before fixing across a boundary
 
 - A bug involving code this project doesn't own: read its contract (docs, types, or source), then say misuse or defect before fixing.
 - Misuse: fix the call site. Defect: check its tracker, then work around it at the boundary, marked as a workaround. Inconclusive: say what a reproduction needs.

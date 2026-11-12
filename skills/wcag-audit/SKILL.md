@@ -14,7 +14,7 @@ Target: WCAG 2.2 Level AA, which includes all of Level A. Audit AAA only when as
 3. Record what was checked, what passed, and what failed.
 4. Note each item that needs runtime or user testing. Where the project runs axe, it settles some against a running page, such as contrast (1.4.3); screen reader and keyboard behavior still need a person.
 
-Validate accessibility work against WCAG 2.2 AA explicitly. Never claim conformance without checking it against this list; an unaudited claim is a fabrication.
+Validate accessibility work against WCAG 2.2 AA explicitly. A conformance claim is checked against this list, per `skills/kit-rules/reference/evidence.md` section 1.
 
 ## Severity rubric
 

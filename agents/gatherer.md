@@ -30,4 +30,4 @@ Q: <the question, one line>
 none: <what was searched, when nothing was found>
 ```
 
-Every `path:line` must exist and be in range. The citations hook sends a report back once when one doesn't.
+Every `path:line` must exist and be in range.

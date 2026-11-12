@@ -30,8 +30,6 @@ Every skill with references lists them in a "Before | Read" table: an action, th
 
 **A result the user reports is taken as given.** Explaining why it happened, or adding caveats to it, spends the user's time on something they didn't ask about.
 
-**Precedent before writing.** A project's own way of solving a problem beats a generic best practice, and a change that ignores it gets reworked in review. An absence of precedent is a finding too. Not a mandate to read the codebase first: a one-line fix needs no check, and a new module, API shape, or file does. A divergence with a stated reason is a decision. One without is a defect.
-
 **Misuse or defect.** Most "library bugs" are usage errors, so the call site is the first suspect. Reading the dependency's contract (docs, types, source) settles it, memory doesn't. A known defect is often already in the tracker or changelog. Three failed fixes means the diagnosis is wrong; a fourth patch is guessing.
 
 **A test failing after a refactor.** Adjusting the assertion to match the new output silently is the failure mode. A test asserting user-visible output is almost always guarding real behavior.
@@ -41,6 +39,8 @@ Every skill with references lists them in a "Before | Read" table: an action, th
 ## Change
 
 **Minimal is measured against the defect, not against caution.** A one-line fix to a one-line bug is minimal. A one-line fix that papers over a broken abstraction isn't, and that's the reason to state for a bigger change. New features and requested refactors have no defect to be minimal against, hence the scope line.
+
+**Precedent before writing.** A project's own way of solving a problem beats a generic best practice, and a change that ignores it gets reworked in review. An absence of precedent is a finding too. Not a mandate to read the codebase first: a one-line fix needs no check, and a new module, API shape, or file does. A divergence with a stated reason is a decision. One without is a defect.
 
 **The option order** (not needed, already here, stdlib, platform, installed dependency, one line, new code) puts the cheapest maintenance first. CSS over JS and a DB constraint over app code are the platform cases.
 
