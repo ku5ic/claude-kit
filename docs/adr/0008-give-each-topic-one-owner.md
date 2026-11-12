@@ -6,6 +6,8 @@ Date: 2026-10-12
 
 Accepted
 
+Amended by [25. Let people-facing docs explain the mechanics](0025-let-people-facing-docs-explain-the-mechanics.md)
+
 ## Context
 
 Guidance was restated across rules, skills, agents, and the README, and the copies drifted (PR #8). Two files saying different things about the same topic leave Claude to pick one.

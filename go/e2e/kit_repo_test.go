@@ -307,8 +307,13 @@ var (
 func brokenPointers(t *testing.T) []string {
 	t.Helper()
 	var sources []string
-	for _, dir := range []string{"agents", "skills", "go"} {
+	for _, dir := range []string{"agents", "skills", "go", "docs"} {
 		_ = filepath.WalkDir(filepath.Join(kitRoot, dir), func(path string, d os.DirEntry, err error) error {
+			// An accepted ADR changes only in its status line, so a pointer
+			// in one that a later move breaks can't be fixed.
+			if err == nil && d.IsDir() && d.Name() == "adr" {
+				return filepath.SkipDir
+			}
 			if err == nil && !d.IsDir() && (strings.HasSuffix(path, ".md") || strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, "_test.go")) {
 				sources = append(sources, path)
 			}
