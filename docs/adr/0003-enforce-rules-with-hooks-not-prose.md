@@ -6,6 +6,8 @@ Date: 2026-09-25
 
 Accepted
 
+Amended by [27. Nudge toward skill references instead of gating them](0027-nudge-toward-skill-references-instead-of-gating-them.md)
+
 ## Context
 
 A rule in CLAUDE.md, a skill, or a prompt is advice, and Claude can skip it. Permission rules can't fill the gap. A prefix rule can't tell `git push` from `git push --force origin main`, it never sees a command inside a pipeline, and a plugin can't ship deny rules at all.
