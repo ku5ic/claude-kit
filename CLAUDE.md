@@ -1,6 +1,6 @@
 # claude-kit
 
-Working on the kit itself. Build, test, and release steps live in README.md "Develop"; this file holds only what that doesn't.
+Working on the kit itself. Build, test, and release steps live in CONTRIBUTING.md; this file holds only what that doesn't.
 
 ## One source of truth
 

@@ -320,7 +320,7 @@ func brokenPointers(t *testing.T) []string {
 			return nil
 		})
 	}
-	sources = append(sources, filepath.Join(kitRoot, "README.md"), filepath.Join(kitRoot, "CLAUDE.md"))
+	sources = append(sources, filepath.Join(kitRoot, "README.md"), filepath.Join(kitRoot, "CLAUDE.md"), filepath.Join(kitRoot, "CONTRIBUTING.md"))
 
 	headings := map[string]bool{}
 	var bad []string
