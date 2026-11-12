@@ -1,6 +1,6 @@
 ---
 name: docker-patterns
-description: Docker patterns for Dockerfiles, multi-stage builds, Compose, networking, and volumes. Use for a Dockerfile, a Compose file, .dockerignore, or container questions.
+description: Docker patterns for Dockerfiles, multi-stage builds, Compose, networking, and volumes. Load before any edit to a Dockerfile, Compose file, or .dockerignore, however small, and for container questions.
 ---
 
 # Docker patterns
@@ -9,7 +9,7 @@ Default assumption: Docker Engine 29.9.3 and the Compose Specification, which su
 
 ## Reference files
 
-Read every file in this table as soon as this skill loads. A hook blocks every tool call until you have.
+Loading this skill isn't enough. Before your next edit, read the file of every row that matches it. The rules live in those files, and this one only points at them.
 
 | Before                                                                         | Read                                           |
 | ------------------------------------------------------------------------------ | ---------------------------------------------- |
@@ -19,4 +19,4 @@ Read every file in this table as soon as this skill loads. A hook blocks every t
 | Connecting containers, publishing ports, or choosing a network driver          | [networking.md](reference/networking.md)       |
 | Persisting data with a volume, a bind mount, or tmpfs                          | [volumes.md](reference/volumes.md)             |
 | Setting the user, pinning images, or handling secrets in an image or container | [security.md](reference/security.md)           |
-| Reviewing Docker code                                                          | [anti-patterns.md](reference/anti-patterns.md) |
+| Writing, changing, or reviewing Docker code                                    | [anti-patterns.md](reference/anti-patterns.md) |

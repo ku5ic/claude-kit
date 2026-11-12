@@ -1,6 +1,6 @@
 ---
 name: git-patterns
-description: Git patterns for Conventional Commits, rebase, reflog recovery, bisect, worktrees, and stash. Use in a git repository or for any git operation.
+description: Git patterns for Conventional Commits, rebase, reflog recovery, bisect, worktrees, and stash. Load before any commit, rebase, or other git operation, however small.
 ---
 
 # Git Patterns

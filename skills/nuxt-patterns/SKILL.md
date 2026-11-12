@@ -1,6 +1,6 @@
 ---
 name: nuxt-patterns
-description: Nuxt 3+ patterns for rendering modes, useFetch and useAsyncData, server routes, SSR state, and Nitro. Use for nuxt.config.*, nuxt in package.json, Nuxt app dirs, or Nuxt questions.
+description: Nuxt 3+ patterns for rendering modes, useFetch and useAsyncData, server routes, SSR state, and Nitro. Load before any edit in a Nuxt app or to nuxt.config.*, however small, and for Nuxt questions.
 ---
 
 # Nuxt patterns
@@ -12,11 +12,11 @@ Default assumption: Nuxt 4 (current stable, latest 4.6.x) with Universal Renderi
 
 ## Reference files
 
-Read every file in this table as soon as this skill loads. A hook blocks every tool call until you have.
+Loading this skill isn't enough. Before your next edit, read the file of every row that matches it. The rules live in those files, and this one only points at them.
 
 | Before                                                                         | Read                                                     |
 | ------------------------------------------------------------------------------ | -------------------------------------------------------- |
-| Reviewing Nuxt code                                                            | [reference/anti-patterns.md](reference/anti-patterns.md) |
+| Writing, changing, or reviewing Nuxt code                                      | [reference/anti-patterns.md](reference/anti-patterns.md) |
 | Choosing a rendering mode, or setting `routeRules` or prerendering             | [reference/rendering.md](reference/rendering.md)         |
 | Fetching data with `$fetch`, `useFetch`, or `useAsyncData`                     | [reference/data-fetching.md](reference/data-fetching.md) |
 | Adding shared state, `useState`, a Pinia store, or a composable                | [reference/state.md](reference/state.md)                 |

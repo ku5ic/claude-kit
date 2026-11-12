@@ -1,6 +1,6 @@
 ---
 name: logging-patterns
-description: Python logging patterns for stdlib config, structlog, levels, handlers, and JSON logs. Use for Python logging or structlog code, or logging questions.
+description: Python logging patterns for stdlib config, structlog, levels, handlers, and JSON logs. Load before any edit to Python logging or structlog code, however small, and for logging questions.
 ---
 
 # Logging Patterns

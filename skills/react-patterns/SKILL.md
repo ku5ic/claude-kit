@@ -1,6 +1,6 @@
 ---
 name: react-patterns
-description: React patterns for hooks rules, component design, and rendering performance. Use for .jsx or .tsx files, react in package.json, or React questions.
+description: React patterns for hooks rules, component design, and rendering performance. Load before any edit to a .jsx or .tsx file, however small, and for React questions.
 ---
 
 # React patterns
@@ -13,12 +13,12 @@ Default assumption: React 19 with the modern (concurrent) renderer.
 
 ## Reference files
 
-Read every file in this table as soon as this skill loads. A hook blocks every tool call until you have.
+Loading this skill isn't enough. Before your next edit, read the file of every row that matches it. The rules live in those files, and this one only points at them.
 
 | Before                                                                | Read                                                     |
 | --------------------------------------------------------------------- | -------------------------------------------------------- |
 | Writing a hook, an effect, a list with keys, or conditional rendering | [reference/correctness.md](reference/correctness.md)     |
 | Memoizing, optimizing a render, or adding context                     | [reference/performance.md](reference/performance.md)     |
 | Handling a form or an action, or deciding where state lives           | [reference/structure.md](reference/structure.md)         |
-| Reviewing React code                                                  | [reference/anti-patterns.md](reference/anti-patterns.md) |
+| Writing, changing, or reviewing React code                            | [reference/anti-patterns.md](reference/anti-patterns.md) |
 | Splitting a component, or deciding whether to                         | [reference/when-to-split.md](reference/when-to-split.md) |

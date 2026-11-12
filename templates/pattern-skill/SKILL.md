@@ -12,7 +12,7 @@ Default assumption: <Stack> <current major.minor>.
 
 ## Reference files
 
-Read every file in this table as soon as this skill loads. A hook blocks every tool call until you have.
+Loading this skill isn't enough. Before your next edit, read the file of every row that matches it. The rules live in those files, and this one only points at them.
 
 | Before                                     | Read                                                     |
 | ------------------------------------------ | -------------------------------------------------------- |

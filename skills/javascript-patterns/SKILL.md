@@ -1,6 +1,6 @@
 ---
 name: javascript-patterns
-description: JavaScript patterns for modern syntax, async, ESM and CJS, and errors. Use for .js, .mjs, .cjs, or .jsx files, package.json, or JavaScript questions.
+description: JavaScript patterns for modern syntax, async, ESM and CJS, and errors. Load before any edit to a .js, .mjs, .cjs, or .jsx file or package.json, however small, and for JavaScript questions.
 ---
 
 # JavaScript patterns
@@ -12,7 +12,7 @@ Default assumption: a project running on the current Node.js Active LTS (Node 26
 
 ## Reference files
 
-Read every file in this table as soon as this skill loads. A hook blocks every tool call until you have.
+Loading this skill isn't enough. Before your next edit, read the file of every row that matches it. The rules live in those files, and this one only points at them.
 
 | Before                                                                          | Read                                                                   |
 | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
@@ -23,4 +23,4 @@ Read every file in this table as soon as this skill loads. A hook blocks every t
 | Comparing values, checking for NaN or arrays, or doing arithmetic on money      | [reference/equality-and-numbers.md](reference/equality-and-numbers.md) |
 | Choosing between a plain object, a `Map`, a `Set`, or a weak collection         | [reference/collections.md](reference/collections.md)                   |
 | Adding JSDoc types or `// @ts-check`, or weighing a move to TypeScript          | [reference/jsdoc.md](reference/jsdoc.md)                               |
-| Reviewing JavaScript code                                                       | [reference/anti-patterns.md](reference/anti-patterns.md)               |
+| Writing, changing, or reviewing JavaScript code                                 | [reference/anti-patterns.md](reference/anti-patterns.md)               |

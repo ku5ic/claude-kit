@@ -1,6 +1,6 @@
 ---
 name: fastapi-patterns
-description: FastAPI and Pydantic v2 patterns for Depends, response models, async, errors, and auth. Use for fastapi in dependencies, files importing fastapi, or FastAPI questions.
+description: FastAPI and Pydantic v2 patterns for Depends, response models, async, errors, and auth. Load before any edit to a file importing fastapi, however small, and for FastAPI questions.
 ---
 
 # FastAPI patterns
@@ -11,7 +11,7 @@ Install: `pip install "fastapi[standard]"`
 
 ## Reference files
 
-Read every file in this table as soon as this skill loads. A hook blocks every tool call until you have.
+Loading this skill isn't enough. Before your next edit, read the file of every row that matches it. The rules live in those files, and this one only points at them.
 
 | Before                                                                               | Read                                                         |
 | ------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
@@ -22,4 +22,4 @@ Read every file in this table as soon as this skill loads. A hook blocks every t
 | Raising `HTTPException` or writing an exception handler                              | [error-handling.md](reference/error-handling.md)             |
 | Setting OpenAPI metadata, tags, or route docs                                        | [openapi.md](reference/openapi.md)                           |
 | Adding authentication, JWT, password hashing, or an API key                          | [auth.md](reference/auth.md)                                 |
-| Reviewing FastAPI code                                                               | [anti-patterns.md](reference/anti-patterns.md)               |
+| Writing, changing, or reviewing FastAPI code                                         | [anti-patterns.md](reference/anti-patterns.md)               |

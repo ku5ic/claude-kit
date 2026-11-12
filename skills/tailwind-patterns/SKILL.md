@@ -1,6 +1,6 @@
 ---
 name: tailwind-patterns
-description: Tailwind CSS v4 patterns for @theme config, v3-to-v4 changes, and variants. Use for tailwind.config.*, a tailwindcss import or dependency, or Tailwind questions.
+description: Tailwind CSS v4 patterns for @theme config, v3-to-v4 changes, and variants. Load before any edit to a class list, stylesheet, or tailwind.config.*, however small, and for Tailwind questions.
 ---
 
 # Tailwind patterns

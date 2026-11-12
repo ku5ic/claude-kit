@@ -1,6 +1,6 @@
 ---
 name: vue-patterns
-description: Vue 3 patterns for the Composition API, reactivity, and single-file components. Use for .vue files, vue in package.json, a Vite config with the Vue plugin, or Vue questions.
+description: Vue 3 patterns for the Composition API, reactivity, and single-file components. Load before any edit to a .vue file or composable, however small, and for Vue questions.
 ---
 
 # Vue patterns
@@ -13,7 +13,7 @@ Default assumption: Vue 3 with the Composition API and `<script setup>`.
 
 ## Reference files
 
-Read every file in this table as soon as this skill loads. A hook blocks every tool call until you have.
+Loading this skill isn't enough. Before your next edit, read the file of every row that matches it. The rules live in those files, and this one only points at them.
 
 | Before                                                                                                    | Read                                                     |
 | --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
@@ -21,7 +21,7 @@ Read every file in this table as soon as this skill loads. A hook blocks every t
 | Writing a component's props, emits, slots, defaults, or `defineModel`                                     | [reference/components.md](reference/components.md)       |
 | Writing a `watch` or `watchEffect`, a deep watcher, or watcher cleanup                                    | [reference/watchers.md](reference/watchers.md)           |
 | Sharing state with `provide`/`inject`, a Pinia store, or a composable                                     | [reference/state.md](reference/state.md)                 |
-| Reviewing Vue code                                                                                        | [reference/anti-patterns.md](reference/anti-patterns.md) |
+| Writing, changing, or reviewing Vue code                                                                  | [reference/anti-patterns.md](reference/anti-patterns.md) |
 
 ## Out of scope
 

@@ -1,6 +1,6 @@
 ---
 name: monitoring-patterns
-description: Prometheus patterns for prometheus-client metric types, naming, labels, and health checks. Use for Python metrics code or monitoring questions.
+description: Prometheus patterns for prometheus-client metric types, naming, labels, and health checks. Load before any edit to Python metrics or health-check code, however small, and for monitoring questions.
 ---
 
 # Monitoring Patterns

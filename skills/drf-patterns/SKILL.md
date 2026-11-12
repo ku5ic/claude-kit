@@ -1,6 +1,6 @@
 ---
 name: drf-patterns
-description: Django REST Framework patterns for serializers, viewsets, permissions, and throttling. Use for djangorestframework or rest_framework in a project, or DRF questions.
+description: Django REST Framework patterns for serializers, viewsets, permissions, and throttling. Load before any edit to a serializer, viewset, or API view, however small, and for DRF questions.
 ---
 
 # Django REST Framework patterns
@@ -12,7 +12,7 @@ DRF 3.18.x.
 
 ## Reference files
 
-Read every file in this table as soon as this skill loads. A hook blocks every tool call until you have.
+Loading this skill isn't enough. Before your next edit, read the file of every row that matches it. The rules live in those files, and this one only points at them.
 
 | Before                                                               | Read                                                                   |
 | -------------------------------------------------------------------- | ---------------------------------------------------------------------- |
@@ -23,4 +23,4 @@ Read every file in this table as soon as this skill loads. A hook blocks every t
 | Adding filtering, search, or ordering                                | [filtering.md](reference/filtering.md)                                 |
 | Setting up authentication, tokens, or JWT                            | [auth.md](reference/auth.md)                                           |
 | Versioning the API                                                   | [versioning.md](reference/versioning.md)                               |
-| Reviewing DRF code                                                   | [anti-patterns.md](reference/anti-patterns.md)                         |
+| Writing, changing, or reviewing DRF code                             | [anti-patterns.md](reference/anti-patterns.md)                         |

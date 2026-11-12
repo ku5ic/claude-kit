@@ -23,7 +23,7 @@ In claude.ai chat, no guard runs. The word lists and tiers are in `reference/lex
 
 Fixing the first without the second makes the text harder to spot and no better to read. A flagged sentence gets rewritten around a fact, never patched with a synonym: [reference/rewrite.md](reference/rewrite.md).
 
-Read every file in this table as soon as this skill loads. A hook blocks every tool call until you have.
+Loading this skill isn't enough. Before your next edit, read the file of every row that matches it. The rules live in those files, and this one only points at them.
 
 | Before                                               | Read                                                                                             |
 | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------ |

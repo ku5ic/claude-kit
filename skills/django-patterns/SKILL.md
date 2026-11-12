@@ -1,6 +1,6 @@
 ---
 name: django-patterns
-description: Django patterns for the ORM, views, migrations, and settings. Use for manage.py, settings.py, apps.py, django in a Python manifest, or Django questions.
+description: Django patterns for the ORM, views, migrations, and settings. Load before any edit in a Django app (models, views, migrations, settings), however small, and for Django questions.
 ---
 
 # Django patterns
@@ -14,7 +14,7 @@ Default assumption: Django 5.2 LTS.
 
 ## Reference files
 
-Read every file in this table as soon as this skill loads. A hook blocks every tool call until you have.
+Loading this skill isn't enough. Before your next edit, read the file of every row that matches it. The rules live in those files, and this one only points at them.
 
 | Before                                                                             | Read                                               |
 | ---------------------------------------------------------------------------------- | -------------------------------------------------- |
@@ -26,4 +26,4 @@ Read every file in this table as soon as this skill loads. A hook blocks every t
 | Writing or changing a test                                                         | [testing.md](reference/testing.md)                 |
 | Writing or squashing a migration                                                   | [migrations.md](reference/migrations.md)           |
 | Registering or changing a `ModelAdmin`                                             | [admin.md](reference/admin.md)                     |
-| Reviewing Django code                                                              | [anti-patterns.md](reference/anti-patterns.md)     |
+| Writing, changing, or reviewing Django code                                        | [anti-patterns.md](reference/anti-patterns.md)     |

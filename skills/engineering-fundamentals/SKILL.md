@@ -1,13 +1,13 @@
 ---
 name: engineering-fundamentals
-description: Design and code-level checks for modularity, size, nesting, naming, errors, and red-green-refactor. Use when planning, reviewing, or writing code in any language.
+description: Design and code-level checks for modularity, size, nesting, naming, errors, and red-green-refactor. Load before planning a change and before any code edit, however small, in any language.
 ---
 
 # Engineering fundamentals
 
 Concrete checks that turn the principles in `skills/kit-rules/reference/change.md` into questions with observable answers. The principles themselves (minimal change, existing patterns, KISS, YAGNI, DRY, SOLID, comments, dead code) live in that rule; this skill never restates or overrides them.
 
-Read every file in this table as soon as this skill loads. A hook blocks every tool call until you have. Apply only what fits, and don't pad findings to fill sections.
+Loading this skill isn't enough. Before your next edit, read the file of every row that matches it. The rules live in those files, and this one only points at them. Apply only what fits, and don't pad findings to fill sections.
 
 | Before                                                 | Read                                                                                 |
 | ------------------------------------------------------ | ------------------------------------------------------------------------------------ |

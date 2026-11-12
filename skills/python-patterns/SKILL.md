@@ -1,6 +1,6 @@
 ---
 name: python-patterns
-description: Python patterns for typing, project layout, async, errors, and packaging. Use for .py files, pyproject.toml, requirements.txt, uv.lock, poetry.lock, or Python questions.
+description: Python patterns for typing, project layout, async, errors, and packaging. Load before any edit to a .py file or pyproject.toml, however small, and for Python questions.
 ---
 
 # Python patterns
@@ -14,7 +14,7 @@ Default assumption: Python 3.11 or later, type hints required on public function
 
 ## Reference files
 
-Read every file in this table as soon as this skill loads. A hook blocks every tool call until you have.
+Loading this skill isn't enough. Before your next edit, read the file of every row that matches it. The rules live in those files, and this one only points at them.
 
 | Before                                                                             | Read                                                         |
 | ---------------------------------------------------------------------------------- | ------------------------------------------------------------ |
@@ -23,4 +23,4 @@ Read every file in this table as soon as this skill loads. A hook blocks every t
 | Writing async code, or running blocking work from it                               | [reference/async.md](reference/async.md)                     |
 | Raising, catching, or chaining an exception                                        | [reference/errors.md](reference/errors.md)                   |
 | Using `itertools`, an enum, a dataclass, `functools.cache`, `pathlib`, or Pydantic | [reference/common-patterns.md](reference/common-patterns.md) |
-| Reviewing Python code                                                              | [reference/anti-patterns.md](reference/anti-patterns.md)     |
+| Writing, changing, or reviewing Python code                                        | [reference/anti-patterns.md](reference/anti-patterns.md)     |

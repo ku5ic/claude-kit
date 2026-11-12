@@ -37,7 +37,7 @@ skill_file_map:
     globs: ["*.ts", "*.tsx", "*.mts", "*.cts", "*.js", "*.jsx", "*.mjs", "*.cjs", "*.py", "*.rb", "*.go", "*.rs", "*.java", "*.sh", "*.vue"]
     skills: [engineering-fundamentals]
   - on: basename
-    globs: ["*.test.*", "*.spec.*", "test_*.py", "*_test.py", "*_test.go", "*_spec.rb"]
+    globs: ["*.test.*", "*.spec.*", "test_*.py", "*_test.py", "*_test.go", "*_spec.rb", "test.sh", "test_*.sh", "*_test.sh", "*.bats"]
     skills: [test-patterns]
   - on: basename
     globs: ["*.tsx"]
@@ -125,25 +125,25 @@ dependency_skills:
 # global_skills entries, if any, are excluded; they are required, not
 # suggested.
 skill_triggers:
-  javascript-patterns: "before writing or restructuring JavaScript modules, functions, or async flow"
-  typescript-patterns: "before adding or changing types, generics, or type-level APIs"
-  react-patterns: "before building or restructuring React components, hooks, or state"
-  next-app-router-patterns: "before creating or restructuring routes, layouts, or server components in app/"
-  vue-patterns: "before building or restructuring Vue components, composables, or reactivity"
-  nuxt-patterns: "before working on Nuxt routing, server routes, or module config"
-  tailwind-patterns: "before utility-class styling or design-token work"
-  graphql-patterns: "before writing GraphQL operations or fragments, or changing the Apollo cache or codegen config"
-  storybook-patterns: "before writing or changing stories, play functions, or Storybook config"
-  go-patterns: "before writing or changing Go packages, error handling, or goroutines"
-  test-patterns: "before writing or restructuring tests, fixtures, or assertions"
-  engineering-fundamentals: "before the first edit to a source file"
-  python-patterns: "before writing or restructuring Python modules, classes, or packaging"
-  django-patterns: "before modeling, migrations, or view work in a Django app"
-  drf-patterns: "before building serializers, viewsets, or API endpoints with Django REST Framework"
-  fastapi-patterns: "before defining FastAPI routes, dependencies, or Pydantic models"
-  docker-patterns: "before authoring or changing Dockerfiles or compose services"
-  opentofu-patterns: "before writing or changing OpenTofu/Terraform resources, modules, variables, or state moves"
-  bash-patterns: "before writing or modifying shell scripts"
+  javascript-patterns: "before any edit to a .js, .mjs, .cjs, or .jsx file"
+  typescript-patterns: "before any edit to a .ts or .tsx file or tsconfig"
+  react-patterns: "before any edit to a .jsx or .tsx file"
+  next-app-router-patterns: "before writing or changing any file in a Next.js app"
+  vue-patterns: "before any edit to a .vue file or composable"
+  nuxt-patterns: "before writing or changing any file in a Nuxt app"
+  tailwind-patterns: "before writing or changing any class list, stylesheet, or Tailwind config"
+  graphql-patterns: "before any edit to a .graphql or .gql file, an operation, or codegen config"
+  storybook-patterns: "before any edit to a .stories.* file or Storybook config"
+  go-patterns: "before any edit to a .go file or go.mod"
+  test-patterns: "before writing or changing any test, test helper, or fixture, in any language"
+  engineering-fundamentals: "before planning a change, and before the first edit to any source file"
+  python-patterns: "before any edit to a .py file or pyproject.toml"
+  django-patterns: "before writing or changing any file in a Django app"
+  drf-patterns: "before writing or changing any Django REST Framework serializer, viewset, or API view"
+  fastapi-patterns: "before writing or changing any FastAPI route, dependency, or Pydantic model"
+  docker-patterns: "before any edit to a Dockerfile or compose file"
+  opentofu-patterns: "before any edit to a .tf or .tfvars file"
+  bash-patterns: "before writing or modifying shell scripts (.sh, .bash, .zsh)"
 
 # Guard lists. An overlay can append to any of them.
 

@@ -1,6 +1,6 @@
 ---
 name: graphql-patterns
-description: GraphQL client patterns for operations, fragments, the codegen client preset, and Apollo Client 4. Use for .graphql or .gql files, codegen.ts, Apollo, urql, or GraphQL questions.
+description: GraphQL client patterns for operations, fragments, the codegen client preset, and Apollo Client 4. Load before any edit to a .graphql or .gql file, however small, or for GraphQL questions.
 ---
 
 # GraphQL patterns
@@ -13,11 +13,11 @@ Default assumption: a TypeScript client on Apollo Client 4.3 with documents type
 
 ## Reference files
 
-Read every file in this table as soon as this skill loads. A hook blocks every tool call until you have.
+Loading this skill isn't enough. Before your next edit, read the file of every row that matches it. The rules live in those files, and this one only points at them.
 
 | Before                                                                                | Read                                                     |
 | ------------------------------------------------------------------------------------- | -------------------------------------------------------- |
 | Writing or changing an operation, a variable, or a fragment                           | [reference/documents.md](reference/documents.md)         |
 | Configuring codegen, or using the `graphql()` function or fragment masking            | [reference/codegen.md](reference/codegen.md)             |
 | Writing or changing Apollo Client code: imports, errors, fetch policies, or the cache | [reference/apollo-client.md](reference/apollo-client.md) |
-| Reviewing GraphQL client code                                                         | [reference/anti-patterns.md](reference/anti-patterns.md) |
+| Writing, changing, or reviewing GraphQL client code                                   | [reference/anti-patterns.md](reference/anti-patterns.md) |

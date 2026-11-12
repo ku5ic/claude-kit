@@ -1,6 +1,6 @@
 ---
 name: vps-provisioning
-description: VPS patterns for setup, firewall, nginx reverse proxy, Let's Encrypt, systemd, and hardening. Use for Ansible playbooks, provisioning scripts, nginx or systemd configs, or server questions.
+description: VPS patterns for setup, firewall, nginx reverse proxy, Let's Encrypt, systemd, and hardening. Load before any edit to a playbook, provisioning script, or nginx or systemd config, however small.
 ---
 
 # VPS provisioning patterns
@@ -12,7 +12,7 @@ Default assumption: Debian 13 (Trixie), Ubuntu 26.04 or 24.04 LTS.
 
 ## Reference files
 
-Read every file in this table as soon as this skill loads. A hook blocks every tool call until you have.
+Loading this skill isn't enough. Before your next edit, read the file of every row that matches it. The rules live in those files, and this one only points at them.
 
 | Before                                                                                             | Read                                           |
 | -------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
@@ -22,4 +22,4 @@ Read every file in this table as soon as this skill loads. A hook blocks every t
 | Issuing or renewing a certificate with certbot, or writing a renewal hook                          | [ssl-tls.md](reference/ssl-tls.md)             |
 | Writing or changing a systemd unit, its restart policy, or its environment file                    | [systemd.md](reference/systemd.md)             |
 | Configuring fail2ban, unattended-upgrades, or sshd hardening                                       | [hardening.md](reference/hardening.md)         |
-| Reviewing provisioning code or server config                                                       | [anti-patterns.md](reference/anti-patterns.md) |
+| Writing, changing, or reviewing provisioning code or server config                                 | [anti-patterns.md](reference/anti-patterns.md) |

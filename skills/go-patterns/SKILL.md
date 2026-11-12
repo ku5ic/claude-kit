@@ -1,6 +1,6 @@
 ---
 name: go-patterns
-description: Go patterns for errors, context, goroutines, interfaces, recent release features, and tests. Use for .go files, go.mod, or Go questions.
+description: Go patterns for errors, context, goroutines, interfaces, recent release features, and tests. Load before any edit to a .go file or go.mod, however small, and for Go questions.
 ---
 
 # Go patterns
@@ -12,7 +12,7 @@ Default assumption: Go 1.27.
 
 ## Reference files
 
-Read every file in this table as soon as this skill loads. A hook blocks every tool call until you have.
+Loading this skill isn't enough. Before your next edit, read the file of every row that matches it. The rules live in those files, and this one only points at them.
 
 | Before                                                                                   | Read                                                                         |
 | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
@@ -20,4 +20,4 @@ Read every file in this table as soon as this skill loads. A hook blocks every t
 | Starting a goroutine, or using a context, a `WaitGroup`, or a loop variable in a closure | [reference/context-and-concurrency.md](reference/context-and-concurrency.md) |
 | Naming something, placing an interface, or using a feature from a recent release         | [reference/style.md](reference/style.md)                                     |
 | Writing or changing a test                                                               | [reference/testing.md](reference/testing.md)                                 |
-| Reviewing Go code                                                                        | [reference/anti-patterns.md](reference/anti-patterns.md)                     |
+| Writing, changing, or reviewing Go code                                                  | [reference/anti-patterns.md](reference/anti-patterns.md)                     |

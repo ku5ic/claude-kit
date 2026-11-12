@@ -1,6 +1,6 @@
 ---
 name: next-app-router-patterns
-description: Next.js App Router patterns for the server/client boundary, caching, server actions, streaming, and runtimes. Use for next.config.*, app/ route files, next in package.json, or Next.js questions.
+description: Next.js App Router patterns for the server/client boundary, caching, server actions, streaming, and runtimes. Load before any edit in app/ or next.config.*, however small, or for Next.js questions.
 ---
 
 # Next.js App Router patterns
@@ -12,11 +12,11 @@ Default assumption: Next.js 16 with the App Router.
 
 ## Reference files
 
-Read every file in this table as soon as this skill loads. A hook blocks every tool call until you have.
+Loading this skill isn't enough. Before your next edit, read the file of every row that matches it. The rules live in those files, and this one only points at them.
 
 | Before                                                                               | Read                                                             |
 | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
-| Reviewing Next.js code                                                               | [reference/anti-patterns.md](reference/anti-patterns.md)         |
+| Writing, changing, or reviewing Next.js code                                         | [reference/anti-patterns.md](reference/anti-patterns.md)         |
 | Adding `"use client"`, or passing props or data between server and client code       | [reference/server-and-client.md](reference/server-and-client.md) |
 | Fetching data, setting segment config, or caching or revalidating                    | [reference/caching.md](reference/caching.md)                     |
 | Writing or changing a server action or a `"use server"` function                     | [reference/server-actions.md](reference/server-actions.md)       |

@@ -1,6 +1,6 @@
 ---
 name: test-patterns
-description: Testing patterns for test design, fixtures, mocking, async, and coverage. Use for test configs, test directories, a failing test, or testing questions in any stack.
+description: Testing patterns for test design, fixtures, mocking, async, and coverage. Load before any edit to a test, test helper, fixture, or test config, however small, in any stack, and for testing questions.
 ---
 
 # Test patterns
@@ -9,11 +9,11 @@ Apply the runner-specific reference matching the detected test runner. Principle
 
 ## Reference files
 
-Read every file in this table as soon as this skill loads. A hook blocks every tool call until you have.
+Loading this skill isn't enough. Before your next edit, read the file of every row that matches it. The rules live in those files, and this one only points at them.
 
 | Before                                                             | Read                                                                     |
 | ------------------------------------------------------------------ | ------------------------------------------------------------------------ |
-| Reviewing tests                                                    | [reference/anti-patterns.md](reference/anti-patterns.md)                 |
+| Writing, changing, or reviewing tests                              | [reference/anti-patterns.md](reference/anti-patterns.md)                 |
 | Designing a test, or choosing what level to test at                | [reference/principles.md](reference/principles.md)                       |
 | Writing a Jest or Vitest test, picking a runner, or mocking HTTP   | [reference/vitest-and-jest.md](reference/vitest-and-jest.md)             |
 | Querying the DOM in a React Testing Library test                   | [reference/react-testing-library.md](reference/react-testing-library.md) |

@@ -1,6 +1,6 @@
 ---
 name: backup-patterns
-description: Backup patterns for the 3-2-1 rule, rsync, pg_dump, restic, retention, and restore tests. Use for backup scripts, cron or systemd backup jobs, or questions on backups or disaster recovery.
+description: Backup patterns for the 3-2-1 rule, rsync, pg_dump, restic, retention, and restore tests. Load before any edit to a backup script or job, however small, and for backup questions.
 ---
 
 # Backup Patterns
