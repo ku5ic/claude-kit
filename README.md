@@ -9,7 +9,7 @@ claude plugin marketplace add ku5ic/claude-kit
 claude plugin install kit@ku5ic
 ```
 
-Works in any repo on macOS and Linux with the defaults in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml` ([Presets vs configuration](#presets-vs-configuration)). Every hook is a deterministic Go binary; the guards run in tens of milliseconds.
+Works in any repo on macOS and Linux with the defaults in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml` ([Presets vs configuration](#presets-vs-configuration)).
 
 **It isn't an autopilot.** You approve the plan, review each step, and commit. The kit makes each review shorter, because what reaches you has already been checked.
 
@@ -75,7 +75,7 @@ Nothing to learn up front. After install:
 
 ## Enforced, not advised
 
-Permission rules don't close that gap. A prefix rule can't tell `git push` from `git push --force origin main`, never sees a command inside a pipeline, and a plugin can't ship deny rules at all. Hooks can.
+Claude Code's permission rules can't do this. A prefix rule can't tell `git push` from `git push --force origin main`, never sees a command inside a pipeline, and a plugin can't ship deny rules at all. Hooks can.
 
 ## What it catches
 
@@ -118,7 +118,7 @@ Where plain Claude Code already gets it right (fixing a failing test, answering 
 
 ## What it costs
 
-More per turn. The guards take tens of milliseconds, but the claim checker is a Sonnet run capped at $1 and 240 seconds (`kit.yml` `claims:`), and every block is a turn you wait through.
+More per turn. The bash guard takes about 11 ms, but the claim checker is a Sonnet run capped at $1 and 240 seconds (`kit.yml` `claims:`), and every block is a turn you wait through.
 
 ## How you work with it
 
@@ -130,23 +130,23 @@ For anything bigger than a one-line fix, the kit holds Claude to five stages. Ea
 | 2. Plan              | `/plan` (built in)                        | You approve a plan nobody checked           | `kit:plan-critic` reads it against the repo, and its claims are checked, before you're asked to approve       |
 | 3. Review each step  | Approve the plan                          | Claude runs through the whole plan at once  | Claude stops after every step so you can review and commit. The Stop hook has already checked what it touched |
 | 4. Review the change | `/code-review`, then `/verify` (built in) | "Done" while checks fail                    | `/code-review`'s hook runs the full gate; `/verify` watches the change work                                   |
-| 5. Ship              | `/write commit`, `/pr description`        | Commits you didn't ask for, AI-sounding PRs | Messages and PR text in your project's style, checked for AI tells. Claude never commits or pushes unasked    |
+| 5. Ship              | `/write commit`, `/kit:pr description`    | Commits you didn't ask for, AI-sounding PRs | Messages and PR text in your project's style, checked for AI tells. Claude never commits or pushes unasked    |
 
-Side trips: `/audit` for a read-only report, `/simplify <path>` to cut over-engineering, `/deps` for dependency PRs.
+Side trips: `/audit` for a read-only report, `/simplify` (built in) to cut over-engineering, `/deps` for dependency PRs.
 
 ### Commands
 
-Each command is a procedure Claude follows step by step, so the same request gets the same shape of answer every time. They work bare (`/audit`) or namespaced (`/kit:audit`).
+Each command is a procedure Claude follows step by step, so the same request gets the same shape of answer every time. They work bare (`/audit`) or namespaced (`/kit:audit`), except `/kit:pr`: Claude Code reserves `/pr`.
 
-| When you need                                                                             | Run             | What it does                                                                                                        |
-| ----------------------------------------------------------------------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------- |
-| To know how, why, or where something works                                                | `investigate`   | Read-only answer to "how", "why", or "where". Loads on its own; never edits                                         |
-| A report on accessibility, tech debt, doc drift, or performance                           | `/audit <kind>` | `a11y`, `debt`, `doc-drift`, `perf`, or `verify` a prior report. Writes a report to scratch                         |
-| A commit message, release notes, a devnote, an explainer, or a stakeholder summary        | `/write <kind>` | `commit`, `release-notes`, `devnote`, `explainer`, `stakeholder`                                                    |
-| PR text: your description, a review of someone's PR, or a reply to your reviewer          | `/pr <kind>`    | Draft a `description`, a `review` of someone's PR, or a `reply` to your reviewer; `publish` posts an approved draft |
-| Dependabot PRs merged and security alerts sorted                                          | `/deps`         | Merge Dependabot PRs and reconcile security alerts                                                                  |
-| AI tells and filler out of a text                                                         | `/unslop`       | Rewrite AI tells and filler in files, a `diff`, or pasted text; to scratch unless told `in place`                   |
-| A sharper prompt, refreshed pattern skills, a new skill, a repo's conventions, or a retro | `/meta <kind>`  | `prompt` sharpening, `refresh` the pattern skills, draft a new `skill`, write a repo's `conventions`, `retro`       |
+| When you need                                                                             | Run              | What it does                                                                                                        |
+| ----------------------------------------------------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------- |
+| To know how, why, or where something works                                                | `investigate`    | Read-only answer to "how", "why", or "where". Loads on its own; never edits                                         |
+| A report on accessibility, tech debt, doc drift, or performance                           | `/audit <kind>`  | `a11y`, `debt`, `doc-drift`, `perf`, or `verify` a prior report. Writes a report to scratch                         |
+| A commit message, release notes, a devnote, an explainer, or a stakeholder summary        | `/write <kind>`  | `commit`, `release-notes`, `devnote`, `explainer`, `stakeholder`                                                    |
+| PR text: your description, a review of someone's PR, or a reply to your reviewer          | `/kit:pr <kind>` | Draft a `description`, a `review` of someone's PR, or a `reply` to your reviewer; `publish` posts an approved draft |
+| Dependabot PRs merged and security alerts sorted                                          | `/deps`          | Merge Dependabot PRs and reconcile security alerts                                                                  |
+| AI tells and filler out of a text                                                         | `/unslop`        | Rewrite AI tells and filler in files, a `diff`, or pasted text; to scratch unless told `in place`                   |
+| A sharper prompt, refreshed pattern skills, a new skill, a repo's conventions, or a retro | `/meta <kind>`   | `prompt` sharpening, `refresh` the pattern skills, draft a new `skill`, write a repo's `conventions`, `retro`       |
 
 ### Agents
 
@@ -166,7 +166,7 @@ Each agent is a subagent with one job, the tools for it, and a boundary it keeps
 
 ### Guards
 
-The things that cost you a correction round if they get through: a force push, a read of `.env`, a skipped test, a package that doesn't exist. Every guard, what it stops, and whether it blocks or asks: what it stops, and whether it blocks or asks: [docs/guards.md](docs/guards.md).
+A force push, a read of `.env`, a skipped test, a package that doesn't exist. Every guard, what it stops, and whether it blocks or asks: [docs/guards.md](docs/guards.md).
 
 ### Checks before "done"
 
