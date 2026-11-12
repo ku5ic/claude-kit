@@ -2,7 +2,7 @@
 
 **Claude Code that shows its work.**
 
-Guardrails for developers who review what Claude does. It has to back its claims, pass your project's own checks before it says "done", and stop for your review after every step.
+Claude Code treats your rules as advice. A rule in CLAUDE.md, a skill, or a prompt is something it can skip, and you find out in review. claude-kit runs those rules as hooks on every command, edit, plan, subagent report, and stop, and sends Claude back when it breaks one. It has to back its claims, pass your project's own checks before it says "done", and stop for your review after every step.
 
 ```sh
 claude plugin marketplace add ku5ic/claude-kit
@@ -13,8 +13,44 @@ Works in any repo on macOS and Linux with the defaults in `kit.yml`. Your overri
 
 **It isn't an autopilot.** You approve the plan, review each step, and commit. The kit makes each review shorter, because what reaches you has already been checked.
 
+## How a session runs
+
+```mermaid
+flowchart LR
+    ask([You ask]):::you --> tool[Claude calls a tool]:::claude
+    tool --> guards{Guards}:::kit
+    guards -->|pass| runs[Tool runs,<br/>files formatted]:::claude
+    guards -->|ask| decide([You decide]):::you
+    decide -->|yes| runs
+    guards -.->|block, with the reason| tool
+    runs --> checks{Your checks<br/>at turn end}:::kit
+    checks -.->|fail| tool
+    checks -->|pass| review([You review<br/>and commit]):::you
+
+    classDef you fill:#dcfce7,stroke:#16a34a,color:#14532d
+    classDef claude fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
+    classDef kit fill:#fef3c7,stroke:#d97706,color:#78350f
+```
+
+Nothing to learn up front. After install:
+
+| When                  | The kit                                                                                                          |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| A session starts      | Loads the rules, your stack, your check commands, and the pattern skills that fit                                |
+| Claude runs a command | Blocks the dangerous ones, asks about the ambiguous ones, checks any file it changed                             |
+| Claude edits a file   | Keeps credential files off limits, wants a reason for a skipped test, runs your formatter                        |
+| Claude plans          | Has plan-critic read it against the repo and checks its claims before you approve; a resubmit lists what changed |
+| A step ends           | Hands you a review sheet: lockfiles, configs, markers, and unplanned files first                                 |
+| A subagent reports    | Sends back AI tells, unconfirmed claims, and an over-long report before Claude reads it                          |
+| Claude commits        | Blocks AI signatures and secrets; your commit-msg hooks check the message                                        |
+| Claude says done      | Runs your git hooks' checks on what it edited                                                                    |
+| Claude replies        | Holds it to a word ceiling and reminds it to check its claims                                                    |
+
+**Block** means Claude gets the reason and tries another way; you aren't interrupted. **Ask** is a normal permission prompt with the reason in it. Every guard, and which of the two it does: [docs/guards.md](docs/guards.md).
+
 ## Contents
 
+- [How a session runs](#how-a-session-runs)
 - [Enforced, not advised](#enforced-not-advised)
 - [What it catches](#what-it-catches)
 - [Measured, not promised](#measured-not-promised)
@@ -40,9 +76,7 @@ Works in any repo on macOS and Linux with the defaults in `kit.yml`. Your overri
 
 ## Enforced, not advised
 
-A rule in CLAUDE.md, a skill, or a prompt is advice, and Claude can skip it. The kit's rules run as hooks on every command, edit, plan, subagent report, and stop, and a broken rule sends Claude back to fix it.
-
-Permission rules can't do most of this either. A prefix rule can't tell `git push` from `git push --force origin main`, never sees a command inside a pipeline, and a plugin can't ship deny rules at all. Hooks can.
+Permission rules don't close that gap. A prefix rule can't tell `git push` from `git push --force origin main`, never sees a command inside a pipeline, and a plugin can't ship deny rules at all. Hooks can.
 
 ## What it catches
 
@@ -137,20 +171,6 @@ Each release attaches `kit-chat-<version>.zip`, a smaller plugin for chat on the
 - **Mobile has no `/` menu.** Skills load from what you ask for.
 
 ## What you get
-
-Nothing to learn up front. After install:
-
-```text
-session starts     -> Claude loads the rules skill and gets your stack, your check commands, and the skills that fit
-Claude runs bash   -> dangerous commands are blocked, ambiguous ones ask you first; files the command changed get the edit checks
-Claude edits       -> credential files are off limits; skipping a test needs a stated reason; the file is formatted with your formatter
-Claude plans       -> plan-critic reads it against the repo, and its claims are checked, before you're asked to approve; a resubmit lists what changed
-Claude ends a step -> a review sheet from git puts lockfiles, configs, markers, and files the plan never names first
-a subagent reports -> AI tells, unconfirmed claims, and a report over its word budget are sent back before Claude reads it
-Claude commits     -> AI signatures and secrets are blocked; your commit-msg hooks check the message
-Claude says done   -> your git hooks' checks run on what it edited
-Claude replies     -> a `reply_limits` word ceiling, stated at session start and again when a prompt sets another; each prompt reminds it to check its claims
-```
 
 ### Guards
 
