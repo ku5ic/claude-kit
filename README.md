@@ -9,7 +9,7 @@ claude plugin marketplace add ku5ic/claude-kit
 claude plugin install kit@ku5ic
 ```
 
-Works in any repo on macOS and Linux with the defaults in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml` ([Configure](#configure)). Every hook is a deterministic Go binary; the guards run in tens of milliseconds.
+Works in any repo on macOS and Linux with the defaults in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml` ([Presets vs configuration](#presets-vs-configuration)). Every hook is a deterministic Go binary; the guards run in tens of milliseconds.
 
 **It isn't an autopilot.** You approve the plan, review each step, and commit. The kit makes each review shorter, because what reaches you has already been checked.
 
@@ -50,7 +50,6 @@ Nothing to learn up front. After install:
 
 ## Contents
 
-- [How a session runs](#how-a-session-runs)
 - [Enforced, not advised](#enforced-not-advised)
 - [What it catches](#what-it-catches)
 - [Measured, not promised](#measured-not-promised)
@@ -58,9 +57,6 @@ Nothing to learn up front. After install:
 - [How you work with it](#how-you-work-with-it)
   - [Commands](#commands)
   - [Agents](#agents)
-- [Install](#install)
-- [On by default, and what you switch on](#on-by-default-and-what-you-switch-on)
-- [Use it in claude.ai chat](#use-it-in-claudeai-chat)
 - [The pieces](#the-pieces)
   - [Guards](#guards)
   - [Checks before "done"](#checks-before-done)
@@ -69,7 +65,10 @@ Nothing to learn up front. After install:
   - [Pattern skills](#pattern-skills)
   - [Status line](#status-line)
   - [The kit CLI](#the-kit-cli)
-- [Configure](#configure)
+- [Presets vs configuration](#presets-vs-configuration)
+- [Install](#install)
+  - [Shell completion (optional)](#shell-completion-optional)
+- [Use it in claude.ai chat](#use-it-in-claudeai-chat)
 - [When a guard gets in your way](#when-a-guard-gets-in-your-way)
 - [How it's built](#how-its-built)
 - [Develop](#develop)
@@ -163,43 +162,6 @@ Each agent is a subagent with one job, the tools for it, and a boundary it keeps
 | Library docs or a web page                         | `kit:researcher`    | Looks them up, keeping network access out of code work                                       |
 | Tests for recent work                              | `kit:tester`        | Adds or updates them and runs them. Never changes the code to make them pass                 |
 
-## Install
-
-```sh
-claude plugin marketplace add ku5ic/claude-kit
-claude plugin install kit@ku5ic
-```
-
-- **Needs:** `git` and any bash, on macOS or Linux. Formatters and linters are used when installed and skipped when not; the kit never installs anything.
-- **Gap-fill:** the `claude` CLI, logged in. Once per repo, and again when its configs change, Haiku sorts the commands your CI, hooks, and task runners hold into checks and fixers, capped at $0.50 a call; the answers are cached and verified against your files. Without it, those commands are skipped and named.
-- **Claim checker:** the `kit:claim-checker` agent, which Claude runs where you can watch it before a scratch report or a post goes out; plan-critic covers a plan. Inside a subagent, which can't start an agent, the hook runs the same instructions through the `claude` CLI. Without it, or when a run fails, claims go unchecked and nothing blocks.
-- **Claude Code only.** claude.ai and Cowork don't install a plugin with a top-level `bin/`. Chat has [its own zip](#use-it-in-claudeai-chat).
-- **Gitignore** `.claude/scratch/` and `.claude/plans/`, globally or per repo. The kit never edits your ignore files.
-- **Rules ship with the plugin.** Nothing to link. If an older install left `~/.claude/rules/claude-kit`, remove it; the session-start notice names it.
-- **Your own CLAUDE.md:** copy `templates/CLAUDE.md` to `~/.claude/CLAUDE.md` and fill it in.
-
-### Shell completion (optional)
-
-Claude Code puts `kit` on PATH only inside its sessions. To use it in your terminal, add to `~/.zshrc` (after `compinit`) or `~/.bashrc`:
-
-```sh
-export PATH="$HOME/.claude/plugins/marketplaces/ku5ic/bin:$PATH"
-eval "$(kit completion zsh)"   # or: kit completion bash
-```
-
-## On by default, and what you switch on
-
-Guards, checks, formatting, and the rules are on from install. The opt-in switches, and what each needs, are in [docs/configuration.md](docs/configuration.md#on-by-default-and-what-you-switch-on).
-
-## Use it in claude.ai chat
-
-Each release attaches `kit-chat-<version>.zip`, a smaller plugin for chat on the web, desktop, and mobile. Upload it under Customize > Plugins, with code execution on. Updates mean uploading the new zip; it replaces the old one.
-
-- **What's in it:** the `kit-rules` skill, built from the output, evidence, and change rules, plus `investigate`, `write`, `unslop`, `slop-patterns`, and `engineering-fundamentals`. They work on what you paste; chat has no repo. `kit.yml` `chat_bundle:` lists them.
-- **No guards.** Chat runs no hooks, so nothing blocks, formats, or checks. `unslop` scans with a bundled `kit`, and reads its lexicon by hand if that can't run.
-- **The rules can be skipped.** `kit-rules` loads when the model takes a task for writing or coding, and nothing enforces that. Only your claude.ai preferences reach every chat.
-- **Mobile has no `/` menu.** Skills load from what you ask for.
-
 ## The pieces
 
 ### Guards
@@ -281,9 +243,61 @@ Every hook runs through one `kit` binary, and the same binary answers the questi
 | Check two colours' contrast against WCAG                        | `kit contrast <fg> <bg>`                              |
 | Prune old scratch files                                         | `kit scratch-rotate`                                  |
 
-## Configure
+## Presets vs configuration
 
-Defaults live in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml`, merged on top, or pick a preset. `kit config` prints the merged result. Every key, the merge rules, and the presets: [docs/configuration.md](docs/configuration.md).
+Guards, checks, formatting, and the rules are on from install. There are two ways to change them:
+
+- A **preset** changes the kit's stance in one line. Pick one when you want fewer stops, or a stricter session, everywhere.
+- A **key** changes one behavior: a protected branch, a guard rule let through, a formatter for a file type. Your keys win over the preset's.
+
+Both go in `~/.claude/claude-kit.local.yml`, merged over the defaults in `kit.yml`.
+
+| You want                                                                                | Set                                                       |
+| --------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| Fewer stops: one review per plan, no plan-critic or claim-check passes, no skill nudges | `preset: light`                                           |
+| The kit as shipped                                                                      | Nothing, or `preset: standard`                            |
+| Pattern skills required before the first edit of a file type, and ASCII typography      | `preset: strict`                                          |
+| Claude never to push to a branch                                                        | `protected_branches: [release]`                           |
+| One guard rule let through                                                              | `disabled_rules: [<slug>]`, the slug `kit explain` prints |
+| One review at the end of a plan instead of after each step                              | `step_pause: plan`                                        |
+| A check gate off                                                                        | `disabled_checks: [<kind or label>]`                      |
+| A file type formatted that your project's own fixers don't claim                        | `on_edit`                                                 |
+| More credential files guarded                                                           | `sensitive_paths`                                         |
+
+`kit config` prints the merged result, each key marked with the file that set it, and `kit config --check` flags unknown keys and wrong types. What is on by default, every key, the merge rules, and what each preset sets: [docs/configuration.md](docs/configuration.md).
+
+## Install
+
+```sh
+claude plugin marketplace add ku5ic/claude-kit
+claude plugin install kit@ku5ic
+```
+
+- **Needs:** `git` and any bash, on macOS or Linux. Formatters and linters are used when installed and skipped when not; the kit never installs anything.
+- **Gap-fill:** the `claude` CLI, logged in. Once per repo, and again when its configs change, Haiku sorts the commands your CI, hooks, and task runners hold into checks and fixers, capped at $0.50 a call; the answers are cached and verified against your files. Without it, those commands are skipped and named.
+- **Claim checker:** the `kit:claim-checker` agent, which Claude runs where you can watch it before a scratch report or a post goes out; plan-critic covers a plan. Inside a subagent, which can't start an agent, the hook runs the same instructions through the `claude` CLI. Without it, or when a run fails, claims go unchecked and nothing blocks.
+- **Claude Code only.** claude.ai and Cowork don't install a plugin with a top-level `bin/`. Chat has [its own zip](#use-it-in-claudeai-chat).
+- **Gitignore** `.claude/scratch/` and `.claude/plans/`, globally or per repo. The kit never edits your ignore files.
+- **Rules ship with the plugin.** Nothing to link. If an older install left `~/.claude/rules/claude-kit`, remove it; the session-start notice names it.
+- **Your own CLAUDE.md:** copy `templates/CLAUDE.md` to `~/.claude/CLAUDE.md` and fill it in.
+
+### Shell completion (optional)
+
+Claude Code puts `kit` on PATH only inside its sessions. To use it in your terminal, add to `~/.zshrc` (after `compinit`) or `~/.bashrc`:
+
+```sh
+export PATH="$HOME/.claude/plugins/marketplaces/ku5ic/bin:$PATH"
+eval "$(kit completion zsh)"   # or: kit completion bash
+```
+
+## Use it in claude.ai chat
+
+Each release attaches `kit-chat-<version>.zip`, a smaller plugin for chat on the web, desktop, and mobile. Upload it under Customize > Plugins, with code execution on. Updates mean uploading the new zip; it replaces the old one.
+
+- **What's in it:** the `kit-rules` skill, built from the output, evidence, and change rules, plus `investigate`, `write`, `unslop`, `slop-patterns`, and `engineering-fundamentals`. They work on what you paste; chat has no repo. `kit.yml` `chat_bundle:` lists them.
+- **No guards.** Chat runs no hooks, so nothing blocks, formats, or checks. `unslop` scans with a bundled `kit`, and reads its lexicon by hand if that can't run.
+- **The rules can be skipped.** `kit-rules` loads when the model takes a task for writing or coding, and nothing enforces that. Only your claude.ai preferences reach every chat.
+- **Mobile has no `/` menu.** Skills load from what you ask for.
 
 ## When a guard gets in your way
 
