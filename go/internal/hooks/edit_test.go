@@ -178,6 +178,19 @@ func TestGuardDispatch(t *testing.T) {
 		r.Denied(t)
 		r.Has(t, "bash-patterns")
 	})
+	t.Run("with the gate on, a read still nudges and a denied edit doesn't repeat it", func(t *testing.T) {
+		k := newPlugin(t)
+		k.kitYML(bashSkillMap)
+		skillsLog(k, "")
+		read := dispatch(k, "/tmp/project/deploy.sh", "", "Read")
+		read.Allowed(t)
+		read.Has(t, "bash-patterns covers this file")
+		edit := k.run("guard-dispatch", editPayload("Edit", "/tmp/project/deploy.sh", "s2", ""))
+		edit.Denied(t)
+		if strings.Contains(edit.Output, "covers this file") {
+			t.Errorf("the denied edit also nudged:\n%s", edit.Output)
+		}
+	})
 	t.Run("guard-skills' check is skipped unless CLAUDE_GUARD_SKILLS=1", func(t *testing.T) {
 		k := newPlugin(t)
 		k.kitYML(bashSkillMap)
@@ -239,10 +252,10 @@ skill_file_map:
 		r.Want(t, 2)
 		r.Has(t, "writing a credential or key file")
 	})
-	t.Run("Read of a .tsx passes with the skills gate on and no skills loaded", func(t *testing.T) {
+	t.Run("Read of a .tsx passes with the skills gate on and no skills loaded, nudged", func(t *testing.T) {
 		r := dispatch(readGuards(t), "/tmp/project/App.tsx", "", "Read")
-		r.Want(t, 0)
-		r.Empty(t)
+		r.Allowed(t)
+		r.Has(t, "react-patterns covers this file")
 	})
 	t.Run("the same .tsx is still gated for an Edit", func(t *testing.T) {
 		r := dispatch(readGuards(t), "/tmp/project/App.tsx", "x", "Edit")
@@ -338,6 +351,31 @@ func TestSkillsNudge(t *testing.T) {
 	read := k.run("skills-nudge", map[string]any{"tool_name": "Read", "session_id": "s3", "cwd": "/tmp/project", "tool_input": map[string]any{"file_path": "/tmp/project/run.sh"}})
 	read.Allowed(t)
 	read.Has(t, "bash-patterns covers this file")
+
+	dir := t.TempDir()
+	testutil.Write(t, filepath.Join(dir, "run.sh"), "echo hi\n")
+	grep := func(input map[string]any) map[string]any {
+		return map[string]any{"tool_name": "Grep", "cwd": dir, "tool_input": input}
+	}
+	for _, tc := range []struct {
+		name    string
+		payload map[string]any
+		nudges  bool
+	}{
+		{"a Grep of one file nudges", grep(map[string]any{"pattern": "hi", "path": filepath.Join(dir, "run.sh")}), true},
+		{"a Grep whose glob names the file type nudges", grep(map[string]any{"pattern": "hi", "glob": "**/*.sh"}), true},
+		{"a Grep of a directory with no glob doesn't", grep(map[string]any{"pattern": "hi", "path": dir}), false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			tc.payload["session_id"] = "s-" + tc.name
+			r := k.run("skills-nudge", tc.payload)
+			r.Allowed(t)
+			if got := strings.Contains(r.Output, "bash-patterns covers this file"); got != tc.nudges {
+				t.Errorf("nudged = %v, want %v:\n%s", got, tc.nudges, r.Output)
+			}
+		})
+	}
 }
 
 func TestGuardSkills(t *testing.T) {

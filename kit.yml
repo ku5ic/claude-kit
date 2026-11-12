@@ -20,13 +20,14 @@
 # any other always-blocking skill is paid for before the task is known.
 # engineering-fundamentals loads through its own model-invocable
 # description, and skill_file_map requires it on source edits when
-# guard_skills is on, or names it on a source read or edit when it's off.
+# guard_skills is on, and names it on a source read, and on an edit when
+# it's off.
 global_skills: [kit-rules]
 
 # File-to-skills map consumed by guard-dispatch's skills gate or skills
 # nudge, and by <suggested-skills> for every file in the repo.
-# The gate checks every Edit/Write/MultiEdit target, the nudge every Read
-# target too; matching is
+# The gate checks every Edit/Write/MultiEdit target, the nudge every Read,
+# Grep, and Bash read target too; matching is
 # cumulative (a single file can satisfy multiple entries). Order matters:
 # test entries precede extension entries so a .test.tsx file picks up
 # test-patterns first.

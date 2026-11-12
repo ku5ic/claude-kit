@@ -32,6 +32,7 @@ var hookChecks = map[string]hook.Check{
 	"rules-gate":              hooks.RulesGate,
 	"guard-edit":              hooks.GuardEdit,
 	"guard-skills":            hooks.GuardSkills,
+	"skills-nudge":            skillsNudge,
 	"guard-slop":              hooks.GuardSlop,
 	"guard-weaken":            hooks.GuardWeaken,
 	"guard-imports":           hooks.GuardImports,
@@ -64,7 +65,7 @@ var hookChecks = map[string]hook.Check{
 // registry is every `kit hook` name. A test holds it and hooks/hooks.json
 // to each other.
 var registry = map[string]hookDef{
-	"bash-dispatch":      {events: []string{"PreToolUse"}, steps: []string{"guard-bash", "guard-commit", "guard-pr"}},
+	"bash-dispatch":      {events: []string{"PreToolUse"}, steps: []string{"guard-bash", "guard-commit", "guard-pr", "skills-nudge"}},
 	"guard-dispatch":     {events: []string{"PreToolUse"}, run: hooks.GuardDispatch},
 	"gate-dispatch":      {events: []string{"PreToolUse"}, steps: []string{"rules-gate"}},
 	"rules-gate":         {},
@@ -100,6 +101,7 @@ var registry = map[string]hookDef{
 	"guard-edit":         {},
 	"guard-pr":           {},
 	"guard-skills":       {},
+	"skills-nudge":       {},
 	"guard-slop":         {},
 	"guard-weaken":       {},
 	"guard-imports":      {},
@@ -162,4 +164,13 @@ func cmdHook(e *env, args []string, stdin io.Reader) (status int) {
 		named[i] = hook.NamedCheck{Name: s, Check: hookChecks[s]}
 	}
 	return hook.Run(h, named...)
+}
+
+// skillsNudge is skills-nudge, a Bash command's reads included. hooks and
+// bashguard share a layer, so the two meet here.
+func skillsNudge(h *hook.Hook) error {
+	if h.Payload.String("tool_name") != "Bash" {
+		return hooks.SkillsNudge(h)
+	}
+	return hooks.NudgeFiles(h, bashguard.ReadTargets(h.Payload.String("tool_input.command"), h.Home, h.Payload.Cwd()))
 }

@@ -95,18 +95,24 @@ func GuardEdit(h *hook.Hook) error {
 // a path given blocks for a "~/" entry under it: a pathless Grep in ~ is the
 // common case, not a reach for ~/.ssh.
 func guardSearch(h *hook.Hook, cfg *config.Config) error {
-	cwd := h.Payload.Cwd()
-	path := h.Payload.String("tool_input.path")
-	root := guard.ExpandHome(h.Home, cmp.Or(path, cwd))
-	if root != "" && !filepath.IsAbs(root) {
-		root = filepath.Join(cwd, root)
-	}
+	root := searchRoot(h)
 	glob := h.Payload.String("tool_input.glob")
 	h.SetContext(layout.KV("path", root) + "\n" + layout.KV("glob", glob))
-	if guard.SearchesSensitive(cfg, h.Home, root, glob, path != "") {
+	if guard.SearchesSensitive(cfg, h.Home, root, glob, h.Payload.String("tool_input.path") != "") {
 		return h.Block("searching a credential or key file is not permitted", "sensitive-read")
 	}
 	return nil
+}
+
+// searchRoot is where a Grep searches: tool_input.path, else cwd, which is
+// also what a relative path joins.
+func searchRoot(h *hook.Hook) string {
+	cwd := h.Payload.Cwd()
+	root := guard.ExpandHome(h.Home, cmp.Or(h.Payload.String("tool_input.path"), cwd))
+	if root != "" && !filepath.IsAbs(root) {
+		root = filepath.Join(cwd, root)
+	}
+	return root
 }
 
 // newRootArtifact is true for a file that doesn't exist yet, directly in a
@@ -127,23 +133,19 @@ func GuardSkills(h *hook.Hook) error {
 	if h.Payload.Err != nil {
 		return h.Payload.Err
 	}
-	if missing := unloadedFileSkills(h, filePathTools); len(missing) > 0 {
+	if !slices.Contains(filePathTools, h.Payload.String("tool_name")) {
+		return nil
+	}
+	if missing := unloadedSkills(h, []string{h.Payload.FilePath()}, nil); len(missing) > 0 {
 		h.Deny("Load "+strings.Join(missing, ", ")+" via the Skill tool, then retry the edit.", "skills-gate")
 	}
 	return nil
 }
 
-// unloadedFileSkills is the skills skill_file_map gives the file a call of
-// one of tools touches that this session hasn't loaded; none for another
-// tool, a scratch file, or a session the cache can't name.
-func unloadedFileSkills(h *hook.Hook, tools []string) []string {
-	if !slices.Contains(tools, h.Payload.String("tool_name")) {
-		return nil
-	}
-	path := h.Payload.FilePath()
-	if path == "" || project.IsScratch(h.Paths, path) {
-		return nil
-	}
+// unloadedSkills is the skills skill_file_map gives paths that this session
+// hasn't loaded, less each skip reports true for, read from the skills log
+// once; none for a scratch file or a session the cache can't name.
+func unloadedSkills(h *hook.Hook, paths []string, skip func(skill string) bool) []string {
 	session := h.Payload.SessionID()
 	cfg := h.Config()
 	if h.Paths.SessionFile(cache.SkillsLoaded, session) == "" || cfg == nil {
@@ -151,9 +153,17 @@ func unloadedFileSkills(h *hook.Hook, tools []string) []string {
 	}
 	marker := func(skill string) string { return h.Paths.SessionFile(cache.SkillsLoaded, session, skill) }
 	var toCheck []string
-	for _, skill := range stackctx.FileMapSkills(cfg.SkillFileMap, path) {
-		if _, err := os.Stat(marker(skill)); err != nil {
-			toCheck = append(toCheck, skill)
+	for _, path := range paths {
+		if path == "" || project.IsScratch(h.Paths, path) {
+			continue
+		}
+		for _, skill := range stackctx.FileMapSkills(cfg.SkillFileMap, path) {
+			if slices.Contains(toCheck, skill) || skip != nil && skip(skill) {
+				continue
+			}
+			if _, err := os.Stat(marker(skill)); err != nil {
+				toCheck = append(toCheck, skill)
+			}
 		}
 	}
 	if len(toCheck) == 0 {
@@ -230,19 +240,23 @@ var contentChecks = []hook.NamedCheck{
 var filePathTools = []string{"Edit", "Write", "MultiEdit"}
 
 // GuardDispatch runs guard-edit's, guard-slop's, guard-weaken's,
-// guard-imports', guard-tokens', guard-skills' with guard_skills on or
-// skills-nudge's with it off, and then check-size's and verify-claims'
-// checks against one payload read, each isolated so one failing open never
-// skips the others. The skills gate is opt-in: blocking edits until a
-// patterns skill loads is a personal policy, not a default.
+// guard-imports', guard-tokens', guard-skills' with guard_skills on,
+// skills-nudge's on a read or with guard_skills off, and then check-size's
+// and verify-claims' checks against one payload read, each isolated so one
+// failing open never skips the others. The skills gate is opt-in: blocking
+// edits until a patterns skill loads is a personal policy, not a default.
 func GuardDispatch(h *hook.Hook) int {
 	checks := []hook.NamedCheck{{Name: "guard-edit", Check: GuardEdit}}
-	if slices.Contains(filePathTools, h.Payload.String("tool_name")) {
+	edit := slices.Contains(filePathTools, h.Payload.String("tool_name"))
+	if edit {
 		checks = append(checks, contentChecks...)
 	}
-	if stackctx.SkillsEnforced(h.Config()) {
+	enforced := stackctx.SkillsEnforced(h.Config())
+	if enforced {
 		checks = append(checks, hook.NamedCheck{Name: "guard-skills", Check: GuardSkills})
-	} else {
+	}
+	// The gate's deny already names the skill an edit needs.
+	if !enforced || !edit {
 		checks = append(checks, hook.NamedCheck{Name: "skills-nudge", Check: SkillsNudge})
 	}
 	// Last, so a block from a cheap check saves its model run.

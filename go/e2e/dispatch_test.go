@@ -31,6 +31,20 @@ func TestBashDispatch(t *testing.T) {
 	}
 }
 
+// bash-dispatch names the patterns skill for a file a command reads.
+func TestBashDispatchNudgesOnARead(t *testing.T) {
+	t.Parallel()
+	k := NewPlugin(t)
+	k.KitYML("skill_file_map:\n  - on: basename\n    globs: [\"*.sh\"]\n    skills: [bash-patterns]\n")
+	Write(t, filepath.Join(k.Claude, "logs/skills.jsonl"), "")
+	dir := t.TempDir()
+	Write(t, filepath.Join(dir, "run.sh"), "echo hi\n")
+	r := k.Hook("bash-dispatch", map[string]any{"hook_event_name": "PreToolUse", "session_id": "s1", "cwd": dir,
+		"tool_name": "Bash", "tool_input": map[string]any{"command": "cat run.sh"}})
+	r.Want(t, 0)
+	r.Has(t, "bash-patterns covers this file")
+}
+
 // prompt-dispatch: plan-mode-context's plain text and reply-length's
 // context reach Claude in one JSON object, neither dropped.
 func TestPromptDispatch(t *testing.T) {

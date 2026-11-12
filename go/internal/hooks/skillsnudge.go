@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
@@ -11,16 +12,37 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 )
 
-// nudgeTools are the calls skills-nudge fires on. A Read comes first: in
-// the trigger evals, a model that edited without the skill never went back
-// for it once the edit's nudge arrived.
-var nudgeTools = append([]string{"Read"}, filePathTools...)
-
-// SkillsNudge is guard-skills without the block, for guard_skills off.
-// Before a read or an edit of a mapped file type, it names each patterns
-// skill the session hasn't loaded with its "Before | Read" rows, once per
-// skill per session, and lets the call through.
+// SkillsNudge is NudgeFiles for a Read's or an edit's file_path, or a
+// Grep's path and its glob joined to it. guard-dispatch runs it on an edit
+// only with guard-skills off. Reads come first: in the trigger evals, a
+// model that edited without the skill never went back for it once the
+// edit's nudge arrived.
 func SkillsNudge(h *hook.Hook) error {
+	p := h.Payload
+	if p.Err != nil {
+		return p.Err
+	}
+	switch tool := p.String("tool_name"); {
+	case tool == "Read" || slices.Contains(filePathTools, tool):
+		return NudgeFiles(h, []string{p.FilePath()})
+	case tool == "Grep":
+		var paths []string
+		root := searchRoot(h)
+		if p.String("tool_input.path") != "" {
+			paths = append(paths, root)
+		}
+		if glob := p.String("tool_input.glob"); glob != "" {
+			paths = append(paths, filepath.Join(root, glob))
+		}
+		return NudgeFiles(h, paths)
+	}
+	return nil
+}
+
+// NudgeFiles names each patterns skill paths map to that the session hasn't
+// loaded, with its "Before | Read" rows, once per skill per session, and
+// lets the call through.
+func NudgeFiles(h *hook.Hook, paths []string) error {
 	if h.Payload.Err != nil {
 		return h.Payload.Err
 	}
@@ -28,14 +50,14 @@ func SkillsNudge(h *hook.Hook) error {
 		return nil
 	}
 	session := h.Payload.SessionID()
+	marker := func(skill string) string { return h.Paths.SessionFile(cache.SkillsNudged, session, skill) }
+	// Skipping a nudged skill before the skills log is read keeps every
+	// later read of its file type from streaming the log again.
+	nudged := func(skill string) bool { return marker(skill) == "" || fsx.IsFile(marker(skill)) }
 	var b strings.Builder
-	for _, skill := range unloadedFileSkills(h, nudgeTools) {
-		marker := h.Paths.SessionFile(cache.SkillsNudged, session, skill)
-		if marker == "" || fsx.IsFile(marker) {
-			continue
-		}
+	for _, skill := range unloadedSkills(h, paths, nudged) {
 		if !h.DryRun {
-			_ = fsx.WriteAtomic(marker, nil, 0o600)
+			_ = fsx.WriteAtomic(marker(skill), nil, 0o600)
 		}
 		b.WriteString(skillNudge(filepath.Join(h.Paths.Root, "skills", skill), skill))
 	}

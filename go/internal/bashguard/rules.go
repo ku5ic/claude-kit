@@ -204,13 +204,15 @@ func (c *command) check() error {
 	return nil
 }
 
-// readOperands are the operands the command reads as files: none for a
-// metadataOnly command or a git subcommand that prints none, and never a
-// leading pattern. git show HEAD:.env names .env.
-func (c *command) readOperands() []string {
-	name, ops := c.name, c.operands()
+func (c *command) readOperands() []string { return readOperands(c.name, c.values()) }
+
+// readOperands are the operands command name reads as files when run with
+// values: none for a metadataOnly command or a git subcommand that prints
+// none, and never a leading pattern. git show HEAD:.env names .env.
+func readOperands(name string, values []string) []string {
+	ops := nonOptions(values)
 	if name == "git" {
-		sub, args, _ := classify.GitSubcommand(c.values())
+		sub, args, _ := classify.GitSubcommand(values)
 		if !gitPrinters[sub] {
 			return nil
 		}
@@ -227,7 +229,7 @@ func (c *command) readOperands() []string {
 	// ln and mv read their sources: the key reached by a new name is read
 	// under it later. Their target is only written.
 	if name == "ln" || name == "mv" {
-		return sources(c.values())
+		return sources(values)
 	}
 	return ops[min(patternFirst[name], len(ops)):]
 }
