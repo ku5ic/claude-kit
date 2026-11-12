@@ -92,7 +92,7 @@ Every skill with references lists them in a "Before | Read" table: an action, th
 
 **Spawning costs.** Each agent has its own request budget, and its report is a handoff that loses detail. Doing the work directly is cheaper unless the task needs isolation or parallelism.
 
-**The model fits the task.** An agent with no `model:` inherits the session's. In the 0.10.0 skill rewrite, template work ran on Opus at over 100k tokens per agent.
+**The model fits the task.** An agent with no `model:` inherits the session's. In the 0.10.0 skill rewrite, template work ran on Opus at over 100k tokens per agent. Diff review went to Opus too, as "judgment": four `/simplify` cleanup reviewers ran on it at about 80k tokens each, and Claude Code's usage panel named general-purpose subagents as the top cost. A diff review checks code against a brief, which Sonnet does; a plan or design critique weighs choices nobody has made yet, which is where Opus earns its price.
 
 **An agent's report describes intent.** It says what the agent meant to do, not necessarily what it did, so edits get a diff and findings get a spot check before anything rests on them. Two agents disagreeing means neither is correct until traced.
 
