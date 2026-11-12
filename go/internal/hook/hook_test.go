@@ -44,7 +44,7 @@ func TestRunIsolatesAFailingCheck(t *testing.T) {
 				t.Errorf("status = %d, want 2 from the second check", status)
 			}
 			out := stderr.String()
-			if !strings.Contains(out, "first.sh: unexpected error, failing open") || !strings.Contains(out, "Blocked by second.sh: nope") {
+			if !strings.Contains(out, "first.sh: unexpected error, failing open") || !strings.Contains(out, "kit second.sh: BLOCKED nope (some-rule)") {
 				t.Errorf("stderr = %q", out)
 			}
 		})
@@ -68,17 +68,32 @@ func TestABlockKeepsTheNotice(t *testing.T) {
 	if status := Run(h, NamedCheck{"a.sh", notifyThenBlock}); status != 0 || stderr.Len() > 0 {
 		t.Fatalf("status %d, stderr %q", status, stderr)
 	}
-	if got, want := stdout.String(), `{"decision":"block","reason":"Blocked by a.sh: nope","systemMessage":"checks: 0 passed, 1 failed, 0 skipped"}`+"\n"; got != want {
+	if got, want := stdout.String(), `{"decision":"block","reason":"kit a.sh: BLOCKED nope (some-rule)","systemMessage":"checks: 0 passed, 1 failed, 0 skipped"}`+"\n"; got != want {
+		t.Errorf("stdout %s, want %s", got, want)
+	}
+}
+
+// In a dispatcher, one check's plain text and another's context both reach
+// Claude: stdout takes one JSON object, so the plain text joins it.
+func TestPlainTextJoinsAnotherChecksContext(t *testing.T) {
+	h, stdout, _ := newHook(t, `{"hook_event_name":"UserPromptSubmit"}`)
+	printer := func(h *Hook) error { h.Print("Active plan p.md has open steps.\n"); return nil }
+	adder := func(h *Hook) error { h.AddContext("UserPromptSubmit", "check each claim"); return nil }
+	if status := Run(h, NamedCheck{"a", printer}, NamedCheck{"b", adder}); status != 0 {
+		t.Fatalf("status %d", status)
+	}
+	want := `{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"Active plan p.md has open steps.\ncheck each claim"}}` + "\n"
+	if got := stdout.String(); got != want {
 		t.Errorf("stdout %s, want %s", got, want)
 	}
 }
 
 func TestBlockLogsAndHonorsDisabledRules(t *testing.T) {
-	h, _, _ := newHook(t, `{"session_id":"s1"}`)
-	h.SetContext("Path: /x")
-	err := h.Block("nope", "some-rule")
+	h, _, _ := newHook(t, `{"session_id":"s1","cwd":"/nonexistent/proj","tool_input":{"command":"rm -rf /"}}`)
+	h.SetContext("path  /x")
+	err := h.Block("nope\nwhy   because", "some-rule")
 	var b *Blocked
-	if !errors.As(err, &b) || b.Reason != "Blocked by test.sh: nope\nPath: /x" {
+	if !errors.As(err, &b) || b.Reason != "kit test.sh: BLOCKED nope (some-rule)\nwhy   because\npath  /x" {
 		t.Fatalf("err = %v", err)
 	}
 	h.SetConfig(&config.Config{DisabledRules: []string{"some-rule"}})
@@ -86,10 +101,28 @@ func TestBlockLogsAndHonorsDisabledRules(t *testing.T) {
 		t.Errorf("disabled rule still blocked: %v", err)
 	}
 	data, _ := os.ReadFile(filepath.Join(h.Paths.LogDir(), "guards.jsonl"))
-	want := `{"ts":"2026-09-28T12:00:00Z","hook":"test.sh","event":"block","session_id":"s1","rule":"some-rule"}` + "\n" +
+	// The block names a hash of the command, never the command, and the project.
+	want := `{"ts":"2026-09-28T12:00:00Z","hook":"test.sh","event":"block","session_id":"s1","rule":"some-rule","target":"5c7923bd67b0","project":"proj"}` + "\n" +
 		`{"ts":"2026-09-28T12:00:00Z","hook":"test.sh","event":"disabled","session_id":"s1","rule":"some-rule"}` + "\n"
 	if string(data) != want {
 		t.Errorf("guards.jsonl =\n%s\nwant\n%s", data, want)
+	}
+	if info, err := os.Stat(filepath.Join(h.Paths.LogDir(), "guards.jsonl")); err != nil {
+		t.Error(err)
+	} else if info.Mode().Perm() != 0o600 {
+		t.Errorf("guards.jsonl is %v, want 0600", info.Mode())
+	}
+}
+
+func TestAFailOpenLogsItsError(t *testing.T) {
+	h, _, stderr := newHook(t, `{"session_id":"s1"}`)
+	RunCheck(h, "first.sh", func(*Hook) error { return errors.New("broken pipe") })
+	if !strings.Contains(stderr.String(), "first.sh: unexpected error, failing open: broken pipe") {
+		t.Errorf("stderr = %q", stderr)
+	}
+	data, _ := os.ReadFile(filepath.Join(h.Paths.LogDir(), "guards.jsonl"))
+	if !strings.Contains(string(data), `"event":"fail-open","session_id":"s1","error":"broken pipe"`) {
+		t.Errorf("guards.jsonl = %s", data)
 	}
 }
 

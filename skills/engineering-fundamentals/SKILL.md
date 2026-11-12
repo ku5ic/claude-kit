@@ -1,30 +1,23 @@
 ---
 name: engineering-fundamentals
-description: Concrete design and code-level checks for planning, review, and writing code, covering modularity, separation of concerns, reversibility, verifiability, function and file size, nesting, naming, magic values, error handling, requirements clarity, verification vs validation, and the red-green-refactor cycle. Complements the Change rules, which own the principles (minimal change, KISS, YAGNI, DRY, SOLID, comments). Use when planning or reviewing a change or design, or writing source code in any language, even if "fundamentals" is not mentioned by name.
+description: Design and code-level checks for modularity, size, nesting, naming, errors, and red-green-refactor. Load before planning a change and before any code edit, however small, in any language.
 ---
 
 # Engineering fundamentals
 
-Concrete checks that turn the principles in `rules/change.md` into questions with observable answers. The principles themselves (minimal change, existing patterns, KISS, YAGNI, DRY, SOLID, comments, dead code) live in that rule; this skill never restates or overrides them.
+Concrete checks that turn the principles in `skills/kit-rules/reference/change.md` into questions with observable answers. The principles themselves (minimal change, existing patterns, KISS, YAGNI, DRY, SOLID, comments, dead code) live in that rule; this skill never restates or overrides them.
 
-| Activity                                | Apply                                                    |
-| --------------------------------------- | -------------------------------------------------------- |
-| Planning a change or reviewing a design | Requirements clarity, Design integrity                   |
-| Writing or reviewing code               | Code-level integrity, Metric thresholds, Design patterns |
-| Adding behavior or fixing a bug         | Red-green-refactor                                       |
-| Reviewing whether a change is right     | Verification and validation                              |
+Loading this skill isn't enough. Before your next edit, read the file of every row that matches it. The rules live in those files, and this one only points at them. Apply only what fits, and don't pad findings to fill sections.
 
-Apply only what fits. Do not pad findings to fill sections.
-
-| File                                                                                 | Covers                                                                     |
-| ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
-| [reference/requirements-clarity.md](reference/requirements-clarity.md)               | Testable, unambiguous, complete, consistent, before non-trivial work       |
-| [reference/design-integrity.md](reference/design-integrity.md)                       | Module ownership, abstraction level, separation of concerns, reversibility |
-| [reference/code-level-integrity.md](reference/code-level-integrity.md)               | Per-function and per-file checks                                           |
-| [reference/metric-thresholds.md](reference/metric-thresholds.md)                     | The one set of size, nesting, branch, and coupling numbers                 |
-| [reference/design-patterns.md](reference/design-patterns.md)                         | Which pattern a size, spread, or repetition signal calls for               |
-| [reference/verification-and-validation.md](reference/verification-and-validation.md) | Built it right vs built the right thing                                    |
-| [reference/red-green-refactor.md](reference/red-green-refactor.md)                   | The test-first cycle for new behavior and bug fixes                        |
+| Before                                                 | Read                                                                                 |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| Planning non-trivial work from a request or a ticket   | [reference/requirements-clarity.md](reference/requirements-clarity.md)               |
+| Planning a change or reviewing a design                | [reference/design-integrity.md](reference/design-integrity.md)                       |
+| Writing or reviewing a function or a file              | [reference/code-level-integrity.md](reference/code-level-integrity.md)               |
+| Judging whether a function, file, or module is too big | [reference/metric-thresholds.md](reference/metric-thresholds.md)                     |
+| Restructuring code that grew, spread, or repeats       | [reference/design-patterns.md](reference/design-patterns.md)                         |
+| Reviewing whether a change is right                    | [reference/verification-and-validation.md](reference/verification-and-validation.md) |
+| Adding behavior or fixing a bug                        | [reference/red-green-refactor.md](reference/red-green-refactor.md)                   |
 
 <!-- chat: skip -->
 

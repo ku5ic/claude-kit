@@ -204,13 +204,15 @@ func (c *command) check() error {
 	return nil
 }
 
-// readOperands are the operands the command reads as files: none for a
-// metadataOnly command or a git subcommand that prints none, and never a
-// leading pattern. git show HEAD:.env names .env.
-func (c *command) readOperands() []string {
-	name, ops := c.name, c.operands()
+func (c *command) readOperands() []string { return readOperands(c.name, c.values()) }
+
+// readOperands are the operands command name reads as files when run with
+// values: none for a metadataOnly command or a git subcommand that prints
+// none, and never a leading pattern. git show HEAD:.env names .env.
+func readOperands(name string, values []string) []string {
+	ops := nonOptions(values)
 	if name == "git" {
-		sub, args, _ := classify.GitSubcommand(c.values())
+		sub, args, _ := classify.GitSubcommand(values)
 		if !gitPrinters[sub] {
 			return nil
 		}
@@ -227,7 +229,7 @@ func (c *command) readOperands() []string {
 	// ln and mv read their sources: the key reached by a new name is read
 	// under it later. Their target is only written.
 	if name == "ln" || name == "mv" {
-		return sources(c.values())
+		return sources(values)
 	}
 	return ops[min(patternFirst[name], len(ops)):]
 }
@@ -339,9 +341,7 @@ func (c *command) inPlaceEdit() error {
 				return err
 			}
 		}
-		if c.st.isOverlayArg(p) {
-			c.st.ask(overlayAsk)
-		}
+		c.st.askKitSwitch(p)
 	}
 	return nil
 }
@@ -366,8 +366,8 @@ func (c *command) rcWrite() error {
 	return nil
 }
 
-// overlayWrite asks when a command that isn't a pure reader names the
-// overlay: tee, cp, mv, install, ln all write it. yq writes only with -i,
+// overlayWrite asks when a command that isn't a pure reader names a kit
+// switch (guard.KitSwitch): tee, cp, mv, install, ln all write it. yq writes only with -i,
 // git only through checkout/restore/apply/mv/rm/stash/reset.
 func (c *command) overlayWrite() {
 	all := append([]string{c.name}, c.values()...)
@@ -385,8 +385,7 @@ func (c *command) overlayWrite() {
 	}
 	for _, v := range c.values() {
 		_, after, hasEq := strings.Cut(v, "=")
-		if c.st.isOverlayArg(v) || (hasEq && c.st.isOverlayArg(after)) {
-			c.st.ask(overlayAsk)
+		if c.st.askKitSwitch(v) || hasEq && c.st.askKitSwitch(after) {
 			return
 		}
 	}

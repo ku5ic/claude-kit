@@ -32,7 +32,7 @@ func TestGuardConnector(t *testing.T) {
 			r := newSandbox(t).run("guard-connector", tc.call)
 			r.Want(t, tc.status)
 			if tc.status == 2 {
-				r.Has(t, "unslop:", "input")
+				r.Has(t, "kit connector: BLOCKED ", "AI tell(s) in the mcp__", "input (slop)")
 			}
 		})
 	}

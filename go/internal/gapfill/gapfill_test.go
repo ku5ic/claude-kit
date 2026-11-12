@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
+	"github.com/ku5ic/claude-kit/go/internal/claudecli"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/sources"
@@ -175,10 +176,11 @@ func TestErrorEnvelopeIsNoAnswer(t *testing.T) {
 	}
 }
 
-// Not parallel: it sets the guard in the process environment.
-func TestTheGuardNeverAsks(t *testing.T) {
+// Not parallel: it sets the process environment. Inside a claude run the
+// kit started, the classifier is never asked.
+func TestANestedRunNeverAsks(t *testing.T) {
 	f := newFixture(t, "")
-	t.Setenv(Guard, "1")
+	t.Setenv(claudecli.DepthVar, "1")
 	lint := entry("lint", "eslint .")
 	if r := f.run(lint); r.Skipped[Key(lint)] != "unclassified" || len(f.calls()) != 0 {
 		t.Errorf("under the guard: %+v, %d calls", r, len(f.calls()))

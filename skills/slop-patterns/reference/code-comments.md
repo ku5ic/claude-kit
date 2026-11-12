@@ -1,6 +1,6 @@
 # Code comments and docstrings
 
-When to comment at all is `rules/change.md` section 5. This file covers how a comment reads once it has earned its place.
+When to comment at all is `skills/kit-rules/reference/change.md` section 5. This file covers how a comment reads once it has earned its place.
 
 <!-- chat: skip -->
 

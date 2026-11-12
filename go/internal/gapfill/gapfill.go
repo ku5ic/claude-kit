@@ -20,14 +20,16 @@ import (
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
+	"github.com/ku5ic/claude-kit/go/internal/claudecli"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/sources"
 )
 
-// Guard is set in the classifier's environment. A kit started under it
-// never asks, and its hooks do nothing, so the classifier's own session
-// can't recurse into the kit.
+// Guard is set in the classifier's environment, with a marker under the
+// cache (claudecli.Guarded), so its hooks do nothing. A kit started inside
+// any claude run the kit started never asks, so the classifier's own
+// session can't recurse into the kit.
 const Guard = "KIT_CLASSIFIER"
 
 // promptVersion is part of every cache key: a changed prompt asks again.
@@ -143,8 +145,9 @@ type Result struct {
 	Skipped   map[string]string  // by Key: unclassified, rejected, or denied, with why
 	Managers  []Manager
 	Proposals []Proposal
-	Dropped   []string // answers verification threw away, each with why
-	Failure   string   // why a classifier call failed, when one did
+	Dropped   []string        // answers verification threw away, each with why
+	Failure   string          // why a classifier call failed, when one did
+	Usage     claudecli.Usage // what this run's classifier calls cost
 }
 
 // Unclassified counts the entries with no verdict that the kit's policy
@@ -188,14 +191,16 @@ func Run(cfg *config.Config, o Options) Result {
 	// A read is use: cache.Prune drops only a file no run has read.
 	now := time.Now()
 	_ = os.Chtimes(file, now, now)
-	failure := ""
-	if o.Ask && os.Getenv(Guard) != "1" {
+	failure, usage := "", claudecli.Usage{}
+	if o.Ask && os.Getenv(claudecli.DepthVar) == "" {
 		// The view reads the whole repo: only a run that may ask builds it.
 		if p := readView(cfg, o.Root, o.Entries); s.stale(cfg, o.Entries, p.Key) {
-			s, failure = ask(cfg, o, p, file, s)
+			s, failure, usage = ask(cfg, o, p, file, s)
 		}
 	}
-	return verify(cfg, o.Root, o.Entries, s, failure)
+	r := verify(cfg, o.Root, o.Entries, s, failure)
+	r.Usage = usage
+	return r
 }
 
 // CacheFile holds root's answers; a run that asks takes the .lock beside it.
@@ -228,19 +233,19 @@ func Nearest(root, dir string, ms []Manager) []Manager {
 
 // ask calls the classifier under the repo's lock, a batch per call in
 // parallel, stores each answered batch's own entries, and returns the
-// store; failure says why a batch couldn't.
-func ask(cfg *config.Config, o Options, p view, file string, s store) (_ store, failure string) {
+// store; failure says why a batch couldn't, and usage what the calls cost.
+func ask(cfg *config.Config, o Options, p view, file string, s store) (_ store, failure string, usage claudecli.Usage) {
 	ctx, cancel := context.WithTimeout(context.Background(), o.Timeout)
 	defer cancel()
 	unlock, err := cache.Lock(ctx, strings.TrimSuffix(file, ".json")+".lock")
 	if err != nil {
-		return s, "waiting for another run: " + err.Error()
+		return s, "waiting for another run: " + err.Error(), usage
 	}
 	defer unlock()
 	// Another run may have answered while this one waited.
 	locked := load(file)
 	if !locked.stale(cfg, o.Entries, p.Key) {
-		return locked, ""
+		return locked, "", usage
 	}
 	// The facts get a call of their own: they take the model longest.
 	var reqs []request
@@ -257,7 +262,10 @@ func ask(cfg *config.Config, o Options, p view, file string, s store) (_ store, 
 		others := slices.DeleteFunc(slices.Clone(allowed), func(e sources.Entry) bool { return asked[Key(e)] || !dirs[e.Dir] })
 		reqs = append(reqs, request{Entries: batch, Others: others, View: p})
 	}
-	resps, errs := classifyAll(ctx, cfg, o, reqs)
+	resps, usages, errs := classifyAll(ctx, cfg, o, reqs)
+	for _, u := range usages {
+		usage = usage.Add(u)
+	}
 	now := time.Now()
 	for i, resp := range resps {
 		if errs[i] != nil {
@@ -276,23 +284,23 @@ func ask(cfg *config.Config, o Options, p view, file string, s store) (_ store, 
 	if slices.Contains(errs, nil) {
 		locked.save(file, o.Entries, now)
 	}
-	return locked, failure
+	return locked, failure, usage
 }
 
 // classifyAll runs reqs, at most maxCalls at once.
-func classifyAll(ctx context.Context, cfg *config.Config, o Options, reqs []request) ([]response, []error) {
-	resps, errs := make([]response, len(reqs)), make([]error, len(reqs))
+func classifyAll(ctx context.Context, cfg *config.Config, o Options, reqs []request) ([]response, []claudecli.Usage, []error) {
+	resps, usages, errs := make([]response, len(reqs)), make([]claudecli.Usage, len(reqs)), make([]error, len(reqs))
 	var wg sync.WaitGroup
 	slots := make(chan struct{}, maxCalls)
 	for i, req := range reqs {
 		wg.Go(func() {
 			slots <- struct{}{}
 			defer func() { <-slots }()
-			resps[i], errs[i] = classify(ctx, cfg, o, req)
+			resps[i], usages[i], errs[i] = classify(ctx, cfg, o, req)
 		})
 	}
 	wg.Wait()
-	return resps, errs
+	return resps, usages, errs
 }
 
 func load(file string) store {

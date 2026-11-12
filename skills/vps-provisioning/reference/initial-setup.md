@@ -1,79 +1,27 @@
-# Initial Setup
+# Initial setup
 
-## Create a non-root sudo user
+## Sudo user
 
-Log in as root initially, then create a regular user and grant sudo:
+- First login as root: create a regular user and grant sudo, as in `adduser deploy` and `usermod -aG sudo deploy`.
+- Copy your SSH public key to the new user before disabling root login, with `ssh-copy-id deploy@<server-ip>` from your local machine.
+- Copying the key by hand on the server: `/home/deploy/.ssh` at `chmod 700`, the key appended to `/home/deploy/.ssh/authorized_keys` at `chmod 600`, and `chown -R deploy:deploy /home/deploy/.ssh`.
+- Log in as `deploy` with the SSH key before going further.
 
-```bash
-adduser deploy
-usermod -aG sudo deploy
-```
+## SSH configuration
 
-Copy your SSH public key to the new user before disabling root login:
+- `/etc/ssh/sshd_config`: `PasswordAuthentication no`, `PermitRootLogin no`, `PubkeyAuthentication yes`, `AuthorizedKeysFile .ssh/authorized_keys`, `X11Forwarding no`, `MaxAuthTries 3`, `LoginGraceTime 30`.
+- After editing it, run `systemctl restart sshd`. Keep the current session open until a new session opens with the new settings.
 
-```bash
-# From your local machine
-ssh-copy-id deploy@<server-ip>
+## Keys
 
-# Or manually on the server
-mkdir -p /home/deploy/.ssh
-chmod 700 /home/deploy/.ssh
-echo "ssh-ed25519 AAAA... your-key" >> /home/deploy/.ssh/authorized_keys
-chmod 600 /home/deploy/.ssh/authorized_keys
-chown -R deploy:deploy /home/deploy/.ssh
-```
+- A new key on the local machine: Ed25519, as in `ssh-keygen -t ed25519 -C "deploy@hostname" -f ~/.ssh/id_ed25519_deploy`. RSA 4096 is acceptable; RSA 1024/2048 and DSA are weak.
 
-Verify you can log in as `deploy` with the SSH key before proceeding.
+## Sudo for automation
 
-## Harden SSH configuration
+- A script that runs specific privileged commands, optionally: a file in `/etc/sudoers.d/` naming only those commands, as in `deploy ALL=(ALL) NOPASSWD: /bin/systemctl restart myapp, /usr/bin/certbot renew` in `/etc/sudoers.d/deploy-limited`.
+- Never grant blanket `NOPASSWD: ALL`.
+- Editing a sudoers file: `visudo`, or `EDITOR=vim visudo -f /etc/sudoers.d/deploy-limited`.
 
-Edit `/etc/ssh/sshd_config`:
+## First updates
 
-```text
-PasswordAuthentication no
-PermitRootLogin no
-PubkeyAuthentication yes
-AuthorizedKeysFile .ssh/authorized_keys
-Protocol 2
-X11Forwarding no
-MaxAuthTries 3
-LoginGraceTime 30
-```
-
-Restart SSH after editing:
-
-```bash
-systemctl restart sshd
-```
-
-Do not close your current session until you have verified you can open a new session with the new settings.
-
-## Key generation (local machine)
-
-Use Ed25519 keys. RSA 4096 is acceptable. RSA 1024/2048 and DSA are weak.
-
-```bash
-ssh-keygen -t ed25519 -C "deploy@hostname" -f ~/.ssh/id_ed25519_deploy
-```
-
-## Sudo without password for specific commands (optional)
-
-For automation scripts that need to run specific privileged commands:
-
-```text
-# /etc/sudoers.d/deploy-limited
-deploy ALL=(ALL) NOPASSWD: /bin/systemctl restart myapp, /usr/bin/certbot renew
-```
-
-Use `visudo` or `EDITOR=vim visudo -f /etc/sudoers.d/deploy-limited` to edit sudoers files safely. Do not grant blanket `NOPASSWD: ALL`.
-
-## System updates after first login
-
-```bash
-apt-get update
-apt-get upgrade -y
-apt-get autoremove -y
-reboot
-```
-
-Run this immediately after provisioning to ensure the system starts with current packages.
+- Right after provisioning, run `apt-get update`, `apt-get upgrade -y`, `apt-get autoremove -y`, then `reboot`.

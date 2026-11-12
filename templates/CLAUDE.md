@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Global instructions for every repository. Project CLAUDE.md files extend these. The claude-kit plugin injects its rules every session; this file holds what is yours.
+Global instructions for every repository. Project CLAUDE.md files extend these. The claude-kit plugin has Claude load its rules skill every session; this file holds what is yours.
 
 ## About me
 

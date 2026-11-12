@@ -37,7 +37,7 @@ func (c *command) globalInstall() error {
 // packageManager holds a command to the facts of the lockfile directories
 // it runs under, nearest first, up to the first whose manager or rivals
 // name it: a rival blocks, and the manager's add verb with a package
-// operand asks (rules/workflow.md section 2).
+// operand asks (skills/kit-rules/reference/workflow.md section 2).
 func (c *command) packageManager() error {
 	// --version and -v never touch project files.
 	if rest := strings.TrimSpace(c.rest); rest == "--version" || rest == "-v" {
@@ -122,7 +122,7 @@ func (c *command) dependencyAdd(verbs []string, dir, root string) error {
 					}
 				}
 			}
-			c.st.ask("this adds a dependency; rules/workflow.md section 2 asks before installing: confirm the package")
+			c.st.ask("this adds a dependency; skills/kit-rules/reference/workflow.md section 2 asks before installing: confirm the package")
 			return nil
 		}
 	}

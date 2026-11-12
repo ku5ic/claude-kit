@@ -57,7 +57,7 @@ func GuardSlop(h *hook.Hook) error {
 		hits = d.Carried(path, before, after, surface, hits)
 	}
 	if len(hits) > 0 {
-		h.Deny(slop.Message(filepath.Base(path)+" (new lines)", hits), "slop")
+		h.Deny(slop.Message(filepath.Base(path)+" (new lines)", hits, ""), "slop")
 		return nil
 	}
 	if res.Dense {
@@ -81,6 +81,10 @@ func written(p *hook.Payload, path string) (before, after string, ok bool) {
 	switch p.String("tool_name") {
 	case "Write":
 		return before, p.String("tool_input.content"), true
+	case bashEditTool:
+		// The command already ran: the file holds after, and the snapshot
+		// before it gave before.
+		return p.String("tool_input.before"), p.String("tool_input.content"), true
 	case "Edit", "MultiEdit":
 		after = before
 		for _, e := range p.Edits() {

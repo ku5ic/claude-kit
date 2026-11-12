@@ -11,8 +11,9 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/slop"
 )
 
-// sendBack closes the deny or block that returns a report for a rewrite.
-const sendBack = " Then hand back your full report again, every finding unchanged but for the rewritten sentences."
+// sendBack is the then line of a deny or block that returns a report for a
+// rewrite.
+const sendBack = "hand back your full report again, every finding unchanged but for the rewritten sentences"
 
 // GuardHandback sends a subagent's report back once when it holds AI tells
 // in a slop.block_tiers tier. In auto mode the report is the message of the
@@ -36,7 +37,7 @@ func GuardHandback(h *hook.Hook) error {
 	state := "seen"
 	if len(hits) > 0 {
 		state = "sent-back"
-		h.Deny(slop.Message("your report", hits)+sendBack, "slop")
+		h.Deny(slop.Message("your report", hits, sendBack), "slop")
 	}
 	if !h.DryRun {
 		_ = fsx.WriteAtomic(marker, []byte(state), 0o644)
@@ -61,7 +62,7 @@ func SubagentSlop(h *hook.Hook) error {
 	if len(hits) == 0 {
 		return nil
 	}
-	return h.Block(slop.Message("your report", hits)+sendBack, "slop")
+	return h.Block(slop.Message("your report", hits, sendBack), "slop")
 }
 
 // handbackMarker is the session's marker, in cache dir kind, for the

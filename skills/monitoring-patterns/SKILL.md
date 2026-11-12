@@ -1,17 +1,11 @@
 ---
 name: monitoring-patterns
-description: >
-  Application monitoring patterns covering Prometheus metrics (Counter, Gauge,
-  Histogram, Summary), the prometheus-client Python library, metric naming
-  conventions, labels, and health check endpoints. Use whenever a Python project
-  instruments metrics, uses prometheus-client, or the user asks about Prometheus,
-  metrics, monitoring, health checks, or observability, even if "Prometheus" is
-  not mentioned by name.
+description: Prometheus patterns for prometheus-client metric types, naming, labels, and health checks. Load before any edit to Python metrics or health-check code, however small, and for monitoring questions.
 ---
 
 # Monitoring Patterns
 
-Review checklist for Prometheus instrumentation. Constructor signatures are in the prometheus-client docs; this file is the naming rules, the cardinality trap, and what to flag.
+Review checklist for Prometheus instrumentation. Constructor signatures are in the prometheus-client docs.
 
 ## Picking a metric type
 
@@ -22,22 +16,22 @@ Review checklist for Prometheus instrumentation. Constructor signatures are in t
 | Histogram | Latency, payload size: distribution matters                       | No         |
 | Summary   | Avoid; the Python client exposes only count and sum, no quantiles | No         |
 
-Default to Histogram over Summary. Review the default buckets (.005 through 10, tuned for HTTP latency) against the operation's real distribution rather than accepting them.
+- A distribution: use a Histogram, not a Summary.
 
 ## Naming
 
 `namespace_subsystem_name_unit`, snake_case, base units only.
 
-- Counters end in `_total`: `myapp_errors_total`
-- `_seconds` not `_milliseconds`, `_bytes` not `_megabytes`
-- Name what is measured, not the measurement: `http_request_duration_seconds`, not `http_request_time`
-- Always set `namespace=`: unprefixed names collide across apps in a shared Prometheus
+- A counter: end its name in `_total`, as in `myapp_errors_total`.
+- Units: `_seconds` and `_bytes`, never `_milliseconds` or `_megabytes`.
+- Name what's measured, not the measurement: `http_request_duration_seconds`, not `http_request_time`.
 
 ## Exposing
 
-- Background worker or CLI with no HTTP server: `start_http_server(8000)`
-- ASGI: mount `make_asgi_app()` at `/metrics`
-- WSGI: mount `make_wsgi_app()` at `/metrics`
+- A background worker or CLI with no HTTP server: call `start_http_server(8000)`.
+- ASGI: mount `make_asgi_app()` at `/metrics`.
+- WSGI: mount `make_wsgi_app()` at `/metrics`.
+- Before upgrading prometheus-client across minor versions, read its GitHub release notes.
 
 ## Health endpoints
 
@@ -46,43 +40,14 @@ Default to Histogram over Summary. Review the default buckets (.005 through 10, 
 | `/health/live`  | Process is running                     | Kubernetes liveness probe  |
 | `/health/ready` | Dependencies (DB, cache) are reachable | Kubernetes readiness probe |
 
-Return 503, not 500, when a dependency is down. Readiness should fail only when the instance cannot serve traffic.
-
----
+- A dependency is down: return 503, not 500.
+- Readiness: fail only when the instance can't serve traffic.
 
 ## Anti-patterns
 
-**failure: high-cardinality label values**
-Using user IDs, request IDs, or email addresses as label values creates millions of time series, crashes Prometheus, and makes dashboards useless. Labels must have bounded, low cardinality.
-
-**failure: Counter used for values that decrease**
-Use a Gauge for queue depth, active sessions, or any value that can drop. A Counter that decreases corrupts `rate()` calculations in PromQL.
-
-**warning: metric names in milliseconds**
-Prometheus convention is seconds. `_milliseconds` metrics are incompatible with standard recording rules and dashboards. Convert to seconds and use `_seconds`.
-
-**warning: no namespace on metrics**
-Without a namespace prefix, metric names from different apps collide in shared Prometheus instances. Always set `namespace="yourapp"`.
-
-**warning: single health endpoint used for both liveness and readiness**
-Combining them means a slow database causes the container to be killed and restarted rather than just pulled from load balancing. Keep them separate.
-
-**info: default Histogram buckets accepted without review**
-The defaults suit general HTTP latency. For faster or slower operations, define buckets that match the expected distribution.
-
----
-
-## References
-
-- https://prometheus.io/docs/concepts/metric_types/
-- https://prometheus.github.io/client_python/
-- https://prometheus.io/docs/practices/naming/
-
-> prometheus-client's API surface is stable but check the GitHub release notes before upgrading across minor versions.
-
-## Version notes
-
-Checked: 2026-11-10 against https://github.com/prometheus/client_python/releases, https://prometheus.github.io/client_python/instrumenting/summary/, https://prometheus.io/download/, https://github.com/prometheus/prometheus/releases
-
-- Prometheus 3.16.0 (2026-11-04), LTS 3.13.5; prometheus-client 0.26.0 still current: no guidance change.
-- prometheus-client 0.26.0 (2026-07-24), Prometheus 3.15.0 (2026-09-24): Summary row corrected; the Python client "does not compute quantiles locally".
+- A label value with unbounded cardinality, such as a user ID, request ID, or email address: `failure`. Keep label values bounded and low-cardinality.
+- A Counter for a value that can decrease, such as queue depth or active sessions: `failure`. Use a Gauge.
+- A metric name in `_milliseconds`: `warning`. Convert to seconds and use `_seconds`.
+- A metric with no namespace prefix: `warning`. Set `namespace="yourapp"`.
+- One health endpoint for both liveness and readiness: `warning`. Keep them separate.
+- The default Histogram buckets (.005 to 10, tuned for HTTP latency) taken without review: `info`. Define buckets that match the operation's real distribution.

@@ -1,38 +1,25 @@
 ---
 name: vps-provisioning
-description: VPS provisioning patterns for Linux servers covering initial setup, firewall, nginx reverse proxy, SSL/TLS with Let's Encrypt, systemd service management, and server hardening. Use whenever the project contains Ansible playbooks, shell provisioning scripts, nginx configs, systemd unit files, or certbot references, OR the user asks about VPS setup, server hardening, ufw, fail2ban, nginx reverse proxy, certbot, Let's Encrypt, systemd services, unattended-upgrades, even if VPS is not mentioned by name.
+description: VPS patterns for setup, firewall, nginx reverse proxy, Let's Encrypt, systemd, and hardening. Load before any edit to a playbook, provisioning script, or nginx or systemd config, however small.
 ---
 
 # VPS provisioning patterns
 
-Targeting Debian 13 (Trixie) and Ubuntu 24.04 or 26.04 LTS. Debian 12 (Bookworm) is on LTS only, until 2028-06-30. Commands and package names are Debian/Ubuntu unless noted. Verify against your distribution's current docs.
+Default assumption: Debian 13 (Trixie), Ubuntu 26.04 or 24.04 LTS.
+
+- Debian 12 (Bookworm) is on LTS only, until 2028-06-30.
+- Commands and package names are Debian/Ubuntu unless noted. Check them against the distribution's current docs.
 
 ## Reference files
 
-| File                                           | Covers                                                               |
-| ---------------------------------------------- | -------------------------------------------------------------------- |
-| [initial-setup.md](reference/initial-setup.md) | Non-root sudo user, SSH key auth, disabling root/password login      |
-| [firewall.md](reference/firewall.md)           | ufw default policy, allow/deny rules, rate limiting                  |
-| [nginx.md](reference/nginx.md)                 | Server blocks, HTTPS redirect, reverse proxy, gzip, security headers |
-| [ssl-tls.md](reference/ssl-tls.md)             | certbot, Let's Encrypt issuance, auto-renewal, renewal hooks         |
-| [systemd.md](reference/systemd.md)             | Unit file structure, Type values, Restart, EnvironmentFile, journald |
-| [hardening.md](reference/hardening.md)         | fail2ban, unattended-upgrades, SSH config, server_tokens             |
-| [anti-patterns.md](reference/anti-patterns.md) | Severity-labeled anti-patterns to flag in review                     |
+Loading this skill isn't enough. Before your next edit, read the file of every row that matches it. The rules live in those files, and this one only points at them.
 
-## References
-
-- https://certbot.eff.org/
-- https://nginx.org/en/docs/
-- https://wiki.debian.org/UnattendedUpgrades
-- https://manpages.ubuntu.com/manpages/noble/man8/ufw.8.html
-
-## Version notes
-
-Checked: 2026-11-10 against https://ubuntu.com/about/release-cycle, https://www.debian.org/releases/, https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html, https://github.com/fail2ban/fail2ban/blob/master/ChangeLog and https://letsencrypt.org/2025/12/02/from-90-to-45
-
-Check distribution LTS support windows before provisioning.
-
-- Debian 13 and Ubuntu 26.04 LTS (2026-11-10): the new baseline. Corrected `Restart=always` (a `systemctl stop` is never restarted) and the fail2ban `sshd` backend on Debian.
-- Ubuntu 24.04 LTS support ends May 2029 (standard), May 2034 (ESM), May 2039 (Legacy add-on). Corrected from April.
-- Certbot 4.0.0: renewal threshold moved from a fixed 30 days to 1/3 of certificate lifetime; see ssl-tls.md.
-- Certbot version and plugin names change; verify `certbot --version` and available plugins.
+| Before                                                                                             | Read                                           |
+| -------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| Setting up a fresh server: the sudo user, SSH keys, or disabling root and password login           | [initial-setup.md](reference/initial-setup.md) |
+| Writing or changing ufw rules, the default policy, or rate limiting                                | [firewall.md](reference/firewall.md)           |
+| Writing or changing an nginx server block, an HTTPS redirect, a reverse proxy, or security headers | [nginx.md](reference/nginx.md)                 |
+| Issuing or renewing a certificate with certbot, or writing a renewal hook                          | [ssl-tls.md](reference/ssl-tls.md)             |
+| Writing or changing a systemd unit, its restart policy, or its environment file                    | [systemd.md](reference/systemd.md)             |
+| Configuring fail2ban, unattended-upgrades, or sshd hardening                                       | [hardening.md](reference/hardening.md)         |
+| Writing, changing, or reviewing provisioning code or server config                                 | [anti-patterns.md](reference/anti-patterns.md) |

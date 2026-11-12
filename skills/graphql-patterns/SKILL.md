@@ -1,37 +1,23 @@
 ---
 name: graphql-patterns
-description: GraphQL client patterns for operation and fragment authoring, typed documents with graphql-codegen's client preset, Apollo Client 4 caching and error handling, and review-time anti-patterns. Use whenever the project contains `.graphql`/`.gql` files, a `codegen.ts`, or `graphql`, `@apollo/client`, `urql`, or `graphql-request` in `package.json`, OR the user asks about GraphQL queries, mutations, fragments, the Apollo cache, or generated GraphQL types, even if GraphQL is not mentioned by name.
+description: GraphQL client patterns for operations, fragments, the codegen client preset, and Apollo Client 4. Load before any edit to a .graphql or .gql file, however small, or for GraphQL questions.
 ---
 
 # GraphQL patterns
 
 Default assumption: a TypeScript client on Apollo Client 4.3 with documents typed by `@graphql-codegen/client-preset` 7.x.
 
+- An Apollo Client 3 project: the v4 deltas (entry points, the unified `error`, `LocalState`) are the lines marked v4 in `reference/apollo-client.md`.
 - Document rules (`reference/documents.md`) hold for every client: Apollo, urql, graphql-request.
-- Apollo Client 3 projects: the v4 deltas (entry points, the unified `error`, `LocalState`) are called out in `reference/apollo-client.md`.
 - Adapt advice to the version in the project's `package.json` or lockfile.
 
 ## Reference files
 
-| File                                                     | Covers                                                                              |
-| -------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| [reference/documents.md](reference/documents.md)         | Operation names, variables, fragments and colocation                                |
-| [reference/codegen.md](reference/codegen.md)             | Client preset config, the `graphql()` function, fragment masking                    |
-| [reference/apollo-client.md](reference/apollo-client.md) | v4 entry points, error handling, `errorPolicy`, fetch policies, cache normalization |
-| [reference/anti-patterns.md](reference/anti-patterns.md) | Six review-time anti-patterns with severity calls                                   |
+Loading this skill isn't enough. Before your next edit, read the file of every row that matches it. The rules live in those files, and this one only points at them.
 
-## References
-
-- GraphQL queries and variables: https://graphql.org/learn/queries/
-- Apollo Client docs: https://www.apollographql.com/docs/react/
-- Apollo Client 4 migration: https://github.com/apollographql/apollo-client/blob/main/docs/source/migrating/apollo-client-4-migration.mdx
-- GraphQL Code Generator client preset: https://the-guild.dev/graphql/codegen/plugins/presets/preset-client
-
-## Version notes
-
-Checked: 2026-11-10 against npm registry, Context7 /apollographql/apollo-client, and https://github.com/dotansimha/graphql-code-generator/blob/master/packages/presets/client/CHANGELOG.md
-
-- @graphql-codegen/client-preset 7.0.0 and @graphql-codegen/cli 8.0.0 (2026-11-07): drop GraphQL 14 and 15 (peer `^16 || ^17`), need Node 22.18+, remove `emitLegacyCommonJSImports` (use `importExtension`). @apollo/client 4.3.8 (2026-11-09), graphql 17.1.0 (2026-11-04): no guidance change.
-- @apollo/client 4.0.0 (2025-08-21): v4 moved React hooks to `@apollo/client/react`, replaced `ApolloError` with `CombinedGraphQLErrors` and a single `error` property, and moved local resolvers to `LocalState`.
-- @graphql-codegen/client-preset 6.2.0 (2026-09-13), @graphql-codegen/cli 7.4.3 (2026-09-24): no guidance change.
-- graphql (graphql-js) 17.0.2; 17.0.0 (2026-06-15) followed 16.14. Server-side changes are out of this pack's scope.
+| Before                                                                                | Read                                                     |
+| ------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| Writing or changing an operation, a variable, or a fragment                           | [reference/documents.md](reference/documents.md)         |
+| Configuring codegen, or using the `graphql()` function or fragment masking            | [reference/codegen.md](reference/codegen.md)             |
+| Writing or changing Apollo Client code: imports, errors, fetch policies, or the cache | [reference/apollo-client.md](reference/apollo-client.md) |
+| Writing, changing, or reviewing GraphQL client code                                   | [reference/anti-patterns.md](reference/anti-patterns.md) |

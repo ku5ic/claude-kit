@@ -14,12 +14,16 @@ import (
 )
 
 // Root resolves the project root for cwd, as `kit project-root`:
-//  1. the git worktree root;
+//  1. the git worktree root, or when git can't run, the nearest ancestor
+//     holding a .git directory or file;
 //  2. cwd or up to 2 ancestors holding a language manifest;
 //  3. cwd itself, with anchored false.
 func Root(cwd string) (root string, anchored bool) {
 	if top := git.Toplevel(cwd); top != "" {
 		return top, true
+	}
+	if dotGit := fsx.FindUp(cwd, "/", ".git"); dotGit != "" {
+		return filepath.Dir(dotGit), true
 	}
 	anchors := sources.Anchors()
 	dir := cwd
@@ -62,14 +66,14 @@ func Name(root string) string {
 // when the project is anchored, else the global one under the kit home.
 // With create, it makes the directory, and registers a project scratch dir
 // in scratch-registry.txt so `kit scratch-rotate`'s cwd-less run can prune it.
+// A registry it can't write, as in a sandbox that keeps Bash out of the
+// config dir, leaves the dir unregistered and still returns it.
 func ScratchDir(paths config.Paths, cwd string, create bool) (string, error) {
 	dir := paths.ScratchHome()
 	if root, anchored := Root(cwd); anchored {
 		dir = filepath.Join(root, ".claude", "scratch")
 		if create {
-			if err := register(paths, dir); err != nil {
-				return "", err
-			}
+			_ = register(paths, dir)
 		}
 	}
 	if create {

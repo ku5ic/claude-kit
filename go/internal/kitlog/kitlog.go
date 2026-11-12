@@ -16,12 +16,13 @@ import (
 )
 
 // The kit's logs, the skills log's events that mark a skill as only
-// surfaced, and a line's ts layout.
+// surfaced or a Read of a skill reference, and a line's ts layout.
 const (
 	Skills              = "skills"
 	Guards              = "guards"
 	EventRequiredSkill  = "required-skill"
 	EventSuggestedSkill = "suggested-skill"
+	EventReferenceRead  = "reference-read"
 	TimeLayout          = "2006-01-02T15:04:05Z"
 )
 
@@ -31,6 +32,7 @@ type Entry struct {
 	TS            *string `json:"ts"`
 	Event         string  `json:"event"`
 	SessionID     *string `json:"session_id"`
+	AgentID       string  `json:"agent_id"` // "" in the main session
 	ExpansionType string  `json:"expansion_type"`
 	CommandName   *string `json:"command_name"`
 	SkillFile     *string `json:"skill_file"`
@@ -42,6 +44,12 @@ type Entry struct {
 // loaded.
 func (e Entry) Surfaced() bool {
 	return e.Event == EventRequiredSkill || e.Event == EventSuggestedSkill
+}
+
+// Loads is true for a skills log line that says a skill was loaded: not
+// surfaced, nor a reference read.
+func (e Entry) Loads() bool {
+	return !e.Surfaced() && e.Event != EventReferenceRead
 }
 
 // Line is one log line: a JSON object of pairs' keys and values in order,
@@ -83,7 +91,8 @@ func Append(path string, line []byte, maxLines int) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0o644)
+	// Lines carry session IDs and blocked targets, so only the owner reads them.
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return err
 	}
@@ -94,6 +103,10 @@ func Append(path string, line []byte, maxLines int) error {
 	var size int64
 	if info, serr := f.Stat(); serr == nil {
 		size = info.Size()
+		// A log an older kit created 0644.
+		if info.Mode().Perm() != 0o600 {
+			_ = f.Chmod(0o600)
+		}
 	}
 	full := false
 	if maxLines > 0 {

@@ -122,7 +122,7 @@ func gitleaksStub(t *testing.T, code int) string {
 	return calls
 }
 
-// rules/workflow.md section 1: a commit's message is shown before it runs,
+// skills/kit-rules/reference/workflow.md section 1: a commit's message is shown before it runs,
 // so a commit whose subject no earlier turn showed gets a prompt.
 func TestGuardCommitAsksForAnUnshownMessage(t *testing.T) {
 	gitleaksStub(t, 0)
@@ -238,7 +238,7 @@ func TestGuardCommitScansTheMessageForAITells(t *testing.T) {
 	testutil.Write(t, filepath.Join(k.home, "msg.txt"), "fix: x\n\nI hope this helps.\n")
 	r := k.commit("", "git commit -F msg.txt")
 	r.Want(t, 2)
-	r.Has(t, `L3 "I hope this helps" -> cut it`, "slop-patterns")
+	r.Has(t, `L3    "I hope this helps" -> cut it`, "slop-patterns")
 
 	k.commit("", `git commit -m "fix: x" -m "A robust, meticulous, comprehensive tool."`).Want(t, 0)
 	log, _ := os.ReadFile(filepath.Join(k.claude, "logs", "guards.jsonl"))

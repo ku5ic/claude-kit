@@ -32,7 +32,7 @@ const rulesSkill = "kit-rules"
 var claudeCodeKeys = []string{"allowed-tools", "argument-hint", "user-invocable", "disable-model-invocation"}
 
 var (
-	ruleLink    = regexp.MustCompile("`(rules/[a-z]+\\.md)`( sections? ([0-9]+(?:(?:,| and|, and) [0-9]+)*))?")
+	ruleLink    = regexp.MustCompile("`(skills/kit-rules/reference/[a-z]+\\.md)`( sections? ([0-9]+(?:(?:,| and|, and) [0-9]+)*))?")
 	skillLink   = regexp.MustCompile("`skills/([a-z0-9-]+)/(reference/[a-z0-9-]+\\.md)`")
 	number      = regexp.MustCompile(`[0-9]+`)
 	sectionHead = regexp.MustCompile(`^## ([0-9]+)\.`)

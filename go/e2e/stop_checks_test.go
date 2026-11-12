@@ -3,6 +3,7 @@ package e2e
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -53,7 +54,7 @@ func TestStopChecks(t *testing.T) {
 	r := stop()
 	r.Want(t, 0)
 	var out map[string]string
-	if err := json.Unmarshal([]byte(r.Stdout), &out); err != nil || len(out) != 1 || out["systemMessage"] != "stop checks: 1 passed, 0 failed, 0 skipped\n  PASS lint (package.json: *.ts)" {
+	if err := json.Unmarshal([]byte(r.Stdout), &out); err != nil || len(out) != 1 || out["systemMessage"] != "kit stop: 1 pass, 0 skipped, 0 failed\npass  lint (package.json: *.ts)" {
 		t.Errorf("a pass prints more or other than its systemMessage:\n%s", r.Output)
 	}
 
@@ -61,12 +62,33 @@ func TestStopChecks(t *testing.T) {
 	r = stop()
 	r.Want(t, 0)
 	out = nil
-	if err := json.Unmarshal([]byte(r.Stdout), &out); err != nil || out["decision"] != "block" || out["systemMessage"] != "stop checks: 0 passed, 1 failed, 0 skipped\n  FAIL lint (package.json: *.ts)" {
+	if err := json.Unmarshal([]byte(r.Stdout), &out); err != nil || out["decision"] != "block" || out["systemMessage"] != "kit stop: 0 pass, 0 skipped, 1 failed\nFAIL  lint (package.json: *.ts)" {
 		t.Errorf("a failure blocks and shows the user every verdict:\n%s", r.Output)
 	}
-	for _, s := range []string{"FAIL lint (package.json: *.ts)\n  cmd: fakelint --check a.ts\n", "lint noise", "checks: 0 passed, 1 failed, 0 skipped"} {
+	for _, s := range []string{"kit stop: BLOCKED 1 of 1 checks failed", "FAIL  lint (package.json: *.ts)\n", "lint noise", "\nmore  "} {
 		if !strings.Contains(out["reason"], s) {
 			t.Errorf("the block's reason lacks %q:\n%s", s, out["reason"])
 		}
+	}
+
+	// receipt: failures hides a clean pass, and the gate still runs; a
+	// failure still shows, with the overrides in force.
+	k.Overlay("classifier: [" + strconv.Quote(classifier) + "]\nreceipt: failures\ndisabled_rules: [plan-critic]\n")
+	calls := func() int { return len(testutil.Calls(t, filepath.Join(tmp, "calls"))) }
+	if err := os.Remove(path("fail")); err != nil {
+		t.Fatal(err)
+	}
+	before := calls()
+	r = stop()
+	r.Want(t, 0)
+	if r.Stdout != "" || calls() != before+1 {
+		t.Errorf("a hidden receipt printed, or its gate didn't run (%d calls, want %d):\n%s", calls(), before+1, r.Output)
+	}
+	Touch(t, path("fail"))
+	r = stop()
+	out = nil
+	if err := json.Unmarshal([]byte(r.Stdout), &out); err != nil || out["decision"] != "block" ||
+		out["systemMessage"] != "kit stop: 0 pass, 0 skipped, 1 failed\nFAIL  lint (package.json: *.ts)\noverride  disabled_rules: plan-critic" {
+		t.Errorf("a failure with receipt: failures still blocks and shows its receipt:\n%s", r.Output)
 	}
 }

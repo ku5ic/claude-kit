@@ -1,44 +1,24 @@
 ---
 name: nuxt-patterns
-description: Nuxt 3+ patterns for rendering modes, data fetching (useFetch, useAsyncData, $fetch), server routes, SSR-safe state, file-based routing, the Nitro runtime, and review checklist. Use whenever the project contains a `nuxt.config.*`, `nuxt` in `package.json`, or `app/pages/`/`app/composables/` (Nuxt 4 `srcDir`), root-level `pages/`/`composables/` (Nuxt 3), or a root `server/` directory, OR the user asks about Nuxt, its data-fetching composables, its server routes, or its SSR behavior, even if Nuxt is not mentioned by name.
+description: Nuxt 3+ patterns for rendering modes, useFetch and useAsyncData, server routes, SSR state, and Nitro. Load before any edit in a Nuxt app or to nuxt.config.*, however small, and for Nuxt questions.
 ---
 
 # Nuxt patterns
 
 Default assumption: Nuxt 4 (current stable, latest 4.6.x) with Universal Rendering (SSR).
 
-- Nuxt 3 reached end-of-life on 2026-07-31; Nuxt 3 projects are still common and most patterns here apply, but flag the EOL and the version notes below cover deltas.
-- Verify the installed version via `nuxt --version` or `package.json`; minor-version deltas may affect module resolution and Nitro config.
+- A Nuxt 3 project: most patterns here apply. Flag that Nuxt 3 reached end-of-life on 2026-07-31.
+- Before a version-sensitive call, check the installed version with `nuxt --version` or `package.json`. Minor versions can change module resolution and Nitro config.
 
 ## Reference files
 
-| File                                                     | Covers                                                                              |
-| -------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| [reference/anti-patterns.md](reference/anti-patterns.md) | Severity-labeled anti-patterns: SSR state leakage, fetch dedup, runtimeConfig       |
-| [reference/rendering.md](reference/rendering.md)         | SSR, SPA, SSG, hybrid via `routeRules`, edge rendering                              |
-| [reference/data-fetching.md](reference/data-fetching.md) | `useFetch`, `useAsyncData`, `$fetch`, dedup, lazy fetching                          |
-| [reference/state.md](reference/state.md)                 | `useState` SSR-safety, module-level leakage, Pinia, composables                     |
-| [reference/routing.md](reference/routing.md)             | File-based routes, layouts, route middleware vs server middleware, `definePageMeta` |
-| [reference/server.md](reference/server.md)               | Nitro, server routes, validation, `runtimeConfig` and env-var conventions           |
+Loading this skill isn't enough. Before your next edit, read the file of every row that matches it. The rules live in those files, and this one only points at them.
 
-## References
-
-- Nuxt docs: https://nuxt.com/docs
-- Nuxt blog (releases): https://nuxt.com/blog
-- Rendering concepts: https://nuxt.com/docs/guide/concepts/rendering
-- Server engine (Nitro): https://nuxt.com/docs/guide/concepts/server-engine
-- Data fetching: https://nuxt.com/docs/getting-started/data-fetching
-- `useState`: https://nuxt.com/docs/api/composables/use-state
-- `runtimeConfig`: https://nuxt.com/docs/guide/going-further/runtime-config
-- Daniel Roe (Nuxt lead): https://roe.dev/
-- Anthony Fu (Vite/Nuxt overlap): https://antfu.me/
-- Sebastien Chopin (Nuxt creator): https://github.com/atinux
-
-## Version notes
-
-Checked: 2026-11-10 against https://www.npmjs.com/package/nuxt, https://nuxt.com/docs/4.x/api/composables/use-fetch, https://nuxt.com/docs/4.x/api/composables/use-async-data and https://nuxt.com/docs/4.x/getting-started/routing
-
-- 4.6.4 (2026-11-02): corrected the key rule. `useFetch` and `useAsyncData` both auto-generate a call-site key; neither derives it from the URL or requires one.
-- 4.5 (2026-07): `enabled` option on `useFetch`/`useAsyncData`, `useLayout` composable, stable error codes, named views by filename. No pattern here changed.- Nuxt 3: end-of-life 2026-07-31, final release 3.21.11 (2026-08-05). Nuxt 2: end-of-life 2024-06-30.
-
-Nitro and h3 version independently of Nuxt; verify version-sensitive claims against the current docs.
+| Before                                                                         | Read                                                     |
+| ------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| Writing, changing, or reviewing Nuxt code                                      | [reference/anti-patterns.md](reference/anti-patterns.md) |
+| Choosing a rendering mode, or setting `routeRules` or prerendering             | [reference/rendering.md](reference/rendering.md)         |
+| Fetching data with `$fetch`, `useFetch`, or `useAsyncData`                     | [reference/data-fetching.md](reference/data-fetching.md) |
+| Adding shared state, `useState`, a Pinia store, or a composable                | [reference/state.md](reference/state.md)                 |
+| Adding a page, a layout, route middleware, or `definePageMeta`                 | [reference/routing.md](reference/routing.md)             |
+| Writing a server route, Nitro or h3 code, `runtimeConfig`, or reading env vars | [reference/server.md](reference/server.md)               |

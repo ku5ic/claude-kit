@@ -297,6 +297,18 @@ func TestGuardBashParsing(t *testing.T) {
 		probe("ask", `git checkout HEAD -- ~/.claude/claude-kit.local.yml`)
 		probe("ask", `perl -pi -e s/a/b/ ~/.claude/claude-kit.local.yml`)
 		probe("pass", `git log -- ~/.claude/claude-kit.local.yml`)
+		// The kit's other off switches and its record ask the same way.
+		probe("block", `echo 'export KIT_VERIFIER=1' >> ~/.zshenv`)
+		probe("ask", `echo '{}' > ~/.claude/settings.json`)
+		probe("ask", `cp /tmp/x ~/.claude/settings.local.json`)
+		probe("ask", `echo '{}' > .claude/settings.local.json`)
+		probe("pass", `cat ~/.claude/settings.json`)
+		probe("pass", `echo '{}' > settings.json`)
+		probe("ask", `echo x >> ~/.claude/logs/guards.jsonl`)
+		probe("ask", `truncate -s 0 ~/.claude/logs/guards.jsonl`)
+		probe("ask", `cp /tmp/x ~/.claude/cache/claims/s-plan`)
+		probe("pass", `cat ~/.claude/logs/guards.jsonl`)
+		probe("ask", fmt.Sprintf("cp /tmp/x %q", filepath.Join(filepath.Dir(kitYML), "kit.yml")))
 		// Downloads: .. never escapes scratch, even behind $(kit scratch-dir).
 		probe("block", `curl -o "$(kit scratch-dir)/../../x" https://x.example/a`)
 		probe("block", `wget -P "$(kit scratch-dir)/.." https://x.example/a`)
@@ -332,4 +344,18 @@ func TestGuardBashParsing(t *testing.T) {
 		probe("pass", `rg '<div>' src`)
 		probe("pass", `curl -s https://x.example | jq .`)
 	})
+}
+
+// Work on the kit's own checkout writes inside the plugin root without a
+// prompt; the same write from another project asks.
+func TestGuardBashPluginRootFromInside(t *testing.T) {
+	t.Parallel()
+	k := newSandbox(t)
+	root := filepath.Dir(kitYML)
+	if r := k.hook("", root, "cp /tmp/x kit.yml"); strings.Contains(r.Output, `"ask"`) {
+		t.Errorf("a write inside the checkout asked:\n%s", r.Output)
+	}
+	if r := k.hook("", t.TempDir(), fmt.Sprintf("cp /tmp/x %q", filepath.Join(root, "kit.yml"))); !strings.Contains(r.Output, "the installed claude-kit plugin") {
+		t.Errorf("a write from elsewhere didn't ask:\n%s", r.Output)
+	}
 }

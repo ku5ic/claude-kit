@@ -25,11 +25,11 @@ In claude.ai chat, generate a commit message from the diff in the user's message
 ## Message rules
 
 - Subject line: imperative mood, under 72 characters, no trailing period.
-- Commit register: `rules/output.md` section 4.
+- Commit register: `skills/kit-rules/reference/output.md` section 4.
 
 <!-- chat: skip -->
 
-- Signatures, footers, and co-author tags: `rules/workflow.md` section 1.
+- Signatures, footers, and co-author tags: `skills/kit-rules/reference/workflow.md` section 1.
 
 <!-- chat: end -->
 

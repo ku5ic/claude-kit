@@ -59,7 +59,7 @@ func finishedReview(text string, started map[string]int) int {
 	return -1
 }
 
-// planDone reads the Stop hook's end-of-plan moment (rules/verify.md) from
+// planDone reads the Stop hook's end-of-plan moment (skills/kit-rules/reference/verify.md) from
 // the transcript's entries: plan is the plan in plansDir whose last open
 // step this turn ticked, else ""; reviewed is whether a /code-review started
 // after the last code edit, anywhere in the transcript, has finished.

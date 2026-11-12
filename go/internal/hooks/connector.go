@@ -32,5 +32,5 @@ func GuardConnector(h *hook.Hook) error {
 	if len(hits) == 0 {
 		return nil
 	}
-	return h.Block(slop.Message("the "+tool+" input", hits), "slop")
+	return h.Block(slop.Message("the "+tool+" input", hits, ""), "slop")
 }

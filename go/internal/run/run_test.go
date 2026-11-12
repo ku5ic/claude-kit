@@ -60,8 +60,9 @@ func (r *repo) run(gates ...enforce.Gate) (string, Result) {
 
 var has, lacks = testutil.Has, testutil.Lacks
 
-// The summary counts each verdict, and the user's notice holds the verdict
-// lines alone: a failing tool's own PASS or summary lines stay in the report.
+// The summary counts each verdict, and the user's receipt holds the verdict
+// lines alone, failures first: a failing tool's own PASS or summary lines
+// stay in the report.
 func TestTheSummaryCountsEachVerdict(t *testing.T) {
 	t.Parallel()
 	r := newRepo(t, "repo")
@@ -69,13 +70,16 @@ func TestTheSummaryCountsEachVerdict(t *testing.T) {
 	skipped.Skip = "unclassified"
 	failing := r.gate("typecheck", `printf 'PASS src/a.test.ts\nchecks: 9 passed, 0 failed, 0 skipped\n'; exit 1`)
 	var out strings.Builder
-	res, notice := Gates(enforce.Plan{Root: r.root, Gates: []enforce.Gate{r.gate("test", "true"), failing, skipped}}, r.cache, &out, time.Time{})
+	res, receipt := Gates(enforce.Plan{Root: r.root, Gates: []enforce.Gate{r.gate("test", "true"), failing, skipped}}, r.cache, &out, time.Time{})
 	has(t, out.String(), "PASS test\n", "FAIL typecheck\n", "PASS src/a.test.ts\n", "SKIP lint (unclassified)\n", "\nchecks: 1 passed, 1 failed, 1 skipped\n")
 	if res != (Result{Pass: 1, Fail: 1, Skip: 1}) {
 		t.Errorf("result = %+v", res)
 	}
-	if want := "run-checks checks: 1 passed, 1 failed, 1 skipped\n  PASS test\n  FAIL typecheck\n  SKIP lint (unclassified)"; notice != want {
-		t.Errorf("notice:\n%s\nwant:\n%s", notice, want)
+	if got, want := receipt.String(), "kit full gate: 1 pass, 1 skipped, 1 failed\nFAIL  typecheck\nskip  lint  unclassified\npass  test"; got != want {
+		t.Errorf("receipt:\n%s\nwant:\n%s", got, want)
+	}
+	if receipt.Clean() {
+		t.Error("a receipt with a failure is clean")
 	}
 }
 

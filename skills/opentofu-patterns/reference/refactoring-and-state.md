@@ -1,47 +1,13 @@
 # Refactoring and state
 
-Change state through configuration that goes through `plan`, not through state CLI commands that don't.
-
-## `moved`: renames and restructuring
-
-Without a `moved` block, renaming a resource or module plans a destroy at the old address and a create at the new one. With one, the existing object is treated as belonging to the new address:
-
-```hcl
-moved {
-  from = aws_instance.a
-  to   = aws_instance.b
-}
-```
-
-Keep historical `moved` blocks in shared modules. Deleting one is a breaking change, because a caller still on the old address plans to delete the object instead of moving it. Source: https://opentofu.org/docs/language/modules/develop/refactoring/
-
-## `import`: adopting existing objects
-
-An `import` block takes `to` (the address) and `id` or `identity` (`identity` is the newer, type-specific form), plus optional `provider` and `for_each`. Unlike the `tofu import` command it's previewed in `plan` and works in CI: write the import block and the resource block, plan, then apply. Configuration generation doesn't work together with `for_each` on an import block. Source: https://opentofu.org/docs/language/import/
-
-## `removed`: stop managing without destroying
-
-Deleting a resource block destroys the object. To drop it from state and leave the object alone:
-
-```hcl
-removed {
-  from = aws_instance.web
-  lifecycle {
-    destroy = false
-  }
-}
-```
-
-Source: https://opentofu.org/docs/language/resources/syntax/
-
-OpenTofu 1.12+ also accepts `lifecycle { destroy = false }` on a managed resource itself. Source: https://opentofu.org/docs/v1.12/intro/whats-new/
-
-## `lifecycle` guards
-
-In OpenTofu 1.12+, `prevent_destroy` may refer to other symbols in the module, such as input variables, so protection can differ per environment. Source: https://opentofu.org/docs/v1.12/intro/whats-new/
-
-## What state holds
-
-- `sensitive = true` only hides a value in output. OpenTofu still records it in state in cleartext, so anyone who can read state reads it. Source: https://opentofu.org/docs/language/values/variables/
-- An `ephemeral = true` variable (OpenTofu 1.11+) is never stored in state; only its name goes into the plan. It can only be used where ephemeral values are allowed, such as ephemeral resources, ephemeral outputs, and provisioners. Source: https://opentofu.org/docs/language/values/variables/
-- So a secret passed through a plain or `sensitive` variable is a state-access problem, not only a display problem.
+- Stopping management without destroying, on OpenTofu 1.12+: a managed resource itself also accepts `lifecycle { destroy = false }`, as a `removed` block does.
+- Protection that differs per environment, on OpenTofu 1.12+: have `prevent_destroy` refer to an input variable or another symbol in the module.
+- A secret on OpenTofu 1.11+: pass it in an `ephemeral = true` variable, which state never stores and the plan holds only by name. Use it only where ephemeral values are allowed, such as ephemeral resources, ephemeral outputs, and provisioners.
+- Change state through configuration that goes through `plan`, never through state CLI commands that don't.
+- A renamed or moved resource or module: add a `moved` block, with `from` set to the old address and `to` the new one.
+- A shared module: keep its historical `moved` blocks. Deleting one is a breaking change.
+- Adopting an existing object: write an `import` block and the resource block, run `plan`, then `apply`, instead of the `tofu import` command.
+- An `import` block takes `to` and either `id` or the newer, type-specific `identity`, plus optional `provider` and `for_each`.
+- Configuration generation doesn't work with `for_each` on an `import` block.
+- Dropping an object from state while leaving the object alone: use a `removed` block, with `from` set to its address and `lifecycle { destroy = false }`.
+- A secret in a plain or `sensitive` variable: treat it as readable by anyone who can read state. `sensitive = true` only hides it in output; state holds it in cleartext.

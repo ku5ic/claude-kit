@@ -28,6 +28,11 @@ type Config struct {
 	DenyFlags             []string      `yaml:"deny_flags"`
 	GateEnv               []string      `yaml:"gate_env"`
 	GateTimeout           int           `yaml:"gate_timeout"`
+	Receipt               string        `yaml:"receipt"`
+	StepPause             string        `yaml:"step_pause"`
+	GuardSkills           bool          `yaml:"guard_skills"`
+	SanitizeTypography    bool          `yaml:"sanitize_typography"`
+	Preset                string        `yaml:"preset"`
 	UserPins              []string      `yaml:"user_pins"`
 	DisabledTaskProviders []string      `yaml:"disabled_task_providers"`
 	DisabledChecks        []string      `yaml:"disabled_checks"`
@@ -42,6 +47,7 @@ type Config struct {
 	Slop           Slop           `yaml:"slop"`
 	Connectors     Connectors     `yaml:"connectors"`
 	Claims         Claims         `yaml:"claims"`
+	SizeBudgets    SizeBudgets    `yaml:"size_budgets"`
 	WeakenedChecks WeakenedChecks `yaml:"weakened_checks"`
 	PackageLookups PackageLookups `yaml:"package_lookups"`
 	ChatBundle     ChatBundle     `yaml:"chat_bundle"`
@@ -88,15 +94,40 @@ func rootLabel(label string) string {
 	return label
 }
 
-// unknownDisables names the disabled_checks entries that can name nothing:
-// a single word that isn't a check kind, so a typo doesn't silently disable
-// nothing. A label holds a space, and which gates have it depends on the
-// project.
+// Rules are the slugs disabled_rules can name, besides slop- and a slop
+// rule's id. TestRulesMatchTheCode holds it to the code's blocks; a slug
+// from a table or a variable is added by hand.
+var Rules = []string{
+	"ai-commit-sig", "aws-ec2-terminate", "aws-s3-force-rb", "aws-s3-recursive-rm",
+	"bash-edits", "checks-failed", "chmod-777", "chmod-broad-x", "citations", "claims", "commit-msg", "commit-wall-of-text",
+	"device-write", "disk-tool", "docker-prune-all-force", "download-to-repo",
+	"find-delete", "find-exec-rm", "fork-bomb",
+	"gcloud-delete", "git-config-global", "git-dir-edit", "git-force-push", "git-no-verify",
+	"git-push-protected", "git-reset-hard", "git-tree-discard", "global-installs-invalid",
+	"interpreter-c-wrap", "keychain-delete", "kubectl-delete", "lockfile-edit",
+	"pipe-to-shell", "pkg-global-install", "pkg-missing", "pkg-undeclared", "plan-critic", "plan-done",
+	"pm-mismatch", "psql-destructive", "rc-edit", "rc-inplace-edit", "rc-redirect", "redis-destructive",
+	"review-checks", "rm-recursive", "rules-gate", "run-checks-by-hook", "sensitive-read", "sensitive-write",
+	"size", "skills-gate", "skills-nudge", "slop", "slop-vocabulary", "staged-secret", "terraform-auto-approve", "terraform-destroy",
+	"ui-undefined-token", "weaken", "xargs-rm",
+}
+
+// unknownDisables names the disabled_checks and disabled_rules entries that
+// can name nothing, so a typo doesn't silently disable nothing. A
+// disabled_checks entry with a space is a gate label, and which gates have
+// it depends on the project.
 func (c *Config) unknownDisables() []error {
 	var errs []error
 	for _, d := range c.DisabledChecks {
 		if !strings.Contains(d, " ") && !slices.Contains(CheckKinds, d) {
 			errs = append(errs, fmt.Errorf("disabled_checks: %q is no check kind (%s) or gate label", d, strings.Join(CheckKinds, ", ")))
+		}
+	}
+	for _, d := range c.DisabledRules {
+		id, slop := strings.CutPrefix(d, "slop-")
+		known := slices.Contains(Rules, d) || slop && slices.ContainsFunc(c.Slop.Rules, func(r SlopRule) bool { return r.ID == id })
+		if !known {
+			errs = append(errs, fmt.Errorf("disabled_rules: %q is no rule; kit explain prints a block's rule", d))
 		}
 	}
 	return errs
@@ -261,6 +292,29 @@ func (c Claims) problems() []error {
 // Off is true when the verifier has no time or no money to run with.
 func (c Claims) Off() bool { return c.Timeout <= 0 || c.BudgetUSD <= 0 }
 
+// SizeBudgets are the most prose words, fenced code excluded, a deliverable
+// of each kind runs before check-size sends it back. 0 is no budget.
+type SizeBudgets struct {
+	Plan    int `yaml:"plan"`
+	Report  int `yaml:"report"`
+	Scratch int `yaml:"scratch"`
+	Post    int `yaml:"post"`
+}
+
+// problems names a budget below 0, which would silently mean "off".
+func (s SizeBudgets) problems() []error {
+	var errs []error
+	for _, b := range []struct {
+		name string
+		n    int
+	}{{"plan", s.Plan}, {"report", s.Report}, {"scratch", s.Scratch}, {"post", s.Post}} {
+		if b.n < 0 {
+			errs = append(errs, fmt.Errorf("size_budgets: %s is %d; a budget is 0 (off) or more", b.name, b.n))
+		}
+	}
+	return errs
+}
+
 // WeakenedChecks are the paths and patterns go/internal/weaken reads an
 // edit by: the files it skips, the files that are tests, and the lines
 // that skip a test, silence a check, or assert.
@@ -420,7 +474,7 @@ func (s Slop) problems() []error {
 	return errs
 }
 
-// ReplyLimits are the word ceilings rules/output.md section 0 names. A
+// ReplyLimits are the word ceilings skills/kit-rules/reference/output.md section 0 names. A
 // prompt holding a detail trigger lifts the chat ceiling, one holding an
 // explain trigger raises it to Explain. Write is per /write kind, the whole
 // reply. A prompt that starts with an UncappedCommands command has none.

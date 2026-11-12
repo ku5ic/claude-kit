@@ -1,11 +1,6 @@
 ---
 name: logging-patterns
-description: >
-  Python logging patterns covering stdlib logging configuration, structured
-  logging with structlog, log levels, handlers, formatters, and context binding.
-  Use whenever a project uses Python logging, structlog, or the user asks about
-  log levels, log formatting, structured logs, or JSON logging, even if
-  "logging" is not mentioned by name.
+description: Python logging patterns for stdlib config, structlog, levels, handlers, and JSON logs. Load before any edit to Python logging or structlog code, however small, and for logging questions.
 ---
 
 # Logging Patterns
@@ -14,13 +9,13 @@ Review checklist plus the configuration shapes that are easy to get wrong. Level
 
 ## stdlib gotchas
 
-- `basicConfig` is a no-op if the root logger already has handlers. Call it once at the entry point; pass `force=True` to replace existing handlers (useful in tests).
-- Records propagate up the dot-separated hierarchy to parent handlers. Set `propagate = False` only when you have deliberately attached a handler to that logger; otherwise you get every record twice.
-- Silence a noisy dependency by name rather than lowering the global level: `logging.getLogger("httpx").setLevel(logging.WARNING)`.
+- `basicConfig`: call it once, at the entry point. It's a no-op once the root logger has handlers; pass `force=True` to replace them, as in tests.
+- Set `propagate = False` only on a logger you deliberately attached a handler to.
+- A noisy dependency: raise its own logger's level by name, `logging.getLogger("httpx").setLevel(logging.WARNING)`, never the global level.
 
 ## structlog configuration
 
-The processor chain is order-sensitive and the API shifts between minor versions, so pin this shape and verify against the docs on upgrade.
+- Keep the processors in this order. On a structlog upgrade, check their names and the config shape against the docs.
 
 ```python
 import logging
@@ -41,44 +36,15 @@ structlog.configure(
 )
 ```
 
-- Request-scoped context that survives awaits and task boundaries goes through `structlog.contextvars.bind_contextvars(...)`, which `merge_contextvars` folds into every record. `logger.bind(...)` returns a new logger and does not cross task boundaries.
-- Use the `a`-prefixed calls (`ainfo`, `aerror`) in async code so rendering does not block the loop.
-- `structlog.stdlib.recreate_defaults()` routes structlog through stdlib logging, needed when third-party libraries log too.
-
----
+- Request-scoped context that must survive awaits and task boundaries: bind it with `structlog.contextvars.bind_contextvars(...)`, which `merge_contextvars` folds into every record. `logger.bind(...)` returns a new logger and doesn't cross task boundaries.
+- Async code: use the `a`-prefixed calls (`ainfo`, `aerror`).
+- When third-party libraries log too, route structlog through stdlib logging with `structlog.stdlib.recreate_defaults()`.
 
 ## Anti-patterns
 
-**failure: f-strings in log calls**
-`logger.warning(f"msg: {a}")` interpolates even when the record is filtered out. Use `logger.warning("msg: %s", a)` for stdlib, or `logger.warning("msg", key=a)` for structlog.
-
-**failure: bare except with logging.exception inside a loop**
-Catching all exceptions and logging them without re-raising hides bugs in long-running loops. Either re-raise or catch a specific exception type.
-
-**warning: configuring logging inside library code**
-Libraries must not call `basicConfig`, `addHandler`, or `setLevel` at module level. Configure only in the application entry point. Libraries add a `NullHandler` to their top-level logger and nothing else.
-
-**warning: print() for diagnostic output in server code**
-`print` bypasses handlers, formatters, and level filters. Replace with a logger at the appropriate level.
-
-**warning: root logger used directly in library modules**
-`logging.info(...)` logs to the root logger and cannot be scoped or silenced per-module. Always use `logging.getLogger(__name__)`.
-
-**info: no structured context on error logs**
-Plain string messages like `"payment failed"` are hard to aggregate. Add identifiers: `logger.error("payment.failed", order_id=order.id, amount=amount)`.
-
----
-
-## References
-
-- https://docs.python.org/3/library/logging.html
-- https://docs.python.org/3/howto/logging.html
-- https://www.structlog.org/en/stable/getting-started.html
-
-> Verify structlog processor names and configuration shape against the structlog docs when upgrading, as the processor API evolves between minor versions.
-
-## Version notes
-
-Checked: 2026-11-10 against https://pypi.org/project/structlog/, https://www.structlog.org/en/stable/api.html, https://docs.python.org/3/library/logging.html, https://www.python.org/downloads/
-
-- structlog 26.1.0 (2026-06-06) still current: requires Python >= 3.10; no change to the processors used here. Python 3.15.2 current, 3.14.10 the latest 3.14.
+- An f-string in a log call, `logger.warning(f"msg: {a}")`: `failure`. Use `logger.warning("msg: %s", a)` in stdlib, `logger.warning("msg", key=a)` in structlog.
+- A long-running loop that catches all exceptions, logs them with `logger.exception`, and doesn't re-raise: `failure`. Re-raise, or catch a specific exception type.
+- Library code that calls `basicConfig`, `addHandler`, or `setLevel` at module level: `warning`. Configure logging only at the application entry point; a library adds a `NullHandler` to its top-level logger and nothing else.
+- `print()` for diagnostic output in server code: `warning`. Use a logger at the right level.
+- A library module that logs through the root logger, `logging.info(...)`: `warning`. Use `logging.getLogger(__name__)`.
+- An error log with no identifiers, such as `"payment failed"`: `info`. Add them: `logger.error("payment.failed", order_id=order.id, amount=amount)`.

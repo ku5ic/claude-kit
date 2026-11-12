@@ -13,4 +13,4 @@ A README answers, in order: what is this, should I use it, how do I start, where
 | Paragraphs that summarize the headings above them                                   | Cut                                                                    |
 | Importance claims about the project: "a powerful, flexible solution"                | What it is and what it replaces                                        |
 
-Tables over prose for anything with three or more comparable items: `rules/output.md` section 1.
+Tables over prose for anything with three or more comparable items: `skills/kit-rules/reference/output.md` section 1.

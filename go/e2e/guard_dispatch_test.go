@@ -27,7 +27,7 @@ func TestGuardDispatch(t *testing.T) {
 			"tool_name":  "Write",
 		})
 		r.Want(t, 2)
-		r.Has(t, "Blocked by guard-edit:")
+		r.Has(t, "kit edit: BLOCKED ")
 	})
 
 	// Malformed JSON breaks every check's payload read alike, so this can't

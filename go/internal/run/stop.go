@@ -12,17 +12,22 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/git"
 )
 
-// Checked is one Stop run: a line per gate for kit explain stop, the
-// message a block shows, whether to block, and the notice for the user.
+// Checked is one Stop run: a line per gate for kit explain stop, the short
+// failure lines a block shows and the full detail behind them, the counts,
+// and the receipt for the user.
 type Checked struct {
-	Failures       string
-	Failed         bool
-	Notice         string
-	lines, summary string
+	Failures, Detail string
+	Result           Result
+	Receipt          Receipt
+	lines, summary   string
 }
 
-// Report is every gate's line, then the summary.
-func (c Checked) Report() string { return c.lines + c.summary }
+// Failed is true when a gate failed.
+func (c Checked) Failed() bool { return c.Result.Fail > 0 }
+
+// Report is every gate's line, then the summary, then each failure's full
+// detail.
+func (c Checked) Report() string { return c.lines + c.summary + c.Detail }
 
 // Files runs p's gates, the Stop hook's checks of the turn's edits, one per
 // CPU at a time so they don't starve each other into timeouts, each killed
@@ -67,8 +72,8 @@ func Files(p enforce.Plan, cacheDir string, timeout time.Duration, deadline time
 			suspects, changed = mutators(p, before, after, cacheDir)
 		}
 	}
-	var report, failures strings.Builder
-	t := tally{reporter: reporter{plan: p, report: &report, failures: &failures}, lines: sync.OnceValue(func() git.ChangedLines { return git.LinesChanged(p.Root, "HEAD", edited(p.Gates)) })}
+	var report, failures, detail strings.Builder
+	t := tally{reporter: reporter{plan: p, report: &report, failures: &failures, detail: &detail}, lines: sync.OnceValue(func() git.ChangedLines { return git.LinesChanged(p.Root, "HEAD", edited(p.Gates)) })}
 	for i, g := range p.Gates {
 		if !suspects[i] {
 			t.record(g, results[i])
@@ -81,8 +86,7 @@ func Files(p enforce.Plan, cacheDir string, timeout time.Duration, deadline time
 		}
 		t.fail(g, detail)
 	}
-	summary := t.res.String() + "\n"
-	return Checked{Failures: failures.String() + summary, Failed: t.res.Fail > 0, Notice: t.notice("stop"), lines: report.String(), summary: summary}
+	return Checked{Failures: failures.String(), Detail: detail.String(), Result: t.res, Receipt: t.receipt("stop"), lines: report.String(), summary: t.res.String() + "\n"}
 }
 
 // tally builds a Stop run's report and block message.

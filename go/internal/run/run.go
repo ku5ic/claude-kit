@@ -34,8 +34,8 @@ const maxOutputLines = 30
 // where it ran, and its binaries under it, then the first lines of its
 // output. cacheDir holds the marks of gates that changed files. A gate gets
 // what's left before deadline, when one is set, and one starting past it is
-// skipped. It returns the counts and the run's notice for the user.
-func Gates(p enforce.Plan, cacheDir string, w io.Writer, deadline time.Time) (Result, string) {
+// skipped. It returns the counts and the run's receipt for the user.
+func Gates(p enforce.Plan, cacheDir string, w io.Writer, deadline time.Time) (Result, Receipt) {
 	r := &runner{reporter: reporter{plan: p, report: w}, cacheDir: cacheDir, deadline: deadline, ran: map[string]bool{},
 		base:    sync.OnceValue(func() string { base, _ := git.Base(p.Root, ""); return base }),
 		changes: sync.OnceValues(func() (git.Since, bool) { return git.ChangedSince(p.Root) }),
@@ -65,7 +65,7 @@ func Gates(p enforce.Plan, cacheDir string, w io.Writer, deadline time.Time) (Re
 		r.gate(g)
 	}
 	fmt.Fprintf(w, "\n%s\n", r.res)
-	return r.res, r.notice("run-checks")
+	return r.res, r.receipt("full gate")
 }
 
 type runner struct {

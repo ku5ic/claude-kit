@@ -90,3 +90,26 @@ func TestLastTurnEdits(t *testing.T) {
 		t.Errorf("all edits = %q", got)
 	}
 }
+
+func TestReadAgentStart(t *testing.T) {
+	t.Parallel()
+	const prompt = `{"type":"user","message":{"role":"user","content":"Go."}}`
+	for name, tc := range map[string]struct {
+		lines []string
+		want  AgentStart
+	}{
+		"a shape object":          {[]string{prompt, `{"type":"api-request-shape","shape":{"tools":[{"name":"WebFetch"},{"name":"Read"}]}}`}, AgentStart{Tools: []string{"WebFetch", "Read"}}},
+		"a shape encoded as text": {[]string{`{"type":"api-request-shape","shape":"{\"tools\":[{\"name\":\"WebFetch\"}]}"}`}, AgentStart{Tools: []string{"WebFetch"}}},
+		"a shape with no tools":   {[]string{`{"type":"api-request-shape","shape":{"system":[]}}`}, AgentStart{Tools: []string{}}},
+		"a fork":                  {[]string{`{"type":"fork-context-ref"}`, prompt}, AgentStart{Fork: true}},
+		"neither record":          {[]string{prompt}, AgentStart{}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			got, err := ReadAgentStart(write(t, tc.lines...))
+			if err != nil || got.Fork != tc.want.Fork || !slices.Equal(got.Tools, tc.want.Tools) || (got.Tools == nil) != (tc.want.Tools == nil) {
+				t.Errorf("ReadAgentStart = %+v, %v; want %+v", got, err, tc.want)
+			}
+		})
+	}
+}

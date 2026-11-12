@@ -74,9 +74,8 @@ Use this default structure:
 
 - Title: one line in the shape the step 4 log uses (Conventional Commits, ticket prefix, plain), naming the change's purpose.
 - Why, not what. This is a hard rule. The reviewer already has the diff for what changed and the test files for what's covered. Never restate either. A bullet that only narrates the diff ("renamed X to Y", "added a null check") earns no place in the description; only the bullet's reason for existing does.
-- Don't assert an impact or failure mode the diff and commit log don't establish. A one-line diff description ("remove stray character") is not license to invent what would have broken. If the actual runtime consequence isn't in the commit message or a linked issue, describe the change itself and stay silent on severity rather than guessing ("could cause X to fail").
+- An impact or failure mode goes in only when the diff, the log, or a linked issue establishes it (`skills/kit-rules/reference/evidence.md` section 1). Otherwise describe the change and say nothing on severity.
 - If a section would only restate the diff or the tests, cut it (default structure only). Under a project template, an empty section keeps its heading and gets `N/A`.
-- Shortest description that gives full context. Every sentence should help the reviewer approve faster, not pad the page.
-- Tone: direct, professional. Written by the author, not a summarizer.
-- Signatures and footers: `rules/workflow.md` section 1.
+- Length and tone: `skills/kit-rules/reference/output.md` sections 0 and 4.
+- Signatures and footers: `skills/kit-rules/reference/workflow.md` section 1.
 - If the diff is empty, say so and stop.

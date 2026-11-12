@@ -15,6 +15,7 @@ on:
 permissions:
   contents: write
   actions: read
+  pull-requests: read
 
 concurrency:
   group: release
@@ -82,10 +83,33 @@ jobs:
           VERSION: ${{ steps.pre.outputs.version }}
         run: bin/kit-"$VERSION"-linux-amd64 bundle chat
 
+      # Notes list each PR with its branch commits, which squash merges drop
+      # from main; PR numbers come from the "(#N)" squash subject suffix, and
+      # sed, not grep, so a range with no PR doesn't fail under pipefail.
       # The chat zip is named on its own: the binaries' glob doesn't match it.
       - name: Publish release
         if: steps.pre.outputs.version
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.pre.outputs.version }}
-        run: gh release create "v$VERSION" --target "$GITHUB_SHA" --generate-notes bin/kit-"$VERSION"-* bin/kit-chat-"$VERSION".zip
+        run: |
+          notes="$RUNNER_TEMP/notes.md"
+          prev="$(git describe --tags --abbrev=0 "$GITHUB_SHA^" 2>/dev/null || true)"
+          range="${prev:+$prev..}$GITHUB_SHA"
+          {
+            echo "## What's Changed"
+            git log --reverse --format=%s "$range" | sed -nE 's/.*\(#([0-9]+)\)$/\1/p' | while read -r pr; do
+              pr_json="$(gh pr view "$pr" --json title,url,author)"
+              jq -r '"* \(.title) by @\(.author.login) in \(.url)"' <<<"$pr_json"
+              # A commit names its author only when it isn't the PR author; an
+              # unlinked commit email has no login, so its git name stands in.
+              gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$pr/commits" |
+                jq -r --arg repo "$GITHUB_REPOSITORY" --arg pr "$pr" --arg author "$(jq -r .author.login <<<"$pr_json")" '.[]
+                  | "  - [`\(.sha[0:7])`](https://github.com/\($repo)/pull/\($pr)/commits/\(.sha)) \(.commit.message | split("\n")[0])"
+                    + (if .author.login == $author then "" elif .author.login then " by @\(.author.login)" else " by \(.commit.author.name)" end)'
+            done
+            if [[ -n "$prev" ]]; then
+              printf '\n**Full Changelog**: https://github.com/%s/compare/%s...v%s\n' "$GITHUB_REPOSITORY" "$prev" "$VERSION"
+            fi
+          } >"$notes"
+          gh release create "v$VERSION" --target "$GITHUB_SHA" --notes-file "$notes" bin/kit-"$VERSION"-* bin/kit-chat-"$VERSION".zip

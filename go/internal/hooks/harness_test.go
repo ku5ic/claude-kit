@@ -52,6 +52,7 @@ var entries = map[string]func(*hook.Hook) int{
 	"guard-dispatch":          GuardDispatch,
 	"guard-edit":              single("guard-edit", GuardEdit),
 	"guard-skills":            single("guard-skills", GuardSkills),
+	"skills-nudge":            single("skills-nudge", SkillsNudge),
 	"guard-slop":              single("guard-slop", GuardSlop),
 	"guard-weaken":            single("guard-weaken", GuardWeaken),
 	"guard-imports":           single("guard-imports", GuardImports),
@@ -59,31 +60,44 @@ var entries = map[string]func(*hook.Hook) int{
 	"guard-handback":          single("guard-handback", GuardHandback),
 	"guard-connector":         single("guard-connector", GuardConnector),
 	"verify-claims":           single("verify-claims", VerifyClaims),
+	"check-citations":         single("check-citations", CheckCitations),
+	"check-size":              single("check-size", CheckSize),
 	"subagent-slop":           single("subagent-slop", SubagentSlop),
 	"chat-slop":               single("chat-slop", ChatSlop),
 	"log-skills":              single("log-skills", LogSkills),
 	"sanitize-output":         single("sanitize-output", SanitizeOutput),
 	"format-dispatch":         single("format-dispatch", FormatDispatch),
+	"plan-tick":               single("plan-tick", PlanTick),
+	"plan-changes":            single("plan-changes", PlanChanges),
 	"plan-mode-context":       single("plan-mode-context", PlanModeContext),
 	"guard-plan":              single("guard-plan", GuardPlan),
 	"reply-length":            single("reply-length", ReplyLength),
 	"review-checks":           single("review-checks", ReviewChecks),
 	"stop-checks":             single("stop-checks", StopChecks),
+	"turn-tree":               single("turn-tree", TurnTree),
+	"rules-gate":              single("rules-gate", RulesGate),
+	"bash-edits":              single("bash-edits", BashEdits),
+	"edit-seen":               single("edit-seen", MarkEditSeen),
 	"inject-context":          single("inject-context", InjectContext),
 	"inject-subagent-context": single("inject-subagent-context", InjectSubagentContext),
-	"inject-rules":            single("inject-rules", InjectRules),
 	// As cmd/kit's registry composes them.
+	"gate-dispatch": func(h *hook.Hook) int {
+		return hook.Run(h, hook.NamedCheck{Name: "rules-gate", Check: RulesGate})
+	},
 	"handback-dispatch": func(h *hook.Hook) int {
-		return hook.Run(h, hook.NamedCheck{Name: "guard-handback", Check: GuardHandback}, hook.NamedCheck{Name: "verify-claims", Check: VerifyClaims})
+		return hook.Run(h, hook.NamedCheck{Name: "guard-handback", Check: GuardHandback}, hook.NamedCheck{Name: "check-size", Check: CheckSize}, hook.NamedCheck{Name: "check-citations", Check: CheckCitations},
+			hook.NamedCheck{Name: "verify-claims", Check: VerifyClaims})
 	},
 	"connector-dispatch": func(h *hook.Hook) int {
-		return hook.Run(h, hook.NamedCheck{Name: "guard-connector", Check: GuardConnector}, hook.NamedCheck{Name: "verify-claims", Check: VerifyClaims})
+		return hook.Run(h, hook.NamedCheck{Name: "guard-connector", Check: GuardConnector}, hook.NamedCheck{Name: "check-size", Check: CheckSize}, hook.NamedCheck{Name: "verify-claims", Check: VerifyClaims})
 	},
 	"plan-dispatch": func(h *hook.Hook) int {
-		return hook.Run(h, hook.NamedCheck{Name: "guard-plan", Check: GuardPlan}, hook.NamedCheck{Name: "verify-claims", Check: VerifyClaims})
+		return hook.Run(h, hook.NamedCheck{Name: "plan-changes", Check: PlanChanges}, hook.NamedCheck{Name: "check-size", Check: CheckSize}, hook.NamedCheck{Name: "check-citations", Check: CheckCitations},
+			hook.NamedCheck{Name: "guard-plan", Check: GuardPlan}, hook.NamedCheck{Name: "verify-claims", Check: VerifyClaims})
 	},
 	"subagent-dispatch": func(h *hook.Hook) int {
-		return hook.Run(h, hook.NamedCheck{Name: "subagent-slop", Check: SubagentSlop}, hook.NamedCheck{Name: "verify-claims", Check: VerifyClaims})
+		return hook.Run(h, hook.NamedCheck{Name: "subagent-slop", Check: SubagentSlop}, hook.NamedCheck{Name: "check-size", Check: CheckSize}, hook.NamedCheck{Name: "check-citations", Check: CheckCitations},
+			hook.NamedCheck{Name: "verify-claims", Check: VerifyClaims})
 	},
 }
 

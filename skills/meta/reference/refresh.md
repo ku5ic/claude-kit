@@ -4,10 +4,10 @@ Check reference skills against the current language or framework release and upd
 
 ## What this maintains
 
-Reference skills are every `skills/*/SKILL.md` except the procedure skills `audit`, `write`, `deps`, `investigate`, `pr`, `unslop`, `report-format`, and `meta`. Each carries a `## Version notes` section that this skill owns:
+Reference skills are every skill outside the `exempt` list in `go/e2e/kit_repo_test.go`. Each keeps its sources in `skills/<name>/sources.md`, which nothing links and only this procedure reads. There, per file, a References list, a Claims list naming each claim's source, and under `## SKILL.md` the Version notes this skill owns:
 
 ```markdown
-## Version notes
+### Version notes
 
 Checked: <YYYY-MM-DD> against <source: library id or URL>
 
@@ -23,8 +23,8 @@ Retention: at most 3 version entries, newest first. A pattern that changed moves
    - Skill names: refresh those.
    - `--all`: every reference skill.
    - Blank: list every reference skill with its `Checked:` date (or "never"), oldest first, and ask which to refresh via AskUserQuestion (multi-select, at most 5 unless the user picks `--all`).
-2. Read each selected skill's SKILL.md and every file under its `reference/`. Extract: the claimed current version (intro lines and Version notes), every version-specific claim ("since 3.4", "renamed in 16", "deprecated"), and the References URLs.
-3. Research, never from memory. For each skill dispatch one researcher agent (Agent tool, subagent_type: kit:researcher, same message for up to 3 at a time) with: the library or framework name, the References URLs, the claimed current version, and the list of version-specific claims. Ask it to return, with a source for each:
+2. Read each selected skill's SKILL.md, every file under its `reference/`, and its `sources.md`. Extract: the claimed current version (intro lines and Version notes), every version-specific claim ("since 3.4", "renamed in 16", "deprecated"), and the `sources.md` URLs.
+3. Research, never from memory. For each skill dispatch one researcher agent (Agent tool, subagent_type: kit:researcher, same message for up to 3 at a time) with: the library or framework name, the `sources.md` URLs, the claimed current version, and the list of version-specific claims. Ask it to return, with a source for each:
    - Latest stable version and its release date; latest LTS if the ecosystem has one.
    - Each claim: verified / contradicted (with the current wording) / could not verify.
    - New deprecations or renames since the claimed version.
@@ -43,7 +43,7 @@ Retention: at most 3 version entries, newest first. A pattern that changed moves
    - Replace the outdated pattern with the current one where it lives.
    - Move the old pattern to `### Legacy (<version>)` at the end of that file, one paragraph stating what changed and when it still applies (projects pinned to the old major).
    - Enforce the caps from "What this maintains". Prune oldest first.
-   - Add the Version notes entry naming the source URL or library id from step 3.
+   - Add the Version notes entry naming the source URL or library id from step 3. A changed claim's source goes in its file's Claims list in `sources.md`, never inline.
    - Do not touch guidance the research did not contradict. Do not delete a reference file. Do not reword for style.
 6. Report. Write the path `kit scratch-dir refresh` prints, in the report-format skill's format (load it first):
    - Summary: skills checked, per-classification counts.
@@ -53,7 +53,7 @@ Retention: at most 3 version entries, newest first. A pattern that changed moves
 
 ## Rules
 
-- A claim the researcher could not source stays as it was. "Could not verify" is a valid outcome; a confident edit from training memory is not (`rules/evidence.md`).
+- A claim the researcher could not source stays as it was. "Could not verify" is a valid outcome; a confident edit from training memory is not (`skills/kit-rules/reference/evidence.md`).
 - Every Version notes entry cites its source. An entry without one is a defect.
 - Prefer the smallest edit that makes the guidance true. Rewriting a reference file is out of scope; propose it in the report instead.
 - engineering-fundamentals is exempt, since it holds no version-dependent content. Refresh it only when named explicitly.
@@ -62,5 +62,5 @@ Retention: at most 3 version entries, newest first. A pattern that changed moves
 ## Stop conditions
 
 - Researcher agent unavailable (no Context7, no network): stop and say so.
-- If a skill has no References URLs and no library the researcher can resolve, report it as unverifiable and move on.
+- If a skill has no `sources.md` URLs and no library the researcher can resolve, report it as unverifiable and move on.
 - More than 5 skills selected without `--all`: ask before continuing.

@@ -29,8 +29,8 @@ func injectContextSetup(t *testing.T, tree string) *injectContextEnv {
 	Mkdir(t, proj)
 	k.Git(proj, "init", "-q")
 	// The plugin root is the fake .claude, so the rules the hook injects are
-	// these copies: plain files, which never count as a leftover link.
-	if err := os.CopyFS(filepath.Join(k.Claude, "rules"), os.DirFS(filepath.Join(kitRoot, "rules"))); err != nil {
+	// these copies.
+	if err := os.CopyFS(filepath.Join(k.Claude, "skills/kit-rules/reference"), os.DirFS(filepath.Join(kitRoot, "skills/kit-rules/reference"))); err != nil {
 		t.Fatal(err)
 	}
 	// Likewise a readable kit.yml; tests that need content overwrite it.

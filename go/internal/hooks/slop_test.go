@@ -36,7 +36,7 @@ func TestGuardSlop(t *testing.T) {
 		deny                 bool
 		has                  string
 	}{
-		{"deny: Write of a new Markdown file with a tier 1 tell", "doc.md", "", "Write", map[string]any{"content": "# Doc\n\n" + tell + "\n"}, true, `L3 \"I hope this helps\" -> cut it`},
+		{"deny: Write of a new Markdown file with a tier 1 tell", "doc.md", "", "Write", map[string]any{"content": "# Doc\n\n" + tell + "\n"}, true, `L3    \"I hope this helps\" -> cut it`},
 		{"deny: Edit adding a tell", "doc.md", "# Doc\n\nBody.\n", "Edit", edit("Body.", "Body. "+tell), true, ""},
 		{"allow: Edit next to a tell already there", "doc.md", "# Doc\n\n" + tell + "\n\nBody.\n", "Edit", edit("Body.", "Body, longer."), false, ""},
 		{"allow: Edit inside an existing fence", "doc.md", "# Doc\n\n```text\nold\n```\n", "Edit", edit("old", tell), false, ""},

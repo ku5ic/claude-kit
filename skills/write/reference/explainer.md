@@ -44,9 +44,9 @@ Invoking this skill sets the kit.yml `reply_limits.write.explainer` ceiling in p
 
 <!-- chat: end -->
 
-Length covers how much gets said, not how it's structured: within each header's section, paragraphs still follow `rules/output.md` section 1, one hop or one point per paragraph, never one long undifferentiated block under a header.
+Length covers how much gets said, not how it's structured: within each header's section, paragraphs still follow `skills/kit-rules/reference/output.md` section 1, one hop or one point per paragraph, never one long undifferentiated block under a header.
 
 ## Rules
 
-- Confidence labels: `rules/evidence.md` section 1.
+- Confidence labels: `skills/kit-rules/reference/evidence.md` section 1.
 - Multiple mechanisms sharing one subject (one ticket, one feature, one module) are not automatically one story. Check before merging them into a single narrative.

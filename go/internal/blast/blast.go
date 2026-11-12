@@ -1,5 +1,5 @@
 // Package blast is blast-radius: the files that import a given file
-// (rules/change.md section 3).
+// (skills/kit-rules/reference/change.md section 3).
 //
 // JS/TS: import, export-from, require() and import() specifiers. Relative
 // specifiers resolve against the importing file; "@/" and "~/" aliases match

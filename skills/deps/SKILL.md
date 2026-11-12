@@ -20,7 +20,7 @@ This command names no specific package manager, lockfile, or manifest.
 - Do not detect the stack.
 - Do not re-list lockfiles.
 - Do not hardcode any tool's syntax.
-- Never run checks locally: a PR's CI (`gh pr checks`) is its gate.
+- Never run checks locally. The gate: `skills/kit-rules/reference/verify.md` section 1.
 
 ## Preconditions
 
@@ -42,7 +42,7 @@ Classify each PR by semver bump from its title (`Bump x from 1.2.3 to 1.2.4`): p
 Fetch all alerts with one bare GET and filter `state` client-side in jq.
 
 - Do not pass `-f state=open`: `-f` sends a body field and makes gh issue a POST, which this read-only endpoint rejects with 404.
-- Do not use a bare `?state=open` either; an unquoted `?` is a zsh glob.
+- Do not use a bare `?state=open` either (`skills/bash-patterns/reference/quoting.md`, zsh).
 - Let gh follow the Link header with `--paginate`; never construct `page`/`first`/`last`, removed for these endpoints on 2025-10-14.
 
 ```bash
@@ -72,7 +72,7 @@ If $ARGUMENTS scopes to an ecosystem or PR number, filter to it.
 
 ## Phase 2: triage and present
 
-Stop for approval before mutating (`rules/workflow.md` sections 2 and 4).
+Stop for approval before mutating (`skills/kit-rules/reference/workflow.md` sections 2 and 4).
 
 - Severity is from 1b when available; where audit and alerts disagree, trust the alert.
 - Map each open alert to a PR by package and fixed version.
@@ -97,11 +97,11 @@ Present a table: severity, package, ecosystem, scope, relationship, current -> f
    - Lockfile conflict: take the incoming dependency change, then regenerate the lockfile with the injected manager's lockfile-only install. Never hand-merge a lockfile.
    - Manifest conflict: merge both edits keeping the higher compatible version, then regenerate the lockfile.
    - `git add` resolved files, `git rebase --continue`.
-3. Dependabot branches are bot-owned; force pushing one is `rules/workflow.md` sections 1 and 2.
+3. Dependabot branches are bot-owned; force pushing one is `skills/kit-rules/reference/workflow.md` sections 1 and 2.
 
 ## Phase 4: verify then merge
 
-Never merge on GitHub mergeability alone. The PR's CI is its gate.
+Never merge on GitHub mergeability alone (`skills/kit-rules/reference/verify.md` section 1).
 
 Per candidate, in turn:
 
@@ -146,7 +146,7 @@ Per PR/alert, report these fields:
 - Severity is from the GitHub alert list when available, not local audit.
 - Only `state == "open"` alerts are actionable. `fixed`, `dismissed`, `auto_dismissed` are not.
 - No opportunistic bumps. Touch only deps named in an open alert or open Dependabot PR.
-- Pushing, protected branches, and mutating Bash calls: `rules/workflow.md` sections 1 and 2.
+- Pushing, protected branches, and mutating Bash calls: `skills/kit-rules/reference/workflow.md` sections 1 and 2.
 
 ## Stop conditions
 

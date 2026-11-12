@@ -36,7 +36,7 @@ func projectOf(cwd string) (name, root string, ok bool) {
 
 // InjectContext is the SessionStart hook: <repo-context>,
 // <required-skills>, <suggested-skills>, and <tooling>. The rules come from
-// InjectRules.
+// the kit-rules skill, which RulesGate makes Claude load.
 // Plain stdout on SessionStart becomes context. Install problems switch it to
 // one JSON object, since a hook's stdout is either JSON or text, never both:
 // systemMessage shows them to the user, additionalContext carries them and
@@ -57,6 +57,7 @@ func InjectContext(h *hook.Hook) error {
 	cfg := h.Config()
 	if cfg != nil {
 		writeContext(h, cfg, &out)
+		out.WriteString(chatCeiling(cfg.ReplyLimits))
 	}
 	var lines []string
 	for _, w := range h.Warnings() {
@@ -87,8 +88,8 @@ func writeContext(h *hook.Hook, cfg *config.Config, out *strings.Builder) {
 	ctx := stackctx.Build(h.Paths, cfg, name, root, h.Payload.SessionID())
 	if ctx.Report != "" {
 		scratch, _ := project.ScratchDir(h.Paths, root, false)
-		fmt.Fprintf(out, "\n<repo-context>\n%sbranch (at session start): %s\ndirty-files (at session start): %s\nscratch: %s\n</repo-context>\n",
-			ctx.Report, branch(root), dirtyCount(root), scratch)
+		fmt.Fprintf(out, "\n<repo-context>\n%s%sbranch (at session start): %s\ndirty-files (at session start): %s\nscratch: %s\n</repo-context>\n",
+			ctx.Report, skipDirsLine(cfg), branch(root), dirtyCount(root), scratch)
 	}
 	out.WriteString(ctx.RequiredBlock())
 	for _, skill := range ctx.Required {
@@ -121,11 +122,20 @@ func agentContext(paths config.Paths, cfg *config.Config, cwd, session string) s
 	}
 	ctx := stackctx.Build(paths, cfg, name, root, session)
 	if ctx.Report != "" {
-		fmt.Fprintf(&b, "<repo-context>\n%sbranch: %s\ndirty-files: %s\n</repo-context>\n", ctx.Report, branch(root), dirtyCount(root))
+		fmt.Fprintf(&b, "<repo-context>\n%s%sbranch: %s\ndirty-files: %s\n</repo-context>\n", ctx.Report, skipDirsLine(cfg), branch(root), dirtyCount(root))
 	}
 	b.WriteString(ctx.RequiredBlock())
 	b.WriteString(stackctx.SuggestedBlock(cfg, ctx.Suggested))
 	return b.String()
+}
+
+// skipDirsLine names kit.yml's skip_dirs, the dirs tooling.md says a search
+// or read never enters; "" when there are none.
+func skipDirsLine(cfg *config.Config) string {
+	if len(cfg.SkipDirs) == 0 {
+		return ""
+	}
+	return "skip-dirs: " + strings.Join(cfg.SkipDirs, ", ") + "\n"
 }
 
 // InjectSubagentContext is the SubagentStart hook. SubagentStart ignores

@@ -1,6 +1,6 @@
 ---
 name: <stack>-patterns
-description: <Stack> patterns - <three to five concrete areas>. Use whenever the project contains <file signals> or <dependency signal>, OR the user asks about <stack>, <two or three core concepts>, even if <stack> is not mentioned by name.
+description: <Stack> patterns for <three to five concrete areas>. Load before any edit to <file signals>, however small, or for <stack> questions.
 ---
 
 # <Stack> patterns
@@ -12,18 +12,9 @@ Default assumption: <Stack> <current major.minor>.
 
 ## Reference files
 
-| File                                                     | Covers                                            |
-| -------------------------------------------------------- | ------------------------------------------------- |
-| [reference/<area>.md](reference/<area>.md)               | <what this file decides, in one line>             |
-| [reference/anti-patterns.md](reference/anti-patterns.md) | <N> review-time anti-patterns with severity calls |
+Loading this skill isn't enough. Before your next edit, read the file of every row that matches it. The rules live in those files, and this one only points at them.
 
-## References
-
-- <Stack> docs: <official docs URL>
-- <Release notes or changelog URL>
-
-## Version notes
-
-Checked: <YYYY-MM-DD> against <source: Context7 library id or URL>
-
-- <version> (<release date>): <what changed for the guidance in this skill>
+| Before                                       | Read                                                     |
+| -------------------------------------------- | -------------------------------------------------------- |
+| <an action this file decides, in one line>   | [reference/<area>.md](reference/<area>.md)               |
+| Writing, changing, or reviewing <Stack> code | [reference/anti-patterns.md](reference/anti-patterns.md) |

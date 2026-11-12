@@ -16,7 +16,7 @@ Write to the path `kit scratch-dir stakeholder <topic-slug>` prints.
 
 <!-- chat: end -->
 
-Plain paragraphs in this order, no headers or labels (`rules/output.md` section 4):
+Plain paragraphs in this order, no headers or labels (`skills/kit-rules/reference/output.md` section 4):
 
 ```text
 <Topic, one line.>
@@ -40,13 +40,12 @@ Plain paragraphs in this order, no headers or labels (`rules/output.md` section 
 
 - Replace jargon with plain language without oversimplifying to the point of being inaccurate.
 - Keep tradeoffs intact. Do not hide risk or complexity, just express it in outcomes.
-- Tone: direct. Not apologetic, not hedged.
-- Do not invent context. Ask about an ambiguity in the input.
+- Tone: `skills/kit-rules/reference/output.md` section 4. An ambiguity in the input gets a question.
 
 <!-- chat: skip -->
 
-- How to ask: `rules/workflow.md` section 4.
+- How to ask: `skills/kit-rules/reference/workflow.md` section 4.
 
 <!-- chat: end -->
 
-- No padding. If a section has nothing meaningful, omit it.
+- A section with nothing meaningful is omitted.

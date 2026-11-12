@@ -171,28 +171,3 @@ func Lacks(t *testing.T, out string, parts ...string) {
 		}
 	}
 }
-
-// RegisteredRuleParts is how many inject-rules commands kitRoot's
-// hooks.json registers for event.
-func RegisteredRuleParts(t *testing.T, kitRoot, event string) int {
-	t.Helper()
-	var cfg struct {
-		Hooks map[string][]struct {
-			Hooks []struct {
-				Command string `json:"command"`
-			} `json:"hooks"`
-		} `json:"hooks"`
-	}
-	if err := json.Unmarshal([]byte(Read(t, filepath.Join(kitRoot, "hooks/hooks.json"))), &cfg); err != nil {
-		t.Fatal(err)
-	}
-	n := 0
-	for _, group := range cfg.Hooks[event] {
-		for _, h := range group.Hooks {
-			if strings.Contains(h.Command, "hook inject-rules ") {
-				n++
-			}
-		}
-	}
-	return n
-}

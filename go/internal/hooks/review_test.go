@@ -56,8 +56,8 @@ func TestReviewChecks(t *testing.T) {
 		t.Helper()
 		r.Want(t, 0)
 		var out map[string]string
-		if err := json.Unmarshal([]byte(r.Stdout), &out); err != nil || !strings.HasPrefix(out["systemMessage"], "run-checks checks: ") ||
-			!strings.Contains(out["systemMessage"], "\n  ") {
+		if err := json.Unmarshal([]byte(r.Stdout), &out); err != nil || !strings.HasPrefix(out["systemMessage"], "kit full gate: ") ||
+			!strings.Contains(out["systemMessage"], "lint (package.json: lint)") {
 			t.Errorf("want every verdict for the user:\n%s", r.Output)
 		}
 		if calls := testutil.Calls(t, e.calls); !strings.Contains(strings.Join(calls, "\n"), "run lint") {
@@ -77,7 +77,7 @@ func TestReviewChecks(t *testing.T) {
 	t.Run("a review of the checkout runs the full gate and keeps the tree it checked", func(t *testing.T) {
 		e := setup(t, `{"skillName":"code-review"}`, "")
 		out := ran(t, e, stop(e, e.project, ""))
-		if out["decision"] != "" || !strings.HasPrefix(out["systemMessage"], "run-checks checks: 1 passed, 0 failed") {
+		if out["decision"] != "" || !strings.HasPrefix(out["systemMessage"], "kit full gate: 1 pass, 1 skipped, 0 failed") {
 			t.Errorf("a pass lets the reviewer stop: %+v", out)
 		}
 		if _, err := os.Stat(cache.FullGateTree(e.k.paths.CacheDir(), testutil.Physical(t, e.project))); err != nil {
@@ -88,7 +88,7 @@ func TestReviewChecks(t *testing.T) {
 		e := setup(t, `{"skillName":"code-review"}`, "exit 1")
 		out := ran(t, e, stop(e, e.project, ""))
 		if out["decision"] != "block" || !strings.Contains(out["reason"], "FAIL lint (package.json: lint)") ||
-			!strings.HasPrefix(out["systemMessage"], "run-checks checks: 0 passed, 1 failed") {
+			!strings.HasPrefix(out["systemMessage"], "kit full gate: 0 pass, 1 skipped, 1 failed\nFAIL  lint") {
 			t.Errorf("want a block naming the failure: %+v", out)
 		}
 		if _, err := os.Stat(cache.FullGateTree(e.k.paths.CacheDir(), testutil.Physical(t, e.project))); err == nil {
