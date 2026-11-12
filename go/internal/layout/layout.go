@@ -15,8 +15,8 @@ func KV(key, value string) string { return fmt.Sprintf("%-*s%s", max(6, len(key)
 // command can't wall the screen.
 func Clip(s string) string {
 	first, _, multi := strings.Cut(s, "\n")
-	if len(first) > 80 {
-		first, multi = first[:77], true
+	if r := []rune(first); len(r) > 80 {
+		first, multi = string(r[:77]), true
 	}
 	if multi {
 		first += "..."

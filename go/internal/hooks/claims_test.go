@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ku5ic/claude-kit/go/internal/claims"
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
@@ -444,4 +445,15 @@ func TestVerifyClaimsFailsOpen(t *testing.T) {
 			t.Errorf("verifier ran: %q", got)
 		}
 	})
+}
+
+func TestClaimsMessageClipsByCharacter(t *testing.T) {
+	t.Parallel()
+	msg := claimsMessage("your report", []claims.Unsupported{{Claim: strings.Repeat("é", 70), Check: "read it"}}, "")
+	if want := strings.Repeat("é", 57) + "..."; !strings.Contains(msg, want) {
+		t.Errorf("claim not clipped to 57 characters:\n%s", msg)
+	}
+	if strings.Contains(msg, `\x`) {
+		t.Errorf("clip split a character:\n%s", msg)
+	}
 }

@@ -293,8 +293,8 @@ func claimsMessage(where string, u []claims.Unsupported, then string) string {
 	lines := []string{fmt.Sprintf("%d claim(s) in %s that nothing in the session confirms", len(u), where)}
 	for i, c := range u {
 		claim := c.Claim
-		if len(claim) > 60 {
-			claim = claim[:57] + "..."
+		if r := []rune(claim); len(r) > 60 {
+			claim = string(r[:57]) + "..."
 		}
 		lines = append(lines, layout.KV(strconv.Itoa(i+1), strconv.Quote(claim)), layout.KV("check", c.Check))
 	}
