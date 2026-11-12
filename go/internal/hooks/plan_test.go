@@ -234,6 +234,24 @@ func TestPlanDispatchVerifiesClaims(t *testing.T) {
 			t.Errorf("verifier ran before the critique: %q", got)
 		}
 	})
+	t.Run("an earlier step's deny doesn't use up the critic's one ask", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		k.verifier("size_budgets: {plan: 3}\n", claim)
+		text := "# Plan\n\n" + claim
+		k.run("plan-dispatch", exit(k, text, write)).Has(t, "words")
+		k.run("plan-dispatch", exit(k, text, write)).Has(t, "kit:plan-critic")
+	})
+	t.Run("resent with no critique, the plan's claims still get checked", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		k.verifier("", claim)
+		text := "# Plan\n\n" + claim
+		k.run("plan-dispatch", exit(k, text, write)).Has(t, "kit:plan-critic")
+		r := k.run("plan-dispatch", exit(k, text, write))
+		r.Denied(t)
+		r.Has(t, "kit:claim-checker", "the plan plan-x.md")
+	})
 	t.Run("every claim confirmed: allowed", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)

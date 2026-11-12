@@ -151,11 +151,12 @@ const planCritic = "kit:plan-critic"
 func GuardPlan(h *hook.Hook) error {
 	p := h.Payload
 	plan := p.String("tool_input.planFilePath")
-	if p.Err != nil || p.String("tool_name") != "ExitPlanMode" || plan == "" || h.RuleDisabled("plan-critic") {
+	// Under an earlier step's deny, the ask would be dropped but its marker
+	// kept, and the resent plan would pass with no critique.
+	if decision, _ := h.Decision(); decision == "deny" {
 		return nil
 	}
-	entries, err := transcript.Load(p.String("transcript_path"))
-	if err != nil || critiqued(entries, plan) {
+	if p.Err != nil || p.String("tool_name") != "ExitPlanMode" || plan == "" || h.RuleDisabled("plan-critic") || planCritiqued(p) {
 		return nil
 	}
 	marker := h.Paths.SessionFile(cache.PlanCritic, p.SessionID(), filepath.Base(plan))
@@ -172,6 +173,13 @@ func GuardPlan(h *hook.Hook) error {
 	}
 	h.Deny(fmt.Sprintf("run the %s agent on %s before asking for approval. Raise each contradiction it finds, between the plan's sections or against the repo, as a question for the user. This check lets the same plan through when ExitPlanMode is called again.", planCritic, plan), "plan-critic")
 	return nil
+}
+
+// planCritiqued reports whether the ExitPlanMode in p follows a plan-critic
+// run on its plan; an unreadable transcript counts as one, so it fails open.
+func planCritiqued(p *hook.Payload) bool {
+	entries, err := transcript.Load(p.String("transcript_path"))
+	return err != nil || critiqued(entries, p.String("tool_input.planFilePath"))
 }
 
 // critiqued reports whether a plan-critic call follows the first write to

@@ -74,7 +74,8 @@ func verifyToolInput(h *hook.Hook) error {
 		return verifyHandback(h)
 	case tool == "ExitPlanMode":
 		// plan-critic checks a plan's claims in the run GuardPlan asks for.
-		if !h.RuleDisabled("plan-critic") {
+		// A plan resent without that run gets its claims checked here.
+		if !h.RuleDisabled("plan-critic") && planCritiqued(p) {
 			return nil
 		}
 		// Claude Code injects the plan's text and path (code.claude.com/docs/en/hooks).
