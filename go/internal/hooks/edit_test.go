@@ -308,6 +308,38 @@ skill_file_map:
 	}
 }
 
+func TestSkillsNudge(t *testing.T) {
+	t.Parallel()
+	k := newSandbox(t)
+	testutil.Write(t, k.paths.LogFile(kitlog.Skills), "")
+	nudge := func(session string) result {
+		t.Helper()
+		return k.run("skills-nudge", editPayload("Edit", "/tmp/project/run.sh", session, ""))
+	}
+
+	first := nudge("s1")
+	first.Allowed(t)
+	first.Has(t, "bash-patterns covers this file", "skills/bash-patterns/reference/safety-flags.md")
+
+	second := nudge("s1")
+	second.Allowed(t)
+	if strings.Contains(second.Output, "bash-patterns") {
+		t.Errorf("the second edit in a session nudged again:\n%s", second.Output)
+	}
+	nudge("s2").Has(t, "bash-patterns covers this file")
+
+	off := newPlugin(t)
+	off.kitYML(bashSkillMap + "\ndisabled_rules: [skills-nudge]\n")
+	testutil.Write(t, off.paths.LogFile(kitlog.Skills), "")
+	if r := off.run("skills-nudge", editPayload("Edit", "/tmp/project/run.sh", "s1", "")); strings.Contains(r.Output, "covers this file") {
+		t.Errorf("disabled_rules: [skills-nudge] still nudged:\n%s", r.Output)
+	}
+
+	read := k.run("skills-nudge", map[string]any{"tool_name": "Read", "session_id": "s3", "cwd": "/tmp/project", "tool_input": map[string]any{"file_path": "/tmp/project/run.sh"}})
+	read.Allowed(t)
+	read.Has(t, "bash-patterns covers this file")
+}
+
 func TestGuardSkills(t *testing.T) {
 	t.Parallel()
 	// skillsSandbox reads kitYML, or the real kit.yml when it is "", with

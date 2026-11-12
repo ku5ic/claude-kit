@@ -108,7 +108,7 @@ var Rules = []string{
 	"pipe-to-shell", "pkg-global-install", "pkg-missing", "pkg-undeclared", "plan-critic", "plan-done",
 	"pm-mismatch", "psql-destructive", "rc-edit", "rc-inplace-edit", "rc-redirect", "redis-destructive",
 	"review-checks", "rm-recursive", "rules-gate", "run-checks-by-hook", "sensitive-read", "sensitive-write",
-	"size", "skills-gate", "slop", "slop-vocabulary", "staged-secret", "terraform-auto-approve", "terraform-destroy",
+	"size", "skills-gate", "skills-nudge", "slop", "slop-vocabulary", "staged-secret", "terraform-auto-approve", "terraform-destroy",
 	"ui-undefined-token", "weaken", "xargs-rm",
 }
 
