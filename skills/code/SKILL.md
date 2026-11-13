@@ -1,7 +1,7 @@
 ---
 name: code
-description: Understand or challenge code, read-only - a path's git history (history), Mermaid diagrams (visual), what a change breaks (impact), an onboarding walk (tour), or a change's decisions (challenge)
-argument-hint: <history|visual|impact|tour|challenge> <path, component name, plan, PR, or nothing>
+description: Read-only code insight - git history (history), Mermaid diagrams (visual), what a change breaks (impact), an onboarding walk (tour), a change's decisions (challenge), or deep review (review)
+argument-hint: <history|visual|impact|tour|challenge|review> <path, component name, plan, PR, or nothing>
 disable-model-invocation: true
 allowed-tools:
   - Bash(gh pr diff *)
@@ -21,6 +21,7 @@ The first word of the arguments is the kind; everything after it is the kind's a
 | `challenge` | [reference/challenge.md](reference/challenge.md) |
 | `history`   | [reference/history.md](reference/history.md)     |
 | `impact`    | [reference/impact.md](reference/impact.md)       |
+| `review`    | [reference/review.md](reference/review.md)       |
 | `tour`      | [reference/tour.md](reference/tour.md)           |
 | `visual`    | [reference/visual.md](reference/visual.md)       |
 
