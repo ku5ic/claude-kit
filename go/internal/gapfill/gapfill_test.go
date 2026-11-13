@@ -623,3 +623,28 @@ func TestTscFileFormsAreDropped(t *testing.T) {
 		}
 	}
 }
+
+// The model sees a CI step with its job's env in front, and may hand the
+// env back on each segment; the body it's checked against has none.
+func TestSegmentsDropTheJobEnv(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t, "")
+	env := []string{"CI=true", "NODE_ENV=test"}
+	step := sources.Entry{Source: "ci", File: ".github/workflows/ci.yml", Name: "types-in-sync", Dir: ".", Env: env, Body: sources.Body{Text: "pnpm lint && pnpm typecheck"}}
+	stray := sources.Entry{Source: "ci", File: ".github/workflows/ci.yml", Name: "stray", Dir: ".", Env: env, Body: sources.Body{Text: "pnpm lint && pnpm typecheck"}}
+	seg := func(text, kind string) map[string]any {
+		return map[string]any{"text": text, "role": "check", "kind": kind}
+	}
+	f.answer(answers(
+		verdict(step, map[string]any{"role": "check", "kind": "lint", "mutates": false, "segments": []any{seg("CI=true NODE_ENV=test pnpm lint", "lint"), seg("CI=true NODE_ENV=test pnpm typecheck", "typecheck")}}),
+		verdict(stray, map[string]any{"role": "check", "kind": "lint", "mutates": false, "segments": []any{seg("DEBUG=1 pnpm lint", "lint"), seg("pnpm typecheck", "typecheck")}}),
+	))
+	r := f.run(step, stray)
+	v, ok := r.Verdicts[Key(step)]
+	if !ok || len(v.Segments) != 2 || v.Segments[0].Text != "pnpm lint" || v.Segments[1].Text != "pnpm typecheck" {
+		t.Errorf("env-prefixed segments verify and store stripped: %+v, skipped %q", v, r.Skipped[Key(step)])
+	}
+	if why := r.Skipped[Key(stray)]; why != `rejected (segment "DEBUG=1 pnpm lint" isn't in the body)` {
+		t.Errorf("an env in neither the job nor the body: %q", why)
+	}
+}

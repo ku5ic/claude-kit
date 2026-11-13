@@ -185,6 +185,11 @@ func (f forms) verdict(e sources.Entry, v Verdict) (Verdict, []string, error) {
 	body := strings.Join(strings.Fields(e.Body.Text), " ")
 	bodies := []string{e.Body.Text}
 	for i, s := range v.Segments {
+		// The model saw e.Command(), the env in front; the body has none.
+		if words := strings.Fields(s.Text); len(withoutEnv(words, e.Env)) < len(words) {
+			s.Text = strings.Join(withoutEnv(words, e.Env), " ")
+			v.Segments[i].Text = s.Text
+		}
 		if err := checkRole(s.Role, s.Kind); err != nil {
 			return v, nil, fmt.Errorf("segment %q: %w", s.Text, err)
 		}
@@ -255,6 +260,14 @@ func (f forms) ignoresConfigOnFiles(body string, depth int) bool {
 	return slices.ContainsFunc([]string{body, strings.Join(f.unprefixed(words), " ")}, func(b string) bool {
 		return slices.ContainsFunc(shellcalls.Body(b, lookup).Commands, runs)
 	})
+}
+
+// withoutEnv is words without the leading words that are env's own K=V.
+func withoutEnv(words, env []string) []string {
+	for len(words) > 0 && slices.Contains(env, words[0]) {
+		words = words[1:]
+	}
+	return words
 }
 
 // checkForm is why form, of an entry in role, fails form, with a check's
