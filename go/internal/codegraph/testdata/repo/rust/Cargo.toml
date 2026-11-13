@@ -1,0 +1,5 @@
+[package]
+name = "fixture"
+
+[dependencies]
+serde_json = "1"

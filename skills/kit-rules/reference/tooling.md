@@ -13,6 +13,7 @@ Which CLI to reach for, how to call the bin scripts, and where temporary files g
 | Locate code by shape (AST)         | `sg`                               | rg, when structure is the question |
 | Find files/paths                   | `fd`                               | find                               |
 | Repo size, language breakdown      | `tokei`                            | reading files to estimate          |
+| Complexity per file                | `scc`                              | reading files to judge             |
 | Secrets, quick                     | `gitleaks`                         | manual grep                        |
 | Secrets, deep history              | `trufflehog git file://.`          | gitleaks                           |
 | Timing a perf claim                | `hyperfine`                        | opinion                            |
@@ -23,6 +24,7 @@ Which CLI to reach for, how to call the bin scripts, and where temporary files g
 | Fixup commits from staged hunks    | `git absorb`                       | rebase -i + fixup                  |
 | Git outside cwd                    | `git -C <dir>`                     | cd <dir> && git                    |
 | Validate a GitHub Actions workflow | `actionlint`                       | reading YAML by eye                |
+| Check a Mermaid diagram renders    | `mmdc`                             | reading the fence by eye           |
 
 ### Budget
 

@@ -1,0 +1,166 @@
+package codegraph
+
+import (
+	"bytes"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+	"testing"
+
+	"github.com/ku5ic/claude-kit/go/internal/testutil"
+)
+
+// fixtureRepo is testdata/repo as a git repository: deps reads its
+// tracked files. Its Go files and go.mod are stored as *.fixture, so the
+// go tool never builds them as this module's packages.
+func fixtureRepo(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.CopyFS(dir, os.DirFS("testdata/repo")); err != nil {
+		t.Fatal(err)
+	}
+	err := filepath.WalkDir(dir, func(p string, _ fs.DirEntry, err error) error {
+		if real, ok := strings.CutSuffix(p, ".fixture"); ok && err == nil {
+			return os.Rename(p, real)
+		}
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	testutil.Git(t, dir, "init", "-q")
+	testutil.Git(t, dir, "add", "-A")
+	return dir
+}
+
+func TestImportsGolden(t *testing.T) {
+	t.Parallel()
+	if _, err := astGrep(); err != nil {
+		t.Skip(err) // kit: allow ast-grep is optional, and CI doesn't install it
+	}
+	var out bytes.Buffer
+	if err := Imports(fixtureRepo(t)+"/", &out); err != nil {
+		t.Fatal(err)
+	}
+	if want := testutil.Read(t, "testdata/imports.golden"); out.String() != want {
+		t.Errorf("got:\n%s\nwant:\n%s", out.String(), want)
+	}
+}
+
+// The fixture covers each resolver: a relative path through ../, a
+// NodeNext .js import of a .ts file, a Go module path, Rust crate:: with a
+// {group} and mod, Python's from . import, declared and undeclared
+// externals per ecosystem, a test file that doesn't vote, and one upward
+// edge.
+func TestDepsGolden(t *testing.T) {
+	t.Parallel()
+	out := t.TempDir()
+	var stdout bytes.Buffer
+	if err := Deps(fixtureRepo(t), "testdata/imports.golden", out, "", &stdout); err != nil {
+		t.Fatal(err)
+	}
+	if want := "split dir: (repo root); main source root: none; other candidates: 0\n"; stdout.String() != want {
+		t.Errorf("summary: %q", stdout.String())
+	}
+	for _, name := range []string{"deps", "externals", "upward", "imports-resolved"} {
+		got := testutil.Read(t, filepath.Join(out, name+".tsv"))
+		if want := testutil.Read(t, filepath.Join("testdata/deps", name+".golden")); got != want {
+			t.Errorf("%s: got:\n%s\nwant:\n%s", name, got, want)
+		}
+	}
+}
+
+// The log has a pair with an import, one without, a same-directory pair,
+// a pair under the minimum, a bulk commit, and noise and test files.
+func TestCouplingGolden(t *testing.T) {
+	t.Parallel()
+	var out bytes.Buffer
+	if err := Coupling("testdata/gitlog.txt", "testdata/deps/imports-resolved.golden", &out); err != nil {
+		t.Fatal(err)
+	}
+	if want := testutil.Read(t, "testdata/coupling.golden"); out.String() != want {
+		t.Errorf("got:\n%s\nwant:\n%s", out.String(), want)
+	}
+}
+
+func TestRawSpecs(t *testing.T) {
+	t.Parallel()
+	for text, want := range map[string][]spec{
+		`"./x"`:                             {{"./x", plain}},
+		`#include "net/http.h"`:             {{"net/http.h", relative}},
+		`#include <stdio.h>`:                {{"stdio.h", plain}},
+		`require_relative "lib/a"`:          {{"lib/a", relative}},
+		`require("x")`:                      {{"x", plain}},
+		`use a::{b, c::{d, e}};`:            {{"a::b", plain}, {"a::c::d", plain}, {"a::c::e", plain}},
+		`pub(crate) use a::b as c;`:         {{"a::b", plain}},
+		`from pkg import a, b as c`:         {{"pkg.a", plain}, {"pkg.b", plain}},
+		`from . import (x, y)`:              {{".x", plain}, {".y", plain}},
+		`from pkg import *`:                 {{"pkg", plain}},
+		`import static a.B.C;`:              {{"a.B.C", plain}},
+		`using Json = Newtonsoft.Json;`:     {{"Newtonsoft.Json", plain}},
+		`mod net;`:                          {{"self::net", plain}},
+		`extern crate clap;`:                {{"clap", plain}},
+		`import 'package:app/main.dart';`:   {{"app/main.dart", plain}},
+		`alias MyApp.HTTPClient, as: Http`:  {{"MyApp.HTTPClient", plain}},
+		`imports.foo`:                       {{"imports.foo", plain}},
+		`using System.Collections.Generic;`: {{"System.Collections.Generic", plain}},
+	} {
+		if got := rawSpecs(text); !slices.Equal(got, want) {
+			t.Errorf("%s: %v, want %v", text, got, want)
+		}
+	}
+}
+
+func TestExternalName(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct {
+		path   string
+		dotted bool
+		want   string
+	}{
+		{"@scope/ui/button", false, "@scope/ui"},
+		{"lodash/fp", false, "lodash"},
+		{"github.com/acme/kit/log", false, "github.com/acme/kit"},
+		{"com/acme/app/Main", true, "com.acme.app"},
+		{"java/util/List", true, "java.util"},
+		{"requests/adapters", true, "requests"},
+	} {
+		if got := externalName(c.path, c.dotted); got != c.want {
+			t.Errorf("%s: %q, want %q", c.path, got, c.want)
+		}
+	}
+}
+
+func TestSnakeCase(t *testing.T) {
+	t.Parallel()
+	for in, want := range map[string]string{"MyApp.HTTPClient": "my_app.http_client", "Repo": "repo", "V2Api": "v2_api"} {
+		if got := snakeCase(in); got != want {
+			t.Errorf("%s: %q, want %q", in, got, want)
+		}
+	}
+}
+
+// The split descends while one directory holds over 80% of the files.
+func TestFindSplit(t *testing.T) {
+	t.Parallel()
+	nested := []string{"README", "src/a/x.ts", "src/a/y.ts", "src/b/z.ts", "src/c/w.ts", "src/d/v.ts"}
+	if got := findSplit(nested); got != "src" {
+		t.Errorf("five of six under src: %q", got)
+	}
+	if got := findSplit([]string{"a/x", "b/y"}); got != "" {
+		t.Errorf("an even spread splits at the root: %q", got)
+	}
+}
+
+func TestRunUsage(t *testing.T) {
+	t.Parallel()
+	var stdout, stderr bytes.Buffer
+	if code := Run(nil, &stdout, &stderr); code != 2 || !bytes.Contains(stderr.Bytes(), []byte("usage: kit code-graph")) {
+		t.Errorf("no args: exit %d, %q", code, stderr.String())
+	}
+	if code := Run([]string{"coupling", "missing.txt", "missing.tsv"}, &stdout, &stderr); code != 1 {
+		t.Errorf("a missing file: exit %d", code)
+	}
+}

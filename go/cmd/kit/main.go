@@ -18,6 +18,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/blast"
 	"github.com/ku5ic/claude-kit/go/internal/chatbundle"
+	"github.com/ku5ic/claude-kit/go/internal/codegraph"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/design"
 	"github.com/ku5ic/claude-kit/go/internal/detect"
@@ -125,6 +126,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdBundle(e, rest)
 	case "contrast":
 		return design.Contrast(rest, stdout, stderr)
+	case "code-graph":
+		return codegraph.Run(rest, stdout, stderr)
 	case "statusline":
 		status.Statusline(os.Stdin, stdout, e.paths.Home)
 		return 0
