@@ -163,6 +163,17 @@ func TestStopPlanDone(t *testing.T) {
 		e.turn("Edit", e.plan(done))
 		e.stop(false).Want(t, 0)
 	})
+	t.Run("a review launched before one Stop and finished after it counts at the next", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		e.turn("Edit", e.path("a.ts"))
+		e.review()
+		e.stop(false)
+		// The next Stop reads on from here, with the launch in its saved walk.
+		e.finish("<tool-use-id>toolu_r1</tool-use-id>", "completed")
+		e.turn("Edit", e.plan(done))
+		e.stop(false).Want(t, 0)
+	})
 	t.Run("a review that was stopped, or hasn't finished, doesn't count", func(t *testing.T) {
 		t.Parallel()
 		e := stopSetup(t)

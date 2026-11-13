@@ -668,3 +668,19 @@ func TestGuardBash(t *testing.T) {
 		}
 	})
 }
+
+func TestGuardBashMarksAReadOnlyCommand(t *testing.T) {
+	t.Parallel()
+	k := newSandbox(t)
+	marker := func(cmd string) string {
+		return cache.ReadOnlyBash(filepath.Join(k.claude, "cache"), "s1", cmd)
+	}
+	k.hook("s1", "", "cat notes.md | head -3").Want(t, 0)
+	if _, err := os.Stat(marker("cat notes.md | head -3")); err != nil {
+		t.Errorf("a read left no marker for bash-edits: %v", err)
+	}
+	k.hook("s1", "", "touch notes.md").Want(t, 0)
+	if _, err := os.Stat(marker("touch notes.md")); err == nil {
+		t.Error("a write was marked read-only")
+	}
+}

@@ -59,50 +59,60 @@ func finishedReview(text string, started map[string]int) int {
 	return -1
 }
 
-// planDone reads the Stop hook's end-of-plan moment (skills/kit-rules/reference/verify.md) from
-// the transcript's entries: plan is the plan in plansDir whose last open
-// step this turn ticked, else ""; reviewed is whether a /code-review started
-// after the last code edit, anywhere in the transcript, has finished.
-// isCode is false for paths whose edits aren't code (scratch, outside the
-// repo).
-func planDone(entries []transcript.Entry, plansDir string, isCode func(string) bool) (plan string, reviewed bool) {
-	// Transcript line numbers; -1 is never.
-	lastEdit, lastReview := -1, -1
-	var ticked []string         // plans this turn edited
-	started := map[string]int{} // review tool_use or task id -> its start line
-	for _, e := range entries {
-		if id := launchedReview(e.Notice); id != "" {
-			started[id] = e.Line
-		}
-		// A notification arrives as a user message or a queued command.
-		lastReview = max(lastReview, finishedReview(e.Text, started), finishedReview(e.Notice, started))
-		if e.StartsTurn() {
-			ticked = ticked[:0]
-			continue
-		}
-		if e.Type != "assistant" {
-			continue
-		}
-		for _, b := range e.ToolUses() {
-			switch {
-			case b.Name == "Skill" && b.Input.Skill == reviewSkill:
-				started[b.ID] = e.Line
-			case slices.Contains(transcript.EditTools, b.Name):
-				if p := b.Path(); fsx.Within(plansDir, p) {
-					ticked = append(ticked, p)
-				} else if isCode(p) {
-					lastEdit = e.Line
-				}
+// planWalk is the plan-done state as it walks a transcript, kept between
+// Stop runs so each one reads only the lines since the last. Lines are
+// transcript line numbers; -1 is never.
+type planWalk struct {
+	LastEdit   int            `json:"last_edit"`
+	LastReview int            `json:"last_review"`
+	Started    map[string]int `json:"started"` // review tool_use or task id -> its start line
+	Ticked     []string       `json:"ticked"`  // plans this turn edited
+}
+
+func newPlanWalk() *planWalk {
+	return &planWalk{LastEdit: -1, LastReview: -1, Started: map[string]int{}}
+}
+
+// step takes in entry e. isCode is false for paths whose edits aren't code
+// (scratch, outside the repo).
+func (w *planWalk) step(e transcript.Entry, plansDir string, isCode func(string) bool) {
+	if id := launchedReview(e.Notice); id != "" {
+		w.Started[id] = e.Line
+	}
+	// A notification arrives as a user message or a queued command.
+	w.LastReview = max(w.LastReview, finishedReview(e.Text, w.Started), finishedReview(e.Notice, w.Started))
+	if e.StartsTurn() {
+		w.Ticked = nil
+		return
+	}
+	if e.Type != "assistant" {
+		return
+	}
+	for _, b := range e.ToolUses() {
+		switch {
+		case b.Name == "Skill" && b.Input.Skill == reviewSkill:
+			w.Started[b.ID] = e.Line
+		case slices.Contains(transcript.EditTools, b.Name):
+			if p := b.Path(); fsx.Within(plansDir, p) {
+				w.Ticked = append(w.Ticked, p)
+			} else if isCode(p) {
+				w.LastEdit = e.Line
 			}
 		}
 	}
+}
 
-	for _, path := range ticked {
+// done is the Stop hook's end-of-plan moment (skills/kit-rules/reference/verify.md): plan
+// is the plan whose last open step this turn ticked, else ""; reviewed is
+// whether a /code-review started after the last code edit, anywhere in the
+// transcript, has finished.
+func (w *planWalk) done() (plan string, reviewed bool) {
+	for _, path := range w.Ticked {
 		if data, err := os.ReadFile(path); err == nil {
 			if s := steps(data); !openStep.Match(s) && doneStep.Match(s) {
 				plan = path
 			}
 		}
 	}
-	return plan, lastReview > lastEdit
+	return plan, w.LastReview > w.LastEdit
 }

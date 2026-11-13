@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/gapfill"
@@ -134,6 +135,10 @@ func Check(h *hook.Hook) error {
 	segs, unparsed := parseAll(cmd)
 	if unparsed {
 		st.ask("guard-bash could not parse part of this command, so it went unchecked; confirm it")
+	} else if onlyReads(segs) && !h.DryRun {
+		if marker := cache.ReadOnlyBash(h.Paths.CacheDir(), h.Payload.SessionID(), cmd); marker != "" {
+			_ = fsx.WriteAtomic(marker, nil, 0o600)
+		}
 	}
 	for _, seg := range segs {
 		if err := st.segment(seg); err != nil {

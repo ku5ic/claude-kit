@@ -1,9 +1,11 @@
 package hooks
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
 
@@ -41,6 +43,18 @@ func TestBashEdits(t *testing.T) {
 		testutil.Write(t, filepath.Join(dir, "notes.md"), "Notes, longer.\n"+tell)
 		ran(k, dir, "echo").Want(t, 2)
 		ran(k, dir, "ls").Want(t, 0)
+	})
+	t.Run("a command the guard marked read-only is skipped, once", func(t *testing.T) {
+		t.Parallel()
+		k, dir := setup(t)
+		testutil.Write(t, filepath.Join(dir, "notes.md"), "Notes.\n"+tell)
+		marker := cache.ReadOnlyBash(k.paths.CacheDir(), "s1", "cat notes.md")
+		testutil.Write(t, marker, "")
+		ran(k, dir, "cat notes.md").Want(t, 0)
+		if _, err := os.Stat(marker); err == nil {
+			t.Error("the marker was left for the next call")
+		}
+		ran(k, dir, "cat notes.md").Want(t, 2)
 	})
 	t.Run("only lines the command added count", func(t *testing.T) {
 		t.Parallel()

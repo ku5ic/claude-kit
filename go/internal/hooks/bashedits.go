@@ -41,6 +41,11 @@ func BashEdits(h *hook.Hook) error {
 	if p.Err != nil {
 		return p.Err
 	}
+	// The bash guard marked this command as read-only, so there is no diff to take.
+	if marker := cache.ReadOnlyBash(h.Paths.CacheDir(), p.SessionID(), p.String("tool_input.command")); marker != "" && fsx.IsFile(marker) {
+		_ = os.Remove(marker)
+		return nil
+	}
 	root := git.Toplevel(p.Cwd())
 	base := bashTreeFile(h, root)
 	if base == "" || h.Config() == nil {

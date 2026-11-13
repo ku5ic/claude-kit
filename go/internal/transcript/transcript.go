@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"cmp"
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"slices"
@@ -238,6 +239,36 @@ func ReadAgentStart(path string) (AgentStart, error) {
 		}
 	}
 	return start, scanner.Err()
+}
+
+// EachFrom is Each from byte offset off, the lines numbered on from line,
+// with fn given each entry and the offset just past its line. It returns
+// where it stopped, past the last complete line: a line still being
+// written is left for the next read.
+func EachFrom(path string, off int64, line int, fn func(Entry, int64)) (int64, int, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return off, line, err
+	}
+	defer f.Close()
+	if _, err := f.Seek(off, io.SeekStart); err != nil {
+		return off, line, err
+	}
+	r := bufio.NewReaderSize(f, 1024*1024)
+	for {
+		raw, err := r.ReadBytes('\n')
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return off, line, nil
+			}
+			return off, line, err
+		}
+		off, line = off+int64(len(raw)), line+1
+		if e, ok := parse(raw); ok {
+			e.Line = line
+			fn(e, off)
+		}
+	}
 }
 
 // Load is every parseable entry of the transcript at path, in order: one

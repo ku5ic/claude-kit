@@ -51,14 +51,17 @@ func StopChecks(h *hook.Hook) error {
 	if root == "" || cfg == nil {
 		return nil
 	}
-	// A read error leaves what was read: the hook fails open.
-	entries, _ := transcript.Load(path)
-	// Before the clean-tree return: plans are gitignored, so ticking the
-	// last step leaves the tree clean.
-	if err := planGate(h, cwd, root, entries); err != nil {
-		return err
+	dir := project.PlanDir(h.Paths, cwd)
+	isCode := func(path string) bool {
+		return fsx.Within(root, fsx.PhysicalPath(path)) && !project.IsScratch(h.Paths, path)
 	}
-	turn := transcript.LastTurn(entries)
+	turn, walk := readSession(h, path, root, dir, isCode)
+	// Before the clean-tree return: plans are gitignored, so ticking the
+	// last step leaves the tree clean. A finished plan waits for
+	// /code-review since the last code edit (skills/kit-rules/reference/verify.md).
+	if plan, reviewed := walk.done(); plan != "" && !reviewed {
+		return h.Block(fmt.Sprintf("plan %s is done, but /code-review hasn't finished since the last code edit. Run it now, or wait for the one running, then the runtime pass (/verify) when the change has observable behavior.", fsx.Rel(root, plan)), "plan-done")
+	}
 	edited := transcript.Edits(turn)
 	for i, path := range edited {
 		edited[i] = fsx.Abs(cwd, path)
@@ -219,15 +222,45 @@ func passKey(tree string, gates []enforce.Gate) string {
 const stopBudget = 240 * time.Second
 
 // planGate blocks the stop when this turn ticked a plan's last step without
-// a review since the last code edit.
-func planGate(h *hook.Hook, cwd, root string, entries []transcript.Entry) error {
-	dir := project.PlanDir(h.Paths, cwd)
-	isCode := func(path string) bool {
-		return fsx.Within(root, fsx.PhysicalPath(path)) && !project.IsScratch(h.Paths, path)
+// stopRead is where the last Stop run left the session's transcript: the
+// offset and line past what it read, where the current turn starts, and
+// the plan walk so far.
+type stopRead struct {
+	Path       string    `json:"path"`
+	Offset     int64     `json:"offset"`
+	Line       int       `json:"line"`
+	TurnOffset int64     `json:"turn_offset"`
+	TurnLine   int       `json:"turn_line"`
+	Walk       *planWalk `json:"walk"`
+}
+
+// readSession is the transcript's current turn and its plan walk, reading
+// only what the last Stop run hadn't: the turn from its start, the walk
+// from where it stopped. A different, shorter, or unrecorded transcript is
+// read whole. A read error leaves what was read: the hook fails open.
+func readSession(h *hook.Hook, path, root, plansDir string, isCode func(string) bool) ([]transcript.Entry, *planWalk) {
+	file := h.Paths.SessionFile(cache.StopRead, h.Payload.SessionID(), cache.RootKey(root))
+	var st stopRead
+	info, statErr := os.Stat(path)
+	if data, err := os.ReadFile(file); err != nil || statErr != nil || json.Unmarshal(data, &st) != nil || st.Path != path || st.Walk == nil || info.Size() < st.Offset {
+		st = stopRead{Path: path, Walk: newPlanWalk()}
 	}
-	// A finished plan waits for /code-review since the last code edit (skills/kit-rules/reference/verify.md).
-	if plan, reviewed := planDone(entries, dir, isCode); plan != "" && !reviewed {
-		return h.Block(fmt.Sprintf("plan %s is done, but /code-review hasn't finished since the last code edit. Run it now, or wait for the one running, then the runtime pass (/verify) when the change has observable behavior.", fsx.Rel(root, plan)), "plan-done")
+	var turn []transcript.Entry
+	seen := st.Offset
+	st.Offset, st.Line, _ = transcript.EachFrom(path, st.TurnOffset, st.TurnLine, func(e transcript.Entry, end int64) {
+		if end > seen {
+			st.Walk.step(e, plansDir, isCode)
+		}
+		if e.StartsTurn() {
+			turn, st.TurnOffset, st.TurnLine = nil, end, e.Line
+			return
+		}
+		turn = append(turn, e)
+	})
+	if file != "" && !h.DryRun {
+		if data, err := json.Marshal(st); err == nil {
+			_ = fsx.WriteAtomic(file, data, 0o600)
+		}
 	}
-	return nil
+	return turn, st.Walk
 }
