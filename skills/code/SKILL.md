@@ -25,7 +25,7 @@ The first word of the arguments is the kind; everything after it is the kind's a
 | `tour`      | [reference/tour.md](reference/tour.md)           |
 | `visual`    | [reference/visual.md](reference/visual.md)       |
 
-1. If the kind is missing or unknown, ask via AskUserQuestion with the kinds above as options.
+1. If the kind is missing or unknown, ask per `skills/kit-rules/reference/workflow.md` section 4, in groups: understand (`history`, `visual`, `impact`, `tour`) and judge (`challenge`, `review`).
 2. Read the kind's reference file and follow it yourself.
 3. Each kind writes its report to the path `kit scratch-dir <kind> <slug>` prints; the reply is the one its Reply section names, per `skills/kit-rules/reference/output.md` section 3.
 4. Read-only on the repo: a kind writes only its scratch report, its raw folder, and the paths its reference names. It never posts or comments anywhere.

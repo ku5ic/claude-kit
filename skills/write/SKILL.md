@@ -23,7 +23,7 @@ The first word of the arguments is the kind; everything after it is the kind's a
 | `explainer`     | [reference/explainer.md](reference/explainer.md)         |
 | `stakeholder`   | [reference/stakeholder.md](reference/stakeholder.md)     |
 
-1. Missing or unknown kind: ask, with the likeliest kinds as options.
+1. Missing or unknown kind: ask for a group first, for the repo (`commit`, `release-notes`, `devnote`) or for people (`explainer`, `stakeholder`), then the kinds in it.
 2. Read the kind's reference file and follow it as the procedure.
 
 <!-- chat: skip -->

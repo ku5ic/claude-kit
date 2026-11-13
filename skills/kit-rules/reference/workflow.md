@@ -53,6 +53,7 @@ The first match wins:
 4. Anything else, proceed, then report. A request against good practice gets the better path named once, then done the user's way.
 
 - Questions get batched at plan time and at each pause, asked once with AskUserQuestion, one per item, each with a recommended option first. Each answer is recorded as a decision.
+- A choice with more than 4 options asks for a group first, then the options in the chosen group.
 - A missing tool, permission, or connector gets named, with alternatives in priority order and a question on how to proceed.
 - After a user correction, re-read the original requirement, fix it, and name other places the same misunderstanding applies. A correction with more than one reading goes through item 2.
 - A review finding (`/code-review`, plan-critic, a PR comment) gets checked against the code before it's applied. A wrong one is rejected with the evidence. An applied one is acknowledged by what changed.
