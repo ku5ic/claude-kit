@@ -385,6 +385,14 @@ func TestGuardBashPluginRootReadsAndWrites(t *testing.T) {
 		"cmp %[1]s/kit.yml %[1]s/kit.yml",
 		"basename %[1]s/kit.yml",
 		"dirname %[1]s/kit.yml",
+		"yq .version %[1]s/kit.yml",
+		"yq -o=props . %[1]s/kit.yml",
+		"find %[1]s -name '*.md' -print",
+		"sort -u %[1]s/kit.yml",
+		"sg -p 'x' -r 'y' %[1]s/go",
+		"ast-grep run -p 'x' %[1]s/go",
+		"fd -e md . %[1]s",
+		"tree -L 2 %[1]s",
 	} {
 		if cmd := fmt.Sprintf(cmd, root); asks(cmd) {
 			t.Errorf("a read of the plugin root asked: %s", cmd)
@@ -397,6 +405,23 @@ func TestGuardBashPluginRootReadsAndWrites(t *testing.T) {
 		"cd -P %[1]s && echo x > kit.yml",
 		"cd %[1]s | cat; echo x > kit.yml",
 		"pushd %[1]s",
+		"yq -i '.x = 1' %[1]s/kit.yml",
+		"sort -uo %[1]s/kit.yml %[1]s/kit.yml",
+		"sort --output=%[1]s/kit.yml /tmp/x",
+		"sort --out=%[1]s/kit.yml /tmp/x",
+		"sort --compress-prog=sh %[1]s/kit.yml",
+		"yq -Pi '.x = 1' %[1]s/kit.yml",
+		"cd %[1]s && yq -s '.a' x.yml",
+		"find %[1]s -name x -execdir rm {} +",
+		"find %[1]s -fls /tmp/x",
+		"find %[1]s -fprintf /tmp/x '%%p'",
+		"fd -X rm . %[1]s",
+		"fd --exec-batch rm . %[1]s",
+		"sg -p 'x' -r 'y' -Ui %[1]s/go",
+		"ast-grep scan --update-all %[1]s/go",
+		"cd %[1]s && sg new rule x",
+		"tree -R %[1]s",
+		"tree -o %[1]s/out.txt /tmp",
 	} {
 		if cmd := fmt.Sprintf(cmd, root); !asks(cmd) {
 			t.Errorf("a write to the plugin root didn't ask: %s", cmd)

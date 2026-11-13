@@ -368,16 +368,58 @@ func (c *command) rcWrite() error {
 	return nil
 }
 
+// writeFlags holds the commands that write only with one of these
+// arguments; without one, they read whatever paths they name.
+var writeFlags = map[string]func(string) bool{
+	"yq": func(v string) bool {
+		flag, _, _ := strings.Cut(v, "=")
+		return shortCluster(flag, "is") || strings.HasPrefix(v, "--inplace") || strings.HasPrefix(v, "--split-exp")
+	},
+	"find": func(v string) bool {
+		return v == "-delete" || v == "-fls" || strings.HasPrefix(v, "-exec") || strings.HasPrefix(v, "-ok") || strings.HasPrefix(v, "-fprint")
+	},
+	// sort takes any unambiguous prefix of a long option (--out=x).
+	"sort": func(v string) bool {
+		return shortCluster(v, "o") || abbrevOf(v, "--output") || abbrevOf(v, "--compress-program")
+	},
+	"sg":       sgWriteFlag,
+	"ast-grep": sgWriteFlag,
+	"fd":       func(v string) bool { return shortCluster(v, "xX") || strings.HasPrefix(v, "--exec") },
+	"tree":     func(v string) bool { return shortCluster(v, "oR") },
+}
+
+// abbrevOf is true when v, up to any "=", is long or a getopt_long prefix of it.
+func abbrevOf(v, long string) bool {
+	flag, _, _ := strings.Cut(v, "=")
+	return len(flag) > 2 && strings.HasPrefix(long, flag)
+}
+
+func sgWriteFlag(v string) bool {
+	return shortCluster(v, "Ui") || v == "--update-all" || v == "--interactive"
+}
+
+// writes is false only for a writeFlags command run without its write
+// arguments; sg new scaffolds files, so it writes too.
+func (c *command) writes() bool {
+	flag, ok := writeFlags[c.name]
+	if !ok {
+		return true
+	}
+	if ops := c.operands(); (c.name == "sg" || c.name == "ast-grep") && len(ops) > 0 && ops[0] == "new" {
+		return true
+	}
+	return slices.ContainsFunc(c.values(), flag)
+}
+
 // overlayWrite asks when a command that isn't a pure reader names a kit
-// switch (guard.KitSwitch): tee, cp, mv, install, ln all write it. yq writes only with -i,
-// git only through checkout/restore/apply/mv/rm/stash/reset.
+// switch (guard.KitSwitch): tee, cp, mv, install, ln all write it. The
+// writeFlags commands write only with their flags, git only through
+// checkout/restore/apply/mv/rm/stash/reset.
 func (c *command) overlayWrite() {
 	all := append([]string{c.name}, c.values()...)
 	switch {
-	case c.name == "yq":
-		if !slices.ContainsFunc(c.values(), func(v string) bool { return strings.HasPrefix(v, "-i") || strings.HasPrefix(v, "--inplace") }) {
-			return
-		}
+	case !c.writes():
+		return
 	case c.name == "git":
 		if !gitWriters.MatchString(" " + strings.Join(all, " ") + " ") {
 			return
