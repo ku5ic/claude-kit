@@ -66,11 +66,23 @@ func (c *command) packageManager() error {
 		switch {
 		case m.Manager == c.name:
 			return c.dependencyAdd(m.AddVerbs, dir, root)
-		case slices.Contains(m.Rivals, c.name):
+		case slices.Contains(m.Rivals, c.name) && !c.converts():
 			return c.block(rival(m, c.name), "pm-mismatch")
 		}
 	}
 	return nil
+}
+
+// converters are the verbs that write a manager's own lockfile from a
+// rival's: the migration away from the manager the facts name.
+var converters = map[string]string{"pnpm": "import", "yarn": "import"}
+
+// converts is true when the command's first non-option word is its
+// manager's converter verb; pnpm add import still adds.
+func (c *command) converts() bool {
+	verb, ok := converters[c.name]
+	ops := c.operands()
+	return ok && len(ops) > 0 && ops[0] == verb
 }
 
 // pmDir is the directory a package manager works in: its own directory

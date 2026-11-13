@@ -508,6 +508,10 @@ func TestGuardBash(t *testing.T) {
 		{"pm: a package after a flag's value is still checked", `pnpm add -F my-app made-up-lib`, 2, "made-up-lib isn't on its registry", false},
 		{"pm: an install from the lockfile passes silently", `pnpm install --frozen-lockfile`, 0, "", true},
 		{"pm: the add verb with only flags passes", `uv --directory services/api add --help`, 0, "", true},
+		{"pm: a rival's import converts the lockfile and passes", `yarn import`, 0, "", true},
+		{"pm: pnpm import in the yarn package passes", `cd packages/y && pnpm import`, 0, "", true},
+		{"pm: a rival's install still blocks", `cd packages/y && pnpm install`, 2, "packages/y uses yarn (yarn.lock), not pnpm", false},
+		{"pm: import as an add operand still blocks", `cd packages/y && pnpm add import`, 2, "packages/y uses yarn (yarn.lock), not pnpm", false},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
