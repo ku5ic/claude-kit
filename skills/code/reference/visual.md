@@ -91,23 +91,41 @@ Root: <root>. <files>, <language mix>. Window: <since> to <date>. Raw data in `<
 
 <3 bullets: what this is, the one part to understand first, where the risk sits>
 
+---
+
 ## Context and containers
+
+---
 
 ## Shape
 
+---
+
 ## Dependencies
+
+---
 
 ## Hotspots
 
+---
+
 ## Change coupling
+
+---
 
 ## Main flow
 
+---
+
 ## Activity
+
+---
 
 ## Tricky parts
 
 - <non-obvious behavior, file:line, what breaks if you miss it>
+
+---
 
 ## Who to ask
 
@@ -125,7 +143,7 @@ Activity takes only a Takeaway. Tricky parts holds 3 to 6 findings from the read
 ## Writing rules
 
 - Explain what, why, and the trap. A why comes from code, a commit message or a PR, and one inferred is labelled per `skills/kit-rules/reference/evidence.md` section 1. Never invent a reason from a file name.
-- Paragraph length per `skills/kit-rules/reference/output.md` section 1. The reader skims; the Takeaway lines alone should tell the story.
+- Readability follows the report-format skill's Readability section. The Takeaway lines alone should tell the story.
 - Labels use names from the code.
 - Prose and data files (Markdown, JSON, YAML) score 0 complexity and never rank as hotspots. When the busiest area is mostly those, say so in TL;DR.
 - A skipped diagram (no clear flow, a single-module repo) gets one line saying why, not a placeholder.

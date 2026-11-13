@@ -6,7 +6,7 @@ user-invocable: false
 
 # Markdown report format
 
-Consistent format for findings reports: audits, reviews, dependency runs, and any other structured list of problems found. A skill that defines its own report template (`investigate`) owns its shape; only the file-naming, path-printing, and ASCII rules below apply to those.
+Consistent format for findings reports: audits, reviews, dependency runs, and any other structured list of problems found. A skill that defines its own report template (`investigate`, `/code`) owns its sections; Readability and the file-naming, path-printing, and ASCII rules below apply to those too.
 
 ## Required sections
 
@@ -17,25 +17,30 @@ Generated: <ISO timestamp>
 Scope: <file, component, or module>
 Stack: <the language lines kit detect-stack prints, if applicable>
 
-## Summary
+## TL;DR
 
-<One paragraph. What was checked, what was found, overall health in one word.>
+- **<Health word>.** <counts by severity, e.g. "2 failures, 3 warnings">
+- <the one thing to act on first, with its location>
+- <at most one more: the biggest risk, or what wasn't checked>
+
+---
 
 ## Findings
 
-### <Finding title>
+### <severity>: <the problem in a few words>
 
-- Severity: <failure | warning | info>
-- Location: <file>:<line> or <region>
-- What: <problem in one or two sentences>
-- Evidence: <what was checked and what it showed: a count, a repro and its rate, a quoted line>
-- Why it matters: <one sentence>
-- Fix: <code snippet or concrete instruction>
-- Refs: <WCAG criterion, CVE, doc link, etc., if relevant>
+<One sentence: what's wrong, at `file:line` or the region.>
+
+- **Evidence:** <what was checked and what it showed: a count, a repro and its rate, a quoted line>
+- **Why it matters:** <one sentence>
+- **Fix:** <code snippet or concrete instruction>
+- **Refs:** <WCAG criterion, CVE, doc link, etc., if relevant>
 
 ### <Next finding>
 
 ...
+
+---
 
 ## Cannot be verified statically
 
@@ -46,6 +51,22 @@ Stack: <the language lines kit detect-stack prints, if applicable>
 <Things noticed but not part of the task. Omit if empty.>
 ```
 
+A finding's parts: its severity and problem (the heading), its location (the first sentence), Evidence, Why it matters, Fix, and Refs.
+
+## Readability
+
+The reader skims, has ADHD, and may stop after the TL;DR. This section holds for every report, including a skill's own template.
+
+- The TL;DR comes first, at most 3 bullets, and holds everything the reader must act on.
+- One idea per bullet, at most two lines. A paragraph follows `skills/kit-rules/reference/output.md` section 1.
+- A heading says what's in the section ("Cache misses on every request"), never a label like "Issue 1".
+- `---` between top-level sections.
+- Bold only the key phrase, at most once per bullet.
+- A table cell holds a value or a short phrase, never a sentence.
+- Every file, PR, and doc named is an inline link or a `file:line`. No reference-style link definitions.
+- Each section puts its most important item first.
+- Raw material (logs, full lists, fetched JSON) goes in a sibling folder named after the report without `.md`, linked, never inlined.
+
 ## Rules
 
 - Severity is one of `failure` (a defect or violation that should not ship), `warning` (a smell that compounds with other findings), `info` (a hardening opportunity or note, not a defect). Nothing else. A consumer may narrow a level's meaning for its domain, never add one.
@@ -55,9 +76,9 @@ Stack: <the language lines kit detect-stack prints, if applicable>
 - Where a report goes: `skills/kit-rules/reference/output.md` section 3.
 - Does not govern `/write` or `/pr` output (commit messages, release notes, stakeholder summaries, PR descriptions, review comments); those have their own formats per `skills/kit-rules/reference/output.md`.
 
-## Summary line rubric
+## Health word
 
-The "overall health in one word" at the end of the Summary helps quick scanning:
+The TL;DR's first bullet opens with one of:
 
 - `clean` (no findings)
 - `minor` (only info)
@@ -68,7 +89,7 @@ The "overall health in one word" at the end of the Summary helps quick scanning:
 ## Anti-patterns
 
 - `failure`: a report body in the reply instead of its file (`skills/kit-rules/reference/output.md` section 3).
-- `failure`: omitting the `## Summary` section or the `## Findings` section when findings exist, in a report this format governs.
+- `failure`: omitting the `## TL;DR` section, or the `## Findings` section when findings exist, in a report this format governs.
 - `warning`: inventing severity levels outside `failure`, `warning`, `info`, e.g. `critical`, `high`, `medium`, `low`, `error`. The rubric has three levels; anything else breaks downstream tooling that parses reports.
 - `warning`: leaving placeholder text in empty sections (e.g. `<none>`, `N/A`) rather than omitting the section.
 - `info`: not sorting findings by severity (failures first, then warnings, then info).

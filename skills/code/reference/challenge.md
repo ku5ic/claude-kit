@@ -46,11 +46,11 @@ Drop every finding the repo or the artifact already answers. Keep 3 to 7 blockin
 Load the report-format skill and use its format, written to the path `kit scratch-dir challenge <artifact-slug>` prints, with these narrowings:
 
 - The Scope line names the artifact and the mode.
-- The Summary ends with the verdict line:
+- The TL;DR's first bullet is the verdict line, in place of the health word:
   - Post-change: `LGTM, a few non-blocking nits` / `LGTM, but <blocker>` / `let's discuss first: <decision>`
   - Pre-change: `go` / `go after: <question>` / `let's discuss first: <decision>`
-- Findings from the decision pass come first, each titled by its check (`Blast radius: ...`). Severity is `failure` when the evidence shows a defect, `warning` for an open question that blocks. Convention-pass findings are `info`, titled `Nit, ...`.
-- Each finding's Location is a `file:line` post-change, or the artifact's section or step pre-change.
+- Findings from the decision pass come first, the check named after the severity (`warning: Blast radius, ...`). Severity is `failure` when the evidence shows a defect, `warning` for an open question that blocks. Convention-pass findings are `info: Nit, ...`.
+- Each finding's location is a `file:line` post-change, or the artifact's section or step pre-change.
 - Each finding gives Evidence (a count, a commit, a `file:line`), then Why it matters, then Fix as a question. A rename's Fix names the replacement.
 - Tone per `skills/kit-rules/reference/output.md` section 4.
 

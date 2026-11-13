@@ -25,41 +25,53 @@ Write to the path `kit scratch-dir tour <repo-slug>` prints.
 
 Root: <root> at <short HEAD hash>. Architecture: <link to `<arch>/README.md`, or "run `/code visual`">.
 
-## Start here
+## TL;DR
 
-<3 bullets: what it does, the one folder to read first, the command that runs it locally>
+- <what it does>
+- <the one folder to read first>
+- <the command that runs it locally>
+
+---
 
 ## Entry points
 
 | Entry | Kind | File |
 | ----- | ---- | ---- |
 
+---
+
 ## <The traced path, named>
 
 <One numbered step per hop, each one line with file:line and what happens there.>
+
+---
 
 ## Where it changes
 
 | File | Commits | Complexity | Top owner |
 | ---- | ------- | ---------- | --------- |
 
-<One line per file on why it keeps changing, from its commit subjects.>
+- **<file>**: <why it keeps changing, from its commit subjects>
+
+---
 
 ## Tests and config
 
 - <where tests live, the command that runs them, fixtures>
 - <config files and what reads each>
 
+---
+
 ## Who to ask
 
 - **<module>**: <author (commits)>
 ```
 
-Paragraph length per `skills/kit-rules/reference/output.md` section 1. A why that comes from neither code nor a commit is labelled per `skills/kit-rules/reference/evidence.md` section 1.
+Readability follows the report-format skill's Readability section. A why that comes from neither code nor a commit is labelled per `skills/kit-rules/reference/evidence.md` section 1.
 
 ## Reply
 
-The report path, the first Start here bullet, and one next action.
+The report path, the first TL;DR bullet, and one next action.
 
 ## Out of scope
 

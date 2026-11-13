@@ -46,7 +46,7 @@ Retention: at most 3 version entries, newest first. A pattern that changed moves
    - Add the Version notes entry naming the source URL or library id from step 3. A changed claim's source goes in its file's Claims list in `sources.md`, never inline.
    - Do not touch guidance the research did not contradict. Do not delete a reference file. Do not reword for style.
 6. Report. Write the path `kit scratch-dir refresh` prints, in the report-format skill's format (load it first):
-   - Summary: skills checked, per-classification counts.
+   - TL;DR: skills checked, per-classification counts.
    - One finding per `guidance changed` skill: severity `warning`, what changed, files edited, source.
    - One finding per `version bump`: severity `info`.
    - "Cannot be verified statically": every `could not verify` item with what a manual check needs.

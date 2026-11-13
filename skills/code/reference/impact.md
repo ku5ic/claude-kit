@@ -42,18 +42,26 @@ Write to the path `kit scratch-dir impact <target-slug>` prints, raw files in a 
 
 <N> consumers (<source> source, <test> test), <M> after one hop. Window: 6 months.
 
-## Summary
+## TL;DR
 
-<Two or three sentences: how far a change reaches, where it's least covered, and the one consumer to check first.>
+- <how far a change reaches>
+- <the one consumer to check first, and why>
+- <where it's least covered>
+
+---
 
 ## Consumers
 
 | Consumer | Uses | Tests | Commits |
 | -------- | ---- | ----- | ------- |
 
+---
+
 ## Fragile call sites
 
 - <file:line>: <what it relies on beyond the signature, and what breaks>
+
+---
 
 ## Caveats
 

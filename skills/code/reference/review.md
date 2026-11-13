@@ -28,7 +28,7 @@ Every finding cites `file:line` and what was read there. A finding inferred with
 
 ## Report
 
-Load the report-format skill and use its format, written to the path `kit scratch-dir review <target-slug>` prints. The Scope line names the target and, for a diff, its base. Each finding's title starts with its pass (`Tests: ...`).
+Load the report-format skill and use its format, written to the path `kit scratch-dir review <target-slug>` prints. The Scope line names the target and, for a diff, its base. Each finding's heading names its pass after the severity (`warning: Tests, ...`).
 
 ## Reply
 

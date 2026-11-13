@@ -82,9 +82,9 @@ Component: [path](link)
 
 ## Writing rules
 
-- Every PR, file, folder, person and external doc named is an inline markdown link. No reference-style link definitions. A draft with them and a big table was rejected as unreadable.
+- Every person named is an inline link too, besides the files, PRs, and docs Readability covers.
 - People link to their GitHub profile or to the path's commit history filtered by author. Handles, not guessed full names.
-- TL;DR first. One idea per bullet, one or two short lines each. Bold only the key phrase. `---` between sections. No tables with prose in cells. Paragraph length per `skills/kit-rules/reference/output.md` section 1.
+- Readability follows the report-format skill's Readability section.
 - Every claim about why something changed cites its PR. One inferred from a diff is labelled per `skills/kit-rules/reference/evidence.md` section 1.
 - "The story" is the last content section before Caveats, at most about 300 words, and introduces no fact missing from the sections above.
 
