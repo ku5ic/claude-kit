@@ -127,10 +127,15 @@ func StopChecks(h *hook.Hook) error {
 
 // notifyReceipt shows the user rc, then unchecked and the overrides in
 // force. kit.yml's receipt: failures hides a clean pass with nothing
-// unchecked; the gates ran either way.
+// unchecked; the gates ran either way. A failure means the caller blocks,
+// and the block names each failure and skip with its detail, so the
+// receipt keeps only the counts and passes.
 func notifyReceipt(h *hook.Hook, cfg *config.Config, rc run.Receipt, unchecked []string) {
 	if cfg.ReceiptOnFailures() && rc.Clean() && len(unchecked) == 0 {
 		return
+	}
+	if !rc.Passed() {
+		rc = rc.PassesOnly()
 	}
 	h.Notify(rc.String(append(unchecked, overrides(cfg)...)...))
 }

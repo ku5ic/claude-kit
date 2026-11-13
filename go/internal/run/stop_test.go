@@ -38,21 +38,71 @@ func TestAStopPassIsReportedOnly(t *testing.T) {
 	}
 }
 
-// The receipt leads with the counts, then a line per check, skips before
-// passes, and the caller's extra lines last.
+// The receipt leads with the counts, then a line per failure and skip, the
+// passes on one line, and the caller's extra lines last, each group apart.
 func TestTheReceiptLeadsWithTheCounts(t *testing.T) {
 	t.Parallel()
 	r := newRepo(t, "repo")
 	skipped := r.check("lint (lint-staged: *.ts)", "lint", "")
 	skipped.Skip = "eslint not installed"
 	out := r.stop(r.check("test (lefthook.yml: test)", "test", "true"), skipped)
-	want := "kit stop: 1 pass, 1 skipped, 0 failed\n" +
-		"skip  lint (lint-staged: *.ts)  eslint not installed\n" +
-		"pass  test (lefthook.yml: test)\n" +
-		"unchecked  notes.txt"
+	want := "kit stop: 0 failed, 1 skipped, 1 passed\n\n" +
+		"  skip  lint (lint-staged: *.ts)  eslint not installed\n" +
+		"  pass  test\n\n" +
+		"  unchecked  notes.txt"
 	if got := out.Receipt.String("unchecked  notes.txt"); got != want {
 		t.Errorf("got:\n%s\nwant:\n%s", got, want)
 	}
+}
+
+// Passes collapse to their kinds by subproject, and a long skip reason is
+// clipped: the report keeps it whole.
+func TestTheReceiptFitsPassesOnOneLineAndClipsReasons(t *testing.T) {
+	t.Parallel()
+	r := newRepo(t, "repo")
+	skipped := r.check("types (ci.yml: types) [web]", "types", "")
+	skipped.Skip = "rejected (segment " + strings.Repeat("x", 120) + ")"
+	out := r.stop(
+		r.check("lint (web/package.json: lint) [web]", "lint", "true"),
+		r.check("test (web/package.json: test) [web]", "test", "true"),
+		r.check("test (api/Makefile: test) [api]", "test", "true"),
+		r.check("test (api/Makefile: test-cov) [api]", "test", "true"),
+		skipped,
+	)
+	got := out.Receipt.String()
+	has(t, got, "\n  pass  web: lint, test; api: test x2")
+	for line := range strings.Lines(got) {
+		if n := len([]rune(strings.TrimRight(line, "\n"))); n > 120 {
+			t.Errorf("%d-character line: %s", n, line)
+		}
+	}
+	has(t, out.Report(), strings.Repeat("x", 120))
+	// The block clips it too; the detail file it points at keeps it whole.
+	if n := len([]rune(strings.TrimRight(out.Failures, "\n"))); n > 120 {
+		t.Errorf("%d-character skip line in the block: %s", n, out.Failures)
+	}
+	has(t, out.Detail, strings.Repeat("x", 120))
+}
+
+// A block names its failures with their detail, so the receipt beside it
+// keeps only the counts and the passes.
+func TestAReceiptBesideABlockDropsTheFailures(t *testing.T) {
+	t.Parallel()
+	r := newRepo(t, "repo")
+	out := r.stop(r.check("test (Makefile: test)", "test", "true"), r.check("lint (Makefile: lint)", "lint", "exit 1"))
+	if got, want := out.Receipt.PassesOnly().String(), "kit stop: 1 failed, 0 skipped, 1 passed\n\n  pass  test"; got != want {
+		t.Errorf("got:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+// An error path inside node_modules keeps the package's own path, not the
+// package manager's store prefix.
+func TestABlockTrimsTheStorePrefixFromErrorPaths(t *testing.T) {
+	t.Parallel()
+	r := newRepo(t, "repo")
+	out := r.stop(r.check("typecheck", "typecheck",
+		"echo 'node_modules/.pnpm/next@16.4.6_react@19/node_modules/next/dist/a.d.ts(2,67): error TS2304'; echo 'web/node_modules/zod/b.d.ts(1,1): error'; exit 1"))
+	has(t, out.Failures, "      next/dist/a.d.ts(2,67): error TS2304\n", "      zod/b.d.ts(1,1): error\n")
 }
 
 func TestAFailingTestBlocksWithItsBinaryThenItsOutputTail(t *testing.T) {
@@ -122,7 +172,7 @@ func TestASkippedCheckIsNamedInTheBlock(t *testing.T) {
 	t.Parallel()
 	r := newRepo(t, "repo")
 	out := r.stop(r.check("typecheck", "typecheck", "no-such-tsc --noEmit"), r.check("test", "test", "echo broken; exit 1"))
-	has(t, out.Failures, "skip  typecheck (not installed: ", "no-such-tsc: command not found)", "FAIL  test\n")
+	has(t, out.Failures, "skip  typecheck  not installed: ", "no-such-tsc: command not found\n", "FAIL  test\n")
 	has(t, out.Report(), "checks: 0 passed, 1 failed, 1 skipped")
 }
 

@@ -73,6 +73,17 @@ func TestABlockKeepsTheNotice(t *testing.T) {
 	}
 }
 
+// Two notices, a review sheet and a receipt, print with a blank line
+// between them, so neither runs into the other.
+func TestNoticesAreSeparatedByABlankLine(t *testing.T) {
+	h, stdout, _ := newHook(t, `{}`)
+	two := func(h *Hook) error { h.Notify("kit review: a"); h.Notify("kit stop: b"); return nil }
+	Run(h, NamedCheck{"a.sh", two})
+	if got, want := stdout.String(), `{"systemMessage":"kit review: a\n\nkit stop: b"}`+"\n"; got != want {
+		t.Errorf("stdout %s, want %s", got, want)
+	}
+}
+
 // In a dispatcher, one check's plain text and another's context both reach
 // Claude: stdout takes one JSON object, so the plain text joins it.
 func TestPlainTextJoinsAnotherChecksContext(t *testing.T) {

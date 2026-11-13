@@ -54,7 +54,7 @@ func TestStopChecks(t *testing.T) {
 	r := stop()
 	r.Want(t, 0)
 	var out map[string]string
-	if err := json.Unmarshal([]byte(r.Stdout), &out); err != nil || len(out) != 1 || out["systemMessage"] != "kit stop: 1 pass, 0 skipped, 0 failed\npass  lint (package.json: *.ts)" {
+	if err := json.Unmarshal([]byte(r.Stdout), &out); err != nil || len(out) != 1 || out["systemMessage"] != "kit stop: 0 failed, 0 skipped, 1 passed\n\n  pass  lint" {
 		t.Errorf("a pass prints more or other than its systemMessage:\n%s", r.Output)
 	}
 
@@ -62,8 +62,8 @@ func TestStopChecks(t *testing.T) {
 	r = stop()
 	r.Want(t, 0)
 	out = nil
-	if err := json.Unmarshal([]byte(r.Stdout), &out); err != nil || out["decision"] != "block" || out["systemMessage"] != "kit stop: 0 pass, 0 skipped, 1 failed\nFAIL  lint (package.json: *.ts)" {
-		t.Errorf("a failure blocks and shows the user every verdict:\n%s", r.Output)
+	if err := json.Unmarshal([]byte(r.Stdout), &out); err != nil || out["decision"] != "block" || out["systemMessage"] != "kit stop: 1 failed, 0 skipped, 0 passed" {
+		t.Errorf("a failure blocks with its detail, and the receipt keeps the counts:\n%s", r.Output)
 	}
 	for _, s := range []string{"kit stop: BLOCKED 1 of 1 checks failed", "FAIL  lint (package.json: *.ts)\n", "lint noise", "\nmore  "} {
 		if !strings.Contains(out["reason"], s) {
@@ -88,7 +88,7 @@ func TestStopChecks(t *testing.T) {
 	r = stop()
 	out = nil
 	if err := json.Unmarshal([]byte(r.Stdout), &out); err != nil || out["decision"] != "block" ||
-		out["systemMessage"] != "kit stop: 0 pass, 0 skipped, 1 failed\nFAIL  lint (package.json: *.ts)\noverride  disabled_rules: plan-critic" {
+		out["systemMessage"] != "kit stop: 1 failed, 0 skipped, 0 passed\n\n  override  disabled_rules: plan-critic" {
 		t.Errorf("a failure with receipt: failures still blocks and shows its receipt:\n%s", r.Output)
 	}
 }

@@ -252,7 +252,7 @@ func TestStopChecks(t *testing.T) {
 		testutil.Write(t, marker, "your report\n")
 		e.turn("Edit", e.path("a.ts"), e.path("notes.md"))
 		r := e.stop(false)
-		r.Has(t, `pass  lint (package.json: *.ts)\nunchecked  your report  verifier failed"`)
+		r.Has(t, `  pass  lint\n\n  unchecked  your report  verifier failed"`)
 		r.Lacks(t, "notes.md")
 		if exists(marker) {
 			t.Error("the verifier's failure would show again next turn")
@@ -322,7 +322,7 @@ func TestStopChecks(t *testing.T) {
 		r.Want(t, 0)
 		r.Empty(t)
 	})
-	t.Run("a failing check blocks and still shows the user every verdict", func(t *testing.T) {
+	t.Run("a failing check blocks with its detail, and the receipt beside it keeps only the counts and passes", func(t *testing.T) {
 		t.Parallel()
 		e := stopSetup(t)
 		e.turn("Edit", e.path("a.ts"))
@@ -332,8 +332,8 @@ func TestStopChecks(t *testing.T) {
 		var out map[string]string
 		if err := json.Unmarshal([]byte(r.Stdout), &out); err != nil || out["decision"] != "block" ||
 			!strings.HasPrefix(out["reason"], "kit stop: BLOCKED 1 of 1 checks failed; fix them, or report them and stop (checks-failed)\nFAIL  lint (package.json: *.ts)\n      lint noise\nmore  ") ||
-			out["systemMessage"] != "kit stop: 0 pass, 0 skipped, 1 failed\nFAIL  lint (package.json: *.ts)" {
-			t.Errorf("want a block with every verdict for the user:\n%s", r.Output)
+			out["systemMessage"] != "kit stop: 1 failed, 0 skipped, 0 passed" {
+			t.Errorf("want a block with the failure, and a receipt without it:\n%s", r.Output)
 		}
 		// The command and the rest of the output go to the file, not the block.
 		if strings.Contains(out["reason"], "cmd: ") {

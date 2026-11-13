@@ -75,7 +75,7 @@ func TestTheSummaryCountsEachVerdict(t *testing.T) {
 	if res != (Result{Pass: 1, Fail: 1, Skip: 1}) {
 		t.Errorf("result = %+v", res)
 	}
-	if got, want := receipt.String(), "kit full gate: 1 pass, 1 skipped, 1 failed\nFAIL  typecheck\nskip  lint  unclassified\npass  test"; got != want {
+	if got, want := receipt.String(), "kit full gate: 1 failed, 1 skipped, 1 passed\n\n  FAIL  typecheck\n  skip  lint  unclassified\n  pass  test"; got != want {
 		t.Errorf("receipt:\n%s\nwant:\n%s", got, want)
 	}
 	if receipt.Clean() {

@@ -332,11 +332,11 @@ func (h *Hook) flush(block string) {
 	}
 	switch {
 	case block != "":
-		WriteJSON(h.Stdout, output{Decision: "block", Reason: block, SystemMessage: strings.Join(h.notices, "\n")})
+		WriteJSON(h.Stdout, output{Decision: "block", Reason: block, SystemMessage: strings.Join(h.notices, "\n\n")})
 	case h.decision != "":
 		// A check's context (a density note) still reaches Claude when
 		// another check decides; only a defer would drop it.
-		WriteJSON(h.Stdout, output{SystemMessage: strings.Join(h.notices, "\n"), HookSpecificOutput: &specific{HookEventName: "PreToolUse", PermissionDecision: h.decision, PermissionDecisionReason: h.reason, AdditionalContext: strings.Join(h.contexts, "\n")}})
+		WriteJSON(h.Stdout, output{SystemMessage: strings.Join(h.notices, "\n\n"), HookSpecificOutput: &specific{HookEventName: "PreToolUse", PermissionDecision: h.decision, PermissionDecisionReason: h.reason, AdditionalContext: strings.Join(h.contexts, "\n")}})
 	case h.contexts != nil || h.notices != nil:
 		contexts, event := h.contexts, h.event
 		// Plain text can't share stdout with JSON: in a dispatcher, one
@@ -345,7 +345,7 @@ func (h *Hook) flush(block string) {
 			contexts = append([]string{strings.TrimRight(h.plain.String(), "\n")}, contexts...)
 			event = cmp.Or(event, h.Payload.String("hook_event_name"))
 		}
-		out := output{SystemMessage: strings.Join(h.notices, "\n")}
+		out := output{SystemMessage: strings.Join(h.notices, "\n\n")}
 		if contexts != nil {
 			out.HookSpecificOutput = &specific{HookEventName: event, AdditionalContext: strings.Join(contexts, "\n")}
 		}
