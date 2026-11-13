@@ -35,7 +35,7 @@ Git, side effects, plans, and when to ask.
 
 ## 3. Skills and plans
 
-- The procedure skills (`/audit`, `/write`, `/pr`, `/meta`, `/deps`, `/unslop`) run only when the user types them.
+- The procedure skills (`/audit`, `/code`, `/write`, `/pr`, `/meta`, `/deps`, `/unslop`) run only when the user types them.
 - Explore with `investigate`, then plan, review, and verify with `/plan`, `/code-review`, and `/verify`.
 - A plan ends with a `## Steps` checklist, one reviewable commit per item.
 - A plan is written or changed only on the engineer's word, once, with a list of what changed.
