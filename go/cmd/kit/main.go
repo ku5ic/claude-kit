@@ -127,6 +127,15 @@ func run(args []string, stdout, stderr io.Writer) int {
 	case "contrast":
 		return design.Contrast(rest, stdout, stderr)
 	case "code-graph":
+		if len(rest) > 0 && rest[0] == "model-dir" {
+			cfg, err := e.config()
+			if err != nil {
+				fmt.Fprintln(stderr, "kit:", err)
+				return 1
+			}
+			home, _ := os.UserHomeDir()
+			return codegraph.RunModelDir(cfg.ArchitectureDir, home, rest[1:], stdout, stderr)
+		}
 		return codegraph.Run(rest, stdout, stderr)
 	case "statusline":
 		status.Statusline(os.Stdin, stdout, e.paths.Home)

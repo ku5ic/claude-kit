@@ -1,0 +1,297 @@
+package codegraph
+
+import (
+	"bufio"
+	"cmp"
+	"fmt"
+	"io"
+	"os"
+	"path"
+	"path/filepath"
+	"regexp"
+	"slices"
+	"strings"
+
+	"github.com/ku5ic/claude-kit/go/internal/git"
+)
+
+// ModelDir is where the architecture model of the repo holding target
+// lives: base/<parent>/<project>, where parent is the folder holding the
+// repo root and project is the origin remote's repo name, else the root's
+// folder name. A target below the root gets base/<parent>/<project>/scopes/<subdir>,
+// a model of its own.
+func ModelDir(base, home, target string) (string, error) {
+	abs, err := filepath.Abs(target)
+	if err != nil {
+		return "", err
+	}
+	root := git.Toplevel(abs)
+	if root == "" {
+		return "", fmt.Errorf("%s is not in a git work tree", target)
+	}
+	project := filepath.Base(root)
+	if url, err := git.Line(root, "remote", "get-url", "origin"); err == nil && url != "" {
+		project = strings.TrimSuffix(path.Base(strings.ReplaceAll(url, ":", "/")), ".git")
+	}
+	if rest, ok := strings.CutPrefix(base, "~/"); ok {
+		base = filepath.Join(home, rest)
+	}
+	dir := filepath.Join(base, filepath.Base(filepath.Dir(root)), project)
+	if phys, err := filepath.EvalSymlinks(abs); err == nil {
+		abs = phys
+	}
+	if rel, err := filepath.Rel(root, abs); err == nil && rel != "." && !strings.HasPrefix(rel, "..") {
+		dir = filepath.Join(dir, "scopes", rel)
+	}
+	return dir, nil
+}
+
+// Fingerprint is what a model was drawn from: every module on either end
+// of a deps.tsv edge, sorted, then every package externals.tsv marks
+// declared, sorted. A standard-library or transitive import changes
+// nothing; a new manifest dependency does.
+func Fingerprint(rawDir string) ([]string, error) {
+	edges, err := readTSV(filepath.Join(rawDir, "deps.tsv"), 3)
+	if err != nil {
+		return nil, err
+	}
+	var modules []string
+	for _, e := range edges {
+		if len(e) == 3 {
+			modules = append(modules, e[1], e[2])
+		}
+	}
+	slices.Sort(modules)
+	declared, err := declaredExternals(rawDir)
+	if err != nil {
+		return nil, err
+	}
+	return append(slices.Compact(modules), declared...), nil
+}
+
+// declaredExternals is every package externals.tsv marks declared, sorted.
+func declaredExternals(rawDir string) ([]string, error) {
+	rows, err := readTSV(filepath.Join(rawDir, "externals.tsv"), 3)
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, r := range rows {
+		if len(r) == 3 && r[2] == "declared" {
+			out = append(out, r[1])
+		}
+	}
+	slices.Sort(out)
+	return slices.Compact(out), nil
+}
+
+// C4 writes a container view skeleton to w, built from rawDir's deps.tsv
+// and externals.tsv: each module a container inside one system boundary,
+// with its %% path:, each declared package an external with its
+// %% package:, and an edge per module pair that imports. The classDef
+// lines, people, and anything the imports can't show are left to whoever
+// finishes it.
+func C4(rawDir, system string, w io.Writer) error {
+	edges, err := readTSV(filepath.Join(rawDir, "deps.tsv"), 3)
+	if err != nil {
+		return err
+	}
+	declared, err := declaredExternals(rawDir)
+	if err != nil {
+		return err
+	}
+	var modules []string
+	for _, e := range edges {
+		if len(e) == 3 {
+			modules = append(modules, e[1], e[2])
+		}
+	}
+	slices.Sort(modules)
+	modules = slices.Compact(modules)
+	fmt.Fprintf(w, "flowchart TB\n  subgraph system[%q]\n", system)
+	for _, m := range modules {
+		fmt.Fprintf(w, "    %s[%q]\n    %%%% path: %s\n", nodeID("m", m), m, m)
+	}
+	fmt.Fprintln(w, "  end\n  class system boundary")
+	for _, p := range declared {
+		fmt.Fprintf(w, "  %s[%q]:::ext\n  %%%% package: %s\n", nodeID("ext", p), p, p)
+	}
+	for _, e := range edges {
+		if len(e) == 3 && e[1] != e[2] {
+			fmt.Fprintf(w, "  %s --> %s\n", nodeID("m", e[1]), nodeID("m", e[2]))
+		}
+	}
+	return nil
+}
+
+var notIDChar = regexp.MustCompile(`[^A-Za-z0-9]+`)
+
+// nodeID is a Mermaid node id for name: prefix, then name's letters and
+// digits joined by underscores, so no id is a keyword like end.
+func nodeID(prefix, name string) string {
+	return prefix + "_" + strings.Trim(notIDChar.ReplaceAllString(name, "_"), "_")
+}
+
+// node is one node of a model file, with the comments under it.
+type node struct {
+	id, label, file string
+	path, pkg       string
+	judgment, isExt bool
+}
+
+var (
+	nodeLine = regexp.MustCompile(`^\s*([A-Za-z_][\w-]*)\s*[\[({]+"?([^"\])}]*)"?[\])}]+(:::(\w+))?\s*$`)
+	edgeLine = regexp.MustCompile(`([A-Za-z_][\w-]*)\s*(?:-->|-\.->|==>|---)(?:\|[^|]*\|)?\s*([A-Za-z_][\w-]*)`)
+	comment  = regexp.MustCompile(`^\s*%%\s*(path|package|source):\s*(.+?)\s*$`)
+)
+
+// readModel is every node and edge in the c4-*.mmd files of modelDir.
+func readModel(modelDir string) (nodes map[string]*node, edges [][2]string, files []string, err error) {
+	files, err = filepath.Glob(filepath.Join(modelDir, "c4-*.mmd"))
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	nodes = map[string]*node{}
+	for _, file := range files {
+		f, err := os.Open(file)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		var last *node
+		scanner := bufio.NewScanner(f)
+		for scanner.Scan() {
+			line := scanner.Text()
+			trimmed := strings.TrimSpace(line)
+			if m := comment.FindStringSubmatch(line); m != nil && last != nil {
+				switch m[1] {
+				case "path":
+					last.path = m[2]
+				case "package":
+					last.pkg = m[2]
+				case "source":
+					last.judgment = m[2] == "judgment"
+				}
+				continue
+			}
+			if strings.HasPrefix(trimmed, "%%") || trimmed == "" {
+				continue
+			}
+			first, _, _ := strings.Cut(trimmed, " ")
+			if slices.Contains([]string{"flowchart", "graph", "subgraph", "end", "class", "classDef", "linkStyle", "style", "direction"}, first) {
+				continue
+			}
+			if m := nodeLine.FindStringSubmatch(line); m != nil {
+				n := nodes[m[1]]
+				if n == nil {
+					n = &node{id: m[1], label: m[2], file: filepath.Base(file)}
+					nodes[m[1]] = n
+				}
+				n.isExt = n.isExt || m[4] == "ext"
+				last = n
+				continue
+			}
+			for _, e := range edgeLine.FindAllStringSubmatch(line, -1) {
+				edges = append(edges, [2]string{e[1], e[2]})
+			}
+		}
+		_ = f.Close()
+		if err := scanner.Err(); err != nil {
+			return nil, nil, nil, err
+		}
+	}
+	return nodes, edges, files, nil
+}
+
+// CheckC4 checks the model in modelDir against rawDir, collected from the
+// repo at root, and writes each problem to w: a fingerprint that differs,
+// a %% path: that's gone, an edge between two containers with no import
+// between their modules, and an external whose %% package: no manifest
+// declares, or that names none. It lists the nodes marked
+// %% source: judgment, the ones a person reviews. ok is false on any
+// problem, or when modelDir has no c4-*.mmd file.
+func CheckC4(modelDir, rawDir, root string, w io.Writer) (ok bool, err error) {
+	nodes, edges, files, err := readModel(modelDir)
+	if err != nil {
+		return false, err
+	}
+	if len(files) == 0 {
+		fmt.Fprintf(w, "no model: %s holds no c4-*.mmd file\n", modelDir)
+		return false, nil
+	}
+	ok = true
+	problem := func(format string, args ...any) {
+		ok = false
+		fmt.Fprintf(w, format+"\n", args...)
+	}
+	now, err := Fingerprint(rawDir)
+	if err != nil {
+		return false, err
+	}
+	saved, err := readLines(filepath.Join(modelDir, "fingerprint.txt"))
+	if err != nil && !os.IsNotExist(err) {
+		return false, err
+	}
+	for _, s := range now {
+		if !slices.Contains(saved, s) {
+			problem("stale: %s is new since the model was drawn", s)
+		}
+	}
+	for _, s := range saved {
+		if s != "" && !slices.Contains(now, s) {
+			problem("stale: %s is gone since the model was drawn", s)
+		}
+	}
+	declared, err := declaredExternals(rawDir)
+	if err != nil {
+		return false, err
+	}
+	deps, err := readTSV(filepath.Join(rawDir, "deps.tsv"), 3)
+	if err != nil {
+		return false, err
+	}
+	ids := slices.Sorted(func(yield func(string) bool) {
+		for id := range nodes {
+			if !yield(id) {
+				return
+			}
+		}
+	})
+	for _, id := range ids {
+		n := nodes[id]
+		switch {
+		case n.path != "":
+			if _, err := os.Stat(filepath.Join(root, n.path)); err != nil {
+				problem("gone: %s (%s) cites %s, which no longer exists", n.id, n.file, n.path)
+			}
+		case n.isExt && n.pkg != "" && !slices.Contains(declared, n.pkg):
+			problem("undeclared: %s (%s) names package %s, which no manifest declares", n.id, n.file, n.pkg)
+		case n.isExt && n.pkg == "" && !n.judgment:
+			problem("unbacked: %s (%s) is an external with no %%%% package: and no %%%% source: judgment", n.id, n.file)
+		}
+	}
+	for _, e := range edges {
+		from, to := nodes[e[0]], nodes[e[1]]
+		if from == nil || to == nil || from.path == "" || to.path == "" || from.path == to.path {
+			continue
+		}
+		if !slices.ContainsFunc(deps, func(d []string) bool {
+			return len(d) == 3 && overlaps(d[1], from.path) && overlaps(d[2], to.path)
+		}) {
+			problem("unbacked: %s --> %s has no import from %s into %s", e[0], e[1], from.path, to.path)
+		}
+	}
+	for _, id := range ids {
+		if n := nodes[id]; n.judgment {
+			fmt.Fprintf(w, "judgment: %s %q (%s)\n", n.id, cmp.Or(n.label, n.id), n.file)
+		}
+	}
+	return ok, nil
+}
+
+// overlaps is true when module and a container's path name the same
+// directory, or one holds the other: a container can be coarser or finer
+// than a module.
+func overlaps(module, p string) bool {
+	module, p = strings.Trim(module, "/"), strings.Trim(path.Clean(p), "/")
+	return module == p || strings.HasPrefix(module, p+"/") || strings.HasPrefix(p, module+"/") || p == "."
+}

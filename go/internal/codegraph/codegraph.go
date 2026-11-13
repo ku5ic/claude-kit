@@ -11,7 +11,11 @@ import (
 
 const usage = `usage: kit code-graph imports <root> > imports.tsv
        kit code-graph deps <root> <imports.tsv> <out dir> [split dir]
-       kit code-graph coupling <git log> <imports-resolved.tsv> > coupling.tsv`
+       kit code-graph coupling <git log> <imports-resolved.tsv> > coupling.tsv
+       kit code-graph model-dir <repo or subdir>
+       kit code-graph fingerprint <deps out dir> > fingerprint.txt
+       kit code-graph c4 <deps out dir> <system name> > c4-containers.mmd
+       kit code-graph check-c4 <model dir> <deps out dir> <root>`
 
 // Run is kit code-graph: its first argument names the report.
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -27,6 +31,20 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		err = Deps(args[1], args[2], args[3], split, stdout)
 	case len(args) == 3 && args[0] == "coupling":
 		err = Coupling(args[1], args[2], stdout)
+	case len(args) == 2 && args[0] == "fingerprint":
+		var lines []string
+		if lines, err = Fingerprint(args[1]); err == nil {
+			for _, l := range lines {
+				fmt.Fprintln(stdout, l)
+			}
+		}
+	case len(args) == 3 && args[0] == "c4":
+		err = C4(args[1], args[2], stdout)
+	case len(args) == 4 && args[0] == "check-c4":
+		var ok bool
+		if ok, err = CheckC4(args[1], args[2], args[3], stdout); err == nil && !ok {
+			return 1
+		}
 	default:
 		fmt.Fprintln(stderr, usage)
 		return 2
@@ -35,6 +53,22 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "code-graph %s: %v\n", args[0], err)
 		return 1
 	}
+	return 0
+}
+
+// RunModelDir is kit code-graph model-dir: it prints ModelDir for args[0]
+// under base, the architecture_dir setting.
+func RunModelDir(base, home string, args []string, stdout, stderr io.Writer) int {
+	if len(args) != 1 {
+		fmt.Fprintln(stderr, usage)
+		return 2
+	}
+	dir, err := ModelDir(base, home, args[0])
+	if err != nil {
+		fmt.Fprintf(stderr, "code-graph model-dir: %v\n", err)
+		return 1
+	}
+	fmt.Fprintln(stdout, dir)
 	return 0
 }
 

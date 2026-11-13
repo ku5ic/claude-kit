@@ -448,6 +448,12 @@ deny_flags: [--fix, --write, --watch, --watchAll, --apply, --apply-unsafe, --aut
 # install before a script runs, changing node_modules mid-check.
 gate_env: [pnpm_config_verify_deps_before_run=false]
 
+# Where /code visual keeps each repo's architecture model (its C4 views and
+# fingerprint), and the skills that read it find it: under
+# <parent>/<project>/, as kit code-graph model-dir prints. Set it in the
+# overlay to keep the models elsewhere.
+architecture_dir: ~/Architecture
+
 # Seconds the Stop hook's checks run, in parallel, each killed after this
 # and reported as a SKIP, never a block. The Stop hook itself allows 300.
 gate_timeout: 90

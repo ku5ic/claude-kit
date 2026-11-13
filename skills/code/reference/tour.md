@@ -6,7 +6,7 @@ An onboarding walk through a repo for someone new to it: where it starts, one pa
 
 1. Root: `git -C <path or cwd> rev-parse --show-toplevel`. A subdirectory argument narrows every step to it.
 2. Read the project CLAUDE.md, README, and CONTRIBUTING first. The tour uses the project's own names, and links to what those files already explain instead of restating it.
-3. When `/code visual` has run, its `<arch>/README.md` (`visual.md` Inputs step 5) holds the containers and module graph. Link it, and skip drawing them again.
+3. When `/code visual` has run, its `<arch>/README.md` (`visual.md` Inputs step 5) holds the containers and module graph. First run `kit code-graph check-c4 <arch> <raw> <root>`, with `<raw>` from `visual.md` Collect step 4. It passes: link the README, and skip drawing them again. It lists problems: name them, and ask with AskUserQuestion whether to refresh the model with `/code visual` first, or go on without it.
 
 ## Collect
 
