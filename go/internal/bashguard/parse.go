@@ -276,6 +276,10 @@ func (c *collector) call(src string, p *syntax.Stmt, call *syntax.CallExpr) Call
 	if cmd, ok := envSplitString(cl.Words); ok {
 		c.parse(cmd, c.depth+1)
 	}
+	if cmd, ok := watchString(cl.Words); ok {
+		c.parse(cmd, c.depth+1)
+	}
+	cl.Redirs = append(cl.Redirs, timeOutputs(cl.Words)...)
 	for _, r := range p.Redirs {
 		c.redirect(src, r, &cl)
 	}
@@ -316,6 +320,83 @@ func (c *collector) redirect(src string, r *syntax.Redirect, cl *Call) {
 // envSplitString returns the command env -S/--split-string runs, the string
 // followed by env's remaining words, from a wrapper before the command:
 // env -S "rm -rf" ~ runs rm -rf ~.
+// watchString is the command a watch among words' wrappers runs: its
+// operands joined, which watch hands to sh -c unless -x execs them.
+func watchString(words []Word) (string, bool) {
+	for i := range lead(words) {
+		if baseName(words[i].Value) != "watch" {
+			continue
+		}
+		j := i + 1
+		for ; j < len(words) && strings.HasPrefix(words[j].Value, "-"); j++ {
+			opt := words[j].Value
+			if opt == "--" {
+				j++
+				break
+			}
+			if opt == "--exec" || shortCluster(opt, "x") {
+				return "", false
+			}
+			if takesNextWord("watch", opt) {
+				j++
+			}
+		}
+		if j >= len(words) {
+			return "", false
+		}
+		var parts []string
+		for _, w := range words[j:] {
+			parts = append(parts, w.Value)
+		}
+		return strings.Join(parts, " "), true
+	}
+	return "", false
+}
+
+// timeOutputs are the files a time among words' wrappers writes its report
+// to with -o, as > redirects, so they get a redirect's checks.
+func timeOutputs(words []Word) []Redir {
+	var out []Redir
+	for i := range lead(words) {
+		if baseName(words[i].Value) != "time" {
+			continue
+		}
+		for j := i + 1; j < len(words) && strings.HasPrefix(words[j].Value, "-"); j++ {
+			opt := words[j].Value
+			switch {
+			case opt == "--":
+				return out
+			case opt == "--output" && j+1 < len(words):
+				j++
+				out = append(out, Redir{Op: ">", Target: words[j]})
+			case strings.HasPrefix(opt, "--output="):
+				v := strings.TrimPrefix(opt, "--output=")
+				out = append(out, Redir{Op: ">", Target: Word{Value: v, Raw: v}})
+			case strings.HasPrefix(opt, "--"):
+				if takesNextWord("time", opt) {
+					j++
+				}
+			default:
+				// A short cluster: its first f or o takes the rest of the
+				// word, or the next word when it's last (-ao file).
+				k := strings.IndexAny(opt[1:], "fo") + 1
+				if k == 0 {
+					continue
+				}
+				v := opt[k+1:]
+				if v == "" && j+1 < len(words) {
+					j++
+					v = words[j].Value
+				}
+				if opt[k] == 'o' && v != "" {
+					out = append(out, Redir{Op: ">", Target: Word{Value: v, Raw: v}})
+				}
+			}
+		}
+	}
+	return out
+}
+
 func envSplitString(words []Word) (string, bool) {
 	for i := range lead(words) {
 		if baseName(words[i].Value) != "env" {
