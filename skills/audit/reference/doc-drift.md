@@ -36,6 +36,10 @@ $ARGUMENTS should point to the code surface to check. Required.
 - Stylistic differences (tone, format)
 - Out of date links to external sites, unless the target area depends on them
 
+## Proof
+
+Each finding quotes both sides with `file:line`: the doc's claim and the code that contradicts it. For an example that would fail, name the line of code that makes it fail; never run it.
+
 ## Output per finding
 
 - Location: file and line of the documentation

@@ -1,6 +1,6 @@
 # /audit debt
 
-Surface technical debt and architectural risks with severity and remediation path. Arguments: `<file, directory, area name, or a link to an external tracker/doc>`.
+Surface technical debt inside the target's modules, with severity and remediation path. Coupling, layering, and cycles between modules are `audit arch`. Arguments: `<file, directory, area name, or a link to an external tracker/doc>`.
 
 ## Procedure
 
@@ -16,7 +16,6 @@ Surface technical debt and architectural risks with severity and remediation pat
 
 ### Categories
 
-- **Architecture**: inappropriate coupling, missing abstraction boundaries, layer violations, circular dependencies
 - **Type safety**: escape hatches, runtime assumptions not in types, unsafe casts, `any` in public surface
 - **State management**: local state that should be lifted, global state that should be local, derived state stored instead of computed
 - **Side effects**: unguarded async, missing cleanup, implicit ordering, hidden I/O
@@ -27,6 +26,18 @@ Surface technical debt and architectural risks with severity and remediation pat
 - **Dead code and duplication**: unused exports, and copies of one thing along a stable axis (copies with divergent lifecycles are correct, per `skills/kit-rules/reference/change.md` section 8). Each finding names the pattern `skills/engineering-fundamentals/reference/design-patterns.md` gives for its signal.
 - **Build and dependency health**: deprecated APIs, ejected config, outdated patterns, unmaintained deps
 - **Metric thresholds breached**: the numbers in `skills/engineering-fundamentals/reference/metric-thresholds.md`; use `tokei` for size and a quick scan for the rest. Each is a smell, not a failure; the audit's value is correlating these with high churn from `git log`.
+
+## Not a finding
+
+- A `shortcut:` comment whose ceiling the code hasn't reached and whose file barely changes. It stays `info` at most.
+- Two copies with different lifecycles, per `skills/kit-rules/reference/change.md` section 8.
+- A metric threshold breached in a file nobody changes, with no bug history in `git log`.
+
+## Severity anchors
+
+- `failure`: the debt is causing harm now, such as a swallowed error on a payment path, or a core path with no test that broke in the last 20 commits.
+- `warning`: it will cost the next change here, such as a 900-line file in the top churn, or duplicated logic already edited in one copy only.
+- `info`: worth knowing, with no cost yet.
 
 ## Output per finding
 

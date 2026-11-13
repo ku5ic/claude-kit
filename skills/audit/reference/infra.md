@@ -21,6 +21,17 @@ Review of the infrastructure files a target holds against the kit's own checklis
 3. CI workflows are `audit ci`'s job. Name it as the next step when `.github/workflows` exists.
 4. Anything that needs the live system (an open port, a running container's user, the state file) goes under "Cannot be verified statically". Never run `plan`, `apply`, `docker build`, or a provisioning tool.
 
+## Not a finding
+
+- A default password in a service only a dev profile or a dev-named file starts. Name it as `info`.
+- A rule the loaded reference marks optional or situational, when the file's own comment gives the reason.
+
+## Severity
+
+- `failure`: a committed secret, a database or admin port open to every address, or a container that runs as root and takes network input.
+- `warning`: an unpinned base image or provider version, or a service with no health check or restart policy.
+- `info`: hygiene with no exposure, such as a missing `.dockerignore` entry for docs.
+
 ## Output per finding
 
 - What it is, with `file:line`

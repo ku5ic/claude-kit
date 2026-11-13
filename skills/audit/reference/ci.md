@@ -18,6 +18,11 @@ Hardening review of CI workflows. Arguments: `<workflow file, or none for every 
    - **Self-hosted runners** on a workflow that public PRs can trigger.
 3. Infra files the jobs deploy are `audit infra`'s job.
 
+## Not a finding
+
+- An event value interpolated into `run:` that an attacker can't shape: a SHA, a number, or a boolean, such as `github.event.pull_request.base.sha`. Passing it through `env:` is still cleaner, as `info`.
+- A local action (`uses: ./...`), which the repo itself pins.
+
 ## Output per finding
 
 - The workflow and job, with `file:line`

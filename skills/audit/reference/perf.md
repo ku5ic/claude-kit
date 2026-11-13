@@ -37,6 +37,21 @@ Performance audit focused on statically detectable issues. Arguments: `<file, di
 - Reading a whole file when streaming is possible
 - Blocking operations in request path
 
+## Proof
+
+Each finding quotes the code and names what makes it cost: the loop bound around a query, the list size a render walks, the package an import pulls into the client bundle with its size from `du -sh node_modules/<pkg>`.
+
+## Not a finding
+
+- A cost that only a developer pays once, such as a slow codegen or a cold dev server start, unless the target is that tool.
+- A pattern without a size behind it: a nested loop over two fixed, small lists.
+
+## Severity
+
+- `failure`: unbounded work on a request or render path, such as a query per row of a user-sized list, or an unpaginated query.
+- `warning`: bounded but wasteful on a hot path, such as a large subtree re-rendering on every keystroke.
+- `info`: worth measuring, with no evidence yet that it costs.
+
 ## Verification tools
 
 - Command-level perf checks (build scripts, codegen, test runner startup, CLI tools): measure with `hyperfine`, not eyeballed.

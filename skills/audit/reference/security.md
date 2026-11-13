@@ -13,6 +13,12 @@ Security review of a tree: the whole repo, a directory, or a file. Arguments: `<
 7. Authorization: for each route or handler, name the check that limits who can call it and whose data it returns. A mutating or per-user endpoint with no such check is a finding.
 8. Dependency CVEs are `/deps`' job. Name it as the next step instead of scanning.
 
+## Not a finding
+
+- A credential-shaped string the code never uses as one, such as a documented placeholder or a test fixture's dummy key. Name it as `info` so the user can confirm, never as a leak.
+- Interpolation a framework escapes by default, such as React text or a Django template variable, unless the code turns escaping off (`dangerouslySetInnerHTML`, `|safe`, `mark_safe`).
+- A dependency CVE, which `/deps` covers.
+
 ## Output per finding
 
 - What it is, with `file:line`
