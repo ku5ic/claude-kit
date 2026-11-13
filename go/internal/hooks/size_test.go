@@ -43,7 +43,7 @@ func TestCheckSize(t *testing.T) {
 			k.overlay(budgets)
 			r := k.run("check-size", tc.call(k, long))
 			r.Denied(t)
-			r.Has(t, tc.where+" runs 7 words, over the 5-word budget", tc.then, "(size)")
+			r.Has(t, tc.where+" runs 7 words, over the 5-word budget", tc.then, "or send it unchanged to keep this length", "(size)")
 			k.run("check-size", tc.call(k, long)).Allowed(t)
 			k.run("check-size", tc.call(k, long+" Eight.")).Denied(t)
 			k.run("check-size", tc.call(k, fenced)).Allowed(t)

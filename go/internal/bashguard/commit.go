@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -90,7 +91,7 @@ func CheckCommit(h *hook.Hook) error {
 	if failed := commitMsg(h, msg, ok, repo); failed != "" {
 		return h.Block("the project's commit-msg checks reject this message; fix it to their convention:\n"+failed, "commit-msg")
 	}
-	if !shownBefore(h.Payload.String("transcript_path"), subject) {
+	if !approved(h.Payload.String("transcript_path"), subject) {
 		h.Decide("ask", "skills/kit-rules/reference/workflow.md section 1: show the commit message and staged diff summary, then wait for the user's go; confirm only if they've seen this message")
 	}
 	return nil
@@ -243,23 +244,50 @@ func commitMsg(h *hook.Hook, msg string, ok bool, repo string) string {
 	return run.Commit(p, commitMsgBudget)
 }
 
-// shownBefore reports whether an assistant reply before the current prompt
-// held subject: the message was shown, and the user answered.
-func shownBefore(path, subject string) bool {
+// approved reports whether the user approved this commit: the current
+// prompt asks for a commit, or an assistant reply before it held subject,
+// so the message was shown and the user answered.
+func approved(path, subject string) bool {
 	if path == "" || subject == "" {
 		return false
 	}
 	var earlier, current strings.Builder
+	prompt := ""
 	_ = transcript.Each(path, func(e transcript.Entry) {
 		switch {
 		case e.StartsTurn():
 			earlier.WriteString(current.String())
 			current.Reset()
+			prompt = e.PromptText()
 		case e.Type == "assistant":
 			current.WriteString(e.PromptText() + "\n")
 		}
 	})
-	return strings.Contains(earlier.String(), subject)
+	return asksForCommit(prompt) || strings.Contains(earlier.String(), subject)
+}
+
+var (
+	commitWord = regexp.MustCompile(`(?i)\bcommit\b(\s+\w+)?`)
+	// negated is a clause that turns down what follows: "don't", "do not",
+	// "not yet", "never", "no".
+	negated = regexp.MustCompile(`(?i)\b(don'?t|do not|not yet|never|no)\b`)
+	// commitNouns follow "commit" when it names a thing, not the act.
+	commitNouns = []string{"message", "messages", "msg", "hash", "log", "history", "prompt"}
+)
+
+// asksForCommit is true when prompt uses "commit" as a request: not as a
+// noun ("the commit message"), and with no negation earlier in its clause.
+func asksForCommit(prompt string) bool {
+	for _, m := range commitWord.FindAllStringSubmatchIndex(prompt, -1) {
+		if m[2] >= 0 && slices.Contains(commitNouns, strings.ToLower(strings.TrimSpace(prompt[m[2]:m[3]]))) {
+			continue
+		}
+		clause := prompt[strings.LastIndexAny(prompt[:m[0]], ".!?;\n")+1 : m[0]]
+		if !negated.MatchString(clause) {
+			return true
+		}
+	}
+	return false
 }
 
 // scanStaged runs gitleaks on repo's staged diff. Its exit codes: 0 clean, 1 a

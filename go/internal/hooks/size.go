@@ -100,6 +100,6 @@ func sizeMessage(where string, n, budget int, then string) string {
 	return strings.Join([]string{
 		fmt.Sprintf("%s runs %d words, over the %d-word budget", where, n, budget),
 		layout.KV("do", "cut what doesn't serve the problem it answers; fenced code doesn't count"),
-		layout.KV("then", then),
+		layout.KV("then", then+", or send it unchanged to keep this length"),
 	}, "\n")
 }

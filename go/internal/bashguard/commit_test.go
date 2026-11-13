@@ -123,7 +123,8 @@ func gitleaksStub(t *testing.T, code int) string {
 }
 
 // skills/kit-rules/reference/workflow.md section 1: a commit's message is shown before it runs,
-// so a commit whose subject no earlier turn showed gets a prompt.
+// so a commit whose subject no earlier turn showed gets a prompt, unless
+// the current prompt asks for the commit.
 func TestGuardCommitAsksForAnUnshownMessage(t *testing.T) {
 	gitleaksStub(t, 0)
 	k := newSandbox(t)
@@ -137,10 +138,17 @@ func TestGuardCommitAsksForAnUnshownMessage(t *testing.T) {
 		return k.commit("", `git commit -m "fix: add sums"`)
 	}
 	for name, transcript := range map[string][]any{
-		"no transcript":           nil,
-		"never shown":             {testutil.UserPrompt("fix it and commit")},
-		"shown only in this turn": {testutil.UserPrompt("fix it and commit"), testutil.AssistantText("Committing `fix: add sums`.")},
+		"no transcript":               {nil},
+		"never shown, never asked":    {testutil.UserPrompt("fix it")},
+		"shown only in this turn":     {testutil.UserPrompt("fix it"), testutil.AssistantText("Committing `fix: add sums`.")},
+		"asked not to commit":         {testutil.UserPrompt("fix it, but don't commit yet")},
+		"asked not to, plainly":       {testutil.UserPrompt("Do not commit this.")},
+		"only names a commit message": {testutil.UserPrompt("the commit message prompt is annoying")},
+		"an earlier prompt asked":     {testutil.UserPrompt("commit"), testutil.AssistantText("done"), testutil.UserPrompt("now fix the docs")},
 	} {
+		if transcript[0] == nil {
+			transcript = nil
+		}
 		r := commit(transcript...)
 		r.Want(t, 0)
 		if !strings.Contains(r.Output, `"permissionDecision":"ask"`) {
@@ -148,6 +156,11 @@ func TestGuardCommitAsksForAnUnshownMessage(t *testing.T) {
 		}
 	}
 	commit(testutil.UserPrompt("fix it"), testutil.AssistantText("Commit as `fix: add sums`?"), testutil.UserPrompt("go")).Empty(t)
+	for _, prompt := range []string{"Commit and continue.", "Yes, commit.", "fix it and commit", "Commit, then start step 13"} {
+		if r := commit(testutil.UserPrompt(prompt)); strings.Contains(r.Output, `"permissionDecision":"ask"`) {
+			t.Errorf("%q asks for the commit, yet the guard asked again:\n%s", prompt, r.Output)
+		}
+	}
 }
 
 // Each case feeds guard-commit a command and asserts its status: 0 allow,
