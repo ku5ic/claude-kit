@@ -334,7 +334,7 @@ func watchString(words []Word) (string, bool) {
 				j++
 				break
 			}
-			if opt == "--exec" || shortCluster(opt, "x") {
+			if abbrevOf(opt, "--exec") || shortCluster(opt, "x") {
 				return "", false
 			}
 			if takesNextWord("watch", opt) {
@@ -366,12 +366,14 @@ func timeOutputs(words []Word) []Redir {
 			switch {
 			case opt == "--":
 				return out
-			case opt == "--output" && j+1 < len(words):
-				j++
-				out = append(out, Redir{Op: ">", Target: words[j]})
-			case strings.HasPrefix(opt, "--output="):
-				v := strings.TrimPrefix(opt, "--output=")
-				out = append(out, Redir{Op: ">", Target: Word{Value: v, Raw: v}})
+			case abbrevOf(opt, "--output"):
+				// getopt_long takes any unambiguous prefix: --out file.
+				if _, v, ok := strings.Cut(opt, "="); ok {
+					out = append(out, Redir{Op: ">", Target: Word{Value: v, Raw: v}})
+				} else if j+1 < len(words) {
+					j++
+					out = append(out, Redir{Op: ">", Target: words[j]})
+				}
 			case strings.HasPrefix(opt, "--"):
 				if takesNextWord("time", opt) {
 					j++

@@ -287,7 +287,17 @@ func lead(words []Word) int {
 // its last; one earlier takes the rest of the word (sudo -uroot).
 func takesNextWord(wrapper, opt string) bool {
 	if strings.HasPrefix(opt, "--") {
-		return wrapperValue[wrapper+":"+opt]
+		// getopt_long takes any unambiguous prefix (sudo --us root); a
+		// value after = is in the word already.
+		if strings.Contains(opt, "=") {
+			return false
+		}
+		for key := range wrapperValue {
+			if long, ok := strings.CutPrefix(key, wrapper+":"); ok && strings.HasPrefix(long, "--") && abbrevOf(opt, long) {
+				return true
+			}
+		}
+		return false
 	}
 	for i := 1; i < len(opt); i++ {
 		if wrapperValue[wrapper+":-"+opt[i:i+1]] {
