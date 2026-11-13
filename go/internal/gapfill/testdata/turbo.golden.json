@@ -3,70 +3,72 @@
   "structured_output": {
     "entries": [
       {
-        "id": "1a24649547e260e6",
-        "role": "build",
-        "mutates": false
-      },
-      {
-        "id": "266b71435b365530",
-        "role": "check",
-        "kind": "lint",
-        "mutates": false,
-        "file_form": "eslint {files}",
-        "globs": [
-          "**/*.{js,cjs,mjs,jsx,ts,tsx}"
-        ]
-      },
-      {
-        "id": "2a2ed2d4503c3981",
-        "role": "check",
-        "kind": "lint",
-        "mutates": false,
-        "affected_form": "turbo run lint --filter=...[{base}]",
-        "covered_by": "5016c4f8e0754cbe"
-      },
-      {
-        "id": "4d21d55fd4b9b5db",
-        "role": "check",
-        "kind": "test",
-        "mutates": false,
-        "affected_form": "turbo run test --filter=...[{base}]",
-        "covered_by": "8bef695d26274ad0"
-      },
-      {
-        "id": "5016c4f8e0754cbe",
-        "role": "check",
-        "kind": "lint",
-        "mutates": false,
-        "affected_form": "turbo run lint --filter=...[{base}]"
-      },
-      {
-        "id": "65e40f2a583a2fa3",
-        "role": "build",
-        "mutates": false
-      },
-      {
-        "id": "8bef695d26274ad0",
+        "id": "08b1fdf967586123",
         "role": "check",
         "kind": "test",
         "mutates": false,
         "affected_form": "turbo run test --filter=...[{base}]"
       },
       {
-        "id": "b4c4628a3478caac",
+        "id": "162587acbd2bcb35",
+        "role": "build",
+        "mutates": false,
+        "affected_form": "turbo run build --filter=...[{base}]"
+      },
+      {
+        "id": "40dbc215ea7a03d8",
+        "role": "check",
+        "kind": "lint",
+        "mutates": false,
+        "file_form": "eslint {files}",
+        "globs": [
+          "packages/a/**/*.{js,cjs,mjs,jsx,ts,tsx}"
+        ]
+      },
+      {
+        "id": "4f011d936a6cac24",
+        "role": "check",
+        "kind": "lint",
+        "mutates": false,
+        "affected_form": "turbo run lint --filter=...[{base}]",
+        "covered_by": "b3e8fabf2869aa7d"
+      },
+      {
+        "id": "a6f960a7095db2a6",
+        "role": "check",
+        "kind": "test",
+        "mutates": false,
+        "affected_form": "turbo run test --filter=...[{base}]",
+        "covered_by": "08b1fdf967586123"
+      },
+      {
+        "id": "b3e8fabf2869aa7d",
+        "role": "check",
+        "kind": "lint",
+        "mutates": false,
+        "affected_form": "turbo run lint --filter=...[{base}]"
+      },
+      {
+        "id": "bea9686507bbf01b",
         "role": "build",
         "mutates": false
       },
       {
-        "id": "de45462e621bf436",
+        "id": "c209901b27bed0e8",
         "role": "check",
         "kind": "test",
         "mutates": false,
         "file_form": "vitest run {files}",
         "globs": [
-          "**/*.{test,spec}.?(c|m)[jt]s?(x)"
+          "packages/a/**/*.{test,spec}.{js,jsx,ts,tsx}"
         ],
         "affected_form": "vitest run --changed={base}"
+      },
+      {
+        "id": "e67bcbbd4c2fd223",
+        "role": "build",
+        "mutates": false,
+        "affected_form": "turbo run build --filter=...[{base}]"
       }
     ],
     "managers": [
@@ -93,20 +95,20 @@
       {
         "role": "check",
         "kind": "lint",
-        "command": "pnpm exec eslint --max-warnings 0 {files}",
-        "file_form": "pnpm exec eslint --max-warnings 0 {files}",
+        "command": "pnpm exec eslint .",
+        "file_form": "pnpm exec eslint {files}",
         "globs": [
-          "**/*.{js,mjs,cjs,jsx,ts,tsx}"
+          "**/*.{js,jsx,ts,tsx,mjs,cjs}"
         ],
         "dir": "packages/a",
-        "evidence": "packages/a/eslint.config.js"
+        "evidence": "packages/a/eslint.config.js (and eslint declared in packages/a/package.json)"
       },
       {
         "role": "check",
         "kind": "typecheck",
         "command": "pnpm exec tsc --noEmit",
         "dir": "packages/a",
-        "evidence": "packages/a/package.json"
+        "evidence": "packages/a/package.json (typescript declared in devDependencies)"
       },
       {
         "role": "check",
@@ -114,11 +116,10 @@
         "command": "pnpm exec vitest run",
         "file_form": "pnpm exec vitest run {files}",
         "globs": [
-          "**/*.test.{js,mjs,cjs,jsx,ts,tsx}",
-          "**/*.spec.{js,mjs,cjs,jsx,ts,tsx}"
+          "**/*.{test,spec}.{js,jsx,ts,tsx,mjs,cjs}"
         ],
         "dir": "packages/a",
-        "evidence": "packages/a/package.json"
+        "evidence": "packages/a/package.json (vitest declared in devDependencies)"
       }
     ]
   },

@@ -33,7 +33,7 @@ import (
 const Guard = "KIT_CLASSIFIER"
 
 // promptVersion is part of every cache key: a changed prompt asks again.
-const promptVersion = "12"
+const promptVersion = "13"
 
 // ClassifyTimeout caps a foreground run that asks the classifier, waiting
 // included.

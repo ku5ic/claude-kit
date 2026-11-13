@@ -3,7 +3,22 @@
   "structured_output": {
     "entries": [
       {
-        "id": "180fb1d9be69610a",
+        "id": "126d16300bbf4081",
+        "role": "fixer",
+        "mutates": true
+      },
+      {
+        "id": "6cfe7d5fd228b24e",
+        "role": "fixer",
+        "kind": "lint",
+        "mutates": true,
+        "file_form": "eslint --fix {files}",
+        "globs": [
+          "*.{ts,tsx}"
+        ]
+      },
+      {
+        "id": "72c037b11822bbdf",
         "role": "check",
         "kind": "test",
         "mutates": false,
@@ -14,25 +29,7 @@
         "affected_form": "vitest run --changed={base}"
       },
       {
-        "id": "504a6cde0186bb7f",
-        "role": "fixer",
-        "mutates": true,
-        "file_form": "prettier --write {files}",
-        "globs": [
-          "*.{ts,tsx}"
-        ]
-      },
-      {
-        "id": "6734cf796b2d58df",
-        "role": "fixer",
-        "mutates": true,
-        "file_form": "eslint --fix {files}",
-        "globs": [
-          "*.{ts,tsx}"
-        ]
-      },
-      {
-        "id": "9282a374022f4687",
+        "id": "b586c41266ad7383",
         "role": "check",
         "kind": "format-check",
         "mutates": false,
@@ -42,9 +39,14 @@
         ]
       },
       {
-        "id": "abf64cec0dc9d7c4",
+        "id": "f8111be0d4f0fdf1",
         "role": "fixer",
-        "mutates": true
+        "kind": "format-check",
+        "mutates": true,
+        "file_form": "prettier --write {files}",
+        "globs": [
+          "*.{ts,tsx}"
+        ]
       }
     ],
     "managers": [
@@ -60,8 +62,7 @@
         ],
         "dlx": "npx",
         "dir_flags": [
-          "--prefix",
-          "-w"
+          "--prefix"
         ],
         "rivals": [
           "pnpm",
@@ -73,13 +74,13 @@
       {
         "role": "check",
         "kind": "lint",
-        "command": "npx eslint .",
-        "file_form": "npx eslint {files}",
+        "command": "npx eslint --max-warnings 0 .",
+        "file_form": "npx eslint --max-warnings 0 {files}",
         "globs": [
           "**/*.{ts,tsx}"
         ],
         "dir": ".",
-        "evidence": "package.json"
+        "evidence": "package.json (devDependencies: eslint)"
       },
       {
         "role": "check",
@@ -90,7 +91,7 @@
           "**/*.{test,spec}.{ts,tsx,js,jsx}"
         ],
         "dir": ".",
-        "evidence": "package.json"
+        "evidence": "package.json (devDependencies: vitest; scripts.test: vitest run)"
       },
       {
         "role": "check",
@@ -101,7 +102,7 @@
           "**/*.{ts,tsx,md}"
         ],
         "dir": ".",
-        "evidence": "package.json"
+        "evidence": "package.json (devDependencies: prettier; lint-staged: prettier --check for *.md)"
       },
       {
         "role": "fixer",
@@ -111,7 +112,7 @@
           "**/*.{ts,tsx,md}"
         ],
         "dir": ".",
-        "evidence": "package.json"
+        "evidence": "package.json (devDependencies: prettier; lint-staged: prettier --write for *.{ts,tsx})"
       }
     ]
   },

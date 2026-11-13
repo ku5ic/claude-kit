@@ -3,7 +3,18 @@
   "structured_output": {
     "entries": [
       {
-        "id": "1a30667797cd5796",
+        "id": "b37565bccd3c2954",
+        "role": "check",
+        "kind": "test",
+        "mutates": false,
+        "file_form": "jest {files}",
+        "globs": [
+          "**/*.{test,spec}.{js,jsx,ts,tsx,mjs,cjs}"
+        ],
+        "affected_form": "jest --changedSince={base}"
+      },
+      {
+        "id": "bf9539fc4e21c7ab",
         "role": "check",
         "kind": "lint",
         "mutates": false,
@@ -13,7 +24,7 @@
         ]
       },
       {
-        "id": "57f6ea9bf0a43eb7",
+        "id": "e39e3355c80a98a1",
         "role": "check",
         "mutates": false,
         "segments": [
@@ -23,17 +34,6 @@
             "kind": "format-check"
           }
         ]
-      },
-      {
-        "id": "7570ff6eafd0c265",
-        "role": "check",
-        "kind": "test",
-        "mutates": false,
-        "file_form": "jest {files}",
-        "globs": [
-          "**/*.{test,spec}.{js,jsx,ts,tsx,mjs,cjs}"
-        ],
-        "affected_form": "jest --changedSince={base}"
       }
     ],
     "managers": [
@@ -57,8 +57,8 @@
       {
         "role": "check",
         "kind": "lint",
-        "command": "yarn exec eslint . --max-warnings=0",
-        "file_form": "yarn exec eslint {files} --max-warnings=0",
+        "command": "yarn exec eslint --max-warnings=0 .",
+        "file_form": "yarn exec eslint --max-warnings=0 {files}",
         "globs": [
           "**/*.{js,jsx,ts,tsx,mjs,cjs}"
         ],
@@ -82,17 +82,17 @@
         "command": "yarn exec prettier --check .",
         "file_form": "yarn exec prettier --check {files}",
         "globs": [
-          "**/*.{js,jsx,ts,tsx,mjs,cjs,json,css,md,yml,yaml}"
+          "**/*"
         ],
         "dir": ".",
-        "evidence": "package.json"
+        "evidence": ".prettierrc"
       },
       {
         "role": "fixer",
         "command": "yarn exec prettier --write .",
         "file_form": "yarn exec prettier --write {files}",
         "globs": [
-          "**/*.{js,jsx,ts,tsx,mjs,cjs,json,css,md,yml,yaml}"
+          "**/*"
         ],
         "dir": ".",
         "evidence": ".prettierrc"
