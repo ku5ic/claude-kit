@@ -194,6 +194,19 @@ func TestKitRepo(t *testing.T) {
 		}
 	})
 
+	t.Run("the README's Dependencies table has a row for every kit.yml tool", func(t *testing.T) {
+		cfg, _, err := config.Load(config.Paths{Base: filepath.Join(kitRoot, "kit.yml"), Overlay: filepath.Join(t.TempDir(), "none.yml")})
+		if err != nil {
+			t.Fatal(err)
+		}
+		readme := Read(t, filepath.Join(kitRoot, "README.md"))
+		for _, tool := range cfg.Tools {
+			if !regexp.MustCompile("(?m)^\\| `" + regexp.QuoteMeta(tool) + "` +\\|").MatchString(readme) {
+				t.Errorf("kit.yml tools has %s, which the README's Dependencies table has no row for", tool)
+			}
+		}
+	})
+
 	t.Run("the tooling rule's CLI table names every kit.yml tool", func(t *testing.T) {
 		cfg, _, err := config.Load(config.Paths{Base: filepath.Join(kitRoot, "kit.yml"), Overlay: filepath.Join(t.TempDir(), "none.yml")})
 		if err != nil {

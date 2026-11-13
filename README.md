@@ -281,6 +281,29 @@ claude plugin install kit@ku5ic
 - **Rules ship with the plugin.** Nothing to link. If an older install left `~/.claude/rules/claude-kit`, remove it; the session-start notice names it.
 - **Your own CLAUDE.md:** copy `templates/CLAUDE.md` to `~/.claude/CLAUDE.md` and fill it in.
 
+### Dependencies
+
+Required: `git` and bash. Every tool below is optional. A missing one is named on the session-start `<tooling>` block's `missing:` line, and Claude leaves it unused.
+
+| Tool         | Used by                                                                      | Without it                                                                        |
+| ------------ | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `gh`         | `/kit:pr`, `/deps`, `/code history`, `/code challenge`, linked tickets       | `/kit:pr` and `/deps` can't reach GitHub; `/code history` works from commits only |
+| `rg`         | text search everywhere, `/audit`, `/code`, the gatherer agent                | search uses grep                                                                  |
+| `sg`         | `kit code-graph imports` (`/code visual`, `/code impact`), searches by shape | `kit code-graph imports` fails; `rg` stands in for shape search                   |
+| `fd`         | file search, `/audit`, `/code`                                               | file search uses find                                                             |
+| `tokei`      | `/audit debt`, `/code visual`                                                | file sizes come from reading files                                                |
+| `scc`        | `/code visual` hotspots                                                      | the hotspot quadrant is skipped                                                   |
+| `mmdc`       | `/code visual` diagram rendering                                             | diagrams go unrendered, and the report says so                                    |
+| `gitleaks`   | the commit guard's staged-diff scan, `/audit security`                       | the commit scan is skipped                                                        |
+| `trufflehog` | `/audit security` history scan                                               | history goes unscanned                                                            |
+| `actionlint` | `/audit ci`                                                                  | `/audit ci` skips its actionlint step                                             |
+| `hyperfine`  | `/audit perf` timings                                                        | `/audit perf` makes no timing claim                                               |
+| `jq`         | JSON questions, `/code visual`, `/deps`, `/kit:pr`                           | Claude reads the JSON instead                                                     |
+| `gron`       | grepping flat JSON paths                                                     | `jq` stands in                                                                    |
+| `yq`         | YAML and TOML questions                                                      | Claude reads the file instead                                                     |
+| `qsv`        | CSV and TSV questions                                                        | Claude reads the file instead                                                     |
+| `git-absorb` | fixup commits from staged hunks                                              | `git rebase -i` with fixups instead                                               |
+
 ### Shell completion (optional)
 
 Claude Code puts `kit` on PATH only inside its sessions. To use it in your terminal, add to `~/.zshrc` (after `compinit`) or `~/.bashrc`:
