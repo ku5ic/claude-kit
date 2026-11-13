@@ -203,7 +203,11 @@ func (f forms) verdict(e sources.Entry, v Verdict) (Verdict, []string, error) {
 		bodies = append(bodies, s.Text)
 	}
 	var dropped []string
-	if why := f.checkForm(v.Role, v.FileForm, bodies, "{files}", "{dirs}"); why != "" {
+	why := f.checkForm(v.Role, v.FileForm, bodies, "{files}", "{dirs}")
+	if why == "" && v.FileForm != "" && f.ignoresConfigOnFiles(v.FileForm, 0) {
+		why = "tsc ignores tsconfig.json once given files"
+	}
+	if why != "" {
 		dropped = append(dropped, fmt.Sprintf("file form %q: %s", v.FileForm, why))
 		v.FileForm, v.Globs = "", nil
 	}
@@ -212,6 +216,45 @@ func (f forms) verdict(e sources.Entry, v Verdict) (Verdict, []string, error) {
 		v.Affected = ""
 	}
 	return v, dropped, nil
+}
+
+// configOnlyTools drop the project config once given files: the TypeScript
+// docs say "When input files are specified on the command line,
+// tsconfig.json files are ignored", and vue-tsc takes tsc's arguments.
+var configOnlyTools = []string{"tsc", "vue-tsc"}
+
+// ignoresConfigOnFiles is true when body runs one of configOnlyTools,
+// behind a run prefix or a tool runner, or through a package script, up
+// to three scripts deep.
+func (f forms) ignoresConfigOnFiles(body string, depth int) bool {
+	if depth > 3 {
+		return false
+	}
+	i := slices.IndexFunc(sources.TaskProviders, func(tp sources.TaskProvider) bool { return tp.Name == "package-scripts" })
+	scripts := func(rel string) map[string]sources.Body {
+		return sources.TaskProviders[i].Bodies(filepath.Join(f.dir, rel, "package.json"))
+	}
+	lookup := func(provider, rel, name string) bool {
+		_, ok := scripts(rel)[name]
+		return provider == "package-scripts" && ok
+	}
+	runs := func(c shellcalls.Command) bool {
+		switch {
+		case c.Kind == shellcalls.Other && len(c.Words) > 0:
+			return slices.Contains(configOnlyTools, filepath.Base(c.Words[0]))
+		case c.Kind == shellcalls.Ref:
+			return slices.ContainsFunc(c.Refs, func(ref shellcalls.TaskRef) bool {
+				return ref.Provider == "package-scripts" && f.ignoresConfigOnFiles(scripts(ref.Dir)[ref.Name].Text, depth+1)
+			})
+		}
+		return false
+	}
+	// As written for pnpm exec tsc and pnpm run x; unprefixed for a run
+	// prefix that's neither a tool runner nor a reference.
+	words := strings.Fields(body)
+	return slices.ContainsFunc([]string{body, strings.Join(f.unprefixed(words), " ")}, func(b string) bool {
+		return slices.ContainsFunc(shellcalls.Body(b, lookup).Commands, runs)
+	})
 }
 
 // checkForm is why form, of an entry in role, fails form, with a check's

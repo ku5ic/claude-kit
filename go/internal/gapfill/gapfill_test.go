@@ -578,3 +578,48 @@ func TestNearestPutsTheDeepestDirectoryFirst(t *testing.T) {
 		t.Errorf("Nearest: %+v", got)
 	}
 }
+
+// tsc and vue-tsc ignore tsconfig.json once given files, so a file form for
+// them type-checks without the project's settings; any other tool keeps one.
+func TestTscFileFormsAreDropped(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t, "")
+	testutil.Put(t, f.root, "pnpm-lock.yaml", "")
+	testutil.Put(t, f.root, "package.json", `{"scripts": {"typecheck": "tsc --noEmit", "lint": "eslint"}}`)
+	testutil.Put(t, f.root, "src/a.ts", "")
+	testutil.Put(t, f.root, ".gitignore", "node_modules\n")
+	testutil.Git(t, f.root, "init", "-q")
+	for _, tool := range []string{"tsc", "vue-tsc", "eslint"} {
+		testutil.FakeTool(t, filepath.Join(f.root, "node_modules/.bin", tool), filepath.Join(f.dir, tool+".calls"), "")
+	}
+	cases := []struct {
+		body, form string
+		kept       bool
+	}{
+		{"pnpm exec tsc --noEmit src/a.ts", "pnpm exec tsc --noEmit {files}", false},
+		{"npx tsc src/a.ts", "npx tsc {files}", false},
+		{"tsc src/a.ts", "pnpm tsc {files}", false},
+		{"vue-tsc src/a.ts", "vue-tsc {files}", false},
+		{"pnpm run typecheck src/a.ts", "pnpm run typecheck {files}", false},
+		{"eslint src/a.ts", "eslint {files}", true},
+		{"pnpm run lint src/a.ts", "pnpm run lint {files}", true},
+	}
+	var entries []sources.Entry
+	var verdicts []any
+	for i, c := range cases {
+		e := entry(fmt.Sprintf("check%d", i), c.body)
+		entries = append(entries, e)
+		verdicts = append(verdicts, verdict(e, map[string]any{"role": "check", "kind": "typecheck", "mutates": false, "file_form": c.form}))
+	}
+	f.answer(map[string]any{
+		"entries":   verdicts,
+		"managers":  []any{map[string]any{"dir": ".", "cites": "pnpm-lock.yaml", "manager": "pnpm", "run_prefix": "pnpm", "add_verbs": []string{"pnpm add"}, "dlx": "pnpm dlx", "dir_flags": []string{"-C"}, "rivals": []string{}}},
+		"proposals": []any{},
+	})
+	r := f.run(entries...)
+	for i, c := range cases {
+		if v := r.Verdicts[Key(entries[i])]; (v.FileForm != "") != c.kept {
+			t.Errorf("%s: kept %v, want %v (%+v)", c.form, v.FileForm != "", c.kept, v)
+		}
+	}
+}
