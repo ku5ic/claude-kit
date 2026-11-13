@@ -137,15 +137,15 @@ Side trips: `/audit` for a read-only report, `/simplify` (built in) to cut over-
 
 Each command is a procedure Claude follows step by step, so the same request gets the same shape of answer every time. They work bare (`/audit`) or namespaced (`/kit:audit`), except `/kit:pr`: Claude Code reserves `/pr`.
 
-| When you need                                                                             | Run              | What it does                                                                                                        |
-| ----------------------------------------------------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------- |
-| To know how, why, or where something works                                                | `investigate`    | Read-only answer to "how", "why", or "where". Loads on its own; never edits                                         |
-| A report on accessibility, tech debt, doc drift, or performance                           | `/audit <kind>`  | `a11y`, `debt`, `doc-drift`, `perf`, or `verify` a prior report. Writes a report to scratch                         |
-| A commit message, release notes, a devnote, an explainer, or a stakeholder summary        | `/write <kind>`  | `commit`, `release-notes`, `devnote`, `explainer`, `stakeholder`                                                    |
-| PR text: your description, a review of someone's PR, or a reply to your reviewer          | `/kit:pr <kind>` | Draft a `description`, a `review` of someone's PR, or a `reply` to your reviewer; `publish` posts an approved draft |
-| Dependabot PRs merged and security alerts sorted                                          | `/deps`          | Merge Dependabot PRs and reconcile security alerts                                                                  |
-| AI tells and filler out of a text                                                         | `/unslop`        | Rewrite AI tells and filler in files, a `diff`, or pasted text; to scratch unless told `in place`                   |
-| A sharper prompt, refreshed pattern skills, a new skill, a repo's conventions, or a retro | `/meta <kind>`   | `prompt` sharpening, `refresh` the pattern skills, draft a new `skill`, write a repo's `conventions`, `retro`       |
+| When you need                                                                                    | Run              | What it does                                                                                                                   |
+| ------------------------------------------------------------------------------------------------ | ---------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| To know how, why, or where something works                                                       | `investigate`    | Read-only answer to "how", "why", or "where". Loads on its own; never edits                                                    |
+| A report on accessibility, tech debt, doc drift, performance, security, CI, infra, or prose slop | `/audit <kind>`  | `a11y`, `debt`, `doc-drift`, `perf`, `security`, `ci`, `infra`, `slop`, or `verify` a prior report. Writes a report to scratch |
+| A commit message, release notes, a devnote, an explainer, or a stakeholder summary               | `/write <kind>`  | `commit`, `release-notes`, `devnote`, `explainer`, `stakeholder`                                                               |
+| PR text: your description, a review of someone's PR, or a reply to your reviewer                 | `/kit:pr <kind>` | Draft a `description`, a `review` of someone's PR, or a `reply` to your reviewer; `publish` posts an approved draft            |
+| Dependabot PRs merged and security alerts sorted                                                 | `/deps`          | Merge Dependabot PRs and reconcile security alerts                                                                             |
+| AI tells and filler out of a text                                                                | `/unslop`        | Rewrite AI tells and filler in files, a `diff`, or pasted text; to scratch unless told `in place`                              |
+| A sharper prompt, refreshed pattern skills, a new skill, a repo's conventions, or a retro        | `/meta <kind>`   | `prompt` sharpening, `refresh` the pattern skills, draft a new `skill`, write a repo's `conventions`, `retro`                  |
 
 ### Agents
 

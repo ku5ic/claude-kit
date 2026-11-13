@@ -1,6 +1,6 @@
 ---
 name: auditor
-description: Read-only audit of a code surface for accessibility, performance, technical debt, or documentation drift. The invoking /audit kind supplies the procedure and the report format; this shell only fixes the boundary. Not for applying fixes.
+description: Read-only audit of a code surface for accessibility, performance, technical debt, documentation drift, security, CI, infrastructure, or prose slop. The invoking /audit kind supplies the procedure and the report format; this shell only fixes the boundary. Not for applying fixes.
 tools: Read, Grep, Glob, Bash, Skill
 color: cyan
 memory: local
