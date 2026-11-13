@@ -43,6 +43,10 @@ func VerifyClaims(h *hook.Hook) error {
 	if decision, _ := h.Decision(); p.Err != nil || decision == "deny" {
 		return nil
 	}
+	// The checker's report is the check; checking it again buys nothing.
+	if strings.TrimPrefix(p.String("agent_type"), "kit:") == strings.TrimPrefix(claimChecker, "kit:") {
+		return nil
+	}
 	switch p.String("hook_event_name") {
 	case "SubagentStop":
 		// The marker, not stop_hook_active, ends the retry: a stop that
@@ -136,27 +140,75 @@ func verifyInSubagent(h *hook.Hook, text, where, retry, marker string) error {
 const claimChecker = "kit:claim-checker"
 
 // gateOnChecker denies the call until the transcript shows a claim-checker
-// run that finished, whose prompt carries this exact text's claim-check id,
-// as GuardPlan waits for plan-critic. The hook decides when a check must
-// run, never the model making the claims; whether Claude acted on the
-// report is left to the transcript. A session that started before the
-// agent was installed can't run it, so a not-found result falls back to
-// the hook's own run.
+// run that finished on each of this text's statements, as GuardPlan waits
+// for plan-critic. A run's prompt carries the claim-check id of the
+// statements it was asked about; once it finishes they're recorded, so a
+// revised text asks only about the statements no run checked. The hook
+// decides when a check must run, never the model making the claims;
+// whether Claude acted on the report is left to the transcript. A session
+// that started before the agent was installed can't run it, so a not-found
+// result falls back to the hook's own run.
 func gateOnChecker(h *hook.Hook, text, where, retry, marker string) error {
 	cfg := h.Config()
 	if cfg == nil || h.RuleDisabled("claims") || cfg.Claims.Off() || !claims.Declarative(text) {
 		return nil
 	}
-	sum := sha256.Sum256([]byte(text))
+	transcriptPath := h.Payload.String("transcript_path")
+	checked := checkedStatements(h, transcriptPath)
+	all := claims.Statements(text)
+	var fresh []string
+	for _, s := range all {
+		if !slices.Contains(checked, statementKey(s)) {
+			fresh = append(fresh, s)
+		}
+	}
+	if len(fresh) == 0 {
+		return nil
+	}
+	sum := sha256.Sum256([]byte(strings.Join(fresh, "\n")))
 	id := "claim-check " + hex.EncodeToString(sum[:])[:12]
-	switch checkerRun(h.Payload.String("transcript_path"), id) {
+	switch checkerRun(transcriptPath, id) {
 	case checkerDone:
 		return nil
 	case checkerFailed:
 		return verifyInSubagent(h, text, where, retry, marker)
 	}
-	h.Deny(fmt.Sprintf("run the %s agent on %s first. Its prompt holds the line `%s` and the full text. Check or cut each claim it reports, per skills/kit-rules/reference/evidence.md section 1, then %s. A changed text needs its own run", claimChecker, where, id, retry), "claims")
+	ask := "Its prompt holds the line `" + id + "` and the full text"
+	if len(fresh) < len(all) {
+		ask += ", and asks it to check only these, which no run has checked:\n- " + strings.Join(fresh, "\n- ") + "\n"
+	} else {
+		ask += ". "
+	}
+	if !h.DryRun {
+		var keys []string
+		for _, s := range fresh {
+			keys = append(keys, statementKey(s))
+		}
+		_ = fsx.Append(h.Paths.SessionFile(cache.Claims, h.Payload.SessionID(), "asked"), []byte(id+"\t"+strings.Join(keys, ",")+"\n"))
+	}
+	h.Deny(fmt.Sprintf("run the %s agent on %s first. %sCheck or cut each claim it reports, per skills/kit-rules/reference/evidence.md section 1, then %s", claimChecker, where, ask, retry), "claims")
 	return nil
+}
+
+// checkedStatements is the keys of the statements a finished claim-checker
+// run covered: each run the session asked for, by its id, whose run the
+// transcript shows done.
+func checkedStatements(h *hook.Hook, transcriptPath string) []string {
+	data, _ := os.ReadFile(h.Paths.SessionFile(cache.Claims, h.Payload.SessionID(), "asked"))
+	var keys []string
+	for line := range strings.Lines(string(data)) {
+		id, covered, ok := strings.Cut(strings.TrimSpace(line), "\t")
+		if ok && checkerRun(transcriptPath, id) == checkerDone {
+			keys = append(keys, strings.Split(covered, ",")...)
+		}
+	}
+	return keys
+}
+
+// statementKey is a checked statement's line in the session's record.
+func statementKey(s string) string {
+	sum := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(sum[:])[:16]
 }
 
 // A claim-checker run's outcome, as the transcript shows it.

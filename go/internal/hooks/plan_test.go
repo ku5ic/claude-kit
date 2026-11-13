@@ -207,7 +207,7 @@ func TestPlanDispatchVerifiesClaims(t *testing.T) {
 			t.Errorf("verifier ran: %q", got)
 		}
 	})
-	t.Run("with plan-critic off, denied until the claim-checker ran on that exact text", func(t *testing.T) {
+	t.Run("with plan-critic off, denied until the claim-checker ran on each of its statements", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
 		k.verifier("disabled_rules: [plan-critic]\n", claim)
@@ -216,8 +216,10 @@ func TestPlanDispatchVerifiesClaims(t *testing.T) {
 		r.Has(t, "kit:claim-checker", "the plan plan-x.md", "ExitPlanMode again")
 		id := checkID.FindString(r.Stdout)
 		k.run("plan-dispatch", exit(k, "# Plan\n\n"+claim, write, checkerLine(id))).Allowed(t)
-		// A changed plan needs its own run.
-		k.run("plan-dispatch", exit(k, "# Plan v2\n\n"+claim, write, checkerLine(id))).Denied(t)
+		// A retitled plan states nothing new; one with a new sentence needs
+		// a run on it.
+		k.run("plan-dispatch", exit(k, "# Plan v2\n\n"+claim, write, checkerLine(id))).Allowed(t)
+		k.run("plan-dispatch", exit(k, "# Plan v2\n\n"+claim+"\n\nThe cache lives in the session directory.", write, checkerLine(id))).Denied(t)
 	})
 	t.Run("disabled_rules: [claims] lets the plan through", func(t *testing.T) {
 		t.Parallel()

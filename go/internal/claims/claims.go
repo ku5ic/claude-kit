@@ -90,6 +90,21 @@ func Declarative(text string) bool {
 	return statement.MatchString(prose) || item.MatchString(prose)
 }
 
+// Statements is each sentence, list item, and table row of text, outside
+// its code fences, that states something, trimmed, each once.
+func Statements(text string) []string {
+	prose := fence.ReplaceAllString(text, "")
+	var out []string
+	for _, re := range []*regexp.Regexp{item, statement} {
+		for _, m := range re.FindAllString(prose, -1) {
+			if m = strings.TrimSpace(m); !slices.Contains(out, m) {
+				out = append(out, m)
+			}
+		}
+	}
+	return out
+}
+
 // Verdict is the verifier's answer: OK when no claim is unsupported. Usage
 // is what the run cost, set on a failed run too.
 type Verdict struct {

@@ -164,6 +164,41 @@ func TestVerifyClaimsToolInput(t *testing.T) {
 			}
 		})
 	}
+	t.Run("a revised text asks only about its sentences no run checked", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		k.verifier("", claim)
+		post := func(text string) map[string]any {
+			return toolCall("mcp__chat__send_message", map[string]any{"text": text})
+		}
+		id := checkID.FindString(k.run("verify-claims", post(claim)).Stdout)
+		added := "The cache lives in the session directory."
+		revised := k.run("verify-claims", checkerRan(k, post(claim+"\n\n"+added), id))
+		revised.Denied(t)
+		revised.Has(t, added)
+		revised.Lacks(t, claim)
+		next := checkID.FindString(revised.Stdout)
+		if next == id {
+			t.Fatalf("the revision reuses the first run's id %s", id)
+		}
+		// The first run and one on the new sentence cover it all.
+		path := filepath.Join(k.t.TempDir(), "both.jsonl")
+		testutil.Write(t, path, checkerLine(id)+"\n"+strings.ReplaceAll(checkerLine(next), `"cc"`, `"cc2"`)+"\n")
+		payload := post(claim + "\n\n" + added)
+		payload["transcript_path"] = path
+		k.run("verify-claims", payload).Allowed(t)
+	})
+	t.Run("the claim checker's own hand-back isn't checked again", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		calls := k.verifier("", claim)
+		payload := handback("a1", claim)
+		payload["agent_type"] = "kit:claim-checker"
+		k.run("verify-claims", payload).Allowed(t)
+		if got := testutil.Calls(t, calls); got != nil {
+			t.Errorf("verifier ran: %q", got)
+		}
+	})
 	t.Run("a subagent's handback gets the hook's own run, once per agent", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
