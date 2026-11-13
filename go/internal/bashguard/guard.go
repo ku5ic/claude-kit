@@ -229,14 +229,19 @@ func resolveDir(home, base, dir string) string {
 }
 
 // Wrappers that only change how (or as whom) a command runs, and their
-// options that take a separate value.
+// options that take a separate value. busybox and toybox run their first
+// word as the applet.
 var (
-	wrappers     = map[string]bool{"command": true, "env": true, "builtin": true, "exec": true, "nohup": true, "nice": true, "timeout": true, "stdbuf": true, "ionice": true, "chrt": true, "sudo": true, "doas": true}
+	wrappers = map[string]bool{"command": true, "env": true, "builtin": true, "exec": true, "nohup": true, "nice": true, "timeout": true, "stdbuf": true, "ionice": true, "chrt": true, "sudo": true, "doas": true,
+		"caffeinate": true, "time": true, "flock": true, "watch": true, "unbuffer": true, "busybox": true, "toybox": true}
 	wrapperValue = map[string]bool{
 		"nice:-n": true, "env:-u": true, "env:-C": true, "exec:-a": true, "timeout:-s": true, "timeout:-k": true, "ionice:-c": true, "ionice:-n": true, "chrt:-p": true,
 		"sudo:-u": true, "sudo:-g": true, "sudo:-h": true, "sudo:-p": true, "sudo:-C": true, "sudo:-D": true, "sudo:-R": true, "sudo:-T": true, "sudo:-U": true, "sudo:-r": true, "sudo:-t": true,
 		"sudo:--user": true, "sudo:--group": true, "sudo:--host": true, "sudo:--prompt": true, "sudo:--close-from": true, "sudo:--chdir": true, "sudo:--chroot": true, "sudo:--command-timeout": true, "sudo:--other-user": true, "sudo:--role": true, "sudo:--type": true,
 		"doas:-u": true, "doas:-a": true, "doas:-C": true,
+		"caffeinate:-t": true, "caffeinate:-w": true, "time:-f": true, "time:-o": true, "time:--format": true, "time:--output": true,
+		"flock:-w": true, "flock:-E": true, "flock:--timeout": true, "flock:--conflict-exit-code": true,
+		"watch:-n": true, "watch:-q": true, "watch:--interval": true, "watch:--equexit": true,
 	}
 	assignment = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*=`)
 )
@@ -266,6 +271,10 @@ func lead(words []Word) int {
 			}
 		}
 		if (w == "timeout" || w == "chrt") && i < len(words)-1 && words[i].Value != "" && words[i].Value[0] >= '0' && words[i].Value[0] <= '9' {
+			i++
+		}
+		// flock's first operand is its lock file or directory.
+		if w == "flock" && i < len(words)-1 {
 			i++
 		}
 		skipAssigns()
