@@ -357,7 +357,8 @@ func (g *graph) rustRelative(file, head, tail string) spec {
 func (g *graph) rankRoots(specs []fileSpec) {
 	votes, segments := map[string]int{}, map[string]map[string]bool{}
 	for _, fs := range specs {
-		if fs.kind != dotted && fs.kind != plain {
+		// A Go spec never resolves through a root, so fmt mustn't vote for docs/fmt.md.
+		if fs.kind != dotted && fs.kind != plain || ecosystems[path.Ext(fs.file)] == "go" {
 			continue
 		}
 		head, _, _ := strings.Cut(fs.path, "/")
