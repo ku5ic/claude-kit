@@ -648,3 +648,24 @@ func TestSegmentsDropTheJobEnv(t *testing.T) {
 		t.Errorf("an env in neither the job nor the body: %q", why)
 	}
 }
+
+// The model annotates evidence ("knip.json (knip in devDependencies)"):
+// the path is its first word.
+func TestAnnotatedEvidenceKeepsItsPath(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t, "")
+	testutil.Put(t, f.root, "frontend/knip.json", "{}")
+	lint := entry("lint", "eslint .")
+	f.answer(map[string]any{
+		"entries":  []any{verdict(lint, map[string]any{"role": "check", "kind": "lint", "mutates": false})},
+		"managers": []any{},
+		"proposals": []any{
+			map[string]any{"role": "check", "kind": "lint", "command": "knip", "dir": ".", "evidence": "frontend/knip.json (knip in devDependencies)"},
+			map[string]any{"role": "check", "kind": "lint", "command": "knip --strict", "dir": ".", "evidence": "frontend/missing.json (knip in devDependencies)"},
+		},
+	})
+	r := f.run(lint)
+	if len(r.Proposals) != 1 || r.Proposals[0].Command != "knip" || r.Proposals[0].Evidence != "frontend/knip.json" {
+		t.Errorf("an annotated path that exists stays, stored bare; a missing one goes: %+v, dropped %q", r.Proposals, r.Dropped)
+	}
+}

@@ -59,6 +59,7 @@ func verify(cfg *config.Config, root string, entries []sources.Entry, s store, f
 	}
 	r.Dropped = append(r.Dropped, coverage(entries, r.Verdicts)...)
 	for _, p := range s.Proposals {
+		p.Evidence = at(p.Dir).evidencePath(p.Evidence)
 		if err := at(p.Dir).proposal(p); err != nil {
 			r.Dropped = append(r.Dropped, fmt.Sprintf("proposal %q: %v", p.Command, err))
 			continue
@@ -262,6 +263,21 @@ func (f forms) ignoresConfigOnFiles(body string, depth int) bool {
 	})
 }
 
+// evidencePath is evidence when it's a file, else its first word when that
+// is one: the model annotates paths ("knip.json (knip in devDependencies)").
+func (f forms) evidencePath(evidence string) string {
+	first, _, annotated := strings.Cut(evidence, " ")
+	if annotated && !f.isFile(evidence) && f.isFile(first) {
+		return first
+	}
+	return evidence
+}
+
+// isFile is true for a file under the root or the directory the command runs in.
+func (f forms) isFile(rel string) bool {
+	return fsx.IsFile(filepath.Join(f.root, rel)) || fsx.IsFile(filepath.Join(f.dir, rel))
+}
+
 // withoutEnv is words without the leading words that are env's own K=V.
 func withoutEnv(words, env []string) []string {
 	for len(words) > 0 && slices.Contains(env, words[0]) {
@@ -305,7 +321,7 @@ func (f forms) proposal(p Proposal) error {
 	// Model output: a second command, a redirect, or eval could hide in it.
 	case !shellcalls.Single(p.Command):
 		return fmt.Errorf("not one plain command")
-	case p.Evidence == "" || !fsx.IsFile(filepath.Join(f.root, p.Evidence)) && !fsx.IsFile(filepath.Join(f.dir, p.Evidence)):
+	case p.Evidence == "" || !f.isFile(p.Evidence):
 		return fmt.Errorf("no evidence file %q", p.Evidence)
 	}
 	if token := f.cfg.GateDiscovery.DeniedCommand(words); token != "" {
