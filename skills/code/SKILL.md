@@ -5,7 +5,6 @@ argument-hint: <history|visual|impact|tour> <path, component name, or nothing fo
 disable-model-invocation: true
 allowed-tools:
   - Bash(git log *)
-  - Bash(kit blast-radius *)
   - Bash(kit code-graph *)
   - Bash(kit scratch-dir *)
 ---

@@ -5,18 +5,21 @@ What breaks if a file or symbol changes: its consumers, the tests covering each,
 ## Consumers
 
 1. Resolve the argument to a tracked file. A loose name gets searched with `fd`, and the substitution goes in the report header.
-2. JS, TS, or Python: `kit blast-radius <file> [symbol]`. Each row is `file:line`, `source` or `test`. An `unresolvable imports present` line goes in Caveats.
-3. Any other language:
+2. Build the import graph:
 
 ```bash
 kit code-graph imports <root> > <raw>/imports.tsv
 kit code-graph deps <root> <raw>/imports.tsv <raw>
 ```
 
-- A consumer is a row of `<raw>/imports-resolved.tsv` whose second column is the target's module: its path without the extension, or its directory for Go.
-- A Go import names the package, not the file. Keep a consumer only when it uses an exported name the target file defines.
-- Go files in the target's own package use it without an import. List them too, except `_test.go` files, which count as tests.
+- For a language `imports` doesn't cover, append rows as `visual.md` Collect step 4 does.
+- A consumer is a row of `<raw>/imports-resolved.tsv` whose second column is the target or the unit holding it (its module, package, or directory).
+- An import that names a unit wider than the file counts only when the consumer uses a name the target defines.
+- Files that share the target's unit can use it without an import. List the ones that use a name it defines.
 - With a symbol, keep only consumers where `rg -w <symbol>` matches.
+- A file the project's test naming matches is a test, not a consumer.
+
+3. Imports miss reflection, string dispatch, config that names the target, and generated code. `rg` for the target's file name and exported names outside the graph's hits, and list what turns up under Caveats.
 
 4. A consumer that is itself a shared module (more than 5 consumers of its own) gets one more hop, listed under it. Never more than one.
 
@@ -24,7 +27,7 @@ kit code-graph deps <root> <raw>/imports.tsv <raw>
 
 For each source consumer:
 
-- **Tests**: the test files that import it, by the same command as step 2 or 3 run on the consumer. For Go, also the `_test.go` files in its directory. None is a finding.
+- **Tests**: the test files that reach it, by the same lookup as step 2 run on the consumer. None is a finding.
 - **Churn**: `git log --since=6.months --format=%h -- <consumer> | wc -l`.
 - For the target itself: `git log --since=6.months --format='%h %ad %s' --date=short -- <target> | head -15`, read for why it keeps changing.
 
