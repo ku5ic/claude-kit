@@ -54,6 +54,12 @@ func (p *Payload) Bool(path string) bool {
 	return b
 }
 
+// Object is the object at a dotted path, nil when absent or not an object.
+func (p *Payload) Object(path string) map[string]any {
+	m, _ := sources.GetPath(p.data, path).(map[string]any)
+	return m
+}
+
 // String is the string at a dotted path, "" when absent or not a string.
 func (p *Payload) String(path string) string {
 	s, _ := sources.GetPath(p.data, path).(string)
@@ -156,6 +162,7 @@ type Hook struct {
 	context  string // printed after a block reason, e.g. "Path: <path>"
 	decision string // the strongest Decide so far; Run prints it once
 	reason   string
+	input    map[string]any // a PreToolUse tool input replacing the one sent
 	// What checks add for Run to print: context for Claude on event,
 	// notices for the user, plain text.
 	event    string
@@ -297,6 +304,10 @@ func (h *Hook) Decide(decision, reason string) {
 	}
 }
 
+// UpdateInput replaces the tool's whole input with input, printed with the
+// permission decision; it needs one, or auto mode denies the changed call.
+func (h *Hook) UpdateInput(input map[string]any) { h.input = input }
+
 // Decision is the permission decision and reason recorded so far, "" when
 // no check decided.
 func (h *Hook) Decision() (decision, reason string) { return h.decision, h.reason }
@@ -319,10 +330,11 @@ func (h *Hook) Print(text string) { h.plain.WriteString(text) }
 // decision with the notices, else context and notices, else plain text.
 func (h *Hook) flush(block string) {
 	type specific struct {
-		HookEventName            string `json:"hookEventName"`
-		PermissionDecision       string `json:"permissionDecision,omitempty"`
-		PermissionDecisionReason string `json:"permissionDecisionReason,omitempty"`
-		AdditionalContext        string `json:"additionalContext,omitempty"`
+		HookEventName            string         `json:"hookEventName"`
+		PermissionDecision       string         `json:"permissionDecision,omitempty"`
+		PermissionDecisionReason string         `json:"permissionDecisionReason,omitempty"`
+		AdditionalContext        string         `json:"additionalContext,omitempty"`
+		UpdatedInput             map[string]any `json:"updatedInput,omitempty"`
 	}
 	type output struct {
 		Decision           string    `json:"decision,omitempty"`
@@ -336,7 +348,7 @@ func (h *Hook) flush(block string) {
 	case h.decision != "":
 		// A check's context (a density note) still reaches Claude when
 		// another check decides; only a defer would drop it.
-		WriteJSON(h.Stdout, output{SystemMessage: strings.Join(h.notices, "\n\n"), HookSpecificOutput: &specific{HookEventName: "PreToolUse", PermissionDecision: h.decision, PermissionDecisionReason: h.reason, AdditionalContext: strings.Join(h.contexts, "\n")}})
+		WriteJSON(h.Stdout, output{SystemMessage: strings.Join(h.notices, "\n\n"), HookSpecificOutput: &specific{HookEventName: "PreToolUse", PermissionDecision: h.decision, PermissionDecisionReason: h.reason, AdditionalContext: strings.Join(h.contexts, "\n"), UpdatedInput: h.input}})
 	case h.contexts != nil || h.notices != nil:
 		contexts, event := h.contexts, h.event
 		// Plain text can't share stdout with JSON: in a dispatcher, one

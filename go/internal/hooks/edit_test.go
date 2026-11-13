@@ -1,6 +1,8 @@
 package hooks
 
 import (
+	"encoding/json"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -318,6 +320,45 @@ skill_file_map:
 				r.Has(t, "searching a credential or key file")
 			}
 		})
+	}
+}
+
+// A Grep with no glob inside the session's project gets the sensitive
+// basenames excluded, and an allow so auto mode doesn't deny the rewrite.
+func TestGuardSearchExcludesSecretsInsideTheProject(t *testing.T) {
+	t.Parallel()
+	k := newPlugin(t)
+	k.kitYML(`sensitive_paths: [".env", ".env.*", "*.key", id_rsa, "~/.ssh/"]` + "\n")
+	dir := repo(t, filepath.Join(t.TempDir(), "repo"))
+	grep := func(cwd string, input map[string]any) map[string]any {
+		var out struct {
+			HookSpecificOutput struct {
+				PermissionDecision string         `json:"permissionDecision"`
+				UpdatedInput       map[string]any `json:"updatedInput"`
+			} `json:"hookSpecificOutput"`
+		}
+		r := k.run("guard-dispatch", map[string]any{"tool_input": input, "session_id": "s1", "tool_name": "Grep", "cwd": cwd})
+		r.Want(t, 0)
+		if r.Stdout != "" {
+			if err := json.Unmarshal([]byte(r.Stdout), &out); err != nil {
+				t.Fatalf("%v: %s", err, r.Stdout)
+			}
+		}
+		if out.HookSpecificOutput.UpdatedInput != nil && out.HookSpecificOutput.PermissionDecision != "allow" {
+			t.Errorf("a rewrite without allow: %s", r.Stdout)
+		}
+		return out.HookSpecificOutput.UpdatedInput
+	}
+	got := grep(dir, map[string]any{"pattern": "secret", "path": "src", "-n": true})
+	want := map[string]any{"pattern": "secret", "path": "src", "-n": true, "glob": "!{.env,.env.*,*.key,id_rsa}"}
+	if !maps.Equal(got, want) {
+		t.Errorf("updatedInput = %v, want %v", got, want)
+	}
+	if got := grep(dir, map[string]any{"pattern": "secret", "glob": "*.ts"}); got != nil {
+		t.Errorf("a Grep with its own glob was rewritten: %v", got)
+	}
+	if got := grep(dir, map[string]any{"pattern": "secret", "path": t.TempDir()}); got != nil {
+		t.Errorf("a Grep outside the project was rewritten: %v", got)
 	}
 }
 

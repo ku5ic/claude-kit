@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"unicode/utf8"
 )
 
 // syntax is how a file type writes comments: line-comment openers, block
@@ -19,18 +20,22 @@ type syntax struct {
 	multi   string
 	doc     bool
 	heredoc bool
+	// lifetimes: a ' opens a char literal ('x', '\n') or nothing, as
+	// Rust's 'a does; it never opens a string.
+	lifetimes bool
 }
 
 var (
 	cLike  = syntax{line: []string{"//"}, block: [][2]string{{"/*", "*/"}}, quotes: "\"'`", multi: "`"}
 	css    = syntax{block: [][2]string{{"/*", "*/"}}, quotes: `"'`}
+	rust   = syntax{line: []string{"//"}, block: [][2]string{{"/*", "*/"}}, quotes: `"`, lifetimes: true}
 	hash   = syntax{line: []string{"#"}, quotes: `"'`, heredoc: true}
 	python = syntax{line: []string{"#"}, quotes: `"'`, doc: true}
 	markup = syntax{line: []string{"//"}, block: [][2]string{{"<!--", "-->"}, {"/*", "*/"}}, quotes: "\"'`", multi: "`"}
 
 	byExt = map[string]syntax{
 		".go": cLike, ".js": cLike, ".jsx": cLike, ".mjs": cLike, ".cjs": cLike, ".ts": cLike, ".tsx": cLike,
-		".mts": cLike, ".cts": cLike, ".java": cLike, ".kt": cLike, ".kts": cLike, ".swift": cLike, ".rs": cLike,
+		".mts": cLike, ".cts": cLike, ".java": cLike, ".kt": cLike, ".kts": cLike, ".swift": cLike, ".rs": rust,
 		".c": cLike, ".h": cLike, ".cc": cLike, ".cpp": cLike, ".hpp": cLike, ".cs": cLike, ".scala": cLike,
 		".dart": cLike, ".php": cLike, ".scss": cLike, ".less": cLike,
 		".css": css,
@@ -148,10 +153,9 @@ var heredocOpener = regexp.MustCompile(`^<<[-~]?[ \t]*['"]?([A-Za-z_][A-Za-z0-9_
 
 // commentLines is the comment text on each of lines, code spans taken
 // out. shortcut: a line-at-a-time scan, not a lexer. A string or heredoc
-// spanning lines is followed to its closer, but ${} inside a template
-// literal isn't, and a Rust lifetime reads as an opening quote, which can
-// hide the rest of its line. A tell wrapped across two comment lines is
-// missed.
+// spanning lines is followed to its closer, and a template literal's ${}
+// to its brace, but only within one line. A tell wrapped across two
+// comment lines is missed.
 func commentLines(lines []string, syn syntax) []Segment {
 	var segs []Segment
 	var open span // the block comment, docstring, string, or heredoc a line starts inside
@@ -211,6 +215,9 @@ func closeAt(s string, open span) int {
 	if open.kind == blockComment {
 		return strings.Index(s, open.close)
 	}
+	if open.close == "`" {
+		return closeTemplate(s)
+	}
 	for i := 0; i < len(s); i++ {
 		if s[i] == '\\' {
 			i++
@@ -219,6 +226,72 @@ func closeAt(s string, open span) int {
 		}
 	}
 	return -1
+}
+
+// closeTemplate is where the backtick closing a template literal is in s,
+// past any ${} and the templates and strings nested in it; -1 when none is.
+func closeTemplate(s string) int {
+	for i := 0; i < len(s); i++ {
+		switch {
+		case s[i] == '\\':
+			i++
+		case s[i] == '`':
+			return i
+		case strings.HasPrefix(s[i:], "${"):
+			end := closeBrace(s[i+2:])
+			if end < 0 {
+				return -1
+			}
+			i += 2 + end
+		}
+	}
+	return -1
+}
+
+// closeBrace is where the } closing a ${ is in s, past nested braces,
+// templates, and strings; -1 when none is.
+func closeBrace(s string) int {
+	depth := 0
+	for i := 0; i < len(s); i++ {
+		switch c := s[i]; c {
+		case '`':
+			end := closeTemplate(s[i+1:])
+			if end < 0 {
+				return -1
+			}
+			i += 1 + end
+		case '"', '\'':
+			end := closeAt(s[i+1:], span{str, s[i : i+1], s[i : i+1]})
+			if end < 0 {
+				return -1
+			}
+			i += 1 + end
+		case '{':
+			depth++
+		case '}':
+			if depth == 0 {
+				return i
+			}
+			depth--
+		}
+	}
+	return -1
+}
+
+// charLiteral is the length of the char literal s starts with ('x', '\n',
+// '\u{1F600}'), or 0 when its ' opens none, as a Rust lifetime's doesn't.
+func charLiteral(s string) int {
+	if strings.HasPrefix(s, `'\`) {
+		if end := strings.IndexByte(s[min(3, len(s)):], '\''); end >= 0 {
+			return 3 + end + 1
+		}
+		return 0
+	}
+	_, size := utf8.DecodeRuneInString(s[1:])
+	if len(s) > 1+size && s[1+size] == '\'' {
+		return size + 2
+	}
+	return 0
 }
 
 // nextSpan is where the first comment, heredoc, or string the line doesn't
@@ -254,6 +327,12 @@ func nextSpan(s string, syn syntax) (int, span) {
 				return i, multi
 			}
 			i += 1 + end
+			continue
+		}
+		if syn.lifetimes && c == '\'' {
+			if n := charLiteral(s[i:]); n > 0 {
+				i += n - 1
+			}
 			continue
 		}
 		if strings.IndexByte(syn.quotes, c) >= 0 {

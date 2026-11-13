@@ -40,13 +40,30 @@ func IsSensitive(cfg *config.Config, home, path string) bool {
 	return matchSensitive(cfg, home, ExpandHome(home, path), false)
 }
 
+// SensitiveExclusion is an rg glob excluding every basename entry of
+// sensitive_paths ("!{.env,*.pem}"), "" when there is none. An entry holding
+// a brace or comma would break the alternation and is left out.
+func SensitiveExclusion(cfg *config.Config) string {
+	var names []string
+	for _, entry := range cfg.SensitivePaths {
+		if !strings.HasPrefix(entry, "~/") && !strings.ContainsAny(entry, "{},/") {
+			names = append(names, entry)
+		}
+	}
+	if len(names) == 0 {
+		return ""
+	}
+	return "!{" + strings.Join(names, ",") + "}"
+}
+
 // SearchesSensitive is true when a recursive search from root, its files
 // filtered by glob, can read a credential or key file: root is one, or,
 // with holds, has a "~/" entry under it, or glob names one. Root is
 // absolute, or "" for none.
 // shortcut: a search with no telling glob over a directory that merely
-// holds a basename entry (a loose *.pem) passes; catching it means walking
-// the tree, or rg's own --glob exclusions passed to the tool.
+// holds a basename entry (a loose *.pem) passes. Inside the project, the
+// Grep guard excludes them with SensitiveExclusion; outside, and for rg and
+// grep run through Bash, catching it means walking the tree.
 func SearchesSensitive(cfg *config.Config, home, root, glob string, holds bool) bool {
 	return root != "" && matchSensitive(cfg, home, root, holds) || namesSensitive(cfg, glob)
 }
