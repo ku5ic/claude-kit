@@ -62,22 +62,7 @@ func StopChecks(h *hook.Hook) error {
 	if plan, reviewed := walk.done(); plan != "" && !reviewed {
 		return h.Block(fmt.Sprintf("plan %s is done, but /code-review hasn't finished since the last code edit. Run it now, or wait for the one running, then the runtime pass (/verify) when the change has observable behavior.", fsx.Rel(root, plan)), "plan-done")
 	}
-	edited := transcript.Edits(turn)
-	for i, path := range edited {
-		edited[i] = fsx.Abs(cwd, path)
-	}
-	// The turn-start snapshot also catches a Bash or subagent edit, and a
-	// file committed mid-turn. A turn whose every write is named leaves the
-	// rest to another session or the user, so the snapshot adds nothing.
-	// Without one, a clean tree means the edits were committed.
-	changed, tree, ok := turnChanges(h, root)
-	if ok {
-		if !transcript.NamesEveryWrite(turn) {
-			edited = append(edited, changed...) // enforce.Stop drops repeats
-		}
-	} else if changes, err := git.Status(cwd, false); err != nil || len(changes) == 0 {
-		return nil
-	}
+	edited, tree := turnFiles(h, turn, cwd, root)
 	if len(edited) == 0 {
 		return nil
 	}
@@ -99,21 +84,34 @@ func StopChecks(h *hook.Hook) error {
 		}
 		return nil
 	}
-	pass := passKey(tree, p.Gates)
-	passFile := cache.StopPassTree(h.Paths.CacheDir(), root)
+	return runStop(h, cfg, p, stopRun{root: root, cwd: cwd, tree: tree, unchecked: unchecked, deadline: deadline})
+}
+
+// stopRun is where and on what runStop runs the planned gates.
+type stopRun struct {
+	root, cwd, tree string
+	unchecked       []string
+	deadline        time.Time
+}
+
+// runStop runs p's gates, unless they all passed on this tree before,
+// shows the user every verdict, and blocks on a failure.
+func runStop(h *hook.Hook, cfg *config.Config, p enforce.Plan, r stopRun) error {
+	pass := passKey(r.tree, p.Gates)
+	passFile := cache.StopPassTree(h.Paths.CacheDir(), r.root)
 	if prev, err := os.ReadFile(passFile); err == nil && pass != "" && string(prev) == pass {
-		if !cfg.ReceiptOnFailures() || len(unchecked) > 0 {
-			h.Notify(strings.Join(append([]string{"kit stop: skipped, these checks already passed on this tree"}, unchecked...), "\n"))
+		if !cfg.ReceiptOnFailures() || len(r.unchecked) > 0 {
+			h.Notify(strings.Join(append([]string{"kit stop: skipped, these checks already passed on this tree"}, r.unchecked...), "\n"))
 		}
 		return nil
 	}
-	out := run.Files(p, h.Paths.CacheDir(), time.Duration(cfg.GateTimeout)*time.Second, deadline)
+	out := run.Files(p, h.Paths.CacheDir(), time.Duration(cfg.GateTimeout)*time.Second, r.deadline)
 	if !h.DryRun {
-		_ = fsx.WriteAtomic(cache.StopReport(h.Paths.CacheDir(), root), []byte(out.Report()), 0o600)
+		_ = fsx.WriteAtomic(cache.StopReport(h.Paths.CacheDir(), r.root), []byte(out.Report()), 0o600)
 	}
 	// Every verdict goes to the user, a block's too; what to fix goes to
 	// Claude in the block's reason.
-	notifyReceipt(h, cfg, out.Receipt, unchecked)
+	notifyReceipt(h, cfg, out.Receipt, r.unchecked)
 	if !out.Failed() {
 		// A skipped gate checked nothing, so only a clean pass is reused.
 		if out.Result.Skip == 0 && pass != "" && !h.DryRun {
@@ -122,7 +120,7 @@ func StopChecks(h *hook.Hook) error {
 		return nil
 	}
 	msg := fmt.Sprintf("%d of %d checks failed. The user saw these. Fix them, or reply in one line with the cause\n%s", out.Result.Fail, len(p.Gates), out.Failures)
-	if file := stopDetail(h, cwd, out.Detail); file != "" {
+	if file := stopDetail(h, r.cwd, out.Detail); file != "" {
 		msg += layout.KV("more", file)
 	}
 	return h.Block(strings.TrimRight(msg, "\n"), "checks-failed")
@@ -232,6 +230,28 @@ type stopRead struct {
 	TurnOffset int64     `json:"turn_offset"`
 	TurnLine   int       `json:"turn_line"`
 	Walk       *planWalk `json:"walk"`
+}
+
+// turnFiles is every file the turn changed, absolute, and the turn-end
+// tree when the turn-start snapshot gave one; none when nothing changed.
+// The snapshot also catches a Bash or subagent edit, and a file committed
+// mid-turn. A turn whose every write is named leaves the rest to another
+// session or the user, so the snapshot adds nothing. Without one, a clean
+// tree means the edits were committed.
+func turnFiles(h *hook.Hook, turn []transcript.Entry, cwd, root string) (edited []string, tree string) {
+	edited = transcript.Edits(turn)
+	for i, path := range edited {
+		edited[i] = fsx.Abs(cwd, path)
+	}
+	changed, tree, ok := turnChanges(h, root)
+	if ok {
+		if !transcript.NamesEveryWrite(turn) {
+			edited = append(edited, changed...) // enforce.Stop drops repeats
+		}
+	} else if changes, err := git.Status(cwd, false); err != nil || len(changes) == 0 {
+		return nil, ""
+	}
+	return edited, tree
 }
 
 // readSession is the transcript's current turn and its plan walk, reading

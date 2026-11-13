@@ -158,50 +158,64 @@ func (c *command) check() error {
 	if err := c.globalInstall(); err != nil {
 		return err
 	}
-	switch c.name {
-	case "cd":
-		c.cd()
-	case "rm":
-		return c.rm()
-	case "dd", "shred", "wipefs", "mkfs":
-		return c.block("low level disk or filesystem tool", "disk-tool")
-	case "chmod":
-		return c.chmod()
-	case "git":
-		return c.git()
-	case "curl":
-		return c.curl()
-	case "wget":
-		return c.wget()
-	case "eval":
+	if check, ok := commandChecks[c.name]; ok {
+		return check(c)
+	}
+	// fish isn't in shells, whose heredoc bodies parse as POSIX, but its -c
+	// runs a string all the same.
+	if shells[c.name] || c.name == "fish" {
+		return c.interpreterC()
+	}
+	if strings.HasPrefix(c.name, "mkfs.") {
+		return c.diskTool()
+	}
+	return c.packageManager()
+}
+
+// commandChecks are the checks for one command name; any other name gets
+// the shell, mkfs.*, and package-manager checks.
+var commandChecks = map[string]func(*command) error{
+	"cd":     func(c *command) error { c.cd(); return nil },
+	"rm":     (*command).rm,
+	"dd":     (*command).diskTool,
+	"shred":  (*command).diskTool,
+	"wipefs": (*command).diskTool,
+	"mkfs":   (*command).diskTool,
+	"chmod":  (*command).chmod,
+	"git":    (*command).git,
+	"curl":   (*command).curl,
+	"wget":   (*command).wget,
+	"eval": func(c *command) error {
 		return c.block("eval runs a command string that bypasses the permission allow list; run the command directly as a Bash tool call", "interpreter-c-wrap")
-	case "kit":
-		words := strings.Fields(c.rest)
-		switch {
-		case len(words) == 0:
-		case words[0] == "git-base" && !gitBaseFlagsSafe(words[1:]):
-			// An explicit ask: with no decision, a Bash(kit git-base *) allow
-			// rule would approve --output=<file> silently.
-			c.st.ask("kit git-base passes this flag to git, which can write files or run programs; confirm it")
-		case words[0] == "run-checks" && !slices.Contains(words[1:], "--plan"):
-			return c.block("the hooks run the gates and show the user every result; don't run them yourself (kit run-checks --plan only lists them)", "run-checks-by-hook")
-		}
-	case "sed", "sd":
-		return c.inPlaceEdit()
-	case "tee":
-		for _, p := range c.operands() {
-			c.st.looseWrite("tee", p)
-		}
-	default:
-		// fish isn't in shells, whose heredoc bodies parse as POSIX, but its
-		// -c runs a string all the same.
-		if shells[c.name] || c.name == "fish" {
-			return c.interpreterC()
-		}
-		if strings.HasPrefix(c.name, "mkfs.") {
-			return c.block("low level disk or filesystem tool", "disk-tool")
-		}
-		return c.packageManager()
+	},
+	"kit": (*command).kit,
+	"sed": (*command).inPlaceEdit,
+	"sd":  (*command).inPlaceEdit,
+	"tee": (*command).tee,
+}
+
+func (c *command) diskTool() error { return c.block("low level disk or filesystem tool", "disk-tool") }
+
+// kit asks before git-base flags that can write or run programs, and blocks
+// run-checks, which the hooks run.
+func (c *command) kit() error {
+	words := strings.Fields(c.rest)
+	switch {
+	case len(words) == 0:
+	case words[0] == "git-base" && !gitBaseFlagsSafe(words[1:]):
+		// An explicit ask: with no decision, a Bash(kit git-base *) allow
+		// rule would approve --output=<file> silently.
+		c.st.ask("kit git-base passes this flag to git, which can write files or run programs; confirm it")
+	case words[0] == "run-checks" && !slices.Contains(words[1:], "--plan"):
+		return c.block("the hooks run the gates and show the user every result; don't run them yourself (kit run-checks --plan only lists them)", "run-checks-by-hook")
+	}
+	return nil
+}
+
+// tee asks before each file it writes loose in the current directory.
+func (c *command) tee() error {
+	for _, p := range c.operands() {
+		c.st.looseWrite("tee", p)
 	}
 	return nil
 }
