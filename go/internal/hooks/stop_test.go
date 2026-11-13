@@ -331,7 +331,7 @@ func TestStopChecks(t *testing.T) {
 		r.Want(t, 0)
 		var out map[string]string
 		if err := json.Unmarshal([]byte(r.Stdout), &out); err != nil || out["decision"] != "block" ||
-			!strings.HasPrefix(out["reason"], "kit stop: BLOCKED 1 of 1 checks failed; fix them, or report them and stop (checks-failed)\nFAIL  lint (package.json: *.ts)\n      lint noise\nmore  ") ||
+			!strings.HasPrefix(out["reason"], "kit stop: BLOCKED 1 of 1 checks failed. The user saw these. Fix them, or reply in one line with the cause (checks-failed)\nFAIL  lint (package.json: *.ts)\n      lint noise\nmore  ") ||
 			out["systemMessage"] != "kit stop: 1 failed, 0 skipped, 0 passed" {
 			t.Errorf("want a block with the failure, and a receipt without it:\n%s", r.Output)
 		}

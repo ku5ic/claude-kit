@@ -118,7 +118,7 @@ func StopChecks(h *hook.Hook) error {
 		}
 		return nil
 	}
-	msg := fmt.Sprintf("%d of %d checks failed; fix them, or report them and stop\n%s", out.Result.Fail, len(p.Gates), out.Failures)
+	msg := fmt.Sprintf("%d of %d checks failed. The user saw these. Fix them, or reply in one line with the cause\n%s", out.Result.Fail, len(p.Gates), out.Failures)
 	if file := stopDetail(h, cwd, out.Detail); file != "" {
 		msg += layout.KV("more", file)
 	}
