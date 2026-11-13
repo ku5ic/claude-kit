@@ -101,6 +101,21 @@ func TestStopFallsBackToCIFileFormsPerFileAndKind(t *testing.T) {
 	}
 }
 
+// Of several file forms of one kind, a file gets the one with the fewest
+// arguments: a marker subset and a coverage run lose to the plain run.
+func TestStopRunsTheLeastFilteredFileFormOncePerFileAndKind(t *testing.T) {
+	e := setup(t)
+	e.tool("bin/pytest")
+	e.write(".github/workflows/ci.yml", "jobs:\n  test:\n    steps:\n      - run: pytest -m unit\n      - run: pytest\n      - run: pytest --cov --cov-fail-under=80\n")
+	e.write("test_a.py", "")
+	e.check("test/1", map[string]any{"role": "check", "kind": "test", "file_form": "pytest -m unit {files}", "globs": []string{"test_*.py"}})
+	e.check("test/2", map[string]any{"role": "check", "kind": "test", "file_form": "pytest {files}", "globs": []string{"test_*.py"}})
+	e.check("test/3", map[string]any{"role": "check", "kind": "test", "file_form": "pytest --cov --cov-fail-under=80 {files}", "globs": []string{"test_*.py"}})
+	if got, want := commands(e.stop("test_a.py")), "test (.github/workflows/ci.yml: test/2): pytest test_a.py"; got != want {
+		t.Errorf("plan:\n%s\nwant:\n%s", got, want)
+	}
+}
+
 // Ignored, deleted, and outside files never reach a check.
 func TestStopChecksOnlyFilesTheRepoKeeps(t *testing.T) {
 	e := setup(t)

@@ -33,6 +33,9 @@ func Stop(cfg *config.Config, o Options, files []string) Plan {
 	full := b.gates
 	b.gates, b.planned = nil, map[string]bool{}
 	checked := b.hookChecks(files)
+	// The least filtered form first: a marker subset or a coverage run
+	// has more arguments than the plain run, and loses its files to it.
+	slices.SortStableFunc(full, func(a, b Gate) int { return len(strings.Fields(a.FileForm)) - len(strings.Fields(b.FileForm)) })
 	for _, g := range full {
 		b.fileForm(g, files, checked)
 	}
@@ -102,7 +105,8 @@ func atPreCommit(e sources.Entry) bool {
 }
 
 // fileForm plans full gate g's file form on the files under its directory
-// its globs match, each file only for the kinds no hook checks it for.
+// its globs match, each file only for the kinds no hook or earlier form
+// checks it for, and records those kinds as checked.
 func (b *builder) fileForm(g Gate, files []string, checked map[string][]string) {
 	if g.Skip != "" || g.FileForm == "" || len(g.Globs) == 0 {
 		return
@@ -115,6 +119,9 @@ func (b *builder) fileForm(g Gate, files []string, checked map[string][]string) 
 	}
 	if len(mine) > 0 {
 		b.add(Gate{Label: g.Label, Kinds: g.Kinds, Dir: g.Dir, Env: g.Env, Body: g.FileForm, Verdict: g.Verdict, Files: mine})
+	}
+	for _, f := range mine {
+		checked[f] = append(checked[f], g.Kinds...)
 	}
 }
 
