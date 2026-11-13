@@ -26,19 +26,30 @@ type dirs struct {
 	home, cwd, prev string
 }
 
+// tracks is true when cd with args moves d to a directory d can name: not
+// with an option, nor cd - before any cd.
+func (d *dirs) tracks(args []Word) bool {
+	switch {
+	case len(args) == 0:
+		return true
+	case args[0].Value == "-":
+		return d.prev != ""
+	default:
+		return !strings.HasPrefix(args[0].Value, "-")
+	}
+}
+
 // cd moves d as cd with args would.
 func (d *dirs) cd(args []Word) {
+	if !d.tracks(args) {
+		return
+	}
 	prev := d.cwd
 	switch {
 	case len(args) == 0:
 		d.cwd = d.home
 	case args[0].Value == "-":
-		if d.prev == "" {
-			return
-		}
 		d.cwd = d.prev
-	case strings.HasPrefix(args[0].Value, "-"):
-		return
 	default:
 		d.cwd = resolveDir(d.home, d.cwd, args[0].Value)
 	}
@@ -85,6 +96,8 @@ func walk(segs []Segment, home, cwd string) iter.Seq[walked] {
 // repo.
 type state struct {
 	dirs
+	// session is the hook payload's cwd, which a cd in the command doesn't move.
+	session string
 	h       *hook.Hook
 	cfg     *config.Config
 	pending string
@@ -114,7 +127,8 @@ func Check(h *hook.Hook) error {
 	if err := wholeString(h, cfg, cmd, norm, home); err != nil {
 		return err
 	}
-	st := &state{dirs: dirs{home: home, cwd: resolveDir(home, "/", h.Payload.Cwd())}, h: h, cfg: cfg, managers: map[string][]gapfill.Manager{}}
+	session := resolveDir(home, "/", h.Payload.Cwd())
+	st := &state{dirs: dirs{home: home, cwd: session}, session: session, h: h, cfg: cfg, managers: map[string][]gapfill.Manager{}}
 	// The raw command, not norm: <<- strips tabs only, and norm would turn a
 	// tab-indented terminator into spaces that no longer close the heredoc.
 	segs, unparsed := parseAll(cmd)
@@ -472,8 +486,10 @@ func (st *state) abs(p string) string {
 // $HOME-prefixed, or relative to the segment's cwd) names a path
 // guard.KitSwitch protects, through a symlink or not. Only a writer's
 // operands and a redirect's target get here, so resolving each is cheap.
+// The plugin-root exemption takes the session's cwd: a cd into the root
+// within the command isn't work on the kit.
 func (st *state) askKitSwitch(arg string) bool {
-	what := guard.KitSwitch(st.h.Paths, st.cwd, st.abs(unquote(arg)))
+	what := guard.KitSwitch(st.h.Paths, st.session, st.abs(unquote(arg)))
 	if what != "" {
 		st.ask(guard.KitSwitchAsk(what))
 	}

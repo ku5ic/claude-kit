@@ -359,3 +359,47 @@ func TestGuardBashPluginRootFromInside(t *testing.T) {
 		t.Errorf("a write from elsewhere didn't ask:\n%s", r.Output)
 	}
 }
+
+// Reading or listing the plugin root from another project needs no prompt;
+// a write there still asks, even after a cd into the root, since the
+// exemption is the session's cwd, not one a command moves to.
+func TestGuardBashPluginRootReadsAndWrites(t *testing.T) {
+	t.Parallel()
+	k := newSandbox(t)
+	root := filepath.Dir(kitYML)
+	cwd := t.TempDir()
+	asks := func(cmd string) bool {
+		t.Helper()
+		return strings.Contains(k.hook("", cwd, cmd).Output, "the installed claude-kit plugin")
+	}
+	for _, cmd := range []string{
+		"cd %[1]s/skills && cat kit-rules/SKILL.md",
+		"cd %[1]s",
+		"cd && cat %[1]s/kit.yml",
+		"du -sh %[1]s",
+		"tokei %[1]s/go",
+		"gron %[1]s/.claude-plugin/plugin.json",
+		"cut -c1-10 %[1]s/kit.yml",
+		"nl %[1]s/kit.yml",
+		"shasum %[1]s/kit.yml",
+		"cmp %[1]s/kit.yml %[1]s/kit.yml",
+		"basename %[1]s/kit.yml",
+		"dirname %[1]s/kit.yml",
+	} {
+		if cmd := fmt.Sprintf(cmd, root); asks(cmd) {
+			t.Errorf("a read of the plugin root asked: %s", cmd)
+		}
+	}
+	for _, cmd := range []string{
+		"cd %[1]s && cp /tmp/x kit.yml",
+		"cd %[1]s && echo x > hooks/hooks.json",
+		"(cd %[1]s && cp /tmp/x kit.yml)",
+		"cd -P %[1]s && echo x > kit.yml",
+		"cd %[1]s | cat; echo x > kit.yml",
+		"pushd %[1]s",
+	} {
+		if cmd := fmt.Sprintf(cmd, root); !asks(cmd) {
+			t.Errorf("a write to the plugin root didn't ask: %s", cmd)
+		}
+	}
+}

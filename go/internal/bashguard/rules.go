@@ -84,12 +84,14 @@ var (
 	dqQuoted    = regexp.MustCompile(`"[^"]*"`)
 )
 
-// readers only read the files they're given; any other command naming the
-// overlay gets a prompt, since disabled_rules there switches guards off.
+// readers only read the files they're given; any other command naming a
+// kit switch gets a prompt, since a write there can turn the kit off.
 var readers = map[string]bool{
 	"cat": true, "bat": true, "head": true, "tail": true, "less": true, "more": true, "jq": true, "rg": true,
 	"grep": true, "diff": true, "wc": true, "ls": true, "stat": true, "file": true, "realpath": true,
 	"readlink": true, "test": true, "[": true, "echo": true, "printf": true, "sed": true, "sd": true,
+	"du": true, "tokei": true, "gron": true, "cut": true, "nl": true, "shasum": true, "cmp": true,
+	"basename": true, "dirname": true,
 }
 
 // metadataOnly commands act on a file's name or metadata, or use a key
@@ -381,6 +383,10 @@ func (c *command) overlayWrite() {
 			return
 		}
 	case readers[c.name]:
+		return
+	// A cd the guard follows writes nothing, and later paths resolve
+	// against where it went; an untracked one would resolve them wrongly.
+	case c.name == "cd" && c.alone && c.st.tracks(c.args):
 		return
 	}
 	for _, v := range c.values() {
