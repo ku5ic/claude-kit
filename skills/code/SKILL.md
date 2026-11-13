@@ -1,10 +1,11 @@
 ---
 name: code
-description: Understand a codebase or a part of it, read-only - the git and PR history of a path (history), or a visual tour of Mermaid diagrams built from its size, imports, churn, and owners (visual)
-argument-hint: <history|visual> <path, component name, or nothing for the whole repo>
+description: Understand a codebase or part of it, read-only - a path's git and PR history (history), Mermaid diagrams (visual), what a change to a file breaks (impact), or an onboarding walk (tour)
+argument-hint: <history|visual|impact|tour> <path, component name, or nothing for the whole repo>
 disable-model-invocation: true
 allowed-tools:
   - Bash(git log *)
+  - Bash(kit blast-radius *)
   - Bash(kit code-graph *)
   - Bash(kit scratch-dir *)
 ---
@@ -16,6 +17,8 @@ The first word of the arguments is the kind; everything after it is the kind's a
 | Kind      | Procedure                                    |
 | --------- | -------------------------------------------- |
 | `history` | [reference/history.md](reference/history.md) |
+| `impact`  | [reference/impact.md](reference/impact.md)   |
+| `tour`    | [reference/tour.md](reference/tour.md)       |
 | `visual`  | [reference/visual.md](reference/visual.md)   |
 
 1. If the kind is missing or unknown, ask via AskUserQuestion with the kinds above as options.
