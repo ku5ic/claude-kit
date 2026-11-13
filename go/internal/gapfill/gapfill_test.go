@@ -1,6 +1,7 @@
 package gapfill
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -667,5 +668,15 @@ func TestAnnotatedEvidenceKeepsItsPath(t *testing.T) {
 	r := f.run(lint)
 	if len(r.Proposals) != 1 || r.Proposals[0].Command != "knip" || r.Proposals[0].Evidence != "frontend/knip.json" {
 		t.Errorf("an annotated path that exists stays, stored bare; a missing one goes: %+v, dropped %q", r.Proposals, r.Dropped)
+	}
+}
+
+// A panic in a classify goroutine would exit 2, which Claude Code reads as
+// a block. A nil config makes classify panic.
+func TestClassifyAllTurnsAPanicIntoThatRequestsError(t *testing.T) {
+	t.Parallel()
+	_, _, errs := classifyAll(context.Background(), nil, Options{}, []request{{}})
+	if len(errs) != 1 || errs[0] == nil {
+		t.Fatalf("errs = %v, want the panic as an error", errs)
 	}
 }

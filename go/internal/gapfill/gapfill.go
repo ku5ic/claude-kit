@@ -296,6 +296,13 @@ func classifyAll(ctx context.Context, cfg *config.Config, o Options, reqs []requ
 		wg.Go(func() {
 			slots <- struct{}{}
 			defer func() { <-slots }()
+			// A panic here would exit 2, which Claude Code reads as a
+			// block; the hook's recover can't reach this goroutine.
+			defer func() {
+				if r := recover(); r != nil {
+					errs[i] = fmt.Errorf("classifier panicked: %v", r)
+				}
+			}()
 			resps[i], usages[i], errs[i] = classify(ctx, cfg, o, req)
 		})
 	}
