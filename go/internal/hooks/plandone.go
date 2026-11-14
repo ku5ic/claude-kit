@@ -75,6 +75,9 @@ type planWalk struct {
 	// ReportWrites is a report write's tool_use id -> its line, until its
 	// result: a write another guard denied wrote no report.
 	ReportWrites map[string]int `json:"report_writes"`
+	// bashed is bashEdits, read fresh by each run: a Bash call's record is
+	// written before its result, so it's there by the time the walk reads it.
+	bashed map[string][]string
 }
 
 func newPlanWalk() *planWalk {
@@ -96,11 +99,17 @@ func (w *planWalk) step(h *hook.Hook, e transcript.Entry, plansDir string, isCod
 		return
 	}
 	for _, b := range e.Blocks {
-		if line, ok := w.ReportWrites[b.ToolUseID]; ok && b.Type == "tool_result" {
+		if b.Type != "tool_result" {
+			continue
+		}
+		if line, ok := w.ReportWrites[b.ToolUseID]; ok {
 			if !b.IsError {
 				w.ReviewReported = max(w.ReviewReported, line)
 			}
 			delete(w.ReportWrites, b.ToolUseID)
+		}
+		if slices.ContainsFunc(w.bashed[b.ToolUseID], isCode) {
+			w.LastEdit = max(w.LastEdit, e.Line)
 		}
 	}
 	if e.Type != "assistant" {

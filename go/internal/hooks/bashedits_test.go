@@ -1,8 +1,10 @@
 package hooks
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
@@ -57,8 +59,10 @@ func TestBashEdits(t *testing.T) {
 		run("t1")
 		testutil.Write(t, filepath.Join(dir, ".claude", "scratch", "x.log"), "x\n")
 		run("t2")
-		if got := testutil.Read(t, record); got != "t1\n" {
-			t.Errorf("record = %q, want only the call that changed notes.md", got)
+		var got bashEdit
+		if line := testutil.Read(t, record); json.Unmarshal([]byte(line), &got) != nil || strings.Count(line, "\n") != 1 ||
+			got.ID != "t1" || len(got.Files) != 1 || filepath.Base(got.Files[0]) != "notes.md" {
+			t.Errorf("record = %q, want only the call that changed notes.md, with it", line)
 		}
 	})
 	t.Run("a command the guard marked read-only is skipped, once", func(t *testing.T) {

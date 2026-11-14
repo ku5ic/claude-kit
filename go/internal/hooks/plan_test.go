@@ -153,6 +153,10 @@ func TestGuardPlan(t *testing.T) {
 	const plan = "/proj/.claude/plans/plan-x.md"
 	write := `{"type":"assistant","message":{"content":[{"type":"tool_use","id":"w","name":"Write","input":{"file_path":"` + plan + `"}}]}}`
 	critic := `{"type":"assistant","message":{"content":[{"type":"tool_use","id":"c","name":"Agent","input":{"subagent_type":"kit:plan-critic"}}]}}`
+	launched := `{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"c","content":"Async agent launched successfully.\nagentId: a1"}]}}`
+	notice := func(status string) string {
+		return `{"type":"user","message":{"content":"<task-notification>\n<task-id>a1</task-id>\n<tool-use-id>c</tool-use-id>\n<status>` + status + `</status>\n</task-notification>"}}`
+	}
 	exit := func(k *sandbox, lines ...string) map[string]any {
 		path := filepath.Join(k.home, "session.jsonl")
 		testutil.Write(t, path, strings.Join(lines, "\n")+"\n")
@@ -171,6 +175,22 @@ func TestGuardPlan(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
 		k.run("guard-plan", exit(k, write, critic, write)).Allowed(t)
+	})
+	t.Run("a critique that errored, or ran in the background and failed: sent back", func(t *testing.T) {
+		t.Parallel()
+		failed := `{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"c","is_error":true,"content":"agent failed"}]}}`
+		k := newSandbox(t)
+		k.run("guard-plan", exit(k, write, critic, failed)).Denied(t)
+		k = newSandbox(t)
+		k.run("guard-plan", exit(k, write, critic, launched, notice("failed"))).Denied(t)
+	})
+	t.Run("a critique that finished, or still runs in the background: allowed", func(t *testing.T) {
+		t.Parallel()
+		finished := `{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"c","content":"the plan holds"}]}}`
+		for _, lines := range [][]string{{write, critic, finished}, {write, critic, launched}, {write, critic, launched, notice("completed")}} {
+			k := newSandbox(t)
+			k.run("guard-plan", exit(k, lines...)).Allowed(t)
+		}
 	})
 	t.Run("a critique only before the plan was written: sent back", func(t *testing.T) {
 		t.Parallel()

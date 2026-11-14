@@ -291,6 +291,7 @@ func readSession(h *hook.Hook, path, root, plansDir string, isCode func(string) 
 	if data, err := os.ReadFile(file); err != nil || statErr != nil || json.Unmarshal(data, &st) != nil || st.Path != path || st.Walk == nil || info.Size() < st.Offset {
 		st = stopRead{Path: path, Walk: newPlanWalk()}
 	}
+	st.Walk.bashed = bashEdits(h)
 	var turn []transcript.Entry
 	seen := st.Offset
 	var err error

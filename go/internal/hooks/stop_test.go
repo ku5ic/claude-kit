@@ -65,6 +65,20 @@ func (e *stopEnv) edit(tool, path string, denied bool) {
 	e.line(map[string]any{"type": "user", "message": map[string]any{"content": []any{map[string]any{"type": "tool_result", "tool_use_id": id, "is_error": denied}}}})
 }
 
+// bash is Bash call id running change in dir, with bash-edits run on it
+// as PostToolUse would.
+func (e *stopEnv) bash(id, dir string, change func()) {
+	e.line(map[string]any{"type": "assistant", "message": map[string]any{"content": []any{
+		map[string]any{"type": "tool_use", "id": id, "name": "Bash", "input": map[string]any{"command": "edit"}},
+	}}})
+	if change != nil {
+		change()
+	}
+	e.k.run("bash-edits", map[string]any{"hook_event_name": "PostToolUse", "session_id": "s1", "cwd": dir, "tool_use_id": id,
+		"tool_name": "Bash", "tool_input": map[string]any{"command": "edit"}})
+	e.line(map[string]any{"type": "user", "message": map[string]any{"content": []any{map[string]any{"type": "tool_result", "tool_use_id": id}}}})
+}
+
 // start runs turn-tree as a prompt would, snapshotting the tree.
 func (e *stopEnv) start() {
 	e.t.Helper()
@@ -209,6 +223,37 @@ func TestStopPlanDone(t *testing.T) {
 		e.finish("<tool-use-id>toolu_r1</tool-use-id>", "completed")
 		e.turn("Edit", e.path("a.ts"), e.plan(done))
 		e.stop(false).Want(t, 2)
+	})
+	t.Run("a Bash edit to code after the review needs a new one", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		e.review()
+		e.finish("<tool-use-id>toolu_r1</tool-use-id>", "completed")
+		e.line(map[string]any{"type": "user", "message": map[string]any{"content": "do it"}})
+		e.start()
+		e.bash("toolu_b1", e.repo, func() { testutil.Write(t, e.path("a.ts"), "y\n") })
+		e.edit("Edit", e.plan(done), false)
+		e.stop(false).Want(t, 2)
+	})
+	t.Run("a Bash call that changed no code, or only another repo's, keeps the review", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		other := repo(t, filepath.Join(e.tmp, "other"))
+		testutil.Write(t, filepath.Join(other, "c.ts"), "x\n")
+		e.review()
+		e.finish("<tool-use-id>toolu_r1</tool-use-id>", "completed")
+		e.line(map[string]any{"type": "user", "message": map[string]any{"content": "do it"}})
+		e.start()
+		e.bash("toolu_b1", e.repo, nil)
+		e.bash("toolu_b2", e.repo, func() { testutil.Write(t, e.path(".claude/scratch/x.log"), "x\n") })
+		// The first call in a repo the turn didn't start in sets its baseline.
+		e.bash("toolu_b3", other, nil)
+		e.bash("toolu_b4", other, func() { testutil.Write(t, filepath.Join(other, "c.ts"), "y\n") })
+		if record := read(t, e.k.paths.SessionFile(cache.Claims, "s1", bashEditsRecord)); !strings.Contains(record, "toolu_b4") {
+			t.Fatalf("the other repo's edit wasn't recorded, so this case proves nothing: %q", record)
+		}
+		e.edit("Edit", e.plan(done), false)
+		e.stop(false).Want(t, 0)
 	})
 	t.Run("a plan with an open step, or one ticked in an earlier turn, doesn't gate", func(t *testing.T) {
 		t.Parallel()

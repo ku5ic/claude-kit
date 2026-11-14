@@ -234,8 +234,8 @@ func checkedStatements(log checkerLog, record string) ([]string, map[string]int,
 }
 
 // checkerLog is the session transcript at path, read once, and the index
-// of its last code edit: an edit tool call on a file outside scratch and
-// the plans folder. A run launched before that edit checked code that has
+// of its last code edit: an edit tool call, or a recorded Bash edit, on a
+// file outside scratch and the plans folder. A run launched before that edit checked code that has
 // changed since, so it counts as no run.
 type checkerLog struct {
 	path     string
@@ -245,17 +245,47 @@ type checkerLog struct {
 
 // bashEditsRecord is the session file under cache.Claims listing, one a
 // line, the Bash tool uses whose command changed a file outside scratch and
-// the plan dir. transcript.Edits sees only the edit tools.
+// the plan dir, each with those files. transcript.Edits sees only the edit
+// tools.
 const bashEditsRecord = "bash-edits"
+
+// bashEdit is one bashEditsRecord line.
+type bashEdit struct {
+	ID    string   `json:"id"`
+	Files []string `json:"files"`
+}
 
 // recordBashEdit adds the Bash tool use to bashEditsRecord when any of
 // changed is code, outside scratch and the plan dir.
 func recordBashEdit(h *hook.Hook, changed []string) {
 	id := h.Payload.String(hook.KeyToolUseID)
-	if id == "" || h.DryRun || !slices.ContainsFunc(changed, func(file string) bool { return isCode(h, file) }) {
+	code := slices.DeleteFunc(slices.Clone(changed), func(file string) bool { return !isCode(h, file) })
+	if id == "" || h.DryRun || len(code) == 0 {
 		return
 	}
-	_ = fsx.Append(h.Paths.SessionFile(cache.Claims, h.Payload.SessionID(), bashEditsRecord), []byte(id+"\n"))
+	line, err := json.Marshal(bashEdit{ID: id, Files: code})
+	if err != nil {
+		return
+	}
+	_ = fsx.Append(h.Paths.SessionFile(cache.Claims, h.Payload.SessionID(), bashEditsRecord), append(line, '\n'))
+}
+
+// bashEdits is the session's bashEditsRecord: each Bash tool use's id, and
+// the code files it changed. A line written before the files were recorded
+// is the id alone.
+func bashEdits(h *hook.Hook) map[string][]string {
+	data, _ := os.ReadFile(h.Paths.SessionFile(cache.Claims, h.Payload.SessionID(), bashEditsRecord))
+	edits := map[string][]string{}
+	for line := range strings.Lines(string(data)) {
+		var edit bashEdit
+		if json.Unmarshal([]byte(line), &edit) != nil {
+			edit = bashEdit{ID: strings.TrimSpace(line)}
+		}
+		if edit.ID != "" {
+			edits[edit.ID] = edit.Files
+		}
+	}
+	return edits
 }
 
 // isCode is true for a file a claim can be about: outside scratch and the
@@ -268,12 +298,11 @@ func isCode(h *hook.Hook, file string) bool {
 // is an edit tool's, or a Bash call's that bashEditsRecord names.
 func readCheckerLog(h *hook.Hook, path string) checkerLog {
 	entries, _ := transcript.Load(path)
-	record, _ := os.ReadFile(h.Paths.SessionFile(cache.Claims, h.Payload.SessionID(), bashEditsRecord))
-	bashed := strings.Fields(string(record))
+	bashed := bashEdits(h)
 	log := checkerLog{path: path, entries: entries, lastEdit: -1}
 	for i, e := range entries {
 		if slices.ContainsFunc(transcript.Edits([]transcript.Entry{e}), func(file string) bool { return isCode(h, file) }) ||
-			slices.ContainsFunc(e.Blocks, func(b transcript.Block) bool { return b.Type == "tool_use" && slices.Contains(bashed, b.ID) }) {
+			slices.ContainsFunc(e.Blocks, func(b transcript.Block) bool { _, ok := bashed[b.ID]; return b.Type == "tool_use" && ok }) {
 			log.lastEdit = i
 		}
 	}
