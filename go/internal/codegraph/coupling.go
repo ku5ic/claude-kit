@@ -26,8 +26,9 @@ var couplingNoise = regexp.MustCompile(`\.snap$|\.lock$|-lock\.|go\.(sum|mod)$|g
 // Coupling reads gitLog, from git log --format='--%H' --name-only, and
 // resolved, the imports-resolved.tsv Deps writes, and writes to out each
 // pair of files in different directories that changed together at least
-// minShared times: shared commits, coupling degree, whether either
-// imports the other, and both paths.
+// minShared times, under a header row: shared commits, coupling degree
+// (shared over the less-changed file's commits), whether either imports
+// the other, and both paths.
 func Coupling(gitLog, resolved string, out io.Writer) error {
 	commits, err := readCommits(gitLog)
 	if err != nil {
@@ -59,6 +60,7 @@ func Coupling(gitLog, resolved string, out io.Writer) error {
 	for _, r := range rows {
 		imports[pair{moduleStem(r[0]), moduleStem(r[1])}] = true
 	}
+	fmt.Fprintln(out, "shared\tdegree\tlink\tfile_a\tfile_b")
 	for _, p := range byCount(pairs, pair.compare) {
 		shared := pairs[p]
 		if shared < minShared {

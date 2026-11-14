@@ -12,7 +12,7 @@ Judges a codebase's structure against what the project says its architecture is.
 ## Evidence
 
 1. Raw folder: the path `kit scratch-dir arch <target-slug>` prints, without `.md`.
-2. `kit code-graph imports <root> > <raw>/imports.tsv` (without ast-grep, `visual.md` Collect step 4's fallback, said in the report), then `kit code-graph deps <root> <raw>/imports.tsv <raw>`, then `git -C <root> log --since=12.months --format='--%H %ad' --date=format:%Y-%m --name-only --relative -- . > <raw>/gitlog.txt` and `kit code-graph coupling <raw>/gitlog.txt <raw>/imports-resolved.tsv > <raw>/coupling.tsv`.
+2. `kit code-graph imports <root> > <raw>/imports.tsv` (without ast-grep, `visual.md` Collect step 4's fallback, said in the report), then `kit code-graph deps <root> <raw>/imports.tsv <raw> [split dir]`, the split dir from the model dir's `split.txt` as `visual.md` Collect step 4 says, then `git -C <root> -c core.quotePath=false log --since=12.months --format='--%H %ad' --date=format:%Y-%m --name-only --relative -- . > <raw>/gitlog.txt` and `kit code-graph coupling <raw>/gitlog.txt <raw>/imports-resolved.tsv > <raw>/coupling.tsv`.
 3. Fan-out per module: `cut -f2 <raw>/deps.tsv | sort | uniq -c`. Fan-in: the same on `-f3`.
 4. Read the code behind every candidate before calling it a finding: the import lines of an upward edge, both files of a coupled pair, the call site of an integration.
 
@@ -22,7 +22,7 @@ Skip a category with no findings. Each names what proves a finding.
 
 - **Dependency direction and layering.** Proof: a row in `upward.tsv` with production imports, or an import a layering test or ADR forbids. A cycle shows as edges both ways in `deps.tsv`.
 - **Module boundaries and cohesion.** Proof: a module whose fan-out reaches most others, or whose files share no imports with each other; a module reaching into another's internals (an import past its public entry).
-- **Change coupling.** Proof: a `no-import` pair at degree 0.5 or more in `coupling.tsv`, and the shared commits that show why.
+- **Change coupling.** Proof: a `no-import` pair in `coupling.tsv` breaching the co-change threshold in `skills/engineering-fundamentals/reference/metric-thresholds.md`, and the shared commits that show why.
 - **ADR drift.** Proof: an accepted ADR's decision quoted next to code that does otherwise. A superseded ADR is history, not drift.
 - **Data and state ownership.** Proof: two modules writing the same table, store, or file, quoted at both write sites.
 - **Integration seams.** Proof: one external service called from more than one module with no shared client, found with `rg` for its SDK import or base URL.
@@ -33,7 +33,7 @@ Each finding names the pattern `skills/engineering-fundamentals/reference/design
 ## Not a finding
 
 - An upward import only from tests, fixtures, or stories.
-- Coupling below degree 0.5, or between a file and its test.
+- Coupling under that threshold, or between a file and its test.
 - A boundary the project's own sources deliberately draw differently than you would.
 - Code-level debt inside one module, which `audit debt` covers.
 

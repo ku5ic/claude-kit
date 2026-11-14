@@ -14,7 +14,7 @@ A visual tour of a codebase: a report of Mermaid diagrams built from its size, i
 ## Collect
 
 1. Size: `tokei <root>` for the language mix; `scc --by-file --format json --no-cocomo <root> > <raw>/scc.json` for per-file code lines and complexity. Without `scc`, skip the hotspot quadrant and say so.
-2. History, walked once for churn, activity and coupling: `git -C <root> log --since=<since> --format='--%H %ad' --date=format:%Y-%m --name-only --relative -- . > <raw>/gitlog.txt`. On a subdirectory run, `<root>` is that subdirectory: `--relative -- .` keeps the history to it, with paths relative to it like scc, ast-grep and `git ls-files` print them. Churn over the window: `rg -v '^(--|$)' <raw>/gitlog.txt | sort | uniq -c | sed -E 's/^ *([0-9]+) (.*)$/\2\t\1/' > <raw>/churn.tsv`.
+2. History, walked once for churn, activity and coupling: `git -C <root> -c core.quotePath=false log --since=<since> --format='--%H %ad' --date=format:%Y-%m --name-only --relative -- . > <raw>/gitlog.txt`. On a subdirectory run, `<root>` is that subdirectory: `--relative -- .` keeps the history to it, with paths relative to it like scc, ast-grep and `git ls-files` print them. Churn over the window: `rg -v '^(--|$)' <raw>/gitlog.txt | sort | uniq -c | sed -E 's/^ *([0-9]+) (.*)$/\2\t\1/' > <raw>/churn.tsv`.
 3. Hotspots: join the two and score complexity x churn, top 10:
 
 ```bash
@@ -40,7 +40,7 @@ kit code-graph deps <root> <raw>/imports.tsv <raw> [split dir]
 
 5. Owners: `git -C <root> shortlog -sn --no-merges --since=<since> | rg -v '\[bot\]'` for the repo, and the same with `-- <dir>` for each module. Per hotspot: `git -C <root> log --since=<since> --format=%an -- <file> | rg -v '\[bot\]' | sort | uniq -c | sort -rn`; a top author at 70% or more means one person carries that file. Each author named in Who to ask gets their forge handle from one of their pushed commits: on GitHub, `gh api repos/<owner>/<repo>/commits/$(git -C <root> log -1 --no-merges --author='<name>' --format=%H <default branch>) --jq .author.login`. With no forge or no login on the commit, the name stands alone.
 6. Activity: `rg '^--' <raw>/gitlog.txt | cut -d' ' -f2 | sort | uniq -c`.
-7. Change coupling: `kit code-graph coupling <raw>/gitlog.txt <raw>/imports-resolved.tsv > <raw>/coupling.tsv`. Each row is shared commits, degree (shared over the less-changed file's commits), `imports` or `no-import`, and both paths. A `no-import` pair at degree 0.5 or more is hidden coupling: duplicated logic, a list kept in sync by hand, or a registry like a flags file.
+7. Change coupling: `kit code-graph coupling <raw>/gitlog.txt <raw>/imports-resolved.tsv > <raw>/coupling.tsv`. A `no-import` pair breaching the co-change threshold in `skills/engineering-fundamentals/reference/metric-thresholds.md` is hidden coupling: duplicated logic, a list kept in sync by hand, or a registry like a flags file.
 8. Read before writing. For each hotspot, upward edge, hidden-coupling pair, and the main flow, read the code and `git -C <root> log --since=<since> --format='%h %s' -- <file> | head -15`. This is where the Why and Watch out prose comes from; a section without it is a chart with a label.
 
 ## Diagrams
@@ -58,7 +58,7 @@ Directly above every C4 fence from `<arch>`, one provenance line, `Diagram: from
 2. **Shape.** A `flowchart TB` of the modules (the split dir's children inside a subgraph, other top-level directories beside it), each labelled with its main language and code lines.
 3. **Dependencies.** A `flowchart LR` from `deps.tsv`, the edge label being the import count. Externals collapse into one node per package, top 5 only. Upward edges from `upward.tsv` are drawn in terracotta with `linkStyle <indexes> stroke:#c8664a,stroke-width:3px`. Under it, a table of upward edges with production imports: edge, production imports and files, one example file.
 4. **Hotspots.** A `quadrantChart`, x = complexity and y = churn, each scaled 0 to 1 against the max, top 10 files as points. The top-right quadrant is "refactor first". Write the maximum as `1`: the parser rejects `1.00`. Under it, a table: file, complexity, churn, top owner with their share.
-5. **Change coupling.** A `flowchart LR` of the top 8 `no-import` pairs from `coupling.tsv`, nodes named after the file (its folder when the file is `index`), edge label = shared commits, nodes in the `hot` class. Skip it with one line when no pair reaches degree 0.5.
+5. **Change coupling.** A `flowchart LR` of the top 8 `no-import` pairs from `coupling.tsv`, nodes named after the file (its folder when the file is `index`), edge label = shared commits, nodes in the `hot` class. Skip it with one line when no pair breaches it.
 6. **Main flow**, when a focus is given or the entry point is obvious. A `sequenceDiagram` traced through the code from the entry point, 4 to 8 participants, each named after a real file or module.
 7. **Activity.** An `xychart-beta` bar chart of commits per month, plus a `pie` of the language mix.
 
