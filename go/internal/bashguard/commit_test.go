@@ -193,6 +193,11 @@ func TestGuardCommitAsksForAnUnshownMessage(t *testing.T) {
 	}
 	commit(testutil.UserPrompt("fix it"), testutil.AssistantText("Commit as `fix: add sums`?"), testutil.UserPrompt("go")).Empty(t)
 	commit(testutil.UserPrompt("fix it"), testutil.AssistantText("The message:\n\n```text\nfix: add sums\n```\n\nCommit it?"), testutil.UserPrompt("go")).Empty(t)
+	for _, item := range []string{"1. fix: add sums", "2) fix: add sums", "+ fix: add sums", "> 1. **fix: add sums**"} {
+		if r := commit(testutil.UserPrompt("fix it"), testutil.AssistantText("Proposed:\n\n"+item+"\n\nCommit it?"), testutil.UserPrompt("go")); r.Output != "" {
+			t.Errorf("%q shows the message, yet the guard asked:\n%s", item, r.Output)
+		}
+	}
 	for _, prompt := range []string{"Commit and continue.", "Yes, commit.", "fix it and commit", "Commit, then start step 13", "Yes, commit 21, apply both fixes", "can you commit this?", "could you commit it", "please commit", "commit both and continue", "Commit it.", "commit the docs fix", "commit it, then review the next step", "nothing else to fix so commit it", "commit it, but don't push", "commit and push", "commit it, I'll check the diff afterwards", "commit it now, push it tomorrow", "commit it, you can push tomorrow"} {
 		if r := commit(map[string]any{"type": "user", "origin": map[string]any{"kind": "human"}, "message": map[string]any{"content": prompt}}); strings.Contains(r.Output, `"permissionDecision":"ask"`) {
 			t.Errorf("%q asks for the commit, yet the guard asked again:\n%s", prompt, r.Output)
@@ -364,4 +369,24 @@ func TestGuardCommitScansTheStagedDiff(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestShown(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		text, subject string
+		want          bool
+	}{
+		{"Commit as `fix: x`?", "fix: x", true},
+		{"1. fix: x", "fix: x", true},
+		{"- 1.2 release notes", "1.2 release notes", true},
+		{"1.2 release notes", "1.2 release notes", true},
+		{"> **fix: x**", "fix: x", true},
+		{"1. fix: x, then the docs", "fix: x", false},
+		{"wipe the cache", "wip", false},
+	} {
+		if got := shown(tc.text, tc.subject); got != tc.want {
+			t.Errorf("shown(%q, %q) = %v, want %v", tc.text, tc.subject, got, tc.want)
+		}
+	}
 }

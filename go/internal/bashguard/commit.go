@@ -274,6 +274,10 @@ func approved(path, subject string) bool {
 	return asksForCommit(prompt) || shown(earlier.String(), subject)
 }
 
+// lineMarker is a Markdown marker opening a line: a bullet, a quote, a
+// heading, or a numbered item.
+var lineMarker = regexp.MustCompile(`^(?:[-*+>#]+|\d+[.)])\s*`)
+
 // shown is whether text showed subject as a message: a backticked span, or
 // a line holding only it (in a fence, a list item, a quote, or bold). A
 // subject inside a sentence ("wip" in "wipe") isn't a shown message.
@@ -282,9 +286,16 @@ func shown(text, subject string) bool {
 		return true
 	}
 	for line := range strings.Lines(text) {
-		line = strings.TrimSpace(line)
-		if line == subject || strings.Trim(strings.TrimLeft(line, "-*># "), "*_\"'") == subject {
-			return true
+		// Each marker off in turn: a subject may itself open with one ("1.2 notes").
+		for line = strings.TrimSpace(line); ; {
+			if line == subject || strings.Trim(line, "*_\"'") == subject {
+				return true
+			}
+			m := lineMarker.FindString(line)
+			if m == "" {
+				break
+			}
+			line = line[len(m):]
 		}
 	}
 	return false
