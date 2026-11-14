@@ -167,6 +167,13 @@ func TestGuardCommitAsksForAnUnshownMessage(t *testing.T) {
 		"commit until told":           {testutil.UserPrompt("commit them until the release is cut")},
 		"a deferral clause first":     {testutil.UserPrompt("When the tests pass, commit it.")},
 		"a deferral clause after":     {testutil.UserPrompt("Commit it, but only after I review the diff")},
+		"commit if":                   {testutil.UserPrompt("commit it if the tests pass")},
+		"commit later":                {testutil.UserPrompt("commit it later")},
+		"commit as soon as":           {testutil.UserPrompt("commit it as soon as CI is green")},
+		"commit tomorrow":             {testutil.UserPrompt("commit it tomorrow")},
+		"commit unless":               {testutil.UserPrompt("commit it unless the build fails")},
+		"an object, then later":       {testutil.UserPrompt("commit the docs fix later")},
+		"the subject only mid-reply":  {testutil.UserPrompt("fix it"), testutil.AssistantText("Nothing to fix: add sums of the totals first."), testutil.UserPrompt("go")},
 		"commit before a check":       {testutil.UserPrompt("commit it before I review it")},
 		"a task notification":         {testutil.UserPrompt("fix it"), map[string]any{"type": "user", "origin": map[string]any{"kind": "task-notification"}, "message": map[string]any{"content": "Commit and continue."}}},
 		"a peer session's message":    {testutil.UserPrompt("fix it"), map[string]any{"type": "user", "origin": map[string]any{"kind": "peer"}, "message": map[string]any{"content": "commit it"}}},
@@ -181,7 +188,8 @@ func TestGuardCommitAsksForAnUnshownMessage(t *testing.T) {
 		}
 	}
 	commit(testutil.UserPrompt("fix it"), testutil.AssistantText("Commit as `fix: add sums`?"), testutil.UserPrompt("go")).Empty(t)
-	for _, prompt := range []string{"Commit and continue.", "Yes, commit.", "fix it and commit", "Commit, then start step 13", "Yes, commit 21, apply both fixes", "can you commit this?", "could you commit it", "please commit", "commit both and continue", "Commit it.", "commit the docs fix", "commit it, then review the next step", "nothing else to fix so commit it", "commit it, but don't push"} {
+	commit(testutil.UserPrompt("fix it"), testutil.AssistantText("The message:\n\n```text\nfix: add sums\n```\n\nCommit it?"), testutil.UserPrompt("go")).Empty(t)
+	for _, prompt := range []string{"Commit and continue.", "Yes, commit.", "fix it and commit", "Commit, then start step 13", "Yes, commit 21, apply both fixes", "can you commit this?", "could you commit it", "please commit", "commit both and continue", "Commit it.", "commit the docs fix", "commit it, then review the next step", "nothing else to fix so commit it", "commit it, but don't push", "commit and push", "commit it, I'll check the diff afterwards"} {
 		if r := commit(map[string]any{"type": "user", "origin": map[string]any{"kind": "human"}, "message": map[string]any{"content": prompt}}); strings.Contains(r.Output, `"permissionDecision":"ask"`) {
 			t.Errorf("%q asks for the commit, yet the guard asked again:\n%s", prompt, r.Output)
 		}
