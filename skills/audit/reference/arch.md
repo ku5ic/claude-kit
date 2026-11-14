@@ -12,7 +12,7 @@ Judges a codebase's structure against what the project says its architecture is.
 ## Evidence
 
 1. Raw folder: the path `kit scratch-dir arch <target-slug>` prints, without `.md`.
-2. `kit code-graph imports <root> > <raw>/imports.tsv`, then `kit code-graph deps <root> <raw>/imports.tsv <raw>`, then `git -C <root> log --since=12.months --format='--%H %ad' --date=format:%Y-%m --name-only --relative -- . > <raw>/gitlog.txt` and `kit code-graph coupling <raw>/gitlog.txt <raw>/imports-resolved.tsv > <raw>/coupling.tsv`.
+2. `kit code-graph imports <root> > <raw>/imports.tsv` (without ast-grep, `visual.md` Collect step 4's fallback, said in the report), then `kit code-graph deps <root> <raw>/imports.tsv <raw>`, then `git -C <root> log --since=12.months --format='--%H %ad' --date=format:%Y-%m --name-only --relative -- . > <raw>/gitlog.txt` and `kit code-graph coupling <raw>/gitlog.txt <raw>/imports-resolved.tsv > <raw>/coupling.tsv`.
 3. Fan-out per module: `cut -f2 <raw>/deps.tsv | sort | uniq -c`. Fan-in: the same on `-f3`.
 4. Read the code behind every candidate before calling it a finding: the import lines of an upward edge, both files of a coupled pair, the call site of an integration.
 

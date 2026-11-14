@@ -9,7 +9,7 @@ A visual tour of a codebase: a report of Mermaid diagrams built from its size, i
 3. Read the project CLAUDE.md and README first. Diagrams name things the way the project does.
 4. Window: the `since:` argument, any date git's `--since` takes (`6.months`, `2026-01-01`). Without one, ask with AskUserQuestion before collecting: `12.months` (Recommended), `6.months`, `3.months`, all history; "Other" takes a custom date. Every `<since>` below is this value; for all history, drop `--since`.
 5. Model folder: `<arch>` is the folder `kit code-graph model-dir <path or cwd>` prints, under kit.yml's `architecture_dir`. A subdirectory gets a scope model of its own: its fingerprint covers only that scope, so it never reads, edits or replaces the whole-repo model.
-6. Big projects: when `git -C <root> submodule status` lists submodules, or the first `deps` run finds more than 12 modules, go bottom-up. Dispatch one foreground agent per module or submodule in parallel, each running this procedure on that subdirectory, so each module's model lands in its own scope. Then draw the project's `c4-context.mmd` and `c4-containers.mmd` from those scope models and the cross-module edges in `deps.tsv`, without reading the code again. On a rerun, `kit code-graph check-c4` on each scope says which modules changed; redraw only those, then the project view.
+6. Big projects: when `git -C <root> submodule status` lists submodules, or the first `deps` run finds more than 12 modules, go bottom-up. Dispatch one foreground `general-purpose` agent with `model: sonnet` per module or submodule in parallel, each running this procedure on that subdirectory and drawing it whole, never fanning out again, so each module's model lands in its own scope. Then draw the project's `c4-context.mmd` and `c4-containers.mmd` from those scope models and the cross-module edges in `deps.tsv`, without reading the code again. On a rerun, `kit code-graph check-c4` on each scope says which modules changed; redraw only those, then the project view.
 
 ## Collect
 
@@ -35,6 +35,7 @@ kit code-graph deps <root> <raw>/imports.tsv <raw> [split dir]
 - When `<arch>/split.txt` names a folder that still exists (`d=$(cat <arch>/split.txt); [ -n "$d" ] && [ -d "<root>/$d" ]`), pass it as the split dir, so a rerun fingerprints the same modules. A missing, empty, or stale file passes nothing, and `deps` finds the split itself.
 - Before `deps`, rewrite path aliases with a prefix (`@/x`, `~/x`) to the directory form in `imports.tsv`.
 - For a language `imports` doesn't cover, append rows with `rg -n --no-heading` on that language's import keyword, as file and statement text.
+- Without ast-grep, `imports` fails naming it. Build every row of `imports.tsv` that way instead, and say in the report's header line that imports come from text matches.
 - `deps` prints the split dir and the main source root. Check both before drawing.
 
 5. Owners: `git -C <root> shortlog -sn --no-merges --since=<since> | rg -v '\[bot\]'` for the repo, and the same with `-- <dir>` for each module. Per hotspot: `git -C <root> log --since=<since> --format=%an -- <file> | rg -v '\[bot\]' | sort | uniq -c | sort -rn`; a top author at 70% or more means one person carries that file.
@@ -66,7 +67,7 @@ Diagrams 2 to 7 are drawn. Keep to these diagram types; Render below checks each
 ### Readability
 
 - Every fence starts with the init line from Colors. `useMaxWidth: false` makes a large graph render at full size with a scroll, instead of shrinking to the page width. For a C4 view, that line goes above the file's content, which otherwise stays verbatim.
-- Large C4 views get split, not shrunk. A container view over 12 nodes becomes 2 or 3 files, each one cluster of containers plus the externals that cluster touches, and `c4-containers.mmd` and its `.svg` are deleted. A node keeps the same id and label in every file it appears in. Each view is embedded under its own provenance line.
+- Large C4 views get split, not shrunk. A container view over 12 nodes becomes 2 or 3 files, each one cluster of containers plus the externals that cluster touches. When this run made the split, the `c4-containers.mmd` it split and its `.svg` are deleted, and the report's header line names each file deleted. A node keeps the same id and label in every file it appears in. Each view is embedded under its own provenance line.
 - Node labels run 1 to 4 words. Paths and detail go in the prose, the table, or a C4 file's `%% path:` comment.
 - Edges carry a label only when it adds information: a count, a verb that isn't "uses".
 

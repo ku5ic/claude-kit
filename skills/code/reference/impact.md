@@ -12,7 +12,7 @@ kit code-graph imports <root> > <raw>/imports.tsv
 kit code-graph deps <root> <raw>/imports.tsv <raw>
 ```
 
-- For a language `imports` doesn't cover, append rows as `visual.md` Collect step 4 does.
+- For a language `imports` doesn't cover, append rows as `visual.md` Collect step 4 does. Without ast-grep, use its fallback, and say so in the report.
 - A consumer is a row of `<raw>/imports-resolved.tsv` whose second column is the target or the unit holding it (its module, package, or directory).
 - An import that names a unit wider than the file counts only when the consumer uses a name the target defines.
 - Files that share the target's unit can use it without an import. List the ones that use a name it defines.

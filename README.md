@@ -298,6 +298,8 @@ Required: `git` and bash. Every tool below is optional. A missing one is named o
 | `trufflehog` | `/audit security` history scan                                               | history goes unscanned                                                            |
 | `actionlint` | `/audit ci`                                                                  | `/audit ci` skips its actionlint step                                             |
 | `hyperfine`  | `/audit perf` timings                                                        | `/audit perf` makes no timing claim                                               |
+| `difft`      | `/code history`, dropping reformat-only commits                              | reformat-only commits stay in the ranking                                         |
+| `adr`        | `/code challenge` reading ADRs                                               | `/code challenge` lists the ADR folder's files                                    |
 | `jq`         | JSON questions, `/code visual`, `/deps`, `/kit:pr`                           | Claude reads the JSON instead                                                     |
 | `gron`       | grepping flat JSON paths                                                     | `jq` stands in                                                                    |
 | `yq`         | YAML and TOML questions                                                      | Claude reads the file instead                                                     |

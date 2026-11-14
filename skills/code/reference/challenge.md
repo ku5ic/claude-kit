@@ -13,7 +13,7 @@ Resolve the artifact, first match wins:
 
 If the artifact links a ticket, fetch that too; the "why" lives there. Read the project's CLAUDE.md and load the pattern skills it suggests.
 
-ADRs, when they exist: `adr list` from the repo root if it has an `.adr-dir`, else from `<arch>` (`visual.md` Inputs step 5). `rg` them for the units and terms the artifact touches; a hit feeds checks 2 and 4.
+ADRs, when they exist: `adr list` from the repo root if it has an `.adr-dir` (without `adr`, the files in the folder it names). `rg` them for the units and terms the artifact touches; a hit feeds checks 2 and 4.
 
 Mode follows the input:
 
@@ -45,7 +45,7 @@ Drop every finding the repo or the artifact already answers. Keep 3 to 7 blockin
 
 Load the report-format skill and use its format, written to the path `kit scratch-dir challenge <artifact-slug>` prints, with these narrowings:
 
-- The Scope line names the artifact and the mode.
+- The Scope line names the artifact and the mode, and says "no ADRs found" when the repo has none.
 - The TL;DR's first bullet is the verdict line, in place of the health word:
   - Post-change: `LGTM, a few non-blocking nits` / `LGTM, but <blocker>` / `let's discuss first: <decision>`
   - Pre-change: `go` / `go after: <question>` / `let's discuss first: <decision>`

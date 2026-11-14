@@ -6,8 +6,8 @@ Read-only survey of a repo's prose: where the AI tells and the filler sit, ranke
 
 1. Load the slop-patterns skill and read its `principles.md` and `content-and-grammar.md`.
 2. List the prose files in the target: `fd -e md -e mdx -e markdown -e txt . <target>`. Skip generated files and changelogs.
-3. Scan them: `kit slop <files>`. Each output line is `path:line: tier rule`.
-4. Rank the files by hit count, tier 1 and 2 first, with `cut -d: -f1 | sort | uniq -c | sort -rn` on the scan output.
+3. Scan them: `kit slop <files>`. Each output line is `path:line: T<tier> rule "text" -> fix`.
+4. Rank the files by tier 1 and 2 hits, with `rg ': T[12] ' | cut -d: -f1 | sort | uniq -c | sort -rn` on the scan output.
 5. Read the top 5 files, and every file whose hits are mostly tier 3 density, for what no scan sees:
    - a sentence that carries no fact, per `principles.md`
    - a section that restates another file. When the project's CLAUDE.md names an owner file per topic, a restatement outside its owner is a `warning`.
