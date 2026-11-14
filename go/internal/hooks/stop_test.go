@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/git"
@@ -155,6 +156,31 @@ func TestStopPlanDone(t *testing.T) {
 		r.Want(t, 2)
 		r.Has(t, "plan-x.md is done, but /code-review hasn't finished since the last code edit")
 		e.stop(true).Want(t, 0)
+	})
+	t.Run("ticking the last step through Bash blocks too; a Bash call that only names the plan doesn't", func(t *testing.T) {
+		t.Parallel()
+		// call is a Bash call on the plan, at, and its result, with change
+		// run in between, as the command would.
+		call := func(e *stopEnv, at time.Time, cmd string, change func()) {
+			e.line(map[string]any{"type": "assistant", "timestamp": at.UTC().Format(time.RFC3339Nano), "message": map[string]any{"content": []any{
+				map[string]any{"type": "tool_use", "id": "toolu_b1", "name": "Bash", "input": map[string]any{"command": cmd}},
+			}}})
+			if change != nil {
+				change()
+			}
+			e.line(map[string]any{"type": "user", "message": map[string]any{"content": []any{map[string]any{"type": "tool_result", "tool_use_id": "toolu_b1"}}}})
+		}
+		e := stopSetup(t)
+		plan := e.plan("## Steps\n\n- [x] 1. a\n- [ ] 2. b\n")
+		e.turn("Edit", e.path("a.ts"))
+		call(e, time.Now().Add(-time.Second), "sed -i '' 's/^- \\[ \\] 2\\. /- [x] 2. /' .claude/plans/plan-x.md", func() { testutil.Write(t, plan, done) })
+		e.stop(false).Has(t, "plan-x.md is done")
+
+		e = stopSetup(t)
+		e.plan(done)
+		e.turn("Edit", e.path("a.ts"))
+		call(e, time.Now().Add(time.Second), "grep -c 'x' .claude/plans/plan-x.md", nil)
+		e.stop(false).Want(t, 0)
 	})
 	t.Run("a plan in Claude Code's default ~/.claude/plans is gated too", func(t *testing.T) {
 		t.Parallel()

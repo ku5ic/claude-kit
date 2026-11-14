@@ -3,9 +3,11 @@ package hooks
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
@@ -67,7 +69,7 @@ type planWalk struct {
 	LastEdit   int            `json:"last_edit"`
 	LastReview int            `json:"last_review"`
 	Started    map[string]int `json:"started"` // review tool_use or task id -> its start line
-	Ticked     []string       `json:"ticked"`  // plans this turn edited
+	Ticked     []string       `json:"ticked"`  // plans this turn edited, or changed through Bash
 	// ReviewArrived is where a finished review's notification landed, and
 	// ReviewReported where a review-*.md scratch report was last written.
 	ReviewArrived  int `json:"review_arrived"`
@@ -78,6 +80,9 @@ type planWalk struct {
 	// bashed is bashEdits, read fresh by each run: a Bash call's record is
 	// written before its result, so it's there by the time the walk reads it.
 	bashed map[string][]string
+	// plans is the plans dir's files, listed at the walk's first Bash call.
+	plans  []string
+	listed bool
 }
 
 func newPlanWalk() *planWalk {
@@ -130,8 +135,34 @@ func (w *planWalk) step(h *hook.Hook, e transcript.Entry, plansDir string, isCod
 			} else if isCode(p) {
 				w.LastEdit = e.Line
 			}
+		case b.Name == "Bash":
+			w.Ticked = append(w.Ticked, w.bashTicked(b.Input.Command, e.Timestamp, plansDir)...)
 		}
 	}
+}
+
+// bashTicked is each plan in plansDir that command names by its file name
+// and that changed after at, the call's timestamp: the bash-edits record
+// holds only code files, so it can't show a plan a Bash call ticked.
+func (w *planWalk) bashTicked(command, at, plansDir string) []string {
+	start, err := time.Parse(time.RFC3339Nano, at)
+	if err != nil {
+		return nil
+	}
+	if !w.listed {
+		w.plans, _ = filepath.Glob(filepath.Join(plansDir, "*.md"))
+		w.listed = true
+	}
+	var ticked []string
+	for _, p := range w.plans {
+		if !strings.Contains(command, filepath.Base(p)) {
+			continue
+		}
+		if info, err := os.Stat(p); err == nil && info.ModTime().After(start) {
+			ticked = append(ticked, p)
+		}
+	}
+	return ticked
 }
 
 // done is the Stop hook's end-of-plan moment (skills/kit-rules/reference/verify.md): plan
