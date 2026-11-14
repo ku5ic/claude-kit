@@ -211,8 +211,9 @@ var placeholderWord = regexp.MustCompile(`\S*\{(?:files|dirs)\}\S*`)
 
 // Command is g's body with its files in place: a word holding {files}
 // repeated once per file, and one holding {dirs} once per file's directory,
-// each relative to where it runs and shell-quoted. A word with text after
-// its placeholder (`{files})"`) holds the whole list once instead.
+// each relative to where it runs and shell-quoted. Quotes around the bare
+// placeholder ("{files}") are dropped, and a placeholder inside $(...)
+// (`"$(gofmt -l {files})"`) takes the whole list once instead.
 func (g Gate) Command() string {
 	if len(g.Files) == 0 {
 		return g.Body
@@ -233,23 +234,42 @@ func (g Gate) Command() string {
 	}
 	slices.Sort(dirs)
 	dirs = slices.Compact(dirs)
-	return placeholderWord.ReplaceAllStringFunc(g.Body, func(word string) string {
-		placeholder, values := "{files}", files
-		if strings.Contains(word, "{dirs}") {
-			placeholder, values = "{dirs}", dirs
-		}
-		out := make([]string, len(values))
-		for i, v := range values {
-			out[i] = Quote(v)
-		}
-		if !strings.HasSuffix(word, placeholder) {
-			return strings.ReplaceAll(word, placeholder, strings.Join(out, " "))
-		}
-		for i := range out {
-			out[i] = strings.ReplaceAll(word, placeholder, out[i])
-		}
+	var b strings.Builder
+	last := 0
+	for _, m := range placeholderWord.FindAllStringIndex(g.Body, -1) {
+		b.WriteString(g.Body[last:m[0]])
+		b.WriteString(expand(g.Body[m[0]:m[1]], files, dirs, inSubstitution(g.Body[:m[0]])))
+		last = m[1]
+	}
+	return b.String() + g.Body[last:]
+}
+
+// expand is word with its placeholder replaced: the whole list once inside
+// a substitution, else word repeated once per value.
+func expand(word string, files, dirs []string, substituted bool) string {
+	placeholder, values := "{files}", files
+	if strings.Contains(word, "{dirs}") {
+		placeholder, values = "{dirs}", dirs
+	}
+	out := make([]string, len(values))
+	for i, v := range values {
+		out[i] = Quote(v)
+	}
+	if substituted {
+		return strings.ReplaceAll(word, placeholder, strings.Join(out, " "))
+	}
+	if word == `"`+placeholder+`"` || word == "'"+placeholder+"'" {
 		return strings.Join(out, " ")
-	})
+	}
+	for i := range out {
+		out[i] = strings.ReplaceAll(word, placeholder, out[i])
+	}
+	return strings.Join(out, " ")
+}
+
+// inSubstitution is true when text leaves a $( open.
+func inSubstitution(text string) bool {
+	return strings.Count(text, "$(") > strings.Count(text, ")")
 }
 
 // Quote is s as one shell word.

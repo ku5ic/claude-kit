@@ -216,6 +216,9 @@ func TestCommandPutsEachFileInItsWord(t *testing.T) {
 		{"go vet {dirs}", "go vet . ./src"},
 		// Text after the placeholder closes the word around the whole list.
 		{`test -z "$(gofmt -l {files})"`, `test -z "$(gofmt -l 'src/a b.ts' 'src/x&y.ts' top.ts)"`},
+		// Quotes around the bare placeholder are the script's, not a word's.
+		{`prettier --check "{files}"`, "prettier --check 'src/a b.ts' 'src/x&y.ts' top.ts"},
+		{`prettier --check '{files}'`, "prettier --check 'src/a b.ts' 'src/x&y.ts' top.ts"},
 	}
 	for _, tt := range tests {
 		g.Body = tt.body
