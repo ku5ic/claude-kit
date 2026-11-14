@@ -46,10 +46,10 @@ jobs:
         run: ./build.sh
 
       # TestImportsGolden runs the import rules through ast-grep, and fails
-      # without it under CI. Not in Dependabot: bump it by hand, to the
-      # version that regenerated testdata/imports.golden.
+      # without it under CI. The version .tool-versions pins, the one that
+      # regenerated testdata/imports.golden; not in Dependabot.
       - name: Install ast-grep
-        run: npm install -g @ast-grep/cli@0.51.2
+        run: npm install -g "@ast-grep/cli@$(awk '$1 == "ast-grep" {print $2}' ../.tool-versions)"
 
       - name: test
         run: go test -race ./...
