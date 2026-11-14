@@ -482,7 +482,8 @@ func TestVerification(t *testing.T) {
 	if len(r.Managers) != 1 || r.Managers[0].Manager != "pnpm" {
 		t.Errorf("only the manager whose lockfile exists stands: %+v", r.Managers)
 	}
-	if len(r.Proposals) != 1 || r.Proposals[0].Command != "pnpm exec eslint ." {
+	// The fixer whose file form isn't one plain command stays, without it.
+	if len(r.Proposals) != 2 || r.Proposals[0].Command != "pnpm exec eslint ." || r.Proposals[1].Command != "prettier --write ." || r.Proposals[1].FileForm != "" {
 		t.Errorf("a fetching fixer and missing evidence go; a lint the entries cover stays, for the plan to weigh: %+v", r.Proposals)
 	}
 	for _, want := range []string{
@@ -650,10 +651,37 @@ func TestAPlaceholderKeepsTheTextAroundAPath(t *testing.T) {
 				"proposals": []any{map[string]any{"role": "check", "kind": "format-check", "command": `test -z "$(gofmt -l .)"`,
 					"file_form": tt.form, "dir": ".", "evidence": "go.mod"}},
 			})
-			if r := f.run(lint); (len(r.Proposals) == 1) != tt.kept {
-				t.Errorf("kept %v, want %v: dropped %q", len(r.Proposals) == 1, tt.kept, r.Dropped)
+			// A form that doesn't hold up is dropped; the proposal stays.
+			r := f.run(lint)
+			if len(r.Proposals) != 1 {
+				t.Fatalf("the proposal went with its form: dropped %q", r.Dropped)
+			}
+			if kept := r.Proposals[0].FileForm == tt.form; kept != tt.kept {
+				t.Errorf("form kept %v, want %v: dropped %q", kept, tt.kept, r.Dropped)
 			}
 		})
+	}
+}
+
+// tsc given files ignores tsconfig.json, so a proposal's tsc file form is
+// dropped and the check runs whole, as a verdict's is.
+func TestAProposalsTscFileFormIsDropped(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t, "")
+	testutil.Put(t, f.root, "tsconfig.json", "{}\n")
+	lint := entry("lint", "eslint .")
+	f.answer(map[string]any{
+		"entries":  []any{verdict(lint, map[string]any{"role": "check", "kind": "lint", "mutates": false})},
+		"managers": []any{},
+		"proposals": []any{map[string]any{"role": "check", "kind": "typecheck", "command": "tsc --noEmit",
+			"file_form": "tsc --noEmit {files}", "globs": []string{"*.ts"}, "dir": ".", "evidence": "tsconfig.json"}},
+	})
+	r := f.run(lint)
+	if len(r.Proposals) != 1 || r.Proposals[0].FileForm != "" || r.Proposals[0].Globs != nil {
+		t.Fatalf("want the proposal kept without its form: %+v", r.Proposals)
+	}
+	if want := `proposal "tsc --noEmit": file form "tsc --noEmit {files}": tsc ignores tsconfig.json once given files`; !slices.Contains(r.Dropped, want) {
+		t.Errorf("dropped lacks %q: %q", want, r.Dropped)
 	}
 }
 

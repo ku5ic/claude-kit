@@ -66,12 +66,13 @@ func verify(cfg *config.Config, root string, entries []sources.Entry, s store, f
 	for _, p := range s.Proposals {
 		p.Evidence = at(p.Dir).evidencePath(p.Evidence)
 		p.Globs = fromDir(p.Dir, p.Globs)
-		if err := at(p.Dir).proposal(p); err != nil {
+		p, dropped, err := at(p.Dir).proposal(p)
+		if err != nil {
 			r.Dropped = append(r.Dropped, fmt.Sprintf("proposal %q: %v", p.Command, err))
 			continue
 		}
-		if p.Role != "check" {
-			p.Kind = ""
+		for _, d := range dropped {
+			r.Dropped = append(r.Dropped, fmt.Sprintf("proposal %q: %s", p.Command, d))
 		}
 		r.Proposals = append(r.Proposals, p)
 	}
@@ -172,14 +173,24 @@ func denied(cfg *config.Config, e sources.Entry) string {
 	return cfg.GateDiscovery.DeniedCommand(strings.Fields(e.Body.Text))
 }
 
-// checkRole is an error for a role the schema doesn't list, or a check
-// kind it doesn't. A check of several kinds, an aggregate, has none.
-func checkRole(role, kind string) error {
-	if !slices.Contains(roles, role) {
+// proposalRoles are the roles a proposal may take.
+var proposalRoles = []string{"check", "fixer"}
+
+// checkCommand is an error unless role is one of allowed, a check's kind is
+// one the schema lists, and a check's words set no deny_flags flag. With
+// aggregates, a check of several kinds has none.
+func (f forms) checkCommand(role, kind string, words, allowed []string, aggregates bool) error {
+	if !slices.Contains(allowed, role) {
 		return fmt.Errorf("role %q", role)
 	}
-	if role == "check" && kind != "" && !slices.Contains(kinds, kind) {
+	if role != "check" {
+		return nil
+	}
+	if (!aggregates || kind != "") && !slices.Contains(kinds, kind) {
 		return fmt.Errorf("check kind %q", kind)
+	}
+	if flag := f.cfg.DeniedFlag(words); flag != "" {
+		return fmt.Errorf("a check that sets %s", flag)
 	}
 	return nil
 }
@@ -228,14 +239,16 @@ type forms struct {
 // error. A form that doesn't hold up is dropped, with why; the rest of the
 // verdict stands.
 func (f forms) verdict(e sources.Entry, v Verdict) (Verdict, []string, error) {
-	if err := checkRole(v.Role, v.Kind); err != nil {
+	// With segments, each is checked on its own words.
+	words := strings.Fields(e.Body.Text)
+	if len(v.Segments) > 0 {
+		words = nil
+	}
+	if err := f.checkCommand(v.Role, v.Kind, words, roles, true); err != nil {
 		return v, nil, err
 	}
 	if v.Role != "check" {
 		v.Kind = ""
-	}
-	if flag := f.cfg.DeniedFlag(strings.Fields(e.Body.Text)); v.Role == "check" && len(v.Segments) == 0 && flag != "" {
-		return v, nil, fmt.Errorf("a check that sets %s", flag)
 	}
 	body := strings.Join(strings.Fields(e.Body.Text), " ")
 	bodies := []string{e.Body.Text}
@@ -245,7 +258,7 @@ func (f forms) verdict(e sources.Entry, v Verdict) (Verdict, []string, error) {
 			s.Text = strings.Join(withoutEnv(words, e.Env), " ")
 			v.Segments[i].Text = s.Text
 		}
-		if err := checkRole(s.Role, s.Kind); err != nil {
+		if err := f.checkCommand(s.Role, s.Kind, strings.Fields(s.Text), roles, true); err != nil {
 			return v, nil, fmt.Errorf("segment %q: %w", s.Text, err)
 		}
 		if strings.TrimSpace(s.Text) == "" {
@@ -254,20 +267,13 @@ func (f forms) verdict(e sources.Entry, v Verdict) (Verdict, []string, error) {
 		if !strings.Contains(body, strings.Join(strings.Fields(s.Text), " ")) {
 			return v, nil, fmt.Errorf("segment %q isn't in the body", s.Text)
 		}
-		if flag := f.cfg.DeniedFlag(strings.Fields(s.Text)); s.Role == "check" && flag != "" {
-			return v, nil, fmt.Errorf("segment %q: a check that sets %s", s.Text, flag)
-		}
 		if s.Role != "check" {
 			v.Segments[i].Kind = ""
 		}
 		bodies = append(bodies, s.Text)
 	}
 	var dropped []string
-	why := f.checkForm(v.Role, v.FileForm, bodies, "{files}", "{dirs}")
-	if why == "" && v.FileForm != "" && f.ignoresConfigOnFiles(v.FileForm) {
-		why = "tsc ignores tsconfig.json once given files"
-	}
-	if why != "" {
+	if why := f.fileForm(v.Role, v.FileForm, bodies); why != "" {
 		dropped = append(dropped, fmt.Sprintf("file form %q: %s", v.FileForm, why))
 		v.FileForm, v.Globs = "", nil
 	}
@@ -276,6 +282,17 @@ func (f forms) verdict(e sources.Entry, v Verdict) (Verdict, []string, error) {
 		v.Affected = ""
 	}
 	return v, dropped, nil
+}
+
+// fileForm is why form, the file form of a command in role whose own
+// words are bodies, fails checkForm or drops the project's config; "" when
+// it holds.
+func (f forms) fileForm(role, form string, bodies []string) string {
+	why := f.checkForm(role, form, bodies, "{files}", "{dirs}")
+	if why == "" && form != "" && f.ignoresConfigOnFiles(form) {
+		why = "tsc ignores tsconfig.json once given files"
+	}
+	return why
 }
 
 // configOnlyTools drop the project config once given files: the TypeScript
@@ -367,38 +384,41 @@ func (f forms) checkForm(role, form string, bodies []string, placeholders ...str
 	return ""
 }
 
-// proposal is an error unless p is a check of a known kind, or a fixer,
+// proposal is p once it holds up: a check of a known kind, or a fixer,
 // whose evidence exists, which the deny lists allow, and which never
-// fetches. Whether the project already enforces its kind where it runs is
-// the plan's call.
-func (f forms) proposal(p Proposal) error {
+// fetches; or an error. A file form that doesn't hold up is dropped, with
+// why, as a verdict's is. Whether the project already enforces its kind
+// where it runs is the plan's call.
+func (f forms) proposal(p Proposal) (Proposal, []string, error) {
 	words := strings.Fields(p.Command)
+	if len(words) == 0 {
+		return p, nil, fmt.Errorf("no command")
+	}
+	if err := f.checkCommand(p.Role, p.Kind, words, proposalRoles, false); err != nil {
+		return p, nil, err
+	}
 	switch {
-	case len(words) == 0:
-		return fmt.Errorf("no command")
-	case p.Role != "check" && p.Role != "fixer":
-		return fmt.Errorf("role %q", p.Role)
-	case p.Role == "check" && !slices.Contains(kinds, p.Kind):
-		return fmt.Errorf("check kind %q", p.Kind)
 	// Model output: a second command, a redirect, or eval could hide in it.
 	case !shellcalls.Single(p.Command):
-		return fmt.Errorf("not one plain command")
+		return p, nil, fmt.Errorf("not one plain command")
 	case p.Evidence == "" || !f.isFile(p.Evidence):
-		return fmt.Errorf("no evidence file %q", p.Evidence)
+		return p, nil, fmt.Errorf("no evidence file %q", p.Evidence)
 	}
 	if token := f.cfg.GateDiscovery.DeniedCommand(words); token != "" {
-		return fmt.Errorf("denied (%s)", token)
-	}
-	if flag := f.cfg.DeniedFlag(words); p.Role == "check" && flag != "" {
-		return fmt.Errorf("a check that sets %s", flag)
+		return p, nil, fmt.Errorf("denied (%s)", token)
 	}
 	if why := f.resolver.Fetches(f.dir, words); why != "" {
-		return fmt.Errorf("fetches (%s)", why)
+		return p, nil, fmt.Errorf("fetches (%s)", why)
 	}
-	if why := f.checkForm(p.Role, p.FileForm, []string{p.Command}, "{files}", "{dirs}"); why != "" {
-		return fmt.Errorf("file form %q: %s", p.FileForm, why)
+	if p.Role != "check" {
+		p.Kind = ""
 	}
-	return nil
+	var dropped []string
+	if why := f.fileForm(p.Role, p.FileForm, []string{p.Command}); why != "" {
+		dropped = append(dropped, fmt.Sprintf("file form %q: %s", p.FileForm, why))
+		p.FileForm, p.Globs = "", nil
+	}
+	return p, dropped, nil
 }
 
 // form is why form isn't one of bodies' own words, behind at most a
