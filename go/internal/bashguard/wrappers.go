@@ -116,9 +116,6 @@ func takesNextWord(spec wrapperSpec, opt string) bool {
 	return false
 }
 
-// interpreters run a script piped into them: every shell, and the script
-// runtimes.
-
 // rootShell is true for sudo or doas told to start a shell (sudo -s, sudo -i,
 // doas -s), which reads its commands from stdin like a named interpreter.
 func rootShell(wrapperWords []Word) bool {

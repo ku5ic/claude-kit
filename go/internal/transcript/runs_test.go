@@ -32,18 +32,15 @@ func TestAgentRuns(t *testing.T) {
 		t.Fatal(err)
 	}
 	type got struct {
-		Call, Agent string
-		Status      RunStatus
+		Prompt, Agent string
+		Status        RunStatus
 	}
 	var runs []got
 	for _, r := range AgentRuns(entries, "kit:x") {
-		if r.Prompt != "check "+r.Call {
-			t.Errorf("%s: prompt %q", r.Call, r.Prompt)
-		}
-		runs = append(runs, got{r.Call, r.Agent, r.Status})
+		runs = append(runs, got{r.Prompt, r.Agent, r.Status})
 	}
 	// A completed notice isn't undone by a later one.
-	want := []got{{"done", "a1", RunDone}, {"error", "", RunFailed}, {"bg", "a2", RunDone}, {"bgfail", "", RunFailed}, {"going", "", RunGoing}}
+	want := []got{{"check done", "a1", RunDone}, {"check error", "", RunFailed}, {"check bg", "a2", RunDone}, {"check bgfail", "", RunFailed}, {"check going", "", RunGoing}}
 	if !slices.Equal(runs, want) {
 		t.Errorf("AgentRuns =\n%v\nwant\n%v", runs, want)
 	}

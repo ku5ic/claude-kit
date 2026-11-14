@@ -37,10 +37,9 @@ func Blocks(entries []Entry) iter.Seq2[Pos, Block] {
 	}
 }
 
-// Run is one Agent tool call: its tool_use id, its block's place, its
-// prompt, the agent its result names, and how it ended.
+// Run is one Agent tool call: its block's place, its prompt, the agent
+// its result names, and how it ended.
 type Run struct {
-	Call   string
 	At     Pos
 	Prompt string
 	Agent  string
@@ -76,7 +75,7 @@ func AgentRuns(entries []Entry, agentType string) []Run {
 			switch {
 			case b.Type == "tool_use" && b.Name == "Agent" && b.Input.SubagentType == agentType:
 				waiting[b.ID] = len(runs)
-				runs = append(runs, Run{Call: b.ID, At: Pos{i, j}, Prompt: b.Input.Prompt})
+				runs = append(runs, Run{At: Pos{i, j}, Prompt: b.Input.Prompt})
 			case b.Type == "tool_result":
 				r, ok := waiting[b.ToolUseID]
 				if !ok {

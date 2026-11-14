@@ -84,7 +84,7 @@ func markOnce(h *hook.Hook, marker string, data []byte, rule string) bool {
 	if h.DryRun {
 		return true
 	}
-	if err := fsx.WriteAtomic(marker, data, 0o644); err != nil {
+	if err := fsx.WriteAtomic(marker, data, 0o600); err != nil {
 		h.Notify("kit " + rule + ": let through unchecked, its once-only marker can't be saved: " + err.Error())
 		return false
 	}

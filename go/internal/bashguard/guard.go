@@ -236,6 +236,8 @@ func resolveDir(home, base, dir string) string {
 	return dir
 }
 
+// interpreters run a script piped into them: every shell, and the script
+// runtimes.
 var interpreters = func() map[string]bool {
 	m := maps.Clone(shells)
 	for _, name := range []string{"fish", "su", "node", "ruby", "perl"} {
