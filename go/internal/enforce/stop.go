@@ -118,12 +118,14 @@ func atPreCommit(e sources.Entry) bool {
 // fileForm plans full gate g's file form on the files under its directory
 // its globs match, each file only for the kinds no hook checks it for and
 // no earlier form of the same tool covers, and records the form in formed,
-// per file and tool:kind.
+// per file and dir, tool, and kind.
 func (b *builder) fileForm(g Gate, files []string, checked map[string][]string, formed map[string]map[string][]string) {
 	if g.Skip != "" || g.FileForm == "" || len(g.Globs) == 0 {
 		return
 	}
-	tool := formTool(g.FileForm)
+	// A script or relative binary is its dir's own: npm run lint in web/
+	// is another script than the root's.
+	tool := g.Dir + "\x00" + formTool(g.FileForm)
 	var mine []string
 	for _, f := range matching(files, g.Dir, g.Globs) {
 		if slices.ContainsFunc(g.Kinds, func(k string) bool {

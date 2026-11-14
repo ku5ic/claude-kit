@@ -177,6 +177,22 @@ func TestStopRunsEachScriptOfAKind(t *testing.T) {
 	}
 }
 
+// A script name is its dir's own: web's lint is another script than the
+// root's, so both run on a file under web.
+func TestStopRunsTheSameScriptNameInEachDir(t *testing.T) {
+	e := setup(t)
+	e.tool("bin/npm")
+	e.write(".github/workflows/ci.yml", "jobs:\n  lint:\n    steps:\n      - run: npm run lint\n      - run: npm run lint\n        working-directory: web\n")
+	e.write("web/a.ts", "")
+	form := map[string]any{"role": "check", "kind": "lint", "file_form": "npm run lint -- {files}", "globs": []string{"**/*.ts"}}
+	e.check("lint/1", form)
+	e.check("lint/2", form)
+	got := commands(e.stop("web/a.ts"))
+	if !strings.Contains(got, "npm run lint -- web/a.ts") || !strings.Contains(got, "npm run lint -- a.ts") {
+		t.Errorf("plan:\n%s", got)
+	}
+}
+
 // Ignored, deleted, and outside files never reach a check.
 func TestStopChecksOnlyFilesTheRepoKeeps(t *testing.T) {
 	e := setup(t)
