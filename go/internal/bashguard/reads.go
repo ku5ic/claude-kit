@@ -1,12 +1,14 @@
 package bashguard
 
 import (
+	"maps"
 	"path/filepath"
 	"slices"
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
+	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/kitcmd"
 )
 
@@ -178,4 +180,58 @@ func onlyReads(segs []Segment) bool {
 		}
 	}
 	return true
+}
+
+// excludeSensitive gives a lone rg with only literal words and read-only
+// flags (rgFlags), reading only inside the work tree it runs in, the
+// sensitive exclusion as its first
+// flag, so a loose .env or *.pem under it isn't searched. It returns the
+// rewritten command, or "" when it left cmd alone. The allow keeps auto mode from denying the
+// rewrite, and approves only this read; the user's deny and ask rules still
+// apply. A chained or piped rg keeps the shortcut at guard.SearchesSensitive.
+func (st *state) excludeSensitive(segs []Segment, cmd string) string {
+	exclude := guard.SensitiveExclusion(st.cfg)
+	rest, ok := strings.CutPrefix(strings.TrimSpace(cmd), "rg ")
+	// onlyReads turns away a flag that runs a program (--pre, --hostname-bin),
+	// which the allow would approve.
+	if exclude == "" || !ok || len(segs) != 1 || len(segs[0].Calls) != 1 || segs[0].subshell || !onlyReads(segs) {
+		return ""
+	}
+	top := st.worktreeTop()
+	if top == "" {
+		return ""
+	}
+	var values []string
+	for _, w := range segs[0].Calls[0].Words[1:] {
+		// "$OLDPWD" or {~/.aws,.} reads as a path under cwd, so only a
+		// literal word gets the allow.
+		if !w.literal {
+			return ""
+		}
+		values = append(values, w.Value)
+	}
+	// Only a flag known to read gets the allow; any other leaves the
+	// command to the permission rules.
+	if !rgReadsOnly(values) {
+		return ""
+	}
+	// rg searches a file it's named whatever the globs say.
+	if slices.ContainsFunc(readOperands("rg", values), func(p string) bool {
+		return guard.IsSensitive(st.cfg, st.home, st.abs(unquote(p)))
+	}) {
+		return ""
+	}
+	// The allow approves only a read inside the project. The pattern and
+	// any option value count as operands too; inside, they're harmless.
+	for _, operand := range nonOptions(values) {
+		if !fsx.Within(top, resolveDir(st.home, st.cwd, operand)) {
+			return ""
+		}
+	}
+	rewritten := "rg --glob '" + exclude + "' " + rest
+	input := maps.Clone(st.h.Payload.Object(hook.KeyToolInput))
+	input["command"] = rewritten
+	st.h.UpdateInput(input)
+	st.h.Decide("allow", "kit excluded credential files from an rg inside the project")
+	return rewritten
 }
