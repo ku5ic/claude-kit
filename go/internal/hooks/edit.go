@@ -102,21 +102,42 @@ func guardSearch(h *hook.Hook, cfg *config.Config) error {
 	if guard.SearchesSensitive(cfg, h.Home, root, glob, h.Payload.String(hook.KeyInputPath) != "") {
 		return h.Block("searching a credential or key file is not permitted", "sensitive-read")
 	}
-	// With no glob, or one of only * and / that matches as much, a loose
-	// .env or *.pem under root is searched. Inside the project, where Grep
-	// needs no prompt, exclude them; the allow keeps auto mode from denying
-	// the rewrite. Outside, the gap stays, and a payload with no tool_input
-	// has nothing to rewrite.
+	// With a glob that matches every basename, a loose .env or *.pem under
+	// root is searched. Inside the project, where Grep needs no prompt,
+	// exclude them; the allow keeps auto mode from denying the rewrite.
+	// Outside, the gap stays, and a payload with no tool_input has nothing
+	// to rewrite.
 	input := h.Payload.Object(hook.KeyToolInput)
-	if exclude := guard.SensitiveExclusion(cfg); strings.Trim(glob, "*/") == "" && exclude != "" && root != "" && input != nil {
+	if excluded, ok := withExclusion(glob, guard.SensitiveExclusion(cfg)); ok && root != "" && input != nil {
 		if top, anchored := project.Root(h.Payload.Cwd()); anchored && fsx.Within(top, fsx.PhysicalPath(filepath.Clean(root))) {
 			input = maps.Clone(input)
-			input["glob"] = exclude
+			input["glob"] = excluded
 			h.UpdateInput(input)
 			h.Decide("allow", "kit excluded credential files from a Grep inside the project")
 		}
 	}
 	return nil
+}
+
+// withExclusion is glob with exclude ("!{.env,*.pem}") applied, and
+// whether glob matched a credential basename that needs it: no glob, one
+// of only * and /, or a brace alternative of them stands for exclude; a
+// negative glob gets exclude's entries among its own.
+func withExclusion(glob, exclude string) (string, bool) {
+	entries, ok := strings.CutPrefix(exclude, "!{")
+	if !ok {
+		return "", false
+	}
+	entries = strings.TrimSuffix(entries, "}")
+	if negated, ok := strings.CutPrefix(glob, "!"); ok {
+		own := strings.TrimSuffix(strings.TrimPrefix(negated, "{"), "}")
+		return "!{" + own + "," + entries + "}", own != ""
+	}
+	matchesAll := func(g string) bool { return strings.Trim(g, "*/") == "" }
+	if alternatives, ok := strings.CutPrefix(glob, "{"); ok {
+		return exclude, slices.ContainsFunc(strings.Split(strings.TrimSuffix(alternatives, "}"), ","), matchesAll)
+	}
+	return exclude, matchesAll(glob)
 }
 
 // searchRoot is where a Grep searches: tool_input.path, else cwd, which is

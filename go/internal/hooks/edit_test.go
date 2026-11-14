@@ -359,9 +359,16 @@ func TestGuardSearchExcludesSecretsInsideTheProject(t *testing.T) {
 		t.Errorf("updatedInput = %v, want %v", got, want)
 	}
 	// A glob of only * and / matches what no glob does.
-	for _, glob := range []string{"*", "**", "**/*"} {
+	for _, glob := range []string{"*", "**", "**/*", "{*.go,*}"} {
 		got := grep(dir, map[string]any{"pattern": "secret", "glob": glob})
 		if want := map[string]any{"pattern": "secret", "glob": "!{.env,.env.*,*.key,id_rsa}"}; !maps.Equal(got, want) {
+			t.Errorf("glob %q: updatedInput = %v, want %v", glob, got, want)
+		}
+	}
+	// A negative glob matches every other file, so the exclusion joins it.
+	for glob, joined := range map[string]string{"!*.md": "!{*.md,.env,.env.*,*.key,id_rsa}", "!{*.md,*.txt}": "!{*.md,*.txt,.env,.env.*,*.key,id_rsa}"} {
+		got := grep(dir, map[string]any{"pattern": "secret", "glob": glob})
+		if want := map[string]any{"pattern": "secret", "glob": joined}; !maps.Equal(got, want) {
 			t.Errorf("glob %q: updatedInput = %v, want %v", glob, got, want)
 		}
 	}
