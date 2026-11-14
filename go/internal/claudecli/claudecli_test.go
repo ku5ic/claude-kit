@@ -97,6 +97,14 @@ func TestARunThatStartedCountsOnceHoweverItEnds(t *testing.T) {
 	if _, u, err := Run(time.Second, []string{"no-such-claude"}, t.TempDir(), strings.NewReader(""), t.TempDir(), "KIT_TEST_GUARD"); err == nil || u.Runs != 0 {
 		t.Errorf("a binary that isn't installed: runs %d, %v; want 0 runs and an error", u.Runs, err)
 	}
+	// A path argv[0] resolves against dir, as exec.Command does, not the cwd.
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "fake-claude"), []byte("#!/bin/sh\nexit 3\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, u, err := Run(time.Second, []string{"./fake-claude"}, dir, strings.NewReader(""), t.TempDir(), "KIT_TEST_GUARD"); err == nil || !strings.Contains(err.Error(), "exit status 3") || u.Runs != 1 {
+		t.Errorf("./fake-claude in dir: runs %d, %v; want 1 run and exit status 3", u.Runs, err)
+	}
 }
 
 func TestUsagePairs(t *testing.T) {

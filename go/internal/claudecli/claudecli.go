@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/proc"
@@ -76,9 +77,13 @@ func Run(timeout time.Duration, argv []string, dir string, stdin io.Reader, mark
 		return nil, Usage{}, err
 	}
 	defer cleanup()
-	bin, err := kittool.Path(argv[0])
-	if err != nil {
-		return nil, Usage{}, err
+	// A path is the configured binary itself, relative to dir as
+	// exec.Command takes it; only a bare name goes through PATH.
+	bin := argv[0]
+	if !strings.Contains(bin, "/") {
+		if bin, err = kittool.Path(bin); err != nil {
+			return nil, Usage{}, err
+		}
 	}
 	cmd := proc.Command(timeout, bin, argv[1:]...)
 	cmd.Dir, cmd.Env, cmd.Stdin = dir, env, stdin
