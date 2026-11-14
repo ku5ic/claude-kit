@@ -296,14 +296,17 @@ var (
 	// askedYou can come before "you commit" in a request: "can you
 	// commit". Any other ("if you commit this") makes it a remark.
 	askedYou = []string{"can", "could", "would", "will", "please"}
+	// deferral later in the clause puts the commit off: "commit it after I
+	// review the diff".
+	deferral = []string{"after", "once", "when", "until", "before"}
 )
 
 // asksForCommit is true when prompt uses "commit" as a request: first in
 // its clause, after a requestLead word, or after an askedYou word and
-// "you", followed by nothing, a
-// commitObjects word, or a step number, with no negation earlier in its
-// clause, in a sentence that isn't the user's own plan, and, when it ends
-// in "?", opens as a direct ask.
+// "you", followed by nothing, a commitObjects word, or a step number, with
+// no negation earlier in its clause and no deferral later in it, in a
+// sentence that isn't the user's own plan, and, when it ends in "?", opens
+// as a direct ask.
 func asksForCommit(prompt string) bool {
 	for _, m := range commitWord.FindAllStringSubmatchIndex(prompt, -1) {
 		// commit-msg, commit/push, commit's: part of a compound or a noun.
@@ -317,6 +320,13 @@ func asksForCommit(prompt string) bool {
 			}
 		}
 		clause := prompt[strings.LastIndexAny(prompt[:m[0]], ".!?;,\n")+1 : m[0]]
+		rest := prompt[m[1]:]
+		if end := strings.IndexAny(rest, ".!?;,\n"); end >= 0 {
+			rest = rest[:end]
+		}
+		if slices.ContainsFunc(strings.Fields(strings.ToLower(rest)), func(w string) bool { return slices.Contains(deferral, w) }) {
+			continue
+		}
 		words := strings.Fields(strings.ToLower(clause))
 		if n := len(words); n > 0 && !slices.Contains(requestLead, words[n-1]) &&
 			(words[n-1] != "you" || n < 2 || !slices.Contains(askedYou, words[n-2])) {
