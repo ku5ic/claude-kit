@@ -714,8 +714,13 @@ func TestGuardBashExcludesSecretsFromALoneRg(t *testing.T) {
 		if _, err := os.Stat(cache.ReadOnlyBash(filepath.Join(k.claude, "cache"), "s1", got)); err != nil {
 			t.Errorf("the rewritten %q left no read-only marker: %v", got, err)
 		}
+		// bash-edits sees only the command that ran, so the original's
+		// marker would never be removed.
+		if _, err := os.Stat(cache.ReadOnlyBash(filepath.Join(k.claude, "cache"), "s1", cmd)); err == nil {
+			t.Errorf("the original %q left a read-only marker too", cmd)
+		}
 	}
-	for _, cmd := range []string{"rg -g '*.go' x .", "rg --glob=*.md x", "rg x . && rm y", "cat a | rg x", "rg --pre ./x pat .", "rg --hostname-bin=./x pat .", "rg x . > out.txt", "rg -uu token /etc", "rg secret ~", "rg x ../", "rg -e x -- " + t.TempDir(), "rg -L x .", "rg --follow x ."} {
+	for _, cmd := range []string{"rg -g '*.go' x .", "rg --glob=*.md x", "rg x . && rm y", "cat a | rg x", "rg --pre ./x pat .", "rg --hostname-bin=./x pat .", "rg x . > out.txt", "rg -uu token /etc", "rg secret ~", "rg x ../", "rg -e x -- " + t.TempDir(), "rg -L x .", "rg --follow x .", "rg -ig '.env' x", "rg -uug '*.env' x"} {
 		if got, _ := rewritten(cmd); got != "" {
 			t.Errorf("%q was rewritten to %q", cmd, got)
 		}

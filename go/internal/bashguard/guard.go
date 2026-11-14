@@ -135,49 +135,57 @@ func Check(h *hook.Hook) error {
 	segs, unparsed := parseAll(cmd)
 	if unparsed {
 		st.ask("guard-bash could not parse part of this command, so it went unchecked; confirm it")
-	} else if onlyReads(segs) && !h.DryRun {
-		if marker := cache.ReadOnlyBash(h.Paths.CacheDir(), h.Payload.SessionID(), cmd); marker != "" {
-			_ = fsx.WriteAtomic(marker, nil, 0o600)
-		}
 	}
 	for _, seg := range segs {
 		if err := st.segment(seg); err != nil {
 			return err
 		}
 	}
+	runs := cmd
 	switch {
 	case st.pending != "":
 		h.Decide("ask", st.pending)
 	case readonlyCall(cmd, norm):
 		h.Decide("allow", "side-effect-free claude-kit script")
 	default:
-		st.excludeSensitive(segs, cmd)
+		if rewritten := st.excludeSensitive(segs, cmd); rewritten != "" {
+			runs = rewritten
+		}
+	}
+	// bash-edits reads the marker of the command that runs, the rewrite
+	// when there is one.
+	if !unparsed && onlyReads(segs) && !h.DryRun {
+		if marker := cache.ReadOnlyBash(h.Paths.CacheDir(), h.Payload.SessionID(), runs); marker != "" {
+			_ = fsx.WriteAtomic(marker, nil, 0o600)
+		}
 	}
 	return nil
 }
 
 // excludeSensitive gives a lone rg with no glob of its own, reading only
-// inside the work tree it runs in, the sensitive exclusion as its first flag, so a loose .env or *.pem
-// under it isn't searched. The allow keeps auto mode from denying the
+// inside the work tree it runs in, the sensitive exclusion as its first
+// flag, so a loose .env or *.pem under it isn't searched. It returns the
+// rewritten command, or "" when it left cmd alone. The allow keeps auto mode from denying the
 // rewrite, and approves only this read; the user's deny and ask rules still
 // apply. A chained or piped rg keeps the shortcut at guard.SearchesSensitive.
-func (st *state) excludeSensitive(segs []Segment, cmd string) {
+func (st *state) excludeSensitive(segs []Segment, cmd string) string {
 	exclude := guard.SensitiveExclusion(st.cfg)
 	rest, ok := strings.CutPrefix(strings.TrimSpace(cmd), "rg ")
 	// onlyReads turns away a flag that runs a program (--pre, --hostname-bin),
 	// which the allow would approve.
 	if exclude == "" || !ok || len(segs) != 1 || len(segs[0].Calls) != 1 || segs[0].subshell || !onlyReads(segs) {
-		return
+		return ""
 	}
 	top := st.worktreeTop()
 	if top == "" {
-		return
+		return ""
 	}
 	var values []string
 	for _, w := range segs[0].Calls[0].Words[1:] {
-		// -L follows a link out of the project; a glob of its own replaces ours.
-		if name, _, _ := strings.Cut(w.Value, "="); globFlags[name] != "" || strings.HasPrefix(name, "-g") || name == "--follow" || shortCluster(name, "L") {
-			return
+		// -L follows a link out of the project; a glob of its own, -g alone
+		// or in a cluster (-ig), replaces ours.
+		if name, _, _ := strings.Cut(w.Value, "="); globFlags[name] != "" || name == "--follow" || shortCluster(name, "Lg") {
+			return ""
 		}
 		values = append(values, w.Value)
 	}
@@ -185,13 +193,13 @@ func (st *state) excludeSensitive(segs []Segment, cmd string) {
 	if slices.ContainsFunc(readOperands("rg", values), func(p string) bool {
 		return guard.IsSensitive(st.cfg, st.home, st.abs(unquote(p)))
 	}) {
-		return
+		return ""
 	}
 	// The allow approves only a read inside the project. The pattern and
 	// any option value count as operands too; inside, they're harmless.
 	for _, operand := range nonOptions(values) {
 		if !fsx.Within(top, resolveDir(st.home, st.cwd, operand)) {
-			return
+			return ""
 		}
 	}
 	rewritten := "rg --glob '" + exclude + "' " + rest
@@ -199,9 +207,7 @@ func (st *state) excludeSensitive(segs []Segment, cmd string) {
 	input["command"] = rewritten
 	st.h.UpdateInput(input)
 	st.h.Decide("allow", "kit excluded credential files from an rg inside the project")
-	if marker := cache.ReadOnlyBash(st.h.Paths.CacheDir(), st.h.Payload.SessionID(), rewritten); marker != "" && !st.h.DryRun {
-		_ = fsx.WriteAtomic(marker, nil, 0o600)
-	}
+	return rewritten
 }
 
 // wholeString runs the checks on the whole command string, distinctive
