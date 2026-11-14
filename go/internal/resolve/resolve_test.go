@@ -428,3 +428,41 @@ func TestCommandNeverFetches(t *testing.T) {
 		t.Errorf("npx with a local copy runs, npx from package.json's toolchain: %+v", res)
 	}
 }
+
+func TestAKitToolRunsFromPATHUnpinned(t *testing.T) {
+	e := setup(t)
+	gitleaks := e.exe(filepath.Join(e.path, "gitleaks"))
+	e.wantSkip(e.bin(e.repo, "gitleaks"), "only on PATH")
+	got, err := KitTool("gitleaks")
+	if err != nil || got != gitleaks {
+		t.Errorf("KitTool(gitleaks) = %q, %v; want %q", got, err, gitleaks)
+	}
+}
+
+func TestAKitToolIsTheFirstNameOnPATH(t *testing.T) {
+	e := setup(t)
+	e.exe(filepath.Join(e.path, "prettier"))
+	prettierd := e.exe(filepath.Join(e.path, "prettierd"))
+	if got, err := KitTool("prettierd", "prettier"); err != nil || got != prettierd {
+		t.Errorf("KitTool(prettierd, prettier) = %q, %v; want %q", got, err, prettierd)
+	}
+	if _, err := KitTool("tsc", "deno"); err == nil || !strings.Contains(err.Error(), "tsc or deno isn't installed") {
+		t.Errorf("KitTool with none installed: err %v", err)
+	}
+}
+
+func TestSgCountsOnlyWhenItIsAstGrep(t *testing.T) {
+	e := setup(t)
+	sg := filepath.Join(e.path, "sg")
+	testutil.Put(t, e.path, "sg", "#!/bin/sh\necho \"sg: group '$1' does not exist\" >&2\nexit 1\n")
+	if err := os.Chmod(sg, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := KitTool("ast-grep", "sg"); err == nil {
+		t.Errorf("newgrp's sg resolved as ast-grep: %q", got)
+	}
+	testutil.Put(t, e.path, "sg", "#!/bin/sh\necho 'ast-grep 0.51.2'\n")
+	if got, err := KitTool("ast-grep", "sg"); err != nil || got != sg {
+		t.Errorf("KitTool(ast-grep, sg) = %q, %v; want %q", got, err, sg)
+	}
+}
