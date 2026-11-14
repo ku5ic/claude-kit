@@ -4,7 +4,7 @@ Check reference skills against the current language or framework release and upd
 
 ## What this maintains
 
-Reference skills are every skill outside the `exempt` list in `go/e2e/kit_repo_test.go`. Each keeps its sources in `skills/<name>/sources.md`, which nothing links and only this procedure reads. There, per file, a References list, a Claims list naming each claim's source, and under `## SKILL.md` the Version notes this skill owns:
+Reference skills are every skill outside the `exempt` list in `go/e2e/kit_repo_test.go`. Each outside its `unversioned` list keeps its sources in `skills/<name>/sources.md`, which nothing links and only this procedure reads. There, per file, a References list, a Claims list naming each claim's source, and under `## SKILL.md` the Version notes this skill owns:
 
 ```markdown
 ### Version notes
@@ -64,7 +64,7 @@ python3 -c 'import sys; print("// Code generated from sys.stdlib_module_names on
 - A claim the researcher could not source stays as it was. "Could not verify" is a valid outcome; a confident edit from training memory is not (`skills/kit-rules/reference/evidence.md`).
 - Every Version notes entry cites its source. An entry without one is a defect.
 - Prefer the smallest edit that makes the guidance true. Rewriting a reference file is out of scope; propose it in the report instead.
-- engineering-fundamentals is exempt, since it holds no version-dependent content. Refresh it only when named explicitly.
+- A skill in `unversioned` in `go/e2e/kit_repo_test.go` holds no version-dependent content and keeps no `sources.md`. Refresh it only when named explicitly.
 - Stop after the report. Do not commit.
 
 ## Stop conditions

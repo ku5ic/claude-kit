@@ -95,7 +95,10 @@ func TestKitRepo(t *testing.T) {
 	t.Run("a reference skill keeps its sources in sources.md and fits its budget", func(t *testing.T) {
 		// The skills that aren't reference skills, so keep no sources.md;
 		// skills/meta/reference/refresh.md points here for the list.
-		exempt := []string{"audit", "write", "deps", "investigate", "pr", "unslop", "report-format", "meta", "kit-rules", "slop-patterns"}
+		exempt := []string{"audit", "write", "deps", "investigate", "pr", "unslop", "report-format", "meta", "kit-rules", "slop-patterns", "code"}
+		// Reference skills with no version-dependent content: no sources.md,
+		// and /meta refresh takes them only when named.
+		unversioned := []string{"engineering-fundamentals"}
 		// Set from the sizes after sources moved out; step 18's rewrite lowers them.
 		const maxDescription, maxSkill = 200, 5 * 1024
 		url := regexp.MustCompile(`https?://`)
@@ -108,6 +111,10 @@ func TestKitRepo(t *testing.T) {
 			text := Read(t, skill)
 			front, _ := frontmatter(text)
 			rel, _ := filepath.Rel(kitRoot, skill)
+			// /meta refresh reads it for every skill outside exempt.
+			if _, err := os.Stat(filepath.Join(dir, "sources.md")); err != nil && !slices.Contains(unversioned, filepath.Base(dir)) {
+				t.Errorf("%s: no sources.md; add it, or the skill to exempt if it's not a reference skill", rel)
+			}
 			if n := len(front["description"]); n == 0 || n > maxDescription {
 				t.Errorf("%s: description is %d characters, want 1 to %d", rel, n, maxDescription)
 			}
