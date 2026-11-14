@@ -20,11 +20,11 @@ func GuardConnector(h *hook.Hook) error {
 		return p.Err
 	}
 	cfg := h.Config()
-	tool := p.String("tool_name")
+	tool := p.String(hook.KeyToolName)
 	if cfg == nil || !connector.IsWrite(cfg.Connectors, tool) {
 		return nil
 	}
-	text := strings.Join(p.Strings("tool_input", cfg.Connectors.CodeFields...), "\n\n")
+	text := strings.Join(p.Strings(hook.KeyToolInput, cfg.Connectors.CodeFields...), "\n\n")
 	if strings.TrimSpace(text) == "" {
 		return nil
 	}

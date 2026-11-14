@@ -22,7 +22,7 @@ import (
 // unchanged resubmit print nothing. PreToolUse for ExitPlanMode.
 func PlanChanges(h *hook.Hook) error {
 	p := h.Payload
-	plan, text := p.String("tool_input.planFilePath"), p.String("tool_input.plan")
+	plan, text := p.String(hook.KeyInputPlanFilePath), p.String(hook.KeyInputPlan)
 	if p.Err != nil || plan == "" || text == "" {
 		return nil
 	}

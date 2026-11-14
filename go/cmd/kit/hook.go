@@ -168,8 +168,8 @@ func cmdHook(e *env, args []string, stdin io.Reader) (status int) {
 // skillsNudge is skills-nudge, a Bash command's reads included. hooks and
 // bashguard share a layer, so the two meet here.
 func skillsNudge(h *hook.Hook) error {
-	if h.Payload.String("tool_name") != "Bash" {
+	if h.Payload.String(hook.KeyToolName) != "Bash" {
 		return hooks.SkillsNudge(h)
 	}
-	return hooks.NudgeFiles(h, bashguard.ReadTargets(h.Payload.String("tool_input.command"), h.Home, h.Payload.Cwd()))
+	return hooks.NudgeFiles(h, bashguard.ReadTargets(h.Payload.String(hook.KeyInputCommand), h.Home, h.Payload.Cwd()))
 }

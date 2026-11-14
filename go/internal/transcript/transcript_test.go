@@ -71,7 +71,7 @@ func TestPromptTextAndTail(t *testing.T) {
 	}
 }
 
-func TestLastTurnEdits(t *testing.T) {
+func TestEdits(t *testing.T) {
 	path := write(t,
 		`{"type":"user","message":{"content":"first"}}`,
 		`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Edit","input":{"file_path":"/old.go"}}]}}`,
@@ -83,9 +83,6 @@ func TestLastTurnEdits(t *testing.T) {
 	entries, err := Load(path)
 	if err != nil || len(entries) != 6 {
 		t.Fatalf("Load: %d entries, %v", len(entries), err)
-	}
-	if got := Edits(LastTurn(entries)); !slices.Equal(got, []string{"/a.go", "/b.ipynb"}) {
-		t.Errorf("last turn's edits = %q", got)
 	}
 	if got := Edits(entries); !slices.Equal(got, []string{"/old.go", "/a.go", "/b.ipynb"}) {
 		t.Errorf("all edits = %q", got)

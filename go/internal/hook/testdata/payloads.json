@@ -1,0 +1,151 @@
+{
+  "source": "https://code.claude.com/docs/en/hooks, 2026-11-14. Each JSON input example the page gives for an event the kit hooks, copied as is; a tool the page shows only as a tool_input table gets a PreToolUse payload of that table's example values.",
+  "examples": [
+    {
+      "from": "Hook input and output: PreToolUse, Bash",
+      "payload": {
+        "session_id": "abc123",
+        "prompt_id": "550e8400-e29b-41d4-a716-446655440000",
+        "transcript_path": "/home/user/.claude/projects/.../transcript.jsonl",
+        "cwd": "/home/user/my-project",
+        "scratchpad_dir": "/tmp/claude-1000/-home-user-my-project/abc123/scratchpad",
+        "permission_mode": "default",
+        "hook_event_name": "PreToolUse",
+        "tool_name": "Bash",
+        "tool_input": {
+          "command": "npm test",
+          "description": "Run test suite",
+          "timeout": 120000,
+          "run_in_background": false
+        },
+        "tool_use_id": "toolu_01ABC123..."
+      }
+    },
+    {
+      "from": "PostToolUse, Write",
+      "payload": {
+        "session_id": "abc123",
+        "transcript_path": "/Users/.../.claude/projects/.../00893aaf-19fa-41d2-8238-13269b9b3ca0.jsonl",
+        "cwd": "/Users/...",
+        "permission_mode": "default",
+        "hook_event_name": "PostToolUse",
+        "tool_name": "Write",
+        "tool_input": {
+          "file_path": "/path/to/file.txt",
+          "content": "file content"
+        },
+        "tool_response": {
+          "filePath": "/path/to/file.txt",
+          "type": "create"
+        },
+        "tool_use_id": "toolu_01ABC123...",
+        "duration_ms": 12
+      }
+    },
+    {
+      "from": "UserPromptSubmit",
+      "payload": {
+        "session_id": "abc123",
+        "transcript_path": "/Users/.../.claude/projects/.../00893aaf-19fa-41d2-8238-13269b9b3ca0.jsonl",
+        "cwd": "/Users/...",
+        "permission_mode": "default",
+        "hook_event_name": "UserPromptSubmit",
+        "prompt": "Write a function to calculate the factorial of a number"
+      }
+    },
+    {
+      "from": "UserPromptExpansion",
+      "payload": {
+        "session_id": "abc123",
+        "transcript_path": "/Users/.../00893aaf.jsonl",
+        "cwd": "/Users/...",
+        "permission_mode": "default",
+        "hook_event_name": "UserPromptExpansion",
+        "expansion_type": "slash_command",
+        "command_name": "example-skill",
+        "command_args": "arg1 arg2",
+        "command_source": "plugin",
+        "prompt": "/example-skill arg1 arg2"
+      }
+    },
+    {
+      "from": "SubagentStart",
+      "payload": {
+        "session_id": "abc123",
+        "transcript_path": "/Users/.../.claude/projects/.../00893aaf-19fa-41d2-8238-13269b9b3ca0.jsonl",
+        "cwd": "/Users/...",
+        "hook_event_name": "SubagentStart",
+        "agent_id": "agent-abc123",
+        "agent_type": "Explore"
+      }
+    },
+    {
+      "from": "SubagentStop",
+      "payload": {
+        "session_id": "abc123",
+        "transcript_path": "~/.claude/projects/.../abc123.jsonl",
+        "cwd": "/Users/...",
+        "permission_mode": "default",
+        "hook_event_name": "SubagentStop",
+        "stop_hook_active": false,
+        "agent_id": "def456",
+        "agent_type": "Explore",
+        "agent_transcript_path": "~/.claude/projects/.../abc123/subagents/agent-def456.jsonl",
+        "last_assistant_message": "Analysis complete. Found 3 potential issues...",
+        "background_tasks": [],
+        "session_crons": []
+      }
+    },
+    {
+      "from": "Stop",
+      "payload": {
+        "session_id": "abc123",
+        "transcript_path": "~/.claude/projects/.../00893aaf-19fa-41d2-8238-13269b9b3ca0.jsonl",
+        "cwd": "/Users/...",
+        "permission_mode": "default",
+        "hook_event_name": "Stop",
+        "stop_hook_active": true,
+        "last_assistant_message": "I've completed the refactoring. Here's a summary..."
+      }
+    },
+    {
+      "from": "PreToolUse tool_input table: Edit",
+      "payload": {
+        "hook_event_name": "PreToolUse",
+        "tool_name": "Edit",
+        "tool_input": {
+          "file_path": "/path/to/file.txt",
+          "old_string": "original text",
+          "new_string": "replacement text",
+          "replace_all": false
+        }
+      }
+    },
+    {
+      "from": "PreToolUse tool_input table: Grep",
+      "payload": {
+        "hook_event_name": "PreToolUse",
+        "tool_name": "Grep",
+        "tool_input": {
+          "pattern": "TODO.*fix",
+          "path": "/path/to/dir",
+          "glob": "*.ts",
+          "output_mode": "content",
+          "-i": true,
+          "multiline": false
+        }
+      }
+    },
+    {
+      "from": "PreToolUse tool_input table: ExitPlanMode",
+      "payload": {
+        "hook_event_name": "PreToolUse",
+        "tool_name": "ExitPlanMode",
+        "tool_input": {
+          "plan": "## Refactor auth\n1. Extract...",
+          "planFilePath": "/Users/.../plans/refactor-auth.md"
+        }
+      }
+    }
+  ]
+}

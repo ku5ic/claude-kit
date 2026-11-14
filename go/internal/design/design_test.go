@@ -2,6 +2,7 @@ package design
 
 import (
 	"bytes"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -93,4 +94,31 @@ func TestUndefinedTokens(t *testing.T) {
 			t.Errorf("UndefinedTokens = %q, want none", got)
 		}
 	})
+}
+
+// readProject answers a root from its memo after the first read, a failed
+// one too: what changes on disk after it isn't seen.
+func TestReadProjectReadsARootOnce(t *testing.T) {
+	t.Parallel()
+	listed := testutil.Physical(t, t.TempDir())
+	testutil.Git(t, listed, "init", "-q")
+	testutil.Write(t, filepath.Join(listed, "app.css"), ":root { --gap: 1rem; }\n")
+	if p, ok := readProject(listed); !ok || !p.defined["--gap"] {
+		t.Fatalf("first read = %v, %v; want --gap defined", p.defined, ok)
+	}
+	if err := os.RemoveAll(filepath.Join(listed, ".git")); err != nil {
+		t.Fatal(err)
+	}
+	if p, ok := readProject(listed); !ok || !p.defined["--gap"] {
+		t.Errorf("second read = %v, %v; want the memo's --gap", p.defined, ok)
+	}
+
+	unlisted := testutil.Physical(t, t.TempDir())
+	if _, ok := readProject(unlisted); ok {
+		t.Fatal("a root git can't list read ok")
+	}
+	testutil.Git(t, unlisted, "init", "-q")
+	if _, ok := readProject(unlisted); ok {
+		t.Error("a failed read was retried")
+	}
 }

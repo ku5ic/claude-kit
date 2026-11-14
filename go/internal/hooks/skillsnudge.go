@@ -22,16 +22,16 @@ func SkillsNudge(h *hook.Hook) error {
 	if p.Err != nil {
 		return p.Err
 	}
-	switch tool := p.String("tool_name"); {
+	switch tool := p.String(hook.KeyToolName); {
 	case tool == "Read" || slices.Contains(filePathTools, tool):
 		return NudgeFiles(h, []string{p.FilePath()})
 	case tool == "Grep":
 		var paths []string
 		root := searchRoot(h)
-		if p.String("tool_input.path") != "" {
+		if p.String(hook.KeyInputPath) != "" {
 			paths = append(paths, root)
 		}
-		if glob := p.String("tool_input.glob"); glob != "" {
+		if glob := p.String(hook.KeyInputGlob); glob != "" {
 			paths = append(paths, filepath.Join(root, glob))
 		}
 		return NudgeFiles(h, paths)

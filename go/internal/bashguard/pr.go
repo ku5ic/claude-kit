@@ -42,7 +42,7 @@ func CheckPR(h *hook.Hook) error {
 	if h.Payload.Err != nil {
 		return h.Payload.Err
 	}
-	cmd := h.Payload.String("tool_input.command")
+	cmd := h.Payload.String(hook.KeyInputCommand)
 	if !strings.Contains(cmd, "gh") {
 		return nil
 	}

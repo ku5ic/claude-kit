@@ -247,9 +247,6 @@ func TestKitRepo(t *testing.T) {
 	})
 }
 
-// frontmatter is the top-level `key: value` lines between a file's opening
-// pair of --- lines. Line-based, not YAML: argument-hint values like
-// <a|b> aren't valid YAML scalars.
 // proseLines is text's lines by 1-based number, without fenced code and
 // with inline code spans blanked, so an example URL in code doesn't count.
 func proseLines(text string) map[int]string {
@@ -268,6 +265,9 @@ func proseLines(text string) map[int]string {
 	return lines
 }
 
+// frontmatter is the top-level `key: value` lines between a file's opening
+// pair of --- lines. Line-based, not YAML: argument-hint values like
+// <a|b> aren't valid YAML scalars.
 func frontmatter(text string) (map[string]string, bool) {
 	body, ok := strings.CutPrefix(text, "---\n")
 	if !ok {

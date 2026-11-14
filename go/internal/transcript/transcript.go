@@ -290,17 +290,6 @@ func Load(path string) ([]Entry, error) {
 	return entries, err
 }
 
-// LastTurn is the entries after the last real user prompt; all of them
-// when there is none.
-func LastTurn(entries []Entry) []Entry {
-	for i := len(entries) - 1; i >= 0; i-- {
-		if entries[i].StartsTurn() {
-			return entries[i+1:]
-		}
-	}
-	return entries
-}
-
 // Edits is the file each write tool call in entries targets, in order.
 func Edits(entries []Entry) []string {
 	var paths []string

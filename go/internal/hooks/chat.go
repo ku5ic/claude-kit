@@ -36,7 +36,7 @@ func ChatSlop(h *hook.Hook) error {
 	if data, err := os.ReadFile(marker); err == nil {
 		_ = json.Unmarshal(data, &kept)
 	}
-	switch p.String("hook_event_name") {
+	switch p.String(hook.KeyHookEventName) {
 	case "UserPromptSubmit":
 		if len(kept) > 0 {
 			_ = os.Remove(marker)
@@ -47,7 +47,7 @@ func ChatSlop(h *hook.Hook) error {
 		if cfg == nil {
 			return nil
 		}
-		_, blocking := slop.New(cfg).Check(slop.Prose(p.String("last_assistant_message")), "chat", logHit(h, "chat reply"))
+		_, blocking := slop.New(cfg).Check(slop.Prose(p.String(hook.KeyLastAssistantMessage)), "chat", logHit(h, "chat reply"))
 		if len(blocking) == 0 || h.DryRun {
 			return nil
 		}

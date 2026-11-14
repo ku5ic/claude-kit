@@ -30,7 +30,7 @@ func GuardHandback(h *hook.Hook) error {
 	if marker == "" {
 		return nil
 	}
-	hits := reportHits(h, p.String("tool_input.message"))
+	hits := reportHits(h, p.String(hook.KeyInputMessage))
 	if prev, _ := os.ReadFile(marker); string(prev) == "sent-back" {
 		return nil
 	}
@@ -52,13 +52,13 @@ func GuardHandback(h *hook.Hook) error {
 // SubagentStop.
 func SubagentSlop(h *hook.Hook) error {
 	p := h.Payload
-	if p.Err != nil || p.Bool("stop_hook_active") {
+	if p.Err != nil || p.Bool(hook.KeyStopHookActive) {
 		return nil
 	}
 	if marker := handbackMarker(h, cache.Slop); marker != "" && fsx.IsFile(marker) {
 		return nil
 	}
-	hits := reportHits(h, p.String("last_assistant_message"))
+	hits := reportHits(h, p.String(hook.KeyLastAssistantMessage))
 	if len(hits) == 0 {
 		return nil
 	}
@@ -68,7 +68,7 @@ func SubagentSlop(h *hook.Hook) error {
 // handbackMarker is the session's marker, in cache dir kind, for the
 // payload's agent; "" when either id is missing or isn't a plain name.
 func handbackMarker(h *hook.Hook, kind string) string {
-	agent := h.Payload.String("agent_id")
+	agent := h.Payload.String(hook.KeyAgentID)
 	if agent == "" || strings.ContainsAny(agent, `/\`) {
 		return ""
 	}

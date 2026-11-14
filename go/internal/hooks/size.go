@@ -37,18 +37,18 @@ func CheckSize(h *hook.Hook) error {
 		return nil
 	}
 	b := cfg.SizeBudgets
-	tool := p.String("tool_name")
+	tool := p.String(hook.KeyToolName)
 	var text, where, then, marker string
 	var budget int
 	switch {
-	case p.String("hook_event_name") == "SubagentStop":
+	case p.String(hook.KeyHookEventName) == "SubagentStop":
 		// Sent back once, by the stop or the hand-back. A marker, not
 		// stop_hook_active: another check may have blocked the first stop.
 		m := handbackMarker(h, cache.Size)
-		if m == "" && p.Bool("stop_hook_active") || m != "" && fsx.IsFile(m) {
+		if m == "" && p.Bool(hook.KeyStopHookActive) || m != "" && fsx.IsFile(m) {
 			return nil
 		}
-		if n := countWords(p.String("last_assistant_message"), false); b.Report > 0 && n > b.Report {
+		if n := countWords(p.String(hook.KeyLastAssistantMessage), false); b.Report > 0 && n > b.Report {
 			if m != "" && !h.DryRun {
 				_ = fsx.WriteAtomic(m, []byte("sent-back"), 0o644)
 			}
@@ -56,11 +56,11 @@ func CheckSize(h *hook.Hook) error {
 		}
 		return nil
 	case tool == "SubagentHandback":
-		text, where, then, budget = p.String("tool_input.message"), "your report", "hand back the shorter report", b.Report
+		text, where, then, budget = p.String(hook.KeyInputMessage), "your report", "hand back the shorter report", b.Report
 		marker = handbackMarker(h, cache.Size)
 	case tool == "ExitPlanMode":
-		plan := filepath.Base(p.String("tool_input.planFilePath"))
-		text, where, then, budget = p.String("tool_input.plan"), "the plan "+plan, "call ExitPlanMode again", b.Plan
+		plan := filepath.Base(p.String(hook.KeyInputPlanFilePath))
+		text, where, then, budget = p.String(hook.KeyInputPlan), "the plan "+plan, "call ExitPlanMode again", b.Plan
 		marker = h.Paths.SessionFile(cache.Size, p.SessionID(), "plan", plan)
 	case slices.Contains(filePathTools, tool):
 		path := p.FilePath()
@@ -74,7 +74,7 @@ func CheckSize(h *hook.Hook) error {
 		text, where, then, budget = after, filepath.Base(path), "write the report again", b.Scratch
 		marker = h.Paths.SessionFile(cache.Size, p.SessionID(), "file", filepath.Base(path))
 	case connector.IsWrite(cfg.Connectors, tool):
-		text, where, then, budget = strings.Join(p.Strings("tool_input", cfg.Connectors.CodeFields...), "\n\n"), "the "+tool+" input", "send it again", b.Post
+		text, where, then, budget = strings.Join(p.Strings(hook.KeyToolInput, cfg.Connectors.CodeFields...), "\n\n"), "the "+tool+" input", "send it again", b.Post
 		marker = h.Paths.SessionFile(cache.Size, p.SessionID(), "tool", tool)
 	default:
 		return nil

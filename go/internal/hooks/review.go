@@ -90,17 +90,17 @@ func forkedSkill(agentTranscript, parent string) string {
 // turn's Stop doesn't check it again.
 func ReviewChecks(h *hook.Hook) error {
 	p := h.Payload
-	if p.Err != nil || p.Bool("stop_hook_active") {
+	if p.Err != nil || p.Bool(hook.KeyStopHookActive) {
 		return nil
 	}
-	transcript := p.String("agent_transcript_path")
+	transcript := p.String(hook.KeyAgentTranscriptPath)
 	if transcript == "" {
 		return nil
 	}
 	// A forked skill runs as agent_type "general-purpose"; only undocumented
 	// Claude Code records name the skill. If they move, the hook goes quiet
 	// rather than nudging every subagent.
-	if forkedSkill(transcript, p.String("transcript_path")) != reviewSkill {
+	if forkedSkill(transcript, p.String(hook.KeyTranscriptPath)) != reviewSkill {
 		return nil
 	}
 	cfg, root := h.Config(), git.Toplevel(h.Payload.Cwd())

@@ -63,7 +63,7 @@ func PlanModeContext(h *hook.Hook) error {
 	if p.Err != nil {
 		return nil
 	}
-	if p.String("permission_mode") == "plan" {
+	if p.String(hook.KeyPermissionMode) == "plan" {
 		h.Print("Plan mode: load the investigate skill and follow it; its findings feed the plan.\n")
 		return nil
 	}
@@ -72,8 +72,8 @@ func PlanModeContext(h *hook.Hook) error {
 		return nil
 	}
 
-	if p.String("hook_event_name") == "PostToolUse" {
-		if p.String("tool_name") != "ExitPlanMode" {
+	if p.String(hook.KeyHookEventName) == "PostToolUse" {
+		if p.String(hook.KeyToolName) != "ExitPlanMode" {
 			return nil
 		}
 		pause := approvedPause[pauseOf(h)] + ", per kit.yml step_pause and skills/kit-rules/reference/workflow.md section 3."
@@ -151,20 +151,20 @@ const planCritic = "kit:plan-critic"
 // through. PreToolUse for ExitPlanMode.
 func GuardPlan(h *hook.Hook) error {
 	p := h.Payload
-	plan := p.String("tool_input.planFilePath")
+	plan := p.String(hook.KeyInputPlanFilePath)
 	// Under an earlier step's deny, the ask would be dropped but its marker
 	// kept, and the resent plan would pass with no critique.
 	if decision, _ := h.Decision(); decision == "deny" {
 		return nil
 	}
-	if p.Err != nil || p.String("tool_name") != "ExitPlanMode" || plan == "" || h.RuleDisabled("plan-critic") || planCritiqued(p) {
+	if p.Err != nil || p.String(hook.KeyToolName) != "ExitPlanMode" || plan == "" || h.RuleDisabled("plan-critic") || planCritiqued(p) {
 		return nil
 	}
 	marker := h.Paths.SessionFile(cache.PlanCritic, p.SessionID(), filepath.Base(plan))
 	if marker == "" {
 		return nil
 	}
-	sum := sha256.Sum256([]byte(p.String("tool_input.plan")))
+	sum := sha256.Sum256([]byte(p.String(hook.KeyInputPlan)))
 	sent := hex.EncodeToString(sum[:])
 	if prev, err := os.ReadFile(marker); err == nil && string(prev) == sent {
 		return nil
@@ -181,8 +181,8 @@ func GuardPlan(h *hook.Hook) error {
 // planCritiqued reports whether the ExitPlanMode in p follows a plan-critic
 // run on its plan; an unreadable transcript counts as one, so it fails open.
 func planCritiqued(p *hook.Payload) bool {
-	entries, err := transcript.Load(p.String("transcript_path"))
-	return err != nil || critiqued(entries, p.String("tool_input.planFilePath"))
+	entries, err := transcript.Load(p.String(hook.KeyTranscriptPath))
+	return err != nil || critiqued(entries, p.String(hook.KeyInputPlanFilePath))
 }
 
 // critiqued reports whether a plan-critic call follows the first write to

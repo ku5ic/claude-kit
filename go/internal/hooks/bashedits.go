@@ -42,7 +42,7 @@ func BashEdits(h *hook.Hook) error {
 		return p.Err
 	}
 	// The bash guard marked this command as read-only, so there is no diff to take.
-	if marker := cache.ReadOnlyBash(h.Paths.CacheDir(), p.SessionID(), p.String("tool_input.command")); marker != "" && fsx.IsFile(marker) {
+	if marker := cache.ReadOnlyBash(h.Paths.CacheDir(), p.SessionID(), p.String(hook.KeyInputCommand)); marker != "" && fsx.IsFile(marker) {
 		_ = os.Remove(marker)
 		return nil
 	}
@@ -66,7 +66,7 @@ func BashEdits(h *hook.Hook) error {
 		saveTree(h, base, string(start))
 	}
 	changed, before, _, ok := changedSince(h, root, base)
-	if !ok || len(changed) == 0 || gitMoves.MatchString(p.String("tool_input.command")) {
+	if !ok || len(changed) == 0 || gitMoves.MatchString(p.String(hook.KeyInputCommand)) {
 		return nil
 	}
 	var problems []string

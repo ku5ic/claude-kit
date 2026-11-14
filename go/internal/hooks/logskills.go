@@ -24,9 +24,9 @@ func LogSkills(h *hook.Hook) error {
 		return nil
 	}
 	p := h.Payload
-	event := p.String("hook_event_name")
-	expansion := p.String("expansion_type")
-	tool := p.String("tool_name")
+	event := p.String(hook.KeyHookEventName)
+	expansion := p.String(hook.KeyExpansionType)
+	tool := p.String(hook.KeyToolName)
 	switch event {
 	case "UserPromptExpansion":
 		if expansion != "slash_command" {
@@ -53,8 +53,8 @@ func LogSkills(h *hook.Hook) error {
 	// `kit scratch-rotate` trims the log to log_max_lines.
 	h.Log(kitlog.Skills, event,
 		"expansion_type", expansion,
-		"command_name", p.String("command_name"),
-		"skill_file", cmp.Or(p.String("tool_input.skill"), p.FilePath()),
+		"command_name", p.String(hook.KeyCommandName),
+		"skill_file", cmp.Or(p.String(hook.KeyInputSkill), p.FilePath()),
 		"tool_name", tool)
 	return nil
 }

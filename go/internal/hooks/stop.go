@@ -39,12 +39,12 @@ func StopChecks(h *hook.Hook) error {
 	}
 	// Already continuing because of this hook: one retry per failure, so a
 	// check that can't be fixed never loops.
-	if h.Payload.Bool("stop_hook_active") {
+	if h.Payload.Bool(hook.KeyStopHookActive) {
 		return nil
 	}
 	deadline := time.Now().Add(stopBudget)
 	cwd := h.Payload.Cwd()
-	path := h.Payload.String("transcript_path")
+	path := h.Payload.String(hook.KeyTranscriptPath)
 	if !fsx.IsFile(path) {
 		return nil
 	}

@@ -40,7 +40,7 @@ func GuardEdit(h *hook.Hook) error {
 	}
 	// Without kit.yml nothing is configured: nothing matches, every check fails open.
 	cfg := cmp.Or(h.Config(), &config.Config{})
-	tool := h.Payload.String("tool_name")
+	tool := h.Payload.String(hook.KeyToolName)
 	if tool == "Grep" {
 		return guardSearch(h, cfg)
 	}
@@ -97,9 +97,9 @@ func GuardEdit(h *hook.Hook) error {
 // common case, not a reach for ~/.ssh.
 func guardSearch(h *hook.Hook, cfg *config.Config) error {
 	root := searchRoot(h)
-	glob := h.Payload.String("tool_input.glob")
+	glob := h.Payload.String(hook.KeyInputGlob)
 	h.SetContext(layout.KV("path", root) + "\n" + layout.KV("glob", glob))
-	if guard.SearchesSensitive(cfg, h.Home, root, glob, h.Payload.String("tool_input.path") != "") {
+	if guard.SearchesSensitive(cfg, h.Home, root, glob, h.Payload.String(hook.KeyInputPath) != "") {
 		return h.Block("searching a credential or key file is not permitted", "sensitive-read")
 	}
 	// With no glob, or one of only * and / that matches as much, a loose
@@ -107,7 +107,7 @@ func guardSearch(h *hook.Hook, cfg *config.Config) error {
 	// needs no prompt, exclude them; the allow keeps auto mode from denying
 	// the rewrite. Outside, the gap stays, and a payload with no tool_input
 	// has nothing to rewrite.
-	input := h.Payload.Object("tool_input")
+	input := h.Payload.Object(hook.KeyToolInput)
 	if exclude := guard.SensitiveExclusion(cfg); strings.Trim(glob, "*/") == "" && exclude != "" && root != "" && input != nil {
 		if top, anchored := project.Root(h.Payload.Cwd()); anchored && fsx.Within(top, fsx.PhysicalPath(filepath.Clean(root))) {
 			input = maps.Clone(input)
@@ -123,7 +123,7 @@ func guardSearch(h *hook.Hook, cfg *config.Config) error {
 // also what a relative path joins.
 func searchRoot(h *hook.Hook) string {
 	cwd := h.Payload.Cwd()
-	root := guard.ExpandHome(h.Home, cmp.Or(h.Payload.String("tool_input.path"), cwd))
+	root := guard.ExpandHome(h.Home, cmp.Or(h.Payload.String(hook.KeyInputPath), cwd))
 	if root != "" && !filepath.IsAbs(root) {
 		root = filepath.Join(cwd, root)
 	}
@@ -148,7 +148,7 @@ func GuardSkills(h *hook.Hook) error {
 	if h.Payload.Err != nil {
 		return h.Payload.Err
 	}
-	if !slices.Contains(filePathTools, h.Payload.String("tool_name")) {
+	if !slices.Contains(filePathTools, h.Payload.String(hook.KeyToolName)) {
 		return nil
 	}
 	if missing := unloadedSkills(h, []string{h.Payload.FilePath()}, nil); len(missing) > 0 {
@@ -262,7 +262,7 @@ var filePathTools = []string{"Edit", "Write", "MultiEdit"}
 // edits until a patterns skill loads is a personal policy, not a default.
 func GuardDispatch(h *hook.Hook) int {
 	checks := []hook.NamedCheck{{Name: "guard-edit", Check: GuardEdit}}
-	edit := slices.Contains(filePathTools, h.Payload.String("tool_name"))
+	edit := slices.Contains(filePathTools, h.Payload.String(hook.KeyToolName))
 	if edit {
 		checks = append(checks, contentChecks...)
 	}

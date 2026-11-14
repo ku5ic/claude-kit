@@ -44,18 +44,18 @@ func VerifyClaims(h *hook.Hook) error {
 		return nil
 	}
 	// The checker's report is the check; checking it again buys nothing.
-	if strings.TrimPrefix(p.String("agent_type"), "kit:") == strings.TrimPrefix(claimChecker, "kit:") {
+	if strings.TrimPrefix(p.String(hook.KeyAgentType), "kit:") == strings.TrimPrefix(claimChecker, "kit:") {
 		return nil
 	}
-	switch p.String("hook_event_name") {
+	switch p.String(hook.KeyHookEventName) {
 	case "SubagentStop":
 		// The marker, not stop_hook_active, ends the retry: a stop that
 		// follows subagent-slop's block is this check's first.
 		marker := handbackMarker(h, cache.Claims)
-		if marker == "" && p.Bool("stop_hook_active") || marker != "" && fsx.IsFile(marker) {
+		if marker == "" && p.Bool(hook.KeyStopHookActive) || marker != "" && fsx.IsFile(marker) {
 			return nil
 		}
-		u := unconfirmed(h, p.String("last_assistant_message"), agentTranscript(p), "subagent report")
+		u := unconfirmed(h, p.String(hook.KeyLastAssistantMessage), agentTranscript(p), "subagent report")
 		if marker != "" && !h.DryRun {
 			_ = fsx.WriteAtomic(marker, []byte("seen"), 0o644)
 		}
@@ -72,7 +72,7 @@ func VerifyClaims(h *hook.Hook) error {
 // plan, a scratch report, or a connector post on the claim-checker agent.
 func verifyToolInput(h *hook.Hook) error {
 	p := h.Payload
-	tool := p.String("tool_name")
+	tool := p.String(hook.KeyToolName)
 	var text, where, retry, marker string
 	switch {
 	case tool == "SubagentHandback":
@@ -84,8 +84,8 @@ func verifyToolInput(h *hook.Hook) error {
 			return nil
 		}
 		// Claude Code injects the plan's text and path (code.claude.com/docs/en/hooks).
-		plan := filepath.Base(p.String("tool_input.planFilePath"))
-		text, where, retry = p.String("tool_input.plan"), "the plan "+plan, "call ExitPlanMode again"
+		plan := filepath.Base(p.String(hook.KeyInputPlanFilePath))
+		text, where, retry = p.String(hook.KeyInputPlan), "the plan "+plan, "call ExitPlanMode again"
 		marker = h.Paths.SessionFile(cache.Claims, p.SessionID(), "plan", plan)
 	case slices.Contains(filePathTools, tool):
 		path := p.FilePath()
@@ -103,10 +103,10 @@ func verifyToolInput(h *hook.Hook) error {
 		if cfg == nil || !connector.IsWrite(cfg.Connectors, tool) {
 			return nil
 		}
-		text, where, retry = strings.Join(p.Strings("tool_input", cfg.Connectors.CodeFields...), "\n\n"), "the "+tool+" input", "send it again"
+		text, where, retry = strings.Join(p.Strings(hook.KeyToolInput, cfg.Connectors.CodeFields...), "\n\n"), "the "+tool+" input", "send it again"
 		marker = h.Paths.SessionFile(cache.Claims, p.SessionID(), "tool", tool)
 	}
-	if p.String("agent_id") != "" {
+	if p.String(hook.KeyAgentID) != "" {
 		return verifyInSubagent(h, text, where, retry, marker)
 	}
 	return gateOnChecker(h, text, where, retry, marker)
@@ -153,7 +153,7 @@ func gateOnChecker(h *hook.Hook, text, where, retry, marker string) error {
 	if cfg == nil || h.RuleDisabled("claims") || cfg.Claims.Off() || !claims.Declarative(text) {
 		return nil
 	}
-	log := readCheckerLog(h, h.Payload.String("transcript_path"))
+	log := readCheckerLog(h, h.Payload.String(hook.KeyTranscriptPath))
 	asked := h.Paths.SessionFile(cache.Claims, h.Payload.SessionID(), "asked")
 	record, _ := os.ReadFile(asked)
 	checked := checkedStatements(log, string(record))
@@ -353,7 +353,7 @@ func verifyHandback(h *hook.Hook) error {
 	if prev, err := os.ReadFile(marker); err == nil && string(prev) == "sent-back" {
 		return nil
 	}
-	u := unconfirmed(h, h.Payload.String("tool_input.message"), agentTranscript(h.Payload), "your report")
+	u := unconfirmed(h, h.Payload.String(hook.KeyInputMessage), agentTranscript(h.Payload), "your report")
 	state := "seen"
 	if len(u) > 0 {
 		state = "sent-back"
@@ -432,7 +432,7 @@ func claimsMessage(where string, u []claims.Unsupported, then string) string {
 // agentTranscript is a subagent's own transcript when it exists, else the
 // session's.
 func agentTranscript(p *hook.Payload) string {
-	if path := p.String("agent_transcript_path"); path != "" && fsx.IsFile(path) {
+	if path := p.String(hook.KeyAgentTranscriptPath); path != "" && fsx.IsFile(path) {
 		return path
 	}
 	// Only SubagentStop names the agent's transcript; a tool call inside a
@@ -440,7 +440,7 @@ func agentTranscript(p *hook.Payload) string {
 	if path := subagentTranscript(p); path != "" && fsx.IsFile(path) {
 		return path
 	}
-	return p.String("transcript_path")
+	return p.String(hook.KeyTranscriptPath)
 }
 
 // isInvestigationReport is true for an explore or debug report in scratch,

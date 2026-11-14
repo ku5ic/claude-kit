@@ -32,7 +32,7 @@ func RulesGate(h *hook.Hook) error {
 	if p.Err != nil {
 		return p.Err
 	}
-	tool := p.String("tool_name")
+	tool := p.String(hook.KeyToolName)
 	if gatePasses(tool) {
 		return nil
 	}
@@ -49,7 +49,7 @@ func RulesGate(h *hook.Hook) error {
 	if tool == "Read" && slices.ContainsFunc(required, func(skill string) bool { return strings.Contains(p.FilePath(), "/skills/"+skill+"/") }) {
 		return nil
 	}
-	agent := p.String("agent_id")
+	agent := p.String(hook.KeyAgentID)
 	marker := func(skill string) string {
 		parts := []string{skill}
 		if agent != "" {
@@ -90,7 +90,7 @@ func RulesGate(h *hook.Hook) error {
 				return nil
 			}
 		case withoutTools(start, "Skill", "Read"):
-			h.Log(kitlog.Guards, "rules-gate-unloadable", "agent_type", p.String("agent_type"), "tools", strings.Join(start.Tools, ","))
+			h.Log(kitlog.Guards, "rules-gate-unloadable", "agent_type", p.String(hook.KeyAgentType), "tools", strings.Join(start.Tools, ","))
 			return nil
 		}
 	}
@@ -182,7 +182,7 @@ func withoutTools(start transcript.AgentStart, tools ...string) bool {
 // at <session>/subagents/agent-<agent_id>.jsonl
 // (code.claude.com/docs/en/sub-agents), or "" when it can't be named.
 func subagentTranscript(p *hook.Payload) string {
-	return agentTranscriptPath(p.String("transcript_path"), p.String("agent_id"))
+	return agentTranscriptPath(p.String(hook.KeyTranscriptPath), p.String(hook.KeyAgentID))
 }
 
 // agentTranscriptPath is the transcript of agent in the session whose

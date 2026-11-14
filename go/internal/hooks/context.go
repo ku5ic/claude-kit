@@ -97,13 +97,13 @@ func writeContext(h *hook.Hook, cfg *config.Config, out *strings.Builder) {
 	}
 	out.WriteString(ctx.RequiredBlock())
 	for _, skill := range ctx.Required {
-		h.Log(kitlog.Skills, kitlog.EventRequiredSkill, "cwd", h.Payload.String("cwd"), "skill_file", skill)
+		h.Log(kitlog.Skills, kitlog.EventRequiredSkill, "cwd", h.Payload.String(hook.KeyCwd), "skill_file", skill)
 	}
 	// Logged as surfaced, not loaded: the log shows whether a suggestion was
 	// ever acted on, and guard-skills never counts one as a load.
 	out.WriteString(stackctx.SuggestedBlock(cfg, ctx.Suggested))
 	for _, skill := range ctx.Suggested {
-		h.Log(kitlog.Skills, kitlog.EventSuggestedSkill, "cwd", h.Payload.String("cwd"), "skill_file", skill)
+		h.Log(kitlog.Skills, kitlog.EventSuggestedSkill, "cwd", h.Payload.String(hook.KeyCwd), "skill_file", skill)
 	}
 	out.WriteString(tooling(cfg, enforce.Options{Root: root, CacheDir: h.Paths.CacheDir(), Home: h.Home}))
 }

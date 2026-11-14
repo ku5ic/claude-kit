@@ -93,11 +93,11 @@ func (p *Payload) Strings(path string, skip ...string) []string {
 }
 
 // SessionID is the payload's session_id.
-func (p *Payload) SessionID() string { return p.String("session_id") }
+func (p *Payload) SessionID() string { return p.String(KeySessionID) }
 
 // Cwd is the payload's cwd, else the process's working directory.
 func (p *Payload) Cwd() string {
-	if cwd := p.String("cwd"); cwd != "" {
+	if cwd := p.String(KeyCwd); cwd != "" {
 		return cwd
 	}
 	cwd, _ := os.Getwd()
@@ -113,11 +113,11 @@ type Edit struct {
 // Edits is an Edit's replacement, or a MultiEdit's edits in order; nil for
 // any other tool.
 func (p *Payload) Edits() []Edit {
-	switch p.String("tool_name") {
+	switch p.String(KeyToolName) {
 	case "Edit":
-		return []Edit{{p.String("tool_input.old_string"), p.String("tool_input.new_string"), p.Bool("tool_input.replace_all")}}
+		return []Edit{{p.String(KeyInputOldString), p.String(KeyInputNewString), p.Bool(KeyInputReplaceAll)}}
 	case "MultiEdit":
-		items, _ := sources.GetPath(p.data, "tool_input.edits").([]any)
+		items, _ := sources.GetPath(p.data, KeyInputEdits).([]any)
 		var edits []Edit
 		for _, item := range items {
 			m, _ := item.(map[string]any)
@@ -134,7 +134,7 @@ func (p *Payload) Edits() []Edit {
 // FilePath is the tool's target file; Read, Edit, Write, and MultiEdit all
 // send it as file_path.
 func (p *Payload) FilePath() string {
-	return p.String("tool_input.file_path")
+	return p.String(KeyInputFilePath)
 }
 
 // Blocked ends a check with exit 2. Returned, not panicked, so a check reads
@@ -279,7 +279,7 @@ func (h *Hook) Deny(reason, rule string) {
 // command or path, never the text, and the project it ran in.
 func (h *Hook) logBlock(rule string) {
 	pairs := []string{"rule", rule}
-	for _, key := range []string{"tool_input.command", "tool_input.file_path", "tool_input.notebook_path"} {
+	for _, key := range []string{KeyInputCommand, KeyInputFilePath, KeyInputNotebookPath} {
 		if v := h.Payload.String(key); v != "" {
 			sum := sha256.Sum256([]byte(v))
 			pairs = append(pairs, "target", hex.EncodeToString(sum[:6]))
@@ -361,7 +361,7 @@ func (h *Hook) flush(block string) {
 		// check's Print joins another's context.
 		if h.plain.Len() > 0 && h.Payload != nil {
 			contexts = append([]string{strings.TrimRight(h.plain.String(), "\n")}, contexts...)
-			event = cmp.Or(event, h.Payload.String("hook_event_name"))
+			event = cmp.Or(event, h.Payload.String(KeyHookEventName))
 		}
 		out := output{SystemMessage: strings.Join(h.notices, "\n\n")}
 		if contexts != nil {
@@ -399,7 +399,7 @@ func (h *Hook) Log(log, event string, pairs ...string) {
 		"session_id", h.Payload.SessionID(),
 	}, pairs...)
 	// Inside a subagent, so its lines can be told from its parent's.
-	if agent := h.Payload.String("agent_id"); agent != "" {
+	if agent := h.Payload.String(KeyAgentID); agent != "" {
 		fields = slices.Insert(fields, 8, "agent_id", agent)
 	}
 	maxLines := 0

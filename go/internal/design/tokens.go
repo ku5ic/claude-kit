@@ -99,18 +99,26 @@ type projectTokens struct {
 	tailwind, jsConfig bool
 }
 
-// projects memoizes readProject per root: bash-edits checks every file a
-// command changed in one process, and each would read the project again.
+// projects memoizes readProject per root, a failure too: bash-edits checks
+// every file a command changed in one process, and each would read the
+// project again.
 var projects sync.Map
+
+// read is one readProject result.
+type read struct {
+	tokens projectTokens
+	ok     bool
+}
 
 // readProject reads every UI file git lists under root, once per process;
 // false when root isn't listable or has more than maxFiles files.
 func readProject(root string) (projectTokens, bool) {
-	if p, ok := projects.Load(root); ok {
-		return p.(projectTokens), true
+	if r, ok := projects.Load(root); ok {
+		return r.(read).tokens, r.(read).ok
 	}
 	files, err := git.Files(root)
 	if err != nil || len(files) > maxFiles {
+		projects.Store(root, read{})
 		return projectTokens{}, false
 	}
 	p := projectTokens{defined: map[string]bool{}}
@@ -130,7 +138,7 @@ func readProject(root string) (projectTokens, bool) {
 			p.tailwind = true
 		}
 	}
-	projects.Store(root, p)
+	projects.Store(root, read{p, true})
 	return p, true
 }
 

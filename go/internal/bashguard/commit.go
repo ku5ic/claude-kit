@@ -44,7 +44,7 @@ func CheckCommit(h *hook.Hook) error {
 	if h.Payload.Err != nil {
 		return h.Payload.Err
 	}
-	cmd := h.Payload.String("tool_input.command")
+	cmd := h.Payload.String(hook.KeyInputCommand)
 	c := commitCall(cmd, h.Home, h.Payload.Cwd())
 	if !c.commits(cmd) {
 		return nil
@@ -95,7 +95,7 @@ func CheckCommit(h *hook.Hook) error {
 	if failed := commitMsg(h, msg, ok, repo); failed != "" {
 		return h.Block("the project's commit-msg checks reject this message\n"+failed+"\n"+layout.KV("do", "fix it to their convention"), "commit-msg")
 	}
-	if !approved(h.Payload.String("transcript_path"), subject) {
+	if !approved(h.Payload.String(hook.KeyTranscriptPath), subject) {
 		h.Decide("ask", "skills/kit-rules/reference/workflow.md section 1: the current prompt doesn't ask for a commit, and no earlier reply showed this message; confirm only if the user asked for it")
 	}
 	return nil

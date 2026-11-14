@@ -117,7 +117,7 @@ func Check(h *hook.Hook) error {
 	if h.Payload.Err != nil {
 		return h.Payload.Err
 	}
-	cmd := h.Payload.String("tool_input.command")
+	cmd := h.Payload.String(hook.KeyInputCommand)
 	if cmd == "" {
 		return nil
 	}
@@ -175,7 +175,7 @@ func (st *state) excludeSensitive(segs []Segment, cmd string) {
 		}
 	}
 	rewritten := "rg --glob '" + exclude + "' " + rest
-	input := maps.Clone(st.h.Payload.Object("tool_input"))
+	input := maps.Clone(st.h.Payload.Object(hook.KeyToolInput))
 	input["command"] = rewritten
 	st.h.UpdateInput(input)
 	st.h.Decide("allow", "kit excluded credential files from an rg inside the project")
