@@ -367,7 +367,7 @@ func (b *builder) preCommit(sub, kind string) {
 	if sub != "." {
 		return
 	}
-	tp, _ := row("pre-commit")
+	tp, _ := sources.Provider("pre-commit")
 	for _, e := range b.entries {
 		if v, why := b.verdict(e); e.Source == tp.Name && why == "" && slices.Contains(kindsOf(v), kind) {
 			b.add(Gate{Label: label(kindsOf(v), e.File+": "+e.Name, sub), Kinds: kindsOf(v), Dir: b.root, Body: b.runCommand(tp, sub, e.Name), Verdict: v.String(), FanOut: true})
@@ -458,17 +458,8 @@ func (b *builder) subOf(dir string, subs []string) string {
 
 // provider is the task runner a source names, when its entries are tasks.
 func provider(source string) (sources.TaskProvider, bool) {
-	tp, ok := row(source)
+	tp, ok := sources.Provider(source)
 	return tp, ok && tp.Tasks != nil
-}
-
-// row is the TaskProviders row named name.
-func row(name string) (sources.TaskProvider, bool) {
-	i := slices.IndexFunc(sources.TaskProviders, func(tp sources.TaskProvider) bool { return tp.Name == name })
-	if i < 0 {
-		return sources.TaskProvider{}, false
-	}
-	return sources.TaskProviders[i], true
 }
 
 // runCommand is how tp runs task in sub: through the package manager the

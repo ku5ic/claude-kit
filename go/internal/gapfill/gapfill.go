@@ -220,15 +220,40 @@ func seededCacheFile(cacheDir, root string) string {
 	if fsx.IsFile(file) || !fsx.IsFile(filepath.Join(root, ".git")) {
 		return file
 	}
-	common, err := git.Line(root, "rev-parse", "--path-format=absolute", "--git-common-dir")
-	main := filepath.Dir(common)
-	if err != nil || filepath.Base(common) != ".git" || main == root {
+	// git names the main checkout once; the marker beside file keeps its
+	// cache file's path, "" for a root with none, so a worktree whose main
+	// checkout has no cache yet stops running git on every guarded command.
+	marker := file + ".main"
+	mainFile, err := os.ReadFile(marker)
+	if err != nil {
+		found, ok := mainCacheFile(cacheDir, root)
+		if !ok {
+			return file
+		}
+		mainFile = []byte(found)
+		_ = fsx.WriteAtomic(marker, mainFile, 0o600)
+	}
+	if len(mainFile) == 0 {
 		return file
 	}
-	if data, err := os.ReadFile(CacheFile(cacheDir, main)); err == nil {
+	if data, err := os.ReadFile(string(mainFile)); err == nil {
 		_ = fsx.WriteAtomic(file, data, 0o600) // unwritten, the worktree starts cold, as before
 	}
 	return file
+}
+
+// mainCacheFile is the cache file of the main checkout root is a linked
+// worktree of, "" when it's none (a submodule's .git file); ok is false
+// when git couldn't say, so the answer isn't kept.
+func mainCacheFile(cacheDir, root string) (string, bool) {
+	common, err := git.Line(root, "rev-parse", "--path-format=absolute", "--git-common-dir")
+	if err != nil {
+		return "", false
+	}
+	if main := filepath.Dir(common); filepath.Base(common) == ".git" && main != root {
+		return CacheFile(cacheDir, main), true
+	}
+	return "", true
 }
 
 // Managers are root's cached package-manager facts that verify, read

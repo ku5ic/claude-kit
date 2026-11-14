@@ -66,8 +66,16 @@ func (e *env) tool(path string) {
 func (e *env) check(name string, v map[string]any) { e.verdicts[name] = v }
 
 // plan builds the full gate, the stub answering each entry by its name.
-// Subprojects are found among tracked files, so everything is staged.
 func (e *env) plan() Plan {
+	e.t.Helper()
+	e.answer()
+	return Build(e.cfg, Options{Root: e.root, CacheDir: e.cache, Only: e.only, Ask: true, Timeout: 10 * time.Second, Changed: e.changed})
+}
+
+// answer points the stub at a verdict for each entry by its name, asking
+// nothing. Subprojects are found among tracked files, so everything is
+// staged.
+func (e *env) answer() {
 	e.t.Helper()
 	testutil.Git(e.t, e.root, "add", "-A")
 	entries := sources.Entries(e.cfg, e.root, project.Subprojects(e.root))
@@ -83,7 +91,6 @@ func (e *env) plan() Plan {
 	}
 	testutil.Put(e.t, e.stubs, "answer.json", testutil.Envelope(e.t, answers, e.managers, e.proposals))
 	e.cfg.Classifier = testutil.Replayer(e.t, filepath.Join(e.stubs, "answer.json"))
-	return Build(e.cfg, Options{Root: e.root, CacheDir: e.cache, Only: e.only, Ask: true, Timeout: 10 * time.Second, Changed: e.changed})
 }
 
 // base commits everything on master, the git base, and checks out a feature

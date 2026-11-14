@@ -14,8 +14,10 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/enforce"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
+	"github.com/ku5ic/claude-kit/go/internal/gapfill"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 	"github.com/ku5ic/claude-kit/go/internal/layout"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/run"
@@ -78,7 +80,12 @@ func StopChecks(h *hook.Hook) error {
 		}
 		return nil
 	}
-	p := enforce.Stop(cfg, enforce.Options{Root: root, CacheDir: h.Paths.CacheDir()}, edited)
+	// A check changed mid-session gets its verdict now, waiting on a
+	// background classify that's already asking, instead of skipping.
+	p := enforce.Stop(cfg, enforce.Options{Root: root, CacheDir: h.Paths.CacheDir(), Ask: true, Timeout: gapfill.ClassifyTimeout}, edited)
+	if p.Classifier.Runs > 0 {
+		h.Log(kitlog.Guards, "gapfill", p.Classifier.Pairs()...)
+	}
 	unchecked := uncheckedLines(h)
 	if len(p.Gates) == 0 {
 		if len(unchecked) > 0 {

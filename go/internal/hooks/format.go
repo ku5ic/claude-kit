@@ -57,6 +57,8 @@ func FormatDispatch(h *hook.Hook) error {
 	if report != "" && !h.DryRun {
 		_ = fsx.WriteAtomic(cache.EditReport(h.Paths.CacheDir(), root), []byte(report), 0o600)
 	}
+	// After the fixers: an entry's verdict is keyed by the body they left.
+	reclassify(h, cfg, path)
 	return nil
 }
 

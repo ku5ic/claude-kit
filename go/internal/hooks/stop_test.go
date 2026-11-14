@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -448,17 +449,42 @@ func TestStopChecks(t *testing.T) {
 			t.Errorf("detail file:\n%s", detail)
 		}
 	})
-	t.Run("an entry with no verdict is recorded for kit explain stop, not run", func(t *testing.T) {
+	t.Run("an entry the classifier can't answer is recorded for kit explain stop, with why, not run", func(t *testing.T) {
 		t.Parallel()
 		e := stopSetup(t)
 		if err := os.RemoveAll(filepath.Join(e.k.claude, "cache", cache.Enforce)); err != nil {
 			t.Fatal(err)
 		}
+		failing := filepath.Join(e.tmp, "classifier")
+		testutil.FakeTool(t, failing, filepath.Join(e.tmp, "classifier.calls"), "exit 1")
+		e.k.overlay("classifier: [" + strconv.Quote(failing) + "]\n")
 		e.turn("Edit", e.path("a.ts"))
-		if _, report := e.stopReport(); !strings.Contains(report, "SKIP package.json: *.ts (unclassified)") {
+		if _, report := e.stopReport(); !strings.Contains(report, "SKIP package.json: *.ts (unclassified (classifier: ") {
 			t.Errorf("report:\n%s", report)
 		}
 		e.noCalls()
+	})
+	t.Run("a check changed mid-session is classified at Stop and run, once", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		testutil.Write(t, e.path("package.json"), `{"lint-staged":{"*.ts":"fakelint --check --strict"}}`)
+		strict := sources.Entry{Source: "lint-staged", File: "package.json", Name: "*.ts", Dir: ".", Body: sources.Body{Text: "fakelint --check --strict"}, Files: []string{"*.ts"}, PassFiles: true, Stage: "pre-commit"}
+		answer := filepath.Join(e.tmp, "answer.json")
+		testutil.Write(t, answer, envelope(t, []map[string]any{verdict(strict, map[string]any{"role": "check", "kind": "lint"})}, nil, nil))
+		stub, asked := filepath.Join(e.tmp, "classifier"), filepath.Join(e.tmp, "classifier.calls")
+		testutil.FakeTool(t, stub, asked, fmt.Sprintf("cat >/dev/null\ncat %q", answer))
+		e.k.overlay("classifier: [" + strconv.Quote(stub) + "]\n")
+		e.turn("Edit", e.path("a.ts"))
+		e.stop(false).Want(t, 0)
+		if got := e.checked(); got != e.repo+"|--check --strict a.ts" {
+			t.Errorf("calls %q, want the changed check on a.ts", got)
+		}
+		calls := len(testutil.Calls(t, asked))
+		e.turn("Edit", e.path("b.ts"))
+		e.stop(false).Want(t, 0)
+		if calls == 0 || len(testutil.Calls(t, asked)) != calls {
+			t.Errorf("classifier ran %d times, then %d: want some, then none more", calls, len(testutil.Calls(t, asked))-calls)
+		}
 	})
 	t.Run("a file changed through Bash is checked", func(t *testing.T) {
 		t.Parallel()
@@ -549,4 +575,29 @@ func TestStopChecks(t *testing.T) {
 		e.stop(false).Want(t, 0)
 		e.noCalls()
 	})
+}
+
+// An edit to the file of an entry the cache can't answer starts a
+// background classify; any other edit doesn't.
+func TestAnEditToAnUnansweredEntrysFileReclassifies(t *testing.T) {
+	t.Parallel()
+	e := stopSetup(t)
+	cfg, _, err := sources.LoadConfig(e.k.paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	unanswered := func(rel string) bool {
+		_, ok := unanswered(cfg, e.k.paths.CacheDir(), e.path(rel))
+		return ok
+	}
+	if unanswered("package.json") || unanswered("a.ts") {
+		t.Error("a classified repo reclassifies")
+	}
+	testutil.Write(t, e.path("package.json"), `{"lint-staged":{"*.ts":"fakelint --check --strict"}}`)
+	if !unanswered("package.json") {
+		t.Error("a changed check's file doesn't reclassify")
+	}
+	if unanswered("a.ts") {
+		t.Error("a source file reclassifies")
+	}
 }

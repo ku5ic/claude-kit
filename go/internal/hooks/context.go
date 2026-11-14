@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -14,12 +15,14 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/enforce"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
+	"github.com/ku5ic/claude-kit/go/internal/gapfill"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/resolve/kittool"
 	"github.com/ku5ic/claude-kit/go/internal/run"
+	"github.com/ku5ic/claude-kit/go/internal/sources"
 	"github.com/ku5ic/claude-kit/go/internal/stackctx"
 )
 
@@ -265,6 +268,27 @@ func classifyInBackground(root string) {
 	if cmd.Start() == nil {
 		_ = cmd.Process.Release()
 	}
+}
+
+// reclassify starts the classifier in the background when path is the
+// file of an entry the cache has no answer for, so a check changed
+// mid-session has its verdict by Stop.
+func reclassify(h *hook.Hook, cfg *config.Config, path string) {
+	if root, ok := unanswered(cfg, h.Paths.CacheDir(), path); ok && !h.DryRun {
+		classifyInBackground(root)
+	}
+}
+
+// unanswered is path's project root, and whether an entry from path
+// lacks a verdict the policy would allow. It reads the cache, never asks.
+func unanswered(cfg *config.Config, cacheDir, path string) (string, bool) {
+	root, _ := project.Root(filepath.Dir(path))
+	rel := fsx.Rel(root, path)
+	mine := slices.DeleteFunc(sources.Entries(cfg, root, project.Subprojects(root)), func(e sources.Entry) bool { return e.File != rel })
+	if len(mine) == 0 {
+		return root, false
+	}
+	return root, gapfill.Run(cfg, gapfill.Options{Root: root, CacheDir: cacheDir, Entries: mine}).Unclassified() > 0
 }
 
 // cliLines says which of kit.yml's CLI tools are on PATH.

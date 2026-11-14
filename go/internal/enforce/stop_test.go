@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // stop plans Stop's checks of files, relative to the root, after a full
@@ -167,6 +168,32 @@ func TestStopChecksOnlyFilesTheRepoKeeps(t *testing.T) {
 	}
 	if got := commands(p2); got != "lint (package.json: *.ts): eslint kept.ts" {
 		t.Errorf("with an outside file first:\n%s", got)
+	}
+}
+
+// A check changed mid-session is an entry the cache lacks: a Stop that may
+// ask gets its verdict and runs it, and asks nothing when the cache has
+// every answer.
+func TestStopAsksForAnEntryTheCacheLacks(t *testing.T) {
+	e := setup(t)
+	e.tool("node_modules/.bin/eslint")
+	e.write("package.json", `{"lint-staged":{"*.ts":"eslint"}}`)
+	e.write("a.ts", "")
+	e.check("*.ts", check("lint"))
+	e.plan()
+	e.write("package.json", `{"lint-staged":{"*.ts":"eslint --max-warnings 0"}}`)
+	e.answer()
+	files := []string{filepath.Join(e.root, "a.ts")}
+	if p := Stop(e.cfg, Options{Root: e.root, CacheDir: e.cache}, files); p.Unclassified != 1 {
+		t.Errorf("from the cache alone: unclassified %d, plan:\n%s", p.Unclassified, commands(p))
+	}
+	ask := Options{Root: e.root, CacheDir: e.cache, Ask: true, Timeout: 10 * time.Second}
+	p := Stop(e.cfg, ask, files)
+	if got := commands(p); got != "lint (package.json: *.ts): eslint --max-warnings 0 a.ts" || p.Classifier.Runs == 0 {
+		t.Errorf("asked %d times, plan:\n%s", p.Classifier.Runs, got)
+	}
+	if p := Stop(e.cfg, ask, files); p.Classifier.Runs != 0 {
+		t.Errorf("a full cache asked %d times", p.Classifier.Runs)
 	}
 }
 

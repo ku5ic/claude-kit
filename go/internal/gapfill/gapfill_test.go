@@ -170,6 +170,16 @@ func TestANewWorktreeStartsFromTheMainCheckoutsAnswers(t *testing.T) {
 	if got := r.Verdicts[Key(lint)]; got.Kind != "lint" || len(f.calls()) != calls {
 		t.Errorf("the worktree's first read: %+v, %d new calls", r, len(f.calls())-calls)
 	}
+	// Later reads find the main checkout's file without git: with the
+	// worktree's cache gone and its .git broken, it still seeds.
+	if err := os.Remove(CacheFile(f.cacheDir, testutil.Physical(t, wt))); err != nil {
+		t.Fatal(err)
+	}
+	testutil.Write(t, filepath.Join(wt, ".git"), "gitdir: /nonexistent\n")
+	r = Run(f.cfg, Options{Root: testutil.Physical(t, wt), CacheDir: f.cacheDir, Entries: []sources.Entry{lint}})
+	if got := r.Verdicts[Key(lint)]; got.Kind != "lint" || len(f.calls()) != calls {
+		t.Errorf("a later read without git: %+v, %d new calls", r, len(f.calls())-calls)
+	}
 }
 
 func TestMalformedOutputLeavesEntriesUnclassifiedAndUncached(t *testing.T) {
@@ -605,7 +615,9 @@ func TestTscFileFormsAreDropped(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t, "")
 	testutil.Put(t, f.root, "pnpm-lock.yaml", "")
-	testutil.Put(t, f.root, "package.json", `{"scripts": {"typecheck": "tsc --noEmit", "lint": "eslint"}}`)
+	testutil.Put(t, f.root, "package.json", `{"scripts": {"typecheck": "tsc --noEmit", "lint": "eslint", "loop": "pnpm run loop",
+		"a": "pnpm run b", "b": "pnpm run c", "c": "tsc --noEmit",
+		"w": "pnpm run x", "x": "pnpm run y", "y": "pnpm run z", "z": "tsc --noEmit"}}`)
 	testutil.Put(t, f.root, "src/a.ts", "")
 	testutil.Put(t, f.root, ".gitignore", "node_modules\n")
 	testutil.Git(t, f.root, "init", "-q")
@@ -623,6 +635,11 @@ func TestTscFileFormsAreDropped(t *testing.T) {
 		{"pnpm run typecheck src/a.ts", "pnpm run typecheck {files}", false},
 		{"eslint src/a.ts", "eslint {files}", true},
 		{"pnpm run lint src/a.ts", "pnpm run lint {files}", true},
+		// A script that runs itself ends at the depth cap, never in a loop.
+		{"pnpm run loop src/a.ts", "pnpm run loop {files}", true},
+		// Three scripts deep is still read; a fourth is past the cap.
+		{"pnpm run a src/a.ts", "pnpm run a {files}", false},
+		{"pnpm run w src/a.ts", "pnpm run w {files}", true},
 	}
 	var entries []sources.Entry
 	var verdicts []any

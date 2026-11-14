@@ -210,7 +210,7 @@ func (f forms) verdict(e sources.Entry, v Verdict) (Verdict, []string, error) {
 	}
 	var dropped []string
 	why := f.checkForm(v.Role, v.FileForm, bodies, "{files}", "{dirs}")
-	if why == "" && v.FileForm != "" && f.ignoresConfigOnFiles(v.FileForm, 0) {
+	if why == "" && v.FileForm != "" && f.ignoresConfigOnFiles(v.FileForm) {
 		why = "tsc ignores tsconfig.json once given files"
 	}
 	if why != "" {
@@ -232,13 +232,21 @@ var configOnlyTools = []string{"tsc", "vue-tsc"}
 // ignoresConfigOnFiles is true when body runs one of configOnlyTools,
 // behind a run prefix or a tool runner, or through a package script, up
 // to three scripts deep.
-func (f forms) ignoresConfigOnFiles(body string, depth int) bool {
+func (f forms) ignoresConfigOnFiles(body string) bool {
+	tp, ok := sources.Provider("package-scripts")
+	return f.runsConfigOnly(body, 0, func(rel string) map[string]sources.Body {
+		if !ok {
+			return nil
+		}
+		return tp.Bodies(filepath.Join(f.dir, rel, "package.json"))
+	})
+}
+
+// runsConfigOnly is ignoresConfigOnFiles at depth scripts down, reading
+// each directory's package scripts with scripts.
+func (f forms) runsConfigOnly(body string, depth int, scripts func(rel string) map[string]sources.Body) bool {
 	if depth > 3 {
 		return false
-	}
-	i := slices.IndexFunc(sources.TaskProviders, func(tp sources.TaskProvider) bool { return tp.Name == "package-scripts" })
-	scripts := func(rel string) map[string]sources.Body {
-		return sources.TaskProviders[i].Bodies(filepath.Join(f.dir, rel, "package.json"))
 	}
 	lookup := func(provider, rel, name string) bool {
 		_, ok := scripts(rel)[name]
@@ -250,7 +258,7 @@ func (f forms) ignoresConfigOnFiles(body string, depth int) bool {
 			return slices.Contains(configOnlyTools, filepath.Base(c.Words[0]))
 		case c.Kind == shellcalls.Ref:
 			return slices.ContainsFunc(c.Refs, func(ref shellcalls.TaskRef) bool {
-				return ref.Provider == "package-scripts" && f.ignoresConfigOnFiles(scripts(ref.Dir)[ref.Name].Text, depth+1)
+				return ref.Provider == "package-scripts" && f.runsConfigOnly(scripts(ref.Dir)[ref.Name].Text, depth+1, scripts)
 			})
 		}
 		return false

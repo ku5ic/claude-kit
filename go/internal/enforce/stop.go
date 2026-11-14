@@ -22,15 +22,23 @@ import (
 // file and kind none of those checks, the file form of the full gate's
 // check of that kind whose globs match it. Fixers never run here: they ran
 // on each edit. A file the repo ignores, a deleted one, and one outside the
-// root don't count. The classifier is never asked: the cache answers.
+// root don't count. The cache answers; only when it lacks a verdict, a
+// check changed mid-session, and o.Ask allows, is the classifier asked.
 func Stop(cfg *config.Config, o Options, files []string) Plan {
 	p := Plan{Root: o.Root}
 	files = stopFiles(o.Root, files)
 	if len(files) == 0 {
 		return p
 	}
+	ask := o.Ask
 	o.Ask = false
 	b, _ := fullGate(cfg, o)
+	// Asking reads every config file in the repo, so a full cache skips it.
+	if ask && b.facts.Unclassified() > 0 {
+		o.Ask = true
+		b, _ = fullGate(cfg, o)
+	}
+	p.Classifier = b.facts.Usage
 	full := b.gates
 	b.gates, b.planned = nil, map[string]bool{}
 	checked := b.hookChecks(files)
