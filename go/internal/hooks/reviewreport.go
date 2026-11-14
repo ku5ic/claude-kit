@@ -1,9 +1,12 @@
 package hooks
 
 import (
+	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
+	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
@@ -12,9 +15,9 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
-// ReviewReport holds AskUserQuestion and Stop, a retried Stop too, until a
-// finished /code-review's findings are a review-*.md scratch report
-// written after them. A forked review's report reaches only Claude
+// ReviewReport holds the first AskUserQuestion or Stop after a finished
+// /code-review, once, when no review-*.md scratch report was written after
+// it. A forked review's report reaches only Claude
 // (skills/kit-rules/reference/output.md section 3), so the user would
 // otherwise decide on findings they never saw.
 func ReviewReport(h *hook.Hook) error {
@@ -38,8 +41,15 @@ func ReviewReport(h *hook.Hook) error {
 			return nil
 		}
 	}
-	if walk.ReviewArrived <= walk.ReviewReported {
+	// One block per review: the marker holds the line of the review whose
+	// block was shown, so a retried Stop or a later turn can't loop on it.
+	marker := h.Paths.SessionFile(cache.ReviewReport, h.Payload.SessionID())
+	arrived := strconv.Itoa(walk.ReviewArrived)
+	if seen, _ := os.ReadFile(marker); walk.ReviewArrived <= walk.ReviewReported || string(seen) == arrived {
 		return nil
+	}
+	if !h.DryRun {
+		_ = fsx.WriteAtomic(marker, []byte(arrived), 0o600)
 	}
 	reason := "a /code-review finished, and its findings reached only you\n" +
 		layout.KV("do", "write them, in the report-format skill's shape, to the path `kit scratch-dir review <slug>` prints") + "\n" +

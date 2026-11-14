@@ -602,9 +602,10 @@ func TestAnEditToAnUnansweredEntrysFileReclassifies(t *testing.T) {
 	}
 }
 
-// A finished /code-review's findings reach only Claude, so asking about
-// them or ending the turn waits for a review-*.md scratch report written
-// after it (skills/kit-rules/reference/output.md section 3).
+// A finished /code-review's findings reach only Claude, so the first ask
+// about them or end of turn is held once until a review-*.md scratch
+// report is written after it (skills/kit-rules/reference/output.md
+// section 3).
 func TestReviewReport(t *testing.T) {
 	t.Parallel()
 	report := func(e *stopEnv) string { return e.path(".claude/scratch/review-branch-20261114-1714.md") }
@@ -623,15 +624,27 @@ func TestReviewReport(t *testing.T) {
 		e.finish("<tool-use-id>toolu_r1</tool-use-id>", "completed")
 		return e
 	}
-	t.Run("no report blocks Stop, a retried one too, and AskUserQuestion", func(t *testing.T) {
+	t.Run("no report blocks Stop once per review", func(t *testing.T) {
 		t.Parallel()
 		e := finished(t)
+		ask(e, "Bash").Allowed(t)
 		r := stop(e, false)
 		r.Want(t, 2)
 		r.Has(t, "kit scratch-dir review", "rule  review-report")
-		stop(e, true).Want(t, 2)
+		// A block shown once ends it, so a turn can't loop on Stop.
+		stop(e, true).Want(t, 0)
+		stop(e, false).Want(t, 0)
+		ask(e, "AskUserQuestion").Allowed(t)
+		e.review()
+		e.finish("<tool-use-id>toolu_r1</tool-use-id>", "completed")
+		stop(e, false).Want(t, 2)
+	})
+	t.Run("no report denies AskUserQuestion once per review", func(t *testing.T) {
+		t.Parallel()
+		e := finished(t)
 		ask(e, "AskUserQuestion").Denied(t)
-		ask(e, "Bash").Allowed(t)
+		ask(e, "AskUserQuestion").Allowed(t)
+		stop(e, false).Want(t, 0)
 	})
 	t.Run("a report written after the review lets both through", func(t *testing.T) {
 		t.Parallel()

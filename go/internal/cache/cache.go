@@ -32,6 +32,7 @@ const (
 	Stack        = "stack"
 	StopReports  = "stop-reports"
 	StopRead     = "stop-read"
+	ReviewReport = "review-report"
 	TurnTree     = "turn-tree"
 	Guard        = "guard"
 	Enforce      = "enforce"
@@ -63,6 +64,7 @@ var Dirs = []Dir{
 	{Stack, "stack report(s)", 30},
 	{StopReports, "stop-checks and per-edit report(s)", 1},
 	{StopRead, "Stop transcript read position(s)", 1},
+	{ReviewReport, "review-report block marker(s)", 1},
 	{TurnTree, "turn-start work tree snapshot(s)", 1},
 	{Guard, "verifier and classifier run marker(s)", 1},
 	{Enforce, "gap-fill verdict and gate mark file(s)", 30},
