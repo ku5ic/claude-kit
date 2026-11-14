@@ -9,6 +9,7 @@ import (
 
 	"mvdan.cc/sh/v3/syntax"
 
+	"github.com/ku5ic/claude-kit/go/internal/classify"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
@@ -34,10 +35,12 @@ func Stop(cfg *config.Config, o Options, files []string) Plan {
 	b.gates, b.planned = nil, map[string]bool{}
 	checked := b.hookChecks(files)
 	// The least filtered form first: a marker subset or a coverage run
-	// has more arguments than the plain run, and loses its files to it.
+	// has more arguments than the plain run of its tool, and loses its
+	// files to it.
 	slices.SortStableFunc(full, func(a, b Gate) int { return len(strings.Fields(a.FileForm)) - len(strings.Fields(b.FileForm)) })
+	formed := map[string][]string{}
 	for _, g := range full {
-		b.fileForm(g, files, checked)
+		b.fileForm(g, files, checked, formed)
 	}
 	b.unclassified(func(e sources.Entry) bool {
 		src := sources.SourceOf(e.Source)
@@ -105,15 +108,19 @@ func atPreCommit(e sources.Entry) bool {
 }
 
 // fileForm plans full gate g's file form on the files under its directory
-// its globs match, each file only for the kinds no hook or earlier form
-// checks it for, and records those kinds as checked.
-func (b *builder) fileForm(g Gate, files []string, checked map[string][]string) {
+// its globs match, each file only for the kinds no hook checks it for and
+// no earlier form of the same tool, and records those in formed, per file
+// as tool:kind.
+func (b *builder) fileForm(g Gate, files []string, checked, formed map[string][]string) {
 	if g.Skip != "" || g.FileForm == "" || len(g.Globs) == 0 {
 		return
 	}
+	tool := formTool(g.FileForm)
 	var mine []string
 	for _, f := range matching(files, g.Dir, g.Globs) {
-		if slices.ContainsFunc(g.Kinds, func(k string) bool { return !slices.Contains(checked[f], k) }) {
+		if slices.ContainsFunc(g.Kinds, func(k string) bool {
+			return !slices.Contains(checked[f], k) && !slices.Contains(formed[f], tool+":"+k)
+		}) {
 			mine = append(mine, f)
 		}
 	}
@@ -121,8 +128,31 @@ func (b *builder) fileForm(g Gate, files []string, checked map[string][]string) 
 		b.add(Gate{Label: g.Label, Kinds: g.Kinds, Dir: g.Dir, Env: g.Env, Body: g.FileForm, Verdict: g.Verdict, Files: mine})
 	}
 	for _, f := range mine {
-		checked[f] = append(checked[f], g.Kinds...)
+		for _, k := range g.Kinds {
+			formed[f] = append(formed[f], tool+":"+k)
+		}
 	}
+}
+
+// formTool is the tool a file form runs: its first word past VAR=value
+// words, a wrapper (env), and a tool runner (npx, uv run), by base name.
+// pytest -m unit and pytest --cov are both pytest; pylint and ruff check
+// are two tools.
+func formTool(form string) string {
+	words := strings.Fields(form)
+	for len(words) > 1 && (strings.Contains(words[0], "=") || slices.Contains(classify.Grammar.Wrappers, words[0])) {
+		words = words[1:]
+	}
+	for _, r := range classify.Grammar.ToolRunners {
+		if n := len(strings.Fields(r)); len(words) > n && strings.Join(words[:n], " ") == r {
+			words = words[n:]
+			break
+		}
+	}
+	if len(words) == 0 {
+		return ""
+	}
+	return filepath.Base(words[0])
 }
 
 // matching is the files under dir that globs match, as git-hook managers

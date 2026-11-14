@@ -65,6 +65,11 @@ func TestOnlyReads(t *testing.T) {
 		{"git diff --output=x.patch", false},
 		{"git log -O order --oneline", false},
 		{"rg -o foo a.go", true},
+		{"cat a &> b.go", false},
+		{"cat a &>> b.go", false},
+		{"cat a >& b.go", false},
+		{"cat a >&2", true},
+		{"cat a 2>&-", true},
 	} {
 		t.Run(tc.cmd, func(t *testing.T) {
 			t.Parallel()

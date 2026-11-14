@@ -165,7 +165,10 @@ func sheet(cfg *config.Config, root, from, to, plan, title, more string) []strin
 	render := func(limit int) (lines, spill []string) {
 		lines, shown := []string{fmt.Sprintf("kit review: %s, %d files, +%d -%d", title, len(changes), add, del), ""}, 0
 		for _, g := range groups {
-			lines = append(lines, fmt.Sprintf("  %s (%d)", g.head, len(g.files)))
+			// A group with no file left to show is only in the spill.
+			if shown < limit {
+				lines = append(lines, fmt.Sprintf("  %s (%d)", g.head, len(g.files)))
+			}
 			for _, f := range g.files {
 				if shown < limit {
 					lines, shown = append(lines, "    "+f), shown+1

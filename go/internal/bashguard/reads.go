@@ -69,7 +69,7 @@ func onlyReads(segs []Segment) bool {
 				return false
 			}
 			for _, r := range c.Redirs {
-				if r.Target.Value != "/dev/null" && !strings.Contains(r.Op, "&") {
+				if r.Target.Value != "/dev/null" && !strings.HasPrefix(r.Target.Value, "&") {
 					return false
 				}
 			}

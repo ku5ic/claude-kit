@@ -145,6 +145,10 @@ func TestGuardCommitAsksForAnUnshownMessage(t *testing.T) {
 		"asked not to, plainly":       {testutil.UserPrompt("Do not commit this.")},
 		"only names a commit message": {testutil.UserPrompt("the commit message prompt is annoying")},
 		"an earlier prompt asked":     {testutil.UserPrompt("commit"), testutil.AssistantText("done"), testutil.UserPrompt("now fix the docs")},
+		"only mentions a commit":      {testutil.UserPrompt("review the last commit")},
+		"asks about a commit":         {testutil.UserPrompt("what changed in commit abc123?")},
+		"a task notification":         {testutil.UserPrompt("fix it"), map[string]any{"type": "user", "origin": map[string]any{"kind": "task-notification"}, "message": map[string]any{"content": "Commit and continue."}}},
+		"a peer session's message":    {testutil.UserPrompt("fix it"), map[string]any{"type": "user", "origin": map[string]any{"kind": "peer"}, "message": map[string]any{"content": "commit it"}}},
 	} {
 		if transcript[0] == nil {
 			transcript = nil
@@ -156,8 +160,8 @@ func TestGuardCommitAsksForAnUnshownMessage(t *testing.T) {
 		}
 	}
 	commit(testutil.UserPrompt("fix it"), testutil.AssistantText("Commit as `fix: add sums`?"), testutil.UserPrompt("go")).Empty(t)
-	for _, prompt := range []string{"Commit and continue.", "Yes, commit.", "fix it and commit", "Commit, then start step 13"} {
-		if r := commit(testutil.UserPrompt(prompt)); strings.Contains(r.Output, `"permissionDecision":"ask"`) {
+	for _, prompt := range []string{"Commit and continue.", "Yes, commit.", "fix it and commit", "Commit, then start step 13", "Yes, commit 21, apply both fixes", "can you commit this?", "please commit"} {
+		if r := commit(map[string]any{"type": "user", "origin": map[string]any{"kind": "human"}, "message": map[string]any{"content": prompt}}); strings.Contains(r.Output, `"permissionDecision":"ask"`) {
 			t.Errorf("%q asks for the commit, yet the guard asked again:\n%s", prompt, r.Output)
 		}
 	}

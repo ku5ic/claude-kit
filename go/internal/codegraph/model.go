@@ -16,10 +16,11 @@ import (
 )
 
 // ModelDir is where the architecture model of the repo holding target
-// lives: base/<parent>/<project>, where parent is the folder holding the
-// repo root and project is the origin remote's repo name, else the root's
-// folder name. A target below the root gets base/<parent>/<project>/scopes/<subdir>,
-// a model of its own.
+// lives: base/<parent>/<project>, where project is the main checkout's
+// folder name and parent the folder holding it. Two clones in one parent
+// can't share a folder name, so they never share a model; a worktree
+// shares its main checkout's. A target below the root gets
+// base/<parent>/<project>/scopes/<subdir>, a model of its own.
 func ModelDir(base, home, target string) (string, error) {
 	abs, err := filepath.Abs(target)
 	if err != nil {
@@ -29,14 +30,14 @@ func ModelDir(base, home, target string) (string, error) {
 	if root == "" {
 		return "", fmt.Errorf("%s is not in a git work tree", target)
 	}
-	project := filepath.Base(root)
-	if url, err := git.Line(root, "remote", "get-url", "origin"); err == nil && url != "" {
-		project = strings.TrimSuffix(path.Base(strings.ReplaceAll(url, ":", "/")), ".git")
+	main := root
+	if common, err := git.Line(root, "rev-parse", "--path-format=absolute", "--git-common-dir"); err == nil && filepath.Base(common) == ".git" {
+		main = filepath.Dir(common)
 	}
 	if rest, ok := strings.CutPrefix(base, "~/"); ok {
 		base = filepath.Join(home, rest)
 	}
-	dir := filepath.Join(base, filepath.Base(filepath.Dir(root)), project)
+	dir := filepath.Join(base, filepath.Base(filepath.Dir(main)), filepath.Base(main))
 	if phys, err := filepath.EvalSymlinks(abs); err == nil {
 		abs = phys
 	}
@@ -141,8 +142,12 @@ type node struct {
 
 var (
 	nodeLine = regexp.MustCompile(`^\s*([A-Za-z_][\w-]*)\s*[\[({]+"?([^"\])}]*)"?[\])}]+(:::(\w+))?\s*$`)
-	edgeLine = regexp.MustCompile(`([A-Za-z_][\w-]*)\s*(?:-->|-\.->|==>|---)(?:\|[^|]*\|)?\s*([A-Za-z_][\w-]*)`)
-	comment  = regexp.MustCompile(`^\s*%%\s*(path|package|source):\s*(.+?)\s*$`)
+	// endpoint is one end of an edge: an id, maybe with its shape and
+	// label inline (ui["UI"]), maybe with a class (:::ext).
+	endpoint  = `([A-Za-z_][\w-]*)(?:\s*[\[({]+"?([^"\])}]*)"?[\])}]+)?(?::::(\w+))?`
+	edgeStart = regexp.MustCompile(`^\s*` + endpoint)
+	edgeNext  = regexp.MustCompile(`^\s*(?:-->|-\.->|==>|---)(?:\|[^|]*\|)?\s*` + endpoint)
+	comment   = regexp.MustCompile(`^\s*%%\s*(path|package|source):\s*(.+?)\s*$`)
 )
 
 // readModel is every node and edge in the c4-*.mmd files of modelDir.
@@ -181,17 +186,18 @@ func readModel(modelDir string) (nodes map[string]*node, edges [][2]string, file
 				continue
 			}
 			if m := nodeLine.FindStringSubmatch(line); m != nil {
-				n := nodes[m[1]]
-				if n == nil {
-					n = &node{id: m[1], label: m[2], file: filepath.Base(file)}
-					nodes[m[1]] = n
-				}
-				n.isExt = n.isExt || m[4] == "ext"
-				last = n
+				last = addNode(nodes, m[1], m[2], m[4], file)
 				continue
 			}
-			for _, e := range edgeLine.FindAllStringSubmatch(line, -1) {
-				edges = append(edges, [2]string{e[1], e[2]})
+			ends := chain(line)
+			for i, end := range ends {
+				if len(ends) < 2 {
+					break
+				}
+				addNode(nodes, end[1], end[2], end[3], file)
+				if i > 0 {
+					edges = append(edges, [2]string{ends[i-1][1], end[1]})
+				}
 			}
 		}
 		_ = f.Close()
@@ -200,6 +206,38 @@ func readModel(modelDir string) (nodes map[string]*node, edges [][2]string, file
 		}
 	}
 	return nodes, edges, files, nil
+}
+
+// addNode is nodes' node id, added with label from file when it's new;
+// a class of ext marks it external.
+func addNode(nodes map[string]*node, id, label, class, file string) *node {
+	n := nodes[id]
+	if n == nil {
+		n = &node{id: id, label: label, file: filepath.Base(file)}
+		nodes[id] = n
+	}
+	n.isExt = n.isExt || class == "ext"
+	return n
+}
+
+// chain is the endpoints of the edges on line, in order, each as its
+// match groups (whole, id, label, class): a --> b --> c gives three.
+// Fewer than two means line holds no edge. Both patterns start at ^, so
+// a match's length is where the rest of the line starts.
+func chain(line string) [][]string {
+	m := edgeStart.FindStringSubmatch(line)
+	if m == nil {
+		return nil
+	}
+	ends := [][]string{m}
+	for rest := line[len(m[0]):]; ; {
+		n := edgeNext.FindStringSubmatch(rest)
+		if n == nil {
+			return ends
+		}
+		ends = append(ends, n)
+		rest = rest[len(n[0]):]
+	}
 }
 
 // CheckC4 checks the model in modelDir against rawDir, collected from the

@@ -49,6 +49,11 @@ type Entry struct {
 	Type        string `json:"type"`
 	IsMeta      bool   `json:"isMeta"`
 	IsSidechain bool   `json:"isSidechain"`
+	// Origin is who sent a user entry: "human", a "task-notification", a
+	// "peer" session; empty in transcripts that predate it.
+	Origin struct {
+		Kind string `json:"kind"`
+	} `json:"origin"`
 	Timestamp   string `json:"timestamp"`
 	// Content is a system entry's content: raw, since its shape isn't fixed.
 	Content json.RawMessage `json:"content"`
@@ -131,6 +136,12 @@ func (b Block) ResultText() string {
 // neither meta nor a tool result.
 func (e Entry) StartsTurn() bool {
 	return e.Type == "user" && !e.IsMeta && !slices.ContainsFunc(e.Blocks, func(b Block) bool { return b.Type == "tool_result" })
+}
+
+// FromUser is true when a person typed the entry: no task notification
+// or other session sent it.
+func (e Entry) FromUser() bool {
+	return e.Origin.Kind == "" || e.Origin.Kind == "human"
 }
 
 // PromptText is the entry's text: its string content, or its text blocks joined.

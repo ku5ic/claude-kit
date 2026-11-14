@@ -106,6 +106,27 @@ func TestReviewSheet(t *testing.T) {
 			t.Errorf("%d file lines, want 9 and the more line:\n%s", n, msg)
 		}
 	})
+	t.Run("past the limit, a group with no file shown leaves no heading", func(t *testing.T) {
+		t.Parallel()
+		e := sheetSetup(t, threeSteps)
+		e.start()
+		var files []string
+		for i := range 12 {
+			name := fmt.Sprintf("f%02d.md", i)
+			testutil.Write(t, e.path(name), "x\n")
+			files = append(files, e.path(name))
+		}
+		testutil.Write(t, e.path("a.ts"), "x\ny\n")
+		testutil.Write(t, e.path("package-lock.json"), "{}\n")
+		e.turn("Edit", append(files, e.path("a.ts"), e.path("package-lock.json"))...)
+		msg := notice(t, e.stop(false))
+		lines := strings.Split(msg, "\n")
+		for i, l := range lines {
+			if strings.HasPrefix(l, "  ") && !strings.HasPrefix(l, "    ") && strings.HasSuffix(l, ")") && (i+1 == len(lines) || !strings.HasPrefix(lines[i+1], "    ")) {
+				t.Errorf("heading %q has no file under it:\n%s", l, msg)
+			}
+		}
+	})
 	t.Run("a turn that changes nothing tracked gets no sheet", func(t *testing.T) {
 		t.Parallel()
 		e := sheetSetup(t, threeSteps)

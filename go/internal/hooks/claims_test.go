@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/claims"
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 	"github.com/ku5ic/claude-kit/go/internal/testutil"
@@ -61,6 +62,11 @@ func checkerCall(id, result string, failed bool) string {
 		"type": "tool_result", "tool_use_id": "cc", "is_error": failed, "content": result,
 	}}}})
 	return string(call) + "\n" + string(done)
+}
+
+// claimsAsked is the session's record of the claim-checker runs it asked for.
+func (k *sandbox) claimsAsked() string {
+	return k.paths.SessionFile(cache.Claims, "s", "asked")
 }
 
 // checkerRan points payload at a session transcript holding a claim-checker
@@ -187,6 +193,31 @@ func TestVerifyClaimsToolInput(t *testing.T) {
 		payload := post(claim + "\n\n" + added)
 		payload["transcript_path"] = path
 		k.run("verify-claims", payload).Allowed(t)
+	})
+	t.Run("a code edit after a run makes its sentences fresh again", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		k.verifier("", claim)
+		post := func() map[string]any { return toolCall("mcp__chat__send_message", map[string]any{"text": claim}) }
+		id := checkID.FindString(k.run("verify-claims", post()).Stdout)
+		edit, _ := json.Marshal(map[string]any{"type": "assistant", "message": map[string]any{"content": []any{map[string]any{
+			"type": "tool_use", "id": "e1", "name": "Edit", "input": map[string]any{"file_path": filepath.Join(k.home, "proj", "main.go")},
+		}}}})
+		report, _ := json.Marshal(map[string]any{"type": "assistant", "message": map[string]any{"content": []any{map[string]any{
+			"type": "tool_use", "id": "e2", "name": "Write", "input": map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "r.md")},
+		}}}})
+		path := filepath.Join(k.t.TempDir(), "edited.jsonl")
+		testutil.Write(t, path, checkerLine(id)+"\n"+string(report)+"\n")
+		payload := post()
+		payload["transcript_path"] = path
+		k.run("verify-claims", payload).Allowed(t)
+		testutil.Write(t, path, checkerLine(id)+"\n"+string(edit)+"\n")
+		again := k.run("verify-claims", payload)
+		again.Denied(t)
+		again.Has(t, id)
+		if asked := testutil.Read(t, k.claimsAsked()); strings.Count(asked, id) != 1 {
+			t.Errorf("the asked record holds %s %d times, want once:\n%s", id, strings.Count(asked, id), asked)
+		}
 	})
 	t.Run("the claim checker's own hand-back isn't checked again", func(t *testing.T) {
 		t.Parallel()

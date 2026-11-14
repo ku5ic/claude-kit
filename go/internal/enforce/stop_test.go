@@ -116,6 +116,22 @@ func TestStopRunsTheLeastFilteredFileFormOncePerFileAndKind(t *testing.T) {
 	}
 }
 
+// Two tools of one kind both run: only another form of the same tool
+// loses its files.
+func TestStopRunsEachToolOfAKind(t *testing.T) {
+	e := setup(t)
+	e.tool("bin/ruff")
+	e.tool("bin/pylint")
+	e.write(".github/workflows/ci.yml", "jobs:\n  lint:\n    steps:\n      - run: pylint .\n      - run: ruff check .\n")
+	e.write("a.py", "")
+	e.check("lint/1", map[string]any{"role": "check", "kind": "lint", "file_form": "pylint {files}", "globs": []string{"*.py"}})
+	e.check("lint/2", map[string]any{"role": "check", "kind": "lint", "file_form": "ruff check {files}", "globs": []string{"*.py"}})
+	got := commands(e.stop("a.py"))
+	if !strings.Contains(got, "pylint a.py") || !strings.Contains(got, "ruff check a.py") {
+		t.Errorf("plan:\n%s", got)
+	}
+}
+
 // Ignored, deleted, and outside files never reach a check.
 func TestStopChecksOnlyFilesTheRepoKeeps(t *testing.T) {
 	e := setup(t)
@@ -167,5 +183,20 @@ func TestCommandPutsEachFileInItsWord(t *testing.T) {
 	g = Gate{Dir: root, Body: "prettier --check {files}", Files: []string{root + "/--write.ts"}}
 	if got, want := g.Command(), "prettier --check ./--write.ts"; got != want {
 		t.Errorf("a dash-led file: %s, want %s", got, want)
+	}
+}
+
+func TestFormTool(t *testing.T) {
+	t.Parallel()
+	for form, want := range map[string]string{
+		"pytest -m unit {files}":            "pytest",
+		"uv run ruff check {files}":         "ruff",
+		"pnpm exec eslint {files}":          "eslint",
+		"CI=1 env ./node_modules/.bin/x":    "x",
+		"go tool golangci-lint run {files}": "golangci-lint",
+	} {
+		if got := formTool(form); got != want {
+			t.Errorf("formTool(%q) = %q, want %q", form, got, want)
+		}
 	}
 }

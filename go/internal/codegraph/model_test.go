@@ -68,6 +68,8 @@ func TestCheckC4(t *testing.T) {
 	}{
 		{"a removed path", "%% path: internal", "%% path: internal/gone", "gone: m_internal"},
 		{"an edge with no imports", "  m_cmd --> m_internal\n", "  m_cmd --> m_internal\n  m_cmd --> m_docs\n  m_docs[\"docs\"]\n  %% path: docs\n", "unbacked: m_cmd --> m_docs"},
+		{"a chained edge's second hop with no imports", "  m_cmd --> m_internal\n", "  m_docs[\"docs\"]\n  %% path: docs\n  m_cmd --> m_internal --> m_docs\n", "unbacked: m_internal --> m_docs"},
+		{"an edge from an inline-labeled node with no imports", "  m_cmd --> m_internal\n", "  m_cmd --> m_internal\n  m_docs[\"docs\"]\n  %% path: docs\n  m_cmd[\"cmd\"] --> m_docs\n", "unbacked: m_cmd --> m_docs"},
 		{"an undeclared external", "%% package: react", "%% package: vue", "undeclared: ext_react"},
 		{"an external that names no package", "  %% package: react\n", "\n", "unbacked: ext_react"},
 	} {
@@ -119,9 +121,23 @@ func TestModelDir(t *testing.T) {
 			t.Errorf("%s: %q, %v; want %q", tc.target, got, err, tc.want)
 		}
 	}
-	testutil.Git(t, root, "remote", "add", "origin", "git@github.com:acme/real-name.git")
-	if got, _ := ModelDir("/abs", home, root); got != filepath.Join("/abs", "work", "real-name") {
-		t.Errorf("the origin's repo name: %q", got)
+	// Two clones of one origin in one parent keep two models.
+	testutil.Git(t, root, "remote", "add", "origin", "git@github.com:acme/app.git")
+	fork := filepath.Join(parent, "work", "app-fork")
+	testutil.Mkdir(t, fork)
+	testutil.Git(t, fork, "init", "-q")
+	testutil.Git(t, fork, "remote", "add", "origin", "git@github.com:other/app.git")
+	if got, _ := ModelDir("/abs", home, fork); got != filepath.Join("/abs", "work", "app-fork") {
+		t.Errorf("a second clone of app: %q", got)
+	}
+	// A worktree is its main checkout's model.
+	testutil.Write(t, filepath.Join(root, "x"), "x\n")
+	testutil.Git(t, root, "add", "x")
+	testutil.Git(t, root, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "x")
+	tree := filepath.Join(parent, "trees", "review")
+	testutil.Git(t, root, "worktree", "add", "-q", "--detach", tree)
+	if got, _ := ModelDir("/abs", home, tree); got != filepath.Join("/abs", "work", "app") {
+		t.Errorf("a worktree: %q", got)
 	}
 	if _, err := ModelDir("/abs", home, t.TempDir()); err == nil {
 		t.Error("outside a repo: no error")

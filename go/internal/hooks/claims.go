@@ -153,8 +153,10 @@ func gateOnChecker(h *hook.Hook, text, where, retry, marker string) error {
 	if cfg == nil || h.RuleDisabled("claims") || cfg.Claims.Off() || !claims.Declarative(text) {
 		return nil
 	}
-	transcriptPath := h.Payload.String("transcript_path")
-	checked := checkedStatements(h, transcriptPath)
+	log := readCheckerLog(h, h.Payload.String("transcript_path"))
+	asked := h.Paths.SessionFile(cache.Claims, h.Payload.SessionID(), "asked")
+	record, _ := os.ReadFile(asked)
+	checked := checkedStatements(log, string(record))
 	all := claims.Statements(text)
 	var fresh []string
 	for _, s := range all {
@@ -167,7 +169,7 @@ func gateOnChecker(h *hook.Hook, text, where, retry, marker string) error {
 	}
 	sum := sha256.Sum256([]byte(strings.Join(fresh, "\n")))
 	id := "claim-check " + hex.EncodeToString(sum[:])[:12]
-	switch checkerRun(transcriptPath, id) {
+	switch log.run(id) {
 	case checkerDone:
 		return nil
 	case checkerFailed:
@@ -179,30 +181,56 @@ func gateOnChecker(h *hook.Hook, text, where, retry, marker string) error {
 	} else {
 		ask += ". "
 	}
-	if !h.DryRun {
+	if !h.DryRun && !strings.Contains(string(record), id+"\t") {
 		var keys []string
 		for _, s := range fresh {
 			keys = append(keys, statementKey(s))
 		}
-		_ = fsx.Append(h.Paths.SessionFile(cache.Claims, h.Payload.SessionID(), "asked"), []byte(id+"\t"+strings.Join(keys, ",")+"\n"))
+		_ = fsx.Append(asked, []byte(id+"\t"+strings.Join(keys, ",")+"\n"))
 	}
 	h.Deny(fmt.Sprintf("run the %s agent on %s first. %sCheck or cut each claim it reports, per skills/kit-rules/reference/evidence.md section 1, then %s", claimChecker, where, ask, retry), "claims")
 	return nil
 }
 
 // checkedStatements is the keys of the statements a finished claim-checker
-// run covered: each run the session asked for, by its id, whose run the
-// transcript shows done.
-func checkedStatements(h *hook.Hook, transcriptPath string) []string {
-	data, _ := os.ReadFile(h.Paths.SessionFile(cache.Claims, h.Payload.SessionID(), "asked"))
+// run covered: each run record, the session's asked file, names by its id,
+// whose run log shows done.
+func checkedStatements(log checkerLog, record string) []string {
 	var keys []string
-	for line := range strings.Lines(string(data)) {
+	seen := map[string]bool{}
+	for line := range strings.Lines(record) {
 		id, covered, ok := strings.Cut(strings.TrimSpace(line), "\t")
-		if ok && checkerRun(transcriptPath, id) == checkerDone {
+		if ok && !seen[id] && log.run(id) == checkerDone {
 			keys = append(keys, strings.Split(covered, ",")...)
 		}
+		seen[id] = true
 	}
 	return keys
+}
+
+// checkerLog is the session transcript at path, read once, and the index
+// of its last code edit: an edit tool call on a file outside scratch and
+// the plans folder. A run launched before that edit checked code that has
+// changed since, so it counts as no run.
+type checkerLog struct {
+	path     string
+	entries  []transcript.Entry
+	lastEdit int
+}
+
+// readCheckerLog is the checkerLog of the transcript at path.
+func readCheckerLog(h *hook.Hook, path string) checkerLog {
+	entries, _ := transcript.Load(path)
+	plans := project.PlanDir(h.Paths, h.Payload.Cwd())
+	log := checkerLog{path: path, entries: entries, lastEdit: -1}
+	for i, e := range entries {
+		for _, file := range transcript.Edits([]transcript.Entry{e}) {
+			if file != "" && !project.IsScratch(h.Paths, file) && !fsx.Within(plans, file) {
+				log.lastEdit = i
+			}
+		}
+	}
+	return log
 }
 
 // statementKey is a checked statement's line in the session's record.
@@ -218,17 +246,16 @@ const (
 	checkerFailed        // a run on this text failed, or the agent is missing
 )
 
-// checkerRun is how the transcript's claim-checker runs on the text with
+// run is how the log's claim-checker runs on the text with
 // claim-check id ended. A failed run, or one whose every check errored,
 // hands the text to the hook's own verifier, so a checker that keeps
 // failing can't block it for good, nor pass it unchecked.
-func checkerRun(path, id string) int {
-	entries, _ := transcript.Load(path)
+func (l checkerLog) run(id string) int {
 	calls := map[string]bool{}
 	launched := map[string]string{} // background runs' agent ids, by call, ended once their notice says so
 	outcome := checkerNotRun
-	blind := func(agent string) bool { return checkedNothing(agentTranscriptPath(path, agent)) }
-	for _, e := range entries {
+	blind := func(agent string) bool { return checkedNothing(agentTranscriptPath(l.path, agent)) }
+	for i, e := range l.entries {
 		for call, agent := range launched {
 			switch status := noticeStatus(e, call); {
 			case status == "":
@@ -241,7 +268,7 @@ func checkerRun(path, id string) int {
 		for _, b := range e.Blocks {
 			switch {
 			case b.Type == "tool_use" && b.Name == "Agent" && b.Input.SubagentType == claimChecker && strings.Contains(b.Input.Prompt, id):
-				calls[b.ID] = true
+				calls[b.ID] = i > l.lastEdit
 			case b.Type != "tool_result" || !calls[b.ToolUseID]:
 			case b.IsError:
 				outcome = checkerFailed

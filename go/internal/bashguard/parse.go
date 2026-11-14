@@ -5,6 +5,7 @@ package bashguard
 
 import (
 	"errors"
+	"regexp"
 	"strings"
 
 	"mvdan.cc/sh/v3/syntax"
@@ -279,6 +280,9 @@ func (c *collector) call(src string, p *syntax.Stmt, call *syntax.CallExpr) Call
 	if cmd, ok := watchString(cl.Words); ok {
 		c.parse(cmd, c.depth+1)
 	}
+	if cmd, ok := flockString(cl.Words); ok {
+		c.parse(cmd, c.depth+1)
+	}
 	cl.Redirs = append(cl.Redirs, timeOutputs(cl.Words)...)
 	for _, r := range p.Redirs {
 		c.redirect(src, r, &cl)
@@ -309,12 +313,29 @@ func (c *collector) redirect(src string, r *syntax.Redirect, cl *Call) {
 	case r.Op == syntax.RdrIn:
 		cl.Inputs = append(cl.Inputs, value)
 	case strings.Contains(op, ">"):
-		// >&2 duplicates an fd: its target is "&2", never a file name.
-		if r.Op == syntax.DplOut {
+		// >&2 duplicates an fd and >&- closes one: the target is "&2" or
+		// "&-", never a file name. >& file writes file, like &>.
+		if r.Op == syntax.DplOut && fdTarget.MatchString(value) {
 			value = "&" + value
 		}
 		cl.Redirs = append(cl.Redirs, Redir{op, Word{value, src[r.Word.Pos().Offset():r.Word.End().Offset()], int(r.Word.End().Offset())}})
 	}
+}
+
+// fdTarget is a >& target that names a descriptor: 2, 2-, or -.
+var fdTarget = regexp.MustCompile(`^([0-9]+-?|-)$`)
+
+// flockString is the command string a flock among words' wrappers runs
+// with -c or --command after its lock file: flock /tmp/l -c "rm -rf ~"
+// runs rm -rf ~ in a shell. flock matches those two words exactly.
+func flockString(words []Word) (string, bool) {
+	n := lead(words)
+	for i := range n {
+		if baseName(words[i].Value) == "flock" && n+1 < len(words) && (words[n].Value == "-c" || words[n].Value == "--command") {
+			return words[n+1].Value, true
+		}
+	}
+	return "", false
 }
 
 // envSplitString returns the command env -S/--split-string runs, the string

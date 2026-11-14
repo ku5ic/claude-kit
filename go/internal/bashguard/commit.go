@@ -258,7 +258,10 @@ func approved(path, subject string) bool {
 		case e.StartsTurn():
 			earlier.WriteString(current.String())
 			current.Reset()
-			prompt = e.PromptText()
+			prompt = ""
+			if e.FromUser() {
+				prompt = e.PromptText()
+			}
 		case e.Type == "assistant":
 			current.WriteString(e.PromptText() + "\n")
 		}
@@ -273,16 +276,25 @@ var (
 	negated = regexp.MustCompile(`(?i)\b(don'?t|do not|not yet|never|no)\b`)
 	// commitNouns follow "commit" when it names a thing, not the act.
 	commitNouns = []string{"message", "messages", "msg", "hash", "log", "history", "prompt"}
+	// requestLead is a word that can come right before "commit" when it's
+	// asked for: "fix it and commit", "can you commit", "please commit".
+	// Any other ("the last commit", "in commit abc") makes it a noun.
+	requestLead = []string{"and", "then", "now", "please", "pls", "also", "just", "so", "go", "ahead", "you", "can", "could", "to", "yes", "ok", "okay", "sure", "let's", "lets"}
 )
 
-// asksForCommit is true when prompt uses "commit" as a request: not as a
-// noun ("the commit message"), and with no negation earlier in its clause.
+// asksForCommit is true when prompt uses "commit" as a request: first in
+// its clause or after a requestLead word, not as a noun ("the commit
+// message"), and with no negation earlier in its clause.
 func asksForCommit(prompt string) bool {
 	for _, m := range commitWord.FindAllStringSubmatchIndex(prompt, -1) {
 		if m[2] >= 0 && slices.Contains(commitNouns, strings.ToLower(strings.TrimSpace(prompt[m[2]:m[3]]))) {
 			continue
 		}
-		clause := prompt[strings.LastIndexAny(prompt[:m[0]], ".!?;\n")+1 : m[0]]
+		clause := prompt[strings.LastIndexAny(prompt[:m[0]], ".!?;,\n")+1 : m[0]]
+		words := strings.Fields(strings.ToLower(clause))
+		if len(words) > 0 && !slices.Contains(requestLead, words[len(words)-1]) {
+			continue
+		}
 		if !negated.MatchString(clause) {
 			return true
 		}
