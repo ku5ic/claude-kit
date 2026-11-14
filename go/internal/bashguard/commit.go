@@ -356,14 +356,15 @@ func asksForCommit(prompt string) bool {
 		if negated.MatchString(clause) {
 			continue
 		}
-		sentence := prompt[strings.LastIndexAny(prompt[:m[0]], ".!?\n")+1:]
+		start := strings.LastIndexAny(prompt[:m[0]], ".!?\n") + 1
+		sentence := prompt[start:]
 		if end := strings.IndexAny(sentence, ".!?\n"); end >= 0 {
 			if sentence[end] == '?' && !directAsk.MatchString(sentence) {
 				continue
 			}
 			sentence = sentence[:end]
 		}
-		if subordinator.MatchString(sentence) {
+		if subordinator.MatchString(sentence) || deferred(strings.FieldsFunc(strings.ToLower(sentence[m[1]-start:]), notWordRune)) {
 			continue
 		}
 		if !ownPlan.MatchString(sentence) {
@@ -469,6 +470,26 @@ func longestProseRun(text string) int {
 		}
 	}
 	return best
+}
+
+// subjects open a clause of its own: what follows is someone else's plan
+// ("commit it, I'll push tomorrow").
+var subjects = []string{"i", "i'll", "i'm", "i'd", "i've", "we", "we'll", "we're", "you", "you'll", "you're", "they", "they'll"}
+
+// deferred is whether words, those after "commit" to the end of its
+// sentence, put the commit off: a time word, or "yet", before a "now" or
+// a clause with a subject of its own. "commit and push tomorrow" and
+// "commit it, but not yet" wait; "commit it now, push tomorrow" doesn't.
+func deferred(words []string) bool {
+	for _, w := range words {
+		switch {
+		case w == "now" || slices.Contains(subjects, w):
+			return false
+		case w == "yet" || slices.Contains(timeWords, w):
+			return true
+		}
+	}
+	return false
 }
 
 // objectPhrase is whether words, those after "commit" in its clause, name
