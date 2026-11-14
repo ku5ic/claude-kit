@@ -657,6 +657,28 @@ func TestAPlaceholderKeepsTheTextAroundAPath(t *testing.T) {
 	}
 }
 
+// A proposal's globs match from its dir, as the plan reads them. A glob
+// the classifier wrote from the root (go/**/*.go for dir go) loses the dir.
+func TestAProposalsGlobsAreRelativeToItsDir(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t, "")
+	testutil.Put(t, f.root, "go/go.mod", "module x\n")
+	lint := entry("lint", "eslint .")
+	f.answer(map[string]any{
+		"entries":  []any{verdict(lint, map[string]any{"role": "check", "kind": "lint", "mutates": false})},
+		"managers": []any{},
+		"proposals": []any{map[string]any{"role": "fixer", "command": "gofmt -w .", "file_form": "gofmt -w {files}",
+			"globs": []any{"go/**/*.go", "./go/cmd/*.go", "**/*_test.go"}, "dir": "go", "evidence": "go.mod"}},
+	})
+	r := f.run(lint)
+	if len(r.Proposals) != 1 {
+		t.Fatalf("dropped %q", r.Dropped)
+	}
+	if got, want := r.Proposals[0].Globs, []string{"**/*.go", "cmd/*.go", "**/*_test.go"}; !slices.Equal(got, want) {
+		t.Errorf("globs %q, want %q", got, want)
+	}
+}
+
 // npx is npm's run prefix, and it fetches what isn't installed: a form
 // through it holds up only once the project has its own copy.
 func TestNpxHoldsUpWithALocalCopy(t *testing.T) {

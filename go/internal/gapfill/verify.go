@@ -64,6 +64,7 @@ func verify(cfg *config.Config, root string, entries []sources.Entry, s store, f
 	r.Dropped = append(r.Dropped, coverage(entries, r.Verdicts)...)
 	for _, p := range s.Proposals {
 		p.Evidence = at(p.Dir).evidencePath(p.Evidence)
+		p.Globs = fromDir(p.Dir, p.Globs)
 		if err := at(p.Dir).proposal(p); err != nil {
 			r.Dropped = append(r.Dropped, fmt.Sprintf("proposal %q: %v", p.Command, err))
 			continue
@@ -74,6 +75,22 @@ func verify(cfg *config.Config, root string, entries []sources.Entry, s store, f
 		r.Proposals = append(r.Proposals, p)
 	}
 	return r
+}
+
+// fromDir is globs as they match from dir, which the plan reads them
+// from. The classifier sometimes writes them from the root (go/**/*.go
+// for dir go), so dir's own prefix goes.
+func fromDir(dir string, globs []string) []string {
+	dir = filepath.ToSlash(filepath.Clean(dir))
+	out := make([]string, 0, len(globs))
+	for _, g := range globs {
+		g = strings.TrimPrefix(g, "./")
+		if dir != "." {
+			g = strings.TrimPrefix(g, dir+"/")
+		}
+		out = append(out, g)
+	}
+	return out
 }
 
 // coverage drops each covered_by claim but one naming another verified check
