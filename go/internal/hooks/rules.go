@@ -25,9 +25,9 @@ func leftoverRulesLink(paths config.Paths) string {
 		return ""
 	}
 	ruleFiles, _ := filepath.Glob(filepath.Join(kitRules, "*.md"))
-	entries, _ := os.ReadDir(filepath.Join(paths.Home, "rules"))
+	entries, _ := os.ReadDir(filepath.Join(paths.ClaudeDir, "rules"))
 	for _, entry := range entries {
-		dir := filepath.Join(paths.Home, "rules", entry.Name())
+		dir := filepath.Join(paths.ClaudeDir, "rules", entry.Name())
 		if !fsx.IsDir(dir) {
 			continue
 		}

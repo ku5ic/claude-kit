@@ -176,7 +176,7 @@ func stop(paths config.Paths, cfg *config.Config, cwd string, files []string, w,
 	for i, f := range files {
 		abs[i] = fsx.Abs(cwd, f)
 	}
-	p := enforce.Stop(cfg, enforce.Options{Root: root, CacheDir: paths.CacheDir()}, abs)
+	p := enforce.Stop(cfg, enforce.Options{Root: root, CacheDir: paths.CacheDir(), Home: os.Getenv("HOME")}, abs)
 	claimed := map[string]bool{}
 	for _, g := range p.Gates {
 		fmt.Fprintln(w, g.Label)

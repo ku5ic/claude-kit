@@ -28,7 +28,6 @@ func TestToplevelIsPhysicalThroughASymlink(t *testing.T) {
 }
 
 func TestName(t *testing.T) {
-	t.Setenv("HOME", "/Users/someone")
 	cases := map[string]string{
 		"/Users/someone":           "home",
 		"/":                        "root",
@@ -40,7 +39,7 @@ func TestName(t *testing.T) {
 		"/src/Spacelift.Front_end": "spacelift-front-end",
 	}
 	for root, want := range cases {
-		if got := Name(root); got != want {
+		if got := Name(root, "/Users/someone"); got != want {
 			t.Errorf("Name(%q) = %q, want %q", root, got, want)
 		}
 	}
@@ -58,7 +57,7 @@ func TestReportPath(t *testing.T) {
 
 func TestScratchDirHomeFallbackAndRegistry(t *testing.T) {
 	home := tmp(t)
-	paths := config.Paths{Home: home}
+	paths := config.Paths{ClaudeDir: home}
 	outside := filepath.Join(tmp(t), "plain")
 
 	dir, err := ScratchDir(paths, outside, false)
@@ -91,7 +90,7 @@ func TestScratchDirWithAnUnwritableRegistry(t *testing.T) {
 	t.Cleanup(func() { _ = os.Chmod(filepath.Join(home, "logs"), 0o700) })
 	repo := tmp(t)
 	testutil.Git(t, repo, "init", "-q", "-b", "main")
-	dir, err := ScratchDir(config.Paths{Home: home}, repo, true)
+	dir, err := ScratchDir(config.Paths{ClaudeDir: home}, repo, true)
 	if want := filepath.Join(repo, ".claude", "scratch"); err != nil || dir != want {
 		t.Fatalf("ScratchDir = %q, %v; want %q", dir, err, want)
 	}
@@ -107,7 +106,7 @@ func TestScratchDirOutsideAProjectFallsBackToTheKitHomeUnregistered(t *testing.T
 	home := tmp(t)
 	cwd := filepath.Join(tmp(t), "plain", "a", "b")
 	testutil.Put(t, cwd, ".keep", "")
-	dir, err := ScratchDir(config.Paths{Home: home}, cwd, true)
+	dir, err := ScratchDir(config.Paths{ClaudeDir: home}, cwd, true)
 	if want := filepath.Join(home, "scratch"); err != nil || dir != want {
 		t.Fatalf("ScratchDir = %q, %v; want %q", dir, err, want)
 	}
@@ -128,7 +127,7 @@ func TestPlanDir(t *testing.T) {
 		testutil.Write(t, filepath.Join(dir, "settings.json"), body)
 	}
 	home := tmp(t)
-	paths := config.Paths{Home: home}
+	paths := config.Paths{ClaudeDir: home}
 	repo := tmp(t)
 	testutil.Git(t, repo, "init", "-q", "-b", "main")
 	sub := filepath.Join(repo, "src")

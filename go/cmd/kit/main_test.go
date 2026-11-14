@@ -57,7 +57,7 @@ func gitInit(t *testing.T, dir string) string {
 func call(t *testing.T, cmd func(*env, []string) int, cwd string, args ...string) (code int, stdout, stderr string) {
 	t.Helper()
 	var out, errOut strings.Builder
-	e := &env{paths: config.Paths{Home: filepath.Join(tmp(t), ".claude")}, stdout: &out, stderr: &errOut, cwd: cwd}
+	e := &env{paths: config.Paths{ClaudeDir: filepath.Join(tmp(t), ".claude")}, stdout: &out, stderr: &errOut, cwd: cwd}
 	code = cmd(e, args)
 	return code, out.String(), errOut.String()
 }

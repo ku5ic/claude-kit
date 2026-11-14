@@ -244,7 +244,7 @@ func commitMsg(h *hook.Hook, msg string, ok bool, repo string) string {
 	if cerr := tmp.Close(); err != nil || cerr != nil {
 		return ""
 	}
-	p := enforce.CommitMsg(cfg, enforce.Options{Root: root, CacheDir: h.Paths.CacheDir()}, tmp.Name())
+	p := enforce.CommitMsg(cfg, enforce.Options{Root: root, CacheDir: h.Paths.CacheDir(), Home: h.Home}, tmp.Name())
 	return run.Commit(p, commitMsgBudget)
 }
 

@@ -43,11 +43,11 @@ var (
 	nonSlug     = regexp.MustCompile(`[^a-z0-9]+`)
 )
 
-// Name is a stable, slug-safe identifier for root: "home" for $HOME,
+// Name is a stable, slug-safe identifier for root: "home" for home,
 // "root" for /, else its lowercased basename with every non-alphanumeric
 // run as "-", or "unknown" when nothing is left.
-func Name(root string) string {
-	if home, err := os.UserHomeDir(); err == nil && root == home {
+func Name(root, home string) string {
+	if home != "" && root == home {
 		return "home"
 	}
 	if root == "/" {
@@ -94,7 +94,7 @@ func PlanDir(paths config.Paths, cwd string) string {
 	for _, file := range []string{
 		filepath.Join(root, ".claude", "settings.local.json"),
 		filepath.Join(root, ".claude", "settings.json"),
-		filepath.Join(paths.Home, "settings.json"),
+		filepath.Join(paths.ClaudeDir, "settings.json"),
 	} {
 		if dir := sources.JSONValue(file, ".plansDirectory"); dir != "" {
 			return filepath.Join(root, dir)

@@ -121,10 +121,10 @@ func newSandbox(t *testing.T) *sandbox {
 	claude := filepath.Join(home, ".claude")
 	testutil.Mkdir(t, filepath.Join(claude, "logs"))
 	return &sandbox{t: t, home: home, claude: claude, paths: config.Paths{
-		Root:    kitRoot,
-		Home:    claude,
-		Base:    filepath.Join(kitRoot, "kit.yml"),
-		Overlay: filepath.Join(claude, "claude-kit.local.yml"),
+		Root:      kitRoot,
+		ClaudeDir: claude,
+		Base:      filepath.Join(kitRoot, "kit.yml"),
+		Overlay:   filepath.Join(claude, "claude-kit.local.yml"),
 	}}
 }
 

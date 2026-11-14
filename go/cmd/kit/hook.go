@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 
 	"github.com/ku5ic/claude-kit/go/internal/bashguard"
@@ -150,7 +149,7 @@ func cmdHook(e *env, args []string, stdin io.Reader) (status int) {
 		Paths:   e.paths,
 		Stdout:  e.stdout,
 		Stderr:  e.stderr,
-		Home:    os.Getenv("HOME"),
+		Home:    e.home,
 	}
 	if def.run != nil {
 		return def.run(h)

@@ -35,7 +35,7 @@ func stopRepo(t *testing.T) (config.Paths, *config.Config, string) {
 	testutil.Put(t, tmp, "answer.json", testutil.Envelope(t, []map[string]any{answer}, nil, nil))
 	cfg := testutil.KitConfig(t)
 	cfg.Classifier = testutil.Replayer(t, filepath.Join(tmp, "answer.json"))
-	paths := config.Paths{Home: filepath.Join(tmp, "kit")}
+	paths := config.Paths{ClaudeDir: filepath.Join(tmp, "kit")}
 	gapfill.Run(cfg, gapfill.Options{Root: root, CacheDir: paths.CacheDir(), Entries: sources.Entries(cfg, root, project.Subprojects(root)), Ask: true, Timeout: time.Minute})
 	return paths, cfg, root
 }

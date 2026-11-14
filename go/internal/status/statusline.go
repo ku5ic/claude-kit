@@ -245,7 +245,7 @@ func gitStatus(home, cwd, sessionID string) string {
 	if safe == "" {
 		safe = "nosession"
 	}
-	dir := filepath.Join(config.Paths{Home: home}.CacheDir(), cache.Statusline)
+	dir := filepath.Join(config.Paths{ClaudeDir: home}.CacheDir(), cache.Statusline)
 	file := filepath.Join(dir, "git-"+safe)
 	if info, err := os.Stat(file); err == nil && info.Size() > 0 && time.Now().Unix()-info.ModTime().Unix() < int64(ttl) {
 		data, _ := os.ReadFile(file)

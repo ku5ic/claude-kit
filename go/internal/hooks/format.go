@@ -40,7 +40,7 @@ func FormatDispatch(h *hook.Hook) error {
 	}
 	path = filepath.Join(dir, filepath.Base(path))
 	root := cmp.Or(git.Toplevel(dir), dir)
-	p := enforce.Edit(cfg, enforce.Options{Root: root, CacheDir: h.Paths.CacheDir()}, path)
+	p := enforce.Edit(cfg, enforce.Options{Root: root, CacheDir: h.Paths.CacheDir(), Home: h.Home}, path)
 	deadline := time.Now().Add(formatBudget)
 	report := run.Fix(p, deadline)
 	chain, notes := enforce.OnEdit(cfg, root, path)

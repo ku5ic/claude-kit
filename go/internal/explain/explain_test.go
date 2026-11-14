@@ -21,7 +21,7 @@ func TestExplain(t *testing.T) {
 		t.Fatal(err)
 	}
 	claude := filepath.Join(home, ".claude")
-	paths := config.Paths{Root: filepath.Dir(kitYML), Home: claude, Base: kitYML, Overlay: filepath.Join(claude, "claude-kit.local.yml")}
+	paths := config.Paths{Root: filepath.Dir(kitYML), ClaudeDir: claude, Base: kitYML, Overlay: filepath.Join(claude, "claude-kit.local.yml")}
 	cfg := testutil.KitConfig(t)
 	repo := filepath.Join(home, "repo")
 	if err := os.MkdirAll(repo, 0o755); err != nil {

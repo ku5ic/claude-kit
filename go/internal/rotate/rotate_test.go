@@ -25,7 +25,7 @@ func physicalTemp(t *testing.T) string {
 // nothing else.
 func kitHome(t *testing.T, dir string) config.Paths {
 	t.Helper()
-	paths := config.Paths{Home: filepath.Join(dir, ".claude")}
+	paths := config.Paths{ClaudeDir: filepath.Join(dir, ".claude")}
 	if err := os.MkdirAll(paths.ScratchHome(), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -174,10 +174,10 @@ func TestRunPrunesTheHomeTierByAge(t *testing.T) {
 				}
 			}
 			for rel, age := range tt.files {
-				touch(t, paths.Home, rel, age)
+				touch(t, paths.ClaudeDir, rel, age)
 			}
 			wantOutput(t, rotate(t, paths), tt.has, tt.lacks)
-			wantFiles(t, paths.Home, tt.gone, tt.kept)
+			wantFiles(t, paths.ClaudeDir, tt.gone, tt.kept)
 		})
 	}
 }

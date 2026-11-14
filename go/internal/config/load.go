@@ -18,16 +18,16 @@ import (
 
 // Paths are the kit's fixed locations, resolved by ResolvePaths.
 type Paths struct {
-	Root    string // kit root: $CLAUDE_PLUGIN_ROOT, else the parent of the binary's bin/
-	Home    string // Claude Code's config dir: $CLAUDE_CONFIG_DIR, else ~/.claude
-	Base    string // Root/kit.yml
-	Overlay string // Home/claude-kit.local.yml
+	Root      string // kit root: $CLAUDE_PLUGIN_ROOT, else the parent of the binary's bin/
+	ClaudeDir string // Claude Code's config dir: $CLAUDE_CONFIG_DIR, else ~/.claude
+	Base      string // Root/kit.yml
+	Overlay   string // ClaudeDir/claude-kit.local.yml
 }
 
-func (p Paths) LogDir() string      { return filepath.Join(p.Home, "logs") }
-func (p Paths) CacheDir() string    { return filepath.Join(p.Home, "cache") }
-func (p Paths) ScratchHome() string { return filepath.Join(p.Home, "scratch") }
-func (p Paths) PlansHome() string   { return filepath.Join(p.Home, "plans") }
+func (p Paths) LogDir() string      { return filepath.Join(p.ClaudeDir, "logs") }
+func (p Paths) CacheDir() string    { return filepath.Join(p.ClaudeDir, "cache") }
+func (p Paths) ScratchHome() string { return filepath.Join(p.ClaudeDir, "scratch") }
+func (p Paths) PlansHome() string   { return filepath.Join(p.ClaudeDir, "plans") }
 
 // LogFile is the JSONL log called name.
 func (p Paths) LogFile(name string) string { return filepath.Join(p.LogDir(), name+".jsonl") }
@@ -71,10 +71,10 @@ func pathsAt(root string) (Paths, error) {
 		home = filepath.Join(userHome, ".claude")
 	}
 	return Paths{
-		Root:    root,
-		Home:    home,
-		Base:    filepath.Join(root, "kit.yml"),
-		Overlay: filepath.Join(home, "claude-kit.local.yml"),
+		Root:      root,
+		ClaudeDir: home,
+		Base:      filepath.Join(root, "kit.yml"),
+		Overlay:   filepath.Join(home, "claude-kit.local.yml"),
 	}, nil
 }
 

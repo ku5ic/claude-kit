@@ -92,6 +92,7 @@ type Plan struct {
 // scope the gates to what changed since the git base.
 type Options struct {
 	Root, CacheDir string
+	Home           string // $HOME, where a "~/" user pin and asdf and mise sit
 	Only           []string
 	Ask            bool
 	Timeout        time.Duration
@@ -161,7 +162,7 @@ func plan(cfg *config.Config, o Options) (*builder, []string) {
 	subs := project.Subprojects(o.Root)
 	entries := sources.Entries(cfg, o.Root, subs)
 	facts := gapfill.Run(cfg, gapfill.Options{Root: o.Root, CacheDir: o.CacheDir, Entries: entries, Ask: o.Ask, Timeout: o.Timeout})
-	b := newBuilder(cfg, o.Root, entries, facts)
+	b := newBuilder(cfg, o, entries, facts)
 	if o.Changed {
 		b.scopeTo(o.Root)
 	}
@@ -174,7 +175,7 @@ func plan(cfg *config.Config, o Options) (*builder, []string) {
 func hookPlan(cfg *config.Config, o Options) *builder {
 	entries := sources.HookEntries(o.Root)
 	facts := gapfill.Run(cfg, gapfill.Options{Root: o.Root, CacheDir: o.CacheDir, Entries: entries})
-	return newBuilder(cfg, o.Root, entries, facts)
+	return newBuilder(cfg, o, entries, facts)
 }
 
 // Task is one task a task runner holds in a subproject, and the command the
@@ -183,12 +184,12 @@ type Task struct {
 	Provider, Stack, Name, Cmd string
 }
 
-// Tasks are sub's tasks, each run through the nearest package manager
-// gap-fill verified, as the full gate runs it; npm for package.json's
-// scripts when none is.
-func Tasks(cfg *config.Config, root, cacheDir, sub string) []Task {
-	entries := sources.Entries(cfg, root, []string{sub})
-	b := newBuilder(cfg, root, entries, gapfill.Result{Managers: gapfill.Managers(cfg, root, cacheDir)})
+// Tasks are sub's tasks under o.Root, each run through the nearest package
+// manager gap-fill verified, as the full gate runs it; npm for
+// package.json's scripts when none is.
+func Tasks(cfg *config.Config, o Options, sub string) []Task {
+	entries := sources.Entries(cfg, o.Root, []string{sub})
+	b := newBuilder(cfg, o, entries, gapfill.Result{Managers: gapfill.Managers(cfg, o.Root, o.CacheDir)})
 	var out []Task
 	for _, e := range entries {
 		if tp, ok := provider(e.Source); ok && e.Dir == sub {
@@ -215,7 +216,8 @@ type builder struct {
 	changed  []string   // since's files, sorted
 }
 
-func newBuilder(cfg *config.Config, root string, entries []sources.Entry, facts gapfill.Result) *builder {
+func newBuilder(cfg *config.Config, o Options, entries []sources.Entry, facts gapfill.Result) *builder {
+	root := o.Root
 	b := &builder{cfg: cfg, root: root, entries: entries, facts: facts, tasks: map[taskKey]sources.Entry{}, planned: map[string]bool{}, members: map[string]bool{}}
 	for _, member := range project.Workspace(root) {
 		b.members[filepath.Join(root, member)] = true
@@ -230,7 +232,7 @@ func newBuilder(cfg *config.Config, root string, entries []sources.Entry, facts 
 			managers = append(managers, runner)
 		}
 	}
-	b.resolver = resolve.New(root, managers, cfg.UserPins)
+	b.resolver = resolve.New(root, o.Home, managers, cfg.UserPins)
 	return b
 }
 

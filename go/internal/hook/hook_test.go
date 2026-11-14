@@ -19,7 +19,7 @@ func newHook(t *testing.T, payload string) (*Hook, *bytes.Buffer, *bytes.Buffer)
 	h := &Hook{
 		Name:    "test.sh",
 		Payload: ParsePayload([]byte(payload)),
-		Paths:   config.Paths{Home: t.TempDir()},
+		Paths:   config.Paths{ClaudeDir: t.TempDir()},
 		Stdout:  &stdout,
 		Stderr:  &stderr,
 		Now:     func() time.Time { return time.Date(2026, 9, 28, 12, 0, 0, 0, time.UTC) },

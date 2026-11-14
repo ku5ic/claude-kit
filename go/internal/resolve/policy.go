@@ -96,9 +96,9 @@ func brewPrefixes() []string {
 }
 
 // underManager is true when path, or the file it links to, sits where asdf,
-// mise, or Homebrew install: a pinned tool runs only from its manager.
-func underManager(path string) bool {
-	home, _ := os.UserHomeDir()
+// mise, or Homebrew install, asdf and mise defaulting under home: a pinned
+// tool runs only from its manager.
+func underManager(path, home string) bool {
 	var dirs []string
 	add := func(base string, subs ...string) {
 		if base != "" {

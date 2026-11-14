@@ -28,9 +28,9 @@ import (
 
 // projectOf resolves the project for cwd; ok is false for a non-project
 // context (home, /, or a name that sanitizes to nothing).
-func projectOf(cwd string) (name, root string, ok bool) {
+func projectOf(cwd, home string) (name, root string, ok bool) {
 	root, _ = project.Root(cwd)
-	name = project.Name(root)
+	name = project.Name(root, home)
 	switch name {
 	case "home", "root", "unknown":
 		return name, root, false
@@ -82,7 +82,7 @@ func InjectContext(h *hook.Hook) error {
 
 func writeContext(h *hook.Hook, cfg *config.Config, out *strings.Builder) {
 	cwd := h.Payload.Cwd()
-	name, root, ok := projectOf(cwd)
+	name, root, ok := projectOf(cwd, h.Home)
 	if !ok {
 		return
 	}
@@ -105,13 +105,14 @@ func writeContext(h *hook.Hook, cfg *config.Config, out *strings.Builder) {
 	for _, skill := range ctx.Suggested {
 		h.Log(kitlog.Skills, kitlog.EventSuggestedSkill, "cwd", h.Payload.String("cwd"), "skill_file", skill)
 	}
-	out.WriteString(tooling(cfg, root, h.Paths.CacheDir()))
+	out.WriteString(tooling(cfg, enforce.Options{Root: root, CacheDir: h.Paths.CacheDir(), Home: h.Home}))
 }
 
 // agentContext is the subagent counterpart: the resolved scratch path (which
 // overrides the harness's /tmp scratchpad line), then the same repo context
 // and skill blocks, unlogged.
-func agentContext(paths config.Paths, cfg *config.Config, cwd, session string) string {
+func agentContext(h *hook.Hook, cfg *config.Config) string {
+	paths, cwd := h.Paths, h.Payload.Cwd()
 	var b strings.Builder
 	if scratch, err := project.ScratchDir(paths, cwd, true); err == nil {
 		fmt.Fprintf(&b, "<scratch>\npath: %s\n", scratch)
@@ -120,11 +121,11 @@ func agentContext(paths config.Paths, cfg *config.Config, cwd, session string) s
 			"Name structured artifacts with `kit scratch-dir <kind> <scope-slug>`, which prints the full path with a real timestamp.\n" +
 			"</scratch>\n")
 	}
-	name, root, ok := projectOf(cwd)
+	name, root, ok := projectOf(cwd, h.Home)
 	if !ok {
 		return b.String()
 	}
-	ctx := stackctx.Build(paths, cfg, name, root, session)
+	ctx := stackctx.Build(paths, cfg, name, root, h.Payload.SessionID())
 	if ctx.Report != "" {
 		fmt.Fprintf(&b, "<repo-context>\n%s%sbranch: %s\ndirty-files: %s\n</repo-context>\n", ctx.Report, skipDirsLine(cfg), branch(root), dirtyCount(root))
 	}
@@ -150,7 +151,7 @@ func InjectSubagentContext(h *hook.Hook) error {
 	if cfg == nil {
 		return nil
 	}
-	context := strings.TrimRight(agentContext(h.Paths, cfg, h.Payload.Cwd(), h.Payload.SessionID()), "\n")
+	context := strings.TrimRight(agentContext(h, cfg), "\n")
 	if context == "" {
 		return nil
 	}
@@ -180,8 +181,8 @@ const guidance = "Run each directory's scripts through the package manager <repo
 // tooling is the <tooling> block: what kit run-checks runs, planned from
 // the gap-fill cache (a session start never waits on the classifier), then
 // kit.yml's tools split by whether PATH has them.
-func tooling(cfg *config.Config, root, cacheDir string) string {
-	p := enforce.Build(cfg, enforce.Options{Root: root, CacheDir: cacheDir})
+func tooling(cfg *config.Config, o enforce.Options) string {
+	p := enforce.Build(cfg, o)
 	return toolingBlock(p, p.Managed, cliLines(cfg))
 }
 

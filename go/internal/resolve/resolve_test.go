@@ -15,13 +15,14 @@ import (
 type env struct {
 	t          *testing.T
 	repo, path string
+	home       string
 	managers   []string
 	userPins   []string
 }
 
 func setup(t *testing.T) *env {
 	tmp := testutil.Physical(t, t.TempDir())
-	e := &env{t: t, repo: filepath.Join(tmp, "repo"), path: filepath.Join(tmp, "path")}
+	e := &env{t: t, repo: filepath.Join(tmp, "repo"), path: filepath.Join(tmp, "path"), home: tmp}
 	git, err := exec.LookPath("git")
 	if err != nil {
 		t.Fatal(err)
@@ -30,7 +31,7 @@ func setup(t *testing.T) *env {
 	if err := os.Symlink(git, filepath.Join(e.path, "git")); err != nil {
 		t.Fatal(err)
 	}
-	for key, value := range map[string]string{"PATH": e.path, "VIRTUAL_ENV": "", "CONDA_PREFIX": "", "ASDF_DATA_DIR": "", "MISE_DATA_DIR": "", "XDG_DATA_HOME": "", "HOMEBREW_PREFIX": "", "HOME": tmp} {
+	for key, value := range map[string]string{"PATH": e.path, "VIRTUAL_ENV": "", "CONDA_PREFIX": "", "ASDF_DATA_DIR": "", "MISE_DATA_DIR": "", "XDG_DATA_HOME": "", "HOMEBREW_PREFIX": ""} {
 		t.Setenv(key, value)
 	}
 	testutil.Put(t, e.repo, ".gitignore", "node_modules\n.venv\n/bin\n")
@@ -49,7 +50,7 @@ func (e *env) exe(path string) string {
 }
 
 func (e *env) bin(dir, name string) Resolution {
-	return New(e.repo, e.managers, e.userPins).Bin(dir, name)
+	return New(e.repo, e.home, e.managers, e.userPins).Bin(dir, name)
 }
 
 func (e *env) wantRuns(res Resolution, path, source string) {
@@ -207,6 +208,23 @@ func TestPinnedToolRunsOnlyFromItsManager(t *testing.T) {
 	shim := e.exe(filepath.Join(asdf, "shims/yamllint"))
 	t.Setenv("PATH", filepath.Join(asdf, "shims")+":"+e.path)
 	e.wantRuns(e.bin(e.repo, "yamllint"), shim, Pinned)
+}
+
+// Home is the one New is given: asdf's default data dir and a "~/" user
+// pin sit under it.
+func TestHomeHoldsAsdfAndUserPins(t *testing.T) {
+	e := setup(t)
+	testutil.Put(t, e.repo, ".tool-versions", "yamllint 1.35.1\n")
+	shim := e.exe(filepath.Join(e.home, ".asdf/shims/yamllint"))
+	prefix := filepath.Join(e.home, "brew")
+	t.Setenv("HOMEBREW_PREFIX", prefix)
+	jq := e.exe(filepath.Join(prefix, "Cellar/jq/1.8.1/bin/jq"))
+	t.Setenv("PATH", filepath.Dir(shim)+":"+filepath.Dir(jq)+":"+e.path)
+	e.wantRuns(e.bin(e.repo, "yamllint"), shim, Pinned)
+
+	testutil.Put(t, e.home, "dotfiles/Brewfile", "brew 'jq'\n")
+	e.userPins = []string{"~/dotfiles/Brewfile"}
+	e.wantRuns(e.bin(e.repo, "jq"), jq, Pinned)
 }
 
 func TestPinNamesArePluginNames(t *testing.T) {
@@ -406,7 +424,7 @@ func TestSatisfiesFollowsNpmRangeRules(t *testing.T) {
 
 func TestCommandNeverFetches(t *testing.T) {
 	e := setup(t)
-	r := New(e.repo, nil, nil)
+	r := New(e.repo, e.home, nil, nil)
 	for words, why := range map[string]string{
 		"npx prettier --check .":       "npx prettier with no local copy",
 		"npm exec -- eslint .":         "npm exec eslint with no local copy",
@@ -424,7 +442,7 @@ func TestCommandNeverFetches(t *testing.T) {
 	e.exe(filepath.Join(e.repo, "node_modules/.bin/prettier"))
 	e.exe(filepath.Join(e.path, "npx"))
 	testutil.Put(t, e.repo, "package.json", `{}`)
-	if res := New(e.repo, nil, nil).Command(e.repo, strings.Fields("npx prettier --check .")); res.Source != Toolchain {
+	if res := New(e.repo, e.home, nil, nil).Command(e.repo, strings.Fields("npx prettier --check .")); res.Source != Toolchain {
 		t.Errorf("npx with a local copy runs, npx from package.json's toolchain: %+v", res)
 	}
 }

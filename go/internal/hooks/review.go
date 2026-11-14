@@ -111,7 +111,7 @@ func ReviewChecks(h *hook.Hook) error {
 	cacheDir := h.Paths.CacheDir()
 	// Before the gates: an edit made while they run isn't one they checked.
 	tree, snapErr := git.Snapshot(root)
-	plan := enforce.Build(cfg, enforce.Options{Root: root, CacheDir: cacheDir, Ask: true, Timeout: gapfill.ClassifyTimeout, Changed: true})
+	plan := enforce.Build(cfg, enforce.Options{Root: root, CacheDir: cacheDir, Home: h.Home, Ask: true, Timeout: gapfill.ClassifyTimeout, Changed: true})
 	if plan.Classifier.Runs > 0 {
 		h.Log(kitlog.Guards, "gapfill", plan.Classifier.Pairs()...)
 	}

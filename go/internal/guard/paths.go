@@ -203,7 +203,7 @@ func kitSwitch(paths config.Paths, cwd, p string, norm func(string) string) stri
 	switch {
 	case paths.Overlay != "" && p == norm(paths.Overlay):
 		return "the claude-kit overlay"
-	case (base == "settings.json" || base == "settings.local.json") && (filepath.Base(dir) == ".claude" || dir == norm(paths.Home)):
+	case (base == "settings.json" || base == "settings.local.json") && (filepath.Base(dir) == ".claude" || dir == norm(paths.ClaudeDir)):
 		return "a Claude Code settings file"
 	case in(paths.LogDir()):
 		return "the kit's logs"

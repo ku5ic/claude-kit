@@ -82,7 +82,7 @@ func StopChecks(h *hook.Hook) error {
 	}
 	// A check changed mid-session gets its verdict now, waiting on a
 	// background classify that's already asking, instead of skipping.
-	p := enforce.Stop(cfg, enforce.Options{Root: root, CacheDir: h.Paths.CacheDir(), Ask: true, Timeout: gapfill.ClassifyTimeout}, edited)
+	p := enforce.Stop(cfg, enforce.Options{Root: root, CacheDir: h.Paths.CacheDir(), Home: h.Home, Ask: true, Timeout: gapfill.ClassifyTimeout}, edited)
 	if p.Classifier.Runs > 0 {
 		h.Log(kitlog.Guards, "gapfill", p.Classifier.Pairs()...)
 	}

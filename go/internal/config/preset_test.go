@@ -19,7 +19,7 @@ func presetPaths(t *testing.T, base, light string) Paths {
 		t.Fatal(err)
 	}
 	write(t, filepath.Join(dir, "presets"), "light.yml", light)
-	return Paths{Root: dir, Home: dir, Base: write(t, dir, "kit.yml", base), Overlay: filepath.Join(dir, "claude-kit.local.yml")}
+	return Paths{Root: dir, ClaudeDir: dir, Base: write(t, dir, "kit.yml", base), Overlay: filepath.Join(dir, "claude-kit.local.yml")}
 }
 
 func TestPresetMergesBetweenKitYMLAndTheOverlay(t *testing.T) {
@@ -134,7 +134,7 @@ func TestShippedPresetsLoadCleanly(t *testing.T) {
 	for _, file := range files {
 		name := strings.TrimSuffix(filepath.Base(file), ".yml")
 		dir := t.TempDir()
-		p := Paths{Root: root, Home: dir, Base: filepath.Join(root, "kit.yml"), Overlay: write(t, dir, "claude-kit.local.yml", "preset: "+name+"\n")}
+		p := Paths{Root: root, ClaudeDir: dir, Base: filepath.Join(root, "kit.yml"), Overlay: write(t, dir, "claude-kit.local.yml", "preset: "+name+"\n")}
 		cfg, warnings, err := Load(p)
 		if err != nil || len(warnings) > 0 {
 			t.Errorf("%s: err=%v warnings=%v", name, err, warnings)

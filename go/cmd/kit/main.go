@@ -50,6 +50,7 @@ type env struct {
 	stdout io.Writer
 	stderr io.Writer
 	cwd    string
+	home   string // $HOME, read once here
 	cfg    *config.Config
 	warned bool // config produced warnings
 }
@@ -68,7 +69,7 @@ func newEnv(stdout, stderr io.Writer) (*env, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &env{exe: exe, paths: paths, stdout: stdout, stderr: stderr, cwd: cwd}, nil
+	return &env{exe: exe, paths: paths, stdout: stdout, stderr: stderr, cwd: cwd, home: os.Getenv("HOME")}, nil
 }
 
 func (e *env) config() (*config.Config, error) {
@@ -133,12 +134,11 @@ func run(args []string, stdout, stderr io.Writer) int {
 				fmt.Fprintln(stderr, "kit:", err)
 				return 1
 			}
-			home, _ := os.UserHomeDir()
-			return codegraph.RunModelDir(cfg.ArchitectureDir, home, rest[1:], stdout, stderr)
+			return codegraph.RunModelDir(cfg.ArchitectureDir, e.home, rest[1:], stdout, stderr)
 		}
 		return codegraph.Run(rest, stdout, stderr)
 	case "statusline":
-		status.Statusline(os.Stdin, stdout, e.paths.Home)
+		status.Statusline(os.Stdin, stdout, e.paths.ClaudeDir)
 		return 0
 	case "subagent-statusline":
 		status.SubagentStatusline(os.Stdin, stdout)
@@ -306,7 +306,7 @@ func cmdSubprojects(e *env, args []string) int {
 func cmdTasks(e *env, cfg *config.Config, args []string) int {
 	dir := fsx.PhysicalPath(fsx.Abs(e.cwd, cmp.Or(first(args), ".")))
 	root, _ := project.Root(dir)
-	for _, task := range enforce.Tasks(cfg, root, e.paths.CacheDir(), fsx.Rel(root, dir)) {
+	for _, task := range enforce.Tasks(cfg, enforce.Options{Root: root, CacheDir: e.paths.CacheDir(), Home: e.home}, fsx.Rel(root, dir)) {
 		fmt.Fprintln(e.stdout, strings.Join([]string{task.Provider, cmp.Or(task.Stack, "-"), task.Name, task.Cmd}, "\t"))
 	}
 	return 0

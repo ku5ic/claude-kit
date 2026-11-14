@@ -486,10 +486,9 @@ skill_file_map:
 			r.Lacks(t, "typescript-patterns", "python-patterns")
 		}
 	})
-	// project.Name calls $HOME "home", a non-project context.
+	// project.Name calls Hook.Home "home", a non-project context.
 	t.Run("a non-project context (home) produces no injection", func(t *testing.T) {
 		e := contextSetup(t)
-		t.Setenv("HOME", e.home)
 		e.kitYML("global_skills:\n  - fix-sizing\n")
 		r := e.inject("s1", e.home)
 		r.Want(t, 0)
