@@ -64,7 +64,7 @@ func CheckSize(h *hook.Hook) error {
 		marker = h.Paths.SessionFile(cache.Size, p.SessionID(), "plan", plan)
 	case slices.Contains(filePathTools, tool):
 		path := p.FilePath()
-		if !isInvestigationReport(h, path) {
+		if !scratchReport(h, path, "explore", "debug") {
 			return nil
 		}
 		_, after, ok := written(p, path)

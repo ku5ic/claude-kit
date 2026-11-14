@@ -2,9 +2,7 @@ package hooks
 
 import (
 	"os"
-	"path/filepath"
 	"strconv"
-	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
@@ -59,10 +57,4 @@ func ReviewReport(h *hook.Hook) error {
 	}
 	h.Deny(reason, "review-report")
 	return nil
-}
-
-// isReviewReport is whether path is a review report in a scratch dir.
-func isReviewReport(h *hook.Hook, path string) bool {
-	base := filepath.Base(path)
-	return project.IsScratch(h.Paths, path) && strings.HasPrefix(base, "review-") && strings.HasSuffix(base, ".md")
 }

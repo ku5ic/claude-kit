@@ -110,7 +110,7 @@ func (w *planWalk) step(h *hook.Hook, e transcript.Entry, plansDir string, isCod
 		switch {
 		case b.Name == "Skill" && b.Input.Skill == reviewSkill:
 			w.Started[b.ID] = e.Line
-		case slices.Contains(transcript.EditTools, b.Name) && isReviewReport(h, b.Path()):
+		case slices.Contains(transcript.EditTools, b.Name) && scratchReport(h, b.Path(), "review"):
 			if w.ReportWrites == nil {
 				w.ReportWrites = map[string]int{}
 			}

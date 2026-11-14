@@ -272,10 +272,6 @@ func turnFiles(h *hook.Hook, turn []transcript.Entry, cwd, root string) (edited 
 	return edited, tree
 }
 
-// readSession is the transcript's current turn and its plan walk, reading
-// only what the last Stop run hadn't: the turn from its start, the walk
-// from where it stopped. A different, shorter, or unrecorded transcript is
-// read whole. A read error returns what was read and saves nothing: the
 // codeIn is whether a path is code under root: inside it, outside scratch.
 func codeIn(h *hook.Hook, root string) func(string) bool {
 	return func(path string) bool {
@@ -283,6 +279,10 @@ func codeIn(h *hook.Hook, root string) func(string) bool {
 	}
 }
 
+// readSession is the transcript's current turn and its plan walk, reading
+// only what the last Stop run hadn't: the turn from its start, the walk
+// from where it stopped. A different, shorter, or unrecorded transcript is
+// read whole. A read error returns what was read and saves nothing: the
 // hook fails open.
 func readSession(h *hook.Hook, path, root, plansDir string, isCode func(string) bool) ([]transcript.Entry, *planWalk) {
 	file := h.Paths.SessionFile(cache.StopRead, h.Payload.SessionID(), cache.RootKey(root))

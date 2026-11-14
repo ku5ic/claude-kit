@@ -89,7 +89,7 @@ func verifyToolInput(h *hook.Hook) error {
 		marker = h.Paths.SessionFile(cache.Claims, p.SessionID(), "plan", plan)
 	case slices.Contains(filePathTools, tool):
 		path := p.FilePath()
-		if !isInvestigationReport(h, path) {
+		if !scratchReport(h, path, "explore", "debug") {
 			return nil
 		}
 		_, after, ok := written(p, path)
@@ -510,10 +510,10 @@ func agentTranscript(p *hook.Payload) string {
 	return p.String(hook.KeyTranscriptPath)
 }
 
-// isInvestigationReport is true for an explore or debug report in scratch,
-// the files `kit scratch-dir explore|debug <slug>` names.
-func isInvestigationReport(h *hook.Hook, path string) bool {
+// scratchReport is true for a report of one of kinds in scratch, the files
+// `kit scratch-dir <kind> <slug>` names.
+func scratchReport(h *hook.Hook, path string, kinds ...string) bool {
 	base := filepath.Base(path)
 	return path != "" && project.IsScratch(h.Paths, path) && strings.EqualFold(filepath.Ext(base), ".md") &&
-		(strings.HasPrefix(base, "explore-") || strings.HasPrefix(base, "debug-"))
+		slices.ContainsFunc(kinds, func(kind string) bool { return strings.HasPrefix(base, kind+"-") })
 }
