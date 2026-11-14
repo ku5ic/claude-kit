@@ -156,7 +156,7 @@ func gateOnChecker(h *hook.Hook, text, where, retry, marker string) error {
 	log := readCheckerLog(h, h.Payload.String(hook.KeyTranscriptPath))
 	asked := h.Paths.SessionFile(cache.Claims, h.Payload.SessionID(), "asked")
 	record, _ := os.ReadFile(asked)
-	checked := checkedStatements(log, string(record))
+	checked, outcomes := checkedStatements(log, string(record))
 	all := claims.Statements(text)
 	var fresh []string
 	for _, s := range all {
@@ -169,7 +169,11 @@ func gateOnChecker(h *hook.Hook, text, where, retry, marker string) error {
 	}
 	sum := sha256.Sum256([]byte(strings.Join(fresh, "\n")))
 	id := "claim-check " + hex.EncodeToString(sum[:])[:12]
-	switch log.run(id) {
+	outcome, recorded := outcomes[id]
+	if !recorded {
+		outcome = log.runs([]string{id})[id]
+	}
+	switch outcome {
 	case checkerDone:
 		return nil
 	case checkerFailed:
@@ -195,18 +199,25 @@ func gateOnChecker(h *hook.Hook, text, where, retry, marker string) error {
 
 // checkedStatements is the keys of the statements a finished claim-checker
 // run covered: each run record, the session's asked file, names by its id,
-// whose run log shows done.
-func checkedStatements(log checkerLog, record string) []string {
-	var keys []string
-	seen := map[string]bool{}
+// whose run log shows done. It returns every recorded id's outcome too.
+func checkedStatements(log checkerLog, record string) ([]string, map[string]int) {
+	covered := map[string][]string{}
+	var ids []string
 	for line := range strings.Lines(record) {
-		id, covered, ok := strings.Cut(strings.TrimSpace(line), "\t")
-		if ok && !seen[id] && log.run(id) == checkerDone {
-			keys = append(keys, strings.Split(covered, ",")...)
+		id, keys, ok := strings.Cut(strings.TrimSpace(line), "\t")
+		if _, seen := covered[id]; ok && !seen {
+			covered[id] = strings.Split(keys, ",")
+			ids = append(ids, id)
 		}
-		seen[id] = true
 	}
-	return keys
+	outcomes := log.runs(ids)
+	var keys []string
+	for _, id := range ids {
+		if outcomes[id] == checkerDone {
+			keys = append(keys, covered[id]...)
+		}
+	}
+	return keys, outcomes
 }
 
 // checkerLog is the session transcript at path, read once, and the index
@@ -269,38 +280,61 @@ const (
 	checkerFailed        // a run on this text failed, or the agent is missing
 )
 
-// run is how the log's claim-checker runs on the text with
-// claim-check id ended. A failed run, or one whose every check errored,
-// hands the text to the hook's own verifier, so a checker that keeps
-// failing can't block it for good, nor pass it unchecked.
-func (l checkerLog) run(id string) int {
-	calls := map[string]bool{}
+// runs is how the log's claim-checker runs on the text with each of ids, a
+// claim-check id, ended, in one pass over the log. A failed run, or one
+// whose every check errored, hands the text to the hook's own verifier, so
+// a checker that keeps failing can't block it for good, nor pass it
+// unchecked.
+func (l checkerLog) runs(ids []string) map[string]int {
+	outcome := map[string]int{}
+	for _, id := range ids {
+		outcome[id] = checkerNotRun
+	}
+	done := map[string]bool{}
+	settle := func(of []string, result int) {
+		for _, id := range of {
+			if !done[id] {
+				outcome[id], done[id] = result, result == checkerDone
+			}
+		}
+	}
+	checked := map[string]bool{}
+	blind := func(agent string) bool {
+		if was, ok := checked[agent]; ok {
+			return was
+		}
+		checked[agent] = checkedNothing(agentTranscriptPath(l.path, agent))
+		return checked[agent]
+	}
+	calls := map[string][]string{}  // the ids a run launched after the last edit was asked about, by call
 	launched := map[string]string{} // background runs' agent ids, by call, ended once their notice says so
-	outcome := checkerNotRun
-	blind := func(agent string) bool { return checkedNothing(agentTranscriptPath(l.path, agent)) }
 	for i, e := range l.entries {
 		for call, agent := range launched {
 			switch status := noticeStatus(e, call); {
 			case status == "":
 			case status == "completed" && !blind(agent):
-				return checkerDone
+				settle(calls[call], checkerDone)
 			default:
-				outcome = checkerFailed
+				settle(calls[call], checkerFailed)
 			}
 		}
 		for _, b := range e.Blocks {
 			switch {
-			case b.Type == "tool_use" && b.Name == "Agent" && b.Input.SubagentType == claimChecker && strings.Contains(b.Input.Prompt, id):
-				calls[b.ID] = i > l.lastEdit
-			case b.Type != "tool_result" || !calls[b.ToolUseID]:
+			case b.Type == "tool_use" && b.Name == "Agent" && b.Input.SubagentType == claimChecker:
+				for _, id := range ids {
+					if i > l.lastEdit && strings.Contains(b.Input.Prompt, id) {
+						calls[b.ID] = append(calls[b.ID], id)
+					}
+				}
+			case b.Type != "tool_result" || calls[b.ToolUseID] == nil:
 			case b.IsError:
-				outcome = checkerFailed
+				settle(calls[b.ToolUseID], checkerFailed)
 			case strings.HasPrefix(b.ResultText(), asyncLaunched):
 				launched[b.ToolUseID] = agentID(b.ResultText())
 			case blind(agentID(b.ResultText())):
-				outcome = checkerFailed
+				settle(calls[b.ToolUseID], checkerFailed)
 			default:
-				return checkerDone
+				settle(calls[b.ToolUseID], checkerDone)
 			}
 		}
 	}
