@@ -51,6 +51,14 @@ Retention: at most 3 version entries, newest first. A pattern that changed moves
    - One finding per `version bump`: severity `info`.
    - "Cannot be verified statically": every `could not verify` item with what a manual check needs.
 
+## Generated data
+
+`go/internal/codegraph/pystdlib.go` comes from `sys.stdlib_module_names`. When a python-patterns refresh moves its default Python version, regenerate it from the repo root with that version's interpreter in place of `python3`:
+
+```bash
+python3 -c 'import sys; print("// Code generated from sys.stdlib_module_names on Python %d.%d. DO NOT EDIT.\n\npackage codegraph\n\n// pythonStdlib is every standard-library module name, lowercased: an\n// import of one is external unless the main root holds it.\nvar pythonStdlib = map[string]bool{" % sys.version_info[:2]); [print("\t\"%s\": true," % m) for m in sorted({m.lower() for m in sys.stdlib_module_names})]; print("}")' > go/internal/codegraph/pystdlib.go && gofmt -w go/internal/codegraph/pystdlib.go
+```
+
 ## Rules
 
 - A claim the researcher could not source stays as it was. "Could not verify" is a valid outcome; a confident edit from training memory is not (`skills/kit-rules/reference/evidence.md`).

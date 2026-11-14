@@ -2,12 +2,14 @@ package codegraph
 
 import (
 	"bytes"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/resolve/kittool"
 	"github.com/ku5ic/claude-kit/go/internal/testutil"
@@ -50,6 +52,24 @@ func TestImportsGolden(t *testing.T) {
 	}
 }
 
+// A failed or slow scan says why: the start of ast-grep's stderr, or that
+// the deadline killed it. Not parallel: it sets PATH and scanTimeout.
+func TestImportsNamesAScanFailure(t *testing.T) {
+	bin := t.TempDir()
+	t.Setenv("PATH", bin+":/usr/bin:/bin")
+	testutil.Stub(t, filepath.Join(bin, "ast-grep"), "echo 'Error: Cannot parse rule kotlin' >&2\necho '  unknown kind import_header' >&2\nexit 8\n")
+	err := Imports(t.TempDir(), io.Discard)
+	if err == nil || !strings.Contains(err.Error(), "exit status 8: Error: Cannot parse rule kotlin; unknown kind import_header") {
+		t.Errorf("a failed scan: %v", err)
+	}
+	testutil.Stub(t, filepath.Join(bin, "ast-grep"), "exec sleep 5\n")
+	defer func(d time.Duration) { scanTimeout = d }(scanTimeout)
+	scanTimeout = 100 * time.Millisecond
+	if err := Imports(t.TempDir(), io.Discard); err == nil || !strings.Contains(err.Error(), "timed out after 100ms") {
+		t.Errorf("a slow scan: %v", err)
+	}
+}
+
 // The fixture covers each resolver: a relative path through ../, a
 // NodeNext .js import of a .ts file, a Go module path, Rust crate:: with a
 // {group} and mod, Python's from . import, declared and undeclared
@@ -70,6 +90,35 @@ func TestDepsGolden(t *testing.T) {
 		if want := testutil.Read(t, filepath.Join("testdata/deps", name+".golden")); got != want {
 			t.Errorf("%s: got:\n%s\nwant:\n%s", name, got, want)
 		}
+	}
+}
+
+// A repo's own types package shadows the stdlib module, as it does on
+// Python's path; a manifest that doesn't parse is named, not silently
+// empty.
+func TestDepsReadsTheRepoBeforePythonsStdlibAndNamesABadManifest(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	testutil.Write(t, filepath.Join(root, "app/main.py"), "import types\nimport json\n")
+	testutil.Write(t, filepath.Join(root, "types/__init__.py"), "")
+	testutil.Write(t, filepath.Join(root, "package.json"), "{not json")
+	testutil.Git(t, root, "init", "-q")
+	testutil.Git(t, root, "add", "-A")
+	imports := filepath.Join(t.TempDir(), "imports.tsv")
+	testutil.Write(t, imports, "app/main.py\timport types\napp/main.py\timport json\n")
+	out := filepath.Join(t.TempDir(), "raw")
+	var stdout bytes.Buffer
+	if err := Deps(root, imports, out, ".", &stdout); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(stdout.String(), "skipped manifest: package.json: ") {
+		t.Errorf("summary:\n%s", stdout.String())
+	}
+	if got := testutil.Read(t, filepath.Join(out, "deps.tsv")); got != "1\tapp\ttypes\n" {
+		t.Errorf("deps:\n%s", got)
+	}
+	if got := testutil.Read(t, filepath.Join(out, "externals.tsv")); !strings.Contains(got, "\tjson\t") || strings.Contains(got, "\ttypes\t") {
+		t.Errorf("externals:\n%s", got)
 	}
 }
 

@@ -37,6 +37,11 @@ func ModelDir(base, home, target string) (string, error) {
 	if rest, ok := strings.CutPrefix(base, "~/"); ok {
 		base = filepath.Join(home, rest)
 	}
+	// A relative base, from an unknown home or the config, would put the
+	// model under whatever the cwd is.
+	if !filepath.IsAbs(base) {
+		return "", fmt.Errorf("architecture_dir %q isn't absolute: give a full path or ~/..., with a home directory set", base)
+	}
 	dir := filepath.Join(base, filepath.Base(filepath.Dir(main)), filepath.Base(main))
 	if phys, err := filepath.EvalSymlinks(abs); err == nil {
 		abs = phys
@@ -109,6 +114,7 @@ func C4(rawDir, system string, w io.Writer) error {
 	}
 	slices.Sort(modules)
 	modules = slices.Compact(modules)
+	nodeID := nodeIDs()
 	fmt.Fprintf(w, "flowchart TB\n  subgraph system[%q]\n", system)
 	for _, m := range modules {
 		fmt.Fprintf(w, "    %s[%q]\n    %%%% path: %s\n", nodeID("m", m), m, m)
@@ -127,10 +133,24 @@ func C4(rawDir, system string, w io.Writer) error {
 
 var notIDChar = regexp.MustCompile(`[^A-Za-z0-9]+`)
 
-// nodeID is a Mermaid node id for name: prefix, then name's letters and
-// digits joined by underscores, so no id is a keyword like end.
-func nodeID(prefix, name string) string {
-	return prefix + "_" + strings.Trim(notIDChar.ReplaceAllString(name, "_"), "_")
+// nodeIDs gives each name a Mermaid node id: prefix, then name's letters
+// and digits joined by underscores, so no id is a keyword like end. A name
+// whose id another took (foo-bar, foo/bar) gets _2, _3.
+func nodeIDs() func(prefix, name string) string {
+	byName, taken := map[string]string{}, map[string]bool{}
+	return func(prefix, name string) string {
+		key := prefix + "\x00" + name
+		if id, ok := byName[key]; ok {
+			return id
+		}
+		base := prefix + "_" + strings.Trim(notIDChar.ReplaceAllString(name, "_"), "_")
+		id := base
+		for n := 2; taken[id]; n++ {
+			id = fmt.Sprintf("%s_%d", base, n)
+		}
+		byName[key], taken[id] = id, true
+		return id
+	}
 }
 
 // node is one node of a model file, with the comments under it.
@@ -297,6 +317,8 @@ func CheckC4(modelDir, rawDir, root string, w io.Writer) (ok bool, err error) {
 	for _, id := range ids {
 		n := nodes[id]
 		switch {
+		case n.path != "" && !filepath.IsLocal(n.path):
+			problem("gone: %s (%s) cites %s, which is outside the repo", n.id, n.file, n.path)
 		case n.path != "":
 			if _, err := os.Stat(filepath.Join(root, n.path)); err != nil {
 				problem("gone: %s (%s) cites %s, which no longer exists", n.id, n.file, n.path)

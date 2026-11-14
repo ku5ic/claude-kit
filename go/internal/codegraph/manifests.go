@@ -179,6 +179,7 @@ type manifests struct {
 	goModules []pair // module path, its directory
 	dartLibs  map[string]string
 	rustRoots map[string]bool
+	skipped   []string // file: why, for each manifest that didn't read
 }
 
 func readManifests(root string, files []string) manifests {
@@ -186,8 +187,13 @@ func readManifests(root string, files []string) manifests {
 	for _, file := range files {
 		abs := filepath.Join(root, file)
 		name := path.Base(file)
-		// An unreadable or oddly shaped manifest declares nothing.
-		if ecosystem, names, err := readManifest(name, abs); err == nil && ecosystem != "" {
+		// An unreadable or oddly shaped manifest declares nothing, and is
+		// named, so its packages don't turn undeclared unexplained.
+		ecosystem, names, err := readManifest(name, abs)
+		if err != nil {
+			m.skipped = append(m.skipped, file+": "+err.Error())
+		}
+		if err == nil && ecosystem != "" {
 			if m.declared[ecosystem] == nil {
 				m.declared[ecosystem] = map[string]bool{}
 			}

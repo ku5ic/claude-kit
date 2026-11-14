@@ -419,11 +419,14 @@ func (g *graph) resolveBare(s spec, ecosystem string) string {
 	head, _, _ := strings.Cut(s.path, "/")
 	head = strings.ToLower(head)
 	best := ""
-	external := g.isDeclared(s.path, s.kind == dotted, ecosystem) || ecosystem == "python" && pythonStdlib[head]
-	if !external {
+	// A stdlib name is tried in the main root first: the repo's own types
+	// package shadows the stdlib one, as it does on Python's path. Other
+	// roots' folders sharing the name don't.
+	stdlib := ecosystem == "python" && pythonStdlib[head]
+	if !g.isDeclared(s.path, s.kind == dotted, ecosystem) {
 		var candidates []string
 		for parent := range g.parents[head] {
-			if _, ok := g.rootRank[parent]; ok {
+			if rank, ok := g.rootRank[parent]; ok && (!stdlib || rank == 0) {
 				candidates = append(candidates, parent)
 			}
 		}
@@ -638,6 +641,9 @@ func Deps(root, imports, outDir, split string, w io.Writer) error {
 	mainRoot := "none"
 	if len(g.roots) > 0 {
 		mainRoot = cmp.Or(g.roots[0], "(repo root)")
+	}
+	for _, skipped := range g.skipped {
+		fmt.Fprintln(w, "skipped manifest:", skipped)
 	}
 	fmt.Fprintf(w, "split dir: %s; main source root: %s; other candidates: %d\n", cmp.Or(split, "(repo root)"), mainRoot, max(0, len(g.roots)-1))
 	return nil

@@ -37,6 +37,26 @@ func TestFingerprintAndC4Golden(t *testing.T) {
 	}
 }
 
+// Names that differ only in punctuation keep a node each.
+func TestC4KeepsCollidingNamesApart(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	testutil.Write(t, filepath.Join(dir, "deps.tsv"), "1\tfoo-bar\tcore\n1\tfoo_bar\tcore\n1\tfoo/bar\tcore\n")
+	testutil.Write(t, filepath.Join(dir, "externals.tsv"), "")
+	var c4 bytes.Buffer
+	if err := C4(dir, "x", &c4); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"m_foo_bar[\"foo-bar\"]", "m_foo_bar_2[\"foo/bar\"]", "m_foo_bar_3[\"foo_bar\"]",
+		"m_foo_bar --> m_core", "m_foo_bar_2 --> m_core", "m_foo_bar_3 --> m_core",
+	} {
+		if !strings.Contains(c4.String(), want) {
+			t.Errorf("no %q in:\n%s", want, c4.String())
+		}
+	}
+}
+
 func TestCheckC4(t *testing.T) {
 	t.Parallel()
 	// model is a model dir holding the skeleton with edit applied, and the
@@ -67,6 +87,7 @@ func TestCheckC4(t *testing.T) {
 		name, from, to, want string
 	}{
 		{"a removed path", "%% path: internal", "%% path: internal/gone", "gone: m_internal"},
+		{"a path outside the repo, though it exists", "%% path: internal", "%% path: ..", "gone: m_internal (c4-containers.mmd) cites .., which is outside the repo"},
 		{"an edge with no imports", "  m_cmd --> m_internal\n", "  m_cmd --> m_internal\n  m_cmd --> m_docs\n  m_docs[\"docs\"]\n  %% path: docs\n", "unbacked: m_cmd --> m_docs"},
 		{"a chained edge's second hop with no imports", "  m_cmd --> m_internal\n", "  m_docs[\"docs\"]\n  %% path: docs\n  m_cmd --> m_internal --> m_docs\n", "unbacked: m_internal --> m_docs"},
 		{"an edge from an inline-labeled node with no imports", "  m_cmd --> m_internal\n", "  m_cmd --> m_internal\n  m_docs[\"docs\"]\n  %% path: docs\n  m_cmd[\"cmd\"] --> m_docs\n", "unbacked: m_cmd --> m_docs"},
@@ -141,5 +162,11 @@ func TestModelDir(t *testing.T) {
 	}
 	if _, err := ModelDir("/abs", home, t.TempDir()); err == nil {
 		t.Error("outside a repo: no error")
+	}
+	// A base that isn't absolute would put the model under the cwd.
+	for _, tc := range []struct{ base, home string }{{"~/Arch", ""}, {"", home}, {"Arch", home}, {"~/Arch", "rel"}} {
+		if got, err := ModelDir(tc.base, tc.home, root); err == nil {
+			t.Errorf("base %q, home %q: %q, want an error", tc.base, tc.home, got)
+		}
 	}
 }

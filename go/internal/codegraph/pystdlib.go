@@ -3,7 +3,7 @@
 package codegraph
 
 // pythonStdlib is every standard-library module name, lowercased: an
-// import of one is never a repo path.
+// import of one is external unless the main root holds it.
 var pythonStdlib = map[string]bool{
 	"__future__":                 true,
 	"_abc":                       true,

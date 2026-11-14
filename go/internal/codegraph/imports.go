@@ -3,8 +3,10 @@ package codegraph
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"os/exec"
 	"path"
 	"slices"
 	"strings"
@@ -49,6 +51,30 @@ var importRules = func() string {
 // and Homebrew's formula use.
 var astGrep = []string{"ast-grep", "sg"}
 
+// scanTimeout bounds one ast-grep scan.
+var scanTimeout = 10 * time.Minute
+
+// scanError is why a scan failed: the deadline, or the first lines of
+// ast-grep's stderr, where a rule the installed version rejects is named.
+func scanError(bin string, cmd *proc.Cmd, err error) error {
+	if cmd.TimedOut() {
+		return fmt.Errorf("%s scan timed out after %s", bin, scanTimeout)
+	}
+	var exit *exec.ExitError
+	if errors.As(err, &exit) {
+		var lines []string
+		for line := range strings.Lines(string(exit.Stderr)) {
+			if line = strings.TrimSpace(line); line != "" && len(lines) < 3 {
+				lines = append(lines, line)
+			}
+		}
+		if len(lines) > 0 {
+			return fmt.Errorf("%s scan: %w: %s", bin, err, strings.Join(lines, "; "))
+		}
+	}
+	return fmt.Errorf("%s scan: %w", bin, err)
+}
+
 // Imports writes every import under root as path<TAB>import text, the
 // path relative to root and the text on one line.
 func Imports(root string, out io.Writer) error {
@@ -58,9 +84,10 @@ func Imports(root string, out io.Writer) error {
 	}
 	root = strings.TrimRight(root, "/") // repo/ would make the prefix repo// and match nothing
 	// The = form: a value starting with --- would parse as a flag.
-	stream, err := proc.Command(10*time.Minute, bin, "scan", "--json=stream", "--inline-rules="+importRules, root).Output()
+	cmd := proc.Command(scanTimeout, bin, "scan", "--json=stream", "--inline-rules="+importRules, root)
+	stream, err := cmd.Output()
 	if err != nil {
-		return fmt.Errorf("%s scan: %w", bin, err)
+		return scanError(bin, cmd, err)
 	}
 	// ast-grep scans in parallel: sorted, two runs print the same.
 	var rows []string
