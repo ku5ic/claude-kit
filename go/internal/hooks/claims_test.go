@@ -151,6 +151,15 @@ func TestVerifyClaimsToolInput(t *testing.T) {
 		{"another scratch file", func(k *sandbox) map[string]any {
 			return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "notes.md"), "content": claim})
 		}, "none"},
+		{"a report with no slug", func(k *sandbox) map[string]any {
+			return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "debug.md"), "content": "# Debug\n\n" + claim})
+		}, "agent"},
+		{"a rerun's numbered report", func(k *sandbox) map[string]any {
+			return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "debug-build-2.md"), "content": "# Debug\n\n" + claim})
+		}, "agent"},
+		{"a scratch file whose name only starts like a kind", func(k *sandbox) map[string]any {
+			return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "debugging.md"), "content": claim})
+		}, "none"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

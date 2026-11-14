@@ -702,7 +702,7 @@ func TestAnEditToAnUnansweredEntrysFileReclassifies(t *testing.T) {
 }
 
 // A finished /code-review's findings reach only Claude, so the first ask
-// about them or end of turn is held once until a review-*.md scratch
+// about them or end of turn is held once until a review scratch
 // report is written after it (skills/kit-rules/reference/output.md
 // section 3).
 func TestReviewReport(t *testing.T) {

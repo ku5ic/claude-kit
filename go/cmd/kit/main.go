@@ -12,7 +12,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"time"
 
 	"go.yaml.in/yaml/v3"
 
@@ -372,7 +371,7 @@ func cmdScratchDir(e *env, args []string) int {
 	if len(args) > 1 {
 		slug = args[1]
 	}
-	fmt.Fprintln(e.stdout, project.ReportPath(dir, args[0], slug, time.Now().Format("20060102-1504")))
+	fmt.Fprintln(e.stdout, project.ReportPath(dir, args[0], slug))
 	return 0
 }
 

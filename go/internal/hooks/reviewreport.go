@@ -14,7 +14,7 @@ import (
 )
 
 // ReviewReport holds the first AskUserQuestion or Stop after a finished
-// /code-review, once, when no review-*.md scratch report was written after
+// /code-review, once, when no review scratch report was written after
 // it. A forked review's report reaches only Claude
 // (skills/kit-rules/reference/output.md section 3), so the user would
 // otherwise decide on findings they never saw.

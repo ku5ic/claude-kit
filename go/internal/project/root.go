@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
@@ -120,12 +121,23 @@ func register(paths config.Paths, dir string) error {
 
 var unsafeName = regexp.MustCompile(`[^A-Za-z0-9._-]`)
 
-// ReportPath is <dir>/<kind>[-<slug>]-<YYYYMMDD-HHMM>.md, with kind and
-// slug made filename-safe character by character.
-func ReportPath(dir, kind, slug, stamp string) string {
+// ReportPath is <dir>/<kind>[-<slug>].md, with kind and slug made
+// filename-safe character by character. When that name is taken, it's the
+// first free <kind>[-<slug>]-<n>.md from 2, so a rerun keeps the last report.
+func ReportPath(dir, kind, slug string) string {
 	name := unsafeName.ReplaceAllString(kind, "-")
 	if slug != "" {
 		name += "-" + unsafeName.ReplaceAllString(slug, "-")
 	}
-	return filepath.Join(dir, name+"-"+stamp+".md")
+	path := filepath.Join(dir, name+".md")
+	for n := 2; taken(path); n++ {
+		path = filepath.Join(dir, name+"-"+strconv.Itoa(n)+".md")
+	}
+	return path
+}
+
+// taken is whether anything, a dangling link included, sits at path.
+func taken(path string) bool {
+	_, err := os.Lstat(path)
+	return err == nil
 }

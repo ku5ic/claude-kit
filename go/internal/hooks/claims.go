@@ -489,6 +489,7 @@ func agentTranscript(p *hook.Payload) string {
 // `kit scratch-dir <kind> <slug>` names.
 func scratchReport(h *hook.Hook, path string, kinds ...string) bool {
 	base := filepath.Base(path)
+	name := strings.TrimSuffix(base, filepath.Ext(base))
 	return path != "" && project.IsScratch(h.Paths, path) && strings.EqualFold(filepath.Ext(base), ".md") &&
-		slices.ContainsFunc(kinds, func(kind string) bool { return strings.HasPrefix(base, kind+"-") })
+		slices.ContainsFunc(kinds, func(kind string) bool { return name == kind || strings.HasPrefix(name, kind+"-") })
 }

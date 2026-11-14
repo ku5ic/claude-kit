@@ -46,12 +46,20 @@ func TestName(t *testing.T) {
 }
 
 func TestReportPath(t *testing.T) {
-	got := ReportPath("/s", "review", "feat/login page", "20260928-1500")
-	if got != "/s/review-feat-login-page-20260928-1500.md" {
-		t.Errorf("got %q", got)
+	dir := t.TempDir()
+	if got, want := ReportPath(dir, "review", "feat/login page"), filepath.Join(dir, "review-feat-login-page.md"); got != want {
+		t.Errorf("got %q, want %q", got, want)
 	}
-	if got := ReportPath("/s", "deps", "", "20260928-1500"); got != "/s/deps-20260928-1500.md" {
-		t.Errorf("no slug: got %q", got)
+	if got, want := ReportPath(dir, "deps", ""), filepath.Join(dir, "deps.md"); got != want {
+		t.Errorf("no slug: got %q, want %q", got, want)
+	}
+	// A name already taken, even by a dangling link, gets the next free number.
+	testutil.Write(t, filepath.Join(dir, "deps.md"), "")
+	if err := os.Symlink(filepath.Join(dir, "gone"), filepath.Join(dir, "deps-2.md")); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := ReportPath(dir, "deps", ""), filepath.Join(dir, "deps-3.md"); got != want {
+		t.Errorf("taken: got %q, want %q", got, want)
 	}
 }
 

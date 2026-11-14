@@ -71,7 +71,7 @@ type planWalk struct {
 	Started    map[string]int `json:"started"` // review tool_use or task id -> its start line
 	Ticked     []string       `json:"ticked"`  // plans this turn edited, or changed through Bash
 	// ReviewArrived is where a finished review's notification landed, and
-	// ReviewReported where a review-*.md scratch report was last written.
+	// ReviewReported where a review scratch report was last written.
 	ReviewArrived  int `json:"review_arrived"`
 	ReviewReported int `json:"review_reported"`
 	// ReportWrites is a report write's tool_use id -> its line, until its
