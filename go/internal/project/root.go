@@ -124,6 +124,8 @@ var unsafeName = regexp.MustCompile(`[^A-Za-z0-9._-]`)
 // ReportPath is <dir>/<kind>[-<slug>].md, with kind and slug made
 // filename-safe character by character. When that name is taken, it's the
 // first free <kind>[-<slug>]-<n>.md from 2, so a rerun keeps the last report.
+// A slug that ends in -<n> reads the same as a rerun's, so a reader that
+// must tell them apart checks the report's own header.
 func ReportPath(dir, kind, slug string) string {
 	name := unsafeName.ReplaceAllString(kind, "-")
 	if slug != "" {
