@@ -54,7 +54,7 @@ type Entry struct {
 	Origin struct {
 		Kind string `json:"kind"`
 	} `json:"origin"`
-	Timestamp   string `json:"timestamp"`
+	Timestamp string `json:"timestamp"`
 	// Content is a system entry's content: raw, since its shape isn't fixed.
 	Content json.RawMessage `json:"content"`
 	Message struct {
