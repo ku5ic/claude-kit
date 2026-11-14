@@ -46,10 +46,10 @@ func exists(path string) bool {
 
 // rotate runs a 30-day scratch-rotate and fails the test unless it exits 0
 // with nothing on stderr; it returns stdout.
-func rotate(t *testing.T, paths config.Paths) string {
+func rotate(t *testing.T, paths config.Paths, home string) string {
 	t.Helper()
 	var stdout, stderr strings.Builder
-	if code := Run(paths, 30, false, &stdout, &stderr); code != 0 || stderr.Len() > 0 {
+	if code := Run(paths, home, 30, false, &stdout, &stderr); code != 0 || stderr.Len() > 0 {
 		t.Fatalf("exit %d, stderr %q", code, stderr.String())
 	}
 	return stdout.String()
@@ -176,7 +176,7 @@ func TestRunPrunesTheHomeTierByAge(t *testing.T) {
 			for rel, age := range tt.files {
 				touch(t, paths.ClaudeDir, rel, age)
 			}
-			wantOutput(t, rotate(t, paths), tt.has, tt.lacks)
+			wantOutput(t, rotate(t, paths, ""), tt.has, tt.lacks)
 			wantFiles(t, paths.ClaudeDir, tt.gone, tt.kept)
 		})
 	}
@@ -246,7 +246,7 @@ func TestRunPrunesRegisteredProjectDirs(t *testing.T) {
 			}
 			testutil.Put(t, paths.LogDir(), "scratch-registry.txt", abs(tt.registry))
 
-			stdout := rotate(t, paths)
+			stdout := rotate(t, paths, home)
 			wantOutput(t, strings.ReplaceAll(stdout, home, "$HOME"), tt.has, nil)
 			wantFiles(t, home, tt.gone, tt.kept)
 			if got, want := testutil.Read(t, paths.ScratchRegistry()), abs(tt.wantRegistry); got != want {
@@ -273,7 +273,7 @@ func TestRunRemovesAReviewWorktreeOlderThanADay(t *testing.T) {
 			testutil.Git(t, repo, "worktree", "add", "-q", "--detach", wt)
 			testutil.Age(t, age, filepath.Join(wt, ".git"))
 
-			wantOutput(t, rotate(t, paths), []string{"deleted review worktree older than 1d " + wt}, nil)
+			wantOutput(t, rotate(t, paths, home), []string{"deleted review worktree older than 1d " + wt}, nil)
 			if exists(wt) {
 				t.Errorf("%s survived", wt)
 			}
@@ -343,7 +343,7 @@ func TestRunRemovesEmptyProjectFolders(t *testing.T) {
 			testutil.Put(t, paths.LogDir(), "scratch-registry.txt", scratch+"\n")
 
 			var stdout, stderr strings.Builder
-			if code := Run(paths, 30, tt.dryRun, &stdout, &stderr); code != 0 || stderr.Len() > 0 {
+			if code := Run(paths, home, 30, tt.dryRun, &stdout, &stderr); code != 0 || stderr.Len() > 0 {
 				t.Fatalf("exit %d, stderr %q", code, stderr.String())
 			}
 			wantFiles(t, scratch, tt.gone, tt.kept)

@@ -91,7 +91,7 @@ func TestPlanStepPause(t *testing.T) {
 		testutil.Age(t, 72*time.Hour, markers[0])
 		prompt(k, proj, "s1").Has(t, "plan-x.md")
 		// kit scratch-rotate with its default 30 days.
-		if status := rotate.Run(k.paths, 30, false, io.Discard, io.Discard); status != 0 {
+		if status := rotate.Run(k.paths, "", 30, false, io.Discard, io.Discard); status != 0 {
 			t.Fatalf("scratch-rotate exited %d", status)
 		}
 		prompt(k, proj, "s1").Has(t, "plan-x.md")

@@ -258,7 +258,7 @@ func cmdScratchRotate(e *env, args []string) int {
 	if !ok {
 		return 2
 	}
-	return rotate.Run(e.paths, days, dryRun, e.stdout, e.stderr)
+	return rotate.Run(e.paths, e.home, days, dryRun, e.stdout, e.stderr)
 }
 
 // runChecksArgs are run-checks' arguments.
