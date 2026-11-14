@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	// Aliased: gapfill has a classify function of its own.
 	shellcalls "github.com/ku5ic/claude-kit/go/internal/classify"
@@ -32,7 +33,7 @@ func verify(cfg *config.Config, root string, entries []sources.Entry, s store, f
 	at := func(dir string) forms {
 		return forms{cfg: cfg, root: root, dir: filepath.Join(root, dir), prefixes: prefixes, resolver: resolver}
 	}
-	unclassified := unclassifiedReason
+	unclassified, now := unclassifiedReason, time.Now()
 	if failure != "" {
 		unclassified += " (" + failure + ")"
 	}
@@ -45,6 +46,9 @@ func verify(cfg *config.Config, root string, entries []sources.Entry, s store, f
 		a := s.Entries[key]
 		if a == nil {
 			r.Skipped[key] = unclassified
+			if retry := s.retryAt(key, now); failure == "" && !retry.IsZero() {
+				r.Skipped[key] = coolingReason + retry.Format("15:04") + ")"
+			}
 			continue
 		}
 		v, dropped, err := at(e.Dir).verdict(e, a.Verdict)

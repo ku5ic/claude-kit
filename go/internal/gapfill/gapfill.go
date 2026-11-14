@@ -151,12 +151,13 @@ type Result struct {
 	Usage     claudecli.Usage // what this run's classifier calls cost
 }
 
-// Unclassified counts the entries the cache has no answer for. A denied or
-// rejected one has an answer, and asking again returns the same one.
+// Unclassified counts the entries the cache has no answer for and asking
+// could answer now. A denied or rejected one has an answer, and asking
+// again returns the same one; one cooling after a failure waits.
 func (r Result) Unclassified() int {
 	n := 0
 	for _, why := range r.Skipped {
-		if strings.HasPrefix(why, unclassifiedReason) {
+		if strings.HasPrefix(why, unclassifiedReason) && !strings.HasPrefix(why, coolingReason) {
 			n++
 		}
 	}
@@ -172,7 +173,15 @@ func Denied(why string) bool {
 const (
 	deniedReason       = "denied"
 	unclassifiedReason = "unclassified"
+	// coolingReason is an unclassified entry the classifier failed on
+	// within failureCooldown: asking again now would likely fail again.
+	coolingReason = unclassifiedReason + " (the classifier failed on it; asked again after "
 )
+
+// failureCooldown is how long an entry the classifier failed on waits
+// before a run asks for it again. Key hashes the entry's body, so an
+// edited entry is asked at once.
+const failureCooldown = time.Hour
 
 // store is the cache file: the model's answers as given, verified on read.
 type store struct {
@@ -180,6 +189,8 @@ type store struct {
 	Context   string             `json:"context"` // the project the facts below answer
 	Managers  []Manager          `json:"managers"`
 	Proposals []Proposal         `json:"proposals"`
+	// Failed is when the classifier last failed on an entry, by Key.
+	Failed map[string]time.Time `json:"failed,omitempty"`
 }
 
 type answer struct {
@@ -300,7 +311,7 @@ func ask(cfg *config.Config, o Options, p view, file string, s store) (_ store, 
 	}
 	// The facts get a call of their own: they take the model longest.
 	var reqs []request
-	if locked.Context != p.Key {
+	if locked.Context != p.Key && locked.retryAt(factsKey(p.Key), time.Now()).IsZero() {
 		reqs = append(reqs, request{View: p, Facts: true})
 	}
 	allowed := slices.DeleteFunc(slices.Clone(o.Entries), func(e sources.Entry) bool { return denied(cfg, e) != "" })
@@ -323,18 +334,25 @@ func ask(cfg *config.Config, o Options, p view, file string, s store) (_ store, 
 			if failure == "" {
 				failure = "classifier: " + errs[i].Error()
 			}
+			for _, e := range reqs[i].Entries {
+				locked.Failed[Key(e)] = now
+			}
+			if reqs[i].Facts {
+				locked.Failed[factsKey(p.Key)] = now
+			}
 			continue
 		}
 		for _, a := range resp.Entries {
 			locked.Entries[a.ID] = &answer{Verdict: a.Verdict, Seen: now}
+			delete(locked.Failed, a.ID)
 		}
 		if reqs[i].Facts {
 			locked.Context, locked.Managers, locked.Proposals = p.Key, resp.Managers, resp.Proposals
+			delete(locked.Failed, factsKey(p.Key))
 		}
 	}
-	if slices.Contains(errs, nil) {
-		locked.save(file, o.Entries, now)
-	}
+	// A failure is saved too, so the next run waits out its cooldown.
+	locked.save(file, o.Entries, now)
 	return locked, failure, usage
 }
 
@@ -366,20 +384,39 @@ func load(file string) store {
 	if s.Entries == nil {
 		s.Entries = map[string]*answer{}
 	}
+	if s.Failed == nil {
+		s.Failed = map[string]time.Time{}
+	}
 	return s
 }
 
-// stale is true when an entry the policy allows has no answer, or the
-// project facts answer another project.
-func (s store) stale(cfg *config.Config, entries []sources.Entry, context string) bool {
-	return s.Context != context || len(s.missing(cfg, entries)) > 0
+// retryAt is when an entry the classifier failed on may be asked again,
+// zero when it's askable now.
+func (s store) retryAt(key string, now time.Time) time.Time {
+	if at, ok := s.Failed[key]; ok && now.Sub(at) < failureCooldown {
+		return at.Add(failureCooldown)
+	}
+	return time.Time{}
 }
 
-// missing is the entries the policy allows that have no answer.
+// stale is true when an entry the policy allows has no answer, or the
+// project facts answer another project, and no classifier failure holds
+// it back.
+func (s store) stale(cfg *config.Config, entries []sources.Entry, context string) bool {
+	facts := s.Context != context && s.retryAt(factsKey(context), time.Now()).IsZero()
+	return facts || len(s.missing(cfg, entries)) > 0
+}
+
+// factsKey is the Failed key of the project facts for context.
+func factsKey(context string) string { return "facts:" + context }
+
+// missing is the entries the policy allows that have no answer, and that
+// no classifier failure holds back.
 func (s store) missing(cfg *config.Config, entries []sources.Entry) []sources.Entry {
 	var out []sources.Entry
+	now := time.Now()
 	for _, e := range entries {
-		if s.Entries[Key(e)] == nil && denied(cfg, e) == "" {
+		if s.Entries[Key(e)] == nil && denied(cfg, e) == "" && s.retryAt(Key(e), now).IsZero() {
 			out = append(out, e)
 		}
 	}
@@ -392,6 +429,11 @@ func (s store) save(file string, entries []sources.Entry, now time.Time) {
 	for _, e := range entries {
 		if a := s.Entries[Key(e)]; a != nil {
 			a.Seen = now
+		}
+	}
+	for key, at := range s.Failed {
+		if now.Sub(at) >= failureCooldown {
+			delete(s.Failed, key)
 		}
 	}
 	for key, a := range s.Entries {

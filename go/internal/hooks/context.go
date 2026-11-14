@@ -192,7 +192,7 @@ func tooling(cfg *config.Config, o enforce.Options) string {
 func toolingBlock(p enforce.Plan, managed bool, cli []string) string {
 	body := gateLines(p)
 	if p.Unclassified > 0 {
-		body = append(body, fmt.Sprintf("unclassified: %d (config entries gap-fill hasn't answered; it runs in the background, and Stop skips them until it answers)", p.Unclassified))
+		body = append(body, fmt.Sprintf("unclassified: %d (config entries gap-fill hasn't answered; it asks in the background and at Stop, and waits an hour after a failed answer)", p.Unclassified))
 	}
 	if len(body) > 0 {
 		body = append(body, "`kit run-checks --plan` lists them, with where each comes from, without running them")

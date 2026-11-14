@@ -35,7 +35,7 @@ func TestToolingBlock(t *testing.T) {
 		{"what run-checks runs, root first, a multi-line body by its label", enforce.Plan{Root: "/r", Gates: gates}, false, nil,
 			"run-checks runs:\n  pnpm run lint\nrun-checks runs [go]:\n  go vet ./...\n  deadcode (ci.yml: go/deadcode)\n" + pointer},
 		{"unclassified entries", enforce.Plan{Root: "/r", Unclassified: 2}, false, []string{"available: rg"},
-			"unclassified: 2 (config entries gap-fill hasn't answered; it runs in the background, and Stop skips them until it answers)\n" + pointer + "available: rg\n"},
+			"unclassified: 2 (config entries gap-fill hasn't answered; it asks in the background and at Stop, and waits an hour after a failed answer)\n" + pointer + "available: rg\n"},
 		{"nothing stated", enforce.Plan{Root: "/r", Discovery: enforce.Discovery}, false, nil, "discovery: " + enforce.Discovery + "\n"},
 		{"guidance only with a verified package manager", enforce.Plan{Root: "/r", Gates: gates[1:2]}, true, nil,
 			"run-checks runs:\n  pnpm run lint\n" + pointer + "\nguidance: " + guidance + "\n"},

@@ -182,7 +182,7 @@ func TestANewWorktreeStartsFromTheMainCheckoutsAnswers(t *testing.T) {
 	}
 }
 
-func TestMalformedOutputLeavesEntriesUnclassifiedAndUncached(t *testing.T) {
+func TestMalformedOutputLeavesEntriesUnclassifiedUntilTheCooldown(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t, "")
 	testutil.Put(t, f.dir, "response.json", "not json")
@@ -191,8 +191,12 @@ func TestMalformedOutputLeavesEntriesUnclassifiedAndUncached(t *testing.T) {
 	if why := r.Skipped[Key(lint)]; !strings.HasPrefix(why, "unclassified (classifier: malformed output") || r.Unclassified() != 1 {
 		t.Errorf("skipped = %q", why)
 	}
+	if f.run(lint); len(f.asked()) != 0 {
+		t.Errorf("a rerun within the cooldown asked %q", f.asked())
+	}
+	f.ageFailures(failureCooldown)
 	if f.run(lint); len(f.asked()) != 1 {
-		t.Errorf("a failed answer is cached: the rerun asked %q", f.asked())
+		t.Errorf("no answer is cached: past the cooldown the rerun asked %q", f.asked())
 	}
 }
 
@@ -337,11 +341,46 @@ func TestAFailedBatchKeepsTheOthersAnswers(t *testing.T) {
 
 	testutil.Put(t, f.dir, "fail", "")
 	f.answer(answers(verdicts...))
+	// A failed entry waits out the cooldown before it's asked again.
 	before := len(f.calls())
 	r = f.run(entries...)
-	if len(f.calls()) != before+1 || len(r.Verdicts) != len(entries) {
-		t.Errorf("the rerun made %d calls and classified %d", len(f.calls())-before, len(r.Verdicts))
+	if len(f.calls()) != before || !strings.HasPrefix(r.Skipped[Key(last)], coolingReason) || r.Unclassified() != 0 {
+		t.Errorf("within the cooldown: %d calls, skipped as %q, %d unclassified", len(f.calls())-before, r.Skipped[Key(last)], r.Unclassified())
 	}
+
+	f.ageFailures(failureCooldown)
+	r = f.run(entries...)
+	if len(f.calls()) != before+1 || len(r.Verdicts) != len(entries) {
+		t.Errorf("past the cooldown, the rerun made %d calls and classified %d", len(f.calls())-before, len(r.Verdicts))
+	}
+}
+
+// A classifier that's down for every batch still records the cooldown.
+func TestAClassifierDownForEveryBatchIsAskedOncePerCooldown(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t, "")
+	testutil.Put(t, f.dir, "response.json", `{"is_error":true,"subtype":"error_max_budget_usd"}`)
+	lint := entry("lint", "eslint .")
+	f.run(lint)
+	before := len(f.calls())
+	if r := f.run(lint); len(f.calls()) != before || r.Unclassified() != 0 {
+		t.Errorf("the second run made %d calls, %d unclassified", len(f.calls())-before, r.Unclassified())
+	}
+}
+
+// ageFailures moves every recorded classifier failure d into the past.
+func (f *fixture) ageFailures(d time.Duration) {
+	f.t.Helper()
+	file := CacheFile(f.cacheDir, f.root)
+	s := load(file)
+	for key, at := range s.Failed {
+		s.Failed[key] = at.Add(-d)
+	}
+	data, err := json.Marshal(s)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	testutil.Write(f.t, file, string(data))
 }
 
 func TestDeniedEntriesAreNeverAsked(t *testing.T) {
