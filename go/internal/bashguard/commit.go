@@ -275,9 +275,15 @@ func approved(path, subject string) bool {
 
 var (
 	commitWord = regexp.MustCompile(`(?i)\bcommit\b(\s+\w+)?`)
-	// negated is a clause that turns down what follows: "don't", "do not",
-	// "not yet", "never", "no".
-	negated = regexp.MustCompile(`(?i)\b(don'?t|do not|not yet|never|no)\b`)
+	// negated is a clause that turns down what follows: "don't", "not",
+	// "aren't", "never", "no".
+	negated = regexp.MustCompile(`(?i)\b(don['\x{2019}]?t|not|never|no)\b|n['\x{2019}]t\b`)
+	// directAsk opens a question that is a request: "can you commit this?".
+	// Any other question ("is it ok to commit?") asks about one.
+	directAsk = regexp.MustCompile(`(?i)^\s*(can|could|would|will)\s+(you|we)\b`)
+	// ownPlan opens a sentence where the user says what they'll do: "let
+	// me review it, then commit".
+	ownPlan = regexp.MustCompile(`(?i)^\s*(let me|i['\x{2019}]ll|i will|i['\x{2019}]m going to|i am going to)\b`)
 	// commitObjects can follow "commit" when it's asked for: what to
 	// commit, or what comes next. Any other word ("commit hooks", "commit
 	// 35c7066", "commit message") makes it a noun.
@@ -291,8 +297,9 @@ var (
 
 // asksForCommit is true when prompt uses "commit" as a request: first in
 // its clause or after a requestLead word, followed by nothing, a
-// commitObjects word, or a step number, and with no negation earlier in
-// its clause.
+// commitObjects word, or a step number, with no negation earlier in its
+// clause, in a sentence that isn't the user's own plan, and, when it ends
+// in "?", opens as a direct ask.
 func asksForCommit(prompt string) bool {
 	for _, m := range commitWord.FindAllStringSubmatchIndex(prompt, -1) {
 		// commit-msg, commit/push, commit's: part of a compound or a noun.
@@ -310,7 +317,16 @@ func asksForCommit(prompt string) bool {
 		if len(words) > 0 && !slices.Contains(requestLead, words[len(words)-1]) {
 			continue
 		}
-		if !negated.MatchString(clause) {
+		if negated.MatchString(clause) {
+			continue
+		}
+		sentence := prompt[strings.LastIndexAny(prompt[:m[0]], ".!?\n")+1:]
+		if end := strings.IndexAny(sentence, ".!?\n"); end >= 0 {
+			if sentence[end] == '?' && !directAsk.MatchString(sentence) {
+				continue
+			}
+		}
+		if !ownPlan.MatchString(sentence) {
 			return true
 		}
 	}
