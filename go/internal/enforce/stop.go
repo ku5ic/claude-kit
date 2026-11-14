@@ -283,21 +283,20 @@ func (g Gate) Command() string {
 }
 
 // expand is word with its placeholder replaced: the whole list once inside
-// a substitution, else word repeated once per value.
+// a substitution, else word repeated once per value. Quotes around the
+// placeholder are the script's, and go: each value is quoted already.
 func expand(word string, files, dirs []string, substituted bool) string {
 	placeholder, values := "{files}", files
 	if strings.Contains(word, "{dirs}") {
 		placeholder, values = "{dirs}", dirs
 	}
+	word = strings.NewReplacer(`"`+placeholder+`"`, placeholder, "'"+placeholder+"'", placeholder).Replace(word)
 	out := make([]string, len(values))
 	for i, v := range values {
 		out[i] = Quote(v)
 	}
-	if substituted {
+	if substituted || word == placeholder {
 		return strings.ReplaceAll(word, placeholder, strings.Join(out, " "))
-	}
-	if word == `"`+placeholder+`"` || word == "'"+placeholder+"'" {
-		return strings.Join(out, " ")
 	}
 	for i := range out {
 		out[i] = strings.ReplaceAll(word, placeholder, out[i])
