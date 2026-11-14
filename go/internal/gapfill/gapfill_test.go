@@ -679,6 +679,29 @@ func TestAProposalsGlobsAreRelativeToItsDir(t *testing.T) {
 	}
 }
 
+// An entry's verdict globs, and a brace group's alternatives, read from
+// its dir the same way.
+func TestAVerdictsGlobsAreRelativeToItsDir(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t, "")
+	testutil.Put(t, f.root, "web/package.json", "{}")
+	lint := entry("lint", "eslint .")
+	lint.Dir, lint.File = "web", "web/package.json"
+	f.answer(map[string]any{
+		"entries": []any{verdict(lint, map[string]any{"role": "check", "kind": "lint", "mutates": false,
+			"file_form": "eslint {files}", "globs": []any{"web/**/*.ts", "{web/a.js,web/lib/*.js}"}})},
+		"managers": []any{},
+	})
+	r := f.run(lint)
+	v, ok := r.Verdicts[Key(lint)]
+	if !ok {
+		t.Fatalf("no verdict; skipped %q, dropped %q", r.Skipped, r.Dropped)
+	}
+	if got, want := v.Globs, []string{"**/*.ts", "{a.js,lib/*.js}"}; !slices.Equal(got, want) {
+		t.Errorf("globs %q, want %q", got, want)
+	}
+}
+
 // npx is npm's run prefix, and it fetches what isn't installed: a form
 // through it holds up only once the project has its own copy.
 func TestNpxHoldsUpWithALocalCopy(t *testing.T) {

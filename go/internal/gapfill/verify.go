@@ -56,6 +56,7 @@ func verify(cfg *config.Config, root string, entries []sources.Entry, s store, f
 			r.Skipped[key] = "rejected (" + err.Error() + ")"
 			continue
 		}
+		v.Globs = fromDir(e.Dir, v.Globs)
 		for _, d := range dropped {
 			r.Dropped = append(r.Dropped, e.Source+" "+e.Name+": "+d)
 		}
@@ -79,18 +80,50 @@ func verify(cfg *config.Config, root string, entries []sources.Entry, s store, f
 
 // fromDir is globs as they match from dir, which the plan reads them
 // from. The classifier sometimes writes them from the root (go/**/*.go
-// for dir go), so dir's own prefix goes.
+// for dir go), so dir's own prefix goes, from each alternative of a
+// leading brace group too ({go/a.go,go/b.go}).
 func fromDir(dir string, globs []string) []string {
 	dir = filepath.ToSlash(filepath.Clean(dir))
-	out := make([]string, 0, len(globs))
-	for _, g := range globs {
+	trim := func(g string) string {
 		g = strings.TrimPrefix(g, "./")
 		if dir != "." {
 			g = strings.TrimPrefix(g, dir+"/")
 		}
-		out = append(out, g)
+		return g
+	}
+	out := make([]string, 0, len(globs))
+	for _, g := range globs {
+		if alts, rest, ok := leadingGroup(g); ok {
+			for i := range alts {
+				alts[i] = trim(alts[i])
+			}
+			g = "{" + strings.Join(alts, ",") + "}" + rest
+		}
+		out = append(out, trim(g))
 	}
 	return out
+}
+
+// leadingGroup splits a glob that opens with a brace group into the
+// group's top-level alternatives and what follows its closing brace.
+func leadingGroup(glob string) (alts []string, rest string, ok bool) {
+	if !strings.HasPrefix(glob, "{") {
+		return nil, "", false
+	}
+	depth, start := 0, 1
+	for i, r := range glob {
+		switch {
+		case r == '{':
+			depth++
+		case r == '}':
+			if depth--; depth == 0 {
+				return append(alts, glob[start:i]), glob[i+1:], true
+			}
+		case r == ',' && depth == 1:
+			alts, start = append(alts, glob[start:i]), i+1
+		}
+	}
+	return nil, "", false
 }
 
 // coverage drops each covered_by claim but one naming another verified check
