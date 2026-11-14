@@ -199,6 +199,18 @@ func TestVerifyClaimsToolInput(t *testing.T) {
 		payload["transcript_path"] = path
 		k.run("verify-claims", payload).Allowed(t)
 	})
+	t.Run("a report the checker checked isn't held again for its rewording", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		k.verifier("", claim)
+		write := func(name, text string) map[string]any {
+			return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", name), "content": "# Debug\n\n" + text})
+		}
+		id := checkID.FindString(k.run("verify-claims", write("debug-a-20261110-1200.md", claim)).Stdout)
+		reworded := "The cache lives in the session directory, per the checker's report."
+		k.run("verify-claims", checkerRan(k, write("debug-a-20261110-1200.md", reworded), id)).Allowed(t)
+		k.run("verify-claims", checkerRan(k, write("debug-b-20261110-1200.md", reworded), id)).Denied(t)
+	})
 	t.Run("a code edit after a run makes its sentences fresh again", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)

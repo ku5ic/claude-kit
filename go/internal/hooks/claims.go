@@ -73,7 +73,7 @@ func VerifyClaims(h *hook.Hook) error {
 func verifyToolInput(h *hook.Hook) error {
 	p := h.Payload
 	tool := p.String(hook.KeyToolName)
-	var text, where, retry, marker string
+	var text, where, retry, marker, dest string
 	switch {
 	case tool == "SubagentHandback":
 		return verifyHandback(h)
@@ -96,7 +96,7 @@ func verifyToolInput(h *hook.Hook) error {
 		if !ok {
 			return nil
 		}
-		text, where, retry = after, filepath.Base(path), "write the report again"
+		text, where, retry, dest = after, filepath.Base(path), "write the report again", path
 		marker = h.Paths.SessionFile(cache.Claims, p.SessionID(), "file", filepath.Base(path))
 	default:
 		cfg := h.Config()
@@ -109,7 +109,7 @@ func verifyToolInput(h *hook.Hook) error {
 	if p.String(hook.KeyAgentID) != "" {
 		return verifyInSubagent(h, text, where, retry, marker)
 	}
-	return gateOnChecker(h, text, where, retry, marker)
+	return gateOnChecker(h, text, where, retry, marker, dest)
 }
 
 // verifyInSubagent checks a report or post written inside a subagent with
@@ -147,8 +147,10 @@ const claimChecker = "kit:claim-checker"
 // decides when a check must run, never the model making the claims;
 // whether Claude acted on the report is left to the transcript. A session
 // that started before the agent was installed can't run it, so a not-found
-// result falls back to the hook's own run.
-func gateOnChecker(h *hook.Hook, text, where, retry, marker string) error {
+// result falls back to the hook's own run. A report file, dest, that a run
+// finished on goes through rewritten: acting on the checker's report
+// rewords what it flagged, which would otherwise ask for a run again.
+func gateOnChecker(h *hook.Hook, text, where, retry, marker, dest string) error {
 	cfg := h.Config()
 	if cfg == nil || h.RuleDisabled("claims") || cfg.Claims.Off() || !claims.Declarative(text) {
 		return nil
@@ -156,7 +158,10 @@ func gateOnChecker(h *hook.Hook, text, where, retry, marker string) error {
 	log := readCheckerLog(h, h.Payload.String(hook.KeyTranscriptPath))
 	asked := h.Paths.SessionFile(cache.Claims, h.Payload.SessionID(), "asked")
 	record, _ := os.ReadFile(asked)
-	checked, outcomes := checkedStatements(log, string(record))
+	checked, outcomes, done := checkedStatements(log, string(record))
+	if dest != "" && slices.Contains(done, dest) {
+		return nil
+	}
 	all := claims.Statements(text)
 	var fresh []string
 	for _, s := range all {
@@ -190,7 +195,7 @@ func gateOnChecker(h *hook.Hook, text, where, retry, marker string) error {
 		for _, s := range fresh {
 			keys = append(keys, statementKey(s))
 		}
-		_ = fsx.Append(asked, []byte(id+"\t"+strings.Join(keys, ",")+"\n"))
+		_ = fsx.Append(asked, []byte(id+"\t"+strings.Join(keys, ",")+"\t"+dest+"\n"))
 	}
 	h.Deny(fmt.Sprintf("the %s agent hasn't checked %s\n", claimChecker, where)+layout.KV("do", ask)+only+"\n"+
 		layout.KV("then", "check or cut each claim it reports, per skills/kit-rules/reference/evidence.md section 1, then "+retry), "claims")
@@ -199,25 +204,31 @@ func gateOnChecker(h *hook.Hook, text, where, retry, marker string) error {
 
 // checkedStatements is the keys of the statements a finished claim-checker
 // run covered: each run record, the session's asked file, names by its id,
-// whose run log shows done. It returns every recorded id's outcome too.
-func checkedStatements(log checkerLog, record string) ([]string, map[string]int) {
+// whose run log shows done. It returns every recorded id's outcome too, and
+// the report files those done runs were asked for.
+func checkedStatements(log checkerLog, record string) ([]string, map[string]int, []string) {
 	covered := map[string][]string{}
+	dests := map[string]string{}
 	var ids []string
 	for line := range strings.Lines(record) {
-		id, keys, ok := strings.Cut(strings.TrimSpace(line), "\t")
+		id, rest, ok := strings.Cut(strings.TrimRight(line, "\n"), "\t")
+		keys, dest, _ := strings.Cut(rest, "\t")
 		if _, seen := covered[id]; ok && !seen {
-			covered[id] = strings.Split(keys, ",")
+			covered[id], dests[id] = strings.Split(keys, ","), dest
 			ids = append(ids, id)
 		}
 	}
 	outcomes := log.runs(ids)
-	var keys []string
+	var keys, done []string
 	for _, id := range ids {
 		if outcomes[id] == checkerDone {
 			keys = append(keys, covered[id]...)
+			if dests[id] != "" {
+				done = append(done, dests[id])
+			}
 		}
 	}
-	return keys, outcomes
+	return keys, outcomes, done
 }
 
 // checkerLog is the session transcript at path, read once, and the index
