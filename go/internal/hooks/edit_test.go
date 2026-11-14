@@ -366,14 +366,24 @@ func TestGuardSearchExcludesSecretsInsideTheProject(t *testing.T) {
 		}
 	}
 	// A negative glob matches every other file, so the exclusion joins it.
-	for glob, joined := range map[string]string{"!*.md": "!{*.md,.env,.env.*,*.key,id_rsa}", "!{*.md,*.txt}": "!{*.md,*.txt,.env,.env.*,*.key,id_rsa}"} {
+	// Its brace groups expand first, so all share one {...}.
+	for glob, joined := range map[string]string{
+		"!*.md":         "!{*.md,.env,.env.*,*.key,id_rsa}",
+		"!{*.md,*.txt}": "!{*.md,*.txt,.env,.env.*,*.key,id_rsa}",
+		"!{a,b}.js":     "!{a.js,b.js,.env,.env.*,*.key,id_rsa}",
+		"!*.{js,ts}":    "!{*.js,*.ts,.env,.env.*,*.key,id_rsa}",
+		"!{a,b}.{c,d}":  "!{a.c,a.d,b.c,b.d,.env,.env.*,*.key,id_rsa}",
+	} {
 		got := grep(dir, map[string]any{"pattern": "secret", "glob": glob})
 		if want := map[string]any{"pattern": "secret", "glob": joined}; !maps.Equal(got, want) {
 			t.Errorf("glob %q: updatedInput = %v, want %v", glob, got, want)
 		}
 	}
-	if got := grep(dir, map[string]any{"pattern": "secret", "glob": "*.ts"}); got != nil {
-		t.Errorf("a Grep with its own glob was rewritten: %v", got)
+	// A nested brace group doesn't expand, so that glob is left alone.
+	for _, glob := range []string{"*.ts", "!{a,{b,c}}", "!a}b"} {
+		if got := grep(dir, map[string]any{"pattern": "secret", "glob": glob}); got != nil {
+			t.Errorf("glob %q was rewritten: %v", glob, got)
+		}
 	}
 	if got := grep(dir, map[string]any{"pattern": "secret", "path": t.TempDir()}); got != nil {
 		t.Errorf("a Grep outside the project was rewritten: %v", got)
