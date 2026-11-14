@@ -2,6 +2,7 @@ package codegraph
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -161,6 +162,29 @@ func TestCouplingGolden(t *testing.T) {
 	}
 	if want := testutil.Read(t, "testdata/coupling.golden"); out.String() != want {
 		t.Errorf("got:\n%s\nwant:\n%s", out.String(), want)
+	}
+}
+
+// A Go import names a package directory. One named index, mod, or v1.2
+// keeps that name, which moduleStem would cut.
+func TestCouplingReadsAGoImportOfAnIndexPackage(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	var log strings.Builder
+	for i := range 5 {
+		fmt.Fprintf(&log, "--%040d\n\ncmd/x/main.go\ninternal/index/i.go\npkg/v1.2/v.go\n\n", i)
+	}
+	gitLog, resolved := filepath.Join(dir, "gitlog.txt"), filepath.Join(dir, "imports-resolved.tsv")
+	testutil.Write(t, gitLog, log.String())
+	testutil.Write(t, resolved, "cmd/x/main.go\tinternal/index\ncmd/x/main.go\tpkg/v1.2\n")
+	var out bytes.Buffer
+	if err := Coupling(gitLog, resolved, &out); err != nil {
+		t.Fatal(err)
+	}
+	for _, pair := range []string{"cmd/x/main.go\tinternal/index/i.go", "cmd/x/main.go\tpkg/v1.2/v.go"} {
+		if !strings.Contains(out.String(), "\timports\t"+pair+"\n") {
+			t.Errorf("%s isn't an import in:\n%s", pair, out.String())
+		}
 	}
 }
 

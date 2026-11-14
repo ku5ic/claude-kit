@@ -58,7 +58,13 @@ func Coupling(gitLog, resolved string, out io.Writer) error {
 	}
 	imports := map[pair]bool{}
 	for _, r := range rows {
-		imports[pair{moduleStem(r[0]), moduleStem(r[1])}] = true
+		// A Go file's target is its package directory, kept as importTarget
+		// reads it.
+		target := r[1]
+		if path.Ext(r[0]) != ".go" {
+			target = moduleStem(target)
+		}
+		imports[pair{moduleStem(r[0]), target}] = true
 	}
 	fmt.Fprintln(out, "shared\tdegree\tlink\tfile_a\tfile_b")
 	for _, p := range byCount(pairs, pair.compare) {
