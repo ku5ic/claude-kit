@@ -318,7 +318,7 @@ var (
 	// a word that changes nothing about when. Any other word ("commit
 	// hooks", "commit 35c7066", "commit it later") isn't a go-ahead now.
 	commitObjects  = []string{"it", "them", "everything", "changes", "work", "step"}
-	determiners    = []string{"the", "my", "your", "our", "this", "that", "these", "those", "all", "both"}
+	determiners    = []string{"the", "my", "your", "our", "this", "that", "these", "those", "all", "both", "any", "every", "each"}
 	commitModifier = []string{"now", "please", "first", "too", "again", "also"}
 	stepNumber     = regexp.MustCompile(`^\d{1,3}$`)
 	// timeWords put a commit off even inside its object: "commit the docs
@@ -331,6 +331,9 @@ var (
 	// askedYou can come before "you commit" in a request: "can you
 	// commit". Any other ("if you commit this") makes it a remark.
 	askedYou = []string{"can", "could", "would", "will", "please"}
+	// userSaid repeats a request: "I said commit". Anyone else's ("the
+	// reviewer said commit") is a report.
+	userSaid = regexp.MustCompile(`(?i)\bi\s+(?:already\s+|just\s+)?said\s*$`)
 	// subordinator anywhere in the commit's sentence makes it conditional,
 	// across a comma too: "when the tests pass, commit it", "commit it,
 	// but only after I review". Subordinating conjunctions are a closed
@@ -339,11 +342,11 @@ var (
 )
 
 // asksForCommit is true when prompt uses "commit" as a request: first in
-// its clause, after a requestLead word, or after an askedYou word and
-// "you", followed by only an object (objectPhrase), with no negation
-// earlier in its clause and no subordinator in its sentence, in a
-// sentence that isn't the user's own plan, and, when it ends in "?", opens
-// as a direct ask. Wording it can't place reads as no request, so the
+// its clause, after a requestLead word, an askedYou word and "you", or
+// "I said" (leadsRequest), followed by only an object (objectPhrase),
+// with no negation earlier in its clause and no subordinator in its
+// sentence, in a sentence that isn't the user's own plan, and, when it
+// ends in "?", opens as a direct ask. Wording it can't place reads as no request, so the
 // guard asks.
 func asksForCommit(prompt string) bool {
 	for _, m := range commitWord.FindAllStringSubmatchIndex(prompt, -1) {
@@ -359,12 +362,7 @@ func asksForCommit(prompt string) bool {
 			continue
 		}
 		clause := prompt[strings.LastIndexAny(prompt[:m[0]], ".!?;,\n")+1 : m[0]]
-		words := strings.Fields(strings.ToLower(clause))
-		if n := len(words); n > 0 && !slices.Contains(requestLead, words[n-1]) &&
-			(words[n-1] != "you" || n < 2 || !slices.Contains(askedYou, words[n-2])) {
-			continue
-		}
-		if negated.MatchString(clause) {
+		if !leadsRequest(clause) || negated.MatchString(clause) {
 			continue
 		}
 		start := strings.LastIndexAny(prompt[:m[0]], ".!?\n") + 1
@@ -383,6 +381,17 @@ func asksForCommit(prompt string) bool {
 		}
 	}
 	return false
+}
+
+// leadsRequest is whether clause, the words before "commit" in its
+// clause, puts it as a request: none, a requestLead word, an askedYou word
+// and "you", or "I said".
+func leadsRequest(clause string) bool {
+	words := strings.Fields(strings.ToLower(clause))
+	n := len(words)
+	return n == 0 || slices.Contains(requestLead, words[n-1]) ||
+		n >= 2 && words[n-1] == "you" && slices.Contains(askedYou, words[n-2]) ||
+		userSaid.MatchString(clause)
 }
 
 // scanStaged runs gitleaks on repo's staged diff. Its exit codes: 0 clean, 1 a
