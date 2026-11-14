@@ -103,13 +103,16 @@ func TestChecksReadPayloadKeysByName(t *testing.T) {
 				}
 				sel, isSel := call.Fun.(*ast.SelectorExpr)
 				lit, isLit := call.Args[0].(*ast.BasicLit)
-				if !isSel || !isLit || !slices.Contains(accessors, sel.Sel.Name) {
+				if !isSel || !isLit || lit.Kind != token.STRING || !slices.Contains(accessors, sel.Sel.Name) {
 					return true
 				}
+				// A mistyped key matches no constant, so any literal fails.
 				value, _ := strconv.Unquote(lit.Value)
-				if name, ok := byValue[value]; ok {
-					t.Errorf("%s: %s(%s): use hook.%s", fset.Position(lit.Pos()), sel.Sel.Name, lit.Value, name)
+				name, ok := byValue[value]
+				if !ok {
+					name = "Key... (none holds " + lit.Value + ")"
 				}
+				t.Errorf("%s: %s(%s): use hook.%s", fset.Position(lit.Pos()), sel.Sel.Name, lit.Value, name)
 				return true
 			})
 			return nil
