@@ -183,6 +183,8 @@ func TestGuardCommitAsksForAnUnshownMessage(t *testing.T) {
 		"I said not to":               {testutil.UserPrompt("I said don't commit")},
 		"not now":                     {testutil.UserPrompt("commit it, but not now")},
 		"not right now":               {testutil.UserPrompt("commit it, but not right now")},
+		"a standing rule":             {testutil.UserPrompt("commit every time tests pass")},
+		"permission for any time":     {testutil.UserPrompt("you can commit any time you want")},
 		"I said, in narration":        {testutil.UserPrompt("Earlier I said commit, now I'm not sure")},
 		"I said, after a comma":       {testutil.UserPrompt("Earlier, I said commit, now I'm not sure")},
 		"I said, mid-sentence":        {testutil.UserPrompt("the bug is that I said commit and it ran")},

@@ -530,10 +530,10 @@ func objectPhrase(words []string) bool {
 			return true
 		case slices.Contains(determiners, w):
 			// The noun the determiner opens: up to three words, none a
-			// time word.
+			// time word, nor "time", which makes it when ("every time").
 			for n := 1; i+1 < len(words) && words[i+1] != "and" && words[i+1] != "then"; n++ {
 				i++
-				if n > 3 || slices.Contains(timeWords, words[i]) {
+				if n > 3 || slices.Contains(timeWords, words[i]) || words[i] == "time" || words[i] == "times" {
 					return false
 				}
 			}
