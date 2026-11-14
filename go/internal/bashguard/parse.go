@@ -6,6 +6,7 @@ package bashguard
 import (
 	"errors"
 	"regexp"
+	"slices"
 	"strings"
 
 	"mvdan.cc/sh/v3/syntax"
@@ -209,17 +210,7 @@ func (c *collector) stmt(src string, s *syntax.Stmt) {
 		return
 	}
 
-	// The pipeline ends at its last command's last word or redirect, not at
-	// the statement's end, which takes in a trailing ; or &.
-	last := parts[len(parts)-1]
-	end := int(last.Cmd.End().Offset())
-	for _, r := range last.Redirs {
-		if r.Hdoc == nil {
-			end = max(end, int(r.End().Offset()))
-		}
-	}
-	seg := Segment{src: src, end: end, subshell: c.subshell > 0}
-	feedsShell := false
+	seg := Segment{src: src, end: segmentEnd(parts[len(parts)-1]), subshell: c.subshell > 0}
 	for _, p := range parts {
 		call, ok := p.Cmd.(*syntax.CallExpr)
 		if !ok {
@@ -228,21 +219,37 @@ func (c *collector) stmt(src string, s *syntax.Stmt) {
 			c.inner(src, p.Cmd)
 			continue
 		}
-		cl := c.call(src, p, call)
-		if len(cl.Words) > 0 && shells[baseName(cl.Words[0].Value)] {
-			feedsShell = true
-		}
-		seg.Calls = append(seg.Calls, cl)
+		seg.Calls = append(seg.Calls, c.call(src, p, call))
 	}
 	if len(seg.Calls) > 0 {
 		c.segs = append(c.segs, seg)
 	}
-	// A heredoc fed to a shell (bash <<EOF, cat <<EOF | sh) is commands.
-	if feedsShell {
-		for _, cl := range seg.Calls {
-			for _, body := range cl.Heredocs {
-				c.parse(body, c.depth+1)
-			}
+	c.shellHeredocs(seg)
+}
+
+// segmentEnd is where a pipeline ends: its last command's last word or
+// redirect, not the statement's end, which takes in a trailing ; or &.
+func segmentEnd(last *syntax.Stmt) int {
+	end := int(last.Cmd.End().Offset())
+	for _, r := range last.Redirs {
+		if r.Hdoc == nil {
+			end = max(end, int(r.End().Offset()))
+		}
+	}
+	return end
+}
+
+// shellHeredocs parses seg's heredocs as commands when a shell in it reads
+// them (bash <<EOF, cat <<EOF | sh).
+func (c *collector) shellHeredocs(seg Segment) {
+	if !slices.ContainsFunc(seg.Calls, func(cl Call) bool {
+		return len(cl.Words) > 0 && shells[baseName(cl.Words[0].Value)]
+	}) {
+		return
+	}
+	for _, cl := range seg.Calls {
+		for _, body := range cl.Heredocs {
+			c.parse(body, c.depth+1)
 		}
 	}
 }
@@ -386,43 +393,53 @@ func timeOutputs(words []Word) []Redir {
 		if w.name != "time" {
 			continue
 		}
-		i := w.at
-		for j := i + 1; j < len(words) && strings.HasPrefix(words[j].Value, "-"); j++ {
-			opt := words[j].Value
-			switch {
-			case opt == "--":
-				return out
-			case abbrevOf(opt, "--output"):
-				// getopt_long takes any unambiguous prefix: --out file.
-				if _, v, ok := strings.Cut(opt, "="); ok {
-					out = append(out, Redir{Op: ">", Target: Word{Value: v, Raw: v}})
-				} else if j+1 < len(words) {
-					j++
-					out = append(out, Redir{Op: ">", Target: words[j]})
-				}
-			case strings.HasPrefix(opt, "--"):
-				if takesNextWord(wrappers["time"], opt) {
-					j++
-				}
-			default:
-				// A short cluster: its first f or o takes the rest of the
-				// word, or the next word when it's last (-ao file).
-				k := strings.IndexAny(opt[1:], "fo") + 1
-				if k == 0 {
-					continue
-				}
-				v := opt[k+1:]
-				if v == "" && j+1 < len(words) {
-					j++
-					v = words[j].Value
-				}
-				if opt[k] == 'o' && v != "" {
-					out = append(out, Redir{Op: ">", Target: Word{Value: v, Raw: v}})
-				}
-			}
+		found, done := timeOptions(words, w.at)
+		out = append(out, found...)
+		if done {
+			return out
 		}
 	}
 	return out
+}
+
+// timeOptions reads the options of the time at words[at]. done is true at
+// --, which ends the scan for every wrapper after it too.
+func timeOptions(words []Word, at int) (out []Redir, done bool) {
+	for j := at + 1; j < len(words) && strings.HasPrefix(words[j].Value, "-"); j++ {
+		opt := words[j].Value
+		switch {
+		case opt == "--":
+			return out, true
+		case abbrevOf(opt, "--output"):
+			// getopt_long takes any unambiguous prefix: --out file.
+			if _, v, ok := strings.Cut(opt, "="); ok {
+				out = append(out, Redir{Op: ">", Target: Word{Value: v, Raw: v}})
+			} else if j+1 < len(words) {
+				j++
+				out = append(out, Redir{Op: ">", Target: words[j]})
+			}
+		case strings.HasPrefix(opt, "--"):
+			if takesNextWord(wrappers["time"], opt) {
+				j++
+			}
+		default:
+			// A short cluster: its first f or o takes the rest of the
+			// word, or the next word when it's last (-ao file).
+			k := strings.IndexAny(opt[1:], "fo") + 1
+			if k == 0 {
+				continue
+			}
+			v := opt[k+1:]
+			if v == "" && j+1 < len(words) {
+				j++
+				v = words[j].Value
+			}
+			if opt[k] == 'o' && v != "" {
+				out = append(out, Redir{Op: ">", Target: Word{Value: v, Raw: v}})
+			}
+		}
+	}
+	return out, false
 }
 
 // envSplitString returns the command env -S/--split-string runs, the string
