@@ -88,6 +88,18 @@ func TestVerify(t *testing.T) {
 	}
 }
 
+func TestAVerifierThatFailsStillCountsItsRun(t *testing.T) {
+	t.Parallel()
+	cfg := baseConfig()
+	dir := t.TempDir()
+	cfg.Claims.Command = []string{filepath.Join(dir, "verifier")}
+	testutil.FakeTool(t, cfg.Claims.Command[0], filepath.Join(dir, "calls"), "exit 1")
+	got, err := Verify(cfg, "", t.TempDir(), t.TempDir(), "The build fails.", "")
+	if err == nil || got.Usage.Runs != 1 {
+		t.Errorf("a failed run: err %v, runs %d; want an error and 1 run", err, got.Usage.Runs)
+	}
+}
+
 func TestVerifyRunsInDirWithGuardAndEvidence(t *testing.T) {
 	t.Parallel()
 	cfg := baseConfig()

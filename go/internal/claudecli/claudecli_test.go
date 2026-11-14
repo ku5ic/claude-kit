@@ -75,6 +75,30 @@ func TestParse(t *testing.T) {
 	}
 }
 
+func TestARunThatStartedCountsOnceHoweverItEnds(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		timeout time.Duration
+		argv    []string
+		want    string
+	}{
+		{"timed out", 50 * time.Millisecond, []string{"sleep", "5"}, "timed out"},
+		{"failed", time.Second, []string{"false"}, "exit status 1"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, u, err := Run(tc.timeout, tc.argv, t.TempDir(), strings.NewReader(""), t.TempDir(), "KIT_TEST_GUARD")
+			if err == nil || !strings.Contains(err.Error(), tc.want) || u.Runs != 1 {
+				t.Errorf("Run(%v) = runs %d, %v; want 1 run and %q", tc.argv, u.Runs, err, tc.want)
+			}
+		})
+	}
+	if _, u, err := Run(time.Second, []string{"no-such-claude"}, t.TempDir(), strings.NewReader(""), t.TempDir(), "KIT_TEST_GUARD"); err == nil || u.Runs != 0 {
+		t.Errorf("a binary that isn't installed: runs %d, %v; want 0 runs and an error", u.Runs, err)
+	}
+}
+
 func TestUsagePairs(t *testing.T) {
 	t.Parallel()
 	u := Usage{1, 0.25, 1500 * time.Millisecond}.Add(Usage{1, 0.5, 500 * time.Millisecond})

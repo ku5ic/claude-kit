@@ -5,7 +5,6 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"path/filepath"
 	"slices"
@@ -14,8 +13,6 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/claudecli"
 	"github.com/ku5ic/claude-kit/go/internal/config"
-	"github.com/ku5ic/claude-kit/go/internal/proc"
-	"github.com/ku5ic/claude-kit/go/internal/resolve/kittool"
 	"github.com/ku5ic/claude-kit/go/internal/sources"
 )
 
@@ -98,28 +95,9 @@ func classify(ctx context.Context, cfg *config.Config, o Options, req request) (
 	if len(argv) == 0 {
 		argv = claude()
 	}
-	env, cleanup, err := claudecli.Guarded(filepath.Join(o.CacheDir, cache.Guard), Guard)
-	if err != nil {
-		return response{}, claudecli.Usage{}, err
-	}
-	defer cleanup()
-	bin, err := kittool.Path(argv[0])
-	if err != nil {
-		return response{}, claudecli.Usage{}, err
-	}
 	deadline, _ := ctx.Deadline()
-	cmd := proc.Command(time.Until(deadline), bin, argv[1:]...)
-	cmd.Dir = filepath.Join(o.CacheDir, cache.Enforce)
-	cmd.Env = env
-	cmd.Stdin = bytes.NewReader(stdin)
-	out, err := cmd.Output()
-	if cmd.TimedOut() {
-		return response{}, claudecli.Usage{Runs: 1}, errors.New("timed out")
-	}
-	if err != nil {
-		return response{}, claudecli.Usage{Runs: 1}, err
-	}
-	answer, usage, err := claudecli.Parse(out)
+	answer, usage, err := claudecli.Run(time.Until(deadline), argv, filepath.Join(o.CacheDir, cache.Enforce), bytes.NewReader(stdin),
+		filepath.Join(o.CacheDir, cache.Guard), Guard)
 	if err != nil {
 		return response{}, usage, err
 	}

@@ -22,8 +22,6 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/connector"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
-	"github.com/ku5ic/claude-kit/go/internal/proc"
-	"github.com/ku5ic/claude-kit/go/internal/resolve/kittool"
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
@@ -153,27 +151,7 @@ func Verify(cfg *config.Config, root, cacheDir, dir, text, transcriptPath string
 // run runs the verifier command argv from dir on input, the evidence and
 // the text to verify, guarded by a marker under markerDir.
 func run(cfg *config.Config, argv []string, markerDir, dir, input string) (Verdict, error) {
-	env, cleanup, err := claudecli.Guarded(markerDir, Guard)
-	if err != nil {
-		return Verdict{}, fmt.Errorf("claims: %w", err)
-	}
-	defer cleanup()
-	bin, err := kittool.Path(argv[0])
-	if err != nil {
-		return Verdict{}, fmt.Errorf("claims: %w", err)
-	}
-	cmd := proc.Command(time.Duration(cfg.Claims.Timeout)*time.Second, bin, argv[1:]...)
-	cmd.Dir = dir
-	cmd.Env = env
-	cmd.Stdin = strings.NewReader(input)
-	out, err := cmd.Output()
-	if cmd.TimedOut() {
-		return Verdict{}, errors.New("claims: timed out")
-	}
-	if err != nil {
-		return Verdict{}, fmt.Errorf("claims: %w", err)
-	}
-	answer, usage, err := claudecli.Parse(out)
+	answer, usage, err := claudecli.Run(time.Duration(cfg.Claims.Timeout)*time.Second, argv, dir, strings.NewReader(input), markerDir, Guard)
 	if err != nil {
 		return Verdict{Usage: usage}, fmt.Errorf("claims: %w", err)
 	}

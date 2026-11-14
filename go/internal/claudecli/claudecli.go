@@ -1,5 +1,5 @@
-// Package claudecli reads the envelope `claude -p --output-format json`
-// prints, which the claim verifier and the gap-fill classifier both run.
+// Package claudecli runs `claude -p --output-format json` and reads the
+// envelope it prints, for the claim verifier and the gap-fill classifier.
 package claudecli
 
 import (
@@ -9,10 +9,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
 	"time"
+
+	"github.com/ku5ic/claude-kit/go/internal/proc"
+	"github.com/ku5ic/claude-kit/go/internal/resolve/kittool"
 )
 
 // DepthVar is set in every claude run the kit starts, so a run whose hooks
@@ -61,6 +65,31 @@ func Honored(markerDir, guard string) bool {
 func markerPath(markerDir, value string) string {
 	sum := sha256.Sum256([]byte(value))
 	return filepath.Join(markerDir, hex.EncodeToString(sum[:]))
+}
+
+// Run runs argv from dir with stdin, for at most timeout, guarded as
+// Guarded says, and is its structured answer. A run that started counts in
+// Usage whether it timed out, failed, or answered.
+func Run(timeout time.Duration, argv []string, dir string, stdin io.Reader, markerDir, guard string) (json.RawMessage, Usage, error) {
+	env, cleanup, err := Guarded(markerDir, guard)
+	if err != nil {
+		return nil, Usage{}, err
+	}
+	defer cleanup()
+	bin, err := kittool.Path(argv[0])
+	if err != nil {
+		return nil, Usage{}, err
+	}
+	cmd := proc.Command(timeout, bin, argv[1:]...)
+	cmd.Dir, cmd.Env, cmd.Stdin = dir, env, stdin
+	out, err := cmd.Output()
+	if cmd.TimedOut() {
+		return nil, Usage{Runs: 1}, errors.New("timed out")
+	}
+	if err != nil {
+		return nil, Usage{Runs: 1}, err
+	}
+	return Parse(out)
 }
 
 // Usage is how many runs there were, what they cost, and how long they
