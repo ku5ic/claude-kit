@@ -69,6 +69,11 @@ func (k *sandbox) claimsAsked() string {
 	return k.paths.SessionFile(cache.Claims, "s", "asked")
 }
 
+// bashEdited is session s's record of the Bash calls that changed code.
+func (k *sandbox) bashEdited() string {
+	return k.paths.SessionFile(cache.Claims, "s", bashEditsRecord)
+}
+
 // checkerRan points payload at a session transcript holding a claim-checker
 // run on id.
 func checkerRan(k *sandbox, payload map[string]any, id string) map[string]any {
@@ -218,6 +223,24 @@ func TestVerifyClaimsToolInput(t *testing.T) {
 		if asked := testutil.Read(t, k.claimsAsked()); strings.Count(asked, id) != 1 {
 			t.Errorf("the asked record holds %s %d times, want once:\n%s", id, strings.Count(asked, id), asked)
 		}
+	})
+	t.Run("a Bash edit after a run makes its sentences fresh again", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		k.verifier("", claim)
+		post := func() map[string]any { return toolCall("mcp__chat__send_message", map[string]any{"text": claim}) }
+		id := checkID.FindString(k.run("verify-claims", post()).Stdout)
+		bash, _ := json.Marshal(map[string]any{"type": "assistant", "message": map[string]any{"content": []any{map[string]any{
+			"type": "tool_use", "id": "b1", "name": "Bash", "input": map[string]any{"command": "sed -i '' 's/a/b/' main.go"},
+		}}}})
+		path := filepath.Join(k.t.TempDir(), "bashed.jsonl")
+		testutil.Write(t, path, checkerLine(id)+"\n"+string(bash)+"\n")
+		payload := post()
+		payload["transcript_path"] = path
+		// A command bash-edits saw change nothing leaves the run standing.
+		k.run("verify-claims", payload).Allowed(t)
+		testutil.Write(t, k.bashEdited(), "b1\n")
+		k.run("verify-claims", payload).Denied(t)
 	})
 	t.Run("the claim checker's own hand-back isn't checked again", func(t *testing.T) {
 		t.Parallel()

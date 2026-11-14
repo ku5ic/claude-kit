@@ -44,6 +44,23 @@ func TestBashEdits(t *testing.T) {
 		ran(k, dir, "echo").Want(t, 2)
 		ran(k, dir, "ls").Want(t, 0)
 	})
+	t.Run("a command that changed code is recorded for the claims gate", func(t *testing.T) {
+		t.Parallel()
+		k, dir := setup(t)
+		record := k.paths.SessionFile(cache.Claims, "s1", bashEditsRecord)
+		run := func(id string) {
+			k.run("bash-edits", map[string]any{"hook_event_name": "PostToolUse", "session_id": "s1", "cwd": dir, "tool_use_id": id,
+				"tool_name": "Bash", "tool_input": map[string]any{"command": "edit"}}).Want(t, 0)
+		}
+		run("t0")
+		testutil.Write(t, filepath.Join(dir, "notes.md"), "Notes, longer.\n")
+		run("t1")
+		testutil.Write(t, filepath.Join(dir, ".claude", "scratch", "x.log"), "x\n")
+		run("t2")
+		if got := testutil.Read(t, record); got != "t1\n" {
+			t.Errorf("record = %q, want only the call that changed notes.md", got)
+		}
+	})
 	t.Run("a command the guard marked read-only is skipped, once", func(t *testing.T) {
 		t.Parallel()
 		k, dir := setup(t)

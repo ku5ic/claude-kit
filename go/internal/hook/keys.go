@@ -19,6 +19,7 @@ const (
 	KeyAgentTranscriptPath  = "agent_transcript_path"
 	KeyToolName             = "tool_name"
 	KeyToolInput            = "tool_input"
+	KeyToolUseID            = "tool_use_id"
 
 	KeyInputCommand      = "tool_input.command"
 	KeyInputFilePath     = "tool_input.file_path"

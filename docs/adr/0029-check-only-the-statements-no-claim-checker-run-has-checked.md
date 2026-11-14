@@ -8,6 +8,8 @@ Accepted
 
 Amends [21. Run the claim checker as a visible agent](0021-run-the-claim-checker-as-a-visible-agent.md)
 
+Amended by [31. Count a Bash edit as a code edit for checked claims](0031-count-a-bash-edit-as-a-code-edit-for-checked-claims.md)
+
 ## Context
 
 Under [21](0021-run-the-claim-checker-as-a-visible-agent.md), a text waits for a `kit:claim-checker` run on that exact text, keyed by the text's hash (`gateOnChecker` in `go/internal/hooks/claims.go`). A report revised after its run, even by one sentence or a heading, got a new hash and needed a full run again. The checker's own report, handed back as a subagent, also went through `VerifyClaims`, which ran the hook's verifier on it.

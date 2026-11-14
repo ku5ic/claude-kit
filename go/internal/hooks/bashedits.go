@@ -66,7 +66,12 @@ func BashEdits(h *hook.Hook) error {
 		saveTree(h, base, string(start))
 	}
 	changed, before, _, ok := changedSince(h, root, base)
-	if !ok || len(changed) == 0 || gitMoves.MatchString(p.String(hook.KeyInputCommand)) {
+	if !ok || len(changed) == 0 {
+		return nil
+	}
+	// Whoever wrote the change, a claim checked before it is stale.
+	recordBashEdit(h, changed)
+	if gitMoves.MatchString(p.String(hook.KeyInputCommand)) {
 		return nil
 	}
 	var problems []string

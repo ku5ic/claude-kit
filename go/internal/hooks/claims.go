@@ -219,16 +219,38 @@ type checkerLog struct {
 	lastEdit int
 }
 
-// readCheckerLog is the checkerLog of the transcript at path.
+// bashEditsRecord is the session file under cache.Claims listing, one a
+// line, the Bash tool uses whose command changed a file outside scratch and
+// the plan dir. transcript.Edits sees only the edit tools.
+const bashEditsRecord = "bash-edits"
+
+// recordBashEdit adds the Bash tool use to bashEditsRecord when any of
+// changed is code, outside scratch and the plan dir.
+func recordBashEdit(h *hook.Hook, changed []string) {
+	id := h.Payload.String(hook.KeyToolUseID)
+	if id == "" || h.DryRun || !slices.ContainsFunc(changed, func(file string) bool { return isCode(h, file) }) {
+		return
+	}
+	_ = fsx.Append(h.Paths.SessionFile(cache.Claims, h.Payload.SessionID(), bashEditsRecord), []byte(id+"\n"))
+}
+
+// isCode is true for a file a claim can be about: outside scratch and the
+// plan dir.
+func isCode(h *hook.Hook, file string) bool {
+	return file != "" && !project.IsScratch(h.Paths, file) && !fsx.Within(project.PlanDir(h.Paths, h.Payload.Cwd()), file)
+}
+
+// readCheckerLog is the checkerLog of the transcript at path. The last edit
+// is an edit tool's, or a Bash call's that bashEditsRecord names.
 func readCheckerLog(h *hook.Hook, path string) checkerLog {
 	entries, _ := transcript.Load(path)
-	plans := project.PlanDir(h.Paths, h.Payload.Cwd())
+	record, _ := os.ReadFile(h.Paths.SessionFile(cache.Claims, h.Payload.SessionID(), bashEditsRecord))
+	bashed := strings.Fields(string(record))
 	log := checkerLog{path: path, entries: entries, lastEdit: -1}
 	for i, e := range entries {
-		for _, file := range transcript.Edits([]transcript.Entry{e}) {
-			if file != "" && !project.IsScratch(h.Paths, file) && !fsx.Within(plans, file) {
-				log.lastEdit = i
-			}
+		if slices.ContainsFunc(transcript.Edits([]transcript.Entry{e}), func(file string) bool { return isCode(h, file) }) ||
+			slices.ContainsFunc(e.Blocks, func(b transcript.Block) bool { return b.Type == "tool_use" && slices.Contains(bashed, b.ID) }) {
+			log.lastEdit = i
 		}
 	}
 	return log
