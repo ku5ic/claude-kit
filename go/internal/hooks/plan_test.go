@@ -177,6 +177,18 @@ func TestGuardPlan(t *testing.T) {
 		k := newSandbox(t)
 		k.run("guard-plan", exit(k, write, critic, write)).Allowed(t)
 	})
+	t.Run("in one entry, a critique after the write counts and one before it doesn't", func(t *testing.T) {
+		t.Parallel()
+		writeBlock := `{"type":"tool_use","id":"w","name":"Write","input":{"file_path":"` + plan + `"}}`
+		criticBlock := `{"type":"tool_use","id":"c","name":"Agent","input":{"subagent_type":"kit:plan-critic"}}`
+		entry := func(blocks ...string) string {
+			return `{"type":"assistant","message":{"content":[` + strings.Join(blocks, ",") + `]}}`
+		}
+		k := newSandbox(t)
+		k.run("guard-plan", exit(k, entry(writeBlock, criticBlock))).Allowed(t)
+		k = newSandbox(t)
+		k.run("guard-plan", exit(k, entry(criticBlock, writeBlock))).Denied(t)
+	})
 	t.Run("a critique that errored, or ran in the background and failed: sent back", func(t *testing.T) {
 		t.Parallel()
 		failed := `{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"c","is_error":true,"content":"agent failed"}]}}`

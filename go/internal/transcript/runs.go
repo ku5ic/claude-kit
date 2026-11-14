@@ -1,6 +1,7 @@
 package transcript
 
 import (
+	"iter"
 	"regexp"
 	"strings"
 )
@@ -14,11 +15,33 @@ const (
 	RunFailed                  // an error result, or a notice saying anything else
 )
 
-// Run is one Agent tool call: its tool_use id, the entry it's in, its
+// Pos is a block's place in a transcript: its entry's index, then the
+// block's within that entry.
+type Pos struct{ Entry, Block int }
+
+// After reports whether p comes later in the transcript than q.
+func (p Pos) After(q Pos) bool {
+	return p.Entry > q.Entry || p.Entry == q.Entry && p.Block > q.Block
+}
+
+// Blocks is every block in entries, in order, with its place.
+func Blocks(entries []Entry) iter.Seq2[Pos, Block] {
+	return func(yield func(Pos, Block) bool) {
+		for i, e := range entries {
+			for j, b := range e.Blocks {
+				if !yield(Pos{i, j}, b) {
+					return
+				}
+			}
+		}
+	}
+}
+
+// Run is one Agent tool call: its tool_use id, its block's place, its
 // prompt, the agent its result names, and how it ended.
 type Run struct {
 	Call   string
-	Index  int
+	At     Pos
 	Prompt string
 	Agent  string
 	Status RunStatus
@@ -49,11 +72,11 @@ func AgentRuns(entries []Entry, agentType string) []Run {
 				runs[r].Status = RunFailed
 			}
 		}
-		for _, b := range e.Blocks {
+		for j, b := range e.Blocks {
 			switch {
 			case b.Type == "tool_use" && b.Name == "Agent" && b.Input.SubagentType == agentType:
 				waiting[b.ID] = len(runs)
-				runs = append(runs, Run{Call: b.ID, Index: i, Prompt: b.Input.Prompt})
+				runs = append(runs, Run{Call: b.ID, At: Pos{i, j}, Prompt: b.Input.Prompt})
 			case b.Type == "tool_result":
 				r, ok := waiting[b.ToolUseID]
 				if !ok {

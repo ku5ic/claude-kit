@@ -236,6 +236,31 @@ func TestVerifyClaimsToolInput(t *testing.T) {
 			t.Errorf("the asked record holds %s %d times, want once:\n%s", id, strings.Count(asked, id), asked)
 		}
 	})
+	t.Run("in one entry, a run after the edit stands and one before it doesn't", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		k.verifier("", claim)
+		post := func() map[string]any { return toolCall("mcp__chat__send_message", map[string]any{"text": claim}) }
+		id := checkID.FindString(k.run("verify-claims", post()).Stdout)
+		edit := map[string]any{"type": "tool_use", "id": "e1", "name": "Edit", "input": map[string]any{"file_path": filepath.Join(k.home, "proj", "main.go")}}
+		check := map[string]any{"type": "tool_use", "id": "cc", "name": "Agent", "input": map[string]any{"subagent_type": "kit:claim-checker", "prompt": "Check the claims.\n" + id}}
+		done, _ := json.Marshal(map[string]any{"type": "user", "message": map[string]any{"content": []any{map[string]any{"type": "tool_result", "tool_use_id": "cc", "content": "No unconfirmed claims."}}}})
+		path := filepath.Join(k.t.TempDir(), "one-entry.jsonl")
+		payload := post()
+		payload["transcript_path"] = path
+		for _, tc := range []struct {
+			blocks  []any
+			allowed bool
+		}{{[]any{edit, check}, true}, {[]any{check, edit}, false}} {
+			entry, _ := json.Marshal(map[string]any{"type": "assistant", "message": map[string]any{"content": tc.blocks}})
+			testutil.Write(t, path, string(entry)+"\n"+string(done)+"\n")
+			if r := k.run("verify-claims", payload); tc.allowed {
+				r.Allowed(t)
+			} else {
+				r.Denied(t)
+			}
+		}
+	})
 	t.Run("a Bash edit after a run makes its sentences fresh again", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)

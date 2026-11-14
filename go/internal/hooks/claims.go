@@ -235,14 +235,14 @@ func checkedStatements(log checkerLog, record string) ([]string, map[string]int,
 	return keys, outcomes, done
 }
 
-// checkerLog is the session transcript at path, read once, and the index
+// checkerLog is the session transcript at path, read once, and the place
 // of its last code edit: an edit tool call, or a recorded Bash edit, on a
-// file outside scratch and the plans folder. A run launched before that edit checked code that has
-// changed since, so it counts as no run.
+// file outside scratch and the plans folder. A run launched before that
+// edit checked code that has changed since, so it counts as no run.
 type checkerLog struct {
 	path     string
 	entries  []transcript.Entry
-	lastEdit int
+	lastEdit transcript.Pos
 }
 
 // bashEditsRecord is the session file under cache.Claims listing, one a
@@ -301,11 +301,10 @@ func isCode(h *hook.Hook, file string) bool {
 func readCheckerLog(h *hook.Hook, path string) checkerLog {
 	entries, _ := transcript.Load(path)
 	bashed := bashEdits(h)
-	log := checkerLog{path: path, entries: entries, lastEdit: -1}
-	for i, e := range entries {
-		if slices.ContainsFunc(transcript.Edits([]transcript.Entry{e}), func(file string) bool { return isCode(h, file) }) ||
-			slices.ContainsFunc(e.Blocks, func(b transcript.Block) bool { _, ok := bashed[b.ID]; return b.Type == "tool_use" && ok }) {
-			log.lastEdit = i
+	log := checkerLog{path: path, entries: entries, lastEdit: transcript.Pos{Entry: -1}}
+	for at, b := range transcript.Blocks(entries) {
+		if _, ok := bashed[b.ID]; b.Type == "tool_use" && (ok || slices.Contains(transcript.EditTools, b.Name) && isCode(h, b.Path())) {
+			log.lastEdit = at
 		}
 	}
 	return log
@@ -344,7 +343,7 @@ func (l checkerLog) runs(ids []string) map[string]int {
 	}
 	// A run launched before the last edit checked code that has changed.
 	for _, run := range transcript.AgentRuns(l.entries, claimChecker) {
-		if run.Index <= l.lastEdit || run.Status == transcript.RunGoing {
+		if !run.At.After(l.lastEdit) || run.Status == transcript.RunGoing {
 			continue
 		}
 		result := checkerFailed

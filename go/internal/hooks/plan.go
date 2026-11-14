@@ -190,14 +190,14 @@ func planCritiqued(p *hook.Payload) bool {
 // later writes don't undo it. A run that ended in an error, in its result
 // or its background notice, didn't critique it; one still running counts.
 func critiqued(entries []transcript.Entry, plan string) bool {
-	first := slices.IndexFunc(entries, func(e transcript.Entry) bool {
-		return slices.ContainsFunc(e.ToolUses(), func(b transcript.Block) bool {
-			return slices.Contains(transcript.EditTools, b.Name) && b.Path() == plan
-		})
-	})
-	return first >= 0 && slices.ContainsFunc(transcript.AgentRuns(entries, planCritic), func(run transcript.Run) bool {
-		return run.Index > first && run.Status != transcript.RunFailed
-	})
+	for first, b := range transcript.Blocks(entries) {
+		if b.Type == "tool_use" && slices.Contains(transcript.EditTools, b.Name) && b.Path() == plan {
+			return slices.ContainsFunc(transcript.AgentRuns(entries, planCritic), func(run transcript.Run) bool {
+				return run.At.After(first) && run.Status != transcript.RunFailed
+			})
+		}
+	}
+	return false
 }
 
 // newestOpenPlan is the most recently modified plan file in the project's
