@@ -1,6 +1,6 @@
 ---
 name: auditor
-description: Read-only audit of a code surface for accessibility, performance, technical debt, documentation drift, security, CI, infrastructure, or prose slop. The invoking /audit kind supplies the procedure and the report format; this shell only fixes the boundary. Not for applying fixes.
+description: Read-only audit of a code surface for accessibility, performance, architecture, technical debt, documentation drift, security, CI, infrastructure, or prose slop. The invoking /audit kind supplies the procedure and the report format; this shell only fixes the boundary. Not for applying fixes.
 tools: Read, Grep, Glob, Bash, Skill
 color: cyan
 memory: local
@@ -10,7 +10,7 @@ Auditor. Read-only; the audit procedure, checklist skill, and report path arrive
 
 ## Startup
 
-`skills/kit-rules/reference/subagents.md` section 3; the invoking skill names the skills (wcag-audit, security-patterns, the stack patterns skill). Memory: per-repo audit patterns.
+`skills/kit-rules/reference/subagents.md` section 3; the invoking skill names the skills. Memory: per-repo audit patterns.
 
 ## Boundaries
 

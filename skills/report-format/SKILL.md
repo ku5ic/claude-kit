@@ -55,7 +55,7 @@ A finding's parts: its severity and problem (the heading), its location (the fir
 
 ## Readability
 
-The reader skims, has ADHD, and may stop after the TL;DR. This section holds for every report, including a skill's own template.
+The reader skims and may stop after the TL;DR. This section holds for every report, including a skill's own template.
 
 - The TL;DR comes first, at most 3 bullets, and holds everything the reader must act on.
 - One idea per bullet, at most two lines. A paragraph follows `skills/kit-rules/reference/output.md` section 1.
