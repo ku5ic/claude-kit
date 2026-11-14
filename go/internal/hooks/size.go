@@ -49,8 +49,8 @@ func CheckSize(h *hook.Hook) error {
 			return nil
 		}
 		if n := countWords(p.String(hook.KeyLastAssistantMessage), false); b.Report > 0 && n > b.Report {
-			if m != "" && !h.DryRun {
-				_ = fsx.WriteAtomic(m, []byte("sent-back"), 0o644)
+			if m != "" && !markOnce(h, m, []byte("sent-back"), "size") {
+				return nil
 			}
 			return h.Block(sizeMessage("your report", n, b.Report, "send the shorter report"), "size")
 		}
