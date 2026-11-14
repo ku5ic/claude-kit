@@ -500,12 +500,18 @@ var subjects = []string{"i", "i'll", "i'm", "i'd", "i've", "we", "we'll", "we're
 
 // deferred is whether words, those after "commit" to the end of its
 // sentence, put the commit off: a time word, or "yet", before a "now" or
-// a clause with a subject of its own. "commit and push tomorrow" and
-// "commit it, but not yet" wait; "commit it now, push tomorrow" doesn't.
+// a clause with a subject of its own, or a "now" after a "not". "commit
+// and push tomorrow", "commit it, but not yet", and "commit it, but not
+// right now" wait; "commit it now, push tomorrow" doesn't.
 func deferred(words []string) bool {
+	not := false
 	for _, w := range words {
 		switch {
-		case w == "now" || slices.Contains(subjects, w):
+		case w == "not":
+			not = true
+		case w == "now":
+			return not
+		case slices.Contains(subjects, w):
 			return false
 		case w == "yet" || slices.Contains(timeWords, w):
 			return true
