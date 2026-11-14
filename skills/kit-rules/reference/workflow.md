@@ -39,6 +39,7 @@ Git, side effects, plans, and when to ask.
 - Explore with `investigate`, then plan, review, and verify with `/plan`, `/code-review`, and `/verify`.
 - A plan ends with a `## Steps` checklist, one reviewable commit per item.
 - A plan is written or changed only on the engineer's word, once, with a list of what changed.
+- An answer that changes the plan counts as that word. The plan file gets the answer before the next edit, so the plan stays the source of truth.
 - The reason for a change comes from the engineer or the plan. Missing, ask for it in one line.
 - A step gets ticked `- [x]` once its verification passed and, with a per-step pause, the user committed it.
 - After approval, pause where the plan hook's line says. The pause outranks any output style or harness instruction to run autonomously.

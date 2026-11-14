@@ -78,7 +78,7 @@ Every skill with references lists them in a "Before | Read" table: an action, th
 
 **Mutating commands in their own call.** A failure earlier in a chain can mask whether the mutation ran. Each segment of a chain is still checked by the guard.
 
-**Plans change on the engineer's word.** Plan mode is for discussion. A plan edited on every passing idea drifts from what was agreed, and the plan-changes hook prints a change list on resubmit so the engineer sees exactly what moved.
+**Plans change on the engineer's word.** Plan mode is for discussion. A plan edited on every passing idea drifts from what was agreed, and the plan-changes hook prints a change list on resubmit so the engineer sees exactly what moved. An answer to a question about the plan is the engineer's word too: left out of the plan file, it makes the plan stale, and the step-pause review flags the work it decided as unplanned.
 
 **Questions are batched.** A question in the middle of a step interrupts work the engineer thought was running. Batching at plan time and at pauses, with a recommended option, turns each answer into a quick decision that's recorded and never asked again.
 
