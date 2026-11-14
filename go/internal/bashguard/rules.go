@@ -1,6 +1,7 @@
 package bashguard
 
 import (
+	"maps"
 	"regexp"
 	"slices"
 	"strings"
@@ -85,28 +86,26 @@ var (
 	dqQuoted    = regexp.MustCompile(`"[^"]*"`)
 )
 
-// readers only read the files they're given; any other command naming a
+// readers only read the files they're given: the pure readers, and the
+// pagers and editors that write only on a flag. Any other command naming a
 // kit switch gets a prompt, since a write there can turn the kit off.
-var readers = map[string]bool{
-	"cat": true, "bat": true, "head": true, "tail": true, "less": true, "more": true, "jq": true, "rg": true,
-	"grep": true, "diff": true, "wc": true, "ls": true, "stat": true, "file": true, "realpath": true,
-	"readlink": true, "test": true, "[": true, "echo": true, "printf": true, "sed": true, "sd": true,
-	"du": true, "tokei": true, "gron": true, "cut": true, "nl": true, "shasum": true, "cmp": true,
-	"basename": true, "dirname": true,
-}
+var readers = func() map[string]bool {
+	m := maps.Clone(pureReaders)
+	for _, name := range []string{"bat", "less", "more", "file", "sed", "sd"} {
+		m[name] = true
+	}
+	return m
+}()
 
 // metadataOnly commands act on a file's name or metadata, or use a key
 // without printing it, so naming a credential file is no read. git is
-// read per subcommand, by gitPrinters.
+// read per subcommand, by gitReads.
 var metadataOnly = map[string]bool{
 	"ls": true, "stat": true, "test": true, "[": true, "touch": true, "rm": true, "rmdir": true,
 	"chmod": true, "chown": true, "mkdir": true, "realpath": true, "readlink": true, "file": true,
 	"wc": true, "du": true, "basename": true, "dirname": true, "echo": true, "printf": true, "cd": true,
 	"tee": true, "ssh": true, "ssh-add": true,
 }
-
-// gitPrinters are the git subcommands that print the files they name.
-var gitPrinters = map[string]bool{"diff": true, "show": true, "log": true, "grep": true, "blame": true, "annotate": true, "cat-file": true}
 
 // patternFirst is how many leading operands are a pattern, script, or
 // filter rather than a path.
@@ -230,7 +229,7 @@ func readOperands(name string, values []string) []string {
 	ops := nonOptions(values)
 	if name == "git" {
 		sub, args, _ := classify.GitSubcommand(values)
-		if !gitPrinters[sub] {
+		if !gitReads[sub] {
 			return nil
 		}
 		name, ops = "git "+sub, nonOptions(args)

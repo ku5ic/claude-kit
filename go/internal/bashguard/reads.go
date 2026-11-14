@@ -57,8 +57,19 @@ var pureReaders = map[string]bool{
 // external diff, and pager.
 var readerWriteFlags = []string{"--pre", "--hostname-bin", "--output", "--ext-diff", "--textconv", "-O", "--open-files-in-pager"}
 
-// gitReads are git subcommands that only read.
-var gitReads = map[string]bool{"log": true, "status": true, "diff": true, "show": true, "rev-parse": true, "ls-files": true, "blame": true, "grep": true}
+// gitReads are the git subcommands that only read, each true when it
+// prints the files it names: git ls-files .env names the file, show
+// HEAD:.env prints it.
+var gitReads = map[string]bool{
+	"log": true, "diff": true, "show": true, "grep": true, "blame": true, "annotate": true, "cat-file": true,
+	"status": false, "rev-parse": false, "ls-files": false,
+}
+
+// isGitRead is true when git sub only reads.
+func isGitRead(sub string) bool {
+	_, ok := gitReads[sub]
+	return ok
+}
 
 // onlyReads is true when every command in segs only reads: a pure reader,
 // a reading git subcommand, or a read-only kit subcommand, with output
@@ -74,7 +85,12 @@ func onlyReads(segs []Segment) bool {
 					return false
 				}
 			}
-			name, args := filepath.Base(c.Words[0].Value), c.Words[1:]
+			// A path is a script of the project's: ./test or scripts/diff
+			// can write whatever it likes.
+			name, args := c.Words[0].Value, c.Words[1:]
+			if strings.Contains(name, "/") {
+				return false
+			}
 			for name == "git" && len(args) > 1 && args[0].Value == "-C" {
 				args = args[2:]
 			}
@@ -85,7 +101,7 @@ func onlyReads(segs []Segment) bool {
 			}
 			switch {
 			case pureReaders[name]:
-			case name == "git" && len(args) > 0 && gitReads[args[0].Value]:
+			case name == "git" && len(args) > 0 && isGitRead(args[0].Value):
 			case name == "kit" && len(args) > 0 && kitcmd.ReadOnly(args[0].Value):
 			default:
 				return false

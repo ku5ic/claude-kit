@@ -251,6 +251,9 @@ func TestGuardBashParsing(t *testing.T) {
 		probe("pass", `git grep .env -- src`)
 		probe("pass", `git add .env.example`)
 		probe("pass", `git rm --cached .env`)
+		probe("pass", `git ls-files .env`)
+		probe("pass", `git status --short .env`)
+		probe("block", `git annotate .env`)
 		probe("pass", `ssh -i ~/.ssh/id_ed25519 host`)
 		probe("pass", `ssh-add ~/.ssh/id_ed25519`)
 		// Credential paths match however they're spelled or reached.
