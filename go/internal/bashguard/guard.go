@@ -297,12 +297,13 @@ func always(string) bool { return true }
 // first word as the applet; flock's first operand is its lock file.
 var (
 	wrappers = map[string]wrapperSpec{
-		"command": {}, "builtin": {}, "nohup": {}, "stdbuf": {}, "unbuffer": {}, "busybox": {}, "toybox": {},
-		"env":     {values: []string{"-u", "-C"}},
+		"command": {}, "builtin": {}, "nohup": {}, "unbuffer": {}, "busybox": {}, "toybox": {},
+		"stdbuf":  {values: []string{"-i", "-o", "-e", "--input", "--output", "--error"}},
+		"env":     {values: []string{"-u", "-C", "--unset", "--chdir"}},
 		"exec":    {values: []string{"-a"}},
-		"nice":    {values: []string{"-n"}},
-		"timeout": {values: []string{"-s", "-k"}, operand: numeric},
-		"ionice":  {values: []string{"-c", "-n"}},
+		"nice":    {values: []string{"-n", "--adjustment"}},
+		"timeout": {values: []string{"-s", "-k", "--signal", "--kill-after"}, operand: numeric},
+		"ionice":  {values: []string{"-c", "-n", "--class", "--classdata"}},
 		"chrt":    {values: []string{"-p"}, operand: numeric},
 		"sudo": {values: []string{"-u", "-g", "-h", "-p", "-C", "-D", "-R", "-T", "-U", "-r", "-t",
 			"--user", "--group", "--host", "--prompt", "--close-from", "--chdir", "--chroot", "--command-timeout", "--other-user", "--role", "--type"}},

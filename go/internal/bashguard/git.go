@@ -24,7 +24,8 @@ func (c *command) git() error {
 	sub, args, dir := classify.GitSubcommand(c.values())
 	switch sub {
 	case "commit", "push", "merge", "rebase":
-		if slices.Contains(args, "--no-verify") {
+		// git takes any unambiguous prefix: --no-verif is --no-verify.
+		if slices.ContainsFunc(args, func(a string) bool { return len(a) > len("--no-") && abbrevOf(a, "--no-verify") }) {
 			if err := c.block("use of --no-verify bypasses pre-commit and pre-push hooks", "git-no-verify"); err != nil {
 				return err
 			}
@@ -115,7 +116,7 @@ func parsePush(args []string) push {
 			haveRemote = true
 		case a == "--":
 			optsDone = true
-		case a == "--force":
+		case abbrevOf(a, "--force"):
 			p.forced = append(p.forced, "git push --force"+leaseInstead)
 		case a == "--mirror":
 			p.forced = append(p.forced, "git push --mirror overwrites every remote ref, protected branches included")
