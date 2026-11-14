@@ -38,7 +38,7 @@ kit code-graph deps <root> <raw>/imports.tsv <raw> [split dir]
 - Without ast-grep, `imports` fails naming it. Build every row of `imports.tsv` that way instead, and say in the report's header line that imports come from text matches.
 - `deps` prints the split dir and the main source root. Check both before drawing.
 
-5. Owners: `git -C <root> shortlog -sn --no-merges --since=<since> | rg -v '\[bot\]'` for the repo, and the same with `-- <dir>` for each module. Per hotspot: `git -C <root> log --since=<since> --format=%an -- <file> | rg -v '\[bot\]' | sort | uniq -c | sort -rn`; a top author at 70% or more means one person carries that file.
+5. Owners: `git -C <root> shortlog -sn --no-merges --since=<since> | rg -v '\[bot\]'` for the repo, and the same with `-- <dir>` for each module. Per hotspot: `git -C <root> log --since=<since> --format=%an -- <file> | rg -v '\[bot\]' | sort | uniq -c | sort -rn`; a top author at 70% or more means one person carries that file. Each author named in Who to ask gets their forge handle from one of their pushed commits: on GitHub, `gh api repos/<owner>/<repo>/commits/$(git -C <root> log -1 --no-merges --author='<name>' --format=%H <default branch>) --jq .author.login`. With no forge or no login on the commit, the name stands alone.
 6. Activity: `rg '^--' <raw>/gitlog.txt | cut -d' ' -f2 | sort | uniq -c`.
 7. Change coupling: `kit code-graph coupling <raw>/gitlog.txt <raw>/imports-resolved.tsv > <raw>/coupling.tsv`. Each row is shared commits, degree (shared over the less-changed file's commits), `imports` or `no-import`, and both paths. A `no-import` pair at degree 0.5 or more is hidden coupling: duplicated logic, a list kept in sync by hand, or a registry like a flags file.
 8. Read before writing. For each hotspot, upward edge, hidden-coupling pair, and the main flow, read the code and `git -C <root> log --since=<since> --format='%h %s' -- <file> | head -15`. This is where the Why and Watch out prose comes from; a section without it is a chart with a label.
@@ -132,7 +132,7 @@ Root: <root>. <files>, <language mix>. Window: <since> to <date>. Raw data in `<
 
 ## Who to ask
 
-- **<dir>**: <author (commits)>
+- **<dir>**: <author> ([@<handle>](<profile URL>)), <commits> commits
 ```
 
 Each diagram section is the provenance line for a C4 view, the diagram, its table if the diagram has one, then three labelled parts:
