@@ -53,11 +53,7 @@ func StopChecks(h *hook.Hook) error {
 	if root == "" || cfg == nil {
 		return nil
 	}
-	dir := project.PlanDir(h.Paths, cwd)
-	isCode := func(path string) bool {
-		return fsx.Within(root, fsx.PhysicalPath(path)) && !project.IsScratch(h.Paths, path)
-	}
-	turn, walk := readSession(h, path, root, dir, isCode)
+	turn, walk := readSession(h, path, root, project.PlanDir(h.Paths, cwd), codeIn(h, root))
 	// Before the clean-tree return: plans are gitignored, so ticking the
 	// last step leaves the tree clean. A finished plan waits for
 	// /code-review since the last code edit (skills/kit-rules/reference/verify.md).
@@ -280,6 +276,13 @@ func turnFiles(h *hook.Hook, turn []transcript.Entry, cwd, root string) (edited 
 // only what the last Stop run hadn't: the turn from its start, the walk
 // from where it stopped. A different, shorter, or unrecorded transcript is
 // read whole. A read error returns what was read and saves nothing: the
+// codeIn is whether a path is code under root: inside it, outside scratch.
+func codeIn(h *hook.Hook, root string) func(string) bool {
+	return func(path string) bool {
+		return fsx.Within(root, fsx.PhysicalPath(path)) && !project.IsScratch(h.Paths, path)
+	}
+}
+
 // hook fails open.
 func readSession(h *hook.Hook, path, root, plansDir string, isCode func(string) bool) ([]transcript.Entry, *planWalk) {
 	file := h.Paths.SessionFile(cache.StopRead, h.Payload.SessionID(), cache.RootKey(root))
@@ -293,7 +296,7 @@ func readSession(h *hook.Hook, path, root, plansDir string, isCode func(string) 
 	var err error
 	st.Offset, st.Line, err = transcript.EachFrom(path, st.TurnOffset, st.TurnLine, func(e transcript.Entry, end int64) {
 		if end > seen {
-			st.Walk.step(e, plansDir, isCode)
+			st.Walk.step(h, e, plansDir, isCode)
 		}
 		if e.StartsTurn() {
 			turn, st.TurnOffset, st.TurnLine = nil, end, e.Line

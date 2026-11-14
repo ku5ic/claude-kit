@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
+	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
@@ -67,20 +68,26 @@ type planWalk struct {
 	LastReview int            `json:"last_review"`
 	Started    map[string]int `json:"started"` // review tool_use or task id -> its start line
 	Ticked     []string       `json:"ticked"`  // plans this turn edited
+	// ReviewArrived is where a finished review's notification landed, and
+	// ReviewReported where a review-*.md scratch report was last written.
+	ReviewArrived  int `json:"review_arrived"`
+	ReviewReported int `json:"review_reported"`
 }
 
 func newPlanWalk() *planWalk {
-	return &planWalk{LastEdit: -1, LastReview: -1, Started: map[string]int{}}
+	return &planWalk{LastEdit: -1, LastReview: -1, Started: map[string]int{}, ReviewArrived: -1, ReviewReported: -1}
 }
 
 // step takes in entry e. isCode is false for paths whose edits aren't code
 // (scratch, outside the repo).
-func (w *planWalk) step(e transcript.Entry, plansDir string, isCode func(string) bool) {
+func (w *planWalk) step(h *hook.Hook, e transcript.Entry, plansDir string, isCode func(string) bool) {
 	if id := launchedReview(e.Notice); id != "" {
 		w.Started[id] = e.Line
 	}
 	// A notification arrives as a user message or a queued command.
-	w.LastReview = max(w.LastReview, finishedReview(e.Text, w.Started), finishedReview(e.Notice, w.Started))
+	if started := max(finishedReview(e.Text, w.Started), finishedReview(e.Notice, w.Started)); started >= 0 {
+		w.LastReview, w.ReviewArrived = max(w.LastReview, started), e.Line
+	}
 	if e.StartsTurn() {
 		w.Ticked = nil
 		return
@@ -92,6 +99,8 @@ func (w *planWalk) step(e transcript.Entry, plansDir string, isCode func(string)
 		switch {
 		case b.Name == "Skill" && b.Input.Skill == reviewSkill:
 			w.Started[b.ID] = e.Line
+		case slices.Contains(transcript.EditTools, b.Name) && isReviewReport(h, b.Path()):
+			w.ReviewReported = e.Line
 		case slices.Contains(transcript.EditTools, b.Name):
 			if p := b.Path(); fsx.Within(plansDir, p) {
 				w.Ticked = append(w.Ticked, p)
