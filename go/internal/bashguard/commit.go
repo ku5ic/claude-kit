@@ -292,11 +292,15 @@ var (
 	// requestLead is a word that can come right before "commit" when it's
 	// asked for: "fix it and commit", "can you commit", "please commit".
 	// Any other ("the last commit", "in commit abc") makes it a noun.
-	requestLead = []string{"and", "then", "now", "please", "pls", "also", "just", "so", "go", "ahead", "you", "can", "could", "to", "yes", "ok", "okay", "sure", "let's", "lets"}
+	requestLead = []string{"and", "then", "now", "please", "pls", "also", "just", "so", "go", "ahead", "can", "could", "to", "yes", "ok", "okay", "sure", "let's", "lets"}
+	// askedYou can come before "you commit" in a request: "can you
+	// commit". Any other ("if you commit this") makes it a remark.
+	askedYou = []string{"can", "could", "would", "will", "please"}
 )
 
 // asksForCommit is true when prompt uses "commit" as a request: first in
-// its clause or after a requestLead word, followed by nothing, a
+// its clause, after a requestLead word, or after an askedYou word and
+// "you", followed by nothing, a
 // commitObjects word, or a step number, with no negation earlier in its
 // clause, in a sentence that isn't the user's own plan, and, when it ends
 // in "?", opens as a direct ask.
@@ -314,7 +318,8 @@ func asksForCommit(prompt string) bool {
 		}
 		clause := prompt[strings.LastIndexAny(prompt[:m[0]], ".!?;,\n")+1 : m[0]]
 		words := strings.Fields(strings.ToLower(clause))
-		if len(words) > 0 && !slices.Contains(requestLead, words[len(words)-1]) {
+		if n := len(words); n > 0 && !slices.Contains(requestLead, words[n-1]) &&
+			(words[n-1] != "you" || n < 2 || !slices.Contains(askedYou, words[n-2])) {
 			continue
 		}
 		if negated.MatchString(clause) {

@@ -158,6 +158,8 @@ func TestGuardCommitAsksForAnUnshownMessage(t *testing.T) {
 		"a remark on commit style":    {testutil.UserPrompt("commit style is wrong here")},
 		"a remark on commit-msg":      {testutil.UserPrompt("commit-msg check keeps failing, look into it")},
 		"commit/push in a remark":     {testutil.UserPrompt("Hmm, commit/push are blocked")},
+		"a conditional":               {testutil.UserPrompt("if you commit this, CI breaks")},
+		"a complaint":                 {testutil.UserPrompt("stop, you commit everything without asking")},
 		"a task notification":         {testutil.UserPrompt("fix it"), map[string]any{"type": "user", "origin": map[string]any{"kind": "task-notification"}, "message": map[string]any{"content": "Commit and continue."}}},
 		"a peer session's message":    {testutil.UserPrompt("fix it"), map[string]any{"type": "user", "origin": map[string]any{"kind": "peer"}, "message": map[string]any{"content": "commit it"}}},
 	} {
@@ -171,7 +173,7 @@ func TestGuardCommitAsksForAnUnshownMessage(t *testing.T) {
 		}
 	}
 	commit(testutil.UserPrompt("fix it"), testutil.AssistantText("Commit as `fix: add sums`?"), testutil.UserPrompt("go")).Empty(t)
-	for _, prompt := range []string{"Commit and continue.", "Yes, commit.", "fix it and commit", "Commit, then start step 13", "Yes, commit 21, apply both fixes", "can you commit this?", "please commit", "commit both and continue", "Commit it.", "commit the docs fix"} {
+	for _, prompt := range []string{"Commit and continue.", "Yes, commit.", "fix it and commit", "Commit, then start step 13", "Yes, commit 21, apply both fixes", "can you commit this?", "could you commit it", "please commit", "commit both and continue", "Commit it.", "commit the docs fix"} {
 		if r := commit(map[string]any{"type": "user", "origin": map[string]any{"kind": "human"}, "message": map[string]any{"content": prompt}}); strings.Contains(r.Output, `"permissionDecision":"ask"`) {
 			t.Errorf("%q asks for the commit, yet the guard asked again:\n%s", prompt, r.Output)
 		}
