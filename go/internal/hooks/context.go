@@ -281,10 +281,14 @@ func reclassify(h *hook.Hook, cfg *config.Config, path string) {
 }
 
 // unanswered is path's project root, and whether an entry from path
-// lacks a verdict the policy would allow. It reads the cache, never asks.
+// lacks a verdict the policy would allow. It reads the cache, never asks,
+// and skips the scan for a file no source reads.
 func unanswered(cfg *config.Config, cacheDir, path string) (string, bool) {
 	root, _ := project.Root(filepath.Dir(path))
 	rel := fsx.Rel(root, path)
+	if !sources.Reads(rel) {
+		return root, false
+	}
 	mine := slices.DeleteFunc(sources.Entries(cfg, root, project.Subprojects(root)), func(e sources.Entry) bool { return e.File != rel })
 	if len(mine) == 0 {
 		return root, false
