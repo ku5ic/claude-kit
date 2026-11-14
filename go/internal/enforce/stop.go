@@ -274,9 +274,10 @@ func (g Gate) Command() string {
 	dirs = slices.Compact(dirs)
 	var b strings.Builder
 	last := 0
+	inside := substitutions(g.Body)
 	for _, m := range placeholderWord.FindAllStringIndex(g.Body, -1) {
 		b.WriteString(g.Body[last:m[0]])
-		b.WriteString(expand(g.Body[m[0]:m[1]], files, dirs, inSubstitution(g.Body[:m[0]])))
+		b.WriteString(expand(g.Body[m[0]:m[1]], files, dirs, inside(m[0])))
 		last = m[1]
 	}
 	return b.String() + g.Body[last:]
@@ -304,9 +305,26 @@ func expand(word string, files, dirs []string, substituted bool) string {
 	return strings.Join(out, " ")
 }
 
-// inSubstitution is true when text leaves a $( open.
-func inSubstitution(text string) bool {
-	return strings.Count(text, "$(") > strings.Count(text, ")")
+// substitutions is whether an offset of body falls inside a command
+// substitution, $(...) or backticks, as the shell parses it. A body that
+// doesn't parse falls back to counting an unclosed $( before the offset.
+func substitutions(body string) func(offset int) bool {
+	file, err := syntax.NewParser().Parse(strings.NewReader(body), "")
+	if err != nil {
+		return func(offset int) bool {
+			return strings.Count(body[:offset], "$(") > strings.Count(body[:offset], ")")
+		}
+	}
+	var spans [][2]int
+	syntax.Walk(file, func(node syntax.Node) bool {
+		if cs, ok := node.(*syntax.CmdSubst); ok {
+			spans = append(spans, [2]int{int(cs.Pos().Offset()), int(cs.End().Offset())})
+		}
+		return true
+	})
+	return func(offset int) bool {
+		return slices.ContainsFunc(spans, func(s [2]int) bool { return s[0] < offset && offset < s[1] })
+	}
 }
 
 // Quote is s as one shell word.

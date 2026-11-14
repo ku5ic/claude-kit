@@ -246,6 +246,10 @@ func TestCommandPutsEachFileInItsWord(t *testing.T) {
 		// Text after the placeholder closes the word around the whole list.
 		{`test -z "$(gofmt -l {files})"`, `test -z "$(gofmt -l 'src/a b.ts' 'src/x&y.ts' top.ts)"`},
 		{`test -z "$(gofmt -l "{files}")"`, `test -z "$(gofmt -l 'src/a b.ts' 'src/x&y.ts' top.ts)"`},
+		// A closed subshell or a backtick substitution earlier doesn't hide one.
+		{`(cd sub && make lint); test -z "$(gofmt -l {files})"`, `(cd sub && make lint); test -z "$(gofmt -l 'src/a b.ts' 'src/x&y.ts' top.ts)"`},
+		{"test -z \"`gofmt -l {files}`\"", "test -z \"`gofmt -l 'src/a b.ts' 'src/x&y.ts' top.ts`\""},
+		{`echo "a)"; lint {files}`, `echo "a)"; lint 'src/a b.ts' 'src/x&y.ts' top.ts`},
 		// Quotes around the bare placeholder are the script's, not a word's.
 		{`prettier --check "{files}"`, "prettier --check 'src/a b.ts' 'src/x&y.ts' top.ts"},
 		{`prettier --check '{files}'`, "prettier --check 'src/a b.ts' 'src/x&y.ts' top.ts"},
