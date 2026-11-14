@@ -331,10 +331,12 @@ var (
 	// askedYou can come before "you commit" in a request: "can you
 	// commit". Any other ("if you commit this") makes it a remark.
 	askedYou = []string{"can", "could", "would", "will", "please"}
-	// userSaid opens a sentence that repeats a request: "I said commit",
-	// "yes, I said commit". Anyone else's ("the reviewer said commit"), or
-	// one told as a story ("earlier I said commit"), isn't one.
-	userSaid = regexp.MustCompile(`(?i)^\s*(?:(?:yes|ok|okay|no)[\s,]+)?i\s+(?:already\s+|just\s+)?said\s*$`)
+	// userSaid is a clause that repeats a request: "I said commit", "ugh,
+	// I said commit". Anyone else's ("the reviewer said commit") isn't one,
+	// nor one told as a story: inside a clause ("the bug is that I said
+	// commit"), or after a pastTime word ("earlier, I said commit").
+	userSaid = regexp.MustCompile(`(?i)^\s*i\s+(?:already\s+|just\s+)?said\s*$`)
+	pastTime = regexp.MustCompile(`(?i)\b(earlier|yesterday|previously|ago|originally|initially|last)\b`)
 	// subordinator anywhere in the commit's sentence makes it conditional,
 	// across a comma too: "when the tests pass, commit it", "commit it,
 	// but only after I review". Subordinating conjunctions are a closed
@@ -386,14 +388,14 @@ func asksForCommit(prompt string) bool {
 
 // leadsRequest is whether clause, the words before "commit" in its
 // clause, puts it as a request: none, a requestLead word, an askedYou word
-// and "you", or, as all of before, the words before it in its sentence,
-// "I said".
+// and "you", or "I said" with no pastTime word in before, the words before
+// it in its sentence.
 func leadsRequest(clause, before string) bool {
 	words := strings.Fields(strings.ToLower(clause))
 	n := len(words)
 	return n == 0 || slices.Contains(requestLead, words[n-1]) ||
 		n >= 2 && words[n-1] == "you" && slices.Contains(askedYou, words[n-2]) ||
-		userSaid.MatchString(before)
+		userSaid.MatchString(clause) && !pastTime.MatchString(before)
 }
 
 // scanStaged runs gitleaks on repo's staged diff. Its exit codes: 0 clean, 1 a
@@ -500,17 +502,15 @@ var subjects = []string{"i", "i'll", "i'm", "i'd", "i've", "we", "we'll", "we're
 
 // deferred is whether words, those after "commit" to the end of its
 // sentence, put the commit off: a time word, or "yet", before a "now" or
-// a clause with a subject of its own, or a "now" after a "not". "commit
-// and push tomorrow", "commit it, but not yet", and "commit it, but not
-// right now" wait; "commit it now, push tomorrow" doesn't.
+// a clause with a subject of its own, or "not now" or "not right now".
+// "commit and push tomorrow", "commit it, but not yet", and "commit it,
+// but not right now" wait; "commit it now, push tomorrow" and "commit it,
+// do not push now" don't.
 func deferred(words []string) bool {
-	not := false
-	for _, w := range words {
+	for i, w := range words {
 		switch {
-		case w == "not":
-			not = true
 		case w == "now":
-			return not
+			return i > 0 && words[i-1] == "not" || i > 1 && words[i-1] == "right" && words[i-2] == "not"
 		case slices.Contains(subjects, w):
 			return false
 		case w == "yet" || slices.Contains(timeWords, w):
@@ -529,11 +529,15 @@ func objectPhrase(words []string) bool {
 		case w == "and" || w == "then":
 			return true
 		case slices.Contains(determiners, w):
+			// "every time", "any time": when, not what.
+			if next := i + 1; next < len(words) && (w == "every" || w == "each" || w == "any") && (words[next] == "time" || words[next] == "times") {
+				return false
+			}
 			// The noun the determiner opens: up to three words, none a
-			// time word, nor "time", which makes it when ("every time").
+			// time word.
 			for n := 1; i+1 < len(words) && words[i+1] != "and" && words[i+1] != "then"; n++ {
 				i++
-				if n > 3 || slices.Contains(timeWords, words[i]) || words[i] == "time" || words[i] == "times" {
+				if n > 3 || slices.Contains(timeWords, words[i]) {
 					return false
 				}
 			}
