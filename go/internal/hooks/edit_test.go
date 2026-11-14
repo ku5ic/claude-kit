@@ -541,7 +541,7 @@ func TestGuardSkills(t *testing.T) {
 		t.Parallel()
 		r := guard(skillsSandbox(t, bashSkillMap, ""), "/tmp/project/foo.sh", "s1")
 		r.Denied(t)
-		r.Has(t, "Load bash-patterns via the Skill tool, then retry the edit.")
+		r.Has(t, "this edit needs bash-patterns loaded", "do    load it via the Skill tool, then retry the edit")
 		r.Lacks(t, "/tmp/project/foo.sh", "Blocked by")
 	})
 

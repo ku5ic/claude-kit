@@ -175,11 +175,11 @@ func gateOnChecker(h *hook.Hook, text, where, retry, marker string) error {
 	case checkerFailed:
 		return verifyInSubagent(h, text, where, retry, marker)
 	}
-	ask := "Its prompt holds the line `" + id + "` and the full text"
+	ask := "run it first; its prompt holds the line `" + id + "` and the full text"
+	var only string
 	if len(fresh) < len(all) {
-		ask += ", and asks it to check only these, which no run has checked:\n- " + strings.Join(fresh, "\n- ") + "\n"
-	} else {
-		ask += ". "
+		ask += ", and asks it to check only these, which no run has checked:"
+		only = "\n- " + strings.Join(fresh, "\n- ")
 	}
 	if !h.DryRun && !strings.Contains(string(record), id+"\t") {
 		var keys []string
@@ -188,7 +188,8 @@ func gateOnChecker(h *hook.Hook, text, where, retry, marker string) error {
 		}
 		_ = fsx.Append(asked, []byte(id+"\t"+strings.Join(keys, ",")+"\n"))
 	}
-	h.Deny(fmt.Sprintf("run the %s agent on %s first. %sCheck or cut each claim it reports, per skills/kit-rules/reference/evidence.md section 1, then %s", claimChecker, where, ask, retry), "claims")
+	h.Deny(fmt.Sprintf("the %s agent hasn't checked %s\n", claimChecker, where)+layout.KV("do", ask)+only+"\n"+
+		layout.KV("then", "check or cut each claim it reports, per skills/kit-rules/reference/evidence.md section 1, then "+retry), "claims")
 	return nil
 }
 

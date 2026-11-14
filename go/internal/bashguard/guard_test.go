@@ -494,7 +494,7 @@ func TestGuardBash(t *testing.T) {
 		{"pm: uv sync at the pnpm root passes: uv is no rival of pnpm", `uv sync`, 0, "", true},
 		{"pm: cd into the uv service, then uv sync passes", `cd services/api && uv sync`, 0, "", true},
 		{"pm: poetry in the uv service blocks and names uv", `cd services/api && poetry install`, 2, "services/api uses uv (uv.lock), not poetry", false},
-		{"pm: npm at the pnpm root blocks with pnpm's facts", `npm install`, 2, "this repo uses pnpm (pnpm-lock.yaml), not npm; rerun it with pnpm (add a dependency: pnpm add; run a package: pnpm dlx; another directory: --dir, -C)", false},
+		{"pm: npm at the pnpm root blocks with pnpm's facts", `npm install`, 2, "this repo uses pnpm (pnpm-lock.yaml), not npm\n\ndo    rerun it with pnpm\nadd   pnpm add\nrun   pnpm dlx\ndir   --dir, -C", false},
 		{"pm: npm in the uv service finds the root's pnpm", `cd services/api && npm install`, 2, "uses pnpm", false},
 		{"pm: a directory flag moves the command to its lockfile", `pnpm --dir packages/y install`, 2, "packages/y uses yarn (yarn.lock), not pnpm", false},
 		{"pm: --version is exempt", `npm --version`, 0, "", true},

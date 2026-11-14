@@ -19,6 +19,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
+	"github.com/ku5ic/claude-kit/go/internal/layout"
 	"github.com/ku5ic/claude-kit/go/internal/md"
 	"github.com/ku5ic/claude-kit/go/internal/proc"
 	"github.com/ku5ic/claude-kit/go/internal/run"
@@ -77,7 +78,9 @@ func CheckCommit(h *hook.Hook) error {
 	body := heredocBody(cmd)
 	if body != "" {
 		if run := longestProseRun(body); run > 4 {
-			reason := fmt.Sprintf("commit message has an unchunked wall of text (%d consecutive prose lines). skills/kit-rules/reference/output.md section 1: short paragraphs, no dense blocks.", run)
+			reason := fmt.Sprintf("a commit message paragraph runs %d prose lines\n", run) +
+				layout.KV("do", "split it into paragraphs of 4 lines or fewer") + "\n" +
+				layout.KV("how", "skills/kit-rules/reference/output.md section 1")
 			if err := h.Block(reason, "commit-wall-of-text"); err != nil {
 				return err
 			}
@@ -89,7 +92,7 @@ func CheckCommit(h *hook.Hook) error {
 		return err
 	}
 	if failed := commitMsg(h, msg, ok, repo); failed != "" {
-		return h.Block("the project's commit-msg checks reject this message; fix it to their convention:\n"+failed, "commit-msg")
+		return h.Block("the project's commit-msg checks reject this message\n"+failed+"\n"+layout.KV("do", "fix it to their convention"), "commit-msg")
 	}
 	if !approved(h.Payload.String("transcript_path"), subject) {
 		h.Decide("ask", "skills/kit-rules/reference/workflow.md section 1: show the commit message and staged diff summary, then wait for the user's go; confirm only if they've seen this message")

@@ -342,7 +342,8 @@ func TestStopChecks(t *testing.T) {
 		r.Want(t, 0)
 		var out map[string]string
 		if err := json.Unmarshal([]byte(r.Stdout), &out); err != nil || out["decision"] != "block" ||
-			!strings.HasPrefix(out["reason"], "kit stop: BLOCKED 1 of 1 checks failed. The user saw these. Fix them, or reply in one line with the cause (checks-failed)\nFAIL  lint (package.json: *.ts)\n      lint noise\nmore  ") ||
+			!strings.HasPrefix(out["reason"], "kit stop: BLOCKED 1 of 1 checks failed\n\nFAIL  lint (package.json: *.ts)\n      lint noise\nmore  ") ||
+			!strings.HasSuffix(out["reason"], "\ndo    fix them, or reply in one line with the cause; the user saw these\n\nrule  checks-failed") ||
 			out["systemMessage"] != "kit stop: 1 failed, 0 skipped, 0 passed" {
 			t.Errorf("want a block with the failure, and a receipt without it:\n%s", r.Output)
 		}
@@ -350,7 +351,7 @@ func TestStopChecks(t *testing.T) {
 		if strings.Contains(out["reason"], "cmd: ") {
 			t.Errorf("the block repeats the gate's command:\n%s", out["reason"])
 		}
-		file := strings.TrimPrefix(out["reason"][strings.LastIndex(out["reason"], "more  "):], "more  ")
+		file, _, _ := strings.Cut(strings.TrimPrefix(out["reason"][strings.LastIndex(out["reason"], "more  "):], "more  "), "\n")
 		if detail := read(t, file); !strings.Contains(detail, "FAIL lint (package.json: *.ts)\n  cmd: fakelint --check a.ts\n") {
 			t.Errorf("detail file:\n%s", detail)
 		}

@@ -5,6 +5,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/design"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/layout"
 )
 
 // GuardTokens blocks an edit of a UI file that uses a design token the
@@ -27,5 +28,6 @@ func GuardTokens(h *hook.Hook) error {
 	if len(undefined) == 0 {
 		return nil
 	}
-	return h.Block("this edit uses "+strings.Join(undefined, ", ")+", which the project never defines. Use a token the project's CSS or @theme sets, or define it there first.", "ui-undefined-token")
+	return h.Block("this edit uses "+strings.Join(undefined, ", ")+", which the project never defines\n"+
+		layout.KV("do", "use a token the project's CSS or @theme sets, or define it there first"), "ui-undefined-token")
 }

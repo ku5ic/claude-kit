@@ -26,6 +26,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
+	"github.com/ku5ic/claude-kit/go/internal/layout"
 	"github.com/ku5ic/claude-kit/go/internal/sources"
 )
 
@@ -231,22 +232,27 @@ func (h *Hook) Block(reason, rule string) error {
 	return &Blocked{h.message(reason, rule), rule}
 }
 
-// message is reason in the layout every kit block and send-back shares: the
-// headline `kit <area>: BLOCKED <reason's first line> (<rule>)`, then the
-// reason's other lines, then the hook's context.
+// message is reason in the layout every kit block and send-back shares,
+// three groups a blank line apart: the headline `kit <area>: BLOCKED
+// <reason's first line>`; the reason's other lines, what to do; then the
+// rule and the hook's context, what blocked it.
 func (h *Hook) message(reason, rule string) string {
 	head, rest, _ := strings.Cut(reason, "\n")
-	msg := "kit " + Area(h.Name) + ": BLOCKED " + head
-	if rule != "" {
-		msg += " (" + rule + ")"
+	groups := []string{"kit " + Area(h.Name) + ": BLOCKED " + head}
+	if rest = strings.Trim(rest, "\n"); rest != "" {
+		groups = append(groups, rest)
 	}
-	if rest != "" {
-		msg += "\n" + rest
+	var source []string
+	if rule != "" {
+		source = append(source, layout.KV("rule", rule))
 	}
 	if h.context != "" {
-		msg += "\n" + h.context
+		source = append(source, h.context)
 	}
-	return msg
+	if len(source) > 0 {
+		groups = append(groups, strings.Join(source, "\n"))
+	}
+	return strings.Join(groups, "\n\n")
 }
 
 // Area is the short name a message's headline gives a hook: guard-bash is

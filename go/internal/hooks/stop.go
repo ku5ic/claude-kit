@@ -60,7 +60,9 @@ func StopChecks(h *hook.Hook) error {
 	// last step leaves the tree clean. A finished plan waits for
 	// /code-review since the last code edit (skills/kit-rules/reference/verify.md).
 	if plan, reviewed := walk.done(); plan != "" && !reviewed {
-		return h.Block(fmt.Sprintf("plan %s is done, but /code-review hasn't finished since the last code edit. Run it now, or wait for the one running, then the runtime pass (/verify) when the change has observable behavior.", fsx.Rel(root, plan)), "plan-done")
+		return h.Block(fmt.Sprintf("plan %s is done, but /code-review hasn't finished since the last code edit\n", fsx.Rel(root, plan))+
+			layout.KV("do", "run it now, or wait for the one running")+"\n"+
+			layout.KV("then", "the runtime pass (/verify) when the change has observable behavior"), "plan-done")
 	}
 	edited, tree := turnFiles(h, turn, cwd, root)
 	if len(edited) == 0 {
@@ -119,11 +121,12 @@ func runStop(h *hook.Hook, cfg *config.Config, p enforce.Plan, r stopRun) error 
 		}
 		return nil
 	}
-	msg := fmt.Sprintf("%d of %d checks failed. The user saw these. Fix them, or reply in one line with the cause\n%s", out.Result.Fail, len(p.Gates), out.Failures)
+	msg := fmt.Sprintf("%d of %d checks failed\n%s", out.Result.Fail, len(p.Gates), out.Failures)
 	if file := stopDetail(h, r.cwd, out.Detail); file != "" {
-		msg += layout.KV("more", file)
+		msg += layout.KV("more", file) + "\n"
 	}
-	return h.Block(strings.TrimRight(msg, "\n"), "checks-failed")
+	msg += layout.KV("do", "fix them, or reply in one line with the cause; the user saw these")
+	return h.Block(msg, "checks-failed")
 }
 
 // notifyReceipt shows the user rc, then unchecked and the overrides in

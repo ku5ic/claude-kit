@@ -7,6 +7,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/classify"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
+	"github.com/ku5ic/claude-kit/go/internal/layout"
 )
 
 // command is one command of a pipeline, past its assignments and wrappers.
@@ -186,7 +187,7 @@ var commandChecks = map[string]func(*command) error{
 	"curl":   (*command).curl,
 	"wget":   (*command).wget,
 	"eval": func(c *command) error {
-		return c.block("eval runs a command string that bypasses the permission allow list; run the command directly as a Bash tool call", "interpreter-c-wrap")
+		return c.block("eval runs a command string that bypasses the permission allow list\n"+layout.KV("do", "run the command directly as a Bash tool call"), "interpreter-c-wrap")
 	},
 	"kit": (*command).kit,
 	"sed": (*command).inPlaceEdit,
@@ -207,7 +208,7 @@ func (c *command) kit() error {
 		// rule would approve --output=<file> silently.
 		c.st.ask("kit git-base passes this flag to git, which can write files or run programs; confirm it")
 	case words[0] == "run-checks" && !slices.Contains(words[1:], "--plan"):
-		return c.block("the hooks run the gates and show the user every result; don't run them yourself (kit run-checks --plan only lists them)", "run-checks-by-hook")
+		return c.block("the hooks run the gates and show the user every result\n"+layout.KV("do", "don't run them yourself; kit run-checks --plan only lists them"), "run-checks-by-hook")
 	}
 	return nil
 }
@@ -308,7 +309,13 @@ func (c *command) interpreterC() error {
 	return nil
 }
 
-const wrapReason = "interpreter -c wrapping bypasses the permission allow list; run the command directly as a Bash tool call"
+var wrapReason = "interpreter -c wrapping bypasses the permission allow list\n" + layout.KV("do", "run the command directly as a Bash tool call")
+
+// rcWriteReason blocks a write to a shell rc file, by redirect or command.
+var rcWriteReason = "direct write to a shell rc file\n" + layout.KV("do", "use the dotfiles repo")
+
+// leaseInstead is a force push's fix, the second line of its reason.
+var leaseInstead = "\n" + layout.KV("do", "use --force-with-lease if you must")
 
 // shellMode reads a shell's arguments: wrap when a -c runs a string, script
 // when an operand names a script file; neither, it reads stdin.
@@ -353,7 +360,7 @@ func (c *command) inPlaceEdit() error {
 	}
 	for _, p := range c.operands() {
 		if guard.IsRCFile(c.st.cfg, c.st.home, p) {
-			if err := c.block("in-place edit of a shell rc file. Use the dotfiles repo.", "rc-inplace-edit"); err != nil {
+			if err := c.block("in-place edit of a shell rc file\n"+layout.KV("do", "edit it in the dotfiles repo"), "rc-inplace-edit"); err != nil {
 				return err
 			}
 		}
@@ -376,7 +383,7 @@ func (c *command) rcWrite() error {
 	}
 	for _, p := range targets {
 		if guard.IsRCFile(c.st.cfg, c.st.home, p) {
-			return c.block("direct write to a shell rc file. Use the dotfiles repo.", "rc-redirect")
+			return c.block(rcWriteReason, "rc-redirect")
 		}
 	}
 	return nil
@@ -554,7 +561,7 @@ func (c *command) git() error {
 	// --staged without --worktree is allowed: unstaging isn't destructive.
 	if gitDiscard.MatchString(c.text) && treeSpec.MatchString(c.text) &&
 		(!strings.Contains(c.text, "--staged") || strings.Contains(c.text, "--worktree")) {
-		return c.block("tree-wide discard of working-tree changes; restore individual files explicitly", "git-tree-discard")
+		return c.block("tree-wide discard of working-tree changes\n"+layout.KV("do", "restore individual files explicitly"), "git-tree-discard")
 	}
 	return nil
 }
@@ -597,7 +604,7 @@ func parsePush(args []string) push {
 		case a == "--":
 			optsDone = true
 		case a == "--force":
-			p.forced = append(p.forced, "git push --force. Use --force-with-lease if you must.")
+			p.forced = append(p.forced, "git push --force"+leaseInstead)
 		case a == "--mirror":
 			p.forced = append(p.forced, "git push --mirror overwrites every remote ref, protected branches included")
 		case a == "--tags":
@@ -607,14 +614,14 @@ func parsePush(args []string) push {
 		case strings.HasPrefix(a, "--"):
 		default:
 			if strings.Contains(a, "f") {
-				p.forced = append(p.forced, "git push -f. Use --force-with-lease if you must.")
+				p.forced = append(p.forced, "git push -f"+leaseInstead)
 			}
 			wantValue = strings.HasSuffix(a, "o")
 		}
 	}
 	for _, ref := range p.refspecs {
 		if strings.HasPrefix(ref, "+") {
-			p.forced = append(p.forced, "force push via a +refspec. Use --force-with-lease if you must.")
+			p.forced = append(p.forced, "force push via a +refspec"+leaseInstead)
 		}
 	}
 	return p
@@ -640,7 +647,7 @@ func (c *command) gitPush(args []string, dir string) error {
 	}
 	for _, dst := range dsts {
 		if c.st.isProtected(dst) {
-			if err := c.block("push to a protected branch; use a feature branch", "git-push-protected"); err != nil {
+			if err := c.block("push to a protected branch\n"+layout.KV("do", "push a feature branch"), "git-push-protected"); err != nil {
 				return err
 			}
 		}

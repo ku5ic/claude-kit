@@ -10,6 +10,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
+	"github.com/ku5ic/claude-kit/go/internal/layout"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
@@ -105,11 +106,13 @@ func RulesGate(h *hook.Hook) error {
 	for i, skill := range missing {
 		files[i] = h.Paths.Root + "/skills/" + skill + "/SKILL.md"
 	}
-	noun := "skill"
+	noun := "skill isn't"
 	if len(missing) > 1 {
-		noun = "skills"
+		noun = "skills aren't"
 	}
-	h.Deny("load the "+strings.Join(missing, " and ")+" "+noun+" first: call the Skill tool now (or Read "+strings.Join(files, " and ")+" if the Skill tool is unavailable), then retry this call. Every tool call stays blocked until you do, so don't stop to ask", "rules-gate")
+	h.Deny("the "+strings.Join(missing, " and ")+" "+noun+" loaded yet\n"+
+		layout.KV("do", "call the Skill tool now, or Read "+strings.Join(files, " and ")+" if the Skill tool is unavailable")+"\n"+
+		layout.KV("then", "retry this call; every tool call stays blocked until you do, so don't stop to ask"), "rules-gate")
 	return nil
 }
 

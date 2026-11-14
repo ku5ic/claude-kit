@@ -14,6 +14,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/layout"
 	"github.com/ku5ic/claude-kit/go/internal/md"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
@@ -171,7 +172,9 @@ func GuardPlan(h *hook.Hook) error {
 	if !h.DryRun {
 		_ = fsx.WriteAtomic(marker, []byte(sent), 0o644)
 	}
-	h.Deny(fmt.Sprintf("run the %s agent on %s before asking for approval. Raise each contradiction it finds, between the plan's sections or against the repo, as a question for the user. This check lets the same plan through when ExitPlanMode is called again.", planCritic, plan), "plan-critic")
+	h.Deny(fmt.Sprintf("the %s agent hasn't reviewed %s\n", planCritic, plan)+
+		layout.KV("do", "run it before asking for approval")+"\n"+
+		layout.KV("then", "raise each contradiction it finds, between the plan's sections or against the repo, as a question for the user; the same plan passes when ExitPlanMode is called again"), "plan-critic")
 	return nil
 }
 

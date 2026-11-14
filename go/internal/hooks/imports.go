@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/layout"
 	"github.com/ku5ic/claude-kit/go/internal/pkgcheck"
 )
 
@@ -27,5 +28,6 @@ func GuardImports(h *hook.Hook) error {
 	if len(missing) == 0 {
 		return nil
 	}
-	return h.Block("this edit imports "+strings.Join(missing, ", ")+", which no manifest declares. Confirm each exists on its registry, then add it with the project's package manager before importing it.", "pkg-undeclared")
+	return h.Block("this edit imports "+strings.Join(missing, ", ")+", which no manifest declares\n"+
+		layout.KV("do", "confirm each exists on its registry, then add it with the project's package manager before importing it"), "pkg-undeclared")
 }

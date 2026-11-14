@@ -15,6 +15,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
+	"github.com/ku5ic/claude-kit/go/internal/layout"
 	"github.com/ku5ic/claude-kit/go/internal/run"
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
@@ -125,6 +126,7 @@ func ReviewChecks(h *hook.Hook) error {
 		}
 		return nil
 	}
-	return h.Block("the full gate failed. Handle each FAIL per skills/kit-rules/reference/verify.md section 1, then return your full report again, "+
-		"every finding you already had unchanged and in the same format.\n"+report.String(), "review-checks")
+	return h.Block("the full gate failed\n"+report.String()+
+		layout.KV("do", "handle each FAIL per skills/kit-rules/reference/verify.md section 1")+"\n"+
+		layout.KV("then", "return your full report again, every finding you already had unchanged and in the same format"), "review-checks")
 }

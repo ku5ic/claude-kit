@@ -65,7 +65,7 @@ func GuardEdit(h *hook.Hook) error {
 		return nil
 	}
 	if guard.IsGuardedLockfile(cfg, path) && !project.IsScratch(h.Paths, path) {
-		if err := h.Block("lockfile edit. Use the package manager.", "lockfile-edit"); err != nil {
+		if err := h.Block("lockfile edit\n"+layout.KV("do", "use the package manager"), "lockfile-edit"); err != nil {
 			return err
 		}
 	}
@@ -75,7 +75,7 @@ func GuardEdit(h *hook.Hook) error {
 		}
 	}
 	if guard.IsRCFile(cfg, h.Home, path) {
-		if err := h.Block("direct edit to a shell rc file. Use the dotfiles repo.", "rc-edit"); err != nil {
+		if err := h.Block("direct edit to a shell rc file\n"+layout.KV("do", "use the dotfiles repo"), "rc-edit"); err != nil {
 			return err
 		}
 	}
@@ -150,7 +150,7 @@ func GuardSkills(h *hook.Hook) error {
 		return nil
 	}
 	if missing := unloadedSkills(h, []string{h.Payload.FilePath()}, nil); len(missing) > 0 {
-		h.Deny("Load "+strings.Join(missing, ", ")+" via the Skill tool, then retry the edit.", "skills-gate")
+		h.Deny("this edit needs "+strings.Join(missing, ", ")+" loaded\n"+layout.KV("do", "load it via the Skill tool, then retry the edit"), "skills-gate")
 	}
 	return nil
 }

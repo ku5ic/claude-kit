@@ -108,7 +108,7 @@ func BashEdits(h *hook.Hook) error {
 	if len(problems) == 0 {
 		return nil
 	}
-	return h.Block("a file this command changed fails the checks an Edit gets:\n"+strings.Join(problems, "\n"), "bash-edits")
+	return h.Block("a file this command changed fails the checks an Edit gets\n"+strings.Join(problems, "\n"), "bash-edits")
 }
 
 // editChecks runs the PreToolUse edit checks on path's change from before

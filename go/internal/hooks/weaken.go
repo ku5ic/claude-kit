@@ -8,6 +8,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
+	"github.com/ku5ic/claude-kit/go/internal/layout"
 	"github.com/ku5ic/claude-kit/go/internal/weaken"
 )
 
@@ -37,7 +38,8 @@ func GuardWeaken(h *hook.Hook) error {
 		fmt.Fprintf(&b, "- L%d %s: %s\n", hit.Line, hit.Kind, hit.Text)
 	}
 	if b.Len() > 0 {
-		return h.Block(fmt.Sprintf("this edit weakens a check in %s:\n%sSay why in your reply and put `kit: allow <reason>` on the line or above it, or revert it.", filepath.Base(path), b.String()), "weaken")
+		return h.Block(fmt.Sprintf("this edit weakens a check in %s\n%s", filepath.Base(path), b.String())+
+			layout.KV("do", "say why in your reply and put `kit: allow <reason>` on the line or above it, or revert it"), "weaken")
 	}
 	if r.Lost > 0 {
 		h.Decide("ask", fmt.Sprintf("this edit leaves %s with %d fewer assertion line(s). Confirm only if they're redundant or moved", filepath.Base(path), r.Lost))

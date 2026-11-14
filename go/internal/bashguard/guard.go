@@ -172,7 +172,7 @@ func wholeString(h *hook.Hook, cfg *config.Config, cmd, norm, home string) error
 		}
 	}
 	if re := rcRedirect(cfg, home); re != nil && re.MatchString(normalize(withoutQuotedHeredocs(cmd))) {
-		if err := h.Block("direct write to a shell rc file. Use the dotfiles repo.", "rc-redirect"); err != nil {
+		if err := h.Block(rcWriteReason, "rc-redirect"); err != nil {
 			return err
 		}
 	}
@@ -424,7 +424,7 @@ func (st *state) redirects(call Call) error {
 		// The quote-removed target: the whole-string regex misses >> "$HOME/.zshrc".
 		// '$HOME/.zshrc' is a literal name in cwd, not the rc file.
 		if !strings.HasPrefix(r.Target.Raw, "'") && guard.IsRCFile(st.cfg, st.home, target) {
-			if err := st.h.Block("direct write to a shell rc file. Use the dotfiles repo.", "rc-redirect"); err != nil {
+			if err := st.h.Block(rcWriteReason, "rc-redirect"); err != nil {
 				return err
 			}
 		}

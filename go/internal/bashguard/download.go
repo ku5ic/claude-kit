@@ -2,13 +2,15 @@ package bashguard
 
 import (
 	"strings"
+
+	"github.com/ku5ic/claude-kit/go/internal/layout"
 )
 
 // Downloads land only in scratch (skills/kit-rules/reference/tooling.md): every output file and
 // directory, and every > redirect, must be a scratch path.
 
 func (c *command) blockDownload(tool, target, flag string) error {
-	return c.block(tool+" would write '"+target+"' outside scratch; downloads go only to scratch: "+tool+" "+flag+" \"$(kit scratch-dir)/<name>\"", "download-to-repo")
+	return c.block(tool+" would write '"+target+"' outside scratch\n"+layout.KV("do", tool+" "+flag+" \"$(kit scratch-dir)/<name>\"; downloads go only to scratch"), "download-to-repo")
 }
 
 func (c *command) redirectTargets() []string {
@@ -24,7 +26,7 @@ func (c *command) redirectTargets() []string {
 func (c *command) curl() error {
 	targets, remote, outDir := curlTargets(c.values())
 	if remote && outDir == "" {
-		if err := c.block("curl -O/-J writes a server-named file into the current directory; use: curl -o \"$(kit scratch-dir)/<name>\"", "download-to-repo"); err != nil {
+		if err := c.block("curl -O/-J writes a server-named file into the current directory\n"+layout.KV("do", "curl -o \"$(kit scratch-dir)/<name>\""), "download-to-repo"); err != nil {
 			return err
 		}
 	}
@@ -89,7 +91,7 @@ func curlTargets(words []string) (targets []string, remote bool, outDir string) 
 func (c *command) wget() error {
 	targets, hasOut := wgetTargets(c.values())
 	if !hasOut {
-		if err := c.block("wget writes into the current directory by default; use: wget -P \"$(kit scratch-dir)\" <url>", "download-to-repo"); err != nil {
+		if err := c.block("wget writes into the current directory by default\n"+layout.KV("do", "wget -P \"$(kit scratch-dir)\" <url>"), "download-to-repo"); err != nil {
 			return err
 		}
 	}

@@ -30,7 +30,7 @@ func TestCheckCitations(t *testing.T) {
 		k, dir := newSandbox(t), project(t)
 		r := k.run("handback-dispatch", report(dir, "PreToolUse", "a1", "kit:gatherer", bad, false))
 		r.Denied(t)
-		r.Has(t, "src/stop.go:40", "the file has 3 lines", "(citations)")
+		r.Has(t, "src/stop.go:40", "the file has 3 lines", "rule  citations")
 		k.run("check-citations", report(dir, "PreToolUse", "a1", "kit:gatherer", bad, false)).Allowed(t)
 		// The stop after a sent-back handback is let through too.
 		k.run("check-citations", report(dir, "SubagentStop", "a1", "kit:gatherer", bad, false)).Allowed(t)
