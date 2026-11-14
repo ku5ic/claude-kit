@@ -715,7 +715,7 @@ func TestGuardBashExcludesSecretsFromALoneRg(t *testing.T) {
 			t.Errorf("the rewritten %q left no read-only marker: %v", got, err)
 		}
 	}
-	for _, cmd := range []string{"rg -g '*.go' x .", "rg --glob=*.md x", "rg x . && rm y", "cat a | rg x", "rg --pre ./x pat .", "rg --hostname-bin=./x pat .", "rg x . > out.txt", "rg -uu token /etc", "rg secret ~", "rg x ../", "rg -e x -- " + t.TempDir()} {
+	for _, cmd := range []string{"rg -g '*.go' x .", "rg --glob=*.md x", "rg x . && rm y", "cat a | rg x", "rg --pre ./x pat .", "rg --hostname-bin=./x pat .", "rg x . > out.txt", "rg -uu token /etc", "rg secret ~", "rg x ../", "rg -e x -- " + t.TempDir(), "rg -L x .", "rg --follow x ."} {
 		if got, _ := rewritten(cmd); got != "" {
 			t.Errorf("%q was rewritten to %q", cmd, got)
 		}
@@ -726,6 +726,22 @@ func TestGuardBashExcludesSecretsFromALoneRg(t *testing.T) {
 	r := k.hook("s1", t.TempDir(), "rg -n x .")
 	if strings.Contains(r.Output, "updatedInput") {
 		t.Errorf("rg outside a work tree was rewritten: %s", r.Output)
+	}
+}
+
+// rg searches a file it's named whatever its globs say, so with
+// sensitive-read off, an rg naming a credential file still isn't allowed.
+func TestGuardBashLeavesAnRgNamingACredentialFileToThePrompt(t *testing.T) {
+	t.Parallel()
+	k := newSandbox(t)
+	testutil.Write(t, filepath.Join(k.claude, "claude-kit.local.yml"), "disabled_rules: [sensitive-read]\n")
+	repo := guardBashRepo(k, t.TempDir(), "feat")
+	for _, cmd := range []string{"rg -n KEY .env", "rg --regexp=KEY config/.env"} {
+		r := k.hook("s1", repo, cmd)
+		r.Want(t, 0)
+		if strings.Contains(r.Output, `"allow"`) {
+			t.Errorf("%q was allowed: %s", cmd, r.Output)
+		}
 	}
 }
 

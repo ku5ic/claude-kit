@@ -109,6 +109,86 @@ var metadataOnly = map[string]bool{
 // filter rather than a path.
 var patternFirst = map[string]int{"grep": 1, "rg": 1, "sed": 1, "awk": 1, "jq": 1, "yq": 1, "sd": 2, "git grep": 1}
 
+// patternFlag is how a patternFirst command takes its pattern or script from
+// a flag instead, which leaves every operand a path: the short letters giving
+// it inline (pattern) or from a file (file), the short letters whose value
+// ends their cluster (valued), and the long names, true for a file.
+type patternFlag struct {
+	pattern, file, valued string
+	long                  map[string]bool
+}
+
+var patternFlags = map[string]patternFlag{
+	"grep":     {"e", "f", "ABCDdm", map[string]bool{"--regexp": false, "--file": true}},
+	"git grep": {"e", "f", "ABCm", map[string]bool{"--file": true}},
+	"rg":       {"e", "f", "ABCEMTgjmrt", map[string]bool{"--regexp": false, "--file": true}},
+	"sed":      {"e", "f", "il", map[string]bool{"--expression": false, "--file": true}},
+	"awk":      {"e", "f", "vF", map[string]bool{"--source": false, "--file": true}},
+}
+
+// withoutPatternFlags is values with name's pattern flags and their inline
+// patterns taken out, a script file kept as an operand since it's read, and
+// whether any flag gave the pattern.
+func withoutPatternFlags(name string, values []string) ([]string, bool) {
+	spec, ok := patternFlags[name]
+	if !ok {
+		return values, false
+	}
+	var out []string
+	given := false
+	for i := 0; i < len(values); i++ {
+		v := values[i]
+		if v == "--" {
+			return append(out, values[i:]...), given
+		}
+		long, value, attached := strings.Cut(v, "=")
+		if isFile, ok := spec.long[long]; ok {
+			given = true
+			if !attached && i+1 < len(values) {
+				i++
+				value = values[i]
+			}
+			if isFile {
+				out = append(out, value)
+			}
+			continue
+		}
+		value, isFile, found := spec.inCluster(v)
+		if !found {
+			out = append(out, v)
+			continue
+		}
+		given = true
+		if value == "" && i+1 < len(values) {
+			i++
+			value = values[i]
+		}
+		if isFile {
+			out = append(out, value)
+		}
+	}
+	return out, given
+}
+
+// inCluster finds a pattern or file letter in the short-option cluster v:
+// the inline rest of v after it, "" when its value is the next word.
+func (spec patternFlag) inCluster(v string) (value string, isFile, found bool) {
+	if !strings.HasPrefix(v, "-") || strings.HasPrefix(v, "--") {
+		return "", false, false
+	}
+	for j := 1; j < len(v); j++ {
+		letter := v[j]
+		isFile = strings.IndexByte(spec.file, letter) >= 0
+		if isFile || strings.IndexByte(spec.pattern, letter) >= 0 {
+			return v[j+1:], isFile, true
+		}
+		if strings.IndexByte(spec.valued, letter) >= 0 {
+			break
+		}
+	}
+	return "", false, false
+}
+
 // destructive is the commands blocked by pattern: one of names, with every
 // regex matching its text. %s in reason is the command's name.
 var destructive = []struct {
@@ -220,15 +300,20 @@ func (c *command) readOperands() []string { return readOperands(c.name, c.values
 
 // readOperands are the operands command name reads as files when run with
 // values: none for a metadataOnly command or a git subcommand that prints
-// none, and never a leading pattern. git show HEAD:.env names .env.
+// none, and never a leading pattern unless a flag gave it. git show
+// HEAD:.env names .env.
 func readOperands(name string, values []string) []string {
-	ops := nonOptions(values)
-	if name == "git" {
+	git := name == "git"
+	if git {
 		sub, args, _ := classify.GitSubcommand(values)
 		if !gitReads[sub] {
 			return nil
 		}
-		name, ops = "git "+sub, nonOptions(args)
+		name, values = "git "+sub, args
+	}
+	values, given := withoutPatternFlags(name, values)
+	ops := nonOptions(values)
+	if git {
 		for i, op := range ops {
 			if _, path, ok := strings.Cut(op, ":"); ok {
 				ops[i] = path
@@ -242,6 +327,9 @@ func readOperands(name string, values []string) []string {
 	// under it later. Their target is only written.
 	if name == "ln" || name == "mv" {
 		return sources(values)
+	}
+	if given {
+		return ops
 	}
 	return ops[min(patternFirst[name], len(ops)):]
 }

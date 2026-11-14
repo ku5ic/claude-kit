@@ -175,10 +175,17 @@ func (st *state) excludeSensitive(segs []Segment, cmd string) {
 	}
 	var values []string
 	for _, w := range segs[0].Calls[0].Words[1:] {
-		if name, _, _ := strings.Cut(w.Value, "="); globFlags[name] != "" || strings.HasPrefix(name, "-g") {
+		// -L follows a link out of the project; a glob of its own replaces ours.
+		if name, _, _ := strings.Cut(w.Value, "="); globFlags[name] != "" || strings.HasPrefix(name, "-g") || name == "--follow" || shortCluster(name, "L") {
 			return
 		}
 		values = append(values, w.Value)
+	}
+	// rg searches a file it's named whatever the globs say.
+	if slices.ContainsFunc(readOperands("rg", values), func(p string) bool {
+		return guard.IsSensitive(st.cfg, st.home, st.abs(unquote(p)))
+	}) {
+		return
 	}
 	// The allow approves only a read inside the project. The pattern and
 	// any option value count as operands too; inside, they're harmless.
