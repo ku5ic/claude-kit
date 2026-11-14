@@ -111,9 +111,13 @@ func runStop(h *hook.Hook, cfg *config.Config, p enforce.Plan, r stopRun) error 
 	if !h.DryRun {
 		_ = fsx.WriteAtomic(cache.StopReport(h.Paths.CacheDir(), r.root), []byte(out.Report()), 0o600)
 	}
-	// Every verdict goes to the user, a block's too; what to fix goes to
-	// Claude in the block's reason.
-	notifyReceipt(h, cfg, out.Receipt, r.unchecked)
+	// The user gets the counts, the passes, and a line naming each failure
+	// with its detail file; what to fix goes to Claude in the block's reason.
+	file := ""
+	if out.Failed() {
+		file = stopDetail(h, r.cwd, out.Detail)
+	}
+	notifyReceipt(h, cfg, out.Receipt, r.unchecked, file)
 	if !out.Failed() {
 		// A skipped gate checked nothing, so only a clean pass is reused.
 		if out.Result.Skip == 0 && pass != "" && !h.DryRun {
@@ -122,10 +126,10 @@ func runStop(h *hook.Hook, cfg *config.Config, p enforce.Plan, r stopRun) error 
 		return nil
 	}
 	msg := fmt.Sprintf("%d of %d checks failed\n%s", out.Result.Fail, len(p.Gates), out.Failures)
-	if file := stopDetail(h, r.cwd, out.Detail); file != "" {
+	if file != "" {
 		msg += layout.KV("more", file) + "\n"
 	}
-	msg += layout.KV("do", "fix them, or reply in one line with the cause; the user saw these")
+	msg += layout.KV("do", "fix them, or reply in one line with the cause")
 	return h.Block(msg, "checks-failed")
 }
 
@@ -133,15 +137,24 @@ func runStop(h *hook.Hook, cfg *config.Config, p enforce.Plan, r stopRun) error 
 // force. kit.yml's receipt: failures hides a clean pass with nothing
 // unchecked; the gates ran either way. A failure means the caller blocks,
 // and the block names each failure and skip with its detail, so the
-// receipt keeps only the counts and passes.
-func notifyReceipt(h *hook.Hook, cfg *config.Config, rc run.Receipt, unchecked []string) {
+// receipt keeps the counts and passes, plus one line naming the failures
+// and detail, the file holding their output.
+func notifyReceipt(h *hook.Hook, cfg *config.Config, rc run.Receipt, unchecked []string, detail string) {
 	if cfg.ReceiptOnFailures() && rc.Clean() && len(unchecked) == 0 {
 		return
 	}
+	var extra []string
 	if !rc.Passed() {
+		if failed := rc.Failures(); len(failed) > 0 {
+			line := strings.Join(failed, ", ")
+			if detail != "" {
+				line += "  -> " + detail
+			}
+			extra = append(extra, layout.KV("FAIL", line))
+		}
 		rc = rc.PassesOnly()
 	}
-	h.Notify(rc.String(append(unchecked, overrides(cfg)...)...))
+	h.Notify(rc.String(append(append(extra, unchecked...), overrides(cfg)...)...))
 }
 
 // uncheckedLines names each text this turn's claim verifier failed on,
@@ -222,7 +235,6 @@ func passKey(tree string, gates []enforce.Gate) string {
 // diffs after the gates (git calls of up to git.Timeout each) and the report.
 const stopBudget = 240 * time.Second
 
-// planGate blocks the stop when this turn ticked a plan's last step without
 // stopRead is where the last Stop run left the session's transcript: the
 // offset and line past what it read, where the current turn starts, and
 // the plan walk so far.
@@ -260,7 +272,8 @@ func turnFiles(h *hook.Hook, turn []transcript.Entry, cwd, root string) (edited 
 // readSession is the transcript's current turn and its plan walk, reading
 // only what the last Stop run hadn't: the turn from its start, the walk
 // from where it stopped. A different, shorter, or unrecorded transcript is
-// read whole. A read error leaves what was read: the hook fails open.
+// read whole. A read error returns what was read and saves nothing: the
+// hook fails open.
 func readSession(h *hook.Hook, path, root, plansDir string, isCode func(string) bool) ([]transcript.Entry, *planWalk) {
 	file := h.Paths.SessionFile(cache.StopRead, h.Payload.SessionID(), cache.RootKey(root))
 	var st stopRead
@@ -270,7 +283,8 @@ func readSession(h *hook.Hook, path, root, plansDir string, isCode func(string) 
 	}
 	var turn []transcript.Entry
 	seen := st.Offset
-	st.Offset, st.Line, _ = transcript.EachFrom(path, st.TurnOffset, st.TurnLine, func(e transcript.Entry, end int64) {
+	var err error
+	st.Offset, st.Line, err = transcript.EachFrom(path, st.TurnOffset, st.TurnLine, func(e transcript.Entry, end int64) {
 		if end > seen {
 			st.Walk.step(e, plansDir, isCode)
 		}
@@ -280,7 +294,9 @@ func readSession(h *hook.Hook, path, root, plansDir string, isCode func(string) 
 		}
 		turn = append(turn, e)
 	})
-	if file != "" && !h.DryRun {
+	// A failed read keeps the saved state: its offset fell back to the
+	// turn's start, and the walk didn't see what lies past it.
+	if file != "" && !h.DryRun && err == nil {
 		if data, err := json.Marshal(st); err == nil {
 			_ = fsx.WriteAtomic(file, data, 0o600)
 		}

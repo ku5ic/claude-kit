@@ -95,6 +95,17 @@ func (rc Receipt) PassesOnly() Receipt {
 	return rc
 }
 
+// Failures is the label of each gate that failed, in run order.
+func (rc Receipt) Failures() []string {
+	var labels []string
+	for _, v := range rc.verdicts {
+		if v.kind == "FAIL" {
+			labels = append(labels, v.label)
+		}
+	}
+	return labels
+}
+
 // subLabel is a label's trailing subproject, " [web]".
 var subLabel = regexp.MustCompile(` \[([^\]]+)\]`)
 

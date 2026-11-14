@@ -88,7 +88,7 @@ func TestReviewChecks(t *testing.T) {
 		e := setup(t, `{"skillName":"code-review"}`, "exit 1")
 		out := ran(t, e, stop(e, e.project, ""))
 		if out["decision"] != "block" || !strings.Contains(out["reason"], "FAIL lint (package.json: lint)") ||
-			out["systemMessage"] != "kit full gate: 1 failed, 1 skipped, 0 passed" {
+			out["systemMessage"] != "kit full gate: 1 failed, 1 skipped, 0 passed\n\n  FAIL  lint (package.json: lint)" {
 			t.Errorf("want a block naming the failure: %+v", out)
 		}
 		if _, err := os.Stat(cache.FullGateTree(e.k.paths.CacheDir(), testutil.Physical(t, e.project))); err == nil {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -227,6 +228,94 @@ func TestStopPlanDone(t *testing.T) {
 	})
 }
 
+// readState is the saved Stop read of e's session, "" before the first.
+func (e *stopEnv) readState() string {
+	e.t.Helper()
+	files, _ := filepath.Glob(filepath.Join(e.k.paths.CacheDir(), cache.StopRead, "s1-*"))
+	if len(files) != 1 {
+		return ""
+	}
+	return read(e.t, files[0])
+}
+
+func size(t *testing.T, path string) int64 {
+	t.Helper()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return info.Size()
+}
+
+func TestStopReadsTheTranscriptOnce(t *testing.T) {
+	t.Parallel()
+	const done = "## Steps\n\n- [x] 1. a\n- [x] 2. b\n"
+	notes := func(e *stopEnv) []string { return slices.Repeat([]string{e.path("notes.md")}, 8) }
+	t.Run("a transcript shorter than the saved read is read whole", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		e.turn("Edit", notes(e)...)
+		e.stop(false).Want(t, 0)
+		read := size(t, e.transcript)
+		testutil.Write(t, e.transcript, "")
+		e.turn("Edit", e.path("a.ts"))
+		e.turn("Edit", e.plan(done))
+		if size(t, e.transcript) >= read {
+			t.Fatal("the new transcript isn't shorter than the read")
+		}
+		e.stop(false).Want(t, 2)
+	})
+	t.Run("another transcript is read whole", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		e.turn("Edit", notes(e)...)
+		e.stop(false).Want(t, 0)
+		read := size(t, e.transcript)
+		e.transcript = filepath.Join(e.tmp, "other.jsonl")
+		e.turn("Edit", e.path("a.ts"))
+		e.turn("Edit", append([]string{e.plan(done)}, notes(e)...)...)
+		if size(t, e.transcript) <= read {
+			t.Fatal("the other transcript isn't longer than the read")
+		}
+		e.stop(false).Want(t, 2)
+	})
+	t.Run("a garbled saved read is read whole", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		e.turn("Edit", e.path("a.ts"))
+		e.stop(false).Want(t, 0)
+		files, _ := filepath.Glob(filepath.Join(e.k.paths.CacheDir(), cache.StopRead, "s1-*"))
+		if len(files) != 1 {
+			t.Fatalf("saved reads: %q", files)
+		}
+		testutil.Write(t, files[0], "{not json")
+		e.turn("Edit", e.plan(done))
+		e.stop(false).Want(t, 2)
+	})
+	t.Run("an unreadable transcript leaves the saved read as it was", func(t *testing.T) {
+		t.Parallel()
+		if os.Geteuid() == 0 {
+			// kit: allow root reads a mode 000 file, and a non-file transcript never reaches the read
+			t.Skip("root reads a mode 000 file")
+		}
+		e := stopSetup(t)
+		e.turn("Edit", notes(e)...)
+		e.turn("Edit", notes(e)...)
+		e.stop(false).Want(t, 0)
+		before := e.readState()
+		if before == "" {
+			t.Fatal("the first Stop saved no read")
+		}
+		if err := os.Chmod(e.transcript, 0); err != nil {
+			t.Fatal(err)
+		}
+		e.stop(false).Want(t, 0)
+		if after := e.readState(); after != before {
+			t.Errorf("the saved read moved:\nbefore %s\nafter  %s", before, after)
+		}
+	})
+}
+
 func TestStopChecks(t *testing.T) {
 	t.Parallel()
 	t.Run("missing transcript runs nothing", func(t *testing.T) {
@@ -333,7 +422,7 @@ func TestStopChecks(t *testing.T) {
 		r.Want(t, 0)
 		r.Empty(t)
 	})
-	t.Run("a failing check blocks with its detail, and the receipt beside it keeps only the counts and passes", func(t *testing.T) {
+	t.Run("a failing check blocks with its detail, and the receipt beside it names it with the detail file", func(t *testing.T) {
 		t.Parallel()
 		e := stopSetup(t)
 		e.turn("Edit", e.path("a.ts"))
@@ -343,9 +432,12 @@ func TestStopChecks(t *testing.T) {
 		var out map[string]string
 		if err := json.Unmarshal([]byte(r.Stdout), &out); err != nil || out["decision"] != "block" ||
 			!strings.HasPrefix(out["reason"], "kit stop: BLOCKED 1 of 1 checks failed\n\nFAIL  lint (package.json: *.ts)\n      lint noise\nmore  ") ||
-			!strings.HasSuffix(out["reason"], "\ndo    fix them, or reply in one line with the cause; the user saw these\n\nrule  checks-failed") ||
-			out["systemMessage"] != "kit stop: 1 failed, 0 skipped, 0 passed" {
-			t.Errorf("want a block with the failure, and a receipt without it:\n%s", r.Output)
+			!strings.HasSuffix(out["reason"], "\ndo    fix them, or reply in one line with the cause\n\nrule  checks-failed") ||
+			!strings.HasPrefix(out["systemMessage"], "kit stop: 1 failed, 0 skipped, 0 passed\n\n  FAIL  lint (package.json: *.ts)  -> ") {
+			t.Errorf("want a block with the failure, and a receipt naming it with its detail file:\n%s", r.Output)
+		}
+		if _, receiptFile, _ := strings.Cut(out["systemMessage"], "  -> "); !strings.Contains(out["reason"], "more  "+receiptFile+"\n") {
+			t.Errorf("the receipt and the block name different detail files:\n%s", r.Output)
 		}
 		// The command and the rest of the output go to the file, not the block.
 		if strings.Contains(out["reason"], "cmd: ") {
