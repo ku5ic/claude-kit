@@ -265,6 +265,17 @@ func TestVerifyClaimsToolInput(t *testing.T) {
 			t.Errorf("verifier ran: %q", got)
 		}
 	})
+	t.Run("a project agent named claim-checker is checked", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		calls := k.verifier("", claim)
+		payload := handback("a1", claim)
+		payload["agent_type"] = "claim-checker"
+		k.run("verify-claims", payload).Denied(t)
+		if got := testutil.Calls(t, calls); got == nil {
+			t.Error("verifier never ran")
+		}
+	})
 	t.Run("a subagent's handback gets the hook's own run, once per agent", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)

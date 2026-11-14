@@ -44,7 +44,9 @@ func VerifyClaims(h *hook.Hook) error {
 		return nil
 	}
 	// The checker's report is the check; checking it again buys nothing.
-	if strings.TrimPrefix(p.String(hook.KeyAgentType), "kit:") == strings.TrimPrefix(claimChecker, "kit:") {
+	// A plugin agent's type carries its namespace, so a project agent
+	// named claim-checker is someone else's and gets checked.
+	if p.String(hook.KeyAgentType) == claimChecker {
 		return nil
 	}
 	switch p.String(hook.KeyHookEventName) {
