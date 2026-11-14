@@ -23,6 +23,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/claudecli"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/sources"
 )
 
@@ -186,7 +187,7 @@ type answer struct {
 // Run answers o.Entries from the cache, first asking the classifier for
 // what it lacks when o.Ask allows.
 func Run(cfg *config.Config, o Options) Result {
-	file := CacheFile(o.CacheDir, o.Root)
+	file := seededCacheFile(o.CacheDir, o.Root)
 	s := load(file)
 	// A read is use: cache.Prune drops only a file no run has read.
 	now := time.Now()
@@ -208,10 +209,32 @@ func CacheFile(cacheDir, root string) string {
 	return filepath.Join(cacheDir, cache.Enforce, cache.RootKey(root)+".json")
 }
 
+// seededCacheFile is CacheFile, copied first from the main checkout's when
+// root is a linked worktree with none yet. Answers are keyed by each
+// entry's content and verified on every read, so the main checkout's hold
+// wherever its entries do.
+func seededCacheFile(cacheDir, root string) string {
+	file := CacheFile(cacheDir, root)
+	// A linked worktree's .git is a file. The stat keeps the git exec off
+	// the bash guard's path everywhere else.
+	if fsx.IsFile(file) || !fsx.IsFile(filepath.Join(root, ".git")) {
+		return file
+	}
+	common, err := git.Line(root, "rev-parse", "--path-format=absolute", "--git-common-dir")
+	main := filepath.Dir(common)
+	if err != nil || filepath.Base(common) != ".git" || main == root {
+		return file
+	}
+	if data, err := os.ReadFile(CacheFile(cacheDir, main)); err == nil {
+		_ = fsx.WriteAtomic(file, data, 0o600) // unwritten, the worktree starts cold, as before
+	}
+	return file
+}
+
 // Managers are root's cached package-manager facts that verify, read
 // without asking: a cold cache has none.
 func Managers(cfg *config.Config, root, cacheDir string) []Manager {
-	ms, _ := managers(cfg, root, load(CacheFile(cacheDir, root)).Managers)
+	ms, _ := managers(cfg, root, load(seededCacheFile(cacheDir, root)).Managers)
 	return ms
 }
 

@@ -153,6 +153,25 @@ func TestCacheHitAndPerBodyInvalidation(t *testing.T) {
 	}
 }
 
+func TestANewWorktreeStartsFromTheMainCheckoutsAnswers(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t, "")
+	f.root = testutil.Physical(t, f.root)
+	testutil.GitID(t, f.root, "init", "-q")
+	testutil.GitID(t, f.root, "commit", "-q", "--allow-empty", "-m", "init")
+	lint := entry("lint", "eslint .")
+	f.answer(answers(verdict(lint, map[string]any{"role": "check", "kind": "lint", "mutates": false})))
+	f.run(lint)
+	calls := len(f.calls())
+
+	wt := filepath.Join(t.TempDir(), "wt")
+	testutil.Git(t, f.root, "worktree", "add", "-q", "--detach", wt)
+	r := Run(f.cfg, Options{Root: testutil.Physical(t, wt), CacheDir: f.cacheDir, Entries: []sources.Entry{lint}})
+	if got := r.Verdicts[Key(lint)]; got.Kind != "lint" || len(f.calls()) != calls {
+		t.Errorf("the worktree's first read: %+v, %d new calls", r, len(f.calls())-calls)
+	}
+}
+
 func TestMalformedOutputLeavesEntriesUnclassifiedAndUncached(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t, "")
