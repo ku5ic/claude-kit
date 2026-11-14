@@ -46,7 +46,7 @@ func Stop(cfg *config.Config, o Options, files []string) Plan {
 	// has more arguments than the plain run of its tool, and loses its
 	// files to it.
 	slices.SortStableFunc(full, func(a, b Gate) int { return len(strings.Fields(a.FileForm)) - len(strings.Fields(b.FileForm)) })
-	formed := map[string][]string{}
+	formed := map[string]map[string][]string{}
 	for _, g := range full {
 		b.fileForm(g, files, checked, formed)
 	}
@@ -117,9 +117,9 @@ func atPreCommit(e sources.Entry) bool {
 
 // fileForm plans full gate g's file form on the files under its directory
 // its globs match, each file only for the kinds no hook checks it for and
-// no earlier form of the same tool, and records those in formed, per file
-// as tool:kind.
-func (b *builder) fileForm(g Gate, files []string, checked, formed map[string][]string) {
+// no earlier form of the same tool covers, and records the form in formed,
+// per file and tool:kind.
+func (b *builder) fileForm(g Gate, files []string, checked map[string][]string, formed map[string]map[string][]string) {
 	if g.Skip != "" || g.FileForm == "" || len(g.Globs) == 0 {
 		return
 	}
@@ -127,7 +127,7 @@ func (b *builder) fileForm(g Gate, files []string, checked, formed map[string][]
 	var mine []string
 	for _, f := range matching(files, g.Dir, g.Globs) {
 		if slices.ContainsFunc(g.Kinds, func(k string) bool {
-			return !slices.Contains(checked[f], k) && !slices.Contains(formed[f], tool+":"+k)
+			return !slices.Contains(checked[f], k) && !slices.ContainsFunc(formed[f][tool+":"+k], func(earlier string) bool { return covers(earlier, g.FileForm) })
 		}) {
 			mine = append(mine, f)
 		}
@@ -136,10 +136,43 @@ func (b *builder) fileForm(g Gate, files []string, checked, formed map[string][]
 		b.add(Gate{Label: g.Label, Kinds: g.Kinds, Dir: g.Dir, Env: g.Env, Body: g.FileForm, Verdict: g.Verdict, Files: mine})
 	}
 	for _, f := range mine {
+		if formed[f] == nil {
+			formed[f] = map[string][]string{}
+		}
 		for _, k := range g.Kinds {
-			formed[f] = append(formed[f], tool+":"+k)
+			formed[f][tool+":"+k] = append(formed[f][tool+":"+k], g.FileForm)
 		}
 	}
+}
+
+// selectors take a value and pick which tests a form runs (pytest -m unit,
+// -k name, --deselect id); --cov and its options add a coverage run.
+var selectors = []string{"-m", "-k", "--deselect"}
+
+// covers is true when earlier, a form of the same tool and kind, runs every
+// check form does: form's words past earlier's are only selectors and
+// coverage options. Any other (eslint --max-warnings 0) checks more.
+func covers(earlier, form string) bool {
+	have := strings.Fields(earlier)
+	var extra []string
+	for _, w := range strings.Fields(form) {
+		if !slices.Contains(have, w) {
+			extra = append(extra, w)
+		}
+	}
+	for i := 0; i < len(extra); i++ {
+		name, _, attached := strings.Cut(extra[i], "=")
+		switch {
+		case strings.HasPrefix(name, "--cov"):
+		case slices.Contains(selectors, name):
+			if !attached {
+				i++
+			}
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // formTool is the tool a file form runs: its first word past VAR=value

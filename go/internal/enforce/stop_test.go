@@ -117,6 +117,21 @@ func TestStopRunsTheLeastFilteredFileFormOncePerFileAndKind(t *testing.T) {
 	}
 }
 
+// A longer form that adds a flag other than a selector checks more than
+// the plain run, so both run.
+func TestStopKeepsAStricterFileFormBesideThePlainOne(t *testing.T) {
+	e := setup(t)
+	e.tool("bin/eslint")
+	e.write(".github/workflows/ci.yml", "jobs:\n  lint:\n    steps:\n      - run: eslint .\n      - run: eslint --max-warnings 0 .\n")
+	e.write("a.js", "")
+	e.check("lint/1", map[string]any{"role": "check", "kind": "lint", "file_form": "eslint {files}", "globs": []string{"*.js"}})
+	e.check("lint/2", map[string]any{"role": "check", "kind": "lint", "file_form": "eslint --max-warnings 0 {files}", "globs": []string{"*.js"}})
+	got := commands(e.stop("a.js"))
+	if !strings.Contains(got, ": eslint a.js") || !strings.Contains(got, "eslint --max-warnings 0 a.js") {
+		t.Errorf("plan:\n%s", got)
+	}
+}
+
 // Two tools of one kind both run: only another form of the same tool
 // loses its files.
 func TestStopRunsEachToolOfAKind(t *testing.T) {
