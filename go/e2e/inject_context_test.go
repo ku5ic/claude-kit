@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -112,7 +113,8 @@ func TestInjectContext(t *testing.T) {
 		e.Overlay("classifier: [" + strconv.Quote(classifier) + "]\n")
 		e.run("s2").Want(t, 0)
 		answered := gapfill.CacheFile(filepath.Join(e.Claude, "cache"), e.root)
-		for deadline := time.Now().Add(10 * time.Second); !Exists(answered); time.Sleep(50 * time.Millisecond) {
+		// The failed first run saved the file too; wait for the answer in it.
+		for deadline := time.Now().Add(10 * time.Second); !Exists(answered) || !strings.Contains(Read(t, answered), `"verdict"`); time.Sleep(50 * time.Millisecond) {
 			if time.Now().After(deadline) {
 				t.Fatal("SessionStart started no gap-fill run that answered")
 			}

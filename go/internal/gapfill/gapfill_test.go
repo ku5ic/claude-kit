@@ -366,6 +366,11 @@ func TestAClassifierDownForEveryBatchIsAskedOncePerCooldown(t *testing.T) {
 	if r := f.run(lint); len(f.calls()) != before || r.Unclassified() != 0 {
 		t.Errorf("the second run made %d calls, %d unclassified", len(f.calls())-before, r.Unclassified())
 	}
+	// A fixed classifier command asks again at once.
+	f.cfg.Classifier = append(f.cfg.Classifier, "--fixed")
+	if f.run(lint); len(f.calls()) == before {
+		t.Error("a changed classifier waited out the old one's cooldown")
+	}
 }
 
 // ageFailures moves every recorded classifier failure d into the past.

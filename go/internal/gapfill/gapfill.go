@@ -189,8 +189,11 @@ type store struct {
 	Context   string             `json:"context"` // the project the facts below answer
 	Managers  []Manager          `json:"managers"`
 	Proposals []Proposal         `json:"proposals"`
-	// Failed is when the classifier last failed on an entry, by Key.
-	Failed map[string]time.Time `json:"failed,omitempty"`
+	// Failed is when the classifier last failed on an entry, by Key, and
+	// FailedBy the classifier command it failed as. A changed command asks
+	// again at once.
+	Failed   map[string]time.Time `json:"failed,omitempty"`
+	FailedBy string               `json:"failed_by,omitempty"`
 }
 
 type answer struct {
@@ -311,7 +314,7 @@ func ask(cfg *config.Config, o Options, p view, file string, s store) (_ store, 
 	}
 	// The facts get a call of their own: they take the model longest.
 	var reqs []request
-	if locked.Context != p.Key && locked.retryAt(factsKey(p.Key), time.Now()).IsZero() {
+	if locked.Context != p.Key && locked.retryAt(cfg, factsKey(p.Key), time.Now()).IsZero() {
 		reqs = append(reqs, request{View: p, Facts: true})
 	}
 	allowed := slices.DeleteFunc(slices.Clone(o.Entries), func(e sources.Entry) bool { return denied(cfg, e) != "" })
@@ -333,6 +336,10 @@ func ask(cfg *config.Config, o Options, p view, file string, s store) (_ store, 
 		if errs[i] != nil {
 			if failure == "" {
 				failure = "classifier: " + errs[i].Error()
+			}
+			if by := classifierID(cfg); locked.FailedBy != by {
+				clear(locked.Failed)
+				locked.FailedBy = by
 			}
 			for _, e := range reqs[i].Entries {
 				locked.Failed[Key(e)] = now
@@ -391,9 +398,9 @@ func load(file string) store {
 }
 
 // retryAt is when an entry the classifier failed on may be asked again,
-// zero when it's askable now.
-func (s store) retryAt(key string, now time.Time) time.Time {
-	if at, ok := s.Failed[key]; ok && now.Sub(at) < failureCooldown {
+// zero when it's askable now or cfg names another classifier.
+func (s store) retryAt(cfg *config.Config, key string, now time.Time) time.Time {
+	if at, ok := s.Failed[key]; ok && s.FailedBy == classifierID(cfg) && now.Sub(at) < failureCooldown {
 		return at.Add(failureCooldown)
 	}
 	return time.Time{}
@@ -403,9 +410,12 @@ func (s store) retryAt(key string, now time.Time) time.Time {
 // project facts answer another project, and no classifier failure holds
 // it back.
 func (s store) stale(cfg *config.Config, entries []sources.Entry, context string) bool {
-	facts := s.Context != context && s.retryAt(factsKey(context), time.Now()).IsZero()
+	facts := s.Context != context && s.retryAt(cfg, factsKey(context), time.Now()).IsZero()
 	return facts || len(s.missing(cfg, entries)) > 0
 }
+
+// classifierID names cfg's classifier command for FailedBy.
+func classifierID(cfg *config.Config) string { return strings.Join(cfg.Classifier, "\x00") }
 
 // factsKey is the Failed key of the project facts for context.
 func factsKey(context string) string { return "facts:" + context }
@@ -416,7 +426,7 @@ func (s store) missing(cfg *config.Config, entries []sources.Entry) []sources.En
 	var out []sources.Entry
 	now := time.Now()
 	for _, e := range entries {
-		if s.Entries[Key(e)] == nil && denied(cfg, e) == "" && s.retryAt(Key(e), now).IsZero() {
+		if s.Entries[Key(e)] == nil && denied(cfg, e) == "" && s.retryAt(cfg, Key(e), now).IsZero() {
 			out = append(out, e)
 		}
 	}

@@ -46,7 +46,7 @@ func verify(cfg *config.Config, root string, entries []sources.Entry, s store, f
 		a := s.Entries[key]
 		if a == nil {
 			r.Skipped[key] = unclassified
-			if retry := s.retryAt(key, now); failure == "" && !retry.IsZero() {
+			if retry := s.retryAt(cfg, key, now); failure == "" && !retry.IsZero() {
 				r.Skipped[key] = coolingReason + retry.Format("15:04") + ")"
 			}
 			continue
