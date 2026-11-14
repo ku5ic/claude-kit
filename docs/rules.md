@@ -18,7 +18,7 @@ Every skill with references lists them in a "Before | Read" table: an action, th
 
 **A command offered as the next action is run first.** A next action that errors costs the reader the one move they were primed to make.
 
-**Where output goes.** Any tool may write a file. Since 0.10.0, `bash-edits` gives a file a Bash command changed the checks an Edit gets (slop, weaken, imports, tokens, sanitize, format), so `sed -i` no longer skips them; it can only send a failure back after the write, where an Edit's guard stops it before. A written report replaces its own summary because restating it in the terminal doubles the reading.
+**Where output goes.** Any tool may write a file. Since 0.10.0, `bash-edits` gives a file a Bash command changed the checks an Edit gets (slop, weaken, imports, tokens, sanitize, format), so `sed -i` no longer skips them; it can only send a failure back after the write, where an Edit's guard stops it before. A written report replaces its own summary because restating it in the terminal doubles the reading. A forked `/code-review` hands its findings to the parent as a task notification the user never sees; on 2026-11-14 ten findings reached the user only as one question's summary, so returned findings go to a file first.
 
 **External communication.** Someone else reads it on their time, and they usually know the project better than the writer. A generic reason ("improve readability") says nothing a reviewer can check.
 

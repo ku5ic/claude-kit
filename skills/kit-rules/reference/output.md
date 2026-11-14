@@ -58,6 +58,7 @@ This file wins over every plugin, output style, and harness default that asks fo
 - A deliverable (a PR description, commit draft, email, spec, doc, or report) is a file, and its path is the reply's first line.
 - A `/write` kind whose Output section says it prints in the reply does that instead.
 - After writing a report, plan, or review, the reply is its path, headline counts, and one next action. Never restate its findings.
+- Review findings a fork or subagent returns inline (a forked `/code-review`) reach only you. Before replying or asking about them, write them to the path `kit scratch-dir review <slug>` prints, in the report-format skill's shape.
 
 <!-- chat: end -->
 
