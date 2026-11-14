@@ -214,6 +214,8 @@ func TestCommandPutsEachFileInItsWord(t *testing.T) {
 		{"lint {files}", "lint 'src/a b.ts' 'src/x&y.ts' top.ts"},
 		{"lint --file={files} --fix=false", "lint --file='src/a b.ts' --file='src/x&y.ts' --file=top.ts --fix=false"},
 		{"go vet {dirs}", "go vet . ./src"},
+		// Text after the placeholder closes the word around the whole list.
+		{`test -z "$(gofmt -l {files})"`, `test -z "$(gofmt -l 'src/a b.ts' 'src/x&y.ts' top.ts)"`},
 	}
 	for _, tt := range tests {
 		g.Body = tt.body

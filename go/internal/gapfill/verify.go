@@ -386,10 +386,8 @@ func (f forms) sameWords(form, source []string) bool {
 		switch {
 		case i < len(source) && w == source[i]:
 			i++
-		case placeholder(w) && i < len(source) && f.pathLike(source[i]):
-			for i < len(source) && f.pathLike(source[i]) {
-				i++
-			}
+		case placeholder(w) && f.pathRun(w, source[i:]) > 0:
+			i += f.pathRun(w, source[i:])
 		case strings.HasPrefix(w, "-") || placeholder(w):
 		default:
 			return false
@@ -398,8 +396,44 @@ func (f forms) sameWords(form, source []string) bool {
 	return i == len(source)
 }
 
+// pathRun is how many of words, from the first, the placeholder word w
+// stands for: the longest run of path arguments that starts with the text
+// before w's placeholder and ends with the text after it, as `.)"` is to
+// `{files})"`.
+func (f forms) pathRun(w string, words []string) int {
+	before, after := around(w)
+	run := 0
+	for n, word := range words {
+		if n == 0 {
+			var ok bool
+			if word, ok = strings.CutPrefix(word, before); !ok {
+				return 0
+			}
+		}
+		if path, ok := strings.CutSuffix(word, after); ok && f.pathLike(path) {
+			run = n + 1
+		}
+		if !f.pathLike(word) {
+			return run
+		}
+	}
+	return run
+}
+
+var placeholders = []string{"{files}", "{dirs}", "{base}"}
+
 func placeholder(w string) bool {
-	return strings.Contains(w, "{files}") || strings.Contains(w, "{dirs}") || strings.Contains(w, "{base}")
+	return slices.ContainsFunc(placeholders, func(p string) bool { return strings.Contains(w, p) })
+}
+
+// around is the text before and after w's placeholder.
+func around(w string) (before, after string) {
+	for _, p := range placeholders {
+		if before, after, ok := strings.Cut(w, p); ok {
+			return before, after
+		}
+	}
+	return "", ""
 }
 
 // pathLike is true for a word naming files: ".", a ./... package pattern,

@@ -581,6 +581,38 @@ func TestADirsPlaceholderReplacesAPackagePattern(t *testing.T) {
 	}
 }
 
+// A path inside a command substitution shares its word with the closing
+// `)"`: the placeholder word carries the same text around it, and nothing
+// else.
+func TestAPlaceholderKeepsTheTextAroundAPath(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name, form string
+		kept       bool
+	}{
+		{"the same text around it", `test -z "$(gofmt -l {files})"`, true},
+		{"its text changed", `test -z "$(gofmt -l {files}"`, false},
+		{"a word added inside it", `test -z "$(gofmt -l {files} rm)"`, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t, "")
+			testutil.Put(t, f.root, "go.mod", "module x\n")
+			lint := entry("lint", "eslint .")
+			f.answer(map[string]any{
+				"entries":  []any{verdict(lint, map[string]any{"role": "check", "kind": "lint", "mutates": false})},
+				"managers": []any{},
+				"proposals": []any{map[string]any{"role": "check", "kind": "format-check", "command": `test -z "$(gofmt -l .)"`,
+					"file_form": tt.form, "dir": ".", "evidence": "go.mod"}},
+			})
+			if r := f.run(lint); (len(r.Proposals) == 1) != tt.kept {
+				t.Errorf("kept %v, want %v: dropped %q", len(r.Proposals) == 1, tt.kept, r.Dropped)
+			}
+		})
+	}
+}
+
 // npx is npm's run prefix, and it fetches what isn't installed: a form
 // through it holds up only once the project has its own copy.
 func TestNpxHoldsUpWithALocalCopy(t *testing.T) {

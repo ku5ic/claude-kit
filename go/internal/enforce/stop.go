@@ -211,7 +211,8 @@ var placeholderWord = regexp.MustCompile(`\S*\{(?:files|dirs)\}\S*`)
 
 // Command is g's body with its files in place: a word holding {files}
 // repeated once per file, and one holding {dirs} once per file's directory,
-// each relative to where it runs and shell-quoted.
+// each relative to where it runs and shell-quoted. A word with text after
+// its placeholder (`{files})"`) holds the whole list once instead.
 func (g Gate) Command() string {
 	if len(g.Files) == 0 {
 		return g.Body
@@ -239,7 +240,13 @@ func (g Gate) Command() string {
 		}
 		out := make([]string, len(values))
 		for i, v := range values {
-			out[i] = strings.ReplaceAll(word, placeholder, Quote(v))
+			out[i] = Quote(v)
+		}
+		if !strings.HasSuffix(word, placeholder) {
+			return strings.ReplaceAll(word, placeholder, strings.Join(out, " "))
+		}
+		for i := range out {
+			out[i] = strings.ReplaceAll(word, placeholder, out[i])
 		}
 		return strings.Join(out, " ")
 	})
