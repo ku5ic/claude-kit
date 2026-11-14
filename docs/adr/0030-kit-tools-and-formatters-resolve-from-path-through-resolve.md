@@ -8,6 +8,8 @@ Accepted
 
 Amends [9. Resolve tools from the project first](0009-resolve-tools-from-the-project-first.md)
 
+Amended by [32. Run git and bash by name, and test where PATH is read](0032-run-git-and-bash-by-name-and-test-where-path-is-read.md)
+
 ## Context
 
 [9](0009-resolve-tools-from-the-project-first.md) says `go/internal/resolve` picks every binary the kit runs and refuses a copy that's only on PATH without a pin. Seven packages called a binary by name instead:
