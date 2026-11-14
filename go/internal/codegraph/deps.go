@@ -17,16 +17,19 @@ import (
 // Deps reads imports (path<TAB>import text, as Imports writes) under root
 // and writes deps.tsv, externals.tsv, upward.tsv, and imports-resolved.tsv
 // to outDir. split overrides the found split directory. It prints the
-// split and the main source root to w.
-func Deps(root, imports, outDir, split string, w io.Writer) error {
+// split and the main source root to w. A path under any of skipDirs is
+// no module.
+func Deps(root, imports, outDir, split string, skipDirs []string, w io.Writer) error {
 	files, err := git.Paths(root, "ls-files", "-z")
 	if err != nil {
 		return fmt.Errorf("git ls-files: %w", err)
 	}
+	files = slices.DeleteFunc(files, func(f string) bool { return skipped(f, skipDirs) })
 	rows, err := readTSV(imports, 2)
 	if err != nil {
 		return err
 	}
+	rows = slices.DeleteFunc(rows, func(r []string) bool { return skipped(r[0], skipDirs) })
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
 		return err
 	}
@@ -34,7 +37,7 @@ func Deps(root, imports, outDir, split string, w io.Writer) error {
 	split = splitDir(split, rows)
 	specs := g.specs(rows)
 	g.rankRoots(specs)
-	if err := build(specs, g, newModules(split, g.known)).write(outDir); err != nil {
+	if err := build(specs, g, newModules(split, g.known), skipDirs).write(outDir); err != nil {
 		return err
 	}
 	mainRoot := "none"
@@ -78,8 +81,9 @@ type depsResult struct {
 }
 
 // build resolves each spec and counts it: an edge between the modules of
-// its two ends, or an external.
-func build(specs []fileSpec, g *graph, mods modules) depsResult {
+// its two ends, or an external. A spec resolving under skipDirs counts as
+// neither.
+func build(specs []fileSpec, g *graph, mods modules, skipDirs []string) depsResult {
 	r := depsResult{edges: map[pair]int{}, prodFiles: map[pair]map[string]int{}, externals: map[string]int{}, declared: map[string]bool{}}
 	for _, fs := range specs {
 		target := g.resolve(fs.file, fs.spec)
@@ -89,6 +93,9 @@ func build(specs []fileSpec, g *graph, mods modules) depsResult {
 			if g.isDeclared(fs.path, fs.kind == dotted, ecosystems[path.Ext(fs.file)]) {
 				r.declared[name] = true
 			}
+			continue
+		}
+		if skipped(target, skipDirs) {
 			continue
 		}
 		r.resolved = append(r.resolved, pair{fs.file, target})

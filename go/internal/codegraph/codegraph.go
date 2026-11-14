@@ -17,18 +17,19 @@ const usage = `usage: kit code-graph imports <root> > imports.tsv
        kit code-graph c4 <deps out dir> <system name> > c4-containers.mmd
        kit code-graph check-c4 <model dir> <deps out dir> <root>`
 
-// Run is kit code-graph: its first argument names the report.
-func Run(args []string, stdout, stderr io.Writer) int {
+// Run is kit code-graph: its first argument names the report. imports and
+// deps leave out a path under any of skipDirs.
+func Run(args, skipDirs []string, stdout, stderr io.Writer) int {
 	var err error
 	switch {
 	case len(args) == 2 && args[0] == "imports":
-		err = Imports(args[1], stdout)
+		err = Imports(args[1], skipDirs, stdout)
 	case (len(args) == 4 || len(args) == 5) && args[0] == "deps":
 		split := ""
 		if len(args) == 5 {
 			split = args[4]
 		}
-		err = Deps(args[1], args[2], args[3], split, stdout)
+		err = Deps(args[1], args[2], args[3], split, skipDirs, stdout)
 	case len(args) == 3 && args[0] == "coupling":
 		err = Coupling(args[1], args[2], stdout)
 	case len(args) == 2 && args[0] == "fingerprint":

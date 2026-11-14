@@ -76,8 +76,9 @@ func scanError(bin string, cmd *proc.Cmd, err error) error {
 }
 
 // Imports writes every import under root as path<TAB>import text, the
-// path relative to root and the text on one line.
-func Imports(root string, out io.Writer) error {
+// path relative to root and the text on one line. A path under testdata
+// or any of skipDirs is left out.
+func Imports(root string, skipDirs []string, out io.Writer) error {
 	bin, err := kittool.Path(astGrep...)
 	if err != nil {
 		return err
@@ -98,8 +99,7 @@ func Imports(root string, out io.Writer) error {
 			continue
 		}
 		file := strings.TrimPrefix(match.File, root+"/")
-		// testdata holds fixtures, not the repo's code: the go tool skips it too.
-		if !slices.Contains(strings.Split(path.Dir(file), "/"), "testdata") {
+		if !skipped(file, skipDirs) {
 			rows = append(rows, file+"\t"+flatten.Replace(match.Text))
 		}
 	}
@@ -109,4 +109,16 @@ func Imports(root string, out io.Writer) error {
 		fmt.Fprintln(w, row)
 	}
 	return w.Flush()
+}
+
+// skipped reports whether file sits under testdata or a skipDirs entry.
+// testdata holds fixtures, not the repo's code, and the go tool skips it
+// too.
+func skipped(file string, skipDirs []string) bool {
+	for _, dir := range strings.Split(path.Dir(file), "/") {
+		if dir == "testdata" || slices.Contains(skipDirs, dir) {
+			return true
+		}
+	}
+	return false
 }

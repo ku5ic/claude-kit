@@ -195,16 +195,16 @@ func cmdVersion(e *env, _ *config.Config, _ []string) int {
 	return 0
 }
 
-// cmdCodeGraph reads kit.yml only for model-dir, which names the
-// architecture folder.
+// cmdCodeGraph reads kit.yml for skip_dirs, which imports and deps leave
+// out, and for model-dir's architecture folder.
 func cmdCodeGraph(e *env, args []string) int {
-	if len(args) == 0 || args[0] != "model-dir" {
-		return codegraph.Run(args, e.stdout, e.stderr)
-	}
 	cfg, err := e.config()
 	if err != nil {
 		fmt.Fprintln(e.stderr, "kit:", err)
 		return 1
+	}
+	if len(args) == 0 || args[0] != "model-dir" {
+		return codegraph.Run(args, cfg.SkipDirs, e.stdout, e.stderr)
 	}
 	return codegraph.RunModelDir(cfg.ArchitectureDir, e.home, args[1:], e.stdout, e.stderr)
 }

@@ -47,7 +47,8 @@ func TestImportsGolden(t *testing.T) {
 		t.Skip(err) // kit: allow ast-grep is optional on a dev machine
 	}
 	var out bytes.Buffer
-	if err := Imports(fixtureRepo(t)+"/", &out); err != nil {
+	// vendor/ is a skip_dirs entry: third-party code, not the repo's.
+	if err := Imports(fixtureRepo(t)+"/", []string{"vendor"}, &out); err != nil {
 		t.Fatal(err)
 	}
 	if want := testutil.Read(t, "testdata/imports.golden"); out.String() != want {
@@ -61,14 +62,14 @@ func TestImportsNamesAScanFailure(t *testing.T) {
 	bin := t.TempDir()
 	t.Setenv("PATH", bin+":/usr/bin:/bin")
 	testutil.Stub(t, filepath.Join(bin, "ast-grep"), "echo 'Error: Cannot parse rule kotlin' >&2\necho '  unknown kind import_header' >&2\nexit 8\n")
-	err := Imports(t.TempDir(), io.Discard)
+	err := Imports(t.TempDir(), nil, io.Discard)
 	if err == nil || !strings.Contains(err.Error(), "exit status 8: Error: Cannot parse rule kotlin; unknown kind import_header") {
 		t.Errorf("a failed scan: %v", err)
 	}
 	testutil.Stub(t, filepath.Join(bin, "ast-grep"), "exec sleep 5\n")
 	defer func(d time.Duration) { scanTimeout = d }(scanTimeout)
 	scanTimeout = 100 * time.Millisecond
-	if err := Imports(t.TempDir(), io.Discard); err == nil || !strings.Contains(err.Error(), "timed out after 100ms") {
+	if err := Imports(t.TempDir(), nil, io.Discard); err == nil || !strings.Contains(err.Error(), "timed out after 100ms") {
 		t.Errorf("a slow scan: %v", err)
 	}
 }
@@ -82,7 +83,7 @@ func TestDepsGolden(t *testing.T) {
 	t.Parallel()
 	out := filepath.Join(t.TempDir(), "raw")
 	var stdout bytes.Buffer
-	if err := Deps(fixtureRepo(t), "testdata/imports.golden", out, "", &stdout); err != nil {
+	if err := Deps(fixtureRepo(t), "testdata/imports.golden", out, "", nil, &stdout); err != nil {
 		t.Fatal(err)
 	}
 	if want := "split dir: (repo root); main source root: none; other candidates: 0\n"; stdout.String() != want {
@@ -111,7 +112,7 @@ func TestDepsReadsTheRepoBeforePythonsStdlibAndNamesABadManifest(t *testing.T) {
 	testutil.Write(t, imports, "app/main.py\timport types\napp/main.py\timport json\n")
 	out := filepath.Join(t.TempDir(), "raw")
 	var stdout bytes.Buffer
-	if err := Deps(root, imports, out, ".", &stdout); err != nil {
+	if err := Deps(root, imports, out, ".", nil, &stdout); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.HasPrefix(stdout.String(), "skipped manifest: package.json: ") {
@@ -122,6 +123,29 @@ func TestDepsReadsTheRepoBeforePythonsStdlibAndNamesABadManifest(t *testing.T) {
 	}
 	if got := testutil.Read(t, filepath.Join(out, "externals.tsv")); !strings.Contains(got, "\tjson\t") || strings.Contains(got, "\ttypes\t") {
 		t.Errorf("externals:\n%s", got)
+	}
+}
+
+// A committed vendor/, a skip_dirs entry, is third-party code. Its files
+// are no module, and an import into it counts as no edge.
+func TestDepsLeavesASkippedDirOutOfTheModules(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	testutil.Write(t, filepath.Join(root, "app/main.ts"), "import { padded } from \"../vendor/lib/index\";\n")
+	testutil.Write(t, filepath.Join(root, "vendor/lib/index.ts"), "import pad from \"left-pad\";\n")
+	testutil.Git(t, root, "init", "-q")
+	testutil.Git(t, root, "add", "-A")
+	imports := filepath.Join(t.TempDir(), "imports.tsv")
+	testutil.Write(t, imports, "app/main.ts\t\"../vendor/lib/index\"\nvendor/lib/index.ts\t\"left-pad\"\n")
+	out := filepath.Join(t.TempDir(), "raw")
+	if err := Deps(root, imports, out, "", []string{"vendor"}, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	if got := testutil.Read(t, filepath.Join(out, "deps.tsv")); strings.Contains(got, "vendor") {
+		t.Errorf("deps:\n%s", got)
+	}
+	if got := testutil.Read(t, filepath.Join(out, "imports-resolved.tsv")); strings.Contains(got, "vendor/") {
+		t.Errorf("imports-resolved:\n%s", got)
 	}
 }
 
@@ -211,10 +235,10 @@ func TestFindSplit(t *testing.T) {
 func TestRunUsage(t *testing.T) {
 	t.Parallel()
 	var stdout, stderr bytes.Buffer
-	if code := Run(nil, &stdout, &stderr); code != 2 || !bytes.Contains(stderr.Bytes(), []byte("usage: kit code-graph")) {
+	if code := Run(nil, nil, &stdout, &stderr); code != 2 || !bytes.Contains(stderr.Bytes(), []byte("usage: kit code-graph")) {
 		t.Errorf("no args: exit %d, %q", code, stderr.String())
 	}
-	if code := Run([]string{"coupling", "missing.txt", "missing.tsv"}, &stdout, &stderr); code != 1 {
+	if code := Run([]string{"coupling", "missing.txt", "missing.tsv"}, nil, &stdout, &stderr); code != 1 {
 		t.Errorf("a missing file: exit %d", code)
 	}
 }
