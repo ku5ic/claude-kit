@@ -611,6 +611,8 @@ func TestGuardBash(t *testing.T) {
 		guardIn(k, repo, "cat >> main_test.go <<'EOF'\nfunc x() {}\nEOF").Empty(t)
 		guardIn(k, repo, `echo x | tee ./main_test.go`).Empty(t)
 		guardIn(k, repo, `echo x > notes.md`).Has(t, "writes into the current directory")
+		// A glob in the target is a file name, not a pathspec matching main_test.go.
+		guardIn(k, repo, `echo x > 'main*'`).Has(t, "writes into the current directory")
 	})
 	t.Run("comments: an unquoted # ends the line, a quoted one doesn't", func(t *testing.T) {
 		guard(shared, `echo hi # rm -rf ~ in a comment`).Want(t, 0)
@@ -713,7 +715,7 @@ func TestGuardBashExcludesSecretsFromALoneRg(t *testing.T) {
 			t.Errorf("the rewritten %q left no read-only marker: %v", got, err)
 		}
 	}
-	for _, cmd := range []string{"rg -g '*.go' x .", "rg --glob=*.md x", "rg x . && rm y", "cat a | rg x", "rg --pre ./x pat .", "rg --hostname-bin=./x pat .", "rg x . > out.txt"} {
+	for _, cmd := range []string{"rg -g '*.go' x .", "rg --glob=*.md x", "rg x . && rm y", "cat a | rg x", "rg --pre ./x pat .", "rg --hostname-bin=./x pat .", "rg x . > out.txt", "rg -uu token /etc", "rg secret ~", "rg x ../", "rg -e x -- " + t.TempDir()} {
 		if got, _ := rewritten(cmd); got != "" {
 			t.Errorf("%q was rewritten to %q", cmd, got)
 		}

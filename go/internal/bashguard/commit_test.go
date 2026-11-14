@@ -150,6 +150,8 @@ func TestGuardCommitAsksForAnUnshownMessage(t *testing.T) {
 		"a pasted git log":            {testutil.UserPrompt("commit 35c7066\nAuthor: someone\n\n    fix: x")},
 		"a remark on commit hooks":    {testutil.UserPrompt("commit hooks keep failing")},
 		"a remark on commit style":    {testutil.UserPrompt("commit style is wrong here")},
+		"a remark on commit-msg":      {testutil.UserPrompt("commit-msg check keeps failing, look into it")},
+		"commit/push in a remark":     {testutil.UserPrompt("Hmm, commit/push are blocked")},
 		"a task notification":         {testutil.UserPrompt("fix it"), map[string]any{"type": "user", "origin": map[string]any{"kind": "task-notification"}, "message": map[string]any{"content": "Commit and continue."}}},
 		"a peer session's message":    {testutil.UserPrompt("fix it"), map[string]any{"type": "user", "origin": map[string]any{"kind": "peer"}, "message": map[string]any{"content": "commit it"}}},
 	} {

@@ -156,8 +156,8 @@ func Check(h *hook.Hook) error {
 	return nil
 }
 
-// excludeSensitive gives a lone rg with no glob of its own, in a work tree,
-// the sensitive exclusion as its first flag, so a loose .env or *.pem
+// excludeSensitive gives a lone rg with no glob of its own, reading only
+// inside the work tree it runs in, the sensitive exclusion as its first flag, so a loose .env or *.pem
 // under it isn't searched. The allow keeps auto mode from denying the
 // rewrite, and approves only this read; the user's deny and ask rules still
 // apply. A chained or piped rg keeps the shortcut at guard.SearchesSensitive.
@@ -166,11 +166,24 @@ func (st *state) excludeSensitive(segs []Segment, cmd string) {
 	rest, ok := strings.CutPrefix(strings.TrimSpace(cmd), "rg ")
 	// onlyReads turns away a flag that runs a program (--pre, --hostname-bin),
 	// which the allow would approve.
-	if exclude == "" || !ok || len(segs) != 1 || len(segs[0].Calls) != 1 || segs[0].subshell || !onlyReads(segs) || !st.inWorktree() {
+	if exclude == "" || !ok || len(segs) != 1 || len(segs[0].Calls) != 1 || segs[0].subshell || !onlyReads(segs) {
 		return
 	}
+	top := st.worktreeTop()
+	if top == "" {
+		return
+	}
+	var values []string
 	for _, w := range segs[0].Calls[0].Words[1:] {
 		if name, _, _ := strings.Cut(w.Value, "="); globFlags[name] != "" || strings.HasPrefix(name, "-g") {
+			return
+		}
+		values = append(values, w.Value)
+	}
+	// The allow approves only a read inside the project. The pattern and
+	// any option value count as operands too; inside, they're harmless.
+	for _, operand := range nonOptions(values) {
+		if !fsx.Within(top, resolveDir(st.home, st.cwd, operand)) {
 			return
 		}
 	}
@@ -507,17 +520,22 @@ func (st *state) looseWrite(op, target string) {
 // inWorktree is true when the tracked cwd (after any cd) is in a git work
 // tree and not under a scratch directory: cd /tmp or cd .claude/scratch
 // makes a bare > name harmless.
-func (st *state) inWorktree() bool {
+func (st *state) inWorktree() bool { return st.worktreeTop() != "" }
+
+// worktreeTop is the toplevel of the work tree cwd is in, "" outside one
+// or in scratch.
+func (st *state) worktreeTop() string {
 	if st.cwd == "" || project.IsScratch(st.h.Paths, st.cwd) {
-		return false
+		return ""
 	}
-	return git.Toplevel(st.cwd) != ""
+	return git.Toplevel(st.cwd)
 }
 
 // tracked is true when git tracks target, a path relative to the tracked
 // cwd; a failed lookup reads as untracked, so the ask stays.
 func (st *state) tracked(target string) bool {
-	paths, err := git.Paths(st.cwd, "ls-files", "-z", "--cached", "--", target)
+	// literal: a glob in target ('main*') would match other tracked files.
+	paths, err := git.Paths(st.cwd, "ls-files", "-z", "--cached", "--", ":(literal)"+target)
 	return err == nil && len(paths) > 0
 }
 

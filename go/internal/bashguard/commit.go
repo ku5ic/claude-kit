@@ -295,6 +295,10 @@ var (
 // its clause.
 func asksForCommit(prompt string) bool {
 	for _, m := range commitWord.FindAllStringSubmatchIndex(prompt, -1) {
+		// commit-msg, commit/push, commit's: part of a compound or a noun.
+		if end := m[0] + len("commit"); end < len(prompt) && strings.ContainsRune("-/:'", rune(prompt[end])) {
+			continue
+		}
 		if m[2] >= 0 {
 			next := strings.ToLower(strings.TrimSpace(prompt[m[2]:m[3]]))
 			if !slices.Contains(commitObjects, next) && !stepNumber.MatchString(next) {
