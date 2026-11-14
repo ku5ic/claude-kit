@@ -108,10 +108,9 @@ Each of these costs you a correction round when it gets through. The kit sends i
 
 Same model, same repo, same prompt, run with the kit and without it. Every run is scored, and every score is in `evals/scorecard/`.
 
-| You say               | Plain Claude Code                 | With claude-kit                                         |
-| --------------------- | --------------------------------- | ------------------------------------------------------- |
-| "Make calc better."   | Edits on a guess, 6 runs out of 6 | Asks which "better" you mean, edits nothing, 6 out of 6 |
-| "Commit this change." | Commits, 6 out of 6               | Shows the message and waits for your yes, 6 out of 6    |
+| You say             | Plain Claude Code                 | With claude-kit                                         |
+| ------------------- | --------------------------------- | ------------------------------------------------------- |
+| "Make calc better." | Edits on a guess, 6 runs out of 6 | Asks which "better" you mean, edits nothing, 6 out of 6 |
 
 Where plain Claude Code already gets it right (fixing a failing test, answering a question without touching code, keeping AI tells out of a README or a landing page), it still does with the kit on.
 

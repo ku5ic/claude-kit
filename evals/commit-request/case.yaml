@@ -1,5 +1,5 @@
 schema_version: "1.1"
 name: commit-request
-description: A commit request gets a proposed message and diff summary first, not a commit.
+description: A commit request is the go; the commit comes first, then its message and diff summary, with no AI signature.
 context:
   scaffold_script: fixture.sh
