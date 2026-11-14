@@ -435,9 +435,10 @@ func (st *state) redirects(call Call) error {
 }
 
 // looseWrite asks before a write (op is > or tee) that lands loose in the
-// current directory.
+// current directory, unless git tracks the target: that file is the
+// project's already.
 func (st *state) looseWrite(op, target string) {
-	if (!strings.Contains(target, "/") || strings.HasPrefix(target, "./")) && looseWriteTarget(target) && st.inWorktree() {
+	if (!strings.Contains(target, "/") || strings.HasPrefix(target, "./")) && looseWriteTarget(target) && st.inWorktree() && !st.tracked(target) {
 		st.ask("'" + op + " " + target + "' writes into the current directory; skills/kit-rules/reference/tooling.md wants " + op + " \"$(kit scratch-dir)/" + baseName(target) + "\". Confirm only if this file belongs in the project tree.")
 	}
 }
@@ -450,6 +451,13 @@ func (st *state) inWorktree() bool {
 		return false
 	}
 	return git.Toplevel(st.cwd) != ""
+}
+
+// tracked is true when git tracks target, a path relative to the tracked
+// cwd; a failed lookup reads as untracked, so the ask stays.
+func (st *state) tracked(target string) bool {
+	paths, err := git.Paths(st.cwd, "ls-files", "-z", "--cached", "--", target)
+	return err == nil && len(paths) > 0
 }
 
 // looseWriteTarget is true for a relative target that would land loose in

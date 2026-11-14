@@ -601,6 +601,16 @@ func TestGuardBash(t *testing.T) {
 		r.Has(t, "writes into the current directory")
 		guardIn(k, repo, `cat foo | tee "$(kit scratch-dir)/report.md"`).Empty(t)
 	})
+	t.Run("a write into a file git tracks doesn't ask", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		repo := guardBashRepo(k, t.TempDir(), "feat")
+		testutil.Write(t, filepath.Join(repo, "main_test.go"), "package main\n")
+		testutil.Git(t, repo, "add", "main_test.go")
+		guardIn(k, repo, "cat >> main_test.go <<'EOF'\nfunc x() {}\nEOF").Empty(t)
+		guardIn(k, repo, `echo x | tee ./main_test.go`).Empty(t)
+		guardIn(k, repo, `echo x > notes.md`).Has(t, "writes into the current directory")
+	})
 	t.Run("comments: an unquoted # ends the line, a quoted one doesn't", func(t *testing.T) {
 		guard(shared, `echo hi # rm -rf ~ in a comment`).Want(t, 0)
 		guard(shared, `echo "a#b"; rm -rf ~`).Want(t, 2)
