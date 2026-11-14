@@ -29,8 +29,8 @@ global_skills: [kit-rules]
 # The gate checks every Edit/Write/MultiEdit target, the nudge every Read,
 # Grep, and Bash read target too; matching is
 # cumulative (a single file can satisfy multiple entries). Order matters:
-# test entries precede extension entries so a .test.tsx file picks up
-# test-patterns first.
+# test entries precede the per-language extension entries so a .test.tsx
+# file picks up test-patterns first.
 #
 # on: basename  -> match against basename only
 # on: path      -> match against the full file path
@@ -422,8 +422,9 @@ sensitive_paths:
 # Line cap for the kit's JSONL logs.
 log_max_lines: 10000
 
-# Rule slugs, as logged in guards.jsonl, that block() lets through. Meant for
-# the overlay: a disabled rule is still logged, as "disabled".
+# Rule slugs, as logged in guards.jsonl, that the kit lets through: a block
+# or deny of that rule, or a nudge or check that reads it. Meant for the
+# overlay: a disabled block or deny is still logged, as "disabled".
 disabled_rules: []
 
 # CI steps and jobs the kit never runs (go/internal/sources/ci.go).
