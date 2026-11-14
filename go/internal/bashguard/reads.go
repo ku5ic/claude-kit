@@ -53,8 +53,9 @@ var pureReaders = map[string]bool{
 }
 
 // readerWriteFlags are the flags that make a reader write a file or run a
-// command: rg's preprocessor, git's output file, external diff, and pager.
-var readerWriteFlags = []string{"--pre", "--output", "--ext-diff", "--textconv", "-O", "--open-files-in-pager"}
+// command: rg's preprocessor and hostname program, git's output file,
+// external diff, and pager.
+var readerWriteFlags = []string{"--pre", "--hostname-bin", "--output", "--ext-diff", "--textconv", "-O", "--open-files-in-pager"}
 
 // gitReads are git subcommands that only read.
 var gitReads = map[string]bool{"log": true, "status": true, "diff": true, "show": true, "rev-parse": true, "ls-files": true, "blame": true, "grep": true}

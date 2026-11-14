@@ -1,6 +1,7 @@
 package bashguard
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -677,6 +678,53 @@ func TestGuardBash(t *testing.T) {
 			t.Errorf("want one global-installs-invalid record, got %v", recs)
 		}
 	})
+}
+
+// A lone glob-less rg in the project gets the sensitive exclusion as its
+// first flag, allowed so auto mode doesn't deny the rewrite.
+func TestGuardBashExcludesSecretsFromALoneRg(t *testing.T) {
+	t.Parallel()
+	k := newSandbox(t)
+	repo := guardBashRepo(k, t.TempDir(), "feat")
+	rewritten := func(cmd string) (string, string) {
+		t.Helper()
+		r := k.hook("s1", repo, cmd)
+		r.Want(t, 0)
+		var out struct {
+			HookSpecificOutput struct {
+				PermissionDecision string         `json:"permissionDecision"`
+				UpdatedInput       map[string]any `json:"updatedInput"`
+			} `json:"hookSpecificOutput"`
+		}
+		if r.Output != "" {
+			if err := json.Unmarshal([]byte(r.Output), &out); err != nil {
+				t.Fatalf("%s: %v\n%s", cmd, err, r.Output)
+			}
+		}
+		got, _ := out.HookSpecificOutput.UpdatedInput["command"].(string)
+		return got, out.HookSpecificOutput.PermissionDecision
+	}
+	for cmd, rest := range map[string]string{"rg -n x .": " -n x .", "rg -n x -- .": " -n x -- ."} {
+		got, decision := rewritten(cmd)
+		if !strings.HasPrefix(got, "rg --glob '!{") || !strings.HasSuffix(got, "}'"+rest) || decision != "allow" {
+			t.Errorf("%q became %q with decision %q; want the exclusion first, allowed", cmd, got, decision)
+		}
+		if _, err := os.Stat(cache.ReadOnlyBash(filepath.Join(k.claude, "cache"), "s1", got)); err != nil {
+			t.Errorf("the rewritten %q left no read-only marker: %v", got, err)
+		}
+	}
+	for _, cmd := range []string{"rg -g '*.go' x .", "rg --glob=*.md x", "rg x . && rm y", "cat a | rg x", "rg --pre ./x pat .", "rg --hostname-bin=./x pat .", "rg x . > out.txt"} {
+		if got, _ := rewritten(cmd); got != "" {
+			t.Errorf("%q was rewritten to %q", cmd, got)
+		}
+	}
+	if got, _ := rewritten("rg -n x ."); got == "" {
+		t.Fatal("no rewrite inside the project")
+	}
+	r := k.hook("s1", t.TempDir(), "rg -n x .")
+	if strings.Contains(r.Output, "updatedInput") {
+		t.Errorf("rg outside a work tree was rewritten: %s", r.Output)
+	}
 }
 
 func TestGuardBashMarksAReadOnlyCommand(t *testing.T) {

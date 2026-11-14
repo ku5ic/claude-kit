@@ -150,8 +150,38 @@ func Check(h *hook.Hook) error {
 		h.Decide("ask", st.pending)
 	case readonlyCall(cmd, norm):
 		h.Decide("allow", "side-effect-free claude-kit script")
+	default:
+		st.excludeSensitive(segs, cmd)
 	}
 	return nil
+}
+
+// excludeSensitive gives a lone rg with no glob of its own, in a work tree,
+// the sensitive exclusion as its first flag, so a loose .env or *.pem
+// under it isn't searched. The allow keeps auto mode from denying the
+// rewrite, and approves only this read; the user's deny and ask rules still
+// apply. A chained or piped rg keeps the shortcut at guard.SearchesSensitive.
+func (st *state) excludeSensitive(segs []Segment, cmd string) {
+	exclude := guard.SensitiveExclusion(st.cfg)
+	rest, ok := strings.CutPrefix(strings.TrimSpace(cmd), "rg ")
+	// onlyReads turns away a flag that runs a program (--pre, --hostname-bin),
+	// which the allow would approve.
+	if exclude == "" || !ok || len(segs) != 1 || len(segs[0].Calls) != 1 || segs[0].subshell || !onlyReads(segs) || !st.inWorktree() {
+		return
+	}
+	for _, w := range segs[0].Calls[0].Words[1:] {
+		if name, _, _ := strings.Cut(w.Value, "="); globFlags[name] != "" || strings.HasPrefix(name, "-g") {
+			return
+		}
+	}
+	rewritten := "rg --glob '" + exclude + "' " + rest
+	input := maps.Clone(st.h.Payload.Object("tool_input"))
+	input["command"] = rewritten
+	st.h.UpdateInput(input)
+	st.h.Decide("allow", "kit excluded credential files from an rg inside the project")
+	if marker := cache.ReadOnlyBash(st.h.Paths.CacheDir(), st.h.Payload.SessionID(), rewritten); marker != "" && !st.h.DryRun {
+		_ = fsx.WriteAtomic(marker, nil, 0o600)
+	}
 }
 
 // wholeString runs the checks on the whole command string, distinctive

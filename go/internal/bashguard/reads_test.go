@@ -62,6 +62,7 @@ func TestOnlyReads(t *testing.T) {
 		{"echo $(touch x)", false},
 		{"go test ./...", false},
 		{"rg --pre ./x.sh foo", false},
+		{"rg --hostname-bin=./x.sh foo", false},
 		{"git diff --output=x.patch", false},
 		{"git log -O order --oneline", false},
 		{"rg -o foo a.go", true},

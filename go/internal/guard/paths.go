@@ -62,8 +62,9 @@ func SensitiveExclusion(cfg *config.Config) string {
 // absolute, or "" for none.
 // shortcut: a search with no telling glob over a directory that merely
 // holds a basename entry (a loose *.pem) passes. Inside the project, the
-// Grep guard excludes them with SensitiveExclusion; outside, and for rg and
-// grep run through Bash, catching it means walking the tree.
+// Grep guard and a lone Bash rg exclude them with SensitiveExclusion;
+// outside, and for grep -r or a chained rg, catching it means walking the
+// tree.
 func SearchesSensitive(cfg *config.Config, home, root, glob string, holds bool) bool {
 	return root != "" && matchSensitive(cfg, home, root, holds) || namesSensitive(cfg, glob)
 }
