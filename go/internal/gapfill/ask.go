@@ -15,6 +15,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/claudecli"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/proc"
+	"github.com/ku5ic/claude-kit/go/internal/resolve/kittool"
 	"github.com/ku5ic/claude-kit/go/internal/sources"
 )
 
@@ -102,8 +103,12 @@ func classify(ctx context.Context, cfg *config.Config, o Options, req request) (
 		return response{}, claudecli.Usage{}, err
 	}
 	defer cleanup()
+	bin, err := kittool.Path(argv[0])
+	if err != nil {
+		return response{}, claudecli.Usage{}, err
+	}
 	deadline, _ := ctx.Deadline()
-	cmd := proc.Command(time.Until(deadline), argv[0], argv[1:]...)
+	cmd := proc.Command(time.Until(deadline), bin, argv[1:]...)
 	cmd.Dir = filepath.Join(o.CacheDir, cache.Enforce)
 	cmd.Env = env
 	cmd.Stdin = bytes.NewReader(stdin)

@@ -23,6 +23,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/connector"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/proc"
+	"github.com/ku5ic/claude-kit/go/internal/resolve/kittool"
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
@@ -157,7 +158,11 @@ func run(cfg *config.Config, argv []string, markerDir, dir, input string) (Verdi
 		return Verdict{}, fmt.Errorf("claims: %w", err)
 	}
 	defer cleanup()
-	cmd := proc.Command(time.Duration(cfg.Claims.Timeout)*time.Second, argv[0], argv[1:]...)
+	bin, err := kittool.Path(argv[0])
+	if err != nil {
+		return Verdict{}, fmt.Errorf("claims: %w", err)
+	}
+	cmd := proc.Command(time.Duration(cfg.Claims.Timeout)*time.Second, bin, argv[1:]...)
 	cmd.Dir = dir
 	cmd.Env = env
 	cmd.Stdin = strings.NewReader(input)

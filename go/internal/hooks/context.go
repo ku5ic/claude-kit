@@ -18,6 +18,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 	"github.com/ku5ic/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/resolve/kittool"
 	"github.com/ku5ic/claude-kit/go/internal/run"
 	"github.com/ku5ic/claude-kit/go/internal/stackctx"
 )
@@ -270,7 +271,7 @@ func classifyInBackground(root string) {
 func cliLines(cfg *config.Config) []string {
 	var available, missing, out []string
 	for _, tool := range cfg.Tools {
-		if _, err := exec.LookPath(tool); err == nil {
+		if _, err := kittool.Path(tool); err == nil {
 			available = append(available, tool)
 		} else {
 			missing = append(missing, tool)

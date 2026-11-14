@@ -22,6 +22,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/layout"
 	"github.com/ku5ic/claude-kit/go/internal/md"
 	"github.com/ku5ic/claude-kit/go/internal/proc"
+	"github.com/ku5ic/claude-kit/go/internal/resolve/kittool"
 	"github.com/ku5ic/claude-kit/go/internal/run"
 	"github.com/ku5ic/claude-kit/go/internal/slop"
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
@@ -308,7 +309,8 @@ func asksForCommit(prompt string) bool {
 // scanStaged runs gitleaks on repo's staged diff. Its exit codes: 0 clean, 1 a
 // leak, anything else an operational error that fails open with a notice.
 func scanStaged(h *hook.Hook, repo string) error {
-	if _, err := exec.LookPath("gitleaks"); err != nil {
+	gitleaks, err := kittool.Path("gitleaks")
+	if err != nil {
 		return nil
 	}
 	// gitleaks exits 1, a leak's code, on a path it can't stat: a missing
@@ -317,7 +319,7 @@ func scanStaged(h *hook.Hook, repo string) error {
 		fmt.Fprintf(h.Stderr, "%s: %s is not a directory; skipping scan\n", h.Name, repo)
 		return nil
 	}
-	err := proc.Command(proc.Quick, "gitleaks", "git", "--staged", "--no-banner", "--redact", "--log-level", "error", repo).Run()
+	err = proc.Command(proc.Quick, gitleaks, "git", "--staged", "--no-banner", "--redact", "--log-level", "error", repo).Run()
 	if err == nil {
 		return nil
 	}

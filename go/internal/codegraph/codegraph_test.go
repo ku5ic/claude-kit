@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ku5ic/claude-kit/go/internal/resolve/kittool"
 	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
 
@@ -37,7 +38,7 @@ func fixtureRepo(t *testing.T) string {
 
 func TestImportsGolden(t *testing.T) {
 	t.Parallel()
-	if _, err := astGrep(); err != nil {
+	if _, err := kittool.Path(astGrep...); err != nil {
 		t.Skip(err) // kit: allow ast-grep is optional, and CI doesn't install it
 	}
 	var out bytes.Buffer

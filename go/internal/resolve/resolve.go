@@ -2,8 +2,8 @@
 // project, and refuses one the project doesn't state: a package fetched to
 // run it, or a copy found only on PATH that nothing pins and no manifest's
 // toolchain or verified package manager provides. pre-commit's hooks never
-// come here: pre-commit manages their environments. KitTool is the one
-// exception, for the tools the kit runs for itself.
+// come here: pre-commit manages their environments. The kittool
+// subpackage is the one exception, for the tools the kit runs for itself.
 package resolve
 
 import (

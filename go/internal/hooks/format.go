@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -17,6 +16,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/proc"
 	"github.com/ku5ic/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/resolve/kittool"
 	"github.com/ku5ic/claude-kit/go/internal/run"
 )
 
@@ -89,7 +89,7 @@ func onPath(cmd string) bool {
 	if len(words) == 0 {
 		return false
 	}
-	_, err := exec.LookPath(words[0])
+	_, err := kittool.Path(words[0])
 	return err == nil
 }
 

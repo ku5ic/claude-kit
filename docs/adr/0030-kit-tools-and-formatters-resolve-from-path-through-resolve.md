@@ -23,10 +23,10 @@ No project pins these, so `Resolver.Bin` refuses them, and on some systems `sg` 
 
 ## Decision
 
-`resolve.KitTool(names...)` is the one place a PATH-only copy runs: the first of names found on PATH, and an `sg` only when its `--version` names ast-grep. It serves the tools the kit runs for itself (ast-grep, gitleaks, claude, the registry lookups) and the on_edit formatters. A command a project defines (a task, a check, just) goes through `Resolver.Bin`. A package below resolve's layer takes the resolved path from its caller.
+`kittool.Path(names...)`, in `go/internal/resolve/kittool`, is the one place a PATH-only copy runs: the first of names found on PATH, and an `sg` only when its `--version` names ast-grep. It serves the tools the kit runs for itself (ast-grep, gitleaks, claude, the registry lookups, `just --summary` listing recipes) and the on_edit formatters. Running a project's command goes through `Resolver.Bin`. kittool sits at layer 1, below sources and pkgcheck, which resolve itself imports, so every caller reaches it directly.
 
 ## Consequences
 
-- Where PATH is allowed is answered in one package again.
+- Where PATH is allowed is answered under one folder again.
 - A kit tool runs whatever version PATH has, as before; only a project's own commands get 9's pin check.
-- A new tool the kit runs for itself goes through `KitTool`, a project's command through `Bin`. Calling `exec.LookPath` elsewhere bypasses both.
+- A new tool the kit runs for itself goes through `kittool.Path`, a project's command through `Bin`. Calling `exec.LookPath` elsewhere bypasses both.

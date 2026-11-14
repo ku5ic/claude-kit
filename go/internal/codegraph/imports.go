@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os/exec"
 	"path"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/proc"
+	"github.com/ku5ic/claude-kit/go/internal/resolve/kittool"
 )
 
 // importRules are ast-grep rules, one per language, matching each import's
@@ -45,21 +45,14 @@ var importRules = func() string {
 	return b.String()
 }()
 
-// astGrep is the ast-grep binary: its own name, else sg, the name older
-// installs and Homebrew's formula use.
-func astGrep() (string, error) {
-	for _, name := range []string{"ast-grep", "sg"} {
-		if path, err := exec.LookPath(name); err == nil {
-			return path, nil
-		}
-	}
-	return "", fmt.Errorf("ast-grep (or sg) isn't installed")
-}
+// astGrep is ast-grep's names: its own, else sg, the name older installs
+// and Homebrew's formula use.
+var astGrep = []string{"ast-grep", "sg"}
 
 // Imports writes every import under root as path<TAB>import text, the
 // path relative to root and the text on one line.
 func Imports(root string, out io.Writer) error {
-	bin, err := astGrep()
+	bin, err := kittool.Path(astGrep...)
 	if err != nil {
 		return err
 	}

@@ -1,4 +1,8 @@
-package resolve
+// Package kittool is where a PATH-only copy runs: a tool the kit runs for
+// itself, or an on_edit formatter, which no project pins (ADR 0030). It
+// sits under resolve but below every layer, so any package can reach it; a
+// project's own commands go through resolve's Bin.
+package kittool
 
 import (
 	"errors"
@@ -13,11 +17,8 @@ import (
 // shadow-utils' newgrp alias of the same name.
 const versionTimeout = 5 * time.Second
 
-// KitTool is the PATH copy of the first of names: a tool the kit runs for
-// itself, or an on_edit formatter, which no project pins. It is the one
-// place a PATH-only copy runs (ADR 0030); a project's own commands go
-// through Bin.
-func KitTool(names ...string) (string, error) {
+// Path is the PATH copy of the first of names installed.
+func Path(names ...string) (string, error) {
 	for _, name := range names {
 		path, err := exec.LookPath(name)
 		if err != nil {
