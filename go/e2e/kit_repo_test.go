@@ -232,16 +232,29 @@ func TestKitRepo(t *testing.T) {
 		}
 	})
 
+	// Each file names a finding's parts in one sentence: report-format's
+	// "A finding's parts:" line, and verify's step 3 "Extract every
+	// finding's" line. The two group the parts differently, so each line
+	// only has to hold every field, in any order.
 	t.Run("audit verify parses every per-finding field the report format requires", func(t *testing.T) {
-		format := Read(t, filepath.Join(kitRoot, "skills/report-format/SKILL.md"))
-		verify := Read(t, filepath.Join(kitRoot, "skills/audit/reference/verify.md"))
-		for _, field := range []string{"severity", "problem", "location", "Evidence", "Why it matters", "Fix", "Refs"} {
-			word := regexp.MustCompile(`\b` + regexp.QuoteMeta(field) + `\b`)
-			if !word.MatchString(format) {
-				t.Errorf("report-format no longer documents %q", field)
+		for file, opening := range map[string]string{
+			"skills/report-format/SKILL.md":    "A finding's parts:",
+			"skills/audit/reference/verify.md": "Extract every finding's",
+		} {
+			var parts string
+			for line := range strings.SplitSeq(Read(t, filepath.Join(kitRoot, file)), "\n") {
+				if strings.Contains(line, opening) {
+					parts = line
+				}
 			}
-			if !word.MatchString(verify) {
-				t.Errorf("audit/reference/verify.md doesn't parse %q", field)
+			if parts == "" {
+				t.Errorf("%s has no line with %q", file, opening)
+				continue
+			}
+			for _, field := range []string{"severity", "problem", "location", "Evidence", "Why it matters", "Fix", "Refs"} {
+				if !regexp.MustCompile(`\b` + regexp.QuoteMeta(field) + `\b`).MatchString(parts) {
+					t.Errorf("%s: its %q line lacks %q", file, opening, field)
+				}
 			}
 		}
 	})
