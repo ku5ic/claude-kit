@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
@@ -191,37 +190,14 @@ func planCritiqued(p *hook.Payload) bool {
 // later writes don't undo it. A run that ended in an error, in its result
 // or its background notice, didn't critique it; one still running counts.
 func critiqued(entries []transcript.Entry, plan string) bool {
-	written := false
-	calls := map[string]bool{}    // plan-critic calls after the first write, until their result
-	launched := map[string]bool{} // background runs, until their notice
-	for _, e := range entries {
-		for call := range launched {
-			switch status := noticeStatus(e, call); status {
-			case "":
-			case "completed":
-				return true
-			default:
-				delete(launched, call)
-			}
-		}
-		for _, b := range e.Blocks {
-			switch {
-			case b.Type == "tool_use" && slices.Contains(transcript.EditTools, b.Name) && b.Path() == plan:
-				written = true
-			case b.Type == "tool_use" && b.Name == "Agent" && b.Input.SubagentType == planCritic && written:
-				calls[b.ID] = true
-			case b.Type != "tool_result" || !calls[b.ToolUseID]:
-			case b.IsError:
-				delete(calls, b.ToolUseID)
-			case strings.HasPrefix(b.ResultText(), asyncLaunched):
-				delete(calls, b.ToolUseID)
-				launched[b.ToolUseID] = true
-			default:
-				return true
-			}
-		}
-	}
-	return len(calls) > 0 || len(launched) > 0
+	first := slices.IndexFunc(entries, func(e transcript.Entry) bool {
+		return slices.ContainsFunc(e.ToolUses(), func(b transcript.Block) bool {
+			return slices.Contains(transcript.EditTools, b.Name) && b.Path() == plan
+		})
+	})
+	return first >= 0 && slices.ContainsFunc(transcript.AgentRuns(entries, planCritic), func(run transcript.Run) bool {
+		return run.Index > first && run.Status != transcript.RunFailed
+	})
 }
 
 // newestOpenPlan is the most recently modified plan file in the project's

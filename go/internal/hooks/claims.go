@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -332,14 +331,6 @@ func (l checkerLog) runs(ids []string) map[string]int {
 	for _, id := range ids {
 		outcome[id] = checkerNotRun
 	}
-	done := map[string]bool{}
-	settle := func(of []string, result int) {
-		for _, id := range of {
-			if !done[id] {
-				outcome[id], done[id] = result, result == checkerDone
-			}
-		}
-	}
 	checked := map[string]bool{}
 	blind := func(agent string) bool {
 		if was, ok := checked[agent]; ok {
@@ -348,51 +339,22 @@ func (l checkerLog) runs(ids []string) map[string]int {
 		checked[agent] = checkedNothing(agentTranscriptPath(l.path, agent))
 		return checked[agent]
 	}
-	calls := map[string][]string{}  // the ids a run launched after the last edit was asked about, by call
-	launched := map[string]string{} // background runs' agent ids, by call, ended once their notice says so
-	for i, e := range l.entries {
-		for call, agent := range launched {
-			switch status := noticeStatus(e, call); {
-			case status == "":
-			case status == "completed" && !blind(agent):
-				settle(calls[call], checkerDone)
-			default:
-				settle(calls[call], checkerFailed)
-			}
+	// A run launched before the last edit checked code that has changed.
+	for _, run := range transcript.AgentRuns(l.entries, claimChecker) {
+		if run.Index <= l.lastEdit || run.Status == transcript.RunGoing {
+			continue
 		}
-		for _, b := range e.Blocks {
-			switch {
-			case b.Type == "tool_use" && b.Name == "Agent" && b.Input.SubagentType == claimChecker:
-				for _, id := range ids {
-					if i > l.lastEdit && strings.Contains(b.Input.Prompt, id) {
-						calls[b.ID] = append(calls[b.ID], id)
-					}
-				}
-			case b.Type != "tool_result" || calls[b.ToolUseID] == nil:
-			case b.IsError:
-				settle(calls[b.ToolUseID], checkerFailed)
-			case strings.HasPrefix(b.ResultText(), asyncLaunched):
-				launched[b.ToolUseID] = agentID(b.ResultText())
-			case blind(agentID(b.ResultText())):
-				settle(calls[b.ToolUseID], checkerFailed)
-			default:
-				settle(calls[b.ToolUseID], checkerDone)
+		result := checkerFailed
+		if run.Status == transcript.RunDone && !blind(run.Agent) {
+			result = checkerDone
+		}
+		for _, id := range ids {
+			if strings.Contains(run.Prompt, id) && outcome[id] != checkerDone {
+				outcome[id] = result
 			}
 		}
 	}
 	return outcome
-}
-
-// agentIDLine is where the Agent tool's result names the run's agent, in
-// both a finished run's report and a background launch.
-var agentIDLine = regexp.MustCompile(`\bagentId: ([\w-]+)`)
-
-// agentID is the agent an Agent tool result names, "" when it names none.
-func agentID(result string) string {
-	if m := agentIDLine.FindStringSubmatch(result); m != nil {
-		return m[1]
-	}
-	return ""
 }
 
 // checkedNothing is true when the agent transcript at path shows checks,
@@ -420,25 +382,6 @@ func checkedNothing(path string) bool {
 		}
 	}
 	return answered
-}
-
-// asyncLaunched opens the Agent tool's result for a run it started in the
-// background: the report comes later, in a task notification.
-const asyncLaunched = "Async agent launched"
-
-// noticeStatus is the status e's task notification gives the background
-// Agent call call, "" when e isn't one for it.
-func noticeStatus(e transcript.Entry, call string) string {
-	text := e.Notice + e.Text
-	for _, b := range e.Blocks {
-		text += b.Text
-	}
-	if !strings.Contains(text, "<tool-use-id>"+call+"</tool-use-id>") {
-		return ""
-	}
-	_, rest, _ := strings.Cut(text, "<status>")
-	status, _, _ := strings.Cut(rest, "</status>")
-	return status
 }
 
 // verifyHandback checks a subagent's report with the hook's own run, once
