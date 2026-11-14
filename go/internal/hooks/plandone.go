@@ -77,6 +77,10 @@ type planWalk struct {
 	// ReportWrites is a report write's tool_use id -> its line, until its
 	// result: a write another guard denied wrote no report.
 	ReportWrites map[string]int `json:"report_writes"`
+	// CodeEdits is the code edits whose result hasn't come: an edit counts
+	// from its call, then again from its result, so a review launched
+	// beside it in one message doesn't cover it.
+	CodeEdits map[string]bool `json:"code_edits"`
 	// bashed is bashEdits, read fresh by each run: a Bash call's record is
 	// written before its result, so it's there by the time the walk reads it.
 	bashed map[string][]string
@@ -86,7 +90,7 @@ type planWalk struct {
 }
 
 func newPlanWalk() *planWalk {
-	return &planWalk{LastEdit: -1, LastReview: -1, Started: map[string]int{}, ReviewArrived: -1, ReviewReported: -1, ReportWrites: map[string]int{}}
+	return &planWalk{LastEdit: -1, LastReview: -1, Started: map[string]int{}, ReviewArrived: -1, ReviewReported: -1, ReportWrites: map[string]int{}, CodeEdits: map[string]bool{}}
 }
 
 // step takes in entry e. isCode is false for paths whose edits aren't code
@@ -113,8 +117,9 @@ func (w *planWalk) step(h *hook.Hook, e transcript.Entry, plansDir string, isCod
 			}
 			delete(w.ReportWrites, b.ToolUseID)
 		}
-		if slices.ContainsFunc(w.bashed[b.ToolUseID], isCode) {
+		if w.CodeEdits[b.ToolUseID] || slices.ContainsFunc(w.bashed[b.ToolUseID], isCode) {
 			w.LastEdit = max(w.LastEdit, e.Line)
+			delete(w.CodeEdits, b.ToolUseID)
 		}
 	}
 	if e.Type != "assistant" {
@@ -133,7 +138,10 @@ func (w *planWalk) step(h *hook.Hook, e transcript.Entry, plansDir string, isCod
 			if p := b.Path(); fsx.Within(plansDir, p) {
 				w.Ticked = append(w.Ticked, p)
 			} else if isCode(p) {
-				w.LastEdit = e.Line
+				if w.CodeEdits == nil {
+					w.CodeEdits = map[string]bool{}
+				}
+				w.LastEdit, w.CodeEdits[b.ID] = e.Line, true
 			}
 		case b.Name == "Bash":
 			w.Ticked = append(w.Ticked, w.bashTicked(b.Input.Command, e.Timestamp, plansDir)...)

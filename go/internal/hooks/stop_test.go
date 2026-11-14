@@ -255,6 +255,19 @@ func TestStopPlanDone(t *testing.T) {
 		e.turn("Edit", e.plan(done))
 		e.stop(false).Want(t, 2)
 	})
+	t.Run("a review launched beside an edit, before its result, needs a new one", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		e.line(map[string]any{"type": "user", "message": map[string]any{"content": "do it"}})
+		e.line(map[string]any{"type": "assistant", "message": map[string]any{"content": []any{
+			map[string]any{"type": "tool_use", "id": "toolu_a", "name": "Edit", "input": map[string]any{"file_path": e.path("a.ts")}},
+		}}})
+		e.review()
+		e.line(map[string]any{"type": "user", "message": map[string]any{"content": []any{map[string]any{"type": "tool_result", "tool_use_id": "toolu_a"}}}})
+		e.finish("<tool-use-id>toolu_r1</tool-use-id>", "completed")
+		e.turn("Edit", e.plan(done))
+		e.stop(false).Want(t, 2)
+	})
 	t.Run("an edit after the review needs a new one", func(t *testing.T) {
 		t.Parallel()
 		e := stopSetup(t)

@@ -270,6 +270,29 @@ func TestVerifyClaimsToolInput(t *testing.T) {
 			}
 		}
 	})
+	t.Run("a run launched beside an edit, before its result, doesn't stand", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		k.verifier("", claim)
+		post := func() map[string]any { return toolCall("mcp__chat__send_message", map[string]any{"text": claim}) }
+		id := checkID.FindString(k.run("verify-claims", post()).Stdout)
+		entry := func(v map[string]any) string { data, _ := json.Marshal(v); return string(data) }
+		use := func(block map[string]any) string {
+			return entry(map[string]any{"type": "assistant", "message": map[string]any{"content": []any{block}}})
+		}
+		result := func(id string) string {
+			return entry(map[string]any{"type": "user", "message": map[string]any{"content": []any{map[string]any{"type": "tool_result", "tool_use_id": id, "content": "No unconfirmed claims."}}}})
+		}
+		path := filepath.Join(k.t.TempDir(), "parallel.jsonl")
+		testutil.Write(t, path, strings.Join([]string{
+			use(map[string]any{"type": "tool_use", "id": "e1", "name": "Edit", "input": map[string]any{"file_path": filepath.Join(k.home, "proj", "main.go")}}),
+			use(map[string]any{"type": "tool_use", "id": "cc", "name": "Agent", "input": map[string]any{"subagent_type": "kit:claim-checker", "prompt": "Check the claims.\n" + id}}),
+			result("e1"), result("cc"),
+		}, "\n")+"\n")
+		payload := post()
+		payload["transcript_path"] = path
+		k.run("verify-claims", payload).Denied(t)
+	})
 	t.Run("a Bash edit after a run makes its sentences fresh again", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)

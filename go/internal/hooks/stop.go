@@ -242,7 +242,7 @@ const stopBudget = 240 * time.Second
 // gains or changes a field: a saved read of another version is dropped and
 // the transcript read whole, so no field needs a zero value that suits an
 // old walk.
-const stopReadVersion = 1
+const stopReadVersion = 2
 
 // stopRead is where the last Stop run left the session's transcript: the
 // offset and line past what it read, where the current turn starts, and

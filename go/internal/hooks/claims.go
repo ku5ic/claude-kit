@@ -237,8 +237,10 @@ func checkedStatements(log checkerLog, record string) ([]string, map[string]int,
 
 // checkerLog is the session transcript at path, read once, and the place
 // of its last code edit: an edit tool call, or a recorded Bash edit, on a
-// file outside scratch and the plans folder. A run launched before that
-// edit checked code that has changed since, so it counts as no run.
+// file outside scratch and the plans folder. The edit counts from its
+// result, or from its call while it has none: a run launched before that,
+// beside it in one message too, checked code that has changed since, so
+// it counts as no run.
 type checkerLog struct {
 	path     string
 	entries  []transcript.Entry
@@ -302,8 +304,12 @@ func readCheckerLog(h *hook.Hook, path string) checkerLog {
 	entries, _ := transcript.Load(path)
 	bashed := bashEdits(h)
 	log := checkerLog{path: path, entries: entries, lastEdit: transcript.Pos{Entry: -1}}
+	edits := map[string]bool{}
 	for at, b := range transcript.Blocks(entries) {
-		if _, ok := bashed[b.ID]; b.Type == "tool_use" && (ok || slices.Contains(transcript.EditTools, b.Name) && isCode(h, b.Path())) {
+		switch _, ok := bashed[b.ID]; {
+		case b.Type == "tool_use" && (ok || slices.Contains(transcript.EditTools, b.Name) && isCode(h, b.Path())):
+			log.lastEdit, edits[b.ID] = at, true
+		case b.Type == "tool_result" && edits[b.ToolUseID]:
 			log.lastEdit = at
 		}
 	}
