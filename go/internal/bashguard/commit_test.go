@@ -181,6 +181,9 @@ func TestGuardCommitAsksForAnUnshownMessage(t *testing.T) {
 		"a deferred pair":             {testutil.UserPrompt("commit and push tomorrow")},
 		"someone else said it":        {testutil.UserPrompt("the reviewer said commit it")},
 		"I said not to":               {testutil.UserPrompt("I said don't commit")},
+		"I said, in narration":        {testutil.UserPrompt("Earlier I said commit, now I'm not sure")},
+		"I said, after a comma":       {testutil.UserPrompt("Earlier, I said commit, now I'm not sure")},
+		"I said, mid-sentence":        {testutil.UserPrompt("the bug is that I said commit and it ran")},
 		"a task notification":         {testutil.UserPrompt("fix it"), map[string]any{"type": "user", "origin": map[string]any{"kind": "task-notification"}, "message": map[string]any{"content": "Commit and continue."}}},
 		"a peer session's message":    {testutil.UserPrompt("fix it"), map[string]any{"type": "user", "origin": map[string]any{"kind": "peer"}, "message": map[string]any{"content": "commit it"}}},
 	} {
@@ -200,7 +203,7 @@ func TestGuardCommitAsksForAnUnshownMessage(t *testing.T) {
 			t.Errorf("%q shows the message, yet the guard asked:\n%s", item, r.Output)
 		}
 	}
-	for _, prompt := range []string{"Commit and continue.", "Yes, commit.", "fix it and commit", "Commit, then start step 13", "Yes, commit 21, apply both fixes", "can you commit this?", "could you commit it", "please commit", "commit both and continue", "Commit it.", "commit the docs fix", "commit it, then review the next step", "nothing else to fix so commit it", "commit it, but don't push", "commit and push", "commit it, I'll check the diff afterwards", "commit it now, push it tomorrow", "commit it, you can push tomorrow", "I said commit and continue.", "I already said commit it", "But first, commit any changes.", "commit every fix", "commit each step"} {
+	for _, prompt := range []string{"Commit and continue.", "Yes, commit.", "fix it and commit", "Commit, then start step 13", "Yes, commit 21, apply both fixes", "can you commit this?", "could you commit it", "please commit", "commit both and continue", "Commit it.", "commit the docs fix", "commit it, then review the next step", "nothing else to fix so commit it", "commit it, but don't push", "commit and push", "commit it, I'll check the diff afterwards", "commit it now, push it tomorrow", "commit it, you can push tomorrow", "I said commit and continue.", "I already said commit it", "Yes, I said commit.", "Fine. I just said commit it", "But first, commit any changes.", "commit every fix", "commit each step"} {
 		if r := commit(map[string]any{"type": "user", "origin": map[string]any{"kind": "human"}, "message": map[string]any{"content": prompt}}); strings.Contains(r.Output, `"permissionDecision":"ask"`) {
 			t.Errorf("%q asks for the commit, yet the guard asked again:\n%s", prompt, r.Output)
 		}

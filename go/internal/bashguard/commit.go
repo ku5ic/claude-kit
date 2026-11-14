@@ -331,9 +331,10 @@ var (
 	// askedYou can come before "you commit" in a request: "can you
 	// commit". Any other ("if you commit this") makes it a remark.
 	askedYou = []string{"can", "could", "would", "will", "please"}
-	// userSaid repeats a request: "I said commit". Anyone else's ("the
-	// reviewer said commit") is a report.
-	userSaid = regexp.MustCompile(`(?i)\bi\s+(?:already\s+|just\s+)?said\s*$`)
+	// userSaid opens a sentence that repeats a request: "I said commit",
+	// "yes, I said commit". Anyone else's ("the reviewer said commit"), or
+	// one told as a story ("earlier I said commit"), isn't one.
+	userSaid = regexp.MustCompile(`(?i)^\s*(?:(?:yes|ok|okay|no)[\s,]+)?i\s+(?:already\s+|just\s+)?said\s*$`)
 	// subordinator anywhere in the commit's sentence makes it conditional,
 	// across a comma too: "when the tests pass, commit it", "commit it,
 	// but only after I review". Subordinating conjunctions are a closed
@@ -361,11 +362,11 @@ func asksForCommit(prompt string) bool {
 		if !objectPhrase(strings.FieldsFunc(strings.ToLower(rest), notWordRune)) {
 			continue
 		}
+		start := strings.LastIndexAny(prompt[:m[0]], ".!?\n") + 1
 		clause := prompt[strings.LastIndexAny(prompt[:m[0]], ".!?;,\n")+1 : m[0]]
-		if !leadsRequest(clause) || negated.MatchString(clause) {
+		if !leadsRequest(clause, prompt[start:m[0]]) || negated.MatchString(clause) {
 			continue
 		}
-		start := strings.LastIndexAny(prompt[:m[0]], ".!?\n") + 1
 		sentence := prompt[start:]
 		if end := strings.IndexAny(sentence, ".!?\n"); end >= 0 {
 			if sentence[end] == '?' && !directAsk.MatchString(sentence) {
@@ -385,13 +386,14 @@ func asksForCommit(prompt string) bool {
 
 // leadsRequest is whether clause, the words before "commit" in its
 // clause, puts it as a request: none, a requestLead word, an askedYou word
-// and "you", or "I said".
-func leadsRequest(clause string) bool {
+// and "you", or, as all of before, the words before it in its sentence,
+// "I said".
+func leadsRequest(clause, before string) bool {
 	words := strings.Fields(strings.ToLower(clause))
 	n := len(words)
 	return n == 0 || slices.Contains(requestLead, words[n-1]) ||
 		n >= 2 && words[n-1] == "you" && slices.Contains(askedYou, words[n-2]) ||
-		userSaid.MatchString(clause)
+		userSaid.MatchString(before)
 }
 
 // scanStaged runs gitleaks on repo's staged diff. Its exit codes: 0 clean, 1 a
