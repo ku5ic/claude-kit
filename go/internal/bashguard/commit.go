@@ -96,7 +96,7 @@ func CheckCommit(h *hook.Hook) error {
 		return h.Block("the project's commit-msg checks reject this message\n"+failed+"\n"+layout.KV("do", "fix it to their convention"), "commit-msg")
 	}
 	if !approved(h.Payload.String("transcript_path"), subject) {
-		h.Decide("ask", "skills/kit-rules/reference/workflow.md section 1: show the commit message and staged diff summary, then wait for the user's go; confirm only if they've seen this message")
+		h.Decide("ask", "skills/kit-rules/reference/workflow.md section 1: the current prompt doesn't ask for a commit, and no earlier reply showed this message; confirm only if the user asked for it")
 	}
 	return nil
 }
@@ -278,8 +278,11 @@ var (
 	// negated is a clause that turns down what follows: "don't", "do not",
 	// "not yet", "never", "no".
 	negated = regexp.MustCompile(`(?i)\b(don'?t|do not|not yet|never|no)\b`)
-	// commitNouns follow "commit" when it names a thing, not the act.
-	commitNouns = []string{"message", "messages", "msg", "hash", "log", "history", "prompt"}
+	// commitObjects can follow "commit" when it's asked for: what to
+	// commit, or what comes next. Any other word ("commit hooks", "commit
+	// 35c7066", "commit message") makes it a noun.
+	commitObjects = []string{"it", "this", "that", "these", "those", "them", "all", "both", "everything", "the", "my", "your", "our", "and", "then", "now", "please", "first", "too", "again", "step", "changes", "work"}
+	stepNumber    = regexp.MustCompile(`^\d{1,3}$`)
 	// requestLead is a word that can come right before "commit" when it's
 	// asked for: "fix it and commit", "can you commit", "please commit".
 	// Any other ("the last commit", "in commit abc") makes it a noun.
@@ -287,12 +290,16 @@ var (
 )
 
 // asksForCommit is true when prompt uses "commit" as a request: first in
-// its clause or after a requestLead word, not as a noun ("the commit
-// message"), and with no negation earlier in its clause.
+// its clause or after a requestLead word, followed by nothing, a
+// commitObjects word, or a step number, and with no negation earlier in
+// its clause.
 func asksForCommit(prompt string) bool {
 	for _, m := range commitWord.FindAllStringSubmatchIndex(prompt, -1) {
-		if m[2] >= 0 && slices.Contains(commitNouns, strings.ToLower(strings.TrimSpace(prompt[m[2]:m[3]]))) {
-			continue
+		if m[2] >= 0 {
+			next := strings.ToLower(strings.TrimSpace(prompt[m[2]:m[3]]))
+			if !slices.Contains(commitObjects, next) && !stepNumber.MatchString(next) {
+				continue
+			}
 		}
 		clause := prompt[strings.LastIndexAny(prompt[:m[0]], ".!?;,\n")+1 : m[0]]
 		words := strings.Fields(strings.ToLower(clause))
