@@ -595,30 +595,6 @@ func (st *state) kitSwitch(arg string) string {
 	return guard.KitSwitch(st.h.Paths, st.session, st.abs(unquote(arg)))
 }
 
-// isProtected is true when ref names a protected branch, ignoring
-// refs/heads/, refs/remotes/<remote>/, and origin/ prefixes.
-func (st *state) isProtected(ref string) bool {
-	ref = strings.TrimPrefix(ref, "refs/heads/")
-	if rest, ok := strings.CutPrefix(ref, "refs/remotes/"); ok {
-		if _, branch, found := strings.Cut(rest, "/"); found {
-			ref = branch
-		}
-	}
-	ref = strings.TrimPrefix(ref, "origin/")
-	return slices.Contains(st.cfg.ProtectedBranches, ref)
-}
-
-// currentBranch of the repo a git command targets: -C resolved against the
-// segment's cwd. Empty outside a repo or on a detached HEAD.
-func (st *state) currentBranch(gitDir string) string {
-	dir := st.cwd
-	if gitDir != "" {
-		dir = st.abs(gitDir)
-	}
-	branch, _ := git.Branch(dir)
-	return branch
-}
-
 // readonlyCall is true for a lone `kit <read-only subcommand>` call
 // (kitcmd.ReadOnly). Plugins can't ship allow rules, so the hook allows
 // them itself; settings deny and ask rules still win over a hook allow. No
