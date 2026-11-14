@@ -3,8 +3,10 @@ package codegraph
 import (
 	"bufio"
 	"cmp"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"maps"
 	"os"
 	"path"
@@ -53,27 +55,40 @@ func ModelDir(base, home, target string) (string, error) {
 	return dir, nil
 }
 
-// Fingerprint is what a model was drawn from: every module on either end
-// of a deps.tsv edge, sorted, then every package externals.tsv marks
-// declared, sorted. A standard-library or transitive import changes
-// nothing; a new manifest dependency does.
+// Fingerprint is what a model was drawn from: every module, sorted, then
+// every package externals.tsv marks declared, sorted. A standard-library
+// or transitive import changes nothing; a new manifest dependency does.
 func Fingerprint(rawDir string) ([]string, error) {
 	edges, err := readTSV(filepath.Join(rawDir, "deps.tsv"), 3)
 	if err != nil {
 		return nil, err
 	}
-	var modules []string
+	modules, err := moduleNames(rawDir, edges)
+	if err != nil {
+		return nil, err
+	}
+	declared, err := declaredExternals(rawDir)
+	if err != nil {
+		return nil, err
+	}
+	return append(modules, declared...), nil
+}
+
+// moduleNames is every module modules.txt lists or a deps.tsv edge names,
+// sorted. A raw dir from before modules.txt reads as its edges alone.
+func moduleNames(rawDir string, edges [][]string) ([]string, error) {
+	modules, err := readLines(filepath.Join(rawDir, "modules.txt"))
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return nil, err
+	}
 	for _, e := range edges {
 		if len(e) == 3 {
 			modules = append(modules, e[1], e[2])
 		}
 	}
+	modules = slices.DeleteFunc(modules, func(m string) bool { return m == "" })
 	slices.Sort(modules)
-	declared, err := declaredExternals(rawDir)
-	if err != nil {
-		return nil, err
-	}
-	return append(slices.Compact(modules), declared...), nil
+	return slices.Compact(modules), nil
 }
 
 // declaredExternals is every package externals.tsv marks declared, sorted.
@@ -92,10 +107,10 @@ func declaredExternals(rawDir string) ([]string, error) {
 	return slices.Compact(out), nil
 }
 
-// C4 writes a container view skeleton to w, built from rawDir's deps.tsv
-// and externals.tsv: each module a container inside one system boundary,
-// with its %% path:, each declared package an external with its
-// %% package:, and an edge per module pair that imports. The classDef
+// C4 writes a container view skeleton to w, built from rawDir's deps.tsv,
+// modules.txt, and externals.tsv: each module a container inside one
+// system boundary, with its %% path:, each declared package an external
+// with its %% package:, and an edge per module pair that imports. The classDef
 // lines, people, and anything the imports can't show are left to whoever
 // finishes it.
 func C4(rawDir, system string, w io.Writer) error {
@@ -107,14 +122,10 @@ func C4(rawDir, system string, w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	var modules []string
-	for _, e := range edges {
-		if len(e) == 3 {
-			modules = append(modules, e[1], e[2])
-		}
+	modules, err := moduleNames(rawDir, edges)
+	if err != nil {
+		return err
 	}
-	slices.Sort(modules)
-	modules = slices.Compact(modules)
 	nodeID := nodeIDs()
 	fmt.Fprintf(w, "flowchart TB\n  subgraph system[%q]\n", system)
 	for _, m := range modules {

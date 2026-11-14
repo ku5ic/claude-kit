@@ -78,7 +78,8 @@ func TestImportsNamesAScanFailure(t *testing.T) {
 // NodeNext .js import of a .ts file, a Go module path, Rust crate:: with a
 // {group} and mod, Python's from . import, declared and undeclared
 // externals per ecosystem, a test file that doesn't vote, and one upward
-// edge. The out dir doesn't exist yet: Deps makes it.
+// edge, and src and rust, modules with no edge to another. The out dir
+// doesn't exist yet: Deps makes it.
 func TestDepsGolden(t *testing.T) {
 	t.Parallel()
 	out := filepath.Join(t.TempDir(), "raw")
@@ -89,9 +90,9 @@ func TestDepsGolden(t *testing.T) {
 	if want := "split dir: (repo root); main source root: none; other candidates: 0\n"; stdout.String() != want {
 		t.Errorf("summary: %q", stdout.String())
 	}
-	for _, name := range []string{"deps", "externals", "upward", "imports-resolved"} {
-		got := testutil.Read(t, filepath.Join(out, name+".tsv"))
-		if want := testutil.Read(t, filepath.Join("testdata/deps", name+".golden")); got != want {
+	for _, name := range []string{"deps.tsv", "externals.tsv", "upward.tsv", "imports-resolved.tsv", "modules.txt"} {
+		got := testutil.Read(t, filepath.Join(out, name))
+		if want := testutil.Read(t, filepath.Join("testdata/deps", strings.TrimSuffix(name, filepath.Ext(name))+".golden")); got != want {
 			t.Errorf("%s: got:\n%s\nwant:\n%s", name, got, want)
 		}
 	}

@@ -5,6 +5,7 @@ import (
 	"cmp"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
@@ -15,10 +16,10 @@ import (
 )
 
 // Deps reads imports (path<TAB>import text, as Imports writes) under root
-// and writes deps.tsv, externals.tsv, upward.tsv, and imports-resolved.tsv
-// to outDir. split overrides the found split directory. It prints the
-// split and the main source root to w. A path under any of skipDirs is
-// no module.
+// and writes deps.tsv, externals.tsv, upward.tsv, imports-resolved.tsv,
+// and modules.txt to outDir. split overrides the found split directory.
+// It prints the split and the main source root to w. A path under any of
+// skipDirs is no module.
 func Deps(root, imports, outDir, split string, skipDirs []string, w io.Writer) error {
 	files, err := git.Paths(root, "ls-files", "-z")
 	if err != nil {
@@ -78,14 +79,16 @@ type depsResult struct {
 	externals map[string]int
 	declared  map[string]bool
 	resolved  []pair
+	modules   map[string]bool
 }
 
 // build resolves each spec and counts it: an edge between the modules of
 // its two ends, or an external. A spec resolving under skipDirs counts as
 // neither.
 func build(specs []fileSpec, g *graph, mods modules, skipDirs []string) depsResult {
-	r := depsResult{edges: map[pair]int{}, prodFiles: map[pair]map[string]int{}, externals: map[string]int{}, declared: map[string]bool{}}
+	r := depsResult{edges: map[pair]int{}, prodFiles: map[pair]map[string]int{}, externals: map[string]int{}, declared: map[string]bool{}, modules: map[string]bool{}}
 	for _, fs := range specs {
+		r.addModule(mods.of(fs.file))
 		target := g.resolve(fs.file, fs.spec)
 		if target == "" {
 			name := externalName(fs.path, fs.kind == dotted)
@@ -100,6 +103,7 @@ func build(specs []fileSpec, g *graph, mods modules, skipDirs []string) depsResu
 		}
 		r.resolved = append(r.resolved, pair{fs.file, target})
 		source, dest := mods.of(fs.file), mods.of(target)
+		r.addModule(dest)
 		if source == "" || dest == "" || source == dest {
 			continue
 		}
@@ -115,7 +119,14 @@ func build(specs []fileSpec, g *graph, mods modules, skipDirs []string) depsResu
 	return r
 }
 
-// write writes r's four TSVs to outDir.
+// addModule records m, unless it's "", the split itself.
+func (r depsResult) addModule(m string) {
+	if m != "" {
+		r.modules[m] = true
+	}
+}
+
+// write writes r's four TSVs and modules.txt to outDir.
 func (r depsResult) write(outDir string) error {
 	ordered := byCount(r.edges, pair.compare)
 	err := writeTSV(filepath.Join(outDir, "deps.tsv"), func(out io.Writer) {
@@ -146,9 +157,14 @@ func (r depsResult) write(outDir string) error {
 			fmt.Fprintf(out, "%d\t%d\t%d\t%s\t%s\t%s\n", r.edges[e], prod, len(files), e.a, e.b, strings.Join(top[:min(5, len(top))], ","))
 		}
 	}))
-	return cmp.Or(err, writeTSV(filepath.Join(outDir, "imports-resolved.tsv"), func(out io.Writer) {
+	err = cmp.Or(err, writeTSV(filepath.Join(outDir, "imports-resolved.tsv"), func(out io.Writer) {
 		for _, p := range r.resolved {
 			fmt.Fprintf(out, "%s\t%s\n", p.a, p.b)
+		}
+	}))
+	return cmp.Or(err, writeTSV(filepath.Join(outDir, "modules.txt"), func(out io.Writer) {
+		for _, m := range slices.Sorted(maps.Keys(r.modules)) {
+			fmt.Fprintln(out, m)
 		}
 	}))
 }

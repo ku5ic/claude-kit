@@ -4,6 +4,10 @@ flowchart TB
     %% path: cmd
     m_internal["internal"]
     %% path: internal
+    m_rust["rust"]
+    %% path: rust
+    m_src["src"]
+    %% path: src
   end
   class system boundary
   ext_scope_ui["@scope/ui"]:::ext

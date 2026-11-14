@@ -9,11 +9,13 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
 
-// rawDir is a deps out dir holding the fixture's deps and externals.
+// rawDir is a deps out dir holding the fixture's deps, modules, and
+// externals.
 func rawDir(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 	testutil.Write(t, filepath.Join(dir, "deps.tsv"), testutil.Read(t, "testdata/deps/deps.golden"))
+	testutil.Write(t, filepath.Join(dir, "modules.txt"), testutil.Read(t, "testdata/deps/modules.golden"))
 	testutil.Write(t, filepath.Join(dir, "externals.tsv"), testutil.Read(t, "testdata/deps/externals.golden"))
 	return dir
 }
