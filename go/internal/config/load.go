@@ -62,19 +62,19 @@ func ResolveCheckout(exe string) (Paths, error) {
 }
 
 func pathsAt(root string) (Paths, error) {
-	home := os.Getenv("CLAUDE_CONFIG_DIR")
-	if home == "" {
+	claudeDir := os.Getenv("CLAUDE_CONFIG_DIR")
+	if claudeDir == "" {
 		userHome, err := os.UserHomeDir()
 		if err != nil {
 			return Paths{}, fmt.Errorf("resolve home: %w", err)
 		}
-		home = filepath.Join(userHome, ".claude")
+		claudeDir = filepath.Join(userHome, ".claude")
 	}
 	return Paths{
 		Root:      root,
-		ClaudeDir: home,
+		ClaudeDir: claudeDir,
 		Base:      filepath.Join(root, "kit.yml"),
-		Overlay:   filepath.Join(home, "claude-kit.local.yml"),
+		Overlay:   filepath.Join(claudeDir, "claude-kit.local.yml"),
 	}, nil
 }
 

@@ -151,7 +151,7 @@ func skillExists(h *hook.Hook, name string) bool {
 	if name == "" || strings.ContainsAny(name, `/\`) {
 		return false
 	}
-	dirs := []string{h.Paths.Root, filepath.Join(h.Home, ".claude")}
+	dirs := []string{h.Paths.Root, h.Paths.ClaudeDir}
 	if root, ok := project.Root(h.Payload.Cwd()); ok {
 		dirs = append(dirs, filepath.Join(root, ".claude"))
 	}

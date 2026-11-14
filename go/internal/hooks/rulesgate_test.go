@@ -122,6 +122,17 @@ func TestRulesGate(t *testing.T) {
 		testutil.Write(t, k.paths.LogFile(kitlog.Skills), mainLoad+"\n"+`{"event":"PostToolUse","session_id":"s1","skill_file":"kit:slop-patterns","tool_name":"Skill"}`+"\n")
 		call(k, "Bash", "", bash).Allowed(t)
 	})
+	t.Run("a user skill is found in the Claude config dir, wherever HOME is", func(t *testing.T) {
+		t.Parallel()
+		k := setup(t, mainLoad+"\n")
+		// CLAUDE_CONFIG_DIR moves the config dir away from ~/.claude.
+		k.paths.Root, k.home = t.TempDir(), t.TempDir()
+		testutil.Write(t, filepath.Join(k.claude, "skills", "mine", "SKILL.md"), "# Mine\n")
+		k.overlay("global_skills: [mine]\n")
+		r := call(k, "Bash", "", bash)
+		r.Denied(t)
+		r.Has(t, "the mine skill isn't loaded yet")
+	})
 	t.Run("a global_skills skill with no SKILL.md is skipped, logged", func(t *testing.T) {
 		t.Parallel()
 		k := setup(t, mainLoad+"\n")
