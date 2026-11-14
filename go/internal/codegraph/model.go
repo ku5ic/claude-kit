@@ -5,6 +5,7 @@ import (
 	"cmp"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
@@ -176,56 +177,67 @@ func readModel(modelDir string) (nodes map[string]*node, edges [][2]string, file
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	nodes = map[string]*node{}
+	r := modelReader{nodes: map[string]*node{}}
 	for _, file := range files {
 		f, err := os.Open(file)
 		if err != nil {
 			return nil, nil, nil, err
 		}
-		var last *node
+		r.last = nil
 		scanner := bufio.NewScanner(f)
 		for scanner.Scan() {
-			line := scanner.Text()
-			trimmed := strings.TrimSpace(line)
-			if m := comment.FindStringSubmatch(line); m != nil && last != nil {
-				switch m[1] {
-				case "path":
-					last.path = m[2]
-				case "package":
-					last.pkg = m[2]
-				case "source":
-					last.judgment = m[2] == "judgment"
-				}
-				continue
-			}
-			if strings.HasPrefix(trimmed, "%%") || trimmed == "" {
-				continue
-			}
-			first, _, _ := strings.Cut(trimmed, " ")
-			if slices.Contains([]string{"flowchart", "graph", "subgraph", "end", "class", "classDef", "linkStyle", "style", "direction"}, first) {
-				continue
-			}
-			if m := nodeLine.FindStringSubmatch(line); m != nil {
-				last = addNode(nodes, m[1], m[2], m[4], file)
-				continue
-			}
-			ends := chain(line)
-			for i, end := range ends {
-				if len(ends) < 2 {
-					break
-				}
-				addNode(nodes, end[1], end[2], end[3], file)
-				if i > 0 {
-					edges = append(edges, [2]string{ends[i-1][1], end[1]})
-				}
-			}
+			r.line(scanner.Text(), file)
 		}
 		_ = f.Close()
 		if err := scanner.Err(); err != nil {
 			return nil, nil, nil, err
 		}
 	}
-	return nodes, edges, files, nil
+	return r.nodes, r.edges, files, nil
+}
+
+// modelReader collects a model's nodes and edges, one line at a time.
+type modelReader struct {
+	nodes map[string]*node
+	edges [][2]string
+	last  *node // the node a %% comment under it describes
+}
+
+// mermaidKeywords open a line that holds no node or edge.
+var mermaidKeywords = []string{"flowchart", "graph", "subgraph", "end", "class", "classDef", "linkStyle", "style", "direction"}
+
+// line reads one line of file: a %% comment on the last node, a node, or
+// a chain of edges.
+func (r *modelReader) line(line, file string) {
+	trimmed := strings.TrimSpace(line)
+	if m := comment.FindStringSubmatch(line); m != nil && r.last != nil {
+		switch m[1] {
+		case "path":
+			r.last.path = m[2]
+		case "package":
+			r.last.pkg = m[2]
+		case "source":
+			r.last.judgment = m[2] == "judgment"
+		}
+		return
+	}
+	if first, _, _ := strings.Cut(trimmed, " "); strings.HasPrefix(trimmed, "%%") || trimmed == "" || slices.Contains(mermaidKeywords, first) {
+		return
+	}
+	if m := nodeLine.FindStringSubmatch(line); m != nil {
+		r.last = addNode(r.nodes, m[1], m[2], m[4], file)
+		return
+	}
+	ends := chain(line)
+	for i, end := range ends {
+		if len(ends) < 2 {
+			break
+		}
+		addNode(r.nodes, end[1], end[2], end[3], file)
+		if i > 0 {
+			r.edges = append(r.edges, [2]string{ends[i-1][1], end[1]})
+		}
+	}
 }
 
 // addNode is nodes' node id, added with label from file when it's new;
@@ -276,11 +288,6 @@ func CheckC4(modelDir, rawDir, root string, w io.Writer) (ok bool, err error) {
 		fmt.Fprintf(w, "no model: %s holds no c4-*.mmd file\n", modelDir)
 		return false, nil
 	}
-	ok = true
-	problem := func(format string, args ...any) {
-		ok = false
-		fmt.Fprintf(w, format+"\n", args...)
-	}
 	now, err := Fingerprint(rawDir)
 	if err != nil {
 		return false, err
@@ -288,16 +295,6 @@ func CheckC4(modelDir, rawDir, root string, w io.Writer) (ok bool, err error) {
 	saved, err := readLines(filepath.Join(modelDir, "fingerprint.txt"))
 	if err != nil && !os.IsNotExist(err) {
 		return false, err
-	}
-	for _, s := range now {
-		if !slices.Contains(saved, s) {
-			problem("stale: %s is new since the model was drawn", s)
-		}
-	}
-	for _, s := range saved {
-		if s != "" && !slices.Contains(now, s) {
-			problem("stale: %s is gone since the model was drawn", s)
-		}
 	}
 	declared, err := declaredExternals(rawDir)
 	if err != nil {
@@ -307,28 +304,65 @@ func CheckC4(modelDir, rawDir, root string, w io.Writer) (ok bool, err error) {
 	if err != nil {
 		return false, err
 	}
-	ids := slices.Sorted(func(yield func(string) bool) {
-		for id := range nodes {
-			if !yield(id) {
-				return
-			}
+	ids := slices.Sorted(maps.Keys(nodes))
+	problems := diffFingerprint(now, saved)
+	problems = append(problems, checkNodes(nodes, ids, declared, root)...)
+	problems = append(problems, checkEdges(nodes, edges, deps)...)
+	for _, p := range problems {
+		fmt.Fprintln(w, p)
+	}
+	for _, id := range ids {
+		if n := nodes[id]; n.judgment {
+			fmt.Fprintf(w, "judgment: %s %q (%s)\n", n.id, cmp.Or(n.label, n.id), n.file)
 		}
-	})
+	}
+	return len(problems) == 0, nil
+}
+
+// diffFingerprint is a stale line for each module now has that saved
+// lacks, and each saved has that now lacks.
+func diffFingerprint(now, saved []string) []string {
+	var problems []string
+	for _, s := range now {
+		if !slices.Contains(saved, s) {
+			problems = append(problems, fmt.Sprintf("stale: %s is new since the model was drawn", s))
+		}
+	}
+	for _, s := range saved {
+		if s != "" && !slices.Contains(now, s) {
+			problems = append(problems, fmt.Sprintf("stale: %s is gone since the model was drawn", s))
+		}
+	}
+	return problems
+}
+
+// checkNodes is a line for each node, in ids order, whose %% path: is
+// outside root or gone, or whose external package no manifest declares,
+// or that names none.
+func checkNodes(nodes map[string]*node, ids, declared []string, root string) []string {
+	var problems []string
 	for _, id := range ids {
 		n := nodes[id]
 		switch {
 		case n.path != "" && !filepath.IsLocal(n.path):
-			problem("gone: %s (%s) cites %s, which is outside the repo", n.id, n.file, n.path)
+			problems = append(problems, fmt.Sprintf("gone: %s (%s) cites %s, which is outside the repo", n.id, n.file, n.path))
 		case n.path != "":
 			if _, err := os.Stat(filepath.Join(root, n.path)); err != nil {
-				problem("gone: %s (%s) cites %s, which no longer exists", n.id, n.file, n.path)
+				problems = append(problems, fmt.Sprintf("gone: %s (%s) cites %s, which no longer exists", n.id, n.file, n.path))
 			}
 		case n.isExt && n.pkg != "" && !slices.Contains(declared, n.pkg):
-			problem("undeclared: %s (%s) names package %s, which no manifest declares", n.id, n.file, n.pkg)
+			problems = append(problems, fmt.Sprintf("undeclared: %s (%s) names package %s, which no manifest declares", n.id, n.file, n.pkg))
 		case n.isExt && n.pkg == "" && !n.judgment:
-			problem("unbacked: %s (%s) is an external with no %%%% package: and no %%%% source: judgment", n.id, n.file)
+			problems = append(problems, fmt.Sprintf("unbacked: %s (%s) is an external with no %%%% package: and no %%%% source: judgment", n.id, n.file))
 		}
 	}
+	return problems
+}
+
+// checkEdges is a line for each edge between two containers with paths
+// that no import in deps backs.
+func checkEdges(nodes map[string]*node, edges [][2]string, deps [][]string) []string {
+	var problems []string
 	for _, e := range edges {
 		from, to := nodes[e[0]], nodes[e[1]]
 		if from == nil || to == nil || from.path == "" || to.path == "" || from.path == to.path {
@@ -337,15 +371,10 @@ func CheckC4(modelDir, rawDir, root string, w io.Writer) (ok bool, err error) {
 		if !slices.ContainsFunc(deps, func(d []string) bool {
 			return len(d) == 3 && overlaps(d[1], from.path) && overlaps(d[2], to.path)
 		}) {
-			problem("unbacked: %s --> %s has no import from %s into %s", e[0], e[1], from.path, to.path)
+			problems = append(problems, fmt.Sprintf("unbacked: %s --> %s has no import from %s into %s", e[0], e[1], from.path, to.path))
 		}
 	}
-	for _, id := range ids {
-		if n := nodes[id]; n.judgment {
-			fmt.Fprintf(w, "judgment: %s %q (%s)\n", n.id, cmp.Or(n.label, n.id), n.file)
-		}
-	}
-	return ok, nil
+	return problems
 }
 
 // overlaps is true when module and a container's path name the same
