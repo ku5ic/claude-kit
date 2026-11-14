@@ -18,7 +18,7 @@ Re-check findings from a prior audit report against the current repo, classifyin
 
 ## Output
 
-Write to the path `kit scratch-dir verify <original-slug>` prints, where `<original-slug>` is the original report's own target slug, or its kind if it has none. Never modify the original report: this command is append-only across files, so a bad verify run cannot corrupt an audit.
+Write to the path `kit scratch-dir verify <original>` prints, where `<original>` is the original report's file name without `.md`, unique in its scratch dir. Never modify the original report: this command is append-only across files, so a bad verify run cannot corrupt an audit.
 
 ```markdown
 # Verify: <original report filename>
