@@ -153,8 +153,8 @@ func Check(h *hook.Hook) error {
 		}
 	}
 	// bash-edits reads the marker of the command that runs, the rewrite
-	// when there is one.
-	if !unparsed && onlyReads(segs) && !h.DryRun {
+	// when there is one. A rewrite only reads, rg piped into sort included.
+	if !unparsed && (onlyReads(segs) || runs != cmd) && !h.DryRun {
 		if marker := cache.ReadOnlyBash(h.Paths.CacheDir(), h.Payload.SessionID(), runs); marker != "" {
 			_ = fsx.WriteAtomic(marker, nil, 0o600)
 		}

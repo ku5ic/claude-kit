@@ -706,7 +706,9 @@ func TestGuardBashExcludesSecretsFromALoneRg(t *testing.T) {
 		got, _ := out.HookSpecificOutput.UpdatedInput["command"].(string)
 		return got, out.HookSpecificOutput.PermissionDecision
 	}
-	for cmd, rest := range map[string]string{"rg -n x .": " -n x .", "rg -n x -- .": " -n x -- .", "rg 'x$' .": " 'x$' .", "rg -uu -i x .": " -uu -i x .", "rg -A 3 x .": " -A 3 x .", "rg --max-count=2 x .": " --max-count=2 x .", "rg --no-heading -e x -- .": " --no-heading -e x -- ."} {
+	for cmd, rest := range map[string]string{"rg -n x .": " -n x .", "rg -n x -- .": " -n x -- .", "rg 'x$' .": " 'x$' .", "rg -uu -i x .": " -uu -i x .", "rg -A 3 x .": " -A 3 x .", "rg --max-count=2 x .": " --max-count=2 x .", "rg --no-heading -e x -- .": " --no-heading -e x -- .",
+		"rg -n x . | head -5": " -n x . | head -5", "rg x | sort | uniq -c": " x | sort | uniq -c", "rg -c x . | sort -t : -k2 -rn": " -c x . | sort -t : -k2 -rn",
+		"rg -l x . | cut -d/ -f1 | sort -u | wc -l": " -l x . | cut -d/ -f1 | sort -u | wc -l", "rg x . 2>/dev/null | tail -n +2": " x . 2>/dev/null | tail -n +2"} {
 		got, decision := rewritten(cmd)
 		if !strings.HasPrefix(got, "rg --glob '!{") || !strings.HasSuffix(got, "}'"+rest) || decision != "allow" {
 			t.Errorf("%q became %q with decision %q; want the exclusion first, allowed", cmd, got, decision)
@@ -720,7 +722,10 @@ func TestGuardBashExcludesSecretsFromALoneRg(t *testing.T) {
 			t.Errorf("the original %q left a read-only marker too", cmd)
 		}
 	}
-	for _, cmd := range []string{"rg -g '*.go' x .", "rg --glob=*.md x", "rg x . && rm y", "cat a | rg x", "rg --pre ./x pat .", "rg --hostname-bin=./x pat .", "rg x . > out.txt", "rg -uu token /etc", "rg secret ~", "rg x ../", "rg -e x -- " + t.TempDir(), "rg -L x .", "rg --follow x .", "rg -ig '.env' x", "rg -uug '*.env' x", `rg -uu token "${HOME%/}/.aws"`, `rg -n foo "$OLDPWD"`, "rg x `pwd`", `rg x $'/etc'`, `rg -n foo "$OLDPWD"''`, "rg secret {~/.aws,.}", "rg x ../*", "rg -z x .", "rg -nz x .", "rg --pre-glob '*.gz' x .", "rg --made-up x ."} {
+	for _, cmd := range []string{"rg -g '*.go' x .", "rg --glob=*.md x", "rg x . && rm y", "cat a | rg x", "rg --pre ./x pat .", "rg --hostname-bin=./x pat .", "rg x . > out.txt", "rg -uu token /etc", "rg secret ~", "rg x ../", "rg -e x -- " + t.TempDir(), "rg -L x .", "rg --follow x .", "rg -ig '.env' x", "rg -uug '*.env' x", `rg -uu token "${HOME%/}/.aws"`, `rg -n foo "$OLDPWD"`, "rg x `pwd`", `rg x $'/etc'`, `rg -n foo "$OLDPWD"''`, "rg secret {~/.aws,.}", "rg x ../*", "rg -z x .", "rg -nz x .", "rg --pre-glob '*.gz' x .", "rg --made-up x .",
+		"rg x . | awk 1", "rg x . | tee f", "rg x . | xargs cat", "rg x . | sort -o out", "rg x . | uniq - out", "rg x . | head notes.md",
+		"rg x . | head < notes.md", "rg x . | head > out", "rg x . | wc --files0-from=list", "rg x . | sort --compress-program=gzip",
+		`rg x . | head -n "$N"`, "rg x . | FOO=1 head", "rg x | rg y", "(rg x . | head)"} {
 		if got, _ := rewritten(cmd); got != "" {
 			t.Errorf("%q was rewritten to %q", cmd, got)
 		}

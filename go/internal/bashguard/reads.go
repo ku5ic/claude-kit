@@ -47,30 +47,68 @@ var rgFlags = map[string]bool{
 	"replace": true, "sort": true, "sortr": true, "generate": true,
 }
 
-// rgReadsOnly is whether every option in args, an rg call's words after
-// its name, is one rgFlags lists. A value an option takes, in its word or
-// the next, isn't read as an option.
-func rgReadsOnly(args []string) bool {
+// stdinFilters are the commands that, given no operand, read only their
+// stdin, each with the options (coreutils and BSD) known not to write a
+// file, read one, or run a program, true when it takes a value. Missing on
+// purpose: sort -o, -T, --compress-program, --files0-from, and
+// --random-source, wc --files0-from, and tail -f.
+var stdinFilters = map[string]map[string]bool{
+	"head": withDigits(map[string]bool{"n": true, "c": true, "q": false, "v": false, "z": false,
+		"lines": true, "bytes": true, "quiet": false, "silent": false, "verbose": false, "zero-terminated": false}),
+	"tail": withDigits(map[string]bool{"n": true, "c": true, "q": false, "v": false, "z": false, "r": false,
+		"lines": true, "bytes": true, "quiet": false, "silent": false, "verbose": false, "zero-terminated": false}),
+	"wc": {"l": false, "w": false, "c": false, "m": false, "L": false,
+		"lines": false, "words": false, "bytes": false, "chars": false, "max-line-length": false},
+	"sort": {"b": false, "d": false, "f": false, "g": false, "h": false, "i": false, "M": false, "n": false,
+		"R": false, "r": false, "V": false, "c": false, "C": false, "m": false, "s": false, "u": false, "z": false,
+		"k": true, "t": true, "S": true,
+		"ignore-leading-blanks": false, "dictionary-order": false, "ignore-case": false, "general-numeric-sort": false,
+		"human-numeric-sort": false, "ignore-nonprinting": false, "month-sort": false, "numeric-sort": false,
+		"random-sort": false, "reverse": false, "version-sort": false, "check": false, "merge": false, "stable": false,
+		"unique": false, "zero-terminated": false, "key": true, "field-separator": true, "buffer-size": true,
+		"parallel": true, "sort": true},
+	"uniq": {"c": false, "d": false, "u": false, "i": false, "D": false, "z": false, "f": true, "s": true, "w": true,
+		"count": false, "repeated": false, "unique": false, "ignore-case": false, "zero-terminated": false,
+		"all-repeated": false, "group": false, "skip-fields": true, "skip-chars": true, "check-chars": true},
+	"cut": {"s": false, "n": false, "z": false, "w": false, "b": true, "c": true, "f": true, "d": true,
+		"only-delimited": false, "complement": false, "zero-terminated": false, "bytes": true, "characters": true,
+		"fields": true, "delimiter": true, "output-delimiter": true},
+}
+
+// withDigits adds head's and tail's -5 to flags.
+func withDigits(flags map[string]bool) map[string]bool {
+	for d := '0'; d <= '9'; d++ {
+		flags[string(d)] = false
+	}
+	return flags
+}
+
+// knownOptions splits args, a call's words after its name, into its
+// operands, false when an option isn't in flags. A value an option takes,
+// in its word or the next, isn't read as an option. With negatable, any
+// --no- flag passes: it only turns one off.
+func knownOptions(flags map[string]bool, negatable bool, args []string) ([]string, bool) {
+	var operands []string
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
 		case a == "--":
-			return true
-		case strings.HasPrefix(a, "--no-"):
+			return append(operands, args[i+1:]...), true
+		case negatable && strings.HasPrefix(a, "--no-"):
 		case strings.HasPrefix(a, "--"):
 			name, _, inline := strings.Cut(a[2:], "=")
-			value, ok := rgFlags[name]
+			value, ok := flags[name]
 			if !ok || len(name) == 1 {
-				return false
+				return nil, false
 			}
 			if value && !inline {
 				i++
 			}
 		case strings.HasPrefix(a, "-") && len(a) > 1:
 			for j, r := range a[1:] {
-				value, ok := rgFlags[string(r)]
+				value, ok := flags[string(r)]
 				if !ok {
-					return false
+					return nil, false
 				}
 				// -A3 or -e x: the value is the rest of the word, or the next.
 				if value {
@@ -80,9 +118,41 @@ func rgReadsOnly(args []string) bool {
 					break
 				}
 			}
+		default:
+			operands = append(operands, a)
 		}
 	}
-	return true
+	return operands, true
+}
+
+// filtersStdin is whether c reads only its stdin and writes only to
+// stdout: a stdinFilters command with literal, known options and no
+// operand, input, or redirect but a discarding one.
+func filtersStdin(c Call) bool {
+	if len(c.Words) == 0 || len(c.Assigns) > 0 || len(c.Inputs) > 0 || len(c.Heredocs) > 0 || !discards(c.Redirs) {
+		return false
+	}
+	flags, ok := stdinFilters[c.Words[0].Value]
+	if !ok {
+		return false
+	}
+	args := make([]string, 0, len(c.Words)-1)
+	for _, w := range c.Words[1:] {
+		if !w.literal {
+			return false
+		}
+		args = append(args, w.Value)
+	}
+	operands, ok := knownOptions(flags, false, args)
+	return ok && len(operands) == 0
+}
+
+// discards is whether every redirect goes to /dev/null or another
+// descriptor.
+func discards(redirs []Redir) bool {
+	return !slices.ContainsFunc(redirs, func(r Redir) bool {
+		return r.Target.Value != "/dev/null" && !strings.HasPrefix(r.Target.Value, "&")
+	})
 }
 
 // ReadTargets is what cmd, run from cwd, reads, as guard-bash's credential
@@ -151,10 +221,8 @@ func onlyReads(segs []Segment) bool {
 			if len(c.Words) == 0 || len(c.Assigns) > 0 {
 				return false
 			}
-			for _, r := range c.Redirs {
-				if r.Target.Value != "/dev/null" && !strings.HasPrefix(r.Target.Value, "&") {
-					return false
-				}
+			if !discards(c.Redirs) {
+				return false
 			}
 			// A path is a script of the project's: ./test or scripts/diff
 			// can write whatever it likes.
@@ -182,19 +250,25 @@ func onlyReads(segs []Segment) bool {
 	return true
 }
 
-// excludeSensitive gives a lone rg with only literal words and read-only
-// flags (rgFlags), reading only inside the work tree it runs in, the
-// sensitive exclusion as its first
-// flag, so a loose .env or *.pem under it isn't searched. It returns the
-// rewritten command, or "" when it left cmd alone. The allow keeps auto mode from denying the
-// rewrite, and approves only this read; the user's deny and ask rules still
-// apply. A chained or piped rg keeps the shortcut at guard.SearchesSensitive.
+// excludeSensitive gives an rg with only literal words and read-only flags
+// (rgFlags), reading only inside the work tree it runs in, alone or piped
+// only into stdinFilters, the sensitive exclusion as its first flag, so a
+// loose .env or *.pem under it isn't searched. It returns the rewritten
+// command, or "" when it left cmd alone. The allow keeps auto mode from
+// denying the rewrite, and approves only this read; the user's deny and ask
+// rules still apply. A chained rg keeps the shortcut at
+// guard.SearchesSensitive.
 func (st *state) excludeSensitive(segs []Segment, cmd string) string {
 	exclude := guard.SensitiveExclusion(st.cfg)
 	rest, ok := strings.CutPrefix(strings.TrimSpace(cmd), "rg ")
+	if exclude == "" || !ok || len(segs) != 1 || segs[0].subshell {
+		return ""
+	}
 	// onlyReads turns away a flag that runs a program (--pre, --hostname-bin),
 	// which the allow would approve.
-	if exclude == "" || !ok || len(segs) != 1 || len(segs[0].Calls) != 1 || segs[0].subshell || !onlyReads(segs) {
+	search := segs[0]
+	search.Calls = search.Calls[:1]
+	if !onlyReads([]Segment{search}) || slices.ContainsFunc(segs[0].Calls[1:], func(c Call) bool { return !filtersStdin(c) }) {
 		return ""
 	}
 	top := st.worktreeTop()
@@ -212,7 +286,7 @@ func (st *state) excludeSensitive(segs []Segment, cmd string) string {
 	}
 	// Only a flag known to read gets the allow; any other leaves the
 	// command to the permission rules.
-	if !rgReadsOnly(values) {
+	if _, ok := knownOptions(rgFlags, true, values); !ok {
 		return ""
 	}
 	// rg searches a file it's named whatever the globs say.
