@@ -160,9 +160,8 @@ func formTool(form string) string {
 	// After the runners: pnpm exec is one, and pnpm alone a task reference.
 	for _, ref := range classify.Grammar.References {
 		if f := strings.Fields(ref.Words); len(words) >= len(f) && slices.Equal(words[:len(f)], f) {
-			rest := words[len(f):]
-			if i := slices.IndexFunc(rest, func(w string) bool { return !strings.HasPrefix(w, "-") }); ref.Task == "" && i >= 0 {
-				f = append(f, rest[i])
+			if name := classify.RefName(ref, words[len(f):]); ref.Task == "" && name != "" {
+				f = append(f, name)
 			}
 			return strings.Join(f, " ")
 		}

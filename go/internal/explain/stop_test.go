@@ -44,7 +44,7 @@ func stopRepo(t *testing.T) (config.Paths, *config.Config, string) {
 func explainStop(t *testing.T, paths config.Paths, cfg *config.Config, root string, files ...string) string {
 	t.Helper()
 	var out, stderr strings.Builder
-	if status := Run(paths, cfg, root, append([]string{"stop"}, files...), &out, &stderr); status != 0 {
+	if status := Run(paths, cfg, root, t.TempDir(), append([]string{"stop"}, files...), &out, &stderr); status != 0 {
 		t.Fatalf("status %d: %s", status, stderr.String())
 	}
 	return out.String()

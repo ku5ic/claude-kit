@@ -170,7 +170,7 @@ var commands = map[string]command{
 		return slop.Run(cfg, args, os.Stdin, e.stdout, e.stderr)
 	}},
 	"explain": {needsConfig, func(e *env, cfg *config.Config, args []string) int {
-		return explain.Run(e.paths, cfg, e.cwd, args, e.stdout, e.stderr)
+		return explain.Run(e.paths, cfg, e.cwd, e.home, args, e.stdout, e.stderr)
 	}},
 }
 

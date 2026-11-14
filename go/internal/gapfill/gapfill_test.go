@@ -431,6 +431,10 @@ func TestVerification(t *testing.T) {
 	if why := r.Skipped[Key(blank)]; why != `rejected (segment " " is empty)` {
 		t.Errorf("empty segment: %q", why)
 	}
+	// A rejected verdict is an answer: Stop and reclassify ask only for none.
+	if n := r.Unclassified(); n != 0 {
+		t.Errorf("rejected verdicts counted as unclassified: %d", n)
+	}
 	if len(r.Managers) != 1 || r.Managers[0].Manager != "pnpm" {
 		t.Errorf("only the manager whose lockfile exists stands: %+v", r.Managers)
 	}

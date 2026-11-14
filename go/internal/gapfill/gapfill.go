@@ -151,12 +151,12 @@ type Result struct {
 	Usage     claudecli.Usage // what this run's classifier calls cost
 }
 
-// Unclassified counts the entries with no verdict that the kit's policy
-// didn't deny.
+// Unclassified counts the entries the cache has no answer for. A denied or
+// rejected one has an answer, and asking again returns the same one.
 func (r Result) Unclassified() int {
 	n := 0
 	for _, why := range r.Skipped {
-		if !Denied(why) {
+		if strings.HasPrefix(why, unclassifiedReason) {
 			n++
 		}
 	}
@@ -169,7 +169,10 @@ func Denied(why string) bool {
 	return strings.HasPrefix(why, deniedReason)
 }
 
-const deniedReason = "denied"
+const (
+	deniedReason       = "denied"
+	unclassifiedReason = "unclassified"
+)
 
 // store is the cache file: the model's answers as given, verified on read.
 type store struct {

@@ -32,7 +32,7 @@ func verify(cfg *config.Config, root string, entries []sources.Entry, s store, f
 	at := func(dir string) forms {
 		return forms{cfg: cfg, root: root, dir: filepath.Join(root, dir), prefixes: prefixes, resolver: resolver}
 	}
-	unclassified := "unclassified"
+	unclassified := unclassifiedReason
 	if failure != "" {
 		unclassified += " (" + failure + ")"
 	}

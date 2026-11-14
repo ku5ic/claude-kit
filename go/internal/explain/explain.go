@@ -36,7 +36,7 @@ const usage = `usage: kit explain <what> ...
 `
 
 // Run dispatches kit explain.
-func Run(paths config.Paths, cfg *config.Config, cwd string, args []string, stdout, stderr io.Writer) int {
+func Run(paths config.Paths, cfg *config.Config, cwd, home string, args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		fmt.Fprint(stderr, usage)
 		return 2
@@ -47,7 +47,7 @@ func Run(paths config.Paths, cfg *config.Config, cwd string, args []string, stdo
 			fmt.Fprint(stderr, usage)
 			return 2
 		}
-		return bash(paths, cfg, cwd, args[1], stdout)
+		return bash(paths, cfg, cwd, home, args[1], stdout)
 	case "edit":
 		if len(args) < 2 || len(args) > 4 || len(args) == 4 && args[2] != "Grep" {
 			fmt.Fprint(stderr, usage)
@@ -60,18 +60,18 @@ func Run(paths config.Paths, cfg *config.Config, cwd string, args []string, stdo
 		if len(args) == 4 {
 			glob = args[3]
 		}
-		return edit(paths, cfg, cwd, args[1], tool, glob, stdout)
+		return edit(paths, cfg, cwd, home, args[1], tool, glob, stdout)
 	case "stop":
-		return stop(paths, cfg, cwd, args[1:], stdout, stderr)
+		return stop(paths, cfg, cwd, home, args[1:], stdout, stderr)
 	}
 	fmt.Fprint(stderr, usage)
 	return 2
 }
 
 // dryHook is a hook invocation that logs nothing and prints nothing.
-func dryHook(paths config.Paths, cfg *config.Config, name string, payload map[string]any) *hook.Hook {
+func dryHook(paths config.Paths, cfg *config.Config, home, name string, payload map[string]any) *hook.Hook {
 	raw, _ := json.Marshal(payload)
-	h := &hook.Hook{Name: name, Payload: hook.ParsePayload(raw), Paths: paths, Stdout: io.Discard, Stderr: io.Discard, Home: os.Getenv("HOME"), DryRun: true}
+	h := &hook.Hook{Name: name, Payload: hook.ParsePayload(raw), Paths: paths, Stdout: io.Discard, Stderr: io.Discard, Home: home, DryRun: true}
 	h.SetConfig(cfg)
 	return h
 }
@@ -101,7 +101,7 @@ func verdict(w io.Writer, name string, err error, h *hook.Hook) {
 	fmt.Fprintf(w, "%s: pass\n", name)
 }
 
-func bash(paths config.Paths, cfg *config.Config, cwd, command string, w io.Writer) int {
+func bash(paths config.Paths, cfg *config.Config, cwd, home, command string, w io.Writer) int {
 	fmt.Fprintln(w, "parsed (inner substitutions first, as they run):")
 	for i, seg := range bashguard.Segments(command) {
 		var calls []string
@@ -117,14 +117,14 @@ func bash(paths config.Paths, cfg *config.Config, cwd, command string, w io.Writ
 		}
 		fmt.Fprintf(w, "  %d  %s\n", i+1, strings.Join(calls, "  |  "))
 	}
-	h := dryHook(paths, cfg, "guard-bash", map[string]any{
+	h := dryHook(paths, cfg, home, "guard-bash", map[string]any{
 		"tool_name": "Bash", "cwd": cwd, "tool_input": map[string]any{"command": command},
 	})
 	verdict(w, "guard-bash", bashguard.Check(h), h)
 	return 0
 }
 
-func edit(paths config.Paths, cfg *config.Config, cwd, path, tool, glob string, w io.Writer) int {
+func edit(paths config.Paths, cfg *config.Config, cwd, home, path, tool, glob string, w io.Writer) int {
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(cwd, path)
 	}
@@ -133,15 +133,15 @@ func edit(paths config.Paths, cfg *config.Config, cwd, path, tool, glob string, 
 		input = map[string]any{"path": path, "glob": glob}
 	}
 	payload := map[string]any{"tool_name": tool, "session_id": "explain", "cwd": cwd, "tool_input": input}
-	h := dryHook(paths, cfg, "guard-edit", payload)
+	h := dryHook(paths, cfg, home, "guard-edit", payload)
 	verdict(w, "guard-edit", hooks.GuardEdit(h), h)
 	if tool != "Read" && tool != "Grep" {
 		// Rewriting the file as it is adds no line; kit slop <path> lists
 		// what a new copy would hit. This shows a skip or a pass.
-		h = dryHook(paths, cfg, "guard-slop", payload)
+		h = dryHook(paths, cfg, home, "guard-slop", payload)
 		verdict(w, "guard-slop (rule slop; per tell: slop-<id>)", hooks.GuardSlop(h), h)
 	}
-	h = dryHook(paths, cfg, "guard-skills", payload)
+	h = dryHook(paths, cfg, home, "guard-skills", payload)
 	name := "skills gate"
 	if !stackctx.SkillsEnforced(cfg) {
 		name += " (off: guard_skills is off and CLAUDE_GUARD_SKILLS isn't 1)"
@@ -150,7 +150,7 @@ func edit(paths config.Paths, cfg *config.Config, cwd, path, tool, glob string, 
 	return 0
 }
 
-func stop(paths config.Paths, cfg *config.Config, cwd string, files []string, w, stderr io.Writer) int {
+func stop(paths config.Paths, cfg *config.Config, cwd, home string, files []string, w, stderr io.Writer) int {
 	root := git.Toplevel(cwd)
 	if root == "" {
 		fmt.Fprintln(stderr, "kit explain stop: not inside a git repository")
@@ -176,7 +176,7 @@ func stop(paths config.Paths, cfg *config.Config, cwd string, files []string, w,
 	for i, f := range files {
 		abs[i] = fsx.Abs(cwd, f)
 	}
-	p := enforce.Stop(cfg, enforce.Options{Root: root, CacheDir: paths.CacheDir(), Home: os.Getenv("HOME")}, abs)
+	p := enforce.Stop(cfg, enforce.Options{Root: root, CacheDir: paths.CacheDir(), Home: home}, abs)
 	claimed := map[string]bool{}
 	for _, g := range p.Gates {
 		fmt.Fprintln(w, g.Label)

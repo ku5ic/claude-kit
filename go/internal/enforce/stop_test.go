@@ -240,6 +240,8 @@ func TestFormTool(t *testing.T) {
 		"npm test -- {files}":               "npm test",
 		"npm run -s lint -- {files}":        "npm run lint",
 		"make lint FILES={files}":           "make lint",
+		"make -C web lint FILES={files}":    "make lint",
+		"make -j 4 test FILES={files}":      "make test",
 	} {
 		if got := formTool(form); got != want {
 			t.Errorf("formTool(%q) = %q, want %q", form, got, want)
