@@ -49,3 +49,23 @@ func TestReadsNamesEveryFileAnEntryComesFrom(t *testing.T) {
 		}
 	}
 }
+
+// An included gitlab file feeds .gitlab-ci.yml's entries, so an edit to it
+// reclassifies them; a file nothing reads has no owner.
+func TestOwnerNamesTheFileWhoseEntriesAPathFeeds(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	testutil.Put(t, root, ".gitlab-ci.yml", "include:\n  - local: /ci/lint.yml\n  - ci/jobs/*.yml\n")
+	testutil.Put(t, root, "ci/lint.yml", "lint:\n  script:\n    - make lint\n")
+	for rel, want := range map[string]string{
+		"ci/lint.yml":      ".gitlab-ci.yml",
+		"ci/jobs/test.yml": ".gitlab-ci.yml",
+		"package.json":     "package.json",
+		"ci/other.yml":     "",
+		"a.ts":             "",
+	} {
+		if got := Owner(root, rel); got != want {
+			t.Errorf("Owner(%s) = %q, want %q", rel, got, want)
+		}
+	}
+}

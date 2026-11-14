@@ -25,3 +25,22 @@ func Reads(rel string) bool {
 	workflow, _ := path.Match(githubWorkflows, rel)
 	return workflow || path.Dir(rel) == huskyDir
 }
+
+// Owner is the file whose entries rel feeds, as Entry.File names it: rel
+// when Entries reads it, .gitlab-ci.yml for a file it includes, else "".
+func Owner(root, rel string) string {
+	rel = filepath.ToSlash(rel)
+	if Reads(rel) {
+		return rel
+	}
+	doc := readYAML(filepath.Join(root, gitlabCI))
+	if doc == nil {
+		return ""
+	}
+	for _, inc := range gitlabLocalIncludes(doc["include"]) {
+		if ok, _ := path.Match(path.Clean(strings.TrimPrefix(inc, "/")), rel); ok {
+			return gitlabCI
+		}
+	}
+	return ""
+}
