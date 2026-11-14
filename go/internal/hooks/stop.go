@@ -238,10 +238,17 @@ func passKey(tree string, gates []enforce.Gate) string {
 // diffs after the gates (git calls of up to git.Timeout each) and the report.
 const stopBudget = 240 * time.Second
 
+// stopReadVersion is stopRead's shape. Bump it when stopRead or planWalk
+// gains or changes a field: a saved read of another version is dropped and
+// the transcript read whole, so no field needs a zero value that suits an
+// old walk.
+const stopReadVersion = 1
+
 // stopRead is where the last Stop run left the session's transcript: the
 // offset and line past what it read, where the current turn starts, and
 // the plan walk so far.
 type stopRead struct {
+	Version    int       `json:"version"`
 	Path       string    `json:"path"`
 	Offset     int64     `json:"offset"`
 	Line       int       `json:"line"`
@@ -288,8 +295,8 @@ func readSession(h *hook.Hook, path, root, plansDir string, isCode func(string) 
 	file := h.Paths.SessionFile(cache.StopRead, h.Payload.SessionID(), cache.RootKey(root))
 	var st stopRead
 	info, statErr := os.Stat(path)
-	if data, err := os.ReadFile(file); err != nil || statErr != nil || json.Unmarshal(data, &st) != nil || st.Path != path || st.Walk == nil || info.Size() < st.Offset {
-		st = stopRead{Path: path, Walk: newPlanWalk()}
+	if data, err := os.ReadFile(file); err != nil || statErr != nil || json.Unmarshal(data, &st) != nil || st.Version != stopReadVersion || st.Path != path || st.Walk == nil || info.Size() < st.Offset {
+		st = stopRead{Version: stopReadVersion, Path: path, Walk: newPlanWalk()}
 	}
 	st.Walk.bashed = bashEdits(h)
 	var turn []transcript.Entry

@@ -344,6 +344,28 @@ func TestStopReadsTheTranscriptOnce(t *testing.T) {
 		e.turn("Edit", e.plan(done))
 		e.stop(false).Want(t, 2)
 	})
+	t.Run("a saved read of another version is read whole", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		e.turn("Edit", e.path("a.ts"))
+		e.stop(false).Want(t, 0)
+		files, _ := filepath.Glob(filepath.Join(e.k.paths.CacheDir(), cache.StopRead, "s1-*"))
+		if len(files) != 1 {
+			t.Fatalf("saved reads: %q", files)
+		}
+		// A walk from a build before the version, its review line past the
+		// edit: kept, it would let the done plan through.
+		var saved map[string]any
+		if err := json.Unmarshal([]byte(read(t, files[0])), &saved); err != nil {
+			t.Fatal(err)
+		}
+		delete(saved, "version")
+		saved["walk"].(map[string]any)["last_review"] = 1000
+		data, _ := json.Marshal(saved)
+		testutil.Write(t, files[0], string(data))
+		e.turn("Edit", e.plan(done))
+		e.stop(false).Want(t, 2)
+	})
 	t.Run("an unreadable transcript leaves the saved read as it was", func(t *testing.T) {
 		t.Parallel()
 		if os.Geteuid() == 0 {
