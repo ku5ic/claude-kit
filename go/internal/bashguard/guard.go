@@ -187,6 +187,11 @@ func (st *state) excludeSensitive(segs []Segment, cmd string) string {
 		if name, _, _ := strings.Cut(w.Value, "="); globFlags[name] != "" || name == "--follow" || shortCluster(name, "Lg") {
 			return ""
 		}
+		// "${HOME%/}/.aws" or "$OLDPWD" reads as a path under cwd, so a word
+		// still expanding once ~ and $HOME are resolved gets no allow.
+		if w.expands && strings.ContainsAny(guard.ExpandHome(st.home, w.Value), "$`") {
+			return ""
+		}
 		values = append(values, w.Value)
 	}
 	// rg searches a file it's named whatever the globs say.
