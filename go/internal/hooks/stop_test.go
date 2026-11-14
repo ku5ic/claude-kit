@@ -162,13 +162,13 @@ func TestStopPlanDone(t *testing.T) {
 		// call is a Bash call on the plan, at, and its result, with change
 		// run in between, as the command would.
 		call := func(e *stopEnv, at time.Time, cmd string, change func()) {
-			e.line(map[string]any{"type": "assistant", "timestamp": at.UTC().Format(time.RFC3339Nano), "message": map[string]any{"content": []any{
-				map[string]any{"type": "tool_use", "id": "toolu_b1", "name": "Bash", "input": map[string]any{"command": cmd}},
-			}}})
+			use := testutil.ToolUse("toolu_b1", "Bash", map[string]any{"command": cmd})
+			use["timestamp"] = at.UTC().Format(time.RFC3339Nano)
+			e.line(use)
 			if change != nil {
 				change()
 			}
-			e.line(map[string]any{"type": "user", "message": map[string]any{"content": []any{map[string]any{"type": "tool_result", "tool_use_id": "toolu_b1"}}}})
+			e.line(testutil.ToolResult("toolu_b1", ""))
 		}
 		e := stopSetup(t)
 		plan := e.plan("## Steps\n\n- [x] 1. a\n- [ ] 2. b\n")
@@ -258,12 +258,10 @@ func TestStopPlanDone(t *testing.T) {
 	t.Run("a review launched beside an edit, before its result, needs a new one", func(t *testing.T) {
 		t.Parallel()
 		e := stopSetup(t)
-		e.line(map[string]any{"type": "user", "message": map[string]any{"content": "do it"}})
-		e.line(map[string]any{"type": "assistant", "message": map[string]any{"content": []any{
-			map[string]any{"type": "tool_use", "id": "toolu_a", "name": "Edit", "input": map[string]any{"file_path": e.path("a.ts")}},
-		}}})
+		e.line(testutil.UserPrompt("do it"))
+		e.line(testutil.ToolUse("toolu_a", "Edit", map[string]any{"file_path": e.path("a.ts")}))
 		e.review()
-		e.line(map[string]any{"type": "user", "message": map[string]any{"content": []any{map[string]any{"type": "tool_result", "tool_use_id": "toolu_a"}}}})
+		e.line(testutil.ToolResult("toolu_a", ""))
 		e.finish("<tool-use-id>toolu_r1</tool-use-id>", "completed")
 		e.turn("Edit", e.plan(done))
 		e.stop(false).Want(t, 2)
@@ -284,6 +282,20 @@ func TestStopPlanDone(t *testing.T) {
 		e.line(map[string]any{"type": "user", "message": map[string]any{"content": "do it"}})
 		e.start()
 		e.bash("toolu_b1", e.repo, func() { testutil.Write(t, e.path("a.ts"), "y\n") })
+		e.edit("Edit", e.plan(done), false)
+		e.stop(false).Want(t, 2)
+	})
+	t.Run("a Bash edit to code with no result yet counts from its call", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		e.review()
+		e.finish("<tool-use-id>toolu_r1</tool-use-id>", "completed")
+		e.line(testutil.UserPrompt("do it"))
+		e.start()
+		e.line(testutil.ToolUse("toolu_b1", "Bash", map[string]any{"command": "edit"}))
+		testutil.Write(t, e.path("a.ts"), "y\n")
+		e.k.run("bash-edits", map[string]any{"hook_event_name": "PostToolUse", "session_id": "s1", "cwd": e.repo, "tool_use_id": "toolu_b1",
+			"tool_name": "Bash", "tool_input": map[string]any{"command": "edit"}})
 		e.edit("Edit", e.plan(done), false)
 		e.stop(false).Want(t, 2)
 	})

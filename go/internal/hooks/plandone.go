@@ -77,15 +77,17 @@ type planWalk struct {
 	// ReportWrites is a report write's tool_use id -> its line, until its
 	// result: a write another guard denied wrote no report.
 	ReportWrites map[string]int `json:"report_writes"`
-	// CodeEdits is the code edits whose result hasn't come: an edit counts
-	// from its call, then again from its result, so a review launched
-	// beside it in one message doesn't cover it.
+	// CodeEdits is the code edits, by an edit tool or a recorded Bash call,
+	// whose result hasn't come: an edit counts from its call, then again
+	// from its result, so a review launched beside it in one message
+	// doesn't cover it.
 	CodeEdits map[string]bool `json:"code_edits"`
 	// bashed is bashEdits, read fresh by each run: a Bash call's record is
 	// written before its result, so it's there by the time the walk reads it.
 	bashed map[string][]string
-	// plans is the plans dir's files, listed at the walk's first Bash call.
-	plans  []string
+	// plans is the plans dir's files, each with the pattern that finds its
+	// name in a command, listed at the walk's first Bash call.
+	plans  []listedPlan
 	listed bool
 }
 
@@ -117,7 +119,7 @@ func (w *planWalk) step(h *hook.Hook, e transcript.Entry, plansDir string, isCod
 			}
 			delete(w.ReportWrites, b.ToolUseID)
 		}
-		if w.CodeEdits[b.ToolUseID] || slices.ContainsFunc(w.bashed[b.ToolUseID], isCode) {
+		if w.CodeEdits[b.ToolUseID] {
 			w.LastEdit = max(w.LastEdit, e.Line)
 			delete(w.CodeEdits, b.ToolUseID)
 		}
@@ -130,20 +132,17 @@ func (w *planWalk) step(h *hook.Hook, e transcript.Entry, plansDir string, isCod
 		case b.Name == "Skill" && b.Input.Skill == reviewSkill:
 			w.Started[b.ID] = e.Line
 		case slices.Contains(transcript.EditTools, b.Name) && scratchReport(h, b.Path(), "review"):
-			if w.ReportWrites == nil {
-				w.ReportWrites = map[string]int{}
-			}
 			w.ReportWrites[b.ID] = e.Line
 		case slices.Contains(transcript.EditTools, b.Name):
 			if p := b.Path(); fsx.Within(plansDir, p) {
 				w.Ticked = append(w.Ticked, p)
 			} else if isCode(p) {
-				if w.CodeEdits == nil {
-					w.CodeEdits = map[string]bool{}
-				}
 				w.LastEdit, w.CodeEdits[b.ID] = e.Line, true
 			}
 		case b.Name == "Bash":
+			if slices.ContainsFunc(w.bashed[b.ID], isCode) {
+				w.LastEdit, w.CodeEdits[b.ID] = e.Line, true
+			}
 			w.Ticked = append(w.Ticked, w.bashTicked(b.Input.Command, e.Timestamp, plansDir)...)
 		}
 	}
@@ -159,16 +158,19 @@ func (w *planWalk) bashTicked(command, at, plansDir string) []string {
 		return nil
 	}
 	if !w.listed {
-		w.plans, _ = filepath.Glob(filepath.Join(plansDir, "*.md"))
+		paths, _ := filepath.Glob(filepath.Join(plansDir, "*.md"))
+		for _, p := range paths {
+			w.plans = append(w.plans, listedPlan{p, namesFile(filepath.Base(p))})
+		}
 		w.listed = true
 	}
 	var ticked []string
 	for _, p := range w.plans {
-		if !namesFile(command, filepath.Base(p)) {
+		if !p.named.MatchString(command) {
 			continue
 		}
-		if info, err := os.Stat(p); err == nil && info.ModTime().After(start) {
-			ticked = append(ticked, p)
+		if info, err := os.Stat(p.path); err == nil && info.ModTime().After(start) {
+			ticked = append(ticked, p.path)
 		}
 	}
 	return ticked
@@ -189,8 +191,14 @@ func (w *planWalk) done() (plan string, reviewed bool) {
 	return plan, w.LastReview > w.LastEdit
 }
 
-// namesFile is whether command holds name with no file-name character
-// on either side: "plan.md" is in "plans/plan.md", not in "myplan.md".
-func namesFile(command, name string) bool {
-	return regexp.MustCompile(`(?:^|[^\w.-])` + regexp.QuoteMeta(name) + `(?:$|[^\w.-])`).MatchString(command)
+// listedPlan is a plan's path, and named, which matches a command naming it.
+type listedPlan struct {
+	path  string
+	named *regexp.Regexp
+}
+
+// namesFile matches name with no file-name character on either side:
+// "plan.md" is in "plans/plan.md", not in "myplan.md".
+func namesFile(name string) *regexp.Regexp {
+	return regexp.MustCompile(`(?:^|[^\w.-])` + regexp.QuoteMeta(name) + `(?:$|[^\w.-])`)
 }
