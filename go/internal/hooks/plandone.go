@@ -141,9 +141,10 @@ func (w *planWalk) step(h *hook.Hook, e transcript.Entry, plansDir string, isCod
 	}
 }
 
-// bashTicked is each plan in plansDir that command names by its file name
-// and that changed after at, the call's timestamp: the bash-edits record
-// holds only code files, so it can't show a plan a Bash call ticked.
+// bashTicked is each plan in plansDir that command names by its file name,
+// a whole word of a path, and that changed after at, the call's timestamp:
+// the bash-edits record holds only code files, so it can't show a plan a
+// Bash call ticked.
 func (w *planWalk) bashTicked(command, at, plansDir string) []string {
 	start, err := time.Parse(time.RFC3339Nano, at)
 	if err != nil {
@@ -155,7 +156,7 @@ func (w *planWalk) bashTicked(command, at, plansDir string) []string {
 	}
 	var ticked []string
 	for _, p := range w.plans {
-		if !strings.Contains(command, filepath.Base(p)) {
+		if !namesFile(command, filepath.Base(p)) {
 			continue
 		}
 		if info, err := os.Stat(p); err == nil && info.ModTime().After(start) {
@@ -178,4 +179,10 @@ func (w *planWalk) done() (plan string, reviewed bool) {
 		}
 	}
 	return plan, w.LastReview > w.LastEdit
+}
+
+// namesFile is whether command holds name with no file-name character
+// on either side: "plan.md" is in "plans/plan.md", not in "myplan.md".
+func namesFile(command, name string) bool {
+	return regexp.MustCompile(`(?:^|[^\w.-])` + regexp.QuoteMeta(name) + `(?:$|[^\w.-])`).MatchString(command)
 }

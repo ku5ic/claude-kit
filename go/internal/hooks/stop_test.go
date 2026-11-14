@@ -181,6 +181,19 @@ func TestStopPlanDone(t *testing.T) {
 		e.turn("Edit", e.path("a.ts"))
 		call(e, time.Now().Add(time.Second), "grep -c 'x' .claude/plans/plan-x.md", nil)
 		e.stop(false).Want(t, 0)
+
+		// Another file whose name ends in the plan's doesn't name it.
+		e = stopSetup(t)
+		plan = e.plan("## Steps\n\n- [x] 1. a\n- [ ] 2. b\n")
+		e.turn("Edit", e.path("a.ts"))
+		call(e, time.Now().Add(-time.Second), "sed -i '' 's/x/y/' notes/myplan-x.md", func() { testutil.Write(t, plan, done) })
+		e.stop(false).Want(t, 0)
+
+		e = stopSetup(t)
+		plan = e.plan("## Steps\n\n- [x] 1. a\n- [ ] 2. b\n")
+		e.turn("Edit", e.path("a.ts"))
+		call(e, time.Now().Add(-time.Second), `cd .claude/plans && sed -i '' 's/x/y/' "plan-x.md"`, func() { testutil.Write(t, plan, done) })
+		e.stop(false).Has(t, "plan-x.md is done")
 	})
 	t.Run("a plan in Claude Code's default ~/.claude/plans is gated too", func(t *testing.T) {
 		t.Parallel()
