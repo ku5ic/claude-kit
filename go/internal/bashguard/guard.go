@@ -162,8 +162,9 @@ func Check(h *hook.Hook) error {
 	return nil
 }
 
-// excludeSensitive gives a lone rg with no glob of its own, reading only
-// inside the work tree it runs in, the sensitive exclusion as its first
+// excludeSensitive gives a lone rg with only literal words and read-only
+// flags (rgFlags), reading only inside the work tree it runs in, the
+// sensitive exclusion as its first
 // flag, so a loose .env or *.pem under it isn't searched. It returns the
 // rewritten command, or "" when it left cmd alone. The allow keeps auto mode from denying the
 // rewrite, and approves only this read; the user's deny and ask rules still
@@ -182,17 +183,17 @@ func (st *state) excludeSensitive(segs []Segment, cmd string) string {
 	}
 	var values []string
 	for _, w := range segs[0].Calls[0].Words[1:] {
-		// -L follows a link out of the project; a glob of its own, -g alone
-		// or in a cluster (-ig), replaces ours.
-		if name, _, _ := strings.Cut(w.Value, "="); globFlags[name] != "" || name == "--follow" || shortCluster(name, "Lg") {
-			return ""
-		}
 		// "$OLDPWD" or {~/.aws,.} reads as a path under cwd, so only a
 		// literal word gets the allow.
 		if !w.literal {
 			return ""
 		}
 		values = append(values, w.Value)
+	}
+	// Only a flag known to read gets the allow; any other leaves the
+	// command to the permission rules.
+	if !rgReadsOnly(values) {
+		return ""
 	}
 	// rg searches a file it's named whatever the globs say.
 	if slices.ContainsFunc(readOperands("rg", values), func(p string) bool {

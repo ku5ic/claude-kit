@@ -14,6 +14,75 @@ import (
 // file glob.
 var globFlags = map[string]string{"-g": "glob", "--glob": "glob", "--iglob": "glob", "--include": "glob"}
 
+// rgFlags are the rg options (rg 15, rg --help) known to change only what
+// is matched or how it prints, each true when it takes a value. Missing on
+// purpose: -L and --follow leave the project, -g, --glob, and --iglob
+// replace kit's glob, -z runs decompressors, --pre and --hostname-bin run
+// a program, -f and --ignore-file read a file of their own. A --no- flag
+// only turns one off.
+var rgFlags = map[string]bool{
+	"s": false, "F": false, "i": false, "v": false, "x": false, "U": false, "P": false, "S": false,
+	"a": false, "w": false, ".": false, "u": false, "b": false, "n": false, "N": false, "0": false,
+	"o": false, "p": false, "q": false, "H": false, "I": false, "c": false, "l": false, "h": false, "V": false,
+	"e": true, "E": true, "m": true, "j": true, "d": true, "t": true, "T": true, "A": true, "B": true,
+	"C": true, "M": true, "r": true,
+	"case-sensitive": false, "crlf": false, "fixed-strings": false, "ignore-case": false, "invert-match": false,
+	"line-regexp": false, "mmap": false, "multiline": false, "multiline-dotall": false, "null-data": false,
+	"pcre2": false, "smart-case": false, "stop-on-nonmatch": false, "text": false, "word-regexp": false,
+	"auto-hybrid-regex": false, "binary": false, "glob-case-insensitive": false, "hidden": false,
+	"ignore-file-case-insensitive": false, "one-file-system": false, "unrestricted": false,
+	"block-buffered": false, "byte-offset": false, "column": false, "heading": false, "help": false,
+	"include-zero": false, "line-buffered": false, "line-number": false, "max-columns-preview": false,
+	"null": false, "only-matching": false, "passthru": false, "pretty": false, "quiet": false, "trim": false,
+	"vimgrep": false, "with-filename": false, "sort-files": false, "count": false, "count-matches": false,
+	"files-with-matches": false, "files-without-match": false, "json": false, "debug": false, "stats": false,
+	"trace": false, "files": false, "pcre2-version": false, "type-list": false, "version": false,
+	"regexp": true, "dfa-size-limit": true, "encoding": true, "engine": true, "max-count": true,
+	"regex-size-limit": true, "threads": true, "max-depth": true, "max-filesize": true, "type": true,
+	"type-not": true, "type-add": true, "type-clear": true, "after-context": true, "before-context": true,
+	"color": true, "colors": true, "context": true, "context-separator": true, "field-context-separator": true,
+	"field-match-separator": true, "hyperlink-format": true, "max-columns": true, "path-separator": true,
+	"replace": true, "sort": true, "sortr": true, "generate": true,
+}
+
+// rgReadsOnly is whether every option in args, an rg call's words after
+// its name, is one rgFlags lists. A value an option takes, in its word or
+// the next, isn't read as an option.
+func rgReadsOnly(args []string) bool {
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--":
+			return true
+		case strings.HasPrefix(a, "--no-"):
+		case strings.HasPrefix(a, "--"):
+			name, _, inline := strings.Cut(a[2:], "=")
+			value, ok := rgFlags[name]
+			if !ok || len(name) == 1 {
+				return false
+			}
+			if value && !inline {
+				i++
+			}
+		case strings.HasPrefix(a, "-") && len(a) > 1:
+			for j, r := range a[1:] {
+				value, ok := rgFlags[string(r)]
+				if !ok {
+					return false
+				}
+				// -A3 or -e x: the value is the rest of the word, or the next.
+				if value {
+					if j == len(a)-2 {
+						i++
+					}
+					break
+				}
+			}
+		}
+	}
+	return true
+}
+
 // ReadTargets is what cmd, run from cwd, reads, as guard-bash's credential
 // check counts reads: each existing file a command's operands or < redirects
 // name, and each glob a grep or rg is limited to, its {a,b} alternatives
