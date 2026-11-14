@@ -161,9 +161,7 @@ func (c *command) check() error {
 	if check, ok := commandChecks[c.name]; ok {
 		return check(c)
 	}
-	// fish isn't in shells, whose heredoc bodies parse as POSIX, but its -c
-	// runs a string all the same.
-	if shells[c.name] || c.name == "fish" {
+	if runsC(c.name) {
 		return c.interpreterC()
 	}
 	if strings.HasPrefix(c.name, "mkfs.") {

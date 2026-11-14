@@ -80,6 +80,10 @@ func normalize(s string) string {
 // script, and -c runs its string.
 var shells = map[string]bool{"sh": true, "bash": true, "zsh": true, "dash": true, "ksh": true, "mksh": true, "yash": true}
 
+// runsC is true when name's -c runs a string: every shell, and fish, which
+// isn't in shells because its heredoc bodies don't parse as POSIX.
+func runsC(name string) bool { return shells[name] || name == "fish" }
+
 // Segments parses src and returns every pipeline in it, substitution and
 // process-substitution bodies included (inner ones first, as they run
 // first), and heredoc bodies fed to a shell. On a parse error, statements
@@ -329,25 +333,24 @@ var fdTarget = regexp.MustCompile(`^([0-9]+-?|-)$`)
 // with -c or --command after its lock file: flock /tmp/l -c "rm -rf ~"
 // runs rm -rf ~ in a shell. flock matches those two words exactly.
 func flockString(words []Word) (string, bool) {
-	n := lead(words)
-	for i := range n {
-		if baseName(words[i].Value) == "flock" && n+1 < len(words) && (words[n].Value == "-c" || words[n].Value == "--command") {
+	runs, n := wrappedBy(words)
+	for _, w := range runs {
+		if w.name == "flock" && w.end == n && n+1 < len(words) && (words[n].Value == "-c" || words[n].Value == "--command") {
 			return words[n+1].Value, true
 		}
 	}
 	return "", false
 }
 
-// envSplitString returns the command env -S/--split-string runs, the string
-// followed by env's remaining words, from a wrapper before the command:
-// env -S "rm -rf" ~ runs rm -rf ~.
 // watchString is the command a watch among words' wrappers runs: its
 // operands joined, which watch hands to sh -c unless -x execs them.
 func watchString(words []Word) (string, bool) {
-	for i := range lead(words) {
-		if baseName(words[i].Value) != "watch" {
+	runs, _ := wrappedBy(words)
+	for _, w := range runs {
+		if w.name != "watch" {
 			continue
 		}
+		i := w.at
 		j := i + 1
 		for ; j < len(words) && strings.HasPrefix(words[j].Value, "-"); j++ {
 			opt := words[j].Value
@@ -358,7 +361,7 @@ func watchString(words []Word) (string, bool) {
 			if abbrevOf(opt, "--exec") || shortCluster(opt, "x") {
 				return "", false
 			}
-			if takesNextWord("watch", opt) {
+			if takesNextWord(wrappers["watch"], opt) {
 				j++
 			}
 		}
@@ -378,10 +381,12 @@ func watchString(words []Word) (string, bool) {
 // to with -o, as > redirects, so they get a redirect's checks.
 func timeOutputs(words []Word) []Redir {
 	var out []Redir
-	for i := range lead(words) {
-		if baseName(words[i].Value) != "time" {
+	runs, _ := wrappedBy(words)
+	for _, w := range runs {
+		if w.name != "time" {
 			continue
 		}
+		i := w.at
 		for j := i + 1; j < len(words) && strings.HasPrefix(words[j].Value, "-"); j++ {
 			opt := words[j].Value
 			switch {
@@ -396,7 +401,7 @@ func timeOutputs(words []Word) []Redir {
 					out = append(out, Redir{Op: ">", Target: words[j]})
 				}
 			case strings.HasPrefix(opt, "--"):
-				if takesNextWord("time", opt) {
+				if takesNextWord(wrappers["time"], opt) {
 					j++
 				}
 			default:
@@ -420,11 +425,16 @@ func timeOutputs(words []Word) []Redir {
 	return out
 }
 
+// envSplitString returns the command env -S/--split-string runs, the string
+// followed by env's remaining words, from a wrapper before the command:
+// env -S "rm -rf" ~ runs rm -rf ~.
 func envSplitString(words []Word) (string, bool) {
-	for i := range lead(words) {
-		if baseName(words[i].Value) != "env" {
+	runs, _ := wrappedBy(words)
+	for _, w := range runs {
+		if w.name != "env" {
 			continue
 		}
+		i := w.at
 		for j := i + 1; j < len(words) && strings.HasPrefix(words[j].Value, "-"); j++ {
 			opt, cmd := words[j].Value, ""
 			switch {

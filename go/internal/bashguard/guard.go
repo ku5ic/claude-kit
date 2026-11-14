@@ -258,28 +258,55 @@ func resolveDir(home, base, dir string) string {
 	return dir
 }
 
-// Wrappers that only change how (or as whom) a command runs, and their
-// options that take a separate value. busybox and toybox run their first
-// word as the applet.
+// wrapperSpec is the grammar of a wrapper, a command that only changes how
+// (or as whom) another runs: its options that take a separate value, and
+// whether a word after them is its own operand rather than the command.
+type wrapperSpec struct {
+	values  []string
+	operand func(word string) bool
+}
+
+// takes is true when option opt ("-u", "--user") takes a value.
+func (s wrapperSpec) takes(opt string) bool { return slices.Contains(s.values, opt) }
+
+func numeric(word string) bool { return word != "" && word[0] >= '0' && word[0] <= '9' }
+
+func always(string) bool { return true }
+
+// wrappers are the wrappers lead sees through. busybox and toybox run their
+// first word as the applet; flock's first operand is its lock file.
 var (
-	wrappers = map[string]bool{"command": true, "env": true, "builtin": true, "exec": true, "nohup": true, "nice": true, "timeout": true, "stdbuf": true, "ionice": true, "chrt": true, "sudo": true, "doas": true,
-		"caffeinate": true, "time": true, "flock": true, "watch": true, "unbuffer": true, "busybox": true, "toybox": true}
-	wrapperValue = map[string]bool{
-		"nice:-n": true, "env:-u": true, "env:-C": true, "exec:-a": true, "timeout:-s": true, "timeout:-k": true, "ionice:-c": true, "ionice:-n": true, "chrt:-p": true,
-		"sudo:-u": true, "sudo:-g": true, "sudo:-h": true, "sudo:-p": true, "sudo:-C": true, "sudo:-D": true, "sudo:-R": true, "sudo:-T": true, "sudo:-U": true, "sudo:-r": true, "sudo:-t": true,
-		"sudo:--user": true, "sudo:--group": true, "sudo:--host": true, "sudo:--prompt": true, "sudo:--close-from": true, "sudo:--chdir": true, "sudo:--chroot": true, "sudo:--command-timeout": true, "sudo:--other-user": true, "sudo:--role": true, "sudo:--type": true,
-		"doas:-u": true, "doas:-a": true, "doas:-C": true,
-		"caffeinate:-t": true, "caffeinate:-w": true, "time:-f": true, "time:-o": true, "time:--format": true, "time:--output": true,
-		"flock:-w": true, "flock:-E": true, "flock:--timeout": true, "flock:--conflict-exit-code": true,
-		"watch:-n": true, "watch:-q": true, "watch:--interval": true, "watch:--equexit": true,
+	wrappers = map[string]wrapperSpec{
+		"command": {}, "builtin": {}, "nohup": {}, "stdbuf": {}, "unbuffer": {}, "busybox": {}, "toybox": {},
+		"env":     {values: []string{"-u", "-C"}},
+		"exec":    {values: []string{"-a"}},
+		"nice":    {values: []string{"-n"}},
+		"timeout": {values: []string{"-s", "-k"}, operand: numeric},
+		"ionice":  {values: []string{"-c", "-n"}},
+		"chrt":    {values: []string{"-p"}, operand: numeric},
+		"sudo": {values: []string{"-u", "-g", "-h", "-p", "-C", "-D", "-R", "-T", "-U", "-r", "-t",
+			"--user", "--group", "--host", "--prompt", "--close-from", "--chdir", "--chroot", "--command-timeout", "--other-user", "--role", "--type"}},
+		"doas":       {values: []string{"-u", "-a", "-C"}},
+		"caffeinate": {values: []string{"-t", "-w"}},
+		"time":       {values: []string{"-f", "-o", "--format", "--output"}},
+		"flock":      {values: []string{"-w", "-E", "--timeout", "--conflict-exit-code"}, operand: always},
+		"watch":      {values: []string{"-n", "-q", "--interval", "--equexit"}},
 	}
 	assignment = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*=`)
 )
 
-// lead finds where the real command starts in a call's words, seeing
-// through VAR=value words and command/env/nice/timeout/sudo-style wrappers
-// with their own options.
-func lead(words []Word) int {
+// wrapped is one wrapper in a call's words: its name, the index of its own
+// word, and the index just past its options and operand.
+type wrapped struct {
+	name    string
+	at, end int
+}
+
+// wrappedBy walks a call's leading VAR=value words and wrappers, each with
+// its own options, and returns the wrappers and where the real command
+// starts. Every reader of a wrapper's words starts from here.
+func wrappedBy(words []Word) ([]wrapped, int) {
+	var out []wrapped
 	i := 0
 	skipAssigns := func() {
 		for i < len(words) && assignment.MatchString(words[i].Value) {
@@ -287,8 +314,13 @@ func lead(words []Word) int {
 		}
 	}
 	skipAssigns()
-	for i < len(words) && wrappers[baseName(words[i].Value)] && i+1 < len(words) {
-		w := baseName(words[i].Value)
+	for i+1 < len(words) {
+		name := baseName(words[i].Value)
+		spec, ok := wrappers[name]
+		if !ok {
+			break
+		}
+		at := i
 		i++
 		for i < len(words)-1 && strings.HasPrefix(words[i].Value, "-") {
 			opt := words[i].Value
@@ -296,41 +328,39 @@ func lead(words []Word) int {
 			if opt == "--" {
 				break
 			}
-			if takesNextWord(w, opt) && i < len(words)-1 {
+			if takesNextWord(spec, opt) && i < len(words)-1 {
 				i++
 			}
 		}
-		if (w == "timeout" || w == "chrt") && i < len(words)-1 && words[i].Value != "" && words[i].Value[0] >= '0' && words[i].Value[0] <= '9' {
+		if spec.operand != nil && i < len(words)-1 && spec.operand(words[i].Value) {
 			i++
 		}
-		// flock's first operand is its lock file or directory.
-		if w == "flock" && i < len(words)-1 {
-			i++
-		}
+		out = append(out, wrapped{name, at, i})
 		skipAssigns()
 	}
+	return out, i
+}
+
+// lead is where the real command starts in a call's words.
+func lead(words []Word) int {
+	_, i := wrappedBy(words)
 	return i
 }
 
 // takesNextWord is true when a wrapper's option consumes the next word. A
 // short-option cluster (sudo -Eu) does when its first value-taking letter is
 // its last; one earlier takes the rest of the word (sudo -uroot).
-func takesNextWord(wrapper, opt string) bool {
+func takesNextWord(spec wrapperSpec, opt string) bool {
 	if strings.HasPrefix(opt, "--") {
 		// getopt_long takes any unambiguous prefix (sudo --us root); a
 		// value after = is in the word already.
 		if strings.Contains(opt, "=") {
 			return false
 		}
-		for key := range wrapperValue {
-			if long, ok := strings.CutPrefix(key, wrapper+":"); ok && strings.HasPrefix(long, "--") && abbrevOf(opt, long) {
-				return true
-			}
-		}
-		return false
+		return slices.ContainsFunc(spec.values, func(long string) bool { return strings.HasPrefix(long, "--") && abbrevOf(opt, long) })
 	}
 	for i := 1; i < len(opt); i++ {
-		if wrapperValue[wrapper+":-"+opt[i:i+1]] {
+		if spec.takes("-" + opt[i:i+1]) {
 			return i == len(opt)-1
 		}
 	}
@@ -351,10 +381,10 @@ var interpreters = func() map[string]bool {
 // same pipeline (curl x | sh, wget -O- x | tee log | sudo bash), and any
 // other output piped into a shell reading stdin (echo ls | bash), a -c by
 // another name. A heredoc cat passes on unchanged isn't: the parse checks
-// it as commands. Parsed calls, not the raw string: "curl x | sh" as quoted
-// text is data.
+// it as commands, but only for shells, so any heredoc reaching fish is.
+// Parsed calls, not the raw string: "curl x | sh" as quoted text is data.
 func (st *state) pipeToShell(seg Segment) error {
-	fetched, fed := false, false
+	fetched, fed, heredoc := false, false, false
 	for _, call := range seg.Calls {
 		start := lead(call.Words)
 		words := call.Words[start:]
@@ -365,7 +395,8 @@ func (st *state) pipeToShell(seg Segment) error {
 		if fetched && (interpreters[name] || strings.HasPrefix(name, "python") || rootShell(call.Words[:start+1])) {
 			return st.h.Block("piping network content into an interpreter", "pipe-to-shell")
 		}
-		if fed && (shells[name] || name == "fish") {
+		heredoc = heredoc || len(call.Heredocs) > 0
+		if runsC(name) && (fed || name == "fish" && heredoc) {
 			shell := command{args: words[1:]}
 			if wrap, script := shellMode(shell.values()); !wrap && !script {
 				return st.h.Block(wrapReason, "interpreter-c-wrap")
@@ -406,7 +437,7 @@ func rootShell(wrapperWords []Word) bool {
 				if v[i] == 's' || v[i] == 'i' {
 					return true
 				}
-				if wrapperValue[elevator+":-"+v[i:i+1]] {
+				if wrappers[elevator].takes("-" + v[i:i+1]) {
 					break
 				}
 			}
