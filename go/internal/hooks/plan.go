@@ -169,8 +169,8 @@ func GuardPlan(h *hook.Hook) error {
 	if prev, err := os.ReadFile(marker); err == nil && string(prev) == sent {
 		return nil
 	}
-	if !h.DryRun {
-		_ = fsx.WriteAtomic(marker, []byte(sent), 0o644)
+	if !markOnce(h, marker, []byte(sent), "plan-critic") {
+		return nil
 	}
 	h.Deny(fmt.Sprintf("the %s agent hasn't reviewed %s\n", planCritic, plan)+
 		layout.KV("do", "run it before asking for approval")+"\n"+

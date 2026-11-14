@@ -46,8 +46,8 @@ func ReviewReport(h *hook.Hook) error {
 	if seen, _ := os.ReadFile(marker); walk.ReviewArrived <= walk.ReviewReported || string(seen) == arrived {
 		return nil
 	}
-	if !h.DryRun {
-		_ = fsx.WriteAtomic(marker, []byte(arrived), 0o600)
+	if !markOnce(h, marker, []byte(arrived), "review-report") {
+		return nil
 	}
 	reason := "a /code-review finished, and its findings reached only you\n" +
 		layout.KV("do", "write them, in the report-format skill's shape, to the path `kit scratch-dir review <slug>` prints") + "\n" +

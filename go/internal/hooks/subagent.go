@@ -34,13 +34,14 @@ func GuardHandback(h *hook.Hook) error {
 	if prev, _ := os.ReadFile(marker); string(prev) == "sent-back" {
 		return nil
 	}
-	state := "seen"
-	if len(hits) > 0 {
-		state = "sent-back"
-		h.Deny(slop.Message("your report", hits, sendBack), "slop")
+	if len(hits) == 0 {
+		if !h.DryRun {
+			_ = fsx.WriteAtomic(marker, []byte("seen"), 0o644)
+		}
+		return nil
 	}
-	if !h.DryRun {
-		_ = fsx.WriteAtomic(marker, []byte(state), 0o644)
+	if markOnce(h, marker, []byte("sent-back"), "slop") {
+		h.Deny(slop.Message("your report", hits, sendBack), "slop")
 	}
 	return nil
 }
@@ -73,6 +74,21 @@ func handbackMarker(h *hook.Hook, kind string) string {
 		return ""
 	}
 	return h.Paths.SessionFile(kind, h.Payload.SessionID(), agent, "handback")
+}
+
+// markOnce writes data to marker, the guard that shows a block or deny for
+// rule only once. False when the write fails: with no guard, the block
+// would come back on every retry, so the caller lets the call through and
+// the user is told.
+func markOnce(h *hook.Hook, marker string, data []byte, rule string) bool {
+	if h.DryRun {
+		return true
+	}
+	if err := fsx.WriteAtomic(marker, data, 0o644); err != nil {
+		h.Notify("kit " + rule + ": let through unchecked, its once-only marker can't be saved: " + err.Error())
+		return false
+	}
+	return true
 }
 
 // reportHits scans a subagent report and returns the hits in a block tier,

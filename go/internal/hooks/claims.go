@@ -57,10 +57,14 @@ func VerifyClaims(h *hook.Hook) error {
 			return nil
 		}
 		u := unconfirmed(h, p.String(hook.KeyLastAssistantMessage), agentTranscript(p), "subagent report")
-		if marker != "" && !h.DryRun {
-			_ = fsx.WriteAtomic(marker, []byte("seen"), 0o644)
+		if len(u) == 0 {
+			// Best effort: without it, the next stop checks again.
+			if marker != "" && !h.DryRun {
+				_ = fsx.WriteAtomic(marker, []byte("seen"), 0o644)
+			}
+			return nil
 		}
-		if len(u) > 0 {
+		if marker == "" || markOnce(h, marker, []byte("seen"), "claims") {
 			return h.Block(claimsMessage("your report", u, sendBack), "claims")
 		}
 	case "PreToolUse":
@@ -130,10 +134,9 @@ func verifyInSubagent(h *hook.Hook, text, where, retry, marker string) error {
 	if len(u) == 0 {
 		return nil
 	}
-	if !h.DryRun {
-		_ = fsx.WriteAtomic(marker, []byte(sentBack), 0o644)
+	if markOnce(h, marker, []byte(sentBack), "claims") {
+		h.Deny(claimsMessage(where, u, retry), "claims")
 	}
-	h.Deny(claimsMessage(where, u, retry), "claims")
 	return nil
 }
 
@@ -395,14 +398,13 @@ func verifyHandback(h *hook.Hook) error {
 		return nil
 	}
 	u := unconfirmed(h, h.Payload.String(hook.KeyInputMessage), agentTranscript(h.Payload), "your report")
-	state := "seen"
-	if len(u) > 0 {
-		state = "sent-back"
+	if len(u) == 0 {
+		if !h.DryRun {
+			_ = fsx.WriteAtomic(marker, []byte("seen"), 0o644)
+		}
+		return nil
 	}
-	if !h.DryRun {
-		_ = fsx.WriteAtomic(marker, []byte(state), 0o644)
-	}
-	if len(u) > 0 {
+	if markOnce(h, marker, []byte("sent-back"), "claims") {
 		h.Deny(claimsMessage("your report", u, sendBack), "claims")
 	}
 	return nil

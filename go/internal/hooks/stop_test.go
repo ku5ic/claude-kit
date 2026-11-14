@@ -727,6 +727,15 @@ func TestReviewReport(t *testing.T) {
 		stop(e, false).Want(t, 0)
 		ask(e, "AskUserQuestion").Allowed(t)
 	})
+	t.Run("a marker that can't be saved lets Stop through, and says so", func(t *testing.T) {
+		t.Parallel()
+		e := finished(t)
+		// A file sits where the marker's directory goes, so the write fails.
+		testutil.Write(t, filepath.Join(e.k.paths.CacheDir(), cache.ReviewReport), "")
+		r := stop(e, false)
+		r.Want(t, 0)
+		r.Has(t, "kit review-report: let through unchecked")
+	})
 	t.Run("review-report in disabled_rules lets it through", func(t *testing.T) {
 		t.Parallel()
 		e := finished(t)

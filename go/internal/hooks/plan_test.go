@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/rotate"
 	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
@@ -191,6 +192,15 @@ func TestGuardPlan(t *testing.T) {
 			k := newSandbox(t)
 			k.run("guard-plan", exit(k, lines...)).Allowed(t)
 		}
+	})
+	t.Run("a marker that can't be saved lets the plan through, and says so", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		// A file sits where the marker's directory goes, so the write fails.
+		testutil.Write(t, filepath.Dir(k.paths.SessionFile(cache.PlanCritic, "s", "plan-x.md")), "")
+		r := k.run("guard-plan", exit(k, write))
+		r.Allowed(t)
+		r.Has(t, "kit plan-critic: let through unchecked")
 	})
 	t.Run("a critique only before the plan was written: sent back", func(t *testing.T) {
 		t.Parallel()

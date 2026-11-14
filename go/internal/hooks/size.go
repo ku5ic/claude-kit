@@ -88,8 +88,8 @@ func CheckSize(h *hook.Hook) error {
 	if prev, err := os.ReadFile(marker); err == nil && string(prev) == sentBack {
 		return nil
 	}
-	if !h.DryRun {
-		_ = fsx.WriteAtomic(marker, []byte(sentBack), 0o644)
+	if !markOnce(h, marker, []byte(sentBack), "size") {
+		return nil
 	}
 	h.Deny(sizeMessage(where, n, budget, then), "size")
 	return nil
