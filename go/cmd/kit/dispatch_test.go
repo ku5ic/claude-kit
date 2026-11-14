@@ -1,47 +1,29 @@
 package main
 
 import (
-	"go/ast"
-	"go/parser"
-	"go/token"
-	"strconv"
+	"slices"
 	"testing"
 
 	"github.com/ku5ic/claude-kit/go/internal/kitcmd"
 )
 
-// Every command kitcmd lists must reach a handler: a case in run's
-// switches, or a configCommands key. Read from the source, since running
-// each one would run it (scratch-rotate prunes).
+// unlisted are the commands kitcmd.Commands leaves out of the usage.
+var unlisted = []string{"help", "-h", "--help", "--version"}
+
+// Every command kitcmd lists has a handler, and every handler is listed or
+// an alias: usage and completion read kitcmd, run reads commands.
 func TestEveryListedCommandIsDispatched(t *testing.T) {
 	t.Parallel()
-	file, err := parser.ParseFile(token.NewFileSet(), "main.go", nil, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	handled := map[string]bool{}
-	for name := range configCommands {
-		handled[name] = true
-	}
-	for _, decl := range file.Decls {
-		if fn, ok := decl.(*ast.FuncDecl); ok && fn.Name.Name == "run" {
-			ast.Inspect(fn, func(n ast.Node) bool {
-				if cc, ok := n.(*ast.CaseClause); ok {
-					for _, e := range cc.List {
-						if lit, ok := e.(*ast.BasicLit); ok && lit.Kind == token.STRING {
-							if s, err := strconv.Unquote(lit.Value); err == nil {
-								handled[s] = true
-							}
-						}
-					}
-				}
-				return true
-			})
+	var listed []string
+	for _, c := range kitcmd.Commands {
+		listed = append(listed, c.Name)
+		if _, ok := commands[c.Name]; !ok {
+			t.Errorf("kit %s is listed in kitcmd.Commands, but commands has no handler for it", c.Name)
 		}
 	}
-	for _, c := range kitcmd.Commands {
-		if !handled[c.Name] {
-			t.Errorf("kit %s is listed in kitcmd.Commands, but run has no case for it", c.Name)
+	for name := range commands {
+		if !slices.Contains(listed, name) && !slices.Contains(unlisted, name) {
+			t.Errorf("kit %s has a handler, but kitcmd.Commands doesn't list it", name)
 		}
 	}
 }

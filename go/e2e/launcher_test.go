@@ -128,9 +128,16 @@ printf "$bin" >"$2"`
 		Write(t, filepath.Join(root, "bin/kit"), string(raw))
 		Write(t, filepath.Join(root, ".claude-plugin/plugin.json"), `{"name": "claude-kit", "version": "9.9.9"}`)
 		Write(t, filepath.Join(root, "go/cmd/kit/main.go"), "package main\n")
+		build, err := os.ReadFile(kitFile("go/build.sh"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		Stub(t, filepath.Join(root, "go/build.sh"), string(build))
 		stubs := t.TempDir()
-		// go build -o <out>: writes a fake binary at out, as go does.
-		Stub(t, filepath.Join(stubs, "go"), `while [ "$1" != -o ]; do shift; done
+		// go env answers build.sh's host target; go build -o <out> writes a
+		// fake binary at out, as go does.
+		Stub(t, filepath.Join(stubs, "go"), `[ "$1" = env ] && exit 0
+while [ "$1" != -o ]; do shift; done
 mkdir -p "$(dirname "$2")"
 printf '#!/bin/sh\necho built "$@"\n' >"$2"
 chmod +x "$2"

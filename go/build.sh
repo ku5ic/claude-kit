@@ -5,7 +5,16 @@
 # same Go version (go.mod), no VCS or build IDs.
 # Usage: build.sh            every target
 #        build.sh --host     only this machine's target
+#        build.sh -o <path>  only this machine's target, to path (bin/kit's
+#                            KIT_DEV build)
 set -euo pipefail
+out=
+case "${1:-}" in
+-o)
+  out="${2:?build.sh: -o needs a path}"
+  [[ $out == /* ]] || out="$PWD/$out"
+  ;;
+esac
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
 version="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' ../.claude-plugin/plugin.json | head -1)"
@@ -15,13 +24,13 @@ if [[ -z "$version" ]]; then
 fi
 
 targets=(darwin/arm64 darwin/amd64 linux/arm64 linux/amd64)
-if [[ "${1:-}" == --host ]]; then
+if [[ "${1:-}" == --host || -n $out ]]; then
   targets=("$(go env GOOS)/$(go env GOARCH)")
 fi
 
 for target in "${targets[@]}"; do
-  out="../bin/kit-$version-${target%/*}-${target#*/}"
+  to="${out:-../bin/kit-$version-${target%/*}-${target#*/}}"
   CGO_ENABLED=0 GOOS="${target%/*}" GOARCH="${target#*/}" \
-    go build -trimpath -buildvcs=false -ldflags="-s -w -buildid= -X main.version=$version" -o "$out" ./cmd/kit
-  echo "built $out"
+    go build -trimpath -buildvcs=false -ldflags="-s -w -buildid= -X main.version=$version" -o "$to" ./cmd/kit
+  echo "built $to"
 done
