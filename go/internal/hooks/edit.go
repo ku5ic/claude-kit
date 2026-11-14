@@ -102,10 +102,11 @@ func guardSearch(h *hook.Hook, cfg *config.Config) error {
 	if guard.SearchesSensitive(cfg, h.Home, root, glob, h.Payload.String("tool_input.path") != "") {
 		return h.Block("searching a credential or key file is not permitted", "sensitive-read")
 	}
-	// With no glob, a loose .env or *.pem under root is searched. Inside the
-	// project, where Grep needs no prompt, exclude them; the allow keeps auto
-	// mode from denying the rewrite. Outside, the gap stays.
-	if exclude := guard.SensitiveExclusion(cfg); glob == "" && exclude != "" && root != "" {
+	// With no glob, or one of only * and / that matches as much, a loose
+	// .env or *.pem under root is searched. Inside the project, where Grep
+	// needs no prompt, exclude them; the allow keeps auto mode from denying
+	// the rewrite. Outside, the gap stays.
+	if exclude := guard.SensitiveExclusion(cfg); strings.Trim(glob, "*/") == "" && exclude != "" && root != "" {
 		if top, anchored := project.Root(h.Payload.Cwd()); anchored && fsx.Within(top, fsx.PhysicalPath(filepath.Clean(root))) {
 			input := maps.Clone(h.Payload.Object("tool_input"))
 			input["glob"] = exclude

@@ -453,4 +453,11 @@ func TestGuardBashPluginRootReadsAndWrites(t *testing.T) {
 			t.Errorf("a write to the plugin root didn't ask: %s", cmd)
 		}
 	}
+	// A cd or pushd the guard can't follow asks as a move, not a write.
+	for _, cmd := range []string{"pushd %[1]s", "cd %[1]s | cat"} {
+		cmd = fmt.Sprintf(cmd, root)
+		if out := k.hook("", cwd, cmd).Output; !strings.Contains(out, "moves into the installed claude-kit plugin") {
+			t.Errorf("%s: %s", cmd, out)
+		}
+	}
 }

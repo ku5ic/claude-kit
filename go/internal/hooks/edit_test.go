@@ -354,6 +354,13 @@ func TestGuardSearchExcludesSecretsInsideTheProject(t *testing.T) {
 	if !maps.Equal(got, want) {
 		t.Errorf("updatedInput = %v, want %v", got, want)
 	}
+	// A glob of only * and / matches what no glob does.
+	for _, glob := range []string{"*", "**", "**/*"} {
+		got := grep(dir, map[string]any{"pattern": "secret", "glob": glob})
+		if want := map[string]any{"pattern": "secret", "glob": "!{.env,.env.*,*.key,id_rsa}"}; !maps.Equal(got, want) {
+			t.Errorf("glob %q: updatedInput = %v, want %v", glob, got, want)
+		}
+	}
 	if got := grep(dir, map[string]any{"pattern": "secret", "glob": "*.ts"}); got != nil {
 		t.Errorf("a Grep with its own glob was rewritten: %v", got)
 	}

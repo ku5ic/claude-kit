@@ -513,11 +513,17 @@ func (st *state) abs(p string) string {
 // The plugin-root exemption takes the session's cwd: a cd into the root
 // within the command isn't work on the kit.
 func (st *state) askKitSwitch(arg string) bool {
-	what := guard.KitSwitch(st.h.Paths, st.session, st.abs(unquote(arg)))
+	what := st.kitSwitch(arg)
 	if what != "" {
 		st.ask(guard.KitSwitchAsk(what))
 	}
 	return what != ""
+}
+
+// kitSwitch is what guard.KitSwitch names for arg, resolved as
+// askKitSwitch resolves it, or "".
+func (st *state) kitSwitch(arg string) string {
+	return guard.KitSwitch(st.h.Paths, st.session, st.abs(unquote(arg)))
 }
 
 // isProtected is true when ref names a protected branch, ignoring

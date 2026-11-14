@@ -444,6 +444,14 @@ func (c *command) overlayWrite() {
 	// against where it went; an untracked one would resolve them wrongly.
 	case c.name == "cd" && c.alone && c.st.tracks(c.args):
 		return
+	case c.name == "cd" || c.name == "pushd":
+		for _, v := range c.values() {
+			if what := c.st.kitSwitch(v); what != "" {
+				c.st.ask("this moves into " + what + " where the guard can't follow later paths, so a write there would go unchecked; confirm the change")
+				return
+			}
+		}
+		return
 	}
 	for _, v := range c.values() {
 		_, after, hasEq := strings.Cut(v, "=")
