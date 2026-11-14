@@ -150,12 +150,17 @@ func (b *builder) fileForm(g Gate, files []string, checked map[string][]string, 
 var selectors = []string{"-m", "-k", "--deselect"}
 
 // covers is true when earlier, a form of the same tool and kind, runs every
-// check form does: form's words past earlier's are only selectors and
-// coverage options. Any other (eslint --max-warnings 0) checks more.
+// check form does: every word of earlier is in form, and form's words past
+// earlier's are only selectors and coverage options. Any other (eslint
+// --max-warnings 0) checks more, and an earlier with a selector of its own
+// (pytest -m unit) runs fewer.
 func covers(earlier, form string) bool {
-	have := strings.Fields(earlier)
+	have, words := strings.Fields(earlier), strings.Fields(form)
+	if slices.ContainsFunc(have, func(w string) bool { return !slices.Contains(words, w) }) {
+		return false
+	}
 	var extra []string
-	for _, w := range strings.Fields(form) {
+	for _, w := range words {
 		if !slices.Contains(have, w) {
 			extra = append(extra, w)
 		}

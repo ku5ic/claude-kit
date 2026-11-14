@@ -132,6 +132,20 @@ func TestStopKeepsAStricterFileFormBesideThePlainOne(t *testing.T) {
 	}
 }
 
+// A form narrowed by its own selector covers no form with another one.
+func TestStopRunsTwoFormsWithDifferentSelectors(t *testing.T) {
+	e := setup(t)
+	e.tool("bin/pytest")
+	e.write(".github/workflows/ci.yml", "jobs:\n  test:\n    steps:\n      - run: pytest -m unit\n      - run: pytest -k integration\n")
+	e.write("test_a.py", "")
+	e.check("test/1", map[string]any{"role": "check", "kind": "test", "file_form": "pytest -m unit {files}", "globs": []string{"*.py"}})
+	e.check("test/2", map[string]any{"role": "check", "kind": "test", "file_form": "pytest -k integration {files}", "globs": []string{"*.py"}})
+	got := commands(e.stop("test_a.py"))
+	if !strings.Contains(got, "pytest -m unit test_a.py") || !strings.Contains(got, "pytest -k integration test_a.py") {
+		t.Errorf("plan:\n%s", got)
+	}
+}
+
 // Two tools of one kind both run: only another form of the same tool
 // loses its files.
 func TestStopRunsEachToolOfAKind(t *testing.T) {
