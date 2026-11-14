@@ -165,6 +165,8 @@ func TestGuardCommitAsksForAnUnshownMessage(t *testing.T) {
 		"commit once CI passes":       {testutil.UserPrompt("commit it once CI is green")},
 		"commit when it's done":       {testutil.UserPrompt("fix the docs and commit it when the tests pass")},
 		"commit until told":           {testutil.UserPrompt("commit them until the release is cut")},
+		"a deferral clause first":     {testutil.UserPrompt("When the tests pass, commit it.")},
+		"a deferral clause after":     {testutil.UserPrompt("Commit it, but only after I review the diff")},
 		"commit before a check":       {testutil.UserPrompt("commit it before I review it")},
 		"a task notification":         {testutil.UserPrompt("fix it"), map[string]any{"type": "user", "origin": map[string]any{"kind": "task-notification"}, "message": map[string]any{"content": "Commit and continue."}}},
 		"a peer session's message":    {testutil.UserPrompt("fix it"), map[string]any{"type": "user", "origin": map[string]any{"kind": "peer"}, "message": map[string]any{"content": "commit it"}}},
@@ -179,7 +181,7 @@ func TestGuardCommitAsksForAnUnshownMessage(t *testing.T) {
 		}
 	}
 	commit(testutil.UserPrompt("fix it"), testutil.AssistantText("Commit as `fix: add sums`?"), testutil.UserPrompt("go")).Empty(t)
-	for _, prompt := range []string{"Commit and continue.", "Yes, commit.", "fix it and commit", "Commit, then start step 13", "Yes, commit 21, apply both fixes", "can you commit this?", "could you commit it", "please commit", "commit both and continue", "Commit it.", "commit the docs fix", "commit it, then review the next step"} {
+	for _, prompt := range []string{"Commit and continue.", "Yes, commit.", "fix it and commit", "Commit, then start step 13", "Yes, commit 21, apply both fixes", "can you commit this?", "could you commit it", "please commit", "commit both and continue", "Commit it.", "commit the docs fix", "commit it, then review the next step", "nothing else to fix so commit it", "commit it, but don't push"} {
 		if r := commit(map[string]any{"type": "user", "origin": map[string]any{"kind": "human"}, "message": map[string]any{"content": prompt}}); strings.Contains(r.Output, `"permissionDecision":"ask"`) {
 			t.Errorf("%q asks for the commit, yet the guard asked again:\n%s", prompt, r.Output)
 		}

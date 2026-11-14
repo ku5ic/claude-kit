@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/ku5ic/claude-kit/go/internal/classify"
 	"github.com/ku5ic/claude-kit/go/internal/enforce"
@@ -276,8 +277,8 @@ func approved(path, subject string) bool {
 var (
 	commitWord = regexp.MustCompile(`(?i)\bcommit\b(\s+\w+)?`)
 	// negated is a clause that turns down what follows: "don't", "not",
-	// "aren't", "never", "no", "nothing" (git status's "nothing to commit").
-	negated = regexp.MustCompile(`(?i)\b(don['\x{2019}]?t|not|never|no|nothing)\b|n['\x{2019}]t\b`)
+	// "aren't", "never", "no", and git status's "nothing to".
+	negated = regexp.MustCompile(`(?i)\b(don['\x{2019}]?t|not|never|no|nothing\s+to)\b|n['\x{2019}]t\b`)
 	// directAsk opens a question that is a request: "can you commit this?".
 	// Any other question ("is it ok to commit?") asks about one.
 	directAsk = regexp.MustCompile(`(?i)^\s*(can|could|would|will)\s+(you|we)\b`)
@@ -296,15 +297,16 @@ var (
 	// askedYou can come before "you commit" in a request: "can you
 	// commit". Any other ("if you commit this") makes it a remark.
 	askedYou = []string{"can", "could", "would", "will", "please"}
-	// deferral later in the clause puts the commit off: "commit it after I
-	// review the diff".
+	// deferral anywhere in the sentence puts the commit off, across a
+	// comma too: "when the tests pass, commit it", "commit it, but only
+	// after I review".
 	deferral = []string{"after", "once", "when", "until", "before"}
 )
 
 // asksForCommit is true when prompt uses "commit" as a request: first in
 // its clause, after a requestLead word, or after an askedYou word and
 // "you", followed by nothing, a commitObjects word, or a step number, with
-// no negation earlier in its clause and no deferral later in it, in a
+// no negation earlier in its clause and no deferral in its sentence, in a
 // sentence that isn't the user's own plan, and, when it ends in "?", opens
 // as a direct ask.
 func asksForCommit(prompt string) bool {
@@ -320,13 +322,6 @@ func asksForCommit(prompt string) bool {
 			}
 		}
 		clause := prompt[strings.LastIndexAny(prompt[:m[0]], ".!?;,\n")+1 : m[0]]
-		rest := prompt[m[1]:]
-		if end := strings.IndexAny(rest, ".!?;,\n"); end >= 0 {
-			rest = rest[:end]
-		}
-		if slices.ContainsFunc(strings.Fields(strings.ToLower(rest)), func(w string) bool { return slices.Contains(deferral, w) }) {
-			continue
-		}
 		words := strings.Fields(strings.ToLower(clause))
 		if n := len(words); n > 0 && !slices.Contains(requestLead, words[n-1]) &&
 			(words[n-1] != "you" || n < 2 || !slices.Contains(askedYou, words[n-2])) {
@@ -340,6 +335,10 @@ func asksForCommit(prompt string) bool {
 			if sentence[end] == '?' && !directAsk.MatchString(sentence) {
 				continue
 			}
+			sentence = sentence[:end]
+		}
+		if slices.ContainsFunc(strings.FieldsFunc(strings.ToLower(sentence), notWordRune), func(w string) bool { return slices.Contains(deferral, w) }) {
+			continue
 		}
 		if !ownPlan.MatchString(sentence) {
 			return true
@@ -445,3 +444,6 @@ func longestProseRun(text string) int {
 	}
 	return best
 }
+
+// notWordRune splits a sentence into words, dropping punctuation.
+func notWordRune(r rune) bool { return !unicode.IsLetter(r) && r != '\'' }
