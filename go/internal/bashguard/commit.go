@@ -276,8 +276,8 @@ func approved(path, subject string) bool {
 var (
 	commitWord = regexp.MustCompile(`(?i)\bcommit\b(\s+\w+)?`)
 	// negated is a clause that turns down what follows: "don't", "not",
-	// "aren't", "never", "no".
-	negated = regexp.MustCompile(`(?i)\b(don['\x{2019}]?t|not|never|no)\b|n['\x{2019}]t\b`)
+	// "aren't", "never", "no", "nothing" (git status's "nothing to commit").
+	negated = regexp.MustCompile(`(?i)\b(don['\x{2019}]?t|not|never|no|nothing)\b|n['\x{2019}]t\b`)
 	// directAsk opens a question that is a request: "can you commit this?".
 	// Any other question ("is it ok to commit?") asks about one.
 	directAsk = regexp.MustCompile(`(?i)^\s*(can|could|would|will)\s+(you|we)\b`)
