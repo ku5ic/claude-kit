@@ -187,9 +187,9 @@ func (st *state) excludeSensitive(segs []Segment, cmd string) string {
 		if name, _, _ := strings.Cut(w.Value, "="); globFlags[name] != "" || name == "--follow" || shortCluster(name, "Lg") {
 			return ""
 		}
-		// "${HOME%/}/.aws" or "$OLDPWD" reads as a path under cwd, so a word
-		// still expanding once ~ and $HOME are resolved gets no allow.
-		if w.expands && strings.ContainsAny(guard.ExpandHome(st.home, w.Value), "$`") {
+		// "$OLDPWD" or {~/.aws,.} reads as a path under cwd, so only a
+		// literal word gets the allow.
+		if !w.literal {
 			return ""
 		}
 		values = append(values, w.Value)

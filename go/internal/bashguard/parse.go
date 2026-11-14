@@ -19,9 +19,9 @@ type Word struct {
 	Value string
 	Raw   string
 	end   int // source offset just past the word
-	// expands is whether the word holds a parameter, command, arithmetic,
-	// or process expansion, or a $'...' string.
-	expands bool
+	// literal is whether the shell passes the word as written: no
+	// expansion, brace list, or glob character in any part.
+	literal bool
 }
 
 // Redir is an output redirect: its operator and target word.
@@ -286,7 +286,7 @@ func (c *collector) call(src string, p *syntax.Stmt, call *syntax.CallExpr) Call
 		cl.start = int(p.Pos().Offset())
 	}
 	for _, w := range call.Args {
-		cl.Words = append(cl.Words, Word{wordValue(src, w), src[w.Pos().Offset():w.End().Offset()], int(w.End().Offset()), expands(w)})
+		cl.Words = append(cl.Words, Word{wordValue(src, w), src[w.Pos().Offset():w.End().Offset()], int(w.End().Offset()), literal(w.Parts)})
 	}
 	if cmd, ok := envSplitString(cl.Words); ok {
 		c.parse(cmd, c.depth+1)
@@ -332,7 +332,7 @@ func (c *collector) redirect(src string, r *syntax.Redirect, cl *Call) {
 		if r.Op == syntax.DplOut && fdTarget.MatchString(value) {
 			value = "&" + value
 		}
-		cl.Redirs = append(cl.Redirs, Redir{op, Word{value, src[r.Word.Pos().Offset():r.Word.End().Offset()], int(r.Word.End().Offset()), expands(r.Word)}})
+		cl.Redirs = append(cl.Redirs, Redir{op, Word{value, src[r.Word.Pos().Offset():r.Word.End().Offset()], int(r.Word.End().Offset()), literal(r.Word.Parts)}})
 	}
 }
 
@@ -538,24 +538,36 @@ func pipeline(s *syntax.Stmt) []*syntax.Stmt {
 	return nil
 }
 
-// wordValue removes quotes and resolves escapes, leaving every expansion as
-// its source text.
-// expands is whether w holds an expansion, a $'...' string included,
-// whose source isn't the text the command gets.
-func expands(w *syntax.Word) bool {
-	found := false
-	syntax.Walk(w, func(node syntax.Node) bool {
-		switch n := node.(type) {
-		case *syntax.ParamExp, *syntax.CmdSubst, *syntax.ArithmExp, *syntax.ProcSubst:
-			found = true
+// literal is whether parts are plain text, single-quoted text with no $,
+// or double-quoted plain text, with no brace or glob character outside
+// quotes. An allow for a path reads only such words, since any other form
+// (an expansion, $'...', {a,b}, *) isn't the text the command gets.
+func literal(parts []syntax.WordPart) bool {
+	for _, part := range parts {
+		switch p := part.(type) {
+		case *syntax.Lit:
+			if strings.ContainsAny(p.Value, "{}*?[") {
+				return false
+			}
 		case *syntax.SglQuoted:
-			found = n.Dollar
+			if p.Dollar {
+				return false
+			}
+		case *syntax.DblQuoted:
+			for _, inner := range p.Parts {
+				if _, ok := inner.(*syntax.Lit); !ok {
+					return false
+				}
+			}
+		default:
+			return false
 		}
-		return !found
-	})
-	return found
+	}
+	return true
 }
 
+// wordValue removes quotes and resolves escapes, leaving every expansion as
+// its source text.
 func wordValue(src string, w *syntax.Word) string {
 	var b strings.Builder
 	for _, part := range w.Parts {

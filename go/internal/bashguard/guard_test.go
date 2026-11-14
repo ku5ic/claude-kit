@@ -720,7 +720,7 @@ func TestGuardBashExcludesSecretsFromALoneRg(t *testing.T) {
 			t.Errorf("the original %q left a read-only marker too", cmd)
 		}
 	}
-	for _, cmd := range []string{"rg -g '*.go' x .", "rg --glob=*.md x", "rg x . && rm y", "cat a | rg x", "rg --pre ./x pat .", "rg --hostname-bin=./x pat .", "rg x . > out.txt", "rg -uu token /etc", "rg secret ~", "rg x ../", "rg -e x -- " + t.TempDir(), "rg -L x .", "rg --follow x .", "rg -ig '.env' x", "rg -uug '*.env' x", `rg -uu token "${HOME%/}/.aws"`, `rg -n foo "$OLDPWD"`, "rg x `pwd`", `rg x $'/etc'`} {
+	for _, cmd := range []string{"rg -g '*.go' x .", "rg --glob=*.md x", "rg x . && rm y", "cat a | rg x", "rg --pre ./x pat .", "rg --hostname-bin=./x pat .", "rg x . > out.txt", "rg -uu token /etc", "rg secret ~", "rg x ../", "rg -e x -- " + t.TempDir(), "rg -L x .", "rg --follow x .", "rg -ig '.env' x", "rg -uug '*.env' x", `rg -uu token "${HOME%/}/.aws"`, `rg -n foo "$OLDPWD"`, "rg x `pwd`", `rg x $'/etc'`, `rg -n foo "$OLDPWD"''`, "rg secret {~/.aws,.}", "rg x ../*"} {
 		if got, _ := rewritten(cmd); got != "" {
 			t.Errorf("%q was rewritten to %q", cmd, got)
 		}
