@@ -51,7 +51,7 @@ Scratch is whatever `kit scratch-dir` prints, the `scratch:` line of `<repo-cont
 | Directory          | Holds                                                               | Tracked?       |
 | ------------------ | ------------------------------------------------------------------- | -------------- |
 | `.claude/scratch/` | Throwaway work: POCs, one-off scripts, logs, downloads, screenshots | No, gitignored |
-| `.claude/plans/`   | Plan files, via `plansDirectory: ".claude/plans"`                   | No, gitignored |
+| `.claude/plans/`   | Plan files, when the `plansDirectory` setting points here           | No, gitignored |
 | `.claude/tasks/`   | Handover plans a person is meant to read, written by hand           | Yes            |
 
 - A temporary file (a report, preview, test artifact, POC, debug file, download, screenshot, log) goes to scratch, over the harness's `/tmp` scratchpad and any ad hoc path under `~/.claude/`.
@@ -60,4 +60,4 @@ Scratch is whatever `kit scratch-dir` prints, the `scratch:` line of `<repo-cont
 - After a download, or after a subagent with Bash returns, run `git status --short`. A file you didn't mean to create gets moved to scratch or flagged first.
 - A subagent prompt that may write files names `$(kit scratch-dir)` as its only place to write.
 - In plan mode, where Claude Code lets an agent write only the plan file, a report goes where the harness allows, and the reply names that path.
-- A structured artifact (a report, review, or audit) goes to the path `kit scratch-dir <kind> <slug>` prints. A plan is `.claude/plans/plan-<task-slug>.md`, slug capped at four words.
+- A structured artifact (a report, review, or audit) goes to the path `kit scratch-dir <kind> <slug>` prints. A plan is `plan-<task-slug>.md` in the folder `plansDirectory` points to, else Claude Code's default `~/.claude/plans/`, slug capped at four words.
