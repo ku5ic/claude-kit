@@ -3,6 +3,7 @@ package codegraph
 import (
 	"fmt"
 	"io"
+	"path"
 	"regexp"
 	"slices"
 	"strings"
@@ -63,15 +64,23 @@ func Coupling(gitLog, resolved string, out io.Writer) error {
 		if shared < minShared {
 			break
 		}
-		a, b := moduleStem(p.a), moduleStem(p.b)
 		link := "no-import"
-		if imports[pair{a, b}] || imports[pair{b, a}] {
+		if imports[pair{moduleStem(p.a), importTarget(p.b)}] || imports[pair{moduleStem(p.b), importTarget(p.a)}] {
 			link = "imports"
 		}
 		degree := float64(shared) / float64(min(changes[p.a], changes[p.b]))
 		fmt.Fprintf(out, "%d\t%.2f\t%s\t%s\t%s\n", shared, degree, link, p.a, p.b)
 	}
 	return nil
+}
+
+// importTarget is how imports-resolved.tsv names file as an import's
+// target: a Go file by its package's directory, any other by its module stem.
+func importTarget(file string) string {
+	if path.Ext(file) == ".go" {
+		return dirOf(file)
+	}
+	return moduleStem(file)
 }
 
 // readCommits is each commit's changed files, minus noise and tests.

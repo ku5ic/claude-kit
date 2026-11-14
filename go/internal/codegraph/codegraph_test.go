@@ -53,10 +53,10 @@ func TestImportsGolden(t *testing.T) {
 // NodeNext .js import of a .ts file, a Go module path, Rust crate:: with a
 // {group} and mod, Python's from . import, declared and undeclared
 // externals per ecosystem, a test file that doesn't vote, and one upward
-// edge.
+// edge. The out dir doesn't exist yet: Deps makes it.
 func TestDepsGolden(t *testing.T) {
 	t.Parallel()
-	out := t.TempDir()
+	out := filepath.Join(t.TempDir(), "raw")
 	var stdout bytes.Buffer
 	if err := Deps(fixtureRepo(t), "testdata/imports.golden", out, "", &stdout); err != nil {
 		t.Fatal(err)
@@ -72,8 +72,9 @@ func TestDepsGolden(t *testing.T) {
 	}
 }
 
-// The log has a pair with an import, one without, a same-directory pair,
-// a pair under the minimum, a bulk commit, and noise and test files.
+// The log has a pair with an import, a Go file and a file of the package it
+// imports, one without, a same-directory pair, a pair under the minimum, a
+// bulk commit, and noise and test files.
 func TestCouplingGolden(t *testing.T) {
 	t.Parallel()
 	var out bytes.Buffer

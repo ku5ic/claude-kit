@@ -539,6 +539,9 @@ func Deps(root, imports, outDir, split string, w io.Writer) error {
 	if err != nil {
 		return err
 	}
+	if err := os.MkdirAll(outDir, 0o755); err != nil {
+		return err
+	}
 	g := newGraph(root, files)
 	if split != "" {
 		split = strings.Trim(path.Clean(split), "/") // src/ and ./src name the same dir

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"path"
 	"slices"
 	"strings"
 	"time"
@@ -73,8 +74,13 @@ func Imports(root string, out io.Writer) error {
 	flatten := strings.NewReplacer("\n", " ", "\t", " ")
 	for line := range strings.SplitSeq(string(stream), "\n") {
 		var match struct{ File, Text string }
-		if json.Unmarshal([]byte(line), &match) == nil {
-			rows = append(rows, strings.TrimPrefix(match.File, root+"/")+"\t"+flatten.Replace(match.Text))
+		if json.Unmarshal([]byte(line), &match) != nil {
+			continue
+		}
+		file := strings.TrimPrefix(match.File, root+"/")
+		// testdata holds fixtures, not the repo's code: the go tool skips it too.
+		if !slices.Contains(strings.Split(path.Dir(file), "/"), "testdata") {
+			rows = append(rows, file+"\t"+flatten.Replace(match.Text))
 		}
 	}
 	slices.Sort(rows)
