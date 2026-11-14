@@ -45,6 +45,12 @@ jobs:
       - name: build
         run: ./build.sh
 
+      # TestImportsGolden runs the import rules through ast-grep, and fails
+      # without it under CI. Not in Dependabot: bump it by hand, to the
+      # version that regenerated testdata/imports.golden.
+      - name: Install ast-grep
+        run: npm install -g @ast-grep/cli@0.51.2
+
       - name: test
         run: go test -race ./...
 
@@ -86,6 +92,8 @@ jobs:
       - name: shellcheck
         run: shellcheck -x -P SCRIPTDIR bin/kit go/build.sh templates/chat/scan.sh
 
+      # Not in Dependabot: bump it by hand when a Claude Code release changes
+      # what claude plugin validate checks.
       - name: Install Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code@2.1.323
 

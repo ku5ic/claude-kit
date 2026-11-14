@@ -41,7 +41,10 @@ func fixtureRepo(t *testing.T) string {
 func TestImportsGolden(t *testing.T) {
 	t.Parallel()
 	if _, err := kittool.Path(astGrep...); err != nil {
-		t.Skip(err) // kit: allow ast-grep is optional, and CI doesn't install it
+		if os.Getenv("CI") != "" {
+			t.Fatal(err) // CI installs ast-grep, so the rules always run there
+		}
+		t.Skip(err) // kit: allow ast-grep is optional on a dev machine
 	}
 	var out bytes.Buffer
 	if err := Imports(fixtureRepo(t)+"/", &out); err != nil {
