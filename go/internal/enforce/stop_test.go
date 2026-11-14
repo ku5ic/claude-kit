@@ -132,6 +132,21 @@ func TestStopRunsEachToolOfAKind(t *testing.T) {
 	}
 }
 
+// Two package scripts of one kind are two tools, though one runner runs
+// both.
+func TestStopRunsEachScriptOfAKind(t *testing.T) {
+	e := setup(t)
+	e.tool("bin/npm")
+	e.write(".github/workflows/ci.yml", "jobs:\n  lint:\n    steps:\n      - run: npm run lint\n      - run: npm run lint:css\n")
+	e.write("a.ts", "")
+	e.check("lint/1", map[string]any{"role": "check", "kind": "lint", "file_form": "npm run lint -- {files}", "globs": []string{"*.ts"}})
+	e.check("lint/2", map[string]any{"role": "check", "kind": "lint", "file_form": "npm run lint:css -- {files}", "globs": []string{"*.ts"}})
+	got := commands(e.stop("a.ts"))
+	if !strings.Contains(got, "npm run lint -- a.ts") || !strings.Contains(got, "npm run lint:css -- a.ts") {
+		t.Errorf("plan:\n%s", got)
+	}
+}
+
 // Ignored, deleted, and outside files never reach a check.
 func TestStopChecksOnlyFilesTheRepoKeeps(t *testing.T) {
 	e := setup(t)
@@ -194,6 +209,10 @@ func TestFormTool(t *testing.T) {
 		"pnpm exec eslint {files}":          "eslint",
 		"CI=1 env ./node_modules/.bin/x":    "x",
 		"go tool golangci-lint run {files}": "golangci-lint",
+		"npm run lint:css -- {files}":       "npm run lint:css",
+		"npm test -- {files}":               "npm test",
+		"npm run -s lint -- {files}":        "npm run lint",
+		"make lint FILES={files}":           "make lint",
 	} {
 		if got := formTool(form); got != want {
 			t.Errorf("formTool(%q) = %q, want %q", form, got, want)

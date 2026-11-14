@@ -12,6 +12,8 @@ import (
 	"strings"
 
 	"go.yaml.in/yaml/v3"
+
+	"github.com/ku5ic/claude-kit/go/internal/cache"
 )
 
 // Paths are the kit's fixed locations, resolved by ResolvePaths.
@@ -33,14 +35,9 @@ func (p Paths) LogFile(name string) string { return filepath.Join(p.LogDir(), na
 // ScratchRegistry lists every project scratch dir, for scratch-rotate.
 func (p Paths) ScratchRegistry() string { return filepath.Join(p.LogDir(), "scratch-registry.txt") }
 
-// SessionFile is <cache>/<kind>/<session>[-<part>...]: one session's marker.
-// "" for an empty session ID or one holding a path separator, which would
-// land outside kind's dir.
+// SessionFile is cache.SessionPath under p's cache dir.
 func (p Paths) SessionFile(kind, session string, parts ...string) string {
-	if session == "" || strings.ContainsAny(session, `/\`) {
-		return ""
-	}
-	return filepath.Join(p.CacheDir(), kind, strings.Join(append([]string{session}, parts...), "-"))
+	return cache.SessionPath(p.CacheDir(), kind, session, parts...)
 }
 
 // ResolvePaths reads the environment. exe is the running binary's path,

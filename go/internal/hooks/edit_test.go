@@ -339,6 +339,10 @@ func TestGuardSearchExcludesSecretsInsideTheProject(t *testing.T) {
 		}
 		r := k.run("guard-dispatch", map[string]any{"tool_input": input, "session_id": "s1", "tool_name": "Grep", "cwd": cwd})
 		r.Want(t, 0)
+		// A panic fails open, so only its message tells.
+		if strings.Contains(r.Output, "unexpected error") {
+			t.Errorf("input %v: %s", input, r.Output)
+		}
 		if r.Stdout != "" {
 			if err := json.Unmarshal([]byte(r.Stdout), &out); err != nil {
 				t.Fatalf("%v: %s", err, r.Stdout)
@@ -366,6 +370,9 @@ func TestGuardSearchExcludesSecretsInsideTheProject(t *testing.T) {
 	}
 	if got := grep(dir, map[string]any{"pattern": "secret", "path": t.TempDir()}); got != nil {
 		t.Errorf("a Grep outside the project was rewritten: %v", got)
+	}
+	if got := grep(dir, nil); got != nil {
+		t.Errorf("a Grep with no tool_input was rewritten: %v", got)
 	}
 }
 

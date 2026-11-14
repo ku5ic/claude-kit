@@ -75,15 +75,22 @@ func RootKey(root string) string {
 	return hex.EncodeToString(sum[:])[:8]
 }
 
+// SessionPath is <cacheDir>/<kind>/<session>[-<part>...]: one session's
+// file. "" for an empty session ID or one holding a path separator, which
+// would land outside kind's dir.
+func SessionPath(cacheDir, kind, session string, parts ...string) string {
+	if session == "" || strings.ContainsAny(session, `/\`) {
+		return ""
+	}
+	return filepath.Join(cacheDir, kind, strings.Join(append([]string{session}, parts...), "-"))
+}
+
 // ReadOnlyBash is the marker the bash guard leaves for a session's command
 // that only reads, so bash-edits can skip its work-tree snapshots: the
 // command hashed, since both hooks see it and nothing else in common.
 func ReadOnlyBash(cacheDir, session, command string) string {
-	if session == "" || strings.ContainsAny(session, `/\`) {
-		return ""
-	}
 	sum := sha256.Sum256([]byte(command))
-	return filepath.Join(cacheDir, Guard, session+"-reads-"+hex.EncodeToString(sum[:])[:16])
+	return SessionPath(cacheDir, Guard, session, "reads", hex.EncodeToString(sum[:])[:16])
 }
 
 // StopReport is where stop-checks keeps its last report for the repo at

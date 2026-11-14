@@ -105,10 +105,12 @@ func guardSearch(h *hook.Hook, cfg *config.Config) error {
 	// With no glob, or one of only * and / that matches as much, a loose
 	// .env or *.pem under root is searched. Inside the project, where Grep
 	// needs no prompt, exclude them; the allow keeps auto mode from denying
-	// the rewrite. Outside, the gap stays.
-	if exclude := guard.SensitiveExclusion(cfg); strings.Trim(glob, "*/") == "" && exclude != "" && root != "" {
+	// the rewrite. Outside, the gap stays, and a payload with no tool_input
+	// has nothing to rewrite.
+	input := h.Payload.Object("tool_input")
+	if exclude := guard.SensitiveExclusion(cfg); strings.Trim(glob, "*/") == "" && exclude != "" && root != "" && input != nil {
 		if top, anchored := project.Root(h.Payload.Cwd()); anchored && fsx.Within(top, fsx.PhysicalPath(filepath.Clean(root))) {
-			input := maps.Clone(h.Payload.Object("tool_input"))
+			input = maps.Clone(input)
 			input["glob"] = exclude
 			h.UpdateInput(input)
 			h.Decide("allow", "kit excluded credential files from a Grep inside the project")

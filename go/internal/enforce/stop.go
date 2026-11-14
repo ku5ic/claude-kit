@@ -137,7 +137,8 @@ func (b *builder) fileForm(g Gate, files []string, checked, formed map[string][]
 // formTool is the tool a file form runs: its first word past VAR=value
 // words, a wrapper (env), and a tool runner (npx, uv run), by base name.
 // pytest -m unit and pytest --cov are both pytest; pylint and ruff check
-// are two tools.
+// are two tools. A task reference is its task: npm run lint and npm run
+// lint:css are two tools.
 func formTool(form string) string {
 	words := strings.Fields(form)
 	for len(words) > 1 && (strings.Contains(words[0], "=") || slices.Contains(classify.Grammar.Wrappers, words[0])) {
@@ -145,8 +146,17 @@ func formTool(form string) string {
 	}
 	for _, r := range classify.Grammar.ToolRunners {
 		if n := len(strings.Fields(r)); len(words) > n && strings.Join(words[:n], " ") == r {
-			words = words[n:]
-			break
+			return filepath.Base(words[n])
+		}
+	}
+	// After the runners: pnpm exec is one, and pnpm alone a task reference.
+	for _, ref := range classify.Grammar.References {
+		if f := strings.Fields(ref.Words); len(words) >= len(f) && slices.Equal(words[:len(f)], f) {
+			rest := words[len(f):]
+			if i := slices.IndexFunc(rest, func(w string) bool { return !strings.HasPrefix(w, "-") }); ref.Task == "" && i >= 0 {
+				f = append(f, rest[i])
+			}
+			return strings.Join(f, " ")
 		}
 	}
 	if len(words) == 0 {
