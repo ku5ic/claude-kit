@@ -25,6 +25,9 @@ Which CLI to reach for, how to call the bin scripts, and where temporary files g
 | Git outside cwd                    | `git -C <dir>`                     | cd <dir> && git                    |
 | Validate a GitHub Actions workflow | `actionlint`                       | reading YAML by eye                |
 | Check a Mermaid diagram renders    | `mmdc`                             | reading the fence by eye           |
+| A GitHub PR, issue, or API call    | `gh`                               | fetching github.com pages          |
+| Diff that ignores reformatting     | `difft`                            | `git diff -w`                      |
+| Read or create an ADR              | `adr`                              | listing `docs/adr` by hand         |
 
 ### Budget
 

@@ -8,7 +8,7 @@ Hardening review of CI workflows. Arguments: `<workflow file, or none for every 
 
 ## Procedure
 
-1. Run `actionlint` on the target workflows. Each error is a finding.
+1. Run `actionlint` on the target workflows. Each error is a finding. With no `actionlint`, skip this step and say so under "Cannot be verified statically".
 2. Read each workflow and check:
    - **Pinning**: every `uses:` of an action outside the repo is pinned to a full commit SHA, with the tag in a comment. A tag or branch is a finding; a first-party `actions/*` tag is a `warning`, a third-party one a `failure`.
    - **Permissions**: a top-level or per-job `permissions:` block granting only what the jobs use. None at all means the token's default scope, a `warning`.
