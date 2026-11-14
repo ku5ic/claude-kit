@@ -52,11 +52,17 @@ func (e *stopEnv) line(v any) { testutil.AppendJSONL(e.t, e.transcript, v) }
 func (e *stopEnv) turn(tool string, paths ...string) {
 	e.line(map[string]any{"type": "user", "message": map[string]any{"content": "do it"}})
 	for _, p := range paths {
-		e.line(map[string]any{"type": "assistant", "message": map[string]any{"content": []any{
-			map[string]any{"type": "tool_use", "name": tool, "input": map[string]any{"file_path": p}},
-		}}})
-		e.line(map[string]any{"type": "user", "message": map[string]any{"content": []any{map[string]any{"type": "tool_result"}}}})
+		e.edit(tool, p, false)
 	}
+}
+
+// edit is one edit tool call on path and its result, failed when denied.
+func (e *stopEnv) edit(tool, path string, denied bool) {
+	id := "toolu_" + filepath.Base(path)
+	e.line(map[string]any{"type": "assistant", "message": map[string]any{"content": []any{
+		map[string]any{"type": "tool_use", "id": id, "name": tool, "input": map[string]any{"file_path": path}},
+	}}})
+	e.line(map[string]any{"type": "user", "message": map[string]any{"content": []any{map[string]any{"type": "tool_result", "tool_use_id": id, "is_error": denied}}}})
 }
 
 // start runs turn-tree as a prompt would, snapshotting the tree.
@@ -652,6 +658,12 @@ func TestReviewReport(t *testing.T) {
 		e.turn("Write", report(e))
 		stop(e, false).Want(t, 0)
 		ask(e, "AskUserQuestion").Allowed(t)
+	})
+	t.Run("a report Write another guard denied doesn't count", func(t *testing.T) {
+		t.Parallel()
+		e := finished(t)
+		e.edit("Write", report(e), true)
+		stop(e, false).Want(t, 2)
 	})
 	t.Run("a report written before the review finished doesn't count", func(t *testing.T) {
 		t.Parallel()

@@ -72,10 +72,13 @@ type planWalk struct {
 	// ReviewReported where a review-*.md scratch report was last written.
 	ReviewArrived  int `json:"review_arrived"`
 	ReviewReported int `json:"review_reported"`
+	// ReportWrites is a report write's tool_use id -> its line, until its
+	// result: a write another guard denied wrote no report.
+	ReportWrites map[string]int `json:"report_writes"`
 }
 
 func newPlanWalk() *planWalk {
-	return &planWalk{LastEdit: -1, LastReview: -1, Started: map[string]int{}, ReviewArrived: -1, ReviewReported: -1}
+	return &planWalk{LastEdit: -1, LastReview: -1, Started: map[string]int{}, ReviewArrived: -1, ReviewReported: -1, ReportWrites: map[string]int{}}
 }
 
 // step takes in entry e. isCode is false for paths whose edits aren't code
@@ -92,6 +95,14 @@ func (w *planWalk) step(h *hook.Hook, e transcript.Entry, plansDir string, isCod
 		w.Ticked = nil
 		return
 	}
+	for _, b := range e.Blocks {
+		if line, ok := w.ReportWrites[b.ToolUseID]; ok && b.Type == "tool_result" {
+			if !b.IsError {
+				w.ReviewReported = max(w.ReviewReported, line)
+			}
+			delete(w.ReportWrites, b.ToolUseID)
+		}
+	}
 	if e.Type != "assistant" {
 		return
 	}
@@ -100,7 +111,10 @@ func (w *planWalk) step(h *hook.Hook, e transcript.Entry, plansDir string, isCod
 		case b.Name == "Skill" && b.Input.Skill == reviewSkill:
 			w.Started[b.ID] = e.Line
 		case slices.Contains(transcript.EditTools, b.Name) && isReviewReport(h, b.Path()):
-			w.ReviewReported = e.Line
+			if w.ReportWrites == nil {
+				w.ReportWrites = map[string]int{}
+			}
+			w.ReportWrites[b.ID] = e.Line
 		case slices.Contains(transcript.EditTools, b.Name):
 			if p := b.Path(); fsx.Within(plansDir, p) {
 				w.Ticked = append(w.Ticked, p)
