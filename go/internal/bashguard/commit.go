@@ -332,7 +332,7 @@ var (
 	// requestLead is a word that can come right before "commit" when it's
 	// asked for: "fix it and commit", "can you commit", "please commit".
 	// Any other ("the last commit", "in commit abc") makes it a noun.
-	requestLead = []string{"and", "then", "now", "please", "pls", "also", "just", "so", "go", "ahead", "can", "could", "to", "yes", "ok", "okay", "sure", "let's", "lets"}
+	requestLead = []string{"and", "then", "now", "please", "pls", "also", "just", "so", "go", "ahead", "can", "could", "yes", "ok", "okay", "sure", "let's", "lets"}
 	// askedYou can come before "you commit" in a request: "can you
 	// commit". Any other ("if you commit this") makes it a remark.
 	askedYou = []string{"can", "could", "would", "will", "please"}
@@ -371,7 +371,10 @@ func asksForCommit(prompt string) bool {
 		}
 		start := strings.LastIndexAny(prompt[:m[0]], ".!?\n") + 1
 		clause := prompt[strings.LastIndexAny(prompt[:m[0]], ".!?;,\n")+1 : m[0]]
-		if !leadsRequest(clause, prompt[start:m[0]]) || negated.MatchString(clause) {
+		// A negation reaches across commas and line breaks: "Don't, under
+		// any circumstances, commit this." A ; or a sentence end stops it.
+		scope := prompt[strings.LastIndexAny(prompt[:m[0]], ".!?;")+1 : m[0]]
+		if !leadsRequest(clause, prompt[start:m[0]]) || negated.MatchString(scope) {
 			continue
 		}
 		sentence := prompt[start:]
