@@ -59,12 +59,11 @@ Each finding quotes the code and names what makes it cost: the loop bound around
 
 ## Output per finding
 
-- Location
-- What: the specific pattern
-- Evidence: what was checked and what it showed (a render count, a `hyperfine` result, the quoted line)
+- What it is, with `file:line`: the specific pattern
+- Evidence: what was checked and what it showed (a render count, a `hyperfine` result, the quoted line). When the cost isn't statically obvious, how to measure it ("profile with React DevTools, expect a re-render on every parent state change")
 - Why it matters: estimated impact (render count, query count, payload size)
-- Verification: how to measure, if not statically obvious (e.g. "profile with React DevTools, expect re-render on every parent state change")
-- Fix: concrete code change or pattern switch
+- Severity: per the report-format skill's rubric
+- Fix: the concrete code change or pattern switch
 
 ## Output file
 

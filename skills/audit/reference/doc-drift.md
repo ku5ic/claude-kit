@@ -42,11 +42,10 @@ Each finding quotes both sides with `file:line`: the doc's claim and the code th
 
 ## Output per finding
 
-- Location: file and line of the documentation
-- What the documentation says (short quote or paraphrase)
-- What the code actually does (short description)
-- Severity: failure (actively misleads), warning (partially outdated), info (cosmetic gap)
-- Suggested correction (not applied; just noted)
+- What it is, with the documentation's `file:line`
+- Evidence: what the documentation says (a short quote) and what the code does, with its `file:line`
+- Severity: `failure` when it actively misleads, `warning` when it's partly outdated, `info` for a cosmetic gap
+- Fix: the correction, noted and never applied
 
 ## Output file
 

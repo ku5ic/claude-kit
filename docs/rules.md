@@ -18,7 +18,7 @@ Every skill with references lists them in a "Before | Read" table: an action, th
 
 **A command offered as the next action is run first.** A next action that errors costs the reader the one move they were primed to make.
 
-**Where output goes.** Any tool may write a file. Since 0.10.0, `bash-edits` gives a file a Bash command changed the checks an Edit gets (slop, weaken, imports, tokens, sanitize, format), so `sed -i` no longer skips them; it can only send a failure back after the write, where an Edit's guard stops it before. A written report replaces its own summary because restating it in the terminal doubles the reading. A forked `/code-review` hands its findings to the parent as a task notification the user never sees; on 2026-11-14 ten findings reached the user only as one question's summary, so returned findings go to a file first.
+**Where output goes.** Any tool may write a file. Since 0.10.0, `bash-edits` gives a file a Bash command changed the checks an Edit gets (slop, weaken, imports, tokens, sanitize, format), so `sed -i` no longer skips them; it can only send a failure back after the write, where an Edit's guard stops it before. A written report replaces its own summary because restating it in the terminal doubles the reading. A forked `/code-review` hands its findings to the parent as a task notification the user never sees, so the user was twice asked to decide on findings they never saw (058bf81). Returned findings go to a file first (f646fa5).
 
 **External communication.** Someone else reads it on their time, and they usually know the project better than the writer. A generic reason ("improve readability") says nothing a reviewer can check.
 
@@ -78,7 +78,7 @@ Every skill with references lists them in a "Before | Read" table: an action, th
 
 **Mutating commands in their own call.** A failure earlier in a chain can mask whether the mutation ran. Each segment of a chain is still checked by the guard.
 
-**Plans change on the engineer's word.** Plan mode is for discussion. A plan edited on every passing idea drifts from what was agreed, and the plan-changes hook prints a change list on resubmit so the engineer sees exactly what moved. An answer to a question about the plan is the engineer's word too: left out of the plan file, it makes the plan stale, and the step-pause review flags the work it decided as unplanned.
+**Plans change on the engineer's word.** Plan mode is for discussion. A plan edited on every passing idea drifts from what was agreed, and the plan-changes hook prints a change list on resubmit so the engineer sees exactly what moved. An answer to a question about the plan is the engineer's word too: left out of the plan file, it makes the plan stale, and the step-pause review sheet flags each file the plan doesn't name (`lookReasons` in `go/internal/hooks/reviewsheet.go`).
 
 **Questions are batched.** A question in the middle of a step interrupts work the engineer thought was running. Batching at plan time and at pauses, with a recommended option, turns each answer into a quick decision that's recorded and never asked again.
 

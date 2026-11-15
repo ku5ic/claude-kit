@@ -41,12 +41,11 @@ Surface technical debt inside the target's modules, with severity and remediatio
 
 ## Output per finding
 
-- What it is
+- What it is, with `file:line`
 - Evidence: what was checked and what it showed (a `tokei` size, a churn count from `git log`, the quoted line)
-- Why it is a problem (scale, maintainability, correctness, security, performance, or operability)
-- Severity: failure / warning / info (per the report-format skill's rubric; "failure" here means active liability, not future risk)
-- Effort to remediate: small (hours), medium (days), large (weeks)
-- Remediation: concrete first step
+- Why it matters: scale, maintainability, correctness, security, performance, or operability
+- Severity: per the report-format skill's rubric; `failure` here means an active liability, not a future risk
+- Fix: the concrete first step, and its effort: small (hours), medium (days), or large (weeks)
 
 ## Output file
 
