@@ -337,6 +337,29 @@ func TestCouplingReadsAGoImportOfAnIndexPackage(t *testing.T) {
 	}
 }
 
+// deps names an import of the root package by its first .go file, so
+// coupling matches that file and every other root .go file to the importer.
+func TestCouplingReadsAGoImportOfTheRootPackage(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	var log strings.Builder
+	for i := range 5 {
+		fmt.Fprintf(&log, "--%040d\n\ncmd/x/main.go\nlib.go\nzz.go\n\n", i)
+	}
+	gitLog, resolved := filepath.Join(dir, "gitlog.txt"), filepath.Join(dir, "imports-resolved.tsv")
+	testutil.Write(t, gitLog, log.String())
+	testutil.Write(t, resolved, "cmd/x/main.go\tlib.go\n")
+	var out bytes.Buffer
+	if err := Coupling(gitLog, resolved, tracked(t, "cmd/x/main.go", "lib.go", "zz.go"), nil, &out); err != nil {
+		t.Fatal(err)
+	}
+	for _, pair := range []string{"cmd/x/main.go\tlib.go", "cmd/x/main.go\tzz.go"} {
+		if !strings.Contains(out.String(), "\timports\t"+pair+"\n") {
+			t.Errorf("%s isn't an import in:\n%s", pair, out.String())
+		}
+	}
+}
+
 // tracked is a git repo tracking files, each empty.
 func tracked(t *testing.T, files ...string) string {
 	t.Helper()
