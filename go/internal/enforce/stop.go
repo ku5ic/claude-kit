@@ -237,13 +237,30 @@ func globMatch(glob, rel string) bool {
 			if guard.Glob(pattern, filepath.Base(rel)) {
 				return true
 			}
-		case guard.Glob(pattern, rel):
-			return true
-		case strings.HasPrefix(pattern, "**/") && guard.Glob(strings.TrimPrefix(pattern, "**/"), rel):
+		case globDirs(pattern, rel):
 			return true
 		}
 	}
 	return false
+}
+
+// globDirs matches rel against pattern with each "**/" also matching no
+// directory, tried collapsed one at a time.
+func globDirs(pattern, rel string) bool {
+	if guard.Glob(pattern, rel) {
+		return true
+	}
+	for i := 0; ; {
+		j := strings.Index(pattern[i:], "**/")
+		if j < 0 {
+			return false
+		}
+		i += j
+		if (i == 0 || pattern[i-1] == '/') && globDirs(pattern[:i]+pattern[i+3:], rel) {
+			return true
+		}
+		i += 3
+	}
 }
 
 // placeholderWord is a word holding {files} or {dirs}.

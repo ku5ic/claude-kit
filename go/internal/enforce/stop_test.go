@@ -67,6 +67,38 @@ func TestStopRunsLintStagedChecksOnTheFilesTheirGlobsMatch(t *testing.T) {
 	}
 }
 
+func TestStopMatchesAMidPatternGlobStarAtAnyDepth(t *testing.T) {
+	e := setup(t)
+	e.write("package.json", `{"lint-staged":{"src/**/*.ts":"eslint"}}`)
+	e.tool("node_modules/.bin/eslint")
+	e.write("src/a.ts", "")
+	e.write("src/b/c.ts", "")
+	e.write("lib/a.ts", "")
+	e.check("src/**/*.ts", check("lint"))
+	got := commands(e.stop("src/a.ts", "src/b/c.ts", "lib/a.ts"))
+	if got != "lint (package.json: src/**/*.ts): eslint src/a.ts src/b/c.ts" {
+		t.Errorf("plan:\n%s", got)
+	}
+}
+
+func TestGlobMatch(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		glob, rel string
+		want      bool
+	}{
+		{"src/**/*.ts", "src/a.ts", true}, // a mid-pattern **/ matches no directory too
+		{"src/**/*.ts", "src/b/c.ts", true},
+		{"src/**/*.ts", "lib/a.ts", false},
+		{"a/**/b/**/*.go", "a/b/x.go", true},
+		{"**/*.ts", "a.ts", true},
+	} {
+		if got := globMatch(tc.glob, tc.rel); got != tc.want {
+			t.Errorf("globMatch(%q, %q) = %v, want %v", tc.glob, tc.rel, got, tc.want)
+		}
+	}
+}
+
 func TestStopRunsLefthookCommandsWithTheirFilesInPlace(t *testing.T) {
 	e := setup(t)
 	e.write("lefthook.yml", "pre-commit:\n  commands:\n    vet:\n      root: svc/\n      glob: \"*.go\"\n      run: go vet {staged_files}\n")
