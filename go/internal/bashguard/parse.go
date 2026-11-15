@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"mvdan.cc/sh/v3/expand"
 	"mvdan.cc/sh/v3/syntax"
 )
 
@@ -263,11 +264,12 @@ func segmentEnd(last *syntax.Stmt) int {
 }
 
 // shellHeredocs parses seg's heredocs as commands when a shell in it reads
-// them (bash <<EOF, cat <<EOF | sh), past any wrapper (sudo bash <<EOF).
+// them (bash <<EOF, cat <<EOF | sh), past any wrapper (sudo bash <<EOF),
+// or a root shell does (sudo -s <<EOF).
 func (c *collector) shellHeredocs(seg Segment) {
 	if !slices.ContainsFunc(seg.Calls, func(cl Call) bool {
 		i := lead(cl.Words)
-		return i < len(cl.Words) && shells[baseName(cl.Words[i].Value)]
+		return i < len(cl.Words) && shells[baseName(cl.Words[i].Value)] || startsRootShell(cl.Words)
 	}) {
 		return
 	}
@@ -361,13 +363,58 @@ func (c *collector) redirect(src string, r *syntax.Redirect, cl *Call) {
 var fdTarget = regexp.MustCompile(`^([0-9]+-?|-)$`)
 
 // flockString is the command string a flock among words' wrappers runs
-// with -c or --command after its lock file: flock /tmp/l -c "rm -rf ~"
-// runs rm -rf ~ in a shell. flock matches those two words exactly.
+// with -c or --command, before its lock file or right after it, since flock
+// permutes its options: flock -c "rm -rf ~" /tmp/l and flock /tmp/l -c
+// "rm -rf ~" both run rm -rf ~ in a shell.
 func flockString(words []Word) (string, bool) {
 	runs, n := wrappedBy(words)
 	for _, w := range runs {
-		if w.name == "flock" && w.end == n && n+1 < len(words) && (words[n].Value == "-c" || words[n].Value == "--command") {
-			return words[n+1].Value, true
+		if w.name != "flock" {
+			continue
+		}
+		for k := w.at + 1; k < w.end && words[k].Value != "--"; k++ {
+			if cmd, ok := flockCommand(words, k); ok {
+				return cmd, true
+			}
+		}
+		if w.end == n && n < len(words) {
+			return flockCommand(words, n)
+		}
+	}
+	return "", false
+}
+
+// flockCommand reads words[k] as flock's -c or --command, in a short
+// cluster too (-nc), and returns the string it runs: the rest of the word
+// or the next one.
+func flockCommand(words []Word, k int) (string, bool) {
+	opt := words[k].Value
+	next := func() (string, bool) {
+		if k+1 < len(words) {
+			return words[k+1].Value, true
+		}
+		return "", false
+	}
+	if name, value, eq := strings.Cut(opt, "="); strings.HasPrefix(opt, "--") {
+		if !abbrevOf(name, "--command") {
+			return "", false
+		}
+		if eq {
+			return value, true
+		}
+		return next()
+	}
+	if !strings.HasPrefix(opt, "-") {
+		return "", false
+	}
+	for i := 1; i < len(opt); i++ {
+		switch {
+		case opt[i] == 'c' && i+1 < len(opt):
+			return opt[i+1:], true
+		case opt[i] == 'c':
+			return next()
+		case wrappers["flock"].takes("-" + opt[i:i+1]):
+			return "", false
 		}
 	}
 	return "", false
@@ -481,7 +528,7 @@ func envSplitString(words []Word) (string, bool) {
 			switch {
 			case opt == "--":
 				return "", false
-			case opt == "-S" || opt == "--split-string":
+			case opt == "--split-string":
 				if j+1 >= len(words) {
 					return "", false
 				}
@@ -489,15 +536,32 @@ func envSplitString(words []Word) (string, bool) {
 				cmd = words[j].Value
 			case strings.HasPrefix(opt, "--split-string="):
 				cmd = strings.TrimPrefix(opt, "--split-string=")
-			case strings.HasPrefix(opt, "-S"):
-				cmd = strings.TrimPrefix(opt, "-S")
-			case opt == "-u" || opt == "-C":
-				// A separate-word value (env -C /tmp -S ...); skip it so the
-				// scan reaches -S instead of stopping at the non-dash value.
-				j++
+			case strings.HasPrefix(opt, "--"):
+				if takesNextWord(wrappers["env"], opt) {
+					j++
+				}
 				continue
 			default:
-				continue
+				// A short cluster (-iS, -C/tmp): its first S, u, or C takes the
+				// rest of the word, or the next word when it's last. Skipping a
+				// u or C value lets the scan reach a later -S.
+				k := strings.IndexAny(opt[1:], "SuC") + 1
+				switch {
+				case k == 0:
+					continue
+				case opt[k] != 'S':
+					if k == len(opt)-1 {
+						j++
+					}
+					continue
+				case k < len(opt)-1:
+					cmd = opt[k+1:]
+				case j+1 >= len(words):
+					return "", false
+				default:
+					j++
+					cmd = words[j].Value
+				}
 			}
 			for _, w := range words[j+1:] {
 				cmd += " " + w.Raw
@@ -506,6 +570,42 @@ func envSplitString(words []Word) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// assigned is the value each bare assignment in segs sets (R=rm; $R -rf ~),
+// the last one winning. A prefix assignment (R=rm $R) is left out: the
+// shell expands $R before it applies.
+func assigned(segs []Segment) map[string]string {
+	vars := map[string]string{}
+	for _, seg := range segs {
+		for _, call := range seg.Calls {
+			if len(call.Words) > 0 {
+				continue
+			}
+			for _, a := range call.Assigns {
+				name, value, _ := strings.Cut(a, "=")
+				vars[name] = value
+			}
+		}
+	}
+	return vars
+}
+
+// varRef is a word that is one variable and nothing else: $R or ${R}.
+var varRef = regexp.MustCompile(`^\$(?:([A-Za-z_][A-Za-z0-9_]*)|\{([A-Za-z_][A-Za-z0-9_]*)\})$`)
+
+// varFields is the fields w expands to when it is a variable the command
+// assigned itself; nil for any other word, $EDITOR included.
+func (st *state) varFields(w Word) []string {
+	m := varRef.FindStringSubmatch(w.Value)
+	if w.literal || m == nil {
+		return nil
+	}
+	value, ok := st.vars[m[1]+m[2]]
+	if !ok {
+		return nil
+	}
+	return strings.Fields(value)
 }
 
 // inner collects the statements nested anywhere under n: substitution
@@ -610,7 +710,14 @@ func partValue(src string, part syntax.WordPart, inDouble bool) string {
 		return unescape(p.Value, inDouble)
 	case *syntax.SglQuoted:
 		if p.Dollar {
-			return src[p.Pos().Offset():p.End().Offset()]
+			// $'\x72m' is rm. Format reads printf verbs too, so a % stays
+			// literal; the shell cuts the value at a NUL.
+			v, _, err := expand.Format(nil, strings.ReplaceAll(p.Value, "%", "%%"), nil)
+			if err != nil {
+				return src[p.Pos().Offset():p.End().Offset()]
+			}
+			v, _, _ = strings.Cut(v, "\x00")
+			return v
 		}
 		return p.Value
 	case *syntax.DblQuoted:

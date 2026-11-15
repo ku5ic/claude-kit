@@ -44,14 +44,14 @@ func treeDiscard(sub string, args []string) bool {
 	if sub != "restore" && sub != "checkout" {
 		return false
 	}
-	staged, worktree, operands := false, false, false
+	// Git reads options after the pathspec too (restore . --staged), so
+	// the verdict waits for every word.
+	staged, worktree, operands, wide := false, false, false, false
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
 		case operands:
-			if treeWide(a) {
-				return true
-			}
+			wide = wide || treeWide(a)
 		case a == "--":
 			operands = true
 		case a == "--staged" || a == "-S":
@@ -62,10 +62,10 @@ func treeDiscard(sub string, args []string) bool {
 			i++ // the option's value
 		case strings.HasPrefix(a, "-"):
 		case treeWide(a):
-			return !staged || worktree
+			wide = true
 		}
 	}
-	return false
+	return wide && (!staged || worktree)
 }
 
 // treeWide is true for a pathspec naming the whole tree: ., ./, *, :/, :/:,

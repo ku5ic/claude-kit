@@ -104,6 +104,8 @@ type state struct {
 	pending string
 	// managers is each repo root's verified manager facts, read once per command.
 	managers map[string][]gapfill.Manager
+	// vars is what the command's own bare assignments set (R=rm; $R -rf ~).
+	vars map[string]string
 }
 
 func (st *state) ask(reason string) {
@@ -136,6 +138,7 @@ func Check(h *hook.Hook) error {
 	if unparsed {
 		st.ask("guard-bash could not parse part of this command, so it went unchecked; confirm it")
 	}
+	st.vars = assigned(segs)
 	for _, seg := range segs {
 		if err := st.segment(seg); err != nil {
 			return err
@@ -265,6 +268,9 @@ func (st *state) pipeToShell(seg Segment) error {
 			return st.h.Block("piping network content into an interpreter", "pipe-to-shell")
 		}
 		heredoc = heredoc || len(call.Heredocs) > 0
+		if fed && startsRootShell(call.Words) {
+			return st.h.Block(wrapReason, "interpreter-c-wrap")
+		}
 		if runsC(name) && (fed || name == "fish" && heredoc) {
 			shell := command{args: words[1:]}
 			if wrap, script := shellMode(shell.values()); !wrap && !script {
@@ -313,6 +319,17 @@ func (st *state) segment(seg Segment) error {
 		}
 		c := command{st: st, name: baseName(call.Words[start].Value), args: call.Words[start+1:], redirs: call.Redirs, inputs: call.Inputs}
 		c.rest = seg.Rest(ci, start)
+		if fields := st.varFields(call.Words[start]); len(fields) > 0 {
+			// The shell splits an unquoted $R into the name and leading args.
+			lifted := make([]Word, 0, len(fields)-1+len(c.args))
+			for _, f := range fields[1:] {
+				lifted = append(lifted, Word{Value: f, Raw: f, literal: true})
+			}
+			if len(lifted) > 0 {
+				c.rest = " " + strings.Join(fields[1:], " ") + c.rest
+			}
+			c.name, c.args = baseName(fields[0]), append(lifted, c.args...)
+		}
 		c.text = c.name + c.rest
 		c.alone = len(seg.Calls) == 1 && !seg.subshell
 		if err := c.check(); err != nil {

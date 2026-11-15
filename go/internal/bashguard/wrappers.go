@@ -167,6 +167,14 @@ func commandOption(v string) bool {
 	return len(v) > 1 && v[0] == '-' && strings.ContainsRune(v[1:], 'c')
 }
 
+// startsRootShell is true for a call that is only sudo or doas starting a
+// shell, with no command after its options (sudo -s, sudo -u root -i), so
+// the shell reads its commands from stdin.
+func startsRootShell(words []Word) bool {
+	i := lead(words)
+	return i == len(words)-1 && strings.HasPrefix(words[i].Value, "-") && rootShell(words)
+}
+
 // rootShell is true for sudo or doas told to start a shell (sudo -s, sudo -i,
 // doas -s), which reads its commands from stdin like a named interpreter.
 func rootShell(wrapperWords []Word) bool {
