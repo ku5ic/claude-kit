@@ -25,6 +25,15 @@ type Word struct {
 	literal bool
 }
 
+// values is each word's Value.
+func values(words []Word) []string {
+	out := make([]string, 0, len(words))
+	for _, w := range words {
+		out = append(out, w.Value)
+	}
+	return out
+}
+
 // Redir is an output redirect: its operator and target word.
 type Redir struct {
 	Op     string

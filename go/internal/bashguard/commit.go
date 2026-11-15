@@ -50,7 +50,8 @@ func CheckCommit(h *hook.Hook) error {
 	if !commits[0].commits(cmd) {
 		return nil
 	}
-	scanned, ask := map[string]bool{}, false
+	scanned, d := map[string]bool{}, detector(h)
+	subjects := make([]string, 0, len(commits))
 	for i, c := range commits {
 		// An expansion other than $HOME can't be resolved here; most name the
 		// cwd's repo ("$PWD", "$(git rev-parse --show-toplevel)").
@@ -70,7 +71,7 @@ func CheckCommit(h *hook.Hook) error {
 				return err
 			}
 		}
-		if err := scanSlop(h, detector(h), msg, "commit", "the commit message"); err != nil {
+		if err := scanSlop(h, d, msg, "commit", "the commit message"); err != nil {
 			return err
 		}
 		if unread != "" {
@@ -80,9 +81,9 @@ func CheckCommit(h *hook.Hook) error {
 		if failed := commitMsg(h, msg, repo); failed != "" {
 			return h.Block("the project's commit-msg checks reject this message\n"+failed+"\n"+layout.KV("do", "fix it to their convention"), "commit-msg")
 		}
-		ask = ask || !approved(h.Payload.String(hook.KeyTranscriptPath), subject(msg))
+		subjects = append(subjects, subject(msg))
 	}
-	if ask {
+	if !approved(h.Payload.String(hook.KeyTranscriptPath), subjects) {
 		h.Decide("ask", "skills/kit-rules/reference/workflow.md section 1: the current prompt doesn't ask for a commit, and no earlier reply showed this message; confirm only if the user asked for it")
 	}
 	return nil
@@ -155,11 +156,7 @@ func commitCalls(cmd, home, cwd string) []commit {
 		if w.name != "git" {
 			continue
 		}
-		var words []string
-		for _, word := range w.call.Words[w.i+1:] {
-			words = append(words, word.Value)
-		}
-		if sub, args, dir := classify.GitSubcommand(words); sub == "commit" {
+		if sub, args, dir := classify.GitSubcommand(values(w.call.Words[w.i+1:])); sub == "commit" {
 			repo := resolveDir(home, w.cwd, dir)
 			if strings.ContainsAny(repo, "$`") {
 				repo = ""
@@ -267,11 +264,11 @@ func commitMsg(h *hook.Hook, msg, repo string) string {
 	return run.Commit(p, commitMsgBudget)
 }
 
-// approved reports whether the user approved this commit: the current
-// prompt asks for a commit, or an assistant reply before it showed
-// subject, so the user answered the message.
-func approved(path, subject string) bool {
-	if path == "" || subject == "" {
+// approved reports whether the user approved these commits: the current
+// prompt asks for a commit, or an assistant reply before it showed every
+// subject, so the user answered the messages.
+func approved(path string, subjects []string) bool {
+	if path == "" || slices.Contains(subjects, "") {
 		return false
 	}
 	var earlier, current strings.Builder
@@ -289,7 +286,11 @@ func approved(path, subject string) bool {
 			current.WriteString(e.PromptText() + "\n")
 		}
 	})
-	return asksForCommit(prompt) || shown(earlier.String(), subject)
+	if asksForCommit(prompt) {
+		return true
+	}
+	text := earlier.String()
+	return !slices.ContainsFunc(subjects, func(s string) bool { return !shown(text, s) })
 }
 
 // lineMarker is a Markdown marker opening a line: a bullet, a quote, a

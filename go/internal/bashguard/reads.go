@@ -163,16 +163,13 @@ func ReadTargets(cmd, home, cwd string) []string {
 	segs, _ := parseAll(cmd)
 	var out []string
 	for w := range walk(segs, home, resolveDir(home, "/", cwd)) {
-		values := make([]string, 0, len(w.call.Words)-w.i-1)
-		for _, word := range w.call.Words[w.i+1:] {
-			values = append(values, word.Value)
-		}
-		for _, op := range append(readOperands(w.name, values), w.call.Inputs...) {
+		args := values(w.call.Words[w.i+1:])
+		for _, op := range append(readOperands(w.name, args), w.call.Inputs...) {
 			if path := resolveDir(home, w.cwd, op); fsx.IsFile(path) {
 				out = append(out, path)
 			}
 		}
-		ghFlags(values, globFlags, func(_, glob string) {
+		ghFlags(args, globFlags, func(_, glob string) {
 			alts, _ := guard.Braces(glob)
 			for _, alt := range alts {
 				out = append(out, filepath.Join(w.cwd, alt))

@@ -88,10 +88,7 @@ type ghCall struct {
 
 // texts is the PR text of the gh call whose args start at word from.
 func (s ghCall) texts(from int) []prText {
-	var args []string
-	for _, w := range s.call.Words[from:] {
-		args = append(args, w.Value)
-	}
+	args := values(s.call.Words[from:])
 	var out []prText
 	switch {
 	case len(args) >= 2 && ghPosts[args[0]][args[1]] != nil:

@@ -61,10 +61,7 @@ func CheckAttribution(h *hook.Hook) error {
 // message or post from, and writes whether any call writes one.
 func postedTexts(segs []Segment, home, cwd string) (texts []prText, writes bool) {
 	for w := range walk(segs, home, cwd) {
-		var args []string
-		for _, word := range w.call.Words[w.i+1:] {
-			args = append(args, word.Value)
-		}
+		args := values(w.call.Words[w.i+1:])
 		src := ghCall{call: w.call, before: w.seg.src[:min(w.call.start, len(w.seg.src))], home: home, cwd: w.cwd}
 		switch w.name {
 		case "git":

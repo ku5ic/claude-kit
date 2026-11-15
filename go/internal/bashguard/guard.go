@@ -326,9 +326,12 @@ func (st *state) segment(seg Segment) error {
 		if len(expansions) == 0 {
 			expansions = [][]string{nil}
 		}
+		plain := command{
+			st: st, name: baseName(call.Words[start].Value), args: call.Words[start+1:], redirs: call.Redirs, inputs: call.Inputs,
+			rest: seg.Rest(ci, start), alone: len(seg.Calls) == 1 && !seg.subshell,
+		}
 		for _, fields := range expansions {
-			c := command{st: st, name: baseName(call.Words[start].Value), args: call.Words[start+1:], redirs: call.Redirs, inputs: call.Inputs}
-			c.rest = seg.Rest(ci, start)
+			c := plain
 			if len(fields) > 0 {
 				// The shell splits an unquoted $R into the name and leading args.
 				lifted := make([]Word, 0, len(fields)-1+len(c.args))
@@ -341,7 +344,6 @@ func (st *state) segment(seg Segment) error {
 				c.name, c.args = baseName(fields[0]), append(lifted, c.args...)
 			}
 			c.text = c.name + c.rest
-			c.alone = len(seg.Calls) == 1 && !seg.subshell
 			if err := c.check(); err != nil {
 				return err
 			}
