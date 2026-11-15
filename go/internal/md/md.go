@@ -53,8 +53,10 @@ func Lines(text string) iter.Seq[Line] {
 				fence, kind = "", FenceClose
 			case fence != "":
 				kind = Code
-			case opener(trimmed) != "":
-				fence, kind = opener(trimmed), FenceOpen
+			default:
+				if open := opener(trimmed); open != "" {
+					fence, kind = open, FenceOpen
+				}
 			}
 			first = false
 			if !yield(Line{raw, kind}) {
