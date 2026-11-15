@@ -104,7 +104,7 @@ Check by script, not by eye:
 
 ## Reply
 
-The report path, the headline counts, and one next action.
+Per `skills/kit-rules/reference/output.md` section 3.
 
 ## Out of scope
 

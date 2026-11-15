@@ -145,7 +145,7 @@ Activity takes only a Takeaway. Tricky parts holds 3 to 6 findings from the read
 
 ## Writing rules
 
-- Explain what, why, and the trap. A why comes from code, a commit message or a PR, and one inferred is labelled per `skills/kit-rules/reference/evidence.md` section 1. Never invent a reason from a file name.
+- Explain what, why, and the trap. A why comes from code, a commit message or a PR, and one inferred is labelled per `skills/kit-rules/reference/evidence.md` section 1.
 - Readability follows the report-format skill's Readability section. The Takeaway lines alone should tell the story.
 - Labels use names from the code.
 - Prose and data files (Markdown, JSON, YAML) score 0 complexity and never rank as hotspots. When the busiest area is mostly those, say so in TL;DR.

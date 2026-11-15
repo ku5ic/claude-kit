@@ -49,10 +49,9 @@ Load the report-format skill and use its format, written to the path `kit scratc
 - The TL;DR's first bullet is the verdict line, in place of the health word:
   - Post-change: `LGTM, a few non-blocking nits` / `LGTM, but <blocker>` / `let's discuss first: <decision>`
   - Pre-change: `go` / `go after: <question>` / `let's discuss first: <decision>`
-- Findings from the decision pass come first, the check named after the severity (`warning: Blast radius, ...`). Severity is `failure` when the evidence shows a defect, `warning` for an open question that blocks. Convention-pass findings are `info: Nit, ...`.
+- Findings from the decision pass come first, the check named after the severity (`warning: Blast radius, ...`). Severity is `failure` when the evidence shows a defect, `warning` for an open question that blocks. Convention-pass findings are `info`.
 - Each finding's location is a `file:line` post-change, or the artifact's section or step pre-change.
-- Each finding gives Evidence (a count, a commit, a `file:line`), then Why it matters, then Fix as a question. A rename's Fix names the replacement.
-- Tone per `skills/kit-rules/reference/output.md` section 4.
+- Each finding is shaped and worded per `skills/kit-rules/reference/output.md` section 4.
 
 ## Reply
 
