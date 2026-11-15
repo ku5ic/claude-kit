@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -69,8 +70,13 @@ func BashEdits(h *hook.Hook) error {
 	if !ok || len(changed) == 0 {
 		return nil
 	}
-	// Whoever wrote the change, a claim checked before it is stale.
-	recordBashEdit(h, changed)
+	// Whoever wrote the change, a claim checked before it is stale. A file
+	// as the turn's last Edit left it is that Edit's, counted already.
+	recordBashEdit(h, slices.DeleteFunc(slices.Clone(changed), func(path string) bool {
+		old, edited := lastEdit(h, path)
+		now, err := os.ReadFile(path)
+		return edited && err == nil && old == string(now)
+	}))
 	if gitMoves.MatchString(p.String(hook.KeyInputCommand)) {
 		return nil
 	}

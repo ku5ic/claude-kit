@@ -299,6 +299,21 @@ func TestStopPlanDone(t *testing.T) {
 		e.edit("Edit", e.plan(done), false)
 		e.stop(false).Want(t, 2)
 	})
+	t.Run("a Bash call after an Edit and its review isn't the Edit again", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		e.line(testutil.UserPrompt("do it"))
+		e.start()
+		testutil.Write(t, e.path("a.ts"), "edited\n")
+		e.edit("Edit", e.path("a.ts"), false)
+		e.k.run("edit-seen", map[string]any{"hook_event_name": "PostToolUse", "session_id": "s1", "cwd": e.repo,
+			"tool_name": "Edit", "tool_input": map[string]any{"file_path": e.path("a.ts")}}).Want(t, 0)
+		e.review()
+		e.finish("<tool-use-id>toolu_r1</tool-use-id>", "completed")
+		e.bash("toolu_b1", e.repo, nil)
+		e.edit("Edit", e.plan(done), false)
+		e.stop(false).Want(t, 0)
+	})
 	t.Run("a Bash call that changed no code, or only another repo's, keeps the review", func(t *testing.T) {
 		t.Parallel()
 		e := stopSetup(t)
