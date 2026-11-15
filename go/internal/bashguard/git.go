@@ -1,18 +1,13 @@
 package bashguard
 
 import (
-	"regexp"
+	"path"
 	"slices"
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/classify"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/layout"
-)
-
-var (
-	gitDiscard = regexp.MustCompile(`[[:space:]](restore|checkout)[[:space:]]`)
-	treeSpec   = regexp.MustCompile(`[[:space:]](\.|\*|--[[:space:]]?\.|:/)([[:space:]]|$)`)
 )
 
 // leaseInstead is a force push's fix, the second line of its reason.
@@ -36,13 +31,64 @@ func (c *command) git() error {
 			return err
 		}
 	}
-	// Tree-wide pathspecs only: bare dot, -- ., :/, or a bare star.
-	// --staged without --worktree is allowed: unstaging isn't destructive.
-	if gitDiscard.MatchString(c.text) && treeSpec.MatchString(c.text) &&
-		(!strings.Contains(c.text, "--staged") || strings.Contains(c.text, "--worktree")) {
+	if treeDiscard(sub, args) {
 		return c.block("tree-wide discard of working-tree changes\n"+layout.KV("do", "restore individual files explicitly"), "git-tree-discard")
 	}
 	return nil
+}
+
+// treeDiscard is true for a git restore or checkout of a pathspec naming
+// the whole tree. restore --staged without --worktree only unstages, which
+// discards nothing.
+func treeDiscard(sub string, args []string) bool {
+	if sub != "restore" && sub != "checkout" {
+		return false
+	}
+	staged, worktree, operands := false, false, false
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case operands:
+			if treeWide(a) {
+				return true
+			}
+		case a == "--":
+			operands = true
+		case a == "--staged" || a == "-S":
+			staged = true
+		case a == "--worktree" || a == "-W":
+			worktree = true
+		case slices.Contains([]string{"-s", "--source", "-b", "-B", "--orphan", "--pathspec-from-file"}, a):
+			i++ // the option's value
+		case strings.HasPrefix(a, "-"):
+		case treeWide(a):
+			return !staged || worktree
+		}
+	}
+	return false
+}
+
+// treeWide is true for a pathspec naming the whole tree: ., ./, *, :/, :/:,
+// :(top), a magic pathspec whose path does, and an exclusion (:!docs,
+// :(exclude)docs), which names everything else.
+func treeWide(spec string) bool {
+	switch {
+	case strings.HasPrefix(spec, ":!"), strings.HasPrefix(spec, ":^"):
+		return true
+	case strings.HasPrefix(spec, ":("):
+		end := strings.IndexByte(spec, ')')
+		if end < 0 {
+			return false
+		}
+		if slices.Contains(strings.Split(spec[2:end], ","), "exclude") {
+			return true
+		}
+		spec = spec[end+1:]
+	case strings.HasPrefix(spec, ":/"):
+		spec = strings.TrimPrefix(spec[2:], ":")
+	}
+	p := path.Clean(spec)
+	return p == "." || strings.Trim(p, "*/") == ""
 }
 
 // gitChecks are each git subcommand's own check, given its args and the

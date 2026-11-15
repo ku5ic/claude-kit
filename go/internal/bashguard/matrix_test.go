@@ -444,6 +444,16 @@ func TestGuardBashParsing(t *testing.T) {
 		probe("block", `rg foo sub/prod.PEM`)
 		probe("block", `rg foo SUB/SERVER.PEM`)
 		probe("block", `cat config/.ENV`)
+		// A tree-wide discard, however the pathspec is spelled.
+		for _, cmd := range []string{`git checkout .`, `git checkout HEAD -- .`, `git checkout -- ./`, `git restore "."`,
+			`git restore ':/'`, `git restore ':/:'`, `git restore '*'`, `git restore ':(top)'`, `git restore ':!docs'`,
+			`git restore --staged --worktree .`, `git -C sub restore .`, `git restore -s HEAD~1 .`} {
+			probe("block", cmd)
+		}
+		for _, cmd := range []string{`git restore file.go`, `git checkout main`, `git restore --staged .`, `git checkout -b feat`,
+			`git restore -s main file.go`, `git checkout -- src/a.go`, `git restore ./src`} {
+			probe("pass", cmd)
+		}
 		probe("pass", `env`)
 		probe("pass", `command -v rm`)
 		// kit git-base: an explicit ask, so a settings allow rule can't approve it.
