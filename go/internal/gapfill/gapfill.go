@@ -11,6 +11,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -333,6 +334,9 @@ func ask(cfg *config.Config, o Options, p view, file string, s store) (_ store, 
 	}
 	now := time.Now()
 	for i, resp := range resps {
+		if errors.Is(errs[i], errNotAsked) {
+			continue // no cooldown: the next run asks it
+		}
 		if errs[i] != nil {
 			if failure == "" {
 				failure = "classifier: " + errs[i].Error()
@@ -363,6 +367,10 @@ func ask(cfg *config.Config, o Options, p view, file string, s store) (_ store, 
 	return locked, failure, usage
 }
 
+// errNotAsked is a request still queued for a call slot when the deadline
+// passed.
+var errNotAsked = errors.New("not asked before the deadline")
+
 // classifyAll runs reqs, at most maxCalls at once.
 func classifyAll(ctx context.Context, cfg *config.Config, o Options, reqs []request) ([]response, []claudecli.Usage, []error) {
 	resps, usages, errs := make([]response, len(reqs)), make([]claudecli.Usage, len(reqs)), make([]error, len(reqs))
@@ -372,6 +380,10 @@ func classifyAll(ctx context.Context, cfg *config.Config, o Options, reqs []requ
 		wg.Go(func() {
 			slots <- struct{}{}
 			defer func() { <-slots }()
+			if ctx.Err() != nil {
+				errs[i] = errNotAsked
+				return
+			}
 			// A panic here would exit 2, which Claude Code reads as a
 			// block; the hook's recover can't reach this goroutine.
 			defer func() {

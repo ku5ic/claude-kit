@@ -208,6 +208,28 @@ func TestMalformedOutputLeavesEntriesUnclassifiedUntilTheCooldown(t *testing.T) 
 	}
 }
 
+// A batch still queued for a call slot when the run's deadline passes was
+// never asked, so it gets no cooldown and the next run asks it.
+func TestABatchTheDeadlineKeptQueuedIsAskedNextRun(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t, "sleep 1")
+	entries, _ := lints(batchSize * (maxCalls + 1))
+	Run(f.cfg, Options{Root: f.root, CacheDir: f.cacheDir, Entries: entries, Ask: true, Timeout: 300 * time.Millisecond})
+	s := load(CacheFile(f.cacheDir, f.root))
+	cooled := 0
+	for _, e := range entries {
+		if _, ok := s.Failed[Key(e)]; ok {
+			cooled++
+		}
+	}
+	if cooled == 0 || cooled == len(entries) {
+		t.Fatalf("%d of %d entries cooled; want only the started calls' entries", cooled, len(entries))
+	}
+	if f.run(entries...); len(f.asked()) != len(entries)-cooled {
+		t.Errorf("the next run asked %d entries; want the %d never asked", len(f.asked()), len(entries)-cooled)
+	}
+}
+
 func TestErrorEnvelopeIsNoAnswer(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t, "")
