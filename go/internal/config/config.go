@@ -47,6 +47,7 @@ type Config struct {
 	OnEdit         []EditRule     `yaml:"on_edit"`
 	Slop           Slop           `yaml:"slop"`
 	Connectors     Connectors     `yaml:"connectors"`
+	Attribution    Attribution    `yaml:"attribution"`
 	Claims         Claims         `yaml:"claims"`
 	SizeBudgets    SizeBudgets    `yaml:"size_budgets"`
 	WeakenedChecks WeakenedChecks `yaml:"weakened_checks"`
@@ -99,7 +100,7 @@ func rootLabel(label string) string {
 // rule's id. TestRulesMatchTheCode holds it to the code's blocks; a slug
 // from a table or a variable is added by hand.
 var Rules = []string{
-	"ai-commit-sig", "aws-ec2-terminate", "aws-s3-force-rb", "aws-s3-recursive-rm",
+	"ai-attribution", "aws-ec2-terminate", "aws-s3-force-rb", "aws-s3-recursive-rm",
 	"bash-edits", "checks-failed", "chmod-777", "chmod-broad-x", "citations", "claims", "commit-msg", "commit-wall-of-text",
 	"device-write", "disk-tool", "docker-prune-all-force", "download-to-repo",
 	"find-delete", "find-exec-rm", "fork-bomb",
@@ -264,6 +265,40 @@ type Connectors struct {
 	WriteVerbs []string `yaml:"write_verbs"`
 	ReadVerbs  []string `yaml:"read_verbs"`
 	CodeFields []string `yaml:"code_fields"`
+}
+
+// Attribution is what go/internal/attribution finds an AI tool's
+// attribution by: Patterns, where {tools} stands for any of Tools.
+type Attribution struct {
+	Tools    []string `yaml:"tools"`
+	Patterns []string `yaml:"patterns"`
+}
+
+// Expanded is Patterns with {tools} replaced, each case-insensitive. A tool
+// ends at anything but a letter, digit, or hyphen, so claude-kit names no
+// tool; a space in one matches any run of spaces.
+func (a Attribution) Expanded() []string {
+	names := make([]string, len(a.Tools))
+	for i, t := range a.Tools {
+		names[i] = strings.Join(strings.Fields(regexp.QuoteMeta(t)), `\s+`)
+	}
+	tools := `\b(?:` + strings.Join(names, "|") + `)(?:[^\w-]|$)`
+	out := make([]string, len(a.Patterns))
+	for i, p := range a.Patterns {
+		out[i] = "(?i)" + strings.ReplaceAll(p, "{tools}", tools)
+	}
+	return out
+}
+
+// problems names each pattern that doesn't compile.
+func (a Attribution) problems() []error {
+	var errs []error
+	for i, p := range a.Expanded() {
+		if _, err := regexp.Compile(p); err != nil {
+			errs = append(errs, fmt.Errorf("attribution.patterns: %q doesn't compile", a.Patterns[i]))
+		}
+	}
+	return errs
 }
 
 // Claims is go/internal/claims's verifier: the model and spend cap passed

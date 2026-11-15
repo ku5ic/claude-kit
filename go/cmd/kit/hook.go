@@ -43,6 +43,7 @@ var hookChecks = map[string]hook.Check{
 	"check-size":              hooks.CheckSize,
 	"subagent-slop":           hooks.SubagentSlop,
 	"chat-slop":               hooks.ChatSlop,
+	"guard-attribution":       bashguard.CheckAttribution,
 	"guard-commit":            bashguard.CheckCommit,
 	"guard-pr":                bashguard.CheckPR,
 	"log-skills":              hooks.LogSkills,
@@ -65,7 +66,7 @@ var hookChecks = map[string]hook.Check{
 // registry is every `kit hook` name. A test holds it and hooks/hooks.json
 // to each other.
 var registry = map[string]hookDef{
-	"bash-dispatch":      {events: []string{"PreToolUse"}, steps: []string{"guard-bash", "guard-commit", "guard-pr", "skills-nudge"}},
+	"bash-dispatch":      {events: []string{"PreToolUse"}, steps: []string{"guard-bash", "guard-attribution", "guard-commit", "guard-pr", "skills-nudge"}},
 	"guard-dispatch":     {events: []string{"PreToolUse"}, run: hooks.GuardDispatch},
 	"gate-dispatch":      {events: []string{"PreToolUse"}, steps: []string{"rules-gate", "review-report"}},
 	"rules-gate":         {},
@@ -99,6 +100,7 @@ var registry = map[string]hookDef{
 	"subagent-slop":      {},
 	"verify-claims":      {},
 	"guard-bash":         {},
+	"guard-attribution":  {},
 	"guard-commit":       {},
 	"guard-edit":         {},
 	"guard-pr":           {},

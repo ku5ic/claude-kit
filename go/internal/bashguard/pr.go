@@ -22,13 +22,15 @@ var (
 	textFlags    = map[string]string{"-b": "body", "--body": "body", "-F": "body-file", "--body-file": "body-file", "-t": "title", "--title": "title"}
 	mergeFlags   = map[string]string{"-b": "body", "--body": "body", "-F": "body-file", "--body-file": "body-file", "-t": "subject", "--subject": "subject"}
 	commentFlags = map[string]string{"-c": "comment", "--comment": "comment"}
+	releaseFlags = map[string]string{"-n": "body", "--notes": "body", "-F": "body-file", "--notes-file": "body-file", "-t": "title", "--title": "title"}
 	apiFlags     = map[string]string{"-f": "raw-field", "--raw-field": "raw-field", "-F": "field", "--field": "field", "--input": "input"}
-	// ghPosts are the gh pr and gh issue subcommands that post text, each
-	// with the flags that carry it.
+	// ghPosts are the gh pr, issue, and release subcommands that post text,
+	// each with the flags that carry it.
 	ghPosts = map[string]map[string]map[string]string{
 		"pr": {"create": textFlags, "edit": textFlags, "comment": textFlags, "review": textFlags,
 			"merge": mergeFlags, "close": commentFlags, "reopen": commentFlags},
-		"issue": {"create": textFlags, "edit": textFlags, "comment": textFlags, "close": commentFlags, "reopen": commentFlags},
+		"issue":   {"create": textFlags, "edit": textFlags, "comment": textFlags, "close": commentFlags, "reopen": commentFlags},
+		"release": {"create": releaseFlags, "edit": releaseFlags},
 	}
 	// prKeys are the API fields that hold PR text.
 	prKeys = []string{"body", "title"}
@@ -134,6 +136,7 @@ func (s ghCall) read(where, file string) prText {
 		t.unread = "stdin isn't in the command"
 		return t
 	}
+	file = guard.ExpandHome(s.home, file)
 	switch {
 	case strings.ContainsAny(file, "$`"):
 		t.unread = "an expansion names the file"
@@ -142,7 +145,7 @@ func (s ghCall) read(where, file string) prText {
 	case strings.Contains(s.before, filepath.Base(file)):
 		t.unread = "the command writes the file first"
 	default:
-		data, err := os.ReadFile(fsx.Abs(s.cwd, guard.ExpandHome(s.home, file)))
+		data, err := os.ReadFile(fsx.Abs(s.cwd, file))
 		if err != nil {
 			t.unread = "the file isn't readable"
 		}

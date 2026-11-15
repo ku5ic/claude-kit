@@ -307,6 +307,23 @@ connectors:
   read_verbs: [get, read, search, list, fetch, query, find, view, lookup, resolve, describe, whoami]
   code_fields: [code]
 
+# What an AI tool's attribution looks like (go/internal/attribution): a
+# co-author or session trailer, a "Generated with" footer, the robot emoji,
+# a chat or session link. A line of git or GitHub text matching a pattern
+# blocks. {tools} is any of tools, ending at a character that isn't a
+# letter, digit, or hyphen; matching ignores case.
+attribution:
+  tools: [claude, claude code, anthropic, copilot, chatgpt, openai, codex, gemini, jules, cursor, devin, aider,
+    windsurf, codeium, tabnine, cody, amazon q, codewhisperer, cline, roo code, kiro, junie, openhands, grok,
+    deepseek, qwen, mistral, replit, ai, an ai, llm]
+  patterns:
+    - '(?:^|[^\w-])(?:Co-Authored|Assisted|Generated|Created|Authored|Written|Made|Built|Helped|Suggested|Reviewed|Signed-off)-(?:by|with)\s*:[^\n]*(?:{tools}|\[bot\])'
+    - '(?:^|[^\w-])(?:\w+-)+Session(?:-\w+)*\s*:'
+    - '(?:^|[^\w-])(?:AI|LLM)-(?:\w+-)*(?:Session|Assisted|Generated|Model|Agent|Tool)(?:-\w+)*\s*:'
+    - '\b(?:generated|created|written|authored|co-authored|made|built|produced|drafted|assisted)\s+(?:with|by|using|via)\s+(?:the\s+help\s+of\s+)?\[?(?:an?\s+)?{tools}'
+    - '\x{1F916}'
+    - '\b(?:claude\.ai|chatgpt\.com|chat\.openai\.com|gemini\.google\.com|g\.co/gemini|copilot\.microsoft\.com|perplexity\.ai|poe\.com|grok\.com|chat\.deepseek\.com|chat\.mistral\.ai)/\S'
+
 # What guard-weaken reads an edit by (go/internal/weaken). An added line
 # matching skips (in a test file) or suppressions (in any file but skip's)
 # blocks unless `kit: allow <reason>` is on it or the line above. A test

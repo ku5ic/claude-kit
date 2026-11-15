@@ -30,6 +30,7 @@ var layers = map[string]int{
 	"internal/sources":         2,
 	"internal/claudecli":       2,
 	"internal/connector":       2,
+	"internal/attribution":     2,
 	"internal/pkgcheck":        2,
 	"internal/design":          2,
 	"internal/hook":            3,

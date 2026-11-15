@@ -33,14 +33,14 @@ var (
 	// git, any global options, then commit as a word, all in one simple
 	// command: the gap crosses no separator or newline but a line continuation.
 	commitLine   = regexp.MustCompile(`\bgit(?:[ \t]|\\\n)+(?:[^[:space:];&|]+(?:[ \t]|\\\n)+)*commit(?:[^-[:alnum:]_.]|$)`)
-	aiSignature  = regexp.MustCompile(`(?i)Co-Authored-By:[[:space:]]*Claude|Generated[[:space:]]+(by|with)[[:space:]]+Claude|🤖[[:space:]]*Generated|Claude-Session:|claude\.ai/code/session_`)
 	heredocOpen  = regexp.MustCompile(`<<(-?)[[:space:]]*['"]?([A-Za-z_][A-Za-z0-9_]*)['"]?`)
 	nonProseLine = regexp.MustCompile(`^[[:space:]]*([0-9]+[.)]|[-*+][[:space:]]|#{1,6}[[:space:]]|>|\|)`)
 )
 
-// CheckCommit is guard-commit: it inspects git commit commands for AI signatures, a staged
+// CheckCommit is guard-commit: it inspects git commit commands for a staged
 // secret (gitleaks), an unchunked wall of text in the body (skills/kit-rules/reference/output.md
-// section 1), and AI tells in the message (kit.yml slop).
+// section 1), and AI tells in the message (kit.yml slop). AI attribution is
+// guard-attribution's.
 func CheckCommit(h *hook.Hook) error {
 	if h.Payload.Err != nil {
 		return h.Payload.Err
@@ -54,19 +54,7 @@ func CheckCommit(h *hook.Hook) error {
 	// cwd's repo ("$PWD", "$(git rev-parse --show-toplevel)").
 	repo := cmp.Or(c.repo, h.Payload.Cwd())
 
-	// Line by line, as grep: the trailer sits on a line of its own. The
-	// whole command, since a message can come from anywhere in it (a file a
-	// heredoc writes, then -F); a signature in an unrelated heredoc blocks
-	// too. Then the message, for a file -F reads from disk.
 	msg, ok := message(cmd, c, repo, h.Home)
-	for line := range strings.SplitSeq(cmd+"\n"+msg, "\n") {
-		if aiSignature.MatchString(line) {
-			if err := h.Block("AI signature in commit message", "ai-commit-sig"); err != nil {
-				return err
-			}
-			break
-		}
-	}
 
 	// Before the subject parsing: secret scanning must not depend on
 	// whether -m used a quoted message.

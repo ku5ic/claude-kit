@@ -66,6 +66,12 @@ func (k *sandbox) commit(cwd, cmd string) result {
 	return k.run(hook.NamedCheck{Name: "guard-commit", Check: CheckCommit}, "", cwd, cmd)
 }
 
+// attribution runs guard-attribution on cmd in process.
+func (k *sandbox) attribution(cwd, cmd string) result {
+	k.t.Helper()
+	return k.run(hook.NamedCheck{Name: "guard-attribution", Check: CheckAttribution}, "", cwd, cmd)
+}
+
 // pr runs guard-pr on cmd in process.
 func (k *sandbox) pr(cwd, cmd string) result {
 	k.t.Helper()
