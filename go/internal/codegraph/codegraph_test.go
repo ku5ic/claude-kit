@@ -544,6 +544,20 @@ func TestFindSplit(t *testing.T) {
 	}
 }
 
+// A Go import names a package's directory, so a package is never split
+// into its files: the import would name the split itself, no module.
+func TestDepsKeepsAGoPackageWhole(t *testing.T) {
+	t.Parallel()
+	files := map[string]string{"go.mod": "module ex.com/m\n", "cmd/tool/main.go": ""}
+	for _, f := range []string{"a", "b", "c", "d", "e"} {
+		files["internal/core/"+f+".go"] = ""
+	}
+	out, _ := deps(t, files, "cmd/tool/main.go\t\"ex.com/m/internal/core\"\n", nil)
+	if got := testutil.Read(t, filepath.Join(out, "deps.tsv")); got != "1\tcmd\tinternal/core\n" {
+		t.Errorf("deps:\n%s", got)
+	}
+}
+
 func TestRunUsage(t *testing.T) {
 	t.Parallel()
 	var stdout, stderr bytes.Buffer

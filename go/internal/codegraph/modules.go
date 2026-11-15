@@ -1,10 +1,14 @@
 package codegraph
 
 import (
+	"path"
+	"slices"
 	"strings"
 )
 
-// findSplit descends while one directory holds over 80% of files.
+// findSplit descends while one directory holds over 80% of files, but
+// never into a Go package: an import names the package whole, never one
+// of its files.
 func findSplit(files []string) string {
 	prefix := ""
 	for {
@@ -23,11 +27,16 @@ func findSplit(files []string) string {
 			return strings.TrimSuffix(prefix, "/")
 		}
 		top := byCount(children, strings.Compare)[0]
-		if float64(children[top])/float64(inside) <= 0.8 {
+		if float64(children[top])/float64(inside) <= 0.8 || holdsGo(files, prefix+top) {
 			return strings.TrimSuffix(prefix, "/")
 		}
 		prefix += top + "/"
 	}
+}
+
+// holdsGo is true when dir directly holds a .go file.
+func holdsGo(files []string, dir string) bool {
+	return slices.ContainsFunc(files, func(f string) bool { return dirOf(f) == dir && path.Ext(f) == ".go" })
 }
 
 // modules maps a path to its module: a child of the split directory, or
