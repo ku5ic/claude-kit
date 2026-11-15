@@ -333,8 +333,10 @@ func ask(cfg *config.Config, o Options, p view, file string, s store) (_ store, 
 		usage = usage.Add(u)
 	}
 	now := time.Now()
+	notAsked := false
 	for i, resp := range resps {
 		if errors.Is(errs[i], errNotAsked) {
+			notAsked = true
 			continue // no cooldown: the next run asks it
 		}
 		if errs[i] != nil {
@@ -361,6 +363,9 @@ func ask(cfg *config.Config, o Options, p view, file string, s store) (_ store, 
 			locked.Context, locked.Managers, locked.Proposals = p.Key, resp.Managers, resp.Proposals
 			delete(locked.Failed, factsKey(p.Key))
 		}
+	}
+	if failure == "" && notAsked {
+		failure = "classifier: " + errNotAsked.Error()
 	}
 	// A failure is saved too, so the next run waits out its cooldown.
 	locked.save(file, o.Entries, now)

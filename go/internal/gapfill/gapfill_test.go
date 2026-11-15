@@ -230,6 +230,21 @@ func TestABatchTheDeadlineKeptQueuedIsAskedNextRun(t *testing.T) {
 	}
 }
 
+// A deadline that passes before any call starts (a long lock wait) says so,
+// and still stamps no cooldown.
+func TestADeadlineBeforeAnyCallNamesItsFailure(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t, "")
+	lint := entry("lint", "eslint .")
+	r := Run(f.cfg, Options{Root: f.root, CacheDir: f.cacheDir, Entries: []sources.Entry{lint}, Ask: true, Timeout: time.Nanosecond})
+	if !strings.Contains(r.Failure, errNotAsked.Error()) {
+		t.Errorf("failure = %q, want it to name %q", r.Failure, errNotAsked)
+	}
+	if f.run(lint); len(f.asked()) != 1 {
+		t.Errorf("the next run asked %q; want the entry never asked", f.asked())
+	}
+}
+
 func TestErrorEnvelopeIsNoAnswer(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t, "")
