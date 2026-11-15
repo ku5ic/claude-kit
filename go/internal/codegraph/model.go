@@ -173,10 +173,13 @@ type node struct {
 }
 
 var (
-	nodeLine = regexp.MustCompile(`^\s*([A-Za-z_][\w-]*)\s*[\[({]+"?([^"\])}]*)"?[\])}]+(:::(\w+))?\s*$`)
+	// label is a node's label in its shape's brackets: quoted, it may hold
+	// any bracket (m["Billing (Stripe)"]); its groups are quoted, bare.
+	label    = `[\[({]+(?:"([^"]*)"|([^"\])}]*))[\])}]+`
+	nodeLine = regexp.MustCompile(`^\s*([A-Za-z_][\w-]*)\s*` + label + `(?::::(\w+))?\s*$`)
 	// endpoint is one end of an edge: an id, maybe with its shape and
 	// label inline (ui["UI"]), maybe with a class (:::ext).
-	endpoint  = `([A-Za-z_][\w-]*)(?:\s*[\[({]+"?([^"\])}]*)"?[\])}]+)?(?::::(\w+))?`
+	endpoint  = `([A-Za-z_][\w-]*)(?:\s*` + label + `)?(?::::(\w+))?`
 	edgeStart = regexp.MustCompile(`^\s*` + endpoint)
 	edgeNext  = regexp.MustCompile(`^\s*(?:-->|-\.->|==>|---)(?:\|[^|]*\|)?\s*` + endpoint)
 	comment   = regexp.MustCompile(`^\s*%%\s*(path|package|source):\s*(.+?)\s*$`)
@@ -236,7 +239,7 @@ func (r *modelReader) line(line, file string) {
 		return
 	}
 	if m := nodeLine.FindStringSubmatch(line); m != nil {
-		r.last = addNode(r.nodes, m[1], m[2], m[4], file)
+		r.last = addNode(r.nodes, m[1], m[2]+m[3], m[4], file)
 		return
 	}
 	ends := chain(line)
@@ -244,7 +247,7 @@ func (r *modelReader) line(line, file string) {
 		if len(ends) < 2 {
 			break
 		}
-		addNode(r.nodes, end[1], end[2], end[3], file)
+		addNode(r.nodes, end[1], end[2]+end[3], end[4], file)
 		if i > 0 {
 			r.edges = append(r.edges, [2]string{ends[i-1][1], end[1]})
 		}
@@ -286,10 +289,11 @@ func chain(line string) [][]string {
 // CheckC4 checks the model in modelDir against rawDir, collected from the
 // repo at root, and writes each problem to w: a fingerprint that differs,
 // a %% path: that's gone, an edge between two containers with no import
-// between their modules, and an external whose %% package: no manifest
-// declares, or that names none. It lists the nodes marked
-// %% source: judgment, the ones a person reviews. ok is false on any
-// problem, or when modelDir has no c4-*.mmd file.
+// between their modules, an import between two containers no edge joins,
+// and an external whose %% package: no manifest declares, or that names
+// none. It lists the nodes marked %% source: judgment, the ones a person
+// reviews. ok is false on any problem, or when modelDir has no c4-*.mmd
+// file.
 func CheckC4(modelDir, rawDir, root string, w io.Writer) (ok bool, err error) {
 	nodes, edges, files, err := readModel(modelDir)
 	if err != nil {
@@ -385,7 +389,43 @@ func checkEdges(nodes map[string]*node, edges [][2]string, deps [][]string) []st
 			problems = append(problems, fmt.Sprintf("unbacked: %s --> %s has no import from %s into %s", e[0], e[1], from.path, to.path))
 		}
 	}
+	return append(problems, missingEdges(nodes, edges, deps)...)
+}
+
+// missingEdges is a line for each import in deps between two containers
+// with different paths that no edge joins. A module coarser than every
+// container names none of them, so it's left out.
+func missingEdges(nodes map[string]*node, edges [][2]string, deps [][]string) []string {
+	var problems []string
+	ids := slices.Sorted(maps.Keys(nodes))
+	for _, d := range deps {
+		if len(d) != 3 {
+			continue
+		}
+		var pair [2]string
+		for _, a := range ids {
+			for _, b := range ids {
+				from, to := nodes[a], nodes[b]
+				if pair[0] == "" && from.path != "" && to.path != "" && from.path != to.path && within(d[1], from.path) && within(d[2], to.path) {
+					pair = [2]string{a, b}
+				}
+			}
+		}
+		if pair[0] == "" || slices.ContainsFunc(edges, func(e [2]string) bool {
+			from, to := nodes[e[0]], nodes[e[1]]
+			return from != nil && to != nil && from.path != "" && to.path != "" && within(d[1], from.path) && within(d[2], to.path)
+		}) {
+			continue
+		}
+		problems = append(problems, fmt.Sprintf("missing: %s imports %s (%s imports), but no edge joins %s --> %s", d[1], d[2], d[0], pair[0], pair[1]))
+	}
 	return problems
+}
+
+// within is true when module is the directory p names, or under it.
+func within(module, p string) bool {
+	module, p = strings.Trim(module, "/"), strings.Trim(path.Clean(p), "/")
+	return module == p || strings.HasPrefix(module, p+"/") || p == "."
 }
 
 // overlaps is true when module and a container's path name the same

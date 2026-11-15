@@ -93,6 +93,9 @@ func TestCheckC4(t *testing.T) {
 		{"an edge with no imports", "  m_cmd --> m_internal\n", "  m_cmd --> m_internal\n  m_cmd --> m_docs\n  m_docs[\"docs\"]\n  %% path: docs\n", "unbacked: m_cmd --> m_docs"},
 		{"a chained edge's second hop with no imports", "  m_cmd --> m_internal\n", "  m_docs[\"docs\"]\n  %% path: docs\n  m_cmd --> m_internal --> m_docs\n", "unbacked: m_internal --> m_docs"},
 		{"an edge from an inline-labeled node with no imports", "  m_cmd --> m_internal\n", "  m_cmd --> m_internal\n  m_docs[\"docs\"]\n  %% path: docs\n  m_cmd[\"cmd\"] --> m_docs\n", "unbacked: m_cmd --> m_docs"},
+		{"a parenthesized label's removed path", "    m_rust[\"rust\"]\n    %% path: rust\n", "    m_rust[\"Gone (old)\"]\n    %% path: gone\n", "gone: m_rust (c4-containers.mmd) cites gone"},
+		{"an edge into a bracketed label with no imports", "  m_cmd --> m_internal\n", "  m_cmd --> m_internal\n  m_m[\"src/[id] (web)\"]\n  %% path: src\n  m_cmd --> m_m[\"src/[id] (web)\"]\n", "unbacked: m_cmd --> m_m"},
+		{"an import the model has no edge for", "  m_internal --> m_cmd\n", "", "missing: internal imports cmd"},
 		{"an undeclared external", "%% package: react", "%% package: vue", "undeclared: ext_react"},
 		{"an external that names no package", "  %% package: react\n", "\n", "unbacked: ext_react"},
 	} {
