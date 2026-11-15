@@ -82,7 +82,13 @@ func normalize(s string) string {
 
 // shells are the POSIX-family shells: a heredoc body fed to one is a
 // script, and -c runs its string.
-var shells = map[string]bool{"sh": true, "bash": true, "zsh": true, "dash": true, "ksh": true, "mksh": true, "yash": true}
+var shells = func() map[string]bool {
+	m := map[string]bool{}
+	for _, name := range strings.Fields("sh bash rbash zsh dash ash hush ksh mksh yash") {
+		m[name] = true
+	}
+	return m
+}()
 
 // runsC is true when name's -c runs a string: every shell, and fish, which
 // isn't in shells because its heredoc bodies don't parse as POSIX.
@@ -255,10 +261,11 @@ func segmentEnd(last *syntax.Stmt) int {
 }
 
 // shellHeredocs parses seg's heredocs as commands when a shell in it reads
-// them (bash <<EOF, cat <<EOF | sh).
+// them (bash <<EOF, cat <<EOF | sh), past any wrapper (sudo bash <<EOF).
 func (c *collector) shellHeredocs(seg Segment) {
 	if !slices.ContainsFunc(seg.Calls, func(cl Call) bool {
-		return len(cl.Words) > 0 && shells[baseName(cl.Words[0].Value)]
+		i := lead(cl.Words)
+		return i < len(cl.Words) && shells[baseName(cl.Words[i].Value)]
 	}) {
 		return
 	}

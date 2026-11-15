@@ -408,6 +408,12 @@ func TestGuardBashParsing(t *testing.T) {
 		probe("block", `busybox rm -rf ~`)
 		probe("block", `toybox rm -rf ~`)
 		probe("block", `busybox sh -c 'rm -rf ~'`)
+		probe("block", `ash -c 'rm -rf ~'`)
+		probe("block", `hush -c 'rm -rf ~'`)
+		probe("block", `rbash -c 'rm -rf ~'`)
+		probe("block", "sudo bash <<'EOF'\n"+R+"\nEOF")
+		probe("block", "cat <<'EOF' | sudo sh\n"+R+"\nEOF")
+		probe("block", "nice -n 5 ash <<'EOF'\n"+R+"\nEOF")
 		probe("pass", `env`)
 		probe("pass", `command -v rm`)
 		// kit git-base: an explicit ask, so a settings allow rule can't approve it.

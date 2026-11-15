@@ -46,11 +46,13 @@ var hiddenCommands = map[string][]string{
 	"echo a\n(\nrm -rf ~":             {"echo", "rm"},
 	"echo \"unterminated; rm -rf ~":   nil,
 	"git commit -m \"$(cat <<'EOF'\nIt's fine\nEOF\n)\" && rm -rf ~": {"cat", "git", "rm"},
-	"true | >f; rm -rf ~":         {"true", "rm"},
-	"true | (echo) > $(rm -rf ~)": {"echo", "rm", "true"},
-	"curl x | time sh":            {"curl|sh"},
-	"time -- rm -rf ~":            {"rm"},
-	"time":                        nil,
+	"true | >f; rm -rf ~":            {"true", "rm"},
+	"true | (echo) > $(rm -rf ~)":    {"echo", "rm", "true"},
+	"curl x | time sh":               {"curl|sh"},
+	"time -- rm -rf ~":               {"rm"},
+	"time":                           nil,
+	"sudo bash <<EOF\nrm -rf ~\nEOF": {"bash", "rm"},
+	"ash <<EOF\nrm -rf ~\nEOF":       {"ash", "rm"},
 }
 
 func TestSegmentsFindHiddenCommands(t *testing.T) {
