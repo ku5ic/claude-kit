@@ -324,9 +324,6 @@ func cliLines(cfg *config.Config) []string {
 	return out
 }
 
-// prerequisites names what the install is missing, "" when nothing is: a
-// readable kit.yml. The kit itself needs no tools beyond git and a POSIX
-// shell.
 // attributionOn names the settings file whose attribution leaves Claude
 // Code's attribution on, "default" when none sets it. The highest file
 // setting attribution (the project's local, then shared, then the user's)
@@ -360,6 +357,9 @@ func attributionOn(paths config.Paths, cwd string) string {
 	return "default"
 }
 
+// prerequisites names what the install is missing, "" when nothing is: a
+// readable kit.yml. The kit itself needs no tools beyond git and a POSIX
+// shell.
 func prerequisites(paths config.Paths) string {
 	f, err := os.Open(paths.Base)
 	if err != nil {
