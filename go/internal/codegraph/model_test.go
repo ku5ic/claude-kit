@@ -107,6 +107,12 @@ func TestCheckC4(t *testing.T) {
 			}
 		})
 	}
+	t.Run("a file module, cited by its stem, passes", func(t *testing.T) {
+		t.Parallel()
+		if ok, out := check(t, model(t, func(s string) string { return strings.Replace(s, "%% path: cmd", "%% path: cmd/tool/main", 1) })); !ok || out != "" {
+			t.Errorf("ok %v:\n%s", ok, out)
+		}
+	})
 	t.Run("a judgment node is listed, and passes", func(t *testing.T) {
 		t.Parallel()
 		dir := model(t, func(s string) string { return s + "  stripe[\"Stripe\"]:::ext\n  %% source: judgment\n" })

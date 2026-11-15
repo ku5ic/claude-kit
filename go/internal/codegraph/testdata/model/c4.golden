@@ -20,5 +20,7 @@ flowchart TB
   %% package: requests
   ext_serde_json["serde_json"]:::ext
   %% package: serde_json
+  ext_yaml["yaml"]:::ext
+  %% package: yaml
   m_cmd --> m_internal
   m_internal --> m_cmd

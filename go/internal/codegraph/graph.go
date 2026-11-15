@@ -86,7 +86,12 @@ func (g *graph) normalize(file, s string) spec {
 		}
 		return spec{up + strings.ReplaceAll(m[2], ".", "/"), relative}
 	}
-	for _, mod := range g.goModules {
+	// A Go module path, or a workspace package by its package.json name.
+	named := g.goModules
+	if ecosystems[lang] == "npm" {
+		named = g.npmNames
+	}
+	for _, mod := range named {
 		if rest, ok := strings.CutPrefix(s, mod.a); ok && (rest == "" || strings.HasPrefix(rest, "/")) {
 			return spec{path.Join(mod.b, rest), rooted}
 		}
@@ -178,6 +183,10 @@ func (g *graph) resolve(file string, s spec) (target string, ok bool) {
 	switch {
 	case strings.HasPrefix(s.path, "."):
 		return g.resolveRelative(file, path.Join(dir, s.path))
+	case s.kind == rooted && ecosystems[path.Ext(file)] == "go":
+		// A Go import names its package's directory, never an item below it.
+		real, ok := g.known[strings.ToLower(strings.Trim(s.path, "/"))]
+		return real, ok
 	case s.kind == rooted:
 		return cmp.Or(g.longestExisting("", s.path), s.path), true
 	}

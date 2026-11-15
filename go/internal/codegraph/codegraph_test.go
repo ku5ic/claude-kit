@@ -189,6 +189,73 @@ func TestDepsLeavesAnUnresolvedRelativeImportOut(t *testing.T) {
 	}
 }
 
+// deps runs Deps on a repo of files, its imports read from rows, with
+// skipDirs, and returns the out dir and the summary.
+func deps(t *testing.T, files map[string]string, rows string, skipDirs []string) (string, string) {
+	t.Helper()
+	root := t.TempDir()
+	for name, body := range files {
+		testutil.Write(t, filepath.Join(root, name), body)
+	}
+	testutil.Git(t, root, "init", "-q")
+	testutil.Git(t, root, "add", "-Af") // past a global ignore: pkg/, build/
+	imports := filepath.Join(t.TempDir(), "imports.tsv")
+	testutil.Write(t, imports, rows)
+	out := filepath.Join(t.TempDir(), "raw")
+	var summary bytes.Buffer
+	if err := Deps(root, imports, out, "", skipDirs, &summary); err != nil {
+		t.Fatal(err)
+	}
+	return out, summary.String()
+}
+
+// The split counts every source file, not only the ones that import, and
+// a source directory skip_dirs drops is named.
+func TestDepsSplitsOnEverySourceFileAndNamesASkippedDir(t *testing.T) {
+	t.Parallel()
+	out, summary := deps(t, map[string]string{"src/app/a.ts": "", "src/core/c.ts": "", "src/util/u.ts": "", "src/build/b.ts": "", "README.md": ""},
+		"src/app/a.ts\t\"../core/c\"\nsrc/app/a.ts\t\"../build/b\"\n", []string{"build"})
+	if got := testutil.Read(t, filepath.Join(out, "deps.tsv")); got != "1\tsrc/app\tsrc/core\n" {
+		t.Errorf("deps:\n%s", got)
+	}
+	if !strings.Contains(summary, "skipped dir: src/build (skip_dirs)\n") || !strings.Contains(summary, "split dir: src;") {
+		t.Errorf("summary:\n%s", summary)
+	}
+}
+
+// A Go import of a package nothing tracks is no edge to its parent
+// directory: a Go import names the package's directory exactly.
+func TestDepsLeavesAnUntrackedGoPackageOut(t *testing.T) {
+	t.Parallel()
+	out, _ := deps(t, map[string]string{"go.mod": "module ex.com/m\n", "internal/app/a.go": "", "internal/core/c.go": ""},
+		"internal/app/a.go\t\"ex.com/m/internal/gone\"\ninternal/app/a.go\t\"ex.com/m/internal/core\"\n", nil)
+	if got := testutil.Read(t, filepath.Join(out, "deps.tsv")); got != "1\tinternal/app\tinternal/core\n" {
+		t.Errorf("deps:\n%s", got)
+	}
+}
+
+// A Python import's name isn't always its distribution's (yaml is PyYAML),
+// and a workspace package imported by its package.json name is an edge.
+func TestDepsMatchesImportNamesToTheirPackages(t *testing.T) {
+	t.Parallel()
+	out, _ := deps(t, map[string]string{
+		"pyproject.toml":            "[project]\ndependencies = [\"PyYAML>=6\", \"Pillow\", \"python-dateutil\"]\n",
+		"py/a.py":                   "",
+		"packages/ui/package.json":  `{"name": "@org/ui"}`,
+		"packages/ui/index.ts":      "",
+		"packages/ui/src/theme.ts":  "",
+		"packages/app/package.json": `{"name": "@org/app", "dependencies": {"@org/ui": "workspace:*"}}`,
+		"packages/app/src/main.ts":  "",
+	}, "py/a.py\timport yaml\npy/a.py\tfrom PIL import Image\npy/a.py\timport dateutil\n"+
+		"packages/app/src/main.ts\t\"@org/ui\"\npackages/app/src/main.ts\t\"@org/ui/src/theme\"\n", nil)
+	if got := testutil.Read(t, filepath.Join(out, "externals.tsv")); strings.Contains(got, "undeclared") || strings.Contains(got, "@org") {
+		t.Errorf("externals:\n%s", got)
+	}
+	if got := testutil.Read(t, filepath.Join(out, "imports-resolved.tsv")); got != "packages/app/src/main.ts\tpackages/ui\npackages/app/src/main.ts\tpackages/ui/src/theme\n" {
+		t.Errorf("imports-resolved:\n%s", got)
+	}
+}
+
 // A committed vendor/, a skip_dirs entry, is third-party code. Its files
 // are no module, and an import into it counts as no edge.
 func TestDepsLeavesASkippedDirOutOfTheModules(t *testing.T) {
@@ -218,7 +285,7 @@ func TestDepsLeavesASkippedDirOutOfTheModules(t *testing.T) {
 func TestCouplingGolden(t *testing.T) {
 	t.Parallel()
 	var out bytes.Buffer
-	if err := Coupling("testdata/gitlog.txt", "testdata/deps/imports-resolved.golden", &out); err != nil {
+	if err := Coupling("testdata/gitlog.txt", "testdata/deps/imports-resolved.golden", fixtureRepo(t), &out); err != nil {
 		t.Fatal(err)
 	}
 	if want := testutil.Read(t, "testdata/coupling.golden"); out.String() != want {
@@ -239,13 +306,53 @@ func TestCouplingReadsAGoImportOfAnIndexPackage(t *testing.T) {
 	testutil.Write(t, gitLog, log.String())
 	testutil.Write(t, resolved, "cmd/x/main.go\tinternal/index\ncmd/x/main.go\tpkg/v1.2\n")
 	var out bytes.Buffer
-	if err := Coupling(gitLog, resolved, &out); err != nil {
+	if err := Coupling(gitLog, resolved, tracked(t, "cmd/x/main.go", "internal/index/i.go", "pkg/v1.2/v.go"), &out); err != nil {
 		t.Fatal(err)
 	}
 	for _, pair := range []string{"cmd/x/main.go\tinternal/index/i.go", "cmd/x/main.go\tpkg/v1.2/v.go"} {
 		if !strings.Contains(out.String(), "\timports\t"+pair+"\n") {
 			t.Errorf("%s isn't an import in:\n%s", pair, out.String())
 		}
+	}
+}
+
+// tracked is a git repo tracking files, each empty.
+func tracked(t *testing.T, files ...string) string {
+	t.Helper()
+	root := t.TempDir()
+	for _, f := range files {
+		testutil.Write(t, filepath.Join(root, f), "")
+	}
+	testutil.Git(t, root, "init", "-q")
+	testutil.Git(t, root, "add", "-Af") // past a global ignore: pkg/, build/
+	return root
+}
+
+// A file the repo no longer tracks couples with nothing, and a bulk commit
+// is bulk by every file it touched, tests and docs too.
+func TestCouplingSkipsGoneFilesAndBulkCommits(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	var log strings.Builder
+	for i := range 6 {
+		fmt.Fprintf(&log, "--%040d\n\na/x.py\nb/gone.py\n\n", i)
+	}
+	for i := range 5 {
+		fmt.Fprintf(&log, "--%040d\n\na/x.py\nc/z.py\n", 10+i)
+		for j := range 40 {
+			fmt.Fprintf(&log, "tests/test_%d.py\n", j)
+		}
+		log.WriteString("\n")
+	}
+	gitLog, resolved := filepath.Join(dir, "gitlog.txt"), filepath.Join(dir, "imports-resolved.tsv")
+	testutil.Write(t, gitLog, log.String())
+	testutil.Write(t, resolved, "")
+	var out bytes.Buffer
+	if err := Coupling(gitLog, resolved, tracked(t, "a/x.py", "c/z.py"), &out); err != nil {
+		t.Fatal(err)
+	}
+	if want := "shared\tdegree\tlink\tfile_a\tfile_b\n"; out.String() != want {
+		t.Errorf("got:\n%s", out.String())
 	}
 }
 
@@ -326,7 +433,7 @@ func TestRunUsage(t *testing.T) {
 	if code := Run(nil, nil, &stdout, &stderr); code != 2 || !bytes.Contains(stderr.Bytes(), []byte("usage: kit code-graph")) {
 		t.Errorf("no args: exit %d, %q", code, stderr.String())
 	}
-	if code := Run([]string{"coupling", "missing.txt", "missing.tsv"}, nil, &stdout, &stderr); code != 1 {
+	if code := Run([]string{"coupling", "missing.txt", "missing.tsv", "."}, nil, &stdout, &stderr); code != 1 {
 		t.Errorf("a missing file: exit %d", code)
 	}
 }

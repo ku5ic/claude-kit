@@ -177,6 +177,7 @@ func submatches(file string, re *regexp.Regexp) []string {
 type manifests struct {
 	declared  map[string]map[string]bool
 	goModules []pair // module path, its directory
+	npmNames  []pair // a package.json's name, its directory
 	dartLibs  map[string]string
 	rustRoots map[string]bool
 	skipped   []string // file: why, for each manifest that didn't read
@@ -207,6 +208,11 @@ func readManifests(root string, files []string) manifests {
 			}
 		}
 		switch name {
+		case "package.json":
+			var pkg struct{ Name string }
+			if readJSON(abs, &pkg) == nil && pkg.Name != "" {
+				m.npmNames = append(m.npmNames, pair{pkg.Name, dirOf(file)})
+			}
 		case "go.mod":
 			if mods := submatches(abs, goModule); len(mods) > 0 {
 				m.goModules = append(m.goModules, pair{mods[0], dirOf(file)})
@@ -219,9 +225,9 @@ func readManifests(root string, files []string) manifests {
 			m.addRustRoots(abs, dirOf(file), files)
 		}
 	}
-	slices.SortStableFunc(m.goModules, func(a, b pair) int {
-		return cmp.Or(cmp.Compare(len(b.a), len(a.a)), strings.Compare(a.a, b.a))
-	})
+	longestFirst := func(a, b pair) int { return cmp.Or(cmp.Compare(len(b.a), len(a.a)), strings.Compare(a.a, b.a)) }
+	slices.SortStableFunc(m.goModules, longestFirst)
+	slices.SortStableFunc(m.npmNames, longestFirst)
 	return m
 }
 
@@ -268,5 +274,20 @@ func (m manifests) isDeclared(spec string, dotted bool, ecosystem string) bool {
 		}
 		return false
 	}
-	return m.declared[ecosystem][packageKey(externalName(spec, dotted))]
+	key := packageKey(externalName(spec, dotted))
+	if ecosystem == "python" {
+		return m.declared["python"][key] || slices.ContainsFunc(pythonDistributions[key], func(d string) bool { return m.declared["python"][d] })
+	}
+	return m.declared[ecosystem][key]
+}
+
+// pythonDistributions maps an import name to the distributions that
+// install it, both as packageKey writes them. PyYAML installs yaml.
+var pythonDistributions = map[string][]string{
+	"yaml":     {"pyyaml"},
+	"pil":      {"pillow"},
+	"dateutil": {"python_dateutil"},
+	"bs4":      {"beautifulsoup4"},
+	"sklearn":  {"scikit_learn"},
+	"cv2":      {"opencv_python", "opencv_python_headless", "opencv_contrib_python", "opencv_contrib_python_headless"},
 }

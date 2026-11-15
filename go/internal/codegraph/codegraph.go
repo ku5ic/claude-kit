@@ -11,7 +11,7 @@ import (
 
 const usage = `usage: kit code-graph imports <root> > imports.tsv
        kit code-graph deps <root> <imports.tsv> <out dir> [split dir]
-       kit code-graph coupling <git log> <imports-resolved.tsv> > coupling.tsv
+       kit code-graph coupling <git log> <imports-resolved.tsv> <root> > coupling.tsv
        kit code-graph model-dir <repo or subdir>
        kit code-graph fingerprint <deps out dir> > fingerprint.txt
        kit code-graph c4 <deps out dir> <system name> > c4-containers.mmd
@@ -30,8 +30,8 @@ func Run(args, skipDirs []string, stdout, stderr io.Writer) int {
 			split = args[4]
 		}
 		err = Deps(args[1], args[2], args[3], split, skipDirs, stdout)
-	case len(args) == 3 && args[0] == "coupling":
-		err = Coupling(args[1], args[2], stdout)
+	case len(args) == 4 && args[0] == "coupling":
+		err = Coupling(args[1], args[2], args[3], stdout)
 	case len(args) == 2 && args[0] == "fingerprint":
 		var lines []string
 		if lines, err = Fingerprint(args[1]); err == nil {

@@ -25,17 +25,20 @@ func Deps(root, imports, outDir, split string, skipDirs []string, w io.Writer) e
 	if err != nil {
 		return fmt.Errorf("git ls-files: %w", err)
 	}
-	files = slices.DeleteFunc(files, func(f string) bool { return skipped(f, skipDirs) })
 	rows, err := readTSV(imports, 2)
 	if err != nil {
 		return err
 	}
+	sources := sourceFiles(files, rows)
+	dropped := skippedDirs(sources, skipDirs)
+	files = slices.DeleteFunc(files, func(f string) bool { return skipped(f, skipDirs) })
+	sources = slices.DeleteFunc(sources, func(f string) bool { return skipped(f, skipDirs) })
 	rows = slices.DeleteFunc(rows, func(r []string) bool { return skipped(r[0], skipDirs) })
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
 		return err
 	}
 	g := newGraph(root, files)
-	split = splitDir(split, rows)
+	split = splitDir(split, sources)
 	specs := g.specs(rows)
 	g.rankRoots(specs)
 	if err := build(specs, g, newModules(split, g.known), skipDirs).write(outDir); err != nil {
@@ -48,13 +51,16 @@ func Deps(root, imports, outDir, split string, skipDirs []string, w io.Writer) e
 	for _, skipped := range g.skipped {
 		fmt.Fprintln(w, "skipped manifest:", skipped)
 	}
+	for _, dir := range dropped {
+		fmt.Fprintf(w, "skipped dir: %s (skip_dirs)\n", dir)
+	}
 	fmt.Fprintf(w, "split dir: %s; main source root: %s; other candidates: %d\n", cmp.Or(split, "(repo root)"), mainRoot, max(0, len(g.roots)-1))
 	return nil
 }
 
-// splitDir is split cleaned, or, when empty, the split found among the
-// importing files of rows.
-func splitDir(split string, rows [][]string) string {
+// splitDir is split cleaned, or, when empty, the split found among
+// sources.
+func splitDir(split string, sources []string) string {
 	if split != "" {
 		split = strings.Trim(path.Clean(split), "/") // src/ and ./src name the same dir
 		if split == "." {
@@ -62,12 +68,44 @@ func splitDir(split string, rows [][]string) string {
 		}
 		return split
 	}
-	var importing []string
+	return findSplit(sources)
+}
+
+// sourceFiles is each file in files, sorted, with the extension of a file
+// rows import from. A leaf that imports nothing counts toward the split
+// like the files that do.
+func sourceFiles(files []string, rows [][]string) []string {
+	exts := map[string]bool{}
 	for _, r := range rows {
-		importing = append(importing, r[0])
+		if ext := path.Ext(r[0]); ext != "" {
+			exts[ext] = true
+		}
 	}
-	slices.Sort(importing)
-	return findSplit(slices.Compact(importing))
+	var sources []string
+	for _, f := range files {
+		if exts[path.Ext(f)] {
+			sources = append(sources, f)
+		}
+	}
+	slices.Sort(sources)
+	return slices.Compact(sources)
+}
+
+// skippedDirs is each directory a skipDirs entry drops that holds one of
+// sources, sorted. build/ or out/ can be real code, so the drop is named.
+func skippedDirs(sources, skipDirs []string) []string {
+	var dirs []string
+	for _, f := range sources {
+		parts := strings.Split(f, "/")
+		for i, dir := range parts[:len(parts)-1] {
+			if slices.Contains(skipDirs, dir) {
+				dirs = append(dirs, strings.Join(parts[:i+1], "/"))
+				break
+			}
+		}
+	}
+	slices.Sort(dirs)
+	return slices.Compact(dirs)
 }
 
 // depsResult is what the specs resolved to: module edges with their

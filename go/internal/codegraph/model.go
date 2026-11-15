@@ -362,7 +362,7 @@ func checkNodes(nodes map[string]*node, ids, declared []string, root string) []s
 		case n.path != "" && !filepath.IsLocal(n.path):
 			problems = append(problems, fmt.Sprintf("gone: %s (%s) cites %s, which is outside the repo", n.id, n.file, n.path))
 		case n.path != "":
-			if _, err := os.Stat(filepath.Join(root, n.path)); err != nil {
+			if _, err := os.Stat(filepath.Join(root, n.path)); err != nil && !isStem(root, n.path) {
 				problems = append(problems, fmt.Sprintf("gone: %s (%s) cites %s, which no longer exists", n.id, n.file, n.path))
 			}
 		case n.isExt && n.pkg != "" && !slices.Contains(declared, n.pkg):
@@ -372,6 +372,16 @@ func checkNodes(nodes map[string]*node, ids, declared []string, root string) []s
 		}
 	}
 	return problems
+}
+
+// isStem is true when p, under root, is a file's path minus its
+// extension: how a split holding only files names its modules.
+func isStem(root, p string) bool {
+	entries, err := os.ReadDir(filepath.Join(root, filepath.Dir(p)))
+	base := filepath.Base(p) + "."
+	return err == nil && slices.ContainsFunc(entries, func(e os.DirEntry) bool {
+		return !e.IsDir() && strings.HasPrefix(e.Name(), base) && !strings.Contains(e.Name()[len(base):], ".")
+	})
 }
 
 // checkEdges is a line for each edge between two containers with paths
