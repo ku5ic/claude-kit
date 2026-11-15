@@ -440,6 +440,10 @@ func TestGuardBashParsing(t *testing.T) {
 		probe("pass", `taskset -c 0 ls`)
 		probe("pass", `setsid ls`)
 		probe("block", strings.Repeat("echo $((ls) )\n", 12)+R)
+		// A credential name matches whatever its case.
+		probe("block", `rg foo sub/prod.PEM`)
+		probe("block", `rg foo SUB/SERVER.PEM`)
+		probe("block", `cat config/.ENV`)
 		probe("pass", `env`)
 		probe("pass", `command -v rm`)
 		// kit git-base: an explicit ask, so a settings allow rule can't approve it.

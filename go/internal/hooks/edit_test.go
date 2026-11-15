@@ -295,6 +295,8 @@ skill_file_map:
 		{"Grep of a repo with the generic glob * passes", "/tmp/project", "*", "/tmp/project", 0},
 		{"Grep of a repo with glob *.env is blocked", "/tmp/project", "*.env", "/tmp/project", 2},
 		{"Grep of a repo with glob *.key* is blocked", "/tmp/project", "*.key*", "/tmp/project", 2},
+		{"Grep of a repo with glob *.KEY is blocked", "/tmp/project", "*.KEY", "/tmp/project", 2},
+		{"Grep of a repo with glob .ENV* is blocked", "/tmp/project", ".ENV*", "/tmp/project", 2},
 		{"Grep of a repo with the generic glob ** passes", "/tmp/project", "**", "/tmp/project", 0},
 		{"Grep of a repo with no glob passes", "/tmp/project", "", "/tmp/project", 0},
 		{"Grep of ~ itself is blocked", "~", "", "/tmp/project", 2},
@@ -354,25 +356,25 @@ func TestGuardSearchExcludesSecretsInsideTheProject(t *testing.T) {
 		return out.HookSpecificOutput.UpdatedInput
 	}
 	got := grep(dir, map[string]any{"pattern": "secret", "path": "src", "-n": true})
-	want := map[string]any{"pattern": "secret", "path": "src", "-n": true, "glob": "!{.env,.env.*,*.key,id_rsa}"}
+	want := map[string]any{"pattern": "secret", "path": "src", "-n": true, "glob": "!{.[eE][nN][vV],.[eE][nN][vV].*,*.[kK][eE][yY],[iI][dD]_[rR][sS][aA]}"}
 	if !maps.Equal(got, want) {
 		t.Errorf("updatedInput = %v, want %v", got, want)
 	}
 	// A glob of only * and / matches what no glob does.
 	for _, glob := range []string{"*", "**", "**/*", "{*.go,*}"} {
 		got := grep(dir, map[string]any{"pattern": "secret", "glob": glob})
-		if want := map[string]any{"pattern": "secret", "glob": "!{.env,.env.*,*.key,id_rsa}"}; !maps.Equal(got, want) {
+		if want := map[string]any{"pattern": "secret", "glob": "!{.[eE][nN][vV],.[eE][nN][vV].*,*.[kK][eE][yY],[iI][dD]_[rR][sS][aA]}"}; !maps.Equal(got, want) {
 			t.Errorf("glob %q: updatedInput = %v, want %v", glob, got, want)
 		}
 	}
 	// A negative glob matches every other file, so the exclusion joins it.
 	// Its brace groups expand first, so all share one {...}.
 	for glob, joined := range map[string]string{
-		"!*.md":         "!{*.md,.env,.env.*,*.key,id_rsa}",
-		"!{*.md,*.txt}": "!{*.md,*.txt,.env,.env.*,*.key,id_rsa}",
-		"!{a,b}.js":     "!{a.js,b.js,.env,.env.*,*.key,id_rsa}",
-		"!*.{js,ts}":    "!{*.js,*.ts,.env,.env.*,*.key,id_rsa}",
-		"!{a,b}.{c,d}":  "!{a.c,a.d,b.c,b.d,.env,.env.*,*.key,id_rsa}",
+		"!*.md":         "!{*.md,.[eE][nN][vV],.[eE][nN][vV].*,*.[kK][eE][yY],[iI][dD]_[rR][sS][aA]}",
+		"!{*.md,*.txt}": "!{*.md,*.txt,.[eE][nN][vV],.[eE][nN][vV].*,*.[kK][eE][yY],[iI][dD]_[rR][sS][aA]}",
+		"!{a,b}.js":     "!{a.js,b.js,.[eE][nN][vV],.[eE][nN][vV].*,*.[kK][eE][yY],[iI][dD]_[rR][sS][aA]}",
+		"!*.{js,ts}":    "!{*.js,*.ts,.[eE][nN][vV],.[eE][nN][vV].*,*.[kK][eE][yY],[iI][dD]_[rR][sS][aA]}",
+		"!{a,b}.{c,d}":  "!{a.c,a.d,b.c,b.d,.[eE][nN][vV],.[eE][nN][vV].*,*.[kK][eE][yY],[iI][dD]_[rR][sS][aA]}",
 	} {
 		got := grep(dir, map[string]any{"pattern": "secret", "glob": glob})
 		if want := map[string]any{"pattern": "secret", "glob": joined}; !maps.Equal(got, want) {
