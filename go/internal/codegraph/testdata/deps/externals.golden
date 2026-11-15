@@ -1,0 +1,9 @@
+1	@scope/ui	declared
+1	fmt	undeclared
+1	github.com/acme/kit	declared
+1	json	undeclared
+1	lodash	undeclared
+1	react	declared
+1	requests	declared
+1	serde_json	declared
+1	yaml	declared

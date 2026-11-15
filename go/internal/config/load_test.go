@@ -313,12 +313,12 @@ func TestUnknownKeysWarnWithTheirFile(t *testing.T) {
 	}
 }
 
-// With a Home, Load serves its cached result until a file changes: a
+// With a ClaudeDir, Load serves its cached result until a file changes: a
 // cached load matches a fresh one, warnings included, and an overlay
 // written, edited, or removed is seen on the next load.
 func TestLoadCacheFollowsTheFiles(t *testing.T) {
 	dir := t.TempDir()
-	p := Paths{Home: dir, Base: write(t, dir, "kit.yml", "protected_branches: [main]\n"), Overlay: filepath.Join(dir, "over.yml")}
+	p := Paths{ClaudeDir: dir, Base: write(t, dir, "kit.yml", "protected_branches: [main]\n"), Overlay: filepath.Join(dir, "over.yml")}
 	branches := func(wantWarnings int) string {
 		t.Helper()
 		cfg, warnings, err := Load(p)
@@ -452,7 +452,7 @@ func TestBrokenOverlayIsIgnoredWithAWarning(t *testing.T) {
 }
 
 func TestSessionFile(t *testing.T) {
-	p := Paths{Home: "/h"}
+	p := Paths{ClaudeDir: "/h"}
 	if got := p.SessionFile("skills-loaded", "s1", "bash-patterns"); got != "/h/cache/skills-loaded/s1-bash-patterns" {
 		t.Errorf("got %q", got)
 	}

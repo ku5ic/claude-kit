@@ -10,6 +10,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
+	"github.com/ku5ic/claude-kit/go/internal/layout"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
@@ -31,7 +32,7 @@ func RulesGate(h *hook.Hook) error {
 	if p.Err != nil {
 		return p.Err
 	}
-	tool := p.String("tool_name")
+	tool := p.String(hook.KeyToolName)
 	if gatePasses(tool) {
 		return nil
 	}
@@ -48,7 +49,7 @@ func RulesGate(h *hook.Hook) error {
 	if tool == "Read" && slices.ContainsFunc(required, func(skill string) bool { return strings.Contains(p.FilePath(), "/skills/"+skill+"/") }) {
 		return nil
 	}
-	agent := p.String("agent_id")
+	agent := p.String(hook.KeyAgentID)
 	marker := func(skill string) string {
 		parts := []string{skill}
 		if agent != "" {
@@ -89,7 +90,7 @@ func RulesGate(h *hook.Hook) error {
 				return nil
 			}
 		case withoutTools(start, "Skill", "Read"):
-			h.Log(kitlog.Guards, "rules-gate-unloadable", "agent_type", p.String("agent_type"), "tools", strings.Join(start.Tools, ","))
+			h.Log(kitlog.Guards, "rules-gate-unloadable", "agent_type", p.String(hook.KeyAgentType), "tools", strings.Join(start.Tools, ","))
 			return nil
 		}
 	}
@@ -105,11 +106,13 @@ func RulesGate(h *hook.Hook) error {
 	for i, skill := range missing {
 		files[i] = h.Paths.Root + "/skills/" + skill + "/SKILL.md"
 	}
-	noun := "skill"
+	noun := "skill isn't"
 	if len(missing) > 1 {
-		noun = "skills"
+		noun = "skills aren't"
 	}
-	h.Deny("load the "+strings.Join(missing, " and ")+" "+noun+" first: call the Skill tool now (or Read "+strings.Join(files, " and ")+" if the Skill tool is unavailable), then retry this call. Every tool call stays blocked until you do, so don't stop to ask", "rules-gate")
+	h.Deny("the "+strings.Join(missing, " and ")+" "+noun+" loaded yet\n"+
+		layout.KV("do", "call the Skill tool now, or Read "+strings.Join(files, " and ")+" if the Skill tool is unavailable")+"\n"+
+		layout.KV("then", "retry this call; every tool call stays blocked until you do, so don't stop to ask"), "rules-gate")
 	return nil
 }
 
@@ -148,7 +151,7 @@ func skillExists(h *hook.Hook, name string) bool {
 	if name == "" || strings.ContainsAny(name, `/\`) {
 		return false
 	}
-	dirs := []string{h.Paths.Root, filepath.Join(h.Home, ".claude")}
+	dirs := []string{h.Paths.Root, h.Paths.ClaudeDir}
 	if root, ok := project.Root(h.Payload.Cwd()); ok {
 		dirs = append(dirs, filepath.Join(root, ".claude"))
 	}
@@ -179,7 +182,7 @@ func withoutTools(start transcript.AgentStart, tools ...string) bool {
 // at <session>/subagents/agent-<agent_id>.jsonl
 // (code.claude.com/docs/en/sub-agents), or "" when it can't be named.
 func subagentTranscript(p *hook.Payload) string {
-	return agentTranscriptPath(p.String("transcript_path"), p.String("agent_id"))
+	return agentTranscriptPath(p.String(hook.KeyTranscriptPath), p.String(hook.KeyAgentID))
 }
 
 // agentTranscriptPath is the transcript of agent in the session whose

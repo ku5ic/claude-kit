@@ -2,11 +2,11 @@
 // project, and refuses one the project doesn't state: a package fetched to
 // run it, or a copy found only on PATH that nothing pins and no manifest's
 // toolchain or verified package manager provides. pre-commit's hooks never
-// come here: pre-commit manages their environments.
+// come here: pre-commit manages their environments. The kittool
+// subpackage is the one exception, for the tools the kit runs for itself.
 package resolve
 
 import (
-	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
@@ -38,6 +38,7 @@ const (
 type Resolver struct {
 	root     string
 	bins     func() []binDir // listed on first use: most resolvers never look
+	home     string
 	managers []string
 	userPins []string
 }
@@ -49,9 +50,8 @@ type binDir struct{ path, serves string }
 // New is a Resolver for root. managers are the binaries the project's
 // verified package managers run as (pnpm, poetry): a lockfile states them,
 // so their PATH copy runs. userPins are pin files that pin for every
-// project, after its own; a "~/" one is under $HOME.
-func New(root string, managers, userPins []string) *Resolver {
-	home, _ := os.UserHomeDir()
+// project, after its own; a "~/" one is under home, the user's $HOME.
+func New(root, home string, managers, userPins []string) *Resolver {
 	pins := make([]string, len(userPins))
 	for i, p := range userPins {
 		if rest, ok := strings.CutPrefix(p, "~/"); ok {
@@ -59,7 +59,7 @@ func New(root string, managers, userPins []string) *Resolver {
 		}
 		pins[i] = p
 	}
-	return &Resolver{root: root, bins: sync.OnceValue(func() []binDir { return ignoredBins(root) }), managers: managers, userPins: pins}
+	return &Resolver{root: root, bins: sync.OnceValue(func() []binDir { return ignoredBins(root) }), home: home, managers: managers, userPins: pins}
 }
 
 // ignoredBins are the directories gitignore hides that hold binaries: an
@@ -131,14 +131,14 @@ func (r *Resolver) Bin(dir, name string) Resolution {
 	}
 	tool := toolNames(name, path)
 	if pin := pinned(dir, r.root, tool); pin != "" {
-		if underManager(path) {
+		if underManager(path, r.home) {
 			return Resolution{Path: path, Source: Pinned}
 		}
 		return Resolution{Skip: name + " pinned in " + pin + ", but PATH has " + path}
 	}
 	// A user pin only allows: a formula needn't be the binary PATH finds
 	// (brew 'grep' installs ggrep).
-	if r.userPinned(tool) && underManager(path) {
+	if r.userPinned(tool) && underManager(path, r.home) {
 		return Resolution{Path: path, Source: Pinned}
 	}
 	if manifest := toolchainOf(dir, r.root, name); manifest != "" {

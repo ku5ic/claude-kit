@@ -44,3 +44,43 @@ func TestReadTargets(t *testing.T) {
 		})
 	}
 }
+
+func TestOnlyReads(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		cmd  string
+		want bool
+	}{
+		{"cat a.go | head -5", true},
+		{"rg -n foo 2>/dev/null && git -C /repo log -3", true},
+		{"git diff --stat 2>&1 | tail -3", true},
+		{"kit scratch-dir", true},
+		{"cat a > b", false},
+		{"sed -i '' s/x/y/ a.go", false},
+		{"git commit -m x", false},
+		{"FOO=1 cat a", false},
+		{"echo $(touch x)", false},
+		{"go test ./...", false},
+		{"rg --pre ./x.sh foo", false},
+		{"rg --hostname-bin=./x.sh foo", false},
+		{"./test x", false},
+		{"scripts/diff a b", false},
+		{"git annotate a.go", true},
+		{"git diff --output=x.patch", false},
+		{"git log -O order --oneline", false},
+		{"rg -o foo a.go", true},
+		{"cat a &> b.go", false},
+		{"cat a &>> b.go", false},
+		{"cat a >& b.go", false},
+		{"cat a >&2", true},
+		{"cat a 2>&-", true},
+	} {
+		t.Run(tc.cmd, func(t *testing.T) {
+			t.Parallel()
+			segs, _ := parseAll(tc.cmd)
+			if got := onlyReads(segs); got != tc.want {
+				t.Errorf("onlyReads(%q) = %v, want %v", tc.cmd, got, tc.want)
+			}
+		})
+	}
+}

@@ -14,8 +14,10 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/enforce"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
+	"github.com/ku5ic/claude-kit/go/internal/gapfill"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 	"github.com/ku5ic/claude-kit/go/internal/layout"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/run"
@@ -37,12 +39,12 @@ func StopChecks(h *hook.Hook) error {
 	}
 	// Already continuing because of this hook: one retry per failure, so a
 	// check that can't be fixed never loops.
-	if h.Payload.Bool("stop_hook_active") {
+	if h.Payload.Bool(hook.KeyStopHookActive) {
 		return nil
 	}
 	deadline := time.Now().Add(stopBudget)
 	cwd := h.Payload.Cwd()
-	path := h.Payload.String("transcript_path")
+	path := h.Payload.String(hook.KeyTranscriptPath)
 	if !fsx.IsFile(path) {
 		return nil
 	}
@@ -51,30 +53,16 @@ func StopChecks(h *hook.Hook) error {
 	if root == "" || cfg == nil {
 		return nil
 	}
-	// A read error leaves what was read: the hook fails open.
-	entries, _ := transcript.Load(path)
+	turn, walk := readSession(h, path, root, project.PlanDir(h.Paths, cwd), codeIn(h, root))
 	// Before the clean-tree return: plans are gitignored, so ticking the
-	// last step leaves the tree clean.
-	if err := planGate(h, cwd, root, entries); err != nil {
-		return err
+	// last step leaves the tree clean. A finished plan waits for
+	// /code-review since the last code edit (skills/kit-rules/reference/verify.md).
+	if plan, reviewed := walk.done(); plan != "" && !reviewed {
+		return h.Block(fmt.Sprintf("plan %s is done, but /code-review hasn't finished since the last code edit\n", fsx.Rel(root, plan))+
+			layout.KV("do", "run it now, or wait for the one running")+"\n"+
+			layout.KV("then", "the runtime pass (/verify) when the change has observable behavior"), "plan-done")
 	}
-	turn := transcript.LastTurn(entries)
-	edited := transcript.Edits(turn)
-	for i, path := range edited {
-		edited[i] = fsx.Abs(cwd, path)
-	}
-	// The turn-start snapshot also catches a Bash or subagent edit, and a
-	// file committed mid-turn. A turn whose every write is named leaves the
-	// rest to another session or the user, so the snapshot adds nothing.
-	// Without one, a clean tree means the edits were committed.
-	changed, tree, ok := turnChanges(h, root)
-	if ok {
-		if !transcript.NamesEveryWrite(turn) {
-			edited = append(edited, changed...) // enforce.Stop drops repeats
-		}
-	} else if changes, err := git.Status(cwd, false); err != nil || len(changes) == 0 {
-		return nil
-	}
+	edited, tree := turnFiles(h, turn, cwd, root)
 	if len(edited) == 0 {
 		return nil
 	}
@@ -88,7 +76,12 @@ func StopChecks(h *hook.Hook) error {
 		}
 		return nil
 	}
-	p := enforce.Stop(cfg, enforce.Options{Root: root, CacheDir: h.Paths.CacheDir()}, edited)
+	// A check changed mid-session gets its verdict now, waiting on a
+	// background classify that's already asking, instead of skipping.
+	p := enforce.Stop(cfg, enforce.Options{Root: root, CacheDir: h.Paths.CacheDir(), Home: h.Home, Ask: true, Timeout: gapfill.ClassifyTimeout}, edited)
+	if p.Classifier.Runs > 0 {
+		h.Log(kitlog.Guards, "gapfill", p.Classifier.Pairs()...)
+	}
 	unchecked := uncheckedLines(h)
 	if len(p.Gates) == 0 {
 		if len(unchecked) > 0 {
@@ -96,21 +89,38 @@ func StopChecks(h *hook.Hook) error {
 		}
 		return nil
 	}
-	pass := passKey(tree, p.Gates)
-	passFile := cache.StopPassTree(h.Paths.CacheDir(), root)
+	return runStop(h, cfg, p, stopRun{root: root, cwd: cwd, tree: tree, unchecked: unchecked, deadline: deadline})
+}
+
+// stopRun is where and on what runStop runs the planned gates.
+type stopRun struct {
+	root, cwd, tree string
+	unchecked       []string
+	deadline        time.Time
+}
+
+// runStop runs p's gates, unless they all passed on this tree before,
+// shows the user every verdict, and blocks on a failure.
+func runStop(h *hook.Hook, cfg *config.Config, p enforce.Plan, r stopRun) error {
+	pass := passKey(r.tree, p.Gates)
+	passFile := cache.StopPassTree(h.Paths.CacheDir(), r.root)
 	if prev, err := os.ReadFile(passFile); err == nil && pass != "" && string(prev) == pass {
-		if !cfg.ReceiptOnFailures() || len(unchecked) > 0 {
-			h.Notify(strings.Join(append([]string{"kit stop: skipped, these checks already passed on this tree"}, unchecked...), "\n"))
+		if !cfg.ReceiptOnFailures() || len(r.unchecked) > 0 {
+			h.Notify(strings.Join(append([]string{"kit stop: skipped, these checks already passed on this tree"}, r.unchecked...), "\n"))
 		}
 		return nil
 	}
-	out := run.Files(p, h.Paths.CacheDir(), time.Duration(cfg.GateTimeout)*time.Second, deadline)
+	out := run.Files(p, h.Paths.CacheDir(), time.Duration(cfg.GateTimeout)*time.Second, r.deadline)
 	if !h.DryRun {
-		_ = fsx.WriteAtomic(cache.StopReport(h.Paths.CacheDir(), root), []byte(out.Report()), 0o600)
+		_ = fsx.WriteAtomic(cache.StopReport(h.Paths.CacheDir(), r.root), []byte(out.Report()), 0o600)
 	}
-	// Every verdict goes to the user, a block's too; what to fix goes to
-	// Claude in the block's reason.
-	notifyReceipt(h, cfg, out.Receipt, unchecked)
+	// The user gets the counts, the passes, and a line naming each failure
+	// with its detail file; what to fix goes to Claude in the block's reason.
+	file := ""
+	if out.Failed() {
+		file = stopDetail(h, r.cwd, out.Detail)
+	}
+	notifyReceipt(h, cfg, out.Receipt, r.unchecked, file)
 	if !out.Failed() {
 		// A skipped gate checked nothing, so only a clean pass is reused.
 		if out.Result.Skip == 0 && pass != "" && !h.DryRun {
@@ -118,21 +128,36 @@ func StopChecks(h *hook.Hook) error {
 		}
 		return nil
 	}
-	msg := fmt.Sprintf("%d of %d checks failed; fix them, or report them and stop\n%s", out.Result.Fail, len(p.Gates), out.Failures)
-	if file := stopDetail(h, cwd, out.Detail); file != "" {
-		msg += layout.KV("more", file)
+	msg := fmt.Sprintf("%d of %d checks failed\n%s", out.Result.Fail, len(p.Gates), out.Failures)
+	if file != "" {
+		msg += layout.KV("more", file) + "\n"
 	}
-	return h.Block(strings.TrimRight(msg, "\n"), "checks-failed")
+	msg += layout.KV("do", "fix them, or reply in one line with the cause")
+	return h.Block(msg, "checks-failed")
 }
 
 // notifyReceipt shows the user rc, then unchecked and the overrides in
 // force. kit.yml's receipt: failures hides a clean pass with nothing
-// unchecked; the gates ran either way.
-func notifyReceipt(h *hook.Hook, cfg *config.Config, rc run.Receipt, unchecked []string) {
+// unchecked; the gates ran either way. A failure means the caller blocks,
+// and the block names each failure and skip with its detail, so the
+// receipt keeps the counts and passes, plus one line naming the failures
+// and detail, the file holding their output.
+func notifyReceipt(h *hook.Hook, cfg *config.Config, rc run.Receipt, unchecked []string, detail string) {
 	if cfg.ReceiptOnFailures() && rc.Clean() && len(unchecked) == 0 {
 		return
 	}
-	h.Notify(rc.String(append(unchecked, overrides(cfg)...)...))
+	var extra []string
+	if !rc.Passed() {
+		if failed := rc.Failures(); len(failed) > 0 {
+			line := strings.Join(failed, ", ")
+			if detail != "" {
+				line += "  -> " + detail
+			}
+			extra = append(extra, layout.KV("FAIL", line))
+		}
+		rc = rc.PassesOnly()
+	}
+	h.Notify(rc.String(append(append(extra, unchecked...), overrides(cfg)...)...))
 }
 
 // uncheckedLines names each text this turn's claim verifier failed on,
@@ -213,16 +238,86 @@ func passKey(tree string, gates []enforce.Gate) string {
 // diffs after the gates (git calls of up to git.Timeout each) and the report.
 const stopBudget = 240 * time.Second
 
-// planGate blocks the stop when this turn ticked a plan's last step without
-// a review since the last code edit.
-func planGate(h *hook.Hook, cwd, root string, entries []transcript.Entry) error {
-	dir := project.PlanDir(h.Paths, cwd)
-	isCode := func(path string) bool {
+// stopReadVersion is stopRead's shape. Bump it when stopRead or planWalk
+// gains or changes a field: a saved read of another version is dropped and
+// the transcript read whole, so no field needs a zero value that suits an
+// old walk.
+const stopReadVersion = 2
+
+// stopRead is where the last Stop run left the session's transcript: the
+// offset and line past what it read, where the current turn starts, and
+// the plan walk so far.
+type stopRead struct {
+	Version    int       `json:"version"`
+	Path       string    `json:"path"`
+	Offset     int64     `json:"offset"`
+	Line       int       `json:"line"`
+	TurnOffset int64     `json:"turn_offset"`
+	TurnLine   int       `json:"turn_line"`
+	Walk       *planWalk `json:"walk"`
+}
+
+// turnFiles is every file the turn changed, absolute, and the turn-end
+// tree when the turn-start snapshot gave one; none when nothing changed.
+// The snapshot also catches a Bash or subagent edit, and a file committed
+// mid-turn. A turn whose every write is named leaves the rest to another
+// session or the user, so the snapshot adds nothing. Without one, a clean
+// tree means the edits were committed.
+func turnFiles(h *hook.Hook, turn []transcript.Entry, cwd, root string) (edited []string, tree string) {
+	edited = transcript.Edits(turn)
+	for i, path := range edited {
+		edited[i] = fsx.Abs(cwd, path)
+	}
+	changed, tree, ok := turnChanges(h, root)
+	if ok {
+		if !transcript.NamesEveryWrite(turn) {
+			edited = append(edited, changed...) // enforce.Stop drops repeats
+		}
+	} else if changes, err := git.Status(cwd, false); err != nil || len(changes) == 0 {
+		return nil, ""
+	}
+	return edited, tree
+}
+
+// codeIn is whether a path is code under root: inside it, outside scratch.
+func codeIn(h *hook.Hook, root string) func(string) bool {
+	return func(path string) bool {
 		return fsx.Within(root, fsx.PhysicalPath(path)) && !project.IsScratch(h.Paths, path)
 	}
-	// A finished plan waits for /code-review since the last code edit (skills/kit-rules/reference/verify.md).
-	if plan, reviewed := planDone(entries, dir, isCode); plan != "" && !reviewed {
-		return h.Block(fmt.Sprintf("plan %s is done, but /code-review hasn't finished since the last code edit. Run it now, or wait for the one running, then the runtime pass (/verify) when the change has observable behavior.", fsx.Rel(root, plan)), "plan-done")
+}
+
+// readSession is the transcript's current turn and its plan walk, reading
+// only what the last Stop run hadn't: the turn from its start, the walk
+// from where it stopped. A different, shorter, or unrecorded transcript is
+// read whole. A read error returns what was read and saves nothing: the
+// hook fails open.
+func readSession(h *hook.Hook, path, root, plansDir string, isCode func(string) bool) ([]transcript.Entry, *planWalk) {
+	file := h.Paths.SessionFile(cache.StopRead, h.Payload.SessionID(), cache.RootKey(root))
+	var st stopRead
+	info, statErr := os.Stat(path)
+	if data, err := os.ReadFile(file); err != nil || statErr != nil || json.Unmarshal(data, &st) != nil || st.Version != stopReadVersion || st.Path != path || st.Walk == nil || info.Size() < st.Offset {
+		st = stopRead{Version: stopReadVersion, Path: path, Walk: newPlanWalk()}
 	}
-	return nil
+	st.Walk.bashed = bashEdits(h)
+	var turn []transcript.Entry
+	seen := st.Offset
+	var err error
+	st.Offset, st.Line, err = transcript.EachFrom(path, st.TurnOffset, st.TurnLine, func(e transcript.Entry, end int64) {
+		if end > seen {
+			st.Walk.step(h, e, plansDir, isCode)
+		}
+		if e.StartsTurn() {
+			turn, st.TurnOffset, st.TurnLine = nil, end, e.Line
+			return
+		}
+		turn = append(turn, e)
+	})
+	// A failed read keeps the saved state: its offset fell back to the
+	// turn's start, and the walk didn't see what lies past it.
+	if file != "" && !h.DryRun && err == nil {
+		if data, err := json.Marshal(st); err == nil {
+			_ = fsx.WriteAtomic(file, data, 0o600)
+		}
+	}
+	return turn, st.Walk
 }

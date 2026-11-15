@@ -1,9 +1,13 @@
 package hooks
 
 import (
+	"encoding/json"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
 
@@ -41,6 +45,37 @@ func TestBashEdits(t *testing.T) {
 		testutil.Write(t, filepath.Join(dir, "notes.md"), "Notes, longer.\n"+tell)
 		ran(k, dir, "echo").Want(t, 2)
 		ran(k, dir, "ls").Want(t, 0)
+	})
+	t.Run("a command that changed code is recorded for the claims gate", func(t *testing.T) {
+		t.Parallel()
+		k, dir := setup(t)
+		record := k.paths.SessionFile(cache.Claims, "s1", bashEditsRecord)
+		run := func(id string) {
+			k.run("bash-edits", map[string]any{"hook_event_name": "PostToolUse", "session_id": "s1", "cwd": dir, "tool_use_id": id,
+				"tool_name": "Bash", "tool_input": map[string]any{"command": "edit"}}).Want(t, 0)
+		}
+		run("t0")
+		testutil.Write(t, filepath.Join(dir, "notes.md"), "Notes, longer.\n")
+		run("t1")
+		testutil.Write(t, filepath.Join(dir, ".claude", "scratch", "x.log"), "x\n")
+		run("t2")
+		var got bashEdit
+		if line := testutil.Read(t, record); json.Unmarshal([]byte(line), &got) != nil || strings.Count(line, "\n") != 1 ||
+			got.ID != "t1" || len(got.Files) != 1 || filepath.Base(got.Files[0]) != "notes.md" {
+			t.Errorf("record = %q, want only the call that changed notes.md, with it", line)
+		}
+	})
+	t.Run("a command the guard marked read-only is skipped, once", func(t *testing.T) {
+		t.Parallel()
+		k, dir := setup(t)
+		testutil.Write(t, filepath.Join(dir, "notes.md"), "Notes.\n"+tell)
+		marker := cache.ReadOnlyBash(k.paths.CacheDir(), "s1", "cat notes.md")
+		testutil.Write(t, marker, "")
+		ran(k, dir, "cat notes.md").Want(t, 0)
+		if _, err := os.Stat(marker); err == nil {
+			t.Error("the marker was left for the next call")
+		}
+		ran(k, dir, "cat notes.md").Want(t, 2)
 	})
 	t.Run("only lines the command added count", func(t *testing.T) {
 		t.Parallel()

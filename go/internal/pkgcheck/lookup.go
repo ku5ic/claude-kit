@@ -18,6 +18,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/proc"
+	"github.com/ku5ic/claude-kit/go/internal/resolve/kittool"
 )
 
 // Lookups checks package names against their registries until deadline.
@@ -66,8 +67,9 @@ func (l *Lookups) globs(cmd []string) []string {
 		return globs
 	}
 	var globs []string
-	if left := time.Until(l.deadline); left > 0 {
-		c := proc.Command(left, cmd[0], cmd[1:]...)
+	bin, err := kittool.Path(cmd[0])
+	if left := time.Until(l.deadline); left > 0 && err == nil {
+		c := proc.Command(left, bin, cmd[1:]...)
 		c.Dir = os.TempDir()
 		out, _ := c.Output()
 		globs = strings.FieldsFunc(string(out), func(r rune) bool { return r == ',' || r == '\n' })
@@ -152,7 +154,11 @@ func (l *Lookups) absent(argv []string, name string, missing *regexp.Regexp) boo
 	for i, a := range argv {
 		args[i] = strings.ReplaceAll(a, "{pkg}", name)
 	}
-	cmd := proc.Command(left, args[0], args[1:]...)
+	bin, err := kittool.Path(args[0])
+	if err != nil {
+		return false
+	}
+	cmd := proc.Command(left, bin, args[1:]...)
 	cmd.Dir = os.TempDir() // outside the project: its config runs nothing before the add is approved
 	out, err := cmd.CombinedOutput()
 	return err != nil && !cmd.TimedOut() && missing.Match(out)

@@ -10,6 +10,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -30,6 +31,8 @@ const (
 	Size         = "size"
 	Stack        = "stack"
 	StopReports  = "stop-reports"
+	StopRead     = "stop-read"
+	ReviewReport = "review-report"
 	TurnTree     = "turn-tree"
 	Guard        = "guard"
 	Enforce      = "enforce"
@@ -60,6 +63,8 @@ var Dirs = []Dir{
 	{Size, "size-check marker(s)", 1},
 	{Stack, "stack report(s)", 30},
 	{StopReports, "stop-checks and per-edit report(s)", 1},
+	{StopRead, "Stop transcript read position(s)", 1},
+	{ReviewReport, "review-report block marker(s)", 1},
 	{TurnTree, "turn-start work tree snapshot(s)", 1},
 	{Guard, "verifier and classifier run marker(s)", 1},
 	{Enforce, "gap-fill verdict and gate mark file(s)", 30},
@@ -70,6 +75,24 @@ var Dirs = []Dir{
 func RootKey(root string) string {
 	sum := sha256.Sum256([]byte(root))
 	return hex.EncodeToString(sum[:])[:8]
+}
+
+// SessionPath is <cacheDir>/<kind>/<session>[-<part>...]: one session's
+// file. "" for an empty session ID or one holding a path separator, which
+// would land outside kind's dir.
+func SessionPath(cacheDir, kind, session string, parts ...string) string {
+	if session == "" || strings.ContainsAny(session, `/\`) {
+		return ""
+	}
+	return filepath.Join(cacheDir, kind, strings.Join(append([]string{session}, parts...), "-"))
+}
+
+// ReadOnlyBash is the marker the bash guard leaves for a session's command
+// that only reads, so bash-edits can skip its work-tree snapshots: the
+// command hashed, since both hooks see it and nothing else in common.
+func ReadOnlyBash(cacheDir, session, command string) string {
+	sum := sha256.Sum256([]byte(command))
+	return SessionPath(cacheDir, Guard, session, "reads", hex.EncodeToString(sum[:])[:16])
 }
 
 // StopReport is where stop-checks keeps its last report for the repo at

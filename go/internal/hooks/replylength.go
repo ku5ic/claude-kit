@@ -70,10 +70,10 @@ func ReplyLength(h *hook.Hook) error {
 	if marker == "" {
 		return nil
 	}
-	switch p.String("hook_event_name") {
+	switch p.String(hook.KeyHookEventName) {
 	case "UserPromptSubmit":
 		last := readTurn(marker, turn{})
-		t := turnLimit(l, p.String("prompt"))
+		t := turnLimit(l, p.String(hook.KeyPrompt))
 		writeTurn(marker, t)
 		var lines []string
 		if last.OverWords > 0 {
@@ -98,7 +98,7 @@ func ReplyLength(h *hook.Hook) error {
 		}
 	case "Stop":
 		t := readTurn(marker, turn{Limit: l.Chat})
-		active := p.Bool("stop_hook_active")
+		active := p.Bool(hook.KeyStopHookActive)
 		switch {
 		case !t.Judged && active:
 			// A continuation before this turn's first Stop belongs to the
@@ -111,7 +111,7 @@ func ReplyLength(h *hook.Hook) error {
 		// Every reply was shown, so any one over counts; the next prompt
 		// reports and clears it.
 		t.Judged = true
-		if n := countWords(p.String("last_assistant_message"), t.All); t.Limit > 0 && n > t.Limit {
+		if n := countWords(p.String(hook.KeyLastAssistantMessage), t.All); t.Limit > 0 && n > t.Limit {
 			t.OverWords, t.OverLimit = n, t.Limit
 		}
 		writeTurn(marker, t)

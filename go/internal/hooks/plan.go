@@ -14,6 +14,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/layout"
 	"github.com/ku5ic/claude-kit/go/internal/md"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
@@ -62,7 +63,7 @@ func PlanModeContext(h *hook.Hook) error {
 	if p.Err != nil {
 		return nil
 	}
-	if p.String("permission_mode") == "plan" {
+	if p.String(hook.KeyPermissionMode) == "plan" {
 		h.Print("Plan mode: load the investigate skill and follow it; its findings feed the plan.\n")
 		return nil
 	}
@@ -71,8 +72,8 @@ func PlanModeContext(h *hook.Hook) error {
 		return nil
 	}
 
-	if p.String("hook_event_name") == "PostToolUse" {
-		if p.String("tool_name") != "ExitPlanMode" {
+	if p.String(hook.KeyHookEventName) == "PostToolUse" {
+		if p.String(hook.KeyToolName) != "ExitPlanMode" {
 			return nil
 		}
 		pause := approvedPause[pauseOf(h)] + ", per kit.yml step_pause and skills/kit-rules/reference/workflow.md section 3."
@@ -150,54 +151,50 @@ const planCritic = "kit:plan-critic"
 // through. PreToolUse for ExitPlanMode.
 func GuardPlan(h *hook.Hook) error {
 	p := h.Payload
-	plan := p.String("tool_input.planFilePath")
+	plan := p.String(hook.KeyInputPlanFilePath)
 	// Under an earlier step's deny, the ask would be dropped but its marker
 	// kept, and the resent plan would pass with no critique.
 	if decision, _ := h.Decision(); decision == "deny" {
 		return nil
 	}
-	if p.Err != nil || p.String("tool_name") != "ExitPlanMode" || plan == "" || h.RuleDisabled("plan-critic") || planCritiqued(p) {
+	if p.Err != nil || p.String(hook.KeyToolName) != "ExitPlanMode" || plan == "" || h.RuleDisabled("plan-critic") || planCritiqued(p) {
 		return nil
 	}
 	marker := h.Paths.SessionFile(cache.PlanCritic, p.SessionID(), filepath.Base(plan))
 	if marker == "" {
 		return nil
 	}
-	sum := sha256.Sum256([]byte(p.String("tool_input.plan")))
+	sum := sha256.Sum256([]byte(p.String(hook.KeyInputPlan)))
 	sent := hex.EncodeToString(sum[:])
 	if prev, err := os.ReadFile(marker); err == nil && string(prev) == sent {
 		return nil
 	}
-	if !h.DryRun {
-		_ = fsx.WriteAtomic(marker, []byte(sent), 0o644)
+	if !markOnce(h, marker, []byte(sent), "plan-critic") {
+		return nil
 	}
-	h.Deny(fmt.Sprintf("run the %s agent on %s before asking for approval. Raise each contradiction it finds, between the plan's sections or against the repo, as a question for the user. This check lets the same plan through when ExitPlanMode is called again.", planCritic, plan), "plan-critic")
+	h.Deny(fmt.Sprintf("the %s agent hasn't reviewed %s\n", planCritic, plan)+
+		layout.KV("do", "run it before asking for approval")+"\n"+
+		layout.KV("then", "raise each contradiction it finds, between the plan's sections or against the repo, as a question for the user; the same plan passes when ExitPlanMode is called again"), "plan-critic")
 	return nil
 }
 
 // planCritiqued reports whether the ExitPlanMode in p follows a plan-critic
 // run on its plan; an unreadable transcript counts as one, so it fails open.
 func planCritiqued(p *hook.Payload) bool {
-	entries, err := transcript.Load(p.String("transcript_path"))
-	return err != nil || critiqued(entries, p.String("tool_input.planFilePath"))
+	entries, err := transcript.Load(p.String(hook.KeyTranscriptPath))
+	return err != nil || critiqued(entries, p.String(hook.KeyInputPlanFilePath))
 }
 
 // critiqued reports whether a plan-critic call follows the first write to
 // plan. Revising the plan from its critique is the expected next step, so
-// later writes don't undo it.
+// later writes don't undo it. A run that ended in an error, in its result
+// or its background notice, didn't critique it; one still running counts.
 func critiqued(entries []transcript.Entry, plan string) bool {
-	written := false
-	for _, e := range entries {
-		if e.Type != "assistant" {
-			continue
-		}
-		for _, b := range e.ToolUses() {
-			switch {
-			case slices.Contains(transcript.EditTools, b.Name) && b.Path() == plan:
-				written = true
-			case b.Name == "Agent" && b.Input.SubagentType == planCritic && written:
-				return true
-			}
+	for first, b := range transcript.Blocks(entries) {
+		if b.Type == "tool_use" && slices.Contains(transcript.EditTools, b.Name) && b.Path() == plan {
+			return slices.ContainsFunc(transcript.AgentRuns(entries, planCritic), func(run transcript.Run) bool {
+				return run.At.After(first) && run.Status != transcript.RunFailed
+			})
 		}
 	}
 	return false

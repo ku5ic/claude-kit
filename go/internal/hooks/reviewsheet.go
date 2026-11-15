@@ -90,7 +90,11 @@ func lookReasons(cfg *config.Config, root, from, to, plan string, c fileChange) 
 	}
 	w := weaken.Check(cfg.WeakenedChecks, c.path, before, after)
 	if w.Lost > 0 {
-		why = append(why, fmt.Sprintf("%d assertions removed", w.Lost))
+		noun := "assertions"
+		if w.Lost == 1 {
+			noun = "assertion"
+		}
+		why = append(why, fmt.Sprintf("%d %s removed", w.Lost, noun))
 	}
 	for _, hit := range w.Hits {
 		if hit.Reason == "" {
@@ -104,49 +108,84 @@ func lookReasons(cfg *config.Config, root, from, to, plan string, c fileChange) 
 	return why
 }
 
-// sheet is the review sheet for the change from tree from to tree to:
-// a headline, then each file with a reason to look first, then the rest.
-// nil when nothing changed. Lines past sheetLimit go to the file more
-// names, and the last line says so.
+// sheetGroup is a review sheet's files that share a reason to look, or
+// the rest, under one heading.
+type sheetGroup struct {
+	reasons int
+	head    string
+	files   []string
+}
+
+// lookGroups groups changes by their reasons to look, files with more
+// reasons first, then the rest with their line counts.
+func lookGroups(cfg *config.Config, root, from, to, plan string, changes []fileChange) []*sheetGroup {
+	width := 0
+	for _, c := range changes {
+		width = max(width, len(c.path))
+	}
+	var groups []*sheetGroup
+	byHead := map[string]*sheetGroup{}
+	rest := &sheetGroup{head: "other files"}
+	for _, c := range changes {
+		why := lookReasons(cfg, root, from, to, plan, c)
+		if len(why) == 0 {
+			rest.files = append(rest.files, fmt.Sprintf("%-*s  +%d -%d", width, c.path, c.add, c.del))
+			continue
+		}
+		head := strings.Join(why, "; ")
+		if byHead[head] == nil {
+			byHead[head] = &sheetGroup{reasons: len(why), head: head}
+			groups = append(groups, byHead[head])
+		}
+		byHead[head].files = append(byHead[head].files, c.path)
+	}
+	slices.SortStableFunc(groups, func(a, b *sheetGroup) int { return b.reasons - a.reasons })
+	if len(rest.files) > 0 {
+		groups = append(groups, rest)
+	}
+	return groups
+}
+
+// sheet is the review sheet for the change from tree from to tree to: a
+// headline, then lookGroups, each heading counted. nil when nothing
+// changed. File lines past sheetLimit go to the file more names, and the
+// last line says so.
 func sheet(cfg *config.Config, root, from, to, plan, title, more string) []string {
 	changes, err := treeChanges(root, from, to)
 	if err != nil || len(changes) == 0 {
 		return nil
 	}
-	type row struct{ key, path, note string }
-	var looks, files []row
 	add, del := 0, 0
 	for _, c := range changes {
 		add, del = add+c.add, del+c.del
-		if why := lookReasons(cfg, root, from, to, plan, c); len(why) > 0 {
-			looks = append(looks, row{"look", c.path, strings.Join(why, "; ")})
-			continue
+	}
+	groups := lookGroups(cfg, root, from, to, plan, changes)
+	// render lays out the groups, showing at most limit files; the rest
+	// come back as spill lines.
+	render := func(limit int) (lines, spill []string) {
+		lines, shown := []string{fmt.Sprintf("kit review: %s, %d files, +%d -%d", title, len(changes), add, del), ""}, 0
+		for _, g := range groups {
+			// A group with no file left to show is only in the spill.
+			if shown < limit {
+				lines = append(lines, fmt.Sprintf("  %s (%d)", g.head, len(g.files)))
+			}
+			for _, f := range g.files {
+				if shown < limit {
+					lines, shown = append(lines, "    "+f), shown+1
+					continue
+				}
+				spill = append(spill, g.head+"  "+f)
+			}
 		}
-		files = append(files, row{"file", c.path, fmt.Sprintf("+%d -%d", c.add, c.del)})
+		return lines, spill
 	}
-	rows := append(looks, files...)
-	width := 0
-	for _, r := range rows {
-		width = max(width, len(r.path))
-	}
-	format := func(r row) string { return layout.KV(r.key, fmt.Sprintf("%-*s  %s", width, r.path, r.note)) }
-	lines := []string{fmt.Sprintf("kit review: %s, %d files, +%d -%d", title, len(changes), add, del)}
-	shown := rows
-	if len(rows) > sheetLimit && more != "" {
-		var rest strings.Builder
-		for _, r := range rows[sheetLimit-1:] {
-			rest.WriteString(format(r) + "\n")
-		}
-		if fsx.WriteAtomic(more, []byte(rest.String()), 0o600) == nil {
-			shown = rows[:sheetLimit-1]
+	if len(changes) > sheetLimit && more != "" {
+		lines, spill := render(sheetLimit - 1)
+		if fsx.WriteAtomic(more, []byte(strings.Join(spill, "\n")+"\n"), 0o600) == nil {
+			return append(lines, "  "+layout.KV("more", fmt.Sprintf("%d files in %s", len(spill), more)))
 		}
 	}
-	for _, r := range shown {
-		lines = append(lines, format(r))
-	}
-	if len(shown) < len(rows) {
-		lines = append(lines, layout.KV("more", fmt.Sprintf("%d files in %s", len(rows)-len(shown), more)))
-	}
+	lines, _ := render(len(changes))
 	return lines
 }
 

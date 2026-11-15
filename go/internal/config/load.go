@@ -12,20 +12,22 @@ import (
 	"strings"
 
 	"go.yaml.in/yaml/v3"
+
+	"github.com/ku5ic/claude-kit/go/internal/cache"
 )
 
 // Paths are the kit's fixed locations, resolved by ResolvePaths.
 type Paths struct {
-	Root    string // kit root: $CLAUDE_PLUGIN_ROOT, else the parent of the binary's bin/
-	Home    string // Claude Code's config dir: $CLAUDE_CONFIG_DIR, else ~/.claude
-	Base    string // Root/kit.yml
-	Overlay string // Home/claude-kit.local.yml
+	Root      string // kit root: $CLAUDE_PLUGIN_ROOT, else the parent of the binary's bin/
+	ClaudeDir string // Claude Code's config dir: $CLAUDE_CONFIG_DIR, else ~/.claude
+	Base      string // Root/kit.yml
+	Overlay   string // ClaudeDir/claude-kit.local.yml
 }
 
-func (p Paths) LogDir() string      { return filepath.Join(p.Home, "logs") }
-func (p Paths) CacheDir() string    { return filepath.Join(p.Home, "cache") }
-func (p Paths) ScratchHome() string { return filepath.Join(p.Home, "scratch") }
-func (p Paths) PlansHome() string   { return filepath.Join(p.Home, "plans") }
+func (p Paths) LogDir() string      { return filepath.Join(p.ClaudeDir, "logs") }
+func (p Paths) CacheDir() string    { return filepath.Join(p.ClaudeDir, "cache") }
+func (p Paths) ScratchHome() string { return filepath.Join(p.ClaudeDir, "scratch") }
+func (p Paths) PlansHome() string   { return filepath.Join(p.ClaudeDir, "plans") }
 
 // LogFile is the JSONL log called name.
 func (p Paths) LogFile(name string) string { return filepath.Join(p.LogDir(), name+".jsonl") }
@@ -33,14 +35,9 @@ func (p Paths) LogFile(name string) string { return filepath.Join(p.LogDir(), na
 // ScratchRegistry lists every project scratch dir, for scratch-rotate.
 func (p Paths) ScratchRegistry() string { return filepath.Join(p.LogDir(), "scratch-registry.txt") }
 
-// SessionFile is <cache>/<kind>/<session>[-<part>...]: one session's marker.
-// "" for an empty session ID or one holding a path separator, which would
-// land outside kind's dir.
+// SessionFile is cache.SessionPath under p's cache dir.
 func (p Paths) SessionFile(kind, session string, parts ...string) string {
-	if session == "" || strings.ContainsAny(session, `/\`) {
-		return ""
-	}
-	return filepath.Join(p.CacheDir(), kind, strings.Join(append([]string{session}, parts...), "-"))
+	return cache.SessionPath(p.CacheDir(), kind, session, parts...)
 }
 
 // ResolvePaths reads the environment. exe is the running binary's path,
@@ -65,19 +62,19 @@ func ResolveCheckout(exe string) (Paths, error) {
 }
 
 func pathsAt(root string) (Paths, error) {
-	home := os.Getenv("CLAUDE_CONFIG_DIR")
-	if home == "" {
+	claudeDir := os.Getenv("CLAUDE_CONFIG_DIR")
+	if claudeDir == "" {
 		userHome, err := os.UserHomeDir()
 		if err != nil {
 			return Paths{}, fmt.Errorf("resolve home: %w", err)
 		}
-		home = filepath.Join(userHome, ".claude")
+		claudeDir = filepath.Join(userHome, ".claude")
 	}
 	return Paths{
-		Root:    root,
-		Home:    home,
-		Base:    filepath.Join(root, "kit.yml"),
-		Overlay: filepath.Join(home, "claude-kit.local.yml"),
+		Root:      root,
+		ClaudeDir: claudeDir,
+		Base:      filepath.Join(root, "kit.yml"),
+		Overlay:   filepath.Join(claudeDir, "claude-kit.local.yml"),
 	}, nil
 }
 
@@ -163,7 +160,7 @@ func load(p Paths) (*Config, []Warning, error) {
 	}
 	patterns, bad := cfg.compileInstalls(p)
 	cfg.installs = &installPatterns{patterns, bad}
-	for _, err := range slices.Concat(cfg.unknownDisables(), cfg.ReplyLimits.negatives(), cfg.Slop.problems(), cfg.Claims.problems(), cfg.SizeBudgets.problems(), cfg.WeakenedChecks.problems(), cfg.PackageLookups.problems(), cfg.dropEmptyEditCmds(), cfg.stepPauseProblems()) {
+	for _, err := range slices.Concat(cfg.unknownDisables(), cfg.ReplyLimits.negatives(), cfg.Slop.problems(), cfg.Attribution.problems(), cfg.Claims.problems(), cfg.SizeBudgets.problems(), cfg.WeakenedChecks.problems(), cfg.PackageLookups.problems(), cfg.dropEmptyEditCmds(), cfg.stepPauseProblems()) {
 		warnings = append(warnings, Warning{from, err})
 	}
 	warnings = append(warnings, bad...)

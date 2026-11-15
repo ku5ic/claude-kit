@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/gapfill"
@@ -26,19 +27,30 @@ type dirs struct {
 	home, cwd, prev string
 }
 
+// tracks is true when cd with args moves d to a directory d can name: not
+// with an option, nor cd - before any cd.
+func (d *dirs) tracks(args []Word) bool {
+	switch {
+	case len(args) == 0:
+		return true
+	case args[0].Value == "-":
+		return d.prev != ""
+	default:
+		return !strings.HasPrefix(args[0].Value, "-")
+	}
+}
+
 // cd moves d as cd with args would.
 func (d *dirs) cd(args []Word) {
+	if !d.tracks(args) {
+		return
+	}
 	prev := d.cwd
 	switch {
 	case len(args) == 0:
 		d.cwd = d.home
 	case args[0].Value == "-":
-		if d.prev == "" {
-			return
-		}
 		d.cwd = d.prev
-	case strings.HasPrefix(args[0].Value, "-"):
-		return
 	default:
 		d.cwd = resolveDir(d.home, d.cwd, args[0].Value)
 	}
@@ -85,11 +97,18 @@ func walk(segs []Segment, home, cwd string) iter.Seq[walked] {
 // repo.
 type state struct {
 	dirs
+	// session is the hook payload's cwd, which a cd in the command doesn't move.
+	session string
 	h       *hook.Hook
 	cfg     *config.Config
 	pending string
 	// managers is each repo root's verified manager facts, read once per command.
 	managers map[string][]gapfill.Manager
+	// vars is what the command's own bare assignments set (R=rm; $R -rf ~),
+	// as of the segment being checked.
+	vars map[string]string
+	// loopVars is every value each loop's assignments set, by loop id.
+	loopVars map[int]map[string][]string
 }
 
 func (st *state) ask(reason string) {
@@ -103,7 +122,7 @@ func Check(h *hook.Hook) error {
 	if h.Payload.Err != nil {
 		return h.Payload.Err
 	}
-	cmd := h.Payload.String("tool_input.command")
+	cmd := h.Payload.String(hook.KeyInputCommand)
 	if cmd == "" {
 		return nil
 	}
@@ -114,23 +133,38 @@ func Check(h *hook.Hook) error {
 	if err := wholeString(h, cfg, cmd, norm, home); err != nil {
 		return err
 	}
-	st := &state{dirs: dirs{home: home, cwd: resolveDir(home, "/", h.Payload.Cwd())}, h: h, cfg: cfg, managers: map[string][]gapfill.Manager{}}
+	session := resolveDir(home, "/", h.Payload.Cwd())
+	st := &state{dirs: dirs{home: home, cwd: session}, session: session, h: h, cfg: cfg, managers: map[string][]gapfill.Manager{}}
 	// The raw command, not norm: <<- strips tabs only, and norm would turn a
 	// tab-indented terminator into spaces that no longer close the heredoc.
 	segs, unparsed := parseAll(cmd)
 	if unparsed {
 		st.ask("guard-bash could not parse part of this command, so it went unchecked; confirm it")
 	}
+	st.vars, st.loopVars = map[string]string{}, loopAssigned(segs)
 	for _, seg := range segs {
 		if err := st.segment(seg); err != nil {
 			return err
 		}
+		maps.Copy(st.vars, assigned(seg))
 	}
+	runs := cmd
 	switch {
 	case st.pending != "":
 		h.Decide("ask", st.pending)
 	case readonlyCall(cmd, norm):
 		h.Decide("allow", "side-effect-free claude-kit script")
+	default:
+		if rewritten := st.excludeSensitive(segs, cmd); rewritten != "" {
+			runs = rewritten
+		}
+	}
+	// bash-edits reads the marker of the command that runs, the rewrite
+	// when there is one. A rewrite only reads, rg piped into sort included.
+	if !unparsed && (onlyReads(segs) || runs != cmd) && !h.DryRun {
+		if marker := cache.ReadOnlyBash(h.Paths.CacheDir(), h.Payload.SessionID(), runs); marker != "" {
+			_ = fsx.WriteAtomic(marker, nil, 0o600)
+		}
 	}
 	return nil
 }
@@ -153,7 +187,7 @@ func wholeString(h *hook.Hook, cfg *config.Config, cmd, norm, home string) error
 		}
 	}
 	if re := rcRedirect(cfg, home); re != nil && re.MatchString(normalize(withoutQuotedHeredocs(cmd))) {
-		if err := h.Block("direct write to a shell rc file. Use the dotfiles repo.", "rc-redirect"); err != nil {
+		if err := h.Block(rcWriteReason, "rc-redirect"); err != nil {
 			return err
 		}
 	}
@@ -209,66 +243,6 @@ func resolveDir(home, base, dir string) string {
 	return dir
 }
 
-// Wrappers that only change how (or as whom) a command runs, and their
-// options that take a separate value.
-var (
-	wrappers     = map[string]bool{"command": true, "env": true, "builtin": true, "exec": true, "nohup": true, "nice": true, "timeout": true, "stdbuf": true, "ionice": true, "chrt": true, "sudo": true, "doas": true}
-	wrapperValue = map[string]bool{
-		"nice:-n": true, "env:-u": true, "env:-C": true, "exec:-a": true, "timeout:-s": true, "timeout:-k": true, "ionice:-c": true, "ionice:-n": true, "chrt:-p": true,
-		"sudo:-u": true, "sudo:-g": true, "sudo:-h": true, "sudo:-p": true, "sudo:-C": true, "sudo:-D": true, "sudo:-R": true, "sudo:-T": true, "sudo:-U": true, "sudo:-r": true, "sudo:-t": true,
-		"sudo:--user": true, "sudo:--group": true, "sudo:--host": true, "sudo:--prompt": true, "sudo:--close-from": true, "sudo:--chdir": true, "sudo:--chroot": true, "sudo:--command-timeout": true, "sudo:--other-user": true, "sudo:--role": true, "sudo:--type": true,
-		"doas:-u": true, "doas:-a": true, "doas:-C": true,
-	}
-	assignment = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*=`)
-)
-
-// lead finds where the real command starts in a call's words, seeing
-// through VAR=value words and command/env/nice/timeout/sudo-style wrappers
-// with their own options.
-func lead(words []Word) int {
-	i := 0
-	skipAssigns := func() {
-		for i < len(words) && assignment.MatchString(words[i].Value) {
-			i++
-		}
-	}
-	skipAssigns()
-	for i < len(words) && wrappers[baseName(words[i].Value)] && i+1 < len(words) {
-		w := baseName(words[i].Value)
-		i++
-		for i < len(words)-1 && strings.HasPrefix(words[i].Value, "-") {
-			opt := words[i].Value
-			i++
-			if opt == "--" {
-				break
-			}
-			if takesNextWord(w, opt) && i < len(words)-1 {
-				i++
-			}
-		}
-		if (w == "timeout" || w == "chrt") && i < len(words)-1 && words[i].Value != "" && words[i].Value[0] >= '0' && words[i].Value[0] <= '9' {
-			i++
-		}
-		skipAssigns()
-	}
-	return i
-}
-
-// takesNextWord is true when a wrapper's option consumes the next word. A
-// short-option cluster (sudo -Eu) does when its first value-taking letter is
-// its last; one earlier takes the rest of the word (sudo -uroot).
-func takesNextWord(wrapper, opt string) bool {
-	if strings.HasPrefix(opt, "--") {
-		return wrapperValue[wrapper+":"+opt]
-	}
-	for i := 1; i < len(opt); i++ {
-		if wrapperValue[wrapper+":-"+opt[i:i+1]] {
-			return i == len(opt)-1
-		}
-	}
-	return false
-}
-
 // interpreters run a script piped into them: every shell, and the script
 // runtimes.
 var interpreters = func() map[string]bool {
@@ -283,10 +257,10 @@ var interpreters = func() map[string]bool {
 // same pipeline (curl x | sh, wget -O- x | tee log | sudo bash), and any
 // other output piped into a shell reading stdin (echo ls | bash), a -c by
 // another name. A heredoc cat passes on unchanged isn't: the parse checks
-// it as commands. Parsed calls, not the raw string: "curl x | sh" as quoted
-// text is data.
+// it as commands, but only for shells, so any heredoc reaching fish is.
+// Parsed calls, not the raw string: "curl x | sh" as quoted text is data.
 func (st *state) pipeToShell(seg Segment) error {
-	fetched, fed := false, false
+	fetched, fed, heredoc := false, false, false
 	for _, call := range seg.Calls {
 		start := lead(call.Words)
 		words := call.Words[start:]
@@ -297,7 +271,11 @@ func (st *state) pipeToShell(seg Segment) error {
 		if fetched && (interpreters[name] || strings.HasPrefix(name, "python") || rootShell(call.Words[:start+1])) {
 			return st.h.Block("piping network content into an interpreter", "pipe-to-shell")
 		}
-		if fed && (shells[name] || name == "fish") {
+		heredoc = heredoc || len(call.Heredocs) > 0
+		if fed && startsRootShell(call.Words) {
+			return st.h.Block(wrapReason, "interpreter-c-wrap")
+		}
+		if runsC(name) && (fed || name == "fish" && heredoc) {
 			shell := command{args: words[1:]}
 			if wrap, script := shellMode(shell.values()); !wrap && !script {
 				return st.h.Block(wrapReason, "interpreter-c-wrap")
@@ -322,31 +300,6 @@ func catsHeredoc(name string, args []Word, heredocs []string) bool {
 	return !slices.ContainsFunc(cat.operands(), func(op string) bool { return op != "-" })
 }
 
-// rootShell is true for sudo or doas told to start a shell (sudo -s, sudo -i,
-// doas -s), which reads its commands from stdin like a named interpreter.
-func rootShell(wrapperWords []Word) bool {
-	elevator := ""
-	for _, w := range wrapperWords {
-		switch v := w.Value; {
-		case baseName(v) == "sudo", baseName(v) == "doas":
-			elevator = baseName(v)
-		case elevator == "":
-		case v == "--shell", v == "--login":
-			return true
-		case len(v) > 1 && v[0] == '-' && v[1] != '-':
-			for i := 1; i < len(v); i++ {
-				if v[i] == 's' || v[i] == 'i' {
-					return true
-				}
-				if wrapperValue[elevator+":-"+v[i:i+1]] {
-					break
-				}
-			}
-		}
-	}
-	return false
-}
-
 // segment runs the per-command checks on every command of a pipeline.
 func (st *state) segment(seg Segment) error {
 	if err := st.pipeToShell(seg); err != nil {
@@ -355,6 +308,9 @@ func (st *state) segment(seg Segment) error {
 	for ci, call := range seg.Calls {
 		if err := st.redirects(call); err != nil {
 			return err
+		}
+		if runsString(call.Words) {
+			return st.h.Block(wrapReason, "interpreter-c-wrap")
 		}
 		start := lead(call.Words)
 		if start >= len(call.Words) {
@@ -365,12 +321,32 @@ func (st *state) segment(seg Segment) error {
 		if raw := call.Words[start].Raw; strings.Contains(raw, "$(") || strings.Contains(raw, "`") {
 			st.ask("the command name comes from a substitution, so guard-bash can't check it; confirm it")
 		}
-		c := command{st: st, name: baseName(call.Words[start].Value), args: call.Words[start+1:], redirs: call.Redirs, inputs: call.Inputs}
-		c.rest = seg.Rest(ci, start)
-		c.text = c.name + c.rest
-		c.alone = len(seg.Calls) == 1 && !seg.subshell
-		if err := c.check(); err != nil {
-			return err
+		// One check per value $R may hold; a plain name is checked once.
+		expansions := st.varFields(seg, call.Words[start])
+		if len(expansions) == 0 {
+			expansions = [][]string{nil}
+		}
+		plain := command{
+			st: st, name: baseName(call.Words[start].Value), args: call.Words[start+1:], redirs: call.Redirs, inputs: call.Inputs,
+			rest: seg.Rest(ci, start), alone: len(seg.Calls) == 1 && !seg.subshell,
+		}
+		for _, fields := range expansions {
+			c := plain
+			if len(fields) > 0 {
+				// The shell splits an unquoted $R into the name and leading args.
+				lifted := make([]Word, 0, len(fields)-1+len(c.args))
+				for _, f := range fields[1:] {
+					lifted = append(lifted, Word{Value: f, Raw: f, literal: true})
+				}
+				if len(lifted) > 0 {
+					c.rest = " " + strings.Join(fields[1:], " ") + c.rest
+				}
+				c.name, c.args = baseName(fields[0]), append(lifted, c.args...)
+			}
+			c.text = c.name + c.rest
+			if err := c.check(); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -386,7 +362,7 @@ func (st *state) redirects(call Call) error {
 		// The quote-removed target: the whole-string regex misses >> "$HOME/.zshrc".
 		// '$HOME/.zshrc' is a literal name in cwd, not the rc file.
 		if !strings.HasPrefix(r.Target.Raw, "'") && guard.IsRCFile(st.cfg, st.home, target) {
-			if err := st.h.Block("direct write to a shell rc file. Use the dotfiles repo.", "rc-redirect"); err != nil {
+			if err := st.h.Block(rcWriteReason, "rc-redirect"); err != nil {
 				return err
 			}
 		}
@@ -397,9 +373,10 @@ func (st *state) redirects(call Call) error {
 }
 
 // looseWrite asks before a write (op is > or tee) that lands loose in the
-// current directory.
+// current directory, unless git tracks the target: that file is the
+// project's already.
 func (st *state) looseWrite(op, target string) {
-	if (!strings.Contains(target, "/") || strings.HasPrefix(target, "./")) && looseWriteTarget(target) && st.inWorktree() {
+	if (!strings.Contains(target, "/") || strings.HasPrefix(target, "./")) && looseWriteTarget(target) && st.inWorktree() && !st.tracked(target) {
 		st.ask("'" + op + " " + target + "' writes into the current directory; skills/kit-rules/reference/tooling.md wants " + op + " \"$(kit scratch-dir)/" + baseName(target) + "\". Confirm only if this file belongs in the project tree.")
 	}
 }
@@ -407,11 +384,23 @@ func (st *state) looseWrite(op, target string) {
 // inWorktree is true when the tracked cwd (after any cd) is in a git work
 // tree and not under a scratch directory: cd /tmp or cd .claude/scratch
 // makes a bare > name harmless.
-func (st *state) inWorktree() bool {
+func (st *state) inWorktree() bool { return st.worktreeTop() != "" }
+
+// worktreeTop is the toplevel of the work tree cwd is in, "" outside one
+// or in scratch.
+func (st *state) worktreeTop() string {
 	if st.cwd == "" || project.IsScratch(st.h.Paths, st.cwd) {
-		return false
+		return ""
 	}
-	return git.Toplevel(st.cwd) != ""
+	return git.Toplevel(st.cwd)
+}
+
+// tracked is true when git tracks target, a path relative to the tracked
+// cwd; a failed lookup reads as untracked, so the ask stays.
+func (st *state) tracked(target string) bool {
+	// literal: a glob in target ('main*') would match other tracked files.
+	paths, err := git.Paths(st.cwd, "ls-files", "-z", "--cached", "--", ":(literal)"+target)
+	return err == nil && len(paths) > 0
 }
 
 // looseWriteTarget is true for a relative target that would land loose in
@@ -472,36 +461,20 @@ func (st *state) abs(p string) string {
 // $HOME-prefixed, or relative to the segment's cwd) names a path
 // guard.KitSwitch protects, through a symlink or not. Only a writer's
 // operands and a redirect's target get here, so resolving each is cheap.
+// The plugin-root exemption takes the session's cwd: a cd into the root
+// within the command isn't work on the kit.
 func (st *state) askKitSwitch(arg string) bool {
-	what := guard.KitSwitch(st.h.Paths, st.cwd, st.abs(unquote(arg)))
+	what := st.kitSwitch(arg)
 	if what != "" {
 		st.ask(guard.KitSwitchAsk(what))
 	}
 	return what != ""
 }
 
-// isProtected is true when ref names a protected branch, ignoring
-// refs/heads/, refs/remotes/<remote>/, and origin/ prefixes.
-func (st *state) isProtected(ref string) bool {
-	ref = strings.TrimPrefix(ref, "refs/heads/")
-	if rest, ok := strings.CutPrefix(ref, "refs/remotes/"); ok {
-		if _, branch, found := strings.Cut(rest, "/"); found {
-			ref = branch
-		}
-	}
-	ref = strings.TrimPrefix(ref, "origin/")
-	return slices.Contains(st.cfg.ProtectedBranches, ref)
-}
-
-// currentBranch of the repo a git command targets: -C resolved against the
-// segment's cwd. Empty outside a repo or on a detached HEAD.
-func (st *state) currentBranch(gitDir string) string {
-	dir := st.cwd
-	if gitDir != "" {
-		dir = st.abs(gitDir)
-	}
-	branch, _ := git.Branch(dir)
-	return branch
+// kitSwitch is what guard.KitSwitch names for arg, resolved as
+// askKitSwitch resolves it, or "".
+func (st *state) kitSwitch(arg string) string {
+	return guard.KitSwitch(st.h.Paths, st.session, st.abs(unquote(arg)))
 }
 
 // readonlyCall is true for a lone `kit <read-only subcommand>` call

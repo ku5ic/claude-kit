@@ -66,6 +66,12 @@ func (k *sandbox) commit(cwd, cmd string) result {
 	return k.run(hook.NamedCheck{Name: "guard-commit", Check: CheckCommit}, "", cwd, cmd)
 }
 
+// attribution runs guard-attribution on cmd in process.
+func (k *sandbox) attribution(cwd, cmd string) result {
+	k.t.Helper()
+	return k.run(hook.NamedCheck{Name: "guard-attribution", Check: CheckAttribution}, "", cwd, cmd)
+}
+
 // pr runs guard-pr on cmd in process.
 func (k *sandbox) pr(cwd, cmd string) result {
 	k.t.Helper()
@@ -93,10 +99,10 @@ func (k *sandbox) run(check hook.NamedCheck, session, cwd, cmd string) result {
 		Name:    check.Name,
 		Payload: hook.ParsePayload(raw),
 		Paths: config.Paths{
-			Root:    filepath.Dir(kitYML),
-			Home:    k.claude,
-			Base:    kitYML,
-			Overlay: filepath.Join(k.claude, "claude-kit.local.yml"),
+			Root:      filepath.Dir(kitYML),
+			ClaudeDir: k.claude,
+			Base:      kitYML,
+			Overlay:   filepath.Join(k.claude, "claude-kit.local.yml"),
 		},
 		Stdout: &out,
 		Stderr: &out,

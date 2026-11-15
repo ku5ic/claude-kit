@@ -1,0 +1,10 @@
+cmd
+internal
+rust
+src
+@scope/ui
+github.com/acme/kit
+react
+requests
+serde_json
+yaml

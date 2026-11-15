@@ -69,17 +69,17 @@ func jqString(data map[string]any, path, def string) string {
 
 // Statusline prints the two-row status: model/agent/dir/git on row 1,
 // context/cost/duration/effort/rate limit on row 2.
-func Statusline(stdin io.Reader, stdout io.Writer, home string) {
+func Statusline(stdin io.Reader, stdout io.Writer, claudeDir string) {
 	defer func() { _ = recover() }()
 	raw, _ := io.ReadAll(stdin)
 	var data map[string]any
 	_ = json.Unmarshal(raw, &data) // bad input renders the defaults
-	fmt.Fprintf(stdout, "%s\n%s\n", modelRow(data, home), usageRow(data))
+	fmt.Fprintf(stdout, "%s\n%s\n", modelRow(data, claudeDir), usageRow(data))
 }
 
 // modelRow is the model, any model divergence, the agent, the directory,
 // and the git segment.
-func modelRow(data map[string]any, home string) string {
+func modelRow(data map[string]any, claudeDir string) string {
 	modelName := jqString(data, "model.display_name", "unknown")
 	cwd := jqString(data, "workspace.current_dir", "")
 	agent := cmp.Or(jqString(data, "agent.name", ""), jqString(data, "agent_type", ""))
@@ -107,7 +107,7 @@ func modelRow(data map[string]any, home string) string {
 		dirName = "."
 	}
 	row += "  " + dirColor + dirName + reset
-	if seg := gitStatus(home, cwd, jqString(data, "session_id", "")); seg != "" {
+	if seg := gitStatus(claudeDir, cwd, jqString(data, "session_id", "")); seg != "" {
 		parts := strings.SplitN(seg, "\t", 3)
 		for len(parts) < 3 {
 			parts = append(parts, "")
@@ -233,7 +233,7 @@ var unsafeSessionChars = regexp.MustCompile(`[^a-zA-Z0-9_-]`)
 // refreshInterval), or "" outside a repo. Staged plus unstaged numstat, as
 // `git diff --shortstat` counts; not `git diff HEAD`, which fails on an
 // unborn branch.
-func gitStatus(home, cwd, sessionID string) string {
+func gitStatus(claudeDir, cwd, sessionID string) string {
 	if cwd == "" {
 		return ""
 	}
@@ -245,7 +245,7 @@ func gitStatus(home, cwd, sessionID string) string {
 	if safe == "" {
 		safe = "nosession"
 	}
-	dir := filepath.Join(config.Paths{Home: home}.CacheDir(), cache.Statusline)
+	dir := filepath.Join(config.Paths{ClaudeDir: claudeDir}.CacheDir(), cache.Statusline)
 	file := filepath.Join(dir, "git-"+safe)
 	if info, err := os.Stat(file); err == nil && info.Size() > 0 && time.Now().Unix()-info.ModTime().Unix() < int64(ttl) {
 		data, _ := os.ReadFile(file)

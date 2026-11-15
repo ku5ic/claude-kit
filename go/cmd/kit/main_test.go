@@ -3,7 +3,6 @@ package main
 import (
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -57,7 +56,7 @@ func gitInit(t *testing.T, dir string) string {
 func call(t *testing.T, cmd func(*env, []string) int, cwd string, args ...string) (code int, stdout, stderr string) {
 	t.Helper()
 	var out, errOut strings.Builder
-	e := &env{paths: config.Paths{Home: filepath.Join(tmp(t), ".claude")}, stdout: &out, stderr: &errOut, cwd: cwd}
+	e := &env{paths: config.Paths{ClaudeDir: filepath.Join(tmp(t), ".claude")}, stdout: &out, stderr: &errOut, cwd: cwd}
 	code = cmd(e, args)
 	return code, out.String(), errOut.String()
 }
@@ -92,7 +91,7 @@ func TestScratchDirKindAndSlugPrintAReportPath(t *testing.T) {
 	tests := []struct {
 		name string
 		args []string
-		file string // the report's name before its timestamp
+		file string // the report's name
 	}{
 		{"<kind> <slug> name the report", []string{"perf", "checkout-page"}, "perf-checkout-page"},
 		{"<kind> alone leaves the slug out", []string{"deps"}, "deps"},
@@ -103,9 +102,9 @@ func TestScratchDirKindAndSlugPrintAReportPath(t *testing.T) {
 			t.Parallel()
 			repo := gitInit(t, filepath.Join(tmp(t), "repo"))
 			code, stdout, stderr := call(t, cmdScratchDir, repo, tt.args...)
-			pattern := `^` + regexp.QuoteMeta(filepath.Join(repo, ".claude/scratch", tt.file)) + `-[0-9]{8}-[0-9]{4}\.md\n$`
-			if code != 0 || !regexp.MustCompile(pattern).MatchString(stdout) {
-				t.Errorf("exit %d, stdout %q, want %s; stderr %q", code, stdout, pattern, stderr)
+			want := filepath.Join(repo, ".claude/scratch", tt.file) + ".md\n"
+			if code != 0 || stdout != want {
+				t.Errorf("exit %d, stdout %q, want %q; stderr %q", code, stdout, want, stderr)
 			}
 		})
 	}

@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"cmp"
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"slices"
@@ -48,7 +49,12 @@ type Entry struct {
 	Type        string `json:"type"`
 	IsMeta      bool   `json:"isMeta"`
 	IsSidechain bool   `json:"isSidechain"`
-	Timestamp   string `json:"timestamp"`
+	// Origin is who sent a user entry: "human", a "task-notification", a
+	// "peer" session; empty in transcripts that predate it.
+	Origin struct {
+		Kind string `json:"kind"`
+	} `json:"origin"`
+	Timestamp string `json:"timestamp"`
 	// Content is a system entry's content: raw, since its shape isn't fixed.
 	Content json.RawMessage `json:"content"`
 	Message struct {
@@ -130,6 +136,12 @@ func (b Block) ResultText() string {
 // neither meta nor a tool result.
 func (e Entry) StartsTurn() bool {
 	return e.Type == "user" && !e.IsMeta && !slices.ContainsFunc(e.Blocks, func(b Block) bool { return b.Type == "tool_result" })
+}
+
+// FromUser is true when a person typed the entry: no task notification
+// or other session sent it.
+func (e Entry) FromUser() bool {
+	return e.Origin.Kind == "" || e.Origin.Kind == "human"
 }
 
 // PromptText is the entry's text: its string content, or its text blocks joined.
@@ -240,23 +252,42 @@ func ReadAgentStart(path string) (AgentStart, error) {
 	return start, scanner.Err()
 }
 
+// EachFrom is Each from byte offset off, the lines numbered on from line,
+// with fn given each entry and the offset just past its line. It returns
+// where it stopped, past the last complete line: a line still being
+// written is left for the next read.
+func EachFrom(path string, off int64, line int, fn func(Entry, int64)) (int64, int, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return off, line, err
+	}
+	defer f.Close()
+	if _, err := f.Seek(off, io.SeekStart); err != nil {
+		return off, line, err
+	}
+	r := bufio.NewReaderSize(f, 1024*1024)
+	for {
+		raw, err := r.ReadBytes('\n')
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return off, line, nil
+			}
+			return off, line, err
+		}
+		off, line = off+int64(len(raw)), line+1
+		if e, ok := parse(raw); ok {
+			e.Line = line
+			fn(e, off)
+		}
+	}
+}
+
 // Load is every parseable entry of the transcript at path, in order: one
 // read for a hook that asks it several questions.
 func Load(path string) ([]Entry, error) {
 	var entries []Entry
 	err := Each(path, func(e Entry) { entries = append(entries, e) })
 	return entries, err
-}
-
-// LastTurn is the entries after the last real user prompt; all of them
-// when there is none.
-func LastTurn(entries []Entry) []Entry {
-	for i := len(entries) - 1; i >= 0; i-- {
-		if entries[i].StartsTurn() {
-			return entries[i+1:]
-		}
-	}
-	return entries
 }
 
 // Edits is the file each write tool call in entries targets, in order.
@@ -310,6 +341,11 @@ func parse(line []byte) (Entry, bool) {
 	var e Entry
 	if json.Unmarshal(line, &e) != nil {
 		return e, false
+	}
+	// Only the conversation's own turns carry its blocks: an
+	// api-request-blob echoes earlier ones, which would count twice.
+	if e.Type != "user" && e.Type != "assistant" {
+		e.Message.Content = nil
 	}
 	// The first byte says string or not, so a non-string isn't decoded twice.
 	if isString(e.Message.Content) {

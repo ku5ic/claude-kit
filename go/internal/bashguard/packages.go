@@ -9,6 +9,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/gapfill"
+	"github.com/ku5ic/claude-kit/go/internal/layout"
 	"github.com/ku5ic/claude-kit/go/internal/pkgcheck"
 )
 
@@ -26,10 +27,10 @@ func (c *command) globalInstall() error {
 		for i, w := range bad {
 			lines[i] = w.String()
 		}
-		return c.block(strings.Join(lines, "\n")+"\nfix it with the Edit tool", "global-installs-invalid")
+		return c.block(strings.Join(lines, "\n")+"\n"+layout.KV("do", "fix it with the Edit tool"), "global-installs-invalid")
 	}
 	if slices.ContainsFunc(patterns, func(re *regexp.Regexp) bool { return re.MatchString(c.text) }) {
-		return c.block("global package install. Use a project-local install or asdf shim.", "pkg-global-install")
+		return c.block("global package install\n"+layout.KV("do", "use a project-local install or an asdf shim"), "pkg-global-install")
 	}
 	return nil
 }
@@ -66,11 +67,23 @@ func (c *command) packageManager() error {
 		switch {
 		case m.Manager == c.name:
 			return c.dependencyAdd(m.AddVerbs, dir, root)
-		case slices.Contains(m.Rivals, c.name):
+		case slices.Contains(m.Rivals, c.name) && !c.converts():
 			return c.block(rival(m, c.name), "pm-mismatch")
 		}
 	}
 	return nil
+}
+
+// converters are the verbs that write a manager's own lockfile from a
+// rival's: the migration away from the manager the facts name.
+var converters = map[string]string{"pnpm": "import", "yarn": "import"}
+
+// converts is true when the command's first non-option word is its
+// manager's converter verb; pnpm add import still adds.
+func (c *command) converts() bool {
+	verb, ok := converters[c.name]
+	ops := c.operands()
+	return ok && len(ops) > 0 && ops[0] == verb
 }
 
 // pmDir is the directory a package manager works in: its own directory
@@ -118,7 +131,7 @@ func (c *command) dependencyAdd(verbs []string, dir, root string) error {
 				// flag listed as taking a value may not take one (pnpm -w).
 				for _, p := range addOperands(values[after:], valueFlags) {
 					if lookups.Missing(c.name, p) {
-						return c.block(p+" isn't on its registry; check the name before adding it", "pkg-missing")
+						return c.block(p+" isn't on its registry\n"+layout.KV("do", "check the name before adding it"), "pkg-missing")
 					}
 				}
 			}
@@ -160,19 +173,15 @@ func rival(m gapfill.Manager, name string) string {
 	if d := filepath.Clean(m.Dir); d != "." {
 		where = d
 	}
-	reason := fmt.Sprintf("%s uses %s (%s), not %s; rerun it with %s", where, m.Manager, m.Cites, name, m.Manager)
-	var how []string
+	lines := []string{fmt.Sprintf("%s uses %s (%s), not %s", where, m.Manager, m.Cites, name), layout.KV("do", "rerun it with "+m.Manager)}
 	if len(m.AddVerbs) > 0 {
-		how = append(how, "add a dependency: "+m.AddVerbs[0])
+		lines = append(lines, layout.KV("add", m.AddVerbs[0]))
 	}
 	if m.DLX != "" {
-		how = append(how, "run a package: "+m.DLX)
+		lines = append(lines, layout.KV("run", m.DLX))
 	}
 	if len(m.DirFlags) > 0 {
-		how = append(how, "another directory: "+strings.Join(m.DirFlags, ", "))
+		lines = append(lines, layout.KV("dir", strings.Join(m.DirFlags, ", ")))
 	}
-	if len(how) > 0 {
-		reason += " (" + strings.Join(how, "; ") + ")"
-	}
-	return reason
+	return strings.Join(lines, "\n")
 }

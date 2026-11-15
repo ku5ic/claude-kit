@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -17,6 +16,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/proc"
 	"github.com/ku5ic/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/resolve/kittool"
 	"github.com/ku5ic/claude-kit/go/internal/run"
 )
 
@@ -40,7 +40,7 @@ func FormatDispatch(h *hook.Hook) error {
 	}
 	path = filepath.Join(dir, filepath.Base(path))
 	root := cmp.Or(git.Toplevel(dir), dir)
-	p := enforce.Edit(cfg, enforce.Options{Root: root, CacheDir: h.Paths.CacheDir()}, path)
+	p := enforce.Edit(cfg, enforce.Options{Root: root, CacheDir: h.Paths.CacheDir(), Home: h.Home}, path)
 	deadline := time.Now().Add(formatBudget)
 	report := run.Fix(p, deadline)
 	chain, notes := enforce.OnEdit(cfg, root, path)
@@ -57,6 +57,8 @@ func FormatDispatch(h *hook.Hook) error {
 	if report != "" && !h.DryRun {
 		_ = fsx.WriteAtomic(cache.EditReport(h.Paths.CacheDir(), root), []byte(report), 0o600)
 	}
+	// After the fixers: an entry's verdict is keyed by the body they left.
+	reclassify(h, cfg, path)
 	return nil
 }
 
@@ -89,7 +91,7 @@ func onPath(cmd string) bool {
 	if len(words) == 0 {
 		return false
 	}
-	_, err := exec.LookPath(words[0])
+	_, err := kittool.Path(words[0])
 	return err == nil
 }
 

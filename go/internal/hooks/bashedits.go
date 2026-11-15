@@ -41,6 +41,11 @@ func BashEdits(h *hook.Hook) error {
 	if p.Err != nil {
 		return p.Err
 	}
+	// The bash guard marked this command as read-only, so there is no diff to take.
+	if marker := cache.ReadOnlyBash(h.Paths.CacheDir(), p.SessionID(), p.String(hook.KeyInputCommand)); marker != "" && fsx.IsFile(marker) {
+		_ = os.Remove(marker)
+		return nil
+	}
 	root := git.Toplevel(p.Cwd())
 	base := bashTreeFile(h, root)
 	if base == "" || h.Config() == nil {
@@ -61,7 +66,31 @@ func BashEdits(h *hook.Hook) error {
 		saveTree(h, base, string(start))
 	}
 	changed, before, _, ok := changedSince(h, root, base)
-	if !ok || len(changed) == 0 || gitMoves.MatchString(p.String("tool_input.command")) {
+	if !ok || len(changed) == 0 {
+		return nil
+	}
+	type change struct {
+		path, old string
+		after     []byte
+		edited    bool
+		err       error
+	}
+	changes := make([]change, len(changed))
+	var made []string
+	for i, path := range changed {
+		c := change{path: path}
+		c.after, c.err = os.ReadFile(path)
+		c.old, c.edited = lastEdit(h, path)
+		// A file as the turn's last Edit left it is that Edit's, counted
+		// already.
+		if !c.edited || c.err != nil || c.old != string(c.after) {
+			made = append(made, path)
+		}
+		changes[i] = c
+	}
+	// Whoever wrote the change, a claim checked before it is stale.
+	recordBashEdit(h, made)
+	if gitMoves.MatchString(p.String(hook.KeyInputCommand)) {
 		return nil
 	}
 	var problems []string
@@ -69,15 +98,14 @@ func BashEdits(h *hook.Hook) error {
 	// Each format may take formatBudget; past this, files are checked but
 	// left unformatted, inside hooks.json's 120s.
 	formatUntil := time.Now().Add(bashEditsFormatBudget)
-	for _, path := range changed {
-		after, err := os.ReadFile(path)
-		if err != nil || git.IsBinary(after) {
+	for _, c := range changes {
+		path, after, old := c.path, c.after, c.old
+		if c.err != nil || git.IsBinary(after) {
 			continue
 		}
 		// An Edit since the baseline was checked and confirmed then: the
 		// diff starts from what it left, and the baseline now holds it.
-		old, edited := lastEdit(h, path)
-		if edited {
+		if c.edited {
 			_ = os.Remove(editedFile(h, path))
 			if old == string(after) {
 				continue
@@ -103,7 +131,7 @@ func BashEdits(h *hook.Hook) error {
 	if len(problems) == 0 {
 		return nil
 	}
-	return h.Block("a file this command changed fails the checks an Edit gets:\n"+strings.Join(problems, "\n"), "bash-edits")
+	return h.Block("a file this command changed fails the checks an Edit gets\n"+strings.Join(problems, "\n"), "bash-edits")
 }
 
 // editChecks runs the PreToolUse edit checks on path's change from before

@@ -5,8 +5,11 @@ package bashguard
 
 import (
 	"errors"
+	"regexp"
+	"slices"
 	"strings"
 
+	"mvdan.cc/sh/v3/expand"
 	"mvdan.cc/sh/v3/syntax"
 )
 
@@ -17,6 +20,18 @@ type Word struct {
 	Value string
 	Raw   string
 	end   int // source offset just past the word
+	// literal is whether the shell passes the word as written: no
+	// expansion, brace list, or glob character in any part.
+	literal bool
+}
+
+// values is each word's Value.
+func values(words []Word) []string {
+	out := make([]string, 0, len(words))
+	for _, w := range words {
+		out = append(out, w.Value)
+	}
+	return out
 }
 
 // Redir is an output redirect: its operator and target word.
@@ -45,6 +60,10 @@ type Segment struct {
 	// subshell is a pipeline inside ( ), $( ), backticks, or <( ): a cd
 	// there moves nothing after it.
 	subshell bool
+	// loop is the outermost for, while, or until loop holding the
+	// pipeline, 0 for none: its body reruns, so an assignment anywhere in
+	// it may be in effect.
+	loop int
 }
 
 // Rest is the normalized source text after call's word, to the end of the
@@ -77,7 +96,17 @@ func normalize(s string) string {
 
 // shells are the POSIX-family shells: a heredoc body fed to one is a
 // script, and -c runs its string.
-var shells = map[string]bool{"sh": true, "bash": true, "zsh": true, "dash": true, "ksh": true, "mksh": true, "yash": true}
+var shells = func() map[string]bool {
+	m := map[string]bool{}
+	for _, name := range strings.Fields("sh bash rbash zsh dash ash hush ksh mksh yash") {
+		m[name] = true
+	}
+	return m
+}()
+
+// runsC is true when name's -c runs a string: every shell, and fish, which
+// isn't in shells because its heredoc bodies don't parse as POSIX.
+func runsC(name string) bool { return shells[name] || name == "fish" }
 
 // Segments parses src and returns every pipeline in it, substitution and
 // process-substitution bodies included (inner ones first, as they run
@@ -102,8 +131,10 @@ func parseAll(src string) ([]Segment, bool) {
 
 type collector struct {
 	segs     []Segment
-	depth    int // of the parse in progress: error reparses and nested heredocs
+	depth    int // of the parse in progress: nested heredocs and env -S strings
 	subshell int // how many subshells the walk is inside
+	loop     int // the outermost loop the walk is inside, 0 for none
+	loops    int // loop ids handed out
 	unparsed bool
 }
 
@@ -149,11 +180,13 @@ func (c *collector) parse(src string, depth int) {
 			tail = tail[:nl]
 		}
 		if i := strings.IndexAny(tail, ";&|"); i >= 0 {
-			c.parse(tail[i+1:], depth+1)
+			c.parse(tail[i+1:], depth)
 		}
 	}
-	if rest := afterLine(src, line); rest != "" {
-		c.parse(rest, depth+1)
+	// A reparse is a sibling, so it keeps depth: each runs on shorter input,
+	// so the recursion ends however many lines fail.
+	if rest := afterLine(src, max(line, 1)); rest != "" {
+		c.parse(rest, depth)
 	}
 }
 
@@ -204,42 +237,80 @@ func (c *collector) stmt(src string, s *syntax.Stmt) {
 		return
 	}
 
-	// The pipeline ends at its last command's last word or redirect, not at
-	// the statement's end, which takes in a trailing ; or &.
-	last := parts[len(parts)-1]
-	end := int(last.Cmd.End().Offset())
+	seg := Segment{src: src, end: segmentEnd(parts[len(parts)-1]), subshell: c.subshell > 0, loop: c.loop}
+	for _, p := range parts {
+		call, ok := p.Cmd.(*syntax.CallExpr)
+		if p.Cmd == nil {
+			// A redirect alone (> f, true | > f) is a call with no words,
+			// as x=1 > f is, so its target gets every redirect check.
+			call, ok = &syntax.CallExpr{}, true
+		}
+		if decl, isDecl := p.Cmd.(*syntax.DeclClause); isDecl {
+			call, ok = c.declCall(src, decl), true
+		}
+		if !ok {
+			// ( ... ) or { ... } inside a pipeline: its statements and its
+			// redirects' substitutions are segments of their own.
+			c.inner(src, p.Cmd)
+			for _, r := range p.Redirs {
+				c.inner(src, r)
+			}
+			continue
+		}
+		seg.Calls = append(seg.Calls, c.call(src, p, call))
+	}
+	if len(seg.Calls) > 0 {
+		c.segs = append(c.segs, seg)
+	}
+	c.shellHeredocs(seg)
+}
+
+// segmentEnd is where a pipeline ends: its last command's last word or
+// redirect, not the statement's end, which takes in a trailing ; or &. A
+// stage that is a redirect alone (true | >f) has no command.
+func segmentEnd(last *syntax.Stmt) int {
+	end := int(last.Pos().Offset())
+	if last.Cmd != nil {
+		end = int(last.Cmd.End().Offset())
+	}
 	for _, r := range last.Redirs {
 		if r.Hdoc == nil {
 			end = max(end, int(r.End().Offset()))
 		}
 	}
-	seg := Segment{src: src, end: end, subshell: c.subshell > 0}
-	feedsShell := false
-	for _, p := range parts {
-		call, ok := p.Cmd.(*syntax.CallExpr)
-		if !ok {
-			// ( ... ) or { ... } inside a pipeline: its statements are
-			// segments of their own.
-			c.inner(src, p.Cmd)
+	return end
+}
+
+// shellHeredocs parses seg's heredocs as commands when a shell in it reads
+// them (bash <<EOF, cat <<EOF | sh), past any wrapper (sudo bash <<EOF),
+// or a root shell does (sudo -s <<EOF).
+func (c *collector) shellHeredocs(seg Segment) {
+	if !slices.ContainsFunc(seg.Calls, func(cl Call) bool {
+		i := lead(cl.Words)
+		return i < len(cl.Words) && shells[baseName(cl.Words[i].Value)] || startsRootShell(cl.Words)
+	}) {
+		return
+	}
+	for _, cl := range seg.Calls {
+		for _, body := range cl.Heredocs {
+			c.parse(body, c.depth+1)
+		}
+	}
+}
+
+// declCall is export R=rm (or declare, local, readonly, typeset) as the bare
+// assignment R=rm it makes, so $R resolves the same. A flag or a name with
+// no = assigns nothing; its substitutions are still collected.
+func (c *collector) declCall(src string, decl *syntax.DeclClause) *syntax.CallExpr {
+	call := &syntax.CallExpr{}
+	for _, a := range decl.Args {
+		if a.Naked {
+			c.inner(src, a)
 			continue
 		}
-		cl := c.call(src, p, call)
-		if len(cl.Words) > 0 && shells[baseName(cl.Words[0].Value)] {
-			feedsShell = true
-		}
-		seg.Calls = append(seg.Calls, cl)
+		call.Assigns = append(call.Assigns, a)
 	}
-	if len(seg.Calls) > 0 {
-		c.segs = append(c.segs, seg)
-	}
-	// A heredoc fed to a shell (bash <<EOF, cat <<EOF | sh) is commands.
-	if feedsShell {
-		for _, cl := range seg.Calls {
-			for _, body := range cl.Heredocs {
-				c.parse(body, c.depth+1)
-			}
-		}
-	}
+	return call
 }
 
 // call reads one simple command of a pipeline: its words, assignments, and
@@ -271,11 +342,18 @@ func (c *collector) call(src string, p *syntax.Stmt, call *syntax.CallExpr) Call
 		cl.start = int(p.Pos().Offset())
 	}
 	for _, w := range call.Args {
-		cl.Words = append(cl.Words, Word{wordValue(src, w), src[w.Pos().Offset():w.End().Offset()], int(w.End().Offset())})
+		cl.Words = append(cl.Words, Word{wordValue(src, w), src[w.Pos().Offset():w.End().Offset()], int(w.End().Offset()), literal(w.Parts)})
 	}
 	if cmd, ok := envSplitString(cl.Words); ok {
 		c.parse(cmd, c.depth+1)
 	}
+	if cmd, ok := watchString(cl.Words); ok {
+		c.parse(cmd, c.depth+1)
+	}
+	if cmd, ok := flockString(cl.Words); ok {
+		c.parse(cmd, c.depth+1)
+	}
+	cl.Redirs = append(cl.Redirs, timeOutputs(cl.Words)...)
 	for _, r := range p.Redirs {
 		c.redirect(src, r, &cl)
 	}
@@ -305,44 +383,219 @@ func (c *collector) redirect(src string, r *syntax.Redirect, cl *Call) {
 	case r.Op == syntax.RdrIn:
 		cl.Inputs = append(cl.Inputs, value)
 	case strings.Contains(op, ">"):
-		// >&2 duplicates an fd: its target is "&2", never a file name.
-		if r.Op == syntax.DplOut {
+		// >&2 duplicates an fd and >&- closes one: the target is "&2" or
+		// "&-", never a file name. >& file writes file, like &>.
+		if r.Op == syntax.DplOut && fdTarget.MatchString(value) {
 			value = "&" + value
 		}
-		cl.Redirs = append(cl.Redirs, Redir{op, Word{value, src[r.Word.Pos().Offset():r.Word.End().Offset()], int(r.Word.End().Offset())}})
+		cl.Redirs = append(cl.Redirs, Redir{op, Word{value, src[r.Word.Pos().Offset():r.Word.End().Offset()], int(r.Word.End().Offset()), literal(r.Word.Parts)}})
 	}
+}
+
+// fdTarget is a >& target that names a descriptor: 2, 2-, or -.
+var fdTarget = regexp.MustCompile(`^([0-9]+-?|-)$`)
+
+// flockString is the command string a flock among words' wrappers runs
+// with -c or --command, before its lock file or right after it, since flock
+// permutes its options: flock -c "rm -rf ~" /tmp/l and flock /tmp/l -c
+// "rm -rf ~" both run rm -rf ~ in a shell.
+func flockString(words []Word) (string, bool) {
+	runs, n := wrappedBy(words)
+	for _, w := range runs {
+		if w.name != "flock" {
+			continue
+		}
+		for k := w.at + 1; k < w.end && words[k].Value != "--"; k++ {
+			if cmd, ok := flockCommand(words, k); ok {
+				return cmd, true
+			}
+		}
+		if w.end == n && n < len(words) {
+			return flockCommand(words, n)
+		}
+	}
+	return "", false
+}
+
+// flockCommand reads words[k] as flock's -c or --command, in a short
+// cluster too (-nc), and returns the string it runs: the rest of the word
+// or the next one.
+func flockCommand(words []Word, k int) (string, bool) {
+	opt := words[k].Value
+	next := func() (string, bool) {
+		if k+1 < len(words) {
+			return words[k+1].Value, true
+		}
+		return "", false
+	}
+	if name, value, eq := strings.Cut(opt, "="); strings.HasPrefix(opt, "--") {
+		if !abbrevOf(name, "--command") {
+			return "", false
+		}
+		if eq {
+			return value, true
+		}
+		return next()
+	}
+	if !strings.HasPrefix(opt, "-") {
+		return "", false
+	}
+	for i := 1; i < len(opt); i++ {
+		switch {
+		case opt[i] == 'c' && i+1 < len(opt):
+			return opt[i+1:], true
+		case opt[i] == 'c':
+			return next()
+		case wrappers["flock"].takes("-" + opt[i:i+1]):
+			return "", false
+		}
+	}
+	return "", false
+}
+
+// watchString is the command a watch among words' wrappers runs: its
+// operands joined, which watch hands to sh -c unless -x execs them.
+func watchString(words []Word) (string, bool) {
+	runs, _ := wrappedBy(words)
+	for _, w := range runs {
+		if w.name != "watch" {
+			continue
+		}
+		i := w.at
+		j := i + 1
+		for ; j < len(words) && strings.HasPrefix(words[j].Value, "-"); j++ {
+			opt := words[j].Value
+			if opt == "--" {
+				j++
+				break
+			}
+			if abbrevOf(opt, "--exec") || shortCluster(opt, "x") {
+				return "", false
+			}
+			if takesNextWord(wrappers["watch"], opt) {
+				j++
+			}
+		}
+		if j >= len(words) {
+			return "", false
+		}
+		var parts []string
+		for _, w := range words[j:] {
+			parts = append(parts, w.Value)
+		}
+		return strings.Join(parts, " "), true
+	}
+	return "", false
+}
+
+// timeOutputs are the files a time among words' wrappers writes its report
+// to with -o, as > redirects, so they get a redirect's checks.
+func timeOutputs(words []Word) []Redir {
+	var out []Redir
+	runs, _ := wrappedBy(words)
+	for _, w := range runs {
+		if w.name != "time" {
+			continue
+		}
+		found, done := timeOptions(words, w.at)
+		out = append(out, found...)
+		if done {
+			return out
+		}
+	}
+	return out
+}
+
+// timeOptions reads the options of the time at words[at]. done is true at
+// --, which ends the scan for every wrapper after it too.
+func timeOptions(words []Word, at int) (out []Redir, done bool) {
+	for j := at + 1; j < len(words) && strings.HasPrefix(words[j].Value, "-"); j++ {
+		opt := words[j].Value
+		switch {
+		case opt == "--":
+			return out, true
+		case abbrevOf(opt, "--output"):
+			// getopt_long takes any unambiguous prefix: --out file.
+			if _, v, ok := strings.Cut(opt, "="); ok {
+				out = append(out, Redir{Op: ">", Target: Word{Value: v, Raw: v}})
+			} else if j+1 < len(words) {
+				j++
+				out = append(out, Redir{Op: ">", Target: words[j]})
+			}
+		case strings.HasPrefix(opt, "--"):
+			if takesNextWord(wrappers["time"], opt) {
+				j++
+			}
+		default:
+			// A short cluster: its first f or o takes the rest of the
+			// word, or the next word when it's last (-ao file).
+			k := strings.IndexAny(opt[1:], "fo") + 1
+			if k == 0 {
+				continue
+			}
+			v := opt[k+1:]
+			if v == "" && j+1 < len(words) {
+				j++
+				v = words[j].Value
+			}
+			if opt[k] == 'o' && v != "" {
+				out = append(out, Redir{Op: ">", Target: Word{Value: v, Raw: v}})
+			}
+		}
+	}
+	return out, false
 }
 
 // envSplitString returns the command env -S/--split-string runs, the string
 // followed by env's remaining words, from a wrapper before the command:
 // env -S "rm -rf" ~ runs rm -rf ~.
 func envSplitString(words []Word) (string, bool) {
-	for i := range lead(words) {
-		if baseName(words[i].Value) != "env" {
+	runs, _ := wrappedBy(words)
+	for _, w := range runs {
+		if w.name != "env" {
 			continue
 		}
+		i := w.at
 		for j := i + 1; j < len(words) && strings.HasPrefix(words[j].Value, "-"); j++ {
 			opt, cmd := words[j].Value, ""
+			name, value, eq := strings.Cut(opt, "=")
 			switch {
 			case opt == "--":
 				return "", false
-			case opt == "-S" || opt == "--split-string":
+			case abbrevOf(name, "--split-string") && eq:
+				cmd = value
+			case abbrevOf(name, "--split-string"):
 				if j+1 >= len(words) {
 					return "", false
 				}
 				j++
 				cmd = words[j].Value
-			case strings.HasPrefix(opt, "--split-string="):
-				cmd = strings.TrimPrefix(opt, "--split-string=")
-			case strings.HasPrefix(opt, "-S"):
-				cmd = strings.TrimPrefix(opt, "-S")
-			case opt == "-u" || opt == "-C":
-				// A separate-word value (env -C /tmp -S ...); skip it so the
-				// scan reaches -S instead of stopping at the non-dash value.
-				j++
+			case strings.HasPrefix(opt, "--"):
+				if takesNextWord(wrappers["env"], opt) {
+					j++
+				}
 				continue
 			default:
-				continue
+				// A short cluster (-iS, -C/tmp): its first S, u, or C takes the
+				// rest of the word, or the next word when it's last. Skipping a
+				// u or C value lets the scan reach a later -S.
+				k := strings.IndexAny(opt[1:], "SuC") + 1
+				switch {
+				case k == 0:
+					continue
+				case opt[k] != 'S':
+					if k == len(opt)-1 {
+						j++
+					}
+					continue
+				case k < len(opt)-1:
+					cmd = opt[k+1:]
+				case j+1 >= len(words):
+					return "", false
+				default:
+					j++
+					cmd = words[j].Value
+				}
 			}
 			for _, w := range words[j+1:] {
 				cmd += " " + w.Raw
@@ -351,6 +604,67 @@ func envSplitString(words []Word) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// assigned is the value each bare assignment in seg sets (R=rm; $R -rf ~),
+// for the segments after it. A prefix assignment (R=rm $R) is left out:
+// the shell expands $R before it applies.
+func assigned(seg Segment) map[string]string {
+	vars := map[string]string{}
+	for _, call := range seg.Calls {
+		if len(call.Words) > 0 {
+			continue
+		}
+		for _, a := range call.Assigns {
+			name, value, _ := strings.Cut(a, "=")
+			vars[name] = value
+		}
+	}
+	return vars
+}
+
+// loopAssigned is every value each loop's bare assignments set, by loop
+// id: a later pass sees what an earlier one assigned.
+func loopAssigned(segs []Segment) map[int]map[string][]string {
+	out := map[int]map[string][]string{}
+	for _, seg := range segs {
+		if seg.loop == 0 {
+			continue
+		}
+		if out[seg.loop] == nil {
+			out[seg.loop] = map[string][]string{}
+		}
+		for name, value := range assigned(seg) {
+			out[seg.loop][name] = append(out[seg.loop][name], value)
+		}
+	}
+	return out
+}
+
+// varRef is a word that is one variable and nothing else: $R or ${R}.
+var varRef = regexp.MustCompile(`^\$(?:([A-Za-z_][A-Za-z0-9_]*)|\{([A-Za-z_][A-Za-z0-9_]*)\})$`)
+
+// varFields is the fields w may expand to in seg when it is a variable the
+// command assigned itself: the value set before seg, and in a loop every
+// value the loop sets. Nil for any other word, $EDITOR included.
+func (st *state) varFields(seg Segment, w Word) [][]string {
+	m := varRef.FindStringSubmatch(w.Value)
+	if w.literal || m == nil {
+		return nil
+	}
+	name := m[1] + m[2]
+	var values []string
+	if value, ok := st.vars[name]; ok {
+		values = append(values, value)
+	}
+	values = append(values, st.loopVars[seg.loop][name]...)
+	var out [][]string
+	for _, v := range values {
+		if fields := strings.Fields(v); len(fields) > 0 {
+			out = append(out, fields)
+		}
+	}
+	return out
 }
 
 // inner collects the statements nested anywhere under n: substitution
@@ -365,6 +679,8 @@ func (c *collector) inner(src string, n syntax.Node) {
 		case *syntax.Stmt:
 			c.stmt(src, v)
 			return false
+		case *syntax.ForClause, *syntax.WhileClause:
+			return c.inLoop(src, v)
 		case *syntax.Subshell:
 			stmts = v.Stmts
 		case *syntax.CmdSubst:
@@ -381,12 +697,40 @@ func (c *collector) inner(src string, n syntax.Node) {
 	})
 }
 
-// pipeline flattens a | or |& chain (or a lone command) into its parts; nil
-// for anything else.
+// inLoop collects an outermost for, while, or until loop's parts under a
+// loop id of their own, and reports whether the walk should descend: a loop
+// nested in another takes the outer one's id, since the outer pass reruns
+// it too.
+func (c *collector) inLoop(src string, loop syntax.Node) bool {
+	if c.loop != 0 {
+		return true
+	}
+	c.loops++
+	c.loop = c.loops
+	switch l := loop.(type) {
+	case *syntax.ForClause:
+		c.inner(src, l.Loop)
+		c.stmts(src, l.Do)
+	case *syntax.WhileClause:
+		c.stmts(src, append(slices.Clone(l.Cond), l.Do...))
+	}
+	c.loop = 0
+	return false
+}
+
+// pipeline flattens a | or |& chain (or a lone command, or a redirect
+// alone) into its parts; nil for anything else.
 func pipeline(s *syntax.Stmt) []*syntax.Stmt {
 	switch cmd := s.Cmd.(type) {
-	case *syntax.CallExpr:
+	case *syntax.CallExpr, *syntax.DeclClause, nil:
 		return []*syntax.Stmt{s}
+	case *syntax.TimeClause:
+		// curl x | time sh feeds sh like any stage; a bare time has no
+		// statement.
+		if cmd.Stmt == nil {
+			return nil
+		}
+		return pipeline(cmd.Stmt)
 	case *syntax.BinaryCmd:
 		if cmd.Op != syntax.Pipe && cmd.Op != syntax.PipeAll {
 			return nil
@@ -402,6 +746,34 @@ func pipeline(s *syntax.Stmt) []*syntax.Stmt {
 		return append(left, right...)
 	}
 	return nil
+}
+
+// literal is whether parts are plain text, single-quoted text with no $,
+// or double-quoted plain text, with no brace or glob character outside
+// quotes. An allow for a path reads only such words, since any other form
+// (an expansion, $'...', {a,b}, *) isn't the text the command gets.
+func literal(parts []syntax.WordPart) bool {
+	for _, part := range parts {
+		switch p := part.(type) {
+		case *syntax.Lit:
+			if strings.ContainsAny(p.Value, "{}*?[") {
+				return false
+			}
+		case *syntax.SglQuoted:
+			if p.Dollar {
+				return false
+			}
+		case *syntax.DblQuoted:
+			for _, inner := range p.Parts {
+				if _, ok := inner.(*syntax.Lit); !ok {
+					return false
+				}
+			}
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // wordValue removes quotes and resolves escapes, leaving every expansion as
@@ -420,7 +792,14 @@ func partValue(src string, part syntax.WordPart, inDouble bool) string {
 		return unescape(p.Value, inDouble)
 	case *syntax.SglQuoted:
 		if p.Dollar {
-			return src[p.Pos().Offset():p.End().Offset()]
+			// $'\x72m' is rm. Format reads printf verbs too, so a % stays
+			// literal; the shell cuts the value at a NUL.
+			v, _, err := expand.Format(nil, strings.ReplaceAll(p.Value, "%", "%%"), nil)
+			if err != nil {
+				return src[p.Pos().Offset():p.End().Offset()]
+			}
+			v, _, _ = strings.Cut(v, "\x00")
+			return v
 		}
 		return p.Value
 	case *syntax.DblQuoted:

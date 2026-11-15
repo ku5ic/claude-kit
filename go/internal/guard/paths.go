@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
+	"unicode"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
@@ -40,13 +42,51 @@ func IsSensitive(cfg *config.Config, home, path string) bool {
 	return matchSensitive(cfg, home, ExpandHome(home, path), false)
 }
 
+// foldHome is whether a "~/" entry matches whatever its case, as on
+// macOS, whose home filesystem folds case. A basename entry always does: a
+// key copied in from such a system keeps its PROD.PEM anywhere.
+var foldHome = runtime.GOOS == "darwin"
+
+// SensitiveExclusion is an rg glob excluding every basename entry of
+// sensitive_paths in any case ("!{.[eE][nN][vV],*.[pP][eE][mM]}"), "" when
+// there is none. Bracket classes, not --iglob, since the Grep tool has
+// none. An entry holding a brace, a comma, or a bracket would break the
+// glob and is left out.
+func SensitiveExclusion(cfg *config.Config) string {
+	var names []string
+	for _, entry := range cfg.SensitivePaths {
+		if !strings.HasPrefix(entry, "~/") && !strings.ContainsAny(entry, "{},/[]") {
+			names = append(names, anyCase(entry))
+		}
+	}
+	if len(names) == 0 {
+		return ""
+	}
+	return "!{" + strings.Join(names, ",") + "}"
+}
+
+// anyCase is glob with each letter a bracket class of both its cases.
+func anyCase(glob string) string {
+	var b strings.Builder
+	for _, r := range glob {
+		if lower, upper := unicode.ToLower(r), unicode.ToUpper(r); lower != upper {
+			b.WriteString("[" + string(lower) + string(upper) + "]")
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
 // SearchesSensitive is true when a recursive search from root, its files
 // filtered by glob, can read a credential or key file: root is one, or,
 // with holds, has a "~/" entry under it, or glob names one. Root is
 // absolute, or "" for none.
 // shortcut: a search with no telling glob over a directory that merely
-// holds a basename entry (a loose *.pem) passes; catching it means walking
-// the tree, or rg's own --glob exclusions passed to the tool.
+// holds a basename entry (a loose *.pem) passes. Inside the project, the
+// Grep guard and a Bash rg, alone or piped only into bashguard's
+// stdinFilters, exclude them with SensitiveExclusion; outside, and for
+// grep -r or a chained rg, catching it means walking the tree.
 func SearchesSensitive(cfg *config.Config, home, root, glob string, holds bool) bool {
 	return root != "" && matchSensitive(cfg, home, root, holds) || namesSensitive(cfg, glob)
 }
@@ -61,7 +101,7 @@ func matchSensitive(cfg *config.Config, home, path string, holds bool) bool {
 	for _, entry := range cfg.SensitivePaths {
 		rest, ok := strings.CutPrefix(entry, "~/")
 		if !ok {
-			if slices.ContainsFunc(forms, func(f string) bool { return Glob(entry, filepath.Base(f)) }) {
+			if slices.ContainsFunc(forms, func(f string) bool { return Glob(strings.ToLower(entry), strings.ToLower(filepath.Base(f))) }) {
 				return true
 			}
 			continue
@@ -69,7 +109,9 @@ func matchSensitive(cfg *config.Config, home, path string, holds bool) bool {
 		target := filepath.Join(home, rest)
 		isDir := strings.HasSuffix(rest, "/")
 		for _, t := range []string{target, physicalTarget(target)} {
+			t := homeCase(t)
 			if slices.ContainsFunc(forms, func(f string) bool {
+				f = homeCase(f)
 				return f == t || isDir && strings.HasPrefix(f, t+"/") || holds && (f == "/" || strings.HasPrefix(t, f+"/"))
 			}) {
 				return true
@@ -79,7 +121,16 @@ func matchSensitive(cfg *config.Config, home, path string, holds bool) bool {
 	return false
 }
 
-// namesSensitive is true when glob picks out a credential file by name: a
+// homeCase is path lowercased where foldHome, as a "~/" entry compares it.
+func homeCase(path string) string {
+	if foldHome {
+		return strings.ToLower(path)
+	}
+	return path
+}
+
+// namesSensitive is true when glob picks out a credential file by name,
+// whatever its case: a
 // basename entry matches its last element taken literally (*.pem), or that
 // element, unless it's only wildcards, matches an entry (*.env -> .env).
 // Each {a,b} alternative is checked on its own; a glob with more than
@@ -96,7 +147,9 @@ func namesSensitive(cfg *config.Config, glob string) bool {
 	return slices.ContainsFunc(alts, func(alt string) bool {
 		base := alt[strings.LastIndex(alt, "/")+1:]
 		generic := strings.Trim(base, "*?") == ""
+		base = strings.ToLower(base)
 		return slices.ContainsFunc(cfg.SensitivePaths, func(entry string) bool {
+			entry = strings.ToLower(entry)
 			return !strings.HasPrefix(entry, "~/") && (Glob(entry, base) || !generic && Glob(base, entry))
 		})
 	})
@@ -185,7 +238,7 @@ func kitSwitch(paths config.Paths, cwd, p string, norm func(string) string) stri
 	switch {
 	case paths.Overlay != "" && p == norm(paths.Overlay):
 		return "the claude-kit overlay"
-	case (base == "settings.json" || base == "settings.local.json") && (filepath.Base(dir) == ".claude" || dir == norm(paths.Home)):
+	case (base == "settings.json" || base == "settings.local.json") && (filepath.Base(dir) == ".claude" || dir == norm(paths.ClaudeDir)):
 		return "a Claude Code settings file"
 	case in(paths.LogDir()):
 		return "the kit's logs"

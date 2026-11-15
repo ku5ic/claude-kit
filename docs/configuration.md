@@ -10,6 +10,7 @@
 | plan-critic before a plan is approved                                       | On       | Turn off with `disabled_rules: [plan-critic]`                                                     |
 | kit-rules and every `global_skills` skill loaded before the first tool call | On       | Turn off with `disabled_rules: [rules-gate]`                                                      |
 | A finished plan held until `/code-review` ran after its last edit           | On       | Turn off with `disabled_rules: [plan-done]`                                                       |
+| A `/code-review` report saved to scratch before Claude asks or stops        | On       | Turn off with `disabled_rules: [review-report]`                                                   |
 | Claude stops for your review after each plan step                           | On       | `step_pause: plan` stops once at the plan's end, `off` never stops                                |
 | Pattern skills required before the first edit of a file type                | Off      | `guard_skills: true`, or `CLAUDE_GUARD_SKILLS=1` in your settings `env`                           |
 | Em dashes, smart quotes, and Unicode arrows rewritten to ASCII              | Off      | `sanitize_typography: true`, or `CLAUDE_SANITIZE_TYPOGRAPHY=1` in your settings `env`             |
@@ -38,6 +39,7 @@ Defaults live in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml
 | `disabled_task_providers` | Stop reading a task source (`make`, `package-scripts`, ...) at all                                                                                                                      |
 | `on_edit`                 | Format a file type the project's own fixers don't claim                                                                                                                                 |
 | `gate_timeout`            | Seconds before a Stop check is skipped                                                                                                                                                  |
+| `architecture_dir`        | Where `/code visual` keeps each repo's architecture model, read by `kit code-graph model-dir`                                                                                           |
 | `gate_env`                | `NAME=value` pairs every check runs with                                                                                                                                                |
 | `gate_discovery`          | CI jobs and steps never run as checks: deny lists of commands, names, and actions                                                                                                       |
 | `classifier`              | The command gap-fill runs instead of `claude`, as an argv list                                                                                                                          |

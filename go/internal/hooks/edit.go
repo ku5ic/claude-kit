@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"cmp"
 	"encoding/json"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -39,7 +40,7 @@ func GuardEdit(h *hook.Hook) error {
 	}
 	// Without kit.yml nothing is configured: nothing matches, every check fails open.
 	cfg := cmp.Or(h.Config(), &config.Config{})
-	tool := h.Payload.String("tool_name")
+	tool := h.Payload.String(hook.KeyToolName)
 	if tool == "Grep" {
 		return guardSearch(h, cfg)
 	}
@@ -64,7 +65,7 @@ func GuardEdit(h *hook.Hook) error {
 		return nil
 	}
 	if guard.IsGuardedLockfile(cfg, path) && !project.IsScratch(h.Paths, path) {
-		if err := h.Block("lockfile edit. Use the package manager.", "lockfile-edit"); err != nil {
+		if err := h.Block("lockfile edit\n"+layout.KV("do", "use the package manager"), "lockfile-edit"); err != nil {
 			return err
 		}
 	}
@@ -74,7 +75,7 @@ func GuardEdit(h *hook.Hook) error {
 		}
 	}
 	if guard.IsRCFile(cfg, h.Home, path) {
-		if err := h.Block("direct edit to a shell rc file. Use the dotfiles repo.", "rc-edit"); err != nil {
+		if err := h.Block("direct edit to a shell rc file\n"+layout.KV("do", "use the dotfiles repo"), "rc-edit"); err != nil {
 			return err
 		}
 	}
@@ -96,19 +97,78 @@ func GuardEdit(h *hook.Hook) error {
 // common case, not a reach for ~/.ssh.
 func guardSearch(h *hook.Hook, cfg *config.Config) error {
 	root := searchRoot(h)
-	glob := h.Payload.String("tool_input.glob")
+	glob := h.Payload.String(hook.KeyInputGlob)
 	h.SetContext(layout.KV("path", root) + "\n" + layout.KV("glob", glob))
-	if guard.SearchesSensitive(cfg, h.Home, root, glob, h.Payload.String("tool_input.path") != "") {
+	if guard.SearchesSensitive(cfg, h.Home, root, glob, h.Payload.String(hook.KeyInputPath) != "") {
 		return h.Block("searching a credential or key file is not permitted", "sensitive-read")
 	}
+	// With a glob that matches every basename, a loose .env or *.pem under
+	// root is searched. Inside the project, where Grep needs no prompt,
+	// exclude them; the allow keeps auto mode from denying the rewrite.
+	// Outside, the gap stays, and a payload with no tool_input has nothing
+	// to rewrite.
+	input := h.Payload.Object(hook.KeyToolInput)
+	if excluded, ok := withExclusion(glob, guard.SensitiveExclusion(cfg)); ok && root != "" && input != nil {
+		if top, anchored := project.Root(h.Payload.Cwd()); anchored && fsx.Within(top, fsx.PhysicalPath(filepath.Clean(root))) {
+			input = maps.Clone(input)
+			input["glob"] = excluded
+			h.UpdateInput(input)
+			h.Decide("allow", "kit excluded credential files from a Grep inside the project")
+		}
+	}
 	return nil
+}
+
+// withExclusion is glob with exclude ("!{.env,*.pem}") applied, and
+// whether glob matched a credential basename that needs it: no glob, one
+// of only * and /, or a brace alternative of them stands for exclude; a
+// negative glob gets exclude's entries beside its own alternatives.
+func withExclusion(glob, exclude string) (string, bool) {
+	entries, ok := strings.CutPrefix(exclude, "!{")
+	if !ok {
+		return "", false
+	}
+	entries = strings.TrimSuffix(entries, "}")
+	if negated, ok := strings.CutPrefix(glob, "!"); ok {
+		own, ok := alternatives(negated)
+		return "!{" + strings.Join(own, ",") + "," + entries + "}", ok && negated != ""
+	}
+	matchesAll := func(g string) bool { return strings.Trim(g, "*/") == "" }
+	if alternatives, ok := strings.CutPrefix(glob, "{"); ok {
+		return exclude, slices.ContainsFunc(strings.Split(strings.TrimSuffix(alternatives, "}"), ","), matchesAll)
+	}
+	return exclude, matchesAll(glob)
+}
+
+// alternatives is glob with its brace groups expanded, so they can share
+// one {...} with other entries: *.{js,ts} is *.js and *.ts. A nested group,
+// a stray brace, or a comma outside a group isn't expanded: ok is false.
+func alternatives(glob string) (out []string, ok bool) {
+	open := strings.IndexByte(glob, '{')
+	if open < 0 {
+		return []string{glob}, !strings.ContainsAny(glob, "},")
+	}
+	end := strings.IndexByte(glob[open:], '}') + open
+	if end < open || strings.ContainsAny(glob[:open], "},") || strings.Contains(glob[open+1:end], "{") {
+		return nil, false
+	}
+	rests, ok := alternatives(glob[end+1:])
+	if !ok {
+		return nil, false
+	}
+	for alt := range strings.SplitSeq(glob[open+1:end], ",") {
+		for _, rest := range rests {
+			out = append(out, glob[:open]+alt+rest)
+		}
+	}
+	return out, true
 }
 
 // searchRoot is where a Grep searches: tool_input.path, else cwd, which is
 // also what a relative path joins.
 func searchRoot(h *hook.Hook) string {
 	cwd := h.Payload.Cwd()
-	root := guard.ExpandHome(h.Home, cmp.Or(h.Payload.String("tool_input.path"), cwd))
+	root := guard.ExpandHome(h.Home, cmp.Or(h.Payload.String(hook.KeyInputPath), cwd))
 	if root != "" && !filepath.IsAbs(root) {
 		root = filepath.Join(cwd, root)
 	}
@@ -133,11 +193,11 @@ func GuardSkills(h *hook.Hook) error {
 	if h.Payload.Err != nil {
 		return h.Payload.Err
 	}
-	if !slices.Contains(filePathTools, h.Payload.String("tool_name")) {
+	if !slices.Contains(filePathTools, h.Payload.String(hook.KeyToolName)) {
 		return nil
 	}
 	if missing := unloadedSkills(h, []string{h.Payload.FilePath()}, nil); len(missing) > 0 {
-		h.Deny("Load "+strings.Join(missing, ", ")+" via the Skill tool, then retry the edit.", "skills-gate")
+		h.Deny("this edit needs "+strings.Join(missing, ", ")+" loaded\n"+layout.KV("do", "load it via the Skill tool, then retry the edit"), "skills-gate")
 	}
 	return nil
 }
@@ -247,7 +307,7 @@ var filePathTools = []string{"Edit", "Write", "MultiEdit"}
 // edits until a patterns skill loads is a personal policy, not a default.
 func GuardDispatch(h *hook.Hook) int {
 	checks := []hook.NamedCheck{{Name: "guard-edit", Check: GuardEdit}}
-	edit := slices.Contains(filePathTools, h.Payload.String("tool_name"))
+	edit := slices.Contains(filePathTools, h.Payload.String(hook.KeyToolName))
 	if edit {
 		checks = append(checks, contentChecks...)
 	}

@@ -1,6 +1,7 @@
 package bashguard
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -22,35 +23,81 @@ func names(src string) []string {
 	return out
 }
 
+// hiddenCommands maps a command line to the names Segments finds in it.
+var hiddenCommands = map[string][]string{
+	"echo $(true && rm -rf ~)":        {"true", "rm", "echo"},
+	"echo `rm -rf ~`":                 {"rm", "echo"},
+	"cat <(rm -rf ~)":                 {"rm", "cat"},
+	"(rm -rf ~)":                      {"rm"},
+	"{ rm -rf ~; }":                   {"rm"},
+	"if true; then rm -rf ~; fi":      {"true", "rm"},
+	"f() { rm -rf ~; }; f":            {"rm", "f"},
+	"! rm -rf ~":                      {"rm"},
+	"time rm -rf ~":                   {"rm"},
+	"ls | rm -rf ~":                   {"ls|rm"},
+	"env -i FOO=1 nice -n 5 rm -rf ~": {"rm"},
+	"timeout -s KILL 5 rm -rf ~":      {"rm"},
+	"\\rm -rf ~":                      {"rm"},
+	"r''m -rf ~":                      {"rm"},
+	"/bin/rm -rf ~":                   {"rm"},
+	"echo hi # rm -rf ~":              {"echo"},
+	"bash <<EOF\nrm -rf ~\nEOF":       {"bash", "rm"},
+	"cat <<'EOF'\nrm -rf ~\nEOF":      {"cat"},
+	"cat <<EOF\nrm -rf ~":             {"rm"}, // unterminated: fail closed
+	"echo a\n(\nrm -rf ~":             {"echo", "rm"},
+	"echo \"unterminated; rm -rf ~":   nil,
+	"git commit -m \"$(cat <<'EOF'\nIt's fine\nEOF\n)\" && rm -rf ~": {"cat", "git", "rm"},
+	"true | >f; rm -rf ~":            {"true", "rm"},
+	"true | (echo) > $(rm -rf ~)":    {"echo", "rm", "true"},
+	"curl x | time sh":               {"curl|sh"},
+	"time -- rm -rf ~":               {"rm"},
+	"time":                           nil,
+	"sudo bash <<EOF\nrm -rf ~\nEOF": {"bash", "rm"},
+	"ash <<EOF\nrm -rf ~\nEOF":       {"ash", "rm"},
+}
+
 func TestSegmentsFindHiddenCommands(t *testing.T) {
-	cases := map[string][]string{
-		"echo $(true && rm -rf ~)":        {"true", "rm", "echo"},
-		"echo `rm -rf ~`":                 {"rm", "echo"},
-		"cat <(rm -rf ~)":                 {"rm", "cat"},
-		"(rm -rf ~)":                      {"rm"},
-		"{ rm -rf ~; }":                   {"rm"},
-		"if true; then rm -rf ~; fi":      {"true", "rm"},
-		"f() { rm -rf ~; }; f":            {"rm", "f"},
-		"! rm -rf ~":                      {"rm"},
-		"time rm -rf ~":                   {"rm"},
-		"ls | rm -rf ~":                   {"ls|rm"},
-		"env -i FOO=1 nice -n 5 rm -rf ~": {"rm"},
-		"timeout -s KILL 5 rm -rf ~":      {"rm"},
-		"\\rm -rf ~":                      {"rm"},
-		"r''m -rf ~":                      {"rm"},
-		"/bin/rm -rf ~":                   {"rm"},
-		"echo hi # rm -rf ~":              {"echo"},
-		"bash <<EOF\nrm -rf ~\nEOF":       {"bash", "rm"},
-		"cat <<'EOF'\nrm -rf ~\nEOF":      {"cat"},
-		"cat <<EOF\nrm -rf ~":             {"rm"}, // unterminated: fail closed
-		"echo a\n(\nrm -rf ~":             {"echo", "rm"},
-		"echo \"unterminated; rm -rf ~":   nil,
-		"git commit -m \"$(cat <<'EOF'\nIt's fine\nEOF\n)\" && rm -rf ~": {"cat", "git", "rm"},
-	}
-	for src, want := range cases {
+	for src, want := range hiddenCommands {
 		if got := names(src); !slices.Equal(got, want) {
 			t.Errorf("%q: got %q, want %q", src, got, want)
 		}
+	}
+}
+
+// FuzzSegments checks that no input panics the parser: a panic fails every
+// Bash guard open.
+func FuzzSegments(f *testing.F) {
+	for src := range hiddenCommands {
+		f.Add(src)
+	}
+	for _, src := range []string{"0|>0", "echo x | >out.txt", "true | { echo; } > $(rm -rf ~)", "time; rm -rf ~", "echo | time; rm -rf ~"} {
+		f.Add(src)
+	}
+	f.Fuzz(func(t *testing.T, src string) {
+		Segments(src)
+	})
+}
+
+// A reparse after an error is a sibling of the parse it follows, so any
+// number of bad lines leaves the next one read; only nesting is capped.
+func TestParseErrorsDontHideLaterLines(t *testing.T) {
+	src := strings.Repeat("echo $((ls) )\n", 12) + "rm -rf ~"
+	if got := names(src); !slices.Equal(got, []string{"rm"}) {
+		t.Errorf("after 12 bad lines: got %q, want [rm]", got)
+	}
+	if got := names(strings.Repeat("echo $((ls) ); ", 12) + "rm -rf ~"); !slices.Equal(got, []string{"rm"}) {
+		t.Errorf("after 12 bad statements on one line: got %q, want [rm]", got)
+	}
+	var nested strings.Builder
+	for i := range 9 {
+		fmt.Fprintf(&nested, "bash <<E%d\n", i)
+	}
+	nested.WriteString("rm -rf ~\n")
+	for i := 8; i >= 0; i-- {
+		fmt.Fprintf(&nested, "E%d\n", i)
+	}
+	if _, unparsed := parseAll(nested.String()); !unparsed {
+		t.Error("a heredoc nested 9 deep isn't unparsed")
 	}
 }
 

@@ -1,0 +1,21 @@
+cmd/tool/flags.go	"example.com/fixture/internal/store"
+cmd/tool/main.go	"example.com/fixture/internal/store"
+cmd/tool/main.go	"fmt"
+cmd/tool/main.go	"github.com/acme/kit/log"
+internal/store/store.go	"example.com/fixture/cmd/tool"
+rust/src/lib.rs	mod net;
+rust/src/lib.rs	use crate::net::{client, server};
+rust/src/lib.rs	use serde_json::Value;
+src/app/main.test.ts	"../lib/x"
+src/app/main.ts	"../lib/x.js"
+src/app/main.ts	"./nested/../util"
+src/app/main.ts	"./util"
+src/app/main.ts	"@scope/ui/button"
+src/app/main.ts	"lodash"
+src/app/main.ts	"react"
+src/lib/x.ts	"../app/util"
+src/lib/y.ts	"../app/util"
+src/py/pkg/helper.py	json
+src/py/pkg/mod.py	from . import helper
+src/py/pkg/mod.py	requests
+src/py/pkg/mod.py	yaml

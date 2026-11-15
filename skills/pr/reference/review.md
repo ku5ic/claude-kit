@@ -2,11 +2,11 @@
 
 Turn this session's review findings on someone else's PR into a draft review file with inline comments plus one summary comment. Arguments: `<PR number or URL> [report path]`.
 
-This kind never runs a review, checks out the PR, or runs its checks. It runs last, after `/code-review`, `/verify`, and `decision-review`.
+This kind never runs a review, checks out the PR, or runs its checks. It runs last, after `/code-review`, `/verify`, and `/code challenge`.
 
 ## Inputs
 
-1. Findings, first match wins: the report path in `$ARGUMENTS`; else every review point this session produced, from `/code-review`, `/verify`, `decision-review`, or plain discussion, merged. None at all: stop and name the reviews to run, `/code-review <n>`, then `/verify` and `decision-review` as the change calls for.
+1. Findings, first match wins: the report path in `$ARGUMENTS`; else every review point this session produced, from `/code-review`, `/verify`, `/code challenge`, or plain discussion, merged. None at all: stop and name the reviews to run, `/code-review <n>`, then `/verify` and `/code challenge` as the change calls for.
 2. The PR: from `$ARGUMENTS`, else from the findings. Neither names it: ask. Owner and repo come from the URL, or `gh repo view --json nameWithOwner`. Every `gh pr` call below passes `-R <owner>/<repo>`, so a PR from another repo resolves there and not in the cwd's repo.
 
 ## Pin the head

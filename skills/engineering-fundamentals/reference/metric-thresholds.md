@@ -14,5 +14,6 @@ The one set of numbers.
 | Cohesion      | a type whose methods work on disjoint subsets of its fields (two jobs)                       |
 | File size     | over 500 lines, unless genuinely one cohesive unit                                           |
 | Step size     | a plan step naming more than 10 files: more than one review sheet holds                      |
+| Co-change     | two files, neither importing the other, at change-coupling degree 0.5 or more                |
 
 - The project's static analysis already reports a metric (cyclomatic or cognitive complexity): its readings count as input alongside these.

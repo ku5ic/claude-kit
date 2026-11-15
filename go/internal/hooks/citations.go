@@ -41,31 +41,30 @@ func CheckCitations(h *hook.Hook) error {
 		return nil
 	}
 	switch {
-	case p.String("hook_event_name") == "SubagentStop":
+	case p.String(hook.KeyHookEventName) == "SubagentStop":
 		// Sent back once, by the stop or the hand-back. A marker, not
 		// stop_hook_active: another check may have blocked the first stop.
 		marker := handbackMarker(h, cache.Cites)
-		if !isGatherer(p) || marker == "" && p.Bool("stop_hook_active") || marker != "" && fsx.IsFile(marker) {
+		if !isGatherer(p) || marker == "" && p.Bool(hook.KeyStopHookActive) || marker != "" && fsx.IsFile(marker) {
 			return nil
 		}
-		if bad := cite.Broken(root, p.String("last_assistant_message")); len(bad) > 0 {
-			if marker != "" && !h.DryRun {
-				_ = fsx.WriteAtomic(marker, []byte("sent-back"), 0o644)
+		if bad := cite.Broken(root, p.String(hook.KeyLastAssistantMessage)); len(bad) > 0 {
+			if marker != "" && !markOnce(h, marker, []byte("sent-back"), "citations") {
+				return nil
 			}
 			return h.Block(citesMessage("your report", bad, sendBack), "citations")
 		}
-	case p.String("tool_name") == "SubagentHandback":
+	case p.String(hook.KeyToolName) == "SubagentHandback":
 		marker := handbackMarker(h, cache.Cites)
 		if !isGatherer(p) || marker == "" || fsx.IsFile(marker) {
 			return nil
 		}
-		if bad := cite.Broken(root, p.String("tool_input.message")); len(bad) > 0 {
-			if !h.DryRun {
-				_ = fsx.WriteAtomic(marker, []byte("sent-back"), 0o644)
+		if bad := cite.Broken(root, p.String(hook.KeyInputMessage)); len(bad) > 0 {
+			if markOnce(h, marker, []byte("sent-back"), "citations") {
+				h.Deny(citesMessage("your report", bad, sendBack), "citations")
 			}
-			h.Deny(citesMessage("your report", bad, sendBack), "citations")
 		}
-	case p.String("tool_name") == "ExitPlanMode":
+	case p.String(hook.KeyToolName) == "ExitPlanMode":
 		return planCitations(h, root)
 	}
 	return nil
@@ -74,20 +73,20 @@ func CheckCitations(h *hook.Hook) error {
 // planCitations denies a plan with broken citations once per text.
 func planCitations(h *hook.Hook, root string) error {
 	p := h.Payload
-	text := p.String("tool_input.plan")
+	text := p.String(hook.KeyInputPlan)
 	bad := cite.Broken(root, text)
 	if len(bad) == 0 {
 		return nil
 	}
-	plan := filepath.Base(p.String("tool_input.planFilePath"))
+	plan := filepath.Base(p.String(hook.KeyInputPlanFilePath))
 	marker := h.Paths.SessionFile(cache.Cites, p.SessionID(), "plan", plan)
 	sum := sha256.Sum256([]byte(text))
 	sentBack := "sent-back " + hex.EncodeToString(sum[:])
 	if prev, err := os.ReadFile(marker); err == nil && string(prev) == sentBack {
 		return nil
 	}
-	if !h.DryRun {
-		_ = fsx.WriteAtomic(marker, []byte(sentBack), 0o644)
+	if !markOnce(h, marker, []byte(sentBack), "citations") {
+		return nil
 	}
 	h.Deny(citesMessage("the plan "+plan, bad, "call ExitPlanMode again"), "citations")
 	return nil
@@ -97,7 +96,7 @@ func planCitations(h *hook.Hook, root string) error {
 // plugin's agent is plugin-scoped, kit:gatherer
 // (code.claude.com/docs/en/hooks); a bare name is matched too.
 func isGatherer(p *hook.Payload) bool {
-	return strings.TrimPrefix(p.String("agent_type"), "kit:") == gatherer
+	return strings.TrimPrefix(p.String(hook.KeyAgentType), "kit:") == gatherer
 }
 
 // citesMessage names each citation that doesn't resolve and why, at most

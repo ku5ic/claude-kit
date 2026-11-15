@@ -75,6 +75,14 @@ func TestComments(t *testing.T) {
 			"`; // it serves as the key",
 		), []string{"3:copula"}},
 		{"template literal opened and closed on one line", "a.ts", "const s = `x`; // it serves as the key", []string{"1:copula"}},
+		{"a template literal's ${} holding a nested template", "a.ts",
+			"const s = `a ${b ? `it's` : \"y\"} c`; // it serves as the key", []string{"1:copula"}},
+		{"a template literal's ${} holding a backtick-free brace", "a.ts",
+			"const s = `${ {a: 1}.a }`; // it serves as the key", []string{"1:copula"}},
+		{"a rust lifetime isn't a quote", "a.rs", lines(
+			"fn f(x: &'static str) {} // it serves as the key",
+			"let c = '/'; // it serves as the key",
+		), []string{"1:copula", "2:copula"}},
 		{"heredoc lines aren't comments", "a.sh", lines(
 			`cat <<-'EOF' # it serves as the key`,
 			`# serves as the heading`,

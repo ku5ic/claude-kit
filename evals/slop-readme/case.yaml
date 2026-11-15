@@ -1,5 +1,0 @@
-schema_version: "1.1"
-name: slop-readme
-description: A README written for the repo carries no AI tells and says specific things about the code.
-context:
-  scaffold_script: fixture.sh

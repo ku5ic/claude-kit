@@ -13,6 +13,7 @@ Which CLI to reach for, how to call the bin scripts, and where temporary files g
 | Locate code by shape (AST)         | `sg`                               | rg, when structure is the question |
 | Find files/paths                   | `fd`                               | find                               |
 | Repo size, language breakdown      | `tokei`                            | reading files to estimate          |
+| Complexity per file                | `scc`                              | reading files to judge             |
 | Secrets, quick                     | `gitleaks`                         | manual grep                        |
 | Secrets, deep history              | `trufflehog git file://.`          | gitleaks                           |
 | Timing a perf claim                | `hyperfine`                        | opinion                            |
@@ -23,6 +24,10 @@ Which CLI to reach for, how to call the bin scripts, and where temporary files g
 | Fixup commits from staged hunks    | `git absorb`                       | rebase -i + fixup                  |
 | Git outside cwd                    | `git -C <dir>`                     | cd <dir> && git                    |
 | Validate a GitHub Actions workflow | `actionlint`                       | reading YAML by eye                |
+| Check a Mermaid diagram renders    | `mmdc`                             | reading the fence by eye           |
+| A GitHub PR, issue, or API call    | `gh`                               | fetching github.com pages          |
+| Diff that ignores reformatting     | `difft`                            | `git diff -w`                      |
+| Read or create an ADR              | `adr`                              | listing `docs/adr` by hand         |
 
 ### Budget
 
@@ -46,7 +51,7 @@ Scratch is whatever `kit scratch-dir` prints, the `scratch:` line of `<repo-cont
 | Directory          | Holds                                                               | Tracked?       |
 | ------------------ | ------------------------------------------------------------------- | -------------- |
 | `.claude/scratch/` | Throwaway work: POCs, one-off scripts, logs, downloads, screenshots | No, gitignored |
-| `.claude/plans/`   | Plan files, via `plansDirectory: ".claude/plans"`                   | No, gitignored |
+| `.claude/plans/`   | Plan files, when the `plansDirectory` setting points here           | No, gitignored |
 | `.claude/tasks/`   | Handover plans a person is meant to read, written by hand           | Yes            |
 
 - A temporary file (a report, preview, test artifact, POC, debug file, download, screenshot, log) goes to scratch, over the harness's `/tmp` scratchpad and any ad hoc path under `~/.claude/`.
@@ -54,4 +59,5 @@ Scratch is whatever `kit scratch-dir` prints, the `scratch:` line of `<repo-cont
 - A web page or doc gets read with WebFetch, or searched with `curl ... | rg`. Never saved to disk to read.
 - After a download, or after a subagent with Bash returns, run `git status --short`. A file you didn't mean to create gets moved to scratch or flagged first.
 - A subagent prompt that may write files names `$(kit scratch-dir)` as its only place to write.
-- A structured artifact (a report, review, or audit) goes to the path `kit scratch-dir <kind> <slug>` prints. A plan is `.claude/plans/plan-<task-slug>.md`, slug capped at four words.
+- In plan mode, where Claude Code lets an agent write only the plan file, a report goes where the harness allows, and the reply names that path.
+- A structured artifact (a report, review, or audit) goes to the path `kit scratch-dir <kind> <slug>` prints. A plan is `plan-<task-slug>.md` in the folder `plansDirectory` points to, else Claude Code's default `~/.claude/plans/`, slug capped at four words.

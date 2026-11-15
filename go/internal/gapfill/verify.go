@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
+	"unicode"
 
 	// Aliased: gapfill has a classify function of its own.
 	shellcalls "github.com/ku5ic/claude-kit/go/internal/classify"
@@ -28,11 +30,11 @@ func verify(cfg *config.Config, root string, entries []sources.Entry, s store, f
 	for _, m := range r.Managers {
 		prefixes = append(prefixes, m.RunPrefix)
 	}
-	resolver := resolve.New(root, nil, cfg.UserPins)
+	resolver := resolve.New(root, "", nil, nil) // only Fetches, which reads neither home nor pins
 	at := func(dir string) forms {
 		return forms{cfg: cfg, root: root, dir: filepath.Join(root, dir), prefixes: prefixes, resolver: resolver}
 	}
-	unclassified := "unclassified"
+	unclassified, now := unclassifiedReason, time.Now()
 	if failure != "" {
 		unclassified += " (" + failure + ")"
 	}
@@ -45,6 +47,9 @@ func verify(cfg *config.Config, root string, entries []sources.Entry, s store, f
 		a := s.Entries[key]
 		if a == nil {
 			r.Skipped[key] = unclassified
+			if retry := s.retryAt(cfg, key, now); failure == "" && !retry.IsZero() {
+				r.Skipped[key] = coolingReason + s.Failed[key].Why + "; asked again after " + retry.Format("15:04") + ")"
+			}
 			continue
 		}
 		v, dropped, err := at(e.Dir).verdict(e, a.Verdict)
@@ -52,6 +57,7 @@ func verify(cfg *config.Config, root string, entries []sources.Entry, s store, f
 			r.Skipped[key] = "rejected (" + err.Error() + ")"
 			continue
 		}
+		v.Globs = fromDir(e.Dir, v.Globs)
 		for _, d := range dropped {
 			r.Dropped = append(r.Dropped, e.Source+" "+e.Name+": "+d)
 		}
@@ -59,16 +65,67 @@ func verify(cfg *config.Config, root string, entries []sources.Entry, s store, f
 	}
 	r.Dropped = append(r.Dropped, coverage(entries, r.Verdicts)...)
 	for _, p := range s.Proposals {
-		if err := at(p.Dir).proposal(p); err != nil {
+		p.Evidence = at(p.Dir).evidencePath(p.Evidence)
+		p.Globs = fromDir(p.Dir, p.Globs)
+		p, dropped, err := at(p.Dir).proposal(p)
+		if err != nil {
 			r.Dropped = append(r.Dropped, fmt.Sprintf("proposal %q: %v", p.Command, err))
 			continue
 		}
-		if p.Role != "check" {
-			p.Kind = ""
+		for _, d := range dropped {
+			r.Dropped = append(r.Dropped, fmt.Sprintf("proposal %q: %s", p.Command, d))
 		}
 		r.Proposals = append(r.Proposals, p)
 	}
 	return r
+}
+
+// fromDir is globs as they match from dir, which the plan reads them
+// from. The classifier sometimes writes them from the root (go/**/*.go
+// for dir go), so dir's own prefix goes, from each alternative of a
+// leading brace group too ({go/a.go,go/b.go}).
+func fromDir(dir string, globs []string) []string {
+	dir = filepath.ToSlash(filepath.Clean(dir))
+	trim := func(g string) string {
+		g = strings.TrimPrefix(g, "./")
+		if dir != "." {
+			g = strings.TrimPrefix(g, dir+"/")
+		}
+		return g
+	}
+	out := make([]string, 0, len(globs))
+	for _, g := range globs {
+		if alts, rest, ok := leadingGroup(g); ok {
+			for i := range alts {
+				alts[i] = trim(alts[i])
+			}
+			g = "{" + strings.Join(alts, ",") + "}" + rest
+		}
+		out = append(out, trim(g))
+	}
+	return out
+}
+
+// leadingGroup splits a glob that opens with a brace group into the
+// group's top-level alternatives and what follows its closing brace.
+func leadingGroup(glob string) (alts []string, rest string, ok bool) {
+	if !strings.HasPrefix(glob, "{") {
+		return nil, "", false
+	}
+	depth, start := 0, 1
+	for i, r := range glob {
+		switch {
+		case r == '{':
+			depth++
+		case r == '}':
+			if depth--; depth == 0 {
+				return append(alts, glob[start:i]), glob[i+1:], true
+			}
+		case r == ',' && depth == 1:
+			alts, start = append(alts, glob[start:i]), i+1
+		}
+	}
+	return nil, "", false
 }
 
 // coverage drops each covered_by claim but one naming another verified check
@@ -117,14 +174,24 @@ func denied(cfg *config.Config, e sources.Entry) string {
 	return cfg.GateDiscovery.DeniedCommand(strings.Fields(e.Body.Text))
 }
 
-// checkRole is an error for a role the schema doesn't list, or a check
-// kind it doesn't. A check of several kinds, an aggregate, has none.
-func checkRole(role, kind string) error {
-	if !slices.Contains(roles, role) {
+// proposalRoles are the roles a proposal may take.
+var proposalRoles = []string{"check", "fixer"}
+
+// checkCommand is an error unless role is one of allowed, a check's kind is
+// one the schema lists, and a check's words set no deny_flags flag. With
+// aggregates, a check of several kinds has none.
+func (f forms) checkCommand(role, kind string, words, allowed []string, aggregates bool) error {
+	if !slices.Contains(allowed, role) {
 		return fmt.Errorf("role %q", role)
 	}
-	if role == "check" && kind != "" && !slices.Contains(kinds, kind) {
+	if role != "check" {
+		return nil
+	}
+	if (!aggregates || kind != "") && !slices.Contains(kinds, kind) {
 		return fmt.Errorf("check kind %q", kind)
+	}
+	if flag := f.cfg.DeniedFlag(words); flag != "" {
+		return fmt.Errorf("a check that sets %s", flag)
 	}
 	return nil
 }
@@ -173,19 +240,26 @@ type forms struct {
 // error. A form that doesn't hold up is dropped, with why; the rest of the
 // verdict stands.
 func (f forms) verdict(e sources.Entry, v Verdict) (Verdict, []string, error) {
-	if err := checkRole(v.Role, v.Kind); err != nil {
+	// With segments, each is checked on its own words.
+	words := strings.Fields(e.Body.Text)
+	if len(v.Segments) > 0 {
+		words = nil
+	}
+	if err := f.checkCommand(v.Role, v.Kind, words, roles, true); err != nil {
 		return v, nil, err
 	}
 	if v.Role != "check" {
 		v.Kind = ""
 	}
-	if flag := f.cfg.DeniedFlag(strings.Fields(e.Body.Text)); v.Role == "check" && len(v.Segments) == 0 && flag != "" {
-		return v, nil, fmt.Errorf("a check that sets %s", flag)
-	}
 	body := strings.Join(strings.Fields(e.Body.Text), " ")
 	bodies := []string{e.Body.Text}
 	for i, s := range v.Segments {
-		if err := checkRole(s.Role, s.Kind); err != nil {
+		// The model saw e.Command(), the env in front; the body has none.
+		if words := strings.Fields(s.Text); len(withoutEnv(words, e.Env)) < len(words) {
+			s.Text = strings.Join(withoutEnv(words, e.Env), " ")
+			v.Segments[i].Text = s.Text
+		}
+		if err := f.checkCommand(s.Role, s.Kind, strings.Fields(s.Text), roles, true); err != nil {
 			return v, nil, fmt.Errorf("segment %q: %w", s.Text, err)
 		}
 		if strings.TrimSpace(s.Text) == "" {
@@ -194,16 +268,13 @@ func (f forms) verdict(e sources.Entry, v Verdict) (Verdict, []string, error) {
 		if !strings.Contains(body, strings.Join(strings.Fields(s.Text), " ")) {
 			return v, nil, fmt.Errorf("segment %q isn't in the body", s.Text)
 		}
-		if flag := f.cfg.DeniedFlag(strings.Fields(s.Text)); s.Role == "check" && flag != "" {
-			return v, nil, fmt.Errorf("segment %q: a check that sets %s", s.Text, flag)
-		}
 		if s.Role != "check" {
 			v.Segments[i].Kind = ""
 		}
 		bodies = append(bodies, s.Text)
 	}
 	var dropped []string
-	if why := f.checkForm(v.Role, v.FileForm, bodies, "{files}", "{dirs}"); why != "" {
+	if why := f.fileForm(v.Role, v.FileForm, bodies); why != "" {
 		dropped = append(dropped, fmt.Sprintf("file form %q: %s", v.FileForm, why))
 		v.FileForm, v.Globs = "", nil
 	}
@@ -212,6 +283,130 @@ func (f forms) verdict(e sources.Entry, v Verdict) (Verdict, []string, error) {
 		v.Affected = ""
 	}
 	return v, dropped, nil
+}
+
+// fileForm is why form, the file form of a command in role whose own
+// words are bodies, fails checkForm or drops the project's config; "" when
+// it holds.
+func (f forms) fileForm(role, form string, bodies []string) string {
+	why := f.checkForm(role, form, bodies, "{files}", "{dirs}")
+	if why == "" && form != "" {
+		why = wholeInputTools[f.wholeInputTool(form)]
+	}
+	return why
+}
+
+// wholeInputTools go wrong once given files, each with why. The TypeScript
+// docs say "When input files are specified on the command line,
+// tsconfig.json files are ignored", and vue-tsc takes tsc's arguments.
+// deadcode over two of this repo's packages reported 94 functions that
+// ./... reports none of.
+var wholeInputTools = map[string]string{
+	"tsc":      "tsc ignores tsconfig.json once given files",
+	"vue-tsc":  "tsc ignores tsconfig.json once given files",
+	"deadcode": "deadcode given some packages reports what only the others call",
+}
+
+// toolOf is the tool words run: the first word, or the tool go tool runs.
+func toolOf(words []string) string {
+	if len(words) > 2 && filepath.Base(words[0]) == "go" && words[1] == "tool" {
+		return filepath.Base(words[2])
+	}
+	return filepath.Base(words[0])
+}
+
+// wholeInputTool is the one of wholeInputTools body gives files to,
+// behind a run prefix or a tool runner, or through a package script, up
+// to three scripts deep; "" for none.
+func (f forms) wholeInputTool(body string) string {
+	tp, ok := sources.Provider("package-scripts")
+	return f.runsWholeInput(body, 0, func(rel string) map[string]sources.Body {
+		if !ok {
+			return nil
+		}
+		return tp.Bodies(filepath.Join(f.dir, rel, "package.json"))
+	})
+}
+
+// runsWholeInput is wholeInputTool at depth scripts down, reading each
+// directory's package scripts with scripts.
+func (f forms) runsWholeInput(body string, depth int, scripts func(rel string) map[string]sources.Body) string {
+	if depth > 3 {
+		return ""
+	}
+	lookup := func(provider, rel, name string) bool {
+		_, ok := scripts(rel)[name]
+		return provider == "package-scripts" && ok
+	}
+	// Only a command given the files counts. A script's arguments land at
+	// the end of its body, so its body is read with them there.
+	runs := func(c shellcalls.Command) string {
+		switch {
+		case c.Kind == shellcalls.Other && len(c.Words) > 0:
+			if tool := toolOf(c.Words); wholeInputTools[tool] != "" && slices.ContainsFunc(c.Words, holdsFiles) {
+				return tool
+			}
+		case c.Kind == shellcalls.Ref:
+			for _, ref := range c.Refs {
+				if ref.Provider == "package-scripts" && slices.ContainsFunc(ref.Args, holdsFiles) {
+					if tool := f.runsWholeInput(scripts(ref.Dir)[ref.Name].Text+" {files}", depth+1, scripts); tool != "" {
+						return tool
+					}
+				}
+			}
+		}
+		return ""
+	}
+	// As written for pnpm exec tsc and pnpm run x; unprefixed for a run
+	// prefix that's neither a tool runner nor a reference.
+	words := strings.Fields(body)
+	for _, b := range []string{body, strings.Join(f.unprefixed(words), " ")} {
+		parsed := shellcalls.Body(b, lookup)
+		if parsed.Opaque != "" {
+			// Unparsed, a command may start at any of its words: a wrong
+			// match only drops a file form, and Stop runs the whole command.
+			words := shellWords(b)
+			for i := range words {
+				parsed.Commands = append(parsed.Commands, shellcalls.Command{Kind: shellcalls.Other, Words: words[i:]})
+			}
+		}
+		for _, c := range parsed.Commands {
+			if tool := runs(c); tool != "" {
+				return tool
+			}
+		}
+	}
+	return ""
+}
+
+// shellWords is body split at blanks, quotes, and the shell's operators.
+func shellWords(body string) []string {
+	return strings.FieldsFunc(body, func(r rune) bool {
+		return unicode.IsSpace(r) || strings.ContainsRune(`"'$()|;&`+"`", r)
+	})
+}
+
+// evidencePath is evidence when it's a file, else its first word when that
+// is one: the model annotates paths ("knip.json (knip in devDependencies)").
+func (f forms) evidencePath(evidence string) string {
+	first, _, annotated := strings.Cut(evidence, " ")
+	if annotated && !f.isFile(evidence) && f.isFile(first) {
+		return first
+	}
+	return evidence
+}
+
+// isFile is true for a file under the root or the directory the command runs in.
+func (f forms) isFile(rel string) bool {
+	return fsx.IsFile(filepath.Join(f.root, rel)) || fsx.IsFile(filepath.Join(f.dir, rel))
+}
+
+// withoutEnv is words without the leading words that are env's own K=V.
+func withoutEnv(words, env []string) []string {
+	for len(words) > 0 && slices.Contains(env, words[0]) {
+		words = words[1:]
+	}
+	return words
 }
 
 // checkForm is why form, of an entry in role, fails form, with a check's
@@ -233,38 +428,41 @@ func (f forms) checkForm(role, form string, bodies []string, placeholders ...str
 	return ""
 }
 
-// proposal is an error unless p is a check of a known kind, or a fixer,
+// proposal is p once it holds up: a check of a known kind, or a fixer,
 // whose evidence exists, which the deny lists allow, and which never
-// fetches. Whether the project already enforces its kind where it runs is
-// the plan's call.
-func (f forms) proposal(p Proposal) error {
+// fetches; or an error. A file form that doesn't hold up is dropped, with
+// why, as a verdict's is. Whether the project already enforces its kind
+// where it runs is the plan's call.
+func (f forms) proposal(p Proposal) (Proposal, []string, error) {
 	words := strings.Fields(p.Command)
+	if len(words) == 0 {
+		return p, nil, fmt.Errorf("no command")
+	}
+	if err := f.checkCommand(p.Role, p.Kind, words, proposalRoles, false); err != nil {
+		return p, nil, err
+	}
 	switch {
-	case len(words) == 0:
-		return fmt.Errorf("no command")
-	case p.Role != "check" && p.Role != "fixer":
-		return fmt.Errorf("role %q", p.Role)
-	case p.Role == "check" && !slices.Contains(kinds, p.Kind):
-		return fmt.Errorf("check kind %q", p.Kind)
 	// Model output: a second command, a redirect, or eval could hide in it.
 	case !shellcalls.Single(p.Command):
-		return fmt.Errorf("not one plain command")
-	case p.Evidence == "" || !fsx.IsFile(filepath.Join(f.root, p.Evidence)) && !fsx.IsFile(filepath.Join(f.dir, p.Evidence)):
-		return fmt.Errorf("no evidence file %q", p.Evidence)
+		return p, nil, fmt.Errorf("not one plain command")
+	case p.Evidence == "" || !f.isFile(p.Evidence):
+		return p, nil, fmt.Errorf("no evidence file %q", p.Evidence)
 	}
 	if token := f.cfg.GateDiscovery.DeniedCommand(words); token != "" {
-		return fmt.Errorf("denied (%s)", token)
-	}
-	if flag := f.cfg.DeniedFlag(words); p.Role == "check" && flag != "" {
-		return fmt.Errorf("a check that sets %s", flag)
+		return p, nil, fmt.Errorf("denied (%s)", token)
 	}
 	if why := f.resolver.Fetches(f.dir, words); why != "" {
-		return fmt.Errorf("fetches (%s)", why)
+		return p, nil, fmt.Errorf("fetches (%s)", why)
 	}
-	if why := f.checkForm(p.Role, p.FileForm, []string{p.Command}, "{files}", "{dirs}"); why != "" {
-		return fmt.Errorf("file form %q: %s", p.FileForm, why)
+	if p.Role != "check" {
+		p.Kind = ""
 	}
-	return nil
+	var dropped []string
+	if why := f.fileForm(p.Role, p.FileForm, []string{p.Command}); why != "" {
+		dropped = append(dropped, fmt.Sprintf("file form %q: %s", p.FileForm, why))
+		p.FileForm, p.Globs = "", nil
+	}
+	return p, dropped, nil
 }
 
 // form is why form isn't one of bodies' own words, behind at most a
@@ -306,10 +504,8 @@ func (f forms) sameWords(form, source []string) bool {
 		switch {
 		case i < len(source) && w == source[i]:
 			i++
-		case placeholder(w) && i < len(source) && f.pathLike(source[i]):
-			for i < len(source) && f.pathLike(source[i]) {
-				i++
-			}
+		case placeholder(w) && f.pathRun(w, source[i:]) > 0:
+			i += f.pathRun(w, source[i:])
 		case strings.HasPrefix(w, "-") || placeholder(w):
 		default:
 			return false
@@ -318,12 +514,53 @@ func (f forms) sameWords(form, source []string) bool {
 	return i == len(source)
 }
 
+// pathRun is how many of words, from the first, the placeholder word w
+// stands for: the longest run of path arguments that starts with the text
+// before w's placeholder and ends with the text after it, as `.)"` is to
+// `{files})"`.
+func (f forms) pathRun(w string, words []string) int {
+	before, after := around(w)
+	run := 0
+	for n, word := range words {
+		if n == 0 {
+			var ok bool
+			if word, ok = strings.CutPrefix(word, before); !ok {
+				return 0
+			}
+		}
+		if path, ok := strings.CutSuffix(word, after); ok && f.pathLike(path) {
+			run = n + 1
+		}
+		if !f.pathLike(word) {
+			return run
+		}
+	}
+	return run
+}
+
+var placeholders = []string{"{files}", "{dirs}", "{base}"}
+
 func placeholder(w string) bool {
-	return strings.Contains(w, "{files}") || strings.Contains(w, "{dirs}") || strings.Contains(w, "{base}")
+	return slices.ContainsFunc(placeholders, func(p string) bool { return strings.Contains(w, p) })
+}
+
+// around is the text before and after w's placeholder.
+func around(w string) (before, after string) {
+	for _, p := range placeholders {
+		if before, after, ok := strings.Cut(w, p); ok {
+			return before, after
+		}
+	}
+	return "", ""
 }
 
 // pathLike is true for a word naming files: ".", a ./... package pattern,
 // a glob, or a path that exists where the command runs.
 func (f forms) pathLike(w string) bool {
 	return w == "." || strings.HasSuffix(w, "/...") || strings.ContainsAny(w, "*?[") || fsx.IsFile(filepath.Join(f.dir, w)) || fsx.IsDir(filepath.Join(f.dir, w))
+}
+
+// holdsFiles is true when word takes a file form's files.
+func holdsFiles(word string) bool {
+	return strings.Contains(word, "{files}") || strings.Contains(word, "{dirs}")
 }

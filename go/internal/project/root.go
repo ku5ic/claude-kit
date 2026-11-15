@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
@@ -43,11 +44,11 @@ var (
 	nonSlug     = regexp.MustCompile(`[^a-z0-9]+`)
 )
 
-// Name is a stable, slug-safe identifier for root: "home" for $HOME,
+// Name is a stable, slug-safe identifier for root: "home" for home,
 // "root" for /, else its lowercased basename with every non-alphanumeric
 // run as "-", or "unknown" when nothing is left.
-func Name(root string) string {
-	if home, err := os.UserHomeDir(); err == nil && root == home {
+func Name(root, home string) string {
+	if home != "" && root == home {
 		return "home"
 	}
 	if root == "/" {
@@ -94,7 +95,7 @@ func PlanDir(paths config.Paths, cwd string) string {
 	for _, file := range []string{
 		filepath.Join(root, ".claude", "settings.local.json"),
 		filepath.Join(root, ".claude", "settings.json"),
-		filepath.Join(paths.Home, "settings.json"),
+		filepath.Join(paths.ClaudeDir, "settings.json"),
 	} {
 		if dir := sources.JSONValue(file, ".plansDirectory"); dir != "" {
 			return filepath.Join(root, dir)
@@ -120,12 +121,25 @@ func register(paths config.Paths, dir string) error {
 
 var unsafeName = regexp.MustCompile(`[^A-Za-z0-9._-]`)
 
-// ReportPath is <dir>/<kind>[-<slug>]-<YYYYMMDD-HHMM>.md, with kind and
-// slug made filename-safe character by character.
-func ReportPath(dir, kind, slug, stamp string) string {
+// ReportPath is <dir>/<kind>[-<slug>].md, with kind and slug made
+// filename-safe character by character. When that name is taken, it's the
+// first free <kind>[-<slug>]-<n>.md from 2, so a rerun keeps the last report.
+// A slug that ends in -<n> reads the same as a rerun's, so a reader that
+// must tell them apart checks the report's own header.
+func ReportPath(dir, kind, slug string) string {
 	name := unsafeName.ReplaceAllString(kind, "-")
 	if slug != "" {
 		name += "-" + unsafeName.ReplaceAllString(slug, "-")
 	}
-	return filepath.Join(dir, name+"-"+stamp+".md")
+	path := filepath.Join(dir, name+".md")
+	for n := 2; taken(path); n++ {
+		path = filepath.Join(dir, name+"-"+strconv.Itoa(n)+".md")
+	}
+	return path
+}
+
+// taken is whether anything, a dangling link included, sits at path.
+func taken(path string) bool {
+	_, err := os.Lstat(path)
+	return err == nil
 }

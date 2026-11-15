@@ -32,7 +32,7 @@ func TestGuardConnector(t *testing.T) {
 			r := newSandbox(t).run("guard-connector", tc.call)
 			r.Want(t, tc.status)
 			if tc.status == 2 {
-				r.Has(t, "kit connector: BLOCKED ", "AI tell(s) in the mcp__", "input (slop)")
+				r.Has(t, "kit connector: BLOCKED ", "AI tell(s) in the mcp__", "input\n", "rule  slop")
 			}
 		})
 	}
@@ -50,4 +50,32 @@ func TestGuardConnector(t *testing.T) {
 		k.overlay("disabled_rules: [slop]\n")
 		k.run("guard-connector", toolCall("mcp__chat__send_message", map[string]any{"text": tell})).Want(t, 0)
 	})
+}
+
+// A GitHub tool that doesn't only read blocks on an AI tool's attribution
+// in any of its input, code included; other servers' tools don't.
+func TestGuardConnectorBlocksAttributionOnGitHub(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name   string
+		call   map[string]any
+		status int
+	}{
+		{"block: a PR footer", toolCall("mcp__github__create_pull_request", map[string]any{"title": "fix: x", "body": "Fixes it.\n\n\U0001F916 Generated with [Claude Code](https://claude.com/claude-code)"}), 2},
+		{"block: a session link in a comment", toolCall("mcp__plugin_github_github__add_issue_comment", map[string]any{"body": "https://claude.ai/code/session_x"}), 2},
+		{"block: a trailer in a commit message pushed with files", toolCall("mcp__claude_ai_GitHub__push_files", map[string]any{"message": "fix: x\n\nCo-Authored-By: Claude <noreply@anthropic.com>", "files": []any{map[string]any{"path": "a.go", "content": "package a"}}}), 2},
+		{"block: a trailer in a code field", toolCall("mcp__github__create_or_update_file", map[string]any{"message": "fix: x", "code": "Claude-Session: x"}), 2},
+		{"allow: a clean PR", toolCall("mcp__github__create_pull_request", map[string]any{"title": "fix: x", "body": "Reads the body from disk."}), 0},
+		{"allow: a GitHub read", toolCall("mcp__github__search_issues", map[string]any{"query": "Co-Authored-By: Claude"}), 0},
+		{"allow: another server", toolCall("mcp__chat__send_message", map[string]any{"text": "see https://claude.ai/code/session_x"}), 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			r := newSandbox(t).run("guard-connector", tc.call)
+			r.Want(t, tc.status)
+			if tc.status == 2 {
+				r.Has(t, "kit connector: BLOCKED AI attribution in the mcp__", "rule  ai-attribution")
+			}
+		})
+	}
 }

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/rotate"
 	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
@@ -91,7 +92,7 @@ func TestPlanStepPause(t *testing.T) {
 		testutil.Age(t, 72*time.Hour, markers[0])
 		prompt(k, proj, "s1").Has(t, "plan-x.md")
 		// kit scratch-rotate with its default 30 days.
-		if status := rotate.Run(k.paths, 30, false, io.Discard, io.Discard); status != 0 {
+		if status := rotate.Run(k.paths, "", 30, false, io.Discard, io.Discard); status != 0 {
 			t.Fatalf("scratch-rotate exited %d", status)
 		}
 		prompt(k, proj, "s1").Has(t, "plan-x.md")
@@ -153,6 +154,10 @@ func TestGuardPlan(t *testing.T) {
 	const plan = "/proj/.claude/plans/plan-x.md"
 	write := `{"type":"assistant","message":{"content":[{"type":"tool_use","id":"w","name":"Write","input":{"file_path":"` + plan + `"}}]}}`
 	critic := `{"type":"assistant","message":{"content":[{"type":"tool_use","id":"c","name":"Agent","input":{"subagent_type":"kit:plan-critic"}}]}}`
+	launched := `{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"c","content":"Async agent launched successfully.\nagentId: a1"}]}}`
+	notice := func(status string) string {
+		return `{"type":"user","message":{"content":"<task-notification>\n<task-id>a1</task-id>\n<tool-use-id>c</tool-use-id>\n<status>` + status + `</status>\n</task-notification>"}}`
+	}
 	exit := func(k *sandbox, lines ...string) map[string]any {
 		path := filepath.Join(k.home, "session.jsonl")
 		testutil.Write(t, path, strings.Join(lines, "\n")+"\n")
@@ -171,6 +176,47 @@ func TestGuardPlan(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
 		k.run("guard-plan", exit(k, write, critic, write)).Allowed(t)
+	})
+	t.Run("in one entry, a critique after the write counts and one before it doesn't", func(t *testing.T) {
+		t.Parallel()
+		writeBlock := `{"type":"tool_use","id":"w","name":"Write","input":{"file_path":"` + plan + `"}}`
+		criticBlock := `{"type":"tool_use","id":"c","name":"Agent","input":{"subagent_type":"kit:plan-critic"}}`
+		entry := func(blocks ...string) string {
+			return `{"type":"assistant","message":{"content":[` + strings.Join(blocks, ",") + `]}}`
+		}
+		k := newSandbox(t)
+		k.run("guard-plan", exit(k, entry(writeBlock, criticBlock))).Allowed(t)
+		k = newSandbox(t)
+		k.run("guard-plan", exit(k, entry(criticBlock, writeBlock))).Denied(t)
+	})
+	t.Run("a critique that errored, or ran in the background and failed: sent back", func(t *testing.T) {
+		t.Parallel()
+		failed := `{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"c","is_error":true,"content":"agent failed"}]}}`
+		k := newSandbox(t)
+		k.run("guard-plan", exit(k, write, critic, failed)).Denied(t)
+		k = newSandbox(t)
+		k.run("guard-plan", exit(k, write, critic, launched, notice("failed"))).Denied(t)
+		// An api-request-blob echoes the call; the echo isn't a new run.
+		blob := `{"type":"api-request-blob","message":{"role":"assistant","content":[{"type":"tool_use","id":"c","name":"Agent","input":{"subagent_type":"kit:plan-critic"}}]}}`
+		k = newSandbox(t)
+		k.run("guard-plan", exit(k, write, critic, failed, blob)).Denied(t)
+	})
+	t.Run("a critique that finished, or still runs in the background: allowed", func(t *testing.T) {
+		t.Parallel()
+		finished := `{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"c","content":"the plan holds"}]}}`
+		for _, lines := range [][]string{{write, critic, finished}, {write, critic, launched}, {write, critic, launched, notice("completed")}} {
+			k := newSandbox(t)
+			k.run("guard-plan", exit(k, lines...)).Allowed(t)
+		}
+	})
+	t.Run("a marker that can't be saved lets the plan through, and says so", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		// A file sits where the marker's directory goes, so the write fails.
+		testutil.Write(t, filepath.Dir(k.paths.SessionFile(cache.PlanCritic, "s", "plan-x.md")), "")
+		r := k.run("guard-plan", exit(k, write))
+		r.Allowed(t)
+		r.Has(t, "kit plan-critic: let through unchecked")
 	})
 	t.Run("a critique only before the plan was written: sent back", func(t *testing.T) {
 		t.Parallel()
@@ -207,7 +253,7 @@ func TestPlanDispatchVerifiesClaims(t *testing.T) {
 			t.Errorf("verifier ran: %q", got)
 		}
 	})
-	t.Run("with plan-critic off, denied until the claim-checker ran on that exact text", func(t *testing.T) {
+	t.Run("with plan-critic off, denied until the claim-checker ran on each of its statements", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
 		k.verifier("disabled_rules: [plan-critic]\n", claim)
@@ -216,8 +262,10 @@ func TestPlanDispatchVerifiesClaims(t *testing.T) {
 		r.Has(t, "kit:claim-checker", "the plan plan-x.md", "ExitPlanMode again")
 		id := checkID.FindString(r.Stdout)
 		k.run("plan-dispatch", exit(k, "# Plan\n\n"+claim, write, checkerLine(id))).Allowed(t)
-		// A changed plan needs its own run.
-		k.run("plan-dispatch", exit(k, "# Plan v2\n\n"+claim, write, checkerLine(id))).Denied(t)
+		// A retitled plan states nothing new; one with a new sentence needs
+		// a run on it.
+		k.run("plan-dispatch", exit(k, "# Plan v2\n\n"+claim, write, checkerLine(id))).Allowed(t)
+		k.run("plan-dispatch", exit(k, "# Plan v2\n\n"+claim+"\n\nThe cache lives in the session directory.", write, checkerLine(id))).Denied(t)
 	})
 	t.Run("disabled_rules: [claims] lets the plan through", func(t *testing.T) {
 		t.Parallel()

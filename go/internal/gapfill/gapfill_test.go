@@ -1,6 +1,7 @@
 package gapfill
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -152,7 +153,36 @@ func TestCacheHitAndPerBodyInvalidation(t *testing.T) {
 	}
 }
 
-func TestMalformedOutputLeavesEntriesUnclassifiedAndUncached(t *testing.T) {
+func TestANewWorktreeStartsFromTheMainCheckoutsAnswers(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t, "")
+	f.root = testutil.Physical(t, f.root)
+	testutil.GitID(t, f.root, "init", "-q")
+	testutil.GitID(t, f.root, "commit", "-q", "--allow-empty", "-m", "init")
+	lint := entry("lint", "eslint .")
+	f.answer(answers(verdict(lint, map[string]any{"role": "check", "kind": "lint", "mutates": false})))
+	f.run(lint)
+	calls := len(f.calls())
+
+	wt := filepath.Join(t.TempDir(), "wt")
+	testutil.Git(t, f.root, "worktree", "add", "-q", "--detach", wt)
+	r := Run(f.cfg, Options{Root: testutil.Physical(t, wt), CacheDir: f.cacheDir, Entries: []sources.Entry{lint}})
+	if got := r.Verdicts[Key(lint)]; got.Kind != "lint" || len(f.calls()) != calls {
+		t.Errorf("the worktree's first read: %+v, %d new calls", r, len(f.calls())-calls)
+	}
+	// Later reads find the main checkout's file without git: with the
+	// worktree's cache gone and its .git broken, it still seeds.
+	if err := os.Remove(CacheFile(f.cacheDir, testutil.Physical(t, wt))); err != nil {
+		t.Fatal(err)
+	}
+	testutil.Write(t, filepath.Join(wt, ".git"), "gitdir: /nonexistent\n")
+	r = Run(f.cfg, Options{Root: testutil.Physical(t, wt), CacheDir: f.cacheDir, Entries: []sources.Entry{lint}})
+	if got := r.Verdicts[Key(lint)]; got.Kind != "lint" || len(f.calls()) != calls {
+		t.Errorf("a later read without git: %+v, %d new calls", r, len(f.calls())-calls)
+	}
+}
+
+func TestMalformedOutputLeavesEntriesUnclassifiedUntilTheCooldown(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t, "")
 	testutil.Put(t, f.dir, "response.json", "not json")
@@ -161,8 +191,57 @@ func TestMalformedOutputLeavesEntriesUnclassifiedAndUncached(t *testing.T) {
 	if why := r.Skipped[Key(lint)]; !strings.HasPrefix(why, "unclassified (classifier: malformed output") || r.Unclassified() != 1 {
 		t.Errorf("skipped = %q", why)
 	}
+	if f.run(lint); len(f.asked()) != 0 {
+		t.Errorf("a rerun within the cooldown asked %q", f.asked())
+	}
+	f.ageFailures(failureCooldown)
 	if f.run(lint); len(f.asked()) != 1 {
-		t.Errorf("a failed answer is cached: the rerun asked %q", f.asked())
+		t.Errorf("no answer is cached: past the cooldown the rerun asked %q", f.asked())
+	}
+	// A stamp ahead of the clock (a clock set back) holds nothing back.
+	f.ageFailures(-48 * time.Hour)
+	if f.run(lint); len(f.asked()) != 1 {
+		t.Errorf("a failure stamped 48h ahead held the rerun back: asked %q", f.asked())
+	}
+	if s := load(CacheFile(f.cacheDir, f.root)); s.Failed[Key(lint)].At.After(time.Now()) {
+		t.Errorf("the future stamp survived the save: %v", s.Failed)
+	}
+}
+
+// A batch still queued for a call slot when the run's deadline passes was
+// never asked, so it gets no cooldown and the next run asks it.
+func TestABatchTheDeadlineKeptQueuedIsAskedNextRun(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t, "sleep 1")
+	entries, _ := lints(batchSize * (maxCalls + 1))
+	Run(f.cfg, Options{Root: f.root, CacheDir: f.cacheDir, Entries: entries, Ask: true, Timeout: 300 * time.Millisecond})
+	s := load(CacheFile(f.cacheDir, f.root))
+	cooled := 0
+	for _, e := range entries {
+		if _, ok := s.Failed[Key(e)]; ok {
+			cooled++
+		}
+	}
+	if cooled == 0 || cooled == len(entries) {
+		t.Fatalf("%d of %d entries cooled; want only the started calls' entries", cooled, len(entries))
+	}
+	if f.run(entries...); len(f.asked()) != len(entries)-cooled {
+		t.Errorf("the next run asked %d entries; want the %d never asked", len(f.asked()), len(entries)-cooled)
+	}
+}
+
+// A deadline that passes before any call starts (a long lock wait) says so,
+// and still stamps no cooldown.
+func TestADeadlineBeforeAnyCallNamesItsFailure(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t, "")
+	lint := entry("lint", "eslint .")
+	r := Run(f.cfg, Options{Root: f.root, CacheDir: f.cacheDir, Entries: []sources.Entry{lint}, Ask: true, Timeout: time.Nanosecond})
+	if !strings.Contains(r.Failure, errNotAsked.Error()) {
+		t.Errorf("failure = %q, want it to name %q", r.Failure, errNotAsked)
+	}
+	if f.run(lint); len(f.asked()) != 1 {
+		t.Errorf("the next run asked %q; want the entry never asked", f.asked())
 	}
 }
 
@@ -304,14 +383,59 @@ func TestAFailedBatchKeepsTheOthersAnswers(t *testing.T) {
 	if len(r.Verdicts) != 2*batchSize || !strings.HasPrefix(r.Skipped[Key(last)], "unclassified (classifier: ") {
 		t.Fatalf("%d classified, the failed one skipped as %q", len(r.Verdicts), r.Skipped[Key(last)])
 	}
+	why := strings.TrimSuffix(strings.TrimPrefix(r.Skipped[Key(last)], "unclassified (classifier: "), ")")
 
 	testutil.Put(t, f.dir, "fail", "")
 	f.answer(answers(verdicts...))
+	// A failed entry waits out the cooldown before it's asked again.
 	before := len(f.calls())
 	r = f.run(entries...)
-	if len(f.calls()) != before+1 || len(r.Verdicts) != len(entries) {
-		t.Errorf("the rerun made %d calls and classified %d", len(f.calls())-before, len(r.Verdicts))
+	if len(f.calls()) != before || !strings.HasPrefix(r.Skipped[Key(last)], coolingReason) || r.Unclassified() != 0 {
+		t.Errorf("within the cooldown: %d calls, skipped as %q, %d unclassified", len(f.calls())-before, r.Skipped[Key(last)], r.Unclassified())
 	}
+	if !strings.Contains(r.Skipped[Key(last)], why) {
+		t.Errorf("within the cooldown, skipped as %q, without the failure %q", r.Skipped[Key(last)], why)
+	}
+
+	f.ageFailures(failureCooldown)
+	r = f.run(entries...)
+	if len(f.calls()) != before+1 || len(r.Verdicts) != len(entries) {
+		t.Errorf("past the cooldown, the rerun made %d calls and classified %d", len(f.calls())-before, len(r.Verdicts))
+	}
+}
+
+// A classifier that's down for every batch still records the cooldown.
+func TestAClassifierDownForEveryBatchIsAskedOncePerCooldown(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t, "")
+	testutil.Put(t, f.dir, "response.json", `{"is_error":true,"subtype":"error_max_budget_usd"}`)
+	lint := entry("lint", "eslint .")
+	f.run(lint)
+	before := len(f.calls())
+	if r := f.run(lint); len(f.calls()) != before || r.Unclassified() != 0 {
+		t.Errorf("the second run made %d calls, %d unclassified", len(f.calls())-before, r.Unclassified())
+	}
+	// A fixed classifier command asks again at once.
+	f.cfg.Classifier = append(f.cfg.Classifier, "--fixed")
+	if f.run(lint); len(f.calls()) == before {
+		t.Error("a changed classifier waited out the old one's cooldown")
+	}
+}
+
+// ageFailures moves every recorded classifier failure d into the past.
+func (f *fixture) ageFailures(d time.Duration) {
+	f.t.Helper()
+	file := CacheFile(f.cacheDir, f.root)
+	s := load(file)
+	for key, call := range s.Failed {
+		call.At = call.At.Add(-d)
+		s.Failed[key] = call
+	}
+	data, err := json.Marshal(s)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	testutil.Write(f.t, file, string(data))
 }
 
 func TestDeniedEntriesAreNeverAsked(t *testing.T) {
@@ -401,10 +525,15 @@ func TestVerification(t *testing.T) {
 	if why := r.Skipped[Key(blank)]; why != `rejected (segment " " is empty)` {
 		t.Errorf("empty segment: %q", why)
 	}
+	// A rejected verdict is an answer: Stop and reclassify ask only for none.
+	if n := r.Unclassified(); n != 0 {
+		t.Errorf("rejected verdicts counted as unclassified: %d", n)
+	}
 	if len(r.Managers) != 1 || r.Managers[0].Manager != "pnpm" {
 		t.Errorf("only the manager whose lockfile exists stands: %+v", r.Managers)
 	}
-	if len(r.Proposals) != 1 || r.Proposals[0].Command != "pnpm exec eslint ." {
+	// The fixer whose file form isn't one plain command stays, without it.
+	if len(r.Proposals) != 2 || r.Proposals[0].Command != "pnpm exec eslint ." || r.Proposals[1].Command != "prettier --write ." || r.Proposals[1].FileForm != "" {
 		t.Errorf("a fetching fixer and missing evidence go; a lint the entries cover stays, for the plan to weigh: %+v", r.Proposals)
 	}
 	for _, want := range []string{
@@ -547,6 +676,110 @@ func TestADirsPlaceholderReplacesAPackagePattern(t *testing.T) {
 	}
 }
 
+// A path inside a command substitution shares its word with the closing
+// `)"`: the placeholder word carries the same text around it, and nothing
+// else.
+func TestAPlaceholderKeepsTheTextAroundAPath(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name, form string
+		kept       bool
+	}{
+		{"the same text around it", `test -z "$(gofmt -l {files})"`, true},
+		{"its text changed", `test -z "$(gofmt -l {files}"`, false},
+		{"a word added inside it", `test -z "$(gofmt -l {files} rm)"`, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t, "")
+			testutil.Put(t, f.root, "go.mod", "module x\n")
+			lint := entry("lint", "eslint .")
+			f.answer(map[string]any{
+				"entries":  []any{verdict(lint, map[string]any{"role": "check", "kind": "lint", "mutates": false})},
+				"managers": []any{},
+				"proposals": []any{map[string]any{"role": "check", "kind": "format-check", "command": `test -z "$(gofmt -l .)"`,
+					"file_form": tt.form, "dir": ".", "evidence": "go.mod"}},
+			})
+			// A form that doesn't hold up is dropped; the proposal stays.
+			r := f.run(lint)
+			if len(r.Proposals) != 1 {
+				t.Fatalf("the proposal went with its form: dropped %q", r.Dropped)
+			}
+			if kept := r.Proposals[0].FileForm == tt.form; kept != tt.kept {
+				t.Errorf("form kept %v, want %v: dropped %q", kept, tt.kept, r.Dropped)
+			}
+		})
+	}
+}
+
+// tsc given files ignores tsconfig.json, so a proposal's tsc file form is
+// dropped and the check runs whole, as a verdict's is.
+func TestAProposalsTscFileFormIsDropped(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t, "")
+	testutil.Put(t, f.root, "tsconfig.json", "{}\n")
+	lint := entry("lint", "eslint .")
+	f.answer(map[string]any{
+		"entries":  []any{verdict(lint, map[string]any{"role": "check", "kind": "lint", "mutates": false})},
+		"managers": []any{},
+		"proposals": []any{map[string]any{"role": "check", "kind": "typecheck", "command": "tsc --noEmit",
+			"file_form": "tsc --noEmit {files}", "globs": []string{"*.ts"}, "dir": ".", "evidence": "tsconfig.json"}},
+	})
+	r := f.run(lint)
+	if len(r.Proposals) != 1 || r.Proposals[0].FileForm != "" || r.Proposals[0].Globs != nil {
+		t.Fatalf("want the proposal kept without its form: %+v", r.Proposals)
+	}
+	if want := `proposal "tsc --noEmit": file form "tsc --noEmit {files}": tsc ignores tsconfig.json once given files`; !slices.Contains(r.Dropped, want) {
+		t.Errorf("dropped lacks %q: %q", want, r.Dropped)
+	}
+}
+
+// A proposal's globs match from its dir, as the plan reads them. A glob
+// the classifier wrote from the root (go/**/*.go for dir go) loses the dir.
+func TestAProposalsGlobsAreRelativeToItsDir(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t, "")
+	testutil.Put(t, f.root, "go/go.mod", "module x\n")
+	lint := entry("lint", "eslint .")
+	f.answer(map[string]any{
+		"entries":  []any{verdict(lint, map[string]any{"role": "check", "kind": "lint", "mutates": false})},
+		"managers": []any{},
+		"proposals": []any{map[string]any{"role": "fixer", "command": "gofmt -w .", "file_form": "gofmt -w {files}",
+			"globs": []any{"go/**/*.go", "./go/cmd/*.go", "**/*_test.go"}, "dir": "go", "evidence": "go.mod"}},
+	})
+	r := f.run(lint)
+	if len(r.Proposals) != 1 {
+		t.Fatalf("dropped %q", r.Dropped)
+	}
+	if got, want := r.Proposals[0].Globs, []string{"**/*.go", "cmd/*.go", "**/*_test.go"}; !slices.Equal(got, want) {
+		t.Errorf("globs %q, want %q", got, want)
+	}
+}
+
+// An entry's verdict globs, and a brace group's alternatives, read from
+// its dir the same way.
+func TestAVerdictsGlobsAreRelativeToItsDir(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t, "")
+	testutil.Put(t, f.root, "web/package.json", "{}")
+	lint := entry("lint", "eslint .")
+	lint.Dir, lint.File = "web", "web/package.json"
+	f.answer(map[string]any{
+		"entries": []any{verdict(lint, map[string]any{"role": "check", "kind": "lint", "mutates": false,
+			"file_form": "eslint {files}", "globs": []any{"web/**/*.ts", "{web/a.js,web/lib/*.js}"}})},
+		"managers": []any{},
+	})
+	r := f.run(lint)
+	v, ok := r.Verdicts[Key(lint)]
+	if !ok {
+		t.Fatalf("no verdict; skipped %q, dropped %q", r.Skipped, r.Dropped)
+	}
+	if got, want := v.Globs, []string{"**/*.ts", "{a.js,lib/*.js}"}; !slices.Equal(got, want) {
+		t.Errorf("globs %q, want %q", got, want)
+	}
+}
+
 // npx is npm's run prefix, and it fetches what isn't installed: a form
 // through it holds up only once the project has its own copy.
 func TestNpxHoldsUpWithALocalCopy(t *testing.T) {
@@ -576,5 +809,151 @@ func TestNearestPutsTheDeepestDirectoryFirst(t *testing.T) {
 	got := Nearest("/r", "/r/y/src", facts)
 	if len(got) != 2 || got[0].Manager != "yarn" || got[1].Manager != "pnpm" {
 		t.Errorf("Nearest: %+v", got)
+	}
+}
+
+// deadcode needs the whole program: given some packages, what only the
+// others call reads as dead. A file form for it is dropped; go vet keeps one.
+func TestDeadcodeFileFormsAreDropped(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t, "")
+	testutil.Put(t, f.root, "go.mod", "module ex.com/m\n")
+	testutil.Put(t, f.root, "a.go", "package m\n")
+	cases := []struct {
+		body, form string
+		kept       bool
+	}{
+		{"go tool deadcode -test ./...", "go tool deadcode -test {dirs}", false},
+		{"deadcode ./...", "deadcode {dirs}", false},
+		{"out=\"$(go tool deadcode -test ./...)\"\n[ -z \"$out\" ] || { echo \"$out\"; exit 1; }",
+			"out=\"$(go tool deadcode -test {dirs})\"\n[ -z \"$out\" ] || { echo \"$out\"; exit 1; }", false},
+		{"go vet ./...", "go vet {dirs}", true},
+	}
+	var entries []sources.Entry
+	var verdicts []any
+	for i, c := range cases {
+		e := entry(fmt.Sprintf("check%d", i), c.body)
+		entries = append(entries, e)
+		verdicts = append(verdicts, verdict(e, map[string]any{"role": "check", "kind": "lint", "mutates": false, "file_form": c.form}))
+	}
+	f.answer(map[string]any{"entries": verdicts, "managers": []any{}, "proposals": []any{}})
+	r := f.run(entries...)
+	for i, c := range cases {
+		if v := r.Verdicts[Key(entries[i])]; (v.FileForm != "") != c.kept {
+			t.Errorf("%s: kept %v, want %v (%+v, dropped %q)", c.form, v.FileForm != "", c.kept, v, r.Dropped)
+		}
+	}
+}
+
+// tsc and vue-tsc ignore tsconfig.json once given files, so a file form for
+// them type-checks without the project's settings; any other tool keeps one.
+func TestTscFileFormsAreDropped(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t, "")
+	testutil.Put(t, f.root, "pnpm-lock.yaml", "")
+	testutil.Put(t, f.root, "package.json", `{"scripts": {"typecheck": "tsc --noEmit", "lint": "eslint", "loop": "pnpm run loop",
+		"a": "pnpm run b", "b": "pnpm run c", "c": "tsc --noEmit",
+		"w": "pnpm run x", "x": "pnpm run y", "y": "pnpm run z", "z": "tsc --noEmit",
+		"first": "tsc --noEmit && eslint", "last": "eslint && tsc --noEmit"}}`)
+	testutil.Put(t, f.root, "src/a.ts", "")
+	testutil.Put(t, f.root, ".gitignore", "node_modules\n")
+	testutil.Git(t, f.root, "init", "-q")
+	for _, tool := range []string{"tsc", "vue-tsc", "eslint"} {
+		testutil.FakeTool(t, filepath.Join(f.root, "node_modules/.bin", tool), filepath.Join(f.dir, tool+".calls"), "")
+	}
+	cases := []struct {
+		body, form string
+		kept       bool
+	}{
+		{"pnpm exec tsc --noEmit src/a.ts", "pnpm exec tsc --noEmit {files}", false},
+		{"npx tsc src/a.ts", "npx tsc {files}", false},
+		{"tsc src/a.ts", "pnpm tsc {files}", false},
+		{"vue-tsc src/a.ts", "vue-tsc {files}", false},
+		{"pnpm run typecheck src/a.ts", "pnpm run typecheck {files}", false},
+		{"eslint src/a.ts", "eslint {files}", true},
+		{"pnpm run lint src/a.ts", "pnpm run lint {files}", true},
+		// A script that runs itself ends at the depth cap, never in a loop.
+		{"pnpm run loop src/a.ts", "pnpm run loop {files}", true},
+		// Three scripts deep is still read; a fourth is past the cap.
+		{"pnpm run a src/a.ts", "pnpm run a {files}", false},
+		{"pnpm run w src/a.ts", "pnpm run w {files}", true},
+		// A script's arguments go to its last command: only a config-only
+		// command there drops the form.
+		{"pnpm run first src/a.ts", "pnpm run first {files}", true},
+		{"pnpm run last src/a.ts", "pnpm run last {files}", false},
+	}
+	var entries []sources.Entry
+	var verdicts []any
+	for i, c := range cases {
+		e := entry(fmt.Sprintf("check%d", i), c.body)
+		entries = append(entries, e)
+		verdicts = append(verdicts, verdict(e, map[string]any{"role": "check", "kind": "typecheck", "mutates": false, "file_form": c.form}))
+	}
+	f.answer(map[string]any{
+		"entries":   verdicts,
+		"managers":  []any{map[string]any{"dir": ".", "cites": "pnpm-lock.yaml", "manager": "pnpm", "run_prefix": "pnpm", "add_verbs": []string{"pnpm add"}, "dlx": "pnpm dlx", "dir_flags": []string{"-C"}, "rivals": []string{}}},
+		"proposals": []any{},
+	})
+	r := f.run(entries...)
+	for i, c := range cases {
+		if v := r.Verdicts[Key(entries[i])]; (v.FileForm != "") != c.kept {
+			t.Errorf("%s: kept %v, want %v (%+v)", c.form, v.FileForm != "", c.kept, v)
+		}
+	}
+}
+
+// The model sees a CI step with its job's env in front, and may hand the
+// env back on each segment; the body it's checked against has none.
+func TestSegmentsDropTheJobEnv(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t, "")
+	env := []string{"CI=true", "NODE_ENV=test"}
+	step := sources.Entry{Source: "ci", File: ".github/workflows/ci.yml", Name: "types-in-sync", Dir: ".", Env: env, Body: sources.Body{Text: "pnpm lint && pnpm typecheck"}}
+	stray := sources.Entry{Source: "ci", File: ".github/workflows/ci.yml", Name: "stray", Dir: ".", Env: env, Body: sources.Body{Text: "pnpm lint && pnpm typecheck"}}
+	seg := func(text, kind string) map[string]any {
+		return map[string]any{"text": text, "role": "check", "kind": kind}
+	}
+	f.answer(answers(
+		verdict(step, map[string]any{"role": "check", "kind": "lint", "mutates": false, "segments": []any{seg("CI=true NODE_ENV=test pnpm lint", "lint"), seg("CI=true NODE_ENV=test pnpm typecheck", "typecheck")}}),
+		verdict(stray, map[string]any{"role": "check", "kind": "lint", "mutates": false, "segments": []any{seg("DEBUG=1 pnpm lint", "lint"), seg("pnpm typecheck", "typecheck")}}),
+	))
+	r := f.run(step, stray)
+	v, ok := r.Verdicts[Key(step)]
+	if !ok || len(v.Segments) != 2 || v.Segments[0].Text != "pnpm lint" || v.Segments[1].Text != "pnpm typecheck" {
+		t.Errorf("env-prefixed segments verify and store stripped: %+v, skipped %q", v, r.Skipped[Key(step)])
+	}
+	if why := r.Skipped[Key(stray)]; why != `rejected (segment "DEBUG=1 pnpm lint" isn't in the body)` {
+		t.Errorf("an env in neither the job nor the body: %q", why)
+	}
+}
+
+// The model annotates evidence ("knip.json (knip in devDependencies)"):
+// the path is its first word.
+func TestAnnotatedEvidenceKeepsItsPath(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t, "")
+	testutil.Put(t, f.root, "frontend/knip.json", "{}")
+	lint := entry("lint", "eslint .")
+	f.answer(map[string]any{
+		"entries":  []any{verdict(lint, map[string]any{"role": "check", "kind": "lint", "mutates": false})},
+		"managers": []any{},
+		"proposals": []any{
+			map[string]any{"role": "check", "kind": "lint", "command": "knip", "dir": ".", "evidence": "frontend/knip.json (knip in devDependencies)"},
+			map[string]any{"role": "check", "kind": "lint", "command": "knip --strict", "dir": ".", "evidence": "frontend/missing.json (knip in devDependencies)"},
+		},
+	})
+	r := f.run(lint)
+	if len(r.Proposals) != 1 || r.Proposals[0].Command != "knip" || r.Proposals[0].Evidence != "frontend/knip.json" {
+		t.Errorf("an annotated path that exists stays, stored bare; a missing one goes: %+v, dropped %q", r.Proposals, r.Dropped)
+	}
+}
+
+// A panic in a classify goroutine would exit 2, which Claude Code reads as
+// a block. A nil config makes classify panic.
+func TestClassifyAllTurnsAPanicIntoThatRequestsError(t *testing.T) {
+	t.Parallel()
+	_, _, errs := classifyAll(context.Background(), nil, Options{}, []request{{}})
+	if len(errs) != 1 || errs[0] == nil {
+		t.Fatalf("errs = %v, want the panic as an error", errs)
 	}
 }

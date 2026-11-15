@@ -23,6 +23,17 @@ func IsRead(c config.Connectors, tool string) bool {
 	return holds(w, c.ReadVerbs) && !holds(w, c.WriteVerbs)
 }
 
+// Server is the server part of an mcp__<server>__<tool> name, "" for any
+// other name.
+func Server(tool string) string {
+	rest, ok := strings.CutPrefix(tool, "mcp__")
+	i := strings.LastIndex(rest, "__")
+	if !ok || i < 0 {
+		return ""
+	}
+	return rest[:i]
+}
+
 func holds(words, verbs []string) bool {
 	return slices.ContainsFunc(words, func(w string) bool { return slices.Contains(verbs, w) })
 }
@@ -31,17 +42,13 @@ func holds(words, verbs []string) bool {
 // mcp__<server>__<tool> name, split on any non-letter-or-digit and where
 // lower case turns upper; nil for any other name.
 func words(tool string) []string {
-	rest, ok := strings.CutPrefix(tool, "mcp__")
-	if !ok {
-		return nil
-	}
-	i := strings.LastIndex(rest, "__")
-	if i < 0 {
+	server := Server(tool)
+	if server == "" {
 		return nil
 	}
 	var b strings.Builder
 	prev := rune(0)
-	for _, r := range rest[i+2:] {
+	for _, r := range tool[len("mcp__")+len(server)+len("__"):] {
 		if unicode.IsUpper(r) && unicode.IsLower(prev) {
 			b.WriteByte(' ')
 		}

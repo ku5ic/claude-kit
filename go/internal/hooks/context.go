@@ -1,9 +1,11 @@
 package hooks
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -14,19 +16,22 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/enforce"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
+	"github.com/ku5ic/claude-kit/go/internal/gapfill"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 	"github.com/ku5ic/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/resolve/kittool"
 	"github.com/ku5ic/claude-kit/go/internal/run"
+	"github.com/ku5ic/claude-kit/go/internal/sources"
 	"github.com/ku5ic/claude-kit/go/internal/stackctx"
 )
 
 // projectOf resolves the project for cwd; ok is false for a non-project
 // context (home, /, or a name that sanitizes to nothing).
-func projectOf(cwd string) (name, root string, ok bool) {
+func projectOf(cwd, home string) (name, root string, ok bool) {
 	root, _ = project.Root(cwd)
-	name = project.Name(root)
+	name = project.Name(root, home)
 	switch name {
 	case "home", "root", "unknown":
 		return name, root, false
@@ -66,11 +71,19 @@ func InjectContext(h *hook.Hook) error {
 	if dir := leftoverRulesLink(h.Paths); dir != "" {
 		lines = append(lines, dir+" holds the claude-kit rules, which now ship with the plugin: remove it, or they load twice")
 	}
-	if len(lines) == 0 {
+	var notices []string
+	if len(lines) > 0 {
+		notices = append(notices, "claude-kit install problems:\n"+strings.Join(lines, "\n"))
+	}
+	if file := attributionOn(h.Paths, h.Payload.Cwd()); file != "" {
+		notices = append(notices, "Claude Code's attribution is on ("+file+"): it adds a co-author trailer, a PR footer, and a session link, which the kit's guards then block. "+
+			`Set "attribution": false in your settings, or commit and pr to "" and sessionUrl to false.`)
+	}
+	if len(notices) == 0 {
 		h.Print(out.String())
 		return nil
 	}
-	notice := "claude-kit install problems:\n" + strings.Join(lines, "\n")
+	notice := strings.Join(notices, "\n\n")
 	h.Notify(notice)
 	h.AddContext("SessionStart", notice+"\n"+out.String())
 	return nil
@@ -78,7 +91,7 @@ func InjectContext(h *hook.Hook) error {
 
 func writeContext(h *hook.Hook, cfg *config.Config, out *strings.Builder) {
 	cwd := h.Payload.Cwd()
-	name, root, ok := projectOf(cwd)
+	name, root, ok := projectOf(cwd, h.Home)
 	if !ok {
 		return
 	}
@@ -93,21 +106,22 @@ func writeContext(h *hook.Hook, cfg *config.Config, out *strings.Builder) {
 	}
 	out.WriteString(ctx.RequiredBlock())
 	for _, skill := range ctx.Required {
-		h.Log(kitlog.Skills, kitlog.EventRequiredSkill, "cwd", h.Payload.String("cwd"), "skill_file", skill)
+		h.Log(kitlog.Skills, kitlog.EventRequiredSkill, "cwd", h.Payload.String(hook.KeyCwd), "skill_file", skill)
 	}
 	// Logged as surfaced, not loaded: the log shows whether a suggestion was
 	// ever acted on, and guard-skills never counts one as a load.
 	out.WriteString(stackctx.SuggestedBlock(cfg, ctx.Suggested))
 	for _, skill := range ctx.Suggested {
-		h.Log(kitlog.Skills, kitlog.EventSuggestedSkill, "cwd", h.Payload.String("cwd"), "skill_file", skill)
+		h.Log(kitlog.Skills, kitlog.EventSuggestedSkill, "cwd", h.Payload.String(hook.KeyCwd), "skill_file", skill)
 	}
-	out.WriteString(tooling(cfg, root, h.Paths.CacheDir()))
+	out.WriteString(tooling(cfg, enforce.Options{Root: root, CacheDir: h.Paths.CacheDir(), Home: h.Home}))
 }
 
 // agentContext is the subagent counterpart: the resolved scratch path (which
 // overrides the harness's /tmp scratchpad line), then the same repo context
 // and skill blocks, unlogged.
-func agentContext(paths config.Paths, cfg *config.Config, cwd, session string) string {
+func agentContext(h *hook.Hook, cfg *config.Config) string {
+	paths, cwd := h.Paths, h.Payload.Cwd()
 	var b strings.Builder
 	if scratch, err := project.ScratchDir(paths, cwd, true); err == nil {
 		fmt.Fprintf(&b, "<scratch>\npath: %s\n", scratch)
@@ -116,11 +130,11 @@ func agentContext(paths config.Paths, cfg *config.Config, cwd, session string) s
 			"Name structured artifacts with `kit scratch-dir <kind> <scope-slug>`, which prints the full path with a real timestamp.\n" +
 			"</scratch>\n")
 	}
-	name, root, ok := projectOf(cwd)
+	name, root, ok := projectOf(cwd, h.Home)
 	if !ok {
 		return b.String()
 	}
-	ctx := stackctx.Build(paths, cfg, name, root, session)
+	ctx := stackctx.Build(paths, cfg, name, root, h.Payload.SessionID())
 	if ctx.Report != "" {
 		fmt.Fprintf(&b, "<repo-context>\n%s%sbranch: %s\ndirty-files: %s\n</repo-context>\n", ctx.Report, skipDirsLine(cfg), branch(root), dirtyCount(root))
 	}
@@ -146,7 +160,7 @@ func InjectSubagentContext(h *hook.Hook) error {
 	if cfg == nil {
 		return nil
 	}
-	context := strings.TrimRight(agentContext(h.Paths, cfg, h.Payload.Cwd(), h.Payload.SessionID()), "\n")
+	context := strings.TrimRight(agentContext(h, cfg), "\n")
 	if context == "" {
 		return nil
 	}
@@ -176,8 +190,8 @@ const guidance = "Run each directory's scripts through the package manager <repo
 // tooling is the <tooling> block: what kit run-checks runs, planned from
 // the gap-fill cache (a session start never waits on the classifier), then
 // kit.yml's tools split by whether PATH has them.
-func tooling(cfg *config.Config, root, cacheDir string) string {
-	p := enforce.Build(cfg, enforce.Options{Root: root, CacheDir: cacheDir})
+func tooling(cfg *config.Config, o enforce.Options) string {
+	p := enforce.Build(cfg, o)
 	return toolingBlock(p, p.Managed, cliLines(cfg))
 }
 
@@ -187,7 +201,7 @@ func tooling(cfg *config.Config, root, cacheDir string) string {
 func toolingBlock(p enforce.Plan, managed bool, cli []string) string {
 	body := gateLines(p)
 	if p.Unclassified > 0 {
-		body = append(body, fmt.Sprintf("unclassified: %d (config entries gap-fill hasn't answered; it runs in the background, and Stop skips them until it answers)", p.Unclassified))
+		body = append(body, fmt.Sprintf("unclassified: %d (config entries gap-fill hasn't answered; it asks in the background and at Stop, and waits an hour after a failed answer)", p.Unclassified))
 	}
 	if len(body) > 0 {
 		body = append(body, "`kit run-checks --plan` lists them, with where each comes from, without running them")
@@ -266,11 +280,36 @@ func classifyInBackground(root string) {
 	}
 }
 
+// reclassify starts the classifier in the background when path is the
+// file of an entry the cache has no answer for, so a check changed
+// mid-session has its verdict by Stop.
+func reclassify(h *hook.Hook, cfg *config.Config, path string) {
+	if root, ok := unanswered(cfg, h.Paths.CacheDir(), path); ok && !h.DryRun {
+		classifyInBackground(root)
+	}
+}
+
+// unanswered is path's project root, and whether an entry path
+// feeds lacks a verdict the policy would allow. It reads the cache, never
+// asks, and skips the scan for a file no source reads.
+func unanswered(cfg *config.Config, cacheDir, path string) (string, bool) {
+	root, _ := project.Root(filepath.Dir(path))
+	file := sources.Owner(root, fsx.Rel(root, path))
+	if file == "" {
+		return root, false
+	}
+	mine := slices.DeleteFunc(sources.Entries(cfg, root, project.Subprojects(root)), func(e sources.Entry) bool { return e.File != file })
+	if len(mine) == 0 {
+		return root, false
+	}
+	return root, gapfill.Run(cfg, gapfill.Options{Root: root, CacheDir: cacheDir, Entries: mine}).Unclassified() > 0
+}
+
 // cliLines says which of kit.yml's CLI tools are on PATH.
 func cliLines(cfg *config.Config) []string {
 	var available, missing, out []string
 	for _, tool := range cfg.Tools {
-		if _, err := exec.LookPath(tool); err == nil {
+		if _, err := kittool.Path(tool); err == nil {
 			available = append(available, tool)
 		} else {
 			missing = append(missing, tool)
@@ -283,6 +322,39 @@ func cliLines(cfg *config.Config) []string {
 		out = append(out, "missing: "+strings.Join(missing, ", "))
 	}
 	return out
+}
+
+// attributionOn names the settings file whose attribution leaves Claude
+// Code's attribution on, "default" when none sets it. The highest file
+// setting attribution (the project's local, then shared, then the user's)
+// must turn off all of it on its own: the docs don't say whether a file
+// replaces the object or merges into it. Managed settings aren't read.
+func attributionOn(paths config.Paths, cwd string) string {
+	files := []string{filepath.Join(paths.ClaudeDir, "settings.json")}
+	if root, _ := project.Root(cwd); root != "" {
+		files = append([]string{filepath.Join(root, ".claude", "settings.local.json"), filepath.Join(root, ".claude", "settings.json")}, files...)
+	}
+	for _, file := range files {
+		var settings struct {
+			Attribution json.RawMessage `json:"attribution"`
+		}
+		data, err := os.ReadFile(file)
+		if err != nil || json.Unmarshal(data, &settings) != nil || settings.Attribution == nil {
+			continue
+		}
+		var parts struct {
+			Commit, PR *string
+			SessionURL *bool `json:"sessionUrl"`
+		}
+		off := string(settings.Attribution) == "false" ||
+			json.Unmarshal(settings.Attribution, &parts) == nil &&
+				parts.Commit != nil && *parts.Commit == "" && parts.PR != nil && *parts.PR == "" && parts.SessionURL != nil && !*parts.SessionURL
+		if off {
+			return ""
+		}
+		return file
+	}
+	return "default"
 }
 
 // prerequisites names what the install is missing, "" when nothing is: a

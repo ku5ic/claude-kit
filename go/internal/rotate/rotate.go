@@ -26,7 +26,8 @@ import (
 )
 
 // Run is `kit scratch-rotate [days] [--dry-run]`; it returns the exit status.
-func Run(paths config.Paths, n int, dryRun bool, stdout, stderr io.Writer) int {
+// Registry entries must sit under home.
+func Run(paths config.Paths, home string, n int, dryRun bool, stdout, stderr io.Writer) int {
 	r := &rotator{now: time.Now(), dryRun: dryRun, log: filepath.Join(paths.LogDir(), "scratch-rotate.log"),
 		verb: "deleted", pruned: "pruned", stdout: stdout}
 	if dryRun {
@@ -43,14 +44,14 @@ func Run(paths config.Paths, n int, dryRun bool, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stdout, "scratch-rotate: %s %d %s older than %dd from %s\n", r.pruned, len(removed), d.What, d.Days, dir)
 		}
 	}
-	r.registry(paths.ScratchRegistry(), n, stderr)
+	r.registry(paths.ScratchRegistry(), home, n, stderr)
 	return 0
 }
 
 // registry prunes every project scratch dir the registry lists by age
 // alone (project scratch holds test artifacts and POC files of any
 // extension), dropping entries whose directory is gone.
-func (r *rotator) registry(registry string, n int, stderr io.Writer) {
+func (r *rotator) registry(registry, home string, n int, stderr io.Writer) {
 	data, err := os.ReadFile(registry)
 	if err != nil {
 		return
@@ -59,7 +60,6 @@ func (r *rotator) registry(registry string, n int, stderr io.Writer) {
 	if r.dryRun {
 		dropping = "would drop"
 	}
-	home := os.Getenv("HOME")
 	var keep []string
 	for dir := range strings.SplitSeq(string(data), "\n") {
 		switch {

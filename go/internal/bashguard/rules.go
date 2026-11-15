@@ -1,12 +1,14 @@
 package bashguard
 
 import (
+	"maps"
 	"regexp"
 	"slices"
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/classify"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
+	"github.com/ku5ic/claude-kit/go/internal/layout"
 )
 
 // command is one command of a pipeline, past its assignments and wrappers.
@@ -58,8 +60,6 @@ var (
 	chmodSpace  = regexp.MustCompile(`chmod[[:space:]]`)
 	chmodBroad  = regexp.MustCompile(`[[:space:]]["']?(\.|\.\.|/)["']?($|[[:space:]])`)
 	chmodHome   = regexp.MustCompile(`[[:space:]]["']?(~|\$HOME|\$\{HOME\})["']?($|[[:space:]]|/)`)
-	gitDiscard  = regexp.MustCompile(`[[:space:]](restore|checkout)[[:space:]]`)
-	treeSpec    = regexp.MustCompile(`[[:space:]](\.|\*|--[[:space:]]?\.|:/)([[:space:]]|$)`)
 	psqlCommand = regexp.MustCompile(`psql[[:space:]].*(-c|--command)[[:space:]]`)
 	psqlDrop    = regexp.MustCompile(`(DROP[[:space:]]+(DATABASE|SCHEMA|TABLE)|TRUNCATE[[:space:]]+TABLE|DELETE[[:space:]]+FROM[[:space:]]+[a-zA-Z_]+[[:space:]]*;|DELETE[[:space:]]+FROM[[:space:]]+[a-zA-Z_]+[[:space:]]*$)`)
 	redisBad    = regexp.MustCompile(`redis-cli[[:space:]].*(FLUSHALL|FLUSHDB|CONFIG[[:space:]]+SET|DEBUG[[:space:]]+SLEEP)`)
@@ -84,17 +84,20 @@ var (
 	dqQuoted    = regexp.MustCompile(`"[^"]*"`)
 )
 
-// readers only read the files they're given; any other command naming the
-// overlay gets a prompt, since disabled_rules there switches guards off.
-var readers = map[string]bool{
-	"cat": true, "bat": true, "head": true, "tail": true, "less": true, "more": true, "jq": true, "rg": true,
-	"grep": true, "diff": true, "wc": true, "ls": true, "stat": true, "file": true, "realpath": true,
-	"readlink": true, "test": true, "[": true, "echo": true, "printf": true, "sed": true, "sd": true,
-}
+// readers only read the files they're given: the pure readers, and the
+// pagers and editors that write only on a flag. Any other command naming a
+// kit switch gets a prompt, since a write there can turn the kit off.
+var readers = func() map[string]bool {
+	m := maps.Clone(pureReaders)
+	for _, name := range []string{"bat", "less", "more", "file", "sed", "sd"} {
+		m[name] = true
+	}
+	return m
+}()
 
 // metadataOnly commands act on a file's name or metadata, or use a key
 // without printing it, so naming a credential file is no read. git is
-// read per subcommand, by gitPrinters.
+// read per subcommand, by gitReads.
 var metadataOnly = map[string]bool{
 	"ls": true, "stat": true, "test": true, "[": true, "touch": true, "rm": true, "rmdir": true,
 	"chmod": true, "chown": true, "mkdir": true, "realpath": true, "readlink": true, "file": true,
@@ -102,12 +105,89 @@ var metadataOnly = map[string]bool{
 	"tee": true, "ssh": true, "ssh-add": true,
 }
 
-// gitPrinters are the git subcommands that print the files they name.
-var gitPrinters = map[string]bool{"diff": true, "show": true, "log": true, "grep": true, "blame": true, "annotate": true, "cat-file": true}
-
 // patternFirst is how many leading operands are a pattern, script, or
 // filter rather than a path.
 var patternFirst = map[string]int{"grep": 1, "rg": 1, "sed": 1, "awk": 1, "jq": 1, "yq": 1, "sd": 2, "git grep": 1}
+
+// patternFlag is how a patternFirst command takes its pattern or script from
+// a flag instead, which leaves every operand a path: the short letters giving
+// it inline (pattern) or from a file (file), the short letters whose value
+// ends their cluster (valued), and the long names, true for a file.
+type patternFlag struct {
+	pattern, file, valued string
+	long                  map[string]bool
+}
+
+var patternFlags = map[string]patternFlag{
+	"grep":     {"e", "f", "ABCDdm", map[string]bool{"--regexp": false, "--file": true}},
+	"git grep": {"e", "f", "ABCm", map[string]bool{"--file": true}},
+	"rg":       {"e", "f", "ABCEMTgjmrt", map[string]bool{"--regexp": false, "--file": true}},
+	"sed":      {"e", "f", "il", map[string]bool{"--expression": false, "--file": true}},
+	"awk":      {"e", "f", "vF", map[string]bool{"--source": false, "--file": true}},
+}
+
+// withoutPatternFlags is values with name's pattern flags and their inline
+// patterns taken out, a script file kept as an operand since it's read, and
+// whether any flag gave the pattern.
+func withoutPatternFlags(name string, values []string) ([]string, bool) {
+	spec, ok := patternFlags[name]
+	if !ok {
+		return values, false
+	}
+	var out []string
+	given := false
+	for i := 0; i < len(values); i++ {
+		v := values[i]
+		if v == "--" {
+			return append(out, values[i:]...), given
+		}
+		long, value, attached := strings.Cut(v, "=")
+		if isFile, ok := spec.long[long]; ok {
+			given = true
+			if !attached && i+1 < len(values) {
+				i++
+				value = values[i]
+			}
+			if isFile {
+				out = append(out, value)
+			}
+			continue
+		}
+		value, isFile, found := spec.inCluster(v)
+		if !found {
+			out = append(out, v)
+			continue
+		}
+		given = true
+		if value == "" && i+1 < len(values) {
+			i++
+			value = values[i]
+		}
+		if isFile {
+			out = append(out, value)
+		}
+	}
+	return out, given
+}
+
+// inCluster finds a pattern or file letter in the short-option cluster v:
+// the inline rest of v after it, "" when its value is the next word.
+func (spec patternFlag) inCluster(v string) (value string, isFile, found bool) {
+	if !strings.HasPrefix(v, "-") || strings.HasPrefix(v, "--") {
+		return "", false, false
+	}
+	for j := 1; j < len(v); j++ {
+		letter := v[j]
+		isFile = strings.IndexByte(spec.file, letter) >= 0
+		if isFile || strings.IndexByte(spec.pattern, letter) >= 0 {
+			return v[j+1:], isFile, true
+		}
+		if strings.IndexByte(spec.valued, letter) >= 0 {
+			break
+		}
+	}
+	return "", false, false
+}
 
 // destructive is the commands blocked by pattern: one of names, with every
 // regex matching its text. %s in reason is the command's name.
@@ -156,50 +236,69 @@ func (c *command) check() error {
 	if err := c.globalInstall(); err != nil {
 		return err
 	}
-	switch c.name {
-	case "cd":
-		c.cd()
-	case "rm":
-		return c.rm()
-	case "dd", "shred", "wipefs", "mkfs":
-		return c.block("low level disk or filesystem tool", "disk-tool")
-	case "chmod":
-		return c.chmod()
-	case "git":
-		return c.git()
-	case "curl":
-		return c.curl()
-	case "wget":
-		return c.wget()
-	case "eval":
-		return c.block("eval runs a command string that bypasses the permission allow list; run the command directly as a Bash tool call", "interpreter-c-wrap")
-	case "kit":
-		words := strings.Fields(c.rest)
-		switch {
-		case len(words) == 0:
-		case words[0] == "git-base" && !gitBaseFlagsSafe(words[1:]):
-			// An explicit ask: with no decision, a Bash(kit git-base *) allow
-			// rule would approve --output=<file> silently.
-			c.st.ask("kit git-base passes this flag to git, which can write files or run programs; confirm it")
-		case words[0] == "run-checks" && !slices.Contains(words[1:], "--plan"):
-			return c.block("the hooks run the gates and show the user every result; don't run them yourself (kit run-checks --plan only lists them)", "run-checks-by-hook")
+	if check, ok := commandChecks[c.name]; ok {
+		return check(c)
+	}
+	if runsC(c.name) {
+		return c.interpreterC()
+	}
+	if strings.HasPrefix(c.name, "mkfs.") {
+		return c.diskTool()
+	}
+	return c.packageManager()
+}
+
+// commandChecks are the checks for one command name; any other name gets
+// the shell, mkfs.*, and package-manager checks.
+var commandChecks = map[string]func(*command) error{
+	"cd":     func(c *command) error { c.cd(); return nil },
+	"rm":     (*command).rm,
+	"dd":     (*command).diskTool,
+	"shred":  (*command).diskTool,
+	"wipefs": (*command).diskTool,
+	"mkfs":   (*command).diskTool,
+	"chmod":  (*command).chmod,
+	"git":    (*command).git,
+	"curl":   (*command).curl,
+	"wget":   (*command).wget,
+	"eval": func(c *command) error {
+		return c.block("eval runs a command string that bypasses the permission allow list\n"+layout.KV("do", "run the command directly as a Bash tool call"), "interpreter-c-wrap")
+	},
+	"su": func(c *command) error {
+		// Anywhere: after the user, and after --, the words go to the shell.
+		if slices.ContainsFunc(c.values(), commandOption) {
+			return c.block(wrapReason, "interpreter-c-wrap")
 		}
-	case "sed", "sd":
-		return c.inPlaceEdit()
-	case "tee":
-		for _, p := range c.operands() {
-			c.st.looseWrite("tee", p)
-		}
-	default:
-		// fish isn't in shells, whose heredoc bodies parse as POSIX, but its
-		// -c runs a string all the same.
-		if shells[c.name] || c.name == "fish" {
-			return c.interpreterC()
-		}
-		if strings.HasPrefix(c.name, "mkfs.") {
-			return c.block("low level disk or filesystem tool", "disk-tool")
-		}
-		return c.packageManager()
+		return nil
+	},
+	"kit": (*command).kit,
+	"sed": (*command).inPlaceEdit,
+	"sd":  (*command).inPlaceEdit,
+	"tee": (*command).tee,
+}
+
+func (c *command) diskTool() error { return c.block("low level disk or filesystem tool", "disk-tool") }
+
+// kit asks before git-base flags that can write or run programs, and blocks
+// run-checks, which the hooks run.
+func (c *command) kit() error {
+	words := strings.Fields(c.rest)
+	switch {
+	case len(words) == 0:
+	case words[0] == "git-base" && !gitBaseFlagsSafe(words[1:]):
+		// An explicit ask: with no decision, a Bash(kit git-base *) allow
+		// rule would approve --output=<file> silently.
+		c.st.ask("kit git-base passes this flag to git, which can write files or run programs; confirm it")
+	case words[0] == "run-checks" && !slices.Contains(words[1:], "--plan"):
+		return c.block("the hooks run the gates and show the user every result\n"+layout.KV("do", "don't run them yourself; kit run-checks --plan only lists them"), "run-checks-by-hook")
+	}
+	return nil
+}
+
+// tee asks before each file it writes loose in the current directory.
+func (c *command) tee() error {
+	for _, p := range c.operands() {
+		c.st.looseWrite("tee", p)
 	}
 	return nil
 }
@@ -208,15 +307,20 @@ func (c *command) readOperands() []string { return readOperands(c.name, c.values
 
 // readOperands are the operands command name reads as files when run with
 // values: none for a metadataOnly command or a git subcommand that prints
-// none, and never a leading pattern. git show HEAD:.env names .env.
+// none, and never a leading pattern unless a flag gave it. git show
+// HEAD:.env names .env.
 func readOperands(name string, values []string) []string {
-	ops := nonOptions(values)
-	if name == "git" {
+	git := name == "git"
+	if git {
 		sub, args, _ := classify.GitSubcommand(values)
-		if !gitPrinters[sub] {
+		if !gitReads[sub] {
 			return nil
 		}
-		name, ops = "git "+sub, nonOptions(args)
+		name, values = "git "+sub, args
+	}
+	values, given := withoutPatternFlags(name, values)
+	ops := nonOptions(values)
+	if git {
 		for i, op := range ops {
 			if _, path, ok := strings.Cut(op, ":"); ok {
 				ops[i] = path
@@ -230,6 +334,9 @@ func readOperands(name string, values []string) []string {
 	// under it later. Their target is only written.
 	if name == "ln" || name == "mv" {
 		return sources(values)
+	}
+	if given {
+		return ops
 	}
 	return ops[min(patternFirst[name], len(ops)):]
 }
@@ -292,7 +399,10 @@ func (c *command) interpreterC() error {
 	return nil
 }
 
-const wrapReason = "interpreter -c wrapping bypasses the permission allow list; run the command directly as a Bash tool call"
+var wrapReason = "interpreter -c wrapping bypasses the permission allow list\n" + layout.KV("do", "run the command directly as a Bash tool call")
+
+// rcWriteReason blocks a write to a shell rc file, by redirect or command.
+var rcWriteReason = "direct write to a shell rc file\n" + layout.KV("do", "use the dotfiles repo")
 
 // shellMode reads a shell's arguments: wrap when a -c runs a string, script
 // when an operand names a script file; neither, it reads stdin.
@@ -337,7 +447,7 @@ func (c *command) inPlaceEdit() error {
 	}
 	for _, p := range c.operands() {
 		if guard.IsRCFile(c.st.cfg, c.st.home, p) {
-			if err := c.block("in-place edit of a shell rc file. Use the dotfiles repo.", "rc-inplace-edit"); err != nil {
+			if err := c.block("in-place edit of a shell rc file\n"+layout.KV("do", "edit it in the dotfiles repo"), "rc-inplace-edit"); err != nil {
 				return err
 			}
 		}
@@ -360,27 +470,81 @@ func (c *command) rcWrite() error {
 	}
 	for _, p := range targets {
 		if guard.IsRCFile(c.st.cfg, c.st.home, p) {
-			return c.block("direct write to a shell rc file. Use the dotfiles repo.", "rc-redirect")
+			return c.block(rcWriteReason, "rc-redirect")
 		}
 	}
 	return nil
 }
 
+// writeFlags holds the commands that write only with one of these
+// arguments; without one, they read whatever paths they name.
+var writeFlags = map[string]func(string) bool{
+	"yq": func(v string) bool {
+		flag, _, _ := strings.Cut(v, "=")
+		return shortCluster(flag, "is") || strings.HasPrefix(v, "--inplace") || strings.HasPrefix(v, "--split-exp")
+	},
+	"find": func(v string) bool {
+		return v == "-delete" || v == "-fls" || strings.HasPrefix(v, "-exec") || strings.HasPrefix(v, "-ok") || strings.HasPrefix(v, "-fprint")
+	},
+	// sort takes any unambiguous prefix of a long option (--out=x).
+	"sort": func(v string) bool {
+		return shortCluster(v, "o") || abbrevOf(v, "--output") || abbrevOf(v, "--compress-program")
+	},
+	"sg":       sgWriteFlag,
+	"ast-grep": sgWriteFlag,
+	"fd":       func(v string) bool { return shortCluster(v, "xX") || strings.HasPrefix(v, "--exec") },
+	"tree":     func(v string) bool { return shortCluster(v, "oR") },
+}
+
+// abbrevOf is true when v, up to any "=", is long or a getopt_long prefix of it.
+func abbrevOf(v, long string) bool {
+	flag, _, _ := strings.Cut(v, "=")
+	return len(flag) > 2 && strings.HasPrefix(long, flag)
+}
+
+func sgWriteFlag(v string) bool {
+	return shortCluster(v, "Ui") || v == "--update-all" || v == "--interactive"
+}
+
+// writes is false only for a writeFlags command run without its write
+// arguments; sg new scaffolds files, so it writes too.
+func (c *command) writes() bool {
+	flag, ok := writeFlags[c.name]
+	if !ok {
+		return true
+	}
+	if ops := c.operands(); (c.name == "sg" || c.name == "ast-grep") && len(ops) > 0 && ops[0] == "new" {
+		return true
+	}
+	return slices.ContainsFunc(c.values(), flag)
+}
+
 // overlayWrite asks when a command that isn't a pure reader names a kit
-// switch (guard.KitSwitch): tee, cp, mv, install, ln all write it. yq writes only with -i,
-// git only through checkout/restore/apply/mv/rm/stash/reset.
+// switch (guard.KitSwitch): tee, cp, mv, install, ln all write it. The
+// writeFlags commands write only with their flags, git only through
+// checkout/restore/apply/mv/rm/stash/reset.
 func (c *command) overlayWrite() {
 	all := append([]string{c.name}, c.values()...)
 	switch {
-	case c.name == "yq":
-		if !slices.ContainsFunc(c.values(), func(v string) bool { return strings.HasPrefix(v, "-i") || strings.HasPrefix(v, "--inplace") }) {
-			return
-		}
+	case !c.writes():
+		return
 	case c.name == "git":
 		if !gitWriters.MatchString(" " + strings.Join(all, " ") + " ") {
 			return
 		}
 	case readers[c.name]:
+		return
+	// A cd the guard follows writes nothing, and later paths resolve
+	// against where it went; an untracked one would resolve them wrongly.
+	case c.name == "cd" && c.alone && c.st.tracks(c.args):
+		return
+	case c.name == "cd" || c.name == "pushd":
+		for _, v := range c.values() {
+			if what := c.st.kitSwitch(v); what != "" {
+				c.st.ask("this moves into " + what + " where the guard can't follow later paths, so a write there would go unchecked; confirm the change")
+				return
+			}
+		}
 		return
 	}
 	for _, v := range c.values() {
@@ -430,65 +594,6 @@ func (c *command) chmod() error {
 	return nil
 }
 
-func (c *command) git() error {
-	sub, args, dir := classify.GitSubcommand(c.values())
-	has := func(arg string) bool { return slices.Contains(args, arg) }
-
-	switch sub {
-	case "commit", "push", "merge", "rebase":
-		if has("--no-verify") {
-			if err := c.block("use of --no-verify bypasses pre-commit and pre-push hooks", "git-no-verify"); err != nil {
-				return err
-			}
-		}
-	}
-	switch sub {
-	case "push":
-		if err := c.gitPush(args, dir); err != nil {
-			return err
-		}
-	case "commit":
-		if err := c.gitCommit(args); err != nil {
-			return err
-		}
-	case "reset":
-		if has("--hard") {
-			for _, ref := range nonOptions(args) {
-				if c.st.isProtected(ref) {
-					if err := c.block("git reset --hard on protected branch", "git-reset-hard"); err != nil {
-						return err
-					}
-				}
-			}
-			c.st.ask("git reset --hard discards uncommitted changes; confirm")
-		}
-	case "clean":
-		dryRun := has("--dry-run") || slices.ContainsFunc(args, func(a string) bool { return shortCluster(a, "n") })
-		if !dryRun {
-			c.st.ask("git clean deletes untracked files; confirm, or run it with -n first")
-		}
-	case "branch", "tag":
-		if slices.ContainsFunc(args, func(a string) bool {
-			return a == "--delete" || shortCluster(a, "dD")
-		}) {
-			c.st.ask("git " + sub + " deletion; confirm the name")
-		}
-	case "config":
-		if has("--global") {
-			if err := c.block("git config --global from a project session", "git-config-global"); err != nil {
-				return err
-			}
-		}
-	}
-	// Tree-wide pathspecs only: bare dot, -- ., :/, or a bare star.
-	// --staged without --worktree is allowed: unstaging isn't destructive.
-	if gitDiscard.MatchString(c.text) && treeSpec.MatchString(c.text) &&
-		(!strings.Contains(c.text, "--staged") || strings.Contains(c.text, "--worktree")) {
-		return c.block("tree-wide discard of working-tree changes; restore individual files explicitly", "git-tree-discard")
-	}
-	return nil
-}
-
 func nonOptions(words []string) []string {
 	var out []string
 	done := false
@@ -503,135 +608,4 @@ func nonOptions(words []string) []string {
 		out = append(out, w)
 	}
 	return out
-}
-
-// push is git push's arguments as the guard reads them.
-type push struct {
-	forced   []string // block reasons for --force, -f, --mirror, in order
-	tagsOnly bool     // --tags: pushes tags, not the current branch
-	refspecs []string
-}
-
-func parsePush(args []string) push {
-	var p push
-	wantValue, optsDone, haveRemote := false, false, false
-	for _, a := range args {
-		switch {
-		case wantValue:
-			wantValue = false
-		case optsDone || !strings.HasPrefix(a, "-"):
-			if haveRemote {
-				p.refspecs = append(p.refspecs, a)
-			}
-			haveRemote = true
-		case a == "--":
-			optsDone = true
-		case a == "--force":
-			p.forced = append(p.forced, "git push --force. Use --force-with-lease if you must.")
-		case a == "--mirror":
-			p.forced = append(p.forced, "git push --mirror overwrites every remote ref, protected branches included")
-		case a == "--tags":
-			p.tagsOnly = true
-		case slices.Contains([]string{"--repo", "--push-option", "--receive-pack", "--exec"}, a):
-			wantValue = true
-		case strings.HasPrefix(a, "--"):
-		default:
-			if strings.Contains(a, "f") {
-				p.forced = append(p.forced, "git push -f. Use --force-with-lease if you must.")
-			}
-			wantValue = strings.HasSuffix(a, "o")
-		}
-	}
-	for _, ref := range p.refspecs {
-		if strings.HasPrefix(ref, "+") {
-			p.forced = append(p.forced, "force push via a +refspec. Use --force-with-lease if you must.")
-		}
-	}
-	return p
-}
-
-func (c *command) gitPush(args []string, dir string) error {
-	p := parsePush(args)
-	for _, reason := range p.forced {
-		if err := c.block(reason, "git-force-push"); err != nil {
-			return err
-		}
-	}
-	dsts := make([]string, 0, len(p.refspecs))
-	for _, ref := range p.refspecs {
-		dst := ref[strings.LastIndexByte(ref, ':')+1:]
-		if dst == "HEAD" {
-			dst = c.st.currentBranch(dir)
-		}
-		dsts = append(dsts, dst)
-	}
-	if len(p.refspecs) == 0 && !p.tagsOnly {
-		dsts = append(dsts, c.st.currentBranch(dir))
-	}
-	for _, dst := range dsts {
-		if c.st.isProtected(dst) {
-			if err := c.block("push to a protected branch; use a feature branch", "git-push-protected"); err != nil {
-				return err
-			}
-		}
-	}
-	c.st.ask("git push publishes commits to a remote; confirm the destination")
-	return nil
-}
-
-// gitCommit treats -n as --no-verify.
-func (c *command) gitCommit(args []string) error {
-	noVerify := false
-	commitOptions(args, func(opt, _ string) { noVerify = noVerify || opt == "-n" })
-	if noVerify {
-		return c.block("git commit -n bypasses pre-commit hooks, same as --no-verify", "git-no-verify")
-	}
-	return nil
-}
-
-// commitOptions walks git commit's args as git reads them, up to "--",
-// calling fn with each option and its value ("" for none): a long one by
-// name, a short cluster's letters one by one, up to the first that takes a
-// value (in -mn the n is the message).
-func commitOptions(args []string, fn func(opt, value string)) {
-	valued := []string{"--message", "--file", "--author", "--date", "--template", "--trailer", "--cleanup",
-		"--reuse-message", "--reedit-message", "--fixup", "--squash", "--pathspec-from-file"}
-	for i := 0; i < len(args); i++ {
-		a := args[i]
-		next := func() string {
-			if i+1 < len(args) {
-				i++
-				return args[i]
-			}
-			return ""
-		}
-		switch {
-		case a == "--":
-			return
-		case slices.Contains(valued, a):
-			fn(a, next())
-		case strings.HasPrefix(a, "--"):
-			name, value, _ := strings.Cut(a, "=")
-			fn(name, value)
-		case strings.HasPrefix(a, "-"):
-			for j := 1; j < len(a); j++ {
-				opt := "-" + a[j:j+1]
-				switch a[j] {
-				case 'm', 'F', 'C', 'c', 't':
-					value := a[j+1:]
-					if value == "" {
-						value = next()
-					}
-					fn(opt, value)
-					j = len(a)
-				case 'u', 'S':
-					// Optional values, only ever attached: -uno, -S<keyid>.
-					fn(opt, a[j+1:])
-					j = len(a)
-				default:
-					fn(opt, "")
-				}
-			}
-		}
-	}
 }

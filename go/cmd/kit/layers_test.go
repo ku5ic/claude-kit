@@ -13,52 +13,47 @@ import (
 // layers, so a change to one never ripples upward. testutil has no layer:
 // only test files may import it.
 var layers = map[string]int{
-	"internal/fsx":        0,
-	"internal/proc":       0,
-	"internal/md":         0,
-	"internal/claudecli":  0,
-	"internal/layout":     0,
-	"internal/cite":       0,
-	"internal/config":     1,
-	"internal/cache":      1,
-	"internal/git":        1,
-	"internal/transcript": 1,
-	"internal/kitcmd":     1,
-	"internal/kitlog":     1,
-	"internal/project":    2,
-	"internal/guard":      2,
-	"internal/sources":    2,
-	"internal/connector":  2,
-	"internal/pkgcheck":   2,
-	"internal/design":     2,
-	"internal/hook":       3,
-	"internal/resolve":    3,
-	"internal/classify":   3,
-	"internal/slop":       3,
-	"internal/claims":     3,
-	"internal/weaken":     3,
-	"internal/gapfill":    4,
-	"internal/enforce":    5,
-	"internal/run":        6,
-	"internal/bashguard":  7,
-	"internal/hooks":      7,
-	"internal/stackctx":   7,
-	"internal/explain":    8,
-	"internal/rotate":     8,
-	"internal/blast":      8,
-	"internal/chatbundle": 8,
-	"internal/status":     8,
-	"internal/gitbase":    8,
-	"internal/detect":     8,
-	"cmd/kit":             9,
-}
-
-// allowed are the same-layer and upward imports that exist today. The
-// step that removes one deletes its entry; a stale entry fails the test.
-var allowed = map[string]bool{
-	"internal/project -> internal/sources": true,
-	"internal/hooks -> internal/stackctx":  true,
-	"internal/stackctx -> internal/detect": true,
+	"internal/fsx":             0,
+	"internal/proc":            0,
+	"internal/md":              0,
+	"internal/layout":          0,
+	"internal/cite":            0,
+	"internal/cache":           0,
+	"internal/config":          1,
+	"internal/git":             1,
+	"internal/transcript":      1,
+	"internal/kitcmd":          1,
+	"internal/kitlog":          1,
+	"internal/resolve/kittool": 1,
+	"internal/project":         3,
+	"internal/guard":           2,
+	"internal/sources":         2,
+	"internal/claudecli":       2,
+	"internal/connector":       2,
+	"internal/attribution":     2,
+	"internal/pkgcheck":        2,
+	"internal/design":          2,
+	"internal/hook":            3,
+	"internal/resolve":         3,
+	"internal/classify":        3,
+	"internal/slop":            3,
+	"internal/claims":          3,
+	"internal/weaken":          3,
+	"internal/gapfill":         4,
+	"internal/enforce":         5,
+	"internal/run":             6,
+	"internal/bashguard":       7,
+	"internal/hooks":           7,
+	"internal/stackctx":        6,
+	"internal/explain":         8,
+	"internal/rotate":          8,
+	"internal/blast":           8,
+	"internal/codegraph":       8,
+	"internal/chatbundle":      8,
+	"internal/status":          8,
+	"internal/gitbase":         8,
+	"internal/detect":          5,
+	"cmd/kit":                  9,
 }
 
 func TestImportsGoDown(t *testing.T) {
@@ -68,7 +63,6 @@ func TestImportsGoDown(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	used := map[string]bool{}
 	err = filepath.WalkDir(root, func(dir string, d fs.DirEntry, err error) error {
 		if err != nil || !d.IsDir() {
 			return err
@@ -102,8 +96,6 @@ func TestImportsGoDown(t *testing.T) {
 			switch {
 			case !known:
 				t.Errorf("%s: %s has no layer", edge, dep)
-			case depLayer >= layer && allowed[edge]:
-				used[edge] = true
 			case depLayer >= layer:
 				t.Errorf("%s: layer %d imports layer %d", edge, layer, depLayer)
 			}
@@ -112,10 +104,5 @@ func TestImportsGoDown(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatal(err)
-	}
-	for edge := range allowed {
-		if !used[edge] {
-			t.Errorf("%s is allowed but no longer imported; delete the entry", edge)
-		}
 	}
 }

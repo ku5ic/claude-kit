@@ -15,13 +15,14 @@ import (
 // expands ~ from it, so no t.Parallel.
 func TestExplain(t *testing.T) {
 	home := testutil.Physical(t, t.TempDir())
-	t.Setenv("HOME", home)
+	// $HOME elsewhere: explain reads only the home Run is given.
+	t.Setenv("HOME", t.TempDir())
 	kitYML, err := filepath.Abs("../../../kit.yml")
 	if err != nil {
 		t.Fatal(err)
 	}
 	claude := filepath.Join(home, ".claude")
-	paths := config.Paths{Root: filepath.Dir(kitYML), Home: claude, Base: kitYML, Overlay: filepath.Join(claude, "claude-kit.local.yml")}
+	paths := config.Paths{Root: filepath.Dir(kitYML), ClaudeDir: claude, Base: kitYML, Overlay: filepath.Join(claude, "claude-kit.local.yml")}
 	cfg := testutil.KitConfig(t)
 	repo := filepath.Join(home, "repo")
 	if err := os.MkdirAll(repo, 0o755); err != nil {
@@ -36,9 +37,10 @@ func TestExplain(t *testing.T) {
 	}{
 		{"bash: an ordinary command passes", []string{"bash", "git status"}, "guard-bash: pass"},
 		{"bash: a lone kit script is allowed", []string{"bash", "kit scratch-dir"}, "guard-bash: allow"},
+		{"bash: a write to the given home's rc file blocks", []string{"bash", "echo x >> " + filepath.Join(home, ".zshrc")}, "guard-bash: block  rc-redirect"},
 		{"edit: a credential read blocks", []string{"edit", filepath.Join(home, ".ssh/id_rsa"), "Read"}, "guard-edit: block  sensitive-read"},
 		{"edit: a Grep of a credential dir blocks", []string{"edit", filepath.Join(home, ".ssh"), "Grep"}, "guard-edit: block  sensitive-read"},
-		{"edit: a Grep of the repo passes", []string{"edit", repo, "Grep"}, "guard-edit: pass"},
+		{"edit: a Grep of the repo is allowed with credential files excluded", []string{"edit", repo, "Grep"}, "guard-edit: allow"},
 		{"edit: a Grep of the repo for .env files blocks", []string{"edit", repo, "Grep", ".env*"}, "guard-edit: block  sensitive-read"},
 		{"edit: a plain write passes", []string{"edit", filepath.Join(repo, "docs/notes.md")}, "guard-edit: pass"},
 		{"edit: a new report at the repo root asks", []string{"edit", filepath.Join(repo, "notes.md")}, "guard-edit: ask"},
@@ -46,7 +48,7 @@ func TestExplain(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			var stdout, stderr strings.Builder
-			if status := Run(paths, cfg, repo, c.args, &stdout, &stderr); status != 0 {
+			if status := Run(paths, cfg, repo, home, c.args, &stdout, &stderr); status != 0 {
 				t.Fatalf("status %d, want 0; stderr:\n%s", status, stderr.String())
 			}
 			if !strings.Contains(stdout.String(), c.want) {

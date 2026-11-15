@@ -30,17 +30,18 @@ func GuardHandback(h *hook.Hook) error {
 	if marker == "" {
 		return nil
 	}
-	hits := reportHits(h, p.String("tool_input.message"))
+	hits := reportHits(h, p.String(hook.KeyInputMessage))
 	if prev, _ := os.ReadFile(marker); string(prev) == "sent-back" {
 		return nil
 	}
-	state := "seen"
-	if len(hits) > 0 {
-		state = "sent-back"
-		h.Deny(slop.Message("your report", hits, sendBack), "slop")
+	if len(hits) == 0 {
+		if !h.DryRun {
+			_ = fsx.WriteAtomic(marker, []byte("seen"), 0o644)
+		}
+		return nil
 	}
-	if !h.DryRun {
-		_ = fsx.WriteAtomic(marker, []byte(state), 0o644)
+	if markOnce(h, marker, []byte("sent-back"), "slop") {
+		h.Deny(slop.Message("your report", hits, sendBack), "slop")
 	}
 	return nil
 }
@@ -52,13 +53,13 @@ func GuardHandback(h *hook.Hook) error {
 // SubagentStop.
 func SubagentSlop(h *hook.Hook) error {
 	p := h.Payload
-	if p.Err != nil || p.Bool("stop_hook_active") {
+	if p.Err != nil || p.Bool(hook.KeyStopHookActive) {
 		return nil
 	}
 	if marker := handbackMarker(h, cache.Slop); marker != "" && fsx.IsFile(marker) {
 		return nil
 	}
-	hits := reportHits(h, p.String("last_assistant_message"))
+	hits := reportHits(h, p.String(hook.KeyLastAssistantMessage))
 	if len(hits) == 0 {
 		return nil
 	}
@@ -68,11 +69,26 @@ func SubagentSlop(h *hook.Hook) error {
 // handbackMarker is the session's marker, in cache dir kind, for the
 // payload's agent; "" when either id is missing or isn't a plain name.
 func handbackMarker(h *hook.Hook, kind string) string {
-	agent := h.Payload.String("agent_id")
+	agent := h.Payload.String(hook.KeyAgentID)
 	if agent == "" || strings.ContainsAny(agent, `/\`) {
 		return ""
 	}
 	return h.Paths.SessionFile(kind, h.Payload.SessionID(), agent, "handback")
+}
+
+// markOnce writes data to marker, the guard that shows a block or deny for
+// rule only once. False when the write fails: with no guard, the block
+// would come back on every retry, so the caller lets the call through and
+// the user is told.
+func markOnce(h *hook.Hook, marker string, data []byte, rule string) bool {
+	if h.DryRun {
+		return true
+	}
+	if err := fsx.WriteAtomic(marker, data, 0o600); err != nil {
+		h.Notify("kit " + rule + ": let through unchecked, its once-only marker can't be saved: " + err.Error())
+		return false
+	}
+	return true
 }
 
 // reportHits scans a subagent report and returns the hits in a block tier,

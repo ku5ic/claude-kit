@@ -6,6 +6,8 @@ Date: 2026-10-07
 
 Accepted
 
+Amended by [30. Kit tools and formatters resolve from PATH through resolve](0030-kit-tools-and-formatters-resolve-from-path-through-resolve.md)
+
 ## Context
 
 The kit resolved tool binaries three different ways, so one tool could run at two versions depending on the feature (PR #7). A project that pinned prettier 3.6.2 got the global 3.9.6 in one place, with 253 against 281 failing files.

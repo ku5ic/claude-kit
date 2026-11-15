@@ -12,12 +12,12 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"time"
 
 	"go.yaml.in/yaml/v3"
 
 	"github.com/ku5ic/claude-kit/go/internal/blast"
 	"github.com/ku5ic/claude-kit/go/internal/chatbundle"
+	"github.com/ku5ic/claude-kit/go/internal/codegraph"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/design"
 	"github.com/ku5ic/claude-kit/go/internal/detect"
@@ -49,6 +49,7 @@ type env struct {
 	stdout io.Writer
 	stderr io.Writer
 	cwd    string
+	home   string // $HOME, read once here
 	cfg    *config.Config
 	warned bool // config produced warnings
 }
@@ -67,7 +68,7 @@ func newEnv(stdout, stderr io.Writer) (*env, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &env{exe: exe, paths: paths, stdout: stdout, stderr: stderr, cwd: cwd}, nil
+	return &env{exe: exe, paths: paths, stdout: stdout, stderr: stderr, cwd: cwd, home: os.Getenv("HOME")}, nil
 }
 
 func (e *env) config() (*config.Config, error) {
@@ -88,79 +89,123 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	name, rest := args[0], args[1:]
-	switch name {
-	case "-h", "--help", "help":
-		fmt.Fprint(stdout, kitcmd.Usage())
-		return 0
-	case "version", "--version":
-		fmt.Fprintln(stdout, version)
-		return 0
-	case "completion":
-		return cmdCompletion(rest, stdout, stderr)
-	case "git-base":
-		return gitbase.Run(rest, stdout, stderr)
-	}
-	e, err := newEnv(stdout, stderr)
-	if err != nil {
-		fmt.Fprintln(stderr, "kit:", err)
-		return 1
-	}
-
-	switch name {
-	case "config":
-		return cmdConfig(e, rest)
-	case "scratch-rotate":
-		return cmdScratchRotate(e, rest)
-	case "scratch-dir":
-		return cmdScratchDir(e, rest)
-	case "project-root":
-		return cmdProjectRoot(e, rest)
-	case "subprojects":
-		return cmdSubprojects(e, rest)
-	case "gates":
-		return cmdGates(e, rest)
-	case "hook":
-		return cmdHook(e, rest, os.Stdin)
-	case "bundle":
-		return cmdBundle(e, rest)
-	case "contrast":
-		return design.Contrast(rest, stdout, stderr)
-	case "statusline":
-		status.Statusline(os.Stdin, stdout, e.paths.Home)
-		return 0
-	case "subagent-statusline":
-		status.SubagentStatusline(os.Stdin, stdout)
-		return 0
-	}
-
-	cmd, ok := configCommands[name]
+	cmd, ok := commands[name]
 	if !ok {
 		fmt.Fprintf(stderr, "kit: unknown command %q\n%s", name, kitcmd.Usage())
 		return 2
 	}
-	cfg, err := e.config()
-	if err != nil {
-		fmt.Fprintln(stderr, "kit:", err)
-		return 1
+	e := &env{stdout: stdout, stderr: stderr}
+	if cmd.needs >= needsEnv {
+		var err error
+		if e, err = newEnv(stdout, stderr); err != nil {
+			fmt.Fprintln(stderr, "kit:", err)
+			return 1
+		}
 	}
-	return cmd(e, cfg, rest)
+	var cfg *config.Config
+	if cmd.needs == needsConfig {
+		var err error
+		if cfg, err = e.config(); err != nil {
+			fmt.Fprintln(stderr, "kit:", err)
+			return 1
+		}
+	}
+	return cmd.run(e, cfg, rest)
 }
 
-// configCommands are the commands that read kit.yml.
-var configCommands = map[string]func(*env, *config.Config, []string) int{
-	"tasks":        cmdTasks,
-	"detect-stack": cmdDetectStack,
-	"run-checks":   cmdRunChecks,
-	"enforce":      cmdEnforce,
-	"blast-radius": func(e *env, cfg *config.Config, args []string) int {
+// needs is what a command reads before it runs.
+type needs int
+
+const (
+	needsNothing needs = iota // only stdout and stderr: runs where newEnv fails
+	needsEnv                  // the kit's paths and the cwd
+	needsConfig               // those, and kit.yml
+)
+
+// command is one kit subcommand. Its run gets a nil cfg below needsConfig.
+type command struct {
+	needs needs
+	run   func(e *env, cfg *config.Config, args []string) int
+}
+
+// commands are kit's subcommands by name, each kitcmd.Commands lists and
+// the help and version aliases.
+var commands = map[string]command{
+	"help":           {needsNothing, cmdHelp},
+	"-h":             {needsNothing, cmdHelp},
+	"--help":         {needsNothing, cmdHelp},
+	"version":        {needsNothing, cmdVersion},
+	"--version":      {needsNothing, cmdVersion},
+	"completion":     {needsNothing, streams(cmdCompletion)},
+	"git-base":       {needsNothing, streams(gitbase.Run)},
+	"config":         {needsEnv, envOnly(cmdConfig)},
+	"scratch-rotate": {needsEnv, envOnly(cmdScratchRotate)},
+	"scratch-dir":    {needsEnv, envOnly(cmdScratchDir)},
+	"project-root":   {needsEnv, envOnly(cmdProjectRoot)},
+	"subprojects":    {needsEnv, envOnly(cmdSubprojects)},
+	"gates":          {needsEnv, envOnly(cmdGates)},
+	"bundle":         {needsEnv, envOnly(cmdBundle)},
+	"code-graph":     {needsEnv, envOnly(cmdCodeGraph)},
+	"hook": {needsEnv, func(e *env, _ *config.Config, args []string) int {
+		return cmdHook(e, args, os.Stdin)
+	}},
+	"contrast": {needsEnv, streams(design.Contrast)},
+	"statusline": {needsEnv, func(e *env, _ *config.Config, _ []string) int {
+		status.Statusline(os.Stdin, e.stdout, e.paths.ClaudeDir)
+		return 0
+	}},
+	"subagent-statusline": {needsEnv, func(e *env, _ *config.Config, _ []string) int {
+		status.SubagentStatusline(os.Stdin, e.stdout)
+		return 0
+	}},
+	"tasks":        {needsConfig, cmdTasks},
+	"detect-stack": {needsConfig, cmdDetectStack},
+	"run-checks":   {needsConfig, cmdRunChecks},
+	"enforce":      {needsConfig, cmdEnforce},
+	"blast-radius": {needsConfig, func(e *env, cfg *config.Config, args []string) int {
 		return blast.Run(cfg, args, e.stdout, e.stderr)
-	},
-	"slop": func(e *env, cfg *config.Config, args []string) int {
+	}},
+	"slop": {needsConfig, func(e *env, cfg *config.Config, args []string) int {
 		return slop.Run(cfg, args, os.Stdin, e.stdout, e.stderr)
-	},
-	"explain": func(e *env, cfg *config.Config, args []string) int {
-		return explain.Run(e.paths, cfg, e.cwd, args, e.stdout, e.stderr)
-	},
+	}},
+	"explain": {needsConfig, func(e *env, cfg *config.Config, args []string) int {
+		return explain.Run(e.paths, cfg, e.cwd, e.home, args, e.stdout, e.stderr)
+	}},
+}
+
+// streams is a handler that reads only its args and writes stdout and
+// stderr, as a command's run.
+func streams(run func([]string, io.Writer, io.Writer) int) func(*env, *config.Config, []string) int {
+	return func(e *env, _ *config.Config, args []string) int { return run(args, e.stdout, e.stderr) }
+}
+
+// envOnly is a handler that reads no kit.yml as a command's run.
+func envOnly(run func(*env, []string) int) func(*env, *config.Config, []string) int {
+	return func(e *env, _ *config.Config, args []string) int { return run(e, args) }
+}
+
+func cmdHelp(e *env, _ *config.Config, _ []string) int {
+	fmt.Fprint(e.stdout, kitcmd.Usage())
+	return 0
+}
+
+func cmdVersion(e *env, _ *config.Config, _ []string) int {
+	fmt.Fprintln(e.stdout, version)
+	return 0
+}
+
+// cmdCodeGraph reads kit.yml for skip_dirs, which imports and deps leave
+// out, and for model-dir's architecture folder.
+func cmdCodeGraph(e *env, args []string) int {
+	cfg, err := e.config()
+	if err != nil {
+		fmt.Fprintln(e.stderr, "kit:", err)
+		return 1
+	}
+	if len(args) == 0 || args[0] != "model-dir" {
+		return codegraph.Run(args, cfg.SkipDirs, e.stdout, e.stderr)
+	}
+	return codegraph.RunModelDir(cfg.ArchitectureDir, e.home, args[1:], e.stdout, e.stderr)
 }
 
 // cmdBundle reads the checkout holding this binary, and kit.yml alone: an
@@ -212,7 +257,7 @@ func cmdScratchRotate(e *env, args []string) int {
 	if !ok {
 		return 2
 	}
-	return rotate.Run(e.paths, days, dryRun, e.stdout, e.stderr)
+	return rotate.Run(e.paths, e.home, days, dryRun, e.stdout, e.stderr)
 }
 
 // runChecksArgs are run-checks' arguments.
@@ -294,7 +339,7 @@ func cmdSubprojects(e *env, args []string) int {
 func cmdTasks(e *env, cfg *config.Config, args []string) int {
 	dir := fsx.PhysicalPath(fsx.Abs(e.cwd, cmp.Or(first(args), ".")))
 	root, _ := project.Root(dir)
-	for _, task := range enforce.Tasks(cfg, root, e.paths.CacheDir(), fsx.Rel(root, dir)) {
+	for _, task := range enforce.Tasks(cfg, enforce.Options{Root: root, CacheDir: e.paths.CacheDir(), Home: e.home}, fsx.Rel(root, dir)) {
 		fmt.Fprintln(e.stdout, strings.Join([]string{task.Provider, cmp.Or(task.Stack, "-"), task.Name, task.Cmd}, "\t"))
 	}
 	return 0
@@ -326,7 +371,7 @@ func cmdScratchDir(e *env, args []string) int {
 	if len(args) > 1 {
 		slug = args[1]
 	}
-	fmt.Fprintln(e.stdout, project.ReportPath(dir, args[0], slug, time.Now().Format("20060102-1504")))
+	fmt.Fprintln(e.stdout, project.ReportPath(dir, args[0], slug))
 	return 0
 }
 

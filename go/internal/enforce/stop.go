@@ -9,6 +9,7 @@ import (
 
 	"mvdan.cc/sh/v3/syntax"
 
+	"github.com/ku5ic/claude-kit/go/internal/classify"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
@@ -21,20 +22,33 @@ import (
 // file and kind none of those checks, the file form of the full gate's
 // check of that kind whose globs match it. Fixers never run here: they ran
 // on each edit. A file the repo ignores, a deleted one, and one outside the
-// root don't count. The classifier is never asked: the cache answers.
+// root don't count. The cache answers; only when it lacks a verdict, a
+// check changed mid-session, and o.Ask allows, is the classifier asked.
 func Stop(cfg *config.Config, o Options, files []string) Plan {
 	p := Plan{Root: o.Root}
 	files = stopFiles(o.Root, files)
 	if len(files) == 0 {
 		return p
 	}
+	ask := o.Ask
 	o.Ask = false
 	b, _ := fullGate(cfg, o)
+	// Asking reads every config file in the repo, so a full cache skips it.
+	if ask && b.facts.Unclassified() > 0 {
+		o.Ask = true
+		b, _ = fullGate(cfg, o)
+	}
+	p.Classifier = b.facts.Usage
 	full := b.gates
 	b.gates, b.planned = nil, map[string]bool{}
 	checked := b.hookChecks(files)
+	// The least filtered form first: a marker subset or a coverage run
+	// has more arguments than the plain run of its tool, and loses its
+	// files to it.
+	slices.SortStableFunc(full, func(a, b Gate) int { return len(strings.Fields(a.FileForm)) - len(strings.Fields(b.FileForm)) })
+	formed := map[string]map[string][]string{}
 	for _, g := range full {
-		b.fileForm(g, files, checked)
+		b.fileForm(g, files, checked, formed)
 	}
 	b.unclassified(func(e sources.Entry) bool {
 		src := sources.SourceOf(e.Source)
@@ -102,20 +116,100 @@ func atPreCommit(e sources.Entry) bool {
 }
 
 // fileForm plans full gate g's file form on the files under its directory
-// its globs match, each file only for the kinds no hook checks it for.
-func (b *builder) fileForm(g Gate, files []string, checked map[string][]string) {
+// its globs match, each file only for the kinds no hook checks it for and
+// no earlier form of the same tool covers, and records the form in formed,
+// per file and dir, tool, and kind.
+func (b *builder) fileForm(g Gate, files []string, checked map[string][]string, formed map[string]map[string][]string) {
 	if g.Skip != "" || g.FileForm == "" || len(g.Globs) == 0 {
 		return
 	}
+	// A script or relative binary is its dir's own: npm run lint in web/
+	// is another script than the root's.
+	tool := g.Dir + "\x00" + formTool(g.FileForm)
 	var mine []string
 	for _, f := range matching(files, g.Dir, g.Globs) {
-		if slices.ContainsFunc(g.Kinds, func(k string) bool { return !slices.Contains(checked[f], k) }) {
+		if slices.ContainsFunc(g.Kinds, func(k string) bool {
+			return !slices.Contains(checked[f], k) && !slices.ContainsFunc(formed[f][tool+":"+k], func(earlier string) bool { return covers(earlier, g.FileForm) })
+		}) {
 			mine = append(mine, f)
 		}
 	}
 	if len(mine) > 0 {
 		b.add(Gate{Label: g.Label, Kinds: g.Kinds, Dir: g.Dir, Env: g.Env, Body: g.FileForm, Verdict: g.Verdict, Files: mine})
 	}
+	for _, f := range mine {
+		if formed[f] == nil {
+			formed[f] = map[string][]string{}
+		}
+		for _, k := range g.Kinds {
+			formed[f][tool+":"+k] = append(formed[f][tool+":"+k], g.FileForm)
+		}
+	}
+}
+
+// selectors take a value and pick which tests a form runs (pytest -m unit,
+// -k name, --deselect id); --cov and its options add a coverage run.
+var selectors = []string{"-m", "-k", "--deselect"}
+
+// covers is true when earlier, a form of the same tool and kind, runs every
+// check form does: every word of earlier is in form, and form's words past
+// earlier's are only selectors and coverage options. Any other (eslint
+// --max-warnings 0) checks more, and an earlier with a selector of its own
+// (pytest -m unit) runs fewer.
+func covers(earlier, form string) bool {
+	have, words := strings.Fields(earlier), strings.Fields(form)
+	if slices.ContainsFunc(have, func(w string) bool { return !slices.Contains(words, w) }) {
+		return false
+	}
+	var extra []string
+	for _, w := range words {
+		if !slices.Contains(have, w) {
+			extra = append(extra, w)
+		}
+	}
+	for i := 0; i < len(extra); i++ {
+		name, _, attached := strings.Cut(extra[i], "=")
+		switch {
+		case strings.HasPrefix(name, "--cov"):
+		case slices.Contains(selectors, name):
+			if !attached {
+				i++
+			}
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// formTool is the tool a file form runs: its first word past VAR=value
+// words, a wrapper (env), and a tool runner (npx, uv run), by base name.
+// pytest -m unit and pytest --cov are both pytest; pylint and ruff check
+// are two tools. A task reference is its task: npm run lint and npm run
+// lint:css are two tools.
+func formTool(form string) string {
+	words := strings.Fields(form)
+	for len(words) > 1 && (strings.Contains(words[0], "=") || slices.Contains(classify.Grammar.Wrappers, words[0])) {
+		words = words[1:]
+	}
+	for _, r := range classify.Grammar.ToolRunners {
+		if n := len(strings.Fields(r)); len(words) > n && strings.Join(words[:n], " ") == r {
+			return filepath.Base(words[n])
+		}
+	}
+	// After the runners: pnpm exec is one, and pnpm alone a task reference.
+	for _, ref := range classify.Grammar.References {
+		if f := strings.Fields(ref.Words); len(words) >= len(f) && slices.Equal(words[:len(f)], f) {
+			if name := classify.RefName(ref, words[len(f):]); ref.Task == "" && name != "" {
+				f = append(f, name)
+			}
+			return strings.Join(f, " ")
+		}
+	}
+	if len(words) == 0 {
+		return ""
+	}
+	return filepath.Base(words[0])
 }
 
 // matching is the files under dir that globs match, as git-hook managers
@@ -143,13 +237,30 @@ func globMatch(glob, rel string) bool {
 			if guard.Glob(pattern, filepath.Base(rel)) {
 				return true
 			}
-		case guard.Glob(pattern, rel):
-			return true
-		case strings.HasPrefix(pattern, "**/") && guard.Glob(strings.TrimPrefix(pattern, "**/"), rel):
+		case globDirs(pattern, rel):
 			return true
 		}
 	}
 	return false
+}
+
+// globDirs matches rel against pattern with each "**/" also matching no
+// directory, tried collapsed one at a time.
+func globDirs(pattern, rel string) bool {
+	if guard.Glob(pattern, rel) {
+		return true
+	}
+	for i := 0; ; {
+		j := strings.Index(pattern[i:], "**/")
+		if j < 0 {
+			return false
+		}
+		i += j
+		if (i == 0 || pattern[i-1] == '/') && globDirs(pattern[:i]+pattern[i+3:], rel) {
+			return true
+		}
+		i += 3
+	}
 }
 
 // placeholderWord is a word holding {files} or {dirs}.
@@ -157,7 +268,9 @@ var placeholderWord = regexp.MustCompile(`\S*\{(?:files|dirs)\}\S*`)
 
 // Command is g's body with its files in place: a word holding {files}
 // repeated once per file, and one holding {dirs} once per file's directory,
-// each relative to where it runs and shell-quoted.
+// each relative to where it runs and shell-quoted. Quotes around the bare
+// placeholder ("{files}") are dropped, and a placeholder inside $(...)
+// (`"$(gofmt -l {files})"`) takes the whole list once instead.
 func (g Gate) Command() string {
 	if len(g.Files) == 0 {
 		return g.Body
@@ -178,17 +291,59 @@ func (g Gate) Command() string {
 	}
 	slices.Sort(dirs)
 	dirs = slices.Compact(dirs)
-	return placeholderWord.ReplaceAllStringFunc(g.Body, func(word string) string {
-		placeholder, values := "{files}", files
-		if strings.Contains(word, "{dirs}") {
-			placeholder, values = "{dirs}", dirs
+	var b strings.Builder
+	last := 0
+	inside := substitutions(g.Body)
+	for _, m := range placeholderWord.FindAllStringIndex(g.Body, -1) {
+		b.WriteString(g.Body[last:m[0]])
+		b.WriteString(expand(g.Body[m[0]:m[1]], files, dirs, inside(m[0])))
+		last = m[1]
+	}
+	return b.String() + g.Body[last:]
+}
+
+// expand is word with its placeholder replaced: the whole list once inside
+// a substitution, else word repeated once per value. Quotes around the
+// placeholder are the script's, and go: each value is quoted already.
+func expand(word string, files, dirs []string, substituted bool) string {
+	placeholder, values := "{files}", files
+	if strings.Contains(word, "{dirs}") {
+		placeholder, values = "{dirs}", dirs
+	}
+	word = strings.NewReplacer(`"`+placeholder+`"`, placeholder, "'"+placeholder+"'", placeholder).Replace(word)
+	out := make([]string, len(values))
+	for i, v := range values {
+		out[i] = Quote(v)
+	}
+	if substituted || word == placeholder {
+		return strings.ReplaceAll(word, placeholder, strings.Join(out, " "))
+	}
+	for i := range out {
+		out[i] = strings.ReplaceAll(word, placeholder, out[i])
+	}
+	return strings.Join(out, " ")
+}
+
+// substitutions is whether an offset of body falls inside a command
+// substitution, $(...) or backticks, as the shell parses it. A body that
+// doesn't parse falls back to counting an unclosed $( before the offset.
+func substitutions(body string) func(offset int) bool {
+	file, err := syntax.NewParser().Parse(strings.NewReader(body), "")
+	if err != nil {
+		return func(offset int) bool {
+			return strings.Count(body[:offset], "$(") > strings.Count(body[:offset], ")")
 		}
-		out := make([]string, len(values))
-		for i, v := range values {
-			out[i] = strings.ReplaceAll(word, placeholder, Quote(v))
+	}
+	var spans [][2]int
+	syntax.Walk(file, func(node syntax.Node) bool {
+		if cs, ok := node.(*syntax.CmdSubst); ok {
+			spans = append(spans, [2]int{int(cs.Pos().Offset()), int(cs.End().Offset())})
 		}
-		return strings.Join(out, " ")
+		return true
 	})
+	return func(offset int) bool {
+		return slices.ContainsFunc(spans, func(s [2]int) bool { return s[0] < offset && offset < s[1] })
+	}
 }
 
 // Quote is s as one shell word.

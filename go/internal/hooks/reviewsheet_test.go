@@ -61,7 +61,7 @@ const threeSteps = "## Steps\n\n- [x] 1. one\n- [ ] 2. change a.ts and package-l
 
 func TestReviewSheet(t *testing.T) {
 	t.Parallel()
-	t.Run("a step's sheet puts a lockfile and a file the plan never names first, and lists the rest", func(t *testing.T) {
+	t.Run("a step's sheet groups files by their reason to look, each group counted, and lists the rest last", func(t *testing.T) {
 		t.Parallel()
 		e := sheetSetup(t, threeSteps)
 		e.start()
@@ -72,9 +72,13 @@ func TestReviewSheet(t *testing.T) {
 		msg := notice(t, e.stop(false))
 		hasLine(t, msg,
 			`kit review: step 2 of 3, 3 files, \+3 -0`,
-			`look  c\.ts +the plan doesn't name this file`,
-			`look  package-lock\.json +lockfile`,
-			`file  a\.ts +\+1 -0`,
+			``,
+			`  the plan doesn't name this file \(1\)`,
+			`    c\.ts`,
+			`  lockfile \(1\)`,
+			`    package-lock\.json`,
+			`  other files \(1\)`,
+			`    a\.ts +\+1 -0`,
 		)
 	})
 	t.Run("an added kit: allow marker is a reason to look", func(t *testing.T) {
@@ -83,7 +87,7 @@ func TestReviewSheet(t *testing.T) {
 		e.start()
 		testutil.Write(t, e.path("a.ts"), "x\n// kit: allow flaky upstream\n")
 		e.turn("Edit", e.path("a.ts"))
-		hasLine(t, notice(t, e.stop(false)), `look  a\.ts +"kit: allow" marker added`)
+		hasLine(t, notice(t, e.stop(false)), `  "kit: allow" marker added \(1\)`, `    a\.ts`)
 	})
 	t.Run("past ten lines, the rest go to a scratch file the last line names", func(t *testing.T) {
 		t.Parallel()
@@ -97,9 +101,30 @@ func TestReviewSheet(t *testing.T) {
 		}
 		e.turn("Edit", files...)
 		msg := notice(t, e.stop(false))
-		hasLine(t, msg, `kit review: step 2 of 3, 12 files, \+12 -0`, `more  3 files in .*kit-review-step-2-of-3\.txt`)
-		if n := strings.Count(msg, "\nlook  "); n != 9 {
-			t.Errorf("%d look lines, want 9 and the more line:\n%s", n, msg)
+		hasLine(t, msg, `kit review: step 2 of 3, 12 files, \+12 -0`, `  the plan doesn't name this file \(12\)`, `  more  3 files in .*kit-review-step-2-of-3\.txt`)
+		if n := strings.Count(msg, "\n    f"); n != 9 {
+			t.Errorf("%d file lines, want 9 and the more line:\n%s", n, msg)
+		}
+	})
+	t.Run("past the limit, a group with no file shown leaves no heading", func(t *testing.T) {
+		t.Parallel()
+		e := sheetSetup(t, threeSteps)
+		e.start()
+		var files []string
+		for i := range 12 {
+			name := fmt.Sprintf("f%02d.md", i)
+			testutil.Write(t, e.path(name), "x\n")
+			files = append(files, e.path(name))
+		}
+		testutil.Write(t, e.path("a.ts"), "x\ny\n")
+		testutil.Write(t, e.path("package-lock.json"), "{}\n")
+		e.turn("Edit", append(files, e.path("a.ts"), e.path("package-lock.json"))...)
+		msg := notice(t, e.stop(false))
+		lines := strings.Split(msg, "\n")
+		for i, l := range lines {
+			if strings.HasPrefix(l, "  ") && !strings.HasPrefix(l, "    ") && strings.HasSuffix(l, ")") && (i+1 == len(lines) || !strings.HasPrefix(lines[i+1], "    ")) {
+				t.Errorf("heading %q has no file under it:\n%s", l, msg)
+			}
 		}
 	})
 	t.Run("a turn that changes nothing tracked gets no sheet", func(t *testing.T) {
@@ -127,7 +152,7 @@ func TestReviewSheet(t *testing.T) {
 		e.tick("## Steps\n\n- [x] 1. a.ts\n- [x] 2. b.ts\n- [ ] 3. three\n")
 		e.turn("Edit", e.path("a.ts"), e.path("b.ts"))
 		msg := notice(t, e.stop(false))
-		hasLine(t, msg, `kit review: step 1 of 3, 1 files, \+1 -1`, `file  a\.ts +\+1 -1`, `kit review: step 2 of 3, 1 files, \+1 -1`, `file  b\.ts +\+1 -1`)
+		hasLine(t, msg, `kit review: step 1 of 3, 1 files, \+1 -1`, `    a\.ts +\+1 -1`, `kit review: step 2 of 3, 1 files, \+1 -1`, `    b\.ts +\+1 -1`)
 		if strings.Count(msg, "kit review:") != 2 {
 			t.Errorf("want two sheets:\n%s", msg)
 		}

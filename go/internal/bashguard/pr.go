@@ -11,7 +11,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
-	"github.com/ku5ic/claude-kit/go/internal/kitlog"
+	"github.com/ku5ic/claude-kit/go/internal/layout"
 	"github.com/ku5ic/claude-kit/go/internal/slop"
 )
 
@@ -22,27 +22,30 @@ var (
 	textFlags    = map[string]string{"-b": "body", "--body": "body", "-F": "body-file", "--body-file": "body-file", "-t": "title", "--title": "title"}
 	mergeFlags   = map[string]string{"-b": "body", "--body": "body", "-F": "body-file", "--body-file": "body-file", "-t": "subject", "--subject": "subject"}
 	commentFlags = map[string]string{"-c": "comment", "--comment": "comment"}
+	releaseFlags = map[string]string{"-n": "body", "--notes": "body", "-F": "body-file", "--notes-file": "body-file", "-t": "title", "--title": "title"}
 	apiFlags     = map[string]string{"-f": "raw-field", "--raw-field": "raw-field", "-F": "field", "--field": "field", "--input": "input"}
-	// ghPosts are the gh pr and gh issue subcommands that post text, each
-	// with the flags that carry it.
+	// ghPosts are the gh pr, issue, and release subcommands that post text,
+	// each with the flags that carry it.
 	ghPosts = map[string]map[string]map[string]string{
 		"pr": {"create": textFlags, "edit": textFlags, "comment": textFlags, "review": textFlags,
 			"merge": mergeFlags, "close": commentFlags, "reopen": commentFlags},
-		"issue": {"create": textFlags, "edit": textFlags, "comment": textFlags, "close": commentFlags, "reopen": commentFlags},
+		"issue":   {"create": textFlags, "edit": textFlags, "comment": textFlags, "close": commentFlags, "reopen": commentFlags},
+		"release": {"create": releaseFlags, "edit": releaseFlags},
 	}
 	// prKeys are the API fields that hold PR text.
 	prKeys = []string{"body", "title"}
 )
 
 // CheckPR is guard-pr: it scans the text a gh command posts to a pull
-// request or an issue (body, title, comment, review) for AI tells, as guard-commit scans
-// a commit message. Text it can't read (a pipe on stdin, a file the command
-// writes first, an expansion) is logged, not blocked.
+// request, an issue, or a release (body, title, comment, review, notes) for
+// AI tells, as guard-commit scans a commit message. Text it can't read (a
+// pipe on stdin, a file the command writes first, an expansion) blocks,
+// since no check would see it.
 func CheckPR(h *hook.Hook) error {
 	if h.Payload.Err != nil {
 		return h.Payload.Err
 	}
-	cmd := h.Payload.String("tool_input.command")
+	cmd := h.Payload.String(hook.KeyInputCommand)
 	if !strings.Contains(cmd, "gh") {
 		return nil
 	}
@@ -57,8 +60,8 @@ func CheckPR(h *hook.Hook) error {
 		src := ghCall{call: w.call, before: w.seg.src[:min(w.call.start, len(w.seg.src))], home: h.Home, cwd: w.cwd}
 		for _, t := range src.texts(w.i + 1) {
 			if t.unread != "" {
-				h.Log(kitlog.Guards, "slop-unread", "source", t.where, "why", t.unread)
-				continue
+				return h.Block("can't read the text of "+t.where+": "+t.unread+"\n"+
+					layout.KV("do", "give it inline, in a \"$(cat <<'EOF' ...)\" heredoc, -F - with a heredoc, or a file written in an earlier call"), "unread-text")
 			}
 			if det == nil {
 				det = detector(h) // once per command, not per text
@@ -85,10 +88,7 @@ type ghCall struct {
 
 // texts is the PR text of the gh call whose args start at word from.
 func (s ghCall) texts(from int) []prText {
-	var args []string
-	for _, w := range s.call.Words[from:] {
-		args = append(args, w.Value)
-	}
+	args := values(s.call.Words[from:])
 	var out []prText
 	switch {
 	case len(args) >= 2 && ghPosts[args[0]][args[1]] != nil:
@@ -134,6 +134,7 @@ func (s ghCall) read(where, file string) prText {
 		t.unread = "stdin isn't in the command"
 		return t
 	}
+	file = guard.ExpandHome(s.home, file)
 	switch {
 	case strings.ContainsAny(file, "$`"):
 		t.unread = "an expansion names the file"
@@ -142,7 +143,7 @@ func (s ghCall) read(where, file string) prText {
 	case strings.Contains(s.before, filepath.Base(file)):
 		t.unread = "the command writes the file first"
 	default:
-		data, err := os.ReadFile(fsx.Abs(s.cwd, guard.ExpandHome(s.home, file)))
+		data, err := os.ReadFile(fsx.Abs(s.cwd, file))
 		if err != nil {
 			t.unread = "the file isn't readable"
 		}

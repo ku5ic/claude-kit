@@ -360,6 +360,17 @@ func (c *classifier) refArgs(ref TaskRef, rest []string) (_ TaskRef, more []stri
 	return ref, more, Ref
 }
 
+// RefName is the task the words after r's prefix name, past option values
+// (make -C web lint names lint), or "" when they name none the kit reads.
+func RefName(r Reference, rest []string) string {
+	c := &classifier{lookup: func(string, string, string) bool { return false }}
+	ref, _, kind := c.refArgs(TaskRef{Provider: r.Provider, Name: r.Task}, rest)
+	if kind != Ref {
+		return ""
+	}
+	return ref.Name
+}
+
 // reference reads words as a task reference, by the longest matching
 // reference prefix.
 func (c *classifier) reference(words, env []string) (Command, bool) {

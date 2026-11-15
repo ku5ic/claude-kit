@@ -43,7 +43,7 @@ func TestCheckSize(t *testing.T) {
 			k.overlay(budgets)
 			r := k.run("check-size", tc.call(k, long))
 			r.Denied(t)
-			r.Has(t, tc.where+" runs 7 words, over the 5-word budget", tc.then, "(size)")
+			r.Has(t, tc.where+" runs 7 words, over the 5-word budget", tc.then, "or send it unchanged to keep this length", "rule  size")
 			k.run("check-size", tc.call(k, long)).Allowed(t)
 			k.run("check-size", tc.call(k, long+" Eight.")).Denied(t)
 			k.run("check-size", tc.call(k, fenced)).Allowed(t)
@@ -77,7 +77,7 @@ func TestCheckSize(t *testing.T) {
 		calls := k.verifier(budgets, claim)
 		r := k.run("handback-dispatch", handback(long))
 		r.Denied(t)
-		r.Has(t, "(size)")
+		r.Has(t, "rule  size")
 		if got := testutil.Calls(t, calls); got != nil {
 			t.Errorf("verifier ran: %q", got)
 		}

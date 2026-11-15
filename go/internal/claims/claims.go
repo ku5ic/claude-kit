@@ -22,7 +22,6 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/connector"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
-	"github.com/ku5ic/claude-kit/go/internal/proc"
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
@@ -90,6 +89,21 @@ func Declarative(text string) bool {
 	return statement.MatchString(prose) || item.MatchString(prose)
 }
 
+// Statements is each sentence, list item, and table row of text, outside
+// its code fences, that states something, trimmed, each once.
+func Statements(text string) []string {
+	prose := fence.ReplaceAllString(text, "")
+	var out []string
+	for _, re := range []*regexp.Regexp{item, statement} {
+		for _, m := range re.FindAllString(prose, -1) {
+			if m = strings.TrimSpace(m); !slices.Contains(out, m) {
+				out = append(out, m)
+			}
+		}
+	}
+	return out
+}
+
 // Verdict is the verifier's answer: OK when no claim is unsupported. Usage
 // is what the run cost, set on a failed run too.
 type Verdict struct {
@@ -137,23 +151,7 @@ func Verify(cfg *config.Config, root, cacheDir, dir, text, transcriptPath string
 // run runs the verifier command argv from dir on input, the evidence and
 // the text to verify, guarded by a marker under markerDir.
 func run(cfg *config.Config, argv []string, markerDir, dir, input string) (Verdict, error) {
-	env, cleanup, err := claudecli.Guarded(markerDir, Guard)
-	if err != nil {
-		return Verdict{}, fmt.Errorf("claims: %w", err)
-	}
-	defer cleanup()
-	cmd := proc.Command(time.Duration(cfg.Claims.Timeout)*time.Second, argv[0], argv[1:]...)
-	cmd.Dir = dir
-	cmd.Env = env
-	cmd.Stdin = strings.NewReader(input)
-	out, err := cmd.Output()
-	if cmd.TimedOut() {
-		return Verdict{}, errors.New("claims: timed out")
-	}
-	if err != nil {
-		return Verdict{}, fmt.Errorf("claims: %w", err)
-	}
-	answer, usage, err := claudecli.Parse(out)
+	answer, usage, err := claudecli.Run(time.Duration(cfg.Claims.Timeout)*time.Second, argv, dir, strings.NewReader(input), markerDir, Guard)
 	if err != nil {
 		return Verdict{Usage: usage}, fmt.Errorf("claims: %w", err)
 	}

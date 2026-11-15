@@ -97,7 +97,7 @@ func TestIsScratch(t *testing.T) {
 		"/home/u/.config/claude/scratch/r": true,
 		"/home/u/.config/claude/scratchy":  false,
 	} {
-		if got := IsScratch(config.Paths{Home: "/home/u/.config/claude"}, path); got != want {
+		if got := IsScratch(config.Paths{ClaudeDir: "/home/u/.config/claude"}, path); got != want {
 			t.Errorf("IsScratch(%q) = %v, want %v", path, got, want)
 		}
 	}

@@ -35,7 +35,7 @@ func TestRulesGate(t *testing.T) {
 		t.Parallel()
 		r := call(setup(t, ""), "Bash", "", bash)
 		r.Denied(t)
-		r.Has(t, "load the kit-rules skill first", "(rules-gate)")
+		r.Has(t, "the kit-rules skill isn't loaded yet", "rule  rules-gate")
 	})
 	t.Run("the Skill tool, a Read of the skill, and a hand-back pass before the load", func(t *testing.T) {
 		t.Parallel()
@@ -117,10 +117,21 @@ func TestRulesGate(t *testing.T) {
 		k.overlay("global_skills: [slop-patterns]\n")
 		r := call(k, "Bash", "", bash)
 		r.Denied(t)
-		r.Has(t, "load the slop-patterns skill first")
+		r.Has(t, "the slop-patterns skill isn't loaded yet")
 		call(k, "Read", "", map[string]any{"file_path": "/plugin/skills/slop-patterns/SKILL.md"}).Allowed(t)
 		testutil.Write(t, k.paths.LogFile(kitlog.Skills), mainLoad+"\n"+`{"event":"PostToolUse","session_id":"s1","skill_file":"kit:slop-patterns","tool_name":"Skill"}`+"\n")
 		call(k, "Bash", "", bash).Allowed(t)
+	})
+	t.Run("a user skill is found in the Claude config dir, wherever HOME is", func(t *testing.T) {
+		t.Parallel()
+		k := setup(t, mainLoad+"\n")
+		// CLAUDE_CONFIG_DIR moves the config dir away from ~/.claude.
+		k.paths.Root, k.home = t.TempDir(), t.TempDir()
+		testutil.Write(t, filepath.Join(k.claude, "skills", "mine", "SKILL.md"), "# Mine\n")
+		k.overlay("global_skills: [mine]\n")
+		r := call(k, "Bash", "", bash)
+		r.Denied(t)
+		r.Has(t, "the mine skill isn't loaded yet")
 	})
 	t.Run("a global_skills skill with no SKILL.md is skipped, logged", func(t *testing.T) {
 		t.Parallel()

@@ -3,20 +3,20 @@
   "structured_output": {
     "entries": [
       {
-        "id": "3d14596cdc860e02",
+        "id": "6632dfe8b5731f7c",
         "role": "check",
         "kind": "lint",
         "mutates": false,
         "affected_form": "nx affected -t lint --base={base}"
       },
       {
-        "id": "6d9d5c5b01091fda",
+        "id": "c2db3c6f1dee3055",
         "role": "build",
         "mutates": false,
         "affected_form": "nx affected -t build --base={base}"
       },
       {
-        "id": "f40e4be141fbd481",
+        "id": "dafcdd8e28c62b22",
         "role": "check",
         "kind": "test",
         "mutates": false,
@@ -28,7 +28,7 @@
         "dir": ".",
         "cites": "package-lock.json",
         "manager": "npm",
-        "run_prefix": "npm exec",
+        "run_prefix": "npx",
         "add_verbs": [
           "npm install",
           "npm i",
@@ -37,7 +37,7 @@
         "dlx": "npx",
         "dir_flags": [
           "--prefix",
-          "--workspace"
+          "-w"
         ],
         "rivals": [
           "pnpm",
@@ -45,7 +45,22 @@
         ]
       }
     ],
-    "proposals": []
+    "proposals": [
+      {
+        "role": "check",
+        "kind": "lint",
+        "command": "npx nx run-many -t lint",
+        "dir": ".",
+        "evidence": "package.json (devDependencies @nx/eslint) and nx.json (targetDefaults lint)"
+      },
+      {
+        "role": "check",
+        "kind": "test",
+        "command": "npx nx run-many -t test",
+        "dir": ".",
+        "evidence": "package.json (devDependencies @nx/vite, nx) and nx.json (targetDefaults test, @nx/vite:test)"
+      }
+    ]
   },
   "subtype": "success"
 }

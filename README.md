@@ -52,7 +52,6 @@ Nothing to learn up front. After install:
 
 - [Enforced, not advised](#enforced-not-advised)
 - [What it catches](#what-it-catches)
-- [Measured, not promised](#measured-not-promised)
 - [What it costs](#what-it-costs)
 - [How you work with it](#how-you-work-with-it)
   - [Commands](#commands)
@@ -104,17 +103,6 @@ Each of these costs you a correction round when it gets through. The kit sends i
 | give generic advice that ignores your stack                                   | Stack-specific pattern skills load when the repo calls for them                                                 |
 | spawn subagents that know none of the above                                   | Every subagent gets the same rules and repo context                                                             |
 
-## Measured, not promised
-
-Same model, same repo, same prompt, run with the kit and without it. Every run is scored, and every score is in `evals/scorecard/`.
-
-| You say               | Plain Claude Code                 | With claude-kit                                         |
-| --------------------- | --------------------------------- | ------------------------------------------------------- |
-| "Make calc better."   | Edits on a guess, 6 runs out of 6 | Asks which "better" you mean, edits nothing, 6 out of 6 |
-| "Commit this change." | Commits, 6 out of 6               | Shows the message and waits for your yes, 6 out of 6    |
-
-Where plain Claude Code already gets it right (fixing a failing test, answering a question without touching code, keeping AI tells out of a README or a landing page), it still does with the kit on.
-
 ## What it costs
 
 More per turn. The bash guard takes about 11 ms, but the claim checker is a Sonnet run capped at $1 and 240 seconds (`kit.yml` `claims:`), and every block is a turn you wait through.
@@ -137,15 +125,16 @@ Side trips: `/audit` for a read-only report, `/simplify` (built in) to cut over-
 
 Each command is a procedure Claude follows step by step, so the same request gets the same shape of answer every time. They work bare (`/audit`) or namespaced (`/kit:audit`), except `/kit:pr`: Claude Code reserves `/pr`.
 
-| When you need                                                                             | Run              | What it does                                                                                                        |
-| ----------------------------------------------------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------- |
-| To know how, why, or where something works                                                | `investigate`    | Read-only answer to "how", "why", or "where". Loads on its own; never edits                                         |
-| A report on accessibility, tech debt, doc drift, or performance                           | `/audit <kind>`  | `a11y`, `debt`, `doc-drift`, `perf`, or `verify` a prior report. Writes a report to scratch                         |
-| A commit message, release notes, a devnote, an explainer, or a stakeholder summary        | `/write <kind>`  | `commit`, `release-notes`, `devnote`, `explainer`, `stakeholder`                                                    |
-| PR text: your description, a review of someone's PR, or a reply to your reviewer          | `/kit:pr <kind>` | Draft a `description`, a `review` of someone's PR, or a `reply` to your reviewer; `publish` posts an approved draft |
-| Dependabot PRs merged and security alerts sorted                                          | `/deps`          | Merge Dependabot PRs and reconcile security alerts                                                                  |
-| AI tells and filler out of a text                                                         | `/unslop`        | Rewrite AI tells and filler in files, a `diff`, or pasted text; to scratch unless told `in place`                   |
-| A sharper prompt, refreshed pattern skills, a new skill, a repo's conventions, or a retro | `/meta <kind>`   | `prompt` sharpening, `refresh` the pattern skills, draft a new `skill`, write a repo's `conventions`, `retro`       |
+| When you need                                                                                                  | Run              | What it does                                                                                                                                                                                                                       |
+| -------------------------------------------------------------------------------------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| To know how, why, or where something works                                                                     | `investigate`    | Read-only answer to "how", "why", or "where". Loads on its own; never edits                                                                                                                                                        |
+| A report on accessibility, architecture, tech debt, doc drift, performance, security, CI, infra, or prose slop | `/audit <kind>`  | `a11y`, `arch`, `debt`, `doc-drift`, `perf`, `security`, `ci`, `infra`, `slop`, or `verify` a prior report. Writes a report to scratch                                                                                             |
+| How a path got this way, what a change would break, a tour, or a challenge or deep review                      | `/code <kind>`   | `history` of a path from its commits and PRs, `visual` Mermaid diagrams, `impact` of changing a file, an onboarding `tour`, `challenge` a plan or PR's decisions, or a deep `review` of a path or diff. Writes a report to scratch |
+| A commit message, release notes, a devnote, an explainer, or a stakeholder summary                             | `/write <kind>`  | `commit`, `release-notes`, `devnote`, `explainer`, `stakeholder`                                                                                                                                                                   |
+| PR text: your description, a review of someone's PR, or a reply to your reviewer                               | `/kit:pr <kind>` | Draft a `description`, a `review` of someone's PR, or a `reply` to your reviewer; `publish` posts an approved draft                                                                                                                |
+| Dependabot PRs merged and security alerts sorted                                                               | `/deps`          | Merge Dependabot PRs and reconcile security alerts                                                                                                                                                                                 |
+| AI tells and filler out of a text                                                                              | `/unslop`        | Rewrite AI tells and filler in files, a `diff`, or pasted text; to scratch unless told `in place`                                                                                                                                  |
+| A sharper prompt, refreshed pattern skills, a new skill, a repo's conventions, or a retro                      | `/meta <kind>`   | `prompt` sharpening, `refresh` the pattern skills, draft a new `skill`, write a repo's `conventions`, `retro`                                                                                                                      |
 
 ### Agents
 
@@ -175,7 +164,7 @@ Your project's own checks run on the files Claude edited before it may say done,
 
 Claude starts a session knowing nothing about your repo, so it guesses your check commands and which tools to use. The kit tells it up front:
 
-- **Session start:** stack, package managers, the check commands, the CLI tools on PATH, and which pattern skills to load. Gap-fill runs in the background to answer what the project's configs leave open.
+- **Session start:** stack, package managers, the check commands, the CLI tools on PATH, and which pattern skills to load. A notice says when Claude Code's commit and PR attribution isn't off. Gap-fill runs in the background to answer what the project's configs leave open.
 - **Subagents:** the same repo context and scratch path.
 - **Plans:** in plan mode, Claude is pointed at `investigate`. Once a plan is approved, every prompt holds it to the next unchecked step.
 
@@ -193,7 +182,7 @@ Hooks catch what a program can check. The rules cover the judgment calls a hook 
 | `subagents` | When to spawn a subagent, and check its work before building on it        |
 | `verify`    | What has to happen before a change is called done                         |
 
-Why each rule says what it says, with the evals behind it: [docs/rules.md](docs/rules.md).
+Why each rule says what it says: [docs/rules.md](docs/rules.md).
 
 ### Pattern skills
 
@@ -274,11 +263,36 @@ claude plugin install kit@ku5ic
 
 - **Needs:** `git` and any bash, on macOS or Linux. Formatters and linters are used when installed and skipped when not; the kit never installs anything.
 - **Gap-fill:** the `claude` CLI, logged in. Once per repo, and again when its configs change, Haiku sorts the commands your CI, hooks, and task runners hold into checks and fixers, capped at $0.50 a call; the answers are cached and verified against your files. Without it, those commands are skipped and named.
-- **Claim checker:** the `kit:claim-checker` agent, which Claude runs where you can watch it before a scratch report or a post goes out; plan-critic covers a plan. Inside a subagent, which can't start an agent, the hook runs the same instructions through the `claude` CLI. Without it, or when a run fails, claims go unchecked and nothing blocks.
+- **Claim checker:** the `kit:claim-checker` agent, which Claude runs where you can watch it before an explore or debug report in scratch, or a post, goes out; plan-critic covers a plan. Inside a subagent, which can't start an agent, the hook runs the same instructions through the `claude` CLI. Without it, or when a run fails, claims go unchecked and nothing blocks.
 - **Claude Code only.** claude.ai and Cowork don't install a plugin with a top-level `bin/`. Chat has [its own zip](#use-it-in-claudeai-chat).
 - **Gitignore** `.claude/scratch/` and `.claude/plans/`, globally or per repo. The kit never edits your ignore files.
 - **Rules ship with the plugin.** Nothing to link. If an older install left `~/.claude/rules/claude-kit`, remove it; the session-start notice names it.
 - **Your own CLAUDE.md:** copy `templates/CLAUDE.md` to `~/.claude/CLAUDE.md` and fill it in.
+
+### Dependencies
+
+Required: `git` and bash. Every tool below is optional. A missing one is named on the session-start `<tooling>` block's `missing:` line, and Claude leaves it unused.
+
+| Tool         | Used by                                                                      | Without it                                                                        |
+| ------------ | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `gh`         | `/kit:pr`, `/deps`, `/code history`, `/code challenge`, linked tickets       | `/kit:pr` and `/deps` can't reach GitHub; `/code history` works from commits only |
+| `rg`         | text search everywhere, `/audit`, `/code`, the gatherer agent                | search uses grep                                                                  |
+| `sg`         | `kit code-graph imports` (`/code visual`, `/code impact`), searches by shape | `kit code-graph imports` fails; `rg` stands in for shape search                   |
+| `fd`         | file search, `/audit`, `/code`                                               | file search uses find                                                             |
+| `tokei`      | `/audit debt`, `/code visual`                                                | file sizes come from reading files                                                |
+| `scc`        | `/code visual` hotspots                                                      | the hotspot quadrant is skipped                                                   |
+| `mmdc`       | `/code visual` diagram rendering                                             | diagrams go unrendered, and the report says so                                    |
+| `gitleaks`   | the commit guard's staged-diff scan, `/audit security`                       | the commit scan is skipped                                                        |
+| `trufflehog` | `/audit security` history scan                                               | history goes unscanned                                                            |
+| `actionlint` | `/audit ci`                                                                  | `/audit ci` skips its actionlint step                                             |
+| `hyperfine`  | `/audit perf` timings                                                        | `/audit perf` makes no timing claim                                               |
+| `difft`      | `/code history`, dropping reformat-only commits                              | reformat-only commits stay in the ranking                                         |
+| `adr`        | `/code challenge` reading ADRs                                               | `/code challenge` lists the ADR folder's files                                    |
+| `jq`         | JSON questions, `/code visual`, `/deps`, `/kit:pr`                           | Claude reads the JSON instead                                                     |
+| `gron`       | grepping flat JSON paths                                                     | `jq` stands in                                                                    |
+| `yq`         | YAML and TOML questions                                                      | Claude reads the file instead                                                     |
+| `qsv`        | CSV and TSV questions                                                        | Claude reads the file instead                                                     |
+| `git-absorb` | fixup commits from staged hunks                                              | `git rebase -i` with fixups instead                                               |
 
 ### Shell completion (optional)
 

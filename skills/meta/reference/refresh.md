@@ -4,7 +4,7 @@ Check reference skills against the current language or framework release and upd
 
 ## What this maintains
 
-Reference skills are every skill outside the `exempt` list in `go/e2e/kit_repo_test.go`. Each keeps its sources in `skills/<name>/sources.md`, which nothing links and only this procedure reads. There, per file, a References list, a Claims list naming each claim's source, and under `## SKILL.md` the Version notes this skill owns:
+Reference skills are every skill outside the `exempt` list in `go/e2e/kit_repo_test.go`. Each outside its `unversioned` list keeps its sources in `skills/<name>/sources.md`, which nothing links and only this procedure reads. There, per file, a References list, a Claims list naming each claim's source, and under `## SKILL.md` the Version notes this skill owns:
 
 ```markdown
 ### Version notes
@@ -46,17 +46,25 @@ Retention: at most 3 version entries, newest first. A pattern that changed moves
    - Add the Version notes entry naming the source URL or library id from step 3. A changed claim's source goes in its file's Claims list in `sources.md`, never inline.
    - Do not touch guidance the research did not contradict. Do not delete a reference file. Do not reword for style.
 6. Report. Write the path `kit scratch-dir refresh` prints, in the report-format skill's format (load it first):
-   - Summary: skills checked, per-classification counts.
+   - TL;DR: skills checked, per-classification counts.
    - One finding per `guidance changed` skill: severity `warning`, what changed, files edited, source.
    - One finding per `version bump`: severity `info`.
    - "Cannot be verified statically": every `could not verify` item with what a manual check needs.
+
+## Generated data
+
+`go/internal/codegraph/pystdlib.go` comes from `sys.stdlib_module_names`. When a python-patterns refresh moves its default Python version, regenerate it from the repo root with that version's interpreter in place of `python3`:
+
+```bash
+python3 -c 'import sys; print("// Code generated from sys.stdlib_module_names on Python %d.%d. DO NOT EDIT.\n\npackage codegraph\n\n// pythonStdlib is every standard-library module name, lowercased: an\n// import of one is external unless the main root holds it.\nvar pythonStdlib = map[string]bool{" % sys.version_info[:2]); [print("\t\"%s\": true," % m) for m in sorted({m.lower() for m in sys.stdlib_module_names})]; print("}")' > go/internal/codegraph/pystdlib.go && gofmt -w go/internal/codegraph/pystdlib.go
+```
 
 ## Rules
 
 - A claim the researcher could not source stays as it was. "Could not verify" is a valid outcome; a confident edit from training memory is not (`skills/kit-rules/reference/evidence.md`).
 - Every Version notes entry cites its source. An entry without one is a defect.
 - Prefer the smallest edit that makes the guidance true. Rewriting a reference file is out of scope; propose it in the report instead.
-- engineering-fundamentals is exempt, since it holds no version-dependent content. Refresh it only when named explicitly.
+- A skill in `unversioned` in `go/e2e/kit_repo_test.go` holds no version-dependent content and keeps no `sources.md`. Refresh it only when named explicitly.
 - Stop after the report. Do not commit.
 
 ## Stop conditions

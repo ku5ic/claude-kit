@@ -92,6 +92,7 @@ type Plan struct {
 // scope the gates to what changed since the git base.
 type Options struct {
 	Root, CacheDir string
+	Home           string // $HOME, where a "~/" user pin and asdf and mise sit
 	Only           []string
 	Ask            bool
 	Timeout        time.Duration
@@ -161,7 +162,7 @@ func plan(cfg *config.Config, o Options) (*builder, []string) {
 	subs := project.Subprojects(o.Root)
 	entries := sources.Entries(cfg, o.Root, subs)
 	facts := gapfill.Run(cfg, gapfill.Options{Root: o.Root, CacheDir: o.CacheDir, Entries: entries, Ask: o.Ask, Timeout: o.Timeout})
-	b := newBuilder(cfg, o.Root, entries, facts)
+	b := newBuilder(cfg, o, entries, facts)
 	if o.Changed {
 		b.scopeTo(o.Root)
 	}
@@ -174,7 +175,7 @@ func plan(cfg *config.Config, o Options) (*builder, []string) {
 func hookPlan(cfg *config.Config, o Options) *builder {
 	entries := sources.HookEntries(o.Root)
 	facts := gapfill.Run(cfg, gapfill.Options{Root: o.Root, CacheDir: o.CacheDir, Entries: entries})
-	return newBuilder(cfg, o.Root, entries, facts)
+	return newBuilder(cfg, o, entries, facts)
 }
 
 // Task is one task a task runner holds in a subproject, and the command the
@@ -183,12 +184,12 @@ type Task struct {
 	Provider, Stack, Name, Cmd string
 }
 
-// Tasks are sub's tasks, each run through the nearest package manager
-// gap-fill verified, as the full gate runs it; npm for package.json's
-// scripts when none is.
-func Tasks(cfg *config.Config, root, cacheDir, sub string) []Task {
-	entries := sources.Entries(cfg, root, []string{sub})
-	b := newBuilder(cfg, root, entries, gapfill.Result{Managers: gapfill.Managers(cfg, root, cacheDir)})
+// Tasks are sub's tasks under o.Root, each run through the nearest package
+// manager gap-fill verified, as the full gate runs it; npm for
+// package.json's scripts when none is.
+func Tasks(cfg *config.Config, o Options, sub string) []Task {
+	entries := sources.Entries(cfg, o.Root, []string{sub})
+	b := newBuilder(cfg, o, entries, gapfill.Result{Managers: gapfill.Managers(cfg, o.Root, o.CacheDir)})
 	var out []Task
 	for _, e := range entries {
 		if tp, ok := provider(e.Source); ok && e.Dir == sub {
@@ -215,7 +216,8 @@ type builder struct {
 	changed  []string   // since's files, sorted
 }
 
-func newBuilder(cfg *config.Config, root string, entries []sources.Entry, facts gapfill.Result) *builder {
+func newBuilder(cfg *config.Config, o Options, entries []sources.Entry, facts gapfill.Result) *builder {
+	root := o.Root
 	b := &builder{cfg: cfg, root: root, entries: entries, facts: facts, tasks: map[taskKey]sources.Entry{}, planned: map[string]bool{}, members: map[string]bool{}}
 	for _, member := range project.Workspace(root) {
 		b.members[filepath.Join(root, member)] = true
@@ -230,7 +232,7 @@ func newBuilder(cfg *config.Config, root string, entries []sources.Entry, facts 
 			managers = append(managers, runner)
 		}
 	}
-	b.resolver = resolve.New(root, managers, cfg.UserPins)
+	b.resolver = resolve.New(root, o.Home, managers, cfg.UserPins)
 	return b
 }
 
@@ -367,7 +369,7 @@ func (b *builder) preCommit(sub, kind string) {
 	if sub != "." {
 		return
 	}
-	tp, _ := row("pre-commit")
+	tp, _ := sources.Provider("pre-commit")
 	for _, e := range b.entries {
 		if v, why := b.verdict(e); e.Source == tp.Name && why == "" && slices.Contains(kindsOf(v), kind) {
 			b.add(Gate{Label: label(kindsOf(v), e.File+": "+e.Name, sub), Kinds: kindsOf(v), Dir: b.root, Body: b.runCommand(tp, sub, e.Name), Verdict: v.String(), FanOut: true})
@@ -458,17 +460,8 @@ func (b *builder) subOf(dir string, subs []string) string {
 
 // provider is the task runner a source names, when its entries are tasks.
 func provider(source string) (sources.TaskProvider, bool) {
-	tp, ok := row(source)
+	tp, ok := sources.Provider(source)
 	return tp, ok && tp.Tasks != nil
-}
-
-// row is the TaskProviders row named name.
-func row(name string) (sources.TaskProvider, bool) {
-	i := slices.IndexFunc(sources.TaskProviders, func(tp sources.TaskProvider) bool { return tp.Name == name })
-	if i < 0 {
-		return sources.TaskProvider{}, false
-	}
-	return sources.TaskProviders[i], true
 }
 
 // runCommand is how tp runs task in sub: through the package manager the

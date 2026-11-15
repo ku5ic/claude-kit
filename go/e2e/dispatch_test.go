@@ -26,7 +26,7 @@ func TestBashDispatch(t *testing.T) {
 		t.Fatalf("stdout isn't one JSON object: %v\n%s", err, r.Stdout)
 	}
 	reason := out.HookSpecificOutput.PermissionDecisionReason
-	if out.HookSpecificOutput.PermissionDecision != "ask" || !strings.Contains(reason, "push") || !strings.Contains(reason, "commit message") {
+	if out.HookSpecificOutput.PermissionDecision != "ask" || !strings.Contains(reason, "push") || !strings.Contains(reason, "doesn't ask for a commit") {
 		t.Errorf("want one ask carrying both reasons; got %+v", out.HookSpecificOutput)
 	}
 }

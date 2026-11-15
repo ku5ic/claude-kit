@@ -18,6 +18,9 @@ import (
 
 const gitlabCI = ".gitlab-ci.yml"
 
+// githubWorkflows matches GitHub Actions' workflow files, from the root.
+const githubWorkflows = ".github/workflows/*.y*ml"
+
 // maxDepth bounds how deep GitLab extends: chains are followed.
 const maxDepth = 8
 
@@ -34,7 +37,7 @@ var nonWord = regexp.MustCompile(`[^A-Za-z0-9]+`)
 // non-sh shell, secrets, or a CI expression.
 func ciEntries(cfg *config.Config, root string) []Entry {
 	var steps []Entry
-	workflows, _ := filepath.Glob(filepath.Join(root, ".github/workflows/*.y*ml"))
+	workflows, _ := filepath.Glob(filepath.Join(root, githubWorkflows))
 	sort.Strings(workflows)
 	for _, file := range workflows {
 		steps = append(steps, githubSteps(cfg, root, file)...)

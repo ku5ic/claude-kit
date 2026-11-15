@@ -26,6 +26,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
+	"github.com/ku5ic/claude-kit/go/internal/layout"
 	"github.com/ku5ic/claude-kit/go/internal/sources"
 )
 
@@ -52,6 +53,12 @@ func ParsePayload(raw []byte) *Payload {
 func (p *Payload) Bool(path string) bool {
 	b, _ := sources.GetPath(p.data, path).(bool)
 	return b
+}
+
+// Object is the object at a dotted path, nil when absent or not an object.
+func (p *Payload) Object(path string) map[string]any {
+	m, _ := sources.GetPath(p.data, path).(map[string]any)
+	return m
 }
 
 // String is the string at a dotted path, "" when absent or not a string.
@@ -86,11 +93,11 @@ func (p *Payload) Strings(path string, skip ...string) []string {
 }
 
 // SessionID is the payload's session_id.
-func (p *Payload) SessionID() string { return p.String("session_id") }
+func (p *Payload) SessionID() string { return p.String(KeySessionID) }
 
 // Cwd is the payload's cwd, else the process's working directory.
 func (p *Payload) Cwd() string {
-	if cwd := p.String("cwd"); cwd != "" {
+	if cwd := p.String(KeyCwd); cwd != "" {
 		return cwd
 	}
 	cwd, _ := os.Getwd()
@@ -106,11 +113,11 @@ type Edit struct {
 // Edits is an Edit's replacement, or a MultiEdit's edits in order; nil for
 // any other tool.
 func (p *Payload) Edits() []Edit {
-	switch p.String("tool_name") {
+	switch p.String(KeyToolName) {
 	case "Edit":
-		return []Edit{{p.String("tool_input.old_string"), p.String("tool_input.new_string"), p.Bool("tool_input.replace_all")}}
+		return []Edit{{p.String(KeyInputOldString), p.String(KeyInputNewString), p.Bool(KeyInputReplaceAll)}}
 	case "MultiEdit":
-		items, _ := sources.GetPath(p.data, "tool_input.edits").([]any)
+		items, _ := sources.GetPath(p.data, KeyInputEdits).([]any)
 		var edits []Edit
 		for _, item := range items {
 			m, _ := item.(map[string]any)
@@ -127,7 +134,7 @@ func (p *Payload) Edits() []Edit {
 // FilePath is the tool's target file; Read, Edit, Write, and MultiEdit all
 // send it as file_path.
 func (p *Payload) FilePath() string {
-	return p.String("tool_input.file_path")
+	return p.String(KeyInputFilePath)
 }
 
 // Blocked ends a check with exit 2. Returned, not panicked, so a check reads
@@ -145,7 +152,7 @@ type Hook struct {
 	Stdout  io.Writer
 	Stderr  io.Writer
 	Now     func() time.Time
-	Home    string // $HOME, read once by the caller so checks never touch the environment
+	Home    string // $HOME, read once by the caller so checks never read it
 	// DryRun skips every log write: kit explain evaluates without leaving
 	// a trace in guards.jsonl.
 	DryRun bool
@@ -156,6 +163,7 @@ type Hook struct {
 	context  string // printed after a block reason, e.g. "Path: <path>"
 	decision string // the strongest Decide so far; Run prints it once
 	reason   string
+	input    map[string]any // a PreToolUse tool input replacing the one sent
 	// What checks add for Run to print: context for Claude on event,
 	// notices for the user, plain text.
 	event    string
@@ -224,22 +232,27 @@ func (h *Hook) Block(reason, rule string) error {
 	return &Blocked{h.message(reason, rule), rule}
 }
 
-// message is reason in the layout every kit block and send-back shares: the
-// headline `kit <area>: BLOCKED <reason's first line> (<rule>)`, then the
-// reason's other lines, then the hook's context.
+// message is reason in the layout every kit block and send-back shares,
+// three groups a blank line apart: the headline `kit <area>: BLOCKED
+// <reason's first line>`; the reason's other lines, what to do; then the
+// rule and the hook's context, what blocked it.
 func (h *Hook) message(reason, rule string) string {
 	head, rest, _ := strings.Cut(reason, "\n")
-	msg := "kit " + Area(h.Name) + ": BLOCKED " + head
-	if rule != "" {
-		msg += " (" + rule + ")"
+	groups := []string{"kit " + Area(h.Name) + ": BLOCKED " + head}
+	if rest = strings.Trim(rest, "\n"); rest != "" {
+		groups = append(groups, rest)
 	}
-	if rest != "" {
-		msg += "\n" + rest
+	var source []string
+	if rule != "" {
+		source = append(source, layout.KV("rule", rule))
 	}
 	if h.context != "" {
-		msg += "\n" + h.context
+		source = append(source, h.context)
 	}
-	return msg
+	if len(source) > 0 {
+		groups = append(groups, strings.Join(source, "\n"))
+	}
+	return strings.Join(groups, "\n\n")
 }
 
 // Area is the short name a message's headline gives a hook: guard-bash is
@@ -266,7 +279,7 @@ func (h *Hook) Deny(reason, rule string) {
 // command or path, never the text, and the project it ran in.
 func (h *Hook) logBlock(rule string) {
 	pairs := []string{"rule", rule}
-	for _, key := range []string{"tool_input.command", "tool_input.file_path", "tool_input.notebook_path"} {
+	for _, key := range []string{KeyInputCommand, KeyInputFilePath, KeyInputNotebookPath} {
 		if v := h.Payload.String(key); v != "" {
 			sum := sha256.Sum256([]byte(v))
 			pairs = append(pairs, "target", hex.EncodeToString(sum[:6]))
@@ -297,6 +310,10 @@ func (h *Hook) Decide(decision, reason string) {
 	}
 }
 
+// UpdateInput replaces the tool's whole input with input, printed with the
+// permission decision; it needs one, or auto mode denies the changed call.
+func (h *Hook) UpdateInput(input map[string]any) { h.input = input }
+
 // Decision is the permission decision and reason recorded so far, "" when
 // no check decided.
 func (h *Hook) Decision() (decision, reason string) { return h.decision, h.reason }
@@ -319,10 +336,11 @@ func (h *Hook) Print(text string) { h.plain.WriteString(text) }
 // decision with the notices, else context and notices, else plain text.
 func (h *Hook) flush(block string) {
 	type specific struct {
-		HookEventName            string `json:"hookEventName"`
-		PermissionDecision       string `json:"permissionDecision,omitempty"`
-		PermissionDecisionReason string `json:"permissionDecisionReason,omitempty"`
-		AdditionalContext        string `json:"additionalContext,omitempty"`
+		HookEventName            string         `json:"hookEventName"`
+		PermissionDecision       string         `json:"permissionDecision,omitempty"`
+		PermissionDecisionReason string         `json:"permissionDecisionReason,omitempty"`
+		AdditionalContext        string         `json:"additionalContext,omitempty"`
+		UpdatedInput             map[string]any `json:"updatedInput,omitempty"`
 	}
 	type output struct {
 		Decision           string    `json:"decision,omitempty"`
@@ -332,20 +350,20 @@ func (h *Hook) flush(block string) {
 	}
 	switch {
 	case block != "":
-		WriteJSON(h.Stdout, output{Decision: "block", Reason: block, SystemMessage: strings.Join(h.notices, "\n")})
+		WriteJSON(h.Stdout, output{Decision: "block", Reason: block, SystemMessage: strings.Join(h.notices, "\n\n")})
 	case h.decision != "":
 		// A check's context (a density note) still reaches Claude when
 		// another check decides; only a defer would drop it.
-		WriteJSON(h.Stdout, output{SystemMessage: strings.Join(h.notices, "\n"), HookSpecificOutput: &specific{HookEventName: "PreToolUse", PermissionDecision: h.decision, PermissionDecisionReason: h.reason, AdditionalContext: strings.Join(h.contexts, "\n")}})
+		WriteJSON(h.Stdout, output{SystemMessage: strings.Join(h.notices, "\n\n"), HookSpecificOutput: &specific{HookEventName: "PreToolUse", PermissionDecision: h.decision, PermissionDecisionReason: h.reason, AdditionalContext: strings.Join(h.contexts, "\n"), UpdatedInput: h.input}})
 	case h.contexts != nil || h.notices != nil:
 		contexts, event := h.contexts, h.event
 		// Plain text can't share stdout with JSON: in a dispatcher, one
 		// check's Print joins another's context.
 		if h.plain.Len() > 0 && h.Payload != nil {
 			contexts = append([]string{strings.TrimRight(h.plain.String(), "\n")}, contexts...)
-			event = cmp.Or(event, h.Payload.String("hook_event_name"))
+			event = cmp.Or(event, h.Payload.String(KeyHookEventName))
 		}
-		out := output{SystemMessage: strings.Join(h.notices, "\n")}
+		out := output{SystemMessage: strings.Join(h.notices, "\n\n")}
 		if contexts != nil {
 			out.HookSpecificOutput = &specific{HookEventName: event, AdditionalContext: strings.Join(contexts, "\n")}
 		}
@@ -381,7 +399,7 @@ func (h *Hook) Log(log, event string, pairs ...string) {
 		"session_id", h.Payload.SessionID(),
 	}, pairs...)
 	// Inside a subagent, so its lines can be told from its parent's.
-	if agent := h.Payload.String("agent_id"); agent != "" {
+	if agent := h.Payload.String(KeyAgentID); agent != "" {
 		fields = slices.Insert(fields, 8, "agent_id", agent)
 	}
 	maxLines := 0

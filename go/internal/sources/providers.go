@@ -91,5 +91,14 @@ var TaskProviders = []TaskProvider{
 	{Name: "composer", Stack: "php", Manifests: []string{"composer.json"}, Tasks: at(JSONKeys, ".scripts"), Bodies: at(scripts(readJSON), ".scripts"), Run: "composer run {task}", Prefixes: []Prefix{{Words: "composer run"}, {Words: "composer run-script"}}},
 	{Name: "taskfile", Manifests: []string{"Taskfile.yml", "taskfile.yml", "Taskfile.yaml", "taskfile.yaml", "Taskfile.dist.yml", "Taskfile.dist.yaml"}, Tasks: TaskfileTasks, Bodies: taskfileBodies, Run: "task {task}", Prefixes: []Prefix{{Words: "task"}}},
 	// Its hooks are preCommitEntries, which keep their stages; no Tasks.
-	{Name: "pre-commit", Manifests: []string{".pre-commit-config.yaml", ".pre-commit-config.yml"}, Run: "pre-commit run {task} --all-files", Prefixes: []Prefix{{Words: "pre-commit run"}}},
+	{Name: "pre-commit", Manifests: preCommitConfigs, Run: "pre-commit run {task} --all-files", Prefixes: []Prefix{{Words: "pre-commit run"}}},
+}
+
+// Provider is the TaskProviders row named name.
+func Provider(name string) (TaskProvider, bool) {
+	i := slices.IndexFunc(TaskProviders, func(tp TaskProvider) bool { return tp.Name == name })
+	if i < 0 {
+		return TaskProvider{}, false
+	}
+	return TaskProviders[i], true
 }

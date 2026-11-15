@@ -148,10 +148,13 @@ func (h lefthookHook) add(out []Entry, name, script string, job, parent map[stri
 // itself.
 var huskyBootstrap = regexp.MustCompile(`^\.\s.*husky\.sh"?$`)
 
+// huskyDir holds husky's hooks, at the root.
+const huskyDir = ".husky"
+
 // huskyEntries are root's husky hooks: each .husky file named for a git
 // hook, as the lines it runs.
 func huskyEntries(root string) []Entry {
-	files, _ := filepath.Glob(filepath.Join(root, ".husky", "*"))
+	files, _ := filepath.Glob(filepath.Join(root, huskyDir, "*"))
 	var out []Entry
 	for _, file := range files {
 		stage := filepath.Base(file)

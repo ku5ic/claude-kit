@@ -39,6 +39,7 @@
       },
       {
         "role": "fixer",
+        "kind": "format-check",
         "command": "gofmt -w .",
         "file_form": "gofmt -w {files}",
         "globs": [

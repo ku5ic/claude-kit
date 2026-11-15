@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/git"
@@ -50,11 +53,31 @@ func (e *stopEnv) line(v any) { testutil.AppendJSONL(e.t, e.transcript, v) }
 func (e *stopEnv) turn(tool string, paths ...string) {
 	e.line(map[string]any{"type": "user", "message": map[string]any{"content": "do it"}})
 	for _, p := range paths {
-		e.line(map[string]any{"type": "assistant", "message": map[string]any{"content": []any{
-			map[string]any{"type": "tool_use", "name": tool, "input": map[string]any{"file_path": p}},
-		}}})
-		e.line(map[string]any{"type": "user", "message": map[string]any{"content": []any{map[string]any{"type": "tool_result"}}}})
+		e.edit(tool, p, false)
 	}
+}
+
+// edit is one edit tool call on path and its result, failed when denied.
+func (e *stopEnv) edit(tool, path string, denied bool) {
+	id := "toolu_" + filepath.Base(path)
+	e.line(map[string]any{"type": "assistant", "message": map[string]any{"content": []any{
+		map[string]any{"type": "tool_use", "id": id, "name": tool, "input": map[string]any{"file_path": path}},
+	}}})
+	e.line(map[string]any{"type": "user", "message": map[string]any{"content": []any{map[string]any{"type": "tool_result", "tool_use_id": id, "is_error": denied}}}})
+}
+
+// bash is Bash call id running change in dir, with bash-edits run on it
+// as PostToolUse would.
+func (e *stopEnv) bash(id, dir string, change func()) {
+	e.line(map[string]any{"type": "assistant", "message": map[string]any{"content": []any{
+		map[string]any{"type": "tool_use", "id": id, "name": "Bash", "input": map[string]any{"command": "edit"}},
+	}}})
+	if change != nil {
+		change()
+	}
+	e.k.run("bash-edits", map[string]any{"hook_event_name": "PostToolUse", "session_id": "s1", "cwd": dir, "tool_use_id": id,
+		"tool_name": "Bash", "tool_input": map[string]any{"command": "edit"}})
+	e.line(map[string]any{"type": "user", "message": map[string]any{"content": []any{map[string]any{"type": "tool_result", "tool_use_id": id}}}})
 }
 
 // start runs turn-tree as a prompt would, snapshotting the tree.
@@ -134,6 +157,44 @@ func TestStopPlanDone(t *testing.T) {
 		r.Has(t, "plan-x.md is done, but /code-review hasn't finished since the last code edit")
 		e.stop(true).Want(t, 0)
 	})
+	t.Run("ticking the last step through Bash blocks too; a Bash call that only names the plan doesn't", func(t *testing.T) {
+		t.Parallel()
+		// call is a Bash call on the plan, at, and its result, with change
+		// run in between, as the command would.
+		call := func(e *stopEnv, at time.Time, cmd string, change func()) {
+			use := testutil.ToolUse("toolu_b1", "Bash", map[string]any{"command": cmd})
+			use["timestamp"] = at.UTC().Format(time.RFC3339Nano)
+			e.line(use)
+			if change != nil {
+				change()
+			}
+			e.line(testutil.ToolResult("toolu_b1", ""))
+		}
+		e := stopSetup(t)
+		plan := e.plan("## Steps\n\n- [x] 1. a\n- [ ] 2. b\n")
+		e.turn("Edit", e.path("a.ts"))
+		call(e, time.Now().Add(-time.Second), "sed -i '' 's/^- \\[ \\] 2\\. /- [x] 2. /' .claude/plans/plan-x.md", func() { testutil.Write(t, plan, done) })
+		e.stop(false).Has(t, "plan-x.md is done")
+
+		e = stopSetup(t)
+		e.plan(done)
+		e.turn("Edit", e.path("a.ts"))
+		call(e, time.Now().Add(time.Second), "grep -c 'x' .claude/plans/plan-x.md", nil)
+		e.stop(false).Want(t, 0)
+
+		// Another file whose name ends in the plan's doesn't name it.
+		e = stopSetup(t)
+		plan = e.plan("## Steps\n\n- [x] 1. a\n- [ ] 2. b\n")
+		e.turn("Edit", e.path("a.ts"))
+		call(e, time.Now().Add(-time.Second), "sed -i '' 's/x/y/' notes/myplan-x.md", func() { testutil.Write(t, plan, done) })
+		e.stop(false).Want(t, 0)
+
+		e = stopSetup(t)
+		plan = e.plan("## Steps\n\n- [x] 1. a\n- [ ] 2. b\n")
+		e.turn("Edit", e.path("a.ts"))
+		call(e, time.Now().Add(-time.Second), `cd .claude/plans && sed -i '' 's/x/y/' "plan-x.md"`, func() { testutil.Write(t, plan, done) })
+		e.stop(false).Has(t, "plan-x.md is done")
+	})
 	t.Run("a plan in Claude Code's default ~/.claude/plans is gated too", func(t *testing.T) {
 		t.Parallel()
 		e := stopSetup(t)
@@ -163,6 +224,17 @@ func TestStopPlanDone(t *testing.T) {
 		e.turn("Edit", e.plan(done))
 		e.stop(false).Want(t, 0)
 	})
+	t.Run("a review launched before one Stop and finished after it counts at the next", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		e.turn("Edit", e.path("a.ts"))
+		e.review()
+		e.stop(false)
+		// The next Stop reads on from here, with the launch in its saved walk.
+		e.finish("<tool-use-id>toolu_r1</tool-use-id>", "completed")
+		e.turn("Edit", e.plan(done))
+		e.stop(false).Want(t, 0)
+	})
 	t.Run("a review that was stopped, or hasn't finished, doesn't count", func(t *testing.T) {
 		t.Parallel()
 		e := stopSetup(t)
@@ -183,6 +255,17 @@ func TestStopPlanDone(t *testing.T) {
 		e.turn("Edit", e.plan(done))
 		e.stop(false).Want(t, 2)
 	})
+	t.Run("a review launched beside an edit, before its result, needs a new one", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		e.line(testutil.UserPrompt("do it"))
+		e.line(testutil.ToolUse("toolu_a", "Edit", map[string]any{"file_path": e.path("a.ts")}))
+		e.review()
+		e.line(testutil.ToolResult("toolu_a", ""))
+		e.finish("<tool-use-id>toolu_r1</tool-use-id>", "completed")
+		e.turn("Edit", e.plan(done))
+		e.stop(false).Want(t, 2)
+	})
 	t.Run("an edit after the review needs a new one", func(t *testing.T) {
 		t.Parallel()
 		e := stopSetup(t)
@@ -190,6 +273,66 @@ func TestStopPlanDone(t *testing.T) {
 		e.finish("<tool-use-id>toolu_r1</tool-use-id>", "completed")
 		e.turn("Edit", e.path("a.ts"), e.plan(done))
 		e.stop(false).Want(t, 2)
+	})
+	t.Run("a Bash edit to code after the review needs a new one", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		e.review()
+		e.finish("<tool-use-id>toolu_r1</tool-use-id>", "completed")
+		e.line(map[string]any{"type": "user", "message": map[string]any{"content": "do it"}})
+		e.start()
+		e.bash("toolu_b1", e.repo, func() { testutil.Write(t, e.path("a.ts"), "y\n") })
+		e.edit("Edit", e.plan(done), false)
+		e.stop(false).Want(t, 2)
+	})
+	t.Run("a Bash edit to code with no result yet counts from its call", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		e.review()
+		e.finish("<tool-use-id>toolu_r1</tool-use-id>", "completed")
+		e.line(testutil.UserPrompt("do it"))
+		e.start()
+		e.line(testutil.ToolUse("toolu_b1", "Bash", map[string]any{"command": "edit"}))
+		testutil.Write(t, e.path("a.ts"), "y\n")
+		e.k.run("bash-edits", map[string]any{"hook_event_name": "PostToolUse", "session_id": "s1", "cwd": e.repo, "tool_use_id": "toolu_b1",
+			"tool_name": "Bash", "tool_input": map[string]any{"command": "edit"}})
+		e.edit("Edit", e.plan(done), false)
+		e.stop(false).Want(t, 2)
+	})
+	t.Run("a Bash call after an Edit and its review isn't the Edit again", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		e.line(testutil.UserPrompt("do it"))
+		e.start()
+		testutil.Write(t, e.path("a.ts"), "edited\n")
+		e.edit("Edit", e.path("a.ts"), false)
+		e.k.run("edit-seen", map[string]any{"hook_event_name": "PostToolUse", "session_id": "s1", "cwd": e.repo,
+			"tool_name": "Edit", "tool_input": map[string]any{"file_path": e.path("a.ts")}}).Want(t, 0)
+		e.review()
+		e.finish("<tool-use-id>toolu_r1</tool-use-id>", "completed")
+		e.bash("toolu_b1", e.repo, nil)
+		e.edit("Edit", e.plan(done), false)
+		e.stop(false).Want(t, 0)
+	})
+	t.Run("a Bash call that changed no code, or only another repo's, keeps the review", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		other := repo(t, filepath.Join(e.tmp, "other"))
+		testutil.Write(t, filepath.Join(other, "c.ts"), "x\n")
+		e.review()
+		e.finish("<tool-use-id>toolu_r1</tool-use-id>", "completed")
+		e.line(map[string]any{"type": "user", "message": map[string]any{"content": "do it"}})
+		e.start()
+		e.bash("toolu_b1", e.repo, nil)
+		e.bash("toolu_b2", e.repo, func() { testutil.Write(t, e.path(".claude/scratch/x.log"), "x\n") })
+		// The first call in a repo the turn didn't start in sets its baseline.
+		e.bash("toolu_b3", other, nil)
+		e.bash("toolu_b4", other, func() { testutil.Write(t, filepath.Join(other, "c.ts"), "y\n") })
+		if record := read(t, e.k.paths.SessionFile(cache.Claims, "s1", bashEditsRecord)); !strings.Contains(record, "toolu_b4") {
+			t.Fatalf("the other repo's edit wasn't recorded, so this case proves nothing: %q", record)
+		}
+		e.edit("Edit", e.plan(done), false)
+		e.stop(false).Want(t, 0)
 	})
 	t.Run("a plan with an open step, or one ticked in an earlier turn, doesn't gate", func(t *testing.T) {
 		t.Parallel()
@@ -212,6 +355,116 @@ func TestStopPlanDone(t *testing.T) {
 			e.turn("Edit", e.path("a.ts"))
 			e.turn("Edit", e.plan(plan))
 			e.stop(false).Want(t, 2)
+		}
+	})
+}
+
+// readState is the saved Stop read of e's session, "" before the first.
+func (e *stopEnv) readState() string {
+	e.t.Helper()
+	files, _ := filepath.Glob(filepath.Join(e.k.paths.CacheDir(), cache.StopRead, "s1-*"))
+	if len(files) != 1 {
+		return ""
+	}
+	return read(e.t, files[0])
+}
+
+func size(t *testing.T, path string) int64 {
+	t.Helper()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return info.Size()
+}
+
+func TestStopReadsTheTranscriptOnce(t *testing.T) {
+	t.Parallel()
+	const done = "## Steps\n\n- [x] 1. a\n- [x] 2. b\n"
+	notes := func(e *stopEnv) []string { return slices.Repeat([]string{e.path("notes.md")}, 8) }
+	t.Run("a transcript shorter than the saved read is read whole", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		e.turn("Edit", notes(e)...)
+		e.stop(false).Want(t, 0)
+		read := size(t, e.transcript)
+		testutil.Write(t, e.transcript, "")
+		e.turn("Edit", e.path("a.ts"))
+		e.turn("Edit", e.plan(done))
+		if size(t, e.transcript) >= read {
+			t.Fatal("the new transcript isn't shorter than the read")
+		}
+		e.stop(false).Want(t, 2)
+	})
+	t.Run("another transcript is read whole", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		e.turn("Edit", notes(e)...)
+		e.stop(false).Want(t, 0)
+		read := size(t, e.transcript)
+		e.transcript = filepath.Join(e.tmp, "other.jsonl")
+		e.turn("Edit", e.path("a.ts"))
+		e.turn("Edit", append([]string{e.plan(done)}, notes(e)...)...)
+		if size(t, e.transcript) <= read {
+			t.Fatal("the other transcript isn't longer than the read")
+		}
+		e.stop(false).Want(t, 2)
+	})
+	t.Run("a garbled saved read is read whole", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		e.turn("Edit", e.path("a.ts"))
+		e.stop(false).Want(t, 0)
+		files, _ := filepath.Glob(filepath.Join(e.k.paths.CacheDir(), cache.StopRead, "s1-*"))
+		if len(files) != 1 {
+			t.Fatalf("saved reads: %q", files)
+		}
+		testutil.Write(t, files[0], "{not json")
+		e.turn("Edit", e.plan(done))
+		e.stop(false).Want(t, 2)
+	})
+	t.Run("a saved read of another version is read whole", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		e.turn("Edit", e.path("a.ts"))
+		e.stop(false).Want(t, 0)
+		files, _ := filepath.Glob(filepath.Join(e.k.paths.CacheDir(), cache.StopRead, "s1-*"))
+		if len(files) != 1 {
+			t.Fatalf("saved reads: %q", files)
+		}
+		// A walk from a build before the version, its review line past the
+		// edit: kept, it would let the done plan through.
+		var saved map[string]any
+		if err := json.Unmarshal([]byte(read(t, files[0])), &saved); err != nil {
+			t.Fatal(err)
+		}
+		delete(saved, "version")
+		saved["walk"].(map[string]any)["last_review"] = 1000
+		data, _ := json.Marshal(saved)
+		testutil.Write(t, files[0], string(data))
+		e.turn("Edit", e.plan(done))
+		e.stop(false).Want(t, 2)
+	})
+	t.Run("an unreadable transcript leaves the saved read as it was", func(t *testing.T) {
+		t.Parallel()
+		if os.Geteuid() == 0 {
+			// kit: allow root reads a mode 000 file, and a non-file transcript never reaches the read
+			t.Skip("root reads a mode 000 file")
+		}
+		e := stopSetup(t)
+		e.turn("Edit", notes(e)...)
+		e.turn("Edit", notes(e)...)
+		e.stop(false).Want(t, 0)
+		before := e.readState()
+		if before == "" {
+			t.Fatal("the first Stop saved no read")
+		}
+		if err := os.Chmod(e.transcript, 0); err != nil {
+			t.Fatal(err)
+		}
+		e.stop(false).Want(t, 0)
+		if after := e.readState(); after != before {
+			t.Errorf("the saved read moved:\nbefore %s\nafter  %s", before, after)
 		}
 	})
 }
@@ -252,7 +505,7 @@ func TestStopChecks(t *testing.T) {
 		testutil.Write(t, marker, "your report\n")
 		e.turn("Edit", e.path("a.ts"), e.path("notes.md"))
 		r := e.stop(false)
-		r.Has(t, `pass  lint (package.json: *.ts)\nunchecked  your report  verifier failed"`)
+		r.Has(t, `  pass  lint\n\n  unchecked  your report  verifier failed"`)
 		r.Lacks(t, "notes.md")
 		if exists(marker) {
 			t.Error("the verifier's failure would show again next turn")
@@ -322,7 +575,7 @@ func TestStopChecks(t *testing.T) {
 		r.Want(t, 0)
 		r.Empty(t)
 	})
-	t.Run("a failing check blocks and still shows the user every verdict", func(t *testing.T) {
+	t.Run("a failing check blocks with its detail, and the receipt beside it names it with the detail file", func(t *testing.T) {
 		t.Parallel()
 		e := stopSetup(t)
 		e.turn("Edit", e.path("a.ts"))
@@ -331,30 +584,59 @@ func TestStopChecks(t *testing.T) {
 		r.Want(t, 0)
 		var out map[string]string
 		if err := json.Unmarshal([]byte(r.Stdout), &out); err != nil || out["decision"] != "block" ||
-			!strings.HasPrefix(out["reason"], "kit stop: BLOCKED 1 of 1 checks failed; fix them, or report them and stop (checks-failed)\nFAIL  lint (package.json: *.ts)\n      lint noise\nmore  ") ||
-			out["systemMessage"] != "kit stop: 0 pass, 0 skipped, 1 failed\nFAIL  lint (package.json: *.ts)" {
-			t.Errorf("want a block with every verdict for the user:\n%s", r.Output)
+			!strings.HasPrefix(out["reason"], "kit stop: BLOCKED 1 of 1 checks failed\n\nFAIL  lint (package.json: *.ts)\n      lint noise\nmore  ") ||
+			!strings.HasSuffix(out["reason"], "\ndo    fix them, or reply in one line with the cause\n\nrule  checks-failed") ||
+			!strings.HasPrefix(out["systemMessage"], "kit stop: 1 failed, 0 skipped, 0 passed\n\n  FAIL  lint (package.json: *.ts)  -> ") {
+			t.Errorf("want a block with the failure, and a receipt naming it with its detail file:\n%s", r.Output)
+		}
+		if _, receiptFile, _ := strings.Cut(out["systemMessage"], "  -> "); !strings.Contains(out["reason"], "more  "+receiptFile+"\n") {
+			t.Errorf("the receipt and the block name different detail files:\n%s", r.Output)
 		}
 		// The command and the rest of the output go to the file, not the block.
 		if strings.Contains(out["reason"], "cmd: ") {
 			t.Errorf("the block repeats the gate's command:\n%s", out["reason"])
 		}
-		file := strings.TrimPrefix(out["reason"][strings.LastIndex(out["reason"], "more  "):], "more  ")
+		file, _, _ := strings.Cut(strings.TrimPrefix(out["reason"][strings.LastIndex(out["reason"], "more  "):], "more  "), "\n")
 		if detail := read(t, file); !strings.Contains(detail, "FAIL lint (package.json: *.ts)\n  cmd: fakelint --check a.ts\n") {
 			t.Errorf("detail file:\n%s", detail)
 		}
 	})
-	t.Run("an entry with no verdict is recorded for kit explain stop, not run", func(t *testing.T) {
+	t.Run("an entry the classifier can't answer is recorded for kit explain stop, with why, not run", func(t *testing.T) {
 		t.Parallel()
 		e := stopSetup(t)
 		if err := os.RemoveAll(filepath.Join(e.k.claude, "cache", cache.Enforce)); err != nil {
 			t.Fatal(err)
 		}
+		failing := filepath.Join(e.tmp, "classifier")
+		testutil.FakeTool(t, failing, filepath.Join(e.tmp, "classifier.calls"), "exit 1")
+		e.k.overlay("classifier: [" + strconv.Quote(failing) + "]\n")
 		e.turn("Edit", e.path("a.ts"))
-		if _, report := e.stopReport(); !strings.Contains(report, "SKIP package.json: *.ts (unclassified)") {
+		if _, report := e.stopReport(); !strings.Contains(report, "SKIP package.json: *.ts (unclassified (classifier: ") {
 			t.Errorf("report:\n%s", report)
 		}
 		e.noCalls()
+	})
+	t.Run("a check changed mid-session is classified at Stop and run, once", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		testutil.Write(t, e.path("package.json"), `{"lint-staged":{"*.ts":"fakelint --check --strict"}}`)
+		strict := sources.Entry{Source: "lint-staged", File: "package.json", Name: "*.ts", Dir: ".", Body: sources.Body{Text: "fakelint --check --strict"}, Files: []string{"*.ts"}, PassFiles: true, Stage: "pre-commit"}
+		answer := filepath.Join(e.tmp, "answer.json")
+		testutil.Write(t, answer, envelope(t, []map[string]any{verdict(strict, map[string]any{"role": "check", "kind": "lint"})}, nil, nil))
+		stub, asked := filepath.Join(e.tmp, "classifier"), filepath.Join(e.tmp, "classifier.calls")
+		testutil.FakeTool(t, stub, asked, fmt.Sprintf("cat >/dev/null\ncat %q", answer))
+		e.k.overlay("classifier: [" + strconv.Quote(stub) + "]\n")
+		e.turn("Edit", e.path("a.ts"))
+		e.stop(false).Want(t, 0)
+		if got := e.checked(); got != e.repo+"|--check --strict a.ts" {
+			t.Errorf("calls %q, want the changed check on a.ts", got)
+		}
+		calls := len(testutil.Calls(t, asked))
+		e.turn("Edit", e.path("b.ts"))
+		e.stop(false).Want(t, 0)
+		if calls == 0 || len(testutil.Calls(t, asked)) != calls {
+			t.Errorf("classifier ran %d times, then %d: want some, then none more", calls, len(testutil.Calls(t, asked))-calls)
+		}
 	})
 	t.Run("a file changed through Bash is checked", func(t *testing.T) {
 		t.Parallel()
@@ -444,5 +726,121 @@ func TestStopChecks(t *testing.T) {
 		e.turn("Edit", e.path("a.ts"))
 		e.stop(false).Want(t, 0)
 		e.noCalls()
+	})
+}
+
+// An edit to the file of an entry the cache can't answer starts a
+// background classify; any other edit doesn't.
+func TestAnEditToAnUnansweredEntrysFileReclassifies(t *testing.T) {
+	t.Parallel()
+	e := stopSetup(t)
+	cfg, _, err := sources.LoadConfig(e.k.paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	unanswered := func(rel string) bool {
+		_, ok := unanswered(cfg, e.k.paths.CacheDir(), e.path(rel))
+		return ok
+	}
+	if unanswered("package.json") || unanswered("a.ts") {
+		t.Error("a classified repo reclassifies")
+	}
+	testutil.Write(t, e.path("package.json"), `{"lint-staged":{"*.ts":"fakelint --check --strict"}}`)
+	if !unanswered("package.json") {
+		t.Error("a changed check's file doesn't reclassify")
+	}
+	if unanswered("a.ts") {
+		t.Error("a source file reclassifies")
+	}
+}
+
+// A finished /code-review's findings reach only Claude, so the first ask
+// about them or end of turn is held once until a review scratch
+// report is written after it (skills/kit-rules/reference/output.md
+// section 3).
+func TestReviewReport(t *testing.T) {
+	t.Parallel()
+	report := func(e *stopEnv) string { return e.path(".claude/scratch/review-branch-20261114-1714.md") }
+	stop := func(e *stopEnv, active bool) result {
+		return e.k.run("review-report", map[string]any{"hook_event_name": "Stop", "session_id": "s1", "cwd": e.repo,
+			"transcript_path": e.transcript, "stop_hook_active": active})
+	}
+	ask := func(e *stopEnv, tool string) result {
+		return e.k.run("review-report", map[string]any{"hook_event_name": "PreToolUse", "session_id": "s1", "cwd": e.repo,
+			"transcript_path": e.transcript, "tool_name": tool, "tool_input": map[string]any{}})
+	}
+	finished := func(t *testing.T) *stopEnv {
+		e := stopSetup(t)
+		e.turn("Edit", e.path("a.ts"))
+		e.review()
+		e.finish("<tool-use-id>toolu_r1</tool-use-id>", "completed")
+		return e
+	}
+	t.Run("no report blocks Stop once per review", func(t *testing.T) {
+		t.Parallel()
+		e := finished(t)
+		ask(e, "Bash").Allowed(t)
+		r := stop(e, false)
+		r.Want(t, 2)
+		r.Has(t, "kit scratch-dir review", "rule  review-report")
+		// A block shown once ends it, so a turn can't loop on Stop.
+		stop(e, true).Want(t, 0)
+		stop(e, false).Want(t, 0)
+		ask(e, "AskUserQuestion").Allowed(t)
+		e.review()
+		e.finish("<tool-use-id>toolu_r1</tool-use-id>", "completed")
+		stop(e, false).Want(t, 2)
+	})
+	t.Run("no report denies AskUserQuestion once per review", func(t *testing.T) {
+		t.Parallel()
+		e := finished(t)
+		ask(e, "AskUserQuestion").Denied(t)
+		ask(e, "AskUserQuestion").Allowed(t)
+		stop(e, false).Want(t, 0)
+	})
+	t.Run("a report written after the review lets both through", func(t *testing.T) {
+		t.Parallel()
+		e := finished(t)
+		e.turn("Write", report(e))
+		stop(e, false).Want(t, 0)
+		ask(e, "AskUserQuestion").Allowed(t)
+	})
+	t.Run("a report Write another guard denied doesn't count", func(t *testing.T) {
+		t.Parallel()
+		e := finished(t)
+		e.edit("Write", report(e), true)
+		stop(e, false).Want(t, 2)
+	})
+	t.Run("a report written before the review finished doesn't count", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		e.review()
+		e.turn("Write", report(e))
+		e.finish("<tool-use-id>toolu_r1</tool-use-id>", "completed")
+		stop(e, false).Want(t, 2)
+	})
+	t.Run("a review still running, or none, blocks nothing", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		e.turn("Edit", e.path("a.ts"))
+		stop(e, false).Want(t, 0)
+		e.review()
+		stop(e, false).Want(t, 0)
+		ask(e, "AskUserQuestion").Allowed(t)
+	})
+	t.Run("a marker that can't be saved lets Stop through, and says so", func(t *testing.T) {
+		t.Parallel()
+		e := finished(t)
+		// A file sits where the marker's directory goes, so the write fails.
+		testutil.Write(t, filepath.Join(e.k.paths.CacheDir(), cache.ReviewReport), "")
+		r := stop(e, false)
+		r.Want(t, 0)
+		r.Has(t, "kit review-report: let through unchecked")
+	})
+	t.Run("review-report in disabled_rules lets it through", func(t *testing.T) {
+		t.Parallel()
+		e := finished(t)
+		e.k.overlay("disabled_rules: [review-report]\n")
+		stop(e, false).Want(t, 0)
 	})
 }

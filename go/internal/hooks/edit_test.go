@@ -1,6 +1,8 @@
 package hooks
 
 import (
+	"encoding/json"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -91,7 +93,7 @@ func TestGuardEdit(t *testing.T) {
 		t.Run("ask: Write to ~/.claude/"+rel, func(t *testing.T) {
 			t.Parallel()
 			k := newSandbox(t)
-			r := k.run("guard-edit", editPayload("Write", filepath.Join(k.paths.Home, rel), "", ""))
+			r := k.run("guard-edit", editPayload("Write", filepath.Join(k.paths.ClaudeDir, rel), "", ""))
 			r.Want(t, 0)
 			r.Has(t, `"permissionDecision":"ask"`, "this writes "+what)
 		})
@@ -101,7 +103,7 @@ func TestGuardEdit(t *testing.T) {
 		k := newSandbox(t)
 		src := filepath.Join(testutil.Physical(t, t.TempDir()), "dotfiles/claude/settings.json")
 		testutil.Touch(t, src)
-		link := filepath.Join(k.paths.Home, "settings.json")
+		link := filepath.Join(k.paths.ClaudeDir, "settings.json")
 		if err := os.Symlink(src, link); err != nil {
 			t.Fatal(err)
 		}
@@ -293,6 +295,8 @@ skill_file_map:
 		{"Grep of a repo with the generic glob * passes", "/tmp/project", "*", "/tmp/project", 0},
 		{"Grep of a repo with glob *.env is blocked", "/tmp/project", "*.env", "/tmp/project", 2},
 		{"Grep of a repo with glob *.key* is blocked", "/tmp/project", "*.key*", "/tmp/project", 2},
+		{"Grep of a repo with glob *.KEY is blocked", "/tmp/project", "*.KEY", "/tmp/project", 2},
+		{"Grep of a repo with glob .ENV* is blocked", "/tmp/project", ".ENV*", "/tmp/project", 2},
 		{"Grep of a repo with the generic glob ** passes", "/tmp/project", "**", "/tmp/project", 0},
 		{"Grep of a repo with no glob passes", "/tmp/project", "", "/tmp/project", 0},
 		{"Grep of ~ itself is blocked", "~", "", "/tmp/project", 2},
@@ -318,6 +322,76 @@ skill_file_map:
 				r.Has(t, "searching a credential or key file")
 			}
 		})
+	}
+}
+
+// A Grep with no glob inside the session's project gets the sensitive
+// basenames excluded, and an allow so auto mode doesn't deny the rewrite.
+func TestGuardSearchExcludesSecretsInsideTheProject(t *testing.T) {
+	t.Parallel()
+	k := newPlugin(t)
+	k.kitYML(`sensitive_paths: [".env", ".env.*", "*.key", id_rsa, "~/.ssh/"]` + "\n")
+	dir := repo(t, filepath.Join(t.TempDir(), "repo"))
+	grep := func(cwd string, input map[string]any) map[string]any {
+		var out struct {
+			HookSpecificOutput struct {
+				PermissionDecision string         `json:"permissionDecision"`
+				UpdatedInput       map[string]any `json:"updatedInput"`
+			} `json:"hookSpecificOutput"`
+		}
+		r := k.run("guard-dispatch", map[string]any{"tool_input": input, "session_id": "s1", "tool_name": "Grep", "cwd": cwd})
+		r.Want(t, 0)
+		// A panic fails open, so only its message tells.
+		if strings.Contains(r.Output, "unexpected error") {
+			t.Errorf("input %v: %s", input, r.Output)
+		}
+		if r.Stdout != "" {
+			if err := json.Unmarshal([]byte(r.Stdout), &out); err != nil {
+				t.Fatalf("%v: %s", err, r.Stdout)
+			}
+		}
+		if out.HookSpecificOutput.UpdatedInput != nil && out.HookSpecificOutput.PermissionDecision != "allow" {
+			t.Errorf("a rewrite without allow: %s", r.Stdout)
+		}
+		return out.HookSpecificOutput.UpdatedInput
+	}
+	got := grep(dir, map[string]any{"pattern": "secret", "path": "src", "-n": true})
+	want := map[string]any{"pattern": "secret", "path": "src", "-n": true, "glob": "!{.[eE][nN][vV],.[eE][nN][vV].*,*.[kK][eE][yY],[iI][dD]_[rR][sS][aA]}"}
+	if !maps.Equal(got, want) {
+		t.Errorf("updatedInput = %v, want %v", got, want)
+	}
+	// A glob of only * and / matches what no glob does.
+	for _, glob := range []string{"*", "**", "**/*", "{*.go,*}"} {
+		got := grep(dir, map[string]any{"pattern": "secret", "glob": glob})
+		if want := map[string]any{"pattern": "secret", "glob": "!{.[eE][nN][vV],.[eE][nN][vV].*,*.[kK][eE][yY],[iI][dD]_[rR][sS][aA]}"}; !maps.Equal(got, want) {
+			t.Errorf("glob %q: updatedInput = %v, want %v", glob, got, want)
+		}
+	}
+	// A negative glob matches every other file, so the exclusion joins it.
+	// Its brace groups expand first, so all share one {...}.
+	for glob, joined := range map[string]string{
+		"!*.md":         "!{*.md,.[eE][nN][vV],.[eE][nN][vV].*,*.[kK][eE][yY],[iI][dD]_[rR][sS][aA]}",
+		"!{*.md,*.txt}": "!{*.md,*.txt,.[eE][nN][vV],.[eE][nN][vV].*,*.[kK][eE][yY],[iI][dD]_[rR][sS][aA]}",
+		"!{a,b}.js":     "!{a.js,b.js,.[eE][nN][vV],.[eE][nN][vV].*,*.[kK][eE][yY],[iI][dD]_[rR][sS][aA]}",
+		"!*.{js,ts}":    "!{*.js,*.ts,.[eE][nN][vV],.[eE][nN][vV].*,*.[kK][eE][yY],[iI][dD]_[rR][sS][aA]}",
+		"!{a,b}.{c,d}":  "!{a.c,a.d,b.c,b.d,.[eE][nN][vV],.[eE][nN][vV].*,*.[kK][eE][yY],[iI][dD]_[rR][sS][aA]}",
+	} {
+		got := grep(dir, map[string]any{"pattern": "secret", "glob": glob})
+		if want := map[string]any{"pattern": "secret", "glob": joined}; !maps.Equal(got, want) {
+			t.Errorf("glob %q: updatedInput = %v, want %v", glob, got, want)
+		}
+	}
+	// A nested brace group doesn't expand, so that glob is left alone.
+	for _, glob := range []string{"*.ts", "!{a,{b,c}}", "!a}b"} {
+		if got := grep(dir, map[string]any{"pattern": "secret", "glob": glob}); got != nil {
+			t.Errorf("glob %q was rewritten: %v", glob, got)
+		}
+	}
+	if got := grep(dir, map[string]any{"pattern": "secret", "path": t.TempDir()}); got != nil {
+		t.Errorf("a Grep outside the project was rewritten: %v", got)
+	}
+	if got := grep(dir, nil); got != nil {
+		t.Errorf("a Grep with no tool_input was rewritten: %v", got)
 	}
 }
 
@@ -493,7 +567,7 @@ func TestGuardSkills(t *testing.T) {
 		t.Parallel()
 		r := guard(skillsSandbox(t, bashSkillMap, ""), "/tmp/project/foo.sh", "s1")
 		r.Denied(t)
-		r.Has(t, "Load bash-patterns via the Skill tool, then retry the edit.")
+		r.Has(t, "this edit needs bash-patterns loaded", "do    load it via the Skill tool, then retry the edit")
 		r.Lacks(t, "/tmp/project/foo.sh", "Blocked by")
 	})
 

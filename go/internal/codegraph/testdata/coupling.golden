@@ -1,0 +1,4 @@
+shared	degree	link	file_a	file_b
+5	1.00	imports	cmd/tool/flags.go	internal/store/store.go
+5	0.83	no-import	cmd/tool/main.go	rust/src/net.rs
+5	1.00	imports	src/app/util.ts	src/lib/x.ts

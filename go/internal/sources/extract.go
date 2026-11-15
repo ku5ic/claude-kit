@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"regexp"
 	"strings"
 
@@ -20,6 +19,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"github.com/ku5ic/claude-kit/go/internal/proc"
+	"github.com/ku5ic/claude-kit/go/internal/resolve/kittool"
 )
 
 // splitPath turns ".a.b" into [a b], as jq's getpath with empty parts dropped.
@@ -241,8 +241,8 @@ func JustRecipes(file string) []string {
 	if _, err := os.Stat(file); err != nil {
 		return nil
 	}
-	if _, err := exec.LookPath("just"); err == nil {
-		if out, err := proc.Command(proc.Quick, "just", "--justfile", file, "--summary").Output(); err == nil {
+	if just, err := kittool.Path("just"); err == nil {
+		if out, err := proc.Command(proc.Quick, just, "--justfile", file, "--summary").Output(); err == nil {
 			return strings.Fields(string(out))
 		}
 	}

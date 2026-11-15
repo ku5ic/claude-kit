@@ -28,7 +28,6 @@ func TestToplevelIsPhysicalThroughASymlink(t *testing.T) {
 }
 
 func TestName(t *testing.T) {
-	t.Setenv("HOME", "/Users/someone")
 	cases := map[string]string{
 		"/Users/someone":           "home",
 		"/":                        "root",
@@ -40,25 +39,33 @@ func TestName(t *testing.T) {
 		"/src/Spacelift.Front_end": "spacelift-front-end",
 	}
 	for root, want := range cases {
-		if got := Name(root); got != want {
+		if got := Name(root, "/Users/someone"); got != want {
 			t.Errorf("Name(%q) = %q, want %q", root, got, want)
 		}
 	}
 }
 
 func TestReportPath(t *testing.T) {
-	got := ReportPath("/s", "review", "feat/login page", "20260928-1500")
-	if got != "/s/review-feat-login-page-20260928-1500.md" {
-		t.Errorf("got %q", got)
+	dir := t.TempDir()
+	if got, want := ReportPath(dir, "review", "feat/login page"), filepath.Join(dir, "review-feat-login-page.md"); got != want {
+		t.Errorf("got %q, want %q", got, want)
 	}
-	if got := ReportPath("/s", "deps", "", "20260928-1500"); got != "/s/deps-20260928-1500.md" {
-		t.Errorf("no slug: got %q", got)
+	if got, want := ReportPath(dir, "deps", ""), filepath.Join(dir, "deps.md"); got != want {
+		t.Errorf("no slug: got %q, want %q", got, want)
+	}
+	// A name already taken, even by a dangling link, gets the next free number.
+	testutil.Write(t, filepath.Join(dir, "deps.md"), "")
+	if err := os.Symlink(filepath.Join(dir, "gone"), filepath.Join(dir, "deps-2.md")); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := ReportPath(dir, "deps", ""), filepath.Join(dir, "deps-3.md"); got != want {
+		t.Errorf("taken: got %q, want %q", got, want)
 	}
 }
 
 func TestScratchDirHomeFallbackAndRegistry(t *testing.T) {
 	home := tmp(t)
-	paths := config.Paths{Home: home}
+	paths := config.Paths{ClaudeDir: home}
 	outside := filepath.Join(tmp(t), "plain")
 
 	dir, err := ScratchDir(paths, outside, false)
@@ -91,7 +98,7 @@ func TestScratchDirWithAnUnwritableRegistry(t *testing.T) {
 	t.Cleanup(func() { _ = os.Chmod(filepath.Join(home, "logs"), 0o700) })
 	repo := tmp(t)
 	testutil.Git(t, repo, "init", "-q", "-b", "main")
-	dir, err := ScratchDir(config.Paths{Home: home}, repo, true)
+	dir, err := ScratchDir(config.Paths{ClaudeDir: home}, repo, true)
 	if want := filepath.Join(repo, ".claude", "scratch"); err != nil || dir != want {
 		t.Fatalf("ScratchDir = %q, %v; want %q", dir, err, want)
 	}
@@ -107,7 +114,7 @@ func TestScratchDirOutsideAProjectFallsBackToTheKitHomeUnregistered(t *testing.T
 	home := tmp(t)
 	cwd := filepath.Join(tmp(t), "plain", "a", "b")
 	testutil.Put(t, cwd, ".keep", "")
-	dir, err := ScratchDir(config.Paths{Home: home}, cwd, true)
+	dir, err := ScratchDir(config.Paths{ClaudeDir: home}, cwd, true)
 	if want := filepath.Join(home, "scratch"); err != nil || dir != want {
 		t.Fatalf("ScratchDir = %q, %v; want %q", dir, err, want)
 	}
@@ -128,7 +135,7 @@ func TestPlanDir(t *testing.T) {
 		testutil.Write(t, filepath.Join(dir, "settings.json"), body)
 	}
 	home := tmp(t)
-	paths := config.Paths{Home: home}
+	paths := config.Paths{ClaudeDir: home}
 	repo := tmp(t)
 	testutil.Git(t, repo, "init", "-q", "-b", "main")
 	sub := filepath.Join(repo, "src")

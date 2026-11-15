@@ -117,6 +117,9 @@ func eachTaskfileTask(file string, fn func(string, Body)) {
 	}
 }
 
+// preCommitConfigs are where pre-commit looks, at the root.
+var preCommitConfigs = []string{".pre-commit-config.yaml", ".pre-commit-config.yml"}
+
 // preCommitStages are pre-commit's stage names before 3.2, as git hooks.
 var preCommitStages = map[string]string{"commit": "pre-commit", "push": "pre-push", "merge-commit": "pre-merge-commit"}
 
@@ -125,7 +128,7 @@ var preCommitStages = map[string]string{"commit": "pre-commit", "push": "pre-pus
 // runs at the stages its repo's manifest declares, which the config
 // doesn't hold: its Stage is "". pre-commit filters files itself.
 func preCommitEntries(root string) []Entry {
-	file := fsx.FindUp(root, root, ".pre-commit-config.yaml", ".pre-commit-config.yml")
+	file := fsx.FindUp(root, root, preCommitConfigs...)
 	doc := yamlRoot(file)
 	var out []Entry
 	eachPreCommitHook(doc, func(id string, body Body, hook *yaml.Node) {

@@ -1,0 +1,1 @@
+{"name": "fixture", "dependencies": {"react": "^19.0.0", "@scope/ui": "^1.0.0", "local": "workspace:*"}}

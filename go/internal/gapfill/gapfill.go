@@ -11,6 +11,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -23,6 +24,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/claudecli"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/sources"
 )
 
@@ -33,7 +35,7 @@ import (
 const Guard = "KIT_CLASSIFIER"
 
 // promptVersion is part of every cache key: a changed prompt asks again.
-const promptVersion = "12"
+const promptVersion = "13"
 
 // ClassifyTimeout caps a foreground run that asks the classifier, waiting
 // included.
@@ -150,12 +152,13 @@ type Result struct {
 	Usage     claudecli.Usage // what this run's classifier calls cost
 }
 
-// Unclassified counts the entries with no verdict that the kit's policy
-// didn't deny.
+// Unclassified counts the entries the cache has no answer for and asking
+// could answer now. A denied or rejected one has an answer, and asking
+// again returns the same one; one cooling after a failure waits.
 func (r Result) Unclassified() int {
 	n := 0
 	for _, why := range r.Skipped {
-		if !Denied(why) {
+		if strings.HasPrefix(why, unclassifiedReason) && !strings.HasPrefix(why, coolingReason) {
 			n++
 		}
 	}
@@ -168,7 +171,18 @@ func Denied(why string) bool {
 	return strings.HasPrefix(why, deniedReason)
 }
 
-const deniedReason = "denied"
+const (
+	deniedReason       = "denied"
+	unclassifiedReason = "unclassified"
+	// coolingReason is an unclassified entry the classifier failed on
+	// within failureCooldown: asking again now would likely fail again.
+	coolingReason = unclassifiedReason + " (the classifier failed on it: "
+)
+
+// failureCooldown is how long an entry the classifier failed on waits
+// before a run asks for it again. Key hashes the entry's body, so an
+// edited entry is asked at once.
+const failureCooldown = time.Hour
 
 // store is the cache file: the model's answers as given, verified on read.
 type store struct {
@@ -176,6 +190,17 @@ type store struct {
 	Context   string             `json:"context"` // the project the facts below answer
 	Managers  []Manager          `json:"managers"`
 	Proposals []Proposal         `json:"proposals"`
+	// Failed is when and why the classifier last failed on an entry, by
+	// Key, and FailedBy the classifier command it failed as. A changed
+	// command asks again at once.
+	Failed   map[string]failedCall `json:"failures,omitempty"`
+	FailedBy string                `json:"failed_by,omitempty"`
+}
+
+// failedCall is a classifier call that failed: when, and its error.
+type failedCall struct {
+	At  time.Time `json:"at"`
+	Why string    `json:"why"`
 }
 
 type answer struct {
@@ -186,7 +211,7 @@ type answer struct {
 // Run answers o.Entries from the cache, first asking the classifier for
 // what it lacks when o.Ask allows.
 func Run(cfg *config.Config, o Options) Result {
-	file := CacheFile(o.CacheDir, o.Root)
+	file := seededCacheFile(o.CacheDir, o.Root)
 	s := load(file)
 	// A read is use: cache.Prune drops only a file no run has read.
 	now := time.Now()
@@ -208,10 +233,57 @@ func CacheFile(cacheDir, root string) string {
 	return filepath.Join(cacheDir, cache.Enforce, cache.RootKey(root)+".json")
 }
 
+// seededCacheFile is CacheFile, copied first from the main checkout's when
+// root is a linked worktree with none yet. Answers are keyed by each
+// entry's content and verified on every read, so the main checkout's hold
+// wherever its entries do.
+func seededCacheFile(cacheDir, root string) string {
+	file := CacheFile(cacheDir, root)
+	// A linked worktree's .git is a file. The stat keeps the git exec off
+	// the bash guard's path everywhere else.
+	if fsx.IsFile(file) || !fsx.IsFile(filepath.Join(root, ".git")) {
+		return file
+	}
+	// git names the main checkout once; the marker beside file keeps its
+	// cache file's path, "" for a root with none, so a worktree whose main
+	// checkout has no cache yet stops running git on every guarded command.
+	marker := file + ".main"
+	mainFile, err := os.ReadFile(marker)
+	if err != nil {
+		found, ok := mainCacheFile(cacheDir, root)
+		if !ok {
+			return file
+		}
+		mainFile = []byte(found)
+		_ = fsx.WriteAtomic(marker, mainFile, 0o600)
+	}
+	if len(mainFile) == 0 {
+		return file
+	}
+	if data, err := os.ReadFile(string(mainFile)); err == nil {
+		_ = fsx.WriteAtomic(file, data, 0o600) // unwritten, the worktree starts cold, as before
+	}
+	return file
+}
+
+// mainCacheFile is the cache file of the main checkout root is a linked
+// worktree of, "" when it's none (a submodule's .git file); ok is false
+// when git couldn't say, so the answer isn't kept.
+func mainCacheFile(cacheDir, root string) (string, bool) {
+	common, err := git.Line(root, "rev-parse", "--path-format=absolute", "--git-common-dir")
+	if err != nil {
+		return "", false
+	}
+	if main := filepath.Dir(common); filepath.Base(common) == ".git" && main != root {
+		return CacheFile(cacheDir, main), true
+	}
+	return "", true
+}
+
 // Managers are root's cached package-manager facts that verify, read
 // without asking: a cold cache has none.
 func Managers(cfg *config.Config, root, cacheDir string) []Manager {
-	ms, _ := managers(cfg, root, load(CacheFile(cacheDir, root)).Managers)
+	ms, _ := managers(cfg, root, load(seededCacheFile(cacheDir, root)).Managers)
 	return ms
 }
 
@@ -249,7 +321,7 @@ func ask(cfg *config.Config, o Options, p view, file string, s store) (_ store, 
 	}
 	// The facts get a call of their own: they take the model longest.
 	var reqs []request
-	if locked.Context != p.Key {
+	if locked.Context != p.Key && locked.retryAt(cfg, factsKey(p.Key), time.Now()).IsZero() {
 		reqs = append(reqs, request{View: p, Facts: true})
 	}
 	allowed := slices.DeleteFunc(slices.Clone(o.Entries), func(e sources.Entry) bool { return denied(cfg, e) != "" })
@@ -267,25 +339,49 @@ func ask(cfg *config.Config, o Options, p view, file string, s store) (_ store, 
 		usage = usage.Add(u)
 	}
 	now := time.Now()
+	notAsked := false
 	for i, resp := range resps {
+		if errors.Is(errs[i], errNotAsked) {
+			notAsked = true
+			continue // no cooldown: the next run asks it
+		}
 		if errs[i] != nil {
 			if failure == "" {
 				failure = "classifier: " + errs[i].Error()
+			}
+			if by := classifierID(cfg); locked.FailedBy != by {
+				clear(locked.Failed)
+				locked.FailedBy = by
+			}
+			call := failedCall{At: now, Why: errs[i].Error()}
+			for _, e := range reqs[i].Entries {
+				locked.Failed[Key(e)] = call
+			}
+			if reqs[i].Facts {
+				locked.Failed[factsKey(p.Key)] = call
 			}
 			continue
 		}
 		for _, a := range resp.Entries {
 			locked.Entries[a.ID] = &answer{Verdict: a.Verdict, Seen: now}
+			delete(locked.Failed, a.ID)
 		}
 		if reqs[i].Facts {
 			locked.Context, locked.Managers, locked.Proposals = p.Key, resp.Managers, resp.Proposals
+			delete(locked.Failed, factsKey(p.Key))
 		}
 	}
-	if slices.Contains(errs, nil) {
-		locked.save(file, o.Entries, now)
+	if failure == "" && notAsked {
+		failure = "classifier: " + errNotAsked.Error()
 	}
+	// A failure is saved too, so the next run waits out its cooldown.
+	locked.save(file, o.Entries, now)
 	return locked, failure, usage
 }
+
+// errNotAsked is a request still queued for a call slot when the deadline
+// passed.
+var errNotAsked = errors.New("not asked before the deadline")
 
 // classifyAll runs reqs, at most maxCalls at once.
 func classifyAll(ctx context.Context, cfg *config.Config, o Options, reqs []request) ([]response, []claudecli.Usage, []error) {
@@ -296,6 +392,17 @@ func classifyAll(ctx context.Context, cfg *config.Config, o Options, reqs []requ
 		wg.Go(func() {
 			slots <- struct{}{}
 			defer func() { <-slots }()
+			if ctx.Err() != nil {
+				errs[i] = errNotAsked
+				return
+			}
+			// A panic here would exit 2, which Claude Code reads as a
+			// block; the hook's recover can't reach this goroutine.
+			defer func() {
+				if r := recover(); r != nil {
+					errs[i] = fmt.Errorf("classifier panicked: %v", r)
+				}
+			}()
 			resps[i], usages[i], errs[i] = classify(ctx, cfg, o, req)
 		})
 	}
@@ -308,20 +415,49 @@ func load(file string) store {
 	if s.Entries == nil {
 		s.Entries = map[string]*answer{}
 	}
+	if s.Failed == nil {
+		s.Failed = map[string]failedCall{}
+	}
 	return s
 }
 
-// stale is true when an entry the policy allows has no answer, or the
-// project facts answer another project.
-func (s store) stale(cfg *config.Config, entries []sources.Entry, context string) bool {
-	return s.Context != context || len(s.missing(cfg, entries)) > 0
+// retryAt is when an entry the classifier failed on may be asked again,
+// zero when it's askable now or cfg names another classifier.
+func (s store) retryAt(cfg *config.Config, key string, now time.Time) time.Time {
+	if f, ok := s.Failed[key]; ok && s.FailedBy == classifierID(cfg) && !expired(f.At, now) {
+		return f.At.Add(failureCooldown)
+	}
+	return time.Time{}
 }
 
-// missing is the entries the policy allows that have no answer.
+// expired is true when a failure stamped at no longer holds its entry
+// back: past the cooldown, or ahead of the clock, which then can't say
+// when the cooldown ends.
+func expired(at, now time.Time) bool {
+	return at.After(now) || now.Sub(at) >= failureCooldown
+}
+
+// stale is true when an entry the policy allows has no answer, or the
+// project facts answer another project, and no classifier failure holds
+// it back.
+func (s store) stale(cfg *config.Config, entries []sources.Entry, context string) bool {
+	facts := s.Context != context && s.retryAt(cfg, factsKey(context), time.Now()).IsZero()
+	return facts || len(s.missing(cfg, entries)) > 0
+}
+
+// classifierID names cfg's classifier command for FailedBy.
+func classifierID(cfg *config.Config) string { return strings.Join(cfg.Classifier, "\x00") }
+
+// factsKey is the Failed key of the project facts for context.
+func factsKey(context string) string { return "facts:" + context }
+
+// missing is the entries the policy allows that have no answer, and that
+// no classifier failure holds back.
 func (s store) missing(cfg *config.Config, entries []sources.Entry) []sources.Entry {
 	var out []sources.Entry
+	now := time.Now()
 	for _, e := range entries {
-		if s.Entries[Key(e)] == nil && denied(cfg, e) == "" {
+		if s.Entries[Key(e)] == nil && denied(cfg, e) == "" && s.retryAt(cfg, Key(e), now).IsZero() {
 			out = append(out, e)
 		}
 	}
@@ -334,6 +470,11 @@ func (s store) save(file string, entries []sources.Entry, now time.Time) {
 	for _, e := range entries {
 		if a := s.Entries[Key(e)]; a != nil {
 			a.Seen = now
+		}
+	}
+	for key, f := range s.Failed {
+		if expired(f.At, now) {
+			delete(s.Failed, key)
 		}
 	}
 	for key, a := range s.Entries {

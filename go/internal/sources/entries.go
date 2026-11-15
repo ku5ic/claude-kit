@@ -98,17 +98,23 @@ func taskEntries(cfg *config.Config, root, dir string) []Entry {
 	return out
 }
 
+// The task graphs' configs, at the root.
+const (
+	turboConfig = "turbo.json"
+	nxConfig    = "nx.json"
+)
+
 // turboEntries run each task turbo.json configures, through turbo. A
 // package's task (web#build) or a root task (//#lint) runs as its task.
 func turboEntries(root string) []Entry {
-	file := filepath.Join(root, "turbo.json")
+	file := filepath.Join(root, turboConfig)
 	var out []Entry
 	seen := map[string]bool{}
 	for _, key := range append(JSONKeys(file, ".tasks"), JSONKeys(file, ".pipeline")...) {
 		task := key[strings.LastIndex(key, "#")+1:]
 		if !seen[task] {
 			seen[task] = true
-			out = append(out, Entry{Source: "turbo", File: "turbo.json", Name: task, Dir: ".", Body: Body{Text: "turbo run " + task}})
+			out = append(out, Entry{Source: "turbo", File: turboConfig, Name: task, Dir: ".", Body: Body{Text: "turbo run " + task}})
 		}
 	}
 	return out
@@ -119,9 +125,9 @@ func turboEntries(root string) []Entry {
 // Defaults keyed by an executor (@nx/jest:jest) name no target.
 func nxEntries(root string) []Entry {
 	var out []Entry
-	for _, target := range JSONKeys(filepath.Join(root, "nx.json"), ".targetDefaults") {
+	for _, target := range JSONKeys(filepath.Join(root, nxConfig), ".targetDefaults") {
 		if !strings.Contains(target, ":") {
-			out = append(out, Entry{Source: "nx", File: "nx.json", Name: target, Dir: ".", Body: Body{Text: "nx affected -t " + target}})
+			out = append(out, Entry{Source: "nx", File: nxConfig, Name: target, Dir: ".", Body: Body{Text: "nx affected -t " + target}})
 		}
 	}
 	return out

@@ -1,11 +1,13 @@
 package design
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/ku5ic/claude-kit/go/internal/git"
 )
@@ -63,35 +65,13 @@ func UndefinedTokens(path, before, after string) []string {
 	if root == "" {
 		return nil
 	}
-	files, err := git.Files(root)
-	if err != nil || len(files) > maxFiles {
+	project, ok := readProject(root)
+	if !ok {
 		return nil
 	}
-	defined := map[string]bool{}
-	define := func(text string) {
-		for _, m := range propDef.FindAllStringSubmatch(text, -1) {
-			defined[m[1]+m[2]] = true
-		}
-	}
-	define(after)
-	tailwind, jsConfig := false, false
-	for _, f := range files {
-		base := filepath.Base(f)
-		if strings.HasPrefix(base, "tailwind.config.") {
-			jsConfig = true
-		}
-		if !slices.Contains(uiExts, strings.ToLower(filepath.Ext(f))) {
-			continue
-		}
-		data, err := os.ReadFile(filepath.Join(root, f))
-		if err != nil {
-			continue
-		}
-		define(string(data))
-		if !tailwind && tailwindImport.Match(data) {
-			tailwind = true
-		}
-	}
+	defined := maps.Clone(project.defined)
+	define(defined, after)
+	tailwind, jsConfig := project.tailwind, project.jsConfig
 	owned := map[string]bool{}
 	for v := range defined {
 		owned[namespace(v)] = true
@@ -110,6 +90,63 @@ func UndefinedTokens(path, before, after string) []string {
 		}
 	}
 	return out
+}
+
+// projectTokens is what a project's UI files define, and how it sets up
+// Tailwind.
+type projectTokens struct {
+	defined            map[string]bool
+	tailwind, jsConfig bool
+}
+
+// projects memoizes readProject per root, a failure too: bash-edits checks
+// every file a command changed in one process, and each would read the
+// project again.
+var projects sync.Map
+
+// read is one readProject result.
+type read struct {
+	tokens projectTokens
+	ok     bool
+}
+
+// readProject reads every UI file git lists under root, once per process;
+// false when root isn't listable or has more than maxFiles files.
+func readProject(root string) (projectTokens, bool) {
+	if r, ok := projects.Load(root); ok {
+		return r.(read).tokens, r.(read).ok
+	}
+	files, err := git.Files(root)
+	if err != nil || len(files) > maxFiles {
+		projects.Store(root, read{})
+		return projectTokens{}, false
+	}
+	p := projectTokens{defined: map[string]bool{}}
+	for _, f := range files {
+		if strings.HasPrefix(filepath.Base(f), "tailwind.config.") {
+			p.jsConfig = true
+		}
+		if !slices.Contains(uiExts, strings.ToLower(filepath.Ext(f))) {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(root, f))
+		if err != nil {
+			continue
+		}
+		define(p.defined, string(data))
+		if !p.tailwind && tailwindImport.Match(data) {
+			p.tailwind = true
+		}
+	}
+	projects.Store(root, read{p, true})
+	return p, true
+}
+
+// define adds each custom property text sets to defined.
+func define(defined map[string]bool, text string) {
+	for _, m := range propDef.FindAllStringSubmatch(text, -1) {
+		defined[m[1]+m[2]] = true
+	}
 }
 
 // namespace is the first word of a custom property, as accent is of --accent-9.

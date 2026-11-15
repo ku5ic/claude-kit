@@ -1,6 +1,7 @@
 package transcript
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -70,7 +71,7 @@ func TestPromptTextAndTail(t *testing.T) {
 	}
 }
 
-func TestLastTurnEdits(t *testing.T) {
+func TestEdits(t *testing.T) {
 	path := write(t,
 		`{"type":"user","message":{"content":"first"}}`,
 		`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Edit","input":{"file_path":"/old.go"}}]}}`,
@@ -82,9 +83,6 @@ func TestLastTurnEdits(t *testing.T) {
 	entries, err := Load(path)
 	if err != nil || len(entries) != 6 {
 		t.Fatalf("Load: %d entries, %v", len(entries), err)
-	}
-	if got := Edits(LastTurn(entries)); !slices.Equal(got, []string{"/a.go", "/b.ipynb"}) {
-		t.Errorf("last turn's edits = %q", got)
 	}
 	if got := Edits(entries); !slices.Equal(got, []string{"/old.go", "/a.go", "/b.ipynb"}) {
 		t.Errorf("all edits = %q", got)
@@ -111,5 +109,32 @@ func TestReadAgentStart(t *testing.T) {
 				t.Errorf("ReadAgentStart = %+v, %v; want %+v", got, err, tc.want)
 			}
 		})
+	}
+}
+
+// EachFrom reads on from an offset, numbering lines on, and leaves a line
+// still being written for the next read.
+func TestEachFromResumesAndLeavesAPartialLine(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "t.jsonl")
+	one := `{"type":"user","message":{"content":"one"}}` + "\n"
+	two := `{"type":"user","message":{"content":"two"}}`
+	if err := os.WriteFile(path, []byte(one+two), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	collect := func(e Entry, _ int64) { got = append(got, fmt.Sprintf("%d:%s", e.Line, e.Text)) }
+	off, line, err := EachFrom(path, 0, 0, collect)
+	if err != nil || off != int64(len(one)) || line != 1 {
+		t.Fatalf("first read: offset %d, line %d, err %v", off, line, err)
+	}
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = f.WriteString("\n")
+	_ = f.Close()
+	if _, line, _ = EachFrom(path, off, line, collect); line != 2 || strings.Join(got, ",") != "1:one,2:two" {
+		t.Errorf("entries %q, last line %d", got, line)
 	}
 }

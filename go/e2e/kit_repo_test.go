@@ -95,7 +95,10 @@ func TestKitRepo(t *testing.T) {
 	t.Run("a reference skill keeps its sources in sources.md and fits its budget", func(t *testing.T) {
 		// The skills that aren't reference skills, so keep no sources.md;
 		// skills/meta/reference/refresh.md points here for the list.
-		exempt := []string{"audit", "write", "deps", "investigate", "pr", "unslop", "report-format", "meta", "kit-rules", "slop-patterns"}
+		exempt := []string{"audit", "write", "deps", "investigate", "pr", "unslop", "report-format", "meta", "kit-rules", "slop-patterns", "code"}
+		// Reference skills with no version-dependent content: no sources.md,
+		// and /meta refresh takes them only when named.
+		unversioned := []string{"engineering-fundamentals"}
 		// Set from the sizes after sources moved out; step 18's rewrite lowers them.
 		const maxDescription, maxSkill = 200, 5 * 1024
 		url := regexp.MustCompile(`https?://`)
@@ -108,6 +111,10 @@ func TestKitRepo(t *testing.T) {
 			text := Read(t, skill)
 			front, _ := frontmatter(text)
 			rel, _ := filepath.Rel(kitRoot, skill)
+			// /meta refresh reads it for every skill outside exempt.
+			if _, err := os.Stat(filepath.Join(dir, "sources.md")); err != nil && !slices.Contains(unversioned, filepath.Base(dir)) {
+				t.Errorf("%s: no sources.md; add it, or the skill to exempt if it's not a reference skill", rel)
+			}
 			if n := len(front["description"]); n == 0 || n > maxDescription {
 				t.Errorf("%s: description is %d characters, want 1 to %d", rel, n, maxDescription)
 			}
@@ -194,6 +201,19 @@ func TestKitRepo(t *testing.T) {
 		}
 	})
 
+	t.Run("the README's Dependencies table has a row for every kit.yml tool", func(t *testing.T) {
+		cfg, _, err := config.Load(config.Paths{Base: filepath.Join(kitRoot, "kit.yml"), Overlay: filepath.Join(t.TempDir(), "none.yml")})
+		if err != nil {
+			t.Fatal(err)
+		}
+		readme := Read(t, filepath.Join(kitRoot, "README.md"))
+		for _, tool := range cfg.Tools {
+			if !regexp.MustCompile("(?m)^\\| `" + regexp.QuoteMeta(tool) + "` +\\|").MatchString(readme) {
+				t.Errorf("kit.yml tools has %s, which the README's Dependencies table has no row for", tool)
+			}
+		}
+	})
+
 	t.Run("the tooling rule's CLI table names every kit.yml tool", func(t *testing.T) {
 		cfg, _, err := config.Load(config.Paths{Base: filepath.Join(kitRoot, "kit.yml"), Overlay: filepath.Join(t.TempDir(), "none.yml")})
 		if err != nil {
@@ -219,24 +239,34 @@ func TestKitRepo(t *testing.T) {
 		}
 	})
 
+	// Each file names a finding's parts in one sentence: report-format's
+	// "A finding's parts:" line, and verify's step 3 "Extract every
+	// finding's" line. The two group the parts differently, so each line
+	// only has to hold every field, in any order.
 	t.Run("audit verify parses every per-finding field the report format requires", func(t *testing.T) {
-		format := Read(t, filepath.Join(kitRoot, "skills/report-format/SKILL.md"))
-		verify := Read(t, filepath.Join(kitRoot, "skills/audit/reference/verify.md"))
-		for _, field := range []string{"Severity", "Location", "What", "Evidence", "Why it matters", "Fix", "Refs"} {
-			word := regexp.MustCompile(`\b` + regexp.QuoteMeta(field) + `\b`)
-			if !word.MatchString(format) {
-				t.Errorf("report-format no longer documents %q", field)
+		for file, opening := range map[string]string{
+			"skills/report-format/SKILL.md":    "A finding's parts:",
+			"skills/audit/reference/verify.md": "Extract every finding's",
+		} {
+			var parts string
+			for line := range strings.SplitSeq(Read(t, filepath.Join(kitRoot, file)), "\n") {
+				if strings.Contains(line, opening) {
+					parts = line
+				}
 			}
-			if !word.MatchString(verify) {
-				t.Errorf("audit/reference/verify.md doesn't parse %q", field)
+			if parts == "" {
+				t.Errorf("%s has no line with %q", file, opening)
+				continue
+			}
+			for _, field := range []string{"severity", "problem", "location", "Evidence", "Why it matters", "Fix", "Refs"} {
+				if !regexp.MustCompile(`\b` + regexp.QuoteMeta(field) + `\b`).MatchString(parts) {
+					t.Errorf("%s: its %q line lacks %q", file, opening, field)
+				}
 			}
 		}
 	})
 }
 
-// frontmatter is the top-level `key: value` lines between a file's opening
-// pair of --- lines. Line-based, not YAML: argument-hint values like
-// <a|b> aren't valid YAML scalars.
 // proseLines is text's lines by 1-based number, without fenced code and
 // with inline code spans blanked, so an example URL in code doesn't count.
 func proseLines(text string) map[int]string {
@@ -255,6 +285,9 @@ func proseLines(text string) map[int]string {
 	return lines
 }
 
+// frontmatter is the top-level `key: value` lines between a file's opening
+// pair of --- lines. Line-based, not YAML: argument-hint values like
+// <a|b> aren't valid YAML scalars.
 func frontmatter(text string) (map[string]string, bool) {
 	body, ok := strings.CutPrefix(text, "---\n")
 	if !ok {

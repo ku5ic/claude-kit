@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 
 	"github.com/ku5ic/claude-kit/go/internal/bashguard"
@@ -44,6 +43,7 @@ var hookChecks = map[string]hook.Check{
 	"check-size":              hooks.CheckSize,
 	"subagent-slop":           hooks.SubagentSlop,
 	"chat-slop":               hooks.ChatSlop,
+	"guard-attribution":       bashguard.CheckAttribution,
 	"guard-commit":            bashguard.CheckCommit,
 	"guard-pr":                bashguard.CheckPR,
 	"log-skills":              hooks.LogSkills,
@@ -59,15 +59,16 @@ var hookChecks = map[string]hook.Check{
 	"edit-seen":               hooks.MarkEditSeen,
 	"review-checks":           hooks.ReviewChecks,
 	"reply-length":            hooks.ReplyLength,
+	"review-report":           hooks.ReviewReport,
 	"guard-bash":              bashguard.Check,
 }
 
 // registry is every `kit hook` name. A test holds it and hooks/hooks.json
 // to each other.
 var registry = map[string]hookDef{
-	"bash-dispatch":      {events: []string{"PreToolUse"}, steps: []string{"guard-bash", "guard-commit", "guard-pr", "skills-nudge"}},
+	"bash-dispatch":      {events: []string{"PreToolUse"}, steps: []string{"guard-bash", "guard-attribution", "guard-commit", "guard-pr", "skills-nudge"}},
 	"guard-dispatch":     {events: []string{"PreToolUse"}, run: hooks.GuardDispatch},
-	"gate-dispatch":      {events: []string{"PreToolUse"}, steps: []string{"rules-gate"}},
+	"gate-dispatch":      {events: []string{"PreToolUse"}, steps: []string{"rules-gate", "review-report"}},
 	"rules-gate":         {},
 	"post-edit-dispatch": {events: []string{"PostToolUse"}, steps: []string{"sanitize-output", "format-dispatch", "edit-seen", "plan-tick"}},
 	"edit-seen":          {},
@@ -75,12 +76,14 @@ var registry = map[string]hookDef{
 	"log-skills":         {events: []string{"PostToolUse", "UserPromptExpansion"}},
 	"plan-mode-context":  {events: []string{"PostToolUse"}},
 	"prompt-dispatch":    {events: []string{"UserPromptSubmit"}, steps: []string{"turn-tree", "plan-mode-context", "reply-length", "chat-slop"}},
-	// stop-checks runs last: the first block ends a run, and the others only record.
-	"stop-dispatch":           {events: []string{"Stop"}, steps: []string{"reply-length", "chat-slop", "stop-checks"}},
+	// stop-checks runs before review-report: the first block ends a run, and
+	// stop-checks skips a retried Stop, which review-report still gates.
+	"stop-dispatch":           {events: []string{"Stop"}, steps: []string{"reply-length", "chat-slop", "stop-checks", "review-report"}},
 	"inject-context":          {events: []string{"SessionStart"}},
 	"inject-subagent-context": {events: []string{"SubagentStart"}},
 	"review-checks":           {events: []string{"SubagentStop"}},
 	"reply-length":            {},
+	"review-report":           {},
 	"chat-slop":               {},
 	"stop-checks":             {},
 	"turn-tree":               {},
@@ -97,6 +100,7 @@ var registry = map[string]hookDef{
 	"subagent-slop":      {},
 	"verify-claims":      {},
 	"guard-bash":         {},
+	"guard-attribution":  {},
 	"guard-commit":       {},
 	"guard-edit":         {},
 	"guard-pr":           {},
@@ -150,7 +154,7 @@ func cmdHook(e *env, args []string, stdin io.Reader) (status int) {
 		Paths:   e.paths,
 		Stdout:  e.stdout,
 		Stderr:  e.stderr,
-		Home:    os.Getenv("HOME"),
+		Home:    e.home,
 	}
 	if def.run != nil {
 		return def.run(h)
@@ -169,8 +173,8 @@ func cmdHook(e *env, args []string, stdin io.Reader) (status int) {
 // skillsNudge is skills-nudge, a Bash command's reads included. hooks and
 // bashguard share a layer, so the two meet here.
 func skillsNudge(h *hook.Hook) error {
-	if h.Payload.String("tool_name") != "Bash" {
+	if h.Payload.String(hook.KeyToolName) != "Bash" {
 		return hooks.SkillsNudge(h)
 	}
-	return hooks.NudgeFiles(h, bashguard.ReadTargets(h.Payload.String("tool_input.command"), h.Home, h.Payload.Cwd()))
+	return hooks.NudgeFiles(h, bashguard.ReadTargets(h.Payload.String(hook.KeyInputCommand), h.Home, h.Payload.Cwd()))
 }

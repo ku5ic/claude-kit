@@ -1,0 +1,26 @@
+flowchart TB
+  subgraph system["fixture"]
+    m_cmd["cmd"]
+    %% path: cmd
+    m_internal["internal"]
+    %% path: internal
+    m_rust["rust"]
+    %% path: rust
+    m_src["src"]
+    %% path: src
+  end
+  class system boundary
+  ext_scope_ui["@scope/ui"]:::ext
+  %% package: @scope/ui
+  ext_github_com_acme_kit["github.com/acme/kit"]:::ext
+  %% package: github.com/acme/kit
+  ext_react["react"]:::ext
+  %% package: react
+  ext_requests["requests"]:::ext
+  %% package: requests
+  ext_serde_json["serde_json"]:::ext
+  %% package: serde_json
+  ext_yaml["yaml"]:::ext
+  %% package: yaml
+  m_cmd --> m_internal
+  m_internal --> m_cmd

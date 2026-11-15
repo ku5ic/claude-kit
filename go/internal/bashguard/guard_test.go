@@ -1,6 +1,7 @@
 package bashguard
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -494,7 +495,7 @@ func TestGuardBash(t *testing.T) {
 		{"pm: uv sync at the pnpm root passes: uv is no rival of pnpm", `uv sync`, 0, "", true},
 		{"pm: cd into the uv service, then uv sync passes", `cd services/api && uv sync`, 0, "", true},
 		{"pm: poetry in the uv service blocks and names uv", `cd services/api && poetry install`, 2, "services/api uses uv (uv.lock), not poetry", false},
-		{"pm: npm at the pnpm root blocks with pnpm's facts", `npm install`, 2, "this repo uses pnpm (pnpm-lock.yaml), not npm; rerun it with pnpm (add a dependency: pnpm add; run a package: pnpm dlx; another directory: --dir, -C)", false},
+		{"pm: npm at the pnpm root blocks with pnpm's facts", `npm install`, 2, "this repo uses pnpm (pnpm-lock.yaml), not npm\n\ndo    rerun it with pnpm\nadd   pnpm add\nrun   pnpm dlx\ndir   --dir, -C", false},
 		{"pm: npm in the uv service finds the root's pnpm", `cd services/api && npm install`, 2, "uses pnpm", false},
 		{"pm: a directory flag moves the command to its lockfile", `pnpm --dir packages/y install`, 2, "packages/y uses yarn (yarn.lock), not pnpm", false},
 		{"pm: --version is exempt", `npm --version`, 0, "", true},
@@ -508,6 +509,10 @@ func TestGuardBash(t *testing.T) {
 		{"pm: a package after a flag's value is still checked", `pnpm add -F my-app made-up-lib`, 2, "made-up-lib isn't on its registry", false},
 		{"pm: an install from the lockfile passes silently", `pnpm install --frozen-lockfile`, 0, "", true},
 		{"pm: the add verb with only flags passes", `uv --directory services/api add --help`, 0, "", true},
+		{"pm: a rival's import converts the lockfile and passes", `yarn import`, 0, "", true},
+		{"pm: pnpm import in the yarn package passes", `cd packages/y && pnpm import`, 0, "", true},
+		{"pm: a rival's install still blocks", `cd packages/y && pnpm install`, 2, "packages/y uses yarn (yarn.lock), not pnpm", false},
+		{"pm: import as an add operand still blocks", `cd packages/y && pnpm add import`, 2, "packages/y uses yarn (yarn.lock), not pnpm", false},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
@@ -597,6 +602,27 @@ func TestGuardBash(t *testing.T) {
 		r.Has(t, "writes into the current directory")
 		guardIn(k, repo, `cat foo | tee "$(kit scratch-dir)/report.md"`).Empty(t)
 	})
+	t.Run("a redirect alone into the current directory asks like > does", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		repo := guardBashRepo(k, t.TempDir(), "feat")
+		for _, cmd := range []string{`> notes.txt`, `true | > notes.txt`, `rg foo | > notes.txt`} {
+			guardIn(k, repo, cmd).Has(t, "writes into the current directory")
+		}
+		guardIn(k, repo, `true | > "$(kit scratch-dir)/x"`).Empty(t)
+	})
+	t.Run("a write into a file git tracks doesn't ask", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		repo := guardBashRepo(k, t.TempDir(), "feat")
+		testutil.Write(t, filepath.Join(repo, "main_test.go"), "package main\n")
+		testutil.Git(t, repo, "add", "main_test.go")
+		guardIn(k, repo, "cat >> main_test.go <<'EOF'\nfunc x() {}\nEOF").Empty(t)
+		guardIn(k, repo, `echo x | tee ./main_test.go`).Empty(t)
+		guardIn(k, repo, `echo x > notes.md`).Has(t, "writes into the current directory")
+		// A glob in the target is a file name, not a pathspec matching main_test.go.
+		guardIn(k, repo, `echo x > 'main*'`).Has(t, "writes into the current directory")
+	})
 	t.Run("comments: an unquoted # ends the line, a quoted one doesn't", func(t *testing.T) {
 		guard(shared, `echo hi # rm -rf ~ in a comment`).Want(t, 0)
 		guard(shared, `echo "a#b"; rm -rf ~`).Want(t, 2)
@@ -663,4 +689,93 @@ func TestGuardBash(t *testing.T) {
 			t.Errorf("want one global-installs-invalid record, got %v", recs)
 		}
 	})
+}
+
+// A lone glob-less rg in the project gets the sensitive exclusion as its
+// first flag, allowed so auto mode doesn't deny the rewrite.
+func TestGuardBashExcludesSecretsFromALoneRg(t *testing.T) {
+	t.Parallel()
+	k := newSandbox(t)
+	repo := guardBashRepo(k, t.TempDir(), "feat")
+	rewritten := func(cmd string) (string, string) {
+		t.Helper()
+		r := k.hook("s1", repo, cmd)
+		r.Want(t, 0)
+		var out struct {
+			HookSpecificOutput struct {
+				PermissionDecision string         `json:"permissionDecision"`
+				UpdatedInput       map[string]any `json:"updatedInput"`
+			} `json:"hookSpecificOutput"`
+		}
+		if r.Output != "" {
+			if err := json.Unmarshal([]byte(r.Output), &out); err != nil {
+				t.Fatalf("%s: %v\n%s", cmd, err, r.Output)
+			}
+		}
+		got, _ := out.HookSpecificOutput.UpdatedInput["command"].(string)
+		return got, out.HookSpecificOutput.PermissionDecision
+	}
+	for cmd, rest := range map[string]string{"rg -n x .": " -n x .", "rg -n x -- .": " -n x -- .", "rg 'x$' .": " 'x$' .", "rg -uu -i x .": " -uu -i x .", "rg -A 3 x .": " -A 3 x .", "rg --max-count=2 x .": " --max-count=2 x .", "rg --no-heading -e x -- .": " --no-heading -e x -- .",
+		"rg -n x . | head -5": " -n x . | head -5", "rg x | sort | uniq -c": " x | sort | uniq -c", "rg -c x . | sort -t : -k2 -rn": " -c x . | sort -t : -k2 -rn",
+		"rg -l x . | cut -d/ -f1 | sort -u | wc -l": " -l x . | cut -d/ -f1 | sort -u | wc -l", "rg x . 2>/dev/null | tail -n +2": " x . 2>/dev/null | tail -n +2"} {
+		got, decision := rewritten(cmd)
+		if !strings.HasPrefix(got, "rg --glob '!{") || !strings.HasSuffix(got, "}'"+rest) || decision != "allow" {
+			t.Errorf("%q became %q with decision %q; want the exclusion first, allowed", cmd, got, decision)
+		}
+		if _, err := os.Stat(cache.ReadOnlyBash(filepath.Join(k.claude, "cache"), "s1", got)); err != nil {
+			t.Errorf("the rewritten %q left no read-only marker: %v", got, err)
+		}
+		// bash-edits sees only the command that ran, so the original's
+		// marker would never be removed.
+		if _, err := os.Stat(cache.ReadOnlyBash(filepath.Join(k.claude, "cache"), "s1", cmd)); err == nil {
+			t.Errorf("the original %q left a read-only marker too", cmd)
+		}
+	}
+	for _, cmd := range []string{"rg -g '*.go' x .", "rg --glob=*.md x", "rg x . && rm y", "cat a | rg x", "rg --pre ./x pat .", "rg --hostname-bin=./x pat .", "rg x . > out.txt", "rg -uu token /etc", "rg secret ~", "rg x ../", "rg -e x -- " + t.TempDir(), "rg -L x .", "rg --follow x .", "rg -ig '.env' x", "rg -uug '*.env' x", `rg -uu token "${HOME%/}/.aws"`, `rg -n foo "$OLDPWD"`, "rg x `pwd`", `rg x $'/etc'`, `rg -n foo "$OLDPWD"''`, "rg secret {~/.aws,.}", "rg x ../*", "rg -z x .", "rg -nz x .", "rg --pre-glob '*.gz' x .", "rg --made-up x .",
+		"rg x . | awk 1", "rg x . | tee f", "rg x . | xargs cat", "rg x . | sort -o out", "rg x . | uniq - out", "rg x . | head notes.md",
+		"rg x . | head < notes.md", "rg x . | head > out", "rg x . | wc --files0-from=list", "rg x . | sort --compress-program=gzip",
+		`rg x . | head -n "$N"`, "rg x . | FOO=1 head", "rg x | rg y", "(rg x . | head)"} {
+		if got, _ := rewritten(cmd); got != "" {
+			t.Errorf("%q was rewritten to %q", cmd, got)
+		}
+	}
+	if got, _ := rewritten("rg -n x ."); got == "" {
+		t.Fatal("no rewrite inside the project")
+	}
+	r := k.hook("s1", t.TempDir(), "rg -n x .")
+	if strings.Contains(r.Output, "updatedInput") {
+		t.Errorf("rg outside a work tree was rewritten: %s", r.Output)
+	}
+}
+
+// rg searches a file it's named whatever its globs say, so with
+// sensitive-read off, an rg naming a credential file still isn't allowed.
+func TestGuardBashLeavesAnRgNamingACredentialFileToThePrompt(t *testing.T) {
+	t.Parallel()
+	k := newSandbox(t)
+	testutil.Write(t, filepath.Join(k.claude, "claude-kit.local.yml"), "disabled_rules: [sensitive-read]\n")
+	repo := guardBashRepo(k, t.TempDir(), "feat")
+	for _, cmd := range []string{"rg -n KEY .env", "rg --regexp=KEY config/.env"} {
+		r := k.hook("s1", repo, cmd)
+		r.Want(t, 0)
+		if strings.Contains(r.Output, `"allow"`) {
+			t.Errorf("%q was allowed: %s", cmd, r.Output)
+		}
+	}
+}
+
+func TestGuardBashMarksAReadOnlyCommand(t *testing.T) {
+	t.Parallel()
+	k := newSandbox(t)
+	marker := func(cmd string) string {
+		return cache.ReadOnlyBash(filepath.Join(k.claude, "cache"), "s1", cmd)
+	}
+	k.hook("s1", "", "cat notes.md | head -3").Want(t, 0)
+	if _, err := os.Stat(marker("cat notes.md | head -3")); err != nil {
+		t.Errorf("a read left no marker for bash-edits: %v", err)
+	}
+	k.hook("s1", "", "touch notes.md").Want(t, 0)
+	if _, err := os.Stat(marker("touch notes.md")); err == nil {
+		t.Error("a write was marked read-only")
+	}
 }

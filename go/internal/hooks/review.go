@@ -15,6 +15,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
+	"github.com/ku5ic/claude-kit/go/internal/layout"
 	"github.com/ku5ic/claude-kit/go/internal/run"
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
@@ -89,17 +90,17 @@ func forkedSkill(agentTranscript, parent string) string {
 // turn's Stop doesn't check it again.
 func ReviewChecks(h *hook.Hook) error {
 	p := h.Payload
-	if p.Err != nil || p.Bool("stop_hook_active") {
+	if p.Err != nil || p.Bool(hook.KeyStopHookActive) {
 		return nil
 	}
-	transcript := p.String("agent_transcript_path")
+	transcript := p.String(hook.KeyAgentTranscriptPath)
 	if transcript == "" {
 		return nil
 	}
 	// A forked skill runs as agent_type "general-purpose"; only undocumented
 	// Claude Code records name the skill. If they move, the hook goes quiet
 	// rather than nudging every subagent.
-	if forkedSkill(transcript, p.String("transcript_path")) != reviewSkill {
+	if forkedSkill(transcript, p.String(hook.KeyTranscriptPath)) != reviewSkill {
 		return nil
 	}
 	cfg, root := h.Config(), git.Toplevel(h.Payload.Cwd())
@@ -110,13 +111,13 @@ func ReviewChecks(h *hook.Hook) error {
 	cacheDir := h.Paths.CacheDir()
 	// Before the gates: an edit made while they run isn't one they checked.
 	tree, snapErr := git.Snapshot(root)
-	plan := enforce.Build(cfg, enforce.Options{Root: root, CacheDir: cacheDir, Ask: true, Timeout: gapfill.ClassifyTimeout, Changed: true})
+	plan := enforce.Build(cfg, enforce.Options{Root: root, CacheDir: cacheDir, Home: h.Home, Ask: true, Timeout: gapfill.ClassifyTimeout, Changed: true})
 	if plan.Classifier.Runs > 0 {
 		h.Log(kitlog.Guards, "gapfill", plan.Classifier.Pairs()...)
 	}
 	var report strings.Builder
 	res, receipt := run.Gates(plan, cacheDir, &report, deadline)
-	notifyReceipt(h, cfg, receipt, nil)
+	notifyReceipt(h, cfg, receipt, nil, "")
 	if res.Fail == 0 {
 		// Only a whole pass lets Stop skip the tree: a known failure must
 		// still block, and a gate the budget cut checked nothing.
@@ -125,6 +126,7 @@ func ReviewChecks(h *hook.Hook) error {
 		}
 		return nil
 	}
-	return h.Block("the full gate failed. Handle each FAIL per skills/kit-rules/reference/verify.md section 1, then return your full report again, "+
-		"every finding you already had unchanged and in the same format.\n"+report.String(), "review-checks")
+	return h.Block("the full gate failed\n"+report.String()+
+		layout.KV("do", "handle each FAIL per skills/kit-rules/reference/verify.md section 1")+"\n"+
+		layout.KV("then", "return your full report again, every finding you already had unchanged and in the same format"), "review-checks")
 }

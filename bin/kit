@@ -54,12 +54,19 @@ fi
 # Slow path, once per version: forks are fine here. The temp name keeps
 # hooks running in parallel from exec'ing a half-written binary.
 tmp="$bin.$$"
-# Other versions' binaries and backoff markers, and temps a killed hook
-# stranded, once old enough not to be in flight. This version's release
-# name stays even under KIT_DEV: go/build.sh writes it, and e2e runs it.
+# Other versions' binaries and backoff markers, every platform's, and temps
+# a killed hook stranded, once old enough not to be in flight. This
+# version's release names stay even under KIT_DEV: go/build.sh writes them,
+# and e2e runs this platform's.
 prune() {
-  find "$dir" -maxdepth 1 \( -name "kit-*-$os-$arch" -o -name "kit-*-$os-$arch.failed" \) \
-    ! -name "kit-$ver-$os-$arch*" ! -name "kit-dev-$os-$arch*" -delete 2>/dev/null
+  local f name binary_re='^kit-.+-[a-z0-9]+-[a-z0-9]+(\.failed)?$'
+  for f in "$dir"/kit-*; do
+    name=${f##*/}
+    case $name in
+    kit-"$ver"-* | kit-dev-*) continue ;;
+    esac
+    [[ $name =~ $binary_re ]] && rm -f "$f"
+  done
   find "$dir" -maxdepth 1 -name "kit-*-$os-$arch.[0-9]*" -mmin +10 -delete 2>/dev/null
 }
 if [[ ${KIT_DEV:-} == 1 ]]; then
@@ -67,9 +74,7 @@ if [[ ${KIT_DEV:-} == 1 ]]; then
   if [[ ! -x $bin || -n $(find "$dir/../go" -type f ! -name '*_test.go' -newer "$bin" -print -quit 2>/dev/null) ]]; then
     # Before the build: a hook's timeout can kill this shell mid-build.
     prune
-    (cd "$dir/../go" && CGO_ENABLED=0 go build -trimpath -buildvcs=false \
-      -ldflags="-s -w -buildid= -X main.version=$ver" -o "$tmp" ./cmd/kit) >&2 &&
-      mv -f "$tmp" "$bin"
+    "$dir/../go/build.sh" -o "$tmp" >&2 && mv -f "$tmp" "$bin"
   fi
 # Only the CLI and the inject-context hook, with its 30s timeout, download:
 # every other hook's timeout is shorter than curl's, and a status line is

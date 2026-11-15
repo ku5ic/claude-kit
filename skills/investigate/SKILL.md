@@ -91,21 +91,26 @@ In claude.ai chat, a symptom gets the same sections in the reply, with no report
 Generated: <ISO timestamp>
 Scope: <entry point or area>
 
+## TL;DR
+
+- **<Root cause / Answer>**, in one sentence
+- Next step: <a one-line fix to make directly, or "plan it: <scope>">
+
+---
+
 ## Observed vs expected (symptom) / Question
+
+---
 
 ## Findings
 
 <file:line citations, each a fact read this session>
 
+---
+
 ## Hypotheses (symptom)
 
 1. <hypothesis> -> <confirmed / ruled out / inconclusive>
-
-## Root cause / Answer
-
-## Next step
-
-<a one-line fix to make directly, or "plan it: <scope>">
 ```
 
 Questions the requester can answer: `skills/kit-rules/reference/workflow.md` section 4.

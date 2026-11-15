@@ -72,6 +72,7 @@ var entries = map[string]func(*hook.Hook) int{
 	"plan-mode-context":       single("plan-mode-context", PlanModeContext),
 	"guard-plan":              single("guard-plan", GuardPlan),
 	"reply-length":            single("reply-length", ReplyLength),
+	"review-report":           single("review-report", ReviewReport),
 	"review-checks":           single("review-checks", ReviewChecks),
 	"stop-checks":             single("stop-checks", StopChecks),
 	"turn-tree":               single("turn-tree", TurnTree),
@@ -121,10 +122,10 @@ func newSandbox(t *testing.T) *sandbox {
 	claude := filepath.Join(home, ".claude")
 	testutil.Mkdir(t, filepath.Join(claude, "logs"))
 	return &sandbox{t: t, home: home, claude: claude, paths: config.Paths{
-		Root:    kitRoot,
-		Home:    claude,
-		Base:    filepath.Join(kitRoot, "kit.yml"),
-		Overlay: filepath.Join(claude, "claude-kit.local.yml"),
+		Root:      kitRoot,
+		ClaudeDir: claude,
+		Base:      filepath.Join(kitRoot, "kit.yml"),
+		Overlay:   filepath.Join(claude, "claude-kit.local.yml"),
 	}}
 }
 

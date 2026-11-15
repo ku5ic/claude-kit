@@ -31,6 +31,7 @@ var Commands = []Command{
 	{Name: "git-base", Args: "[--diff|--log] [base] [flags] [-- paths]", Desc: "the base ref of this checkout, or the diff\nor log against it", Words: []string{"--diff", "--log"}, ReadOnly: true},
 	{Name: "explain", Args: "bash|edit|stop ...", Desc: "why a guard or the Stop hook decides what it\ndoes; logs, blocks, and runs nothing", Words: []string{"bash", "edit", "stop"}},
 	{Name: "blast-radius", Args: "<file> [symbol]", Desc: "the files that import <file>", Path: "file", ReadOnly: true},
+	{Name: "code-graph", Args: "imports|deps|coupling|model-dir|fingerprint|c4|check-c4 ...", Desc: "a repo's imports per file, the module edges,\nexternals, and upward imports they make, and\nthe files that change together (TSV); the\narchitecture model's folder, fingerprint,\nC4 skeleton, and its check against the code", Words: []string{"imports", "deps", "coupling", "model-dir", "fingerprint", "c4", "check-c4"}, Path: "dir"},
 	{Name: "slop", Args: "[--surface S] <file...|->", Desc: "AI tells in each file, or stdin, by tier;\nexits 1 when one blocks", Words: []string{"--surface"}, Path: "file", ReadOnly: true},
 	{Name: "contrast", Args: "<fg> <bg>", Desc: "the WCAG contrast ratio of two colors, and\nwhich AA and AAA levels it passes", ReadOnly: true},
 	{Name: "bundle", Args: "chat [--check]", Desc: "the claude.ai chat plugin zip, from the kit's\nown files; --check validates and writes nothing", Words: []string{"chat"}},
