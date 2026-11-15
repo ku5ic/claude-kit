@@ -132,6 +132,13 @@ func TestGuardBashParsing(t *testing.T) {
 		probe("block", `( cd /tmp && git push --force origin main )`)
 		probe("pass", `(ls)`)
 		probe("pass", `if true; then echo ok; fi`)
+		// A pipeline stage that isn't a simple command: a redirect alone,
+		// or a group whose redirects run a substitution.
+		probe("block", `true | >f; `+R)
+		probe("block", `true | > $(`+R+`)`)
+		probe("block", `true | (echo) > $(`+R+`)`)
+		probe("block", `true | { echo; } > $(`+R+`)`)
+		probe("pass", `echo x | > "$(kit scratch-dir)/out.txt"`)
 		probe("block", `f() { rm -rf ~; }; f`)
 		probe("block", `function f { rm -rf ~; }; f`)
 		probe("block", `exec rm -rf ~`)

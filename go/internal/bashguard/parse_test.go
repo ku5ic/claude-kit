@@ -22,36 +22,54 @@ func names(src string) []string {
 	return out
 }
 
+// hiddenCommands maps a command line to the names Segments finds in it.
+var hiddenCommands = map[string][]string{
+	"echo $(true && rm -rf ~)":        {"true", "rm", "echo"},
+	"echo `rm -rf ~`":                 {"rm", "echo"},
+	"cat <(rm -rf ~)":                 {"rm", "cat"},
+	"(rm -rf ~)":                      {"rm"},
+	"{ rm -rf ~; }":                   {"rm"},
+	"if true; then rm -rf ~; fi":      {"true", "rm"},
+	"f() { rm -rf ~; }; f":            {"rm", "f"},
+	"! rm -rf ~":                      {"rm"},
+	"time rm -rf ~":                   {"rm"},
+	"ls | rm -rf ~":                   {"ls|rm"},
+	"env -i FOO=1 nice -n 5 rm -rf ~": {"rm"},
+	"timeout -s KILL 5 rm -rf ~":      {"rm"},
+	"\\rm -rf ~":                      {"rm"},
+	"r''m -rf ~":                      {"rm"},
+	"/bin/rm -rf ~":                   {"rm"},
+	"echo hi # rm -rf ~":              {"echo"},
+	"bash <<EOF\nrm -rf ~\nEOF":       {"bash", "rm"},
+	"cat <<'EOF'\nrm -rf ~\nEOF":      {"cat"},
+	"cat <<EOF\nrm -rf ~":             {"rm"}, // unterminated: fail closed
+	"echo a\n(\nrm -rf ~":             {"echo", "rm"},
+	"echo \"unterminated; rm -rf ~":   nil,
+	"git commit -m \"$(cat <<'EOF'\nIt's fine\nEOF\n)\" && rm -rf ~": {"cat", "git", "rm"},
+	"true | >f; rm -rf ~":         {"true", "rm"},
+	"true | (echo) > $(rm -rf ~)": {"echo", "rm", "true"},
+}
+
 func TestSegmentsFindHiddenCommands(t *testing.T) {
-	cases := map[string][]string{
-		"echo $(true && rm -rf ~)":        {"true", "rm", "echo"},
-		"echo `rm -rf ~`":                 {"rm", "echo"},
-		"cat <(rm -rf ~)":                 {"rm", "cat"},
-		"(rm -rf ~)":                      {"rm"},
-		"{ rm -rf ~; }":                   {"rm"},
-		"if true; then rm -rf ~; fi":      {"true", "rm"},
-		"f() { rm -rf ~; }; f":            {"rm", "f"},
-		"! rm -rf ~":                      {"rm"},
-		"time rm -rf ~":                   {"rm"},
-		"ls | rm -rf ~":                   {"ls|rm"},
-		"env -i FOO=1 nice -n 5 rm -rf ~": {"rm"},
-		"timeout -s KILL 5 rm -rf ~":      {"rm"},
-		"\\rm -rf ~":                      {"rm"},
-		"r''m -rf ~":                      {"rm"},
-		"/bin/rm -rf ~":                   {"rm"},
-		"echo hi # rm -rf ~":              {"echo"},
-		"bash <<EOF\nrm -rf ~\nEOF":       {"bash", "rm"},
-		"cat <<'EOF'\nrm -rf ~\nEOF":      {"cat"},
-		"cat <<EOF\nrm -rf ~":             {"rm"}, // unterminated: fail closed
-		"echo a\n(\nrm -rf ~":             {"echo", "rm"},
-		"echo \"unterminated; rm -rf ~":   nil,
-		"git commit -m \"$(cat <<'EOF'\nIt's fine\nEOF\n)\" && rm -rf ~": {"cat", "git", "rm"},
-	}
-	for src, want := range cases {
+	for src, want := range hiddenCommands {
 		if got := names(src); !slices.Equal(got, want) {
 			t.Errorf("%q: got %q, want %q", src, got, want)
 		}
 	}
+}
+
+// FuzzSegments checks that no input panics the parser: a panic fails every
+// Bash guard open.
+func FuzzSegments(f *testing.F) {
+	for src := range hiddenCommands {
+		f.Add(src)
+	}
+	for _, src := range []string{"0|>0", "echo x | >out.txt", "true | { echo; } > $(rm -rf ~)"} {
+		f.Add(src)
+	}
+	f.Fuzz(func(t *testing.T, src string) {
+		Segments(src)
+	})
 }
 
 func TestWordValues(t *testing.T) {

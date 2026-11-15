@@ -217,9 +217,13 @@ func (c *collector) stmt(src string, s *syntax.Stmt) {
 	for _, p := range parts {
 		call, ok := p.Cmd.(*syntax.CallExpr)
 		if !ok {
-			// ( ... ) or { ... } inside a pipeline: its statements are
-			// segments of their own.
+			// ( ... ), { ... }, or a redirect alone inside a pipeline: its
+			// statements and its redirects' substitutions are segments of
+			// their own.
 			c.inner(src, p.Cmd)
+			for _, r := range p.Redirs {
+				c.inner(src, r)
+			}
 			continue
 		}
 		seg.Calls = append(seg.Calls, c.call(src, p, call))
@@ -231,9 +235,13 @@ func (c *collector) stmt(src string, s *syntax.Stmt) {
 }
 
 // segmentEnd is where a pipeline ends: its last command's last word or
-// redirect, not the statement's end, which takes in a trailing ; or &.
+// redirect, not the statement's end, which takes in a trailing ; or &. A
+// stage that is a redirect alone (true | >f) has no command.
 func segmentEnd(last *syntax.Stmt) int {
-	end := int(last.Cmd.End().Offset())
+	end := int(last.Pos().Offset())
+	if last.Cmd != nil {
+		end = int(last.Cmd.End().Offset())
+	}
 	for _, r := range last.Redirs {
 		if r.Hdoc == nil {
 			end = max(end, int(r.End().Offset()))
