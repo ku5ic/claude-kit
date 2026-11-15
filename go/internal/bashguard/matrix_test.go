@@ -139,6 +139,10 @@ func TestGuardBashParsing(t *testing.T) {
 		probe("block", `true | (echo) > $(`+R+`)`)
 		probe("block", `true | { echo; } > $(`+R+`)`)
 		probe("pass", `echo x | > "$(kit scratch-dir)/out.txt"`)
+		// A redirect alone writes its target like any command's redirect.
+		probe("block", `> ~/.bashrc`)
+		probe("block", `true | > ~/.bashrc`)
+		probe("pass", `true | > "$(kit scratch-dir)/x"`)
 		probe("block", `f() { rm -rf ~; }; f`)
 		probe("block", `function f { rm -rf ~; }; f`)
 		probe("block", `exec rm -rf ~`)

@@ -602,6 +602,15 @@ func TestGuardBash(t *testing.T) {
 		r.Has(t, "writes into the current directory")
 		guardIn(k, repo, `cat foo | tee "$(kit scratch-dir)/report.md"`).Empty(t)
 	})
+	t.Run("a redirect alone into the current directory asks like > does", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		repo := guardBashRepo(k, t.TempDir(), "feat")
+		for _, cmd := range []string{`> notes.txt`, `true | > notes.txt`, `rg foo | > notes.txt`} {
+			guardIn(k, repo, cmd).Has(t, "writes into the current directory")
+		}
+		guardIn(k, repo, `true | > "$(kit scratch-dir)/x"`).Empty(t)
+	})
 	t.Run("a write into a file git tracks doesn't ask", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)

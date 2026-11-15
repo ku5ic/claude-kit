@@ -216,10 +216,14 @@ func (c *collector) stmt(src string, s *syntax.Stmt) {
 	seg := Segment{src: src, end: segmentEnd(parts[len(parts)-1]), subshell: c.subshell > 0}
 	for _, p := range parts {
 		call, ok := p.Cmd.(*syntax.CallExpr)
+		if p.Cmd == nil {
+			// A redirect alone (> f, true | > f) is a call with no words,
+			// as x=1 > f is, so its target gets every redirect check.
+			call, ok = &syntax.CallExpr{}, true
+		}
 		if !ok {
-			// ( ... ), { ... }, or a redirect alone inside a pipeline: its
-			// statements and its redirects' substitutions are segments of
-			// their own.
+			// ( ... ) or { ... } inside a pipeline: its statements and its
+			// redirects' substitutions are segments of their own.
 			c.inner(src, p.Cmd)
 			for _, r := range p.Redirs {
 				c.inner(src, r)
@@ -523,11 +527,11 @@ func (c *collector) inner(src string, n syntax.Node) {
 	})
 }
 
-// pipeline flattens a | or |& chain (or a lone command) into its parts; nil
-// for anything else.
+// pipeline flattens a | or |& chain (or a lone command, or a redirect
+// alone) into its parts; nil for anything else.
 func pipeline(s *syntax.Stmt) []*syntax.Stmt {
 	switch cmd := s.Cmd.(type) {
-	case *syntax.CallExpr:
+	case *syntax.CallExpr, nil:
 		return []*syntax.Stmt{s}
 	case *syntax.BinaryCmd:
 		if cmd.Op != syntax.Pipe && cmd.Op != syntax.PipeAll {
