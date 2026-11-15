@@ -27,6 +27,16 @@ func moduleStem(p string) string {
 	return stem
 }
 
+// moduleID is one name for p, whether p is a tracked file or the stem an
+// import resolved to: a file by its moduleStem, a stem whole, since its
+// dot (b.client) is no extension.
+func moduleID(p string, tracked map[string]bool) string {
+	if tracked[p] {
+		return moduleStem(p)
+	}
+	return p
+}
+
 // dirOf is p's directory, "" at the repo root.
 func dirOf(p string) string {
 	if d := path.Dir(p); d != "." {

@@ -42,6 +42,9 @@ func newGraph(root string, files []string) *graph {
 		stem := moduleStem(file)
 		g.known[strings.ToLower(file)] = file
 		g.known[strings.ToLower(stem)] = stem
+		if bare := strings.TrimSuffix(file, path.Ext(file)); bare != stem {
+			g.known[strings.ToLower(bare)] = file // ./index names src/index.ts, as ./ names src
+		}
 		parts := strings.Split(file, "/")
 		for depth := 1; depth < len(parts); depth++ {
 			dir := strings.Join(parts[:depth], "/")

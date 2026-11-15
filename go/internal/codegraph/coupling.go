@@ -77,7 +77,7 @@ func Coupling(gitLog, resolved, root string, skipDirs []string, out io.Writer) e
 		target := r[1]
 		switch {
 		case path.Ext(r[0]) != ".go":
-			target = moduleStem(target)
+			target = moduleID(target, tracked)
 		case path.Ext(target) == ".go":
 			target = dirOf(target)
 		}

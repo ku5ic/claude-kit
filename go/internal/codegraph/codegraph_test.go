@@ -255,6 +255,37 @@ func TestDepsKeepsFileModulesBesideANonSourceDir(t *testing.T) {
 	}
 }
 
+// A file and an import that resolves to it are one module, at the repo
+// root and for a dotted name, so mutual imports form a cycle.
+func TestDepsGivesAFileAndAnImportOfItOneModule(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		files map[string]string
+		rows  string
+		want  string
+	}{
+		"flat":   {map[string]string{"a.ts": "", "b.ts": ""}, "a.ts\t\"./b\"\nb.ts\t\"./a\"\n", "1\ta\tb\n1\tb\ta\n"},
+		"dotted": {map[string]string{"src/a.ts": "", "src/b.client.ts": ""}, "src/a.ts\t\"./b.client\"\nsrc/b.client.ts\t\"./a\"\n", "1\tsrc/a\tsrc/b.client\n1\tsrc/b.client\tsrc/a\n"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			out, _ := deps(t, tc.files, tc.rows, nil)
+			if got := testutil.Read(t, filepath.Join(out, "deps.tsv")); got != tc.want {
+				t.Errorf("deps:\n%s", got)
+			}
+		})
+	}
+}
+
+// An import naming a barrel file without its extension resolves to it.
+func TestDepsResolvesAnExtensionlessIndexImport(t *testing.T) {
+	t.Parallel()
+	out, _ := deps(t, map[string]string{"src/index.ts": "", "src/main.ts": ""}, "src/main.ts\t\"./index\"\n", nil)
+	if got := testutil.Read(t, filepath.Join(out, "imports-resolved.tsv")); got != "src/main.ts\tsrc/index.ts\n" {
+		t.Errorf("imports-resolved:\n%s", got)
+	}
+}
+
 // A Python import's name isn't always its distribution's (yaml is PyYAML),
 // and a workspace package imported by its package.json name is an edge.
 func TestDepsMatchesImportNamesToTheirPackages(t *testing.T) {
@@ -334,6 +365,27 @@ func TestCouplingReadsAGoImportOfAnIndexPackage(t *testing.T) {
 		if !strings.Contains(out.String(), "\timports\t"+pair+"\n") {
 			t.Errorf("%s isn't an import in:\n%s", pair, out.String())
 		}
+	}
+}
+
+// deps names an import of a dotted file by its whole stem, b.client, which
+// moduleStem would cut to b.
+func TestCouplingReadsAnImportOfADottedFile(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	var log strings.Builder
+	for i := range 5 {
+		fmt.Fprintf(&log, "--%040d\n\nsrc/a.ts\nlib/b.client.ts\n\n", i)
+	}
+	gitLog, resolved := filepath.Join(dir, "gitlog.txt"), filepath.Join(dir, "imports-resolved.tsv")
+	testutil.Write(t, gitLog, log.String())
+	testutil.Write(t, resolved, "src/a.ts\tlib/b.client\n")
+	var out bytes.Buffer
+	if err := Coupling(gitLog, resolved, tracked(t, "src/a.ts", "lib/b.client.ts"), nil, &out); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "\timports\tlib/b.client.ts\tsrc/a.ts\n") {
+		t.Errorf("not an import in:\n%s", out.String())
 	}
 }
 

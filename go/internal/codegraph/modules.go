@@ -32,16 +32,20 @@ func findSplit(files []string) string {
 
 // modules maps a path to its module: a child of the split directory, or
 // a top-level directory outside it; each file when the split holds only
-// files.
+// files. tracked tells a file from an import's resolved stem.
 type modules struct {
 	split    string
 	children map[string]bool
+	tracked  map[string]bool
 }
 
 // newModules reads the split's child modules from sources: a directory of
 // assets beside the split's files is no module.
-func newModules(split string, sources []string) modules {
-	m := modules{split: split, children: map[string]bool{}}
+func newModules(split string, sources, files []string) modules {
+	m := modules{split: split, children: map[string]bool{}, tracked: map[string]bool{}}
+	for _, f := range files {
+		m.tracked[f] = true
+	}
 	for _, p := range sources {
 		if rest, ok := strings.CutPrefix(p, split+"/"); ok && split != "" {
 			if child, _, nested := strings.Cut(rest, "/"); nested {
@@ -54,14 +58,17 @@ func newModules(split string, sources []string) modules {
 
 func (m modules) of(p string) string {
 	inSplit := m.split != "" && strings.HasPrefix(p, m.split+"/")
-	top, _, _ := strings.Cut(p, "/")
+	top, _, nested := strings.Cut(p, "/")
+	if !nested {
+		top = moduleID(p, m.tracked) // a root file is its own module
+	}
 	switch {
 	case m.split != "" && len(m.children) == 0:
 		if p == m.split {
 			return "" // the split itself is none of its file modules
 		}
 		if inSplit {
-			return moduleStem(p)
+			return moduleID(p, m.tracked)
 		}
 		return top
 	case inSplit:
