@@ -111,7 +111,7 @@ var Rules = []string{
 	"pm-mismatch", "psql-destructive", "rc-edit", "rc-inplace-edit", "rc-redirect", "redis-destructive",
 	"review-checks", "review-report", "rm-recursive", "rules-gate", "run-checks-by-hook", "sensitive-read", "sensitive-write",
 	"size", "skills-gate", "skills-nudge", "slop", "slop-vocabulary", "staged-secret", "terraform-auto-approve", "terraform-destroy",
-	"ui-undefined-token", "weaken", "xargs-rm",
+	"ui-undefined-token", "unread-text", "weaken", "xargs-rm",
 }
 
 // unknownDisables names the disabled_checks and disabled_rules entries that

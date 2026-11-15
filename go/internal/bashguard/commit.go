@@ -54,7 +54,7 @@ func CheckCommit(h *hook.Hook) error {
 	// cwd's repo ("$PWD", "$(git rev-parse --show-toplevel)").
 	repo := cmp.Or(c.repo, h.Payload.Cwd())
 
-	msg, ok := message(cmd, c, repo, h.Home)
+	msg, unread := message(cmd, c, repo, h.Home)
 
 	// Before the subject parsing: secret scanning must not depend on
 	// whether -m used a quoted message.
@@ -81,7 +81,11 @@ func CheckCommit(h *hook.Hook) error {
 	if err := scanSlop(h, detector(h), msg, "commit", "the commit message"); err != nil {
 		return err
 	}
-	if failed := commitMsg(h, msg, ok, repo); failed != "" {
+	if unread != "" {
+		return h.Block("can't read the commit message: "+unread+"\n"+
+			layout.KV("do", "give it in -m, a -m \"$(cat <<'EOF' ...)\" heredoc, -F - with a heredoc, or a file written in an earlier call"), "unread-text")
+	}
+	if failed := commitMsg(h, msg, unread == "", repo); failed != "" {
 		return h.Block("the project's commit-msg checks reject this message\n"+failed+"\n"+layout.KV("do", "fix it to their convention"), "commit-msg")
 	}
 	if !approved(h.Payload.String(hook.KeyTranscriptPath), subject) {
@@ -160,13 +164,15 @@ func commitCall(cmd, home, cwd string) commit {
 // would read it: its -m messages as paragraphs, a $(cat <<EOF) one read as
 // its body, else the file -F names, from repo or under home, unless the command names it
 // before the commit, or the commit line's heredoc
-// for -F - or a command that didn't parse. ok is false when it can't be
-// told exactly: no message, or one an expansion builds, whose -m text is
-// still msg, as written, for the subject checks.
-func message(cmd string, c commit, repo, home string) (msg string, ok bool) {
+// for -F - or a command that didn't parse. unread says why a message given
+// can't be told exactly; one an expansion builds is still msg, as written,
+// for the subject checks. A commit giving none (--no-edit) has neither.
+func message(cmd string, c commit, repo, home string) (msg, unread string) {
 	if !c.found {
-		body := heredocBody(cmd)
-		return body + "\n", body != ""
+		if body := heredocBody(cmd); body != "" {
+			return body + "\n", ""
+		}
+		return "", "part of the command didn't parse"
 	}
 	var paragraphs []string
 	file, expanded := "", false
@@ -175,7 +181,7 @@ func message(cmd string, c commit, repo, home string) (msg string, ok bool) {
 		case "-m", "--message":
 			if body, ok := catHeredoc(value); ok {
 				value = body
-			} else if strings.Contains(value, "$") {
+			} else if expansion.MatchString(value) {
 				expanded = true
 			}
 			paragraphs = append(paragraphs, value)
@@ -184,18 +190,29 @@ func message(cmd string, c commit, repo, home string) (msg string, ok bool) {
 		}
 	})
 	switch {
+	case len(paragraphs) > 0 && expanded:
+		return strings.Join(paragraphs, "\n\n") + "\n", "an expansion builds the message"
 	case len(paragraphs) > 0:
-		return strings.Join(paragraphs, "\n\n") + "\n", !expanded
-	case len(paragraphs) == 0 && file == "-":
-		body := heredocBody(cmd)
-		return body + "\n", body != ""
+		return strings.Join(paragraphs, "\n\n") + "\n", ""
+	case file == "-":
+		if body := heredocBody(cmd); body != "" {
+			return body + "\n", ""
+		}
+		return "", "stdin isn't in the command"
 	// Named before the commit, the file is likely written there first:
 	// what's on disk now is a stale message. Named after (an rm) it isn't.
-	case len(paragraphs) == 0 && file != "" && !strings.Contains(cmd[:c.start], filepath.Base(file)):
+	case expansion.MatchString(guard.ExpandHome(home, file)):
+		return "", "an expansion names the file"
+	case file != "" && strings.Contains(cmd[:c.start], filepath.Base(file)):
+		return "", "the command writes the file first"
+	case file != "":
 		data, err := os.ReadFile(fsx.Abs(repo, guard.ExpandHome(home, file)))
-		return string(data), err == nil
+		if err != nil {
+			return "", "the file isn't readable"
+		}
+		return string(data), ""
 	}
-	return "", false
+	return "", ""
 }
 
 // catHeredoc is the body of a -m value that is one $(cat <<EOF ... EOF)

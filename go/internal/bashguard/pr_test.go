@@ -1,9 +1,7 @@
 package bashguard
 
 import (
-	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/ku5ic/claude-kit/go/internal/testutil"
@@ -46,12 +44,6 @@ func TestGuardPR(t *testing.T) {
 		{"block: -F with a cd first", "cd .. && cd " + filepath.Base(cwd) + " && gh pr edit 3 -F tell.md", 2},
 		{"block: -F - from a heredoc", "gh pr comment 3 -F - <<'EOF'\nI hope this helps.\nEOF", 2},
 		{"block: -F - from a < file", `gh pr comment 3 -F - < tell.md`, 2},
-		{"allow (logged): -F - from a pipe", `cat tell.md | gh pr comment 3 -F -`, 0},
-		{"allow (logged): a file the command writes first", "printf x > tell.md && gh pr edit 3 -F tell.md", 0},
-		{"allow (logged): a missing file", `gh pr edit 3 -F missing.md`, 0},
-		{"allow (logged): a file a shell heredoc writes first", "bash <<'EOF'\nprintf x > tell.md\ngh pr edit 3 -F tell.md\nEOF", 0},
-		{"allow (logged): a body built by $(cat file)", `gh pr create -t x -b "$(cat tell.md)"`, 0},
-		{"allow (logged): a body in a variable", `gh pr comment 3 -b "$BODY"`, 0},
 		{"block: a tell next to a literal dollar amount", `gh pr comment 3 -b "Costs $5. I hope this helps."`, 2},
 		{"allow: the tell quoted in the body", `gh pr comment 3 -b 'Bans "I hope this helps".'`, 0},
 		{"allow: a dense tier 3 passage is only logged", `gh pr comment 3 -b "A robust, meticulous, comprehensive tool."`, 0},
@@ -61,11 +53,9 @@ func TestGuardPR(t *testing.T) {
 		{"block: gh api -F body=@file", `gh api repos/o/r/pulls/3 -X PATCH -F body=@tell.md`, 2},
 		{"allow: gh api -f body=@file is the literal text", `gh api repos/o/r/pulls/3 -X PATCH -f body=@tell.md`, 0},
 		{"allow: gh api -F body=@clean file", `gh api repos/o/r/pulls/3 -X PATCH -F body=@clean.md`, 0},
-		{"allow (logged): gh api -F body=@-", `cat tell.md | gh api repos/o/r/pulls/3 -X PATCH -F body=@-`, 0},
 		{"allow: gh api another field", `gh api repos/o/r/pulls/3 -X PATCH -f state="I hope this helps."`, 0},
 		{"block: gh api --input JSON body", `gh api repos/o/r/pulls/3 -X PATCH --input tell.json`, 2},
 		{"allow: gh api --input clean JSON", `gh api repos/o/r/pulls/3 -X PATCH --input clean.json`, 0},
-		{"allow (logged): gh api --input that isn't JSON", `gh api repos/o/r/pulls/3 -X PATCH --input tell.md`, 0},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			r := k.pr(cwd, c.cmd)
@@ -77,21 +67,37 @@ func TestGuardPR(t *testing.T) {
 	}
 }
 
-// What can't be read is logged with its source, so the shadow review sees
-// it; a block names the source.
-func TestGuardPRLogsWhatItCantRead(t *testing.T) {
+// Text the guard can't read blocks, naming its source, since no check sees
+// it; a heredoc or a < file is read.
+func TestGuardPRBlocksWhatItCantRead(t *testing.T) {
+	t.Parallel()
 	k := newSandbox(t)
-	cwd := t.TempDir()
-	k.pr(cwd, `cat body.md | gh api repos/o/r/pulls/3 -F body=@-`).Want(t, 0)
-	log, _ := os.ReadFile(filepath.Join(k.claude, "logs", "guards.jsonl"))
-	for _, want := range []string{`"slop-unread"`, `"gh api body field"`, "stdin"} {
-		if !strings.Contains(string(log), want) {
-			t.Errorf("guards log lacks %s:\n%s", want, log)
-		}
-	}
-	k.pr(cwd, `gh pr create -t x -b "I hope this helps."`).Has(t, "gh pr create --body")
-	k.pr(cwd, `gh pr create -t x -b "$(cat pr.md)"`).Want(t, 0)
-	if log, _ := os.ReadFile(filepath.Join(k.claude, "logs", "guards.jsonl")); !strings.Contains(string(log), "an expansion builds the text") {
-		t.Errorf("guards log lacks the unread body:\n%s", log)
+	cwd := testutil.Physical(t, t.TempDir())
+	testutil.Write(t, filepath.Join(cwd, "tell.md"), "## Summary\n\nI hope this helps.\n")
+	testutil.Write(t, filepath.Join(cwd, "clean.md"), "Reads the body from disk.\n")
+	for _, c := range []struct {
+		name, cmd string
+		status    int
+	}{
+		{"-F - from a pipe", `cat tell.md | gh pr comment 3 -F -`, 2},
+		{"a file the command writes first", "printf x > tell.md && gh pr edit 3 -F tell.md", 2},
+		{"a missing file", `gh pr edit 3 -F missing.md`, 2},
+		{"a file a shell heredoc writes first", "bash <<'EOF'\nprintf x > tell.md\ngh pr edit 3 -F tell.md\nEOF", 2},
+		{"a body built by $(cat file)", `gh pr create -t x -b "$(cat tell.md)"`, 2},
+		{"a body in a variable", `gh pr comment 3 -b "$BODY"`, 2},
+		{"gh api -F body=@-", `cat tell.md | gh api repos/o/r/pulls/3 -X PATCH -F body=@-`, 2},
+		{"gh api --input that isn't JSON", `gh api repos/o/r/pulls/3 -X PATCH --input tell.md`, 2},
+		{"printf piped to -F -", `printf x | gh pr create -t x -F -`, 2},
+		{"gh api body=@- from a pipe", `cat body.md | gh api repos/o/r/pulls/3 -F body=@-`, 2},
+		{"a clean -F - heredoc", "gh pr create -t x -F - <<'EOF'\nReads the body from disk.\nEOF", 0},
+		{"a clean -F - < file", `gh pr comment 3 -F - < clean.md`, 0},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			r := k.pr(cwd, c.cmd)
+			r.Want(t, c.status)
+			if c.status == 2 {
+				r.Has(t, "can't read", "rule  unread-text")
+			}
+		})
 	}
 }

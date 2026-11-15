@@ -57,8 +57,38 @@ func TestMessageIsWhatTheCommitMsgHookWouldRead(t *testing.T) {
 	// An expansion: the text as written, but not the message git gets.
 	cmd := `git commit -m "fix: $MSG"`
 	c := commitCall(cmd, "", dir)
-	if got, ok := message(cmd, c, c.repo, ""); got != "fix: $MSG\n" || ok {
-		t.Errorf("message(%q) = %q, %v, want the text as written and not ok", cmd, got, ok)
+	if got, unread := message(cmd, c, c.repo, ""); got != "fix: $MSG\n" || unread == "" {
+		t.Errorf("message(%q) = %q, %q, want the text as written and unread", cmd, got, unread)
+	}
+}
+
+// A message the guard can't read blocks, since no check sees it; a commit
+// that gives none (--no-edit) goes on.
+func TestGuardCommitBlocksAnUnreadMessage(t *testing.T) {
+	t.Parallel()
+	k := newSandbox(t)
+	cwd := testutil.Physical(t, t.TempDir())
+	testutil.Write(t, filepath.Join(cwd, "msg.txt"), "fix: from a file\n")
+	for cmd, status := range map[string]int{
+		`git commit -m "$msg"`: 2,
+		"git commit -m \"fix: x\" -m \"$(git log -1 --format=%b)\"": 2,
+		`printf 'fix: x' | git commit -F -`:                         2,
+		`echo "fix: new" > msg.txt && git commit -F msg.txt`:        2,
+		`S=/tmp && git commit -F $S/msg.txt`:                        2,
+		`git commit -F missing.txt`:                                 2,
+		"git commit -F - <<'EOF'\nfix: y\nEOF":                      0,
+		"git commit -m \"$(cat <<'EOF'\nfix: y\nEOF\n)\"":           0,
+		`git commit -F msg.txt`:                                     0,
+		`git commit -m "fix: costs \$5"`:                            0,
+		`git commit --amend --no-edit`:                              0,
+	} {
+		t.Run(cmd, func(t *testing.T) {
+			r := k.commit(cwd, cmd)
+			r.Want(t, status)
+			if status == 2 {
+				r.Has(t, "can't read the commit message", "rule  unread-text")
+			}
+		})
 	}
 }
 
@@ -84,7 +114,7 @@ func TestTheProjectsCommitMsgCheckBlocksAMessageItRejects(t *testing.T) {
 	r.Want(t, 2)
 	r.Has(t, "the project's commit-msg checks reject this message", "FAIL commit-msg (package.json: commitlint)", "type must be one of [feat, fix]")
 	k.commit(repo, `git commit -m "feat: add the thing"`).Want(t, 0)
-	k.commit(repo, `git commit -m "$MSG"`).Want(t, 0)
+	k.commit(repo, `git commit -m "$MSG"`).Has(t, "rule  unread-text")
 }
 
 func TestTheCommitMsgCheckIsTheRepoGitDashCNames(t *testing.T) {

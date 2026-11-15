@@ -11,7 +11,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
-	"github.com/ku5ic/claude-kit/go/internal/kitlog"
+	"github.com/ku5ic/claude-kit/go/internal/layout"
 	"github.com/ku5ic/claude-kit/go/internal/slop"
 )
 
@@ -37,9 +37,10 @@ var (
 )
 
 // CheckPR is guard-pr: it scans the text a gh command posts to a pull
-// request or an issue (body, title, comment, review) for AI tells, as guard-commit scans
-// a commit message. Text it can't read (a pipe on stdin, a file the command
-// writes first, an expansion) is logged, not blocked.
+// request, an issue, or a release (body, title, comment, review, notes) for
+// AI tells, as guard-commit scans a commit message. Text it can't read (a
+// pipe on stdin, a file the command writes first, an expansion) blocks,
+// since no check would see it.
 func CheckPR(h *hook.Hook) error {
 	if h.Payload.Err != nil {
 		return h.Payload.Err
@@ -59,8 +60,8 @@ func CheckPR(h *hook.Hook) error {
 		src := ghCall{call: w.call, before: w.seg.src[:min(w.call.start, len(w.seg.src))], home: h.Home, cwd: w.cwd}
 		for _, t := range src.texts(w.i + 1) {
 			if t.unread != "" {
-				h.Log(kitlog.Guards, "slop-unread", "source", t.where, "why", t.unread)
-				continue
+				return h.Block("can't read the text of "+t.where+": "+t.unread+"\n"+
+					layout.KV("do", "give it inline, in a \"$(cat <<'EOF' ...)\" heredoc, -F - with a heredoc, or a file written in an earlier call"), "unread-text")
 			}
 			if det == nil {
 				det = detector(h) // once per command, not per text
