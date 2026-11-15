@@ -88,6 +88,8 @@ func contextSetup(t *testing.T) *contextEnv {
 	// an install-rules.sh link would be left.
 	copyRules(t, rulesDir(e.paths))
 	testutil.Mkdir(t, filepath.Join(e.claude, "rules"))
+	// Attribution off, so only the cases about it get its notice.
+	testutil.Write(t, filepath.Join(e.claude, "settings.json"), `{"attribution": false}`)
 	e.kitYML("")
 	return e
 }
@@ -494,4 +496,44 @@ skill_file_map:
 		r.Want(t, 0)
 		r.Empty(t)
 	})
+}
+
+// SessionStart tells the user, and Claude, when Claude Code's attribution
+// isn't off: the highest settings file setting attribution must turn off
+// all of it on its own, since a file may replace the object whole.
+func TestInjectContextNotesAttributionLeftOn(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, user, local string
+		notice            bool
+	}{
+		{"includeCoAuthoredBy false alone leaves the session link on", `{"includeCoAuthoredBy": false}`, "", true},
+		{"no attribution key is the default, all on", `{}`, "", true},
+		{"pr off alone", `{"attribution": {"pr": ""}}`, "", true},
+		{"all three off", `{"attribution": {"commit": "", "pr": "", "sessionUrl": false}}`, "", false},
+		{"false", `{"attribution": false}`, "", false},
+		{"a local object over a user false", `{"attribution": false}`, `{"attribution": {"pr": ""}}`, true},
+		{"a local false over a user default", `{}`, `{"attribution": false}`, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			e := contextSetup(t)
+			testutil.Write(t, filepath.Join(e.claude, "settings.json"), tc.user)
+			if tc.local != "" {
+				testutil.Write(t, filepath.Join(e.root, ".claude", "settings.local.json"), tc.local)
+			}
+			r := e.inject("s1", "")
+			r.Want(t, 0)
+			if !tc.notice {
+				r.Lacks(t, "attribution")
+				return
+			}
+			out := parseSessionStart(t, r.Stdout)
+			for _, text := range []string{out.SystemMessage, out.HookSpecificOutput.AdditionalContext} {
+				if !strings.Contains(text, "Claude Code's attribution is on") || !strings.Contains(text, `"attribution": false`) {
+					t.Errorf("notice missing from %q", text)
+				}
+			}
+		})
+	}
 }

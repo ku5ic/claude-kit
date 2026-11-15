@@ -175,7 +175,7 @@ Your project's own checks run on the files Claude edited before it may say done,
 
 Claude starts a session knowing nothing about your repo, so it guesses your check commands and which tools to use. The kit tells it up front:
 
-- **Session start:** stack, package managers, the check commands, the CLI tools on PATH, and which pattern skills to load. Gap-fill runs in the background to answer what the project's configs leave open.
+- **Session start:** stack, package managers, the check commands, the CLI tools on PATH, and which pattern skills to load. A notice says when Claude Code's commit and PR attribution isn't off. Gap-fill runs in the background to answer what the project's configs leave open.
 - **Subagents:** the same repo context and scratch path.
 - **Plans:** in plan mode, Claude is pointed at `investigate`. Once a plan is approved, every prompt holds it to the next unchecked step.
 

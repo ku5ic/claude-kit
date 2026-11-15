@@ -1,6 +1,7 @@
 package hooks
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -70,11 +71,19 @@ func InjectContext(h *hook.Hook) error {
 	if dir := leftoverRulesLink(h.Paths); dir != "" {
 		lines = append(lines, dir+" holds the claude-kit rules, which now ship with the plugin: remove it, or they load twice")
 	}
-	if len(lines) == 0 {
+	var notices []string
+	if len(lines) > 0 {
+		notices = append(notices, "claude-kit install problems:\n"+strings.Join(lines, "\n"))
+	}
+	if file := attributionOn(h.Paths, h.Payload.Cwd()); file != "" {
+		notices = append(notices, "Claude Code's attribution is on ("+file+"): it adds a co-author trailer, a PR footer, and a session link, which the kit's guards then block. "+
+			`Set "attribution": false in your settings, or commit and pr to "" and sessionUrl to false.`)
+	}
+	if len(notices) == 0 {
 		h.Print(out.String())
 		return nil
 	}
-	notice := "claude-kit install problems:\n" + strings.Join(lines, "\n")
+	notice := strings.Join(notices, "\n\n")
 	h.Notify(notice)
 	h.AddContext("SessionStart", notice+"\n"+out.String())
 	return nil
@@ -318,6 +327,39 @@ func cliLines(cfg *config.Config) []string {
 // prerequisites names what the install is missing, "" when nothing is: a
 // readable kit.yml. The kit itself needs no tools beyond git and a POSIX
 // shell.
+// attributionOn names the settings file whose attribution leaves Claude
+// Code's attribution on, "default" when none sets it. The highest file
+// setting attribution (the project's local, then shared, then the user's)
+// must turn off all of it on its own: the docs don't say whether a file
+// replaces the object or merges into it. Managed settings aren't read.
+func attributionOn(paths config.Paths, cwd string) string {
+	files := []string{filepath.Join(paths.ClaudeDir, "settings.json")}
+	if root, _ := project.Root(cwd); root != "" {
+		files = append([]string{filepath.Join(root, ".claude", "settings.local.json"), filepath.Join(root, ".claude", "settings.json")}, files...)
+	}
+	for _, file := range files {
+		var settings struct {
+			Attribution json.RawMessage `json:"attribution"`
+		}
+		data, err := os.ReadFile(file)
+		if err != nil || json.Unmarshal(data, &settings) != nil || settings.Attribution == nil {
+			continue
+		}
+		var parts struct {
+			Commit, PR *string
+			SessionURL *bool `json:"sessionUrl"`
+		}
+		off := string(settings.Attribution) == "false" ||
+			json.Unmarshal(settings.Attribution, &parts) == nil &&
+				parts.Commit != nil && *parts.Commit == "" && parts.PR != nil && *parts.PR == "" && parts.SessionURL != nil && !*parts.SessionURL
+		if off {
+			return ""
+		}
+		return file
+	}
+	return "default"
+}
+
 func prerequisites(paths config.Paths) string {
 	f, err := os.Open(paths.Base)
 	if err != nil {

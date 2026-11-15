@@ -36,6 +36,8 @@ func injectContextSetup(t *testing.T, tree string) *injectContextEnv {
 	}
 	// Likewise a readable kit.yml; tests that need content overwrite it.
 	Touch(t, filepath.Join(k.Claude, "kit.yml"))
+	// Attribution off, so its notice doesn't turn the output into JSON.
+	Write(t, filepath.Join(k.Claude, "settings.json"), `{"attribution": false}`)
 	// Physical, as git reports the root the hook resolves.
 	return &injectContextEnv{Kit: k, tree: tree, tmp: tmp, root: Physical(t, proj)}
 }
