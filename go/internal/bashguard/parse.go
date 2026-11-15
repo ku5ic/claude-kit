@@ -117,7 +117,7 @@ func parseAll(src string) ([]Segment, bool) {
 
 type collector struct {
 	segs     []Segment
-	depth    int // of the parse in progress: error reparses and nested heredocs
+	depth    int // of the parse in progress: nested heredocs and env -S strings
 	subshell int // how many subshells the walk is inside
 	unparsed bool
 }
@@ -164,11 +164,13 @@ func (c *collector) parse(src string, depth int) {
 			tail = tail[:nl]
 		}
 		if i := strings.IndexAny(tail, ";&|"); i >= 0 {
-			c.parse(tail[i+1:], depth+1)
+			c.parse(tail[i+1:], depth)
 		}
 	}
-	if rest := afterLine(src, line); rest != "" {
-		c.parse(rest, depth+1)
+	// A reparse is a sibling, so it keeps depth: each runs on shorter input,
+	// so the recursion ends however many lines fail.
+	if rest := afterLine(src, max(line, 1)); rest != "" {
+		c.parse(rest, depth)
 	}
 }
 

@@ -439,6 +439,7 @@ func TestGuardBashParsing(t *testing.T) {
 		probe("pass", `arch -arm64 ls`)
 		probe("pass", `taskset -c 0 ls`)
 		probe("pass", `setsid ls`)
+		probe("block", strings.Repeat("echo $((ls) )\n", 12)+R)
 		probe("pass", `env`)
 		probe("pass", `command -v rm`)
 		// kit git-base: an explicit ask, so a settings allow rule can't approve it.

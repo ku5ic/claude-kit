@@ -1,6 +1,7 @@
 package bashguard
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -75,6 +76,29 @@ func FuzzSegments(f *testing.F) {
 	f.Fuzz(func(t *testing.T, src string) {
 		Segments(src)
 	})
+}
+
+// A reparse after an error is a sibling of the parse it follows, so any
+// number of bad lines leaves the next one read; only nesting is capped.
+func TestParseErrorsDontHideLaterLines(t *testing.T) {
+	src := strings.Repeat("echo $((ls) )\n", 12) + "rm -rf ~"
+	if got := names(src); !slices.Equal(got, []string{"rm"}) {
+		t.Errorf("after 12 bad lines: got %q, want [rm]", got)
+	}
+	if got := names(strings.Repeat("echo $((ls) ); ", 12) + "rm -rf ~"); !slices.Equal(got, []string{"rm"}) {
+		t.Errorf("after 12 bad statements on one line: got %q, want [rm]", got)
+	}
+	var nested strings.Builder
+	for i := range 9 {
+		fmt.Fprintf(&nested, "bash <<E%d\n", i)
+	}
+	nested.WriteString("rm -rf ~\n")
+	for i := 8; i >= 0; i-- {
+		fmt.Fprintf(&nested, "E%d\n", i)
+	}
+	if _, unparsed := parseAll(nested.String()); !unparsed {
+		t.Error("a heredoc nested 9 deep isn't unparsed")
+	}
 }
 
 func TestWordValues(t *testing.T) {
