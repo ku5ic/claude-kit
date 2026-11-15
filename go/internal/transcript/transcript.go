@@ -342,6 +342,11 @@ func parse(line []byte) (Entry, bool) {
 	if json.Unmarshal(line, &e) != nil {
 		return e, false
 	}
+	// Only the conversation's own turns carry its blocks: an
+	// api-request-blob echoes earlier ones, which would count twice.
+	if e.Type != "user" && e.Type != "assistant" {
+		e.Message.Content = nil
+	}
 	// The first byte says string or not, so a non-string isn't decoded twice.
 	if isString(e.Message.Content) {
 		_ = json.Unmarshal(e.Message.Content, &e.Text)

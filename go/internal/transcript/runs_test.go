@@ -27,6 +27,9 @@ func TestAgentRuns(t *testing.T) {
 		call("bgfail", "kit:x"), result("bgfail", "Async agent launched successfully.", false),
 		call("going", "kit:x"),
 		notice("bgfail", "killed"), notice("bg", "completed"), notice("bg", "killed"),
+		// An api-request-blob echoes a call and its result; neither counts again.
+		`{"type":"api-request-blob","message":{"role":"assistant","content":[{"type":"tool_use","id":"error","name":"Agent","input":{"subagent_type":"kit:x","prompt":"check error"}}]}}`,
+		`{"type":"api-request-blob","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"going","content":"report"}]}}`,
 	))
 	if err != nil {
 		t.Fatal(err)

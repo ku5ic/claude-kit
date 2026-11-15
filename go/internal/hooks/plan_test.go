@@ -196,6 +196,10 @@ func TestGuardPlan(t *testing.T) {
 		k.run("guard-plan", exit(k, write, critic, failed)).Denied(t)
 		k = newSandbox(t)
 		k.run("guard-plan", exit(k, write, critic, launched, notice("failed"))).Denied(t)
+		// An api-request-blob echoes the call; the echo isn't a new run.
+		blob := `{"type":"api-request-blob","message":{"role":"assistant","content":[{"type":"tool_use","id":"c","name":"Agent","input":{"subagent_type":"kit:plan-critic"}}]}}`
+		k = newSandbox(t)
+		k.run("guard-plan", exit(k, write, critic, failed, blob)).Denied(t)
 	})
 	t.Run("a critique that finished, or still runs in the background: allowed", func(t *testing.T) {
 		t.Parallel()
