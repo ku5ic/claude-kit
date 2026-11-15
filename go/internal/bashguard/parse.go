@@ -51,6 +51,10 @@ type Segment struct {
 	// subshell is a pipeline inside ( ), $( ), backticks, or <( ): a cd
 	// there moves nothing after it.
 	subshell bool
+	// loop is the outermost for, while, or until loop holding the
+	// pipeline, 0 for none: its body reruns, so an assignment anywhere in
+	// it may be in effect.
+	loop int
 }
 
 // Rest is the normalized source text after call's word, to the end of the
@@ -120,6 +124,8 @@ type collector struct {
 	segs     []Segment
 	depth    int // of the parse in progress: nested heredocs and env -S strings
 	subshell int // how many subshells the walk is inside
+	loop     int // the outermost loop the walk is inside, 0 for none
+	loops    int // loop ids handed out
 	unparsed bool
 }
 
@@ -222,13 +228,16 @@ func (c *collector) stmt(src string, s *syntax.Stmt) {
 		return
 	}
 
-	seg := Segment{src: src, end: segmentEnd(parts[len(parts)-1]), subshell: c.subshell > 0}
+	seg := Segment{src: src, end: segmentEnd(parts[len(parts)-1]), subshell: c.subshell > 0, loop: c.loop}
 	for _, p := range parts {
 		call, ok := p.Cmd.(*syntax.CallExpr)
 		if p.Cmd == nil {
 			// A redirect alone (> f, true | > f) is a call with no words,
 			// as x=1 > f is, so its target gets every redirect check.
 			call, ok = &syntax.CallExpr{}, true
+		}
+		if decl, isDecl := p.Cmd.(*syntax.DeclClause); isDecl {
+			call, ok = c.declCall(src, decl), true
 		}
 		if !ok {
 			// ( ... ) or { ... } inside a pipeline: its statements and its
@@ -278,6 +287,21 @@ func (c *collector) shellHeredocs(seg Segment) {
 			c.parse(body, c.depth+1)
 		}
 	}
+}
+
+// declCall is export R=rm (or declare, local, readonly, typeset) as the bare
+// assignment R=rm it makes, so $R resolves the same. A flag or a name with
+// no = assigns nothing; its substitutions are still collected.
+func (c *collector) declCall(src string, decl *syntax.DeclClause) *syntax.CallExpr {
+	call := &syntax.CallExpr{}
+	for _, a := range decl.Args {
+		if a.Naked {
+			c.inner(src, a)
+			continue
+		}
+		call.Assigns = append(call.Assigns, a)
+	}
+	return call
 }
 
 // call reads one simple command of a pipeline: its words, assignments, and
@@ -525,17 +549,18 @@ func envSplitString(words []Word) (string, bool) {
 		i := w.at
 		for j := i + 1; j < len(words) && strings.HasPrefix(words[j].Value, "-"); j++ {
 			opt, cmd := words[j].Value, ""
+			name, value, eq := strings.Cut(opt, "=")
 			switch {
 			case opt == "--":
 				return "", false
-			case opt == "--split-string":
+			case abbrevOf(name, "--split-string") && eq:
+				cmd = value
+			case abbrevOf(name, "--split-string"):
 				if j+1 >= len(words) {
 					return "", false
 				}
 				j++
 				cmd = words[j].Value
-			case strings.HasPrefix(opt, "--split-string="):
-				cmd = strings.TrimPrefix(opt, "--split-string=")
 			case strings.HasPrefix(opt, "--"):
 				if takesNextWord(wrappers["env"], opt) {
 					j++
@@ -572,40 +597,65 @@ func envSplitString(words []Word) (string, bool) {
 	return "", false
 }
 
-// assigned is the value each bare assignment in segs sets (R=rm; $R -rf ~),
-// the last one winning. A prefix assignment (R=rm $R) is left out: the
-// shell expands $R before it applies.
-func assigned(segs []Segment) map[string]string {
+// assigned is the value each bare assignment in seg sets (R=rm; $R -rf ~),
+// for the segments after it. A prefix assignment (R=rm $R) is left out:
+// the shell expands $R before it applies.
+func assigned(seg Segment) map[string]string {
 	vars := map[string]string{}
-	for _, seg := range segs {
-		for _, call := range seg.Calls {
-			if len(call.Words) > 0 {
-				continue
-			}
-			for _, a := range call.Assigns {
-				name, value, _ := strings.Cut(a, "=")
-				vars[name] = value
-			}
+	for _, call := range seg.Calls {
+		if len(call.Words) > 0 {
+			continue
+		}
+		for _, a := range call.Assigns {
+			name, value, _ := strings.Cut(a, "=")
+			vars[name] = value
 		}
 	}
 	return vars
 }
 
+// loopAssigned is every value each loop's bare assignments set, by loop
+// id: a later pass sees what an earlier one assigned.
+func loopAssigned(segs []Segment) map[int]map[string][]string {
+	out := map[int]map[string][]string{}
+	for _, seg := range segs {
+		if seg.loop == 0 {
+			continue
+		}
+		if out[seg.loop] == nil {
+			out[seg.loop] = map[string][]string{}
+		}
+		for name, value := range assigned(seg) {
+			out[seg.loop][name] = append(out[seg.loop][name], value)
+		}
+	}
+	return out
+}
+
 // varRef is a word that is one variable and nothing else: $R or ${R}.
 var varRef = regexp.MustCompile(`^\$(?:([A-Za-z_][A-Za-z0-9_]*)|\{([A-Za-z_][A-Za-z0-9_]*)\})$`)
 
-// varFields is the fields w expands to when it is a variable the command
-// assigned itself; nil for any other word, $EDITOR included.
-func (st *state) varFields(w Word) []string {
+// varFields is the fields w may expand to in seg when it is a variable the
+// command assigned itself: the value set before seg, and in a loop every
+// value the loop sets. Nil for any other word, $EDITOR included.
+func (st *state) varFields(seg Segment, w Word) [][]string {
 	m := varRef.FindStringSubmatch(w.Value)
 	if w.literal || m == nil {
 		return nil
 	}
-	value, ok := st.vars[m[1]+m[2]]
-	if !ok {
-		return nil
+	name := m[1] + m[2]
+	var values []string
+	if value, ok := st.vars[name]; ok {
+		values = append(values, value)
 	}
-	return strings.Fields(value)
+	values = append(values, st.loopVars[seg.loop][name]...)
+	var out [][]string
+	for _, v := range values {
+		if fields := strings.Fields(v); len(fields) > 0 {
+			out = append(out, fields)
+		}
+	}
+	return out
 }
 
 // inner collects the statements nested anywhere under n: substitution
@@ -620,6 +670,8 @@ func (c *collector) inner(src string, n syntax.Node) {
 		case *syntax.Stmt:
 			c.stmt(src, v)
 			return false
+		case *syntax.ForClause, *syntax.WhileClause:
+			return c.inLoop(src, v)
 		case *syntax.Subshell:
 			stmts = v.Stmts
 		case *syntax.CmdSubst:
@@ -636,11 +688,32 @@ func (c *collector) inner(src string, n syntax.Node) {
 	})
 }
 
+// inLoop collects an outermost for, while, or until loop's parts under a
+// loop id of their own, and reports whether the walk should descend: a loop
+// nested in another takes the outer one's id, since the outer pass reruns
+// it too.
+func (c *collector) inLoop(src string, loop syntax.Node) bool {
+	if c.loop != 0 {
+		return true
+	}
+	c.loops++
+	c.loop = c.loops
+	switch l := loop.(type) {
+	case *syntax.ForClause:
+		c.inner(src, l.Loop)
+		c.stmts(src, l.Do)
+	case *syntax.WhileClause:
+		c.stmts(src, append(slices.Clone(l.Cond), l.Do...))
+	}
+	c.loop = 0
+	return false
+}
+
 // pipeline flattens a | or |& chain (or a lone command, or a redirect
 // alone) into its parts; nil for anything else.
 func pipeline(s *syntax.Stmt) []*syntax.Stmt {
 	switch cmd := s.Cmd.(type) {
-	case *syntax.CallExpr, nil:
+	case *syntax.CallExpr, *syntax.DeclClause, nil:
 		return []*syntax.Stmt{s}
 	case *syntax.TimeClause:
 		// curl x | time sh feeds sh like any stage; a bare time has no

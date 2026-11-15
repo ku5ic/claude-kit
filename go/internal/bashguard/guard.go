@@ -104,8 +104,11 @@ type state struct {
 	pending string
 	// managers is each repo root's verified manager facts, read once per command.
 	managers map[string][]gapfill.Manager
-	// vars is what the command's own bare assignments set (R=rm; $R -rf ~).
+	// vars is what the command's own bare assignments set (R=rm; $R -rf ~),
+	// as of the segment being checked.
 	vars map[string]string
+	// loopVars is every value each loop's assignments set, by loop id.
+	loopVars map[int]map[string][]string
 }
 
 func (st *state) ask(reason string) {
@@ -138,11 +141,12 @@ func Check(h *hook.Hook) error {
 	if unparsed {
 		st.ask("guard-bash could not parse part of this command, so it went unchecked; confirm it")
 	}
-	st.vars = assigned(segs)
+	st.vars, st.loopVars = map[string]string{}, loopAssigned(segs)
 	for _, seg := range segs {
 		if err := st.segment(seg); err != nil {
 			return err
 		}
+		maps.Copy(st.vars, assigned(seg))
 	}
 	runs := cmd
 	switch {
@@ -317,23 +321,30 @@ func (st *state) segment(seg Segment) error {
 		if raw := call.Words[start].Raw; strings.Contains(raw, "$(") || strings.Contains(raw, "`") {
 			st.ask("the command name comes from a substitution, so guard-bash can't check it; confirm it")
 		}
-		c := command{st: st, name: baseName(call.Words[start].Value), args: call.Words[start+1:], redirs: call.Redirs, inputs: call.Inputs}
-		c.rest = seg.Rest(ci, start)
-		if fields := st.varFields(call.Words[start]); len(fields) > 0 {
-			// The shell splits an unquoted $R into the name and leading args.
-			lifted := make([]Word, 0, len(fields)-1+len(c.args))
-			for _, f := range fields[1:] {
-				lifted = append(lifted, Word{Value: f, Raw: f, literal: true})
-			}
-			if len(lifted) > 0 {
-				c.rest = " " + strings.Join(fields[1:], " ") + c.rest
-			}
-			c.name, c.args = baseName(fields[0]), append(lifted, c.args...)
+		// One check per value $R may hold; a plain name is checked once.
+		expansions := st.varFields(seg, call.Words[start])
+		if len(expansions) == 0 {
+			expansions = [][]string{nil}
 		}
-		c.text = c.name + c.rest
-		c.alone = len(seg.Calls) == 1 && !seg.subshell
-		if err := c.check(); err != nil {
-			return err
+		for _, fields := range expansions {
+			c := command{st: st, name: baseName(call.Words[start].Value), args: call.Words[start+1:], redirs: call.Redirs, inputs: call.Inputs}
+			c.rest = seg.Rest(ci, start)
+			if len(fields) > 0 {
+				// The shell splits an unquoted $R into the name and leading args.
+				lifted := make([]Word, 0, len(fields)-1+len(c.args))
+				for _, f := range fields[1:] {
+					lifted = append(lifted, Word{Value: f, Raw: f, literal: true})
+				}
+				if len(lifted) > 0 {
+					c.rest = " " + strings.Join(fields[1:], " ") + c.rest
+				}
+				c.name, c.args = baseName(fields[0]), append(lifted, c.args...)
+			}
+			c.text = c.name + c.rest
+			c.alone = len(seg.Calls) == 1 && !seg.subshell
+			if err := c.check(); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

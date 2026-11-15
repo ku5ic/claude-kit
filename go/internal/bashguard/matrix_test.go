@@ -394,6 +394,10 @@ func TestGuardBashParsing(t *testing.T) {
 		probe("block", `env -vS'rm -rf ~'`)
 		probe("pass", `env -iS 'ls -la'`)
 		probe("pass", `env -iu HOME ls`)
+		// getopt_long takes any unambiguous prefix of --split-string.
+		probe("block", `env --split-str 'rm -rf ~'`)
+		probe("block", `env --split='rm -rf ~'`)
+		probe("pass", `env --split-str 'ls -la'`)
 		// A command name written as $'..', or a variable this command assigns.
 		probe("block", `$'rm' -rf ~`)
 		probe("block", `$'\x72m' -rf ~`)
@@ -401,6 +405,26 @@ func TestGuardBashParsing(t *testing.T) {
 		probe("block", `R=rm; ${R} -rf ~`)
 		probe("block", `R="rm -rf"; $R ~`)
 		probe("pass", `R=ls; $R -la`)
+		// A declaration builtin assigns too.
+		probe("block", `export R=rm; $R -rf ~`)
+		probe("block", `declare -x R=rm; $R -rf ~`)
+		probe("block", `readonly R=rm; $R -rf ~`)
+		probe("block", `local R=rm; $R -rf ~`)
+		probe("block", `typeset R=rm; $R -rf ~`)
+		probe("pass", `export R=ls; $R -la`)
+		// $R holds what the assignments before it set, not the last one.
+		probe("block", `R=rm; $R -rf ~; R=ls`)
+		probe("block", `R=rm && $R -rf ~ && R=true`)
+		probe("pass", `R=rm; R=ls; $R -la`)
+		// A loop runs its body again: an assignment late in it is in effect
+		// for the next pass's earlier use.
+		probe("block", `for i in 1 2; do $R -rf ~; R=rm; done`)
+		probe("block", `while true; do $R -rf ~; R=rm; done`)
+		probe("block", `until false; do $R -rf ~; R=rm; done`)
+		probe("block", `for i in 1 2; do for j in 1; do $R -rf ~; done; R=rm; done`)
+		probe("block", `while $R -rf ~; do R=rm; done`)
+		probe("pass", `for i in 1 2; do $R -la; R=ls; done`)
+		probe("pass", `$R -rf ~; for i in 1; do R=rm; done`)
 		probe("pass", `$EDITOR notes.txt`)
 		probe("block", `echo x >& ~/.zshrc`)
 		probe("block", `watch -n 1 rm -rf ~`)
