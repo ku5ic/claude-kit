@@ -49,12 +49,12 @@ func Lines(text string) iter.Seq[Line] {
 				front, kind = true, Front
 			case front:
 				front, kind = !frontDelim.MatchString(line), Front
-			case fence != "" && strings.HasPrefix(trimmed, fence):
+			case fence != "" && closes(trimmed, fence):
 				fence, kind = "", FenceClose
 			case fence != "":
 				kind = Code
-			case strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~"):
-				fence, kind = trimmed[:3], FenceOpen
+			case opener(trimmed) != "":
+				fence, kind = opener(trimmed), FenceOpen
 			}
 			first = false
 			if !yield(Line{raw, kind}) {
@@ -62,4 +62,33 @@ func Lines(text string) iter.Seq[Line] {
 			}
 		}
 	}
+}
+
+// listMarker opens a list item, whose line a fence may follow.
+var listMarker = regexp.MustCompile(`^(?:[-*+]|\d{1,9}[.)])[ \t]+`)
+
+// fenceRun is the run of 3 or more backticks or tildes s opens with, or "".
+func fenceRun(s string) string {
+	if !strings.HasPrefix(s, "```") && !strings.HasPrefix(s, "~~~") {
+		return ""
+	}
+	return s[:len(s)-len(strings.TrimLeft(s, s[:1]))]
+}
+
+// opener is the fence a trimmed line opens, after any list marker, or "".
+// A backtick fence's info string holds no backtick (CommonMark 4.5).
+func opener(trimmed string) string {
+	line := listMarker.ReplaceAllString(trimmed, "")
+	run := fenceRun(line)
+	if run == "" || run[0] == '`' && strings.Contains(line[len(run):], "`") {
+		return ""
+	}
+	return run
+}
+
+// closes reports whether a trimmed line closes fence: a run of its
+// character at least as long, with nothing after it.
+func closes(trimmed, fence string) bool {
+	run := fenceRun(trimmed)
+	return run != "" && run[0] == fence[0] && len(run) >= len(fence) && trimmed == run
 }
