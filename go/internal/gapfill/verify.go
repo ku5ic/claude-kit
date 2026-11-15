@@ -323,13 +323,16 @@ func (f forms) runsConfigOnly(body string, depth int, scripts func(rel string) m
 		_, ok := scripts(rel)[name]
 		return provider == "package-scripts" && ok
 	}
+	// Only a command given the files counts. A script's arguments land at
+	// the end of its body, so its body is read with them there.
 	runs := func(c shellcalls.Command) bool {
 		switch {
 		case c.Kind == shellcalls.Other && len(c.Words) > 0:
-			return slices.Contains(configOnlyTools, filepath.Base(c.Words[0]))
+			return slices.Contains(configOnlyTools, filepath.Base(c.Words[0])) && slices.ContainsFunc(c.Words, holdsFiles)
 		case c.Kind == shellcalls.Ref:
 			return slices.ContainsFunc(c.Refs, func(ref shellcalls.TaskRef) bool {
-				return ref.Provider == "package-scripts" && f.runsConfigOnly(scripts(ref.Dir)[ref.Name].Text, depth+1, scripts)
+				return ref.Provider == "package-scripts" && slices.ContainsFunc(ref.Args, holdsFiles) &&
+					f.runsConfigOnly(scripts(ref.Dir)[ref.Name].Text+" {files}", depth+1, scripts)
 			})
 		}
 		return false
@@ -514,4 +517,9 @@ func around(w string) (before, after string) {
 // a glob, or a path that exists where the command runs.
 func (f forms) pathLike(w string) bool {
 	return w == "." || strings.HasSuffix(w, "/...") || strings.ContainsAny(w, "*?[") || fsx.IsFile(filepath.Join(f.dir, w)) || fsx.IsDir(filepath.Join(f.dir, w))
+}
+
+// holdsFiles is true when word takes a file form's files.
+func holdsFiles(word string) bool {
+	return strings.Contains(word, "{files}") || strings.Contains(word, "{dirs}")
 }

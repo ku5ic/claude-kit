@@ -198,6 +198,14 @@ func TestMalformedOutputLeavesEntriesUnclassifiedUntilTheCooldown(t *testing.T) 
 	if f.run(lint); len(f.asked()) != 1 {
 		t.Errorf("no answer is cached: past the cooldown the rerun asked %q", f.asked())
 	}
+	// A stamp ahead of the clock (a clock set back) holds nothing back.
+	f.ageFailures(-48 * time.Hour)
+	if f.run(lint); len(f.asked()) != 1 {
+		t.Errorf("a failure stamped 48h ahead held the rerun back: asked %q", f.asked())
+	}
+	if s := load(CacheFile(f.cacheDir, f.root)); s.Failed[Key(lint)].After(time.Now()) {
+		t.Errorf("the future stamp survived the save: %v", s.Failed)
+	}
 }
 
 func TestErrorEnvelopeIsNoAnswer(t *testing.T) {
@@ -770,7 +778,8 @@ func TestTscFileFormsAreDropped(t *testing.T) {
 	testutil.Put(t, f.root, "pnpm-lock.yaml", "")
 	testutil.Put(t, f.root, "package.json", `{"scripts": {"typecheck": "tsc --noEmit", "lint": "eslint", "loop": "pnpm run loop",
 		"a": "pnpm run b", "b": "pnpm run c", "c": "tsc --noEmit",
-		"w": "pnpm run x", "x": "pnpm run y", "y": "pnpm run z", "z": "tsc --noEmit"}}`)
+		"w": "pnpm run x", "x": "pnpm run y", "y": "pnpm run z", "z": "tsc --noEmit",
+		"first": "tsc --noEmit && eslint", "last": "eslint && tsc --noEmit"}}`)
 	testutil.Put(t, f.root, "src/a.ts", "")
 	testutil.Put(t, f.root, ".gitignore", "node_modules\n")
 	testutil.Git(t, f.root, "init", "-q")
@@ -793,6 +802,10 @@ func TestTscFileFormsAreDropped(t *testing.T) {
 		// Three scripts deep is still read; a fourth is past the cap.
 		{"pnpm run a src/a.ts", "pnpm run a {files}", false},
 		{"pnpm run w src/a.ts", "pnpm run w {files}", true},
+		// A script's arguments go to its last command: only a config-only
+		// command there drops the form.
+		{"pnpm run first src/a.ts", "pnpm run first {files}", true},
+		{"pnpm run last src/a.ts", "pnpm run last {files}", false},
 	}
 	var entries []sources.Entry
 	var verdicts []any

@@ -400,10 +400,17 @@ func load(file string) store {
 // retryAt is when an entry the classifier failed on may be asked again,
 // zero when it's askable now or cfg names another classifier.
 func (s store) retryAt(cfg *config.Config, key string, now time.Time) time.Time {
-	if at, ok := s.Failed[key]; ok && s.FailedBy == classifierID(cfg) && now.Sub(at) < failureCooldown {
+	if at, ok := s.Failed[key]; ok && s.FailedBy == classifierID(cfg) && !expired(at, now) {
 		return at.Add(failureCooldown)
 	}
 	return time.Time{}
+}
+
+// expired is true when a failure stamped at no longer holds its entry
+// back: past the cooldown, or ahead of the clock, which then can't say
+// when the cooldown ends.
+func expired(at, now time.Time) bool {
+	return at.After(now) || now.Sub(at) >= failureCooldown
 }
 
 // stale is true when an entry the policy allows has no answer, or the
@@ -442,7 +449,7 @@ func (s store) save(file string, entries []sources.Entry, now time.Time) {
 		}
 	}
 	for key, at := range s.Failed {
-		if now.Sub(at) >= failureCooldown {
+		if expired(at, now) {
 			delete(s.Failed, key)
 		}
 	}
