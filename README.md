@@ -52,7 +52,6 @@ Nothing to learn up front. After install:
 
 - [Enforced, not advised](#enforced-not-advised)
 - [What it catches](#what-it-catches)
-- [Measured, not promised](#measured-not-promised)
 - [What it costs](#what-it-costs)
 - [How you work with it](#how-you-work-with-it)
   - [Commands](#commands)
@@ -103,16 +102,6 @@ Each of these costs you a correction round when it gets through. The kit sends i
 | lose track of a plan halfway through                                          | It's held to the next unchecked step and stops for your review after each                                       |
 | give generic advice that ignores your stack                                   | Stack-specific pattern skills load when the repo calls for them                                                 |
 | spawn subagents that know none of the above                                   | Every subagent gets the same rules and repo context                                                             |
-
-## Measured, not promised
-
-Same model, same repo, same prompt, run with the kit and without it. Every run is scored, and every score is in `evals/scorecard/`.
-
-| You say             | Plain Claude Code                 | With claude-kit                                         |
-| ------------------- | --------------------------------- | ------------------------------------------------------- |
-| "Make calc better." | Edits on a guess, 6 runs out of 6 | Asks which "better" you mean, edits nothing, 6 out of 6 |
-
-Where plain Claude Code already gets it right (fixing a failing test, answering a question without touching code, keeping AI tells out of a README or a landing page), it still does with the kit on.
 
 ## What it costs
 
@@ -193,7 +182,7 @@ Hooks catch what a program can check. The rules cover the judgment calls a hook 
 | `subagents` | When to spawn a subagent, and check its work before building on it        |
 | `verify`    | What has to happen before a change is called done                         |
 
-Why each rule says what it says, with the evals behind it: [docs/rules.md](docs/rules.md).
+Why each rule says what it says: [docs/rules.md](docs/rules.md).
 
 ### Pattern skills
 

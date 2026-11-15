@@ -21,7 +21,6 @@
 ## Checklist
 
 - [ ] Each changed rule or behavior lives only in its owner from the CLAUDE.md table
-- [ ] Release PRs: evals rescored against `evals/scorecard/`
 
 ## Notes for reviewer
 
