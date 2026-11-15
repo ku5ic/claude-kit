@@ -91,15 +91,32 @@ func rawSpecs(text string) []spec {
 	}
 	var out []spec
 	for _, r := range raw {
-		if loc := specEnd.FindStringIndex(r); loc != nil {
-			r = r[:loc[0]]
-		}
+		r = specText(r)
 		r = strings.TrimPrefix(strings.Trim(r, `"'<>`), "package:")
 		if r != "" {
 			out = append(out, spec{r, kind})
 		}
 	}
 	return out
+}
+
+// specText is r up to where its spec ends: a quoted spec at its closing
+// quote, since a path may hold ( or a space (../(shop)/p); an unquoted one
+// at specEnd.
+func specText(r string) string {
+	if r != "" && strings.ContainsAny(r[:1], `"'<`) {
+		closer := r[:1]
+		if closer == "<" {
+			closer = ">"
+		}
+		if end := strings.Index(r[1:], closer); end >= 0 {
+			return r[1 : end+1]
+		}
+	}
+	if loc := specEnd.FindStringIndex(r); loc != nil {
+		return r[:loc[0]]
+	}
+	return r
 }
 
 // expandGroups is a::{b, c::{d, e}} as a::b, a::c::d, a::c::e; text with

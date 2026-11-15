@@ -23,7 +23,7 @@ func Run(args, skipDirs []string, stdout, stderr io.Writer) int {
 	var err error
 	switch {
 	case len(args) == 2 && args[0] == "imports":
-		err = Imports(args[1], skipDirs, stdout)
+		err = Imports(args[1], skipDirs, stdout, stderr)
 	case (len(args) == 4 || len(args) == 5) && args[0] == "deps":
 		split := ""
 		if len(args) == 5 {

@@ -49,7 +49,7 @@ func TestImportsGolden(t *testing.T) {
 	}
 	var out bytes.Buffer
 	// vendor/ is a skip_dirs entry: third-party code, not the repo's.
-	if err := Imports(fixtureRepo(t)+"/", []string{"vendor"}, &out); err != nil {
+	if err := Imports(fixtureRepo(t)+"/", []string{"vendor"}, &out, io.Discard); err != nil {
 		t.Fatal(err)
 	}
 	if want := testutil.Read(t, "testdata/imports.golden"); out.String() != want {
@@ -63,15 +63,46 @@ func TestImportsNamesAScanFailure(t *testing.T) {
 	bin := t.TempDir()
 	t.Setenv("PATH", bin+":/usr/bin:/bin")
 	testutil.Stub(t, filepath.Join(bin, "ast-grep"), "echo 'Error: Cannot parse rule kotlin' >&2\necho '  unknown kind import_header' >&2\nexit 8\n")
-	err := Imports(t.TempDir(), nil, io.Discard)
+	err := Imports(t.TempDir(), nil, io.Discard, io.Discard)
 	if err == nil || !strings.Contains(err.Error(), "exit status 8: Error: Cannot parse rule kotlin; unknown kind import_header") {
 		t.Errorf("a failed scan: %v", err)
 	}
 	testutil.Stub(t, filepath.Join(bin, "ast-grep"), "exec sleep 5\n")
 	defer func(d time.Duration) { scanTimeout = d }(scanTimeout)
 	scanTimeout = 100 * time.Millisecond
-	if err := Imports(t.TempDir(), nil, io.Discard); err == nil || !strings.Contains(err.Error(), "timed out after 100ms") {
+	if err := Imports(t.TempDir(), nil, io.Discard, io.Discard); err == nil || !strings.Contains(err.Error(), "timed out after 100ms") {
 		t.Errorf("a slow scan: %v", err)
+	}
+}
+
+// The scan reads TypeScript's import x = require(), a root written with
+// ./ or a trailing /., and skips a path a TSV row can't hold, saying so. A
+// root that doesn't exist is an error.
+func TestImportsReadsEveryFormAndPath(t *testing.T) {
+	t.Parallel()
+	if _, err := kittool.Path(astGrep...); err != nil {
+		if os.Getenv("CI") != "" {
+			t.Fatal(err)
+		}
+		t.Skip(err) // kit: allow ast-grep is optional on a dev machine
+	}
+	root := t.TempDir()
+	testutil.Write(t, filepath.Join(root, "src/a.ts"), "import x = require(\"../lib/b\");\n")
+	testutil.Write(t, filepath.Join(root, "src/tab\tfile.ts"), "import \"./a\";\n")
+	for _, r := range []string{root, root + "/.", root + "/src/.."} {
+		var out, stderr bytes.Buffer
+		if err := Imports(r, nil, &out, &stderr); err != nil {
+			t.Fatal(err)
+		}
+		if want := "src/a.ts\t\"../lib/b\"\n"; out.String() != want {
+			t.Errorf("%s: got %q, want %q", r, out.String(), want)
+		}
+		if !strings.Contains(stderr.String(), `skipped: "src/tab\tfile.ts"`) {
+			t.Errorf("%s: stderr %q", r, stderr.String())
+		}
+	}
+	if err := Imports(filepath.Join(root, "gone"), nil, io.Discard, io.Discard); err == nil {
+		t.Error("a missing root scanned clean")
 	}
 }
 
@@ -226,6 +257,8 @@ func TestRawSpecs(t *testing.T) {
 		`#include <stdio.h>`:                {{"stdio.h", plain}},
 		`require_relative "lib/a"`:          {{"lib/a", relative}},
 		`require("x")`:                      {{"x", plain}},
+		`import "../(shop)/p"`:              {{"../(shop)/p", plain}},
+		`require("../(shop)/p")`:            {{"../(shop)/p", plain}},
 		`use a::{b, c::{d, e}};`:            {{"a::b", plain}, {"a::c::d", plain}, {"a::c::e", plain}},
 		`pub(crate) use a::b as c;`:         {{"a::b", plain}},
 		`from pkg import a, b as c`:         {{"pkg.a", plain}, {"pkg.b", plain}},
