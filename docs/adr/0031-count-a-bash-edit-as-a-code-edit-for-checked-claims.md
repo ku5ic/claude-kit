@@ -10,7 +10,7 @@ Amends [29. Check only the statements no claim checker run has checked](0029-che
 
 ## Context
 
-[29](0029-check-only-the-statements-no-claim-checker-run-has-checked.md) counts a statement as checked once the transcript shows a finished claim-checker run that covered it. 64f5c9b then dropped a run launched before the last code edit (`calls[b.ID] = i > l.lastEdit` in `go/internal/hooks/claims.go`), which 29 doesn't record. That last edit came from `transcript.Edits`, which counts only Edit, Write, MultiEdit, and NotebookEdit (`EditTools` in `go/internal/transcript/transcript.go`). A `sed -i`, a `git checkout`, or a script that rewrote code left an earlier run standing.
+[29](0029-check-only-the-statements-no-claim-checker-run-has-checked.md) counts a statement as checked once the transcript shows a finished claim-checker run that covered it. b6fbc4f then dropped a run launched before the last code edit (`calls[b.ID] = i > l.lastEdit` in `go/internal/hooks/claims.go`), which 29 doesn't record. That last edit came from `transcript.Edits`, which counts only Edit, Write, MultiEdit, and NotebookEdit (`EditTools` in `go/internal/transcript/transcript.go`). A `sed -i`, a `git checkout`, or a script that rewrote code left an earlier run standing.
 
 ## Decision
 

@@ -15,7 +15,7 @@ Amended by [32. Run git and bash by name, and test where PATH is read](0032-run-
 [9](0009-resolve-tools-from-the-project-first.md) says `go/internal/resolve` picks every binary the kit runs and refuses a copy that's only on PATH without a pin. Seven packages called a binary by name instead:
 
 - the on_edit formatters (`onPath` in `go/internal/hooks/format.go`), which `kit.yml` documents as "the first command on PATH formats it"
-- ast-grep (`astGrep` in `go/internal/codegraph/imports.go`, from 8cc6a1b)
+- ast-grep (`astGrep` in `go/internal/codegraph/imports.go`, from 894bc2b)
 - gitleaks (`go/internal/bashguard/commit.go`)
 - just (`go/internal/sources/extract.go`)
 - the registry lookups' npm and go (`go/internal/pkgcheck/lookup.go`)
