@@ -299,6 +299,9 @@ func (st *state) segment(seg Segment) error {
 		if err := st.redirects(call); err != nil {
 			return err
 		}
+		if runsString(call.Words) {
+			return st.h.Block(wrapReason, "interpreter-c-wrap")
+		}
 		start := lead(call.Words)
 		if start >= len(call.Words) {
 			continue

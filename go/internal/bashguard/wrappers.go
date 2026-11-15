@@ -9,20 +9,28 @@ import (
 // wrapperSpec is the grammar of a wrapper, a command that only changes how
 // (or as whom) another runs: its options that take a separate value, and
 // whether a word after them is its own operand rather than the command.
+// whole is for options that are whole words, never short-option clusters
+// (arch -arm64e isn't -a -r -m -6 -4 -e).
 type wrapperSpec struct {
 	values  []string
 	operand func(word string) bool
+	whole   bool
 }
 
 // takes is true when option opt ("-u", "--user") takes a value.
 func (s wrapperSpec) takes(opt string) bool { return slices.Contains(s.values, opt) }
 
-func numeric(word string) bool { return word != "" && word[0] >= '0' && word[0] <= '9' }
+// numeric is a number as timeout and chrt read one: 5, 0.5, .5, 5s, inf.
+func numeric(word string) bool {
+	digits := strings.TrimPrefix(word, ".")
+	return digits != "" && digits[0] >= '0' && digits[0] <= '9' || strings.HasPrefix(strings.ToLower(word), "inf")
+}
 
 func always(string) bool { return true }
 
 // wrappers are the wrappers lead sees through. busybox and toybox run their
-// first word as the applet; flock's first operand is its lock file.
+// first word as the applet; flock's first operand is its lock file,
+// taskset's its CPU mask or list, script's (macOS) its log file.
 var (
 	wrappers = map[string]wrapperSpec{
 		"command": {}, "builtin": {}, "nohup": {}, "unbuffer": {}, "busybox": {}, "toybox": {},
@@ -40,6 +48,11 @@ var (
 		"time":       {values: []string{"-f", "-o", "--format", "--output"}},
 		"flock":      {values: []string{"-w", "-E", "--timeout", "--conflict-exit-code"}, operand: always},
 		"watch":      {values: []string{"-n", "-q", "--interval", "--equexit"}},
+		"setsid":     {},
+		"arch":       {values: []string{"-arch", "-d", "-e"}, whole: true},
+		"taskset":    {operand: always},
+		"script": {values: []string{"-c", "-E", "-I", "-O", "-B", "-T", "-m", "-o", "-t",
+			"--command", "--echo", "--log-in", "--log-out", "--log-io", "--log-timing", "--logging-format", "--output-limit"}, operand: always},
 	}
 	assignment = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*=`)
 )
@@ -105,6 +118,9 @@ func lead(words []Word) int {
 // short-option cluster (sudo -Eu) does when its first value-taking letter is
 // its last; one earlier takes the rest of the word (sudo -uroot).
 func takesNextWord(spec wrapperSpec, opt string) bool {
+	if spec.whole {
+		return spec.takes(opt)
+	}
 	if strings.HasPrefix(opt, "--") {
 		// getopt_long takes any unambiguous prefix (sudo --us root); a
 		// value after = is in the word already.
@@ -119,6 +135,36 @@ func takesNextWord(spec wrapperSpec, opt string) bool {
 		}
 	}
 	return false
+}
+
+// runsString is true when a wrapper in words runs a command string, as
+// script -c does: like sh -c, the string never surfaces as its own call.
+func runsString(words []Word) bool {
+	ws, _ := wrappedBy(words)
+	for _, w := range ws {
+		if w.name != "script" {
+			continue
+		}
+		for _, o := range words[w.at+1 : w.end] {
+			if o.Value == "--" {
+				break
+			}
+			if commandOption(o.Value) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// commandOption is -c, in a short-option cluster too, or --command, as su
+// and script spell the option that runs a string.
+func commandOption(v string) bool {
+	if name, ok := strings.CutPrefix(v, "--"); ok {
+		name, _, _ = strings.Cut(name, "=")
+		return name != "" && abbrevOf("--"+name, "--command")
+	}
+	return len(v) > 1 && v[0] == '-' && strings.ContainsRune(v[1:], 'c')
 }
 
 // rootShell is true for sudo or doas told to start a shell (sudo -s, sudo -i,

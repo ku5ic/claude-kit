@@ -264,6 +264,13 @@ var commandChecks = map[string]func(*command) error{
 	"eval": func(c *command) error {
 		return c.block("eval runs a command string that bypasses the permission allow list\n"+layout.KV("do", "run the command directly as a Bash tool call"), "interpreter-c-wrap")
 	},
+	"su": func(c *command) error {
+		// Anywhere: after the user, and after --, the words go to the shell.
+		if slices.ContainsFunc(c.values(), commandOption) {
+			return c.block(wrapReason, "interpreter-c-wrap")
+		}
+		return nil
+	},
 	"kit": (*command).kit,
 	"sed": (*command).inPlaceEdit,
 	"sd":  (*command).inPlaceEdit,
