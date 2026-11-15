@@ -30,8 +30,9 @@ var couplingNoise = regexp.MustCompile(`\.snap$|\.lock$|-lock\.|go\.(sum|mod)$|g
 // pair of files in different directories that changed together at least
 // minShared times, under a header row: shared commits, coupling degree
 // (shared over the less-changed file's commits), whether either imports
-// the other, and both paths. A file root no longer tracks is in no pair.
-func Coupling(gitLog, resolved, root string, out io.Writer) error {
+// the other, and both paths. A file root no longer tracks, or one under
+// skipDirs or testdata, as imports and deps skip it, is in no pair.
+func Coupling(gitLog, resolved, root string, skipDirs []string, out io.Writer) error {
 	commits, err := readCommits(gitLog)
 	if err != nil {
 		return err
@@ -42,7 +43,7 @@ func Coupling(gitLog, resolved, root string, out io.Writer) error {
 	}
 	tracked := map[string]bool{}
 	for _, f := range files {
-		tracked[f] = true
+		tracked[f] = !skipped(f, skipDirs)
 	}
 	changes, pairs := map[string]int{}, map[pair]int{}
 	for _, c := range commits {

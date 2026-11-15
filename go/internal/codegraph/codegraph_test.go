@@ -234,6 +234,27 @@ func TestDepsLeavesAnUntrackedGoPackageOut(t *testing.T) {
 	}
 }
 
+// A root go.mod's own package is the repo root's files, which no tracked
+// directory names.
+func TestDepsResolvesAGoImportOfTheRootPackage(t *testing.T) {
+	t.Parallel()
+	out, _ := deps(t, map[string]string{"go.mod": "module ex.com/m\n", "lib.go": "", "lib_test.go": "", "cmd/x/main.go": ""},
+		"cmd/x/main.go\t\"ex.com/m\"\n", nil)
+	if got := testutil.Read(t, filepath.Join(out, "imports-resolved.tsv")); got != "cmd/x/main.go\tlib.go\n" {
+		t.Errorf("imports-resolved:\n%s", got)
+	}
+}
+
+// A split holding only source files keeps its file modules beside a
+// directory of assets. Only source files make a child module.
+func TestDepsKeepsFileModulesBesideANonSourceDir(t *testing.T) {
+	t.Parallel()
+	out, _ := deps(t, map[string]string{"src/a.ts": "", "src/b.ts": "", "src/assets/x.png": ""}, "src/a.ts\t\"./b\"\n", nil)
+	if got := testutil.Read(t, filepath.Join(out, "deps.tsv")); got != "1\tsrc/a\tsrc/b\n" {
+		t.Errorf("deps:\n%s", got)
+	}
+}
+
 // A Python import's name isn't always its distribution's (yaml is PyYAML),
 // and a workspace package imported by its package.json name is an edge.
 func TestDepsMatchesImportNamesToTheirPackages(t *testing.T) {
@@ -285,7 +306,7 @@ func TestDepsLeavesASkippedDirOutOfTheModules(t *testing.T) {
 func TestCouplingGolden(t *testing.T) {
 	t.Parallel()
 	var out bytes.Buffer
-	if err := Coupling("testdata/gitlog.txt", "testdata/deps/imports-resolved.golden", fixtureRepo(t), &out); err != nil {
+	if err := Coupling("testdata/gitlog.txt", "testdata/deps/imports-resolved.golden", fixtureRepo(t), nil, &out); err != nil {
 		t.Fatal(err)
 	}
 	if want := testutil.Read(t, "testdata/coupling.golden"); out.String() != want {
@@ -306,7 +327,7 @@ func TestCouplingReadsAGoImportOfAnIndexPackage(t *testing.T) {
 	testutil.Write(t, gitLog, log.String())
 	testutil.Write(t, resolved, "cmd/x/main.go\tinternal/index\ncmd/x/main.go\tpkg/v1.2\n")
 	var out bytes.Buffer
-	if err := Coupling(gitLog, resolved, tracked(t, "cmd/x/main.go", "internal/index/i.go", "pkg/v1.2/v.go"), &out); err != nil {
+	if err := Coupling(gitLog, resolved, tracked(t, "cmd/x/main.go", "internal/index/i.go", "pkg/v1.2/v.go"), nil, &out); err != nil {
 		t.Fatal(err)
 	}
 	for _, pair := range []string{"cmd/x/main.go\tinternal/index/i.go", "cmd/x/main.go\tpkg/v1.2/v.go"} {
@@ -348,7 +369,28 @@ func TestCouplingSkipsGoneFilesAndBulkCommits(t *testing.T) {
 	testutil.Write(t, gitLog, log.String())
 	testutil.Write(t, resolved, "")
 	var out bytes.Buffer
-	if err := Coupling(gitLog, resolved, tracked(t, "a/x.py", "c/z.py"), &out); err != nil {
+	if err := Coupling(gitLog, resolved, tracked(t, "a/x.py", "c/z.py"), nil, &out); err != nil {
+		t.Fatal(err)
+	}
+	if want := "shared\tdegree\tlink\tfile_a\tfile_b\n"; out.String() != want {
+		t.Errorf("got:\n%s", out.String())
+	}
+}
+
+// A file under skip_dirs (a committed vendor/) couples with nothing, as
+// imports and deps leave it out.
+func TestCouplingLeavesSkipDirsOut(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	var log strings.Builder
+	for i := range 6 {
+		fmt.Fprintf(&log, "--%040d\n\nsrc/a.py\nvendor/lib/v.py\n\n", i)
+	}
+	gitLog, resolved := filepath.Join(dir, "gitlog.txt"), filepath.Join(dir, "imports-resolved.tsv")
+	testutil.Write(t, gitLog, log.String())
+	testutil.Write(t, resolved, "")
+	var out bytes.Buffer
+	if err := Coupling(gitLog, resolved, tracked(t, "src/a.py", "vendor/lib/v.py"), []string{"vendor"}, &out); err != nil {
 		t.Fatal(err)
 	}
 	if want := "shared\tdegree\tlink\tfile_a\tfile_b\n"; out.String() != want {

@@ -16,6 +16,9 @@ type graph struct {
 	rootRank map[string]int // source roots, best first
 	roots    []string
 	bare     map[bareKey]string
+	// rootGo is the first non-test .go file at the repo root, where an import
+	// of a root go.mod's own package lands.
+	rootGo string
 }
 
 type bareKey struct {
@@ -33,6 +36,9 @@ func newGraph(root string, files []string) *graph {
 		g.parents[name][parent] = true
 	}
 	for _, file := range files {
+		if g.rootGo == "" && !strings.Contains(file, "/") && strings.HasSuffix(file, ".go") && !strings.HasSuffix(file, "_test.go") {
+			g.rootGo = file
+		}
 		stem := moduleStem(file)
 		g.known[strings.ToLower(file)] = file
 		g.known[strings.ToLower(stem)] = stem
@@ -185,7 +191,12 @@ func (g *graph) resolve(file string, s spec) (target string, ok bool) {
 		return g.resolveRelative(file, path.Join(dir, s.path))
 	case s.kind == rooted && ecosystems[path.Ext(file)] == "go":
 		// A Go import names its package's directory, never an item below it.
-		real, ok := g.known[strings.ToLower(strings.Trim(s.path, "/"))]
+		dir := strings.ToLower(strings.Trim(s.path, "/"))
+		if dir == "" {
+			// A root go.mod's package is the repo root, which no tracked path names.
+			return g.rootGo, g.rootGo != ""
+		}
+		real, ok := g.known[dir]
 		return real, ok
 	case s.kind == rooted:
 		return cmp.Or(g.longestExisting("", s.path), s.path), true

@@ -31,7 +31,7 @@ func Run(args, skipDirs []string, stdout, stderr io.Writer) int {
 		}
 		err = Deps(args[1], args[2], args[3], split, skipDirs, stdout)
 	case len(args) == 4 && args[0] == "coupling":
-		err = Coupling(args[1], args[2], args[3], stdout)
+		err = Coupling(args[1], args[2], args[3], skipDirs, stdout)
 	case len(args) == 2 && args[0] == "fingerprint":
 		var lines []string
 		if lines, err = Fingerprint(args[1]); err == nil {

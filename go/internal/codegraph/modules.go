@@ -38,9 +38,11 @@ type modules struct {
 	children map[string]bool
 }
 
-func newModules(split string, known map[string]string) modules {
+// newModules reads the split's child modules from sources: a directory of
+// assets beside the split's files is no module.
+func newModules(split string, sources []string) modules {
 	m := modules{split: split, children: map[string]bool{}}
-	for _, p := range known {
+	for _, p := range sources {
 		if rest, ok := strings.CutPrefix(p, split+"/"); ok && split != "" {
 			if child, _, nested := strings.Cut(rest, "/"); nested {
 				m.children[child] = true

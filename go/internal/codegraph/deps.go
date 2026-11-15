@@ -41,7 +41,7 @@ func Deps(root, imports, outDir, split string, skipDirs []string, w io.Writer) e
 	split = splitDir(split, sources)
 	specs := g.specs(rows)
 	g.rankRoots(specs)
-	if err := build(specs, g, newModules(split, g.known), skipDirs).write(outDir); err != nil {
+	if err := build(specs, g, newModules(split, sources), skipDirs).write(outDir); err != nil {
 		return err
 	}
 	mainRoot := "none"
