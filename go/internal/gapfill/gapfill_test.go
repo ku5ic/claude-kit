@@ -203,7 +203,7 @@ func TestMalformedOutputLeavesEntriesUnclassifiedUntilTheCooldown(t *testing.T) 
 	if f.run(lint); len(f.asked()) != 1 {
 		t.Errorf("a failure stamped 48h ahead held the rerun back: asked %q", f.asked())
 	}
-	if s := load(CacheFile(f.cacheDir, f.root)); s.Failed[Key(lint)].After(time.Now()) {
+	if s := load(CacheFile(f.cacheDir, f.root)); s.Failed[Key(lint)].At.After(time.Now()) {
 		t.Errorf("the future stamp survived the save: %v", s.Failed)
 	}
 }
@@ -383,6 +383,7 @@ func TestAFailedBatchKeepsTheOthersAnswers(t *testing.T) {
 	if len(r.Verdicts) != 2*batchSize || !strings.HasPrefix(r.Skipped[Key(last)], "unclassified (classifier: ") {
 		t.Fatalf("%d classified, the failed one skipped as %q", len(r.Verdicts), r.Skipped[Key(last)])
 	}
+	why := strings.TrimSuffix(strings.TrimPrefix(r.Skipped[Key(last)], "unclassified (classifier: "), ")")
 
 	testutil.Put(t, f.dir, "fail", "")
 	f.answer(answers(verdicts...))
@@ -391,6 +392,9 @@ func TestAFailedBatchKeepsTheOthersAnswers(t *testing.T) {
 	r = f.run(entries...)
 	if len(f.calls()) != before || !strings.HasPrefix(r.Skipped[Key(last)], coolingReason) || r.Unclassified() != 0 {
 		t.Errorf("within the cooldown: %d calls, skipped as %q, %d unclassified", len(f.calls())-before, r.Skipped[Key(last)], r.Unclassified())
+	}
+	if !strings.Contains(r.Skipped[Key(last)], why) {
+		t.Errorf("within the cooldown, skipped as %q, without the failure %q", r.Skipped[Key(last)], why)
 	}
 
 	f.ageFailures(failureCooldown)
@@ -423,8 +427,9 @@ func (f *fixture) ageFailures(d time.Duration) {
 	f.t.Helper()
 	file := CacheFile(f.cacheDir, f.root)
 	s := load(file)
-	for key, at := range s.Failed {
-		s.Failed[key] = at.Add(-d)
+	for key, call := range s.Failed {
+		call.At = call.At.Add(-d)
+		s.Failed[key] = call
 	}
 	data, err := json.Marshal(s)
 	if err != nil {

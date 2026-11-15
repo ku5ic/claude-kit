@@ -176,7 +176,7 @@ const (
 	unclassifiedReason = "unclassified"
 	// coolingReason is an unclassified entry the classifier failed on
 	// within failureCooldown: asking again now would likely fail again.
-	coolingReason = unclassifiedReason + " (the classifier failed on it; asked again after "
+	coolingReason = unclassifiedReason + " (the classifier failed on it: "
 )
 
 // failureCooldown is how long an entry the classifier failed on waits
@@ -190,11 +190,17 @@ type store struct {
 	Context   string             `json:"context"` // the project the facts below answer
 	Managers  []Manager          `json:"managers"`
 	Proposals []Proposal         `json:"proposals"`
-	// Failed is when the classifier last failed on an entry, by Key, and
-	// FailedBy the classifier command it failed as. A changed command asks
-	// again at once.
-	Failed   map[string]time.Time `json:"failed,omitempty"`
-	FailedBy string               `json:"failed_by,omitempty"`
+	// Failed is when and why the classifier last failed on an entry, by
+	// Key, and FailedBy the classifier command it failed as. A changed
+	// command asks again at once.
+	Failed   map[string]failedCall `json:"failures,omitempty"`
+	FailedBy string                `json:"failed_by,omitempty"`
+}
+
+// failedCall is a classifier call that failed: when, and its error.
+type failedCall struct {
+	At  time.Time `json:"at"`
+	Why string    `json:"why"`
 }
 
 type answer struct {
@@ -347,11 +353,12 @@ func ask(cfg *config.Config, o Options, p view, file string, s store) (_ store, 
 				clear(locked.Failed)
 				locked.FailedBy = by
 			}
+			call := failedCall{At: now, Why: errs[i].Error()}
 			for _, e := range reqs[i].Entries {
-				locked.Failed[Key(e)] = now
+				locked.Failed[Key(e)] = call
 			}
 			if reqs[i].Facts {
-				locked.Failed[factsKey(p.Key)] = now
+				locked.Failed[factsKey(p.Key)] = call
 			}
 			continue
 		}
@@ -409,7 +416,7 @@ func load(file string) store {
 		s.Entries = map[string]*answer{}
 	}
 	if s.Failed == nil {
-		s.Failed = map[string]time.Time{}
+		s.Failed = map[string]failedCall{}
 	}
 	return s
 }
@@ -417,8 +424,8 @@ func load(file string) store {
 // retryAt is when an entry the classifier failed on may be asked again,
 // zero when it's askable now or cfg names another classifier.
 func (s store) retryAt(cfg *config.Config, key string, now time.Time) time.Time {
-	if at, ok := s.Failed[key]; ok && s.FailedBy == classifierID(cfg) && !expired(at, now) {
-		return at.Add(failureCooldown)
+	if f, ok := s.Failed[key]; ok && s.FailedBy == classifierID(cfg) && !expired(f.At, now) {
+		return f.At.Add(failureCooldown)
 	}
 	return time.Time{}
 }
@@ -465,8 +472,8 @@ func (s store) save(file string, entries []sources.Entry, now time.Time) {
 			a.Seen = now
 		}
 	}
-	for key, at := range s.Failed {
-		if expired(at, now) {
+	for key, f := range s.Failed {
+		if expired(f.At, now) {
 			delete(s.Failed, key)
 		}
 	}
