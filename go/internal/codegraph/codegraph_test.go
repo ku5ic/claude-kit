@@ -558,6 +558,21 @@ func TestDepsKeepsAGoPackageWhole(t *testing.T) {
 	}
 }
 
+// Only the file's own language names a directory by a basename, once:
+// index for JS and TS, __init__ for Python, mod for Rust.
+func TestModuleStem(t *testing.T) {
+	t.Parallel()
+	for p, want := range map[string]string{
+		"src/index.ts": "src", "src/mod/index.ts": "src/mod", "src/mod.ts": "src/mod", "src/__init__.ts": "src/__init__",
+		"pkg/__init__.py": "pkg", "pkg/index.py": "pkg/index", "src/net/mod.rs": "src/net", "src/index/mod.rs": "src/index",
+		"lib/util.go": "lib/util", "index.ts": "index",
+	} {
+		if got := moduleStem(p); got != want {
+			t.Errorf("moduleStem(%q) = %q, want %q", p, got, want)
+		}
+	}
+}
+
 func TestRunUsage(t *testing.T) {
 	t.Parallel()
 	var stdout, stderr bytes.Buffer

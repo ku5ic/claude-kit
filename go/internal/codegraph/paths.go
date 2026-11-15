@@ -17,12 +17,17 @@ import (
 var testOrStory = regexp.MustCompile(`(^|/)(tests?|spec|__tests__|mocks?|testdata|fixtures|stories)/` +
 	`|[._-](test|spec|stories)\.[^/]+$|(^|/)test_[^/]+$|Tests?\.[A-Za-z]+$`)
 
-// moduleStem is what an import of p names: no extension, no index,
-// __init__, or mod.
+// dirFiles is the basename that stands for its directory, by ecosystem.
+var dirFiles = map[string]string{"npm": "index", "python": "__init__", "rust": "mod"}
+
+// moduleStem is what an import of p names: no extension, and no basename
+// its language reads as the directory (src/mod/index.ts is src/mod).
 func moduleStem(p string) string {
-	stem := strings.TrimSuffix(p, path.Ext(p))
-	for _, name := range []string{"/index", "/__init__", "/mod"} {
-		stem = strings.TrimSuffix(stem, name)
+	ext := path.Ext(p)
+	stem := strings.TrimSuffix(p, ext)
+	// A root index.ts stays index, since the root is no module.
+	if dir, base := path.Split(stem); dir != "" && base == dirFiles[ecosystems[ext]] {
+		return strings.TrimSuffix(dir, "/")
 	}
 	return stem
 }
