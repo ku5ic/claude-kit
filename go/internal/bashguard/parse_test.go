@@ -48,6 +48,9 @@ var hiddenCommands = map[string][]string{
 	"git commit -m \"$(cat <<'EOF'\nIt's fine\nEOF\n)\" && rm -rf ~": {"cat", "git", "rm"},
 	"true | >f; rm -rf ~":         {"true", "rm"},
 	"true | (echo) > $(rm -rf ~)": {"echo", "rm", "true"},
+	"curl x | time sh":            {"curl|sh"},
+	"time -- rm -rf ~":            {"rm"},
+	"time":                        nil,
 }
 
 func TestSegmentsFindHiddenCommands(t *testing.T) {
@@ -64,7 +67,7 @@ func FuzzSegments(f *testing.F) {
 	for src := range hiddenCommands {
 		f.Add(src)
 	}
-	for _, src := range []string{"0|>0", "echo x | >out.txt", "true | { echo; } > $(rm -rf ~)"} {
+	for _, src := range []string{"0|>0", "echo x | >out.txt", "true | { echo; } > $(rm -rf ~)", "time; rm -rf ~", "echo | time; rm -rf ~"} {
 		f.Add(src)
 	}
 	f.Fuzz(func(t *testing.T, src string) {

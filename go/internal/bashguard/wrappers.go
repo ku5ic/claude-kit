@@ -63,6 +63,11 @@ func wrappedBy(words []Word) ([]wrapped, int) {
 		}
 	}
 	skipAssigns()
+	// The time keyword takes --, which parses as the command word: time
+	// -- rm -rf ~. No command is named --.
+	if i+1 < len(words) && words[i].Value == "--" {
+		i++
+	}
 	for i+1 < len(words) {
 		name := baseName(words[i].Value)
 		spec, ok := wrappers[name]

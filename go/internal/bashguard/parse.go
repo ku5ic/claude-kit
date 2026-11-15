@@ -533,6 +533,13 @@ func pipeline(s *syntax.Stmt) []*syntax.Stmt {
 	switch cmd := s.Cmd.(type) {
 	case *syntax.CallExpr, nil:
 		return []*syntax.Stmt{s}
+	case *syntax.TimeClause:
+		// curl x | time sh feeds sh like any stage; a bare time has no
+		// statement.
+		if cmd.Stmt == nil {
+			return nil
+		}
+		return pipeline(cmd.Stmt)
 	case *syntax.BinaryCmd:
 		if cmd.Op != syntax.Pipe && cmd.Op != syntax.PipeAll {
 			return nil
