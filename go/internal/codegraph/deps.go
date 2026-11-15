@@ -89,7 +89,10 @@ func build(specs []fileSpec, g *graph, mods modules, skipDirs []string) depsResu
 	r := depsResult{edges: map[pair]int{}, prodFiles: map[pair]map[string]int{}, externals: map[string]int{}, declared: map[string]bool{}, modules: map[string]bool{}}
 	for _, fs := range specs {
 		r.addModule(mods.of(fs.file))
-		target := g.resolve(fs.file, fs.spec)
+		target, ok := g.resolve(fs.file, fs.spec)
+		if !ok {
+			continue
+		}
 		if target == "" {
 			name := externalName(fs.path, fs.kind == dotted)
 			r.externals[name]++

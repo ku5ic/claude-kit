@@ -128,6 +128,36 @@ func TestDepsReadsTheRepoBeforePythonsStdlibAndNamesABadManifest(t *testing.T) {
 	}
 }
 
+// A relative import of nothing tracked (a generated file, a path out of
+// the repo) is no edge to the nearest directory that exists, and no
+// external; a Python from x import name still finds x.
+func TestDepsLeavesAnUnresolvedRelativeImportOut(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	testutil.Write(t, filepath.Join(root, "src/web/page.ts"), "")
+	testutil.Write(t, filepath.Join(root, "src/app/core/models.py"), "")
+	testutil.Write(t, filepath.Join(root, "src/app/core/views.py"), "")
+	testutil.Write(t, filepath.Join(root, "src/lib/a.ts"), "")
+	testutil.Git(t, root, "init", "-q")
+	testutil.Git(t, root, "add", "-A")
+	imports := filepath.Join(t.TempDir(), "imports.tsv")
+	testutil.Write(t, imports, "src/web/page.ts\t\"../gen/api\"\nsrc/web/page.ts\t\"../../../outside\"\nsrc/web/page.ts\t\"../lib/a.js\"\n"+
+		"src/app/core/views.py\tfrom ...x import y\nsrc/app/core/views.py\tfrom .models import Item\n")
+	out := filepath.Join(t.TempDir(), "raw")
+	if err := Deps(root, imports, out, "", nil, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	if got := testutil.Read(t, filepath.Join(out, "imports-resolved.tsv")); got != "src/web/page.ts\tsrc/lib/a\nsrc/app/core/views.py\tsrc/app/core/models\n" {
+		t.Errorf("imports-resolved:\n%s", got)
+	}
+	if got := testutil.Read(t, filepath.Join(out, "externals.tsv")); got != "" {
+		t.Errorf("externals:\n%s", got)
+	}
+	if got := testutil.Read(t, filepath.Join(out, "modules.txt")); strings.Contains(got, "..") {
+		t.Errorf("modules:\n%s", got)
+	}
+}
+
 // A committed vendor/, a skip_dirs entry, is third-party code. Its files
 // are no module, and an import into it counts as no edge.
 func TestDepsLeavesASkippedDirOutOfTheModules(t *testing.T) {

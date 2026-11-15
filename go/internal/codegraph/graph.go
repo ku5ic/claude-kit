@@ -170,33 +170,44 @@ func (g *graph) rankRoots(specs []fileSpec) {
 	}
 }
 
-// resolve is the repo path an import points at; "" for an external package.
-func (g *graph) resolve(file string, s spec) string {
+// resolve is the repo path an import points at; "" for an external
+// package. ok is false for a relative import nothing tracked matches: a
+// generated file, or a path out of the repo.
+func (g *graph) resolve(file string, s spec) (target string, ok bool) {
 	dir := dirOf(file)
 	switch {
 	case strings.HasPrefix(s.path, "."):
-		joined := path.Join(dir, s.path)
-		lower := strings.ToLower(joined)
-		stem := strings.TrimSuffix(lower, path.Ext(lower))
-		if _, ok := g.known[lower]; !ok && jsEmitted[path.Ext(lower)] {
-			if real, ok := g.known[stem]; ok {
-				return real
-			}
-		}
-		return cmp.Or(g.longestExisting("", joined), joined)
+		return g.resolveRelative(file, path.Join(dir, s.path))
 	case s.kind == rooted:
-		return cmp.Or(g.longestExisting("", s.path), s.path)
+		return cmp.Or(g.longestExisting("", s.path), s.path), true
 	}
 	ecosystem := ecosystems[path.Ext(file)]
 	if ecosystem == "go" {
-		return "" // Go's own packages sit under a go.mod module path, matched as rooted
+		return "", true // Go's own packages sit under a go.mod module path, matched as rooted
 	}
 	if sourceFile.MatchString(s.path) {
 		if hit := g.longestExisting(dir, s.path); hit != "" {
-			return hit
+			return hit, true
 		}
 	}
-	return g.resolveBare(s, ecosystem)
+	return g.resolveBare(s, ecosystem), true
+}
+
+// resolveRelative is the tracked path joined names, from file. A .js spec
+// may name its .ts source; a Python from x import name names a member of
+// x, so x itself is tried too.
+func (g *graph) resolveRelative(file, joined string) (string, bool) {
+	lower := strings.ToLower(joined)
+	if real, ok := g.known[lower]; ok {
+		return real, true
+	}
+	if real, ok := g.known[strings.TrimSuffix(lower, path.Ext(lower))]; ok && jsEmitted[path.Ext(lower)] {
+		return real, true
+	}
+	if real, ok := g.known[dirOf(lower)]; ok && ecosystems[path.Ext(file)] == "python" {
+		return real, true
+	}
+	return "", false
 }
 
 // resolveBare resolves a bare spec against the source roots, cached: the
