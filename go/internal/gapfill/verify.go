@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode"
 
 	// Aliased: gapfill has a classify function of its own.
 	shellcalls "github.com/ku5ic/claude-kit/go/internal/classify"
@@ -289,23 +290,37 @@ func (f forms) verdict(e sources.Entry, v Verdict) (Verdict, []string, error) {
 // it holds.
 func (f forms) fileForm(role, form string, bodies []string) string {
 	why := f.checkForm(role, form, bodies, "{files}", "{dirs}")
-	if why == "" && form != "" && f.ignoresConfigOnFiles(form) {
-		why = "tsc ignores tsconfig.json once given files"
+	if why == "" && form != "" {
+		why = wholeInputTools[f.wholeInputTool(form)]
 	}
 	return why
 }
 
-// configOnlyTools drop the project config once given files: the TypeScript
+// wholeInputTools go wrong once given files, each with why. The TypeScript
 // docs say "When input files are specified on the command line,
 // tsconfig.json files are ignored", and vue-tsc takes tsc's arguments.
-var configOnlyTools = []string{"tsc", "vue-tsc"}
+// deadcode over two of this repo's packages reported 94 functions that
+// ./... reports none of.
+var wholeInputTools = map[string]string{
+	"tsc":      "tsc ignores tsconfig.json once given files",
+	"vue-tsc":  "tsc ignores tsconfig.json once given files",
+	"deadcode": "deadcode given some packages reports what only the others call",
+}
 
-// ignoresConfigOnFiles is true when body runs one of configOnlyTools,
+// toolOf is the tool words run: the first word, or the tool go tool runs.
+func toolOf(words []string) string {
+	if len(words) > 2 && filepath.Base(words[0]) == "go" && words[1] == "tool" {
+		return filepath.Base(words[2])
+	}
+	return filepath.Base(words[0])
+}
+
+// wholeInputTool is the one of wholeInputTools body gives files to,
 // behind a run prefix or a tool runner, or through a package script, up
-// to three scripts deep.
-func (f forms) ignoresConfigOnFiles(body string) bool {
+// to three scripts deep; "" for none.
+func (f forms) wholeInputTool(body string) string {
 	tp, ok := sources.Provider("package-scripts")
-	return f.runsConfigOnly(body, 0, func(rel string) map[string]sources.Body {
+	return f.runsWholeInput(body, 0, func(rel string) map[string]sources.Body {
 		if !ok {
 			return nil
 		}
@@ -313,11 +328,11 @@ func (f forms) ignoresConfigOnFiles(body string) bool {
 	})
 }
 
-// runsConfigOnly is ignoresConfigOnFiles at depth scripts down, reading
-// each directory's package scripts with scripts.
-func (f forms) runsConfigOnly(body string, depth int, scripts func(rel string) map[string]sources.Body) bool {
+// runsWholeInput is wholeInputTool at depth scripts down, reading each
+// directory's package scripts with scripts.
+func (f forms) runsWholeInput(body string, depth int, scripts func(rel string) map[string]sources.Body) string {
 	if depth > 3 {
-		return false
+		return ""
 	}
 	lookup := func(provider, rel, name string) bool {
 		_, ok := scripts(rel)[name]
@@ -325,23 +340,49 @@ func (f forms) runsConfigOnly(body string, depth int, scripts func(rel string) m
 	}
 	// Only a command given the files counts. A script's arguments land at
 	// the end of its body, so its body is read with them there.
-	runs := func(c shellcalls.Command) bool {
+	runs := func(c shellcalls.Command) string {
 		switch {
 		case c.Kind == shellcalls.Other && len(c.Words) > 0:
-			return slices.Contains(configOnlyTools, filepath.Base(c.Words[0])) && slices.ContainsFunc(c.Words, holdsFiles)
+			if tool := toolOf(c.Words); wholeInputTools[tool] != "" && slices.ContainsFunc(c.Words, holdsFiles) {
+				return tool
+			}
 		case c.Kind == shellcalls.Ref:
-			return slices.ContainsFunc(c.Refs, func(ref shellcalls.TaskRef) bool {
-				return ref.Provider == "package-scripts" && slices.ContainsFunc(ref.Args, holdsFiles) &&
-					f.runsConfigOnly(scripts(ref.Dir)[ref.Name].Text+" {files}", depth+1, scripts)
-			})
+			for _, ref := range c.Refs {
+				if ref.Provider == "package-scripts" && slices.ContainsFunc(ref.Args, holdsFiles) {
+					if tool := f.runsWholeInput(scripts(ref.Dir)[ref.Name].Text+" {files}", depth+1, scripts); tool != "" {
+						return tool
+					}
+				}
+			}
 		}
-		return false
+		return ""
 	}
 	// As written for pnpm exec tsc and pnpm run x; unprefixed for a run
 	// prefix that's neither a tool runner nor a reference.
 	words := strings.Fields(body)
-	return slices.ContainsFunc([]string{body, strings.Join(f.unprefixed(words), " ")}, func(b string) bool {
-		return slices.ContainsFunc(shellcalls.Body(b, lookup).Commands, runs)
+	for _, b := range []string{body, strings.Join(f.unprefixed(words), " ")} {
+		parsed := shellcalls.Body(b, lookup)
+		if parsed.Opaque != "" {
+			// Unparsed, a command may start at any of its words: a wrong
+			// match only drops a file form, and Stop runs the whole command.
+			words := shellWords(b)
+			for i := range words {
+				parsed.Commands = append(parsed.Commands, shellcalls.Command{Kind: shellcalls.Other, Words: words[i:]})
+			}
+		}
+		for _, c := range parsed.Commands {
+			if tool := runs(c); tool != "" {
+				return tool
+			}
+		}
+	}
+	return ""
+}
+
+// shellWords is body split at blanks, quotes, and the shell's operators.
+func shellWords(body string) []string {
+	return strings.FieldsFunc(body, func(r rune) bool {
+		return unicode.IsSpace(r) || strings.ContainsRune(`"'$()|;&`+"`", r)
 	})
 }
 

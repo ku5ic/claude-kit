@@ -812,6 +812,39 @@ func TestNearestPutsTheDeepestDirectoryFirst(t *testing.T) {
 	}
 }
 
+// deadcode needs the whole program: given some packages, what only the
+// others call reads as dead. A file form for it is dropped; go vet keeps one.
+func TestDeadcodeFileFormsAreDropped(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t, "")
+	testutil.Put(t, f.root, "go.mod", "module ex.com/m\n")
+	testutil.Put(t, f.root, "a.go", "package m\n")
+	cases := []struct {
+		body, form string
+		kept       bool
+	}{
+		{"go tool deadcode -test ./...", "go tool deadcode -test {dirs}", false},
+		{"deadcode ./...", "deadcode {dirs}", false},
+		{"out=\"$(go tool deadcode -test ./...)\"\n[ -z \"$out\" ] || { echo \"$out\"; exit 1; }",
+			"out=\"$(go tool deadcode -test {dirs})\"\n[ -z \"$out\" ] || { echo \"$out\"; exit 1; }", false},
+		{"go vet ./...", "go vet {dirs}", true},
+	}
+	var entries []sources.Entry
+	var verdicts []any
+	for i, c := range cases {
+		e := entry(fmt.Sprintf("check%d", i), c.body)
+		entries = append(entries, e)
+		verdicts = append(verdicts, verdict(e, map[string]any{"role": "check", "kind": "lint", "mutates": false, "file_form": c.form}))
+	}
+	f.answer(map[string]any{"entries": verdicts, "managers": []any{}, "proposals": []any{}})
+	r := f.run(entries...)
+	for i, c := range cases {
+		if v := r.Verdicts[Key(entries[i])]; (v.FileForm != "") != c.kept {
+			t.Errorf("%s: kept %v, want %v (%+v, dropped %q)", c.form, v.FileForm != "", c.kept, v, r.Dropped)
+		}
+	}
+}
+
 // tsc and vue-tsc ignore tsconfig.json once given files, so a file form for
 // them type-checks without the project's settings; any other tool keeps one.
 func TestTscFileFormsAreDropped(t *testing.T) {
