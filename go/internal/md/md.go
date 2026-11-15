@@ -35,14 +35,21 @@ func closesFront(rest string) bool { return frontClose.MatchString(rest) }
 
 // Lines yields each line of text. Frontmatter is a --- first line through
 // the next --- line; with no closing one, the first is prose. A fence opens
-// on a line starting, after indentation, with ``` or ~~~, and closes only
-// on its own marker; one never closed runs to the end.
+// on a line starting, after indentation, with ``` or ~~~, and closes on
+// its own marker. One never closed runs to the end, or, opened on a list
+// item's line, to the first line indented less than the item's content.
 func Lines(text string) iter.Seq[Line] {
 	return func(yield func(Line) bool) {
-		first, front, fence := true, false, ""
+		first, front, fence, within := true, false, "", 0
 		for raw := range strings.Lines(text) {
 			line := strings.TrimRight(raw, "\r\n")
 			trimmed := strings.TrimSpace(line)
+			// The list item, and the fence in it, ended. Its own marker,
+			// even unindented, still closes it: CommonMark would open a new
+			// fence there that runs to the end.
+			if fence != "" && trimmed != "" && !closes(trimmed, fence) && len(line)-len(strings.TrimLeft(line, " \t")) < within {
+				fence = ""
+			}
 			kind := Prose
 			switch {
 			case first && frontDelim.MatchString(line) && closesFront(text[len(raw):]):
@@ -54,8 +61,8 @@ func Lines(text string) iter.Seq[Line] {
 			case fence != "":
 				kind = Code
 			default:
-				if open := opener(trimmed); open != "" {
-					fence, kind = open, FenceOpen
+				if open, content := opener(line); open != "" {
+					fence, within, kind = open, content, FenceOpen
 				}
 			}
 			first = false
@@ -77,15 +84,21 @@ func fenceRun(s string) string {
 	return s[:len(s)-len(strings.TrimLeft(s, s[:1]))]
 }
 
-// opener is the fence a trimmed line opens, after any list marker, or "".
+// opener is the fence line opens, after indentation and any list marker,
+// or "", and the column the list item's content starts at, 0 outside one.
 // A backtick fence's info string holds no backtick (CommonMark 4.5).
-func opener(trimmed string) string {
-	line := listMarker.ReplaceAllString(trimmed, "")
-	run := fenceRun(line)
-	if run == "" || run[0] == '`' && strings.Contains(line[len(run):], "`") {
-		return ""
+func opener(line string) (fence string, content int) {
+	rest := strings.TrimLeft(line, " \t")
+	if marker := listMarker.FindString(rest); marker != "" {
+		content = len(line) - len(rest) + len(marker)
+		rest = rest[len(marker):]
 	}
-	return run
+	rest = strings.TrimSpace(rest)
+	run := fenceRun(rest)
+	if run == "" || run[0] == '`' && strings.Contains(rest[len(run):], "`") {
+		return "", 0
+	}
+	return run, content
 }
 
 // closes reports whether a trimmed line closes fence: a run of its
