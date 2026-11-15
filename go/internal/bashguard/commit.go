@@ -46,50 +46,58 @@ func CheckCommit(h *hook.Hook) error {
 		return h.Payload.Err
 	}
 	cmd := h.Payload.String(hook.KeyInputCommand)
-	c := commitCall(cmd, h.Home, h.Payload.Cwd())
-	if !c.commits(cmd) {
+	commits := commitCalls(cmd, h.Home, h.Payload.Cwd())
+	if !commits[0].commits(cmd) {
 		return nil
 	}
-	// An expansion other than $HOME can't be resolved here; most name the
-	// cwd's repo ("$PWD", "$(git rev-parse --show-toplevel)").
-	repo := cmp.Or(c.repo, h.Payload.Cwd())
+	scanned, ask := map[string]bool{}, false
+	for i, c := range commits {
+		// An expansion other than $HOME can't be resolved here; most name the
+		// cwd's repo ("$PWD", "$(git rev-parse --show-toplevel)").
+		repo := cmp.Or(c.repo, h.Payload.Cwd())
+		msg, unread := message(cmd, c, repo, h.Home)
 
-	msg, unread := message(cmd, c, repo, h.Home)
-
-	// Before the subject parsing: secret scanning must not depend on
-	// whether -m used a quoted message.
-	if err := scanStaged(h, repo); err != nil {
-		return err
-	}
-
-	// This repo passes multi-line messages via a heredoc
-	// (-m "$(cat <<'EOF' ... EOF)"). A single-line -m has no heredoc and is
-	// skipped: short enough that a miss is harmless.
-	body := heredocBody(cmd)
-	if body != "" {
-		if run := longestProseRun(body); run > 4 {
-			reason := fmt.Sprintf("a commit message paragraph runs %d prose lines\n", run) +
-				layout.KV("do", "split it into paragraphs of 4 lines or fewer") + "\n" +
-				layout.KV("how", "skills/kit-rules/reference/output.md section 1")
-			if err := h.Block(reason, "commit-wall-of-text"); err != nil {
+		// Before the subject parsing: secret scanning must not depend on
+		// whether -m used a quoted message.
+		if !scanned[repo] {
+			scanned[repo] = true
+			if err := scanStaged(h, repo); err != nil {
 				return err
 			}
 		}
+		if i == 0 {
+			if err := wallOfText(h, cmd); err != nil {
+				return err
+			}
+		}
+		if err := scanSlop(h, detector(h), msg, "commit", "the commit message"); err != nil {
+			return err
+		}
+		if unread != "" {
+			return h.Block("can't read the commit message: "+unread+"\n"+
+				layout.KV("do", "give it in -m, a -m \"$(cat <<'EOF' ...)\" heredoc, -F - with a heredoc, or a file written in an earlier call"), "unread-text")
+		}
+		if failed := commitMsg(h, msg, repo); failed != "" {
+			return h.Block("the project's commit-msg checks reject this message\n"+failed+"\n"+layout.KV("do", "fix it to their convention"), "commit-msg")
+		}
+		ask = ask || !approved(h.Payload.String(hook.KeyTranscriptPath), subject(msg))
 	}
-
-	subject := subject(msg)
-	if err := scanSlop(h, detector(h), msg, "commit", "the commit message"); err != nil {
-		return err
-	}
-	if unread != "" {
-		return h.Block("can't read the commit message: "+unread+"\n"+
-			layout.KV("do", "give it in -m, a -m \"$(cat <<'EOF' ...)\" heredoc, -F - with a heredoc, or a file written in an earlier call"), "unread-text")
-	}
-	if failed := commitMsg(h, msg, unread == "", repo); failed != "" {
-		return h.Block("the project's commit-msg checks reject this message\n"+failed+"\n"+layout.KV("do", "fix it to their convention"), "commit-msg")
-	}
-	if !approved(h.Payload.String(hook.KeyTranscriptPath), subject) {
+	if ask {
 		h.Decide("ask", "skills/kit-rules/reference/workflow.md section 1: the current prompt doesn't ask for a commit, and no earlier reply showed this message; confirm only if the user asked for it")
+	}
+	return nil
+}
+
+// wallOfText blocks a commit message paragraph over 4 prose lines. This
+// repo passes multi-line messages via a heredoc (-m "$(cat <<'EOF' ...
+// EOF)"). A single-line -m has no heredoc and is skipped: short enough that
+// a miss is harmless.
+func wallOfText(h *hook.Hook, cmd string) error {
+	if run := longestProseRun(heredocBody(cmd)); run > 4 {
+		reason := fmt.Sprintf("a commit message paragraph runs %d prose lines\n", run) +
+			layout.KV("do", "split it into paragraphs of 4 lines or fewer") + "\n" +
+			layout.KV("how", "skills/kit-rules/reference/output.md section 1")
+		return h.Block(reason, "commit-wall-of-text")
 	}
 	return nil
 }
@@ -118,7 +126,7 @@ func detector(h *hook.Hook) *slop.Detector {
 	return nil
 }
 
-// commit is the args and repo of a command's first parsed git commit call;
+// commit is the args and repo of one parsed git commit call in a command;
 // found is false when none commits, unparsed true when part of the command
 // didn't parse.
 type commit struct {
@@ -138,9 +146,11 @@ func (c commit) commits(cmd string) bool {
 	return c.found || c.unparsed && commitLine.MatchString(cmd)
 }
 
-// commitCall parses cmd, run from cwd, for its first git commit call.
-func commitCall(cmd, home, cwd string) commit {
+// commitCalls parses cmd, run from cwd, for every git commit call in it;
+// with none, it's one commit that isn't found.
+func commitCalls(cmd, home, cwd string) []commit {
 	segs, unparsed := parseAll(cmd)
+	var out []commit
 	for w := range walk(segs, home, cwd) {
 		if w.name != "git" {
 			continue
@@ -154,10 +164,13 @@ func commitCall(cmd, home, cwd string) commit {
 			if strings.ContainsAny(repo, "$`") {
 				repo = ""
 			}
-			return commit{args: args, repo: repo, found: true, unparsed: unparsed, start: w.call.start}
+			out = append(out, commit{args: args, repo: repo, found: true, unparsed: unparsed, start: w.call.start})
 		}
 	}
-	return commit{unparsed: unparsed}
+	if len(out) == 0 {
+		return []commit{{unparsed: unparsed}}
+	}
+	return out
 }
 
 // message is the message cmd's git commit c gives, as the commit-msg hook
@@ -234,11 +247,11 @@ func catHeredoc(value string) (string, bool) {
 const commitMsgBudget = 12 * time.Second
 
 // commitMsg runs the commit-msg enforcement of repo on msg, from a temp
-// file, and returns what failed; "" when it passes, the message can't be
-// told (!ok), or the project has none.
-func commitMsg(h *hook.Hook, msg string, ok bool, repo string) string {
+// file, and returns what failed; "" when it passes or the project has
+// none.
+func commitMsg(h *hook.Hook, msg, repo string) string {
 	root, cfg := git.Toplevel(repo), h.Config()
-	if !ok || root == "" || cfg == nil {
+	if root == "" || cfg == nil {
 		return ""
 	}
 	tmp, err := os.CreateTemp("", "kit-commit-msg-*")

@@ -25,7 +25,7 @@ func TestCommitting(t *testing.T) {
 		// mvdan can't parse the unterminated heredoc: the raw text decides.
 		"git commit -m \"$(cat <<EOF\nfeat: x\n)\"": true,
 	} {
-		if got := commitCall(cmd, "", "/").commits(cmd); got != want {
+		if got := commitCalls(cmd, "", "/")[0].commits(cmd); got != want {
 			t.Errorf("committing(%q) = %v, want %v", cmd, got, want)
 		}
 	}
@@ -49,14 +49,14 @@ func TestMessageIsWhatTheCommitMsgHookWouldRead(t *testing.T) {
 		`git -C sub commit -F msg.txt && rm sub/msg.txt`: "fix: from a file\n",
 		`git commit --amend --no-edit`:                   "",
 	} {
-		c := commitCall(cmd, "", dir)
+		c := commitCalls(cmd, "", dir)[0]
 		if got, _ := message(cmd, c, c.repo, ""); got != want {
 			t.Errorf("message(%q) = %q, want %q", cmd, got, want)
 		}
 	}
 	// An expansion: the text as written, but not the message git gets.
 	cmd := `git commit -m "fix: $MSG"`
-	c := commitCall(cmd, "", dir)
+	c := commitCalls(cmd, "", dir)[0]
 	if got, unread := message(cmd, c, c.repo, ""); got != "fix: $MSG\n" || unread == "" {
 		t.Errorf("message(%q) = %q, %q, want the text as written and unread", cmd, got, unread)
 	}
@@ -131,7 +131,7 @@ func TestTheCommitMsgCheckIsTheRepoGitDashCNames(t *testing.T) {
 	k.commit(plain, `cd .. && git -C repo commit -m "updated stuff"`).Want(t, 2)
 	// A cd in a substitution runs in a subshell: the commit stays put.
 	for _, cmd := range []string{`git commit -m "$(cd /tmp && echo x)"`, `(cd /tmp) && git commit -m x`} {
-		if c := commitCall(cmd, "", repo); c.repo != repo {
+		if c := commitCalls(cmd, "", repo)[0]; c.repo != repo {
 			t.Errorf("%s: repo = %q, want %q", cmd, c.repo, repo)
 		}
 	}
@@ -245,6 +245,21 @@ func TestGuardCommitAsksForAnUnshownMessage(t *testing.T) {
 			t.Errorf("%q asks for the commit, yet the guard asked again:\n%s", prompt, r.Output)
 		}
 	}
+}
+
+// Each commit in a command is approved and scanned on its own: showing
+// the first message approves no second one chained after it.
+func TestGuardCommitChecksEveryCommit(t *testing.T) {
+	gitleaksStub(t, 0)
+	k := newSandbox(t)
+	k.transcript = filepath.Join(t.TempDir(), "t.jsonl")
+	testutil.AppendJSONL(t, k.transcript, testutil.UserPrompt("fix it"), testutil.AssistantText("Commit as `fix: add sums`?"), testutil.UserPrompt("go"))
+	k.commit("", `git commit -m "fix: add sums"`).Empty(t)
+	r := k.commit("", `git commit -m "fix: add sums" && git commit --allow-empty -m "fix: other"`)
+	r.Want(t, 0)
+	r.Has(t, `"permissionDecision":"ask"`)
+	k.commit("", `git commit -m "fix: add sums"; git commit -m "fix: x" -m "I hope this helps."`).Want(t, 2)
+	k.commit("", `git commit -m "fix: add sums" && git commit -m "$MSG"`).Has(t, "rule  unread-text")
 }
 
 // Each case feeds guard-commit a command and asserts its status: 0 allow,
