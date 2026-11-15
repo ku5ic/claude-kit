@@ -43,7 +43,9 @@ func Coupling(gitLog, resolved, root string, skipDirs []string, out io.Writer) e
 	}
 	tracked := map[string]bool{}
 	for _, f := range files {
-		tracked[f] = !skipped(f, skipDirs)
+		if !skipped(f, skipDirs) {
+			tracked[f] = true
+		}
 	}
 	changes, pairs := map[string]int{}, map[pair]int{}
 	for _, c := range commits {

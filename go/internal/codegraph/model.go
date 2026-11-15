@@ -412,22 +412,24 @@ func missingEdges(nodes map[string]*node, edges [][2]string, deps [][]string) []
 		if len(d) != 3 {
 			continue
 		}
-		var pair [2]string
+		joins := func(a, b string) bool {
+			from, to := nodes[a], nodes[b]
+			return from != nil && to != nil && from.path != "" && to.path != "" && within(d[1], from.path) && within(d[2], to.path)
+		}
+		from, to := "", ""
+	search:
 		for _, a := range ids {
 			for _, b := range ids {
-				from, to := nodes[a], nodes[b]
-				if pair[0] == "" && from.path != "" && to.path != "" && from.path != to.path && within(d[1], from.path) && within(d[2], to.path) {
-					pair = [2]string{a, b}
+				if nodes[a].path != nodes[b].path && joins(a, b) {
+					from, to = a, b
+					break search
 				}
 			}
 		}
-		if pair[0] == "" || slices.ContainsFunc(edges, func(e [2]string) bool {
-			from, to := nodes[e[0]], nodes[e[1]]
-			return from != nil && to != nil && from.path != "" && to.path != "" && within(d[1], from.path) && within(d[2], to.path)
-		}) {
+		if from == "" || slices.ContainsFunc(edges, func(e [2]string) bool { return joins(e[0], e[1]) }) {
 			continue
 		}
-		problems = append(problems, fmt.Sprintf("missing: %s imports %s (%s imports), but no edge joins %s --> %s", d[1], d[2], d[0], pair[0], pair[1]))
+		problems = append(problems, fmt.Sprintf("missing: %s imports %s (%s imports), but no edge joins %s --> %s", d[1], d[2], d[0], from, to))
 	}
 	return problems
 }
