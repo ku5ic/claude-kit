@@ -268,24 +268,27 @@ type Connectors struct {
 }
 
 // Attribution is what go/internal/attribution finds an AI tool's
-// attribution by: Patterns, where {tools} stands for any of Tools.
+// attribution by: Patterns, where {tools} and {tool} stand for any of Tools.
 type Attribution struct {
 	Tools    []string `yaml:"tools"`
 	Patterns []string `yaml:"patterns"`
 }
 
-// Expanded is Patterns with {tools} replaced, each case-insensitive. A tool
-// ends at anything but a letter, digit, or hyphen, so claude-kit names no
-// tool; a space in one matches any run of spaces.
+// Expanded is Patterns with {tools} and {tool} replaced, each
+// case-insensitive. A {tools} match ends at anything but a letter, digit,
+// or hyphen, so claude-kit names no tool; a {tool} match may run on into a
+// hyphenated word (Claude-Session). A space in a tool matches any run of
+// spaces.
 func (a Attribution) Expanded() []string {
 	names := make([]string, len(a.Tools))
 	for i, t := range a.Tools {
 		names[i] = strings.Join(strings.Fields(regexp.QuoteMeta(t)), `\s+`)
 	}
-	tools := `\b(?:` + strings.Join(names, "|") + `)(?:[^\w-]|$)`
+	tool := `\b(?:` + strings.Join(names, "|") + `)`
+	tools := tool + `(?:[^\w-]|$)`
 	out := make([]string, len(a.Patterns))
 	for i, p := range a.Patterns {
-		out[i] = "(?i)" + strings.ReplaceAll(p, "{tools}", tools)
+		out[i] = "(?i)" + strings.NewReplacer("{tools}", tools, "{tool}", tool).Replace(p)
 	}
 	return out
 }

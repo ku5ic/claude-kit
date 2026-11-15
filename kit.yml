@@ -311,14 +311,17 @@ connectors:
 # co-author or session trailer, a "Generated with" footer, the robot emoji,
 # a chat or session link. A line of git or GitHub text matching a pattern
 # blocks. {tools} is any of tools, ending at a character that isn't a
-# letter, digit, or hyphen; matching ignores case.
+# letter, digit, or hyphen; {tool} is one that may run on into a
+# hyphenated word; matching ignores case. A trailer's <email> is never
+# read, and tools holds no name a person also goes by (Devin, Cody), so a
+# human co-author passes; a bot's trailer still blocks by its [bot].
 attribution:
-  tools: [claude, claude code, anthropic, copilot, chatgpt, openai, codex, gemini, jules, cursor, devin, aider,
-    windsurf, codeium, tabnine, cody, amazon q, codewhisperer, cline, roo code, kiro, junie, openhands, grok,
-    deepseek, qwen, mistral, replit, ai, an ai, llm]
+  tools: [claude, claude code, anthropic, copilot, chatgpt, openai, codex, gemini, cursor, aider, windsurf,
+    codeium, tabnine, amazon q, codewhisperer, cline, roo code, openhands, grok, deepseek, qwen, mistral, replit,
+    ai, an ai, llm]
   patterns:
-    - '(?:^|[^\w-])(?:Co-Authored|Assisted|Generated|Created|Authored|Written|Made|Built|Helped|Suggested|Reviewed|Signed-off)-(?:by|with)\s*:[^\n]*(?:{tools}|\[bot\])'
-    - '(?:^|[^\w-])(?:\w+-)+Session(?:-\w+)*\s*:'
+    - '(?:^|[^\w-])(?:Co-Authored|Assisted|Generated|Created|Authored|Written|Made|Built|Helped|Suggested|Reviewed|Signed-off)-(?:by|with)\s*:[^<\n]*(?:{tools}|\[bot\])'
+    - '(?:^|[^\w-]){tool}(?:-\w+)*-Session(?:-\w+)*\s*:'
     - '(?:^|[^\w-])(?:AI|LLM)-(?:\w+-)*(?:Session|Assisted|Generated|Model|Agent|Tool)(?:-\w+)*\s*:'
     - '\b(?:generated|created|written|authored|co-authored|made|built|produced|drafted|assisted)\s+(?:with|by|using|via)\s+(?:the\s+help\s+of\s+)?\[?(?:an?\s+)?{tools}'
     - '\x{1F916}'
