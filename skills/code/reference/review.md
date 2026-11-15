@@ -6,7 +6,7 @@ A deep review of a path or a change, run now and then, covering what the per-cha
 
 1. Resolve the target, first match wins:
    - A path: every tracked file under it.
-   - A PR number or branch: checked out as `skills/kit-rules/reference/workflow.md` section 1 says, then its diff against the base.
+   - A PR number or branch is checked out where a trailing `here` or `worktree` says, or where the user answers when asked, per `skills/kit-rules/reference/workflow.md` section 1. The target is its diff against the base.
    - Nothing: `kit git-base --diff`.
 2. For a diff, the review covers the changed lines and the code they call or are called from, never the whole files.
 3. Read the project's CLAUDE.md. Load `engineering-fundamentals`, `test-patterns`, `security-patterns`, and every pattern skill the `<suggested-skills>` block or the touched files call for.
