@@ -77,6 +77,27 @@ func TestOverlayMergesMapsAndAppendsSequences(t *testing.T) {
 	}
 }
 
+// A quoted "!x" in an overlay list removes kit.yml's x. In sensitive_paths
+// one that removes nothing stays as an exception; anywhere else it warns.
+func TestOverlayBangRemovesAnItem(t *testing.T) {
+	dir := t.TempDir()
+	base := write(t, dir, "kit.yml", "protected_branches: [main, master]\nsensitive_paths: [.env, .env.*]\n")
+	overlay := write(t, dir, "over.yml", "protected_branches: [\"!master\", \"!trunk\"]\nsensitive_paths: [\"!.env\", \"!.env.example\"]\n")
+	cfg, warnings, err := Load(Paths{Base: base, Overlay: overlay})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(cfg.ProtectedBranches, ","); got != "main" {
+		t.Errorf("protected_branches = %s, want main", got)
+	}
+	if got := strings.Join(cfg.SensitivePaths, ","); got != ".env.*,!.env.example" {
+		t.Errorf("sensitive_paths = %s, want .env.*,!.env.example", got)
+	}
+	if len(warnings) != 1 || warnings[0].File != overlay || warnings[0].Err.Error() != "protected_branches: !trunk removes nothing: no earlier list holds it" {
+		t.Errorf("warnings = %v, want one for !trunk", warnings)
+	}
+}
+
 // slop.block_tiers is a setting, not a list to add to, and a slop rule is
 // keyed by its id: the overlay replaces both rather than appending.
 func TestOverlayReplacesBlockTiersAndRulesByID(t *testing.T) {

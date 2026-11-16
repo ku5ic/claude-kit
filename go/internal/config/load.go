@@ -89,8 +89,8 @@ func (w Warning) String() string { return w.File + ": " + w.Err.Error() }
 
 // Load reads kit.yml and, when present, the preset the overlay names and
 // then the overlay, each merged over the last: maps
-// merge and sequences append, so an overlay can add but never remove
-// (mergeNode names the two exceptions).
+// merge and sequences append, and a "!x" item removes x (mergeNode names
+// the exceptions).
 // Each file is also decoded strictly on its own, and what that rejects comes
 // back as warnings naming the file. The result is cached on disk until
 // either file changes, since every hook call would otherwise pay the parse.
@@ -127,7 +127,9 @@ func load(p Paths) (*Config, []Warning, error) {
 	layers, layerWarnings := overlays(p)
 	warnings = append(warnings, layerWarnings...)
 	for _, layer := range layers {
-		mergeNode(merged, layer.node)
+		for _, item := range mergeNode(merged, layer.node) {
+			warnings = append(warnings, Warning{layer.path, fmt.Errorf("%s removes nothing: no earlier list holds it", item)})
+		}
 		tag = "merged"
 	}
 
@@ -325,10 +327,15 @@ func validate(path string) []Warning {
 
 // mergeNode merges src into dst in place, as yq's `*+`: mappings merge key by
 // key in dst's order with src's new keys after, sequences append, and any
-// other pairing takes src's value. Two exceptions: a replacedLists key takes
-// src's list, and an item with an id (a slop rule) replaces dst's item of
-// that id in place.
-func mergeNode(dst, src *yaml.Node) {
+// other pairing takes src's value. Three exceptions: a replacedLists key
+// takes src's list, an item with an id (a slop rule) replaces dst's item of
+// that id in place, and a "!x" item removes dst's item x. It returns each
+// "!x" that removed nothing, as "<key>: !x"; in an exceptionLists list, one
+// stays as an exception instead.
+func mergeNode(dst, src *yaml.Node) []string { return merge(dst, src, "") }
+
+func merge(dst, src *yaml.Node, key string) []string {
+	var unmatched []string
 	switch {
 	case dst.Kind == yaml.MappingNode && src.Kind == yaml.MappingNode:
 		for i := 0; i+1 < len(src.Content); i += 2 {
@@ -339,11 +346,22 @@ func mergeNode(dst, src *yaml.Node) {
 			case replacedLists[key.Value]:
 				*existing = *value
 			default:
-				mergeNode(existing, value)
+				unmatched = append(unmatched, merge(existing, value, key.Value)...)
 			}
 		}
 	case dst.Kind == yaml.SequenceNode && src.Kind == yaml.SequenceNode:
 		for _, item := range src.Content {
+			if removed, ok := strings.CutPrefix(item.Value, "!"); ok && item.Kind == yaml.ScalarNode {
+				before := len(dst.Content)
+				dst.Content = slices.DeleteFunc(dst.Content, func(n *yaml.Node) bool { return n.Kind == yaml.ScalarNode && n.Value == removed })
+				if len(dst.Content) < before {
+					continue
+				}
+				if !exceptionLists[key] {
+					unmatched = append(unmatched, key+": "+item.Value)
+					continue
+				}
+			}
 			if i := itemWithID(dst, item); i >= 0 {
 				dst.Content[i] = item
 				continue
@@ -353,7 +371,12 @@ func mergeNode(dst, src *yaml.Node) {
 	default:
 		*dst = *src
 	}
+	return unmatched
 }
+
+// exceptionLists are the pattern lists where a "!x" that removes no item
+// narrows the patterns before it, as sensitive_paths' !.env.example does.
+var exceptionLists = map[string]bool{"sensitive_paths": true}
 
 // replacedLists are the lists that are a setting, not a set to add to:
 // block_tiers, and the argv lists.

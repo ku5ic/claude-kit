@@ -20,12 +20,12 @@
 
 ## Your overlay
 
-Defaults live in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml`, merged on top: maps merge, lists append, so an overlay adds to a default list and can't remove from it. The exceptions: `slop.block_tiers` and every argv list (`cmd`, `private_cmd`, `command`) are replaced, and a `slop.rules` entry replaces the default with its `id`. Every `~/.claude` path in these docs is `$CLAUDE_CONFIG_DIR` when that's set.
+Defaults live in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml`, merged on top, where maps merge and lists append. A quoted `"!x"` in a list removes the default `x`, and `kit config --check` warns when it removes nothing. The exceptions: `slop.block_tiers` and every argv list (`cmd`, `private_cmd`, `command`) are replaced, and a `slop.rules` entry replaces the default with its `id`. Every `~/.claude` path in these docs is `$CLAUDE_CONFIG_DIR` when that's set.
 
 | Key                       | For                                                                                                                                                                                     |
 | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `protected_branches`      | Branches Claude can't push to                                                                                                                                                           |
-| `sensitive_paths`         | Extra credential files to guard                                                                                                                                                         |
+| `sensitive_paths`         | Extra credential files to guard, or a quoted `"!x"` exception (`kit.yml` ships `!.env.example`); the last entry a path matches decides                                                  |
 | `global_installs`         | Regexes for global package installs guard-bash blocks                                                                                                                                   |
 | `rc_files`                | Shell rc files guard-bash and guard-edit won't let Claude write                                                                                                                         |
 | `lockfile_globs`          | Lockfiles guard-edit won't let Claude edit by hand                                                                                                                                      |

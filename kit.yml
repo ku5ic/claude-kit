@@ -418,10 +418,14 @@ rc_files: ["~/.zshenv", "~/.zshrc", "~/.zprofile", "~/.bashrc", "~/.bash_profile
 
 # Credential and key files guard-bash refuses to read. A "~/" entry is a
 # path under $HOME, a directory when it ends in "/"; any other entry is a
-# basename glob. These guard a plugin install, which can't ship deny rules.
+# basename glob. A quoted "!entry" is an exception: the last entry a path
+# matches decides. These guard a plugin install, which can't ship deny rules.
 sensitive_paths:
   - ".env"
   - ".env.*"
+  - "!.env.example"
+  - "!.env.sample"
+  - "!.env.template"
   - "*.pem"
   - "*.key"
   - "*.p12"
