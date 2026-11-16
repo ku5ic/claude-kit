@@ -16,6 +16,7 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
+	"github.com/ku5ic/claude-kit/go/internal/adr"
 	"github.com/ku5ic/claude-kit/go/internal/blast"
 	"github.com/ku5ic/claude-kit/go/internal/chatbundle"
 	"github.com/ku5ic/claude-kit/go/internal/codegraph"
@@ -144,6 +145,7 @@ var commands = map[string]command{
 	"scratch-rotate": {needsEnv, envOnly(cmdScratchRotate)},
 	"scratch-dir":    {needsEnv, envOnly(cmdScratchDir)},
 	"project-root":   {needsEnv, envOnly(cmdProjectRoot)},
+	"adrs":           {needsEnv, envOnly(cmdADRs)},
 	"subprojects":    {needsEnv, envOnly(cmdSubprojects)},
 	"gates":          {needsEnv, envOnly(cmdGates)},
 	"bundle":         {needsEnv, envOnly(cmdBundle)},
@@ -359,6 +361,31 @@ func cmdProjectRoot(e *env, args []string) int {
 		return 1
 	}
 	fmt.Fprintln(e.stdout, root)
+	return 0
+}
+
+// cmdADRs prints the project's accepted ADRs that cite args[0], or all of
+// them, each as its root-relative file and title.
+func cmdADRs(e *env, args []string) int {
+	root, _ := project.Root(e.cwd)
+	dir := adr.Dir(root)
+	if dir == "" {
+		fmt.Fprintln(e.stderr, "kit adrs: no ADR folder under", root)
+		return 1
+	}
+	var rel string
+	if len(args) > 0 {
+		target := args[0]
+		if !filepath.IsAbs(target) {
+			target = filepath.Join(e.cwd, target)
+		}
+		rel = filepath.ToSlash(fsx.Rel(root, target))
+	}
+	for _, a := range adr.Accepted(dir) {
+		if rel == "" || a.Cites(rel) {
+			fmt.Fprintf(e.stdout, "%s\t%s\n", fsx.Rel(root, a.Path), a.Title)
+		}
+	}
 	return 0
 }
 

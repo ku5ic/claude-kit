@@ -101,7 +101,7 @@ func rootLabel(label string) string {
 // rule's id. TestRulesMatchTheCode holds it to the code's blocks; a slug
 // from a table or a variable is added by hand.
 var Rules = []string{
-	"ai-attribution", "aws-ec2-terminate", "aws-s3-force-rb", "aws-s3-recursive-rm",
+	"adr-nudge", "ai-attribution", "aws-ec2-terminate", "aws-s3-force-rb", "aws-s3-recursive-rm",
 	"bash-edits", "checks-failed", "chmod-777", "chmod-broad-x", "citations", "claims", "commit-msg", "commit-wall-of-text",
 	"device-write", "disk-tool", "docker-prune-all-force", "download-to-repo",
 	"find-delete", "find-exec-rm", "fork-bomb",

@@ -19,6 +19,7 @@ import (
 const (
 	SkillsLoaded = "skills-loaded"
 	SkillsNudged = "skills-nudged"
+	ADRNudged    = "adr-nudged"
 	FileSkills   = "file-skills"
 	PlanActive   = "plan-active"
 	PlanCritic   = "plan-critic"
@@ -51,6 +52,7 @@ type Dir struct {
 var Dirs = []Dir{
 	{SkillsLoaded, "skill-loaded marker(s)", 1},
 	{SkillsNudged, "skill-nudged marker(s)", 1},
+	{ADRNudged, "ADR-nudged marker(s)", 1},
 	{FileSkills, "file-skills cache(s)", 1},
 	{PlanActive, "plan-active marker(s)", 1},
 	{PlanCritic, "plan-critic marker(s)", 1},

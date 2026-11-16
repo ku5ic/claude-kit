@@ -5,6 +5,7 @@ argument-hint: "<code path to check>"
 disable-model-invocation: true
 allowed-tools:
   - Bash(git log *)
+  - Bash(kit adrs *)
 ---
 
 # /audit-doc-drift
@@ -30,17 +31,19 @@ $ARGUMENTS should point to the code surface to check. Required.
    - `CHANGELOG.md` only if the task involves a version boundary
 4. If `<root>/.claude/rules/conventions/*.md` exists, check every `path:line` citation in it, whatever $ARGUMENTS names. Read the cited line with a few lines of context and confirm it still shows the convention its bullet states. Moved within the file: `warning`, with the new line. Gone, or now showing the opposite: `failure` against the rule file's line, since the rule now misleads.
 5. Skip the dirs `skills/kit-rules/reference/tooling.md` section 1 lists, and `LICENSE.md`.
-6. Compare.
+6. Accepted decisions: `kit adrs <target>` lists the ADRs that cite the target, and an accepted RFC or design doc in the project's design folder that names it counts too. Read each one's Decision, and check the code at the target still follows it. `kit adrs` failing means the project keeps no ADRs.
+7. Compare.
 
 ## What counts as drift
 
 - Inline comments or JSDoc that describe code no longer present or that has changed behavior
 - Parameter descriptions that no longer match the signature
-- Return type docs that conflict with actual TypeScript or Python types
+- Return type docs that conflict with the code's declared types
 - External markdown with usage examples that would fail if run
 - Configuration instructions that reference renamed or removed options
 - Documented features that have been removed or renamed
 - Feature documented but no longer exists
+- Code that contradicts an accepted ADR, RFC, or design doc with nothing superseding it: `failure` against the code's `file:line`. The fix is the code, or a new ADR that supersedes the old one (`/write-adr`).
 - Requirements documented in README, CLAUDE.md, or design docs that no longer match the implementation. Examples: a "supports X" claim with no code implementing X; a "must validate Y" rule with no validation in the relevant handler; a documented invariant that the code violates.
 
 ## What does not count as drift

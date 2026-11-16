@@ -19,6 +19,7 @@ var layers = map[string]int{
 	"internal/layout":          0,
 	"internal/cite":            0,
 	"internal/cache":           0,
+	"internal/adr":             1,
 	"internal/config":          1,
 	"internal/git":             1,
 	"internal/transcript":      1,
