@@ -24,25 +24,25 @@ Tone and shape: `skills/kit-rules/reference/output.md` section 4, which wins ove
 
 ## Procedure
 
-1. Resolve the repo slug: `gh repo view --json nameWithOwner -q .nameWithOwner`. If this fails (no remote, no auth), stop and say so.
-2. Resolve the current GitHub user: `gh api user -q .login`. Used later to detect already-answered threads.
+1. Resolve the repository path (`skills/code-host-patterns`, as every call below). If this fails (no remote, no auth), stop and say so.
+2. Resolve the current user. Used later to detect already-answered threads.
 3. Parse `$ARGUMENTS`:
    - A bare number: PR number.
    - The other non-flag token: reviewer username.
    - `--all`: include every review round, not just the newest (see step 6).
-4. If no PR number was given, resolve the current branch's PR: `gh pr view --json number,url`. If that fails (not on a PR branch, no open PR), ask for the PR number or URL via the AskUserQuestion tool instead of guessing.
+4. If no PR number was given, resolve the current branch's open PR. If that fails (not on a PR branch, no open PR), ask for the PR number or URL via the AskUserQuestion tool instead of guessing.
 5. If no reviewer username was given:
-   - List distinct reviewers from `gh api repos/<slug>/pulls/<n>/reviews` and `gh api repos/<slug>/pulls/<n>/comments`, excluding the PR author and the current user.
+   - List distinct reviewers from the review threads, excluding the PR author and the current user.
    - Exactly one candidate: use it.
    - Zero or more than one: ask via the AskUserQuestion tool, listing the candidates, instead of guessing.
 6. Fetch the reviewer's comments:
-   - Inline: `gh api repos/<slug>/pulls/<n>/comments --paginate`, filtered to `user.login == <reviewer>`. Keep `id`, `path`, `line` (or `original_line`), `body`, `html_url`, `created_at`, `in_reply_to_id`.
-   - Reviews: `gh api repos/<slug>/pulls/<n>/reviews --paginate`, filtered to the same user. Keep `id`, `body`, `html_url`, `submitted_at`. Include a review's own `body` as a comment only if non-empty.
+   - Inline: every comment of theirs in the review threads. Keep its id, thread id, path, line, body, URL, and creation time.
+   - Reviews, on a host with review bodies: each of theirs, kept as a comment only if its body isn't empty.
 7. Scope to the newest round, unless `--all` was passed:
-   - Group everything from step 6 by calendar date (from `created_at` / `submitted_at`).
+   - Group everything from step 6 by calendar date, from its creation time.
    - Keep only the most recent date's items.
    - Note any older items that were excluded, in one line, at the top of the output file.
-8. Drop already-answered threads: for each inline comment, check whether any other comment in the full (unfiltered) `pulls/comments` list has `in_reply_to_id` equal to its `id` and `user.login` equal to the current user from step 2. If so, skip it.
+8. Drop already-answered threads: a thread that holds a comment by the current user from step 2, posted after the reviewer's, is skipped.
 9. For each remaining comment, investigate before answering:
    - Read the referenced file at the given line, plus enough surrounding context to understand the claim (the function, its callers, related types/hooks).
    - Trace the actual behavior: if the comment claims something is dead code, unreachable, redundant, or inconsistent, verify it by reading the code paths involved, not by re-reading the comment.
@@ -61,7 +61,7 @@ For each comment, once investigated:
 
 ## Output
 
-Write to the path `kit scratch-dir pr-reply <n>` prints, opening with the draft header from `skills/pr-publish/SKILL.md` (`Head:` is `headRefOid` from `gh pr view <n> --json headRefOid`).
+Write to the path `kit scratch-dir pr-reply <n>` prints, opening with the draft header from `skills/pr-publish/SKILL.md` (`Head:` is the PR's head SHA).
 
 Structure:
 
@@ -89,7 +89,7 @@ Replies to <reviewer>. <One line noting the round scoped to, and what was exclud
 <Numbered list of agreed action items, deduped where multiple comments point at the same fix. Omit if nothing was agreed to.>
 ```
 
-One `###` section per comment, in the order the reviewer posted them. The id after "reply to" is the comment's `in_reply_to_id` when set, else its `id`: GitHub's replies endpoint takes only a thread's top-level comment. `publish` posts each section's text after the quote; the heading and the quote are not posted, and neither is "Fixes to make". A `review` section answers a review-level body, which has no thread to reply in.
+One `###` section per comment, in the order the reviewer posted them. The id after "reply to" is the thread id the host's reply call takes, per `skills/code-host-patterns`. `publish` posts each section's text after the quote; the heading and the quote are not posted, and neither is "Fixes to make". A `review` section answers a review-level body, which has no thread to reply in.
 
 ## Rules
 

@@ -23,19 +23,16 @@ Generate a pull request title and description from the current diff.
 ## Procedure
 
 1. Check for a project PR template: resolve the project root via `kit project-root`, then check these exact paths in order, using the first that exists:
-   - `<root>/.github/pull_request_template.md`, and its case variant `<root>/.github/PULL_REQUEST_TEMPLATE.md`
-   - the alphabetically-first `*.md` file directly inside `<root>/.github/PULL_REQUEST_TEMPLATE/`, if that directory exists (`fd -H . <root>/.github/PULL_REQUEST_TEMPLATE -e md | sort | head -1`)
-   - `<root>/docs/pull_request_template.md`
-   - `<root>/pull_request_template.md`
+   - the code host's PR template paths in `skills/code-host-patterns`, under `<root>`, in their order
 
-   Test each exact path (e.g. `test -f <path>`); do not run a keyword/substring search like `fd -i pull_request_template` across the tree. Two failure modes make that unsafe:
+Test each exact path (e.g. `test -f <path>`); do not run a keyword/substring search like `fd -i pull_request_template` across the tree. Two failure modes make that unsafe:
 
-   - `.github` is a hidden directory that `fd` silently excludes unless you pass `-H`, so a template living there gets missed entirely.
-   - `.github` commonly holds several unrelated `*_pull_request_template.md` variants (per-team or per-change-type templates, e.g. `ds_pull_request_template.md`), and a substring match sorted alphabetically will confidently pick the wrong one instead of the actual default.
+- `.github` and `.gitlab` are hidden directories that `fd` silently excludes unless you pass `-H`, so a template living there gets missed entirely.
+- `.github` commonly holds several unrelated `*_pull_request_template.md` variants (per-team or per-change-type templates, e.g. `ds_pull_request_template.md`), and a substring match sorted alphabetically will confidently pick the wrong one instead of the actual default.
 
-   Exact-path checks sidestep both.
+Exact-path checks sidestep both.
 
-   If one exists, read it: its sections replace the default Structure below. This is mandatory, not a preference, even for a one-line diff. Never substitute the default Structure when a project template exists. If none exists, fall back to the default Structure.
+If one exists, read it: its sections replace the default Structure below. This is mandatory, not a preference, even for a one-line diff. Never substitute the default Structure when a project template exists. If none exists, fall back to the default Structure.
 
 2. Resolve the base: `kit git-base`. If $ARGUMENTS is a valid single-word git ref (no spaces, not a sentence), use it as the explicit base instead by running `kit git-base "$ARGUMENTS"` via Bash.
 3. Pull the diff: `kit git-base --diff`
@@ -45,7 +42,7 @@ Generate a pull request title and description from the current diff.
 
 ## Output
 
-Write the PR description to the path `kit scratch-dir pr-description <branch>` prints. It opens with the draft header from `skills/pr-publish/SKILL.md`, `Head:` being `git rev-parse HEAD` and `PR:` the branch's open PR from `gh pr view --json number`, else `Branch:`. Under the header, a `Title: <title>` line, a blank line, then the body below; `publish` posts everything after the `Title:` line as the body.
+Write the PR description to the path `kit scratch-dir pr-description <branch>` prints. It opens with the draft header from `skills/pr-publish/SKILL.md`, `Head:` being `git rev-parse HEAD` and `PR:` the branch's open PR, else `Branch:`. Under the header, a `Title: <title>` line, a blank line, then the body below; `publish` posts everything after the `Title:` line as the body.
 
 ### If step 1 found a project PR template
 

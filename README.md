@@ -186,7 +186,7 @@ Why each rule says what it says: [docs/rules.md](docs/rules.md).
 
 ### Pattern skills
 
-Without them, Claude gives generic advice that ignores your stack. Each is stack knowledge Claude loads when the repo calls for it: React, Next.js App Router, Vue, Nuxt, TypeScript, JavaScript, Tailwind, Storybook, GraphQL, Python, Django, DRF, FastAPI, Go, Bash, Docker, OpenTofu/Terraform, git, testing, security, logging, monitoring, backups, VPS provisioning, WCAG 2.2, and engineering fundamentals. `slop-patterns` teaches rewriting AI tells; the slop guards send Claude to it.
+Without them, Claude gives generic advice that ignores your stack. Each is stack knowledge Claude loads when the repo calls for it: React, Next.js App Router, Vue, Nuxt, TypeScript, JavaScript, Tailwind, Storybook, GraphQL, Python, Django, DRF, FastAPI, Go, Bash, Docker, OpenTofu/Terraform, git, GitHub and GitLab, testing, security, logging, monitoring, backups, VPS provisioning, WCAG 2.2, and engineering fundamentals. `slop-patterns` teaches rewriting AI tells; the slop guards send Claude to it.
 
 Session start names the ones your repo needs. The first read or edit of a file type names its skill again, and `guard_skills: true` makes it required before the first edit. The switches are in [docs/configuration.md](docs/configuration.md).
 
@@ -277,7 +277,7 @@ Required: `git` and bash. Every tool below is optional. A missing one, except `g
 | Tool         | Used by                                                                      | Without it                                                                      |
 | ------------ | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
 | `gh`         | `/pr-*`, `/deps`, `/code-history`, `/code-challenge`, linked tickets         | `/pr-*` and `/deps` can't reach GitHub; `/code-history` works from commits only |
-| `glab`       | `/code-history`, `/code-challenge`, review checkout, on a GitLab remote      | the host's MCP connector, else `/code-history` works from commits only          |
+| `glab`       | `/pr-*`, `/code-history`, `/code-challenge`, review checkout, on GitLab      | the host's MCP connector, else `/code-history` works from commits only          |
 | `rg`         | text search everywhere, `/audit-*`, `/code-*`, the gatherer agent            | search uses grep                                                                |
 | `sg`         | `kit code-graph imports` (`/code-visual`, `/code-impact`), searches by shape | `kit code-graph imports` fails; `rg` stands in for shape search                 |
 | `fd`         | file search, `/audit-*`, `/code-*`                                           | file search uses find                                                           |

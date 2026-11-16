@@ -27,13 +27,13 @@ Tone and shape: `skills/kit-rules/reference/output.md` section 4, which wins ove
 ## Inputs
 
 1. Findings, first match wins: the report path in `$ARGUMENTS`; else every review point this session produced, from `/code-review`, `/verify`, `/code-challenge`, or plain discussion, merged. None at all: stop and name the reviews to run, `/code-review <n>`, then `/verify` and `/code-challenge` as the change calls for.
-2. The PR: from `$ARGUMENTS`, else from the findings. Neither names it: ask. Owner and repo come from the URL, or `gh repo view --json nameWithOwner`. Every `gh pr` call below passes `-R <owner>/<repo>`, so a PR from another repo resolves there and not in the cwd's repo.
+2. The PR: from `$ARGUMENTS`, else from the findings. Neither names it: ask. `<repo>` comes from the URL, or the repository path in `skills/code-host-patterns`. Every call takes it, so a PR from another repo resolves there and not in the cwd's repo.
 
 ## Pin the head
 
-1. `gh pr view <n> -R <owner>/<repo> --json headRefOid,headRefName,title,body,files`.
-2. `git fetch <remote> "+pull/<n>/head:refs/pr/<n>"`, where `<remote>` is the one `git remote -v` shows for `<owner>/<repo>`, else `https://github.com/<owner>/<repo>.git`. The `+` lets a later run follow a force-push.
-3. `git rev-parse refs/pr/<n>` must equal `headRefOid`. Mismatch: stop and say so. Every later read uses that SHA.
+1. Read the PR's head SHA, branch, title, body, and files.
+2. `git fetch <remote> "<head ref>"` with the host's head ref from `skills/code-host-patterns`, where `<remote>` is the one `git remote -v` shows for `<repo>`, else the repository's clone URL. The `+` lets a later run follow a force-push.
+3. `git rev-parse refs/pr/<n>` must equal the head SHA. Mismatch: stop and say so. Every later read uses that SHA.
 
 Write `"${head}:${file}"`; the zsh traps are `skills/bash-patterns/reference/quoting.md`.
 
@@ -47,7 +47,7 @@ For every finding, before drafting:
 
 ## Anchor each point
 
-- Line: an inline comment on the RIGHT side, on a line inside the diff. Take the line number from `git show <sha>:<file>`, never from hunk offsets, since a new or renamed file shows as "new file" in a pathspec-limited `git diff`. Confirm the line falls inside a hunk of `gh pr diff <n> -R <owner>/<repo>`.
+- Line: an inline comment on the new side, on a line inside the diff. Take the line number from `git show <sha>:<file>`, never from hunk offsets, since a new or renamed file shows as "new file" in a pathspec-limited `git diff`. Confirm the line falls inside a hunk of the PR's diff.
 - File: a point about a file's location or name is a file-level comment.
 - None: a point with no line, like cases to try, goes in the summary comment.
 
@@ -70,16 +70,16 @@ Write it to the path `kit scratch-dir pr-review <n>` prints. Inline comments go 
 
 ## Inline comments
 
-### [<path>:<line>](https://github.com/<owner>/<repo>/pull/<n>/files#diff-<sha256 of path>R<line>)
+### [<path>:<line>](<link to the line at the head>)
 
 <body>
 
-### [<path> (file)](https://github.com/<owner>/<repo>/pull/<n>/files#diff-<sha256 of path>)
+### [<path> (file)](<link to the file at the head>)
 
 <body>
 ```
 
-The diff anchor is `printf '%s' "<path>" | shasum -a 256`. Reply with the file path, the comment count, the dropped points with the reason, and one next action: review the file, then `/pr-publish <n>`. Post nothing.
+The links take the shape `skills/code-host-patterns` gives. Reply with the file path, the comment count, the dropped points with the reason, and one next action: review the file, then `/pr-publish <n>`. Post nothing.
 
 ## Review loop
 
