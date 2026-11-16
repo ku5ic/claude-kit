@@ -4,7 +4,7 @@ Date: 2026-11-16
 
 ## Status
 
-Accepted
+Superceded by [12. Release 0.12: one skill per procedure, each detecting its stack, and every scanned language covered](0012-release-0-12-one-skill-per-procedure-each-detecting-its-stack-and-every-scanned-language-covered.md)
 
 ## Context
 
