@@ -54,10 +54,6 @@ var importRules = func() string {
 	return b.String()
 }()
 
-// astGrep is ast-grep's names: its own, else sg, the name older installs
-// and Homebrew's formula use.
-var astGrep = []string{"ast-grep", "sg"}
-
 // scanTimeout bounds one ast-grep scan.
 var scanTimeout = 10 * time.Minute
 
@@ -154,7 +150,7 @@ type found struct {
 // scanImports is every import under root, sorted by file and text. A path
 // under testdata or any of skipDirs is left out.
 func scanImports(root string, skipDirs []string, stderr io.Writer) ([]found, error) {
-	bin, err := kittool.Path(astGrep...)
+	bin, err := kittool.Path("ast-grep")
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrNoASTGrep, err)
 	}

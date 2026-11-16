@@ -247,7 +247,7 @@ func TestRunUnsupportedFileTypeExits2(t *testing.T) {
 // needsASTGrep skips t without ast-grep, except in CI, which installs it.
 func needsASTGrep(t *testing.T) {
 	t.Helper()
-	if _, err := kittool.Path("ast-grep", "sg"); err != nil {
+	if _, err := kittool.Path("ast-grep"); err != nil {
 		if os.Getenv("CI") != "" {
 			t.Fatal(err)
 		}

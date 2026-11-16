@@ -17,9 +17,18 @@ import (
 // shadow-utils' newgrp alias of the same name.
 const versionTimeout = 5 * time.Second
 
-// Path is the PATH copy of the first of names installed.
+// aliases are the other names a tool installs as: ast-grep's deprecated sg,
+// and fd's fdfind on Debian and Ubuntu.
+var aliases = map[string][]string{"ast-grep": {"sg"}, "fd": {"fdfind"}}
+
+// Path is the PATH copy of the first of names installed, each tried under
+// its aliases after its own name.
 func Path(names ...string) (string, error) {
+	var tried []string
 	for _, name := range names {
+		tried = append(append(tried, name), aliases[name]...)
+	}
+	for _, name := range tried {
 		path, err := exec.LookPath(name)
 		if err != nil {
 			continue

@@ -309,7 +309,10 @@ func unanswered(cfg *config.Config, cacheDir, path string) (string, bool) {
 func cliLines(cfg *config.Config) []string {
 	var available, missing, out []string
 	for _, tool := range cfg.Tools {
-		if _, err := kittool.Path(tool); err == nil {
+		if path, err := kittool.Path(tool); err == nil {
+			if name := filepath.Base(path); name != tool {
+				tool += " (as " + name + ")"
+			}
 			available = append(available, tool)
 		} else {
 			missing = append(missing, tool)

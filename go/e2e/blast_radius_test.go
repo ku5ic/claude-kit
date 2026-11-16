@@ -13,7 +13,7 @@ import (
 // internal/blast.
 func TestBlastRadius(t *testing.T) {
 	t.Parallel()
-	if _, err := kittool.Path("ast-grep", "sg"); err != nil {
+	if _, err := kittool.Path("ast-grep"); err != nil {
 		if os.Getenv("CI") != "" {
 			t.Fatal(err) // CI installs ast-grep
 		}

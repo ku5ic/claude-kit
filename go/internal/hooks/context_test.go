@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -457,6 +458,28 @@ dependency_skills:
 
 // Not parallel: these cases set the environment inject-context reads.
 func TestInjectContextEnv(t *testing.T) {
+	t.Run("tooling: a tool found under another name says the name to call", func(t *testing.T) {
+		e := contextSetup(t)
+		e.kitYML("tools: [fd]\n")
+		bin := t.TempDir()
+		testutil.Write(t, filepath.Join(bin, "fdfind"), "#!/bin/sh\n")
+		if err := os.Chmod(filepath.Join(bin, "fdfind"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		git, err := exec.LookPath("git")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(git, filepath.Join(bin, "git")); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("PATH", bin)
+		r := e.inject("s1", "")
+		r.Want(t, 0)
+		if block := toolingOf(r.Output); !strings.Contains(block, "available: fd (as fdfind)") {
+			t.Errorf("tooling:\n%s", block)
+		}
+	})
 	t.Run("<suggested-skills> adds the file-map skills a repo file matches, guard-skills on or off", func(t *testing.T) {
 		yml := `global_skills: []
 skill_triggers: {}
