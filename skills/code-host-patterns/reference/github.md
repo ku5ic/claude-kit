@@ -15,21 +15,26 @@ The `gh` CLI. `<repo>` is `owner/repo`; every `gh pr` call passes `-R <repo>`.
 | Review threads                  | `gh api repos/<repo>/pulls/<n>/comments --paginate`, and `.../reviews` for review bodies                                                                                                                 |
 | Review comments across the repo | `gh api "repos/<repo>/pulls/comments?since=<ISO date>" --paginate`, each with `body`, `path`, `html_url`, and `user.login`                                                                               |
 | Link to a line at the head      | `<repo web URL>/pull/<n>/files#diff-<sha256 of path>R<line>`                                                                                                                                             |
+| Code search across an org       | `gh search code '<term>' --owner <org> --json repository,path,url --limit 1000`, narrowed with `--language`, `--filename`, or `--extension`                                                              |
+| Issue template                  | `.github/ISSUE_TEMPLATE/`                                                                                                                                                                                |
 | PR template                     | `.github/pull_request_template.md`, `.github/PULL_REQUEST_TEMPLATE.md`, the alphabetically first `*.md` in `.github/PULL_REQUEST_TEMPLATE/`, `docs/pull_request_template.md`, `pull_request_template.md` |
 
 A diff `gh pr diff` refuses as too large (it stops at 300 files) comes from the fetched head instead: `git diff <remote>/<base branch>...refs/pr/<n>`, after `git fetch <remote> <base branch>`. The line link's hash is `printf '%s' "<path>" | shasum -a 256`.
 
+Code search covers the default branch only, files under 384 KB, and up to 1,000 results a query, at 10 requests a minute. Split a query by `--repo` or `--language` when it nears the cap.
+
 ## Post
 
-| Operation                     | Command                                                                                                                              |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Review, line                  | `gh api -X POST repos/<repo>/pulls/<n>/comments -f commit_id=<sha> -f path=<file> -F line=<line> -f side=RIGHT -F body=@<body-file>` |
-| Review, file                  | `gh api -X POST repos/<repo>/pulls/<n>/comments -f commit_id=<sha> -f path=<file> -f subject_type=file -F body=@<body-file>`         |
-| Summary, or reply to a review | `gh api -X POST repos/<repo>/issues/<n>/comments -F body=@<body-file>`                                                               |
-| Reply in a thread             | `gh api -X POST repos/<repo>/pulls/<n>/comments/<thread id>/replies -F body=@<body-file>`, the thread's top-level comment id         |
-| Description, PR open          | `gh pr edit <n> --title "$(cat <title-file>)" --body-file <body-file>`                                                               |
-| Description, no PR            | `gh pr create --head <branch> --title "$(cat <title-file>)" --body-file <body-file>`                                                 |
-| What the post log records     | the response's `html_url` and `created_at`                                                                                           |
+| Operation                     | Command                                                                                                                                                       |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Review, line                  | `gh api -X POST repos/<repo>/pulls/<n>/comments -f commit_id=<sha> -f path=<file> -F line=<line> -f side=RIGHT -F body=@<body-file>`                          |
+| Review, file                  | `gh api -X POST repos/<repo>/pulls/<n>/comments -f commit_id=<sha> -f path=<file> -f subject_type=file -F body=@<body-file>`                                  |
+| Summary, or reply to a review | `gh api -X POST repos/<repo>/issues/<n>/comments -F body=@<body-file>`                                                                                        |
+| Reply in a thread             | `gh api -X POST repos/<repo>/pulls/<n>/comments/<thread id>/replies -F body=@<body-file>`, the thread's top-level comment id                                  |
+| Description, PR open          | `gh pr edit <n> --title "$(cat <title-file>)" --body-file <body-file>`                                                                                        |
+| Issue, create                 | `gh issue create --title "$(cat <title-file>)" --body-file <body-file> [--label <name>] [--milestone <name>] [--parent <number>]`, which prints the issue URL |
+| Description, no PR            | `gh pr create --head <branch> --title "$(cat <title-file>)" --body-file <body-file>`                                                                          |
+| What the post log records     | the response's `html_url` and `created_at`                                                                                                                    |
 
 The batched `POST /pulls/<n>/reviews` posts a whole review in one call. Content creation has secondary rate limits of 80 per minute and 500 per hour.
 

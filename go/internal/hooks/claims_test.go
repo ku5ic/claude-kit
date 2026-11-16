@@ -3,8 +3,10 @@ package hooks
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -691,5 +693,26 @@ func TestClaimsMessageClipsByCharacter(t *testing.T) {
 	}
 	if strings.Contains(msg, `\x`) {
 		t.Errorf("clip split a character:\n%s", msg)
+	}
+}
+
+// A new audit-* or code-* skill's report kind would otherwise skip the gate.
+func TestCheckedReportsCoverEveryAuditAndCodeSkill(t *testing.T) {
+	kind := regexp.MustCompile("kit scratch-dir ([a-z0-9-]+) ")
+	skills, _ := filepath.Glob(filepath.Join("..", "..", "..", "skills", "*", "SKILL.md"))
+	for _, skill := range skills {
+		name := filepath.Base(filepath.Dir(skill))
+		if !strings.HasPrefix(name, "audit-") && !strings.HasPrefix(name, "code-") {
+			continue
+		}
+		text, err := os.ReadFile(skill)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, m := range kind.FindAllStringSubmatch(string(text), -1) {
+			if !slices.Contains(checkedReports, m[1]) {
+				t.Errorf("%s writes a %q report, missing from checkedReports", name, m[1])
+			}
+		}
 	}
 }

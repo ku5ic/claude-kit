@@ -15,7 +15,11 @@ The `glab` CLI. `<repo>` is `group/project`, URL-encoded (`/` as `%2F`) in an AP
 | Review threads                  | `glab api projects/<repo>/merge_requests/<n>/discussions --paginate`; a diff note's `position` holds its path and line                                                                        |
 | Review comments across the repo | `glab mr list -R <repo> --merged --per-page 100 -F json`, then each MR's `glab api "projects/<repo>/merge_requests/<n>/notes?per_page=100" --paginate`, dropping notes whose `system` is true |
 | Link to a line at the head      | `<project web_url>/-/blob/<sha>/<path>#L<line>`                                                                                                                                               |
+| Code search across a group      | `glab api "groups/<id>/search?scope=blobs&search=<term>" --paginate`, each blob with `path`, `ref`, `startline`, and `project_id`                                                             |
+| Issue template                  | `.gitlab/issue_templates/Default.md`, any letter case                                                                                                                                         |
 | PR template                     | `.gitlab/merge_request_templates/Default.md`, any letter case                                                                                                                                 |
+
+Group code search works only where advanced search is enabled. Without it, list the group's projects with `glab api groups/<id>/projects --paginate` and search each clone.
 
 A line note needs the MR's `diff_refs`: `base_sha`, `start_sha`, and `head_sha`. A diff `glab mr diff` can't give comes from the fetched head: `git diff <remote>/<base branch>...refs/pr/<n>`, after `git fetch <remote> <base branch>`.
 
@@ -30,6 +34,7 @@ A line note needs the MR's `diff_refs`: `base_sha`, `start_sha`, and `head_sha`.
 | Description, PR open          | `glab mr update <n> --title "$(cat <title-file>)" --description-file <body-file>`                                                                                                                                                                                                                                   |
 | Description, no PR            | `glab mr create --source-branch <branch> --push=false --yes --title "$(cat <title-file>)" --description-file <body-file>`                                                                                                                                                                                           |
 | What the post log records     | the note's `id` as `<MR web_url>#note_<id>`, and its `created_at`                                                                                                                                                                                                                                                   |
+| Issue, create                 | `glab issue create --title "$(cat <title-file>)" --description-file <body-file> --yes [--label <name>] [--milestone <title>] [--linked-issues <iid>]`                                                                                                                                                               |
 
 Draft notes publish a whole review in one batch. `glab mr create` pushes unless `--push=false` is given, and the kit never pushes.
 
