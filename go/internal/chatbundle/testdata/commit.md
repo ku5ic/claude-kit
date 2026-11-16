@@ -1,4 +1,4 @@
-# /write commit
+# /write-commit
 
 <!-- chat: skip -->
 

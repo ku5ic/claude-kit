@@ -31,8 +31,8 @@ import (
 //     report, by the hook's own run against its transcript, once per agent.
 //   - PreToolUse for ExitPlanMode: the plan, which plan-critic's run covers,
 //     or with plan-critic off, the claim-checker agent.
-//   - PreToolUse for a Write or Edit of an investigation, review, /audit,
-//     or /code report in scratch, and for an MCP tool that writes: the claim-checker agent on
+//   - PreToolUse for a Write or Edit of an investigation, review, audit-*,
+//     or code-* report in scratch, and for an MCP tool that writes: the claim-checker agent on
 //     that exact text. Inside a subagent, the hook's own run, once per text.
 //
 // It runs last in its dispatcher and skips a call an earlier check denied,
@@ -494,7 +494,7 @@ func agentTranscript(p *hook.Payload) string {
 }
 
 // checkedReports are the scratch report kinds whose claims are checked:
-// investigate's, and every /audit and /code kind's.
+// investigate's, and every audit-* and code-* skill's.
 var checkedReports = []string{
 	"explore", "debug", "review",
 	"a11y", "arch", "ci", "debt", "doc-drift", "infra", "perf", "security", "slop", "verify",

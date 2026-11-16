@@ -16,7 +16,7 @@ func TestChatTextMatchesTheGoldens(t *testing.T) {
 		"skills/kit-rules/reference/evidence.md": {"Evidence", []string{"1"}},
 		"skills/kit-rules/reference/output.md":   {"Output", []string{"1", "4"}},
 	}
-	b := &bundle{files: map[string][]byte{"skills/write/reference/commit.md": nil}}
+	b := &bundle{files: map[string][]byte{"skills/write-commit/SKILL.md": nil}}
 	for _, name := range []string{"commit", "chat", "SKILL"} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -94,16 +94,18 @@ func TestParseRule(t *testing.T) {
 func TestLinks(t *testing.T) {
 	t.Parallel()
 	rules := map[string]rule{"skills/kit-rules/reference/change.md": {"Change", []string{"1", "2", "3"}}}
-	b := &bundle{files: map[string][]byte{"skills/a/reference/x.md": nil}}
+	b := &bundle{files: map[string][]byte{"skills/a/reference/x.md": nil, "skills/a/SKILL.md": nil}}
 	for name, tc := range map[string]struct{ in, want string }{
-		"bare rule":        {"`skills/kit-rules/reference/change.md`", "the kit-rules skill, Change"},
-		"possessive":       {"`skills/kit-rules/reference/change.md`'s rule", "the kit-rules skill, Change's rule"},
-		"one section":      {"`skills/kit-rules/reference/change.md` section 2.", "the kit-rules skill, Change section 2."},
-		"several sections": {"`skills/kit-rules/reference/change.md` sections 1, 2, and 3", "the kit-rules skill, Change sections 1, 2, and 3"},
-		"two sections":     {"`skills/kit-rules/reference/change.md` sections 1 and 2", "the kit-rules skill, Change sections 1 and 2"},
-		"unbundled rule":   {"`skills/kit-rules/reference/verify.md` section 9", "`skills/kit-rules/reference/verify.md` section 9"},
-		"bundled skill":    {"`skills/a/reference/x.md`", "`reference/x.md` in the a skill"},
-		"unbundled skill":  {"`skills/b/reference/x.md`", "`skills/b/reference/x.md`"},
+		"bare rule":          {"`skills/kit-rules/reference/change.md`", "the kit-rules skill, Change"},
+		"possessive":         {"`skills/kit-rules/reference/change.md`'s rule", "the kit-rules skill, Change's rule"},
+		"one section":        {"`skills/kit-rules/reference/change.md` section 2.", "the kit-rules skill, Change section 2."},
+		"several sections":   {"`skills/kit-rules/reference/change.md` sections 1, 2, and 3", "the kit-rules skill, Change sections 1, 2, and 3"},
+		"two sections":       {"`skills/kit-rules/reference/change.md` sections 1 and 2", "the kit-rules skill, Change sections 1 and 2"},
+		"unbundled rule":     {"`skills/kit-rules/reference/verify.md` section 9", "`skills/kit-rules/reference/verify.md` section 9"},
+		"bundled skill":      {"`skills/a/reference/x.md`", "`reference/x.md` in the a skill"},
+		"unbundled skill":    {"`skills/b/reference/x.md`", "`skills/b/reference/x.md`"},
+		"bundled SKILL.md":   {"`skills/a/SKILL.md`", "the a skill"},
+		"unbundled SKILL.md": {"`skills/b/SKILL.md`", "`skills/b/SKILL.md`"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -174,7 +176,7 @@ func TestLint(t *testing.T) {
 		"hyphenated skill":    {"Follow test-patterns for this", "skill not in the bundle"},
 		"code-spanned skill":  {"Load `pr` first", "skill not in the bundle"},
 		"typed skill":         {"Run /audit now", "skill not in the bundle"},
-		"typed in code":       {"So `/audit debt` finds it", "skill not in the bundle"},
+		"typed in code":       {"So `/audit-debt` finds it", "skill not in the bundle"},
 		"the word audit":      {"An audit of the pr is fine", ""},
 		"a bundled skill":     {"Use the write skill and slop-patterns", ""},
 		"the kit in prose":    {"The kit has a claude-kit config, and git history", ""},

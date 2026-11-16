@@ -117,24 +117,24 @@ For anything bigger than a one-line fix, the kit holds Claude to five stages. Ea
 | 2. Plan              | `/plan` (built in)                        | You approve a plan nobody checked           | `kit:plan-critic` reads it against the repo, and its claims are checked, before you're asked to approve       |
 | 3. Review each step  | Approve the plan                          | Claude runs through the whole plan at once  | Claude stops after every step so you can review and commit. The Stop hook has already checked what it touched |
 | 4. Review the change | `/code-review`, then `/verify` (built in) | "Done" while checks fail                    | `/code-review`'s hook runs the full gate; `/verify` watches the change work                                   |
-| 5. Ship              | `/write commit`, `/kit:pr description`    | Commits you didn't ask for, AI-sounding PRs | Messages and PR text in your project's style, checked for AI tells. Claude never commits or pushes unasked    |
+| 5. Ship              | `/write-commit`, `/pr-description`        | Commits you didn't ask for, AI-sounding PRs | Messages and PR text in your project's style, checked for AI tells. Claude never commits or pushes unasked    |
 
-Side trips: `/audit` for a read-only report, `/simplify` (built in) to cut over-engineering, `/deps` for dependency PRs.
+Side trips: an `/audit-<kind>` for a read-only report, `/simplify` (built in) to cut over-engineering, `/deps` for dependency PRs.
 
 ### Commands
 
-Each command is a procedure Claude follows step by step, so the same request gets the same shape of answer every time. They work bare (`/audit`) or namespaced (`/kit:audit`), except `/kit:pr`: Claude Code reserves `/pr`.
+Each command is a procedure Claude follows step by step, so the same request gets the same shape of answer every time. Each kind is its own command, so the `/` menu completes it. Typing `/audit` lists every audit with what it does. They work bare (`/audit-perf`) or namespaced (`/kit:audit-perf`).
 
-| When you need                                                                                                  | Run              | What it does                                                                                                                                                                                                                       |
-| -------------------------------------------------------------------------------------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| To know how, why, or where something works                                                                     | `investigate`    | Read-only answer to "how", "why", or "where". Loads on its own; never edits                                                                                                                                                        |
-| A report on accessibility, architecture, tech debt, doc drift, performance, security, CI, infra, or prose slop | `/audit <kind>`  | `a11y`, `arch`, `debt`, `doc-drift`, `perf`, `security`, `ci`, `infra`, `slop`, or `verify` a prior report. Writes a report to scratch                                                                                             |
-| How a path got this way, what a change would break, a tour, or a challenge or deep review                      | `/code <kind>`   | `history` of a path from its commits and PRs, `visual` Mermaid diagrams, `impact` of changing a file, an onboarding `tour`, `challenge` a plan or PR's decisions, or a deep `review` of a path or diff. Writes a report to scratch |
-| A commit message, release notes, a devnote, an explainer, or a stakeholder summary                             | `/write <kind>`  | `commit`, `release-notes`, `devnote`, `explainer`, `stakeholder`                                                                                                                                                                   |
-| PR text: your description, a review of someone's PR, or a reply to your reviewer                               | `/kit:pr <kind>` | Draft a `description`, a `review` of someone's PR, or a `reply` to your reviewer; `publish` posts an approved draft                                                                                                                |
-| Dependabot PRs merged and security alerts sorted                                                               | `/deps`          | Merge Dependabot PRs and reconcile security alerts                                                                                                                                                                                 |
-| AI tells and filler out of a text                                                                              | `/unslop`        | Rewrite AI tells and filler in files, a `diff`, or pasted text; to scratch unless told `in place`                                                                                                                                  |
-| A sharper prompt, refreshed pattern skills, a new skill, a repo's conventions, or a retro                      | `/meta <kind>`   | `prompt` sharpening, `refresh` the pattern skills, draft a new `skill`, write a repo's `conventions`, `retro`                                                                                                                      |
+| When you need                                                                                                  | Run             | What it does                                                                                                                                                                                                                       |
+| -------------------------------------------------------------------------------------------------------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| To know how, why, or where something works                                                                     | `investigate`   | Read-only answer to "how", "why", or "where". Loads on its own; never edits                                                                                                                                                        |
+| A report on accessibility, architecture, tech debt, doc drift, performance, security, CI, infra, or prose slop | `/audit-<kind>` | `a11y`, `arch`, `debt`, `doc-drift`, `perf`, `security`, `ci`, `infra`, `slop`, or `verify` a prior report. Writes a report to scratch                                                                                             |
+| How a path got this way, what a change would break, a tour, or a challenge or deep review                      | `/code-<kind>`  | `history` of a path from its commits and PRs, `visual` Mermaid diagrams, `impact` of changing a file, an onboarding `tour`, `challenge` a plan or PR's decisions, or a `deep-review` of a path or diff. Writes a report to scratch |
+| A commit message, release notes, a devnote, an explainer, or a stakeholder summary                             | `/write-<kind>` | `commit`, `release-notes`, `devnote`, `explainer`, `stakeholder`                                                                                                                                                                   |
+| PR text: your description, a review of someone's PR, or a reply to your reviewer                               | `/pr-<kind>`    | Draft a `description`, a `review` of someone's PR, or a `reply` to your reviewer; `publish` posts an approved draft                                                                                                                |
+| Dependabot PRs merged and security alerts sorted                                                               | `/deps`         | Merge Dependabot PRs and reconcile security alerts                                                                                                                                                                                 |
+| AI tells and filler out of a text                                                                              | `/unslop`       | Rewrite AI tells and filler in files, a `diff`, or pasted text; to scratch unless told `in place`                                                                                                                                  |
+| A sharper prompt, refreshed pattern skills, a new skill, a repo's conventions, or a retro                      | `/meta-<kind>`  | `prompt` sharpening, `refresh` the pattern skills, draft a new `skill`, write a repo's `conventions`, `retro`                                                                                                                      |
 
 ### Agents
 
@@ -142,7 +142,7 @@ Each agent is a subagent with one job, the tools for it, and a boundary it keeps
 
 | When you need                                      | Agent               | What it does                                                                                 |
 | -------------------------------------------------- | ------------------- | -------------------------------------------------------------------------------------------- |
-| An audit for an `/audit` kind                      | `kit:auditor`       | Runs the audit read-only and writes the report                                               |
+| An audit for an `audit-*` skill                    | `kit:auditor`       | Runs the audit read-only and writes the report                                               |
 | To find where and why something breaks             | `kit:debugger`      | Localizes the fault with at most one probe edit. Hands the fix back                          |
 | One fact: precedent, tests, or history             | `kit:gatherer`      | Answers with `file:line` only, never opinions                                                |
 | A plan attacked before you approve it              | `kit:plan-critic`   | Reads the plan against the real repo                                                         |
@@ -274,27 +274,27 @@ claude plugin install kit@ku5ic
 
 Required: `git` and bash. Every tool below is optional. A missing one, except `glab`, is named on the session-start `<tooling>` block's `missing:` line, and Claude leaves it unused.
 
-| Tool         | Used by                                                                      | Without it                                                                        |
-| ------------ | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `gh`         | `/kit:pr`, `/deps`, `/code history`, `/code challenge`, linked tickets       | `/kit:pr` and `/deps` can't reach GitHub; `/code history` works from commits only |
-| `glab`       | `/code history`, `/code challenge`, review checkout, on a GitLab remote      | the host's MCP connector, else `/code history` works from commits only            |
-| `rg`         | text search everywhere, `/audit`, `/code`, the gatherer agent                | search uses grep                                                                  |
-| `sg`         | `kit code-graph imports` (`/code visual`, `/code impact`), searches by shape | `kit code-graph imports` fails; `rg` stands in for shape search                   |
-| `fd`         | file search, `/audit`, `/code`                                               | file search uses find                                                             |
-| `tokei`      | `/audit debt`, `/code visual`                                                | file sizes come from reading files                                                |
-| `scc`        | `/code visual` hotspots                                                      | the hotspot quadrant is skipped                                                   |
-| `mmdc`       | `/code visual` diagram rendering                                             | diagrams go unrendered, and the report says so                                    |
-| `gitleaks`   | the commit guard's staged-diff scan, `/audit security`                       | the commit scan is skipped                                                        |
-| `trufflehog` | `/audit security` history scan                                               | history goes unscanned                                                            |
-| `actionlint` | `/audit ci`                                                                  | `/audit ci` skips its actionlint step                                             |
-| `hyperfine`  | `/audit perf` timings                                                        | `/audit perf` makes no timing claim                                               |
-| `difft`      | `/code history`, dropping reformat-only commits                              | reformat-only commits stay in the ranking                                         |
-| `adr`        | `/code challenge` reading ADRs                                               | `/code challenge` lists the ADR folder's files                                    |
-| `jq`         | JSON questions, `/code visual`, `/deps`, `/kit:pr`                           | Claude reads the JSON instead                                                     |
-| `gron`       | grepping flat JSON paths                                                     | `jq` stands in                                                                    |
-| `yq`         | YAML and TOML questions                                                      | Claude reads the file instead                                                     |
-| `qsv`        | CSV and TSV questions                                                        | Claude reads the file instead                                                     |
-| `git-absorb` | fixup commits from staged hunks                                              | `git rebase -i` with fixups instead                                               |
+| Tool         | Used by                                                                      | Without it                                                                      |
+| ------------ | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `gh`         | `/pr-*`, `/deps`, `/code-history`, `/code-challenge`, linked tickets         | `/pr-*` and `/deps` can't reach GitHub; `/code-history` works from commits only |
+| `glab`       | `/code-history`, `/code-challenge`, review checkout, on a GitLab remote      | the host's MCP connector, else `/code-history` works from commits only          |
+| `rg`         | text search everywhere, `/audit-*`, `/code-*`, the gatherer agent            | search uses grep                                                                |
+| `sg`         | `kit code-graph imports` (`/code-visual`, `/code-impact`), searches by shape | `kit code-graph imports` fails; `rg` stands in for shape search                 |
+| `fd`         | file search, `/audit-*`, `/code-*`                                           | file search uses find                                                           |
+| `tokei`      | `/audit-debt`, `/code-visual`                                                | file sizes come from reading files                                              |
+| `scc`        | `/code-visual` hotspots                                                      | the hotspot quadrant is skipped                                                 |
+| `mmdc`       | `/code-visual` diagram rendering                                             | diagrams go unrendered, and the report says so                                  |
+| `gitleaks`   | the commit guard's staged-diff scan, `/audit-security`                       | the commit scan is skipped                                                      |
+| `trufflehog` | `/audit-security` history scan                                               | history goes unscanned                                                          |
+| `actionlint` | `/audit-ci`                                                                  | `/audit-ci` skips its actionlint step                                           |
+| `hyperfine`  | `/audit-perf` timings                                                        | `/audit-perf` makes no timing claim                                             |
+| `difft`      | `/code-history`, dropping reformat-only commits                              | reformat-only commits stay in the ranking                                       |
+| `adr`        | `/code-challenge` reading ADRs                                               | `/code-challenge` lists the ADR folder's files                                  |
+| `jq`         | JSON questions, `/code-visual`, `/deps`, `/pr-*`                             | Claude reads the JSON instead                                                   |
+| `gron`       | grepping flat JSON paths                                                     | `jq` stands in                                                                  |
+| `yq`         | YAML and TOML questions                                                      | Claude reads the file instead                                                   |
+| `qsv`        | CSV and TSV questions                                                        | Claude reads the file instead                                                   |
+| `git-absorb` | fixup commits from staged hunks                                              | `git rebase -i` with fixups instead                                             |
 
 ### Shell completion (optional)
 

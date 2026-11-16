@@ -34,7 +34,7 @@ Every skill with references lists them in a "Before | Read" table: an action, th
 
 **A test failing after a refactor.** Adjusting the assertion to match the new output silently is the failure mode. A test asserting user-visible output is almost always guarding real behavior.
 
-**Enforced by hooks.** The claims hook (`go/internal/hooks/claims.go`) sends back unconfirmed claims in a plan, a subagent report, an investigation, review, `/audit`, or `/code` report in scratch, or a connector post. A chat reply is never checked, which is why the rule itself has to hold there.
+**Enforced by hooks.** The claims hook (`go/internal/hooks/claims.go`) sends back unconfirmed claims in a plan, a subagent report, an investigation, review, `audit-*`, or `code-*` report in scratch, or a connector post. A chat reply is never checked, which is why the rule itself has to hold there.
 
 ## Change
 
@@ -48,7 +48,7 @@ Every skill with references lists them in a "Before | Read" table: an action, th
 
 **Dead code.** Version control holds the history, so commented-out code only costs readers.
 
-**Comments.** If removing a comment wouldn't confuse a future reader, it shouldn't exist. A "why" that needs a paragraph belongs in the commit message. `shortcut:` comments are collected by `/audit debt`.
+**Comments.** If removing a comment wouldn't confuse a future reader, it shouldn't exist. A "why" that needs a paragraph belongs in the commit message. `shortcut:` comments are collected by `/audit-debt`.
 
 **Formatting** left the rule because each write is formatted by the project's fixers, or by kit.yml `on_edit` where none claims the file.
 

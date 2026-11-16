@@ -6,7 +6,7 @@ user-invocable: false
 
 # Markdown report format
 
-Consistent format for findings reports: audits, reviews, dependency runs, and any other structured list of problems found. A skill that defines its own report template (`investigate`, `/code`) owns its sections; Readability and the file-naming, path-printing, and ASCII rules below apply to those too.
+Consistent format for findings reports: audits, reviews, dependency runs, and any other structured list of problems found. A skill that defines its own report template (`investigate`, the `code-*` skills) owns its sections; Readability and the file-naming, path-printing, and ASCII rules below apply to those too.
 
 ## Required sections
 
@@ -74,7 +74,7 @@ The reader skims and may stop after the TL;DR. This section holds for every repo
 - If a section would be empty, omit it. Do not leave placeholder text.
 - No emoji. ASCII decoration: `skills/kit-rules/reference/change.md` section 5.
 - Where a report goes: `skills/kit-rules/reference/output.md` section 3.
-- Does not govern `/write` or `/pr` output (commit messages, release notes, stakeholder summaries, PR descriptions, review comments); those have their own formats per `skills/kit-rules/reference/output.md`.
+- Does not govern `write-*` or `pr-*` output (commit messages, release notes, stakeholder summaries, PR descriptions, review comments); those have their own formats per `skills/kit-rules/reference/output.md`.
 
 ## Health word
 

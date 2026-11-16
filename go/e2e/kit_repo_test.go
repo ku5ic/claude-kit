@@ -94,10 +94,12 @@ func TestKitRepo(t *testing.T) {
 
 	t.Run("a reference skill keeps its sources in sources.md and fits its budget", func(t *testing.T) {
 		// The skills that aren't reference skills, so keep no sources.md;
-		// skills/meta/reference/refresh.md points here for the list.
-		exempt := []string{"audit", "write", "deps", "investigate", "pr", "unslop", "report-format", "meta", "kit-rules", "slop-patterns", "code"}
+		// skills/meta-refresh/SKILL.md points here for the list.
+		// A skill only the user invokes (disable-model-invocation) is a
+		// procedure, and so are these.
+		exempt := []string{"investigate", "report-format", "kit-rules", "slop-patterns"}
 		// Reference skills with no version-dependent content: no sources.md,
-		// and /meta refresh takes them only when named.
+		// and /meta-refresh takes them only when named.
 		unversioned := []string{"engineering-fundamentals"}
 		// Set from the sizes after sources moved out; step 18's rewrite lowers them.
 		const maxDescription, maxSkill = 200, 5 * 1024
@@ -105,13 +107,13 @@ func TestKitRepo(t *testing.T) {
 		dirs, _ := filepath.Glob(filepath.Join(kitRoot, "skills", "*", "SKILL.md"))
 		for _, skill := range dirs {
 			dir := filepath.Dir(skill)
-			if slices.Contains(exempt, filepath.Base(dir)) {
-				continue
-			}
 			text := Read(t, skill)
 			front, _ := frontmatter(text)
+			if slices.Contains(exempt, filepath.Base(dir)) || front["disable-model-invocation"] == "true" {
+				continue
+			}
 			rel, _ := filepath.Rel(kitRoot, skill)
-			// /meta refresh reads it for every skill outside exempt.
+			// /meta-refresh reads it for every skill outside exempt.
 			if _, err := os.Stat(filepath.Join(dir, "sources.md")); err != nil && !slices.Contains(unversioned, filepath.Base(dir)) {
 				t.Errorf("%s: no sources.md; add it, or the skill to exempt if it's not a reference skill", rel)
 			}
@@ -245,8 +247,8 @@ func TestKitRepo(t *testing.T) {
 	// only has to hold every field, in any order.
 	t.Run("audit verify parses every per-finding field the report format requires", func(t *testing.T) {
 		for file, opening := range map[string]string{
-			"skills/report-format/SKILL.md":    "A finding's parts:",
-			"skills/audit/reference/verify.md": "Extract every finding's",
+			"skills/report-format/SKILL.md": "A finding's parts:",
+			"skills/audit-verify/SKILL.md":  "Extract every finding's",
 		} {
 			var parts string
 			for line := range strings.SplitSeq(Read(t, filepath.Join(kitRoot, file)), "\n") {

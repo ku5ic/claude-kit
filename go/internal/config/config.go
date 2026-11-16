@@ -526,7 +526,7 @@ func (s Slop) problems() []error {
 
 // ReplyLimits are the word ceilings skills/kit-rules/reference/output.md section 0 names. A
 // prompt holding a detail trigger lifts the chat ceiling, one holding an
-// explain trigger raises it to Explain. Write is per /write kind, the whole
+// explain trigger raises it to Explain. Write is per write-* skill, the whole
 // reply. A prompt that starts with an UncappedCommands command has none.
 // 0 is no ceiling.
 type ReplyLimits struct {

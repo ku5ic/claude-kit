@@ -1,4 +1,4 @@
-# /write commit
+# /write-commit
 
 In claude.ai chat, generate a commit message from the diff in the user's message.
 

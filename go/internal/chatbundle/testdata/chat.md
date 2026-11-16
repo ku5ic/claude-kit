@@ -8,6 +8,6 @@ A chat reply can't be blocked: Claude Code shows it before any hook can see it. 
 
 <!-- chat: end -->
 
-For the commit shape see `skills/write/reference/commit.md`, and `skills/kit-rules/reference/change.md` sections 5, 8, and 10.
+For the commit shape see `skills/write-commit/SKILL.md`, and `skills/kit-rules/reference/change.md` sections 5, 8, and 10.
 
 Honest uncertainty isn't a tell. "Not run", "not sure, likely X" stay: `skills/kit-rules/reference/evidence.md` section 1.
