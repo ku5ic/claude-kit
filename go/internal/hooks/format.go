@@ -85,14 +85,15 @@ func onEdit(chain []config.EditCommand, path, dir string, deadline time.Time) st
 	return "SKIP on_edit (none on PATH: " + strings.Join(tried, ", ") + ")\n"
 }
 
-// onPath is true when cmd's first word is on PATH.
+// onPath is true when cmd's first word is on PATH under that name: bash
+// runs the literal name, so an alias kittool accepts (fdfind for fd) doesn't count.
 func onPath(cmd string) bool {
 	words := strings.Fields(cmd)
 	if len(words) == 0 {
 		return false
 	}
-	_, err := kittool.Path(words[0])
-	return err == nil
+	path, err := kittool.Path(words[0])
+	return err == nil && filepath.Base(path) == filepath.Base(words[0])
 }
 
 // fill is cmd with {file} as path, one shell word.

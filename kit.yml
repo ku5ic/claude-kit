@@ -42,7 +42,7 @@ skill_file_map:
     skills: [engineering-fundamentals]
   - on: basename
     globs: ["*.test.*", "*.spec.*", "test_*.py", "*_test.py", "*_test.go", "*_spec.rb", "test.sh", "test_*.sh", "*_test.sh", "*.bats",
-      "Test*.java", "*Test.java", "*Tests.java", "*TestCase.java", "*_test.exs", "*Test.php", "*_test.dart", "*_spec.lua"]
+      "Test[A-Z]*.java", "*Test.java", "*Tests.java", "*TestCase.java", "*_test.exs", "*Test.php", "*_test.dart", "*_spec.lua"]
     skills: [test-patterns]
   - on: basename
     globs: ["*.tsx"]
@@ -339,10 +339,11 @@ weakened_checks:
   skip: ["*.md", "*.mdx", "*.txt", "*.rst", "*/testdata/*", "*/fixtures/*", "*/kit.yml", "*/claude-kit.local.yml"]
   test_files: ["*_test.go", "*.test.[jt]s", "*.test.[jt]sx", "*.spec.[jt]s", "*.spec.[jt]sx", "*/test_*.py", "*_test.py",
     "*/conftest.py", "*/tests/*", "*/__tests__/*",
-    "*/Test*.java", "*Test.java", "*Tests.java", "*TestCase.java", "*_test.exs", "*Test.php", "*_test.dart", "*_spec.lua"]
+    "*/Test[A-Z]*.java", "*Test.java", "*Tests.java", "*TestCase.java", "*_test.exs", "*Test.php", "*_test.dart", "*_spec.lua"]
   skips: ['\bt\.Skip(Now|f)?\(', '\b(it|test|describe|context)\.(skip|only|todo)\(', '(?:^|[^.\w$])x(it|test|describe)\(',
     '(?:^|[^.\w$])f(it|describe)\(', '@pytest\.mark\.(skip|skipif|xfail)\b', '\bpytest\.skip\(', '@unittest\.skip',
-    '^\s*@(Disabled|Ignore)\b', '\bmarkTest(Skipped|Incomplete)\(']
+    '^\s*@(Disabled\w*|Ignore)\b', '\bmarkTest(Skipped|Incomplete)\(', '^\s*@(module)?tag\s+:skip\b', '\bskip:\s*(true|[''"])',
+    '(?:^|[^.\w$])pending\(']
   suppressions: ['//\s*nolint\b', 'eslint-disable', '@ts-(ignore|nocheck|expect-error)\b', '#\s*type:\s*ignore\b',
     '#\s*noqa\b', '#\s*pyright:\s*ignore\b', '#\s*pylint:\s*disable', '#\s*shellcheck\s+disable=', 'biome-ignore',
     '//\s*lint:ignore\b']

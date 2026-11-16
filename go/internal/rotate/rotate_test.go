@@ -427,10 +427,46 @@ func TestCleanSaysWhatItLeaves(t *testing.T) {
 		t.Errorf("an already-clean home printed:\n%q", out.String())
 	}
 	project := filepath.Join(dir, "proj", ".claude", "scratch")
+	testutil.Mkdir(t, project)
 	testutil.Write(t, paths.ScratchRegistry(), project+"\n")
 	out.Reset()
 	Clean(paths, true, &out)
 	if !strings.Contains(out.String(), "delete it yourself: "+project) {
 		t.Errorf("--yes forgets the project scratch without saying so:\n%s", out.String())
+	}
+}
+
+func TestDailyRunsWhenTheStampIsInTheFuture(t *testing.T) {
+	t.Parallel()
+	dir := physicalTemp(t)
+	paths := kitHome(t, dir)
+	touch(t, paths.ScratchHome(), "old.md", 40*day)
+	now := time.Now()
+	testutil.Write(t, dailyStamp(paths), now.Add(30*24*time.Hour).UTC().Format(time.RFC3339)+"\n")
+	Daily(paths, dir, now)
+	if exists(filepath.Join(paths.ScratchHome(), "old.md")) {
+		t.Error("a stamp ahead of the clock held off the prune")
+	}
+}
+
+func TestCleanListsOnlyProjectFoldersThatExist(t *testing.T) {
+	t.Parallel()
+	dir := physicalTemp(t)
+	paths := kitHome(t, dir)
+	here, gone := filepath.Join(dir, "a", ".claude", "scratch"), filepath.Join(dir, "b", ".claude", "scratch")
+	testutil.Mkdir(t, here)
+	testutil.Write(t, paths.ScratchRegistry(), here+"\n"+gone+"\n")
+	var out strings.Builder
+	Clean(paths, false, &out)
+	if !strings.Contains(out.String(), here) || strings.Contains(out.String(), gone) {
+		t.Errorf("project folders listed:\n%s", out.String())
+	}
+}
+
+func TestRegistryKeepsAProjectRegisteredDuringTheWalk(t *testing.T) {
+	t.Parallel()
+	got := withAddedSince("/a\n/b\n", "/a\n/b\n/c\n", []string{"/a"})
+	if !slices.Equal(got, []string{"/a", "/c"}) {
+		t.Errorf("got %v, want [/a /c]", got)
 	}
 }

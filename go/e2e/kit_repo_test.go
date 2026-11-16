@@ -13,6 +13,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/slop"
 	"github.com/ku5ic/claude-kit/go/internal/stackctx"
+	"github.com/ku5ic/claude-kit/go/internal/weaken"
 )
 
 // TestKitRepo checks the kit's own files agree with each other: what kit.yml
@@ -24,6 +25,27 @@ func TestKitRepo(t *testing.T) {
 		_, warnings, err := config.Load(config.Paths{Base: filepath.Join(kitRoot, "kit.yml"), Overlay: filepath.Join(t.TempDir(), "none.yml")})
 		if err != nil || len(warnings) > 0 {
 			t.Errorf("err=%v warnings=%v", err, warnings)
+		}
+	})
+
+	t.Run("Java test-file globs name tests, not production files that start with Test", func(t *testing.T) {
+		cfg, _, err := config.Load(config.Paths{Base: filepath.Join(kitRoot, "kit.yml"), Overlay: filepath.Join(t.TempDir(), "none.yml")})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for path, test := range map[string]bool{
+			"src/test/java/com/acme/TestStrings.java":   true,
+			"src/main/java/com/acme/Testimonial.java":   false,
+			"src/main/java/com/acme/Testing/Util.java":  false,
+			"src/test/java/com/acme/StringsTest.java":   true,
+			"src/main/java/com/acme/TestimonialBo.java": false,
+		} {
+			if weaken.IsCode(cfg.WeakenedChecks, path) == test {
+				t.Errorf("weakened_checks: %s is a test file = %v, want %v", path, !test, test)
+			}
+			if slices.Contains(stackctx.FileMapSkills(cfg.SkillFileMap, path), "test-patterns") != test {
+				t.Errorf("skill_file_map: %s loads test-patterns = %v, want %v", path, !test, test)
+			}
 		}
 	})
 

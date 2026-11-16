@@ -73,11 +73,12 @@ func Daily(paths config.Paths, home string, now time.Time) {
 	if !due(stamp, now) {
 		return
 	}
+	// Stamped first: a walk the hook's timeout kills waits a day, not a session.
+	_ = os.MkdirAll(paths.CacheDir(), 0o755)
+	_ = os.WriteFile(stamp, []byte(now.UTC().Format(time.RFC3339)+"\n"), 0o644)
 	r := newRotator(paths, false, io.Discard)
 	r.home(paths.ScratchHome(), DefaultDays)
 	r.registry(paths.ScratchRegistry(), home, DefaultDays, io.Discard)
-	_ = os.MkdirAll(paths.CacheDir(), 0o755)
-	_ = os.WriteFile(stamp, []byte(now.UTC().Format(time.RFC3339)+"\n"), 0o644)
 }
 
 // due is whether the run stamp records is more than a day before now.
@@ -87,7 +88,7 @@ func due(stamp string, now time.Time) bool {
 		return true
 	}
 	last, err := time.Parse(time.RFC3339, strings.TrimSpace(string(data)))
-	return err != nil || cache.Older(last, 1, now)
+	return err != nil || last.After(now) || cache.Older(last, 1, now)
 }
 
 // registry prunes every project scratch dir the registry lists by age
@@ -120,7 +121,8 @@ func (r *rotator) registry(registry, home string, n int, stderr io.Writer) {
 		}
 	}
 	if !r.dryRun {
-		writeLines(registry, keep)
+		now, _ := os.ReadFile(registry)
+		writeLines(registry, withAddedSince(string(data), string(now), keep))
 	}
 }
 
@@ -321,7 +323,7 @@ func Clean(paths config.Paths, yes bool, stdout io.Writer) int {
 		}
 	}
 	for line := range strings.Lines(string(projects)) {
-		if line = strings.TrimSpace(line); line == "" {
+		if line = strings.TrimSpace(line); line == "" || !fsx.IsDir(line) {
 			continue
 		}
 		fmt.Fprintf(stdout, "left in its repo, delete it yourself: %s\n", line)
@@ -332,4 +334,16 @@ func Clean(paths config.Paths, yes bool, stdout io.Writer) int {
 		fmt.Fprintln(stdout, "kit clean --yes removes them")
 	}
 	return code
+}
+
+// withAddedSince is keep plus the registry lines in after that before
+// lacked: a project registered while the walk ran.
+func withAddedSince(before, after string, keep []string) []string {
+	old := strings.Fields(before)
+	for line := range strings.Lines(after) {
+		if line = strings.TrimSpace(line); line != "" && !slices.Contains(old, line) && !slices.Contains(keep, line) {
+			keep = append(keep, line)
+		}
+	}
+	return keep
 }

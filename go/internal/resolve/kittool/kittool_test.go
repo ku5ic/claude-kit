@@ -60,3 +60,17 @@ func onPathIn(t *testing.T, dir, name, body string) {
 		t.Fatal(err)
 	}
 }
+
+func TestSgThatIsNewgrpIsNeverRun(t *testing.T) {
+	ran := filepath.Join(t.TempDir(), "ran")
+	dir := onPath(t, map[string]string{"newgrp": "touch " + ran + "\necho 'ast-grep 0.51.2'\n"})
+	if err := os.Symlink("newgrp", filepath.Join(dir, "sg")); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := Path("ast-grep"); err == nil {
+		t.Errorf("newgrp's sg resolved as ast-grep: %q", got)
+	}
+	if _, err := os.Stat(ran); err == nil {
+		t.Error("newgrp ran to tell it from ast-grep")
+	}
+}

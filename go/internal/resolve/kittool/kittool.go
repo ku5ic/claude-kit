@@ -7,6 +7,7 @@ package kittool
 import (
 	"errors"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -33,7 +34,7 @@ func Path(names ...string) (string, error) {
 		if err != nil {
 			continue
 		}
-		if name == "sg" && !prints(path, "ast-grep") {
+		if name == "sg" && (isNewgrp(path) || !prints(path, "ast-grep")) {
 			continue
 		}
 		return path, nil
@@ -45,4 +46,11 @@ func Path(names ...string) (string, error) {
 func prints(path, want string) bool {
 	out, err := proc.Command(versionTimeout, path, "--version").CombinedOutput()
 	return err == nil && strings.Contains(string(out), want)
+}
+
+// isNewgrp is true for an sg that links to shadow-utils' newgrp, which is
+// told apart without running it.
+func isNewgrp(path string) bool {
+	real, err := filepath.EvalSymlinks(path)
+	return err == nil && filepath.Base(real) == "newgrp"
 }
