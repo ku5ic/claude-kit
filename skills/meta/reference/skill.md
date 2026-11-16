@@ -5,8 +5,8 @@ Draft a pattern skill pack for a stack from current docs and this repo's precede
 ## Procedure
 
 1. Scope. The stack is: $ARGUMENTS. Blank: ask via AskUserQuestion. The pack name is `<stack>-patterns`, lowercase and hyphenated. If `skills/<name>/` already exists in the kit, stop and point at `/meta refresh <name>` instead.
-2. Research. Dispatch the researcher agent (subagent_type: kit:researcher, foreground) with fully resolved text, never a bare link. Ask it for, through Context7 first and official docs second:
-   - the library id and current stable version, with its release date
+2. Research. Dispatch the researcher agent (subagent_type: kit:researcher, foreground) with fully resolved text, never a bare link. Ask it for, from primary sources (official docs, changelogs, release notes, package source):
+   - the current stable version, with its release date
    - the key APIs and idioms a reviewer would check, and what each replaced
    - deprecations and removals in the last two majors
    - the review-time mistakes the docs themselves warn about
@@ -16,7 +16,7 @@ Draft a pattern skill pack for a stack from current docs and this repo's precede
 3. Precedent. If `<repo-context>` or `kit detect-stack` shows the current repo uses the stack, load the `investigate` skill and answer "how does this repo use <stack>: file layout, conventions, config" with `file:line` citations. A pack rule that contradicts the repo's own consistent usage gets named in the draft, not silently dropped.
 4. Draft. Work in the kit's source checkout: the current repo, when its `.claude-plugin/plugin.json` `name` is `kit` and it isn't under `plugins/` in the Claude config dir (`$CLAUDE_CONFIG_DIR`, else `~/.claude`), where installed copies and the marketplace clone live. Otherwise stop and ask where the checkout is. Copy `templates/pattern-skill/` to `skills/<name>/` and fill it:
    - `description`: the concepts, then the file and dependency signals, in the template's shape. Trigger words only.
-   - One `reference/<area>.md` per area with enough verified material; three to five areas is typical. Every rule's source URL or library id goes in `sources.md`, under that file's Claims, never inline.
+   - One `reference/<area>.md` per area with enough verified material; three to five areas is typical. Every rule's source URL goes in `sources.md`, under that file's Claims, never inline.
    - `reference/anti-patterns.md`: the mistakes from step 2, each with a severity from the rubric.
    - `sources.md` Version notes: one entry for the current version, with today's date and the step 2 source, in the format `/meta refresh` maintains.
    - Leave no `<placeholder>` behind. `rg -n '<[a-z]' skills/<name>/` prints nothing when done.

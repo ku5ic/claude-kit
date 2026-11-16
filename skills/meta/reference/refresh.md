@@ -9,7 +9,7 @@ Reference skills are every skill outside the `exempt` list in `go/e2e/kit_repo_t
 ```markdown
 ### Version notes
 
-Checked: <YYYY-MM-DD> against <source: library id or URL>
+Checked: <YYYY-MM-DD> against <source URL>
 
 - <version> (<release date>): <what changed for the guidance in this skill>
 - <older version>: ...
@@ -43,7 +43,7 @@ Retention: at most 3 version entries, newest first. A pattern that changed moves
    - Replace the outdated pattern with the current one where it lives.
    - Move the old pattern to `### Legacy (<version>)` at the end of that file, one paragraph stating what changed and when it still applies (projects pinned to the old major).
    - Enforce the caps from "What this maintains". Prune oldest first.
-   - Add the Version notes entry naming the source URL or library id from step 3. A changed claim's source goes in its file's Claims list in `sources.md`, never inline.
+   - Add the Version notes entry naming the source URL from step 3. A changed claim's source goes in its file's Claims list in `sources.md`, never inline.
    - Do not touch guidance the research did not contradict. Do not delete a reference file. Do not reword for style.
 6. Report. Write the path `kit scratch-dir refresh` prints, in the report-format skill's format (load it first):
    - TL;DR: skills checked, per-classification counts.
@@ -69,6 +69,6 @@ python3 -c 'import sys; print("// Code generated from sys.stdlib_module_names on
 
 ## Stop conditions
 
-- Researcher agent unavailable (no Context7, no network): stop and say so.
-- If a skill has no `sources.md` URLs and no library the researcher can resolve, report it as unverifiable and move on.
+- Researcher agent unavailable (no network): stop and say so.
+- If a skill has no `sources.md` URLs and the researcher finds no primary source, report it as unverifiable and move on.
 - More than 5 skills selected without `--all`: ask before continuing.
