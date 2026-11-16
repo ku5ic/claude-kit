@@ -23,6 +23,7 @@ type Config struct {
 	SensitivePaths    []string          `yaml:"sensitive_paths"`
 	LogMaxLines       int               `yaml:"log_max_lines"`
 	DisabledRules     []string          `yaml:"disabled_rules"`
+	ShadowRules       []string          `yaml:"shadow_rules"`
 
 	GateDiscovery         GateDiscovery `yaml:"gate_discovery"`
 	DenyFlags             []string      `yaml:"deny_flags"`
@@ -114,7 +115,8 @@ var Rules = []string{
 	"ui-undefined-token", "unread-text", "weaken", "xargs-rm",
 }
 
-// unknownDisables names the disabled_checks and disabled_rules entries that
+// unknownDisables names the disabled_checks, disabled_rules, and shadow_rules
+// entries that
 // can name nothing, so a typo doesn't silently disable nothing. A
 // disabled_checks entry with a space is a gate label, and which gates have
 // it depends on the project.
@@ -125,11 +127,16 @@ func (c *Config) unknownDisables() []error {
 			errs = append(errs, fmt.Errorf("disabled_checks: %q is no check kind (%s) or gate label", d, strings.Join(CheckKinds, ", ")))
 		}
 	}
-	for _, d := range c.DisabledRules {
-		id, slop := strings.CutPrefix(d, "slop-")
-		known := slices.Contains(Rules, d) || slop && slices.ContainsFunc(c.Slop.Rules, func(r SlopRule) bool { return r.ID == id })
-		if !known {
-			errs = append(errs, fmt.Errorf("disabled_rules: %q is no rule; kit explain prints a block's rule", d))
+	for _, l := range []struct {
+		key   string
+		rules []string
+	}{{"disabled_rules", c.DisabledRules}, {"shadow_rules", c.ShadowRules}} {
+		for _, d := range l.rules {
+			id, slop := strings.CutPrefix(d, "slop-")
+			known := slices.Contains(Rules, d) || slop && slices.ContainsFunc(c.Slop.Rules, func(r SlopRule) bool { return r.ID == id })
+			if !known {
+				errs = append(errs, fmt.Errorf("%s: %q is no rule; kit explain prints a block's rule", l.key, d))
+			}
 		}
 	}
 	return errs

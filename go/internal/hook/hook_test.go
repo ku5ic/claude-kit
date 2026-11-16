@@ -126,6 +126,28 @@ func TestBlockLogsAndHonorsDisabledRules(t *testing.T) {
 	}
 }
 
+// A shadowed rule blocks and denies nothing, and logs what it would have
+// blocked, so a rule can be tried before it costs a turn.
+func TestAShadowedRuleLogsAndLetsThrough(t *testing.T) {
+	h, stdout, _ := newHook(t, `{"session_id":"s1","cwd":"/nonexistent/proj","tool_input":{"command":"rm -rf /"}}`)
+	h.SetConfig(&config.Config{ShadowRules: []string{"some-rule"}})
+	check := func(h *Hook) error {
+		h.Deny("nope", "some-rule")
+		return h.Block("nope", "some-rule")
+	}
+	if status := Run(h, NamedCheck{"test.sh", check}); status != 0 {
+		t.Errorf("status %d, want 0", status)
+	}
+	if stdout.Len() > 0 {
+		t.Errorf("shadowed rule decided: %s", stdout)
+	}
+	data, _ := os.ReadFile(filepath.Join(h.Paths.LogDir(), "guards.jsonl"))
+	line := `{"ts":"2026-09-28T12:00:00Z","hook":"test.sh","event":"shadow","session_id":"s1","rule":"some-rule","target":"5c7923bd67b0","project":"proj"}` + "\n"
+	if string(data) != line+line {
+		t.Errorf("guards.jsonl =\n%s\nwant two of\n%s", data, line)
+	}
+}
+
 func TestAFailOpenLogsItsError(t *testing.T) {
 	h, _, stderr := newHook(t, `{"session_id":"s1"}`)
 	RunCheck(h, "first.sh", func(*Hook) error { return errors.New("broken pipe") })

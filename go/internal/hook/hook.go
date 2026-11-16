@@ -220,16 +220,34 @@ func (h *Hook) RuleDisabled(rule string) bool {
 	return cfg != nil && slices.Contains(cfg.DisabledRules, rule)
 }
 
-// Block returns a *Blocked for rule, logging it to guards.jsonl. A rule in
-// disabled_rules is logged as disabled and returns nil, so the check carries
-// on as if it hadn't matched.
+// Block returns a *Blocked for rule, logging it to guards.jsonl. A rule
+// letThrough passes returns nil, so the check carries on as if it hadn't
+// matched.
 func (h *Hook) Block(reason, rule string) error {
-	if rule != "" && h.RuleDisabled(rule) {
-		h.Log(kitlog.Guards, "disabled", "rule", rule)
+	if h.letThrough(rule) {
 		return nil
 	}
-	h.logBlock(rule)
+	h.logBlock("block", rule)
 	return &Blocked{h.message(reason, rule), rule}
+}
+
+// letThrough is true, and logs why, when rule's block or deny goes
+// through: a disabled_rules rule is logged as "disabled", and a
+// shadow_rules one as "shadow" with what it would have blocked, so a rule
+// proves itself in the log before it costs a turn.
+func (h *Hook) letThrough(rule string) bool {
+	cfg := h.Config()
+	switch {
+	case rule == "" || cfg == nil:
+		return false
+	case slices.Contains(cfg.DisabledRules, rule):
+		h.Log(kitlog.Guards, "disabled", "rule", rule)
+	case slices.Contains(cfg.ShadowRules, rule):
+		h.logBlock("shadow", rule)
+	default:
+		return false
+	}
+	return true
 }
 
 // message is reason in the layout every kit block and send-back shares,
@@ -267,17 +285,17 @@ func Area(name string) string {
 // Deny is Block as a permission decision: Claude gets reason, and the user
 // sees no hook error.
 func (h *Hook) Deny(reason, rule string) {
-	if h.RuleDisabled(rule) {
-		h.Log(kitlog.Guards, "disabled", "rule", rule)
+	if h.letThrough(rule) {
 		return
 	}
-	h.logBlock(rule)
+	h.logBlock("block", rule)
 	h.Decide("deny", h.message(reason, rule))
 }
 
-// logBlock logs a block of rule with what it blocked: a short hash of the
-// command or path, never the text, and the project it ran in.
-func (h *Hook) logBlock(rule string) {
+// logBlock logs event, a block of rule or its shadow, with what it
+// blocked: a short hash of the command or path, never the text, and the
+// project it ran in.
+func (h *Hook) logBlock(event, rule string) {
 	pairs := []string{"rule", rule}
 	for _, key := range []string{KeyInputCommand, KeyInputFilePath, KeyInputNotebookPath} {
 		if v := h.Payload.String(key); v != "" {
@@ -293,7 +311,7 @@ func (h *Hook) logBlock(rule string) {
 		}
 		pairs = append(pairs, "project", filepath.Base(root))
 	}
-	h.Log(kitlog.Guards, "block", pairs...)
+	h.Log(kitlog.Guards, event, pairs...)
 }
 
 // Decide records a PreToolUse permission decision (allow, ask, or deny).

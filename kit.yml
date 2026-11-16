@@ -455,6 +455,11 @@ log_max_lines: 10000
 # overlay: a disabled block or deny is still logged, as "disabled".
 disabled_rules: []
 
+# Rule slugs the kit only logs: each block or deny of that rule is logged
+# as "shadow" with what it would have blocked, and the call goes through.
+# Meant for the overlay, to try a rule before it costs a turn.
+shadow_rules: []
+
 # CI steps and jobs the kit never runs (go/internal/sources/ci.go).
 gate_discovery:
   #   deny_commands  a step holding one of these words (or word runs) is skipped

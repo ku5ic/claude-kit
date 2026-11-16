@@ -85,3 +85,15 @@ func TestAnUnknownDisabledRuleWarns(t *testing.T) {
 		t.Errorf("warnings: %q", got)
 	}
 }
+
+func TestAnUnknownShadowRuleWarns(t *testing.T) {
+	t.Parallel()
+	cfg := Config{ShadowRules: []string{"weaken", "weakn"}}
+	var got []string
+	for _, err := range cfg.unknownDisables() {
+		got = append(got, err.Error())
+	}
+	if len(got) != 1 || !strings.HasPrefix(got[0], `shadow_rules: "weakn"`) {
+		t.Errorf("warnings: %q", got)
+	}
+}
