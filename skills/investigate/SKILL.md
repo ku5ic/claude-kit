@@ -21,7 +21,7 @@ A plan goes through plan mode (`/plan`).
 
 <!-- chat: skip -->
 
-0. Resolve external context. If the arguments contain a URL with little inline description, resolve it before anything else: identify the service from the domain, find its fetch tool with ToolSearch (`app.clickup.com` -> ClickUp tools, `notion.so` -> Notion, `github.com` -> `gh` or the GitHub tools), call it, and take the scope and requirements from what comes back. The resolved text becomes the effective arguments. Never hand a bare link to a subagent.
+0. Resolve external context. If the arguments contain a URL with little inline description, resolve it before anything else: find the service's fetch tool per `skills/kit-rules/reference/tooling.md` section 4, call it, and take the scope and requirements from what comes back. The resolved text becomes the effective arguments. Never hand a bare link to a subagent.
 
 <!-- chat: end -->
 

@@ -272,11 +272,12 @@ claude plugin install kit@ku5ic
 
 ### Dependencies
 
-Required: `git` and bash. Every tool below is optional. A missing one is named on the session-start `<tooling>` block's `missing:` line, and Claude leaves it unused.
+Required: `git` and bash. Every tool below is optional. A missing one, except `glab`, is named on the session-start `<tooling>` block's `missing:` line, and Claude leaves it unused.
 
 | Tool         | Used by                                                                      | Without it                                                                        |
 | ------------ | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
 | `gh`         | `/kit:pr`, `/deps`, `/code history`, `/code challenge`, linked tickets       | `/kit:pr` and `/deps` can't reach GitHub; `/code history` works from commits only |
+| `glab`       | `/code history`, `/code challenge`, review checkout, on a GitLab remote      | the host's MCP connector, else `/code history` works from commits only            |
 | `rg`         | text search everywhere, `/audit`, `/code`, the gatherer agent                | search uses grep                                                                  |
 | `sg`         | `kit code-graph imports` (`/code visual`, `/code impact`), searches by shape | `kit code-graph imports` fails; `rg` stands in for shape search                   |
 | `fd`         | file search, `/audit`, `/code`                                               | file search uses find                                                             |

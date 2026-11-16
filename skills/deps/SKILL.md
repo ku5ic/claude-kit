@@ -8,6 +8,9 @@ allowed-tools:
   - Bash(gh auth status *)
   - Bash(gh repo view *)
   - Bash(gh pr list *)
+  - Bash(glab auth status *)
+  - Bash(glab repo view *)
+  - Bash(glab mr list *)
 ---
 
 General core, best-effort tail. Package-manager agnostic.

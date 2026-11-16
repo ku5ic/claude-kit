@@ -13,7 +13,7 @@ What must happen before a change is called done. This file is the one definition
 ## 1. Self-review (`/code-review`)
 
 - Read your own diff as a reviewer who didn't write it.
-- A PR or another branch gets reviewed checked out, per `skills/kit-rules/reference/workflow.md` section 1. In a worktree, its gate is the PR's CI (`gh pr checks`). This applies to `/verify` too.
+- A PR or another branch gets reviewed checked out, per `skills/kit-rules/reference/workflow.md` section 1. In a worktree, its gate is the PR's CI (`gh pr checks`, `glab ci status`). This applies to `/verify` too.
 - The report never lists the checks or their counts. A worktree review opens with the PR's CI state, below only the branch-left line.
 - A FAIL becomes a finding once its cause is verified in the code at 90% or more, and only once. A FAIL left out gets one line, pre-existing, flaky, or unrelated.
 - A new helper, module, type, or abstraction names what was searched for and not found.

@@ -5,29 +5,28 @@ Performance audit focused on statically detectable issues. Arguments: `<file, di
 ## Procedure
 
 1. Stack is in the `<repo-context>` block from the `SubagentStart` hook.
-2. Load the patterns skill for the detected stack (react-patterns, django-patterns, etc.) for the anti-pattern reference.
+2. Load the pattern skill for each stack in it, and apply its performance and anti-pattern references. A stack with no pattern skill: work from the project's own configs and lint rules, and say so in the report.
 3. Review the target across these categories:
    - Ground each candidate in this project's precedent, per `skills/kit-rules/reference/change.md` section 2: a pattern that repeats elsewhere unflagged by CLAUDE.md or tests is a deliberate tradeoff, not a finding.
    - Exception: flag it anyway if it is measurably worse at this location than elsewhere.
 4. Skip categories with no findings.
 
-### Frontend (React and Next.js)
+### UI and client
 
-- Unnecessary re-renders: inline object or function props to memoized components, context value churn, parent re-renders that include large subtrees
-- Missing memoization where it actually matters (measurably expensive computation, or stable reference needed by memo child)
-- Key stability on lists that reorder
-- Effect waterfalls: multiple sequential effects that could be one or parallel
-- Client bundle bloat: client components importing large libraries, server-only logic leaking to client via shared utilities, unused but imported modules
-- Next.js: unintended client component propagation, wrong cache or revalidate config for correctness, missing `next/image` or `next/font`
-- Core Web Vitals where statically inferable: CLS from missing dimensions, LCP from above-the-fold client-side rendering
+- Work repeated on every render: a large subtree re-rendering for a change only a leaf uses, a shared value whose churn re-renders every consumer
+- Missing memoization where it actually matters (measurably expensive computation, or a stable reference a memoized consumer needs)
+- Item identity on lists that reorder
+- Waterfalls: effects or fetches that wait on each other when they could be one, or run in parallel
+- Client payload: a large library, or server-only code through a shared utility, reaching the client bundle; imports nothing uses
+- Layout shift from media without dimensions; above-the-fold content that renders only on the client
 
-### Backend (Django, Node APIs)
+### Data and request path
 
-- N+1 queries: missing `prefetch_related`, `select_related`, or ORM equivalent
-- Unbounded queries: missing pagination, `.all()` on large tables
-- Synchronous I/O in async contexts
+- N+1 queries: a query per row of a list
+- Unbounded queries: no pagination or limit on a table that grows
+- Synchronous I/O in an async context
 - Missing indexes on filtered or ordered columns (static inference from query shape)
-- Serialization cost: deep nested serializers, recursive expansions
+- Serialization cost: deep nesting, recursive expansion
 - Cache misuse: caching with key collisions, caching before query filtering
 
 ### General
@@ -39,7 +38,7 @@ Performance audit focused on statically detectable issues. Arguments: `<file, di
 
 ## Proof
 
-Each finding quotes the code and names what makes it cost: the loop bound around a query, the list size a render walks, the package an import pulls into the client bundle with its size from `du -sh node_modules/<pkg>`.
+Each finding quotes the code and names what makes it cost: the loop bound around a query, the list size a render walks, the package an import pulls into the client bundle, with its size on disk.
 
 ## Not a finding
 
@@ -55,12 +54,12 @@ Each finding quotes the code and names what makes it cost: the loop bound around
 ## Verification tools
 
 - Command-level perf checks (build scripts, codegen, test runner startup, CLI tools): measure with `hyperfine`, not eyeballed.
-- Render-level perf (React re-renders, bundle cost): measure with React DevTools Profiler or browser perf tools at runtime, not from static analysis.
+- Render-level perf (re-renders, bundle cost): measure with the UI framework's profiler or the browser's performance panel at runtime, not from static analysis.
 
 ## Output per finding
 
 - What it is, with `file:line`: the specific pattern
-- Evidence: what was checked and what it showed (a render count, a `hyperfine` result, the quoted line). When the cost isn't statically obvious, how to measure it ("profile with React DevTools, expect a re-render on every parent state change")
+- Evidence: what was checked and what it showed (a render count, a `hyperfine` result, the quoted line). When the cost isn't statically obvious, how to measure it ("profile it, expect a re-render on every parent state change")
 - Why it matters: estimated impact (render count, query count, payload size)
 - Severity: per the report-format skill's rubric
 - Fix: the concrete code change or pattern switch

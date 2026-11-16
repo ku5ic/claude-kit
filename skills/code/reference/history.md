@@ -6,16 +6,16 @@ The git and PR history of a file or folder, as a report with turning points, rec
 
 1. Resolve the argument to a real path. A loose name ("Filter ds component") may not match one: search with `fd` and `rg`, pick the match, and state the substitution in the report header.
 2. Size the job: `git log --format='%h' -- <path> | wc -l`.
-3. Resolve the repo slug with `gh repo view --json nameWithOwner` and the default branch with `gh repo view --json defaultBranchRef`. Without `gh`, say so and work from commits alone.
-4. A team decision log connector (Notion or similar) is optional. If one exists, search it for the component name and record whether any entry covers it.
+3. Find the code host per `skills/kit-rules/reference/tooling.md` section 4, and resolve the repo's path and default branch through it. With no CLI or connector for the host, say so and work from commits alone.
+4. A docs or decision-log connector, found the same way, is optional. If one exists, search it for the component name and record whether any entry covers it.
 
 ## Collect
 
 Read every commit and every PR description that touches the path. Don't sample.
 
 1. Commit list: `git log --format='%H%x09%ad%x09%an%x09%s' --date=short -- <path>`, saved to the raw folder.
-2. PR numbers from subjects, both forms: squash `(#1234)` and older `Merge pull request #1234`.
-3. Fetch PRs with batched GraphQL through `gh api graphql`, about 40 aliases per query (`pr1234: pullRequest(number: 1234) { number title body author { login } mergedAt url }`), never one `gh pr view` per PR. Save the raw JSON.
+2. PR numbers from subjects, in each form the host writes: a squash suffix `(#1234)`, `Merge pull request #1234`, or `See merge request <path>!1234`.
+3. Fetch PRs in batches through the host's API, never one call per PR. On GitHub: GraphQL through `gh api graphql`, about 40 aliases per query (`pr1234: pullRequest(number: 1234) { number title body author { login } mergedAt url }`). Save the raw JSON.
 4. Lines changed on the path per commit (`git log --numstat -- <path>`), ranked. The top entries are the structural turning points, found faster than by title. When `difft` is installed, drop reformat-only ones first: `DFT_CHECK_ONLY=true GIT_EXTERNAL_DIFF=difft git show --ext-diff --format=%h <sha> -- <path>` prints `No syntactic changes.` for a file whose diff is only formatting. Prose files print `Has changes.` either way.
 5. For the biggest PRs with empty descriptions, read the squash commit body (it lists sub-commits) and the diffstat on the path. Label that "why" as inferred.
 
@@ -83,7 +83,7 @@ Component: [path](link)
 ## Writing rules
 
 - Every person named is an inline link too, besides the files, PRs, and docs Readability covers.
-- People link to their GitHub profile or to the path's commit history filtered by author. Handles, not guessed full names.
+- People link to their profile on the code host or to the path's commit history filtered by author. Handles, not guessed full names.
 - Readability follows the report-format skill's Readability section.
 - Every claim about why something changed cites its PR. One inferred from a diff is labelled per `skills/kit-rules/reference/evidence.md` section 1.
 - "The story" is the last content section before Caveats, at most about 300 words, and introduces no fact missing from the sections above.

@@ -41,5 +41,5 @@ func (d *Detector) Find(text string) (string, bool) {
 // Message is the block reason for line, found in where.
 func Message(where, line string) string {
 	return "AI attribution in " + where + "\n" + layout.KV("line", line) + "\n" +
-		layout.KV("do", "drop it: git and GitHub text carries no AI attribution")
+		layout.KV("do", "drop it: git and code-host text carries no AI attribution")
 }

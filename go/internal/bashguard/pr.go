@@ -24,16 +24,29 @@ var (
 	commentFlags = map[string]string{"-c": "comment", "--comment": "comment"}
 	releaseFlags = map[string]string{"-n": "body", "--notes": "body", "-F": "body-file", "--notes-file": "body-file", "-t": "title", "--title": "title"}
 	apiFlags     = map[string]string{"-f": "raw-field", "--raw-field": "raw-field", "-F": "field", "--field": "field", "--input": "input"}
-	// ghPosts are the gh pr, issue, and release subcommands that post text,
-	// each with the flags that carry it.
-	ghPosts = map[string]map[string]map[string]string{
-		"pr": {"create": textFlags, "edit": textFlags, "comment": textFlags, "review": textFlags,
-			"merge": mergeFlags, "close": commentFlags, "reopen": commentFlags},
-		"issue":   {"create": textFlags, "edit": textFlags, "comment": textFlags, "close": commentFlags, "reopen": commentFlags},
-		"release": {"create": releaseFlags, "edit": releaseFlags},
+	// The glab flags that carry merge request, issue, note, and release text.
+	glabText    = map[string]string{"-d": "description", "--description": "description", "--description-file": "description-file", "-t": "title", "--title": "title"}
+	glabNote    = map[string]string{"-m": "message", "--message": "message"}
+	glabMerge   = map[string]string{"-m": "message", "--message": "message", "--squash-message": "squash-message"}
+	glabRelease = map[string]string{"-N": "notes", "--notes": "notes", "-F": "notes-file", "--notes-file": "notes-file", "-n": "name", "--name": "name"}
+	// posts are the gh and glab subcommands that post text, each with the
+	// flags that carry it. Both tools' api commands take apiFlags.
+	posts = map[string]map[string]map[string]map[string]string{
+		"gh": {
+			"pr": {"create": textFlags, "edit": textFlags, "comment": textFlags, "review": textFlags,
+				"merge": mergeFlags, "close": commentFlags, "reopen": commentFlags},
+			"issue":   {"create": textFlags, "edit": textFlags, "comment": textFlags, "close": commentFlags, "reopen": commentFlags},
+			"release": {"create": releaseFlags, "edit": releaseFlags},
+		},
+		"glab": {
+			"mr":      {"create": glabText, "update": glabText, "note": glabNote, "merge": glabMerge},
+			"issue":   {"create": glabText, "update": glabText, "note": glabNote},
+			"release": {"create": glabRelease, "update": glabRelease},
+		},
 	}
-	// prKeys are the API fields that hold PR text.
-	prKeys = []string{"body", "title"}
+	// prKeys are the API fields that hold PR text: GitLab's merge requests
+	// and issues call the body description.
+	prKeys = []string{"body", "title", "description"}
 )
 
 // CheckPR is guard-pr: it scans the text a gh command posts to a pull
@@ -41,23 +54,25 @@ var (
 // AI tells, as guard-commit scans a commit message. Text it can't read (a
 // pipe on stdin, a file the command writes first, an expansion) blocks,
 // since no check would see it.
+//
+// It reads gh and glab alike.
 func CheckPR(h *hook.Hook) error {
 	if h.Payload.Err != nil {
 		return h.Payload.Err
 	}
 	cmd := h.Payload.String(hook.KeyInputCommand)
-	if !strings.Contains(cmd, "gh") {
+	if !strings.Contains(cmd, "gh") && !strings.Contains(cmd, "glab") {
 		return nil
 	}
 	segs, _ := parseAll(cmd)
 	var det *slop.Detector
 	for w := range walk(segs, h.Home, h.Payload.Cwd()) {
-		if w.name != "gh" {
+		if posts[w.name] == nil {
 			continue
 		}
 		// call.start is an offset into seg.src, which for a heredoc fed to a
 		// shell is that body, not cmd.
-		src := ghCall{call: w.call, before: w.seg.src[:min(w.call.start, len(w.seg.src))], home: h.Home, cwd: w.cwd}
+		src := ghCall{tool: w.name, call: w.call, before: w.seg.src[:min(w.call.start, len(w.seg.src))], home: h.Home, cwd: w.cwd}
 		for _, t := range src.texts(w.i + 1) {
 			if t.unread != "" {
 				return h.Block("can't read the text of "+t.where+": "+t.unread+"\n"+
@@ -74,28 +89,30 @@ func CheckPR(h *hook.Hook) error {
 	return nil
 }
 
-// prText is one piece of PR text a gh call posts: where it comes from, and
+// prText is one piece of PR text a gh or glab call posts: where it comes from, and
 // its text, or why it can't be read.
 type prText struct{ where, text, unread string }
 
-// ghCall reads a gh call's text: inline, from a file under cwd, or from
-// its stdin (a heredoc or a < file). before is the command ahead of the call.
+// ghCall reads a gh or glab call's text: inline, from a file under cwd, or
+// from its stdin (a heredoc or a < file). before is the command ahead of
+// the call.
 type ghCall struct {
+	tool      string
 	call      Call
 	before    string
 	home, cwd string
 }
 
-// texts is the PR text of the gh call whose args start at word from.
+// texts is the PR text of the call whose args start at word from.
 func (s ghCall) texts(from int) []prText {
 	args := values(s.call.Words[from:])
 	var out []prText
 	switch {
-	case len(args) >= 2 && ghPosts[args[0]][args[1]] != nil:
-		cmd := "gh " + args[0] + " " + args[1]
-		ghFlags(args[2:], ghPosts[args[0]][args[1]], func(flag, value string) {
-			if flag == "body-file" {
-				out = append(out, s.read(cmd+" --body-file", value))
+	case len(args) >= 2 && posts[s.tool][args[0]][args[1]] != nil:
+		cmd := s.tool + " " + args[0] + " " + args[1]
+		ghFlags(args[2:], posts[s.tool][args[0]][args[1]], func(flag, value string) {
+			if strings.HasSuffix(flag, "-file") {
+				out = append(out, s.read(cmd+" --"+flag, value))
 				return
 			}
 			out = append(out, inline(cmd+" --"+flag, value))
@@ -110,7 +127,7 @@ func (s ghCall) texts(from int) []prText {
 			if !ok || !slices.Contains(prKeys, key) {
 				return
 			}
-			where := "gh api " + key + " field"
+			where := s.tool + " api " + key + " field"
 			if file, ok := strings.CutPrefix(val, "@"); ok && flag == "field" {
 				out = append(out, s.read(where, file))
 				return
@@ -154,7 +171,7 @@ func (s ghCall) read(where, file string) prText {
 
 // inputJSON is the PR text fields of the JSON request body --input reads.
 func (s ghCall) inputJSON(file string) []prText {
-	t := s.read("gh api --input", file)
+	t := s.read(s.tool+" api --input", file)
 	if t.unread != "" {
 		return []prText{t}
 	}
@@ -165,7 +182,7 @@ func (s ghCall) inputJSON(file string) []prText {
 	var out []prText
 	for _, key := range prKeys {
 		if text, ok := fields[key].(string); ok {
-			out = append(out, prText{where: "gh api --input " + key, text: text})
+			out = append(out, prText{where: s.tool + " api --input " + key, text: text})
 		}
 	}
 	return out

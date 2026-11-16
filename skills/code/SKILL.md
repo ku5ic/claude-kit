@@ -6,6 +6,8 @@ disable-model-invocation: true
 allowed-tools:
   - Bash(gh pr diff *)
   - Bash(gh pr view *)
+  - Bash(glab mr diff *)
+  - Bash(glab mr view *)
   - Bash(git log *)
   - Bash(kit code-graph *)
   - Bash(kit git-base *)

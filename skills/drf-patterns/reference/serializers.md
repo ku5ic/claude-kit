@@ -16,6 +16,7 @@
 
 - Nested representation: declare another serializer as a field, as in `product = ProductSerializer(read_only=True)`. To write the relation, add a `PrimaryKeyRelatedField` with `source="product"` and `write_only=True`.
 - A writable nested serializer needs explicit `.create()` and `.update()` implementations. DRF doesn't handle nested writes.
+- On a list endpoint, each nested level queries its relation per item: `select_related` or `prefetch_related` every level in `get_queryset`, and nest no deeper than the client reads.
 
 ## SerializerMethodField
 

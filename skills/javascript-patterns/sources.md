@@ -84,6 +84,8 @@ Not caught by defaults, so kept: `var` (`no-var` is off), `==` (`eqeqeq` is off)
 
 - Node.js packages: https://nodejs.org/api/packages.html
 - Node.js ESM: https://nodejs.org/api/esm.html
+- Side-effect imports: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/import
+- Tree shaking and `sideEffects`: https://webpack.js.org/guides/tree-shaking/
 
 ## reference/syntax.md
 

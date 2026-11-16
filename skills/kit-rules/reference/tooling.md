@@ -1,6 +1,6 @@
 # Tooling
 
-Which CLI to reach for, how to call the bin scripts, and where temporary files go.
+Which CLI to reach for, how to call the bin scripts, where temporary files go, and how to find the code host and connectors.
 
 ## 1. Reach for the CLI first
 
@@ -25,7 +25,7 @@ Which CLI to reach for, how to call the bin scripts, and where temporary files g
 | Git outside cwd                    | `git -C <dir>`                     | cd <dir> && git                    |
 | Validate a GitHub Actions workflow | `actionlint`                       | reading YAML by eye                |
 | Check a Mermaid diagram renders    | `mmdc`                             | reading the fence by eye           |
-| A GitHub PR, issue, or API call    | `gh`                               | fetching github.com pages          |
+| A PR, issue, or API call           | the host's CLI (section 4)         | fetching the host's pages          |
 | Diff that ignores reformatting     | `difft`                            | `git diff -w`                      |
 | Read or create an ADR              | `adr`                              | listing `docs/adr` by hand         |
 
@@ -61,3 +61,12 @@ Scratch is whatever `kit scratch-dir` prints, the `scratch:` line of `<repo-cont
 - A subagent prompt that may write files names `$(kit scratch-dir)` as its only place to write.
 - In plan mode, where Claude Code lets an agent write only the plan file, a report goes where the harness allows, and the reply names that path.
 - A structured artifact (a report, review, or audit) goes to the path `kit scratch-dir <kind> <slug>` prints. A plan is `plan-<task-slug>.md` in the folder `plansDirectory` points to, else Claude Code's default `~/.claude/plans/`, slug capped at four words.
+
+## 4. Code host and connectors
+
+- The code host is the host part of `git remote get-url origin`.
+  - `github.com`, or a host `gh auth status` lists: `gh`.
+  - `gitlab.com`, or a host `glab auth status` lists, with `glab` on PATH: `glab`.
+  - Anything else, or the CLI missing: the host's MCP connector, found as below. None, say so and work from git alone.
+- A tracker, chat, monitoring, docs, or design tool is found by ToolSearch on its kind and verb (`issue create`, `send message`, `query logs`). One match: use it. Several: ask which. None: say so.
+- A URL names its service by its domain. Resolve it the same way.

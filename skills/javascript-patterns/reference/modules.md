@@ -7,4 +7,5 @@
 - CJS loading ESM: `await import("./esm-module.mjs")`. `require()` loads synchronous ESM (no top-level `await`), but `import()` is the safer bridge.
 - ESM loading CJS: `module.createRequire()`.
 - One file: `require` or `import`, never both. Mixing them is `failure`.
+- An import nothing uses still loads its module and runs its top-level code, and keeps it in the bundle unless the bundler proves it side-effect free. Remove it.
 - Shipping CJS and ESM through the `"exports"` `import`/`require` conditions: consumers that mix both get two copies of the module's state, which breaks singletons and instance checks. Ship one entry point, or document the constraint.

@@ -8,7 +8,7 @@ Resolve the artifact, first match wins:
 
 1. A file path: a plan or a report.
 2. A ticket URL: resolved as `investigate` step 0 describes.
-3. A PR number or branch: `gh pr view <n> --json title,body,files` and `gh pr diff <n>`.
+3. A PR number or branch: its title, body, changed files, and diff, through the code host per `skills/kit-rules/reference/tooling.md` section 4.
 4. Nothing: the current plan file in plan mode, else the newest report in `kit scratch-dir`, else `kit git-base --diff`.
 
 If the artifact links a ticket, fetch that too; the "why" lives there. Read the project's CLAUDE.md and load the pattern skills it suggests.
