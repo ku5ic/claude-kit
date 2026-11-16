@@ -10,7 +10,7 @@ Every skill with references lists them in a "Before | Read" table: an action, th
 
 **Length.** Concise means a lot of information in few words. Short and missing something is wrong, and so is complete and padded. The reader has a small working memory, so one idea per line and nothing they already saw. The chat ceilings live in kit.yml `reply_limits`, and the hooks state the chat ceiling once at session start and a turn's own only when its prompt sets another, so the rule only says to stay under it.
 
-**Deliverable budgets.** A plan, a subagent report, a scratch report, or a connector post over its kit.yml `size_budgets` entry is sent back once by `go/internal/hooks/size.go`, so no rule restates the numbers. They were set against deliverables measured on 2026-11-11, where half of the plans and about a quarter of subagent handbacks ran over them.
+**Deliverable budgets.** A plan, a subagent report, a scratch report, or a connector post over its kit.yml `size_budgets` entry is sent back once by `go/internal/hooks/size.go`, so no rule restates the numbers. They were set against deliverables measured on 2026-11-11, where half of the plans and about a quarter of subagent handbacks ran over them. On 2026-11-16 the author doubled the plan budget and raised the report and scratch ones: a plan cut to fit leaves out what the engineer following it then has to guess, and a release plan and its explore report ran over the old numbers with nothing left to cut.
 
 **Relayed output says whose it is, a commit doesn't.** The company page "Taking Responsibility for AI-Generated Content" asks that raw model output passed on be labelled. A commit is the engineer's reviewed work, and the commit guard blocks AI signatures, so the author kept commits unlabelled.
 

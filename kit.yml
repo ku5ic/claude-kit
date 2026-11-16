@@ -396,9 +396,9 @@ claims:
 # message, scratch an explore or debug report, post a connector write.
 # 0 turns a budget off.
 size_budgets:
-  plan: 1500
-  report: 800
-  scratch: 1200
+  plan: 3000
+  report: 1200
+  scratch: 2000
   post: 300
 
 # What kit bundle chat ships to claude.ai chat, where no hook, repo, or kit
