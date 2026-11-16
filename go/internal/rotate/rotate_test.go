@@ -1,6 +1,7 @@
 package rotate
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -412,5 +413,24 @@ func TestCleanRemovesOnlyTheKitsOwnState(t *testing.T) {
 		if !exists(p) {
 			t.Errorf("%s isn't the kit's, and went", p)
 		}
+	}
+}
+
+func TestCleanSaysWhatItLeaves(t *testing.T) {
+	t.Parallel()
+	dir := physicalTemp(t)
+	paths := kitHome(t, dir)
+	var out strings.Builder
+	Clean(paths, true, io.Discard)
+	Clean(paths, true, &out)
+	if !strings.Contains(out.String(), "nothing to remove") {
+		t.Errorf("an already-clean home printed:\n%q", out.String())
+	}
+	project := filepath.Join(dir, "proj", ".claude", "scratch")
+	testutil.Write(t, paths.ScratchRegistry(), project+"\n")
+	out.Reset()
+	Clean(paths, true, &out)
+	if !strings.Contains(out.String(), "delete it yourself: "+project) {
+		t.Errorf("--yes forgets the project scratch without saying so:\n%s", out.String())
 	}
 }

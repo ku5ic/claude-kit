@@ -294,7 +294,8 @@ func writeLines(path string, lines []string) {
 // Clean is `kit clean [--yes]`: it removes the kit's own state, for an
 // uninstall, and with no --yes only lists it. Each path is named, never a
 // whole folder the kit shares with Claude Code (~/.claude/cache, logs).
-// Project scratch folders sit in their repos, so they're listed, not removed.
+// Project scratch folders sit in their repos, so they're listed for the
+// user to delete, never removed; --yes drops the registry that names them.
 func Clean(paths config.Paths, yes bool, stdout io.Writer) int {
 	owned := []string{paths.ScratchRegistry(), rotateLog(paths), paths.ConfigCache(), dailyStamp(paths), paths.ScratchHome()}
 	for _, name := range kitlog.Logs {
@@ -304,11 +305,12 @@ func Clean(paths config.Paths, yes bool, stdout io.Writer) int {
 		owned = append(owned, filepath.Join(paths.CacheDir(), d.Name))
 	}
 	projects, _ := os.ReadFile(paths.ScratchRegistry())
-	code := 0
+	code, found := 0, 0
 	for _, p := range owned {
 		if _, err := os.Lstat(p); err != nil {
 			continue
 		}
+		found++
 		if !yes {
 			fmt.Fprintln(stdout, "would remove", p)
 		} else if err := os.RemoveAll(p); err != nil {
@@ -322,9 +324,11 @@ func Clean(paths config.Paths, yes bool, stdout io.Writer) int {
 		if line = strings.TrimSpace(line); line == "" {
 			continue
 		}
-		fmt.Fprintf(stdout, "left in its repo: %s\n", line)
+		fmt.Fprintf(stdout, "left in its repo, delete it yourself: %s\n", line)
 	}
-	if !yes {
+	if found == 0 {
+		fmt.Fprintln(stdout, "kit clean: nothing to remove")
+	} else if !yes {
 		fmt.Fprintln(stdout, "kit clean --yes removes them")
 	}
 	return code
