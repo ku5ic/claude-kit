@@ -92,6 +92,7 @@ type Block struct {
 		Command      string `json:"command"`       // a Bash call's
 		SubagentType string `json:"subagent_type"` // an Agent call's
 		Prompt       string `json:"prompt"`        // an Agent call's
+		Model        string `json:"model"`         // an Agent call's override
 	} `json:"input"`
 	// RawInput is a tool_use's whole input, as sent.
 	RawInput json.RawMessage `json:"-"`

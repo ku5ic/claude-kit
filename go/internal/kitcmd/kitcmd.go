@@ -33,6 +33,7 @@ var Commands = []Command{
 	{Name: "blast-radius", Args: "<file> [symbol]", Desc: "the files that import <file>", Path: "file", ReadOnly: true},
 	{Name: "code-graph", Args: "imports|deps|coupling|model-dir|fingerprint|c4|check-c4 ...", Desc: "a repo's imports per file, the module edges,\nexternals, and upward imports they make, and\nthe files that change together (TSV); the\narchitecture model's folder, fingerprint,\nC4 skeleton, and its check against the code", Words: []string{"imports", "deps", "coupling", "model-dir", "fingerprint", "c4", "check-c4"}, Path: "dir"},
 	{Name: "slop", Args: "[--surface S] <file...|->", Desc: "AI tells in each file, or stdin, by tier;\nexits 1 when one blocks", Words: []string{"--surface"}, Path: "file", ReadOnly: true},
+	{Name: "stats", Args: "[--rule r] [--since days]", Desc: "per rule, blocks, shadow blocks, and sessions;\nper claim-checker model, its flags and how many\nthe text that went out dropped (last 30 days)", Words: []string{"--rule", "--since"}, ReadOnly: true},
 	{Name: "contrast", Args: "<fg> <bg>", Desc: "the WCAG contrast ratio of two colors, and\nwhich AA and AAA levels it passes", ReadOnly: true},
 	{Name: "bundle", Args: "chat [--check]", Desc: "the claude.ai chat plugin zip, from the kit's\nown files; --check validates and writes nothing", Words: []string{"chat"}},
 	{Name: "scratch-rotate", Args: "[days] [--dry-run]", Desc: "prune old scratch artifacts and caches", Words: []string{"--dry-run"}},

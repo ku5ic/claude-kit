@@ -37,13 +37,16 @@ func Blocks(entries []Entry) iter.Seq2[Pos, Block] {
 	}
 }
 
-// Run is one Agent tool call: its block's place, its prompt, the agent
-// its result names, and how it ended.
+// Run is one Agent tool call: its block's place, its prompt, the model it
+// overrode the agent's with, the agent its result names, how it ended, and
+// a foreground run's report.
 type Run struct {
 	At     Pos
 	Prompt string
+	Model  string
 	Agent  string
 	Status RunStatus
+	Result string
 }
 
 // asyncLaunched opens the Agent tool's result for a run it started in the
@@ -75,7 +78,7 @@ func AgentRuns(entries []Entry, agentType string) []Run {
 			switch {
 			case b.Type == "tool_use" && b.Name == "Agent" && b.Input.SubagentType == agentType:
 				waiting[b.ID] = len(runs)
-				runs = append(runs, Run{At: Pos{i, j}, Prompt: b.Input.Prompt})
+				runs = append(runs, Run{At: Pos{i, j}, Prompt: b.Input.Prompt, Model: b.Input.Model})
 			case b.Type == "tool_result":
 				r, ok := waiting[b.ToolUseID]
 				if !ok {
@@ -92,7 +95,7 @@ func AgentRuns(entries []Entry, agentType string) []Run {
 				case strings.HasPrefix(text, asyncLaunched):
 					background[b.ToolUseID] = r
 				default:
-					runs[r].Status = RunDone
+					runs[r].Status, runs[r].Result = RunDone, text
 				}
 			}
 		}

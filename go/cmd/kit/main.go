@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"go.yaml.in/yaml/v3"
 
@@ -31,6 +32,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/rotate"
 	"github.com/ku5ic/claude-kit/go/internal/slop"
 	"github.com/ku5ic/claude-kit/go/internal/sources"
+	"github.com/ku5ic/claude-kit/go/internal/stats"
 	"github.com/ku5ic/claude-kit/go/internal/status"
 )
 
@@ -146,6 +148,9 @@ var commands = map[string]command{
 	"gates":          {needsEnv, envOnly(cmdGates)},
 	"bundle":         {needsEnv, envOnly(cmdBundle)},
 	"code-graph":     {needsEnv, envOnly(cmdCodeGraph)},
+	"stats": {needsEnv, func(e *env, _ *config.Config, args []string) int {
+		return stats.Run(e.paths.LogDir(), time.Now(), args, e.stdout, e.stderr)
+	}},
 	"hook": {needsEnv, func(e *env, _ *config.Config, args []string) int {
 		return cmdHook(e, args, os.Stdin)
 	}},

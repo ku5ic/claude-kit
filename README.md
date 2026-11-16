@@ -217,19 +217,20 @@ kit:gatherer [completed]  claude-haiku-5-5  effort:low  7%
 
 Every hook runs through one `kit` binary, and the same binary answers the questions the hooks ask, so you can ask them too. `kit help` lists every command with its flags.
 
-| I want to                                                       | Run                                                   |
-| --------------------------------------------------------------- | ----------------------------------------------------- |
-| Know why a guard blocked a command or an edit                   | `kit explain bash '<cmd>'`, `kit explain edit <path>` |
-| Know which checks run on a file when Claude stops               | `kit explain stop <file>`                             |
-| See every check the project declares, and where each comes from | `kit run-checks --plan`                               |
-| Run every quality gate on what changed                          | `kit run-checks`                                      |
-| See what my project's configs say to run, and when              | `kit enforce --list`                                  |
-| Let a gate that changed files run again                         | `kit gates reset`                                     |
-| Find the files that import a file before I change it            | `kit blast-radius <file>`                             |
-| Check my overlay for unknown keys and wrong types               | `kit config --check`                                  |
-| Scan a text for AI tells                                        | `kit slop <file>`                                     |
-| Check two colours' contrast against WCAG                        | `kit contrast <fg> <bg>`                              |
-| Prune old scratch files                                         | `kit scratch-rotate`                                  |
+| I want to                                                        | Run                                                   |
+| ---------------------------------------------------------------- | ----------------------------------------------------- |
+| Know why a guard blocked a command or an edit                    | `kit explain bash '<cmd>'`, `kit explain edit <path>` |
+| Know which checks run on a file when Claude stops                | `kit explain stop <file>`                             |
+| See every check the project declares, and where each comes from  | `kit run-checks --plan`                               |
+| Run every quality gate on what changed                           | `kit run-checks`                                      |
+| See how often each rule fired, and what the claim checker caught | `kit stats [--rule r] [--since days]`                 |
+| See what my project's configs say to run, and when               | `kit enforce --list`                                  |
+| Let a gate that changed files run again                          | `kit gates reset`                                     |
+| Find the files that import a file before I change it             | `kit blast-radius <file>`                             |
+| Check my overlay for unknown keys and wrong types                | `kit config --check`                                  |
+| Scan a text for AI tells                                         | `kit slop <file>`                                     |
+| Check two colours' contrast against WCAG                         | `kit contrast <fg> <bg>`                              |
+| Prune old scratch files                                          | `kit scratch-rotate`                                  |
 
 ## Presets vs configuration
 
@@ -316,6 +317,7 @@ Each release attaches `kit-chat-<version>.zip`, a smaller plugin for chat on the
 
 - **See why:** `kit explain bash '<cmd>'`, `kit explain edit <path>`, or `kit explain stop <file>` shows each guard's decision and the exact rule, as the hook would reach it. It blocks and logs nothing.
 - **Turn one rule off:** add its slug to `disabled_rules`. Every block is logged with its slug in `~/.claude/logs/guards.jsonl`.
+- **Try a rule before it costs a turn:** add its slug to `shadow_rules`. Its blocks are logged as `shadow` and let through, and `kit stats` counts them.
 - **A kit bug never blocks you.** A crashing hook or a missing binary fails open. A crashing hook is logged in `guards.jsonl` with its error. A missing binary can't log: it's reported only when a session starts without it, and a hook that finds it gone mid-session says so on stderr alone. The binary goes missing when the first download can't finish: offline, a read-only plugin directory, a link too slow for `bin/kit`'s download timeout, or a platform other than macOS or Linux on arm64 or amd64. Until it lands, every guard is off.
 - **A bad overlay never turns guards off.** If `claude-kit.local.yml` doesn't merge, the kit uses `kit.yml` alone and says why at session start.
 

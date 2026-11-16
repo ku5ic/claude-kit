@@ -31,8 +31,8 @@ import (
 //     report, by the hook's own run against its transcript, once per agent.
 //   - PreToolUse for ExitPlanMode: the plan, which plan-critic's run covers,
 //     or with plan-critic off, the claim-checker agent.
-//   - PreToolUse for a Write or Edit of an explore or debug report in
-//     scratch, and for an MCP tool that writes: the claim-checker agent on
+//   - PreToolUse for a Write or Edit of an investigation, review, /audit,
+//     or /code report in scratch, and for an MCP tool that writes: the claim-checker agent on
 //     that exact text. Inside a subagent, the hook's own run, once per text.
 //
 // It runs last in its dispatcher and skips a call an earlier check denied,
@@ -126,6 +126,7 @@ func verifyInSubagent(h *hook.Hook, text, where, retry, marker string) error {
 	}
 	sum := sha256.Sum256([]byte(text))
 	sentBack := "sent-back " + hex.EncodeToString(sum[:])
+	ledgerPending(h, marker, where, text)
 	if prev, err := os.ReadFile(marker); err == nil && string(prev) == sentBack {
 		_ = os.Remove(marker)
 		return nil
@@ -135,6 +136,7 @@ func verifyInSubagent(h *hook.Hook, text, where, retry, marker string) error {
 		return nil
 	}
 	if markOnce(h, marker, []byte(sentBack), "claims") {
+		savePending(h, marker, u)
 		h.Deny(claimsMessage(where, u, retry), "claims")
 	}
 	return nil
@@ -164,6 +166,7 @@ func gateOnChecker(h *hook.Hook, text, where, retry, marker, dest string) error 
 	record, _ := os.ReadFile(asked)
 	checked, outcomes, done := checkedStatements(log, string(record))
 	if dest != "" && slices.Contains(done, dest) {
+		ledgerRuns(h, log, string(record), text, where)
 		return nil
 	}
 	all := claims.Statements(text)
@@ -174,6 +177,7 @@ func gateOnChecker(h *hook.Hook, text, where, retry, marker, dest string) error 
 		}
 	}
 	if len(fresh) == 0 {
+		ledgerRuns(h, log, string(record), text, where)
 		return nil
 	}
 	sum := sha256.Sum256([]byte(strings.Join(fresh, "\n")))
@@ -184,6 +188,7 @@ func gateOnChecker(h *hook.Hook, text, where, retry, marker, dest string) error 
 	}
 	switch outcome {
 	case checkerDone:
+		ledgerRuns(h, log, string(record), text, where)
 		return nil
 	case checkerFailed:
 		return verifyInSubagent(h, text, where, retry, marker)
@@ -211,24 +216,18 @@ func gateOnChecker(h *hook.Hook, text, where, retry, marker, dest string) error 
 // whose run log shows done. It returns every recorded id's outcome too, and
 // the report files those done runs were asked for.
 func checkedStatements(log checkerLog, record string) ([]string, map[string]int, []string) {
-	covered := map[string][]string{}
-	dests := map[string]string{}
-	var ids []string
-	for line := range strings.Lines(record) {
-		id, rest, ok := strings.Cut(strings.TrimRight(line, "\n"), "\t")
-		keys, dest, _ := strings.Cut(rest, "\t")
-		if _, seen := covered[id]; ok && !seen {
-			covered[id], dests[id] = strings.Split(keys, ","), dest
-			ids = append(ids, id)
-		}
+	lines := readAsked(record)
+	ids := make([]string, 0, len(lines))
+	for _, a := range lines {
+		ids = append(ids, a.id)
 	}
 	outcomes := log.runs(ids)
 	var keys, done []string
-	for _, id := range ids {
-		if outcomes[id] == checkerDone {
-			keys = append(keys, covered[id]...)
-			if dests[id] != "" {
-				done = append(done, dests[id])
+	for _, a := range lines {
+		if outcomes[a.id] == checkerDone {
+			keys = append(keys, a.keys...)
+			if a.dest != "" {
+				done = append(done, a.dest)
 			}
 		}
 	}
@@ -399,10 +398,12 @@ func verifyHandback(h *hook.Hook) error {
 	if marker == "" {
 		return nil
 	}
+	message := h.Payload.String(hook.KeyInputMessage)
 	if prev, err := os.ReadFile(marker); err == nil && string(prev) == "sent-back" {
+		ledgerPending(h, marker, "your report", message)
 		return nil
 	}
-	u := unconfirmed(h, h.Payload.String(hook.KeyInputMessage), agentTranscript(h.Payload), "your report")
+	u := unconfirmed(h, message, agentTranscript(h.Payload), "your report")
 	if len(u) == 0 {
 		if !h.DryRun {
 			_ = fsx.WriteAtomic(marker, []byte("seen"), 0o644)
@@ -410,6 +411,7 @@ func verifyHandback(h *hook.Hook) error {
 		return nil
 	}
 	if markOnce(h, marker, []byte("sent-back"), "claims") {
+		savePending(h, marker, u)
 		h.Deny(claimsMessage("your report", u, sendBack), "claims")
 	}
 	return nil

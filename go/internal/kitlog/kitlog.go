@@ -20,6 +20,7 @@ import (
 const (
 	Skills              = "skills"
 	Guards              = "guards"
+	Claims              = "claims"
 	EventRequiredSkill  = "required-skill"
 	EventSuggestedSkill = "suggested-skill"
 	EventReferenceRead  = "reference-read"
