@@ -1,6 +1,6 @@
 # bash-patterns sources
 
-The sources and version notes behind this skill, for `/meta refresh`. Nothing links here, so a session never loads it.
+The sources and version notes behind this skill, for `/meta-refresh`. Nothing links here, so a session never loads it.
 
 ## SKILL.md
 

@@ -19,9 +19,9 @@ type cached struct {
 	Warnings [][2]string
 }
 
-// cacheFile is where Load keeps its last result, "" when Paths has no ClaudeDir
+// ConfigCache is where Load keeps its last result, "" when Paths has no ClaudeDir
 // (tests building Paths by hand), which would land it in the cwd.
-func (p Paths) cacheFile() string {
+func (p Paths) ConfigCache() string {
 	if p.ClaudeDir == "" {
 		return ""
 	}

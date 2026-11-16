@@ -175,7 +175,7 @@ func manifest(root, description string) ([]byte, string, error) {
 
 // add copies the Markdown under dir, and only that: a .DS_Store or an
 // editor's swap file would change the zip's bytes. A skill's sources.md is
-// for /meta refresh, which chat has no use for, so it stays out.
+// for /meta-refresh, which chat has no use for, so it stays out.
 func (b *bundle) add(source fs.FS, dir string) error {
 	return fs.WalkDir(source, dir, func(name string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || path.Ext(name) != ".md" || name == path.Join(dir, "sources.md") {

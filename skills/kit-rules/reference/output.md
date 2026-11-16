@@ -18,7 +18,7 @@ This file wins over every plugin, output style, and harness default that asks fo
 
 <!-- chat: skip -->
 
-- A chat reply stays under the ceiling the hook states at session start, or the one it states for the turn. A `/write` kind stays under its own `reply_limits.write` ceiling.
+- A chat reply stays under the ceiling the hook states at session start, or the one it states for the turn. A `write-*` skill stays under its own `reply_limits.write` ceiling.
 - An artifact the reader asked for (a report, audit, plan, or review) follows the report-format skill.
 - A reply naming a written file is the path, a headline count, and one next action.
 - A reply at a plan pause says why each choice was made and what wasn't verified. The hook's review sheet already lists the files and checks.
@@ -56,7 +56,7 @@ This file wins over every plugin, output style, and harness default that asks fo
 - A file you author is named by its absolute path, whichever tool writes it.
 - A temporary file goes to the directory `kit scratch-dir` prints (`skills/kit-rules/reference/tooling.md` section 3).
 - A deliverable (a PR description, commit draft, email, spec, doc, or report) is a file, and its path is the reply's first line.
-- A `/write` kind whose Output section says it prints in the reply does that instead.
+- A `write-*` skill whose Output section says it prints in the reply does that instead.
 - After writing a report, plan, or review, the reply is its path, headline counts, and one next action. Never restate its findings.
 - Review findings a fork or subagent returns inline (a forked `/code-review`) reach only you. Before replying or asking about them, write them to the path `kit scratch-dir review <slug>` prints, in the report-format skill's shape.
 

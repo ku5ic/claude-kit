@@ -23,6 +23,7 @@ type Config struct {
 	SensitivePaths    []string          `yaml:"sensitive_paths"`
 	LogMaxLines       int               `yaml:"log_max_lines"`
 	DisabledRules     []string          `yaml:"disabled_rules"`
+	ShadowRules       []string          `yaml:"shadow_rules"`
 
 	GateDiscovery         GateDiscovery `yaml:"gate_discovery"`
 	DenyFlags             []string      `yaml:"deny_flags"`
@@ -100,7 +101,7 @@ func rootLabel(label string) string {
 // rule's id. TestRulesMatchTheCode holds it to the code's blocks; a slug
 // from a table or a variable is added by hand.
 var Rules = []string{
-	"ai-attribution", "aws-ec2-terminate", "aws-s3-force-rb", "aws-s3-recursive-rm",
+	"adr-nudge", "ai-attribution", "aws-ec2-terminate", "aws-s3-force-rb", "aws-s3-recursive-rm",
 	"bash-edits", "checks-failed", "chmod-777", "chmod-broad-x", "citations", "claims", "commit-msg", "commit-wall-of-text",
 	"device-write", "disk-tool", "docker-prune-all-force", "download-to-repo",
 	"find-delete", "find-exec-rm", "fork-bomb",
@@ -109,12 +110,13 @@ var Rules = []string{
 	"interpreter-c-wrap", "keychain-delete", "kubectl-delete", "lockfile-edit",
 	"pipe-to-shell", "pkg-global-install", "pkg-missing", "pkg-undeclared", "plan-critic", "plan-done",
 	"pm-mismatch", "psql-destructive", "rc-edit", "rc-inplace-edit", "rc-redirect", "redis-destructive",
-	"review-checks", "review-report", "rm-recursive", "rules-gate", "run-checks-by-hook", "sensitive-read", "sensitive-write",
+	"review-checks", "review-report", "rm-recursive", "rules-gate", "run-checks-by-hook", "scratch-rotate", "sensitive-read", "sensitive-write",
 	"size", "skills-gate", "skills-nudge", "slop", "slop-vocabulary", "staged-secret", "terraform-auto-approve", "terraform-destroy",
 	"ui-undefined-token", "unread-text", "weaken", "xargs-rm",
 }
 
-// unknownDisables names the disabled_checks and disabled_rules entries that
+// unknownDisables names the disabled_checks, disabled_rules, and shadow_rules
+// entries that
 // can name nothing, so a typo doesn't silently disable nothing. A
 // disabled_checks entry with a space is a gate label, and which gates have
 // it depends on the project.
@@ -125,11 +127,19 @@ func (c *Config) unknownDisables() []error {
 			errs = append(errs, fmt.Errorf("disabled_checks: %q is no check kind (%s) or gate label", d, strings.Join(CheckKinds, ", ")))
 		}
 	}
-	for _, d := range c.DisabledRules {
-		id, slop := strings.CutPrefix(d, "slop-")
-		known := slices.Contains(Rules, d) || slop && slices.ContainsFunc(c.Slop.Rules, func(r SlopRule) bool { return r.ID == id })
-		if !known {
-			errs = append(errs, fmt.Errorf("disabled_rules: %q is no rule; kit explain prints a block's rule", d))
+	for _, l := range []struct {
+		key   string
+		rules []string
+	}{{"disabled_rules", c.DisabledRules}, {"shadow_rules", c.ShadowRules}} {
+		for _, d := range l.rules {
+			id, slop := strings.CutPrefix(d, "slop-")
+			known := slices.Contains(Rules, d) || slop && slices.ContainsFunc(c.Slop.Rules, func(r SlopRule) bool { return r.ID == id })
+			switch {
+			case !known:
+				errs = append(errs, fmt.Errorf("%s: %q is no rule; kit explain prints a block's rule", l.key, d))
+			case slop && l.key == "shadow_rules":
+				errs = append(errs, fmt.Errorf("%s: %q shadows nothing; the slop guards block as one rule, slop", l.key, d))
+			}
 		}
 	}
 	return errs
@@ -363,6 +373,10 @@ type WeakenedChecks struct {
 	Skips        []string `yaml:"skips"`
 	Suppressions []string `yaml:"suppressions"`
 	Assertions   []string `yaml:"assertions"`
+	// Snapshots are the snapshot files' globs; SnapshotUpdates, the
+	// commands that rewrite them.
+	Snapshots       []string `yaml:"snapshots"`
+	SnapshotUpdates []string `yaml:"snapshot_updates"`
 }
 
 // problems names each pattern that doesn't compile.
@@ -371,7 +385,7 @@ func (w WeakenedChecks) problems() []error {
 	for _, l := range []struct {
 		name     string
 		patterns []string
-	}{{"skips", w.Skips}, {"suppressions", w.Suppressions}, {"assertions", w.Assertions}} {
+	}{{"skips", w.Skips}, {"suppressions", w.Suppressions}, {"assertions", w.Assertions}, {"snapshot_updates", w.SnapshotUpdates}} {
 		for _, p := range l.patterns {
 			if _, err := regexp.Compile(p); err != nil {
 				errs = append(errs, fmt.Errorf("weakened_checks.%s: %q doesn't compile", l.name, p))
@@ -515,7 +529,7 @@ func (s Slop) problems() []error {
 
 // ReplyLimits are the word ceilings skills/kit-rules/reference/output.md section 0 names. A
 // prompt holding a detail trigger lifts the chat ceiling, one holding an
-// explain trigger raises it to Explain. Write is per /write kind, the whole
+// explain trigger raises it to Explain. Write is per write-* skill, the whole
 // reply. A prompt that starts with an UncappedCommands command has none.
 // 0 is no ceiling.
 type ReplyLimits struct {

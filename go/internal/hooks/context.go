@@ -22,6 +22,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/resolve/kittool"
+	"github.com/ku5ic/claude-kit/go/internal/rotate"
 	"github.com/ku5ic/claude-kit/go/internal/run"
 	"github.com/ku5ic/claude-kit/go/internal/sources"
 	"github.com/ku5ic/claude-kit/go/internal/stackctx"
@@ -54,6 +55,9 @@ func InjectContext(h *hook.Hook) error {
 	if !h.DryRun {
 		now := time.Now()
 		cache.Prune(h.Paths.CacheDir(), now)
+		if !h.RuleDisabled("scratch-rotate") {
+			rotate.Daily(h.Paths, h.Home, now)
+		}
 		if top := git.Toplevel(h.Payload.Cwd()); top != "" {
 			run.PruneRestorePoints(top, now)
 		}
@@ -309,7 +313,10 @@ func unanswered(cfg *config.Config, cacheDir, path string) (string, bool) {
 func cliLines(cfg *config.Config) []string {
 	var available, missing, out []string
 	for _, tool := range cfg.Tools {
-		if _, err := kittool.Path(tool); err == nil {
+		if path, err := kittool.Path(tool); err == nil {
+			if name := filepath.Base(path); name != tool {
+				tool += " (as " + name + ")"
+			}
 			available = append(available, tool)
 		} else {
 			missing = append(missing, tool)

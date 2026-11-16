@@ -51,11 +51,13 @@ var foldHome = runtime.GOOS == "darwin"
 // sensitive_paths in any case ("!{.[eE][nN][vV],*.[pP][eE][mM]}"), "" when
 // there is none. Bracket classes, not --iglob, since the Grep tool has
 // none. An entry holding a brace, a comma, or a bracket would break the
-// glob and is left out.
+// glob and is left out. A "!entry" exception is left out too: one glob
+// can't carve it from the entry it narrows, so .env.example under .env.*
+// stays excluded from a tree search, and is read when named.
 func SensitiveExclusion(cfg *config.Config) string {
 	var names []string
 	for _, entry := range cfg.SensitivePaths {
-		if !strings.HasPrefix(entry, "~/") && !strings.ContainsAny(entry, "{},/[]") {
+		if !strings.HasPrefix(entry, "~/") && !strings.HasPrefix(entry, "!") && !strings.ContainsAny(entry, "{},/[]") {
 			names = append(names, anyCase(entry))
 		}
 	}
@@ -92,30 +94,43 @@ func SearchesSensitive(cfg *config.Config, home, root, glob string, holds bool) 
 }
 
 // matchSensitive is IsSensitive past the quotes and ~, and with holds, also
-// true when a "~/" entry sits under path.
+// true when a "~/" entry sits under path. A "!entry" is an exception: the
+// last entry path matches decides, and an exception matches only path
+// itself, never a directory holding it. Each form is judged on its own, so
+// a .env.example linked to .env is sensitive through its target.
 func matchSensitive(cfg *config.Config, home, path string, holds bool) bool {
 	forms := []string{path}
 	if filepath.IsAbs(path) {
 		forms = []string{filepath.Clean(path), fsx.PhysicalPath(filepath.Clean(path))}
 	}
-	for _, entry := range cfg.SensitivePaths {
-		rest, ok := strings.CutPrefix(entry, "~/")
-		if !ok {
-			if slices.ContainsFunc(forms, func(f string) bool { return Glob(strings.ToLower(entry), strings.ToLower(filepath.Base(f))) }) {
-				return true
+	return slices.ContainsFunc(forms, func(form string) bool {
+		sensitive := false
+		for _, entry := range cfg.SensitivePaths {
+			pattern, exception := strings.CutPrefix(entry, "!")
+			if entryMatches(pattern, home, []string{form}, holds && !exception) {
+				sensitive = !exception
 			}
-			continue
 		}
-		target := filepath.Join(home, rest)
-		isDir := strings.HasSuffix(rest, "/")
-		for _, t := range []string{target, physicalTarget(target)} {
-			t := homeCase(t)
-			if slices.ContainsFunc(forms, func(f string) bool {
-				f = homeCase(f)
-				return f == t || isDir && strings.HasPrefix(f, t+"/") || holds && (f == "/" || strings.HasPrefix(t, f+"/"))
-			}) {
-				return true
-			}
+		return sensitive
+	})
+}
+
+// entryMatches is true when one of forms is the sensitive_paths entry, or
+// with holds, a directory holding a "~/" entry.
+func entryMatches(entry, home string, forms []string, holds bool) bool {
+	rest, ok := strings.CutPrefix(entry, "~/")
+	if !ok {
+		return slices.ContainsFunc(forms, func(f string) bool { return Glob(strings.ToLower(entry), strings.ToLower(filepath.Base(f))) })
+	}
+	target := filepath.Join(home, rest)
+	isDir := strings.HasSuffix(rest, "/")
+	for _, t := range []string{target, physicalTarget(target)} {
+		t := homeCase(t)
+		if slices.ContainsFunc(forms, func(f string) bool {
+			f = homeCase(f)
+			return f == t || isDir && strings.HasPrefix(f, t+"/") || holds && (f == "/" || strings.HasPrefix(t, f+"/"))
+		}) {
+			return true
 		}
 	}
 	return false
@@ -150,7 +165,7 @@ func namesSensitive(cfg *config.Config, glob string) bool {
 		base = strings.ToLower(base)
 		return slices.ContainsFunc(cfg.SensitivePaths, func(entry string) bool {
 			entry = strings.ToLower(entry)
-			return !strings.HasPrefix(entry, "~/") && (Glob(entry, base) || !generic && Glob(base, entry))
+			return !strings.HasPrefix(entry, "~/") && !strings.HasPrefix(entry, "!") && (Glob(entry, base) || !generic && Glob(base, entry))
 		})
 	})
 }

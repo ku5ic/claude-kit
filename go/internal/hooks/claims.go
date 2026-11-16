@@ -31,8 +31,8 @@ import (
 //     report, by the hook's own run against its transcript, once per agent.
 //   - PreToolUse for ExitPlanMode: the plan, which plan-critic's run covers,
 //     or with plan-critic off, the claim-checker agent.
-//   - PreToolUse for a Write or Edit of an explore or debug report in
-//     scratch, and for an MCP tool that writes: the claim-checker agent on
+//   - PreToolUse for a Write or Edit of an investigation, review, audit-*,
+//     or code-* report in scratch, and for an MCP tool that writes: the claim-checker agent on
 //     that exact text. Inside a subagent, the hook's own run, once per text.
 //
 // It runs last in its dispatcher and skips a call an earlier check denied,
@@ -94,7 +94,7 @@ func verifyToolInput(h *hook.Hook) error {
 		marker = h.Paths.SessionFile(cache.Claims, p.SessionID(), "plan", plan)
 	case slices.Contains(filePathTools, tool):
 		path := p.FilePath()
-		if !scratchReport(h, path, "explore", "debug") {
+		if !scratchReport(h, path, checkedReports...) || !atScratchRoot(h, path) {
 			return nil
 		}
 		_, after, ok := written(p, path)
@@ -126,6 +126,7 @@ func verifyInSubagent(h *hook.Hook, text, where, retry, marker string) error {
 	}
 	sum := sha256.Sum256([]byte(text))
 	sentBack := "sent-back " + hex.EncodeToString(sum[:])
+	ledgerPending(h, marker, where, text)
 	if prev, err := os.ReadFile(marker); err == nil && string(prev) == sentBack {
 		_ = os.Remove(marker)
 		return nil
@@ -135,7 +136,11 @@ func verifyInSubagent(h *hook.Hook, text, where, retry, marker string) error {
 		return nil
 	}
 	if markOnce(h, marker, []byte(sentBack), "claims") {
-		h.Deny(claimsMessage(where, u, retry), "claims")
+		savePending(h, marker, u)
+		if !h.Deny(claimsMessage(where, u, retry), "claims") {
+			// Let through as it is, so its flags score against this text.
+			ledgerPending(h, marker, where, text)
+		}
 	}
 	return nil
 }
@@ -163,8 +168,14 @@ func gateOnChecker(h *hook.Hook, text, where, retry, marker, dest string) error 
 	asked := h.Paths.SessionFile(cache.Claims, h.Payload.SessionID(), "asked")
 	record, _ := os.ReadFile(asked)
 	checked, outcomes, done := checkedStatements(log, string(record))
-	if dest != "" && slices.Contains(done, dest) {
+	// passed is every exit where the text needs no new run: its finished
+	// runs' flags go to the ledger.
+	passed := func() error {
+		ledgerRuns(h, log, string(record), text, where)
 		return nil
+	}
+	if dest != "" && slices.Contains(done, dest) {
+		return passed()
 	}
 	all := claims.Statements(text)
 	var fresh []string
@@ -174,7 +185,7 @@ func gateOnChecker(h *hook.Hook, text, where, retry, marker, dest string) error 
 		}
 	}
 	if len(fresh) == 0 {
-		return nil
+		return passed()
 	}
 	sum := sha256.Sum256([]byte(strings.Join(fresh, "\n")))
 	id := "claim-check " + hex.EncodeToString(sum[:])[:12]
@@ -184,7 +195,7 @@ func gateOnChecker(h *hook.Hook, text, where, retry, marker, dest string) error 
 	}
 	switch outcome {
 	case checkerDone:
-		return nil
+		return passed()
 	case checkerFailed:
 		return verifyInSubagent(h, text, where, retry, marker)
 	}
@@ -211,24 +222,18 @@ func gateOnChecker(h *hook.Hook, text, where, retry, marker, dest string) error 
 // whose run log shows done. It returns every recorded id's outcome too, and
 // the report files those done runs were asked for.
 func checkedStatements(log checkerLog, record string) ([]string, map[string]int, []string) {
-	covered := map[string][]string{}
-	dests := map[string]string{}
-	var ids []string
-	for line := range strings.Lines(record) {
-		id, rest, ok := strings.Cut(strings.TrimRight(line, "\n"), "\t")
-		keys, dest, _ := strings.Cut(rest, "\t")
-		if _, seen := covered[id]; ok && !seen {
-			covered[id], dests[id] = strings.Split(keys, ","), dest
-			ids = append(ids, id)
-		}
+	lines := readAsked(record)
+	ids := make([]string, 0, len(lines))
+	for _, a := range lines {
+		ids = append(ids, a.id)
 	}
 	outcomes := log.runs(ids)
 	var keys, done []string
-	for _, id := range ids {
-		if outcomes[id] == checkerDone {
-			keys = append(keys, covered[id]...)
-			if dests[id] != "" {
-				done = append(done, dests[id])
+	for _, a := range lines {
+		if outcomes[a.id] == checkerDone {
+			keys = append(keys, a.keys...)
+			if a.dest != "" {
+				done = append(done, a.dest)
 			}
 		}
 	}
@@ -399,10 +404,12 @@ func verifyHandback(h *hook.Hook) error {
 	if marker == "" {
 		return nil
 	}
+	message := h.Payload.String(hook.KeyInputMessage)
 	if prev, err := os.ReadFile(marker); err == nil && string(prev) == "sent-back" {
+		ledgerPending(h, marker, "your report", message)
 		return nil
 	}
-	u := unconfirmed(h, h.Payload.String(hook.KeyInputMessage), agentTranscript(h.Payload), "your report")
+	u := unconfirmed(h, message, agentTranscript(h.Payload), "your report")
 	if len(u) == 0 {
 		if !h.DryRun {
 			_ = fsx.WriteAtomic(marker, []byte("seen"), 0o644)
@@ -410,7 +417,10 @@ func verifyHandback(h *hook.Hook) error {
 		return nil
 	}
 	if markOnce(h, marker, []byte("sent-back"), "claims") {
-		h.Deny(claimsMessage("your report", u, sendBack), "claims")
+		savePending(h, marker, u)
+		if !h.Deny(claimsMessage("your report", u, sendBack), "claims") {
+			ledgerPending(h, marker, "your report", message)
+		}
 	}
 	return nil
 }
@@ -489,6 +499,23 @@ func agentTranscript(p *hook.Payload) string {
 		return path
 	}
 	return p.String(hook.KeyTranscriptPath)
+}
+
+// checkedReports are the scratch report kinds whose claims are checked:
+// investigate's, every audit-* and code-* skill's, and /meta-retro's.
+var checkedReports = []string{
+	"explore", "debug", "review", "session",
+	"a11y", "arch", "ci", "debt", "doc-drift", "infra", "perf", "security", "slop", "verify",
+	"flags", "readiness", "tokens",
+	"challenge", "contract", "evaluate", "from-design", "history", "impact", "migrate", "tour", "visual",
+}
+
+// atScratchRoot is true for a file directly in a scratch dir, where
+// `kit scratch-dir <kind> <slug>` puts a report; a report's raw files sit
+// a level down.
+func atScratchRoot(h *hook.Hook, path string) bool {
+	dir := filepath.Dir(filepath.Clean(path))
+	return dir == h.Paths.ScratchHome() || strings.HasSuffix(dir, "/.claude/scratch")
 }
 
 // scratchReport is true for a report of one of kinds in scratch, the files

@@ -49,10 +49,10 @@ func TestReplyLength(t *testing.T) {
 		stop(t, k, words(30)+"\n| a | b |\n|---|---|\n```go\n"+words(200)+"\n```\n", false)
 		prompt(k, "go").Lacks(t, "Your last reply")
 	})
-	t.Run("/write sets its kind's ceiling, code included", func(t *testing.T) {
+	t.Run("a write-* skill sets its ceiling, code included", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
-		prompt(k, "/write commit").Has(t, "40 words, code included")
+		prompt(k, "/write-commit").Has(t, "40 words, code included")
 		stop(t, k, "```text\n"+words(41)+"\n```", false)
 		prompt(k, "go").Has(t, over(41, 40))
 	})
@@ -75,7 +75,7 @@ func TestReplyLength(t *testing.T) {
 	t.Run("a turn with no prompt of its own gets the chat ceiling", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
-		prompt(k, "/write commit")
+		prompt(k, "/write-commit")
 		stop(t, k, words(30), false)
 		// A task notification's turn: no UserPromptSubmit, code not counted.
 		stop(t, k, words(30)+"\n```\n"+words(50)+"\n```", false)
@@ -94,10 +94,10 @@ func TestReplyLength(t *testing.T) {
 		stop(t, k, words(151), false)
 		prompt(k, "go").Has(t, over(151, 150))
 	})
-	t.Run("a detail trigger lifts a /write ceiling too", func(t *testing.T) {
+	t.Run("a detail trigger lifts a write-* ceiling too", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
-		prompt(k, "/write explainer the cache in detail").Has(t, "No reply ceiling this turn")
+		prompt(k, "/write-explainer the cache in detail").Has(t, "No reply ceiling this turn")
 		stop(t, k, words(500), false)
 		prompt(k, "go").Lacks(t, "Your last reply")
 	})
@@ -110,7 +110,7 @@ func TestReplyLength(t *testing.T) {
 	t.Run("an uncapped command's turn has no ceiling", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
-		for _, p := range []string{"/verify this branch", "/code-review high", "/kit:audit perf"} {
+		for _, p := range []string{"/verify this branch", "/code-review high", "/audit-perf", "/kit:audit-perf src", "/kit:deps"} {
 			prompt(k, p).Has(t, "No reply ceiling this turn")
 			stop(t, k, words(500), false)
 		}

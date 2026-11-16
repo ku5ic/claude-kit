@@ -37,10 +37,12 @@ global_skills: [kit-rules]
 # globs: [...]  -> shell-style globs (go/internal/guard Glob)
 skill_file_map:
   - on: basename
-    globs: ["*.ts", "*.tsx", "*.mts", "*.cts", "*.js", "*.jsx", "*.mjs", "*.cjs", "*.py", "*.rb", "*.go", "*.rs", "*.java", "*.sh", "*.vue"]
+    globs: ["*.ts", "*.tsx", "*.mts", "*.cts", "*.js", "*.jsx", "*.mjs", "*.cjs", "*.py", "*.rb", "*.go", "*.rs", "*.java", "*.sh", "*.vue", "*.svelte", "*.astro", "*.kt", "*.kts", "*.scala", "*.sc", "*.swift", "*.cs", "*.php", "*.dart", "*.lua", "*.ex", "*.exs",
+      "*.c", "*.h", "*.cc", "*.cpp", "*.cxx", "*.hpp", "*.hh", "*.hxx"]
     skills: [engineering-fundamentals]
   - on: basename
-    globs: ["*.test.*", "*.spec.*", "test_*.py", "*_test.py", "*_test.go", "*_spec.rb", "test.sh", "test_*.sh", "*_test.sh", "*.bats"]
+    globs: ["*.test.*", "*.spec.*", "test_*.py", "*_test.py", "*_test.go", "*_spec.rb", "test.sh", "test_*.sh", "*_test.sh", "*.bats",
+      "Test[A-Z]*.java", "*Test.java", "*Tests.java", "*TestCase.java", "*_test.exs", "*Test.php", "*_test.dart", "*_spec.lua"]
     skills: [test-patterns]
   - on: basename
     globs: ["*.tsx"]
@@ -330,18 +332,26 @@ attribution:
 # What guard-weaken reads an edit by (go/internal/weaken). An added line
 # matching skips (in a test file) or suppressions (in any file but skip's)
 # blocks unless `kit: allow <reason>` is on it or the line above. A test
-# file left with fewer lines matching assertions asks first.
+# file left with fewer lines matching assertions asks first. So does an
+# edit to a snapshots file in a turn that changed no other code, and a
+# command matching snapshot_updates.
 weakened_checks:
   skip: ["*.md", "*.mdx", "*.txt", "*.rst", "*/testdata/*", "*/fixtures/*", "*/kit.yml", "*/claude-kit.local.yml"]
   test_files: ["*_test.go", "*.test.[jt]s", "*.test.[jt]sx", "*.spec.[jt]s", "*.spec.[jt]sx", "*/test_*.py", "*_test.py",
-    "*/conftest.py", "*/tests/*", "*/__tests__/*"]
+    "*/conftest.py", "*/tests/*", "*/__tests__/*",
+    "*/Test[A-Z]*.java", "*Test.java", "*Tests.java", "*TestCase.java", "*_test.exs", "*Test.php", "*_test.dart", "*_spec.lua"]
   skips: ['\bt\.Skip(Now|f)?\(', '\b(it|test|describe|context)\.(skip|only|todo)\(', '(?:^|[^.\w$])x(it|test|describe)\(',
-    '(?:^|[^.\w$])f(it|describe)\(', '@pytest\.mark\.(skip|skipif|xfail)\b', '\bpytest\.skip\(', '@unittest\.skip']
+    '(?:^|[^.\w$])f(it|describe)\(', '@pytest\.mark\.(skip|skipif|xfail)\b', '\bpytest\.skip\(', '@unittest\.skip',
+    '^\s*@(Disabled\w*|Ignore)\b', '\bmarkTest(Skipped|Incomplete)\(', '^\s*@(module)?tag\s+:skip\b', '\bskip:\s*(true|[''"])',
+    '(?:^|[^.\w$])pending\(']
   suppressions: ['//\s*nolint\b', 'eslint-disable', '@ts-(ignore|nocheck|expect-error)\b', '#\s*type:\s*ignore\b',
     '#\s*noqa\b', '#\s*pyright:\s*ignore\b', '#\s*pylint:\s*disable', '#\s*shellcheck\s+disable=', 'biome-ignore',
     '//\s*lint:ignore\b']
   assertions: ['\bt\.(Error|Errorf|Fatal|Fatalf|Fail|FailNow)\(', '\b(assert|require)\.[A-Z]\w*\(', '\bexpect\(',
-    '\bassert(\.\w+)?\(', '^\s*assert\b', '\bself\.assert\w+\(', '\bpytest\.raises\(']
+    '\bassert(\.\w+)?\(', '^\s*assert\b', '\bself\.assert\w+\(', '\bpytest\.raises\(',
+    '\bassert[A-Z]\w*\(']
+  snapshots: ["*.snap", "*/__snapshots__/*"]
+  snapshot_updates: ['\b(jest|vitest|playwright\s+test|(npm|pnpm|yarn|bun)\s+(run\s+)?test)\b.*\s(-u|--update(Snapshot|-snapshots?)?)\b', '\bpytest\b.*\s--snapshot-update\b']
 
 # Registry lookups for each package a manager's add verb names
 # (go/internal/pkgcheck): per ecosystem, the managers it covers, the
@@ -396,9 +406,9 @@ claims:
 # message, scratch an explore or debug report, post a connector write.
 # 0 turns a budget off.
 size_budgets:
-  plan: 1500
-  report: 800
-  scratch: 1200
+  plan: 3000
+  report: 1200
+  scratch: 2000
   post: 300
 
 # What kit bundle chat ships to claude.ai chat, where no hook, repo, or kit
@@ -406,7 +416,7 @@ size_budgets:
 # the plugin's, 500 characters at most.
 chat_bundle:
   description: The kit's writing and investigation skills for claude.ai chat, working on pasted text and code. Hooks and guards stay in Claude Code.
-  skills: [engineering-fundamentals, investigate, slop-patterns, unslop, write]
+  skills: [engineering-fundamentals, investigate, slop-patterns, unslop, write-adr, write-commit, write-devnote, write-explainer, write-release-notes, write-rfc, write-retro, write-runbook, write-stakeholder, write-tickets]
   rules: [skills/kit-rules/reference/output.md, skills/kit-rules/reference/evidence.md, skills/kit-rules/reference/change.md]
 
 # Shell rc files: direct writes are blocked, the dotfiles repo is the source.
@@ -414,10 +424,14 @@ rc_files: ["~/.zshenv", "~/.zshrc", "~/.zprofile", "~/.bashrc", "~/.bash_profile
 
 # Credential and key files guard-bash refuses to read. A "~/" entry is a
 # path under $HOME, a directory when it ends in "/"; any other entry is a
-# basename glob. These guard a plugin install, which can't ship deny rules.
+# basename glob. A quoted "!entry" is an exception: the last entry a path
+# matches decides. These guard a plugin install, which can't ship deny rules.
 sensitive_paths:
   - ".env"
   - ".env.*"
+  - "!.env.example"
+  - "!.env.sample"
+  - "!.env.template"
   - "*.pem"
   - "*.key"
   - "*.p12"
@@ -447,6 +461,11 @@ log_max_lines: 10000
 # overlay: a disabled block or deny is still logged, as "disabled".
 disabled_rules: []
 
+# Rule slugs the kit only logs: each block or deny of that rule is logged
+# as "shadow" with what it would have blocked, and the call goes through.
+# Meant for the overlay, to try a rule before it costs a turn.
+shadow_rules: []
+
 # CI steps and jobs the kit never runs (go/internal/sources/ci.go).
 gate_discovery:
   #   deny_commands  a step holding one of these words (or word runs) is skipped
@@ -469,7 +488,7 @@ deny_flags: [--fix, --write, --watch, --watchAll, --apply, --apply-unsafe, --aut
 # install before a script runs, changing node_modules mid-check.
 gate_env: [pnpm_config_verify_deps_before_run=false]
 
-# Where /code visual keeps each repo's architecture model (its C4 views and
+# Where /code-visual keeps each repo's architecture model (its C4 views and
 # fingerprint), and the skills that read it find it: under
 # <parent>/<project>/, as kit code-graph model-dir prints. Set it in the
 # overlay to keep the models elsewhere.
@@ -528,7 +547,8 @@ on_edit:
 # Fenced code doesn't count.
 # A prompt with a detail trigger has no ceiling; with an explain trigger,
 # the explain one. uncapped_commands: slash commands (as typed, without the
-# slash) whose turn is a report, so none. write: the /write kinds that print
+# slash, a glob such as audit-* allowed, kit: optional) whose turn is a
+# report, so none. write: the write-* skills that print
 # to the terminal, code included; the others write a file and reply with its
 # path. 0 turns a ceiling off.
 reply_limits:
@@ -536,7 +556,7 @@ reply_limits:
   explain: 150
   explain_triggers: [explain, why, tradeoff, tradeoffs, review, audit, elaborate, honest take]
   detail_triggers: [in detail, walk me through, long version]
-  uncapped_commands: [verify, code-review, kit:audit, kit:deps, audit, deps]
+  uncapped_commands: [verify, code-review, audit-*, deps]
   write:
     commit: 40
     devnote: 40
@@ -545,4 +565,4 @@ reply_limits:
 # The CLIs skills/kit-rules/reference/tooling.md steers toward. <tooling> reports which of them
 # are on PATH as available: and missing: lines, so a rule never sends Claude
 # to a binary this machine lacks.
-tools: [rg, sg, fd, tokei, gitleaks, trufflehog, hyperfine, jq, gron, yq, qsv, git-absorb, actionlint, scc, mmdc, gh, difft, adr]
+tools: [rg, ast-grep, fd, tokei, gitleaks, trufflehog, hyperfine, jq, gron, yq, qsv, git-absorb, actionlint, scc, mmdc, gh, difft, adr]

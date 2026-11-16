@@ -27,3 +27,6 @@
 - `useState(compute())` calls `compute()` on every render: for a non-trivial initial value (parsing localStorage, hydrating a derived structure, walking a data tree), pass the lazy form `useState(() => compute())`.
 - A context that bundles rarely changing data (theme, current user) with per-keystroke data (form draft, scroll position): split it into two providers.
 - A context that must hold both: use a context selector library, or move the high-frequency state out of context into a store with its own subscriptions.
+- A parent whose state changes on every keystroke and renders a large subtree: move the state down into the child that uses it, or have the parent take the subtree as `children`, which skips re-rendering it.
+- Effects that each set state the next one reads, in a chain: compute what you can during render, and update the rest together in the event handler.
+- An image or embed without `width` and `height` shifts the layout when it loads (CLS). Above-the-fold content that renders only after client-side JavaScript runs delays LCP; render it on the server where the framework allows.

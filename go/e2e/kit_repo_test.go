@@ -9,8 +9,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ku5ic/claude-kit/go/internal/blast"
+	"github.com/ku5ic/claude-kit/go/internal/codegraph"
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/slop"
+	"github.com/ku5ic/claude-kit/go/internal/stackctx"
+	"github.com/ku5ic/claude-kit/go/internal/weaken"
 )
 
 // TestKitRepo checks the kit's own files agree with each other: what kit.yml
@@ -22,6 +25,27 @@ func TestKitRepo(t *testing.T) {
 		_, warnings, err := config.Load(config.Paths{Base: filepath.Join(kitRoot, "kit.yml"), Overlay: filepath.Join(t.TempDir(), "none.yml")})
 		if err != nil || len(warnings) > 0 {
 			t.Errorf("err=%v warnings=%v", err, warnings)
+		}
+	})
+
+	t.Run("Java test-file globs name tests, not production files that start with Test", func(t *testing.T) {
+		cfg, _, err := config.Load(config.Paths{Base: filepath.Join(kitRoot, "kit.yml"), Overlay: filepath.Join(t.TempDir(), "none.yml")})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for path, test := range map[string]bool{
+			"src/test/java/com/acme/TestStrings.java":   true,
+			"src/main/java/com/acme/Testimonial.java":   false,
+			"src/main/java/com/acme/Testing/Util.java":  false,
+			"src/test/java/com/acme/StringsTest.java":   true,
+			"src/main/java/com/acme/TestimonialBo.java": false,
+		} {
+			if weaken.IsCode(cfg.WeakenedChecks, path) == test {
+				t.Errorf("weakened_checks: %s is a test file = %v, want %v", path, !test, test)
+			}
+			if slices.Contains(stackctx.FileMapSkills(cfg.SkillFileMap, path), "test-patterns") != test {
+				t.Errorf("skill_file_map: %s loads test-patterns = %v, want %v", path, !test, test)
+			}
 		}
 	})
 
@@ -94,37 +118,53 @@ func TestKitRepo(t *testing.T) {
 
 	t.Run("a reference skill keeps its sources in sources.md and fits its budget", func(t *testing.T) {
 		// The skills that aren't reference skills, so keep no sources.md;
-		// skills/meta/reference/refresh.md points here for the list.
-		exempt := []string{"audit", "write", "deps", "investigate", "pr", "unslop", "report-format", "meta", "kit-rules", "slop-patterns", "code"}
+		// skills/meta-refresh/SKILL.md points here for the list.
+		// A skill only the user invokes (disable-model-invocation) is a
+		// procedure skill. It keeps its sources too (skills/meta-skill/SKILL.md,
+		// Rules), but its description and SKILL.md load only when the user
+		// types it, so no budget holds them.
+		exempt := []string{"investigate", "report-format", "kit-rules", "slop-patterns"}
 		// Reference skills with no version-dependent content: no sources.md,
-		// and /meta refresh takes them only when named.
-		unversioned := []string{"engineering-fundamentals"}
+		// and /meta-refresh takes them only when named.
+		unversioned := []string{
+			"engineering-fundamentals",
+			// Procedure skills whose practice another skill owns: the stack
+			// pattern skills, wcag-audit, slop-patterns, code-host-patterns,
+			// or engineering-fundamentals' thresholds.
+			"audit-a11y", "audit-debt", "audit-infra", "audit-slop", "pr-publish", "unslop",
+			// Procedure skills that run only the kit's own steps, with no
+			// outside practice to cite.
+			"audit-doc-drift", "audit-verify", "code-impact", "code-tour", "meta-refresh",
+			"write-devnote", "write-explainer",
+		}
 		// Set from the sizes after sources moved out; step 18's rewrite lowers them.
 		const maxDescription, maxSkill = 200, 5 * 1024
 		url := regexp.MustCompile(`https?://`)
 		dirs, _ := filepath.Glob(filepath.Join(kitRoot, "skills", "*", "SKILL.md"))
 		for _, skill := range dirs {
 			dir := filepath.Dir(skill)
+			text := Read(t, skill)
+			front, _ := frontmatter(text)
+			procedure := front["disable-model-invocation"] == "true"
+			refs, _ := filepath.Glob(filepath.Join(dir, "reference", "*.md"))
 			if slices.Contains(exempt, filepath.Base(dir)) {
 				continue
 			}
-			text := Read(t, skill)
-			front, _ := frontmatter(text)
 			rel, _ := filepath.Rel(kitRoot, skill)
-			// /meta refresh reads it for every skill outside exempt.
+			// /meta-refresh reads it for every skill outside exempt.
 			if _, err := os.Stat(filepath.Join(dir, "sources.md")); err != nil && !slices.Contains(unversioned, filepath.Base(dir)) {
 				t.Errorf("%s: no sources.md; add it, or the skill to exempt if it's not a reference skill", rel)
 			}
-			if n := len(front["description"]); n == 0 || n > maxDescription {
+			if n := len(front["description"]); !procedure && (n == 0 || n > maxDescription) {
 				t.Errorf("%s: description is %d characters, want 1 to %d", rel, n, maxDescription)
 			}
-			if len(text) > maxSkill {
+			if !procedure && len(text) > maxSkill {
 				t.Errorf("%s: %d bytes, over the %d-byte budget", rel, len(text), maxSkill)
 			}
-			if strings.Contains(text, "sources.md") {
+			// The two skills that write and refresh sources.md name it.
+			if strings.Contains(text, "sources.md") && !slices.Contains([]string{"meta-skill", "meta-refresh"}, filepath.Base(dir)) {
 				t.Errorf("%s: names sources.md, which a session must never load", rel)
 			}
-			refs, _ := filepath.Glob(filepath.Join(dir, "reference", "*.md"))
 			for _, file := range append(refs, skill) {
 				rel, _ := filepath.Rel(kitRoot, file)
 				for n, line := range proseLines(Read(t, file)) {
@@ -148,7 +188,7 @@ func TestKitRepo(t *testing.T) {
 			t.Fatal(err)
 		}
 		// A list holding a language's base extension holds all of its.
-		langs := map[string][]string{"js": blast.JSExtensions, "ts": blast.TSExtensions}
+		langs := map[string][]string{"js": codegraph.JSExtensions, "ts": codegraph.TSExtensions}
 		covers := func(what string, exts []string) {
 			for base, set := range langs {
 				if !slices.Contains(exts, base) {
@@ -177,6 +217,25 @@ func TestKitRepo(t *testing.T) {
 		}
 	})
 
+	// Where a language lives in the kit: every language code-graph reads
+	// imports of, the slop guard reads comments of and skill_file_map
+	// loads engineering-fundamentals for. /add-language follows this list.
+	t.Run("every language code-graph scans is read by slop and skill_file_map", func(t *testing.T) {
+		cfg, _, err := config.Load(config.Paths{Base: filepath.Join(kitRoot, "kit.yml"), Overlay: filepath.Join(t.TempDir(), "none.yml")})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, ext := range codegraph.Extensions() {
+			file := "a" + ext
+			if !slop.Reads(file) {
+				t.Errorf("slop has no comment syntax for %s (go/internal/slop/segments.go)", ext)
+			}
+			if !slices.Contains(stackctx.FileMapSkills(cfg.SkillFileMap, file), "engineering-fundamentals") {
+				t.Errorf("skill_file_map loads engineering-fundamentals for no %s file (kit.yml)", ext)
+			}
+		}
+	})
+
 	t.Run("a skill with a Before | Read table links every reference it has", func(t *testing.T) {
 		skills, err := filepath.Glob(filepath.Join(kitRoot, "skills", "*", "SKILL.md"))
 		if err != nil {
@@ -201,15 +260,32 @@ func TestKitRepo(t *testing.T) {
 		}
 	})
 
-	t.Run("the README's Dependencies table has a row for every kit.yml tool", func(t *testing.T) {
+	t.Run("docs/dependencies.md has a row for every kit.yml tool", func(t *testing.T) {
 		cfg, _, err := config.Load(config.Paths{Base: filepath.Join(kitRoot, "kit.yml"), Overlay: filepath.Join(t.TempDir(), "none.yml")})
 		if err != nil {
 			t.Fatal(err)
 		}
-		readme := Read(t, filepath.Join(kitRoot, "README.md"))
+		page := Read(t, filepath.Join(kitRoot, "docs", "dependencies.md"))
 		for _, tool := range cfg.Tools {
-			if !regexp.MustCompile("(?m)^\\| `" + regexp.QuoteMeta(tool) + "` +\\|").MatchString(readme) {
-				t.Errorf("kit.yml tools has %s, which the README's Dependencies table has no row for", tool)
+			if !regexp.MustCompile("(?m)^\\| `" + regexp.QuoteMeta(tool) + "` +\\|").MatchString(page) {
+				t.Errorf("kit.yml tools has %s, which docs/dependencies.md has no row for", tool)
+			}
+		}
+	})
+
+	t.Run("docs/commands.md lists every command and docs/skills.md every other skill", func(t *testing.T) {
+		commands := Read(t, filepath.Join(kitRoot, "docs", "commands.md"))
+		skills := Read(t, filepath.Join(kitRoot, "docs", "skills.md"))
+		dirs, _ := filepath.Glob(filepath.Join(kitRoot, "skills", "*", "SKILL.md"))
+		for _, skill := range dirs {
+			name := filepath.Base(filepath.Dir(skill))
+			front, _ := frontmatter(Read(t, skill))
+			page, row, rel := skills, "`"+name+"`", "docs/skills.md"
+			if front["disable-model-invocation"] == "true" {
+				page, row, rel = commands, "`/"+name+"`", "docs/commands.md"
+			}
+			if !regexp.MustCompile("(?m)^\\| " + regexp.QuoteMeta(row) + " +\\|").MatchString(page) {
+				t.Errorf("%s has no row for %s", rel, row)
 			}
 		}
 	})
@@ -245,8 +321,8 @@ func TestKitRepo(t *testing.T) {
 	// only has to hold every field, in any order.
 	t.Run("audit verify parses every per-finding field the report format requires", func(t *testing.T) {
 		for file, opening := range map[string]string{
-			"skills/report-format/SKILL.md":    "A finding's parts:",
-			"skills/audit/reference/verify.md": "Extract every finding's",
+			"skills/report-format/SKILL.md": "A finding's parts:",
+			"skills/audit-verify/SKILL.md":  "Extract every finding's",
 		} {
 			var parts string
 			for line := range strings.SplitSeq(Read(t, filepath.Join(kitRoot, file)), "\n") {
@@ -322,7 +398,10 @@ var (
 func brokenPointers(t *testing.T) []string {
 	t.Helper()
 	var sources []string
-	for _, dir := range []string{"agents", "skills", "go", "docs"} {
+	for _, dir := range []string{"agents", "skills", "go", "docs", ".claude/skills"} {
+		if _, err := os.Stat(filepath.Join(kitRoot, dir)); err != nil {
+			t.Error(err)
+		}
 		_ = filepath.WalkDir(filepath.Join(kitRoot, dir), func(path string, d os.DirEntry, err error) error {
 			// An accepted ADR changes only in its status line, so a pointer
 			// in one that a later move breaks can't be fixed.

@@ -144,6 +144,25 @@ func TestFormatDispatch(t *testing.T) {
 		e.format(filepath.Join(e.repo, "a.toml")).Want(t, 0)
 		e.callsWant("taplo fmt " + filepath.Join(e.repo, "a.toml"))
 	})
+	t.Run("a cmd whose tool is only on PATH under another name falls through to the next", func(t *testing.T) {
+		e := formatSetup(t)
+		e.stub(filepath.Join(e.stubs, "fdfind"), "fdfind")
+		e.stub(filepath.Join(e.stubs, "taplo"), "taplo")
+		// bash and git alone, so no real fd beside them answers for the stub.
+		tools := t.TempDir()
+		for _, tool := range []string{"bash", "git"} {
+			if p, err := exec.LookPath(tool); err == nil {
+				if err := os.Symlink(p, filepath.Join(tools, tool)); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		t.Setenv("PATH", strings.Join([]string{e.stubs, tools, "/usr/bin", "/bin"}, ":"))
+		e.k.classify(e.repo, envelope(t, nil, nil, nil))
+		e.k.overlay(read(t, e.k.paths.Overlay) + "on_edit:\n  - {globs: [\"*.toml\"], run: [{cmd: \"fd {file}\"}, {cmd: \"taplo fmt {file}\"}]}\n")
+		e.format(filepath.Join(e.repo, "a.toml")).Want(t, 0)
+		e.callsWant("taplo fmt " + filepath.Join(e.repo, "a.toml"))
+	})
 	t.Run("an on_edit rule whose only cmd is empty leaves the earlier rule's chain", func(t *testing.T) {
 		e := formatSetup(t)
 		e.stub(filepath.Join(e.stubs, "taplo"), "taplo")

@@ -1,6 +1,6 @@
 # drf-patterns sources
 
-The sources and version notes behind this skill, for `/meta refresh`. Nothing links here, so a session never loads it.
+The sources and version notes behind this skill, for `/meta-refresh`. Nothing links here, so a session never loads it.
 
 ## SKILL.md
 
@@ -57,6 +57,7 @@ Not caught by defaults, so kept: `fields = "__all__"` (the `DJ` rules are off, a
 - https://www.django-rest-framework.org/api-guide/serializers/
 - https://www.django-rest-framework.org/api-guide/serializers/#modelserializer
 - https://www.django-rest-framework.org/api-guide/fields/#serializermethodfield
+- https://www.django-rest-framework.org/api-guide/relations/
 
 ## reference/throttling-and-pagination.md
 

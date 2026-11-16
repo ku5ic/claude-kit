@@ -5,7 +5,8 @@ Bugs and ideas go in a GitHub issue. A guard bypass is a security report, so fol
 ## Before you change anything
 
 - **Find the owner.** `CLAUDE.md` maps every rule topic to the one file that owns it. Change a topic in its owner, or nowhere; every other file links to it.
-- **Check the decisions.** `docs/adr/` records why things are the way they are. A change that contradicts an accepted ADR comes with a new ADR that supersedes or amends it, as `CLAUDE.md` describes.
+- **Check the decisions.** `docs/adr/` records why things are the way they are. A change that contradicts an accepted ADR comes with a new ADR that supersedes it, as `CLAUDE.md` describes, which also says when a change needs an ADR at all.
+- **Adding a language or framework?** [docs/adding-a-stack.md](docs/adding-a-stack.md) says what each needs and which skill does it.
 
 ## Set up
 

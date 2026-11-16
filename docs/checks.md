@@ -2,7 +2,7 @@
 
 The kit enforces your project's own rules, not its own list of tools. It reads what your project already runs, and asks gap-fill only about what those configs leave open.
 
-When Claude finishes a turn, the Stop hook runs the checks your git hooks would run on a commit (pre-commit, lint-staged, lefthook) on just the files it edited, in parallel. A project with none gets the file-scoped form of its CI checks. A failure sends Claude back to fix it or report it.
+When Claude finishes a turn, the Stop hook runs the checks your git hooks would run on a commit (pre-commit, lint-staged, lefthook) on just the files it edited, in parallel. For each file and check kind those hooks don't cover, the file-scoped form of the full gate's check of that kind runs too. A failure sends Claude back to fix it or report it.
 
 - **Changed lines only.** A linter blocks on findings in lines Claude changed, so old warnings don't trap it.
 - **Your commands, your flags.** Every command is one your project states; `kit explain stop <file>` shows which claim a file and the exact command.

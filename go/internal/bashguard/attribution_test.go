@@ -59,6 +59,12 @@ func TestGuardAttribution(t *testing.T) {
 		{"block: a gh api field", `gh api repos/o/r/issues/3/comments -f body="Co-Authored-By: Claude"`, 2},
 		{"block: a gh api --input body", `gh api repos/o/r/pulls -X POST --input signed.json`, 2},
 		{"allow: a clean PR", `gh pr create -t "fix: x" -b "Reads the body from disk."`, 0},
+		// glab: merge request, note, and api text
+		{"block: an MR description file with a trailer", `glab mr create -t "fix: x" --description-file signed.txt`, 2},
+		{"block: an MR note", `glab mr note 3 -m "Generated with Claude Code"`, 2},
+		{"block: a glab api --input body", `glab api projects/1/merge_requests -X POST --input signed.json`, 2},
+		{"allow: glab mr checkout", `glab mr checkout 3`, 0},
+		{"allow: a clean MR", `glab mr create -t "fix: x" -d "Reads the body from disk."`, 0},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			k.attribution(cwd, c.cmd).Want(t, c.status)

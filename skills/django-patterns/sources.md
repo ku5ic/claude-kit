@@ -1,6 +1,6 @@
 # django-patterns sources
 
-The sources and version notes behind this skill, for `/meta refresh`. Nothing links here, so a session never loads it.
+The sources and version notes behind this skill, for `/meta-refresh`. Nothing links here, so a session never loads it.
 
 ## SKILL.md
 
@@ -60,6 +60,7 @@ Not caught by defaults, so kept: a hardcoded `SECRET_KEY` (`S105` is off), `DEBU
 - https://docs.djangoproject.com/en/stable/ref/models/expressions/#f-expressions
 - https://docs.djangoproject.com/en/stable/topics/db/queries/#complex-lookups-with-q-objects
 - https://docs.djangoproject.com/en/stable/ref/models/querysets/#iterator
+- https://docs.djangoproject.com/en/stable/topics/db/queries/#limiting-querysets
 - https://docs.djangoproject.com/en/stable/ref/models/querysets/#bulk-create
 
 ## reference/settings.md

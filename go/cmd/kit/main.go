@@ -12,9 +12,11 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"go.yaml.in/yaml/v3"
 
+	"github.com/ku5ic/claude-kit/go/internal/adr"
 	"github.com/ku5ic/claude-kit/go/internal/blast"
 	"github.com/ku5ic/claude-kit/go/internal/chatbundle"
 	"github.com/ku5ic/claude-kit/go/internal/codegraph"
@@ -31,6 +33,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/rotate"
 	"github.com/ku5ic/claude-kit/go/internal/slop"
 	"github.com/ku5ic/claude-kit/go/internal/sources"
+	"github.com/ku5ic/claude-kit/go/internal/stats"
 	"github.com/ku5ic/claude-kit/go/internal/status"
 )
 
@@ -140,12 +143,17 @@ var commands = map[string]command{
 	"git-base":       {needsNothing, streams(gitbase.Run)},
 	"config":         {needsEnv, envOnly(cmdConfig)},
 	"scratch-rotate": {needsEnv, envOnly(cmdScratchRotate)},
+	"clean":          {needsEnv, envOnly(cmdClean)},
 	"scratch-dir":    {needsEnv, envOnly(cmdScratchDir)},
 	"project-root":   {needsEnv, envOnly(cmdProjectRoot)},
+	"adrs":           {needsEnv, envOnly(cmdADRs)},
 	"subprojects":    {needsEnv, envOnly(cmdSubprojects)},
 	"gates":          {needsEnv, envOnly(cmdGates)},
 	"bundle":         {needsEnv, envOnly(cmdBundle)},
 	"code-graph":     {needsEnv, envOnly(cmdCodeGraph)},
+	"stats": {needsEnv, func(e *env, _ *config.Config, args []string) int {
+		return stats.Run(e.paths.LogDir(), time.Now(), args, e.stdout, e.stderr)
+	}},
 	"hook": {needsEnv, func(e *env, _ *config.Config, args []string) int {
 		return cmdHook(e, args, os.Stdin)
 	}},
@@ -260,6 +268,15 @@ func cmdScratchRotate(e *env, args []string) int {
 	return rotate.Run(e.paths, e.home, days, dryRun, e.stdout, e.stderr)
 }
 
+func cmdClean(e *env, args []string) int {
+	yes := len(args) == 1 && args[0] == "--yes"
+	if len(args) > 0 && !yes {
+		fmt.Fprintln(e.stderr, "usage: kit clean [--yes]")
+		return 2
+	}
+	return rotate.Clean(e.paths, yes, e.stdout)
+}
+
 // runChecksArgs are run-checks' arguments.
 type runChecksArgs struct {
 	plan bool
@@ -357,6 +374,31 @@ func cmdProjectRoot(e *env, args []string) int {
 	return 0
 }
 
+// cmdADRs prints the project's accepted ADRs that cite args[0], or all of
+// them, each as its root-relative file and title.
+func cmdADRs(e *env, args []string) int {
+	root, _ := project.Root(e.cwd)
+	dir := adr.Dir(root)
+	if dir == "" {
+		fmt.Fprintln(e.stderr, "kit adrs: no ADR folder under", root)
+		return 1
+	}
+	var rel string
+	if len(args) > 0 {
+		target := args[0]
+		if !filepath.IsAbs(target) {
+			target = filepath.Join(e.cwd, target)
+		}
+		rel = filepath.ToSlash(fsx.Rel(root, target))
+	}
+	for _, a := range adr.Accepted(dir) {
+		if rel == "" || a.Cites(rel) {
+			fmt.Fprintf(e.stdout, "%s\t%s\n", fsx.Rel(root, a.Path), a.Title)
+		}
+	}
+	return 0
+}
+
 func cmdScratchDir(e *env, args []string) int {
 	dir, err := project.ScratchDir(e.paths, e.cwd, true)
 	if err != nil {
@@ -383,10 +425,10 @@ func cmdDetectStack(e *env, cfg *config.Config, _ []string) int {
 
 var positive = regexp.MustCompile(`^[1-9][0-9]*$`)
 
-// parseDays reads a [days] argument: a positive integer, 30 when absent.
+// parseDays reads a [days] argument: a positive integer, rotate.DefaultDays when absent.
 func parseDays(arg string, stderr io.Writer) (int, bool) {
 	if arg == "" {
-		return 30, true
+		return rotate.DefaultDays, true
 	}
 	if !positive.MatchString(arg) {
 		fmt.Fprintf(stderr, "scratch-rotate: [days] must be a positive integer, got '%s'\n", arg)

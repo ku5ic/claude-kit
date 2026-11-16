@@ -89,6 +89,25 @@ func TestComments(t *testing.T) {
 			`EOF`,
 			`# I hope this helps`,
 		), []string{"1:copula", "4:hope-helps"}},
+		{"lua long and short comments", "a.lua", lines(
+			"--[[ The cache",
+			"   serves as the store. ]]",
+			`local s = "-- serves as the string" -- it serves as the key`,
+		), []string{"2:copula", "3:copula"}},
+		{"lua leveled comment and long strings", "a.lua", lines(
+			"--[==[ a ]] inside",
+			"   serves as the store. ]==]",
+			"local help = [[",
+			"Usage -- it serves as the key \\]]",
+			`local s = [=[ -- serves as the ]=] -- it serves as the key`,
+		), []string{"2:copula", "5:copula"}},
+		{"astro frontmatter and markup comments", "a.astro", lines(
+			"---",
+			"// it serves as the key",
+			"---",
+			"<!-- I hope this helps -->",
+		), []string{"2:copula", "4:hope-helps"}},
+		{"c++ header", "a.hh", "int x; // it serves as the key", []string{"1:copula"}},
 		{"yaml merge key isn't a heredoc", "a.yml", lines(
 			`<<: *base`,
 			`# I hope this helps`,

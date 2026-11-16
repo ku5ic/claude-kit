@@ -57,27 +57,53 @@ func turnChanges(h *hook.Hook, root string) (changed []string, tree string, ok b
 // file records, that tree, and the tree now, which replaces it in file;
 // false when file is "" or holds no tree.
 func changedSince(h *hook.Hook, root, file string) (changed []string, before, now string, ok bool) {
-	if file == "" {
+	before, ok = readTree(file)
+	if !ok {
 		return nil, "", "", false
+	}
+	changed, now, ok = diffTree(root, before)
+	if now != "" {
+		saveTree(h, file, now)
+	}
+	return changed, before, now, ok
+}
+
+// changedThisTurn is turnChanges without recording the tree now, for a
+// guard that looks before a tool runs and must leave Stop's baseline alone.
+func changedThisTurn(h *hook.Hook, root string) ([]string, bool) {
+	before, ok := readTree(turnTreeFile(h, root))
+	if !ok {
+		return nil, false
+	}
+	changed, _, ok := diffTree(root, before)
+	return changed, ok
+}
+
+// readTree is the tree file records, false when file is "" or unreadable.
+func readTree(file string) (string, bool) {
+	if file == "" {
+		return "", false
 	}
 	data, err := os.ReadFile(file)
+	return string(data), err == nil
+}
+
+// diffTree is the absolute paths whose content differs between the tree
+// before and root's tree now, and that tree; now is "" when git can't take
+// it.
+func diffTree(root, before string) (changed []string, now string, ok bool) {
+	now, err := git.Snapshot(root)
 	if err != nil {
-		return nil, "", "", false
+		return nil, "", false
 	}
-	before = string(data)
-	now, err = git.Snapshot(root)
-	if err != nil {
-		return nil, before, "", false
-	}
-	saveTree(h, file, now)
 	changed, err = git.TreeDiff(root, before, now)
 	if err != nil {
-		return nil, before, now, false
+		return nil, now, false
 	}
 	for i, path := range changed {
 		changed[i] = fsx.Abs(root, path)
 	}
-	return changed, before, now, true
+	return changed, now, true
 }
 
 // turnTreeFile is where the session keeps root's turn-start snapshot; ""

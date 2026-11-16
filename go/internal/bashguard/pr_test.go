@@ -56,6 +56,16 @@ func TestGuardPR(t *testing.T) {
 		{"allow: gh api another field", `gh api repos/o/r/pulls/3 -X PATCH -f state="I hope this helps."`, 0},
 		{"block: gh api --input JSON body", `gh api repos/o/r/pulls/3 -X PATCH --input tell.json`, 2},
 		{"allow: gh api --input clean JSON", `gh api repos/o/r/pulls/3 -X PATCH --input clean.json`, 0},
+		{"passthrough: glab mr view", `glab mr view 3 -F json`, 0},
+		{"block: glab mr create -d", `glab mr create -t "fix: x" -d "I hope this helps."`, 2},
+		{"block: glab mr update --description-file", `glab mr update 3 --description-file tell.md`, 2},
+		{"allow: glab mr create clean", `glab mr create -t "fix: x" --description-file clean.md`, 0},
+		{"block: glab mr note -m", `glab mr note 3 -m "I hope this helps."`, 2},
+		{"block: glab mr note create -m", `glab mr note create 3 -m "I hope this helps."`, 2},
+		{"block: glab issue create --description", `glab issue create -t x --description "I hope this helps."`, 2},
+		{"block: glab release create -N", `glab release create v1 -N "I hope this helps."`, 2},
+		{"allow: glab mr create -m is a milestone", `glab mr create -t "fix: x" -m "I hope this helps." -d "Reads the body."`, 0},
+		{"block: glab api -f description=", `glab api projects/1/merge_requests/3 -X PUT -f description="I hope this helps."`, 2},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			r := k.pr(cwd, c.cmd)

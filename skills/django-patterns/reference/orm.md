@@ -16,6 +16,7 @@
 ## Columns and large querysets
 
 - Many rows with few columns read: `.only(*fields)` or `.defer(*fields)`. Deferred fields load on access. Measure with django-debug-toolbar before adding either.
+- A queryset over a table that grows, evaluated whole on a request path (`list(Model.objects.all())`, a view looping over `.all()`): slice it or paginate. Slicing an unevaluated queryset adds `LIMIT` and runs no query.
 - A result set too large for memory: `.iterator(chunk_size=1000)`, which streams rows. It skips the queryset cache, so a second loop queries again.
 
 ## Bulk operations

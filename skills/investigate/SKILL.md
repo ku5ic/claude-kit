@@ -21,7 +21,7 @@ A plan goes through plan mode (`/plan`).
 
 <!-- chat: skip -->
 
-0. Resolve external context. If the arguments contain a URL with little inline description, resolve it before anything else: identify the service from the domain, find its fetch tool with ToolSearch (`app.clickup.com` -> ClickUp tools, `notion.so` -> Notion, `github.com` -> `gh` or the GitHub tools), call it, and take the scope and requirements from what comes back. The resolved text becomes the effective arguments. Never hand a bare link to a subagent.
+0. Resolve external context. If the arguments contain a URL with little inline description, resolve it before anything else: find the service's fetch tool per `skills/kit-rules/reference/tooling.md` section 4, call it, and take the scope and requirements from what comes back. The resolved text becomes the effective arguments. Never hand a bare link to a subagent.
 
 <!-- chat: end -->
 
@@ -68,6 +68,22 @@ In claude.ai chat, nothing can be run, so read instead. Trace from the entry poi
 -->
 
 3. Across a dependency boundary, name misuse vs defect per `skills/kit-rules/reference/evidence.md` section 2.
+
+### Production
+
+<!-- chat: skip -->
+
+For a live incident or a firing alert the user names. Read [reference/production.md](reference/production.md) first.
+
+1. The monitoring, deploy, flag, and chat connectors, per `skills/kit-rules/reference/tooling.md` section 4, read tools only. None, say so and ask for the alerts pasted.
+2. The onset, the earliest alert or rise in errors, with its source. Two candidates, ask.
+3. A timeline file at the path `kit scratch-dir incident <slug>` prints. Its header holds the service, the alert, the failure signature (alert name, service, the top error with ids and numbers stripped), the onset, and the status (open, mitigated, resolved). One row per event, with the time in UTC, the kind (alert, error, deploy, flag, commit, action, finding), what happened, and its source. Rows are appended on each pass, never rewritten.
+4. The changes in a window before the onset: deploys and flag changes from the connectors, commits with `git log --since` on the deployed paths. Each row says before, at, or after onset.
+5. One rollback candidate with its evidence (onset nearest, its diff touching the failing path), or "no candidate" with what was ruled out. Whether the previous release can read data this one wrote decides if it's safe. The user runs any rollback, flag change, or drain.
+6. Drafts of one internal and one external status update. Ask with AskUserQuestion before each post, after reading the channel's description, then post through the chat connector and add an "update posted" row.
+7. A resolved incident's timeline is the write-retro skill's input.
+
+<!-- chat: end -->
 
 ## Output
 

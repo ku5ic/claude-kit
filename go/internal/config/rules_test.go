@@ -85,3 +85,29 @@ func TestAnUnknownDisabledRuleWarns(t *testing.T) {
 		t.Errorf("warnings: %q", got)
 	}
 }
+
+func TestAnUnknownShadowRuleWarns(t *testing.T) {
+	t.Parallel()
+	cfg := Config{ShadowRules: []string{"weaken", "weakn"}}
+	var got []string
+	for _, err := range cfg.unknownDisables() {
+		got = append(got, err.Error())
+	}
+	if len(got) != 1 || !strings.HasPrefix(got[0], `shadow_rules: "weakn"`) {
+		t.Errorf("warnings: %q", got)
+	}
+}
+
+// The slop guards deny under one rule, slop, so a shadowed slop-<id>
+// would shadow nothing.
+func TestAShadowedSlopRuleWarns(t *testing.T) {
+	t.Parallel()
+	cfg := Config{ShadowRules: []string{"slop", "slop-vocabulary"}, Slop: Slop{Rules: []SlopRule{{ID: "vocabulary"}}}}
+	var got []string
+	for _, err := range cfg.unknownDisables() {
+		got = append(got, err.Error())
+	}
+	if len(got) != 1 || !strings.HasPrefix(got[0], `shadow_rules: "slop-vocabulary"`) {
+		t.Errorf("warnings: %q", got)
+	}
+}

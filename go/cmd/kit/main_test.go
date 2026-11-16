@@ -195,3 +195,29 @@ func TestScratchDirFollowsClaudeConfigDir(t *testing.T) {
 		t.Error("registered under HOME despite CLAUDE_CONFIG_DIR")
 	}
 }
+
+func TestADRsListsTheAcceptedOnesThatCiteAPath(t *testing.T) {
+	t.Parallel()
+	root := tmp(t)
+	mkdir(t, filepath.Join(root, ".git"))
+	write := func(name, text string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(mkdir(t, filepath.Join(root, "docs/adr")), name), []byte(text), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("0001-a.md", "# 1. A\n\n## Status\n\nAccepted\n\n## Decision\n\nIn `src/api/`.\n")
+	write("0002-b.md", "# 2. B\n\n## Status\n\nAccepted\n\n## Decision\n\nIn `src/ui/`.\n")
+	write("0003-c.md", "# 3. C\n\n## Status\n\nProposed\n\n## Decision\n\nIn `src/api/`.\n")
+
+	code, stdout, stderr := call(t, cmdADRs, root, "src/api/users.go")
+	if want := "docs/adr/0001-a.md\t1. A\n"; code != 0 || stdout != want {
+		t.Errorf("exit %d, stdout %q, want %q; stderr %q", code, stdout, want, stderr)
+	}
+	if _, all, _ := call(t, cmdADRs, root); strings.Count(all, "\n") != 2 {
+		t.Errorf("with no path, want both accepted ADRs, got %q", all)
+	}
+	if code, _, stderr := call(t, cmdADRs, mkdir(t, filepath.Join(tmp(t), "x")), "f"); code != 1 || !strings.Contains(stderr, "no ADR folder") {
+		t.Errorf("no ADR folder: exit %d, stderr %q", code, stderr)
+	}
+}

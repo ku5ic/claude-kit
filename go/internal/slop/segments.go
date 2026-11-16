@@ -23,6 +23,9 @@ type syntax struct {
 	// lifetimes: a ' opens a char literal ('x', '\n') or nothing, as
 	// Rust's 'a does; it never opens a string.
 	lifetimes bool
+	// longBrackets: Lua's [[ ]] and [==[ ]==] open a long string, and after
+	// -- a block comment.
+	longBrackets bool
 }
 
 var (
@@ -32,17 +35,20 @@ var (
 	hash   = syntax{line: []string{"#"}, quotes: `"'`, heredoc: true}
 	python = syntax{line: []string{"#"}, quotes: `"'`, doc: true}
 	markup = syntax{line: []string{"//"}, block: [][2]string{{"<!--", "-->"}, {"/*", "*/"}}, quotes: "\"'`", multi: "`"}
+	lua    = syntax{line: []string{"--"}, quotes: `"'`, longBrackets: true}
 
 	byExt = map[string]syntax{
 		".go": cLike, ".js": cLike, ".jsx": cLike, ".mjs": cLike, ".cjs": cLike, ".ts": cLike, ".tsx": cLike,
 		".mts": cLike, ".cts": cLike, ".java": cLike, ".kt": cLike, ".kts": cLike, ".swift": cLike, ".rs": rust,
-		".c": cLike, ".h": cLike, ".cc": cLike, ".cpp": cLike, ".hpp": cLike, ".cs": cLike, ".scala": cLike,
+		".c": cLike, ".h": cLike, ".cc": cLike, ".cpp": cLike, ".cxx": cLike, ".hpp": cLike, ".hh": cLike, ".hxx": cLike,
+		".cs": cLike, ".scala": cLike, ".sc": cLike,
 		".dart": cLike, ".php": cLike, ".scss": cLike, ".less": cLike,
 		".css": css,
+		".lua": lua,
 		".py":  python, ".pyi": python,
 		".rb": hash, ".sh": hash, ".bash": hash, ".zsh": hash, ".yml": hash, ".yaml": hash, ".toml": hash,
 		".tf": hash, ".tfvars": hash, ".r": hash, ".pl": hash, ".ex": hash, ".exs": hash, ".nix": hash,
-		".html": markup, ".htm": markup, ".vue": markup, ".svelte": markup, ".xml": markup,
+		".html": markup, ".htm": markup, ".vue": markup, ".svelte": markup, ".astro": markup, ".xml": markup,
 	}
 	byName = map[string]syntax{"Dockerfile": hash, "Makefile": hash, "justfile": hash, "Brewfile": hash}
 
@@ -151,6 +157,9 @@ type span struct {
 // quoted or not; a YAML merge key (<<:) has none.
 var heredocOpener = regexp.MustCompile(`^<<[-~]?[ \t]*['"]?([A-Za-z_][A-Za-z0-9_]*)['"]?`)
 
+// longBracket is a Lua long bracket, after -- for a comment, and its level.
+var longBracket = regexp.MustCompile(`^(--)?\[(=*)\[`)
+
 // commentLines is the comment text on each of lines, code spans taken
 // out. shortcut: a line-at-a-time scan, not a lexer. A string or heredoc
 // spanning lines is followed to its closer, and a template literal's ${}
@@ -212,7 +221,7 @@ func commentLines(lines []string, syn syntax) []Segment {
 // closeAt is where open's closer is in s, -1 when it isn't. Inside a string
 // a backslash escapes the next character; inside a comment nothing does.
 func closeAt(s string, open span) int {
-	if open.kind == blockComment {
+	if open.kind == blockComment || strings.HasSuffix(open.open, "[") { // a Lua long string has no escapes
 		return strings.Index(s, open.close)
 	}
 	if open.close == "`" {
@@ -338,6 +347,20 @@ func nextSpan(s string, syn syntax) (int, span) {
 		if strings.IndexByte(syn.quotes, c) >= 0 {
 			quote = c
 			continue
+		}
+		if syn.longBrackets && (c == '[' || c == '-') {
+			if m := longBracket.FindStringSubmatch(s[i:]); m != nil {
+				long := span{str, m[0], "]" + m[2] + "]"}
+				if m[1] != "" {
+					return i, span{blockComment, m[0], long.close}
+				}
+				end := closeAt(s[i+len(m[0]):], long)
+				if end < 0 {
+					return i, long
+				}
+				i += len(m[0]) + end + len(long.close) - 1
+				continue
+			}
 		}
 		for _, open := range syn.line {
 			if !strings.HasPrefix(s[i:], open) {

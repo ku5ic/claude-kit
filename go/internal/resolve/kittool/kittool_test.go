@@ -37,12 +37,19 @@ func TestTheFirstNameInstalledWins(t *testing.T) {
 
 func TestSgCountsOnlyWhenItIsAstGrep(t *testing.T) {
 	dir := onPath(t, map[string]string{"sg": "echo \"sg: group '$1' does not exist\" >&2\nexit 1\n"})
-	if got, err := Path("ast-grep", "sg"); err == nil {
+	if got, err := Path("ast-grep"); err == nil {
 		t.Errorf("newgrp's sg resolved as ast-grep: %q", got)
 	}
 	onPathIn(t, dir, "sg", "echo 'ast-grep 0.51.2'\n")
-	if got, err := Path("ast-grep", "sg"); err != nil || got != filepath.Join(dir, "sg") {
-		t.Errorf("Path(ast-grep, sg) = %q, %v", got, err)
+	if got, err := Path("ast-grep"); err != nil || got != filepath.Join(dir, "sg") {
+		t.Errorf("Path(ast-grep) = %q, %v", got, err)
+	}
+}
+
+func TestFdInstalledAsFdfindIsFound(t *testing.T) {
+	dir := onPath(t, map[string]string{"fdfind": ""})
+	if got, err := Path("fd"); err != nil || got != filepath.Join(dir, "fdfind") {
+		t.Errorf("Path(fd) = %q, %v", got, err)
 	}
 }
 
@@ -51,5 +58,19 @@ func onPathIn(t *testing.T, dir, name, body string) {
 	t.Helper()
 	if err := os.WriteFile(filepath.Join(dir, name), []byte("#!/bin/sh\n"+body), 0o755); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestSgThatIsNewgrpIsNeverRun(t *testing.T) {
+	ran := filepath.Join(t.TempDir(), "ran")
+	dir := onPath(t, map[string]string{"newgrp": "touch " + ran + "\necho 'ast-grep 0.51.2'\n"})
+	if err := os.Symlink("newgrp", filepath.Join(dir, "sg")); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := Path("ast-grep"); err == nil {
+		t.Errorf("newgrp's sg resolved as ast-grep: %q", got)
+	}
+	if _, err := os.Stat(ran); err == nil {
+		t.Error("newgrp ran to tell it from ast-grep")
 	}
 }

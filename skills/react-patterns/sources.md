@@ -1,6 +1,6 @@
 # react-patterns sources
 
-The sources and version notes behind this skill, for `/meta refresh`. Nothing links here, so a session never loads it.
+The sources and version notes behind this skill, for `/meta-refresh`. Nothing links here, so a session never loads it.
 
 ## SKILL.md
 
@@ -58,6 +58,9 @@ Not caught by defaults, so kept: a conditional hook, a hook after an early retur
 - `useState` lazy initializer: https://react.dev/reference/react/useState
 - React Compiler introduction: https://react.dev/learn/react-compiler/introduction
 - `useOptimistic`: https://react.dev/reference/react/useOptimistic
+- Chains of computations: https://react.dev/learn/you-might-not-need-an-effect
+- Images without dimensions (CLS): https://web.dev/articles/optimize-cls
+- Client-side rendering and LCP: https://web.dev/articles/optimize-lcp
 
 ## reference/structure.md
 

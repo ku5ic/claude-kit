@@ -120,3 +120,21 @@ func count(res []*regexp.Regexp, text string) int {
 	}
 	return n
 }
+
+// IsSnapshot is true for a snapshot file, which a test compares output
+// against: rewriting one changes what the test accepts.
+func IsSnapshot(c config.WeakenedChecks, path string) bool {
+	return guard.GlobAny(c.Snapshots, path)
+}
+
+// IsCode is true for a file whose change could explain a new snapshot:
+// neither a snapshot, a test file, nor one c skips.
+func IsCode(c config.WeakenedChecks, path string) bool {
+	return !IsSnapshot(c, path) && !guard.GlobAny(c.TestFiles, path) && !guard.GlobAny(c.Skip, path)
+}
+
+// UpdatesSnapshots is true for a command line that rewrites every
+// snapshot a run disagrees with (jest -u).
+func UpdatesSnapshots(c config.WeakenedChecks, command string) bool {
+	return matches(compile(c.SnapshotUpdates), command)
+}

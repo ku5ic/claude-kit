@@ -33,7 +33,7 @@ var claudeCodeKeys = []string{"allowed-tools", "argument-hint", "user-invocable"
 
 var (
 	ruleLink    = regexp.MustCompile("`(skills/kit-rules/reference/[a-z]+\\.md)`( sections? ([0-9]+(?:(?:,| and|, and) [0-9]+)*))?")
-	skillLink   = regexp.MustCompile("`skills/([a-z0-9-]+)/(reference/[a-z0-9-]+\\.md)`")
+	skillLink   = regexp.MustCompile("`skills/([a-z0-9-]+)/(SKILL\\.md|reference/[a-z0-9-]+\\.md)`")
 	number      = regexp.MustCompile(`[0-9]+`)
 	sectionHead = regexp.MustCompile(`^## ([0-9]+)\.`)
 )
@@ -169,6 +169,9 @@ func (b *bundle) rewriteLinks(name, text string, rules map[string]rule) (string,
 		m := skillLink.FindStringSubmatch(link)
 		if _, ok := b.files[path.Join("skills", m[1], m[2])]; !ok {
 			return link
+		}
+		if m[2] == "SKILL.md" {
+			return "the " + m[1] + " skill"
 		}
 		return fmt.Sprintf("`%s` in the %s skill", m[2], m[1])
 	})

@@ -9,6 +9,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/classify"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/layout"
+	"github.com/ku5ic/claude-kit/go/internal/weaken"
 )
 
 // command is one command of a pipeline, past its assignments and wrappers.
@@ -37,6 +38,19 @@ func shortCluster(a, letters string) bool {
 func (c *command) readsSensitive(paths []string) error {
 	for _, p := range paths {
 		if guard.IsSensitive(c.st.cfg, c.st.home, c.st.abs(unquote(p))) {
+			return c.block("reading a sensitive file is not permitted", "sensitive-read")
+		}
+	}
+	return nil
+}
+
+// globsSensitive blocks a read of an unquoted glob that names a credential
+// file by name (cat .e*), whatever the directory holds: the shell expands
+// it into paths the guard never sees.
+func (c *command) globsSensitive(ops []string) error {
+	for _, a := range c.args {
+		if !a.literal && strings.ContainsAny(a.Value, "*?[{") && slices.Contains(ops, a.Value) &&
+			guard.SearchesSensitive(c.st.cfg, c.st.home, "", a.Value, false) {
 			return c.block("reading a sensitive file is not permitted", "sensitive-read")
 		}
 	}
@@ -223,6 +237,9 @@ func (c *command) check() error {
 	if err := c.readsSensitive(c.readOperands()); err != nil {
 		return err
 	}
+	if err := c.globsSensitive(c.readOperands()); err != nil {
+		return err
+	}
 	if err := c.rcWrite(); err != nil {
 		return err
 	}
@@ -235,6 +252,9 @@ func (c *command) check() error {
 	}
 	if err := c.globalInstall(); err != nil {
 		return err
+	}
+	if weaken.UpdatesSnapshots(c.st.cfg.WeakenedChecks, strings.Join(append([]string{c.name}, c.values()...), " ")) {
+		c.st.ask("this rewrites every snapshot the run disagrees with, so the tests would accept whatever the code prints now; confirm the new output is what you want")
 	}
 	if check, ok := commandChecks[c.name]; ok {
 		return check(c)
@@ -330,6 +350,9 @@ func readOperands(name string, values []string) []string {
 	if metadataOnly[name] {
 		return nil
 	}
+	if name == "curl" {
+		return append(ops, curlFiles(values)...)
+	}
 	// ln and mv read their sources: the key reached by a new name is read
 	// under it later. Their target is only written.
 	if name == "ln" || name == "mv" {
@@ -339,6 +362,20 @@ func readOperands(name string, values []string) []string {
 		return ops
 	}
 	return ops[min(patternFirst[name], len(ops)):]
+}
+
+// curlFiles are the files curl sends: what follows the first @ in a word
+// (-d @f, -d@f, --data-binary=@f, -F name=@f;type=x). A URL's user@host
+// yields its host, which names no credential file.
+func curlFiles(values []string) []string {
+	var files []string
+	for _, v := range values {
+		if _, file, ok := strings.Cut(v, "@"); ok && file != "" {
+			file, _, _ = strings.Cut(file, ";")
+			files = append(files, file)
+		}
+	}
+	return files
 }
 
 // sources are the operands ln or mv reads: all but the target, which is

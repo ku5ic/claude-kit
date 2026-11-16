@@ -1,6 +1,6 @@
 # <stack>-patterns sources
 
-The sources and version notes behind this skill, for `/meta refresh`. Nothing links here, so a session never loads it.
+The sources and version notes behind this skill, for `/meta-refresh`. Nothing links here, so a session never loads it.
 
 ## SKILL.md
 
@@ -11,7 +11,7 @@ The sources and version notes behind this skill, for `/meta refresh`. Nothing li
 
 ### Version notes
 
-Checked: <YYYY-MM-DD> against <source: Context7 library id or URL>
+Checked: <YYYY-MM-DD> against <source URL>
 
 - <version> (<release date>): <what changed for the guidance in this skill>
 

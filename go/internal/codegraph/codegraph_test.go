@@ -41,7 +41,7 @@ func fixtureRepo(t *testing.T) string {
 
 func TestImportsGolden(t *testing.T) {
 	t.Parallel()
-	if _, err := kittool.Path(astGrep...); err != nil {
+	if _, err := kittool.Path("ast-grep"); err != nil {
 		if os.Getenv("CI") != "" {
 			t.Fatal(err) // CI installs ast-grep, so the rules always run there
 		}
@@ -80,7 +80,7 @@ func TestImportsNamesAScanFailure(t *testing.T) {
 // root that doesn't exist is an error.
 func TestImportsReadsEveryFormAndPath(t *testing.T) {
 	t.Parallel()
-	if _, err := kittool.Path(astGrep...); err != nil {
+	if _, err := kittool.Path("ast-grep"); err != nil {
 		if os.Getenv("CI") != "" {
 			t.Fatal(err)
 		}

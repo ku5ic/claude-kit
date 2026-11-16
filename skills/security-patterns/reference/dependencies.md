@@ -1,6 +1,6 @@
 # Dependencies (all stacks)
 
-- Keep a lockfile in the repo, and Dependabot or an equivalent enabled or acknowledged.
+- Keep a lockfile in the repo, and Dependabot, Renovate, or an equivalent enabled or acknowledged.
 - Flag `npm audit`, `pnpm audit`, `pip-audit`, or `bundler-audit` findings at moderate or above.
 - Transitive deps: check `package.json` for unexpected scoped packages and typosquat risk.
 
@@ -20,3 +20,8 @@ SLSA (Supply-chain Levels for Software Artifacts) grades the trustworthiness of 
 
 - First-party application code: check that the build runs on a trusted platform (GitHub Actions with signed artifacts is L2) and that dependency artifacts carry provenance the build can verify.
 - Use SLSA framing in a supply-chain review, or when designing a build pipeline that must defend against compromise.
+
+## Install-time code (npm)
+
+- A package's `preinstall`, `install`, and `postinstall` scripts run when npm installs it. npm's docs call compilation for the target architecture the only valid use of `install` or `preinstall`, so any other install script gets read before the package is adopted.
+- Provenance links a published version to its source repo and its build, signed through Sigstore. `npm audit signatures` verifies it. It says where the package came from, never that its code is safe.

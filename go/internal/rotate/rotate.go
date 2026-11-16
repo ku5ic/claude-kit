@@ -28,16 +28,8 @@ import (
 // Run is `kit scratch-rotate [days] [--dry-run]`; it returns the exit status.
 // Registry entries must sit under home.
 func Run(paths config.Paths, home string, n int, dryRun bool, stdout, stderr io.Writer) int {
-	r := &rotator{now: time.Now(), dryRun: dryRun, log: filepath.Join(paths.LogDir(), "scratch-rotate.log"),
-		verb: "deleted", pruned: "pruned", stdout: stdout}
-	if dryRun {
-		r.verb, r.pruned = "would-delete", "would prune"
-	}
-	scratch := paths.ScratchHome()
-	if fsx.IsDir(scratch) {
-		removed, _ := r.prune(scratch, n, func(name string) bool { return strings.HasSuffix(name, ".md") })
-		fmt.Fprintf(stdout, "scratch-rotate: %s %d artifact(s) older than %dd from %s\n", r.pruned, len(removed), n, scratch)
-	}
+	r := newRotator(paths, dryRun, stdout)
+	r.home(paths.ScratchHome(), n)
 	for _, d := range cache.Dirs {
 		if dir := filepath.Join(paths.CacheDir(), d.Name); fsx.IsDir(dir) {
 			removed, _ := r.prune(dir, d.Days, nil)
@@ -46,6 +38,57 @@ func Run(paths config.Paths, home string, n int, dryRun bool, stdout, stderr io.
 	}
 	r.registry(paths.ScratchRegistry(), home, n, stderr)
 	return 0
+}
+
+func newRotator(paths config.Paths, dryRun bool, stdout io.Writer) *rotator {
+	r := &rotator{now: time.Now(), dryRun: dryRun, log: rotateLog(paths), verb: "deleted", pruned: "pruned", stdout: stdout}
+	if dryRun {
+		r.verb, r.pruned = "would-delete", "would prune"
+	}
+	return r
+}
+
+// home prunes the scratch home's reports older than n days.
+func (r *rotator) home(scratch string, n int) {
+	if fsx.IsDir(scratch) {
+		removed, _ := r.prune(scratch, n, func(name string) bool { return strings.HasSuffix(name, ".md") })
+		fmt.Fprintf(r.stdout, "scratch-rotate: %s %d artifact(s) older than %dd from %s\n", r.pruned, len(removed), n, scratch)
+	}
+}
+
+func rotateLog(paths config.Paths) string { return filepath.Join(paths.LogDir(), "scratch-rotate.log") }
+
+func dailyStamp(paths config.Paths) string {
+	return filepath.Join(paths.CacheDir(), "scratch-rotate.stamp")
+}
+
+// DefaultDays is the retention window when none is given.
+const DefaultDays = 30
+
+// Daily prunes the scratch home and every registered project's scratch at
+// most once a day, past DefaultDays, printing nothing; the rotate log
+// lists what went. The cache dirs are cache.Prune's, run every session.
+func Daily(paths config.Paths, home string, now time.Time) {
+	stamp := dailyStamp(paths)
+	if !due(stamp, now) {
+		return
+	}
+	// Stamped first: a walk the hook's timeout kills waits a day, not a session.
+	_ = os.MkdirAll(paths.CacheDir(), 0o755)
+	_ = os.WriteFile(stamp, []byte(now.UTC().Format(time.RFC3339)+"\n"), 0o644)
+	r := newRotator(paths, false, io.Discard)
+	r.home(paths.ScratchHome(), DefaultDays)
+	r.registry(paths.ScratchRegistry(), home, DefaultDays, io.Discard)
+}
+
+// due is whether the run stamp records is more than a day before now.
+func due(stamp string, now time.Time) bool {
+	data, err := os.ReadFile(stamp)
+	if err != nil {
+		return true
+	}
+	last, err := time.Parse(time.RFC3339, strings.TrimSpace(string(data)))
+	return err != nil || last.After(now) || cache.Older(last, 1, now)
 }
 
 // registry prunes every project scratch dir the registry lists by age
@@ -78,7 +121,8 @@ func (r *rotator) registry(registry, home string, n int, stderr io.Writer) {
 		}
 	}
 	if !r.dryRun {
-		writeLines(registry, keep)
+		now, _ := os.ReadFile(registry)
+		writeLines(registry, withAddedSince(string(data), string(now), keep))
 	}
 }
 
@@ -247,4 +291,59 @@ func writeLines(path string, lines []string) {
 		b.WriteByte('\n')
 	}
 	_ = fsx.WriteAtomic(path, []byte(b.String()), 0o600)
+}
+
+// Clean is `kit clean [--yes]`: it removes the kit's own state, for an
+// uninstall, and with no --yes only lists it. Each path is named, never a
+// whole folder the kit shares with Claude Code (~/.claude/cache, logs).
+// Project scratch folders sit in their repos, so they're listed for the
+// user to delete, never removed; --yes drops the registry that names them.
+func Clean(paths config.Paths, yes bool, stdout io.Writer) int {
+	owned := []string{paths.ScratchRegistry(), rotateLog(paths), paths.ConfigCache(), dailyStamp(paths), paths.ScratchHome()}
+	for _, name := range kitlog.Logs {
+		owned = append(owned, paths.LogFile(name))
+	}
+	for _, d := range cache.Dirs {
+		owned = append(owned, filepath.Join(paths.CacheDir(), d.Name))
+	}
+	projects, _ := os.ReadFile(paths.ScratchRegistry())
+	code, found := 0, 0
+	for _, p := range owned {
+		if _, err := os.Lstat(p); err != nil {
+			continue
+		}
+		found++
+		if !yes {
+			fmt.Fprintln(stdout, "would remove", p)
+		} else if err := os.RemoveAll(p); err != nil {
+			fmt.Fprintf(stdout, "clean: %v\n", err)
+			code = 1
+		} else {
+			fmt.Fprintln(stdout, "removed", p)
+		}
+	}
+	for line := range strings.Lines(string(projects)) {
+		if line = strings.TrimSpace(line); line == "" || !fsx.IsDir(line) {
+			continue
+		}
+		fmt.Fprintf(stdout, "left in its repo, delete it yourself: %s\n", line)
+	}
+	if found == 0 {
+		fmt.Fprintln(stdout, "kit clean: nothing to remove")
+	} else if !yes {
+		fmt.Fprintln(stdout, "kit clean --yes removes them")
+	}
+	return code
+}
+
+// withAddedSince is keep plus the registry lines in after that before
+// lacked: a project registered while the walk ran.
+func withAddedSince(before, after string, keep []string) []string {
+	old := strings.Fields(before)
+	for line := range strings.Lines(after) {
+		if line = strings.TrimSpace(line); line != "" && !slices.Contains(old, line) && !slices.Contains(keep, line) {
+			keep = append(keep, line)
+		}
+	}
+	return keep
 }

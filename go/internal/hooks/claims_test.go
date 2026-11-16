@@ -3,8 +3,10 @@ package hooks
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -159,6 +161,21 @@ func TestVerifyClaimsToolInput(t *testing.T) {
 		}, "agent"},
 		{"a scratch file whose name only starts like a kind", func(k *sandbox) map[string]any {
 			return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "debugging.md"), "content": claim})
+		}, "none"},
+		{"an audit report", func(k *sandbox) map[string]any {
+			return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "ci-main-20261116-0900.md"), "content": "# CI\n\n" + claim})
+		}, "agent"},
+		{"a /code report", func(k *sandbox) map[string]any {
+			return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "impact-auth-20261116-0900.md"), "content": "# Impact\n\n" + claim})
+		}, "agent"},
+		{"a session retro", func(k *sandbox) map[string]any {
+			return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "session-90886c74-20261116-0900.md"), "content": "# Session\n\n" + claim})
+		}, "agent"},
+		{"a PR draft", func(k *sandbox) map[string]any {
+			return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "pr-auth-20261116-0900.md"), "content": claim})
+		}, "none"},
+		{"a report's raw file in its sibling folder", func(k *sandbox) map[string]any {
+			return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "ci-main-20261116-0900", "ci-raw.md"), "content": claim})
 		}, "none"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -679,5 +696,26 @@ func TestClaimsMessageClipsByCharacter(t *testing.T) {
 	}
 	if strings.Contains(msg, `\x`) {
 		t.Errorf("clip split a character:\n%s", msg)
+	}
+}
+
+// A new audit-* or code-* skill's report kind would otherwise skip the gate.
+func TestCheckedReportsCoverEveryAuditAndCodeSkill(t *testing.T) {
+	kind := regexp.MustCompile("kit scratch-dir ([a-z0-9-]+) ")
+	skills, _ := filepath.Glob(filepath.Join("..", "..", "..", "skills", "*", "SKILL.md"))
+	for _, skill := range skills {
+		name := filepath.Base(filepath.Dir(skill))
+		if !strings.HasPrefix(name, "audit-") && !strings.HasPrefix(name, "code-") {
+			continue
+		}
+		text, err := os.ReadFile(skill)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, m := range kind.FindAllStringSubmatch(string(text), -1) {
+			if !slices.Contains(checkedReports, m[1]) {
+				t.Errorf("%s writes a %q report, missing from checkedReports", name, m[1])
+			}
+		}
 	}
 }

@@ -81,6 +81,58 @@ func TestIsSensitive(t *testing.T) {
 	}
 }
 
+// A "!entry" is an exception to the entries before it, and a later entry
+// overrides it; it never clears a directory a search would read through.
+func TestIsSensitiveTakesTheLastEntryAPathMatches(t *testing.T) {
+	t.Parallel()
+	cfg := &config.Config{SensitivePaths: []string{".env", ".env.*", "!.env.example", "~/.ssh/", "!~/.ssh/known_hosts", "!*.pub", "id_rsa.pub"}}
+	cases := map[string]bool{
+		"/p/.env.example":        false,
+		"/p/.ENV.Example":        false,
+		"/p/.env.local":          true,
+		"/p/.env":                true,
+		"/h/.ssh/known_hosts":    false,
+		"/h/.ssh/id_ed25519":     true,
+		"/h/.ssh/id_ed25519.pub": false,
+		"/h/.ssh/id_rsa.pub":     true,
+	}
+	for path, want := range cases {
+		if got := IsSensitive(cfg, "/h", path); got != want {
+			t.Errorf("IsSensitive(%q) = %v, want %v", path, got, want)
+		}
+	}
+	if !SearchesSensitive(cfg, "/h", "/h", "", true) {
+		t.Error("a search over home holds ~/.ssh/, whatever its exceptions")
+	}
+	if SearchesSensitive(cfg, "/h", "", "*example", false) {
+		t.Error("a glob that names only an exception names no credential file")
+	}
+	if got := SensitiveExclusion(cfg); strings.Contains(got, "{!") || strings.Contains(got, ",!") {
+		t.Errorf("SensitiveExclusion = %q, holds an exception", got)
+	}
+}
+
+// An exception never clears a link to a credential file: the target's own
+// name decides for it.
+func TestAnExceptionDoesNotClearALinkToACredentialFile(t *testing.T) {
+	t.Parallel()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".env"), []byte("KEY=1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, ".env.example")
+	if err := os.Symlink(".env", link); err != nil {
+		t.Fatal(err)
+	}
+	cfg := &config.Config{SensitivePaths: []string{".env", ".env.*", "!.env.example"}}
+	if !IsSensitive(cfg, "/h", link) {
+		t.Errorf("IsSensitive(%q) = false for a link to .env", link)
+	}
+}
+
 // A ~/ entry folds case only where the home filesystem does, as on macOS.
 // Not parallel: it sets foldHome, which the parallel tests read.
 func TestIsSensitiveFoldsHomeOnlyWhereTheFilesystemDoes(t *testing.T) {

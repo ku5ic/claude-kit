@@ -1,10 +1,10 @@
 # /deps Phase 5: manual remediation of alerts with no PR (opt-in, best-effort)
 
-Runs only when the arguments contain `--fix-transitive`. Without it, alerts with no Dependabot PR are reported in Phase 6 and left for the user; manual transitive remediation is ecosystem-specific and easy to get wrong unattended.
+Runs only when the arguments contain `--fix-transitive`. Without it, alerts with no bot PR are reported in Phase 6 and left for the user; manual transitive remediation is ecosystem-specific and easy to get wrong unattended.
 
 For each open alert with no PR, work in this order and stop at the first that applies:
 
-1. Fixed version from `security_vulnerability.first_patched_version.identifier`. If null, there is no patched release; record "no fix available" and leave open.
+1. The alert's fixed version, per the code-host-patterns host file. When no release fixes it, record "no fix available" and leave the alert open. A host with no structured field: read it from the alert's text, and ask when it's unclear.
 2. Prefer the real fix, which is bumping the parent. Using the injected manager's dependency-tree query, find the direct dependency that pulls the vulnerable transitive in. If a newer version of that direct dependency depends on a fixed version of the transitive, bump the direct dependency. This resolves the alert through normal resolution and leaves no standing pin.
 3. Only if no parent bump resolves it (parent abandoned, or its latest still pulls the vulnerable range):
    1. Determine the transitive-pin mechanism from the injected manager itself.
@@ -21,5 +21,5 @@ After any manifest edit:
 3. Verify with the manager's tree query that the tree resolved to the fixed version.
 4. Branch.
 5. Commit.
-6. `gh pr create`; its CI is the gate.
+6. Ask the user to push the branch, then open the PR with the host's create call (code-host-patterns, Post). Its CI is the gate.
 7. Stop before merging your own PR.

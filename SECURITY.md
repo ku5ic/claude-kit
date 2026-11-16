@@ -14,7 +14,8 @@ The guards read a command line, not what it does when it runs. A pass means the 
 - Opaque task runners: `go run`, `make`, `npm run`.
 - Other ways to lose work: `git rm -rf .`, `rsync --delete`, `mv` of the home directory, truncating a file, `git stash drop`, `git update-ref -d`, `gh api -X DELETE` on a branch, `gh pr merge --admin`.
 - Skipping commit hooks through `core.hooksPath` or `HUSKY=0`, or a git alias that hides `push --force`.
-- Credential reads through `env`, `printenv`, a search over `~/.aws`, a key path held in a variable, `security find-generic-password`, or `gh auth token`.
+- Credential reads through `env`, `printenv`, a search over `~/.aws`, a key path held in a variable, a glob in a `<` redirect, `security find-generic-password`, or `gh auth token`.
+- Staging a credential file the repo doesn't ignore with `git add .` or `git add -A`. `git add` of the file by name asks.
 - `claude plugin uninstall kit`.
 - A reply with no tool call, which no hook sees.
 - The release workflow's actions on version tags, not commit pins.

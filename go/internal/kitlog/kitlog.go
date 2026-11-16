@@ -20,11 +20,15 @@ import (
 const (
 	Skills              = "skills"
 	Guards              = "guards"
+	Claims              = "claims"
 	EventRequiredSkill  = "required-skill"
 	EventSuggestedSkill = "suggested-skill"
 	EventReferenceRead  = "reference-read"
 	TimeLayout          = "2006-01-02T15:04:05Z"
 )
+
+// Logs is every log the kit writes; one missing here survives kit clean.
+var Logs = []string{Skills, Guards, Claims}
 
 // Entry is one log line as the readers use it; a pointer keeps a null
 // distinct from "".

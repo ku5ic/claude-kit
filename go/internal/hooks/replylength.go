@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 	"regexp"
 	"slices"
 	"strings"
@@ -16,10 +17,11 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/md"
 )
 
-// writeCommand is a typed /write and its kind; command is any leading
-// slash command and its name, which isn't free text for the triggers.
+// writeCommand is a typed write-* skill and its kind; command is any
+// leading slash command and its name, which isn't free text for the
+// triggers.
 var (
-	writeCommand = regexp.MustCompile(`^\s*/(?:kit:)?write\s+([a-z-]+)`)
+	writeCommand = regexp.MustCompile(`^\s*/(?:kit:)?write-([a-z-]+)`)
 	command      = regexp.MustCompile(`^\s*/(\S+)`)
 )
 
@@ -129,11 +131,11 @@ func chatCeiling(l config.ReplyLimits) string {
 }
 
 // turnLimit is what a prompt sets: none for an uncapped command or after a
-// detail trigger; a /write kind's ceiling, code included; the explain
+// detail trigger; a write-* skill's ceiling, code included; the explain
 // ceiling after an explain trigger; else the chat one. A leading slash
 // command's name isn't a trigger.
 func turnLimit(l config.ReplyLimits, prompt string) turn {
-	if m := command.FindStringSubmatch(prompt); m != nil && slices.Contains(l.UncappedCommands, m[1]) {
+	if m := command.FindStringSubmatch(prompt); m != nil && uncapped(l.UncappedCommands, m[1]) {
 		return turn{}
 	}
 	text := command.ReplaceAllString(prompt, "")
@@ -149,6 +151,17 @@ func turnLimit(l config.ReplyLimits, prompt string) turn {
 		return turn{Limit: l.Explain}
 	}
 	return turn{Limit: l.Chat}
+}
+
+// uncapped is whether name, as typed or without its kit: prefix, matches
+// one of the patterns, each a name or a glob such as audit-*.
+func uncapped(patterns []string, name string) bool {
+	bare := strings.TrimPrefix(name, "kit:")
+	return slices.ContainsFunc(patterns, func(p string) bool {
+		typed, _ := path.Match(p, name)
+		short, _ := path.Match(p, bare)
+		return typed || short
+	})
 }
 
 func hasTrigger(text string, triggers []string) bool {
