@@ -279,23 +279,34 @@ func (g *graph) resolveBare(s spec, ecosystem string) string {
 	return best
 }
 
-// fileSpec is one spec and the file that imports it.
+// fileSpec is one spec, the file that imports it, and the import's line
+// (0 when the import came from a TSV, which has none).
 type fileSpec struct {
 	file string
+	line int
 	spec
 }
 
 // specs is every import spec of rows, normalized against the file that
 // imports it.
 func (g *graph) specs(rows [][]string) []fileSpec {
+	imports := make([]found, len(rows))
+	for i, r := range rows {
+		imports[i] = found{file: r[0], text: r[1]}
+	}
+	return g.specsOf(imports)
+}
+
+// specsOf is specs for scanned imports, each spec keeping its import's line.
+func (g *graph) specsOf(imports []found) []fileSpec {
 	var specs []fileSpec
-	for _, r := range rows {
-		for _, raw := range rawSpecs(r[1]) {
-			s := g.normalize(r[0], raw.path)
+	for _, imp := range imports {
+		for _, raw := range rawSpecs(imp.text) {
+			s := g.normalize(imp.file, raw.path)
 			if raw.kind == relative && !strings.HasPrefix(s.path, ".") {
 				s.path = "./" + s.path
 			}
-			specs = append(specs, fileSpec{r[0], s})
+			specs = append(specs, fileSpec{imp.file, imp.line, s})
 		}
 	}
 	return specs

@@ -21,7 +21,7 @@ Applies to bug fixes, patches, and "make X work". Not to new features or to refa
 
 <!-- chat: skip -->
 
-- For JS, TS, and Python, `kit blast-radius <file> [symbol]` lists the consumers.
+- `kit blast-radius <file> [symbol]` lists the consumers: every language `kit code-graph` scans, when `ast-grep` is installed.
 
 <!-- chat: end -->
 

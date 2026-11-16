@@ -1,72 +1,25 @@
-// Package blast is blast-radius: the files that import a given file
-// (skills/kit-rules/reference/change.md section 3).
-//
-// JS/TS: import, export-from, require() and import() specifiers. Relative
-// specifiers resolve against the importing file; "@/" and "~/" aliases match
-// on the path suffix (alias-match); a workspace package's name, or
-// name/subpath, counts for every file in that package (workspace-match).
-// Python: "import m" and "from m import x", absolute or relative; the module
-// path follows the __init__.py chain, else it is root-relative minus src/.
-// With a symbol, only consumers using it as a whole word are kept. Static
-// only: a non-literal import() or require() prints "unresolvable imports
-// present".
+// Package blast is blast-radius: the files that use a given file
+// (skills/kit-rules/reference/change.md section 3). Who uses it is
+// codegraph.Importers; this package splits them into source and test,
+// keeps the ones using a symbol as a whole word, and prints them.
 package blast
 
 import (
-	"bufio"
-	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
-	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
 
+	"github.com/ku5ic/claude-kit/go/internal/codegraph"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
-	"github.com/ku5ic/claude-kit/go/internal/project"
-	"github.com/ku5ic/claude-kit/go/internal/sources"
 )
-
-// JSExtensions and TSExtensions are each language's file extensions.
-var (
-	JSExtensions = []string{"js", "jsx", "mjs", "cjs"}
-	TSExtensions = []string{"ts", "tsx", "mts", "cts"}
-)
-
-var (
-	jsExt   = slices.Concat(JSExtensions, TSExtensions)
-	jsFiles = globs(slices.Concat(jsExt, []string{"vue", "svelte", "astro"}))
-)
-
-func globs(exts []string) []string {
-	out := make([]string, len(exts))
-	for i, e := range exts {
-		out[i] = "*." + e
-	}
-	return out
-}
-
-// The matchers compile POSIX so alternation is leftmost-longest: the
-// longer of two matching import forms wins.
-var (
-	jsCandidate = regexp.MustCompilePOSIX(`(from|import|require)[[:space:]]*\(?[[:space:]]*['"]`)
-	jsSpec      = regexp.MustCompilePOSIX(`(from|import|require[[:space:]]*\(|import[[:space:]]*\()[[:space:]]*['"]([^'"]+)['"]`)
-	jsDynamic   = regexp.MustCompilePOSIX(`(^|[^A-Za-z0-9_$.])(import|require)[[:space:]]*\([[:space:]]*[^"'[:space:])]`)
-	pyCandidate = regexp.MustCompilePOSIX(`^[[:space:]]*(from[[:space:]]+[.A-Za-z0-9_]+[[:space:]]+import[[:space:]]|import[[:space:]]+[A-Za-z_])`)
-	pyFrom      = regexp.MustCompilePOSIX(`^[[:space:]]*from[[:space:]]+([.A-Za-z0-9_]+)[[:space:]]+import[[:space:]]+(.*)$`)
-	pyImport    = regexp.MustCompilePOSIX(`^[[:space:]]*import[[:space:]]+(.*)$`)
-)
-
-type hit struct {
-	file    string
-	line    int
-	content string
-}
 
 type scan struct {
 	root, rel, symbol string
@@ -101,29 +54,33 @@ func Run(cfg *config.Config, args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	s := &scan{root: root, rel: fsx.Rel(root, abs), symbol: symbol, seen: map[string]bool{}}
+	if !codegraph.Scans(s.rel) {
+		fmt.Fprintf(stderr, "blast-radius: no import scanner for %s\n", filepath.Base(s.rel))
+		return 2
+	}
+	uses, err := codegraph.Importers(root, s.rel, cfg.SkipDirs, stderr)
+	switch {
+	case errors.Is(err, codegraph.ErrNoASTGrep):
+		fmt.Fprintf(stderr, "blast-radius: %s needs ast-grep: %v\n", filepath.Base(s.rel), err)
+		return 2
+	case err != nil:
+		fmt.Fprintf(stderr, "blast-radius: %v\n", err)
+		return 2
+	}
 	for _, rule := range cfg.SkillFileMap {
 		if slices.Contains(rule.Skills, "test-patterns") {
 			s.testGlobs = append(s.testGlobs, rule.Globs...)
 		}
 	}
-
-	dynamic := false
-	switch ext := path.Ext(s.rel); {
-	case slices.Contains(jsExt, strings.TrimPrefix(ext, ".")):
-		dynamic = s.javascript()
-	case ext == ".py":
-		s.python()
-	default:
-		fmt.Fprintf(stderr, "blast-radius: no import scanner for %s\n", filepath.Base(s.rel))
-		return 2
+	for _, imp := range uses.Importers {
+		s.add(imp.File, imp.Line, imp.Label)
 	}
-
-	s.print(dynamic, stdout)
+	s.print(uses.Unresolvable, stdout)
 	return 0
 }
 
 // print writes the consumer list, the first 50 sorted.
-func (s *scan) print(dynamic bool, stdout io.Writer) {
+func (s *scan) print(unresolvable bool, stdout io.Writer) {
 	header := "blast-radius: " + s.rel
 	if s.symbol != "" {
 		header += " (symbol " + s.symbol + ")"
@@ -137,53 +94,9 @@ func (s *scan) print(dynamic bool, stdout io.Writer) {
 	if len(s.results) > 50 {
 		fmt.Fprintf(stdout, "... %d more\n", len(s.results)-50)
 	}
-	if dynamic {
+	if unresolvable {
 		fmt.Fprintln(stdout, "unresolvable imports present")
 	}
-}
-
-// grepFiles is every line matching re in the repo's tracked and
-// untracked-but-not-ignored files matching the pathspecs.
-func (s *scan) grepFiles(re *regexp.Regexp, pathspecs ...string) []hit {
-	files, _ := git.Files(s.root, pathspecs...)
-	var hits []hit
-	for _, file := range files {
-		data, err := os.ReadFile(filepath.Join(s.root, file))
-		if err != nil || git.IsBinary(data) {
-			continue
-		}
-		sc := bufio.NewScanner(bytes.NewReader(data))
-		sc.Buffer(make([]byte, 1024*1024), 16*1024*1024)
-		for n := 1; sc.Scan(); n++ {
-			if re.MatchString(sc.Text()) {
-				hits = append(hits, hit{file, n, sc.Text()})
-			}
-		}
-	}
-	return hits
-}
-
-// candidates narrows grepFiles to lines holding one of the needles (as
-// grep -F over "path:line:content"); no needles means no narrowing.
-func (s *scan) candidates(re *regexp.Regexp, needles []string, pathspecs ...string) []hit {
-	var keep []string
-	for _, n := range needles {
-		if n != "" {
-			keep = append(keep, n)
-		}
-	}
-	hits := s.grepFiles(re, pathspecs...)
-	if len(keep) == 0 {
-		return hits
-	}
-	var out []hit
-	for _, h := range hits {
-		line := fmt.Sprintf("%s:%d:%s", h.file, h.line, h.content)
-		if slices.ContainsFunc(keep, func(n string) bool { return strings.Contains(line, n) }) {
-			out = append(out, h)
-		}
-	}
-	return out
 }
 
 var wordChars = regexp.MustCompile(`[A-Za-z0-9_]`)
@@ -197,8 +110,7 @@ func (s *scan) add(file string, line int, label string) {
 		return
 	}
 	kind := "source"
-	base := filepath.Base(file)
-	if guard.GlobAny(s.testGlobs, base) {
+	if guard.GlobAny(s.testGlobs, filepath.Base(file)) {
 		kind = "test"
 		s.tests++
 	}
@@ -230,177 +142,4 @@ func containsWord(file, word string) bool {
 		}
 		i = start + 1
 	}
-}
-
-func stripJSExt(p string) string {
-	if slices.Contains(jsExt, strings.TrimPrefix(path.Ext(p), ".")) {
-		return strings.TrimSuffix(p, path.Ext(p))
-	}
-	return p
-}
-
-// parent is the path's directory, "" for a top-level name.
-func parent(p string) string {
-	if i := strings.LastIndexByte(p, '/'); i >= 0 {
-		return p[:i]
-	}
-	return ""
-}
-
-// normPath resolves . and .. segments; "" for the root.
-func normPath(p string) string {
-	return strings.TrimPrefix(path.Clean("/"+p), "/")
-}
-
-// jsTarget is the file a JS import has to reach: its extensionless stem,
-// for an index the directory it stands for, and the names of the
-// workspace packages holding it.
-type jsTarget struct {
-	stem     string
-	isIndex  bool
-	indexDir string
-	wsNames  []string
-}
-
-// match is whether spec, imported from file, reaches t, and the label
-// saying how.
-func (t jsTarget) match(file, spec string) (label string, ok bool) {
-	switch {
-	case strings.HasPrefix(spec, "."):
-		resolved := stripJSExt(normPath(parent(file) + "/" + spec))
-		return "", resolved == t.stem || t.isIndex && resolved == t.indexDir
-	case strings.HasPrefix(spec, "@/") || strings.HasPrefix(spec, "~/"):
-		suffix := stripJSExt(spec[2:])
-		return "alias-match", endsInPath(t.stem, suffix) || t.isIndex && endsInPath(t.indexDir, suffix)
-	}
-	for _, name := range t.wsNames {
-		if spec == name || strings.HasPrefix(spec, name+"/") {
-			return "workspace-match", true
-		}
-	}
-	return "", false
-}
-
-// endsInPath is true when p is suffix or ends in "/"+suffix.
-func endsInPath(p, suffix string) bool {
-	return p == suffix || strings.HasSuffix(p, "/"+suffix)
-}
-
-// workspaceNames are the package.json names of the subprojects holding the
-// scanned file.
-func (s *scan) workspaceNames() []string {
-	var names []string
-	for _, dir := range project.Subprojects(s.root) {
-		if dir != "." && strings.HasPrefix(s.rel, dir+"/") {
-			if name := sources.JSONValue(filepath.Join(s.root, dir, "package.json"), ".name"); name != "" {
-				names = append(names, name)
-			}
-		}
-	}
-	return names
-}
-
-func (s *scan) javascript() (dynamic bool) {
-	t := jsTarget{stem: stripJSExt(s.rel), wsNames: s.workspaceNames()}
-	t.isIndex = path.Base(t.stem) == "index"
-	if t.isIndex {
-		t.indexDir = parent(t.stem)
-	}
-	needles := append([]string{path.Base(t.stem), ""}, t.wsNames...)
-	if t.indexDir != "" {
-		needles[1] = path.Base(t.indexDir)
-	}
-	if t.isIndex {
-		// An index is also reached by a bare '.', '..', or './'.
-		needles = append(needles, ".'", `."`, "/'", `/"`)
-	}
-	for _, h := range s.candidates(jsCandidate, needles, jsFiles...) {
-		for _, m := range jsSpec.FindAllStringSubmatch(h.content, -1) {
-			if label, ok := t.match(h.file, m[2]); ok {
-				s.add(h.file, h.line, label)
-			}
-		}
-	}
-	return len(s.grepFiles(jsDynamic, jsFiles...)) > 0
-}
-
-// pyModule is the dotted module of a root-relative .py path: the
-// __init__.py chain decides the package root, else src/ is dropped.
-func (s *scan) pyModule(p string) string {
-	dir := parent(p)
-	mod := strings.TrimSuffix(strings.TrimSuffix(p, ".py"), "/__init__")
-	if dir != "" && fsx.IsFile(filepath.Join(s.root, dir, "__init__.py")) {
-		pkgRoot := dir
-		for pkgRoot != "" && fsx.IsFile(filepath.Join(s.root, pkgRoot, "__init__.py")) {
-			pkgRoot = parent(pkgRoot)
-		}
-		if pkgRoot != "" {
-			mod = strings.TrimPrefix(mod, pkgRoot+"/")
-		}
-	} else {
-		mod = strings.TrimPrefix(mod, "src/")
-	}
-	return strings.ReplaceAll(mod, "/", ".")
-}
-
-func dottedParent(m string) string {
-	if i := strings.LastIndexByte(m, '.'); i >= 0 {
-		return m[:i]
-	}
-	return ""
-}
-
-// pyResolve is the absolute module a `from <spec> import` in file names.
-func (s *scan) pyResolve(file, spec string) string {
-	if !strings.HasPrefix(spec, ".") {
-		return spec
-	}
-	rest := strings.TrimLeft(spec, ".")
-	dots := len(spec) - len(rest)
-	pkg := s.pyModule(file)
-	if path.Base(file) != "__init__.py" {
-		pkg = dottedParent(pkg)
-	}
-	for i := 1; i < dots; i++ {
-		pkg = dottedParent(pkg)
-	}
-	if pkg != "" && rest != "" {
-		return pkg + "." + rest
-	}
-	return pkg + rest
-}
-
-func (s *scan) python() {
-	mod := s.pyModule(s.rel)
-	modParent := dottedParent(mod)
-	leaf := mod[strings.LastIndexByte(mod, '.')+1:]
-	for _, h := range s.candidates(pyCandidate, []string{leaf}, "*.py") {
-		content, _, _ := strings.Cut(h.content, "#")
-		if m := pyFrom.FindStringSubmatch(content); m != nil {
-			names := " " + strings.NewReplacer("(", " ", ")", " ", ",", " ").Replace(m[2]) + " "
-			from := s.pyResolve(h.file, m[1])
-			if from != "" && (from == mod || (from == modParent && containsSpaced(names, leaf))) {
-				s.add(h.file, h.line, "")
-			}
-		} else if m := pyImport.FindStringSubmatch(content); m != nil {
-			for item := range strings.SplitSeq(m[1], ",") {
-				fields := strings.Fields(item)
-				if len(fields) > 0 && (fields[0] == mod || strings.HasPrefix(fields[0], mod+".")) {
-					s.add(h.file, h.line, "")
-				}
-			}
-		}
-	}
-}
-
-// containsSpaced is bash's [[ $names == *[[:space:]]$leaf[[:space:]]* ]].
-func containsSpaced(names, leaf string) bool {
-	for _, sep := range []string{" ", "\t"} {
-		for _, sep2 := range []string{" ", "\t"} {
-			if strings.Contains(names, sep+leaf+sep2) {
-				return true
-			}
-		}
-	}
-	return false
 }

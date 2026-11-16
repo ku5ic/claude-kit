@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ku5ic/claude-kit/go/internal/blast"
+	"github.com/ku5ic/claude-kit/go/internal/codegraph"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 )
 
@@ -164,7 +164,7 @@ func TestKitRepo(t *testing.T) {
 			t.Fatal(err)
 		}
 		// A list holding a language's base extension holds all of its.
-		langs := map[string][]string{"js": blast.JSExtensions, "ts": blast.TSExtensions}
+		langs := map[string][]string{"js": codegraph.JSExtensions, "ts": codegraph.TSExtensions}
 		covers := func(what string, exts []string) {
 			for base, set := range langs {
 				if !slices.Contains(exts, base) {
@@ -217,15 +217,15 @@ func TestKitRepo(t *testing.T) {
 		}
 	})
 
-	t.Run("docs/cli.md's Dependencies table has a row for every kit.yml tool", func(t *testing.T) {
+	t.Run("docs/dependencies.md has a row for every kit.yml tool", func(t *testing.T) {
 		cfg, _, err := config.Load(config.Paths{Base: filepath.Join(kitRoot, "kit.yml"), Overlay: filepath.Join(t.TempDir(), "none.yml")})
 		if err != nil {
 			t.Fatal(err)
 		}
-		page := Read(t, filepath.Join(kitRoot, "docs", "cli.md"))
+		page := Read(t, filepath.Join(kitRoot, "docs", "dependencies.md"))
 		for _, tool := range cfg.Tools {
 			if !regexp.MustCompile("(?m)^\\| `" + regexp.QuoteMeta(tool) + "` +\\|").MatchString(page) {
-				t.Errorf("kit.yml tools has %s, which docs/cli.md's Dependencies table has no row for", tool)
+				t.Errorf("kit.yml tools has %s, which docs/dependencies.md has no row for", tool)
 			}
 		}
 	})

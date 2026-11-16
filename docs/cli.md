@@ -1,4 +1,8 @@
-# The kit CLI, status line, and dependencies
+# The kit CLI and status line
+
+## How it's built
+
+Every hook and helper is one Go binary (`bin/kit-<version>-<os>-<arch>`, darwin and linux, arm64 and amd64), run through the `bin/kit` launcher as `kit <subcommand>` or `kit hook <name>`. The first session start or `kit` command after an install or update downloads it from the matching GitHub release; until then the guards fail open.
 
 ## The kit CLI
 
@@ -51,29 +55,3 @@ And a line for each subagent:
 kit:plan-critic [running]  claude-opus-5-5  effort:high  18%
 kit:gatherer [completed]  claude-haiku-5-5  effort:low  7%
 ```
-
-## Dependencies
-
-Required: `git` and bash. Every tool below is optional. A missing one, except `glab`, is named on the session-start `<tooling>` block's `missing:` line, and Claude leaves it unused.
-
-| Tool         | Used by                                                                                                               | Without it                                                                                                   |
-| ------------ | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `gh`         | `/pr-*`, `/deps`, `/code-history`, `/code-challenge`, `/code-migrate` across an org, `/write-tickets`, linked tickets | the host's MCP connector; with neither, `/pr-*` and `/deps` stop and `/code-history` works from commits only |
-| `glab`       | `/pr-*`, `/deps`, `/code-history`, `/code-challenge`, review checkout, on GitLab                                      | the host's MCP connector, else `/code-history` works from commits only                                       |
-| `rg`         | text search everywhere, `/audit-*`, `/code-*`, the gatherer agent                                                     | search uses grep                                                                                             |
-| `ast-grep`   | `kit code-graph imports` (`/code-visual`, `/code-impact`), `/code-migrate`, `/code-contract`, searches by shape       | `kit code-graph imports` fails; `rg` stands in for shape search                                              |
-| `fd`         | file search, `/audit-*`, `/code-*`                                                                                    | file search uses find                                                                                        |
-| `tokei`      | `/audit-debt`, `/code-visual`                                                                                         | file sizes come from reading files                                                                           |
-| `scc`        | `/code-visual` hotspots                                                                                               | the hotspot quadrant is skipped                                                                              |
-| `mmdc`       | `/code-visual` diagram rendering                                                                                      | diagrams go unrendered, and the report says so                                                               |
-| `gitleaks`   | the commit guard's staged-diff scan, `/audit-security`                                                                | the commit scan is skipped                                                                                   |
-| `trufflehog` | `/audit-security` history scan                                                                                        | history goes unscanned                                                                                       |
-| `actionlint` | `/audit-ci`                                                                                                           | `/audit-ci` skips its actionlint step                                                                        |
-| `hyperfine`  | `/audit-perf` timings                                                                                                 | `/audit-perf` makes no timing claim                                                                          |
-| `difft`      | `/code-history`, dropping reformat-only commits                                                                       | reformat-only commits stay in the ranking                                                                    |
-| `adr`        | `/write-adr` creating an ADR                                                                                          | `/write-adr` numbers and names the file by the folder's pattern                                              |
-| `jq`         | JSON questions, `/code-visual`, `/meta-retro`                                                                         | Claude reads the JSON instead                                                                                |
-| `gron`       | grepping flat JSON paths                                                                                              | `jq` stands in                                                                                               |
-| `yq`         | YAML and TOML questions                                                                                               | Claude reads the file instead                                                                                |
-| `qsv`        | CSV and TSV questions                                                                                                 | Claude reads the file instead                                                                                |
-| `git-absorb` | fixup commits from staged hunks                                                                                       | `git rebase -i` with fixups instead                                                                          |

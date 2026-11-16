@@ -72,16 +72,7 @@ func Coupling(gitLog, resolved, root string, skipDirs []string, out io.Writer) e
 	}
 	imports := map[pair]bool{}
 	for _, r := range rows {
-		// A Go file's target is its package directory, kept as importTarget
-		// reads it; the root package's is a file (lib.go), so its dir, "".
-		target := r[1]
-		switch {
-		case path.Ext(r[0]) != ".go":
-			target = moduleID(target, tracked)
-		case path.Ext(target) == ".go":
-			target = dirOf(target)
-		}
-		imports[pair{moduleStem(r[0]), target}] = true
+		imports[pair{moduleStem(r[0]), targetID(r[0], r[1], tracked)}] = true
 	}
 	fmt.Fprintln(out, "shared\tdegree\tlink\tfile_a\tfile_b")
 	for _, p := range byCount(pairs, pair.compare) {

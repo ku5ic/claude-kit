@@ -7,27 +7,27 @@ Which CLI to reach for, how to call the bin scripts, where temporary files go, a
 - A factual question (how big, what secrets, how fast, what's in this JSON) goes to a CLI before any file read. An interpretive one (is this correct, does this design hold) gets read and reasoned about.
 - A tool the `<tooling>` block's `missing:` line names stays unused.
 
-| Question                           | Tool                               | Over                               |
-| ---------------------------------- | ---------------------------------- | ---------------------------------- |
-| Locate code by text                | `rg`                               | grep, find -name, Read walks       |
-| Locate code by shape (AST)         | `ast-grep`                         | rg, when structure is the question |
-| Find files/paths                   | `fd`                               | find                               |
-| Repo size, language breakdown      | `tokei`                            | reading files to estimate          |
-| Complexity per file                | `scc`                              | reading files to judge             |
-| Secrets, quick                     | `gitleaks`                         | manual grep                        |
-| Secrets, deep history              | `trufflehog git file://.`          | gitleaks                           |
-| Timing a perf claim                | `hyperfine`                        | opinion                            |
-| JSON                               | `jq`, or `gron` to grep flat paths | substring matching                 |
-| YAML/TOML                          | `yq`                               | manual parsing                     |
-| CSV/TSV                            | `qsv`                              | ad-hoc awk                         |
-| Who imports a file (JS/TS, Python) | `kit blast-radius <file> [symbol]` | `rg`, except in other languages    |
-| Fixup commits from staged hunks    | `git absorb`                       | rebase -i + fixup                  |
-| Git outside cwd                    | `git -C <dir>`                     | cd <dir> && git                    |
-| Validate a GitHub Actions workflow | `actionlint`                       | reading YAML by eye                |
-| Check a Mermaid diagram renders    | `mmdc`                             | reading the fence by eye           |
-| A PR, issue, or API call           | the host's CLI (section 4)         | fetching the host's pages          |
-| Diff that ignores reformatting     | `difft`                            | `git diff -w`                      |
-| Read or create an ADR              | `adr`                              | listing `docs/adr` by hand         |
+| Question                           | Tool                               | Over                                                     |
+| ---------------------------------- | ---------------------------------- | -------------------------------------------------------- |
+| Locate code by text                | `rg`                               | grep, find -name, Read walks                             |
+| Locate code by shape (AST)         | `ast-grep`                         | rg, when structure is the question                       |
+| Find files/paths                   | `fd`                               | find                                                     |
+| Repo size, language breakdown      | `tokei`                            | reading files to estimate                                |
+| Complexity per file                | `scc`                              | reading files to judge                                   |
+| Secrets, quick                     | `gitleaks`                         | manual grep                                              |
+| Secrets, deep history              | `trufflehog git file://.`          | gitleaks                                                 |
+| Timing a perf claim                | `hyperfine`                        | opinion                                                  |
+| JSON                               | `jq`, or `gron` to grep flat paths | substring matching                                       |
+| YAML/TOML                          | `yq`                               | manual parsing                                           |
+| CSV/TSV                            | `qsv`                              | ad-hoc awk                                               |
+| Who imports a file                 | `kit blast-radius <file> [symbol]` | `rg`, without `ast-grep` or for a language it can't scan |
+| Fixup commits from staged hunks    | `git absorb`                       | rebase -i + fixup                                        |
+| Git outside cwd                    | `git -C <dir>`                     | cd <dir> && git                                          |
+| Validate a GitHub Actions workflow | `actionlint`                       | reading YAML by eye                                      |
+| Check a Mermaid diagram renders    | `mmdc`                             | reading the fence by eye                                 |
+| A PR, issue, or API call           | the host's CLI (section 4)         | fetching the host's pages                                |
+| Diff that ignores reformatting     | `difft`                            | `git diff -w`                                            |
+| Read or create an ADR              | `adr`                              | listing `docs/adr` by hand                               |
 
 ### Budget
 

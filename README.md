@@ -104,14 +104,17 @@ claude plugin marketplace add ku5ic/claude-kit
 claude plugin install kit@ku5ic
 ```
 
-- **Needs:** `git` and any bash, on macOS or Linux. Formatters and linters are used when installed and skipped when not; the kit never installs anything.
-- **Gap-fill:** the `claude` CLI, logged in. Once per repo, and again when its configs change, Haiku sorts the commands your CI, hooks, and task runners hold into checks and fixers, capped at $0.50 a call; the answers are cached and verified against your files. Without it, those commands are skipped and named.
-- **Claim checker:** the `kit:claim-checker` agent, which Claude runs where you can watch it before an investigation, review, `audit-*`, `code-*`, or `/meta-retro` report in scratch, or a post, goes out; plan-critic covers a plan. Inside a subagent, which can't start an agent, the hook runs the same instructions through the `claude` CLI. Without it, or when a run fails, claims go unchecked and nothing blocks.
-- **Claude Code only.** claude.ai and Cowork don't install a plugin with a top-level `bin/`. Chat has [its own zip](docs/chat.md).
-- **Gitignore** `.claude/scratch/` and `.claude/plans/`, globally or per repo. The kit never edits your ignore files.
-- **Rules ship with the plugin.** Nothing to link. If an older install left `~/.claude/rules/claude-kit`, remove it; the session-start notice names it.
-- **Your own CLAUDE.md:** copy `templates/CLAUDE.md` to `~/.claude/CLAUDE.md` and fill it in.
-- **Optional tools** such as `rg`, `ast-grep`, `gh`, and `gitleaks` are used when installed: [docs/cli.md](docs/cli.md#dependencies) says which command uses each.
+Needs `git`, bash, and `curl`, on macOS or Linux. A fresh macOS asks for the Command Line Tools the first time `git` runs, and some Linux installs lack `git` or `curl`: [dependencies](docs/dependencies.md) says what each already has. The plugin runs in Claude Code only; claude.ai chat has [its own zip](docs/chat.md).
+
+## Get the most out of it
+
+The kit is opinionated about tools: it steers Claude to `rg`, `fd`, `ast-grep`, and `jq` over the stock ones, and most of them aren't preinstalled.
+
+- **Install `ast-grep` and `jq`.** With `ast-grep`, Claude lists every file that uses the one it's about to change; `/meta-retro` needs `jq`. The [dependencies](docs/dependencies.md) page says what each other tool adds.
+- **Log in the `claude` CLI.** Once per repo, Haiku sorts your CI and hook commands into checks and fixers, and subagent reports get their claims checked.
+- **Connect your code host.** `gh`, `glab`, or the host's MCP connector runs the `/pr-*` commands and `/deps`.
+- **Gitignore `.claude/scratch/` and `.claude/plans/`**, globally or per repo. The kit never edits your ignore files.
+- **Write your own CLAUDE.md:** copy `templates/CLAUDE.md` to `~/.claude/CLAUDE.md` and fill it in.
 
 ## Learn more
 
@@ -123,12 +126,9 @@ claude plugin install kit@ku5ic
 | [docs/checks.md](docs/checks.md)               | Which of your project's checks run before "done", and how tools are resolved                  |
 | [docs/rules.md](docs/rules.md)                 | The seven rule files, and why each says what it says                                          |
 | [docs/configuration.md](docs/configuration.md) | Presets, every overlay key, and what's on by default                                          |
-| [docs/cli.md](docs/cli.md)                     | The `kit` CLI, the status line, shell completion, and optional tools                          |
+| [docs/dependencies.md](docs/dependencies.md)   | What to install, what a fresh macOS or Linux already has, and what each tool adds             |
+| [docs/cli.md](docs/cli.md)                     | The `kit` CLI, how it's built, the status line, and shell completion                          |
 | [docs/chat.md](docs/chat.md)                   | The smaller plugin for claude.ai chat                                                         |
-
-## How it's built
-
-Every hook and helper is one Go binary (`bin/kit-<version>-<os>-<arch>`, darwin and linux, arm64 and amd64), run through the `bin/kit` launcher as `kit <subcommand>` or `kit hook <name>`. The first session start or `kit` command after an install or update downloads it from the matching GitHub release; until then the guards fail open.
 
 ## Develop
 

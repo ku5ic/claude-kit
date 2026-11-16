@@ -2,6 +2,7 @@ package codegraph
 
 import (
 	"bufio"
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,10 +11,12 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
 
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/proc"
 	"github.com/ku5ic/claude-kit/go/internal/resolve/kittool"
 )
@@ -83,27 +86,87 @@ func scanError(bin string, cmd *proc.Cmd, err error) error {
 // path relative to root and the text on one line. A path under testdata
 // or any of skipDirs is left out.
 func Imports(root string, skipDirs []string, out, stderr io.Writer) error {
-	bin, err := kittool.Path(astGrep...)
+	found, err := scanImports(root, skipDirs, stderr)
 	if err != nil {
 		return err
+	}
+	w := bufio.NewWriter(out)
+	for _, imp := range found {
+		fmt.Fprintln(w, imp.file+"\t"+imp.text)
+	}
+	return w.Flush()
+}
+
+// ErrNoASTGrep is the error Imports and Importers wrap when ast-grep isn't
+// installed.
+var ErrNoASTGrep = errors.New("ast-grep isn't installed")
+
+// componentFiles are single-file component formats ast-grep can't parse:
+// their imports sit in a <script> block, so a text match finds them.
+var componentFiles = set(".vue", ".svelte", ".astro")
+
+// jsImport is an import, export-from, require(), or import() of a literal
+// specifier.
+var jsImport = regexp.MustCompilePOSIX(`(from|import|require[[:space:]]*\(|import[[:space:]]*\()[[:space:]]*['"]([^'"]+)['"]`)
+
+// componentImports is each import in root's component files, its text
+// quoted as ast-grep prints a JS string. Outside a git repo there are none.
+func componentImports(root string, skipDirs []string) []found {
+	files, _ := git.Files(root)
+	var rows []found
+	for _, file := range files {
+		if !componentFiles[path.Ext(file)] || skipped(file, skipDirs) {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(root, file))
+		if err != nil {
+			continue
+		}
+		for n, line := range strings.Split(string(data), "\n") {
+			for _, m := range jsImport.FindAllStringSubmatch(line, -1) {
+				rows = append(rows, found{file, `"` + m[2] + `"`, n + 1})
+			}
+		}
+	}
+	return rows
+}
+
+// found is one import: its file, relative to the scanned root, its text
+// on one line, and its 1-based line.
+type found struct {
+	file, text string
+	line       int
+}
+
+// scanImports is every import under root, sorted by file and text. A path
+// under testdata or any of skipDirs is left out.
+func scanImports(root string, skipDirs []string, stderr io.Writer) ([]found, error) {
+	bin, err := kittool.Path(astGrep...)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrNoASTGrep, err)
 	}
 	// ast-grep prints ./src/a.py as src/a.py, and repo/ would make the
 	// prefix repo//: either way the prefix would match nothing.
 	root = filepath.Clean(root)
 	if _, err := os.Stat(root); err != nil {
-		return err
+		return nil, err
 	}
-	// The = form: a value starting with --- would parse as a flag.
-	cmd := proc.Command(scanTimeout, bin, "scan", "--json=stream", "--inline-rules="+importRules, root)
+	// The = form: a value starting with --- would parse as a flag. Hidden
+	// directories (.storybook, .github) hold real imports; .git is dropped below.
+	cmd := proc.Command(scanTimeout, bin, "scan", "--json=stream", "--no-ignore=hidden", "--inline-rules="+importRules, root)
 	stream, err := cmd.Output()
 	if err != nil {
-		return scanError(bin, cmd, err)
+		return nil, scanError(bin, cmd, err)
 	}
 	// ast-grep scans in parallel: sorted, two runs print the same.
-	var rows, odd []string
+	var rows []found
+	var odd []string
 	flatten := strings.NewReplacer("\n", " ", "\t", " ")
 	for line := range strings.SplitSeq(string(stream), "\n") {
-		var match struct{ File, Text string }
+		var match struct {
+			File, Text string
+			Range      struct{ Start struct{ Line int } }
+		}
 		if json.Unmarshal([]byte(line), &match) != nil {
 			continue
 		}
@@ -115,16 +178,15 @@ func Imports(root string, skipDirs []string, out, stderr io.Writer) error {
 			}
 			continue
 		}
-		if !skipped(file, skipDirs) {
-			rows = append(rows, file+"\t"+flatten.Replace(match.Text))
+		if !skipped(file, skipDirs) && !slices.Contains(strings.Split(file, "/"), ".git") {
+			rows = append(rows, found{file, flatten.Replace(match.Text), match.Range.Start.Line + 1})
 		}
 	}
-	slices.Sort(rows)
-	w := bufio.NewWriter(out)
-	for _, row := range rows {
-		fmt.Fprintln(w, row)
-	}
-	return w.Flush()
+	rows = append(rows, componentImports(root, skipDirs)...)
+	slices.SortFunc(rows, func(a, b found) int {
+		return cmp.Or(strings.Compare(a.file, b.file), strings.Compare(a.text, b.text), cmp.Compare(a.line, b.line))
+	})
+	return rows, nil
 }
 
 // skipped reports whether file sits under testdata or a skipDirs entry.

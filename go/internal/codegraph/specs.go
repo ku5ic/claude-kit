@@ -28,7 +28,7 @@ var (
 	jsEmitted  = set(".js", ".jsx", ".mjs", ".cjs")
 	ecosystems = map[string]string{
 		".js": "npm", ".jsx": "npm", ".mjs": "npm", ".cjs": "npm", ".ts": "npm", ".tsx": "npm", ".mts": "npm", ".cts": "npm",
-		".vue": "npm", ".svelte": "npm", ".py": "python", ".rs": "rust", ".rb": "ruby", ".go": "go",
+		".vue": "npm", ".svelte": "npm", ".astro": "npm", ".py": "python", ".rs": "rust", ".rb": "ruby", ".go": "go",
 	}
 )
 
