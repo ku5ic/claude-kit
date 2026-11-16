@@ -301,14 +301,16 @@ lib/format_test.go:2 test same-package
 		{
 			name: "Java: a dotted import under a source root",
 			files: map[string]string{
-				"src/main/java/com/acme/util/Strings.java": "package com.acme.util;\n\npublic class Strings {}",
-				"src/main/java/com/acme/App.java":          "package com.acme;\n\nimport com.acme.util.Strings;\n\nclass App {}",
-				"src/main/java/com/acme/Other.java":        "package com.acme;\n\nimport java.util.List;\n\nclass Other {}",
+				"src/main/java/com/acme/util/Strings.java":     "package com.acme.util;\n\npublic class Strings {}",
+				"src/main/java/com/acme/App.java":              "package com.acme;\n\nimport com.acme.util.Strings;\n\nclass App {}",
+				"src/main/java/com/acme/Other.java":            "package com.acme;\n\nimport java.util.List;\n\nclass Other {}",
+				"src/test/java/com/acme/util/StringsTest.java": "package com.acme.util;\n\nimport com.acme.util.Strings;\n\nclass StringsTest {}",
 			},
 			target: "src/main/java/com/acme/util/Strings.java",
 			want: `blast-radius: src/main/java/com/acme/util/Strings.java
-consumers: 1 (source 1, test 0)
+consumers: 2 (source 1, test 1)
 src/main/java/com/acme/App.java:3 source
+src/test/java/com/acme/util/StringsTest.java:3 test
 `,
 		},
 	}
