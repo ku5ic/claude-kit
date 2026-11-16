@@ -155,6 +155,7 @@ func TestStopPlanDone(t *testing.T) {
 		r := e.stop(false)
 		r.Want(t, 2)
 		r.Has(t, "plan-x.md is done, but /code-review hasn't finished since the last code edit")
+		r.Has(t, "the edits since are only fixes for that review's findings: say so in one line, no second review")
 		e.stop(true).Want(t, 0)
 	})
 	t.Run("ticking the last step through Bash blocks too; a Bash call that only names the plan doesn't", func(t *testing.T) {
