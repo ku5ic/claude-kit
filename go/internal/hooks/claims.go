@@ -165,9 +165,14 @@ func gateOnChecker(h *hook.Hook, text, where, retry, marker, dest string) error 
 	asked := h.Paths.SessionFile(cache.Claims, h.Payload.SessionID(), "asked")
 	record, _ := os.ReadFile(asked)
 	checked, outcomes, done := checkedStatements(log, string(record))
-	if dest != "" && slices.Contains(done, dest) {
+	// passed is every exit where the text needs no new run: its finished
+	// runs' flags go to the ledger.
+	passed := func() error {
 		ledgerRuns(h, log, string(record), text, where)
 		return nil
+	}
+	if dest != "" && slices.Contains(done, dest) {
+		return passed()
 	}
 	all := claims.Statements(text)
 	var fresh []string
@@ -177,8 +182,7 @@ func gateOnChecker(h *hook.Hook, text, where, retry, marker, dest string) error 
 		}
 	}
 	if len(fresh) == 0 {
-		ledgerRuns(h, log, string(record), text, where)
-		return nil
+		return passed()
 	}
 	sum := sha256.Sum256([]byte(strings.Join(fresh, "\n")))
 	id := "claim-check " + hex.EncodeToString(sum[:])[:12]
@@ -188,8 +192,7 @@ func gateOnChecker(h *hook.Hook, text, where, retry, marker, dest string) error 
 	}
 	switch outcome {
 	case checkerDone:
-		ledgerRuns(h, log, string(record), text, where)
-		return nil
+		return passed()
 	case checkerFailed:
 		return verifyInSubagent(h, text, where, retry, marker)
 	}

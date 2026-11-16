@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -147,13 +148,15 @@ func Report(guards, claims string, o Options, w io.Writer) error {
 	}
 	tw := tabwriter.NewWriter(w, 0, 2, 2, ' ', 0)
 	fmt.Fprintln(tw, "rule\tblocks\tshadow\tdisabled\tsessions")
-	for _, name := range sortedKeys(rules) {
+	for _, name := range slices.Sorted(maps.Keys(rules)) {
 		r := rules[name]
 		fmt.Fprintf(tw, "%s\t%d\t%d\t%d\t%d\n", name, r.block, r.shadow, r.disabled, len(r.sessions))
 	}
 	if o.Rule == "" || o.Rule == "claims" {
 		fmt.Fprintln(tw, "\nclaims\tmodel\tflagged\tdropped\tkept")
-		for _, key := range sortedKeys(flags) {
+		keys := slices.Collect(maps.Keys(flags))
+		slices.SortFunc(keys, func(a, b [2]string) int { return slices.Compare(a[:], b[:]) })
+		for _, key := range keys {
 			f := flags[key]
 			fmt.Fprintf(tw, "%s\t%s\t%d\t%d\t%d\n", key[0], key[1], f.kept+f.dropped, f.dropped, f.kept)
 		}
@@ -175,16 +178,6 @@ func each(path string, o Options, fn func(line)) error {
 		}
 		fn(l)
 	})
-}
-
-// sortedKeys is m's keys in order, for a stable report.
-func sortedKeys[K interface{ ~string | ~[2]string }, V any](m map[K]V) []K {
-	keys := make([]K, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	slices.SortFunc(keys, func(a, b K) int { return strings.Compare(fmt.Sprint(a), fmt.Sprint(b)) })
-	return keys
 }
 
 // Run is `kit stats [--rule r] [--since days]`: the report over the last

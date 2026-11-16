@@ -72,7 +72,7 @@ func CheckPR(h *hook.Hook) error {
 		}
 		// call.start is an offset into seg.src, which for a heredoc fed to a
 		// shell is that body, not cmd.
-		src := ghCall{tool: w.name, call: w.call, before: w.seg.src[:min(w.call.start, len(w.seg.src))], home: h.Home, cwd: w.cwd}
+		src := hostCall{tool: w.name, call: w.call, before: w.seg.src[:min(w.call.start, len(w.seg.src))], home: h.Home, cwd: w.cwd}
 		for _, t := range src.texts(w.i + 1) {
 			if t.unread != "" {
 				return h.Block("can't read the text of "+t.where+": "+t.unread+"\n"+
@@ -93,10 +93,10 @@ func CheckPR(h *hook.Hook) error {
 // its text, or why it can't be read.
 type prText struct{ where, text, unread string }
 
-// ghCall reads a gh or glab call's text: inline, from a file under cwd, or
+// hostCall reads a gh or glab call's text: inline, from a file under cwd, or
 // from its stdin (a heredoc or a < file). before is the command ahead of
 // the call.
-type ghCall struct {
+type hostCall struct {
 	tool      string
 	call      Call
 	before    string
@@ -104,13 +104,13 @@ type ghCall struct {
 }
 
 // texts is the PR text of the call whose args start at word from.
-func (s ghCall) texts(from int) []prText {
+func (s hostCall) texts(from int) []prText {
 	args := values(s.call.Words[from:])
 	var out []prText
 	switch {
 	case len(args) >= 2 && posts[s.tool][args[0]][args[1]] != nil:
 		cmd := s.tool + " " + args[0] + " " + args[1]
-		ghFlags(args[2:], posts[s.tool][args[0]][args[1]], func(flag, value string) {
+		walkFlags(args[2:], posts[s.tool][args[0]][args[1]], func(flag, value string) {
 			if strings.HasSuffix(flag, "-file") {
 				out = append(out, s.read(cmd+" --"+flag, value))
 				return
@@ -118,7 +118,7 @@ func (s ghCall) texts(from int) []prText {
 			out = append(out, inline(cmd+" --"+flag, value))
 		})
 	case len(args) >= 1 && args[0] == "api":
-		ghFlags(args[1:], apiFlags, func(flag, value string) {
+		walkFlags(args[1:], apiFlags, func(flag, value string) {
 			if flag == "input" {
 				out = append(out, s.inputJSON(value)...)
 				return
@@ -139,7 +139,7 @@ func (s ghCall) texts(from int) []prText {
 }
 
 // read is the text of file as gh reads it: - is stdin.
-func (s ghCall) read(where, file string) prText {
+func (s hostCall) read(where, file string) prText {
 	t := prText{where: where}
 	switch {
 	case file == "-" && len(s.call.Heredocs) > 0:
@@ -170,7 +170,7 @@ func (s ghCall) read(where, file string) prText {
 }
 
 // inputJSON is the PR text fields of the JSON request body --input reads.
-func (s ghCall) inputJSON(file string) []prText {
+func (s hostCall) inputJSON(file string) []prText {
 	t := s.read(s.tool+" api --input", file)
 	if t.unread != "" {
 		return []prText{t}
@@ -203,11 +203,11 @@ func inline(where, value string) prText {
 // expansion is a $ or backtick the shell expands; $5 isn't one.
 var expansion = regexp.MustCompile("\\$[({A-Za-z_]|`")
 
-// ghFlags walks gh args as pflag reads them, up to "--", calling fn with
+// walkFlags walks args as pflag reads them, up to "--", calling fn with
 // the name valued gives each flag it holds and the flag's value: the next
 // arg, or attached (--body=x, -bx, -b=x). Other flags are skipped; one that
 // takes a value leaves it as a positional arg, which no lookup matches.
-func ghFlags(args []string, valued map[string]string, fn func(name, value string)) {
+func walkFlags(args []string, valued map[string]string, fn func(name, value string)) {
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		if a == "--" {

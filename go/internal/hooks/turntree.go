@@ -57,14 +57,10 @@ func turnChanges(h *hook.Hook, root string) (changed []string, tree string, ok b
 // file records, that tree, and the tree now, which replaces it in file;
 // false when file is "" or holds no tree.
 func changedSince(h *hook.Hook, root, file string) (changed []string, before, now string, ok bool) {
-	if file == "" {
+	before, ok = readTree(file)
+	if !ok {
 		return nil, "", "", false
 	}
-	data, err := os.ReadFile(file)
-	if err != nil {
-		return nil, "", "", false
-	}
-	before = string(data)
 	changed, now, ok = diffTree(root, before)
 	if now != "" {
 		saveTree(h, file, now)
@@ -75,16 +71,21 @@ func changedSince(h *hook.Hook, root, file string) (changed []string, before, no
 // changedThisTurn is turnChanges without recording the tree now, for a
 // guard that looks before a tool runs and must leave Stop's baseline alone.
 func changedThisTurn(h *hook.Hook, root string) ([]string, bool) {
-	file := turnTreeFile(h, root)
-	if file == "" {
+	before, ok := readTree(turnTreeFile(h, root))
+	if !ok {
 		return nil, false
+	}
+	changed, _, ok := diffTree(root, before)
+	return changed, ok
+}
+
+// readTree is the tree file records, false when file is "" or unreadable.
+func readTree(file string) (string, bool) {
+	if file == "" {
+		return "", false
 	}
 	data, err := os.ReadFile(file)
-	if err != nil {
-		return nil, false
-	}
-	changed, _, ok := diffTree(root, string(data))
-	return changed, ok
+	return string(data), err == nil
 }
 
 // diffTree is the absolute paths whose content differs between the tree

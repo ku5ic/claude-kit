@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 
@@ -87,13 +86,17 @@ func ledgerRuns(h *hook.Hook, log checkerLog, record, text, where string) {
 			continue
 		}
 		_ = fsx.Append(done, []byte(at))
-		ledger(h, "agent", cmp.Or(run.Model, agentModel(h), "inherit"), where, stats.Flagged(run.Result), text)
+		model := run.Model
+		if model == "" {
+			model = cmp.Or(agentModel(h), "inherit")
+		}
+		ledger(h, "agent", model, where, stats.Flagged(run.Result), text)
 	}
 }
 
 // agentModel is the model agents/claim-checker.md pins, "" when none.
 func agentModel(h *hook.Hook) string {
-	data, _ := os.ReadFile(filepath.Join(h.Paths.Root, "agents", "claim-checker.md"))
+	data, _ := os.ReadFile(claims.AgentFile(h.Paths.Root))
 	for line := range strings.Lines(string(data)) {
 		if model, ok := strings.CutPrefix(line, "model:"); ok {
 			return strings.TrimSpace(model)

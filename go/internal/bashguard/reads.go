@@ -169,7 +169,7 @@ func ReadTargets(cmd, home, cwd string) []string {
 				out = append(out, path)
 			}
 		}
-		ghFlags(args, globFlags, func(_, glob string) {
+		walkFlags(args, globFlags, func(_, glob string) {
 			alts, _ := guard.Braces(glob)
 			for _, alt := range alts {
 				out = append(out, filepath.Join(w.cwd, alt))
