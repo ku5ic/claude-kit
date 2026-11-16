@@ -11,6 +11,12 @@ allowed-tools:
 
 Performance audit focused on statically detectable issues.
 
+Loading this skill isn't enough. Before the step a row names, read its file.
+
+| Before                                           | Read                                             |
+| ------------------------------------------------ | ------------------------------------------------ |
+| Writing a finding's evidence, or what to measure | [reference/measuring.md](reference/measuring.md) |
+
 ## Run
 
 With no target in the arguments, ask for one first, since the auditor can't ask. Resolve a linked ticket or doc as `skills/investigate` step 0 describes, then dispatch the auditor agent (subagent_type: kit:auditor, foreground) with this file's procedure and the resolved arguments. It writes the report; reply per `skills/kit-rules/reference/output.md` section 3.
@@ -66,7 +72,7 @@ Each finding quotes the code and names what makes it cost: the loop bound around
 
 ## Verification tools
 
-- Command-level perf checks (build scripts, codegen, test runner startup, CLI tools): measure with `hyperfine`, not eyeballed.
+- Command-level perf checks (build scripts, codegen, test runner startup, CLI tools): measure with `hyperfine`, not eyeballed ([reference/measuring.md](reference/measuring.md)).
 - Render-level perf (re-renders, bundle cost): measure with the UI framework's profiler or the browser's performance panel at runtime, not from static analysis.
 
 ## Output per finding

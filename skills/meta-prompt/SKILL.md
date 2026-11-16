@@ -9,6 +9,12 @@ disable-model-invocation: true
 
 Turn a fuzzy ask into a sharp Claude Code prompt with context and acceptance criteria.
 
+Loading this skill isn't enough. Before the step a row names, read its file.
+
+| Before                    | Read                                                         |
+| ------------------------- | ------------------------------------------------------------ |
+| Writing the output prompt | [reference/prompt-practice.md](reference/prompt-practice.md) |
+
 ## When to use
 
 - You want to capture a reusable task as a new slash command

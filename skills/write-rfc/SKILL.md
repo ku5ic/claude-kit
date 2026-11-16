@@ -21,6 +21,12 @@ Tone and shape: `skills/kit-rules/reference/output.md` section 4, which wins ove
 In claude.ai chat, the arguments are the user's message and the material is what they pasted. Nothing can be run: the current state and the numbers come from the paste, and a section with no material says what it needs.
 -->
 
+Loading this skill isn't enough. Before the step a row names, read its file.
+
+| Before                                                           | Read                                                                 |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Choosing the sections, or writing Rollout, Rollback, or Capacity | [reference/design-doc-practice.md](reference/design-doc-practice.md) |
+
 ## Where the facts come from
 
 <!-- chat: skip -->

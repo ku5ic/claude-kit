@@ -24,6 +24,12 @@ This kind never runs a review, checks out the PR, or runs its checks. It runs la
 
 Tone and shape: `skills/kit-rules/reference/output.md` section 4, which wins over this file; the sections this file defines stay.
 
+Loading this skill isn't enough. Before the step a row names, read its file.
+
+| Before                                 | Read                                                   |
+| -------------------------------------- | ------------------------------------------------------ |
+| Deciding which findings earn a comment | [reference/review-scope.md](reference/review-scope.md) |
+
 ## Inputs
 
 1. Findings, first match wins: the report path in `$ARGUMENTS`; else every review point this session produced, from `/code-review`, `/verify`, `/code-challenge`, or plain discussion, merged. None at all: stop and name the reviews to run, `/code-review <n>`, then `/verify` and `/code-challenge` as the change calls for.

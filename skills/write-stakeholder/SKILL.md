@@ -21,6 +21,12 @@ Tone and shape: `skills/kit-rules/reference/output.md` section 4, which wins ove
 In claude.ai chat, the arguments are the user's message and the material is what they pasted. Nothing can be run: if the diff, log, or text this needs isn't in the conversation, ask for it.
 -->
 
+Loading this skill isn't enough. Before the step a row names, read its file.
+
+| Before                                                 | Read                                                       |
+| ------------------------------------------------------ | ---------------------------------------------------------- |
+| Rewriting technical content for a non-technical reader | [reference/plain-language.md](reference/plain-language.md) |
+
 ## Procedure
 
 1. Read the input. If the arguments look like a file path, read the file. Otherwise treat them as the content directly.
@@ -57,7 +63,7 @@ Plain paragraphs in this order, no headers or labels (`skills/kit-rules/referenc
 
 ## Rules
 
-- Replace jargon with plain language without oversimplifying to the point of being inaccurate.
+- Replace jargon with plain language ([reference/plain-language.md](reference/plain-language.md)) without oversimplifying to the point of being inaccurate.
 - Keep tradeoffs intact. Do not hide risk or complexity, just express it in outcomes.
 - Tone: `skills/kit-rules/reference/output.md` section 4. An ambiguity in the input gets a question.
 

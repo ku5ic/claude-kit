@@ -18,6 +18,12 @@ allowed-tools:
 
 The git and PR history of a file or folder, as a report with turning points, recurring bugs, broken promises, who to ask, and a short story. With no argument, ask for the path before anything else.
 
+Loading this skill isn't enough. Before the step a row names, read its file.
+
+| Before                              | Read                                         |
+| ----------------------------------- | -------------------------------------------- |
+| Collecting commits or lines changed | [reference/git-log.md](reference/git-log.md) |
+
 ## Inputs
 
 1. Resolve the argument to a real path. A loose name ("Filter ds component") may not match one: search with `fd` and `rg`, pick the match, and state the substitution in the report header.

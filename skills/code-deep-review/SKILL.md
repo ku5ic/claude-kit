@@ -18,6 +18,12 @@ allowed-tools:
 
 A deep review of a path or a change, run now and then, covering what the per-change `/code-review` skips: design, precedent, test strength, error paths, and security. With nothing and an empty diff, ask for a path before anything else.
 
+Loading this skill isn't enough. Before the step a row names, read its file.
+
+| Before             | Read                                             |
+| ------------------ | ------------------------------------------------ |
+| Running the passes | [reference/checklist.md](reference/checklist.md) |
+
 ## Inputs
 
 1. Resolve the target, first match wins:

@@ -2,7 +2,7 @@
 
 - A hardcoded token, key, or password in the codebase: `failure`.
 - A committed `.env`: `failure`.
-- Secrets in commit history: note them. Rewriting history is a destructive operation (`skills/kit-rules/reference/workflow.md` section 2).
+- Note any secret in commit history. Rewriting history is a destructive operation (`skills/kit-rules/reference/workflow.md` section 2).
 
 ## Detection in CI
 

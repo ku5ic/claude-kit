@@ -20,6 +20,12 @@ allowed-tools:
 
 Generate a pull request title and description from the current diff.
 
+Loading this skill isn't enough. Before the step a row names, read its file.
+
+| Before                        | Read                                                                   |
+| ----------------------------- | ---------------------------------------------------------------------- |
+| Writing the title or the body | [reference/description-practice.md](reference/description-practice.md) |
+
 ## Procedure
 
 1. Check for a project PR template: resolve the project root via `kit project-root`, then check these exact paths in order, using the first that exists:
@@ -87,7 +93,7 @@ Use this default structure:
 
 ## Rules
 
-- Title: one line in the shape the step 4 log uses (Conventional Commits, ticket prefix, plain), naming the change's purpose.
+- Title: one line in the shape the step 4 log uses (Conventional Commits, ticket prefix, plain), naming the change's purpose, per [reference/description-practice.md](reference/description-practice.md).
 - Why, not what. This is a hard rule. The reviewer already has the diff for what changed and the test files for what's covered. Never restate either. A bullet that only narrates the diff ("renamed X to Y", "added a null check") earns no place in the description; only the bullet's reason for existing does.
 - An impact or failure mode goes in only when the diff, the log, or a linked issue establishes it (`skills/kit-rules/reference/evidence.md` section 1). Otherwise describe the change and say nothing on severity.
 - If a section would only restate the diff or the tests, cut it (default structure only). Under a project template, an empty section keeps its heading and gets `N/A`.

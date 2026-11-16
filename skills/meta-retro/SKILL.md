@@ -9,6 +9,12 @@ disable-model-invocation: true
 
 Structured retrospective for an incident, sprint, or completed feature.
 
+Loading this skill isn't enough. Before the step a row names, read its file.
+
+| Before                    | Read                                                             |
+| ------------------------- | ---------------------------------------------------------------- |
+| Writing an incident retro | [reference/incident-practice.md](reference/incident-practice.md) |
+
 ## Procedure
 
 1. Identify the retro type from $ARGUMENTS:
@@ -113,6 +119,6 @@ Write to the path `kit scratch-dir retro <type>-<slug>` prints.
 
 - Action items must be concrete and owned (by role, not person). "Improve monitoring" is not an action item.
 - Separate observations from interpretations. "Deploy took 40 minutes" is observation. "Deploy pipeline is slow" is interpretation.
-- No blame language. Describe systems and processes, not individuals.
+- No blame language. Describe systems and processes, not individuals ([reference/incident-practice.md](reference/incident-practice.md)).
 - Distinguish lucky from systemic.
 - Keep it scannable. A retro no one reads is worse than no retro.

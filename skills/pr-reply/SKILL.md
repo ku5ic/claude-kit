@@ -22,6 +22,12 @@ Draft replies to a reviewer's comments on your PR, verifying each claim against 
 
 Tone and shape: `skills/kit-rules/reference/output.md` section 4, which wins over this file; the sections this file defines stay.
 
+Loading this skill isn't enough. Before the step a row names, read its file.
+
+| Before                           | Read                                                       |
+| -------------------------------- | ---------------------------------------------------------- |
+| Deciding how to answer a comment | [reference/reply-practice.md](reference/reply-practice.md) |
+
 ## Procedure
 
 1. Resolve the repository path (`skills/code-host-patterns`, as every call below). If this fails (no remote, no auth), stop and say so.

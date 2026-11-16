@@ -1,6 +1,6 @@
 # When to split a component
 
-- A render function past the function-size threshold in `skills/engineering-fundamentals/reference/metric-thresholds.md` whose purpose a new reader can't see at a glance: split it.
+- A render function past the function-size threshold in `skills/engineering-fundamentals/reference/metric-thresholds.md` gets split when a new reader can't see its purpose at a glance.
 - Two independent concerns that re-render at different cadences, such as a header that updates on auth changes and a feed that updates on every keystroke: split them, and put `React.memo` (or the React Compiler) on the slow side.
 - A subsection with state the parent doesn't need: move it into its own component and keep that state there.
 - Split out a component used in two or more places. A real second use site is the strongest signal.

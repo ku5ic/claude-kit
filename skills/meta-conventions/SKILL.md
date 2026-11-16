@@ -9,6 +9,12 @@ disable-model-invocation: true
 
 Find the conventions this repo actually follows and write them down once, as path-scoped rules with a citation behind every claim, so later sessions read them instead of rediscovering them.
 
+Loading this skill isn't enough. Before the step a row names, read its file.
+
+| Before                      | Read                                                 |
+| --------------------------- | ---------------------------------------------------- |
+| Writing a rule file, step 6 | [reference/rules-files.md](reference/rules-files.md) |
+
 ## Procedure
 
 1. Scope. The arguments are: $ARGUMENTS. Resolve the project root with `kit project-root`. Use the `<repo-context>` block for the stack.
@@ -33,7 +39,7 @@ Find the conventions this repo actually follows and write them down once, as pat
    - <Convention, stated as an instruction>. Seen at `<path>:<line>`, `<path>:<line>`[; asked for in review: <comment link>, <comment link>].
    ```
 
-   - `paths` is the narrowest set of globs where the convention holds, such as `"src/**/*.{ts,tsx}"` for a component convention. Leave `paths` out only for a convention that truly applies to every file (naming, sometimes). Claude Code loads a path-scoped rule when it reads a matching file, and loads a rule without `paths` in every session.
+   - `paths` is the narrowest set of globs where the convention holds, such as `"src/**/*.{ts,tsx}"` for a component convention. Leave `paths` out only for a convention that truly applies to every file (naming, sometimes). When each loads: [reference/rules-files.md](reference/rules-files.md).
    - Every bullet ends with its citations. A bullet without one gets cut.
    - Record what the code does, not what it should do. A convention you'd argue against still goes in as found; raise the disagreement in the report.
 

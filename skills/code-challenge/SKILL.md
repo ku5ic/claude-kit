@@ -19,6 +19,12 @@ allowed-tools:
 
 Challenge a proposed or finished change the way a senior reviewer would, decision first and code second. Most useful before the change is written, on your own plan or on someone else's design doc.
 
+Loading this skill isn't enough. Before the step a row names, read its file.
+
+| Before                                           | Read                                           |
+| ------------------------------------------------ | ---------------------------------------------- |
+| Filtering findings, or choosing the verdict line | [reference/standard.md](reference/standard.md) |
+
 ## Inputs
 
 Resolve the artifact, first match wins:

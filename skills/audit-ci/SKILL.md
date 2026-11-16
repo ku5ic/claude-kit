@@ -11,6 +11,12 @@ allowed-tools:
 
 Hardening review of CI workflows.
 
+Loading this skill isn't enough. Before the step a row names, read its file.
+
+| Before                                                                    | Read                                                               |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Checking permissions, triggers, `run:` steps, secrets, or runners, step 2 | [reference/workflow-hardening.md](reference/workflow-hardening.md) |
+
 ## Run
 
 Resolve a linked ticket or doc as `skills/investigate` step 0 describes, then dispatch the auditor agent (subagent_type: kit:auditor, foreground) with this file's procedure and the resolved arguments. It writes the report; reply per `skills/kit-rules/reference/output.md` section 3.
@@ -23,7 +29,7 @@ Resolve a linked ticket or doc as `skills/investigate` step 0 describes, then di
 
 1. Run `actionlint` on the target workflows. Each error is a finding. With no `actionlint`, skip this step and say so under "Cannot be verified statically".
 2. Read each workflow and check:
-   - **Pinning**: every `uses:` of an action outside the repo is pinned to a full commit SHA, with the tag in a comment. A tag or branch is a finding; a first-party `actions/*` tag is a `warning`, a third-party one a `failure`.
+   - **Pinning**: a `uses:` of an action outside the repo pinned to a branch (`@main`) is a `warning`.
    - **Permissions**: a top-level or per-job `permissions:` block granting only what the jobs use. None at all means the token's default scope, a `warning`.
    - **Untrusted triggers**: `pull_request_target` or `workflow_run` that checks out or runs the PR's code is a `failure`.
    - **Injection**: `${{ github.event.* }}`, `${{ github.head_ref }}`, or another attacker-set value interpolated into `run:` is a `failure`. The fix passes it through `env:`.
@@ -35,6 +41,7 @@ Resolve a linked ticket or doc as `skills/investigate` step 0 describes, then di
 
 - An event value interpolated into `run:` that an attacker can't shape: a SHA, a number, or a boolean, such as `github.event.pull_request.base.sha`. Passing it through `env:` is still cleaner, as `info`.
 - A local action (`uses: ./...`), which the repo itself pins.
+- An action pinned to a version tag (`@v4`).
 
 ## Output per finding
 

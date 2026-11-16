@@ -18,6 +18,14 @@ allowed-tools:
 
 A visual tour of a codebase: a report of Mermaid diagrams built from its size, imports, churn, and owners, each explained with a takeaway, the why, and what to watch out for.
 
+Loading this skill isn't enough. Before the step a row names, read its file.
+
+| Before                                                  | Read                                           |
+| ------------------------------------------------------- | ---------------------------------------------- |
+| Scoring hotspots or reading churn, Collect steps 1 to 3 | [reference/hotspots.md](reference/hotspots.md) |
+| Drawing or editing a `c4-*.mmd` view                    | [reference/c4.md](reference/c4.md)             |
+| Drawing any diagram, or fixing a Render failure         | [reference/mermaid.md](reference/mermaid.md)   |
+
 ## Inputs
 
 1. Root: `git -C <path or cwd> rev-parse --show-toplevel`. A subdirectory argument narrows every step to it.
@@ -85,7 +93,7 @@ Diagrams 2 to 7 are drawn. Keep to these diagram types; Render below checks each
 - Every fence starts with the init line from Colors. `useMaxWidth: false` makes a large graph render at full size with a scroll, instead of shrinking to the page width. For a C4 view, that line goes above the file's content, which otherwise stays verbatim.
 - Large C4 views get split, not shrunk. A container view over 12 nodes becomes 2 or 3 files, each one cluster of containers plus the externals that cluster touches. When this run made the split, the `c4-containers.mmd` it split and its `.svg` are deleted, and the report's header line names each file deleted. A node keeps the same id and label in every file it appears in. Each view is embedded under its own provenance line.
 - Node labels run 1 to 4 words. Paths and detail go in the prose, the table, or a C4 file's `%% path:` comment.
-- Edges carry a label only when it adds information: a count, a verb that isn't "uses".
+- Edges carry a label only when it adds information: a count, a verb that isn't "uses". A C4 view labels every line ([reference/c4.md](reference/c4.md)).
 
 ### Colors
 

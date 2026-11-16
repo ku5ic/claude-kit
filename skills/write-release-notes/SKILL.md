@@ -23,6 +23,12 @@ In claude.ai chat, the arguments are the user's message and the material is what
 
 Generate release notes from commits unique to the current branch vs its base.
 
+Loading this skill isn't enough. Before the step a row names, read its file.
+
+| Before                                   | Read                                                               |
+| ---------------------------------------- | ------------------------------------------------------------------ |
+| Grouping, wording, or dating the entries | [reference/changelog-practice.md](reference/changelog-practice.md) |
+
 ## Context
 
 Run each and read its output: the current branch (`git branch --show-current`), the detected base (`kit git-base`), and the commits on this branch but not on the base (`kit git-base --log --no-merges`).
@@ -63,27 +69,27 @@ Range: <base>..HEAD (N commits)
 
 ## Added
 
-<New user-visible capabilities. Imperative and clear. Omit if empty.>
+<Omit if empty.>
 
 ## Changed
 
-<Behavior changes that existing users will notice. Omit if empty.>
+<Omit if empty.>
 
 ## Fixed
 
-<Bug fixes that matter to users. Omit if empty.>
+<Omit if empty.>
 
 ## Deprecated
 
-<APIs or features marked deprecated. Omit if empty.>
+<Omit if empty.>
 
 ## Removed
 
-<Breaking removals. Call out loudly. Omit if empty.>
+<Omit if empty.>
 
 ## Security
 
-<Security-relevant fixes. Include CVE references if any. Omit if empty.>
+<CVE references if any. Omit if empty.>
 
 ## Internal
 

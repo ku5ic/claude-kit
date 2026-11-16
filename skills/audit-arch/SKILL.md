@@ -11,6 +11,12 @@ allowed-tools:
 
 Judges a codebase's structure against what the project says its architecture is. Drawing the structure is `/code-visual`; this audit judges it.
 
+Loading this skill isn't enough. Before the step a row names, read its file.
+
+| Before                                  | Read                                                             |
+| --------------------------------------- | ---------------------------------------------------------------- |
+| Checking the Failure isolation category | [reference/failure-isolation.md](reference/failure-isolation.md) |
+
 ## Run
 
 Resolve a linked ticket or doc as `skills/investigate` step 0 describes, then dispatch the auditor agent (subagent_type: kit:auditor, foreground) with this file's procedure and the resolved arguments. It writes the report; reply per `skills/kit-rules/reference/output.md` section 3.
@@ -39,7 +45,7 @@ Skip a category with no findings. Each names what proves a finding.
 - **ADR drift.** Proof: an accepted ADR's decision quoted next to code that does otherwise. A superseded ADR is history, not drift.
 - **Data and state ownership.** Proof: two modules writing the same table, store, or file, quoted at both write sites.
 - **Integration seams.** Proof: one external service called from more than one module with no shared client, found with `rg` for its SDK import or base URL.
-- **Failure isolation.** Proof: an external call on a request path with no timeout, retry bound, or fallback, quoted.
+- **Failure isolation.** Proof: an external call on a request path with no timeout, retry bound, or fallback, quoted. What each needs: [reference/failure-isolation.md](reference/failure-isolation.md).
 
 Each finding names the pattern `skills/engineering-fundamentals/reference/design-patterns.md` gives for its signal, and the question from `skills/engineering-fundamentals/reference/design-integrity.md` it fails.
 

@@ -20,6 +20,12 @@ Tone and shape: `skills/kit-rules/reference/output.md` section 4, which wins ove
 In claude.ai chat, the arguments are the user's message and the material is what they pasted. Nothing can be run: if the thread, the code, or an earlier ADR this needs isn't in the conversation, ask for it.
 -->
 
+Loading this skill isn't enough. Before the step a row names, read its file.
+
+| Before                                            | Read                                                   |
+| ------------------------------------------------- | ------------------------------------------------------ |
+| Drafting the ADR, or deciding whether one is owed | [reference/adr-practice.md](reference/adr-practice.md) |
+
 ## The project's rules first
 
 <!-- chat: skip -->

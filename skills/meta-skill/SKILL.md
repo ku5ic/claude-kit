@@ -9,6 +9,12 @@ disable-model-invocation: true
 
 Draft a pattern skill pack for a stack from current docs and this repo's precedent, plus its `kit.yml` wiring.
 
+Loading this skill isn't enough. Before the step a row names, read its file.
+
+| Before                                               | Read                                                         |
+| ---------------------------------------------------- | ------------------------------------------------------------ |
+| Writing a skill's frontmatter or splitting its files | [reference/skill-authoring.md](reference/skill-authoring.md) |
+
 ## Procedure
 
 1. Scope. The stack is: $ARGUMENTS. Blank: ask via AskUserQuestion. The pack name is `<stack>-patterns`, lowercase and hyphenated. If `skills/<name>/` already exists in the kit, stop and point at `/meta-refresh <name>` instead.

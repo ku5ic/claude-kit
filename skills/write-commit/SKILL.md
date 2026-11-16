@@ -21,6 +21,12 @@ Tone and shape: `skills/kit-rules/reference/output.md` section 4, which wins ove
 In claude.ai chat, the arguments are the user's message and the material is what they pasted. Nothing can be run: if the diff, log, or text this needs isn't in the conversation, ask for it.
 -->
 
+Loading this skill isn't enough. Before the step a row names, read its file.
+
+| Before                          | Read                                                           |
+| ------------------------------- | -------------------------------------------------------------- |
+| Writing the subject or the body | [reference/message-practice.md](reference/message-practice.md) |
+
 ## Procedure
 
 <!-- chat: skip -->
@@ -40,8 +46,7 @@ In claude.ai chat, the arguments are the user's message and the material is what
 
 ## Message rules
 
-- Subject line: imperative mood, under 72 characters, no trailing period.
-- Blank line, then body if the change warrants it. Body wraps at 72.
+- Subject and body: [reference/message-practice.md](reference/message-practice.md), unless the project's history shows another shape.
 - Body explains why, not what. The diff shows what.
 
 <!-- chat: skip -->

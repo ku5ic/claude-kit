@@ -96,14 +96,23 @@ func TestKitRepo(t *testing.T) {
 		// The skills that aren't reference skills, so keep no sources.md;
 		// skills/meta-refresh/SKILL.md points here for the list.
 		// A skill only the user invokes (disable-model-invocation) is a
-		// procedure, and so are these. A procedure skill with a reference/
-		// keeps its sources too (skills/meta-skill/SKILL.md, Rules), but
-		// its description and SKILL.md load only when the user types it,
-		// so no budget holds them.
+		// procedure skill. It keeps its sources too (skills/meta-skill/SKILL.md,
+		// Rules), but its description and SKILL.md load only when the user
+		// types it, so no budget holds them.
 		exempt := []string{"investigate", "report-format", "kit-rules", "slop-patterns"}
 		// Reference skills with no version-dependent content: no sources.md,
 		// and /meta-refresh takes them only when named.
-		unversioned := []string{"engineering-fundamentals"}
+		unversioned := []string{
+			"engineering-fundamentals",
+			// Procedure skills whose practice another skill owns: the stack
+			// pattern skills, wcag-audit, slop-patterns, code-host-patterns,
+			// or engineering-fundamentals' thresholds.
+			"audit-a11y", "audit-debt", "audit-infra", "audit-slop", "pr-publish", "unslop",
+			// Procedure skills that run only the kit's own steps, with no
+			// outside practice to cite.
+			"audit-doc-drift", "audit-verify", "code-impact", "code-tour", "meta-refresh",
+			"write-devnote", "write-explainer",
+		}
 		// Set from the sizes after sources moved out; step 18's rewrite lowers them.
 		const maxDescription, maxSkill = 200, 5 * 1024
 		url := regexp.MustCompile(`https?://`)
@@ -114,7 +123,7 @@ func TestKitRepo(t *testing.T) {
 			front, _ := frontmatter(text)
 			procedure := front["disable-model-invocation"] == "true"
 			refs, _ := filepath.Glob(filepath.Join(dir, "reference", "*.md"))
-			if slices.Contains(exempt, filepath.Base(dir)) || procedure && len(refs) == 0 {
+			if slices.Contains(exempt, filepath.Base(dir)) {
 				continue
 			}
 			rel, _ := filepath.Rel(kitRoot, skill)
@@ -128,7 +137,8 @@ func TestKitRepo(t *testing.T) {
 			if !procedure && len(text) > maxSkill {
 				t.Errorf("%s: %d bytes, over the %d-byte budget", rel, len(text), maxSkill)
 			}
-			if strings.Contains(text, "sources.md") {
+			// The two skills that write and refresh sources.md name it.
+			if strings.Contains(text, "sources.md") && !slices.Contains([]string{"meta-skill", "meta-refresh"}, filepath.Base(dir)) {
 				t.Errorf("%s: names sources.md, which a session must never load", rel)
 			}
 			for _, file := range append(refs, skill) {
