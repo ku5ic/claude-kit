@@ -105,9 +105,22 @@ var ErrNoASTGrep = errors.New("ast-grep isn't installed")
 // their imports sit in a <script> block, so a text match finds them.
 var componentFiles = set(".vue", ".svelte", ".astro")
 
-// jsImport is an import, export-from, require(), or import() of a literal
-// specifier.
-var jsImport = regexp.MustCompilePOSIX(`(from|import|require[[:space:]]*\(|import[[:space:]]*\()[[:space:]]*['"]([^'"]+)['"]`)
+// jsImport is the literal specifier of an import, export-from, require(),
+// or import().
+var jsImport = regexp.MustCompile(`(?:\bfrom\s*|\bimport\s*\(?\s*|\brequire\s*\(\s*)['"]([^'"\n]+)['"]`)
+
+// Ecosystem is the package ecosystem file's extension belongs to (npm,
+// python, go, rust, ruby), "" for none.
+func Ecosystem(file string) string { return ecosystems[path.Ext(file)] }
+
+// JSSpecs is every literal module specifier src imports, in order.
+func JSSpecs(src string) []string {
+	var out []string
+	for _, m := range jsImport.FindAllStringSubmatch(src, -1) {
+		out = append(out, m[1])
+	}
+	return out
+}
 
 // componentImports is each import in root's component files, its text
 // quoted as ast-grep prints a JS string. Outside a git repo there are none.
@@ -123,8 +136,8 @@ func componentImports(root string, skipDirs []string) []found {
 			continue
 		}
 		for n, line := range strings.Split(string(data), "\n") {
-			for _, m := range jsImport.FindAllStringSubmatch(line, -1) {
-				rows = append(rows, found{file, `"` + m[2] + `"`, n + 1})
+			for _, spec := range JSSpecs(line) {
+				rows = append(rows, found{file, `"` + spec + `"`, n + 1})
 			}
 		}
 	}

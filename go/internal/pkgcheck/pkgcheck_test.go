@@ -87,6 +87,12 @@ func TestUndeclaredJS(t *testing.T) {
 			}
 		})
 	}
+	t.Run("an astro component", func(t *testing.T) {
+		t.Parallel()
+		if got := Undeclared(nil, filepath.Join(app, "src", "Page.astro"), "", "---\nimport x from 'made-up-lib'\n---"); !slices.Equal(got, []string{"made-up-lib"}) {
+			t.Errorf("Undeclared = %q, want [made-up-lib]", got)
+		}
+	})
 	t.Run("a skipped directory", func(t *testing.T) {
 		t.Parallel()
 		if got := Undeclared([]string{"node_modules"}, filepath.Join(app, "node_modules", "x", "i.js"), "", "import 'made-up-lib'"); got != nil {

@@ -6,18 +6,15 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 
+	"github.com/ku5ic/claude-kit/go/internal/codegraph"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 )
 
 var (
-	jsExts = []string{".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".mts", ".cts", ".vue", ".svelte"}
-	// jsImport is a module specifier after from, import, import(, or require(.
-	jsImport = regexp.MustCompile(`(?:\bfrom\s*|\bimport\s*\(?\s*|\brequire\s*\(\s*)['"]([^'"\n]+)['"]`)
 	// nodeBuiltins import without a node: prefix too.
 	nodeBuiltins = []string{"assert", "async_hooks", "buffer", "child_process", "cluster", "console", "constants", "crypto",
 		"dgram", "diagnostics_channel", "dns", "domain", "events", "fs", "http", "http2", "https", "inspector", "module", "net",
@@ -40,10 +37,10 @@ func Undeclared(skipDirs []string, path, before, after string) []string {
 			return nil
 		}
 	}
-	switch ext := filepath.Ext(path); {
-	case ext == ".go":
+	switch codegraph.Ecosystem(path) {
+	case "go":
 		return goUndeclared(path, before, after)
-	case slices.Contains(jsExts, ext):
+	case "npm":
 		return jsUndeclared(path, before, after)
 	}
 	return nil
@@ -132,7 +129,7 @@ func goImports(src string) []string {
 }
 
 func jsUndeclared(path, before, after string) []string {
-	specs := added(jsSpecs(before), jsSpecs(after))
+	specs := added(codegraph.JSSpecs(before), codegraph.JSSpecs(after))
 	if len(specs) == 0 {
 		return nil
 	}
@@ -169,14 +166,6 @@ func jsUndeclared(path, before, after string) []string {
 			continue
 		}
 		out = append(out, name)
-	}
-	return out
-}
-
-func jsSpecs(src string) []string {
-	var out []string
-	for _, m := range jsImport.FindAllStringSubmatch(src, -1) {
-		out = append(out, m[1])
 	}
 	return out
 }

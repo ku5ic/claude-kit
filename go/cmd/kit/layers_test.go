@@ -32,7 +32,7 @@ var layers = map[string]int{
 	"internal/claudecli":       2,
 	"internal/connector":       2,
 	"internal/attribution":     2,
-	"internal/pkgcheck":        2,
+	"internal/pkgcheck":        3,
 	"internal/design":          2,
 	"internal/stats":           2,
 	"internal/hook":            3,
