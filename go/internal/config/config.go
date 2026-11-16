@@ -363,6 +363,10 @@ type WeakenedChecks struct {
 	Skips        []string `yaml:"skips"`
 	Suppressions []string `yaml:"suppressions"`
 	Assertions   []string `yaml:"assertions"`
+	// Snapshots are the snapshot files' globs; SnapshotUpdates, the
+	// commands that rewrite them.
+	Snapshots       []string `yaml:"snapshots"`
+	SnapshotUpdates []string `yaml:"snapshot_updates"`
 }
 
 // problems names each pattern that doesn't compile.
@@ -371,7 +375,7 @@ func (w WeakenedChecks) problems() []error {
 	for _, l := range []struct {
 		name     string
 		patterns []string
-	}{{"skips", w.Skips}, {"suppressions", w.Suppressions}, {"assertions", w.Assertions}} {
+	}{{"skips", w.Skips}, {"suppressions", w.Suppressions}, {"assertions", w.Assertions}, {"snapshot_updates", w.SnapshotUpdates}} {
 		for _, p := range l.patterns {
 			if _, err := regexp.Compile(p); err != nil {
 				errs = append(errs, fmt.Errorf("weakened_checks.%s: %q doesn't compile", l.name, p))

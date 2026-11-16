@@ -117,10 +117,12 @@ func bash(paths config.Paths, cfg *config.Config, cwd, home, command string, w i
 		}
 		fmt.Fprintf(w, "  %d  %s\n", i+1, strings.Join(calls, "  |  "))
 	}
-	h := dryHook(paths, cfg, home, "guard-bash", map[string]any{
-		"tool_name": "Bash", "cwd": cwd, "tool_input": map[string]any{"command": command},
-	})
-	verdict(w, "guard-bash", bashguard.Check(h), h)
+	for _, s := range bashguard.Steps {
+		h := dryHook(paths, cfg, home, s.Name, map[string]any{
+			"tool_name": "Bash", "cwd": cwd, "tool_input": map[string]any{"command": command},
+		})
+		verdict(w, s.Name, s.Check(h), h)
+	}
 	return 0
 }
 

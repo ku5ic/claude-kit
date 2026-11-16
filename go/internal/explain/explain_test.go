@@ -38,6 +38,7 @@ func TestExplain(t *testing.T) {
 		{"bash: an ordinary command passes", []string{"bash", "git status"}, "guard-bash: pass"},
 		{"bash: a lone kit script is allowed", []string{"bash", "kit scratch-dir"}, "guard-bash: allow"},
 		{"bash: a write to the given home's rc file blocks", []string{"bash", "echo x >> " + filepath.Join(home, ".zshrc")}, "guard-bash: block  rc-redirect"},
+		{"bash: an AI co-author line blocks, as the hook does", []string{"bash", "git commit -m \"x\n\nCo-Authored-By: Claude <noreply@anthropic.com>\""}, "guard-attribution: block  ai-attribution"},
 		{"edit: a credential read blocks", []string{"edit", filepath.Join(home, ".ssh/id_rsa"), "Read"}, "guard-edit: block  sensitive-read"},
 		{"edit: a Grep of a credential dir blocks", []string{"edit", filepath.Join(home, ".ssh"), "Grep"}, "guard-edit: block  sensitive-read"},
 		{"edit: a Grep of the repo is allowed with credential files excluded", []string{"edit", repo, "Grep"}, "guard-edit: allow"},

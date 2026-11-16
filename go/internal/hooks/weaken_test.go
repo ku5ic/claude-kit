@@ -52,6 +52,33 @@ func TestGuardWeaken(t *testing.T) {
 		k, path := setup(t)
 		k.run("guard-dispatch", edit(path, "got != 1", "got != 2")).Empty(t)
 	})
+	// snapshot sets up a repo holding a snapshot, starts a turn as a prompt
+	// would, and runs code, which may change files mid-turn, before the edit.
+	snapshot := func(t *testing.T, code func(dir string)) result {
+		k := newSandbox(t)
+		dir := repo(t, filepath.Join(k.home, "proj"))
+		snap := filepath.Join(dir, "src", "__snapshots__", "a.test.ts.snap")
+		testutil.Write(t, snap, "exports[`a`] = `1`;\n")
+		testutil.Write(t, filepath.Join(dir, "src", "a.ts"), "export const a = 1\n")
+		k.run("turn-tree", map[string]any{"hook_event_name": "UserPromptSubmit", "session_id": "s", "cwd": dir}).Want(t, 0)
+		code(dir)
+		return k.run("guard-dispatch", edit(snap, "`1`", "`2`"))
+	}
+	t.Run("a snapshot rewritten in a turn that changed no code asks", func(t *testing.T) {
+		t.Parallel()
+		r := snapshot(t, func(string) {})
+		r.Want(t, 0)
+		r.Has(t, `"permissionDecision":"ask"`, "rewrites the snapshot a.test.ts.snap")
+	})
+	t.Run("a snapshot rewritten after a test-only change asks", func(t *testing.T) {
+		t.Parallel()
+		r := snapshot(t, func(dir string) { testutil.Write(t, filepath.Join(dir, "src", "a.test.ts"), "test('a')\n") })
+		r.Has(t, `"permissionDecision":"ask"`)
+	})
+	t.Run("a snapshot rewritten after a code change goes through", func(t *testing.T) {
+		t.Parallel()
+		snapshot(t, func(dir string) { testutil.Write(t, filepath.Join(dir, "src", "a.ts"), "export const a = 2\n") }).Empty(t)
+	})
 	t.Run("weaken in disabled_rules lets a skip through", func(t *testing.T) {
 		t.Parallel()
 		k, path := setup(t)

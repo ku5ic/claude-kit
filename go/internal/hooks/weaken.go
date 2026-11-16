@@ -3,9 +3,12 @@ package hooks
 import (
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
+	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 	"github.com/ku5ic/claude-kit/go/internal/layout"
@@ -43,6 +46,17 @@ func GuardWeaken(h *hook.Hook) error {
 	}
 	if r.Lost > 0 {
 		h.Decide("ask", fmt.Sprintf("this edit leaves %s with %d fewer assertion line(s). Confirm only if they're redundant or moved", filepath.Base(path), r.Lost))
+		return nil
+	}
+	if weaken.IsSnapshot(cfg.WeakenedChecks, path) && !codeChangedThisTurn(h, cfg.WeakenedChecks) {
+		h.Decide("ask", fmt.Sprintf("this rewrites the snapshot %s in a turn that changed no code, so the test would accept new output nothing explains. Confirm only if the old snapshot was wrong", filepath.Base(path)))
 	}
 	return nil
+}
+
+// codeChangedThisTurn is true when the turn changed a code file, or when
+// there's no record of its start to tell, which asks nothing.
+func codeChangedThisTurn(h *hook.Hook, c config.WeakenedChecks) bool {
+	changed, ok := changedThisTurn(h, git.Toplevel(h.Payload.Cwd()))
+	return !ok || slices.ContainsFunc(changed, func(p string) bool { return weaken.IsCode(c, p) })
 }

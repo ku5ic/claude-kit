@@ -7,6 +7,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/classify"
 	"github.com/ku5ic/claude-kit/go/internal/git"
+	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/layout"
 )
 
@@ -101,6 +102,18 @@ var gitChecks = map[string]func(c *command, args []string, dir string) error{
 	"branch": func(c *command, args []string, _ string) error { return c.gitDelete("branch", args) },
 	"tag":    func(c *command, args []string, _ string) error { return c.gitDelete("tag", args) },
 	"config": (*command).gitConfig,
+	"add":    (*command).gitAdd,
+}
+
+// gitAdd asks before staging a credential file: a commit carries it into
+// history, where taking it out means a rewrite and a key rotation.
+func (c *command) gitAdd(args []string, _ string) error {
+	if slices.ContainsFunc(nonOptions(args), func(p string) bool {
+		return guard.IsSensitive(c.st.cfg, c.st.home, c.st.abs(unquote(p)))
+	}) {
+		c.st.ask("git add stages a credential file, and a commit would carry it into history; confirm it belongs in the repo")
+	}
+	return nil
 }
 
 func (c *command) gitReset(args []string, _ string) error {

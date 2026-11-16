@@ -330,7 +330,9 @@ attribution:
 # What guard-weaken reads an edit by (go/internal/weaken). An added line
 # matching skips (in a test file) or suppressions (in any file but skip's)
 # blocks unless `kit: allow <reason>` is on it or the line above. A test
-# file left with fewer lines matching assertions asks first.
+# file left with fewer lines matching assertions asks first. So does an
+# edit to a snapshots file in a turn that changed no other code, and a
+# command matching snapshot_updates.
 weakened_checks:
   skip: ["*.md", "*.mdx", "*.txt", "*.rst", "*/testdata/*", "*/fixtures/*", "*/kit.yml", "*/claude-kit.local.yml"]
   test_files: ["*_test.go", "*.test.[jt]s", "*.test.[jt]sx", "*.spec.[jt]s", "*.spec.[jt]sx", "*/test_*.py", "*_test.py",
@@ -342,6 +344,8 @@ weakened_checks:
     '//\s*lint:ignore\b']
   assertions: ['\bt\.(Error|Errorf|Fatal|Fatalf|Fail|FailNow)\(', '\b(assert|require)\.[A-Z]\w*\(', '\bexpect\(',
     '\bassert(\.\w+)?\(', '^\s*assert\b', '\bself\.assert\w+\(', '\bpytest\.raises\(']
+  snapshots: ["*.snap", "*/__snapshots__/*"]
+  snapshot_updates: ['\b(jest|vitest|test)\b.*\s(-u|--update(Snapshot|-snapshots?)?)\b', '\bpytest\b.*\s--snapshot-update\b']
 
 # Registry lookups for each package a manager's add verb names
 # (go/internal/pkgcheck): per ecosystem, the managers it covers, the

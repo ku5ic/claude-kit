@@ -43,9 +43,6 @@ var hookChecks = map[string]hook.Check{
 	"check-size":              hooks.CheckSize,
 	"subagent-slop":           hooks.SubagentSlop,
 	"chat-slop":               hooks.ChatSlop,
-	"guard-attribution":       bashguard.CheckAttribution,
-	"guard-commit":            bashguard.CheckCommit,
-	"guard-pr":                bashguard.CheckPR,
 	"log-skills":              hooks.LogSkills,
 	"sanitize-output":         hooks.SanitizeOutput,
 	"inject-context":          hooks.InjectContext,
@@ -60,13 +57,12 @@ var hookChecks = map[string]hook.Check{
 	"review-checks":           hooks.ReviewChecks,
 	"reply-length":            hooks.ReplyLength,
 	"review-report":           hooks.ReviewReport,
-	"guard-bash":              bashguard.Check,
 }
 
 // registry is every `kit hook` name. A test holds it and hooks/hooks.json
 // to each other.
 var registry = map[string]hookDef{
-	"bash-dispatch":      {events: []string{"PreToolUse"}, steps: []string{"guard-bash", "guard-attribution", "guard-commit", "guard-pr", "skills-nudge"}},
+	"bash-dispatch":      {events: []string{"PreToolUse"}, steps: bashSteps()},
 	"guard-dispatch":     {events: []string{"PreToolUse"}, run: hooks.GuardDispatch},
 	"gate-dispatch":      {events: []string{"PreToolUse"}, steps: []string{"rules-gate", "review-report"}},
 	"rules-gate":         {},
@@ -168,6 +164,22 @@ func cmdHook(e *env, args []string, stdin io.Reader) (status int) {
 		named[i] = hook.NamedCheck{Name: s, Check: hookChecks[s]}
 	}
 	return hook.Run(h, named...)
+}
+
+// The bash guards come from bashguard.Steps, which kit explain reads too.
+func init() {
+	for _, s := range bashguard.Steps {
+		hookChecks[s.Name] = s.Check
+	}
+}
+
+// bashSteps are bash-dispatch's steps: bashguard.Steps, then the nudge.
+func bashSteps() []string {
+	names := make([]string, 0, len(bashguard.Steps)+1)
+	for _, s := range bashguard.Steps {
+		names = append(names, s.Name)
+	}
+	return append(names, "skills-nudge")
 }
 
 // skillsNudge is skills-nudge, a Bash command's reads included. hooks and
