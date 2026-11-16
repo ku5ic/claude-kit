@@ -40,4 +40,5 @@ Draft a pattern skill pack for a stack from current docs and this repo's precede
 - Nothing from memory. A version, API shape, or deprecation not traced to step 2's sources stays out of the pack.
 - Cut anything no repo using this stack would hit; a pack is a review aid, not a tutorial.
 - Don't edit `settings.json`; it's the user's config.
+- A procedure skill (`disable-model-invocation: true`) keeps the practice it runs in its own `reference/`, one file per area, behind a "Before | Read" table like a pack's: ADR and RFC practice, rollback, SLOs, semver, what a reviewer checks. Its primary sources go in its own `sources.md`, in a pack's format, so `/meta-refresh` keeps them current. SKILL.md keeps the procedure. Stack specifics stay in the pattern packs, which the skill loads.
 - Pin `model:` or `effort:` only when it differs from the session default. Never both on one skill: Claude Code drops the model override when both are present. A skill forks (`context: fork`) only to carry a `model:` pin or to name an `agent:`.

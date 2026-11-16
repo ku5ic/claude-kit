@@ -11,7 +11,7 @@ Check reference skills against the current language or framework release and upd
 
 ## What this maintains
 
-Reference skills are every skill outside the `exempt` list in `go/e2e/kit_repo_test.go`. Each outside its `unversioned` list keeps its sources in `skills/<name>/sources.md`, which nothing links and only this procedure reads. There, per file, a References list, a Claims list naming each claim's source, and under `## SKILL.md` the Version notes this skill owns:
+Reference skills are every skill with a `sources.md`; `go/e2e/kit_repo_test.go` says which must have one. Each keeps its sources in `skills/<name>/sources.md`, which nothing links and only this procedure reads. There, per file, a References list, a Claims list naming each claim's source, and under `## SKILL.md` the Version notes this skill owns:
 
 ```markdown
 ### Version notes

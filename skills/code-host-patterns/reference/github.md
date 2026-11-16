@@ -4,17 +4,18 @@ The `gh` CLI. `<repo>` is `owner/repo`; every `gh pr` call passes `-R <repo>`.
 
 ## Read
 
-| Operation                    | Command                                                                                                                                                                                                  |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Repository path              | `gh repo view --json nameWithOwner -q .nameWithOwner`                                                                                                                                                    |
-| Current user                 | `gh api user -q .login`                                                                                                                                                                                  |
-| The current branch's open PR | `gh pr view --json number,url`                                                                                                                                                                           |
-| Head SHA, title, body, files | `gh pr view <n> --json headRefOid,headRefName,title,body,files`                                                                                                                                          |
-| Diff                         | `gh pr diff <n>`                                                                                                                                                                                         |
-| Head ref to fetch            | `+pull/<n>/head:refs/pr/<n>`                                                                                                                                                                             |
-| Review threads               | `gh api repos/<repo>/pulls/<n>/comments --paginate`, and `.../reviews` for review bodies                                                                                                                 |
-| Link to a line at the head   | `<repo web URL>/pull/<n>/files#diff-<sha256 of path>R<line>`                                                                                                                                             |
-| PR template                  | `.github/pull_request_template.md`, `.github/PULL_REQUEST_TEMPLATE.md`, the alphabetically first `*.md` in `.github/PULL_REQUEST_TEMPLATE/`, `docs/pull_request_template.md`, `pull_request_template.md` |
+| Operation                       | Command                                                                                                                                                                                                  |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Repository path                 | `gh repo view --json nameWithOwner -q .nameWithOwner`                                                                                                                                                    |
+| Current user                    | `gh api user -q .login`                                                                                                                                                                                  |
+| The current branch's open PR    | `gh pr view --json number,url`                                                                                                                                                                           |
+| Head SHA, title, body, files    | `gh pr view <n> --json headRefOid,headRefName,title,body,files`                                                                                                                                          |
+| Diff                            | `gh pr diff <n>`                                                                                                                                                                                         |
+| Head ref to fetch               | `+pull/<n>/head:refs/pr/<n>`                                                                                                                                                                             |
+| Review threads                  | `gh api repos/<repo>/pulls/<n>/comments --paginate`, and `.../reviews` for review bodies                                                                                                                 |
+| Review comments across the repo | `gh api "repos/<repo>/pulls/comments?since=<ISO date>" --paginate`, each with `body`, `path`, `html_url`, and `user.login`                                                                               |
+| Link to a line at the head      | `<repo web URL>/pull/<n>/files#diff-<sha256 of path>R<line>`                                                                                                                                             |
+| PR template                     | `.github/pull_request_template.md`, `.github/PULL_REQUEST_TEMPLATE.md`, the alphabetically first `*.md` in `.github/PULL_REQUEST_TEMPLATE/`, `docs/pull_request_template.md`, `pull_request_template.md` |
 
 A diff `gh pr diff` refuses as too large (it stops at 300 files) comes from the fetched head instead: `git diff <remote>/<base branch>...refs/pr/<n>`, after `git fetch <remote> <base branch>`. The line link's hash is `printf '%s' "<path>" | shasum -a 256`.
 

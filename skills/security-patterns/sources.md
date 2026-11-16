@@ -66,6 +66,8 @@ Not caught by defaults, so kept: SQL built by concatenation, an f-string, or `%`
 - npm audit: https://docs.npmjs.com/cli/v12/commands/npm-audit
 - pip-audit: https://pypi.org/project/pip-audit/
 - bundler-audit: https://github.com/rubysec/bundler-audit
+- npm lifecycle scripts: https://docs.npmjs.com/cli/v11/using-npm/scripts/
+- npm provenance: https://docs.npmjs.com/generating-provenance-statements
 
 ### Claims
 

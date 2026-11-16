@@ -25,19 +25,18 @@ This command names no specific package manager, lockfile, manifest, or code host
 - Do not hardcode any tool's syntax.
 - Never run checks locally. The gate: `skills/kit-rules/reference/verify.md` section 1.
 
+Loading this skill isn't enough. Before the step a row names, read its file.
+
+| Before                                    | Read                                                       |
+| ----------------------------------------- | ---------------------------------------------------------- |
+| Finding the bots, or asking one to rebase | [reference/bots.md](reference/bots.md)                     |
+| Phase 5, `--fix-transitive`               | [reference/fix-transitive.md](reference/fix-transitive.md) |
+
 ## Preconditions
 
 1. Find the host and its CLI (`skills/kit-rules/reference/tooling.md` section 4), load code-host-patterns, and read the host's file. No CLI and no connector, or the CLI isn't authenticated: stop and report.
 2. Resolve `<repo>` with the host's repository-path call. If it fails, there's no remote on a supported host, so stop.
-3. Find the bots from the repo's config files:
-
-   | Bot        | Config file                                                                                                                                                | Branch prefix                              | Rebase request                                         |
-   | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------ |
-   | Dependabot | `.github/dependabot.yml` or `.yaml`                                                                                                                        | `dependabot/`                              | the comment `@dependabot rebase`                       |
-   | Renovate   | `renovate.json`, `.json5`, or `.jsonc`, the same under `.github/` or `.gitlab/`, `.renovaterc`, `.renovaterc.json*`, or a `renovate` key in `package.json` | its `branchPrefix`, by default `renovate/` | the label its `rebaseLabel` names, by default `rebase` |
-
-   Neither: say so, and run on the security alerts alone.
-
+3. Find the bots from the repo's config files, per [reference/bots.md](reference/bots.md). Neither: say so, and run on the security alerts alone.
 4. Base branch: `kit git-base`. Merge target and rebase base; do not re-derive it.
 5. Working tree must be clean. If `git status --porcelain` is non-empty, stop and surface.
 
@@ -47,7 +46,7 @@ This command names no specific package manager, lockfile, manifest, or code host
 
 The host's open bot PRs, kept when the head branch starts with a bot's prefix.
 
-Classify each PR by semver bump, patch, minor, or major: from the title when it names both versions (`Bump x from 1.2.3 to 1.2.4`), else from the version table in its body.
+Classify each PR by semver bump, patch, minor, or major: from the title when it names both versions (`Bump x from 1.2.3 to 1.2.4`), else from the target version against the one the manifest or lockfile pins.
 
 ### 1b. Security alerts (authoritative for severity; audit is only a cross-check)
 
@@ -83,14 +82,14 @@ Present a table: severity, package, ecosystem, scope, relationship, current -> f
 
 ## Phase 3: resolve conflicts
 
-1. Ask the bot to rebase, its request from the Preconditions table, then poll mergeability.
+1. Ask the bot to rebase, its request from [reference/bots.md](reference/bots.md), then poll mergeability.
 2. If still conflicting, resolve locally:
    - Check the PR out with the host's checkout (`skills/kit-rules/reference/workflow.md` section 1).
    - `git rebase <base>` (base from Precondition 4)
    - Lockfile conflict: take the incoming dependency change, then regenerate the lockfile with the injected manager's lockfile-only install. Never hand-merge a lockfile.
    - Manifest conflict: merge both edits keeping the higher compatible version, then regenerate the lockfile.
    - `git add` resolved files, `git rebase --continue`.
-3. Bot branches are bot-owned; force pushing one is `skills/kit-rules/reference/workflow.md` sections 1 and 2. A commit pushed to a Renovate branch stops Renovate updating it, so prefer the rebase request.
+3. Bot branches are bot-owned; force pushing one is `skills/kit-rules/reference/workflow.md` sections 1 and 2. Prefer the rebase request: a pushed commit stops some bots updating the branch (`reference/bots.md`).
 
 ## Phase 4: verify then merge
 
@@ -106,7 +105,7 @@ Process priority-tier alerts first.
 
 ## Phase 5: manual remediation of alerts with no PR (opt-in, best-effort)
 
-Runs only when $ARGUMENTS contains `--fix-transitive`; then read [reference/fix-transitive.md](reference/fix-transitive.md) and follow it. Without the flag, skip to Phase 6.
+Runs only when $ARGUMENTS contains `--fix-transitive`; then follow [reference/fix-transitive.md](reference/fix-transitive.md). Without the flag, skip to Phase 6.
 
 ## Phase 6: report
 

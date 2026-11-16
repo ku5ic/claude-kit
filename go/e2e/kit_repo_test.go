@@ -96,7 +96,10 @@ func TestKitRepo(t *testing.T) {
 		// The skills that aren't reference skills, so keep no sources.md;
 		// skills/meta-refresh/SKILL.md points here for the list.
 		// A skill only the user invokes (disable-model-invocation) is a
-		// procedure, and so are these.
+		// procedure, and so are these. A procedure skill with a reference/
+		// keeps its sources too (skills/meta-skill/SKILL.md, Rules), but
+		// its description and SKILL.md load only when the user types it,
+		// so no budget holds them.
 		exempt := []string{"investigate", "report-format", "kit-rules", "slop-patterns"}
 		// Reference skills with no version-dependent content: no sources.md,
 		// and /meta-refresh takes them only when named.
@@ -109,7 +112,9 @@ func TestKitRepo(t *testing.T) {
 			dir := filepath.Dir(skill)
 			text := Read(t, skill)
 			front, _ := frontmatter(text)
-			if slices.Contains(exempt, filepath.Base(dir)) || front["disable-model-invocation"] == "true" {
+			procedure := front["disable-model-invocation"] == "true"
+			refs, _ := filepath.Glob(filepath.Join(dir, "reference", "*.md"))
+			if slices.Contains(exempt, filepath.Base(dir)) || procedure && len(refs) == 0 {
 				continue
 			}
 			rel, _ := filepath.Rel(kitRoot, skill)
@@ -117,16 +122,15 @@ func TestKitRepo(t *testing.T) {
 			if _, err := os.Stat(filepath.Join(dir, "sources.md")); err != nil && !slices.Contains(unversioned, filepath.Base(dir)) {
 				t.Errorf("%s: no sources.md; add it, or the skill to exempt if it's not a reference skill", rel)
 			}
-			if n := len(front["description"]); n == 0 || n > maxDescription {
+			if n := len(front["description"]); !procedure && (n == 0 || n > maxDescription) {
 				t.Errorf("%s: description is %d characters, want 1 to %d", rel, n, maxDescription)
 			}
-			if len(text) > maxSkill {
+			if !procedure && len(text) > maxSkill {
 				t.Errorf("%s: %d bytes, over the %d-byte budget", rel, len(text), maxSkill)
 			}
 			if strings.Contains(text, "sources.md") {
 				t.Errorf("%s: names sources.md, which a session must never load", rel)
 			}
-			refs, _ := filepath.Glob(filepath.Join(dir, "reference", "*.md"))
 			for _, file := range append(refs, skill) {
 				rel, _ := filepath.Rel(kitRoot, file)
 				for n, line := range proseLines(Read(t, file)) {

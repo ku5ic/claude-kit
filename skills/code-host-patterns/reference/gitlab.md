@@ -4,17 +4,18 @@ The `glab` CLI. `<repo>` is `group/project`, URL-encoded (`/` as `%2F`) in an AP
 
 ## Read
 
-| Operation                    | Command                                                                                                                |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Repository path              | `glab repo view -F json`, its `path_with_namespace`                                                                    |
-| Current user                 | `glab api user`, its `username`                                                                                        |
-| The current branch's open PR | `glab mr view -F json`, its `iid` and `web_url`                                                                        |
-| Head SHA, title, body, files | `glab mr view <n> -F json`: `sha`, `source_branch`, `title`, `description`, `diff_refs`                                |
-| Diff                         | `glab mr diff <n>`                                                                                                     |
-| Head ref to fetch            | `+merge-requests/<n>/head:refs/pr/<n>`                                                                                 |
-| Review threads               | `glab api projects/<repo>/merge_requests/<n>/discussions --paginate`; a diff note's `position` holds its path and line |
-| Link to a line at the head   | `<project web_url>/-/blob/<sha>/<path>#L<line>`                                                                        |
-| PR template                  | `.gitlab/merge_request_templates/Default.md`, any letter case                                                          |
+| Operation                       | Command                                                                                                                                                                                       |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Repository path                 | `glab repo view -F json`, its `path_with_namespace`                                                                                                                                           |
+| Current user                    | `glab api user`, its `username`                                                                                                                                                               |
+| The current branch's open PR    | `glab mr view -F json`, its `iid` and `web_url`                                                                                                                                               |
+| Head SHA, title, body, files    | `glab mr view <n> -F json`: `sha`, `source_branch`, `title`, `description`, `diff_refs`                                                                                                       |
+| Diff                            | `glab mr diff <n>`                                                                                                                                                                            |
+| Head ref to fetch               | `+merge-requests/<n>/head:refs/pr/<n>`                                                                                                                                                        |
+| Review threads                  | `glab api projects/<repo>/merge_requests/<n>/discussions --paginate`; a diff note's `position` holds its path and line                                                                        |
+| Review comments across the repo | `glab mr list -R <repo> --merged --per-page 100 -F json`, then each MR's `glab api "projects/<repo>/merge_requests/<n>/notes?per_page=100" --paginate`, dropping notes whose `system` is true |
+| Link to a line at the head      | `<project web_url>/-/blob/<sha>/<path>#L<line>`                                                                                                                                               |
+| PR template                     | `.gitlab/merge_request_templates/Default.md`, any letter case                                                                                                                                 |
 
 A line note needs the MR's `diff_refs`: `base_sha`, `start_sha`, and `head_sha`. A diff `glab mr diff` can't give comes from the fetched head: `git diff <remote>/<base branch>...refs/pr/<n>`, after `git fetch <remote> <base branch>`.
 
