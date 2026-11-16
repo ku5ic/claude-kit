@@ -498,7 +498,8 @@ func agentTranscript(p *hook.Payload) string {
 var checkedReports = []string{
 	"explore", "debug", "review",
 	"a11y", "arch", "ci", "debt", "doc-drift", "infra", "perf", "security", "slop", "verify",
-	"challenge", "contract", "evaluate", "history", "impact", "migrate", "tour", "visual",
+	"readiness", "tokens",
+	"challenge", "contract", "evaluate", "from-design", "history", "impact", "migrate", "tour", "visual",
 }
 
 // atScratchRoot is true for a file directly in a scratch dir, where
