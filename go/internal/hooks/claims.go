@@ -498,7 +498,7 @@ func agentTranscript(p *hook.Payload) string {
 var checkedReports = []string{
 	"explore", "debug", "review",
 	"a11y", "arch", "ci", "debt", "doc-drift", "infra", "perf", "security", "slop", "verify",
-	"readiness", "tokens",
+	"flags", "readiness", "tokens",
 	"challenge", "contract", "evaluate", "from-design", "history", "impact", "migrate", "tour", "visual",
 }
 

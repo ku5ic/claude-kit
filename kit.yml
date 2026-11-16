@@ -410,7 +410,7 @@ size_budgets:
 # the plugin's, 500 characters at most.
 chat_bundle:
   description: The kit's writing and investigation skills for claude.ai chat, working on pasted text and code. Hooks and guards stay in Claude Code.
-  skills: [engineering-fundamentals, investigate, slop-patterns, unslop, write-adr, write-commit, write-devnote, write-explainer, write-release-notes, write-rfc, write-stakeholder, write-tickets]
+  skills: [engineering-fundamentals, investigate, slop-patterns, unslop, write-adr, write-commit, write-devnote, write-explainer, write-release-notes, write-rfc, write-retro, write-runbook, write-stakeholder, write-tickets]
   rules: [skills/kit-rules/reference/output.md, skills/kit-rules/reference/evidence.md, skills/kit-rules/reference/change.md]
 
 # Shell rc files: direct writes are blocked, the dotfiles repo is the source.

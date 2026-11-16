@@ -1,4 +1,4 @@
-# meta-retro sources
+# write-retro sources
 
 The sources and version notes behind this skill, for `/meta-refresh`. Nothing links here, so a session never loads it.
 
@@ -7,6 +7,7 @@ The sources and version notes behind this skill, for `/meta-refresh`. Nothing li
 ### References
 
 - Google SRE book, postmortem culture: https://sre.google/sre-book/postmortem-culture/
+- SRE workbook, postmortem culture: https://sre.google/workbook/postmortem-culture/
 
 ### Version notes
 
