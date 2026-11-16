@@ -217,15 +217,32 @@ func TestKitRepo(t *testing.T) {
 		}
 	})
 
-	t.Run("the README's Dependencies table has a row for every kit.yml tool", func(t *testing.T) {
+	t.Run("docs/cli.md's Dependencies table has a row for every kit.yml tool", func(t *testing.T) {
 		cfg, _, err := config.Load(config.Paths{Base: filepath.Join(kitRoot, "kit.yml"), Overlay: filepath.Join(t.TempDir(), "none.yml")})
 		if err != nil {
 			t.Fatal(err)
 		}
-		readme := Read(t, filepath.Join(kitRoot, "README.md"))
+		page := Read(t, filepath.Join(kitRoot, "docs", "cli.md"))
 		for _, tool := range cfg.Tools {
-			if !regexp.MustCompile("(?m)^\\| `" + regexp.QuoteMeta(tool) + "` +\\|").MatchString(readme) {
-				t.Errorf("kit.yml tools has %s, which the README's Dependencies table has no row for", tool)
+			if !regexp.MustCompile("(?m)^\\| `" + regexp.QuoteMeta(tool) + "` +\\|").MatchString(page) {
+				t.Errorf("kit.yml tools has %s, which docs/cli.md's Dependencies table has no row for", tool)
+			}
+		}
+	})
+
+	t.Run("docs/commands.md lists every command and docs/skills.md every other skill", func(t *testing.T) {
+		commands := Read(t, filepath.Join(kitRoot, "docs", "commands.md"))
+		skills := Read(t, filepath.Join(kitRoot, "docs", "skills.md"))
+		dirs, _ := filepath.Glob(filepath.Join(kitRoot, "skills", "*", "SKILL.md"))
+		for _, skill := range dirs {
+			name := filepath.Base(filepath.Dir(skill))
+			front, _ := frontmatter(Read(t, skill))
+			page, row, rel := skills, "`"+name+"`", "docs/skills.md"
+			if front["disable-model-invocation"] == "true" {
+				page, row, rel = commands, "`/"+name+"`", "docs/commands.md"
+			}
+			if !regexp.MustCompile("(?m)^\\| " + regexp.QuoteMeta(row) + " +\\|").MatchString(page) {
+				t.Errorf("%s has no row for %s", rel, row)
 			}
 		}
 	})

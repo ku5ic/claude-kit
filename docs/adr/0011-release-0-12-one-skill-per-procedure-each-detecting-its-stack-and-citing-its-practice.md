@@ -32,6 +32,7 @@ Sources are the commits on `feat/kit-0-12-0`, each named where it's used.
 - Each claim-checker flag goes to `claims.jsonl` as kept or dropped, and `kit stats` reads it with `guards.jsonl` (`f20bc36`).
 - A Read or edit of a file an accepted ADR cites gets that ADR's title and Decision once per session (`10f17ff`).
 - `/meta-retro` is a retro on Claude Code sessions, one or many, every finding cited to the transcript (`7ec6f07`). The incident, sprint, and feature retro is `/write-retro` (`871da10`).
+- The README keeps what decides an install and links the rest. `docs/commands.md`, `docs/skills.md`, `docs/cli.md`, and `docs/chat.md` join the people-facing pages [9](0009-release-0-10-the-engineer-in-the-loop-the-rules-as-a-gated-skill-a-visible-claim-checker.md) named, on its terms, and `go/e2e/kit_repo_test.go` fails when a skill has no row in the commands or skills page.
 
 ## Consequences
 
