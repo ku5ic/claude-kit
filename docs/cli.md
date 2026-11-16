@@ -22,7 +22,8 @@ Every hook runs through one `kit` binary, and the same binary answers the questi
 | Check my overlay for unknown keys and wrong types                | `kit config --check`                                  |
 | Scan a text for AI tells                                         | `kit slop <file>`                                     |
 | Check two colours' contrast against WCAG                         | `kit contrast <fg> <bg>`                              |
-| Prune old scratch files                                          | `kit scratch-rotate`                                  |
+| Prune old scratch files now, not at the next day's first session | `kit scratch-rotate`                                  |
+| Remove the kit's logs, caches, and scratch before uninstalling   | `kit clean`, then `kit clean --yes`                   |
 
 ## In your own terminal
 

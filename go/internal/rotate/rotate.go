@@ -28,7 +28,7 @@ import (
 // Run is `kit scratch-rotate [days] [--dry-run]`; it returns the exit status.
 // Registry entries must sit under home.
 func Run(paths config.Paths, home string, n int, dryRun bool, stdout, stderr io.Writer) int {
-	r := &rotator{now: time.Now(), dryRun: dryRun, log: filepath.Join(paths.LogDir(), "scratch-rotate.log"),
+	r := &rotator{now: time.Now(), dryRun: dryRun, log: rotateLog(paths),
 		verb: "deleted", pruned: "pruned", stdout: stdout}
 	if dryRun {
 		r.verb, r.pruned = "would-delete", "would prune"
@@ -46,6 +46,33 @@ func Run(paths config.Paths, home string, n int, dryRun bool, stdout, stderr io.
 	}
 	r.registry(paths.ScratchRegistry(), home, n, stderr)
 	return 0
+}
+
+// rotateLog lists every path Run deleted.
+func rotateLog(paths config.Paths) string { return filepath.Join(paths.LogDir(), "scratch-rotate.log") }
+
+// dailyStamp holds the time Daily last ran.
+func dailyStamp(paths config.Paths) string {
+	return filepath.Join(paths.CacheDir(), "scratch-rotate.stamp")
+}
+
+// DefaultDays is the retention window when none is given.
+const DefaultDays = 30
+
+// Daily is Run with the default window, at most once a day: a stamp in the
+// cache dir records the last run. It reports whether it ran, and prints
+// nothing; every deleted path is in the rotate log.
+func Daily(paths config.Paths, home string, now time.Time) bool {
+	stamp := dailyStamp(paths)
+	if data, err := os.ReadFile(stamp); err == nil {
+		if last, err := time.Parse(time.RFC3339, strings.TrimSpace(string(data))); err == nil && now.Sub(last) < 24*time.Hour {
+			return false
+		}
+	}
+	Run(paths, home, DefaultDays, false, io.Discard, io.Discard)
+	_ = os.MkdirAll(paths.CacheDir(), 0o755)
+	_ = os.WriteFile(stamp, []byte(now.UTC().Format(time.RFC3339)+"\n"), 0o644)
+	return true
 }
 
 // registry prunes every project scratch dir the registry lists by age
@@ -247,4 +274,47 @@ func writeLines(path string, lines []string) {
 		b.WriteByte('\n')
 	}
 	_ = fsx.WriteAtomic(path, []byte(b.String()), 0o600)
+}
+
+// Clean is `kit clean [--yes]`: it removes the kit's own state, for an
+// uninstall, and with no --yes only lists it. Each path is named, never a
+// whole folder the kit shares with Claude Code (~/.claude/cache, logs).
+// Project scratch folders sit in their repos, so they're listed, not removed.
+func Clean(paths config.Paths, yes bool, stdout io.Writer) int {
+	owned := []string{
+		paths.LogFile(kitlog.Skills), paths.LogFile(kitlog.Guards), paths.LogFile(kitlog.Claims),
+		paths.ScratchRegistry(), rotateLog(paths), paths.ConfigCache(), dailyStamp(paths), paths.ScratchHome(),
+	}
+	for _, d := range cache.Dirs {
+		owned = append(owned, filepath.Join(paths.CacheDir(), d.Name))
+	}
+	projects, _ := os.ReadFile(paths.ScratchRegistry())
+	verb := "would remove"
+	if yes {
+		verb = "removed"
+	}
+	code := 0
+	for _, p := range owned {
+		if _, err := os.Lstat(p); err != nil {
+			continue
+		}
+		if yes {
+			if err := os.RemoveAll(p); err != nil {
+				fmt.Fprintf(stdout, "clean: %v\n", err)
+				code = 1
+				continue
+			}
+		}
+		fmt.Fprintf(stdout, "%s %s\n", verb, p)
+	}
+	for line := range strings.Lines(string(projects)) {
+		if line = strings.TrimSpace(line); line == "" {
+			continue
+		}
+		fmt.Fprintf(stdout, "left in its repo: %s\n", line)
+	}
+	if !yes {
+		fmt.Fprintln(stdout, "kit clean --yes removes them")
+	}
+	return code
 }

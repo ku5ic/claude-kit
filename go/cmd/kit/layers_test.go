@@ -48,7 +48,7 @@ var layers = map[string]int{
 	"internal/hooks":           7,
 	"internal/stackctx":        6,
 	"internal/explain":         8,
-	"internal/rotate":          8,
+	"internal/rotate":          2,
 	"internal/blast":           8,
 	"internal/codegraph":       2,
 	"internal/chatbundle":      8,

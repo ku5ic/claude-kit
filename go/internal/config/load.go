@@ -95,7 +95,7 @@ func (w Warning) String() string { return w.File + ": " + w.Err.Error() }
 // back as warnings naming the file. The result is cached on disk until
 // either file changes, since every hook call would otherwise pay the parse.
 func Load(p Paths) (*Config, []Warning, error) {
-	file, key := p.cacheFile(), cacheKey(p)
+	file, key := p.ConfigCache(), cacheKey(p)
 	if file == "" || key == "" {
 		return load(p)
 	}

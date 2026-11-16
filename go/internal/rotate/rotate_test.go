@@ -3,6 +3,7 @@ package rotate
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -350,5 +351,63 @@ func TestRunRemovesEmptyProjectFolders(t *testing.T) {
 			data, _ := os.ReadFile(filepath.Join(paths.LogDir(), "scratch-rotate.log"))
 			testutil.Has(t, strings.ReplaceAll(string(data), scratch, "$S"), tt.logged...)
 		})
+	}
+}
+
+func TestDailyRunsOnceADay(t *testing.T) {
+	t.Parallel()
+	dir := physicalTemp(t)
+	paths := kitHome(t, dir)
+	touch(t, paths.ScratchHome(), "old.md", 40*day)
+	now := time.Now()
+	if !Daily(paths, dir, now) || exists(filepath.Join(paths.ScratchHome(), "old.md")) {
+		t.Fatal("the first run of the day didn't prune")
+	}
+	touch(t, paths.ScratchHome(), "old.md", 40*day)
+	if Daily(paths, dir, now.Add(time.Hour)) || !exists(filepath.Join(paths.ScratchHome(), "old.md")) {
+		t.Error("a second run within a day pruned")
+	}
+	if !Daily(paths, dir, now.Add(25*time.Hour)) || exists(filepath.Join(paths.ScratchHome(), "old.md")) {
+		t.Error("a run a day later didn't prune")
+	}
+}
+
+func TestCleanRemovesOnlyTheKitsOwnState(t *testing.T) {
+	t.Parallel()
+	dir := physicalTemp(t)
+	paths := kitHome(t, dir)
+	kit := []string{
+		paths.LogFile("guards"), paths.LogFile("claims"), paths.LogFile("skills"), paths.ScratchRegistry(),
+		filepath.Join(paths.LogDir(), "scratch-rotate.log"), filepath.Join(paths.CacheDir(), "stack", "x"),
+		filepath.Join(paths.CacheDir(), "config.gob"), filepath.Join(paths.ScratchHome(), "report.md"),
+	}
+	others := []string{filepath.Join(paths.CacheDir(), "changelog.md"), filepath.Join(paths.LogDir(), "other.log"), filepath.Join(paths.PlansHome(), "p.md")}
+	for _, p := range append(slices.Clone(kit), others...) {
+		testutil.Write(t, p, "x")
+	}
+	var out strings.Builder
+	if code := Clean(paths, false, &out); code != 0 {
+		t.Fatalf("dry run exit %d", code)
+	}
+	for _, p := range kit {
+		if !exists(p) {
+			t.Errorf("the dry run removed %s", p)
+		}
+	}
+	if !strings.Contains(out.String(), "would remove") || !strings.Contains(out.String(), "--yes") {
+		t.Errorf("dry run output:\n%s", out.String())
+	}
+	if code := Clean(paths, true, &out); code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	for _, p := range kit {
+		if exists(p) {
+			t.Errorf("%s survived", p)
+		}
+	}
+	for _, p := range others {
+		if !exists(p) {
+			t.Errorf("%s isn't the kit's, and went", p)
+		}
 	}
 }

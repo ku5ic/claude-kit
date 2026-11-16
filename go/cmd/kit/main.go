@@ -143,6 +143,7 @@ var commands = map[string]command{
 	"git-base":       {needsNothing, streams(gitbase.Run)},
 	"config":         {needsEnv, envOnly(cmdConfig)},
 	"scratch-rotate": {needsEnv, envOnly(cmdScratchRotate)},
+	"clean":          {needsEnv, envOnly(cmdClean)},
 	"scratch-dir":    {needsEnv, envOnly(cmdScratchDir)},
 	"project-root":   {needsEnv, envOnly(cmdProjectRoot)},
 	"adrs":           {needsEnv, envOnly(cmdADRs)},
@@ -265,6 +266,17 @@ func cmdScratchRotate(e *env, args []string) int {
 		return 2
 	}
 	return rotate.Run(e.paths, e.home, days, dryRun, e.stdout, e.stderr)
+}
+
+func cmdClean(e *env, args []string) int {
+	switch {
+	case len(args) == 0:
+		return rotate.Clean(e.paths, false, e.stdout)
+	case len(args) == 1 && args[0] == "--yes":
+		return rotate.Clean(e.paths, true, e.stdout)
+	}
+	fmt.Fprintln(e.stderr, "usage: kit clean [--yes]")
+	return 2
 }
 
 // runChecksArgs are run-checks' arguments.
@@ -415,10 +427,10 @@ func cmdDetectStack(e *env, cfg *config.Config, _ []string) int {
 
 var positive = regexp.MustCompile(`^[1-9][0-9]*$`)
 
-// parseDays reads a [days] argument: a positive integer, 30 when absent.
+// parseDays reads a [days] argument: a positive integer, rotate.DefaultDays when absent.
 func parseDays(arg string, stderr io.Writer) (int, bool) {
 	if arg == "" {
-		return 30, true
+		return rotate.DefaultDays, true
 	}
 	if !positive.MatchString(arg) {
 		fmt.Fprintf(stderr, "scratch-rotate: [days] must be a positive integer, got '%s'\n", arg)

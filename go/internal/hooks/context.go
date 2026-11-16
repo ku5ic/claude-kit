@@ -22,6 +22,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/resolve/kittool"
+	"github.com/ku5ic/claude-kit/go/internal/rotate"
 	"github.com/ku5ic/claude-kit/go/internal/run"
 	"github.com/ku5ic/claude-kit/go/internal/sources"
 	"github.com/ku5ic/claude-kit/go/internal/stackctx"
@@ -54,6 +55,7 @@ func InjectContext(h *hook.Hook) error {
 	if !h.DryRun {
 		now := time.Now()
 		cache.Prune(h.Paths.CacheDir(), now)
+		rotate.Daily(h.Paths, h.Home, now)
 		if top := git.Toplevel(h.Payload.Cwd()); top != "" {
 			run.PruneRestorePoints(top, now)
 		}

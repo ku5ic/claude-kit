@@ -441,6 +441,17 @@ dependency_skills:
 			t.Errorf("tooling:\n%s", block)
 		}
 	})
+	t.Run("session start prunes scratch once a day", func(t *testing.T) {
+		t.Parallel()
+		e := contextSetup(t)
+		old := filepath.Join(e.claude, "scratch", "old.md")
+		testutil.Write(t, old, "")
+		testutil.Age(t, 40*24*time.Hour, old)
+		e.inject("s1", "").Want(t, 0)
+		if _, err := os.Stat(old); err == nil {
+			t.Error("a 40-day-old scratch report survived session start")
+		}
+	})
 	t.Run("tooling: tools are split into available and missing by PATH", func(t *testing.T) {
 		t.Parallel()
 		e := contextSetup(t)
