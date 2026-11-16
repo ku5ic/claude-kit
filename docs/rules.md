@@ -80,6 +80,8 @@ Every skill with references lists them in a "Before | Read" table: an action, th
 
 **Plans change on the engineer's word.** Plan mode is for discussion. A plan edited on every passing idea drifts from what was agreed, and the plan-changes hook prints a change list on resubmit so the engineer sees exactly what moved. An answer to a question about the plan is the engineer's word too: left out of the plan file, it makes the plan stale, and the step-pause review sheet flags each file the plan doesn't name (`lookReasons` in `go/internal/hooks/reviewsheet.go`).
 
+**Procedure skills assume nothing and do their own prerequisites.** A skill that names one stack, host, or vendor fails silently everywhere else, so it detects them and takes specifics from the pattern skills. A skill that answers "run `/code-visual` first" sends the user off to type a second command for output it could build itself (`/code-tour` did, before 0.12.0). The exception is input the user has to vet, such as a draft to post.
+
 **Questions are batched.** A question in the middle of a step interrupts work the engineer thought was running. Batching at plan time and at pauses, with a recommended option, turns each answer into a quick decision that's recorded and never asked again.
 
 **The reason comes from the engineer.** A reason the model invents reads plausible and may be wrong, and it ends up in commit messages and PR descriptions under the engineer's name.

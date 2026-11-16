@@ -22,7 +22,7 @@ An onboarding walk through a repo for someone new to it: where it starts, one pa
 
 1. Root: `git -C <path or cwd> rev-parse --show-toplevel`. A subdirectory argument narrows every step to it.
 2. Read the project CLAUDE.md, README, and CONTRIBUTING first. The tour uses the project's own names, and links to what those files already explain instead of restating it.
-3. When `/code-visual` has run, its `<arch>/README.md` (`skills/code-visual/SKILL.md` Inputs step 5) holds the containers and module graph. First run `kit code-graph check-c4 <arch> <raw> <root>`, with `<raw>` from `visual.md` Collect step 4, and its fallback without ast-grep. It passes: link the README, and skip drawing them again. It lists problems: name them, and ask with AskUserQuestion whether to refresh the model with `/code-visual` first, or go on without it.
+3. Architecture: `<arch>` is the model folder from `skills/code-visual/SKILL.md` Inputs step 5, and its `README.md` holds the containers and module graph. Run `kit code-graph check-c4 <arch> <raw> <root>`, with `<raw>` from that skill's Collect step 4 and its fallback without ast-grep. No model, or check-c4 lists problems: run the code-visual skill's procedure with `since: 6.months`, which writes the model under `<arch>`. Then link the README, and skip drawing what it holds.
 
 ## Collect
 
@@ -39,7 +39,7 @@ Write to the path `kit scratch-dir tour <repo-slug>` prints.
 ```markdown
 # <project>: tour
 
-Root: <root> at <short HEAD hash>. Architecture: <link to `<arch>/README.md`, or "run `/code-visual`">.
+Root: <root> at <short HEAD hash>. Architecture: <link to `<arch>/README.md`>.
 
 ## TL;DR
 

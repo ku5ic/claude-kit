@@ -38,6 +38,7 @@ Git, side effects, plans, and when to ask.
 - The procedure skills (`audit-*`, `code-*`, `write-*`, `pr-*`, `meta-*`, `/deps`, `/unslop`) run only when the user types them.
 - An `audit-*` or `code-*` skill is read-only on the repo: it writes only its scratch report, its raw folder, and the paths it names, and posts nothing. `/code-deep-review` of a PR or branch checks it out.
 - A procedure skill assumes no language, framework, code host, or vendor. It detects the stack (`kit detect-stack`), the host and connectors (`skills/kit-rules/reference/tooling.md` section 4), and takes stack specifics from the matching pattern skill. A stack with no pattern skill: work from the project's own configs, and say so. Unsure which applies: ask.
+- A procedure skill does its own prerequisites. When it needs what another skill produces (a model, a report), it runs that skill's procedure itself instead of telling the user to run it first. A prerequisite the user has to vet or approve (a draft to post, review findings) stays a stop that names the skill.
 - Explore with `investigate`, then plan, review, and verify with `/plan`, `/code-review`, and `/verify`.
 - A plan ends with a `## Steps` checklist, one reviewable commit per item.
 - A plan is written or changed only on the engineer's word, once, with a list of what changed.
