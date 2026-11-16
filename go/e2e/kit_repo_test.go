@@ -11,6 +11,8 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/codegraph"
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/slop"
+	"github.com/ku5ic/claude-kit/go/internal/stackctx"
 )
 
 // TestKitRepo checks the kit's own files agree with each other: what kit.yml
@@ -193,6 +195,25 @@ func TestKitRepo(t *testing.T) {
 		}
 	})
 
+	// Where a language lives in the kit: every language code-graph reads
+	// imports of, the slop guard reads comments of and skill_file_map
+	// loads engineering-fundamentals for. /add-language follows this list.
+	t.Run("every language code-graph scans is read by slop and skill_file_map", func(t *testing.T) {
+		cfg, _, err := config.Load(config.Paths{Base: filepath.Join(kitRoot, "kit.yml"), Overlay: filepath.Join(t.TempDir(), "none.yml")})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, ext := range codegraph.Extensions() {
+			file := "a" + ext
+			if !slop.Reads(file) {
+				t.Errorf("slop has no comment syntax for %s (go/internal/slop/segments.go)", ext)
+			}
+			if !slices.Contains(stackctx.FileMapSkills(cfg.SkillFileMap, file), "engineering-fundamentals") {
+				t.Errorf("skill_file_map loads engineering-fundamentals for no %s file (kit.yml)", ext)
+			}
+		}
+	})
+
 	t.Run("a skill with a Before | Read table links every reference it has", func(t *testing.T) {
 		skills, err := filepath.Glob(filepath.Join(kitRoot, "skills", "*", "SKILL.md"))
 		if err != nil {
@@ -355,7 +376,10 @@ var (
 func brokenPointers(t *testing.T) []string {
 	t.Helper()
 	var sources []string
-	for _, dir := range []string{"agents", "skills", "go", "docs"} {
+	for _, dir := range []string{"agents", "skills", "go", "docs", ".claude/skills"} {
+		if _, err := os.Stat(filepath.Join(kitRoot, dir)); err != nil {
+			t.Error(err)
+		}
 		_ = filepath.WalkDir(filepath.Join(kitRoot, dir), func(path string, d os.DirEntry, err error) error {
 			// An accepted ADR changes only in its status line, so a pointer
 			// in one that a later move breaks can't be fixed.

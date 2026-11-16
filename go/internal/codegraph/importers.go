@@ -6,6 +6,7 @@ import (
 	"cmp"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
@@ -51,6 +52,9 @@ func family(p string) string {
 
 // Scans reports whether Importers reads file's language.
 func Scans(file string) bool { return scanned[path.Ext(file)] }
+
+// Extensions is every extension Importers reads, sorted, each with its dot.
+func Extensions() []string { return slices.Sorted(maps.Keys(scanned)) }
 
 // Importer is a file that uses the file asked about, the line where it
 // does, and how it was matched when that isn't a resolved import:

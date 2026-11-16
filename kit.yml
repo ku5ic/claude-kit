@@ -37,7 +37,8 @@ global_skills: [kit-rules]
 # globs: [...]  -> shell-style globs (go/internal/guard Glob)
 skill_file_map:
   - on: basename
-    globs: ["*.ts", "*.tsx", "*.mts", "*.cts", "*.js", "*.jsx", "*.mjs", "*.cjs", "*.py", "*.rb", "*.go", "*.rs", "*.java", "*.sh", "*.vue"]
+    globs: ["*.ts", "*.tsx", "*.mts", "*.cts", "*.js", "*.jsx", "*.mjs", "*.cjs", "*.py", "*.rb", "*.go", "*.rs", "*.java", "*.sh", "*.vue", "*.svelte", "*.astro", "*.kt", "*.kts", "*.scala", "*.sc", "*.swift", "*.cs", "*.php", "*.dart", "*.lua", "*.ex", "*.exs",
+      "*.c", "*.h", "*.cc", "*.cpp", "*.cxx", "*.hpp", "*.hh", "*.hxx"]
     skills: [engineering-fundamentals]
   - on: basename
     globs: ["*.test.*", "*.spec.*", "test_*.py", "*_test.py", "*_test.go", "*_spec.rb", "test.sh", "test_*.sh", "*_test.sh", "*.bats"]
