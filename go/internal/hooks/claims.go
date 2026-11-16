@@ -94,7 +94,7 @@ func verifyToolInput(h *hook.Hook) error {
 		marker = h.Paths.SessionFile(cache.Claims, p.SessionID(), "plan", plan)
 	case slices.Contains(filePathTools, tool):
 		path := p.FilePath()
-		if !scratchReport(h, path, "explore", "debug") {
+		if !scratchReport(h, path, checkedReports...) || !atScratchRoot(h, path) {
 			return nil
 		}
 		_, after, ok := written(p, path)
@@ -489,6 +489,22 @@ func agentTranscript(p *hook.Payload) string {
 		return path
 	}
 	return p.String(hook.KeyTranscriptPath)
+}
+
+// checkedReports are the scratch report kinds whose claims are checked:
+// investigate's, and every /audit and /code kind's.
+var checkedReports = []string{
+	"explore", "debug", "review",
+	"a11y", "arch", "ci", "debt", "doc-drift", "infra", "perf", "security", "slop", "verify",
+	"challenge", "history", "impact", "tour", "visual",
+}
+
+// atScratchRoot is true for a file directly in a scratch dir, where
+// `kit scratch-dir <kind> <slug>` puts a report; a report's raw files sit
+// a level down.
+func atScratchRoot(h *hook.Hook, path string) bool {
+	dir := filepath.Dir(filepath.Clean(path))
+	return dir == h.Paths.ScratchHome() || strings.HasSuffix(dir, "/.claude/scratch")
 }
 
 // scratchReport is true for a report of one of kinds in scratch, the files

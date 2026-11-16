@@ -160,6 +160,18 @@ func TestVerifyClaimsToolInput(t *testing.T) {
 		{"a scratch file whose name only starts like a kind", func(k *sandbox) map[string]any {
 			return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "debugging.md"), "content": claim})
 		}, "none"},
+		{"an audit report", func(k *sandbox) map[string]any {
+			return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "ci-main-20261116-0900.md"), "content": "# CI\n\n" + claim})
+		}, "agent"},
+		{"a /code report", func(k *sandbox) map[string]any {
+			return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "impact-auth-20261116-0900.md"), "content": "# Impact\n\n" + claim})
+		}, "agent"},
+		{"a PR draft", func(k *sandbox) map[string]any {
+			return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "pr-auth-20261116-0900.md"), "content": claim})
+		}, "none"},
+		{"a report's raw file in its sibling folder", func(k *sandbox) map[string]any {
+			return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "ci-main-20261116-0900", "ci-raw.md"), "content": claim})
+		}, "none"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
