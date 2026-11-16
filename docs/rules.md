@@ -102,6 +102,8 @@ Every skill with references lists them in a "Before | Read" table: an action, th
 
 **CLI first.** One deterministic CLI call uses fewer tokens than reading files and reasoning, and its answer doesn't drift.
 
+**A missing tool skips a step, not the task.** Most of the kit's tools aren't preinstalled ([dependencies](dependencies.md)). A skill that stopped on the first one missing gave the user nothing, so the step goes, the report names it, and the rest still runs.
+
 **References are outside the read budget.** A skill's SKILL.md is a table of pointers, and the rules live in the references it links. A model that applies the budget rules to them reads the table, skips the rules, and follows the skill in name only.
 
 **Bare `kit`.** Permission allows are written against the bare command, so a pathful or wrapped call misses them and prompts.

@@ -5,7 +5,7 @@ Which CLI to reach for, how to call the bin scripts, where temporary files go, a
 ## 1. Reach for the CLI first
 
 - A factual question (how big, what secrets, how fast, what's in this JSON) goes to a CLI before any file read. An interpretive one (is this correct, does this design hold) gets read and reasoned about.
-- A tool the `<tooling>` block's `missing:` line names stays unused.
+- A tool the `<tooling>` block's `missing:` line names stays unused. A step that needs it is skipped and named, with the tool, in the report or reply, and the rest of the task runs.
 
 | Question                           | Tool                               | Over                                                     |
 | ---------------------------------- | ---------------------------------- | -------------------------------------------------------- |
