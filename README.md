@@ -54,28 +54,28 @@ Nothing to learn up front. After install:
 
 Each of these costs you a correction round when it gets through. The kit sends it back to Claude first.
 
-| Without claude-kit, Claude will...                                            | With it                                                                                                         |
-| ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| state a path, an API, or a test result in a plan or report that it never read | A second model checks each claim against what Claude read this session and sends back the ones nothing confirms |
-| cite a `file:line` that doesn't exist in a plan or a gatherer report          | Sent back with each bad citation, with no model run                                                             |
-| skip or focus a test, or silence a linter, to get to green                    | Blocked, unless the line says why (`kit: allow <reason>`)                                                       |
-| import or add a package that may not exist                                    | Blocked until your manifest declares it, or its registry has it                                                 |
-| say "done" while lint, types, or tests are failing                            | Your checks run on the files it edited; a failure sends it back                                                 |
-| ask you to approve a plan nobody checked                                      | Sent to run `kit:plan-critic` against the repo first                                                            |
-| fill files, commits, PRs, and posts with AI filler                            | Sent back with each line and its fix                                                                            |
-| use a design token your project never defines                                 | Blocked                                                                                                         |
-| run `rm -rf` on the wrong path, or `git push --force` to main                 | Blocked. Every command is parsed, including pipelines, `$(...)`, and `sudo`/`env` wrappers                      |
-| read `.env` or `~/.ssh` keys                                                  | Blocked, whatever your permission rules say                                                                     |
-| put an AI signature or a secret in a commit                                   | Blocked at commit time, with `gitleaks` when installed; your commit-msg hooks check the message                 |
-| get stuck on old warnings in a file it barely touched                         | Linters block only on lines Claude changed                                                                      |
-| not know your check commands, or guess them wrong                             | Read from your CI, git hooks, and task runners; a small model sorts what they leave open, once                  |
-| run a global `eslint` of the wrong version, or `npx` something                | Tools resolve from the project first: `node_modules`, `.venv`, `go tool`, poetry, bundler. Never `npx`          |
-| leave files unformatted, or formatted with the wrong config                   | Each edit is formatted by your project's own fixers and config                                                  |
-| drop `out.log` and downloads in your repo root                                | Temporary files go to `.claude/scratch/`, pruned by `kit scratch-rotate`                                        |
-| refactor half the repo for a one-line bug, or commit unasked                  | Rules hold it to the smallest change and never commit without being asked                                       |
-| lose track of a plan halfway through                                          | It's held to the next unchecked step and stops for your review after each                                       |
-| give generic advice that ignores your stack                                   | Stack-specific pattern skills load when the repo calls for them                                                 |
-| spawn subagents that know none of the above                                   | Every subagent gets the same rules and repo context                                                             |
+| Without claude-kit, Claude will...                                            | With it                                                                                                                                       |
+| ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| state a path, an API, or a test result in a plan or report that it never read | A second model checks each claim against what Claude read this session and sends back the ones nothing confirms                               |
+| cite a `file:line` that doesn't exist in a plan or a gatherer report          | Sent back with each bad citation, with no model run                                                                                           |
+| skip or focus a test, or silence a linter, to get to green                    | Blocked, unless the line says why (`kit: allow <reason>`)                                                                                     |
+| import or add a package that may not exist                                    | Blocked until your manifest declares it, or its registry has it                                                                               |
+| say "done" while lint, types, or tests are failing                            | Your checks run on the files it edited; a failure sends it back                                                                               |
+| ask you to approve a plan nobody checked                                      | Sent to run `kit:plan-critic` against the repo first                                                                                          |
+| fill files, commits, PRs, and posts with AI filler                            | Sent back with each line and its fix                                                                                                          |
+| use a design token your project never defines                                 | Blocked                                                                                                                                       |
+| run `rm -rf` on the wrong path, or `git push --force` to main                 | Blocked. Every command is parsed, including pipelines, `$(...)`, and `sudo`/`env` wrappers                                                    |
+| read `.env` or `~/.ssh` keys                                                  | Blocked, whatever your permission rules say                                                                                                   |
+| put an AI signature or a secret in a commit                                   | Blocked at commit time, with `gitleaks` when installed; your commit-msg hooks check the message                                               |
+| get stuck on old warnings in a file it barely touched                         | Linters block only on lines Claude changed                                                                                                    |
+| not know your check commands, or guess them wrong                             | Read from your CI, git hooks, and task runners; a small model sorts what they leave open, once                                                |
+| run a global `eslint` of the wrong version, or `npx` something                | Tools resolve from the project first: `node_modules`, `.venv`, `go tool`, poetry, bundler. Never `npx` a package the project hasn't installed |
+| leave files unformatted, or formatted with the wrong config                   | Each edit is formatted by your project's own fixers and config                                                                                |
+| drop `out.log` and downloads in your repo root                                | Temporary files go to `.claude/scratch/`, pruned by `kit scratch-rotate`                                                                      |
+| refactor half the repo for a one-line bug, or commit unasked                  | Rules hold it to the smallest change and never commit without being asked                                                                     |
+| lose track of a plan halfway through                                          | It's held to the next unchecked step and stops for your review after each                                                                     |
+| give generic advice that ignores your stack                                   | Stack-specific pattern skills load when the repo calls for them                                                                               |
+| spawn subagents that know none of the above                                   | Every subagent gets the same rules and repo context                                                                                           |
 
 Permission rules alone can't catch these. A prefix rule can't tell `git push` from `git push --force origin main`, never sees a command inside a pipeline, and a plugin can't ship deny rules at all. Hooks can.
 
@@ -106,7 +106,7 @@ claude plugin install kit@ku5ic
 
 - **Needs:** `git` and any bash, on macOS or Linux. Formatters and linters are used when installed and skipped when not; the kit never installs anything.
 - **Gap-fill:** the `claude` CLI, logged in. Once per repo, and again when its configs change, Haiku sorts the commands your CI, hooks, and task runners hold into checks and fixers, capped at $0.50 a call; the answers are cached and verified against your files. Without it, those commands are skipped and named.
-- **Claim checker:** the `kit:claim-checker` agent, which Claude runs where you can watch it before an explore or debug report in scratch, or a post, goes out; plan-critic covers a plan. Inside a subagent, which can't start an agent, the hook runs the same instructions through the `claude` CLI. Without it, or when a run fails, claims go unchecked and nothing blocks.
+- **Claim checker:** the `kit:claim-checker` agent, which Claude runs where you can watch it before an investigation, review, `audit-*`, `code-*`, or `/meta-retro` report in scratch, or a post, goes out; plan-critic covers a plan. Inside a subagent, which can't start an agent, the hook runs the same instructions through the `claude` CLI. Without it, or when a run fails, claims go unchecked and nothing blocks.
 - **Claude Code only.** claude.ai and Cowork don't install a plugin with a top-level `bin/`. Chat has [its own zip](docs/chat.md).
 - **Gitignore** `.claude/scratch/` and `.claude/plans/`, globally or per repo. The kit never edits your ignore files.
 - **Rules ship with the plugin.** Nothing to link. If an older install left `~/.claude/rules/claude-kit`, remove it; the session-start notice names it.

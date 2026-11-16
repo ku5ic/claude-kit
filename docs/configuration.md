@@ -9,7 +9,7 @@ Your changes go in `~/.claude/claude-kit.local.yml`, merged over the defaults in
 | Fewer stops: one review per plan, no plan-critic or claim-check passes, no skill nudges | `preset: light`                                           |
 | The kit as shipped                                                                      | Nothing, or `preset: standard`                            |
 | Pattern skills required before the first edit of a file type, and ASCII typography      | `preset: strict`                                          |
-| Claude never to push to a branch                                                        | `protected_branches: [release]`                           |
+| Claude never to push to a branch                                                        | `protected_branches: [staging]`                           |
 | One guard rule let through                                                              | `disabled_rules: [<slug>]`, the slug `kit explain` prints |
 | One review at the end of a plan instead of after each step                              | `step_pause: plan`                                        |
 | A check gate off                                                                        | `disabled_checks: [<kind or label>]`                      |
@@ -55,6 +55,8 @@ Defaults live in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml
 | `disabled_checks`         | Turn a `run-checks` gate off, by check kind or by the label it prints                                                                                                                     |
 | `disabled_task_providers` | Stop reading a task source (`make`, `package-scripts`, ...) at all                                                                                                                        |
 | `on_edit`                 | Format a file type the project's own fixers don't claim                                                                                                                                   |
+| `receipt`                 | When Stop and the full gate print their receipt: `all`, or `failures` for only a failed or skipped gate                                                                                   |
+| `attribution`             | The AI tool names and patterns guard-attribution blocks in git and GitHub text                                                                                                            |
 | `gate_timeout`            | Seconds before a Stop check is skipped                                                                                                                                                    |
 | `architecture_dir`        | Where `/code-visual` keeps each repo's architecture model, read by `kit code-graph model-dir`                                                                                             |
 | `gate_env`                | `NAME=value` pairs every check runs with                                                                                                                                                  |
