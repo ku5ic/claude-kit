@@ -1,4 +1,4 @@
-# 12. Let hooks run the gates
+# 6. Release 0.5: hooks run the gates
 
 Date: 2026-10-28
 
@@ -8,7 +8,7 @@ Accepted
 
 ## Context
 
-In a large frontend repo, `kit run-checks` took about 8 minutes and pinned the CPU (PR #10). Its format check also failed on files under `.claude/scratch/`, which only the user's global git excludes ignored. A checker agent ran the gates, and a rule asking for a run is advice ([3](0003-enforce-rules-with-hooks-not-prose.md)).
+This record replaces the former ADR 12, and its sources are that record's. In a large frontend repo, `kit run-checks` took about 8 minutes and pinned the CPU (PR #10). Its format check also failed on files under `.claude/scratch/`, which only the user's global git excludes ignored. A checker agent ran the gates, and a rule asking for a run is advice ([2](0002-release-0-1-a-go-binary-of-hooks-around-claude-code-s-built-ins.md)).
 
 ## Decision
 

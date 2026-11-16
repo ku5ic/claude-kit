@@ -51,7 +51,7 @@ Every behavior the kit applies everywhere has exactly one owner, listed below. B
 | Which skills and rules the claude.ai chat bundle carries                                                                                                            | `kit.yml` `chat_bundle:`                                                                                      |
 | How the chat bundle is built from them                                                                                                                              | `go/internal/chatbundle`                                                                                      |
 | Why each rule says what it says, for people (the model never loads it)                                                                                              | `docs/rules.md`                                                                                               |
-| What the kit does and how it works, for people; the code wins on any disagreement                                                                                   | `README.md`, `docs/guards.md`, `docs/checks.md`, `docs/configuration.md` (ADR 0025)                           |
+| What the kit does and how it works, for people; the code wins on any disagreement                                                                                   | `README.md`, `docs/guards.md`, `docs/checks.md`, `docs/configuration.md` (ADR 0009)                           |
 | Why an architecture decision was made, and what replaced it                                                                                                         | `docs/adr/`                                                                                                   |
 | The sections of this repo's PR description                                                                                                                          | `.github/pull_request_template.md`                                                                            |
 | A skill's `model:`, `effort:`, and `context: fork` pins, and a pattern skill's file shape                                                                           | `skills/meta/reference/skill.md`; the frontmatter checks are `go/e2e/kit_repo_test.go`                        |
@@ -78,8 +78,11 @@ Before applying a review finding to a hook, say what the user sees when it fires
 
 ## Architecture decisions
 
+- An ADR records an architecture decision or a change in what the kit does for its user. A fix, a tuning, a refactor, or a follow-up to a recent decision gets no ADR, and its commit body says why.
+- While the kit is pre-1.0, a release gets one ADR for all its behavior changes, written at the end of the release, never one per change.
+- A decision that turns out wrong, or needs a follow-up, gets a new ADR that supersedes it, never an amendment to a recent one.
 - Before changing something an ADR in `docs/adr/` decided, read it. A change that contradicts it needs a new ADR that supersedes it, in the same change.
-- Create one with `VISUAL=true adr new <title>` (`-s <n>` to supersede, `-l "<n>:Amends:Amended by"` to amend), then fill it in with Edit, so the write hooks run.
+- Create one with `VISUAL=true adr new <title>` (`-s <n>` to supersede, once per ADR), then fill it in with Edit, so the write hooks run.
 - An accepted ADR changes only in its status line, which `adr` writes.
 - Every sentence traces to a commit, a PR body, the README, or the code. Name the source in the Context.
 - The `Date:` line is the day the decision landed on main: the merge of the PR it names, else the commit that made it. `adr new` writes today's date; replace it when the decision is older.

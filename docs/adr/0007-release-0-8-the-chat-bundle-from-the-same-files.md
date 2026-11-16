@@ -1,4 +1,4 @@
-# 13. Generate the chat bundle from the same files
+# 7. Release 0.8: the chat bundle from the same files
 
 Date: 2026-11-04
 
@@ -8,7 +8,7 @@ Accepted
 
 ## Context
 
-claude.ai doesn't install a plugin with a top-level `bin/`, so the rules and writing skills only reached Claude Code (PR #13). A second copy for chat would drift from the first ([8](0008-give-each-topic-one-owner.md)).
+This record replaces the former ADR 13, and its sources are that record's. claude.ai doesn't install a plugin with a top-level `bin/`, so the rules and writing skills only reached Claude Code (PR #13). A second copy for chat would drift from the first ([5](0005-release-0-4-one-owner-per-topic-checks-from-the-project-s-own-configs.md)).
 
 ## Decision
 

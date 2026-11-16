@@ -12,7 +12,7 @@ import (
 	"testing"
 )
 
-// byName are the binaries code outside resolve may run by name, per ADR 0032.
+// byName are the binaries code outside resolve may run by name, per ADR 0004.
 var byName = []string{"git", "bash"}
 
 // lookPathAllowed are the files outside resolve that may call
@@ -20,11 +20,11 @@ var byName = []string{"git", "bash"}
 // and runs nothing it finds.
 var lookPathAllowed = []string{"../run/run.go"}
 
-// TestBinariesRunByNameOnlyWhereADR0030Says fails on exec.LookPath, or a
+// TestBinariesRunByNameOnlyWhereADR0004Says fails on exec.LookPath, or a
 // literal binary name passed to proc.Command or exec.Command, outside
 // resolve and its kittool, other than the byName ones. A new tool the kit
 // runs goes through kittool.Path, a project's command through Bin.
-func TestBinariesRunByNameOnlyWhereADR0030Says(t *testing.T) {
+func TestBinariesRunByNameOnlyWhereADR0004Says(t *testing.T) {
 	// The name's position among each runner's arguments.
 	runners := map[string]int{"proc.Command": 1, "exec.Command": 0, "exec.CommandContext": 1}
 	for _, dir := range []string{"..", "../../cmd"} {

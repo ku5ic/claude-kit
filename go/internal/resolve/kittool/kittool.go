@@ -1,5 +1,5 @@
 // Package kittool is where a PATH-only copy runs: a tool the kit runs for
-// itself, or an on_edit formatter, which no project pins (ADR 0030). It
+// itself, or an on_edit formatter, which no project pins (ADR 0004). It
 // sits under resolve but below every layer, so any package can reach it; a
 // project's own commands go through resolve's Bin.
 package kittool
