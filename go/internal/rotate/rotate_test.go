@@ -360,14 +360,17 @@ func TestDailyRunsOnceADay(t *testing.T) {
 	paths := kitHome(t, dir)
 	touch(t, paths.ScratchHome(), "old.md", 40*day)
 	now := time.Now()
-	if !Daily(paths, dir, now) || exists(filepath.Join(paths.ScratchHome(), "old.md")) {
+	Daily(paths, dir, now)
+	if exists(filepath.Join(paths.ScratchHome(), "old.md")) {
 		t.Fatal("the first run of the day didn't prune")
 	}
 	touch(t, paths.ScratchHome(), "old.md", 40*day)
-	if Daily(paths, dir, now.Add(time.Hour)) || !exists(filepath.Join(paths.ScratchHome(), "old.md")) {
+	Daily(paths, dir, now.Add(time.Hour))
+	if !exists(filepath.Join(paths.ScratchHome(), "old.md")) {
 		t.Error("a second run within a day pruned")
 	}
-	if !Daily(paths, dir, now.Add(25*time.Hour)) || exists(filepath.Join(paths.ScratchHome(), "old.md")) {
+	Daily(paths, dir, now.Add(25*time.Hour))
+	if exists(filepath.Join(paths.ScratchHome(), "old.md")) {
 		t.Error("a run a day later didn't prune")
 	}
 }
@@ -378,7 +381,7 @@ func TestCleanRemovesOnlyTheKitsOwnState(t *testing.T) {
 	paths := kitHome(t, dir)
 	kit := []string{
 		paths.LogFile("guards"), paths.LogFile("claims"), paths.LogFile("skills"), paths.ScratchRegistry(),
-		filepath.Join(paths.LogDir(), "scratch-rotate.log"), filepath.Join(paths.CacheDir(), "stack", "x"),
+		rotateLog(paths), filepath.Join(paths.CacheDir(), "stack", "x"),
 		filepath.Join(paths.CacheDir(), "config.gob"), filepath.Join(paths.ScratchHome(), "report.md"),
 	}
 	others := []string{filepath.Join(paths.CacheDir(), "changelog.md"), filepath.Join(paths.LogDir(), "other.log"), filepath.Join(paths.PlansHome(), "p.md")}

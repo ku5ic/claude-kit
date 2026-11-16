@@ -269,14 +269,12 @@ func cmdScratchRotate(e *env, args []string) int {
 }
 
 func cmdClean(e *env, args []string) int {
-	switch {
-	case len(args) == 0:
-		return rotate.Clean(e.paths, false, e.stdout)
-	case len(args) == 1 && args[0] == "--yes":
-		return rotate.Clean(e.paths, true, e.stdout)
+	yes := len(args) == 1 && args[0] == "--yes"
+	if len(args) > 0 && !yes {
+		fmt.Fprintln(e.stderr, "usage: kit clean [--yes]")
+		return 2
 	}
-	fmt.Fprintln(e.stderr, "usage: kit clean [--yes]")
-	return 2
+	return rotate.Clean(e.paths, yes, e.stdout)
 }
 
 // runChecksArgs are run-checks' arguments.

@@ -473,10 +473,7 @@ func TestInjectContextEnv(t *testing.T) {
 		e := contextSetup(t)
 		e.kitYML("tools: [fd]\n")
 		bin := t.TempDir()
-		testutil.Write(t, filepath.Join(bin, "fdfind"), "#!/bin/sh\n")
-		if err := os.Chmod(filepath.Join(bin, "fdfind"), 0o755); err != nil {
-			t.Fatal(err)
-		}
+		testutil.Stub(t, filepath.Join(bin, "fdfind"), "")
 		git, err := exec.LookPath("git")
 		if err != nil {
 			t.Fatal(err)
