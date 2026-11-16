@@ -8,7 +8,7 @@ allowed-tools:
   - Bash(git log *)
   - Bash(kit detect-stack)
   - Bash(kit scratch-dir *)
-  - Bash(sg run *)
+  - Bash(ast-grep run *)
 ---
 
 # /code-migrate
@@ -30,8 +30,8 @@ Stack specifics come from the stack's pattern skill.
 
 1. Inputs. The target and its from and to versions come from the arguments, else the manifests `kit detect-stack` names. Unclear, ask. `org:` switches to the org mode below.
 2. What changes. Read the upgrade guide and the changelog between the two versions, per [reference/deprecation.md](reference/deprecation.md): each removed or renamed API, the version that deprecated it, the version that removes it, and the vendor's codemods. A source that can't be fetched is named in the report, never filled from memory.
-3. Inventory. One `sg` pattern per API from step 2, and `rg -w` for what a pattern can't parse, per [reference/inventory.md](reference/inventory.md). Raw matches go to the report's sibling folder, one TSV row per match with the API, file, and line.
-4. Codemods. For each API, the vendor's codemod, else an `sg` rewrite. Preview it only with a tool already installed, and count the files it would change and the spots it leaves for hand work.
+3. Inventory. One `ast-grep` pattern per API from step 2, and `rg -w` for what a pattern can't parse, per [reference/inventory.md](reference/inventory.md). Raw matches go to the report's sibling folder, one TSV row per match with the API, file, and line.
+4. Codemods. For each API, the vendor's codemod, else an `ast-grep` rewrite. Preview it only with a tool already installed, and count the files it would change and the spots it leaves for hand work.
 5. Batches. Cut the inventory into batches per [reference/batching.md](reference/batching.md), each one plan step with its files, its codemod or hand edits, and the check that proves it (a test command, a type check, a zero count from step 3's pattern).
 
 ## Org mode

@@ -111,7 +111,7 @@ claude plugin install kit@ku5ic
 - **Gitignore** `.claude/scratch/` and `.claude/plans/`, globally or per repo. The kit never edits your ignore files.
 - **Rules ship with the plugin.** Nothing to link. If an older install left `~/.claude/rules/claude-kit`, remove it; the session-start notice names it.
 - **Your own CLAUDE.md:** copy `templates/CLAUDE.md` to `~/.claude/CLAUDE.md` and fill it in.
-- **Optional tools** such as `rg`, `sg`, `gh`, and `gitleaks` are used when installed: [docs/cli.md](docs/cli.md#dependencies) says which command uses each.
+- **Optional tools** such as `rg`, `ast-grep`, `gh`, and `gitleaks` are used when installed: [docs/cli.md](docs/cli.md#dependencies) says which command uses each.
 
 ## Learn more
 

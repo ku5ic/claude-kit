@@ -10,7 +10,7 @@ Which CLI to reach for, how to call the bin scripts, where temporary files go, a
 | Question                           | Tool                               | Over                               |
 | ---------------------------------- | ---------------------------------- | ---------------------------------- |
 | Locate code by text                | `rg`                               | grep, find -name, Read walks       |
-| Locate code by shape (AST)         | `sg`                               | rg, when structure is the question |
+| Locate code by shape (AST)         | `ast-grep`                         | rg, when structure is the question |
 | Find files/paths                   | `fd`                               | find                               |
 | Repo size, language breakdown      | `tokei`                            | reading files to estimate          |
 | Complexity per file                | `scc`                              | reading files to judge             |

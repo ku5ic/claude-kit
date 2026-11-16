@@ -11,7 +11,7 @@ allowed-tools:
   - Bash(kit detect-stack)
   - Bash(kit git-base *)
   - Bash(kit scratch-dir *)
-  - Bash(sg run *)
+  - Bash(ast-grep run *)
 ---
 
 # /code-contract
@@ -34,7 +34,7 @@ Stack specifics come from the stack's pattern skill. The commit-message bump rul
 2. Base and head, first that applies:
    - A schema file (OpenAPI, GraphQL, protobuf). Its checker runs on the base's copy (`git show <base>:<file>`) and the working tree's, per [reference/schemas.md](reference/schemas.md).
    - The ecosystem's API tool, installed and configured in the project, run per [reference/ecosystem-tools.md](reference/ecosystem-tools.md).
-   - Otherwise exported symbols, routes, and props, found with `sg` on both sides, the base's files read with `git show`. The report says no checker ran.
+   - Otherwise exported symbols, routes, and props, found with `ast-grep` on both sides, the base's files read with `git show`. The report says no checker ran.
 3. Class each change by [reference/semver.md](reference/semver.md), then scan the diff for what [reference/behavioral.md](reference/behavioral.md) lists, which no type diff sees.
 4. Consumers. Each changed symbol gets `/code-impact`'s Consumers procedure, run here. A published package's consumers outside the repo are unknown, and the report says so.
 
