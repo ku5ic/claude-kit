@@ -134,8 +134,11 @@ func (c *Config) unknownDisables() []error {
 		for _, d := range l.rules {
 			id, slop := strings.CutPrefix(d, "slop-")
 			known := slices.Contains(Rules, d) || slop && slices.ContainsFunc(c.Slop.Rules, func(r SlopRule) bool { return r.ID == id })
-			if !known {
+			switch {
+			case !known:
 				errs = append(errs, fmt.Errorf("%s: %q is no rule; kit explain prints a block's rule", l.key, d))
+			case slop && l.key == "shadow_rules":
+				errs = append(errs, fmt.Errorf("%s: %q shadows nothing; the slop guards block as one rule, slop", l.key, d))
 			}
 		}
 	}

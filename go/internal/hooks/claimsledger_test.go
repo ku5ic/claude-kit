@@ -40,6 +40,29 @@ func TestAFlagFromTheCheckerIsLoggedWithWhatBecameOfIt(t *testing.T) {
 	}
 }
 
+// A ledgered run's position never hides another run whose position it ends
+// with.
+func TestALedgeredRunIsMatchedWhole(t *testing.T) {
+	t.Parallel()
+	seen := []byte("21:2\n")
+	if ledgered(seen, "1:2") || !ledgered(seen, "21:2") {
+		t.Errorf("ledgered(%q): 1:2 %v, 21:2 %v", seen, ledgered(seen, "1:2"), ledgered(seen, "21:2"))
+	}
+}
+
+// With claims in shadow_rules, a flagged report goes out as it was, so its
+// flags are logged as kept then, never scored against a later report.
+func TestAShadowedClaimsFlagIsKept(t *testing.T) {
+	t.Parallel()
+	k := newSandbox(t)
+	k.verifier("shadow_rules: [claims]\n", claim)
+	k.run("verify-claims", handback("a1", claim)).Allowed(t)
+	k.run("verify-claims", handback("a1", "## Findings\n\nThe cache lives in the session directory.")).Allowed(t)
+	if got := k.ledgerLines(); strings.Count(got, "\n") != 1 || !strings.Contains(got, `"outcome":"kept"`) {
+		t.Errorf("claims.jsonl =\n%s\nwant one kept flag", got)
+	}
+}
+
 // The hook's own run on a subagent's report is scored against the report
 // handed back after it.
 func TestAFlagFromTheHooksRunIsScoredOnTheNextReport(t *testing.T) {

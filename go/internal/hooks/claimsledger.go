@@ -80,18 +80,28 @@ func ledgerRuns(h *hook.Hook, log checkerLog, record, text, where string) {
 	done := h.Paths.SessionFile(cache.Claims, h.Payload.SessionID(), "ledgered")
 	seen, _ := os.ReadFile(done)
 	for _, run := range transcript.AgentRuns(log.entries, claimChecker) {
-		at := fmt.Sprintf("%d:%d\n", run.At.Entry, run.At.Block)
-		if run.Status != transcript.RunDone || run.Result == "" || strings.Contains(string(seen), at) ||
+		at := fmt.Sprintf("%d:%d", run.At.Entry, run.At.Block)
+		if run.Status != transcript.RunDone || run.Result == "" || ledgered(seen, at) ||
 			!slices.ContainsFunc(ids, func(id string) bool { return strings.Contains(run.Prompt, id) }) {
 			continue
 		}
-		_ = fsx.Append(done, []byte(at))
+		_ = fsx.Append(done, []byte(at+"\n"))
 		model := run.Model
 		if model == "" {
 			model = cmp.Or(agentModel(h), "inherit")
 		}
 		ledger(h, "agent", model, where, stats.Flagged(run.Result), text)
 	}
+}
+
+// ledgered is true when seen, the ledgered file, holds at as a whole line.
+func ledgered(seen []byte, at string) bool {
+	for line := range strings.Lines(string(seen)) {
+		if strings.TrimSuffix(line, "\n") == at {
+			return true
+		}
+	}
+	return false
 }
 
 // agentModel is the model agents/claim-checker.md pins, "" when none.

@@ -137,7 +137,10 @@ func verifyInSubagent(h *hook.Hook, text, where, retry, marker string) error {
 	}
 	if markOnce(h, marker, []byte(sentBack), "claims") {
 		savePending(h, marker, u)
-		h.Deny(claimsMessage(where, u, retry), "claims")
+		if !h.Deny(claimsMessage(where, u, retry), "claims") {
+			// Let through as it is, so its flags score against this text.
+			ledgerPending(h, marker, where, text)
+		}
 	}
 	return nil
 }
@@ -415,7 +418,9 @@ func verifyHandback(h *hook.Hook) error {
 	}
 	if markOnce(h, marker, []byte("sent-back"), "claims") {
 		savePending(h, marker, u)
-		h.Deny(claimsMessage("your report", u, sendBack), "claims")
+		if !h.Deny(claimsMessage("your report", u, sendBack), "claims") {
+			ledgerPending(h, marker, "your report", message)
+		}
 	}
 	return nil
 }

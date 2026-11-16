@@ -325,6 +325,8 @@ func TestGuardBashParsing(t *testing.T) {
 		probe("pass", `sort -u test.txt`)
 		probe("pass", `cat test.txt | sort -u`)
 		probe("pass", `git add -u`)
+		probe("pass", `test -u /usr/bin/sudo`)
+		probe("pass", `git branch test -u origin/test`)
 		probe("pass", `git rm --cached .env`)
 		probe("pass", `git ls-files .env`)
 		probe("pass", `git status --short .env`)

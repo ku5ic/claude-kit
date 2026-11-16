@@ -284,12 +284,13 @@ func Area(name string) string {
 
 // Deny is Block as a permission decision: Claude gets reason, and the user
 // sees no hook error.
-func (h *Hook) Deny(reason, rule string) {
+func (h *Hook) Deny(reason, rule string) bool {
 	if h.letThrough(rule) {
-		return
+		return false
 	}
 	h.logBlock("block", rule)
 	h.Decide("deny", h.message(reason, rule))
+	return true
 }
 
 // logBlock logs event, a block of rule or its shadow, with what it

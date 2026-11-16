@@ -75,6 +75,28 @@ func TestGuardWeaken(t *testing.T) {
 		r := snapshot(t, func(dir string) { testutil.Write(t, filepath.Join(dir, "src", "a.test.ts"), "test('a')\n") })
 		r.Has(t, `"permissionDecision":"ask"`)
 	})
+	t.Run("a new snapshot goes through", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		dir := repo(t, filepath.Join(k.home, "proj"))
+		k.run("turn-tree", map[string]any{"hook_event_name": "UserPromptSubmit", "session_id": "s", "cwd": dir}).Want(t, 0)
+		snap := filepath.Join(dir, "src", "__snapshots__", "b.test.ts.snap")
+		call := toolCall("Write", map[string]any{"file_path": snap, "content": "exports[`b`] = `1`;\n"})
+		call["cwd"] = dir
+		k.run("guard-dispatch", call).Empty(t)
+	})
+	t.Run("a snapshot in a repo the turn has no record of goes through", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		cwd := repo(t, filepath.Join(k.home, "proj"))
+		other := repo(t, filepath.Join(k.home, "other"))
+		snap := filepath.Join(other, "src", "__snapshots__", "a.test.ts.snap")
+		testutil.Write(t, snap, "exports[`a`] = `1`;\n")
+		k.run("turn-tree", map[string]any{"hook_event_name": "UserPromptSubmit", "session_id": "s", "cwd": cwd}).Want(t, 0)
+		call := edit(snap, "`1`", "`2`")
+		call["cwd"] = cwd
+		k.run("guard-dispatch", call).Empty(t)
+	})
 	t.Run("a snapshot rewritten after a code change goes through", func(t *testing.T) {
 		t.Parallel()
 		snapshot(t, func(dir string) { testutil.Write(t, filepath.Join(dir, "src", "a.ts"), "export const a = 2\n") }).Empty(t)
