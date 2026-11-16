@@ -55,7 +55,9 @@ func InjectContext(h *hook.Hook) error {
 	if !h.DryRun {
 		now := time.Now()
 		cache.Prune(h.Paths.CacheDir(), now)
-		rotate.Daily(h.Paths, h.Home, now)
+		if !h.RuleDisabled("scratch-rotate") {
+			rotate.Daily(h.Paths, h.Home, now)
+		}
 		if top := git.Toplevel(h.Payload.Cwd()); top != "" {
 			run.PruneRestorePoints(top, now)
 		}

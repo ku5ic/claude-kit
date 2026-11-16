@@ -452,6 +452,19 @@ dependency_skills:
 			t.Error("a 40-day-old scratch report survived session start")
 		}
 	})
+
+	t.Run("disabled_rules scratch-rotate keeps scratch at session start", func(t *testing.T) {
+		t.Parallel()
+		e := contextSetup(t)
+		e.kitYML("disabled_rules: [scratch-rotate]\n")
+		old := filepath.Join(e.claude, "scratch", "old.md")
+		testutil.Write(t, old, "")
+		testutil.Age(t, 40*24*time.Hour, old)
+		e.inject("s1", "").Want(t, 0)
+		if _, err := os.Stat(old); err != nil {
+			t.Error("disabled_rules: [scratch-rotate] still pruned scratch")
+		}
+	})
 	t.Run("tooling: tools are split into available and missing by PATH", func(t *testing.T) {
 		t.Parallel()
 		e := contextSetup(t)

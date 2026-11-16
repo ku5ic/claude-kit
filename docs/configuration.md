@@ -24,6 +24,7 @@ Your changes go in `~/.claude/claude-kit.local.yml`, merged over the defaults in
 | Gap-fill: a small model sorts what your configs leave open                  | On       | The `claude` CLI, logged in. Haiku, capped at $0.50 a call, cached per repo                 |
 | Claim checker                                                               | On       | For subagent reports, the `claude` CLI, logged in. Turn off with `disabled_rules: [claims]` |
 | plan-critic before a plan is approved                                       | On       | Turn off with `disabled_rules: [plan-critic]`                                               |
+| Scratch files past 30 days pruned once a day at session start               | On       | Turn off with `disabled_rules: [scratch-rotate]`                                            |
 | kit-rules and every `global_skills` skill loaded before the first tool call | On       | Turn off with `disabled_rules: [rules-gate]`                                                |
 | A finished plan held until `/code-review` ran after its last edit           | On       | Turn off with `disabled_rules: [plan-done]`                                                 |
 | A `/code-review` report saved to scratch before Claude asks or stops        | On       | Turn off with `disabled_rules: [review-report]`                                             |
