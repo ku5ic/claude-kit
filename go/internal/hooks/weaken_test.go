@@ -47,6 +47,38 @@ func TestGuardWeaken(t *testing.T) {
 		r.Want(t, 0)
 		r.Has(t, `"permissionDecision":"ask"`, "1 fewer assertion line")
 	})
+	// JUnit and PHPUnit name their assertions assertX and skip with an
+	// annotation or a markTest call, none of which the Go, JS, or Python
+	// forms match.
+	for _, tc := range []struct{ name, file, body, old, repl, want string }{
+		{"a deleted JUnit assertion asks", "src/test/java/FooTest.java",
+			"class FooTest {\n  @Test\n  void t() {\n    assertEquals(1, got);\n  }\n}\n",
+			"    assertEquals(1, got);\n", "", "1 fewer assertion line"},
+		{"a deleted PHPUnit assertion asks", "tests/FooTest.php",
+			"<?php\nclass FooTest {\n  public function testX() {\n    $this->assertSame(1, $got);\n  }\n}\n",
+			"    $this->assertSame(1, $got);\n", "", "1 fewer assertion line"},
+		{"a JUnit @Disabled blocks", "src/test/java/FooTest.java",
+			"class FooTest {\n  @Test\n  void t() {}\n}\n",
+			"  @Test\n", "  @Disabled\n  @Test\n", "skip"},
+		{"a JUnit 4 @Ignore blocks", "src/test/java/FooTest.java",
+			"class FooTest {\n  @Test\n  void t() {}\n}\n",
+			"  @Test\n", "  @Ignore\n  @Test\n", "skip"},
+		{"a PHPUnit markTestSkipped blocks", "tests/FooTest.php",
+			"<?php\nclass FooTest {\n  public function testX() {\n  }\n}\n",
+			"  public function testX() {\n", "  public function testX() {\n    $this->markTestSkipped('flaky');\n", "skip"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			k := newSandbox(t)
+			path := filepath.Join(repo(t, filepath.Join(k.home, "proj")), tc.file)
+			testutil.Write(t, path, tc.body)
+			r := k.run("guard-dispatch", edit(path, tc.old, tc.repl))
+			if tc.want == "skip" {
+				r.Want(t, 2)
+			}
+			r.Has(t, tc.want)
+		})
+	}
 	t.Run("an ordinary edit goes through quietly", func(t *testing.T) {
 		t.Parallel()
 		k, path := setup(t)
