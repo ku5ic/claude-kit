@@ -1,6 +1,6 @@
 # Dependencies (all stacks)
 
-- Keep a lockfile in the repo, and Dependabot or an equivalent enabled or acknowledged.
+- Keep a lockfile in the repo, and Dependabot, Renovate, or an equivalent enabled or acknowledged.
 - Flag `npm audit`, `pnpm audit`, `pip-audit`, or `bundler-audit` findings at moderate or above.
 - Transitive deps: check `package.json` for unexpected scoped packages and typosquat risk.
 

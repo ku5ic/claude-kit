@@ -31,3 +31,30 @@ A diff `gh pr diff` refuses as too large (it stops at 300 files) comes from the 
 | What the post log records     | the response's `html_url` and `created_at`                                                                                           |
 
 The batched `POST /pulls/<n>/reviews` posts a whole review in one call. Content creation has secondary rate limits of 80 per minute and 500 per hour.
+
+## Dependencies
+
+| Operation                | Command                                                                                                                                             |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Open bot PRs             | `gh pr list -R <repo> --state open --limit 200 --json number,title,body,headRefName,headRefOid,mergeable,mergeStateStatus,labels`, by branch prefix |
+| Mergeable                | `mergeable` is `MERGEABLE` and `mergeStateStatus` is `CLEAN`; conflicted is `DIRTY` or `CONFLICTING`                                                |
+| Security alerts          | Dependabot alerts, below                                                                                                                            |
+| An alert's fixed version | `security_vulnerability.first_patched_version.identifier`, null when no release fixes it                                                            |
+| Comment on a PR          | `gh pr comment <n> -R <repo> --body <text>`                                                                                                         |
+| Add a label              | `gh pr edit <n> -R <repo> --add-label <label>`                                                                                                      |
+| Wait for CI              | `gh pr checks <n> -R <repo> --watch`                                                                                                                |
+| Merge                    | `gh pr merge <n> -R <repo> --squash --delete-branch --match-head-commit <sha>`                                                                      |
+
+### Dependabot alerts
+
+Fetch them with one bare GET and filter `state` in jq. `-f state=open` sends a body field, which makes gh POST, and this read-only endpoint answers a POST with 404. A bare `?state=open` trips zsh (`skills/bash-patterns/reference/quoting.md`). `--paginate` follows the Link header; `page`, `first`, and `last` were removed for these endpoints on 2025-10-14.
+
+```bash
+gh api "repos/<repo>/dependabot/alerts" --paginate \
+  --jq '.[] | select(.state=="open") | {number, severity: .security_vulnerability.severity, cvss: .security_advisory.cvss.score, ghsa: .security_advisory.ghsa_id, pkg: .dependency.package.name, ecosystem: .dependency.package.ecosystem, scope: .dependency.scope, relationship: .dependency.relationship, manifest: .dependency.manifest_path, fixed: .security_vulnerability.first_patched_version.identifier, range: .security_vulnerability.vulnerable_version_range}'
+```
+
+The field paths were checked against a live payload on 2026-07-02. `state` is `open`, `fixed`, `dismissed`, or `auto_dismissed`. Read the status from `--include`'s `HTTP/2 <code>` line:
+
+- 404 on the bare GET: alerts are off for the repo or hidden from the token. Say "unavailable", never "disabled". A 404 only with a filter attached means a malformed request.
+- 403: the token lacks scope. A classic PAT needs `repo` or `security_events`; `gh auth refresh -s security_events` adds it.

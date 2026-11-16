@@ -132,7 +132,7 @@ Each command is a procedure Claude follows step by step, so the same request get
 | How a path got this way, what a change would break, a tour, or a challenge or deep review                      | `/code-<kind>`  | `history` of a path from its commits and PRs, `visual` Mermaid diagrams, `impact` of changing a file, an onboarding `tour`, `challenge` a plan or PR's decisions, or a `deep-review` of a path or diff. Writes a report to scratch |
 | A commit message, release notes, a devnote, an explainer, or a stakeholder summary                             | `/write-<kind>` | `commit`, `release-notes`, `devnote`, `explainer`, `stakeholder`                                                                                                                                                                   |
 | PR text: your description, a review of someone's PR, or a reply to your reviewer                               | `/pr-<kind>`    | Draft a `description`, a `review` of someone's PR, or a `reply` to your reviewer; `publish` posts an approved draft                                                                                                                |
-| Dependabot PRs merged and security alerts sorted                                                               | `/deps`         | Merge Dependabot PRs and reconcile security alerts                                                                                                                                                                                 |
+| Dependency-bot PRs merged and security alerts sorted                                                           | `/deps`         | Merge Dependabot or Renovate PRs and reconcile the host's security alerts                                                                                                                                                          |
 | AI tells and filler out of a text                                                                              | `/unslop`       | Rewrite AI tells and filler in files, a `diff`, or pasted text; to scratch unless told `in place`                                                                                                                                  |
 | A sharper prompt, refreshed pattern skills, a new skill, a repo's conventions, or a retro                      | `/meta-<kind>`  | `prompt` sharpening, `refresh` the pattern skills, draft a new `skill`, write a repo's `conventions`, `retro`                                                                                                                      |
 
@@ -274,27 +274,27 @@ claude plugin install kit@ku5ic
 
 Required: `git` and bash. Every tool below is optional. A missing one, except `glab`, is named on the session-start `<tooling>` block's `missing:` line, and Claude leaves it unused.
 
-| Tool         | Used by                                                                      | Without it                                                                      |
-| ------------ | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `gh`         | `/pr-*`, `/deps`, `/code-history`, `/code-challenge`, linked tickets         | `/pr-*` and `/deps` can't reach GitHub; `/code-history` works from commits only |
-| `glab`       | `/pr-*`, `/code-history`, `/code-challenge`, review checkout, on GitLab      | the host's MCP connector, else `/code-history` works from commits only          |
-| `rg`         | text search everywhere, `/audit-*`, `/code-*`, the gatherer agent            | search uses grep                                                                |
-| `sg`         | `kit code-graph imports` (`/code-visual`, `/code-impact`), searches by shape | `kit code-graph imports` fails; `rg` stands in for shape search                 |
-| `fd`         | file search, `/audit-*`, `/code-*`                                           | file search uses find                                                           |
-| `tokei`      | `/audit-debt`, `/code-visual`                                                | file sizes come from reading files                                              |
-| `scc`        | `/code-visual` hotspots                                                      | the hotspot quadrant is skipped                                                 |
-| `mmdc`       | `/code-visual` diagram rendering                                             | diagrams go unrendered, and the report says so                                  |
-| `gitleaks`   | the commit guard's staged-diff scan, `/audit-security`                       | the commit scan is skipped                                                      |
-| `trufflehog` | `/audit-security` history scan                                               | history goes unscanned                                                          |
-| `actionlint` | `/audit-ci`                                                                  | `/audit-ci` skips its actionlint step                                           |
-| `hyperfine`  | `/audit-perf` timings                                                        | `/audit-perf` makes no timing claim                                             |
-| `difft`      | `/code-history`, dropping reformat-only commits                              | reformat-only commits stay in the ranking                                       |
-| `adr`        | `/code-challenge` reading ADRs                                               | `/code-challenge` lists the ADR folder's files                                  |
-| `jq`         | JSON questions, `/code-visual`, `/deps`, `/pr-*`                             | Claude reads the JSON instead                                                   |
-| `gron`       | grepping flat JSON paths                                                     | `jq` stands in                                                                  |
-| `yq`         | YAML and TOML questions                                                      | Claude reads the file instead                                                   |
-| `qsv`        | CSV and TSV questions                                                        | Claude reads the file instead                                                   |
-| `git-absorb` | fixup commits from staged hunks                                              | `git rebase -i` with fixups instead                                             |
+| Tool         | Used by                                                                          | Without it                                                                      |
+| ------------ | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `gh`         | `/pr-*`, `/deps`, `/code-history`, `/code-challenge`, linked tickets             | `/pr-*` and `/deps` can't reach GitHub; `/code-history` works from commits only |
+| `glab`       | `/pr-*`, `/deps`, `/code-history`, `/code-challenge`, review checkout, on GitLab | the host's MCP connector, else `/code-history` works from commits only          |
+| `rg`         | text search everywhere, `/audit-*`, `/code-*`, the gatherer agent                | search uses grep                                                                |
+| `sg`         | `kit code-graph imports` (`/code-visual`, `/code-impact`), searches by shape     | `kit code-graph imports` fails; `rg` stands in for shape search                 |
+| `fd`         | file search, `/audit-*`, `/code-*`                                               | file search uses find                                                           |
+| `tokei`      | `/audit-debt`, `/code-visual`                                                    | file sizes come from reading files                                              |
+| `scc`        | `/code-visual` hotspots                                                          | the hotspot quadrant is skipped                                                 |
+| `mmdc`       | `/code-visual` diagram rendering                                                 | diagrams go unrendered, and the report says so                                  |
+| `gitleaks`   | the commit guard's staged-diff scan, `/audit-security`                           | the commit scan is skipped                                                      |
+| `trufflehog` | `/audit-security` history scan                                                   | history goes unscanned                                                          |
+| `actionlint` | `/audit-ci`                                                                      | `/audit-ci` skips its actionlint step                                           |
+| `hyperfine`  | `/audit-perf` timings                                                            | `/audit-perf` makes no timing claim                                             |
+| `difft`      | `/code-history`, dropping reformat-only commits                                  | reformat-only commits stay in the ranking                                       |
+| `adr`        | `/code-challenge` reading ADRs                                                   | `/code-challenge` lists the ADR folder's files                                  |
+| `jq`         | JSON questions, `/code-visual`, `/deps`, `/pr-*`                                 | Claude reads the JSON instead                                                   |
+| `gron`       | grepping flat JSON paths                                                         | `jq` stands in                                                                  |
+| `yq`         | YAML and TOML questions                                                          | Claude reads the file instead                                                   |
+| `qsv`        | CSV and TSV questions                                                            | Claude reads the file instead                                                   |
+| `git-absorb` | fixup commits from staged hunks                                                  | `git rebase -i` with fixups instead                                             |
 
 ### Shell completion (optional)
 

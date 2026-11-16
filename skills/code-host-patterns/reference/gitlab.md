@@ -31,3 +31,40 @@ A line note needs the MR's `diff_refs`: `base_sha`, `start_sha`, and `head_sha`.
 | What the post log records     | the note's `id` as `<MR web_url>#note_<id>`, and its `created_at`                                                                                                                                                                                                                                                   |
 
 Draft notes publish a whole review in one batch. `glab mr create` pushes unless `--push=false` is given, and the kit never pushes.
+
+## Dependencies
+
+| Operation                | Command                                                                                                                                                         |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Open bot MRs             | `glab mr list -R <repo> --per-page 100 -F json`, its `iid`, `title`, `description`, `source_branch`, `sha`, `detailed_merge_status`, `labels`, by branch prefix |
+| Mergeable                | `detailed_merge_status` is `mergeable`; conflicted is `conflict` or `need_rebase`                                                                               |
+| Security alerts          | Vulnerabilities, below                                                                                                                                          |
+| An alert's fixed version | none as a field; `solution` is free text                                                                                                                        |
+| Comment on an MR         | `glab mr note create <n> -R <repo> -m <text>`                                                                                                                   |
+| Add a label              | `glab mr update <n> -R <repo> --label <label>`                                                                                                                  |
+| Wait for CI              | `glab ci status -R <repo> --branch <source branch> --wait`                                                                                                      |
+| Merge                    | `glab mr merge <n> -R <repo> --squash --remove-source-branch --sha <sha> --auto-merge=false --yes`                                                              |
+
+`glab mr merge` sets auto-merge unless `--auto-merge=false` is given, and `--sha` refuses a head that moved.
+
+### Vulnerabilities
+
+GitLab Ultimate only; the REST vulnerabilities API is deprecated in favor of GraphQL. `--paginate` needs the `$endCursor` variable and `pageInfo`:
+
+```bash
+glab api graphql --paginate -f query='
+query($endCursor: String) {
+  project(fullPath: "<repo>") {
+    vulnerabilities(reportType: [DEPENDENCY_SCANNING], state: [DETECTED, CONFIRMED], first: 100, after: $endCursor) {
+      nodes {
+        severity title webUrl solution
+        primaryIdentifier { name }
+        location { ... on VulnerabilityLocationDependencyScanning { file dependency { version package { name } } } }
+      }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+}'
+```
+
+`state` is `DETECTED`, `CONFIRMED`, `RESOLVED`, or `DISMISSED`; severity is `INFO` through `CRITICAL`. A 403, or a null `project.vulnerabilities`, means the tier or the token can't read them, so report them as "unavailable".
