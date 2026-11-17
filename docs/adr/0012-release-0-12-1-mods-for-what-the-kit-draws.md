@@ -24,5 +24,5 @@ Sources are the commits on `feat/subagent-rows-as-a-mod`, each named where it's 
 ## Consequences
 
 - A mod depends on an early-access API that "moves between releases", so CI pins the Claude Code version it validates and tests against.
-- Claude Code 2.1.323 accepts the `modules` key and has no agent rows for a plugin to draw, so it shows its own. A process with mods switched off by Claude Code's rollout switch does the same, and `claude plugin test` refuses to run there (8684185).
+- Claude Code 2.1.323 accepts the `modules` key and has no agent rows for a plugin to draw, so it shows its own (123333e). A process with mods switched off by Claude Code's rollout switch does the same, and `claude plugin test` refuses to run there (8684185).
 - A `subagentStatusLine` setting that still names the removed command gets no answer from the kit.
