@@ -49,6 +49,7 @@ Every command detects your stack, your code host (GitHub through `gh`, GitLab th
 | `/write-commit`        | A commit message from the staged diff, in the project's style                                 | Committing                                      |
 | `/write-devnote`       | A sentence or two on a change's key reasoning, or on what testing someone's change found      | A PR or ticket needs the why, briefly           |
 | `/write-explainer`     | A bug, feature, or module explained to someone new, with `file:line` citations                | Handing work over, or onboarding someone        |
+| `/write-launch`        | An announcement post, landing page copy, or the facts for a Show HN you write yourself        | Launching a project, a release, or a feature    |
 | `/write-release-notes` | Release notes from a branch's commits since its base                                          | Cutting a release                               |
 | `/write-retro`         | A retro for an incident, sprint, or feature, its action items filed as tickets after your yes | After an incident or at the end of a sprint     |
 | `/write-rfc`           | A design doc whose current state, rollout, rollback, and capacity come from code and metrics  | Proposing a change others have to agree to      |
