@@ -1,3 +1,5 @@
+<img src="assets/claude-kit-mark.svg" alt="" width="40">
+
 # Why the rules say what they say
 
 The rules in `skills/kit-rules/reference/` are written for the model: one line each, a condition then an action. This page holds the reasoning, the examples, and the exceptions that were cut from them. It's for people. The model never loads it, and a rule never cites it.

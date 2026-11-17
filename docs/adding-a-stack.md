@@ -1,3 +1,5 @@
+<img src="assets/claude-kit-mark.svg" alt="" width="40">
+
 # Adding a stack
 
 A framework the kit doesn't know needs a pattern skill. A language needs that, plus Go code so the guards and commands can read it. Each step below names the file that owns it; read that file for the how.

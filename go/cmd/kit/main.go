@@ -162,10 +162,6 @@ var commands = map[string]command{
 		status.Statusline(os.Stdin, e.stdout, e.paths.ClaudeDir)
 		return 0
 	}},
-	"subagent-statusline": {needsEnv, func(e *env, _ *config.Config, _ []string) int {
-		status.SubagentStatusline(os.Stdin, e.stdout)
-		return 0
-	}},
 	"tasks":        {needsConfig, cmdTasks},
 	"detect-stack": {needsConfig, cmdDetectStack},
 	"run-checks":   {needsConfig, cmdRunChecks},

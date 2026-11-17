@@ -1,3 +1,5 @@
+<img src="assets/claude-kit-mark.svg" alt="" width="40">
+
 # Dependencies
 
 What the kit needs installed, what a fresh macOS or Linux install already has, and what each optional tool adds.
@@ -15,6 +17,8 @@ Without these the kit doesn't run. A fresh install doesn't always have them:
 | `curl`, `sha256sum` or `shasum` | downloading and checking the `kit` binary, once per version | macOS has both. Ubuntu Desktop and the Debian, Ubuntu, and Alpine images lack `curl`                                                                                          |
 
 Without a downloaded binary, the hooks let everything through and session start says why.
+
+The kit needs Claude Code 2.1.323 or later, set in `.claude-plugin/plugin.json` `engines`. CI tests against 2.1.326.
 
 ## Optional
 

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="t">
+  <title id="t">claude-kit</title>
+  <rect width="512" height="512" rx="112" fill="#1F3A3D"/>
+  <polyline points="188,164 154,164 154,348 188,348" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke="#ECE6DA" stroke-width="26"/>
+  <polyline points="324,164 358,164 358,348 324,348" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke="#ECE6DA" stroke-width="26"/>
+  <polyline points="206,260 242,296 306,216" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke="#D08C60" stroke-width="30"/>
+</svg>

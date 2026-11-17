@@ -1,17 +1,22 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/claude-kit-lockup-dark-bg.svg">
+  <img src="docs/assets/claude-kit-lockup-light-bg.svg" alt="claude-kit: ship with confidence" width="480">
+</picture>
+
 # claude-kit
 
-**Claude Code that shows its work.**
+**Ship with confidence.**
 
 Claude Code treats your rules as advice. A rule in CLAUDE.md, a skill, or a prompt is something it can skip, and you find out in review. claude-kit runs those rules as hooks on every command, edit, plan, subagent report, and stop, and sends Claude back when it breaks one. It has to back its claims, pass your project's own checks before it says "done", and stop for your review after every step.
 
-It also has 45 commands for the work around the code: audits, ADRs and RFCs, reviews of your PRs and other people's, your review queue, dependency PRs, and incident retros and runbooks ([every command](docs/commands.md)). Each one detects your stack, your code host, and the tools you've connected, and asks when it can't tell. Audit and code reports go through the same claim check before you read them.
+It also has 46 commands for the work around the code: audits, ADRs and RFCs, reviews of your PRs and other people's, your review queue, dependency PRs, incident retros and runbooks, and launch copy ([every command](docs/commands.md)). Each one detects your stack, your code host, and the tools you've connected, and asks when it can't tell. Audit and code reports go through the same claim check before you read them.
 
 ```sh
 claude plugin marketplace add ku5ic/claude-kit
 claude plugin install kit@ku5ic
 ```
 
-Works in any repo on macOS and Linux with the defaults in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml` ([configuration](docs/configuration.md)).
+Works in any repo on macOS and Linux with the defaults in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml` ([configuration](docs/configuration.md)). It's built for one engineer. There's no team policy layer and no Windows support.
 
 **It isn't an autopilot.** You approve the plan, review each step, and commit. The kit makes each review shorter, because what reaches you has already been checked.
 
@@ -29,9 +34,9 @@ flowchart LR
     checks -.->|fail| tool
     checks -->|pass| review([You review<br/>and commit]):::you
 
-    classDef you fill:#dcfce7,stroke:#16a34a,color:#14532d
-    classDef claude fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
-    classDef kit fill:#fef3c7,stroke:#d97706,color:#78350f
+    classDef you fill:#F7E9DF,stroke:#A9643A,stroke-width:1.5px,color:#1F3A3D
+    classDef claude fill:#EEF3F2,stroke:#4A6366,stroke-width:1.5px,color:#1F3A3D
+    classDef kit fill:#1F3A3D,stroke:#7FA8A9,stroke-width:2px,color:#F4EFE6,font-weight:600
 ```
 
 Nothing to learn up front. After install:
@@ -49,6 +54,17 @@ Nothing to learn up front. After install:
 | Claude replies        | Holds it to a word ceiling and reminds it to check its claims                                                    |
 
 **Block** means Claude gets the reason and tries another way; you aren't interrupted. **Ask** is a normal permission prompt with the reason in it. Every guard, and which of the two it does: [docs/guards.md](docs/guards.md).
+
+What Claude gets back when it tries `git push --force origin main`:
+
+```text
+kit bash: BLOCKED git push --force
+
+do    use --force-with-lease if you must
+
+rule  git-force-push
+cmd   git push --force origin main
+```
 
 ## What it catches
 
@@ -97,12 +113,7 @@ For anything bigger than a one-line fix, the kit holds Claude to five stages. Ea
 
 Side trips: an `/audit-<kind>` for a read-only report, `/simplify` (built in) to cut over-engineering, `/deps` for dependency PRs.
 
-## Install
-
-```sh
-claude plugin marketplace add ku5ic/claude-kit
-claude plugin install kit@ku5ic
-```
+## Requirements
 
 Needs `git`, bash, and `curl`, on macOS or Linux. A fresh macOS asks for the Command Line Tools the first time `git` runs, and some Linux installs lack `git` or `curl`: [dependencies](docs/dependencies.md) says what each already has. The plugin runs in Claude Code only; claude.ai chat has [its own zip](docs/chat.md).
 

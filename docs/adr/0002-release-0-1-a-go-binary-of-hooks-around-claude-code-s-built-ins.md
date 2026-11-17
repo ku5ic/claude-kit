@@ -6,6 +6,8 @@ Date: 2026-10-01
 
 Accepted
 
+Amended by [12. Release 0.12.1: mods for what the kit draws](0012-release-0-12-1-mods-for-what-the-kit-draws.md)
+
 ## Context
 
 Release 0.1 (v0.1.0 and v0.1.1, 2026-10-01) set the kit's shape. This record replaces the former ADRs 2 to 6, and its sources are theirs.

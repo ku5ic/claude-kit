@@ -1,12 +1,14 @@
+<img src="assets/claude-kit-mark.svg" alt="" width="40">
+
 # The kit CLI and status line
 
 ## How it's built
 
-Every hook and helper is one Go binary (`bin/kit-<version>-<os>-<arch>`, darwin and linux, arm64 and amd64), run through the `bin/kit` launcher as `kit <subcommand>` or `kit hook <name>`. The first session start or `kit` command after an install or update downloads it from the matching GitHub release; until then the guards fail open.
+Every command hook and helper is one Go binary (`bin/kit-<version>-<os>-<arch>`, darwin and linux, arm64 and amd64), run through the `bin/kit` launcher as `kit <subcommand>` or `kit hook <name>`. The first session start or `kit` command after an install or update downloads it from the matching GitHub release; until then the guards fail open.
 
 ## The kit CLI
 
-Every hook runs through one `kit` binary, and the same binary answers the questions the hooks ask, so you can ask them too. `kit help` lists every command with its flags.
+Every command hook runs through one `kit` binary, and the same binary answers the questions the hooks ask, so you can ask them too. `kit help` lists every command with its flags.
 
 | I want to                                                        | Run                                                   |
 | ---------------------------------------------------------------- | ----------------------------------------------------- |
@@ -36,11 +38,10 @@ eval "$(kit completion zsh)"   # or: kit completion bash
 
 ## Status line
 
-What a session costs and how full its context is, without asking. Two rows: model, agent, directory, and git state; then context used, cost, duration, effort, and rate limit. Subagents get a line each. Git state is cached for `STATUSLINE_CACHE_TTL` seconds (default 1). Add to `~/.claude/settings.json`:
+What a session costs and how full its context is, without asking. Two rows: model, agent, directory, and git state; then context used, cost, duration, effort, and rate limit. Git state is cached for `STATUSLINE_CACHE_TTL` seconds (default 1). Add to `~/.claude/settings.json`:
 
 ```json
-"statusLine": { "type": "command", "command": "~/.claude/plugins/marketplaces/ku5ic/bin/kit statusline" },
-"subagentStatusLine": { "type": "command", "command": "~/.claude/plugins/marketplaces/ku5ic/bin/kit subagent-statusline" }
+"statusLine": { "type": "command", "command": "~/.claude/plugins/marketplaces/ku5ic/bin/kit statusline" }
 ```
 
 It looks like this, with colour:
@@ -50,9 +51,13 @@ Opus 5.5  my-app  main +0 ~0
 ███░░░░░░░ 32%  $15.62   1h 26m   effort:high  5h:31%
 ```
 
-And a line for each subagent:
+## Subagent rows
+
+The plugin draws each subagent's row in the agent list itself, with no setting: name, status, model and effort, context used, time running, and the tool it's running now, or its latest progress note. While it's on, a subagent's tool call can't move to the background and shows no live output. Turn it off with the `subagent_rows` option in `/plugin` config. Claude Code 2.1.323 has no agent rows for a plugin to draw, so it shows its own.
 
 ```text
-kit:plan-critic [running]  claude-opus-5-5  effort:high  18%
-kit:gatherer [completed]  claude-haiku-5-5  effort:low  7%
+kit:plan-critic  running  opus-5-5 high  18%  2m4s  Read statusline.go
+kit:gatherer  completed  haiku-5-5 low  7%  found 3 call sites
 ```
+
+A `subagentStatusLine` setting is deprecated in Claude Code and the kit no longer answers it; remove it from `~/.claude/settings.json`.

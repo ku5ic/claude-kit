@@ -22,8 +22,26 @@ bin/kit help
 
 ## Test
 
-- **Everything CI runs:** `KIT_DEV=1 bin/kit run-checks --all`, or without `--all` for what changed since `main`. It reads the steps from `.github/workflows/ci.yml`, which are golangci-lint, `go vet`, deadcode, `go test -race`, the chat bundle check, the plugin version check, shellcheck, and `claude plugin validate`.
+- **Everything CI runs:** `KIT_DEV=1 bin/kit run-checks --all`, or without `--all` for what changed since `main`. It reads the steps from `.github/workflows/ci.yml`, which are golangci-lint, `go vet`, deadcode, `go test -race`, the chat bundle check, the plugin version check, shellcheck, `claude plugin validate`, and `claude plugin test`.
 - **Go tests:** `go test ./...` in `go/`. End-to-end tests live in `go/e2e`, and `go/e2e/kit_repo_test.go` checks that the kit's own files agree.
+
+## Mods
+
+Where mods live and how they load: [`mods/index.ts`](mods/index.ts). A mod imports only the plugin's own files and runs with no Node, so there's no `package.json`. Write one with the `plugin-authoring` skill, which also writes the API's types into the session.
+
+- **Try it:** `claude --plugin-dir .` loads this checkout, and an edit to `mods/` reloads when the turn ends.
+- **Check it:** `claude plugin validate .` type-checks `mods/`, and the tests run on a staged copy, as the `claude plugin test` step in `.github/workflows/ci.yml` does.
+
+## Brand assets
+
+The SVGs in `docs/assets/` are the sources: the mark, and the lockup for light and dark backgrounds. Every PNG is rendered from them with `rsvg-convert` and ImageMagick, so after an SVG changes:
+
+```sh
+rsvg-convert -w 512 -h 512 docs/assets/claude-kit-mark.svg -o .claude-plugin/icon.png
+rsvg-convert -w 1100 docs/assets/claude-kit-lockup-light-bg.svg | magick -size 1280x640 xc:'#ECE6DA' - -gravity center -composite social-preview.png
+```
+
+The second is GitHub's social preview, uploaded by hand in the repository's Settings, not committed. Keep the background off the mark's tile colour, `#1F3A3D`, or the tile disappears into it.
 
 ## The chat bundle
 
@@ -32,5 +50,5 @@ The `release` workflow builds the claude.ai chat zip. `kit bundle chat --check` 
 ## Pull requests and releases
 
 - Work on a feature branch off `main`. PRs are squash-merged.
-- A PR that changes `go/` or `hooks/hooks.json`, tests aside, bumps `.claude-plugin/plugin.json` `version`, and CI fails it otherwise. A fresh install pairs `main`'s hooks with the released binary for the current version, so a change without a bump would run new hooks on an old binary.
+- A PR that changes `go/`, `hooks/hooks.json`, or `mods/`, tests aside, bumps `.claude-plugin/plugin.json` `version`, and CI fails it otherwise. A fresh install pairs `main`'s hooks with the released binary for the current version, so a change without a bump would run new hooks on an old binary.
 - Merging a version bump releases `v<version>`. The `release` workflow publishes it with the binaries and the chat zip, and installs take hooks, binaries, and rules only from a version bump.

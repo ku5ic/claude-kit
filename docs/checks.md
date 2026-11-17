@@ -1,3 +1,5 @@
+<img src="assets/claude-kit-mark.svg" alt="" width="40">
+
 # Checks before "done"
 
 The kit enforces your project's own rules, not its own list of tools. It reads what your project already runs, and asks gap-fill only about what those configs leave open.

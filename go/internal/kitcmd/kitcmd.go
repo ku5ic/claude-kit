@@ -41,7 +41,6 @@ var Commands = []Command{
 	{Name: "clean", Args: "[--yes]", Desc: "remove the kit's own logs, caches, and home\nscratch, for an uninstall; lists them without --yes", Words: []string{"--yes"}},
 	{Name: "hook", Args: "<name>", Desc: "run a Claude Code hook; payload on stdin"},
 	{Name: "statusline", Desc: "the statusLine rows; payload on stdin"},
-	{Name: "subagent-statusline", Desc: "subagentStatusLine JSON lines; payload on stdin"},
 	{Name: "version", Desc: "the plugin version this binary was built for"},
 	{Name: "completion", Args: "bash|zsh", Desc: "a shell completion script for kit", Words: []string{"bash", "zsh"}},
 }

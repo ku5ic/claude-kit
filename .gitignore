@@ -2,3 +2,5 @@
 skills/synced/
 # Built by go/build.sh or KIT_DEV=1, downloaded from releases otherwise.
 bin/kit-*
+# Written by the engine when it loads the mods; extends the ignored .claude-plugin/types/.
+/tsconfig.json

@@ -1,3 +1,5 @@
+<img src="assets/claude-kit-mark.svg" alt="" width="40">
+
 # Configuration
 
 Your changes go in `~/.claude/claude-kit.local.yml`, merged over the defaults in `kit.yml`. `kit config` prints the merged result, each key marked with the file that set it, and `kit config --check` flags unknown keys and wrong types.
@@ -18,22 +20,23 @@ Your changes go in `~/.claude/claude-kit.local.yml`, merged over the defaults in
 
 ## On by default, and what you switch on
 
-| Feature                                                                     | Default  | Needs, or how to change it                                                                  |
-| --------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------- |
-| Guards, checks before "done", formatting, context, rules                    | On       | Nothing. Each guard rule can be let through with `disabled_rules`                           |
-| Gap-fill: a small model sorts what your configs leave open                  | On       | The `claude` CLI, logged in. Haiku, capped at $0.50 a call, cached per repo                 |
-| Claim checker                                                               | On       | For subagent reports, the `claude` CLI, logged in. Turn off with `disabled_rules: [claims]` |
-| plan-critic before a plan is approved                                       | On       | Turn off with `disabled_rules: [plan-critic]`                                               |
-| Scratch files past 30 days pruned once a day at session start               | On       | Turn off with `disabled_rules: [scratch-rotate]`                                            |
-| kit-rules and every `global_skills` skill loaded before the first tool call | On       | Turn off with `disabled_rules: [rules-gate]`                                                |
-| A finished plan held until `/code-review` ran after its last edit           | On       | Turn off with `disabled_rules: [plan-done]`                                                 |
-| A `/code-review` report saved to scratch before Claude asks or stops        | On       | Turn off with `disabled_rules: [review-report]`                                             |
-| Claude stops for your review after each plan step                           | On       | `step_pause: plan` stops once at the plan's end, `off` never stops                          |
-| Pattern skills required before the first edit of a file type                | Off      | `guard_skills: true`, or `CLAUDE_GUARD_SKILLS=1` in your settings `env`                     |
-| Em dashes, smart quotes, and Unicode arrows rewritten to ASCII              | Off      | `sanitize_typography: true`, or `CLAUDE_SANITIZE_TYPOGRAPHY=1` in your settings `env`       |
-| Status line                                                                 | Off      | Two lines in `~/.claude/settings.json` ([Status line](cli.md#status-line))                  |
-| `kit` in your own terminal                                                  | Off      | PATH and completion in your shell rc ([Shell completion](cli.md#in-your-own-terminal))      |
-| claude.ai chat                                                              | Separate | Upload the release's chat zip ([Use it in claude.ai chat](chat.md))                         |
+| Feature                                                                     | Default  | Needs, or how to change it                                                                           |
+| --------------------------------------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------- |
+| Guards, checks before "done", formatting, context, rules                    | On       | Nothing. Each guard rule can be let through with `disabled_rules`                                    |
+| Gap-fill: a small model sorts what your configs leave open                  | On       | The `claude` CLI, logged in. Haiku, capped at $0.50 a call, cached per repo                          |
+| Claim checker                                                               | On       | For subagent reports, the `claude` CLI, logged in. Turn off with `disabled_rules: [claims]`          |
+| plan-critic before a plan is approved                                       | On       | Turn off with `disabled_rules: [plan-critic]`                                                        |
+| Scratch files past 30 days pruned once a day at session start               | On       | Turn off with `disabled_rules: [scratch-rotate]`                                                     |
+| kit-rules and every `global_skills` skill loaded before the first tool call | On       | Turn off with `disabled_rules: [rules-gate]`                                                         |
+| A finished plan held until `/code-review` ran after its last edit           | On       | Turn off with `disabled_rules: [plan-done]`                                                          |
+| A `/code-review` report saved to scratch before Claude asks or stops        | On       | Turn off with `disabled_rules: [review-report]`                                                      |
+| Claude stops for your review after each plan step                           | On       | `step_pause: plan` stops once at the plan's end, `off` never stops                                   |
+| Pattern skills required before the first edit of a file type                | Off      | `guard_skills: true`, or `CLAUDE_GUARD_SKILLS=1` in your settings `env`                              |
+| Em dashes, smart quotes, and Unicode arrows rewritten to ASCII              | Off      | `sanitize_typography: true`, or `CLAUDE_SANITIZE_TYPOGRAPHY=1` in your settings `env`                |
+| Status line                                                                 | Off      | One line in `~/.claude/settings.json` ([Status line](cli.md#status-line))                            |
+| Subagent rows: status, model, effort, and the tool each agent is running    | On       | Turn off with the `subagent_rows` option in `/plugin` config ([Subagent rows](cli.md#subagent-rows)) |
+| `kit` in your own terminal                                                  | Off      | PATH and completion in your shell rc ([Shell completion](cli.md#in-your-own-terminal))               |
+| claude.ai chat                                                              | Separate | Upload the release's chat zip ([Use it in claude.ai chat](chat.md))                                  |
 
 ## Your overlay
 
@@ -92,3 +95,15 @@ A preset is a set of these keys under a name. Put `preset: <name>` in your overl
 | `strict`   | `guard_skills: true`, `sanitize_typography: true`: both opt-in guards on                                                    |
 
 `CLAUDE_GUARD_SKILLS=1` and `CLAUDE_SANITIZE_TYPOGRAPHY=1` in your settings `env` still turn those two guards on.
+
+## Going back a version
+
+Pin the marketplace to a release tag and reinstall:
+
+```sh
+claude plugin marketplace remove ku5ic
+claude plugin marketplace add ku5ic/claude-kit#v0.12.0
+claude plugin install kit@ku5ic
+```
+
+Removing the marketplace uninstalls the kit and drops its `/plugin` options, such as `subagent_rows`, so set them again. The kit stays on that tag until you add the marketplace back without `#<tag>`.

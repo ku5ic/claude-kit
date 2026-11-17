@@ -91,5 +91,6 @@
         ]
       }
     ]
-  }
+  },
+  "modules": ["../mods/index.ts"]
 }
