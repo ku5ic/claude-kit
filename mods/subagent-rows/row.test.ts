@@ -102,7 +102,8 @@ describe('describeTool', () => {
     expect(describeTool('Read', { file_path: '/' })).toBe('Read')
   })
 
-  test('drops control characters from the argument', () => {
+  test('drops control characters from the tool name and the argument', () => {
+    expect(describeTool('mcp__x\x1b[2J', {})).toBe('mcp__x[2J')
     expect(describeTool('Bash', { command: 'ls \x1b]8;;https://evil\x07x' })).toBe('Bash ls ]8;;https://evilx')
   })
 })

@@ -77,6 +77,34 @@ describe('subagent rows', () => {
     await ui.unmount()
   })
 
+  test('a call that ends while an earlier one runs leaves the earlier on the row', async ($, on) => {
+    const rows = recordRows(on)
+    let started = (): void => {}
+    let finish = (): void => {}
+    const bashStarted = new Promise<void>(resolve => (started = resolve))
+    const bashDone = new Promise<void>(resolve => (finish = resolve))
+    on('tool.call', async (_, e) => {
+      if (e.tool === 'Bash') {
+        started()
+        await bashDone
+      }
+      return { result: RAN }
+    })
+
+    const ui = await mountRow($)
+    const bash = $.tool.call({ tool: 'Bash', command: 'go test ./...', agentId: 'a1' })
+    await bashStarted
+    await $.tool.call({ tool: 'Read', file_path: '/repo/x.go', agentId: 'a1' })
+    await ui.redraw()
+
+    expect(rows.last()).toBe('Explore  running  1m12s  Bash go test ./...')
+    finish()
+    await bash
+    await ui.redraw()
+    expect(rows.last()).toBe(IDLE)
+    await ui.unmount()
+  })
+
   test("another agent's tool call leaves this row alone", async ($, on) => {
     const rows = recordRows(on)
     let redraw = async (): Promise<void> => {}

@@ -53,7 +53,7 @@ Opus 5.5  my-app  main +0 ~0
 
 ## Subagent rows
 
-The plugin draws each subagent's row in the agent list itself, with no setting: name, status, model and effort, context used, time running, and the tool it's running now, or its latest progress note. Turn it off with the `subagent_rows` option in `/plugin` config. Claude Code 2.1.323 has no agent rows for a plugin to draw, so it shows its own.
+The plugin draws each subagent's row in the agent list itself, with no setting: name, status, model and effort, context used, time running, and the tool it's running now, or its latest progress note. While it's on, a subagent's tool call can't move to the background and shows no live output. Turn it off with the `subagent_rows` option in `/plugin` config. Claude Code 2.1.323 has no agent rows for a plugin to draw, so it shows its own.
 
 ```text
 kit:plan-critic  running  opus-5-5 high  18%  2m4s  Read statusline.go

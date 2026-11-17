@@ -48,9 +48,9 @@ export function describeTool(tool: string, input: Readonly<Record<string, unknow
     const value = input[key]
     if (typeof value !== 'string') continue
     const arg = printable(key === 'file_path' ? (value.split(/[\\/]/).filter(Boolean).pop() ?? '') : firstLine(value))
-    if (arg !== '') return `${tool} ${arg}`
+    if (arg !== '') return `${printable(tool)} ${arg}`
   }
-  return tool
+  return printable(tool)
 }
 
 function modelAndEffort(agent: AgentInfo): string {
