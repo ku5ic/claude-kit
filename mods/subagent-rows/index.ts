@@ -24,10 +24,10 @@ export const register: Register = (on, options) => {
     }
   }).catch(($, e, next) => next(e))
 
-  // rowIds changes as an agent comes or goes, so every row is asked again and its count stays current.
+  // The engine asks every row again as an agent comes or goes, so the count stays current.
   on('ui.render', { component: 'AgentRow' }, async ($, e, next) => {
     const { props } = e
-    const descendants = countDescendants(props.id, await $.agent.list())
-    return next({ ...e, props: { ...props, body: formatRow(props, running.get(props.id), await $.clock.now(), descendants) } })
+    const [agents, now] = await Promise.all([$.agent.list(), $.clock.now()])
+    return next({ ...e, props: { ...props, body: formatRow(props, running.get(props.id), now, countDescendants(props.id, agents)) } })
   })
 }

@@ -34,9 +34,13 @@ export function formatRow(agent: AgentInfo, lastTool: string | undefined, now: n
     .join(SEP)
 }
 
-// The agents below id that the panel lists, at any depth.
+// The agents below id that have a row, at any depth; a child with none still counts its own.
 export function countDescendants(id: string, agents: readonly AgentInfo[]): number {
-  return agents.filter(agent => agent.parentId === id).reduce((n, child) => n + (child.hasRow ? 1 : 0) + countDescendants(child.id, agents), 0)
+  let count = 0
+  for (const agent of agents) {
+    if (agent.parentId === id) count += Number(agent.hasRow) + countDescendants(agent.id, agents)
+  }
+  return count
 }
 
 export function describeTool(tool: string, input: Readonly<Record<string, unknown>>): string {

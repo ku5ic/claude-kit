@@ -95,7 +95,7 @@ describe('subagent rows', () => {
     await ui.unmount()
   })
 
-  test("a row counts the descendants the panel lists, as the engine's (+N) does", async ($, on) => {
+  test("a row counts the descendants with a row, since its body replaces the engine's (+N)", async ($, on) => {
     const rows = recordRows(on, [
       ROW,
       { ...ROW, id: 'c1', parentId: 'a1' },
