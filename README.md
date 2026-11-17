@@ -34,9 +34,9 @@ flowchart LR
     checks -.->|fail| tool
     checks -->|pass| review([You review<br/>and commit]):::you
 
-    classDef you fill:#dcfce7,stroke:#16a34a,color:#14532d
-    classDef claude fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
-    classDef kit fill:#fef3c7,stroke:#d97706,color:#78350f
+    classDef you fill:#F7E9DF,stroke:#A9643A,stroke-width:1.5px,color:#1F3A3D
+    classDef claude fill:#EEF3F2,stroke:#4A6366,stroke-width:1.5px,color:#1F3A3D
+    classDef kit fill:#1F3A3D,stroke:#7FA8A9,stroke-width:2px,color:#F4EFE6,font-weight:600
 ```
 
 Nothing to learn up front. After install:
