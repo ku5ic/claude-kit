@@ -6,6 +6,8 @@ Date: 2026-11-17
 
 Accepted
 
+Amends [2. Release 0.1: a Go binary of hooks around Claude Code's built-ins](0002-release-0-1-a-go-binary-of-hooks-around-claude-code-s-built-ins.md)
+
 ## Context
 
 Sources are the commits on `feat/subagent-rows-as-a-mod`, each named where it's used.

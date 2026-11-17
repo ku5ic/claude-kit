@@ -12,7 +12,7 @@
     "subagent_rows": {
       "type": "boolean",
       "title": "Subagent rows",
-      "description": "Draw each subagent row as status, model, effort, context, elapsed time, and the tool it is running.",
+      "description": "Draw each subagent row as its name with a (+N) count of agents below it, status, model, effort, context, elapsed time, and the tool it is running or its latest progress note.",
       "default": true
     }
   }
