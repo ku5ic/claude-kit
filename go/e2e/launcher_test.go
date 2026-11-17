@@ -173,9 +173,7 @@ chmod +x "$2"
 
 	t.Run("a status line never downloads, since each refresh cancels it", func(t *testing.T) {
 		k, launcher, log := install(t, "exit 22")
-		for _, cmd := range []string{"statusline", "subagent-statusline"} {
-			k.exec("bash", "{}", launcher, cmd).Want(t, 127)
-		}
+		k.exec("bash", "{}", launcher, "statusline").Want(t, 127)
 		if calls := testutil.Calls(t, log); calls != nil {
 			t.Errorf("a status line ran curl:\n%s", strings.Join(calls, "\n"))
 		}

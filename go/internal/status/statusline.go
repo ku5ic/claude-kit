@@ -1,5 +1,5 @@
-// Package status renders Claude Code's statusLine and subagentStatusLine.
-// Neither may ever break a render: anything unexpected yields a
+// Package status renders Claude Code's statusLine.
+// It may never break a render: anything unexpected yields a
 // best-effort line or no output, never an error.
 package status
 
@@ -24,7 +24,6 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
-	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/sources"
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
@@ -379,47 +378,4 @@ func newLines(path string) int {
 		n++
 	}
 	return n
-}
-
-// SubagentStatusline prints one {"id","content"} JSON object per task:
-// "name [status]  <model>  effort:<level>  <ctx%>". Anything unexpected
-// prints nothing: lines not matching that shape are discarded and logged
-// by Claude Code.
-func SubagentStatusline(stdin io.Reader, stdout io.Writer) {
-	defer func() { _ = recover() }()
-	var payload struct {
-		Tasks []map[string]any `json:"tasks"`
-	}
-	raw, _ := io.ReadAll(stdin)
-	if json.Unmarshal(raw, &payload) != nil {
-		return
-	}
-	var out strings.Builder
-	for _, t := range payload.Tasks {
-		id := jqString(t, "id", "")
-		if id == "" {
-			continue
-		}
-		name := jqString(t, "name", jqString(t, "label", jqString(t, "description", "task")))
-		head := name
-		if status := jqString(t, "status", ""); status != "" {
-			head = name + " [" + status + "]"
-		}
-		fields := []string{head}
-		if model := jqString(t, "model", ""); model != "" {
-			fields = append(fields, model)
-		}
-		if effort := jqString(t, "effort", ""); effort != "" {
-			fields = append(fields, "effort:"+effort)
-		}
-		size, _ := t["contextWindowSize"].(float64)
-		if tokens, ok := t["tokenCount"].(float64); ok && size > 0 {
-			fields = append(fields, strconv.Itoa(int(tokens*100/size))+"%")
-		}
-		hook.WriteJSON(&out, struct {
-			ID      string `json:"id"`
-			Content string `json:"content"`
-		}{id, strings.Join(fields, "  ")})
-	}
-	fmt.Fprint(stdout, out.String())
 }
