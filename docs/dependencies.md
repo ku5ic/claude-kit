@@ -1,3 +1,5 @@
+<img src="assets/claude-kit-mark.svg" alt="" width="40">
+
 # Dependencies
 
 What the kit needs installed, what a fresh macOS or Linux install already has, and what each optional tool adds.

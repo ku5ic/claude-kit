@@ -36,6 +36,17 @@ What the kit draws in Claude Code's interface is a mod: TypeScript in `mods/`, w
 t="$(mktemp -d)" && cp -R .claude-plugin hooks mods "$t"/ && claude plugin test "$t"
 ```
 
+## Brand assets
+
+The SVGs in `docs/assets/` are the sources: the mark, and the lockup for light and dark backgrounds. Every PNG is rendered from them with `rsvg-convert` and ImageMagick, so after an SVG changes:
+
+```sh
+rsvg-convert -w 512 -h 512 docs/assets/claude-kit-mark.svg -o .claude-plugin/icon.png
+rsvg-convert -w 1100 docs/assets/claude-kit-lockup-light-bg.svg | magick -size 1280x640 xc:'#ECE6DA' - -gravity center -composite social-preview.png
+```
+
+The second is GitHub's social preview, uploaded by hand in the repository's Settings, not committed. Keep the background off the mark's tile colour, `#1F3A3D`, or the tile disappears into it.
+
 ## The chat bundle
 
 The `release` workflow builds the claude.ai chat zip. `kit bundle chat --check` validates what would go in it, and CI runs it too, so a bundled skill can't gain a Claude Code dependency unnoticed. Mark up what differs in chat with the comment markers `go/internal/chatbundle` reads, since Claude Code reads that text too.

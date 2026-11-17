@@ -1,3 +1,5 @@
+<img src="assets/claude-kit-mark.svg" alt="" width="40">
+
 # Skills Claude loads on its own
 
 Without these, Claude gives generic advice that ignores your stack and your project's practice. Each skill is a short SKILL.md that points at reference files, and a "Before | Read" table says which file to read before which action, so Claude reads React's correctness reference before writing a hook, and its performance reference only when memoizing.

@@ -1,3 +1,5 @@
+<img src="assets/claude-kit-mark.svg" alt="" width="40">
+
 # Commands and agents
 
 Each command is a procedure Claude follows step by step, so the same request gets the same shape of answer every time. Only you start one, by typing it. A command may run another's procedure as one of its steps. Each is its own entry in the `/` menu, so typing `/audit` lists every audit with what it does. They work bare (`/audit-perf`) or namespaced (`/kit:audit-perf`).

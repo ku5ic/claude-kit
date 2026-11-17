@@ -1,6 +1,11 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/claude-kit-lockup-dark-bg.svg">
+  <img src="docs/assets/claude-kit-lockup-light-bg.svg" alt="claude-kit: ship with confidence" width="480">
+</picture>
+
 # claude-kit
 
-**Claude Code that shows its work.**
+**Ship with confidence.**
 
 Claude Code treats your rules as advice. A rule in CLAUDE.md, a skill, or a prompt is something it can skip, and you find out in review. claude-kit runs those rules as hooks on every command, edit, plan, subagent report, and stop, and sends Claude back when it breaks one. It has to back its claims, pass your project's own checks before it says "done", and stop for your review after every step.
 
