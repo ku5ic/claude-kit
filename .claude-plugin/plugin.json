@@ -7,6 +7,9 @@
   "version": "0.12.1",
   "repository": "https://github.com/ku5ic/claude-kit",
   "license": "MIT",
+  "engines": {
+    "claude-code": ">=2.1.323"
+  },
   "types": "./mods/types.d.ts",
   "userConfig": {
     "subagent_rows": {

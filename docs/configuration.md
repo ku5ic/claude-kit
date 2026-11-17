@@ -95,3 +95,15 @@ A preset is a set of these keys under a name. Put `preset: <name>` in your overl
 | `strict`   | `guard_skills: true`, `sanitize_typography: true`: both opt-in guards on                                                    |
 
 `CLAUDE_GUARD_SKILLS=1` and `CLAUDE_SANITIZE_TYPOGRAPHY=1` in your settings `env` still turn those two guards on.
+
+## Going back a version
+
+Pin the marketplace to a release tag and reinstall:
+
+```sh
+claude plugin marketplace remove ku5ic
+claude plugin marketplace add ku5ic/claude-kit#v0.12.0
+claude plugin install kit@ku5ic
+```
+
+Removing the marketplace uninstalls the kit and drops its `/plugin` options, such as `subagent_rows`, so set them again. The kit stays on that tag until you add the marketplace back without `#<tag>`.

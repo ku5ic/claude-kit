@@ -18,6 +18,8 @@ Without these the kit doesn't run. A fresh install doesn't always have them:
 
 Without a downloaded binary, the hooks let everything through and session start says why.
 
+The kit needs Claude Code 2.1.323 or later, set in `.claude-plugin/plugin.json` `engines`. CI tests against 2.1.326.
+
 ## Optional
 
 None of these ship with macOS or Linux, except `jq` (macOS 15 and later, Ubuntu). Homebrew has each under its own name, except `rg` (`ripgrep`), `difft` (`difftastic`), `mmdc` (`mermaid-cli`), and `adr` (`adr-tools`). On Linux, `ast-grep`, `scc`, `mermaid-cli`, `qsv`, `actionlint`, and `trufflehog` aren't in the Debian, Ubuntu, or Fedora repos, and `difftastic` isn't in Debian's or Ubuntu's, so take them from Homebrew or each project's releases. Debian and Ubuntu install `fd` as `fdfind`, which the kit finds, and the `<tooling>` block tells Claude to call it by that name.
