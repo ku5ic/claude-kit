@@ -92,6 +92,9 @@ skill_file_map:
   - on: basename
     globs: ["*.tf", "*.tfvars"]
     skills: [opentofu-patterns]
+  - on: path
+    globs: ["*/hooks/hooks.json", "*/hooks/register.ts", "*/hooks/register.tsx", "*/mods/*.ts", "*/mods/*.tsx"]
+    skills: [claude-code-mods-patterns]
 
 # Declared-dependency-to-skills map for <suggested-skills>: a rule any of
 # whose deps a subproject's package.json, Python manifests, or Gemfile
@@ -148,6 +151,7 @@ skill_triggers:
   fastapi-patterns: "before writing or changing any FastAPI route, dependency, or Pydantic model"
   docker-patterns: "before any edit to a Dockerfile or compose file"
   opentofu-patterns: "before any edit to a .tf or .tfvars file"
+  claude-code-mods-patterns: "before any edit to a Claude Code mod: a plugin's hooks module, hooks.json, or mods/ file"
   bash-patterns: "before writing or modifying shell scripts (.sh, .bash, .zsh)"
 
 # Guard lists. An overlay can append to any of them.

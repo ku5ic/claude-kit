@@ -30,28 +30,29 @@ Each stack skill's guidance comes from primary sources (official docs, changelog
 
 ## Stack skills
 
-| Skill                      | What it covers                                                                    | Loads before an edit to                                     |
-| -------------------------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `react-patterns`           | Hooks rules, component design, rendering performance                              | `.jsx`, `.tsx`                                              |
-| `next-app-router-patterns` | The server and client boundary, caching, server actions, streaming, runtimes      | `app/`, `next.config.*`                                     |
-| `vue-patterns`             | The Composition API, reactivity, single-file components                           | `.vue`, a composable                                        |
-| `nuxt-patterns`            | Rendering modes, `useFetch` and `useAsyncData`, server routes, SSR state, Nitro   | a Nuxt app, `nuxt.config.*`                                 |
-| `typescript-patterns`      | Strictness, `any` vs `unknown`, `satisfies`, unions, generics, module boundaries  | `.ts`, `.tsx`, `tsconfig`                                   |
-| `javascript-patterns`      | Modern syntax, async, ESM and CJS, errors                                         | `.js`, `.mjs`, `.cjs`, `.jsx`, `package.json`               |
-| `tailwind-patterns`        | Tailwind v4 `@theme` config, v3-to-v4 changes, variants                           | a class list, a stylesheet, `tailwind.config.*`             |
-| `storybook-patterns`       | CSF 3, args and `fn()` spies, play functions, story ids, the a11y addon           | `*.stories.*`, `.storybook/`                                |
-| `graphql-patterns`         | Operations, fragments, the codegen client preset, Apollo Client 4                 | `.graphql`, `.gql`                                          |
-| `python-patterns`          | Typing, project layout, async, errors, packaging                                  | `.py`, `pyproject.toml`                                     |
-| `django-patterns`          | The ORM, views, migrations, settings                                              | a Django app                                                |
-| `drf-patterns`             | Serializers, viewsets, permissions, throttling                                    | a serializer, viewset, or API view                          |
-| `fastapi-patterns`         | `Depends`, response models, async, errors, auth, with Pydantic v2                 | a file importing `fastapi`                                  |
-| `logging-patterns`         | Python stdlib logging and structlog: config, levels, handlers, JSON logs          | Python logging code                                         |
-| `monitoring-patterns`      | Prometheus client metric types, naming, labels, health checks                     | Python metrics or health-check code                         |
-| `go-patterns`              | Errors, context, goroutines, interfaces, recent release features, tests           | `.go`, `go.mod`                                             |
-| `bash-patterns`            | Safety flags, quoting, traps, ShellCheck                                          | `.sh`, `.bash`, `.zsh`, a shebang script, a Makefile recipe |
-| `docker-patterns`          | Dockerfiles, multi-stage builds, Compose, networking, volumes                     | a Dockerfile, a Compose file, `.dockerignore`               |
-| `opentofu-patterns`        | `moved`, `import`, and `removed` blocks, `for_each`, state secrets, the lock file | `.tf`, `.tfvars`                                            |
-| `vps-provisioning`         | Server setup, firewall, nginx reverse proxy, Let's Encrypt, systemd, hardening    | a playbook, a provisioning script, nginx or systemd config  |
-| `backup-patterns`          | The 3-2-1 rule, rsync, `pg_dump`, restic, retention, restore tests                | a backup script or job                                      |
+| Skill                       | What it covers                                                                    | Loads before an edit to                                     |
+| --------------------------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `react-patterns`            | Hooks rules, component design, rendering performance                              | `.jsx`, `.tsx`                                              |
+| `next-app-router-patterns`  | The server and client boundary, caching, server actions, streaming, runtimes      | `app/`, `next.config.*`                                     |
+| `vue-patterns`              | The Composition API, reactivity, single-file components                           | `.vue`, a composable                                        |
+| `nuxt-patterns`             | Rendering modes, `useFetch` and `useAsyncData`, server routes, SSR state, Nitro   | a Nuxt app, `nuxt.config.*`                                 |
+| `typescript-patterns`       | Strictness, `any` vs `unknown`, `satisfies`, unions, generics, module boundaries  | `.ts`, `.tsx`, `tsconfig`                                   |
+| `javascript-patterns`       | Modern syntax, async, ESM and CJS, errors                                         | `.js`, `.mjs`, `.cjs`, `.jsx`, `package.json`               |
+| `tailwind-patterns`         | Tailwind v4 `@theme` config, v3-to-v4 changes, variants                           | a class list, a stylesheet, `tailwind.config.*`             |
+| `storybook-patterns`        | CSF 3, args and `fn()` spies, play functions, story ids, the a11y addon           | `*.stories.*`, `.storybook/`                                |
+| `graphql-patterns`          | Operations, fragments, the codegen client preset, Apollo Client 4                 | `.graphql`, `.gql`                                          |
+| `python-patterns`           | Typing, project layout, async, errors, packaging                                  | `.py`, `pyproject.toml`                                     |
+| `django-patterns`           | The ORM, views, migrations, settings                                              | a Django app                                                |
+| `drf-patterns`              | Serializers, viewsets, permissions, throttling                                    | a serializer, viewset, or API view                          |
+| `fastapi-patterns`          | `Depends`, response models, async, errors, auth, with Pydantic v2                 | a file importing `fastapi`                                  |
+| `logging-patterns`          | Python stdlib logging and structlog: config, levels, handlers, JSON logs          | Python logging code                                         |
+| `monitoring-patterns`       | Prometheus client metric types, naming, labels, health checks                     | Python metrics or health-check code                         |
+| `go-patterns`               | Errors, context, goroutines, interfaces, recent release features, tests           | `.go`, `go.mod`                                             |
+| `claude-code-mods-patterns` | Hooks and `next`, `ui.render` drawing, `$.state`, guards, plugin tests            | a plugin's hooks module, `hooks.json`, `mods/`              |
+| `bash-patterns`             | Safety flags, quoting, traps, ShellCheck                                          | `.sh`, `.bash`, `.zsh`, a shebang script, a Makefile recipe |
+| `docker-patterns`           | Dockerfiles, multi-stage builds, Compose, networking, volumes                     | a Dockerfile, a Compose file, `.dockerignore`               |
+| `opentofu-patterns`         | `moved`, `import`, and `removed` blocks, `for_each`, state secrets, the lock file | `.tf`, `.tfvars`                                            |
+| `vps-provisioning`          | Server setup, firewall, nginx reverse proxy, Let's Encrypt, systemd, hardening    | a playbook, a provisioning script, nginx or systemd config  |
+| `backup-patterns`           | The 3-2-1 rule, rsync, `pg_dump`, restic, retention, restore tests                | a backup script or job                                      |
 
 Your stack has none: `/meta-skill` drafts one from current docs and your repo's precedent ([commands](commands.md)).
