@@ -22,7 +22,7 @@ export function formatRow(agent: AgentInfo, lastTool: string | undefined, now: n
   const where = agent.status === 'running' && lastTool !== undefined ? lastTool : firstLine(agent.label)
   return [
     printable(agent.name ?? agent.type),
-    `\x1b[${STATUS_SGR[agent.status]}m${agent.status}\x1b[0m`,
+    `\x1b[${STATUS_SGR[agent.status] ?? '0'}m${agent.status}\x1b[0m`,
     printable(modelAndEffort(agent)),
     contextShare(agent),
     ended ? '' : duration(now - agent.startTime),
@@ -35,17 +35,16 @@ export function formatRow(agent: AgentInfo, lastTool: string | undefined, now: n
 export function describeTool(tool: string, input: Readonly<Record<string, unknown>>): string {
   for (const key of ARG_KEYS) {
     const value = input[key]
-    if (typeof value === 'string' && value !== '') {
-      const arg = key === 'file_path' ? (value.split('/').pop() ?? value) : firstLine(value)
-      return `${tool} ${printable(arg)}`
-    }
+    if (typeof value !== 'string') continue
+    const arg = printable(key === 'file_path' ? (value.split(/[\\/]/).filter(Boolean).pop() ?? '') : firstLine(value))
+    if (arg !== '') return `${tool} ${arg}`
   }
   return tool
 }
 
 function modelAndEffort(agent: AgentInfo): string {
   const model = (agent.lastRequest?.model ?? agent.model)?.replace(/^claude-/, '')
-  const effort = agent.lastRequest?.effort ?? agent.effort
+  const effort = agent.lastRequest ? agent.lastRequest.effort : agent.effort
   const effortText = effort === undefined ? undefined : typeof effort === 'number' ? `effort:${effort}` : effort
   return [model, effortText].filter(part => part !== undefined).join(' ')
 }
@@ -63,12 +62,13 @@ function duration(ms: number): string {
   return `${Math.floor(minutes / 60)}h${minutes % 60}m`
 }
 
-// body draws SGR and OSC 8 escapes, so model-written text loses its control characters.
+// body draws SGR and OSC 8 escapes, so model-written text loses its control and bidi characters.
 function printable(text: string): string {
-  return text.replace(/[\x00-\x1f\x7f]/g, '')
+  return text.replace(/[\x00-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/g, '')
 }
 
 function firstLine(text: string): string {
-  const end = text.indexOf('\n')
-  return (end === -1 ? text : text.slice(0, end)).trim()
+  const start = text.trimStart()
+  const end = start.indexOf('\n')
+  return (end === -1 ? start : start.slice(0, end)).trim()
 }

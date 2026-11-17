@@ -27,7 +27,7 @@ bin/kit help
 
 ## Mods
 
-What the kit draws in Claude Code's interface is a mod: TypeScript in `mods/`, which `hooks/hooks.json` loads through `mods/index.ts`. A mod imports only the plugin's own files and runs with no Node, so there's no `package.json`. Write one with the `plugin-authoring` skill, which also writes the API's types into the session.
+Where mods live and how they load: [`mods/index.ts`](mods/index.ts). A mod imports only the plugin's own files and runs with no Node, so there's no `package.json`. Write one with the `plugin-authoring` skill, which also writes the API's types into the session.
 
 - **Try it:** `claude --plugin-dir .` loads this checkout, and an edit to `mods/` reloads when the turn ends.
 - **Check it:** `claude plugin validate .` type-checks `mods/`. Run the tests on a copy, since `claude plugin test` runs only from a plugin root and this one also holds a Go fixture's `main.test.ts`:

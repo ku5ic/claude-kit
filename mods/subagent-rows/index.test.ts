@@ -32,9 +32,17 @@ describe('subagent rows', () => {
         bodies.push(e.props.body)
         return next(e)
       })
-      on('tool.call', () => ({ result: RAN }))
+      let redraw = async (): Promise<void> => {}
+      let during: string | undefined
+      on('tool.call', async () => {
+        await clock.settle()
+        await redraw()
+        during = plain(bodies.at(-1))
+        return { result: RAN }
+      })
 
       const ui = await $.ui.mount({ plugin: 'kit', surface, component: 'AgentRow', props: ROW })
+      redraw = () => ui.redraw()
       expect(plain(bodies.at(-1))).toBe('Explore  running  1m12s  find the row hook')
 
       const ran = await $.tool.call({ tool: 'Bash', command: 'go test ./...', agentId: 'a1' })
@@ -42,10 +50,28 @@ describe('subagent rows', () => {
       await ui.redraw()
 
       expect(ran.result).toEqual(RAN)
-      expect(plain(bodies.at(-1))).toBe('Explore  running  1m12s  Bash go test ./...')
+      expect(during).toBe('Explore  running  1m12s  Bash go test ./...')
+      expect(plain(bodies.at(-1))).toBe('Explore  running  1m12s  find the row hook')
       await ui.unmount()
     })
   }
+
+  test('a denied call leaves the row once it returns', async ($, on) => {
+    mock.clock(on, { now: START + 72_000 })
+    const bodies: (string | undefined)[] = []
+    on('ui.render', { component: 'AgentRow' }, (_, e, next) => {
+      bodies.push(e.props.body)
+      return next(e)
+    })
+    on('tool.call', () => ({ deny: 'no' }))
+
+    const ui = await $.ui.mount({ plugin: 'kit', surface: 'terminal', component: 'AgentRow', props: ROW })
+    await $.tool.call({ tool: 'Bash', command: 'rm -rf build', agentId: 'a1' })
+    await ui.redraw()
+
+    expect(plain(bodies.at(-1))).toBe('Explore  running  1m12s  find the row hook')
+    await ui.unmount()
+  })
 
   test("another agent's tool call leaves this row alone", async ($, on) => {
     mock.clock(on, { now: START + 72_000 })

@@ -1,4 +1,4 @@
-import type { AgentInfo } from 'claude-code'
+import type { AgentInfo, AgentStatus } from 'claude-code'
 import { describe, expect, test } from 'claude-code/testing'
 import { describeTool, formatRow } from './row.js'
 
@@ -35,6 +35,7 @@ describe('formatRow', () => {
     expect(formatRow(agent({ status: 'waiting' }), undefined, NOW)).toContain('\x1b[33mwaiting\x1b[0m')
     expect(formatRow(agent({ status: 'failed' }), undefined, NOW)).toContain('\x1b[31mfailed\x1b[0m')
     expect(formatRow(agent({ status: 'completed' }), undefined, NOW)).toContain('\x1b[2mcompleted\x1b[0m')
+    expect(formatRow(agent({ status: 'paused' as AgentStatus }), undefined, NOW)).toContain('\x1b[0mpaused\x1b[0m')
   })
 
   test('shows the model that answered, else the one set, without the claude- prefix', () => {
@@ -44,9 +45,11 @@ describe('formatRow', () => {
     expect(plain(formatRow(agent(), undefined, NOW))).not.toContain('opus')
   })
 
-  test('shows the effort sent, else the one set, a number as effort:<n>', () => {
+  test('shows the effort sent, the one set only before a request went out, a number as effort:<n>', () => {
     const sent = agent({ effort: 'max', lastRequest: { at: NOW, model: 'claude-opus-5-5', effort: 'high' } })
     expect(plain(formatRow(sent, undefined, NOW))).toContain('  opus-5-5 high  ')
+    const sentNone = agent({ effort: 'high', lastRequest: { at: NOW, model: 'claude-haiku-5-5' } })
+    expect(plain(formatRow(sentNone, undefined, NOW))).toContain('  haiku-5-5  ')
     expect(plain(formatRow(agent({ effort: 'low' }), undefined, NOW))).toContain('  low  ')
     expect(plain(formatRow(agent({ effort: 12000 }), undefined, NOW))).toContain('  effort:12000  ')
   })
@@ -70,9 +73,9 @@ describe('formatRow', () => {
   })
 
   test('drops control characters from what agents and models wrote', () => {
-    const hostile = agent({ name: 'a\x1b[2Jb', label: 'x\x1b]8;;https://evil\x07y', model: 'claude-\x1b[31mopus' })
+    const hostile = agent({ name: 'a\x1b[2J\u009b2Jb', label: 'x\x1b]8;;https://evil\x07\u202ey\u2066', model: 'claude-\x1b[31mopus' })
     const row = formatRow(hostile, undefined, NOW).replace(/\x1b\[\d+mrunning\x1b\[0m/, 'running')
-    expect(row).not.toMatch(/[\x00-\x1f\x7f]/)
+    expect(row).not.toMatch(/[\x00-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/)
     expect(formatRow(agent(), 'Bash ls\x1b[2J', NOW)).not.toContain('\x1b[2J')
   })
 })
@@ -86,9 +89,17 @@ describe('describeTool', () => {
     expect(describeTool('Agent', { description: 'Fact-check the report' })).toBe('Agent Fact-check the report')
   })
 
+  test('takes the last path segment and the first line with text', () => {
+    expect(describeTool('Read', { file_path: '/repo/dir/' })).toBe('Read dir')
+    expect(describeTool('Read', { file_path: 'C:\\repo\\x.go' })).toBe('Read x.go')
+    expect(describeTool('Bash', { command: '\necho done' })).toBe('Bash echo done')
+  })
+
   test('names the tool alone when no argument is known', () => {
     expect(describeTool('TodoWrite', { todos: [] })).toBe('TodoWrite')
     expect(describeTool('Bash', { command: '' })).toBe('Bash')
+    expect(describeTool('Bash', { command: ' \n ' })).toBe('Bash')
+    expect(describeTool('Read', { file_path: '/' })).toBe('Read')
   })
 
   test('drops control characters from the argument', () => {
