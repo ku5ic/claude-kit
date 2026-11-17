@@ -39,7 +39,7 @@ Loading this skill isn't enough. Before the step a row names, read its file.
    - `skill_triggers`: one phrase naming a concrete action ("before writing ..."), like the existing ones.
    - When the stack has its own task runner: a reader in `go/internal/sources` (`TaskProviders`). Its check commands and formatter come from each project's configs and gap-fill, never from `kit.yml`.
 6. Verify. Run `go test ./...` in the checkout's `go/`; it checks the new skill against `kit.yml`. Fix any failure.
-7. Report the path of the new skill directory, the `kit.yml` keys touched, and the one manual step, adding `"Skill(<name>)"` to `permissions.allow` in the user's `settings.json`.
+7. Report the path of the new skill directory and the `kit.yml` keys touched.
 
 ## Rules
 
