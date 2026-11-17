@@ -17,11 +17,13 @@ const ENDED: ReadonlySet<AgentStatus> = new Set(['completed', 'failed', 'killed'
 // The input field that says what a tool call is about, in the order tried.
 const ARG_KEYS = ['command', 'file_path', 'pattern', 'url', 'query', 'description', 'skill'] as const
 
-export function formatRow(agent: AgentInfo, lastTool: string | undefined, now: number): string {
+// descendants stands in for the engine's (+N), which a body replaces.
+export function formatRow(agent: AgentInfo, lastTool: string | undefined, now: number, descendants = 0): string {
   const ended = ENDED.has(agent.status)
   const where = agent.status === 'running' && lastTool !== undefined ? lastTool : printable(firstLine(agent.label))
+  const name = printable(agent.name ?? agent.type)
   return [
-    printable(agent.name ?? agent.type),
+    descendants > 0 ? `${name} (+${descendants})` : name,
     `\x1b[${STATUS_SGR[agent.status] ?? '0'}m${agent.status}\x1b[0m`,
     printable(modelAndEffort(agent)),
     contextShare(agent),
@@ -30,6 +32,11 @@ export function formatRow(agent: AgentInfo, lastTool: string | undefined, now: n
   ]
     .filter(field => field !== '')
     .join(SEP)
+}
+
+// The agents below id that the panel lists, at any depth.
+export function countDescendants(id: string, agents: readonly AgentInfo[]): number {
+  return agents.filter(agent => agent.parentId === id).reduce((n, child) => n + (child.hasRow ? 1 : 0) + countDescendants(child.id, agents), 0)
 }
 
 export function describeTool(tool: string, input: Readonly<Record<string, unknown>>): string {

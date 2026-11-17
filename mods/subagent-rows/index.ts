@@ -1,5 +1,5 @@
 import type { Register } from 'claude-code'
-import { describeTool, formatRow } from './row.js'
+import { countDescendants, describeTool, formatRow } from './row.js'
 
 export const register: Register = (on, options) => {
   if (options.subagent_rows === false) return
@@ -24,7 +24,10 @@ export const register: Register = (on, options) => {
     }
   }).catch(($, e, next) => next(e))
 
-  on('ui.render', { component: 'AgentRow' }, async ($, e, next) =>
-    next({ ...e, props: { ...e.props, body: formatRow(e.props, running.get(e.props.id), await $.clock.now()) } }),
-  )
+  // rowIds changes as an agent comes or goes, so every row is asked again and its count stays current.
+  on('ui.render', { component: 'AgentRow' }, async ($, e, next) => {
+    const { props } = e
+    const descendants = countDescendants(props.id, await $.agent.list())
+    return next({ ...e, props: { ...props, body: formatRow(props, running.get(props.id), await $.clock.now(), descendants) } })
+  })
 }

@@ -1,4 +1,4 @@
-import type { On, RenderPropsOf } from 'claude-code'
+import type { AgentInfo, On, RenderPropsOf } from 'claude-code'
 import { describe, expect, mock, test, type Engine } from 'claude-code/testing'
 
 const START = 1_000_000
@@ -23,8 +23,9 @@ const ROW: RenderPropsOf['AgentRow'] = {
 }
 
 // Records every body drawn for an AgentRow, with the clock 1m12s past the agent's start.
-function recordRows(on: On) {
+function recordRows(on: On, agents: AgentInfo[] = [ROW]) {
   const clock = mock.clock(on, { now: START + 72_000 })
+  on('agent.list', () => ({ value: agents }))
   const bodies: (string | undefined)[] = []
   on('ui.render', { component: 'AgentRow' }, (_, e, next) => {
     bodies.push(e.props.body)
@@ -91,6 +92,21 @@ describe('subagent rows', () => {
     await $.tool.call({ tool: 'Bash', command: 'ls', agentId: 'a2' })
 
     expect(during).toBe(IDLE)
+    await ui.unmount()
+  })
+
+  test("a row counts the descendants the panel lists, as the engine's (+N) does", async ($, on) => {
+    const rows = recordRows(on, [
+      ROW,
+      { ...ROW, id: 'c1', parentId: 'a1' },
+      { ...ROW, id: 'g1', parentId: 'c1' },
+      { ...ROW, id: 'g2', parentId: 'c1', hasRow: false },
+      { ...ROW, id: 'x1', parentId: 'zz' },
+    ])
+
+    const ui = await mountRow($)
+
+    expect(rows.last()).toBe('Explore (+2)  running  1m12s  find the row hook')
     await ui.unmount()
   })
 
