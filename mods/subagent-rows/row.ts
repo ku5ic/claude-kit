@@ -19,14 +19,14 @@ const ARG_KEYS = ['command', 'file_path', 'pattern', 'url', 'query', 'descriptio
 
 export function formatRow(agent: AgentInfo, lastTool: string | undefined, now: number): string {
   const ended = ENDED.has(agent.status)
-  const where = agent.status === 'running' && lastTool !== undefined ? lastTool : firstLine(agent.label)
+  const where = agent.status === 'running' && lastTool !== undefined ? lastTool : printable(firstLine(agent.label))
   return [
     printable(agent.name ?? agent.type),
     `\x1b[${STATUS_SGR[agent.status] ?? '0'}m${agent.status}\x1b[0m`,
     printable(modelAndEffort(agent)),
     contextShare(agent),
     ended ? '' : duration(now - agent.startTime),
-    printable(where),
+    where,
   ]
     .filter(field => field !== '')
     .join(SEP)

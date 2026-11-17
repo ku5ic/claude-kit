@@ -1,8 +1,9 @@
-import type { RenderPropsOf } from 'claude-code'
-import { describe, expect, mock, test } from 'claude-code/testing'
+import type { On, RenderPropsOf } from 'claude-code'
+import { describe, expect, mock, test, type Engine } from 'claude-code/testing'
 
 const START = 1_000_000
 const RAN = { stdout: 'ran', stderr: '', interrupted: false }
+const IDLE = 'Explore  running  1m12s  find the row hook'
 
 const ROW: RenderPropsOf['AgentRow'] = {
   id: 'a1',
@@ -21,85 +22,84 @@ const ROW: RenderPropsOf['AgentRow'] = {
   isHidden: false,
 }
 
-const plain = (row: string | undefined): string | undefined => row?.replace(/\x1b\[[0-9;]*m/g, '')
+// Records every body drawn for an AgentRow, with the clock 1m12s past the agent's start.
+function recordRows(on: On) {
+  const clock = mock.clock(on, { now: START + 72_000 })
+  const bodies: (string | undefined)[] = []
+  on('ui.render', { component: 'AgentRow' }, (_, e, next) => {
+    bodies.push(e.props.body)
+    return next(e)
+  })
+  return { clock, bodies, last: () => bodies.at(-1)?.replace(/\x1b\[[0-9;]*m/g, '') }
+}
+
+const mountRow = ($: Engine, surface: 'terminal' | 'desktop' = 'terminal') =>
+  $.ui.mount({ plugin: 'kit', surface, component: 'AgentRow', props: ROW })
 
 describe('subagent rows', () => {
   for (const surface of ['terminal', 'desktop'] as const) {
-    test(`a subagent's tool call becomes the end of its row on ${surface}`, async ($, on) => {
-      const clock = mock.clock(on, { now: START + 72_000 })
-      const bodies: (string | undefined)[] = []
-      on('ui.render', { component: 'AgentRow' }, (_, e, next) => {
-        bodies.push(e.props.body)
-        return next(e)
-      })
+    test(`a subagent's tool call is the end of its row while it runs on ${surface}`, async ($, on) => {
+      const rows = recordRows(on)
       let redraw = async (): Promise<void> => {}
       let during: string | undefined
       on('tool.call', async () => {
-        await clock.settle()
+        await rows.clock.settle()
         await redraw()
-        during = plain(bodies.at(-1))
+        during = rows.last()
         return { result: RAN }
       })
 
-      const ui = await $.ui.mount({ plugin: 'kit', surface, component: 'AgentRow', props: ROW })
+      const ui = await mountRow($, surface)
       redraw = () => ui.redraw()
-      expect(plain(bodies.at(-1))).toBe('Explore  running  1m12s  find the row hook')
+      expect(rows.last()).toBe(IDLE)
 
       const ran = await $.tool.call({ tool: 'Bash', command: 'go test ./...', agentId: 'a1' })
-      await clock.settle()
+      await rows.clock.settle()
       await ui.redraw()
 
       expect(ran.result).toEqual(RAN)
       expect(during).toBe('Explore  running  1m12s  Bash go test ./...')
-      expect(plain(bodies.at(-1))).toBe('Explore  running  1m12s  find the row hook')
+      expect(rows.last()).toBe(IDLE)
       await ui.unmount()
     })
   }
 
   test('a denied call leaves the row once it returns', async ($, on) => {
-    mock.clock(on, { now: START + 72_000 })
-    const bodies: (string | undefined)[] = []
-    on('ui.render', { component: 'AgentRow' }, (_, e, next) => {
-      bodies.push(e.props.body)
-      return next(e)
-    })
+    const rows = recordRows(on)
     on('tool.call', () => ({ deny: 'no' }))
 
-    const ui = await $.ui.mount({ plugin: 'kit', surface: 'terminal', component: 'AgentRow', props: ROW })
+    const ui = await mountRow($)
     await $.tool.call({ tool: 'Bash', command: 'rm -rf build', agentId: 'a1' })
     await ui.redraw()
 
-    expect(plain(bodies.at(-1))).toBe('Explore  running  1m12s  find the row hook')
+    expect(rows.last()).toBe(IDLE)
     await ui.unmount()
   })
 
   test("another agent's tool call leaves this row alone", async ($, on) => {
-    mock.clock(on, { now: START + 72_000 })
-    const bodies: (string | undefined)[] = []
-    on('ui.render', { component: 'AgentRow' }, (_, e, next) => {
-      bodies.push(e.props.body)
-      return next(e)
+    const rows = recordRows(on)
+    let redraw = async (): Promise<void> => {}
+    let during: string | undefined
+    on('tool.call', async () => {
+      await redraw()
+      during = rows.last()
+      return { result: RAN }
     })
-    on('tool.call', () => ({ result: RAN }))
 
-    const ui = await $.ui.mount({ plugin: 'kit', surface: 'terminal', component: 'AgentRow', props: ROW })
+    const ui = await mountRow($)
+    redraw = () => ui.redraw()
     await $.tool.call({ tool: 'Bash', command: 'ls', agentId: 'a2' })
-    await ui.redraw()
 
-    expect(plain(bodies.at(-1))).toBe('Explore  running  1m12s  find the row hook')
+    expect(during).toBe(IDLE)
     await ui.unmount()
   })
 
   test('switched off, the row keeps the engine body', { options: { subagent_rows: false } }, async ($, on) => {
-    const bodies: (string | undefined)[] = []
-    on('ui.render', { component: 'AgentRow' }, (_, e, next) => {
-      bodies.push(e.props.body)
-      return next(e)
-    })
+    const rows = recordRows(on)
 
-    const ui = await $.ui.mount({ plugin: 'kit', surface: 'terminal', component: 'AgentRow', props: ROW })
+    const ui = await mountRow($)
 
-    expect(bodies).toEqual([undefined])
+    expect(rows.bodies).toEqual([undefined])
     await ui.unmount()
   })
 })

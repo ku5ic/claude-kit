@@ -30,11 +30,7 @@ bin/kit help
 Where mods live and how they load: [`mods/index.ts`](mods/index.ts). A mod imports only the plugin's own files and runs with no Node, so there's no `package.json`. Write one with the `plugin-authoring` skill, which also writes the API's types into the session.
 
 - **Try it:** `claude --plugin-dir .` loads this checkout, and an edit to `mods/` reloads when the turn ends.
-- **Check it:** `claude plugin validate .` type-checks `mods/`. Run the tests on a copy, since `claude plugin test` runs only from a plugin root and this one also holds a Go fixture's `main.test.ts`:
-
-```sh
-t="$(mktemp -d)" && cp -R .claude-plugin hooks mods "$t"/ && claude plugin test "$t"
-```
+- **Check it:** `claude plugin validate .` type-checks `mods/`, and the tests run on a staged copy, as the `claude plugin test` step in `.github/workflows/ci.yml` does.
 
 ## Brand assets
 

@@ -76,7 +76,7 @@ describe('formatRow', () => {
     const hostile = agent({ name: 'a\x1b[2J\u009b2Jb', label: 'x\x1b]8;;https://evil\x07\u202ey\u2066', model: 'claude-\x1b[31mopus' })
     const row = formatRow(hostile, undefined, NOW).replace(/\x1b\[\d+mrunning\x1b\[0m/, 'running')
     expect(row).not.toMatch(/[\x00-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/)
-    expect(formatRow(agent(), 'Bash ls\x1b[2J', NOW)).not.toContain('\x1b[2J')
+    expect(formatRow(agent(), describeTool('Bash', { command: 'ls\x1b[2J' }), NOW)).not.toContain('\x1b[2J')
   })
 })
 

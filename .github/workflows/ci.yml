@@ -99,10 +99,13 @@ jobs:
 
       # Validate reports a type error in mods/ as a warning, and --strict would
       # also fail on the root CLAUDE.md warning, so type errors are failed here.
+      # A report of another shape fails too, so the filter can't pass by matching nothing.
       - name: claude plugin validate
         run: |
-          claude plugin validate .
-          ts="$(claude plugin validate --json . | jq -r '.contents[].warnings[]?.message | select(startswith("error TS"))')"
+          out="$(claude plugin validate --json .)" || { echo "$out"; exit 1; }
+          jq -e '.success == true and (.contents | type == "array") and all(.contents[]; .warnings | type == "array")' <<<"$out" >/dev/null ||
+            { echo "claude plugin validate failed, or its --json report changed shape:"; echo "$out"; exit 1; }
+          ts="$(jq -r '.contents[].warnings[].message | select(startswith("error TS"))' <<<"$out")"
           [ -z "$ts" ] || { echo "$ts"; exit 1; }
 
       # claude plugin test runs only from a plugin root, and from this one it
