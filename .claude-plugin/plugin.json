@@ -4,7 +4,15 @@
   "author": {
     "name": "Sinisa Kusic"
   },
-  "version": "0.12.0",
+  "version": "0.12.1",
   "repository": "https://github.com/ku5ic/claude-kit",
-  "license": "MIT"
+  "license": "MIT",
+  "userConfig": {
+    "subagent_rows": {
+      "type": "boolean",
+      "title": "Subagent rows",
+      "description": "Draw each subagent row as status, model, effort, context, elapsed time, and the tool it is running.",
+      "default": true
+    }
+  }
 }

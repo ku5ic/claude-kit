@@ -75,9 +75,9 @@ jobs:
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
         run: |
-          git diff --quiet "$BASE" HEAD -- go hooks/hooks.json ':!go/*_test.go' ':!go/*testdata*' ':!go/e2e' ':!go/build.sh' && exit 0
+          git diff --quiet "$BASE" HEAD -- go hooks/hooks.json mods ':!go/*_test.go' ':!go/*testdata*' ':!go/e2e' ':!go/build.sh' ':!mods/**/*.test.ts' && exit 0
           old="$(git show "$BASE:.claude-plugin/plugin.json" | jq -r .version)"
-          [ "$old" != "$(jq -r .version .claude-plugin/plugin.json)" ] || { echo "go/ or hooks/hooks.json changed; bump .claude-plugin/plugin.json version (still $old)"; exit 1; }
+          [ "$old" != "$(jq -r .version .claude-plugin/plugin.json)" ] || { echo "go/, hooks/hooks.json, or mods/ changed; bump .claude-plugin/plugin.json version (still $old)"; exit 1; }
 
       - name: Install shellcheck
         run: |
@@ -95,7 +95,20 @@ jobs:
       # Not in Dependabot: bump it by hand when a Claude Code release changes
       # what claude plugin validate checks.
       - name: Install Claude Code CLI
-        run: npm install -g @anthropic-ai/claude-code@2.1.323
+        run: npm install -g @anthropic-ai/claude-code@2.1.326
 
+      # Validate reports a type error in mods/ as a warning, and --strict would
+      # also fail on the root CLAUDE.md warning, so type errors are failed here.
       - name: claude plugin validate
-        run: claude plugin validate .
+        run: |
+          claude plugin validate .
+          ts="$(claude plugin validate --json . | jq -r '.contents[].warnings[]?.message | select(startswith("error TS"))')"
+          [ -z "$ts" ] || { echo "$ts"; exit 1; }
+
+      # claude plugin test runs only from a plugin root, and from this one it
+      # would also run the codegraph fixture's main.test.ts, so it tests a copy.
+      - name: claude plugin test
+        run: |
+          t="$(mktemp -d)"
+          cp -R .claude-plugin hooks mods "$t"/
+          claude plugin test "$t"

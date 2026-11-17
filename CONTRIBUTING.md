@@ -22,8 +22,19 @@ bin/kit help
 
 ## Test
 
-- **Everything CI runs:** `KIT_DEV=1 bin/kit run-checks --all`, or without `--all` for what changed since `main`. It reads the steps from `.github/workflows/ci.yml`, which are golangci-lint, `go vet`, deadcode, `go test -race`, the chat bundle check, the plugin version check, shellcheck, and `claude plugin validate`.
+- **Everything CI runs:** `KIT_DEV=1 bin/kit run-checks --all`, or without `--all` for what changed since `main`. It reads the steps from `.github/workflows/ci.yml`, which are golangci-lint, `go vet`, deadcode, `go test -race`, the chat bundle check, the plugin version check, shellcheck, `claude plugin validate`, and `claude plugin test`.
 - **Go tests:** `go test ./...` in `go/`. End-to-end tests live in `go/e2e`, and `go/e2e/kit_repo_test.go` checks that the kit's own files agree.
+
+## Mods
+
+What the kit draws in Claude Code's interface is a mod: TypeScript in `mods/`, which `hooks/hooks.json` loads through `mods/index.ts`. A mod imports only the plugin's own files and runs with no Node, so there's no `package.json`. Write one with the `plugin-authoring` skill, which also writes the API's types into the session.
+
+- **Try it:** `claude --plugin-dir .` loads this checkout, and an edit to `mods/` reloads when the turn ends.
+- **Check it:** `claude plugin validate .` type-checks `mods/`. Run the tests on a copy, since `claude plugin test` runs only from a plugin root and this one also holds a Go fixture's `main.test.ts`:
+
+```sh
+t="$(mktemp -d)" && cp -R .claude-plugin hooks mods "$t"/ && claude plugin test "$t"
+```
 
 ## The chat bundle
 
@@ -32,5 +43,5 @@ The `release` workflow builds the claude.ai chat zip. `kit bundle chat --check` 
 ## Pull requests and releases
 
 - Work on a feature branch off `main`. PRs are squash-merged.
-- A PR that changes `go/` or `hooks/hooks.json`, tests aside, bumps `.claude-plugin/plugin.json` `version`, and CI fails it otherwise. A fresh install pairs `main`'s hooks with the released binary for the current version, so a change without a bump would run new hooks on an old binary.
+- A PR that changes `go/`, `hooks/hooks.json`, or `mods/`, tests aside, bumps `.claude-plugin/plugin.json` `version`, and CI fails it otherwise. A fresh install pairs `main`'s hooks with the released binary for the current version, so a change without a bump would run new hooks on an old binary.
 - Merging a version bump releases `v<version>`. The `release` workflow publishes it with the binaries and the chat zip, and installs take hooks, binaries, and rules only from a version bump.
