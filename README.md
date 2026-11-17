@@ -16,7 +16,7 @@ claude plugin marketplace add ku5ic/claude-kit
 claude plugin install kit@ku5ic
 ```
 
-Works in any repo on macOS and Linux with the defaults in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml` ([configuration](docs/configuration.md)).
+Works in any repo on macOS and Linux with the defaults in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml` ([configuration](docs/configuration.md)). It's built for one engineer. There's no team policy layer and no Windows support.
 
 **It isn't an autopilot.** You approve the plan, review each step, and commit. The kit makes each review shorter, because what reaches you has already been checked.
 
@@ -54,6 +54,17 @@ Nothing to learn up front. After install:
 | Claude replies        | Holds it to a word ceiling and reminds it to check its claims                                                    |
 
 **Block** means Claude gets the reason and tries another way; you aren't interrupted. **Ask** is a normal permission prompt with the reason in it. Every guard, and which of the two it does: [docs/guards.md](docs/guards.md).
+
+What Claude gets back when it tries `git push --force origin main`:
+
+```text
+kit bash: BLOCKED git push --force
+
+do    use --force-with-lease if you must
+
+rule  git-force-push
+cmd   git push --force origin main
+```
 
 ## What it catches
 
@@ -102,12 +113,7 @@ For anything bigger than a one-line fix, the kit holds Claude to five stages. Ea
 
 Side trips: an `/audit-<kind>` for a read-only report, `/simplify` (built in) to cut over-engineering, `/deps` for dependency PRs.
 
-## Install
-
-```sh
-claude plugin marketplace add ku5ic/claude-kit
-claude plugin install kit@ku5ic
-```
+## Requirements
 
 Needs `git`, bash, and `curl`, on macOS or Linux. A fresh macOS asks for the Command Line Tools the first time `git` runs, and some Linux installs lack `git` or `curl`: [dependencies](docs/dependencies.md) says what each already has. The plugin runs in Claude Code only; claude.ai chat has [its own zip](docs/chat.md).
 
