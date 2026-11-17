@@ -68,6 +68,13 @@ describe('formatRow', () => {
     expect(plain(formatRow(agent({ label: 'Searching hooks\nthen reading' }), undefined, NOW))).toMatch(/  Searching hooks$/)
     expect(plain(formatRow(agent({ status: 'completed', label: 'Done' }), 'Bash ls', NOW))).toMatch(/  Done$/)
   })
+
+  test('drops control characters from what agents and models wrote', () => {
+    const hostile = agent({ name: 'a\x1b[2Jb', label: 'x\x1b]8;;https://evil\x07y', model: 'claude-\x1b[31mopus' })
+    const row = formatRow(hostile, undefined, NOW).replace(/\x1b\[\d+mrunning\x1b\[0m/, 'running')
+    expect(row).not.toMatch(/[\x00-\x1f\x7f]/)
+    expect(formatRow(agent(), 'Bash ls\x1b[2J', NOW)).not.toContain('\x1b[2J')
+  })
 })
 
 describe('describeTool', () => {
@@ -82,5 +89,9 @@ describe('describeTool', () => {
   test('names the tool alone when no argument is known', () => {
     expect(describeTool('TodoWrite', { todos: [] })).toBe('TodoWrite')
     expect(describeTool('Bash', { command: '' })).toBe('Bash')
+  })
+
+  test('drops control characters from the argument', () => {
+    expect(describeTool('Bash', { command: 'ls \x1b]8;;https://evil\x07x' })).toBe('Bash ls ]8;;https://evilx')
   })
 })

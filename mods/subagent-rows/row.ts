@@ -21,12 +21,12 @@ export function formatRow(agent: AgentInfo, lastTool: string | undefined, now: n
   const ended = ENDED.has(agent.status)
   const where = agent.status === 'running' && lastTool !== undefined ? lastTool : firstLine(agent.label)
   return [
-    agent.name ?? agent.type,
+    printable(agent.name ?? agent.type),
     `\x1b[${STATUS_SGR[agent.status]}m${agent.status}\x1b[0m`,
-    modelAndEffort(agent),
+    printable(modelAndEffort(agent)),
     contextShare(agent),
     ended ? '' : duration(now - agent.startTime),
-    where,
+    printable(where),
   ]
     .filter(field => field !== '')
     .join(SEP)
@@ -37,7 +37,7 @@ export function describeTool(tool: string, input: Readonly<Record<string, unknow
     const value = input[key]
     if (typeof value === 'string' && value !== '') {
       const arg = key === 'file_path' ? (value.split('/').pop() ?? value) : firstLine(value)
-      return `${tool} ${arg}`
+      return `${tool} ${printable(arg)}`
     }
   }
   return tool
@@ -61,6 +61,11 @@ function duration(ms: number): string {
   const minutes = Math.floor(seconds / 60)
   if (minutes < 60) return `${minutes}m${seconds % 60}s`
   return `${Math.floor(minutes / 60)}h${minutes % 60}m`
+}
+
+// body draws SGR and OSC 8 escapes, so model-written text loses its control characters.
+function printable(text: string): string {
+  return text.replace(/[\x00-\x1f\x7f]/g, '')
 }
 
 function firstLine(text: string): string {
