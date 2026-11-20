@@ -93,9 +93,43 @@ func TestPlainTextJoinsAnotherChecksContext(t *testing.T) {
 	if status := Run(h, NamedCheck{"a", printer}, NamedCheck{"b", adder}); status != 0 {
 		t.Fatalf("status %d", status)
 	}
-	want := `{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"Active plan p.md has open steps.\ncheck each claim"}}` + "\n"
+	want := `{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"kit: Active plan p.md has open steps.\nkit: check each claim"}}` + "\n"
 	if got := stdout.String(); got != want {
 		t.Errorf("stdout %s, want %s", got, want)
+	}
+}
+
+// Every nudge opens with its own "kit:" label, so Claude can tell the
+// kit's context from the harness's; a block keeps its own headline.
+func TestContextForClaudeOpensWithTheKitLabel(t *testing.T) {
+	tests := map[string]struct {
+		check Check
+		want  string
+	}{
+		"plain text": {func(h *Hook) error { h.Print("Plan mode: load the investigate skill.\n"); return nil },
+			"kit: Plan mode: load the investigate skill.\n"},
+		"a leading newline": {func(h *Hook) error { h.Print("\n<repo-context>\nroot: /r\n</repo-context>\n"); return nil },
+			"kit: <repo-context>\nroot: /r\n</repo-context>\n"},
+		"empty text":       {func(h *Hook) error { h.Print(""); return nil }, ""},
+		"already labelled": {func(h *Hook) error { h.Print("kit: once\n"); return nil }, "kit: once\n"},
+		"two contexts": {func(h *Hook) error {
+			h.AddContext("PreToolUse", "first")
+			h.AddContext("PreToolUse", "second")
+			return nil
+		}, `{"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":"kit: first\nkit: second"}}` + "\n"},
+		"a block": {blocker, ""},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			h, stdout, stderr := newHook(t, `{}`)
+			Run(h, NamedCheck{"a.sh", tc.check})
+			if got := stdout.String(); got != tc.want {
+				t.Errorf("stdout %q, want %q", got, tc.want)
+			}
+			if name == "a block" && !strings.HasPrefix(stderr.String(), "kit a.sh: BLOCKED nope") {
+				t.Errorf("block reason %q lost its headline", stderr)
+			}
+		})
 	}
 }
 
@@ -188,7 +222,7 @@ func TestDecide(t *testing.T) {
 			`{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"load x"}}` + "\n"},
 		"context rides with a decision": {[]NamedCheck{
 			{"n", func(h *Hook) error { h.AddContext("PreToolUse", "dense"); return nil }}, decide("ask", "confirm")},
-			`{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"confirm","additionalContext":"dense"}}` + "\n"},
+			`{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"confirm","additionalContext":"kit: dense"}}` + "\n"},
 		"none": {[]NamedCheck{{"c", func(*Hook) error { return nil }}}, ""},
 	}
 	for name, tc := range tests {

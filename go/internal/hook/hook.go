@@ -340,7 +340,7 @@ func (h *Hook) Decision() (decision, reason string) { return h.decision, h.reaso
 // AddContext adds text for Claude on event.
 func (h *Hook) AddContext(event, text string) {
 	h.event = event
-	h.contexts = append(h.contexts, text)
+	h.contexts = append(h.contexts, labelled(text))
 }
 
 // Notify adds a message for the user.
@@ -348,7 +348,22 @@ func (h *Hook) Notify(text string) { h.notices = append(h.notices, text) }
 
 // Print adds plain text, which SessionStart and UserPromptSubmit take as
 // context for Claude.
-func (h *Hook) Print(text string) { h.plain.WriteString(text) }
+func (h *Hook) Print(text string) { h.plain.WriteString(labelled(text)) }
+
+// contextLabel opens every text a check adds for Claude. Claude Code puts
+// the hook's name ahead of it, so the label tells the kit's context from the
+// harness's; a block keeps its own `kit <area>: BLOCKED` headline.
+const contextLabel = "kit: "
+
+// labelled is text with contextLabel at its start, once, and its leading
+// newlines dropped; empty text stays empty.
+func labelled(text string) string {
+	text = strings.TrimLeft(text, "\n")
+	if text == "" || strings.HasPrefix(text, contextLabel) {
+		return text
+	}
+	return contextLabel + text
+}
 
 // flush prints what the run's checks added, once, since stdout takes one
 // JSON object: block, a block's reason, with the notices; else a permission

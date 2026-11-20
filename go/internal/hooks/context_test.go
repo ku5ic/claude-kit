@@ -150,7 +150,9 @@ func toolingOf(out string) string {
 	var block []string
 	in := false
 	for l := range strings.SplitSeq(out, "\n") {
-		if l == "<tooling>" {
+		// The block opens the output, behind the kit: label, when no repo
+		// context comes before it.
+		if strings.TrimPrefix(l, "kit: ") == "<tooling>" {
 			in = true
 		}
 		if in {
