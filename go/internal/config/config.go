@@ -102,7 +102,7 @@ func rootLabel(label string) string {
 // from a table or a variable is added by hand.
 var Rules = []string{
 	"adr-nudge", "ai-attribution", "aws-ec2-terminate", "aws-s3-force-rb", "aws-s3-recursive-rm",
-	"bash-edits", "checks-failed", "chmod-777", "chmod-broad-x", "citations", "claims", "commit-msg", "commit-wall-of-text",
+	"bash-edits", "bash-reports", "checks-failed", "chmod-777", "chmod-broad-x", "citations", "claims", "commit-msg", "commit-wall-of-text",
 	"device-write", "disk-tool", "docker-prune-all-force", "download-to-repo",
 	"find-delete", "find-exec-rm", "fork-bomb",
 	"gcloud-delete", "git-config-global", "git-dir-edit", "git-force-push", "git-no-verify",
