@@ -131,10 +131,10 @@ func (p *Payload) Edits() []Edit {
 	return nil
 }
 
-// FilePath is the tool's target file; Read, Edit, Write, and MultiEdit all
-// send it as file_path.
+// FilePath is the tool's target file: file_path from Read, Edit, Write, and
+// MultiEdit, notebook_path from NotebookEdit.
 func (p *Payload) FilePath() string {
-	return p.String(KeyInputFilePath)
+	return cmp.Or(p.String(KeyInputFilePath), p.String(KeyInputNotebookPath))
 }
 
 // Blocked ends a check with exit 2. Returned, not panicked, so a check reads

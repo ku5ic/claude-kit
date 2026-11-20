@@ -254,6 +254,23 @@ skill_file_map:
 		r.Want(t, 2)
 		r.Has(t, "writing a credential or key file")
 	})
+	// NotebookEdit names its file in notebook_path, and gets the same path rules.
+	t.Run("NotebookEdit of .env is blocked", func(t *testing.T) {
+		r := readGuards(t).run("guard-dispatch", map[string]any{
+			"tool_input": map[string]any{"notebook_path": "/tmp/project/.env", "new_source": "KEY=1"},
+			"session_id": "s1",
+			"tool_name":  "NotebookEdit",
+		})
+		r.Want(t, 2)
+		r.Has(t, "writing a credential or key file")
+	})
+	t.Run("NotebookEdit of a notebook passes", func(t *testing.T) {
+		readGuards(t).run("guard-dispatch", map[string]any{
+			"tool_input": map[string]any{"notebook_path": "/tmp/project/a.ipynb", "new_source": "x = 1"},
+			"session_id": "s1",
+			"tool_name":  "NotebookEdit",
+		}).Want(t, 0)
+	})
 	t.Run("Read of a .tsx passes with the skills gate on and no skills loaded, nudged", func(t *testing.T) {
 		r := dispatch(readGuards(t), "/tmp/project/App.tsx", "", "Read")
 		r.Allowed(t)

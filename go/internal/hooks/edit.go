@@ -295,8 +295,8 @@ var contentChecks = []hook.NamedCheck{
 	{Name: "guard-imports", Check: GuardImports}, {Name: "guard-tokens", Check: GuardTokens},
 }
 
-// filePathTools are transcript.EditTools minus NotebookEdit: Payload.FilePath
-// reads only file_path, and NotebookEdit sends notebook_path.
+// filePathTools are transcript.EditTools minus NotebookEdit, the tools
+// whose new text written reads; a notebook cell gets the path rules alone.
 var filePathTools = []string{"Edit", "Write", "MultiEdit"}
 
 // GuardDispatch runs guard-edit's, guard-slop's, guard-weaken's,
