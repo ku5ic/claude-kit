@@ -1,15 +1,21 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
+	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/bashguard"
 	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/claims"
 	"github.com/ku5ic/claude-kit/go/internal/claudecli"
 	"github.com/ku5ic/claude-kit/go/internal/gapfill"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/hooks"
 )
@@ -121,6 +127,7 @@ var registry = map[string]hookDef{
 // cmdHook runs `kit hook <name>`: stdin is the payload, the exit status is
 // Claude Code's (0 allow, 2 block). Anything unexpected fails open.
 func cmdHook(e *env, args []string, stdin io.Reader) (status int) {
+	start := time.Now()
 	if len(args) == 0 {
 		fmt.Fprintln(e.stderr, "kit hook: missing hook name")
 		return 0
@@ -157,6 +164,9 @@ func cmdHook(e *env, args []string, stdin io.Reader) (status int) {
 		Stdout:  e.stdout,
 		Stderr:  e.stderr,
 		Home:    e.home,
+	}
+	if limit := hookTimeout(e.paths.Root, name, h.Payload.String(hook.KeyHookEventName), h.Payload.String(hook.KeyToolName)); limit > 0 {
+		git.SetDeadline(start.Add(limit - hookMargin))
 	}
 	if def.run != nil {
 		return def.run(h)
@@ -219,4 +229,55 @@ func skillsNudge(h *hook.Hook) error {
 		return hooks.SkillsNudge(h)
 	}
 	return hooks.NudgeFiles(h, bashguard.ReadTargets(h.Payload.String(hook.KeyInputCommand), h.Home, h.Payload.Cwd()))
+}
+
+// hookMargin is the time a hook keeps past its last git call to answer.
+const hookMargin = time.Second
+
+// hookTimeout is name's timeout in root's hooks/hooks.json, on event and,
+// where a matcher picks tools, on tool: the shortest when several match,
+// and 0 when none does or the file can't be read.
+func hookTimeout(root, name, event, tool string) time.Duration {
+	raw, err := os.ReadFile(filepath.Join(root, "hooks", "hooks.json"))
+	if err != nil {
+		return 0
+	}
+	var file struct {
+		Hooks map[string][]struct {
+			Matcher string
+			Hooks   []struct {
+				Command string
+				Timeout int
+			}
+		}
+	}
+	if json.Unmarshal(raw, &file) != nil {
+		return 0
+	}
+	var shortest time.Duration
+	for _, group := range file.Hooks[event] {
+		if !matcherPicks(group.Matcher, tool) {
+			continue
+		}
+		for _, c := range group.Hooks {
+			_, rest, ok := strings.Cut(c.Command, " hook ")
+			if words := strings.Fields(rest); !ok || len(words) == 0 || words[0] != name || c.Timeout <= 0 {
+				continue
+			}
+			if d := time.Duration(c.Timeout) * time.Second; shortest == 0 || d < shortest {
+				shortest = d
+			}
+		}
+	}
+	return shortest
+}
+
+// matcherPicks is true when a hooks.json matcher picks tool: no matcher,
+// "*", or a regexp over the whole name. An event with no tool takes any.
+func matcherPicks(matcher, tool string) bool {
+	if matcher == "" || matcher == "*" || tool == "" {
+		return true
+	}
+	re, err := regexp.Compile("^(?:" + matcher + ")$")
+	return err == nil && re.MatchString(tool)
 }

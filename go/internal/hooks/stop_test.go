@@ -147,7 +147,7 @@ func (e *stopEnv) finish(id, status string) {
 func TestStopPlanDone(t *testing.T) {
 	t.Parallel()
 	const done = "## Steps\n\n- [x] 1. a\n- [x] 2. b\n"
-	t.Run("ticking the last step with no review since the last edit blocks once", func(t *testing.T) {
+	t.Run("ticking the last step with no review since the last edit blocks, and holds until one launches", func(t *testing.T) {
 		t.Parallel()
 		e := stopSetup(t)
 		e.turn("Edit", e.path("a.ts"))
@@ -156,6 +156,19 @@ func TestStopPlanDone(t *testing.T) {
 		r.Want(t, 2)
 		r.Has(t, "plan-x.md is done, but /code-review hasn't finished since the last code edit")
 		r.Has(t, "the edits since are only fixes for that review's findings: say so in one line, no second review")
+		e.stop(true).Want(t, 2)
+		e.review()
+		e.stop(true).Want(t, 0)
+	})
+	t.Run("a retry passes on fixes after an earlier review, with no second one", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		e.turn("Edit", e.path("a.ts"))
+		e.review()
+		e.finish("<tool-use-id>toolu_r1</tool-use-id>", "completed")
+		e.turn("Edit", e.path("a.ts"))
+		e.turn("Edit", e.plan(done))
+		e.stop(false).Want(t, 2)
 		e.stop(true).Want(t, 0)
 	})
 	t.Run("ticking the last step through Bash blocks too; a Bash call that only names the plan doesn't", func(t *testing.T) {

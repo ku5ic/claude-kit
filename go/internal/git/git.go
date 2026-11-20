@@ -15,7 +15,7 @@ import (
 )
 
 // Timeout bounds every git call: a lock or a hung remote must not hang a
-// hook.
+// hook. A hook's own deadline, SetDeadline, cuts it shorter.
 const Timeout = 30 * time.Second
 
 // Command is git with args, run in dir ("" is the working directory).
@@ -26,7 +26,7 @@ func Command(dir string, args ...string) *proc.Cmd {
 	if dir != "" {
 		args = append([]string{"-C", dir}, args...)
 	}
-	cmd := proc.Command(Timeout, "git", args...)
+	cmd := proc.Command(budget(), "git", args...)
 	cmd.Env = append(cmd.Environ(), "GIT_OPTIONAL_LOCKS=0")
 	return cmd
 }
@@ -242,4 +242,20 @@ func Base(dir, explicit string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// deadline is when the running hook's own timeout ends; zero is none. A
+// process runs one hook, which sets it once, before any git call.
+var deadline time.Time
+
+// SetDeadline makes every later git call end by t, sooner than Timeout when
+// t comes first: Claude Code kills a hook at its timeout without a word.
+func SetDeadline(t time.Time) { deadline = t }
+
+// budget is how long the next git call may take.
+func budget() time.Duration {
+	if deadline.IsZero() {
+		return Timeout
+	}
+	return min(Timeout, time.Until(deadline))
 }

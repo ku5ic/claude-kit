@@ -191,6 +191,9 @@ func (w *planWalk) done() (plan string, reviewed bool) {
 	return plan, w.LastReview > w.LastEdit
 }
 
+// launched is true when the transcript shows a /code-review started.
+func (w *planWalk) launched() bool { return len(w.Started) > 0 }
+
 // listedPlan is a plan's path, and named, which matches a command naming it.
 type listedPlan struct {
 	path  string

@@ -37,11 +37,9 @@ func StopChecks(h *hook.Hook) error {
 	if h.Payload.Err != nil {
 		return h.Payload.Err
 	}
-	// Already continuing because of this hook: one retry per failure, so a
-	// check that can't be fixed never loops.
-	if h.Payload.Bool(hook.KeyStopHookActive) {
-		return nil
-	}
+	// Already continuing because of this hook: one retry per failing check,
+	// so one that can't be fixed never loops. A done plan's block holds.
+	retry := h.Payload.Bool(hook.KeyStopHookActive)
 	deadline := time.Now().Add(stopBudget)
 	cwd := h.Payload.Cwd()
 	path := h.Payload.String(hook.KeyTranscriptPath)
@@ -57,11 +55,16 @@ func StopChecks(h *hook.Hook) error {
 	// Before the clean-tree return: plans are gitignored, so ticking the
 	// last step leaves the tree clean. A finished plan waits for
 	// /code-review since the last code edit (skills/kit-rules/reference/verify.md).
-	if plan, reviewed := walk.done(); plan != "" && !reviewed {
+	// On a retry it holds only until a review has launched: the edits
+	// since one may be its fixes, which need no second review.
+	if plan, reviewed := walk.done(); plan != "" && !reviewed && (!retry || !walk.launched()) {
 		return h.Block(fmt.Sprintf("plan %s is done, but /code-review hasn't finished since the last code edit\n", fsx.Rel(root, plan))+
 			layout.KV("do", "run it now, or wait for the one running")+"\n"+
 			layout.KV("then", "the runtime pass (/verify) when the change has observable behavior")+"\n"+
 			layout.KV("or", "the edits since are only fixes for that review's findings: say so in one line, no second review (skills/kit-rules/reference/verify.md section 5)"), "plan-done")
+	}
+	if retry {
+		return nil
 	}
 	edited, tree := turnFiles(h, turn, cwd, root)
 	if len(edited) == 0 {
