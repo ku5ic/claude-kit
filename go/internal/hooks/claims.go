@@ -244,9 +244,10 @@ func gateOnChecker(h *hook.Hook, text, where, retry, marker, dest string) error 
 	// finished run flagged and the text still states, unlabelled, holds it;
 	// else its runs' flags go to the ledger.
 	passed := func() error {
-		if kept := stillStated(coveringRuns(log, string(record), text), text); len(kept) > 0 &&
+		runs, ids := latestRuns(log, string(record), text)
+		if kept := stillStated(runs, text); len(kept) > 0 &&
 			h.Deny("a kit:claim-checker run flagged claims "+where+" still states\n"+"- "+strings.Join(kept, "\n- ")+"\n"+
-				layout.KV("do", "cut each, run its check, or label it as skills/kit-rules/reference/evidence.md section 1 says (likely, with its evidence, or hypothesis)")+"\n"+
+				layout.KV("do", "cut each, label it as skills/kit-rules/reference/evidence.md section 1 says (likely, with its evidence, or hypothesis), or run its check, then run kit:claim-checker again with the line `"+strings.Join(ids, "`, `")+"` and the full text")+"\n"+
 				layout.KV("then", retry), "claims") {
 			return nil
 		}

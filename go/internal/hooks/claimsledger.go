@@ -65,6 +65,20 @@ func ledgerPending(h *hook.Hook, marker, where, text string) {
 // coveringRuns is each finished claim-checker run, with a reply, on text
 // or on an earlier version that shares a statement with it.
 func coveringRuns(log checkerLog, record, text string) []transcript.Run {
+	ids := coveringIDs(record, text)
+	var runs []transcript.Run
+	for _, run := range transcript.AgentRuns(log.entries, claimChecker) {
+		if run.Status == transcript.RunDone && run.Result != "" &&
+			slices.ContainsFunc(ids, func(id string) bool { return strings.Contains(run.Prompt, id) }) {
+			runs = append(runs, run)
+		}
+	}
+	return runs
+}
+
+// coveringIDs is the claim-check ids the session's asked record holds for
+// a statement of text.
+func coveringIDs(record, text string) []string {
 	keys := map[string]bool{}
 	for _, s := range claims.Statements(text) {
 		keys[statementKey(s)] = true
@@ -75,14 +89,33 @@ func coveringRuns(log checkerLog, record, text string) []transcript.Run {
 			ids = append(ids, a.id)
 		}
 	}
-	var runs []transcript.Run
+	return ids
+}
+
+// latestRuns is, per claim-check id covering text, the last finished run
+// asked about it, and those ids: a rerun on an id, after Claude ran the
+// checks it named, replaces what the earlier run flagged.
+func latestRuns(log checkerLog, record, text string) ([]transcript.Run, []string) {
+	ids := coveringIDs(record, text)
+	last := map[string]transcript.Run{}
 	for _, run := range transcript.AgentRuns(log.entries, claimChecker) {
-		if run.Status == transcript.RunDone && run.Result != "" &&
-			slices.ContainsFunc(ids, func(id string) bool { return strings.Contains(run.Prompt, id) }) {
-			runs = append(runs, run)
+		if run.Status != transcript.RunDone || run.Result == "" {
+			continue
+		}
+		for _, id := range ids {
+			if strings.Contains(run.Prompt, id) {
+				last[id] = run
+			}
 		}
 	}
-	return runs
+	var runs []transcript.Run
+	var asked []string
+	for _, id := range ids {
+		if run, ok := last[id]; ok && !slices.ContainsFunc(runs, func(r transcript.Run) bool { return r.At == run.At }) {
+			runs, asked = append(runs, run), append(asked, id)
+		}
+	}
+	return runs, asked
 }
 
 // evidenceLabel marks a statement offered as an idea, not a fact, per

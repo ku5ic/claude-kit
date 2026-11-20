@@ -71,7 +71,8 @@ func TestAFlaggedClaimStillStatedIsHeld(t *testing.T) {
 			runs := checkerCall(id, "- "+claim+" -> git log -S Foo\n", false) + "\n"
 			testutil.Write(t, session, runs)
 			// A revision with new sentences gets a clean run on those first.
-			if next := checkID.FindString(k.run("verify-claims", post(tc.text, session)).Stdout); next != "" {
+			if first := k.run("verify-claims", post(tc.text, session)).Stdout; strings.Contains(first, "hasn't checked") {
+				next := checkID.FindString(first)
 				testutil.Write(t, session, runs+strings.Replace(checkerLine(next), `"cc"`, `"cc2"`, 2)+"\n")
 			}
 			r := k.run("verify-claims", post(tc.text, session))
@@ -83,6 +84,25 @@ func TestAFlaggedClaimStillStatedIsHeld(t *testing.T) {
 			r.Has(t, "still states", "git log -S Foo")
 		})
 	}
+}
+
+// A flag lifts once the checker, run again on the same claim-check id after
+// Claude ran the check, no longer flags the claim.
+func TestARerunThatConfirmsAFlaggedClaimLiftsIt(t *testing.T) {
+	t.Parallel()
+	k := newSandbox(t)
+	k.verifier("", claim)
+	post := toolCall("mcp__chat__send_message", map[string]any{"text": claim})
+	id := checkID.FindString(k.run("verify-claims", post).Stdout)
+	session := filepath.Join(t.TempDir(), "session.jsonl")
+	flagged := checkerCall(id, "- "+claim+" -> git log -S Foo\n", false) + "\n"
+	testutil.Write(t, session, flagged)
+	post["transcript_path"] = session
+	r := k.run("verify-claims", post)
+	r.Denied(t)
+	r.Has(t, "run kit:claim-checker again", id)
+	testutil.Write(t, session, flagged+strings.ReplaceAll(checkerLine(id), `"cc"`, `"cc2"`)+"\n")
+	k.run("verify-claims", post).Allowed(t)
 }
 
 // In shadow, a flagged claim still stated goes through, scored as kept.
