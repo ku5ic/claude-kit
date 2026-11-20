@@ -259,7 +259,7 @@ func notLoaded(h *hook.Hook, session string, toCheck []string, marker func(strin
 	if err != nil {
 		return nil
 	}
-	missing := notIn(loaded, toCheck)
+	missing := notIn(h, loaded, toCheck)
 	for _, skill := range toCheck {
 		if !slices.Contains(missing, skill) {
 			_ = fsx.WriteAtomic(marker(skill), nil, 0o644)

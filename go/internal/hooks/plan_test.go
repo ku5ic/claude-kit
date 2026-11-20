@@ -172,6 +172,18 @@ func TestGuardPlan(t *testing.T) {
 		r.Has(t, "kit:plan-critic", plan)
 		k.run("guard-plan", exit(k, write)).Allowed(t)
 	})
+	t.Run("a transcript that can't be read counts as no critique", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		for _, path := range []string{"", filepath.Join(k.home, "missing.jsonl")} {
+			payload := exit(k, write)
+			payload["transcript_path"] = path
+			r := k.run("guard-plan", payload)
+			r.Denied(t)
+			r.Has(t, "kit:plan-critic")
+			k = newSandbox(t)
+		}
+	})
 	t.Run("a critique after the plan was written, then a revision: allowed", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
@@ -294,6 +306,16 @@ func TestPlanDispatchVerifiesClaims(t *testing.T) {
 		// a run on it.
 		k.run("plan-dispatch", exit(k, "# Plan v2\n\n"+claim, write, checkerLine(id))).Allowed(t)
 		k.run("plan-dispatch", exit(k, "# Plan v2\n\n"+claim+"\n\nThe cache lives in the session directory.", write, checkerLine(id))).Denied(t)
+	})
+	t.Run("a transcript that can't be read lets the plan through, saying it went unchecked", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		k.verifier("disabled_rules: [plan-critic]\n", claim)
+		p := exit(k, "# Plan\n\n"+claim)
+		p["transcript_path"] = filepath.Join(k.home, "missing.jsonl")
+		r := k.run("plan-dispatch", p)
+		r.Allowed(t)
+		r.Has(t, "kit claims: NOT CHECKED the plan plan-x.md")
 	})
 	t.Run("a critic-skip marker skips the critic, not the claim check", func(t *testing.T) {
 		t.Parallel()

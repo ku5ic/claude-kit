@@ -106,7 +106,11 @@ func (o outcome) notFound() bool {
 // passes unrun with nothing changed.
 func (r *runner) gate(g enforce.Gate) {
 	if g.Skip != "" {
-		r.skip(g.Label, g.Skip)
+		if g.Settled() {
+			r.skipped(g.Label, g.Skip)
+		} else {
+			r.skip(g.Label, g.Skip)
+		}
 		return
 	}
 	if g.Unchanged != "" {

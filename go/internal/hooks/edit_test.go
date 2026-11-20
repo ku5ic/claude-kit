@@ -595,8 +595,6 @@ func TestGuardSkills(t *testing.T) {
 		{"allows when the required skill was loaded this session via the Skill tool", bashSkillLoaded, "s1", false},
 		{"allows a plugin-namespaced skill name (kit:bash-patterns)",
 			strings.Replace(bashSkillLoaded, `"skill_file":"bash-patterns"`, `"skill_file":"kit:bash-patterns"`, 1), "s1", false},
-		{"allows when the required skill's SKILL.md was read this session (Read fallback)",
-			`{"ts":"2026-01-01T00:00:00Z","hook":"log-skills","event":"PostToolUse","session_id":"s1","cwd":"/x","expansion_type":null,"command_name":null,"command_args":null,"command_source":null,"skill_file":"/Users/x/.claude/skills/bash-patterns/SKILL.md","tool_name":"Read"}`, "s1", false},
 		{"a session_id mismatch does not count as loaded",
 			`{"ts":"2026-01-01T00:00:00Z","hook":"log-skills","event":"PreToolUse","session_id":"other-session","cwd":"/x","expansion_type":null,"command_name":null,"command_args":null,"command_source":null,"skill_file":"bash-patterns","tool_name":"Skill"}`, "s1", true},
 		{"an oversized log line doesn't switch the gate off",
@@ -614,6 +612,22 @@ func TestGuardSkills(t *testing.T) {
 			}
 		})
 	}
+
+	// A Read of the skill's SKILL.md counts when it's in a skills dir.
+	readLog := func(file string) string {
+		return `{"hook":"log-skills","event":"PostToolUse","session_id":"s1","cwd":"/x","skill_file":"` + file + `","tool_name":"Read"}` + "\n"
+	}
+	t.Run("allows when the required skill's SKILL.md was read this session (Read fallback)", func(t *testing.T) {
+		t.Parallel()
+		k := skillsSandbox(t, bashSkillMap, "")
+		testutil.Write(t, k.paths.LogFile(kitlog.Skills), readLog(filepath.Join(k.paths.Root, "skills", "bash-patterns", "SKILL.md")))
+		guard(k, "/tmp/project/foo.sh", "s1").Allowed(t)
+	})
+	t.Run("a Read of a SKILL.md outside the skills dirs doesn't count", func(t *testing.T) {
+		t.Parallel()
+		k := skillsSandbox(t, bashSkillMap, readLog("/Users/x/notes/skills/bash-patterns/SKILL.md"))
+		guard(k, "/tmp/project/foo.sh", "s1").Denied(t)
+	})
 
 	// A skill can be both surfaced by inject-context and required by
 	// skill_file_map; a surfaced marker is not a load.

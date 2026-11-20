@@ -233,6 +233,10 @@ func gateOnChecker(h *hook.Hook, text, where, retry, marker, dest string) error 
 		return nil
 	}
 	log := readCheckerLog(h, h.Payload.String(hook.KeyTranscriptPath))
+	// No run could ever show in a transcript that can't be read.
+	if log.unread {
+		return verifyInSubagent(h, text, where, retry, marker)
+	}
 	asked := h.Paths.SessionFile(cache.Claims, h.Payload.SessionID(), "asked")
 	record, _ := os.ReadFile(asked)
 	checked, outcomes, done := checkedStatements(log, string(record))
@@ -350,6 +354,7 @@ type checkerLog struct {
 	path     string
 	entries  []transcript.Entry
 	lastEdit transcript.Pos
+	unread   bool // a transcript was named and couldn't be loaded
 }
 
 // bashEditsRecord is the session file under cache.Claims listing, one a
@@ -406,9 +411,9 @@ func isCode(h *hook.Hook, file string) bool {
 // readCheckerLog is the checkerLog of the transcript at path. The last edit
 // is an edit tool's, or a Bash call's that bashEditsRecord names.
 func readCheckerLog(h *hook.Hook, path string) checkerLog {
-	entries, _ := transcript.Load(path)
+	entries, err := transcript.Load(path)
 	bashed := bashEdits(h)
-	log := checkerLog{path: path, entries: entries, lastEdit: transcript.Pos{Entry: -1}}
+	log := checkerLog{path: path, entries: entries, lastEdit: transcript.Pos{Entry: -1}, unread: path != "" && err != nil}
 	edits := map[string]bool{}
 	for at, b := range transcript.Blocks(entries) {
 		switch _, ok := bashed[b.ID]; {

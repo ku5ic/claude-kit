@@ -212,10 +212,11 @@ func criticSkip(plan string) (line int, reason string, ok bool) {
 }
 
 // planCritiqued reports whether the ExitPlanMode in p follows a plan-critic
-// run on its plan; an unreadable transcript counts as one, so it fails open.
+// run on its plan. A transcript that can't be read shows no run, so the plan
+// is sent back once like any uncritiqued one.
 func planCritiqued(p *hook.Payload) bool {
 	entries, err := transcript.Load(p.String(hook.KeyTranscriptPath))
-	return err != nil || critiqued(entries, p.String(hook.KeyInputPlanFilePath))
+	return err == nil && critiqued(entries, p.String(hook.KeyInputPlanFilePath))
 }
 
 // critiqued reports whether a plan-critic call follows the first write to

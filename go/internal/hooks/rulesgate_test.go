@@ -12,10 +12,9 @@ import (
 
 func TestRulesGate(t *testing.T) {
 	t.Parallel()
-	// loaded is a skills.jsonl line: kit-rules loaded in session s1, by the
-	// Skill tool in the main session, or by agent through a Read.
+	// mainLoad is a skills.jsonl line: kit-rules loaded in session s1 by the
+	// Skill tool in the main session.
 	const mainLoad = `{"event":"PostToolUse","session_id":"s1","skill_file":"kit:kit-rules","tool_name":"Skill"}`
-	const agentRead = `{"event":"PostToolUse","session_id":"s1","agent_id":"a1","skill_file":"/plugin/skills/kit-rules/SKILL.md","tool_name":"Read"}`
 	setup := func(t *testing.T, log string) *sandbox {
 		k := newPlugin(t)
 		k.kitYML("")
@@ -41,9 +40,20 @@ func TestRulesGate(t *testing.T) {
 		t.Parallel()
 		k := setup(t, "")
 		call(k, "Skill", "", map[string]any{"skill": "kit:kit-rules"}).Allowed(t)
-		call(k, "Read", "a1", map[string]any{"file_path": "/plugin/skills/kit-rules/reference/output.md"}).Allowed(t)
+		call(k, "Read", "a1", map[string]any{"file_path": filepath.Join(k.paths.Root, "skills", "kit-rules", "reference", "output.md")}).Allowed(t)
 		call(k, "SubagentHandback", "a1", map[string]any{"message": "done"}).Allowed(t)
-		call(k, "Read", "", map[string]any{"file_path": "/plugin/skills/go-patterns/SKILL.md"}).Denied(t)
+		call(k, "Read", "", map[string]any{"file_path": filepath.Join(k.paths.Root, "skills", "go-patterns", "SKILL.md")}).Denied(t)
+	})
+	t.Run("a logged Read of a SKILL.md outside the skills dirs loads nothing", func(t *testing.T) {
+		t.Parallel()
+		k := setup(t, `{"event":"PostToolUse","session_id":"s1","skill_file":"/Users/foo/notes/skills/kit-rules/SKILL.md","tool_name":"Read"}`+"\n")
+		call(k, "Bash", "", bash).Denied(t)
+	})
+	t.Run("a Read of a kit-rules folder outside the skills dirs is denied", func(t *testing.T) {
+		t.Parallel()
+		k := setup(t, "")
+		call(k, "Read", "", map[string]any{"file_path": "/Users/foo/notes/skills/kit-rules/secret.txt"}).Denied(t)
+		call(k, "Read", "", map[string]any{"file_path": filepath.Join(k.paths.Root, "skills", "kit-rules", "..", "..", "secret.txt")}).Denied(t)
 	})
 	t.Run("the main session's load lets it through, and not a subagent that didn't load it", func(t *testing.T) {
 		t.Parallel()
@@ -53,7 +63,8 @@ func TestRulesGate(t *testing.T) {
 	})
 	t.Run("a subagent with no Skill tool loads by Read, for itself alone", func(t *testing.T) {
 		t.Parallel()
-		k := setup(t, agentRead+"\n")
+		k := setup(t, "")
+		testutil.Write(t, k.paths.LogFile(kitlog.Skills), `{"event":"PostToolUse","session_id":"s1","agent_id":"a1","skill_file":"`+filepath.Join(k.paths.Root, "skills", "kit-rules", "SKILL.md")+`","tool_name":"Read"}`+"\n")
 		call(k, "Grep", "a1", map[string]any{"pattern": "x"}).Allowed(t)
 		call(k, "Bash", "", bash).Denied(t)
 		call(k, "Bash", "a2", bash).Denied(t)
@@ -104,11 +115,22 @@ func TestRulesGate(t *testing.T) {
 		inAgent(setup(t, mainLoad+"\n"), started(t, fork, prompt)).Allowed(t)
 		inAgent(setup(t, ""), started(t, fork, prompt)).Denied(t)
 	})
-	t.Run("no skills log fails open", func(t *testing.T) {
+	t.Run("no skills log counts as nothing loaded", func(t *testing.T) {
 		t.Parallel()
 		k := newPlugin(t)
 		k.kitYML("")
-		call(k, "Bash", "", bash).Allowed(t)
+		r := call(k, "Bash", "", bash)
+		r.Denied(t)
+		r.Has(t, "the kit-rules skill isn't loaded yet")
+	})
+	t.Run("a skills log that can't be read denies, naming it", func(t *testing.T) {
+		t.Parallel()
+		k := newPlugin(t)
+		k.kitYML("")
+		testutil.Mkdir(t, k.paths.LogFile(kitlog.Skills))
+		r := call(k, "Bash", "", bash)
+		r.Denied(t)
+		r.Has(t, k.paths.LogFile(kitlog.Skills))
 	})
 	t.Run("every global_skills skill must load too, named in the same deny", func(t *testing.T) {
 		t.Parallel()
@@ -118,7 +140,7 @@ func TestRulesGate(t *testing.T) {
 		r := call(k, "Bash", "", bash)
 		r.Denied(t)
 		r.Has(t, "the slop-patterns skill isn't loaded yet")
-		call(k, "Read", "", map[string]any{"file_path": "/plugin/skills/slop-patterns/SKILL.md"}).Allowed(t)
+		call(k, "Read", "", map[string]any{"file_path": filepath.Join(k.paths.Root, "skills", "slop-patterns", "SKILL.md")}).Allowed(t)
 		testutil.Write(t, k.paths.LogFile(kitlog.Skills), mainLoad+"\n"+`{"event":"PostToolUse","session_id":"s1","skill_file":"kit:slop-patterns","tool_name":"Skill"}`+"\n")
 		call(k, "Bash", "", bash).Allowed(t)
 	})

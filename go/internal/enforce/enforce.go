@@ -156,6 +156,22 @@ func (b *builder) skipCovered() {
 // work; it runs after all when that gate doesn't.
 func (g Gate) Covered() bool { return g.CoveredBy != "" }
 
+// The skips that leave no code unchecked: no gate exists for the kinds,
+// disabled_checks turned it off, or formatters conflict over the files.
+const (
+	skipNothing     = "nothing enforces it"
+	skipDisabled    = "disabled_checks"
+	verdictConflict = "conflict"
+)
+
+// Settled is true for a skipped gate that leaves no code unchecked: another
+// gate's run does its work, no gate exists, disabled_checks turned it off,
+// or the formatters it conflicts with each format the files. Running it
+// again would check nothing new.
+func (g Gate) Settled() bool {
+	return g.Covered() || g.Skip == skipNothing || g.Skip == skipDisabled || g.Verdict == verdictConflict
+}
+
 // plan is an empty builder for o.Root: its entries and their verified
 // verdicts, and its subprojects.
 func plan(cfg *config.Config, o Options) (*builder, []string) {
@@ -302,7 +318,7 @@ func (b *builder) fill(sub string) {
 		}
 	}
 	if len(missing) > 0 && sources.HasManifest(dir) {
-		b.gates = append(b.gates, Gate{Label: strings.Join(missing, ", ") + project.SubLabel(sub), Dir: dir, Skip: "nothing enforces it"})
+		b.gates = append(b.gates, Gate{Label: strings.Join(missing, ", ") + project.SubLabel(sub), Dir: dir, Skip: skipNothing})
 	}
 }
 
@@ -409,7 +425,7 @@ func (b *builder) settle(cacheDir string) {
 	for i := range b.gates {
 		g := &b.gates[i]
 		if g.Skip == "" && (b.cfg.CheckDisabled("", g.Label) || slices.ContainsFunc(g.Kinds, func(k string) bool { return b.cfg.CheckDisabled(k, g.Label) })) {
-			g.Skip = "disabled_checks"
+			g.Skip = skipDisabled
 		}
 		g.Env = append(slices.Clone(b.cfg.GateEnv), g.Env...)
 	}

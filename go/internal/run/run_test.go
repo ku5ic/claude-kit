@@ -72,7 +72,7 @@ func TestTheSummaryCountsEachVerdict(t *testing.T) {
 	var out strings.Builder
 	res, receipt := Gates(enforce.Plan{Root: r.root, Gates: []enforce.Gate{r.gate("test", "true"), failing, skipped}}, r.cache, &out, time.Time{})
 	has(t, out.String(), "PASS test\n", "FAIL typecheck\n", "PASS src/a.test.ts\n", "SKIP lint (unclassified)\n", "\nchecks: 1 passed, 1 failed, 1 skipped\n")
-	if res != (Result{Pass: 1, Fail: 1, Skip: 1}) {
+	if res != (Result{Pass: 1, Fail: 1, Skip: 1, Unchecked: 1}) {
 		t.Errorf("result = %+v", res)
 	}
 	if got, want := receipt.String(), "kit full gate: 1 failed, 1 skipped, 1 passed\n\n  FAIL  typecheck\n  skip  lint  unclassified\n  pass  test"; got != want {
@@ -90,7 +90,7 @@ func TestAGatePastTheDeadlineIsSkipped(t *testing.T) {
 	var out strings.Builder
 	res, _ := Gates(enforce.Plan{Root: r.root, Gates: []enforce.Gate{r.gate("test", "exit 1")}}, r.cache, &out, time.Now())
 	has(t, out.String(), "SKIP test (no time left in the hook's budget)\n")
-	if res != (Result{Skip: 1, Cut: 1}) {
+	if res != (Result{Skip: 1, Unchecked: 1}) {
 		t.Errorf("result = %+v", res)
 	}
 }
@@ -102,7 +102,7 @@ func TestAGateTheDeadlineKillsIsSkipped(t *testing.T) {
 	var out strings.Builder
 	res, _ := Gates(enforce.Plan{Root: r.root, Gates: []enforce.Gate{r.gate("test", "sleep 30")}}, r.cache, &out, time.Now().Add(time.Second))
 	has(t, out.String(), "SKIP test (no time left in the hook's budget)\n")
-	if res != (Result{Skip: 1, Cut: 1}) {
+	if res != (Result{Skip: 1, Unchecked: 1}) {
 		t.Errorf("result = %+v", res)
 	}
 }
@@ -122,7 +122,7 @@ func TestACoveredGateRunsWhenItsCovererDoesNot(t *testing.T) {
 	present.Entry = "present"
 	out, res := r.run(covered("a", "missing"), covered("b", "present"), missing, present)
 	has(t, out, "SKIP missing (not installed: ", "PASS present\n", "FAIL a\n", "SKIP b (covered by present)\n")
-	if res != (Result{Pass: 1, Fail: 1, Skip: 2}) {
+	if res != (Result{Pass: 1, Fail: 1, Skip: 2, Unchecked: 1}) {
 		t.Errorf("result = %+v", res)
 	}
 }

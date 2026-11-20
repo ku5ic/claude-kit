@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
+	"github.com/ku5ic/claude-kit/go/internal/gapfill"
 	"github.com/ku5ic/claude-kit/go/internal/sources"
 	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
@@ -82,6 +83,33 @@ func TestReviewChecks(t *testing.T) {
 		}
 		if _, err := os.Stat(cache.FullGateTree(e.k.paths.CacheDir(), testutil.Physical(t, e.project))); err != nil {
 			t.Errorf("the checked tree wasn't kept: %v", err)
+		}
+	})
+	// second adds a second package.json script, with its verdict, beside lint.
+	lint := sources.Entry{Source: "package-scripts", File: "package.json", Name: "lint", Dir: ".", Body: sources.Body{Text: "eslint ."}}
+	second := func(t *testing.T, e reviewEnv, name, body string, v map[string]any) {
+		testutil.Write(t, filepath.Join(e.project, "package.json"), `{"scripts":{"lint":"eslint .","`+name+`":"`+body+`"}}`+"\n")
+		other := sources.Entry{Source: "package-scripts", File: "package.json", Name: name, Dir: ".", Body: sources.Body{Text: body}}
+		e.k.classify(e.project, envelope(t, []map[string]any{verdict(lint, map[string]any{"role": "check", "kind": "lint"}), verdict(other, v)}, nil, nil))
+	}
+	kept := func(e reviewEnv) bool {
+		_, err := os.Stat(cache.FullGateTree(e.k.paths.CacheDir(), testutil.Physical(t, e.project)))
+		return err == nil
+	}
+	t.Run("a gate skipped for one another gate's run covers still keeps the tree", func(t *testing.T) {
+		e := setup(t, `{"skillName":"code-review"}`, "")
+		second(t, e, "lint:all", "eslint .", map[string]any{"role": "check", "kind": "lint", "covered_by": gapfill.Key(lint)})
+		out := ran(t, e, stop(e, e.project, ""))
+		if !strings.Contains(out["systemMessage"], "covered by lint") || !kept(e) {
+			t.Errorf("want a covered skip and the tree kept: %+v", out)
+		}
+	})
+	t.Run("a gate skipped unchecked keeps no tree, so Stop checks it again", func(t *testing.T) {
+		e := setup(t, `{"skillName":"code-review"}`, `case "$*" in *typecheck*) exit 127;; esac`)
+		second(t, e, "typecheck", "tsc --noEmit", map[string]any{"role": "check", "kind": "typecheck"})
+		out := ran(t, e, stop(e, e.project, ""))
+		if !strings.Contains(out["systemMessage"], "not installed") || kept(e) {
+			t.Errorf("want an unchecked skip and no tree kept: %+v", out)
 		}
 	})
 	t.Run("a failing gate sends the reviewer back with it", func(t *testing.T) {
