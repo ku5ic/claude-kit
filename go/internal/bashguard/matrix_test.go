@@ -318,10 +318,21 @@ func TestGuardBashParsing(t *testing.T) {
 		probe("block", `git -c core.hooksPath=/dev/null commit -m x`)
 		probe("block", `git -c core.hookspath=/tmp/h push origin feat`)
 		probe("block", `git --config-env=core.hooksPath=H commit -m x`)
+		// The environment's config does what -c does.
+		probe("block", `GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0=/dev/null git commit -m x`)
+		probe("block", `env GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hookspath GIT_CONFIG_VALUE_0=/dev/null git push`)
+		probe("block", `GIT_CONFIG_PARAMETERS="'core.hooksPath'='/dev/null'" git commit -m x`)
+		probe("block", `GIT_CONFIG_PARAMETERS="'core.hooksPath'='/dev/null'"; git commit -m x`)
+		probe("block", `export GIT_CONFIG_PARAMETERS="'core.hooksPath'='/dev/null'"; git commit -m x`)
+		probe("block", `export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0=/dev/null && git push`)
 		probe("pass", `git -c user.signingkey=k commit -m x`)
 		probe("block", `git rebase -x 'git commit --amend --no-verify' HEAD~2`)
 		probe("block", `git rebase --exec='rm -rf ~' HEAD~2`)
 		probe("block", `git rebase -x"rm -rf ~" HEAD~2`)
+		// git takes any unambiguous prefix of a long option.
+		probe("block", `git rebase --exe 'rm -rf ~' HEAD~2`)
+		probe("block", `git rebase --ex='rm -rf ~' HEAD~2`)
+		probe("pass", `git rebase --exe 'go test ./...' HEAD~2`)
 		probe("pass", `git rebase -x 'go test ./...' HEAD~2`)
 		// History that git can't bring back asks first.
 		probe("ask", `git stash clear`)

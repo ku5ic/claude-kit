@@ -414,14 +414,18 @@ func rebaseExecs(words []Word) []string {
 	if sub != "rebase" {
 		return nil
 	}
+	// git takes any unambiguous prefix of a long option: --ex is --exec.
+	isExec := func(flag string) bool { return len(flag) >= len("--ex") && abbrevOf(flag, "--exec") }
 	var out []string
 	for j := 0; j < len(args); j++ {
-		switch a := args[j]; {
-		case (a == "-x" || a == "--exec") && j+1 < len(args):
+		a := args[j]
+		flag, value, attached := strings.Cut(a, "=")
+		switch {
+		case attached && isExec(flag):
+			out = append(out, value)
+		case (a == "-x" || isExec(a)) && j+1 < len(args):
 			out = append(out, args[j+1])
 			j++
-		case strings.HasPrefix(a, "--exec="):
-			out = append(out, strings.TrimPrefix(a, "--exec="))
 		case strings.HasPrefix(a, "-x") && len(a) > 2:
 			out = append(out, a[2:])
 		}
@@ -649,10 +653,15 @@ func envSplitString(words []Word) (string, bool) {
 func assigned(seg Segment) map[string]string {
 	vars := map[string]string{}
 	for _, call := range seg.Calls {
-		if len(call.Words) > 0 {
+		assigns := call.Assigns
+		switch {
+		case len(call.Words) > 0 && call.Words[0].Value == "export":
+			// export NAME=value sets NAME as a bare assignment does.
+			assigns = slices.DeleteFunc(values(call.Words[1:]), func(w string) bool { return !assignment.MatchString(w) })
+		case len(call.Words) > 0:
 			continue
 		}
-		for _, a := range call.Assigns {
+		for _, a := range assigns {
 			name, value, _ := strings.Cut(a, "=")
 			vars[name] = value
 		}

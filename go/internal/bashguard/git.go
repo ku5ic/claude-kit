@@ -27,7 +27,7 @@ func (c *command) git() error {
 				return err
 			}
 		}
-		if hooksOff(words[:max(0, len(words)-len(args)-1)]) {
+		if hooksOff(words[:max(0, len(words)-len(args)-1)]) || hooksOffByEnv(append(slices.Clone(c.assigns), c.st.setVars()...)) {
 			if err := c.block("core.hooksPath set on the command line skips the repo's hooks, as --no-verify does", "git-no-verify"); err != nil {
 				return err
 			}
@@ -66,6 +66,23 @@ func hooksOff(globals []string) bool {
 		}
 	}
 	return false
+}
+
+// hooksOffByEnv is true when assigns, the VAR=value words a git command runs
+// with, its own and the command's earlier ones, point core.hooksPath anywhere, as -c does: a GIT_CONFIG_KEY_<n>
+// naming it, or GIT_CONFIG_PARAMETERS holding it. A config key's case
+// doesn't matter.
+func hooksOffByEnv(assigns []string) bool {
+	return slices.ContainsFunc(assigns, func(a string) bool {
+		name, value, _ := strings.Cut(a, "=")
+		switch {
+		case strings.HasPrefix(name, "GIT_CONFIG_KEY_"):
+			return strings.EqualFold(value, "core.hooksPath")
+		case name == "GIT_CONFIG_PARAMETERS":
+			return strings.Contains(strings.ToLower(value), "core.hookspath")
+		}
+		return false
+	})
 }
 
 // historyLoss is the ask reason for a git command that drops history git

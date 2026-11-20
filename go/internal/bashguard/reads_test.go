@@ -108,6 +108,7 @@ func TestWriteTargets(t *testing.T) {
 		{"sed without -i writes nothing", "sed 's/a/b/' go.sum", nil},
 		{"sed -e's script is no file", "sed -i -e 's/yarn.lock/package-lock.json/' README.md", []string{at("README.md")}},
 		{"BSD sed -i's empty suffix is no file", "sed -i '' 's/a/b/' go.sum", []string{at("go.sum")}},
+		{"BSD sed's empty suffix after a flag cluster", "sed -Ei '' 's/a/b/' go.sum", []string{at("go.sum")}},
 		{"sed -f's script file is no write", "sed -i -e s/a/b/ -f fix.sed a.txt b.txt", []string{at("a.txt"), at("b.txt")}},
 		{"sed --expression= is no file", "sed -i --expression=s/a/b/ a.txt", []string{at("a.txt")}},
 		{"a write after cd lands in the new directory", "cd / && echo x > /tmp/w", []string{"/tmp/w"}},

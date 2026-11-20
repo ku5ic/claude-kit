@@ -225,7 +225,7 @@ func WriteTargets(cmd, home, cwd string) []string {
 }
 
 // sedFiles is the files sed's args name: not a script given with -e,
-// --expression, -f, or --file, nor BSD's empty suffix after a bare -i,
+// --expression, -f, or --file, nor BSD's empty suffix after -i,
 // nor, with no script flag, the first operand, which is the script.
 func sedFiles(args []string) []string {
 	var files []string
@@ -243,7 +243,8 @@ func sedFiles(args []string) []string {
 		case strings.HasPrefix(a, "--expression=") || strings.HasPrefix(a, "--file=") ||
 			strings.HasPrefix(a, "-e") && len(a) > 2 || strings.HasPrefix(a, "-f") && len(a) > 2:
 			scripted = true
-		case a == "-i" && i+1 < len(args) && args[i+1] == "":
+		case strings.HasPrefix(a, "-") && !strings.HasPrefix(a, "--") && strings.HasSuffix(a, "i") && i+1 < len(args) && args[i+1] == "":
+			// BSD's -i takes the suffix as the next word: -i '', -Ei ''.
 			i++
 		case strings.HasPrefix(a, "-"):
 		default:
