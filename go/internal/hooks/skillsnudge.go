@@ -14,9 +14,8 @@ import (
 
 // SkillsNudge is NudgeFiles for a Read's or an edit's file_path, or a
 // Grep's path and its glob joined to it. guard-dispatch runs it on an edit
-// only with guard-skills off. Reads come first: in the trigger evals, a
-// model that edited without the skill never went back for it once the
-// edit's nudge arrived.
+// only with guard-skills off. A Read is nudged too, so the skill can load
+// before the first edit of the file it covers.
 func SkillsNudge(h *hook.Hook) error {
 	p := h.Payload
 	if p.Err != nil {
