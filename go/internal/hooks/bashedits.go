@@ -49,6 +49,25 @@ func gitMove(cmd string) bool {
 	return slices.Contains(gitMoves, sub)
 }
 
+// BashBaseline is the PreToolUse step that snapshots, before a Bash
+// command runs, a repo with neither a turn start nor a baseline, so
+// bash-edits checks even the first command there. PreToolUse for Bash.
+func BashBaseline(h *hook.Hook) error {
+	p := h.Payload
+	if p.Err != nil || p.String(hook.KeyToolName) != "Bash" || h.Config() == nil {
+		return nil
+	}
+	root := git.Toplevel(p.Cwd())
+	base := bashTreeFile(h, root)
+	if root == "" || base == "" || fsx.IsFile(base) || fsx.IsFile(turnTreeFile(h, root)) {
+		return nil
+	}
+	if tree, err := git.Snapshot(root); err == nil {
+		saveTree(h, base, tree)
+	}
+	return nil
+}
+
 // BashEdits is the PostToolUse hook on Bash: every file the command
 // changed gets the checks an Edit gets, slop, weaken, imports, and tokens,
 // then sanitize and format. A failure goes back to Claude, which can't be
@@ -72,9 +91,9 @@ func BashEdits(h *hook.Hook) error {
 	}
 	if _, err := os.Stat(base); errors.Is(err, os.ErrNotExist) {
 		// Until a command runs this turn, the diff starts at the turn's
-		// start. A repo the turn didn't start in has no snapshot of it, so
-		// this command's changes there go unchecked and the next one's diff
-		// starts here.
+		// start. A repo the turn didn't start in got its baseline from
+		// BashBaseline before the command; without one, this command's
+		// changes there go unchecked and the next one's diff starts here.
 		start, err := os.ReadFile(turnTreeFile(h, root))
 		if err != nil {
 			if tree, err := git.Snapshot(root); err == nil {

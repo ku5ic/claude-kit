@@ -121,6 +121,15 @@ func TestBashEdits(t *testing.T) {
 		testutil.Write(t, filepath.Join(other, "b.md"), tell)
 		ran(k, other, "ls").Want(t, 2)
 	})
+	t.Run("a repo the turn didn't start in gets its baseline before its first command, which is checked", func(t *testing.T) {
+		t.Parallel()
+		k, _ := setup(t)
+		other := repo(t, filepath.Join(t.TempDir(), "other"))
+		k.run("bash-baseline", map[string]any{"hook_event_name": "PreToolUse", "session_id": "s1", "cwd": other,
+			"tool_name": "Bash", "tool_input": map[string]any{"command": "tee b.md"}}).Want(t, 0)
+		testutil.Write(t, filepath.Join(other, "b.md"), tell)
+		ran(k, other, "tee b.md").Want(t, 2)
+	})
 	t.Run("a git command that brings in others' content isn't checked", func(t *testing.T) {
 		t.Parallel()
 		k, dir := setup(t)

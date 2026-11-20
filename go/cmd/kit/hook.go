@@ -33,6 +33,7 @@ var hookChecks = map[string]hook.Check{
 	"guard-skills":            hooks.GuardSkills,
 	"skills-nudge":            skillsNudge,
 	"guard-bash-writes":       guardBashWrites,
+	"bash-baseline":           hooks.BashBaseline,
 	"adr-nudge":               hooks.ADRNudge,
 	"guard-slop":              hooks.GuardSlop,
 	"guard-weaken":            hooks.GuardWeaken,
@@ -177,13 +178,13 @@ func init() {
 }
 
 // bashSteps are bash-dispatch's steps: bashguard.Steps, the write paths,
-// then the nudge.
+// the baseline bash-edits diffs from, then the nudge.
 func bashSteps() []string {
 	names := make([]string, 0, len(bashguard.Steps)+1)
 	for _, s := range bashguard.Steps {
 		names = append(names, s.Name)
 	}
-	return append(names, "guard-bash-writes", "skills-nudge")
+	return append(names, "guard-bash-writes", "bash-baseline", "skills-nudge")
 }
 
 // guardBashWrites is guard-edit's path rules on what a Bash command writes.

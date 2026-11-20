@@ -79,6 +79,7 @@ var entries = map[string]func(*hook.Hook) int{
 	"turn-tree":               single("turn-tree", TurnTree),
 	"rules-gate":              single("rules-gate", RulesGate),
 	"bash-edits":              single("bash-edits", BashEdits),
+	"bash-baseline":           single("bash-baseline", BashBaseline),
 	"edit-seen":               single("edit-seen", MarkEditSeen),
 	"inject-context":          single("inject-context", InjectContext),
 	"inject-subagent-context": single("inject-subagent-context", InjectSubagentContext),
