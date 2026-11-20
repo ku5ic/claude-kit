@@ -13,9 +13,14 @@ The guards read a command line, not what it does when it runs. A pass means the 
 - Wrappers and remote runners: `busybox`, `script`, `parallel`, `find -exec sh -c`, `xargs sh -c`, `ssh`, `docker run`, `osascript`.
 - Opaque task runners: `go run`, `make`, `npm run`.
 - Other ways to lose work: `git rm -rf .`, `rsync --delete`, `mv` of the home directory, truncating a file, `git stash drop`, `git update-ref -d`, `gh api -X DELETE` on a branch, `gh pr merge --admin`.
-- Skipping commit hooks through `core.hooksPath` or `HUSKY=0`, or a git alias that hides `push --force`.
+- Skipping commit hooks through `git config core.hooksPath` or `HUSKY=0`, or a git alias that hides `push --force`. A `git -c core.hooksPath=...` blocks.
 - Credential reads through `env`, `printenv`, a search over `~/.aws`, a key path held in a variable, a glob in a `<` redirect, `security find-generic-password`, or `gh auth token`.
 - Staging a credential file the repo doesn't ignore with `git add .` or `git add -A`. `git add` of the file by name asks.
 - `claude plugin uninstall kit`.
 - A reply with no tool call, which no hook sees.
+- A recursive search with no glob naming a credential file, over a directory that holds a loose `*.pem`, outside the project or through `grep -r` or a chained `rg`. Catching it means walking the tree.
+- A Bash command's writes are checked after they land, and only in files `git add -A` sees, so an ignored test file can take a `t.Skip()`.
+- A file a background agent changes after Claude's turn ends counts as yours: the next turn starts from it, and no check runs on it.
+- One `kit:plan-critic` run covers every later version of the plan it read.
+- The step pause is an instruction. No hook stops work that runs past it.
 - The release workflow's actions on version tags, not commit pins.
