@@ -74,7 +74,9 @@ func BashBaseline(h *hook.Hook) error {
 // stopped from writing it but is told before it moves on. A file an Edit or
 // Write left as it is now was checked then and is skipped. The baseline is
 // the tree after the last Bash command checked, else the turn's start.
-func BashEdits(h *hook.Hook) error {
+// writes is what the command writes by itself (bashguard.WriteTargets): a
+// git move with any of them beside it, or on it, is checked.
+func BashEdits(h *hook.Hook, writes []string) error {
 	p := h.Payload
 	if p.Err != nil {
 		return p.Err
@@ -128,7 +130,7 @@ func BashEdits(h *hook.Hook) error {
 	}
 	// Whoever wrote the change, a claim checked before it is stale.
 	recordBashEdit(h, made)
-	if gitMove(p.String(hook.KeyInputCommand)) {
+	if gitMove(p.String(hook.KeyInputCommand)) && len(repoWrites(root, writes)) == 0 {
 		return nil
 	}
 	problems := lostTests(h, root, before, changed)
@@ -170,6 +172,14 @@ func BashEdits(h *hook.Hook) error {
 		return nil
 	}
 	return h.Block("a file this command changed fails the checks an Edit gets\n"+strings.Join(problems, "\n"), "bash-edits")
+}
+
+// repoWrites is the writes that land in root, its symlinks resolved: a
+// redirect to /dev/null, or to a log outside the repo, brings no file in.
+func repoWrites(root string, writes []string) []string {
+	return slices.DeleteFunc(slices.Clone(writes), func(w string) bool {
+		return !fsx.Within(root, filepath.Join(fsx.PhysicalPath(filepath.Dir(w)), filepath.Base(w)))
+	})
 }
 
 // lostTests is the send-back for the assertion lines the test files a

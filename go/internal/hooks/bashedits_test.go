@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -214,4 +215,16 @@ func TestBashEdits(t *testing.T) {
 		testutil.Write(t, filepath.Join(dir, "notes.md"), "Notes.\n"+tell)
 		ran(k, dir, "echo").Want(t, 0)
 	})
+}
+
+// Only a write that lands in the repo stops a git move counting as alone: a
+// redirect to /dev/null or to a log outside the repo brings no file in.
+func TestRepoWritesKeepsOnlyWritesInTheRepo(t *testing.T) {
+	t.Parallel()
+	root := testutil.Physical(t, t.TempDir())
+	notes := filepath.Join(root, "notes.md")
+	got := repoWrites(root, []string{"/dev/null", filepath.Join(t.TempDir(), "git.log"), notes})
+	if want := []string{notes}; !slices.Equal(got, want) {
+		t.Errorf("repoWrites = %q, want %q", got, want)
+	}
 }

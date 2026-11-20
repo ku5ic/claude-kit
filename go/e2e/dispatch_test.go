@@ -134,6 +134,42 @@ func TestBashEditsChecksAReportACommandWrote(t *testing.T) {
 	}
 }
 
+// A git move counts as alone only when nothing else in the command writes:
+// a builtin's redirect beside it, or on the git call itself, is checked.
+func TestBashEditsChecksAWriteBesideAGitMove(t *testing.T) {
+	t.Parallel()
+	const tell = "In today's fast-paced world, it serves as a testament to quality.\n"
+	for _, tc := range []struct {
+		cmd     string
+		checked bool
+	}{
+		{"printf x > notes.md && git checkout -- README.md", true},
+		{"git stash show -p > notes.md", true},
+		{"git checkout -- README.md", false},
+		{"git checkout -- README.md 2>/dev/null", false},
+	} {
+		t.Run(tc.cmd, func(t *testing.T) {
+			t.Parallel()
+			k := New(t)
+			dir := Physical(t, t.TempDir())
+			k.Git(dir, "init", "-q")
+			Write(t, filepath.Join(dir, "README.md"), "Readme.\n")
+			k.Git(dir, "add", "-A")
+			k.Git(dir, "commit", "-q", "-m", "init")
+			k.Hook("prompt-dispatch", map[string]any{"hook_event_name": "UserPromptSubmit", "session_id": "s1", "cwd": dir, "prompt": "go"})
+			Write(t, filepath.Join(dir, "notes.md"), "Notes.\n"+tell)
+			r := k.Hook("bash-edits", map[string]any{"hook_event_name": "PostToolUse", "session_id": "s1", "cwd": dir,
+				"tool_name": "Bash", "tool_input": map[string]any{"command": tc.cmd}})
+			if !tc.checked {
+				r.Want(t, 0)
+				return
+			}
+			r.Want(t, 2)
+			r.Has(t, "notes.md")
+		})
+	}
+}
+
 // prompt-dispatch: plan-mode-context's plain text and reply-length's
 // context reach Claude in one JSON object, neither dropped.
 func TestPromptDispatch(t *testing.T) {

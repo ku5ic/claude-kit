@@ -63,7 +63,7 @@ var hookChecks = map[string]hook.Check{
 	"plan-changes":            hooks.PlanChanges,
 	"stop-checks":             hooks.StopChecks,
 	"turn-tree":               hooks.TurnTree,
-	"bash-edits":              hooks.BashEdits,
+	"bash-edits":              onBashWrites(hooks.BashEdits),
 	"edit-seen":               hooks.MarkEditSeen,
 	"review-checks":           hooks.ReviewChecks,
 	"reply-length":            hooks.ReplyLength,
@@ -211,8 +211,9 @@ func bashPost(h *hook.Hook) error {
 }
 
 // onBashWrites is check run on the files a Bash command writes: guard-edit's
-// path rules as guard-bash-writes, and the scratch report checks as
-// bash-reports. hooks and bashguard share a layer, so the two meet here.
+// path rules as guard-bash-writes, the scratch report checks as
+// bash-reports, and bash-edits' git-move test. hooks and bashguard share a
+// layer, so the two meet here.
 func onBashWrites(check func(*hook.Hook, []string) error) hook.Check {
 	return func(h *hook.Hook) error {
 		if h.Payload.String(hook.KeyToolName) != "Bash" {
