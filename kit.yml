@@ -312,6 +312,8 @@ connectors:
     save, add, set, respond, react, merge, move, delete, remove, trash, batch, generate, execute, use]
   read_verbs: [get, read, search, list, fetch, query, find, view, lookup, resolve, describe, whoami]
   code_fields: [code]
+  # Input fields that name a local file, which get guard-edit's path rules.
+  path_fields: [path, file_path, paths, source, destination]
 
 # What an AI tool's attribution looks like (go/internal/attribution): a
 # co-author or session trailer, a "Generated with" footer, the robot emoji,

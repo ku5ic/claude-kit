@@ -79,3 +79,31 @@ func TestGuardConnectorBlocksAttributionOnGitHub(t *testing.T) {
 		})
 	}
 }
+
+// A connector's path fields get guard-edit's path rules: a read tool's as
+// reads, any other's as writes.
+func TestGuardConnectorRunsThePathRules(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, want string
+		call       map[string]any
+	}{
+		{"an MCP read of a key", "reading a credential or key file", toolCall("mcp__fs__read_file", map[string]any{"path": "~/.ssh/id_rsa"})},
+		{"an MCP read of a credential among several", "reading a credential or key file", toolCall("mcp__fs__read_multiple_files", map[string]any{"paths": []any{"/tmp/p/a.txt", "/tmp/p/.env"}})},
+		{"an MCP write of a credential file", "writing a credential or key file", toolCall("mcp__fs__write_file", map[string]any{"path": "/tmp/p/.env", "content": "K=1"})},
+		{"an MCP move onto authorized_keys", "writing a credential or key file", toolCall("mcp__fs__move_file", map[string]any{"source": "/tmp/p/k", "destination": "~/.ssh/authorized_keys"})},
+		{"an MCP write into .git", "edit inside .git/", toolCall("mcp__fs__write_file", map[string]any{"path": "/tmp/p/.git/hooks/pre-commit", "content": "exit 0"})},
+		{"an MCP read of a plain file", "", toolCall("mcp__fs__read_file", map[string]any{"path": "/tmp/p/README.md"})},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			r := newSandbox(t).run("guard-connector", tc.call)
+			if tc.want == "" {
+				r.Want(t, 0)
+				return
+			}
+			r.Want(t, 2)
+			r.Has(t, tc.want)
+		})
+	}
+}

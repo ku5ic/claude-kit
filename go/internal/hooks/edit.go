@@ -48,11 +48,17 @@ func GuardEdit(h *hook.Hook) error {
 	if path == "" {
 		return nil
 	}
-	h.SetContext(layout.KV("path", path))
+	return guardPath(h, cfg, tool, path, tool == "Read")
+}
 
+// guardPath is guard-edit's rules for one path tool reads, or else writes:
+// a credential file blocks either way, and a write to a lockfile, .git, an
+// rc file, a CI workflow, or a kit switch blocks or asks.
+func guardPath(h *hook.Hook, cfg *config.Config, tool, path string, reading bool) error {
+	h.SetContext(layout.KV("path", path))
 	if guard.IsSensitive(cfg, h.Home, path) {
 		reason, rule := "writing a credential or key file is not permitted", "sensitive-write"
-		if tool == "Read" {
+		if reading {
 			reason, rule = "reading a credential or key file is not permitted", "sensitive-read"
 		}
 		if err := h.Block(reason, rule); err != nil {
@@ -61,7 +67,7 @@ func GuardEdit(h *hook.Hook) error {
 	}
 
 	// Everything below guards writes only.
-	if tool == "Read" {
+	if reading {
 		return nil
 	}
 	if guard.IsGuardedLockfile(cfg, path) && !project.IsScratch(h.Paths, path) {

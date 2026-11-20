@@ -275,6 +275,7 @@ type Connectors struct {
 	WriteVerbs []string `yaml:"write_verbs"`
 	ReadVerbs  []string `yaml:"read_verbs"`
 	CodeFields []string `yaml:"code_fields"`
+	PathFields []string `yaml:"path_fields"`
 }
 
 // Attribution is what go/internal/attribution finds an AI tool's
