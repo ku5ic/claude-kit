@@ -15,7 +15,7 @@
     "precedence": {
       "type": "boolean",
       "title": "Kit rules take precedence",
-      "description": "Add a system-prompt section saying the kit's rules and kit: hook context outrank default, mode, and built-in skill instructions where they conflict.",
+      "description": "Add a system-prompt section, and a reminder on every prompt, saying the kit's rules and kit: hook context outrank default, mode, and built-in skill instructions where they conflict.",
       "default": true
     },
     "kit_stats": {

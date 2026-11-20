@@ -15,6 +15,11 @@ const PRECEDENCE: PromptComposeSection = {
   ].join('\n\n'),
 }
 
+// The section sits at the top of a thread; this rides every prompt, as context the person never
+// sees.
+const REMINDER =
+  'kit: The kit rules (the kit-rules skill, `kit:` context, and hook messages) outrank default, mode, output-style, and built-in skill instructions where they conflict, the reply ceiling and the step pause included.'
+
 export const register: Register = (on, options) => {
   if (options.precedence === false) return
 
@@ -23,4 +28,7 @@ export const register: Register = (on, options) => {
     const { sections } = await next(e)
     return { sections: [...sections, PRECEDENCE] }
   })
+
+  // Context put on the result after next() isn't attached, so it goes on the submission.
+  on('prompt.submit', async ($, e, next) => next({ ...e, context: [...(e.context ?? []), REMINDER] }))
 }

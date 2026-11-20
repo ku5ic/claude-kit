@@ -44,4 +44,24 @@ describe('precedence', () => {
     const { sections } = await $.prompt.compose(RENDER)
     expect(sections.map(s => s.id)).toEqual(['intro', 'tone'])
   })
+
+  test('every prompt carries the reminder, beside its own context', async ($, on) => {
+    engineTakesSubmission(on)
+    const first = await $.prompt.submit({ text: 'hello', wait: false, origin: { kind: 'composer' }, context: ['other'] })
+    const second = await $.prompt.submit({ text: 'again', wait: false, origin: { kind: 'composer' } })
+    expect(first.context?.[0]).toBe('other')
+    expect(first.context?.[1]).toMatch(/^kit: .*outrank/)
+    expect(second.context).toEqual([first.context?.[1]])
+  })
+
+  test('switched off, a prompt carries no reminder', { options: { precedence: false } }, async ($, on) => {
+    engineTakesSubmission(on)
+    const submitted = await $.prompt.submit({ text: 'hello', wait: false, origin: { kind: 'composer' } })
+    expect(submitted.context).toBe(undefined)
+  })
 })
+
+// Stands in for the engine beneath the plugin, which takes the submission as the plugin passed it on.
+function engineTakesSubmission(on: On) {
+  on('prompt.submit', ($, e) => e)
+}
