@@ -32,6 +32,7 @@ var hookChecks = map[string]hook.Check{
 	"guard-edit":              hooks.GuardEdit,
 	"guard-skills":            hooks.GuardSkills,
 	"skills-nudge":            skillsNudge,
+	"guard-bash-writes":       guardBashWrites,
 	"adr-nudge":               hooks.ADRNudge,
 	"guard-slop":              hooks.GuardSlop,
 	"guard-weaken":            hooks.GuardWeaken,
@@ -175,13 +176,23 @@ func init() {
 	}
 }
 
-// bashSteps are bash-dispatch's steps: bashguard.Steps, then the nudge.
+// bashSteps are bash-dispatch's steps: bashguard.Steps, the write paths,
+// then the nudge.
 func bashSteps() []string {
 	names := make([]string, 0, len(bashguard.Steps)+1)
 	for _, s := range bashguard.Steps {
 		names = append(names, s.Name)
 	}
-	return append(names, "skills-nudge")
+	return append(names, "guard-bash-writes", "skills-nudge")
+}
+
+// guardBashWrites is guard-edit's path rules on what a Bash command writes.
+// hooks and bashguard share a layer, so the two meet here.
+func guardBashWrites(h *hook.Hook) error {
+	if h.Payload.String(hook.KeyToolName) != "Bash" {
+		return nil
+	}
+	return hooks.GuardWrites(h, bashguard.WriteTargets(h.Payload.String(hook.KeyInputCommand), h.Home, h.Payload.Cwd()))
 }
 
 // skillsNudge is skills-nudge, a Bash command's reads included. hooks and

@@ -242,6 +242,8 @@ func TestDecide(t *testing.T) {
 			`{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"confirm"}}` + "\n"},
 		"asks join": {[]NamedCheck{decide("ask", "a"), decide("ask", "b")},
 			`{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"a; b"}}` + "\n"},
+		"the same ask twice joins once": {[]NamedCheck{decide("ask", "a; confirm"), decide("ask", "b"), decide("ask", "a; confirm")},
+			`{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"a; confirm; b"}}` + "\n"},
 		"deny outranks ask": {[]NamedCheck{decide("ask", "confirm"), decide("deny", "load x"), decide("ask", "later")},
 			`{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"load x"}}` + "\n"},
 		"context rides with a decision": {[]NamedCheck{

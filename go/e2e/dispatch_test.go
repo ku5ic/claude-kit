@@ -45,6 +45,39 @@ func TestBashDispatchNudgesOnARead(t *testing.T) {
 	r.Has(t, "bash-patterns covers this file")
 }
 
+// bash-dispatch gives a file a command writes the path rules an Edit gets.
+func TestBashDispatchGuardsWhatACommandWrites(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		cmd, verdict, has string
+	}{
+		{"echo K=1 >> .env", "block", "writing a credential or key file"},
+		{"cp hook .git/hooks/pre-commit", "block", "edit inside .git/"},
+		{"echo x > go.sum", "block", "lockfile edit"},
+		{"echo 'on: push' > .github/workflows/ci.yml", "ask", "CI workflow"},
+		{"echo x > notes/a.md", "pass", ""},
+	} {
+		t.Run(tc.cmd, func(t *testing.T) {
+			t.Parallel()
+			k := NewPlugin(t)
+			k.KitYML("sensitive_paths: [\".env\"]\nlockfile_globs: [go.sum]\n")
+			r := k.Hook("bash-dispatch", map[string]any{"hook_event_name": "PreToolUse", "session_id": "s1", "cwd": t.TempDir(),
+				"tool_name": "Bash", "tool_input": map[string]any{"command": tc.cmd}})
+			switch tc.verdict {
+			case "block":
+				r.Want(t, 2)
+				r.Has(t, tc.has)
+			case "ask":
+				r.Want(t, 0)
+				r.Has(t, `"ask"`, tc.has)
+			default:
+				r.Want(t, 0)
+				r.Lacks(t, `"ask"`, `"deny"`)
+			}
+		})
+	}
+}
+
 // prompt-dispatch: plan-mode-context's plain text and reply-length's
 // context reach Claude in one JSON object, neither dropped.
 func TestPromptDispatch(t *testing.T) {

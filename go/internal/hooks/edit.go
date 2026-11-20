@@ -51,6 +51,18 @@ func GuardEdit(h *hook.Hook) error {
 	return guardPath(h, cfg, tool, path, tool == "Read")
 }
 
+// GuardWrites gives each path a Bash command writes the path rules an Edit
+// gets. bashguard finds the paths; the two meet in cmd/kit.
+func GuardWrites(h *hook.Hook, paths []string) error {
+	cfg := cmp.Or(h.Config(), &config.Config{})
+	for _, p := range paths {
+		if err := guardPath(h, cfg, "Bash", p, false); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // guardPath is guard-edit's rules for one path tool reads, or else writes:
 // a credential file blocks either way, and a write to a lockfile, .git, an
 // rc file, a CI workflow, or a kit switch blocks or asks.

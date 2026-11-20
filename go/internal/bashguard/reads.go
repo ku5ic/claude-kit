@@ -179,6 +179,69 @@ func ReadTargets(cmd, home, cwd string) []string {
 	return out
 }
 
+// WriteTargets is what cmd, run from cwd, writes, each path absolute: every
+// > and >> target, a redirect alone and a compound command's included,
+// tee's files, the destination of cp, mv, or install, and the files sed -i
+// or sd edits. A cd moves where the writes after it land.
+func WriteTargets(cmd, home, cwd string) []string {
+	segs, _ := parseAll(cmd)
+	d := dirs{home: home, cwd: resolveDir(home, "/", cwd)}
+	var out []string
+	add := func(p string) { out = append(out, resolveDir(home, d.cwd, unquote(p))) }
+	for _, seg := range segs {
+		for _, call := range seg.Calls {
+			for _, r := range call.Redirs {
+				if !strings.HasPrefix(r.Target.Value, "&") {
+					add(r.Target.Value)
+				}
+			}
+			i := lead(call.Words)
+			if i >= len(call.Words) {
+				continue
+			}
+			name, args := baseName(call.Words[i].Value), values(call.Words[i+1:])
+			ops := nonOptions(args)
+			switch {
+			case name == "tee":
+				for _, op := range ops {
+					add(op)
+				}
+			case (name == "cp" || name == "mv" || name == "install") && len(ops) > 1:
+				add(ops[len(ops)-1])
+			case name == "sd" && len(ops) > 2:
+				for _, op := range ops[2:] {
+					add(op)
+				}
+			case name == "sed" && inPlace(args) && len(ops) > 1:
+				// With no -e or -f, the first operand is the script.
+				if !slices.ContainsFunc(args, func(a string) bool { return a == "-e" || a == "-f" }) {
+					ops = ops[1:]
+				}
+				for _, op := range ops {
+					add(op)
+				}
+			case name == "cd" && len(seg.Calls) == 1 && !seg.subshell:
+				d.cd(call.Words[i+1:])
+			}
+		}
+	}
+	return out
+}
+
+// inPlace is true when sed's args edit the file in place: a flag holding i
+// before any --.
+func inPlace(args []string) bool {
+	for _, a := range args {
+		if a == "--" {
+			return false
+		}
+		if strings.HasPrefix(a, "-") && !strings.HasPrefix(a, "--") && strings.Contains(a, "i") || a == "--in-place" || strings.HasPrefix(a, "--in-place=") {
+			return true
+		}
+	}
+	return false
+}
+
 // pureReaders print or test what they're given and write no file,
 // whatever their flags. Commands that write only with a flag (sed -i,
 // sort -o, find -delete) aren't here.

@@ -84,3 +84,36 @@ func TestOnlyReads(t *testing.T) {
 		})
 	}
 }
+
+func TestWriteTargets(t *testing.T) {
+	t.Parallel()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := func(name string) string { return filepath.Join(dir, name) }
+	for _, tc := range []struct {
+		name, cmd string
+		want      []string
+	}{
+		{"a > target", "echo K=1 > .env", []string{at(".env")}},
+		{"a >> target, ~ expanded", "echo k >> ~/.ssh/authorized_keys", []string{"/home/nobody/.ssh/authorized_keys"}},
+		{"a redirect alone", "> .env", []string{at(".env")}},
+		{"a compound command's redirect", "{ echo x; } > ci.yml", []string{at("ci.yml")}},
+		{"an fd duplication is no file", "echo x >&2", nil},
+		{"tee's files", "echo x | tee -a a.txt b.txt", []string{at("a.txt"), at("b.txt")}},
+		{"cp's destination, not its source", "cp hook .git/hooks/pre-commit", []string{at(".git/hooks/pre-commit")}},
+		{"mv's and install's destination", "mv a b && install -m 755 c d", []string{at("b"), at("d")}},
+		{"sed -i's files, not its script", "sed -i 's/a/b/' go.sum", []string{at("go.sum")}},
+		{"sed without -i writes nothing", "sed 's/a/b/' go.sum", nil},
+		{"a write after cd lands in the new directory", "cd / && echo x > /tmp/w", []string{"/tmp/w"}},
+		{"a reader writes nothing", "cat .env.example", nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := WriteTargets(tc.cmd, "/home/nobody", dir); !slices.Equal(got, tc.want) {
+				t.Errorf("WriteTargets(%q) = %q, want %q", tc.cmd, got, tc.want)
+			}
+		})
+	}
+}
