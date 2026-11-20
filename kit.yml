@@ -331,6 +331,7 @@ attribution:
     - '(?:^|[^\w-])(?:AI|LLM)-(?:\w+-)*(?:Session|Assisted|Generated|Model|Agent|Tool)(?:-\w+)*\s*:'
     - '\b(?:generated|created|written|authored|co-authored|made|built|produced|drafted|assisted)\s+(?:with|by|using|via)\s+(?:the\s+help\s+of\s+)?\[?(?:an?\s+)?{tools}'
     - '\x{1F916}'
+    - '(?:--author[=\s]+|user\.(?:name|email)=)["'']?{tools}'
     - '\b(?:claude\.ai|chatgpt\.com|chat\.openai\.com|gemini\.google\.com|g\.co/gemini|copilot\.microsoft\.com|perplexity\.ai|poe\.com|grok\.com|chat\.deepseek\.com|chat\.mistral\.ai)/\S'
 
 # What guard-weaken reads an edit by (go/internal/weaken). An added line

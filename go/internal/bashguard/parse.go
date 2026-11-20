@@ -5,6 +5,7 @@ package bashguard
 
 import (
 	"errors"
+	"github.com/ku5ic/claude-kit/go/internal/classify"
 	"regexp"
 	"slices"
 	"strings"
@@ -360,6 +361,9 @@ func (c *collector) call(src string, p *syntax.Stmt, call *syntax.CallExpr) Call
 	if cmd, ok := flockString(cl.Words); ok {
 		c.parse(cmd, c.depth+1)
 	}
+	for _, cmd := range rebaseExecs(cl.Words) {
+		c.parse(cmd, c.depth+1)
+	}
 	cl.Redirs = append(cl.Redirs, timeOutputs(cl.Words)...)
 	for _, r := range p.Redirs {
 		c.redirect(src, r, &cl)
@@ -397,6 +401,32 @@ func (c *collector) redirect(src string, r *syntax.Redirect, cl *Call) {
 		}
 		cl.Redirs = append(cl.Redirs, Redir{op, Word{value, src[r.Word.Pos().Offset():r.Word.End().Offset()], int(r.Word.End().Offset()), literal(r.Word.Parts)}})
 	}
+}
+
+// rebaseExecs is each command string a git rebase among words runs after
+// each commit: -x cmd, -xcmd, --exec cmd, or --exec=cmd.
+func rebaseExecs(words []Word) []string {
+	i := lead(words)
+	if i >= len(words) || baseName(words[i].Value) != "git" {
+		return nil
+	}
+	sub, args, _ := classify.GitSubcommand(values(words[i+1:]))
+	if sub != "rebase" {
+		return nil
+	}
+	var out []string
+	for j := 0; j < len(args); j++ {
+		switch a := args[j]; {
+		case (a == "-x" || a == "--exec") && j+1 < len(args):
+			out = append(out, args[j+1])
+			j++
+		case strings.HasPrefix(a, "--exec="):
+			out = append(out, strings.TrimPrefix(a, "--exec="))
+		case strings.HasPrefix(a, "-x") && len(a) > 2:
+			out = append(out, a[2:])
+		}
+	}
+	return out
 }
 
 // fdTarget is a >& target that names a descriptor: 2, 2-, or -.

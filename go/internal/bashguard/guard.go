@@ -305,6 +305,7 @@ func (st *state) segment(seg Segment) error {
 	if err := st.pipeToShell(seg); err != nil {
 		return err
 	}
+	st.dirToNetwork(seg)
 	for ci, call := range seg.Calls {
 		if err := st.redirects(call); err != nil {
 			return err
