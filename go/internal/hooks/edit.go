@@ -21,6 +21,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 	"github.com/ku5ic/claude-kit/go/internal/layout"
 	"github.com/ku5ic/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/sources"
 	"github.com/ku5ic/claude-kit/go/internal/stackctx"
 )
 
@@ -99,6 +100,8 @@ func guardPath(h *hook.Hook, cfg *config.Config, tool, path string, reading bool
 	}
 	if ciWorkflows.MatchString(path) {
 		h.Decide("ask", "this is a CI workflow, which changes what runs on every push; confirm the change")
+	} else if tasks := gateTasks(h, cfg, path); len(tasks) > 0 {
+		h.Decide("ask", "this edit changes what kit's gates run at Stop and in the full gate, with no permission prompt: "+strings.Join(tasks, ", ")+"; confirm the change")
 	}
 	if what := guard.KitSwitch(h.Paths, h.Payload.Cwd(), path); what != "" {
 		h.Decide("ask", guard.KitSwitchAsk(what))
@@ -202,6 +205,30 @@ func newRootArtifact(cfg *config.Config, path string) bool {
 	}
 	dir := fsx.PhysicalPath(filepath.Dir(path))
 	return dir == git.Toplevel(dir)
+}
+
+// gateTasks is each task, as "file: name", that this edit of path adds to
+// a file the gates read, or gives another command. A Bash write has no
+// content to compare, so it names none.
+func gateTasks(h *hook.Hook, cfg *config.Config, path string) []string {
+	dir := fsx.PhysicalPath(filepath.Dir(path))
+	root := git.Toplevel(dir)
+	if root == "" {
+		return nil
+	}
+	rel, err := filepath.Rel(root, filepath.Join(dir, filepath.Base(path)))
+	if err != nil || !sources.Reads(rel) {
+		return nil
+	}
+	before, after, ok := written(h.Payload, path)
+	if !ok {
+		return nil
+	}
+	var out []string
+	for _, name := range sources.ChangedTasks(cfg, rel, before, after) {
+		out = append(out, filepath.ToSlash(rel)+": "+name)
+	}
+	return out
 }
 
 // GuardSkills blocks edits of mapped file types until the patterns skill
