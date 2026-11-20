@@ -691,6 +691,20 @@ func TestVerifyClaimsFailsOpen(t *testing.T) {
 			t.Errorf("guards log lacks the error:\n%s", log)
 		}
 	})
+	t.Run("after a failure the verifier is paused for every text, saying since when and until when", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		stub, calls := filepath.Join(t.TempDir(), "verifier"), filepath.Join(t.TempDir(), "calls")
+		testutil.FakeTool(t, stub, calls, "cat >/dev/null\nexit 1")
+		k.overlay(fmt.Sprintf("claims:\n  command: [%q]\n", stub))
+		k.run("verify-claims", subagentStop("a1", claim, false)).Has(t, "the verifier failed")
+		r := k.run("verify-claims", subagentStop("a2", "The cache lives in the session directory.", false))
+		r.Want(t, 0)
+		r.Has(t, "kit claims: NOT CHECKED subagent report, the verifier is paused after failing at ", "; it runs again after ")
+		if got := len(testutil.Calls(t, calls)); got != 1 {
+			t.Errorf("verifier ran %d times, want 1", got)
+		}
+	})
 	t.Run("a verifier run logs what it cost", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)

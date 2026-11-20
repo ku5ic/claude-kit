@@ -39,6 +39,7 @@ const (
 	Guard        = "guard"
 	Enforce      = "enforce"
 	FailOpen     = "fail-open"
+	Cooldown     = "cooldown"
 )
 
 // Dir is one state dir: its name, what a file in it is, and the days one
@@ -73,6 +74,7 @@ var Dirs = []Dir{
 	{Guard, "verifier and classifier run marker(s)", 1},
 	{Enforce, "gap-fill verdict and gate mark file(s)", 30},
 	{FailOpen, "fail-open notice marker(s)", 1},
+	{Cooldown, "failed claude run cooldown file(s)", 1},
 }
 
 // RootKey names a project's files in a state dir: its root hashed, so

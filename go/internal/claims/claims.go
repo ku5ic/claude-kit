@@ -6,6 +6,8 @@ package claims
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -122,13 +124,31 @@ type Unsupported struct {
 	Check string `json:"check"`
 }
 
+// Paused is Verify's error while the verifier waits out a failed run, so
+// an outage costs one run's timeout, not one per text.
+type Paused struct{ claudecli.Failure }
+
+func (p *Paused) Error() string { return "claims: the verifier is paused after a failed run: " + p.Why }
+
+// verifierKey is the verifier's one key in its cooldown: cfg's command and
+// model, so a changed one runs at once.
+func verifierKey(cfg *config.Config) string {
+	sum := sha256.Sum256([]byte(strings.Join(append(slices.Clone(cfg.Claims.Command), cfg.Claims.Model), "\x00")))
+	return "verifier-" + hex.EncodeToString(sum[:])[:16]
+}
+
 // Verify runs the verifier on text from dir, with the session transcript
 // at transcriptPath (none when "") as its evidence and the agent file under
 // root as its instructions. An error means no verdict; callers fail open
-// on it.
+// on it. A failed run pauses the verifier for claudecli.CooldownPeriod,
+// when Verify returns *Paused without running.
 func Verify(cfg *config.Config, root, cacheDir, dir, text, transcriptPath string) (Verdict, error) {
 	if cfg.Claims.Off() {
 		return Verdict{}, ErrOff
+	}
+	cool, key := claudecli.NewCooldown(cacheDir, "claims"), verifierKey(cfg)
+	if f, ok := cool.Cooling(key, time.Now()); ok {
+		return Verdict{}, &Paused{f}
 	}
 	var entries []transcript.Entry
 	if transcriptPath != "" {
@@ -146,7 +166,14 @@ func Verify(cfg *config.Config, root, cacheDir, dir, text, transcriptPath string
 		argv = claude(cfg, entries, prompt)
 	}
 	forked := transcriptPath != "" && fsx.IsFile(transcript.ForkSidecar(transcriptPath))
-	return run(cfg, argv, filepath.Join(cacheDir, cache.Guard), dir, evidence(entries, text, forked))
+	v, err := run(cfg, argv, filepath.Join(cacheDir, cache.Guard), dir, evidence(entries, text, forked))
+	// Best effort: unrecorded, the next text runs the verifier again.
+	if err != nil {
+		_ = cool.Record(time.Now(), map[string]string{key: strings.TrimPrefix(err.Error(), "claims: ")}, nil)
+	} else {
+		_ = cool.Record(time.Now(), nil, []string{key})
+	}
+	return v, err
 }
 
 // run runs the verifier command argv from dir on input, the evidence and

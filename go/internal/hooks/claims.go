@@ -553,6 +553,13 @@ func unconfirmed(h *hook.Hook, text, transcriptPath, where string) []claims.Unsu
 	if errors.Is(err, claims.ErrOff) {
 		return nil
 	}
+	if paused, ok := errors.AsType[*claims.Paused](err); ok {
+		h.Log(kitlog.Guards, "claims-paused", "where", where, "error", paused.Why)
+		h.Notify(fmt.Sprintf("kit claims: NOT CHECKED %s, the verifier is paused after failing at %s (%s); it runs again after %s",
+			where, paused.At.Format("15:04"), paused.Why, paused.Until().Format("15:04")))
+		_ = fsx.Append(claimsUnchecked(h), []byte(where+"\n"))
+		return nil
+	}
 	if err != nil {
 		h.Log(kitlog.Guards, "claims-error", append([]string{"where", where, "error", err.Error()}, v.Usage.Pairs()...)...)
 		h.Notify(fmt.Sprintf("kit claims: NOT CHECKED %s, the verifier failed: %s", where, err))
