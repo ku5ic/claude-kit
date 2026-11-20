@@ -224,10 +224,35 @@ func claude(cfg *config.Config, entries []transcript.Entry, systemPrompt string)
 		"--disable-slash-commands", "--no-session-persistence", "--system-prompt", systemPrompt,
 		"--max-budget-usd", strconv.FormatFloat(cfg.Claims.BudgetUSD, 'f', -1, 64),
 		"--output-format", "json", "--json-schema", schema}
+	if denied := denyReads(cfg.SensitivePaths); len(denied) > 0 {
+		argv = append(argv, "--disallowedTools", strings.Join(denied, ","))
+	}
 	if cfg.Claims.Model != "" {
 		argv = append(argv, "--model", cfg.Claims.Model)
 	}
 	return argv
+}
+
+// denyReads is a Read deny rule per sensitive_paths entry, so neither a
+// claim nor an instruction injected into the evidence gets the verifier to
+// read a credential file; a Read deny reaches Grep and Glob too
+// (code.claude.com/docs/en/permissions). A "~/" entry is under home, a
+// directory when it ends in "/"; any other is a basename at any depth. A
+// deny can't be narrowed, so a "!" exception is dropped.
+func denyReads(entries []string) []string {
+	var rules []string
+	for _, e := range entries {
+		switch {
+		case e == "" || strings.HasPrefix(e, "!"):
+		case strings.HasPrefix(e, "~/") && strings.HasSuffix(e, "/"):
+			rules = append(rules, "Read("+e+"**)")
+		case strings.HasPrefix(e, "~/"):
+			rules = append(rules, "Read("+e+")")
+		default:
+			rules = append(rules, "Read(**/"+e+")")
+		}
+	}
+	return rules
 }
 
 const schema = `{"type":"object","additionalProperties":false,"required":["ok","unsupported"],"properties":{` +

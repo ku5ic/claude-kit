@@ -316,3 +316,21 @@ func TestDeclarative(t *testing.T) {
 		}
 	}
 }
+
+// The verifier gets a Read deny per sensitive_paths entry, so neither a
+// claim nor an instruction injected into the evidence gets it to read a
+// credential file; a "!" exception can't narrow a deny, so it's dropped.
+func TestClaudeDeniesSensitiveReads(t *testing.T) {
+	t.Parallel()
+	cfg := baseConfig()
+	cfg.SensitivePaths = []string{".env", "!.env.example", "*.pem", "~/.ssh/", "~/.netrc"}
+	argv := claude(cfg, nil, "prompt")
+	i := slices.Index(argv, "--disallowedTools")
+	if i < 0 || i+1 >= len(argv) {
+		t.Fatalf("argv lacks --disallowedTools: %q", argv)
+	}
+	denied := strings.Split(argv[i+1], ",")
+	if want := []string{"Read(**/.env)", "Read(**/*.pem)", "Read(~/.ssh/**)", "Read(~/.netrc)"}; !slices.Equal(denied, want) {
+		t.Errorf("--disallowedTools = %q, want %q", denied, want)
+	}
+}
