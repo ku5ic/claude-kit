@@ -2,6 +2,7 @@ package claims
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -334,5 +335,36 @@ func TestClaudeDeniesSensitiveReads(t *testing.T) {
 	// the verifier's cwd (code.claude.com/docs/en/permissions).
 	if want := []string{"Read(//**/.env)", "Read(//**/*.pem)", "Read(~/.ssh/**)", "Read(~/.netrc)"}; !slices.Equal(denied, want) {
 		t.Errorf("--disallowedTools = %q, want %q", denied, want)
+	}
+}
+
+// A run that fails on one text (its budget, its turns, a timeout) pauses
+// that text alone; a failure of the verifier itself pauses every text.
+func TestAFailureOnOneTextPausesOnlyThatText(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, script string
+		othersPaused bool
+	}{
+		{"over its budget", `printf %s '{"is_error":true,"subtype":"error_max_budget_usd"}'`, false},
+		{"the verifier failing", "exit 1", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg, cacheDir, dir := baseConfig(), t.TempDir(), t.TempDir()
+			cfg.Claims.Command = []string{filepath.Join(dir, "verifier")}
+			testutil.FakeTool(t, cfg.Claims.Command[0], filepath.Join(dir, "calls"), tc.script)
+			if _, err := Verify(cfg, "", cacheDir, t.TempDir(), "The build fails.", ""); err == nil {
+				t.Fatal("the first run didn't fail")
+			}
+			var paused *Paused
+			if _, err := Verify(cfg, "", cacheDir, t.TempDir(), "The build fails.", ""); !errors.As(err, &paused) {
+				t.Errorf("the same text again: err %v, want paused", err)
+			}
+			_, err := Verify(cfg, "", cacheDir, t.TempDir(), "The tests pass.", "")
+			if got := errors.As(err, &paused); got != tc.othersPaused {
+				t.Errorf("another text paused = %v (err %v), want %v", got, err, tc.othersPaused)
+			}
+		})
 	}
 }

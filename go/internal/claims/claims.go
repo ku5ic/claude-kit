@@ -147,8 +147,12 @@ func Verify(cfg *config.Config, root, cacheDir, dir, text, transcriptPath string
 		return Verdict{}, ErrOff
 	}
 	cool, key := claudecli.NewCooldown(cacheDir, "claims"), verifierKey(cfg)
-	if f, ok := cool.Cooling(key, time.Now()); ok {
-		return Verdict{}, &Paused{f}
+	sum := sha256.Sum256([]byte(text))
+	textKey := key + "-" + hex.EncodeToString(sum[:])[:16]
+	for _, k := range []string{key, textKey} {
+		if f, ok := cool.Cooling(k, time.Now()); ok {
+			return Verdict{}, &Paused{f}
+		}
 	}
 	var entries []transcript.Entry
 	if transcriptPath != "" {
@@ -169,11 +173,23 @@ func Verify(cfg *config.Config, root, cacheDir, dir, text, transcriptPath string
 	v, err := run(cfg, argv, filepath.Join(cacheDir, cache.Guard), dir, evidence(entries, text, forked))
 	// Best effort: unrecorded, the next text runs the verifier again.
 	if err != nil {
-		_ = cool.Record(time.Now(), map[string]string{key: strings.TrimPrefix(err.Error(), "claims: ")}, nil)
+		failed := key
+		if textFailure(err) {
+			failed = textKey
+		}
+		_ = cool.Record(time.Now(), map[string]string{failed: strings.TrimPrefix(err.Error(), "claims: ")}, nil)
 	} else {
-		_ = cool.Record(time.Now(), nil, []string{key})
+		_ = cool.Record(time.Now(), nil, []string{key, textKey})
 	}
 	return v, err
+}
+
+// textFailure is whether err is a run failing on the text it was given, its
+// budget, its turns, or its time, so only that text waits: the next text
+// may well pass. Anything else is the verifier failing, and pauses all.
+func textFailure(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "timed out") || strings.Contains(msg, "error_max_budget_usd") || strings.Contains(msg, "error_max_turns")
 }
 
 // run runs the verifier command argv from dir on input, the evidence and
