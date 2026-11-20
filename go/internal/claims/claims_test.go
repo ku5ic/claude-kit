@@ -330,7 +330,9 @@ func TestClaudeDeniesSensitiveReads(t *testing.T) {
 		t.Fatalf("argv lacks --disallowedTools: %q", argv)
 	}
 	denied := strings.Split(argv[i+1], ",")
-	if want := []string{"Read(**/.env)", "Read(**/*.pem)", "Read(~/.ssh/**)", "Read(~/.netrc)"}; !slices.Equal(denied, want) {
+	// "//" anchors at the filesystem root: a bare "**/" would cover only
+	// the verifier's cwd (code.claude.com/docs/en/permissions).
+	if want := []string{"Read(//**/.env)", "Read(//**/*.pem)", "Read(~/.ssh/**)", "Read(~/.netrc)"}; !slices.Equal(denied, want) {
 		t.Errorf("--disallowedTools = %q, want %q", denied, want)
 	}
 }

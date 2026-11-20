@@ -237,7 +237,8 @@ func claude(cfg *config.Config, entries []transcript.Entry, systemPrompt string)
 // claim nor an instruction injected into the evidence gets the verifier to
 // read a credential file; a Read deny reaches Grep and Glob too
 // (code.claude.com/docs/en/permissions). A "~/" entry is under home, a
-// directory when it ends in "/"; any other is a basename at any depth. A
+// directory when it ends in "/"; any other is a basename at any depth from
+// the filesystem root, "//", since a bare "**/" covers only the cwd. A
 // deny can't be narrowed, so a "!" exception is dropped.
 func denyReads(entries []string) []string {
 	var rules []string
@@ -249,7 +250,7 @@ func denyReads(entries []string) []string {
 		case strings.HasPrefix(e, "~/"):
 			rules = append(rules, "Read("+e+")")
 		default:
-			rules = append(rules, "Read(**/"+e+")")
+			rules = append(rules, "Read(//**/"+e+")")
 		}
 	}
 	return rules
