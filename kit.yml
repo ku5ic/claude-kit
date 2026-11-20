@@ -456,7 +456,15 @@ sensitive_paths:
   - "~/.npmrc"
   - "~/.pypirc"
   - "~/.cargo/credentials"
+  - "~/.cargo/credentials.toml"
   - "~/.gem/credentials"
+  - ".envrc"
+  - "~/.git-credentials"
+  - "~/.kube/config"
+  - "~/.vault-token"
+  - "~/.config/gcloud/"
+  - "~/.azure/"
+  - "~/.terraform.d/credentials.tfrc.json"
 
 # Line cap for the kit's JSONL logs.
 log_max_lines: 10000
