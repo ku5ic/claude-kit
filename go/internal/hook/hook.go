@@ -23,7 +23,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 	"github.com/ku5ic/claude-kit/go/internal/layout"
@@ -184,7 +186,9 @@ func (h *Hook) Config() *config.Config {
 		if err == nil {
 			h.cfg = cfg
 		} else {
-			h.warnings = append(h.warnings, baseNotLoaded(h.Paths.Base, warnings, err))
+			w := baseNotLoaded(h.Paths.Base, warnings, err)
+			h.warnings = append(h.warnings, w)
+			h.failedOpen(cmp.Or(h.Name, "config"), w.File+": "+w.Err.Error())
 		}
 	}
 	return h.cfg
@@ -476,13 +480,9 @@ type Check func(*Hook) error
 func RunCheck(h *Hook, name string, check Check) (blocked *Blocked) {
 	saved := h.Name
 	h.Name = name
-	failOpen := func(cause any) {
-		FailOpen(h.Stderr, name, cause)
-		h.Log(kitlog.Guards, "fail-open", "error", fmt.Sprint(cause))
-	}
 	defer func() {
 		if r := recover(); r != nil {
-			failOpen(r)
+			h.failedOpen(name, r)
 			blocked = nil
 		}
 		h.Name = saved
@@ -494,8 +494,32 @@ func RunCheck(h *Hook, name string, check Check) (blocked *Blocked) {
 	if b, ok := errors.AsType[*Blocked](err); ok {
 		return b
 	}
-	failOpen(err)
+	h.failedOpen(name, err)
 	return nil
+}
+
+// failedOpen reports a check that let the call through because cause made
+// it fail: to stderr and guards.jsonl each time, and to the user once a
+// session, so a guard that stopped working doesn't go unseen. With no
+// session to mark, the user hears of each one.
+func (h *Hook) failedOpen(name string, cause any) {
+	FailOpen(h.Stderr, name, cause)
+	h.Log(kitlog.Guards, "fail-open", "error", fmt.Sprint(cause))
+	var marker string
+	if h.Payload != nil {
+		marker = h.Paths.SessionFile(cache.FailOpen, h.Payload.SessionID())
+	}
+	if marker != "" && fsx.IsFile(marker) {
+		return
+	}
+	notice := fmt.Sprintf("kit %s: FAILED OPEN, the call went through unchecked: %v", name, cause)
+	if marker != "" {
+		notice += "\nlater ones this session go to " + h.Paths.LogFile(kitlog.Guards) + " only"
+		if !h.DryRun {
+			_ = fsx.WriteAtomic(marker, nil, 0o600)
+		}
+	}
+	h.Notify(notice)
 }
 
 // Run executes checks in order against one payload read, the dispatcher

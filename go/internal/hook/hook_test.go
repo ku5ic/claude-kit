@@ -31,21 +31,25 @@ func newHook(t *testing.T, payload string) (*Hook, *bytes.Buffer, *bytes.Buffer)
 func blocker(h *Hook) error { return h.Block("nope", "some-rule") }
 
 // The dispatcher contract: a check that panics or errors fails open with a
-// notice under its own name, and the next check still runs.
+// notice under its own name, and the next check still runs. Its block is
+// JSON, so the fail-open notice reaches the user beside it.
 func TestRunIsolatesAFailingCheck(t *testing.T) {
 	for name, faulty := range map[string]Check{
 		"panic": func(*Hook) error { panic("boom") },
 		"error": func(*Hook) error { return errors.New("broken") },
 	} {
 		t.Run(name, func(t *testing.T) {
-			h, _, stderr := newHook(t, `{"session_id":"s1"}`)
+			h, stdout, stderr := newHook(t, `{"session_id":"s1"}`)
 			status := Run(h, NamedCheck{"first.sh", faulty}, NamedCheck{"second.sh", blocker})
-			if status != 2 {
-				t.Errorf("status = %d, want 2 from the second check", status)
+			if status != 0 {
+				t.Errorf("status = %d, want 0 with the block as JSON", status)
 			}
-			out := stderr.String()
-			if !strings.Contains(out, "first.sh: unexpected error, failing open") || !strings.Contains(out, "kit second.sh: BLOCKED nope\n\nrule  some-rule") {
-				t.Errorf("stderr = %q", out)
+			if !strings.Contains(stderr.String(), "first.sh: unexpected error, failing open") {
+				t.Errorf("stderr = %q", stderr)
+			}
+			if out := stdout.String(); !strings.Contains(out, `"decision":"block"`) || !strings.Contains(out, `kit second.sh: BLOCKED nope\n\nrule  some-rule`) ||
+				!strings.Contains(out, "kit first.sh: FAILED OPEN") {
+				t.Errorf("stdout = %q", out)
 			}
 		})
 	}
@@ -215,6 +219,43 @@ func TestAFailOpenLogsItsError(t *testing.T) {
 	data, _ := os.ReadFile(filepath.Join(h.Paths.LogDir(), "guards.jsonl"))
 	if !strings.Contains(string(data), `"event":"fail-open","session_id":"s1","error":"broken pipe"`) {
 		t.Errorf("guards.jsonl = %s", data)
+	}
+}
+
+// The user hears of a session's first fail-open; later ones go to the log.
+func TestAFailOpenTellsTheUserOncePerSession(t *testing.T) {
+	broken := func(*Hook) error { return errors.New("broken pipe") }
+	claude := t.TempDir()
+	run := func(session string) string {
+		h, stdout, _ := newHook(t, `{"session_id":"`+session+`"}`)
+		h.Paths.ClaudeDir = claude
+		Run(h, NamedCheck{"first.sh", broken})
+		return stdout.String()
+	}
+	if out := run("s1"); !strings.Contains(out, `"systemMessage":"kit first.sh: FAILED OPEN, the call went through unchecked: broken pipe`) {
+		t.Errorf("first fail-open: stdout = %q", out)
+	}
+	if out := run("s1"); strings.Contains(out, "FAILED OPEN") {
+		t.Errorf("second fail-open in the session told the user again: %q", out)
+	}
+	if out := run("s2"); !strings.Contains(out, "FAILED OPEN") {
+		t.Errorf("another session's first fail-open: stdout = %q", out)
+	}
+}
+
+// A kit.yml that stops loading mid-session leaves every guard without
+// config; the user hears of it.
+func TestAConfigThatFailsToLoadTellsTheUser(t *testing.T) {
+	base := filepath.Join(t.TempDir(), "kit.yml")
+	if err := os.WriteFile(base, []byte("slop: [\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var stdout bytes.Buffer
+	h := &Hook{Name: "test.sh", Payload: ParsePayload([]byte(`{"session_id":"s1"}`)), Paths: config.Paths{ClaudeDir: t.TempDir(), Base: base},
+		Stdout: &stdout, Stderr: &bytes.Buffer{}}
+	Run(h, NamedCheck{"first.sh", func(h *Hook) error { h.Config(); return nil }})
+	if !strings.Contains(stdout.String(), "FAILED OPEN") || !strings.Contains(stdout.String(), "kit.yml") {
+		t.Errorf("stdout = %q", stdout.String())
 	}
 }
 

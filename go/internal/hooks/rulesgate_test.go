@@ -115,6 +115,13 @@ func TestRulesGate(t *testing.T) {
 		inAgent(setup(t, mainLoad+"\n"), started(t, fork, prompt)).Allowed(t)
 		inAgent(setup(t, ""), started(t, fork, prompt)).Denied(t)
 	})
+	t.Run("no session_id lets the call through, telling the user", func(t *testing.T) {
+		t.Parallel()
+		k := setup(t, "")
+		r := k.run("rules-gate", map[string]any{"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": bash})
+		r.Allowed(t)
+		r.Has(t, "kit rules-gate: FAILED OPEN")
+	})
 	t.Run("no skills log counts as nothing loaded", func(t *testing.T) {
 		t.Parallel()
 		k := newPlugin(t)

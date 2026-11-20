@@ -61,7 +61,7 @@ func RulesGate(h *hook.Hook) error {
 		return h.Paths.SessionFile(cache.SkillsLoaded, p.SessionID(), parts...)
 	}
 	if marker(rulesSkill) == "" {
-		return nil
+		return errors.New("no session_id, so no skill load can be told apart")
 	}
 	var missing []string
 	for _, skill := range required {
