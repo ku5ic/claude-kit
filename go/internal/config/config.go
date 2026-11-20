@@ -276,6 +276,9 @@ type Connectors struct {
 	ReadVerbs  []string `yaml:"read_verbs"`
 	CodeFields []string `yaml:"code_fields"`
 	PathFields []string `yaml:"path_fields"`
+	// PathServers are the MCP servers whose tools touch local files, by
+	// name, alone or as a plugin server's last part.
+	PathServers []string `yaml:"path_servers"`
 }
 
 // Attribution is what go/internal/attribution finds an AI tool's

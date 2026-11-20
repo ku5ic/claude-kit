@@ -312,8 +312,12 @@ connectors:
     save, add, set, respond, react, merge, move, delete, remove, trash, batch, generate, execute, use]
   read_verbs: [get, read, search, list, fetch, query, find, view, lookup, resolve, describe, whoami]
   code_fields: [code]
-  # Input fields that name a local file, which get guard-edit's path rules.
+  # Input fields that name a local file, which get guard-edit's path rules
+  # on the tools of the servers path_servers names, and on any server when
+  # the value starts with ~, /, or ./: a remote server's relative path (a
+  # repo file on GitHub) is no local file.
   path_fields: [path, file_path, paths, source, destination]
+  path_servers: [filesystem, fs]
 
 # What an AI tool's attribution looks like (go/internal/attribution): a
 # co-author or session trailer, a "Generated with" footer, the robot emoji,

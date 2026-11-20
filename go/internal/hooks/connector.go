@@ -42,8 +42,14 @@ func GuardConnector(h *hook.Hook) error {
 	}
 	tool := p.String(hook.KeyToolName)
 	reading := connector.IsRead(cfg.Connectors, tool)
+	// A remote server's relative path (a repo file on GitHub) is no local
+	// file; one starting with ~, /, or ./ is taken as local on any server.
+	local := connector.TouchesFiles(cfg.Connectors.PathServers, tool)
 	for _, field := range cfg.Connectors.PathFields {
 		for _, v := range p.Strings(hook.KeyToolInput + "." + field) {
+			if !local && !strings.HasPrefix(v, "~") && !strings.HasPrefix(v, "/") && !strings.HasPrefix(v, "./") {
+				continue
+			}
 			if err := guardPath(h, cfg, tool, localPath(h, v), reading); err != nil {
 				return err
 			}

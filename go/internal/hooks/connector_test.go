@@ -94,6 +94,13 @@ func TestGuardConnectorRunsThePathRules(t *testing.T) {
 		{"an MCP move onto authorized_keys", "writing a credential or key file", toolCall("mcp__fs__move_file", map[string]any{"source": "/tmp/p/k", "destination": "~/.ssh/authorized_keys"})},
 		{"an MCP write into .git", "edit inside .git/", toolCall("mcp__fs__write_file", map[string]any{"path": "/tmp/p/.git/hooks/pre-commit", "content": "exit 0"})},
 		{"an MCP read of a plain file", "", toolCall("mcp__fs__read_file", map[string]any{"path": "/tmp/p/README.md"})},
+		{"the filesystem server's read of a key", "reading a credential or key file", toolCall("mcp__filesystem__read_text_file", map[string]any{"path": "~/.ssh/id_rsa"})},
+		{"a plugin's filesystem server", "reading a credential or key file", toolCall("mcp__plugin_tools_filesystem__read_text_file", map[string]any{"path": "~/.ssh/id_rsa"})},
+		{"a remote server's path is no local file", "", toolCall("mcp__github__get_file_contents", map[string]any{"owner": "o", "repo": "r", "path": ".envrc"})},
+		{"a remote server's write to a lockfile path", "", toolCall("mcp__github__create_or_update_file", map[string]any{"owner": "o", "repo": "r", "path": "package-lock.json", "content": "{}"})},
+		{"any server's home path", "reading a credential or key file", toolCall("mcp__notes__read_note", map[string]any{"path": "~/.ssh/id_rsa"})},
+		{"any server's absolute path", "writing a credential or key file", toolCall("mcp__notes__write_note", map[string]any{"path": "/tmp/p/.env", "content": "K=1"})},
+		{"any server's ./ path", "reading a credential or key file", toolCall("mcp__notes__read_note", map[string]any{"path": "./.env"})},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
