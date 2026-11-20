@@ -228,3 +228,25 @@ func TestRepoWritesKeepsOnlyWritesInTheRepo(t *testing.T) {
 		t.Errorf("repoWrites = %q, want %q", got, want)
 	}
 }
+
+// A git move stays one when read-only calls sit beside it, piped or
+// chained, and when it chains with another move; a writer beside it, or a
+// reader flag that runs a command, makes it more than a move.
+func TestGitMoveIgnoresReadersBesideIt(t *testing.T) {
+	t.Parallel()
+	for cmd, want := range map[string]bool{
+		"git pull":                                true,
+		"git pull --rebase 2>&1 | tail -20":       true,
+		"git checkout main && git pull":           true,
+		"cd sub && git stash pop | head -5":       true,
+		"git pull && npm install":                 false,
+		"git pull | tee pull.log":                 false,
+		"git pull 2>&1 | rg --pre ./run.sh merge": false,
+		"git status | tail -3":                    false,
+		"tail -3 notes.md":                        false,
+	} {
+		if got := gitMove(cmd); got != want {
+			t.Errorf("gitMove(%q) = %v, want %v", cmd, got, want)
+		}
+	}
+}

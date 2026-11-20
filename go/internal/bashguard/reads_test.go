@@ -92,6 +92,7 @@ func TestWriteTargets(t *testing.T) {
 		t.Fatal(err)
 	}
 	at := func(name string) string { return filepath.Join(dir, name) }
+	testutil.Mkdir(t, at("wf"))
 	for _, tc := range []struct {
 		name, cmd string
 		want      []string
@@ -104,6 +105,10 @@ func TestWriteTargets(t *testing.T) {
 		{"tee's files", "echo x | tee -a a.txt b.txt", []string{at("a.txt"), at("b.txt")}},
 		{"cp's destination, not its source", "cp hook .git/hooks/pre-commit", []string{at(".git/hooks/pre-commit")}},
 		{"mv's and install's destination", "mv a b && install -m 755 c d", []string{at("b"), at("d")}},
+		{"cp into a directory named with a slash", "cp /tmp/deploy.yml .github/workflows/", []string{at(".github/workflows/deploy.yml")}},
+		{"cp into a directory that exists", "cp /tmp/deploy.yml wf", []string{at("wf/deploy.yml")}},
+		{"cp -t's directory, each source in it", "cp -t .github/workflows a.yml b.yml", []string{at(".github/workflows/a.yml"), at(".github/workflows/b.yml")}},
+		{"mv --target-directory=", "mv --target-directory=.github/workflows a.yml", []string{at(".github/workflows/a.yml")}},
 		{"sed -i's files, not its script", "sed -i 's/a/b/' go.sum", []string{at("go.sum")}},
 		{"sed without -i writes nothing", "sed 's/a/b/' go.sum", nil},
 		{"sed -e's script is no file", "sed -i -e 's/yarn.lock/package-lock.json/' README.md", []string{at("README.md")}},

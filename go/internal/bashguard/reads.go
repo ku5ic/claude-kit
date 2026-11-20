@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/ku5ic/claude-kit/go/internal/classify"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
@@ -206,8 +207,11 @@ func WriteTargets(cmd, home, cwd string) []string {
 				for _, op := range ops {
 					add(op)
 				}
-			case (name == "cp" || name == "mv" || name == "install") && len(ops) > 1:
-				add(ops[len(ops)-1])
+			case name == "cp" || name == "mv" || name == "install":
+				isDir := func(p string) bool { return fsx.IsDir(resolveDir(home, d.cwd, unquote(p))) }
+				for _, op := range copyTargets(args, isDir) {
+					add(op)
+				}
 			case name == "sd" && len(ops) > 2:
 				for _, op := range ops[2:] {
 					add(op)
@@ -220,6 +224,39 @@ func WriteTargets(cmd, home, cwd string) []string {
 				d.cd(call.Words[i+1:])
 			}
 		}
+	}
+	return out
+}
+
+// copyTargets is what a cp, mv, or install with args writes: each source's
+// name in a -t or --target-directory directory, or in a last operand that
+// is a directory (ending in / or one that exists), else that last operand.
+func copyTargets(args []string, isDir func(string) bool) []string {
+	var dir string
+	for i, a := range args {
+		switch {
+		case (a == "-t" || a == "--target-directory") && i+1 < len(args):
+			dir = args[i+1]
+		case strings.HasPrefix(a, "--target-directory="):
+			dir = strings.TrimPrefix(a, "--target-directory=")
+		}
+	}
+	ops := nonOptions(args)
+	switch {
+	case dir != "":
+		// nonOptions keeps -t's value as an operand.
+		ops = slices.DeleteFunc(ops, func(op string) bool { return op == dir })
+	case len(ops) < 2:
+		return nil
+	default:
+		dir, ops = ops[len(ops)-1], ops[:len(ops)-1]
+		if !strings.HasSuffix(dir, "/") && !isDir(dir) {
+			return []string{dir}
+		}
+	}
+	out := make([]string, 0, len(ops))
+	for _, src := range ops {
+		out = append(out, filepath.Join(dir, filepath.Base(unquote(src))))
 	}
 	return out
 }
@@ -271,22 +308,6 @@ func inPlace(args []string) bool {
 	return false
 }
 
-// pureReaders print or test what they're given and write no file,
-// whatever their flags. Commands that write only with a flag (sed -i,
-// sort -o, find -delete) aren't here.
-var pureReaders = map[string]bool{
-	"cat": true, "head": true, "tail": true, "wc": true, "ls": true, "stat": true,
-	"realpath": true, "readlink": true, "test": true, "[": true, "echo": true, "printf": true,
-	"rg": true, "grep": true, "diff": true, "cmp": true, "cut": true, "nl": true, "basename": true,
-	"dirname": true, "du": true, "tokei": true, "shasum": true, "jq": true, "gron": true, "pwd": true,
-	"true": true,
-}
-
-// readerWriteFlags are the flags that make a reader write a file or run a
-// command: rg's preprocessor and hostname program, git's output file,
-// external diff, and pager.
-var readerWriteFlags = []string{"--pre", "--hostname-bin", "--output", "--ext-diff", "--textconv", "-O", "--open-files-in-pager"}
-
 // gitReads are the git subcommands that only read, each true when it
 // prints the files it names: git ls-files .env names the file, show
 // HEAD:.env prints it.
@@ -322,13 +343,11 @@ func onlyReads(segs []Segment) bool {
 			for name == "git" && len(args) > 1 && args[0].Value == "-C" {
 				args = args[2:]
 			}
-			if slices.ContainsFunc(args, func(w Word) bool {
-				return slices.ContainsFunc(readerWriteFlags, func(f string) bool { return strings.HasPrefix(w.Value, f) })
-			}) {
+			if slices.ContainsFunc(args, func(w Word) bool { return classify.WritingFlag(w.Value) }) {
 				return false
 			}
 			switch {
-			case pureReaders[name]:
+			case classify.PureReaders[name]:
 			case name == "git" && len(args) > 0 && isGitRead(args[0].Value):
 			case name == "kit" && len(args) > 0 && kitcmd.ReadOnly(args[0].Value):
 			default:

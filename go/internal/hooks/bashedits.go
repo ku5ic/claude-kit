@@ -33,20 +33,22 @@ const bashEditsFormatBudget = 90 * time.Second
 // write: checked out, merged, fetched, or restored.
 var gitMoves = []string{"checkout", "switch", "pull", "merge", "rebase", "stash", "reset", "restore", "cherry-pick", "revert", "am", "clone"}
 
-// gitMove is true when cmd is one git move and nothing else but cd, so its
-// changes aren't checked. Any other command beside it may have written
-// them, and a command that didn't parse counts as one.
+// gitMove is true when cmd is git moves and nothing else but cd and pure
+// readers (a `| tail` on the output), so its changes aren't checked. Any
+// other command beside them may have written them, and a command that
+// didn't parse counts as one.
 func gitMove(cmd string) bool {
 	calls, ok := classify.Words(cmd)
 	if !ok {
 		return false
 	}
-	calls = slices.DeleteFunc(calls, func(words []string) bool { return len(words) == 0 || filepath.Base(words[0]) == "cd" })
-	if len(calls) != 1 || filepath.Base(calls[0][0]) != "git" {
-		return false
-	}
-	sub, _, _ := classify.GitSubcommand(calls[0][1:])
-	return slices.Contains(gitMoves, sub)
+	calls = slices.DeleteFunc(calls, func(words []string) bool {
+		return len(words) == 0 || filepath.Base(words[0]) == "cd" || classify.ReadsOnly(words)
+	})
+	return len(calls) > 0 && !slices.ContainsFunc(calls, func(words []string) bool {
+		sub, _, _ := classify.GitSubcommand(words[1:])
+		return filepath.Base(words[0]) != "git" || !slices.Contains(gitMoves, sub)
+	})
 }
 
 // BashBaseline is the PreToolUse step that snapshots, before a Bash

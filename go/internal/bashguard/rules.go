@@ -105,7 +105,7 @@ var (
 // pagers and editors that write only on a flag. Any other command naming a
 // kit switch gets a prompt, since a write there can turn the kit off.
 var readers = func() map[string]bool {
-	m := maps.Clone(pureReaders)
+	m := maps.Clone(classify.PureReaders)
 	for _, name := range []string{"bat", "less", "more", "file", "sed", "sd"} {
 		m[name] = true
 	}
