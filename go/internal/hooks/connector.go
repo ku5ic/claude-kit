@@ -1,25 +1,15 @@
 package hooks
 
 import (
-	"path/filepath"
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/attribution"
 	"github.com/ku5ic/claude-kit/go/internal/connector"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/slop"
 )
-
-// localPath is v, a path an MCP tool was given, as an absolute local path:
-// ~ expanded, and a relative one joined to the session's cwd.
-func localPath(h *hook.Hook, v string) string {
-	v = guard.ExpandHome(h.Home, v)
-	if !filepath.IsAbs(v) {
-		v = filepath.Join(h.Payload.Cwd(), v)
-	}
-	return v
-}
 
 // GuardConnector blocks an MCP tool that sends text out of the session (a
 // message, a comment, a page) when that text holds AI tells in a
@@ -50,12 +40,12 @@ func GuardConnector(h *hook.Hook) error {
 			if !local && !strings.HasPrefix(v, "~") && !strings.HasPrefix(v, "/") && !strings.HasPrefix(v, "./") {
 				continue
 			}
-			if err := guardPath(h, cfg, tool, localPath(h, v), reading); err != nil {
+			if err := guardPath(h, cfg, tool, fsx.Abs(h.Payload.Cwd(), guard.ExpandHome(h.Home, v)), reading); err != nil {
 				return err
 			}
 		}
 	}
-	if strings.Contains(strings.ToLower(connector.Server(tool)), "github") && !connector.IsRead(cfg.Connectors, tool) {
+	if strings.Contains(strings.ToLower(connector.Server(tool)), "github") && !reading {
 		if line, ok := attribution.New(cfg.Attribution).Find(strings.Join(p.Strings(hook.KeyToolInput), "\n")); ok {
 			return h.Block(attribution.Message("the "+tool+" input", line), "ai-attribution")
 		}

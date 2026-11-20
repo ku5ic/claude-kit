@@ -94,7 +94,7 @@ func historyLoss(sub string, args []string) string {
 	}
 	has := func(prefixes ...string) bool {
 		return slices.ContainsFunc(args, func(a string) bool {
-			return slices.ContainsFunc(prefixes, func(p string) bool { return a == p || strings.HasPrefix(a, p) })
+			return slices.ContainsFunc(prefixes, func(p string) bool { return strings.HasPrefix(a, p) })
 		})
 	}
 	switch {

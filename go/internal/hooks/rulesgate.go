@@ -181,6 +181,11 @@ func inSkill(h *hook.Hook, skill, path string) bool {
 		return false
 	}
 	path = filepath.Clean(path)
+	// Every skills dir ends in skills: this spares a Read elsewhere the
+	// git call skillDirs makes.
+	if !strings.Contains(path, "/skills/") {
+		return false
+	}
 	return slices.ContainsFunc(skillDirs(h), func(dir string) bool { return fsx.Within(filepath.Join(dir, skill), path) })
 }
 
@@ -225,8 +230,9 @@ func agentTranscriptPath(main, agent string) string {
 // SKILL.md anywhere else, loads nothing.
 func readSkill(h *hook.Hook, loaded map[string]bool, skill string) bool {
 	name := strings.TrimPrefix(skill, "kit:")
+	dirs := skillDirs(h)
 	for file := range loaded {
-		if slices.ContainsFunc(skillDirs(h), func(dir string) bool { return filepath.Clean(file) == filepath.Join(dir, name, "SKILL.md") }) {
+		if slices.ContainsFunc(dirs, func(dir string) bool { return filepath.Clean(file) == filepath.Join(dir, name, "SKILL.md") }) {
 			return true
 		}
 	}

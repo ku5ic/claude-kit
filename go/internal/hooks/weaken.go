@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
@@ -65,7 +66,7 @@ func codeChangedThisTurn(h *hook.Hook, c config.WeakenedChecks, path string) boo
 		return slices.ContainsFunc(changed, isCode)
 	}
 	return slices.ContainsFunc(turnEdits(h), func(p string) bool {
-		return (root == "" || strings.HasPrefix(p, root+string(filepath.Separator))) && isCode(p)
+		return (root == "" || fsx.Within(root, p)) && isCode(p)
 	})
 }
 

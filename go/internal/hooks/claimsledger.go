@@ -66,14 +66,16 @@ func ledgerPending(h *hook.Hook, marker, where, text string) {
 // or on an earlier version that shares a statement with it.
 func coveringRuns(log checkerLog, record, text string) []transcript.Run {
 	ids := coveringIDs(record, text)
-	var runs []transcript.Run
-	for _, run := range transcript.AgentRuns(log.entries, claimChecker) {
-		if run.Status == transcript.RunDone && run.Result != "" &&
-			slices.ContainsFunc(ids, func(id string) bool { return strings.Contains(run.Prompt, id) }) {
-			runs = append(runs, run)
-		}
-	}
-	return runs
+	return slices.DeleteFunc(log.answered(), func(run transcript.Run) bool {
+		return !slices.ContainsFunc(ids, func(id string) bool { return strings.Contains(run.Prompt, id) })
+	})
+}
+
+// answered is each finished claim-checker run with a reply.
+func (l checkerLog) answered() []transcript.Run {
+	return slices.DeleteFunc(transcript.AgentRuns(l.entries, claimChecker), func(run transcript.Run) bool {
+		return run.Status != transcript.RunDone || run.Result == ""
+	})
 }
 
 // coveringIDs is the claim-check ids the session's asked record holds for
@@ -98,10 +100,7 @@ func coveringIDs(record, text string) []string {
 func latestRuns(log checkerLog, record, text string) ([]transcript.Run, []string) {
 	ids := coveringIDs(record, text)
 	last := map[string]transcript.Run{}
-	for _, run := range transcript.AgentRuns(log.entries, claimChecker) {
-		if run.Status != transcript.RunDone || run.Result == "" {
-			continue
-		}
+	for _, run := range log.answered() {
 		for _, id := range ids {
 			if strings.Contains(run.Prompt, id) {
 				last[id] = run

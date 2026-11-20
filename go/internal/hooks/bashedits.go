@@ -151,8 +151,7 @@ func BashEdits(h *hook.Hook, writes []string) error {
 				continue
 			}
 		} else {
-			rel, _ := filepath.Rel(root, path)
-			old, _ = git.Output(root, "cat-file", "blob", before+":"+filepath.ToSlash(rel))
+			old, _ = blobAt(root, before, path)
 		}
 		problems = append(problems, editChecks(h, path, old, string(after))...)
 		if time.Until(formatUntil) > formatBudget {
@@ -182,6 +181,12 @@ func repoWrites(root string, writes []string) []string {
 	})
 }
 
+// blobAt is path's content in tree, a tree or commit of the repo at root.
+func blobAt(root, tree, path string) (string, error) {
+	rel, _ := filepath.Rel(root, path)
+	return git.Output(root, "cat-file", "blob", tree+":"+filepath.ToSlash(rel))
+}
+
 // lostTests is the send-back for the assertion lines the test files a
 // command deleted, or renamed out of the test glob, took with them: what
 // they held at the baseline less what the test files it added hold.
@@ -194,13 +199,16 @@ func lostTests(h *hook.Hook, root, before string, changed []string) []string {
 	lost := 0
 	var gone []string
 	for _, path := range changed {
-		rel, _ := filepath.Rel(root, path)
-		old, err := git.Output(root, "cat-file", "blob", before+":"+filepath.ToSlash(rel))
+		if !weaken.IsTest(c, path) {
+			continue
+		}
+		old, err := blobAt(root, before, path)
 		now, readErr := os.ReadFile(path)
 		switch {
 		case errors.Is(readErr, os.ErrNotExist) && err == nil:
 			if n := weaken.Assertions(c, path, old); n > 0 {
 				lost += n
+				rel, _ := filepath.Rel(root, path)
 				gone = append(gone, rel)
 			}
 		case readErr == nil && err != nil:

@@ -1,8 +1,6 @@
 package hooks
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -191,8 +189,7 @@ func verifyInSubagent(h *hook.Hook, text, where, retry, marker string) error {
 	if marker == "" {
 		return nil
 	}
-	sum := sha256.Sum256([]byte(text))
-	sentBack := "sent-back " + hex.EncodeToString(sum[:])
+	sentBack := "sent-back " + textHash(text)
 	ledgerPending(h, marker, where, text)
 	if prev, err := os.ReadFile(marker); err == nil && string(prev) == sentBack {
 		_ = os.Remove(marker)
@@ -267,8 +264,7 @@ func gateOnChecker(h *hook.Hook, text, where, retry, marker, dest string) error 
 	if len(fresh) == 0 {
 		return passed()
 	}
-	sum := sha256.Sum256([]byte(strings.Join(fresh, "\n")))
-	id := "claim-check " + hex.EncodeToString(sum[:])[:12]
+	id := "claim-check " + textHash(strings.Join(fresh, "\n"))[:12]
 	outcome, recorded := outcomes[id]
 	if !recorded {
 		outcome = log.runs([]string{id})[id]
@@ -429,8 +425,7 @@ func readCheckerLog(h *hook.Hook, path string) checkerLog {
 
 // statementKey is a checked statement's line in the session's record.
 func statementKey(s string) string {
-	sum := sha256.Sum256([]byte(s))
-	return hex.EncodeToString(sum[:])[:16]
+	return textHash(s)[:16]
 }
 
 // A claim-checker run's outcome, as the transcript shows it.
@@ -541,8 +536,7 @@ func unconfirmed(h *hook.Hook, text, transcriptPath, where string) []claims.Unsu
 	if cfg == nil || h.DryRun || h.RuleDisabled("claims") || !claims.Declarative(text) {
 		return nil
 	}
-	sum := sha256.Sum256([]byte(text))
-	cached := h.Paths.SessionFile(cache.Claims, h.Payload.SessionID(), "verdict", hex.EncodeToString(sum[:])[:16])
+	cached := h.Paths.SessionFile(cache.Claims, h.Payload.SessionID(), "verdict", textHash(text)[:16])
 	if data, err := os.ReadFile(cached); err == nil {
 		var u []claims.Unsupported
 		if json.Unmarshal(data, &u) == nil {

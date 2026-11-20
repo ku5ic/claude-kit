@@ -1,8 +1,6 @@
 package hooks
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -82,8 +80,7 @@ func planCitations(h *hook.Hook, root string) error {
 	}
 	plan := filepath.Base(p.String(hook.KeyInputPlanFilePath))
 	marker := h.Paths.SessionFile(cache.Cites, p.SessionID(), "plan", plan)
-	sum := sha256.Sum256([]byte(text))
-	sentBack := "sent-back " + hex.EncodeToString(sum[:])
+	sentBack := "sent-back " + textHash(text)
 	if prev, err := os.ReadFile(marker); err == nil && string(prev) == sentBack {
 		return nil
 	}
