@@ -220,6 +220,13 @@ func (h *Hook) RuleDisabled(rule string) bool {
 	return cfg != nil && slices.Contains(cfg.DisabledRules, rule)
 }
 
+// RuleEnforced reports whether rule blocks when it matches: neither disabled
+// nor shadowed, the two that letThrough passes.
+func (h *Hook) RuleEnforced(rule string) bool {
+	cfg := h.Config()
+	return cfg != nil && !slices.Contains(cfg.DisabledRules, rule) && !slices.Contains(cfg.ShadowRules, rule)
+}
+
 // Block returns a *Blocked for rule, logging it to guards.jsonl. A rule
 // letThrough passes returns nil, so the check carries on as if it hadn't
 // matched.

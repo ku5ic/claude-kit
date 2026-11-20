@@ -108,7 +108,7 @@ func writeContext(h *hook.Hook, cfg *config.Config, out *strings.Builder) {
 		fmt.Fprintf(out, "\n<repo-context>\n%s%sbranch (at session start): %s\ndirty-files (at session start): %s\nscratch: %s\n</repo-context>\n",
 			ctx.Report, skipDirsLine(cfg), branch(root), dirtyCount(root), scratch)
 	}
-	out.WriteString(ctx.RequiredBlock())
+	out.WriteString(ctx.RequiredBlock(h.RuleEnforced("rules-gate")))
 	for _, skill := range ctx.Required {
 		h.Log(kitlog.Skills, kitlog.EventRequiredSkill, "cwd", h.Payload.String(hook.KeyCwd), "skill_file", skill)
 	}
@@ -142,7 +142,7 @@ func agentContext(h *hook.Hook, cfg *config.Config) string {
 	if ctx.Report != "" {
 		fmt.Fprintf(&b, "<repo-context>\n%s%sbranch: %s\ndirty-files: %s\n</repo-context>\n", ctx.Report, skipDirsLine(cfg), branch(root), dirtyCount(root))
 	}
-	b.WriteString(ctx.RequiredBlock())
+	b.WriteString(ctx.RequiredBlock(h.RuleEnforced("rules-gate")))
 	b.WriteString(stackctx.SuggestedBlock(cfg, ctx.Suggested))
 	return b.String()
 }
@@ -189,7 +189,7 @@ func dirtyCount(root string) string {
 }
 
 // guidance follows the gates when gap-fill has verified a package manager.
-const guidance = "Run each directory's scripts through the package manager <repo-context> names for it, prefer these commands over direct tool invocation, and never substitute a different package manager."
+const guidance = "The commands above are the project's own, and each directory's scripts run through the package manager <repo-context> names for it."
 
 // tooling is the <tooling> block: what kit run-checks runs, planned from
 // the gap-fill cache (a session start never waits on the classifier), then

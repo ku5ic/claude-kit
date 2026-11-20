@@ -182,6 +182,30 @@ func TestAShadowedRuleLogsAndLetsThrough(t *testing.T) {
 	}
 }
 
+// A rule blocks only when neither disabled nor shadowed, and with no
+// config nothing is enforced.
+func TestRuleEnforced(t *testing.T) {
+	tests := map[string]struct {
+		cfg  *config.Config
+		want bool
+	}{
+		"on by default": {&config.Config{}, true},
+		"disabled":      {&config.Config{DisabledRules: []string{"r"}}, false},
+		"shadowed":      {&config.Config{ShadowRules: []string{"r"}}, false},
+		"another rule":  {&config.Config{DisabledRules: []string{"other"}}, true},
+		"no config":     {nil, false},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			h, _, _ := newHook(t, `{}`)
+			h.SetConfig(tc.cfg)
+			if got := h.RuleEnforced("r"); got != tc.want {
+				t.Errorf("RuleEnforced = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestAFailOpenLogsItsError(t *testing.T) {
 	h, _, stderr := newHook(t, `{"session_id":"s1"}`)
 	RunCheck(h, "first.sh", func(*Hook) error { return errors.New("broken pipe") })
