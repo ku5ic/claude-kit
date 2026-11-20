@@ -80,26 +80,31 @@ func CheckSize(h *hook.Hook) error {
 	default:
 		return nil
 	}
-	n := countWords(text, false)
-	if budget <= 0 || n <= budget || marker == "" {
-		return nil
-	}
 	if tool == "SubagentHandback" {
-		if mayResend(marker, text) && markSentBack(h, marker, text, "size") {
+		if n := countWords(text, false); budget > 0 && n > budget && marker != "" && mayResend(marker, text) && markSentBack(h, marker, text, "size") {
 			h.Deny(sizeMessage(where, n, budget, then), "size")
 		}
 		return nil
 	}
+	sizeOnce(h, text, where, then, budget, marker)
+	return nil
+}
+
+// sizeOnce denies text when its prose runs over budget, once per text: the
+// same text resent goes through.
+func sizeOnce(h *hook.Hook, text, where, then string, budget int, marker string) {
+	n := countWords(text, false)
+	if budget <= 0 || n <= budget || marker == "" {
+		return
+	}
 	sum := sha256.Sum256([]byte(text))
 	sentBack := "sent-back " + hex.EncodeToString(sum[:])
 	if prev, err := os.ReadFile(marker); err == nil && string(prev) == sentBack {
-		return nil
+		return
 	}
-	if !markOnce(h, marker, []byte(sentBack), "size") {
-		return nil
+	if markOnce(h, marker, []byte(sentBack), "size") {
+		h.Deny(sizeMessage(where, n, budget, then), "size")
 	}
-	h.Deny(sizeMessage(where, n, budget, then), "size")
-	return nil
 }
 
 // sizeMessage says how far over its budget a deliverable runs, then what to do.

@@ -7,7 +7,7 @@
       },
       {
         "matcher": "Bash",
-        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook bash-dispatch", "timeout": 30 }]
+        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook bash-dispatch", "timeout": 300 }]
       },
       {
         "matcher": "Edit|Write|MultiEdit|NotebookEdit",
@@ -37,7 +37,7 @@
       },
       {
         "matcher": "Bash",
-        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook bash-edits", "timeout": 120 }]
+        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook bash-edits", "timeout": 300 }]
       },
       {
         "matcher": "Read|Skill",

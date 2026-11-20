@@ -78,6 +78,62 @@ func TestBashDispatchGuardsWhatACommandWrites(t *testing.T) {
 	}
 }
 
+// bash-dispatch sizes and claim-checks what a command posts through gh, as
+// connector-dispatch does a connector post.
+func TestBashDispatchChecksWhatACommandPosts(t *testing.T) {
+	t.Parallel()
+	const claim = "The build fails because Foo was renamed in v2."
+	for _, tc := range []struct {
+		name, cmd, has string
+	}{
+		{"a claim in a PR body", `gh pr create --title "Rename Foo" --body "` + claim + `"`, "kit:claim-checker"},
+		{"a claim in an API body field", `gh api repos/o/r/issues/1/comments -f body="` + claim + `"`, "kit:claim-checker"},
+		{"a PR body over the post budget", `gh pr create --title "Rename Foo" --body "` + strings.Repeat("Which one? ", 320) + `"`, "over the 300-word budget"},
+		{"a question in a PR body", `gh pr create --title "Rename Foo" --body "Which branch should I use?"`, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			k := New(t)
+			r := k.Hook("bash-dispatch", map[string]any{"hook_event_name": "PreToolUse", "session_id": "s1", "cwd": t.TempDir(),
+				"tool_name": "Bash", "tool_input": map[string]any{"command": tc.cmd}})
+			r.Want(t, 0)
+			if tc.has == "" {
+				r.Lacks(t, `"deny"`)
+				return
+			}
+			r.Has(t, `"deny"`, tc.has)
+		})
+	}
+}
+
+// bash-edits sizes and claim-checks a scratch report a command wrote, as
+// guard-dispatch does a Write of it, and sends it back with a block.
+func TestBashEditsChecksAReportACommandWrote(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, file, has string
+	}{
+		{"an investigation report", "explore-auth.md", "kit:claim-checker"},
+		{"a scratch note", "notes.md", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			k := New(t)
+			dir := t.TempDir()
+			Write(t, filepath.Join(dir, ".claude", "scratch", tc.file), "# Explore\n\nThe build fails because Foo was renamed in v2.\n")
+			r := k.Hook("bash-edits", map[string]any{"hook_event_name": "PostToolUse", "session_id": "s1", "cwd": dir,
+				"tool_name": "Bash", "tool_input": map[string]any{"command": "cat > .claude/scratch/" + tc.file + " <<'EOF'\nreport\nEOF"}})
+			if tc.has == "" {
+				r.Want(t, 0)
+				r.Lacks(t, tc.file)
+				return
+			}
+			r.Want(t, 2)
+			r.Has(t, tc.file, tc.has)
+		})
+	}
+}
+
 // prompt-dispatch: plan-mode-context's plain text and reply-length's
 // context reach Claude in one JSON object, neither dropped.
 func TestPromptDispatch(t *testing.T) {

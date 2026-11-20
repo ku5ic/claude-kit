@@ -134,7 +134,7 @@ func BashEdits(h *hook.Hook) error {
 	problems := lostTests(h, root, before, changed)
 	rewritten := false
 	// Each format may take formatBudget; past this, files are checked but
-	// left unformatted, inside hooks.json's 120s.
+	// left unformatted, inside hooks.json's 300s.
 	formatUntil := time.Now().Add(bashEditsFormatBudget)
 	for _, c := range changes {
 		path, after, old := c.path, c.after, c.old

@@ -304,7 +304,12 @@ func TestDeclarative(t *testing.T) {
 		"- Which branch should I use?":       false,
 		"- Done":                             false,
 		"|------|------|":                    false,
-		"## Verification: a header":          false,
+		"## Verification":                    false,
+		"## All 42 tests pass":               true,
+		"foo.go:12 returns nil.":             true,
+		"All 42 tests pass.":                 true,
+		"- All 42 tests pass":                true,
+		"Exit 0.":                            false,
 	} {
 		if got := Declarative(text); got != want {
 			t.Errorf("Declarative(%q) = %v, want %v", text, got, want)

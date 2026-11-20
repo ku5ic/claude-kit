@@ -32,8 +32,10 @@ var hookChecks = map[string]hook.Check{
 	"guard-edit":              hooks.GuardEdit,
 	"guard-skills":            hooks.GuardSkills,
 	"skills-nudge":            skillsNudge,
-	"guard-bash-writes":       guardBashWrites,
+	"guard-bash-writes":       onBashWrites(hooks.GuardWrites),
 	"bash-baseline":           hooks.BashBaseline,
+	"bash-post":               bashPost,
+	"bash-reports":            onBashWrites(hooks.CheckBashReports),
 	"adr-nudge":               hooks.ADRNudge,
 	"guard-slop":              hooks.GuardSlop,
 	"guard-weaken":            hooks.GuardWeaken,
@@ -71,7 +73,7 @@ var registry = map[string]hookDef{
 	"rules-gate":         {},
 	"post-edit-dispatch": {events: []string{"PostToolUse"}, steps: []string{"sanitize-output", "format-dispatch", "edit-seen", "plan-tick"}},
 	"edit-seen":          {},
-	"bash-edits":         {events: []string{"PostToolUse"}},
+	"bash-edits":         {events: []string{"PostToolUse"}, steps: []string{"bash-edits", "bash-reports"}},
 	"log-skills":         {events: []string{"PostToolUse", "UserPromptExpansion"}},
 	"plan-mode-context":  {events: []string{"PostToolUse"}},
 	"prompt-dispatch":    {events: []string{"UserPromptSubmit"}, steps: []string{"turn-tree", "plan-mode-context", "reply-length", "chat-slop"}},
@@ -178,22 +180,36 @@ func init() {
 }
 
 // bashSteps are bash-dispatch's steps: bashguard.Steps, the write paths,
-// the baseline bash-edits diffs from, then the nudge.
+// the baseline bash-edits diffs from, the nudge, then the post checks,
+// last so a cheap guard's block saves their model run.
 func bashSteps() []string {
-	names := make([]string, 0, len(bashguard.Steps)+1)
+	names := make([]string, 0, len(bashguard.Steps)+4)
 	for _, s := range bashguard.Steps {
 		names = append(names, s.Name)
 	}
-	return append(names, "guard-bash-writes", "bash-baseline", "skills-nudge")
+	return append(names, "guard-bash-writes", "bash-baseline", "skills-nudge", "bash-post")
 }
 
-// guardBashWrites is guard-edit's path rules on what a Bash command writes.
-// hooks and bashguard share a layer, so the two meet here.
-func guardBashWrites(h *hook.Hook) error {
+// bashPost is check-size and verify-claims on what a Bash command posts
+// through gh or glab. hooks and bashguard share a layer, so the two meet here.
+func bashPost(h *hook.Hook) error {
 	if h.Payload.String(hook.KeyToolName) != "Bash" {
 		return nil
 	}
-	return hooks.GuardWrites(h, bashguard.WriteTargets(h.Payload.String(hook.KeyInputCommand), h.Home, h.Payload.Cwd()))
+	text, where := bashguard.PostText(h.Payload.String(hook.KeyInputCommand), h.Home, h.Payload.Cwd())
+	return hooks.CheckPost(h, text, where)
+}
+
+// onBashWrites is check run on the files a Bash command writes: guard-edit's
+// path rules as guard-bash-writes, and the scratch report checks as
+// bash-reports. hooks and bashguard share a layer, so the two meet here.
+func onBashWrites(check func(*hook.Hook, []string) error) hook.Check {
+	return func(h *hook.Hook) error {
+		if h.Payload.String(hook.KeyToolName) != "Bash" {
+			return nil
+		}
+		return check(h, bashguard.WriteTargets(h.Payload.String(hook.KeyInputCommand), h.Home, h.Payload.Cwd()))
+	}
 }
 
 // skillsNudge is skills-nudge, a Bash command's reads included. hooks and

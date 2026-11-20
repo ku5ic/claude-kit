@@ -60,33 +60,56 @@ func CheckPR(h *hook.Hook) error {
 	if h.Payload.Err != nil {
 		return h.Payload.Err
 	}
-	cmd := h.Payload.String(hook.KeyInputCommand)
+	var det *slop.Detector
+	for _, t := range hostTexts(h.Payload.String(hook.KeyInputCommand), h.Home, h.Payload.Cwd()) {
+		if t.unread != "" {
+			return h.Block("can't read the text of "+t.where+": "+t.unread+"\n"+
+				layout.KV("do", "give it inline, in a \"$(cat <<'EOF' ...)\" heredoc, -F - with a heredoc, or a file written in an earlier call"), "unread-text")
+		}
+		if det == nil {
+			det = detector(h) // once per command, not per text
+		}
+		if err := scanSlop(h, det, t.text, "pr", t.where); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// PostText is the text cmd, run from cwd, posts through gh or glab, its
+// pieces joined by blank lines, and where each comes from. It leaves out a
+// piece it can't read, since guard-pr blocks that command first.
+func PostText(cmd, home, cwd string) (text, where string) {
+	var texts, wheres []string
+	for _, t := range hostTexts(cmd, home, cwd) {
+		if t.unread == "" && t.text != "" {
+			texts, wheres = append(texts, t.text), append(wheres, t.where)
+		}
+	}
+	return strings.Join(texts, "\n\n"), strings.Join(wheres, ", ")
+}
+
+// hostTexts is each piece of text cmd posts through gh or glab, in order.
+func hostTexts(cmd, home, cwd string) []prText {
 	if !strings.Contains(cmd, "gh") && !strings.Contains(cmd, "glab") {
 		return nil
 	}
 	segs, _ := parseAll(cmd)
-	var det *slop.Detector
-	for w := range walk(segs, h.Home, h.Payload.Cwd()) {
+	var out []prText
+	for w := range walk(segs, home, cwd) {
 		if posts[w.name] == nil {
 			continue
 		}
-		// call.start is an offset into seg.src, which for a heredoc fed to a
-		// shell is that body, not cmd.
-		src := hostCall{tool: w.name, call: w.call, before: w.seg.src[:min(w.call.start, len(w.seg.src))], home: h.Home, cwd: w.cwd}
-		for _, t := range src.texts(w.i + 1) {
-			if t.unread != "" {
-				return h.Block("can't read the text of "+t.where+": "+t.unread+"\n"+
-					layout.KV("do", "give it inline, in a \"$(cat <<'EOF' ...)\" heredoc, -F - with a heredoc, or a file written in an earlier call"), "unread-text")
-			}
-			if det == nil {
-				det = detector(h) // once per command, not per text
-			}
-			if err := scanSlop(h, det, t.text, "pr", t.where); err != nil {
-				return err
-			}
-		}
+		out = append(out, newHostCall(w, home).texts(w.i+1)...)
 	}
-	return nil
+	return out
+}
+
+// newHostCall is the walked call w as a hostCall.
+func newHostCall(w walked, home string) hostCall {
+	// call.start is an offset into seg.src, which for a heredoc fed to a
+	// shell is that body, not cmd.
+	return hostCall{tool: w.name, call: w.call, before: w.seg.src[:min(w.call.start, len(w.seg.src))], home: home, cwd: w.cwd}
 }
 
 // prText is one piece of PR text a gh or glab call posts: where it comes from, and

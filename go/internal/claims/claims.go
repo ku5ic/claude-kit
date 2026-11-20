@@ -69,21 +69,22 @@ const (
 	textCap     = 40000
 )
 
-// threeWords is three or more words on one line, with no question mark.
-const threeWords = `\pL[\pL\pN'-]*[^\pL\pN?\n]+\pL[\pL\pN'-]*[^\pL\pN?\n]+\pL[^?\n]*?`
+// threeWords is three or more words on one line, with no question mark. A
+// number is a word: "42 tests pass" and "foo.go:12" state counts and places.
+const threeWords = `[\pL\pN][\pL\pN'-]*[^\pL\pN?\n]+[\pL\pN][\pL\pN'-]*[^\pL\pN?\n]+[\pL\pN][^?\n]*?`
 
 var (
 	fence = regexp.MustCompile("(?ms)^\\s*(```|~~~).*?^\\s*(```|~~~)")
 	// statement is three or more words ending a sentence with . or !.
 	statement = regexp.MustCompile(threeWords + `[.!](\s|$)`)
-	// item is a list item or table row of three or more words, which
-	// often ends without punctuation.
-	item = regexp.MustCompile(`(?m)^\s*([-*+]|\d+[.)]|\|)\s*[^?\n]*?` + threeWords + `$`)
+	// item is a list item, table row, or heading of three or more words,
+	// which often ends without punctuation.
+	item = regexp.MustCompile(`(?m)^\s*([-*+]|\d+[.)]|\||#{1,6})\s*[^?\n]*?` + threeWords + `$`)
 )
 
 // Declarative is true when text, outside its code fences, holds a sentence,
-// list item, or table row that states something: questions, code, and a
-// word or two ("Done.") have nothing to verify.
+// list item, table row, or heading that states something: questions, code,
+// and a word or two ("Done.") have nothing to verify.
 func Declarative(text string) bool {
 	prose := fence.ReplaceAllString(text, "")
 	return statement.MatchString(prose) || item.MatchString(prose)

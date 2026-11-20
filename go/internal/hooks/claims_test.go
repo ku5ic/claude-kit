@@ -171,6 +171,18 @@ func TestVerifyClaimsToolInput(t *testing.T) {
 		{"a session retro", func(k *sandbox) map[string]any {
 			return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "session-90886c74-20261116-0900.md"), "content": "# Session\n\n" + claim})
 		}, "agent"},
+		{"a /deps report", func(k *sandbox) map[string]any {
+			return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "deps.md"), "content": "# Deps\n\n" + claim})
+		}, "agent"},
+		{"a PR review draft", func(k *sandbox) map[string]any {
+			return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "pr-review-42.md"), "content": claim})
+		}, "agent"},
+		{"a plan critique", func(k *sandbox) map[string]any {
+			return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "plan-critique-auth.md"), "content": claim})
+		}, "agent"},
+		{"a report named in capitals", func(k *sandbox) map[string]any {
+			return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "Explore-Auth.md"), "content": claim})
+		}, "agent"},
 		{"a PR draft", func(k *sandbox) map[string]any {
 			return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "pr-auth-20261116-0900.md"), "content": claim})
 		}, "none"},

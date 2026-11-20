@@ -62,7 +62,7 @@ func CheckAttribution(h *hook.Hook) error {
 func postedTexts(segs []Segment, home, cwd string) (texts []prText, writes bool) {
 	for w := range walk(segs, home, cwd) {
 		args := values(w.call.Words[w.i+1:])
-		src := hostCall{tool: w.name, call: w.call, before: w.seg.src[:min(w.call.start, len(w.seg.src))], home: home, cwd: w.cwd}
+		src := newHostCall(w, home)
 		switch w.name {
 		case "git":
 			sub, rest, dir := classify.GitSubcommand(args)

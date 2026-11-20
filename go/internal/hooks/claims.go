@@ -111,10 +111,77 @@ func verifyToolInput(h *hook.Hook) error {
 		text, where, retry = strings.Join(p.Strings(hook.KeyToolInput, cfg.Connectors.CodeFields...), "\n\n"), "the "+tool+" input", "send it again"
 		marker = h.Paths.SessionFile(cache.Claims, p.SessionID(), "tool", tool)
 	}
-	if p.String(hook.KeyAgentID) != "" {
+	return verifyText(h, text, where, retry, marker, dest)
+}
+
+// verifyText checks text with the hook's own run inside a subagent, and
+// gates it on the claim-checker agent in the main session.
+func verifyText(h *hook.Hook, text, where, retry, marker, dest string) error {
+	if h.Payload.String(hook.KeyAgentID) != "" {
 		return verifyInSubagent(h, text, where, retry, marker)
 	}
 	return gateOnChecker(h, text, where, retry, marker, dest)
+}
+
+// CheckPost is check-size and verify-claims on text, what a Bash command
+// posts through gh or glab, read from where. It's held as a connector
+// post's input is. PreToolUse for Bash, last in bash-dispatch.
+func CheckPost(h *hook.Hook, text, where string) error {
+	p := h.Payload
+	cfg := h.Config()
+	if p.Err != nil || cfg == nil || text == "" {
+		return p.Err
+	}
+	if decision, _ := h.Decision(); decision == "deny" {
+		return nil
+	}
+	sizeOnce(h, text, where, "send it again", cfg.SizeBudgets.Post, h.Paths.SessionFile(cache.Size, p.SessionID(), "tool", "Bash"))
+	if decision, _ := h.Decision(); decision == "deny" || p.String(hook.KeyAgentType) == claimChecker {
+		return nil
+	}
+	return verifyText(h, text, where, "send it again", h.Paths.SessionFile(cache.Claims, p.SessionID(), "tool", "Bash"), "")
+}
+
+// CheckBashReports is check-size and verify-claims on each scratch report
+// in written, the files a Bash command wrote, as a Write of that report
+// gets them. The command already ran, so a deny becomes a block. PostToolUse
+// for Bash.
+func CheckBashReports(h *hook.Hook, written []string) error {
+	p := h.Payload
+	if p.Err != nil || h.Config() == nil {
+		return p.Err
+	}
+	var reasons []string
+	seen := map[string]bool{}
+	for _, path := range written {
+		if seen[path] || !scratchReport(h, path, checkedReports...) || !atScratchRoot(h, path) {
+			continue
+		}
+		seen[path] = true
+		content, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		raw, _ := json.Marshal(map[string]any{
+			"hook_event_name": "PreToolUse", "session_id": p.SessionID(), "cwd": p.Cwd(),
+			"transcript_path": p.String(hook.KeyTranscriptPath), "agent_id": p.String(hook.KeyAgentID), "agent_type": p.String(hook.KeyAgentType),
+			"tool_name": "Write", "tool_input": map[string]any{"file_path": path, "content": string(content)},
+		})
+		sub := subHook(h, "bash-reports", raw)
+		for _, c := range []hook.NamedCheck{{Name: "check-size", Check: CheckSize}, {Name: "verify-claims", Check: VerifyClaims}} {
+			if b := hook.RunCheck(sub, c.Name, c.Check); b != nil {
+				reasons = append(reasons, b.Reason)
+				break
+			}
+		}
+		if decision, reason := sub.Decision(); decision == "deny" {
+			reasons = append(reasons, reason)
+		}
+	}
+	if len(reasons) == 0 {
+		return nil
+	}
+	return h.Block("a report this command wrote isn't ready\n"+strings.Join(reasons, "\n"), "bash-reports")
 }
 
 // verifyInSubagent checks a report or post written inside a subagent with
@@ -535,9 +602,10 @@ func agentTranscript(p *hook.Payload) string {
 }
 
 // checkedReports are the scratch report kinds whose claims are checked:
-// investigate's, every audit-* and code-* skill's, and /meta-retro's.
+// investigate's, every audit-* and code-* skill's, /meta-retro's, /deps',
+// /pr-review's, and plan-critic's.
 var checkedReports = []string{
-	"explore", "debug", "review", "session",
+	"explore", "debug", "review", "session", "deps", "pr-review", "plan-critique",
 	"a11y", "arch", "ci", "debt", "doc-drift", "infra", "perf", "security", "slop", "verify",
 	"flags", "readiness", "tokens",
 	"challenge", "contract", "evaluate", "from-design", "history", "impact", "migrate", "tour", "visual",
@@ -552,10 +620,10 @@ func atScratchRoot(h *hook.Hook, path string) bool {
 }
 
 // scratchReport is true for a report of one of kinds in scratch, the files
-// `kit scratch-dir <kind> <slug>` names.
+// `kit scratch-dir <kind> <slug>` names, in any case.
 func scratchReport(h *hook.Hook, path string, kinds ...string) bool {
 	base := filepath.Base(path)
-	name := strings.TrimSuffix(base, filepath.Ext(base))
+	name := strings.ToLower(strings.TrimSuffix(base, filepath.Ext(base)))
 	return path != "" && project.IsScratch(h.Paths, path) && strings.EqualFold(filepath.Ext(base), ".md") &&
 		slices.ContainsFunc(kinds, func(kind string) bool { return name == kind || strings.HasPrefix(name, kind+"-") })
 }
