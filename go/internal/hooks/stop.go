@@ -56,8 +56,22 @@ func StopChecks(h *hook.Hook) error {
 	// last step leaves the tree clean. A finished plan waits for
 	// /code-review since the last code edit (skills/kit-rules/reference/verify.md).
 	// On a retry it holds only until a review has launched: the edits
-	// since one may be its fixes, which need no second review.
+	// since one may be its fixes, which need no second review. A session
+	// that can't launch one stops on the second retry, told so.
+	held := h.Paths.SessionFile(cache.ReviewReport, h.Payload.SessionID(), "plan-done")
 	if plan, reviewed := walk.done(); plan != "" && !reviewed && (!retry || !walk.launched()) {
+		if retry && held != "" && fsx.IsFile(held) {
+			_ = os.Remove(held)
+			h.Notify(fmt.Sprintf("kit plan-done: let through, plan %s is done with no /code-review since the last code edit", fsx.Rel(root, plan)))
+			return nil
+		}
+		if held != "" && !h.DryRun {
+			if retry {
+				_ = fsx.WriteAtomic(held, nil, 0o600)
+			} else {
+				_ = os.Remove(held)
+			}
+		}
 		return h.Block(fmt.Sprintf("plan %s is done, but /code-review hasn't finished since the last code edit\n", fsx.Rel(root, plan))+
 			layout.KV("do", "run it now, or wait for the one running")+"\n"+
 			layout.KV("then", "the runtime pass (/verify) when the change has observable behavior")+"\n"+

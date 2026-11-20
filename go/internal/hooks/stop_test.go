@@ -160,6 +160,19 @@ func TestStopPlanDone(t *testing.T) {
 		e.review()
 		e.stop(true).Want(t, 0)
 	})
+	t.Run("a session that can't launch a review stops on the second retry, told so", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		e.turn("Edit", e.path("a.ts"))
+		e.turn("Edit", e.plan(done))
+		e.stop(false).Want(t, 2)
+		e.stop(true).Want(t, 2)
+		r := e.stop(true)
+		r.Want(t, 0)
+		r.Has(t, "kit plan-done: let through", "plan-x.md")
+		// The next turn's stop holds again.
+		e.stop(false).Want(t, 2)
+	})
 	t.Run("a retry passes on fixes after an earlier review, with no second one", func(t *testing.T) {
 		t.Parallel()
 		e := stopSetup(t)
