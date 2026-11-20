@@ -130,14 +130,14 @@ func TestRulesGate(t *testing.T) {
 		r.Denied(t)
 		r.Has(t, "the kit-rules skill isn't loaded yet")
 	})
-	t.Run("a skills log that can't be read denies, naming it", func(t *testing.T) {
+	t.Run("a skills log that can't be read lets the call through, telling the user", func(t *testing.T) {
 		t.Parallel()
 		k := newPlugin(t)
 		k.kitYML("")
 		testutil.Mkdir(t, k.paths.LogFile(kitlog.Skills))
 		r := call(k, "Bash", "", bash)
-		r.Denied(t)
-		r.Has(t, k.paths.LogFile(kitlog.Skills))
+		r.Allowed(t)
+		r.Has(t, "kit rules-gate: FAILED OPEN", "the skills log can't be read")
 	})
 	t.Run("every global_skills skill must load too, named in the same deny", func(t *testing.T) {
 		t.Parallel()

@@ -2,6 +2,7 @@ package hooks
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -26,8 +27,8 @@ const rulesSkill = "kit-rules"
 // global_skills skill. A subagent's load counts for it alone, by agent_id.
 // The Skill tool and a Read of a required skill's own files are the way to
 // load one, and a subagent's hand-back is its reply, so those pass. A
-// missing skills log shows nothing loaded, and one that can't be read is
-// named in the deny. A fork counts its parent's loads. An
+// missing skills log shows nothing loaded, and one that can't be read
+// fails open, told to the user. A fork counts its parent's loads. An
 // agent whose transcript shows Claude Code gave it neither Skill nor Read
 // passes, logged; one whose tools can't be read is gated.
 func RulesGate(h *hook.Hook) error {
@@ -82,11 +83,16 @@ func RulesGate(h *hook.Hook) error {
 		return nil
 	}
 	missing, err := notLoadedBy(h, agent, missing)
-	if len(missing) > 0 && agent != "" && err == nil {
+	if err != nil {
+		return err
+	}
+	if len(missing) > 0 && agent != "" {
 		start := subagentStart(p)
 		switch {
 		case start.Fork:
-			missing, err = notLoadedBy(h, "", missing)
+			if missing, err = notLoadedBy(h, "", missing); err != nil {
+				return err
+			}
 		case withoutTools(start, "Skill", "Read"):
 			h.Log(kitlog.Guards, "rules-gate-unloadable", "agent_type", p.String(hook.KeyAgentType), "tools", strings.Join(start.Tools, ","))
 			return nil
@@ -108,26 +114,23 @@ func RulesGate(h *hook.Hook) error {
 	if len(missing) > 1 {
 		noun = "skills aren't"
 	}
-	unread := ""
-	if err != nil {
-		unread = layout.KV("log", "can't be read, so no load shows: "+err.Error()) + "\n"
-	}
-	h.Deny("the "+strings.Join(missing, " and ")+" "+noun+" loaded yet\n"+unread+
+	h.Deny("the "+strings.Join(missing, " and ")+" "+noun+" loaded yet\n"+
 		layout.KV("do", "call the Skill tool now, or Read "+strings.Join(files, " and ")+" if the Skill tool is unavailable")+"\n"+
 		layout.KV("then", "retry this call; every tool call stays blocked until you do, so don't stop to ask"), "rules-gate")
 	return nil
 }
 
 // notLoadedBy is the skills of want the skills log doesn't show agent (""
-// for the main session) loading. A missing log shows none loaded; a log
-// that can't be read shows none either, and its error says why.
+// for the main session) loading. A missing log shows none loaded. A log
+// that can't be read is an error: a load would be logged to it too, so a
+// deny could never lift, and the gate fails open, telling the user.
 func notLoadedBy(h *hook.Hook, agent string, want []string) ([]string, error) {
 	loaded, err := loadedSkills(h.Paths.LogFile(kitlog.Skills), h.Payload.SessionID(), func(id string) bool { return id == agent })
 	if errors.Is(err, fs.ErrNotExist) {
 		return want, nil
 	}
 	if err != nil {
-		return want, err
+		return nil, fmt.Errorf("the skills log can't be read, so no skill load shows: %w", err)
 	}
 	return notIn(h, loaded, want), nil
 }
