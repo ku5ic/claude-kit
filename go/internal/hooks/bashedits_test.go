@@ -127,6 +127,69 @@ func TestBashEdits(t *testing.T) {
 		testutil.Write(t, filepath.Join(dir, "notes.md"), "Notes.\n"+tell)
 		ran(k, dir, "git pull --rebase").Want(t, 0)
 	})
+	// Only a command that is one git move and nothing else skips the checks.
+	for _, cmd := range []string{"git restore other.md; sed -i '' 's/x/y/' notes.md", "echo git checkout main", "git checkout main && sed -i '' 's/x/y/' notes.md"} {
+		t.Run("a git move beside another command is checked: "+cmd, func(t *testing.T) {
+			t.Parallel()
+			k, dir := setup(t)
+			testutil.Write(t, filepath.Join(dir, "notes.md"), "Notes.\n"+tell)
+			ran(k, dir, cmd).Want(t, 2)
+		})
+	}
+	for _, cmd := range []string{"git -C . checkout main", "cd sub && git pull"} {
+		t.Run("one git move alone isn't checked: "+cmd, func(t *testing.T) {
+			t.Parallel()
+			k, dir := setup(t)
+			testutil.Write(t, filepath.Join(dir, "notes.md"), "Notes.\n"+tell)
+			ran(k, dir, cmd).Want(t, 0)
+		})
+	}
+	// A test file a command deletes, or renames out of the test glob, takes
+	// its assertions with it.
+	testWithAssertions := func(t *testing.T) (*sandbox, string) {
+		k := newSandbox(t)
+		dir := repo(t, filepath.Join(t.TempDir(), "repo"))
+		testutil.Write(t, filepath.Join(dir, "a_test.go"), "package a\n\nfunc TestA(t *testing.T) {\n\tt.Errorf(\"one\")\n\tt.Fatalf(\"two\")\n}\n")
+		testutil.Git(t, dir, "add", "-A")
+		testutil.Git(t, dir, "commit", "-q", "-m", "test")
+		k.run("turn-tree", map[string]any{"hook_event_name": "UserPromptSubmit", "session_id": "s1", "cwd": dir}).Want(t, 0)
+		return k, dir
+	}
+	t.Run("a deleted test file is sent back with its lost assertions", func(t *testing.T) {
+		t.Parallel()
+		k, dir := testWithAssertions(t)
+		if err := os.Remove(filepath.Join(dir, "a_test.go")); err != nil {
+			t.Fatal(err)
+		}
+		r := ran(k, dir, "rm a_test.go")
+		r.Want(t, 2)
+		r.Has(t, "2 fewer assertion line(s)", "a_test.go")
+	})
+	t.Run("a test renamed out of the test glob is sent back", func(t *testing.T) {
+		t.Parallel()
+		k, dir := testWithAssertions(t)
+		if err := os.Rename(filepath.Join(dir, "a_test.go"), filepath.Join(dir, "a_test.go.bak")); err != nil {
+			t.Fatal(err)
+		}
+		ran(k, dir, "mv a_test.go a_test.go.bak").Want(t, 2)
+	})
+	t.Run("a test renamed to another test keeps its assertions", func(t *testing.T) {
+		t.Parallel()
+		k, dir := testWithAssertions(t)
+		if err := os.Rename(filepath.Join(dir, "a_test.go"), filepath.Join(dir, "b_test.go")); err != nil {
+			t.Fatal(err)
+		}
+		ran(k, dir, "mv a_test.go b_test.go").Want(t, 0)
+	})
+	t.Run("weaken in disabled_rules lets a deleted test through", func(t *testing.T) {
+		t.Parallel()
+		k, dir := testWithAssertions(t)
+		k.overlay("disabled_rules: [weaken]\n")
+		if err := os.Remove(filepath.Join(dir, "a_test.go")); err != nil {
+			t.Fatal(err)
+		}
+		ran(k, dir, "rm a_test.go").Want(t, 0)
+	})
 	t.Run("an edit made before the turn's prompt isn't charged to the turn", func(t *testing.T) {
 		t.Parallel()
 		k, dir := setup(t)

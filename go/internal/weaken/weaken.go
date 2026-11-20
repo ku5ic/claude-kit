@@ -30,6 +30,15 @@ type Result struct {
 	Lost int
 }
 
+// Assertions is how many assertion lines text holds as path's content: 0
+// unless path is a test file c doesn't skip.
+func Assertions(c config.WeakenedChecks, path, text string) int {
+	if guard.GlobAny(c.Skip, path) || !guard.GlobAny(c.TestFiles, path) {
+		return 0
+	}
+	return count(compile(c.Assertions), text)
+}
+
 // Check compares path's text before and after an edit. Skips and lost
 // assertions count only in a test file; suppressions in any file c
 // doesn't skip.
@@ -38,11 +47,7 @@ func Check(c config.WeakenedChecks, path, before, after string) Result {
 		return Result{}
 	}
 	test := guard.GlobAny(c.TestFiles, path)
-	var r Result
-	if test {
-		assertions := compile(c.Assertions)
-		r.Lost = max(0, count(assertions, before)-count(assertions, after))
-	}
+	r := Result{Lost: max(0, Assertions(c, path, before)-Assertions(c, path, after))}
 	newLines := strings.Split(after, "\n")
 	lines := added(before, newLines)
 	if len(lines) == 0 {

@@ -6,17 +6,20 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
+	"github.com/ku5ic/claude-kit/go/internal/classify"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/weaken"
 )
 
 // bashEditTool is the tool_name of the payload BashEdits builds for each
@@ -26,9 +29,25 @@ const bashEditTool = "kit-bash-edit"
 // bashEditsFormatBudget is how long BashEdits spends formatting, all files.
 const bashEditsFormatBudget = 90 * time.Second
 
-// gitMoves is a git command that brings in content Claude didn't write:
-// checked out, merged, fetched, or restored. Its changes aren't checked.
-var gitMoves = regexp.MustCompile(`\bgit\s+(checkout|switch|pull|merge|rebase|stash|reset|restore|cherry-pick|revert|am|clone)\b`)
+// gitMoves are the git subcommands that bring in content Claude didn't
+// write: checked out, merged, fetched, or restored.
+var gitMoves = []string{"checkout", "switch", "pull", "merge", "rebase", "stash", "reset", "restore", "cherry-pick", "revert", "am", "clone"}
+
+// gitMove is true when cmd is one git move and nothing else but cd, so its
+// changes aren't checked. Any other command beside it may have written
+// them, and a command that didn't parse counts as one.
+func gitMove(cmd string) bool {
+	calls, ok := classify.Words(cmd)
+	if !ok {
+		return false
+	}
+	calls = slices.DeleteFunc(calls, func(words []string) bool { return len(words) == 0 || filepath.Base(words[0]) == "cd" })
+	if len(calls) != 1 || filepath.Base(calls[0][0]) != "git" {
+		return false
+	}
+	sub, _, _ := classify.GitSubcommand(calls[0][1:])
+	return slices.Contains(gitMoves, sub)
+}
 
 // BashEdits is the PostToolUse hook on Bash: every file the command
 // changed gets the checks an Edit gets, slop, weaken, imports, and tokens,
@@ -90,10 +109,10 @@ func BashEdits(h *hook.Hook) error {
 	}
 	// Whoever wrote the change, a claim checked before it is stale.
 	recordBashEdit(h, made)
-	if gitMoves.MatchString(p.String(hook.KeyInputCommand)) {
+	if gitMove(p.String(hook.KeyInputCommand)) {
 		return nil
 	}
-	var problems []string
+	problems := lostTests(h, root, before, changed)
 	rewritten := false
 	// Each format may take formatBudget; past this, files are checked but
 	// left unformatted, inside hooks.json's 120s.
@@ -132,6 +151,37 @@ func BashEdits(h *hook.Hook) error {
 		return nil
 	}
 	return h.Block("a file this command changed fails the checks an Edit gets\n"+strings.Join(problems, "\n"), "bash-edits")
+}
+
+// lostTests is the send-back for the assertion lines the test files a
+// command deleted, or renamed out of the test glob, took with them: what
+// they held at the baseline less what the test files it added hold.
+func lostTests(h *hook.Hook, root, before string, changed []string) []string {
+	cfg := h.Config()
+	if cfg == nil || h.RuleDisabled("weaken") {
+		return nil
+	}
+	c := cfg.WeakenedChecks
+	lost := 0
+	var gone []string
+	for _, path := range changed {
+		rel, _ := filepath.Rel(root, path)
+		old, err := git.Output(root, "cat-file", "blob", before+":"+filepath.ToSlash(rel))
+		now, readErr := os.ReadFile(path)
+		switch {
+		case errors.Is(readErr, os.ErrNotExist) && err == nil:
+			if n := weaken.Assertions(c, path, old); n > 0 {
+				lost += n
+				gone = append(gone, rel)
+			}
+		case readErr == nil && err != nil:
+			lost -= weaken.Assertions(c, path, string(now))
+		}
+	}
+	if lost <= 0 {
+		return nil
+	}
+	return []string{fmt.Sprintf("this command leaves %d fewer assertion line(s): %s deleted or renamed out of the tests. Confirm only if they're redundant or moved", lost, strings.Join(gone, ", "))}
 }
 
 // editChecks runs the PreToolUse edit checks on path's change from before
