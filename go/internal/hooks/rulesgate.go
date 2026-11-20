@@ -181,11 +181,6 @@ func inSkill(h *hook.Hook, skill, path string) bool {
 		return false
 	}
 	path = filepath.Clean(path)
-	// Every skills dir ends in skills: this spares a Read elsewhere the
-	// git call skillDirs makes.
-	if !strings.Contains(path, "/skills/") {
-		return false
-	}
 	return slices.ContainsFunc(skillDirs(h), func(dir string) bool { return fsx.Within(filepath.Join(dir, skill), path) })
 }
 
