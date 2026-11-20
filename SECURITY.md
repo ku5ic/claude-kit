@@ -13,7 +13,7 @@ The guards read a command line, not what it does when it runs. A pass means the 
 - Wrappers and remote runners: `busybox`, `script`, `parallel`, `find -exec sh -c`, `xargs sh -c`, `ssh`, `docker run`, `osascript`.
 - Opaque task runners: `go run`, `make`, `npm run`.
 - Other ways to lose work: `git rm -rf .`, `rsync --delete`, `mv` of the home directory, truncating a file, `git stash drop`, `git update-ref -d`, `gh api -X DELETE` on a branch, `gh pr merge --admin`.
-- Skipping commit hooks through `git config core.hooksPath` or `HUSKY=0`, or a git alias that hides `push --force`. A `git -c core.hooksPath=...` blocks.
+- Skipping commit hooks through `git config core.hooksPath`, a config file passed in `GIT_CONFIG_GLOBAL` or `GIT_CONFIG_SYSTEM`, or `HUSKY=0`, or a git alias that hides `push --force`. A `git -c core.hooksPath=...`, or the same through `GIT_CONFIG_KEY_<n>` or `GIT_CONFIG_PARAMETERS`, blocks.
 - Credential reads through `env`, `printenv`, a search over `~/.aws`, a key path held in a variable, a glob in a `<` redirect, `security find-generic-password`, or `gh auth token`.
 - Staging a credential file the repo doesn't ignore with `git add .` or `git add -A`. `git add` of the file by name asks.
 - `claude plugin uninstall kit`.
