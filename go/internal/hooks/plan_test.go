@@ -229,6 +229,34 @@ func TestGuardPlan(t *testing.T) {
 		k.overlay("disabled_rules: [plan-critic]\n")
 		k.run("guard-plan", exit(k, write)).Allowed(t)
 	})
+	// A plan whose own marker gives a reason skips the critic, and the skip is
+	// logged; a marker with no reason, quoted, or fenced is a mention.
+	withPlan := func(k *sandbox, text string) map[string]any {
+		in := exit(k, write)
+		in["tool_input"] = map[string]any{"plan": text, "planFilePath": plan}
+		return in
+	}
+	t.Run("a critic-skip marker with a reason: allowed, and logged with the reason", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		k.run("guard-plan", withPlan(k, "# X\n\n<!-- critic: skip renames one flag, no design choice -->\n\n## Steps\n")).Allowed(t)
+		data, _ := os.ReadFile(filepath.Join(k.claude, "logs", "guards.jsonl"))
+		if !strings.Contains(string(data), `"event":"critic-skip"`) || !strings.Contains(string(data), `"reason":"renames one flag, no design choice"`) {
+			t.Errorf("guards.jsonl = %s", data)
+		}
+	})
+	for name, text := range map[string]string{
+		"no reason":     "# X\n\n<!-- critic: skip -->\n",
+		"a code span":   "# X\n\nName `<!-- critic: skip <reason> -->` to skip it.\n",
+		"a fenced line": "# X\n\n```markdown\n<!-- critic: skip renames one flag -->\n```\n",
+		"inside prose":  "# X\n\nWrite <!-- critic: skip why --> on its own line.\n",
+	} {
+		t.Run("a critic-skip mention, "+name+": sent back", func(t *testing.T) {
+			t.Parallel()
+			k := newSandbox(t)
+			k.run("guard-plan", withPlan(k, text)).Denied(t)
+		})
+	}
 }
 
 // plan-critic's run covers a plan's claims. With plan-critic off, the plan
@@ -266,6 +294,15 @@ func TestPlanDispatchVerifiesClaims(t *testing.T) {
 		// a run on it.
 		k.run("plan-dispatch", exit(k, "# Plan v2\n\n"+claim, write, checkerLine(id))).Allowed(t)
 		k.run("plan-dispatch", exit(k, "# Plan v2\n\n"+claim+"\n\nThe cache lives in the session directory.", write, checkerLine(id))).Denied(t)
+	})
+	t.Run("a critic-skip marker skips the critic, not the claim check", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		k.verifier("", claim)
+		r := k.run("plan-dispatch", exit(k, "# Plan\n\n<!-- critic: skip renames one flag -->\n\n"+claim, write))
+		r.Denied(t)
+		r.Has(t, "kit:claim-checker", "the plan plan-x.md")
+		r.Lacks(t, "kit:plan-critic agent hasn't reviewed")
 	})
 	t.Run("disabled_rules: [claims] lets the plan through", func(t *testing.T) {
 		t.Parallel()

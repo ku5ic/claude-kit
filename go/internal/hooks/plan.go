@@ -8,12 +8,15 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 	"github.com/ku5ic/claude-kit/go/internal/layout"
 	"github.com/ku5ic/claude-kit/go/internal/md"
 	"github.com/ku5ic/claude-kit/go/internal/project"
@@ -164,6 +167,10 @@ func GuardPlan(h *hook.Hook) error {
 	if p.Err != nil || p.String(hook.KeyToolName) != "ExitPlanMode" || plan == "" || h.RuleDisabled("plan-critic") || planCritiqued(p) {
 		return nil
 	}
+	if line, reason, ok := criticSkip(p.String(hook.KeyInputPlan)); ok {
+		h.Log(kitlog.Guards, "critic-skip", "rule", "plan-critic", "path", plan, "line", strconv.Itoa(line), "reason", reason)
+		return nil
+	}
 	marker := h.Paths.SessionFile(cache.PlanCritic, p.SessionID(), filepath.Base(plan))
 	if marker == "" {
 		return nil
@@ -180,6 +187,28 @@ func GuardPlan(h *hook.Hook) error {
 		layout.KV("do", "run it before asking for approval")+"\n"+
 		layout.KV("then", "raise each contradiction it finds, between the plan's sections or against the repo, as a question for the user; the same plan passes when ExitPlanMode is called again"), "plan-critic")
 	return nil
+}
+
+// criticSkipMarker is a prose line that is only an HTML comment skipping the
+// critic with a reason, the form an `unslop: allow` marker takes. A mention
+// in a code span or inside a sentence doesn't fill the line, so it doesn't
+// match.
+var criticSkipMarker = regexp.MustCompile(`^[ \t]*<!--[ \t]*critic: skip[ \t]+(\S.*?)[ \t]*-->[ \t]*$`)
+
+// criticSkip is the first critic-skip marker in the plan's prose, by its
+// line number and reason; ok is false when there is none.
+func criticSkip(plan string) (line int, reason string, ok bool) {
+	n := 0
+	for l := range md.Lines(plan) {
+		n++
+		if l.Kind != md.Prose {
+			continue
+		}
+		if m := criticSkipMarker.FindStringSubmatch(strings.TrimRight(l.Text, "\r\n")); m != nil {
+			return n, m[1], true
+		}
+	}
+	return 0, "", false
 }
 
 // planCritiqued reports whether the ExitPlanMode in p follows a plan-critic
