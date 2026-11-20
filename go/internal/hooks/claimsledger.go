@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -61,12 +62,9 @@ func ledgerPending(h *hook.Hook, marker, where, text string) {
 	}
 }
 
-// ledgerRuns logs the flags of each finished claim-checker run on text, or
-// on an earlier version that shares a statement with it, once per run.
-func ledgerRuns(h *hook.Hook, log checkerLog, record, text, where string) {
-	if h.DryRun {
-		return
-	}
+// coveringRuns is each finished claim-checker run, with a reply, on text
+// or on an earlier version that shares a statement with it.
+func coveringRuns(log checkerLog, record, text string) []transcript.Run {
 	keys := map[string]bool{}
 	for _, s := range claims.Statements(text) {
 		keys[statementKey(s)] = true
@@ -77,12 +75,52 @@ func ledgerRuns(h *hook.Hook, log checkerLog, record, text, where string) {
 			ids = append(ids, a.id)
 		}
 	}
+	var runs []transcript.Run
+	for _, run := range transcript.AgentRuns(log.entries, claimChecker) {
+		if run.Status == transcript.RunDone && run.Result != "" &&
+			slices.ContainsFunc(ids, func(id string) bool { return strings.Contains(run.Prompt, id) }) {
+			runs = append(runs, run)
+		}
+	}
+	return runs
+}
+
+// evidenceLabel marks a statement offered as an idea, not a fact, per
+// skills/kit-rules/reference/evidence.md section 1: likely, a hypothesis,
+// or a test not run.
+var evidenceLabel = regexp.MustCompile(`(?i)\b(?:likely|hypothesis|not run)\b`)
+
+// stillStated is each claim runs flagged that text still states in a
+// statement with no evidence label, with the check the run named for it.
+func stillStated(runs []transcript.Run, text string) []string {
+	statements := slices.DeleteFunc(claims.Statements(text), evidenceLabel.MatchString)
+	var out []string
+	for _, run := range runs {
+		for line := range strings.Lines(run.Result) {
+			c := stats.Flagged(line)
+			if len(c) != 1 || !stats.Kept(c[0], statements) {
+				continue
+			}
+			_, check, _ := strings.Cut(line, " -> ")
+			if item := c[0] + " -> " + strings.TrimSpace(check); !slices.Contains(out, item) {
+				out = append(out, item)
+			}
+		}
+	}
+	return out
+}
+
+// ledgerRuns logs the flags of each finished claim-checker run on text, or
+// on an earlier version that shares a statement with it, once per run.
+func ledgerRuns(h *hook.Hook, log checkerLog, record, text, where string) {
+	if h.DryRun {
+		return
+	}
 	done := h.Paths.SessionFile(cache.Claims, h.Payload.SessionID(), "ledgered")
 	seen, _ := os.ReadFile(done)
-	for _, run := range transcript.AgentRuns(log.entries, claimChecker) {
+	for _, run := range coveringRuns(log, record, text) {
 		at := fmt.Sprintf("%d:%d", run.At.Entry, run.At.Block)
-		if run.Status != transcript.RunDone || run.Result == "" || ledgered(seen, at) ||
-			!slices.ContainsFunc(ids, func(id string) bool { return strings.Contains(run.Prompt, id) }) {
+		if ledgered(seen, at) {
 			continue
 		}
 		_ = fsx.Append(done, []byte(at+"\n"))

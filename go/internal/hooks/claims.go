@@ -169,9 +169,16 @@ func gateOnChecker(h *hook.Hook, text, where, retry, marker, dest string) error 
 	asked := h.Paths.SessionFile(cache.Claims, h.Payload.SessionID(), "asked")
 	record, _ := os.ReadFile(asked)
 	checked, outcomes, done := checkedStatements(log, string(record))
-	// passed is every exit where the text needs no new run: its finished
-	// runs' flags go to the ledger.
+	// passed is every exit where the text needs no new run. A claim a
+	// finished run flagged and the text still states, unlabelled, holds it;
+	// else its runs' flags go to the ledger.
 	passed := func() error {
+		if kept := stillStated(coveringRuns(log, string(record), text), text); len(kept) > 0 &&
+			h.Deny("a kit:claim-checker run flagged claims "+where+" still states\n"+"- "+strings.Join(kept, "\n- ")+"\n"+
+				layout.KV("do", "cut each, run its check, or label it as skills/kit-rules/reference/evidence.md section 1 says (likely, with its evidence, or hypothesis)")+"\n"+
+				layout.KV("then", retry), "claims") {
+			return nil
+		}
 		ledgerRuns(h, log, string(record), text, where)
 		return nil
 	}
