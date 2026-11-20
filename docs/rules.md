@@ -92,6 +92,8 @@ Every skill with references lists them in a "Before | Read" table: an action, th
 
 **Review findings are claims.** A reviewer can be wrong, and an applied wrong finding is a regression with a reviewer's name on it.
 
+**A review or runtime pass stops at its report.** Fixes applied before the report exists leave the engineer judging findings that are already in the tree, and the report then describes code that changed under it. On 2026-11-20 a step's six findings were fixed before their report and before the engineer chose any.
+
 ## Subagents
 
 **Spawning costs.** Each agent has its own request budget, and its report is a handoff that loses detail. Doing the work directly is cheaper unless the task needs isolation or parallelism.
