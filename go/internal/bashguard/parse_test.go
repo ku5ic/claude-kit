@@ -18,7 +18,10 @@ func names(src string) []string {
 				calls = append(calls, baseName(c.Words[i].Value))
 			}
 		}
-		out = append(out, strings.Join(calls, "|"))
+		// A segment of redirects alone ({ cat; } < f) names no command.
+		if len(calls) > 0 {
+			out = append(out, strings.Join(calls, "|"))
+		}
 	}
 	return out
 }

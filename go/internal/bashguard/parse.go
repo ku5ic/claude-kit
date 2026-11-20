@@ -231,9 +231,7 @@ func (c *collector) stmt(src string, s *syntax.Stmt) {
 		// A compound command: its own statements, and any substitution in
 		// its words (for items, case subjects, [[ ]] operands).
 		c.inner(src, s.Cmd)
-		for _, r := range s.Redirs {
-			c.inner(src, r)
-		}
+		c.compoundRedirs(src, s)
 		return
 	}
 
@@ -250,11 +248,9 @@ func (c *collector) stmt(src string, s *syntax.Stmt) {
 		}
 		if !ok {
 			// ( ... ) or { ... } inside a pipeline: its statements and its
-			// redirects' substitutions are segments of their own.
+			// redirects are segments of their own.
 			c.inner(src, p.Cmd)
-			for _, r := range p.Redirs {
-				c.inner(src, r)
-			}
+			c.compoundRedirs(src, p)
 			continue
 		}
 		seg.Calls = append(seg.Calls, c.call(src, p, call))
@@ -263,6 +259,17 @@ func (c *collector) stmt(src string, s *syntax.Stmt) {
 		c.segs = append(c.segs, seg)
 	}
 	c.shellHeredocs(seg)
+}
+
+// compoundRedirs is a compound command's own redirects ({ cat; } < .env,
+// done > f) as a call with no words in a segment of its own, the shape a
+// redirect alone has, so each gets the same read and write checks.
+func (c *collector) compoundRedirs(src string, s *syntax.Stmt) {
+	if len(s.Redirs) == 0 {
+		return
+	}
+	c.segs = append(c.segs, Segment{src: src, end: segmentEnd(s), subshell: c.subshell > 0, loop: c.loop,
+		Calls: []Call{c.call(src, s, &syntax.CallExpr{})}})
 }
 
 // segmentEnd is where a pipeline ends: its last command's last word or

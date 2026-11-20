@@ -314,6 +314,10 @@ func (st *state) segment(seg Segment) error {
 		}
 		start := lead(call.Words)
 		if start >= len(call.Words) {
+			// A redirect with no command still reads its input: x=$(<.env).
+			if err := (&command{st: st}).readsSensitive(call.Inputs); err != nil {
+				return err
+			}
 			continue
 		}
 		// $(echo rm) -rf ~ names its command only at runtime, as does
