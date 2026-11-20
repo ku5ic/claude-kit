@@ -753,3 +753,18 @@ func TestCheckedReportsCoverEveryAuditAndCodeSkill(t *testing.T) {
 		}
 	}
 }
+
+// A cached verdict holds the claims a text made; only its owner reads it.
+func TestACachedVerdictIsTheOwnersAlone(t *testing.T) {
+	t.Parallel()
+	k := newSandbox(t)
+	k.verifier("", claim)
+	k.run("verify-claims", subagentStop("a1", claim, false))
+	verdicts, _ := filepath.Glob(filepath.Join(k.paths.CacheDir(), cache.Claims, "s-verdict-*"))
+	if len(verdicts) != 1 {
+		t.Fatalf("verdicts = %q", verdicts)
+	}
+	if info, err := os.Stat(verdicts[0]); err != nil || info.Mode().Perm() != 0o600 {
+		t.Errorf("mode %v, %v; want 0600", info.Mode(), err)
+	}
+}

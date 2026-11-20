@@ -10,6 +10,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -82,10 +83,11 @@ func RootKey(root string) string {
 }
 
 // SessionPath is <cacheDir>/<kind>/<session>[-<part>...]: one session's
-// file. "" for an empty session ID or one holding a path separator, which
-// would land outside kind's dir.
+// file. "" for an empty session ID, or a session ID or part holding a path
+// separator, which would land outside kind's dir: a part can come from a
+// payload, as a tool name or an agent id does.
 func SessionPath(cacheDir, kind, session string, parts ...string) string {
-	if session == "" || strings.ContainsAny(session, `/\`) {
+	if session == "" || slices.ContainsFunc(append([]string{session}, parts...), func(s string) bool { return strings.ContainsAny(s, `/\`) }) {
 		return ""
 	}
 	return filepath.Join(cacheDir, kind, strings.Join(append([]string{session}, parts...), "-"))

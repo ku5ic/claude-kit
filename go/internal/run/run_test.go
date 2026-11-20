@@ -380,3 +380,14 @@ func TestDeadCodeRunsOnlyWithAChange(t *testing.T) {
 		})
 	}
 }
+
+// A mark that can't be saved is named under the gate's FAIL: the gate runs
+// again next time, and the report mustn't say it won't.
+func TestAGateWhoseMarkCantBeSavedSaysSo(t *testing.T) {
+	t.Parallel()
+	r := newRepo(t, "repo")
+	testutil.Put(t, filepath.Dir(r.cache), filepath.Base(r.cache), "a file where the cache dir goes")
+	out, _ := r.run(r.gate("format-check", "echo formatted > a.py"))
+	has(t, out, "  changed: a.py; its mark couldn't be saved, so it runs again next time: ")
+	lacks(t, out, "it won't run again")
+}

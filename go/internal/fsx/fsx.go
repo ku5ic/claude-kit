@@ -36,13 +36,13 @@ func WriteAtomic(path string, data []byte, perm os.FileMode) error {
 	return err
 }
 
-// Append adds data to the end of path in one write, creating it and its
-// directory.
+// Append adds data to the end of path in one write, creating it, private to
+// its owner as WriteAtomic's files are, and its directory.
 func Append(path string, data []byte) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return err
 	}
