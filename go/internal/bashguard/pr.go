@@ -138,7 +138,7 @@ func (s hostCall) texts(from int) []prText {
 				out = append(out, s.read(cmd+" --"+flag, value))
 				return
 			}
-			out = append(out, inline(cmd+" --"+flag, value))
+			out = append(out, s.inline(cmd+" --"+flag, value))
 		})
 	case len(args) >= 1 && args[0] == "api":
 		walkFlags(args[1:], apiFlags, func(flag, value string) {
@@ -155,7 +155,7 @@ func (s hostCall) texts(from int) []prText {
 				out = append(out, s.read(where, file))
 				return
 			}
-			out = append(out, inline(where, val))
+			out = append(out, s.inline(where, val))
 		})
 	}
 	return out
@@ -211,11 +211,15 @@ func (s hostCall) inputJSON(file string) []prText {
 	return out
 }
 
-// inline is a flag value's text: a "$(cat <<EOF ... EOF)" value's body, or
-// unread when any other expansion builds it ($(cat f), $BODY, backticks).
-func inline(where, value string) prText {
+// inline is a flag value's text: a "$(cat <<EOF ... EOF)" value's body, a
+// "$(cat <file>)" value's file as read reads it, or unread when any other
+// expansion builds it ($BODY, backticks, $(cat f) beside other text).
+func (s hostCall) inline(where, value string) prText {
 	if body, ok := catHeredoc(value); ok {
 		return prText{where: where, text: body}
+	}
+	if m := catFile.FindStringSubmatch(value); m != nil {
+		return s.read(where, m[1])
 	}
 	if expansion.MatchString(value) {
 		return prText{where: where, unread: "an expansion builds the text"}
@@ -223,8 +227,13 @@ func inline(where, value string) prText {
 	return prText{where: where, text: value}
 }
 
-// expansion is a $ or backtick the shell expands; $5 isn't one.
-var expansion = regexp.MustCompile("\\$[({A-Za-z_]|`")
+var (
+	// expansion is a $ or backtick the shell expands; $5 isn't one.
+	expansion = regexp.MustCompile("\\$[({A-Za-z_]|`")
+	// catFile is a value that is only "$(cat <file>)", the way pr-publish
+	// passes a title, for one unquoted path.
+	catFile = regexp.MustCompile(`^\$\(cat ([^\s()'"]+)\)$`)
+)
 
 // walkFlags walks args as pflag reads them, up to "--", calling fn with
 // the name valued gives each flag it holds and the flag's value: the next
