@@ -1,6 +1,6 @@
 ---
 name: claim-checker
-description: Checks the factual claims in a text before anyone relies on it, the way a reviewer who trusts nothing would. A hook asks for it before an investigation, review, `audit-*`, or `code-*` report is written to scratch or a post is sent, and names the text's claim-check id. Also when the user asks to fact-check a text or file. Read-only; reports each claim nothing confirms, with the check that would settle it.
+description: Checks the factual claims in a text before anyone relies on it, the way a reviewer who trusts nothing would. A hook asks for it before a plan or a post is sent, and names the text's claim-check id. Also when the user asks to fact-check a text or file. Read-only; reports each claim nothing confirms, with the check that would settle it.
 tools: Read, Grep, Glob, WebSearch, WebFetch, ToolSearch, Skill
 color: yellow
 model: sonnet

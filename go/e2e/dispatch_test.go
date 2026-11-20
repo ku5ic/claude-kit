@@ -106,14 +106,15 @@ func TestBashDispatchChecksWhatACommandPosts(t *testing.T) {
 	}
 }
 
-// bash-edits sizes and claim-checks a scratch report a command wrote, as
-// guard-dispatch does a Write of it, and sends it back with a block.
+// bash-edits sizes a scratch report a command wrote, as guard-dispatch does
+// a Write of it, and in the main session notes that its claims aren't
+// checked by a hook.
 func TestBashEditsChecksAReportACommandWrote(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name, file, has string
 	}{
-		{"an investigation report", "explore-auth.md", "kit:claim-checker"},
+		{"an investigation report", "explore-auth.md", "aren't checked by a hook"},
 		{"a scratch note", "notes.md", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -128,7 +129,7 @@ func TestBashEditsChecksAReportACommandWrote(t *testing.T) {
 				r.Lacks(t, tc.file)
 				return
 			}
-			r.Want(t, 2)
+			r.Want(t, 0)
 			r.Has(t, tc.file, tc.has)
 		})
 	}

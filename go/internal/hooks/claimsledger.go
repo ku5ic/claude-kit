@@ -185,22 +185,22 @@ func agentModel(h *hook.Hook) string {
 	return ""
 }
 
-// asked is one line of the session's asked file: a claim-check id, the
-// statement keys it covers, and the report file it was asked for.
+// asked is one line of the session's asked file: a claim-check id and the
+// statement keys it covers.
 type asked struct {
 	id   string
 	keys []string
-	dest string
 }
 
-// readAsked is the asked file's lines, the first for each id, in order.
+// readAsked is the asked file's lines, the first for each id, in order. A
+// line from an earlier build carries a third field, a report path, ignored.
 func readAsked(record string) []asked {
 	var out []asked
 	for line := range strings.Lines(record) {
 		id, rest, ok := strings.Cut(strings.TrimRight(line, "\n"), "\t")
-		keys, dest, _ := strings.Cut(rest, "\t")
+		keys, _, _ := strings.Cut(rest, "\t")
 		if ok && !slices.ContainsFunc(out, func(a asked) bool { return a.id == id }) {
-			out = append(out, asked{id, strings.Split(keys, ","), dest})
+			out = append(out, asked{id, strings.Split(keys, ",")})
 		}
 	}
 	return out

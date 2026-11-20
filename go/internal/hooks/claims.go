@@ -29,9 +29,11 @@ import (
 //     report, by the hook's own run against its transcript, once per agent.
 //   - PreToolUse for ExitPlanMode: the plan, which plan-critic's run covers,
 //     or with plan-critic off, the claim-checker agent.
-//   - PreToolUse for a Write or Edit of an investigation, review, audit-*,
-//     or code-* report in scratch, and for an MCP tool that writes: the claim-checker agent on
+//   - PreToolUse for an MCP tool that writes: the claim-checker agent on
 //     that exact text. Inside a subagent, the hook's own run, once per text.
+//   - PreToolUse for a Write or Edit of an investigation, review, audit-*,
+//     or code-* report in scratch: inside a subagent, the hook's own run,
+//     once per text; in the main session, only a note (noteUnchecked).
 //
 // It runs last in its dispatcher and skips a call an earlier check denied,
 // so no run is wasted.
@@ -76,7 +78,7 @@ func VerifyClaims(h *hook.Hook) error {
 func verifyToolInput(h *hook.Hook) error {
 	p := h.Payload
 	tool := p.String(hook.KeyToolName)
-	var text, where, retry, marker, dest string
+	var text, where, retry, marker string
 	switch {
 	case tool == "SubagentHandback":
 		return verifyHandback(h)
@@ -99,7 +101,11 @@ func verifyToolInput(h *hook.Hook) error {
 		if !ok {
 			return nil
 		}
-		text, where, retry, dest = after, filepath.Base(path), "write the report again", path
+		text, where, retry = after, filepath.Base(path), "write the report again"
+		if p.String(hook.KeyAgentID) == "" {
+			noteUnchecked(h, "PreToolUse", where)
+			return nil
+		}
 		marker = h.Paths.SessionFile(cache.Claims, p.SessionID(), "file", filepath.Base(path))
 	default:
 		cfg := h.Config()
@@ -109,16 +115,27 @@ func verifyToolInput(h *hook.Hook) error {
 		text, where, retry = strings.Join(p.Strings(hook.KeyToolInput, cfg.Connectors.CodeFields...), "\n\n"), "the "+tool+" input", "send it again"
 		marker = h.Paths.SessionFile(cache.Claims, p.SessionID(), "tool", tool)
 	}
-	return verifyText(h, text, where, retry, marker, dest)
+	return verifyText(h, text, where, retry, marker)
+}
+
+// noteUnchecked tells Claude that a main-session scratch report, where,
+// goes out with no hook checking its claims: only the user reads it, so the
+// evidence rule goes upfront instead of a gate and its rewrites. A report
+// inside a subagent feeds the main thread, and keeps its check.
+func noteUnchecked(h *hook.Hook, event, where string) {
+	if cfg := h.Config(); cfg == nil || h.RuleDisabled("claims") || cfg.Claims.Off() {
+		return
+	}
+	h.AddContext(event, where+"'s claims aren't checked by a hook; each traces to a tool run this session, or carries a label (skills/kit-rules/reference/evidence.md section 1).")
 }
 
 // verifyText checks text with the hook's own run inside a subagent, and
 // gates it on the claim-checker agent in the main session.
-func verifyText(h *hook.Hook, text, where, retry, marker, dest string) error {
+func verifyText(h *hook.Hook, text, where, retry, marker string) error {
 	if h.Payload.String(hook.KeyAgentID) != "" {
 		return verifyInSubagent(h, text, where, retry, marker)
 	}
-	return gateOnChecker(h, text, where, retry, marker, dest)
+	return gateOnChecker(h, text, where, retry, marker)
 }
 
 // CheckPost is check-size and verify-claims on text, what a Bash command
@@ -137,7 +154,7 @@ func CheckPost(h *hook.Hook, text, where string) error {
 	if decision, _ := h.Decision(); decision == "deny" || p.String(hook.KeyAgentType) == claimChecker {
 		return nil
 	}
-	return verifyText(h, text, where, "send it again", h.Paths.SessionFile(cache.Claims, p.SessionID(), "tool", "Bash"), "")
+	return verifyText(h, text, where, "send it again", h.Paths.SessionFile(cache.Claims, p.SessionID(), "tool", "Bash"))
 }
 
 // CheckBashReports is check-size and verify-claims on each scratch report
@@ -166,6 +183,7 @@ func CheckBashReports(h *hook.Hook, written []string) error {
 			"tool_name": "Write", "tool_input": map[string]any{"file_path": path, "content": string(content)},
 		})
 		sub := subHook(h, "bash-reports", raw)
+		held := len(reasons)
 		for _, c := range []hook.NamedCheck{{Name: "check-size", Check: CheckSize}, {Name: "verify-claims", Check: VerifyClaims}} {
 			if b := hook.RunCheck(sub, c.Name, c.Check); b != nil {
 				reasons = append(reasons, b.Reason)
@@ -174,6 +192,10 @@ func CheckBashReports(h *hook.Hook, written []string) error {
 		}
 		if decision, reason := sub.Decision(); decision == "deny" {
 			reasons = append(reasons, reason)
+		}
+		// The sub-hook's context is dropped, so the note goes on this one.
+		if len(reasons) == held && p.String(hook.KeyAgentID) == "" {
+			noteUnchecked(h, "PostToolUse", filepath.Base(path))
 		}
 	}
 	if len(reasons) == 0 {
@@ -220,11 +242,8 @@ const claimChecker = "kit:claim-checker"
 // decides when a check must run, never the model making the claims;
 // whether Claude acted on the report is left to the transcript. A session
 // that started before the agent was installed can't run it, so a not-found
-// result falls back to the hook's own run. A report file, dest, that a run
-// finished on goes through rewritten once: acting on the checker's report
-// rewords what it flagged, which would otherwise ask for a run again. Once
-// that rewrite lands, a later one goes through the statement diff.
-func gateOnChecker(h *hook.Hook, text, where, retry, marker, dest string) error {
+// result falls back to the hook's own run.
+func gateOnChecker(h *hook.Hook, text, where, retry, marker string) error {
 	cfg := h.Config()
 	if cfg == nil || h.RuleDisabled("claims") || cfg.Claims.Off() || !claims.Declarative(text) {
 		return nil
@@ -236,7 +255,7 @@ func gateOnChecker(h *hook.Hook, text, where, retry, marker, dest string) error 
 	}
 	asked := h.Paths.SessionFile(cache.Claims, h.Payload.SessionID(), "asked")
 	record, _ := os.ReadFile(asked)
-	checked, outcomes, done := checkedStatements(log, string(record))
+	checked, outcomes := checkedStatements(log, string(record))
 	// passed is every exit where the text needs no new run. A claim a
 	// finished run flagged and the text still states, unlabelled, holds it;
 	// else its runs' flags go to the ledger.
@@ -250,9 +269,6 @@ func gateOnChecker(h *hook.Hook, text, where, retry, marker, dest string) error 
 		}
 		ledgerRuns(h, log, string(record), text, where)
 		return nil
-	}
-	if dest != "" && slices.Contains(done, dest) {
-		return passed()
 	}
 	all := claims.Statements(text)
 	var fresh []string
@@ -286,7 +302,7 @@ func gateOnChecker(h *hook.Hook, text, where, retry, marker, dest string) error 
 		for _, s := range fresh {
 			keys = append(keys, statementKey(s))
 		}
-		_ = fsx.Append(asked, []byte(id+"\t"+strings.Join(keys, ",")+"\t"+dest+"\n"))
+		_ = fsx.Append(asked, []byte(id+"\t"+strings.Join(keys, ",")+"\n"))
 	}
 	h.Deny(fmt.Sprintf("the %s agent hasn't checked %s\n", claimChecker, where)+layout.KV("do", ask)+only+"\n"+
 		layout.KV("then", "check or cut each claim it reports, per skills/kit-rules/reference/evidence.md section 1, then "+retry), "claims")
@@ -295,50 +311,21 @@ func gateOnChecker(h *hook.Hook, text, where, retry, marker, dest string) error 
 
 // checkedStatements is the keys of the statements a finished claim-checker
 // run covered: each run record, the session's asked file, names by its id,
-// whose run log shows done. It returns every recorded id's outcome too, and
-// the report files those done runs were asked for.
-func checkedStatements(log checkerLog, record string) ([]string, map[string]int, []string) {
+// whose run log shows done. It returns every recorded id's outcome too.
+func checkedStatements(log checkerLog, record string) ([]string, map[string]int) {
 	lines := readAsked(record)
 	ids := make([]string, 0, len(lines))
 	for _, a := range lines {
 		ids = append(ids, a.id)
 	}
 	outcomes := log.runs(ids)
-	var keys, done []string
+	var keys []string
 	for _, a := range lines {
 		if outcomes[a.id] == checkerDone {
 			keys = append(keys, a.keys...)
-			if a.dest != "" && !log.writtenAfterRun(a.id, a.dest) {
-				done = append(done, a.dest)
-			}
 		}
 	}
-	return keys, outcomes, done
-}
-
-// writtenAfterRun is true when a write to dest finished after the last
-// claim-checker run on id: the rewrite that run covered has landed, so a
-// later one's new sentences need a run of their own.
-func (l checkerLog) writtenAfterRun(id, dest string) bool {
-	at, found := transcript.Pos{}, false
-	for _, run := range transcript.AgentRuns(l.entries, claimChecker) {
-		if run.Status == transcript.RunDone && strings.Contains(run.Prompt, id) {
-			at, found = run.At, true
-		}
-	}
-	if !found {
-		return false
-	}
-	writes := map[string]bool{}
-	for pos, b := range transcript.Blocks(l.entries) {
-		switch {
-		case b.Type == "tool_use" && slices.Contains(transcript.EditTools, b.Name) && b.Path() == dest && pos.After(at):
-			writes[b.ID] = true
-		case b.Type == "tool_result" && writes[b.ToolUseID] && !b.IsError:
-			return true
-		}
-	}
-	return false
+	return keys, outcomes
 }
 
 // checkerLog is the session transcript at path, read once, and the place
