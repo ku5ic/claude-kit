@@ -24,8 +24,8 @@ func TestReplyLength(t *testing.T) {
 			r.Want(t, 0)
 			r.Empty(t)
 		}
-		// The chat ceiling is SessionStart's to state, so no prompt repeats it.
-		prompt("fix the bug").Lacks(t, "Reply ceiling")
+		// Every prompt states the chat ceiling, so the number sits beside it.
+		prompt("fix the bug").Has(t, "Reply ceiling this turn: 40 words")
 		stop(40)
 		prompt("next").Lacks(t, "The last reply")
 		stop(41)
