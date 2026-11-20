@@ -12,6 +12,12 @@
   },
   "types": "./mods/types.d.ts",
   "userConfig": {
+    "precedence": {
+      "type": "boolean",
+      "title": "Kit rules take precedence",
+      "description": "Add a system-prompt section saying the kit's rules and kit: hook context outrank default, mode, and built-in skill instructions where they conflict.",
+      "default": true
+    },
     "subagent_rows": {
       "type": "boolean",
       "title": "Subagent rows",
