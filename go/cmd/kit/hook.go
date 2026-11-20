@@ -68,6 +68,7 @@ var hookChecks = map[string]hook.Check{
 	"review-checks":           hooks.ReviewChecks,
 	"reply-length":            hooks.ReplyLength,
 	"review-report":           hooks.ReviewReport,
+	"review-pick":             hooks.ReviewPick,
 }
 
 // registry is every `kit hook` name. A test holds it and hooks/hooks.json
@@ -75,7 +76,7 @@ var hookChecks = map[string]hook.Check{
 var registry = map[string]hookDef{
 	"bash-dispatch":      {events: []string{"PreToolUse"}, steps: bashSteps()},
 	"guard-dispatch":     {events: []string{"PreToolUse"}, run: hooks.GuardDispatch},
-	"gate-dispatch":      {events: []string{"PreToolUse"}, steps: []string{"rules-gate", "review-report"}},
+	"gate-dispatch":      {events: []string{"PreToolUse"}, steps: []string{"rules-gate", "review-report", "review-pick"}},
 	"rules-gate":         {},
 	"post-edit-dispatch": {events: []string{"PostToolUse"}, steps: []string{"sanitize-output", "format-dispatch", "edit-seen", "plan-tick"}},
 	"edit-seen":          {},
@@ -91,6 +92,7 @@ var registry = map[string]hookDef{
 	"review-checks":           {events: []string{"SubagentStop"}},
 	"reply-length":            {},
 	"review-report":           {},
+	"review-pick":             {},
 	"chat-slop":               {},
 	"stop-checks":             {},
 	"turn-tree":               {},

@@ -74,6 +74,7 @@ var entries = map[string]func(*hook.Hook) int{
 	"guard-plan":        single("guard-plan", GuardPlan),
 	"reply-length":      single("reply-length", ReplyLength),
 	"review-report":     single("review-report", ReviewReport),
+	"review-pick":       single("review-pick", ReviewPick),
 	"review-checks":     single("review-checks", ReviewChecks),
 	"stop-checks":       single("stop-checks", StopChecks),
 	"turn-tree":         single("turn-tree", TurnTree),

@@ -23,4 +23,5 @@ The guards read a command line, not what it does when it runs. A pass means the 
 - A file a background agent changes after Claude's turn ends counts as yours: the next turn starts from it, and no check runs on it.
 - One `kit:plan-critic` run covers every later version of the plan it read.
 - The step pause is an instruction. No hook stops work that runs past it.
+- After a `/code-review`, a Bash command that writes code isn't held until you pick which findings to fix. Edits through Claude's edit tools are.
 - The release workflow's actions on version tags, not commit pins.

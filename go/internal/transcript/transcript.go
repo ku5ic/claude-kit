@@ -89,6 +89,7 @@ type Block struct {
 		FilePath     string `json:"file_path"`
 		NotebookPath string `json:"notebook_path"`
 		Skill        string `json:"skill"`
+		Args         string `json:"args"`          // a Skill call's
 		Command      string `json:"command"`       // a Bash call's
 		SubagentType string `json:"subagent_type"` // an Agent call's
 		Prompt       string `json:"prompt"`        // an Agent call's
