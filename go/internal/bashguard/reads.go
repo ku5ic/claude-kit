@@ -212,12 +212,8 @@ func WriteTargets(cmd, home, cwd string) []string {
 				for _, op := range ops[2:] {
 					add(op)
 				}
-			case name == "sed" && inPlace(args) && len(ops) > 1:
-				// With no -e or -f, the first operand is the script.
-				if !slices.ContainsFunc(args, func(a string) bool { return a == "-e" || a == "-f" }) {
-					ops = ops[1:]
-				}
-				for _, op := range ops {
+			case name == "sed" && inPlace(args):
+				for _, op := range sedFiles(args) {
 					add(op)
 				}
 			case name == "cd" && len(seg.Calls) == 1 && !seg.subshell:
@@ -226,6 +222,38 @@ func WriteTargets(cmd, home, cwd string) []string {
 		}
 	}
 	return out
+}
+
+// sedFiles is the files sed's args name: not a script given with -e,
+// --expression, -f, or --file, nor BSD's empty suffix after a bare -i,
+// nor, with no script flag, the first operand, which is the script.
+func sedFiles(args []string) []string {
+	var files []string
+	scripted, done := false, false
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case done:
+			files = append(files, a)
+		case a == "--":
+			done = true
+		case a == "-e" || a == "--expression" || a == "-f" || a == "--file":
+			scripted = true
+			i++
+		case strings.HasPrefix(a, "--expression=") || strings.HasPrefix(a, "--file=") ||
+			strings.HasPrefix(a, "-e") && len(a) > 2 || strings.HasPrefix(a, "-f") && len(a) > 2:
+			scripted = true
+		case a == "-i" && i+1 < len(args) && args[i+1] == "":
+			i++
+		case strings.HasPrefix(a, "-"):
+		default:
+			files = append(files, a)
+		}
+	}
+	if !scripted && len(files) > 0 {
+		files = files[1:]
+	}
+	return files
 }
 
 // inPlace is true when sed's args edit the file in place: a flag holding i
