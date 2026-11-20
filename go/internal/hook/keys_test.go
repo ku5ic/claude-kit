@@ -22,6 +22,7 @@ var undocumented = map[string]string{
 	KeyInputEdits:        "MultiEdit has no tool_input table in the docs",
 	KeyInputNotebookPath: "NotebookEdit has no tool_input table in the docs",
 	KeyInputSkill:        "Skill has no tool_input table in the docs",
+	KeyInputSubagentType: "no Agent call is among the docs' example payloads",
 	KeyInputMessage:      "SendMessage has no tool_input table in the docs",
 	KeyInputBefore:       "the kit's own, in bash-edits' synthetic payload",
 }

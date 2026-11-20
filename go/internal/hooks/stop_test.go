@@ -293,6 +293,16 @@ func TestStopPlanDone(t *testing.T) {
 		e.turn("Edit", e.plan(done))
 		e.stop(false).Want(t, 2)
 	})
+	t.Run("an edit a guard denied after the review changed no code", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		e.turn("Edit", e.path("a.ts"))
+		e.review()
+		e.finish("<tool-use-id>toolu_r1</tool-use-id>", "completed")
+		e.edit("Edit", e.path("b.ts"), true)
+		e.turn("Edit", e.plan(done))
+		e.stop(false).Want(t, 0)
+	})
 	t.Run("an edit after the review needs a new one", func(t *testing.T) {
 		t.Parallel()
 		e := stopSetup(t)
@@ -936,6 +946,20 @@ func TestReviewPick(t *testing.T) {
 		edit(e, e.plan("## Steps\n"), "").Allowed(t)
 		edit(e, e.path("a.ts"), "a9").Allowed(t)
 		edit(e, filepath.Join(e.tmp, "elsewhere.ts"), "").Allowed(t)
+	})
+	t.Run("it holds launching an agent that edits, not one that only reads", func(t *testing.T) {
+		t.Parallel()
+		e := finished(t)
+		agent := func(kind string) result {
+			return e.k.run("review-pick", map[string]any{"hook_event_name": "PreToolUse", "session_id": "s1", "cwd": e.repo,
+				"transcript_path": e.transcript, "tool_name": "Agent", "tool_input": map[string]any{"subagent_type": kind, "prompt": "fix it"}})
+		}
+		agent("kit:tester").Denied(t)
+		agent("general-purpose").Denied(t)
+		agent("kit:claim-checker").Allowed(t)
+		agent("Explore").Allowed(t)
+		typed(e, "fix the first one")
+		agent("kit:tester").Allowed(t)
 	})
 	t.Run("a --fix review holds nothing, typed or by the Skill tool", func(t *testing.T) {
 		t.Parallel()

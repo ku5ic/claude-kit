@@ -11,15 +11,20 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
-// ReviewPick holds the main thread's code edits from a finished
-// /code-review until the user answers, in a typed prompt or an
-// AskUserQuestion, so no finding is fixed before the user picked it
-// (skills/kit-rules/reference/workflow.md section 4). A --fix review asked
-// for its fixes, and a subagent's edit was started before the review, so
-// neither holds. A Bash write isn't read here.
+// readingAgents are the agents that only read, which a held review lets
+// the main thread launch: the kit's read-only ones and Claude Code's
+// Explore.
+var readingAgents = []string{"kit:gatherer", "kit:researcher", "kit:claim-checker", "kit:plan-critic", "Explore"}
+
+// ReviewPick holds the main thread from a finished /code-review until the
+// user answers, in a typed prompt or an AskUserQuestion, so no finding is
+// fixed before the user picked it (skills/kit-rules/reference/workflow.md
+// section 4): an edit to code, and launching an agent that could make one.
+// A --fix review asked for its fixes, and a subagent already running was
+// started before the review, so neither holds. A Bash write isn't read here.
 func ReviewPick(h *hook.Hook) error {
 	p := h.Payload
-	if p.Err != nil || p.String(hook.KeyAgentID) != "" || !slices.Contains(transcript.EditTools, p.String(hook.KeyToolName)) {
+	if p.Err != nil || p.String(hook.KeyAgentID) != "" {
 		return nil
 	}
 	path, cwd := p.String(hook.KeyTranscriptPath), p.Cwd()
@@ -28,11 +33,20 @@ func ReviewPick(h *hook.Hook) error {
 		return nil
 	}
 	isCode, plans := codeIn(h, root), project.PlanDir(h.Paths, cwd)
-	if target := fsx.Abs(cwd, p.FilePath()); !isCode(target) || fsx.Within(plans, target) {
+	switch tool := p.String(hook.KeyToolName); {
+	case tool == "Agent":
+		if slices.Contains(readingAgents, p.String(hook.KeyInputSubagentType)) {
+			return nil
+		}
+	case slices.Contains(transcript.EditTools, tool):
+		if target := fsx.Abs(cwd, p.FilePath()); !isCode(target) || fsx.Within(plans, target) {
+			return nil
+		}
+	default:
 		return nil
 	}
 	if _, walk := readSession(h, path, root, plans, isCode); walk.HoldFrom > walk.Answered {
-		h.Deny("an edit before the user picked which /code-review findings to fix\n"+
+		h.Deny("an edit, or an agent that could make one, before the user picked which /code-review findings to fix\n"+
 			layout.KV("do", "stop at the review's report and ask which findings to fix, per skills/kit-rules/reference/workflow.md section 4"), "review-pick")
 	}
 	return nil

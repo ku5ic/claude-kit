@@ -91,6 +91,9 @@ type planWalk struct {
 	// from its result, so a review launched beside it in one message
 	// doesn't cover it.
 	CodeEdits map[string]bool `json:"code_edits"`
+	// EditPrev is LastEdit before each pending edit tool's call, put back
+	// when a guard denies it.
+	EditPrev map[string]int `json:"edit_prev"`
 	// HoldFrom is where a finished review that didn't ask for its fixes
 	// landed, and Answered where the user last answered: a typed prompt,
 	// or an AskUserQuestion's result. Asks is the questions with no result
@@ -111,7 +114,7 @@ type planWalk struct {
 }
 
 func newPlanWalk() *planWalk {
-	return &planWalk{LastEdit: -1, LastReview: -1, Started: map[string]int{}, ReviewArrived: -1, ReviewReported: -1, ReportWrites: map[string]int{}, CodeEdits: map[string]bool{},
+	return &planWalk{LastEdit: -1, LastReview: -1, Started: map[string]int{}, ReviewArrived: -1, ReviewReported: -1, ReportWrites: map[string]int{}, CodeEdits: map[string]bool{}, EditPrev: map[string]int{},
 		HoldFrom: -1, Answered: -1, Asks: map[string]bool{}, Fixes: map[string]bool{}}
 }
 
@@ -162,8 +165,15 @@ func (w *planWalk) step(h *hook.Hook, e transcript.Entry, plansDir string, isCod
 			delete(w.ReportWrites, b.ToolUseID)
 		}
 		if w.CodeEdits[b.ToolUseID] {
-			w.LastEdit = max(w.LastEdit, e.Line)
+			// A denied edit tool wrote nothing: its call's bump comes back
+			// off. A failed Bash command may still have written.
+			if prev, ok := w.EditPrev[b.ToolUseID]; ok && b.IsError {
+				w.LastEdit = prev
+			} else {
+				w.LastEdit = max(w.LastEdit, e.Line)
+			}
 			delete(w.CodeEdits, b.ToolUseID)
+			delete(w.EditPrev, b.ToolUseID)
 		}
 	}
 	if e.Type != "assistant" {
@@ -181,6 +191,7 @@ func (w *planWalk) step(h *hook.Hook, e transcript.Entry, plansDir string, isCod
 			if p := b.Path(); fsx.Within(plansDir, p) {
 				w.Ticked = append(w.Ticked, p)
 			} else if isCode(p) {
+				w.EditPrev[b.ID] = w.LastEdit
 				w.LastEdit, w.CodeEdits[b.ID] = e.Line, true
 			}
 		case b.Name == "Bash":
