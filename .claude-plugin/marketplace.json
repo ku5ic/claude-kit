@@ -8,7 +8,7 @@
     {
       "name": "kit",
       "source": "./",
-      "description": "Blocks destructive commands, runs your project's own checks before Claude says done, and starts every session knowing your stack: guard hooks, a formatter and sanitizer, /audit, /write, /pr, /deps and /meta, stack pattern skills, and review agents."
+      "description": "Ship with confidence. Runs your rules as hooks, so Claude Code backs its claims, passes your project's own checks before it says done, and stops for your review after every step. Stack skills load on their own, and 46 commands cover the work around the code: audits, ADRs and RFCs, PR reviews, your review queue, dependency PRs, incident retros and runbooks."
     }
   ]
 }

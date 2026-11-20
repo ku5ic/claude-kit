@@ -106,7 +106,11 @@ func (o outcome) notFound() bool {
 // passes unrun with nothing changed.
 func (r *runner) gate(g enforce.Gate) {
 	if g.Skip != "" {
-		r.skip(g.Label, g.Skip)
+		if g.Settled() {
+			r.skipped(g.Label, g.Skip)
+		} else {
+			r.skip(g.Label, g.Skip)
+		}
 		return
 	}
 	if g.Unchanged != "" {
@@ -149,8 +153,7 @@ func (r *runner) gate(g enforce.Gate) {
 	ran.Body, ran.Files = body, nil
 	switch {
 	case len(o.changed) > 0:
-		_ = enforce.AddMark(r.cacheDir, r.plan.Root, g, enforce.Mark{Label: g.Label, Paths: o.changed, Ref: r.ref})
-		detail := changedLine(o.changed)
+		detail := changedLine(o.changed, enforce.AddMark(r.cacheDir, r.plan.Root, g, enforce.Mark{Label: g.Label, Paths: o.changed, Ref: r.ref}))
 		if o.err != nil {
 			detail += head(o.out)
 		}
@@ -237,8 +240,12 @@ func searchPath(g enforce.Gate) string {
 	return strings.Join(dirs, string(os.PathListSeparator))
 }
 
-// changedLine is the detail under a gate that changed paths.
-func changedLine(paths []string) string {
+// changedLine is the detail under a gate that changed paths, and what
+// became of its mark.
+func changedLine(paths []string, markErr error) string {
+	if markErr != nil {
+		return "  changed: " + strings.Join(paths, ", ") + "; its mark couldn't be saved, so it runs again next time: " + markErr.Error() + "\n"
+	}
 	return "  changed: " + strings.Join(paths, ", ") + "; it won't run again until kit gates reset, and kit gates reset --restore puts them back\n"
 }
 

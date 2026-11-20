@@ -120,8 +120,9 @@ func ReviewChecks(h *hook.Hook) error {
 	notifyReceipt(h, cfg, receipt, nil, "")
 	if res.Fail == 0 {
 		// Only a whole pass lets Stop skip the tree: a known failure must
-		// still block, and a gate the budget cut checked nothing.
-		if snapErr == nil && res.Cut == 0 && !h.DryRun {
+		// still block, and a gate skipped unchecked, the budget's cuts
+		// among them, checked nothing.
+		if snapErr == nil && res.Unchecked == 0 && !h.DryRun {
 			_ = fsx.WriteAtomic(cache.FullGateTree(cacheDir, root), []byte(tree), 0o600)
 		}
 		return nil

@@ -8,10 +8,12 @@ import (
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 	"github.com/ku5ic/claude-kit/go/internal/layout"
+	"github.com/ku5ic/claude-kit/go/internal/transcript"
 	"github.com/ku5ic/claude-kit/go/internal/weaken"
 )
 
@@ -55,8 +57,31 @@ func GuardWeaken(h *hook.Hook) error {
 }
 
 // codeChangedThisTurn is true when the turn changed a code file in path's
-// repo, or when there's no record of its start to tell, which asks nothing.
+// repo. With no record of the turn's start there, the turn's own Edit and
+// Write calls in that repo decide; a Bash change there goes unseen.
 func codeChangedThisTurn(h *hook.Hook, c config.WeakenedChecks, path string) bool {
-	changed, ok := changedThisTurn(h, git.Toplevel(filepath.Dir(path)))
-	return !ok || slices.ContainsFunc(changed, func(p string) bool { return weaken.IsCode(c, p) })
+	root := git.Toplevel(filepath.Dir(path))
+	isCode := func(p string) bool { return weaken.IsCode(c, p) }
+	if changed, ok := changedThisTurn(h, root); ok {
+		return slices.ContainsFunc(changed, isCode)
+	}
+	return slices.ContainsFunc(turnEdits(h), func(p string) bool {
+		return (root == "" || fsx.Within(root, p)) && isCode(p)
+	})
+}
+
+// turnEdits is the file each write tool call of the transcript's current
+// turn targets; none when the transcript can't be read.
+func turnEdits(h *hook.Hook) []string {
+	entries, err := transcript.Load(h.Payload.String(hook.KeyTranscriptPath))
+	if err != nil {
+		return nil
+	}
+	start := 0
+	for i, e := range entries {
+		if e.StartsTurn() {
+			start = i + 1
+		}
+	}
+	return transcript.Edits(entries[start:])
 }

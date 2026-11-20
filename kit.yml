@@ -312,6 +312,12 @@ connectors:
     save, add, set, respond, react, merge, move, delete, remove, trash, batch, generate, execute, use]
   read_verbs: [get, read, search, list, fetch, query, find, view, lookup, resolve, describe, whoami]
   code_fields: [code]
+  # Input fields that name a local file, which get guard-edit's path rules
+  # on the tools of the servers path_servers names, and on any server when
+  # the value starts with ~, /, or ./: a remote server's relative path (a
+  # repo file on GitHub) is no local file.
+  path_fields: [path, file_path, paths, source, destination]
+  path_servers: [filesystem, fs]
 
 # What an AI tool's attribution looks like (go/internal/attribution): a
 # co-author or session trailer, a "Generated with" footer, the robot emoji,
@@ -331,6 +337,7 @@ attribution:
     - '(?:^|[^\w-])(?:AI|LLM)-(?:\w+-)*(?:Session|Assisted|Generated|Model|Agent|Tool)(?:-\w+)*\s*:'
     - '\b(?:generated|created|written|authored|co-authored|made|built|produced|drafted|assisted)\s+(?:with|by|using|via)\s+(?:the\s+help\s+of\s+)?\[?(?:an?\s+)?{tools}'
     - '\x{1F916}'
+    - '(?:--author[=\s]+|user\.(?:name|email)=)["'']?{tools}'
     - '\b(?:claude\.ai|chatgpt\.com|chat\.openai\.com|gemini\.google\.com|g\.co/gemini|copilot\.microsoft\.com|perplexity\.ai|poe\.com|grok\.com|chat\.deepseek\.com|chat\.mistral\.ai)/\S'
 
 # What guard-weaken reads an edit by (go/internal/weaken). An added line
@@ -455,7 +462,15 @@ sensitive_paths:
   - "~/.npmrc"
   - "~/.pypirc"
   - "~/.cargo/credentials"
+  - "~/.cargo/credentials.toml"
   - "~/.gem/credentials"
+  - ".envrc"
+  - "~/.git-credentials"
+  - "~/.kube/config"
+  - "~/.vault-token"
+  - "~/.config/gcloud/"
+  - "~/.azure/"
+  - "~/.terraform.d/credentials.tfrc.json"
 
 # Line cap for the kit's JSONL logs.
 log_max_lines: 10000

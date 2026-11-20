@@ -289,3 +289,11 @@ func TestNewLeavesOutABrokenRule(t *testing.T) {
 		t.Errorf("hits = %v, want [hope-helps]", got)
 	}
 }
+
+// The density note is a fact about the file, with no instruction in it.
+func TestDensityNoteStatesTheScore(t *testing.T) {
+	got := detector(t).DensityNote("notes.md", Result{Score: 4.25})
+	if !strings.HasPrefix(got, "notes.md reads dense with AI-era vocabulary (4.2 tier 3 hits per ") || !strings.HasSuffix(got, "words). Not blocked; the slop-patterns skill has the rewrite.") {
+		t.Errorf("DensityNote = %q", got)
+	}
+}

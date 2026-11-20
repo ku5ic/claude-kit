@@ -71,13 +71,14 @@ Nothing is posted until you run `/pr-publish` on a draft you've read.
 
 ## Meta: the kit and your sessions
 
-| Command             | What it does                                                                              | Use it when                                               |
-| ------------------- | ----------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| `/meta-conventions` | Writes down the conventions a repo follows, as path-scoped rules with a citation for each | Claude keeps missing a repo's unwritten rules             |
-| `/meta-prompt`      | Turns a fuzzy ask into a sharp prompt with context and acceptance criteria                | Before a big task you can't yet state precisely           |
-| `/meta-refresh`     | Checks the skills' sources against current releases and updates their guidance            | A library the skills cover had a major release            |
-| `/meta-retro`       | A retro on Claude Code sessions, one or many, each finding cited to the transcript        | A session went wrong, or the same thing keeps going wrong |
-| `/meta-skill`       | Drafts a pattern skill for a stack from current docs and the repo's precedent             | Your stack has no pattern skill                           |
+| Command             | What it does                                                                                                                                                                                             | Use it when                                                        |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `/meta-conventions` | Writes down the conventions a repo follows, as path-scoped rules with a citation for each                                                                                                                | Claude keeps missing a repo's unwritten rules                      |
+| `/meta-prompt`      | Turns a fuzzy ask into a sharp prompt with context and acceptance criteria                                                                                                                               | Before a big task you can't yet state precisely                    |
+| `/meta-refresh`     | Checks the skills' sources against current releases and updates their guidance                                                                                                                           | A library the skills cover had a major release                     |
+| `/meta-retro`       | A retro on Claude Code sessions, one or many, each finding cited to the transcript                                                                                                                       | A session went wrong, or the same thing keeps going wrong          |
+| `/meta-skill`       | Drafts a pattern skill for a stack from current docs and the repo's precedent                                                                                                                            | Your stack has no pattern skill                                    |
+| `/kit-stats`        | Prints `kit stats` from the kit's logs: blocks, shadow blocks, and skips per rule, and the claims each checker flagged. A mod runs it, with no turn for Claude, and the `kit_stats` setting turns it off | You want to see how often the kit stepped in, or what a rule costs |
 
 ## Others
 

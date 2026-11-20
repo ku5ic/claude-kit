@@ -34,6 +34,7 @@ const (
 	KeyInputPlan         = "tool_input.plan"
 	KeyInputPlanFilePath = "tool_input.planFilePath"
 	KeyInputSkill        = "tool_input.skill"
+	KeyInputSubagentType = "tool_input.subagent_type"
 	KeyInputMessage      = "tool_input.message"
 	// KeyInputBefore is the kit's own: bash-edits' synthetic payload carries
 	// the file as it was before the command.

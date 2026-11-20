@@ -281,3 +281,14 @@ func TestACheckThatChangesFilesBlocksAndIsMarked(t *testing.T) {
 		t.Errorf("a.ts = %q after restore", data)
 	}
 }
+
+// As in the full gate, a Stop check whose mark can't be saved says so.
+func TestACheckWhoseMarkCantBeSavedSaysSo(t *testing.T) {
+	t.Parallel()
+	r := newRepo(t, "repo")
+	r.write("a.ts", "let x\n")
+	testutil.Put(t, filepath.Dir(r.cache), filepath.Base(r.cache), "a file where the cache dir goes")
+	out := r.stop(r.check("lint", "lint", "echo fixed > a.ts", "a.ts"))
+	has(t, out.Detail, "  changed: a.ts; its mark couldn't be saved, so it runs again next time: ")
+	lacks(t, out.Detail, "it won't run again")
+}

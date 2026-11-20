@@ -22,6 +22,9 @@ type command struct {
 	rest   string   // normalized source after the name, to the pipeline's end
 	text   string   // name + rest: what the per-command regexes read
 	alone  bool     // the only command of its pipeline, outside a subshell
+	// assigns are the VAR=value words the command runs with: its own, and
+	// an env wrapper's before its name.
+	assigns []string
 }
 
 func (c *command) block(reason, rule string) error { return c.st.h.Block(reason, rule) }
@@ -102,7 +105,7 @@ var (
 // pagers and editors that write only on a flag. Any other command naming a
 // kit switch gets a prompt, since a write there can turn the kit off.
 var readers = func() map[string]bool {
-	m := maps.Clone(pureReaders)
+	m := maps.Clone(classify.PureReaders)
 	for _, name := range []string{"bat", "less", "more", "file", "sed", "sd"} {
 		m[name] = true
 	}

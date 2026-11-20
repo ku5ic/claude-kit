@@ -143,3 +143,18 @@ func TestSnapshotSeesContentNotIndex(t *testing.T) {
 		t.Errorf("Snapshot touched the real index: %q", staged)
 	}
 }
+
+// A hook's deadline cuts every git call short of it, so git never outlives
+// the hook's own timeout. Not parallel: the deadline is the process's.
+func TestADeadlineCutsAGitCall(t *testing.T) {
+	dir := t.TempDir()
+	git.SetDeadline(time.Now().Add(-time.Second))
+	_, err := git.Output(dir, "--version")
+	git.SetDeadline(time.Time{})
+	if err == nil {
+		t.Error("a git call past the deadline ran")
+	}
+	if _, err := git.Output(dir, "--version"); err != nil {
+		t.Errorf("with no deadline: %v", err)
+	}
+}

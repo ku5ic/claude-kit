@@ -18,8 +18,22 @@ func TestSuggestedSkipsGlobalAndDedupes(t *testing.T) {
 	if want := []string{"javascript-patterns", "react-patterns"}; !slices.Equal(got, want) {
 		t.Errorf("got %q, want %q", got, want)
 	}
-	if (Context{Required: suggested(nil, cfg.GlobalSkills)}).RequiredBlock() != "\n<required-skills>\nBLOCKING REQUIREMENT: invoke the Skill tool for each of these skills NOW, before any other action: fix-sizing\n"+requiredReferences+"\n</required-skills>\n" {
-		t.Error("required block shape changed")
+}
+
+// The required block states where the rules are as a fact, and names the
+// gate's denial only while the gate is on to deny.
+func TestRequiredBlockStatesTheRulesAndTheGate(t *testing.T) {
+	ctx := Context{Required: []string{"kit-rules", "slop-patterns"}}
+	gated := "\n<required-skills>\nThis session's rules are in these skills: kit-rules, slop-patterns. The rules gate denies every other tool call until each loads through the Skill tool.\n" + requiredReferences + "\n</required-skills>\n"
+	if got := ctx.RequiredBlock(true); got != gated {
+		t.Errorf("gated:\n%s\nwant\n%s", got, gated)
+	}
+	ungated := "\n<required-skills>\nThis session's rules are in these skills: kit-rules, slop-patterns. Each loads through the Skill tool.\n" + requiredReferences + "\n</required-skills>\n"
+	if got := ctx.RequiredBlock(false); got != ungated {
+		t.Errorf("ungated:\n%s\nwant\n%s", got, ungated)
+	}
+	if got := (Context{}).RequiredBlock(true); got != "" {
+		t.Errorf("no required skills: %q", got)
 	}
 }
 

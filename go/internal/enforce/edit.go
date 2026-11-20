@@ -95,6 +95,6 @@ func (b *builder) evidenceFixer(files []string) {
 		for _, g := range claiming {
 			names = append(names, strings.TrimSuffix(strings.TrimPrefix(g.Label, "fix ("), ")"))
 		}
-		b.gates = append(b.gates, Gate{Label: "fix", Verdict: "conflict", Skip: "left alone: " + strings.Join(names, " and ") + " each format it"})
+		b.gates = append(b.gates, Gate{Label: "fix", Verdict: verdictConflict, Skip: "left alone: " + strings.Join(names, " and ") + " each format it"})
 	}
 }

@@ -6,6 +6,8 @@ package claims
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -69,21 +71,22 @@ const (
 	textCap     = 40000
 )
 
-// threeWords is three or more words on one line, with no question mark.
-const threeWords = `\pL[\pL\pN'-]*[^\pL\pN?\n]+\pL[\pL\pN'-]*[^\pL\pN?\n]+\pL[^?\n]*?`
+// threeWords is three or more words on one line, with no question mark. A
+// number is a word: "42 tests pass" and "foo.go:12" state counts and places.
+const threeWords = `[\pL\pN][\pL\pN'-]*[^\pL\pN?\n]+[\pL\pN][\pL\pN'-]*[^\pL\pN?\n]+[\pL\pN][^?\n]*?`
 
 var (
 	fence = regexp.MustCompile("(?ms)^\\s*(```|~~~).*?^\\s*(```|~~~)")
 	// statement is three or more words ending a sentence with . or !.
 	statement = regexp.MustCompile(threeWords + `[.!](\s|$)`)
-	// item is a list item or table row of three or more words, which
-	// often ends without punctuation.
-	item = regexp.MustCompile(`(?m)^\s*([-*+]|\d+[.)]|\|)\s*[^?\n]*?` + threeWords + `$`)
+	// item is a list item, table row, or heading of three or more words,
+	// which often ends without punctuation.
+	item = regexp.MustCompile(`(?m)^\s*([-*+]|\d+[.)]|\||#{1,6})\s*[^?\n]*?` + threeWords + `$`)
 )
 
 // Declarative is true when text, outside its code fences, holds a sentence,
-// list item, or table row that states something: questions, code, and a
-// word or two ("Done.") have nothing to verify.
+// list item, table row, or heading that states something: questions, code,
+// and a word or two ("Done.") have nothing to verify.
 func Declarative(text string) bool {
 	prose := fence.ReplaceAllString(text, "")
 	return statement.MatchString(prose) || item.MatchString(prose)
@@ -121,13 +124,35 @@ type Unsupported struct {
 	Check string `json:"check"`
 }
 
+// Paused is Verify's error while the verifier waits out a failed run, so
+// an outage costs one run's timeout, not one per text.
+type Paused struct{ claudecli.Failure }
+
+func (p *Paused) Error() string { return "claims: the verifier is paused after a failed run: " + p.Why }
+
+// verifierKey is the verifier's one key in its cooldown: cfg's command and
+// model, so a changed one runs at once.
+func verifierKey(cfg *config.Config) string {
+	sum := sha256.Sum256([]byte(strings.Join(append(slices.Clone(cfg.Claims.Command), cfg.Claims.Model), "\x00")))
+	return "verifier-" + hex.EncodeToString(sum[:])[:16]
+}
+
 // Verify runs the verifier on text from dir, with the session transcript
 // at transcriptPath (none when "") as its evidence and the agent file under
 // root as its instructions. An error means no verdict; callers fail open
-// on it.
+// on it. A failed run pauses the verifier for claudecli.CooldownPeriod,
+// when Verify returns *Paused without running.
 func Verify(cfg *config.Config, root, cacheDir, dir, text, transcriptPath string) (Verdict, error) {
 	if cfg.Claims.Off() {
 		return Verdict{}, ErrOff
+	}
+	cool, key := claudecli.NewCooldown(cacheDir, "claims"), verifierKey(cfg)
+	sum := sha256.Sum256([]byte(text))
+	textKey := key + "-" + hex.EncodeToString(sum[:])[:16]
+	for _, k := range []string{key, textKey} {
+		if f, ok := cool.Cooling(k, time.Now()); ok {
+			return Verdict{}, &Paused{f}
+		}
 	}
 	var entries []transcript.Entry
 	if transcriptPath != "" {
@@ -145,7 +170,26 @@ func Verify(cfg *config.Config, root, cacheDir, dir, text, transcriptPath string
 		argv = claude(cfg, entries, prompt)
 	}
 	forked := transcriptPath != "" && fsx.IsFile(transcript.ForkSidecar(transcriptPath))
-	return run(cfg, argv, filepath.Join(cacheDir, cache.Guard), dir, evidence(entries, text, forked))
+	v, err := run(cfg, argv, filepath.Join(cacheDir, cache.Guard), dir, evidence(entries, text, forked))
+	// Best effort: unrecorded, the next text runs the verifier again.
+	if err != nil {
+		failed := key
+		if textFailure(err) {
+			failed = textKey
+		}
+		_ = cool.Record(time.Now(), map[string]string{failed: strings.TrimPrefix(err.Error(), "claims: ")}, nil)
+	} else {
+		_ = cool.Record(time.Now(), nil, []string{key, textKey})
+	}
+	return v, err
+}
+
+// textFailure is whether err is a run failing on the text it was given, its
+// budget, its turns, or its time, so only that text waits: the next text
+// may well pass. Anything else is the verifier failing, and pauses all.
+func textFailure(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "timed out") || strings.Contains(msg, "error_max_budget_usd") || strings.Contains(msg, "error_max_turns")
 }
 
 // run runs the verifier command argv from dir on input, the evidence and
@@ -196,10 +240,36 @@ func claude(cfg *config.Config, entries []transcript.Entry, systemPrompt string)
 		"--disable-slash-commands", "--no-session-persistence", "--system-prompt", systemPrompt,
 		"--max-budget-usd", strconv.FormatFloat(cfg.Claims.BudgetUSD, 'f', -1, 64),
 		"--output-format", "json", "--json-schema", schema}
+	if denied := denyReads(cfg.SensitivePaths); len(denied) > 0 {
+		argv = append(argv, "--disallowedTools", strings.Join(denied, ","))
+	}
 	if cfg.Claims.Model != "" {
 		argv = append(argv, "--model", cfg.Claims.Model)
 	}
 	return argv
+}
+
+// denyReads is a Read deny rule per sensitive_paths entry, so neither a
+// claim nor an instruction injected into the evidence gets the verifier to
+// read a credential file; a Read deny reaches Grep and Glob too
+// (code.claude.com/docs/en/permissions). A "~/" entry is under home, a
+// directory when it ends in "/"; any other is a basename at any depth from
+// the filesystem root, "//", since a bare "**/" covers only the cwd. A
+// deny can't be narrowed, so a "!" exception is dropped.
+func denyReads(entries []string) []string {
+	var rules []string
+	for _, e := range entries {
+		switch {
+		case e == "" || strings.HasPrefix(e, "!"):
+		case strings.HasPrefix(e, "~/") && strings.HasSuffix(e, "/"):
+			rules = append(rules, "Read("+e+"**)")
+		case strings.HasPrefix(e, "~/"):
+			rules = append(rules, "Read("+e+")")
+		default:
+			rules = append(rules, "Read(//**/"+e+")")
+		}
+	}
+	return rules
 }
 
 const schema = `{"type":"object","additionalProperties":false,"required":["ok","unsupported"],"properties":{` +

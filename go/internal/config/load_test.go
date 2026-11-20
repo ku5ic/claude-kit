@@ -485,4 +485,10 @@ func TestSessionFile(t *testing.T) {
 			t.Errorf("session %q: %q, want none", bad, got)
 		}
 	}
+	// A part from a payload, a tool name or an agent id, is held to the same.
+	for _, bad := range []string{"../../x", `a\b`, "mcp/x"} {
+		if got := p.SessionFile("claims", "s1", "tool", bad); got != "" {
+			t.Errorf("part %q: %q, want none", bad, got)
+		}
+	}
 }

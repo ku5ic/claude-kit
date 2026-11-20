@@ -51,14 +51,13 @@ func writeTurn(marker string, t turn) {
 
 // checkClaims stands in for verify-claims on chat replies: said before the
 // reply, since a check at Stop would show the reply twice.
-const checkClaims = "Before replying, check each claim with a tool this session, or cut it, per skills/kit-rules/reference/evidence.md section 1. Never state a guess as fact."
+const checkClaims = "In this repo, a claim stands only when a tool checked it this session, and an idea offered as an idea carries a label (skills/kit-rules/reference/evidence.md section 1)."
 
 // ReplyLength holds chat replies to the word ceilings in kit.yml
 // reply_limits (skills/kit-rules/reference/output.md section 0), silently: on UserPromptSubmit it
 // picks the turn's ceiling from the prompt and records it. In context the
-// user never sees, it says a ceiling other than the chat one, which
-// SessionStart states (chatCeiling), and a correction when the last reply
-// ran over. It also carries checkClaims, unless claims is in
+// user never sees, it says the turn's ceiling, the chat one too, and a
+// correction when the last reply ran over. It also carries checkClaims, unless claims is in
 // disabled_rules. At Stop it only measures: a Stop runs after the reply is
 // on screen, so a block would show it twice.
 func ReplyLength(h *hook.Hook) error {
@@ -79,24 +78,26 @@ func ReplyLength(h *hook.Hook) error {
 		writeTurn(marker, t)
 		var lines []string
 		if last.OverWords > 0 {
-			lines = append(lines, fmt.Sprintf("Your last reply ran %d words against a %d-word ceiling: run section 0's cut test before sending this one.", last.OverWords, last.OverLimit))
+			lines = append(lines, fmt.Sprintf("The last reply ran %d words against a %d-word ceiling (skills/kit-rules/reference/output.md section 0).", last.OverWords, last.OverLimit))
 		}
+		// The chat ceiling too, though SessionStart states it: deep in a
+		// session that line is far from the reply.
 		switch {
-		case t == turn{Limit: l.Chat}:
 		case t.Limit > 0:
 			counted := "fenced code excluded"
 			if t.All {
 				counted = "code included"
 			}
 			lines = append(lines, fmt.Sprintf("Reply ceiling this turn: %d words, %s (skills/kit-rules/reference/output.md section 0).", t.Limit, counted))
-		default:
+		case l.Chat > 0:
 			lines = append(lines, "No reply ceiling this turn.")
 		}
 		if !h.RuleDisabled("claims") {
 			lines = append(lines, checkClaims)
 		}
-		if len(lines) > 0 {
-			h.AddContext("UserPromptSubmit", strings.Join(lines, "\n"))
+		// Each line is its own context, so each gets the label.
+		for _, line := range lines {
+			h.AddContext("UserPromptSubmit", line)
 		}
 	case "Stop":
 		t := readTurn(marker, turn{Limit: l.Chat})

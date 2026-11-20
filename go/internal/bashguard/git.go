@@ -17,7 +17,8 @@ var leaseInstead = "\n" + layout.KV("do", "use --force-with-lease if you must")
 // git checks a git command: --no-verify on any subcommand that runs hooks,
 // the subcommand's own check from gitChecks, and a tree-wide discard.
 func (c *command) git() error {
-	sub, args, dir := classify.GitSubcommand(c.values())
+	words := c.values()
+	sub, args, dir := classify.GitSubcommand(words)
 	switch sub {
 	case "commit", "push", "merge", "rebase":
 		// git takes any unambiguous prefix: --no-verif is --no-verify.
@@ -26,6 +27,14 @@ func (c *command) git() error {
 				return err
 			}
 		}
+		if hooksOff(words[:max(0, len(words)-len(args)-1)]) || hooksOffByEnv(append(slices.Clone(c.assigns), c.st.setVars()...)) {
+			if err := c.block("core.hooksPath set on the command line skips the repo's hooks, as --no-verify does", "git-no-verify"); err != nil {
+				return err
+			}
+		}
+	}
+	if reason := historyLoss(sub, args); reason != "" {
+		c.st.ask(reason)
 	}
 	if check, ok := gitChecks[sub]; ok {
 		if err := check(c, args, dir); err != nil {
@@ -36,6 +45,71 @@ func (c *command) git() error {
 		return c.block("tree-wide discard of working-tree changes\n"+layout.KV("do", "restore individual files explicitly"), "git-tree-discard")
 	}
 	return nil
+}
+
+// hooksOff is true when git's own options, the words before its
+// subcommand, point core.hooksPath anywhere: -c core.hooksPath=x or
+// --config-env=core.hooksPath=VAR. A config key's case doesn't matter.
+func hooksOff(globals []string) bool {
+	for i, g := range globals {
+		var setting string
+		switch {
+		case (g == "-c" || g == "--config-env") && i+1 < len(globals):
+			setting = globals[i+1]
+		case strings.HasPrefix(g, "--config-env="):
+			setting = strings.TrimPrefix(g, "--config-env=")
+		case strings.HasPrefix(g, "-c"):
+			setting = g[2:]
+		}
+		if key, _, ok := strings.Cut(setting, "="); ok && strings.EqualFold(key, "core.hooksPath") {
+			return true
+		}
+	}
+	return false
+}
+
+// hooksOffByEnv is true when assigns, the VAR=value words a git command runs
+// with, its own and the command's earlier ones, point core.hooksPath anywhere, as -c does: a GIT_CONFIG_KEY_<n>
+// naming it, or GIT_CONFIG_PARAMETERS holding it. A config key's case
+// doesn't matter.
+func hooksOffByEnv(assigns []string) bool {
+	return slices.ContainsFunc(assigns, func(a string) bool {
+		name, value, _ := strings.Cut(a, "=")
+		switch {
+		case strings.HasPrefix(name, "GIT_CONFIG_KEY_"):
+			return strings.EqualFold(value, "core.hooksPath")
+		case name == "GIT_CONFIG_PARAMETERS":
+			return strings.Contains(strings.ToLower(value), "core.hookspath")
+		}
+		return false
+	})
+}
+
+// historyLoss is the ask reason for a git command that drops history git
+// can't bring back, "" for any other.
+func historyLoss(sub string, args []string) string {
+	first := ""
+	if ops := nonOptions(args); len(ops) > 0 {
+		first = ops[0]
+	}
+	has := func(prefixes ...string) bool {
+		return slices.ContainsFunc(args, func(a string) bool {
+			return slices.ContainsFunc(prefixes, func(p string) bool { return strings.HasPrefix(a, p) })
+		})
+	}
+	switch {
+	case sub == "stash" && first == "clear":
+		return "git stash clear deletes every stash, and git keeps nothing to bring them back; confirm"
+	case sub == "filter-branch":
+		return "git filter-branch rewrites every commit it touches; confirm"
+	case sub == "reflog" && (first == "delete" || first == "expire" && has("--expire=now", "--expire=all", "--expire-unreachable=now", "--expire-unreachable=all")):
+		return "git reflog " + first + " drops the entries that recover lost commits; confirm"
+	case sub == "gc" && has("--prune=now", "--prune=all"):
+		return "git gc --prune=now deletes unreachable commits at once, with no grace period; confirm"
+	case sub == "checkout" && has("-f", "--force"):
+		return "git checkout --force discards uncommitted changes in the files it switches; confirm"
+	}
+	return ""
 }
 
 // treeDiscard is true for a git restore or checkout of a pathspec naming

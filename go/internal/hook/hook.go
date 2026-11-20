@@ -23,7 +23,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 	"github.com/ku5ic/claude-kit/go/internal/layout"
@@ -131,10 +133,10 @@ func (p *Payload) Edits() []Edit {
 	return nil
 }
 
-// FilePath is the tool's target file; Read, Edit, Write, and MultiEdit all
-// send it as file_path.
+// FilePath is the tool's target file: file_path from Read, Edit, Write, and
+// MultiEdit, notebook_path from NotebookEdit.
 func (p *Payload) FilePath() string {
-	return p.String(KeyInputFilePath)
+	return cmp.Or(p.String(KeyInputFilePath), p.String(KeyInputNotebookPath))
 }
 
 // Blocked ends a check with exit 2. Returned, not panicked, so a check reads
@@ -163,6 +165,7 @@ type Hook struct {
 	context  string // printed after a block reason, e.g. "Path: <path>"
 	decision string // the strongest Decide so far; Run prints it once
 	reason   string
+	asks     []string       // each distinct ask reason, joined into reason
 	input    map[string]any // a PreToolUse tool input replacing the one sent
 	// What checks add for Run to print: context for Claude on event,
 	// notices for the user, plain text.
@@ -183,7 +186,9 @@ func (h *Hook) Config() *config.Config {
 		if err == nil {
 			h.cfg = cfg
 		} else {
-			h.warnings = append(h.warnings, baseNotLoaded(h.Paths.Base, warnings, err))
+			w := baseNotLoaded(h.Paths.Base, warnings, err)
+			h.warnings = append(h.warnings, w)
+			h.failedOpen(cmp.Or(h.Name, "config"), w.File+": "+w.Err.Error())
 		}
 	}
 	return h.cfg
@@ -218,6 +223,13 @@ func (h *Hook) SetContext(context string) { h.context = context }
 func (h *Hook) RuleDisabled(rule string) bool {
 	cfg := h.Config()
 	return cfg != nil && slices.Contains(cfg.DisabledRules, rule)
+}
+
+// RuleEnforced reports whether rule blocks when it matches: neither disabled
+// nor shadowed, the two that letThrough passes.
+func (h *Hook) RuleEnforced(rule string) bool {
+	cfg := h.Config()
+	return cfg != nil && !slices.Contains(cfg.DisabledRules, rule) && !slices.Contains(cfg.ShadowRules, rule)
 }
 
 // Block returns a *Blocked for rule, logging it to guards.jsonl. A rule
@@ -317,15 +329,16 @@ func (h *Hook) logBlock(event, rule string) {
 
 // Decide records a PreToolUse permission decision (allow, ask, or deny).
 // Several checks in one run may decide: deny outranks ask, ask outranks
-// allow, and asks join their reasons. Run prints the result once, since
+// allow, and asks join their reasons, each once. Run prints the result once, since
 // stdout takes one JSON object.
 func (h *Hook) Decide(decision, reason string) {
 	switch {
 	case h.decision == "deny":
 	case h.decision == "" || decision == "deny" || decision == "ask" && h.decision == "allow":
-		h.decision, h.reason = decision, reason
-	case decision == "ask" && h.decision == "ask":
-		h.reason += "; " + reason
+		h.decision, h.reason, h.asks = decision, reason, []string{reason}
+	case decision == "ask" && h.decision == "ask" && !slices.Contains(h.asks, reason):
+		h.asks = append(h.asks, reason)
+		h.reason = strings.Join(h.asks, "; ")
 	}
 }
 
@@ -340,7 +353,7 @@ func (h *Hook) Decision() (decision, reason string) { return h.decision, h.reaso
 // AddContext adds text for Claude on event.
 func (h *Hook) AddContext(event, text string) {
 	h.event = event
-	h.contexts = append(h.contexts, text)
+	h.contexts = append(h.contexts, labelled(text))
 }
 
 // Notify adds a message for the user.
@@ -348,7 +361,22 @@ func (h *Hook) Notify(text string) { h.notices = append(h.notices, text) }
 
 // Print adds plain text, which SessionStart and UserPromptSubmit take as
 // context for Claude.
-func (h *Hook) Print(text string) { h.plain.WriteString(text) }
+func (h *Hook) Print(text string) { h.plain.WriteString(labelled(text)) }
+
+// contextLabel opens every text a check adds for Claude. Claude Code puts
+// the hook's name ahead of it, so the label tells the kit's context from the
+// harness's; a block keeps its own `kit <area>: BLOCKED` headline.
+const contextLabel = "kit: "
+
+// labelled is text with contextLabel at its start, once, and its leading
+// newlines dropped; empty text stays empty.
+func labelled(text string) string {
+	text = strings.TrimLeft(text, "\n")
+	if text == "" || strings.HasPrefix(text, contextLabel) {
+		return text
+	}
+	return contextLabel + text
+}
 
 // flush prints what the run's checks added, once, since stdout takes one
 // JSON object: block, a block's reason, with the notices; else a permission
@@ -452,13 +480,9 @@ type Check func(*Hook) error
 func RunCheck(h *Hook, name string, check Check) (blocked *Blocked) {
 	saved := h.Name
 	h.Name = name
-	failOpen := func(cause any) {
-		FailOpen(h.Stderr, name, cause)
-		h.Log(kitlog.Guards, "fail-open", "error", fmt.Sprint(cause))
-	}
 	defer func() {
 		if r := recover(); r != nil {
-			failOpen(r)
+			h.failedOpen(name, r)
 			blocked = nil
 		}
 		h.Name = saved
@@ -470,8 +494,32 @@ func RunCheck(h *Hook, name string, check Check) (blocked *Blocked) {
 	if b, ok := errors.AsType[*Blocked](err); ok {
 		return b
 	}
-	failOpen(err)
+	h.failedOpen(name, err)
 	return nil
+}
+
+// failedOpen reports a check that let the call through because cause made
+// it fail: to stderr and guards.jsonl each time, and to the user once a
+// session, so a guard that stopped working doesn't go unseen. With no
+// session to mark, the user hears of each one.
+func (h *Hook) failedOpen(name string, cause any) {
+	FailOpen(h.Stderr, name, cause)
+	h.Log(kitlog.Guards, "fail-open", "error", fmt.Sprint(cause))
+	var marker string
+	if h.Payload != nil {
+		marker = h.Paths.SessionFile(cache.FailOpen, h.Payload.SessionID())
+	}
+	if marker != "" && fsx.IsFile(marker) {
+		return
+	}
+	notice := fmt.Sprintf("kit %s: FAILED OPEN, the call went through unchecked: %v", name, cause)
+	if marker != "" {
+		notice += "\nlater ones this session go to " + h.Paths.LogFile(kitlog.Guards) + " only"
+		if !h.DryRun {
+			_ = fsx.WriteAtomic(marker, nil, 0o600)
+		}
+	}
+	h.Notify(notice)
 }
 
 // Run executes checks in order against one payload read, the dispatcher

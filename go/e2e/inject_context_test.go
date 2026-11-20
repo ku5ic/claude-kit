@@ -124,7 +124,7 @@ func TestInjectContext(t *testing.T) {
 
 		r = e.run("s3")
 		r.Want(t, 0)
-		r.Has(t, "\npackage-manager: pnpm (pnpm-lock.yaml)\n", "\nrun-checks runs:\n  turbo run lint\n", "\nguidance: ")
+		r.Has(t, "\npackage-manager: pnpm (pnpm-lock.yaml)\n", "\nrun-checks runs:\n  turbo run lint\n", "\nguidance: The commands above are the project's own, and each directory's scripts run through the package manager <repo-context> names for it.\n")
 		r.Lacks(t, "unclassified:")
 	})
 }

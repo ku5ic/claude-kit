@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -61,12 +62,25 @@ func ledgerPending(h *hook.Hook, marker, where, text string) {
 	}
 }
 
-// ledgerRuns logs the flags of each finished claim-checker run on text, or
-// on an earlier version that shares a statement with it, once per run.
-func ledgerRuns(h *hook.Hook, log checkerLog, record, text, where string) {
-	if h.DryRun {
-		return
-	}
+// coveringRuns is each finished claim-checker run, with a reply, on text
+// or on an earlier version that shares a statement with it.
+func coveringRuns(log checkerLog, record, text string) []transcript.Run {
+	ids := coveringIDs(record, text)
+	return slices.DeleteFunc(log.answered(), func(run transcript.Run) bool {
+		return !slices.ContainsFunc(ids, func(id string) bool { return strings.Contains(run.Prompt, id) })
+	})
+}
+
+// answered is each finished claim-checker run with a reply.
+func (l checkerLog) answered() []transcript.Run {
+	return slices.DeleteFunc(transcript.AgentRuns(l.entries, claimChecker), func(run transcript.Run) bool {
+		return run.Status != transcript.RunDone || run.Result == ""
+	})
+}
+
+// coveringIDs is the claim-check ids the session's asked record holds for
+// a statement of text.
+func coveringIDs(record, text string) []string {
 	keys := map[string]bool{}
 	for _, s := range claims.Statements(text) {
 		keys[statementKey(s)] = true
@@ -77,12 +91,68 @@ func ledgerRuns(h *hook.Hook, log checkerLog, record, text, where string) {
 			ids = append(ids, a.id)
 		}
 	}
+	return ids
+}
+
+// latestRuns is, per claim-check id covering text, the last finished run
+// asked about it, and those ids: a rerun on an id, after Claude ran the
+// checks it named, replaces what the earlier run flagged.
+func latestRuns(log checkerLog, record, text string) ([]transcript.Run, []string) {
+	ids := coveringIDs(record, text)
+	last := map[string]transcript.Run{}
+	for _, run := range log.answered() {
+		for _, id := range ids {
+			if strings.Contains(run.Prompt, id) {
+				last[id] = run
+			}
+		}
+	}
+	var runs []transcript.Run
+	var asked []string
+	for _, id := range ids {
+		if run, ok := last[id]; ok && !slices.ContainsFunc(runs, func(r transcript.Run) bool { return r.At == run.At }) {
+			runs, asked = append(runs, run), append(asked, id)
+		}
+	}
+	return runs, asked
+}
+
+// evidenceLabel marks a statement offered as an idea, not a fact, per
+// skills/kit-rules/reference/evidence.md section 1: likely, a hypothesis,
+// or a test not run.
+var evidenceLabel = regexp.MustCompile(`(?i)\b(?:likely|hypothesis|not run)\b`)
+
+// stillStated is each claim runs flagged that text still states in a
+// statement with no evidence label, with the check the run named for it.
+func stillStated(runs []transcript.Run, text string) []string {
+	statements := slices.DeleteFunc(claims.Statements(text), evidenceLabel.MatchString)
+	var out []string
+	for _, run := range runs {
+		for line := range strings.Lines(run.Result) {
+			c := stats.Flagged(line)
+			if len(c) != 1 || !stats.Kept(c[0], statements) {
+				continue
+			}
+			_, check, _ := strings.Cut(line, " -> ")
+			if item := c[0] + " -> " + strings.TrimSpace(check); !slices.Contains(out, item) {
+				out = append(out, item)
+			}
+		}
+	}
+	return out
+}
+
+// ledgerRuns logs the flags of each finished claim-checker run on text, or
+// on an earlier version that shares a statement with it, once per run.
+func ledgerRuns(h *hook.Hook, log checkerLog, record, text, where string) {
+	if h.DryRun {
+		return
+	}
 	done := h.Paths.SessionFile(cache.Claims, h.Payload.SessionID(), "ledgered")
 	seen, _ := os.ReadFile(done)
-	for _, run := range transcript.AgentRuns(log.entries, claimChecker) {
+	for _, run := range coveringRuns(log, record, text) {
 		at := fmt.Sprintf("%d:%d", run.At.Entry, run.At.Block)
-		if run.Status != transcript.RunDone || run.Result == "" || ledgered(seen, at) ||
-			!slices.ContainsFunc(ids, func(id string) bool { return strings.Contains(run.Prompt, id) }) {
+		if ledgered(seen, at) {
 			continue
 		}
 		_ = fsx.Append(done, []byte(at+"\n"))
@@ -115,22 +185,22 @@ func agentModel(h *hook.Hook) string {
 	return ""
 }
 
-// asked is one line of the session's asked file: a claim-check id, the
-// statement keys it covers, and the report file it was asked for.
+// asked is one line of the session's asked file: a claim-check id and the
+// statement keys it covers.
 type asked struct {
 	id   string
 	keys []string
-	dest string
 }
 
-// readAsked is the asked file's lines, the first for each id, in order.
+// readAsked is the asked file's lines, the first for each id, in order. A
+// line from an earlier build carries a third field, a report path, ignored.
 func readAsked(record string) []asked {
 	var out []asked
 	for line := range strings.Lines(record) {
 		id, rest, ok := strings.Cut(strings.TrimRight(line, "\n"), "\t")
-		keys, dest, _ := strings.Cut(rest, "\t")
+		keys, _, _ := strings.Cut(rest, "\t")
 		if ok && !slices.ContainsFunc(out, func(a asked) bool { return a.id == id }) {
-			out = append(out, asked{id, strings.Split(keys, ","), dest})
+			out = append(out, asked{id, strings.Split(keys, ",")})
 		}
 	}
 	return out

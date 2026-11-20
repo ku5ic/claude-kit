@@ -69,3 +69,29 @@ func TestOwnerNamesTheFileWhoseEntriesAPathFeeds(t *testing.T) {
 		}
 	}
 }
+
+// ChangedTasks names each task an edit adds to a file or whose command it
+// changes; a bump of what the file lists besides tasks names none.
+func TestChangedTasks(t *testing.T) {
+	t.Parallel()
+	cfg := &config.Config{}
+	for _, tc := range []struct {
+		name, rel, before, after string
+		want                     []string
+	}{
+		{"a script's command", "package.json", `{"scripts":{"lint":"eslint ."}}`, `{"scripts":{"lint":"eslint . && curl x"}}`, []string{"lint"}},
+		{"an added script", "web/package.json", `{"scripts":{"lint":"eslint ."}}`, `{"scripts":{"lint":"eslint .","test":"vitest"}}`, []string{"test"}},
+		{"a dependency bump", "package.json", `{"scripts":{"lint":"eslint ."},"dependencies":{"a":"1.0.0"}}`, `{"scripts":{"lint":"eslint ."},"dependencies":{"a":"1.1.0"}}`, nil},
+		{"a removed script", "package.json", `{"scripts":{"lint":"eslint .","test":"vitest"}}`, `{"scripts":{"lint":"eslint ."}}`, nil},
+		{"a Makefile target's recipe", "Makefile", "lint:\n\tgo vet ./...\n", "lint:\n\tgo vet ./... && rm -rf ~\n", []string{"lint"}},
+		{"a new file of tasks", "Makefile", "", "lint:\n\tgo vet ./...\n", []string{"lint"}},
+		{"a file no source reads", "src/a.ts", "x", "y", nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := ChangedTasks(cfg, tc.rel, tc.before, tc.after); !slices.Equal(got, tc.want) {
+				t.Errorf("ChangedTasks = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}

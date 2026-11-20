@@ -150,7 +150,9 @@ func toolingOf(out string) string {
 	var block []string
 	in := false
 	for l := range strings.SplitSeq(out, "\n") {
-		if l == "<tooling>" {
+		// The block opens the output, behind the kit: label, when no repo
+		// context comes before it.
+		if strings.TrimPrefix(l, "kit: ") == "<tooling>" {
 			in = true
 		}
 		if in {
@@ -208,7 +210,19 @@ func TestInjectContext(t *testing.T) {
 		e.writeCache("root: "+e.root, "js: yes")
 		r := e.inject("s1", "")
 		r.Want(t, 0)
-		r.Has(t, "<required-skills>", "fix-sizing", "context-gathering")
+		r.Has(t, "<required-skills>", "fix-sizing", "context-gathering", "The rules gate denies every other tool call")
+	})
+	t.Run("<required-skills> names no gate denial while the gate is off or shadowed", func(t *testing.T) {
+		t.Parallel()
+		for _, key := range []string{"disabled_rules", "shadow_rules"} {
+			e := contextSetup(t)
+			e.kitYML("global_skills: [fix-sizing]\n" + key + ": [rules-gate]\nskill_triggers: {}\nstacks: {}\n")
+			e.writeCache("root: "+e.root, "js: yes")
+			r := e.inject("s1", "")
+			r.Want(t, 0)
+			r.Has(t, "fix-sizing. Each loads through the Skill tool.")
+			r.Lacks(t, "rules gate")
+		}
 	})
 	t.Run("the chat reply ceiling is stated once, unless it's off", func(t *testing.T) {
 		t.Parallel()

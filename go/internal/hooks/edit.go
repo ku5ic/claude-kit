@@ -21,6 +21,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 	"github.com/ku5ic/claude-kit/go/internal/layout"
 	"github.com/ku5ic/claude-kit/go/internal/project"
+	"github.com/ku5ic/claude-kit/go/internal/sources"
 	"github.com/ku5ic/claude-kit/go/internal/stackctx"
 )
 
@@ -48,11 +49,29 @@ func GuardEdit(h *hook.Hook) error {
 	if path == "" {
 		return nil
 	}
-	h.SetContext(layout.KV("path", path))
+	return guardPath(h, cfg, tool, path, tool == "Read")
+}
 
+// GuardWrites gives each path a Bash command writes the path rules an Edit
+// gets. bashguard finds the paths; the two meet in cmd/kit.
+func GuardWrites(h *hook.Hook, paths []string) error {
+	cfg := cmp.Or(h.Config(), &config.Config{})
+	for _, p := range paths {
+		if err := guardPath(h, cfg, "Bash", p, false); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// guardPath is guard-edit's rules for one path tool reads, or else writes:
+// a credential file blocks either way, and a write to a lockfile, .git, an
+// rc file, a CI workflow, or a kit switch blocks or asks.
+func guardPath(h *hook.Hook, cfg *config.Config, tool, path string, reading bool) error {
+	h.SetContext(layout.KV("path", path))
 	if guard.IsSensitive(cfg, h.Home, path) {
 		reason, rule := "writing a credential or key file is not permitted", "sensitive-write"
-		if tool == "Read" {
+		if reading {
 			reason, rule = "reading a credential or key file is not permitted", "sensitive-read"
 		}
 		if err := h.Block(reason, rule); err != nil {
@@ -61,7 +80,7 @@ func GuardEdit(h *hook.Hook) error {
 	}
 
 	// Everything below guards writes only.
-	if tool == "Read" {
+	if reading {
 		return nil
 	}
 	if guard.IsGuardedLockfile(cfg, path) && !project.IsScratch(h.Paths, path) {
@@ -81,6 +100,8 @@ func GuardEdit(h *hook.Hook) error {
 	}
 	if ciWorkflows.MatchString(path) {
 		h.Decide("ask", "this is a CI workflow, which changes what runs on every push; confirm the change")
+	} else if tasks := gateTasks(h, cfg, path); len(tasks) > 0 {
+		h.Decide("ask", "this edit changes what kit's gates run at Stop and in the full gate, with no permission prompt: "+strings.Join(tasks, ", ")+"; confirm the change")
 	}
 	if what := guard.KitSwitch(h.Paths, h.Payload.Cwd(), path); what != "" {
 		h.Decide("ask", guard.KitSwitchAsk(what))
@@ -186,6 +207,30 @@ func newRootArtifact(cfg *config.Config, path string) bool {
 	return dir == git.Toplevel(dir)
 }
 
+// gateTasks is each task, as "file: name", that this edit of path adds to
+// a file the gates read, or gives another command. A Bash write has no
+// content to compare, so it names none.
+func gateTasks(h *hook.Hook, cfg *config.Config, path string) []string {
+	dir := fsx.PhysicalPath(filepath.Dir(path))
+	root := git.Toplevel(dir)
+	if root == "" {
+		return nil
+	}
+	rel, err := filepath.Rel(root, filepath.Join(dir, filepath.Base(path)))
+	if err != nil || !sources.Reads(rel) {
+		return nil
+	}
+	before, after, ok := written(h.Payload, path)
+	if !ok {
+		return nil
+	}
+	var out []string
+	for _, name := range sources.ChangedTasks(cfg, rel, before, after) {
+		out = append(out, filepath.ToSlash(rel)+": "+name)
+	}
+	return out
+}
+
 // GuardSkills blocks edits of mapped file types until the patterns skill
 // skill_file_map requires is loaded this session: one extra round trip per
 // skill set per session, by design. Reads are never gated.
@@ -241,7 +286,7 @@ func notLoaded(h *hook.Hook, session string, toCheck []string, marker func(strin
 	if err != nil {
 		return nil
 	}
-	missing := notIn(loaded, toCheck)
+	missing := notIn(h, loaded, toCheck)
 	for _, skill := range toCheck {
 		if !slices.Contains(missing, skill) {
 			_ = fsx.WriteAtomic(marker(skill), nil, 0o644)
@@ -295,8 +340,8 @@ var contentChecks = []hook.NamedCheck{
 	{Name: "guard-imports", Check: GuardImports}, {Name: "guard-tokens", Check: GuardTokens},
 }
 
-// filePathTools are transcript.EditTools minus NotebookEdit: Payload.FilePath
-// reads only file_path, and NotebookEdit sends notebook_path.
+// filePathTools are transcript.EditTools minus NotebookEdit, the tools
+// whose new text written reads; a notebook cell gets the path rules alone.
 var filePathTools = []string{"Edit", "Write", "MultiEdit"}
 
 // GuardDispatch runs guard-edit's, guard-slop's, guard-weaken's,

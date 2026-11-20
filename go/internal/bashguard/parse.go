@@ -5,6 +5,7 @@ package bashguard
 
 import (
 	"errors"
+	"github.com/ku5ic/claude-kit/go/internal/classify"
 	"regexp"
 	"slices"
 	"strings"
@@ -231,9 +232,7 @@ func (c *collector) stmt(src string, s *syntax.Stmt) {
 		// A compound command: its own statements, and any substitution in
 		// its words (for items, case subjects, [[ ]] operands).
 		c.inner(src, s.Cmd)
-		for _, r := range s.Redirs {
-			c.inner(src, r)
-		}
+		c.compoundRedirs(src, s)
 		return
 	}
 
@@ -250,11 +249,9 @@ func (c *collector) stmt(src string, s *syntax.Stmt) {
 		}
 		if !ok {
 			// ( ... ) or { ... } inside a pipeline: its statements and its
-			// redirects' substitutions are segments of their own.
+			// redirects are segments of their own.
 			c.inner(src, p.Cmd)
-			for _, r := range p.Redirs {
-				c.inner(src, r)
-			}
+			c.compoundRedirs(src, p)
 			continue
 		}
 		seg.Calls = append(seg.Calls, c.call(src, p, call))
@@ -263,6 +260,17 @@ func (c *collector) stmt(src string, s *syntax.Stmt) {
 		c.segs = append(c.segs, seg)
 	}
 	c.shellHeredocs(seg)
+}
+
+// compoundRedirs is a compound command's own redirects ({ cat; } < .env,
+// done > f) as a call with no words in a segment of its own, the shape a
+// redirect alone has, so each gets the same read and write checks.
+func (c *collector) compoundRedirs(src string, s *syntax.Stmt) {
+	if len(s.Redirs) == 0 {
+		return
+	}
+	c.segs = append(c.segs, Segment{src: src, end: segmentEnd(s), subshell: c.subshell > 0, loop: c.loop,
+		Calls: []Call{c.call(src, s, &syntax.CallExpr{})}})
 }
 
 // segmentEnd is where a pipeline ends: its last command's last word or
@@ -353,6 +361,9 @@ func (c *collector) call(src string, p *syntax.Stmt, call *syntax.CallExpr) Call
 	if cmd, ok := flockString(cl.Words); ok {
 		c.parse(cmd, c.depth+1)
 	}
+	for _, cmd := range rebaseExecs(cl.Words) {
+		c.parse(cmd, c.depth+1)
+	}
 	cl.Redirs = append(cl.Redirs, timeOutputs(cl.Words)...)
 	for _, r := range p.Redirs {
 		c.redirect(src, r, &cl)
@@ -390,6 +401,36 @@ func (c *collector) redirect(src string, r *syntax.Redirect, cl *Call) {
 		}
 		cl.Redirs = append(cl.Redirs, Redir{op, Word{value, src[r.Word.Pos().Offset():r.Word.End().Offset()], int(r.Word.End().Offset()), literal(r.Word.Parts)}})
 	}
+}
+
+// rebaseExecs is each command string a git rebase among words runs after
+// each commit: -x cmd, -xcmd, --exec cmd, or --exec=cmd.
+func rebaseExecs(words []Word) []string {
+	i := lead(words)
+	if i >= len(words) || baseName(words[i].Value) != "git" {
+		return nil
+	}
+	sub, args, _ := classify.GitSubcommand(values(words[i+1:]))
+	if sub != "rebase" {
+		return nil
+	}
+	// git takes any unambiguous prefix of a long option: --ex is --exec.
+	isExec := func(flag string) bool { return len(flag) >= len("--ex") && abbrevOf(flag, "--exec") }
+	var out []string
+	for j := 0; j < len(args); j++ {
+		a := args[j]
+		flag, value, attached := strings.Cut(a, "=")
+		switch {
+		case attached && isExec(flag):
+			out = append(out, value)
+		case (a == "-x" || isExec(a)) && j+1 < len(args):
+			out = append(out, args[j+1])
+			j++
+		case strings.HasPrefix(a, "-x") && len(a) > 2:
+			out = append(out, a[2:])
+		}
+	}
+	return out
 }
 
 // fdTarget is a >& target that names a descriptor: 2, 2-, or -.
@@ -612,10 +653,15 @@ func envSplitString(words []Word) (string, bool) {
 func assigned(seg Segment) map[string]string {
 	vars := map[string]string{}
 	for _, call := range seg.Calls {
-		if len(call.Words) > 0 {
+		assigns := call.Assigns
+		switch {
+		case len(call.Words) > 0 && call.Words[0].Value == "export":
+			// export NAME=value sets NAME as a bare assignment does.
+			assigns = slices.DeleteFunc(values(call.Words[1:]), func(w string) bool { return !assignment.MatchString(w) })
+		case len(call.Words) > 0:
 			continue
 		}
-		for _, a := range call.Assigns {
+		for _, a := range assigns {
 			name, value, _ := strings.Cut(a, "=")
 			vars[name] = value
 		}

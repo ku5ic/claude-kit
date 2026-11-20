@@ -129,17 +129,29 @@ func TestGuardWeaken(t *testing.T) {
 		call["cwd"] = dir
 		k.run("guard-dispatch", call).Empty(t)
 	})
-	t.Run("a snapshot in a repo the turn has no record of goes through", func(t *testing.T) {
-		t.Parallel()
+	// In a repo the turn has no record of, the turn's own Edit and Write
+	// calls say whether it changed code there.
+	elsewhere := func(t *testing.T, edited func(other string) []string) result {
 		k := newSandbox(t)
 		cwd := repo(t, filepath.Join(k.home, "proj"))
 		other := repo(t, filepath.Join(k.home, "other"))
 		snap := filepath.Join(other, "src", "__snapshots__", "a.test.ts.snap")
 		testutil.Write(t, snap, "exports[`a`] = `1`;\n")
 		k.run("turn-tree", map[string]any{"hook_event_name": "UserPromptSubmit", "session_id": "s", "cwd": cwd}).Want(t, 0)
+		session := filepath.Join(k.home, "session.jsonl")
+		turnIn(t, session, edited(other)...)
 		call := edit(snap, "`1`", "`2`")
-		call["cwd"] = cwd
-		k.run("guard-dispatch", call).Empty(t)
+		call["cwd"], call["transcript_path"] = cwd, session
+		return k.run("guard-dispatch", call)
+	}
+	t.Run("a snapshot in an unrecorded repo, after the turn edited its code, goes through", func(t *testing.T) {
+		t.Parallel()
+		elsewhere(t, func(other string) []string { return []string{filepath.Join(other, "src", "a.ts")} }).Empty(t)
+	})
+	t.Run("a snapshot in an unrecorded repo, with no code edit there this turn, asks", func(t *testing.T) {
+		t.Parallel()
+		r := elsewhere(t, func(string) []string { return []string{"/elsewhere/b.ts"} })
+		r.Has(t, `"permissionDecision":"ask"`, "rewrites the snapshot a.test.ts.snap")
 	})
 	t.Run("a snapshot rewritten after a code change goes through", func(t *testing.T) {
 		t.Parallel()

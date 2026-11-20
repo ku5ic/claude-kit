@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 // The registry and hooks/hooks.json describe the same hooks: every command
@@ -61,6 +62,27 @@ func TestRegistryMatchesHooksJSON(t *testing.T) {
 			if _, ok := hookChecks[step]; !ok {
 				t.Errorf("%s: step %q is no check", name, step)
 			}
+		}
+	}
+}
+
+// A hook's timeout comes from hooks/hooks.json, by its event and, where a
+// matcher picks the tool, the tool it runs on.
+func TestHookTimeoutComesFromHooksJSON(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, event, tool string
+		want              time.Duration
+	}{
+		{"bash-dispatch", "PreToolUse", "Bash", 300 * time.Second},
+		{"guard-dispatch", "PreToolUse", "Read", 5 * time.Second},
+		{"guard-dispatch", "PreToolUse", "Write", 300 * time.Second},
+		{"prompt-dispatch", "UserPromptSubmit", "", 15 * time.Second},
+		{"log-skills", "UserPromptExpansion", "", 5 * time.Second},
+		{"no-such-hook", "PreToolUse", "Bash", 0},
+	} {
+		if got := hookTimeout("../../..", tc.name, tc.event, tc.tool); got != tc.want {
+			t.Errorf("hookTimeout(%s, %s, %s) = %s, want %s", tc.name, tc.event, tc.tool, got, tc.want)
 		}
 	}
 }

@@ -61,3 +61,4 @@ The first match wins:
 - A missing tool, permission, or connector gets named, with alternatives in priority order and a question on how to proceed.
 - After a user correction, re-read the original requirement, fix it, and name other places the same misunderstanding applies. A correction with more than one reading goes through item 2.
 - A review finding (`/code-review`, plan-critic, a PR comment) gets checked against the code before it's applied. A wrong one is rejected with the evidence. An applied one is acknowledged by what changed.
+- A `/code-review` or `/verify` of your own work stops at its report: the findings, or the cases that broke, fact-checked, go to the path `skills/kit-rules/reference/output.md` section 3 names, and the user picks which to fix. Nothing is fixed before that answer.

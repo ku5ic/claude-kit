@@ -147,7 +147,7 @@ func (e *stopEnv) finish(id, status string) {
 func TestStopPlanDone(t *testing.T) {
 	t.Parallel()
 	const done = "## Steps\n\n- [x] 1. a\n- [x] 2. b\n"
-	t.Run("ticking the last step with no review since the last edit blocks once", func(t *testing.T) {
+	t.Run("ticking the last step with no review since the last edit blocks, and holds until one launches", func(t *testing.T) {
 		t.Parallel()
 		e := stopSetup(t)
 		e.turn("Edit", e.path("a.ts"))
@@ -156,6 +156,32 @@ func TestStopPlanDone(t *testing.T) {
 		r.Want(t, 2)
 		r.Has(t, "plan-x.md is done, but /code-review hasn't finished since the last code edit")
 		r.Has(t, "the edits since are only fixes for that review's findings: say so in one line, no second review")
+		e.stop(true).Want(t, 2)
+		e.review()
+		e.stop(true).Want(t, 0)
+	})
+	t.Run("a session that can't launch a review stops on the second retry, told so", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		e.turn("Edit", e.path("a.ts"))
+		e.turn("Edit", e.plan(done))
+		e.stop(false).Want(t, 2)
+		e.stop(true).Want(t, 2)
+		r := e.stop(true)
+		r.Want(t, 0)
+		r.Has(t, "kit plan-done: let through", "plan-x.md")
+		// The next turn's stop holds again.
+		e.stop(false).Want(t, 2)
+	})
+	t.Run("a retry passes on fixes after an earlier review, with no second one", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		e.turn("Edit", e.path("a.ts"))
+		e.review()
+		e.finish("<tool-use-id>toolu_r1</tool-use-id>", "completed")
+		e.turn("Edit", e.path("a.ts"))
+		e.turn("Edit", e.plan(done))
+		e.stop(false).Want(t, 2)
 		e.stop(true).Want(t, 0)
 	})
 	t.Run("ticking the last step through Bash blocks too; a Bash call that only names the plan doesn't", func(t *testing.T) {
@@ -266,6 +292,16 @@ func TestStopPlanDone(t *testing.T) {
 		e.finish("<tool-use-id>toolu_r1</tool-use-id>", "completed")
 		e.turn("Edit", e.plan(done))
 		e.stop(false).Want(t, 2)
+	})
+	t.Run("an edit a guard denied after the review changed no code", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		e.turn("Edit", e.path("a.ts"))
+		e.review()
+		e.finish("<tool-use-id>toolu_r1</tool-use-id>", "completed")
+		e.edit("Edit", e.path("b.ts"), true)
+		e.turn("Edit", e.plan(done))
+		e.stop(false).Want(t, 0)
 	})
 	t.Run("an edit after the review needs a new one", func(t *testing.T) {
 		t.Parallel()
@@ -843,5 +879,126 @@ func TestReviewReport(t *testing.T) {
 		e := finished(t)
 		e.k.overlay("disabled_rules: [review-report]\n")
 		stop(e, false).Want(t, 0)
+	})
+}
+
+// review-pick holds the main thread's code edits from a finished
+// /code-review until the user answers, typed or through AskUserQuestion
+// (skills/kit-rules/reference/workflow.md section 4).
+func TestReviewPick(t *testing.T) {
+	t.Parallel()
+	edit := func(e *stopEnv, path, agent string) result {
+		in := map[string]any{"hook_event_name": "PreToolUse", "session_id": "s1", "cwd": e.repo,
+			"transcript_path": e.transcript, "tool_name": "Edit", "tool_input": map[string]any{"file_path": path}}
+		if agent != "" {
+			in["agent_id"] = agent
+		}
+		return e.k.run("review-pick", in)
+	}
+	typed := func(e *stopEnv, text string) {
+		e.line(map[string]any{"type": "user", "message": map[string]any{"content": text}})
+	}
+	finished := func(t *testing.T) *stopEnv {
+		e := stopSetup(t)
+		e.turn("Edit", e.path("a.ts"))
+		e.review()
+		e.finish("<tool-use-id>toolu_r1</tool-use-id>", "completed")
+		return e
+	}
+	t.Run("a finished review holds a code edit until a typed prompt", func(t *testing.T) {
+		t.Parallel()
+		e := finished(t)
+		r := edit(e, e.path("a.ts"), "")
+		r.Denied(t)
+		r.Has(t, "rule  review-pick")
+		typed(e, "fix the first one")
+		edit(e, e.path("a.ts"), "").Allowed(t)
+	})
+	t.Run("a notification sent as a user message holds too", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		e.turn("Edit", e.path("a.ts"))
+		typed(e, "/code-review high")
+		e.line(map[string]any{"type": "system", "subtype": "local_command",
+			"content": `<forked-skill-launch>{"agentId":"a1","skillName":"code-review"}</forked-skill-launch>`})
+		typed(e, "<task-notification>\n<task-id>a1</task-id>\n<status>completed</status>\n</task-notification>")
+		edit(e, e.path("a.ts"), "").Denied(t)
+	})
+	t.Run("an answered question lifts it; a rejected one doesn't", func(t *testing.T) {
+		t.Parallel()
+		e := finished(t)
+		ask := func(id string, rejected bool) {
+			e.line(map[string]any{"type": "assistant", "message": map[string]any{"content": []any{
+				map[string]any{"type": "tool_use", "id": id, "name": "AskUserQuestion", "input": map[string]any{}},
+			}}})
+			e.line(map[string]any{"type": "user", "message": map[string]any{"content": []any{
+				map[string]any{"type": "tool_result", "tool_use_id": id, "is_error": rejected}}}})
+		}
+		ask("toolu_q1", true)
+		edit(e, e.path("a.ts"), "").Denied(t)
+		ask("toolu_q2", false)
+		edit(e, e.path("a.ts"), "").Allowed(t)
+	})
+	t.Run("scratch, a plan, a subagent's edit, and a file outside the repo pass", func(t *testing.T) {
+		t.Parallel()
+		e := finished(t)
+		edit(e, e.path(".claude/scratch/review-x.md"), "").Allowed(t)
+		edit(e, e.plan("## Steps\n"), "").Allowed(t)
+		edit(e, e.path("a.ts"), "a9").Allowed(t)
+		edit(e, filepath.Join(e.tmp, "elsewhere.ts"), "").Allowed(t)
+	})
+	t.Run("it holds launching an agent that edits, not one that only reads", func(t *testing.T) {
+		t.Parallel()
+		e := finished(t)
+		agent := func(kind string) result {
+			return e.k.run("review-pick", map[string]any{"hook_event_name": "PreToolUse", "session_id": "s1", "cwd": e.repo,
+				"transcript_path": e.transcript, "tool_name": "Agent", "tool_input": map[string]any{"subagent_type": kind, "prompt": "fix it"}})
+		}
+		agent("kit:tester").Denied(t)
+		agent("general-purpose").Denied(t)
+		agent("kit:claim-checker").Allowed(t)
+		agent("Explore").Allowed(t)
+		typed(e, "fix the first one")
+		agent("kit:tester").Allowed(t)
+	})
+	t.Run("a --fix review holds nothing, typed or by the Skill tool", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		typed(e, "<command-name>/code-review</command-name>\n<command-args>--fix</command-args>")
+		e.review()
+		e.finish("<tool-use-id>toolu_r1</tool-use-id>", "completed")
+		edit(e, e.path("a.ts"), "").Allowed(t)
+		f := stopSetup(t)
+		typed(f, "review it")
+		f.line(map[string]any{"type": "assistant", "message": map[string]any{"content": []any{
+			map[string]any{"type": "tool_use", "id": "toolu_r1", "name": "Skill", "input": map[string]any{"skill": "code-review", "args": "high --fix"}},
+		}}})
+		f.finish("<tool-use-id>toolu_r1</tool-use-id>", "completed")
+		edit(f, f.path("a.ts"), "").Allowed(t)
+	})
+	t.Run("a saved walk from before the hold is read whole", func(t *testing.T) {
+		t.Parallel()
+		e := finished(t)
+		edit(e, e.path("a.ts"), "").Denied(t)
+		files, _ := filepath.Glob(filepath.Join(e.k.paths.CacheDir(), cache.StopRead, "s1-*"))
+		if len(files) != 1 {
+			t.Fatalf("saved reads: %q", files)
+		}
+		// A version-2 walk has no hold: kept, it would let the edit through.
+		var saved map[string]any
+		if err := json.Unmarshal([]byte(read(t, files[0])), &saved); err != nil {
+			t.Fatal(err)
+		}
+		saved["version"] = 2
+		delete(saved["walk"].(map[string]any), "hold_from")
+		data, _ := json.Marshal(saved)
+		testutil.Write(t, files[0], string(data))
+		edit(e, e.path("a.ts"), "").Denied(t)
+	})
+	t.Run("review-pick in disabled_rules lets it through", func(t *testing.T) {
+		t.Parallel()
+		e := finished(t)
+		e.k.overlay("disabled_rules: [review-pick]\n")
+		edit(e, e.path("a.ts"), "").Allowed(t)
 	})
 }

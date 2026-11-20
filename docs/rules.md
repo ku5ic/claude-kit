@@ -10,7 +10,7 @@ Every skill with references lists them in a "Before | Read" table: an action, th
 
 ## Output
 
-**Length.** Concise means a lot of information in few words. Short and missing something is wrong, and so is complete and padded. The reader has a small working memory, so one idea per line and nothing they already saw. The chat ceilings live in kit.yml `reply_limits`, and the hooks state the chat ceiling once at session start and a turn's own only when its prompt sets another, so the rule only says to stay under it.
+**Length.** Concise means a lot of information in few words. Short and missing something is wrong, and so is complete and padded. The reader has a small working memory, so one idea per line and nothing they already saw. The chat ceilings live in kit.yml `reply_limits`, and the hooks state the turn's ceiling on every prompt, the chat one included, since a line said once at session start ends up far from the reply. The rule only says to stay under it.
 
 **Deliverable budgets.** A plan, a subagent report, a scratch report, or a connector post over its kit.yml `size_budgets` entry is sent back once by `go/internal/hooks/size.go`, so no rule restates the numbers. They were set against deliverables measured on 2026-11-11, where half of the plans and about a quarter of subagent handbacks ran over them. On 2026-11-16 the author doubled the plan budget and raised the report and scratch ones: a plan cut to fit leaves out what the engineer following it then has to guess, and a release plan and its explore report ran over the old numbers with nothing left to cut.
 
@@ -91,6 +91,8 @@ Every skill with references lists them in a "Before | Read" table: an action, th
 **Ask or proceed.** A question answered with an edit surprises the user. A request with two readings acted on with a guess wastes the edit half the time. A vague goal counts as ambiguous even with an obvious bug in the code, because the bug is one of the options, not the answer.
 
 **Review findings are claims.** A reviewer can be wrong, and an applied wrong finding is a regression with a reviewer's name on it.
+
+**A review or runtime pass stops at its report.** Fixes applied before the report exists leave the engineer judging findings that are already in the tree, and the report then describes code that changed under it. On 2026-11-20 a step's six findings were fixed before their report and before the engineer chose any.
 
 ## Subagents
 

@@ -111,6 +111,15 @@ type state struct {
 	loopVars map[int]map[string][]string
 }
 
+// setVars is vars as NAME=value words, in no set order.
+func (st *state) setVars() []string {
+	out := make([]string, 0, len(st.vars))
+	for name, value := range st.vars {
+		out = append(out, name+"="+value)
+	}
+	return out
+}
+
 func (st *state) ask(reason string) {
 	if st.pending == "" {
 		st.pending = reason
@@ -305,6 +314,7 @@ func (st *state) segment(seg Segment) error {
 	if err := st.pipeToShell(seg); err != nil {
 		return err
 	}
+	st.dirToNetwork(seg)
 	for ci, call := range seg.Calls {
 		if err := st.redirects(call); err != nil {
 			return err
@@ -314,6 +324,10 @@ func (st *state) segment(seg Segment) error {
 		}
 		start := lead(call.Words)
 		if start >= len(call.Words) {
+			// A redirect with no command still reads its input: x=$(<.env).
+			if err := (&command{st: st}).readsSensitive(call.Inputs); err != nil {
+				return err
+			}
 			continue
 		}
 		// $(echo rm) -rf ~ names its command only at runtime, as does
@@ -329,6 +343,7 @@ func (st *state) segment(seg Segment) error {
 		plain := command{
 			st: st, name: baseName(call.Words[start].Value), args: call.Words[start+1:], redirs: call.Redirs, inputs: call.Inputs,
 			rest: seg.Rest(ci, start), alone: len(seg.Calls) == 1 && !seg.subshell,
+			assigns: append(slices.Clone(call.Assigns), slices.DeleteFunc(values(call.Words[:start]), func(w string) bool { return !assignment.MatchString(w) })...),
 		}
 		for _, fields := range expansions {
 			c := plain

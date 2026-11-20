@@ -46,7 +46,7 @@ func TestPlanStepPause(t *testing.T) {
 		testutil.Write(t, filepath.Join(plans, "plan-new.md"), "## Steps\n\n- [x] one\n- [ ] two\n")
 		r := approve(k, proj, "s1")
 		r.Want(t, 0)
-		r.Has(t, `"hookEventName":"PostToolUse"`, "plan-new.md", "first unchecked step")
+		r.Has(t, `"hookEventName":"PostToolUse"`, "plan-new.md is approved under step_pause: step. Its first unchecked step is this turn's whole scope")
 	})
 	t.Run("with plansDirectory unset and no project plans dir, the plan in ~/.claude/plans is named", func(t *testing.T) {
 		t.Parallel()
@@ -75,7 +75,7 @@ func TestPlanStepPause(t *testing.T) {
 		approve(k, proj, "s1").Want(t, 0)
 		r := prompt(k, proj, "s1")
 		r.Want(t, 0)
-		r.Has(t, "plan-x.md", "next unchecked one")
+		r.Has(t, "plan-x.md", "has open steps. Under step_pause: step, a turn covers the next unchecked step, then review")
 		prompt(k, proj, "other-session").Empty(t)
 		testutil.Write(t, plan, "- [x] one\n")
 		prompt(k, proj, "s1").Empty(t)
@@ -125,9 +125,9 @@ func TestPlanStepPause(t *testing.T) {
 	t.Run("step_pause picks the pause line, from the overlay or the light preset", func(t *testing.T) {
 		t.Parallel()
 		for overlay, want := range map[string][]string{
-			"step_pause: plan\n": {"once for review after the last one", "stop for review when every step is done"},
-			"step_pause: off\n":  {"without stopping for review", "do the next unchecked one"},
-			"preset: light\n":    {"once for review after the last one", "stop for review when every step is done"},
+			"step_pause: plan\n": {"step_pause: plan. Its unchecked steps run in order, and one review follows the last", "a turn covers the next unchecked step, and review waits for the last one"},
+			"step_pause: off\n":  {"step_pause: off. Its unchecked steps run in order, with no review stop", "a turn covers the next unchecked step, with no review stop"},
+			"preset: light\n":    {"step_pause: plan. Its unchecked steps run in order, and one review follows the last", "a turn covers the next unchecked step, and review waits for the last one"},
 		} {
 			k, proj := setup(t)
 			k.overlay(overlay)
@@ -135,7 +135,7 @@ func TestPlanStepPause(t *testing.T) {
 			approve(k, proj, "s1").Has(t, want[0])
 			r := prompt(k, proj, "s1")
 			r.Has(t, "plan-x.md", want[1])
-			r.Lacks(t, "only the next unchecked one")
+			r.Lacks(t, "step_pause: step")
 		}
 	})
 	t.Run("another tool's PostToolUse is silent", func(t *testing.T) {
@@ -171,6 +171,18 @@ func TestGuardPlan(t *testing.T) {
 		r.Denied(t)
 		r.Has(t, "kit:plan-critic", plan)
 		k.run("guard-plan", exit(k, write)).Allowed(t)
+	})
+	t.Run("a transcript that can't be read counts as no critique", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		for _, path := range []string{"", filepath.Join(k.home, "missing.jsonl")} {
+			payload := exit(k, write)
+			payload["transcript_path"] = path
+			r := k.run("guard-plan", payload)
+			r.Denied(t)
+			r.Has(t, "kit:plan-critic")
+			k = newSandbox(t)
+		}
 	})
 	t.Run("a critique after the plan was written, then a revision: allowed", func(t *testing.T) {
 		t.Parallel()
@@ -229,6 +241,34 @@ func TestGuardPlan(t *testing.T) {
 		k.overlay("disabled_rules: [plan-critic]\n")
 		k.run("guard-plan", exit(k, write)).Allowed(t)
 	})
+	// A plan whose own marker gives a reason skips the critic, and the skip is
+	// logged; a marker with no reason, quoted, or fenced is a mention.
+	withPlan := func(k *sandbox, text string) map[string]any {
+		in := exit(k, write)
+		in["tool_input"] = map[string]any{"plan": text, "planFilePath": plan}
+		return in
+	}
+	t.Run("a critic-skip marker with a reason: allowed, and logged with the reason", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		k.run("guard-plan", withPlan(k, "# X\n\n<!-- critic: skip renames one flag, no design choice -->\n\n## Steps\n")).Allowed(t)
+		data, _ := os.ReadFile(filepath.Join(k.claude, "logs", "guards.jsonl"))
+		if !strings.Contains(string(data), `"event":"critic-skip"`) || !strings.Contains(string(data), `"reason":"renames one flag, no design choice"`) {
+			t.Errorf("guards.jsonl = %s", data)
+		}
+	})
+	for name, text := range map[string]string{
+		"no reason":     "# X\n\n<!-- critic: skip -->\n",
+		"a code span":   "# X\n\nName `<!-- critic: skip <reason> -->` to skip it.\n",
+		"a fenced line": "# X\n\n```markdown\n<!-- critic: skip renames one flag -->\n```\n",
+		"inside prose":  "# X\n\nWrite <!-- critic: skip why --> on its own line.\n",
+	} {
+		t.Run("a critic-skip mention, "+name+": sent back", func(t *testing.T) {
+			t.Parallel()
+			k := newSandbox(t)
+			k.run("guard-plan", withPlan(k, text)).Denied(t)
+		})
+	}
 }
 
 // plan-critic's run covers a plan's claims. With plan-critic off, the plan
@@ -266,6 +306,25 @@ func TestPlanDispatchVerifiesClaims(t *testing.T) {
 		// a run on it.
 		k.run("plan-dispatch", exit(k, "# Plan v2\n\n"+claim, write, checkerLine(id))).Allowed(t)
 		k.run("plan-dispatch", exit(k, "# Plan v2\n\n"+claim+"\n\nThe cache lives in the session directory.", write, checkerLine(id))).Denied(t)
+	})
+	t.Run("a transcript that can't be read lets the plan through, saying it went unchecked", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		k.verifier("disabled_rules: [plan-critic]\n", claim)
+		p := exit(k, "# Plan\n\n"+claim)
+		p["transcript_path"] = filepath.Join(k.home, "missing.jsonl")
+		r := k.run("plan-dispatch", p)
+		r.Allowed(t)
+		r.Has(t, "kit claims: NOT CHECKED the plan plan-x.md")
+	})
+	t.Run("a critic-skip marker skips the critic, not the claim check", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		k.verifier("", claim)
+		r := k.run("plan-dispatch", exit(k, "# Plan\n\n<!-- critic: skip renames one flag -->\n\n"+claim, write))
+		r.Denied(t)
+		r.Has(t, "kit:claim-checker", "the plan plan-x.md")
+		r.Lacks(t, "kit:plan-critic agent hasn't reviewed")
 	})
 	t.Run("disabled_rules: [claims] lets the plan through", func(t *testing.T) {
 		t.Parallel()

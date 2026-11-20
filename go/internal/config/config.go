@@ -102,7 +102,7 @@ func rootLabel(label string) string {
 // from a table or a variable is added by hand.
 var Rules = []string{
 	"adr-nudge", "ai-attribution", "aws-ec2-terminate", "aws-s3-force-rb", "aws-s3-recursive-rm",
-	"bash-edits", "checks-failed", "chmod-777", "chmod-broad-x", "citations", "claims", "commit-msg", "commit-wall-of-text",
+	"bash-edits", "bash-reports", "checks-failed", "chmod-777", "chmod-broad-x", "citations", "claims", "commit-msg", "commit-wall-of-text",
 	"device-write", "disk-tool", "docker-prune-all-force", "download-to-repo",
 	"find-delete", "find-exec-rm", "fork-bomb",
 	"gcloud-delete", "git-config-global", "git-dir-edit", "git-force-push", "git-no-verify",
@@ -110,7 +110,7 @@ var Rules = []string{
 	"interpreter-c-wrap", "keychain-delete", "kubectl-delete", "lockfile-edit",
 	"pipe-to-shell", "pkg-global-install", "pkg-missing", "pkg-undeclared", "plan-critic", "plan-done",
 	"pm-mismatch", "psql-destructive", "rc-edit", "rc-inplace-edit", "rc-redirect", "redis-destructive",
-	"review-checks", "review-report", "rm-recursive", "rules-gate", "run-checks-by-hook", "scratch-rotate", "sensitive-read", "sensitive-write",
+	"review-checks", "review-pick", "review-report", "rm-recursive", "rules-gate", "run-checks-by-hook", "scratch-rotate", "sensitive-read", "sensitive-write",
 	"size", "skills-gate", "skills-nudge", "slop", "slop-vocabulary", "staged-secret", "terraform-auto-approve", "terraform-destroy",
 	"ui-undefined-token", "unread-text", "weaken", "xargs-rm",
 }
@@ -275,6 +275,10 @@ type Connectors struct {
 	WriteVerbs []string `yaml:"write_verbs"`
 	ReadVerbs  []string `yaml:"read_verbs"`
 	CodeFields []string `yaml:"code_fields"`
+	PathFields []string `yaml:"path_fields"`
+	// PathServers are the MCP servers whose tools touch local files, by
+	// name, alone or as a plugin server's last part.
+	PathServers []string `yaml:"path_servers"`
 }
 
 // Attribution is what go/internal/attribution finds an AI tool's

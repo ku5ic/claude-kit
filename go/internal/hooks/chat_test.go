@@ -21,7 +21,7 @@ func TestChatSlop(t *testing.T) {
 		k.run("chat-slop", chatStop("Done. "+tell)).Empty(t)
 		r := k.run("chat-slop", chatPrompt)
 		r.Want(t, 0)
-		r.Has(t, `\"I hope this helps\" -> cut it`, "slop-patterns")
+		r.Has(t, `The last reply held AI tells: \"I hope this helps\" -> cut it`, "A synonym keeps the tell", "slop-patterns")
 		k.run("chat-slop", chatPrompt).Empty(t)
 	})
 	t.Run("tells from every Stop before the prompt are named, each once", func(t *testing.T) {

@@ -65,7 +65,7 @@ func Files(p enforce.Plan, cacheDir string, timeout time.Duration, deadline time
 		}
 	}
 	wg.Wait()
-	var suspects map[int]bool
+	var suspects map[int]error
 	var changed []string
 	if before != "" {
 		if after, err := git.Snapshot(p.Root); err == nil && after != before {
@@ -75,12 +75,13 @@ func Files(p enforce.Plan, cacheDir string, timeout time.Duration, deadline time
 	var report, failures, detail strings.Builder
 	t := tally{reporter: reporter{plan: p, report: &report, failures: &failures, detail: &detail}, lines: sync.OnceValue(func() git.ChangedLines { return git.LinesChanged(p.Root, "HEAD", edited(p.Gates)) })}
 	for i, g := range p.Gates {
-		if !suspects[i] {
+		markErr, suspect := suspects[i]
+		if !suspect {
 			t.record(g, results[i])
 			continue
 		}
 		// As in the full gate: a gate that changed files fails as that.
-		detail := changedLine(changed)
+		detail := changedLine(changed, markErr)
 		if results[i].err != nil {
 			detail += tail(results[i].out)
 		}
@@ -139,21 +140,21 @@ func (t *tally) findings(g enforce.Gate, o outcome) {
 
 // mutators are the gates of a batch that changed files, by index: those
 // that checked a changed file, or, when none did, every gate that ran. Each
-// is marked, the snapshot before the batch its restore point; changed is
-// the files.
-func mutators(p enforce.Plan, before, after, cacheDir string) (suspects map[int]bool, changed []string) {
+// is marked, the snapshot before the batch its restore point, and holds the
+// error its mark couldn't be saved with, else nil; changed is the files.
+func mutators(p enforce.Plan, before, after, cacheDir string) (suspects map[int]error, changed []string) {
 	changed, _ = git.TreeDiff(p.Root, before, after)
 	if len(changed) == 0 {
 		return nil, nil
 	}
-	suspects, ran := map[int]bool{}, map[int]bool{}
+	suspects, ran := map[int]error{}, map[int]error{}
 	for i, g := range p.Gates {
 		if g.Skip != "" {
 			continue
 		}
-		ran[i] = true
+		ran[i] = nil
 		if slices.ContainsFunc(changed, func(path string) bool { return slices.Contains(g.Files, p.Root+"/"+path) }) {
-			suspects[i] = true
+			suspects[i] = nil
 		}
 	}
 	if len(suspects) == 0 {
@@ -162,7 +163,7 @@ func mutators(p enforce.Plan, before, after, cacheDir string) (suspects map[int]
 	ref := keep(p.Root, before, time.Now())
 	for i := range suspects {
 		g := p.Gates[i]
-		_ = enforce.AddMark(cacheDir, p.Root, g, enforce.Mark{Label: g.Label, Paths: changed, Ref: ref})
+		suspects[i] = enforce.AddMark(cacheDir, p.Root, g, enforce.Mark{Label: g.Label, Paths: changed, Ref: ref})
 	}
 	return suspects, changed
 }

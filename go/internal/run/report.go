@@ -11,9 +11,10 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/layout"
 )
 
-// Result counts a run's verdicts; Cut counts the skips the deadline cut
-// short, which leave the run incomplete.
-type Result struct{ Pass, Fail, Skip, Cut int }
+// Result counts a run's verdicts; Unchecked counts the skips that leave
+// code unchecked, the deadline's cuts among them, which make the run
+// incomplete.
+type Result struct{ Pass, Fail, Skip, Unchecked int }
 
 // String is the summary line a run ends with.
 func (res Result) String() string {
@@ -167,7 +168,14 @@ func (r *reporter) verdict(line string, v verdict) {
 	r.verdicts = append(r.verdicts, v)
 }
 
+// skip reports label skipped, leaving code unchecked.
 func (r *reporter) skip(label, why string) {
+	r.skipped(label, why)
+	r.res.Unchecked++
+}
+
+// skipped reports label skipped for why.
+func (r *reporter) skipped(label, why string) {
 	r.verdict(fmt.Sprintf("SKIP %s (%s)\n", label, why), verdict{"skip", label, why})
 	if r.failures != nil {
 		// In a block's message too, so the skipped count has its reasons,
@@ -181,7 +189,6 @@ func (r *reporter) skip(label, why string) {
 // cut skips label for the deadline.
 func (r *reporter) cut(label string) {
 	r.skip(label, "no time left in the hook's budget")
-	r.res.Cut++
 }
 
 func (r *reporter) pass(label, note string) {

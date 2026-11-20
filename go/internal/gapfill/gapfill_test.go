@@ -194,7 +194,7 @@ func TestMalformedOutputLeavesEntriesUnclassifiedUntilTheCooldown(t *testing.T) 
 	if f.run(lint); len(f.asked()) != 0 {
 		t.Errorf("a rerun within the cooldown asked %q", f.asked())
 	}
-	f.ageFailures(failureCooldown)
+	f.ageFailures(claudecli.CooldownPeriod)
 	if f.run(lint); len(f.asked()) != 1 {
 		t.Errorf("no answer is cached: past the cooldown the rerun asked %q", f.asked())
 	}
@@ -203,8 +203,8 @@ func TestMalformedOutputLeavesEntriesUnclassifiedUntilTheCooldown(t *testing.T) 
 	if f.run(lint); len(f.asked()) != 1 {
 		t.Errorf("a failure stamped 48h ahead held the rerun back: asked %q", f.asked())
 	}
-	if s := load(CacheFile(f.cacheDir, f.root)); s.Failed[Key(lint)].At.After(time.Now()) {
-		t.Errorf("the future stamp survived the save: %v", s.Failed)
+	if failures := f.failures(); failures[failKey(f.cfg, Key(lint))].At.After(time.Now()) {
+		t.Errorf("the future stamp survived the save: %v", failures)
 	}
 }
 
@@ -216,9 +216,10 @@ func TestABatchTheDeadlineKeptQueuedIsAskedNextRun(t *testing.T) {
 	entries, _ := lints(batchSize * (maxCalls + 1))
 	Run(f.cfg, Options{Root: f.root, CacheDir: f.cacheDir, Entries: entries, Ask: true, Timeout: 300 * time.Millisecond})
 	s := load(CacheFile(f.cacheDir, f.root))
+	s.cool = classifierCooldown(f.cacheDir, f.root)
 	cooled := 0
 	for _, e := range entries {
-		if _, ok := s.Failed[Key(e)]; ok {
+		if s.held(f.cfg, Key(e), time.Now()) {
 			cooled++
 		}
 	}
@@ -397,7 +398,7 @@ func TestAFailedBatchKeepsTheOthersAnswers(t *testing.T) {
 		t.Errorf("within the cooldown, skipped as %q, without the failure %q", r.Skipped[Key(last)], why)
 	}
 
-	f.ageFailures(failureCooldown)
+	f.ageFailures(claudecli.CooldownPeriod)
 	r = f.run(entries...)
 	if len(f.calls()) != before+1 || len(r.Verdicts) != len(entries) {
 		t.Errorf("past the cooldown, the rerun made %d calls and classified %d", len(f.calls())-before, len(r.Verdicts))
@@ -422,20 +423,36 @@ func TestAClassifierDownForEveryBatchIsAskedOncePerCooldown(t *testing.T) {
 	}
 }
 
+// cooldownFile is where classifierCooldown keeps f's root's failures.
+func (f *fixture) cooldownFile() string {
+	return filepath.Join(f.cacheDir, cache.Cooldown, "gapfill-"+cache.RootKey(f.root)+".json")
+}
+
+// failures is the classifier's recorded failures for f's root.
+func (f *fixture) failures() map[string]claudecli.Failure {
+	f.t.Helper()
+	all := map[string]claudecli.Failure{}
+	if data, err := os.ReadFile(f.cooldownFile()); err == nil {
+		if err := json.Unmarshal(data, &all); err != nil {
+			f.t.Fatal(err)
+		}
+	}
+	return all
+}
+
 // ageFailures moves every recorded classifier failure d into the past.
 func (f *fixture) ageFailures(d time.Duration) {
 	f.t.Helper()
-	file := CacheFile(f.cacheDir, f.root)
-	s := load(file)
-	for key, call := range s.Failed {
+	all := f.failures()
+	for key, call := range all {
 		call.At = call.At.Add(-d)
-		s.Failed[key] = call
+		all[key] = call
 	}
-	data, err := json.Marshal(s)
+	data, err := json.Marshal(all)
 	if err != nil {
 		f.t.Fatal(err)
 	}
-	testutil.Write(f.t, file, string(data))
+	testutil.Write(f.t, f.cooldownFile(), string(data))
 }
 
 func TestDeniedEntriesAreNeverAsked(t *testing.T) {

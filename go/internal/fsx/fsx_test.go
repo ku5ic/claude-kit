@@ -52,8 +52,10 @@ func TestWritesCreateTheDirectory(t *testing.T) {
 			t.Errorf("%s = %q, %v; want %q", path, got, err, want)
 		}
 	}
-	if info, err := os.Stat(atomic); err != nil || info.Mode().Perm() != 0o600 {
-		t.Errorf("mode %v, %v; want 0600", info.Mode(), err)
+	for _, path := range []string{atomic, appended} {
+		if info, err := os.Stat(path); err != nil || info.Mode().Perm() != 0o600 {
+			t.Errorf("%s: mode %v, %v; want 0600", path, info.Mode(), err)
+		}
 	}
 }
 

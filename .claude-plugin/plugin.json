@@ -1,10 +1,10 @@
 {
   "name": "kit",
-  "description": "Blocks destructive commands, runs your project's own checks before Claude says done, and starts every session knowing your stack: guard hooks, a formatter and sanitizer, /audit, /code, /write, /pr, /deps and /meta, stack pattern skills, and review agents.",
+  "description": "Ship with confidence. Runs your rules as hooks, so Claude Code backs its claims, passes your project's own checks before it says done, and stops for your review after every step. Stack skills load on their own, and 46 commands cover the work around the code: audits, ADRs and RFCs, PR reviews, your review queue, dependency PRs, incident retros and runbooks.",
   "author": {
     "name": "Sinisa Kusic"
   },
-  "version": "0.12.1",
+  "version": "0.13.0",
   "repository": "https://github.com/ku5ic/claude-kit",
   "license": "MIT",
   "engines": {
@@ -12,6 +12,18 @@
   },
   "types": "./mods/types.d.ts",
   "userConfig": {
+    "precedence": {
+      "type": "boolean",
+      "title": "Kit rules take precedence",
+      "description": "Add a system-prompt section, and a reminder on every prompt, saying the kit's rules and kit: hook context outrank default, mode, and built-in skill instructions where they conflict.",
+      "default": true
+    },
+    "kit_stats": {
+      "type": "boolean",
+      "title": "/kit-stats command",
+      "description": "Add a /kit-stats command that prints kit stats: blocks, shadow blocks, and skips per rule, and the claims each checker flagged.",
+      "default": true
+    },
     "subagent_rows": {
       "type": "boolean",
       "title": "Subagent rows",

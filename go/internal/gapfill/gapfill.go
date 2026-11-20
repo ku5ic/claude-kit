@@ -175,14 +175,10 @@ const (
 	deniedReason       = "denied"
 	unclassifiedReason = "unclassified"
 	// coolingReason is an unclassified entry the classifier failed on
-	// within failureCooldown: asking again now would likely fail again.
+	// within claudecli.CooldownPeriod: asking again now would likely fail
+	// again.
 	coolingReason = unclassifiedReason + " (the classifier failed on it: "
 )
-
-// failureCooldown is how long an entry the classifier failed on waits
-// before a run asks for it again. Key hashes the entry's body, so an
-// edited entry is asked at once.
-const failureCooldown = time.Hour
 
 // store is the cache file: the model's answers as given, verified on read.
 type store struct {
@@ -190,17 +186,8 @@ type store struct {
 	Context   string             `json:"context"` // the project the facts below answer
 	Managers  []Manager          `json:"managers"`
 	Proposals []Proposal         `json:"proposals"`
-	// Failed is when and why the classifier last failed on an entry, by
-	// Key, and FailedBy the classifier command it failed as. A changed
-	// command asks again at once.
-	Failed   map[string]failedCall `json:"failures,omitempty"`
-	FailedBy string                `json:"failed_by,omitempty"`
-}
-
-// failedCall is a classifier call that failed: when, and its error.
-type failedCall struct {
-	At  time.Time `json:"at"`
-	Why string    `json:"why"`
+	// cool is the classifier's failures for this root, by failKey.
+	cool claudecli.Cooldown
 }
 
 type answer struct {
@@ -213,6 +200,7 @@ type answer struct {
 func Run(cfg *config.Config, o Options) Result {
 	file := seededCacheFile(o.CacheDir, o.Root)
 	s := load(file)
+	s.cool = classifierCooldown(o.CacheDir, o.Root)
 	// A read is use: cache.Prune drops only a file no run has read.
 	now := time.Now()
 	_ = os.Chtimes(file, now, now)
@@ -316,12 +304,13 @@ func ask(cfg *config.Config, o Options, p view, file string, s store) (_ store, 
 	defer unlock()
 	// Another run may have answered while this one waited.
 	locked := load(file)
+	locked.cool = s.cool
 	if !locked.stale(cfg, o.Entries, p.Key) {
 		return locked, "", usage
 	}
 	// The facts get a call of their own: they take the model longest.
 	var reqs []request
-	if locked.Context != p.Key && locked.retryAt(cfg, factsKey(p.Key), time.Now()).IsZero() {
+	if locked.Context != p.Key && !locked.held(cfg, factsKey(p.Key), time.Now()) {
 		reqs = append(reqs, request{View: p, Facts: true})
 	}
 	allowed := slices.DeleteFunc(slices.Clone(o.Entries), func(e sources.Entry) bool { return denied(cfg, e) != "" })
@@ -340,6 +329,7 @@ func ask(cfg *config.Config, o Options, p view, file string, s store) (_ store, 
 	}
 	now := time.Now()
 	notAsked := false
+	failed, answered := map[string]string{}, []string{}
 	for i, resp := range resps {
 		if errors.Is(errs[i], errNotAsked) {
 			notAsked = true
@@ -349,32 +339,28 @@ func ask(cfg *config.Config, o Options, p view, file string, s store) (_ store, 
 			if failure == "" {
 				failure = "classifier: " + errs[i].Error()
 			}
-			if by := classifierID(cfg); locked.FailedBy != by {
-				clear(locked.Failed)
-				locked.FailedBy = by
-			}
-			call := failedCall{At: now, Why: errs[i].Error()}
 			for _, e := range reqs[i].Entries {
-				locked.Failed[Key(e)] = call
+				failed[failKey(cfg, Key(e))] = errs[i].Error()
 			}
 			if reqs[i].Facts {
-				locked.Failed[factsKey(p.Key)] = call
+				failed[failKey(cfg, factsKey(p.Key))] = errs[i].Error()
 			}
 			continue
 		}
 		for _, a := range resp.Entries {
 			locked.Entries[a.ID] = &answer{Verdict: a.Verdict, Seen: now}
-			delete(locked.Failed, a.ID)
+			answered = append(answered, failKey(cfg, a.ID))
 		}
 		if reqs[i].Facts {
 			locked.Context, locked.Managers, locked.Proposals = p.Key, resp.Managers, resp.Proposals
-			delete(locked.Failed, factsKey(p.Key))
+			answered = append(answered, failKey(cfg, factsKey(p.Key)))
 		}
 	}
+	// Best effort: unrecorded, the next run asks again.
+	_ = locked.cool.Record(now, failed, answered)
 	if failure == "" && notAsked {
 		failure = "classifier: " + errNotAsked.Error()
 	}
-	// A failure is saved too, so the next run waits out its cooldown.
 	locked.save(file, o.Entries, now)
 	return locked, failure, usage
 }
@@ -415,40 +401,37 @@ func load(file string) store {
 	if s.Entries == nil {
 		s.Entries = map[string]*answer{}
 	}
-	if s.Failed == nil {
-		s.Failed = map[string]failedCall{}
-	}
 	return s
 }
 
-// retryAt is when an entry the classifier failed on may be asked again,
-// zero when it's askable now or cfg names another classifier.
-func (s store) retryAt(cfg *config.Config, key string, now time.Time) time.Time {
-	if f, ok := s.Failed[key]; ok && s.FailedBy == classifierID(cfg) && !expired(f.At, now) {
-		return f.At.Add(failureCooldown)
-	}
-	return time.Time{}
+// held is true while a classifier failure on key holds it back.
+func (s store) held(cfg *config.Config, key string, now time.Time) bool {
+	_, ok := s.cool.Cooling(failKey(cfg, key), now)
+	return ok
 }
 
-// expired is true when a failure stamped at no longer holds its entry
-// back: past the cooldown, or ahead of the clock, which then can't say
-// when the cooldown ends.
-func expired(at, now time.Time) bool {
-	return at.After(now) || now.Sub(at) >= failureCooldown
+// classifierCooldown is the classifier's failures for root.
+func classifierCooldown(cacheDir, root string) claudecli.Cooldown {
+	return claudecli.NewCooldown(cacheDir, "gapfill-"+cache.RootKey(root))
+}
+
+// failKey is key's cooldown key under cfg's classifier command, so a
+// changed command asks again at once. Key hashes an entry's body, so an
+// edited entry is asked at once too.
+func failKey(cfg *config.Config, key string) string {
+	sum := sha256.Sum256([]byte(strings.Join(cfg.Classifier, "\x00")))
+	return hex.EncodeToString(sum[:])[:12] + "-" + key
 }
 
 // stale is true when an entry the policy allows has no answer, or the
 // project facts answer another project, and no classifier failure holds
 // it back.
 func (s store) stale(cfg *config.Config, entries []sources.Entry, context string) bool {
-	facts := s.Context != context && s.retryAt(cfg, factsKey(context), time.Now()).IsZero()
+	facts := s.Context != context && !s.held(cfg, factsKey(context), time.Now())
 	return facts || len(s.missing(cfg, entries)) > 0
 }
 
-// classifierID names cfg's classifier command for FailedBy.
-func classifierID(cfg *config.Config) string { return strings.Join(cfg.Classifier, "\x00") }
-
-// factsKey is the Failed key of the project facts for context.
+// factsKey is the cooldown key of the project facts for context.
 func factsKey(context string) string { return "facts:" + context }
 
 // missing is the entries the policy allows that have no answer, and that
@@ -457,7 +440,7 @@ func (s store) missing(cfg *config.Config, entries []sources.Entry) []sources.En
 	var out []sources.Entry
 	now := time.Now()
 	for _, e := range entries {
-		if s.Entries[Key(e)] == nil && denied(cfg, e) == "" && s.retryAt(cfg, Key(e), now).IsZero() {
+		if s.Entries[Key(e)] == nil && denied(cfg, e) == "" && !s.held(cfg, Key(e), now) {
 			out = append(out, e)
 		}
 	}
@@ -470,11 +453,6 @@ func (s store) save(file string, entries []sources.Entry, now time.Time) {
 	for _, e := range entries {
 		if a := s.Entries[Key(e)]; a != nil {
 			a.Seen = now
-		}
-	}
-	for key, f := range s.Failed {
-		if expired(f.At, now) {
-			delete(s.Failed, key)
 		}
 	}
 	for key, a := range s.Entries {
