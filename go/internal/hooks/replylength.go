@@ -51,7 +51,7 @@ func writeTurn(marker string, t turn) {
 
 // checkClaims stands in for verify-claims on chat replies: said before the
 // reply, since a check at Stop would show the reply twice.
-const checkClaims = "Before replying, check each claim with a tool this session, or cut it, per skills/kit-rules/reference/evidence.md section 1. Never state a guess as fact."
+const checkClaims = "In this repo, a claim stands only when a tool checked it this session, and an idea offered as an idea carries a label (skills/kit-rules/reference/evidence.md section 1)."
 
 // ReplyLength holds chat replies to the word ceilings in kit.yml
 // reply_limits (skills/kit-rules/reference/output.md section 0), silently: on UserPromptSubmit it
@@ -79,7 +79,7 @@ func ReplyLength(h *hook.Hook) error {
 		writeTurn(marker, t)
 		var lines []string
 		if last.OverWords > 0 {
-			lines = append(lines, fmt.Sprintf("Your last reply ran %d words against a %d-word ceiling: run section 0's cut test before sending this one.", last.OverWords, last.OverLimit))
+			lines = append(lines, fmt.Sprintf("The last reply ran %d words against a %d-word ceiling (skills/kit-rules/reference/output.md section 0).", last.OverWords, last.OverLimit))
 		}
 		switch {
 		case t == turn{Limit: l.Chat}:
@@ -95,8 +95,9 @@ func ReplyLength(h *hook.Hook) error {
 		if !h.RuleDisabled("claims") {
 			lines = append(lines, checkClaims)
 		}
-		if len(lines) > 0 {
-			h.AddContext("UserPromptSubmit", strings.Join(lines, "\n"))
+		// Each line is its own context, so each gets the label.
+		for _, line := range lines {
+			h.AddContext("UserPromptSubmit", line)
 		}
 	case "Stop":
 		t := readTurn(marker, turn{Limit: l.Chat})

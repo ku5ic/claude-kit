@@ -71,7 +71,7 @@ func NudgeFiles(h *hook.Hook, paths []string) error {
 // its SKILL.md's "Before | Read" table, the action and the file's path.
 func skillNudge(dir, skill string) string {
 	var b strings.Builder
-	b.WriteString(skill + " covers this file. Before you edit it, load " + skill + " via the Skill tool and read the row that fits the edit:\n")
+	b.WriteString(skill + " covers this file and isn't loaded this session; the Skill tool loads it. Its rows, each an edit and the file that holds its rules:\n")
 	for _, row := range tableRows(dir) {
 		b.WriteString("- " + row.before + " -> " + strings.Join(row.files, ", ") + "\n")
 	}

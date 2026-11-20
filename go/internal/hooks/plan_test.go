@@ -46,7 +46,7 @@ func TestPlanStepPause(t *testing.T) {
 		testutil.Write(t, filepath.Join(plans, "plan-new.md"), "## Steps\n\n- [x] one\n- [ ] two\n")
 		r := approve(k, proj, "s1")
 		r.Want(t, 0)
-		r.Has(t, `"hookEventName":"PostToolUse"`, "plan-new.md", "first unchecked step")
+		r.Has(t, `"hookEventName":"PostToolUse"`, "plan-new.md is approved under step_pause: step. Its first unchecked step is this turn's whole scope")
 	})
 	t.Run("with plansDirectory unset and no project plans dir, the plan in ~/.claude/plans is named", func(t *testing.T) {
 		t.Parallel()
@@ -75,7 +75,7 @@ func TestPlanStepPause(t *testing.T) {
 		approve(k, proj, "s1").Want(t, 0)
 		r := prompt(k, proj, "s1")
 		r.Want(t, 0)
-		r.Has(t, "plan-x.md", "next unchecked one")
+		r.Has(t, "plan-x.md", "has open steps. Under step_pause: step, a turn covers the next unchecked step, then review")
 		prompt(k, proj, "other-session").Empty(t)
 		testutil.Write(t, plan, "- [x] one\n")
 		prompt(k, proj, "s1").Empty(t)
@@ -125,9 +125,9 @@ func TestPlanStepPause(t *testing.T) {
 	t.Run("step_pause picks the pause line, from the overlay or the light preset", func(t *testing.T) {
 		t.Parallel()
 		for overlay, want := range map[string][]string{
-			"step_pause: plan\n": {"once for review after the last one", "stop for review when every step is done"},
-			"step_pause: off\n":  {"without stopping for review", "do the next unchecked one"},
-			"preset: light\n":    {"once for review after the last one", "stop for review when every step is done"},
+			"step_pause: plan\n": {"step_pause: plan. Its unchecked steps run in order, and one review follows the last", "a turn covers the next unchecked step, and review waits for the last one"},
+			"step_pause: off\n":  {"step_pause: off. Its unchecked steps run in order, with no review stop", "a turn covers the next unchecked step, with no review stop"},
+			"preset: light\n":    {"step_pause: plan. Its unchecked steps run in order, and one review follows the last", "a turn covers the next unchecked step, and review waits for the last one"},
 		} {
 			k, proj := setup(t)
 			k.overlay(overlay)
@@ -135,7 +135,7 @@ func TestPlanStepPause(t *testing.T) {
 			approve(k, proj, "s1").Has(t, want[0])
 			r := prompt(k, proj, "s1")
 			r.Has(t, "plan-x.md", want[1])
-			r.Lacks(t, "only the next unchecked one")
+			r.Lacks(t, "step_pause: step")
 		}
 	})
 	t.Run("another tool's PostToolUse is silent", func(t *testing.T) {

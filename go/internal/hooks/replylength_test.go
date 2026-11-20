@@ -21,7 +21,7 @@ func TestReplyLength(t *testing.T) {
 		r.Empty(t)
 	}
 	over := func(n, limit int) string {
-		return "Your last reply ran " + strconv.Itoa(n) + " words against a " + strconv.Itoa(limit) + "-word ceiling"
+		return "The last reply ran " + strconv.Itoa(n) + " words against a " + strconv.Itoa(limit) + "-word ceiling"
 	}
 	words := func(n int) string { return strings.TrimSpace(strings.Repeat("word ", n)) }
 
@@ -32,7 +32,7 @@ func TestReplyLength(t *testing.T) {
 		stop(t, k, words(151), false)
 		prompt(k, "walk me through it").Has(t, over(151, 150))
 		stop(t, k, words(500), false)
-		prompt(k, "go").Lacks(t, "Your last reply")
+		prompt(k, "go").Lacks(t, "The last reply")
 	})
 	t.Run("asking to understand is an explain trigger", func(t *testing.T) {
 		t.Parallel()
@@ -47,7 +47,7 @@ func TestReplyLength(t *testing.T) {
 		k := newSandbox(t)
 		prompt(k, "go")
 		stop(t, k, words(30)+"\n| a | b |\n|---|---|\n```go\n"+words(200)+"\n```\n", false)
-		prompt(k, "go").Lacks(t, "Your last reply")
+		prompt(k, "go").Lacks(t, "The last reply")
 	})
 	t.Run("a write-* skill sets its ceiling, code included", func(t *testing.T) {
 		t.Parallel()
@@ -79,7 +79,7 @@ func TestReplyLength(t *testing.T) {
 		stop(t, k, words(30), false)
 		// A task notification's turn: no UserPromptSubmit, code not counted.
 		stop(t, k, words(30)+"\n```\n"+words(50)+"\n```", false)
-		prompt(k, "go").Lacks(t, "Your last reply")
+		prompt(k, "go").Lacks(t, "The last reply")
 		stop(t, k, words(30), false)
 		stop(t, k, words(41), false)
 		prompt(k, "go").Has(t, over(41, 40))
@@ -99,7 +99,7 @@ func TestReplyLength(t *testing.T) {
 		k := newSandbox(t)
 		prompt(k, "/write-explainer the cache in detail").Has(t, "No reply ceiling this turn")
 		stop(t, k, words(500), false)
-		prompt(k, "go").Lacks(t, "Your last reply")
+		prompt(k, "go").Lacks(t, "The last reply")
 	})
 	t.Run("with no session id it does nothing", func(t *testing.T) {
 		t.Parallel()
@@ -119,14 +119,14 @@ func TestReplyLength(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
 		for _, p := range []string{"go", "/verify this branch", "explain the cache in detail"} {
-			prompt(k, p).Has(t, "check each claim with a tool", "skills/kit-rules/reference/evidence.md section 1")
+			prompt(k, p).Has(t, "a claim stands only when a tool checked it this session", "skills/kit-rules/reference/evidence.md section 1")
 		}
 	})
 	t.Run("claims in disabled_rules drops the claims line", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
 		k.overlay("disabled_rules: [claims]\n")
-		prompt(k, "/verify this branch").Lacks(t, "check each claim")
+		prompt(k, "/verify this branch").Lacks(t, "a claim stands")
 		prompt(k, "go").Empty(t)
 	})
 	t.Run("an unclosed fence doesn't hide the prose after it; a tilde fence is code", func(t *testing.T) {
@@ -134,7 +134,7 @@ func TestReplyLength(t *testing.T) {
 		k := newSandbox(t)
 		prompt(k, "go")
 		stop(t, k, words(30)+"\n~~~\n"+words(200)+"\n~~~\n", false)
-		prompt(k, "go").Lacks(t, "Your last reply")
+		prompt(k, "go").Lacks(t, "The last reply")
 		stop(t, k, words(30)+"\n```\n"+words(20), false)
 		prompt(k, "go").Has(t, over(50, 40))
 	})

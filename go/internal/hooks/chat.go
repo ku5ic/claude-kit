@@ -69,6 +69,6 @@ func chatCorrection(hits []chatHit) string {
 	for i, c := range hits {
 		tells[i] = fmt.Sprintf("%q -> %s", c.Match, c.Fix)
 	}
-	return "Your last reply held AI tells: " + strings.Join(tells, "; ") +
-		". Don't repeat them: write each sentence around the fact it points at, or cut it; a synonym keeps the tell (slop-patterns skill)."
+	return "The last reply held AI tells: " + strings.Join(tells, "; ") +
+		". A synonym keeps the tell. The slop-patterns skill has the rewrite: each sentence written around the fact it points at, or cut."
 }

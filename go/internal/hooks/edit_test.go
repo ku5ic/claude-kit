@@ -406,7 +406,7 @@ func TestSkillsNudge(t *testing.T) {
 
 	first := nudge("s1")
 	first.Allowed(t)
-	first.Has(t, "bash-patterns covers this file", "skills/bash-patterns/reference/safety-flags.md")
+	first.Has(t, "bash-patterns covers this file and isn't loaded this session", "skills/bash-patterns/reference/safety-flags.md")
 
 	second := nudge("s1")
 	second.Allowed(t)

@@ -61,7 +61,7 @@ func TestPromptDispatch(t *testing.T) {
 		t.Fatalf("stdout isn't one JSON object: %v\n%s", err, r.Stdout)
 	}
 	ctx := out.HookSpecificOutput.AdditionalContext
-	if out.HookSpecificOutput.HookEventName != "UserPromptSubmit" || !strings.Contains(ctx, "load the investigate skill") || !strings.Contains(ctx, "check each claim") {
+	if out.HookSpecificOutput.HookEventName != "UserPromptSubmit" || !strings.Contains(ctx, "starts from the investigate skill's findings") || !strings.Contains(ctx, "a claim stands only when a tool checked it") {
 		t.Errorf("want the plan line and the claims line in one context; got %+v", out.HookSpecificOutput)
 	}
 }
@@ -74,7 +74,7 @@ func TestStopDispatch(t *testing.T) {
 	k.Hook("stop-dispatch", map[string]any{"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": false,
 		"last_assistant_message": strings.TrimSpace(strings.Repeat("word ", 41))}).Want(t, 0)
 	k.Hook("prompt-dispatch", map[string]any{"hook_event_name": "UserPromptSubmit", "session_id": "s1", "prompt": "next"}).
-		Has(t, "Your last reply ran 41 words against a 40-word ceiling")
+		Has(t, "The last reply ran 41 words against a 40-word ceiling")
 }
 
 // post-edit-dispatch runs sanitize-output before format-dispatch.

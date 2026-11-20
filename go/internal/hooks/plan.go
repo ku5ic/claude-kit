@@ -64,7 +64,7 @@ func PlanModeContext(h *hook.Hook) error {
 		return nil
 	}
 	if p.String(hook.KeyPermissionMode) == "plan" {
-		h.Print("Plan mode: load the investigate skill and follow it; its findings feed the plan.\n")
+		h.Print("In this repo, a plan starts from the investigate skill's findings, and its gatherer questions go to kit:gatherer.\n")
 		return nil
 	}
 	marker := planFile(h, cache.PlanActive, p.Cwd())
@@ -76,12 +76,13 @@ func PlanModeContext(h *hook.Hook) error {
 		if p.String(hook.KeyToolName) != "ExitPlanMode" {
 			return nil
 		}
-		pause := approvedPause[pauseOf(h)] + ", per kit.yml step_pause and skills/kit-rules/reference/workflow.md section 3."
-		msg := "Plan approved: " + pause
+		pause := pauseOf(h)
+		approved := " is approved under step_pause: " + pause + ". " + approvedPause[pause] + pauseSource
+		msg := "The plan" + approved
 		if plan := newestOpenPlan(h); plan != "" {
 			// Best effort: without the marker, later prompts just aren't reminded.
 			_ = fsx.WriteAtomic(marker, []byte(plan), 0o644)
-			msg = "Plan approved (" + plan + "): " + pause
+			msg = "Plan " + plan + approved
 			// A batched pause's first review sheet starts from the tree as approved.
 			_ = os.Remove(planFile(h, cache.PlanTicks, p.Cwd()))
 			if data, err := os.ReadFile(plan); err == nil {
@@ -105,24 +106,27 @@ func PlanModeContext(h *hook.Hook) error {
 	// scratch-rotate prunes markers by age: a plan still in use stays fresh.
 	now := time.Now()
 	_ = os.Chtimes(marker, now, now)
-	h.Print(fmt.Sprintf("Active plan %s has open steps: %s, per kit.yml step_pause and skills/kit-rules/reference/workflow.md section 3.\n", plan, openPause[pauseOf(h)]))
+	pause := pauseOf(h)
+	h.Print(fmt.Sprintf("Plan %s has open steps. Under step_pause: %s, %s%s\n", plan, pause, openPause[pause], pauseSource))
 	return nil
 }
 
-// approvedPause and openPause are the pause lines for each step_pause value,
-// on approval and on each later prompt.
+// approvedPause and openPause say what each step_pause value means for a
+// turn, on approval and on each later prompt; pauseSource names their owner.
 var (
 	approvedPause = map[string]string{
-		"step": "implement only its first unchecked step, then stop for review",
-		"plan": "implement its unchecked steps in order, then stop once for review after the last one",
-		"off":  "implement its unchecked steps in order without stopping for review",
+		"step": "Its first unchecked step is this turn's whole scope, and review follows it",
+		"plan": "Its unchecked steps run in order, and one review follows the last",
+		"off":  "Its unchecked steps run in order, with no review stop",
 	}
 	openPause = map[string]string{
-		"step": "do only the next unchecked one, then stop for review",
-		"plan": "do the next unchecked one, and stop for review when every step is done",
-		"off":  "do the next unchecked one",
+		"step": "a turn covers the next unchecked step, then review",
+		"plan": "a turn covers the next unchecked step, and review waits for the last one",
+		"off":  "a turn covers the next unchecked step, with no review stop",
 	}
 )
+
+const pauseSource = " (kit.yml step_pause, skills/kit-rules/reference/workflow.md section 3)."
 
 // planFile is the session's kind file (plan-active, plan-ticks) for the work
 // tree holding dir, keyed by its root too, so one session can run a plan in
