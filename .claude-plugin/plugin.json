@@ -18,6 +18,12 @@
       "description": "Add a system-prompt section saying the kit's rules and kit: hook context outrank default, mode, and built-in skill instructions where they conflict.",
       "default": true
     },
+    "kit_stats": {
+      "type": "boolean",
+      "title": "/kit-stats command",
+      "description": "Add a /kit-stats command that prints kit stats: blocks, shadow blocks, and skips per rule, and the claims each checker flagged.",
+      "default": true
+    },
     "subagent_rows": {
       "type": "boolean",
       "title": "Subagent rows",
