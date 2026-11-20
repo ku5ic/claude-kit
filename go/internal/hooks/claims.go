@@ -157,8 +157,9 @@ const claimChecker = "kit:claim-checker"
 // whether Claude acted on the report is left to the transcript. A session
 // that started before the agent was installed can't run it, so a not-found
 // result falls back to the hook's own run. A report file, dest, that a run
-// finished on goes through rewritten: acting on the checker's report
-// rewords what it flagged, which would otherwise ask for a run again.
+// finished on goes through rewritten once: acting on the checker's report
+// rewords what it flagged, which would otherwise ask for a run again. Once
+// that rewrite lands, a later one goes through the statement diff.
 func gateOnChecker(h *hook.Hook, text, where, retry, marker, dest string) error {
 	cfg := h.Config()
 	if cfg == nil || h.RuleDisabled("claims") || cfg.Claims.Off() || !claims.Declarative(text) {
@@ -232,12 +233,37 @@ func checkedStatements(log checkerLog, record string) ([]string, map[string]int,
 	for _, a := range lines {
 		if outcomes[a.id] == checkerDone {
 			keys = append(keys, a.keys...)
-			if a.dest != "" {
+			if a.dest != "" && !log.writtenAfterRun(a.id, a.dest) {
 				done = append(done, a.dest)
 			}
 		}
 	}
 	return keys, outcomes, done
+}
+
+// writtenAfterRun is true when a write to dest finished after the last
+// claim-checker run on id: the rewrite that run covered has landed, so a
+// later one's new sentences need a run of their own.
+func (l checkerLog) writtenAfterRun(id, dest string) bool {
+	at, found := transcript.Pos{}, false
+	for _, run := range transcript.AgentRuns(l.entries, claimChecker) {
+		if run.Status == transcript.RunDone && strings.Contains(run.Prompt, id) {
+			at, found = run.At, true
+		}
+	}
+	if !found {
+		return false
+	}
+	writes := map[string]bool{}
+	for pos, b := range transcript.Blocks(l.entries) {
+		switch {
+		case b.Type == "tool_use" && slices.Contains(transcript.EditTools, b.Name) && b.Path() == dest && pos.After(at):
+			writes[b.ID] = true
+		case b.Type == "tool_result" && writes[b.ToolUseID] && !b.IsError:
+			return true
+		}
+	}
+	return false
 }
 
 // checkerLog is the session transcript at path, read once, and the place

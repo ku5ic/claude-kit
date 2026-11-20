@@ -237,6 +237,28 @@ func TestVerifyClaimsToolInput(t *testing.T) {
 		k.run("verify-claims", checkerRan(k, write("debug-a-20261110-1200.md", reworded), id)).Allowed(t)
 		k.run("verify-claims", checkerRan(k, write("debug-b-20261110-1200.md", reworded), id)).Denied(t)
 	})
+	// Only the rewrite right after the run passes on the run: once it's
+	// written, a later rewrite's new sentences need a run of their own.
+	t.Run("a report rewritten again after the checked rewrite landed is held for a run", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		k.verifier("", claim)
+		path := filepath.Join(k.home, "proj", ".claude", "scratch", "debug-a-20261110-1200.md")
+		write := func(text string) map[string]any {
+			return toolCall("Write", map[string]any{"file_path": path, "content": "# Debug\n\n" + text})
+		}
+		id := checkID.FindString(k.run("verify-claims", write(claim)).Stdout)
+		reworded := "The cache lives in the session directory, per the checker's report."
+		landed, _ := json.Marshal(map[string]any{"type": "assistant", "message": map[string]any{"content": []any{map[string]any{
+			"type": "tool_use", "id": "w2", "name": "Write", "input": map[string]any{"file_path": path, "content": reworded}}}}})
+		result, _ := json.Marshal(map[string]any{"type": "user", "message": map[string]any{"content": []any{map[string]any{
+			"type": "tool_result", "tool_use_id": "w2", "is_error": false, "content": "written"}}}})
+		session := filepath.Join(k.t.TempDir(), "session.jsonl")
+		testutil.Write(t, session, checkerLine(id)+"\n"+string(landed)+"\n"+string(result)+"\n")
+		again := write(reworded + "\n\nThe gate reads the transcript twice.")
+		again["transcript_path"] = session
+		k.run("verify-claims", again).Denied(t)
+	})
 	t.Run("a code edit after a run makes its sentences fresh again", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
