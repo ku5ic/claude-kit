@@ -1,7 +1,11 @@
 package hooks
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
@@ -30,37 +34,45 @@ func GuardHandback(h *hook.Hook) error {
 	if marker == "" {
 		return nil
 	}
-	hits := reportHits(h, p.String(hook.KeyInputMessage))
-	if prev, _ := os.ReadFile(marker); string(prev) == "sent-back" {
+	text := p.String(hook.KeyInputMessage)
+	hits := reportHits(h, text)
+	if !mayResend(marker, text) {
 		return nil
 	}
 	if len(hits) == 0 {
-		if !h.DryRun {
+		// A clean report marks the hand-back without resetting the count.
+		if !h.DryRun && !fsx.IsFile(marker) {
 			_ = fsx.WriteAtomic(marker, []byte("seen"), 0o644)
 		}
 		return nil
 	}
-	if markOnce(h, marker, []byte("sent-back"), "slop") {
+	if markSentBack(h, marker, text, "slop") {
 		h.Deny(slop.Message("your report", hits, sendBack), "slop")
 	}
 	return nil
 }
 
-// SubagentSlop sends a subagent's closing message back once when it holds
-// AI tells in a slop.block_tiers tier: without auto mode, that message is
-// the report. stop_hook_active lets the second stop through, and an agent
-// that handed back is GuardHandback's.
+// SubagentSlop sends a subagent's closing message back when it holds AI
+// tells in a slop.block_tiers tier: without auto mode, that message is the
+// report. A revision is checked again, up to maxSendBacks; an agent that
+// handed back a clean report is GuardHandback's. A marker, not
+// stop_hook_active: another check may have blocked the first stop.
 // SubagentStop.
 func SubagentSlop(h *hook.Hook) error {
 	p := h.Payload
-	if p.Err != nil || p.Bool(hook.KeyStopHookActive) {
+	if p.Err != nil {
 		return nil
 	}
-	if marker := handbackMarker(h, cache.Slop); marker != "" && fsx.IsFile(marker) {
+	marker := handbackMarker(h, cache.Slop)
+	text := p.String(hook.KeyLastAssistantMessage)
+	if prev, _ := os.ReadFile(marker); marker == "" && p.Bool(hook.KeyStopHookActive) || string(prev) == "seen" || marker != "" && !mayResend(marker, text) {
 		return nil
 	}
-	hits := reportHits(h, p.String(hook.KeyLastAssistantMessage))
+	hits := reportHits(h, text)
 	if len(hits) == 0 {
+		return nil
+	}
+	if marker != "" && !markSentBack(h, marker, text, "slop") {
 		return nil
 	}
 	return h.Block(slop.Message("your report", hits, sendBack), "slop")
@@ -80,6 +92,50 @@ func handbackMarker(h *hook.Hook, kind string) string {
 // rule only once. False when the write fails: with no guard, the block
 // would come back on every retry, so the caller lets the call through and
 // the user is told.
+// maxSendBacks is how many times a cheap check (slop, size, citations)
+// sends one agent's report back before it lets the report through: a
+// revision is checked again, and the cap ends a loop.
+const maxSendBacks = 2
+
+// sentBack is what a handback marker records: how many times the agent's
+// report was sent back, and the hash of the last text sent back. A missing
+// marker, and "seen" (a clean hand-back), are none; a bare "sent-back",
+// from before the count, is one.
+func sentBack(marker string) (n int, last string) {
+	data, err := os.ReadFile(marker)
+	if err != nil {
+		return 0, ""
+	}
+	fields := strings.Fields(string(data))
+	if len(fields) == 0 || fields[0] != "sent-back" {
+		return 0, ""
+	}
+	if len(fields) < 3 {
+		return 1, ""
+	}
+	n, _ = strconv.Atoi(fields[1])
+	return n, fields[2]
+}
+
+// mayResend is true when the report text is checked again: it isn't the
+// text last sent back, and the agent hasn't reached maxSendBacks.
+func mayResend(marker, text string) bool {
+	n, last := sentBack(marker)
+	return n < maxSendBacks && last != textHash(text)
+}
+
+// markSentBack records one more send-back of text, as markOnce does.
+func markSentBack(h *hook.Hook, marker, text, rule string) bool {
+	n, _ := sentBack(marker)
+	return markOnce(h, marker, []byte(fmt.Sprintf("sent-back %d %s", n+1, textHash(text))), rule)
+}
+
+// textHash is text's sha256, in hex.
+func textHash(text string) string {
+	sum := sha256.Sum256([]byte(text))
+	return hex.EncodeToString(sum[:])
+}
+
 func markOnce(h *hook.Hook, marker string, data []byte, rule string) bool {
 	if h.DryRun {
 		return true

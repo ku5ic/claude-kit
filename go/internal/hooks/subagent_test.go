@@ -62,7 +62,7 @@ func TestSubagentSlop(t *testing.T) {
 		status int
 	}{
 		{"block: a tell in the closing message", nil, subagentStop("a1", "## Report\n\n"+tell, false), 2},
-		{"allow: the second stop", nil, subagentStop("a1", tell, true), 0},
+		{"block: a second stop another check caused", nil, subagentStop("a1", tell, true), 2},
 		{"allow: a clean closing message", nil, subagentStop("a1", "Report written to the scratch file.", false), 0},
 		{"allow: an agent that handed back", handback("a1", "Clean report."), subagentStop("a1", tell, false), 0},
 		{"block: another agent handed back", handback("a2", "Clean report."), subagentStop("a1", tell, false), 2},
@@ -80,4 +80,24 @@ func TestSubagentSlop(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A revised report is checked again, up to two send-backs per agent; the
+// same text resent goes through.
+func TestARevisedReportIsCheckedAgain(t *testing.T) {
+	t.Parallel()
+	t.Run("slop, by hand-back", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		k.run("guard-handback", handback("a1", "## Findings\n\n"+tell)).Denied(t)
+		k.run("guard-handback", handback("a1", "## Findings, revised\n\n"+tell)).Denied(t)
+		k.run("guard-handback", handback("a1", "## Findings, again\n\n"+tell)).Allowed(t)
+	})
+	t.Run("slop, by stop", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		k.run("subagent-slop", subagentStop("a1", "## Report\n\n"+tell, false)).Want(t, 2)
+		k.run("subagent-slop", subagentStop("a1", "## Report\n\n"+tell, true)).Want(t, 0)
+		k.run("subagent-slop", subagentStop("a1", "## Report, revised\n\n"+tell, true)).Want(t, 2)
+	})
 }

@@ -11,7 +11,6 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/connector"
-	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/layout"
 )
@@ -42,14 +41,16 @@ func CheckSize(h *hook.Hook) error {
 	var budget int
 	switch {
 	case p.String(hook.KeyHookEventName) == "SubagentStop":
-		// Sent back once, by the stop or the hand-back. A marker, not
-		// stop_hook_active: another check may have blocked the first stop.
+		// Sent back by the stop or the hand-back, a revision again, up to
+		// maxSendBacks. A marker, not stop_hook_active: another check may
+		// have blocked the first stop.
 		m := handbackMarker(h, cache.Size)
-		if m == "" && p.Bool(hook.KeyStopHookActive) || m != "" && fsx.IsFile(m) {
+		report := p.String(hook.KeyLastAssistantMessage)
+		if m == "" && p.Bool(hook.KeyStopHookActive) || m != "" && !mayResend(m, report) {
 			return nil
 		}
-		if n := countWords(p.String(hook.KeyLastAssistantMessage), false); b.Report > 0 && n > b.Report {
-			if m != "" && !markOnce(h, m, []byte("sent-back"), "size") {
+		if n := countWords(report, false); b.Report > 0 && n > b.Report {
+			if m != "" && !markSentBack(h, m, report, "size") {
 				return nil
 			}
 			return h.Block(sizeMessage("your report", n, b.Report, "send the shorter report"), "size")
@@ -81,6 +82,12 @@ func CheckSize(h *hook.Hook) error {
 	}
 	n := countWords(text, false)
 	if budget <= 0 || n <= budget || marker == "" {
+		return nil
+	}
+	if tool == "SubagentHandback" {
+		if mayResend(marker, text) && markSentBack(h, marker, text, "size") {
+			h.Deny(sizeMessage(where, n, budget, then), "size")
+		}
 		return nil
 	}
 	sum := sha256.Sum256([]byte(text))

@@ -57,6 +57,15 @@ func TestCheckCitations(t *testing.T) {
 			k.run("check-citations", report(dir, "SubagentStop", "a1", tc.agentType, tc.text, false)).Want(t, 0)
 		})
 	}
+	t.Run("a gatherer's revised handback with a new bad citation is sent back again, twice at most", func(t *testing.T) {
+		t.Parallel()
+		k, dir := newSandbox(t), project(t)
+		gather := func(text string) map[string]any { return report(dir, "PreToolUse", "a1", "kit:gatherer", text, false) }
+		k.run("check-citations", gather(bad)).Denied(t)
+		k.run("check-citations", gather(bad)).Allowed(t)
+		k.run("check-citations", gather("- src/stop.go:50 returns early")).Denied(t)
+		k.run("check-citations", gather("- src/stop.go:60 returns early")).Allowed(t)
+	})
 	t.Run("a plan with a bad citation is sent back once per text", func(t *testing.T) {
 		t.Parallel()
 		k, dir := newSandbox(t), project(t)
