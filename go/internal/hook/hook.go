@@ -305,17 +305,23 @@ func (h *Hook) Deny(reason, rule string) bool {
 	return true
 }
 
-// logBlock logs event, a block of rule or its shadow, with what it
-// blocked: a short hash of the command or path, never the text, and the
-// project it ran in.
+// logBlock logs event, a block of rule, its shadow, or an ask (no rule),
+// with what it stopped: a short hash of the command or path, never the
+// text, the subagent type making the call, and the project it ran in.
 func (h *Hook) logBlock(event, rule string) {
-	pairs := []string{"rule", rule}
+	var pairs []string
+	if rule != "" {
+		pairs = append(pairs, "rule", rule)
+	}
 	for _, key := range []string{KeyInputCommand, KeyInputFilePath, KeyInputNotebookPath} {
 		if v := h.Payload.String(key); v != "" {
 			sum := sha256.Sum256([]byte(v))
 			pairs = append(pairs, "target", hex.EncodeToString(sum[:6]))
 			break
 		}
+	}
+	if agentType := h.Payload.String(KeyAgentType); agentType != "" {
+		pairs = append(pairs, "agent_type", agentType)
 	}
 	if cwd := h.Payload.Cwd(); cwd != "" {
 		root := git.Toplevel(cwd)
@@ -333,6 +339,9 @@ func (h *Hook) logBlock(event, rule string) {
 // trip names every reason. Run prints the result once, since stdout takes
 // one JSON object.
 func (h *Hook) Decide(decision, reason string) {
+	if decision == "ask" {
+		h.logBlock("ask", "")
+	}
 	switch {
 	case decision == h.decision && decision != "allow":
 		if !slices.Contains(h.reasons, reason) {

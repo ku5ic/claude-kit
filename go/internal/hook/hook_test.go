@@ -164,6 +164,20 @@ func TestBlockLogsAndHonorsDisabledRules(t *testing.T) {
 	}
 }
 
+// A subagent's block names its agent type, and an ask is logged as one,
+// so kit stats can tell where blocks land and count the prompts a user sees.
+func TestBlocksNameTheAgentTypeAndAsksAreLogged(t *testing.T) {
+	h, _, _ := newHook(t, `{"session_id":"s1","cwd":"/nonexistent/proj","agent_id":"a1","agent_type":"kit:gatherer","tool_input":{"command":"rm -rf /"}}`)
+	h.Deny("nope", "some-rule")
+	h.Decide("ask", "confirm it")
+	data, _ := os.ReadFile(filepath.Join(h.Paths.LogDir(), "guards.jsonl"))
+	want := `{"ts":"2026-09-28T12:00:00Z","hook":"test.sh","event":"block","session_id":"s1","agent_id":"a1","rule":"some-rule","target":"5c7923bd67b0","agent_type":"kit:gatherer","project":"proj"}` + "\n" +
+		`{"ts":"2026-09-28T12:00:00Z","hook":"test.sh","event":"ask","session_id":"s1","agent_id":"a1","target":"5c7923bd67b0","agent_type":"kit:gatherer","project":"proj"}` + "\n"
+	if string(data) != want {
+		t.Errorf("guards.jsonl =\n%s\nwant\n%s", data, want)
+	}
+}
+
 // A shadowed rule blocks and denies nothing, and logs what it would have
 // blocked, so a rule can be tried before it costs a turn.
 func TestAShadowedRuleLogsAndLetsThrough(t *testing.T) {
