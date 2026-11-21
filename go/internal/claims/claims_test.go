@@ -325,6 +325,27 @@ func TestTheTagsSessionLeavesItsClaimsToTheVerifiersOwnReads(t *testing.T) {
 	testutil.Lacks(t, got, "v0.12", "timeout: 240")
 }
 
+func TestStatements(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, text string
+		want       []string
+	}{
+		{"a sentence wrapped over two lines", "The verifier runs from\nthe project root.", []string{"The verifier runs from the project root."}},
+		{"a line ending in a parenthesis", "Evidence is cut at 20 KB per result (`claims.go:68`)", []string{"Evidence is cut at 20 KB per result (`claims.go:68`)"}},
+		{"a line ending in a colon", "The verifier has three tools:\n\n- Read", []string{"The verifier has three tools:"}},
+		{"a heading stays apart from its paragraph", "## All 42 tests pass\nThe gate ran twice today.", []string{"## All 42 tests pass", "The gate ran twice today."}},
+		{"a question isn't one", "Which branch should I use?", nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := Statements(tc.text); !slices.Equal(got, tc.want) {
+				t.Errorf("Statements(%q) = %q, want %q", tc.text, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestDeclarative(t *testing.T) {
 	t.Parallel()
 	for text, want := range map[string]bool{

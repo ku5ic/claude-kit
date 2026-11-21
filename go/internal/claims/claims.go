@@ -73,28 +73,49 @@ const threeWords = `[\pL\pN][\pL\pN'-]*[^\pL\pN?\n]+[\pL\pN][\pL\pN'-]*[^\pL\pN?
 
 var (
 	fence = regexp.MustCompile("(?ms)^\\s*(```|~~~).*?^\\s*(```|~~~)")
-	// statement is three or more words ending a sentence with . or !.
-	statement = regexp.MustCompile(threeWords + `[.!](\s|$)`)
+	// statement is three or more words ending a sentence with . or !, or a
+	// line with ) or :.
+	statement = regexp.MustCompile(`(?m)` + threeWords + `([.!](\s|$)|[):]$)`)
 	// item is a list item, table row, or heading of three or more words,
 	// which often ends without punctuation.
 	item = regexp.MustCompile(`(?m)^\s*([-*+]|\d+[.)]|\||#{1,6})\s*[^?\n]*?` + threeWords + `$`)
+	// blockStart is a list item, table row, or heading, which starts a line
+	// of its own.
+	blockStart = regexp.MustCompile(`^\s*([-*+]\s|\d+[.)]\s|\||#{1,6}\s)`)
+	// unjoined is a table row or heading, which no next line continues.
+	unjoined = regexp.MustCompile(`^\s*(\||#{1,6}\s)`)
 )
+
+// prose is text outside its code fences, each line inside a paragraph
+// joined to the one before it, so a wrapped sentence is one statement.
+func prose(text string) string {
+	var lines []string
+	for line := range strings.SplitSeq(fence.ReplaceAllString(text, ""), "\n") {
+		if n := len(lines); n > 0 && strings.TrimSpace(line) != "" && strings.TrimSpace(lines[n-1]) != "" &&
+			!blockStart.MatchString(line) && !unjoined.MatchString(lines[n-1]) {
+			lines[n-1] += " " + strings.TrimSpace(line)
+			continue
+		}
+		lines = append(lines, line)
+	}
+	return strings.Join(lines, "\n")
+}
 
 // Declarative is true when text, outside its code fences, holds a sentence,
 // list item, table row, or heading that states something: questions, code,
 // and a word or two ("Done.") have nothing to verify.
 func Declarative(text string) bool {
-	prose := fence.ReplaceAllString(text, "")
-	return statement.MatchString(prose) || item.MatchString(prose)
+	p := prose(text)
+	return statement.MatchString(p) || item.MatchString(p)
 }
 
 // Statements is each sentence, list item, and table row of text, outside
 // its code fences, that states something, trimmed, each once.
 func Statements(text string) []string {
-	prose := fence.ReplaceAllString(text, "")
+	p := prose(text)
 	var out []string
 	for _, re := range []*regexp.Regexp{item, statement} {
-		for _, m := range re.FindAllString(prose, -1) {
+		for _, m := range re.FindAllString(p, -1) {
 			if m = strings.TrimSpace(m); !slices.Contains(out, m) {
 				out = append(out, m)
 			}
