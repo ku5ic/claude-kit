@@ -146,6 +146,16 @@ func TestBashEdits(t *testing.T) {
 			ran(k, dir, cmd).Want(t, 2)
 		})
 	}
+	t.Run("a file a git move brought in, beside another command, isn't checked", func(t *testing.T) {
+		t.Parallel()
+		k, dir := setup(t)
+		testutil.Git(t, dir, "checkout", "-q", "-b", "x")
+		testutil.Write(t, filepath.Join(dir, "notes.md"), "Notes.\n"+tell)
+		testutil.Git(t, dir, "commit", "-q", "-am", "theirs")
+		testutil.Git(t, dir, "checkout", "-q", "-")
+		testutil.Git(t, dir, "checkout", "-q", "x")
+		ran(k, dir, "git checkout x && go test ./...").Want(t, 0)
+	})
 	for _, cmd := range []string{"git -C . checkout main", "cd sub && git pull"} {
 		t.Run("one git move alone isn't checked: "+cmd, func(t *testing.T) {
 			t.Parallel()

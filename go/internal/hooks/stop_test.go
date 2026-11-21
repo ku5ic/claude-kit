@@ -68,15 +68,18 @@ func (e *stopEnv) edit(tool, path string, denied bool) {
 
 // bash is Bash call id running change in dir, with bash-edits run on it
 // as PostToolUse would.
-func (e *stopEnv) bash(id, dir string, change func()) {
+func (e *stopEnv) bash(id, dir string, change func()) { e.bashRun(id, dir, "edit", change) }
+
+// bashRun is bash with the command cmd.
+func (e *stopEnv) bashRun(id, dir, cmd string, change func()) {
 	e.line(map[string]any{"type": "assistant", "message": map[string]any{"content": []any{
-		map[string]any{"type": "tool_use", "id": id, "name": "Bash", "input": map[string]any{"command": "edit"}},
+		map[string]any{"type": "tool_use", "id": id, "name": "Bash", "input": map[string]any{"command": cmd}},
 	}}})
 	if change != nil {
 		change()
 	}
 	e.k.run("bash-edits", map[string]any{"hook_event_name": "PostToolUse", "session_id": "s1", "cwd": dir, "tool_use_id": id,
-		"tool_name": "Bash", "tool_input": map[string]any{"command": "edit"}})
+		"tool_name": "Bash", "tool_input": map[string]any{"command": cmd}})
 	e.line(map[string]any{"type": "user", "message": map[string]any{"content": []any{map[string]any{"type": "tool_result", "tool_use_id": id}}}})
 }
 
@@ -542,6 +545,23 @@ func TestStopChecks(t *testing.T) {
 		r := e.stop(false)
 		r.Has(t, "pass  lint")
 		r.Lacks(t, "notes.md")
+	})
+	t.Run("a file a git move brought in isn't checked, with a command beside the move", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		testutil.Git(t, e.repo, "add", "-A")
+		testutil.Git(t, e.repo, "commit", "-q", "-m", "base")
+		testutil.Git(t, e.repo, "checkout", "-q", "-b", "x")
+		testutil.Write(t, e.path("a.ts"), "theirs\n")
+		testutil.Git(t, e.repo, "commit", "-q", "-am", "theirs")
+		testutil.Git(t, e.repo, "checkout", "-q", "-")
+		e.line(testutil.UserPrompt("do it"))
+		e.start()
+		e.bashRun("toolu_b1", e.repo, "git checkout x && go test ./...", func() { testutil.Git(t, e.repo, "checkout", "-q", "x") })
+		e.stop(false).Want(t, 0)
+		if got := testutil.Calls(t, e.calls); got != nil {
+			t.Errorf("a gate ran on the checked-out file: %q", got)
+		}
 	})
 	t.Run("an edit no check claims prints nothing", func(t *testing.T) {
 		t.Parallel()

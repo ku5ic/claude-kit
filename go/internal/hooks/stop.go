@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -123,7 +124,14 @@ func runStop(h *hook.Hook, cfg *config.Config, p enforce.Plan, r stopRun) error 
 		}
 		return nil
 	}
-	out := run.Files(p, h.Paths.CacheDir(), time.Duration(cfg.GateTimeout)*time.Second, r.deadline)
+	// A failure the git base has too isn't the branch's to fix.
+	var base *run.Base
+	if ref, ok := git.Base(r.root, ""); ok {
+		if sha, err := git.Line(r.root, "rev-parse", ref); err == nil {
+			base = &run.Base{Root: r.root, SHA: sha, CacheDir: h.Paths.CacheDir()}
+		}
+	}
+	out := run.Files(p, base, h.Paths.CacheDir(), time.Duration(cfg.GateTimeout)*time.Second, r.deadline)
 	if !h.DryRun {
 		_ = fsx.WriteAtomic(cache.StopReport(h.Paths.CacheDir(), r.root), []byte(out.Report()), 0o600)
 	}
@@ -265,6 +273,9 @@ func turnFiles(h *hook.Hook, turn []transcript.Entry, cwd, root string) (edited 
 	changed, tree, ok := turnChanges(h, root)
 	if ok {
 		if !transcript.NamesEveryWrite(turn) {
+			// A file a git move brought in is someone else's.
+			moved := movedFiles(h, root)
+			changed = slices.DeleteFunc(changed, func(path string) bool { return slices.Contains(moved, path) })
 			edited = append(edited, changed...) // enforce.Stop drops repeats
 		}
 	} else if changes, err := git.Status(cwd, false); err != nil || len(changes) == 0 {

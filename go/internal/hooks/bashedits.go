@@ -45,10 +45,43 @@ func gitMove(cmd string) bool {
 	calls = slices.DeleteFunc(calls, func(words []string) bool {
 		return len(words) == 0 || filepath.Base(words[0]) == "cd" || classify.ReadsOnly(words)
 	})
-	return len(calls) > 0 && !slices.ContainsFunc(calls, func(words []string) bool {
-		sub, _, _ := classify.GitSubcommand(words[1:])
-		return filepath.Base(words[0]) != "git" || !slices.Contains(gitMoves, sub)
-	})
+	return len(calls) > 0 && !slices.ContainsFunc(calls, func(words []string) bool { return !isGitMove(words) })
+}
+
+// isGitMove is true when words, one call, is a git move.
+func isGitMove(words []string) bool {
+	sub, _, _ := classify.GitSubcommand(words[1:])
+	return len(words) > 0 && filepath.Base(words[0]) == "git" && slices.Contains(gitMoves, sub)
+}
+
+// hasGitMove is true when any call in cmd is a git move.
+func hasGitMove(cmd string) bool {
+	calls, ok := classify.Words(cmd)
+	return ok && slices.ContainsFunc(calls, func(words []string) bool { return len(words) > 0 && isGitMove(words) })
+}
+
+// fromHead is which of paths, changed files in root, match HEAD: as it holds
+// them, or deleted where it has none. Beside a git move they're the move's.
+func fromHead(root string, paths []string) []string {
+	var moved []string
+	for _, path := range paths {
+		blob, atHead := blobAt(root, "HEAD", path)
+		data, err := os.ReadFile(path)
+		if err == nil && atHead == nil && blob == string(data) || errors.Is(err, os.ErrNotExist) && atHead != nil {
+			moved = append(moved, path)
+		}
+	}
+	return moved
+}
+
+// movedFile is the turn's record of the files a git move brought into root,
+// which the Stop set leaves out.
+func movedFile(h *hook.Hook, root string) string { return turnRootFile(h, root, "moved") }
+
+// movedFiles is the turn's movedFile record for root.
+func movedFiles(h *hook.Hook, root string) []string {
+	data, _ := os.ReadFile(movedFile(h, root))
+	return strings.Fields(string(data))
 }
 
 // BashBaseline is the PreToolUse step that snapshots, before a Bash
@@ -132,8 +165,17 @@ func BashEdits(h *hook.Hook, writes []string) error {
 	}
 	// Whoever wrote the change, a claim checked before it is stale.
 	recordBashEdit(h, made)
-	if gitMove(p.String(hook.KeyInputCommand)) && len(repoWrites(root, writes)) == 0 {
+	cmd := p.String(hook.KeyInputCommand)
+	if gitMove(cmd) && len(repoWrites(root, writes)) == 0 {
 		return nil
+	}
+	if hasGitMove(cmd) {
+		moved := fromHead(root, changed)
+		if record := movedFile(h, root); len(moved) > 0 && record != "" && !h.DryRun {
+			_ = fsx.Append(record, []byte(strings.Join(moved, "\n")+"\n"))
+		}
+		changed = slices.DeleteFunc(changed, func(path string) bool { return slices.Contains(moved, path) })
+		changes = slices.DeleteFunc(changes, func(c change) bool { return slices.Contains(moved, c.path) })
 	}
 	problems := lostTests(h, root, before, changed)
 	rewritten := false
@@ -301,12 +343,16 @@ func editedFile(h *hook.Hook, path string) string {
 }
 
 // bashTreeFile is where the session keeps root's tree as the last Bash
-// command left it; "" outside a work tree or without a session.
-func bashTreeFile(h *hook.Hook, root string) string {
+// command left it.
+func bashTreeFile(h *hook.Hook, root string) string { return turnRootFile(h, root, "bash") }
+
+// turnRootFile is the turn's session file named kind for root, which the
+// turn-tree hook clears; "" outside a work tree or without a session.
+func turnRootFile(h *hook.Hook, root, kind string) string {
 	if root == "" {
 		return ""
 	}
-	return h.Paths.SessionFile(cache.TurnTree, h.Payload.SessionID(), "bash", cache.RootKey(root))
+	return h.Paths.SessionFile(cache.TurnTree, h.Payload.SessionID(), kind, cache.RootKey(root))
 }
 
 func saveTree(h *hook.Hook, file, tree string) {
