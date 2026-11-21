@@ -100,20 +100,15 @@ func StopChecks(h *hook.Hook) error {
 	if p.Classifier.Runs > 0 {
 		h.Log(kitlog.Guards, "gapfill", p.Classifier.Pairs()...)
 	}
-	unchecked := uncheckedLines(h)
 	if len(p.Gates) == 0 {
-		if len(unchecked) > 0 {
-			h.Notify(run.Receipt{By: "stop"}.String(append(unchecked, overrides(cfg)...)...))
-		}
 		return nil
 	}
-	return runStop(h, cfg, p, stopRun{root: root, cwd: cwd, tree: tree, unchecked: unchecked, deadline: deadline})
+	return runStop(h, cfg, p, stopRun{root: root, cwd: cwd, tree: tree, deadline: deadline})
 }
 
 // stopRun is where and on what runStop runs the planned gates.
 type stopRun struct {
 	root, cwd, tree string
-	unchecked       []string
 	deadline        time.Time
 }
 
@@ -123,8 +118,8 @@ func runStop(h *hook.Hook, cfg *config.Config, p enforce.Plan, r stopRun) error 
 	pass := passKey(r.tree, p.Gates)
 	passFile := cache.StopPassTree(h.Paths.CacheDir(), r.root)
 	if prev, err := os.ReadFile(passFile); err == nil && pass != "" && string(prev) == pass {
-		if !cfg.ReceiptOnFailures() || len(r.unchecked) > 0 {
-			h.Notify(strings.Join(append([]string{"kit stop: skipped, these checks already passed on this tree"}, r.unchecked...), "\n"))
+		if !cfg.ReceiptOnFailures() {
+			h.Notify("kit stop: skipped, these checks already passed on this tree")
 		}
 		return nil
 	}
@@ -138,7 +133,7 @@ func runStop(h *hook.Hook, cfg *config.Config, p enforce.Plan, r stopRun) error 
 	if out.Failed() {
 		file = stopDetail(h, r.cwd, out.Detail)
 	}
-	notifyReceipt(h, cfg, out.Receipt, r.unchecked, file)
+	notifyReceipt(h, cfg, out.Receipt, file)
 	if !out.Failed() {
 		// A skipped gate checked nothing, so only a clean pass is reused.
 		if out.Result.Skip == 0 && pass != "" && !h.DryRun {
@@ -160,8 +155,8 @@ func runStop(h *hook.Hook, cfg *config.Config, p enforce.Plan, r stopRun) error 
 // and the block names each failure and skip with its detail, so the
 // receipt keeps the counts and passes, plus one line naming the failures
 // and detail, the file holding their output.
-func notifyReceipt(h *hook.Hook, cfg *config.Config, rc run.Receipt, unchecked []string, detail string) {
-	if cfg.ReceiptOnFailures() && rc.Clean() && len(unchecked) == 0 {
+func notifyReceipt(h *hook.Hook, cfg *config.Config, rc run.Receipt, detail string) {
+	if cfg.ReceiptOnFailures() && rc.Clean() {
 		return
 	}
 	var extra []string
@@ -175,26 +170,7 @@ func notifyReceipt(h *hook.Hook, cfg *config.Config, rc run.Receipt, unchecked [
 		}
 		rc = rc.PassesOnly()
 	}
-	h.Notify(rc.String(append(append(extra, unchecked...), overrides(cfg)...)...))
-}
-
-// uncheckedLines names each text this turn's claim verifier failed on,
-// read from claims' marker and cleared. A file no gate claims isn't named:
-// most are docs no check exists for.
-func uncheckedLines(h *hook.Hook) []string {
-	var lines []string
-	marker := claimsUnchecked(h)
-	data, err := os.ReadFile(marker)
-	if err != nil {
-		return nil
-	}
-	for where := range strings.Lines(string(data)) {
-		lines = append(lines, layout.KV("unchecked", strings.TrimSpace(where)+"  verifier failed"))
-	}
-	if !h.DryRun {
-		_ = os.Remove(marker)
-	}
-	return lines
+	h.Notify(rc.String(append(extra, overrides(cfg)...)...))
 }
 
 // overrides are the kit.yml switches in force that turn checks or rules off.

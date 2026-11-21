@@ -31,7 +31,7 @@ Stack: <the language lines kit detect-stack prints, if applicable>
 
 <One sentence: what's wrong, at `file:line` or the region.>
 
-- **Evidence:** <what was checked and what it showed: a count, a repro and its rate, a quoted line>
+- **Evidence:** <the `file:line` read or the command run, in backticks, then what it showed: a count, a repro and its rate, a quoted line>
 - **Why it matters:** <one sentence>
 - **Fix:** <code snippet or concrete instruction>
 - **Refs:** <WCAG criterion, CVE, doc link, etc., if relevant>

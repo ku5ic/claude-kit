@@ -535,18 +535,13 @@ func TestStopChecks(t *testing.T) {
 			t.Errorf("calls %q, want %q", got, e.repo+"|--check b.ts")
 		}
 	})
-	t.Run("the receipt names a report the verifier failed on, once, and no file a check doesn't claim", func(t *testing.T) {
+	t.Run("the receipt names no file a check doesn't claim", func(t *testing.T) {
 		t.Parallel()
 		e := stopSetup(t)
-		marker := e.k.paths.SessionFile(cache.Claims, "s1", "unchecked")
-		testutil.Write(t, marker, "your report\n")
 		e.turn("Edit", e.path("a.ts"), e.path("notes.md"))
 		r := e.stop(false)
-		r.Has(t, `  pass  lint\n\n  unchecked  your report  verifier failed"`)
+		r.Has(t, "pass  lint")
 		r.Lacks(t, "notes.md")
-		if exists(marker) {
-			t.Error("the verifier's failure would show again next turn")
-		}
 	})
 	t.Run("an edit no check claims prints nothing", func(t *testing.T) {
 		t.Parallel()

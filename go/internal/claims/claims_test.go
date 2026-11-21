@@ -325,6 +325,40 @@ func TestTheTagsSessionLeavesItsClaimsToTheVerifiersOwnReads(t *testing.T) {
 	testutil.Lacks(t, got, "v0.12", "timeout: 240")
 }
 
+// A finding's Evidence names the read or command behind it. One the
+// session never ran, or a field naming none, is flagged with no model run.
+func TestAFindingsEvidenceMustNameWhatTheSessionRan(t *testing.T) {
+	t.Parallel()
+	finding := func(evidence string) string {
+		return "### warning: the build fails\n\n`main.go:3` calls Foo, which is gone.\n\n- **Evidence:** " + evidence + "\n"
+	}
+	for _, tc := range []struct {
+		name, evidence string
+		flagged        bool
+	}{
+		{"a command that ran, and a value its output showed", "`go build ./...` printed `undefined: Foo`.", false},
+		{"a command that never ran", "`go vet ./...` printed `undefined: Foo`.", true},
+		{"a field naming no read or command", "the build output.", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := baseConfig()
+			var dir string
+			cfg.Claims.Command, dir = stub(t, envelope(map[string]any{"ok": true, "unsupported": []any{}}))
+			v, err := Verify(cfg, "", t.TempDir(), t.TempDir(), finding(tc.evidence), session(t))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := !v.OK && len(v.Unsupported) == 1 && strings.Contains(v.Unsupported[0].Claim, tc.evidence); got != tc.flagged {
+				t.Errorf("flagged = %v, want %v: %+v", got, tc.flagged, v)
+			}
+			if runs := testutil.Calls(t, filepath.Join(dir, "calls")); tc.flagged && runs != nil {
+				t.Errorf("a flagged finding still ran the model: %q", runs)
+			}
+		})
+	}
+}
+
 func TestStatements(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {

@@ -20,7 +20,6 @@ func TurnTree(h *hook.Hook) error {
 	if h.DryRun {
 		return nil
 	}
-	_ = os.Remove(claimsUnchecked(h)) // the last turn's, shown by its Stop
 	// Every repo's snapshots, bash-edits' baselines, and edit records are
 	// the last turn's: an edit made between turns, by the user, is never
 	// charged to Claude.

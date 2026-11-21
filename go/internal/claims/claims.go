@@ -164,11 +164,22 @@ func Verify(cfg *config.Config, root, cacheDir, dir, text, transcriptPath string
 	if cfg.Claims.Off() {
 		return Verdict{}, ErrOff
 	}
+	var entries []transcript.Entry
+	if transcriptPath != "" {
+		var err error
+		if entries, err = transcript.Load(transcriptPath); err != nil {
+			return Verdict{}, err
+		}
+	}
+	// A finding whose evidence the session never touched needs no model.
+	if u := ungrounded(entries, text); len(u) > 0 {
+		return Verdict{Unsupported: u}, nil
+	}
 	flagged, rest := settleReferences(dir, text)
 	if !Declarative(rest) {
 		return Verdict{OK: len(flagged) == 0, Unsupported: flagged}, nil
 	}
-	v, err := verifyWithModel(cfg, root, cacheDir, dir, rest, transcriptPath)
+	v, err := verifyWithModel(cfg, root, cacheDir, dir, rest, entries, transcriptPath)
 	if err == nil {
 		v.Unsupported = append(flagged, v.Unsupported...)
 		v.OK = v.OK && len(flagged) == 0
@@ -177,21 +188,15 @@ func Verify(cfg *config.Config, root, cacheDir, dir, text, transcriptPath string
 }
 
 // verifyWithModel is Verify's model run on text, what the no-model pass
-// left: paused after a failed run, else one claude -p run.
-func verifyWithModel(cfg *config.Config, root, cacheDir, dir, text, transcriptPath string) (Verdict, error) {
+// left, with entries, the transcript at transcriptPath: paused after a
+// failed run, else one claude -p run.
+func verifyWithModel(cfg *config.Config, root, cacheDir, dir, text string, entries []transcript.Entry, transcriptPath string) (Verdict, error) {
 	cool, key := claudecli.NewCooldown(cacheDir, "claims"), verifierKey(cfg)
 	sum := sha256.Sum256([]byte(text))
 	textKey := key + "-" + hex.EncodeToString(sum[:])[:16]
 	for _, k := range []string{key, textKey} {
 		if f, ok := cool.Cooling(k, time.Now()); ok {
 			return Verdict{}, &Paused{f}
-		}
-	}
-	var entries []transcript.Entry
-	if transcriptPath != "" {
-		var err error
-		if entries, err = transcript.Load(transcriptPath); err != nil {
-			return Verdict{}, err
 		}
 	}
 	argv := cfg.Claims.Command

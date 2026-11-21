@@ -307,15 +307,16 @@ func TestPlanDispatchVerifiesClaims(t *testing.T) {
 		k.run("plan-dispatch", exit(k, "# Plan v2\n\n"+claim, write, checkerLine(id))).Allowed(t)
 		k.run("plan-dispatch", exit(k, "# Plan v2\n\n"+claim+"\n\nThe cache lives in the session directory.", write, checkerLine(id))).Denied(t)
 	})
-	t.Run("a transcript that can't be read lets the plan through, saying it went unchecked", func(t *testing.T) {
+	t.Run("a transcript that can't be read sends the plan back once, for Claude to check itself", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
 		k.verifier("disabled_rules: [plan-critic]\n", claim)
 		p := exit(k, "# Plan\n\n"+claim)
 		p["transcript_path"] = filepath.Join(k.home, "missing.jsonl")
 		r := k.run("plan-dispatch", p)
-		r.Allowed(t)
-		r.Has(t, "kit claims: NOT CHECKED the plan plan-x.md")
+		r.Denied(t)
+		r.Has(t, "every claim in the plan plan-x.md", "check each claim with a tool yourself")
+		k.run("plan-dispatch", p).Allowed(t)
 	})
 	t.Run("a critic-skip marker skips the critic, not the claim check", func(t *testing.T) {
 		t.Parallel()

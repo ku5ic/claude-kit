@@ -106,15 +106,15 @@ func TestBashDispatchChecksWhatACommandPosts(t *testing.T) {
 	}
 }
 
-// bash-edits sizes a scratch report a command wrote, as guard-dispatch does
-// a Write of it, and in the main session notes that its claims aren't
-// checked by a hook.
+// bash-edits checks a scratch report a command wrote, as guard-dispatch
+// does a Write of it. The harness's claude fails, so the report goes back
+// for Claude to check itself.
 func TestBashEditsChecksAReportACommandWrote(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name, file, has string
 	}{
-		{"an investigation report", "explore-auth.md", "aren't checked by a hook"},
+		{"an investigation report", "explore-auth.md", "the verifier failed"},
 		{"a scratch note", "notes.md", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -129,7 +129,7 @@ func TestBashEditsChecksAReportACommandWrote(t *testing.T) {
 				r.Lacks(t, tc.file)
 				return
 			}
-			r.Want(t, 0)
+			r.Want(t, 2)
 			r.Has(t, tc.file, tc.has)
 		})
 	}

@@ -31,9 +31,8 @@ import (
 //     or with plan-critic off, the claim-checker agent.
 //   - PreToolUse for an MCP tool that writes: the claim-checker agent on
 //     that exact text. Inside a subagent, the hook's own run, once per text.
-//   - PreToolUse for a Write or Edit of an investigation, review, audit-*,
-//     or code-* report in scratch: inside a subagent, the hook's own run,
-//     once per text; in the main session, only a note (noteUnchecked).
+//   - PreToolUse for a Write or Edit of a scratch report (checkedReports):
+//     the hook's own run, sent back once per report.
 //
 // It runs last in its dispatcher and skips a call an earlier check denied,
 // so no run is wasted.
@@ -101,12 +100,9 @@ func verifyToolInput(h *hook.Hook) error {
 		if !ok {
 			return nil
 		}
-		text, where, retry = after, filepath.Base(path), "write the report again"
-		if p.String(hook.KeyAgentID) == "" {
-			noteUnchecked(h, "PreToolUse", where)
-			return nil
-		}
-		marker = h.Paths.SessionFile(cache.Claims, p.SessionID(), "file", filepath.Base(path))
+		// A report gets the hook's own run, in the main session too.
+		marker := h.Paths.SessionFile(cache.Claims, p.SessionID(), "file", filepath.Base(path))
+		return verifyOwnRun(h, after, filepath.Base(path), "write the report again", marker)
 	default:
 		cfg := h.Config()
 		if cfg == nil || !connector.IsWrite(cfg.Connectors, tool) {
@@ -118,22 +114,11 @@ func verifyToolInput(h *hook.Hook) error {
 	return verifyText(h, text, where, retry, marker)
 }
 
-// noteUnchecked tells Claude that a main-session scratch report, where,
-// goes out with no hook checking its claims: only the user reads it, so the
-// evidence rule goes upfront instead of a gate and its rewrites. A report
-// inside a subagent feeds the main thread, and keeps its check.
-func noteUnchecked(h *hook.Hook, event, where string) {
-	if cfg := h.Config(); cfg == nil || h.RuleDisabled("claims") || cfg.Claims.Off() {
-		return
-	}
-	h.AddContext(event, where+"'s claims aren't checked by a hook; each traces to a tool run this session, or is cut (skills/kit-rules/reference/evidence.md section 1).")
-}
-
 // verifyText checks text with the hook's own run inside a subagent, and
 // gates it on the claim-checker agent in the main session.
 func verifyText(h *hook.Hook, text, where, retry, marker string) error {
 	if h.Payload.String(hook.KeyAgentID) != "" {
-		return verifyInSubagent(h, text, where, retry, marker)
+		return verifyOwnRun(h, text, where, retry, marker)
 	}
 	return gateOnChecker(h, text, where, retry, marker)
 }
@@ -183,7 +168,6 @@ func CheckBashReports(h *hook.Hook, written []string) error {
 			"tool_name": "Write", "tool_input": map[string]any{"file_path": path, "content": string(content)},
 		})
 		sub := subHook(h, "bash-reports", raw)
-		held := len(reasons)
 		for _, c := range []hook.NamedCheck{{Name: "check-size", Check: CheckSize}, {Name: "verify-claims", Check: VerifyClaims}} {
 			if b := hook.RunCheck(sub, c.Name, c.Check); b != nil {
 				reasons = append(reasons, b.Reason)
@@ -193,10 +177,6 @@ func CheckBashReports(h *hook.Hook, written []string) error {
 		if decision, reason := sub.Decision(); decision == "deny" {
 			reasons = append(reasons, reason)
 		}
-		// The sub-hook's context is dropped, so the note goes on this one.
-		if len(reasons) == held && p.String(hook.KeyAgentID) == "" {
-			noteUnchecked(h, "PostToolUse", filepath.Base(path))
-		}
 	}
 	if len(reasons) == 0 {
 		return nil
@@ -204,16 +184,16 @@ func CheckBashReports(h *hook.Hook, written []string) error {
 	return h.Block("a report this command wrote isn't ready\n"+strings.Join(reasons, "\n"), "bash-reports")
 }
 
-// verifyInSubagent checks a report or post written inside a subagent with
+// verifyOwnRun checks a report, or a post written inside a subagent, with
 // the hook's own run, since a subagent can't start the claim-checker agent.
-// The text is sent back once; that exact text, resent, goes through.
-func verifyInSubagent(h *hook.Hook, text, where, retry, marker string) error {
+// The text is sent back once, and the next text to where, its rewrite, goes
+// through with no run.
+func verifyOwnRun(h *hook.Hook, text, where, retry, marker string) error {
 	if marker == "" {
 		return nil
 	}
-	sentBack := "sent-back " + textHash(text)
 	ledgerPending(h, marker, where, text)
-	if prev, err := os.ReadFile(marker); err == nil && string(prev) == sentBack {
+	if fsx.IsFile(marker) {
 		_ = os.Remove(marker)
 		return nil
 	}
@@ -221,7 +201,7 @@ func verifyInSubagent(h *hook.Hook, text, where, retry, marker string) error {
 	if len(u) == 0 {
 		return nil
 	}
-	if markOnce(h, marker, []byte(sentBack), "claims") {
+	if markOnce(h, marker, []byte("sent-back"), "claims") {
 		savePending(h, marker, u)
 		if !h.Deny(claimsMessage(where, u, retry), "claims") {
 			// Let through as it is, so its flags score against this text.
@@ -251,7 +231,7 @@ func gateOnChecker(h *hook.Hook, text, where, retry, marker string) error {
 	log := readCheckerLog(h, h.Payload.String(hook.KeyTranscriptPath))
 	// No run could ever show in a transcript that can't be read.
 	if log.unread {
-		return verifyInSubagent(h, text, where, retry, marker)
+		return verifyOwnRun(h, text, where, retry, marker)
 	}
 	asked := h.Paths.SessionFile(cache.Claims, h.Payload.SessionID(), "asked")
 	record, _ := os.ReadFile(asked)
@@ -289,7 +269,7 @@ func gateOnChecker(h *hook.Hook, text, where, retry, marker string) error {
 	case checkerDone:
 		return passed()
 	case checkerFailed:
-		return verifyInSubagent(h, text, where, retry, marker)
+		return verifyOwnRun(h, text, where, retry, marker)
 	}
 	ask := "run it first; its prompt holds the line `" + id + "` and the full text"
 	var only string
@@ -514,10 +494,9 @@ func verifyHandback(h *hook.Hook) error {
 }
 
 // unconfirmed is what the verifier found unconfirmed in text, logged with
-// its cost; nil when text states nothing, without kit.yml, or when the
-// verifier fails, which never blocks but tells the user the text went
-// unchecked. A text the session already checked gets that verdict again,
-// with no run.
+// its cost; nil when text states nothing or without kit.yml, and selfCheck
+// when the verifier fails. A text the session already checked gets that
+// verdict again, with no run.
 func unconfirmed(h *hook.Hook, text, transcriptPath, where string) []claims.Unsupported {
 	cfg := h.Config()
 	if cfg == nil || h.DryRun || h.RuleDisabled("claims") || !claims.Declarative(text) {
@@ -536,19 +515,14 @@ func unconfirmed(h *hook.Hook, text, transcriptPath, where string) []claims.Unsu
 	if errors.Is(err, claims.ErrOff) {
 		return nil
 	}
+	// With no verdict, the text goes back once for Claude to check itself.
 	if paused, ok := errors.AsType[*claims.Paused](err); ok {
 		h.Log(kitlog.Guards, "claims-paused", "where", where, "error", paused.Why)
-		h.Notify(fmt.Sprintf("kit claims: NOT CHECKED %s, the verifier is paused after failing at %s (%s); it runs again after %s",
-			where, paused.At.Format("15:04"), paused.Why, paused.Until().Format("15:04")))
-		_ = fsx.Append(claimsUnchecked(h), []byte(where+"\n"))
-		return nil
+		return selfCheck(where, fmt.Sprintf("the verifier is paused after failing at %s (%s)", paused.At.Format("15:04"), paused.Why))
 	}
 	if err != nil {
 		h.Log(kitlog.Guards, "claims-error", append([]string{"where", where, "error", err.Error()}, v.Usage.Pairs()...)...)
-		h.Notify(fmt.Sprintf("kit claims: NOT CHECKED %s, the verifier failed: %s", where, err))
-		// For the turn's receipt at Stop.
-		_ = fsx.Append(claimsUnchecked(h), []byte(where+"\n"))
-		return nil
+		return selfCheck(where, "the verifier failed: "+err.Error())
 	}
 	if data, err := json.Marshal(v.Unsupported); err == nil && cached != "" {
 		_ = fsx.WriteAtomic(cached, data, 0o600)
@@ -561,10 +535,10 @@ func unconfirmed(h *hook.Hook, text, transcriptPath, where string) []claims.Unsu
 	return v.Unsupported
 }
 
-// claimsUnchecked is the session's list of texts the verifier failed on
-// this turn; the turn-tree hook clears it at each prompt.
-func claimsUnchecked(h *hook.Hook) string {
-	return h.Paths.SessionFile(cache.Claims, h.Payload.SessionID(), "unchecked")
+// selfCheck is the one flag a text gets when the verifier gave no verdict,
+// for why: Claude checks every claim in where itself.
+func selfCheck(where, why string) []claims.Unsupported {
+	return []claims.Unsupported{{Claim: "every claim in " + where, Check: why + "; check each claim with a tool yourself"}}
 }
 
 // claimsMessage names each unconfirmed claim, enough of it to find, and the
@@ -600,13 +574,13 @@ func agentTranscript(p *hook.Payload) string {
 }
 
 // checkedReports are the scratch report kinds whose claims are checked:
-// investigate's, every audit-* and code-* skill's, /meta-retro's, /deps',
-// /pr-review's, and plan-critic's.
+// every skill's but unslop's, the user's own draft, and prompt's.
 var checkedReports = []string{
 	"explore", "debug", "review", "session", "deps", "pr-review", "plan-critique",
 	"a11y", "arch", "ci", "debt", "doc-drift", "infra", "perf", "security", "slop", "verify",
 	"flags", "readiness", "tokens",
 	"challenge", "contract", "evaluate", "from-design", "history", "impact", "migrate", "tour", "visual",
+	"incident", "launch", "pr-description", "pr-reply", "queue", "release-notes", "retro", "rfc", "runbook", "stakeholder", "tickets",
 }
 
 // atScratchRoot is true for a file directly in a scratch dir, where
