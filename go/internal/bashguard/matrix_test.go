@@ -336,6 +336,12 @@ func TestGuardBashParsing(t *testing.T) {
 		probe("block", `git rebase --ex='rm -rf ~' HEAD~2`)
 		probe("pass", `git rebase --exe 'go test ./...' HEAD~2`)
 		probe("pass", `git rebase -x 'go test ./...' HEAD~2`)
+		// A bundled short cluster: -ix is -i -x.
+		probe("block", `git rebase -ix 'rm -rf ~' HEAD~2`)
+		probe("block", `git rebase -ix"rm -rf ~" HEAD~2`)
+		probe("pass", `git rebase -ix 'go test ./...' HEAD~2`)
+		// -s takes a value, so the x in -sx is a strategy name.
+		probe("pass", `git rebase -sx HEAD~2`)
 		// History that git can't bring back asks first.
 		probe("ask", `git stash clear`)
 		probe("ask", `git filter-branch --tree-filter "rm -f x" HEAD`)

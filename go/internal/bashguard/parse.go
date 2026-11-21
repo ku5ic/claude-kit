@@ -404,7 +404,8 @@ func (c *collector) redirect(src string, r *syntax.Redirect, cl *Call) {
 }
 
 // rebaseExecs is each command string a git rebase among words runs after
-// each commit: -x cmd, -xcmd, --exec cmd, or --exec=cmd.
+// each commit: -x cmd, -xcmd, either in a cluster such as -ix, --exec cmd,
+// or --exec=cmd.
 func rebaseExecs(words []Word) []string {
 	i := lead(words)
 	if i >= len(words) || baseName(words[i].Value) != "git" {
@@ -423,14 +424,37 @@ func rebaseExecs(words []Word) []string {
 		switch {
 		case attached && isExec(flag):
 			out = append(out, value)
-		case (a == "-x" || isExec(a)) && j+1 < len(args):
+		case isExec(a) && j+1 < len(args):
 			out = append(out, args[j+1])
 			j++
-		case strings.HasPrefix(a, "-x") && len(a) > 2:
-			out = append(out, a[2:])
+		case len(a) > 1 && a[0] == '-' && a[1] != '-':
+			cmd, ok := clusterExec(a[1:])
+			if ok && cmd == "" && j+1 < len(args) {
+				cmd = args[j+1]
+				j++
+			}
+			if cmd != "" {
+				out = append(out, cmd)
+			}
 		}
 	}
 	return out
+}
+
+// clusterExec is the exec command in letters, a short-option cluster of
+// git rebase such as ix or xcmd: the rest after its x, "" when the x ends
+// it and the command is the next word. A letter that takes a value (-s,
+// -X, -C) holds the rest of the cluster, so an x after it is data.
+func clusterExec(letters string) (string, bool) {
+	for i, c := range letters {
+		switch c {
+		case 'x':
+			return letters[i+1:], true
+		case 's', 'X', 'C':
+			return "", false
+		}
+	}
+	return "", false
 }
 
 // fdTarget is a >& target that names a descriptor: 2, 2-, or -.
