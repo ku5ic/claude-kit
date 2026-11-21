@@ -244,6 +244,22 @@ func Base(dir, explicit string) (string, bool) {
 	return "", false
 }
 
+// ForkPoint is the merge base of HEAD and dir's Base, the commit HEAD
+// left it at. False when no base resolves, or when that is HEAD itself,
+// as on a local main whose base is main.
+func ForkPoint(dir string) (string, bool) {
+	base, ok := Base(dir, "")
+	if !ok {
+		return "", false
+	}
+	mb, err := Line(dir, "merge-base", base, "HEAD")
+	if err != nil {
+		return "", false
+	}
+	head, err := Line(dir, "rev-parse", "HEAD")
+	return mb, err == nil && mb != head
+}
+
 // deadline is when the running hook's own timeout ends; zero is none. A
 // process runs one hook, which sets it once, before any git call.
 var deadline time.Time

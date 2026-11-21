@@ -126,10 +126,8 @@ func runStop(h *hook.Hook, cfg *config.Config, p enforce.Plan, r stopRun) error 
 	}
 	// A failure the git base has too isn't the branch's to fix.
 	var base *run.Base
-	if ref, ok := git.Base(r.root, ""); ok {
-		if sha, err := git.Line(r.root, "rev-parse", ref); err == nil {
-			base = &run.Base{Root: r.root, SHA: sha, CacheDir: h.Paths.CacheDir()}
-		}
+	if sha, ok := git.ForkPoint(r.root); ok {
+		base = &run.Base{Root: r.root, SHA: sha, CacheDir: h.Paths.CacheDir()}
 	}
 	out := run.Files(p, base, h.Paths.CacheDir(), time.Duration(cfg.GateTimeout)*time.Second, r.deadline)
 	if !h.DryRun {
