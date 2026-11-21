@@ -54,6 +54,7 @@ var hookChecks = map[string]hook.Check{
 	"check-size":              hooks.CheckSize,
 	"subagent-slop":           hooks.SubagentSlop,
 	"chat-slop":               hooks.ChatSlop,
+	"chat-claims":             hooks.ChatClaims,
 	"log-skills":              hooks.LogSkills,
 	"sanitize-output":         hooks.SanitizeOutput,
 	"inject-context":          hooks.InjectContext,
@@ -83,10 +84,10 @@ var registry = map[string]hookDef{
 	"bash-edits":         {events: []string{"PostToolUse"}, steps: []string{"bash-edits", "bash-reports"}},
 	"log-skills":         {events: []string{"PostToolUse", "UserPromptExpansion"}},
 	"plan-mode-context":  {events: []string{"PostToolUse"}},
-	"prompt-dispatch":    {events: []string{"UserPromptSubmit"}, steps: []string{"turn-tree", "plan-mode-context", "reply-length", "chat-slop"}},
+	"prompt-dispatch":    {events: []string{"UserPromptSubmit"}, steps: []string{"turn-tree", "plan-mode-context", "reply-length", "chat-slop", "chat-claims"}},
 	// stop-checks runs before review-report: the first block ends a run, and
 	// stop-checks skips a retried Stop, which review-report still gates.
-	"stop-dispatch":           {events: []string{"Stop"}, steps: []string{"reply-length", "chat-slop", "stop-checks", "review-report"}},
+	"stop-dispatch":           {events: []string{"Stop"}, steps: []string{"reply-length", "chat-slop", "chat-claims", "stop-checks", "review-report"}},
 	"inject-context":          {events: []string{"SessionStart"}},
 	"inject-subagent-context": {events: []string{"SubagentStart"}},
 	"review-checks":           {events: []string{"SubagentStop"}},
@@ -94,6 +95,7 @@ var registry = map[string]hookDef{
 	"review-report":           {},
 	"review-pick":             {},
 	"chat-slop":               {},
+	"chat-claims":             {},
 	"stop-checks":             {},
 	"turn-tree":               {},
 	"guard-plan":              {},

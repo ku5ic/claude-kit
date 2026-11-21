@@ -65,6 +65,7 @@ var entries = map[string]func(*hook.Hook) int{
 	"check-size":        single("check-size", CheckSize),
 	"subagent-slop":     single("subagent-slop", SubagentSlop),
 	"chat-slop":         single("chat-slop", ChatSlop),
+	"chat-claims":       single("chat-claims", ChatClaims),
 	"log-skills":        single("log-skills", LogSkills),
 	"sanitize-output":   single("sanitize-output", SanitizeOutput),
 	"format-dispatch":   single("format-dispatch", FormatDispatch),

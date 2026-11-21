@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
+	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
 
 func chatStop(reply string) map[string]any {
@@ -59,4 +60,25 @@ func TestChatSlop(t *testing.T) {
 			}
 		}
 	})
+}
+
+// A reply is on screen before Stop runs, so a reference in it that doesn't
+// resolve is corrected on the next prompt, in context the user never sees.
+func TestChatClaims(t *testing.T) {
+	t.Parallel()
+	k := newSandbox(t)
+	dir := repo(t, t.TempDir())
+	testutil.Put(t, dir, "src/stop.go", "a\nb\n")
+	reply := func(text string) map[string]any {
+		p := chatStop(text)
+		p["cwd"] = dir
+		return p
+	}
+	k.run("chat-claims", reply("See `src/stop.go:40`.")).Empty(t)
+	r := k.run("chat-claims", chatPrompt)
+	r.Has(t, "src/stop.go:40", "Open your next reply with the corrected fact")
+	r.Lacks(t, "systemMessage")
+	k.run("chat-claims", chatPrompt).Empty(t)
+	k.run("chat-claims", reply("See `src/stop.go:2`.")).Empty(t)
+	k.run("chat-claims", chatPrompt).Empty(t)
 }
