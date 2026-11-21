@@ -16,10 +16,13 @@ function host(on: On, result: { exitCode: number; stdout: string; stderr: string
   on('process.hookEnv', () => ({ value: { CLAUDE_PLUGIN_ROOT: '/plugin' } }))
   on('process.run', (_, e) => {
     runs.push({ argv: e.argv, env: e.init?.env })
-    return { value: result }
+    return { value: { ...result, isStdoutTruncated: false, isStderrTruncated: false } }
   })
   return { registered, runs }
 }
+
+// A typed /kit-stats, shown in an 80-column main screen.
+const typed = { origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 80 } } as const
 
 const start = ($: Engine) => $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
 
@@ -28,7 +31,7 @@ describe('kit stats', () => {
     const h = host(on, { exitCode: 0, stdout: TABLE, stderr: '' })
     await start($)
     expect(h.registered).toEqual(['kit-stats'])
-    const out = await $.command.run({ command: 'kit-stats', args: '--since 7  --rule plan-critic' })
+    const out = await $.command.run({ ...typed, command: 'kit-stats', args: '--since 7  --rule plan-critic' })
     expect(out.text).toBe(TABLE.trimEnd())
     expect(h.runs).toEqual([
       { argv: ['/plugin/bin/kit', 'stats', '--since', '7', '--rule', 'plan-critic'], env: { CLAUDE_PLUGIN_ROOT: '/plugin' } },
@@ -38,7 +41,7 @@ describe('kit stats', () => {
   test('a failed run says so, with its exit code and what it wrote to stderr', async ($, on) => {
     host(on, { exitCode: 2, stdout: '', stderr: 'kit stats: unknown flag --sinse\n' })
     await start($)
-    const out = await $.command.run({ command: 'kit-stats', args: '--sinse 7' })
+    const out = await $.command.run({ ...typed, command: 'kit-stats', args: '--sinse 7' })
     expect(out.text).toBe('kit stats exited 2: kit stats: unknown flag --sinse')
   })
 

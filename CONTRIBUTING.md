@@ -30,7 +30,7 @@ bin/kit help
 Where mods live and how they load: [`mods/index.ts`](mods/index.ts). A mod imports only the plugin's own files and runs with no Node, so there's no `package.json`. Write one with the `plugin-authoring` skill, which also writes the API's types into the session.
 
 - **Try it:** `claude --plugin-dir .` loads this checkout, and an edit to `mods/` reloads when the turn ends.
-- **Check it:** `claude plugin validate .` type-checks `mods/`, and the tests run on a staged copy, as the `claude plugin test` step in `.github/workflows/ci.yml` does.
+- **Check it:** `claude plugin validate .` type-checks `mods/`, and the tests run on a staged copy, as the `claude plugin test` step in `.github/workflows/ci.yml` does. CI also runs `prettier --check mods` against `mods/.prettierrc.json`, and `mods/tsconfig.json` brings the `*.test.ts` files into your editor's TypeScript project.
 
 ## Brand assets
 
