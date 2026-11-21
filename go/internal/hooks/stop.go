@@ -271,8 +271,9 @@ func turnFiles(h *hook.Hook, turn []transcript.Entry, cwd, root string) (edited 
 	changed, tree, ok := turnChanges(h, root)
 	if ok {
 		if !transcript.NamesEveryWrite(turn) {
-			// A file a git move brought in is someone else's.
-			moved := movedFiles(h, root)
+			// A file a git move brought in is someone else's, until a later
+			// command changes it from HEAD.
+			moved := fromHead(root, movedFiles(h, root))
 			changed = slices.DeleteFunc(changed, func(path string) bool { return slices.Contains(moved, path) })
 			edited = append(edited, changed...) // enforce.Stop drops repeats
 		}

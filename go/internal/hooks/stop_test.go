@@ -603,6 +603,24 @@ func TestStopChecks(t *testing.T) {
 			t.Errorf("a gate ran on the checked-out file: %q", got)
 		}
 	})
+	t.Run("a file a git move brought in is checked once a later command edits it", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		testutil.Git(t, e.repo, "add", "-A")
+		testutil.Git(t, e.repo, "commit", "-q", "-m", "base")
+		testutil.Git(t, e.repo, "checkout", "-q", "-b", "x")
+		testutil.Write(t, e.path("a.ts"), "theirs\n")
+		testutil.Git(t, e.repo, "commit", "-q", "-am", "theirs")
+		testutil.Git(t, e.repo, "checkout", "-q", "-")
+		e.line(testutil.UserPrompt("do it"))
+		e.start()
+		e.bashRun("toolu_b1", e.repo, "git checkout x && go test ./...", func() { testutil.Git(t, e.repo, "checkout", "-q", "x") })
+		e.bash("toolu_b2", e.repo, func() { testutil.Write(t, e.path("a.ts"), "mine\n") })
+		e.stop(false)
+		if got := testutil.Calls(t, e.calls); got == nil {
+			t.Error("no gate ran on the moved file a later command edited")
+		}
+	})
 	t.Run("an edit no check claims prints nothing", func(t *testing.T) {
 		t.Parallel()
 		e := stopSetup(t)
