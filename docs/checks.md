@@ -7,6 +7,7 @@ The kit enforces your project's own rules, not its own list of tools. It reads w
 When Claude finishes a turn, the Stop hook runs the checks your git hooks would run on a commit (pre-commit, lint-staged, lefthook) on just the files it edited, in parallel. For each file and check kind those hooks don't cover, the file-scoped form of the full gate's check of that kind runs too. A failure sends Claude back to fix it or report it.
 
 - **Changed lines only.** A linter blocks on findings in lines Claude changed, so old warnings don't trap it.
+- **Old failures pass.** A failing check whose every failure line also shows when it runs on the git base passes, marked "fails on the git base too".
 - **Your commands, your flags.** Every command is one your project states; `kit explain stop <file>` shows which claim a file and the exact command.
 
 For the whole project, `kit run-checks` runs every quality gate, in every subproject. The `/code-review` hook runs it for you; Claude itself never does:

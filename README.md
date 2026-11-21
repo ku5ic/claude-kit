@@ -97,7 +97,7 @@ Permission rules alone can't catch these. A prefix rule can't tell `git push` fr
 
 ## What it costs
 
-More per turn. The bash guard takes about 11 ms, but the claim checker is a Sonnet run capped at $1 and 240 seconds (`kit.yml` `claims:`), and every block is a turn you wait through.
+More per turn. The bash guard takes about 11 ms, but the claim checker is a Haiku run capped at $1 and 240 seconds (`kit.yml` `claims:`), and every block is a turn you wait through.
 
 ## How you work with it
 
@@ -122,7 +122,7 @@ Needs `git`, bash, and `curl`, on macOS or Linux. A fresh macOS asks for the Com
 The kit is opinionated about tools: it steers Claude to `rg`, `fd`, `ast-grep`, and `jq` over the stock ones, and most of them aren't preinstalled.
 
 - **Install `ast-grep` and `jq`.** With `ast-grep`, Claude lists every file that uses the one it's about to change; `/meta-retro` needs `jq`. The [dependencies](docs/dependencies.md) page says what each other tool adds.
-- **Log in the `claude` CLI.** Once per repo, Haiku sorts your CI and hook commands into checks and fixers, and subagent reports get their claims checked.
+- **Log in the `claude` CLI.** Once per repo, Haiku sorts your CI and hook commands into checks and fixers, and reports and subagent posts get their claims checked.
 - **Connect your code host.** `gh`, `glab`, or the host's MCP connector runs the `/pr-*` commands and `/deps`.
 - **Gitignore `.claude/scratch/` and `.claude/plans/`**, globally or per repo. The kit never edits your ignore files.
 - **Write your own CLAUDE.md:** copy `templates/CLAUDE.md` to `~/.claude/CLAUDE.md` and fill it in.

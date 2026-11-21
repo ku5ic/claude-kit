@@ -21,7 +21,7 @@ The guards read a command line, not what it does when it runs. A pass means the 
 - A recursive search with no glob naming a credential file, over a directory that holds a loose `*.pem`, outside the project or through `grep -r` or a chained `rg`. Catching it means walking the tree.
 - A Bash command's writes are checked after they land, and only in files `git add -A` sees, so an ignored test file can take a `t.Skip()`.
 - A file a background agent changes after Claude's turn ends counts as yours: the next turn starts from it, and no check runs on it.
-- One `kit:plan-critic` run covers every later version of the plan it read.
+- One `kit:plan-critic` run covers every later version of the plan it read. A later version gets only the no-model reference check.
 - The step pause is an instruction. No hook stops work that runs past it.
 - After a `/code-review`, a Bash command that writes code isn't held until you pick which findings to fix. Edits through Claude's edit tools are.
 - The release workflow's actions on version tags, not commit pins.
