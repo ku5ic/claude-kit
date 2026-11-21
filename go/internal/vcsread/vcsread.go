@@ -20,6 +20,13 @@ import (
 // can't hold git to reading, since git grep -O runs a program.
 var gitSubs = []string{"log", "show", "blame", "tag", "rev-parse", "ls-files"}
 
+// gitRunFlags write a file or run a program the repo's config names.
+var gitRunFlags = []string{"--output", "--ext-diff", "--textconv"}
+
+// gitQuiet turns off the programs git log -p and git show run by default:
+// a textconv filter, and an external diff driver.
+var gitQuiet = []string{"--no-ext-diff", "--no-textconv"}
+
 // hostGroups are the gh and glab command groups kit read runs with view or
 // list. api runs too, with no hostWrites flag. A group outside these could
 // be an extension, a program of its own.
@@ -55,7 +62,8 @@ func checkGit(sub string, args []string) error {
 		return fmt.Errorf("git %s isn't one of git %s", sub, strings.Join(gitSubs, ", "))
 	}
 	for _, a := range args {
-		if strings.HasPrefix(a, "-O") || a == "--output" || strings.HasPrefix(a, "--output=") {
+		flag, _, _ := strings.Cut(a, "=")
+		if strings.HasPrefix(a, "-O") || slices.Contains(gitRunFlags, flag) {
 			return fmt.Errorf("git %s %s writes a file or runs a program", sub, a)
 		}
 		// git takes an abbreviation, so --no-l is --no-list, which leaves
@@ -94,7 +102,11 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "kit read:", err)
 		return 2
 	}
-	cmd := git.Command("", argv[1:]...)
+	args := argv[1:]
+	if argv[0] == "git" && (args[0] == "log" || args[0] == "show") {
+		args = slices.Concat(args[:1], gitQuiet, args[1:])
+	}
+	cmd := git.Command("", args...)
 	if argv[0] != "git" {
 		bin, err := kittool.Path(argv[0])
 		if err != nil {

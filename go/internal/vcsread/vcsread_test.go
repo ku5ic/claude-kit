@@ -69,6 +69,26 @@ func TestRunRunsEachAllowedVerb(t *testing.T) {
 	}
 }
 
+// git log -p and git show run a textconv filter by default, a program the
+// repo's config names, so kit read turns it off.
+func TestRunRunsNoTextconvFilter(t *testing.T) {
+	setup(t)
+	ran := filepath.Join(t.TempDir(), "ran")
+	testutil.Put(t, ".", ".gitattributes", "*.txt diff=probe\n")
+	testutil.GitID(t, ".", "config", "diff.probe.textconv", "sh -c 'touch "+ran+"; cat \"$0\"'")
+	testutil.Put(t, ".", "a.txt", "two\n")
+	testutil.GitID(t, ".", "commit", "-qam", "two")
+	for _, argv := range [][]string{{"git", "show", "HEAD"}, {"git", "log", "-p", "-1"}} {
+		var stdout, stderr bytes.Buffer
+		if code := Run(argv, &stdout, &stderr); code != 0 {
+			t.Errorf("%q exited %d: %s", argv, code, stderr.String())
+		}
+	}
+	if _, err := os.Stat(ran); err == nil {
+		t.Error("kit read ran the repo's textconv filter")
+	}
+}
+
 func TestRunRefusesAnyCallThatCouldWrite(t *testing.T) {
 	calls := setup(t)
 	for _, argv := range [][]string{
@@ -79,6 +99,9 @@ func TestRunRefusesAnyCallThatCouldWrite(t *testing.T) {
 		{"git", "diff", "--output=out"},
 		{"git", "log", "--output=out"},
 		{"git", "show", "-Ovim", "HEAD"},
+		{"git", "show", "--ext-diff", "HEAD"},
+		{"git", "log", "-p", "--textconv"},
+		{"git", "log", "--textconv=x"},
 		{"git", "commit", "-m", "x"},
 		{"git", "-c", "core.pager=sh", "log"},
 		{"git", "tag", "v2"},
