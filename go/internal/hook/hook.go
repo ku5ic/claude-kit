@@ -165,7 +165,7 @@ type Hook struct {
 	context  string // printed after a block reason, e.g. "Path: <path>"
 	decision string // the strongest Decide so far; Run prints it once
 	reason   string
-	asks     []string       // each distinct ask reason, joined into reason
+	reasons  []string       // each distinct ask or deny reason, joined into reason
 	input    map[string]any // a PreToolUse tool input replacing the one sent
 	// What checks add for Run to print: context for Claude on event,
 	// notices for the user, plain text.
@@ -329,16 +329,23 @@ func (h *Hook) logBlock(event, rule string) {
 
 // Decide records a PreToolUse permission decision (allow, ask, or deny).
 // Several checks in one run may decide: deny outranks ask, ask outranks
-// allow, and asks join their reasons, each once. Run prints the result once, since
-// stdout takes one JSON object.
+// allow, and asks or denies join their reasons, each once, so one round
+// trip names every reason. Run prints the result once, since stdout takes
+// one JSON object.
 func (h *Hook) Decide(decision, reason string) {
 	switch {
+	case decision == h.decision && decision != "allow":
+		if !slices.Contains(h.reasons, reason) {
+			sep := "; "
+			if decision == "deny" {
+				sep = "\n\n"
+			}
+			h.reasons = append(h.reasons, reason)
+			h.reason = strings.Join(h.reasons, sep)
+		}
 	case h.decision == "deny":
 	case h.decision == "" || decision == "deny" || decision == "ask" && h.decision == "allow":
-		h.decision, h.reason, h.asks = decision, reason, []string{reason}
-	case decision == "ask" && h.decision == "ask" && !slices.Contains(h.asks, reason):
-		h.asks = append(h.asks, reason)
-		h.reason = strings.Join(h.asks, "; ")
+		h.decision, h.reason, h.reasons = decision, reason, []string{reason}
 	}
 }
 

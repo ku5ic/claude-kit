@@ -271,6 +271,20 @@ func TestGuardPlan(t *testing.T) {
 	}
 }
 
+// Every check runs on one ExitPlanMode, so one deny names each reason
+// instead of a round trip per check.
+func TestPlanDispatchDeniesOnceForEveryReason(t *testing.T) {
+	t.Parallel()
+	k := newSandbox(t)
+	dir := repo(t, t.TempDir())
+	testutil.Put(t, dir, "src/stop.go", "a\nb\nc\n")
+	k.overlay("size_budgets:\n  plan: 5\ndisabled_rules: [plan-critic]\nclaims:\n  timeout: 0\n")
+	r := k.run("plan-dispatch", map[string]any{"hook_event_name": "PreToolUse", "session_id": "s", "cwd": dir, "tool_name": "ExitPlanMode",
+		"tool_input": map[string]any{"plan": "# Plan\n\n- src/stop.go:40 returns early, so the gate never runs twice.", "planFilePath": filepath.Join(dir, ".claude/plans/p.md")}})
+	r.Denied(t)
+	r.Has(t, "over the 5-word budget", "citation(s) in the plan p.md that don't resolve")
+}
+
 // plan-critic's run covers a plan's claims. With plan-critic off, the plan
 // waits for the claim-checker agent on its exact text.
 func TestPlanDispatchVerifiesClaims(t *testing.T) {
@@ -289,6 +303,19 @@ func TestPlanDispatchVerifiesClaims(t *testing.T) {
 		k := newSandbox(t)
 		calls := k.verifier("", claim)
 		k.run("plan-dispatch", exit(k, "# Plan\n\n"+claim, write, critic)).Allowed(t)
+		if got := testutil.Calls(t, calls); got != nil {
+			t.Errorf("verifier ran: %q", got)
+		}
+	})
+	t.Run("a plan revised after its critique gets the no-model pass", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		calls := k.verifier("", claim)
+		revised := exit(k, "# Plan\n\nSee `go/internal/nope/gone.go`.", write, critic, write)
+		r := k.run("plan-dispatch", revised)
+		r.Denied(t)
+		r.Has(t, "gone.go")
+		k.run("plan-dispatch", revised).Allowed(t)
 		if got := testutil.Calls(t, calls); got != nil {
 			t.Errorf("verifier ran: %q", got)
 		}
@@ -342,13 +369,12 @@ func TestPlanDispatchVerifiesClaims(t *testing.T) {
 			t.Errorf("verifier ran before the critique: %q", got)
 		}
 	})
-	t.Run("an earlier step's deny doesn't use up the critic's one ask", func(t *testing.T) {
+	t.Run("an earlier step's deny and the critic's ask come in one deny", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
 		k.verifier("size_budgets: {plan: 3}\n", claim)
 		text := "# Plan\n\n" + claim
-		k.run("plan-dispatch", exit(k, text, write)).Has(t, "words")
-		k.run("plan-dispatch", exit(k, text, write)).Has(t, "kit:plan-critic")
+		k.run("plan-dispatch", exit(k, text, write)).Has(t, "words", "kit:plan-critic")
 	})
 	t.Run("resent with no critique, the plan's claims still get checked", func(t *testing.T) {
 		t.Parallel()

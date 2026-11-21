@@ -30,7 +30,7 @@ func CheckCitations(h *hook.Hook) error {
 	if p.Err != nil {
 		return p.Err
 	}
-	if decision, _ := h.Decision(); decision == "deny" {
+	if earlierDeny(h) {
 		return nil
 	}
 	root, anchored := project.Root(p.Cwd())

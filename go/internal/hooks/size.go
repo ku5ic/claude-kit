@@ -30,7 +30,7 @@ func CheckSize(h *hook.Hook) error {
 	if cfg == nil {
 		return nil
 	}
-	if decision, _ := h.Decision(); decision == "deny" {
+	if earlierDeny(h) {
 		return nil
 	}
 	b := cfg.SizeBudgets

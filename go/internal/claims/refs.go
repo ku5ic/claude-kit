@@ -39,6 +39,13 @@ var (
 // symbolTimeout caps one rg run for a backticked symbol.
 const symbolTimeout = 5 * time.Second
 
+// References is each statement of text whose bare reference doesn't
+// resolve from dir, found with no model run.
+func References(dir, text string) []Unsupported {
+	flagged, _ := settleReferences(dir, text)
+	return flagged
+}
+
 // settleReferences is the no-model pass over text from dir: each statement
 // made of references and filler alone, every reference resolving, is
 // dropped; one with a broken reference is flagged; the rest is what's left

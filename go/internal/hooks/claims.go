@@ -38,7 +38,7 @@ import (
 // so no run is wasted.
 func VerifyClaims(h *hook.Hook) error {
 	p := h.Payload
-	if decision, _ := h.Decision(); p.Err != nil || decision == "deny" {
+	if p.Err != nil || earlierDeny(h) {
 		return nil
 	}
 	// The checker's report is the check; checking it again buys nothing.
@@ -72,6 +72,14 @@ func VerifyClaims(h *hook.Hook) error {
 	return nil
 }
 
+// earlierDeny is true when a check before this one denied the call, so this
+// one can skip its work. ExitPlanMode runs every check anyway, and the one
+// deny names each reason, so a plan needs one round trip.
+func earlierDeny(h *hook.Hook) bool {
+	decision, _ := h.Decision()
+	return decision == "deny" && h.Payload.String(hook.KeyToolName) != "ExitPlanMode"
+}
+
 // verifyToolInput checks a handback with the hook's own run, and gates a
 // plan, a scratch report, or a connector post on the claim-checker agent.
 func verifyToolInput(h *hook.Hook) error {
@@ -82,15 +90,20 @@ func verifyToolInput(h *hook.Hook) error {
 	case tool == "SubagentHandback":
 		return verifyHandback(h)
 	case tool == "ExitPlanMode":
-		// plan-critic checks a plan's claims in the run GuardPlan asks for.
-		// A plan resent without that run gets its claims checked here.
-		if !h.RuleDisabled("plan-critic") && planCritiqued(p) {
-			return nil
-		}
 		// Claude Code injects the plan's text and path (code.claude.com/docs/en/hooks).
 		plan := filepath.Base(p.String(hook.KeyInputPlanFilePath))
 		text, where, retry = p.String(hook.KeyInputPlan), "the plan "+plan, "call ExitPlanMode again"
 		marker = h.Paths.SessionFile(cache.Claims, p.SessionID(), "plan", plan)
+		if !h.RuleDisabled("plan-critic") {
+			// plan-critic read the repo, so a revision after it gets only
+			// the no-model pass; while its run is being asked for, nothing.
+			if planCritiqued(p) {
+				return referencesOnce(h, text, where, retry, marker)
+			}
+			if _, reason := h.Decision(); strings.Contains(reason, criticAsk) {
+				return nil
+			}
+		}
 	case slices.Contains(filePathTools, tool):
 		path := p.FilePath()
 		if !scratchReport(h, path, checkedReports...) || !atScratchRoot(h, path) {
@@ -112,6 +125,24 @@ func verifyToolInput(h *hook.Hook) error {
 		marker = h.Paths.SessionFile(cache.Claims, p.SessionID(), "tool", tool)
 	}
 	return verifyText(h, text, where, retry, marker)
+}
+
+// referencesOnce sends text back once when a bare reference in it doesn't
+// resolve, with no model run; the next text to marker goes through.
+func referencesOnce(h *hook.Hook, text, where, retry, marker string) error {
+	cfg := h.Config()
+	if cfg == nil || h.RuleDisabled("claims") || cfg.Claims.Off() || marker == "" {
+		return nil
+	}
+	if fsx.IsFile(marker) {
+		_ = os.Remove(marker)
+		return nil
+	}
+	root, _ := project.Root(h.Payload.Cwd())
+	if u := claims.References(root, text); len(u) > 0 && markOnce(h, marker, []byte("sent-back"), "claims") {
+		h.Deny(claimsMessage(where, u, retry), "claims")
+	}
+	return nil
 }
 
 // verifyText checks text with the hook's own run inside a subagent, and

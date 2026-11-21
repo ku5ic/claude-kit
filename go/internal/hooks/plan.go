@@ -152,6 +152,10 @@ func pauseOf(h *hook.Hook) string {
 // planCritic is the agent GuardPlan wants run on a plan before approval.
 const planCritic = "kit:plan-critic"
 
+// criticAsk opens GuardPlan's deny, which verify-claims looks for so a plan
+// doesn't wait on two agents at once.
+const criticAsk = "the " + planCritic + " agent hasn't reviewed"
+
 // GuardPlan sends ExitPlanMode back once when no plan-critic ran after the
 // plan was written this session, so a plan whose sections contradict each
 // other or the repo isn't approved unchecked. The same plan, resent, goes
@@ -159,11 +163,6 @@ const planCritic = "kit:plan-critic"
 func GuardPlan(h *hook.Hook) error {
 	p := h.Payload
 	plan := p.String(hook.KeyInputPlanFilePath)
-	// Under an earlier step's deny, the ask would be dropped but its marker
-	// kept, and the resent plan would pass with no critique.
-	if decision, _ := h.Decision(); decision == "deny" {
-		return nil
-	}
 	if p.Err != nil || p.String(hook.KeyToolName) != "ExitPlanMode" || plan == "" || h.RuleDisabled("plan-critic") || planCritiqued(p) {
 		return nil
 	}
@@ -183,7 +182,7 @@ func GuardPlan(h *hook.Hook) error {
 	if !markOnce(h, marker, []byte(sent), "plan-critic") {
 		return nil
 	}
-	h.Deny(fmt.Sprintf("the %s agent hasn't reviewed %s\n", planCritic, plan)+
+	h.Deny(fmt.Sprintf("%s %s\n", criticAsk, plan)+
 		layout.KV("do", "run it before asking for approval")+"\n"+
 		layout.KV("then", "raise each contradiction it finds, between the plan's sections or against the repo, as a question for the user; the same plan passes when ExitPlanMode is called again"), "plan-critic")
 	return nil
