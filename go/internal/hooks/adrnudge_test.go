@@ -45,6 +45,11 @@ func TestADRNudge(t *testing.T) {
 	if other := nudge("Read", "go/main.go", "s3"); strings.Contains(other.Output, "Hooks in Go") {
 		t.Errorf("a file the ADR doesn't cite got its nudge:\n%s", other.Output)
 	}
+	testutil.Write(t, filepath.Join(root, "docs/adr/0004-scratch.md"),
+		"# 4. Scratch\n\n## Status\n\nAccepted\n\n## Decision\n\nThrowaway work goes in `.claude/scratch/`.\n")
+	if scratch := nudge("Write", ".claude/scratch/review-x.md", "s5"); strings.Contains(scratch.Output, "4. Scratch") {
+		t.Errorf("a scratch write got an ADR nudge:\n%s", scratch.Output)
+	}
 
 	madr := t.TempDir()
 	if err := os.Mkdir(filepath.Join(madr, ".git"), 0o755); err != nil {

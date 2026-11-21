@@ -171,6 +171,9 @@ func ReadTargets(cmd, home, cwd string) []string {
 			}
 		}
 		walkFlags(args, globFlags, func(_, glob string) {
+			if strings.HasPrefix(glob, "!") {
+				return
+			}
 			alts, _ := guard.Braces(glob)
 			for _, alt := range alts {
 				out = append(out, filepath.Join(w.cwd, alt))

@@ -25,7 +25,7 @@ func ADRNudge(h *hook.Hook) error {
 	}
 	tool := p.String(hook.KeyToolName)
 	file := p.FilePath()
-	if file == "" || (tool != "Read" && !slices.Contains(filePathTools, tool)) {
+	if file == "" || (tool != "Read" && !slices.Contains(filePathTools, tool)) || project.IsScratch(h.Paths, file) {
 		return nil
 	}
 	root, anchored := project.Root(filepath.Dir(file))

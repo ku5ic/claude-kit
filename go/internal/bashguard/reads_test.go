@@ -24,6 +24,7 @@ func TestReadTargets(t *testing.T) {
 		{"a flag's value before the file is skipped", "head -n 5 run.sh | wc -l", []string{file}},
 		{"sed -n's script is skipped", "sed -n 1,20p run.sh", []string{file}},
 		{"rg's -g glob joins the directory", "rg -g '*.sh' hi", []string{filepath.Join(dir, "*.sh")}},
+		{"a negated -g glob excludes, so it reads nothing", "rg -g '!*.sh' hi", nil},
 		{"grep's --include= glob joins the directory", "grep -r --include=*.sh hi .", []string{filepath.Join(dir, "*.sh")}},
 		{"an attached -g glob's braces expand", "rg -g*.{sh,go} hi", []string{filepath.Join(dir, "*.sh"), filepath.Join(dir, "*.go")}},
 		{"a reader after cd reads from the new directory", "cd / && cat " + file, []string{file}},
