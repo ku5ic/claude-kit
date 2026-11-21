@@ -55,6 +55,8 @@ type Entry struct {
 		Kind string `json:"kind"`
 	} `json:"origin"`
 	Timestamp string `json:"timestamp"`
+	// Cwd is the session's directory when the entry was written.
+	Cwd string `json:"cwd"`
 	// Content is a system entry's content: raw, since its shape isn't fixed.
 	Content json.RawMessage `json:"content"`
 	Message struct {

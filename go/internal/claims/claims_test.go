@@ -359,6 +359,31 @@ func TestAFindingsEvidenceMustNameWhatTheSessionRan(t *testing.T) {
 	}
 }
 
+// A path read relative to the call's directory, its entry's cwd or a cd
+// in the command, names the same file as the repo-relative path.
+func TestAnEvidencePathMatchesARelativeRead(t *testing.T) {
+	t.Parallel()
+	bash := func(cwd, command string) transcript.Entry {
+		b := transcript.Block{Type: "tool_use", ID: command, Name: "Bash"}
+		b.Input.Command = command
+		return transcript.Entry{Type: "assistant", Cwd: cwd, Blocks: []transcript.Block{b}}
+	}
+	entries := []transcript.Entry{
+		bash("/r", "cd /r/go/internal && sed -n 1,9p claims/named.go"),
+		bash("/r/go", "sed -n 1p internal/x.go"),
+	}
+	for evidence, flagged := range map[string]bool{
+		"`go/internal/claims/named.go:3` reads it.": false,
+		"`go/internal/x.go:1` reads it.":            false,
+		"`go/internal/claims/other.go:1` reads it.": true,
+	} {
+		got := ungrounded("/r", entries, "- **Evidence:** "+evidence+"\n")
+		if (len(got) > 0) != flagged {
+			t.Errorf("%s: flagged = %v, want %v", evidence, len(got) > 0, flagged)
+		}
+	}
+}
+
 func TestStatements(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {

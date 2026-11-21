@@ -172,7 +172,7 @@ func Verify(cfg *config.Config, root, cacheDir, dir, text, transcriptPath string
 		}
 	}
 	// A finding whose evidence the session never touched needs no model.
-	if u := ungrounded(entries, text); len(u) > 0 {
+	if u := ungrounded(dir, entries, text); len(u) > 0 {
 		return Verdict{Unsupported: u}, nil
 	}
 	flagged, rest := settleReferences(dir, text)
