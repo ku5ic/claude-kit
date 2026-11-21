@@ -155,7 +155,8 @@ func exists(root, path string) bool {
 // symbol is whether rg finds ref, as a fixed string, in root's files;
 // unsettled when rg is missing or fails.
 func symbol(root, ref string) (resolution, string) {
-	err := proc.Command(symbolTimeout, "rg", "-qF", "--", ref, root).Run()
+	// Hidden files hold real symbols (.github, dotfile settings); .git doesn't.
+	err := proc.Command(symbolTimeout, "rg", "-qF", "--hidden", "-g", "!.git", "--", ref, root).Run()
 	if err == nil {
 		return resolved, ""
 	}

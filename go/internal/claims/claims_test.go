@@ -462,12 +462,13 @@ func TestAFailureOnOneTextPausesOnlyThatText(t *testing.T) {
 	}
 }
 
-// repo is a git repo holding go/x.go, three lines defining Hello, in one
-// commit, and that commit's SHA.
+// repo is a git repo holding go/x.go, three lines defining Hello, and
+// .github/ci.yml, naming cache-key, in one commit, and that commit's SHA.
 func repo(t *testing.T) (dir, sha string) {
 	t.Helper()
 	dir = testutil.Physical(t, t.TempDir())
 	testutil.Put(t, filepath.Join(dir, "go"), "x.go", "package x\n\nfunc Hello() {}\n")
+	testutil.Put(t, filepath.Join(dir, ".github"), "ci.yml", "cache-key: v1\n")
 	testutil.Git(t, dir, "init", "-q")
 	testutil.Git(t, dir, "add", ".")
 	testutil.GitID(t, dir, "commit", "-qm", "x")
@@ -497,6 +498,7 @@ func TestBareReferencesResolveWithoutAModel(t *testing.T) {
 		{"an invented SHA", "See commit 0123abc4567f.", 0, []string{"See commit 0123abc4567f."}},
 		{"a real symbol", "See `Hello` in `go/x.go`.", 0, nil},
 		{"an invented symbol", "See `Goodbye` in `go/x.go`.", 0, []string{"See `Goodbye` in `go/x.go`."}},
+		{"a symbol only in a hidden file", "See `cache-key`.", 0, nil},
 		{"a false claim about a real file:line", "`go/x.go:3` returns an error.", 1, nil},
 		{"a behavior sentence about a real symbol", "The `Hello` function panics on empty input.", 1, nil},
 		{"a reference outside the repo", "See `other/y.go:4`.", 1, nil},
