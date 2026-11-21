@@ -553,6 +553,9 @@ func unconfirmed(h *hook.Hook, text, transcriptPath, where string) []claims.Unsu
 		_ = fsx.WriteAtomic(cached, data, 0o600)
 	}
 	h.Log(kitlog.Guards, "claims", append([]string{"where", where, "unconfirmed", strconv.Itoa(len(v.Unsupported))}, v.Usage.Pairs()...)...)
+	if v.Usage.Runs == 0 {
+		return v.Unsupported
+	}
 	h.Notify(fmt.Sprintf("kit claims: checked %s with the hook's own %s run, %d unconfirmed, $%.2f in %s", where, claimChecker, len(v.Unsupported), v.Usage.CostUSD, v.Usage.Duration.Round(time.Second)))
 	return v.Unsupported
 }

@@ -120,6 +120,39 @@ func TestVerifyClaimsSubagentStop(t *testing.T) {
 	}
 }
 
+// A report whose only statement is a bare reference is settled with no
+// verifier run, and the user gets no "checked" notice for a run that never
+// happened; a broken reference still sends the report back.
+func TestBareReferencesNeedNoVerifierRun(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, report string
+		status       int
+	}{
+		{"a real reference", "See `x.go:1`.", 0},
+		{"an invented line", "See `x.go:9`.", 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			k := newSandbox(t)
+			proj := filepath.Join(k.home, "proj")
+			testutil.Put(t, proj, "x.go", "package x\n")
+			calls := k.verifier("", claim)
+			payload := subagentStop("a1", tc.report, false)
+			payload["cwd"] = proj
+			r := k.run("verify-claims", payload)
+			r.Want(t, tc.status)
+			if tc.status == 2 {
+				r.Has(t, "x.go:9", "the file has 1 lines")
+			}
+			r.Lacks(t, "kit claims: checked")
+			if got := len(testutil.Calls(t, calls)); got != 0 {
+				t.Errorf("verifier ran %d times, want 0", got)
+			}
+		})
+	}
+}
+
 func TestVerifyClaimsToolInput(t *testing.T) {
 	t.Parallel()
 	report := func(k *sandbox) string {

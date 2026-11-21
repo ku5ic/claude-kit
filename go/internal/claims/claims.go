@@ -137,8 +137,9 @@ func verifierKey(cfg *config.Config) string {
 	return "verifier-" + hex.EncodeToString(sum[:])[:16]
 }
 
-// Verify runs the verifier on text from dir, with the session transcript
-// at transcriptPath (none when "") as its evidence and the agent file under
+// Verify checks text from dir: first its bare references, with no model,
+// then the verifier on the rest, with the session transcript at
+// transcriptPath (none when "") as its evidence and the agent file under
 // root as its instructions. An error means no verdict; callers fail open
 // on it. A failed run pauses the verifier for claudecli.CooldownPeriod,
 // when Verify returns *Paused without running.
@@ -146,6 +147,21 @@ func Verify(cfg *config.Config, root, cacheDir, dir, text, transcriptPath string
 	if cfg.Claims.Off() {
 		return Verdict{}, ErrOff
 	}
+	flagged, rest := settleReferences(dir, text)
+	if !Declarative(rest) {
+		return Verdict{OK: len(flagged) == 0, Unsupported: flagged}, nil
+	}
+	v, err := verifyWithModel(cfg, root, cacheDir, dir, rest, transcriptPath)
+	if err == nil {
+		v.Unsupported = append(flagged, v.Unsupported...)
+		v.OK = v.OK && len(flagged) == 0
+	}
+	return v, err
+}
+
+// verifyWithModel is Verify's model run on text, what the no-model pass
+// left: paused after a failed run, else one claude -p run.
+func verifyWithModel(cfg *config.Config, root, cacheDir, dir, text, transcriptPath string) (Verdict, error) {
 	cool, key := claudecli.NewCooldown(cacheDir, "claims"), verifierKey(cfg)
 	sum := sha256.Sum256([]byte(text))
 	textKey := key + "-" + hex.EncodeToString(sum[:])[:16]

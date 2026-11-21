@@ -11,6 +11,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/testutil"
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
@@ -367,4 +368,80 @@ func TestAFailureOnOneTextPausesOnlyThatText(t *testing.T) {
 			}
 		})
 	}
+}
+
+// repo is a git repo holding go/x.go, three lines defining Hello, in one
+// commit, and that commit's SHA.
+func repo(t *testing.T) (dir, sha string) {
+	t.Helper()
+	dir = testutil.Physical(t, t.TempDir())
+	testutil.Put(t, filepath.Join(dir, "go"), "x.go", "package x\n\nfunc Hello() {}\n")
+	testutil.Git(t, dir, "init", "-q")
+	testutil.Git(t, dir, "add", ".")
+	testutil.GitID(t, dir, "commit", "-qm", "x")
+	sha, err := git.Line(dir, "rev-parse", "--short=12", "HEAD")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return dir, sha
+}
+
+// A statement that is only references, each resolved in the repo, needs no
+// model; an invented one is flagged without one; a statement that says
+// something about a reference goes to the model, without the bare ones.
+func TestBareReferencesResolveWithoutAModel(t *testing.T) {
+	t.Parallel()
+	dir, sha := repo(t)
+	for _, tc := range []struct {
+		name, text string
+		runs       int
+		flagged    []string
+	}{
+		{"a real file:line", "See `go/x.go:3`.", 0, nil},
+		{"an invented line", "See `go/x.go:9`.", 0, []string{"See `go/x.go:9`."}},
+		{"a real path", "- `go/x.go`", 0, nil},
+		{"an invented path", "See go/nope.go.", 0, []string{"See go/nope.go."}},
+		{"a real SHA", "See commit " + sha + ".", 0, nil},
+		{"an invented SHA", "See commit 0123abc4567f.", 0, []string{"See commit 0123abc4567f."}},
+		{"a real symbol", "See `Hello` in `go/x.go`.", 0, nil},
+		{"an invented symbol", "See `Goodbye` in `go/x.go`.", 0, []string{"See `Goodbye` in `go/x.go`."}},
+		{"a false claim about a real file:line", "`go/x.go:3` returns an error.", 1, nil},
+		{"a behavior sentence about a real symbol", "The `Hello` function panics on empty input.", 1, nil},
+		{"a reference outside the repo", "See `other/y.go:4`.", 1, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := baseConfig()
+			argv, stubDir := stub(t, envelope(map[string]any{"ok": true, "unsupported": []any{}}))
+			cfg.Claims.Command = argv
+			got, err := Verify(cfg, "", t.TempDir(), dir, tc.text, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if calls := testutil.Calls(t, filepath.Join(stubDir, "calls")); len(calls) != tc.runs || got.Usage.Runs != tc.runs {
+				t.Errorf("runs = %d (usage %d), want %d", len(calls), got.Usage.Runs, tc.runs)
+			}
+			var claims []string
+			for _, u := range got.Unsupported {
+				claims = append(claims, u.Claim)
+			}
+			if !slices.Equal(claims, tc.flagged) || got.OK != (len(tc.flagged) == 0) {
+				t.Errorf("verdict = %+v, want flagged %q", got, tc.flagged)
+			}
+		})
+	}
+}
+
+func TestTheModelGetsOnlyWhatReferencesDontSettle(t *testing.T) {
+	t.Parallel()
+	dir, _ := repo(t)
+	cfg := baseConfig()
+	argv, stubDir := stub(t, envelope(map[string]any{"ok": true, "unsupported": []any{}}))
+	cfg.Claims.Command = argv
+	if _, err := Verify(cfg, "", t.TempDir(), dir, "See `go/x.go:3`. The `Hello` function panics on empty input.", ""); err != nil {
+		t.Fatal(err)
+	}
+	_, sent, _ := strings.Cut(testutil.Read(t, filepath.Join(stubDir, "stdin")), "## Text to verify")
+	testutil.Has(t, sent, "The `Hello` function panics on empty input.")
+	testutil.Lacks(t, sent, "See `go/x.go:3`.")
 }
