@@ -265,6 +265,15 @@ slop:
       tier: 2
       match: '(?i)\bshould not be confused with\b|\bdoes not by itself establish\b'
       fix: state the claim directly
+    # A clause, a colon, then a reveal or restatement. No published source
+    # names it; the author's rule (claude-kit investigation, 2026-11-10). The
+    # sentence has to end after the colon with no comma, semicolon, code
+    # span, or parenthesis, so an inline list ("in this order: a, b, c")
+    # passes.
+    - id: joining-colon
+      tier: 2
+      match: '\b[a-z]+ [a-z]+ [a-z]+: [a-z][^,;:\n`(]*[.!?](\s|$)'
+      fix: two sentences, or a comma
     - id: generic-reason
       tier: 2
       on: [commit, pr, report]
