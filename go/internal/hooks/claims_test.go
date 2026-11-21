@@ -559,6 +559,26 @@ func TestVerifyClaimsToolInput(t *testing.T) {
 	})
 }
 
+// The verifier runs from the project root, so a path a claim names
+// resolves there whichever directory the session is in.
+func TestVerifyClaimsRunsFromTheProjectRoot(t *testing.T) {
+	t.Parallel()
+	k := newSandbox(t)
+	calls := k.verifier("")
+	root := testutil.Physical(t, t.TempDir())
+	testutil.GitID(t, root, "init", "-q")
+	sub := filepath.Join(root, "go", "internal")
+	testutil.Mkdir(t, sub)
+	main := filepath.Join(t.TempDir(), "sess.jsonl")
+	testutil.Write(t, main, `{"type":"user","message":{"content":"parent prompt"}}`+"\n")
+	payload := subagentStop("a1", claim, false)
+	payload["cwd"], payload["transcript_path"] = sub, main
+	k.run("verify-claims", payload).Want(t, 0)
+	if got := testutil.Calls(t, calls); len(got) != 1 || !strings.HasPrefix(got[0], root+"|") {
+		t.Errorf("the verifier ran as %q, want once in %s", got, root)
+	}
+}
+
 // A SubagentStop whose agent_transcript_path names no file is checked
 // against the session's transcript, not left with no evidence at all.
 func TestVerifyClaimsMissingAgentTranscriptFallsBack(t *testing.T) {

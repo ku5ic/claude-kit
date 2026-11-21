@@ -197,12 +197,12 @@ func TestSystemPromptIsTheAgentFilesBody(t *testing.T) {
 func TestClaudeAllowsOnlyReads(t *testing.T) {
 	t.Parallel()
 	cfg := baseConfig()
-	cfg.Claims.Allow = []string{"WebFetch", "mcp__docs__query_docs", "mcp__chat__create_post", "Bash", "Write", "Edit", "mcp__chat", "mcp__chat__*", "mcp__browser__navigate"}
+	cfg.Claims.Allow = []string{"mcp__docs__query_docs", "mcp__chat__create_post", "Bash", "Write", "Edit", "mcp__chat", "mcp__chat__*", "mcp__browser__navigate"}
 	entries, err := transcript.Load(session(t))
 	if err != nil {
 		t.Fatal(err)
 	}
-	argv := claude(cfg, entries, "prompt")
+	argv := claude(cfg, "/kit", entries, "prompt")
 	flag := func(name string) []string {
 		i := slices.Index(argv, name)
 		if i < 0 || i+1 >= len(argv) {
@@ -211,18 +211,21 @@ func TestClaudeAllowsOnlyReads(t *testing.T) {
 		return strings.Split(argv[i+1], ",")
 	}
 	allowed, tools := flag("--allowedTools"), flag("--tools")
-	for _, want := range []string{"Read", "Grep", "WebSearch", "ToolSearch", "mcp__tracker__get_issue", "WebFetch", "mcp__docs__query_docs"} {
+	for _, want := range []string{"Read", "Grep", "WebSearch", "WebFetch", "ToolSearch", "Bash(/kit/bin/kit read *)", "mcp__tracker__get_issue", "mcp__docs__query_docs"} {
 		if !slices.Contains(allowed, want) {
 			t.Errorf("--allowedTools lacks %s: %q", want, allowed)
 		}
 	}
 	for _, never := range []string{"mcp__chat__send_message", "mcp__chat__create_post", "Bash", "Edit", "Write", "mcp__chat", "mcp__chat__*", "mcp__browser__navigate"} {
-		if slices.Contains(allowed, never) || slices.Contains(tools, never) {
+		if slices.Contains(allowed, never) || never != "Bash" && slices.Contains(tools, never) {
 			t.Errorf("%s is let through: allowed %q, tools %q", never, allowed, tools)
 		}
 	}
-	if !slices.Contains(tools, "WebFetch") || slices.Contains(tools, "mcp__tracker__get_issue") {
-		t.Errorf("--tools = %q, want the builtins and WebFetch, no MCP tool", tools)
+	if !slices.Contains(tools, "WebFetch") || !slices.Contains(tools, "Bash") || slices.Contains(tools, "mcp__tracker__get_issue") {
+		t.Errorf("--tools = %q, want the builtins, WebFetch, and Bash, no MCP tool", tools)
+	}
+	if prompt := flag("--system-prompt"); !strings.Contains(strings.Join(prompt, ","), "/kit/bin/kit read git") {
+		t.Errorf("the system prompt doesn't name kit read: %q", prompt)
 	}
 	for _, want := range []string{"--restricted", "dontAsk", "sonnet"} {
 		if !slices.Contains(argv, want) {
@@ -288,6 +291,40 @@ func TestEvidenceClipsTheText(t *testing.T) {
 	}
 }
 
+// A subagent's report is its own claims, so it can't confirm the text's.
+func TestEvidenceMarksAnAgentResultAsNoEvidence(t *testing.T) {
+	t.Parallel()
+	call := func(id, name string) transcript.Entry {
+		return transcript.Entry{Type: "assistant", Blocks: []transcript.Block{{Type: "tool_use", ID: id, Name: name, RawInput: json.RawMessage(`{}`)}}}
+	}
+	answer := func(id, text string) transcript.Entry {
+		e := result(t, text)
+		e.Blocks[0].ToolUseID = id
+		return e
+	}
+	got := evidence([]transcript.Entry{call("r", "Read"), answer("r", "file text"), call("a", "Agent"), answer("a", "the tags stop at v0.2.2")}, "claim", false)
+	for _, want := range []string{"#### Result of Read\n\nfile text", "#### Result of Agent (not evidence)\n\nthe tags stop at v0.2.2"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("evidence lacks %q:\n%s", want, got)
+		}
+	}
+}
+
+// The planning session of 2026-11-21 shipped "git tag lists v0.1.0 to
+// v0.2.2 only" from a tail of the list. Its evidence holds neither the
+// newer tags nor kit.yml's timeout line past the clip, so the verifier
+// has to run kit read and re-read kit.yml to settle them.
+func TestTheTagsSessionLeavesItsClaimsToTheVerifiersOwnReads(t *testing.T) {
+	t.Parallel()
+	entries, err := transcript.Load("testdata/tags-session.jsonl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := evidence(entries, testutil.Read(t, "testdata/tags-report.md"), false)
+	testutil.Has(t, got, "v0.2.2\nv0.2.1", "bytes cut]", "lists v0.1.0 to v0.2.2 only")
+	testutil.Lacks(t, got, "v0.12", "timeout: 240")
+}
+
 func TestDeclarative(t *testing.T) {
 	t.Parallel()
 	for text, want := range map[string]bool{
@@ -326,7 +363,7 @@ func TestClaudeDeniesSensitiveReads(t *testing.T) {
 	t.Parallel()
 	cfg := baseConfig()
 	cfg.SensitivePaths = []string{".env", "!.env.example", "*.pem", "~/.ssh/", "~/.netrc"}
-	argv := claude(cfg, nil, "prompt")
+	argv := claude(cfg, "/kit", nil, "prompt")
 	i := slices.Index(argv, "--disallowedTools")
 	if i < 0 || i+1 >= len(argv) {
 		t.Fatalf("argv lacks --disallowedTools: %q", argv)
@@ -334,7 +371,7 @@ func TestClaudeDeniesSensitiveReads(t *testing.T) {
 	denied := strings.Split(argv[i+1], ",")
 	// "//" anchors at the filesystem root: a bare "**/" would cover only
 	// the verifier's cwd (code.claude.com/docs/en/permissions).
-	if want := []string{"Read(//**/.env)", "Read(//**/*.pem)", "Read(~/.ssh/**)", "Read(~/.netrc)"}; !slices.Equal(denied, want) {
+	if want := []string{"Read(//**/.env)", "Bash(*.env*)", "Read(//**/*.pem)", "Bash(*.pem*)", "Read(~/.ssh/**)", "Bash(*.ssh/*)", "Read(~/.netrc)", "Bash(*.netrc*)"}; !slices.Equal(denied, want) {
 		t.Errorf("--disallowedTools = %q, want %q", denied, want)
 	}
 }

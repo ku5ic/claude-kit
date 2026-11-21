@@ -403,10 +403,11 @@ package_lookups:
 # each factual claim in a text against the session's tool results, and
 # checks what they don't cover with read-only tools. model and budget_usd
 # are passed to it, timeout is its limit in seconds (0 turns it off), and
-# allow names more tools it may call; a write tool is never let through.
+# allow names more connector tools it may call; a write tool is never let
+# through.
 # command replaces the claude call.
 claims:
-  model: sonnet
+  model: haiku
   timeout: 240
   budget_usd: 1
   allow: []

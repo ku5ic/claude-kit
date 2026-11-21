@@ -531,7 +531,8 @@ func unconfirmed(h *hook.Hook, text, transcriptPath, where string) []claims.Unsu
 			return u
 		}
 	}
-	v, err := claims.Verify(cfg, h.Paths.Root, h.Paths.CacheDir(), h.Payload.Cwd(), text, transcriptPath)
+	root, _ := project.Root(h.Payload.Cwd())
+	v, err := claims.Verify(cfg, h.Paths.Root, h.Paths.CacheDir(), root, text, transcriptPath)
 	if errors.Is(err, claims.ErrOff) {
 		return nil
 	}

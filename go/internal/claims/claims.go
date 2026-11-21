@@ -54,11 +54,7 @@ func systemPrompt(root string) (string, error) {
 
 // builtins are the read-only tools the verifier always has. ToolSearch
 // loads the connector tools, which arrive deferred.
-var builtins = []string{"Read", "Grep", "Glob", "WebSearch", "ToolSearch"}
-
-// moreReads are the other read-only builtins claims.allow may name; any
-// other builtin, Bash included, may write.
-var moreReads = []string{"WebFetch"}
+var builtins = []string{"Read", "Grep", "Glob", "WebSearch", "WebFetch", "ToolSearch"}
 
 // Size caps on the evidence, in bytes: per tool input, per tool result, per
 // earlier assistant text, and in all, the oldest dropped first; and on the
@@ -183,7 +179,7 @@ func verifyWithModel(cfg *config.Config, root, cacheDir, dir, text, transcriptPa
 		if err != nil {
 			return Verdict{}, err
 		}
-		argv = claude(cfg, entries, prompt)
+		argv = claude(cfg, root, entries, prompt)
 	}
 	forked := transcriptPath != "" && fsx.IsFile(transcript.ForkSidecar(transcriptPath))
 	v, err := run(cfg, argv, filepath.Join(cacheDir, cache.Guard), dir, evidence(entries, text, forked))
@@ -229,7 +225,7 @@ func run(cfg *config.Config, argv []string, markerDir, dir, input string) (Verdi
 // denies whatever --allowedTools doesn't name: the read-only builtins,
 // each read tool the session called, and kit.yml's claims.allow, less any
 // write tool.
-func claude(cfg *config.Config, entries []transcript.Entry, systemPrompt string) []string {
+func claude(cfg *config.Config, root string, entries []transcript.Entry, systemPrompt string) []string {
 	allowed := slices.Clone(builtins)
 	for _, e := range entries {
 		for _, b := range e.ToolUses() {
@@ -241,18 +237,19 @@ func claude(cfg *config.Config, entries []transcript.Entry, systemPrompt string)
 	for _, name := range cfg.Claims.Allow {
 		// An allow rule of mcp__<server> or mcp__<server>__* grants every
 		// tool on the server, so an MCP name needs a read verb of its own.
-		read := slices.Contains(moreReads, name)
-		if strings.HasPrefix(name, "mcp__") {
-			read = connector.IsRead(cfg.Connectors, name)
-		}
-		if read && !slices.Contains(allowed, name) {
+		if strings.HasPrefix(name, "mcp__") && connector.IsRead(cfg.Connectors, name) && !slices.Contains(allowed, name) {
 			allowed = append(allowed, name)
 		}
 	}
 	// --tools names builtins; an MCP tool is reachable through --allowedTools alone.
 	tools := slices.DeleteFunc(slices.Clone(allowed), func(n string) bool { return strings.HasPrefix(n, "mcp__") })
+	// Bash is there for kit read alone; denyReads keeps Claude Code's
+	// unprompted read-only commands off the credential files.
+	kitRead := filepath.Join(root, "bin", "kit") + " read"
+	allowed = append(allowed, "Bash("+kitRead+" *)")
+	systemPrompt += "\n\nRun git and the code host only as `" + kitRead + " git <command>`, `" + kitRead + " gh <command>`, or `" + kitRead + " glab <command>`. It refuses any call that could write."
 	argv := []string{"claude", "-p", "--restricted", "--permission-mode", "dontAsk",
-		"--tools", strings.Join(tools, ","), "--allowedTools", strings.Join(allowed, ","),
+		"--tools", strings.Join(append(tools, "Bash"), ","), "--allowedTools", strings.Join(allowed, ","),
 		"--disable-slash-commands", "--no-session-persistence", "--system-prompt", systemPrompt,
 		"--max-budget-usd", strconv.FormatFloat(cfg.Claims.BudgetUSD, 'f', -1, 64),
 		"--output-format", "json", "--json-schema", schema}
@@ -271,12 +268,16 @@ func claude(cfg *config.Config, entries []transcript.Entry, systemPrompt string)
 // (code.claude.com/docs/en/permissions). A "~/" entry is under home, a
 // directory when it ends in "/"; any other is a basename at any depth from
 // the filesystem root, "//", since a bare "**/" covers only the cwd. A
-// deny can't be narrowed, so a "!" exception is dropped.
+// deny can't be narrowed, so a "!" exception is dropped. Each entry also
+// gets a Bash deny on any command naming it: Claude Code runs cat and
+// git's read forms with no prompt in every mode.
 func denyReads(entries []string) []string {
 	var rules []string
 	for _, e := range entries {
+		if e == "" || strings.HasPrefix(e, "!") {
+			continue
+		}
 		switch {
-		case e == "" || strings.HasPrefix(e, "!"):
 		case strings.HasPrefix(e, "~/") && strings.HasSuffix(e, "/"):
 			rules = append(rules, "Read("+e+"**)")
 		case strings.HasPrefix(e, "~/"):
@@ -284,6 +285,8 @@ func denyReads(entries []string) []string {
 		default:
 			rules = append(rules, "Read(//**/"+e+")")
 		}
+		// shortcut: it matches the command's text, so a glob like .en? gets past it.
+		rules = append(rules, "Bash(*"+strings.Trim(strings.TrimPrefix(e, "~/"), "*")+"*)")
 	}
 	return rules
 }
@@ -318,7 +321,12 @@ func evidence(entries []transcript.Entry, text string, forked bool) string {
 		case e.Type == "user":
 			for _, b := range e.Blocks {
 				if b.Type == "tool_result" {
-					add(fmt.Sprintf("#### Result of %s\n\n%s", names[b.ToolUseID], clip(b.ResultText(), resultCap)))
+					name := names[b.ToolUseID]
+					// A subagent's report is claims of its own, not a read.
+					if name == "Agent" {
+						name += " (not evidence)"
+					}
+					add(fmt.Sprintf("#### Result of %s\n\n%s", name, clip(b.ResultText(), resultCap)))
 				}
 			}
 		case e.Type == "assistant":
