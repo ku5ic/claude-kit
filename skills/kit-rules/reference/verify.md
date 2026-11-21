@@ -3,10 +3,10 @@
 What must happen before a change is called done. This file is the one definition of "done" and "verify".
 
 - After an edit, run nothing. The Stop hook checks the edited files and shows its receipt.
-- Before calling an ordinary change done, do the refactor pass (`skills/engineering-fundamentals/reference/red-green-refactor.md`), then name in one line what it changed and what wasn't run.
+- Before calling an ordinary change done, do the refactor pass (`skills/engineering-fundamentals/reference/red-green-refactor.md`), then name in one line what it changed.
 - At the end of a plan, or when the user asks, run `/code-review` (section 1). Its hook runs the full gate.
 - At the same moment, a change with observable behavior (a response, output, an exit code, data written, a side effect) gets the runtime pass (section 2).
-- A gate verdict is never repeated in a reply. Act on a FAIL, or say what wasn't run.
+- A gate verdict is never repeated in a reply. Act on a FAIL.
 - A targeted test while developing is fine.
 - A pure refactor that doesn't touch UI is covered by the existing tests.
 
@@ -47,8 +47,8 @@ Exercise the change through the interface its consumers use:
 | CLI only   | no args and `--help`, invalid flags, piped stdin and non-TTY output, stdout vs stderr, exit codes, Ctrl-C mid-run        |
 
 - The UI and CLI rows apply only to a change touching that surface.
-- A case the setup can't produce goes under Not exercised, with the reason.
-- The report gives one line per case under **Exercised** (what happened), **Not exercised** (why), and **Raise with** (section 3).
+- A case the setup can't produce goes under Needs a runtime check, as the check to run.
+- The report gives one line per case under **Exercised** (what happened), **Needs a runtime check** (the check to run), and **Raise with** (section 3).
 
 ## 3. Raise upstream gaps
 
@@ -58,7 +58,7 @@ Exercise the change through the interface its consumers use:
 ## 4. The human orchestrates
 
 - A non-obvious choice is presented with its alternative and the reason, so the human can overrule it.
-- Done means the checks this file requires ran after the last edit, with their output cited. Otherwise, say what wasn't run.
+- Done means the checks this file requires ran after the last edit and passed. The gate's receipt is their citation, and the reply doesn't repeat it. Until then it isn't done.
 
 ## 5. One cycle, then stop
 

@@ -126,7 +126,7 @@ func noteUnchecked(h *hook.Hook, event, where string) {
 	if cfg := h.Config(); cfg == nil || h.RuleDisabled("claims") || cfg.Claims.Off() {
 		return
 	}
-	h.AddContext(event, where+"'s claims aren't checked by a hook; each traces to a tool run this session, or carries a label (skills/kit-rules/reference/evidence.md section 1).")
+	h.AddContext(event, where+"'s claims aren't checked by a hook; each traces to a tool run this session, or is cut (skills/kit-rules/reference/evidence.md section 1).")
 }
 
 // verifyText checks text with the hook's own run inside a subagent, and
@@ -263,7 +263,7 @@ func gateOnChecker(h *hook.Hook, text, where, retry, marker string) error {
 		runs, ids := latestRuns(log, string(record), text)
 		if kept := stillStated(runs, text); len(kept) > 0 &&
 			h.Deny("a kit:claim-checker run flagged claims "+where+" still states\n"+"- "+strings.Join(kept, "\n- ")+"\n"+
-				layout.KV("do", "cut each, label it as skills/kit-rules/reference/evidence.md section 1 says (likely, with its evidence, or hypothesis), or run its check, then run kit:claim-checker again with the line `"+strings.Join(ids, "`, `")+"` and the full text")+"\n"+
+				layout.KV("do", "run each one's check, or cut it (skills/kit-rules/reference/evidence.md section 1), then run kit:claim-checker again with the line `"+strings.Join(ids, "`, `")+"` and the full text")+"\n"+
 				layout.KV("then", retry), "claims") {
 			return nil
 		}

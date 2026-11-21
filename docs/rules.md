@@ -16,7 +16,7 @@ Every skill with references lists them in a "Before | Read" table: an action, th
 
 **Relayed output says whose it is, a commit doesn't.** The company page "Taking Responsibility for AI-Generated Content" asks that raw model output passed on be labelled. A commit is the engineer's reviewed work, and the commit guard blocks AI signatures, so the author kept commits unlabelled.
 
-**What always survives.** A tradeoff that flips the decision, a risk that bites later, and a confirmation before an irreversible action are the things a reader can't recover if they're cut. What wasn't run stays as one line because a missing line reads as "it was run".
+**What always survives.** A tradeoff that flips the decision, a risk that bites later, and a confirmation before an irreversible action are the things a reader can't recover if they're cut. A guess, a label, or a "not run" line doesn't survive: on 2026-11-21 the author asked that nothing unverified reach them, since a flagged or hedged claim hands the checking back to the reader. A check that needs a running system stays under Needs a runtime check, as a check to run.
 
 **A command offered as the next action is run first.** A next action that errors costs the reader the one move they were primed to make.
 
@@ -26,7 +26,7 @@ Every skill with references lists them in a "Before | Read" table: an action, th
 
 ## Evidence
 
-**Check it or don't say it.** Up to 0.9.0 the rule was "check it or label it", with four confidence labels (`verified`, `likely`, `hypothesis`, `unknown`) and a provenance axis. In practice a label became a way to state an unchecked fact while looking careful, and the reader still had to do the check. A fact about the code, a version, or a result is now checked or left out. The labels stay only for an idea the writer offers as an idea, where the label tells the reader it's a guess to test, not a finding.
+**Check it or don't say it.** Up to 0.9.0 the rule was "check it or label it", with four confidence labels (`verified`, `likely`, `hypothesis`, `unknown`) and a provenance axis. In practice a label became a way to state an unchecked fact while looking careful, and the reader still had to do the check. A fact about the code, a version, or a result is now checked or left out. On 2026-11-21 the author dropped the last labels, since an idea offered as `likely` or `hypothesis` still handed the reader a guess to check.
 
 **Every statement, and its supporting detail.** From the same company page. A reader of a plan or report takes each line as checked, not only the conclusion, so a wrong number or a wrong "already does" list misleads as much as a wrong conclusion.
 

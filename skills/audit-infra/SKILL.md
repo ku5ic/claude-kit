@@ -32,7 +32,7 @@ Resolve a linked ticket or doc as `skills/investigate` step 0 describes, then di
 
 2. Read each file and check it against the loaded references. A secret committed in one of these files is a `failure`, named redacted.
 3. CI workflows are `/audit-ci`'s job. Name it as the next step when `.github/workflows` exists.
-4. Anything that needs the live system (an open port, a running container's user, the state file) goes under "Cannot be verified statically". Never run `plan`, `apply`, `docker build`, or a provisioning tool.
+4. Anything that needs the live system (an open port, a running container's user, the state file) goes under "Needs a runtime check". Never run `plan`, `apply`, `docker build`, or a provisioning tool.
 
 ## Not a finding
 

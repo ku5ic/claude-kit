@@ -51,7 +51,7 @@ func writeTurn(marker string, t turn) {
 
 // checkClaims stands in for verify-claims on chat replies: said before the
 // reply, since a check at Stop would show the reply twice.
-const checkClaims = "In this repo, a claim stands only when a tool checked it this session, and an idea offered as an idea carries a label (skills/kit-rules/reference/evidence.md section 1)."
+const checkClaims = "In this repo, a claim stands only when a tool checked it this session; any other is cut, never labelled (skills/kit-rules/reference/evidence.md section 1)."
 
 // ReplyLength holds chat replies to the word ceilings in kit.yml
 // reply_limits (skills/kit-rules/reference/output.md section 0), silently: on UserPromptSubmit it

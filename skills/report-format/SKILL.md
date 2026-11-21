@@ -21,7 +21,7 @@ Stack: <the language lines kit detect-stack prints, if applicable>
 
 - **<Health word>.** <counts by severity, e.g. "2 failures, 3 warnings">
 - <the one thing to act on first, with its location>
-- <at most one more: the biggest risk, or what wasn't checked>
+- <at most one more: the biggest risk, or the first runtime check to run>
 
 ---
 
@@ -42,9 +42,9 @@ Stack: <the language lines kit detect-stack prints, if applicable>
 
 ---
 
-## Cannot be verified statically
+## Needs a runtime check
 
-<Items that need runtime checks, user testing, or external tools. Omit section if empty.>
+<Each check that needs a running system, user testing, or an external tool, named as the check to run. Omit section if empty.>
 
 ## Out of scope
 

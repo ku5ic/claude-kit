@@ -1,8 +1,8 @@
-# Cannot be verified statically + stack adaptation
+# Needs a runtime check + stack adaptation
 
-## Cannot be verified statically
+## Needs a runtime check
 
-List these in the report's "Cannot be verified statically" section:
+List these in the report's "Needs a runtime check" section:
 
 - Runtime focus behavior: modals, route changes, async content.
 - Color contrast when colors come from CSS variables with runtime theming.

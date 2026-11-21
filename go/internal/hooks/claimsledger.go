@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"regexp"
 	"slices"
 	"strings"
 
@@ -117,15 +116,11 @@ func latestRuns(log checkerLog, record, text string) ([]transcript.Run, []string
 	return runs, asked
 }
 
-// evidenceLabel marks a statement offered as an idea, not a fact, per
-// skills/kit-rules/reference/evidence.md section 1: likely, a hypothesis,
-// or a test not run.
-var evidenceLabel = regexp.MustCompile(`(?i)\b(?:likely|hypothesis|not run)\b`)
-
-// stillStated is each claim runs flagged that text still states in a
-// statement with no evidence label, with the check the run named for it.
+// stillStated is each claim runs flagged that text still states, with the
+// check the run named for it. A label doesn't lift it: an unchecked claim is
+// cut (skills/kit-rules/reference/evidence.md section 1).
 func stillStated(runs []transcript.Run, text string) []string {
-	statements := slices.DeleteFunc(claims.Statements(text), evidenceLabel.MatchString)
+	statements := claims.Statements(text)
 	var out []string
 	for _, run := range runs {
 		for line := range strings.Lines(run.Result) {

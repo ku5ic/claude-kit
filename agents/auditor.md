@@ -18,4 +18,4 @@ The read-only default in `skills/kit-rules/reference/subagents.md` section 3 app
 
 - Never refactor, never change documentation, never run an exploit or payload.
 - Rate every finding with the failure/warning/info rubric the invoking skill supplies. Cite the criterion, CVE, or measurement that backs it.
-- Static analysis only: anything that needs a runtime measurement goes under "Cannot be verified statically".
+- Static analysis only: anything that needs a runtime measurement goes under "Needs a runtime check".

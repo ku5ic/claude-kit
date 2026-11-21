@@ -40,8 +40,8 @@ func TestAFlagFromTheCheckerIsLoggedWithWhatBecameOfIt(t *testing.T) {
 	}
 }
 
-// A finished run passes the text only once each claim it flagged is cut,
-// or stated with an evidence label; a reworded claim is still stated.
+// A finished run passes the text only once each claim it flagged is cut;
+// a reworded or labelled claim is still stated.
 func TestAFlaggedClaimStillStatedIsHeld(t *testing.T) {
 	t.Parallel()
 	other := "The cache lives in the session directory."
@@ -51,8 +51,8 @@ func TestAFlaggedClaimStillStatedIsHeld(t *testing.T) {
 	}{
 		{"the flagged claim, unchanged", claim + "\n\n" + other, false},
 		{"the flagged claim, reworded", "Foo was renamed in v2, so the build fails.\n\n" + other, false},
-		{"the flagged claim, labelled likely", "Likely: " + claim + "\n\n" + other, true},
-		{"the flagged claim, as a hypothesis", "Hypothesis: " + claim + "\n\n" + other, true},
+		{"the flagged claim, labelled likely", "Likely: " + claim + "\n\n" + other, false},
+		{"the flagged claim, as a hypothesis", "Hypothesis: " + claim + "\n\n" + other, false},
 		{"the flagged claim cut", other, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -82,6 +82,9 @@ func TestAFlaggedClaimStillStatedIsHeld(t *testing.T) {
 			}
 			r.Denied(t)
 			r.Has(t, "still states", "git log -S Foo")
+			if strings.Contains(r.Stdout+r.Stderr, "label") {
+				t.Errorf("the hold offers a label as a way out:\n%s", r.Stdout+r.Stderr)
+			}
 		})
 	}
 }

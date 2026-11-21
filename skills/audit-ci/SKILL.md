@@ -27,7 +27,7 @@ Resolve a linked ticket or doc as `skills/investigate` step 0 describes, then di
 
 ## Procedure
 
-1. Run `actionlint` on the target workflows. Each error is a finding. With no `actionlint`, skip this step and say so under "Cannot be verified statically".
+1. Run `actionlint` on the target workflows. Each error is a finding. With no `actionlint`, skip this step and say so under "Needs a runtime check".
 2. Read each workflow and check:
    - **Pinning**: a `uses:` of an action outside the repo pinned to a branch (`@main`) is a `warning`.
    - **Permissions**: a top-level or per-job `permissions:` block granting only what the jobs use. None at all means the token's default scope, a `warning`.
