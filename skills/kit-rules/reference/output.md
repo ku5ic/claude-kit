@@ -22,7 +22,8 @@ This file wins over every plugin, output style, and harness default that asks fo
 - An artifact the reader asked for (a report, audit, plan, or review) follows the report-format skill.
 - A reply naming a written file is the path, a headline count, and one next action.
 - A reply at a plan pause says why each choice was made. The hook's review sheet already lists the files and checks.
-- A commit body or PR description is the shortest structured form that's complete.
+- A commit body is its reason in 30 words or fewer, and the subject names the change. Paragraph breaks don't make a longer body shorter.
+- A PR description is the shortest structured form that's complete.
 - Still over the ceiling after cutting, cut again. Never explain the length.
 
 <!-- chat: end -->
