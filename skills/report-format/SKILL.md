@@ -76,6 +76,15 @@ The reader skims and may stop after the TL;DR. This section holds for every repo
 - Where a report goes: `skills/kit-rules/reference/output.md` section 3.
 - Does not govern `write-*` or `pr-*` output (commit messages, release notes, stakeholder summaries, PR descriptions, review comments); those have their own formats per `skills/kit-rules/reference/output.md`.
 
+## Runtime checks
+
+An `audit-*` skill that dispatched `kit:auditor` runs these after its report, in the main session, since the auditor can't ask. A report with nothing under "Needs a runtime check" skips them.
+
+1. Name the command that runs each item: the project's own first (a test task, its axe or Storybook a11y run, a benchmark script), then the one the audit's references or the stack's pattern skill name.
+2. Offer only a check that reads: `tofu plan`, axe on a page already running, `actionlint`, a benchmark on this machine. Never an `apply`, an install, a config change, a deploy, or load on a shared target.
+3. Ask once with AskUserQuestion (`skills/kit-rules/reference/workflow.md` section 4), one option per check, each with its command and what it touches: a server it starts, a file it writes such as `.terraform/`, the database a query runs against.
+4. Run each approved check. One that ran becomes a finding, or joins one, with its command and output as Evidence, and leaves "Needs a runtime check". One not approved stays there.
+
 ## Health word
 
 The TL;DR's first bullet opens with one of:

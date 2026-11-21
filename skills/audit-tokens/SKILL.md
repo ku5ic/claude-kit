@@ -21,7 +21,7 @@ Loading this skill isn't enough. Before the step a row names, read its file.
 
 ## Run
 
-Resolve the target, the arguments or the project root, then dispatch the auditor agent (subagent_type: kit:auditor, foreground) with this file's procedure. It writes the report; reply per `skills/kit-rules/reference/output.md` section 3.
+Resolve the target, the arguments or the project root, then dispatch the auditor agent (subagent_type: kit:auditor, foreground) with this file's procedure. It writes the report. Then run the report-format skill's Runtime checks yourself, and reply per `skills/kit-rules/reference/output.md` section 3.
 
 ## Procedure
 
