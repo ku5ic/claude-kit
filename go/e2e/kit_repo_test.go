@@ -131,7 +131,7 @@ func TestKitRepo(t *testing.T) {
 			// Procedure skills whose practice another skill owns: the stack
 			// pattern skills, wcag-audit, slop-patterns, code-host-patterns,
 			// or engineering-fundamentals' thresholds.
-			"audit-a11y", "audit-debt", "audit-infra", "audit-slop", "pr-publish", "unslop",
+			"audit-a11y", "audit-debt", "audit-infra", "audit-slop", "audit-tests", "pr-publish", "unslop",
 			// Procedure skills that run only the kit's own steps, with no
 			// outside practice to cite.
 			"audit-doc-drift", "audit-verify", "code-impact", "code-tour", "meta-refresh",

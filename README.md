@@ -9,7 +9,7 @@
 
 Claude Code treats your rules as advice. A rule in CLAUDE.md, a skill, or a prompt is something it can skip, and you find out in review. claude-kit runs those rules as hooks on every command, edit, plan, subagent report, and stop, and sends Claude back when it breaks one. It has to back its claims, pass your project's own checks before it says "done", and stop for your review after every step.
 
-It also has 46 commands for the work around the code: audits, ADRs and RFCs, reviews of your PRs and other people's, your review queue, dependency PRs, incident retros and runbooks, and launch copy ([every command](docs/commands.md)). Each one detects your stack, your code host, and the tools you've connected, and asks when it can't tell. An audit or code report a subagent writes goes through the same claim check.
+It also has 47 commands for the work around the code: audits, ADRs and RFCs, reviews of your PRs and other people's, your review queue, dependency PRs, incident retros and runbooks, and launch copy ([every command](docs/commands.md)). Each one detects your stack, your code host, and the tools you've connected, and asks when it can't tell. An audit or code report a subagent writes goes through the same claim check.
 
 ```sh
 claude plugin marketplace add ku5ic/claude-kit

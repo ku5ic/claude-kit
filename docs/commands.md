@@ -23,6 +23,7 @@ Every command detects your stack, your code host (GitHub through `gh`, GitLab th
 | `/audit-readiness` | Go or no-go before a launch: owner, SLOs, alerts with runbooks, rollback, flags, dependency failure modes         | Before a launch or a first production deploy                           |
 | `/audit-security`  | Security review of the repo, a directory, or a file                                                               | Before a release, or for code handling auth, secrets, or user input    |
 | `/audit-slop`      | AI tells and filler across a repo's prose, worst files first                                                      | Docs or comments read like generated text                              |
+| `/audit-tests`     | Tests that can't fail, test the implementation, duplicate another, or cover nothing worth testing                 | A suite grows slower and bigger but bugs still get through             |
 | `/audit-tokens`    | Hard-coded values a design token covers, unused, undefined, and duplicate tokens, and token contrast              | A design system drifts from its tokens                                 |
 | `/audit-verify`    | Re-checks a prior audit report's findings against the repo as it is now                                           | After fixing an audit's findings                                       |
 
