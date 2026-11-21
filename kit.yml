@@ -583,8 +583,9 @@ on_edit:
 reply_limits:
   chat: 40
   explain: 150
-  explain_triggers: [explain, why, tradeoff, tradeoffs, review, audit, elaborate, honest take]
-  detail_triggers: [in detail, walk me through, long version]
+  # improve is left out: "improve this function" would lift the limit.
+  explain_triggers: [explain, why, tradeoff, tradeoffs, review, audit, elaborate, honest take, opinion, pros and cons, shortcomings, advantages]
+  detail_triggers: [in detail, walk me through, long version, detailed, in depth, in-depth, deep dive, thorough, thoroughly, full explanation, full answer, full report, step by step, explain everything, all the details, every detail, break it down, no limit, no word limit, "don't cut", "don't shorten", verbose, long answer, "!long"]
   uncapped_commands: [verify, code-review, audit-*, deps]
   write:
     commit: 40

@@ -44,6 +44,19 @@ func TestReplyLength(t *testing.T) {
 		r.Has(t, "Reply ceiling this turn: 40 words")
 		r.Lacks(t, "150 words")
 	})
+	t.Run("asking an opinion raises the ceiling, asking for depth or !long lifts it, a longer word holding a trigger does neither", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		for p, want := range map[string]string{
+			"What's your opinion on this?":    "150 words",
+			"Give me a deep dive on the gate": "No reply ceiling this turn",
+			"!long what changed":              "No reply ceiling this turn",
+			"thoroughness matters here":       "Reply ceiling this turn: 40 words",
+			"improve this function":           "Reply ceiling this turn: 40 words",
+		} {
+			prompt(k, p).Has(t, want)
+		}
+	})
 	t.Run("fenced code and table pipes don't count", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
