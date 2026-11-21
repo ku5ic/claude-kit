@@ -30,6 +30,7 @@ describe('precedence', () => {
     expect(kit?.scope).toBe('session')
     expect(kit?.text).toContain('follow the kit rule')
     expect(kit?.text).toContain('The step pause outranks any output style')
+    expect(kit?.text).toContain('comes from a tool result in this session')
   })
 
   test('its text is the same on every render, so the cached prompt holds', async ($, on) => {
@@ -51,6 +52,7 @@ describe('precedence', () => {
     const second = await $.prompt.submit({ text: 'again', wait: false, origin: { kind: 'composer' } })
     expect(first.context?.[0]).toBe('other')
     expect(first.context?.[1]).toMatch(/^kit: .*outrank/)
+    expect(first.context?.[1]).toContain('comes from a tool result in this session')
     expect(second.context).toEqual([first.context?.[1]])
   })
 
