@@ -23,7 +23,13 @@ var (
 	notifyField = regexp.MustCompile(`<(task-id|tool-use-id|status)>([^<]*)</`)
 	// fixReview is a typed /code-review that asks for its fixes.
 	fixReview = regexp.MustCompile(`(?s)code-review\b.*--fix\b`)
+	// fixesReply is a reply calling the edits since a review its fixes.
+	fixesReply = regexp.MustCompile(`(?i)\bfix(es|ed)?\b.*\breview|\breview.*\bfix(es|ed)?\b`)
 )
+
+// planDoneHeld follows the plan's path in the plan-done block, and finds
+// that block's feedback in the transcript.
+const planDoneHeld = "is done, but /code-review hasn't finished since the last code edit"
 
 // launchedReview is the task id of a /code-review that text records forking, or "".
 func launchedReview(text string) string {
@@ -104,6 +110,9 @@ type planWalk struct {
 	Asks     map[string]bool `json:"asks"`
 	Fixes    map[string]bool `json:"fixes"`
 	FixTurn  bool            `json:"fix_turn"`
+	// Held is a plan-done block waiting for Claude's reply: one line
+	// calling the edits review fixes counts as a review up to that line.
+	Held bool `json:"held"`
 	// bashed is bashEdits, read fresh by each run: a Bash call's record is
 	// written before its result, so it's there by the time the walk reads it.
 	bashed map[string][]string
@@ -176,8 +185,17 @@ func (w *planWalk) step(h *hook.Hook, e transcript.Entry, plansDir string, isCod
 			delete(w.EditPrev, b.ToolUseID)
 		}
 	}
+	if e.Type == "user" && e.IsMeta && strings.Contains(e.Text, planDoneHeld) {
+		w.Held = true
+	}
 	if e.Type != "assistant" {
 		return
+	}
+	if text := strings.TrimSpace(e.PromptText()); w.Held && text != "" {
+		if !strings.Contains(text, "\n") && fixesReply.MatchString(text) && w.LastReview >= 0 {
+			w.LastReview = e.Line
+		}
+		w.Held = false
 	}
 	for _, b := range e.ToolUses() {
 		switch {

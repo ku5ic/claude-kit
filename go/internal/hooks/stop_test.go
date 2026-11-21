@@ -187,6 +187,46 @@ func TestStopPlanDone(t *testing.T) {
 		e.stop(false).Want(t, 2)
 		e.stop(true).Want(t, 0)
 	})
+	// heldThenReply is a finished review, a fix, the plan-done block on
+	// ticking the last step, and reply to it, as Claude Code writes them.
+	heldThenReply := func(t *testing.T, reviewed bool, reply string) *stopEnv {
+		e := stopSetup(t)
+		e.turn("Edit", e.path("a.ts"))
+		if reviewed {
+			e.review()
+			e.finish("<tool-use-id>toolu_r1</tool-use-id>", "completed")
+		}
+		e.turn("Edit", e.path("a.ts"), e.plan(done))
+		e.stop(false).Want(t, 2)
+		e.line(map[string]any{"type": "user", "isMeta": true, "message": map[string]any{"content": "Stop hook feedback:\n[kit hook stop-dispatch]: kit stop: BLOCKED plan .claude/plans/plan-x.md is done, but /code-review hasn't finished since the last code edit"}})
+		e.line(testutil.AssistantText(reply))
+		e.stop(true)
+		return e
+	}
+	const fixesReply = "The only code edits since that review are the fixes for its findings, so no second review."
+	t.Run("a one-line review-fixes reply covers the edits before it in later turns", func(t *testing.T) {
+		t.Parallel()
+		e := heldThenReply(t, true, fixesReply)
+		e.turn("Edit", e.plan(done))
+		e.stop(false).Want(t, 0)
+		e.turn("Edit", e.path("b.ts"), e.plan(done))
+		e.stop(false).Want(t, 2)
+	})
+	for name, c := range map[string]struct {
+		reviewed bool
+		reply    string
+	}{
+		"a reply over one line":        {true, "Only review fixes since then.\n\nAlso, step 3 needs your call."},
+		"a reply that names no fixes":  {true, "Waiting on the background review."},
+		"a fixes reply with no review": {false, fixesReply},
+	} {
+		t.Run(name+" doesn't cover the edits before it", func(t *testing.T) {
+			t.Parallel()
+			e := heldThenReply(t, c.reviewed, c.reply)
+			e.turn("Edit", e.plan(done))
+			e.stop(false).Want(t, 2)
+		})
+	}
 	t.Run("ticking the last step through Bash blocks too; a Bash call that only names the plan doesn't", func(t *testing.T) {
 		t.Parallel()
 		// call is a Bash call on the plan, at, and its result, with change

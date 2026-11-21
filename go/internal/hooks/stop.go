@@ -73,7 +73,7 @@ func StopChecks(h *hook.Hook) error {
 				_ = os.Remove(held)
 			}
 		}
-		return h.Block(fmt.Sprintf("plan %s is done, but /code-review hasn't finished since the last code edit\n", fsx.Rel(root, plan))+
+		return h.Block(fmt.Sprintf("plan %s %s\n", fsx.Rel(root, plan), planDoneHeld)+
 			layout.KV("do", "run it now, or wait for the one running")+"\n"+
 			layout.KV("then", "the runtime pass (/verify) when the change has observable behavior")+"\n"+
 			layout.KV("or", "the edits since are only fixes for that review's findings: say so in one line, no second review (skills/kit-rules/reference/verify.md section 5)"), "plan-done")
