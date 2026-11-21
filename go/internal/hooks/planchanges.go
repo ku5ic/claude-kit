@@ -18,8 +18,9 @@ import (
 // PlanChanges shows the user what a resubmitted plan changed, from the
 // hook's own diff against the text it last saw, so the list isn't Claude's
 // account of it: each section added, removed, or changed, with line
-// counts, then the full diff in a scratch file. A first submit and an
-// unchanged resubmit print nothing. PreToolUse for ExitPlanMode.
+// counts, then the full diff in a scratch file, and tells Claude its
+// message lists them too. A first submit and an unchanged resubmit print
+// nothing. PreToolUse for ExitPlanMode.
 func PlanChanges(h *hook.Hook) error {
 	p := h.Payload
 	plan, text := p.String(hook.KeyInputPlanFilePath), p.String(hook.KeyInputPlan)
@@ -50,6 +51,7 @@ func PlanChanges(h *hook.Hook) error {
 		lines = append(lines, layout.KV("diff", diff))
 	}
 	h.Notify(strings.Join(lines, "\n"))
+	h.AddContext("PreToolUse", "Your message lists what changed since the last submit (skills/kit-rules/reference/workflow.md section 3).")
 	return nil
 }
 
