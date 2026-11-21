@@ -81,8 +81,10 @@ var entries = map[string]func(*hook.Hook) int{
 	"turn-tree":         single("turn-tree", TurnTree),
 	"rules-gate":        single("rules-gate", RulesGate),
 	// cmd/kit passes bashguard's write targets; these cases name none.
-	"bash-edits":              single("bash-edits", func(h *hook.Hook) error { return BashEdits(h, nil) }),
-	"bash-baseline":           single("bash-baseline", BashBaseline),
+	"bash-edits":    single("bash-edits", func(h *hook.Hook) error { return BashEdits(h, nil) }),
+	"bash-baseline": single("bash-baseline", BashBaseline),
+	// cmd/kit reads the post's text and where from the command; args name them.
+	"check-post":              single("check-post", func(h *hook.Hook) error { return CheckPost(h, h.Args[0], h.Args[1]) }),
 	"edit-seen":               single("edit-seen", MarkEditSeen),
 	"inject-context":          single("inject-context", InjectContext),
 	"inject-subagent-context": single("inject-subagent-context", InjectSubagentContext),

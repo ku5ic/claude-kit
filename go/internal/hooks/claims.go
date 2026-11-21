@@ -170,7 +170,8 @@ func CheckPost(h *hook.Hook, text, where string) error {
 	if decision, _ := h.Decision(); decision == "deny" || p.String(hook.KeyAgentType) == claimChecker {
 		return nil
 	}
-	return verifyText(h, text, where, "send it again", h.Paths.SessionFile(cache.Claims, p.SessionID(), "tool", "Bash"))
+	// One marker per destination, so a send-back passes only its rewrite.
+	return verifyText(h, text, where, "send it again", h.Paths.SessionFile(cache.Claims, p.SessionID(), "tool", "Bash", textHash(where)[:12]))
 }
 
 // CheckBashReports is check-size and verify-claims on each scratch report
@@ -235,8 +236,10 @@ func verifyOwnRun(h *hook.Hook, text, where, retry, marker string) error {
 	if markOnce(h, marker, []byte("sent-back"), "claims") {
 		savePending(h, marker, u)
 		if !h.Deny(claimsMessage(where, u, retry), "claims") {
-			// Let through as it is, so its flags score against this text.
+			// Let through as it is, so its flags score against this text,
+			// and the next text is checked as if none came before.
 			ledgerPending(h, marker, where, text)
+			_ = os.Remove(marker)
 		}
 	}
 	return nil

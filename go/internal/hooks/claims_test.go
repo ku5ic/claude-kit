@@ -710,6 +710,36 @@ func TestVerifyClaimsRunsOnlyAfterTheCheapGuards(t *testing.T) {
 	}
 }
 
+// One send-back lets through the next text to the same destination, its
+// rewrite, and nothing else: a post elsewhere is checked, and a send-back
+// that didn't take (claims shadowed) passes nothing on.
+func TestASendBackPassesOnlyTheRewriteToTheSameDestination(t *testing.T) {
+	t.Parallel()
+	const other = "The cache moved to the session directory in v3."
+	t.Run("a subagent's gh post to another destination", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		calls := k.verifier("", claim, other)
+		post := map[string]any{"hook_event_name": "PreToolUse", "session_id": "s", "agent_id": "a1", "tool_name": "Bash", "tool_input": map[string]any{"command": "gh"}}
+		k.run("check-post", post, claim, "gh pr create --body").Has(t, "git log -S Foo")
+		k.run("check-post", post, other, "gh issue comment --body").Has(t, "git log -S Foo")
+		if got := len(testutil.Calls(t, calls)); got != 2 {
+			t.Errorf("verifier ran %d times, want one per destination", got)
+		}
+	})
+	t.Run("a report written again with claims shadowed", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		calls := k.verifier("shadow_rules: [claims]\n", claim, other)
+		path := filepath.Join(k.home, "proj", ".claude", "scratch", "explore-x-20261110-1200.md")
+		k.run("verify-claims", toolCall("Write", map[string]any{"file_path": path, "content": "# Explore\n\n" + claim})).Allowed(t)
+		k.run("verify-claims", toolCall("Write", map[string]any{"file_path": path, "content": "# Explore\n\n" + other})).Allowed(t)
+		if got := len(testutil.Calls(t, calls)); got != 2 {
+			t.Errorf("verifier ran %d times, want the second text checked too", got)
+		}
+	})
+}
+
 // A report slop sent back still has its claims checked when the subagent
 // stops again, and only once.
 func TestSubagentDispatchChecksClaimsAfterASlopRetry(t *testing.T) {
