@@ -291,6 +291,8 @@ func TestGuardBashParsing(t *testing.T) {
 		probe("pass", `rg -e .env.x src`)
 		probe("block", `git diff -- .env`)
 		probe("block", `git show HEAD:.env`)
+		probe("block", `kit read git show HEAD:.env`)
+		probe("allow", `kit read git show HEAD:README.md`)
 		probe("block", `git log -p .env`)
 		probe("block", `git grep . -- .env`)
 		probe("pass", `git grep .env -- src`)

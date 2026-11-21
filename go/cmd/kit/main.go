@@ -35,6 +35,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/sources"
 	"github.com/ku5ic/claude-kit/go/internal/stats"
 	"github.com/ku5ic/claude-kit/go/internal/status"
+	"github.com/ku5ic/claude-kit/go/internal/vcsread"
 )
 
 // version is stamped by go/build.sh from .claude-plugin/plugin.json.
@@ -141,6 +142,7 @@ var commands = map[string]command{
 	"--version":      {needsNothing, cmdVersion},
 	"completion":     {needsNothing, streams(cmdCompletion)},
 	"git-base":       {needsNothing, streams(gitbase.Run)},
+	"read":           {needsNothing, streams(vcsread.Run)},
 	"config":         {needsEnv, envOnly(cmdConfig)},
 	"scratch-rotate": {needsEnv, envOnly(cmdScratchRotate)},
 	"clean":          {needsEnv, envOnly(cmdClean)},

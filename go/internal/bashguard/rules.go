@@ -331,8 +331,11 @@ func (c *command) readOperands() []string { return readOperands(c.name, c.values
 // readOperands are the operands command name reads as files when run with
 // values: none for a metadataOnly command or a git subcommand that prints
 // none, and never a leading pattern unless a flag gave it. git show
-// HEAD:.env names .env.
+// HEAD:.env names .env, and so does kit read git show HEAD:.env.
 func readOperands(name string, values []string) []string {
+	if name == "kit" && len(values) > 1 && values[0] == "read" && values[1] == "git" {
+		name, values = "git", values[2:]
+	}
 	git := name == "git"
 	if git {
 		sub, args, _ := classify.GitSubcommand(values)
