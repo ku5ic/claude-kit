@@ -77,9 +77,27 @@ func settleReferences(dir, text string) (flagged []Unsupported, rest string) {
 		} else if !settled {
 			continue
 		}
-		rest = strings.Replace(rest, s, "", 1)
+		rest = cut(rest, s)
 	}
 	return flagged, rest
+}
+
+// cut is text without statement s, the first time it occurs. Statements
+// come from prose, which joins a wrapped line with one space, so any run
+// of whitespace in text matches each space of s.
+func cut(text, s string) string {
+	words := strings.Fields(s)
+	for i, w := range words {
+		words[i] = regexp.QuoteMeta(w)
+	}
+	re, err := regexp.Compile(strings.Join(words, `\s+`))
+	if err != nil {
+		return text
+	}
+	if loc := re.FindStringIndex(text); loc != nil {
+		return text[:loc[0]] + text[loc[1]:]
+	}
+	return text
 }
 
 // references is each reference in statement s, and whether s is nothing

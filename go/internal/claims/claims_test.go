@@ -499,6 +499,7 @@ func TestBareReferencesResolveWithoutAModel(t *testing.T) {
 		{"a real symbol", "See `Hello` in `go/x.go`.", 0, nil},
 		{"an invented symbol", "See `Goodbye` in `go/x.go`.", 0, []string{"See `Goodbye` in `go/x.go`."}},
 		{"a symbol only in a hidden file", "See `cache-key`.", 0, nil},
+		{"a bare reference wrapped across lines", "See `go/x.go:3`\nand `go/x.go`.", 0, nil},
 		{"a false claim about a real file:line", "`go/x.go:3` returns an error.", 1, nil},
 		{"a behavior sentence about a real symbol", "The `Hello` function panics on empty input.", 1, nil},
 		{"a reference outside the repo", "See `other/y.go:4`.", 1, nil},
