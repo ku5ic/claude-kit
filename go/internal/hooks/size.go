@@ -9,13 +9,14 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/connector"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/layout"
 )
 
 // CheckSize sends back a deliverable whose prose runs over its kind's
-// kit.yml size_budgets entry, fenced code excluded, once per text, so the
-// same text resent goes through. It needs no model run, so it goes before
+// kit.yml size_budgets entry, fenced code excluded, once per destination,
+// so its rewrite goes through. It needs no model run, so it goes before
 // verify-claims in each dispatcher. It measures:
 //   - the plan, at PreToolUse for ExitPlanMode
 //   - a subagent's report, at PreToolUse for SubagentHandback and at SubagentStop
@@ -39,12 +40,11 @@ func CheckSize(h *hook.Hook) error {
 	var budget int
 	switch {
 	case p.String(hook.KeyHookEventName) == "SubagentStop":
-		// Sent back by the stop or the hand-back, a revision again, up to
-		// maxSendBacks. A marker, not stop_hook_active: another check may
-		// have blocked the first stop.
+		// Sent back once per agent, by the stop or the hand-back. A marker,
+		// not stop_hook_active: another check may have blocked the first stop.
 		m := handbackMarker(h, cache.Size)
 		report := p.String(hook.KeyLastAssistantMessage)
-		if m == "" && p.Bool(hook.KeyStopHookActive) || m != "" && !mayResend(m, report) {
+		if m == "" && p.Bool(hook.KeyStopHookActive) || m != "" && wasSentBack(m) {
 			return nil
 		}
 		if n := countWords(report, false); b.Report > 0 && n > b.Report {
@@ -79,7 +79,7 @@ func CheckSize(h *hook.Hook) error {
 		return nil
 	}
 	if tool == "SubagentHandback" {
-		if n := countWords(text, false); budget > 0 && n > budget && marker != "" && mayResend(marker, text) && markSentBack(h, marker, text, "size") {
+		if n := countWords(text, false); budget > 0 && n > budget && marker != "" && !wasSentBack(marker) && markSentBack(h, marker, text, "size") {
 			h.Deny(sizeMessage(where, n, budget, then), "size")
 		}
 		return nil
@@ -88,20 +88,27 @@ func CheckSize(h *hook.Hook) error {
 	return nil
 }
 
-// sizeOnce denies text when its prose runs over budget, once per text: the
-// same text resent goes through.
+// sizeOnce denies text when its prose runs over budget, once: the next
+// text to marker, its rewrite, goes through whatever its length, and the
+// one after is measured again.
 func sizeOnce(h *hook.Hook, text, where, then string, budget int, marker string) {
 	n := countWords(text, false)
-	if budget <= 0 || n <= budget || marker == "" {
+	if budget <= 0 || marker == "" {
 		return
 	}
-	sentBack := "sent-back " + textHash(text)
-	if prev, err := os.ReadFile(marker); err == nil && string(prev) == sentBack {
+	if fsx.IsFile(marker) {
+		_ = os.Remove(marker)
 		return
 	}
-	if markOnce(h, marker, []byte(sentBack), "size") {
+	if n > budget && markOnce(h, marker, []byte("sent-back"), "size") {
 		h.Deny(sizeMessage(where, n, budget, then), "size")
 	}
+}
+
+// wasSentBack is whether a subagent's size marker records a send-back.
+func wasSentBack(marker string) bool {
+	n, _ := sentBack(marker)
+	return n > 0
 }
 
 // sizeMessage says how far over its budget a deliverable runs, then what to do.

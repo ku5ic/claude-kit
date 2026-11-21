@@ -25,27 +25,35 @@ func TestCheckSize(t *testing.T) {
 	for _, tc := range []struct {
 		name, where, then string
 		call              func(k *sandbox, text string) map[string]any
+		// rearm: after the rewrite passes, the next text is measured again.
+		// A subagent's report is sent back once per agent.
+		rearm bool
 	}{
-		{"a handback", "your report", "hand back the shorter report", func(_ *sandbox, text string) map[string]any { return handback(text) }},
+		{"a handback", "your report", "hand back the shorter report", func(_ *sandbox, text string) map[string]any { return handback(text) }, false},
 		{"a plan", "the plan p.md", "call ExitPlanMode again", func(k *sandbox, text string) map[string]any {
 			return toolCall("ExitPlanMode", map[string]any{"plan": text, "planFilePath": filepath.Join(k.home, "proj", ".claude", "plans", "p.md")})
-		}},
+		}, true},
 		{"an investigation report", "explore-x-20261111-1200.md", "write the report again", func(k *sandbox, text string) map[string]any {
 			return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "explore-x-20261111-1200.md"), "content": text})
-		}},
+		}, true},
 		{"a connector post", "the mcp__chat__send_message input", "send it again", func(_ *sandbox, text string) map[string]any {
 			return toolCall("mcp__chat__send_message", map[string]any{"text": text})
-		}},
+		}, true},
 	} {
-		t.Run(tc.name+" over budget is sent back once per text", func(t *testing.T) {
+		t.Run(tc.name+" over budget is sent back once, and its rewrite goes through", func(t *testing.T) {
 			t.Parallel()
 			k := newSandbox(t)
 			k.overlay(budgets)
 			r := k.run("check-size", tc.call(k, long))
 			r.Denied(t)
 			r.Has(t, tc.where+" runs 7 words, over the 5-word budget", tc.then, "or send it unchanged to keep this length", "rule  size")
-			k.run("check-size", tc.call(k, long)).Allowed(t)
-			k.run("check-size", tc.call(k, long+" Eight.")).Denied(t)
+			// A rewrite still over budget is not sent back again.
+			k.run("check-size", tc.call(k, long+" Eight.")).Allowed(t)
+			if third := k.run("check-size", tc.call(k, long)); tc.rearm {
+				third.Denied(t)
+			} else {
+				third.Allowed(t)
+			}
 			k.run("check-size", tc.call(k, fenced)).Allowed(t)
 		})
 	}
