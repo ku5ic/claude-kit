@@ -43,6 +43,8 @@ func TestUntarKeepsTheBaseTreeInsideItsDir(t *testing.T) {
 		"a link to an absolute path":    func(outside string) [][2]string { return [][2]string{{"a", outside}, {"a/x", ""}} },
 		"a link climbing out":           func(string) [][2]string { return [][2]string{{"a", "../outside"}, {"a/x", ""}} },
 		"a file named outside the tree": func(string) [][2]string { return [][2]string{{"../outside/x", ""}} },
+		// Lexically tree/outside; y is tree, so its .. is tree's parent.
+		"a link climbing out through another link": func(string) [][2]string { return [][2]string{{"y", "."}, {"x", "y/../outside"}} },
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -68,6 +70,13 @@ func TestUntarKeepsTheBaseTreeInsideItsDir(t *testing.T) {
 		}
 		if got, err := os.Readlink(filepath.Join(dir, "y")); err != nil || got != "x" {
 			t.Errorf("y -> %q, %v; want x", got, err)
+		}
+	})
+	t.Run("a link up through a real directory is made", func(t *testing.T) {
+		t.Parallel()
+		dir := filepath.Join(t.TempDir(), "tree")
+		if err := untar(archive(t, [2]string{"x", ""}, [2]string{"d/f", ""}, [2]string{"d/up", "../x"}), dir); err != nil {
+			t.Fatal(err)
 		}
 	})
 }

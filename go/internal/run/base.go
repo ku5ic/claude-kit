@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -106,6 +107,24 @@ func (b *Base) unpack() error {
 	return fsx.WriteAtomic(done, nil, 0o600)
 }
 
+// throughLink is whether target, path's link, climbs with .. after a step
+// through another of links: the lexical check above reads y/../x as x,
+// while the system follows y first.
+func throughLink(path, target string, links map[string]string) bool {
+	parts := strings.Split(target, "/")
+	if !slices.Contains(parts, "..") {
+		return false
+	}
+	cur := filepath.Dir(path)
+	for _, part := range parts[:len(parts)-1] {
+		cur = filepath.Join(cur, part)
+		if _, ok := links[cur]; ok {
+			return true
+		}
+	}
+	return false
+}
+
 // untar writes r's files and links under dir. Links come last, so no file
 // is written through one, and a name or link target leaving dir is an
 // error: the base commit may come from anyone.
@@ -139,6 +158,11 @@ func untar(r *tar.Reader, dir string) error {
 		}
 		if err != nil {
 			return err
+		}
+	}
+	for path, target := range links {
+		if throughLink(path, target, links) {
+			return errors.New("run: base archive links outside its tree through another link: " + path)
 		}
 	}
 	for path, target := range links {
