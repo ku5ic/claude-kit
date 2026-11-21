@@ -50,8 +50,12 @@ func TestCooldownDropsAFailureAheadOfTheClock(t *testing.T) {
 	if err := c.Record(now, map[string]string{"b": "y"}, nil); err != nil {
 		t.Fatal(err)
 	}
-	if got := c.failures(); len(got) != 1 {
-		t.Errorf("failures after the record = %+v, want only b", got)
+	// Kept, a's stamp would hold its key an hour from it.
+	if _, ok := c.Cooling("a", now.Add(48*time.Hour+30*time.Minute)); ok {
+		t.Error("the record kept a's future stamp")
+	}
+	if _, ok := c.Cooling("b", now); !ok {
+		t.Error("the record dropped b")
 	}
 }
 
