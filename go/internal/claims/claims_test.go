@@ -424,11 +424,13 @@ func TestDeclarative(t *testing.T) {
 
 // The verifier gets a Read deny per sensitive_paths entry, so neither a
 // claim nor an instruction injected into the evidence gets it to read a
-// credential file; a "!" exception can't narrow a deny, so it's dropped.
+// credential file; a "!" exception can't narrow a deny, so it's dropped. A
+// glob whose literal part is too short to name a file gets no Bash deny,
+// which would match unrelated commands.
 func TestClaudeDeniesSensitiveReads(t *testing.T) {
 	t.Parallel()
 	cfg := baseConfig()
-	cfg.SensitivePaths = []string{".env", "!.env.example", "*.pem", "~/.ssh/", "~/.netrc"}
+	cfg.SensitivePaths = []string{".env", "!.env.example", "*.pem", "~/.ssh/", "~/.netrc", "id_*"}
 	argv := claude(cfg, "/kit", nil, "prompt")
 	i := slices.Index(argv, "--disallowedTools")
 	if i < 0 || i+1 >= len(argv) {
@@ -437,7 +439,7 @@ func TestClaudeDeniesSensitiveReads(t *testing.T) {
 	denied := strings.Split(argv[i+1], ",")
 	// "//" anchors at the filesystem root: a bare "**/" would cover only
 	// the verifier's cwd (code.claude.com/docs/en/permissions).
-	if want := []string{"Read(//**/.env)", "Bash(*.env*)", "Read(//**/*.pem)", "Bash(*.pem*)", "Read(~/.ssh/**)", "Bash(*.ssh/*)", "Read(~/.netrc)", "Bash(*.netrc*)"}; !slices.Equal(denied, want) {
+	if want := []string{"Read(//**/.env)", "Bash(*.env*)", "Read(//**/*.pem)", "Bash(*.pem*)", "Read(~/.ssh/**)", "Bash(*.ssh/*)", "Read(~/.netrc)", "Bash(*.netrc*)", "Read(//**/id_*)"}; !slices.Equal(denied, want) {
 		t.Errorf("--disallowedTools = %q, want %q", denied, want)
 	}
 }

@@ -316,8 +316,9 @@ func claude(cfg *config.Config, root string, entries []transcript.Entry, systemP
 // directory when it ends in "/"; any other is a basename at any depth from
 // the filesystem root, "//", since a bare "**/" covers only the cwd. A
 // deny can't be narrowed, so a "!" exception is dropped. Each entry also
-// gets a Bash deny on any command naming it: Claude Code runs cat and
-// git's read forms with no prompt in every mode.
+// gets a Bash deny on any command naming it, unless it's a glob too short
+// to name a file: Claude Code runs cat and git's read forms with no prompt
+// in every mode.
 func denyReads(entries []string) []string {
 	var rules []string
 	for _, e := range entries {
@@ -333,10 +334,18 @@ func denyReads(entries []string) []string {
 			rules = append(rules, "Read(//**/"+e+")")
 		}
 		// shortcut: it matches the command's text, so a glob like .en? gets past it.
-		rules = append(rules, "Bash(*"+strings.Trim(strings.TrimPrefix(e, "~/"), "*")+"*)")
+		literal := strings.Trim(strings.TrimPrefix(e, "~/"), "*")
+		if !strings.Contains(e, "*") || len(literal) >= minDenyLiteral {
+			rules = append(rules, "Bash(*"+literal+"*)")
+		}
 	}
 	return rules
 }
+
+// minDenyLiteral is the shortest literal part of a glob entry that gets a
+// Bash deny: "*.pem" keeps ".pem", while "id_*"'s "id_" would match any
+// command naming valid_ids.go.
+const minDenyLiteral = 4
 
 const schema = `{"type":"object","additionalProperties":false,"required":["ok","unsupported"],"properties":{` +
 	`"ok":{"type":"boolean"},"unsupported":{"type":"array","items":{"type":"object","additionalProperties":false,` +
