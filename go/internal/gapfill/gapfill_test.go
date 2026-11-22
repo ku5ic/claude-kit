@@ -806,8 +806,37 @@ func TestNpxHoldsUpWithALocalCopy(t *testing.T) {
 		t.Errorf("no local copy: %+v", v)
 	}
 	testutil.FakeTool(t, filepath.Join(f.root, "node_modules/.bin/prettier"), filepath.Join(f.dir, "prettier.calls"), "")
-	if v := f.run(format).Verdicts[Key(format)]; v.FileForm != "npx prettier --check {files}" {
+	if v := f.run(format).Verdicts[Key(format)]; v.FileForm != "npx prettier --check --ignore-unknown {files}" {
 		t.Errorf("a local copy: %+v", v)
+	}
+}
+
+// prettier given a file it has no parser for (.prettierignore) fails the
+// whole check, so its file form skips such files.
+func TestPrettiersFileFormIgnoresUnknownFiles(t *testing.T) {
+	t.Parallel()
+	for form, want := range map[string]string{
+		"npx prettier --check {files}":                  "npx prettier --check --ignore-unknown {files}",
+		"npx prettier --check --ignore-unknown {files}": "npx prettier --check --ignore-unknown {files}",
+		"npx prettier -u --check {files}":               "npx prettier -u --check {files}",
+	} {
+		t.Run(form, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t, "")
+			testutil.Put(t, f.root, "package-lock.json", "{}")
+			testutil.Put(t, f.root, ".gitignore", "node_modules\n")
+			testutil.Git(t, f.root, "init", "-q")
+			testutil.FakeTool(t, filepath.Join(f.root, "node_modules/.bin/prettier"), filepath.Join(f.dir, "prettier.calls"), "")
+			format := entry("fmt", "prettier --check .")
+			f.answer(map[string]any{
+				"entries":   []any{verdict(format, map[string]any{"role": "check", "kind": "format-check", "mutates": false, "file_form": form})},
+				"managers":  []any{map[string]any{"dir": ".", "cites": "package-lock.json", "manager": "npm", "run_prefix": "npx", "add_verbs": []string{"npm install"}, "dlx": "npx", "dir_flags": []string{"--prefix"}, "rivals": []string{}}},
+				"proposals": []any{},
+			})
+			if v := f.run(format).Verdicts[Key(format)]; v.FileForm != want {
+				t.Errorf("file form %q, want %q", v.FileForm, want)
+			}
+		})
 	}
 }
 

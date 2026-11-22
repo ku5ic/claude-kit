@@ -278,6 +278,7 @@ func (f forms) verdict(e sources.Entry, v Verdict) (Verdict, []string, error) {
 		dropped = append(dropped, fmt.Sprintf("file form %q: %s", v.FileForm, why))
 		v.FileForm, v.Globs = "", nil
 	}
+	v.FileForm = skipUnknownFiles(v.FileForm)
 	if why := f.checkForm(v.Role, v.Affected, bodies, "{base}"); why != "" {
 		dropped = append(dropped, fmt.Sprintf("affected form %q: %s", v.Affected, why))
 		v.Affected = ""
@@ -305,6 +306,17 @@ var wholeInputTools = map[string]string{
 	"tsc":      "tsc ignores tsconfig.json once given files",
 	"vue-tsc":  "tsc ignores tsconfig.json once given files",
 	"deadcode": "deadcode given some packages reports what only the others call",
+}
+
+// skipUnknownFiles is form with prettier told to skip a changed file it has
+// no parser for (.prettierignore, a lock file), which otherwise fails the
+// whole check.
+func skipUnknownFiles(form string) string {
+	words := strings.Fields(form)
+	if !slices.Contains(words, "prettier") || slices.Contains(words, "--ignore-unknown") || slices.Contains(words, "-u") {
+		return form
+	}
+	return strings.Replace(form, "{files}", "--ignore-unknown {files}", 1)
 }
 
 // toolOf is the tool words run: the first word, or the tool go tool runs.
@@ -462,6 +474,7 @@ func (f forms) proposal(p Proposal) (Proposal, []string, error) {
 		dropped = append(dropped, fmt.Sprintf("file form %q: %s", p.FileForm, why))
 		p.FileForm, p.Globs = "", nil
 	}
+	p.FileForm = skipUnknownFiles(p.FileForm)
 	return p, dropped, nil
 }
 
