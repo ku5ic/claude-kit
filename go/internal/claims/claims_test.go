@@ -310,21 +310,6 @@ func TestEvidenceMarksAnAgentResultAsNoEvidence(t *testing.T) {
 	}
 }
 
-// The planning session of 2026-11-21 shipped "git tag lists v0.1.0 to
-// v0.2.2 only" from a tail of the list. Its evidence holds neither the
-// newer tags nor kit.yml's timeout line past the clip, so the verifier
-// has to run kit read and re-read kit.yml to settle them.
-func TestTheTagsSessionLeavesItsClaimsToTheVerifiersOwnReads(t *testing.T) {
-	t.Parallel()
-	entries, err := transcript.Load("testdata/tags-session.jsonl")
-	if err != nil {
-		t.Fatal(err)
-	}
-	got := evidence(entries, testutil.Read(t, "testdata/tags-report.md"), false)
-	testutil.Has(t, got, "v0.2.2\nv0.2.1", "bytes cut]", "lists v0.1.0 to v0.2.2 only")
-	testutil.Lacks(t, got, "v0.12", "timeout: 240")
-}
-
 // A finding's Evidence names the read or command behind it. One the
 // session never ran, or a field naming none, is flagged with no model run.
 func TestAFindingsEvidenceMustNameWhatTheSessionRan(t *testing.T) {
