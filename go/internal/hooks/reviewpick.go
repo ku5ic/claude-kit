@@ -27,22 +27,18 @@ func ReviewPick(h *hook.Hook) error {
 	if p.Err != nil || p.String(hook.KeyAgentID) != "" {
 		return nil
 	}
+	tool := p.String(hook.KeyToolName)
+	edit := slices.Contains(transcript.EditTools, tool)
+	if !edit && (tool != "Agent" || slices.Contains(readingAgents, p.String(hook.KeyInputSubagentType))) {
+		return nil
+	}
 	path, cwd := p.String(hook.KeyTranscriptPath), p.Cwd()
 	root := git.Toplevel(cwd)
 	if root == "" || !fsx.IsFile(path) {
 		return nil
 	}
 	isCode, plans := codeIn(h, root), project.PlanDir(h.Paths, cwd)
-	switch tool := p.String(hook.KeyToolName); {
-	case tool == "Agent":
-		if slices.Contains(readingAgents, p.String(hook.KeyInputSubagentType)) {
-			return nil
-		}
-	case slices.Contains(transcript.EditTools, tool):
-		if target := fsx.Abs(cwd, p.FilePath()); !isCode(target) || fsx.Within(plans, target) {
-			return nil
-		}
-	default:
+	if target := fsx.Abs(cwd, p.FilePath()); edit && (!isCode(target) || fsx.Within(plans, target)) {
 		return nil
 	}
 	if _, walk := readSession(h, path, root, plans, isCode); walk.HoldFrom > walk.Answered {

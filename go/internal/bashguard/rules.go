@@ -631,25 +631,12 @@ func (c *command) inPlaceScript() bool {
 	values := c.values()
 	switch c.name {
 	case "perl", "ruby":
-		return perlInPlace(values)
+		return inPlace(values)
 	case "awk", "gawk":
 		for i, v := range values {
 			if v == "-iinplace" || v == "--include=inplace" || (v == "-i" || v == "--include") && i+1 < len(values) && values[i+1] == "inplace" {
 				return true
 			}
-		}
-	}
-	return false
-}
-
-// perlInPlace is true when one of perl's option clusters holds -i.
-func perlInPlace(values []string) bool {
-	for _, v := range values {
-		if v == "--" {
-			return false
-		}
-		if strings.HasPrefix(v, "-") && !strings.HasPrefix(v, "--") && strings.Contains(v, "i") {
-			return true
 		}
 	}
 	return false

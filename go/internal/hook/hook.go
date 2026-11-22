@@ -162,10 +162,9 @@ type Hook struct {
 	cfg      *config.Config
 	warnings []config.Warning
 	loaded   bool
-	context  string // printed after a block reason, e.g. "Path: <path>"
-	decision string // the strongest Decide so far; Run prints it once
-	reason   string
-	reasons  []string       // each distinct ask or deny reason, joined into reason
+	context  string         // printed after a block reason, e.g. "Path: <path>"
+	decision string         // the strongest Decide so far; Run prints it once
+	reasons  []string       // each distinct reason for decision, joined by Decision
 	input    map[string]any // a PreToolUse tool input replacing the one sent
 	// What checks add for Run to print: context for Claude on event,
 	// notices for the user, plain text.
@@ -349,16 +348,11 @@ func (h *Hook) Decide(decision, reason string) {
 	switch {
 	case decision == h.decision && decision != "allow":
 		if !slices.Contains(h.reasons, reason) {
-			sep := "; "
-			if decision == "deny" {
-				sep = "\n\n"
-			}
 			h.reasons = append(h.reasons, reason)
-			h.reason = strings.Join(h.reasons, sep)
 		}
 	case h.decision == "deny":
 	case h.decision == "" || decision == "deny" || decision == "ask" && h.decision == "allow":
-		h.decision, h.reason, h.reasons = decision, reason, []string{reason}
+		h.decision, h.reasons = decision, []string{reason}
 	}
 }
 
@@ -368,7 +362,13 @@ func (h *Hook) UpdateInput(input map[string]any) { h.input = input }
 
 // Decision is the permission decision and reason recorded so far, "" when
 // no check decided.
-func (h *Hook) Decision() (decision, reason string) { return h.decision, h.reason }
+func (h *Hook) Decision() (decision, reason string) {
+	sep := "; "
+	if h.decision == "deny" {
+		sep = "\n\n"
+	}
+	return h.decision, strings.Join(h.reasons, sep)
+}
 
 // AddContext adds text for Claude on event.
 func (h *Hook) AddContext(event, text string) {
@@ -421,7 +421,8 @@ func (h *Hook) flush(block string) {
 	case h.decision != "":
 		// A check's context (a density note) still reaches Claude when
 		// another check decides; only a defer would drop it.
-		WriteJSON(h.Stdout, output{SystemMessage: strings.Join(h.notices, "\n\n"), HookSpecificOutput: &specific{HookEventName: "PreToolUse", PermissionDecision: h.decision, PermissionDecisionReason: h.reason, AdditionalContext: strings.Join(h.contexts, "\n"), UpdatedInput: h.input}})
+		_, reason := h.Decision()
+		WriteJSON(h.Stdout, output{SystemMessage: strings.Join(h.notices, "\n\n"), HookSpecificOutput: &specific{HookEventName: "PreToolUse", PermissionDecision: h.decision, PermissionDecisionReason: reason, AdditionalContext: strings.Join(h.contexts, "\n"), UpdatedInput: h.input}})
 	case h.contexts != nil || h.notices != nil:
 		contexts, event := h.contexts, h.event
 		// Plain text can't share stdout with JSON: in a dispatcher, one

@@ -297,8 +297,8 @@ func sedFiles(args []string) []string {
 	return files
 }
 
-// inPlace is true when sed's args edit the file in place: a flag holding i
-// before any --.
+// inPlace is true when sed's, perl's, or ruby's args edit the file in
+// place: a flag holding i before any --.
 func inPlace(args []string) bool {
 	for _, a := range args {
 		if a == "--" {

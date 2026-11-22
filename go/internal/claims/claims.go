@@ -368,7 +368,6 @@ func evidence(entries []transcript.Entry, text string, forked bool) string {
 	tokens := namedIn(text)
 	namedIDs := map[string]bool{}
 	var items []item
-	add := func(text string) { items = append(items, item{text: text}) }
 	for _, e := range entries {
 		if e.IsMeta {
 			if forked && e.Type == "user" {
@@ -400,7 +399,7 @@ func evidence(entries []transcript.Entry, text string, forked bool) string {
 			for _, b := range e.Blocks {
 				switch b.Type {
 				case "text":
-					add("### Assistant text (not evidence)\n\n" + clip(b.Text, assistCap))
+					items = append(items, item{text: "### Assistant text (not evidence)\n\n" + clip(b.Text, assistCap)})
 				case "tool_use":
 					names[b.ID], inputs[b.ID] = b.Name, string(b.RawInput)
 					items = append(items, item{text: fmt.Sprintf("#### Tool %s\n\nInput: %s", b.Name, clip(string(b.RawInput), inputCap)), id: b.ID})

@@ -2,8 +2,6 @@ package hooks
 
 import (
 	"cmp"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"maps"
 	"os"
@@ -99,8 +97,7 @@ func fileSum(path string) string {
 	if err != nil {
 		return ""
 	}
-	sum := sha256.Sum256(data)
-	return hex.EncodeToString(sum[:])[:16]
+	return textHash(string(data))[:16]
 }
 
 // record appends verdicts, by statementKey, for statements, the texts by

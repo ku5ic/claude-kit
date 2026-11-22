@@ -42,7 +42,7 @@ func GuardHandback(h *hook.Hook) error {
 	if len(hits) == 0 {
 		// A clean report marks the hand-back without resetting the count.
 		if !h.DryRun && !fsx.IsFile(marker) {
-			_ = fsx.WriteAtomic(marker, []byte("seen"), 0o644)
+			_ = fsx.WriteAtomic(marker, []byte(seenMark), 0o644)
 		}
 		return nil
 	}
@@ -65,7 +65,7 @@ func SubagentSlop(h *hook.Hook) error {
 	}
 	marker := handbackMarker(h, cache.Slop)
 	text := p.String(hook.KeyLastAssistantMessage)
-	if prev, _ := os.ReadFile(marker); marker == "" && p.Bool(hook.KeyStopHookActive) || string(prev) == "seen" || marker != "" && !mayResend(marker, text) {
+	if prev, _ := os.ReadFile(marker); marker == "" && p.Bool(hook.KeyStopHookActive) || string(prev) == seenMark || marker != "" && !mayResend(marker, text) {
 		return nil
 	}
 	hits := reportHits(h, text)
@@ -88,10 +88,6 @@ func handbackMarker(h *hook.Hook, kind string) string {
 	return h.Paths.SessionFile(kind, h.Payload.SessionID(), agent, "handback")
 }
 
-// markOnce writes data to marker, the guard that shows a block or deny for
-// rule only once. False when the write fails: with no guard, the block
-// would come back on every retry, so the caller lets the call through and
-// the user is told.
 // maxSendBacks is how many times a cheap check (slop, size, citations)
 // sends one agent's report back before it lets the report through: a
 // revision is checked again, and the cap ends a loop.
@@ -136,6 +132,10 @@ func textHash(text string) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// markOnce writes data to marker, the guard that shows a block or deny for
+// rule only once. False when the write fails: with no guard, the block
+// would come back on every retry, so the caller lets the call through and
+// the user is told.
 func markOnce(h *hook.Hook, marker string, data []byte, rule string) bool {
 	if h.DryRun {
 		return true
@@ -149,6 +149,9 @@ func markOnce(h *hook.Hook, marker string, data []byte, rule string) bool {
 
 // sentBackMark is what a once-only marker holds after its text was sent back.
 const sentBackMark = "sent-back"
+
+// seenMark is what a handback marker holds after a clean report.
+const seenMark = "seen"
 
 // rewriteOf is whether marker holds a send-back, so the text now is its
 // rewrite and goes through; the marker is cleared, so the next is checked.

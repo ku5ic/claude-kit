@@ -89,10 +89,14 @@ func movedFiles(h *hook.Hook, root string) []string {
 
 // BashBaseline is the PreToolUse step that snapshots, before a Bash
 // command runs, a repo with neither a turn start nor a baseline, so
-// bash-edits checks even the first command there. PreToolUse for Bash.
+// bash-edits checks even the first command there. A command the bash
+// guard marked read-only waits for the next one. PreToolUse for Bash.
 func BashBaseline(h *hook.Hook) error {
 	p := h.Payload
 	if p.Err != nil || p.String(hook.KeyToolName) != "Bash" || h.Config() == nil {
+		return nil
+	}
+	if fsx.IsFile(cache.ReadOnlyBash(h.Paths.CacheDir(), p.SessionID(), p.String(hook.KeyInputCommand))) {
 		return nil
 	}
 	root := git.Toplevel(p.Cwd())

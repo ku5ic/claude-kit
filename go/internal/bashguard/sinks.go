@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 )
 
@@ -54,10 +55,10 @@ func (st *state) dirToNetwork(seg Segment) {
 func (st *state) firstWholeDir(ops []string) string {
 	for _, op := range ops {
 		p := filepath.Clean(st.abs(unquote(op)))
-		if info, err := os.Stat(p); err != nil || !info.IsDir() {
+		if !fsx.IsDir(p) {
 			continue
 		}
-		if rel, err := filepath.Rel(p, st.cwd); err == nil && !strings.HasPrefix(rel, "..") {
+		if fsx.Within(p, st.cwd) {
 			return op
 		}
 		entries, _ := os.ReadDir(p)

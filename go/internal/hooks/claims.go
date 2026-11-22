@@ -56,11 +56,11 @@ func VerifyClaims(h *hook.Hook) error {
 		if len(u) == 0 {
 			// Best effort: without it, the next stop checks again.
 			if marker != "" && !h.DryRun {
-				_ = fsx.WriteAtomic(marker, []byte("seen"), 0o644)
+				_ = fsx.WriteAtomic(marker, []byte(seenMark), 0o644)
 			}
 			return nil
 		}
-		if marker == "" || markOnce(h, marker, []byte("seen"), "claims") {
+		if marker == "" || markOnce(h, marker, []byte(seenMark), "claims") {
 			return h.Block(claimsMessage("your report", u, sendBack), "claims")
 		}
 	case "PreToolUse":
@@ -282,14 +282,14 @@ func verifyHandback(h *hook.Hook) error {
 		return nil
 	}
 	message := h.Payload.String(hook.KeyInputMessage)
-	if prev, err := os.ReadFile(marker); err == nil && string(prev) == sentBackMark {
+	if wasSentBack(marker) {
 		ledgerPending(h, marker, "your report", message)
 		return nil
 	}
 	u := unconfirmed(h, message, agentTranscript(h.Payload), "your report")
 	if len(u) == 0 {
 		if !h.DryRun {
-			_ = fsx.WriteAtomic(marker, []byte("seen"), 0o644)
+			_ = fsx.WriteAtomic(marker, []byte(seenMark), 0o644)
 		}
 		return nil
 	}
