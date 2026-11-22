@@ -914,8 +914,9 @@ func partValue(src string, part syntax.WordPart, inDouble bool) string {
 	case *syntax.SglQuoted:
 		if p.Dollar {
 			// $'\x72m' is rm. Format reads printf verbs too, so a % stays
-			// literal; the shell cuts the value at a NUL.
-			v, _, err := expand.Format(nil, strings.ReplaceAll(p.Value, "%", "%%"), nil)
+			// literal; the shell cuts the value at a NUL. Workaround: a nil
+			// config makes mvdan/sh v3.14.1 write its shared zeroConfig, a race.
+			v, _, err := expand.Format(&expand.Config{}, strings.ReplaceAll(p.Value, "%", "%%"), nil)
 			if err != nil {
 				return src[p.Pos().Offset():p.End().Offset()]
 			}
