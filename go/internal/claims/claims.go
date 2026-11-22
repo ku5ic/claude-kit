@@ -220,15 +220,25 @@ func verifyWithModel(cfg *config.Config, root, cacheDir, dir, text string, load 
 	}
 	forked := transcriptPath != "" && fsx.IsFile(transcript.ForkSidecar(transcriptPath))
 	v, err := run(cfg, argv, filepath.Join(cacheDir, cache.Guard), dir, evidence(entries, text, forked))
-	// Best effort: unrecorded, the next text runs the verifier again.
+	// Best effort: unrecorded, the next text runs the verifier again. A
+	// second text timing out within the cooldown is the verifier hanging,
+	// so it pauses all.
+	timeoutKey := key + "-timeout"
 	if err != nil {
-		failed := key
+		msg := strings.TrimPrefix(err.Error(), "claims: ")
+		failed := map[string]string{key: msg}
 		if textFailure(err) {
-			failed = textKey
+			failed = map[string]string{textKey: msg}
 		}
-		_ = cool.Record(time.Now(), map[string]string{failed: strings.TrimPrefix(err.Error(), "claims: ")}, nil)
+		if strings.Contains(msg, "timed out") {
+			if _, ok := cool.Cooling(timeoutKey, time.Now()); ok {
+				failed[key] = msg
+			}
+			failed[timeoutKey] = msg
+		}
+		_ = cool.Record(time.Now(), failed, nil)
 	} else {
-		_ = cool.Record(time.Now(), nil, []string{key, textKey})
+		_ = cool.Record(time.Now(), nil, []string{key, textKey, timeoutKey})
 	}
 	return v, err
 }

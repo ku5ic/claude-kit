@@ -472,6 +472,25 @@ func TestAFailureOnOneTextPausesOnlyThatText(t *testing.T) {
 	}
 }
 
+// One text timing out pauses only it, but a second text timing out within
+// the cooldown is the verifier hanging, so it pauses every text.
+func TestASecondTextTimingOutPausesEveryText(t *testing.T) {
+	t.Parallel()
+	cfg, cacheDir, dir := baseConfig(), t.TempDir(), t.TempDir()
+	cfg.Claims.Timeout = 1
+	cfg.Claims.Command = []string{filepath.Join(dir, "verifier")}
+	testutil.FakeTool(t, cfg.Claims.Command[0], filepath.Join(dir, "calls"), "sleep 5")
+	var paused *Paused
+	for i, text := range []string{"The build fails.", "The tests pass."} {
+		if _, err := Verify(cfg, "", cacheDir, t.TempDir(), text, ""); err == nil || errors.As(err, &paused) {
+			t.Fatalf("text %d: err %v, want a timeout", i, err)
+		}
+	}
+	if _, err := Verify(cfg, "", cacheDir, t.TempDir(), "The lint is clean.", ""); !errors.As(err, &paused) {
+		t.Errorf("a third text: err %v, want paused", err)
+	}
+}
+
 // repo is a git repo holding go/x.go, three lines defining Hello, and
 // .github/ci.yml, naming cache-key, in one commit, and that commit's SHA.
 func repo(t *testing.T) (dir, sha string) {
