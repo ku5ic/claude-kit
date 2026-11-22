@@ -288,8 +288,8 @@ func TestPlanDispatchDeniesOnceForEveryReason(t *testing.T) {
 	r.Has(t, "over the 5-word budget", "citation(s) in the plan p.md that don't resolve")
 }
 
-// plan-critic's run covers a plan's claims. With plan-critic off, the plan
-// waits for the claim-checker agent on its exact text.
+// A plan's claims get the hook's own run, critiqued or not, and the plan
+// goes back once per session.
 func TestPlanDispatchVerifiesClaims(t *testing.T) {
 	t.Parallel()
 	const plan = "/proj/.claude/plans/plan-x.md"
@@ -301,16 +301,23 @@ func TestPlanDispatchVerifiesClaims(t *testing.T) {
 		return map[string]any{"hook_event_name": "PreToolUse", "session_id": "s", "tool_name": "ExitPlanMode",
 			"transcript_path": path, "tool_input": map[string]any{"plan": text, "planFilePath": plan}}
 	}
-	t.Run("with plan-critic on, its run covers the claims", func(t *testing.T) {
-		t.Parallel()
-		k := newSandbox(t)
-		calls := k.verifier("", claim)
-		k.run("plan-dispatch", exit(k, "# Plan\n\n"+claim, write, critic)).Allowed(t)
-		if got := testutil.Calls(t, calls); got != nil {
-			t.Errorf("verifier ran: %q", got)
-		}
-	})
-	t.Run("a plan revised after its critique gets the no-model pass", func(t *testing.T) {
+	for name, extra := range map[string]string{"critiqued": "", "with plan-critic off": "disabled_rules: [plan-critic]\n"} {
+		t.Run(name+", the hook's own run checks the claims, once", func(t *testing.T) {
+			t.Parallel()
+			k := newSandbox(t)
+			calls := k.verifier(extra, claim)
+			plan := exit(k, "# Plan\n\n"+claim, write, critic)
+			r := k.run("plan-dispatch", plan)
+			r.Denied(t)
+			r.Has(t, claim, "git log -S Foo", "the plan plan-x.md", "ExitPlanMode again")
+			r.Lacks(t, "claim-check ")
+			k.run("plan-dispatch", plan).Allowed(t)
+			if got := len(testutil.Calls(t, calls)); got != 1 {
+				t.Errorf("verifier ran %d times, want 1", got)
+			}
+		})
+	}
+	t.Run("a broken reference in a critiqued plan goes back once, with no model run", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
 		calls := k.verifier("", claim)
@@ -324,20 +331,6 @@ func TestPlanDispatchVerifiesClaims(t *testing.T) {
 		if got := testutil.Calls(t, calls); got != nil {
 			t.Errorf("verifier ran: %q", got)
 		}
-	})
-	t.Run("with plan-critic off, denied until the claim-checker ran on each of its statements", func(t *testing.T) {
-		t.Parallel()
-		k := newSandbox(t)
-		k.verifier("disabled_rules: [plan-critic]\n", claim)
-		r := k.run("plan-dispatch", exit(k, "# Plan\n\n"+claim, write))
-		r.Denied(t)
-		r.Has(t, "kit:claim-checker", "the plan plan-x.md", "ExitPlanMode again")
-		id := checkID.FindString(r.Stdout)
-		k.run("plan-dispatch", exit(k, "# Plan\n\n"+claim, write, checkerLine(id))).Allowed(t)
-		// A retitled plan states nothing new; one with a new sentence needs
-		// a run on it.
-		k.run("plan-dispatch", exit(k, "# Plan v2\n\n"+claim, write, checkerLine(id))).Allowed(t)
-		k.run("plan-dispatch", exit(k, "# Plan v2\n\n"+claim+"\n\nThe cache lives in the session directory.", write, checkerLine(id))).Denied(t)
 	})
 	t.Run("a transcript that can't be read sends the plan back once, for Claude to check itself", func(t *testing.T) {
 		t.Parallel()
@@ -356,7 +349,7 @@ func TestPlanDispatchVerifiesClaims(t *testing.T) {
 		k.verifier("", claim)
 		r := k.run("plan-dispatch", exit(k, "# Plan\n\n<!-- critic: skip renames one flag -->\n\n"+claim, write))
 		r.Denied(t)
-		r.Has(t, "kit:claim-checker", "the plan plan-x.md")
+		r.Has(t, claim, "the plan plan-x.md")
 		r.Lacks(t, "kit:plan-critic agent hasn't reviewed")
 	})
 	t.Run("disabled_rules: [claims] lets the plan through", func(t *testing.T) {
@@ -389,7 +382,7 @@ func TestPlanDispatchVerifiesClaims(t *testing.T) {
 		k.run("plan-dispatch", exit(k, text, write)).Has(t, "kit:plan-critic")
 		r := k.run("plan-dispatch", exit(k, text, write))
 		r.Denied(t)
-		r.Has(t, "kit:claim-checker", "the plan plan-x.md")
+		r.Has(t, claim, "the plan plan-x.md")
 	})
 }
 
