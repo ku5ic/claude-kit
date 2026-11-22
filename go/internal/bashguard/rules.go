@@ -303,8 +303,7 @@ var commandChecks = map[string]func(*command) error{
 
 func (c *command) diskTool() error { return c.block("low level disk or filesystem tool", "disk-tool") }
 
-// kit asks before git-base flags that can write or run programs, and blocks
-// run-checks, which the hooks run.
+// kit asks before git-base flags that can write or run programs.
 func (c *command) kit() error {
 	words := strings.Fields(c.rest)
 	switch {
@@ -313,8 +312,6 @@ func (c *command) kit() error {
 		// An explicit ask: with no decision, a Bash(kit git-base *) allow
 		// rule would approve --output=<file> silently.
 		c.st.ask("kit git-base passes this flag to git, which can write files or run programs; confirm it")
-	case words[0] == "run-checks" && !slices.Contains(words[1:], "--plan"):
-		return c.block("the hooks run the gates and show the user every result\n"+layout.KV("do", "don't run them yourself; kit run-checks --plan only lists them"), "run-checks-by-hook")
 	}
 	return nil
 }

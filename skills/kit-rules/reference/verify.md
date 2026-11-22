@@ -6,6 +6,7 @@ What must happen before a change is called done. This file is the one definition
 - Before calling an ordinary change done, do the refactor pass (`skills/engineering-fundamentals/reference/red-green-refactor.md`), then name in one line what it changed.
 - At the end of a plan, or when the user asks, run `/code-review` (section 1). Its hook runs the full gate.
 - At the same moment, a change with observable behavior (a response, output, an exit code, data written, a side effect) gets the runtime pass (section 2).
+- When the user asks for the full gate on its own, run `kit run-checks`.
 - A gate verdict is never repeated in a reply. Act on a FAIL.
 - A targeted test while developing is fine.
 - A pure refactor that doesn't touch UI is covered by the existing tests.

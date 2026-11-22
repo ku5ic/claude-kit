@@ -10,7 +10,7 @@ When Claude finishes a turn, the Stop hook runs the checks your git hooks would 
 - **Old failures pass.** A failing check whose every failure line also shows when it runs on the git base passes, marked "fails on the git base too".
 - **Your commands, your flags.** Every command is one your project states; `kit explain stop <file>` shows which claim a file and the exact command.
 
-For the whole project, `kit run-checks` runs every quality gate, in every subproject. The `/code-review` hook runs it for you; Claude itself never does:
+For the whole project, `kit run-checks` runs every quality gate, in every subproject. The `/code-review` hook runs it for you, and Claude runs it when you ask for the gate:
 
 - **CI first:** the check steps of GitHub Actions and GitLab CI, and the tasks they run. `kit.yml` `gate_discovery` says which jobs and steps are never read.
 - **Then each kind CI leaves out:** lint, typecheck, format-check, test, dead code, and security, from turbo and nx, task runners (`package.json` scripts, Makefile, justfile, and more), and pre-commit; last, a check the project states only by a tool's config or its language's manifest (`go.mod` states `go vet`).

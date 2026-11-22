@@ -626,10 +626,10 @@ func TestGuardBashParsing(t *testing.T) {
 		probe("ask", `kit git-base --diff '--output=/tmp/x'`)
 		probe("ask", `kit git-base --diff \--output=/tmp/x`)
 		probe("block", `kit git-base --diff --output=/tmp/x; rm -rf ~`)
-		// The hooks run the gates; Claude may only list them.
-		probe("block", `kit run-checks`)
-		probe("block", `KIT_DEV=1 bin/kit run-checks --all 2>&1 | rg '^PASS'`)
-		probe("block", `kit run-checks --only api`)
+		// Claude may run the full gate, as the user can.
+		probe("pass", `kit run-checks`)
+		probe("pass", `KIT_DEV=1 bin/kit run-checks --all 2>&1 | rg '^PASS'`)
+		probe("pass", `kit run-checks --only api`)
 		probe("pass", `kit run-checks --plan`)
 		// Ordinary commands stay quiet.
 		probe("pass", `git status`)

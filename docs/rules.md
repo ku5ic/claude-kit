@@ -60,7 +60,7 @@ Every skill with references lists them in a "Before | Read" table: an action, th
 
 ## Verify
 
-**Hooks run the gates, Claude doesn't.** The Stop hook checks a turn's edits, and the `/code-review` hook runs the full gate. Each shows the user a receipt. The bash guard blocks `kit run-checks`, so the rule no longer says so. Repeating verdicts in a reply only doubles what the user already saw.
+**Hooks run the gates, Claude runs them on request.** The Stop hook checks a turn's edits, and the `/code-review` hook runs the full gate. Each shows the user a receipt. Claude runs `kit run-checks` only when the user asks for the gate, because a full run can take minutes. Repeating verdicts in a reply only doubles what the user already saw.
 
 **Tests aren't the runtime pass.** Tests prove the asserted paths pass, not that the change works for whoever consumes it. A pure refactor is covered by its tests, except in UI, where tests don't assert the look.
 
