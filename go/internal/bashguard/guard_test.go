@@ -805,17 +805,50 @@ func TestRmRecursiveOnScratchPasses(t *testing.T) {
 		{`S=$(mktemp -d); rm -rf "$S" src`, "ask"},
 		{`rm -rf "$(kit scratch-dir)/../x"`, "ask"},
 		{`S=$(mktemp -d); for d in a b; do S=src; done; rm -rf "$S"`, "ask"},
+		{`rm -rf "$(ROOT/bin/kit scratch-dir)/x"`, "pass"},
+		{"rm -rf \"`ROOT/bin/kit scratch-dir`/x\"", "pass"},
+		{`rm -rf "$(bin/kit scratch-dir)/x"`, "ask"},
+		{`rm -rf "$(/tmp/kit scratch-dir)/x"`, "ask"},
+		{`rm -rf "$(ROOT/bin/kit scratch-dir prompt)/x"`, "ask"},
+		{`rm -rf "$PWD/x"`, "ask"},
 	} {
 		t.Run(tc.cmd, func(t *testing.T) {
 			t.Parallel()
-			r := newSandbox(t).hook("", "", tc.cmd)
-			got := "pass"
-			if strings.Contains(r.Output, `"ask"`) {
-				got = "ask"
-			}
-			if r.Status != 0 || got != tc.want {
-				t.Errorf("status %d, got %s want %s: %s\n%s", r.Status, got, tc.want, tc.cmd, r.Output)
-			}
+			wantRm(t, "", tc.cmd, tc.want)
 		})
+	}
+}
+
+// From the kit's own checkout, as a session there runs: bin/kit is the kit,
+// and $PWD is the segment's cwd.
+func TestRmRecursiveOnScratchInTheCheckoutPasses(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ cmd, want string }{
+		{`D="$(bin/kit scratch-dir)/run"; rm -r "$D"`, "pass"},
+		{`rm -rf "$PWD/.claude/scratch/x"`, "pass"},
+		{`rm -rf "${PWD}/.claude/scratch/x"`, "pass"},
+		{`cd go && rm -rf "$PWD/.claude/scratch/x"`, "pass"},
+		{`cd go && rm -rf "$(bin/kit scratch-dir)/x"`, "ask"},
+		{`rm -rf "$PWD/.claude/scratch/../../src"`, "ask"},
+		{`rm -rf "$PWD"`, "ask"},
+	} {
+		t.Run(tc.cmd, func(t *testing.T) {
+			t.Parallel()
+			wantRm(t, filepath.Dir(kitYML), tc.cmd, tc.want)
+		})
+	}
+}
+
+// wantRm runs cmd from cwd, ROOT standing for the kit's checkout, and fails
+// unless guard-bash allows it with want, "pass" or "ask".
+func wantRm(t *testing.T, cwd, cmd, want string) {
+	t.Helper()
+	r := newSandbox(t).hook("", cwd, strings.ReplaceAll(cmd, "ROOT", filepath.Dir(kitYML)))
+	got := "pass"
+	if strings.Contains(r.Output, `"ask"`) {
+		got = "ask"
+	}
+	if r.Status != 0 || got != want {
+		t.Errorf("status %d, got %s want %s: %s\n%s", r.Status, got, want, cmd, r.Output)
 	}
 }

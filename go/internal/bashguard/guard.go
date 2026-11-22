@@ -385,7 +385,10 @@ func (st *state) redirects(call Call) error {
 				return err
 			}
 		}
-		st.askKitSwitch(target)
+		// &1 or &- duplicates or closes an fd; it names no file.
+		if !strings.HasPrefix(target, "&") {
+			st.askKitSwitch(target)
+		}
 		st.looseWrite(">", target)
 	}
 	return nil
@@ -440,25 +443,45 @@ func looseWriteTarget(p string) bool {
 }
 
 // scratchTarget is true when a download target is stdout, /dev/null, an fd,
-// or inside a .claude/scratch directory. $(kit scratch-dir) counts; any
-// other unexpanded variable, and any "..", doesn't, since it can't be
-// checked.
+// or inside a .claude/scratch directory. $(kit scratch-dir), the kit's own
+// bin/kit by any path included, and $PWD count; any other unexpanded
+// variable, and any "..", doesn't, since it can't be checked.
 func (st *state) scratchTarget(p string) bool {
 	p = unquote(p)
 	if strings.Contains(p, "..") {
 		return false
 	}
 	switch {
-	case p == "-", p == "/dev/null", len(p) == 2 && p[0] == '&' && p[1] >= '0' && p[1] <= '9',
-		p == "$(kit scratch-dir)", strings.HasPrefix(p, "$(kit scratch-dir)/"),
-		p == "`kit scratch-dir`", strings.HasPrefix(p, "`kit scratch-dir`/"):
+	case p == "-", p == "/dev/null", len(p) == 2 && p[0] == '&' && p[1] >= '0' && p[1] <= '9', st.kitScratchDir(p):
 		return true
+	}
+	for _, pwd := range []string{"$PWD", "${PWD}"} {
+		if st.cwd != "" && (p == pwd || strings.HasPrefix(p, pwd+"/")) {
+			p = st.cwd + p[len(pwd):]
+			break
+		}
 	}
 	p = st.abs(p)
 	if strings.ContainsAny(p, "$`") {
 		return false
 	}
 	return project.IsScratch(st.h.Paths, p)
+}
+
+// kitScratchSub matches a path that starts with a kit scratch-dir call,
+// $(K scratch-dir) or `K scratch-dir`, capturing K.
+var kitScratchSub = regexp.MustCompile("^(?:\\$\\(([^\\s$`()]+) scratch-dir\\)|`([^\\s$`()]+) scratch-dir`)(?:/|$)")
+
+// kitScratchDir is true when p starts with a scratch-dir call to kit on
+// PATH or to this kit's bin/kit by any path; a kit anywhere else could
+// print any directory.
+func (st *state) kitScratchDir(p string) bool {
+	m := kitScratchSub.FindStringSubmatch(p)
+	if m == nil {
+		return false
+	}
+	kit := m[1] + m[2]
+	return kit == "kit" || st.h.Paths.Root != "" && filepath.Clean(st.abs(kit)) == filepath.Join(st.h.Paths.Root, "bin", "kit")
 }
 
 // unquote strips one pair of surrounding quotes, single or double.

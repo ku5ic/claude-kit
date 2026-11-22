@@ -680,6 +680,9 @@ func TestGuardBashPluginRootReadsAndWrites(t *testing.T) {
 		"ast-grep run -p 'x' %[1]s/go",
 		"fd -e md . %[1]s",
 		"tree -L 2 %[1]s",
+		"cd %[1]s/go && go vet ./x 2>&1 | tail -5",
+		"cd %[1]s && echo x >&2",
+		"cd %[1]s && echo x 2>&-",
 	} {
 		if cmd := fmt.Sprintf(cmd, root); asks(cmd) {
 			t.Errorf("a read of the plugin root asked: %s", cmd)
@@ -709,6 +712,7 @@ func TestGuardBashPluginRootReadsAndWrites(t *testing.T) {
 		"cd %[1]s && sg new rule x",
 		"tree -R %[1]s",
 		"tree -o %[1]s/out.txt /tmp",
+		"cd %[1]s && echo x >& kit.yml",
 	} {
 		if cmd := fmt.Sprintf(cmd, root); !asks(cmd) {
 			t.Errorf("a write to the plugin root didn't ask: %s", cmd)
