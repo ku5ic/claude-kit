@@ -182,7 +182,7 @@ func Verify(cfg *config.Config, root, cacheDir, dir, text, transcriptPath string
 			return Verdict{Unsupported: u}, nil
 		}
 	}
-	flagged, rest := settleReferences(dir, text)
+	flagged, rest := settleReferences(dir, text, time.Now().Add(settleBudget))
 	if !Declarative(rest) {
 		return Verdict{OK: len(flagged) == 0, Unsupported: flagged}, nil
 	}

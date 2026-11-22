@@ -40,10 +40,14 @@ var (
 // symbolTimeout caps one rg run for a backticked symbol.
 const symbolTimeout = 5 * time.Second
 
+// settleBudget caps the no-model pass's lookups for one text. It runs in
+// stop-dispatch ahead of stop-checks' own budget (go/internal/hooks/stop.go).
+const settleBudget = 15 * time.Second
+
 // References is each statement of text whose bare reference doesn't
 // resolve from dir, found with no model run.
 func References(dir, text string) []Unsupported {
-	flagged, _ := settleReferences(dir, text)
+	flagged, _ := settleReferences(dir, text, time.Now().Add(settleBudget))
 	return flagged
 }
 
@@ -52,10 +56,14 @@ func References(dir, text string) []Unsupported {
 // dropped; one with a broken reference is flagged; the rest is what's left
 // of text for the model. A reference that resolves proves only that the
 // thing exists, so a statement saying anything about one stays for the model.
-func settleReferences(dir, text string) (flagged []Unsupported, rest string) {
+// Past deadline, the statements left stay in rest, unchecked.
+func settleReferences(dir, text string, deadline time.Time) (flagged []Unsupported, rest string) {
 	root := cmp.Or(git.Toplevel(dir), dir)
 	rest = text
 	for _, s := range Statements(text) {
+		if time.Now().After(deadline) {
+			break
+		}
 		refs, bare := references(s)
 		if !bare {
 			continue

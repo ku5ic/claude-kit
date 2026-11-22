@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/config"
@@ -553,6 +554,18 @@ func TestBareReferencesResolveWithoutAModel(t *testing.T) {
 				t.Errorf("verdict = %+v, want flagged %q", got, tc.flagged)
 			}
 		})
+	}
+}
+
+// Past its deadline the no-model pass looks nothing up, so a reply full of
+// references can't hold Stop past its timeout; what's left goes to the model.
+func TestReferencesPastTheDeadlineStayUnsettled(t *testing.T) {
+	t.Parallel()
+	dir, _ := repo(t)
+	const text = "See `go/x.go:9`. See `Goodbye`."
+	flagged, rest := settleReferences(dir, text, time.Now().Add(-time.Second))
+	if len(flagged) != 0 || rest != text {
+		t.Errorf("flagged %+v, rest %q; want none flagged and the text whole", flagged, rest)
 	}
 }
 

@@ -238,8 +238,9 @@ func passKey(tree string, gates []enforce.Gate) string {
 }
 
 // stopBudget bounds a Stop run, planning and every gate, inside
-// stop-checks' 300s in hooks.json. The 60s left covers the snapshot and
-// diffs after the gates (git calls of up to git.Timeout each) and the report.
+// stop-dispatch's 300s in hooks.json. The 60s left covers chat-claims ahead
+// of it (claims' settleBudget), the snapshot and diffs after the gates (git
+// calls of up to git.Timeout each), and the report.
 const stopBudget = 240 * time.Second
 
 // stopReadVersion is stopRead's shape. Bump it when stopRead or planWalk
