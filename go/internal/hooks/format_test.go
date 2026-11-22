@@ -92,7 +92,7 @@ func TestFormatDispatch(t *testing.T) {
 		e.k.classify(e.repo, envelope(t, nil, nil, []map[string]any{fixerProposal("prettier --write", ".prettierrc", "*.ts"), fixerProposal("ruff format", "pyproject.toml", "*.py")}))
 		e.format(filepath.Join(e.repo, "a.ts")).Want(t, 0)
 		e.format(filepath.Join(e.repo, "b.py")).Want(t, 0)
-		e.callsWant("project-prettier --write a.ts\nruff format b.py")
+		e.callsWant("project-prettier --write --ignore-unknown a.ts\nruff format b.py")
 	})
 	t.Run("two formatters claiming a file leave it alone", func(t *testing.T) {
 		e := formatSetup(t)
