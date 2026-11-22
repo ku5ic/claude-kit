@@ -324,7 +324,13 @@ func TestGuardBashParsing(t *testing.T) {
 		probe("block", `GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0=/dev/null git commit -m x`)
 		probe("block", `env GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hookspath GIT_CONFIG_VALUE_0=/dev/null git push`)
 		probe("block", `GIT_CONFIG_PARAMETERS="'core.hooksPath'='/dev/null'" git commit -m x`)
-		probe("block", `GIT_CONFIG_PARAMETERS="'core.hooksPath'='/dev/null'"; git commit -m x`)
+		// A bare assignment reaches git only if the name was already
+		// exported, which the guard can't see: it asks.
+		probe("ask", `GIT_CONFIG_PARAMETERS="'core.hooksPath'='/dev/null'"; git commit -m x`)
+		probe("ask", `GIT_CONFIG_COUNT=1; GIT_CONFIG_KEY_0=core.hooksPath; git commit -m x`)
+		probe("block", `GIT_CONFIG_KEY_0=core.hooksPath; export GIT_CONFIG_KEY_0; git commit -m x`)
+		probe("block", `declare -x GIT_CONFIG_PARAMETERS="'core.hooksPath'='/dev/null'"; git commit -m x`)
+		probe("ask", `declare GIT_CONFIG_PARAMETERS="'core.hooksPath'='/dev/null'"; git commit -m x`)
 		probe("block", `export GIT_CONFIG_PARAMETERS="'core.hooksPath'='/dev/null'"; git commit -m x`)
 		probe("block", `export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0=/dev/null && git push`)
 		probe("pass", `git -c user.signingkey=k commit -m x`)

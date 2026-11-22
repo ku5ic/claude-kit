@@ -27,10 +27,14 @@ func (c *command) git() error {
 				return err
 			}
 		}
-		if hooksOff(words[:max(0, len(words)-len(args)-1)]) || hooksOffByEnv(append(slices.Clone(c.assigns), c.st.setVars()...)) {
+		exported, bare := c.st.setVars()
+		switch {
+		case hooksOff(words[:max(0, len(words)-len(args)-1)]) || hooksOffByEnv(append(slices.Clone(c.assigns), exported...)):
 			if err := c.block("core.hooksPath set on the command line skips the repo's hooks, as --no-verify does", "git-no-verify"); err != nil {
 				return err
 			}
+		case hooksOffByEnv(bare):
+			c.st.ask("a shell variable sets core.hooksPath, which skips the repo's hooks if the variable is already exported; confirm")
 		}
 	}
 	if reason := historyLoss(sub, args); reason != "" {

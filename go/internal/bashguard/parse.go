@@ -50,7 +50,9 @@ type Call struct {
 	// Heredocs are the raw bodies of this command's here-documents and
 	// here-strings.
 	Heredocs []string
-	start    int // source offset of the first word
+	// Exports are the names an export declares, with a value or without.
+	Exports []string
+	start   int // source offset of the first word
 }
 
 // Segment is one pipeline: the commands between &&, ||, ;, &, or a newline.
@@ -254,8 +256,10 @@ func (c *collector) stmt(src string, s *syntax.Stmt) {
 			// as x=1 > f is, so its target gets every redirect check.
 			call, ok = &syntax.CallExpr{}, true
 		}
+		var exports []string
 		if decl, isDecl := p.Cmd.(*syntax.DeclClause); isDecl {
 			call, ok = c.declCall(src, decl), true
+			exports = exportNames(decl)
 		}
 		if !ok {
 			// ( ... ) or { ... } inside a pipeline: its statements and its
@@ -266,7 +270,9 @@ func (c *collector) stmt(src string, s *syntax.Stmt) {
 			c.compoundRedirs(src, p)
 			continue
 		}
-		seg.Calls = append(seg.Calls, c.call(src, p, call))
+		cl := c.call(src, p, call)
+		cl.Exports = exports
+		seg.Calls = append(seg.Calls, cl)
 	}
 	if len(seg.Calls) > 0 {
 		c.segs = append(c.segs, seg)
@@ -703,6 +709,39 @@ func assigned(seg Segment) map[string]string {
 		}
 	}
 	return vars
+}
+
+// exportedNames is every name an export in segs declares, with a value or
+// without (export NAME exports an earlier bare assignment).
+func exportedNames(segs []Segment) map[string]bool {
+	names := map[string]bool{}
+	for _, seg := range segs {
+		for _, call := range seg.Calls {
+			for _, name := range call.Exports {
+				names[name] = true
+			}
+		}
+	}
+	return names
+}
+
+// exportNames is the names decl declares when it's an export, or a
+// declare -x or typeset -x; nil for any other declaration.
+func exportNames(decl *syntax.DeclClause) []string {
+	export := decl.Variant != nil && decl.Variant.Value == "export"
+	var names []string
+	for _, a := range decl.Args {
+		switch {
+		case a.Naked && a.Name == nil && a.Value != nil && strings.HasPrefix(a.Value.Lit(), "-") && strings.Contains(a.Value.Lit(), "x"):
+			export = true
+		case a.Name != nil:
+			names = append(names, a.Name.Value)
+		}
+	}
+	if !export {
+		return nil
+	}
+	return names
 }
 
 // loopAssigned is every value each loop's bare assignments set, by loop

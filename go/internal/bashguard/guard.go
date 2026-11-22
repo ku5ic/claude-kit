@@ -116,15 +116,22 @@ type state struct {
 	// sure is vars as the current shell surely has them: set by a lone
 	// command outside any subshell and any part that may not run.
 	sure map[string]string
+	// exported is every name an export in the command names.
+	exported map[string]bool
 }
 
-// setVars is vars as NAME=value words, in no set order.
-func (st *state) setVars() []string {
-	out := make([]string, 0, len(st.vars))
+// setVars is vars as NAME=value words, in no set order, split into those
+// the command exports and the bare rest, which reach a child process only
+// if the environment already exported them.
+func (st *state) setVars() (exported, bare []string) {
 	for name, value := range st.vars {
-		out = append(out, name+"="+value)
+		if st.exported[name] {
+			exported = append(exported, name+"="+value)
+		} else {
+			bare = append(bare, name+"="+value)
+		}
 	}
-	return out
+	return exported, bare
 }
 
 func (st *state) ask(reason string) {
@@ -158,6 +165,7 @@ func Check(h *hook.Hook) error {
 		st.ask("guard-bash could not parse part of this command, so it went unchecked; confirm it")
 	}
 	st.vars, st.sure, st.loopVars, st.segs = map[string]string{}, map[string]string{}, loopAssigned(segs), segs
+	st.exported = exportedNames(segs)
 	for _, seg := range segs {
 		if err := st.segment(seg); err != nil {
 			return err
