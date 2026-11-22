@@ -95,7 +95,7 @@ func TestUnpackWaitsForAnotherRunsUnpack(t *testing.T) {
 	testutil.Put(t, root, "a.txt", "a")
 	testutil.Git(t, root, "init", "-q")
 	testutil.Git(t, root, "add", ".")
-	testutil.Git(t, root, "commit", "-qm", "a")
+	testutil.GitID(t, root, "commit", "-qm", "a")
 	sha, err := git.Output(root, "rev-parse", "HEAD")
 	if err != nil {
 		t.Fatal(err)
