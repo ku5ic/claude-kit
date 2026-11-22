@@ -44,10 +44,10 @@ func TestAnUnsavableMarkerLetsTheCallThrough(t *testing.T) {
 			p["cwd"] = dir
 			return p
 		}},
-		{"a handback over its size budget", "check-size", cache.Size, "size", func(k *sandbox) { k.overlay("size_budgets: {report: 2}\n") }, func(*testing.T, *sandbox) map[string]any {
+		{"a handback over its size budget", "check-size", cache.Size, "size", func(k *sandbox) { k.overlay("size_budgets: {report: 2}\nreply_slack: none\n") }, func(*testing.T, *sandbox) map[string]any {
 			return handback("a1", "One two three four.")
 		}},
-		{"a subagent stop over its size budget", "check-size", cache.Size, "size", func(k *sandbox) { k.overlay("size_budgets: {report: 2}\n") }, func(*testing.T, *sandbox) map[string]any {
+		{"a subagent stop over its size budget", "check-size", cache.Size, "size", func(k *sandbox) { k.overlay("size_budgets: {report: 2}\nreply_slack: none\n") }, func(*testing.T, *sandbox) map[string]any {
 			return subagentStop("a1", "One two three four.", false)
 		}},
 		{"a handback's AI tells", "guard-handback", cache.Slop, "slop", nil, func(*testing.T, *sandbox) map[string]any {

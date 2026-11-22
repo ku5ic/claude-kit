@@ -14,7 +14,7 @@ func TestCheckSize(t *testing.T) {
 	// would put a short text over if it counted.
 	const long, short = "One two three four five six seven.", "One two three."
 	const fenced = short + "\n\n```\nalpha beta gamma delta epsilon zeta\n```\n"
-	budgets := "size_budgets: {plan: 5, report: 5, scratch: 5, post: 5}\n"
+	budgets := "size_budgets: {plan: 5, report: 5, scratch: 5, post: 5}\nreply_slack: none\n"
 	handback := func(text string) map[string]any {
 		return map[string]any{"hook_event_name": "PreToolUse", "session_id": "s", "agent_id": "a1", "tool_name": "SubagentHandback", "tool_input": map[string]any{"message": text}}
 	}
@@ -101,6 +101,18 @@ func TestCheckSize(t *testing.T) {
 			k.run("check-size", handback(long+strings.Repeat(" word", 900))).Allowed(t)
 		})
 	}
+	t.Run("a plan within the slack goes through, and one past it is sent back", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		k.overlay("size_budgets: {plan: 4}\nreply_slack: 50%\n")
+		plan := func(text string) map[string]any {
+			return toolCall("ExitPlanMode", map[string]any{"plan": text, "planFilePath": filepath.Join(k.home, "proj", ".claude", "plans", "p.md")})
+		}
+		k.run("check-size", plan("One two three four five six.")).Allowed(t)
+		r := k.run("check-size", plan(long))
+		r.Denied(t)
+		r.Has(t, "runs 7 words, over the 4-word budget")
+	})
 	t.Run("kit.yml's budgets let a short report through", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)

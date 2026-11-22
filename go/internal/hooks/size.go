@@ -77,7 +77,7 @@ func CheckSize(h *hook.Hook) error {
 		return nil
 	}
 	if tool == "SubagentHandback" {
-		if n := countWords(text, false); budget > 0 && n > budget && marker != "" && !wasSentBack(marker) && markSentBack(h, marker, text, "size") {
+		if n := countWords(text, false); budget > 0 && n > allowance(h, budget) && marker != "" && !wasSentBack(marker) && markSentBack(h, marker, text, "size") {
 			h.Deny(sizeMessage(where, n, budget, then), "size")
 		}
 		return nil
@@ -86,7 +86,16 @@ func CheckSize(h *hook.Hook) error {
 	return nil
 }
 
-// sizeOnce denies text when its prose runs over budget, once: the next
+// allowance is budget plus reply_slack: how long a text may run before
+// it's sent back.
+func allowance(h *hook.Hook, budget int) int {
+	if cfg := h.Config(); cfg != nil {
+		return cfg.ReplyLimits.Allowance(budget)
+	}
+	return budget
+}
+
+// sizeOnce denies text when its prose runs past its allowance, once: the next
 // text to marker, its rewrite, goes through whatever its length, and the
 // one after is measured again.
 func sizeOnce(h *hook.Hook, text, where, then string, budget int, marker string) {
@@ -97,7 +106,7 @@ func sizeOnce(h *hook.Hook, text, where, then string, budget int, marker string)
 	if rewriteOf(marker) {
 		return
 	}
-	if n > budget && markOnce(h, marker, []byte(sentBackMark), "size") {
+	if n > allowance(h, budget) && markOnce(h, marker, []byte(sentBackMark), "size") {
 		h.Deny(sizeMessage(where, n, budget, then), "size")
 	}
 }

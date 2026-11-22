@@ -421,11 +421,11 @@ claims:
   budget_usd: 1
   allow: []
 
-# The most prose words, fenced code excluded, a deliverable of each kind
-# runs before check-size (go/internal/hooks/size.go) sends it back, once per
-# text: plan at ExitPlanMode, report a subagent's handback or closing
-# message, scratch an explore or debug report, post a connector write.
-# 0 turns a budget off.
+# The prose words, fenced code excluded, a deliverable of each kind aims at;
+# check-size (go/internal/hooks/size.go) sends it back, once per text, past
+# the budget plus reply_slack: plan at ExitPlanMode, report a subagent's
+# handback or closing message, scratch an explore or debug report, post a
+# connector write. 0 turns a budget off.
 size_budgets:
   plan: 3000
   report: 1200
@@ -567,18 +567,26 @@ on_edit:
   - globs: ["*.sh", "*.bash"]
     note: "shellcheck {file}"
 
-# Chat reply word ceilings (skills/kit-rules/reference/output.md section 0), set per prompt by the
-# reply-length hook, which corrects an overrun silently on the next prompt.
-# Fenced code doesn't count.
-# A prompt with a detail trigger has no ceiling; with an explain trigger,
+# Each value is described in .claude-plugin/plugin.json userConfig.reply_length
+# and userConfig.reply_slack.
+reply_length: terse
+reply_slack: 50%
+
+# Chat reply word targets (skills/kit-rules/reference/output.md section 0), set per prompt by the
+# reply-length hook, which corrects a reply past target plus reply_slack
+# silently on the next prompt. Fenced code doesn't count.
+# modes: each reply_length mode's chat and explain targets.
+# A prompt with a detail trigger has no target; with an explain trigger,
 # the explain one. uncapped_commands: slash commands (as typed, without the
 # slash, a glob such as audit-* allowed, kit: optional) whose turn is a
 # report, so none. write: the write-* skills that print
 # to the terminal, code included; the others write a file and reply with its
-# path. 0 turns a ceiling off.
+# path. 0 turns a target off.
 reply_limits:
-  chat: 40
-  explain: 150
+  modes:
+    terse: {chat: 40, explain: 150}
+    moderate: {chat: 100, explain: 300}
+    explanatory: {chat: 0, explain: 600}
   # improve is left out: "improve this function" would lift the limit.
   explain_triggers: [explain, why, tradeoff, tradeoffs, review, audit, elaborate, honest take, opinion, pros and cons, shortcomings, advantages]
   detail_triggers: [in detail, walk me through, long version, detailed, in depth, in-depth, deep dive, thorough, thoroughly, full explanation, full answer, full report, step by step, explain everything, all the details, every detail, break it down, no limit, no word limit, "don't cut", "don't shorten", verbose, long answer, "!long"]

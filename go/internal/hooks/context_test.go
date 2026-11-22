@@ -224,13 +224,13 @@ func TestInjectContext(t *testing.T) {
 			r.Lacks(t, "rules gate")
 		}
 	})
-	t.Run("the chat reply ceiling is stated once, unless it's off", func(t *testing.T) {
+	t.Run("the chat reply target is stated once, unless it's off", func(t *testing.T) {
 		t.Parallel()
 		e := contextSetup(t)
-		e.kitYML("reply_limits:\n  chat: 25\n")
-		e.inject("s1", "").Has(t, "Reply ceiling: 25 words, fenced code excluded")
-		e.kitYML("reply_limits:\n  chat: 0\n")
-		e.inject("s1", "").Lacks(t, "Reply ceiling")
+		e.kitYML("reply_limits:\n  modes: {terse: {chat: 25}}\n")
+		e.inject("s1", "").Has(t, "Reply target: 25 words (terse), fenced code excluded")
+		e.kitYML("reply_limits:\n  modes: {terse: {chat: 0}}\n")
+		e.inject("s1", "").Lacks(t, "Reply target")
 	})
 	t.Run("<suggested-skills> has one line per skill a declared dependency maps to, with its trigger phrase", func(t *testing.T) {
 		t.Parallel()

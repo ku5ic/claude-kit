@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -164,6 +165,7 @@ func load(p Paths) (*Config, []Warning, error) {
 		from = p.Base
 	}
 	applyDefaults(&cfg)
+	cfg.resolveReply()
 	if tag == "merged" {
 		// mergeNode appends the overlay's list to kit.yml's, after the
 		// preset's; the /config options hold no list.
@@ -299,37 +301,66 @@ func Merged(p Paths) (*yaml.Node, error) {
 func (c *Config) ReceiptOnFailures() bool { return c.Receipt == "failures" }
 
 // StepPauses are step_pause's values: stop after each plan step, after the
-// whole plan, or never. Receipts are receipt's. Exported for the test that
-// holds plugin.json's /config choices to them.
+// whole plan, or never. Receipts are receipt's, and ReplySlacks reply_slack's
+// with their percent. Exported for the test that holds plugin.json's /config
+// choices to them.
 var (
-	StepPauses = []string{"step", "plan", "off"}
-	Receipts   = []string{"all", "failures"}
+	StepPauses  = []string{"step", "plan", "off"}
+	Receipts    = []string{"all", "failures"}
+	ReplySlacks = map[string]int{"none": 0, "25%": 25, "50%": 50, "100%": 100}
 )
 
-// Pause is step_pause, "step" when it's unset or not one of StepPauses.
-func (c *Config) Pause() string {
-	if slices.Contains(StepPauses, c.StepPause) {
-		return c.StepPause
-	}
-	return "step"
+// picker is a key whose value is one of a list, and what applies when it's
+// unset or not in the list.
+type picker struct {
+	key, value, fallback string
+	values               []string
 }
 
+// pick is the value in force.
+func (p picker) pick() string {
+	if slices.Contains(p.values, p.value) {
+		return p.value
+	}
+	return p.fallback
+}
+
+func (c *Config) pickers() []picker {
+	return []picker{
+		{"step_pause", c.StepPause, "step", StepPauses},
+		{"receipt", c.Receipt, "all", Receipts},
+		{"reply_length", c.ReplyLength, "terse", slices.Sorted(maps.Keys(c.ReplyLimits.Modes))},
+		{"reply_slack", c.ReplySlack, "50%", slices.Sorted(maps.Keys(ReplySlacks))},
+	}
+}
+
+// picked is the value in force for the picker key.
+func (c *Config) picked(key string) string {
+	pickers := c.pickers()
+	return pickers[slices.IndexFunc(pickers, func(p picker) bool { return p.key == key })].pick()
+}
+
+// Pause is step_pause, "step" when it's unset or not one of StepPauses.
+func (c *Config) Pause() string { return c.picked("step_pause") }
+
 // pickerProblems is a warning for each picker key holding a value outside
-// its list; the first value applies instead.
+// its list.
 func (c *Config) pickerProblems() []error {
 	var errs []error
-	for _, picker := range []struct {
-		key, value string
-		values     []string
-	}{
-		{"step_pause", c.StepPause, StepPauses},
-		{"receipt", c.Receipt, Receipts},
-	} {
-		if picker.value != "" && !slices.Contains(picker.values, picker.value) {
-			errs = append(errs, fmt.Errorf("%s: %q isn't one of %s, so %s applies", picker.key, picker.value, strings.Join(picker.values, ", "), picker.values[0]))
+	for _, p := range c.pickers() {
+		if p.value != "" && !slices.Contains(p.values, p.value) {
+			errs = append(errs, fmt.Errorf("%s: %q isn't one of %s, so %s applies", p.key, p.value, strings.Join(p.values, ", "), p.fallback))
 		}
 	}
 	return errs
+}
+
+// resolveReply sets the reply_length mode's targets and the slack.
+func (c *Config) resolveReply() {
+	l := &c.ReplyLimits
+	l.Mode = c.picked("reply_length")
+	l.Chat, l.Explain = l.Modes[l.Mode].Chat, l.Modes[l.Mode].Explain
+	l.Slack = ReplySlacks[c.picked("reply_slack")]
 }
 
 func applyDefaults(cfg *Config) {

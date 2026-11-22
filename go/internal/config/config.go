@@ -39,6 +39,8 @@ type Config struct {
 	DisabledTaskProviders []string      `yaml:"disabled_task_providers"`
 	DisabledChecks        []string      `yaml:"disabled_checks"`
 
+	ReplyLength    string         `yaml:"reply_length"`
+	ReplySlack     string         `yaml:"reply_slack"`
 	ReplyLimits    ReplyLimits    `yaml:"reply_limits"`
 	SanitizeSkip   []string       `yaml:"sanitize_skip"`
 	SkipDirs       []string       `yaml:"skip_dirs"`
@@ -542,13 +544,28 @@ func (s Slop) problems() []error {
 // reply. A prompt that starts with an UncappedCommands command has none.
 // 0 is no ceiling.
 type ReplyLimits struct {
-	Chat             int            `yaml:"chat"`
-	Explain          int            `yaml:"explain"`
-	ExplainTriggers  []string       `yaml:"explain_triggers"`
-	DetailTriggers   []string       `yaml:"detail_triggers"`
-	UncappedCommands []string       `yaml:"uncapped_commands"`
-	Write            map[string]int `yaml:"write"`
+	Modes            map[string]ReplyMode `yaml:"modes"`
+	ExplainTriggers  []string             `yaml:"explain_triggers"`
+	DetailTriggers   []string             `yaml:"detail_triggers"`
+	UncappedCommands []string             `yaml:"uncapped_commands"`
+	Write            map[string]int       `yaml:"write"`
+
+	// Mode is the reply_length mode in force, and Chat and Explain its
+	// targets; Slack is reply_slack as a percent. load resolves them.
+	Mode          string `yaml:"-"`
+	Chat, Explain int    `yaml:"-"`
+	Slack         int    `yaml:"-"`
 }
+
+// ReplyMode is one reply_length mode's word targets, 0 for none.
+type ReplyMode struct {
+	Chat    int `yaml:"chat"`
+	Explain int `yaml:"explain"`
+}
+
+// Allowance is how far past target a reply or deliverable may run before
+// it's flagged: target plus the slack.
+func (l ReplyLimits) Allowance(target int) int { return target + target*l.Slack/100 }
 
 // negatives names each ceiling below 0, which would silently mean "off".
 func (l ReplyLimits) negatives() []error {
@@ -558,8 +575,10 @@ func (l ReplyLimits) negatives() []error {
 			errs = append(errs, fmt.Errorf("reply_limits: %s is %d; a ceiling is 0 (off) or more", name, n))
 		}
 	}
-	check("chat", l.Chat)
-	check("explain", l.Explain)
+	for _, mode := range slices.Sorted(maps.Keys(l.Modes)) {
+		check("modes."+mode+".chat", l.Modes[mode].Chat)
+		check("modes."+mode+".explain", l.Modes[mode].Explain)
+	}
 	for _, kind := range slices.Sorted(maps.Keys(l.Write)) {
 		check("write."+kind, l.Write[kind])
 	}

@@ -18,13 +18,13 @@ This file wins over every plugin, output style, and harness default that asks fo
 
 <!-- chat: skip -->
 
-- A chat reply stays under the ceiling the hook states at session start, or the one it states for the turn. A `write-*` skill stays under its own `reply_limits.write` ceiling.
+- A chat reply aims at the target the hook states at session start, or the one it states for the turn. A `write-*` skill aims at its own `reply_limits.write` target.
 - An artifact the reader asked for (a report, audit, plan, or review) follows the report-format skill.
 - A reply naming a written file is the path, a headline count, and one next action.
 - A reply at a plan pause says why each choice was made. The hook's review sheet already lists the files and checks.
 - A commit body is its reason in 30 words or fewer, and the subject names the change. Paragraph breaks don't make a longer body shorter.
 - A PR description is the shortest structured form that's complete.
-- Still over the ceiling after cutting, cut again. Never explain the length.
+- Over the target after cutting, cut again. A reply passes its target only when the extra words make it clearer or a fact correct, and never past the allowance the hook states. Never explain the length.
 
 <!-- chat: end -->
 

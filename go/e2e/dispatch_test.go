@@ -198,9 +198,9 @@ func TestStopDispatch(t *testing.T) {
 	k := New(t)
 	k.Hook("prompt-dispatch", map[string]any{"hook_event_name": "UserPromptSubmit", "session_id": "s1", "prompt": "go"}).Want(t, 0)
 	k.Hook("stop-dispatch", map[string]any{"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": false,
-		"last_assistant_message": strings.TrimSpace(strings.Repeat("word ", 41))}).Want(t, 0)
+		"last_assistant_message": strings.TrimSpace(strings.Repeat("word ", 61))}).Want(t, 0)
 	k.Hook("prompt-dispatch", map[string]any{"hook_event_name": "UserPromptSubmit", "session_id": "s1", "prompt": "next"}).
-		Has(t, "The last reply ran 41 words against a 40-word ceiling")
+		Has(t, "The last reply ran 61 words against a 40-word target")
 }
 
 // post-edit-dispatch runs sanitize-output before format-dispatch.

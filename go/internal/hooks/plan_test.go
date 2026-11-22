@@ -278,7 +278,7 @@ func TestPlanDispatchDeniesOnceForEveryReason(t *testing.T) {
 	k := newSandbox(t)
 	dir := repo(t, t.TempDir())
 	testutil.Put(t, dir, "src/stop.go", "a\nb\nc\n")
-	k.overlay("size_budgets:\n  plan: 5\ndisabled_rules: [plan-critic]\nclaims:\n  timeout: 0\n")
+	k.overlay("size_budgets:\n  plan: 5\nreply_slack: none\ndisabled_rules: [plan-critic]\nclaims:\n  timeout: 0\n")
 	r := k.run("plan-dispatch", map[string]any{"hook_event_name": "PreToolUse", "session_id": "s", "cwd": dir, "tool_name": "ExitPlanMode",
 		"tool_input": map[string]any{"plan": "# Plan\n\n- src/stop.go:40 returns early, so the gate never runs twice.", "planFilePath": filepath.Join(dir, ".claude/plans/p.md")}})
 	r.Denied(t)
@@ -372,7 +372,7 @@ func TestPlanDispatchVerifiesClaims(t *testing.T) {
 	t.Run("an earlier step's deny and the critic's ask come in one deny", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
-		k.verifier("size_budgets: {plan: 3}\n", claim)
+		k.verifier("size_budgets: {plan: 3}\nreply_slack: none\n", claim)
 		text := "# Plan\n\n" + claim
 		k.run("plan-dispatch", exit(k, text, write)).Has(t, "words", "kit:plan-critic")
 	})

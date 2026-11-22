@@ -33,6 +33,20 @@
       "options": ["default", "all", "failures"],
       "default": "default"
     },
+    "reply_length": {
+      "type": "string",
+      "title": "Kit: reply length",
+      "description": "Word targets for Claude's chat replies, fenced code excluded, as a plain turn and an explain one (a why, review, or opinion question). terse: 40 and 150. moderate: 100 and 300. explanatory: no target and 600. A detail request (in depth, walk me through) has none. default: your overlay, preset, or kit.yml decides.",
+      "options": ["default", "terse", "moderate", "explanatory"],
+      "default": "default"
+    },
+    "reply_slack": {
+      "type": "string",
+      "title": "Kit: reply slack",
+      "description": "How far past its word target a reply, plan, or report may run when the extra words make it clearer or a fact correct, before the kit flags or sends it back. none: not at all. 25%, 50%, 100%: that share of the target more. default: your overlay, preset, or kit.yml decides.",
+      "options": ["default", "none", "25%", "50%", "100%"],
+      "default": "default"
+    },
     "precedence": {
       "type": "boolean",
       "title": "Kit: rules take precedence",

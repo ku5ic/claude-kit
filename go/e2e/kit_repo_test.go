@@ -3,6 +3,7 @@ package e2e
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -52,7 +53,17 @@ func TestKitRepo(t *testing.T) {
 		for _, path := range presets {
 			presetNames = append(presetNames, strings.TrimSuffix(filepath.Base(path), ".yml"))
 		}
-		pickers := map[string][]string{"preset": presetNames, "step_pause": config.StepPauses, "receipt": config.Receipts}
+		cfg, _, err := config.Load(config.Paths{Base: filepath.Join(kitRoot, "kit.yml")})
+		if err != nil {
+			t.Fatal(err)
+		}
+		pickers := map[string][]string{
+			"preset":       presetNames,
+			"step_pause":   config.StepPauses,
+			"receipt":      config.Receipts,
+			"reply_length": slices.Collect(maps.Keys(cfg.ReplyLimits.Modes)),
+			"reply_slack":  slices.Collect(maps.Keys(config.ReplySlacks)),
+		}
 		for key, accepted := range pickers {
 			option, ok := manifest.UserConfig[key]
 			if !ok {
