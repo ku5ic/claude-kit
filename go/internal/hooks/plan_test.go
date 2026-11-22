@@ -319,6 +319,8 @@ func TestPlanDispatchVerifiesClaims(t *testing.T) {
 		r.Denied(t)
 		r.Has(t, "gone.go")
 		k.run("plan-dispatch", revised).Allowed(t)
+		// A plan goes back once per session, so a later revision goes through.
+		k.run("plan-dispatch", revised).Allowed(t)
 		if got := testutil.Calls(t, calls); got != nil {
 			t.Errorf("verifier ran: %q", got)
 		}

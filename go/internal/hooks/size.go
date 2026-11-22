@@ -36,6 +36,9 @@ func CheckSize(h *hook.Hook) error {
 	tool := p.String(hook.KeyToolName)
 	var text, where, then, marker string
 	var budget int
+	// A plan or scratch report is revised in place, so it goes back once per
+	// session; a post is a new text each time.
+	document := false
 	switch {
 	case p.String(hook.KeyHookEventName) == "SubagentStop":
 		// Sent back once per agent, by the stop or the hand-back. A marker,
@@ -58,7 +61,7 @@ func CheckSize(h *hook.Hook) error {
 	case tool == "ExitPlanMode":
 		plan := filepath.Base(p.String(hook.KeyInputPlanFilePath))
 		text, where, then, budget = p.String(hook.KeyInputPlan), "the plan "+plan, "call ExitPlanMode again", b.Plan
-		marker = h.Paths.SessionFile(cache.Size, p.SessionID(), "plan", plan)
+		marker, document = h.Paths.SessionFile(cache.Size, p.SessionID(), "plan", plan), true
 	case slices.Contains(filePathTools, tool):
 		path := p.FilePath()
 		if !scratchReport(h, path, "explore", "debug") {
@@ -69,7 +72,7 @@ func CheckSize(h *hook.Hook) error {
 			return nil
 		}
 		text, where, then, budget = after, filepath.Base(path), "write the report again", b.Scratch
-		marker = h.Paths.SessionFile(cache.Size, p.SessionID(), "file", filepath.Base(path))
+		marker, document = h.Paths.SessionFile(cache.Size, p.SessionID(), "file", filepath.Base(path)), true
 	case connector.IsWrite(cfg.Connectors, tool):
 		text, where, then, budget = strings.Join(p.Strings(hook.KeyToolInput, cfg.Connectors.CodeFields...), "\n\n"), "the "+tool+" input", "send it again", b.Post
 		marker = h.Paths.SessionFile(cache.Size, p.SessionID(), "tool", tool)
@@ -80,6 +83,9 @@ func CheckSize(h *hook.Hook) error {
 		if n := countWords(text, false); budget > 0 && n > allowance(h, budget) && marker != "" && !wasSentBack(marker) && markSentBack(h, marker, text, "size") {
 			h.Deny(sizeMessage(where, n, budget, then), "size")
 		}
+		return nil
+	}
+	if document && sentBackBefore(marker) {
 		return nil
 	}
 	sizeOnce(h, text, where, then, budget, marker)

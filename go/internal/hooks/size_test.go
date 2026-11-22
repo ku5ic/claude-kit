@@ -25,17 +25,19 @@ func TestCheckSize(t *testing.T) {
 	for _, tc := range []struct {
 		name, where, then string
 		call              func(k *sandbox, text string) map[string]any
-		// rearm: after the rewrite passes, the next text is measured again.
-		// A subagent's report is sent back once per agent.
+		// rearm: after the rewrite passes, the next text is measured again,
+		// for a post, a new text each time. A subagent's report is sent back
+		// once per agent, and a plan or scratch report, revised in place,
+		// once per session.
 		rearm bool
 	}{
 		{"a handback", "your report", "hand back the shorter report", func(_ *sandbox, text string) map[string]any { return handback(text) }, false},
 		{"a plan", "the plan p.md", "call ExitPlanMode again", func(k *sandbox, text string) map[string]any {
 			return toolCall("ExitPlanMode", map[string]any{"plan": text, "planFilePath": filepath.Join(k.home, "proj", ".claude", "plans", "p.md")})
-		}, true},
+		}, false},
 		{"an investigation report", "explore-x-20261111-1200.md", "write the report again", func(k *sandbox, text string) map[string]any {
 			return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "explore-x-20261111-1200.md"), "content": text})
-		}, true},
+		}, false},
 		{"a connector post", "the mcp__chat__send_message input", "send it again", func(_ *sandbox, text string) map[string]any {
 			return toolCall("mcp__chat__send_message", map[string]any{"text": text})
 		}, true},

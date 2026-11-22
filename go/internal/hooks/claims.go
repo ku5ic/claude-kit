@@ -115,7 +115,12 @@ func verifyToolInput(h *hook.Hook) error {
 		}
 		// A report gets the hook's own run, in the main session too.
 		name := filepath.Base(path)
-		return verifyOwnRun(h, after, name, "write the report again", h.Paths.SessionFile(cache.Claims, p.SessionID(), "file", name))
+		marker = h.Paths.SessionFile(cache.Claims, p.SessionID(), "file", name)
+		if sentBackBefore(marker) {
+			ledgerPending(h, marker, name, after)
+			return nil
+		}
+		return verifyOwnRun(h, after, name, "write the report again", marker)
 	default:
 		cfg := h.Config()
 		if cfg == nil || !connector.IsWrite(cfg.Connectors, tool) {
@@ -127,14 +132,14 @@ func verifyToolInput(h *hook.Hook) error {
 	return verifyText(h, text, where, retry, marker)
 }
 
-// referencesOnce sends text back once when a bare reference in it doesn't
-// resolve, with no model run; the next text to marker goes through.
+// referencesOnce sends a plan back once when a bare reference in it doesn't
+// resolve, with no model run; every later text to marker goes through.
 func referencesOnce(h *hook.Hook, text, where, retry, marker string) error {
 	cfg := h.Config()
 	if cfg == nil || h.RuleDisabled("claims") || cfg.Claims.Off() || marker == "" {
 		return nil
 	}
-	if rewriteOf(marker) {
+	if sentBackBefore(marker) {
 		return nil
 	}
 	root, _ := project.Root(h.Payload.Cwd())

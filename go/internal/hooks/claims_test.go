@@ -232,9 +232,11 @@ func TestVerifyClaimsToolInput(t *testing.T) {
 			case "none":
 				first.Allowed(t)
 			case "own":
-				// A report goes back once, and its rewrite goes through.
+				// A report goes back once per session, so its rewrite and every
+				// later revision go through with no run.
 				first.Denied(t)
 				first.Has(t, claim, "git log -S Foo")
+				k.run("verify-claims", tc.call(k)).Allowed(t)
 				k.run("verify-claims", tc.call(k)).Allowed(t)
 				if got := len(testutil.Calls(t, calls)); got != 1 {
 					t.Errorf("verifier ran %d times, want 1", got)

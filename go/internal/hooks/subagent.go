@@ -160,6 +160,12 @@ func rewriteOf(marker string) bool {
 	return true
 }
 
+// sentBackBefore is whether marker records a send-back of a document, a plan
+// or a scratch report revised in place. The marker stays, so every later
+// revision goes through: one document goes back once per session, however
+// many edits it takes, and an edit the user refused spends nothing.
+func sentBackBefore(marker string) bool { return fsx.IsFile(marker) }
+
 // reportHits scans a subagent report and returns the hits in a block tier,
 // logging every hit. Without kit.yml it finds none.
 func reportHits(h *hook.Hook, text string) []slop.Hit {
