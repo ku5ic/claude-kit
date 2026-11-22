@@ -2,18 +2,19 @@
 
 # Configuration
 
-Your changes go in `~/.claude/claude-kit.local.yml`, merged over the defaults in `kit.yml`. `kit config` prints the merged result, each key marked with the file that set it, and `kit config --check` flags unknown keys and wrong types.
+The common dials are rows in Claude Code's `/config` ([From `/config`](#from-config)). Every other change goes in `~/.claude/claude-kit.local.yml`, merged over the defaults in `kit.yml`. `kit config` prints the merged result, each key marked with the file that set it, and `kit config --check` flags unknown keys and wrong types.
 
 ## Common changes
 
 | You want                                                                                | Set                                                       |
 | --------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| Fewer stops: one review per plan, no plan-critic or claim-check passes, no skill nudges | `preset: light`                                           |
+| Fewer stops: one review per plan, no plan-critic or claim-check passes, no skill nudges | `preset: light`, or the Kit: preset row                   |
 | The kit as shipped                                                                      | Nothing, or `preset: standard`                            |
 | Pattern skills required before the first edit of a file type, and ASCII typography      | `preset: strict`                                          |
 | Claude never to push to a branch                                                        | `protected_branches: [staging]`                           |
 | One guard rule let through                                                              | `disabled_rules: [<slug>]`, the slug `kit explain` prints |
-| One review at the end of a plan instead of after each step                              | `step_pause: plan`                                        |
+| One review at the end of a plan instead of after each step                              | `step_pause: plan`, or the Kit: step pause row            |
+| Longer chat replies                                                                     | `reply_length: moderate`, or the Kit: reply length row    |
 | A check gate off                                                                        | `disabled_checks: [<kind or label>]`                      |
 | A file type formatted that your project's own fixers don't claim                        | `on_edit`                                                 |
 | More credential files guarded                                                           | `sensitive_paths`                                         |
@@ -41,6 +42,20 @@ Your changes go in `~/.claude/claude-kit.local.yml`, merged over the defaults in
 | `kit` in your own terminal                                                                                       | Off      | PATH and completion in your shell rc ([Shell completion](cli.md#in-your-own-terminal))                |
 | claude.ai chat                                                                                                   | Separate | Upload the release's chat zip ([Use it in claude.ai chat](chat.md))                                   |
 
+## From `/config`
+
+Five settings are rows in Claude Code's `/config`, each titled `Kit:` and described there. Claude Code saves them under `pluginConfigs` in `~/.claude/settings.json`, and the kit reads that file for its hooks and the `kit` CLI alike, from the next call after a change. Managed settings aren't read.
+
+| Row               | Key            | Choices                                       |
+| ----------------- | -------------- | --------------------------------------------- |
+| Kit: preset       | `preset`       | `default`, `standard`, `light`, `strict`      |
+| Kit: step pause   | `step_pause`   | `default`, `step`, `plan`, `off`              |
+| Kit: gate receipt | `receipt`      | `default`, `all`, `failures`                  |
+| Kit: reply length | `reply_length` | `default`, `terse`, `moderate`, `explanatory` |
+| Kit: reply slack  | `reply_slack`  | `default`, `none`, `25%`, `50%`, `100%`       |
+
+`default` sets nothing, so your overlay, its preset, or `kit.yml` decides. Any other choice wins over your overlay, and a preset picked here replaces the overlay's `preset:`. The order is `kit.yml`, the preset, your overlay, then `/config`, and `kit config` names `settings.json` for each key a row set.
+
 ## Your overlay
 
 Defaults live in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml`, merged on top, where maps merge and lists append. A quoted `"!x"` in a list removes the default `x`, and `kit config --check` warns when it removes nothing. The exceptions: `slop.block_tiers` and every argv list (`cmd`, `private_cmd`, `command`) are replaced, and a `slop.rules` entry replaces the default with its `id`. Every `~/.claude` path in these docs is `$CLAUDE_CONFIG_DIR` when that's set.
@@ -63,6 +78,8 @@ Defaults live in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml
 | `disabled_task_providers` | Stop reading a task source (`make`, `package-scripts`, ...) at all                                                                                                                                                                |
 | `on_edit`                 | Format a file type the project's own fixers don't claim                                                                                                                                                                           |
 | `receipt`                 | When Stop and the full gate print their receipt: `all`, or `failures` for only a failed or skipped gate                                                                                                                           |
+| `reply_length`            | Which `reply_limits.modes` entry sets the chat and explain targets: `terse`, `moderate`, or `explanatory`                                                                                                                         |
+| `reply_slack`             | How far past its target a reply or a `size_budgets` text may run before it's flagged or sent back: `none`, `25%`, `50%`, or `100%`                                                                                                |
 | `attribution`             | The AI tool names and patterns guard-attribution blocks in git and GitHub text                                                                                                                                                    |
 | `gate_timeout`            | Seconds before a Stop check is skipped                                                                                                                                                                                            |
 | `architecture_dir`        | Where `/code-visual` keeps each repo's architecture model, read by `kit code-graph model-dir`                                                                                                                                     |
@@ -74,8 +91,8 @@ Defaults live in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml
 | `weakened_checks`         | What counts as a skipped or focused test, a silenced linter, an assertion, a snapshot, and a snapshot update                                                                                                                      |
 | `package_lookups`         | The registry lookup for each package manager's add command                                                                                                                                                                        |
 | `user_pins`               | Your own Brewfile or `.tool-versions`, pinning tools for every project                                                                                                                                                            |
-| `reply_limits`            | Word ceilings per reply: `chat`, `explain` and its trigger words, `detail_triggers` that lift the cap, per `write-*` skill; 0 is off. `uncapped_commands`: slash commands with no ceiling                                         |
-| `size_budgets`            | Word budgets, fenced code excluded, for a plan, a subagent report, a scratch report, and a connector post. Over one, the text is sent back once; 0 is off                                                                         |
+| `reply_limits`            | Word targets per reply: `modes` (each mode's `chat` and `explain`), the explain trigger words, `detail_triggers` that lift the target, per `write-*` skill; 0 is off. `uncapped_commands`: slash commands with no target          |
+| `size_budgets`            | Word budgets, fenced code excluded, for a plan, a subagent report, a scratch report, and a connector post. Past one plus `reply_slack`, the text is sent back once; 0 is off                                                      |
 | `skip_dirs`               | Directories a file walk never enters                                                                                                                                                                                              |
 | `sanitize_skip`           | Files `sanitize-output` leaves alone                                                                                                                                                                                              |
 | `slop`                    | The AI-tell lexicon `kit slop` scans with: rules by tier, the density word list and threshold, which tiers block, files to skip                                                                                                   |

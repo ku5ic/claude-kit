@@ -16,7 +16,7 @@ claude plugin marketplace add ku5ic/claude-kit
 claude plugin install kit@ku5ic
 ```
 
-Works in any repo on macOS and Linux with the defaults in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml` ([configuration](docs/configuration.md)). It's built for one engineer. There's no team policy layer and no Windows support.
+Works in any repo on macOS and Linux with the defaults in `kit.yml`. The common dials are rows in Claude Code's `/config`, and every other override goes in `~/.claude/claude-kit.local.yml` ([configuration](docs/configuration.md)). It's built for one engineer. There's no team policy layer and no Windows support.
 
 **It isn't an autopilot.** You approve the plan, review each step, and commit. The kit makes each review shorter, because what reaches you has already been checked.
 
@@ -51,7 +51,7 @@ Nothing to learn up front. After install:
 | A subagent reports    | Sends back AI tells, unconfirmed claims, and an over-long report before Claude reads it                          |
 | Claude commits        | Blocks AI signatures and secrets; your commit-msg hooks check the message                                        |
 | Claude says done      | Runs your git hooks' checks on what it edited                                                                    |
-| Claude replies        | Holds it to a word ceiling and reminds it to check its claims                                                    |
+| Claude replies        | Holds it to a word target and reminds it to check its claims                                                     |
 
 **Block** means Claude gets the reason and tries another way; you aren't interrupted. **Ask** is a normal permission prompt with the reason in it. Every guard, and which of the two it does: [docs/guards.md](docs/guards.md).
 
