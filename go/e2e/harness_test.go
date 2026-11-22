@@ -188,7 +188,8 @@ func (k *Kit) environ() []string {
 	var env []string
 	for _, kv := range os.Environ() {
 		name, _, _ := strings.Cut(kv, "=")
-		if strings.HasPrefix(name, "CLAUDE") || strings.HasPrefix(name, "KIT_") || strings.HasPrefix(name, "GIT_") ||
+		// XDG_CONFIG_HOME would hand git the developer's global ignore.
+		if strings.HasPrefix(name, "CLAUDE") || strings.HasPrefix(name, "KIT_") || strings.HasPrefix(name, "GIT_") || strings.HasPrefix(name, "XDG_") ||
 			strings.HasPrefix(name, "ASDF_") || strings.HasPrefix(name, "MISE_") || name == "VIRTUAL_ENV" || name == "CONDA_PREFIX" {
 			continue
 		}
