@@ -323,6 +323,12 @@ func TestAFailureTheBaseHasTooDoesntBlock(t *testing.T) {
 		{"a failure only the branch has", "exit 0\n", fresh, true},
 		{"a different failure on base", fmt.Sprintf(old, "1"), fresh, true},
 		{"output naming no failure", "echo boom; exit 1\n", "echo boom; exit 1\n", true},
+		{
+			"only a summary line shared",
+			"echo '--- FAIL: TestOld'; echo 'make: *** [test] Error 1'; exit 1\n",
+			"echo 'TestNew: want 2, got 3'; echo 'make: *** [test] Error 1'; exit 1\n",
+			true,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

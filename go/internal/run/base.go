@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -33,8 +34,10 @@ var (
 	timing = regexp.MustCompile(`\d+(\.\d+)?(ms|s)\b`)
 )
 
-// hasAll is whether every failure line of out, g's output on the branch,
-// shows in g's output on the base. Output naming no failure never matches.
+// hasAll is whether out, g's output on the branch, names the same failure
+// lines as g's output on the base, no more and no fewer: a shared summary
+// line (make's "Error 1") alone would hide a new failure printed without
+// a failure word. Output naming no failure never matches.
 func (b *Base) hasAll(g enforce.Gate, out string, timeout time.Duration) bool {
 	want := failureLines(out, b.Root)
 	if len(want) == 0 {
@@ -44,13 +47,7 @@ func (b *Base) hasAll(g enforce.Gate, out string, timeout time.Duration) bool {
 	if !ok {
 		return false
 	}
-	got := failureLines(baseOut, b.dir())
-	for line := range want {
-		if !got[line] {
-			return false
-		}
-	}
-	return true
+	return maps.Equal(want, failureLines(baseOut, b.dir()))
 }
 
 // failureLines is out's failure lines, with root and timings left out.
