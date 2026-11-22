@@ -23,7 +23,7 @@ var gitSubs = []string{"log", "show", "blame", "tag", "rev-parse", "ls-files"}
 // gitRunFlags write a file or run a program the repo's config names.
 var gitRunFlags = []string{"--output", "--ext-diff", "--textconv"}
 
-// gitQuiet turns off the programs git log -p and git show run by default:
+// gitQuiet turns off the programs git log -p, show, and blame run by default:
 // a textconv filter, and an external diff driver.
 var gitQuiet = []string{"--no-ext-diff", "--no-textconv"}
 
@@ -105,7 +105,7 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 	tool, args := argv[0], argv[1:]
 	var cmd *proc.Cmd
 	if tool == "git" {
-		if args[0] == "log" || args[0] == "show" {
+		if slices.Contains([]string{"log", "show", "blame"}, args[0]) {
 			args = slices.Concat(args[:1], gitQuiet, args[1:])
 		}
 		cmd = git.Command("", args...)

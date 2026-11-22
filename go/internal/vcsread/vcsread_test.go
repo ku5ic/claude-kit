@@ -69,7 +69,7 @@ func TestRunRunsEachAllowedVerb(t *testing.T) {
 	}
 }
 
-// git log -p and git show run a textconv filter by default, a program the
+// git log -p, git show, and git blame run a textconv filter by default, a program the
 // repo's config names, so kit read turns it off.
 func TestRunRunsNoTextconvFilter(t *testing.T) {
 	setup(t)
@@ -78,7 +78,7 @@ func TestRunRunsNoTextconvFilter(t *testing.T) {
 	testutil.GitID(t, ".", "config", "diff.probe.textconv", "sh -c 'touch "+ran+"; cat \"$0\"'")
 	testutil.Put(t, ".", "a.txt", "two\n")
 	testutil.GitID(t, ".", "commit", "-qam", "two")
-	for _, argv := range [][]string{{"git", "show", "HEAD"}, {"git", "log", "-p", "-1"}} {
+	for _, argv := range [][]string{{"git", "show", "HEAD"}, {"git", "log", "-p", "-1"}, {"git", "blame", "a.txt"}} {
 		var stdout, stderr bytes.Buffer
 		if code := Run(argv, &stdout, &stderr); code != 0 {
 			t.Errorf("%q exited %d: %s", argv, code, stderr.String())
