@@ -141,10 +141,11 @@ func untar(r *tar.Reader, dir string) error {
 		if err != nil {
 			return err
 		}
-		path := filepath.Join(dir, hdr.Name)
-		if !fsx.Within(dir, path) {
+		// IsLocal in place of fsx.Within: CodeQL's Zip Slip query sees it as a guard.
+		if !filepath.IsLocal(hdr.Name) {
 			return errors.New("run: base archive names a path outside its tree: " + hdr.Name)
 		}
+		path := filepath.Join(dir, hdr.Name)
 		switch hdr.Typeflag {
 		case tar.TypeDir:
 			err = os.MkdirAll(path, 0o755)
