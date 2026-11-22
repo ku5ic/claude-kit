@@ -131,12 +131,6 @@ func TestBashEdits(t *testing.T) {
 		testutil.Write(t, filepath.Join(other, "b.md"), tell)
 		ran(k, other, "tee b.md").Want(t, 2)
 	})
-	t.Run("a git command that brings in others' content isn't checked", func(t *testing.T) {
-		t.Parallel()
-		k, dir := setup(t)
-		testutil.Write(t, filepath.Join(dir, "notes.md"), "Notes.\n"+tell)
-		ran(k, dir, "git pull --rebase").Want(t, 0)
-	})
 	// Only a command that is one git move and nothing else skips the checks.
 	for _, cmd := range []string{"git restore other.md; sed -i '' 's/x/y/' notes.md", "echo git checkout main", "git checkout main && sed -i '' 's/x/y/' notes.md"} {
 		t.Run("a git move beside another command is checked: "+cmd, func(t *testing.T) {
@@ -156,7 +150,7 @@ func TestBashEdits(t *testing.T) {
 		testutil.Git(t, dir, "checkout", "-q", "x")
 		ran(k, dir, "git checkout x && go test ./...").Want(t, 0)
 	})
-	for _, cmd := range []string{"git -C . checkout main", "cd sub && git pull"} {
+	for _, cmd := range []string{"git pull --rebase", "git -C . checkout main", "cd sub && git pull"} {
 		t.Run("one git move alone isn't checked: "+cmd, func(t *testing.T) {
 			t.Parallel()
 			k, dir := setup(t)

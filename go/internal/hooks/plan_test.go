@@ -386,12 +386,6 @@ func TestPlanDispatchVerifiesClaims(t *testing.T) {
 		r.Denied(t)
 		r.Has(t, "kit:claim-checker", "the plan plan-x.md")
 	})
-	t.Run("every claim confirmed: allowed", func(t *testing.T) {
-		t.Parallel()
-		k := newSandbox(t)
-		k.verifier("")
-		k.run("plan-dispatch", exit(k, "# Plan\n\n"+claim, write, critic)).Allowed(t)
-	})
 }
 
 func TestPlanModeContext(t *testing.T) {

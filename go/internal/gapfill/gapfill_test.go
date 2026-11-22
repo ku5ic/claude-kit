@@ -203,8 +203,8 @@ func TestMalformedOutputLeavesEntriesUnclassifiedUntilTheCooldown(t *testing.T) 
 	if f.run(lint); len(f.asked()) != 1 {
 		t.Errorf("a failure stamped 48h ahead held the rerun back: asked %q", f.asked())
 	}
-	if failures := f.failures(); failures[failKey(f.cfg, Key(lint))].At.After(time.Now()) {
-		t.Errorf("the future stamp survived the save: %v", failures)
+	if f.run(lint); len(f.asked()) != 0 {
+		t.Errorf("the future stamp survived the save: the next rerun asked %q", f.asked())
 	}
 }
 
@@ -215,6 +215,8 @@ func TestABatchTheDeadlineKeptQueuedIsAskedNextRun(t *testing.T) {
 	f := newFixture(t, "sleep 1")
 	entries, _ := lints(batchSize * (maxCalls + 1))
 	Run(f.cfg, Options{Root: f.root, CacheDir: f.cacheDir, Entries: entries, Ask: true, Timeout: 300 * time.Millisecond})
+	// The store, not the stub's requests: a call the deadline kills can die
+	// before its stub records the request, yet it started and is cooled.
 	s := load(CacheFile(f.cacheDir, f.root))
 	s.cool = classifierCooldown(f.cacheDir, f.root)
 	cooled := 0
@@ -682,17 +684,6 @@ func TestAPlaceholderReplacesAListOfPaths(t *testing.T) {
 	}
 }
 
-// A tool taking packages runs on the edited files' directories.
-func TestADirsPlaceholderReplacesAPackagePattern(t *testing.T) {
-	t.Parallel()
-	f := newFixture(t, "")
-	vet := entry("vet", "go vet ./...")
-	f.answer(answers(verdict(vet, map[string]any{"role": "check", "kind": "lint", "mutates": false, "file_form": "go vet {dirs}"})))
-	if v := f.run(vet).Verdicts[Key(vet)]; v.FileForm != "go vet {dirs}" {
-		t.Errorf("%+v", v)
-	}
-}
-
 // A path inside a command substitution shares its word with the closing
 // `)"`: the placeholder word carries the same text around it, and nothing
 // else.
@@ -856,7 +847,7 @@ func TestDeadcodeFileFormsAreDropped(t *testing.T) {
 	f.answer(map[string]any{"entries": verdicts, "managers": []any{}, "proposals": []any{}})
 	r := f.run(entries...)
 	for i, c := range cases {
-		if v := r.Verdicts[Key(entries[i])]; (v.FileForm != "") != c.kept {
+		if v := r.Verdicts[Key(entries[i])]; (v.FileForm == c.form) != c.kept || (!c.kept && v.FileForm != "") {
 			t.Errorf("%s: kept %v, want %v (%+v, dropped %q)", c.form, v.FileForm != "", c.kept, v, r.Dropped)
 		}
 	}

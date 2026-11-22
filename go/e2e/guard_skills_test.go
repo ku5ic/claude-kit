@@ -54,6 +54,7 @@ func TestGuardSkills(t *testing.T) {
 			t.Fatal(err)
 		}
 		r.Want(t, 0)
+		r.Lacks(t, "permissionDecision")
 	})
 
 	t.Run("an unparsable kit.yml fails open", func(t *testing.T) {

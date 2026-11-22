@@ -83,27 +83,27 @@ func TestTheSummaryCountsEachVerdict(t *testing.T) {
 	}
 }
 
-// A gate that starts past the deadline is skipped, not run.
-func TestAGatePastTheDeadlineIsSkipped(t *testing.T) {
+// A gate that starts past the deadline is skipped, not run, and one the
+// deadline kills mid-run never finished: a skip, not a failure.
+func TestAGateTheDeadlineStopsIsSkipped(t *testing.T) {
 	t.Parallel()
-	r := newRepo(t, "repo")
-	var out strings.Builder
-	res, _ := Gates(enforce.Plan{Root: r.root, Gates: []enforce.Gate{r.gate("test", "exit 1")}}, r.cache, &out, time.Now())
-	has(t, out.String(), "SKIP test (no time left in the hook's budget)\n")
-	if res != (Result{Skip: 1, Unchecked: 1}) {
-		t.Errorf("result = %+v", res)
-	}
-}
-
-// A gate the deadline kills mid-run never finished: a skip, not a failure.
-func TestAGateTheDeadlineKillsIsSkipped(t *testing.T) {
-	t.Parallel()
-	r := newRepo(t, "repo")
-	var out strings.Builder
-	res, _ := Gates(enforce.Plan{Root: r.root, Gates: []enforce.Gate{r.gate("test", "sleep 30")}}, r.cache, &out, time.Now().Add(time.Second))
-	has(t, out.String(), "SKIP test (no time left in the hook's budget)\n")
-	if res != (Result{Skip: 1, Unchecked: 1}) {
-		t.Errorf("result = %+v", res)
+	for _, tc := range []struct {
+		name, body string
+		budget     time.Duration
+	}{
+		{"a gate starting past the deadline", "exit 1", 0},
+		{"a gate the deadline kills", "sleep 30", time.Second},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			r := newRepo(t, "repo")
+			var out strings.Builder
+			res, _ := Gates(enforce.Plan{Root: r.root, Gates: []enforce.Gate{r.gate("test", tc.body)}}, r.cache, &out, time.Now().Add(tc.budget))
+			has(t, out.String(), "SKIP test (no time left in the hook's budget)\n")
+			if res != (Result{Skip: 1, Unchecked: 1}) {
+				t.Errorf("result = %+v", res)
+			}
+		})
 	}
 }
 

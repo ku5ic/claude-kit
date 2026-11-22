@@ -56,7 +56,9 @@ func (e *runChecksEnv) run(args ...string) Result {
 func TestRunChecks(t *testing.T) {
 	t.Parallel()
 	t.Run("a bad argument is a usage error and runs nothing", func(t *testing.T) {
-		for _, args := range [][]string{{"--plann"}, {"--only"}, {"--only", "services/nope"}, {"--plan", "extra"}, {"--only", ".", "-x"}} {
+		// The parser's messages are cmd/kit's tests; a path the parser accepts
+		// is refused only here.
+		for _, args := range [][]string{{"--plann"}, {"--only", "services/nope"}} {
 			e := runChecksSetup(t)
 			e.write("package.json", `{"scripts":{"lint":"eslint ."}}`+"\n")
 			e.stub("npm", 0)
@@ -67,15 +69,6 @@ func TestRunChecks(t *testing.T) {
 				t.Errorf("%v ran npm: %s", args, e.calls("npm"))
 			}
 		}
-	})
-
-	t.Run("a flag after --only says where it belongs", func(t *testing.T) {
-		t.Parallel()
-		e := runChecksSetup(t)
-		e.write("package.json", `{"scripts":{"lint":"eslint ."}}`+"\n")
-		r := e.run("--only", ".", "--plan")
-		r.Want(t, 2)
-		r.Has(t, "kit run-checks: --plan must come before --only")
 	})
 
 	t.Run("a relative launcher path from a subdirectory still finds the binary", func(t *testing.T) {

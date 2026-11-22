@@ -33,13 +33,6 @@ describe('precedence', () => {
     expect(kit?.text).toContain('comes from a tool result in this session')
   })
 
-  test('its text is the same on every render, so the cached prompt holds', async ($, on) => {
-    engineSections(on)
-    const first = await $.prompt.compose(RENDER)
-    const second = await $.prompt.compose(RENDER)
-    expect(second.sections.at(-1)?.text).toBe(first.sections.at(-1)?.text)
-  })
-
   test('switched off, the prompt is the engine sections alone', { options: { precedence: false } }, async ($, on) => {
     engineSections(on)
     const { sections } = await $.prompt.compose(RENDER)

@@ -345,70 +345,47 @@ func TestCouplingGolden(t *testing.T) {
 	}
 }
 
-// A Go import names a package directory. One named index, mod, or v1.2
-// keeps that name, which moduleStem would cut.
-func TestCouplingReadsAGoImportOfAnIndexPackage(t *testing.T) {
+// Coupling marks a pair an import whatever form deps names the import in,
+// including the ones moduleStem would cut.
+func TestCouplingReadsEachFormOfAnImport(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
-	var log strings.Builder
-	for i := range 5 {
-		fmt.Fprintf(&log, "--%040d\n\ncmd/x/main.go\ninternal/index/i.go\npkg/v1.2/v.go\n\n", i)
-	}
-	gitLog, resolved := filepath.Join(dir, "gitlog.txt"), filepath.Join(dir, "imports-resolved.tsv")
-	testutil.Write(t, gitLog, log.String())
-	testutil.Write(t, resolved, "cmd/x/main.go\tinternal/index\ncmd/x/main.go\tpkg/v1.2\n")
-	var out bytes.Buffer
-	if err := Coupling(gitLog, resolved, tracked(t, "cmd/x/main.go", "internal/index/i.go", "pkg/v1.2/v.go"), nil, &out); err != nil {
-		t.Fatal(err)
-	}
-	for _, pair := range []string{"cmd/x/main.go\tinternal/index/i.go", "cmd/x/main.go\tpkg/v1.2/v.go"} {
-		if !strings.Contains(out.String(), "\timports\t"+pair+"\n") {
-			t.Errorf("%s isn't an import in:\n%s", pair, out.String())
-		}
-	}
-}
-
-// deps names an import of a dotted file by its whole stem, b.client, which
-// moduleStem would cut to b.
-func TestCouplingReadsAnImportOfADottedFile(t *testing.T) {
-	t.Parallel()
-	dir := t.TempDir()
-	var log strings.Builder
-	for i := range 5 {
-		fmt.Fprintf(&log, "--%040d\n\nsrc/a.ts\nlib/b.client.ts\n\n", i)
-	}
-	gitLog, resolved := filepath.Join(dir, "gitlog.txt"), filepath.Join(dir, "imports-resolved.tsv")
-	testutil.Write(t, gitLog, log.String())
-	testutil.Write(t, resolved, "src/a.ts\tlib/b.client\n")
-	var out bytes.Buffer
-	if err := Coupling(gitLog, resolved, tracked(t, "src/a.ts", "lib/b.client.ts"), nil, &out); err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(out.String(), "\timports\tlib/b.client.ts\tsrc/a.ts\n") {
-		t.Errorf("not an import in:\n%s", out.String())
-	}
-}
-
-// deps names an import of the root package by its first .go file, so
-// coupling matches that file and every other root .go file to the importer.
-func TestCouplingReadsAGoImportOfTheRootPackage(t *testing.T) {
-	t.Parallel()
-	dir := t.TempDir()
-	var log strings.Builder
-	for i := range 5 {
-		fmt.Fprintf(&log, "--%040d\n\ncmd/x/main.go\nlib.go\nzz.go\n\n", i)
-	}
-	gitLog, resolved := filepath.Join(dir, "gitlog.txt"), filepath.Join(dir, "imports-resolved.tsv")
-	testutil.Write(t, gitLog, log.String())
-	testutil.Write(t, resolved, "cmd/x/main.go\tlib.go\n")
-	var out bytes.Buffer
-	if err := Coupling(gitLog, resolved, tracked(t, "cmd/x/main.go", "lib.go", "zz.go"), nil, &out); err != nil {
-		t.Fatal(err)
-	}
-	for _, pair := range []string{"cmd/x/main.go\tlib.go", "cmd/x/main.go\tzz.go"} {
-		if !strings.Contains(out.String(), "\timports\t"+pair+"\n") {
-			t.Errorf("%s isn't an import in:\n%s", pair, out.String())
-		}
+	for _, tc := range []struct {
+		name, resolved string
+		files, pairs   []string
+	}{
+		// A Go import names a package directory, one named index, mod, or v1.2 too.
+		{"a Go import of an index and a v1.2 package", "cmd/x/main.go\tinternal/index\ncmd/x/main.go\tpkg/v1.2\n",
+			[]string{"cmd/x/main.go", "internal/index/i.go", "pkg/v1.2/v.go"},
+			[]string{"cmd/x/main.go\tinternal/index/i.go", "cmd/x/main.go\tpkg/v1.2/v.go"}},
+		// A dotted file's whole stem, b.client, not b.
+		{"an import of a dotted file", "src/a.ts\tlib/b.client\n",
+			[]string{"src/a.ts", "lib/b.client.ts"},
+			[]string{"lib/b.client.ts\tsrc/a.ts"}},
+		// The root package by its first .go file, matching every root .go file.
+		{"a Go import of the root package", "cmd/x/main.go\tlib.go\n",
+			[]string{"cmd/x/main.go", "lib.go", "zz.go"},
+			[]string{"cmd/x/main.go\tlib.go", "cmd/x/main.go\tzz.go"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			var log strings.Builder
+			for i := range 5 {
+				fmt.Fprintf(&log, "--%040d\n\n%s\n\n", i, strings.Join(tc.files, "\n"))
+			}
+			gitLog, resolved := filepath.Join(dir, "gitlog.txt"), filepath.Join(dir, "imports-resolved.tsv")
+			testutil.Write(t, gitLog, log.String())
+			testutil.Write(t, resolved, tc.resolved)
+			var out bytes.Buffer
+			if err := Coupling(gitLog, resolved, tracked(t, tc.files...), nil, &out); err != nil {
+				t.Fatal(err)
+			}
+			for _, pair := range tc.pairs {
+				if !strings.Contains(out.String(), "\timports\t"+pair+"\n") {
+					t.Errorf("%s isn't an import in:\n%s", pair, out.String())
+				}
+			}
+		})
 	}
 }
 

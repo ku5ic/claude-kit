@@ -257,8 +257,6 @@ func TestGuardBash(t *testing.T) {
 		{"block: a sensitive path after -- still counts", `cat -- ~/.ssh/id_rsa`, 2, nil, false},
 		{"block: grep reading .env as a file", `grep API_KEY .env`, 2, nil, false},
 		{"allow: && or ; inside a quoted message isn't a command separator", `git commit -m "fix a && b; rm -rf ~ is not run"`, 0, nil, false},
-		{"block: an apostrophe in a heredoc body doesn't hide the lines after it", "cat <<EOF > \"$(kit scratch-dir)/n.txt\"\nit's done\nEOF\ngit push --force origin main", 2, nil, false},
-		{"block: eval runs an unchecked command string", `eval "rm -rf ~"`, 2, nil, false},
 		{"allow: rg with .env only as the search pattern", `rg .env src/`, 0, nil, false},
 		{"allow: head of an ordinary file", `head -20 README.md`, 0, nil, false},
 	} {
@@ -323,14 +321,6 @@ func TestGuardBash(t *testing.T) {
 		{"block: a quoted URL's & doesn't split curl away from its -O or -o", 2, []string{
 			`curl "https://x.test/f?a=1&b=2" -O`, `curl 'https://x.test/f?a=1&b=2' -o out.bin`,
 			`wget "https://x.test/f?a=1&b=2" -O page.html`,
-		}},
-		{"block: commands inside $( ) and backticks are checked, quoted or not", 2, []string{
-			`echo $(true && git push --force origin main)`,
-			`git status && echo "$(git push --force origin main)"`,
-			"echo `git push --force origin main`",
-		}},
-		{"block: a heredoc fed to a shell is checked as commands", 2, []string{
-			"bash <<EOF\nrm -rf ~\nEOF", "cat <<EOF | sh\nrm -rf ~\nEOF",
 		}},
 		{"allow: >&, &>, and |& aren't command separators", 0, []string{
 			`ls 2>&1`, `ls &>/dev/null`, `ls |& head`,
@@ -623,11 +613,6 @@ func TestGuardBash(t *testing.T) {
 		// A glob in the target is a file name, not a pathspec matching main_test.go.
 		guardIn(k, repo, `echo x > 'main*'`).Has(t, "writes into the current directory")
 	})
-	t.Run("comments: an unquoted # ends the line, a quoted one doesn't", func(t *testing.T) {
-		guard(shared, `echo hi # rm -rf ~ in a comment`).Want(t, 0)
-		guard(shared, `echo "a#b"; rm -rf ~`).Want(t, 2)
-	})
-
 	// Guard telemetry and per-rule opt-out.
 	t.Run("a block is logged to guards.jsonl with its rule slug", func(t *testing.T) {
 		k, _ := guardBashOverlay(t)

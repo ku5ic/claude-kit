@@ -34,15 +34,11 @@ func TestGuardDispatch(t *testing.T) {
 	// isolate one check's failure from another's success (internal/hook's
 	// tests do), but it proves the dispatcher fails open end to end, with a
 	// notice per check.
-	t.Run("malformed JSON payload fails open through both checks instead of erroring out", func(t *testing.T) {
-		r := sandbox(t).Hook("guard-dispatch", "not valid json")
+	t.Run("malformed JSON payload fails open through both checks, each logged to guards.jsonl since its stderr reaches no one", func(t *testing.T) {
+		k := sandbox(t)
+		r := k.Hook("guard-dispatch", "not valid json")
 		r.Want(t, 0)
 		r.Has(t, "guard-edit: unexpected error, failing open", "guard-skills: unexpected error, failing open")
-	})
-
-	t.Run("each fail-open is logged to guards.jsonl, since its stderr reaches no one", func(t *testing.T) {
-		k := sandbox(t)
-		k.Hook("guard-dispatch", "not valid json").Want(t, 0)
 		log := Read(t, filepath.Join(k.Claude, "logs/guards.jsonl"))
 		for _, hook := range []string{"guard-edit", "guard-skills"} {
 			if !strings.Contains(log, `"hook":"`+hook+`","event":"fail-open"`) {

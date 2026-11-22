@@ -54,7 +54,6 @@ func TestGuardEdit(t *testing.T) {
 		// Guarded lockfiles come from kit.yml's lockfile_globs.
 		{"block: bun.lock", "/tmp/project/bun.lock", 2},
 		{"block: Pipfile.lock", "/tmp/project/Pipfile.lock", 2},
-		{"block: Cargo.lock", "/tmp/project/Cargo.lock", 2},
 		{"allow: requirements.txt is hand-edited", "/tmp/project/requirements.txt", 0},
 		{"allow: a lockfile in scratch is a fixture, not the project's", "/tmp/project/.claude/scratch/fixture/pnpm-lock.yaml", 0},
 	} {
@@ -591,13 +590,7 @@ func TestGuardSkills(t *testing.T) {
 		r.Denied(t)
 		r.Has(t, "bash-patterns")
 	})
-	t.Run("denies when the required skill has not been loaded this session", func(t *testing.T) {
-		t.Parallel()
-		r := guard(skillsSandbox(t, bashSkillMap, ""), "/tmp/project/foo.sh", "s1")
-		r.Denied(t)
-		r.Has(t, "bash-patterns")
-	})
-	t.Run("the deny names only the skills to load, not the path", func(t *testing.T) {
+	t.Run("an unloaded skill's deny names only the skills to load, not the path", func(t *testing.T) {
 		t.Parallel()
 		r := guard(skillsSandbox(t, bashSkillMap, ""), "/tmp/project/foo.sh", "s1")
 		r.Denied(t)

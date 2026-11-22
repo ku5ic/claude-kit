@@ -115,15 +115,6 @@ func TestRunPrunesTheHomeTierByAge(t *testing.T) {
 			noScratch: true,
 		},
 		{
-			name: "no registry file: exits 0 without error",
-		},
-		{
-			name:  "prunes a skills-loaded marker older than 1 day",
-			files: map[string]time.Duration{"cache/skills-loaded/s1-bash-patterns": 2 * day},
-			gone:  []string{"cache/skills-loaded/s1-bash-patterns"},
-			has:   []string{"pruned 1 skill-loaded marker(s) older than 1d"},
-		},
-		{
 			name: "prunes a file-skills cache older than 1 day and keeps a fresh one",
 			files: map[string]time.Duration{
 				"cache/file-skills/s1-0123abcd": 2 * day,

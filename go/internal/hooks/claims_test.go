@@ -279,6 +279,12 @@ func TestVerifyClaimsToolInput(t *testing.T) {
 		payload := post(claim + "\n\n" + added)
 		payload["transcript_path"] = path
 		k.run("verify-claims", payload).Allowed(t)
+		// A text sharing no sentence with the first needs its own run too.
+		other := k.run("verify-claims", checkerRan(k, post("Deploys run at noon because the cron says 12."), id))
+		other.Denied(t)
+		if got := checkID.FindString(other.Stdout); got == id {
+			t.Errorf("an unrelated text reuses the first run's id %s", id)
+		}
 	})
 	t.Run("a code edit after a run makes its sentences fresh again", func(t *testing.T) {
 		t.Parallel()
@@ -396,19 +402,6 @@ func TestVerifyClaimsToolInput(t *testing.T) {
 		k.run("verify-claims", handback("a1", claim)).Allowed(t)
 		if got := len(testutil.Calls(t, calls)); got != 1 {
 			t.Errorf("verifier ran %d times, want 1", got)
-		}
-	})
-	t.Run("a changed post needs its own run", func(t *testing.T) {
-		t.Parallel()
-		k := newSandbox(t)
-		post := func(text string) map[string]any {
-			return toolCall("mcp__chat__send_message", map[string]any{"text": text})
-		}
-		id := checkID.FindString(k.run("verify-claims", post(claim)).Stdout)
-		other := k.run("verify-claims", checkerRan(k, post("Deploys run at noon because the cron says 12."), id))
-		other.Denied(t)
-		if checkID.FindString(other.Stdout) == id {
-			t.Errorf("two texts share the id %s", id)
 		}
 	})
 	t.Run("a background checker run counts once its notice says it completed", func(t *testing.T) {

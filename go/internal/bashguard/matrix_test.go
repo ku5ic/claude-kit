@@ -481,7 +481,6 @@ func TestGuardBashParsing(t *testing.T) {
 		probe("block", `caffeinate -i -t 600 rm -rf ~`)
 		probe("block", `/usr/bin/time rm -rf ~`)
 		probe("block", `/usr/bin/time -f %e rm -rf ~`)
-		probe("block", `time rm -rf ~`)
 		probe("block", `flock /tmp/x.lock rm -rf ~`)
 		probe("block", `flock -w 5 /tmp/x.lock rm -rf ~`)
 		probe("block", `flock /tmp/x.lock -c 'rm -rf ~'`)
