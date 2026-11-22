@@ -123,15 +123,18 @@ Only you start a command, by typing it. Each detects your stack, your code host 
 
 ## Tune it
 
-Five dials are rows in Claude Code's `/config`, each titled `Kit:`:
+Eight dials are rows in Claude Code's `/config`, each titled `Kit:`:
 
-| Row               | Choices                            |
-| ----------------- | ---------------------------------- |
-| Kit: preset       | `standard`, `light`, `strict`      |
-| Kit: step pause   | `step`, `plan`, `off`              |
-| Kit: gate receipt | `all`, `failures`                  |
-| Kit: reply length | `terse`, `moderate`, `explanatory` |
-| Kit: reply slack  | `none`, `25%`, `50%`, `100%`       |
+| Row                        | Choices                            |
+| -------------------------- | ---------------------------------- |
+| Kit: preset                | `standard`, `light`, `strict`      |
+| Kit: step pause            | `step`, `plan`, `off`              |
+| Kit: gate receipt          | `all`, `failures`                  |
+| Kit: reply length          | `terse`, `moderate`, `explanatory` |
+| Kit: reply slack           | `none`, `25%`, `50%`, `100%`       |
+| Kit: rules take precedence | on, off                            |
+| Kit: /kit-stats command    | on, off                            |
+| Kit: subagent rows         | on, off                            |
 
 `light` means one review per plan, no plan-critic or claim-check passes, and no skill nudges; `strict` requires pattern skills before the first edit of a file type. Every other override goes in `~/.claude/claude-kit.local.yml`: [docs/configuration.md](docs/configuration.md).
 

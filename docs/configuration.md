@@ -44,17 +44,20 @@ The common dials are rows in Claude Code's `/config` ([From `/config`](#from-con
 
 ## From `/config`
 
-Five settings are rows in Claude Code's `/config`, each titled `Kit:` and described there. Claude Code saves them under `pluginConfigs` in `~/.claude/settings.json`, and the kit reads that file for its hooks and the `kit` CLI alike, from the next call after a change. Managed settings aren't read.
+Eight settings are rows in Claude Code's `/config`, each titled `Kit:` and described there. Claude Code saves them under `pluginConfigs` in `~/.claude/settings.json`, and the kit reads that file for its hooks and the `kit` CLI alike, from the next call after a change. Managed settings aren't read.
 
-| Row               | Key            | Choices                                       |
-| ----------------- | -------------- | --------------------------------------------- |
-| Kit: preset       | `preset`       | `default`, `standard`, `light`, `strict`      |
-| Kit: step pause   | `step_pause`   | `default`, `step`, `plan`, `off`              |
-| Kit: gate receipt | `receipt`      | `default`, `all`, `failures`                  |
-| Kit: reply length | `reply_length` | `default`, `terse`, `moderate`, `explanatory` |
-| Kit: reply slack  | `reply_slack`  | `default`, `none`, `25%`, `50%`, `100%`       |
+| Row                        | Key             | Choices                                       |
+| -------------------------- | --------------- | --------------------------------------------- |
+| Kit: preset                | `preset`        | `default`, `standard`, `light`, `strict`      |
+| Kit: step pause            | `step_pause`    | `default`, `step`, `plan`, `off`              |
+| Kit: gate receipt          | `receipt`       | `default`, `all`, `failures`                  |
+| Kit: reply length          | `reply_length`  | `default`, `terse`, `moderate`, `explanatory` |
+| Kit: reply slack           | `reply_slack`   | `default`, `none`, `25%`, `50%`, `100%`       |
+| Kit: rules take precedence | `precedence`    | on, off                                       |
+| Kit: /kit-stats command    | `kit_stats`     | on, off                                       |
+| Kit: subagent rows         | `subagent_rows` | on, off                                       |
 
-`default` sets nothing, so your overlay, its preset, or `kit.yml` decides. Any other choice wins over your overlay, and a preset picked here replaces the overlay's `preset:`. The order is `kit.yml`, the preset, your overlay, then `/config`, and `kit config` names `settings.json` for each key a row set.
+The last three switch a mod on or off and have no overlay key. For the first five, `default` sets nothing, so your overlay, its preset, or `kit.yml` decides. Any other choice wins over your overlay, and a preset picked here replaces the overlay's `preset:`. The order is `kit.yml`, the preset, your overlay, then `/config`, and `kit config` names `settings.json` for each key a row set.
 
 ## Your overlay
 
