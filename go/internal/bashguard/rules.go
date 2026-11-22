@@ -562,10 +562,16 @@ func (c *command) writes() bool {
 	return slices.ContainsFunc(c.values(), flag)
 }
 
-// overlayWrite asks when a command that isn't a pure reader names a kit
-// switch (guard.KitSwitch): tee, cp, mv, install, ln all write it. The
-// writeFlags commands write only with their flags, git only through
-// checkout/restore/apply/mv/rm/stash/reset.
+// fileWriters are the commands whose operands include the files they write.
+var fileWriters = map[string]bool{"cp": true, "mv": true, "tee": true, "install": true, "ln": true, "touch": true,
+	"mkdir": true, "rm": true, "rsync": true, "truncate": true, "dd": true, "patch": true,
+	"chmod": true, "chown": true, "unlink": true}
+
+// overlayWrite asks when a known writer names a kit switch
+// (guard.KitSwitch): a fileWriters command, perl -i, a writeFlags command
+// with its flags, or git through checkout/restore/apply/mv/rm/stash/reset.
+// Any other command naming one goes through, logged as a kit-switch shadow:
+// most only read, and guessing their operands asked on every log query.
 func (c *command) overlayWrite() {
 	all := append([]string{c.name}, c.values()...)
 	switch {
@@ -590,12 +596,37 @@ func (c *command) overlayWrite() {
 		}
 		return
 	}
+	_, flagged := writeFlags[c.name]
+	known := fileWriters[c.name] || flagged || c.name == "git" || c.name == "perl" && perlInPlace(c.values())
 	for _, v := range c.values() {
 		_, after, hasEq := strings.Cut(v, "=")
-		if c.st.askKitSwitch(v) || hasEq && c.st.askKitSwitch(after) {
+		if known {
+			if c.st.askKitSwitch(v) || hasEq && c.st.askKitSwitch(after) {
+				return
+			}
+			continue
+		}
+		if c.st.kitSwitch(v) != "" || hasEq && c.st.kitSwitch(after) != "" {
+			if !c.st.shadowed {
+				c.st.shadowed = true
+				c.st.h.Shadow("kit-switch")
+			}
 			return
 		}
 	}
+}
+
+// perlInPlace is true when one of perl's option clusters holds -i.
+func perlInPlace(values []string) bool {
+	for _, v := range values {
+		if v == "--" {
+			return false
+		}
+		if strings.HasPrefix(v, "-") && !strings.HasPrefix(v, "--") && strings.Contains(v, "i") {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *command) rm() error {

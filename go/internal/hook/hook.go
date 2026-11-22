@@ -305,6 +305,10 @@ func (h *Hook) Deny(reason, rule string) bool {
 	return true
 }
 
+// Shadow logs rule as a shadow, a call a check let through that it once
+// stopped, so kit stats counts it.
+func (h *Hook) Shadow(rule string) { h.logBlock("shadow", rule) }
+
 // logBlock logs event, a block of rule, its shadow, or an ask (no rule),
 // with what it stopped: a short hash of the command or path, never the
 // text, the subagent type making the call, and the project it ran in.

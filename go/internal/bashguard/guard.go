@@ -102,6 +102,8 @@ type state struct {
 	h       *hook.Hook
 	cfg     *config.Config
 	pending string
+	// shadowed is true once the command logged its kit-switch shadow.
+	shadowed bool
 	// managers is each repo root's verified manager facts, read once per command.
 	managers map[string][]gapfill.Manager
 	// vars is what the command's own bare assignments set (R=rm; $R -rf ~),

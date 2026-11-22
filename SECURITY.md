@@ -17,6 +17,7 @@ The guards read a command line, not what it does when it runs. A pass means the 
 - Credential reads through `env`, `printenv`, a search over `~/.aws`, a key path held in a variable, a glob in a `<` redirect, `security find-generic-password`, or `gh auth token`.
 - Staging a credential file the repo doesn't ignore with `git add .` or `git add -A`. `git add` of the file by name asks.
 - `claude plugin uninstall kit`.
+- An unknown command writing a kit switch, the overlay, a settings file, the kit's logs or state, or the installed plugin. A redirect and a known writer (`cp`, `mv`, `tee`, `install`, `ln`, `touch`, `mkdir`, `rm`, `rsync`, `truncate`, `dd`, `patch`, `chmod`, `chown`, `unlink`, `perl -i`, `sed -i`, `yq -i`, a git checkout or restore) ask; any other command naming one passes, logged as a `kit-switch` shadow.
 - A reply with no tool call, which no hook sees.
 - A recursive search with no glob naming a credential file, over a directory that holds a loose `*.pem`, outside the project or through `grep -r` or a chained `rg`. Catching it means walking the tree.
 - A Bash command's writes are checked after they land, and only in files `git add -A` sees, so an ignored test file can take a `t.Skip()`.

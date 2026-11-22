@@ -72,3 +72,49 @@ func TestKitSwitchThroughSymlinks(t *testing.T) {
 		})
 	}
 }
+
+// A command the guard doesn't know as a writer passes when it names a kit
+// switch, logged as a kit-switch shadow; a known writer still asks. The
+// plugin root's scratch is no switch.
+func TestKitSwitchAsksOnlyForWriters(t *testing.T) {
+	t.Parallel()
+	root := filepath.Dir(kitYML)
+	for _, tc := range []struct {
+		name, cwd, cmd, want string
+		shadow               bool
+	}{
+		{"a log read piped through uniq", "logs", "jq -r .rule guards.jsonl | sort | uniq -c", "pass", true},
+		{"a kit call from the logs dir", "logs", root + "/bin/kit scratch-dir prompt x", "pass", true},
+		{"a plugin validate of the root", "", "claude plugin validate " + root, "pass", true},
+		{"a body file in the root's scratch", "", "gh pr create --body-file " + root + "/.claude/scratch/pr-x.md", "pass", false},
+		{"a copy into the root's scratch", "", "cp /tmp/x " + root + "/.claude/scratch/x", "pass", false},
+		{"touch in the logs", "", "touch ~/.claude/logs/x", "ask", false},
+		{"mkdir in the state", "", "mkdir ~/.claude/cache/x", "ask", false},
+		{"patch of the overlay", "", "patch ~/.claude/claude-kit.local.yml /tmp/p", "ask", false},
+		{"perl -i on the overlay", "", "perl -i -pe s/a/b/ ~/.claude/claude-kit.local.yml", "ask", false},
+		{"chmod of the logs", "", "chmod 000 ~/.claude/logs", "ask", false},
+		{"chown of the overlay", "", "chown nobody ~/.claude/claude-kit.local.yml", "ask", false},
+		{"unlink in the state", "", "unlink ~/.claude/cache/x", "ask", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			k := newSandbox(t)
+			cwd := ""
+			if tc.cwd != "" {
+				cwd = filepath.Join(k.claude, tc.cwd)
+			}
+			r := k.hook("s1", cwd, tc.cmd)
+			got := "pass"
+			if strings.Contains(r.Output, `"ask"`) {
+				got = "ask"
+			}
+			if r.Status != 0 || got != tc.want {
+				t.Errorf("status %d, got %s want %s: %s\n%s", r.Status, got, tc.want, tc.cmd, r.Output)
+			}
+			log, _ := os.ReadFile(filepath.Join(k.claude, "logs", "guards.jsonl"))
+			if shadowed := strings.Contains(string(log), `"rule":"kit-switch"`) && strings.Contains(string(log), `"event":"shadow"`); shadowed != tc.shadow {
+				t.Errorf("kit-switch shadow logged %v, want %v:\n%s", shadowed, tc.shadow, log)
+			}
+		})
+	}
+}
