@@ -113,6 +113,9 @@ type state struct {
 	vars map[string]string
 	// loopVars is every value each loop's assignments set, by loop id.
 	loopVars map[int]map[string][]string
+	// sure is vars as the current shell surely has them: set by a lone
+	// command outside any subshell and any part that may not run.
+	sure map[string]string
 }
 
 // setVars is vars as NAME=value words, in no set order.
@@ -154,12 +157,20 @@ func Check(h *hook.Hook) error {
 	if unparsed {
 		st.ask("guard-bash could not parse part of this command, so it went unchecked; confirm it")
 	}
-	st.vars, st.loopVars, st.segs = map[string]string{}, loopAssigned(segs), segs
+	st.vars, st.sure, st.loopVars, st.segs = map[string]string{}, map[string]string{}, loopAssigned(segs), segs
 	for _, seg := range segs {
 		if err := st.segment(seg); err != nil {
 			return err
 		}
-		maps.Copy(st.vars, assigned(seg))
+		vars := assigned(seg)
+		maps.Copy(st.vars, vars)
+		for name, value := range vars {
+			if seg.subshell || seg.conditional || len(seg.Calls) > 1 {
+				delete(st.sure, name)
+			} else {
+				st.sure[name] = value
+			}
+		}
 	}
 	runs := cmd
 	switch {

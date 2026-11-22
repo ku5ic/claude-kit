@@ -61,6 +61,9 @@ type Segment struct {
 	// subshell is a pipeline inside ( ), $( ), backticks, or <( ): a cd
 	// there moves nothing after it.
 	subshell bool
+	// conditional is a pipeline that may not run: on the right of && or
+	// ||, or inside a compound command.
+	conditional bool
 	// loop is the outermost for, while, or until loop holding the
 	// pipeline, 0 for none: its body reruns, so an assignment anywhere in
 	// it may be in effect.
@@ -134,9 +137,12 @@ type collector struct {
 	segs     []Segment
 	depth    int // of the parse in progress: nested heredocs and env -S strings
 	subshell int // how many subshells the walk is inside
-	loop     int // the outermost loop the walk is inside, 0 for none
-	loops    int // loop ids handed out
-	unparsed bool
+	// conditional is how many places the walk is inside that may not run:
+	// the right of && or ||, and any compound (if, case, a function body).
+	conditional int
+	loop        int // the outermost loop the walk is inside, 0 for none
+	loops       int // loop ids handed out
+	unparsed    bool
 }
 
 func (c *collector) parse(src string, depth int) {
@@ -224,19 +230,23 @@ func (c *collector) stmt(src string, s *syntax.Stmt) {
 	}
 	if bin, ok := s.Cmd.(*syntax.BinaryCmd); ok && (bin.Op == syntax.AndStmt || bin.Op == syntax.OrStmt) {
 		c.stmt(src, bin.X)
+		c.conditional++
 		c.stmt(src, bin.Y)
+		c.conditional--
 		return
 	}
 	parts := pipeline(s)
 	if parts == nil {
 		// A compound command: its own statements, and any substitution in
 		// its words (for items, case subjects, [[ ]] operands).
+		c.conditional++
 		c.inner(src, s.Cmd)
+		c.conditional--
 		c.compoundRedirs(src, s)
 		return
 	}
 
-	seg := Segment{src: src, end: segmentEnd(parts[len(parts)-1]), subshell: c.subshell > 0, loop: c.loop}
+	seg := Segment{src: src, end: segmentEnd(parts[len(parts)-1]), subshell: c.subshell > 0, conditional: c.conditional > 0, loop: c.loop}
 	for _, p := range parts {
 		call, ok := p.Cmd.(*syntax.CallExpr)
 		if p.Cmd == nil {
@@ -250,7 +260,9 @@ func (c *collector) stmt(src string, s *syntax.Stmt) {
 		if !ok {
 			// ( ... ) or { ... } inside a pipeline: its statements and its
 			// redirects are segments of their own.
+			c.conditional++
 			c.inner(src, p.Cmd)
+			c.conditional--
 			c.compoundRedirs(src, p)
 			continue
 		}

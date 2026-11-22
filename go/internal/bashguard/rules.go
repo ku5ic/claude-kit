@@ -709,7 +709,8 @@ var inertBuiltins = nameSet(":", "[", "break", "cd", "continue", "dirs", "echo",
 	"pwd", "return", "shift", "test", "true", "type")
 
 // scratchOperand is true for a scratch target, quoted when it expands
-// anything, or a quoted variable set once, outside any loop, to a scratch
+// anything, or a quoted variable the current shell surely sets (st.sure)
+// once, outside any loop, to a scratch
 // target or a fresh mktemp -d dir, and named nowhere else in the command
 // (read S, printf -v S, declare S=/ all set it too).
 func (st *state) scratchOperand(w Word) bool {
@@ -724,7 +725,7 @@ func (st *state) scratchOperand(w Word) bool {
 			return false
 		}
 	}
-	value, ok := st.vars[name]
+	value, ok := st.sure[name]
 	return ok && (mktempDir(value) || st.scratchTarget(value)) && st.setOnly(name)
 }
 
