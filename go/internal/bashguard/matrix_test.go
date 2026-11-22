@@ -683,6 +683,8 @@ func TestGuardBashPluginRootReadsAndWrites(t *testing.T) {
 		"cd %[1]s/go && go vet ./x 2>&1 | tail -5",
 		"cd %[1]s && echo x >&2",
 		"cd %[1]s && echo x 2>&-",
+		"awk 1 %[1]s/kit.yml",
+		"ruby -e 1 %[1]s/kit.yml",
 	} {
 		if cmd := fmt.Sprintf(cmd, root); asks(cmd) {
 			t.Errorf("a read of the plugin root asked: %s", cmd)
@@ -713,6 +715,13 @@ func TestGuardBashPluginRootReadsAndWrites(t *testing.T) {
 		"tree -R %[1]s",
 		"tree -o %[1]s/out.txt /tmp",
 		"cd %[1]s && echo x >& kit.yml",
+		"jq . %[1]s/kit.yml | sponge %[1]s/kit.yml",
+		"vim -c wq %[1]s/kit.yml",
+		"nvim -c wq %[1]s/kit.yml",
+		"ed %[1]s/kit.yml",
+		"ruby -pi -e 1 %[1]s/kit.yml",
+		"gawk -i inplace 1 %[1]s/kit.yml",
+		"awk -iinplace 1 %[1]s/kit.yml",
 	} {
 		if cmd := fmt.Sprintf(cmd, root); !asks(cmd) {
 			t.Errorf("a write to the plugin root didn't ask: %s", cmd)

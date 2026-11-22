@@ -565,7 +565,7 @@ func (c *command) writes() bool {
 
 // fileWriters are the commands whose operands include the files they write.
 var fileWriters = nameSet("cp", "mv", "tee", "install", "ln", "touch", "mkdir", "rm", "rsync", "truncate", "dd", "patch",
-	"chmod", "chown", "unlink")
+	"chmod", "chown", "unlink", "sponge", "ed", "ex", "vi", "vim", "nvim")
 
 // nameSet is names as a set.
 func nameSet(names ...string) map[string]bool {
@@ -577,7 +577,7 @@ func nameSet(names ...string) map[string]bool {
 }
 
 // overlayWrite asks when a known writer names a kit switch
-// (guard.KitSwitch): a fileWriters command, perl -i, a writeFlags command
+// (guard.KitSwitch): a fileWriters command, an inPlaceScript, a writeFlags command
 // with its flags, or git through checkout/restore/apply/mv/rm/stash/reset.
 // Any other command naming one goes through, logged as a kit-switch shadow:
 // most only read, and guessing their operands asked on every log query.
@@ -606,7 +606,7 @@ func (c *command) overlayWrite() {
 		return
 	}
 	_, flagged := writeFlags[c.name]
-	known := fileWriters[c.name] || flagged || c.name == "git" || c.name == "perl" && perlInPlace(c.values())
+	known := fileWriters[c.name] || flagged || c.name == "git" || c.inPlaceScript()
 	for _, v := range c.values() {
 		_, after, hasEq := strings.Cut(v, "=")
 		if known {
@@ -623,6 +623,23 @@ func (c *command) overlayWrite() {
 			return
 		}
 	}
+}
+
+// inPlaceScript is true for a script runner editing its file operands in
+// place: perl or ruby -i, or awk loading gawk's inplace extension.
+func (c *command) inPlaceScript() bool {
+	values := c.values()
+	switch c.name {
+	case "perl", "ruby":
+		return perlInPlace(values)
+	case "awk", "gawk":
+		for i, v := range values {
+			if v == "-iinplace" || v == "--include=inplace" || (v == "-i" || v == "--include") && i+1 < len(values) && values[i+1] == "inplace" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // perlInPlace is true when one of perl's option clusters holds -i.
