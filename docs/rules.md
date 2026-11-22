@@ -8,9 +8,13 @@ A rule a hook already enforces isn't in the rule text. The block message carries
 
 Every skill with references lists them in a "Before | Read" table: an action, then the file to read before it. In real sessions before 0.10.0, 40 of 168 pattern-skill loads went on to read a reference, because the old tables listed files by topic and nothing tied a file to a moment. A one-line rule to read the reference that fits the work failed the `ambiguous-ask` eval in 3 of 3 runs. The trigger table in kit-rules passed 3 of 3. The tables still got skipped in the session that wrote them, so 0.10.0 added `reference-gate`, which denied every tool call until each loaded skill's table files were read. It was removed on 2026-11-12. It made every reference load whatever the task, so writing a six-line bash fixture pulled in the pytest, Playwright, and React Testing Library references. Without it, `slop-comment` passed 5 of 5 runs at 0.9.0 and 2 of 3 on 2026-11-12. The skills log still records each reference read, which is how the read rate gets measured now.
 
+## Precedence
+
+**The kit's rules win over defaults.** Before dba9678, nothing in the system prompt put the kit's rules ahead of an output style's or the harness's own instructions. The `kit:precedence` section says the kit wins where they conflict. It sits at the top of a thread, and deep in a session the output style's per-prompt reminder is what lands next to the prompt, so the mod also puts a one-line `kit:` reminder on every prompt (db39bb3).
+
 ## Output
 
-**Length.** Concise means a lot of information in few words. Short and missing something is wrong, and so is complete and padded. The reader has a small working memory, so one idea per line and nothing they already saw. The chat ceilings live in kit.yml `reply_limits`, and the hooks state the turn's ceiling on every prompt, the chat one included, since a line said once at session start ends up far from the reply. The rule only says to stay under it.
+**Length.** Concise means a lot of information in few words. Short and missing something is wrong, and so is complete and padded. The reader has a small working memory, so one idea per line and nothing they already saw. The chat targets live in kit.yml `reply_limits.modes`, one set per `reply_length` mode, and the hooks state the turn's target on every prompt, since a line said once at session start ends up far from the reply. A hard ceiling flagged replies a word or two over (84ad86b), so a reply may now pass its target when the extra words make it clearer or a fact correct, up to the `reply_slack` allowance.
 
 **Deliverable budgets.** A plan, a subagent report, a scratch report, or a connector post over its kit.yml `size_budgets` entry is sent back once by `go/internal/hooks/size.go`, so no rule restates the numbers. They were set against deliverables measured on 2026-11-11, where half of the plans and about a quarter of subagent handbacks ran over them. On 2026-11-16 the author doubled the plan budget and raised the report and scratch ones: a plan cut to fit leaves out what the engineer following it then has to guess, and a release plan and its explore report ran over the old numbers with nothing left to cut.
 
@@ -36,7 +40,7 @@ Every skill with references lists them in a "Before | Read" table: an action, th
 
 **A test failing after a refactor.** Adjusting the assertion to match the new output silently is the failure mode. A test asserting user-visible output is almost always guarding real behavior.
 
-**Enforced by hooks.** The claims hook (`go/internal/hooks/claims.go`) sends back unconfirmed claims in a plan, a subagent report, an investigation, review, `audit-*`, or `code-*` report in scratch, or a connector post. A chat reply is never checked, which is why the rule itself has to hold there.
+**Enforced by hooks.** The claims hook (`go/internal/hooks/claims.go`) sends back unconfirmed claims in a plan, a subagent report, an investigation, review, `audit-*`, or `code-*` report in scratch, or a connector post. A chat reply gets only the no-model pass at Stop, on its bare `file:line`, paths, SHAs, and symbols, and is corrected on the next turn (c292b51), which is why the rule itself has to hold for the rest.
 
 ## Change
 
