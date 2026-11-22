@@ -104,6 +104,8 @@ type state struct {
 	pending string
 	// shadowed is true once the command logged its kit-switch shadow.
 	shadowed bool
+	// segs is the whole command parsed, inner substitutions included.
+	segs []Segment
 	// managers is each repo root's verified manager facts, read once per command.
 	managers map[string][]gapfill.Manager
 	// vars is what the command's own bare assignments set (R=rm; $R -rf ~),
@@ -152,7 +154,7 @@ func Check(h *hook.Hook) error {
 	if unparsed {
 		st.ask("guard-bash could not parse part of this command, so it went unchecked; confirm it")
 	}
-	st.vars, st.loopVars = map[string]string{}, loopAssigned(segs)
+	st.vars, st.loopVars, st.segs = map[string]string{}, loopAssigned(segs), segs
 	for _, seg := range segs {
 		if err := st.segment(seg); err != nil {
 			return err

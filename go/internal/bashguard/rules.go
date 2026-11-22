@@ -564,9 +564,17 @@ func (c *command) writes() bool {
 }
 
 // fileWriters are the commands whose operands include the files they write.
-var fileWriters = map[string]bool{"cp": true, "mv": true, "tee": true, "install": true, "ln": true, "touch": true,
-	"mkdir": true, "rm": true, "rsync": true, "truncate": true, "dd": true, "patch": true,
-	"chmod": true, "chown": true, "unlink": true}
+var fileWriters = nameSet("cp", "mv", "tee", "install", "ln", "touch", "mkdir", "rm", "rsync", "truncate", "dd", "patch",
+	"chmod", "chown", "unlink")
+
+// nameSet is names as a set.
+func nameSet(names ...string) map[string]bool {
+	set := make(map[string]bool, len(names))
+	for _, name := range names {
+		set[name] = true
+	}
+	return set
+}
 
 // overlayWrite asks when a known writer names a kit switch
 // (guard.KitSwitch): a fileWriters command, perl -i, a writeFlags command
@@ -685,8 +693,10 @@ func (st *state) allScratch(ops []Word) bool {
 // "${S}": unquoted, IFS could split it into other paths.
 var quotedVar = regexp.MustCompile(`^"\$(?:([A-Za-z_][A-Za-z0-9_]*)|\{([A-Za-z_][A-Za-z0-9_]*)\})"$`)
 
-// sourcing is a call that can set any variable unseen: eval, source, or ".".
-var sourcing = regexp.MustCompile(`(^|[;&|({\s])(eval|source|\.)\s`)
+// assigners are the commands that can set a variable an argument names,
+// a computed one too (N=$'\x53'; printf -v "$N" /), or run code that does.
+var assigners = nameSet("read", "printf", "declare", "typeset", "local", "export", "readonly", "mapfile", "readarray",
+	"getopts", "let", "unset", "eval", "source", ".")
 
 // scratchOperand is true for a scratch target, quoted when it expands
 // anything, or a quoted variable set once, outside any loop, to a scratch
@@ -709,11 +719,19 @@ func (st *state) scratchOperand(w Word) bool {
 }
 
 // setOnly is true when the command names name only in one assignment and
-// in $name references, and runs nothing that could set it unseen.
+// in $name references, and runs nothing that could set it unseen: no
+// assigner, no command word it computes, and no arithmetic.
 func (st *state) setOnly(name string) bool {
 	cmd := st.h.Payload.String(hook.KeyInputCommand)
-	if sourcing.MatchString(cmd) {
+	if strings.Contains(cmd, "((") {
 		return false
+	}
+	for _, seg := range st.segs {
+		for _, call := range seg.Calls {
+			if i := lead(call.Words); i < len(call.Words) && (!call.Words[i].literal || assigners[baseName(call.Words[i].Value)]) {
+				return false
+			}
+		}
 	}
 	q := regexp.QuoteMeta(name)
 	count := func(pattern string) int { return len(regexp.MustCompile(pattern).FindAllStringIndex(cmd, -1)) }
