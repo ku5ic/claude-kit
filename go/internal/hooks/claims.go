@@ -38,9 +38,10 @@ func VerifyClaims(h *hook.Hook) error {
 		return nil
 	}
 	// The checker's report is the check; checking it again buys nothing.
-	// A plugin agent's type carries its namespace, so a project agent
-	// named claim-checker is someone else's and gets checked.
-	if p.String(hook.KeyAgentType) == claimChecker {
+	// plan-critic cites a file:line for each finding. A plugin agent's type
+	// carries its namespace, so a project agent of the same name is someone
+	// else's and gets checked.
+	if agent := p.String(hook.KeyAgentType); agent == claimChecker || agent == planCritic {
 		return nil
 	}
 	switch p.String(hook.KeyHookEventName) {

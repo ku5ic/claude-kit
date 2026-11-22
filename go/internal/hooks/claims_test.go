@@ -203,17 +203,19 @@ func TestVerifyClaimsToolInput(t *testing.T) {
 			}
 		})
 	}
-	t.Run("the claim checker's own hand-back isn't checked again", func(t *testing.T) {
-		t.Parallel()
-		k := newSandbox(t)
-		calls := k.verifier("", claim)
-		payload := handback("a1", claim)
-		payload["agent_type"] = "kit:claim-checker"
-		k.run("verify-claims", payload).Allowed(t)
-		if got := testutil.Calls(t, calls); got != nil {
-			t.Errorf("verifier ran: %q", got)
-		}
-	})
+	for _, agent := range []string{"kit:claim-checker", "kit:plan-critic"} {
+		t.Run(agent+"'s hand-back gets no run", func(t *testing.T) {
+			t.Parallel()
+			k := newSandbox(t)
+			calls := k.verifier("", claim)
+			payload := handback("a1", claim)
+			payload["agent_type"] = agent
+			k.run("verify-claims", payload).Allowed(t)
+			if got := testutil.Calls(t, calls); got != nil {
+				t.Errorf("verifier ran: %q", got)
+			}
+		})
+	}
 	t.Run("a project agent named claim-checker is checked", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
