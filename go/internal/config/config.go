@@ -55,10 +55,15 @@ type Config struct {
 	PackageLookups PackageLookups `yaml:"package_lookups"`
 	ChatBundle     ChatBundle     `yaml:"chat_bundle"`
 
-	// Tag is "merged" when an overlay was merged in, else "base". Caches
-	// derived from the config carry it in their file name, so deleting the
-	// overlay can't leave its derived state in use.
+	// Tag is "merged" when an overlay or /config options were merged in,
+	// else "base". Caches derived from the config carry it in their file
+	// name, so deleting the overlay can't leave its derived state in use.
 	Tag string `yaml:"-"`
+
+	// From is the file a problem in the merged values is reported against:
+	// kit.yml, the overlay, or settings.json. Exported so the on-disk cache
+	// keeps it.
+	From string `yaml:"-"`
 
 	// OverlayInstalls counts the GlobalInstalls entries, at its end, that
 	// the overlay added. Exported so the on-disk cache keeps it.

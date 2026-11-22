@@ -70,14 +70,18 @@ func TestAPresetFileIsCheckedForUnknownKeys(t *testing.T) {
 	}
 }
 
-func TestABadStepPauseWarns(t *testing.T) {
-	p := presetPaths(t, "step_pause: sometimes\n", "")
-	cfg, warnings, err := Load(p)
-	if err != nil || len(warnings) != 1 || !strings.Contains(warnings[0].Err.Error(), "step_pause") {
-		t.Fatalf("err=%v warnings=%v", err, warnings)
-	}
-	if cfg.Pause() != "step" {
-		t.Errorf("Pause() = %q, want the step default", cfg.Pause())
+func TestABadPickerValueWarns(t *testing.T) {
+	for key, value := range map[string]string{"step_pause": "sometimes", "receipt": "never"} {
+		t.Run(key, func(t *testing.T) {
+			p := presetPaths(t, key+": "+value+"\n", "")
+			cfg, warnings, err := Load(p)
+			if err != nil || len(warnings) != 1 || !strings.Contains(warnings[0].Err.Error(), key) {
+				t.Fatalf("err=%v warnings=%v", err, warnings)
+			}
+			if cfg.Pause() != "step" || cfg.ReceiptOnFailures() {
+				t.Errorf("Pause() = %q, ReceiptOnFailures() = %v, want the step and all defaults", cfg.Pause(), cfg.ReceiptOnFailures())
+			}
+		})
 	}
 }
 

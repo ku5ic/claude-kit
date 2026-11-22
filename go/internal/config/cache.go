@@ -29,7 +29,8 @@ func (p Paths) ConfigCache() string {
 }
 
 // cacheKey names the exact files behind Load's result: path, size, and
-// mtime of the base, the overlay, every preset file, and the running binary,
+// mtime of the base, the overlay, settings.json and the manifest behind the
+// /config options, every preset file, and the running binary,
 // whose Config struct shapes what was stored. Any edit or rebuild changes
 // it; "" when the base or binary can't be stat'ed, so Load skips the cache.
 func cacheKey(p Paths) string {
@@ -39,7 +40,7 @@ func cacheKey(p Paths) string {
 	}
 	presets, _ := filepath.Glob(filepath.Join(p.Root, "presets", "*.yml"))
 	key := ""
-	for _, path := range append([]string{exe, p.Base, p.Overlay}, presets...) {
+	for _, path := range append([]string{exe, p.Base, p.Overlay, p.Settings, p.Manifest}, presets...) {
 		info, err := os.Stat(path)
 		switch {
 		case err == nil:

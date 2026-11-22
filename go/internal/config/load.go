@@ -22,6 +22,8 @@ type Paths struct {
 	ClaudeDir string // Claude Code's config dir: $CLAUDE_CONFIG_DIR, else ~/.claude
 	Base      string // Root/kit.yml
 	Overlay   string // ClaudeDir/claude-kit.local.yml
+	Settings  string // ClaudeDir/settings.json, whose pluginConfigs hold the /config options
+	Manifest  string // Root/.claude-plugin/plugin.json, which declares them
 }
 
 func (p Paths) LogDir() string      { return filepath.Join(p.ClaudeDir, "logs") }
@@ -75,6 +77,8 @@ func pathsAt(root string) (Paths, error) {
 		ClaudeDir: claudeDir,
 		Base:      filepath.Join(root, "kit.yml"),
 		Overlay:   filepath.Join(claudeDir, "claude-kit.local.yml"),
+		Settings:  filepath.Join(claudeDir, "settings.json"),
+		Manifest:  filepath.Join(root, ".claude-plugin", "plugin.json"),
 	}, nil
 }
 
@@ -111,7 +115,7 @@ func Load(p Paths) (*Config, []Warning, error) {
 
 // LoadBase reads kit.yml alone, for what must not vary by machine.
 func LoadBase(p Paths) (*Config, []Warning, error) {
-	p.Overlay = ""
+	p.Overlay, p.Settings = "", ""
 	return load(p)
 }
 
@@ -124,8 +128,12 @@ func load(p Paths) (*Config, []Warning, error) {
 
 	merged := base
 	tag := "base"
-	layers, layerWarnings := overlays(p)
+	layers, layerWarnings := overlays(p, base)
 	warnings = append(warnings, layerWarnings...)
+	from := p.Base
+	if len(layers) > 0 {
+		from = userFile(p, layers)
+	}
 	for _, layer := range layers {
 		for _, item := range mergeNode(merged, layer.node) {
 			warnings = append(warnings, Warning{layer.path, fmt.Errorf("%s removes nothing: no earlier list holds it", item)})
@@ -148,26 +156,42 @@ func load(p Paths) (*Config, []Warning, error) {
 		if err := merged.Decode(&cfg); err != nil {
 			return nil, warnings, fmt.Errorf("decode %s: %w", p.Base, err)
 		}
-		warnings = append(warnings, Warning{p.Overlay, errors.New("ignored, with its preset: it doesn't merge with kit.yml, so only kit.yml applies")})
+		for _, l := range layers {
+			if l.path == p.Overlay || l.path == p.Settings {
+				warnings = append(warnings, Warning{l.path, errors.New("ignored, with the preset: the overlay and /config options don't merge with kit.yml, so only kit.yml applies")})
+			}
+		}
+		from = p.Base
 	}
 	applyDefaults(&cfg)
-	from := p.Base
 	if tag == "merged" {
-		from = p.Overlay
-		// mergeNode appends the overlay's list to kit.yml's, after the preset's.
-		overlay := layers[len(layers)-1].node
-		if seq := mappingValue(overlay, "global_installs"); seq != nil && seq.Kind == yaml.SequenceNode {
-			cfg.OverlayInstalls = len(seq.Content)
+		// mergeNode appends the overlay's list to kit.yml's, after the
+		// preset's; the /config options hold no list.
+		if i := slices.IndexFunc(layers, func(l layer) bool { return l.path == p.Overlay }); i >= 0 {
+			if seq := mappingValue(layers[i].node, "global_installs"); seq != nil && seq.Kind == yaml.SequenceNode {
+				cfg.OverlayInstalls = len(seq.Content)
+			}
 		}
 	}
 	patterns, bad := cfg.compileInstalls(p)
 	cfg.installs = &installPatterns{patterns, bad}
-	for _, err := range slices.Concat(cfg.unknownDisables(), cfg.ReplyLimits.negatives(), cfg.Slop.problems(), cfg.Attribution.problems(), cfg.Claims.problems(), cfg.SizeBudgets.problems(), cfg.WeakenedChecks.problems(), cfg.PackageLookups.problems(), cfg.dropEmptyEditCmds(), cfg.stepPauseProblems()) {
+	for _, err := range slices.Concat(cfg.unknownDisables(), cfg.ReplyLimits.negatives(), cfg.Slop.problems(), cfg.Attribution.problems(), cfg.Claims.problems(), cfg.SizeBudgets.problems(), cfg.WeakenedChecks.problems(), cfg.PackageLookups.problems(), cfg.dropEmptyEditCmds(), cfg.pickerProblems()) {
 		warnings = append(warnings, Warning{from, err})
 	}
 	warnings = append(warnings, bad...)
 	cfg.Tag = tag
+	cfg.From = from
 	return &cfg, warnings, nil
+}
+
+// userFile is the file a merged config's warnings name: the overlay when
+// it's among layers, else settings.json, whose /config options pick a preset
+// or set a key.
+func userFile(p Paths, layers []layer) string {
+	if slices.ContainsFunc(layers, func(l layer) bool { return l.path == p.Overlay }) {
+		return p.Overlay
+	}
+	return p.Settings
 }
 
 // layer is one file merged over kit.yml.
@@ -176,33 +200,54 @@ type layer struct {
 	node *yaml.Node
 }
 
-// overlays are the files merged over kit.yml, in order: the preset the
-// overlay names, then the overlay itself. None when there's no overlay, and
-// one that can't be read is a warning.
-func overlays(p Paths) ([]layer, []Warning) {
+// overlays are what's merged over kit.yml, in order: the preset, then the
+// overlay, then the /config options (pluginOptions), so /config wins. The
+// preset is the one /config picks, else the overlay's. A file that's missing
+// adds nothing, and one that can't be read is a warning.
+func overlays(p Paths, base *yaml.Node) ([]layer, []Warning) {
+	var warnings []Warning
 	overlay, err := readNode(p.Overlay)
 	switch {
-	case errors.Is(err, os.ErrNotExist):
-		return nil, nil
-	case err != nil:
-		return nil, []Warning{{p.Overlay, fmt.Errorf("ignored: %w", err)}}
+	case err == nil:
+		warnings = validate(p.Overlay)
+	case !errors.Is(err, os.ErrNotExist):
+		warnings = append(warnings, Warning{p.Overlay, fmt.Errorf("ignored: %w", err)})
 	}
-	warnings := validate(p.Overlay)
+	options, optionWarnings := pluginOptions(p, base)
+	warnings = append(warnings, optionWarnings...)
+
 	var out []layer
-	if name := mappingValue(overlay, "preset"); name != nil && name.Value != "" {
-		path := p.presetFile(name.Value)
-		preset, err := readNode(path)
-		switch {
-		case err == nil:
-			warnings = append(warnings, validate(path)...)
-			out = append(out, layer{path, preset})
-		case path == "" || errors.Is(err, os.ErrNotExist):
-			warnings = append(warnings, Warning{p.Overlay, fmt.Errorf("preset: no preset %q under %s", name.Value, filepath.Join(p.Root, "presets"))})
-		default:
-			warnings = append(warnings, Warning{path, fmt.Errorf("ignored: %w", err)})
+	for _, l := range []layer{{p.Settings, options}, {p.Overlay, overlay}} {
+		if l.node == nil {
+			continue
+		}
+		if name := mappingValue(l.node, "preset"); name != nil && name.Value != "" {
+			preset, presetWarnings := presetLayer(p, l.path, name.Value)
+			warnings = append(warnings, presetWarnings...)
+			out = append(out, preset...)
+			break
 		}
 	}
-	return append(out, layer{p.Overlay, overlay}), warnings
+	for _, l := range []layer{{p.Overlay, overlay}, {p.Settings, options}} {
+		if l.node != nil {
+			out = append(out, l)
+		}
+	}
+	return out, warnings
+}
+
+// presetLayer is the preset called name, which the file from picked.
+func presetLayer(p Paths, from, name string) ([]layer, []Warning) {
+	path := p.presetFile(name)
+	preset, err := readNode(path)
+	switch {
+	case err == nil:
+		return []layer{{path, preset}}, validate(path)
+	case path == "" || errors.Is(err, os.ErrNotExist):
+		return nil, []Warning{{from, fmt.Errorf("preset: no preset %q under %s", name, filepath.Join(p.Root, "presets"))}}
+	default:
+		return nil, []Warning{{path, fmt.Errorf("ignored: %w", err)}}
+	}
 }
 
 // presetName is what a preset may be called: a file name, never a path.
@@ -223,7 +268,7 @@ func Merged(p Paths) (*yaml.Node, error) {
 	if err != nil {
 		return nil, err
 	}
-	layers, _ := overlays(p)
+	layers, _ := overlays(p, base)
 	sources := map[string][]string{}
 	for _, l := range append([]layer{{p.Base, base}}, layers...) {
 		name := filepath.Base(l.path)
@@ -253,23 +298,38 @@ func Merged(p Paths) (*yaml.Node, error) {
 // ReceiptOnFailures is true when kit.yml's receipt hides a clean pass.
 func (c *Config) ReceiptOnFailures() bool { return c.Receipt == "failures" }
 
-// stepPauses are step_pause's values: stop after each plan step, after the
-// whole plan, or never.
-var stepPauses = []string{"step", "plan", "off"}
+// StepPauses are step_pause's values: stop after each plan step, after the
+// whole plan, or never. Receipts are receipt's. Exported for the test that
+// holds plugin.json's /config choices to them.
+var (
+	StepPauses = []string{"step", "plan", "off"}
+	Receipts   = []string{"all", "failures"}
+)
 
-// Pause is step_pause, "step" when it's unset or not one of stepPauses.
+// Pause is step_pause, "step" when it's unset or not one of StepPauses.
 func (c *Config) Pause() string {
-	if slices.Contains(stepPauses, c.StepPause) {
+	if slices.Contains(StepPauses, c.StepPause) {
 		return c.StepPause
 	}
 	return "step"
 }
 
-func (c *Config) stepPauseProblems() []error {
-	if c.StepPause == "" || slices.Contains(stepPauses, c.StepPause) {
-		return nil
+// pickerProblems is a warning for each picker key holding a value outside
+// its list; the first value applies instead.
+func (c *Config) pickerProblems() []error {
+	var errs []error
+	for _, picker := range []struct {
+		key, value string
+		values     []string
+	}{
+		{"step_pause", c.StepPause, StepPauses},
+		{"receipt", c.Receipt, Receipts},
+	} {
+		if picker.value != "" && !slices.Contains(picker.values, picker.value) {
+			errs = append(errs, fmt.Errorf("%s: %q isn't one of %s, so %s applies", picker.key, picker.value, strings.Join(picker.values, ", "), picker.values[0]))
+		}
 	}
-	return []error{fmt.Errorf("step_pause: %q isn't one of %s, so step applies", c.StepPause, strings.Join(stepPauses, ", "))}
+	return errs
 }
 
 func applyDefaults(cfg *Config) {

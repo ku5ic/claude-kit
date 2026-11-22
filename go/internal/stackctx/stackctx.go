@@ -38,10 +38,10 @@ func rootKey(cfg *config.Config, root string) string {
 	return cache.RootKey(root) + "." + cfg.Tag
 }
 
-// configTime is the newest kit.yml mtime, base or overlay: a cache older
-// than it was built from a stale config.
+// configTime is the newest mtime of kit.yml, the overlay, and settings.json
+// (the /config options): a cache older than it was built from a stale config.
 func configTime(paths config.Paths) int64 {
-	return max(mtime(paths.Base), mtime(paths.Overlay))
+	return max(mtime(paths.Base), mtime(paths.Overlay), mtime(paths.Settings))
 }
 
 // refresh regenerates the cache when it is missing, empty, or older than
