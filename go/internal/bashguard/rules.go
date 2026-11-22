@@ -693,10 +693,20 @@ func (st *state) allScratch(ops []Word) bool {
 // "${S}": unquoted, IFS could split it into other paths.
 var quotedVar = regexp.MustCompile(`^"\$(?:([A-Za-z_][A-Za-z0-9_]*)|\{([A-Za-z_][A-Za-z0-9_]*)\})"$`)
 
-// assigners are the commands that can set a variable an argument names,
-// a computed one too (N=$'\x53'; printf -v "$N" /), or run code that does.
-var assigners = nameSet("read", "printf", "declare", "typeset", "local", "export", "readonly", "mapfile", "readarray",
-	"getopts", "let", "unset", "eval", "source", ".")
+// bashBuiltins is every bash builtin. Only a builtin can set a variable of
+// the shell running the command; any other command runs in a child.
+var bashBuiltins = nameSet(".", ":", "[", "alias", "bg", "bind", "break", "builtin", "caller", "cd", "command",
+	"compgen", "complete", "compopt", "continue", "declare", "dirs", "disown", "echo", "enable", "eval", "exec",
+	"exit", "export", "false", "fc", "fg", "getopts", "hash", "help", "history", "jobs", "kill", "let", "local",
+	"logout", "mapfile", "popd", "printf", "pushd", "pwd", "read", "readarray", "readonly", "return", "set",
+	"shift", "shopt", "source", "suspend", "test", "times", "trap", "true", "type", "typeset", "ulimit", "umask",
+	"unalias", "unset", "wait")
+
+// inertBuiltins are the builtins that set no variable a caller names and
+// run no code from a string; every other builtin can (printf -v "$N",
+// trap "$C" DEBUG, wait -p "$N").
+var inertBuiltins = nameSet(":", "[", "break", "cd", "continue", "dirs", "echo", "exit", "false", "popd", "pushd",
+	"pwd", "return", "shift", "test", "true", "type")
 
 // scratchOperand is true for a scratch target, quoted when it expands
 // anything, or a quoted variable set once, outside any loop, to a scratch
@@ -720,7 +730,8 @@ func (st *state) scratchOperand(w Word) bool {
 
 // setOnly is true when the command names name only in one assignment and
 // in $name references, and runs nothing that could set it unseen: no
-// assigner, no command word it computes, and no arithmetic.
+// builtin outside inertBuiltins, no command word it computes, and no
+// arithmetic.
 func (st *state) setOnly(name string) bool {
 	cmd := st.h.Payload.String(hook.KeyInputCommand)
 	if strings.Contains(cmd, "((") {
@@ -728,7 +739,11 @@ func (st *state) setOnly(name string) bool {
 	}
 	for _, seg := range st.segs {
 		for _, call := range seg.Calls {
-			if i := lead(call.Words); i < len(call.Words) && (!call.Words[i].literal || assigners[baseName(call.Words[i].Value)]) {
+			i := lead(call.Words)
+			if i >= len(call.Words) {
+				continue
+			}
+			if name := baseName(call.Words[i].Value); !call.Words[i].literal || bashBuiltins[name] && !inertBuiltins[name] {
 				return false
 			}
 		}
