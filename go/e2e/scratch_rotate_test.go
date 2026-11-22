@@ -66,6 +66,15 @@ func TestScratchRotate(t *testing.T) {
 		r.Has(t, "pruned 1 artifact(s)")
 		gone(t, filepath.Join(scratch, "old.md"))
 	})
+	t.Run("0 empties scratch of fresh files too", func(t *testing.T) {
+		t.Parallel()
+		k, scratch, _ := setup(t)
+		touch(t, filepath.Join(scratch, "fresh.json"), 60)
+		r := k.Run("", "scratch-rotate", "0")
+		r.Want(t, 0)
+		r.Has(t, "pruned 1 artifact(s) older than 0d")
+		gone(t, filepath.Join(scratch, "fresh.json"))
+	})
 	t.Run("--dry-run reports what would go and deletes nothing", func(t *testing.T) {
 		t.Parallel()
 		k, scratch, _ := setup(t)

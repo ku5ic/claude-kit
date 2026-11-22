@@ -421,15 +421,15 @@ func cmdDetectStack(e *env, cfg *config.Config, _ []string) int {
 	return 0
 }
 
-var positive = regexp.MustCompile(`^[1-9][0-9]*$`)
+var wholeDays = regexp.MustCompile(`^(0|[1-9][0-9]*)$`)
 
-// parseDays reads a [days] argument: a positive integer, rotate.DefaultDays when absent.
+// parseDays reads a [days] argument: 0 or a positive integer, rotate.DefaultDays when absent.
 func parseDays(arg string, stderr io.Writer) (int, bool) {
 	if arg == "" {
 		return rotate.DefaultDays, true
 	}
-	if !positive.MatchString(arg) {
-		fmt.Fprintf(stderr, "scratch-rotate: [days] must be a positive integer, got '%s'\n", arg)
+	if !wholeDays.MatchString(arg) {
+		fmt.Fprintf(stderr, "scratch-rotate: [days] must be 0 or a positive integer, got '%s'\n", arg)
 		return 0, false
 	}
 	n, err := strconv.Atoi(arg)

@@ -38,7 +38,7 @@ var Commands = []Command{
 	{Name: "stats", Args: "[--rule r] [--since days]", Desc: "per rule, blocks, shadow blocks, and sessions;\nper claim-checker model, its flags and how many\nthe text that went out dropped (last 30 days)", Words: []string{"--rule", "--since"}, ReadOnly: true},
 	{Name: "contrast", Args: "<fg> <bg>", Desc: "the WCAG contrast ratio of two colors, and\nwhich AA and AAA levels it passes", ReadOnly: true},
 	{Name: "bundle", Args: "chat [--check]", Desc: "the claude.ai chat plugin zip, from the kit's\nown files; --check validates and writes nothing", Words: []string{"chat"}},
-	{Name: "scratch-rotate", Args: "[days] [--dry-run]", Desc: "prune old scratch artifacts and caches", Words: []string{"--dry-run"}},
+	{Name: "scratch-rotate", Args: "[days] [--dry-run]", Desc: "prune old scratch artifacts and caches;\n0 empties every scratch folder", Words: []string{"--dry-run"}},
 	{Name: "clean", Args: "[--yes]", Desc: "remove the kit's own logs, caches, and home\nscratch, for an uninstall; lists them without --yes", Words: []string{"--yes"}},
 	{Name: "hook", Args: "<name>", Desc: "run a Claude Code hook; payload on stdin"},
 	{Name: "statusline", Desc: "the statusLine rows; payload on stdin"},

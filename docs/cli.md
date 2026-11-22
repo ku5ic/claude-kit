@@ -25,6 +25,7 @@ Every command hook runs through one `kit` binary, and the same binary answers th
 | Scan a text for AI tells                                         | `kit slop <file>`                                     |
 | Check two colours' contrast against WCAG                         | `kit contrast <fg> <bg>`                              |
 | Prune old scratch files now, not at the next day's first session | `kit scratch-rotate`                                  |
+| Empty every scratch folder, whatever the files' age              | `kit scratch-rotate 0`                                |
 | Remove the kit's logs, caches, and scratch before uninstalling   | `kit clean`, then `kit clean --yes`                   |
 
 ## In your own terminal

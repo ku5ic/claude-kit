@@ -92,6 +92,7 @@ func TestRunPrunesTheHomeTierByAge(t *testing.T) {
 	tests := []struct {
 		name      string
 		files     map[string]time.Duration
+		dirs      map[string]time.Duration // aged after the files
 		noScratch bool
 		gone      []string
 		kept      []string
@@ -109,6 +110,14 @@ func TestRunPrunesTheHomeTierByAge(t *testing.T) {
 			files: map[string]time.Duration{"scratch/fresh.md": time.Hour},
 			kept:  []string{"scratch/fresh.md"},
 			has:   []string{"pruned 0 artifact(s)"},
+		},
+		{
+			name:  "prunes an old file of any extension and the folder it leaves empty",
+			files: map[string]time.Duration{"scratch/run/cover.out": 40 * day, "scratch/notes.json": 40 * day},
+			dirs:  map[string]time.Duration{"scratch/run": 40 * day},
+			gone:  []string{"scratch/run", "scratch/notes.json"},
+			kept:  []string{"scratch"},
+			has:   []string{"pruned 2 artifact(s)"},
 		},
 		{
 			name:      "no scratch dir: exits 0 without error",
@@ -168,6 +177,9 @@ func TestRunPrunesTheHomeTierByAge(t *testing.T) {
 			}
 			for rel, age := range tt.files {
 				touch(t, paths.ClaudeDir, rel, age)
+			}
+			for rel, age := range tt.dirs {
+				testutil.Age(t, age, filepath.Join(paths.ClaudeDir, rel))
 			}
 			wantOutput(t, rotate(t, paths, ""), tt.has, tt.lacks)
 			wantFiles(t, paths.ClaudeDir, tt.gone, tt.kept)
@@ -276,6 +288,32 @@ func TestRunRemovesAReviewWorktreeOlderThanADay(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Zero days empties every scratch dir: fresh files, their folders, and a
+// review worktree an hour old, never the scratch dirs or a cache.
+func TestRunWithZeroDaysEmptiesEveryScratch(t *testing.T) {
+	home := physicalTemp(t)
+	t.Setenv("HOME", home)
+	paths := kitHome(t, home)
+	repo := filepath.Join(home, "proj")
+	testutil.Git(t, home, "init", "-q", "-b", "main", repo)
+	testutil.GitID(t, repo, "commit", "-q", "--allow-empty", "-m", "init")
+	scratch := filepath.Join(repo, ".claude/scratch")
+	testutil.Put(t, paths.LogDir(), "scratch-registry.txt", scratch+"\n")
+	wt := filepath.Join(scratch, "review-pr-7")
+	testutil.Git(t, repo, "worktree", "add", "-q", "--detach", wt)
+	testutil.Age(t, time.Hour, filepath.Join(wt, ".git"))
+	touch(t, scratch, "poc/run.py", time.Minute)
+	touch(t, paths.ScratchHome(), "cover.out", time.Minute)
+	touch(t, paths.ClaudeDir, "cache/plan-active/s1", time.Minute)
+
+	var stdout, stderr strings.Builder
+	if code := Run(paths, home, 0, false, &stdout, &stderr); code != 0 || stderr.Len() > 0 {
+		t.Fatalf("exit %d, stderr %q", code, stderr.String())
+	}
+	wantFiles(t, home, []string{"proj/.claude/scratch/poc", "proj/.claude/scratch/review-pr-7", ".claude/scratch/cover.out"},
+		[]string{"proj/.claude/scratch", ".claude/scratch", ".claude/cache/plan-active/s1"})
 }
 
 // A project scratch dir loses the folders the run left empty, deepest
