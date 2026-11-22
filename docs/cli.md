@@ -20,6 +20,7 @@ Every command hook runs through one `kit` binary, and the same binary answers th
 | See what my project's configs say to run, and when               | `kit enforce --list`                                  |
 | Let a gate that changed files run again                          | `kit gates reset`                                     |
 | Find the files that import a file before I change it             | `kit blast-radius <file>`                             |
+| Run a git, `gh`, or `glab` read that can't turn into a write     | `kit read git log ...`, `kit read gh pr view ...`     |
 | See which accepted ADRs a file falls under                       | `kit adrs [path]`                                     |
 | Check my overlay for unknown keys and wrong types                | `kit config --check`                                  |
 | Scan a text for AI tells                                         | `kit slop <file>`                                     |
