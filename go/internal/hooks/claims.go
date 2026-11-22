@@ -303,15 +303,15 @@ func verifyHandback(h *hook.Hook) error {
 
 // unconfirmed is what the verifier found unconfirmed in text, logged with
 // its cost; nil when text states nothing or without kit.yml, and selfCheck
-// when the verifier fails. Only the statements the session's ledger
-// doesn't hold go to the verifier; a text with none needs no run.
+// when the verifier fails. Only the statements no ledger holds go to the
+// verifier; a text with none needs no run.
 func unconfirmed(h *hook.Hook, text, transcriptPath, where string) []claims.Unsupported {
 	cfg := h.Config()
 	if cfg == nil || h.DryRun || h.RuleDisabled("claims") || !claims.Declarative(text) {
 		return nil
 	}
-	ledger := statementLedger(h)
-	known := readStatements(ledger)
+	ledger := statementLedgers(h)
+	known := ledger.read()
 	var fresh, decided []string
 	for _, s := range claims.Statements(text) {
 		if _, ok := known[statementKey(s)]; ok {

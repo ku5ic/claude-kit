@@ -478,6 +478,24 @@ func namedIn(text string) []string {
 	return slices.DeleteFunc(append(out, manyDigits.FindAllString(text, -1)...), func(t string) bool { return t == "" })
 }
 
+// CitedFiles is each regular file under root that text names, by its path
+// from root, in order; a path with a comma, "=", or whitespace is left out,
+// so it can sit in a ledger line.
+func CitedFiles(root, text string) []string {
+	var out []string
+	for _, name := range namedIn(text) {
+		path := fsx.Abs(root, name)
+		rel, err := filepath.Rel(root, path)
+		if err != nil || !fsx.Within(root, path) || strings.ContainsAny(rel, ",= \t\n") || slices.Contains(out, rel) {
+			continue
+		}
+		if info, err := os.Stat(path); err == nil && info.Mode().IsRegular() {
+			out = append(out, rel)
+		}
+	}
+	return out
+}
+
 // clip is s cut to limit bytes, with a note of what was cut.
 func clip(s string, limit int) string {
 	if len(s) <= limit {

@@ -2,17 +2,22 @@ package hooks
 
 import (
 	"cmp"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"maps"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/claims"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
+	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/stats"
 )
 
@@ -22,38 +27,114 @@ const (
 	statementFlagged   = "flagged"
 )
 
-// statementLedger is the session's verdict per statement, a statementKey
-// and a verdict per line, shared by every text and destination, so a
-// statement is checked once per session.
-func statementLedger(h *hook.Hook) string {
-	return h.Paths.SessionFile(cache.Claims, h.Payload.SessionID(), "ledger")
+// ledgers are where statement verdicts live: the session's, a statementKey
+// and a verdict per line, and the project's, which keeps a confirmed
+// statement citing a file across sessions, /clear included, while HEAD and
+// each cited file's content match what they were.
+type ledgers struct {
+	session, project, root, head string
 }
 
-// readStatements is the ledger at path, by statementKey; empty when none.
-func readStatements(path string) map[string]string {
-	known := map[string]string{}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return known
+// statementLedgers is the payload's ledgers; the project's is "" outside a
+// git work tree with a commit.
+func statementLedgers(h *hook.Hook) ledgers {
+	l := ledgers{session: h.Paths.SessionFile(cache.Claims, h.Payload.SessionID(), "ledger")}
+	dir, _ := project.Root(h.Payload.Cwd())
+	top := git.Toplevel(dir)
+	if top == "" {
+		return l
 	}
+	if head, err := git.Line(top, "rev-parse", "HEAD"); err == nil {
+		l.root, l.head = top, head
+		l.project = filepath.Join(h.Paths.CacheDir(), cache.Claims, cache.RootKey(top)+".ledger")
+	}
+	return l
+}
+
+// read is every verdict that holds now, by statementKey: the session's,
+// and each project line whose HEAD and file hashes still match.
+func (l ledgers) read() map[string]string {
+	known := map[string]string{}
+	data, _ := os.ReadFile(l.session)
 	for line := range strings.Lines(string(data)) {
 		if key, verdict, ok := strings.Cut(strings.TrimSpace(line), "\t"); ok {
 			known[key] = verdict
 		}
 	}
+	if l.project == "" {
+		return known
+	}
+	data, _ = os.ReadFile(l.project)
+	sums := map[string]string{}
+	for line := range strings.Lines(string(data)) {
+		f := strings.Split(strings.TrimSpace(line), "\t")
+		if len(f) == 4 && f[2] == l.head && l.unchanged(f[3], sums) {
+			known[f[0]] = f[1]
+		}
+	}
 	return known
 }
 
-// recordStatements appends verdicts to the ledger at path.
-func recordStatements(h *hook.Hook, path string, verdicts map[string]string) {
-	if path == "" || len(verdicts) == 0 || h.DryRun {
+// unchanged is true when every path=hash pair of field matches the file
+// now; sums holds the hashes read so far.
+func (l ledgers) unchanged(field string, sums map[string]string) bool {
+	for pair := range strings.SplitSeq(field, ",") {
+		path, sum, ok := strings.Cut(pair, "=")
+		if !ok {
+			return false
+		}
+		if _, seen := sums[path]; !seen {
+			sums[path] = fileSum(filepath.Join(l.root, path))
+		}
+		if sums[path] == "" || sums[path] != sum {
+			return false
+		}
+	}
+	return true
+}
+
+// fileSum is a short hash of the file at path, "" when it can't be read.
+func fileSum(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])[:16]
+}
+
+// record appends verdicts, by statementKey, for statements, the texts by
+// key. A confirmed statement citing a file goes to the project ledger; the
+// rest, a flag included, stays the session's.
+// shortcut: the project ledger only grows, one line per statement, until
+// it sits a day unused and is pruned; dropping old HEADs' lines on write
+// would bound it.
+func (l ledgers) record(h *hook.Hook, verdicts, statements map[string]string) {
+	if l.session == "" || len(verdicts) == 0 || h.DryRun {
 		return
 	}
-	var b strings.Builder
+	var session, project strings.Builder
 	for _, key := range slices.Sorted(maps.Keys(verdicts)) {
-		b.WriteString(key + "\t" + verdicts[key] + "\n")
+		var files []string
+		if l.project != "" && verdicts[key] == statementConfirmed {
+			files = claims.CitedFiles(l.root, statements[key])
+		}
+		if len(files) == 0 {
+			session.WriteString(key + "\t" + verdicts[key] + "\n")
+			continue
+		}
+		pairs := make([]string, len(files))
+		for i, f := range files {
+			pairs[i] = f + "=" + fileSum(filepath.Join(l.root, f))
+		}
+		project.WriteString(key + "\t" + verdicts[key] + "\t" + l.head + "\t" + strings.Join(pairs, ",") + "\n")
 	}
-	_ = fsx.Append(path, []byte(b.String()))
+	if session.Len() > 0 {
+		_ = fsx.Append(l.session, []byte(session.String()))
+	}
+	if project.Len() > 0 {
+		_ = fsx.Append(l.project, []byte(project.String()))
+	}
 }
 
 // recordVerdicts records in the ledger what v said of fresh, the
@@ -62,8 +143,11 @@ func recordStatements(h *hook.Hook, path string, verdicts map[string]string) {
 // only when the model ran: the reference pass and a finding's evidence
 // check leave the rest unread. A flag that matches no statement stays a
 // flag, unrecorded.
-func recordVerdicts(h *hook.Hook, ledger string, fresh, decided []string, v claims.Verdict) []claims.Unsupported {
-	verdicts := map[string]string{}
+func recordVerdicts(h *hook.Hook, l ledgers, fresh, decided []string, v claims.Verdict) []claims.Unsupported {
+	verdicts, statements := map[string]string{}, map[string]string{}
+	for _, s := range fresh {
+		statements[statementKey(s)] = s
+	}
 	var out []claims.Unsupported
 	for _, u := range v.Unsupported {
 		matched := false
@@ -85,7 +169,7 @@ func recordVerdicts(h *hook.Hook, ledger string, fresh, decided []string, v clai
 			}
 		}
 	}
-	recordStatements(h, ledger, verdicts)
+	l.record(h, verdicts, statements)
 	return out
 }
 

@@ -16,6 +16,7 @@ What must be true before a claim, a conclusion, or a fix is stated.
 <!-- chat: skip -->
 
 - An agent's finding: trace its decisive claim to the source before a conclusion rests on it.
+- A statement the claims hook confirmed in an earlier session counts as checked while HEAD and every file it cites are unchanged; the hook holds that ledger.
 - "Done", "fixed", or "passes": only as `skills/kit-rules/reference/verify.md` section 4 defines them. Never "should work".
 
 <!-- chat: end -->

@@ -633,3 +633,13 @@ func TestTheModelGetsOnlyWhatReferencesDontSettle(t *testing.T) {
 	testutil.Has(t, sent, "The `Hello` function panics on empty input.")
 	testutil.Lacks(t, sent, "See `go/x.go:3`.")
 }
+
+func TestCitedFilesNamesOnlyFilesUnderTheRoot(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	testutil.Put(t, root, "go/x.go", "package x\n")
+	text := "See `go/x.go:3`, go/x.go, `go/gone.go`, /etc/hosts, and `go` for the 12 cases."
+	if got, want := CitedFiles(root, text), []string{"go/x.go"}; !slices.Equal(got, want) {
+		t.Errorf("CitedFiles = %q, want %q", got, want)
+	}
+}
