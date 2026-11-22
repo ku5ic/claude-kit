@@ -145,8 +145,8 @@ func runStop(h *hook.Hook, cfg *config.Config, p enforce.Plan, r stopRun) error 
 	}
 	notifyReceipt(h, cfg, out.Receipt, file)
 	if !out.Failed() {
-		// A skipped gate checked nothing, so only a clean pass is reused.
-		if out.Result.Skip == 0 && pass != "" && !h.DryRun {
+		// A gate skipped unchecked checked nothing, so only a whole pass is reused.
+		if out.Result.Unchecked == 0 && pass != "" && !h.DryRun {
 			_ = fsx.WriteAtomic(passFile, []byte(pass), 0o600)
 		}
 		return nil

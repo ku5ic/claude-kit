@@ -177,6 +177,21 @@ func TestASkippedCheckIsNamedInTheBlock(t *testing.T) {
 	has(t, out.Report(), "checks: 0 passed, 1 failed, 1 skipped")
 }
 
+// A gate disabled_checks turned off leaves nothing unchecked, so a Stop
+// pass with one is still a whole pass; one that wasn't installed isn't.
+func TestASettledSkipLeavesAStopUncheckedFree(t *testing.T) {
+	t.Parallel()
+	r := newRepo(t, "repo")
+	disabled := r.check("lint", "lint", "true")
+	disabled.Skip = "disabled_checks"
+	if out := r.stop(disabled, r.check("test", "test", "true")); out.Result.Skip != 1 || out.Result.Unchecked != 0 {
+		t.Errorf("disabled: %+v, want 1 skip and 0 unchecked", out.Result)
+	}
+	if out := r.stop(r.check("typecheck", "typecheck", "no-such-tsc --noEmit")); out.Result.Unchecked != 1 {
+		t.Errorf("not installed: %+v, want 1 unchecked", out.Result)
+	}
+}
+
 func TestAHungCheckTimesOutAsASkipWithItsChildren(t *testing.T) {
 	t.Parallel()
 	r := newRepo(t, "repo")

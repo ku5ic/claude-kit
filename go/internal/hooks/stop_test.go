@@ -675,6 +675,14 @@ func TestStopChecks(t *testing.T) {
 			t.Errorf("checks ran %d times, want 5: a failure is never reused", runs())
 		}
 	})
+	t.Run("a pass whose only skip is a disabled check is reused", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		e.k.overlay("disabled_checks: [lint]\n")
+		e.turn("Edit", e.path("a.ts"))
+		e.stop(false).Want(t, 0)
+		e.stop(false).Has(t, `"systemMessage":"kit stop: skipped, these checks already passed on this tree"`)
+	})
 	t.Run("a question-only turn after a full gate stays silent", func(t *testing.T) {
 		t.Parallel()
 		e := stopSetup(t)

@@ -104,6 +104,8 @@ type tally struct {
 
 func (t *tally) record(g enforce.Gate, o outcome) {
 	switch {
+	case g.Settled():
+		t.skipped(g.Label, g.Skip)
 	case g.Skip != "":
 		t.skip(g.Label, g.Skip)
 	case o.crashed:
