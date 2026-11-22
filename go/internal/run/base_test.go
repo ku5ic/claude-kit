@@ -5,7 +5,13 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
+
+	"github.com/ku5ic/claude-kit/go/internal/cache"
+	"github.com/ku5ic/claude-kit/go/internal/git"
+	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
 
 // archive is a tar of entries, each a symlink when link is set, else a
@@ -79,4 +85,39 @@ func TestUntarKeepsTheBaseTreeInsideItsDir(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+}
+
+// Two runs on one base, a main-session Stop and a subagent's, share its
+// tree: the second waits for the first's unpack instead of deleting it.
+func TestUnpackWaitsForAnotherRunsUnpack(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	testutil.Put(t, root, "a.txt", "a")
+	testutil.Git(t, root, "init", "-q")
+	testutil.Git(t, root, "add", ".")
+	testutil.Git(t, root, "commit", "-qm", "a")
+	sha, err := git.Output(root, "rev-parse", "HEAD")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := &Base{Root: root, SHA: strings.TrimSpace(sha), CacheDir: t.TempDir()}
+	unlock, err := cache.Lock(t.Context(), b.dir()+".lock")
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() { done <- b.unpack() }()
+	select {
+	case err := <-done:
+		unlock()
+		t.Fatalf("unpack ran while another run held the base (err %v)", err)
+	case <-time.After(300 * time.Millisecond):
+	}
+	unlock()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(b.dir(), "a.txt")); err != nil {
+		t.Error(err)
+	}
 }

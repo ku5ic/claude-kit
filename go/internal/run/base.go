@@ -2,6 +2,7 @@ package run
 
 import (
 	"archive/tar"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -13,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/enforce"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
@@ -88,9 +90,18 @@ func (b *Base) output(g enforce.Gate, timeout time.Duration) (string, bool) {
 }
 
 // unpack writes SHA's tree to dir once, through git archive, so the repo
-// gets no worktree of the kit's.
+// gets no worktree of the kit's. The lock keeps a second run (a subagent's
+// Stop beside the main session's) from deleting a tree mid-extract.
 func (b *Base) unpack() error {
 	done := b.dir() + ".done"
+	if fsx.IsFile(done) {
+		return nil
+	}
+	unlock, err := cache.Lock(context.Background(), b.dir()+".lock")
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	if fsx.IsFile(done) {
 		return nil
 	}
