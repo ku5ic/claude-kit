@@ -284,6 +284,52 @@ func TestEvidenceKeepsEveryPromptWhole(t *testing.T) {
 	}
 }
 
+// A result a pending statement names is kept past the cap, with its call,
+// whatever its age; the rest fills newest first.
+func TestEvidenceKeepsAResultTheTextNames(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, input, result, text string
+	}{
+		{"a path its call read", `{"file_path":"/r/go/internal/claims/refs.go"}`, "old-marker", "The cap is in go/internal/claims/refs.go."},
+		{"a file:line's path", `{"file_path":"/r/go/internal/claims/refs.go"}`, "old-marker", "The cap is set at `go/internal/claims/refs.go:42`."},
+		{"a SHA its result shows", `{}`, "8888325 old-marker", "The ledger landed in 8888325 last week."},
+		{"a backticked symbol", `{}`, "func evidenceCap() old-marker", "The `evidenceCap` constant caps it."},
+		{"a number", `{}`, "300000 old-marker", "The cap is 300000 bytes in all."},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			content, _ := json.Marshal(tc.result)
+			entries := []transcript.Entry{
+				{Type: "assistant", Blocks: []transcript.Block{{Type: "tool_use", ID: "r0", Name: "Read", RawInput: json.RawMessage(tc.input)}}},
+				{Type: "user", Blocks: []transcript.Block{{Type: "tool_result", ToolUseID: "r0", Content: content}}},
+			}
+			for range 40 {
+				entries = append(entries, result(t, strings.Repeat("x", 10000)))
+			}
+			got := evidence(entries, tc.text, false)
+			if !strings.Contains(got, "old-marker") || !strings.Contains(got, "#### Tool Read") {
+				t.Errorf("evidence lacks the named result or its call")
+			}
+			if len(got) > evidenceCap+1000 {
+				t.Errorf("evidence is %d bytes, cap %d", len(got), evidenceCap)
+			}
+		})
+	}
+}
+
+// Named results past the cap are cut too, oldest first.
+func TestEvidenceCapsNamedResults(t *testing.T) {
+	t.Parallel()
+	var entries []transcript.Entry
+	for range 40 {
+		entries = append(entries, result(t, strings.Repeat("x", 10000)+" 300000"))
+	}
+	if got := evidence(entries, "The cap is 300000 bytes in all.", false); len(got) > evidenceCap+1000 {
+		t.Errorf("evidence is %d bytes, cap %d", len(got), evidenceCap)
+	}
+}
+
 func TestEvidenceClipsTheText(t *testing.T) {
 	t.Parallel()
 	got := evidence(nil, strings.Repeat("The page says hello. ", 200000), false)

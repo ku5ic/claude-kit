@@ -352,15 +352,21 @@ const schema = `{"type":"object","additionalProperties":false,"required":["ok","
 	`"required":["claim","check"],"properties":{"claim":{"type":"string"},"check":{"type":"string"}}}}}}`
 
 // evidence is the verifier's input: the session's prompts, tool calls,
-// and results, oldest first, then text. Prompts are always whole; past
-// evidenceCap, the oldest of the rest are cut.
+// and results, oldest first, then text. Prompts are always whole. Within
+// evidenceCap, each call and result naming what text names (namedIn) is
+// kept first, newest first, then the rest newest first until one doesn't
+// fit, so every item cut is older than every one kept for its age.
 // A forked skill's task is its first meta prompt, kept when forked.
 func evidence(entries []transcript.Entry, text string, forked bool) string {
 	type item struct {
-		text        string
-		prompt, cut bool
+		text              string
+		id                string // a tool call's, or the call's a result answers
+		prompt, named, in bool
 	}
-	names := map[string]string{} // tool_use id -> tool name
+	names := map[string]string{}  // tool_use id -> tool name
+	inputs := map[string]string{} // tool_use id -> its raw input
+	tokens := namedIn(text)
+	namedIDs := map[string]bool{}
 	var items []item
 	add := func(text string) { items = append(items, item{text: text}) }
 	for _, e := range entries {
@@ -377,12 +383,17 @@ func evidence(entries []transcript.Entry, text string, forked bool) string {
 		case e.Type == "user":
 			for _, b := range e.Blocks {
 				if b.Type == "tool_result" {
-					name := names[b.ToolUseID]
+					name, out := names[b.ToolUseID], b.ResultText()
 					// A subagent's report is claims of its own, not a read.
-					if name == "Agent" {
+					report := name == "Agent"
+					if report {
 						name += " (not evidence)"
 					}
-					add(fmt.Sprintf("#### Result of %s\n\n%s", name, clip(b.ResultText(), resultCap)))
+					named := !report && slices.ContainsFunc(tokens, func(t string) bool {
+						return strings.Contains(inputs[b.ToolUseID], t) || strings.Contains(out, t)
+					})
+					namedIDs[b.ToolUseID] = namedIDs[b.ToolUseID] || named
+					items = append(items, item{text: fmt.Sprintf("#### Result of %s\n\n%s", name, clip(out, resultCap)), id: b.ToolUseID, named: named})
 				}
 			}
 		case e.Type == "assistant":
@@ -391,28 +402,44 @@ func evidence(entries []transcript.Entry, text string, forked bool) string {
 				case "text":
 					add("### Assistant text (not evidence)\n\n" + clip(b.Text, assistCap))
 				case "tool_use":
-					names[b.ID] = b.Name
-					add(fmt.Sprintf("#### Tool %s\n\nInput: %s", b.Name, clip(string(b.RawInput), inputCap)))
+					names[b.ID], inputs[b.ID] = b.Name, string(b.RawInput)
+					items = append(items, item{text: fmt.Sprintf("#### Tool %s\n\nInput: %s", b.Name, clip(string(b.RawInput), inputCap)), id: b.ID})
 				}
 			}
 		}
 	}
-	size := 0
-	for _, it := range items {
+	budget := evidenceCap
+	for i, it := range items {
+		items[i].named = it.named || it.id != "" && namedIDs[it.id]
+		items[i].in = it.prompt
 		if it.prompt {
-			size += len(it.text) + 2
+			budget -= len(it.text) + 2
 		}
 	}
-	cut := 0
+	fits := func(it item) bool {
+		if size := len(it.text) + 2; size <= budget {
+			budget -= size
+			return true
+		}
+		return false
+	}
 	for i := len(items) - 1; i >= 0; i-- {
-		if items[i].prompt {
+		if items[i].named && !items[i].prompt {
+			items[i].in = fits(items[i])
+		}
+	}
+	for i := len(items) - 1; i >= 0; i-- {
+		if items[i].prompt || items[i].named {
 			continue
 		}
-		if cut == 0 {
-			size += len(items[i].text) + 2
+		if !fits(items[i]) {
+			break
 		}
-		if cut > 0 || size > evidenceCap {
-			items[i].cut = true
+		items[i].in = true
+	}
+	cut := 0
+	for _, it := range items {
+		if !it.in {
 			cut++
 		}
 	}
@@ -422,12 +449,33 @@ func evidence(entries []transcript.Entry, text string, forked bool) string {
 		fmt.Fprintf(&b, "[%d older items cut]\n\n", cut)
 	}
 	for _, it := range items {
-		if !it.cut {
+		if it.in {
 			b.WriteString(it.text + "\n\n")
 		}
 	}
 	b.WriteString("## Text to verify\n\n" + clip(text, textCap) + "\n")
 	return b.String()
+}
+
+// manyDigits is a number of two digits or more; a single digit is in
+// nearly every result.
+var manyDigits = regexp.MustCompile(`\b\d{2,}\b`)
+
+// namedIn is what text names that a tool call or result can show: each
+// backticked span, each path, file:line's path, and SHA outside them, and
+// each number of two digits or more.
+func namedIn(text string) []string {
+	var out []string
+	for _, m := range backticked.FindAllStringSubmatch(text, -1) {
+		out = append(out, lineSuffix.ReplaceAllString(m[1], ""))
+	}
+	for word := range strings.FieldsSeq(backticked.ReplaceAllString(text, " ")) {
+		word = strings.Trim(word, `.,;:!()[]"'|-*+#>`)
+		if strings.Contains(word, "/") || citation.MatchString(word) || isSHA(word) {
+			out = append(out, lineSuffix.ReplaceAllString(word, ""))
+		}
+	}
+	return slices.DeleteFunc(append(out, manyDigits.FindAllString(text, -1)...), func(t string) bool { return t == "" })
 }
 
 // clip is s cut to limit bytes, with a note of what was cut.
