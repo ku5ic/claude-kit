@@ -92,12 +92,12 @@ Nothing is posted until you run `/pr-publish` on a draft you've read.
 
 Each agent is a subagent with one job, the tools for it, and a boundary it keeps: the debugger hands the fix back instead of applying it, and the tester never changes the code to make a test pass. Claude starts them itself, or you can ask for one by name.
 
-| When you need                                      | Agent               | What it does                                                                                 |
-| -------------------------------------------------- | ------------------- | -------------------------------------------------------------------------------------------- |
-| Most `audit-*` commands                            | `kit:auditor`       | Runs the audit read-only and writes the report                                               |
-| To find where and why something breaks             | `kit:debugger`      | Localizes the fault with at most one probe edit. Hands the fix back                          |
-| One fact: precedent, tests, or history             | `kit:gatherer`      | Answers with `file:line` only, never opinions                                                |
-| A plan attacked before you approve it              | `kit:plan-critic`   | Reads the plan against the real repo                                                         |
-| A text's claims checked before anyone relies on it | `kit:claim-checker` | Reports each claim nothing confirms, with the check that would settle it. A hook asks for it |
-| Library docs or a web page                         | `kit:researcher`    | Looks them up, keeping network access out of code work                                       |
-| Tests for recent work                              | `kit:tester`        | Adds or updates them and runs them. Never changes the code to make them pass                 |
+| When you need                                      | Agent               | What it does                                                                                                                                                 |
+| -------------------------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Most `audit-*` commands                            | `kit:auditor`       | Runs the audit read-only and writes the report                                                                                                               |
+| To find where and why something breaks             | `kit:debugger`      | Localizes the fault with at most one probe edit. Hands the fix back                                                                                          |
+| One fact: precedent, tests, or history             | `kit:gatherer`      | Answers with `file:line` only, never opinions                                                                                                                |
+| A plan attacked before you approve it              | `kit:plan-critic`   | Reads the plan against the real repo                                                                                                                         |
+| A text's claims checked before anyone relies on it | `kit:claim-checker` | Reports each claim nothing confirms, with the check that would settle it. Run when you ask for a fact-check; the claims hook uses its prompt for its own run |
+| Library docs or a web page                         | `kit:researcher`    | Looks them up, keeping network access out of code work                                                                                                       |
+| Tests for recent work                              | `kit:tester`        | Adds or updates them and runs them. Never changes the code to make them pass                                                                                 |
