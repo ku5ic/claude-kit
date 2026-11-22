@@ -179,3 +179,21 @@ func TestMergedListsSettingsAmongTheSources(t *testing.T) {
 		t.Errorf("missing %q in:\n%s", want, out)
 	}
 }
+
+// A picker value outside its list prints as the fallback that runs, not as
+// typed; Load's warning names the typed one.
+func TestMergedPrintsThePickerValueThatApplies(t *testing.T) {
+	p := optionPaths(t, "step_pause: step\n", "",
+		`{"pluginConfigs": {"kit@market": {"options": {"step_pause": "sometimes"}}}}`)
+	merged, err := Merged(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := yaml.Marshal(merged)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "step_pause: step # kit.yml, settings.json"; !strings.Contains(string(out), want) {
+		t.Errorf("missing %q in:\n%s", want, out)
+	}
+}

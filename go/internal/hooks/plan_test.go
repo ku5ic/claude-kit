@@ -47,6 +47,9 @@ func TestPlanStepPause(t *testing.T) {
 		r := approve(k, proj, "s1")
 		r.Want(t, 0)
 		r.Has(t, `"hookEventName":"PostToolUse"`, "plan-new.md is approved under step_pause: step. Its first unchecked step is this turn's whole scope")
+		// step_pause may come from /config, the overlay, or a preset, so the
+		// line names no one file.
+		r.Has(t, "(step_pause; kit config names the file that set it;")
 	})
 	t.Run("with plansDirectory unset and no project plans dir, the plan in ~/.claude/plans is named", func(t *testing.T) {
 		t.Parallel()

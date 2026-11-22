@@ -129,7 +129,7 @@ var (
 	}
 )
 
-const pauseSource = " (kit.yml step_pause, skills/kit-rules/reference/workflow.md section 3)."
+const pauseSource = " (step_pause; kit config names the file that set it; skills/kit-rules/reference/workflow.md section 3)."
 
 // planFile is the session's kind file (plan-active, plan-ticks) for the work
 // tree holding dir, keyed by its root too, so one session can run a plan in

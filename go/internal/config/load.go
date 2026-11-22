@@ -264,7 +264,8 @@ func (p Paths) presetFile(name string) string {
 }
 
 // Merged returns the effective merged document, for `kit config`: each
-// top-level key carries a line comment naming the files that set it.
+// top-level key carries a line comment naming the files that set it, and a
+// picker key shows the value in force.
 func Merged(p Paths) (*yaml.Node, error) {
 	base, err := readNode(p.Base)
 	if err != nil {
@@ -284,6 +285,14 @@ func Merged(p Paths) (*yaml.Node, error) {
 	}
 	for _, l := range layers {
 		mergeNode(base, l.node)
+	}
+	var cfg Config
+	if base.Decode(&cfg) == nil {
+		for _, p := range cfg.pickers() {
+			if value := mappingValue(base, p.key); value != nil && p.value != p.pick() {
+				value.Value = p.pick()
+			}
+		}
 	}
 	for i := 0; i+1 < len(base.Content); i += 2 {
 		key, value := base.Content[i], base.Content[i+1]
