@@ -108,9 +108,17 @@ jobs:
           ts="$(jq -r '.contents[].warnings[].message | select(startswith("error TS"))' <<<"$out")"
           [ -z "$ts" ] || { echo "$ts"; exit 1; }
 
-      # The style is mods/.prettierrc.json; with no package.json, the version is pinned here.
+      # The style is mods/.prettierrc.json, the version mods/pnpm-lock.yaml.
+      - name: Install pnpm
+        run: npm install -g "$(jq -r .packageManager mods/package.json)"
+
+      - name: Install mods dev tools
+        working-directory: mods
+        run: pnpm install --frozen-lockfile
+
       - name: prettier check mods
-        run: npx --yes prettier@3.9.6 --check mods
+        working-directory: mods
+        run: pnpm run format:check
 
       # claude plugin test runs only from a plugin root, and from this one it
       # would also run the codegraph fixture's main.test.ts, so it tests a copy.
