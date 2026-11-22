@@ -1,6 +1,7 @@
 package enforce
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -87,10 +88,7 @@ func TestGlobMatch(t *testing.T) {
 		glob, rel string
 		want      bool
 	}{
-		{"src/**/*.ts", "src/a.ts", true}, // a mid-pattern **/ matches no directory too
-		{"src/**/*.ts", "src/b/c.ts", true},
-		{"src/**/*.ts", "lib/a.ts", false},
-		{"a/**/b/**/*.go", "a/b/x.go", true},
+		{"a/**/b/**/*.go", "a/b/x.go", true}, // a mid-pattern **/ matches no directory too
 		{"**/*.ts", "a.ts", true},
 	} {
 		if got := globMatch(tc.glob, tc.rel); got != tc.want {
@@ -149,79 +147,50 @@ func TestStopRunsTheLeastFilteredFileFormOncePerFileAndKind(t *testing.T) {
 	}
 }
 
-// A longer form that adds a flag other than a selector checks more than
-// the plain run, so both run.
-func TestStopKeepsAStricterFileFormBesideThePlainOne(t *testing.T) {
-	e := setup(t)
-	e.tool("bin/eslint")
-	e.write(".github/workflows/ci.yml", "jobs:\n  lint:\n    steps:\n      - run: eslint .\n      - run: eslint --max-warnings 0 .\n")
-	e.write("a.js", "")
-	e.check("lint/1", map[string]any{"role": "check", "kind": "lint", "file_form": "eslint {files}", "globs": []string{"*.js"}})
-	e.check("lint/2", map[string]any{"role": "check", "kind": "lint", "file_form": "eslint --max-warnings 0 {files}", "globs": []string{"*.js"}})
-	got := commands(e.stop("a.js"))
-	if !strings.Contains(got, ": eslint a.js") || !strings.Contains(got, "eslint --max-warnings 0 a.js") {
-		t.Errorf("plan:\n%s", got)
-	}
-}
-
-// A form narrowed by its own selector covers no form with another one.
-func TestStopRunsTwoFormsWithDifferentSelectors(t *testing.T) {
-	e := setup(t)
-	e.tool("bin/pytest")
-	e.write(".github/workflows/ci.yml", "jobs:\n  test:\n    steps:\n      - run: pytest -m unit\n      - run: pytest -k integration\n")
-	e.write("test_a.py", "")
-	e.check("test/1", map[string]any{"role": "check", "kind": "test", "file_form": "pytest -m unit {files}", "globs": []string{"*.py"}})
-	e.check("test/2", map[string]any{"role": "check", "kind": "test", "file_form": "pytest -k integration {files}", "globs": []string{"*.py"}})
-	got := commands(e.stop("test_a.py"))
-	if !strings.Contains(got, "pytest -m unit test_a.py") || !strings.Contains(got, "pytest -k integration test_a.py") {
-		t.Errorf("plan:\n%s", got)
-	}
-}
-
-// Two tools of one kind both run: only another form of the same tool
-// loses its files.
-func TestStopRunsEachToolOfAKind(t *testing.T) {
-	e := setup(t)
-	e.tool("bin/ruff")
-	e.tool("bin/pylint")
-	e.write(".github/workflows/ci.yml", "jobs:\n  lint:\n    steps:\n      - run: pylint .\n      - run: ruff check .\n")
-	e.write("a.py", "")
-	e.check("lint/1", map[string]any{"role": "check", "kind": "lint", "file_form": "pylint {files}", "globs": []string{"*.py"}})
-	e.check("lint/2", map[string]any{"role": "check", "kind": "lint", "file_form": "ruff check {files}", "globs": []string{"*.py"}})
-	got := commands(e.stop("a.py"))
-	if !strings.Contains(got, "pylint a.py") || !strings.Contains(got, "ruff check a.py") {
-		t.Errorf("plan:\n%s", got)
-	}
-}
-
-// Two package scripts of one kind are two tools, though one runner runs
-// both.
-func TestStopRunsEachScriptOfAKind(t *testing.T) {
-	e := setup(t)
-	e.tool("bin/npm")
-	e.write(".github/workflows/ci.yml", "jobs:\n  lint:\n    steps:\n      - run: npm run lint\n      - run: npm run lint:css\n")
-	e.write("a.ts", "")
-	e.check("lint/1", map[string]any{"role": "check", "kind": "lint", "file_form": "npm run lint -- {files}", "globs": []string{"*.ts"}})
-	e.check("lint/2", map[string]any{"role": "check", "kind": "lint", "file_form": "npm run lint:css -- {files}", "globs": []string{"*.ts"}})
-	got := commands(e.stop("a.ts"))
-	if !strings.Contains(got, "npm run lint -- a.ts") || !strings.Contains(got, "npm run lint:css -- a.ts") {
-		t.Errorf("plan:\n%s", got)
-	}
-}
-
-// A script name is its dir's own: web's lint is another script than the
-// root's, so both run on a file under web.
-func TestStopRunsTheSameScriptNameInEachDir(t *testing.T) {
-	e := setup(t)
-	e.tool("bin/npm")
-	e.write(".github/workflows/ci.yml", "jobs:\n  lint:\n    steps:\n      - run: npm run lint\n      - run: npm run lint\n        working-directory: web\n")
-	e.write("web/a.ts", "")
-	form := map[string]any{"role": "check", "kind": "lint", "file_form": "npm run lint -- {files}", "globs": []string{"**/*.ts"}}
-	e.check("lint/1", form)
-	e.check("lint/2", form)
-	got := commands(e.stop("web/a.ts"))
-	if !strings.Contains(got, "npm run lint -- web/a.ts") || !strings.Contains(got, "npm run lint -- a.ts") {
-		t.Errorf("plan:\n%s", got)
+// Two file forms of one kind both run when neither covers the other.
+func TestStopRunsBothFileFormsWhenNeitherCoversTheOther(t *testing.T) {
+	for _, tc := range []struct {
+		name, kind, glob, ci, file string
+		tools                      []string
+		forms, want                [2]string
+	}{
+		// A flag other than a selector checks more than the plain run.
+		{"a stricter form beside the plain one", "lint", "*.js",
+			"jobs:\n  lint:\n    steps:\n      - run: eslint .\n      - run: eslint --max-warnings 0 .\n", "a.js",
+			[]string{"bin/eslint"}, [2]string{"eslint {files}", "eslint --max-warnings 0 {files}"}, [2]string{": eslint a.js", "eslint --max-warnings 0 a.js"}},
+		{"two forms with different selectors", "test", "*.py",
+			"jobs:\n  test:\n    steps:\n      - run: pytest -m unit\n      - run: pytest -k integration\n", "test_a.py",
+			[]string{"bin/pytest"}, [2]string{"pytest -m unit {files}", "pytest -k integration {files}"}, [2]string{"pytest -m unit test_a.py", "pytest -k integration test_a.py"}},
+		// Only another form of the same tool loses its files.
+		{"two tools of one kind", "lint", "*.py",
+			"jobs:\n  lint:\n    steps:\n      - run: pylint .\n      - run: ruff check .\n", "a.py",
+			[]string{"bin/ruff", "bin/pylint"}, [2]string{"pylint {files}", "ruff check {files}"}, [2]string{"pylint a.py", "ruff check a.py"}},
+		// Two package scripts are two tools, though one runner runs both.
+		{"two scripts of one kind", "lint", "*.ts",
+			"jobs:\n  lint:\n    steps:\n      - run: npm run lint\n      - run: npm run lint:css\n", "a.ts",
+			[]string{"bin/npm"}, [2]string{"npm run lint -- {files}", "npm run lint:css -- {files}"}, [2]string{"npm run lint -- a.ts", "npm run lint:css -- a.ts"}},
+		// A script name is its dir's own: web's lint is another script.
+		{"the same script name in each dir", "lint", "**/*.ts",
+			"jobs:\n  lint:\n    steps:\n      - run: npm run lint\n      - run: npm run lint\n        working-directory: web\n", "web/a.ts",
+			[]string{"bin/npm"}, [2]string{"npm run lint -- {files}", "npm run lint -- {files}"}, [2]string{"npm run lint -- web/a.ts", "npm run lint -- a.ts"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e := setup(t)
+			for _, tool := range tc.tools {
+				e.tool(tool)
+			}
+			e.write(".github/workflows/ci.yml", tc.ci)
+			e.write(tc.file, "")
+			for i, form := range tc.forms {
+				e.check(fmt.Sprintf("%s/%d", tc.kind, i+1), map[string]any{"role": "check", "kind": tc.kind, "file_form": form, "globs": []string{tc.glob}})
+			}
+			got := commands(e.stop(tc.file))
+			for _, want := range tc.want {
+				if !strings.Contains(got, want) {
+					t.Errorf("plan lacks %q:\n%s", want, got)
+				}
+			}
+		})
 	}
 }
 

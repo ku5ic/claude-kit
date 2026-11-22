@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
+	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
 
 func chatStop(reply string) map[string]any {
@@ -21,7 +22,7 @@ func TestChatSlop(t *testing.T) {
 		k.run("chat-slop", chatStop("Done. "+tell)).Empty(t)
 		r := k.run("chat-slop", chatPrompt)
 		r.Want(t, 0)
-		r.Has(t, `\"I hope this helps\" -> cut it`, "slop-patterns")
+		r.Has(t, `The last reply held AI tells: \"I hope this helps\" -> cut it`, "A synonym keeps the tell", "slop-patterns")
 		k.run("chat-slop", chatPrompt).Empty(t)
 	})
 	t.Run("tells from every Stop before the prompt are named, each once", func(t *testing.T) {
@@ -59,4 +60,25 @@ func TestChatSlop(t *testing.T) {
 			}
 		}
 	})
+}
+
+// A reply is on screen before Stop runs, so a reference in it that doesn't
+// resolve is corrected on the next prompt, in context the user never sees.
+func TestChatClaims(t *testing.T) {
+	t.Parallel()
+	k := newSandbox(t)
+	dir := repo(t, t.TempDir())
+	testutil.Put(t, dir, "src/stop.go", "a\nb\n")
+	reply := func(text string) map[string]any {
+		p := chatStop(text)
+		p["cwd"] = dir
+		return p
+	}
+	k.run("chat-claims", reply("See `src/stop.go:40`.")).Empty(t)
+	r := k.run("chat-claims", chatPrompt)
+	r.Has(t, "src/stop.go:40", "Open your next reply with the corrected fact")
+	r.Lacks(t, "systemMessage")
+	k.run("chat-claims", chatPrompt).Empty(t)
+	k.run("chat-claims", reply("See `src/stop.go:2`.")).Empty(t)
+	k.run("chat-claims", chatPrompt).Empty(t)
 }

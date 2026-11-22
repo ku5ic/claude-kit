@@ -21,7 +21,7 @@ Stack: <the language lines kit detect-stack prints, if applicable>
 
 - **<Health word>.** <counts by severity, e.g. "2 failures, 3 warnings">
 - <the one thing to act on first, with its location>
-- <at most one more: the biggest risk, or what wasn't checked>
+- <at most one more: the biggest risk, or the first runtime check to run>
 
 ---
 
@@ -31,7 +31,7 @@ Stack: <the language lines kit detect-stack prints, if applicable>
 
 <One sentence: what's wrong, at `file:line` or the region.>
 
-- **Evidence:** <what was checked and what it showed: a count, a repro and its rate, a quoted line>
+- **Evidence:** <the `file:line` read or the command run, in backticks, then what it showed: a count, a repro and its rate, a quoted line>
 - **Why it matters:** <one sentence>
 - **Fix:** <code snippet or concrete instruction>
 - **Refs:** <WCAG criterion, CVE, doc link, etc., if relevant>
@@ -42,9 +42,9 @@ Stack: <the language lines kit detect-stack prints, if applicable>
 
 ---
 
-## Cannot be verified statically
+## Needs a runtime check
 
-<Items that need runtime checks, user testing, or external tools. Omit section if empty.>
+<Each check that needs a running system, user testing, or an external tool, named as the check to run. Omit section if empty.>
 
 ## Out of scope
 
@@ -75,6 +75,15 @@ The reader skims and may stop after the TL;DR. This section holds for every repo
 - No emoji. ASCII decoration: `skills/kit-rules/reference/change.md` section 5.
 - Where a report goes: `skills/kit-rules/reference/output.md` section 3.
 - Does not govern `write-*` or `pr-*` output (commit messages, release notes, stakeholder summaries, PR descriptions, review comments); those have their own formats per `skills/kit-rules/reference/output.md`.
+
+## Runtime checks
+
+An `audit-*` skill that dispatched `kit:auditor` runs these after its report, in the main session, since the auditor can't ask. A report with nothing under "Needs a runtime check" skips them.
+
+1. Name the command that runs each item: the project's own first (a test task, its axe or Storybook a11y run, a benchmark script), then the one the audit's references or the stack's pattern skill name.
+2. Offer only a check that reads: `tofu plan`, axe on a page already running, `actionlint`, a benchmark on this machine. Never an `apply`, an install, a config change, a deploy, or load on a shared target.
+3. Ask once with AskUserQuestion (`skills/kit-rules/reference/workflow.md` section 4), one option per check, each with its command and what it touches: a server it starts, a file it writes such as `.terraform/`, the database a query runs against.
+4. Run each approved check. One that ran becomes a finding, or joins one, with its command and output as Evidence, and leaves "Needs a runtime check". One not approved stays there.
 
 ## Health word
 

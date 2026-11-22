@@ -62,7 +62,7 @@ func TestEditFallsBackToTheEvidenceFormatter(t *testing.T) {
 	e.write("b.py", "")
 	e.write("c.txt", "")
 	e.proposals = []map[string]any{fixerProposal("prettier --write", ".prettierrc", "*.ts"), fixerProposal("ruff format", "pyproject.toml", "**/*.py")}
-	if got := commands(e.edit("src/a.ts")); got != "fix (evidence .prettierrc): prettier --write src/a.ts" {
+	if got := commands(e.edit("src/a.ts")); got != "fix (evidence .prettierrc): prettier --write --ignore-unknown src/a.ts" {
 		t.Errorf("ts:\n%s", got)
 	}
 	if got := commands(e.edit("b.py")); got != "fix (evidence pyproject.toml): ruff format b.py" {

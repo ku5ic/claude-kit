@@ -74,6 +74,22 @@ func TestGuardSlop(t *testing.T) {
 	}
 }
 
+// An edit's slop deny names the allow marker, and a file's third flagged
+// edit in a session goes through, so a false positive can't loop.
+func TestGuardSlopDeniesAFileTwiceAtMost(t *testing.T) {
+	t.Parallel()
+	k := newSandbox(t)
+	path := filepath.Join(testutil.Physical(t, t.TempDir()), "doc.md")
+	write := func() result {
+		return k.run("guard-slop", slopCall("Write", path, map[string]any{"content": tell + "\n"}))
+	}
+	first := write()
+	first.Denied(t)
+	first.Has(t, "unslop: allow")
+	write().Denied(t)
+	write().Allowed(t)
+}
+
 func TestGuardSlopLogs(t *testing.T) {
 	t.Parallel()
 	t.Run("a dense tier 3 passage logs its rule, path, line and match", func(t *testing.T) {

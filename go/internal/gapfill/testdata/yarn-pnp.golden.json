@@ -3,18 +3,23 @@
   "structured_output": {
     "entries": [
       {
-        "id": "b37565bccd3c2954",
+        "id": "14b6978add98cda7",
         "role": "check",
-        "kind": "test",
         "mutates": false,
-        "file_form": "jest {files}",
-        "globs": [
-          "**/*.{test,spec}.{js,jsx,ts,tsx,mjs,cjs}"
+        "segments": [
+          {
+            "text": "prettier --check .",
+            "role": "check",
+            "kind": "format-check"
+          }
         ],
-        "affected_form": "jest --changedSince={base}"
+        "also_kinds": [
+          "lint",
+          "format-check"
+        ]
       },
       {
-        "id": "bf9539fc4e21c7ab",
+        "id": "a0ef91378e640f64",
         "role": "check",
         "kind": "lint",
         "mutates": false,
@@ -24,16 +29,15 @@
         ]
       },
       {
-        "id": "e39e3355c80a98a1",
+        "id": "c26898345ab1c02e",
         "role": "check",
+        "kind": "test",
         "mutates": false,
-        "segments": [
-          {
-            "text": "prettier --check .",
-            "role": "check",
-            "kind": "format-check"
-          }
-        ]
+        "file_form": "jest {files}",
+        "globs": [
+          "**/*.{test,spec}.{js,jsx,ts,tsx,mjs,cjs}"
+        ],
+        "affected_form": "jest --changedSince={base}"
       }
     ],
     "managers": [
@@ -41,7 +45,7 @@
         "dir": ".",
         "cites": "yarn.lock",
         "manager": "yarn",
-        "run_prefix": "yarn exec",
+        "run_prefix": "yarn",
         "add_verbs": [
           "yarn add"
         ],
@@ -57,45 +61,45 @@
       {
         "role": "check",
         "kind": "lint",
-        "command": "yarn exec eslint --max-warnings=0 .",
-        "file_form": "yarn exec eslint --max-warnings=0 {files}",
+        "command": "yarn eslint .",
+        "file_form": "yarn eslint {files}",
         "globs": [
-          "**/*.{js,jsx,ts,tsx,mjs,cjs}"
+          "**/*.{js,jsx,mjs,cjs,ts,tsx}"
         ],
         "dir": ".",
-        "evidence": "package.json"
+        "evidence": "package.json (devDependencies: eslint; scripts.lint)"
       },
       {
         "role": "check",
         "kind": "test",
-        "command": "yarn exec jest",
-        "file_form": "yarn exec jest {files}",
+        "command": "yarn jest",
+        "file_form": "yarn jest {files}",
         "globs": [
-          "**/*.{test,spec}.{js,jsx,ts,tsx,mjs,cjs}"
+          "**/*.{test,spec}.{js,jsx,mjs,cjs,ts,tsx}"
         ],
         "dir": ".",
-        "evidence": "package.json"
+        "evidence": "package.json (devDependencies: jest; scripts.test)"
       },
       {
         "role": "check",
         "kind": "format-check",
-        "command": "yarn exec prettier --check .",
-        "file_form": "yarn exec prettier --check {files}",
+        "command": "yarn prettier --check .",
+        "file_form": "yarn prettier --check {files}",
         "globs": [
-          "**/*"
+          "**/*.{js,jsx,mjs,cjs,ts,tsx,json,md,yml,yaml,css,html}"
         ],
         "dir": ".",
-        "evidence": ".prettierrc"
+        "evidence": "package.json (devDependencies: prettier); .prettierrc"
       },
       {
         "role": "fixer",
-        "command": "yarn exec prettier --write .",
-        "file_form": "yarn exec prettier --write {files}",
+        "command": "yarn prettier --write .",
+        "file_form": "yarn prettier --write {files}",
         "globs": [
-          "**/*"
+          "**/*.{js,jsx,mjs,cjs,ts,tsx,json,md,yml,yaml,css,html}"
         ],
         "dir": ".",
-        "evidence": ".prettierrc"
+        "evidence": "package.json (devDependencies: prettier); .prettierrc"
       }
     ]
   },

@@ -10,6 +10,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -37,6 +38,8 @@ const (
 	TurnTree     = "turn-tree"
 	Guard        = "guard"
 	Enforce      = "enforce"
+	FailOpen     = "fail-open"
+	Cooldown     = "cooldown"
 )
 
 // Dir is one state dir: its name, what a file in it is, and the days one
@@ -70,6 +73,8 @@ var Dirs = []Dir{
 	{TurnTree, "turn-start work tree snapshot(s)", 1},
 	{Guard, "verifier and classifier run marker(s)", 1},
 	{Enforce, "gap-fill verdict and gate mark file(s)", 30},
+	{FailOpen, "fail-open notice marker(s)", 1},
+	{Cooldown, "failed claude run cooldown file(s)", 1},
 }
 
 // RootKey names a project's files in a state dir: its root hashed, so
@@ -80,10 +85,11 @@ func RootKey(root string) string {
 }
 
 // SessionPath is <cacheDir>/<kind>/<session>[-<part>...]: one session's
-// file. "" for an empty session ID or one holding a path separator, which
-// would land outside kind's dir.
+// file. "" for an empty session ID, or a session ID or part holding a path
+// separator, which would land outside kind's dir: a part can come from a
+// payload, as a tool name or an agent id does.
 func SessionPath(cacheDir, kind, session string, parts ...string) string {
-	if session == "" || strings.ContainsAny(session, `/\`) {
+	if session == "" || slices.ContainsFunc(append([]string{session}, parts...), func(s string) bool { return strings.ContainsAny(s, `/\`) }) {
 		return ""
 	}
 	return filepath.Join(cacheDir, kind, strings.Join(append([]string{session}, parts...), "-"))

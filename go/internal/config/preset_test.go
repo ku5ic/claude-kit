@@ -70,14 +70,49 @@ func TestAPresetFileIsCheckedForUnknownKeys(t *testing.T) {
 	}
 }
 
-func TestABadStepPauseWarns(t *testing.T) {
-	p := presetPaths(t, "step_pause: sometimes\n", "")
-	cfg, warnings, err := Load(p)
-	if err != nil || len(warnings) != 1 || !strings.Contains(warnings[0].Err.Error(), "step_pause") {
-		t.Fatalf("err=%v warnings=%v", err, warnings)
+const replyModes = "reply_limits:\n  modes:\n    terse: {chat: 40, explain: 150}\n    moderate: {chat: 100, explain: 300}\n"
+
+func TestReplyLengthPicksTheModesTargetsAndSlackTheirAllowance(t *testing.T) {
+	for _, tc := range []struct {
+		name, keys                 string
+		chat, explain, allowance40 int
+		warning                    string
+	}{
+		{"a named mode", "reply_length: moderate\nreply_slack: 25%\n", 100, 300, 50, ""},
+		{"none is no slack", "reply_length: terse\nreply_slack: none\n", 40, 150, 40, ""},
+		{"unset is terse at 50%", "", 40, 150, 60, ""},
+		{"an unknown mode warns and is terse", "reply_length: chatty\n", 40, 150, 60, "reply_length"},
+		{"an unknown slack warns and is 50%", "reply_slack: lots\n", 40, 150, 60, "reply_slack"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := presetPaths(t, replyModes+tc.keys, "")
+			cfg, warnings, err := Load(p)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.warning == "" && len(warnings) > 0 || tc.warning != "" && (len(warnings) != 1 || !strings.Contains(warnings[0].Err.Error(), tc.warning)) {
+				t.Errorf("warnings = %v, want %q", warnings, tc.warning)
+			}
+			l := cfg.ReplyLimits
+			if l.Chat != tc.chat || l.Explain != tc.explain || l.Allowance(40) != tc.allowance40 {
+				t.Errorf("chat=%d explain=%d allowance(40)=%d, want %d %d %d", l.Chat, l.Explain, l.Allowance(40), tc.chat, tc.explain, tc.allowance40)
+			}
+		})
 	}
-	if cfg.Pause() != "step" {
-		t.Errorf("Pause() = %q, want the step default", cfg.Pause())
+}
+
+func TestABadPickerValueWarns(t *testing.T) {
+	for key, value := range map[string]string{"step_pause": "sometimes", "receipt": "never"} {
+		t.Run(key, func(t *testing.T) {
+			p := presetPaths(t, key+": "+value+"\n", "")
+			cfg, warnings, err := Load(p)
+			if err != nil || len(warnings) != 1 || !strings.Contains(warnings[0].Err.Error(), key) {
+				t.Fatalf("err=%v warnings=%v", err, warnings)
+			}
+			if cfg.Pause() != "step" || cfg.ReceiptOnFailures() {
+				t.Errorf("Pause() = %q, ReceiptOnFailures() = %v, want the step and all defaults", cfg.Pause(), cfg.ReceiptOnFailures())
+			}
+		})
 	}
 }
 

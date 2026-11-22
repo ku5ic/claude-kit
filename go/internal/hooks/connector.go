@@ -5,6 +5,8 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/attribution"
 	"github.com/ku5ic/claude-kit/go/internal/connector"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
+	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/slop"
 )
@@ -14,7 +16,9 @@ import (
 // slop.block_tiers tier, as guard-pr does for gh. Every string in the
 // tool's input but connectors.code_fields is scanned as one text on the pr
 // surface; a tool that only reads goes through untouched.
-// A GitHub server's tool that doesn't only read blocks first on an AI
+// Each connectors.path_fields value first gets guard-edit's path rules, as
+// a read for a tool that only reads and a write for any other.
+// A GitHub server's tool that doesn't only read blocks next on an AI
 // tool's attribution in any string of its input (kit.yml attribution).
 // PreToolUse for mcp__.*.
 func GuardConnector(h *hook.Hook) error {
@@ -27,7 +31,21 @@ func GuardConnector(h *hook.Hook) error {
 		return nil
 	}
 	tool := p.String(hook.KeyToolName)
-	if strings.Contains(strings.ToLower(connector.Server(tool)), "github") && !connector.IsRead(cfg.Connectors, tool) {
+	reading := connector.IsRead(cfg.Connectors, tool)
+	// A remote server's relative path (a repo file on GitHub) is no local
+	// file; one starting with ~, /, or ./ is taken as local on any server.
+	local := connector.TouchesFiles(cfg.Connectors.PathServers, tool)
+	for _, field := range cfg.Connectors.PathFields {
+		for _, v := range p.Strings(hook.KeyToolInput + "." + field) {
+			if !local && !strings.HasPrefix(v, "~") && !strings.HasPrefix(v, "/") && !strings.HasPrefix(v, "./") {
+				continue
+			}
+			if err := guardPath(h, cfg, tool, fsx.Abs(h.Payload.Cwd(), guard.ExpandHome(h.Home, v)), reading); err != nil {
+				return err
+			}
+		}
+	}
+	if strings.Contains(strings.ToLower(connector.Server(tool)), "github") && !reading {
 		if line, ok := attribution.New(cfg.Attribution).Find(strings.Join(p.Strings(hook.KeyToolInput), "\n")); ok {
 			return h.Block(attribution.Message("the "+tool+" input", line), "ai-attribution")
 		}

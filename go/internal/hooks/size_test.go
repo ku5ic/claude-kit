@@ -14,7 +14,7 @@ func TestCheckSize(t *testing.T) {
 	// would put a short text over if it counted.
 	const long, short = "One two three four five six seven.", "One two three."
 	const fenced = short + "\n\n```\nalpha beta gamma delta epsilon zeta\n```\n"
-	budgets := "size_budgets: {plan: 5, report: 5, scratch: 5, post: 5}\n"
+	budgets := "size_budgets: {plan: 5, report: 5, scratch: 5, post: 5}\nreply_slack: none\n"
 	handback := func(text string) map[string]any {
 		return map[string]any{"hook_event_name": "PreToolUse", "session_id": "s", "agent_id": "a1", "tool_name": "SubagentHandback", "tool_input": map[string]any{"message": text}}
 	}
@@ -25,27 +25,37 @@ func TestCheckSize(t *testing.T) {
 	for _, tc := range []struct {
 		name, where, then string
 		call              func(k *sandbox, text string) map[string]any
+		// rearm: after the rewrite passes, the next text is measured again,
+		// for a post, a new text each time. A subagent's report is sent back
+		// once per agent, and a plan or scratch report, revised in place,
+		// once per session.
+		rearm bool
 	}{
-		{"a handback", "your report", "hand back the shorter report", func(_ *sandbox, text string) map[string]any { return handback(text) }},
+		{"a handback", "your report", "hand back the shorter report", func(_ *sandbox, text string) map[string]any { return handback(text) }, false},
 		{"a plan", "the plan p.md", "call ExitPlanMode again", func(k *sandbox, text string) map[string]any {
 			return toolCall("ExitPlanMode", map[string]any{"plan": text, "planFilePath": filepath.Join(k.home, "proj", ".claude", "plans", "p.md")})
-		}},
+		}, false},
 		{"an investigation report", "explore-x-20261111-1200.md", "write the report again", func(k *sandbox, text string) map[string]any {
 			return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "explore-x-20261111-1200.md"), "content": text})
-		}},
+		}, false},
 		{"a connector post", "the mcp__chat__send_message input", "send it again", func(_ *sandbox, text string) map[string]any {
 			return toolCall("mcp__chat__send_message", map[string]any{"text": text})
-		}},
+		}, true},
 	} {
-		t.Run(tc.name+" over budget is sent back once per text", func(t *testing.T) {
+		t.Run(tc.name+" over budget is sent back once, and its rewrite goes through", func(t *testing.T) {
 			t.Parallel()
 			k := newSandbox(t)
 			k.overlay(budgets)
 			r := k.run("check-size", tc.call(k, long))
 			r.Denied(t)
 			r.Has(t, tc.where+" runs 7 words, over the 5-word budget", tc.then, "or send it unchanged to keep this length", "rule  size")
-			k.run("check-size", tc.call(k, long)).Allowed(t)
-			k.run("check-size", tc.call(k, long+" Eight.")).Denied(t)
+			// A rewrite still over budget is not sent back again.
+			k.run("check-size", tc.call(k, long+" Eight.")).Allowed(t)
+			if third := k.run("check-size", tc.call(k, long)); tc.rearm {
+				third.Denied(t)
+			} else {
+				third.Allowed(t)
+			}
 			k.run("check-size", tc.call(k, fenced)).Allowed(t)
 		})
 	}
@@ -93,6 +103,26 @@ func TestCheckSize(t *testing.T) {
 			k.run("check-size", handback(long+strings.Repeat(" word", 900))).Allowed(t)
 		})
 	}
+	t.Run("a plan within the slack goes through, and one past it is sent back", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		k.overlay("size_budgets: {plan: 4}\nreply_slack: 50%\n")
+		plan := func(text string) map[string]any {
+			return toolCall("ExitPlanMode", map[string]any{"plan": text, "planFilePath": filepath.Join(k.home, "proj", ".claude", "plans", "p.md")})
+		}
+		k.run("check-size", plan("One two three four five six.")).Allowed(t)
+		r := k.run("check-size", plan(long))
+		r.Denied(t)
+		r.Has(t, "runs 7 words, over the 4-word budget")
+	})
+	t.Run("a subagent stop within the slack goes through, and one past it blocks", func(t *testing.T) {
+		t.Parallel()
+		for words, want := range map[string]int{"One two three four five six.": 0, long: 2} {
+			k := newSandbox(t)
+			k.overlay("size_budgets: {report: 4}\nreply_slack: 50%\n")
+			k.run("check-size", stop(words, false)).Want(t, want)
+		}
+	})
 	t.Run("kit.yml's budgets let a short report through", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)

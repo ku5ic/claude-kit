@@ -13,7 +13,7 @@ Surface technical debt inside the target's modules, with severity and remediatio
 
 ## Run
 
-With no target in the arguments, ask for one first, since the auditor can't ask. Resolve a linked ticket or doc as `skills/investigate` step 0 describes, then dispatch the auditor agent (subagent_type: kit:auditor, foreground) with this file's procedure and the resolved arguments. It writes the report; reply per `skills/kit-rules/reference/output.md` section 3.
+With no target in the arguments, ask for one first, since the auditor can't ask. Resolve a linked ticket or doc as `skills/investigate` step 0 describes, then dispatch the auditor agent (subagent_type: kit:auditor, foreground) with this file's procedure and the resolved arguments. It writes the report. Then run the report-format skill's Runtime checks yourself, and reply per `skills/kit-rules/reference/output.md` section 3.
 
 ## Procedure
 

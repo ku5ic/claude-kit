@@ -46,7 +46,10 @@ func TestPlanStepPause(t *testing.T) {
 		testutil.Write(t, filepath.Join(plans, "plan-new.md"), "## Steps\n\n- [x] one\n- [ ] two\n")
 		r := approve(k, proj, "s1")
 		r.Want(t, 0)
-		r.Has(t, `"hookEventName":"PostToolUse"`, "plan-new.md", "first unchecked step")
+		r.Has(t, `"hookEventName":"PostToolUse"`, "plan-new.md is approved under step_pause: step. Its first unchecked step is this turn's whole scope")
+		// step_pause may come from /config, the overlay, or a preset, so the
+		// line names no one file.
+		r.Has(t, "(step_pause; kit config names the file that set it;")
 	})
 	t.Run("with plansDirectory unset and no project plans dir, the plan in ~/.claude/plans is named", func(t *testing.T) {
 		t.Parallel()
@@ -75,7 +78,7 @@ func TestPlanStepPause(t *testing.T) {
 		approve(k, proj, "s1").Want(t, 0)
 		r := prompt(k, proj, "s1")
 		r.Want(t, 0)
-		r.Has(t, "plan-x.md", "next unchecked one")
+		r.Has(t, "plan-x.md", "has open steps. Under step_pause: step, a turn covers the next unchecked step, then review")
 		prompt(k, proj, "other-session").Empty(t)
 		testutil.Write(t, plan, "- [x] one\n")
 		prompt(k, proj, "s1").Empty(t)
@@ -125,9 +128,9 @@ func TestPlanStepPause(t *testing.T) {
 	t.Run("step_pause picks the pause line, from the overlay or the light preset", func(t *testing.T) {
 		t.Parallel()
 		for overlay, want := range map[string][]string{
-			"step_pause: plan\n": {"once for review after the last one", "stop for review when every step is done"},
-			"step_pause: off\n":  {"without stopping for review", "do the next unchecked one"},
-			"preset: light\n":    {"once for review after the last one", "stop for review when every step is done"},
+			"step_pause: plan\n": {"step_pause: plan. Its unchecked steps run in order, and one review follows the last", "a turn covers the next unchecked step, and review waits for the last one"},
+			"step_pause: off\n":  {"step_pause: off. Its unchecked steps run in order, with no review stop", "a turn covers the next unchecked step, with no review stop"},
+			"preset: light\n":    {"step_pause: plan. Its unchecked steps run in order, and one review follows the last", "a turn covers the next unchecked step, and review waits for the last one"},
 		} {
 			k, proj := setup(t)
 			k.overlay(overlay)
@@ -135,7 +138,7 @@ func TestPlanStepPause(t *testing.T) {
 			approve(k, proj, "s1").Has(t, want[0])
 			r := prompt(k, proj, "s1")
 			r.Has(t, "plan-x.md", want[1])
-			r.Lacks(t, "only the next unchecked one")
+			r.Lacks(t, "step_pause: step")
 		}
 	})
 	t.Run("another tool's PostToolUse is silent", func(t *testing.T) {
@@ -171,6 +174,18 @@ func TestGuardPlan(t *testing.T) {
 		r.Denied(t)
 		r.Has(t, "kit:plan-critic", plan)
 		k.run("guard-plan", exit(k, write)).Allowed(t)
+	})
+	t.Run("a transcript that can't be read counts as no critique", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		for _, path := range []string{"", filepath.Join(k.home, "missing.jsonl")} {
+			payload := exit(k, write)
+			payload["transcript_path"] = path
+			r := k.run("guard-plan", payload)
+			r.Denied(t)
+			r.Has(t, "kit:plan-critic")
+			k = newSandbox(t)
+		}
 	})
 	t.Run("a critique after the plan was written, then a revision: allowed", func(t *testing.T) {
 		t.Parallel()
@@ -229,10 +244,52 @@ func TestGuardPlan(t *testing.T) {
 		k.overlay("disabled_rules: [plan-critic]\n")
 		k.run("guard-plan", exit(k, write)).Allowed(t)
 	})
+	// A plan whose own marker gives a reason skips the critic, and the skip is
+	// logged; a marker with no reason, quoted, or fenced is a mention.
+	withPlan := func(k *sandbox, text string) map[string]any {
+		in := exit(k, write)
+		in["tool_input"] = map[string]any{"plan": text, "planFilePath": plan}
+		return in
+	}
+	t.Run("a critic-skip marker with a reason: allowed, and logged with the reason", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		k.run("guard-plan", withPlan(k, "# X\n\n<!-- critic: skip renames one flag, no design choice -->\n\n## Steps\n")).Allowed(t)
+		data, _ := os.ReadFile(filepath.Join(k.claude, "logs", "guards.jsonl"))
+		if !strings.Contains(string(data), `"event":"critic-skip"`) || !strings.Contains(string(data), `"reason":"renames one flag, no design choice"`) {
+			t.Errorf("guards.jsonl = %s", data)
+		}
+	})
+	for name, text := range map[string]string{
+		"no reason":     "# X\n\n<!-- critic: skip -->\n",
+		"a code span":   "# X\n\nName `<!-- critic: skip <reason> -->` to skip it.\n",
+		"a fenced line": "# X\n\n```markdown\n<!-- critic: skip renames one flag -->\n```\n",
+		"inside prose":  "# X\n\nWrite <!-- critic: skip why --> on its own line.\n",
+	} {
+		t.Run("a critic-skip mention, "+name+": sent back", func(t *testing.T) {
+			t.Parallel()
+			k := newSandbox(t)
+			k.run("guard-plan", withPlan(k, text)).Denied(t)
+		})
+	}
 }
 
-// plan-critic's run covers a plan's claims. With plan-critic off, the plan
-// waits for the claim-checker agent on its exact text.
+// Every check runs on one ExitPlanMode, so one deny names each reason
+// instead of a round trip per check.
+func TestPlanDispatchDeniesOnceForEveryReason(t *testing.T) {
+	t.Parallel()
+	k := newSandbox(t)
+	dir := repo(t, t.TempDir())
+	testutil.Put(t, dir, "src/stop.go", "a\nb\nc\n")
+	k.overlay("size_budgets:\n  plan: 5\nreply_slack: none\ndisabled_rules: [plan-critic]\nclaims:\n  timeout: 0\n")
+	r := k.run("plan-dispatch", map[string]any{"hook_event_name": "PreToolUse", "session_id": "s", "cwd": dir, "tool_name": "ExitPlanMode",
+		"tool_input": map[string]any{"plan": "# Plan\n\n- src/stop.go:40 returns early, so the gate never runs twice.", "planFilePath": filepath.Join(dir, ".claude/plans/p.md")}})
+	r.Denied(t)
+	r.Has(t, "over the 5-word budget", "citation(s) in the plan p.md that don't resolve")
+}
+
+// A plan's claims get the hook's own run, critiqued or not, and the plan
+// goes back once per session.
 func TestPlanDispatchVerifiesClaims(t *testing.T) {
 	t.Parallel()
 	const plan = "/proj/.claude/plans/plan-x.md"
@@ -244,28 +301,56 @@ func TestPlanDispatchVerifiesClaims(t *testing.T) {
 		return map[string]any{"hook_event_name": "PreToolUse", "session_id": "s", "tool_name": "ExitPlanMode",
 			"transcript_path": path, "tool_input": map[string]any{"plan": text, "planFilePath": plan}}
 	}
-	t.Run("with plan-critic on, its run covers the claims", func(t *testing.T) {
+	for name, extra := range map[string]string{"critiqued": "", "with plan-critic off": "disabled_rules: [plan-critic]\n"} {
+		t.Run(name+", the hook's own run checks the claims, once", func(t *testing.T) {
+			t.Parallel()
+			k := newSandbox(t)
+			calls := k.verifier(extra, claim)
+			plan := exit(k, "# Plan\n\n"+claim, write, critic)
+			r := k.run("plan-dispatch", plan)
+			r.Denied(t)
+			r.Has(t, claim, "git log -S Foo", "the plan plan-x.md", "ExitPlanMode again")
+			r.Lacks(t, "claim-check ")
+			k.run("plan-dispatch", plan).Allowed(t)
+			if got := len(testutil.Calls(t, calls)); got != 1 {
+				t.Errorf("verifier ran %d times, want 1", got)
+			}
+		})
+	}
+	t.Run("a broken reference in a critiqued plan goes back once, with no model run", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
 		calls := k.verifier("", claim)
-		k.run("plan-dispatch", exit(k, "# Plan\n\n"+claim, write, critic)).Allowed(t)
+		revised := exit(k, "# Plan\n\nSee `go/internal/nope/gone.go`.", write, critic, write)
+		r := k.run("plan-dispatch", revised)
+		r.Denied(t)
+		r.Has(t, "gone.go")
+		k.run("plan-dispatch", revised).Allowed(t)
+		// A plan goes back once per session, so a later revision goes through.
+		k.run("plan-dispatch", revised).Allowed(t)
 		if got := testutil.Calls(t, calls); got != nil {
 			t.Errorf("verifier ran: %q", got)
 		}
 	})
-	t.Run("with plan-critic off, denied until the claim-checker ran on each of its statements", func(t *testing.T) {
+	t.Run("a transcript that can't be read sends the plan back once, for Claude to check itself", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
 		k.verifier("disabled_rules: [plan-critic]\n", claim)
-		r := k.run("plan-dispatch", exit(k, "# Plan\n\n"+claim, write))
+		p := exit(k, "# Plan\n\n"+claim)
+		p["transcript_path"] = filepath.Join(k.home, "missing.jsonl")
+		r := k.run("plan-dispatch", p)
 		r.Denied(t)
-		r.Has(t, "kit:claim-checker", "the plan plan-x.md", "ExitPlanMode again")
-		id := checkID.FindString(r.Stdout)
-		k.run("plan-dispatch", exit(k, "# Plan\n\n"+claim, write, checkerLine(id))).Allowed(t)
-		// A retitled plan states nothing new; one with a new sentence needs
-		// a run on it.
-		k.run("plan-dispatch", exit(k, "# Plan v2\n\n"+claim, write, checkerLine(id))).Allowed(t)
-		k.run("plan-dispatch", exit(k, "# Plan v2\n\n"+claim+"\n\nThe cache lives in the session directory.", write, checkerLine(id))).Denied(t)
+		r.Has(t, "every claim in the plan plan-x.md", "check each claim with a tool yourself")
+		k.run("plan-dispatch", p).Allowed(t)
+	})
+	t.Run("a critic-skip marker skips the critic, not the claim check", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		k.verifier("", claim)
+		r := k.run("plan-dispatch", exit(k, "# Plan\n\n<!-- critic: skip renames one flag -->\n\n"+claim, write))
+		r.Denied(t)
+		r.Has(t, claim, "the plan plan-x.md")
+		r.Lacks(t, "kit:plan-critic agent hasn't reviewed")
 	})
 	t.Run("disabled_rules: [claims] lets the plan through", func(t *testing.T) {
 		t.Parallel()
@@ -282,13 +367,12 @@ func TestPlanDispatchVerifiesClaims(t *testing.T) {
 			t.Errorf("verifier ran before the critique: %q", got)
 		}
 	})
-	t.Run("an earlier step's deny doesn't use up the critic's one ask", func(t *testing.T) {
+	t.Run("an earlier step's deny and the critic's ask come in one deny", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
-		k.verifier("size_budgets: {plan: 3}\n", claim)
+		k.verifier("size_budgets: {plan: 3}\nreply_slack: none\n", claim)
 		text := "# Plan\n\n" + claim
-		k.run("plan-dispatch", exit(k, text, write)).Has(t, "words")
-		k.run("plan-dispatch", exit(k, text, write)).Has(t, "kit:plan-critic")
+		k.run("plan-dispatch", exit(k, text, write)).Has(t, "words", "kit:plan-critic")
 	})
 	t.Run("resent with no critique, the plan's claims still get checked", func(t *testing.T) {
 		t.Parallel()
@@ -298,13 +382,7 @@ func TestPlanDispatchVerifiesClaims(t *testing.T) {
 		k.run("plan-dispatch", exit(k, text, write)).Has(t, "kit:plan-critic")
 		r := k.run("plan-dispatch", exit(k, text, write))
 		r.Denied(t)
-		r.Has(t, "kit:claim-checker", "the plan plan-x.md")
-	})
-	t.Run("every claim confirmed: allowed", func(t *testing.T) {
-		t.Parallel()
-		k := newSandbox(t)
-		k.verifier("")
-		k.run("plan-dispatch", exit(k, "# Plan\n\n"+claim, write, critic)).Allowed(t)
+		r.Has(t, claim, "the plan plan-x.md")
 	})
 }
 

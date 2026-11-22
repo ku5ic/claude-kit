@@ -10,6 +10,8 @@ Answer every entry, by its id:
 - affected_form: the body's own words plus flags that limit it to what changed since the git ref {base}, when its tool supports that (turbo run x --filter=...[{base}], nx affected -t x --base={base}, jest --changedSince={base}, vitest --changed={base}). Omit it otherwise.
 - A body that only runs another task (pnpm run x, npm run x, make x) gets neither file_form nor affected_form: that task's own entry carries them.
 - covered_by: for a check whose whole run another check entry of the same kind, in the same directory, already does (the same tool on the same files or project, the other only adding assertions, flags, or settings), that entry's id. The other entry may be one of entries or of other_entries, the project's entries outside this request in its directories, listed only for this: answer none of them. It must not have a covered_by of its own. Omit it whenever unsure: a wrong one drops a check.
+- also_kinds: for a check, the kinds its run surely does besides its kind. A run that compiles a statically typed language or runs a type checker over its sources also does typecheck, as go test, go vet, cargo test, cargo clippy, or a validator whose body reads TypeScript errors (error TS) do. Omit it whenever unsure, since a wrong one drops a check.
+- reaches: for a check, the other directories, relative to the project root, whose code its run checks, each one its body names, such as a subproject it copies and tests or a path it validates. Omit it whenever unsure.
 
 Never invent a command: a form keeps every word of its body, in order, and only adds flags and placeholders.
 

@@ -63,6 +63,8 @@ func TestTiers(t *testing.T) {
 		{"generic reason in a commit", "Refactor the loader to improve readability.", "commit", []string{"generic-reason"}},
 		{"generic reason in a file", "Refactor the loader to improve readability.", "file", nil},
 		{"addressed feedback", "Addressed review feedback.", "commit", []string{"addressed-feedback"}},
+		{"joining colon", "The rule says this: it blocks.", "file", []string{"joining-colon"}},
+		{"an inline list after a colon", "Run them in this order: a, b, c.", "file", nil},
 		// Tier 3 alone never reports.
 		{"one rather than", "It runs the file form rather than the tree.", "file", nil},
 		{"preserving in a PR", "Split the parser while preserving behavior.", "pr", nil},
@@ -287,5 +289,13 @@ func TestNewLeavesOutABrokenRule(t *testing.T) {
 		config.SlopRule{ID: "unbalanced", Tier: 1, Match: "(foo", Fix: "x"})
 	if got := rules(scan(New(cfg), "Plain text. I hope this helps.", "file")); !slices.Equal(got, []string{"hope-helps"}) {
 		t.Errorf("hits = %v, want [hope-helps]", got)
+	}
+}
+
+// The density note is a fact about the file, with no instruction in it.
+func TestDensityNoteStatesTheScore(t *testing.T) {
+	got := detector(t).DensityNote("notes.md", Result{Score: 4.25})
+	if !strings.HasPrefix(got, "notes.md reads dense with AI-era vocabulary (4.2 tier 3 hits per ") || !strings.HasSuffix(got, "words). Not blocked; the slop-patterns skill has the rewrite.") {
+		t.Errorf("DensityNote = %q", got)
 	}
 }

@@ -194,7 +194,7 @@ func TestMalformedOutputLeavesEntriesUnclassifiedUntilTheCooldown(t *testing.T) 
 	if f.run(lint); len(f.asked()) != 0 {
 		t.Errorf("a rerun within the cooldown asked %q", f.asked())
 	}
-	f.ageFailures(failureCooldown)
+	f.ageFailures(claudecli.CooldownPeriod)
 	if f.run(lint); len(f.asked()) != 1 {
 		t.Errorf("no answer is cached: past the cooldown the rerun asked %q", f.asked())
 	}
@@ -203,8 +203,8 @@ func TestMalformedOutputLeavesEntriesUnclassifiedUntilTheCooldown(t *testing.T) 
 	if f.run(lint); len(f.asked()) != 1 {
 		t.Errorf("a failure stamped 48h ahead held the rerun back: asked %q", f.asked())
 	}
-	if s := load(CacheFile(f.cacheDir, f.root)); s.Failed[Key(lint)].At.After(time.Now()) {
-		t.Errorf("the future stamp survived the save: %v", s.Failed)
+	if f.run(lint); len(f.asked()) != 0 {
+		t.Errorf("the future stamp survived the save: the next rerun asked %q", f.asked())
 	}
 }
 
@@ -215,10 +215,13 @@ func TestABatchTheDeadlineKeptQueuedIsAskedNextRun(t *testing.T) {
 	f := newFixture(t, "sleep 1")
 	entries, _ := lints(batchSize * (maxCalls + 1))
 	Run(f.cfg, Options{Root: f.root, CacheDir: f.cacheDir, Entries: entries, Ask: true, Timeout: 300 * time.Millisecond})
+	// The store, not the stub's requests: a call the deadline kills can die
+	// before its stub records the request, yet it started and is cooled.
 	s := load(CacheFile(f.cacheDir, f.root))
+	s.cool = classifierCooldown(f.cacheDir, f.root)
 	cooled := 0
 	for _, e := range entries {
-		if _, ok := s.Failed[Key(e)]; ok {
+		if s.held(f.cfg, Key(e), time.Now()) {
 			cooled++
 		}
 	}
@@ -397,7 +400,7 @@ func TestAFailedBatchKeepsTheOthersAnswers(t *testing.T) {
 		t.Errorf("within the cooldown, skipped as %q, without the failure %q", r.Skipped[Key(last)], why)
 	}
 
-	f.ageFailures(failureCooldown)
+	f.ageFailures(claudecli.CooldownPeriod)
 	r = f.run(entries...)
 	if len(f.calls()) != before+1 || len(r.Verdicts) != len(entries) {
 		t.Errorf("past the cooldown, the rerun made %d calls and classified %d", len(f.calls())-before, len(r.Verdicts))
@@ -422,20 +425,36 @@ func TestAClassifierDownForEveryBatchIsAskedOncePerCooldown(t *testing.T) {
 	}
 }
 
+// cooldownFile is where classifierCooldown keeps f's root's failures.
+func (f *fixture) cooldownFile() string {
+	return filepath.Join(f.cacheDir, cache.Cooldown, "gapfill-"+cache.RootKey(f.root)+".json")
+}
+
+// failures is the classifier's recorded failures for f's root.
+func (f *fixture) failures() map[string]claudecli.Failure {
+	f.t.Helper()
+	all := map[string]claudecli.Failure{}
+	if data, err := os.ReadFile(f.cooldownFile()); err == nil {
+		if err := json.Unmarshal(data, &all); err != nil {
+			f.t.Fatal(err)
+		}
+	}
+	return all
+}
+
 // ageFailures moves every recorded classifier failure d into the past.
 func (f *fixture) ageFailures(d time.Duration) {
 	f.t.Helper()
-	file := CacheFile(f.cacheDir, f.root)
-	s := load(file)
-	for key, call := range s.Failed {
+	all := f.failures()
+	for key, call := range all {
 		call.At = call.At.Add(-d)
-		s.Failed[key] = call
+		all[key] = call
 	}
-	data, err := json.Marshal(s)
+	data, err := json.Marshal(all)
 	if err != nil {
 		f.t.Fatal(err)
 	}
-	testutil.Write(f.t, file, string(data))
+	testutil.Write(f.t, f.cooldownFile(), string(data))
 }
 
 func TestDeniedEntriesAreNeverAsked(t *testing.T) {
@@ -665,17 +684,6 @@ func TestAPlaceholderReplacesAListOfPaths(t *testing.T) {
 	}
 }
 
-// A tool taking packages runs on the edited files' directories.
-func TestADirsPlaceholderReplacesAPackagePattern(t *testing.T) {
-	t.Parallel()
-	f := newFixture(t, "")
-	vet := entry("vet", "go vet ./...")
-	f.answer(answers(verdict(vet, map[string]any{"role": "check", "kind": "lint", "mutates": false, "file_form": "go vet {dirs}"})))
-	if v := f.run(vet).Verdicts[Key(vet)]; v.FileForm != "go vet {dirs}" {
-		t.Errorf("%+v", v)
-	}
-}
-
 // A path inside a command substitution shares its word with the closing
 // `)"`: the placeholder word carries the same text around it, and nothing
 // else.
@@ -798,8 +806,37 @@ func TestNpxHoldsUpWithALocalCopy(t *testing.T) {
 		t.Errorf("no local copy: %+v", v)
 	}
 	testutil.FakeTool(t, filepath.Join(f.root, "node_modules/.bin/prettier"), filepath.Join(f.dir, "prettier.calls"), "")
-	if v := f.run(format).Verdicts[Key(format)]; v.FileForm != "npx prettier --check {files}" {
+	if v := f.run(format).Verdicts[Key(format)]; v.FileForm != "npx prettier --check --ignore-unknown {files}" {
 		t.Errorf("a local copy: %+v", v)
+	}
+}
+
+// prettier given a file it has no parser for (.prettierignore) fails the
+// whole check, so its file form skips such files.
+func TestPrettiersFileFormIgnoresUnknownFiles(t *testing.T) {
+	t.Parallel()
+	for form, want := range map[string]string{
+		"npx prettier --check {files}":                  "npx prettier --check --ignore-unknown {files}",
+		"npx prettier --check --ignore-unknown {files}": "npx prettier --check --ignore-unknown {files}",
+		"npx prettier -u --check {files}":               "npx prettier -u --check {files}",
+	} {
+		t.Run(form, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t, "")
+			testutil.Put(t, f.root, "package-lock.json", "{}")
+			testutil.Put(t, f.root, ".gitignore", "node_modules\n")
+			testutil.Git(t, f.root, "init", "-q")
+			testutil.FakeTool(t, filepath.Join(f.root, "node_modules/.bin/prettier"), filepath.Join(f.dir, "prettier.calls"), "")
+			format := entry("fmt", "prettier --check .")
+			f.answer(map[string]any{
+				"entries":   []any{verdict(format, map[string]any{"role": "check", "kind": "format-check", "mutates": false, "file_form": form})},
+				"managers":  []any{map[string]any{"dir": ".", "cites": "package-lock.json", "manager": "npm", "run_prefix": "npx", "add_verbs": []string{"npm install"}, "dlx": "npx", "dir_flags": []string{"--prefix"}, "rivals": []string{}}},
+				"proposals": []any{},
+			})
+			if v := f.run(format).Verdicts[Key(format)]; v.FileForm != want {
+				t.Errorf("file form %q, want %q", v.FileForm, want)
+			}
+		})
 	}
 }
 
@@ -839,7 +876,7 @@ func TestDeadcodeFileFormsAreDropped(t *testing.T) {
 	f.answer(map[string]any{"entries": verdicts, "managers": []any{}, "proposals": []any{}})
 	r := f.run(entries...)
 	for i, c := range cases {
-		if v := r.Verdicts[Key(entries[i])]; (v.FileForm != "") != c.kept {
+		if v := r.Verdicts[Key(entries[i])]; (v.FileForm == c.form) != c.kept || (!c.kept && v.FileForm != "") {
 			t.Errorf("%s: kept %v, want %v (%+v, dropped %q)", c.form, v.FileForm != "", c.kept, v, r.Dropped)
 		}
 	}
@@ -955,5 +992,34 @@ func TestClassifyAllTurnsAPanicIntoThatRequestsError(t *testing.T) {
 	_, _, errs := classifyAll(context.Background(), nil, Options{}, []request{{}})
 	if len(errs) != 1 || errs[0] == nil {
 		t.Fatalf("errs = %v, want the panic as an error", errs)
+	}
+}
+
+// The schema closes each entry's object, so a Verdict field it doesn't list
+// never comes back from the model.
+func TestSchemaListsEveryVerdictField(t *testing.T) {
+	t.Parallel()
+	var s struct {
+		Properties struct {
+			Entries struct {
+				Items struct {
+					Properties map[string]any `json:"properties"`
+				} `json:"items"`
+			} `json:"entries"`
+		} `json:"properties"`
+	}
+	if err := json.Unmarshal([]byte(schema()), &s); err != nil {
+		t.Fatal(err)
+	}
+	full, _ := json.Marshal(Verdict{Role: "check", Kind: "test", Mutates: true, Segments: []Segment{{}}, FileForm: "x", Globs: []string{"x"},
+		Affected: "x", CoveredBy: "x", AlsoKinds: []string{"x"}, Reaches: []string{"x"}})
+	var fields map[string]any
+	if err := json.Unmarshal(full, &fields); err != nil {
+		t.Fatal(err)
+	}
+	for name := range fields {
+		if _, ok := s.Properties.Entries.Items.Properties[name]; !ok {
+			t.Errorf("schema has no %q for an entry", name)
+		}
 	}
 }

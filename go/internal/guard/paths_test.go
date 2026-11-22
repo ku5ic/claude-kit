@@ -46,7 +46,11 @@ func TestGlobConcurrent(t *testing.T) {
 	t.Parallel()
 	var wg sync.WaitGroup
 	for i := range 8 {
-		wg.Go(func() { Glob(fmt.Sprintf("*.%d", i), "a.0") })
+		wg.Go(func() {
+			if got := Glob(fmt.Sprintf("*.%d", i), "a.0"); got != (i == 0) {
+				t.Errorf("Glob(*.%d, a.0) = %v", i, got)
+			}
+		})
 	}
 	wg.Wait()
 }

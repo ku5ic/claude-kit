@@ -102,6 +102,10 @@ type state struct {
 	h       *hook.Hook
 	cfg     *config.Config
 	pending string
+	// shadowed is true once the command logged its kit-switch shadow.
+	shadowed bool
+	// segs is the whole command parsed, inner substitutions included.
+	segs []Segment
 	// managers is each repo root's verified manager facts, read once per command.
 	managers map[string][]gapfill.Manager
 	// vars is what the command's own bare assignments set (R=rm; $R -rf ~),
@@ -109,6 +113,25 @@ type state struct {
 	vars map[string]string
 	// loopVars is every value each loop's assignments set, by loop id.
 	loopVars map[int]map[string][]string
+	// sure is vars as the current shell surely has them: set by a lone
+	// command outside any subshell and any part that may not run.
+	sure map[string]string
+	// exported is every name an export in the command names.
+	exported map[string]bool
+}
+
+// setVars is vars as NAME=value words, in no set order, split into those
+// the command exports and the bare rest, which reach a child process only
+// if the environment already exported them.
+func (st *state) setVars() (exported, bare []string) {
+	for name, value := range st.vars {
+		if st.exported[name] {
+			exported = append(exported, name+"="+value)
+		} else {
+			bare = append(bare, name+"="+value)
+		}
+	}
+	return exported, bare
 }
 
 func (st *state) ask(reason string) {
@@ -141,12 +164,21 @@ func Check(h *hook.Hook) error {
 	if unparsed {
 		st.ask("guard-bash could not parse part of this command, so it went unchecked; confirm it")
 	}
-	st.vars, st.loopVars = map[string]string{}, loopAssigned(segs)
+	st.vars, st.sure, st.loopVars, st.segs = map[string]string{}, map[string]string{}, loopAssigned(segs), segs
+	st.exported = exportedNames(segs)
 	for _, seg := range segs {
 		if err := st.segment(seg); err != nil {
 			return err
 		}
-		maps.Copy(st.vars, assigned(seg))
+		vars := assigned(seg)
+		maps.Copy(st.vars, vars)
+		for name, value := range vars {
+			if seg.subshell || seg.conditional || len(seg.Calls) > 1 {
+				delete(st.sure, name)
+			} else {
+				st.sure[name] = value
+			}
+		}
 	}
 	runs := cmd
 	switch {
@@ -305,6 +337,7 @@ func (st *state) segment(seg Segment) error {
 	if err := st.pipeToShell(seg); err != nil {
 		return err
 	}
+	st.dirToNetwork(seg)
 	for ci, call := range seg.Calls {
 		if err := st.redirects(call); err != nil {
 			return err
@@ -314,6 +347,10 @@ func (st *state) segment(seg Segment) error {
 		}
 		start := lead(call.Words)
 		if start >= len(call.Words) {
+			// A redirect with no command still reads its input: x=$(<.env).
+			if err := (&command{st: st}).readsSensitive(call.Inputs); err != nil {
+				return err
+			}
 			continue
 		}
 		// $(echo rm) -rf ~ names its command only at runtime, as does
@@ -329,6 +366,7 @@ func (st *state) segment(seg Segment) error {
 		plain := command{
 			st: st, name: baseName(call.Words[start].Value), args: call.Words[start+1:], redirs: call.Redirs, inputs: call.Inputs,
 			rest: seg.Rest(ci, start), alone: len(seg.Calls) == 1 && !seg.subshell,
+			assigns: append(slices.Clone(call.Assigns), slices.DeleteFunc(values(call.Words[:start]), func(w string) bool { return !assignment.MatchString(w) })...),
 		}
 		for _, fields := range expansions {
 			c := plain
@@ -366,7 +404,10 @@ func (st *state) redirects(call Call) error {
 				return err
 			}
 		}
-		st.askKitSwitch(target)
+		// &1 or &- duplicates or closes an fd; it names no file.
+		if !strings.HasPrefix(target, "&") {
+			st.askKitSwitch(target)
+		}
 		st.looseWrite(">", target)
 	}
 	return nil
@@ -421,25 +462,45 @@ func looseWriteTarget(p string) bool {
 }
 
 // scratchTarget is true when a download target is stdout, /dev/null, an fd,
-// or inside a .claude/scratch directory. $(kit scratch-dir) counts; any
-// other unexpanded variable, and any "..", doesn't, since it can't be
-// checked.
+// or inside a .claude/scratch directory. $(kit scratch-dir), the kit's own
+// bin/kit by any path included, and $PWD count; any other unexpanded
+// variable, and any "..", doesn't, since it can't be checked.
 func (st *state) scratchTarget(p string) bool {
 	p = unquote(p)
 	if strings.Contains(p, "..") {
 		return false
 	}
 	switch {
-	case p == "-", p == "/dev/null", len(p) == 2 && p[0] == '&' && p[1] >= '0' && p[1] <= '9',
-		p == "$(kit scratch-dir)", strings.HasPrefix(p, "$(kit scratch-dir)/"),
-		p == "`kit scratch-dir`", strings.HasPrefix(p, "`kit scratch-dir`/"):
+	case p == "-", p == "/dev/null", len(p) == 2 && p[0] == '&' && p[1] >= '0' && p[1] <= '9', st.kitScratchDir(p):
 		return true
+	}
+	for _, pwd := range []string{"$PWD", "${PWD}"} {
+		if st.cwd != "" && (p == pwd || strings.HasPrefix(p, pwd+"/")) {
+			p = st.cwd + p[len(pwd):]
+			break
+		}
 	}
 	p = st.abs(p)
 	if strings.ContainsAny(p, "$`") {
 		return false
 	}
 	return project.IsScratch(st.h.Paths, p)
+}
+
+// kitScratchSub matches a path that starts with a kit scratch-dir call,
+// $(K scratch-dir) or `K scratch-dir`, capturing K.
+var kitScratchSub = regexp.MustCompile("^(?:\\$\\(([^\\s$`()]+) scratch-dir\\)|`([^\\s$`()]+) scratch-dir`)(?:/|$)")
+
+// kitScratchDir is true when p starts with a scratch-dir call to kit on
+// PATH or to this kit's bin/kit by any path; a kit anywhere else could
+// print any directory.
+func (st *state) kitScratchDir(p string) bool {
+	m := kitScratchSub.FindStringSubmatch(p)
+	if m == nil {
+		return false
+	}
+	kit := m[1] + m[2]
+	return kit == "kit" || st.h.Paths.Root != "" && filepath.Clean(st.abs(kit)) == filepath.Join(st.h.Paths.Root, "bin", "kit")
 }
 
 // unquote strips one pair of surrounding quotes, single or double.

@@ -7,14 +7,16 @@ What must be true before a claim, a conclusion, or a fix is stated.
 - A fact you didn't read this session (a path, an API shape, a version, a test result, runtime behavior): check it, or don't say it.
 - A statement in a plan, report, PR text, doc, or post: trace it to something read this session, or cut it.
 - Supporting detail (a number, a count, a list of what something already does): check it as hard as the conclusion.
-- An idea offered as an idea: label it `likely` and name the evidence, or `hypothesis`.
-- A test you didn't run: say "not run".
+- A claim no tool checked this session goes unsaid. A label (`likely`, `hypothesis`, `maybe`, `not verified`) doesn't make it sayable.
+- A result you didn't get, such as a test you didn't run, goes unsaid. Run it, or leave it out.
+- The source is whichever holds the fact: the code, git, the code host, an MCP connector, or a web fetch.
 - A relative time ("just now", "recently"): check the clock or quote a timestamp.
 - A file the user names that you can't find: say so and ask. Never create a stub.
 
 <!-- chat: skip -->
 
 - An agent's finding: trace its decisive claim to the source before a conclusion rests on it.
+- A statement the claims hook confirmed in an earlier session counts as checked while HEAD and every file it cites are unchanged; the hook holds that ledger.
 - "Done", "fixed", or "passes": only as `skills/kit-rules/reference/verify.md` section 4 defines them. Never "should work".
 
 <!-- chat: end -->

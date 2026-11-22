@@ -15,7 +15,7 @@ import (
 )
 
 // Timeout bounds every git call: a lock or a hung remote must not hang a
-// hook.
+// hook. A hook's own deadline, SetDeadline, cuts it shorter.
 const Timeout = 30 * time.Second
 
 // Command is git with args, run in dir ("" is the working directory).
@@ -26,7 +26,7 @@ func Command(dir string, args ...string) *proc.Cmd {
 	if dir != "" {
 		args = append([]string{"-C", dir}, args...)
 	}
-	cmd := proc.Command(Timeout, "git", args...)
+	cmd := proc.Command(budget(), "git", args...)
 	cmd.Env = append(cmd.Environ(), "GIT_OPTIONAL_LOCKS=0")
 	return cmd
 }
@@ -222,12 +222,7 @@ func Base(dir, explicit string) (string, bool) {
 	}
 	if upstream, err := run("rev-parse", "--abbrev-ref", "@{upstream}"); err == nil {
 		current, _ := run("rev-parse", "--abbrev-ref", "HEAD")
-		// ${upstream#*/}: drop the remote name; no slash leaves it whole.
-		branch := upstream
-		if _, rest, found := strings.Cut(upstream, "/"); found {
-			branch = rest
-		}
-		if branch != current {
+		if branchOf(upstream) != current {
 			return upstream, true
 		}
 	}
@@ -242,4 +237,54 @@ func Base(dir, explicit string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// branchOf is ref with its remote name dropped, ${ref#*/}; no slash leaves
+// it whole.
+func branchOf(ref string) string {
+	if _, rest, found := strings.Cut(ref, "/"); found {
+		return rest
+	}
+	return ref
+}
+
+// ForkPoint is the merge base of HEAD and dir's Base, the commit HEAD
+// left it at. False when no base resolves, or when that is HEAD on the
+// base's own branch, as on a local main whose base is main: HEAD there
+// holds the commits this session made. A new branch with no commits yet
+// gets HEAD.
+func ForkPoint(dir string) (string, bool) {
+	base, ok := Base(dir, "")
+	if !ok {
+		return "", false
+	}
+	mb, err := Line(dir, "merge-base", base, "HEAD")
+	if err != nil {
+		return "", false
+	}
+	head, err := Line(dir, "rev-parse", "HEAD")
+	if err != nil {
+		return "", false
+	}
+	if mb != head {
+		return mb, true
+	}
+	current, err := Line(dir, "rev-parse", "--abbrev-ref", "HEAD")
+	return mb, err == nil && current != branchOf(base)
+}
+
+// deadline is when the running hook's own timeout ends; zero is none. A
+// process runs one hook, which sets it once, before any git call.
+var deadline time.Time
+
+// SetDeadline makes every later git call end by t, sooner than Timeout when
+// t comes first: Claude Code kills a hook at its timeout without a word.
+func SetDeadline(t time.Time) { deadline = t }
+
+// budget is how long the next git call may take.
+func budget() time.Duration {
+	if deadline.IsZero() {
+		return Timeout
+	}
+	return min(Timeout, time.Until(deadline))
 }

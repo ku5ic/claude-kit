@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ku5ic/claude-kit/go/internal/cache"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 	"github.com/ku5ic/claude-kit/go/internal/project"
@@ -57,13 +59,34 @@ func GuardSlop(h *hook.Hook) error {
 		hits = d.Carried(path, before, after, surface, hits)
 	}
 	if len(hits) > 0 {
-		h.Deny(slop.Message(filepath.Base(path)+" (new lines)", hits, ""), "slop")
+		slopDeny(h, path, hits)
 		return nil
 	}
 	if res.Dense {
 		h.AddContext("PreToolUse", d.DensityNote(filepath.Base(path), res))
 	}
 	return nil
+}
+
+// slopDenies is how many times a file's edits are denied for slop in a
+// session. The next flagged edit goes through, so a false positive can't
+// loop.
+const slopDenies = 2
+
+// slopDeny denies an edit of path for hits, naming the allow marker, up to
+// slopDenies times per file in the session.
+func slopDeny(h *hook.Hook, path string, hits []slop.Hit) {
+	counter := h.Paths.SessionFile(cache.Slop, h.Payload.SessionID(), "edit", textHash(path)[:16])
+	data, _ := os.ReadFile(counter)
+	n, _ := strconv.Atoi(string(data))
+	if n >= slopDenies {
+		h.Log(kitlog.Guards, "slop-capped", "path", path, "hits", strconv.Itoa(len(hits)))
+		return
+	}
+	then := "a line that's right as written takes an `unslop: allow <reason>` comment on the line above"
+	if h.Deny(slop.Message(filepath.Base(path)+" (new lines)", hits, then), "slop") && counter != "" && !h.DryRun {
+		_ = fsx.WriteAtomic(counter, []byte(strconv.Itoa(n+1)), 0o600)
+	}
 }
 
 // written is path's text before the tool runs and after: Write's content,

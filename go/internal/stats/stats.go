@@ -9,7 +9,6 @@ import (
 	"io"
 	"maps"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -19,22 +18,6 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 )
-
-// bullet is a list marker a reply line may open with: "- ", "* ", "1. ".
-var bullet = regexp.MustCompile(`^\s*(?:[-*]|\d+[.)])\s+`)
-
-// Flagged is each claim a claim-checker reply flags, one `claim -> check`
-// line per claim it found unsupported; none for `ok`.
-func Flagged(reply string) []string {
-	var out []string
-	for line := range strings.Lines(reply) {
-		claim, _, ok := strings.Cut(bullet.ReplaceAllString(line, ""), " -> ")
-		if claim = strings.TrimSpace(claim); ok && claim != "" {
-			out = append(out, claim)
-		}
-	}
-	return out
-}
 
 // Kept is true when one of statements still states claim: it holds 70% or
 // more of the claim's words of three letters or more. A flag the writer cut,
@@ -85,10 +68,11 @@ type line struct {
 	Outcome string `json:"outcome"`
 }
 
-// ruleRow is one rule's counts.
+// ruleRow is one rule's counts: a skip is a marker that waived the rule,
+// such as a plan's critic-skip line.
 type ruleRow struct {
-	block, shadow, disabled int
-	sessions                map[string]bool
+	block, shadow, disabled, skipped int
+	sessions                         map[string]bool
 }
 
 // claimRow is one source and model's flags.
@@ -102,7 +86,7 @@ func Report(guards, claims string, o Options, w io.Writer) error {
 	var hookCost float64
 	err := each(guards, o, func(l line) {
 		switch l.Event {
-		case "block", "shadow", "disabled":
+		case "block", "shadow", "disabled", "critic-skip":
 			if o.Rule != "" && l.Rule != o.Rule {
 				return
 			}
@@ -117,6 +101,8 @@ func Report(guards, claims string, o Options, w io.Writer) error {
 				r.block++
 			case "shadow":
 				r.shadow++
+			case "critic-skip":
+				r.skipped++
 			default:
 				r.disabled++
 			}
@@ -147,10 +133,10 @@ func Report(guards, claims string, o Options, w io.Writer) error {
 		return err
 	}
 	tw := tabwriter.NewWriter(w, 0, 2, 2, ' ', 0)
-	fmt.Fprintln(tw, "rule\tblocks\tshadow\tdisabled\tsessions")
+	fmt.Fprintln(tw, "rule\tblocks\tshadow\tdisabled\tskipped\tsessions")
 	for _, name := range slices.Sorted(maps.Keys(rules)) {
 		r := rules[name]
-		fmt.Fprintf(tw, "%s\t%d\t%d\t%d\t%d\n", name, r.block, r.shadow, r.disabled, len(r.sessions))
+		fmt.Fprintf(tw, "%s\t%d\t%d\t%d\t%d\t%d\n", name, r.block, r.shadow, r.disabled, r.skipped, len(r.sessions))
 	}
 	if o.Rule == "" || o.Rule == "claims" {
 		fmt.Fprintln(tw, "\nclaims\tmodel\tflagged\tdropped\tkept")

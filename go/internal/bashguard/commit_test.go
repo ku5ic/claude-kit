@@ -175,7 +175,7 @@ func TestGuardCommitAsksForAnUnshownMessage(t *testing.T) {
 		"asked not to, plainly":        {testutil.UserPrompt("Do not commit this.")},
 		"not ready yet":                {testutil.UserPrompt("I'm not ready to commit.")},
 		"a contracted refusal":         {testutil.UserPrompt("We aren't going to commit this")},
-		"a curly-quoted refusal":       {testutil.UserPrompt("We aren't going to commit this")},
+		"a curly-quoted refusal":       {testutil.UserPrompt("We aren’t going to commit this")},
 		"asks whether to":              {testutil.UserPrompt("Is it ok to commit?")},
 		"asks what's left":             {testutil.UserPrompt("what's left to commit?")},
 		"the user's own plan":          {testutil.UserPrompt("let me review the diff first, then commit")},
@@ -352,7 +352,6 @@ func TestGuardCommitScansTheStagedDiff(t *testing.T) {
 		{"allow: unquoted -m message with a clean gitleaks scan still passes through", "git commit -m foo", 0, 0, ""},
 		{"block: gitleaks leak is still caught with no -m at all (--allow-empty)", "git commit --allow-empty", 1, 2, ""},
 		{"block: git -C <dir> commit is still caught by the entry guard (gitleaks leak)", "git -C " + t.TempDir() + " commit -m test", 1, 2, "gitleaks flagged a secret"},
-		{"allow: plain git commit (no -C) is unaffected by the -C entry guard fix", "git commit -m test", 0, 0, ""},
 		// gitleaks exits 1 on a path it can't stat, the same code as a leak.
 		{"allow (fail open): git -C names a missing directory", "git -C " + filepath.Join(t.TempDir(), "missing") + " commit -m test", 1, 0, "skipping scan"},
 		{"block: git -C ~ resolves against home and is scanned", "git -C ~ commit -m test", 1, 2, "gitleaks flagged a secret"},

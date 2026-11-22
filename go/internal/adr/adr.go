@@ -25,7 +25,7 @@ var codeSpan = regexp.MustCompile("`([^`\n]+)`")
 const maxDecision = 800
 
 // Dir is root's ADR folder: the one .adr-dir names, else the first of
-// adrDirs that exists; "" for none.
+// dirs that exists; "" for none.
 func Dir(root string) string {
 	if data, err := os.ReadFile(filepath.Join(root, ".adr-dir")); err == nil {
 		if dir := strings.TrimSpace(string(data)); dir != "" {

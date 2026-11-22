@@ -21,7 +21,7 @@ Git, side effects, plans, and when to ask.
 ## 2. Side effects
 
 - Before a destructive operation (`rm`, `git reset --hard`, `git clean`, a force push, deleting a branch or tag, a migration, dropping a table, truncating a file), confirm.
-- Before a broad recursive command (`rm -rf`, `find ... -delete`, `chmod -R`), confirm.
+- Before a broad recursive command (`rm -rf`, `find ... -delete`, `chmod -R`), confirm. An `rm -r` whose every path is in scratch, or a dir `mktemp -d` made earlier in the same command, needs no confirm.
 - Before installing, upgrading, or removing a dependency, ask, with the reason and the command.
 - Before changing project config (`.env*`, `tsconfig*.json`, linter, formatter, or framework config, `package.json` scripts, CI workflows) or adding a top-level directory, ask.
 - A change across the tree gets tried on one file or directory first.
@@ -61,3 +61,4 @@ The first match wins:
 - A missing tool, permission, or connector gets named, with alternatives in priority order and a question on how to proceed.
 - After a user correction, re-read the original requirement, fix it, and name other places the same misunderstanding applies. A correction with more than one reading goes through item 2.
 - A review finding (`/code-review`, plan-critic, a PR comment) gets checked against the code before it's applied. A wrong one is rejected with the evidence. An applied one is acknowledged by what changed.
+- A `/code-review` or `/verify` of your own work stops at its report: the findings, or the cases that broke, fact-checked, go to the path `skills/kit-rules/reference/output.md` section 3 names, and the user picks which to fix. Nothing is fixed before that answer.

@@ -47,8 +47,8 @@ func verify(cfg *config.Config, root string, entries []sources.Entry, s store, f
 		a := s.Entries[key]
 		if a == nil {
 			r.Skipped[key] = unclassified
-			if retry := s.retryAt(cfg, key, now); failure == "" && !retry.IsZero() {
-				r.Skipped[key] = coolingReason + s.Failed[key].Why + "; asked again after " + retry.Format("15:04") + ")"
+			if f, cooling := s.cool.Cooling(failKey(cfg, key), now); failure == "" && cooling {
+				r.Skipped[key] = coolingReason + f.Why + "; asked again after " + f.Until().Format("15:04") + ")"
 			}
 			continue
 		}
@@ -251,7 +251,7 @@ func (f forms) verdict(e sources.Entry, v Verdict) (Verdict, []string, error) {
 	if v.Role != "check" {
 		v.Kind = ""
 	}
-	body := strings.Join(strings.Fields(e.Body.Text), " ")
+	body := Squeeze(e.Body.Text)
 	bodies := []string{e.Body.Text}
 	for i, s := range v.Segments {
 		// The model saw e.Command(), the env in front; the body has none.
@@ -265,7 +265,7 @@ func (f forms) verdict(e sources.Entry, v Verdict) (Verdict, []string, error) {
 		if strings.TrimSpace(s.Text) == "" {
 			return v, nil, fmt.Errorf("segment %q is empty", s.Text)
 		}
-		if !strings.Contains(body, strings.Join(strings.Fields(s.Text), " ")) {
+		if !strings.Contains(body, Squeeze(s.Text)) {
 			return v, nil, fmt.Errorf("segment %q isn't in the body", s.Text)
 		}
 		if s.Role != "check" {
@@ -278,10 +278,26 @@ func (f forms) verdict(e sources.Entry, v Verdict) (Verdict, []string, error) {
 		dropped = append(dropped, fmt.Sprintf("file form %q: %s", v.FileForm, why))
 		v.FileForm, v.Globs = "", nil
 	}
+	v.FileForm = skipUnknownFiles(v.FileForm)
 	if why := f.checkForm(v.Role, v.Affected, bodies, "{base}"); why != "" {
 		dropped = append(dropped, fmt.Sprintf("affected form %q: %s", v.Affected, why))
 		v.Affected = ""
 	}
+	v.AlsoKinds = slices.DeleteFunc(v.AlsoKinds, func(k string) bool {
+		bad := v.Role != "check" || !slices.Contains(kinds, k) || k == v.Kind
+		if bad {
+			dropped = append(dropped, fmt.Sprintf("also kind %q: not a check kind it adds", k))
+		}
+		return bad
+	})
+	v.Reaches = slices.DeleteFunc(v.Reaches, func(rel string) bool {
+		dir := filepath.Join(f.root, rel)
+		bad := v.Role != "check" || !filepath.IsLocal(rel) || !fsx.IsDir(dir)
+		if bad {
+			dropped = append(dropped, fmt.Sprintf("reaches %q: no directory in the project", rel))
+		}
+		return bad
+	})
 	return v, dropped, nil
 }
 
@@ -305,6 +321,17 @@ var wholeInputTools = map[string]string{
 	"tsc":      "tsc ignores tsconfig.json once given files",
 	"vue-tsc":  "tsc ignores tsconfig.json once given files",
 	"deadcode": "deadcode given some packages reports what only the others call",
+}
+
+// skipUnknownFiles is form with prettier told to skip a changed file it has
+// no parser for (.prettierignore, a lock file), which otherwise fails the
+// whole check.
+func skipUnknownFiles(form string) string {
+	words := strings.Fields(form)
+	if !slices.Contains(words, "prettier") || slices.Contains(words, "--ignore-unknown") || slices.Contains(words, "-u") {
+		return form
+	}
+	return strings.Replace(form, "{files}", "--ignore-unknown {files}", 1)
 }
 
 // toolOf is the tool words run: the first word, or the tool go tool runs.
@@ -462,6 +489,7 @@ func (f forms) proposal(p Proposal) (Proposal, []string, error) {
 		dropped = append(dropped, fmt.Sprintf("file form %q: %s", p.FileForm, why))
 		p.FileForm, p.Globs = "", nil
 	}
+	p.FileForm = skipUnknownFiles(p.FileForm)
 	return p, dropped, nil
 }
 

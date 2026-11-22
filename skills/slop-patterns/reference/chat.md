@@ -8,15 +8,15 @@ A chat reply can't be blocked: Claude Code shows it before any hook can see it. 
 
 <!-- chat: end -->
 
-| Tell                                                               | Rule                 | Instead                                   |
-| ------------------------------------------------------------------ | -------------------- | ----------------------------------------- |
-| Stock openers: "Certainly!", "Great question"                      | `stock-opener`       | The answer as the first line              |
-| Closing offers: "Let me know if you ...", "Happy to help"          | `offer-more`         | Stop at the last sentence that informs    |
-| "I hope this helps"                                                | `hope-helps`         | Cut                                       |
-| "You're absolutely right"                                          | `absolutely-right`   | What changes because they're right        |
-| "In conclusion" and a recap                                        | `in-conclusion`      | Cut; the reader just read it              |
-| Corrective framing: "should not be confused with"                  | `corrective-framing` | Say what it is                            |
-| Clerk tone: "I've carefully reviewed", apologies for inconvenience | none, judgment       | What was checked and what it showed       |
-| Hedging disclaimers about what isn't documented, then a guess      | none, judgment       | "Not documented; my guess is X because Y" |
+| Tell                                                               | Rule                 | Instead                                |
+| ------------------------------------------------------------------ | -------------------- | -------------------------------------- |
+| Stock openers: "Certainly!", "Great question"                      | `stock-opener`       | The answer as the first line           |
+| Closing offers: "Let me know if you ...", "Happy to help"          | `offer-more`         | Stop at the last sentence that informs |
+| "I hope this helps"                                                | `hope-helps`         | Cut                                    |
+| "You're absolutely right"                                          | `absolutely-right`   | What changes because they're right     |
+| "In conclusion" and a recap                                        | `in-conclusion`      | Cut; the reader just read it           |
+| Corrective framing: "should not be confused with"                  | `corrective-framing` | Say what it is                         |
+| Clerk tone: "I've carefully reviewed", apologies for inconvenience | none, judgment       | What was checked and what it showed    |
+| Hedging disclaimers about what isn't documented, then a guess      | none, judgment       | Check it, or cut it                    |
 
-Honest uncertainty isn't a tell. "Not run", "not sure, likely X" stay: `skills/kit-rules/reference/evidence.md` section 1.
+A claim you couldn't check is cut, not hedged: `skills/kit-rules/reference/evidence.md` section 1.

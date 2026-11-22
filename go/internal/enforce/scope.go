@@ -3,6 +3,7 @@ package enforce
 import (
 	"cmp"
 	"maps"
+	"path/filepath"
 	"slices"
 
 	"github.com/ku5ic/claude-kit/go/internal/gapfill"
@@ -20,9 +21,13 @@ var fileScoped = []string{"lint", "format-check"}
 const maxFileBytes = 64 << 10
 
 // verdictGate is a gate in dir carrying what v says of e: its verdict, its
-// forms, and its coverer.
-func verdictGate(e sources.Entry, v gapfill.Verdict, dir string) Gate {
-	return Gate{Dir: dir, Verdict: v.String(), FileForm: v.FileForm, Globs: v.Globs, Affected: v.Affected, Entry: gapfill.Key(e), CoveredBy: v.CoveredBy}
+// forms, its coverer, and what else its run covers.
+func (b *builder) verdictGate(e sources.Entry, v gapfill.Verdict, dir string) Gate {
+	var reaches []string
+	for _, rel := range v.Reaches {
+		reaches = append(reaches, filepath.Join(b.root, rel))
+	}
+	return Gate{Dir: dir, Verdict: v.String(), FileForm: v.FileForm, Globs: v.Globs, Affected: v.Affected, Entry: gapfill.Key(e), CoveredBy: v.CoveredBy, Also: v.AlsoKinds, Reaches: reaches}
 }
 
 // scopeTo scopes the gates b adds to what changed since the git base. Git

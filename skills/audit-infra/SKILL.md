@@ -13,7 +13,7 @@ Review of the infrastructure files a target holds against the kit's own checklis
 
 ## Run
 
-Resolve a linked ticket or doc as `skills/investigate` step 0 describes, then dispatch the auditor agent (subagent_type: kit:auditor, foreground) with this file's procedure and the resolved arguments. It writes the report; reply per `skills/kit-rules/reference/output.md` section 3.
+Resolve a linked ticket or doc as `skills/investigate` step 0 describes, then dispatch the auditor agent (subagent_type: kit:auditor, foreground) with this file's procedure and the resolved arguments. It writes the report. Then run the report-format skill's Runtime checks yourself, and reply per `skills/kit-rules/reference/output.md` section 3.
 
 ## Prerequisites
 
@@ -32,7 +32,7 @@ Resolve a linked ticket or doc as `skills/investigate` step 0 describes, then di
 
 2. Read each file and check it against the loaded references. A secret committed in one of these files is a `failure`, named redacted.
 3. CI workflows are `/audit-ci`'s job. Name it as the next step when `.github/workflows` exists.
-4. Anything that needs the live system (an open port, a running container's user, the state file) goes under "Cannot be verified statically". Never run `plan`, `apply`, `docker build`, or a provisioning tool.
+4. Anything that needs the live system (an open port, a running container's user, the state file) goes under "Needs a runtime check". Run no `plan`, `apply`, `docker build`, or provisioning tool here; a `plan` can be offered afterwards as a runtime check.
 
 ## Not a finding
 

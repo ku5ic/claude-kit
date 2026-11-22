@@ -41,6 +41,13 @@ Not caught by defaults, so kept: an unawaited `expect(...).resolves`, `findBy*`,
 - Kent C. Dodds (avoid testing implementation details): https://kentcdodds.com/blog/testing-implementation-details
 - Vitest async handling: https://vitest.dev/guide/common-errors
 - MSW: https://mswjs.io/
+- Test smells catalog: https://testsmells.org/pages/testsmells.html
+- Go wiki, table-driven tests: https://go.dev/wiki/TableDrivenTests
+
+### Claims
+
+- A test with no assertion ("Unknown Test"), one whose assertion is always true or always false ("Redundant Assertion"), and one asserting the same condition more than once ("Duplicate Assert"): https://testsmells.org/pages/testsmells.html
+- Copy-pasted tests become one table-driven test, each row a complete case with inputs and expected results: https://go.dev/wiki/TableDrivenTests
 
 ## reference/playwright.md
 

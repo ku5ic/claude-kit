@@ -2,14 +2,17 @@ package claims
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/config"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/testutil"
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
@@ -195,12 +198,12 @@ func TestSystemPromptIsTheAgentFilesBody(t *testing.T) {
 func TestClaudeAllowsOnlyReads(t *testing.T) {
 	t.Parallel()
 	cfg := baseConfig()
-	cfg.Claims.Allow = []string{"WebFetch", "mcp__docs__query_docs", "mcp__chat__create_post", "Bash", "Write", "Edit", "mcp__chat", "mcp__chat__*", "mcp__browser__navigate"}
+	cfg.Claims.Allow = []string{"mcp__docs__query_docs", "mcp__chat__create_post", "Bash", "Write", "Edit", "mcp__chat", "mcp__chat__*", "mcp__browser__navigate"}
 	entries, err := transcript.Load(session(t))
 	if err != nil {
 		t.Fatal(err)
 	}
-	argv := claude(cfg, entries, "prompt")
+	argv := claude(cfg, "/kit", entries, "prompt")
 	flag := func(name string) []string {
 		i := slices.Index(argv, name)
 		if i < 0 || i+1 >= len(argv) {
@@ -209,18 +212,21 @@ func TestClaudeAllowsOnlyReads(t *testing.T) {
 		return strings.Split(argv[i+1], ",")
 	}
 	allowed, tools := flag("--allowedTools"), flag("--tools")
-	for _, want := range []string{"Read", "Grep", "WebSearch", "ToolSearch", "mcp__tracker__get_issue", "WebFetch", "mcp__docs__query_docs"} {
+	for _, want := range []string{"Read", "Grep", "WebSearch", "WebFetch", "ToolSearch", "Bash(/kit/bin/kit read *)", "mcp__tracker__get_issue", "mcp__docs__query_docs"} {
 		if !slices.Contains(allowed, want) {
 			t.Errorf("--allowedTools lacks %s: %q", want, allowed)
 		}
 	}
 	for _, never := range []string{"mcp__chat__send_message", "mcp__chat__create_post", "Bash", "Edit", "Write", "mcp__chat", "mcp__chat__*", "mcp__browser__navigate"} {
-		if slices.Contains(allowed, never) || slices.Contains(tools, never) {
+		if slices.Contains(allowed, never) || never != "Bash" && slices.Contains(tools, never) {
 			t.Errorf("%s is let through: allowed %q, tools %q", never, allowed, tools)
 		}
 	}
-	if !slices.Contains(tools, "WebFetch") || slices.Contains(tools, "mcp__tracker__get_issue") {
-		t.Errorf("--tools = %q, want the builtins and WebFetch, no MCP tool", tools)
+	if !slices.Contains(tools, "WebFetch") || !slices.Contains(tools, "Bash") || slices.Contains(tools, "mcp__tracker__get_issue") {
+		t.Errorf("--tools = %q, want the builtins, WebFetch, and Bash, no MCP tool", tools)
+	}
+	if prompt := flag("--system-prompt"); !strings.Contains(strings.Join(prompt, ","), "/kit/bin/kit read git") {
+		t.Errorf("the system prompt doesn't name kit read: %q", prompt)
 	}
 	for _, want := range []string{"--restricted", "dontAsk", "sonnet"} {
 		if !slices.Contains(argv, want) {
@@ -278,11 +284,156 @@ func TestEvidenceKeepsEveryPromptWhole(t *testing.T) {
 	}
 }
 
+// A result a pending statement names is kept past the cap, with its call,
+// whatever its age; the rest fills newest first.
+func TestEvidenceKeepsAResultTheTextNames(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, input, result, text string
+	}{
+		{"a path its call read", `{"file_path":"/r/go/internal/claims/refs.go"}`, "old-marker", "The cap is in go/internal/claims/refs.go."},
+		{"a file:line's path", `{"file_path":"/r/go/internal/claims/refs.go"}`, "old-marker", "The cap is set at `go/internal/claims/refs.go:42`."},
+		{"a SHA its result shows", `{}`, "8888325 old-marker", "The ledger landed in 8888325 last week."},
+		{"a backticked symbol", `{}`, "func evidenceCap() old-marker", "The `evidenceCap` constant caps it."},
+		{"a number", `{}`, "300000 old-marker", "The cap is 300000 bytes in all."},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			content, _ := json.Marshal(tc.result)
+			entries := []transcript.Entry{
+				{Type: "assistant", Blocks: []transcript.Block{{Type: "tool_use", ID: "r0", Name: "Read", RawInput: json.RawMessage(tc.input)}}},
+				{Type: "user", Blocks: []transcript.Block{{Type: "tool_result", ToolUseID: "r0", Content: content}}},
+			}
+			for range 40 {
+				entries = append(entries, result(t, strings.Repeat("x", 10000)))
+			}
+			got := evidence(entries, tc.text, false)
+			if !strings.Contains(got, "old-marker") || !strings.Contains(got, "#### Tool Read") {
+				t.Errorf("evidence lacks the named result or its call")
+			}
+			if len(got) > evidenceCap+1000 {
+				t.Errorf("evidence is %d bytes, cap %d", len(got), evidenceCap)
+			}
+		})
+	}
+}
+
+// Named results past the cap are cut too, oldest first.
+func TestEvidenceCapsNamedResults(t *testing.T) {
+	t.Parallel()
+	var entries []transcript.Entry
+	for range 40 {
+		entries = append(entries, result(t, strings.Repeat("x", 10000)+" 300000"))
+	}
+	if got := evidence(entries, "The cap is 300000 bytes in all.", false); len(got) > evidenceCap+1000 {
+		t.Errorf("evidence is %d bytes, cap %d", len(got), evidenceCap)
+	}
+}
+
 func TestEvidenceClipsTheText(t *testing.T) {
 	t.Parallel()
 	got := evidence(nil, strings.Repeat("The page says hello. ", 200000), false)
 	if len(got) > textCap+200 || !strings.Contains(got, "bytes cut]") {
 		t.Errorf("evidence is %d bytes, want the text clipped to %d with a note", len(got), textCap)
+	}
+}
+
+// A subagent's report is its own claims, so it can't confirm the text's.
+func TestEvidenceMarksAnAgentResultAsNoEvidence(t *testing.T) {
+	t.Parallel()
+	call := func(id, name string) transcript.Entry {
+		return transcript.Entry{Type: "assistant", Blocks: []transcript.Block{{Type: "tool_use", ID: id, Name: name, RawInput: json.RawMessage(`{}`)}}}
+	}
+	answer := func(id, text string) transcript.Entry {
+		e := result(t, text)
+		e.Blocks[0].ToolUseID = id
+		return e
+	}
+	got := evidence([]transcript.Entry{call("r", "Read"), answer("r", "file text"), call("a", "Agent"), answer("a", "the tags stop at v0.2.2")}, "claim", false)
+	for _, want := range []string{"#### Result of Read\n\nfile text", "#### Result of Agent (not evidence)\n\nthe tags stop at v0.2.2"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("evidence lacks %q:\n%s", want, got)
+		}
+	}
+}
+
+// A finding's Evidence names the read or command behind it. One the
+// session never ran, or a field naming none, is flagged with no model run.
+func TestAFindingsEvidenceMustNameWhatTheSessionRan(t *testing.T) {
+	t.Parallel()
+	finding := func(evidence string) string {
+		return "### warning: the build fails\n\n`main.go:3` calls Foo, which is gone.\n\n- **Evidence:** " + evidence + "\n"
+	}
+	for _, tc := range []struct {
+		name, evidence string
+		flagged        bool
+	}{
+		{"a command that ran, and a value its output showed", "`go build ./...` printed `undefined: Foo`.", false},
+		{"a command that never ran", "`go vet ./...` printed `undefined: Foo`.", true},
+		{"a field naming no read or command", "the build output.", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := baseConfig()
+			var dir string
+			cfg.Claims.Command, dir = stub(t, envelope(map[string]any{"ok": true, "unsupported": []any{}}))
+			v, err := Verify(cfg, "", t.TempDir(), t.TempDir(), finding(tc.evidence), session(t))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := !v.OK && len(v.Unsupported) == 1 && strings.Contains(v.Unsupported[0].Claim, tc.evidence); got != tc.flagged {
+				t.Errorf("flagged = %v, want %v: %+v", got, tc.flagged, v)
+			}
+			if runs := testutil.Calls(t, filepath.Join(dir, "calls")); tc.flagged && runs != nil {
+				t.Errorf("a flagged finding still ran the model: %q", runs)
+			}
+		})
+	}
+}
+
+// A path read relative to the call's directory, its entry's cwd or a cd
+// in the command, names the same file as the repo-relative path.
+func TestAnEvidencePathMatchesARelativeRead(t *testing.T) {
+	t.Parallel()
+	bash := func(cwd, command string) transcript.Entry {
+		b := transcript.Block{Type: "tool_use", ID: command, Name: "Bash"}
+		b.Input.Command = command
+		return transcript.Entry{Type: "assistant", Cwd: cwd, Blocks: []transcript.Block{b}}
+	}
+	entries := []transcript.Entry{
+		bash("/r", "cd /r/go/internal && sed -n 1,9p claims/named.go"),
+		bash("/r/go", "sed -n 1p internal/x.go"),
+	}
+	for evidence, flagged := range map[string]bool{
+		"`go/internal/claims/named.go:3` reads it.": false,
+		"`go/internal/x.go:1` reads it.":            false,
+		"`go/internal/claims/other.go:1` reads it.": true,
+	} {
+		got := ungrounded("/r", entries, "- **Evidence:** "+evidence+"\n")
+		if (len(got) > 0) != flagged {
+			t.Errorf("%s: flagged = %v, want %v", evidence, len(got) > 0, flagged)
+		}
+	}
+}
+
+func TestStatements(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, text string
+		want       []string
+	}{
+		{"a sentence wrapped over two lines", "The verifier runs from\nthe project root.", []string{"The verifier runs from the project root."}},
+		{"a line ending in a parenthesis", "Evidence is cut at 20 KB per result (`claims.go:68`)", []string{"Evidence is cut at 20 KB per result (`claims.go:68`)"}},
+		{"a line ending in a colon", "The verifier has three tools:\n\n- Read", []string{"The verifier has three tools:"}},
+		{"a heading stays apart from its paragraph", "## All 42 tests pass\nThe gate ran twice today.", []string{"## All 42 tests pass", "The gate ran twice today."}},
+		{"a question isn't one", "Which branch should I use?", nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := Statements(tc.text); !slices.Equal(got, tc.want) {
+				t.Errorf("Statements(%q) = %q, want %q", tc.text, got, tc.want)
+			}
+		})
 	}
 }
 
@@ -304,10 +455,195 @@ func TestDeclarative(t *testing.T) {
 		"- Which branch should I use?":       false,
 		"- Done":                             false,
 		"|------|------|":                    false,
-		"## Verification: a header":          false,
+		"## Verification":                    false,
+		"## All 42 tests pass":               true,
+		"foo.go:12 returns nil.":             true,
+		"All 42 tests pass.":                 true,
+		"- All 42 tests pass":                true,
+		"Exit 0.":                            false,
 	} {
 		if got := Declarative(text); got != want {
 			t.Errorf("Declarative(%q) = %v, want %v", text, got, want)
 		}
+	}
+}
+
+// The verifier gets a Read deny per sensitive_paths entry, so neither a
+// claim nor an instruction injected into the evidence gets it to read a
+// credential file; a "!" exception can't narrow a deny, so it's dropped. A
+// glob whose literal part is too short to name a file gets no Bash deny,
+// which would match unrelated commands.
+func TestClaudeDeniesSensitiveReads(t *testing.T) {
+	t.Parallel()
+	cfg := baseConfig()
+	cfg.SensitivePaths = []string{".env", "!.env.example", "*.pem", "~/.ssh/", "~/.netrc", "id_*"}
+	argv := claude(cfg, "/kit", nil, "prompt")
+	i := slices.Index(argv, "--disallowedTools")
+	if i < 0 || i+1 >= len(argv) {
+		t.Fatalf("argv lacks --disallowedTools: %q", argv)
+	}
+	denied := strings.Split(argv[i+1], ",")
+	// "//" anchors at the filesystem root: a bare "**/" would cover only
+	// the verifier's cwd (code.claude.com/docs/en/permissions).
+	if want := []string{"Read(//**/.env)", "Bash(*.env*)", "Read(//**/*.pem)", "Bash(*.pem*)", "Read(~/.ssh/**)", "Bash(*.ssh/*)", "Read(~/.netrc)", "Bash(*.netrc*)", "Read(//**/id_*)"}; !slices.Equal(denied, want) {
+		t.Errorf("--disallowedTools = %q, want %q", denied, want)
+	}
+}
+
+// A run that fails on one text (its budget, its turns, a timeout) pauses
+// that text alone; a failure of the verifier itself pauses every text.
+func TestAFailureOnOneTextPausesOnlyThatText(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, script string
+		othersPaused bool
+	}{
+		{"over its budget", `printf %s '{"is_error":true,"subtype":"error_max_budget_usd"}'`, false},
+		{"the verifier failing", "exit 1", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg, cacheDir, dir := baseConfig(), t.TempDir(), t.TempDir()
+			cfg.Claims.Command = []string{filepath.Join(dir, "verifier")}
+			testutil.FakeTool(t, cfg.Claims.Command[0], filepath.Join(dir, "calls"), tc.script)
+			if _, err := Verify(cfg, "", cacheDir, t.TempDir(), "The build fails.", ""); err == nil {
+				t.Fatal("the first run didn't fail")
+			}
+			var paused *Paused
+			if _, err := Verify(cfg, "", cacheDir, t.TempDir(), "The build fails.", ""); !errors.As(err, &paused) {
+				t.Errorf("the same text again: err %v, want paused", err)
+			}
+			_, err := Verify(cfg, "", cacheDir, t.TempDir(), "The tests pass.", "")
+			if got := errors.As(err, &paused); got != tc.othersPaused {
+				t.Errorf("another text paused = %v (err %v), want %v", got, err, tc.othersPaused)
+			}
+		})
+	}
+}
+
+// One text timing out pauses only it, but a second text timing out within
+// the cooldown is the verifier hanging, so it pauses every text.
+func TestASecondTextTimingOutPausesEveryText(t *testing.T) {
+	t.Parallel()
+	cfg, cacheDir, dir := baseConfig(), t.TempDir(), t.TempDir()
+	cfg.Claims.Timeout = 1
+	cfg.Claims.Command = []string{filepath.Join(dir, "verifier")}
+	testutil.FakeTool(t, cfg.Claims.Command[0], filepath.Join(dir, "calls"), "sleep 5")
+	var paused *Paused
+	for i, text := range []string{"The build fails.", "The tests pass."} {
+		if _, err := Verify(cfg, "", cacheDir, t.TempDir(), text, ""); err == nil || errors.As(err, &paused) {
+			t.Fatalf("text %d: err %v, want a timeout", i, err)
+		}
+	}
+	if _, err := Verify(cfg, "", cacheDir, t.TempDir(), "The lint is clean.", ""); !errors.As(err, &paused) {
+		t.Errorf("a third text: err %v, want paused", err)
+	}
+}
+
+// repo is a git repo holding go/x.go, three lines defining Hello, and
+// .github/ci.yml, naming cache-key, in one commit, and that commit's SHA;
+// gen/out.go, defining Generated, is gitignored.
+func repo(t *testing.T) (dir, sha string) {
+	t.Helper()
+	dir = testutil.Physical(t, t.TempDir())
+	testutil.Put(t, filepath.Join(dir, "go"), "x.go", "package x\n\nfunc Hello() {}\n")
+	testutil.Put(t, filepath.Join(dir, ".github"), "ci.yml", "cache-key: v1\n")
+	testutil.Put(t, dir, ".gitignore", "gen/\n")
+	testutil.Put(t, filepath.Join(dir, "gen"), "out.go", "package gen\n\nfunc Generated() {}\n")
+	testutil.Git(t, dir, "init", "-q")
+	testutil.Git(t, dir, "add", ".")
+	testutil.GitID(t, dir, "commit", "-qm", "x")
+	sha, err := git.Line(dir, "rev-parse", "--short=12", "HEAD")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return dir, sha
+}
+
+// A statement that is only references, each resolved in the repo, needs no
+// model; an invented one is flagged without one; a statement that says
+// something about a reference goes to the model, without the bare ones.
+func TestBareReferencesResolveWithoutAModel(t *testing.T) {
+	t.Parallel()
+	dir, sha := repo(t)
+	for _, tc := range []struct {
+		name, text string
+		runs       int
+		flagged    []string
+	}{
+		{"a real file:line", "See `go/x.go:3`.", 0, nil},
+		{"an invented line", "See `go/x.go:9`.", 0, []string{"See `go/x.go:9`."}},
+		{"a real path", "- `go/x.go`", 0, nil},
+		{"an invented path", "See go/nope.go.", 0, []string{"See go/nope.go."}},
+		{"a real SHA", "See commit " + sha + ".", 0, nil},
+		{"an invented SHA", "See commit 0123abc4567f.", 0, []string{"See commit 0123abc4567f."}},
+		{"a real symbol", "See `Hello` in `go/x.go`.", 0, nil},
+		{"an invented symbol", "See `Goodbye` in `go/x.go`.", 0, []string{"See `Goodbye` in `go/x.go`."}},
+		{"a symbol only in a hidden file", "See `cache-key`.", 0, nil},
+		{"a symbol only in a gitignored file", "See `Generated` in `gen/out.go`.", 0, nil},
+		{"a bare reference wrapped across lines", "See `go/x.go:3`\nand `go/x.go`.", 0, nil},
+		{"a false claim about a real file:line", "`go/x.go:3` returns an error.", 1, nil},
+		{"a behavior sentence about a real symbol", "The `Hello` function panics on empty input.", 1, nil},
+		{"a reference outside the repo", "See `other/y.go:4`.", 1, nil},
+		{"a table row pairing real references", "| `Hello` | `go/x.go:3` | `.github/ci.yml` |", 1, nil},
+		{"a list item pairing real references", "- `Hello`: `go/x.go:3` and `.github/ci.yml`", 1, nil},
+		{"a table row with an invented reference", "| `Goodbye` | `go/x.go:3` | `.github/ci.yml` |", 0, []string{"| `Goodbye` | `go/x.go:3` | `.github/ci.yml` |"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := baseConfig()
+			argv, stubDir := stub(t, envelope(map[string]any{"ok": true, "unsupported": []any{}}))
+			cfg.Claims.Command = argv
+			got, err := Verify(cfg, "", t.TempDir(), dir, tc.text, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if calls := testutil.Calls(t, filepath.Join(stubDir, "calls")); len(calls) != tc.runs || got.Usage.Runs != tc.runs {
+				t.Errorf("runs = %d (usage %d), want %d", len(calls), got.Usage.Runs, tc.runs)
+			}
+			var claims []string
+			for _, u := range got.Unsupported {
+				claims = append(claims, u.Claim)
+			}
+			if !slices.Equal(claims, tc.flagged) || got.OK != (len(tc.flagged) == 0) {
+				t.Errorf("verdict = %+v, want flagged %q", got, tc.flagged)
+			}
+		})
+	}
+}
+
+// Past its deadline the no-model pass looks nothing up, so a reply full of
+// references can't hold Stop past its timeout; what's left goes to the model.
+func TestReferencesPastTheDeadlineStayUnsettled(t *testing.T) {
+	t.Parallel()
+	dir, _ := repo(t)
+	const text = "See `go/x.go:9`. See `Goodbye`."
+	flagged, rest := settleReferences(dir, text, time.Now().Add(-time.Second))
+	if len(flagged) != 0 || rest != text {
+		t.Errorf("flagged %+v, rest %q; want none flagged and the text whole", flagged, rest)
+	}
+}
+
+func TestTheModelGetsOnlyWhatReferencesDontSettle(t *testing.T) {
+	t.Parallel()
+	dir, _ := repo(t)
+	cfg := baseConfig()
+	argv, stubDir := stub(t, envelope(map[string]any{"ok": true, "unsupported": []any{}}))
+	cfg.Claims.Command = argv
+	if _, err := Verify(cfg, "", t.TempDir(), dir, "See `go/x.go:3`. The `Hello` function panics on empty input.", ""); err != nil {
+		t.Fatal(err)
+	}
+	_, sent, _ := strings.Cut(testutil.Read(t, filepath.Join(stubDir, "stdin")), "## Text to verify")
+	testutil.Has(t, sent, "The `Hello` function panics on empty input.")
+	testutil.Lacks(t, sent, "See `go/x.go:3`.")
+}
+
+func TestCitedFilesNamesOnlyFilesUnderTheRoot(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	testutil.Put(t, root, "go/x.go", "package x\n")
+	text := "See `go/x.go:3`, go/x.go, `go/gone.go`, /etc/hosts, and `go` for the 12 cases."
+	if got, want := CitedFiles(root, text), []string{"go/x.go"}; !slices.Equal(got, want) {
+		t.Errorf("CitedFiles = %q, want %q", got, want)
 	}
 }

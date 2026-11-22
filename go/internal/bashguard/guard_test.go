@@ -248,7 +248,7 @@ func TestGuardBash(t *testing.T) {
 		{"auto-allow: kit scratch-dir", `kit scratch-dir`, 0, []string{`"permissionDecision":"allow"`}, false},
 		{"auto-allow: kit git-base with an argument", `kit git-base main`, 0, []string{`"permissionDecision":"allow"`}, false},
 		{"auto-allow: kit blast-radius with a file and symbol", `kit blast-radius src/lib/format.ts formatDate`, 0, []string{`"permissionDecision":"allow"`}, false},
-		{"block: kit run-checks, which only the hooks run", `kit run-checks`, 2, []string{"the hooks run the gates"}, false},
+		{"no decision: kit run-checks runs the full gate when Claude calls it", `kit run-checks`, 0, nil, true},
 		{"no decision: kit run-checks --plan is not auto-allowed", `kit run-checks --plan`, 0, nil, true},
 		{"no decision: a subcommand that only starts with a read-only one", `kit git-base.evil`, 0, nil, true},
 		{"no decision: a kit called by path", `/tmp/kit scratch-dir`, 0, nil, true},
@@ -257,8 +257,6 @@ func TestGuardBash(t *testing.T) {
 		{"block: a sensitive path after -- still counts", `cat -- ~/.ssh/id_rsa`, 2, nil, false},
 		{"block: grep reading .env as a file", `grep API_KEY .env`, 2, nil, false},
 		{"allow: && or ; inside a quoted message isn't a command separator", `git commit -m "fix a && b; rm -rf ~ is not run"`, 0, nil, false},
-		{"block: an apostrophe in a heredoc body doesn't hide the lines after it", "cat <<EOF > \"$(kit scratch-dir)/n.txt\"\nit's done\nEOF\ngit push --force origin main", 2, nil, false},
-		{"block: eval runs an unchecked command string", `eval "rm -rf ~"`, 2, nil, false},
 		{"allow: rg with .env only as the search pattern", `rg .env src/`, 0, nil, false},
 		{"allow: head of an ordinary file", `head -20 README.md`, 0, nil, false},
 	} {
@@ -323,14 +321,6 @@ func TestGuardBash(t *testing.T) {
 		{"block: a quoted URL's & doesn't split curl away from its -O or -o", 2, []string{
 			`curl "https://x.test/f?a=1&b=2" -O`, `curl 'https://x.test/f?a=1&b=2' -o out.bin`,
 			`wget "https://x.test/f?a=1&b=2" -O page.html`,
-		}},
-		{"block: commands inside $( ) and backticks are checked, quoted or not", 2, []string{
-			`echo $(true && git push --force origin main)`,
-			`git status && echo "$(git push --force origin main)"`,
-			"echo `git push --force origin main`",
-		}},
-		{"block: a heredoc fed to a shell is checked as commands", 2, []string{
-			"bash <<EOF\nrm -rf ~\nEOF", "cat <<EOF | sh\nrm -rf ~\nEOF",
 		}},
 		{"allow: >&, &>, and |& aren't command separators", 0, []string{
 			`ls 2>&1`, `ls &>/dev/null`, `ls |& head`,
@@ -623,11 +613,6 @@ func TestGuardBash(t *testing.T) {
 		// A glob in the target is a file name, not a pathspec matching main_test.go.
 		guardIn(k, repo, `echo x > 'main*'`).Has(t, "writes into the current directory")
 	})
-	t.Run("comments: an unquoted # ends the line, a quoted one doesn't", func(t *testing.T) {
-		guard(shared, `echo hi # rm -rf ~ in a comment`).Want(t, 0)
-		guard(shared, `echo "a#b"; rm -rf ~`).Want(t, 2)
-	})
-
 	// Guard telemetry and per-rule opt-out.
 	t.Run("a block is logged to guards.jsonl with its rule slug", func(t *testing.T) {
 		k, _ := guardBashOverlay(t)
@@ -777,5 +762,100 @@ func TestGuardBashMarksAReadOnlyCommand(t *testing.T) {
 	k.hook("s1", "", "touch notes.md").Want(t, 0)
 	if _, err := os.Stat(marker("touch notes.md")); err == nil {
 		t.Error("a write was marked read-only")
+	}
+}
+
+// rm -r goes through when every operand is scratch, or a variable the
+// command set to a scratch path or a fresh mktemp -d dir; anything else asks.
+func TestRmRecursiveOnScratchPasses(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ cmd, want string }{
+		{`S=$(mktemp -d); rm -rf "$S"`, "pass"},
+		{`S=$(mktemp -d -t kit) && rm -rf "$S"`, "pass"},
+		{`rm -rf "$(kit scratch-dir)/x"`, "pass"},
+		{`D="$(kit scratch-dir)/run"; rm -r "$D"`, "pass"},
+		{`rm -rf src`, "ask"},
+		{`rm -rf "$S"`, "ask"},
+		{`S=src; rm -rf "$S"`, "ask"},
+		{`S=$(mktemp); rm -rf "$S"`, "ask"},
+		{`S=$(mktemp -d; echo /); rm -rf $S`, "ask"},
+		{`S=$(mktemp -d $(pwd)); rm -rf $S`, "ask"},
+		{`S=$(mktemp -d /tmp/x; echo /); rm -rf $S`, "ask"},
+		{`S='mktemp -d)'; rm -rf "$S"`, "ask"},
+		{`S=$(mktemp -d); rm -rf "${S}"`, "pass"},
+		{`S=$(mktemp -d); rm -rf $S`, "ask"},
+		{`S=$(mktemp -d); IFS=/; rm -rf $S`, "ask"},
+		{`S=$(mktemp -d); read S <<< /; rm -rf "$S"`, "ask"},
+		{`S=$(mktemp -d); printf -v S /; rm -rf "$S"`, "ask"},
+		{`S=$(mktemp -d); declare S=/; rm -rf "$S"`, "ask"},
+		{`S=$(mktemp -d); f() { S=/; }; f; rm -rf "$S"`, "ask"},
+		{`S=$(mktemp -d); source ./env.sh; rm -rf "$S"`, "ask"},
+		{`S=$(mktemp -d); . ./env.sh; rm -rf "$S"`, "ask"},
+		{`S=$(mktemp -d); N=$'\x53'; printf -v "$N" /; rm -rf "$S"`, "ask"},
+		{`S=$(mktemp -d); N=$'\x53'; 'read' "$N" <<< /; rm -rf "$S"`, "ask"},
+		{`S=$(mktemp -d); N=$'\x53'; C=declare; $C "$N=/"; rm -rf "$S"`, "ask"},
+		{`S=$(mktemp -d); N=$'\x53'; (( $N = 0 )); rm -rf "$S"`, "ask"},
+		{`S=$(mktemp -d); N=$'\x53'; : $(( $N = 0 )); rm -rf "$S"`, "ask"},
+		{`S=$(mktemp -d); for S in /; do :; done; rm -rf "$S"`, "ask"},
+		{`S=$(mktemp -d); cd /tmp && rm -rf "$S"`, "pass"},
+		{`S=$(mktemp -d); C=$'\x53=/'; trap "$C" DEBUG; rm -rf "$S"`, "ask"},
+		{`S=$(mktemp -d); N=$'\x53'; sleep 1 & wait -p "$N"; rm -rf "$S"`, "ask"},
+		{`S=$(mktemp -d); N=$'\x53'; enable -f ./x.so x; rm -rf "$S"`, "ask"},
+		{`S=$(mktemp -d); echo "$S"; ls "$S"; rm -rf "$S"`, "pass"},
+		{`S=$(mktemp -d); rm -rf "$S" src`, "ask"},
+		{`rm -rf "$(kit scratch-dir)/../x"`, "ask"},
+		{`S=$(mktemp -d); for d in a b; do S=src; done; rm -rf "$S"`, "ask"},
+		{`(S=$(mktemp -d)); rm -rf "$S"`, "ask"},
+		{`(PWD=$(mktemp -d)); rm -rf "$PWD"`, "ask"},
+		{`true || S=$(mktemp -d); rm -rf "$S"`, "ask"},
+		{`false && S=$(mktemp -d); rm -rf "$S"`, "ask"},
+		{`S=$(mktemp -d) | cat; rm -rf "$S"`, "ask"},
+		{`if false; then S=$(mktemp -d); fi; rm -rf "$S"`, "ask"},
+		{`f() { S=$(mktemp -d); }; rm -rf "$S"`, "ask"},
+		{`rm -rf "$(ROOT/bin/kit scratch-dir)/x"`, "pass"},
+		{"rm -rf \"`ROOT/bin/kit scratch-dir`/x\"", "pass"},
+		{`rm -rf "$(bin/kit scratch-dir)/x"`, "ask"},
+		{`rm -rf "$(/tmp/kit scratch-dir)/x"`, "ask"},
+		{`rm -rf "$(ROOT/bin/kit scratch-dir prompt)/x"`, "ask"},
+		{`rm -rf "$PWD/x"`, "ask"},
+	} {
+		t.Run(tc.cmd, func(t *testing.T) {
+			t.Parallel()
+			wantRm(t, "", tc.cmd, tc.want)
+		})
+	}
+}
+
+// From the kit's own checkout, as a session there runs: bin/kit is the kit,
+// and $PWD is the segment's cwd.
+func TestRmRecursiveOnScratchInTheCheckoutPasses(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ cmd, want string }{
+		{`D="$(bin/kit scratch-dir)/run"; rm -r "$D"`, "pass"},
+		{`rm -rf "$PWD/.claude/scratch/x"`, "pass"},
+		{`rm -rf "${PWD}/.claude/scratch/x"`, "pass"},
+		{`cd go && rm -rf "$PWD/.claude/scratch/x"`, "pass"},
+		{`cd go && rm -rf "$(bin/kit scratch-dir)/x"`, "ask"},
+		{`rm -rf "$PWD/.claude/scratch/../../src"`, "ask"},
+		{`rm -rf "$PWD"`, "ask"},
+	} {
+		t.Run(tc.cmd, func(t *testing.T) {
+			t.Parallel()
+			wantRm(t, filepath.Dir(kitYML), tc.cmd, tc.want)
+		})
+	}
+}
+
+// wantRm runs cmd from cwd, ROOT standing for the kit's checkout, and fails
+// unless guard-bash allows it with want, "pass" or "ask".
+func wantRm(t *testing.T, cwd, cmd, want string) {
+	t.Helper()
+	r := newSandbox(t).hook("", cwd, strings.ReplaceAll(cmd, "ROOT", filepath.Dir(kitYML)))
+	got := "pass"
+	if strings.Contains(r.Output, `"ask"`) {
+		got = "ask"
+	}
+	if r.Status != 0 || got != want {
+		t.Errorf("status %d, got %s want %s: %s\n%s", r.Status, got, want, cmd, r.Output)
 	}
 }

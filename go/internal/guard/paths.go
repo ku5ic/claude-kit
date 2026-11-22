@@ -259,7 +259,7 @@ func kitSwitch(paths config.Paths, cwd, p string, norm func(string) string) stri
 		return "the kit's logs"
 	case in(paths.CacheDir()):
 		return "the kit's state"
-	case paths.Root != "" && in(paths.Root) && !fsx.Within(norm(paths.Root), norm(cwd)):
+	case paths.Root != "" && in(paths.Root) && !fsx.Within(norm(paths.Root), norm(cwd)) && !in(filepath.Join(paths.Root, ".claude", "scratch")):
 		return "the installed claude-kit plugin"
 	}
 	return ""

@@ -3,19 +3,172 @@ package hooks
 import (
 	"cmp"
 	"encoding/json"
-	"fmt"
+	"maps"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/claims"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
+	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/stats"
-	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
+
+// Verdicts the statement ledger records.
+const (
+	statementConfirmed = "confirmed"
+	statementFlagged   = "flagged"
+)
+
+// ledgers are where statement verdicts live: the session's, a statementKey
+// and a verdict per line, and the project's, which keeps a confirmed
+// statement citing a file across sessions, /clear included, while HEAD and
+// each cited file's content match what they were.
+type ledgers struct {
+	session, project, root, head string
+}
+
+// statementLedgers is the payload's ledgers; the project's is "" outside a
+// git work tree with a commit.
+func statementLedgers(h *hook.Hook) ledgers {
+	l := ledgers{session: h.Paths.SessionFile(cache.Claims, h.Payload.SessionID(), "ledger")}
+	dir, _ := project.Root(h.Payload.Cwd())
+	top := git.Toplevel(dir)
+	if top == "" {
+		return l
+	}
+	if head, err := git.Line(top, "rev-parse", "HEAD"); err == nil {
+		l.root, l.head = top, head
+		l.project = filepath.Join(h.Paths.CacheDir(), cache.Claims, cache.RootKey(top)+".ledger")
+	}
+	return l
+}
+
+// read is every verdict that holds now, by statementKey: the session's,
+// and each project line whose HEAD and file hashes still match.
+func (l ledgers) read() map[string]string {
+	known := map[string]string{}
+	data, _ := os.ReadFile(l.session)
+	for line := range strings.Lines(string(data)) {
+		if key, verdict, ok := strings.Cut(strings.TrimSpace(line), "\t"); ok {
+			known[key] = verdict
+		}
+	}
+	if l.project == "" {
+		return known
+	}
+	data, _ = os.ReadFile(l.project)
+	sums := map[string]string{}
+	for line := range strings.Lines(string(data)) {
+		f := strings.Split(strings.TrimSpace(line), "\t")
+		if len(f) == 4 && f[2] == l.head && l.unchanged(f[3], sums) {
+			known[f[0]] = f[1]
+		}
+	}
+	return known
+}
+
+// unchanged is true when every path=hash pair of field matches the file
+// now; sums holds the hashes read so far.
+func (l ledgers) unchanged(field string, sums map[string]string) bool {
+	for pair := range strings.SplitSeq(field, ",") {
+		path, sum, ok := strings.Cut(pair, "=")
+		if !ok {
+			return false
+		}
+		if _, seen := sums[path]; !seen {
+			sums[path] = fileSum(filepath.Join(l.root, path))
+		}
+		if sums[path] == "" || sums[path] != sum {
+			return false
+		}
+	}
+	return true
+}
+
+// fileSum is a short hash of the file at path, "" when it can't be read.
+func fileSum(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return textHash(string(data))[:16]
+}
+
+// record appends verdicts, by statementKey, for statements, the texts by
+// key. A confirmed statement citing a file goes to the project ledger; the
+// rest, a flag included, stays the session's.
+// shortcut: the project ledger only grows, one line per statement, until
+// it sits a day unused and is pruned; dropping old HEADs' lines on write
+// would bound it.
+func (l ledgers) record(h *hook.Hook, verdicts, statements map[string]string) {
+	if l.session == "" || len(verdicts) == 0 || h.DryRun {
+		return
+	}
+	var session, project strings.Builder
+	for _, key := range slices.Sorted(maps.Keys(verdicts)) {
+		var files []string
+		if l.project != "" && verdicts[key] == statementConfirmed {
+			files = claims.CitedFiles(l.root, statements[key])
+		}
+		if len(files) == 0 {
+			session.WriteString(key + "\t" + verdicts[key] + "\n")
+			continue
+		}
+		pairs := make([]string, len(files))
+		for i, f := range files {
+			pairs[i] = f + "=" + fileSum(filepath.Join(l.root, f))
+		}
+		project.WriteString(key + "\t" + verdicts[key] + "\t" + l.head + "\t" + strings.Join(pairs, ",") + "\n")
+	}
+	if session.Len() > 0 {
+		_ = fsx.Append(l.session, []byte(session.String()))
+	}
+	if project.Len() > 0 {
+		_ = fsx.Append(l.project, []byte(project.String()))
+	}
+}
+
+// recordVerdicts records in the ledger what v said of fresh, the
+// statements it was given, and returns v's flags less those about decided,
+// statements the ledger already holds. A statement counts as confirmed
+// only when the model ran: the reference pass and a finding's evidence
+// check leave the rest unread. A flag that matches no statement stays a
+// flag, unrecorded.
+func recordVerdicts(h *hook.Hook, l ledgers, fresh, decided []string, v claims.Verdict) []claims.Unsupported {
+	verdicts, statements := map[string]string{}, map[string]string{}
+	for _, s := range fresh {
+		statements[statementKey(s)] = s
+	}
+	var out []claims.Unsupported
+	for _, u := range v.Unsupported {
+		matched := false
+		for _, s := range fresh {
+			if stats.Kept(u.Claim, []string{s}) {
+				verdicts[statementKey(s)] = statementFlagged
+				matched = true
+			}
+		}
+		if !matched && stats.Kept(u.Claim, decided) {
+			continue
+		}
+		out = append(out, u)
+	}
+	if v.Usage.Runs > 0 {
+		for _, s := range fresh {
+			if _, ok := verdicts[statementKey(s)]; !ok {
+				verdicts[statementKey(s)] = statementConfirmed
+			}
+		}
+	}
+	l.record(h, verdicts, statements)
+	return out
+}
 
 // ledger logs each flagged claim to claims.jsonl as kept or dropped in
 // text, the version that went out after the flag. The claim's text is
@@ -59,79 +212,4 @@ func ledgerPending(h *hook.Hook, marker, where, text string) {
 	if json.Unmarshal(data, &flagged) == nil {
 		ledger(h, "hook", model, where, flagged, text)
 	}
-}
-
-// ledgerRuns logs the flags of each finished claim-checker run on text, or
-// on an earlier version that shares a statement with it, once per run.
-func ledgerRuns(h *hook.Hook, log checkerLog, record, text, where string) {
-	if h.DryRun {
-		return
-	}
-	keys := map[string]bool{}
-	for _, s := range claims.Statements(text) {
-		keys[statementKey(s)] = true
-	}
-	var ids []string
-	for _, a := range readAsked(record) {
-		if slices.ContainsFunc(a.keys, func(k string) bool { return keys[k] }) {
-			ids = append(ids, a.id)
-		}
-	}
-	done := h.Paths.SessionFile(cache.Claims, h.Payload.SessionID(), "ledgered")
-	seen, _ := os.ReadFile(done)
-	for _, run := range transcript.AgentRuns(log.entries, claimChecker) {
-		at := fmt.Sprintf("%d:%d", run.At.Entry, run.At.Block)
-		if run.Status != transcript.RunDone || run.Result == "" || ledgered(seen, at) ||
-			!slices.ContainsFunc(ids, func(id string) bool { return strings.Contains(run.Prompt, id) }) {
-			continue
-		}
-		_ = fsx.Append(done, []byte(at+"\n"))
-		model := run.Model
-		if model == "" {
-			model = cmp.Or(agentModel(h), "inherit")
-		}
-		ledger(h, "agent", model, where, stats.Flagged(run.Result), text)
-	}
-}
-
-// ledgered is true when seen, the ledgered file, holds at as a whole line.
-func ledgered(seen []byte, at string) bool {
-	for line := range strings.Lines(string(seen)) {
-		if strings.TrimSuffix(line, "\n") == at {
-			return true
-		}
-	}
-	return false
-}
-
-// agentModel is the model agents/claim-checker.md pins, "" when none.
-func agentModel(h *hook.Hook) string {
-	data, _ := os.ReadFile(claims.AgentFile(h.Paths.Root))
-	for line := range strings.Lines(string(data)) {
-		if model, ok := strings.CutPrefix(line, "model:"); ok {
-			return strings.TrimSpace(model)
-		}
-	}
-	return ""
-}
-
-// asked is one line of the session's asked file: a claim-check id, the
-// statement keys it covers, and the report file it was asked for.
-type asked struct {
-	id   string
-	keys []string
-	dest string
-}
-
-// readAsked is the asked file's lines, the first for each id, in order.
-func readAsked(record string) []asked {
-	var out []asked
-	for line := range strings.Lines(record) {
-		id, rest, ok := strings.Cut(strings.TrimRight(line, "\n"), "\t")
-		keys, dest, _ := strings.Cut(rest, "\t")
-		if ok && !slices.ContainsFunc(out, func(a asked) bool { return a.id == id }) {
-			out = append(out, asked{id, strings.Split(keys, ","), dest})
-		}
-	}
-	return out
 }

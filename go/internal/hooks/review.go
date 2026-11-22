@@ -117,11 +117,12 @@ func ReviewChecks(h *hook.Hook) error {
 	}
 	var report strings.Builder
 	res, receipt := run.Gates(plan, cacheDir, &report, deadline)
-	notifyReceipt(h, cfg, receipt, nil, "")
+	notifyReceipt(h, cfg, receipt, "")
 	if res.Fail == 0 {
 		// Only a whole pass lets Stop skip the tree: a known failure must
-		// still block, and a gate the budget cut checked nothing.
-		if snapErr == nil && res.Cut == 0 && !h.DryRun {
+		// still block, and a gate skipped unchecked, the budget's cuts
+		// among them, checked nothing.
+		if snapErr == nil && res.Unchecked == 0 && !h.DryRun {
 			_ = fsx.WriteAtomic(cache.FullGateTree(cacheDir, root), []byte(tree), 0o600)
 		}
 		return nil

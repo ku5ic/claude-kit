@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -121,11 +122,87 @@ func TestBashEdits(t *testing.T) {
 		testutil.Write(t, filepath.Join(other, "b.md"), tell)
 		ran(k, other, "ls").Want(t, 2)
 	})
-	t.Run("a git command that brings in others' content isn't checked", func(t *testing.T) {
+	t.Run("a repo the turn didn't start in gets its baseline before its first command, which is checked", func(t *testing.T) {
+		t.Parallel()
+		k, _ := setup(t)
+		other := repo(t, filepath.Join(t.TempDir(), "other"))
+		k.run("bash-baseline", map[string]any{"hook_event_name": "PreToolUse", "session_id": "s1", "cwd": other,
+			"tool_name": "Bash", "tool_input": map[string]any{"command": "tee b.md"}}).Want(t, 0)
+		testutil.Write(t, filepath.Join(other, "b.md"), tell)
+		ran(k, other, "tee b.md").Want(t, 2)
+	})
+	// Only a command that is one git move and nothing else skips the checks.
+	for _, cmd := range []string{"git restore other.md; sed -i '' 's/x/y/' notes.md", "echo git checkout main", "git checkout main && sed -i '' 's/x/y/' notes.md"} {
+		t.Run("a git move beside another command is checked: "+cmd, func(t *testing.T) {
+			t.Parallel()
+			k, dir := setup(t)
+			testutil.Write(t, filepath.Join(dir, "notes.md"), "Notes.\n"+tell)
+			ran(k, dir, cmd).Want(t, 2)
+		})
+	}
+	t.Run("a file a git move brought in, beside another command, isn't checked", func(t *testing.T) {
 		t.Parallel()
 		k, dir := setup(t)
+		testutil.Git(t, dir, "checkout", "-q", "-b", "x")
 		testutil.Write(t, filepath.Join(dir, "notes.md"), "Notes.\n"+tell)
-		ran(k, dir, "git pull --rebase").Want(t, 0)
+		testutil.Git(t, dir, "commit", "-q", "-am", "theirs")
+		testutil.Git(t, dir, "checkout", "-q", "-")
+		testutil.Git(t, dir, "checkout", "-q", "x")
+		ran(k, dir, "git checkout x && go test ./...").Want(t, 0)
+	})
+	for _, cmd := range []string{"git pull --rebase", "git -C . checkout main", "cd sub && git pull"} {
+		t.Run("one git move alone isn't checked: "+cmd, func(t *testing.T) {
+			t.Parallel()
+			k, dir := setup(t)
+			testutil.Write(t, filepath.Join(dir, "notes.md"), "Notes.\n"+tell)
+			ran(k, dir, cmd).Want(t, 0)
+		})
+	}
+	// A test file a command deletes, or renames out of the test glob, takes
+	// its assertions with it.
+	testWithAssertions := func(t *testing.T) (*sandbox, string) {
+		k := newSandbox(t)
+		dir := repo(t, filepath.Join(t.TempDir(), "repo"))
+		testutil.Write(t, filepath.Join(dir, "a_test.go"), "package a\n\nfunc TestA(t *testing.T) {\n\tt.Errorf(\"one\")\n\tt.Fatalf(\"two\")\n}\n")
+		testutil.Git(t, dir, "add", "-A")
+		testutil.Git(t, dir, "commit", "-q", "-m", "test")
+		k.run("turn-tree", map[string]any{"hook_event_name": "UserPromptSubmit", "session_id": "s1", "cwd": dir}).Want(t, 0)
+		return k, dir
+	}
+	t.Run("a deleted test file is sent back with its lost assertions", func(t *testing.T) {
+		t.Parallel()
+		k, dir := testWithAssertions(t)
+		if err := os.Remove(filepath.Join(dir, "a_test.go")); err != nil {
+			t.Fatal(err)
+		}
+		r := ran(k, dir, "rm a_test.go")
+		r.Want(t, 2)
+		r.Has(t, "2 fewer assertion line(s)", "a_test.go")
+	})
+	t.Run("a test renamed out of the test glob is sent back", func(t *testing.T) {
+		t.Parallel()
+		k, dir := testWithAssertions(t)
+		if err := os.Rename(filepath.Join(dir, "a_test.go"), filepath.Join(dir, "a_test.go.bak")); err != nil {
+			t.Fatal(err)
+		}
+		ran(k, dir, "mv a_test.go a_test.go.bak").Want(t, 2)
+	})
+	t.Run("a test renamed to another test keeps its assertions", func(t *testing.T) {
+		t.Parallel()
+		k, dir := testWithAssertions(t)
+		if err := os.Rename(filepath.Join(dir, "a_test.go"), filepath.Join(dir, "b_test.go")); err != nil {
+			t.Fatal(err)
+		}
+		ran(k, dir, "mv a_test.go b_test.go").Want(t, 0)
+	})
+	t.Run("weaken in disabled_rules lets a deleted test through", func(t *testing.T) {
+		t.Parallel()
+		k, dir := testWithAssertions(t)
+		k.overlay("disabled_rules: [weaken]\n")
+		if err := os.Remove(filepath.Join(dir, "a_test.go")); err != nil {
+			t.Fatal(err)
+		}
+		ran(k, dir, "rm a_test.go").Want(t, 0)
 	})
 	t.Run("an edit made before the turn's prompt isn't charged to the turn", func(t *testing.T) {
 		t.Parallel()
@@ -142,4 +219,38 @@ func TestBashEdits(t *testing.T) {
 		testutil.Write(t, filepath.Join(dir, "notes.md"), "Notes.\n"+tell)
 		ran(k, dir, "echo").Want(t, 0)
 	})
+}
+
+// Only a write that lands in the repo stops a git move counting as alone: a
+// redirect to /dev/null or to a log outside the repo brings no file in.
+func TestRepoWritesKeepsOnlyWritesInTheRepo(t *testing.T) {
+	t.Parallel()
+	root := testutil.Physical(t, t.TempDir())
+	notes := filepath.Join(root, "notes.md")
+	got := repoWrites(root, []string{"/dev/null", filepath.Join(t.TempDir(), "git.log"), notes})
+	if want := []string{notes}; !slices.Equal(got, want) {
+		t.Errorf("repoWrites = %q, want %q", got, want)
+	}
+}
+
+// A git move stays one when read-only calls sit beside it, piped or
+// chained, and when it chains with another move; a writer beside it, or a
+// reader flag that runs a command, makes it more than a move.
+func TestGitMoveIgnoresReadersBesideIt(t *testing.T) {
+	t.Parallel()
+	for cmd, want := range map[string]bool{
+		"git pull":                                true,
+		"git pull --rebase 2>&1 | tail -20":       true,
+		"git checkout main && git pull":           true,
+		"cd sub && git stash pop | head -5":       true,
+		"git pull && npm install":                 false,
+		"git pull | tee pull.log":                 false,
+		"git pull 2>&1 | rg --pre ./run.sh merge": false,
+		"git status | tail -3":                    false,
+		"tail -3 notes.md":                        false,
+	} {
+		if got := gitMove(cmd); got != want {
+			t.Errorf("gitMove(%q) = %v, want %v", cmd, got, want)
+		}
+	}
 }

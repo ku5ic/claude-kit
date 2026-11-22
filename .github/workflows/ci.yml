@@ -51,6 +51,12 @@ jobs:
       - name: Install ast-grep
         run: npm install -g "@ast-grep/cli@$(awk '$1 == "ast-grep" {print $2}' ../.tool-versions)"
 
+      # The claim verifier finds a bare symbol with rg, and its tests need it.
+      - name: Install ripgrep
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ripgrep
+
       - name: test
         run: go test -race ./...
 
@@ -107,6 +113,18 @@ jobs:
             { echo "claude plugin validate failed, or its --json report changed shape:"; echo "$out"; exit 1; }
           ts="$(jq -r '.contents[].warnings[].message | select(startswith("error TS"))' <<<"$out")"
           [ -z "$ts" ] || { echo "$ts"; exit 1; }
+
+      # The style is mods/.prettierrc.json, the version mods/pnpm-lock.yaml.
+      - name: Install pnpm
+        run: npm install -g "$(jq -r .packageManager mods/package.json)"
+
+      - name: Install mods dev tools
+        working-directory: mods
+        run: pnpm install --frozen-lockfile
+
+      - name: prettier check mods
+        working-directory: mods
+        run: pnpm run format:check
 
       # claude plugin test runs only from a plugin root, and from this one it
       # would also run the codegraph fixture's main.test.ts, so it tests a copy.

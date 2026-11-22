@@ -38,7 +38,7 @@ Era words (`slop.density.words`) count only as a cluster. One "robust" is fine; 
 | Emoji leading headings or list items                                           | none                                                           | Words                                                      |
 | Markdown leaking into a commit, a YAML value, or a chat that doesn't render it | none                                                           | The target format's own markup                             |
 | The em dash (U+2014) cadence: punched-up clauses                               | sanitizer turns the character into a hyphen; the cadence stays | A comma or two sentences                                   |
-| A joining colon: a clause, a colon, then the reveal or a restatement           | none, judgment ([false-positives.md](false-positives.md))      | Two sentences, or a comma                                  |
+| A joining colon: a clause, a colon, then the reveal or a restatement           | `joining-colon` ([false-positives.md](false-positives.md))     | Two sentences, or a comma                                  |
 
 The joining colon is the em dash's cadence in other punctuation, so swapping one for the other fixes nothing. Colons in code, paths, key-value pairs, times, ratios, and a list's introduction are fine.
 

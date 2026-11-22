@@ -3,26 +3,7 @@
   "structured_output": {
     "entries": [
       {
-        "id": "7908abdec90e4729",
-        "role": "fixer",
-        "mutates": true,
-        "file_form": "ruff --fix {files}",
-        "globs": [
-          "**/*.py"
-        ]
-      },
-      {
-        "id": "8ab3d3fba792ad75",
-        "role": "check",
-        "mutates": false,
-        "file_form": "check-yaml {files}",
-        "globs": [
-          "**/*.yaml",
-          "**/*.yml"
-        ]
-      },
-      {
-        "id": "97bb2f61e8c8d6a7",
+        "id": "0dc7ba8b1b9b9358",
         "role": "check",
         "kind": "typecheck",
         "mutates": false,
@@ -32,21 +13,40 @@
         ]
       },
       {
-        "id": "9955e779216a15c9",
+        "id": "11ee21d8cef2d31a",
+        "role": "check",
+        "mutates": false,
+        "file_form": "check-yaml {files}",
+        "globs": [
+          "**/*.yaml",
+          "**/*.yml"
+        ]
+      },
+      {
+        "id": "44050014979f4f9e",
         "role": "fixer",
         "mutates": true,
-        "file_form": "ruff-format {files}",
+        "file_form": "ruff --fix {files}",
         "globs": [
           "**/*.py"
         ]
       },
       {
-        "id": "a6687b4bde81b99d",
+        "id": "5a58f532095c28c3",
         "role": "fixer",
         "mutates": true,
         "file_form": "end-of-file-fixer {files}",
         "globs": [
           "**/*"
+        ]
+      },
+      {
+        "id": "72a1a4776ac2c214",
+        "role": "fixer",
+        "mutates": true,
+        "file_form": "ruff-format {files}",
+        "globs": [
+          "**/*.py"
         ]
       }
     ],
@@ -55,7 +55,7 @@
       {
         "role": "check",
         "kind": "lint",
-        "command": "ruff check",
+        "command": "ruff check .",
         "file_form": "ruff check {files}",
         "globs": [
           "**/*.py"
@@ -66,7 +66,7 @@
       {
         "role": "check",
         "kind": "format-check",
-        "command": "ruff format --check",
+        "command": "ruff format --check .",
         "file_form": "ruff format --check {files}",
         "globs": [
           "**/*.py"
@@ -76,7 +76,7 @@
       },
       {
         "role": "fixer",
-        "command": "ruff format",
+        "command": "ruff format .",
         "file_form": "ruff format {files}",
         "globs": [
           "**/*.py"
@@ -88,10 +88,6 @@
         "role": "check",
         "kind": "typecheck",
         "command": "mypy .",
-        "file_form": "mypy {files}",
-        "globs": [
-          "**/*.py"
-        ],
         "dir": ".",
         "evidence": ".pre-commit-config.yaml"
       }

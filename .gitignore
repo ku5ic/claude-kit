@@ -4,3 +4,7 @@ skills/synced/
 bin/kit-*
 # Written by the engine when it loads the mods; extends the ignored .claude-plugin/types/.
 /tsconfig.json
+# mods' dev tools, from mods/pnpm-lock.yaml.
+/mods/node_modules/
+# memory: local agents write here under the session's cwd, which can be any subfolder.
+**/.claude/agent-memory-local/

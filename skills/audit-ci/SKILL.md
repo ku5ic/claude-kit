@@ -19,7 +19,7 @@ Loading this skill isn't enough. Before the step a row names, read its file.
 
 ## Run
 
-Resolve a linked ticket or doc as `skills/investigate` step 0 describes, then dispatch the auditor agent (subagent_type: kit:auditor, foreground) with this file's procedure and the resolved arguments. It writes the report; reply per `skills/kit-rules/reference/output.md` section 3.
+Resolve a linked ticket or doc as `skills/investigate` step 0 describes, then dispatch the auditor agent (subagent_type: kit:auditor, foreground) with this file's procedure and the resolved arguments. It writes the report. Then run the report-format skill's Runtime checks yourself, and reply per `skills/kit-rules/reference/output.md` section 3.
 
 ## Prerequisites
 
@@ -27,7 +27,7 @@ Resolve a linked ticket or doc as `skills/investigate` step 0 describes, then di
 
 ## Procedure
 
-1. Run `actionlint` on the target workflows. Each error is a finding. With no `actionlint`, skip this step and say so under "Cannot be verified statically".
+1. Run `actionlint` on the target workflows. Each error is a finding. With no `actionlint`, skip this step and say so under "Needs a runtime check".
 2. Read each workflow and check:
    - **Pinning**: a `uses:` of an action outside the repo pinned to a branch (`@main`) is a `warning`.
    - **Permissions**: a top-level or per-job `permissions:` block granting only what the jobs use. None at all means the token's default scope, a `warning`.

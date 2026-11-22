@@ -35,6 +35,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/sources"
 	"github.com/ku5ic/claude-kit/go/internal/stats"
 	"github.com/ku5ic/claude-kit/go/internal/status"
+	"github.com/ku5ic/claude-kit/go/internal/vcsread"
 )
 
 // version is stamped by go/build.sh from .claude-plugin/plugin.json.
@@ -141,6 +142,7 @@ var commands = map[string]command{
 	"--version":      {needsNothing, cmdVersion},
 	"completion":     {needsNothing, streams(cmdCompletion)},
 	"git-base":       {needsNothing, streams(gitbase.Run)},
+	"read":           {needsNothing, streams(vcsread.Run)},
 	"config":         {needsEnv, envOnly(cmdConfig)},
 	"scratch-rotate": {needsEnv, envOnly(cmdScratchRotate)},
 	"clean":          {needsEnv, envOnly(cmdClean)},
@@ -419,15 +421,15 @@ func cmdDetectStack(e *env, cfg *config.Config, _ []string) int {
 	return 0
 }
 
-var positive = regexp.MustCompile(`^[1-9][0-9]*$`)
+var wholeDays = regexp.MustCompile(`^(0|[1-9][0-9]*)$`)
 
-// parseDays reads a [days] argument: a positive integer, rotate.DefaultDays when absent.
+// parseDays reads a [days] argument: 0 or a positive integer, rotate.DefaultDays when absent.
 func parseDays(arg string, stderr io.Writer) (int, bool) {
 	if arg == "" {
 		return rotate.DefaultDays, true
 	}
-	if !positive.MatchString(arg) {
-		fmt.Fprintf(stderr, "scratch-rotate: [days] must be a positive integer, got '%s'\n", arg)
+	if !wholeDays.MatchString(arg) {
+		fmt.Fprintf(stderr, "scratch-rotate: [days] must be 0 or a positive integer, got '%s'\n", arg)
 		return 0, false
 	}
 	n, err := strconv.Atoi(arg)

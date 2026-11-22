@@ -20,11 +20,13 @@ Every command hook runs through one `kit` binary, and the same binary answers th
 | See what my project's configs say to run, and when               | `kit enforce --list`                                  |
 | Let a gate that changed files run again                          | `kit gates reset`                                     |
 | Find the files that import a file before I change it             | `kit blast-radius <file>`                             |
+| Run a git, `gh`, or `glab` read that can't turn into a write     | `kit read git log ...`, `kit read gh pr view ...`     |
 | See which accepted ADRs a file falls under                       | `kit adrs [path]`                                     |
 | Check my overlay for unknown keys and wrong types                | `kit config --check`                                  |
 | Scan a text for AI tells                                         | `kit slop <file>`                                     |
 | Check two colours' contrast against WCAG                         | `kit contrast <fg> <bg>`                              |
 | Prune old scratch files now, not at the next day's first session | `kit scratch-rotate`                                  |
+| Empty every scratch folder, whatever the files' age              | `kit scratch-rotate 0`                                |
 | Remove the kit's logs, caches, and scratch before uninstalling   | `kit clean`, then `kit clean --yes`                   |
 
 ## In your own terminal
@@ -53,7 +55,7 @@ Opus 5.5  my-app  main +0 ~0
 
 ## Subagent rows
 
-The plugin draws each subagent's row in the agent list itself, with no setting: name, status, model and effort, context used, time running, and the tool it's running now, or its latest progress note. While it's on, a subagent's tool call can't move to the background and shows no live output. Turn it off with the `subagent_rows` option in `/plugin` config. Claude Code 2.1.323 has no agent rows for a plugin to draw, so it shows its own.
+The plugin draws each subagent's row in the agent list itself, with no setting: name with a (+N) count of the agents below it, status, model and effort, context used, time running, and the tool it's running now, or its latest progress note. While it's on, a subagent's tool call can't move to the background and shows no live output. Turn it off with the `subagent_rows` option in `/plugin` config. Claude Code 2.1.323 has no agent rows for a plugin to draw, so it shows its own.
 
 ```text
 kit:plan-critic  running  opus-5-5 high  18%  2m4s  Read statusline.go

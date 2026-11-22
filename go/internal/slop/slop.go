@@ -180,7 +180,7 @@ func Message(where string, hits []Hit, then string) string {
 
 // DensityNote is the context a guard adds when r is dense.
 func (d *Detector) DensityNote(where string, r Result) string {
-	return fmt.Sprintf("unslop: %s reads dense with AI-era vocabulary (%.1f tier 3 hits per %d words). Not blocked; consider rewriting the passage around specifics (slop-patterns skill).", where, r.Score, d.density.PerWords)
+	return fmt.Sprintf("%s reads dense with AI-era vocabulary (%.1f tier 3 hits per %d words). Not blocked; the slop-patterns skill has the rewrite.", where, r.Score, d.density.PerWords)
 }
 
 // Scan matches every rule that applies to surface against segs.

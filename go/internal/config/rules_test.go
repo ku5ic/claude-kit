@@ -74,40 +74,39 @@ func TestRulesMatchTheCode(t *testing.T) {
 	}
 }
 
-func TestAnUnknownDisabledRuleWarns(t *testing.T) {
+func TestAnUnknownRuleNameWarns(t *testing.T) {
 	t.Parallel()
-	cfg := Config{DisabledRules: []string{"plan-critic", "slop-copula", "slop-vocabulary", "plan-critc", "slop-nope"}, Slop: Slop{Rules: []SlopRule{{ID: "copula"}}}}
-	var got []string
-	for _, err := range cfg.unknownDisables() {
-		got = append(got, err.Error())
-	}
-	if len(got) != 2 || !strings.Contains(got[0], `"plan-critc"`) || !strings.Contains(got[1], `"slop-nope"`) {
-		t.Errorf("warnings: %q", got)
-	}
-}
-
-func TestAnUnknownShadowRuleWarns(t *testing.T) {
-	t.Parallel()
-	cfg := Config{ShadowRules: []string{"weaken", "weakn"}}
-	var got []string
-	for _, err := range cfg.unknownDisables() {
-		got = append(got, err.Error())
-	}
-	if len(got) != 1 || !strings.HasPrefix(got[0], `shadow_rules: "weakn"`) {
-		t.Errorf("warnings: %q", got)
-	}
-}
-
-// The slop guards deny under one rule, slop, so a shadowed slop-<id>
-// would shadow nothing.
-func TestAShadowedSlopRuleWarns(t *testing.T) {
-	t.Parallel()
-	cfg := Config{ShadowRules: []string{"slop", "slop-vocabulary"}, Slop: Slop{Rules: []SlopRule{{ID: "vocabulary"}}}}
-	var got []string
-	for _, err := range cfg.unknownDisables() {
-		got = append(got, err.Error())
-	}
-	if len(got) != 1 || !strings.HasPrefix(got[0], `shadow_rules: "slop-vocabulary"`) {
-		t.Errorf("warnings: %q", got)
+	for _, tc := range []struct {
+		name string
+		cfg  Config
+		want []string // each warning's prefix, in order
+	}{
+		{"an unknown disabled rule",
+			Config{DisabledRules: []string{"plan-critic", "slop-copula", "slop-vocabulary", "plan-critc", "slop-nope"}, Slop: Slop{Rules: []SlopRule{{ID: "copula"}}}},
+			[]string{`disabled_rules: "plan-critc"`, `disabled_rules: "slop-nope"`}},
+		{"an unknown shadow rule",
+			Config{ShadowRules: []string{"weaken", "weakn"}},
+			[]string{`shadow_rules: "weakn"`}},
+		// The slop guards deny under one rule, slop, so a shadowed slop-<id>
+		// would shadow nothing.
+		{"a shadowed slop rule",
+			Config{ShadowRules: []string{"slop", "slop-vocabulary"}, Slop: Slop{Rules: []SlopRule{{ID: "vocabulary"}}}},
+			[]string{`shadow_rules: "slop-vocabulary"`}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var got []string
+			for _, err := range tc.cfg.unknownDisables() {
+				got = append(got, err.Error())
+			}
+			if len(got) != len(tc.want) {
+				t.Fatalf("warnings: %q, want %d", got, len(tc.want))
+			}
+			for i, prefix := range tc.want {
+				if !strings.HasPrefix(got[i], prefix) {
+					t.Errorf("warning %d = %q, want prefix %q", i, got[i], prefix)
+				}
+			}
+		})
 	}
 }

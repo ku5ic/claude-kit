@@ -1,8 +1,6 @@
 package hooks
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,7 +8,6 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/cite"
-	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/layout"
 	"github.com/ku5ic/claude-kit/go/internal/project"
@@ -24,7 +21,7 @@ const gatherer = "gatherer"
 //   - PreToolUse for ExitPlanMode: the plan, once per text, so the same
 //     plan resent goes through.
 //   - PreToolUse for SubagentHandback, and SubagentStop: a kit:gatherer
-//     report, once per agent.
+//     report, a revision again, up to maxSendBacks per agent.
 //
 // It runs before verify-claims in its dispatcher, so a broken citation is
 // fixed before a model checks the claims around it.
@@ -33,7 +30,7 @@ func CheckCitations(h *hook.Hook) error {
 	if p.Err != nil {
 		return p.Err
 	}
-	if decision, _ := h.Decision(); decision == "deny" {
+	if earlierDeny(h) {
 		return nil
 	}
 	root, anchored := project.Root(p.Cwd())
@@ -42,25 +39,28 @@ func CheckCitations(h *hook.Hook) error {
 	}
 	switch {
 	case p.String(hook.KeyHookEventName) == "SubagentStop":
-		// Sent back once, by the stop or the hand-back. A marker, not
-		// stop_hook_active: another check may have blocked the first stop.
+		// Sent back by the stop or the hand-back, a revision again, up to
+		// maxSendBacks. A marker, not stop_hook_active: another check may
+		// have blocked the first stop.
 		marker := handbackMarker(h, cache.Cites)
-		if !isGatherer(p) || marker == "" && p.Bool(hook.KeyStopHookActive) || marker != "" && fsx.IsFile(marker) {
+		text := p.String(hook.KeyLastAssistantMessage)
+		if !isGatherer(p) || marker == "" && p.Bool(hook.KeyStopHookActive) || marker != "" && !mayResend(marker, text) {
 			return nil
 		}
-		if bad := cite.Broken(root, p.String(hook.KeyLastAssistantMessage)); len(bad) > 0 {
-			if marker != "" && !markOnce(h, marker, []byte("sent-back"), "citations") {
+		if bad := cite.Broken(root, text); len(bad) > 0 {
+			if marker != "" && !markSentBack(h, marker, text, "citations") {
 				return nil
 			}
 			return h.Block(citesMessage("your report", bad, sendBack), "citations")
 		}
 	case p.String(hook.KeyToolName) == "SubagentHandback":
 		marker := handbackMarker(h, cache.Cites)
-		if !isGatherer(p) || marker == "" || fsx.IsFile(marker) {
+		text := p.String(hook.KeyInputMessage)
+		if !isGatherer(p) || marker == "" || !mayResend(marker, text) {
 			return nil
 		}
-		if bad := cite.Broken(root, p.String(hook.KeyInputMessage)); len(bad) > 0 {
-			if markOnce(h, marker, []byte("sent-back"), "citations") {
+		if bad := cite.Broken(root, text); len(bad) > 0 {
+			if markSentBack(h, marker, text, "citations") {
 				h.Deny(citesMessage("your report", bad, sendBack), "citations")
 			}
 		}
@@ -80,8 +80,7 @@ func planCitations(h *hook.Hook, root string) error {
 	}
 	plan := filepath.Base(p.String(hook.KeyInputPlanFilePath))
 	marker := h.Paths.SessionFile(cache.Cites, p.SessionID(), "plan", plan)
-	sum := sha256.Sum256([]byte(text))
-	sentBack := "sent-back " + hex.EncodeToString(sum[:])
+	sentBack := "sent-back " + textHash(text)
 	if prev, err := os.ReadFile(marker); err == nil && string(prev) == sentBack {
 		return nil
 	}

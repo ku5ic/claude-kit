@@ -5,25 +5,29 @@ import (
 	"testing"
 )
 
-// Every command is described; one whose args leave no room wraps.
-func TestCommandsDescribed(t *testing.T) {
-	for _, c := range Commands {
-		if c.Desc == "" {
-			t.Errorf("%s has no description", c.Name)
-		}
-	}
-}
-
+// A spec with room for two spaces before descColumn takes its description's
+// first line; a longer one puts every line below it.
 func TestUsageLayout(t *testing.T) {
-	usage := Usage()
-	for _, want := range []string{
-		"\n  detect-stack               compact stack report\n",
-		"\n  run-checks [--plan] [--all] [--only sub...]\n                             every declared check, in every subproject,\n                             on what changed since the git base (--all:\n                             the whole tree); exits with the failure count.",
-		"\n  git-base [--diff|--log] [base] [flags] [-- paths]\n                             the base ref of this checkout, or the diff\n                             or log against it\n  explain",
-	} {
-		if !strings.Contains(usage, want) {
-			t.Errorf("usage lacks %q:\n%s", want, usage)
-		}
+	saved := Commands
+	t.Cleanup(func() { Commands = saved })
+	fits := strings.Repeat("x", descColumn-2-len("  edge "))
+	wide := fits + "x"
+	Commands = []Command{
+		{Name: "short", Desc: "one line"},
+		{Name: "edge", Args: fits, Desc: "at the limit"},
+		{Name: "wide", Args: wide, Desc: "first\nsecond"},
+		{Name: "multi", Desc: "first\nsecond"},
+		{Name: "bare"},
+	}
+	indent := strings.Repeat(" ", descColumn)
+	want := "usage: kit <command> [args]\n\n" +
+		"  short" + strings.Repeat(" ", descColumn-len("  short")) + "one line\n" +
+		"  edge " + fits + "  at the limit\n" +
+		"  wide " + wide + "\n" + indent + "first\n" + indent + "second\n" +
+		"  multi" + strings.Repeat(" ", descColumn-len("  multi")) + "first\n" + indent + "second\n" +
+		"  bare\n"
+	if got := Usage(); got != want {
+		t.Errorf("usage:\n%s\nwant:\n%s", got, want)
 	}
 }
 

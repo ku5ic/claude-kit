@@ -36,7 +36,9 @@ var (
 type Gate struct {
 	Label   string
 	Kinds   []string // the check kinds it runs: several for an aggregate run whole
+	Also    []string // kinds its run covers besides Kinds, such as typecheck by a compiling test
 	Dir     string   // where it runs, absolute
+	Reaches []string // other directories, absolute, whose kinds its run covers
 	Env     []string
 	Body    string // the shell it runs; {base} is the git base at run time
 	Bins    []resolve.Resolution
@@ -156,6 +158,22 @@ func (b *builder) skipCovered() {
 // work; it runs after all when that gate doesn't.
 func (g Gate) Covered() bool { return g.CoveredBy != "" }
 
+// The skips that leave no code unchecked: no gate exists for the kinds,
+// disabled_checks turned it off, or formatters conflict over the files.
+const (
+	skipNothing     = "nothing enforces it"
+	skipDisabled    = "disabled_checks"
+	verdictConflict = "conflict"
+)
+
+// Settled is true for a skipped gate that leaves no code unchecked: another
+// gate's run does its work, no gate exists, disabled_checks turned it off,
+// or the formatters it conflicts with each format the files. Running it
+// again would check nothing new.
+func (g Gate) Settled() bool {
+	return g.Covered() || g.Skip == skipNothing || g.Skip == skipDisabled || g.Verdict == verdictConflict
+}
+
 // plan is an empty builder for o.Root: its entries and their verified
 // verdicts, and its subprojects.
 func plan(cfg *config.Config, o Options) (*builder, []string) {
@@ -264,11 +282,12 @@ func (b *builder) add(g Gate) {
 	b.gates = append(b.gates, g)
 }
 
-// covered is true when a gate already runs kind in dir, or across the
-// workspace dir is a member of.
+// covered is true when a gate already runs kind in dir, across the
+// workspace dir is a member of, or from a directory whose run reaches dir.
 func (b *builder) covered(dir, kind string) bool {
 	return slices.ContainsFunc(b.gates, func(g Gate) bool {
-		return slices.Contains(g.Kinds, kind) && (g.Dir == dir || g.FanOut && b.members[dir])
+		return (slices.Contains(g.Kinds, kind) || slices.Contains(g.Also, kind)) &&
+			(g.Dir == dir || g.FanOut && b.members[dir] || slices.Contains(g.Reaches, dir))
 	})
 }
 
@@ -302,7 +321,7 @@ func (b *builder) fill(sub string) {
 		}
 	}
 	if len(missing) > 0 && sources.HasManifest(dir) {
-		b.gates = append(b.gates, Gate{Label: strings.Join(missing, ", ") + project.SubLabel(sub), Dir: dir, Skip: "nothing enforces it"})
+		b.gates = append(b.gates, Gate{Label: strings.Join(missing, ", ") + project.SubLabel(sub), Dir: dir, Skip: skipNothing})
 	}
 }
 
@@ -350,7 +369,7 @@ func (b *builder) taskRunners(sub, kind string) {
 		if !called[b.key(e)] {
 			tp, _ := provider(e.Source)
 			v, _ := b.verdict(e)
-			g := verdictGate(e, v, dir)
+			g := b.verdictGate(e, v, dir)
 			g.Label, g.Kinds, g.Body = label([]string{kind}, e.File+": "+e.Name, sub), []string{kind}, b.runCommand(tp, sub, e.Name)
 			b.add(g)
 		}
@@ -409,7 +428,7 @@ func (b *builder) settle(cacheDir string) {
 	for i := range b.gates {
 		g := &b.gates[i]
 		if g.Skip == "" && (b.cfg.CheckDisabled("", g.Label) || slices.ContainsFunc(g.Kinds, func(k string) bool { return b.cfg.CheckDisabled(k, g.Label) })) {
-			g.Skip = "disabled_checks"
+			g.Skip = skipDisabled
 		}
 		g.Env = append(slices.Clone(b.cfg.GateEnv), g.Env...)
 	}

@@ -48,10 +48,12 @@ func newRotator(paths config.Paths, dryRun bool, stdout io.Writer) *rotator {
 	return r
 }
 
-// home prunes the scratch home's reports older than n days.
+// home prunes the scratch home's files older than n days, and the folders
+// that leaves empty.
 func (r *rotator) home(scratch string, n int) {
 	if fsx.IsDir(scratch) {
-		removed, _ := r.prune(scratch, n, func(name string) bool { return strings.HasSuffix(name, ".md") })
+		removed, folders := r.prune(scratch, n, nil)
+		r.emptyFolders(folders, n, removed)
 		fmt.Fprintf(r.stdout, "scratch-rotate: %s %d artifact(s) older than %dd from %s\n", r.pruned, len(removed), n, scratch)
 	}
 }
@@ -113,7 +115,7 @@ func (r *rotator) registry(registry, home string, n int, stderr io.Writer) {
 			fmt.Fprintf(stderr, "scratch-rotate: REFUSING registry entry %s (not a plain scratch/ dir under $HOME)\n", dir)
 			keep = append(keep, dir)
 		default:
-			r.worktrees(dir, stderr)
+			r.worktrees(dir, min(n, 1), stderr)
 			removed, folders := r.prune(dir, n, nil)
 			r.emptyFolders(folders, n, removed)
 			fmt.Fprintf(r.stdout, "scratch-rotate: %s %d artifact(s) older than %dd from %s\n", r.pruned, len(removed), n, dir)
@@ -136,14 +138,14 @@ type rotator struct {
 }
 
 // worktrees removes the review-* git worktrees directly under a project
-// scratch dir whose creation (their .git file) is more than a day old: a
+// scratch dir whose creation (their .git file) is more than days old: a
 // review that ended without cleaning up leaves one behind.
-func (r *rotator) worktrees(dir string, stderr io.Writer) {
+func (r *rotator) worktrees(dir string, days int, stderr io.Writer) {
 	gitFiles, _ := filepath.Glob(filepath.Join(dir, "review-*", ".git"))
 	var removed []string
 	for _, gitFile := range gitFiles {
 		info, err := os.Lstat(gitFile)
-		if err != nil || !info.Mode().IsRegular() || !cache.Older(info.ModTime(), 1, r.now) {
+		if err != nil || !info.Mode().IsRegular() || !cache.Older(info.ModTime(), days, r.now) {
 			continue
 		}
 		wt := filepath.Dir(gitFile)
@@ -157,7 +159,7 @@ func (r *rotator) worktrees(dir string, stderr io.Writer) {
 				continue
 			}
 		}
-		fmt.Fprintf(r.stdout, "scratch-rotate: %s review worktree older than 1d %s\n", r.verb, wt)
+		fmt.Fprintf(r.stdout, "scratch-rotate: %s review worktree older than %dd %s\n", r.verb, days, wt)
 		removed = append(removed, wt)
 	}
 	r.record(removed)

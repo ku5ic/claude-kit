@@ -14,8 +14,8 @@
         "dlx": "",
         "dir_flags": [],
         "rivals": [
-          "pdm",
-          "uv"
+          "uv",
+          "pdm"
         ]
       }
     ],
@@ -23,7 +23,7 @@
       {
         "role": "check",
         "kind": "lint",
-        "command": "poetry run ruff check .",
+        "command": "poetry run ruff check",
         "file_form": "poetry run ruff check {files}",
         "globs": [
           "**/*.py"
@@ -34,7 +34,7 @@
       {
         "role": "check",
         "kind": "typecheck",
-        "command": "poetry run mypy .",
+        "command": "poetry run mypy",
         "file_form": "poetry run mypy {files}",
         "globs": [
           "**/*.py"
@@ -57,7 +57,7 @@
       {
         "role": "check",
         "kind": "format-check",
-        "command": "poetry run ruff format --check .",
+        "command": "poetry run ruff format --check",
         "file_form": "poetry run ruff format --check {files}",
         "globs": [
           "**/*.py"
@@ -67,7 +67,7 @@
       },
       {
         "role": "fixer",
-        "command": "poetry run ruff format .",
+        "command": "poetry run ruff format",
         "file_form": "poetry run ruff format {files}",
         "globs": [
           "**/*.py"

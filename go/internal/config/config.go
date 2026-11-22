@@ -39,6 +39,8 @@ type Config struct {
 	DisabledTaskProviders []string      `yaml:"disabled_task_providers"`
 	DisabledChecks        []string      `yaml:"disabled_checks"`
 
+	ReplyLength    string         `yaml:"reply_length"`
+	ReplySlack     string         `yaml:"reply_slack"`
 	ReplyLimits    ReplyLimits    `yaml:"reply_limits"`
 	SanitizeSkip   []string       `yaml:"sanitize_skip"`
 	SkipDirs       []string       `yaml:"skip_dirs"`
@@ -55,10 +57,15 @@ type Config struct {
 	PackageLookups PackageLookups `yaml:"package_lookups"`
 	ChatBundle     ChatBundle     `yaml:"chat_bundle"`
 
-	// Tag is "merged" when an overlay was merged in, else "base". Caches
-	// derived from the config carry it in their file name, so deleting the
-	// overlay can't leave its derived state in use.
+	// Tag is "merged" when an overlay or /config options were merged in,
+	// else "base". Caches derived from the config carry it in their file
+	// name, so deleting the overlay can't leave its derived state in use.
 	Tag string `yaml:"-"`
+
+	// From is the file a problem in the merged values is reported against:
+	// kit.yml, the overlay, or settings.json. Exported so the on-disk cache
+	// keeps it.
+	From string `yaml:"-"`
 
 	// OverlayInstalls counts the GlobalInstalls entries, at its end, that
 	// the overlay added. Exported so the on-disk cache keeps it.
@@ -102,7 +109,7 @@ func rootLabel(label string) string {
 // from a table or a variable is added by hand.
 var Rules = []string{
 	"adr-nudge", "ai-attribution", "aws-ec2-terminate", "aws-s3-force-rb", "aws-s3-recursive-rm",
-	"bash-edits", "checks-failed", "chmod-777", "chmod-broad-x", "citations", "claims", "commit-msg", "commit-wall-of-text",
+	"bash-edits", "bash-reports", "checks-failed", "chmod-777", "chmod-broad-x", "citations", "claims", "commit-msg", "commit-wall-of-text",
 	"device-write", "disk-tool", "docker-prune-all-force", "download-to-repo",
 	"find-delete", "find-exec-rm", "fork-bomb",
 	"gcloud-delete", "git-config-global", "git-dir-edit", "git-force-push", "git-no-verify",
@@ -110,7 +117,7 @@ var Rules = []string{
 	"interpreter-c-wrap", "keychain-delete", "kubectl-delete", "lockfile-edit",
 	"pipe-to-shell", "pkg-global-install", "pkg-missing", "pkg-undeclared", "plan-critic", "plan-done",
 	"pm-mismatch", "psql-destructive", "rc-edit", "rc-inplace-edit", "rc-redirect", "redis-destructive",
-	"review-checks", "review-report", "rm-recursive", "rules-gate", "run-checks-by-hook", "scratch-rotate", "sensitive-read", "sensitive-write",
+	"review-checks", "review-pick", "review-report", "rm-recursive", "rules-gate", "scratch-rotate", "sensitive-read", "sensitive-write",
 	"size", "skills-gate", "skills-nudge", "slop", "slop-vocabulary", "staged-secret", "terraform-auto-approve", "terraform-destroy",
 	"ui-undefined-token", "unread-text", "weaken", "xargs-rm",
 }
@@ -275,6 +282,10 @@ type Connectors struct {
 	WriteVerbs []string `yaml:"write_verbs"`
 	ReadVerbs  []string `yaml:"read_verbs"`
 	CodeFields []string `yaml:"code_fields"`
+	PathFields []string `yaml:"path_fields"`
+	// PathServers are the MCP servers whose tools touch local files, by
+	// name, alone or as a plugin server's last part.
+	PathServers []string `yaml:"path_servers"`
 }
 
 // Attribution is what go/internal/attribution finds an AI tool's
@@ -533,13 +544,28 @@ func (s Slop) problems() []error {
 // reply. A prompt that starts with an UncappedCommands command has none.
 // 0 is no ceiling.
 type ReplyLimits struct {
-	Chat             int            `yaml:"chat"`
-	Explain          int            `yaml:"explain"`
-	ExplainTriggers  []string       `yaml:"explain_triggers"`
-	DetailTriggers   []string       `yaml:"detail_triggers"`
-	UncappedCommands []string       `yaml:"uncapped_commands"`
-	Write            map[string]int `yaml:"write"`
+	Modes            map[string]ReplyMode `yaml:"modes"`
+	ExplainTriggers  []string             `yaml:"explain_triggers"`
+	DetailTriggers   []string             `yaml:"detail_triggers"`
+	UncappedCommands []string             `yaml:"uncapped_commands"`
+	Write            map[string]int       `yaml:"write"`
+
+	// Mode is the reply_length mode in force, and Chat and Explain its
+	// targets; Slack is reply_slack as a percent. load resolves them.
+	Mode          string `yaml:"-"`
+	Chat, Explain int    `yaml:"-"`
+	Slack         int    `yaml:"-"`
 }
+
+// ReplyMode is one reply_length mode's word targets, 0 for none.
+type ReplyMode struct {
+	Chat    int `yaml:"chat"`
+	Explain int `yaml:"explain"`
+}
+
+// Allowance is how far past target a reply or deliverable may run before
+// it's flagged: target plus the slack.
+func (l ReplyLimits) Allowance(target int) int { return target + target*l.Slack/100 }
 
 // negatives names each ceiling below 0, which would silently mean "off".
 func (l ReplyLimits) negatives() []error {
@@ -549,8 +575,10 @@ func (l ReplyLimits) negatives() []error {
 			errs = append(errs, fmt.Errorf("reply_limits: %s is %d; a ceiling is 0 (off) or more", name, n))
 		}
 	}
-	check("chat", l.Chat)
-	check("explain", l.Explain)
+	for _, mode := range slices.Sorted(maps.Keys(l.Modes)) {
+		check("modes."+mode+".chat", l.Modes[mode].Chat)
+		check("modes."+mode+".explain", l.Modes[mode].Explain)
+	}
 	for _, kind := range slices.Sorted(maps.Keys(l.Write)) {
 		check("write."+kind, l.Write[kind])
 	}

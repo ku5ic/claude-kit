@@ -5,6 +5,7 @@ package bashguard
 
 import (
 	"errors"
+	"github.com/ku5ic/claude-kit/go/internal/classify"
 	"regexp"
 	"slices"
 	"strings"
@@ -49,7 +50,9 @@ type Call struct {
 	// Heredocs are the raw bodies of this command's here-documents and
 	// here-strings.
 	Heredocs []string
-	start    int // source offset of the first word
+	// Exports are the names an export declares, with a value or without.
+	Exports []string
+	start   int // source offset of the first word
 }
 
 // Segment is one pipeline: the commands between &&, ||, ;, &, or a newline.
@@ -60,6 +63,9 @@ type Segment struct {
 	// subshell is a pipeline inside ( ), $( ), backticks, or <( ): a cd
 	// there moves nothing after it.
 	subshell bool
+	// conditional is a pipeline that may not run: on the right of && or
+	// ||, or inside a compound command.
+	conditional bool
 	// loop is the outermost for, while, or until loop holding the
 	// pipeline, 0 for none: its body reruns, so an assignment anywhere in
 	// it may be in effect.
@@ -133,9 +139,12 @@ type collector struct {
 	segs     []Segment
 	depth    int // of the parse in progress: nested heredocs and env -S strings
 	subshell int // how many subshells the walk is inside
-	loop     int // the outermost loop the walk is inside, 0 for none
-	loops    int // loop ids handed out
-	unparsed bool
+	// conditional is how many places the walk is inside that may not run:
+	// the right of && or ||, and any compound (if, case, a function body).
+	conditional int
+	loop        int // the outermost loop the walk is inside, 0 for none
+	loops       int // loop ids handed out
+	unparsed    bool
 }
 
 func (c *collector) parse(src string, depth int) {
@@ -223,21 +232,23 @@ func (c *collector) stmt(src string, s *syntax.Stmt) {
 	}
 	if bin, ok := s.Cmd.(*syntax.BinaryCmd); ok && (bin.Op == syntax.AndStmt || bin.Op == syntax.OrStmt) {
 		c.stmt(src, bin.X)
+		c.conditional++
 		c.stmt(src, bin.Y)
+		c.conditional--
 		return
 	}
 	parts := pipeline(s)
 	if parts == nil {
 		// A compound command: its own statements, and any substitution in
 		// its words (for items, case subjects, [[ ]] operands).
+		c.conditional++
 		c.inner(src, s.Cmd)
-		for _, r := range s.Redirs {
-			c.inner(src, r)
-		}
+		c.conditional--
+		c.compoundRedirs(src, s)
 		return
 	}
 
-	seg := Segment{src: src, end: segmentEnd(parts[len(parts)-1]), subshell: c.subshell > 0, loop: c.loop}
+	seg := Segment{src: src, end: segmentEnd(parts[len(parts)-1]), subshell: c.subshell > 0, conditional: c.conditional > 0, loop: c.loop}
 	for _, p := range parts {
 		call, ok := p.Cmd.(*syntax.CallExpr)
 		if p.Cmd == nil {
@@ -245,24 +256,39 @@ func (c *collector) stmt(src string, s *syntax.Stmt) {
 			// as x=1 > f is, so its target gets every redirect check.
 			call, ok = &syntax.CallExpr{}, true
 		}
+		var exports []string
 		if decl, isDecl := p.Cmd.(*syntax.DeclClause); isDecl {
 			call, ok = c.declCall(src, decl), true
+			exports = exportNames(decl)
 		}
 		if !ok {
 			// ( ... ) or { ... } inside a pipeline: its statements and its
-			// redirects' substitutions are segments of their own.
+			// redirects are segments of their own.
+			c.conditional++
 			c.inner(src, p.Cmd)
-			for _, r := range p.Redirs {
-				c.inner(src, r)
-			}
+			c.conditional--
+			c.compoundRedirs(src, p)
 			continue
 		}
-		seg.Calls = append(seg.Calls, c.call(src, p, call))
+		cl := c.call(src, p, call)
+		cl.Exports = exports
+		seg.Calls = append(seg.Calls, cl)
 	}
 	if len(seg.Calls) > 0 {
 		c.segs = append(c.segs, seg)
 	}
 	c.shellHeredocs(seg)
+}
+
+// compoundRedirs is a compound command's own redirects ({ cat; } < .env,
+// done > f) as a call with no words in a segment of its own, the shape a
+// redirect alone has, so each gets the same read and write checks.
+func (c *collector) compoundRedirs(src string, s *syntax.Stmt) {
+	if len(s.Redirs) == 0 {
+		return
+	}
+	c.segs = append(c.segs, Segment{src: src, end: segmentEnd(s), subshell: c.subshell > 0, loop: c.loop,
+		Calls: []Call{c.call(src, s, &syntax.CallExpr{})}})
 }
 
 // segmentEnd is where a pipeline ends: its last command's last word or
@@ -353,6 +379,9 @@ func (c *collector) call(src string, p *syntax.Stmt, call *syntax.CallExpr) Call
 	if cmd, ok := flockString(cl.Words); ok {
 		c.parse(cmd, c.depth+1)
 	}
+	for _, cmd := range rebaseExecs(cl.Words) {
+		c.parse(cmd, c.depth+1)
+	}
 	cl.Redirs = append(cl.Redirs, timeOutputs(cl.Words)...)
 	for _, r := range p.Redirs {
 		c.redirect(src, r, &cl)
@@ -390,6 +419,60 @@ func (c *collector) redirect(src string, r *syntax.Redirect, cl *Call) {
 		}
 		cl.Redirs = append(cl.Redirs, Redir{op, Word{value, src[r.Word.Pos().Offset():r.Word.End().Offset()], int(r.Word.End().Offset()), literal(r.Word.Parts)}})
 	}
+}
+
+// rebaseExecs is each command string a git rebase among words runs after
+// each commit: -x cmd, -xcmd, either in a cluster such as -ix, --exec cmd,
+// or --exec=cmd.
+func rebaseExecs(words []Word) []string {
+	i := lead(words)
+	if i >= len(words) || baseName(words[i].Value) != "git" {
+		return nil
+	}
+	sub, args, _ := classify.GitSubcommand(values(words[i+1:]))
+	if sub != "rebase" {
+		return nil
+	}
+	// git takes any unambiguous prefix of a long option: --ex is --exec.
+	isExec := func(flag string) bool { return len(flag) >= len("--ex") && abbrevOf(flag, "--exec") }
+	var out []string
+	for j := 0; j < len(args); j++ {
+		a := args[j]
+		flag, value, attached := strings.Cut(a, "=")
+		switch {
+		case attached && isExec(flag):
+			out = append(out, value)
+		case isExec(a) && j+1 < len(args):
+			out = append(out, args[j+1])
+			j++
+		case len(a) > 1 && a[0] == '-' && a[1] != '-':
+			cmd, ok := clusterExec(a[1:])
+			if ok && cmd == "" && j+1 < len(args) {
+				cmd = args[j+1]
+				j++
+			}
+			if cmd != "" {
+				out = append(out, cmd)
+			}
+		}
+	}
+	return out
+}
+
+// clusterExec is the exec command in letters, a short-option cluster of
+// git rebase such as ix or xcmd: the rest after its x, "" when the x ends
+// it and the command is the next word. A letter that takes a value (-s,
+// -X, -C) holds the rest of the cluster, so an x after it is data.
+func clusterExec(letters string) (string, bool) {
+	for i, c := range letters {
+		switch c {
+		case 'x':
+			return letters[i+1:], true
+		case 's', 'X', 'C':
+			return "", false
+		}
+	}
+	return "", false
 }
 
 // fdTarget is a >& target that names a descriptor: 2, 2-, or -.
@@ -612,15 +695,53 @@ func envSplitString(words []Word) (string, bool) {
 func assigned(seg Segment) map[string]string {
 	vars := map[string]string{}
 	for _, call := range seg.Calls {
-		if len(call.Words) > 0 {
+		assigns := call.Assigns
+		switch {
+		case len(call.Words) > 0 && call.Words[0].Value == "export":
+			// export NAME=value sets NAME as a bare assignment does.
+			assigns = slices.DeleteFunc(values(call.Words[1:]), func(w string) bool { return !assignment.MatchString(w) })
+		case len(call.Words) > 0:
 			continue
 		}
-		for _, a := range call.Assigns {
+		for _, a := range assigns {
 			name, value, _ := strings.Cut(a, "=")
 			vars[name] = value
 		}
 	}
 	return vars
+}
+
+// exportedNames is every name an export in segs declares, with a value or
+// without (export NAME exports an earlier bare assignment).
+func exportedNames(segs []Segment) map[string]bool {
+	names := map[string]bool{}
+	for _, seg := range segs {
+		for _, call := range seg.Calls {
+			for _, name := range call.Exports {
+				names[name] = true
+			}
+		}
+	}
+	return names
+}
+
+// exportNames is the names decl declares when it's an export, or a
+// declare -x or typeset -x; nil for any other declaration.
+func exportNames(decl *syntax.DeclClause) []string {
+	export := decl.Variant != nil && decl.Variant.Value == "export"
+	var names []string
+	for _, a := range decl.Args {
+		switch {
+		case a.Naked && a.Name == nil && a.Value != nil && strings.HasPrefix(a.Value.Lit(), "-") && strings.Contains(a.Value.Lit(), "x"):
+			export = true
+		case a.Name != nil:
+			names = append(names, a.Name.Value)
+		}
+	}
+	if !export {
+		return nil
+	}
+	return names
 }
 
 // loopAssigned is every value each loop's bare assignments set, by loop
@@ -793,8 +914,9 @@ func partValue(src string, part syntax.WordPart, inDouble bool) string {
 	case *syntax.SglQuoted:
 		if p.Dollar {
 			// $'\x72m' is rm. Format reads printf verbs too, so a % stays
-			// literal; the shell cuts the value at a NUL.
-			v, _, err := expand.Format(nil, strings.ReplaceAll(p.Value, "%", "%%"), nil)
+			// literal; the shell cuts the value at a NUL. Workaround: a nil
+			// config makes mvdan/sh v3.14.1 write its shared zeroConfig, a race.
+			v, _, err := expand.Format(&expand.Config{}, strings.ReplaceAll(p.Value, "%", "%%"), nil)
 			if err != nil {
 				return src[p.Pos().Offset():p.End().Offset()]
 			}

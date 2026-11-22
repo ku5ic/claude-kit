@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/enforce"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/resolve"
 	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
@@ -26,7 +27,7 @@ func (r *repo) check(label, kind, body string, files ...string) enforce.Gate {
 }
 
 func (r *repo) stop(gates ...enforce.Gate) Checked {
-	return Files(enforce.Plan{Root: r.root, Gates: gates}, r.cache, 5*time.Second, time.Now().Add(time.Minute))
+	return Files(enforce.Plan{Root: r.root, Gates: gates}, nil, r.cache, 5*time.Second, time.Now().Add(time.Minute))
 }
 
 func TestAStopPassIsReportedOnly(t *testing.T) {
@@ -176,12 +177,27 @@ func TestASkippedCheckIsNamedInTheBlock(t *testing.T) {
 	has(t, out.Report(), "checks: 0 passed, 1 failed, 1 skipped")
 }
 
+// A gate disabled_checks turned off leaves nothing unchecked, so a Stop
+// pass with one is still a whole pass; one that wasn't installed isn't.
+func TestASettledSkipLeavesAStopUncheckedFree(t *testing.T) {
+	t.Parallel()
+	r := newRepo(t, "repo")
+	disabled := r.check("lint", "lint", "true")
+	disabled.Skip = "disabled_checks"
+	if out := r.stop(disabled, r.check("test", "test", "true")); out.Result.Skip != 1 || out.Result.Unchecked != 0 {
+		t.Errorf("disabled: %+v, want 1 skip and 0 unchecked", out.Result)
+	}
+	if out := r.stop(r.check("typecheck", "typecheck", "no-such-tsc --noEmit")); out.Result.Unchecked != 1 {
+		t.Errorf("not installed: %+v, want 1 unchecked", out.Result)
+	}
+}
+
 func TestAHungCheckTimesOutAsASkipWithItsChildren(t *testing.T) {
 	t.Parallel()
 	r := newRepo(t, "repo")
 	pid := filepath.Join(r.aside, "pid")
 	g := r.check("test", "test", "sleep 60 & echo $! > "+pid+"; wait")
-	out := Files(enforce.Plan{Root: r.root, Gates: []enforce.Gate{g}}, r.cache, time.Second, time.Now().Add(time.Minute))
+	out := Files(enforce.Plan{Root: r.root, Gates: []enforce.Gate{g}}, nil, r.cache, time.Second, time.Now().Add(time.Minute))
 	has(t, out.Report(), "SKIP test (timed out after 1s)")
 	n, err := strconv.Atoi(strings.TrimSpace(testutil.Read(t, pid)))
 	if err != nil {
@@ -242,12 +258,12 @@ func TestChecksStopAtTheBatchDeadline(t *testing.T) {
 	start := time.Now()
 	// Seconds to spare for the snapshot before the gate under a loaded -race
 	// run, and far short of both the gate's timeout and its sleep.
-	out := Files(plan, r.cache, time.Minute, start.Add(5*time.Second))
+	out := Files(plan, nil, r.cache, time.Minute, start.Add(5*time.Second))
 	if took := time.Since(start); took > 15*time.Second {
 		t.Errorf("took %s, past the deadline", took)
 	}
 	has(t, out.Report(), "SKIP slow (timed out after ")
-	has(t, Files(plan, r.cache, 5*time.Second, start).Report(), "SKIP slow (no time left in the hook's budget)")
+	has(t, Files(plan, nil, r.cache, 5*time.Second, start).Report(), "SKIP slow (no time left in the hook's budget)")
 }
 
 func TestACheckThatChangesFilesBlocksAndIsMarked(t *testing.T) {
@@ -279,5 +295,59 @@ func TestACheckThatChangesFilesBlocksAndIsMarked(t *testing.T) {
 	}
 	if data, _ := os.ReadFile(filepath.Join(r.root, "a.ts")); string(data) != "let x\n" {
 		t.Errorf("a.ts = %q after restore", data)
+	}
+}
+
+// As in the full gate, a Stop check whose mark can't be saved says so.
+func TestACheckWhoseMarkCantBeSavedSaysSo(t *testing.T) {
+	t.Parallel()
+	r := newRepo(t, "repo")
+	r.write("a.ts", "let x\n")
+	testutil.Put(t, filepath.Dir(r.cache), filepath.Base(r.cache), "a file where the cache dir goes")
+	out := r.stop(r.check("lint", "lint", "echo fixed > a.ts", "a.ts"))
+	has(t, out.Detail, "  changed: a.ts; its mark couldn't be saved, so it runs again next time: ")
+	lacks(t, out.Detail, "it won't run again")
+}
+
+// A gate whose every failure line it prints also shows in its run on the
+// git base failed before the branch, so it doesn't block. Timings and the
+// tree's path are left out of the match; any other difference blocks.
+func TestAFailureTheBaseHasTooDoesntBlock(t *testing.T) {
+	t.Parallel()
+	const old, fresh = "echo '--- FAIL: TestOld (0.0%ss)'; exit 1\n", "echo '--- FAIL: TestNew (0.01s)'; exit 1\n"
+	for _, tc := range []struct {
+		name, base, branch string
+		blocks             bool
+	}{
+		{"the same failure on base", fmt.Sprintf(old, "1"), fmt.Sprintf(old, "9"), false},
+		{"a failure only the branch has", "exit 0\n", fresh, true},
+		{"a different failure on base", fmt.Sprintf(old, "1"), fresh, true},
+		{"output naming no failure", "echo boom; exit 1\n", "echo boom; exit 1\n", true},
+		{
+			"only a summary line shared",
+			"echo '--- FAIL: TestOld'; echo 'make: *** [test] Error 1'; exit 1\n",
+			"echo 'TestNew: want 2, got 3'; echo 'make: *** [test] Error 1'; exit 1\n",
+			true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			r := newRepo(t, "repo")
+			r.write("check.sh", tc.base)
+			r.commit()
+			sha, err := git.Line(r.root, "rev-parse", "HEAD")
+			if err != nil {
+				t.Fatal(err)
+			}
+			r.write("check.sh", tc.branch)
+			plan := enforce.Plan{Root: r.root, Gates: []enforce.Gate{r.check("test", "test", "bash check.sh")}}
+			out := Files(plan, func() *Base { return &Base{Root: r.root, SHA: sha, CacheDir: r.cache} }, r.cache, 5*time.Second, time.Now().Add(time.Minute))
+			if out.Failed() != tc.blocks {
+				t.Errorf("failed = %v, want %v:\n%s", out.Failed(), tc.blocks, out.Report())
+			}
+			if !tc.blocks {
+				has(t, out.Report(), "fails on the git base too")
+			}
+		})
 	}
 }

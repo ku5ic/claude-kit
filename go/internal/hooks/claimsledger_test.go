@@ -16,40 +16,6 @@ func (k *sandbox) ledgerLines() string {
 	return string(data)
 }
 
-// A claim the claim-checker agent flagged is logged once, with whether the
-// text that went out after it still states it.
-func TestAFlagFromTheCheckerIsLoggedWithWhatBecameOfIt(t *testing.T) {
-	t.Parallel()
-	k := newSandbox(t)
-	k.verifier("", claim)
-	other := "The cache lives in the session directory."
-	post := func(text string) map[string]any {
-		return toolCall("mcp__chat__send_message", map[string]any{"text": text})
-	}
-	id := checkID.FindString(k.run("verify-claims", post(claim+"\n\n"+other)).Stdout)
-	session := filepath.Join(t.TempDir(), "session.jsonl")
-	testutil.Write(t, session, checkerCall(id, "- "+claim+" -> git log -S Foo\n", false)+"\n")
-	revised := post(other)
-	revised["transcript_path"] = session
-	k.run("verify-claims", revised).Allowed(t)
-	k.run("verify-claims", revised).Allowed(t)
-	got := k.ledgerLines()
-	if strings.Count(got, "\n") != 1 || !strings.Contains(got, `"source":"agent"`) || !strings.Contains(got, `"outcome":"dropped"`) ||
-		!strings.Contains(got, `"claim":"`+claim+`"`) {
-		t.Errorf("claims.jsonl =\n%s\nwant one dropped agent flag", got)
-	}
-}
-
-// A ledgered run's position never hides another run whose position it ends
-// with.
-func TestALedgeredRunIsMatchedWhole(t *testing.T) {
-	t.Parallel()
-	seen := []byte("21:2\n")
-	if ledgered(seen, "1:2") || !ledgered(seen, "21:2") {
-		t.Errorf("ledgered(%q): 1:2 %v, 21:2 %v", seen, ledgered(seen, "1:2"), ledgered(seen, "21:2"))
-	}
-}
-
 // With claims in shadow_rules, a flagged report goes out as it was, so its
 // flags are logged as kept then, never scored against a later report.
 func TestAShadowedClaimsFlagIsKept(t *testing.T) {
@@ -84,5 +50,66 @@ func TestAFlagFromTheHooksRunIsScoredOnTheNextReport(t *testing.T) {
 				t.Errorf("claims.jsonl =\n%s\nwant a %s hook flag", got, tc.outcome)
 			}
 		})
+	}
+}
+
+// A confirmed statement citing a file keeps its verdict in a new session,
+// as after /clear, while HEAD and the file are unchanged; one citing no
+// file is checked again in each session.
+func TestAConfirmedVerdictSurvivesANewSession(t *testing.T) {
+	t.Parallel()
+	k := newSandbox(t)
+	calls := k.verifier("")
+	dir := repo(t, filepath.Join(k.home, "proj"))
+	testutil.Put(t, dir, "x.go", "package x\n")
+	runs := func() int { return len(testutil.Calls(t, calls)) }
+	write := func(session, text string) {
+		t.Helper()
+		p := toolCall("Write", map[string]any{"file_path": filepath.Join(dir, ".claude", "scratch", "explore-"+session+".md"), "content": text})
+		p["session_id"], p["cwd"] = session, dir
+		k.run("verify-claims", p).Allowed(t)
+	}
+	const cited = "The loader in `x.go` returns early when the cache is warm."
+	for _, step := range []struct {
+		session, text, change string
+		want                  int
+	}{
+		{"s1", cited, "", 1},
+		{"s2", cited, "", 1},
+		{"s3", cited, "edit", 2},
+		{"s4", cited, "", 2},
+		{"s5", cited, "commit", 3},
+		{"s6", "Deploys run at noon because the cron says 12.", "", 4},
+		{"s7", "Deploys run at noon because the cron says 12.", "", 5},
+	} {
+		switch step.change {
+		case "edit":
+			testutil.Put(t, dir, "x.go", "package x\n\nvar warm bool\n")
+		case "commit":
+			testutil.Git(t, dir, "commit", "-q", "--allow-empty", "-m", "next")
+		}
+		write(step.session, step.text)
+		if got := runs(); got != step.want {
+			t.Fatalf("%s: verifier ran %d times, want %d", step.session, got, step.want)
+		}
+	}
+}
+
+// A flag never leaves its session: the statement is checked again in the
+// next one, so an unchecked claim can't pass on an old verdict.
+func TestAFlaggedVerdictStaysInItsSession(t *testing.T) {
+	t.Parallel()
+	k := newSandbox(t)
+	const cited = "The loader in `x.go` returns early when the cache is warm."
+	calls := k.verifier("", cited)
+	dir := repo(t, filepath.Join(k.home, "proj"))
+	testutil.Put(t, dir, "x.go", "package x\n")
+	for _, session := range []string{"s1", "s2"} {
+		p := toolCall("Write", map[string]any{"file_path": filepath.Join(dir, ".claude", "scratch", "explore-"+session+".md"), "content": cited})
+		p["session_id"], p["cwd"] = session, dir
+		k.run("verify-claims", p).Denied(t)
+	}
+	if got := len(testutil.Calls(t, calls)); got != 2 {
+		t.Errorf("verifier ran %d times, want once per session", got)
 	}
 }

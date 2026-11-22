@@ -40,11 +40,13 @@ func (e *stopEnv) tick(body string) {
 // notice is a Stop run's systemMessage.
 func notice(t *testing.T, r result) string {
 	t.Helper()
-	var out map[string]string
+	var out struct {
+		SystemMessage string `json:"systemMessage"`
+	}
 	if err := json.Unmarshal([]byte(r.Stdout), &out); err != nil {
 		t.Fatalf("stdout isn't JSON: %v\n%s", err, r.Output)
 	}
-	return out["systemMessage"]
+	return out.SystemMessage
 }
 
 // hasLine fails t unless msg has a line matching each pattern.
@@ -184,7 +186,9 @@ func TestPlanChanges(t *testing.T) {
 		t.Parallel()
 		k, proj := setup(t)
 		v2 := strings.Replace(v1, "- [ ] 2. two\n", "- [ ] 2. two, split\n- [ ] 3. three\n", 1) + "\n## Rollback\n\nRevert.\n"
-		msg := notice(t, submit(k, proj, v2))
+		r := submit(k, proj, v2)
+		r.Has(t, `"additionalContext":"kit: Your message lists what changed since the last submit`)
+		msg := notice(t, r)
 		hasLine(t, msg,
 			`kit plan: resubmitted, 2 sections changed`,
 			`changed  ## Steps  \+2 -1`,

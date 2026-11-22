@@ -38,10 +38,13 @@ func TestLauncher(t *testing.T) {
 		t.Fatal(err)
 	}
 	Write(t, bare, string(raw))
-	t.Run("without a binary a hook fails open", func(t *testing.T) {
+	t.Run("without a binary a hook fails open, printing nothing to stdout", func(t *testing.T) {
 		r := k.exec("bash", "{}", bare, "hook", "guard-bash")
 		r.Want(t, 0)
 		r.Has(t, "kit: no binary for")
+		if r.Stdout != "" {
+			t.Errorf("stdout = %q", r.Stdout)
+		}
 	})
 	t.Run("without a binary SessionStart tells the user and Claude in one JSON object", func(t *testing.T) {
 		r := k.exec("bash", "{}", bare, "hook", "inject-context")
@@ -60,13 +63,6 @@ func TestLauncher(t *testing.T) {
 			out.HookSpecificOutput.HookEventName != "SessionStart" ||
 			out.HookSpecificOutput.AdditionalContext != out.SystemMessage {
 			t.Errorf("unexpected output:\n%s", r.Stdout)
-		}
-	})
-	t.Run("without a binary other hooks print nothing to stdout", func(t *testing.T) {
-		r := k.exec("bash", "{}", bare, "hook", "guard-bash")
-		r.Want(t, 0)
-		if r.Stdout != "" {
-			t.Errorf("stdout = %q", r.Stdout)
 		}
 	})
 	t.Run("without a binary a command fails with 127", func(t *testing.T) {

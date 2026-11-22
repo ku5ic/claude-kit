@@ -61,6 +61,31 @@ func TestBaseFallsBackToMain(t *testing.T) {
 	}
 }
 
+// ForkPoint is where HEAD left its base, and HEAD itself only on another
+// branch: on main with no remote, main is HEAD, and holds every commit
+// made on it.
+func TestForkPointIsHeadOnlyOffTheBaseBranch(t *testing.T) {
+	t.Parallel()
+	commit := []string{"-c", "user.email=t@t", "-c", "user.name=t", "-c", "commit.gpgsign=false", "commit", "-q", "--allow-empty", "-m", "next"}
+	dir := repo(t)
+	mainSHA, err := git.Line(dir, "rev-parse", "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sha, ok := git.ForkPoint(dir); !ok || sha != mainSHA {
+		t.Errorf("on a branch with no commits: sha=%q ok=%v, want main's %q", sha, ok, mainSHA)
+	}
+	testutil.Git(t, dir, commit...)
+	if sha, ok := git.ForkPoint(dir); !ok || sha != mainSHA {
+		t.Errorf("on a branch: sha=%q ok=%v, want main's %q", sha, ok, mainSHA)
+	}
+	testutil.Git(t, dir, "checkout", "-q", "main")
+	testutil.Git(t, dir, commit...)
+	if sha, ok := git.ForkPoint(dir); ok {
+		t.Errorf("on main with no remote, got %q, want none", sha)
+	}
+}
+
 func TestBaseFailsWithNoCandidate(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -141,5 +166,20 @@ func TestSnapshotSeesContentNotIndex(t *testing.T) {
 	}
 	if staged, _ := git.Lines(dir, "diff", "--cached", "--name-only"); len(staged) != 0 {
 		t.Errorf("Snapshot touched the real index: %q", staged)
+	}
+}
+
+// A hook's deadline cuts every git call short of it, so git never outlives
+// the hook's own timeout. Not parallel: the deadline is the process's.
+func TestADeadlineCutsAGitCall(t *testing.T) {
+	dir := t.TempDir()
+	git.SetDeadline(time.Now().Add(-time.Second))
+	_, err := git.Output(dir, "--version")
+	git.SetDeadline(time.Time{})
+	if err == nil {
+		t.Error("a git call past the deadline ran")
+	}
+	if _, err := git.Output(dir, "--version"); err != nil {
+		t.Errorf("with no deadline: %v", err)
 	}
 }

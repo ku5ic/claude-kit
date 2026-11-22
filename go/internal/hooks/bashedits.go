@@ -6,17 +6,20 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
+	"github.com/ku5ic/claude-kit/go/internal/classify"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/weaken"
 )
 
 // bashEditTool is the tool_name of the payload BashEdits builds for each
@@ -26,9 +29,86 @@ const bashEditTool = "kit-bash-edit"
 // bashEditsFormatBudget is how long BashEdits spends formatting, all files.
 const bashEditsFormatBudget = 90 * time.Second
 
-// gitMoves is a git command that brings in content Claude didn't write:
-// checked out, merged, fetched, or restored. Its changes aren't checked.
-var gitMoves = regexp.MustCompile(`\bgit\s+(checkout|switch|pull|merge|rebase|stash|reset|restore|cherry-pick|revert|am|clone)\b`)
+// gitMoves are the git subcommands that bring in content Claude didn't
+// write: checked out, merged, fetched, or restored.
+var gitMoves = []string{"checkout", "switch", "pull", "merge", "rebase", "stash", "reset", "restore", "cherry-pick", "revert", "am", "clone"}
+
+// gitMove is true when cmd is git moves and nothing else but cd and pure
+// readers (a `| tail` on the output), so its changes aren't checked. Any
+// other command beside them may have written them, and a command that
+// didn't parse counts as one.
+func gitMove(cmd string) bool {
+	calls, ok := classify.Words(cmd)
+	if !ok {
+		return false
+	}
+	calls = slices.DeleteFunc(calls, func(words []string) bool {
+		return len(words) == 0 || filepath.Base(words[0]) == "cd" || classify.ReadsOnly(words)
+	})
+	return len(calls) > 0 && !slices.ContainsFunc(calls, func(words []string) bool { return !isGitMove(words) })
+}
+
+// isGitMove is true when words, one call, is a git move.
+func isGitMove(words []string) bool {
+	if len(words) == 0 || filepath.Base(words[0]) != "git" {
+		return false
+	}
+	sub, _, _ := classify.GitSubcommand(words[1:])
+	return slices.Contains(gitMoves, sub)
+}
+
+// hasGitMove is true when any call in cmd is a git move.
+func hasGitMove(cmd string) bool {
+	calls, ok := classify.Words(cmd)
+	return ok && slices.ContainsFunc(calls, isGitMove)
+}
+
+// fromHead is which of paths, changed files in root, match HEAD: as it holds
+// them, or deleted where it has none. Beside a git move they're the move's.
+func fromHead(root string, paths []string) []string {
+	var moved []string
+	for _, path := range paths {
+		blob, atHead := blobAt(root, "HEAD", path)
+		data, err := os.ReadFile(path)
+		if err == nil && atHead == nil && blob == string(data) || errors.Is(err, os.ErrNotExist) && atHead != nil {
+			moved = append(moved, path)
+		}
+	}
+	return moved
+}
+
+// movedFile is the turn's record of the files a git move brought into root,
+// which the Stop set leaves out.
+func movedFile(h *hook.Hook, root string) string { return turnRootFile(h, root, "moved") }
+
+// movedFiles is the turn's movedFile record for root.
+func movedFiles(h *hook.Hook, root string) []string {
+	data, _ := os.ReadFile(movedFile(h, root))
+	return strings.Fields(string(data))
+}
+
+// BashBaseline is the PreToolUse step that snapshots, before a Bash
+// command runs, a repo with neither a turn start nor a baseline, so
+// bash-edits checks even the first command there. A command the bash
+// guard marked read-only waits for the next one. PreToolUse for Bash.
+func BashBaseline(h *hook.Hook) error {
+	p := h.Payload
+	if p.Err != nil || p.String(hook.KeyToolName) != "Bash" || h.Config() == nil {
+		return nil
+	}
+	if fsx.IsFile(cache.ReadOnlyBash(h.Paths.CacheDir(), p.SessionID(), p.String(hook.KeyInputCommand))) {
+		return nil
+	}
+	root := git.Toplevel(p.Cwd())
+	base := bashTreeFile(h, root)
+	if root == "" || base == "" || fsx.IsFile(base) || fsx.IsFile(turnTreeFile(h, root)) {
+		return nil
+	}
+	if tree, err := git.Snapshot(root); err == nil {
+		saveTree(h, base, tree)
+	}
+	return nil
+}
 
 // BashEdits is the PostToolUse hook on Bash: every file the command
 // changed gets the checks an Edit gets, slop, weaken, imports, and tokens,
@@ -36,7 +116,9 @@ var gitMoves = regexp.MustCompile(`\bgit\s+(checkout|switch|pull|merge|rebase|st
 // stopped from writing it but is told before it moves on. A file an Edit or
 // Write left as it is now was checked then and is skipped. The baseline is
 // the tree after the last Bash command checked, else the turn's start.
-func BashEdits(h *hook.Hook) error {
+// writes is what the command writes by itself (bashguard.WriteTargets): a
+// git move with any of them beside it, or on it, is checked.
+func BashEdits(h *hook.Hook, writes []string) error {
 	p := h.Payload
 	if p.Err != nil {
 		return p.Err
@@ -53,9 +135,9 @@ func BashEdits(h *hook.Hook) error {
 	}
 	if _, err := os.Stat(base); errors.Is(err, os.ErrNotExist) {
 		// Until a command runs this turn, the diff starts at the turn's
-		// start. A repo the turn didn't start in has no snapshot of it, so
-		// this command's changes there go unchecked and the next one's diff
-		// starts here.
+		// start. A repo the turn didn't start in got its baseline from
+		// BashBaseline before the command; without one, this command's
+		// changes there go unchecked and the next one's diff starts here.
 		start, err := os.ReadFile(turnTreeFile(h, root))
 		if err != nil {
 			if tree, err := git.Snapshot(root); err == nil {
@@ -90,13 +172,22 @@ func BashEdits(h *hook.Hook) error {
 	}
 	// Whoever wrote the change, a claim checked before it is stale.
 	recordBashEdit(h, made)
-	if gitMoves.MatchString(p.String(hook.KeyInputCommand)) {
+	cmd := p.String(hook.KeyInputCommand)
+	if gitMove(cmd) && len(repoWrites(root, writes)) == 0 {
 		return nil
 	}
-	var problems []string
+	if hasGitMove(cmd) {
+		moved := fromHead(root, changed)
+		if record := movedFile(h, root); len(moved) > 0 && record != "" && !h.DryRun {
+			_ = fsx.Append(record, []byte(strings.Join(moved, "\n")+"\n"))
+		}
+		changed = slices.DeleteFunc(changed, func(path string) bool { return slices.Contains(moved, path) })
+		changes = slices.DeleteFunc(changes, func(c change) bool { return slices.Contains(moved, c.path) })
+	}
+	problems := lostTests(h, root, before, changed)
 	rewritten := false
 	// Each format may take formatBudget; past this, files are checked but
-	// left unformatted, inside hooks.json's 120s.
+	// left unformatted, inside hooks.json's 300s.
 	formatUntil := time.Now().Add(bashEditsFormatBudget)
 	for _, c := range changes {
 		path, after, old := c.path, c.after, c.old
@@ -111,8 +202,7 @@ func BashEdits(h *hook.Hook) error {
 				continue
 			}
 		} else {
-			rel, _ := filepath.Rel(root, path)
-			old, _ = git.Output(root, "cat-file", "blob", before+":"+filepath.ToSlash(rel))
+			old, _ = blobAt(root, before, path)
 		}
 		problems = append(problems, editChecks(h, path, old, string(after))...)
 		if time.Until(formatUntil) > formatBudget {
@@ -132,6 +222,54 @@ func BashEdits(h *hook.Hook) error {
 		return nil
 	}
 	return h.Block("a file this command changed fails the checks an Edit gets\n"+strings.Join(problems, "\n"), "bash-edits")
+}
+
+// repoWrites is the writes that land in root, its symlinks resolved: a
+// redirect to /dev/null, or to a log outside the repo, brings no file in.
+func repoWrites(root string, writes []string) []string {
+	return slices.DeleteFunc(slices.Clone(writes), func(w string) bool {
+		return !fsx.Within(root, filepath.Join(fsx.PhysicalPath(filepath.Dir(w)), filepath.Base(w)))
+	})
+}
+
+// blobAt is path's content in tree, a tree or commit of the repo at root.
+func blobAt(root, tree, path string) (string, error) {
+	rel, _ := filepath.Rel(root, path)
+	return git.Output(root, "cat-file", "blob", tree+":"+filepath.ToSlash(rel))
+}
+
+// lostTests is the send-back for the assertion lines the test files a
+// command deleted, or renamed out of the test glob, took with them: what
+// they held at the baseline less what the test files it added hold.
+func lostTests(h *hook.Hook, root, before string, changed []string) []string {
+	cfg := h.Config()
+	if cfg == nil || h.RuleDisabled("weaken") {
+		return nil
+	}
+	c := cfg.WeakenedChecks
+	lost := 0
+	var gone []string
+	for _, path := range changed {
+		if !weaken.IsTest(c, path) {
+			continue
+		}
+		old, err := blobAt(root, before, path)
+		now, readErr := os.ReadFile(path)
+		switch {
+		case errors.Is(readErr, os.ErrNotExist) && err == nil:
+			if n := weaken.Assertions(c, path, old); n > 0 {
+				lost += n
+				rel, _ := filepath.Rel(root, path)
+				gone = append(gone, rel)
+			}
+		case readErr == nil && err != nil:
+			lost -= weaken.Assertions(c, path, string(now))
+		}
+	}
+	if lost <= 0 {
+		return nil
+	}
+	return []string{fmt.Sprintf("this command leaves %d fewer assertion line(s): %s deleted or renamed out of the tests. Confirm only if they're redundant or moved", lost, strings.Join(gone, ", "))}
 }
 
 // editChecks runs the PreToolUse edit checks on path's change from before
@@ -212,12 +350,16 @@ func editedFile(h *hook.Hook, path string) string {
 }
 
 // bashTreeFile is where the session keeps root's tree as the last Bash
-// command left it; "" outside a work tree or without a session.
-func bashTreeFile(h *hook.Hook, root string) string {
+// command left it.
+func bashTreeFile(h *hook.Hook, root string) string { return turnRootFile(h, root, "bash") }
+
+// turnRootFile is the turn's session file named kind for root, which the
+// turn-tree hook clears; "" outside a work tree or without a session.
+func turnRootFile(h *hook.Hook, root, kind string) string {
 	if root == "" {
 		return ""
 	}
-	return h.Paths.SessionFile(cache.TurnTree, h.Payload.SessionID(), "bash", cache.RootKey(root))
+	return h.Paths.SessionFile(cache.TurnTree, h.Payload.SessionID(), kind, cache.RootKey(root))
 }
 
 func saveTree(h *hook.Hook, file, tree string) {

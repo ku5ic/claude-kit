@@ -79,6 +79,8 @@ func TestStopChecks(t *testing.T) {
 	if err := os.Remove(path("fail")); err != nil {
 		t.Fatal(err)
 	}
+	// A new tree: on the first pass's tree, Stop would reuse that pass.
+	Write(t, path("a.ts"), "y\n")
 	before := calls()
 	r = stop()
 	r.Want(t, 0)

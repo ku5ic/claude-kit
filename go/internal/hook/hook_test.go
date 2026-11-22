@@ -31,21 +31,25 @@ func newHook(t *testing.T, payload string) (*Hook, *bytes.Buffer, *bytes.Buffer)
 func blocker(h *Hook) error { return h.Block("nope", "some-rule") }
 
 // The dispatcher contract: a check that panics or errors fails open with a
-// notice under its own name, and the next check still runs.
+// notice under its own name, and the next check still runs. Its block is
+// JSON, so the fail-open notice reaches the user beside it.
 func TestRunIsolatesAFailingCheck(t *testing.T) {
 	for name, faulty := range map[string]Check{
 		"panic": func(*Hook) error { panic("boom") },
 		"error": func(*Hook) error { return errors.New("broken") },
 	} {
 		t.Run(name, func(t *testing.T) {
-			h, _, stderr := newHook(t, `{"session_id":"s1"}`)
+			h, stdout, stderr := newHook(t, `{"session_id":"s1"}`)
 			status := Run(h, NamedCheck{"first.sh", faulty}, NamedCheck{"second.sh", blocker})
-			if status != 2 {
-				t.Errorf("status = %d, want 2 from the second check", status)
+			if status != 0 {
+				t.Errorf("status = %d, want 0 with the block as JSON", status)
 			}
-			out := stderr.String()
-			if !strings.Contains(out, "first.sh: unexpected error, failing open") || !strings.Contains(out, "kit second.sh: BLOCKED nope\n\nrule  some-rule") {
-				t.Errorf("stderr = %q", out)
+			if !strings.Contains(stderr.String(), "first.sh: unexpected error, failing open") {
+				t.Errorf("stderr = %q", stderr)
+			}
+			if out := stdout.String(); !strings.Contains(out, `"decision":"block"`) || !strings.Contains(out, `kit second.sh: BLOCKED nope\n\nrule  some-rule`) ||
+				!strings.Contains(out, "kit first.sh: FAILED OPEN") {
+				t.Errorf("stdout = %q", out)
 			}
 		})
 	}
@@ -93,9 +97,43 @@ func TestPlainTextJoinsAnotherChecksContext(t *testing.T) {
 	if status := Run(h, NamedCheck{"a", printer}, NamedCheck{"b", adder}); status != 0 {
 		t.Fatalf("status %d", status)
 	}
-	want := `{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"Active plan p.md has open steps.\ncheck each claim"}}` + "\n"
+	want := `{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"kit: Active plan p.md has open steps.\nkit: check each claim"}}` + "\n"
 	if got := stdout.String(); got != want {
 		t.Errorf("stdout %s, want %s", got, want)
+	}
+}
+
+// Every nudge opens with its own "kit:" label, so Claude can tell the
+// kit's context from the harness's; a block keeps its own headline.
+func TestContextForClaudeOpensWithTheKitLabel(t *testing.T) {
+	tests := map[string]struct {
+		check Check
+		want  string
+	}{
+		"plain text": {func(h *Hook) error { h.Print("Plan mode: load the investigate skill.\n"); return nil },
+			"kit: Plan mode: load the investigate skill.\n"},
+		"a leading newline": {func(h *Hook) error { h.Print("\n<repo-context>\nroot: /r\n</repo-context>\n"); return nil },
+			"kit: <repo-context>\nroot: /r\n</repo-context>\n"},
+		"empty text":       {func(h *Hook) error { h.Print(""); return nil }, ""},
+		"already labelled": {func(h *Hook) error { h.Print("kit: once\n"); return nil }, "kit: once\n"},
+		"two contexts": {func(h *Hook) error {
+			h.AddContext("PreToolUse", "first")
+			h.AddContext("PreToolUse", "second")
+			return nil
+		}, `{"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":"kit: first\nkit: second"}}` + "\n"},
+		"a block": {blocker, ""},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			h, stdout, stderr := newHook(t, `{}`)
+			Run(h, NamedCheck{"a.sh", tc.check})
+			if got := stdout.String(); got != tc.want {
+				t.Errorf("stdout %q, want %q", got, tc.want)
+			}
+			if name == "a block" && !strings.HasPrefix(stderr.String(), "kit a.sh: BLOCKED nope") {
+				t.Errorf("block reason %q lost its headline", stderr)
+			}
+		})
 	}
 }
 
@@ -126,6 +164,20 @@ func TestBlockLogsAndHonorsDisabledRules(t *testing.T) {
 	}
 }
 
+// A subagent's block names its agent type, and an ask is logged as one,
+// so kit stats can tell where blocks land and count the prompts a user sees.
+func TestBlocksNameTheAgentTypeAndAsksAreLogged(t *testing.T) {
+	h, _, _ := newHook(t, `{"session_id":"s1","cwd":"/nonexistent/proj","agent_id":"a1","agent_type":"kit:gatherer","tool_input":{"command":"rm -rf /"}}`)
+	h.Deny("nope", "some-rule")
+	h.Decide("ask", "confirm it")
+	data, _ := os.ReadFile(filepath.Join(h.Paths.LogDir(), "guards.jsonl"))
+	want := `{"ts":"2026-09-28T12:00:00Z","hook":"test.sh","event":"block","session_id":"s1","agent_id":"a1","rule":"some-rule","target":"5c7923bd67b0","agent_type":"kit:gatherer","project":"proj"}` + "\n" +
+		`{"ts":"2026-09-28T12:00:00Z","hook":"test.sh","event":"ask","session_id":"s1","agent_id":"a1","target":"5c7923bd67b0","agent_type":"kit:gatherer","project":"proj"}` + "\n"
+	if string(data) != want {
+		t.Errorf("guards.jsonl =\n%s\nwant\n%s", data, want)
+	}
+}
+
 // A shadowed rule blocks and denies nothing, and logs what it would have
 // blocked, so a rule can be tried before it costs a turn.
 func TestAShadowedRuleLogsAndLetsThrough(t *testing.T) {
@@ -148,6 +200,30 @@ func TestAShadowedRuleLogsAndLetsThrough(t *testing.T) {
 	}
 }
 
+// A rule blocks only when neither disabled nor shadowed, and with no
+// config nothing is enforced.
+func TestRuleEnforced(t *testing.T) {
+	tests := map[string]struct {
+		cfg  *config.Config
+		want bool
+	}{
+		"on by default": {&config.Config{}, true},
+		"disabled":      {&config.Config{DisabledRules: []string{"r"}}, false},
+		"shadowed":      {&config.Config{ShadowRules: []string{"r"}}, false},
+		"another rule":  {&config.Config{DisabledRules: []string{"other"}}, true},
+		"no config":     {nil, false},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			h, _, _ := newHook(t, `{}`)
+			h.SetConfig(tc.cfg)
+			if got := h.RuleEnforced("r"); got != tc.want {
+				t.Errorf("RuleEnforced = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestAFailOpenLogsItsError(t *testing.T) {
 	h, _, stderr := newHook(t, `{"session_id":"s1"}`)
 	RunCheck(h, "first.sh", func(*Hook) error { return errors.New("broken pipe") })
@@ -157,6 +233,43 @@ func TestAFailOpenLogsItsError(t *testing.T) {
 	data, _ := os.ReadFile(filepath.Join(h.Paths.LogDir(), "guards.jsonl"))
 	if !strings.Contains(string(data), `"event":"fail-open","session_id":"s1","error":"broken pipe"`) {
 		t.Errorf("guards.jsonl = %s", data)
+	}
+}
+
+// The user hears of a session's first fail-open; later ones go to the log.
+func TestAFailOpenTellsTheUserOncePerSession(t *testing.T) {
+	broken := func(*Hook) error { return errors.New("broken pipe") }
+	claude := t.TempDir()
+	run := func(session string) string {
+		h, stdout, _ := newHook(t, `{"session_id":"`+session+`"}`)
+		h.Paths.ClaudeDir = claude
+		Run(h, NamedCheck{"first.sh", broken})
+		return stdout.String()
+	}
+	if out := run("s1"); !strings.Contains(out, `"systemMessage":"kit first.sh: FAILED OPEN, the call went through unchecked: broken pipe`) {
+		t.Errorf("first fail-open: stdout = %q", out)
+	}
+	if out := run("s1"); strings.Contains(out, "FAILED OPEN") {
+		t.Errorf("second fail-open in the session told the user again: %q", out)
+	}
+	if out := run("s2"); !strings.Contains(out, "FAILED OPEN") {
+		t.Errorf("another session's first fail-open: stdout = %q", out)
+	}
+}
+
+// A kit.yml that stops loading mid-session leaves every guard without
+// config; the user hears of it.
+func TestAConfigThatFailsToLoadTellsTheUser(t *testing.T) {
+	base := filepath.Join(t.TempDir(), "kit.yml")
+	if err := os.WriteFile(base, []byte("slop: [\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var stdout bytes.Buffer
+	h := &Hook{Name: "test.sh", Payload: ParsePayload([]byte(`{"session_id":"s1"}`)), Paths: config.Paths{ClaudeDir: t.TempDir(), Base: base},
+		Stdout: &stdout, Stderr: &bytes.Buffer{}}
+	Run(h, NamedCheck{"first.sh", func(h *Hook) error { h.Config(); return nil }})
+	if !strings.Contains(stdout.String(), "FAILED OPEN") || !strings.Contains(stdout.String(), "kit.yml") {
+		t.Errorf("stdout = %q", stdout.String())
 	}
 }
 
@@ -184,11 +297,15 @@ func TestDecide(t *testing.T) {
 			`{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"confirm"}}` + "\n"},
 		"asks join": {[]NamedCheck{decide("ask", "a"), decide("ask", "b")},
 			`{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"a; b"}}` + "\n"},
+		"the same ask twice joins once": {[]NamedCheck{decide("ask", "a; confirm"), decide("ask", "b"), decide("ask", "a; confirm")},
+			`{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"a; confirm; b"}}` + "\n"},
+		"denies join, each once, so one round trip names every reason": {[]NamedCheck{decide("deny", "too long"), decide("deny", "bad citation"), decide("deny", "too long")},
+			`{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"too long\n\nbad citation"}}` + "\n"},
 		"deny outranks ask": {[]NamedCheck{decide("ask", "confirm"), decide("deny", "load x"), decide("ask", "later")},
 			`{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"load x"}}` + "\n"},
 		"context rides with a decision": {[]NamedCheck{
 			{"n", func(h *Hook) error { h.AddContext("PreToolUse", "dense"); return nil }}, decide("ask", "confirm")},
-			`{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"confirm","additionalContext":"dense"}}` + "\n"},
+			`{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"confirm","additionalContext":"kit: dense"}}` + "\n"},
 		"none": {[]NamedCheck{{"c", func(*Hook) error { return nil }}}, ""},
 	}
 	for name, tc := range tests {

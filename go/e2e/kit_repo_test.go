@@ -1,7 +1,9 @@
 package e2e
 
 import (
+	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -25,6 +27,62 @@ func TestKitRepo(t *testing.T) {
 		_, warnings, err := config.Load(config.Paths{Base: filepath.Join(kitRoot, "kit.yml"), Overlay: filepath.Join(t.TempDir(), "none.yml")})
 		if err != nil || len(warnings) > 0 {
 			t.Errorf("err=%v warnings=%v", err, warnings)
+		}
+	})
+
+	t.Run("every /config choice in plugin.json is a value the kit accepts, and every row is titled Kit:", func(t *testing.T) {
+		var manifest struct {
+			UserConfig map[string]struct {
+				Title   string   `json:"title"`
+				Options []string `json:"options"`
+				Default any      `json:"default"`
+			} `json:"userConfig"`
+		}
+		data, err := os.ReadFile(filepath.Join(kitRoot, ".claude-plugin", "plugin.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(data, &manifest); err != nil {
+			t.Fatal(err)
+		}
+		presets, err := filepath.Glob(filepath.Join(kitRoot, "presets", "*.yml"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var presetNames []string
+		for _, path := range presets {
+			presetNames = append(presetNames, strings.TrimSuffix(filepath.Base(path), ".yml"))
+		}
+		cfg, _, err := config.Load(config.Paths{Base: filepath.Join(kitRoot, "kit.yml")})
+		if err != nil {
+			t.Fatal(err)
+		}
+		pickers := map[string][]string{
+			"preset":       presetNames,
+			"step_pause":   config.StepPauses,
+			"receipt":      config.Receipts,
+			"reply_length": slices.Collect(maps.Keys(cfg.ReplyLimits.Modes)),
+			"reply_slack":  slices.Collect(maps.Keys(config.ReplySlacks)),
+		}
+		for key, accepted := range pickers {
+			option, ok := manifest.UserConfig[key]
+			if !ok {
+				t.Errorf("userConfig has no %s row", key)
+				continue
+			}
+			if option.Default != "default" || !slices.Contains(option.Options, "default") {
+				t.Errorf("%s: default %v, options %v, want a default choice that's also the default", key, option.Default, option.Options)
+			}
+			for _, choice := range option.Options {
+				if choice != "default" && !slices.Contains(accepted, choice) {
+					t.Errorf("%s offers %q, which the kit doesn't accept (%v)", key, choice, accepted)
+				}
+			}
+		}
+		for key, option := range manifest.UserConfig {
+			if !strings.HasPrefix(option.Title, "Kit: ") {
+				t.Errorf("%s: title %q doesn't start with \"Kit: \"", key, option.Title)
+			}
 		}
 	})
 
@@ -131,7 +189,7 @@ func TestKitRepo(t *testing.T) {
 			// Procedure skills whose practice another skill owns: the stack
 			// pattern skills, wcag-audit, slop-patterns, code-host-patterns,
 			// or engineering-fundamentals' thresholds.
-			"audit-a11y", "audit-debt", "audit-infra", "audit-slop", "pr-publish", "unslop",
+			"audit-a11y", "audit-debt", "audit-infra", "audit-slop", "audit-tests", "pr-publish", "unslop",
 			// Procedure skills that run only the kit's own steps, with no
 			// outside practice to cite.
 			"audit-doc-drift", "audit-verify", "code-impact", "code-tour", "meta-refresh",

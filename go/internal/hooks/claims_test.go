@@ -45,46 +45,6 @@ func toolCall(tool string, input map[string]any) map[string]any {
 	return map[string]any{"hook_event_name": "PreToolUse", "session_id": "s", "tool_name": tool, "tool_input": input}
 }
 
-// checkID finds the claim-check id a deny names.
-var checkID = regexp.MustCompile(`claim-check [0-9a-f]{12}`)
-
-// checkerLine is a transcript line for a claim-checker run whose prompt
-// carries id.
-func checkerLine(id string) string {
-	return checkerCall(id, "No unconfirmed claims.", false)
-}
-
-// checkerCall is a claim-checker run on id and its result, as two lines.
-func checkerCall(id, result string, failed bool) string {
-	call, _ := json.Marshal(map[string]any{"type": "assistant", "message": map[string]any{"content": []any{map[string]any{
-		"type": "tool_use", "id": "cc", "name": "Agent",
-		"input": map[string]any{"subagent_type": "kit:claim-checker", "prompt": "Check the claims.\n" + id + "\n\nThe text."},
-	}}}})
-	done, _ := json.Marshal(map[string]any{"type": "user", "message": map[string]any{"content": []any{map[string]any{
-		"type": "tool_result", "tool_use_id": "cc", "is_error": failed, "content": result,
-	}}}})
-	return string(call) + "\n" + string(done)
-}
-
-// claimsAsked is the session's record of the claim-checker runs it asked for.
-func (k *sandbox) claimsAsked() string {
-	return k.paths.SessionFile(cache.Claims, "s", "asked")
-}
-
-// bashEdited is session s's record of the Bash calls that changed code.
-func (k *sandbox) bashEdited() string {
-	return k.paths.SessionFile(cache.Claims, "s", bashEditsRecord)
-}
-
-// checkerRan points payload at a session transcript holding a claim-checker
-// run on id.
-func checkerRan(k *sandbox, payload map[string]any, id string) map[string]any {
-	path := filepath.Join(k.t.TempDir(), "session.jsonl")
-	testutil.Write(k.t, path, checkerLine(id)+"\n")
-	payload["transcript_path"] = path
-	return payload
-}
-
 func TestVerifyClaimsSubagentStop(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -120,6 +80,39 @@ func TestVerifyClaimsSubagentStop(t *testing.T) {
 	}
 }
 
+// A report whose only statement is a bare reference is settled with no
+// verifier run, and the user gets no "checked" notice for a run that never
+// happened; a broken reference still sends the report back.
+func TestBareReferencesNeedNoVerifierRun(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, report string
+		status       int
+	}{
+		{"a real reference", "See `x.go:1`.", 0},
+		{"an invented line", "See `x.go:9`.", 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			k := newSandbox(t)
+			proj := filepath.Join(k.home, "proj")
+			testutil.Put(t, proj, "x.go", "package x\n")
+			calls := k.verifier("", claim)
+			payload := subagentStop("a1", tc.report, false)
+			payload["cwd"] = proj
+			r := k.run("verify-claims", payload)
+			r.Want(t, tc.status)
+			if tc.status == 2 {
+				r.Has(t, "x.go:9", "the file has 1 lines")
+			}
+			r.Lacks(t, "kit claims: checked")
+			if got := len(testutil.Calls(t, calls)); got != 0 {
+				t.Errorf("verifier ran %d times, want 0", got)
+			}
+		})
+	}
+}
+
 func TestVerifyClaimsToolInput(t *testing.T) {
 	t.Parallel()
 	report := func(k *sandbox) string {
@@ -128,19 +121,18 @@ func TestVerifyClaimsToolInput(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		call func(k *sandbox) map[string]any
-		// gate: "agent" waits for a claim-checker run, "none" is never
-		// checked.
+		// gate: "own" gets the hook's own run, "none" is never checked.
 		gate string
 	}{
 		{"an investigation report", func(k *sandbox) map[string]any {
 			return toolCall("Write", map[string]any{"file_path": report(k), "content": "# Debug\n\n" + claim})
-		}, "agent"},
+		}, "own"},
 		{"a connector post", func(*sandbox) map[string]any {
 			return toolCall("mcp__chat__send_message", map[string]any{"text": claim})
-		}, "agent"},
+		}, "own"},
 		{"a connector post's description, beside its code", func(*sandbox) map[string]any {
 			return toolCall("mcp__claude_ai_Figma__use_figma", map[string]any{"code": "figma.root", "description": claim})
-		}, "agent"},
+		}, "own"},
 		{"a connector post's code", func(*sandbox) map[string]any {
 			return toolCall("mcp__claude_ai_Figma__use_figma", map[string]any{"code": "// " + claim, "description": "Rename it."})
 		}, "none"},
@@ -155,22 +147,34 @@ func TestVerifyClaimsToolInput(t *testing.T) {
 		}, "none"},
 		{"a report with no slug", func(k *sandbox) map[string]any {
 			return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "debug.md"), "content": "# Debug\n\n" + claim})
-		}, "agent"},
+		}, "own"},
 		{"a rerun's numbered report", func(k *sandbox) map[string]any {
 			return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "debug-build-2.md"), "content": "# Debug\n\n" + claim})
-		}, "agent"},
+		}, "own"},
 		{"a scratch file whose name only starts like a kind", func(k *sandbox) map[string]any {
 			return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "debugging.md"), "content": claim})
 		}, "none"},
 		{"an audit report", func(k *sandbox) map[string]any {
 			return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "ci-main-20261116-0900.md"), "content": "# CI\n\n" + claim})
-		}, "agent"},
+		}, "own"},
 		{"a /code report", func(k *sandbox) map[string]any {
 			return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "impact-auth-20261116-0900.md"), "content": "# Impact\n\n" + claim})
-		}, "agent"},
+		}, "own"},
 		{"a session retro", func(k *sandbox) map[string]any {
 			return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "session-90886c74-20261116-0900.md"), "content": "# Session\n\n" + claim})
-		}, "agent"},
+		}, "own"},
+		{"a /deps report", func(k *sandbox) map[string]any {
+			return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "deps.md"), "content": "# Deps\n\n" + claim})
+		}, "own"},
+		{"a PR review draft", func(k *sandbox) map[string]any {
+			return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "pr-review-42.md"), "content": claim})
+		}, "own"},
+		{"a plan critique", func(k *sandbox) map[string]any {
+			return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "plan-critique-auth.md"), "content": claim})
+		}, "own"},
+		{"a report named in capitals", func(k *sandbox) map[string]any {
+			return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "Explore-Auth.md"), "content": claim})
+		}, "own"},
 		{"a PR draft", func(k *sandbox) map[string]any {
 			return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "pr-auth-20261116-0900.md"), "content": claim})
 		}, "none"},
@@ -185,152 +189,33 @@ func TestVerifyClaimsToolInput(t *testing.T) {
 			first := k.run("verify-claims", tc.call(k))
 			if tc.gate == "none" {
 				first.Allowed(t)
-			} else {
-				first.Denied(t)
-				first.Has(t, "kit:claim-checker", "claim-check ")
-				id := checkID.FindString(first.Stdout)
-				// Resent without a run, it's denied again; with a run on
-				// another text, too; with a run on this one, it goes through.
-				k.run("verify-claims", tc.call(k)).Denied(t)
-				k.run("verify-claims", checkerRan(k, tc.call(k), "claim-check 000000000000")).Denied(t)
-				k.run("verify-claims", checkerRan(k, tc.call(k), id)).Allowed(t)
+				return
 			}
-			// The main session's texts never start the hook's own run.
+			// A text goes back once per destination, so its rewrite and every
+			// later revision go through with no run.
+			first.Denied(t)
+			first.Has(t, claim, "git log -S Foo")
+			first.Lacks(t, "claim-check ")
+			k.run("verify-claims", tc.call(k)).Allowed(t)
+			k.run("verify-claims", tc.call(k)).Allowed(t)
+			if got := len(testutil.Calls(t, calls)); got != 1 {
+				t.Errorf("verifier ran %d times, want 1", got)
+			}
+		})
+	}
+	for _, agent := range []string{"kit:claim-checker", "kit:plan-critic"} {
+		t.Run(agent+"'s hand-back gets no run", func(t *testing.T) {
+			t.Parallel()
+			k := newSandbox(t)
+			calls := k.verifier("", claim)
+			payload := handback("a1", claim)
+			payload["agent_type"] = agent
+			k.run("verify-claims", payload).Allowed(t)
 			if got := testutil.Calls(t, calls); got != nil {
 				t.Errorf("verifier ran: %q", got)
 			}
 		})
 	}
-	t.Run("a revised text asks only about its sentences no run checked", func(t *testing.T) {
-		t.Parallel()
-		k := newSandbox(t)
-		k.verifier("", claim)
-		post := func(text string) map[string]any {
-			return toolCall("mcp__chat__send_message", map[string]any{"text": text})
-		}
-		id := checkID.FindString(k.run("verify-claims", post(claim)).Stdout)
-		added := "The cache lives in the session directory."
-		revised := k.run("verify-claims", checkerRan(k, post(claim+"\n\n"+added), id))
-		revised.Denied(t)
-		revised.Has(t, added)
-		revised.Lacks(t, claim)
-		next := checkID.FindString(revised.Stdout)
-		if next == id {
-			t.Fatalf("the revision reuses the first run's id %s", id)
-		}
-		// The first run and one on the new sentence cover it all.
-		path := filepath.Join(k.t.TempDir(), "both.jsonl")
-		testutil.Write(t, path, checkerLine(id)+"\n"+strings.ReplaceAll(checkerLine(next), `"cc"`, `"cc2"`)+"\n")
-		payload := post(claim + "\n\n" + added)
-		payload["transcript_path"] = path
-		k.run("verify-claims", payload).Allowed(t)
-	})
-	t.Run("a report the checker checked isn't held again for its rewording", func(t *testing.T) {
-		t.Parallel()
-		k := newSandbox(t)
-		k.verifier("", claim)
-		write := func(name, text string) map[string]any {
-			return toolCall("Write", map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", name), "content": "# Debug\n\n" + text})
-		}
-		id := checkID.FindString(k.run("verify-claims", write("debug-a-20261110-1200.md", claim)).Stdout)
-		reworded := "The cache lives in the session directory, per the checker's report."
-		k.run("verify-claims", checkerRan(k, write("debug-a-20261110-1200.md", reworded), id)).Allowed(t)
-		k.run("verify-claims", checkerRan(k, write("debug-b-20261110-1200.md", reworded), id)).Denied(t)
-	})
-	t.Run("a code edit after a run makes its sentences fresh again", func(t *testing.T) {
-		t.Parallel()
-		k := newSandbox(t)
-		k.verifier("", claim)
-		post := func() map[string]any { return toolCall("mcp__chat__send_message", map[string]any{"text": claim}) }
-		id := checkID.FindString(k.run("verify-claims", post()).Stdout)
-		edit, _ := json.Marshal(map[string]any{"type": "assistant", "message": map[string]any{"content": []any{map[string]any{
-			"type": "tool_use", "id": "e1", "name": "Edit", "input": map[string]any{"file_path": filepath.Join(k.home, "proj", "main.go")},
-		}}}})
-		report, _ := json.Marshal(map[string]any{"type": "assistant", "message": map[string]any{"content": []any{map[string]any{
-			"type": "tool_use", "id": "e2", "name": "Write", "input": map[string]any{"file_path": filepath.Join(k.home, "proj", ".claude", "scratch", "r.md")},
-		}}}})
-		path := filepath.Join(k.t.TempDir(), "edited.jsonl")
-		testutil.Write(t, path, checkerLine(id)+"\n"+string(report)+"\n")
-		payload := post()
-		payload["transcript_path"] = path
-		k.run("verify-claims", payload).Allowed(t)
-		testutil.Write(t, path, checkerLine(id)+"\n"+string(edit)+"\n")
-		again := k.run("verify-claims", payload)
-		again.Denied(t)
-		again.Has(t, id)
-		if asked := testutil.Read(t, k.claimsAsked()); strings.Count(asked, id) != 1 {
-			t.Errorf("the asked record holds %s %d times, want once:\n%s", id, strings.Count(asked, id), asked)
-		}
-	})
-	t.Run("in one entry, a run after the edit stands and one before it doesn't", func(t *testing.T) {
-		t.Parallel()
-		k := newSandbox(t)
-		k.verifier("", claim)
-		post := func() map[string]any { return toolCall("mcp__chat__send_message", map[string]any{"text": claim}) }
-		id := checkID.FindString(k.run("verify-claims", post()).Stdout)
-		edit := map[string]any{"type": "tool_use", "id": "e1", "name": "Edit", "input": map[string]any{"file_path": filepath.Join(k.home, "proj", "main.go")}}
-		check := map[string]any{"type": "tool_use", "id": "cc", "name": "Agent", "input": map[string]any{"subagent_type": "kit:claim-checker", "prompt": "Check the claims.\n" + id}}
-		done, _ := json.Marshal(map[string]any{"type": "user", "message": map[string]any{"content": []any{map[string]any{"type": "tool_result", "tool_use_id": "cc", "content": "No unconfirmed claims."}}}})
-		path := filepath.Join(k.t.TempDir(), "one-entry.jsonl")
-		payload := post()
-		payload["transcript_path"] = path
-		for _, tc := range []struct {
-			blocks  []any
-			allowed bool
-		}{{[]any{edit, check}, true}, {[]any{check, edit}, false}} {
-			entry, _ := json.Marshal(map[string]any{"type": "assistant", "message": map[string]any{"content": tc.blocks}})
-			testutil.Write(t, path, string(entry)+"\n"+string(done)+"\n")
-			if r := k.run("verify-claims", payload); tc.allowed {
-				r.Allowed(t)
-			} else {
-				r.Denied(t)
-			}
-		}
-	})
-	t.Run("a run launched beside an edit, before its result, doesn't stand", func(t *testing.T) {
-		t.Parallel()
-		k := newSandbox(t)
-		k.verifier("", claim)
-		post := func() map[string]any { return toolCall("mcp__chat__send_message", map[string]any{"text": claim}) }
-		id := checkID.FindString(k.run("verify-claims", post()).Stdout)
-		path := filepath.Join(k.t.TempDir(), "parallel.jsonl")
-		testutil.AppendJSONL(t, path,
-			testutil.ToolUse("e1", "Edit", map[string]any{"file_path": filepath.Join(k.home, "proj", "main.go")}),
-			testutil.ToolUse("cc", "Agent", map[string]any{"subagent_type": "kit:claim-checker", "prompt": "Check the claims.\n" + id}),
-			testutil.ToolResult("e1", ""), testutil.ToolResult("cc", "No unconfirmed claims."))
-		payload := post()
-		payload["transcript_path"] = path
-		k.run("verify-claims", payload).Denied(t)
-	})
-	t.Run("a Bash edit after a run makes its sentences fresh again", func(t *testing.T) {
-		t.Parallel()
-		k := newSandbox(t)
-		k.verifier("", claim)
-		post := func() map[string]any { return toolCall("mcp__chat__send_message", map[string]any{"text": claim}) }
-		id := checkID.FindString(k.run("verify-claims", post()).Stdout)
-		bash, _ := json.Marshal(map[string]any{"type": "assistant", "message": map[string]any{"content": []any{map[string]any{
-			"type": "tool_use", "id": "b1", "name": "Bash", "input": map[string]any{"command": "sed -i '' 's/a/b/' main.go"},
-		}}}})
-		path := filepath.Join(k.t.TempDir(), "bashed.jsonl")
-		testutil.Write(t, path, checkerLine(id)+"\n"+string(bash)+"\n")
-		payload := post()
-		payload["transcript_path"] = path
-		// A command bash-edits saw change nothing leaves the run standing.
-		k.run("verify-claims", payload).Allowed(t)
-		testutil.Write(t, k.bashEdited(), "b1\n")
-		k.run("verify-claims", payload).Denied(t)
-	})
-	t.Run("the claim checker's own hand-back isn't checked again", func(t *testing.T) {
-		t.Parallel()
-		k := newSandbox(t)
-		calls := k.verifier("", claim)
-		payload := handback("a1", claim)
-		payload["agent_type"] = "kit:claim-checker"
-		k.run("verify-claims", payload).Allowed(t)
-		if got := testutil.Calls(t, calls); got != nil {
-			t.Errorf("verifier ran: %q", got)
-		}
-	})
 	t.Run("a project agent named claim-checker is checked", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
@@ -355,157 +240,20 @@ func TestVerifyClaimsToolInput(t *testing.T) {
 			t.Errorf("verifier ran %d times, want 1", got)
 		}
 	})
-	t.Run("a changed post needs its own run", func(t *testing.T) {
-		t.Parallel()
-		k := newSandbox(t)
-		post := func(text string) map[string]any {
-			return toolCall("mcp__chat__send_message", map[string]any{"text": text})
-		}
-		id := checkID.FindString(k.run("verify-claims", post(claim)).Stdout)
-		other := k.run("verify-claims", checkerRan(k, post("Deploys run at noon because the cron says 12."), id))
-		other.Denied(t)
-		if checkID.FindString(other.Stdout) == id {
-			t.Errorf("two texts share the id %s", id)
-		}
-	})
-	t.Run("a background checker run counts once its notice says it completed", func(t *testing.T) {
-		t.Parallel()
-		k := newSandbox(t)
-		post := toolCall("mcp__chat__send_message", map[string]any{"text": claim})
-		id := checkID.FindString(k.run("verify-claims", post).Stdout)
-		path := filepath.Join(t.TempDir(), "session.jsonl")
-		launched := checkerCall(id, "Async agent launched successfully.\nagentId: a9", false) + "\n"
-		testutil.Write(t, path, launched)
-		post["transcript_path"] = path
-		k.run("verify-claims", post).Denied(t)
-		notice, _ := json.Marshal(map[string]any{"type": "queue-operation", "operation": "enqueue",
-			"content": "<task-notification>\n<task-id>a9</task-id>\n<tool-use-id>cc</tool-use-id>\n<status>completed</status>\n</task-notification>"})
-		testutil.Write(t, path, launched+string(notice)+"\n")
-		k.run("verify-claims", post).Allowed(t)
-	})
-	t.Run("a failed checker run gets the hook's own run, once per text", func(t *testing.T) {
-		t.Parallel()
-		notice, _ := json.Marshal(map[string]any{"type": "queue-operation", "operation": "enqueue",
-			"content": "<task-notification>\n<tool-use-id>cc</tool-use-id>\n<status>failed</status>\n</task-notification>"})
-		for name, failed := range map[string]func(id string) string{
-			"in the foreground": func(id string) string { return checkerCall(id, "The agent stopped: API error.", true) },
-			"in the background": func(id string) string {
-				return checkerCall(id, "Async agent launched successfully.\nagentId: a9", false) + "\n" + string(notice)
-			},
-		} {
-			t.Run(name, func(t *testing.T) {
-				t.Parallel()
-				k := newSandbox(t)
-				k.verifier("", claim)
-				post := toolCall("mcp__chat__send_message", map[string]any{"text": claim})
-				id := checkID.FindString(k.run("verify-claims", post).Stdout)
-				path := filepath.Join(t.TempDir(), "session.jsonl")
-				testutil.Write(t, path, failed(id)+"\n")
-				post["transcript_path"] = path
-				r := k.run("verify-claims", post)
-				r.Denied(t)
-				r.Has(t, claim, "git log -S Foo")
-				k.run("verify-claims", post).Allowed(t)
-			})
-		}
-	})
-	t.Run("a checker run whose every check errored gets the hook's own run", func(t *testing.T) {
-		t.Parallel()
-		// The checker's own transcript: a Skill load that worked, then each
-		// of its checks, ok or denied.
-		agentLog := func(checks ...bool) string {
-			lines := []string{}
-			call := func(id, name string, ok bool) {
-				use, _ := json.Marshal(map[string]any{"type": "assistant", "message": map[string]any{"content": []any{
-					map[string]any{"type": "tool_use", "id": id, "name": name, "input": map[string]any{}}}}})
-				result, _ := json.Marshal(map[string]any{"type": "user", "message": map[string]any{"content": []any{
-					map[string]any{"type": "tool_result", "tool_use_id": id, "is_error": !ok, "content": "kit rules-gate: BLOCKED"}}}})
-				lines = append(lines, string(use), string(result))
-			}
-			call("s1", "Skill", true)
-			for i, ok := range checks {
-				call(fmt.Sprintf("r%d", i), "Read", ok)
-			}
-			return strings.Join(lines, "\n") + "\n"
-		}
-		notice, _ := json.Marshal(map[string]any{"type": "queue-operation", "operation": "enqueue",
-			"content": "<task-notification>\n<tool-use-id>cc</tool-use-id>\n<status>completed</status>\n</task-notification>"})
-		runs := map[string]func(id string) string{
-			"in the foreground": func(id string) string { return checkerCall(id, "No unconfirmed claims.\nagentId: a7", false) },
-			"in the background": func(id string) string {
-				return checkerCall(id, "Async agent launched successfully.\nagentId: a7", false) + "\n" + string(notice)
-			},
-		}
-		for name, run := range runs {
-			for _, tc := range []struct {
-				name    string
-				checks  []bool
-				blinded bool
-			}{
-				{"every check denied", []bool{false, false}, true},
-				{"one check went through", []bool{false, true}, false},
-				{"no check needed", nil, false},
-			} {
-				t.Run(name+", "+tc.name, func(t *testing.T) {
-					t.Parallel()
-					k := newSandbox(t)
-					calls := k.verifier("", claim)
-					post := toolCall("mcp__chat__send_message", map[string]any{"text": claim})
-					id := checkID.FindString(k.run("verify-claims", post).Stdout)
-					dir := t.TempDir()
-					path := filepath.Join(dir, "session.jsonl")
-					testutil.Write(t, path, run(id)+"\n")
-					testutil.Write(t, filepath.Join(dir, "session", "subagents", "agent-a7.jsonl"), agentLog(tc.checks...))
-					post["transcript_path"] = path
-					r := k.run("verify-claims", post)
-					if !tc.blinded {
-						r.Allowed(t)
-						if got := testutil.Calls(t, calls); got != nil {
-							t.Errorf("verifier ran: %q", got)
-						}
-						return
-					}
-					r.Denied(t)
-					r.Has(t, claim, "git log -S Foo")
-					k.run("verify-claims", post).Allowed(t)
-				})
-			}
-		}
-	})
-	t.Run("a session without the checker agent gets the hook's own run, once per text", func(t *testing.T) {
-		t.Parallel()
-		k := newSandbox(t)
-		calls := k.verifier("", claim)
-		post := toolCall("mcp__chat__send_message", map[string]any{"text": claim})
-		id := checkID.FindString(k.run("verify-claims", post).Stdout)
-		path := filepath.Join(t.TempDir(), "session.jsonl")
-		testutil.Write(t, path, checkerCall(id, "Agent type 'kit:claim-checker' not found. Available agents: Explore", true)+"\n")
-		post["transcript_path"] = path
-		r := k.run("verify-claims", post)
-		r.Denied(t)
-		r.Has(t, claim, "git log -S Foo")
-		k.run("verify-claims", post).Allowed(t)
-		if got := len(testutil.Calls(t, calls)); got != 1 {
-			t.Errorf("verifier ran %d times, want 1", got)
-		}
-	})
 	t.Run("disabled_rules: [claims] lets it through", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
 		k.verifier("disabled_rules: [claims]\n", claim)
 		k.run("verify-claims", toolCall("mcp__chat__send_message", map[string]any{"text": claim})).Allowed(t)
 	})
-	t.Run("a text the session already checked gets its verdict again, with no run", func(t *testing.T) {
+	t.Run("a statement the session already checked goes through, with no run", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
 		calls := k.verifier("", claim)
 		k.run("verify-claims", handback("a1", claim)).Denied(t)
-		again := k.run("verify-claims", handback("a2", claim))
-		again.Denied(t)
-		again.Has(t, claim, "git log -S Foo")
-		k.run("verify-claims", handback("a3", "Deploys run at noon because the cron says 12.")).Denied(t)
-		if got := len(testutil.Calls(t, calls)); got != 2 {
-			t.Errorf("verifier ran %d times, want 2: once per distinct text", got)
+		k.run("verify-claims", handback("a2", claim)).Allowed(t)
+		if got := len(testutil.Calls(t, calls)); got != 1 {
+			t.Errorf("verifier ran %d times, want 1: once per statement", got)
 		}
 	})
 	t.Run("a checked handback leaves the subagent's stop alone", func(t *testing.T) {
@@ -518,6 +266,78 @@ func TestVerifyClaimsToolInput(t *testing.T) {
 			t.Errorf("verifier ran %d times, want 1", got)
 		}
 	})
+}
+
+// A flagged text goes back once, and the rewrite that answers it goes
+// through with no run, so a rewrite never loops. The text after that is a
+// new one, and is checked.
+func TestVerifyClaimsPassesTheRewriteAfterASendBack(t *testing.T) {
+	t.Parallel()
+	k := newSandbox(t)
+	const other = "Deploys run at noon because the cron says 12."
+	calls := k.verifier("", claim, other)
+	post := func(text string) map[string]any {
+		p := toolCall("mcp__chat__send_message", map[string]any{"text": text})
+		p["agent_id"] = "a1"
+		return p
+	}
+	k.run("verify-claims", post(claim)).Denied(t)
+	k.run("verify-claims", post(other)).Allowed(t)
+	if got := len(testutil.Calls(t, calls)); got != 1 {
+		t.Errorf("verifier ran %d times for a text and its rewrite, want 1", got)
+	}
+	k.run("verify-claims", post(other)).Denied(t)
+}
+
+// A statement is checked once per session, wherever it goes next: a report
+// revised in place, and its body written to a second file, take one deny
+// between them, and the verifier runs only on statements it hasn't seen.
+func TestVerifyClaimsChecksAStatementOncePerSession(t *testing.T) {
+	t.Parallel()
+	k := newSandbox(t)
+	calls := k.verifier("", claim)
+	scratch := filepath.Join(k.home, "proj", ".claude", "scratch")
+	write := func(name, text string) result {
+		return k.run("verify-claims", toolCall("Write", map[string]any{"file_path": filepath.Join(scratch, name), "content": text}))
+	}
+	const added = "Deploys run at noon because the cron says 12."
+	denies := 0
+	for _, r := range []result{
+		write("explore-x.md", claim),
+		write("explore-x.md", claim+"\n"),
+		write("explore-x.md", claim+"\n\n"+added),
+		write("explore-y.md", claim+"\n\n"+added),
+	} {
+		if strings.Contains(r.Stdout, `"permissionDecision":"deny"`) {
+			denies++
+		}
+	}
+	if denies != 1 {
+		t.Errorf("denied %d times, want 1", denies)
+	}
+	if got := len(testutil.Calls(t, calls)); got != 2 {
+		t.Errorf("verifier ran %d times, want 2: the draft, then the added sentence", got)
+	}
+}
+
+// The verifier runs from the project root, so a path a claim names
+// resolves there whichever directory the session is in.
+func TestVerifyClaimsRunsFromTheProjectRoot(t *testing.T) {
+	t.Parallel()
+	k := newSandbox(t)
+	calls := k.verifier("")
+	root := testutil.Physical(t, t.TempDir())
+	testutil.GitID(t, root, "init", "-q")
+	sub := filepath.Join(root, "go", "internal")
+	testutil.Mkdir(t, sub)
+	main := filepath.Join(t.TempDir(), "sess.jsonl")
+	testutil.Write(t, main, `{"type":"user","message":{"content":"parent prompt"}}`+"\n")
+	payload := subagentStop("a1", claim, false)
+	payload["cwd"], payload["transcript_path"] = sub, main
+	k.run("verify-claims", payload).Want(t, 0)
+	if got := testutil.Calls(t, calls); len(got) != 1 || !strings.HasPrefix(got[0], root+"|") {
+		t.Errorf("the verifier ran as %q, want once in %s", got, root)
+	}
 }
 
 // A SubagentStop whose agent_transcript_path names no file is checked
@@ -594,16 +414,16 @@ func TestVerifyClaimsRunsOnlyAfterTheCheapGuards(t *testing.T) {
 	for _, tc := range []struct {
 		hook string
 		call func(k *sandbox, text string) map[string]any
-		// clean is what a clean text gets: the hook's run's finding, or
-		// the claim-checker gate; runs is how many hook runs that takes.
+		// clean is what a clean text gets, the hook's run's finding; runs
+		// is how many hook runs that takes.
 		clean string
 		runs  int
 	}{
-		{"guard-dispatch", report, "kit:claim-checker", 0},
+		{"guard-dispatch", report, "git log -S Foo", 1},
 		{"handback-dispatch", func(_ *sandbox, text string) map[string]any { return handback("a1", text) }, "git log -S Foo", 1},
 		{"connector-dispatch", func(_ *sandbox, text string) map[string]any {
 			return toolCall("mcp__chat__send_message", map[string]any{"text": text})
-		}, "kit:claim-checker", 0},
+		}, "git log -S Foo", 1},
 		{"subagent-dispatch", func(_ *sandbox, text string) map[string]any { return subagentStop("a1", text, false) }, "git log -S Foo", 1},
 	} {
 		t.Run(tc.hook, func(t *testing.T) {
@@ -612,7 +432,7 @@ func TestVerifyClaimsRunsOnlyAfterTheCheapGuards(t *testing.T) {
 			calls := k.verifier("", claim)
 			r := k.run(tc.hook, tc.call(k, claim+" "+tell))
 			r.Has(t, "I hope this helps")
-			r.Lacks(t, "git log -S Foo", "kit:claim-checker")
+			r.Lacks(t, "git log -S Foo")
 			if got := testutil.Calls(t, calls); got != nil {
 				t.Errorf("verifier ran after a slop block: %q", got)
 			}
@@ -623,6 +443,53 @@ func TestVerifyClaimsRunsOnlyAfterTheCheapGuards(t *testing.T) {
 				t.Errorf("verifier ran %d times on clean text, want %d", got, tc.runs)
 			}
 		})
+	}
+}
+
+// One send-back lets through the next text to the same destination, its
+// rewrite, and nothing else: a post elsewhere is checked, and a send-back
+// that didn't take (claims shadowed) passes nothing on.
+func TestASendBackPassesOnlyTheRewriteToTheSameDestination(t *testing.T) {
+	t.Parallel()
+	const other = "The cache moved to the session directory in v3."
+	t.Run("a subagent's gh post to another destination", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		calls := k.verifier("", claim, other)
+		post := map[string]any{"hook_event_name": "PreToolUse", "session_id": "s", "agent_id": "a1", "tool_name": "Bash", "tool_input": map[string]any{"command": "gh"}}
+		k.run("check-post", post, claim, "gh pr create --body").Has(t, "git log -S Foo")
+		k.run("check-post", post, other, "gh issue comment --body").Has(t, "git log -S Foo")
+		if got := len(testutil.Calls(t, calls)); got != 2 {
+			t.Errorf("verifier ran %d times, want one per destination", got)
+		}
+	})
+	t.Run("a report written again with claims shadowed", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		calls := k.verifier("shadow_rules: [claims]\n", claim, other)
+		path := filepath.Join(k.home, "proj", ".claude", "scratch", "explore-x-20261110-1200.md")
+		k.run("verify-claims", toolCall("Write", map[string]any{"file_path": path, "content": "# Explore\n\n" + claim})).Allowed(t)
+		k.run("verify-claims", toolCall("Write", map[string]any{"file_path": path, "content": "# Explore\n\n" + other})).Allowed(t)
+		if got := len(testutil.Calls(t, calls)); got != 2 {
+			t.Errorf("verifier ran %d times, want the second text checked too", got)
+		}
+	})
+}
+
+// A main-session post of a body the session already checked passes with no
+// run and no ask for the claim-checker agent.
+func TestAMainSessionPostOfACheckedBodyPasses(t *testing.T) {
+	t.Parallel()
+	k := newSandbox(t)
+	calls := k.verifier("")
+	path := filepath.Join(k.home, "proj", ".claude", "scratch", "pr-description-x.md")
+	k.run("verify-claims", toolCall("Write", map[string]any{"file_path": path, "content": claim})).Allowed(t)
+	post := map[string]any{"hook_event_name": "PreToolUse", "session_id": "s", "tool_name": "Bash", "tool_input": map[string]any{"command": "gh"}}
+	r := k.run("check-post", post, claim, "gh pr edit --body")
+	r.Allowed(t)
+	r.Lacks(t, "kit:claim-checker")
+	if got := len(testutil.Calls(t, calls)); got != 1 {
+		t.Errorf("verifier ran %d times, want 1: the report, not the post", got)
 	}
 }
 
@@ -644,17 +511,34 @@ func TestSubagentDispatchChecksClaimsAfterASlopRetry(t *testing.T) {
 
 func TestVerifyClaimsFailsOpen(t *testing.T) {
 	t.Parallel()
-	t.Run("a verifier that fails is logged and named to the user, never blocks", func(t *testing.T) {
+	t.Run("a verifier that fails sends the report back once, for Claude to check itself", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
 		stub := filepath.Join(t.TempDir(), "verifier")
 		testutil.FakeTool(t, stub, filepath.Join(t.TempDir(), "calls"), "cat >/dev/null\nexit 1")
 		k.overlay(fmt.Sprintf("claims:\n  command: [%q]\n", stub))
 		r := k.run("verify-claims", subagentStop("a1", claim, false))
-		r.Want(t, 0)
-		r.Has(t, "kit claims: NOT CHECKED subagent report, the verifier failed")
+		r.Want(t, 2)
+		r.Has(t, "BLOCKED", "the verifier failed", "check each claim with a tool yourself")
+		r.Lacks(t, "NOT CHECKED")
 		if log := read(t, k.paths.LogFile(kitlog.Guards)); !strings.Contains(log, "claims-error") {
 			t.Errorf("guards log lacks the error:\n%s", log)
+		}
+		k.run("verify-claims", subagentStop("a1", claim, true)).Empty(t)
+	})
+	t.Run("after a failure the verifier is paused for every text, which goes back to Claude", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		stub, calls := filepath.Join(t.TempDir(), "verifier"), filepath.Join(t.TempDir(), "calls")
+		testutil.FakeTool(t, stub, calls, "cat >/dev/null\nexit 1")
+		k.overlay(fmt.Sprintf("claims:\n  command: [%q]\n", stub))
+		k.run("verify-claims", subagentStop("a1", claim, false)).Has(t, "the verifier failed")
+		r := k.run("verify-claims", subagentStop("a2", "The cache lives in the session directory.", false))
+		r.Want(t, 2)
+		r.Has(t, "BLOCKED", "the verifier is paused after failing at ", "check each claim with a tool yourself")
+		r.Lacks(t, "NOT CHECKED")
+		if got := len(testutil.Calls(t, calls)); got != 1 {
+			t.Errorf("verifier ran %d times, want 1", got)
 		}
 	})
 	t.Run("a verifier run logs what it cost", func(t *testing.T) {
@@ -699,23 +583,37 @@ func TestClaimsMessageClipsByCharacter(t *testing.T) {
 	}
 }
 
-// A new audit-* or code-* skill's report kind would otherwise skip the gate.
-func TestCheckedReportsCoverEveryAuditAndCodeSkill(t *testing.T) {
+// A new skill's report kind would otherwise skip the check. unslop's is
+// the user's own draft, and prompt's a prompt, neither a set of claims.
+func TestCheckedReportsCoverEverySkillsReport(t *testing.T) {
 	kind := regexp.MustCompile("kit scratch-dir ([a-z0-9-]+) ")
 	skills, _ := filepath.Glob(filepath.Join("..", "..", "..", "skills", "*", "SKILL.md"))
 	for _, skill := range skills {
 		name := filepath.Base(filepath.Dir(skill))
-		if !strings.HasPrefix(name, "audit-") && !strings.HasPrefix(name, "code-") {
-			continue
-		}
 		text, err := os.ReadFile(skill)
 		if err != nil {
 			t.Fatal(err)
 		}
 		for _, m := range kind.FindAllStringSubmatch(string(text), -1) {
-			if !slices.Contains(checkedReports, m[1]) {
+			if m[1] != "unslop" && m[1] != "prompt" && !slices.Contains(checkedReports, m[1]) {
 				t.Errorf("%s writes a %q report, missing from checkedReports", name, m[1])
 			}
 		}
+	}
+}
+
+// The statement ledger holds the claims a session made; only its owner
+// reads it.
+func TestACachedVerdictIsTheOwnersAlone(t *testing.T) {
+	t.Parallel()
+	k := newSandbox(t)
+	k.verifier("", claim)
+	k.run("verify-claims", subagentStop("a1", claim, false))
+	verdicts, _ := filepath.Glob(filepath.Join(k.paths.CacheDir(), cache.Claims, "s-ledger"))
+	if len(verdicts) != 1 {
+		t.Fatalf("verdicts = %q", verdicts)
+	}
+	if info, err := os.Stat(verdicts[0]); err != nil || info.Mode().Perm() != 0o600 {
+		t.Errorf("mode %v, %v; want 0600", info.Mode(), err)
 	}
 }

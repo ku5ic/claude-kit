@@ -8,7 +8,8 @@ The Agent tool takes the namespaced name, `kit:<name>`. `/agents` lists them.
 - When a plan step sends `kit:gatherer` its questions: `skills/investigate`, Gatherer questions.
 - Spawn an agent only for a task matching its specialty, one needing isolation (a broad sweep, a read-only audit), or independent items that can run in parallel.
 - An agent whose definition sets no `model:` runs on the session's model. Pass `model` on the call to fit the task: `haiku` for lookups and fact gathering, `sonnet` for edits that follow a given brief or template and for reviewing a diff, each agent of a review fan-out included, `opus` for critiquing a plan or a design.
-- An agent finishes its own task. A specialized agent may spawn one agent per run, only for a sub-task outside its own tools.
+- An agent finishes its own task. A judging agent, such as plan-critic, may send its fact questions to read-only `kit:gatherer` runs in one parallel message, then judge from their reports. Any other specialized agent may spawn one agent per run, only for a sub-task outside its own tools.
+- Claude Code allows three layers of subagents below the main conversation (`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`) and 20 running in a session (`CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`), and a spawner needs `Agent` in its `tools` (code.claude.com/docs/en/sub-agents).
 
 ## 2. Verify an agent's work before building on it
 

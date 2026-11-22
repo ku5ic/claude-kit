@@ -1,8 +1,6 @@
 package hooks
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,7 +19,6 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 	"github.com/ku5ic/claude-kit/go/internal/layout"
 	"github.com/ku5ic/claude-kit/go/internal/project"
-	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
 
 // VerifyClaims holds a text until its claims were checked, so each is
@@ -29,23 +26,22 @@ import (
 // checked; see checkClaims.
 //   - SubagentStop, and PreToolUse for SubagentHandback: a subagent's
 //     report, by the hook's own run against its transcript, once per agent.
-//   - PreToolUse for ExitPlanMode: the plan, which plan-critic's run covers,
-//     or with plan-critic off, the claim-checker agent.
-//   - PreToolUse for a Write or Edit of an investigation, review, audit-*,
-//     or code-* report in scratch, and for an MCP tool that writes: the claim-checker agent on
-//     that exact text. Inside a subagent, the hook's own run, once per text.
+//   - PreToolUse for ExitPlanMode, an MCP tool that writes, or a Write or
+//     Edit of a scratch report (checkedReports): the hook's own run, sent
+//     back once per plan, tool, or report.
 //
 // It runs last in its dispatcher and skips a call an earlier check denied,
 // so no run is wasted.
 func VerifyClaims(h *hook.Hook) error {
 	p := h.Payload
-	if decision, _ := h.Decision(); p.Err != nil || decision == "deny" {
+	if p.Err != nil || earlierDeny(h) {
 		return nil
 	}
 	// The checker's report is the check; checking it again buys nothing.
-	// A plugin agent's type carries its namespace, so a project agent
-	// named claim-checker is someone else's and gets checked.
-	if p.String(hook.KeyAgentType) == claimChecker {
+	// plan-critic cites a file:line for each finding. A plugin agent's type
+	// carries its namespace, so a project agent of the same name is someone
+	// else's and gets checked.
+	if agent := p.String(hook.KeyAgentType); agent == claimChecker || agent == planCritic {
 		return nil
 	}
 	switch p.String(hook.KeyHookEventName) {
@@ -60,11 +56,11 @@ func VerifyClaims(h *hook.Hook) error {
 		if len(u) == 0 {
 			// Best effort: without it, the next stop checks again.
 			if marker != "" && !h.DryRun {
-				_ = fsx.WriteAtomic(marker, []byte("seen"), 0o644)
+				_ = fsx.WriteAtomic(marker, []byte(seenMark), 0o644)
 			}
 			return nil
 		}
-		if marker == "" || markOnce(h, marker, []byte("seen"), "claims") {
+		if marker == "" || markOnce(h, marker, []byte(seenMark), "claims") {
 			return h.Block(claimsMessage("your report", u, sendBack), "claims")
 		}
 	case "PreToolUse":
@@ -73,25 +69,33 @@ func VerifyClaims(h *hook.Hook) error {
 	return nil
 }
 
-// verifyToolInput checks a handback with the hook's own run, and gates a
-// plan, a scratch report, or a connector post on the claim-checker agent.
+// earlierDeny is true when a check before this one denied the call, so this
+// one can skip its work. ExitPlanMode runs every check anyway, and the one
+// deny names each reason, so a plan needs one round trip.
+func earlierDeny(h *hook.Hook) bool {
+	decision, _ := h.Decision()
+	return decision == "deny" && h.Payload.String(hook.KeyToolName) != "ExitPlanMode"
+}
+
+// verifyToolInput checks a handback, a plan, a scratch report, or a
+// connector post with the hook's own run.
 func verifyToolInput(h *hook.Hook) error {
 	p := h.Payload
 	tool := p.String(hook.KeyToolName)
-	var text, where, retry, marker, dest string
+	var text, where, retry, marker string
 	switch {
 	case tool == "SubagentHandback":
 		return verifyHandback(h)
 	case tool == "ExitPlanMode":
-		// plan-critic checks a plan's claims in the run GuardPlan asks for.
-		// A plan resent without that run gets its claims checked here.
-		if !h.RuleDisabled("plan-critic") && planCritiqued(p) {
-			return nil
-		}
 		// Claude Code injects the plan's text and path (code.claude.com/docs/en/hooks).
 		plan := filepath.Base(p.String(hook.KeyInputPlanFilePath))
 		text, where, retry = p.String(hook.KeyInputPlan), "the plan "+plan, "call ExitPlanMode again"
 		marker = h.Paths.SessionFile(cache.Claims, p.SessionID(), "plan", plan)
+		// The plan changes after plan-critic's run, so while that run is
+		// being asked for, nothing.
+		if _, reason := h.Decision(); strings.Contains(reason, criticAsk) {
+			return nil
+		}
 	case slices.Contains(filePathTools, tool):
 		path := p.FilePath()
 		if !scratchReport(h, path, checkedReports...) || !atScratchRoot(h, path) {
@@ -101,8 +105,16 @@ func verifyToolInput(h *hook.Hook) error {
 		if !ok {
 			return nil
 		}
-		text, where, retry, dest = after, filepath.Base(path), "write the report again", path
-		marker = h.Paths.SessionFile(cache.Claims, p.SessionID(), "file", filepath.Base(path))
+		name := filepath.Base(path)
+		marker = h.Paths.SessionFile(cache.Claims, p.SessionID(), "file", name)
+		// After its one send-back a report goes through, and its new
+		// statements are still checked into the ledger for where it goes next.
+		if sentBackBefore(marker) {
+			ledgerPending(h, marker, name, after)
+			_ = unconfirmed(h, after, agentTranscript(p), name)
+			return nil
+		}
+		return verifyOwnRun(h, after, name, "write the report again", marker)
 	default:
 		cfg := h.Config()
 		if cfg == nil || !connector.IsWrite(cfg.Connectors, tool) {
@@ -111,146 +123,100 @@ func verifyToolInput(h *hook.Hook) error {
 		text, where, retry = strings.Join(p.Strings(hook.KeyToolInput, cfg.Connectors.CodeFields...), "\n\n"), "the "+tool+" input", "send it again"
 		marker = h.Paths.SessionFile(cache.Claims, p.SessionID(), "tool", tool)
 	}
-	if p.String(hook.KeyAgentID) != "" {
-		return verifyInSubagent(h, text, where, retry, marker)
-	}
-	return gateOnChecker(h, text, where, retry, marker, dest)
+	return verifyOwnRun(h, text, where, retry, marker)
 }
 
-// verifyInSubagent checks a report or post written inside a subagent with
-// the hook's own run, since a subagent can't start the claim-checker agent.
-// The text is sent back once; that exact text, resent, goes through.
-func verifyInSubagent(h *hook.Hook, text, where, retry, marker string) error {
+// CheckPost is check-size and verify-claims on text, what a Bash command
+// posts through gh or glab, read from where. It's held as a connector
+// post's input is. PreToolUse for Bash, last in bash-dispatch.
+func CheckPost(h *hook.Hook, text, where string) error {
+	p := h.Payload
+	cfg := h.Config()
+	if p.Err != nil || cfg == nil || text == "" {
+		return p.Err
+	}
+	if decision, _ := h.Decision(); decision == "deny" {
+		return nil
+	}
+	sizeOnce(h, text, where, "send it again", cfg.SizeBudgets.Post, h.Paths.SessionFile(cache.Size, p.SessionID(), "tool", "Bash"))
+	if decision, _ := h.Decision(); decision == "deny" || p.String(hook.KeyAgentType) == claimChecker {
+		return nil
+	}
+	// One marker per destination, so a send-back passes only its rewrite.
+	return verifyOwnRun(h, text, where, "send it again", h.Paths.SessionFile(cache.Claims, p.SessionID(), "tool", "Bash", textHash(where)[:12]))
+}
+
+// CheckBashReports is check-size and verify-claims on each scratch report
+// in written, the files a Bash command wrote, as a Write of that report
+// gets them. The command already ran, so a deny becomes a block. PostToolUse
+// for Bash.
+func CheckBashReports(h *hook.Hook, written []string) error {
+	p := h.Payload
+	if p.Err != nil || h.Config() == nil {
+		return p.Err
+	}
+	var reasons []string
+	seen := map[string]bool{}
+	for _, path := range written {
+		if seen[path] || !scratchReport(h, path, checkedReports...) || !atScratchRoot(h, path) {
+			continue
+		}
+		seen[path] = true
+		content, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		raw, _ := json.Marshal(map[string]any{
+			"hook_event_name": "PreToolUse", "session_id": p.SessionID(), "cwd": p.Cwd(),
+			"transcript_path": p.String(hook.KeyTranscriptPath), "agent_id": p.String(hook.KeyAgentID), "agent_type": p.String(hook.KeyAgentType),
+			"tool_name": "Write", "tool_input": map[string]any{"file_path": path, "content": string(content)},
+		})
+		sub := subHook(h, "bash-reports", raw)
+		for _, c := range []hook.NamedCheck{{Name: "check-size", Check: CheckSize}, {Name: "verify-claims", Check: VerifyClaims}} {
+			if b := hook.RunCheck(sub, c.Name, c.Check); b != nil {
+				reasons = append(reasons, b.Reason)
+				break
+			}
+		}
+		if decision, reason := sub.Decision(); decision == "deny" {
+			reasons = append(reasons, reason)
+		}
+	}
+	if len(reasons) == 0 {
+		return nil
+	}
+	return h.Block("a report this command wrote isn't ready\n"+strings.Join(reasons, "\n"), "bash-reports")
+}
+
+// verifyOwnRun checks a text with the hook's own run. The text is sent back
+// once, and the next text to where, its rewrite, goes through with no run.
+func verifyOwnRun(h *hook.Hook, text, where, retry, marker string) error {
 	if marker == "" {
 		return nil
 	}
-	sum := sha256.Sum256([]byte(text))
-	sentBack := "sent-back " + hex.EncodeToString(sum[:])
 	ledgerPending(h, marker, where, text)
-	if prev, err := os.ReadFile(marker); err == nil && string(prev) == sentBack {
-		_ = os.Remove(marker)
+	if rewriteOf(marker) {
 		return nil
 	}
 	u := unconfirmed(h, text, agentTranscript(h.Payload), where)
 	if len(u) == 0 {
 		return nil
 	}
-	if markOnce(h, marker, []byte(sentBack), "claims") {
+	if markOnce(h, marker, []byte(sentBackMark), "claims") {
 		savePending(h, marker, u)
 		if !h.Deny(claimsMessage(where, u, retry), "claims") {
-			// Let through as it is, so its flags score against this text.
+			// Let through as it is, so its flags score against this text,
+			// and the next text is checked as if none came before.
 			ledgerPending(h, marker, where, text)
+			_ = os.Remove(marker)
 		}
 	}
 	return nil
 }
 
-// claimChecker is the agent a main-session text waits for.
+// claimChecker is the agent whose prompt the hook's own run uses, and
+// whose report needs no check.
 const claimChecker = "kit:claim-checker"
-
-// gateOnChecker denies the call until the transcript shows a claim-checker
-// run that finished on each of this text's statements, as GuardPlan waits
-// for plan-critic. A run's prompt carries the claim-check id of the
-// statements it was asked about; once it finishes they're recorded, so a
-// revised text asks only about the statements no run checked. The hook
-// decides when a check must run, never the model making the claims;
-// whether Claude acted on the report is left to the transcript. A session
-// that started before the agent was installed can't run it, so a not-found
-// result falls back to the hook's own run. A report file, dest, that a run
-// finished on goes through rewritten: acting on the checker's report
-// rewords what it flagged, which would otherwise ask for a run again.
-func gateOnChecker(h *hook.Hook, text, where, retry, marker, dest string) error {
-	cfg := h.Config()
-	if cfg == nil || h.RuleDisabled("claims") || cfg.Claims.Off() || !claims.Declarative(text) {
-		return nil
-	}
-	log := readCheckerLog(h, h.Payload.String(hook.KeyTranscriptPath))
-	asked := h.Paths.SessionFile(cache.Claims, h.Payload.SessionID(), "asked")
-	record, _ := os.ReadFile(asked)
-	checked, outcomes, done := checkedStatements(log, string(record))
-	// passed is every exit where the text needs no new run: its finished
-	// runs' flags go to the ledger.
-	passed := func() error {
-		ledgerRuns(h, log, string(record), text, where)
-		return nil
-	}
-	if dest != "" && slices.Contains(done, dest) {
-		return passed()
-	}
-	all := claims.Statements(text)
-	var fresh []string
-	for _, s := range all {
-		if !slices.Contains(checked, statementKey(s)) {
-			fresh = append(fresh, s)
-		}
-	}
-	if len(fresh) == 0 {
-		return passed()
-	}
-	sum := sha256.Sum256([]byte(strings.Join(fresh, "\n")))
-	id := "claim-check " + hex.EncodeToString(sum[:])[:12]
-	outcome, recorded := outcomes[id]
-	if !recorded {
-		outcome = log.runs([]string{id})[id]
-	}
-	switch outcome {
-	case checkerDone:
-		return passed()
-	case checkerFailed:
-		return verifyInSubagent(h, text, where, retry, marker)
-	}
-	ask := "run it first; its prompt holds the line `" + id + "` and the full text"
-	var only string
-	if len(fresh) < len(all) {
-		ask += ", and asks it to check only these, which no run has checked:"
-		only = "\n- " + strings.Join(fresh, "\n- ")
-	}
-	if !h.DryRun && !strings.Contains(string(record), id+"\t") {
-		var keys []string
-		for _, s := range fresh {
-			keys = append(keys, statementKey(s))
-		}
-		_ = fsx.Append(asked, []byte(id+"\t"+strings.Join(keys, ",")+"\t"+dest+"\n"))
-	}
-	h.Deny(fmt.Sprintf("the %s agent hasn't checked %s\n", claimChecker, where)+layout.KV("do", ask)+only+"\n"+
-		layout.KV("then", "check or cut each claim it reports, per skills/kit-rules/reference/evidence.md section 1, then "+retry), "claims")
-	return nil
-}
-
-// checkedStatements is the keys of the statements a finished claim-checker
-// run covered: each run record, the session's asked file, names by its id,
-// whose run log shows done. It returns every recorded id's outcome too, and
-// the report files those done runs were asked for.
-func checkedStatements(log checkerLog, record string) ([]string, map[string]int, []string) {
-	lines := readAsked(record)
-	ids := make([]string, 0, len(lines))
-	for _, a := range lines {
-		ids = append(ids, a.id)
-	}
-	outcomes := log.runs(ids)
-	var keys, done []string
-	for _, a := range lines {
-		if outcomes[a.id] == checkerDone {
-			keys = append(keys, a.keys...)
-			if a.dest != "" {
-				done = append(done, a.dest)
-			}
-		}
-	}
-	return keys, outcomes, done
-}
-
-// checkerLog is the session transcript at path, read once, and the place
-// of its last code edit: an edit tool call, or a recorded Bash edit, on a
-// file outside scratch and the plans folder. The edit counts from its
-// result, or from its call while it has none: a run launched before that,
-// beside it in one message too, checked code that has changed since, so
-// it counts as no run.
-type checkerLog struct {
-	path     string
-	entries  []transcript.Entry
-	lastEdit transcript.Pos
-}
 
 // bashEditsRecord is the session file under cache.Claims listing, one a
 // line, the Bash tool uses whose command changed a file outside scratch and
@@ -303,120 +269,31 @@ func isCode(h *hook.Hook, file string) bool {
 	return file != "" && !project.IsScratch(h.Paths, file) && !fsx.Within(project.PlanDir(h.Paths, h.Payload.Cwd()), file)
 }
 
-// readCheckerLog is the checkerLog of the transcript at path. The last edit
-// is an edit tool's, or a Bash call's that bashEditsRecord names.
-func readCheckerLog(h *hook.Hook, path string) checkerLog {
-	entries, _ := transcript.Load(path)
-	bashed := bashEdits(h)
-	log := checkerLog{path: path, entries: entries, lastEdit: transcript.Pos{Entry: -1}}
-	edits := map[string]bool{}
-	for at, b := range transcript.Blocks(entries) {
-		switch _, ok := bashed[b.ID]; {
-		case b.Type == "tool_use" && (ok || slices.Contains(transcript.EditTools, b.Name) && isCode(h, b.Path())):
-			log.lastEdit, edits[b.ID] = at, true
-		case b.Type == "tool_result" && edits[b.ToolUseID]:
-			log.lastEdit = at
-		}
-	}
-	return log
-}
-
 // statementKey is a checked statement's line in the session's record.
 func statementKey(s string) string {
-	sum := sha256.Sum256([]byte(s))
-	return hex.EncodeToString(sum[:])[:16]
-}
-
-// A claim-checker run's outcome, as the transcript shows it.
-const (
-	checkerNotRun = iota // no run on this text has ended
-	checkerDone          // a run on this text finished
-	checkerFailed        // a run on this text failed, or the agent is missing
-)
-
-// runs is how the log's claim-checker runs on the text with each of ids, a
-// claim-check id, ended, in one pass over the log. A failed run, or one
-// whose every check errored, hands the text to the hook's own verifier, so
-// a checker that keeps failing can't block it for good, nor pass it
-// unchecked.
-func (l checkerLog) runs(ids []string) map[string]int {
-	outcome := map[string]int{}
-	for _, id := range ids {
-		outcome[id] = checkerNotRun
-	}
-	checked := map[string]bool{}
-	blind := func(agent string) bool {
-		if was, ok := checked[agent]; ok {
-			return was
-		}
-		checked[agent] = checkedNothing(agentTranscriptPath(l.path, agent))
-		return checked[agent]
-	}
-	// A run launched before the last edit checked code that has changed.
-	for _, run := range transcript.AgentRuns(l.entries, claimChecker) {
-		if !run.At.After(l.lastEdit) || run.Status == transcript.RunGoing {
-			continue
-		}
-		result := checkerFailed
-		if run.Status == transcript.RunDone && !blind(run.Agent) {
-			result = checkerDone
-		}
-		for _, id := range ids {
-			if strings.Contains(run.Prompt, id) && outcome[id] != checkerDone {
-				outcome[id] = result
-			}
-		}
-	}
-	return outcome
-}
-
-// checkedNothing is true when the agent transcript at path shows checks,
-// any tool call but a Skill load, and every one of them errored: a run
-// the rules gate or a permission denial kept from reading anything. A
-// transcript that can't be read counts as a run that checked.
-func checkedNothing(path string) bool {
-	entries, err := transcript.Load(path)
-	if err != nil {
-		return false
-	}
-	checks := map[string]bool{}
-	answered := false
-	for _, e := range entries {
-		for _, b := range e.Blocks {
-			switch {
-			case b.Type == "tool_use" && b.Name != "Skill":
-				checks[b.ID] = true
-			case b.Type == "tool_result" && checks[b.ToolUseID]:
-				if !b.IsError {
-					return false
-				}
-				answered = true
-			}
-		}
-	}
-	return answered
+	return textHash(s)[:16]
 }
 
 // verifyHandback checks a subagent's report with the hook's own run, once
-// per agent: a subagent can't start the claim-checker agent itself.
+// per agent.
 func verifyHandback(h *hook.Hook) error {
 	marker := handbackMarker(h, cache.Claims)
 	if marker == "" {
 		return nil
 	}
 	message := h.Payload.String(hook.KeyInputMessage)
-	if prev, err := os.ReadFile(marker); err == nil && string(prev) == "sent-back" {
+	if wasSentBack(marker) {
 		ledgerPending(h, marker, "your report", message)
 		return nil
 	}
 	u := unconfirmed(h, message, agentTranscript(h.Payload), "your report")
 	if len(u) == 0 {
 		if !h.DryRun {
-			_ = fsx.WriteAtomic(marker, []byte("seen"), 0o644)
+			_ = fsx.WriteAtomic(marker, []byte(seenMark), 0o644)
 		}
 		return nil
 	}
-	if markOnce(h, marker, []byte("sent-back"), "claims") {
+	if markOnce(h, marker, []byte(sentBackMark), "claims") {
 		savePending(h, marker, u)
 		if !h.Deny(claimsMessage("your report", u, sendBack), "claims") {
 			ledgerPending(h, marker, "your report", message)
@@ -426,47 +303,55 @@ func verifyHandback(h *hook.Hook) error {
 }
 
 // unconfirmed is what the verifier found unconfirmed in text, logged with
-// its cost; nil when text states nothing, without kit.yml, or when the
-// verifier fails, which never blocks but tells the user the text went
-// unchecked. A text the session already checked gets that verdict again,
-// with no run.
+// its cost; nil when text states nothing or without kit.yml, and selfCheck
+// when the verifier fails. Only the statements no ledger holds go to the
+// verifier; a text with none needs no run.
 func unconfirmed(h *hook.Hook, text, transcriptPath, where string) []claims.Unsupported {
 	cfg := h.Config()
 	if cfg == nil || h.DryRun || h.RuleDisabled("claims") || !claims.Declarative(text) {
 		return nil
 	}
-	sum := sha256.Sum256([]byte(text))
-	cached := h.Paths.SessionFile(cache.Claims, h.Payload.SessionID(), "verdict", hex.EncodeToString(sum[:])[:16])
-	if data, err := os.ReadFile(cached); err == nil {
-		var u []claims.Unsupported
-		if json.Unmarshal(data, &u) == nil {
-			h.Log(kitlog.Guards, "claims-cached", "where", where, "unconfirmed", strconv.Itoa(len(u)))
-			return u
+	ledger := statementLedgers(h)
+	known := ledger.read()
+	var fresh, decided []string
+	for _, s := range claims.Statements(text) {
+		if _, ok := known[statementKey(s)]; ok {
+			decided = append(decided, s)
+		} else {
+			fresh = append(fresh, s)
 		}
 	}
-	v, err := claims.Verify(cfg, h.Paths.Root, h.Paths.CacheDir(), h.Payload.Cwd(), text, transcriptPath)
+	if len(fresh) == 0 {
+		h.Log(kitlog.Guards, "claims-cached", "where", where, "unconfirmed", "0")
+		return nil
+	}
+	root, _ := project.Root(h.Payload.Cwd())
+	v, err := claims.Verify(cfg, h.Paths.Root, h.Paths.CacheDir(), root, strings.Join(fresh, "\n\n"), transcriptPath)
 	if errors.Is(err, claims.ErrOff) {
 		return nil
 	}
+	// With no verdict, the text goes back once for Claude to check itself.
+	if paused, ok := errors.AsType[*claims.Paused](err); ok {
+		h.Log(kitlog.Guards, "claims-paused", "where", where, "error", paused.Why)
+		return selfCheck(where, fmt.Sprintf("the verifier is paused after failing at %s (%s)", paused.At.Format("15:04"), paused.Why))
+	}
 	if err != nil {
 		h.Log(kitlog.Guards, "claims-error", append([]string{"where", where, "error", err.Error()}, v.Usage.Pairs()...)...)
-		h.Notify(fmt.Sprintf("kit claims: NOT CHECKED %s, the verifier failed: %s", where, err))
-		// For the turn's receipt at Stop.
-		_ = fsx.Append(claimsUnchecked(h), []byte(where+"\n"))
-		return nil
+		return selfCheck(where, "the verifier failed: "+err.Error())
 	}
-	if data, err := json.Marshal(v.Unsupported); err == nil && cached != "" {
-		_ = fsx.WriteAtomic(cached, data, 0o644)
-	}
+	v.Unsupported = recordVerdicts(h, ledger, fresh, decided, v)
 	h.Log(kitlog.Guards, "claims", append([]string{"where", where, "unconfirmed", strconv.Itoa(len(v.Unsupported))}, v.Usage.Pairs()...)...)
+	if v.Usage.Runs == 0 {
+		return v.Unsupported
+	}
 	h.Notify(fmt.Sprintf("kit claims: checked %s with the hook's own %s run, %d unconfirmed, $%.2f in %s", where, claimChecker, len(v.Unsupported), v.Usage.CostUSD, v.Usage.Duration.Round(time.Second)))
 	return v.Unsupported
 }
 
-// claimsUnchecked is the session's list of texts the verifier failed on
-// this turn; the turn-tree hook clears it at each prompt.
-func claimsUnchecked(h *hook.Hook) string {
-	return h.Paths.SessionFile(cache.Claims, h.Payload.SessionID(), "unchecked")
+// selfCheck is the one flag a text gets when the verifier gave no verdict,
+// for why: Claude checks every claim in where itself.
+func selfCheck(where, why string) []claims.Unsupported {
+	return []claims.Unsupported{{Claim: "every claim in " + where, Check: why + "; check each claim with a tool yourself"}}
 }
 
 // claimsMessage names each unconfirmed claim, enough of it to find, and the
@@ -502,12 +387,13 @@ func agentTranscript(p *hook.Payload) string {
 }
 
 // checkedReports are the scratch report kinds whose claims are checked:
-// investigate's, every audit-* and code-* skill's, and /meta-retro's.
+// every skill's but unslop's, the user's own draft, and prompt's.
 var checkedReports = []string{
-	"explore", "debug", "review", "session",
+	"explore", "debug", "review", "session", "deps", "pr-review", "plan-critique",
 	"a11y", "arch", "ci", "debt", "doc-drift", "infra", "perf", "security", "slop", "verify",
-	"flags", "readiness", "tokens",
+	"flags", "readiness", "tests", "tokens",
 	"challenge", "contract", "evaluate", "from-design", "history", "impact", "migrate", "tour", "visual",
+	"incident", "launch", "pr-description", "pr-reply", "queue", "release-notes", "retro", "rfc", "runbook", "stakeholder", "tickets",
 }
 
 // atScratchRoot is true for a file directly in a scratch dir, where
@@ -519,10 +405,10 @@ func atScratchRoot(h *hook.Hook, path string) bool {
 }
 
 // scratchReport is true for a report of one of kinds in scratch, the files
-// `kit scratch-dir <kind> <slug>` names.
+// `kit scratch-dir <kind> <slug>` names, in any case.
 func scratchReport(h *hook.Hook, path string, kinds ...string) bool {
 	base := filepath.Base(path)
-	name := strings.TrimSuffix(base, filepath.Ext(base))
+	name := strings.ToLower(strings.TrimSuffix(base, filepath.Ext(base)))
 	return path != "" && project.IsScratch(h.Paths, path) && strings.EqualFold(filepath.Ext(base), ".md") &&
 		slices.ContainsFunc(kinds, func(kind string) bool { return name == kind || strings.HasPrefix(name, kind+"-") })
 }

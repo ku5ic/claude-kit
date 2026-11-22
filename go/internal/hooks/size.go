@@ -1,24 +1,20 @@
 package hooks
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/connector"
-	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/layout"
 )
 
 // CheckSize sends back a deliverable whose prose runs over its kind's
-// kit.yml size_budgets entry, fenced code excluded, once per text, so the
-// same text resent goes through. It needs no model run, so it goes before
+// kit.yml size_budgets entry, fenced code excluded, once per destination,
+// so its rewrite goes through. It needs no model run, so it goes before
 // verify-claims in each dispatcher. It measures:
 //   - the plan, at PreToolUse for ExitPlanMode
 //   - a subagent's report, at PreToolUse for SubagentHandback and at SubagentStop
@@ -33,23 +29,27 @@ func CheckSize(h *hook.Hook) error {
 	if cfg == nil {
 		return nil
 	}
-	if decision, _ := h.Decision(); decision == "deny" {
+	if earlierDeny(h) {
 		return nil
 	}
 	b := cfg.SizeBudgets
 	tool := p.String(hook.KeyToolName)
 	var text, where, then, marker string
 	var budget int
+	// A plan or scratch report is revised in place, so it goes back once per
+	// session; a post is a new text each time.
+	document := false
 	switch {
 	case p.String(hook.KeyHookEventName) == "SubagentStop":
-		// Sent back once, by the stop or the hand-back. A marker, not
-		// stop_hook_active: another check may have blocked the first stop.
+		// Sent back once per agent, by the stop or the hand-back. A marker,
+		// not stop_hook_active: another check may have blocked the first stop.
 		m := handbackMarker(h, cache.Size)
-		if m == "" && p.Bool(hook.KeyStopHookActive) || m != "" && fsx.IsFile(m) {
+		report := p.String(hook.KeyLastAssistantMessage)
+		if m == "" && p.Bool(hook.KeyStopHookActive) || m != "" && wasSentBack(m) {
 			return nil
 		}
-		if n := countWords(p.String(hook.KeyLastAssistantMessage), false); b.Report > 0 && n > b.Report {
-			if m != "" && !markOnce(h, m, []byte("sent-back"), "size") {
+		if n := countWords(report, false); b.Report > 0 && n > allowance(h, b.Report) {
+			if m != "" && !markSentBack(h, m, report, "size") {
 				return nil
 			}
 			return h.Block(sizeMessage("your report", n, b.Report, "send the shorter report"), "size")
@@ -61,7 +61,7 @@ func CheckSize(h *hook.Hook) error {
 	case tool == "ExitPlanMode":
 		plan := filepath.Base(p.String(hook.KeyInputPlanFilePath))
 		text, where, then, budget = p.String(hook.KeyInputPlan), "the plan "+plan, "call ExitPlanMode again", b.Plan
-		marker = h.Paths.SessionFile(cache.Size, p.SessionID(), "plan", plan)
+		marker, document = h.Paths.SessionFile(cache.Size, p.SessionID(), "plan", plan), true
 	case slices.Contains(filePathTools, tool):
 		path := p.FilePath()
 		if !scratchReport(h, path, "explore", "debug") {
@@ -72,27 +72,55 @@ func CheckSize(h *hook.Hook) error {
 			return nil
 		}
 		text, where, then, budget = after, filepath.Base(path), "write the report again", b.Scratch
-		marker = h.Paths.SessionFile(cache.Size, p.SessionID(), "file", filepath.Base(path))
+		marker, document = h.Paths.SessionFile(cache.Size, p.SessionID(), "file", filepath.Base(path)), true
 	case connector.IsWrite(cfg.Connectors, tool):
 		text, where, then, budget = strings.Join(p.Strings(hook.KeyToolInput, cfg.Connectors.CodeFields...), "\n\n"), "the "+tool+" input", "send it again", b.Post
 		marker = h.Paths.SessionFile(cache.Size, p.SessionID(), "tool", tool)
 	default:
 		return nil
 	}
-	n := countWords(text, false)
-	if budget <= 0 || n <= budget || marker == "" {
+	if tool == "SubagentHandback" {
+		if n := countWords(text, false); budget > 0 && n > allowance(h, budget) && marker != "" && !wasSentBack(marker) && markSentBack(h, marker, text, "size") {
+			h.Deny(sizeMessage(where, n, budget, then), "size")
+		}
 		return nil
 	}
-	sum := sha256.Sum256([]byte(text))
-	sentBack := "sent-back " + hex.EncodeToString(sum[:])
-	if prev, err := os.ReadFile(marker); err == nil && string(prev) == sentBack {
+	if document && sentBackBefore(marker) {
 		return nil
 	}
-	if !markOnce(h, marker, []byte(sentBack), "size") {
-		return nil
-	}
-	h.Deny(sizeMessage(where, n, budget, then), "size")
+	sizeOnce(h, text, where, then, budget, marker)
 	return nil
+}
+
+// allowance is budget plus reply_slack: how long a text may run before
+// it's sent back.
+func allowance(h *hook.Hook, budget int) int {
+	if cfg := h.Config(); cfg != nil {
+		return cfg.ReplyLimits.Allowance(budget)
+	}
+	return budget
+}
+
+// sizeOnce denies text when its prose runs past its allowance, once: the next
+// text to marker, its rewrite, goes through whatever its length, and the
+// one after is measured again.
+func sizeOnce(h *hook.Hook, text, where, then string, budget int, marker string) {
+	n := countWords(text, false)
+	if budget <= 0 || marker == "" {
+		return
+	}
+	if rewriteOf(marker) {
+		return
+	}
+	if n > allowance(h, budget) && markOnce(h, marker, []byte(sentBackMark), "size") {
+		h.Deny(sizeMessage(where, n, budget, then), "size")
+	}
+}
+
+// wasSentBack is whether a subagent's size marker records a send-back.
+func wasSentBack(marker string) bool {
+	n, _ := sentBack(marker)
+	return n > 0
 }
 
 // sizeMessage says how far over its budget a deliverable runs, then what to do.

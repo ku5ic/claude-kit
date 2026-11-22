@@ -13,8 +13,8 @@
 
 ## Body
 
+- Length: `skills/kit-rules/reference/output.md` section 0.
 - Wrap at about 72 characters.
-- The problem first, in present tense: "The code does X when given Y".
-- Then why this change fixes it, and the alternatives dropped, when there were any.
+- The problem, in present tense: "The code does X when given Y".
 - Self-contained: summarize a discussion instead of linking it.
 - Cite another commit as its abbreviated hash, then its subject and date in parentheses.

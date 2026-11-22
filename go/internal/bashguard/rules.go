@@ -8,6 +8,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/classify"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
+	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/layout"
 	"github.com/ku5ic/claude-kit/go/internal/weaken"
 )
@@ -22,6 +23,9 @@ type command struct {
 	rest   string   // normalized source after the name, to the pipeline's end
 	text   string   // name + rest: what the per-command regexes read
 	alone  bool     // the only command of its pipeline, outside a subshell
+	// assigns are the VAR=value words the command runs with: its own, and
+	// an env wrapper's before its name.
+	assigns []string
 }
 
 func (c *command) block(reason, rule string) error { return c.st.h.Block(reason, rule) }
@@ -102,7 +106,7 @@ var (
 // pagers and editors that write only on a flag. Any other command naming a
 // kit switch gets a prompt, since a write there can turn the kit off.
 var readers = func() map[string]bool {
-	m := maps.Clone(pureReaders)
+	m := maps.Clone(classify.PureReaders)
 	for _, name := range []string{"bat", "less", "more", "file", "sed", "sd"} {
 		m[name] = true
 	}
@@ -299,8 +303,7 @@ var commandChecks = map[string]func(*command) error{
 
 func (c *command) diskTool() error { return c.block("low level disk or filesystem tool", "disk-tool") }
 
-// kit asks before git-base flags that can write or run programs, and blocks
-// run-checks, which the hooks run.
+// kit asks before git-base flags that can write or run programs.
 func (c *command) kit() error {
 	words := strings.Fields(c.rest)
 	switch {
@@ -309,8 +312,6 @@ func (c *command) kit() error {
 		// An explicit ask: with no decision, a Bash(kit git-base *) allow
 		// rule would approve --output=<file> silently.
 		c.st.ask("kit git-base passes this flag to git, which can write files or run programs; confirm it")
-	case words[0] == "run-checks" && !slices.Contains(words[1:], "--plan"):
-		return c.block("the hooks run the gates and show the user every result\n"+layout.KV("do", "don't run them yourself; kit run-checks --plan only lists them"), "run-checks-by-hook")
 	}
 	return nil
 }
@@ -328,8 +329,11 @@ func (c *command) readOperands() []string { return readOperands(c.name, c.values
 // readOperands are the operands command name reads as files when run with
 // values: none for a metadataOnly command or a git subcommand that prints
 // none, and never a leading pattern unless a flag gave it. git show
-// HEAD:.env names .env.
+// HEAD:.env names .env, and so does kit read git show HEAD:.env.
 func readOperands(name string, values []string) []string {
+	if name == "kit" && len(values) > 1 && values[0] == "read" && values[1] == "git" {
+		name, values = "git", values[2:]
+	}
 	git := name == "git"
 	if git {
 		sub, args, _ := classify.GitSubcommand(values)
@@ -556,10 +560,24 @@ func (c *command) writes() bool {
 	return slices.ContainsFunc(c.values(), flag)
 }
 
-// overlayWrite asks when a command that isn't a pure reader names a kit
-// switch (guard.KitSwitch): tee, cp, mv, install, ln all write it. The
-// writeFlags commands write only with their flags, git only through
-// checkout/restore/apply/mv/rm/stash/reset.
+// fileWriters are the commands whose operands include the files they write.
+var fileWriters = nameSet("cp", "mv", "tee", "install", "ln", "touch", "mkdir", "rm", "rsync", "truncate", "dd", "patch",
+	"chmod", "chown", "unlink", "sponge", "ed", "ex", "vi", "vim", "nvim")
+
+// nameSet is names as a set.
+func nameSet(names ...string) map[string]bool {
+	set := make(map[string]bool, len(names))
+	for _, name := range names {
+		set[name] = true
+	}
+	return set
+}
+
+// overlayWrite asks when a known writer names a kit switch
+// (guard.KitSwitch): a fileWriters command, an inPlaceScript, a writeFlags command
+// with its flags, or git through checkout/restore/apply/mv/rm/stash/reset.
+// Any other command naming one goes through, logged as a kit-switch shadow:
+// most only read, and guessing their operands asked on every log query.
 func (c *command) overlayWrite() {
 	all := append([]string{c.name}, c.values()...)
 	switch {
@@ -584,12 +602,41 @@ func (c *command) overlayWrite() {
 		}
 		return
 	}
+	_, flagged := writeFlags[c.name]
+	known := fileWriters[c.name] || flagged || c.name == "git" || c.inPlaceScript()
 	for _, v := range c.values() {
 		_, after, hasEq := strings.Cut(v, "=")
-		if c.st.askKitSwitch(v) || hasEq && c.st.askKitSwitch(after) {
+		if known {
+			if c.st.askKitSwitch(v) || hasEq && c.st.askKitSwitch(after) {
+				return
+			}
+			continue
+		}
+		if c.st.kitSwitch(v) != "" || hasEq && c.st.kitSwitch(after) != "" {
+			if !c.st.shadowed {
+				c.st.shadowed = true
+				c.st.h.Shadow("kit-switch")
+			}
 			return
 		}
 	}
+}
+
+// inPlaceScript is true for a script runner editing its file operands in
+// place: perl or ruby -i, or awk loading gawk's inplace extension.
+func (c *command) inPlaceScript() bool {
+	values := c.values()
+	switch c.name {
+	case "perl", "ruby":
+		return inPlace(values)
+	case "awk", "gawk":
+		for i, v := range values {
+			if v == "-iinplace" || v == "--include=inplace" || (v == "-i" || v == "--include") && i+1 < len(values) && values[i+1] == "inplace" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (c *command) rm() error {
@@ -612,10 +659,101 @@ func (c *command) rm() error {
 	if force && broad {
 		return c.block("rm with recursive force against root, home, or cwd", "rm-recursive")
 	}
-	if recursive {
+	if recursive && !c.st.allScratch(nonOptionsOf(c.args, func(w Word) string { return w.Value })) {
 		c.st.ask("rm -r deletes a directory tree; confirm the path")
 	}
 	return nil
+}
+
+// plainWord is a word with no shell syntax in it.
+var plainWord = regexp.MustCompile(`^[A-Za-z0-9_./%:=+@,-]+$`)
+
+// mktempDir is true for a whole $(mktemp ...) call with -d or --directory
+// and only plain words, so nothing else runs in it.
+func mktempDir(value string) bool {
+	if !strings.HasPrefix(value, "$(") || !strings.HasSuffix(value, ")") {
+		return false
+	}
+	inner := value[2 : len(value)-1]
+	words := strings.Fields(inner)
+	if len(words) < 2 || words[0] != "mktemp" || slices.ContainsFunc(words, func(w string) bool { return !plainWord.MatchString(w) }) {
+		return false
+	}
+	return slices.ContainsFunc(words[1:], func(w string) bool {
+		return w == "--directory" || strings.HasPrefix(w, "-") && !strings.HasPrefix(w, "--") && strings.Contains(w, "d")
+	})
+}
+
+// allScratch is true when ops is non-empty and each one is a scratch
+// operand.
+func (st *state) allScratch(ops []Word) bool {
+	return len(ops) > 0 && !slices.ContainsFunc(ops, func(w Word) bool { return !st.scratchOperand(w) })
+}
+
+// quotedVar is a whole word that is one variable in double quotes, "$S" or
+// "${S}": unquoted, IFS could split it into other paths.
+var quotedVar = regexp.MustCompile(`^"\$(?:([A-Za-z_][A-Za-z0-9_]*)|\{([A-Za-z_][A-Za-z0-9_]*)\})"$`)
+
+// bashBuiltins is every bash builtin. Only a builtin can set a variable of
+// the shell running the command; any other command runs in a child.
+var bashBuiltins = nameSet(".", ":", "[", "alias", "bg", "bind", "break", "builtin", "caller", "cd", "command",
+	"compgen", "complete", "compopt", "continue", "declare", "dirs", "disown", "echo", "enable", "eval", "exec",
+	"exit", "export", "false", "fc", "fg", "getopts", "hash", "help", "history", "jobs", "kill", "let", "local",
+	"logout", "mapfile", "popd", "printf", "pushd", "pwd", "read", "readarray", "readonly", "return", "set",
+	"shift", "shopt", "source", "suspend", "test", "times", "trap", "true", "type", "typeset", "ulimit", "umask",
+	"unalias", "unset", "wait")
+
+// inertBuiltins are the builtins that set no variable a caller names and
+// run no code from a string; every other builtin can (printf -v "$N",
+// trap "$C" DEBUG, wait -p "$N").
+var inertBuiltins = nameSet(":", "[", "break", "cd", "continue", "dirs", "echo", "exit", "false", "popd", "pushd",
+	"pwd", "return", "shift", "test", "true", "type")
+
+// scratchOperand is true for a scratch target, quoted when it expands
+// anything, or a quoted variable the current shell surely sets (st.sure)
+// once, outside any loop, to a scratch
+// target or a fresh mktemp -d dir, and named nowhere else in the command
+// (read S, printf -v S, declare S=/ all set it too).
+func (st *state) scratchOperand(w Word) bool {
+	quoted := strings.HasPrefix(w.Raw, `"`) && strings.HasSuffix(w.Raw, `"`)
+	m := quotedVar.FindStringSubmatch(w.Raw)
+	if m == nil {
+		return !varRef.MatchString(w.Value) && (quoted || !strings.Contains(w.Value, "$")) && st.scratchTarget(w.Value)
+	}
+	name := m[1] + m[2]
+	for _, loop := range st.loopVars {
+		if _, ok := loop[name]; ok {
+			return false
+		}
+	}
+	value, ok := st.sure[name]
+	return ok && (mktempDir(value) || st.scratchTarget(value)) && st.setOnly(name)
+}
+
+// setOnly is true when the command names name only in one assignment and
+// in $name references, and runs nothing that could set it unseen: no
+// builtin outside inertBuiltins, no command word it computes, and no
+// arithmetic.
+func (st *state) setOnly(name string) bool {
+	cmd := st.h.Payload.String(hook.KeyInputCommand)
+	if strings.Contains(cmd, "((") {
+		return false
+	}
+	for _, seg := range st.segs {
+		for _, call := range seg.Calls {
+			i := lead(call.Words)
+			if i >= len(call.Words) {
+				continue
+			}
+			if name := baseName(call.Words[i].Value); !call.Words[i].literal || bashBuiltins[name] && !inertBuiltins[name] {
+				return false
+			}
+		}
+	}
+	q := regexp.QuoteMeta(name)
+	count := func(pattern string) int { return len(regexp.MustCompile(pattern).FindAllStringIndex(cmd, -1)) }
+	sets := count(`\b` + q + `=`)
+	return sets == 1 && count(`\b`+q+`\b`) == sets+count(`\$`+q+`\b|\$\{`+q+`\}`)
 }
 
 func (c *command) chmod() error {
@@ -632,9 +770,15 @@ func (c *command) chmod() error {
 }
 
 func nonOptions(words []string) []string {
-	var out []string
+	return nonOptionsOf(words, func(w string) string { return w })
+}
+
+// nonOptionsOf is nonOptions over items, each read through value.
+func nonOptionsOf[T any](items []T, value func(T) string) []T {
+	var out []T
 	done := false
-	for _, w := range words {
+	for _, item := range items {
+		w := value(item)
 		if !done && w == "--" {
 			done = true
 			continue
@@ -642,7 +786,7 @@ func nonOptions(words []string) []string {
 		if !done && strings.HasPrefix(w, "-") {
 			continue
 		}
-		out = append(out, w)
+		out = append(out, item)
 	}
 	return out
 }

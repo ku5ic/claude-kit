@@ -38,10 +38,10 @@ func rootKey(cfg *config.Config, root string) string {
 	return cache.RootKey(root) + "." + cfg.Tag
 }
 
-// configTime is the newest kit.yml mtime, base or overlay: a cache older
-// than it was built from a stale config.
+// configTime is the newest mtime of kit.yml, the overlay, and settings.json
+// (the /config options): a cache older than it was built from a stale config.
 func configTime(paths config.Paths) int64 {
-	return max(mtime(paths.Base), mtime(paths.Overlay))
+	return max(mtime(paths.Base), mtime(paths.Overlay), mtime(paths.Settings))
 }
 
 // refresh regenerates the cache when it is missing, empty, or older than
@@ -246,18 +246,24 @@ func listFiles(cfg *config.Config, root string) []string {
 	return files
 }
 
-// requiredReferences asks for every reference of a required skill, where a
+// requiredReferences points at every reference of a required skill, where a
 // skill's own table asks only for the rows that match. No hook checks that
 // they were read.
-const requiredReferences = `Then read every file each one's "Before | Read" table links. The rules live in those files, and SKILL.md only points at them.`
+const requiredReferences = `The rules are in every file each SKILL.md's "Before | Read" table links, and SKILL.md only points at them.`
 
-// RequiredBlock is the <required-skills> block, "" when there are none.
-func (c Context) RequiredBlock() string {
+// RequiredBlock is the <required-skills> block, "" when there are none. It
+// names the rules gate's denial only when gated, so the block never states a
+// consequence that won't follow.
+func (c Context) RequiredBlock(gated bool) string {
 	if len(c.Required) == 0 {
 		return ""
 	}
-	return "\n<required-skills>\nBLOCKING REQUIREMENT: invoke the Skill tool for each of these skills NOW, before any other action: " +
-		strings.Join(c.Required, ",") + "\n" + requiredReferences + "\n</required-skills>\n"
+	how := "Each loads through the Skill tool."
+	if gated {
+		how = "The rules gate denies every other tool call until each loads through the Skill tool."
+	}
+	return "\n<required-skills>\nThis session's rules are in these skills: " + strings.Join(c.Required, ", ") + ". " + how + "\n" +
+		requiredReferences + "\n</required-skills>\n"
 }
 
 // SuggestedBlock is the <suggested-skills> block, "" when there are none:

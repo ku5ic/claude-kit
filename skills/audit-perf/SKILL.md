@@ -16,11 +16,11 @@ Loading this skill isn't enough. Before the step a row names, read its file.
 | Before                                           | Read                                             |
 | ------------------------------------------------ | ------------------------------------------------ |
 | Writing a finding's evidence, or what to measure | [reference/measuring.md](reference/measuring.md) |
-| The Runtime pass                                 | [reference/runtime.md](reference/runtime.md)     |
+| A runtime check                                  | [reference/runtime.md](reference/runtime.md)     |
 
 ## Run
 
-With no target in the arguments, ask for one first, since the auditor can't ask. Resolve a linked ticket or doc as `skills/investigate` step 0 describes, then dispatch the auditor agent (subagent_type: kit:auditor, foreground) with this file's procedure and the resolved arguments. It writes the report. Then run the Runtime pass below yourself, and reply per `skills/kit-rules/reference/output.md` section 3.
+With no target in the arguments, ask for one first, since the auditor can't ask. Resolve a linked ticket or doc as `skills/investigate` step 0 describes, then dispatch the auditor agent (subagent_type: kit:auditor, foreground) with this file's procedure and the resolved arguments. It writes the report. Then run the report-format skill's Runtime checks yourself, and reply per `skills/kit-rules/reference/output.md` section 3.
 
 ## Procedure
 
@@ -76,16 +76,6 @@ Each finding quotes the code and names what makes it cost: the loop bound around
 - Command-level perf checks (build scripts, codegen, test runner startup, CLI tools): measure with `hyperfine`, not eyeballed ([reference/measuring.md](reference/measuring.md)).
 - Render-level perf (re-renders, bundle cost): measure with the UI framework's profiler or the browser's performance panel at runtime, not from static analysis.
 
-## Runtime
-
-After the report, in the main session, since the auditor can't ask:
-
-1. Take the findings whose cost a measurement could confirm. None, skip this pass.
-2. Find what the project already runs to measure (benchmark scripts, profiler or perf tasks in its manifests, task runner, or CI), and the profiler the stack's pattern skill names.
-3. Ask with AskUserQuestion which findings to measure and with what, one option per finding, the project's own tool first. An install, a config change, or load on a shared target is its own option, with the command.
-4. Run each approved measurement per [reference/runtime.md](reference/runtime.md), several runs, and record the median, the spread, and the machine state.
-5. Add each result to its finding's Evidence in the report. A finding with no measurement says "not measured" and why, and keeps its severity.
-
 ## Output per finding
 
 - What it is, with `file:line`: the specific pattern
@@ -100,7 +90,8 @@ Load the report-format skill and use its format. Write to the path `kit scratch-
 
 ## Rules
 
-- The static review runs nothing. Only the Runtime pass runs measurements, after the user's yes, and a claim of a measured cost cites its run.
+- The static review runs nothing. Only the Runtime checks run measurements, after the user's yes, and a claim of a measured cost cites its run.
+- A finding whose cost a measurement could confirm names that measurement under "Needs a runtime check".
 - Flag what to measure, not what to assume.
 - Ignore micro-optimizations that change code without measurable benefit.
 - A pattern that repeats across the codebase as an established choice is not N separate findings; note it once against the shared source and list the consuming locations.

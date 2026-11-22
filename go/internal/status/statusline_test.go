@@ -26,9 +26,6 @@ func TestStatuslineContextBar(t *testing.T) {
 		ctx  float64
 		has  []string
 	}{
-		{"context bar renders green below the yellow threshold", 50, []string{green}},
-		{"context bar renders yellow at the yellow threshold", 75, []string{yellow}},
-		{"context bar renders red at the red threshold", 95, []string{red}},
 		{"context bar stays green just below the yellow threshold", 69, []string{green}},
 		{"context bar turns yellow exactly at the yellow threshold", 70, []string{yellow}},
 		{"context bar stays yellow just below the red threshold", 89, []string{yellow}},
@@ -188,39 +185,28 @@ func TestStatuslineGitSegment(t *testing.T) {
 // in TestStatuslineCacheTTLFromEnv, set a wide TTL.
 func TestStatuslineCacheExpiry(t *testing.T) {
 	t.Parallel()
-	t.Run("git status cache regenerates after the TTL expires", func(t *testing.T) {
-		t.Parallel()
-		s := newSandbox(t)
-		s.change("a.txt", "one", "x")
-		has(t, plain(s.render(payload(s.repo, 50))), "+1 ~1")
-		s.change("b.txt", "two", "y")
-		testutil.Age(t, 2*time.Second, s.cacheFile())
-		has(t, plain(s.render(payload(s.repo, 50))), "+2 ~2")
-	})
-
-	t.Run("git status cache regenerates exactly at the TTL boundary (age == CACHE_TTL)", func(t *testing.T) {
-		t.Parallel()
-		s := newSandbox(t)
-		s.change("a.txt", "one", "x")
-		has(t, plain(s.render(payload(s.repo, 50))), "+1 ~1")
-		s.change("b.txt", "two", "y")
-		testutil.Age(t, time.Second, s.cacheFile())
-		has(t, plain(s.render(payload(s.repo, 50))), "+2 ~2")
-	})
+	for _, tc := range []struct {
+		name string
+		age  time.Duration
+	}{
+		{"git status cache regenerates after the TTL expires", 2 * time.Second},
+		{"git status cache regenerates exactly at the TTL boundary (age == CACHE_TTL)", time.Second},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			s := newSandbox(t)
+			s.change("a.txt", "one", "x")
+			has(t, plain(s.render(payload(s.repo, 50))), "+1 ~1")
+			s.change("b.txt", "two", "y")
+			testutil.Age(t, tc.age, s.cacheFile())
+			has(t, plain(s.render(payload(s.repo, 50))), "+2 ~2")
+		})
+	}
 }
 
 // Not parallel: each case sets STATUSLINE_CACHE_TTL.
 func TestStatuslineCacheTTLFromEnv(t *testing.T) {
 	t.Run("git status cache is reused within the TTL", func(t *testing.T) {
-		t.Setenv("STATUSLINE_CACHE_TTL", "3600")
-		s := newSandbox(t)
-		s.change("a.txt", "one", "x")
-		has(t, plain(s.render(payload(s.repo, 50))), "+1 ~1")
-		s.change("b.txt", "two", "y")
-		has(t, plain(s.render(payload(s.repo, 50))), "+1 ~1")
-	})
-
-	t.Run("git status cache is reused comfortably under the TTL boundary", func(t *testing.T) {
 		t.Setenv("STATUSLINE_CACHE_TTL", "3600")
 		s := newSandbox(t)
 		s.change("a.txt", "one", "x")

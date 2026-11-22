@@ -23,6 +23,15 @@ func IsRead(c config.Connectors, tool string) bool {
 	return holds(w, c.ReadVerbs) && !holds(w, c.WriteVerbs)
 }
 
+// TouchesFiles is true when tool's server is one of servers: by its name,
+// or a plugin server's (mcp__plugin_<plugin>_<name>__tool) last part.
+func TouchesFiles(servers []string, tool string) bool {
+	server := Server(tool)
+	return server != "" && slices.ContainsFunc(servers, func(name string) bool {
+		return server == name || strings.HasSuffix(server, "_"+name)
+	})
+}
+
 // Server is the server part of an mcp__<server>__<tool> name, "" for any
 // other name.
 func Server(tool string) string {

@@ -16,10 +16,7 @@ func LoadConfig(p config.Paths) (*config.Config, []config.Warning, error) {
 	if err != nil {
 		return cfg, warnings, err
 	}
-	from := p.Base
-	if cfg.Tag == "merged" {
-		from = p.Overlay
-	}
+	from := cfg.From
 	for _, d := range cfg.DisabledTaskProviders {
 		i := slices.IndexFunc(TaskProviders, func(tp TaskProvider) bool { return tp.Name == d })
 		switch {

@@ -60,33 +60,56 @@ func CheckPR(h *hook.Hook) error {
 	if h.Payload.Err != nil {
 		return h.Payload.Err
 	}
-	cmd := h.Payload.String(hook.KeyInputCommand)
+	var det *slop.Detector
+	for _, t := range hostTexts(h.Payload.String(hook.KeyInputCommand), h.Home, h.Payload.Cwd()) {
+		if t.unread != "" {
+			return h.Block("can't read the text of "+t.where+": "+t.unread+"\n"+
+				layout.KV("do", "give it inline, in a \"$(cat <<'EOF' ...)\" heredoc, -F - with a heredoc, or a file written in an earlier call"), "unread-text")
+		}
+		if det == nil {
+			det = detector(h) // once per command, not per text
+		}
+		if err := scanSlop(h, det, t.text, "pr", t.where); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// PostText is the text cmd, run from cwd, posts through gh or glab, its
+// pieces joined by blank lines, and where each comes from. It leaves out a
+// piece it can't read, since guard-pr blocks that command first.
+func PostText(cmd, home, cwd string) (text, where string) {
+	var texts, wheres []string
+	for _, t := range hostTexts(cmd, home, cwd) {
+		if t.unread == "" && t.text != "" {
+			texts, wheres = append(texts, t.text), append(wheres, t.where)
+		}
+	}
+	return strings.Join(texts, "\n\n"), strings.Join(wheres, ", ")
+}
+
+// hostTexts is each piece of text cmd posts through gh or glab, in order.
+func hostTexts(cmd, home, cwd string) []prText {
 	if !strings.Contains(cmd, "gh") && !strings.Contains(cmd, "glab") {
 		return nil
 	}
 	segs, _ := parseAll(cmd)
-	var det *slop.Detector
-	for w := range walk(segs, h.Home, h.Payload.Cwd()) {
+	var out []prText
+	for w := range walk(segs, home, cwd) {
 		if posts[w.name] == nil {
 			continue
 		}
-		// call.start is an offset into seg.src, which for a heredoc fed to a
-		// shell is that body, not cmd.
-		src := hostCall{tool: w.name, call: w.call, before: w.seg.src[:min(w.call.start, len(w.seg.src))], home: h.Home, cwd: w.cwd}
-		for _, t := range src.texts(w.i + 1) {
-			if t.unread != "" {
-				return h.Block("can't read the text of "+t.where+": "+t.unread+"\n"+
-					layout.KV("do", "give it inline, in a \"$(cat <<'EOF' ...)\" heredoc, -F - with a heredoc, or a file written in an earlier call"), "unread-text")
-			}
-			if det == nil {
-				det = detector(h) // once per command, not per text
-			}
-			if err := scanSlop(h, det, t.text, "pr", t.where); err != nil {
-				return err
-			}
-		}
+		out = append(out, newHostCall(w, home).texts(w.i+1)...)
 	}
-	return nil
+	return out
+}
+
+// newHostCall is the walked call w as a hostCall.
+func newHostCall(w walked, home string) hostCall {
+	// call.start is an offset into seg.src, which for a heredoc fed to a
+	// shell is that body, not cmd.
+	return hostCall{tool: w.name, call: w.call, before: w.seg.src[:min(w.call.start, len(w.seg.src))], home: home, cwd: w.cwd}
 }
 
 // prText is one piece of PR text a gh or glab call posts: where it comes from, and
@@ -115,7 +138,7 @@ func (s hostCall) texts(from int) []prText {
 				out = append(out, s.read(cmd+" --"+flag, value))
 				return
 			}
-			out = append(out, inline(cmd+" --"+flag, value))
+			out = append(out, s.inline(cmd+" --"+flag, value))
 		})
 	case len(args) >= 1 && args[0] == "api":
 		walkFlags(args[1:], apiFlags, func(flag, value string) {
@@ -132,7 +155,7 @@ func (s hostCall) texts(from int) []prText {
 				out = append(out, s.read(where, file))
 				return
 			}
-			out = append(out, inline(where, val))
+			out = append(out, s.inline(where, val))
 		})
 	}
 	return out
@@ -188,11 +211,15 @@ func (s hostCall) inputJSON(file string) []prText {
 	return out
 }
 
-// inline is a flag value's text: a "$(cat <<EOF ... EOF)" value's body, or
-// unread when any other expansion builds it ($(cat f), $BODY, backticks).
-func inline(where, value string) prText {
+// inline is a flag value's text: a "$(cat <<EOF ... EOF)" value's body, a
+// "$(cat <file>)" value's file as read reads it, or unread when any other
+// expansion builds it ($BODY, backticks, $(cat f) beside other text).
+func (s hostCall) inline(where, value string) prText {
 	if body, ok := catHeredoc(value); ok {
 		return prText{where: where, text: body}
+	}
+	if m := catFile.FindStringSubmatch(value); m != nil {
+		return s.read(where, m[1])
 	}
 	if expansion.MatchString(value) {
 		return prText{where: where, unread: "an expansion builds the text"}
@@ -200,8 +227,13 @@ func inline(where, value string) prText {
 	return prText{where: where, text: value}
 }
 
-// expansion is a $ or backtick the shell expands; $5 isn't one.
-var expansion = regexp.MustCompile("\\$[({A-Za-z_]|`")
+var (
+	// expansion is a $ or backtick the shell expands; $5 isn't one.
+	expansion = regexp.MustCompile("\\$[({A-Za-z_]|`")
+	// catFile is a value that is only "$(cat <file>)", the way pr-publish
+	// passes a title, for one unquoted path.
+	catFile = regexp.MustCompile(`^\$\(cat ([^\s()'"]+)\)$`)
+)
 
 // walkFlags walks args as pflag reads them, up to "--", calling fn with
 // the name valued gives each flag it holds and the flag's value: the next
