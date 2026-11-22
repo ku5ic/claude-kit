@@ -527,14 +527,10 @@ architecture_dir: ~/Architecture
 # and reported as a SKIP, never a block. The Stop hook itself allows 300.
 gate_timeout: 90
 
-# When Stop and the full gate print their receipt, every gate's verdict:
-# all (every run that checked something) or failures (only when a gate
-# failed or skipped, or the claim verifier failed). Hiding it never turns a
-# check off; kit explain stop shows the last one.
+# Each value is described in .claude-plugin/plugin.json userConfig.receipt.
 receipt: all
 
-# When Claude stops a plan for your review: after each step, after the
-# whole plan, or never (step, plan, off).
+# Each value is described in .claude-plugin/plugin.json userConfig.step_pause.
 step_pause: step
 
 # Pin files that pin tools for every project, after the project's own: a

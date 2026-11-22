@@ -12,21 +12,42 @@
   },
   "types": "./mods/types.d.ts",
   "userConfig": {
+    "preset": {
+      "type": "string",
+      "title": "Kit: preset",
+      "description": "A set of kit settings under one name. standard: the kit as shipped. light: fewer stops, one review per plan, no plan-critic or claim-check passes, no skill nudges. strict: pattern skills required before the first edit of a file type, and ASCII typography. default: your overlay's preset, else none.",
+      "options": ["default", "standard", "light", "strict"],
+      "default": "default"
+    },
+    "step_pause": {
+      "type": "string",
+      "title": "Kit: step pause",
+      "description": "When Claude stops a plan for your review. step: after each step. plan: once the whole plan is done. off: never. default: your overlay, preset, or kit.yml decides.",
+      "options": ["default", "step", "plan", "off"],
+      "default": "default"
+    },
+    "receipt": {
+      "type": "string",
+      "title": "Kit: gate receipt",
+      "description": "When Stop and the full gate print every gate's verdict. all: on every run that checked something. failures: only when a gate failed or skipped, or the claim verifier failed. Hiding it never turns a check off, and kit explain stop shows the last one. default: your overlay, preset, or kit.yml decides.",
+      "options": ["default", "all", "failures"],
+      "default": "default"
+    },
     "precedence": {
       "type": "boolean",
-      "title": "Kit rules take precedence",
+      "title": "Kit: rules take precedence",
       "description": "Add a system-prompt section, and a reminder on every prompt, saying the kit's rules and kit: hook context outrank default, mode, and built-in skill instructions where they conflict.",
       "default": true
     },
     "kit_stats": {
       "type": "boolean",
-      "title": "/kit-stats command",
+      "title": "Kit: /kit-stats command",
       "description": "Add a /kit-stats command that prints kit stats: blocks, shadow blocks, and skips per rule, and the claims each checker flagged.",
       "default": true
     },
     "subagent_rows": {
       "type": "boolean",
-      "title": "Subagent rows",
+      "title": "Kit: subagent rows",
       "description": "Draw each subagent row as its name with a (+N) count of agents below it, status, model, effort, context, elapsed time, and the tool it is running or its latest progress note.",
       "default": true
     }
