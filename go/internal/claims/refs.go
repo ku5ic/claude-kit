@@ -185,8 +185,9 @@ func symbol(root, ref string) (resolution, string) {
 	if err != nil {
 		return unsettled, ""
 	}
-	// Hidden files hold real symbols (.github, dotfile settings); .git doesn't.
-	err = proc.Command(symbolTimeout, rg, "-qF", "--hidden", "-g", "!.git", "--", ref, root).Run()
+	// Hidden files hold real symbols (.github, dotfile settings), and so do
+	// gitignored ones (generated code, node_modules); .git doesn't.
+	err = proc.Command(symbolTimeout, rg, "-qF", "--hidden", "--no-ignore-vcs", "-g", "!.git", "--", ref, root).Run()
 	if err == nil {
 		return resolved, ""
 	}

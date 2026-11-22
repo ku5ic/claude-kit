@@ -541,12 +541,15 @@ func TestASecondTextTimingOutPausesEveryText(t *testing.T) {
 }
 
 // repo is a git repo holding go/x.go, three lines defining Hello, and
-// .github/ci.yml, naming cache-key, in one commit, and that commit's SHA.
+// .github/ci.yml, naming cache-key, in one commit, and that commit's SHA;
+// gen/out.go, defining Generated, is gitignored.
 func repo(t *testing.T) (dir, sha string) {
 	t.Helper()
 	dir = testutil.Physical(t, t.TempDir())
 	testutil.Put(t, filepath.Join(dir, "go"), "x.go", "package x\n\nfunc Hello() {}\n")
 	testutil.Put(t, filepath.Join(dir, ".github"), "ci.yml", "cache-key: v1\n")
+	testutil.Put(t, dir, ".gitignore", "gen/\n")
+	testutil.Put(t, filepath.Join(dir, "gen"), "out.go", "package gen\n\nfunc Generated() {}\n")
 	testutil.Git(t, dir, "init", "-q")
 	testutil.Git(t, dir, "add", ".")
 	testutil.GitID(t, dir, "commit", "-qm", "x")
@@ -577,6 +580,7 @@ func TestBareReferencesResolveWithoutAModel(t *testing.T) {
 		{"a real symbol", "See `Hello` in `go/x.go`.", 0, nil},
 		{"an invented symbol", "See `Goodbye` in `go/x.go`.", 0, []string{"See `Goodbye` in `go/x.go`."}},
 		{"a symbol only in a hidden file", "See `cache-key`.", 0, nil},
+		{"a symbol only in a gitignored file", "See `Generated` in `gen/out.go`.", 0, nil},
 		{"a bare reference wrapped across lines", "See `go/x.go:3`\nand `go/x.go`.", 0, nil},
 		{"a false claim about a real file:line", "`go/x.go:3` returns an error.", 1, nil},
 		{"a behavior sentence about a real symbol", "The `Hello` function panics on empty input.", 1, nil},
