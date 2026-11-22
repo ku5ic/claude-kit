@@ -9,7 +9,6 @@ import (
 	"io"
 	"maps"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -19,22 +18,6 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 )
-
-// bullet is a list marker a reply line may open with: "- ", "* ", "1. ".
-var bullet = regexp.MustCompile(`^\s*(?:[-*]|\d+[.)])\s+`)
-
-// Flagged is each claim a claim-checker reply flags, one `claim -> check`
-// line per claim it found unsupported; none for `ok`.
-func Flagged(reply string) []string {
-	var out []string
-	for line := range strings.Lines(reply) {
-		claim, _, ok := strings.Cut(bullet.ReplaceAllString(line, ""), " -> ")
-		if claim = strings.TrimSpace(claim); ok && claim != "" {
-			out = append(out, claim)
-		}
-	}
-	return out
-}
 
 // Kept is true when one of statements still states claim: it holds 70% or
 // more of the claim's words of three letters or more. A flag the writer cut,

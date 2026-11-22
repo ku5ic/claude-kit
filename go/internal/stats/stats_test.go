@@ -3,23 +3,10 @@ package stats
 import (
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 	"time"
 )
-
-func TestFlaggedReadsEachClaimLine(t *testing.T) {
-	t.Parallel()
-	reply := "- `Foo` writes the cache -> rg -n 'func Foo'\n2. the test passes -> run go test ./x\nok\nagentId: a1\n"
-	want := []string{"`Foo` writes the cache", "the test passes"}
-	if got := Flagged(reply); !slices.Equal(got, want) {
-		t.Errorf("Flagged = %q, want %q", got, want)
-	}
-	if got := Flagged("ok\n"); got != nil {
-		t.Errorf("Flagged(ok) = %q, want none", got)
-	}
-}
 
 func TestKeptNeedsMostOfTheClaimsWords(t *testing.T) {
 	t.Parallel()
