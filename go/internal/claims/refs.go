@@ -14,6 +14,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/proc"
+	"github.com/ku5ic/claude-kit/go/internal/resolve/kittool"
 )
 
 // A reference resolves, is broken, or is one this pass can't settle.
@@ -180,8 +181,12 @@ func exists(root, path string) bool {
 // symbol is whether rg finds ref, as a fixed string, in root's files;
 // unsettled when rg is missing or fails.
 func symbol(root, ref string) (resolution, string) {
+	rg, err := kittool.Path("rg")
+	if err != nil {
+		return unsettled, ""
+	}
 	// Hidden files hold real symbols (.github, dotfile settings); .git doesn't.
-	err := proc.Command(symbolTimeout, "rg", "-qF", "--hidden", "-g", "!.git", "--", ref, root).Run()
+	err = proc.Command(symbolTimeout, rg, "-qF", "--hidden", "-g", "!.git", "--", ref, root).Run()
 	if err == nil {
 		return resolved, ""
 	}

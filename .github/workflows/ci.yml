@@ -51,6 +51,12 @@ jobs:
       - name: Install ast-grep
         run: npm install -g "@ast-grep/cli@$(awk '$1 == "ast-grep" {print $2}' ../.tool-versions)"
 
+      # The claim verifier finds a bare symbol with rg, and its tests need it.
+      - name: Install ripgrep
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ripgrep
+
       - name: test
         run: go test -race ./...
 
