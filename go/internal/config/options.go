@@ -28,7 +28,8 @@ func pluginOptions(p Paths, base *yaml.Node) (*yaml.Node, []Warning) {
 		return nil, nil
 	}
 	var settings struct {
-		PluginConfigs map[string]struct {
+		EnabledPlugins map[string]bool `json:"enabledPlugins"`
+		PluginConfigs  map[string]struct {
 			Options map[string]any `json:"options"`
 		} `json:"pluginConfigs"`
 	}
@@ -43,6 +44,11 @@ func pluginOptions(p Paths, base *yaml.Node) (*yaml.Node, []Warning) {
 		if strings.HasPrefix(id, name+"@") {
 			ids = append(ids, id)
 		}
+	}
+	// An entry left by another marketplace or a dev install: the enabled one
+	// is the kit's.
+	if enabled := slices.DeleteFunc(slices.Clone(ids), func(id string) bool { return !settings.EnabledPlugins[id] }); len(ids) > 1 && len(enabled) == 1 {
+		ids = enabled
 	}
 	if len(ids) > 1 {
 		slices.Sort(ids)

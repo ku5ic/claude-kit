@@ -586,7 +586,7 @@ reply_limits:
   modes:
     terse: {chat: 40, explain: 150}
     moderate: {chat: 100, explain: 300}
-    explanatory: {chat: 0, explain: 600}
+    explanatory: {chat: 0, explain: 0}
   # improve is left out: "improve this function" would lift the limit.
   explain_triggers: [explain, why, tradeoff, tradeoffs, review, audit, elaborate, honest take, opinion, pros and cons, shortcomings, advantages]
   detail_triggers: [in detail, walk me through, long version, detailed, in depth, in-depth, deep dive, thorough, thoroughly, full explanation, full answer, full report, step by step, explain everything, all the details, every detail, break it down, no limit, no word limit, "don't cut", "don't shorten", verbose, long answer, "!long"]

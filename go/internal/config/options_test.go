@@ -79,6 +79,8 @@ func TestOnlyTheKitsOneEntryApplies(t *testing.T) {
 	}{
 		{"another plugin's entry is ignored", `{"pluginConfigs": {"other@market": {"options": {"step_pause": "off"}}}}`, "step", ""},
 		{"two kit entries warn and apply neither", `{"pluginConfigs": {"kit@a": {"options": {"step_pause": "off"}}, "kit@b": {"options": {"step_pause": "plan"}}}}`, "step", "kit@a, kit@b"},
+		{"of two kit entries the enabled one applies", `{"enabledPlugins": {"kit@a": false, "kit@b": true}, "pluginConfigs": {"kit@a": {"options": {"step_pause": "off"}}, "kit@b": {"options": {"step_pause": "plan"}}}}`, "plan", ""},
+		{"two enabled kit entries still warn", `{"enabledPlugins": {"kit@a": true, "kit@b": true}, "pluginConfigs": {"kit@a": {"options": {"step_pause": "off"}}, "kit@b": {"options": {"step_pause": "plan"}}}}`, "step", "kit@a, kit@b"},
 		{"broken JSON warns", `{"pluginConfigs": `, "step", "ignored"},
 		{"no pluginConfigs is quiet", `{"theme": "dark"}`, "step", ""},
 	} {
@@ -109,6 +111,26 @@ func TestLoadCacheFollowsSettings(t *testing.T) {
 	write(t, p.ClaudeDir, "settings.json", `{"pluginConfigs": {"kit@market": {"options": {"step_pause": "off"}}}}`)
 	if got := loadClean(t, p).StepPause; got != "off" {
 		t.Errorf("after a /config change step_pause = %q, want off", got)
+	}
+}
+
+// The cache key follows only what the kit reads from settings.json, so
+// another setting's edit keeps the cached config.
+func TestCacheKeyFollowsOnlyTheKitsSettings(t *testing.T) {
+	p := optionPaths(t, "step_pause: step\n", "", `{"theme": "dark", "pluginConfigs": {"kit@m": {"options": {"step_pause": "plan"}}}}`)
+	before := cacheKey(p)
+	write(t, p.ClaudeDir, "settings.json", `{"theme": "light", "permissions": {"allow": ["Bash(ls)"]}, "pluginConfigs": {"kit@m": {"options": {"step_pause": "plan"}}}}`)
+	if after := cacheKey(p); after != before {
+		t.Errorf("another setting's edit changed the key:\n%s\n%s", before, after)
+	}
+	for _, settings := range []string{
+		`{"pluginConfigs": {"kit@m": {"options": {"step_pause": "off"}}}}`,
+		`{"enabledPlugins": {"kit@m": true}, "pluginConfigs": {"kit@m": {"options": {"step_pause": "plan"}}}}`,
+	} {
+		write(t, p.ClaudeDir, "settings.json", settings)
+		if cacheKey(p) == before {
+			t.Errorf("%s left the key unchanged", settings)
+		}
 	}
 }
 

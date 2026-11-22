@@ -27,13 +27,15 @@ var (
 
 // turn is what UserPromptSubmit records for the Stops that follow: the
 // target and whether code counts; Stop adds whether it judged the turn and,
-// when the reply ran over, by how much, for the next prompt to correct.
+// when the reply ran past its allowance, by how much and against what, for
+// the next prompt to correct.
 type turn struct {
 	Limit     int  `json:"limit"`
 	All       bool `json:"all"`
 	Judged    bool `json:"judged"`
 	OverWords int  `json:"over_words"`
 	OverLimit int  `json:"over_limit"`
+	OverAllow int  `json:"over_allow"`
 }
 
 func readTurn(marker string, fallback turn) turn {
@@ -81,7 +83,7 @@ func ReplyLength(h *hook.Hook) error {
 		writeTurn(marker, t)
 		var lines []string
 		if last.OverWords > 0 {
-			lines = append(lines, fmt.Sprintf("The last reply ran %d words against a %d-word target, past its %d-word allowance (skills/kit-rules/reference/output.md section 0).", last.OverWords, last.OverLimit, l.Allowance(last.OverLimit)))
+			lines = append(lines, fmt.Sprintf("The last reply ran %d words against a %d-word target, past its %d-word allowance (skills/kit-rules/reference/output.md section 0).", last.OverWords, last.OverLimit, last.OverAllow))
 		}
 		// The chat ceiling too, though SessionStart states it: deep in a
 		// session that line is far from the reply.
@@ -117,8 +119,8 @@ func ReplyLength(h *hook.Hook) error {
 		// Every reply was shown, so any one over counts; the next prompt
 		// reports and clears it.
 		t.Judged = true
-		if n := countWords(p.String(hook.KeyLastAssistantMessage), t.All); t.Limit > 0 && n > l.Allowance(t.Limit) {
-			t.OverWords, t.OverLimit = n, t.Limit
+		if n, allow := countWords(p.String(hook.KeyLastAssistantMessage), t.All), l.Allowance(t.Limit); t.Limit > 0 && n > allow {
+			t.OverWords, t.OverLimit, t.OverAllow = n, t.Limit, allow
 		}
 		writeTurn(marker, t)
 	}

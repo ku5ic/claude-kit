@@ -113,6 +113,14 @@ func TestCheckSize(t *testing.T) {
 		r.Denied(t)
 		r.Has(t, "runs 7 words, over the 4-word budget")
 	})
+	t.Run("a subagent stop within the slack goes through, and one past it blocks", func(t *testing.T) {
+		t.Parallel()
+		for words, want := range map[string]int{"One two three four five six.": 0, long: 2} {
+			k := newSandbox(t)
+			k.overlay("size_budgets: {report: 4}\nreply_slack: 50%\n")
+			k.run("check-size", stop(words, false)).Want(t, want)
+		}
+	})
 	t.Run("kit.yml's budgets let a short report through", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)

@@ -2,7 +2,9 @@ package config
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/gob"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -29,10 +31,10 @@ func (p Paths) ConfigCache() string {
 }
 
 // cacheKey names the exact files behind Load's result: path, size, and
-// mtime of the base, the overlay, settings.json and the manifest behind the
-// /config options, every preset file, and the running binary,
-// whose Config struct shapes what was stored. Any edit or rebuild changes
-// it; "" when the base or binary can't be stat'ed, so Load skips the cache.
+// mtime of the base, the overlay, the manifest declaring the /config
+// options, every preset file, and the running binary, whose Config struct
+// shapes what was stored, then settingsKey. Any edit or rebuild changes it;
+// "" when the base or binary can't be stat'ed, so Load skips the cache.
 func cacheKey(p Paths) string {
 	exe, err := os.Executable()
 	if err != nil {
@@ -40,7 +42,7 @@ func cacheKey(p Paths) string {
 	}
 	presets, _ := filepath.Glob(filepath.Join(p.Root, "presets", "*.yml"))
 	key := ""
-	for _, path := range append([]string{exe, p.Base, p.Overlay, p.Settings, p.Manifest}, presets...) {
+	for _, path := range append([]string{exe, p.Base, p.Overlay, p.Manifest}, presets...) {
 		info, err := os.Stat(path)
 		switch {
 		case err == nil:
@@ -49,7 +51,25 @@ func cacheKey(p Paths) string {
 			return ""
 		}
 	}
-	return key
+	return key + settingsKey(p.Settings)
+}
+
+// settingsKey is a hash of the two settings.json keys pluginOptions reads,
+// since Claude Code's other settings share the file; "" when it's absent,
+// and the raw bytes' hash when it isn't JSON, so the warning follows edits.
+func settingsKey(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	var settings struct {
+		EnabledPlugins json.RawMessage `json:"enabledPlugins"`
+		PluginConfigs  json.RawMessage `json:"pluginConfigs"`
+	}
+	if json.Unmarshal(data, &settings) == nil {
+		data = append(settings.EnabledPlugins, settings.PluginConfigs...)
+	}
+	return fmt.Sprintf("%s %x\n", path, sha256.Sum256(data))
 }
 
 // loadCached is the stored result for key, ok false on any miss.

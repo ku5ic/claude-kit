@@ -45,7 +45,7 @@ func CheckSize(h *hook.Hook) error {
 		if m == "" && p.Bool(hook.KeyStopHookActive) || m != "" && wasSentBack(m) {
 			return nil
 		}
-		if n := countWords(report, false); b.Report > 0 && n > b.Report {
+		if n := countWords(report, false); b.Report > 0 && n > allowance(h, b.Report) {
 			if m != "" && !markSentBack(h, m, report, "size") {
 				return nil
 			}

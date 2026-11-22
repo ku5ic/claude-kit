@@ -38,7 +38,9 @@ func TestReplyLength(t *testing.T) {
 		stop(t, k, words(60), false)
 		prompt(k, "go").Lacks(t, "The last reply")
 		stop(t, k, words(61), false)
-		prompt(k, "go").Has(t, over(61, 40))
+		// The note names the allowance Stop judged by, not one set since.
+		k.overlay("reply_slack: 100%\n")
+		prompt(k, "go").Has(t, over(61, 40)+", past its 60-word allowance")
 	})
 
 	t.Run("an explain trigger raises the target; a detail trigger lifts it", func(t *testing.T) {
@@ -180,12 +182,12 @@ func TestReplyLength(t *testing.T) {
 		stop(t, k, words(41), false)
 		prompt(k, "go").Has(t, over(41, 40), "Reply target this turn: 40 words")
 	})
-	t.Run("with no chat target a plain prompt states none", func(t *testing.T) {
+	t.Run("explanatory mode states no target, a why question included", func(t *testing.T) {
 		t.Parallel()
 		k := capped(t)
 		k.overlay("reply_length: explanatory\n")
 		prompt(k, "go").Lacks(t, "Reply target", "No reply target")
-		prompt(k, "Why does this fail?").Has(t, "600 words")
+		prompt(k, "Why does this fail?").Lacks(t, "Reply target", "No reply target")
 	})
 	// The chat target holds when what looks like a trigger isn't one.
 	for name, text := range map[string]string{
