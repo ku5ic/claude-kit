@@ -27,8 +27,9 @@ const rulesSkill = "kit-rules"
 // global_skills skill. A subagent's load counts for it alone, by agent_id.
 // The Skill tool and a Read of a required skill's own files are the way to
 // load one, and a subagent's hand-back is its reply, so those pass. A
-// missing skills log shows nothing loaded, and one that can't be read
-// fails open, told to the user. A fork counts its parent's loads. An
+// missing skills log shows nothing loaded, unless the transcript shows a
+// Skill call; then, or when the log can't be read, it fails open, told
+// to the user. A fork counts its parent's loads. An
 // agent whose transcript shows Claude Code gave it neither Skill nor Read
 // passes, logged; one whose tools can't be read is gated.
 func RulesGate(h *hook.Hook) error {
@@ -121,18 +122,39 @@ func RulesGate(h *hook.Hook) error {
 }
 
 // notLoadedBy is the skills of want the skills log doesn't show agent (""
-// for the main session) loading. A missing log shows none loaded. A log
-// that can't be read is an error: a load would be logged to it too, so a
-// deny could never lift, and the gate fails open, telling the user.
+// for the main session) loading. A missing log shows none loaded, unless
+// agent's transcript shows a Skill call: its load wasn't logged. That, or
+// a log that can't be read, is an error: a deny could never lift, so the
+// gate fails open, telling the user.
 func notLoadedBy(h *hook.Hook, agent string, want []string) ([]string, error) {
 	loaded, err := loadedSkills(h.Paths.LogFile(kitlog.Skills), h.Payload.SessionID(), func(id string) bool { return id == agent })
 	if errors.Is(err, fs.ErrNotExist) {
+		if ranSkill(h.Payload, agent) {
+			return nil, errors.New("the skills log is missing though the Skill tool ran, so its load wasn't logged")
+		}
 		return want, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("the skills log can't be read, so no skill load shows: %w", err)
 	}
 	return notIn(h, loaded, want), nil
+}
+
+// ranSkill is true when the transcript of agent ("" for the main
+// session) holds a Skill tool call.
+func ranSkill(p *hook.Payload, agent string) bool {
+	path := p.String(hook.KeyTranscriptPath)
+	if agent != "" {
+		path = agentTranscriptPath(path, agent)
+	}
+	if path == "" {
+		return false
+	}
+	ran := false
+	_ = transcript.Each(path, func(e transcript.Entry) {
+		ran = ran || slices.ContainsFunc(e.ToolUses(), func(b transcript.Block) bool { return b.Name == "Skill" })
+	})
+	return ran
 }
 
 // notIn is the skills of want that loaded has neither by name (the Skill

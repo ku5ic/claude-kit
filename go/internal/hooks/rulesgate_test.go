@@ -130,6 +130,17 @@ func TestRulesGate(t *testing.T) {
 		r.Denied(t)
 		r.Has(t, "the kit-rules skill isn't loaded yet")
 	})
+	t.Run("no skills log after a Skill call lets the call through, telling the user", func(t *testing.T) {
+		t.Parallel()
+		k := newPlugin(t)
+		k.kitYML("")
+		main := filepath.Join(t.TempDir(), "s1.jsonl")
+		line, _ := json.Marshal(testutil.ToolUse("toolu_s1", "Skill", map[string]any{"skill": "kit:kit-rules"}))
+		testutil.Write(t, main, string(line)+"\n")
+		r := k.run("rules-gate", map[string]any{"hook_event_name": "PreToolUse", "session_id": "s1", "transcript_path": main, "tool_name": "Bash", "tool_input": bash})
+		r.Allowed(t)
+		r.Has(t, "kit rules-gate: FAILED OPEN", "the skills log is missing")
+	})
 	t.Run("a skills log that can't be read lets the call through, telling the user", func(t *testing.T) {
 		t.Parallel()
 		k := newPlugin(t)
