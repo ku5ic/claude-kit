@@ -533,6 +533,9 @@ func TestBareReferencesResolveWithoutAModel(t *testing.T) {
 		{"a false claim about a real file:line", "`go/x.go:3` returns an error.", 1, nil},
 		{"a behavior sentence about a real symbol", "The `Hello` function panics on empty input.", 1, nil},
 		{"a reference outside the repo", "See `other/y.go:4`.", 1, nil},
+		{"a table row pairing real references", "| `Hello` | `go/x.go:3` | `.github/ci.yml` |", 1, nil},
+		{"a list item pairing real references", "- `Hello`: `go/x.go:3` and `.github/ci.yml`", 1, nil},
+		{"a table row with an invented reference", "| `Goodbye` | `go/x.go:3` | `.github/ci.yml` |", 0, []string{"| `Goodbye` | `go/x.go:3` | `.github/ci.yml` |"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

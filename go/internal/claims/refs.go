@@ -80,7 +80,8 @@ func settleReferences(dir, text string, deadline time.Time) (flagged []Unsupport
 		}
 		if len(problems) > 0 {
 			flagged = append(flagged, Unsupported{Claim: s, Check: strings.Join(problems, "; ")})
-		} else if !settled {
+		} else if !settled || len(refs) > 1 && blockStart.MatchString(s) {
+			// A row or item pairing references says they belong together.
 			continue
 		}
 		rest = cut(rest, s)
