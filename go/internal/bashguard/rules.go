@@ -8,6 +8,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/classify"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
+	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/layout"
 	"github.com/ku5ic/claude-kit/go/internal/weaken"
 )
@@ -649,10 +650,75 @@ func (c *command) rm() error {
 	if force && broad {
 		return c.block("rm with recursive force against root, home, or cwd", "rm-recursive")
 	}
-	if recursive {
+	if recursive && !c.st.allScratch(nonOptionsOf(c.args, func(w Word) string { return w.Value })) {
 		c.st.ask("rm -r deletes a directory tree; confirm the path")
 	}
 	return nil
+}
+
+// plainWord is a word with no shell syntax in it.
+var plainWord = regexp.MustCompile(`^[A-Za-z0-9_./%:=+@,-]+$`)
+
+// mktempDir is true for a whole $(mktemp ...) call with -d or --directory
+// and only plain words, so nothing else runs in it.
+func mktempDir(value string) bool {
+	if !strings.HasPrefix(value, "$(") || !strings.HasSuffix(value, ")") {
+		return false
+	}
+	inner := value[2 : len(value)-1]
+	words := strings.Fields(inner)
+	if len(words) < 2 || words[0] != "mktemp" || slices.ContainsFunc(words, func(w string) bool { return !plainWord.MatchString(w) }) {
+		return false
+	}
+	return slices.ContainsFunc(words[1:], func(w string) bool {
+		return w == "--directory" || strings.HasPrefix(w, "-") && !strings.HasPrefix(w, "--") && strings.Contains(w, "d")
+	})
+}
+
+// allScratch is true when ops is non-empty and each one is a scratch
+// operand.
+func (st *state) allScratch(ops []Word) bool {
+	return len(ops) > 0 && !slices.ContainsFunc(ops, func(w Word) bool { return !st.scratchOperand(w) })
+}
+
+// quotedVar is a whole word that is one variable in double quotes, "$S" or
+// "${S}": unquoted, IFS could split it into other paths.
+var quotedVar = regexp.MustCompile(`^"\$(?:([A-Za-z_][A-Za-z0-9_]*)|\{([A-Za-z_][A-Za-z0-9_]*)\})"$`)
+
+// sourcing is a call that can set any variable unseen: eval, source, or ".".
+var sourcing = regexp.MustCompile(`(^|[;&|({\s])(eval|source|\.)\s`)
+
+// scratchOperand is true for a scratch target, quoted when it expands
+// anything, or a quoted variable set once, outside any loop, to a scratch
+// target or a fresh mktemp -d dir, and named nowhere else in the command
+// (read S, printf -v S, declare S=/ all set it too).
+func (st *state) scratchOperand(w Word) bool {
+	quoted := strings.HasPrefix(w.Raw, `"`) && strings.HasSuffix(w.Raw, `"`)
+	m := quotedVar.FindStringSubmatch(w.Raw)
+	if m == nil {
+		return !varRef.MatchString(w.Value) && (quoted || !strings.Contains(w.Value, "$")) && st.scratchTarget(w.Value)
+	}
+	name := m[1] + m[2]
+	for _, loop := range st.loopVars {
+		if _, ok := loop[name]; ok {
+			return false
+		}
+	}
+	value, ok := st.vars[name]
+	return ok && (mktempDir(value) || st.scratchTarget(value)) && st.setOnly(name)
+}
+
+// setOnly is true when the command names name only in one assignment and
+// in $name references, and runs nothing that could set it unseen.
+func (st *state) setOnly(name string) bool {
+	cmd := st.h.Payload.String(hook.KeyInputCommand)
+	if sourcing.MatchString(cmd) {
+		return false
+	}
+	q := regexp.QuoteMeta(name)
+	count := func(pattern string) int { return len(regexp.MustCompile(pattern).FindAllStringIndex(cmd, -1)) }
+	sets := count(`\b` + q + `=`)
+	return sets == 1 && count(`\b`+q+`\b`) == sets+count(`\$`+q+`\b|\$\{`+q+`\}`)
 }
 
 func (c *command) chmod() error {
@@ -669,9 +735,15 @@ func (c *command) chmod() error {
 }
 
 func nonOptions(words []string) []string {
-	var out []string
+	return nonOptionsOf(words, func(w string) string { return w })
+}
+
+// nonOptionsOf is nonOptions over items, each read through value.
+func nonOptionsOf[T any](items []T, value func(T) string) []T {
+	var out []T
 	done := false
-	for _, w := range words {
+	for _, item := range items {
+		w := value(item)
 		if !done && w == "--" {
 			done = true
 			continue
@@ -679,7 +751,7 @@ func nonOptions(words []string) []string {
 		if !done && strings.HasPrefix(w, "-") {
 			continue
 		}
-		out = append(out, w)
+		out = append(out, item)
 	}
 	return out
 }

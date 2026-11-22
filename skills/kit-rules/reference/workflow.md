@@ -21,7 +21,7 @@ Git, side effects, plans, and when to ask.
 ## 2. Side effects
 
 - Before a destructive operation (`rm`, `git reset --hard`, `git clean`, a force push, deleting a branch or tag, a migration, dropping a table, truncating a file), confirm.
-- Before a broad recursive command (`rm -rf`, `find ... -delete`, `chmod -R`), confirm.
+- Before a broad recursive command (`rm -rf`, `find ... -delete`, `chmod -R`), confirm. An `rm -r` whose every path is in scratch, or a dir `mktemp -d` made earlier in the same command, needs no confirm.
 - Before installing, upgrading, or removing a dependency, ask, with the reason and the command.
 - Before changing project config (`.env*`, `tsconfig*.json`, linter, formatter, or framework config, `package.json` scripts, CI workflows) or adding a top-level directory, ask.
 - A change across the tree gets tried on one file or directory first.

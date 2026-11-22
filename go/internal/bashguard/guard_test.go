@@ -764,3 +764,47 @@ func TestGuardBashMarksAReadOnlyCommand(t *testing.T) {
 		t.Error("a write was marked read-only")
 	}
 }
+
+// rm -r goes through when every operand is scratch, or a variable the
+// command set to a scratch path or a fresh mktemp -d dir; anything else asks.
+func TestRmRecursiveOnScratchPasses(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ cmd, want string }{
+		{`S=$(mktemp -d); rm -rf "$S"`, "pass"},
+		{`S=$(mktemp -d -t kit) && rm -rf "$S"`, "pass"},
+		{`rm -rf "$(kit scratch-dir)/x"`, "pass"},
+		{`D="$(kit scratch-dir)/run"; rm -r "$D"`, "pass"},
+		{`rm -rf src`, "ask"},
+		{`rm -rf "$S"`, "ask"},
+		{`S=src; rm -rf "$S"`, "ask"},
+		{`S=$(mktemp); rm -rf "$S"`, "ask"},
+		{`S=$(mktemp -d; echo /); rm -rf $S`, "ask"},
+		{`S=$(mktemp -d $(pwd)); rm -rf $S`, "ask"},
+		{`S=$(mktemp -d /tmp/x; echo /); rm -rf $S`, "ask"},
+		{`S='mktemp -d)'; rm -rf "$S"`, "ask"},
+		{`S=$(mktemp -d); rm -rf "${S}"`, "pass"},
+		{`S=$(mktemp -d); rm -rf $S`, "ask"},
+		{`S=$(mktemp -d); IFS=/; rm -rf $S`, "ask"},
+		{`S=$(mktemp -d); read S <<< /; rm -rf "$S"`, "ask"},
+		{`S=$(mktemp -d); printf -v S /; rm -rf "$S"`, "ask"},
+		{`S=$(mktemp -d); declare S=/; rm -rf "$S"`, "ask"},
+		{`S=$(mktemp -d); f() { S=/; }; f; rm -rf "$S"`, "ask"},
+		{`S=$(mktemp -d); source ./env.sh; rm -rf "$S"`, "ask"},
+		{`S=$(mktemp -d); . ./env.sh; rm -rf "$S"`, "ask"},
+		{`S=$(mktemp -d); rm -rf "$S" src`, "ask"},
+		{`rm -rf "$(kit scratch-dir)/../x"`, "ask"},
+		{`S=$(mktemp -d); for d in a b; do S=src; done; rm -rf "$S"`, "ask"},
+	} {
+		t.Run(tc.cmd, func(t *testing.T) {
+			t.Parallel()
+			r := newSandbox(t).hook("", "", tc.cmd)
+			got := "pass"
+			if strings.Contains(r.Output, `"ask"`) {
+				got = "ask"
+			}
+			if r.Status != 0 || got != tc.want {
+				t.Errorf("status %d, got %s want %s: %s\n%s", r.Status, got, tc.want, tc.cmd, r.Output)
+			}
+		})
+	}
+}
