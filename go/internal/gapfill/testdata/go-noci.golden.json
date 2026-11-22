@@ -21,7 +21,7 @@
         "command": "go test ./...",
         "file_form": "go test {dirs}",
         "globs": [
-          "*.go"
+          "*_test.go"
         ],
         "dir": ".",
         "evidence": "go.mod"
@@ -39,7 +39,6 @@
       },
       {
         "role": "fixer",
-        "kind": "format-check",
         "command": "gofmt -w .",
         "file_form": "gofmt -w {files}",
         "globs": [

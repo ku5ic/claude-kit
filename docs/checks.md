@@ -16,6 +16,7 @@ For the whole project, `kit run-checks` runs every quality gate, in every subpro
 - **Then each kind CI leaves out:** lint, typecheck, format-check, test, dead code, and security, from turbo and nx, task runners (`package.json` scripts, Makefile, justfile, and more), and pre-commit; last, a check the project states only by a tool's config or its language's manifest (`go.mod` states `go vet`).
 - **Aggregates:** a `ci` script that chains `lint && test` runs each gate once, not twice.
 - **Overlaps:** a check whose run another check of the same kind, in the same directory, already does is skipped as `covered by` it, and runs after all when that check doesn't.
+- **Side kinds and reach:** a kind counts as enforced when a check's run does it on the way, such as `go test` type-checking, or when a root check names the subproject it checks, such as a test of a copy of `mods/`.
 - **What changed only:** on a branch, a gate with an affected form runs it, and a lint or format check runs on the changed files git doesn't ignore; the rest run whole. `--all` runs every gate on the whole tree.
 - **Dead code:** dead-code findings block only on lines changed against the base branch.
 - **Hands off your files:** a check that changes files fails, is never run again until `kit gates reset`, and `kit gates reset --restore` puts the files back.

@@ -36,7 +36,9 @@ var (
 type Gate struct {
 	Label   string
 	Kinds   []string // the check kinds it runs: several for an aggregate run whole
+	Also    []string // kinds its run covers besides Kinds, such as typecheck by a compiling test
 	Dir     string   // where it runs, absolute
+	Reaches []string // other directories, absolute, whose kinds its run covers
 	Env     []string
 	Body    string // the shell it runs; {base} is the git base at run time
 	Bins    []resolve.Resolution
@@ -280,11 +282,12 @@ func (b *builder) add(g Gate) {
 	b.gates = append(b.gates, g)
 }
 
-// covered is true when a gate already runs kind in dir, or across the
-// workspace dir is a member of.
+// covered is true when a gate already runs kind in dir, across the
+// workspace dir is a member of, or from a directory whose run reaches dir.
 func (b *builder) covered(dir, kind string) bool {
 	return slices.ContainsFunc(b.gates, func(g Gate) bool {
-		return slices.Contains(g.Kinds, kind) && (g.Dir == dir || g.FanOut && b.members[dir])
+		return (slices.Contains(g.Kinds, kind) || slices.Contains(g.Also, kind)) &&
+			(g.Dir == dir || g.FanOut && b.members[dir] || slices.Contains(g.Reaches, dir))
 	})
 }
 
@@ -366,7 +369,7 @@ func (b *builder) taskRunners(sub, kind string) {
 		if !called[b.key(e)] {
 			tp, _ := provider(e.Source)
 			v, _ := b.verdict(e)
-			g := verdictGate(e, v, dir)
+			g := b.verdictGate(e, v, dir)
 			g.Label, g.Kinds, g.Body = label([]string{kind}, e.File+": "+e.Name, sub), []string{kind}, b.runCommand(tp, sub, e.Name)
 			b.add(g)
 		}

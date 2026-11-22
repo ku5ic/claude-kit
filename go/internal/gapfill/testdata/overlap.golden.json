@@ -3,18 +3,40 @@
   "structured_output": {
     "entries": [
       {
-        "id": "8eed10b662276990",
+        "id": "4b137fefa48928f5",
         "role": "check",
         "kind": "test",
         "mutates": false,
         "file_form": "A11Y=true vitest run --project=storybook --silent=passed-only {files}",
         "globs": [
-          "**/*.{test,spec,stories}.{js,jsx,ts,tsx}"
+          "**/*.stories.{js,jsx,ts,tsx}"
         ],
         "affected_form": "A11Y=true vitest run --project=storybook --silent=passed-only --changed={base}"
       },
       {
-        "id": "b37565bccd3c2954",
+        "id": "9ec01b37b64965cf",
+        "role": "check",
+        "kind": "test",
+        "mutates": false,
+        "file_form": "vitest --project=storybook {files}",
+        "globs": [
+          "**/*.stories.{js,jsx,ts,tsx}"
+        ],
+        "affected_form": "vitest --project=storybook --changed={base}",
+        "covered_by": "4b137fefa48928f5"
+      },
+      {
+        "id": "a0ef91378e640f64",
+        "role": "check",
+        "kind": "lint",
+        "mutates": false,
+        "file_form": "eslint {files}",
+        "globs": [
+          "**/*.{js,jsx,ts,tsx,mjs,cjs}"
+        ]
+      },
+      {
+        "id": "c26898345ab1c02e",
         "role": "check",
         "kind": "test",
         "mutates": false,
@@ -23,28 +45,6 @@
           "**/*.{test,spec}.{js,jsx,ts,tsx}"
         ],
         "affected_form": "jest --changedSince={base}"
-      },
-      {
-        "id": "bdaec97e82dc0b7f",
-        "role": "check",
-        "kind": "test",
-        "mutates": false,
-        "file_form": "vitest --project=storybook {files}",
-        "globs": [
-          "**/*.{test,spec,stories}.{js,jsx,ts,tsx}"
-        ],
-        "affected_form": "vitest --project=storybook --changed={base}",
-        "covered_by": "8eed10b662276990"
-      },
-      {
-        "id": "bf9539fc4e21c7ab",
-        "role": "check",
-        "kind": "lint",
-        "mutates": false,
-        "file_form": "eslint {files}",
-        "globs": [
-          "**/*.{js,jsx,ts,tsx,mjs,cjs}"
-        ]
       }
     ],
     "managers": [
@@ -71,13 +71,13 @@
       {
         "role": "check",
         "kind": "lint",
-        "command": "pnpm exec eslint .",
-        "file_form": "pnpm exec eslint {files}",
+        "command": "pnpm exec eslint --max-warnings=0 .",
+        "file_form": "pnpm exec eslint --max-warnings=0 {files}",
         "globs": [
           "**/*.{js,jsx,ts,tsx,mjs,cjs}"
         ],
         "dir": ".",
-        "evidence": "package.json: devDependencies eslint ^9.12.0 and scripts.lint \"eslint .\""
+        "evidence": "package.json"
       },
       {
         "role": "check",
@@ -88,7 +88,18 @@
           "**/*.{test,spec}.{js,jsx,ts,tsx,mjs,cjs}"
         ],
         "dir": ".",
-        "evidence": "package.json: devDependencies jest ^29.7.0 and scripts.test \"jest\""
+        "evidence": "package.json"
+      },
+      {
+        "role": "check",
+        "kind": "test",
+        "command": "pnpm exec vitest run",
+        "file_form": "pnpm exec vitest run {files}",
+        "globs": [
+          "**/*.{test,spec}.{js,jsx,ts,tsx,mjs,cjs}"
+        ],
+        "dir": ".",
+        "evidence": "package.json"
       }
     ]
   },

@@ -3,72 +3,68 @@
   "structured_output": {
     "entries": [
       {
-        "id": "08b1fdf967586123",
+        "id": "040a512d0b9b29be",
         "role": "check",
         "kind": "test",
         "mutates": false,
-        "affected_form": "turbo run test --filter=...[{base}]"
+        "covered_by": "acf2b0e5265d765f"
       },
       {
-        "id": "162587acbd2bcb35",
+        "id": "1b4a63ce3ba004e5",
         "role": "build",
-        "mutates": false,
-        "affected_form": "turbo run build --filter=...[{base}]"
+        "mutates": false
       },
       {
-        "id": "40dbc215ea7a03d8",
+        "id": "279ec3ef65902198",
         "role": "check",
         "kind": "lint",
         "mutates": false,
         "file_form": "eslint {files}",
         "globs": [
-          "packages/a/**/*.{js,cjs,mjs,jsx,ts,tsx}"
+          "**/*.{js,jsx,ts,tsx,mjs,cjs}"
         ]
       },
       {
-        "id": "4f011d936a6cac24",
-        "role": "check",
-        "kind": "lint",
-        "mutates": false,
-        "affected_form": "turbo run lint --filter=...[{base}]",
-        "covered_by": "b3e8fabf2869aa7d"
+        "id": "291e228e682d2919",
+        "role": "build",
+        "mutates": false
       },
       {
-        "id": "a6f960a7095db2a6",
-        "role": "check",
-        "kind": "test",
-        "mutates": false,
-        "affected_form": "turbo run test --filter=...[{base}]",
-        "covered_by": "08b1fdf967586123"
-      },
-      {
-        "id": "b3e8fabf2869aa7d",
+        "id": "33fa45bd626b10f4",
         "role": "check",
         "kind": "lint",
         "mutates": false,
         "affected_form": "turbo run lint --filter=...[{base}]"
       },
       {
-        "id": "bea9686507bbf01b",
+        "id": "4b18c7ec4d50c2fb",
+        "role": "check",
+        "kind": "lint",
+        "mutates": false,
+        "covered_by": "33fa45bd626b10f4"
+      },
+      {
+        "id": "9b0e8ebf434ff780",
         "role": "build",
         "mutates": false
       },
       {
-        "id": "c209901b27bed0e8",
+        "id": "acf2b0e5265d765f",
+        "role": "check",
+        "kind": "test",
+        "mutates": false,
+        "affected_form": "turbo run test --filter=...[{base}]"
+      },
+      {
+        "id": "dc5cc38118fca724",
         "role": "check",
         "kind": "test",
         "mutates": false,
         "file_form": "vitest run {files}",
         "globs": [
-          "packages/a/**/*.{test,spec}.{js,jsx,ts,tsx}"
+          "**/*.{test,spec}.{js,jsx,ts,tsx,mjs,cjs,mts,cts}"
         ],
         "affected_form": "vitest run --changed={base}"
-      },
-      {
-        "id": "e67bcbbd4c2fd223",
-        "role": "build",
-        "mutates": false,
-        "affected_form": "turbo run build --filter=...[{base}]"
       }
     ],
     "managers": [
@@ -98,17 +94,20 @@
         "command": "pnpm exec eslint .",
         "file_form": "pnpm exec eslint {files}",
         "globs": [
-          "**/*.{js,jsx,ts,tsx,mjs,cjs}"
+          "**/*.js",
+          "**/*.mjs",
+          "**/*.cjs",
+          "**/*.ts"
         ],
         "dir": "packages/a",
-        "evidence": "packages/a/eslint.config.js (and eslint declared in packages/a/package.json)"
+        "evidence": "packages/a/eslint.config.js"
       },
       {
         "role": "check",
         "kind": "typecheck",
         "command": "pnpm exec tsc --noEmit",
         "dir": "packages/a",
-        "evidence": "packages/a/package.json (typescript declared in devDependencies)"
+        "evidence": "packages/a/package.json"
       },
       {
         "role": "check",
@@ -116,10 +115,13 @@
         "command": "pnpm exec vitest run",
         "file_form": "pnpm exec vitest run {files}",
         "globs": [
-          "**/*.{test,spec}.{js,jsx,ts,tsx,mjs,cjs}"
+          "**/*.test.js",
+          "**/*.test.ts",
+          "**/*.spec.js",
+          "**/*.spec.ts"
         ],
         "dir": "packages/a",
-        "evidence": "packages/a/package.json (vitest declared in devDependencies)"
+        "evidence": "packages/a/package.json"
       }
     ]
   },

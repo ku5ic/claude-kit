@@ -3,12 +3,33 @@
   "structured_output": {
     "entries": [
       {
-        "id": "126d16300bbf4081",
+        "id": "1e1969c3d0ce6453",
+        "role": "check",
+        "kind": "test",
+        "mutates": false,
+        "file_form": "vitest run {files}",
+        "globs": [
+          "**/*.{test,spec}.{ts,tsx,js,jsx,mjs,cjs}"
+        ],
+        "affected_form": "vitest run --changed={base}"
+      },
+      {
+        "id": "6e1e60c95ba30c0e",
+        "role": "fixer",
+        "kind": "format-check",
+        "mutates": true,
+        "file_form": "prettier --write {files}",
+        "globs": [
+          "*.{ts,tsx}"
+        ]
+      },
+      {
+        "id": "9c8f14f609f834c6",
         "role": "fixer",
         "mutates": true
       },
       {
-        "id": "6cfe7d5fd228b24e",
+        "id": "a628c896a5d367e9",
         "role": "fixer",
         "kind": "lint",
         "mutates": true,
@@ -18,34 +39,13 @@
         ]
       },
       {
-        "id": "72c037b11822bbdf",
-        "role": "check",
-        "kind": "test",
-        "mutates": false,
-        "file_form": "vitest run {files}",
-        "globs": [
-          "**/*.{test,spec}.?(c|m)[jt]s?(x)"
-        ],
-        "affected_form": "vitest run --changed={base}"
-      },
-      {
-        "id": "b586c41266ad7383",
+        "id": "b093083feee0a781",
         "role": "check",
         "kind": "format-check",
         "mutates": false,
         "file_form": "prettier --check {files}",
         "globs": [
           "*.md"
-        ]
-      },
-      {
-        "id": "f8111be0d4f0fdf1",
-        "role": "fixer",
-        "kind": "format-check",
-        "mutates": true,
-        "file_form": "prettier --write {files}",
-        "globs": [
-          "*.{ts,tsx}"
         ]
       }
     ],
@@ -54,11 +54,10 @@
         "dir": ".",
         "cites": "package-lock.json",
         "manager": "npm",
-        "run_prefix": "npx",
+        "run_prefix": "npm exec --",
         "add_verbs": [
           "npm install",
-          "npm i",
-          "npm add"
+          "npm i"
         ],
         "dlx": "npx",
         "dir_flags": [
@@ -74,45 +73,45 @@
       {
         "role": "check",
         "kind": "lint",
-        "command": "npx eslint --max-warnings 0 .",
-        "file_form": "npx eslint --max-warnings 0 {files}",
+        "command": "npm exec -- eslint --max-warnings=0 .",
+        "file_form": "npm exec -- eslint --max-warnings=0 {files}",
         "globs": [
           "**/*.{ts,tsx}"
         ],
         "dir": ".",
-        "evidence": "package.json (devDependencies: eslint)"
+        "evidence": "package.json"
       },
       {
         "role": "check",
         "kind": "test",
-        "command": "npx vitest run",
-        "file_form": "npx vitest run {files}",
+        "command": "npm exec -- vitest run",
+        "file_form": "npm exec -- vitest run {files}",
         "globs": [
-          "**/*.{test,spec}.{ts,tsx,js,jsx}"
+          "**/*.{test,spec}.{ts,tsx}"
         ],
         "dir": ".",
-        "evidence": "package.json (devDependencies: vitest; scripts.test: vitest run)"
+        "evidence": "package.json"
       },
       {
         "role": "check",
         "kind": "format-check",
-        "command": "npx prettier --check .",
-        "file_form": "npx prettier --check {files}",
+        "command": "npm exec -- prettier --check .",
+        "file_form": "npm exec -- prettier --check {files}",
         "globs": [
           "**/*.{ts,tsx,md}"
         ],
         "dir": ".",
-        "evidence": "package.json (devDependencies: prettier; lint-staged: prettier --check for *.md)"
+        "evidence": "package.json"
       },
       {
         "role": "fixer",
-        "command": "npx prettier --write .",
-        "file_form": "npx prettier --write {files}",
+        "command": "npm exec -- prettier --write .",
+        "file_form": "npm exec -- prettier --write {files}",
         "globs": [
           "**/*.{ts,tsx,md}"
         ],
         "dir": ".",
-        "evidence": "package.json (devDependencies: prettier; lint-staged: prettier --write for *.{ts,tsx})"
+        "evidence": "package.json"
       }
     ]
   },

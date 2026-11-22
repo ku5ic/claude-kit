@@ -3,27 +3,25 @@
   "structured_output": {
     "entries": [
       {
-        "id": "0d2b347677aca787",
-        "role": "build",
+        "id": "1c5a5715693863a7",
+        "role": "check",
         "mutates": false
       },
       {
-        "id": "0ea1abec989420f0",
+        "id": "70cd54300b85bdab",
         "role": "check",
-        "kind": "lint",
+        "kind": "test",
         "mutates": false,
-        "file_form": "golangci-lint run {dirs}",
+        "file_form": "go test {dirs}",
         "globs": [
           "**/*.go"
+        ],
+        "also_kinds": [
+          "typecheck"
         ]
       },
       {
-        "id": "177d6958196106ff",
-        "role": "check",
-        "mutates": false
-      },
-      {
-        "id": "1d7525bf5916332a",
+        "id": "87e58df9b4077f25",
         "role": "deploy",
         "mutates": true,
         "segments": [
@@ -34,11 +32,16 @@
         ]
       },
       {
-        "id": "8ad82320f124a6e4",
+        "id": "96c29bde39ed2e1d",
+        "role": "build",
+        "mutates": false
+      },
+      {
+        "id": "c393f2103907d62a",
         "role": "check",
-        "kind": "test",
+        "kind": "lint",
         "mutates": false,
-        "file_form": "go test {dirs}",
+        "file_form": "golangci-lint run {dirs}",
         "globs": [
           "**/*.go"
         ]

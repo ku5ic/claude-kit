@@ -13,20 +13,12 @@
         ],
         "dlx": "",
         "dir_flags": [
-          "-C",
           "--manifest-path"
         ],
         "rivals": []
       }
     ],
     "proposals": [
-      {
-        "role": "check",
-        "kind": "typecheck",
-        "command": "cargo check",
-        "dir": ".",
-        "evidence": "Cargo.toml"
-      },
       {
         "role": "check",
         "kind": "lint",

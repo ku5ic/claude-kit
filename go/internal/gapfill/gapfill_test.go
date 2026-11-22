@@ -994,3 +994,32 @@ func TestClassifyAllTurnsAPanicIntoThatRequestsError(t *testing.T) {
 		t.Fatalf("errs = %v, want the panic as an error", errs)
 	}
 }
+
+// The schema closes each entry's object, so a Verdict field it doesn't list
+// never comes back from the model.
+func TestSchemaListsEveryVerdictField(t *testing.T) {
+	t.Parallel()
+	var s struct {
+		Properties struct {
+			Entries struct {
+				Items struct {
+					Properties map[string]any `json:"properties"`
+				} `json:"items"`
+			} `json:"entries"`
+		} `json:"properties"`
+	}
+	if err := json.Unmarshal([]byte(schema()), &s); err != nil {
+		t.Fatal(err)
+	}
+	full, _ := json.Marshal(Verdict{Role: "check", Kind: "test", Mutates: true, Segments: []Segment{{}}, FileForm: "x", Globs: []string{"x"},
+		Affected: "x", CoveredBy: "x", AlsoKinds: []string{"x"}, Reaches: []string{"x"}})
+	var fields map[string]any
+	if err := json.Unmarshal(full, &fields); err != nil {
+		t.Fatal(err)
+	}
+	for name := range fields {
+		if _, ok := s.Properties.Entries.Items.Properties[name]; !ok {
+			t.Errorf("schema has no %q for an entry", name)
+		}
+	}
+}

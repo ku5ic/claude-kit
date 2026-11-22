@@ -35,7 +35,7 @@ import (
 const Guard = "KIT_CLASSIFIER"
 
 // promptVersion is part of every cache key: a changed prompt asks again.
-const promptVersion = "13"
+const promptVersion = "15"
 
 // ClassifyTimeout caps a foreground run that asks the classifier, waiting
 // included.
@@ -62,6 +62,12 @@ type Verdict struct {
 	// CoveredBy is the key of a check of the same kind, in the same
 	// directory, whose run already does this one's.
 	CoveredBy string `json:"covered_by,omitempty"`
+	// AlsoKinds are the kinds a check's run does besides Kind: a run that
+	// compiles typed code type-checks it too.
+	AlsoKinds []string `json:"also_kinds,omitempty"`
+	// Reaches are the other directories, relative to the root, whose code
+	// a check's run checks, such as a subproject it tests a copy of.
+	Reaches []string `json:"reaches,omitempty"`
 }
 
 // String is v in one line: role:kind, then what else it says.
@@ -79,8 +85,18 @@ func (v Verdict) String() string {
 	if v.Affected != "" {
 		parts = append(parts, "affected: "+v.Affected)
 	}
+	if len(v.AlsoKinds) > 0 {
+		parts = append(parts, "also: "+strings.Join(v.AlsoKinds, ", "))
+	}
+	if len(v.Reaches) > 0 {
+		parts = append(parts, "reaches: "+strings.Join(v.Reaches, ", "))
+	}
 	return strings.Join(parts, "; ")
 }
+
+// Squeeze is s with its whitespace removed, so a segment the model spaced
+// unlike its body (<<< "$x" for <<<"$x") still matches it.
+func Squeeze(s string) string { return strings.Join(strings.Fields(s), "") }
 
 // RoleKind is a role with its check kind, as "check:lint".
 func RoleKind(role, kind string) string {

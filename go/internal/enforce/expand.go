@@ -63,7 +63,7 @@ func (b *builder) reference(p part, depth int) {
 			return
 		}
 	}
-	g := verdictGate(t, v, p.dir)
+	g := b.verdictGate(t, v, p.dir)
 	g.Label, g.Kinds, g.Env, g.Body = label(p.kinds, t.File+": "+t.Name, b.rel(p.dir)), p.kinds, p.env, p.text
 	g.AffectedDir, g.FanOut = filepath.Join(b.root, t.Dir), b.fansOut(g.Body)
 	b.add(g)
@@ -73,7 +73,7 @@ func (b *builder) reference(p part, depth int) {
 // has one, labeled with every kind it checks.
 func (b *builder) entryGate(e sources.Entry, v gapfill.Verdict, dir string, env []string) Gate {
 	kinds := b.taskKinds(e, v, 0)
-	g := verdictGate(e, v, dir)
+	g := b.verdictGate(e, v, dir)
 	g.Label, g.Kinds, g.Env, g.Body = label(kinds, e.File+": "+e.Name, b.rel(dir)), kinds, env, e.Body.Text
 	g.FanOut = b.fansOut(g.Body)
 	return g
@@ -180,10 +180,10 @@ func segmentKind(v gapfill.Verdict, stmt string, statements int) (kind string, i
 	if len(v.Segments) == 0 && statements == 1 {
 		return v.Kind, v.Role == "check"
 	}
-	text := strings.Join(strings.Fields(stmt), " ")
+	text := gapfill.Squeeze(stmt)
 	best := -1
 	for _, s := range v.Segments {
-		seg := strings.Join(strings.Fields(s.Text), " ")
+		seg := gapfill.Squeeze(s.Text)
 		if seg == "" || !strings.Contains(seg, text) && !strings.Contains(text, seg) {
 			continue
 		}
