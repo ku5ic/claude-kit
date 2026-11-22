@@ -320,7 +320,7 @@ func TestAFailureTheBaseHasTooDoesntBlock(t *testing.T) {
 			}
 			r.write("check.sh", tc.branch)
 			plan := enforce.Plan{Root: r.root, Gates: []enforce.Gate{r.check("test", "test", "bash check.sh")}}
-			out := Files(plan, &Base{Root: r.root, SHA: sha, CacheDir: r.cache}, r.cache, 5*time.Second, time.Now().Add(time.Minute))
+			out := Files(plan, func() *Base { return &Base{Root: r.root, SHA: sha, CacheDir: r.cache} }, r.cache, 5*time.Second, time.Now().Add(time.Minute))
 			if out.Failed() != tc.blocks {
 				t.Errorf("failed = %v, want %v:\n%s", out.Failed(), tc.blocks, out.Report())
 			}

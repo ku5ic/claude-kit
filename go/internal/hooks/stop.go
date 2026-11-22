@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
@@ -124,11 +125,14 @@ func runStop(h *hook.Hook, cfg *config.Config, p enforce.Plan, r stopRun) error 
 		}
 		return nil
 	}
-	// A failure the git base has too isn't the branch's to fix.
-	var base *run.Base
-	if sha, ok := git.ForkPoint(r.root); ok {
-		base = &run.Base{Root: r.root, SHA: sha, CacheDir: h.Paths.CacheDir()}
-	}
+	// A failure the git base has too isn't the branch's to fix. The base
+	// is looked up only once a gate fails.
+	base := sync.OnceValue(func() *run.Base {
+		if sha, ok := git.ForkPoint(r.root); ok {
+			return &run.Base{Root: r.root, SHA: sha, CacheDir: h.Paths.CacheDir()}
+		}
+		return nil
+	})
 	out := run.Files(p, base, h.Paths.CacheDir(), time.Duration(cfg.GateTimeout)*time.Second, r.deadline)
 	if !h.DryRun {
 		_ = fsx.WriteAtomic(cache.StopReport(h.Paths.CacheDir(), r.root), []byte(out.Report()), 0o600)

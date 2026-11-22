@@ -1,6 +1,7 @@
 package claims
 
 import (
+	"cmp"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -36,9 +37,7 @@ func ungrounded(root string, entries []transcript.Entry, text string) []Unsuppor
 	if len(fields) == 0 {
 		return nil
 	}
-	if top := git.Toplevel(root); top != "" {
-		root = top
-	}
+	root = cmp.Or(git.Toplevel(root), root)
 	var seen []string
 	var calls []toolCall
 	for pos, b := range transcript.Blocks(entries) {

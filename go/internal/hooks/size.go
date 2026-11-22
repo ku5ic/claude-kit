@@ -2,14 +2,12 @@ package hooks
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/connector"
-	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/layout"
 )
@@ -96,11 +94,10 @@ func sizeOnce(h *hook.Hook, text, where, then string, budget int, marker string)
 	if budget <= 0 || marker == "" {
 		return
 	}
-	if fsx.IsFile(marker) {
-		_ = os.Remove(marker)
+	if rewriteOf(marker) {
 		return
 	}
-	if n > budget && markOnce(h, marker, []byte("sent-back"), "size") {
+	if n > budget && markOnce(h, marker, []byte(sentBackMark), "size") {
 		h.Deny(sizeMessage(where, n, budget, then), "size")
 	}
 }

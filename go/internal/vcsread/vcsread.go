@@ -102,18 +102,20 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "kit read:", err)
 		return 2
 	}
-	args := argv[1:]
-	if argv[0] == "git" && (args[0] == "log" || args[0] == "show") {
-		args = slices.Concat(args[:1], gitQuiet, args[1:])
-	}
-	cmd := git.Command("", args...)
-	if argv[0] != "git" {
-		bin, err := kittool.Path(argv[0])
+	tool, args := argv[0], argv[1:]
+	var cmd *proc.Cmd
+	if tool == "git" {
+		if args[0] == "log" || args[0] == "show" {
+			args = slices.Concat(args[:1], gitQuiet, args[1:])
+		}
+		cmd = git.Command("", args...)
+	} else {
+		bin, err := kittool.Path(tool)
 		if err != nil {
 			fmt.Fprintln(stderr, "kit read:", err)
 			return 1
 		}
-		cmd = proc.Command(hostTimeout, bin, argv[1:]...)
+		cmd = proc.Command(hostTimeout, bin, args...)
 	}
 	cmd.Stdout, cmd.Stderr = stdout, stderr
 	err := cmd.Run()

@@ -114,8 +114,8 @@ func verifyToolInput(h *hook.Hook) error {
 			return nil
 		}
 		// A report gets the hook's own run, in the main session too.
-		marker := h.Paths.SessionFile(cache.Claims, p.SessionID(), "file", filepath.Base(path))
-		return verifyOwnRun(h, after, filepath.Base(path), "write the report again", marker)
+		name := filepath.Base(path)
+		return verifyOwnRun(h, after, name, "write the report again", h.Paths.SessionFile(cache.Claims, p.SessionID(), "file", name))
 	default:
 		cfg := h.Config()
 		if cfg == nil || !connector.IsWrite(cfg.Connectors, tool) {
@@ -134,12 +134,11 @@ func referencesOnce(h *hook.Hook, text, where, retry, marker string) error {
 	if cfg == nil || h.RuleDisabled("claims") || cfg.Claims.Off() || marker == "" {
 		return nil
 	}
-	if fsx.IsFile(marker) {
-		_ = os.Remove(marker)
+	if rewriteOf(marker) {
 		return nil
 	}
 	root, _ := project.Root(h.Payload.Cwd())
-	if u := claims.References(root, text); len(u) > 0 && markOnce(h, marker, []byte("sent-back"), "claims") {
+	if u := claims.References(root, text); len(u) > 0 && markOnce(h, marker, []byte(sentBackMark), "claims") {
 		h.Deny(claimsMessage(where, u, retry), "claims")
 	}
 	return nil
@@ -225,15 +224,14 @@ func verifyOwnRun(h *hook.Hook, text, where, retry, marker string) error {
 		return nil
 	}
 	ledgerPending(h, marker, where, text)
-	if fsx.IsFile(marker) {
-		_ = os.Remove(marker)
+	if rewriteOf(marker) {
 		return nil
 	}
 	u := unconfirmed(h, text, agentTranscript(h.Payload), where)
 	if len(u) == 0 {
 		return nil
 	}
-	if markOnce(h, marker, []byte("sent-back"), "claims") {
+	if markOnce(h, marker, []byte(sentBackMark), "claims") {
 		savePending(h, marker, u)
 		if !h.Deny(claimsMessage(where, u, retry), "claims") {
 			// Let through as it is, so its flags score against this text,
@@ -507,7 +505,7 @@ func verifyHandback(h *hook.Hook) error {
 		return nil
 	}
 	message := h.Payload.String(hook.KeyInputMessage)
-	if prev, err := os.ReadFile(marker); err == nil && string(prev) == "sent-back" {
+	if prev, err := os.ReadFile(marker); err == nil && string(prev) == sentBackMark {
 		ledgerPending(h, marker, "your report", message)
 		return nil
 	}
@@ -518,7 +516,7 @@ func verifyHandback(h *hook.Hook) error {
 		}
 		return nil
 	}
-	if markOnce(h, marker, []byte("sent-back"), "claims") {
+	if markOnce(h, marker, []byte(sentBackMark), "claims") {
 		savePending(h, marker, u)
 		if !h.Deny(claimsMessage("your report", u, sendBack), "claims") {
 			ledgerPending(h, marker, "your report", message)

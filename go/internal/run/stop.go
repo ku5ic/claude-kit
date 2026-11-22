@@ -34,11 +34,12 @@ func (c Checked) Report() string { return c.lines + c.summary + c.Detail }
 // with its children once timeout passes or the batch's deadline does,
 // whichever is first. A gate of a lint-like kind fails only on findings on
 // lines changed since HEAD in the files it checked; any other on any
-// failure, unless base shows the same failure lines. A snapshot around the
+// failure, unless the Base base returns, nil for none, shows the same
+// failure lines. A snapshot around the
 // batch catches a gate that changed files:
 // the block names them, and the gates that checked them are marked so they
 // never run again.
-func Files(p enforce.Plan, base *Base, cacheDir string, timeout time.Duration, deadline time.Time) Checked {
+func Files(p enforce.Plan, base func() *Base, cacheDir string, timeout time.Duration, deadline time.Time) Checked {
 	before, _ := git.Snapshot(p.Root)
 	results := make([]outcome, len(p.Gates))
 	var wg sync.WaitGroup
@@ -95,8 +96,8 @@ func Files(p enforce.Plan, base *Base, cacheDir string, timeout time.Duration, d
 type tally struct {
 	reporter
 	lines func() git.ChangedLines
-	// base, when set, reruns a failed gate on the git base.
-	base     *Base
+	// base, when set, gives the git base a failed gate reruns on.
+	base     func() *Base
 	timeout  time.Duration
 	deadline time.Time
 }
@@ -128,7 +129,11 @@ func (t *tally) record(g enforce.Gate, o outcome) {
 // the git base, in the time the batch has left.
 func (t *tally) onBase(g enforce.Gate, o outcome) bool {
 	left, ok := limit(t.timeout, t.deadline)
-	return t.base != nil && ok && t.base.hasAll(g, o.out, left)
+	if t.base == nil || !ok {
+		return false
+	}
+	b := t.base()
+	return b != nil && b.hasAll(g, o.out, left)
 }
 
 // findings judges a failed lint-like gate by what it found: a finding on a

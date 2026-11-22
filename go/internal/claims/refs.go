@@ -1,6 +1,7 @@
 package claims
 
 import (
+	"cmp"
 	"errors"
 	"os"
 	"os/exec"
@@ -52,10 +53,7 @@ func References(dir, text string) []Unsupported {
 // of text for the model. A reference that resolves proves only that the
 // thing exists, so a statement saying anything about one stays for the model.
 func settleReferences(dir, text string) (flagged []Unsupported, rest string) {
-	root := dir
-	if top := git.Toplevel(dir); top != "" {
-		root = top
-	}
+	root := cmp.Or(git.Toplevel(dir), dir)
 	rest = text
 	for _, s := range Statements(text) {
 		refs, bare := references(s)

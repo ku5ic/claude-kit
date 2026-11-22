@@ -107,7 +107,7 @@ func sentBack(marker string) (n int, last string) {
 		return 0, ""
 	}
 	fields := strings.Fields(string(data))
-	if len(fields) == 0 || fields[0] != "sent-back" {
+	if len(fields) == 0 || fields[0] != sentBackMark {
 		return 0, ""
 	}
 	if len(fields) < 3 {
@@ -127,7 +127,7 @@ func mayResend(marker, text string) bool {
 // markSentBack records one more send-back of text, as markOnce does.
 func markSentBack(h *hook.Hook, marker, text, rule string) bool {
 	n, _ := sentBack(marker)
-	return markOnce(h, marker, []byte(fmt.Sprintf("sent-back %d %s", n+1, textHash(text))), rule)
+	return markOnce(h, marker, []byte(fmt.Sprintf("%s %d %s", sentBackMark, n+1, textHash(text))), rule)
 }
 
 // textHash is text's sha256, in hex.
@@ -144,6 +144,19 @@ func markOnce(h *hook.Hook, marker string, data []byte, rule string) bool {
 		h.Notify("kit " + rule + ": let through unchecked, its once-only marker can't be saved: " + err.Error())
 		return false
 	}
+	return true
+}
+
+// sentBackMark is what a once-only marker holds after its text was sent back.
+const sentBackMark = "sent-back"
+
+// rewriteOf is whether marker holds a send-back, so the text now is its
+// rewrite and goes through; the marker is cleared, so the next is checked.
+func rewriteOf(marker string) bool {
+	if !fsx.IsFile(marker) {
+		return false
+	}
+	_ = os.Remove(marker)
 	return true
 }
 

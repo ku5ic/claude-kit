@@ -50,14 +50,17 @@ func gitMove(cmd string) bool {
 
 // isGitMove is true when words, one call, is a git move.
 func isGitMove(words []string) bool {
+	if len(words) == 0 || filepath.Base(words[0]) != "git" {
+		return false
+	}
 	sub, _, _ := classify.GitSubcommand(words[1:])
-	return len(words) > 0 && filepath.Base(words[0]) == "git" && slices.Contains(gitMoves, sub)
+	return slices.Contains(gitMoves, sub)
 }
 
 // hasGitMove is true when any call in cmd is a git move.
 func hasGitMove(cmd string) bool {
 	calls, ok := classify.Words(cmd)
-	return ok && slices.ContainsFunc(calls, func(words []string) bool { return len(words) > 0 && isGitMove(words) })
+	return ok && slices.ContainsFunc(calls, isGitMove)
 }
 
 // fromHead is which of paths, changed files in root, match HEAD: as it holds
