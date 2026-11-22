@@ -533,17 +533,14 @@ func TestVerifyClaimsToolInput(t *testing.T) {
 		k.verifier("disabled_rules: [claims]\n", claim)
 		k.run("verify-claims", toolCall("mcp__chat__send_message", map[string]any{"text": claim})).Allowed(t)
 	})
-	t.Run("a text the session already checked gets its verdict again, with no run", func(t *testing.T) {
+	t.Run("a statement the session already checked goes through, with no run", func(t *testing.T) {
 		t.Parallel()
 		k := newSandbox(t)
 		calls := k.verifier("", claim)
 		k.run("verify-claims", handback("a1", claim)).Denied(t)
-		again := k.run("verify-claims", handback("a2", claim))
-		again.Denied(t)
-		again.Has(t, claim, "git log -S Foo")
-		k.run("verify-claims", handback("a3", "Deploys run at noon because the cron says 12.")).Denied(t)
-		if got := len(testutil.Calls(t, calls)); got != 2 {
-			t.Errorf("verifier ran %d times, want 2: once per distinct text", got)
+		k.run("verify-claims", handback("a2", claim)).Allowed(t)
+		if got := len(testutil.Calls(t, calls)); got != 1 {
+			t.Errorf("verifier ran %d times, want 1: once per statement", got)
 		}
 	})
 	t.Run("a checked handback leaves the subagent's stop alone", func(t *testing.T) {
@@ -577,6 +574,37 @@ func TestVerifyClaimsPassesTheRewriteAfterASendBack(t *testing.T) {
 		t.Errorf("verifier ran %d times for a text and its rewrite, want 1", got)
 	}
 	k.run("verify-claims", post(other)).Denied(t)
+}
+
+// A statement is checked once per session, wherever it goes next: a report
+// revised in place, and its body written to a second file, take one deny
+// between them, and the verifier runs only on statements it hasn't seen.
+func TestVerifyClaimsChecksAStatementOncePerSession(t *testing.T) {
+	t.Parallel()
+	k := newSandbox(t)
+	calls := k.verifier("", claim)
+	scratch := filepath.Join(k.home, "proj", ".claude", "scratch")
+	write := func(name, text string) result {
+		return k.run("verify-claims", toolCall("Write", map[string]any{"file_path": filepath.Join(scratch, name), "content": text}))
+	}
+	const added = "Deploys run at noon because the cron says 12."
+	denies := 0
+	for _, r := range []result{
+		write("explore-x.md", claim),
+		write("explore-x.md", claim+"\n"),
+		write("explore-x.md", claim+"\n\n"+added),
+		write("explore-y.md", claim+"\n\n"+added),
+	} {
+		if strings.Contains(r.Stdout, `"permissionDecision":"deny"`) {
+			denies++
+		}
+	}
+	if denies != 1 {
+		t.Errorf("denied %d times, want 1", denies)
+	}
+	if got := len(testutil.Calls(t, calls)); got != 2 {
+		t.Errorf("verifier ran %d times, want 2: the draft, then the added sentence", got)
+	}
 }
 
 // The verifier runs from the project root, so a path a claim names
@@ -844,13 +872,14 @@ func TestCheckedReportsCoverEverySkillsReport(t *testing.T) {
 	}
 }
 
-// A cached verdict holds the claims a text made; only its owner reads it.
+// The statement ledger holds the claims a session made; only its owner
+// reads it.
 func TestACachedVerdictIsTheOwnersAlone(t *testing.T) {
 	t.Parallel()
 	k := newSandbox(t)
 	k.verifier("", claim)
 	k.run("verify-claims", subagentStop("a1", claim, false))
-	verdicts, _ := filepath.Glob(filepath.Join(k.paths.CacheDir(), cache.Claims, "s-verdict-*"))
+	verdicts, _ := filepath.Glob(filepath.Join(k.paths.CacheDir(), cache.Claims, "s-ledger"))
 	if len(verdicts) != 1 {
 		t.Fatalf("verdicts = %q", verdicts)
 	}

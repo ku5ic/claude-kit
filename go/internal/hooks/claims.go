@@ -116,8 +116,11 @@ func verifyToolInput(h *hook.Hook) error {
 		// A report gets the hook's own run, in the main session too.
 		name := filepath.Base(path)
 		marker = h.Paths.SessionFile(cache.Claims, p.SessionID(), "file", name)
+		// After its one send-back a report goes through, and its new
+		// statements are still checked into the ledger for where it goes next.
 		if sentBackBefore(marker) {
 			ledgerPending(h, marker, name, after)
+			_ = unconfirmed(h, after, agentTranscript(p), name)
 			return nil
 		}
 		return verifyOwnRun(h, after, name, "write the report again", marker)
@@ -532,23 +535,29 @@ func verifyHandback(h *hook.Hook) error {
 
 // unconfirmed is what the verifier found unconfirmed in text, logged with
 // its cost; nil when text states nothing or without kit.yml, and selfCheck
-// when the verifier fails. A text the session already checked gets that
-// verdict again, with no run.
+// when the verifier fails. Only the statements the session's ledger
+// doesn't hold go to the verifier; a text with none needs no run.
 func unconfirmed(h *hook.Hook, text, transcriptPath, where string) []claims.Unsupported {
 	cfg := h.Config()
 	if cfg == nil || h.DryRun || h.RuleDisabled("claims") || !claims.Declarative(text) {
 		return nil
 	}
-	cached := h.Paths.SessionFile(cache.Claims, h.Payload.SessionID(), "verdict", textHash(text)[:16])
-	if data, err := os.ReadFile(cached); err == nil {
-		var u []claims.Unsupported
-		if json.Unmarshal(data, &u) == nil {
-			h.Log(kitlog.Guards, "claims-cached", "where", where, "unconfirmed", strconv.Itoa(len(u)))
-			return u
+	ledger := statementLedger(h)
+	known := readStatements(ledger)
+	var fresh, decided []string
+	for _, s := range claims.Statements(text) {
+		if _, ok := known[statementKey(s)]; ok {
+			decided = append(decided, s)
+		} else {
+			fresh = append(fresh, s)
 		}
 	}
+	if len(fresh) == 0 {
+		h.Log(kitlog.Guards, "claims-cached", "where", where, "unconfirmed", "0")
+		return nil
+	}
 	root, _ := project.Root(h.Payload.Cwd())
-	v, err := claims.Verify(cfg, h.Paths.Root, h.Paths.CacheDir(), root, text, transcriptPath)
+	v, err := claims.Verify(cfg, h.Paths.Root, h.Paths.CacheDir(), root, strings.Join(fresh, "\n\n"), transcriptPath)
 	if errors.Is(err, claims.ErrOff) {
 		return nil
 	}
@@ -561,9 +570,7 @@ func unconfirmed(h *hook.Hook, text, transcriptPath, where string) []claims.Unsu
 		h.Log(kitlog.Guards, "claims-error", append([]string{"where", where, "error", err.Error()}, v.Usage.Pairs()...)...)
 		return selfCheck(where, "the verifier failed: "+err.Error())
 	}
-	if data, err := json.Marshal(v.Unsupported); err == nil && cached != "" {
-		_ = fsx.WriteAtomic(cached, data, 0o600)
-	}
+	v.Unsupported = recordVerdicts(h, ledger, fresh, decided, v)
 	h.Log(kitlog.Guards, "claims", append([]string{"where", where, "unconfirmed", strconv.Itoa(len(v.Unsupported))}, v.Usage.Pairs()...)...)
 	if v.Usage.Runs == 0 {
 		return v.Unsupported
