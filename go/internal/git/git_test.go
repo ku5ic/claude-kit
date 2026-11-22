@@ -61,15 +61,19 @@ func TestBaseFallsBackToMain(t *testing.T) {
 	}
 }
 
-// ForkPoint is where HEAD left its base, never HEAD itself: on main with
-// no remote, main is HEAD, and holds every commit made on it.
-func TestForkPointIsNeverHead(t *testing.T) {
+// ForkPoint is where HEAD left its base, and HEAD itself only on another
+// branch: on main with no remote, main is HEAD, and holds every commit
+// made on it.
+func TestForkPointIsHeadOnlyOffTheBaseBranch(t *testing.T) {
 	t.Parallel()
 	commit := []string{"-c", "user.email=t@t", "-c", "user.name=t", "-c", "commit.gpgsign=false", "commit", "-q", "--allow-empty", "-m", "next"}
 	dir := repo(t)
 	mainSHA, err := git.Line(dir, "rev-parse", "main")
 	if err != nil {
 		t.Fatal(err)
+	}
+	if sha, ok := git.ForkPoint(dir); !ok || sha != mainSHA {
+		t.Errorf("on a branch with no commits: sha=%q ok=%v, want main's %q", sha, ok, mainSHA)
 	}
 	testutil.Git(t, dir, commit...)
 	if sha, ok := git.ForkPoint(dir); !ok || sha != mainSHA {

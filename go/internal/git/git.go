@@ -222,12 +222,7 @@ func Base(dir, explicit string) (string, bool) {
 	}
 	if upstream, err := run("rev-parse", "--abbrev-ref", "@{upstream}"); err == nil {
 		current, _ := run("rev-parse", "--abbrev-ref", "HEAD")
-		// ${upstream#*/}: drop the remote name; no slash leaves it whole.
-		branch := upstream
-		if _, rest, found := strings.Cut(upstream, "/"); found {
-			branch = rest
-		}
-		if branch != current {
+		if branchOf(upstream) != current {
 			return upstream, true
 		}
 	}
@@ -244,9 +239,20 @@ func Base(dir, explicit string) (string, bool) {
 	return "", false
 }
 
+// branchOf is ref with its remote name dropped, ${ref#*/}; no slash leaves
+// it whole.
+func branchOf(ref string) string {
+	if _, rest, found := strings.Cut(ref, "/"); found {
+		return rest
+	}
+	return ref
+}
+
 // ForkPoint is the merge base of HEAD and dir's Base, the commit HEAD
-// left it at. False when no base resolves, or when that is HEAD itself,
-// as on a local main whose base is main.
+// left it at. False when no base resolves, or when that is HEAD on the
+// base's own branch, as on a local main whose base is main: HEAD there
+// holds the commits this session made. A new branch with no commits yet
+// gets HEAD.
 func ForkPoint(dir string) (string, bool) {
 	base, ok := Base(dir, "")
 	if !ok {
@@ -257,7 +263,14 @@ func ForkPoint(dir string) (string, bool) {
 		return "", false
 	}
 	head, err := Line(dir, "rev-parse", "HEAD")
-	return mb, err == nil && mb != head
+	if err != nil {
+		return "", false
+	}
+	if mb != head {
+		return mb, true
+	}
+	current, err := Line(dir, "rev-parse", "--abbrev-ref", "HEAD")
+	return mb, err == nil && current != branchOf(base)
 }
 
 // deadline is when the running hook's own timeout ends; zero is none. A
