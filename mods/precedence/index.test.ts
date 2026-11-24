@@ -1,4 +1,4 @@
-import type { ApiMessage, On, PromptComposeInput, TurnCompleteInput } from 'claude-code'
+import type { ApiMessage, On, PromptComposeInput, RenderSurface, TurnCompleteInput } from 'claude-code'
 import { describe, expect, test, type Engine } from 'claude-code/testing'
 
 const ANSWERED: TurnCompleteInput = { reason: 'answer', answer: 'Done.', durationMs: 1, isAborted: false, turnId: 't1' }
@@ -15,6 +15,7 @@ const RENDER: PromptComposeInput = {
 
 // The engine's own sections, standing in for the rendered system prompt.
 function engineSections(on: On) {
+  engineMachine(on)
   on('prompt.compose', () => ({
     sections: [
       { id: 'intro', text: 'You are Claude Code.', scope: 'shared' },
@@ -255,24 +256,50 @@ describe('what an earlier session on the machine recorded', () => {
     })
   }
 
+  test('a headless run with no compose records nothing, and its next prompt carries the section', async ($, on) => {
+    engineHolds(on)
+    const machine = machineRecorded(on, false)
+    machine.surfaces = []
+    await $.turn.complete(ANSWERED)
+    expect(machine.skipped).toBe(false)
+    expect(await contextOf($)).toEqual([SECTION, REMINDER])
+  })
+
+  test('once a compose ran, a prompt in the first turn ignores the record', async ($, on) => {
+    engineSections(on)
+    engineHolds(on)
+    const machine = machineRecorded(on, false)
+    await $.prompt.compose(RENDER)
+    machine.skipped = true
+    expect(await contextOf($)).toEqual([REMINDER])
+  })
+
+  test('once a compose ran, a prompt after an aborted first turn ignores the record', async ($, on) => {
+    engineSections(on)
+    engineHolds(on)
+    const machine = machineRecorded(on, false)
+    await $.prompt.compose(RENDER)
+    await $.turn.complete({ ...ANSWERED, reason: 'aborted', isAborted: true })
+    machine.skipped = true
+    expect(await contextOf($)).toEqual([REMINDER])
+  })
+
   test('a failed read of the record still sends the reminder', async ($, on) => {
     engineHolds(on)
-    on('store.get', () => ({ deny: 'no store' }))
+    machineRecorded(on, true).failing = 'get'
     expect(await contextOf($)).toEqual([REMINDER])
   })
 
   test('a failed write of the record still leaves the section in the system prompt', async ($, on) => {
     engineSections(on)
-    on('store.get', () => ({ value: true }))
-    on('store.set', () => ({ deny: 'no store' }))
+    machineRecorded(on, true).failing = 'set'
     const { sections } = await $.prompt.compose(RENDER)
     expect(sections.map(s => s.id)).toEqual(['intro', 'tone', 'kit:precedence'])
   })
 
   test('a failed write of the record still puts the section on the next prompt', async ($, on) => {
     engineHolds(on)
-    on('store.get', () => ({ value: false }))
-    on('store.set', () => ({ deny: 'no store' }))
+    machineRecorded(on, false).failing = 'set'
     await $.turn.complete(ANSWERED)
     expect(await contextOf($)).toEqual([SECTION, REMINDER])
   })
@@ -284,20 +311,35 @@ describe('what an earlier session on the machine recorded', () => {
   })
 })
 
-// Stands in for the machine's store, which every session shares.
-function machineRecorded(on: On, skipped: boolean | undefined) {
-  const machine = { skipped, writes: 0 }
-  on('store.get', () => ({ value: machine.skipped }))
+type Machine = { skipped?: boolean; writes: number; surfaces: RenderSurface[]; failing?: 'get' | 'set' }
+
+// One machine per test, since more than one helper stands in for it.
+const machines = new WeakMap<On, Machine>()
+
+// Stands in for the machine's store, which every session shares, and for where the session draws.
+function engineMachine(on: On): Machine {
+  const known = machines.get(on)
+  if (known) return known
+  const machine: Machine = { writes: 0, surfaces: ['terminal'] }
+  machines.set(on, machine)
+  on('store.get', () => (machine.failing === 'get' ? { deny: 'no store' } : { value: machine.skipped }))
   on('store.set', (_, e) => {
+    if (machine.failing === 'set') return { deny: 'no store' }
     machine.skipped = e.value === true
     machine.writes++
     return { value: undefined }
   })
+  on('session.surfaces', () => ({ value: machine.surfaces }))
   return machine
+}
+
+function machineRecorded(on: On, skipped: boolean | undefined): Machine {
+  return Object.assign(engineMachine(on), { skipped })
 }
 
 // Stands in for the engine beneath the plugin, which takes the submission as the plugin passed it on.
 function engineTakesSubmission(on: On) {
+  engineMachine(on)
   on('prompt.submit', ($, e) => e)
 }
 
@@ -309,6 +351,7 @@ function engineEndsTurns(on: On) {
 // while isKeeping.
 function engineHolds(on: On) {
   const engine = { messages: [] as ApiMessage[], isKeeping: true }
+  engineMachine(on)
   on('prompt.submit', (_, e) => {
     if (engine.isKeeping) engine.messages.push(says('user', e.text, ...(e.context ?? [])))
     return e

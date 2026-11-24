@@ -68,22 +68,20 @@ export const register: Register = (on, options) => {
   // Where an organization's plugin sends prompt.compose past this one, the section never reaches
   // the model, and an answered turn with no compose is how that shows.
   on('turn.complete', async ($, e, next) => {
-    if (e.agentId === undefined) {
-      const isAnswer = e.reason === 'answer'
-      const { armed } = await update($, precedence, held =>
-        isAnswer ? { armed: !held?.composed, composed: false } : { ...held, composed: false },
-      )
-      if (isAnswer && armed) await recordSkipped($, true)
+    if (e.agentId === undefined && e.reason === 'answer') {
+      const { armed } = await update($, precedence, held => ({ armed: !held?.composed, composed: false }))
+      // A headless run with its own system prompt has no compose on any machine.
+      if (armed && (await $.session.surfaces()).length > 0) await recordSkipped($, true)
     }
     return next(e)
-  })
+  }).catch(($, e, next) => next(e))
 
   // Armed, a prompt carries the section's text unless the conversation still holds it, which it
-  // doesn't after a compaction. A prompt comes before its turn's compose, so until a turn is
-  // answered the machine's record decides.
+  // doesn't after a compaction. An interactive session's first prompt comes before any compose, so
+  // until this session has a compose or an answered turn, the machine's record decides.
   on('prompt.submit', async ($, e, next) => {
     const { value: state } = await $.state.get(precedence)
-    const isArmed = state?.armed ?? (await $.store.get(COMPOSE_SKIPPED)) === true
+    const isArmed = state?.armed ?? (!state?.composed && (await $.store.get(COMPOSE_SKIPPED)) === true)
     const isDue = isArmed && !(await $.session.messages({ as: 'api' })).some(holdsSection)
     return next(withContext(e, ...(isDue ? [PRECEDENCE.text] : []), REMINDER))
   }).catch(($, e, next) => next(withContext(e, REMINDER)))
