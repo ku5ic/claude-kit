@@ -94,6 +94,7 @@ func TestBashDispatchChecksWhatACommandPosts(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			k := New(t)
+			k.Overlay("claims:\n  timeout: 240\n")
 			r := k.Hook("bash-dispatch", map[string]any{"hook_event_name": "PreToolUse", "session_id": "s1", "cwd": t.TempDir(),
 				"tool_name": "Bash", "tool_input": map[string]any{"command": tc.cmd}})
 			r.Want(t, 0)
@@ -120,6 +121,7 @@ func TestBashEditsChecksAReportACommandWrote(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			k := New(t)
+			k.Overlay("claims:\n  timeout: 240\n")
 			dir := t.TempDir()
 			Write(t, filepath.Join(dir, ".claude", "scratch", tc.file), "# Explore\n\nThe build fails because Foo was renamed in v2.\n")
 			r := k.Hook("bash-edits", map[string]any{"hook_event_name": "PostToolUse", "session_id": "s1", "cwd": dir,
@@ -187,7 +189,7 @@ func TestPromptDispatch(t *testing.T) {
 		t.Fatalf("stdout isn't one JSON object: %v\n%s", err, r.Stdout)
 	}
 	ctx := out.HookSpecificOutput.AdditionalContext
-	if out.HookSpecificOutput.HookEventName != "UserPromptSubmit" || !strings.Contains(ctx, "starts from the investigate skill's findings") || !strings.Contains(ctx, "a claim stands only when a tool checked it") {
+	if out.HookSpecificOutput.HookEventName != "UserPromptSubmit" || !strings.Contains(ctx, "In this project, a plan starts from the investigate skill's findings") || !strings.Contains(ctx, "a claim stands only when you verified it") {
 		t.Errorf("want the plan line and the claims line in one context; got %+v", out.HookSpecificOutput)
 	}
 }

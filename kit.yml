@@ -411,13 +411,13 @@ package_lookups:
 # The claim verifier (go/internal/claims): a claude -p session that checks
 # each factual claim in a text against the session's tool results, and
 # checks what they don't cover with read-only tools. model and budget_usd
-# are passed to it, timeout is its limit in seconds (0 turns it off), and
-# allow names more connector tools it may call; a write tool is never let
-# through.
+# are passed to it, timeout is its limit in seconds (0 turns it off, and the
+# strict preset turns it on), and allow names more connector tools it may
+# call; a write tool is never let through.
 # command replaces the claude call.
 claims:
   model: haiku
-  timeout: 240
+  timeout: 0
   budget_usd: 1
   allow: []
 

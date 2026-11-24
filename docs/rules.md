@@ -10,7 +10,7 @@ Every skill with references lists them in a "Before | Read" table: an action, th
 
 ## Precedence
 
-**The kit's rules win over defaults.** Before dba9678, nothing in the system prompt put the kit's rules ahead of an output style's or the harness's own instructions. The `kit:precedence` section says the kit wins where they conflict. It sits at the top of a thread, and deep in a session the output style's per-prompt reminder is what lands next to the prompt, so the mod also puts a one-line `kit:` reminder on every prompt (db39bb3).
+**The kit's rules win over defaults.** Before dba9678, nothing in the system prompt put the kit's rules ahead of an output style's or the harness's own instructions. The `kit:precedence` section says the kit wins where they conflict. It sits at the top of a thread, and deep in a session the output style's per-prompt reminder is what lands next to the prompt, so the mod also puts a one-line `kit:` reminder on every prompt (db39bb3). On a Team or Enterprise org, or with managed settings, Claude Code can skip the mod's `prompt.compose` hook, so a prompt carries the section's text once, and again after a compaction (94732ed). In a new session or after `/clear`, that's the first prompt once an interactive session on the machine has recorded the skip, else the first prompt after an answered turn (54e2580).
 
 ## Output
 
@@ -30,7 +30,7 @@ Every skill with references lists them in a "Before | Read" table: an action, th
 
 ## Evidence
 
-**Check it or don't say it.** Up to 0.9.0 the rule was "check it or label it", with four confidence labels (`verified`, `likely`, `hypothesis`, `unknown`) and a provenance axis. In practice a label became a way to state an unchecked fact while looking careful, and the reader still had to do the check. A fact about the code, a version, or a result is now checked or left out. On 2026-11-21 the author dropped the last labels, since an idea offered as `likely` or `hypothesis` still handed the reader a guess to check.
+**Check it or don't say it.** Up to 0.9.0 the rule was "check it or label it", with four confidence labels (`verified`, `likely`, `hypothesis`, `unknown`) and a provenance axis. In practice a label became a way to state an unchecked fact while looking careful, and the reader still had to do the check. A fact about the code, a version, or a result is now checked or left out. On 2026-11-21 the author dropped the last labels, since an idea offered as `likely` or `hypothesis` still handed the reader a guess to check. On 2026-11-24 the rule stopped saying a tool had checked the claim: Claude had read a file with a tool, then cited a line number it assumed. The source has to show the claim.
 
 **Every statement, and its supporting detail.** From the same company page. A reader of a plan or report takes each line as checked, not only the conclusion, so a wrong number or a wrong "already does" list misleads as much as a wrong conclusion.
 
@@ -40,7 +40,7 @@ Every skill with references lists them in a "Before | Read" table: an action, th
 
 **A test failing after a refactor.** Adjusting the assertion to match the new output silently is the failure mode. A test asserting user-visible output is almost always guarding real behavior.
 
-**Enforced by hooks.** The claims hook (`go/internal/hooks/claims.go`) sends back unconfirmed claims in a plan, a subagent report, an investigation, review, `audit-*`, or `code-*` report in scratch, or a connector post. A chat reply gets only the no-model pass at Stop, on its bare `file:line`, paths, SHAs, and symbols, and is corrected on the next turn (c292b51), which is why the rule itself has to hold for the rest.
+**Enforced by hooks.** With the strict preset, the claims hook (`go/internal/hooks/claims.go`) sends back unconfirmed claims in a plan, a subagent report, an investigation, review, `audit-*`, or `code-*` report in scratch, or a connector post. A chat reply then gets only the no-model pass at Stop, on its bare `file:line`, paths, SHAs, and symbols, and is corrected on the next turn (c292b51), which is why the rule itself has to hold for the rest.
 
 ## Change
 

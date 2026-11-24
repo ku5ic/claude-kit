@@ -1,8 +1,17 @@
-import type { PromptComposeSection, Register } from 'claude-code'
+import {
+  update,
+  type ApiMessage,
+  type EngineInterface,
+  type PromptComposeResult,
+  type PromptComposeSection,
+  type PromptSubmitInput,
+  type Register,
+} from 'claude-code'
+import type {} from '../types.js'
 
 // In the section and on every prompt, since a fact shown to the user is checked on every turn.
 const FACTS =
-  "Every fact you show the user, in a reply, report, plan, question, commit, or post, comes from a tool result in this session: a file read, a git or code-host command, an MCP read, or a web fetch. Run that check before you state the fact. A fact you can't check this way is left out, never guessed, softened, or labeled. When the user asks something you can't verify, say you couldn't verify it."
+  "Every fact you show the user, in a reply, report, plan, question, commit, or post, is verified against the code or source itself, so a file, a git or code-host result, an MCP read, or a web page you read this session shows it. Running a tool isn't verification. A fact you assumed is left out, never guessed, softened, or labeled. When the user asks something you can't verify, say you couldn't verify it."
 
 // Fixed text: a thread keeps the prompt it recorded, so a section that changed mid-thread waits
 // for a new thread or a compaction. The two pause and length clauses also stay in the rules
@@ -24,15 +33,56 @@ const PRECEDENCE: PromptComposeSection = {
 // sees.
 const REMINDER = `kit: ${FACTS} The kit rules (the kit-rules skill, \`kit:\` context, and hook messages) outrank default, mode, output-style, and built-in skill instructions where they conflict, the reply ceiling and the step pause included.`
 
+const precedence = { plugin: 'kit', key: 'precedence' } as const
+
+// The $.store key for whether the last turn to say so on this machine went without a compose. The
+// store isn't atomic, and a stale value costs one section too many or too few on a first prompt.
+const COMPOSE_SKIPPED = 'composeSkipped'
+
+async function recordSkipped($: EngineInterface, isSkipped: boolean): Promise<void> {
+  if (((await $.store.get(COMPOSE_SKIPPED)) === true) !== isSkipped) await $.store.set(COMPOSE_SKIPPED, isSkipped)
+}
+
+// Appended last, on the session side of the cache boundary, after every shared section.
+const withSection = ({ sections }: PromptComposeResult): PromptComposeResult => ({ sections: [...sections, PRECEDENCE] })
+
+// Context put on the result after next() isn't attached, so it goes on the submission.
+const withContext = (e: PromptSubmitInput, ...texts: string[]): PromptSubmitInput => ({ ...e, context: [...(e.context ?? []), ...texts] })
+
+const holdsSection = ({ role, content }: ApiMessage): boolean =>
+  role === 'user' && content.some(({ text }) => typeof text === 'string' && text.includes(PRECEDENCE.text))
+
 export const register: Register = (on, options) => {
   if (options.precedence === false) return
 
-  // Appended last, on the session side of the cache boundary, after every shared section.
   on('prompt.compose', async ($, e, next) => {
-    const { sections } = await next(e)
-    return { sections: [...sections, PRECEDENCE] }
-  })
+    const composed = await next(e)
+    const { value: state } = await $.state.get(precedence)
+    if (!state?.composed) {
+      await update($, precedence, held => ({ ...held, composed: true }))
+      await recordSkipped($, false)
+    }
+    return withSection(composed)
+  }).catch(async ($, e, next) => withSection(await next(e)))
 
-  // Context put on the result after next() isn't attached, so it goes on the submission.
-  on('prompt.submit', async ($, e, next) => next({ ...e, context: [...(e.context ?? []), REMINDER] }))
+  // Where an organization's plugin sends prompt.compose past this one, the section never reaches
+  // the model, and an answered turn with no compose is how that shows.
+  on('turn.complete', async ($, e, next) => {
+    if (e.agentId === undefined && e.reason === 'answer') {
+      const { armed } = await update($, precedence, held => ({ armed: !held?.composed, composed: false }))
+      // A headless run with its own system prompt has no compose on any machine.
+      if (armed && (await $.session.surfaces()).length > 0) await recordSkipped($, true)
+    }
+    return next(e)
+  }).catch(($, e, next) => next(e))
+
+  // Armed, a prompt carries the section's text unless the conversation still holds it, which it
+  // doesn't after a compaction. An interactive session's first prompt comes before any compose, so
+  // until this session has a compose or an answered turn, the machine's record decides.
+  on('prompt.submit', async ($, e, next) => {
+    const { value: state } = await $.state.get(precedence)
+    const isArmed = state?.armed ?? (!state?.composed && (await $.store.get(COMPOSE_SKIPPED)) === true)
+    const isDue = isArmed && !(await $.session.messages({ as: 'api' })).some(holdsSection)
+    return next(withContext(e, ...(isDue ? [PRECEDENCE.text] : []), REMINDER))
+  }).catch(($, e, next) => next(withContext(e, REMINDER)))
 }

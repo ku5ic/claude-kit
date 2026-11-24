@@ -1,10 +1,10 @@
 {
   "name": "kit",
-  "description": "Ship with confidence. Runs your rules as hooks, so Claude Code backs its claims, passes your project's own checks before it says done, and stops for your review after every step. Stack skills load on their own, and 46 commands cover the work around the code: audits, ADRs and RFCs, PR reviews, your review queue, dependency PRs, incident retros and runbooks.",
+  "description": "Ship with confidence. Runs your rules as hooks, so Claude Code passes your project's own checks before it says done, and stops for your review after every step. Stack skills load on their own, and 46 commands cover the work around the code: audits, ADRs and RFCs, PR reviews, your review queue, dependency PRs, incident retros and runbooks.",
   "author": {
     "name": "Sinisa Kusic"
   },
-  "version": "0.13.0",
+  "version": "0.13.1",
   "repository": "https://github.com/ku5ic/claude-kit",
   "license": "MIT",
   "engines": {
@@ -15,7 +15,7 @@
     "preset": {
       "type": "string",
       "title": "Kit: preset",
-      "description": "A set of kit settings under one name. standard: the kit as shipped. light: fewer stops, one review per plan, no plan-critic or claim-check passes, no skill nudges. strict: pattern skills required before the first edit of a file type, and ASCII typography. default: your overlay's preset, else none.",
+      "description": "A set of kit settings under one name. standard: the kit as shipped. light: fewer stops, one review per plan, no plan-critic pass, no skill nudges. strict: pattern skills required before the first edit of a file type, ASCII typography, and the claims in plans, reports, and posts checked before they go out. default: your overlay's preset, else none.",
       "options": ["default", "standard", "light", "strict"],
       "default": "default"
     },

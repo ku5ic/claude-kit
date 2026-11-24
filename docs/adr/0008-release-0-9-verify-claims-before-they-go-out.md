@@ -6,6 +6,8 @@ Date: 2026-11-10
 
 Accepted
 
+Amended by [14. Release 0.13.1: claim checks in the strict preset](0014-release-0-13-1-claim-checks-in-the-strict-preset.md)
+
 ## Context
 
 This record replaces the former ADR 14, and its sources are that record's. The kit caught bad diffs but not bad statements (PR #15). A plan, a subagent report, or a post to Slack could state something nothing in the session backed up.

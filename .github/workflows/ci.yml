@@ -101,7 +101,7 @@ jobs:
       # Not in Dependabot: bump it by hand when a Claude Code release changes
       # what claude plugin validate checks.
       - name: Install Claude Code CLI
-        run: npm install -g @anthropic-ai/claude-code@2.1.326
+        run: npm install -g @anthropic-ai/claude-code@2.1.330
 
       # Validate reports a type error in mods/ as a warning, and --strict would
       # also fail on the root CLAUDE.md warning, so type errors are failed here.

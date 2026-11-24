@@ -74,6 +74,7 @@ func TestChatClaims(t *testing.T) {
 		p["cwd"] = dir
 		return p
 	}
+	k.overlay("claims:\n  timeout: 240\n")
 	k.run("chat-claims", reply("See `src/stop.go:40`.")).Empty(t)
 	r := k.run("chat-claims", chatPrompt)
 	r.Has(t, "src/stop.go:40", "Open your next reply with the corrected fact")

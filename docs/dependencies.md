@@ -18,7 +18,7 @@ Without these the kit doesn't run. A fresh install doesn't always have them:
 
 Without a downloaded binary, the hooks let everything through and session start says why.
 
-The kit needs Claude Code 2.1.323 or later, set in `.claude-plugin/plugin.json` `engines`. CI tests against 2.1.326.
+The kit needs Claude Code 2.1.323 or later, set in `.claude-plugin/plugin.json` `engines`. CI tests against 2.1.330.
 
 ## Optional
 
@@ -47,4 +47,4 @@ A missing one, except `glab` and `claude`, is named on the session-start `<tooli
 | `yq`         | YAML and TOML questions                                                                                                             | Claude reads the file instead                                                                                |
 | `qsv`        | CSV and TSV questions                                                                                                               | Claude reads the file instead                                                                                |
 | `git-absorb` | fixup commits from staged hunks                                                                                                     | `git rebase -i` with fixups instead                                                                          |
-| `claude`     | gap-fill sorting your CI and hook commands, and the claim check on plans, reports, and posts                                        | those commands are skipped and named, and the claims go unchecked                                            |
+| `claude`     | gap-fill sorting your CI and hook commands, and, with the strict preset, the claim check on plans, reports, and posts               | those commands are skipped and named, and the claims go unchecked                                            |

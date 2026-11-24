@@ -18,6 +18,10 @@ import (
 
 const claim = "The build fails because Foo was renamed in v2."
 
+// verifierOn is the overlay block that turns the verifier on, which kit.yml
+// leaves off, with a stub's path as its command.
+const verifierOn = "claims:\n  timeout: 240\n  command: [%q]\n"
+
 // verifier points kit.yml's claims.command at a stub answering every run
 // with a verdict naming unconfirmed (none: ok), and writes the overlay
 // with extra. It returns the stub's calls file.
@@ -33,7 +37,7 @@ func (k *sandbox) verifier(extra string, unconfirmed ...string) string {
 	testutil.Write(k.t, filepath.Join(dir, "answer"), string(answer))
 	stub, calls := filepath.Join(dir, "verifier"), filepath.Join(dir, "calls")
 	testutil.FakeTool(k.t, stub, calls, fmt.Sprintf("cat >/dev/null\ncat %q", filepath.Join(dir, "answer")))
-	k.overlay(fmt.Sprintf("claims:\n  command: [%q]\n%s", stub, extra))
+	k.overlay(fmt.Sprintf(verifierOn, stub) + extra)
 	return calls
 }
 
@@ -350,7 +354,7 @@ func TestVerifyClaimsMissingAgentTranscriptFallsBack(t *testing.T) {
 	testutil.Write(t, filepath.Join(dir, "answer"), string(answer))
 	stdin, stub := filepath.Join(dir, "stdin"), filepath.Join(dir, "verifier")
 	testutil.FakeTool(t, stub, filepath.Join(dir, "calls"), fmt.Sprintf("cat >%q\ncat %q", stdin, filepath.Join(dir, "answer")))
-	k.overlay(fmt.Sprintf("claims:\n  command: [%q]\n", stub))
+	k.overlay(fmt.Sprintf(verifierOn, stub))
 	main := filepath.Join(dir, "sess.jsonl")
 	testutil.Write(t, main, `{"type":"user","message":{"content":"parent prompt"}}`+"\n")
 	payload := subagentStop("a1", claim, false)
@@ -389,7 +393,7 @@ func TestVerifyClaimsInsideASubagentUsesItsTranscript(t *testing.T) {
 			testutil.Write(t, filepath.Join(dir, "answer"), string(answer))
 			stdin, stub := filepath.Join(dir, "stdin"), filepath.Join(dir, "verifier")
 			testutil.FakeTool(t, stub, filepath.Join(dir, "calls"), fmt.Sprintf("cat >%q\ncat %q", stdin, filepath.Join(dir, "answer")))
-			k.overlay(fmt.Sprintf("claims:\n  command: [%q]\n", stub))
+			k.overlay(fmt.Sprintf(verifierOn, stub))
 			main := filepath.Join(dir, "sess.jsonl")
 			testutil.Write(t, main, `{"type":"user","message":{"content":"parent prompt"}}`+"\n")
 			testutil.Write(t, filepath.Join(dir, "sess", "subagents", "agent-a1.jsonl"), `{"type":"user","isSidechain":true,"message":{"content":"agent prompt"}}`+"\n")
@@ -516,7 +520,7 @@ func TestVerifyClaimsFailsOpen(t *testing.T) {
 		k := newSandbox(t)
 		stub := filepath.Join(t.TempDir(), "verifier")
 		testutil.FakeTool(t, stub, filepath.Join(t.TempDir(), "calls"), "cat >/dev/null\nexit 1")
-		k.overlay(fmt.Sprintf("claims:\n  command: [%q]\n", stub))
+		k.overlay(fmt.Sprintf(verifierOn, stub))
 		r := k.run("verify-claims", subagentStop("a1", claim, false))
 		r.Want(t, 2)
 		r.Has(t, "BLOCKED", "the verifier failed", "check each claim with a tool yourself")
@@ -531,7 +535,7 @@ func TestVerifyClaimsFailsOpen(t *testing.T) {
 		k := newSandbox(t)
 		stub, calls := filepath.Join(t.TempDir(), "verifier"), filepath.Join(t.TempDir(), "calls")
 		testutil.FakeTool(t, stub, calls, "cat >/dev/null\nexit 1")
-		k.overlay(fmt.Sprintf("claims:\n  command: [%q]\n", stub))
+		k.overlay(fmt.Sprintf(verifierOn, stub))
 		k.run("verify-claims", subagentStop("a1", claim, false)).Has(t, "the verifier failed")
 		r := k.run("verify-claims", subagentStop("a2", "The cache lives in the session directory.", false))
 		r.Want(t, 2)
@@ -547,7 +551,7 @@ func TestVerifyClaimsFailsOpen(t *testing.T) {
 		stub := filepath.Join(t.TempDir(), "verifier")
 		testutil.FakeTool(t, stub, filepath.Join(t.TempDir(), "calls"),
 			`cat >/dev/null; echo '{"is_error":false,"structured_output":{"ok":true,"unsupported":[]},"total_cost_usd":0.62,"duration_ms":9009}'`)
-		k.overlay(fmt.Sprintf("claims:\n  command: [%q]\n", stub))
+		k.overlay(fmt.Sprintf(verifierOn, stub))
 		k.run("verify-claims", subagentStop("a1", claim, false)).Want(t, 0)
 		if log := read(t, k.paths.LogFile(kitlog.Guards)); !strings.Contains(log, `"cost_usd":"0.6200","duration_ms":"9009"`) {
 			t.Errorf("guards log lacks the cost:\n%s", log)
@@ -559,17 +563,24 @@ func TestVerifyClaimsFailsOpen(t *testing.T) {
 		k.verifier("disabled_rules: [claims]\n", claim)
 		k.run("verify-claims", subagentStop("a1", claim, false)).Want(t, 0)
 	})
-	t.Run("timeout 0 turns the verifier off", func(t *testing.T) {
-		t.Parallel()
-		k := newSandbox(t)
-		calls := k.verifier("  timeout: 0\n", claim)
-		r := k.run("verify-claims", subagentStop("a1", claim, false))
-		r.Want(t, 0)
-		r.Empty(t)
-		if got := testutil.Calls(t, calls); got != nil {
-			t.Errorf("verifier ran: %q", got)
-		}
-	})
+	for preset, runs := range map[string]int{"standard": 0, "light": 0, "strict": 1} {
+		t.Run("the verifier on the "+preset+" preset", func(t *testing.T) {
+			t.Parallel()
+			k := newSandbox(t)
+			calls := k.verifier("", claim)
+			k.overlay(fmt.Sprintf("preset: %s\nclaims:\n  command: [%q]\n", preset, filepath.Join(filepath.Dir(calls), "verifier")))
+			r := k.run("verify-claims", subagentStop("a1", claim, false))
+			if runs == 0 {
+				r.Want(t, 0)
+				r.Empty(t)
+			} else {
+				r.Has(t, "BLOCKED", claim)
+			}
+			if got := len(testutil.Calls(t, calls)); got != runs {
+				t.Errorf("verifier ran %d times, want %d", got, runs)
+			}
+		})
+	}
 }
 
 func TestClaimsMessageClipsByCharacter(t *testing.T) {
