@@ -4,7 +4,7 @@
   "author": {
     "name": "Sinisa Kusic"
   },
-  "version": "0.13.0",
+  "version": "0.13.1",
   "repository": "https://github.com/ku5ic/claude-kit",
   "license": "MIT",
   "engines": {
@@ -15,7 +15,7 @@
     "preset": {
       "type": "string",
       "title": "Kit: preset",
-      "description": "A set of kit settings under one name. standard: the kit as shipped. light: fewer stops, one review per plan, no plan-critic or claim-check passes, no skill nudges. strict: pattern skills required before the first edit of a file type, and ASCII typography. default: your overlay's preset, else none.",
+      "description": "A set of kit settings under one name. standard: the kit as shipped. light: fewer stops, one review per plan, no plan-critic pass, no skill nudges. strict: pattern skills required before the first edit of a file type, ASCII typography, and the claims in plans, reports, and posts checked before they go out. default: your overlay's preset, else none.",
       "options": ["default", "standard", "light", "strict"],
       "default": "default"
     },

@@ -155,8 +155,9 @@ func TestMergedNamesWhereEachKeyCameFrom(t *testing.T) {
 	}
 }
 
-// The shipped presets hold only keys kit.yml knows, and the strict one turns
-// both opt-in guards on.
+// The shipped presets hold only keys kit.yml knows. Only the strict one turns
+// the opt-in guards and the claim verifier on, and none disables the claims
+// rule, whose per-prompt line stays.
 func TestShippedPresetsLoadCleanly(t *testing.T) {
 	root, err := filepath.Abs("../../..")
 	if err != nil {
@@ -177,6 +178,9 @@ func TestShippedPresetsLoadCleanly(t *testing.T) {
 		}
 		if name == "strict" && (!cfg.GuardSkills || !cfg.SanitizeTypography) {
 			t.Errorf("strict: guard_skills=%v sanitize_typography=%v", cfg.GuardSkills, cfg.SanitizeTypography)
+		}
+		if off := cfg.Claims.Off(); off != (name != "strict") || slices.Contains(cfg.DisabledRules, "claims") {
+			t.Errorf("%s: claims off=%v disabled_rules=%v", name, off, cfg.DisabledRules)
 		}
 	}
 }

@@ -4,7 +4,7 @@
 
 Each command is a procedure Claude follows step by step, so the same request gets the same shape of answer every time. Only you start one, by typing it. A command may run another's procedure as one of its steps. Each is its own entry in the `/` menu, so typing `/audit` lists every audit with what it does. They work bare (`/audit-perf`) or namespaced (`/kit:audit-perf`).
 
-Every command detects your stack, your code host (GitHub through `gh`, GitLab through `glab`, else the host's MCP connector), and the tools you've connected, and asks when it can't tell. Audit and code commands are read-only on your repo: each writes a report to `.claude/scratch/`, and the claim checker checks it before you see it. An audit then offers the read-only checks that need a running system, such as `tofu plan` or axe on a running page, and runs the ones you pick.
+Every command detects your stack, your code host (GitHub through `gh`, GitLab through `glab`, else the host's MCP connector), and the tools you've connected, and asks when it can't tell. Audit and code commands are read-only on your repo: each writes a report to `.claude/scratch/`, and with the `strict` preset the claim checker checks it before you see it. An audit then offers the read-only checks that need a running system, such as `tofu plan` or axe on a running page, and runs the ones you pick.
 
 `investigate` isn't on this list because Claude loads it on its own when you ask how, why, or where something works: [docs/skills.md](skills.md).
 

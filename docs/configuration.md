@@ -6,41 +6,41 @@ The common dials are rows in Claude Code's `/config` ([From `/config`](#from-con
 
 ## Common changes
 
-| You want                                                                                | Set                                                       |
-| --------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| Fewer stops: one review per plan, no plan-critic or claim-check passes, no skill nudges | `preset: light`, or the Kit: preset row                   |
-| The kit as shipped                                                                      | Nothing, or `preset: standard`                            |
-| Pattern skills required before the first edit of a file type, and ASCII typography      | `preset: strict`                                          |
-| Claude never to push to a branch                                                        | `protected_branches: [staging]`                           |
-| One guard rule let through                                                              | `disabled_rules: [<slug>]`, the slug `kit explain` prints |
-| One review at the end of a plan instead of after each step                              | `step_pause: plan`, or the Kit: step pause row            |
-| Longer chat replies                                                                     | `reply_length: moderate`, or the Kit: reply length row    |
-| A check gate off                                                                        | `disabled_checks: [<kind or label>]`                      |
-| A file type formatted that your project's own fixers don't claim                        | `on_edit`                                                 |
-| More credential files guarded                                                           | `sensitive_paths`                                         |
+| You want                                                                                           | Set                                                       |
+| -------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| Fewer stops: one review per plan, no plan-critic pass, no skill nudges                             | `preset: light`, or the Kit: preset row                   |
+| The kit as shipped                                                                                 | Nothing, or `preset: standard`                            |
+| Pattern skills required before the first edit of a file type, ASCII typography, and claims checked | `preset: strict`                                          |
+| Claude never to push to a branch                                                                   | `protected_branches: [staging]`                           |
+| One guard rule let through                                                                         | `disabled_rules: [<slug>]`, the slug `kit explain` prints |
+| One review at the end of a plan instead of after each step                                         | `step_pause: plan`, or the Kit: step pause row            |
+| Longer chat replies                                                                                | `reply_length: moderate`, or the Kit: reply length row    |
+| A check gate off                                                                                   | `disabled_checks: [<kind or label>]`                      |
+| A file type formatted that your project's own fixers don't claim                                   | `on_edit`                                                 |
+| More credential files guarded                                                                      | `sensitive_paths`                                         |
 
 ## On by default, and what you switch on
 
-| Feature                                                                                                          | Default  | Needs, or how to change it                                                                           |
-| ---------------------------------------------------------------------------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------- |
-| Guards, checks before "done", formatting, context, rules                                                         | On       | Nothing. Each guard rule can be let through with `disabled_rules`                                    |
-| Gap-fill: a small model sorts what your configs leave open                                                       | On       | The `claude` CLI, logged in. Haiku, capped at $0.50 a call, cached per repo                          |
-| Claim checker                                                                                                    | On       | For plans, reports, and posts, the `claude` CLI, logged in. Turn off with `disabled_rules: [claims]` |
-| plan-critic before a plan is approved                                                                            | On       | Turn off with `disabled_rules: [plan-critic]`                                                        |
-| Scratch files past 30 days pruned once a day at session start                                                    | On       | Turn off with `disabled_rules: [scratch-rotate]`                                                     |
-| kit-rules and every `global_skills` skill loaded before the first tool call                                      | On       | Turn off with `disabled_rules: [rules-gate]`                                                         |
-| A finished plan held until `/code-review` ran after its last edit                                                | On       | Turn off with `disabled_rules: [plan-done]`                                                          |
-| A `/code-review` report saved to scratch before Claude asks or stops                                             | On       | Turn off with `disabled_rules: [review-report]`                                                      |
-| Code edits held after a `/code-review` until you pick which findings to fix                                      | On       | Turn off with `disabled_rules: [review-pick]`                                                        |
-| Claude stops for your review after each plan step                                                                | On       | `step_pause: plan` stops once at the plan's end, `off` never stops                                   |
-| Pattern skills required before the first edit of a file type                                                     | Off      | `guard_skills: true`, or `CLAUDE_GUARD_SKILLS=1` in your settings `env`                              |
-| Em dashes, smart quotes, and Unicode arrows rewritten to ASCII                                                   | Off      | `sanitize_typography: true`, or `CLAUDE_SANITIZE_TYPOGRAPHY=1` in your settings `env`                |
-| Status line                                                                                                      | Off      | One line in `~/.claude/settings.json` ([Status line](cli.md#status-line))                            |
-| Subagent rows: status, model, effort, and the tool each agent is running                                         | On       | Turn off with the `subagent_rows` option in `/plugin` config ([Subagent rows](cli.md#subagent-rows)) |
-| A system-prompt section and a per-prompt reminder putting the kit's rules ahead of default and mode instructions | On       | Turn off with the `precedence` option in `/plugin` config                                            |
-| `/kit-stats`, which prints `kit stats` ([Commands](commands.md))                                                 | On       | Turn off with the `kit_stats` option in `/plugin` config                                             |
-| `kit` in your own terminal                                                                                       | Off      | PATH and completion in your shell rc ([Shell completion](cli.md#in-your-own-terminal))               |
-| claude.ai chat                                                                                                   | Separate | Upload the release's chat zip ([Use it in claude.ai chat](chat.md))                                  |
+| Feature                                                                                                          | Default  | Needs, or how to change it                                                                                    |
+| ---------------------------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------- |
+| Guards, checks before "done", formatting, context, rules                                                         | On       | Nothing. Each guard rule can be let through with `disabled_rules`                                             |
+| Gap-fill: a small model sorts what your configs leave open                                                       | On       | The `claude` CLI, logged in. Haiku, capped at $0.50 a call, cached per repo                                   |
+| Claim checker                                                                                                    | Off      | `preset: strict`, or `claims: {timeout: 240}`, and the `claude` CLI, logged in, for plans, reports, and posts |
+| plan-critic before a plan is approved                                                                            | On       | Turn off with `disabled_rules: [plan-critic]`                                                                 |
+| Scratch files past 30 days pruned once a day at session start                                                    | On       | Turn off with `disabled_rules: [scratch-rotate]`                                                              |
+| kit-rules and every `global_skills` skill loaded before the first tool call                                      | On       | Turn off with `disabled_rules: [rules-gate]`                                                                  |
+| A finished plan held until `/code-review` ran after its last edit                                                | On       | Turn off with `disabled_rules: [plan-done]`                                                                   |
+| A `/code-review` report saved to scratch before Claude asks or stops                                             | On       | Turn off with `disabled_rules: [review-report]`                                                               |
+| Code edits held after a `/code-review` until you pick which findings to fix                                      | On       | Turn off with `disabled_rules: [review-pick]`                                                                 |
+| Claude stops for your review after each plan step                                                                | On       | `step_pause: plan` stops once at the plan's end, `off` never stops                                            |
+| Pattern skills required before the first edit of a file type                                                     | Off      | `guard_skills: true`, or `CLAUDE_GUARD_SKILLS=1` in your settings `env`                                       |
+| Em dashes, smart quotes, and Unicode arrows rewritten to ASCII                                                   | Off      | `sanitize_typography: true`, or `CLAUDE_SANITIZE_TYPOGRAPHY=1` in your settings `env`                         |
+| Status line                                                                                                      | Off      | One line in `~/.claude/settings.json` ([Status line](cli.md#status-line))                                     |
+| Subagent rows: status, model, effort, and the tool each agent is running                                         | On       | Turn off with the `subagent_rows` option in `/plugin` config ([Subagent rows](cli.md#subagent-rows))          |
+| A system-prompt section and a per-prompt reminder putting the kit's rules ahead of default and mode instructions | On       | Turn off with the `precedence` option in `/plugin` config                                                     |
+| `/kit-stats`, which prints `kit stats` ([Commands](commands.md))                                                 | On       | Turn off with the `kit_stats` option in `/plugin` config                                                      |
+| `kit` in your own terminal                                                                                       | Off      | PATH and completion in your shell rc ([Shell completion](cli.md#in-your-own-terminal))                        |
+| claude.ai chat                                                                                                   | Separate | Upload the release's chat zip ([Use it in claude.ai chat](chat.md))                                           |
 
 ## From `/config`
 
@@ -111,11 +111,11 @@ Defaults live in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml
 
 A preset is a set of these keys under a name. Put `preset: <name>` in your overlay, and its file merges between `kit.yml` and your overlay, so your own keys still win. Each file in [`presets/`](../presets) is a few lines:
 
-| Preset     | Sets                                                                                                                        |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `light`    | `step_pause: plan`, `disabled_rules: [plan-critic, claims, skills-nudge]`: one stop per plan, fewer passes, no skill nudges |
-| `standard` | Nothing: `kit.yml` as it is                                                                                                 |
-| `strict`   | `guard_skills: true`, `sanitize_typography: true`: both opt-in guards on                                                    |
+| Preset     | Sets                                                                                                                       |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `light`    | `step_pause: plan`, `disabled_rules: [plan-critic, skills-nudge]`: one stop per plan, no plan-critic pass, no skill nudges |
+| `standard` | Nothing: `kit.yml` as it is                                                                                                |
+| `strict`   | `guard_skills: true`, `sanitize_typography: true`, `claims.timeout: 240`: both opt-in guards and the claim checker on      |
 
 `CLAUDE_GUARD_SKILLS=1` and `CLAUDE_SANITIZE_TYPOGRAPHY=1` in your settings `env` still turn those two guards on.
 

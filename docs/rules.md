@@ -40,7 +40,7 @@ Every skill with references lists them in a "Before | Read" table: an action, th
 
 **A test failing after a refactor.** Adjusting the assertion to match the new output silently is the failure mode. A test asserting user-visible output is almost always guarding real behavior.
 
-**Enforced by hooks.** The claims hook (`go/internal/hooks/claims.go`) sends back unconfirmed claims in a plan, a subagent report, an investigation, review, `audit-*`, or `code-*` report in scratch, or a connector post. A chat reply gets only the no-model pass at Stop, on its bare `file:line`, paths, SHAs, and symbols, and is corrected on the next turn (c292b51), which is why the rule itself has to hold for the rest.
+**Enforced by hooks.** With the strict preset, the claims hook (`go/internal/hooks/claims.go`) sends back unconfirmed claims in a plan, a subagent report, an investigation, review, `audit-*`, or `code-*` report in scratch, or a connector post. A chat reply then gets only the no-model pass at Stop, on its bare `file:line`, paths, SHAs, and symbols, and is corrected on the next turn (c292b51), which is why the rule itself has to hold for the rest.
 
 ## Change
 
