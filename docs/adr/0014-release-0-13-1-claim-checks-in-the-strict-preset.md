@@ -8,8 +8,6 @@ Accepted
 
 Amends [8. Release 0.9: verify claims before they go out](0008-release-0-9-verify-claims-before-they-go-out.md)
 
-Amends [13. Release 0.13: kit rules outrank harness defaults, and the guards' holes closed](0013-release-0-13-kit-rules-outrank-harness-defaults-and-the-guards-holes-closed.md)
-
 ## Context
 
 Sources are `kit.yml`, `presets/`, and the files named below.
@@ -22,7 +20,6 @@ Sources are `kit.yml`, `presets/`, and the files named below.
 - `kit.yml` sets `claims.timeout: 0`, so the claims hook checks nothing by default. `presets/strict.yml` sets it to 240, which turns on every check ADR 13 describes.
 - The per-prompt line and the evidence rule stay on in every preset. `presets/light.yml` no longer disables the `claims` rule, so it keeps the line too.
 - `kit:claim-checker` still runs when the user asks for a fact-check.
-- Following up ADR 13's `mods/precedence`, when a main-loop turn is answered and `prompt.compose` never ran, the next prompt's context carries the section's text once, and again after a compaction or `/clear` (`94732ed`).
 
 ## Consequences
 

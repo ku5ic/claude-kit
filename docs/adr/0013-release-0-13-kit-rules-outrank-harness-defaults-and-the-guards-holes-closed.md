@@ -10,8 +10,6 @@ Amends [12. Release 0.12.1: mods for what the kit draws](0012-release-0-12-1-mod
 
 Amends [6. Release 0.5: hooks run the gates](0006-release-0-5-hooks-run-the-gates.md)
 
-Amended by [14. Release 0.13.1: claim checks in the strict preset](0014-release-0-13-1-claim-checks-in-the-strict-preset.md)
-
 ## Context
 
 Sources are the commits on `feat/release-0-13-0-kit-rules-outrank-harness-defaults`, each named where it's used, and the files they change.
