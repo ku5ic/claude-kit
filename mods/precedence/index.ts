@@ -1,4 +1,11 @@
-import { update, type PromptComposeResult, type PromptComposeSection, type PromptSubmitInput, type Register } from 'claude-code'
+import {
+  update,
+  type ApiMessage,
+  type PromptComposeResult,
+  type PromptComposeSection,
+  type PromptSubmitInput,
+  type Register,
+} from 'claude-code'
 import type {} from '../types.js'
 
 // In the section and on every prompt, since a fact shown to the user is checked on every turn.
@@ -27,22 +34,14 @@ const REMINDER = `kit: ${FACTS} The kit rules (the kit-rules skill, \`kit:\` con
 
 const precedence = { plugin: 'kit', key: 'precedence' } as const
 
-// What $.session.messages returns at most. At it the window slides, so the first message changes
-// with no compaction.
-const MESSAGE_CAP = 4096
-
 // Appended last, on the session side of the cache boundary, after every shared section.
 const withSection = ({ sections }: PromptComposeResult): PromptComposeResult => ({ sections: [...sections, PRECEDENCE] })
 
 // Context put on the result after next() isn't attached, so it goes on the submission.
 const withContext = (e: PromptSubmitInput, ...texts: string[]): PromptSubmitInput => ({ ...e, context: [...(e.context ?? []), ...texts] })
 
-// Over the whole text, since two compaction summaries open with the same words.
-function hash(text: string): number {
-  let h = 0
-  for (let i = 0; i < text.length; i++) h = (Math.imul(h, 31) + text.charCodeAt(i)) | 0
-  return h
-}
+const holdsSection = ({ role, content }: ApiMessage): boolean =>
+  role === 'user' && content.some(({ text }) => typeof text === 'string' && text.includes(PRECEDENCE.text))
 
 export const register: Register = (on, options) => {
   if (options.precedence === false) return
@@ -50,33 +49,25 @@ export const register: Register = (on, options) => {
   on('prompt.compose', async ($, e, next) => {
     const composed = await next(e)
     const { value: state } = await $.state.get(precedence)
-    if (!state?.composed) await update($, precedence, held => ({ ...held, composed: true as const }))
+    if (!state?.composed) await update($, precedence, held => ({ armed: held?.armed ?? false, composed: true }))
     return withSection(composed)
   }).catch(async ($, e, next) => withSection(await next(e)))
 
   // Where an organization's plugin sends prompt.compose past this one, the section never reaches
   // the model, and an answered turn with no compose is how that shows.
   on('turn.complete', async ($, e, next) => {
-    if (e.agentId === undefined && e.reason === 'answer') {
-      const { value: state } = await $.state.get(precedence)
-      if (!state?.composed && !state?.armed) await update($, precedence, held => ({ ...held, armed: true as const }))
+    if (e.agentId === undefined) {
+      const isAnswer = e.reason === 'answer'
+      await update($, precedence, held => ({ armed: isAnswer ? !held?.composed : (held?.armed ?? false), composed: false }))
     }
     return next(e)
   })
 
-  // Armed, the section's text rides one prompt, and one more each time a compaction or /clear
-  // gives the conversation a new first message.
+  // Armed, a prompt carries the section's text unless the conversation still holds it, which it
+  // doesn't after a compaction.
   on('prompt.submit', async ($, e, next) => {
     const { value: state } = await $.state.get(precedence)
-    if (!state?.armed || e.command) return next(withContext(e, REMINDER))
-
-    const messages = await $.session.messages({ as: 'api' })
-    const head = hash(JSON.stringify(messages[0] ?? null))
-    const isSlid = state.head !== undefined && messages.length >= MESSAGE_CAP
-    if (messages.length === 0 || isSlid || head === state.head) return next(withContext(e, REMINDER))
-
-    const submitted = await next(withContext(e, PRECEDENCE.text, REMINDER))
-    if (submitted.drop === undefined) await update($, precedence, held => ({ ...held, head }))
-    return submitted
+    const isDue = state?.armed && !(await $.session.messages({ as: 'api' })).some(holdsSection)
+    return next(withContext(e, ...(isDue ? [PRECEDENCE.text] : []), REMINDER))
   }).catch(($, e, next) => next(withContext(e, REMINDER)))
 }

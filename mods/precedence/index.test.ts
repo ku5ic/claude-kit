@@ -2,7 +2,6 @@ import type { ApiMessage, On, PromptComposeInput, TurnCompleteInput } from 'clau
 import { describe, expect, test, type Engine } from 'claude-code/testing'
 
 const ANSWERED: TurnCompleteInput = { reason: 'answer', answer: 'Done.', durationMs: 1, isAborted: false, turnId: 't1' }
-const HEAD: ApiMessage = { role: 'user', content: [{ type: 'text', text: 'hello' }] }
 
 // A main-thread render under the person's own output style.
 const RENDER: PromptComposeInput = {
@@ -62,91 +61,101 @@ describe('precedence', () => {
 describe('when the section never reached the model', () => {
   test('compose ran, so the next prompt carries only the reminder', async ($, on) => {
     engineSections(on)
-    engineTakesSubmission(on)
-    engineEndsTurns(on)
-    conversation(on, [HEAD])
+    engineHolds(on)
     await $.prompt.compose(RENDER)
     await $.turn.complete(ANSWERED)
     expect(await contextOf($)).toEqual([REMINDER])
   })
 
   test('an answered turn with no compose puts the section on the next prompt, once', async ($, on) => {
-    engineTakesSubmission(on)
-    engineEndsTurns(on)
-    conversation(on, [HEAD])
+    engineHolds(on)
     expect(await contextOf($)).toEqual([REMINDER])
     await $.turn.complete(ANSWERED)
     expect(await contextOf($)).toEqual([SECTION, REMINDER])
+    await $.turn.complete(ANSWERED)
     expect(await contextOf($)).toEqual([REMINDER])
     expect(await contextOf($)).toEqual([REMINDER])
   })
 
   for (const reason of ['aborted', 'error'] as const) {
     test(`a turn that ends ${reason} leaves the next prompt alone`, async ($, on) => {
-      engineTakesSubmission(on)
-      engineEndsTurns(on)
-      conversation(on, [HEAD])
+      engineHolds(on)
       await $.turn.complete({ ...ANSWERED, reason, isAborted: reason === 'aborted' })
       expect(await contextOf($)).toEqual([REMINDER])
+    })
+
+    test(`a turn that ends ${reason} after one with no compose keeps the section due`, async ($, on) => {
+      engineHolds(on)
+      await $.turn.complete(ANSWERED)
+      await $.turn.complete({ ...ANSWERED, reason, isAborted: reason === 'aborted' })
+      expect(await contextOf($)).toEqual([SECTION, REMINDER])
     })
   }
 
   test("a subagent's answered turn leaves the next prompt alone", async ($, on) => {
-    engineTakesSubmission(on)
-    engineEndsTurns(on)
-    conversation(on, [HEAD])
+    engineHolds(on)
     await $.turn.complete({ ...ANSWERED, agentId: 'a1' })
     expect(await contextOf($)).toEqual([REMINDER])
   })
 
-  test('a slash command leaves the section for the next prompt', async ($, on) => {
-    engineTakesSubmission(on)
-    engineEndsTurns(on)
-    conversation(on, [HEAD])
+  test("a subagent's end keeps the main turn's compose", async ($, on) => {
+    engineSections(on)
+    engineHolds(on)
+    await $.prompt.compose(RENDER)
+    await $.turn.complete({ ...ANSWERED, agentId: 'a1' })
     await $.turn.complete(ANSWERED)
-    expect(await contextOf($, { command: { name: 'kit-stats', args: '' } })).toEqual([REMINDER])
+    expect(await contextOf($)).toEqual([REMINDER])
+  })
+
+  test('a compose in an earlier turn says nothing about a later one', async ($, on) => {
+    engineSections(on)
+    engineHolds(on)
+    await $.prompt.compose(RENDER)
+    await $.turn.complete(ANSWERED)
+    await $.turn.complete(ANSWERED)
     expect(await contextOf($)).toEqual([SECTION, REMINDER])
   })
 
-  test('a dropped prompt leaves the section for the next one', async ($, on) => {
-    let isDropping = true
-    on('prompt.submit', (_, e) => (isDropping ? { drop: 'no' } : e))
-    engineEndsTurns(on)
-    conversation(on, [HEAD])
+  test('a turn with a compose ends the fallback', async ($, on) => {
+    engineSections(on)
+    engineHolds(on)
     await $.turn.complete(ANSWERED)
-    await contextOf($)
-    isDropping = false
-    expect(await contextOf($)).toEqual([SECTION, REMINDER])
+    await $.prompt.compose(RENDER)
+    await $.turn.complete(ANSWERED)
+    expect(await contextOf($)).toEqual([REMINDER])
   })
 
-  test('a compaction brings the section back, with more messages than before it', async ($, on) => {
-    engineTakesSubmission(on)
-    engineEndsTurns(on)
-    const messages = conversation(on, [summary('first')])
+  test("a skill's prompt carries the section, so the next one doesn't", async ($, on) => {
+    engineHolds(on)
     await $.turn.complete(ANSWERED)
+    expect(await contextOf($, { command: { name: 'kit:audit-ci', args: '' } })).toEqual([SECTION, REMINDER])
+    expect(await contextOf($)).toEqual([REMINDER])
+  })
+
+  test('a prompt that was queued and cancelled leaves the section for the next one', async ($, on) => {
+    const engine = engineHolds(on)
+    await $.turn.complete(ANSWERED)
+    engine.isKeeping = false
     expect(await contextOf($)).toEqual([SECTION, REMINDER])
-    messages.splice(0, 1, summary('second'), HEAD, HEAD)
+    engine.isKeeping = true
     expect(await contextOf($)).toEqual([SECTION, REMINDER])
     expect(await contextOf($)).toEqual([REMINDER])
   })
 
-  test('a window that slid at the 4096 cap is no compaction', async ($, on) => {
-    engineTakesSubmission(on)
-    engineEndsTurns(on)
-    const messages = conversation(on, [HEAD])
+  test('a compaction brings the section back, once', async ($, on) => {
+    const engine = engineHolds(on)
     await $.turn.complete(ANSWERED)
     expect(await contextOf($)).toEqual([SECTION, REMINDER])
-    messages.splice(0, 1, ...Array.from({ length: 4096 }, () => summary('slid')))
+    engine.messages.splice(0, engine.messages.length, says('user', 'The conversation so far, in short.'))
+    expect(await contextOf($)).toEqual([SECTION, REMINDER])
     expect(await contextOf($)).toEqual([REMINDER])
   })
 
-  test('an empty conversation waits for one with a first message', async ($, on) => {
-    engineTakesSubmission(on)
-    engineEndsTurns(on)
-    const messages = conversation(on, [])
+  test('an assistant that quoted the section has not received it', async ($, on) => {
+    const engine = engineHolds(on)
     await $.turn.complete(ANSWERED)
-    expect(await contextOf($)).toEqual([REMINDER])
-    messages.push(HEAD)
+    const [section] = (await contextOf($)) ?? []
+    engine.messages.splice(0, engine.messages.length, says('assistant', section ?? ''))
     expect(await contextOf($)).toEqual([SECTION, REMINDER])
   })
 
@@ -162,30 +171,13 @@ describe('when the section never reached the model', () => {
 
   test('a failed state write still leaves the section in the system prompt', async ($, on) => {
     engineSections(on)
-    failStateWrites(on)
+    on('state.set', () => ({ deny: 'no state' }))
     const { sections } = await $.prompt.compose(RENDER)
     expect(sections.map(s => s.id)).toEqual(['intro', 'tone', 'kit:precedence'])
   })
 
-  test('a failed state write after delivery submits the prompt once, with the section', async ($, on) => {
-    let submissions = 0
-    on('prompt.submit', (_, e) => {
-      submissions++
-      return e
-    })
-    engineEndsTurns(on)
-    conversation(on, [HEAD])
-    const writes = failStateWrites(on, { isFailing: false })
-    await $.turn.complete(ANSWERED)
-    writes.isFailing = true
-    expect(await contextOf($)).toEqual([SECTION, REMINDER])
-    expect(submissions).toBe(1)
-  })
-
   test('switched off, an answered turn adds nothing', { options: { precedence: false } }, async ($, on) => {
-    engineTakesSubmission(on)
-    engineEndsTurns(on)
-    conversation(on, [HEAD])
+    engineHolds(on)
     await $.turn.complete(ANSWERED)
     expect(await contextOf($)).toBe(undefined)
   })
@@ -200,15 +192,21 @@ function engineEndsTurns(on: On) {
   on('turn.complete', (_, e) => ({ text: e.answer }))
 }
 
-function failStateWrites(on: On, writes = { isFailing: true }) {
-  on('state.set', (_, e, next) => (writes.isFailing ? { deny: 'no state' } : next(e)))
-  return writes
+// Stands in for an engine that ends turns and holds the conversation, each prompt's context in it
+// while isKeeping.
+function engineHolds(on: On) {
+  const engine = { messages: [] as ApiMessage[], isKeeping: true }
+  on('prompt.submit', (_, e) => {
+    if (engine.isKeeping) engine.messages.push(says('user', e.text, ...(e.context ?? [])))
+    return e
+  })
+  on('session.messages', () => ({ value: [...engine.messages] }))
+  engineEndsTurns(on)
+  return engine
 }
 
-// The conversation as the engine would send it; a test changes the array it returns.
-function conversation(on: On, messages: ApiMessage[]): ApiMessage[] {
-  on('session.messages', () => ({ value: [...messages] }))
-  return messages
+function says(role: ApiMessage['role'], ...texts: string[]): ApiMessage {
+  return { role, content: texts.map(text => ({ type: 'text', text })) }
 }
 
 async function contextOf($: Engine, extra: Partial<Parameters<Engine['prompt']['submit']>[0]> = {}) {
@@ -219,9 +217,3 @@ async function contextOf($: Engine, extra: Partial<Parameters<Engine['prompt']['
 // The two texts by what opens them, since the mod keeps both to itself.
 const SECTION = expect.stringMatching(/^Every fact you show the user/)
 const REMINDER = expect.stringMatching(/^kit: Every fact/)
-
-// Two compaction summaries open with the same text.
-function summary(body: string): ApiMessage {
-  const opening = 'This session is being continued from a previous conversation that ran out of context. '.repeat(3)
-  return { role: 'user', content: [{ type: 'text', text: opening + body }] }
-}

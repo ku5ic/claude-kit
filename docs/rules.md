@@ -10,7 +10,7 @@ Every skill with references lists them in a "Before | Read" table: an action, th
 
 ## Precedence
 
-**The kit's rules win over defaults.** Before dba9678, nothing in the system prompt put the kit's rules ahead of an output style's or the harness's own instructions. The `kit:precedence` section says the kit wins where they conflict. It sits at the top of a thread, and deep in a session the output style's per-prompt reminder is what lands next to the prompt, so the mod also puts a one-line `kit:` reminder on every prompt (db39bb3). On a Team or Enterprise org, or with managed settings, Claude Code can skip the mod's `prompt.compose` hook, so the next prompt carries the section's text once, and again after a compaction or `/clear` (94732ed).
+**The kit's rules win over defaults.** Before dba9678, nothing in the system prompt put the kit's rules ahead of an output style's or the harness's own instructions. The `kit:precedence` section says the kit wins where they conflict. It sits at the top of a thread, and deep in a session the output style's per-prompt reminder is what lands next to the prompt, so the mod also puts a one-line `kit:` reminder on every prompt (db39bb3). On a Team or Enterprise org, or with managed settings, Claude Code can skip the mod's `prompt.compose` hook, so the next prompt carries the section's text once, and again after a compaction. After `/clear` it starts over, on the first prompt after an answered turn (94732ed).
 
 ## Output
 
