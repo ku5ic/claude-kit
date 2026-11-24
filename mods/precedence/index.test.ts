@@ -183,6 +183,119 @@ describe('when the section never reached the model', () => {
   })
 })
 
+describe('what an earlier session on the machine recorded', () => {
+  test('a recorded skip puts the section on the first prompt, once', async ($, on) => {
+    engineHolds(on)
+    machineRecorded(on, true)
+    expect(await contextOf($)).toEqual([SECTION, REMINDER])
+    expect(await contextOf($)).toEqual([REMINDER])
+  })
+
+  test('with no skip recorded, the first prompt carries only the reminder', async ($, on) => {
+    engineHolds(on)
+    machineRecorded(on, false)
+    expect(await contextOf($)).toEqual([REMINDER])
+  })
+
+  test('a first turn that was aborted leaves the record in charge', async ($, on) => {
+    const engine = engineHolds(on)
+    machineRecorded(on, true)
+    engine.isKeeping = false
+    expect(await contextOf($)).toEqual([SECTION, REMINDER])
+    engine.isKeeping = true
+    await $.turn.complete({ ...ANSWERED, reason: 'aborted', isAborted: true })
+    expect(await contextOf($)).toEqual([SECTION, REMINDER])
+  })
+
+  test('after an answered turn, this session decides', async ($, on) => {
+    engineSections(on)
+    engineHolds(on)
+    const machine = machineRecorded(on, false)
+    await $.prompt.compose(RENDER)
+    await $.turn.complete(ANSWERED)
+    machine.skipped = true
+    expect(await contextOf($)).toEqual([REMINDER])
+  })
+
+  test('a turn with a compose clears the record', async ($, on) => {
+    engineSections(on)
+    engineHolds(on)
+    const machine = machineRecorded(on, true)
+    await $.prompt.compose(RENDER)
+    await $.turn.complete(ANSWERED)
+    expect(machine.skipped).toBe(false)
+  })
+
+  test('an answered turn with no compose records the skip', async ($, on) => {
+    engineHolds(on)
+    const machine = machineRecorded(on, undefined)
+    await $.turn.complete(ANSWERED)
+    expect(machine.skipped).toBe(true)
+  })
+
+  test('a record that already says so is not written again', async ($, on) => {
+    engineSections(on)
+    engineHolds(on)
+    const machine = machineRecorded(on, undefined)
+    await $.prompt.compose(RENDER)
+    await $.turn.complete(ANSWERED)
+    expect(machine.writes).toBe(0)
+    await $.turn.complete(ANSWERED)
+    await $.turn.complete(ANSWERED)
+    expect(machine.writes).toBe(1)
+  })
+
+  for (const skipped of [true, false]) {
+    test(`a subagent's turn leaves a record of ${skipped} alone`, async ($, on) => {
+      engineHolds(on)
+      const machine = machineRecorded(on, skipped)
+      await $.turn.complete({ ...ANSWERED, agentId: 'a1' })
+      expect(machine.skipped).toBe(skipped)
+      expect(machine.writes).toBe(0)
+    })
+  }
+
+  test('a failed read of the record still sends the reminder', async ($, on) => {
+    engineHolds(on)
+    on('store.get', () => ({ deny: 'no store' }))
+    expect(await contextOf($)).toEqual([REMINDER])
+  })
+
+  test('a failed write of the record still leaves the section in the system prompt', async ($, on) => {
+    engineSections(on)
+    on('store.get', () => ({ value: true }))
+    on('store.set', () => ({ deny: 'no store' }))
+    const { sections } = await $.prompt.compose(RENDER)
+    expect(sections.map(s => s.id)).toEqual(['intro', 'tone', 'kit:precedence'])
+  })
+
+  test('a failed write of the record still puts the section on the next prompt', async ($, on) => {
+    engineHolds(on)
+    on('store.get', () => ({ value: false }))
+    on('store.set', () => ({ deny: 'no store' }))
+    await $.turn.complete(ANSWERED)
+    expect(await contextOf($)).toEqual([SECTION, REMINDER])
+  })
+
+  test('switched off, a recorded skip adds nothing', { options: { precedence: false } }, async ($, on) => {
+    engineHolds(on)
+    machineRecorded(on, true)
+    expect(await contextOf($)).toBe(undefined)
+  })
+})
+
+// Stands in for the machine's store, which every session shares.
+function machineRecorded(on: On, skipped: boolean | undefined) {
+  const machine = { skipped, writes: 0 }
+  on('store.get', () => ({ value: machine.skipped }))
+  on('store.set', (_, e) => {
+    machine.skipped = e.value === true
+    machine.writes++
+    return { value: undefined }
+  })
+  return machine
+}
+
 // Stands in for the engine beneath the plugin, which takes the submission as the plugin passed it on.
 function engineTakesSubmission(on: On) {
   on('prompt.submit', ($, e) => e)
