@@ -18,7 +18,7 @@ Without these the kit doesn't run. A fresh install doesn't always have them:
 
 Without a downloaded binary, the hooks let everything through and session start says why.
 
-The kit needs Claude Code 2.1.323 or later, set in `.claude-plugin/plugin.json` `engines`. CI tests against 2.1.326.
+The kit needs Claude Code 2.1.323 or later, set in `.claude-plugin/plugin.json` `engines`. CI tests against 2.1.330.
 
 ## Optional
 
