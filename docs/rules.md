@@ -30,7 +30,7 @@ Every skill with references lists them in a "Before | Read" table: an action, th
 
 ## Evidence
 
-**Check it or don't say it.** Up to 0.9.0 the rule was "check it or label it", with four confidence labels (`verified`, `likely`, `hypothesis`, `unknown`) and a provenance axis. In practice a label became a way to state an unchecked fact while looking careful, and the reader still had to do the check. A fact about the code, a version, or a result is now checked or left out. On 2026-11-21 the author dropped the last labels, since an idea offered as `likely` or `hypothesis` still handed the reader a guess to check.
+**Check it or don't say it.** Up to 0.9.0 the rule was "check it or label it", with four confidence labels (`verified`, `likely`, `hypothesis`, `unknown`) and a provenance axis. In practice a label became a way to state an unchecked fact while looking careful, and the reader still had to do the check. A fact about the code, a version, or a result is now checked or left out. On 2026-11-21 the author dropped the last labels, since an idea offered as `likely` or `hypothesis` still handed the reader a guess to check. On 2026-11-24 the rule stopped saying a tool had checked the claim: Claude had read a file with a tool, then cited a line number it assumed. The source has to show the claim.
 
 **Every statement, and its supporting detail.** From the same company page. A reader of a plan or report takes each line as checked, not only the conclusion, so a wrong number or a wrong "already does" list misleads as much as a wrong conclusion.
 

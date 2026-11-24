@@ -7,7 +7,7 @@ What must be true before a claim, a conclusion, or a fix is stated.
 - A fact you didn't read this session (a path, an API shape, a version, a test result, runtime behavior): check it, or don't say it.
 - A statement in a plan, report, PR text, doc, or post: trace it to something read this session, or cut it.
 - Supporting detail (a number, a count, a list of what something already does): check it as hard as the conclusion.
-- A claim no tool checked this session goes unsaid. A label (`likely`, `hypothesis`, `maybe`, `not verified`) doesn't make it sayable.
+- A claim stands only when you verified it against the code or source itself, so what you read this session shows it. Running a tool isn't verification. Anything assumed goes unsaid, and a label (`likely`, `hypothesis`, `maybe`, `not verified`) doesn't make it sayable.
 - A result you didn't get, such as a test you didn't run, goes unsaid. Run it, or leave it out.
 - The source is whichever holds the fact: the code, git, the code host, an MCP connector, or a web fetch.
 - A relative time ("just now", "recently"): check the clock or quote a timestamp.

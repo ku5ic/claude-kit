@@ -67,7 +67,7 @@ func PlanModeContext(h *hook.Hook) error {
 		return nil
 	}
 	if p.String(hook.KeyPermissionMode) == "plan" {
-		h.Print("In this repo, a plan starts from the investigate skill's findings, and its gatherer questions go to kit:gatherer.\n")
+		h.Print("In this project, a plan starts from the investigate skill's findings, and its gatherer questions go to kit:gatherer.\n")
 		return nil
 	}
 	marker := planFile(h, cache.PlanActive, p.Cwd())

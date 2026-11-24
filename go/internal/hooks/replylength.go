@@ -56,7 +56,7 @@ const passTarget = "Pass it only when the extra words make the reply clearer or 
 
 // checkClaims stands in for verify-claims on chat replies: said before the
 // reply, since a check at Stop would show the reply twice.
-const checkClaims = "In this repo, a claim stands only when a tool checked it this session; any other is cut, never labelled (skills/kit-rules/reference/evidence.md section 1)."
+const checkClaims = "In this project, a claim stands only when you verified it against the code or source itself, so what you read this session shows it; running a tool isn't verification, and anything assumed is cut, never labelled (skills/kit-rules/reference/evidence.md section 1)."
 
 // ReplyLength holds chat replies to the reply_length mode's word targets
 // (skills/kit-rules/reference/output.md section 0), silently: on UserPromptSubmit it

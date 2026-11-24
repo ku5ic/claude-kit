@@ -152,7 +152,7 @@ func TestReplyLength(t *testing.T) {
 		t.Parallel()
 		k := capped(t)
 		for _, p := range []string{"go", "/verify this branch", "explain the cache in detail"} {
-			prompt(k, p).Has(t, "a claim stands only when a tool checked it this session", "skills/kit-rules/reference/evidence.md section 1")
+			prompt(k, p).Has(t, "In this project, a claim stands only when you verified it against the code or source itself, so what you read this session shows it", "running a tool isn't verification, and anything assumed is cut", "skills/kit-rules/reference/evidence.md section 1")
 		}
 	})
 	t.Run("claims in disabled_rules drops the claims line", func(t *testing.T) {

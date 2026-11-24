@@ -189,7 +189,7 @@ func TestPromptDispatch(t *testing.T) {
 		t.Fatalf("stdout isn't one JSON object: %v\n%s", err, r.Stdout)
 	}
 	ctx := out.HookSpecificOutput.AdditionalContext
-	if out.HookSpecificOutput.HookEventName != "UserPromptSubmit" || !strings.Contains(ctx, "starts from the investigate skill's findings") || !strings.Contains(ctx, "a claim stands only when a tool checked it") {
+	if out.HookSpecificOutput.HookEventName != "UserPromptSubmit" || !strings.Contains(ctx, "In this project, a plan starts from the investigate skill's findings") || !strings.Contains(ctx, "a claim stands only when you verified it") {
 		t.Errorf("want the plan line and the claims line in one context; got %+v", out.HookSpecificOutput)
 	}
 }

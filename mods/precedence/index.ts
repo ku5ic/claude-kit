@@ -11,7 +11,7 @@ import type {} from '../types.js'
 
 // In the section and on every prompt, since a fact shown to the user is checked on every turn.
 const FACTS =
-  "Every fact you show the user, in a reply, report, plan, question, commit, or post, comes from a tool result in this session: a file read, a git or code-host command, an MCP read, or a web fetch. Run that check before you state the fact. A fact you can't check this way is left out, never guessed, softened, or labeled. When the user asks something you can't verify, say you couldn't verify it."
+  "Every fact you show the user, in a reply, report, plan, question, commit, or post, is verified against the code or source itself, so a file, a git or code-host result, an MCP read, or a web page you read this session shows it. Running a tool isn't verification. A fact you assumed is left out, never guessed, softened, or labeled. When the user asks something you can't verify, say you couldn't verify it."
 
 // Fixed text: a thread keeps the prompt it recorded, so a section that changed mid-thread waits
 // for a new thread or a compaction. The two pause and length clauses also stay in the rules

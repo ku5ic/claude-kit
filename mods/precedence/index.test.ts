@@ -33,7 +33,7 @@ describe('precedence', () => {
     expect(kit?.scope).toBe('session')
     expect(kit?.text).toContain('follow the kit rule')
     expect(kit?.text).toContain('The step pause outranks any output style')
-    expect(kit?.text).toContain('comes from a tool result in this session')
+    expect(kit?.text).toContain('is verified against the code or source itself, so')
   })
 
   test('switched off, the prompt is the engine sections alone', { options: { precedence: false } }, async ($, on) => {
@@ -48,7 +48,7 @@ describe('precedence', () => {
     const second = await $.prompt.submit({ text: 'again', wait: false, origin: { kind: 'composer' } })
     expect(first.context?.[0]).toBe('other')
     expect(first.context?.[1]).toMatch(/^kit: .*outrank/)
-    expect(first.context?.[1]).toContain('comes from a tool result in this session')
+    expect(first.context?.[1]).toContain('is verified against the code or source itself, so')
     expect(second.context).toEqual([first.context?.[1]])
   })
 
