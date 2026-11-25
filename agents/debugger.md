@@ -2,6 +2,7 @@
 name: debugger
 description: Investigates unexpected behavior to localize a fault, using read access plus at most one targeted probe edit. Never applies the fix. Use to find where and why something breaks; hand the fix back to the caller.
 tools: Read, Edit, Bash, Grep, Glob, Skill
+maxTurns: 100
 color: red
 memory: local
 ---

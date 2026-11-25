@@ -2,6 +2,7 @@
 name: claim-checker
 description: Checks the factual claims in a text before anyone relies on it, the way a reviewer who trusts nothing would. Use when the user asks to fact-check a text or file. Read-only; reports each claim nothing confirms, with the check that would settle it.
 tools: Read, Grep, Glob, WebSearch, WebFetch, ToolSearch, Skill
+maxTurns: 25
 color: yellow
 model: sonnet
 ---

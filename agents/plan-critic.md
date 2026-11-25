@@ -4,6 +4,7 @@ description: Adversarially reviews a plan file (plan mode output) against the re
 tools: Read, Grep, Glob, Bash, Skill, Agent
 model: opus
 effort: high
+maxTurns: 110
 color: purple
 memory: local
 ---

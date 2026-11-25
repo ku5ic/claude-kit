@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -170,6 +171,25 @@ func TestKitRepo(t *testing.T) {
 			// Claude Code drops a skill's model override when it also sets effort.
 			if strings.HasPrefix(rel, "skills/") && model != "" && effort != "" {
 				t.Errorf("%s: sets both model and effort; keep one", rel)
+			}
+		}
+	})
+
+	t.Run("every agent caps its turns and has a color Claude Code draws", func(t *testing.T) {
+		agents, _ := filepath.Glob(filepath.Join(kitRoot, "agents", "*.md"))
+		if len(agents) == 0 {
+			t.Fatal("no agents found")
+		}
+		// code.claude.com/docs/en/sub-agents, Supported frontmatter fields.
+		colors := []string{"red", "blue", "green", "yellow", "purple", "orange", "pink", "cyan"}
+		for _, file := range agents {
+			rel, _ := filepath.Rel(kitRoot, file)
+			front, _ := frontmatter(Read(t, file))
+			if n, err := strconv.Atoi(front["maxTurns"]); err != nil || n < 1 {
+				t.Errorf("%s: maxTurns %q isn't a number of turns", rel, front["maxTurns"])
+			}
+			if !slices.Contains(colors, front["color"]) {
+				t.Errorf("%s: color %q isn't one Claude Code documents", rel, front["color"])
 			}
 		}
 	})

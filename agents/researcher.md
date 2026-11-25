@@ -2,6 +2,7 @@
 name: researcher
 description: Read-only external research in primary sources (official docs, changelogs, release notes, package source, language specs) via WebSearch and WebFetch. Delegate version checks, API verification, and docs lookups here to keep network access out of code-exploring agents. Returns findings with sources; never edits, never runs shell commands.
 tools: Read, WebSearch, WebFetch
+maxTurns: 60
 color: green
 model: sonnet
 ---

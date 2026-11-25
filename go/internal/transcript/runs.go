@@ -12,7 +12,7 @@ type RunStatus int
 const (
 	RunGoing  RunStatus = iota // no result yet, or a background run with no notice
 	RunDone                    // a result, or a notice saying completed
-	RunFailed                  // an error result, or a notice saying anything else
+	RunFailed                  // an error result, one cut off at maxTurns, or a notice saying anything else
 )
 
 // Pos is a block's place in a transcript: its entry's index, then the
@@ -57,6 +57,10 @@ const asyncLaunched = "Async agent launched"
 // both a finished run's report and a background launch.
 var agentIDLine = regexp.MustCompile(`\bagentId: ([\w-]+)`)
 
+// cutOff opens the result of a run that reached its maxTurns, in the Agent
+// tool's result or a notice, which says completed all the same.
+var cutOff = regexp.MustCompile(`(?:^|<result>)\s*NOTE: this agent stopped at its \d+-turn limit`)
+
 // AgentRuns is every Agent call of agentType in entries, in order, each
 // with how it ended. Once a run is done, a later notice doesn't undo it.
 func AgentRuns(entries []Entry, agentType string) []Run {
@@ -92,6 +96,8 @@ func AgentRuns(entries []Entry, agentType string) []Run {
 				switch {
 				case b.IsError:
 					runs[r].Status = RunFailed
+				case cutOff.MatchString(text):
+					runs[r].Status = RunFailed
 				case strings.HasPrefix(text, asyncLaunched):
 					background[b.ToolUseID] = r
 				default:
@@ -104,7 +110,8 @@ func AgentRuns(entries []Entry, agentType string) []Run {
 }
 
 // noticeStatus is the status e's task notification gives the background
-// Agent call call, "" when e isn't one for it.
+// Agent call call, "" when e isn't one for it, and "cut off" for a run that
+// reached its maxTurns.
 func noticeStatus(e Entry, call string) string {
 	text := e.Notice + e.Text
 	for _, b := range e.Blocks {
@@ -112,6 +119,9 @@ func noticeStatus(e Entry, call string) string {
 	}
 	if !strings.Contains(text, "<tool-use-id>"+call+"</tool-use-id>") {
 		return ""
+	}
+	if cutOff.MatchString(text) {
+		return "cut off"
 	}
 	_, rest, _ := strings.Cut(text, "<status>")
 	status, _, _ := strings.Cut(rest, "</status>")

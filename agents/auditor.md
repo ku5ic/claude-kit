@@ -2,6 +2,7 @@
 name: auditor
 description: Read-only audit of a code surface for accessibility, performance, architecture, technical debt, documentation drift, security, CI, infrastructure, or prose slop. The invoking audit-* skill supplies the procedure and the report format; this shell only fixes the boundary. Not for applying fixes.
 tools: Read, Grep, Glob, Bash, Skill
+maxTurns: 170
 color: cyan
 memory: local
 ---

@@ -216,6 +216,12 @@ func TestGuardPlan(t *testing.T) {
 		k = newSandbox(t)
 		k.run("guard-plan", exit(k, write, critic, failed, blob)).Denied(t)
 	})
+	t.Run("a critique cut off at its turn limit: sent back", func(t *testing.T) {
+		t.Parallel()
+		const cut = "NOTE: this agent stopped at its 2-turn limit before finishing. It was still calling tools and had produced no report."
+		k := newSandbox(t)
+		k.run("guard-plan", exit(k, write, critic, `{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"c","content":"  `+cut+`"}]}}`)).Denied(t)
+	})
 	t.Run("a critique that finished, or still runs in the background: allowed", func(t *testing.T) {
 		t.Parallel()
 		finished := `{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"c","content":"the plan holds"}]}}`
