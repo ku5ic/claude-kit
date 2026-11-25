@@ -25,6 +25,7 @@ Every command hook runs through one `kit` binary, and the same binary answers th
 | Run a git, `gh`, or `glab` read that can't turn into a write     | `kit read git log ...`, `kit read gh pr view ...`     |
 | See which accepted ADRs a file falls under                       | `kit adrs [path]`                                     |
 | Check my overlay for unknown keys and wrong types                | `kit config --check`                                  |
+| Check what's wrong with the kit's setup on this machine          | `kit doctor`                                          |
 | Scan a text for AI tells                                         | `kit slop <file>`                                     |
 | Check two colours' contrast against WCAG                         | `kit contrast <fg> <bg>`                              |
 | Prune old scratch files now, not at the next day's first session | `kit scratch-rotate`                                  |

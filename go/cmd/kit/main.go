@@ -23,6 +23,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/design"
 	"github.com/ku5ic/claude-kit/go/internal/detect"
+	"github.com/ku5ic/claude-kit/go/internal/doctor"
 	"github.com/ku5ic/claude-kit/go/internal/enforce"
 	"github.com/ku5ic/claude-kit/go/internal/explain"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
@@ -153,6 +154,7 @@ var commands = map[string]command{
 	"gates":          {needsEnv, envOnly(cmdGates)},
 	"bundle":         {needsEnv, envOnly(cmdBundle)},
 	"code-graph":     {needsEnv, envOnly(cmdCodeGraph)},
+	"doctor":         {needsEnv, envOnly(cmdDoctor)},
 	"stats": {needsEnv, func(e *env, _ *config.Config, args []string) int {
 		return stats.Run(e.paths.LogDir(), config.Rules, time.Now(), args, e.stdout, e.stderr)
 	}},
@@ -248,6 +250,10 @@ func cmdRunChecks(e *env, cfg *config.Config, args []string) int {
 		}
 	}
 	return runGates(e, cfg, root, a)
+}
+
+func cmdDoctor(e *env, args []string) int {
+	return doctor.Run(e.paths, version, e.exe, e.cwd, args, e.stdout, e.stderr)
 }
 
 func cmdScratchRotate(e *env, args []string) int {

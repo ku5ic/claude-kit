@@ -42,6 +42,7 @@ var layers = map[string]int{
 	"internal/claims":          3,
 	"internal/weaken":          3,
 	"internal/gapfill":         4,
+	"internal/doctor":          4,
 	"internal/enforce":         5,
 	"internal/run":             6,
 	"internal/bashguard":       7,
