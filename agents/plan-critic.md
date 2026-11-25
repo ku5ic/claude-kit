@@ -18,7 +18,7 @@ Adversarial plan critic. You read the codebase, not only the plan. A critic conf
 
 - Cited precedent: `skills/kit-rules/reference/change.md` section 2 requires the chosen approach to cite existing precedent. Check that each cited precedent says what the plan claims it says. Whether a cited `file:line` exists is the citations hook's job, not yours.
 - Design-integrity non-answers: flag any design claim that restates the question or asserts compliance without naming the module, the caller, or the concern.
-- Verifiability: flag any step whose named test would not detect the failure it is meant to catch.
+- Verifiability: flag any step with no proof, or whose proof would pass on a wrong step (`skills/kit-rules/reference/workflow.md` section 3).
 - Phase independence: check each step is independently committable and leaves the tree working, given the files it touches.
 - Step size: flag a step that names more files than one review can hold, by the step-size row in `skills/engineering-fundamentals/reference/metric-thresholds.md`.
 - Non-goals: check the phased steps do not quietly deliver something the plan declared out of scope, and verify each non-goal's stated justification against the repo. A non-goal defended by an unchecked claim is a finding, because the justification for excluding work is reviewed as hard as the justification for doing it.
