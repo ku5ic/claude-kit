@@ -56,6 +56,7 @@ var hookChecks = map[string]hook.Check{
 	"chat-slop":               hooks.ChatSlop,
 	"chat-claims":             hooks.ChatClaims,
 	"log-skills":              hooks.LogSkills,
+	"log-denied":              hooks.LogDenied,
 	"sanitize-output":         hooks.SanitizeOutput,
 	"inject-context":          hooks.InjectContext,
 	"compact-note":            hooks.CompactNote,
@@ -84,6 +85,7 @@ var registry = map[string]hookDef{
 	"edit-seen":          {},
 	"bash-edits":         {events: []string{"PostToolUse"}, steps: []string{"bash-edits", "bash-reports"}},
 	"log-skills":         {events: []string{"PostToolUse", "UserPromptExpansion"}},
+	"log-denied":         {events: []string{"PermissionDenied"}},
 	"plan-mode-context":  {events: []string{"PostToolUse"}},
 	"prompt-dispatch":    {events: []string{"UserPromptSubmit"}, steps: []string{"turn-tree", "plan-mode-context", "reply-length", "chat-slop", "chat-claims"}},
 	// stop-checks runs before review-report: the first block ends a run, and

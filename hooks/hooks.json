@@ -48,6 +48,11 @@
         "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook plan-mode-context", "timeout": 5 }]
       }
     ],
+    "PermissionDenied": [
+      {
+        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook log-denied", "timeout": 5 }]
+      }
+    ],
     "SessionStart": [
       {
         "matcher": "startup|resume|compact|clear",

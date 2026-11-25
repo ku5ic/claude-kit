@@ -1,6 +1,7 @@
 // Package stats measures the kit from its own logs: how often each rule
-// blocks, or only would have (shadow_rules), and what became of each claim
-// the claim checker flagged in the text that went out after it.
+// blocks, or only would have (shadow_rules), what became of each claim the
+// claim checker flagged in the text that went out after it, and how many
+// calls auto mode denied.
 package stats
 
 import (
@@ -82,7 +83,7 @@ type claimRow struct{ kept, dropped int }
 // at those paths.
 func Report(guards, claims string, o Options, w io.Writer) error {
 	rules := map[string]*ruleRow{}
-	var hookRuns int
+	var hookRuns, denials int
 	var hookCost float64
 	err := each(guards, o, func(l line) {
 		switch l.Event {
@@ -106,6 +107,8 @@ func Report(guards, claims string, o Options, w io.Writer) error {
 			default:
 				r.disabled++
 			}
+		case kitlog.EventAutoDenied:
+			denials++
 		case "claims", "claims-error":
 			var cost float64
 			if _, err := fmt.Sscan(l.Cost, &cost); err == nil {
@@ -147,6 +150,9 @@ func Report(guards, claims string, o Options, w io.Writer) error {
 			fmt.Fprintf(tw, "%s\t%s\t%d\t%d\t%d\n", key[0], key[1], f.kept+f.dropped, f.dropped, f.kept)
 		}
 		fmt.Fprintf(tw, "\nhook runs\t%d\t$%.2f\n", hookRuns, hookCost)
+	}
+	if o.Rule == "" {
+		fmt.Fprintf(tw, "\nauto-mode denials\t%d\n", denials)
 	}
 	return tw.Flush()
 }

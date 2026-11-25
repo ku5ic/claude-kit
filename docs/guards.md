@@ -34,7 +34,7 @@
 ## When a guard gets in your way
 
 - **See why:** `kit explain bash '<cmd>'`, `kit explain edit <path>`, or `kit explain stop <file>` shows each guard's decision and the exact rule, as the hook would reach it. It blocks and logs nothing.
-- **Turn one rule off:** add its slug to `disabled_rules`. Every block is logged with its slug in `~/.claude/logs/guards.jsonl`, a subagent's with its agent type, and so is every ask.
+- **Turn one rule off:** add its slug to `disabled_rules`. Every block is logged with its slug in `~/.claude/logs/guards.jsonl`, a subagent's with its agent type, and so is every ask. A call auto mode denied is logged by its tool, and `kit stats` counts those too.
 - **Try a rule before it costs a turn:** add its slug to `shadow_rules`. Its blocks are logged as `shadow` and let through, and `kit stats` counts them.
 - **A kit bug never blocks you.** A crashing hook or a missing binary fails open. A crashing hook is logged in `guards.jsonl` with its error, and the session's first one is shown to you as `kit <hook>: FAILED OPEN`, as is a `kit.yml` that stops loading mid-session. A missing binary can't log: it's reported only when a session starts without it, and a hook that finds it gone mid-session says so on stderr alone. The binary goes missing when the first download can't finish: offline, a read-only plugin directory, a link too slow for `bin/kit`'s download timeout, or a platform other than macOS or Linux on arm64 or amd64. Until it lands, every guard is off.
 - **A bad overlay never turns guards off.** If `claude-kit.local.yml` or the `/config` options don't merge, the kit uses `kit.yml` alone and says why at session start. A `settings.json` that isn't valid JSON is skipped the same way, with a warning naming it.

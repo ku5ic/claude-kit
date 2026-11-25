@@ -40,6 +40,9 @@ func TestReportCountsRulesAndClaimsSinceADate(t *testing.T) {
 		`{"ts":"2026-11-15T00:00:00Z","event":"shadow","session_id":"b","rule":"sensitive-read"}`,
 		`{"ts":"2026-11-15T00:00:00Z","event":"claims","session_id":"a","cost_usd":"0.0500"}`,
 		`{"ts":"2026-11-15T00:00:00Z","event":"critic-skip","session_id":"c","rule":"plan-critic","reason":"renames one flag"}`,
+		`{"ts":"2026-11-01T00:00:00Z","event":"auto-denied","session_id":"old","tool":"Bash"}`,
+		`{"ts":"2026-11-15T00:00:00Z","event":"auto-denied","session_id":"a","tool":"Bash"}`,
+		`{"ts":"2026-11-15T00:00:00Z","event":"auto-denied","session_id":"b","tool":"Write"}`,
 		`not json`)
 	write(claims,
 		`{"ts":"2026-11-15T00:00:00Z","event":"claim","source":"agent","model":"sonnet","outcome":"dropped"}`,
@@ -49,10 +52,17 @@ func TestReportCountsRulesAndClaimsSinceADate(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := out.String()
-	for _, want := range []string{"rule            blocks  shadow  disabled  skipped  sessions", "plan-critic     0       0       0         1        1", "sensitive-read  1       1       0         0        2", "agent   sonnet  2        1        1", "hook runs  1  $0.05"} {
+	for _, want := range []string{"rule            blocks  shadow  disabled  skipped  sessions", "plan-critic     0       0       0         1        1", "sensitive-read  1       1       0         0        2", "agent   sonnet  2        1        1", "hook runs  1  $0.05", "auto-mode denials  2"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("report lacks %q:\n%s", want, got)
 		}
+	}
+	if strings.Contains(got, "\nBash") {
+		t.Errorf("a denial is counted as a rule:\n%s", got)
+	}
+	out.Reset()
+	if err := Report(guards, claims, Options{Rule: "weaken"}, &out); err != nil || strings.Contains(out.String(), "denials") {
+		t.Errorf("--rule shows denials, which have no rule (%v):\n%s", err, out.String())
 	}
 	if strings.Contains(got, "weaken") {
 		t.Errorf("report counts a line before Since:\n%s", got)

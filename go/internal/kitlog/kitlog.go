@@ -16,8 +16,8 @@ import (
 )
 
 // The kit's logs, the skills log's events that mark a skill as only
-// surfaced, a Read of a skill reference, or a compaction, and a line's ts
-// layout.
+// surfaced, a Read of a skill reference, or a compaction, the guards log's
+// event for a call auto mode denied, and a line's ts layout.
 const (
 	Skills              = "skills"
 	Guards              = "guards"
@@ -26,6 +26,7 @@ const (
 	EventSuggestedSkill = "suggested-skill"
 	EventReferenceRead  = "reference-read"
 	EventCompacted      = "compacted"
+	EventAutoDenied     = "auto-denied"
 	TimeLayout          = "2006-01-02T15:04:05Z"
 )
 
