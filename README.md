@@ -117,7 +117,7 @@ Only you start a command, by typing it. Each detects your stack, your code host 
 | Code   | 10    | Understanding a change before making it: impact, history, contracts, a challenge to a plan or PR                  | `/code-impact`, `/code-challenge` |
 | Write  | 11    | A document in your project's format: ADRs, RFCs, runbooks, retros, tickets                                        | `/write-adr`, `/write-runbook`    |
 | PR     | 5     | Your PRs and other people's. Nothing is posted until you run `/pr-publish` on a draft you've read                 | `/pr-description`, `/pr-review`   |
-| Meta   | 6     | The kit and your sessions: retros on transcripts, new pattern skills, how often each rule fired                   | `/meta-retro`, `/kit-stats`       |
+| Meta   | 7     | The kit and your sessions: retros on transcripts, changes they support, new pattern skills, rule counts           | `/meta-retro`, `/kit-stats`       |
 | Others | 2     | Dependency PRs and security alerts, and AI tells in a text                                                        | `/deps`, `/unslop`                |
 | Agents | 7     | One job each, with a boundary: the debugger hands the fix back, the tester never changes code to make a test pass | `kit:plan-critic`, `kit:debugger` |
 
