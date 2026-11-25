@@ -347,7 +347,7 @@ func TestKitRepo(t *testing.T) {
 
 	t.Run("a skill that fans out gives every angle a task and starts no single auditor", func(t *testing.T) {
 		// Every skill with an ## Angles table.
-		fansOut := []string{"audit-skills"}
+		fansOut := []string{"audit-skills", "code-deep-review"}
 		const rule = "skills/kit-rules/reference/subagents.md"
 		tasks := tableColumn(Read(t, filepath.Join(kitRoot, rule)), "## 4. Fan-out", "Task")
 		if len(tasks) == 0 {

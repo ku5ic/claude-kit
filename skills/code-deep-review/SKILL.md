@@ -20,9 +20,9 @@ A deep review of a path or a change, run now and then, covering what the per-cha
 
 Loading this skill isn't enough. Before the step a row names, read its file.
 
-| Before             | Read                                             |
-| ------------------ | ------------------------------------------------ |
-| Running the passes | [reference/checklist.md](reference/checklist.md) |
+| Before      | Read                                             |
+| ----------- | ------------------------------------------------ |
+| Fanning out | [reference/checklist.md](reference/checklist.md) |
 
 ## Inputs
 
@@ -31,26 +31,28 @@ Loading this skill isn't enough. Before the step a row names, read its file.
    - A PR number or branch is checked out where a trailing `here` or `worktree` says, or where the user answers when asked, per `skills/kit-rules/reference/workflow.md` section 1. The target is its diff against the base.
    - Nothing: `kit git-base --diff`.
 2. For a diff, the review covers the changed lines and the code they call or are called from, never the whole files.
-3. Read the project's CLAUDE.md. Load `engineering-fundamentals`, `test-patterns`, `security-patterns`, and every pattern skill the `<suggested-skills>` block or the touched files call for.
+3. Read the project's CLAUDE.md, and name the pattern skill of every stack the target holds.
 
-## Passes
+## Angles
 
-Run each pass over the target. A pass with nothing to report is left out of the report.
+Fan out per `skills/kit-rules/reference/subagents.md` section 4, then write the report. The target, its diff, and the pattern skills' names are the shared inputs. An angle with nothing to report is left out of the report.
 
-| Pass                     | Check against                                                                                                                                                                       |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Design                   | `engineering-fundamentals`: `design-integrity.md`, and `metric-thresholds.md` for size, nesting, and coupling                                                                       |
-| Stack                    | each loaded pattern skill's `anti-patterns.md`                                                                                                                                      |
-| Tests                    | `test-patterns`. For each changed behavior, name the assertion that fails without it. None found is a finding                                                                       |
-| Precedent                | how the repo already solves the same thing, per `skills/kit-rules/reference/change.md` section 2. A second way of doing a solved thing is a finding                                 |
-| Errors and observability | an error swallowed, logged and dropped, or rethrown without its cause; a failure with no log or metric to find it by; a log line missing the identifier needed to trace one request |
-| Security                 | `security-patterns`: its `anti-patterns.md` and the reference for each surface the target touches                                                                                   |
+| Angle                      | Task  | Reads                                                                                                                                                                                                 |
+| -------------------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Design                     | Judge | `engineering-fundamentals`: `design-integrity.md`, and `metric-thresholds.md` for size, nesting, and coupling. [reference/checklist.md](reference/checklist.md), Design                               |
+| Stack                      | Check | the `anti-patterns.md` of each pattern skill Inputs step 3 names                                                                                                                                      |
+| Tests                      | Check | `test-patterns`. For each changed behavior, name the assertion that fails without it. None found is a finding                                                                                         |
+| Precedent                  | Check | how the repo already solves the same thing, per `skills/kit-rules/reference/change.md` section 2. A second way of doing a solved thing is a finding                                                   |
+| Errors and observability   | Check | the target alone: an error swallowed, logged and dropped, or rethrown without its cause; a failure with no log or metric to find it by; a log line missing the identifier needed to trace one request |
+| Security                   | Check | `security-patterns`: its `anti-patterns.md` and the reference for each surface the target touches                                                                                                     |
+| Functionality              | Check | [reference/checklist.md](reference/checklist.md), Functionality                                                                                                                                       |
+| Documentation and comments | Check | [reference/checklist.md](reference/checklist.md), Documentation and Comments                                                                                                                          |
 
-Every finding cites `file:line` and what was read there. A finding inferred without reading the code it names is labelled per `skills/kit-rules/reference/evidence.md` section 1.
+Every angle also follows the checklist's last four lines, and returns what they ask for with its candidates. Every finding cites `file:line` and what was read there. A finding inferred without reading the code it names is labelled per `skills/kit-rules/reference/evidence.md` section 1.
 
 ## Report
 
-Load the report-format skill and use its format, written to the path `kit scratch-dir review <target-slug>` prints. The Scope line names the target and, for a diff, its base. Each finding's heading names its pass after the severity (`warning: Tests, ...`).
+Load the report-format skill and use its format, written to the path `kit scratch-dir review <target-slug>` prints. The Scope line names the target and, for a diff, its base. Each finding's heading names its angle after the severity (`warning: Tests, ...`).
 
 ## Reply
 
