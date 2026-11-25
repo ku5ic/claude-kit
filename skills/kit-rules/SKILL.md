@@ -12,6 +12,10 @@ The hard rules, each owned by the section it names:
 - A fact not read this session gets checked, or goes unsaid: `skills/kit-rules/reference/evidence.md` section 1.
 - Never commit or push unasked: `skills/kit-rules/reference/workflow.md` section 1.
 - Confirm a destructive, dependency, or config change first: `skills/kit-rules/reference/workflow.md` section 2.
+- A question gets an answer and no edit: `skills/kit-rules/reference/workflow.md` section 4.
+- A finished review waits for the user's picks: `skills/kit-rules/reference/workflow.md` section 4.
+- A plan stops where `step_pause` says: `skills/kit-rules/reference/workflow.md` section 3.
+- Done means the checks ran after the last edit: `skills/kit-rules/reference/verify.md` section 4.
 - Temporary files go to `kit scratch-dir`: `skills/kit-rules/reference/output.md` section 3.
 
 Read every file in this table as soon as this skill loads. The rules live in those files, and this one only points at them.

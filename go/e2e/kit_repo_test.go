@@ -174,6 +174,8 @@ func TestKitRepo(t *testing.T) {
 		}
 	})
 
+	// Set from the sizes after sources moved out; step 18's rewrite lowers them.
+	const maxDescription, maxSkill = 200, 5 * 1024
 	t.Run("a reference skill keeps its sources in sources.md and fits its budget", func(t *testing.T) {
 		// The skills that aren't reference skills, so keep no sources.md;
 		// skills/meta-refresh/SKILL.md points here for the list.
@@ -195,8 +197,6 @@ func TestKitRepo(t *testing.T) {
 			"audit-doc-drift", "audit-verify", "code-impact", "code-tour", "meta-refresh",
 			"write-devnote", "write-explainer",
 		}
-		// Set from the sizes after sources moved out; step 18's rewrite lowers them.
-		const maxDescription, maxSkill = 200, 5 * 1024
 		url := regexp.MustCompile(`https?://`)
 		dirs, _ := filepath.Glob(filepath.Join(kitRoot, "skills", "*", "SKILL.md"))
 		for _, skill := range dirs {
@@ -231,6 +231,12 @@ func TestKitRepo(t *testing.T) {
 					}
 				}
 			}
+		}
+	})
+
+	t.Run("kit-rules' SKILL.md, whose hard rules a compaction carries over, fits the same budget", func(t *testing.T) {
+		if n := len(Read(t, filepath.Join(kitRoot, "skills", "kit-rules", "SKILL.md"))); n > maxSkill {
+			t.Errorf("skills/kit-rules/SKILL.md: %d bytes, over the %d-byte budget", n, maxSkill)
 		}
 	})
 
