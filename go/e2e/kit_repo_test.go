@@ -366,6 +366,20 @@ func TestKitRepo(t *testing.T) {
 		}
 	})
 
+	t.Run("no skill hands its whole procedure to one auditor", func(t *testing.T) {
+		skills, _ := filepath.Glob(filepath.Join(kitRoot, "skills", "*", "SKILL.md"))
+		for _, skill := range skills {
+			text := Read(t, skill)
+			// Section 4 of skills/kit-rules/reference/subagents.md decides the split.
+			for _, old := range []string{"It writes the report", "with this file's procedure"} {
+				if strings.Contains(text, old) {
+					rel, _ := filepath.Rel(kitRoot, skill)
+					t.Errorf("%s still says %q", rel, old)
+				}
+			}
+		}
+	})
+
 	t.Run("docs/dependencies.md has a row for every kit.yml tool", func(t *testing.T) {
 		cfg, _, err := config.Load(config.Paths{Base: filepath.Join(kitRoot, "kit.yml"), Overlay: filepath.Join(t.TempDir(), "none.yml")})
 		if err != nil {
