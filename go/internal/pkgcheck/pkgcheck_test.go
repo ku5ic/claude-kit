@@ -93,6 +93,25 @@ func TestUndeclaredJS(t *testing.T) {
 			t.Errorf("Undeclared = %q, want [made-up-lib]", got)
 		}
 	})
+	t.Run("claude-code is Claude Code's own, in a plugin alone", func(t *testing.T) {
+		t.Parallel()
+		plugin := t.TempDir()
+		testutil.Write(t, filepath.Join(plugin, ".claude-plugin", "plugin.json"), `{"name":"p"}`)
+		testutil.Write(t, filepath.Join(plugin, "mods", "package.json"), `{"private":true}`)
+		mod := "import type { On } from 'claude-code'\nimport { test } from 'claude-code/testing'"
+		for _, tc := range []struct {
+			path, src string
+			want      []string
+		}{
+			{filepath.Join(plugin, "mods", "a", "index.ts"), mod, nil},
+			{filepath.Join(plugin, "mods", "a", "index.ts"), mod + "\nimport x from 'claude-code-extra'", []string{"claude-code-extra"}},
+			{path, mod, []string{"claude-code"}},
+		} {
+			if got := Undeclared(nil, tc.path, "", tc.src); !slices.Equal(got, tc.want) {
+				t.Errorf("Undeclared(%s) = %q, want %q", tc.path, got, tc.want)
+			}
+		}
+	})
 	t.Run("a skipped directory", func(t *testing.T) {
 		t.Parallel()
 		if got := Undeclared([]string{"node_modules"}, filepath.Join(app, "node_modules", "x", "i.js"), "", "import 'made-up-lib'"); got != nil {

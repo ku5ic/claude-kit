@@ -159,6 +159,10 @@ func jsUndeclared(path, before, after string) []string {
 	if len(roots) == 0 {
 		return nil
 	}
+	// Claude Code gives a plugin's hooks module this one, so no manifest does.
+	if fsx.FindUp(filepath.Dir(path), "/", ".claude-plugin/plugin.json") != "" {
+		declared["claude-code"] = true
+	}
 	var out []string
 	for _, spec := range specs {
 		name := jsPackage(spec)
