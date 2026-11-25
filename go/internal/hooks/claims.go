@@ -389,7 +389,7 @@ func agentTranscript(p *hook.Payload) string {
 // checkedReports are the scratch report kinds whose claims are checked:
 // every skill's but unslop's, the user's own draft, and prompt's.
 var checkedReports = []string{
-	"explore", "debug", "review", "session", "deps", "pr-review", "plan-critique",
+	"explore", "debug", "review", "session", "improve", "deps", "pr-review", "plan-critique",
 	"a11y", "arch", "ci", "debt", "doc-drift", "infra", "perf", "security", "slop", "verify",
 	"flags", "readiness", "tests", "tokens",
 	"challenge", "contract", "evaluate", "from-design", "history", "impact", "migrate", "tour", "visual",
