@@ -115,7 +115,7 @@ var Rules = []string{
 	"gcloud-delete", "git-config-global", "git-dir-edit", "git-force-push", "git-no-verify",
 	"git-push-protected", "git-reset-hard", "git-tree-discard", "global-installs-invalid",
 	"interpreter-c-wrap", "keychain-delete", "kubectl-delete", "lockfile-edit",
-	"pipe-to-shell", "pkg-global-install", "pkg-missing", "pkg-undeclared", "plan-critic", "plan-done",
+	"pipe-to-shell", "pkg-global-install", "pkg-missing", "pkg-undeclared", "plan-changes", "plan-critic", "plan-done",
 	"pm-mismatch", "psql-destructive", "rc-edit", "rc-inplace-edit", "rc-redirect", "redis-destructive",
 	"review-checks", "review-pick", "review-report", "rm-recursive", "rules-gate", "scratch-rotate", "sensitive-read", "sensitive-write",
 	"size", "skills-gate", "skills-nudge", "slop", "slop-vocabulary", "staged-secret", "terraform-auto-approve", "terraform-destroy",

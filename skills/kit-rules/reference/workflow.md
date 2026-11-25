@@ -41,7 +41,8 @@ Git, side effects, plans, and when to ask.
 - A procedure skill does its own prerequisites. When it needs what another skill produces (a model, a report), it runs that skill's procedure itself instead of telling the user to run it first. A prerequisite the user has to vet or approve (a draft to post, review findings) stays a stop that names the skill.
 - Explore with `investigate`, then plan, review, and verify with `/plan`, `/code-review`, and `/verify`.
 - A plan ends with a `## Steps` checklist, one reviewable commit per item.
-- A plan is written or changed only on the engineer's word, once, with a list of what changed.
+- A plan is written or changed only on the engineer's word, once.
+- A changed plan is posted before it's resubmitted: one line saying what was done and that it isn't resubmitted yet, a fenced `diff` block with one `+`, `~`, or `-` entry per changed step, then the plan's absolute path as the last line. The resubmit waits for the engineer's answer.
 - An answer that changes the plan counts as that word. The plan file gets the answer before the next edit, so the plan stays the source of truth.
 - The reason for a change comes from the engineer or the plan. Missing, ask for it in one line.
 - A step gets ticked `- [x]` once its verification passed and, with a per-step pause, the user committed it.

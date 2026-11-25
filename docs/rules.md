@@ -86,7 +86,7 @@ Every skill with references lists them in a "Before | Read" table: an action, th
 
 **Mutating commands in their own call.** A failure earlier in a chain can mask whether the mutation ran. Each segment of a chain is still checked by the guard.
 
-**Plans change on the engineer's word.** Plan mode is for discussion. A plan edited on every passing idea drifts from what was agreed, and the plan-changes hook prints a change list on resubmit so the engineer sees exactly what moved. An answer to a question about the plan is the engineer's word too: left out of the plan file, it makes the plan stale, and the step-pause review sheet flags each file the plan doesn't name (`lookReasons` in `go/internal/hooks/reviewsheet.go`).
+**Plans change on the engineer's word.** Plan mode is for discussion. A plan edited on every passing idea drifts from what was agreed, and the plan-changes hook holds a changed plan until its changes are posted in chat and answered. A change list printed at the submit came with the dialog already open, so the engineer had to approve or reject before reading it. An answer to a question about the plan is the engineer's word too: left out of the plan file, it makes the plan stale, and the step-pause review sheet flags each file the plan doesn't name (`lookReasons` in `go/internal/hooks/reviewsheet.go`).
 
 **Procedure skills assume nothing and do their own prerequisites.** A skill that names one stack, host, or vendor fails silently everywhere else, so it detects them and takes specifics from the pattern skills. A skill that answers "run `/code-visual` first" sends the user off to type a second command for output it could build itself (`/code-tour` did, before 0.12.0). The exception is input the user has to vet, such as a draft to post.
 

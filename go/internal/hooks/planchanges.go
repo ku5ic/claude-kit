@@ -1,9 +1,12 @@
 package hooks
 
 import (
+	"cmp"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -15,44 +18,114 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
-// PlanChanges shows the user what a resubmitted plan changed, from the
-// hook's own diff against the text it last saw, so the list isn't Claude's
-// account of it: each section added, removed, or changed, with line
-// counts, then the full diff in a scratch file, and tells Claude its
-// message lists them too. A first submit and an unchanged resubmit print
-// nothing. PreToolUse for ExitPlanMode.
+// replaces matches a plan's line naming the plan file it replaces.
+var replaces = regexp.MustCompile("(?m)^Replaces\\s+`?([^`\\s]+\\.md)")
+
+// heldPlan is a changed plan PlanChanges denied, and the user's last answer
+// at the time, by transcript line.
+type heldPlan struct {
+	Text     string `json:"text"`
+	Answered int    `json:"answered"`
+}
+
+// PlanChanges holds a changed plan's dialog until the user has answered the
+// changes in chat: it denies the submit, listing each section added,
+// removed, or changed with line counts, from the hook's own diff against the
+// text the user last saw, and the full diff in scratch, so the list isn't
+// Claude's account of it. The same text passes once the user answered since,
+// as ReviewPick counts it; a later edit is a new change. A first submit is
+// diffed against the plan its "Replaces" line names, and passes without one.
+// Last in the plan's checks, and only when none of them sent it back: a plan
+// no dialog opened for was never seen. PreToolUse for ExitPlanMode.
 func PlanChanges(h *hook.Hook) error {
 	p := h.Payload
 	plan, text := p.String(hook.KeyInputPlanFilePath), p.String(hook.KeyInputPlan)
 	if p.Err != nil || plan == "" || text == "" {
 		return nil
 	}
-	file := h.Paths.SessionFile(cache.PlanCritic, p.SessionID(), filepath.Base(plan), "text")
-	if file == "" {
+	if decision, _ := h.Decision(); decision == "deny" {
 		return nil
 	}
-	prev, err := os.ReadFile(file)
-	if !h.DryRun {
-		_ = fsx.WriteAtomic(file, []byte(text), 0o600)
-	}
-	if err != nil || string(prev) == text {
+	name := filepath.Base(plan)
+	shownFile := h.Paths.SessionFile(cache.PlanCritic, p.SessionID(), name, "text")
+	heldFile := h.Paths.SessionFile(cache.PlanCritic, p.SessionID(), name, "held")
+	if shownFile == "" {
 		return nil
 	}
-	changes := sectionChanges(string(prev), text)
-	if len(changes) == 0 {
+	save := func(file, data string) {
+		if !h.DryRun {
+			_ = fsx.WriteAtomic(file, []byte(data), 0o600)
+		}
+	}
+	held := readHeld(heldFile)
+	answered, ok := lastAnswer(h)
+	shown, seen := lastShown(h, shownFile, text)
+	if held.Text != "" && answered > held.Answered {
+		shown = held.Text
+		save(shownFile, shown)
+	}
+	changes := sectionChanges(shown, text)
+	if !seen || !ok || len(changes) == 0 || !h.Deny(planReason(h, changes, shown, text), "plan-changes") {
+		save(shownFile, text)
 		return nil
 	}
-	lines := []string{fmt.Sprintf("kit plan: resubmitted, %d sections changed", len(changes))}
+	if data, err := json.Marshal(heldPlan{text, answered}); err == nil {
+		save(heldFile, string(data))
+	}
+	return nil
+}
+
+// readHeld is the held plan in file, zero when there is none.
+func readHeld(file string) heldPlan {
+	var held heldPlan
+	if data, err := os.ReadFile(file); err != nil || json.Unmarshal(data, &held) != nil {
+		return heldPlan{}
+	}
+	return held
+}
+
+// lastShown is the plan text the user last saw, from file, or on a first
+// submit the plan text's "Replaces" line names; false when neither is there.
+func lastShown(h *hook.Hook, file, text string) (string, bool) {
+	if data, err := os.ReadFile(file); err == nil {
+		return string(data), true
+	}
+	m := replaces.FindStringSubmatch(text)
+	if m == nil {
+		return "", false
+	}
+	cwd := h.Payload.Cwd()
+	data, err := os.ReadFile(fsx.Abs(cmp.Or(git.Toplevel(cwd), cwd), m[1]))
+	return string(data), err == nil
+}
+
+// lastAnswer is the transcript line of the user's last answer, a typed
+// prompt or an AskUserQuestion's result; false when the transcript can't be
+// read, since no answer could then lift a deny.
+func lastAnswer(h *hook.Hook) (int, bool) {
+	path, cwd := h.Payload.String(hook.KeyTranscriptPath), h.Payload.Cwd()
+	if !fsx.IsFile(path) {
+		return 0, false
+	}
+	root := git.Toplevel(cwd)
+	_, walk := readSession(h, path, root, project.PlanDir(h.Paths, cwd), codeIn(h, root))
+	return walk.Answered, true
+}
+
+// planReason is PlanChanges' deny: what changed, the diff, what to do, and
+// last the plan's path, which closes Claude's message too.
+func planReason(h *hook.Hook, changes []string, old, new string) string {
+	lines := []string{"the plan changed since the user last saw it"}
 	if len(changes) > sheetLimit-1 {
 		changes = append(changes[:sheetLimit-2], layout.KV("more", fmt.Sprintf("%d sections, in the diff", len(changes)-(sheetLimit-2))))
 	}
 	lines = append(lines, changes...)
-	if diff := planDiff(h, string(prev), text); diff != "" {
+	if diff := planDiff(h, old, new); diff != "" {
 		lines = append(lines, layout.KV("diff", diff))
 	}
-	h.Notify(strings.Join(lines, "\n"))
-	h.AddContext("PreToolUse", "Your message lists what changed since the last submit (skills/kit-rules/reference/workflow.md section 3).")
-	return nil
+	return strings.Join(append(lines,
+		layout.KV("do", "post the changes in chat, in the format of skills/kit-rules/reference/workflow.md section 3, and end your turn; call ExitPlanMode again once the user answers"),
+		layout.KV("plan", fsx.Abs(h.Payload.Cwd(), h.Payload.String(hook.KeyInputPlanFilePath)))), "\n")
 }
 
 // planSection is one heading's lines, the text before the first heading

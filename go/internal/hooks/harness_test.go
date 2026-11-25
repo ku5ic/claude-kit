@@ -101,8 +101,8 @@ var entries = map[string]func(*hook.Hook) int{
 		return hook.Run(h, hook.NamedCheck{Name: "guard-connector", Check: GuardConnector}, hook.NamedCheck{Name: "check-size", Check: CheckSize}, hook.NamedCheck{Name: "verify-claims", Check: VerifyClaims})
 	},
 	"plan-dispatch": func(h *hook.Hook) int {
-		return hook.Run(h, hook.NamedCheck{Name: "plan-changes", Check: PlanChanges}, hook.NamedCheck{Name: "check-size", Check: CheckSize}, hook.NamedCheck{Name: "check-citations", Check: CheckCitations},
-			hook.NamedCheck{Name: "guard-plan", Check: GuardPlan}, hook.NamedCheck{Name: "verify-claims", Check: VerifyClaims})
+		return hook.Run(h, hook.NamedCheck{Name: "check-size", Check: CheckSize}, hook.NamedCheck{Name: "check-citations", Check: CheckCitations},
+			hook.NamedCheck{Name: "guard-plan", Check: GuardPlan}, hook.NamedCheck{Name: "verify-claims", Check: VerifyClaims}, hook.NamedCheck{Name: "plan-changes", Check: PlanChanges})
 	},
 	"subagent-dispatch": func(h *hook.Hook) int {
 		return hook.Run(h, hook.NamedCheck{Name: "subagent-slop", Check: SubagentSlop}, hook.NamedCheck{Name: "check-size", Check: CheckSize}, hook.NamedCheck{Name: "check-citations", Check: CheckCitations},

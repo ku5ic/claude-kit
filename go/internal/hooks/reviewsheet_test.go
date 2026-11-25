@@ -245,44 +245,191 @@ func TestPickedUpPlan(t *testing.T) {
 	})
 }
 
+// planChangesEnv is one session submitting a plan, with the transcript its
+// answers are counted in.
+type planChangesEnv struct {
+	*sandbox
+	proj, plan, transcript string
+}
+
+const planV1 = "# Plan\n\nWhy.\n\n## Steps\n\n- [ ] 1. one\n- [ ] 2. two\n\n## Risks\n\nNone.\n"
+
+var planV2 = strings.Replace(planV1, "- [ ] 2. two\n", "- [ ] 2. two, split\n- [ ] 3. three\n", 1) + "\n## Rollback\n\nRevert.\n"
+
+func planChangesSetup(t *testing.T) *planChangesEnv {
+	k := newSandbox(t)
+	e := &planChangesEnv{sandbox: k, proj: repo(t, filepath.Join(k.home, "proj")), transcript: filepath.Join(t.TempDir(), "s.jsonl")}
+	e.plan = filepath.Join(e.proj, ".claude", "plans", "plan-x.md")
+	e.prompt("plan it")
+	return e
+}
+
+func (e *planChangesEnv) prompt(text string) {
+	testutil.AppendJSONL(e.t, e.transcript, testutil.UserPrompt(text))
+}
+
+// ask is an AskUserQuestion and its result, an error when rejected.
+func (e *planChangesEnv) ask(id string, rejected bool) {
+	testutil.AppendJSONL(e.t, e.transcript, testutil.ToolUse(id, "AskUserQuestion", map[string]any{}),
+		map[string]any{"type": "user", "message": map[string]any{"content": []any{map[string]any{"type": "tool_result", "tool_use_id": id, "is_error": rejected}}}})
+}
+
+func (e *planChangesEnv) submit(text string) result {
+	e.t.Helper()
+	return e.run("plan-changes", map[string]any{"hook_event_name": "PreToolUse", "session_id": "s", "tool_name": "ExitPlanMode", "cwd": e.proj,
+		"transcript_path": e.transcript, "tool_input": map[string]any{"plan": text, "planFilePath": e.plan}})
+}
+
+// reason is the deny's reason, for a result that denied.
+func (r result) reason(t *testing.T) string {
+	t.Helper()
+	r.Denied(t)
+	var out struct {
+		HookSpecificOutput struct {
+			PermissionDecisionReason string `json:"permissionDecisionReason"`
+		} `json:"hookSpecificOutput"`
+	}
+	if err := json.Unmarshal([]byte(r.Stdout), &out); err != nil {
+		t.Fatal(err)
+	}
+	return out.HookSpecificOutput.PermissionDecisionReason
+}
+
 func TestPlanChanges(t *testing.T) {
 	t.Parallel()
-	const v1 = "# Plan\n\nWhy.\n\n## Steps\n\n- [ ] 1. one\n- [ ] 2. two\n\n## Risks\n\nNone.\n"
-	submit := func(k *sandbox, proj, text string) result {
-		return k.run("plan-changes", map[string]any{"hook_event_name": "PreToolUse", "session_id": "s", "tool_name": "ExitPlanMode", "cwd": proj,
-			"tool_input": map[string]any{"plan": text, "planFilePath": "/plans/plan-x.md"}})
-	}
-	setup := func(t *testing.T) (*sandbox, string) {
-		k := newSandbox(t)
-		proj := repo(t, filepath.Join(k.home, "proj"))
-		submit(k, proj, v1).Empty(t)
-		return k, proj
-	}
-	t.Run("an unchanged resubmit prints nothing", func(t *testing.T) {
+	t.Run("a first submit and an unchanged resubmit print nothing", func(t *testing.T) {
 		t.Parallel()
-		k, proj := setup(t)
-		submit(k, proj, v1).Empty(t)
+		e := planChangesSetup(t)
+		e.submit(planV1).Empty(t)
+		e.submit(planV1).Empty(t)
+		e.submit(strings.ReplaceAll(planV1, "\n\n", "\n\n\n")).Empty(t) // blank lines alone
 	})
-	t.Run("a section added and a section changed are listed, with the full diff in scratch", func(t *testing.T) {
+	t.Run("a changed resubmit is denied, with each changed section, the diff, and last the plan's absolute path", func(t *testing.T) {
 		t.Parallel()
-		k, proj := setup(t)
-		v2 := strings.Replace(v1, "- [ ] 2. two\n", "- [ ] 2. two, split\n- [ ] 3. three\n", 1) + "\n## Rollback\n\nRevert.\n"
-		r := submit(k, proj, v2)
-		r.Has(t, `"additionalContext":"kit: Your message lists what changed since the last submit`)
-		msg := notice(t, r)
+		e := planChangesSetup(t)
+		e.submit(planV1)
+		msg := e.submit(planV2).reason(t)
 		hasLine(t, msg,
-			`kit plan: resubmitted, 2 sections changed`,
 			`changed  ## Steps  \+2 -1`,
 			`added  ## Rollback  \+2`,
 			`diff  .*kit-plan-changes\.diff`,
+			`do    .*skills/kit-rules/reference/workflow\.md section 3.*`,
+			`rule  plan-changes`,
 		)
-		if diff := read(t, filepath.Join(proj, ".claude", "scratch", "kit-plan-changes.diff")); !strings.Contains(diff, "+- [ ] 3. three") {
+		body, _, _ := strings.Cut(msg, "\n\nrule  ")
+		if !strings.HasSuffix(body, "\nplan  "+e.plan) {
+			t.Errorf("the reason doesn't end with the plan's path:\n%s", msg)
+		}
+		if diff := read(t, filepath.Join(e.proj, ".claude", "scratch", "kit-plan-changes.diff")); !strings.Contains(diff, "+- [ ] 3. three") {
 			t.Errorf("diff:\n%s", diff)
 		}
 	})
 	t.Run("a section removed is listed", func(t *testing.T) {
 		t.Parallel()
-		k, proj := setup(t)
-		hasLine(t, notice(t, submit(k, proj, strings.Replace(v1, "\n## Risks\n\nNone.\n", "", 1))), `removed  ## Risks  -2`)
+		e := planChangesSetup(t)
+		e.submit(planV1)
+		hasLine(t, e.submit(strings.Replace(planV1, "\n## Risks\n\nNone.\n", "", 1)).reason(t), `removed  ## Risks  -2`)
+	})
+	t.Run("the same text passes once the user typed, and only then", func(t *testing.T) {
+		t.Parallel()
+		e := planChangesSetup(t)
+		e.submit(planV1)
+		e.submit(planV2).Denied(t)
+		e.submit(planV2).Denied(t)
+		e.prompt("<task-notification>\n<task-id>a1</task-id>\n<status>completed</status>\n</task-notification>")
+		e.submit(planV2).Denied(t)
+		e.prompt("go")
+		e.submit(planV2).Empty(t)
+		e.submit(planV2).Empty(t)
+	})
+	t.Run("an answered AskUserQuestion counts, a rejected one doesn't", func(t *testing.T) {
+		t.Parallel()
+		e := planChangesSetup(t)
+		e.submit(planV1)
+		e.submit(planV2).Denied(t)
+		e.ask("toolu_1", true)
+		e.submit(planV2).Denied(t)
+		e.ask("toolu_2", false)
+		e.submit(planV2).Empty(t)
+	})
+	t.Run("an answer before the deny doesn't count", func(t *testing.T) {
+		t.Parallel()
+		e := planChangesSetup(t)
+		e.submit(planV1)
+		e.prompt("split step two")
+		e.submit(planV2).Denied(t)
+	})
+	t.Run("a later edit is a new change: diffed against what was answered, else against what was last shown", func(t *testing.T) {
+		t.Parallel()
+		v3 := strings.Replace(planV2, "None.", "One.", 1)
+		e := planChangesSetup(t)
+		e.submit(planV1)
+		e.submit(planV2).Denied(t)
+		msg := e.submit(v3).reason(t)
+		hasLine(t, msg, `added  ## Rollback  \+2`, `changed  ## Risks  \+1 -1`)
+		e.submit(planV2).Denied(t)
+		e.prompt("and the risk")
+		msg = e.submit(v3).reason(t)
+		hasLine(t, msg, `changed  ## Risks  \+1 -1`)
+		if strings.Contains(msg, "## Rollback") {
+			t.Errorf("lists a change the user answered:\n%s", msg)
+		}
+		e.prompt("go")
+		e.submit(v3).Empty(t)
+	})
+	t.Run("a first submit that replaces a readable plan is diffed against it", func(t *testing.T) {
+		t.Parallel()
+		for _, ref := range []string{"Replaces `.claude/plans/plan-old.md`. Sources: that plan.", "Replaces .claude/plans/plan-old.md"} {
+			e := planChangesSetup(t)
+			testutil.Write(t, filepath.Join(e.proj, ".claude", "plans", "plan-old.md"), planV1)
+			v2 := strings.Replace(planV2, "Why.", ref, 1)
+			hasLine(t, e.submit(v2).reason(t), `changed  ## Steps  \+2 -1`, `added  ## Rollback  \+2`)
+			e.prompt("go")
+			e.submit(v2).Empty(t)
+		}
+	})
+	t.Run("a first submit that replaces no readable file passes", func(t *testing.T) {
+		t.Parallel()
+		e := planChangesSetup(t)
+		e.submit(strings.Replace(planV2, "Why.", "Replaces `.claude/plans/gone.md`.", 1)).Empty(t)
+	})
+	t.Run("a first submit that says replaces in passing passes", func(t *testing.T) {
+		t.Parallel()
+		e := planChangesSetup(t)
+		testutil.Write(t, filepath.Join(e.proj, ".claude", "plans", "plan-old.md"), planV1)
+		e.submit(strings.Replace(planV2, "Why.", "This replaces `.claude/plans/plan-old.md` one day.", 1)).Empty(t)
+	})
+	t.Run("a transcript that can't be read passes, since no answer could lift the deny", func(t *testing.T) {
+		t.Parallel()
+		e := planChangesSetup(t)
+		e.submit(planV1)
+		e.transcript = filepath.Join(t.TempDir(), "gone.jsonl")
+		e.submit(planV2).Allowed(t)
+	})
+	t.Run("plan-changes in disabled_rules or shadow_rules lets it through, and the next change is diffed against it", func(t *testing.T) {
+		t.Parallel()
+		for _, key := range []string{"disabled_rules", "shadow_rules"} {
+			e := planChangesSetup(t)
+			e.overlay(key + ": [plan-changes]\n")
+			e.submit(planV1)
+			e.submit(planV2).Allowed(t)
+			e.overlay("")
+			e.submit(planV2).Empty(t)
+		}
+	})
+	t.Run("a plan another check sends back was never shown, so its fix is no change", func(t *testing.T) {
+		t.Parallel()
+		e := planChangesSetup(t)
+		testutil.Write(t, filepath.Join(e.proj, "src", "stop.go"), "a\n")
+		e.overlay("disabled_rules: [plan-critic]\nclaims:\n  timeout: 0\n")
+		dispatch := func(text string) result {
+			return e.run("plan-dispatch", map[string]any{"hook_event_name": "PreToolUse", "session_id": "s", "tool_name": "ExitPlanMode", "cwd": e.proj,
+				"transcript_path": e.transcript, "tool_input": map[string]any{"plan": text, "planFilePath": e.plan}})
+		}
+		r := dispatch(planV1 + "\n- src/stop.go:40 returns early.\n")
+		r.Denied(t)
+		r.Lacks(t, "plan-changes")
+		dispatch(planV1).Allowed(t)
+		dispatch(planV2).Has(t, "plan-changes")
 	})
 }
