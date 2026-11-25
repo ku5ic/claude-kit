@@ -1,6 +1,6 @@
 {
   "name": "kit",
-  "description": "Ship with confidence. Runs your rules as hooks, so Claude Code passes your project's own checks before it says done, and stops for your review after every step. Stack skills load on their own, and 46 commands cover the work around the code: audits, ADRs and RFCs, PR reviews, your review queue, dependency PRs, incident retros and runbooks.",
+  "description": "Ship with confidence. Runs your rules as hooks, so Claude Code passes your project's own checks before it says done, and stops for your review after every step. Stack skills load on their own, and commands cover the work around the code: audits, ADRs and RFCs, PR reviews, your review queue, dependency PRs, incident retros and runbooks.",
   "author": {
     "name": "Sinisa Kusic"
   },
