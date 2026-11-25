@@ -345,6 +345,34 @@ func TestKitRepo(t *testing.T) {
 		}
 	})
 
+	t.Run("a skill that fans out gives every angle a task and starts no single auditor", func(t *testing.T) {
+		// Every skill with an ## Angles table.
+		fansOut := []string{"audit-skills"}
+		const rule = "skills/kit-rules/reference/subagents.md"
+		tasks := tableColumn(Read(t, filepath.Join(kitRoot, rule)), "## 4. Fan-out", "Task")
+		if len(tasks) == 0 {
+			t.Fatalf("%s section 4 has no Task column", rule)
+		}
+		for _, name := range fansOut {
+			text := Read(t, filepath.Join(kitRoot, "skills", name, "SKILL.md"))
+			if !strings.Contains(text, rule+"` section 4") {
+				t.Errorf("%s doesn't cite %s section 4", name, rule)
+			}
+			if strings.Contains(text, "It writes the report") {
+				t.Errorf("%s still has one auditor write the report", name)
+			}
+			angles := tableColumn(text, "## Angles", "Task")
+			if len(angles) < 2 {
+				t.Errorf("%s: ## Angles has %d rows, want at least 2", name, len(angles))
+			}
+			for _, task := range angles {
+				if !slices.Contains(tasks, task) {
+					t.Errorf("%s: task %q isn't one of section 4's %v", name, task, tasks)
+				}
+			}
+		}
+	})
+
 	t.Run("docs/dependencies.md has a row for every kit.yml tool", func(t *testing.T) {
 		cfg, _, err := config.Load(config.Paths{Base: filepath.Join(kitRoot, "kit.yml"), Overlay: filepath.Join(t.TempDir(), "none.yml")})
 		if err != nil {
@@ -426,6 +454,38 @@ func TestKitRepo(t *testing.T) {
 			}
 		}
 	})
+}
+
+// tableColumn is the cells under column in the first table of the section
+// heading opens, without backticks.
+func tableColumn(text, heading, column string) []string {
+	_, section, ok := strings.Cut(text, "\n"+heading+"\n")
+	if !ok {
+		return nil
+	}
+	section, _, _ = strings.Cut(section, "\n## ")
+	at := -1
+	var cells []string
+	for line := range strings.SplitSeq(section, "\n") {
+		row, isRow := strings.CutPrefix(line, "|")
+		switch {
+		case !isRow && at >= 0:
+			return cells
+		case !isRow:
+			continue
+		}
+		cols := strings.Split(row, "|")
+		for i := range cols {
+			cols[i] = strings.Trim(strings.TrimSpace(cols[i]), "`")
+		}
+		switch {
+		case at < 0:
+			at = slices.Index(cols, column)
+		case at < len(cols) && !strings.HasPrefix(cols[at], "--"):
+			cells = append(cells, cols[at])
+		}
+	}
+	return cells
 }
 
 // proseLines is text's lines by 1-based number, without fenced code and

@@ -23,14 +23,22 @@ Loading this skill isn't enough. Before the step a row names, read its file.
 1. Targets, from the arguments: names, paths, or `all`. None, ask. They're the directories with a `SKILL.md` and the agent and command files of the plugin (`skills/`, `agents/`) when the project root has `.claude-plugin/plugin.json`, else of `.claude/skills/`, `.claude/agents/`, and `.claude/commands/`. A skill's target is its whole directory. When a name matches nothing, say so and ask. More than 5: list them and ask before going on.
 2. Read each target's last `skills-*` report in `kit scratch-dir`, when there is one. A target unchanged since it is skipped, by `git log` and `git status`. One changed only to fix its findings gets the line `/audit-verify <report>` in the reply and no new audit.
 3. Start the practice and the angles below together. The practice: reuse a `practice.md` in a `skills-*` raw folder fetched today that covers every target's model. Otherwise dispatch the researcher agent (subagent_type: kit:researcher). Ask it to fetch, from Anthropic's own documentation only, the pages on writing skills, on subagents, and on prompting each model the targets run on: the one each pins, else the session's. Ask for each rule a reviewer could check in a file, quoted, with its URL, and for each rule in the two files above whether a page confirms, contradicts, or doesn't mention it. Write its reply to `practice.md` in the report's raw folder, with the date.
-4. Dispatch the auditor agent (subagent_type: kit:auditor), one per angle and per 30 targets, the targets split so each batch holds about the same amount of text. Send them all in one message, except Guidance, which starts once `practice.md` is written, and no more at once than run at once (`CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`, 20 when unset, the researcher counted), the rest as those finish. Each gets its one angle, The bar, Not a finding, Output per finding, its targets, and the last reports' paths, and Guidance the absolute path of `practice.md`. It writes its findings to `candidates-<angle>-<n>.md` in the raw folder and returns that path, and the targets it didn't finish.
-5. When every auditor is back, merge the findings that point at the same line or have the same cause, keeping the one with the stronger Source. Then refute. Dispatch one agent per target with findings (general-purpose, model `sonnet`), under step 4's limit, with that target's findings, its path, and The bar, told to show each one wrong. For each it answers each line of The bar with what it read, then `stands` or `broken`. A finding it can't settle, or doesn't reach, is `broken`.
+4. Fan out per `skills/kit-rules/reference/subagents.md` section 4, one auditor per angle and per 30 targets, the targets split so each batch holds about the same amount of text. Guidance starts once `practice.md` is written, and the researcher counts as one of the running agents. Each auditor gets The bar, Not a finding, Output per finding, its targets, and the last reports' paths, and Guidance the absolute path of `practice.md`. It writes `candidates-<angle>-<n>.md` and also returns the targets it didn't finish.
+5. Merge with the stronger Source kept, not the higher severity. Then refute. Dispatch one agent per target with findings (general-purpose, model `sonnet`), under the same limit on running agents, with that target's findings, its path, and The bar, told to show each one wrong. For each it answers each line of The bar with what it read, then `stands` or `broken`. A finding it can't settle, or doesn't reach, is `broken`.
 6. Read the decisive line of each finding that stands yourself (`skills/kit-rules/reference/subagents.md` section 2). One you can't confirm is broken too. Write the report from what's left, and the broken ones, each with what broke it, to `rejected.md` in the raw folder.
 7. Reply per `skills/kit-rules/reference/output.md` section 3.
 
 ## Angles
 
 Each auditor takes one, over every file of its targets, and reports nothing that belongs to another.
+
+| Angle          | Task  | Reads                                 |
+| -------------- | ----- | ------------------------------------- |
+| Prompt         | Check | the `claude-api` skill                |
+| Names          | Check | the targets only                      |
+| Contradictions | Check | the project rules each target cites   |
+| Gaps           | Check | the targets only                      |
+| Guidance       | Check | `practice.md` and the two files above |
 
 ### Prompt
 
