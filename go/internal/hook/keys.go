@@ -9,6 +9,7 @@ const (
 	KeyCwd                  = "cwd"
 	KeyPermissionMode       = "permission_mode"
 	KeyHookEventName        = "hook_event_name"
+	KeySource               = "source"
 	KeyPrompt               = "prompt"
 	KeyExpansionType        = "expansion_type"
 	KeyCommandName          = "command_name"

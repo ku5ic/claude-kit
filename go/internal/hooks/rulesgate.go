@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
+	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
@@ -29,9 +30,10 @@ const rulesSkill = "kit-rules"
 // load one, and a subagent's hand-back is its reply, so those pass. A
 // missing skills log shows nothing loaded, unless the transcript shows a
 // Skill call; then, or when the log can't be read, it fails open, told
-// to the user. A fork counts its parent's loads. An
-// agent whose transcript shows Claude Code gave it neither Skill nor Read
-// passes, logged; one whose tools can't be read is gated.
+// to the user. A fork counts its parent's loads. A compaction voids the main
+// session's own (rearmRulesGate). An agent whose transcript shows Claude Code
+// gave it neither Skill nor Read passes, logged; one whose tools can't be
+// read is gated.
 func RulesGate(h *hook.Hook) error {
 	p := h.Payload
 	if p.Err != nil {
@@ -45,23 +47,12 @@ func RulesGate(h *hook.Hook) error {
 	if cfg == nil {
 		return nil
 	}
-	required := []string{rulesSkill}
-	for _, skill := range cfg.GlobalSkills {
-		if skill != "" && !slices.Contains(required, skill) {
-			required = append(required, skill)
-		}
-	}
+	required := requiredSkills(cfg)
 	if tool == "Read" && slices.ContainsFunc(required, func(skill string) bool { return inSkill(h, skill, p.FilePath()) }) {
 		return nil
 	}
 	agent := p.String(hook.KeyAgentID)
-	marker := func(skill string) string {
-		parts := []string{skill}
-		if agent != "" {
-			parts = append(parts, agent)
-		}
-		return h.Paths.SessionFile(cache.SkillsLoaded, p.SessionID(), parts...)
-	}
+	marker := func(skill string) string { return rulesMarker(h, agent, skill) }
 	if marker(rulesSkill) == "" {
 		return errors.New("no session_id, so no skill load can be told apart")
 	}
@@ -119,6 +110,41 @@ func RulesGate(h *hook.Hook) error {
 		layout.KV("do", "call the Skill tool now, or Read "+strings.Join(files, " and ")+" if the Skill tool is unavailable")+"\n"+
 		layout.KV("then", "retry this call; every tool call stays blocked until you do, so don't stop to ask"), "rules-gate")
 	return nil
+}
+
+// requiredSkills is kit-rules and every global_skills skill.
+func requiredSkills(cfg *config.Config) []string {
+	required := []string{rulesSkill}
+	for _, skill := range cfg.GlobalSkills {
+		if skill != "" && !slices.Contains(required, skill) {
+			required = append(required, skill)
+		}
+	}
+	return required
+}
+
+// rulesMarker is the gate's marker that agent ("" for the main session)
+// loaded skill, or "" when the session can't be named. Only the gate writes
+// it, so no other check's load can lift the gate.
+func rulesMarker(h *hook.Hook, agent, skill string) string {
+	parts := []string{skill}
+	if agent != "" {
+		parts = append(parts, agent)
+	}
+	return h.Paths.SessionFile(cache.RulesLoaded, h.Payload.SessionID(), parts...)
+}
+
+// rearmRulesGate makes the gate ask the main session for every required
+// skill again after a compaction. The log line goes first: a marker removed
+// before it could be written again from the loads it voids.
+func rearmRulesGate(h *hook.Hook, cfg *config.Config) {
+	h.Log(kitlog.Skills, kitlog.EventCompacted, "cwd", h.Payload.String(hook.KeyCwd))
+	if h.DryRun {
+		return
+	}
+	for _, skill := range requiredSkills(cfg) {
+		_ = os.Remove(rulesMarker(h, "", skill)) // a missing marker is already rearmed
+	}
 }
 
 // notLoadedBy is the skills of want the skills log doesn't show agent (""

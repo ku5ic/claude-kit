@@ -182,6 +182,108 @@ func TestRulesGate(t *testing.T) {
 			t.Errorf("guards log lacks the skip:\n%s", log)
 		}
 	})
+	t.Run("a subagent's load of a mapped global skill stays its own once the main session reads a mapped file", func(t *testing.T) {
+		t.Parallel()
+		k := setup(t, mainLoad+"\n"+`{"event":"PostToolUse","session_id":"s1","agent_id":"a1","skill_file":"kit:go-patterns","tool_name":"Skill"}`+"\n")
+		testutil.Write(t, filepath.Join(k.paths.Root, "skills", "go-patterns", "SKILL.md"), "# Go\n")
+		k.overlay("global_skills: [go-patterns]\nskill_file_map: [{on: basename, globs: [\"*.go\"], skills: [go-patterns]}]\n")
+		call(k, "Bash", "", bash).Denied(t)
+		k.run("guard-dispatch", map[string]any{"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Read",
+			"tool_input": map[string]any{"file_path": filepath.Join(t.TempDir(), "main.go")}}).Allowed(t)
+		call(k, "Bash", "", bash).Denied(t)
+		call(k, "Bash", "a1", bash).Denied(t) // kit-rules is still missing
+	})
+	start := func(k *sandbox, source string) {
+		k.run("inject-context", map[string]any{"hook_event_name": "SessionStart", "session_id": "s1", "source": source, "cwd": k.home}).Want(k.t, 0)
+	}
+	reload := func(k *sandbox) {
+		k.run("log-skills", map[string]any{"hook_event_name": "PostToolUse", "session_id": "s1", "tool_name": "Skill", "tool_input": map[string]any{"skill": "kit:kit-rules"}}).Want(k.t, 0)
+	}
+	agentLoad := `{"event":"PostToolUse","session_id":"s1","agent_id":"a1","skill_file":"kit:kit-rules","tool_name":"Skill"}`
+	t.Run("a compaction denies the main session until it loads every required skill again", func(t *testing.T) {
+		t.Parallel()
+		k := setup(t, mainLoad+"\n"+`{"event":"PostToolUse","session_id":"s1","skill_file":"kit:slop-patterns","tool_name":"Skill"}`+"\n")
+		testutil.Write(t, filepath.Join(k.paths.Root, "skills", "slop-patterns", "SKILL.md"), "# Slop\n")
+		k.overlay("global_skills: [slop-patterns]\n")
+		call(k, "Bash", "", bash).Allowed(t)
+		start(k, "compact")
+		r := call(k, "Bash", "", bash)
+		r.Denied(t)
+		r.Has(t, "the kit-rules and slop-patterns skills aren't loaded yet")
+		reload(k)
+		call(k, "Bash", "", bash).Has(t, "the slop-patterns skill isn't loaded yet")
+		k.run("log-skills", map[string]any{"hook_event_name": "PostToolUse", "session_id": "s1", "tool_name": "Skill", "tool_input": map[string]any{"skill": "kit:slop-patterns"}})
+		call(k, "Bash", "", bash).Allowed(t)
+	})
+	t.Run("a compaction before any gated call still voids the load", func(t *testing.T) {
+		t.Parallel()
+		k := setup(t, mainLoad+"\n")
+		start(k, "compact")
+		call(k, "Bash", "", bash).Denied(t)
+		reload(k)
+		call(k, "Bash", "", bash).Allowed(t)
+	})
+	t.Run("a second compaction denies again", func(t *testing.T) {
+		t.Parallel()
+		k := setup(t, mainLoad+"\n")
+		start(k, "compact")
+		reload(k)
+		call(k, "Bash", "", bash).Allowed(t)
+		start(k, "compact")
+		call(k, "Bash", "", bash).Denied(t)
+	})
+	t.Run("a startup, resume, or clear resets nothing", func(t *testing.T) {
+		t.Parallel()
+		for _, source := range []string{"startup", "resume", "clear"} {
+			k := setup(t, mainLoad+"\n")
+			start(k, source)
+			call(k, "Bash", "", bash).Allowed(t)
+		}
+	})
+	t.Run("another session's compaction resets nothing", func(t *testing.T) {
+		t.Parallel()
+		k := setup(t, mainLoad+"\n")
+		call(k, "Bash", "", bash).Allowed(t)
+		k.run("inject-context", map[string]any{"hook_event_name": "SessionStart", "session_id": "s2", "source": "compact", "cwd": k.home})
+		call(k, "Bash", "", bash).Allowed(t)
+	})
+	t.Run("the session's compaction leaves a subagent's load alone, marker or log", func(t *testing.T) {
+		t.Parallel()
+		k := setup(t, agentLoad+"\n")
+		call(k, "Bash", "a1", bash).Allowed(t)
+		start(k, "compact")
+		call(k, "Bash", "a1", bash).Allowed(t)
+
+		k = setup(t, agentLoad+"\n")
+		start(k, "compact")
+		call(k, "Bash", "a1", bash).Allowed(t)
+	})
+	t.Run("a fork started before the compaction keeps its own marker; one first calling after it counts the parent's loads since", func(t *testing.T) {
+		t.Parallel()
+		fork := `{"type":"fork-context-ref","agentId":"a1"}`
+		k := setup(t, mainLoad+"\n")
+		main := started(t, fork, prompt)
+		inAgent(k, main).Allowed(t)
+		start(k, "compact")
+		inAgent(k, main).Allowed(t)
+
+		k = setup(t, mainLoad+"\n")
+		start(k, "compact")
+		inAgent(k, main).Denied(t)
+		reload(k)
+		inAgent(k, main).Allowed(t)
+	})
+	t.Run("a log trimmed past the compaction line holds only what came after it", func(t *testing.T) {
+		t.Parallel()
+		k := setup(t, mainLoad+"\n")
+		start(k, "compact")
+		testutil.Write(t, k.paths.LogFile(kitlog.Skills), "")
+		call(k, "Bash", "", bash).Denied(t)
+		reload(k)
+		call(k, "Bash", "", bash).Allowed(t)
+		testutil.Write(t, k.paths.LogFile(kitlog.Skills), "")
+		call(k, "Bash", "", bash).Allowed(t) // by its marker
+	})
 	t.Run("rules-gate in disabled_rules lets it through", func(t *testing.T) {
 		t.Parallel()
 		k := setup(t, "")

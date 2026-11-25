@@ -64,6 +64,9 @@ func InjectContext(h *hook.Hook) error {
 	}
 	var out strings.Builder
 	cfg := h.Config()
+	if cfg != nil && h.Payload.String(hook.KeySource) == "compact" {
+		rearmRulesGate(h, cfg)
+	}
 	if cfg != nil {
 		writeContext(h, cfg, &out)
 		out.WriteString(chatCeiling(cfg.ReplyLimits))

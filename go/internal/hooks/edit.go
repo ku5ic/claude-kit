@@ -298,14 +298,23 @@ func notLoaded(h *hook.Hook, session string, toCheck []string, marker func(strin
 // loadedSkills streams skills.jsonl once for session's skill_file values,
 // skipping inject-context's required-skill and suggested-skill markers:
 // those mean "surfaced", not "loaded". With byAgent set, only lines whose
-// agent_id it accepts count; "" is the main session.
+// agent_id it accepts count, and none before their last compaction; "" is
+// the main session.
 func loadedSkills(logPath, session string, byAgent func(string) bool) (map[string]bool, error) {
 	if _, err := os.Stat(logPath); err != nil {
 		return nil, err
 	}
 	loaded := map[string]bool{}
 	err := eachSkillEntry(logPath, session, func(entry kitlog.Entry) {
-		if entry.SkillFile != nil && entry.Loads() && (byAgent == nil || byAgent(entry.AgentID)) {
+		if byAgent != nil {
+			if !byAgent(entry.AgentID) {
+				return
+			}
+			if entry.Event == kitlog.EventCompacted {
+				clear(loaded)
+			}
+		}
+		if entry.SkillFile != nil && entry.Loads() {
 			loaded[*entry.SkillFile] = true
 			// A plugin's skills log as <plugin>:<skill>; kit.yml maps bare names.
 			if _, skill, ok := strings.Cut(*entry.SkillFile, ":"); ok && !strings.Contains(skill, "/") {

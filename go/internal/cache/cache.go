@@ -19,6 +19,7 @@ import (
 // The state dirs, by name.
 const (
 	SkillsLoaded = "skills-loaded"
+	RulesLoaded  = "rules-loaded"
 	SkillsNudged = "skills-nudged"
 	ADRNudged    = "adr-nudged"
 	FileSkills   = "file-skills"
@@ -54,6 +55,7 @@ type Dir struct {
 // pruned, so it lasts until a project goes unused for a month.
 var Dirs = []Dir{
 	{SkillsLoaded, "skill-loaded marker(s)", 1},
+	{RulesLoaded, "rules-gate marker(s)", 1},
 	{SkillsNudged, "skill-nudged marker(s)", 1},
 	{ADRNudged, "ADR-nudged marker(s)", 1},
 	{FileSkills, "file-skills cache(s)", 1},
