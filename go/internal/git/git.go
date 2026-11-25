@@ -212,13 +212,16 @@ func Verify(dir, ref string) bool {
 
 // Base is the base ref for the repository at dir ("" is the working
 // directory), as kit git-base finds it: explicit when it resolves, else the
-// upstream unless that's only this branch's own push target, else
-// origin/HEAD, else main, master, develop, or trunk. False when nothing
-// resolves.
+// branch's stackParent, else the upstream unless that's only this branch's
+// own push target, else origin/HEAD, else main, master, develop, or trunk.
+// False when nothing resolves.
 func Base(dir, explicit string) (string, bool) {
 	run := func(args ...string) (string, error) { return Line(dir, args...) }
 	if explicit != "" && Verify(dir, explicit) {
 		return explicit, true
+	}
+	if parent, ok := stackParent(dir); ok {
+		return parent, true
 	}
 	if upstream, err := run("rev-parse", "--abbrev-ref", "@{upstream}"); err == nil {
 		current, _ := run("rev-parse", "--abbrev-ref", "HEAD")
@@ -235,6 +238,28 @@ func Base(dir, explicit string) (string, bool) {
 		if Verify(dir, b) {
 			return b, true
 		}
+	}
+	return "", false
+}
+
+// stackParent is the branch that gh's own setting for a branch's base
+// (branch.<current>.gh-merge-base, gh pr create --help) says the current one
+// is stacked on, local or else on origin. False on a detached HEAD, or when
+// the setting names no other branch.
+func stackParent(dir string) (string, bool) {
+	current, err := Line(dir, "symbolic-ref", "--quiet", "--short", "HEAD")
+	if err != nil {
+		return "", false
+	}
+	parent, err := Line(dir, "config", "--get", "branch."+current+".gh-merge-base")
+	if err != nil || parent == "" || parent == current {
+		return "", false
+	}
+	switch {
+	case Verify(dir, "refs/heads/"+parent):
+		return parent, true
+	case Verify(dir, "refs/remotes/origin/"+parent):
+		return "origin/" + parent, true
 	}
 	return "", false
 }

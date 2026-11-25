@@ -20,6 +20,7 @@ Every command hook runs through one `kit` binary, and the same binary answers th
 | See what my project's configs say to run, and when               | `kit enforce --list`                                  |
 | Let a gate that changed files run again                          | `kit gates reset`                                     |
 | Find the files that import a file before I change it             | `kit blast-radius <file>`                             |
+| See which base branch a diff or the full gate is scoped to       | `kit git-base`                                        |
 | Run a git, `gh`, or `glab` read that can't turn into a write     | `kit read git log ...`, `kit read gh pr view ...`     |
 | See which accepted ADRs a file falls under                       | `kit adrs [path]`                                     |
 | Check my overlay for unknown keys and wrong types                | `kit config --check`                                  |
@@ -28,6 +29,8 @@ Every command hook runs through one `kit` binary, and the same binary answers th
 | Prune old scratch files now, not at the next day's first session | `kit scratch-rotate`                                  |
 | Empty every scratch folder, whatever the files' age              | `kit scratch-rotate 0`                                |
 | Remove the kit's logs, caches, and scratch before uninstalling   | `kit clean`, then `kit clean --yes`                   |
+
+On a stacked branch, name its parent once, with the setting `gh pr create` reads: `git config branch.<child>.gh-merge-base <parent>`. `kit git-base` and the checks then count only the child's changes. After the parent is squash-merged and the child rebased, remove it with `git config --unset branch.<child>.gh-merge-base`: while the parent branch still exists, the diff would be too wide.
 
 ## In your own terminal
 

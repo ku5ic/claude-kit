@@ -61,6 +61,82 @@ func TestBaseFallsBackToMain(t *testing.T) {
 	}
 }
 
+// stacked is a clone whose child branch is one commit past parent, and
+// parent one past main, all pushed, with child checked out and tracking its
+// own push target.
+func stacked(t *testing.T) string {
+	t.Helper()
+	tmp := t.TempDir()
+	origin, work := filepath.Join(tmp, "origin.git"), filepath.Join(tmp, "work")
+	testutil.Git(t, repo(t), "clone", "-q", "--bare", ".", origin)
+	testutil.Git(t, origin, "symbolic-ref", "HEAD", "refs/heads/main")
+	testutil.Git(t, tmp, "clone", "-q", origin, work)
+	for _, branch := range []string{"feat/parent", "feat/child"} {
+		testutil.Git(t, work, "checkout", "-q", "-b", branch)
+		testutil.GitID(t, work, "commit", "-q", "--allow-empty", "-m", branch)
+		testutil.Git(t, work, "push", "-q", "-u", "origin", branch)
+	}
+	return work
+}
+
+// A stacked branch's base is the parent gh's own gh-merge-base setting
+// names: a pushed child's upstream is only its push target, and origin/HEAD
+// would count the parent's commits as its own.
+func TestBaseOfAStackedBranch(t *testing.T) {
+	t.Parallel()
+	key := func(t *testing.T, dir, branch, value string) {
+		testutil.Git(t, dir, "config", "branch."+branch+".gh-merge-base", value)
+	}
+	for _, c := range []struct {
+		name, explicit, want string
+		arrange              func(t *testing.T, dir string)
+	}{
+		{"with no key, origin/HEAD", "", "origin/main", nil},
+		{"the parent the key names", "", "feat/parent", func(t *testing.T, dir string) { key(t, dir, "feat/child", "feat/parent") }},
+		{"the key beats an upstream", "", "feat/parent", func(t *testing.T, dir string) {
+			key(t, dir, "feat/child", "feat/parent")
+			testutil.Git(t, dir, "branch", "-q", "--set-upstream-to=origin/main")
+		}},
+		{"a parent only on origin", "", "origin/feat/parent", func(t *testing.T, dir string) {
+			key(t, dir, "feat/child", "feat/parent")
+			testutil.Git(t, dir, "branch", "-q", "-D", "feat/parent")
+		}},
+		{"a key naming no branch", "", "origin/main", func(t *testing.T, dir string) { key(t, dir, "feat/child", "gone") }},
+		{"a key naming a tag", "", "origin/main", func(t *testing.T, dir string) {
+			testutil.Git(t, dir, "tag", "v1", "feat/parent")
+			key(t, dir, "feat/child", "v1")
+		}},
+		{"a key naming the branch itself", "", "origin/main", func(t *testing.T, dir string) { key(t, dir, "feat/child", "feat/child") }},
+		{"another branch's key", "", "origin/main", func(t *testing.T, dir string) { key(t, dir, "feat/parent", "feat/child") }},
+		{"a detached HEAD", "", "origin/main", func(t *testing.T, dir string) {
+			key(t, dir, "feat/child", "feat/parent")
+			key(t, dir, "HEAD", "feat/parent")
+			testutil.Git(t, dir, "checkout", "-q", "--detach")
+		}},
+		{"an explicit base wins", "main", "main", func(t *testing.T, dir string) { key(t, dir, "feat/child", "feat/parent") }},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			dir := stacked(t)
+			if c.arrange != nil {
+				c.arrange(t, dir)
+			}
+			if base, ok := git.Base(dir, c.explicit); !ok || base != c.want {
+				t.Errorf("base=%q ok=%v, want %q", base, ok, c.want)
+			}
+		})
+	}
+	t.Run("ForkPoint is the parent's tip", func(t *testing.T) {
+		t.Parallel()
+		dir := stacked(t)
+		key(t, dir, "feat/child", "feat/parent")
+		want, err := git.Line(dir, "rev-parse", "feat/parent")
+		if sha, ok := git.ForkPoint(dir); err != nil || !ok || sha != want {
+			t.Errorf("sha=%q ok=%v, want %q (%v)", sha, ok, want, err)
+		}
+	})
+}
+
 // ForkPoint is where HEAD left its base, and HEAD itself only on another
 // branch: on main with no remote, main is HEAD, and holds every commit
 // made on it.
