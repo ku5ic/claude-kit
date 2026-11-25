@@ -174,4 +174,69 @@ chmod +x "$2"
 			t.Errorf("a status line ran curl:\n%s", strings.Join(calls, "\n"))
 		}
 	})
+
+	// marketplace is install in Claude Code's layout: the launcher under
+	// marketplaces/ku5ic/bin, with nothing beside it, and a fake binary in
+	// cache/ku5ic/kit/<version>/bin for each of versions.
+	marketplace := func(t *testing.T, extra string, versions ...string) (k *Kit, launcher, log string) {
+		k, from, log := install(t, extra)
+		plugins := filepath.Join(t.TempDir(), "plugins")
+		root := filepath.Join(plugins, "marketplaces/ku5ic")
+		testutil.Mkdir(t, filepath.Dir(root))
+		if err := os.Rename(filepath.Dir(filepath.Dir(from)), root); err != nil {
+			t.Fatal(err)
+		}
+		for _, v := range versions {
+			name := "kit-" + v + "-" + runtime.GOOS + "-" + runtime.GOARCH
+			Stub(t, filepath.Join(plugins, "cache/ku5ic/kit", v, "bin", name), "echo cached "+v+" \"$@\"\n")
+		}
+		return k, filepath.Join(root, "bin/kit"), log
+	}
+	noCurl := func(t *testing.T, log string) {
+		t.Helper()
+		if calls := testutil.Calls(t, log); calls != nil {
+			t.Errorf("curl ran:\n%s", strings.Join(calls, "\n"))
+		}
+	}
+
+	t.Run("a marketplace launcher with no binary runs the same version's from the cache, with no download", func(t *testing.T) {
+		k, launcher, log := marketplace(t, "exit 22", "9.9.8", "9.9.9")
+		for _, args := range [][]string{{"statusline"}, {"hook", "guard-bash"}, {"version"}, {"hook", "inject-context"}} {
+			r := k.exec("bash", "{}", append([]string{launcher}, args...)...)
+			r.Want(t, 0)
+			if got, want := r.Stdout, "cached 9.9.9 "+strings.Join(args, " ")+"\n"; got != want {
+				t.Errorf("%v: stdout = %q, want %q", args, got, want)
+			}
+		}
+		noCurl(t, log)
+	})
+
+	t.Run("a marketplace launcher never runs another version's", func(t *testing.T) {
+		k, launcher, log := marketplace(t, release(`printf "$bin"`), "9.9.8")
+		r := k.exec("bash", "", launcher, "statusline")
+		r.Want(t, 127)
+		if r.Stdout != "" {
+			t.Errorf("a status line printed %q", r.Stdout)
+		}
+		r = k.exec("bash", "{}", launcher, "hook", "guard-bash")
+		r.Want(t, 0)
+		if r.Stdout != "" {
+			t.Errorf("a guard printed %q", r.Stdout)
+		}
+		noCurl(t, log)
+		k.exec("bash", "", launcher, "version").Has(t, "fetched version")
+	})
+
+	t.Run("a marketplace launcher with no cache downloads for the CLI alone", func(t *testing.T) {
+		k, launcher, log := marketplace(t, release(`printf "$bin"`))
+		k.exec("bash", "", launcher, "statusline").Want(t, 127)
+		noCurl(t, log)
+		k.exec("bash", "", launcher, "version").Has(t, "fetched version")
+	})
+
+	t.Run("its own binary comes before the cache's", func(t *testing.T) {
+		k, launcher, _ := marketplace(t, "exit 22", "9.9.9")
+		Stub(t, filepath.Join(filepath.Dir(launcher), "kit-9.9.9-"+runtime.GOOS+"-"+runtime.GOARCH), "echo own\n")
+		k.exec("bash", "", launcher, "version").Has(t, "own")
+	})
 }

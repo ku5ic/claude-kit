@@ -7,8 +7,9 @@
 #
 # The version comes from .claude-plugin/plugin.json, so a checkout that a
 # release moved never reuses an older binary. A missing binary is built from
-# source with KIT_DEV=1 (and rebuilt when go/ is newer), else downloaded from
-# the matching GitHub release and checked against its .sha256. Still none: a
+# source with KIT_DEV=1 (and rebuilt when go/ is newer), else run from the
+# plugin cache's copy of the same version, else downloaded from the matching
+# GitHub release and checked against its .sha256. Still none: a
 # hook fails open (exit 0), the SessionStart hook says so, and any other
 # command fails with the reason.
 case $OSTYPE in
@@ -49,6 +50,12 @@ if [[ ${KIT_DEV:-} == 1 ]]; then
   bin="$dir/kit-dev-$os-$arch"
 elif [[ -x $bin ]]; then
   exec "$bin" "$@"
+# Claude Code runs hooks from cache/<marketplace>/kit/<version>/ and the
+# status line from marketplaces/<marketplace>/, so a download into one leaves
+# the other empty (code.claude.com/docs/en/plugins/loading).
+elif [[ -n $ver && $dir =~ ^(.*)/marketplaces/([^/]+)/bin$ ]]; then
+  cached="${BASH_REMATCH[1]}/cache/${BASH_REMATCH[2]}/kit/$ver/bin/${bin##*/}"
+  [[ -x $cached ]] && exec "$cached" "$@"
 fi
 
 # Slow path, once per version: forks are fine here. The temp name keeps

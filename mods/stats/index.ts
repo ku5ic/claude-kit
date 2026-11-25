@@ -1,24 +1,14 @@
 import type { Register } from 'claude-code'
 
-const COMMAND = 'kit-stats'
+// Registered by mods/session, which holds the kit's one session.start hook.
+export const STATS_COMMAND = 'kit-stats'
 
 export const register: Register = (on, options) => {
   if (options.kit_stats === false) return
 
-  // A command is registered for the session, so on each start; a reload runs this again.
-  on('session.start', async ($, e, next) => {
-    const started = await next(e)
-    await $.command.register({
-      name: COMMAND,
-      description: 'Show kit stats: blocks, shadow blocks, and skips per rule, and the claims each checker flagged.',
-      argumentHint: '[--since days] [--rule name]',
-    })
-    return started
-  })
-
   // The binary writes the table; the command prints it as written. kit stats parses its own
   // flags, and the argv runs with no shell, so what was typed after the name passes through.
-  on('command.run', { command: COMMAND }, async ($, e) => {
+  on('command.run', { command: STATS_COMMAND }, async ($, e) => {
     const env = await $.process.hookEnv()
     const args = e.args.split(/\s+/).filter(Boolean)
     try {
