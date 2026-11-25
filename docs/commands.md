@@ -96,7 +96,7 @@ Each agent is a subagent with one job, the tools for it, and a boundary it keeps
 
 | When you need                                      | Agent               | What it does                                                                                                                                                 |
 | -------------------------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Most `audit-*` commands                            | `kit:auditor`       | Runs the audit read-only and writes the report                                                                                                               |
+| A command's work split into parts                  | `kit:auditor`       | Runs one part of a command read-only, or a whole audit; the command writes the report                                                                        |
 | To find where and why something breaks             | `kit:debugger`      | Localizes the fault with at most one probe edit. Hands the fix back                                                                                          |
 | One fact: precedent, tests, or history             | `kit:gatherer`      | Answers with `file:line` only, never opinions                                                                                                                |
 | A plan attacked before you approve it              | `kit:plan-critic`   | Reads the plan against the real repo, sending its fact questions to `kit:gatherer` runs in parallel                                                          |
