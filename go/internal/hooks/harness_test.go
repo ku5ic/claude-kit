@@ -87,6 +87,7 @@ var entries = map[string]func(*hook.Hook) int{
 	"check-post":              single("check-post", func(h *hook.Hook) error { return CheckPost(h, h.Args[0], h.Args[1]) }),
 	"edit-seen":               single("edit-seen", MarkEditSeen),
 	"inject-context":          single("inject-context", InjectContext),
+	"compact-note":            single("compact-note", CompactNote),
 	"inject-subagent-context": single("inject-subagent-context", InjectSubagentContext),
 	// As cmd/kit's registry composes them.
 	"gate-dispatch": func(h *hook.Hook) int {

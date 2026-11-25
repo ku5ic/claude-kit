@@ -56,6 +56,11 @@
         ]
       }
     ],
+    "PreCompact": [
+      {
+        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook compact-note", "timeout": 10 }]
+      }
+    ],
     "UserPromptExpansion": [
       {
         "hooks": [

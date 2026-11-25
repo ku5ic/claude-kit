@@ -58,6 +58,7 @@ var hookChecks = map[string]hook.Check{
 	"log-skills":              hooks.LogSkills,
 	"sanitize-output":         hooks.SanitizeOutput,
 	"inject-context":          hooks.InjectContext,
+	"compact-note":            hooks.CompactNote,
 	"inject-subagent-context": hooks.InjectSubagentContext,
 	"format-dispatch":         hooks.FormatDispatch,
 	"plan-tick":               hooks.PlanTick,
@@ -89,6 +90,7 @@ var registry = map[string]hookDef{
 	// stop-checks skips a retried Stop, which review-report still gates.
 	"stop-dispatch":           {events: []string{"Stop"}, steps: []string{"reply-length", "chat-slop", "chat-claims", "stop-checks", "review-report"}},
 	"inject-context":          {events: []string{"SessionStart"}},
+	"compact-note":            {events: []string{"PreCompact"}},
 	"inject-subagent-context": {events: []string{"SubagentStart"}},
 	"review-checks":           {events: []string{"SubagentStop"}},
 	"reply-length":            {},

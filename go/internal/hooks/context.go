@@ -46,7 +46,8 @@ func projectOf(cwd, home string) (name, root string, ok bool) {
 // Plain stdout on SessionStart becomes context. Install problems switch it to
 // one JSON object, since a hook's stdout is either JSON or text, never both:
 // systemMessage shows them to the user, additionalContext carries them and
-// the context to Claude.
+// the context to Claude. After a compaction it also rearms the rules gate
+// and repeats the compaction note.
 func InjectContext(h *hook.Hook) error {
 	if missing := prerequisites(h.Paths); missing != "" {
 		h.Notify("claude-kit guards fail open until this is fixed. Missing: " + missing)
@@ -64,7 +65,8 @@ func InjectContext(h *hook.Hook) error {
 	}
 	var out strings.Builder
 	cfg := h.Config()
-	if cfg != nil && h.Payload.String(hook.KeySource) == "compact" {
+	compacted := h.Payload.String(hook.KeySource) == "compact"
+	if cfg != nil && compacted {
 		rearmRulesGate(h, cfg)
 	}
 	if cfg != nil {
@@ -86,13 +88,19 @@ func InjectContext(h *hook.Hook) error {
 		notices = append(notices, "Claude Code's attribution is on ("+file+"): it adds a co-author trailer, a PR footer, and a session link, which the kit's guards then block. "+
 			`Set "attribution": false in your settings, or commit and pr to "" and sessionUrl to false.`)
 	}
-	if len(notices) == 0 {
-		h.Print(out.String())
+	notice, text := strings.Join(notices, "\n\n"), out.String()
+	if notice != "" {
+		text = notice + "\n" + text
+	}
+	if compacted {
+		text += compactNote(h, "From before the compaction.", contextRoom-len(text))
+	}
+	if notice == "" {
+		h.Print(text)
 		return nil
 	}
-	notice := strings.Join(notices, "\n\n")
 	h.Notify(notice)
-	h.AddContext("SessionStart", notice+"\n"+out.String())
+	h.AddContext("SessionStart", text)
 	return nil
 }
 
