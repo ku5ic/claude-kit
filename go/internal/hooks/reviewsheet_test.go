@@ -3,6 +3,7 @@ package hooks
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -161,6 +162,86 @@ func TestReviewSheet(t *testing.T) {
 		// The next Stop starts from the last tick: nothing new, no sheet.
 		e.turn("Edit", e.path("b.ts"))
 		e.stop(false).Lacks(t, "kit review")
+	})
+}
+
+// TestPickedUpPlan covers a plan continued in a session that never approved
+// it, as after /clear.
+func TestPickedUpPlan(t *testing.T) {
+	t.Parallel()
+	setup := func(t *testing.T) *stopEnv {
+		e := stopSetup(t)
+		testutil.Write(t, e.path(".gitignore"), "node_modules\n.claude\n")
+		testutil.Git(t, e.repo, "add", "-A")
+		testutil.Git(t, e.repo, "commit", "-q", "-m", "files")
+		return e
+	}
+	edit := func(e *stopEnv, path string, more map[string]any) {
+		payload := map[string]any{"hook_event_name": "PostToolUse", "tool_name": "Edit", "session_id": "s1", "cwd": e.repo,
+			"tool_input": map[string]any{"file_path": path}}
+		maps.Copy(payload, more)
+		e.k.run("plan-tick", payload).Want(e.t, 0)
+	}
+	prompt := func(e *stopEnv) result {
+		return e.k.run("plan-mode-context", map[string]string{"hook_event_name": "UserPromptSubmit", "permission_mode": "default", "session_id": "s1", "cwd": e.repo})
+	}
+	t.Run("the session's edit of a plan with an open step makes it the active plan", func(t *testing.T) {
+		t.Parallel()
+		e := setup(t)
+		plan := e.plan(threeSteps)
+		prompt(e).Empty(t)
+		edit(e, plan, nil)
+		prompt(e).Has(t, "Plan "+plan+" has open steps")
+		e.start()
+		testutil.Write(t, e.path("a.ts"), "x\ny\n")
+		e.turn("Edit", e.path("a.ts"))
+		hasLine(t, notice(t, e.stop(false)), `kit review: step 2 of 3, 1 files, \+1 -0`)
+	})
+	t.Run("a batched pause shows a sheet for each step ticked since", func(t *testing.T) {
+		t.Parallel()
+		e := setup(t)
+		e.k.overlay("step_pause: plan\n")
+		e.plan("## Steps\n\n- [ ] 1. a.ts\n- [ ] 2. b.ts\n- [ ] 3. three\n")
+		e.start()
+		testutil.Write(t, e.path("a.ts"), "step one\n")
+		e.tick("## Steps\n\n- [x] 1. a.ts\n- [ ] 2. b.ts\n- [ ] 3. three\n")
+		testutil.Write(t, e.path("b.ts"), "step two\n")
+		e.tick("## Steps\n\n- [x] 1. a.ts\n- [x] 2. b.ts\n- [ ] 3. three\n")
+		e.turn("Edit", e.path("a.ts"), e.path("b.ts"))
+		hasLine(t, notice(t, e.stop(false)), `kit review: step 2 of 3, 1 files, \+1 -1`, `    b\.ts +\+1 -1`)
+	})
+	t.Run("an edit in plan mode or by a subagent doesn't", func(t *testing.T) {
+		t.Parallel()
+		for _, more := range []map[string]any{{"permission_mode": "plan"}, {"agent_id": "a1"}} {
+			e := setup(t)
+			edit(e, e.plan(threeSteps), more)
+			prompt(e).Empty(t)
+		}
+	})
+	t.Run("a plan with no open step, or a checklist outside the plan dir, doesn't", func(t *testing.T) {
+		t.Parallel()
+		e := setup(t)
+		edit(e, e.plan("## Steps\n\n- [x] one\n"), nil)
+		edit(e, e.path(".claude/plans/gone.md"), nil)
+		testutil.Write(t, e.path("todo.md"), threeSteps)
+		edit(e, e.path("todo.md"), nil)
+		testutil.Write(t, e.path(".claude/plans/notes.txt"), threeSteps)
+		edit(e, e.path(".claude/plans/notes.txt"), nil)
+		prompt(e).Empty(t)
+	})
+	t.Run("an approved plan stays active when the session edits another", func(t *testing.T) {
+		t.Parallel()
+		e := sheetSetup(t, threeSteps)
+		other := e.path(".claude/plans/plan-y.md")
+		testutil.Write(t, other, threeSteps)
+		edit(e, other, nil)
+		prompt(e).Has(t, "plan-x.md has open steps")
+	})
+	t.Run("another session's edit doesn't make it this one's", func(t *testing.T) {
+		t.Parallel()
+		e := setup(t)
+		edit(e, e.plan(threeSteps), map[string]any{"session_id": "s2"})
+		prompt(e).Empty(t)
 	})
 }
 

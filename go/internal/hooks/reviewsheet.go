@@ -1,7 +1,9 @@
 package hooks
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -301,7 +303,8 @@ func markTicks(h *hook.Hook, root string, plan []byte) {
 
 // PlanTick is the PostToolUse step on an edit: when the file is the
 // session's active plan, it marks the work tree for each step ticked, so a
-// batched pause can show one review sheet per step.
+// batched pause can show one review sheet per step. With no active plan, a
+// picked-up one becomes it.
 func PlanTick(h *hook.Hook) error {
 	if h.Payload.Err != nil {
 		return nil
@@ -313,8 +316,16 @@ func PlanTick(h *hook.Hook) error {
 	if root == "" {
 		root = git.Toplevel(h.Payload.Cwd())
 	}
-	active, err := os.ReadFile(planFile(h, cache.PlanActive, root))
-	if err != nil || root == "" || string(active) != path {
+	marker := planFile(h, cache.PlanActive, root)
+	if root == "" || marker == "" {
+		return nil
+	}
+	active, err := os.ReadFile(marker)
+	if errors.Is(err, fs.ErrNotExist) && pickedUp(h, path) {
+		activatePlan(h, root, path)
+		return nil
+	}
+	if err != nil || string(active) != path {
 		return nil
 	}
 	plan, err := os.ReadFile(path)

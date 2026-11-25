@@ -83,16 +83,8 @@ func PlanModeContext(h *hook.Hook) error {
 		approved := " is approved under step_pause: " + pause + ". " + approvedPause[pause] + pauseSource
 		msg := "The plan" + approved
 		if plan := newestOpenPlan(h); plan != "" {
-			// Best effort: without the marker, later prompts just aren't reminded.
-			_ = fsx.WriteAtomic(marker, []byte(plan), 0o644)
+			activatePlan(h, p.Cwd(), plan)
 			msg = "Plan " + plan + approved
-			// A batched pause's first review sheet starts from the tree as approved.
-			_ = os.Remove(planFile(h, cache.PlanTicks, p.Cwd()))
-			if data, err := os.ReadFile(plan); err == nil {
-				if root := git.Toplevel(p.Cwd()); root != "" {
-					markTicks(h, root, data)
-				}
-			}
 		}
 		h.AddContext("PostToolUse", msg)
 		return nil
@@ -139,6 +131,29 @@ func planFile(h *hook.Hook, kind, dir string) string {
 		return h.Paths.SessionFile(kind, h.Payload.SessionID(), cache.RootKey(root))
 	}
 	return h.Paths.SessionFile(kind, h.Payload.SessionID())
+}
+
+// activatePlan makes the plan file the session's active plan in dir's work
+// tree, so prompts remind of its open steps and a step's end shows its
+// review sheet. Best effort: without the marker neither happens.
+func activatePlan(h *hook.Hook, dir, plan string) {
+	_ = fsx.WriteAtomic(planFile(h, cache.PlanActive, dir), []byte(plan), 0o644)
+	// A batched pause's first review sheet starts from the tree as it is now.
+	_ = os.Remove(planFile(h, cache.PlanTicks, dir))
+	data, err := os.ReadFile(plan)
+	if root := git.Toplevel(dir); err == nil && root != "" {
+		markTicks(h, root, data)
+	}
+}
+
+// pickedUp is true for an edit of a plan the session continues without
+// having approved it, as after /clear: the main session's, outside plan
+// mode, of a plan with an open step. A subagent's, or plan mode's, is a
+// draft.
+func pickedUp(h *hook.Hook, path string) bool {
+	p := h.Payload
+	return p.String(hook.KeyAgentID) == "" && p.String(hook.KeyPermissionMode) != "plan" &&
+		filepath.Ext(path) == ".md" && fsx.Within(project.PlanDir(h.Paths, p.Cwd()), path) && hasOpenStep(path)
 }
 
 // pauseOf is the configured step_pause, step without a config.
