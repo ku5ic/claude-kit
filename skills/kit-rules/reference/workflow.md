@@ -43,7 +43,7 @@ Git, side effects, plans, and when to ask.
 - A plan ends with a `## Steps` checklist, one reviewable commit per item.
 - A step ends with its proof: the test, command, or observation that passes once the step is right and fails when it's wrong.
 - A plan is written or changed only on the engineer's word, once.
-- A changed plan is posted before it's resubmitted: one line saying what was done and that it isn't resubmitted yet, a fenced `diff` block with one `+`, `~`, or `-` entry per changed step, then the plan's absolute path as the last line. The resubmit waits for the engineer's answer.
+- Every edit to a written plan, in plan mode or not, except ticking a step, is posted in the reply that made it: one line saying what was done, a fenced `diff` block with one `+`, `~`, or `-` entry per changed step, then the plan's absolute path as the last line. Before a resubmit, that line also says it isn't resubmitted yet, and the resubmit waits for the engineer's answer.
 - An answer that changes the plan counts as that word. The plan file gets the answer before the next edit, so the plan stays the source of truth.
 - The reason for a change comes from the engineer or the plan. Missing, ask for it in one line.
 - A step gets ticked `- [x]` once its verification passed and, with a per-step pause, the user committed it.
