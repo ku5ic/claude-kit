@@ -113,7 +113,7 @@ Only you start a command, by typing it. Each detects your stack, your code host 
 
 | Group  | Count | For                                                                                                               | For example                       |
 | ------ | ----- | ----------------------------------------------------------------------------------------------------------------- | --------------------------------- |
-| Audit  | 14    | A read-only report, then the read-only checks that need a running system (`tofu plan`, axe), run on your yes      | `/audit-security`, `/audit-tests` |
+| Audit  | 15    | A read-only report, then the read-only checks that need a running system (`tofu plan`, axe), run on your yes      | `/audit-security`, `/audit-tests` |
 | Code   | 10    | Understanding a change before making it: impact, history, contracts, a challenge to a plan or PR                  | `/code-impact`, `/code-challenge` |
 | Write  | 11    | A document in your project's format: ADRs, RFCs, runbooks, retros, tickets                                        | `/write-adr`, `/write-runbook`    |
 | PR     | 5     | Your PRs and other people's. Nothing is posted until you run `/pr-publish` on a draft you've read                 | `/pr-description`, `/pr-review`   |
