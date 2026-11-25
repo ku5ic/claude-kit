@@ -167,9 +167,17 @@ For `/unslop` on UI work, or before calling a UI change done:
 In claude.ai chat, nothing renders, so review the code. Check the pasted code against the project's design system or tokens, asking for them if they aren't in the conversation, then walk sections 3 to 9 against it. For each hit, ask the section 1 question; replace the default with a choice tied to the subject, or remove it. Name anything only a render could settle.
 -->
 
-5. Spend boldness in one place. One element is memorable; the rest is quiet. Remove one more decoration than feels necessary.
-6. Copy pass with section 10.
-7. Quality floor: visible keyboard focus, WCAG AA contrast (gradient text and gray on color fail most), reduced motion, ordered headings, line length, layout down to 320px. The full check is a WCAG 2.2 AA audit.
+5. Answer the four questions below, design quality and originality first. Claude scores well on the other two by default.
+6. Spend boldness in one place. One element is memorable; the rest is quiet. Remove one more decoration than feels necessary.
+7. Copy pass with section 10.
+8. Quality floor: visible keyboard focus, WCAG AA contrast (gradient text and gray on color fail most), reduced motion, ordered headings, line length, layout down to 320px. The full check is a WCAG 2.2 AA audit.
+
+| Criterion      | Question                                                                                                                      | On a no                                       |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| Design quality | "Does the design feel like a coherent whole rather than a collection of parts?"                                               | Name the parts that don't belong together     |
+| Originality    | "Is there evidence of custom decisions, or is this template layouts, library defaults, and AI-generated patterns?"            | Sections 3 to 9                               |
+| Craft          | "Technical execution: typography hierarchy, spacing consistency, color harmony, contrast ratios." Does each hold up?          | Sections 3 to 5, and the quality floor        |
+| Functionality  | "Can users understand what the interface does, find primary actions, and complete tasks without guessing?" Use it to find out | Name the task and where the user has to guess |
 
 Don't fix wave 1 by reaching for wave 2. Purple to cream is the same mistake.
 
@@ -185,4 +193,5 @@ Don't fix wave 1 by reaching for wave 2. Purple to cream is the same mistake.
 ## 14. Sources
 
 - Anthropic, frontend-design skill (github.com/anthropics/skills): the wave 2 looks, the eyebrow, the arrow after link labels, and gradient washes.
+- Anthropic, "Harness design for long-running apps": the four criteria in section 12, quoted, and their order.
 - Wikipedia, "Signs of AI writing": emoji in headings and promotional language (`ui-emoji-label`, `ui-marketing`).

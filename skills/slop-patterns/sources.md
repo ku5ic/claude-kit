@@ -17,6 +17,7 @@ The sources and version notes behind this skill, for `/meta-refresh`. Nothing li
 - Pangram, AI writing patterns (vendor, weaker evidence): https://www.pangram.com/blog/comprehensive-guide-to-spotting-ai-writing-patterns
 - blader/humanizer (community, weaker evidence): https://github.com/blader/humanizer
 - Anthropic frontend-design skill: https://github.com/anthropics/skills/tree/main/skills/frontend-design
+- Anthropic, Harness design for long-running apps: https://www.anthropic.com/research/harness-design-long-running-apps
 - Taking Responsibility for AI-Generated Content, the company page behind the reader-cost checks in `reference/principles.md`.
 
 ### Version notes
@@ -32,3 +33,9 @@ Checked: 2026-11-10 against Wikipedia revision 1384793302 and the papers above
 - Density, relevance, and tone predict a slop label better than word choice: "Measuring AI 'Slop' in Text", arXiv 2509.19163.
 - Wikipedia's mid-2026 word list cites a single product review, so the words that rest on it alone (`quietly`, `dependable`, `echoed`, `universally`) are the weakest on the list. The page is CC BY-SA, summarized in the kit's own words, never quoted.
 - The human-text test corpus is pre-2022 Go stdlib comments and Markdown docs, 151k words. `prioritize`, `practical`, `clearer`, `steady`, and `seamless` failed it: they're common in human technical prose, or had no source.
+
+## reference/design.md
+
+### Claims
+
+- The four criteria in section 12 and their order: "Harness design for long-running apps", published 2026-03-24, checked 2026-11-25. Its author weighted design quality and originality over craft and functionality, where Claude "already scored well".
