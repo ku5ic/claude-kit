@@ -345,30 +345,23 @@ func TestKitRepo(t *testing.T) {
 		}
 	})
 
-	t.Run("a skill that fans out gives every angle a task and starts no single auditor", func(t *testing.T) {
-		// Every skill with an ## Angles table.
-		fansOut := []string{"audit-skills", "code-deep-review"}
+	t.Run("section 4's table gives each kind of task a model and effort the Agent call takes", func(t *testing.T) {
 		const rule = "skills/kit-rules/reference/subagents.md"
-		tasks := tableColumn(Read(t, filepath.Join(kitRoot, rule)), "## 4. Fan-out", "Task")
-		if len(tasks) == 0 {
-			t.Fatalf("%s section 4 has no Task column", rule)
+		text := Read(t, filepath.Join(kitRoot, rule))
+		tasks := tableColumn(text, "## 4. Fan-out", "Task")
+		models := tableColumn(text, "## 4. Fan-out", "Model")
+		efforts := tableColumn(text, "## 4. Fan-out", "Effort")
+		if !slices.Equal(tasks, []string{"Collect", "Check", "Judge"}) || len(models) != 3 || len(efforts) != 3 {
+			t.Fatalf("%s section 4: tasks %v, models %v, efforts %v", rule, tasks, models, efforts)
 		}
-		for _, name := range fansOut {
-			text := Read(t, filepath.Join(kitRoot, "skills", name, "SKILL.md"))
-			if !strings.Contains(text, rule+"` section 4") {
-				t.Errorf("%s doesn't cite %s section 4", name, rule)
+		for i, task := range tasks {
+			// The aliases the Agent tool's model parameter takes.
+			if !slices.Contains([]string{"haiku", "sonnet", "opus", "fable"}, models[i]) {
+				t.Errorf("%s: model %q isn't one the Agent call takes", task, models[i])
 			}
-			if strings.Contains(text, "It writes the report") {
-				t.Errorf("%s still has one auditor write the report", name)
-			}
-			angles := tableColumn(text, "## Angles", "Task")
-			if len(angles) < 2 {
-				t.Errorf("%s: ## Angles has %d rows, want at least 2", name, len(angles))
-			}
-			for _, task := range angles {
-				if !slices.Contains(tasks, task) {
-					t.Errorf("%s: task %q isn't one of section 4's %v", name, task, tasks)
-				}
+			unset := efforts[i] == "unset" && models[i] == "haiku"
+			if !unset && !slices.Contains([]string{"low", "medium", "high", "xhigh", "max"}, efforts[i]) {
+				t.Errorf("%s: effort %q isn't a level, or unset with haiku", task, efforts[i])
 			}
 		}
 	})

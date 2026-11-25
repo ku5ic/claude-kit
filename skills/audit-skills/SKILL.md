@@ -32,14 +32,6 @@ Loading this skill isn't enough. Before the step a row names, read its file.
 
 Each auditor takes one, over every file of its targets, and reports nothing that belongs to another.
 
-| Angle          | Task  | Reads                                 |
-| -------------- | ----- | ------------------------------------- |
-| Prompt         | Check | the `claude-api` skill                |
-| Names          | Check | the targets only                      |
-| Contradictions | Check | the project rules each target cites   |
-| Gaps           | Check | the targets only                      |
-| Guidance       | Check | `practice.md` and the two files above |
-
 ### Prompt
 
 Call the Skill tool with `skill` set to `claude-api` and `args` set to `prompt-audit` and the targets' paths, and follow its guide on those paths. It asks for a report and a diff. Its findings are candidates for The bar, and its diff becomes each one's Fix. Nothing is applied. When that skill isn't there, stop and return this line for the user to type, one per target, so its report can be read: `/doctor prompt-audit <path>`.

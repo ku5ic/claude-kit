@@ -4,7 +4,7 @@ The Agent tool takes the namespaced name, `kit:<name>`. `/agents` lists them.
 
 ## 1. Spawn discipline
 
-- Do the work yourself by default.
+- Do the work yourself by default. A skill's independent parts follow section 4.
 - When a plan step sends `kit:gatherer` its questions: `skills/investigate`, Gatherer questions.
 - Spawn an agent only for a task matching its specialty, one needing isolation (a broad sweep, a read-only audit), or independent items that can run in parallel.
 - An agent whose definition sets no `model:` runs on the session's model. Pass `model` and `effort` on the call, by section 4's table.
@@ -30,14 +30,15 @@ No agent file restates these, except where noted.
 
 ## 4. Fan-out
 
-A skill with an `## Angles` table starts one agent per row, never one agent for all of them. Where the skill's own steps say otherwise, they win.
+When a skill's work has independent parts, the main session splits it and starts one agent per part. A part is an angle the skill's text names over one target (a category, a pass, a check), or an item (a file, a finding, a candidate, a comment). The main session decides at run time, and says how it split the work, or why it didn't, in the report's Scope line, or in the reply when the skill writes none.
 
-- First collect what more than one angle needs, once, in the main session: the resolved target, anything read through a connector, a graph, a token list, the routes. It goes in the report's raw folder.
-- A row with nothing in the target to read is skipped, and the report says so. A single-file target still starts one agent per remaining row.
+- Split when two or more parts need nothing from each other. Each angle gets its own agent; items may go in batches of about equal size. Keep in the main session a text being drafted, a step that needs the last one's result, and anything that posts, merges, or changes files. Work with one part runs the way the skill already runs it.
+- First collect what more than one part needs: the resolved target, anything read through a connector, a graph, a list, a scan. It goes in the report's raw folder, else scratch.
 - Agents go in one message, no more at once than `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` allows (20 when unset), the rest as those finish.
-- Each is a `kit:auditor` run unless the skill names another agent. It gets the SKILL.md path, its row, the target, and the raw folder, and does only its row. Of the suggested skills it loads only what its row's Reads names, the exception to section 3. It writes `candidates-<angle>.md` in the raw folder and returns the path. In plan mode it returns its findings inline.
-- With every agent back, merge findings on the same line or with the same cause, keep the higher severity, and carry over each "Needs a runtime check". Trace each kept finding's decisive claim (section 2), since the claims check reads this session's transcript, then write the report. It names an angle whose agent failed.
-- The row's Task is its usual one. The main session may take another row of this table for a harder or easier target, and the report says why.
+- Each is the read-only agent whose definition fits, `kit:auditor` unless another does. It gets the SKILL.md path, its part, the target, and the raw folder. It does only its part, never the report, and loads only the references its part needs, the exception to section 3's suggested skills. It writes `candidates-<part>.md` in the raw folder and returns the path. In plan mode, or with no Write tool, it returns them inline and the main session saves them.
+- With every agent back, merge findings on the same line or with the same cause, keep the higher severity, carry over each "Needs a runtime check", trace each kept finding's decisive claim (section 2), then write the report. It names a part whose agent failed.
+- The part's task picks its model and effort from the table, passed on the call. Another row fits a harder or easier part, and the report says why.
+- A skill's own steps win where they differ, but an order it gives its parts ranks the report and doesn't stop the split.
 
 | Task    | What the agent does                                                    | Model    | Effort   |
 | ------- | ---------------------------------------------------------------------- | -------- | -------- |
