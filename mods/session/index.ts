@@ -25,7 +25,7 @@ export const register: Register = (on, options) => {
       await $.command.register({
         name: STATS_COMMAND,
         description: 'Show kit stats: blocks, shadow blocks, and skips per rule, and the claims each checker flagged.',
-        argumentHint: '[--since days] [--rule name]',
+        argumentHint: '[--since days] [--rule name] [--unused]',
       })
     }
     return started

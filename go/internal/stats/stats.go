@@ -151,6 +151,22 @@ func Report(guards, claims string, o Options, w io.Writer) error {
 	return tw.Flush()
 }
 
+// Unused writes each of rules with no line in the guards log, as blocked,
+// shadowed, disabled, or skipped: one that never fires may catch nothing, or
+// nothing has come up for it to catch.
+func Unused(guards string, rules []string, o Options, w io.Writer) error {
+	fired := map[string]bool{}
+	if err := each(guards, o, func(l line) { fired[l.Rule] = true }); err != nil {
+		return err
+	}
+	for _, rule := range rules {
+		if !fired[rule] && (o.Rule == "" || o.Rule == rule) {
+			fmt.Fprintln(w, rule)
+		}
+	}
+	return nil
+}
+
 // each calls fn with every line of the log at path from o.Since on; a line
 // that isn't JSON is skipped.
 func each(path string, o Options, fn func(line)) error {
@@ -166,12 +182,15 @@ func each(path string, o Options, fn func(line)) error {
 	})
 }
 
-// Run is `kit stats [--rule r] [--since days]`: the report over the last
-// days, 30 unless --since says otherwise, from the logs under logDir.
-func Run(logDir string, now time.Time, args []string, stdout, stderr io.Writer) int {
-	o, days := Options{}, 30
+// Run is `kit stats [--rule r] [--since days] [--unused]`: the report over
+// the last days, 30 unless --since says otherwise, from the logs under
+// logDir, or with --unused which of rules it has no event for.
+func Run(logDir string, rules []string, now time.Time, args []string, stdout, stderr io.Writer) int {
+	o, days, unused := Options{}, 30, false
 	for i := 0; i < len(args); i++ {
 		switch flag := args[i]; {
+		case flag == "--unused":
+			unused = true
 		case (flag == "--rule" || flag == "--since") && i+1 < len(args):
 			i++
 			if flag == "--rule" {
@@ -183,12 +202,20 @@ func Run(logDir string, now time.Time, args []string, stdout, stderr io.Writer) 
 				return 2
 			}
 		default:
-			fmt.Fprintf(stderr, "stats: unknown argument %q; usage: kit stats [--rule r] [--since days]\n", flag)
+			fmt.Fprintf(stderr, "stats: unknown argument %q; usage: kit stats [--rule r] [--since days] [--unused]\n", flag)
 			return 2
 		}
 	}
 	o.Since = now.AddDate(0, 0, -days)
-	if err := Report(filepath.Join(logDir, kitlog.Guards+".jsonl"), filepath.Join(logDir, kitlog.Claims+".jsonl"), o, stdout); err != nil {
+	guards := filepath.Join(logDir, kitlog.Guards+".jsonl")
+	var err error
+	if unused {
+		fmt.Fprintf(stdout, "no event in %d days\n", days)
+		err = Unused(guards, rules, o, stdout)
+	} else {
+		err = Report(guards, filepath.Join(logDir, kitlog.Claims+".jsonl"), o, stdout)
+	}
+	if err != nil {
 		fmt.Fprintln(stderr, "stats:", err)
 		return 1
 	}

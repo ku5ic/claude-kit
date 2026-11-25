@@ -17,6 +17,7 @@ Every command hook runs through one `kit` binary, and the same binary answers th
 | See every check the project declares, and where each comes from  | `kit run-checks --plan`                               |
 | Run every quality gate on what changed                           | `kit run-checks`                                      |
 | See how often each rule fired, and what the claim checker caught | `kit stats [--rule r] [--since days]`                 |
+| See which rules haven't fired                                    | `kit stats --unused [--since days]`                   |
 | See what my project's configs say to run, and when               | `kit enforce --list`                                  |
 | Let a gate that changed files run again                          | `kit gates reset`                                     |
 | Find the files that import a file before I change it             | `kit blast-radius <file>`                             |

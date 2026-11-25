@@ -154,7 +154,7 @@ var commands = map[string]command{
 	"bundle":         {needsEnv, envOnly(cmdBundle)},
 	"code-graph":     {needsEnv, envOnly(cmdCodeGraph)},
 	"stats": {needsEnv, func(e *env, _ *config.Config, args []string) int {
-		return stats.Run(e.paths.LogDir(), time.Now(), args, e.stdout, e.stderr)
+		return stats.Run(e.paths.LogDir(), config.Rules, time.Now(), args, e.stdout, e.stderr)
 	}},
 	"hook": {needsEnv, func(e *env, _ *config.Config, args []string) int {
 		return cmdHook(e, args, os.Stdin)

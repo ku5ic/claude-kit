@@ -58,3 +58,49 @@ func TestReportCountsRulesAndClaimsSinceADate(t *testing.T) {
 		t.Errorf("report counts a line before Since:\n%s", got)
 	}
 }
+
+func TestRunUnusedListsTheRulesWithNoEvent(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 11, 20, 0, 0, 0, 0, time.UTC)
+	all := []string{"citations", "claims", "plan-critic", "sensitive-read", "size", "weaken"}
+	dir := t.TempDir()
+	guards := strings.Join([]string{
+		`{"ts":"2026-09-01T00:00:00Z","event":"block","session_id":"old","rule":"weaken"}`,
+		`{"ts":"2026-11-15T00:00:00Z","event":"block","session_id":"a","rule":"sensitive-read"}`,
+		`{"ts":"2026-11-15T00:00:00Z","event":"shadow","session_id":"b","rule":"citations"}`,
+		`{"ts":"2026-11-15T00:00:00Z","event":"disabled","session_id":"b","rule":"claims"}`,
+		`{"ts":"2026-11-15T00:00:00Z","event":"critic-skip","session_id":"c","rule":"plan-critic"}`,
+		`{"ts":"2026-11-15T00:00:00Z","event":"fail-open","session_id":"c"}`,
+		`not json`}, "\n") + "\n"
+	if err := os.WriteFile(filepath.Join(dir, "guards.jsonl"), []byte(guards), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		name string
+		dir  string
+		args []string
+		want string
+	}{
+		{"a rule that fired, shadowed, was disabled, or was skipped isn't listed", dir, []string{"--unused"}, "no event in 30 days\nsize\nweaken\n"},
+		{"--since widens the window", dir, []string{"--unused", "--since", "365"}, "no event in 365 days\nsize\n"},
+		{"flags in the other order", dir, []string{"--since", "365", "--unused"}, "no event in 365 days\nsize\n"},
+		{"--rule narrows it", dir, []string{"--unused", "--rule", "size"}, "no event in 30 days\nsize\n"},
+		{"--rule on one that fired leaves the header", dir, []string{"--unused", "--rule", "sensitive-read"}, "no event in 30 days\n"},
+		{"no log lists every rule", t.TempDir(), []string{"--unused"}, "no event in 30 days\n" + strings.Join(all, "\n") + "\n"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			var out, errs strings.Builder
+			if code := Run(c.dir, all, now, c.args, &out, &errs); code != 0 || out.String() != c.want {
+				t.Errorf("exit %d, stderr %q, got:\n%s\nwant:\n%s", code, errs.String(), out.String(), c.want)
+			}
+		})
+	}
+	t.Run("a bad --since still fails", func(t *testing.T) {
+		t.Parallel()
+		var out, errs strings.Builder
+		if code := Run(dir, all, now, []string{"--unused", "--since", "x"}, &out, &errs); code != 2 || out.String() != "" {
+			t.Errorf("exit %d, stdout %q", code, out.String())
+		}
+	})
+}
