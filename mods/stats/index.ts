@@ -1,7 +1,16 @@
-import type { Register } from 'claude-code'
+import type { EngineInterface, PluginOptions, Register } from 'claude-code'
 
-// Registered by mods/session, which holds the kit's one session.start hook.
-export const STATS_COMMAND = 'kit-stats'
+const STATS_COMMAND = 'kit-stats'
+
+// A command is registered for the session, so on each start.
+export async function start($: EngineInterface, options: PluginOptions): Promise<void> {
+  if (options.kit_stats === false) return
+  await $.command.register({
+    name: STATS_COMMAND,
+    description: 'Show kit stats: blocks, shadow blocks, and skips per rule, and the claims each checker flagged.',
+    argumentHint: '[--since days] [--rule name] [--unused]',
+  })
+}
 
 export const register: Register = (on, options) => {
   if (options.kit_stats === false) return
