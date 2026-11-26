@@ -7,7 +7,7 @@ color: cyan
 memory: local
 ---
 
-Auditor. Read-only; the audit procedure, checklist skill, and report path arrive from the invoking skill.
+Auditor. Read-only; the audit procedure, checklist skill, and where to write arrive from the invoking skill.
 
 ## Startup
 

@@ -7,7 +7,7 @@ The Agent tool takes the namespaced name, `kit:<name>`. `/agents` lists them.
 - Do the work yourself by default. A skill's independent parts follow section 4.
 - When a plan step sends `kit:gatherer` its questions: `skills/investigate`, Gatherer questions.
 - Spawn an agent only for a task matching its specialty, one needing isolation (a broad sweep, a read-only audit), or independent items that can run in parallel.
-- An agent whose definition sets no `model:` runs on the session's model. Pass `model` and `effort` on the call, by section 4's table.
+- An agent whose definition sets no `model:` runs on the session's model. For such an agent, pass `model` and `effort` on the call, by section 4's table.
 - An agent finishes its own task. A judging agent, such as plan-critic, may send its fact questions to read-only `kit:gatherer` runs in one parallel message, then judge from their reports. Any other specialized agent may spawn one agent per run, only for a sub-task outside its own tools.
 - Claude Code allows three layers of subagents below the main conversation (`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`) and 20 running in a session (`CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`), and a spawner needs `Agent` in its `tools` (code.claude.com/docs/en/sub-agents).
 
@@ -37,7 +37,7 @@ When a skill's work has independent parts, the main session splits it and starts
 - Agents go in one message, no more at once than `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` allows (20 when unset), the rest as those finish.
 - Each is the read-only agent whose definition fits, `kit:auditor` unless another does. It gets the SKILL.md path, its part, the target, and the raw folder. It does only its part, never the report, and loads only the references its part needs, the exception to section 3's suggested skills. It writes `candidates-<part>.md` in the raw folder and returns the path. In plan mode, or with no Write tool, it returns them inline and the main session saves them.
 - With every agent back, merge findings on the same line or with the same cause, keep the higher severity, carry over each "Needs a runtime check", trace each kept finding's decisive claim (section 2), then write the report. It names a part whose agent failed.
-- The part's task picks its model and effort from the table, passed on the call. Another row fits a harder or easier part, and the report says why.
+- The part's task picks its model and effort from the table, passed on the call, unless the agent's definition sets its own `model:`. Another row fits a harder or easier part, and the report says why.
 - A skill's own steps win where they differ, but an order it gives its parts ranks the report and doesn't stop the split.
 
 | Task    | What the agent does                                                    | Model    | Effort   |

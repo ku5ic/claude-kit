@@ -21,7 +21,7 @@ Loading this skill isn't enough. Before the step a row names, read its file.
 
 ## Run
 
-Resolve the target, the arguments or the project root, then work this file's procedure per `skills/kit-rules/reference/subagents.md` section 4, each part in a `kit:auditor` or one auditor for all of it, and write the report yourself. Then run the report-format skill's Runtime checks yourself, and reply per `skills/kit-rules/reference/output.md` section 3.
+Resolve the target, the arguments or the project root, then work this file's procedure per `skills/kit-rules/reference/subagents.md` section 4, and write the report yourself. Then run the report-format skill's Runtime checks yourself, and reply per `skills/kit-rules/reference/output.md` section 3.
 
 ## Procedure
 

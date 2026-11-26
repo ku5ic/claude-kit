@@ -39,16 +39,16 @@ Run each pass, fanning out per `skills/kit-rules/reference/subagents.md` section
 
 | Pass                       | Check against                                                                                                                                                                                         |
 | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Design                     | `engineering-fundamentals`: `design-integrity.md`, and `metric-thresholds.md` for size, nesting, and coupling. [reference/checklist.md](reference/checklist.md), Design                               |
+| Design                     | `engineering-fundamentals`: `design-integrity.md`, and `metric-thresholds.md` for size, nesting, and coupling. its [reference/checklist.md](reference/checklist.md) Design bullet                     |
 | Stack                      | the `anti-patterns.md` of each pattern skill Inputs step 3 names                                                                                                                                      |
 | Tests                      | `test-patterns`. For each changed behavior, name the assertion that fails without it. None found is a finding                                                                                         |
 | Precedent                  | how the repo already solves the same thing, per `skills/kit-rules/reference/change.md` section 2. A second way of doing a solved thing is a finding                                                   |
 | Errors and observability   | the target alone: an error swallowed, logged and dropped, or rethrown without its cause; a failure with no log or metric to find it by; a log line missing the identifier needed to trace one request |
 | Security                   | `security-patterns`: its `anti-patterns.md` and the reference for each surface the target touches                                                                                                     |
-| Functionality              | [reference/checklist.md](reference/checklist.md), Functionality                                                                                                                                       |
-| Documentation and comments | [reference/checklist.md](reference/checklist.md), Documentation and Comments                                                                                                                          |
+| Functionality              | its [reference/checklist.md](reference/checklist.md) Functionality bullet                                                                                                                             |
+| Documentation and comments | its [reference/checklist.md](reference/checklist.md) Documentation and Comments bullets                                                                                                               |
 
-Every pass also follows the checklist's last four lines, and returns what they ask for with its candidates. Every finding cites `file:line` and what was read there. A finding inferred without reading the code it names is labelled per `skills/kit-rules/reference/evidence.md` section 1.
+Every pass also follows the checklist's bullets on reading every human-written line, naming a part it can't judge, saying what a partial review covered, and naming a good practice, and returns what they ask for with its candidates. Every finding cites `file:line` and what was read there. A finding inferred without reading the code it names is labelled per `skills/kit-rules/reference/evidence.md` section 1.
 
 ## Report
 

@@ -23,7 +23,7 @@ Re-check findings from a prior audit report against the current repo, classifyin
    - `moved`: the problem still exists but the cited location no longer matches; the agent must find and cite the new location.
    - `regressed`: evidence (e.g. git history at that location) shows it was fixed and then reintroduced.
    - `unverifiable`: the original finding had no `file:line` (a free-text region, per the report-format skill's own allowance), always reported, never dropped.
-6. Relay the agents' classifications into the output report below. Do not re-run any part of the original audit yourself.
+6. Relay the agents' classifications into the output report below, one per original finding, with no merge, no severity change, and no new tracing. Do not re-run any part of the original audit yourself.
 
 ## Output
 

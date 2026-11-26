@@ -368,13 +368,19 @@ func TestKitRepo(t *testing.T) {
 
 	t.Run("no skill hands its whole procedure to one auditor", func(t *testing.T) {
 		skills, _ := filepath.Glob(filepath.Join(kitRoot, "skills", "*", "SKILL.md"))
-		for _, skill := range skills {
+		local, _ := filepath.Glob(filepath.Join(kitRoot, ".claude", "skills", "*", "SKILL.md"))
+		for _, skill := range append(skills, local...) {
 			text := Read(t, skill)
+			rel, _ := filepath.Rel(kitRoot, skill)
 			// Section 4 of skills/kit-rules/reference/subagents.md decides the split.
 			for _, old := range []string{"It writes the report", "with this file's procedure"} {
 				if strings.Contains(text, old) {
-					rel, _ := filepath.Rel(kitRoot, skill)
 					t.Errorf("%s still says %q", rel, old)
+				}
+			}
+			for n, line := range strings.Split(text, "\n") {
+				if strings.Contains(strings.ToLower(line), "dispatch the auditor agent") && !strings.Contains(line, "one per") {
+					t.Errorf("%s:%d dispatches one auditor for everything", rel, n+1)
 				}
 			}
 		}
@@ -464,31 +470,32 @@ func TestKitRepo(t *testing.T) {
 }
 
 // tableColumn is the cells under column in the first table of the section
-// heading opens, without backticks.
+// heading opens, without backticks; none when that table lacks the column.
+// An escaped \| stays inside its cell.
 func tableColumn(text, heading, column string) []string {
 	_, section, ok := strings.Cut(text, "\n"+heading+"\n")
 	if !ok {
 		return nil
 	}
 	section, _, _ = strings.Cut(section, "\n## ")
-	at := -1
+	at, header := -1, false
 	var cells []string
 	for line := range strings.SplitSeq(section, "\n") {
 		row, isRow := strings.CutPrefix(line, "|")
-		switch {
-		case !isRow && at >= 0:
-			return cells
-		case !isRow:
+		if !isRow {
+			if header {
+				break
+			}
 			continue
 		}
-		cols := strings.Split(row, "|")
+		cols := strings.Split(strings.ReplaceAll(row, `\|`, "\x00"), "|")
 		for i := range cols {
-			cols[i] = strings.Trim(strings.TrimSpace(cols[i]), "`")
+			cols[i] = strings.Trim(strings.TrimSpace(strings.ReplaceAll(cols[i], "\x00", "|")), "`")
 		}
 		switch {
-		case at < 0:
-			at = slices.Index(cols, column)
-		case at < len(cols) && !strings.HasPrefix(cols[at], "--"):
+		case !header:
+			at, header = slices.Index(cols, column), true
+		case at >= 0 && at < len(cols) && !strings.HasPrefix(cols[at], "--"):
 			cells = append(cells, cols[at])
 		}
 	}
