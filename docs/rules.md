@@ -100,6 +100,8 @@ Every skill with references lists them in a "Before | Read" table: an action, th
 
 **Ask or proceed.** A question answered with an edit surprises the user. A request with two readings acted on with a guess wastes the edit half the time. A vague goal counts as ambiguous even with an obvious bug in the code, because the bug is one of the options, not the answer.
 
+**What was held back comes first.** A reply that opens with what was done reads as all of it done. During the 0.14.0 work a commit request was half done, with the proof runs unfinished, and the reply didn't say why.
+
 **Review findings are claims.** A reviewer can be wrong, and an applied wrong finding is a regression with a reviewer's name on it.
 
 **A review or runtime pass stops at its report.** Fixes applied before the report exists leave the engineer judging findings that are already in the tree, and the report then describes code that changed under it. On 2026-11-20 a step's six findings were fixed before their report and before the engineer chose any.
