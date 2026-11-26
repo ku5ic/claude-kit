@@ -116,6 +116,10 @@ type state struct {
 	// sure is vars as the current shell surely has them: set by a lone
 	// command outside any subshell and any part that may not run.
 	sure map[string]string
+	// sureAt is the segment each sure value was set in, and at the segment
+	// being checked.
+	sureAt map[string]int
+	at     int
 	// exported is every name an export in the command names.
 	exported map[string]bool
 }
@@ -164,9 +168,10 @@ func Check(h *hook.Hook) error {
 	if unparsed {
 		st.ask("guard-bash could not parse part of this command, so it went unchecked; confirm it")
 	}
-	st.vars, st.sure, st.loopVars, st.segs = map[string]string{}, map[string]string{}, loopAssigned(segs), segs
+	st.vars, st.sure, st.sureAt, st.loopVars, st.segs = map[string]string{}, map[string]string{}, map[string]int{}, loopAssigned(segs), segs
 	st.exported = exportedNames(segs)
-	for _, seg := range segs {
+	for i, seg := range segs {
+		st.at = i
 		if err := st.segment(seg); err != nil {
 			return err
 		}
@@ -176,7 +181,7 @@ func Check(h *hook.Hook) error {
 			if seg.subshell || seg.conditional || len(seg.Calls) > 1 {
 				delete(st.sure, name)
 			} else {
-				st.sure[name] = value
+				st.sure[name], st.sureAt[name] = value, i
 			}
 		}
 	}

@@ -766,7 +766,8 @@ func TestGuardBashMarksAReadOnlyCommand(t *testing.T) {
 }
 
 // rm -r goes through when every operand is scratch, or a variable the
-// command set to a scratch path or a fresh mktemp -d dir; anything else asks.
+// command set to a scratch path or a fresh mktemp -d dir, or a path below
+// one, or one variable set to a path below one; anything else asks.
 func TestRmRecursiveOnScratchPasses(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ cmd, want string }{
@@ -818,6 +819,41 @@ func TestRmRecursiveOnScratchPasses(t *testing.T) {
 		{`rm -rf "$(/tmp/kit scratch-dir)/x"`, "ask"},
 		{`rm -rf "$(ROOT/bin/kit scratch-dir prompt)/x"`, "ask"},
 		{`rm -rf "$PWD/x"`, "ask"},
+		{`S=$(mktemp -d) && rm -rf "$S/x"`, "pass"},
+		{`set -e; t=$(mktemp -d); rm -rf "$t/a"`, "pass"},
+		{`set -euo pipefail; S=$(mktemp -d); rm -rf "${S}/a/b"`, "pass"},
+		{`S=$(mktemp -d); rm -rf "${S:?}/x"`, "pass"},
+		{`set -e; S=$(mktemp -d); H="$S/x"; rm -rf "$H"`, "pass"},
+		{`S=$(mktemp -d); H="${S:?}/x"; rm -rf "$H/y"`, "pass"},
+		{`set -e; S="$(kit scratch-dir)/x"; rm -rf "$S"`, "pass"},
+		// An empty S would make these /x: its $(...) failing doesn't stop them.
+		{`t=$(mktemp -d); rm -rf "$t/a"`, "ask"},
+		{`S=$(mktemp -d); H="$S/x"; rm -rf "$H"`, "ask"},
+		{`S=$(mktemp -d); set -e; rm -rf "$S/x"`, "ask"},
+		{`set -e; set +e; S=$(mktemp -d); rm -rf "$S/x"`, "ask"},
+		{`true && set -e; S=$(mktemp -d); rm -rf "$S/x"`, "ask"},
+		{`set -e; export S=$(mktemp -d); rm -rf "$S/x"`, "ask"},
+		{`S=$(mktemp -d) || rm -rf "$S/x"`, "ask"},
+		{`S=$(mktemp -d) && echo hi && rm -rf "$S/x"`, "ask"},
+		{`set -e; S=$(mktemp -d) || true; rm -rf "$S/x"`, "ask"},
+		{`set -e; S=$(mktemp -d) && echo hi; rm -rf "$S/x"`, "ask"},
+		{`set -e; ! S=$(mktemp -d); rm -rf "$S/x"`, "ask"},
+		{`! S=$(mktemp -d) && rm -rf "$S/x"`, "ask"},
+		{"set -e\nS=$(mktemp -d)\nrm -rf \"$S/x\"", "pass"},
+		{`S=$(mktemp -d); rm -rf "$S/../x"`, "ask"},
+		{`S=$(mktemp -d); rm -rf "$S/$x"`, "ask"},
+		{`S=$(mktemp -d); rm -rf $S/x`, "ask"},
+		{`set -e; S=$(mktemp -d); H="$S/../x"; rm -rf "$H"`, "ask"},
+		{`set -e; H="$S/x"; S=$(mktemp -d); rm -rf "$H"`, "ask"},
+		{`set -e; S=$(mktemp -d); H="$S/x"; I="$H/y"; rm -rf "$I"`, "ask"},
+		{`set -e; S=$(mktemp -d); H="$S/x"; H=/; rm -rf "$H"`, "ask"},
+		{`set -e; S=$(mktemp -d); H=$S/x; rm -rf "$H"`, "pass"},
+		{`set -e; S=$(mktemp -d); H='$S/x'; rm -rf "$H"`, "ask"},
+		{`set -e; S=$(mktemp -d); H=\$S/x; rm -rf "$H"`, "ask"},
+		{`set -e; S=$(mktemp -d); H="\$S/x"; rm -rf "$H"`, "ask"},
+		{`set -e; S=$(mktemp -d); H=$'\x24S/x'; rm -rf "$H"`, "ask"},
+		{`set -e; S=$(mktemp -d); H="${S}x"; rm -rf "$H"`, "ask"},
+		{`set -e; S=$(mktemp -d); H="$S/x"; rm -rf "$H/../.."`, "ask"},
 	} {
 		t.Run(tc.cmd, func(t *testing.T) {
 			t.Parallel()
@@ -832,6 +868,8 @@ func TestRmRecursiveOnScratchInTheCheckoutPasses(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ cmd, want string }{
 		{`D="$(bin/kit scratch-dir)/run"; rm -r "$D"`, "pass"},
+		{`S=$(bin/kit scratch-dir) && rm -rf "$S/x"`, "pass"},
+		{`S=$(bin/kit scratch-dir); rm -rf "$S/x"`, "ask"},
 		{`rm -rf "$PWD/.claude/scratch/x"`, "pass"},
 		{`rm -rf "${PWD}/.claude/scratch/x"`, "pass"},
 		{`cd go && rm -rf "$PWD/.claude/scratch/x"`, "pass"},

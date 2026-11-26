@@ -690,9 +690,11 @@ func (st *state) allScratch(ops []Word) bool {
 	return len(ops) > 0 && !slices.ContainsFunc(ops, func(w Word) bool { return !st.scratchOperand(w) })
 }
 
-// quotedVar is a whole word that is one variable in double quotes, "$S" or
-// "${S}": unquoted, IFS could split it into other paths.
-var quotedVar = regexp.MustCompile(`^"\$(?:([A-Za-z_][A-Za-z0-9_]*)|\{([A-Za-z_][A-Za-z0-9_]*)\})"$`)
+// quotedVar is a whole word that is one variable in double quotes, "$S",
+// "${S}", or "${S:?}", and maybe a plain path after it, "$S/x": unquoted,
+// IFS could split it into other paths. Its groups are the name (twice),
+// the :?, and the path.
+var quotedVar = regexp.MustCompile(`^"\$(?:([A-Za-z_][A-Za-z0-9_]*)|\{([A-Za-z_][A-Za-z0-9_]*)(:\?)?\})(/[^"$` + "`" + `\\]*)?"$`)
 
 // bashBuiltins is every bash builtin. Only a builtin can set a variable of
 // the shell running the command; any other command runs in a child.
@@ -707,27 +709,116 @@ var bashBuiltins = nameSet(".", ":", "[", "alias", "bg", "bind", "break", "built
 // run no code from a string; every other builtin can (printf -v "$N",
 // trap "$C" DEBUG, wait -p "$N").
 var inertBuiltins = nameSet(":", "[", "break", "cd", "continue", "dirs", "echo", "exit", "false", "popd", "pushd",
-	"pwd", "return", "shift", "test", "true", "type")
+	"pwd", "return", "set", "shift", "test", "true", "type")
 
 // scratchOperand is true for a scratch target, quoted when it expands
-// anything, or a quoted variable the current shell surely sets (st.sure)
-// once, outside any loop, to a scratch
-// target or a fresh mktemp -d dir, and named nowhere else in the command
-// (read S, printf -v S, declare S=/ all set it too).
+// anything, or a quoted scratch variable, with a path after it with no ..
+// only when it can't be empty there, since an empty S makes "$S/x" /x.
 func (st *state) scratchOperand(w Word) bool {
 	quoted := strings.HasPrefix(w.Raw, `"`) && strings.HasSuffix(w.Raw, `"`)
-	m := quotedVar.FindStringSubmatch(w.Raw)
-	if m == nil {
-		return !varRef.MatchString(w.Value) && (quoted || !strings.Contains(w.Value, "$")) && st.scratchTarget(w.Value)
+	if m := quotedVar.FindStringSubmatch(w.Raw); m != nil && !strings.Contains(m[4], "..") && st.scratchVar(m[1]+m[2], 1) &&
+		(m[4] == "" || st.nonEmpty(m[1]+m[2], m[3] != "", st.at)) {
+		return true
 	}
-	name := m[1] + m[2]
+	return !varRef.MatchString(w.Value) && (quoted || !strings.Contains(w.Value, "$")) && st.scratchTarget(w.Value)
+}
+
+// scratchVar is true for a variable the current shell surely sets
+// (st.sure) once, outside any loop, and names nowhere else in the command
+// (read S, printf -v S, declare S=/ all set it too), to a scratch target,
+// a fresh mktemp -d dir, or, up to depth levels, a quoted scratch variable
+// set before it, and not empty there, with a path after it (H="$S/x").
+func (st *state) scratchVar(name string, depth int) bool {
 	for _, loop := range st.loopVars {
 		if _, ok := loop[name]; ok {
 			return false
 		}
 	}
 	value, ok := st.sure[name]
-	return ok && (mktempDir(value) || st.scratchTarget(value)) && st.setOnly(name)
+	if !ok || !st.setOnly(name) {
+		return false
+	}
+	if mktempDir(value) || st.scratchTarget(value) {
+		return true
+	}
+	// value has its quotes removed: H="$S/x", H=$S/x, and H='$S/x' all
+	// read $S/x. An assignment doesn't split its value, so the first two
+	// are safe; the command's one H= (setOnly) shows which this was.
+	m := quotedVar.FindStringSubmatch(`"` + value + `"`)
+	if depth == 0 || m == nil || strings.Contains(m[4], "..") {
+		return false
+	}
+	inner := m[1] + m[2]
+	expands := regexp.MustCompile(`\b` + regexp.QuoteMeta(name) + `="?\$\{?` + regexp.QuoteMeta(inner) + `\b`)
+	at, set := st.sureAt[inner]
+	return set && at < st.sureAt[name] && expands.MatchString(st.h.Payload.String(hook.KeyInputCommand)) &&
+		st.scratchVar(inner, depth-1) && st.nonEmpty(inner, m[3] != "", st.sureAt[name])
+}
+
+// nonEmpty is true when scratch variable name can't be empty at segment
+// use: used as ${name:?}, which stops the shell, set to a literal path or
+// to another scratch variable (scratchVar checked that one), or set by a
+// bare assignment whose $(...) failing stops the command first, under an
+// earlier set -e when it stands alone (set -e spares a failure left of &&
+// or ||), or by an && straight to use; never after !.
+func (st *state) nonEmpty(name string, colonQ bool, use int) bool {
+	value := st.sure[name]
+	switch {
+	case colonQ, !strings.ContainsAny(value, "$`"), quotedVar.MatchString(`"` + value + `"`):
+		return true
+	case st.exported[name]:
+		// export's own status is 0 whatever its $(...) did.
+		return false
+	}
+	set := st.sureAt[name]
+	assign := st.segs[set]
+	if len(assign.Calls) == 0 {
+		return false
+	}
+	start := assign.Calls[0].start
+	// ! turns a failed $(...) into success, for set -e and && alike.
+	if strings.HasPrefix(assign.src[start:], "!") || strings.HasSuffix(strings.TrimRight(assign.src[:start], " \t"), "!") {
+		return false
+	}
+	after := strings.TrimLeft(assign.src[assign.end:], " \t")
+	alone := after == "" || after[0] == ';' && !strings.HasPrefix(after, ";;") || after[0] == '\n'
+	if alone && errexit(st.segs[:set]) {
+		return true
+	}
+	next := st.segs[use]
+	if len(next.Calls) == 0 {
+		return false
+	}
+	between := assign.src[min(assign.end, next.Calls[0].start):next.Calls[0].start]
+	return strings.TrimSpace(between) == "&&"
+}
+
+// errexit is whether segs leave set -e on: the last set that turns it on
+// or off, outside any subshell and any part that may not run, turns it on.
+func errexit(segs []Segment) bool {
+	on := false
+	for _, seg := range segs {
+		if seg.subshell || seg.conditional {
+			continue
+		}
+		for _, call := range seg.Calls {
+			if len(call.Words) == 0 || call.Words[0].Value != "set" || !call.Words[0].literal {
+				continue
+			}
+			words := values(call.Words[1:])
+			for i, w := range words {
+				switch {
+				case (w == "-o" || w == "+o") && i+1 < len(words) && words[i+1] == "errexit":
+					on = w == "-o"
+				case strings.HasPrefix(w, "-") && !strings.HasPrefix(w, "--") && strings.Contains(w, "e"):
+					on = true
+				case strings.HasPrefix(w, "+") && strings.Contains(w, "e"):
+					on = false
+				}
+			}
+		}
+	}
+	return on
 }
 
 // setOnly is true when the command names name only in one assignment and
@@ -753,7 +844,7 @@ func (st *state) setOnly(name string) bool {
 	q := regexp.QuoteMeta(name)
 	count := func(pattern string) int { return len(regexp.MustCompile(pattern).FindAllStringIndex(cmd, -1)) }
 	sets := count(`\b` + q + `=`)
-	return sets == 1 && count(`\b`+q+`\b`) == sets+count(`\$`+q+`\b|\$\{`+q+`\}`)
+	return sets == 1 && count(`\b`+q+`\b`) == sets+count(`\$`+q+`\b|\$\{`+q+`(?::\?)?\}`)
 }
 
 func (c *command) chmod() error {
