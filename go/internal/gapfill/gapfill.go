@@ -217,9 +217,12 @@ func Run(cfg *config.Config, o Options) Result {
 	file := seededCacheFile(o.CacheDir, o.Root)
 	s := load(file)
 	s.cool = classifierCooldown(o.CacheDir, o.Root)
-	// A read is use: cache.Prune drops only a file no run has read.
+	// A read is use, and cache.Prune drops only a file no run has read. Once a
+	// day is enough for that, and each touch makes the stack report stale.
 	now := time.Now()
-	_ = os.Chtimes(file, now, now)
+	if info, err := os.Stat(file); err == nil && cache.Older(info.ModTime(), 1, now) {
+		_ = os.Chtimes(file, now, now)
+	}
 	failure, usage := "", claudecli.Usage{}
 	if o.Ask && os.Getenv(claudecli.DepthVar) == "" {
 		// The view reads the whole repo: only a run that may ask builds it.

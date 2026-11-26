@@ -9,6 +9,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
+	"github.com/ku5ic/claude-kit/go/internal/gapfill"
 	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
 
@@ -109,5 +110,39 @@ func TestCachedDependencySkillsFollowSubprojects(t *testing.T) {
 	}
 	if got := cachedDependencySkills(cfg, added, file, false); !slices.Equal(got, []string{"django-patterns"}) {
 		t.Errorf("after a subproject was added: got %q", got)
+	}
+}
+
+// A gap-fill read touches its answers at most once a day, so it leaves the
+// stack report fresh until then; the answers themselves are unchanged.
+func TestAGapFillReadRebuildsTheStackReportAtMostDaily(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		age     time.Duration
+		rebuilt bool
+	}{
+		{"read an hour after the last touch", time.Hour, false},
+		{"read two days after the last touch", 48 * time.Hour, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			root := fsx.PhysicalPath(t.TempDir())
+			testutil.Put(t, root, "go.mod", "module x\n")
+			paths := config.Paths{ClaudeDir: t.TempDir()}
+			cfg := testutil.KitConfig(t)
+			answered := gapfill.CacheFile(paths.CacheDir(), root)
+			testutil.Put(t, filepath.Dir(answered), filepath.Base(answered), "{}")
+			touched := time.Now().Add(-tc.age)
+			if err := os.Chtimes(answered, touched, touched); err != nil {
+				t.Fatal(err)
+			}
+			file := filepath.Join(t.TempDir(), "stack.txt")
+			refresh(paths, cfg, root, file)
+			gapfill.Run(cfg, gapfill.Options{Root: root, CacheDir: paths.CacheDir()})
+			if got := refresh(paths, cfg, root, file); got != tc.rebuilt {
+				t.Errorf("rebuilt = %v, want %v", got, tc.rebuilt)
+			}
+		})
 	}
 }
