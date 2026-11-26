@@ -7,7 +7,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/cite"
@@ -60,34 +62,84 @@ func References(dir, text string) []Unsupported {
 // Past deadline, the statements left stay in rest, unchecked.
 func settleReferences(dir, text string, deadline time.Time) (flagged []Unsupported, rest string) {
 	root := cmp.Or(git.Toplevel(dir), dir)
-	rest = text
+	type statement struct {
+		text string
+		refs []string
+	}
+	var bare []statement
+	var refs []string
 	for _, s := range Statements(text) {
-		if time.Now().After(deadline) {
-			break
+		if r, ok := references(s); ok {
+			bare = append(bare, statement{s, r})
+			refs = append(refs, r...)
 		}
-		refs, bare := references(s)
-		if !bare {
-			continue
-		}
+	}
+	settled := settleAll(root, refs, deadline)
+	rest = text
+	for _, s := range bare {
 		var problems []string
-		settled := true
-		for _, r := range refs {
-			switch res, why := settle(root, r); res {
+		allSettled := true
+		for _, r := range s.refs {
+			v, checked := settled[r]
+			if !checked {
+				// Past the deadline: this statement and the rest stay.
+				return flagged, rest
+			}
+			switch v.res {
 			case broken:
-				problems = append(problems, "`"+r+"`: "+why)
+				problems = append(problems, "`"+r+"`: "+v.why)
 			case unsettled:
-				settled = false
+				allSettled = false
 			}
 		}
 		if len(problems) > 0 {
-			flagged = append(flagged, Unsupported{Claim: s, Check: strings.Join(problems, "; ")})
-		} else if !settled || len(refs) > 1 && blockStart.MatchString(s) {
+			flagged = append(flagged, Unsupported{Claim: s.text, Check: strings.Join(problems, "; ")})
+		} else if !allSettled || len(s.refs) > 1 && blockStart.MatchString(s.text) {
 			// A row or item pairing references says they belong together.
 			continue
 		}
-		rest = cut(rest, s)
+		rest = cut(rest, s.text)
 	}
 	return flagged, rest
+}
+
+// verdict is one reference's settle result.
+type verdict struct {
+	res resolution
+	why string
+}
+
+// settleAll settles each distinct ref against root, one per CPU at a time;
+// a ref whose turn comes past deadline has no entry.
+func settleAll(root string, refs []string, deadline time.Time) map[string]verdict {
+	settled := map[string]verdict{}
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	slots := make(chan struct{}, runtime.NumCPU())
+	seen := map[string]bool{}
+	for _, r := range refs {
+		if seen[r] {
+			continue
+		}
+		seen[r] = true
+		wg.Go(func() {
+			// A panic here would exit 2, which Claude Code reads as a
+			// block; the hook's recover can't reach this goroutine. The ref
+			// stays unchecked.
+			defer func() { _ = recover() }()
+			slots <- struct{}{}
+			defer func() { <-slots }()
+			if time.Now().After(deadline) {
+				return
+			}
+			res, why := settle(root, r)
+			mu.Lock()
+			settled[r] = verdict{res, why}
+			mu.Unlock()
+		})
+	}
+	wg.Wait()
+	return settled
 }
 
 // cut is text without statement s, the first time it occurs. Statements
