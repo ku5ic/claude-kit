@@ -27,6 +27,12 @@ Every analyst reads the case file first, follows its context-safety rules, uses 
 - Every `guards.jsonl` line for this session, grouped by rule, with its count and the turns it fired in.
 - Hook lines injected into the transcript that name a rule or a ceiling (a reply over its word ceiling, a required skill), and whether the next turn followed them.
 - A rule that fired many times in one turn is a loop. Report the first and last line.
+- The lines that are no rule's block: a `compacted` event in `skills.jsonl` (the rules gate re-armed), an `auto-denied` event in `guards.jsonl` (auto mode refused a call), and each `plan-changes` hold, with what the next turn did.
+
+## Command steps
+
+- For each procedure skill the session ran, typed or through the Skill tool, read its SKILL.md's numbered steps and map each to the calls that carried it out.
+- Report a step skipped, run out of order, or done another way than written, and a step that failed and what came next. Quote the step with its `path:line`.
 
 ## Skill timeline
 
