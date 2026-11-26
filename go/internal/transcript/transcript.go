@@ -90,6 +90,11 @@ type ToolUseResult struct {
 // UnmarshalJSON keeps the answers of an AskUserQuestion's record, and
 // nothing of another tool's: a string, or an object of another shape.
 func (r *ToolUseResult) UnmarshalJSON(data []byte) error {
+	// A Read or Bash record holds whole outputs: a byte scan skips a second
+	// parse of them.
+	if !bytes.Contains(data, []byte(`"answers"`)) {
+		return nil
+	}
 	var aux struct {
 		Answers map[string]string `json:"answers"`
 	}

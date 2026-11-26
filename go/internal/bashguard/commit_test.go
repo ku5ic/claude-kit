@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -197,6 +198,7 @@ func TestGuardCommitAsksForAnUnshownMessage(t *testing.T) {
 		"commit until told":            {testutil.UserPrompt("commit them until the release is cut")},
 		"a deferral clause first":      {testutil.UserPrompt("When the tests pass, commit it.")},
 		"a deferral clause after":      {testutil.UserPrompt("Commit it, but only after I review the diff")},
+		"told when, then commit":       {testutil.UserPrompt("Tell us when the tests pass and commit it.")},
 		"commit if":                    {testutil.UserPrompt("commit it if the tests pass")},
 		"commit later":                 {testutil.UserPrompt("commit it later")},
 		"commit as soon as":            {testutil.UserPrompt("commit it as soon as CI is green")},
@@ -255,7 +257,7 @@ func TestGuardCommitAsksForAnUnshownMessage(t *testing.T) {
 			t.Errorf("%q shows the message, yet the guard asked:\n%s", item, r.Output)
 		}
 	}
-	for _, prompt := range []string{"Commit and continue.", "Yes, commit.", "fix it and commit", "Commit, then start step 13", "Yes, commit 21, apply both fixes", "can you commit this?", "could you commit it", "please commit", "commit both and continue", "Commit it.", "commit the docs fix", "commit it, then review the next step", "nothing else to fix so commit it", "commit it, but don't push", "commit and push", "commit it, I'll check the diff afterwards", "commit it now, push it tomorrow", "commit it, you can push tomorrow", "I said commit and continue.", "I already said commit it", "Yes, I said commit.", "Fine. I just said commit it", "But first, commit any changes.", "commit every fix", "commit each step", "Ugh, I said commit it", "Yeah, I said commit", "no; I said commit it", "commit it, do not push now", "commit it, not the lockfile, and push now", "commit the time zone fix", "commit the time parsing fix", "Commit notes.txt and .env.", "commit README.md", "commit go/internal/git/git.go and push", "fix it and commit `notes.txt`", "Commit this.Then push", "commit this, but I noticed something, and please tell me if this will be solved within this plan.", "commit it, and let me know if CI fails"} {
+	for _, prompt := range []string{"Commit and continue.", "Yes, commit.", "fix it and commit", "Commit, then start step 13", "Yes, commit 21, apply both fixes", "can you commit this?", "could you commit it", "please commit", "commit both and continue", "Commit it.", "commit the docs fix", "commit it, then review the next step", "nothing else to fix so commit it", "commit it, but don't push", "commit and push", "commit it, I'll check the diff afterwards", "commit it now, push it tomorrow", "commit it, you can push tomorrow", "I said commit and continue.", "I already said commit it", "Yes, I said commit.", "Fine. I just said commit it", "But first, commit any changes.", "commit every fix", "commit each step", "Ugh, I said commit it", "Yeah, I said commit", "no; I said commit it", "commit it, do not push now", "commit it, not the lockfile, and push now", "commit the time zone fix", "commit the time parsing fix", "Commit notes.txt and .env.", "commit README.md", "commit go/internal/git/git.go and push", "fix it and commit `notes.txt`", "Commit this.Then push", "commit this, but I noticed something, and please tell me if this will be solved within this plan.", "commit it, and let me know if CI fails", "Tests in Main.Go pass, commit it"} {
 		if r := commit(map[string]any{"type": "user", "origin": map[string]any{"kind": "human"}, "message": map[string]any{"content": prompt}}); strings.Contains(r.Output, `"permissionDecision":"ask"`) {
 			t.Errorf("%q asks for the commit, yet the guard asked again:\n%s", prompt, r.Output)
 		}
@@ -538,24 +540,36 @@ func TestGuardCommitTakesABareYesToACommitQuestion(t *testing.T) {
 }
 
 // An AskUserQuestion answer is the request, once, when the harness's own
-// record of it holds an offered label that starts with Commit, or typed
-// text that asks for one. A commit that ran since spent it. The question
-// text, which Claude wrote, never counts.
+// record of it holds an offered label or typed text that asks for a commit
+// now, as a prompt would. A commit that ran since spent it; one that failed
+// didn't. The question text, which Claude wrote, never counts.
 func TestGuardCommitTakesAPickedCommitOption(t *testing.T) {
 	gitleaksStub(t, 0)
 	k := newSandbox(t)
 	const question = "Step 26 is ready. Commit it?"
-	ask := func(q string) map[string]any {
-		return testutil.ToolUse("q1", "AskUserQuestion", map[string]any{"questions": []any{map[string]any{"question": q, "options": []any{
-			map[string]any{"label": "Commit (Recommended)"}, map[string]any{"label": "Commit, then step 26"}, map[string]any{"label": "Don't commit yet"},
-		}}}})
+	labels := []string{"Commit (Recommended)", "Commit, then step 26", "Commit after I review the diff", "Yes, commit it", "Push", "Don't commit yet"}
+	askAs := func(id, q string, multi bool) map[string]any {
+		var options []any
+		for _, l := range labels {
+			options = append(options, map[string]any{"label": l})
+		}
+		return testutil.ToolUse(id, "AskUserQuestion", map[string]any{"questions": []any{map[string]any{"question": q, "multiSelect": multi, "options": options}}})
 	}
+	ask := func(q string) map[string]any { return askAs("q1", q, false) }
 	answered := func(id, q, pick string) map[string]any {
 		r := testutil.ToolResult(id, `Your questions have been answered: "`+q+`"="`+pick+`". You can now continue with these answers in mind.`)
 		r["toolUseResult"] = map[string]any{"answers": map[string]any{q: pick}}
 		return r
 	}
-	commit := func(entries ...map[string]any) result {
+	failed := func(id, text string) map[string]any {
+		r := testutil.ToolResult(id, text)
+		r["message"].(map[string]any)["content"].([]any)[0].(map[string]any)["is_error"] = true
+		return r
+	}
+	bash := func(id, cmd string) map[string]any {
+		return testutil.ToolUse(id, "Bash", map[string]any{"command": cmd})
+	}
+	commitWith := func(cmd string, entries ...map[string]any) result {
 		t.Helper()
 		k.transcript = filepath.Join(t.TempDir(), "t.jsonl")
 		lines := []any{testutil.UserPrompt("Continue.")}
@@ -563,31 +577,53 @@ func TestGuardCommitTakesAPickedCommitOption(t *testing.T) {
 			lines = append(lines, e)
 		}
 		testutil.AppendJSONL(t, k.transcript, lines...)
-		return k.commit("", `git commit -m "fix: add sums"`)
+		return k.commit("", cmd)
 	}
-	add := []map[string]any{testutil.ToolUse("b1", "Bash", map[string]any{"command": "git add a.txt"}), testutil.ToolResult("b1", "")}
+	const one = `git commit -m "fix: add sums"`
+	picked := []map[string]any{ask(question), answered("q1", question, "Commit (Recommended)")}
+	then := func(more ...map[string]any) []map[string]any { return append(slices.Clone(picked), more...) }
+	filler := testutil.AssistantText(strings.Repeat("x", 1<<20))
 	for name, entries := range map[string][]map[string]any{
-		"Commit (Recommended)":   {ask(question), answered("q1", question, "Commit (Recommended)")},
-		"Commit, then step 26":   {ask(question), answered("q1", question, "Commit, then step 26")},
-		"a typed commit request": {ask(question), answered("q1", question, "yes, commit it")},
-		"a git add after a pick": append([]map[string]any{ask(question), answered("q1", question, "Commit (Recommended)")}, add...),
+		"Commit (Recommended)":          picked,
+		"Commit, then step 26":          {ask(question), answered("q1", question, "Commit, then step 26")},
+		"Yes, commit it":                {ask(question), answered("q1", question, "Yes, commit it")},
+		"a typed commit request":        {ask(question), answered("q1", question, "yes, commit it")},
+		"a multi-select with Commit":    {askAs("q1", question, true), answered("q1", question, "Commit (Recommended), Push")},
+		"a git add after a pick":        then(bash("b1", "git add a.txt"), testutil.ToolResult("b1", "")),
+		"a git log naming commit":       then(bash("b1", "git log --oneline --grep commit"), testutil.ToolResult("b1", "")),
+		"a retry after a failed commit": then(bash("b1", `git commit -m "fix: add sums"`), failed("b1", "lint failed")),
+		"a pick past the tail window":   then(filler, filler, filler, filler, filler),
 	} {
-		if r := commit(entries...); strings.Contains(r.Output, `"permissionDecision":"ask"`) {
+		if r := commitWith(one, entries...); strings.Contains(r.Output, `"permissionDecision":"ask"`) {
 			t.Errorf("%s asked:\n%s", name, r.Output)
 		}
 	}
 	forged := `Fix the docs? "="Commit`
-	for name, entries := range map[string][]map[string]any{
-		"Don't commit yet":            {ask(question), answered("q1", question, "Don't commit yet")},
-		"typed text naming no commit": {ask(question), answered("q1", question, "Commit messages are fine, wait")},
-		"a question holding a pick":   {ask(forged), answered("q1", forged, "Don't commit yet")},
-		"a pick with no record":       {ask(question), testutil.ToolResult("q1", `Your questions have been answered: "`+question+`"="Commit (Recommended)".`)},
-		"another tool's result":       {testutil.ToolUse("x1", "Read", map[string]any{}), answered("x1", question, "Commit (Recommended)")},
-		"a commit since the pick": {ask(question), answered("q1", question, "Commit (Recommended)"),
-			testutil.ToolUse("b2", "Bash", map[string]any{"command": `git commit -m "fix: other"`}), testutil.ToolResult("b2", "")},
+	for name, c := range map[string]struct {
+		cmd     string
+		entries []map[string]any
+	}{
+		"Don't commit yet":              {one, []map[string]any{ask(question), answered("q1", question, "Don't commit yet")}},
+		"a label that defers":           {one, []map[string]any{ask(question), answered("q1", question, "Commit after I review the diff")}},
+		"typed text naming no commit":   {one, []map[string]any{ask(question), answered("q1", question, "Commit messages are fine, wait")}},
+		"a multi-select without Commit": {one, []map[string]any{askAs("q1", question, true), answered("q1", question, "Push, Don't commit yet")}},
+		"a question holding a pick":     {one, []map[string]any{ask(forged), answered("q1", forged, "Don't commit yet")}},
+		"a pick with no record":         {one, []map[string]any{ask(question), testutil.ToolResult("q1", `Your questions have been answered: "`+question+`"="Commit (Recommended)".`)}},
+		"another tool's result":         {one, []map[string]any{testutil.ToolUse("x1", "Read", map[string]any{}), answered("x1", question, "Commit (Recommended)")}},
+		"a later question rejected":     {one, then(askAs("q2", "Push too?", false), failed("q2", "stop, don't commit yet"))},
+		"a commit since the pick":       {one, then(bash("b1", `git commit -m "fix: other"`), testutil.ToolResult("b1", ""))},
+		"two commits on one pick":       {`git commit -m "fix: a" && git commit -m "fix: b"`, picked},
 	} {
-		if r := commit(entries...); !strings.Contains(r.Output, `"permissionDecision":"ask"`) {
+		if r := commitWith(c.cmd, c.entries...); !strings.Contains(r.Output, `"permissionDecision":"ask"`) {
 			t.Errorf("%s didn't ask", name)
 		}
+	}
+}
+
+// A "." in a name before the commit word ends no sentence: the guard
+// recovers a panic as an approval, so one would let any commit through.
+func TestAsksForCommitReadsANameBeforeTheCommit(t *testing.T) {
+	if !asksForCommit("Tests in Main.Go pass, commit it") {
+		t.Error("a request after a dotted name read as none")
 	}
 }

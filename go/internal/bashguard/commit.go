@@ -3,6 +3,7 @@ package bashguard
 import (
 	"bytes"
 	"cmp"
+	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -330,12 +331,17 @@ func approved(path string, subjects []string) bool {
 	// The current prompt sits in the transcript's tail; parsing the whole
 	// session is needed only to look for an earlier reply showing the
 	// subjects, and only when the file holds every one of them.
+	// An AskUserQuestion pick approves one commit; a command running
+	// several asks.
+	one := len(subjects) == 1
+	turnInTail := false
 	if tail, err := transcript.Tail(path, math.MaxInt); err == nil {
 		for i, e := range slices.Backward(tail) {
 			if !e.StartsTurn() {
 				continue
 			}
-			if e.FromUser() && requests(e.PromptText(), lastReply(tail[:i])) || pickedCommit(tail[i+1:]) {
+			turnInTail = true
+			if e.FromUser() && requests(e.PromptText(), lastReply(tail[:i])) || one && pickedCommit(tail[i+1:]) {
 				return true
 			}
 			if data, err := os.ReadFile(path); err == nil && slices.ContainsFunc(subjects, func(s string) bool { return !mayHold(data, s) }) {
@@ -346,7 +352,14 @@ func approved(path string, subjects []string) bool {
 	}
 	var earlier, current strings.Builder
 	prompt, reply, before := "", "", ""
+	// The entries of a turn that started before the tail, for its picks.
+	var turn []transcript.Entry
 	_ = transcript.Each(path, func(e transcript.Entry) {
+		if e.StartsTurn() {
+			turn = nil
+		} else if one && !turnInTail {
+			turn = append(turn, e)
+		}
 		switch {
 		case e.StartsTurn():
 			earlier.WriteString(current.String())
@@ -362,7 +375,7 @@ func approved(path string, subjects []string) bool {
 			}
 		}
 	})
-	if requests(prompt, before) {
+	if requests(prompt, before) || pickedCommit(turn) {
 		return true
 	}
 	text := earlier.String()
@@ -393,30 +406,31 @@ func requests(prompt, reply string) bool {
 	return bareYes.MatchString(prompt) && commitQuestion.MatchString(last) && !orWord.MatchString(last)
 }
 
-// commitLabel is an option label that starts with Commit.
-var commitLabel = regexp.MustCompile(`^(?i:commit)\b`)
+// recommended is the marker Claude puts on the option it suggests.
+var recommended = regexp.MustCompile(`\s*\(Recommended\)\s*$`)
 
 // pickedCommit is whether the user, in entries, the turn so far, answered
 // an AskUserQuestion with a commit, and no commit has run since: one
-// answer approves one commit.
+// answer approves one commit. A question the user rejected withdraws it,
+// and a commit that failed doesn't spend it.
 func pickedCommit(entries []transcript.Entry) bool {
-	asks, commits := map[string]map[string][]string{}, map[string]bool{}
+	asks, commits := map[string]map[string]question{}, map[string]bool{}
 	picked := false
 	for _, e := range entries {
 		for _, b := range e.ToolUses() {
 			switch {
 			case b.Name == "AskUserQuestion":
 				asks[b.ID] = offered(b.RawInput)
-			case b.Name == "Bash" && commitLine.MatchString(b.Input.Command):
+			case b.Name == "Bash" && isCommit(b.Input.Command):
 				commits[b.ID] = true
 			}
 		}
 		for _, b := range e.Blocks {
 			switch {
 			case b.Type != "tool_result":
-			case asks[b.ToolUseID] != nil && !b.IsError:
-				picked = commitAnswer(asks[b.ToolUseID], e.ToolUseResult.Answers)
-			case commits[b.ToolUseID]:
+			case asks[b.ToolUseID] != nil:
+				picked = !b.IsError && commitAnswer(asks[b.ToolUseID], e.ToolUseResult.Answers)
+			case commits[b.ToolUseID] && !b.IsError:
 				picked = false
 			}
 		}
@@ -424,45 +438,73 @@ func pickedCommit(entries []transcript.Entry) bool {
 	return picked
 }
 
-// offered is an AskUserQuestion input's questions, each to its option
-// labels.
-func offered(input json.RawMessage) map[string][]string {
+// isCommit is whether cmd runs git commit, as CheckCommit reads it.
+func isCommit(cmd string) bool {
+	return commitLine.MatchString(cmd) && commitCalls(cmd, "", "")[0].commits(cmd)
+}
+
+// question is an AskUserQuestion's options and whether the user may pick
+// several.
+type question struct {
+	labels []string
+	multi  bool
+}
+
+// offered is an AskUserQuestion input's questions, by their text.
+func offered(input json.RawMessage) map[string]question {
 	var in struct {
 		Questions []struct {
-			Question string `json:"question"`
-			Options  []struct {
+			Question    string `json:"question"`
+			MultiSelect bool   `json:"multiSelect"`
+			Options     []struct {
 				Label string `json:"label"`
 			} `json:"options"`
 		} `json:"questions"`
 	}
 	_ = json.Unmarshal(input, &in)
-	out := map[string][]string{}
+	out := map[string]question{}
 	for _, q := range in.Questions {
+		asked := question{multi: q.MultiSelect}
 		for _, o := range q.Options {
-			out[q.Question] = append(out[q.Question], o.Label)
+			asked.labels = append(asked.labels, o.Label)
 		}
+		out[q.Question] = asked
 	}
 	return out
 }
 
 // commitAnswer is whether answers, the structured record the harness keeps,
-// answer one of the questions asked with a commit: an offered label that
-// starts with Commit, or typed text that asks for one as a prompt would.
-// The question text, which Claude wrote, is never matched.
-func commitAnswer(asked map[string][]string, answers map[string]string) bool {
-	for question, answer := range answers {
-		labels, ok := asked[question]
-		switch {
-		case !ok:
-		case slices.Contains(labels, answer):
-			if commitLabel.MatchString(answer) {
+// answer one of the questions asked with a commit: a picked label or typed
+// text that asks for one now, as a prompt would. The question text, which
+// Claude wrote, is never matched.
+func commitAnswer(asked map[string]question, answers map[string]string) bool {
+	for text, answer := range answers {
+		q, ok := asked[text]
+		if !ok {
+			continue
+		}
+		for _, pick := range picks(q, answer) {
+			if asksForCommit(recommended.ReplaceAllString(pick, "")) {
 				return true
 			}
-		case asksForCommit(answer):
-			return true
 		}
 	}
 	return false
+}
+
+// picks is answer split into what the user chose: a multi-select's labels,
+// which the harness joins with ", " and quotes when one holds a comma, or
+// the single label or typed text.
+func picks(q question, answer string) []string {
+	if !q.multi || slices.Contains(q.labels, answer) {
+		return []string{answer}
+	}
+	r := csv.NewReader(strings.NewReader(answer))
+	r.TrimLeadingSpace, r.LazyQuotes = true, true
+	if fields, err := r.Read(); err == nil {
+		return fields
+	}
+	return []string{answer}
 }
 
 // lastReply is the text of the last assistant entry in entries that has
@@ -596,14 +638,20 @@ func asksForCommit(prompt string) bool {
 		if !leadsRequest(clause, prompt[start:m[0]]) || negated.MatchString(scope) {
 			continue
 		}
+		// The sentence ends after the commit word: a "." inside a name
+		// before it ("Main.Go") ends nothing.
 		sentence := prompt[start:]
-		if end := stopIndex(sentence, ".!?\n"); end >= 0 {
+		if end := stopIndex(prompt[m[1]:], ".!?\n"); end >= 0 {
+			end += m[1] - start
 			if sentence[end] == '?' && !directAsk.MatchString(sentence) {
 				continue
 			}
 			sentence = sentence[:end]
 		}
-		if subordinator.MatchString(toldIf.ReplaceAllString(sentence, "")) || deferred(strings.FieldsFunc(strings.ToLower(sentence[m[1]-start:]), notWordRune)) {
+		// A told clause after the commit conditions the telling; one before
+		// it ("tell us when the tests pass and commit it") sets its time.
+		before, after := sentence[:m[1]-start], sentence[m[1]-start:]
+		if subordinator.MatchString(before+toldIf.ReplaceAllString(after, "")) || deferred(strings.FieldsFunc(strings.ToLower(after), notWordRune)) {
 			continue
 		}
 		if !ownPlan.MatchString(sentence) {
