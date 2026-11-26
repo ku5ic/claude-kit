@@ -32,7 +32,7 @@ Every command hook runs through one `kit` binary, and the same binary answers th
 | Empty every scratch folder, whatever the files' age              | `kit scratch-rotate 0`                                |
 | Remove the kit's logs, caches, and scratch before uninstalling   | `kit clean`, then `kit clean --yes`                   |
 
-On a stacked branch, name its parent once, with the setting `gh pr create` reads: `git config branch.<child>.gh-merge-base <parent>`. `kit git-base` and the checks then count only the child's changes. After the parent is squash-merged and the child rebased, remove it with `git config --unset branch.<child>.gh-merge-base`: while the parent branch still exists, the diff would be too wide.
+On a stacked branch, name its parent once, with the setting `gh pr create` reads: `git config branch.<child>.gh-merge-base <parent>`. `kit git-base` and the checks then count only the child's changes. Once the parent lands, merged into the default branch or squash-merged with the child rebased onto it, the setting is skipped and the base falls back to the default branch.
 
 ## In your own terminal
 

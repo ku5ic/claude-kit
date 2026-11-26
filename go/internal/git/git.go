@@ -284,8 +284,13 @@ func Base(dir, explicit string) (string, bool) {
 			return upstream, true
 		}
 	}
-	if _, err := run("symbolic-ref", "refs/remotes/origin/HEAD"); err == nil {
-		if resolved, err := run("symbolic-ref", "--short", "refs/remotes/origin/HEAD"); err == nil && Verify(dir, resolved) {
+	return defaultBranch(dir)
+}
+
+// defaultBranch is origin/HEAD, else main, master, develop, or trunk.
+func defaultBranch(dir string) (string, bool) {
+	if _, err := Line(dir, "symbolic-ref", "refs/remotes/origin/HEAD"); err == nil {
+		if resolved, err := Line(dir, "symbolic-ref", "--short", "refs/remotes/origin/HEAD"); err == nil && Verify(dir, resolved) {
 			return resolved, true
 		}
 	}
@@ -299,9 +304,29 @@ func Base(dir, explicit string) (string, bool) {
 
 // stackParent is the branch that gh's own setting for a branch's base
 // (branch.<current>.gh-merge-base, gh pr create --help) says the current one
-// is stacked on, local or else on origin. False on a detached HEAD, or when
-// the setting names no other branch.
+// is stacked on, local or else on origin, while HEAD still builds on it. False
+// on a detached HEAD, when the setting names no other branch, or when the
+// parent landed: HEAD left it, as after a squash merge and a rebase onto
+// main, or the default branch holds it.
 func stackParent(dir string) (string, bool) {
+	parent, ok := namedParent(dir)
+	if !ok {
+		return "", false
+	}
+	if _, err := Line(dir, "merge-base", "--is-ancestor", parent, "HEAD"); err != nil {
+		return "", false
+	}
+	if def, ok := defaultBranch(dir); ok {
+		if _, err := Line(dir, "merge-base", "--is-ancestor", parent, def); err == nil {
+			return "", false
+		}
+	}
+	return parent, true
+}
+
+// namedParent is the branch gh-merge-base names for the current one, local
+// or else on origin.
+func namedParent(dir string) (string, bool) {
 	current, err := Branch(dir)
 	if err != nil || current == "" {
 		return "", false

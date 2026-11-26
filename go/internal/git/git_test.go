@@ -114,6 +114,19 @@ func TestBaseOfAStackedBranch(t *testing.T) {
 			testutil.Git(t, dir, "checkout", "-q", "--detach")
 		}},
 		{"an explicit base wins", "main", "main", func(t *testing.T, dir string) { key(t, dir, "feat/child", "feat/parent") }},
+		{"a parent squash-merged, the child rebased onto main", "", "origin/main", func(t *testing.T, dir string) {
+			key(t, dir, "feat/child", "feat/parent")
+			testutil.Git(t, dir, "checkout", "-q", "main")
+			testutil.GitID(t, dir, "commit", "-q", "--allow-empty", "-m", "squash of feat/parent")
+			testutil.Git(t, dir, "push", "-q", "origin", "main")
+			testutil.Git(t, dir, "checkout", "-q", "feat/child")
+			testutil.Git(t, dir, "reset", "-q", "--hard", "main")
+			testutil.GitID(t, dir, "commit", "-q", "--allow-empty", "-m", "feat/child")
+		}},
+		{"a parent merged into main", "", "origin/main", func(t *testing.T, dir string) {
+			key(t, dir, "feat/child", "feat/parent")
+			testutil.Git(t, dir, "push", "-q", "origin", "feat/parent:main")
+		}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()

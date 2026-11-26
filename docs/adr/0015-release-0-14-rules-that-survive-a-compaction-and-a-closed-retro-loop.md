@@ -35,10 +35,9 @@ Sources are the commits on `feat/release-0-14-0-rules-survive-compaction-and-ret
 - The full gate runs each directory's checks in order and directories at once, its lines still in plan order, and no longer fails a check that changes files. The Stop checks still do (`go/internal/run/run.go`, `docs/checks.md`).
 - A commit in a throwaway repo needs no approval. Git's own `rev-parse --absolute-git-dir` must put an existing repo under scratch, or the command must `git init` the repo first and commit only once that worked, and the command may run only git init, add, commit, cd, mkdir, mktemp, and `set` (`43c018d`, `dd321b6`, `b061ad6`, `557d0b2`). This narrows ADR 9's "Claude never commits or pushes unasked".
 - A Claude Code settings file under scratch is written with no ask, since no session reads a fixture there (`6ca1ca4`). This narrows ADR 9's ask on settings files, as ADR 13 did for the plugin root's scratch.
-- Fixes that change what a user sees: `kit git-base` reads `branch.<name>.gh-merge-base` (`aa7ceb8`), the imports guard allows `claude-code` in a plugin (`7402338`), and `kit scratch-rotate` deletes old checkouts and symlinks (`19502c9`).
+- Fixes that change what a user sees: `kit git-base` reads `branch.<name>.gh-merge-base` (`aa7ceb8`) and skips a parent HEAD left or the default branch holds (`go/internal/git/git.go`), the imports guard allows `claude-code` in a plugin (`7402338`), and `kit scratch-rotate` deletes old checkouts and symlinks (`19502c9`).
 
 ## Consequences
 
 - After a compaction, the main session's first tool call is denied until the rules load again (`fcf8ef4`).
 - The status line stays empty after a background update until a reload or a new session, when the mod's download runs (`8ba1f58`).
-- A stale `gh-merge-base` naming a kept parent widens the diff, and unsetting it restores the old order (`docs/cli.md`).
