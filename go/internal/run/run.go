@@ -1,8 +1,7 @@
-// Package run executes the full gate enforce plans, one gate at a time,
-// and reports each as PASS, FAIL, or SKIP. A content snapshot of the work
-// tree before and after each gate catches one that changes files: it fails,
-// and is marked so it never runs again. The snapshot taken before the first
-// gate is kept as a restore point.
+// Package run executes the gates enforce plans and reports each as PASS,
+// FAIL, or SKIP: the full gate's, all at once, and the Stop hook's checks
+// of a turn's edits, whose snapshot around the batch catches a check that
+// changes files.
 package run
 
 import (
@@ -10,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -29,14 +29,15 @@ const gateTimeout = 10 * time.Minute
 // maxOutputLines bounds the output a failing gate shows.
 const maxOutputLines = 30
 
-// Gates runs p's gates in order, covered ones last, writing a PASS, FAIL, or SKIP line for
-// each, then a blank line and the summary. A failure's line has its command,
-// where it ran, and its binaries under it, then the first lines of its
-// output. cacheDir holds the marks of gates that changed files. A gate gets
-// what's left before deadline, when one is set, and one starting past it is
-// skipped. It returns the counts and the run's receipt for the user.
-func Gates(p enforce.Plan, cacheDir string, w io.Writer, deadline time.Time) (Result, Receipt) {
-	r := &runner{reporter: reporter{plan: p, report: w}, cacheDir: cacheDir, deadline: deadline, ran: map[string]bool{},
+// Gates runs p's gates at once, covered ones after the rest, and writes a
+// PASS, FAIL, or SKIP line for each in that order, then a blank line and
+// the summary. A failure's line has its command, where it
+// ran, and its binaries under it, then the first lines of its output. A
+// gate gets what's left before deadline, when one is set, and one starting
+// past it is skipped. It returns the counts and the run's receipt for the
+// user.
+func Gates(p enforce.Plan, w io.Writer, deadline time.Time) (Result, Receipt) {
+	r := &runner{reporter: reporter{plan: p, report: w}, deadline: deadline, ran: map[string]bool{},
 		base:    sync.OnceValue(func() string { base, _ := git.Base(p.Root, ""); return base }),
 		changes: sync.OnceValues(func() (git.Since, bool) { return git.ChangedSince(p.Root) }),
 	}
@@ -48,47 +49,73 @@ func Gates(p enforce.Plan, cacheDir string, w io.Writer, deadline time.Time) (Re
 	if p.Discovery != "" {
 		r.skip("everything", p.Discovery)
 	}
-	var covered []enforce.Gate
+	var uncovered, covered []enforce.Gate
 	for _, g := range p.Gates {
 		if g.Covered() {
 			covered = append(covered, g)
-			continue
+		} else {
+			uncovered = append(uncovered, g)
 		}
-		r.gate(g)
 	}
+	r.all(uncovered)
 	// Last, so each coverer has had its turn: one that didn't run covers
 	// nothing.
-	for _, g := range covered {
+	for i, g := range covered {
 		if !r.ran[g.CoveredBy] {
-			g.Skip = ""
+			covered[i].Skip = ""
 		}
-		r.gate(g)
 	}
+	r.all(covered)
 	fmt.Fprintf(w, "\n%s\n", r.res)
 	return r.res, r.receipt("full gate")
 }
 
 type runner struct {
 	reporter
-	cacheDir string
-	deadline time.Time // zero: no budget past each gate's own timeout
-	started  bool
-	tree     string          // the work tree's snapshot after the last gate; "" outside a repo
-	ref      string          // the restore point taken before the first gate
+	deadline time.Time       // zero: no budget past each gate's own timeout
 	ran      map[string]bool // the gap-fill keys of the entries whose gates ran
 	base     func() string
 	changes  func() (git.Since, bool)
 }
 
-// outcome is one gate's run: its combined output, its error, whether its
-// deadline killed it, and the paths, from the root, whose content it
-// changed.
+// all runs gates at once, each reported to a runner of its own, then
+// takes in their reports in order, as if they had run one after another.
+func (r *runner) all(gates []enforce.Gate) {
+	runs := make([]*runner, len(gates))
+	outs := make([]strings.Builder, len(gates))
+	var wg sync.WaitGroup
+	for i, g := range gates {
+		runs[i] = &runner{reporter: reporter{plan: r.plan, report: &outs[i]}, deadline: r.deadline, ran: map[string]bool{}, base: r.base, changes: r.changes}
+		wg.Go(func() {
+			// A panic here would exit 2, which Claude Code reads as a
+			// block; the hook's recover can't reach this goroutine.
+			defer func() {
+				if recover() != nil {
+					runs[i].skip(g.Label, "crashed; failing open")
+				}
+			}()
+			runs[i].gate(g)
+		})
+	}
+	wg.Wait()
+	for i, run := range runs {
+		fmt.Fprint(r.report, outs[i].String())
+		r.res.Pass += run.res.Pass
+		r.res.Fail += run.res.Fail
+		r.res.Skip += run.res.Skip
+		r.res.Unchecked += run.res.Unchecked
+		r.verdicts = append(r.verdicts, run.verdicts...)
+		maps.Copy(r.ran, run.ran)
+	}
+}
+
+// outcome is one gate's run: its combined output, its error, and whether
+// its deadline killed it.
 type outcome struct {
 	out      string
 	err      error
 	timedOut bool
 	crashed  bool
-	changed  []string
 	// limit is the time a Stop gate had; outOfTime is true for one that
 	// never started, the batch's deadline already past.
 	limit     time.Duration
@@ -140,7 +167,7 @@ func (r *runner) gate(g enforce.Gate) {
 		r.cut(g.Label)
 		return
 	}
-	o := r.exec(g, body, timeout)
+	o := runBody(g, body, timeout)
 	// Killed for the budget, not its own timeout: it never got to finish.
 	cut := o.timedOut && timeout < gateTimeout
 	// Only a run of its whole or affected body covers another gate.
@@ -152,12 +179,6 @@ func (r *runner) gate(g enforce.Gate) {
 	ran := g
 	ran.Body, ran.Files = body, nil
 	switch {
-	case len(o.changed) > 0:
-		detail := changedLine(o.changed, enforce.AddMark(r.cacheDir, r.plan.Root, g, enforce.Mark{Label: g.Label, Paths: o.changed, Ref: r.ref}))
-		if o.err != nil {
-			detail += head(o.out)
-		}
-		r.fail(ran, detail)
 	case o.notFound():
 		r.skip(g.Label, "not installed: "+lastLine(o.out))
 	case cut:
@@ -180,27 +201,13 @@ func limit(timeout time.Duration, deadline time.Time) (time.Duration, bool) {
 	return timeout, timeout > 0
 }
 
-// exec runs body as g says, killed after timeout, with the snapshots around
-// it. The first snapshot is kept as the run's restore point.
-func (r *runner) exec(g enforce.Gate, body string, timeout time.Duration) outcome {
-	root := r.plan.Root
-	if !r.started {
-		r.started = true
-		if r.tree, _ = git.Snapshot(root); r.tree != "" {
-			r.ref = keep(root, r.tree, time.Now())
-		}
-	}
+// runBody runs body as g says, killed after timeout.
+func runBody(g enforce.Gate, body string, timeout time.Duration) outcome {
 	cmd := command(g, body, timeout)
 	cmd.Interruptible()
 	o := execute(cmd)
 	if o.timedOut {
 		o.out += fmt.Sprintf("\ntimed out after %s\n", timeout.Round(time.Second))
-	}
-	if r.tree != "" {
-		if after, err := git.Snapshot(root); err == nil {
-			o.changed, _ = git.TreeDiff(root, r.tree, after)
-			r.tree = after
-		}
 	}
 	return o
 }

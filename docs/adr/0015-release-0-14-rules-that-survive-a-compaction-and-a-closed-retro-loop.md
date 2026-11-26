@@ -32,6 +32,7 @@ Sources are the commits on `feat/release-0-14-0-rules-survive-compaction-and-ret
 - `/meta-improve` turns retro findings into proposals backed by quotes from two sessions (`eae156e`). `/audit-skills` audits how skills, commands, and agents are written, one angle per agent, and a refuter per target tries to show each finding wrong before it's reported (`4e85745`, `963880e`, `de5e90e`). `/meta-retro` checks whether a command ran its own steps (`ae336dd`).
 - `skills/kit-rules/reference/subagents.md` section 4 splits any skill's independent parts across agents at run time, with the model per kind of task (`d3cfa9c`, `e38ba62`), and the audits, `/audit-verify`, and `/code-deep-review` follow it (`321ddcc`, `c650a64`, `8dc1443`). Claude may start any procedure skill, and a posting skill still asks first (`b05b85f`).
 - New: `kit doctor` (`e4dd760`), `kit stats --unused` (`a39ece2`), the `log-denied` hook for auto-mode denials (`b3ef360`), `maxTurns` on every agent, with a critic cut off at its cap counted as failed (`ad638ba`), and a subagent told its report budget at start (`12ff611`).
+- The full gate runs its checks at once, its lines still in plan order, and no longer fails a check that changes files. The Stop checks still do (`go/internal/run/run.go`, `docs/checks.md`).
 - Fixes that change what a user sees: `kit git-base` reads `branch.<name>.gh-merge-base` (`aa7ceb8`), the imports guard allows `claude-code` in a plugin (`7402338`), and `kit scratch-rotate` deletes old checkouts and symlinks (`19502c9`).
 
 ## Consequences

@@ -107,25 +107,6 @@ func TestEnforceClassify(t *testing.T) {
 		r.Want(t, 1)
 		r.Has(t, "FAIL lint (turbo.json: lint)\n  cmd: turbo run lint\n", "lint failed\n", "\nchecks: 0 passed, 1 failed, ")
 	})
-	t.Run("a gate that changes files is marked, and gates reset --restore undoes it", func(t *testing.T) {
-		t.Parallel()
-		answer := `{"is_error":false,"subtype":"success","structured_output":{"entries":[{"id":"` + gapfill.Key(lint) + `","role":"check","kind":"lint","mutates":false}],"managers":[],"proposals":[]}}`
-		k, root := setup(t, "cat >/dev/null\necho '"+answer+"'\n")
-		Stub(t, filepath.Join(root, "node_modules", ".bin", "turbo"), "echo fixed > a.ts\n")
-		Write(t, filepath.Join(root, ".gitignore"), "node_modules\n")
-		Write(t, filepath.Join(root, "a.ts"), "edited\n")
-		r := k.Run("", "run-checks")
-		r.Want(t, 1)
-		r.Has(t, "FAIL lint (turbo.json: lint)\n", "  changed: a.ts; it won't run again until kit gates reset")
-		k.Run("", "run-checks").Has(t, "SKIP lint (turbo.json: lint) (changed a.ts when it last ran; kit gates reset lets it run again)")
-		r = k.Run("", "gates", "reset", "--restore")
-		r.Want(t, 0)
-		r.Has(t, "restored a.ts\n", "1 gate(s) will run again\n")
-		if got := Read(t, filepath.Join(root, "a.ts")); got != "edited\n" {
-			t.Errorf("a.ts = %q, want the edit back", got)
-		}
-		k.Run("", "run-checks").Has(t, "FAIL lint (turbo.json: lint)\n")
-	})
 	t.Run("run-checks on the plan exits apart when an entry is unclassified", func(t *testing.T) {
 		t.Parallel()
 		k, _ := setup(t, "cat >/dev/null\nexit 1\n")

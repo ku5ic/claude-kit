@@ -130,7 +130,7 @@ func ReviewChecks(h *hook.Hook) error {
 		h.Log(kitlog.Guards, "gapfill", plan.Classifier.Pairs()...)
 	}
 	var report strings.Builder
-	res, receipt := run.Gates(plan, cacheDir, &report, deadline)
+	res, receipt := run.Gates(plan, &report, deadline)
 	notifyReceipt(h, cfg, receipt, "")
 	if res.Fail == 0 {
 		// Only a whole pass lets Stop skip the tree: a known failure must

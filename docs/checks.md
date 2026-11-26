@@ -9,6 +9,7 @@ When Claude finishes a turn, the Stop hook runs the checks your git hooks would 
 - **Changed lines only.** A linter blocks on findings in lines Claude changed, so old warnings don't trap it.
 - **Old failures pass.** A failing check whose every failure line also shows when it runs on the git base passes, marked "fails on the git base too".
 - **Your commands, your flags.** Every command is one your project states; `kit explain stop <file>` shows which claim a file and the exact command.
+- **Hands off your files.** A check that changes files fails, is never run again until `kit gates reset`, and `kit gates reset --restore` puts the files back.
 
 For the whole project, `kit run-checks` runs every quality gate, in every subproject. The `/code-review` hook runs it for you, and Claude runs it when you ask for the gate:
 
@@ -19,7 +20,6 @@ For the whole project, `kit run-checks` runs every quality gate, in every subpro
 - **Side kinds and reach:** a kind counts as enforced when a check's run does it on the way, such as `go test` type-checking, or when a root check names the subproject it checks, such as a test of a copy of `mods/`.
 - **What changed only:** on a branch, a gate with an affected form runs it, and a lint or format check runs on the changed files git doesn't ignore; the rest run whole. `--all` runs every gate on the whole tree.
 - **Dead code:** dead-code findings block only on lines changed against the base branch.
-- **Hands off your files:** a check that changes files fails, is never run again until `kit gates reset`, and `kit gates reset --restore` puts the files back.
 
 `kit run-checks --plan` shows what would run, where each comes from, and why, without running it.
 

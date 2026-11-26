@@ -54,7 +54,7 @@ func (r *repo) gate(label, body string) enforce.Gate {
 func (r *repo) run(gates ...enforce.Gate) (string, Result) {
 	r.t.Helper()
 	var out strings.Builder
-	res, _ := Gates(enforce.Plan{Root: r.root, Gates: gates}, r.cache, &out, time.Time{})
+	res, _ := Gates(enforce.Plan{Root: r.root, Gates: gates}, &out, time.Time{})
 	return out.String(), res
 }
 
@@ -70,7 +70,7 @@ func TestTheSummaryCountsEachVerdict(t *testing.T) {
 	skipped.Skip = "unclassified"
 	failing := r.gate("typecheck", `printf 'PASS src/a.test.ts\nchecks: 9 passed, 0 failed, 0 skipped\n'; exit 1`)
 	var out strings.Builder
-	res, receipt := Gates(enforce.Plan{Root: r.root, Gates: []enforce.Gate{r.gate("test", "true"), failing, skipped}}, r.cache, &out, time.Time{})
+	res, receipt := Gates(enforce.Plan{Root: r.root, Gates: []enforce.Gate{r.gate("test", "true"), failing, skipped}}, &out, time.Time{})
 	has(t, out.String(), "PASS test\n", "FAIL typecheck\n", "PASS src/a.test.ts\n", "SKIP lint (unclassified)\n", "\nchecks: 1 passed, 1 failed, 1 skipped\n")
 	if res != (Result{Pass: 1, Fail: 1, Skip: 1, Unchecked: 1}) {
 		t.Errorf("result = %+v", res)
@@ -98,13 +98,26 @@ func TestAGateTheDeadlineStopsIsSkipped(t *testing.T) {
 			t.Parallel()
 			r := newRepo(t, "repo")
 			var out strings.Builder
-			res, _ := Gates(enforce.Plan{Root: r.root, Gates: []enforce.Gate{r.gate("test", tc.body)}}, r.cache, &out, time.Now().Add(tc.budget))
+			res, _ := Gates(enforce.Plan{Root: r.root, Gates: []enforce.Gate{r.gate("test", tc.body)}}, &out, time.Now().Add(tc.budget))
 			has(t, out.String(), "SKIP test (no time left in the hook's budget)\n")
 			if res != (Result{Skip: 1, Unchecked: 1}) {
 				t.Errorf("result = %+v", res)
 			}
 		})
 	}
+}
+
+// The gates run at once, and their lines print in plan order: the slow
+// first gate's line comes before the quick second one's.
+func TestGatesRunAtOnceAndReportInOrder(t *testing.T) {
+	t.Parallel()
+	r := newRepo(t, "repo")
+	start := time.Now()
+	out, _ := r.run(r.gate("slow", "sleep 1.2"), r.gate("quick", "sleep 0.8"))
+	if took := time.Since(start); took > 1800*time.Millisecond {
+		t.Errorf("took %s, want the gates at once", took)
+	}
+	has(t, out, "PASS slow\nPASS quick\n")
 }
 
 // A covered gate runs when its coverer didn't, and is skipped when it did.
@@ -131,7 +144,7 @@ func TestAProjectStatingNothingIsOneSkip(t *testing.T) {
 	t.Parallel()
 	r := newRepo(t, "repo")
 	var out strings.Builder
-	Gates(enforce.Plan{Root: r.root, Discovery: "nothing states a check"}, r.cache, &out, time.Time{})
+	Gates(enforce.Plan{Root: r.root, Discovery: "nothing states a check"}, &out, time.Time{})
 	has(t, out.String(), "SKIP everything (nothing states a check)\n", "checks: 0 passed, 0 failed, 1 skipped")
 }
 
@@ -191,44 +204,6 @@ func TestBaseIsTheGitBase(t *testing.T) {
 	r.branchOff()
 	out, _ = r.run(g)
 	has(t, out, "  cmd: echo base=main; exit 1\n", "\nbase=main\n")
-}
-
-// The plan's own check: a formatter run as a gate on an already-modified
-// file is caught, marked, and its file can be put back.
-func TestAGateThatChangesFilesFailsAndCanBeUndone(t *testing.T) {
-	t.Parallel()
-	r := newRepo(t, "repo")
-	r.write("a.py", "x=1\n")
-	r.commit()
-	r.write("a.py", "x = 2\n")
-	format := r.gate("format-check", "echo formatted > a.py; echo new > made.txt")
-	out, res := r.run(format, r.gate("test", "true"))
-	has(t, out, "FAIL format-check\n  cmd: echo formatted > a.py; echo new > made.txt\n  changed: a.py, made.txt; it won't run again until kit gates reset", "PASS test\n")
-	if res.Fail != 1 || res.Pass != 1 {
-		t.Errorf("result = %+v", res)
-	}
-	marks := enforce.Marks(r.cache, r.root)
-	if len(marks) != 1 {
-		t.Fatalf("marks = %+v", marks)
-	}
-	for _, m := range marks {
-		if !strings.HasPrefix(m.Ref, refPrefix) {
-			t.Errorf("mark %+v has no restore point", m)
-		}
-		restored, err := Restore(r.root, m)
-		if err != nil || strings.Join(restored, ",") != "a.py" {
-			t.Errorf("restored %v, %v", restored, err)
-		}
-	}
-	if got := testutil.Read(t, filepath.Join(r.root, "a.py")); got != "x = 2\n" {
-		t.Errorf("a.py = %q, want the edit the gate overwrote", got)
-	}
-	if testutil.Read(t, filepath.Join(r.root, "made.txt")) != "new\n" {
-		t.Error("a file the gate created was touched")
-	}
-	if staged, _ := git.Lines(r.root, "diff", "--cached", "--name-only"); len(staged) > 0 {
-		t.Errorf("restore staged %v", staged)
-	}
 }
 
 func TestRestorePointsOlderThanAMonthArePruned(t *testing.T) {
@@ -379,15 +354,4 @@ func TestDeadCodeRunsOnlyWithAChange(t *testing.T) {
 			}
 		})
 	}
-}
-
-// A mark that can't be saved is named under the gate's FAIL: the gate runs
-// again next time, and the report mustn't say it won't.
-func TestAGateWhoseMarkCantBeSavedSaysSo(t *testing.T) {
-	t.Parallel()
-	r := newRepo(t, "repo")
-	testutil.Put(t, filepath.Dir(r.cache), filepath.Base(r.cache), "a file where the cache dir goes")
-	out, _ := r.run(r.gate("format-check", "echo formatted > a.py"))
-	has(t, out, "  changed: a.py; its mark couldn't be saved, so it runs again next time: ")
-	lacks(t, out, "it won't run again")
 }
