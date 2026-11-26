@@ -13,7 +13,7 @@
 A cookie-authenticated JSON API layers these defenses, per the OWASP CSRF cheat sheet:
 
 - On every state-changing request, verify that the `Origin` header matches the expected origin.
-- Require a custom header, such as `X-Requested-With`.
+- Require a custom header, such as `X-CSRF-Token`; any header name works.
 - Set `SameSite=Lax` on the auth cookie as defense in depth. It's never the primary control or a complete CSRF defense on its own.
 
 A bearer-token API (the token in `Authorization: Bearer ...`, not a cookie) isn't directly CSRF-vulnerable. Review it for token theft (XSS reading `localStorage`) and replay instead.

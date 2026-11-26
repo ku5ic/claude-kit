@@ -2,7 +2,7 @@
 
 ## Explicit fields
 
-- Always declare an explicit `fields` list in `Meta`. Since 3.5, omitting both `fields` and `exclude` raises an error at startup.
+- Always declare an explicit `fields` list in `Meta`. Since 3.5, omitting both `fields` and `exclude` raises an `AssertionError` the first time the serializer's fields are read.
 - `fields = "__all__"` is a `warning`.
 
 ## Validation

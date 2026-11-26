@@ -9,8 +9,8 @@
 | 4.3   | `noImplicitOverride`               | An overriding method needs the `override` keyword                                                                                 |
 | 4.1   | `noUncheckedIndexedAccess`         | Adds `undefined` to indexed access on arrays and records, so `arr[0]` is `T` or `undefined`                                       |
 | 2.3   | `strict`                           | The strict-mode family; the other flags build on it                                                                               |
-| 2.0   | `forceConsistentCasingInFileNames` | Import paths match on-disk casing. Default `true` from 5.0; set it explicitly below that                                          |
 | 1.8   | `noFallthroughCasesInSwitch`       | A non-empty `case` needs `break`, `return`, or `throw`                                                                            |
+| 1.8   | `forceConsistentCasingInFileNames` | Import paths match on-disk casing. Default `true` from 5.0; set it explicitly below that                                          |
 |       | `isolatedModules`                  | Every file transpiles alone. Set it when Babel, swc, or esbuild transpile                                                         |
 
 ## tsconfig in review

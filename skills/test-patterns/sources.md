@@ -21,11 +21,13 @@ The sources and version notes behind this skill, for `/meta-refresh`. Nothing li
 
 ### Version notes
 
-Checked: 2026-11-10 against https://pypi.org/project/pytest/, https://docs.pytest.org/en/stable/changelog.html, https://vitest.dev/guide/migration, https://mswjs.io/docs/migrations/2.x-to-3.x and the npm registry
+Checked: 2026-11-26 against https://pypi.org/project/pytest/, https://docs.pytest.org/en/stable/changelog.html, https://vitest.dev/guide/migration, https://mswjs.io/docs/migrations/2.x-to-3.x and the npm registry
 
+- Vitest 5.1.2 (2026-11-25), MSW 3.0.8 (2026-11-26): no guidance change. https://github.com/vitest-dev/vitest/releases, https://github.com/mswjs/msw/releases
 - Vitest 5 (5.0.0 on 2026-09-03, latest 5.1.0): `vi.mock` / `vi.unmock` / `vi.hoisted` must be top-level, `clearMocks` defaults to true, automocked modules return `undefined` in browser mode. None of the patterns in `reference/vitest-and-jest.md` depend on the old behavior.
 - MSW 3 (latest 3.0.4): `http` and `HttpResponse` now import from `msw/http`. MSW 2 had replaced `rest` and the `req, res, ctx` signature with them.
-- Jest 30 (2025-06): `--testPathPattern` renamed `--testPathPatterns`; `expect` aliases removed. pytest 9 (2025-11; 9.2.0 current): `PytestRemovedIn9Warning` is an error; since 9.1.0, fixture visibility decides precedence over registration order.
+
+Older guidance removed 2026-11-26; see git history.
 
 ### Left to linters
 

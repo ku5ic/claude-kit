@@ -14,7 +14,7 @@ next-app-router-patterns owns these: `NEXT_PUBLIC_*` secrets (`reference/runtime
 ## Auth and sessions
 
 - Session cookies: `httpOnly`, `secure`, `sameSite`. Audit Set-Cookie headers or middleware.
-- Cookie-based auth: flag a mutation that has no CSRF defense (double-submit cookie, origin check, or `sameSite` strict).
+- Cookie-based auth: flag a mutation that has no CSRF defense (double-submit cookie or origin check; `sameSite` strict counts only as defense in depth).
 - JWT: verify the signature, and check `exp`, `iss`, `aud`. Never trust decoded claims as auth.
 - A state-changing GET request is a defect. RFC 9110 makes GET, HEAD, and OPTIONS safe methods.
 - Session fixation: always regenerate the session ID at the auth boundary (login, privilege change).

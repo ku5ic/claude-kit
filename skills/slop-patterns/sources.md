@@ -22,8 +22,9 @@ The sources and version notes behind this skill, for `/meta-refresh`. Nothing li
 
 ### Version notes
 
-Checked: 2026-11-10 against Wikipedia revision 1384793302 and the papers above
+Checked: 2026-11-26 against Wikipedia revision 1387897756 and the papers above
 
+- Wikipedia rev 1387897756 (2026-11-25): added `causal`, `correlate`, and `challenge`, from the Grok and mid-2026 lists. Probed as tier 2 rules on 2.37M words of Go 1.26 standard-library comments, they hit 0, 2, and 4 times; `valuable` (6), `empirical` (7), `matters` (49), and `key` (1,981) stayed out. No Go tree from before 2022 was on hand, so the corpus is newer than the 151k-word one. `comprehensive`, `realm`, and `commendable` weren't found on either revision's lists, and stay pending a check of where they came from. https://en.wikipedia.org/w/index.php?title=Wikipedia:Signs_of_AI_writing&action=raw&oldid=1387897756
 - Wikipedia rev 1384793302 (2026-11-10): four era word lists, the newest "mid-2026 and on" citing one product review. Added `realm`, `groundbreaking`, `commendable`, `enduring`, `deep dive`, and the missing inflections; dropped `prioritize`, `practical`, `clearer`, `steady`, `seamless`. Human-corpus tier 2 hits went from 13 to 12.
 
 ## reference/principles.md

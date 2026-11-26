@@ -5,7 +5,7 @@ description: Docker patterns for Dockerfiles, multi-stage builds, Compose, netwo
 
 # Docker patterns
 
-Default assumption: Docker Engine 29.9.3 and the Compose Specification, which supersedes the 2.x and 3.x formats.
+Default assumption: Docker Engine 29.10.1 and the Compose Specification, which supersedes the 2.x and 3.x formats.
 
 ## Reference files
 

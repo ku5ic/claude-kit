@@ -17,11 +17,13 @@ The sources and version notes behind this skill, for `/meta-refresh`. Nothing li
 
 ### Version notes
 
-Checked: 2026-11-10 against https://devblogs.microsoft.com/typescript/announcing-typescript-6-0/, https://typescript-eslint.io/rules/prefer-ts-expect-error/ and the npm registry (7.0.2 latest; 7.1 in beta)
+Checked: 2026-11-26 against https://devblogs.microsoft.com/typescript/announcing-typescript-6-0/, https://typescript-eslint.io/rules/prefer-ts-expect-error/ and the npm registry (7.0.2 latest; 7.1 in beta)
 
-- 7.0 (2026-07, latest 7.0.2): native Go compiler. Removed the options 6.0 deprecated: `module` none/amd/umd/system, `moduleResolution` node10/classic, `baseUrl`, `outFile`, `downlevelIteration`, `target: ES5`, `alwaysStrict: false`, `esModuleInterop: false`, `allowSyntheticDefaultImports: false`. A tsconfig using any of these does not compile on 7.
-- 6.0: last JavaScript-based compiler; deprecated the options above. `strict` now defaults to `true` and `types` to `[]`, so `@types/*` globals load only when listed.
-- 5.0 (2023-03): `verbatimModuleSyntax`, `const` type parameters. 4.9: `satisfies`. 4.7: `in`/`out` variance annotations.
+- 7.0.2: `forceConsistentCasingInFileNames` dates from 1.8, and 6.0 already removed `outFile`. https://www.typescriptlang.org/tsconfig, https://devblogs.microsoft.com/typescript/announcing-typescript-6-0/
+- 7.0 (2026-07, latest 7.0.2): native Go compiler. Rejects the options 6.0 removed or deprecated: `module` none/amd/umd/system, `moduleResolution` node10/classic, `baseUrl`, `outFile`, `downlevelIteration`, `target: ES5`, `alwaysStrict: false`, `esModuleInterop: false`, `allowSyntheticDefaultImports: false`. A tsconfig using any of these does not compile on 7.
+- 6.0: last JavaScript-based compiler; removed `outFile`, `moduleResolution` classic, and `module` none/amd/umd/system, and deprecated the rest above. `strict` now defaults to `true` and `types` to `[]`, so `@types/*` globals load only when listed.
+
+Older guidance removed 2026-11-26; see git history.
 
 ### Left to linters
 

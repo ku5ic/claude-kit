@@ -13,15 +13,17 @@ The sources and version notes behind this skill, for `/meta-refresh`. Nothing li
 
 ### Version notes
 
-Checked: 2026-11-10 against https://docs.docker.com/engine/release-notes/29/, https://docs.docker.com/engine/deprecated/, https://docs.docker.com/engine/containers/start-containers-automatically/ and https://docs.docker.com/compose/compose-file/04-version-and-name/
+Checked: 2026-11-26 against https://docs.docker.com/engine/release-notes/29/, https://docs.docker.com/engine/deprecated/, https://docs.docker.com/engine/containers/start-containers-automatically/ and https://docs.docker.com/compose/compose-file/04-version-and-name/
 
 Docker Engine and Docker Compose release independently. The Compose Specification supersedes the versioned format (version: "3"), and the `version` top-level key is now ignored.
 
+- 29.10.1 (2026-11-24): `compose down -v` removes the declared named volumes and anonymous ones, never external volumes. https://docs.docker.com/reference/cli/docker/compose/down/
 - 2026-11-11: the Node `deps` stage used `npm ci --only=production`. `npm ci --help` on npm 11.17.0 lists `--omit` and no `--only`, so it's `npm ci --omit=dev`. The next refresh should check the distroless and slim image sizes in `reference/multi-stage.md`.
 
 - 29.9.3 (2026-11-03): corrected the `always` restart policy per the docs, and noted legacy link environment variables are disabled since 29.0, removal targeted for 30.0.
 - 29.8.1 (2026-09-15): bug fixes only (containerd image store, logging, networking); no guidance change.
-- 29.4.2 (2026-05-01): previous baseline.
+
+Older guidance removed 2026-11-26; see git history.
 
 ### Left to linters
 

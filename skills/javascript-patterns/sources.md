@@ -17,8 +17,9 @@ The sources and version notes behind this skill, for `/meta-refresh`. Nothing li
 
 ### Version notes
 
-Checked: 2026-11-10 against https://raw.githubusercontent.com/nodejs/Release/main/schedule.json, https://nodejs.org/en/blog/release/v24.0.0, https://www.typescriptlang.org/docs/handbook/release-notes/typescript-5-0.html and https://github.com/tc39/proposals
+Checked: 2026-11-26 against https://raw.githubusercontent.com/nodejs/Release/main/schedule.json, https://nodejs.org/en/blog/release/v24.0.0, https://www.typescriptlang.org/docs/handbook/release-notes/typescript-5-0.html and https://github.com/tc39/proposals
 
+- Node 26.13.1 LTS (2026-11-11): `Math.round(-0.5)` is `-0`. https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Math/round
 - Node 26 "Lithium" Active LTS since 2026-10-28; Node 24 "Krypton" Maintenance LTS since 2026-10-20. Default assumption moved to 26. Corrected: `using` syntax ships in Node 24.0.0 (V8 13.6), and the `@satisfies` JSDoc tag is TS 5.0+ (the `satisfies` operator is 4.9).
 - Explicit resource management (`using` / `await using`) reached Stage 4 in 2026; `reference/errors.md` updated, old `try`/`finally` advice kept as Legacy.
 

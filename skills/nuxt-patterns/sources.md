@@ -19,13 +19,15 @@ The sources and version notes behind this skill, for `/meta-refresh`. Nothing li
 
 ### Version notes
 
-Checked: 2026-11-10 against https://www.npmjs.com/package/nuxt, https://nuxt.com/docs/4.x/api/composables/use-fetch, https://nuxt.com/docs/4.x/api/composables/use-async-data and https://nuxt.com/docs/4.x/getting-started/routing
+Checked: 2026-11-26 against https://www.npmjs.com/package/nuxt, https://nuxt.com/docs/4.x/api/composables/use-fetch, https://nuxt.com/docs/4.x/api/composables/use-async-data and https://nuxt.com/docs/4.x/getting-started/routing
 
-- 4.6.4 (2026-11-02): corrected the key rule. `useFetch` and `useAsyncData` both auto-generate a call-site key; neither derives it from the URL or requires one.
+- 4.7.0 (2026-11-23): `swr: true` sends no max age, and the `useFetch` key includes the URL and options. https://nuxt.com/docs/4.x/guide/concepts/rendering, https://nuxt.com/docs/4.x/api/composables/use-fetch
+- 4.6.4 (2026-11-02): corrected the key rule. `useFetch` generates its key from the URL, options, and call site, and `useAsyncData` from the file name and line; neither requires one.
 - 4.5 (2026-07): `enabled` option on `useFetch`/`useAsyncData`, `useLayout` composable, stable error codes, named views by filename. No pattern here changed.
-- Nuxt 3: end-of-life 2026-07-31, final release 3.21.11 (2026-08-05). Nuxt 2: end-of-life 2024-06-30.
 
 Nitro and h3 version independently of Nuxt; verify version-sensitive claims against the current docs.
+
+Older guidance removed 2026-11-26; see git history.
 
 ### Left to linters
 

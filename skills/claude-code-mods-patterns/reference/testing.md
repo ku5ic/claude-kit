@@ -14,5 +14,5 @@
 ## claude plugin validate
 
 - It reads the manifest and modules as the engine will, and lists hooks, calls, state reads and writes, and each `gating hook without .catch`. `--strict` fails on its warnings.
-- It refuses non-literal event names, `$` stored in a variable or destructured, `$` passed to anything but a top-level function in the same file, a dynamic `import()`, a shadowed `on`, and imports other than relative paths and `claude-code`.
+- It refuses non-literal event names, `$` stored in a variable or destructured, `$` passed to anything but a top-level function in the same file or, from 2.1.299, an imported function declared with `function`, a dynamic `import()`, a shadowed `on`, and imports other than relative paths and `claude-code`.
 - From 2.1.323 it also type-checks TypeScript modules.

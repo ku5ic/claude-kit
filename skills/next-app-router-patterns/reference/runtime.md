@@ -19,7 +19,7 @@
 
 ## Node vs Edge per route segment
 
-- Set a segment's runtime in `page.tsx`, `layout.tsx`, or `route.ts` with `export const runtime = "nodejs"` (the default) or `"edge"`.
-- Use Edge for thin compute-bound handlers such as an auth check, a geo header, or redirect logic. It's a Web-API subset with smaller bundles and lower cold starts, no native Node modules, partial `crypto` and `process`, and no long-lived background work.
+- Set a segment's runtime in `page.tsx`, `layout.tsx`, or `route.ts` with `export const runtime = "nodejs"` (the default) or `"edge"`. `"edge"` is deprecated, and with Cache Components on the `runtime` export goes entirely, `"nodejs"` included.
+- Where Edge is still in use, it suits thin compute-bound handlers such as an auth check, a geo header, or redirect logic. It's a Web-API subset with smaller bundles and lower cold starts, no native Node modules, partial `crypto` and `process`, and no long-lived background work.
 - Use Node for anything that touches a database driver, the file system, or a large npm package.
 - The `revalidate` segment config isn't available with `runtime = "edge"`.

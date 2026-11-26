@@ -5,7 +5,7 @@ description: FastAPI and Pydantic v2 patterns for Depends, response models, asyn
 
 # FastAPI patterns
 
-Default assumption: FastAPI 0.162.x, Pydantic 2.14.x. Adapt advice to the versions in the project's `requirements.txt`, `pyproject.toml`, or lockfile.
+Default assumption: FastAPI 0.165.x, Pydantic 2.14.x. Adapt advice to the versions in the project's `requirements.txt`, `pyproject.toml`, or lockfile.
 
 Install: `pip install "fastapi[standard]"`
 

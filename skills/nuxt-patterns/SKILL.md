@@ -5,7 +5,7 @@ description: Nuxt 3+ patterns for rendering modes, useFetch and useAsyncData, se
 
 # Nuxt patterns
 
-Default assumption: Nuxt 4 (current stable, latest 4.6.x) with Universal Rendering (SSR).
+Default assumption: Nuxt 4 (current stable, latest 4.7.x) with Universal Rendering (SSR).
 
 - A Nuxt 3 project: most patterns here apply. Flag that Nuxt 3 reached end-of-life on 2026-07-31.
 - Before a version-sensitive call, check the installed version with `nuxt --version` or `package.json`. Minor versions can change module resolution and Nitro config.

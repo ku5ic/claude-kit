@@ -26,6 +26,6 @@ Each folder under `app/` is a URL segment, and its special files define the segm
 
 ## Static params and metadata
 
-- To prerender a dynamic segment at build time, return its `params` values from `generateStaticParams`. Set `dynamicParams` to choose whether unknown params render at request time or 404.
+- To prerender a dynamic segment at build time, return its `params` values from `generateStaticParams`. Without Cache Components, set `dynamicParams` to choose whether unknown params render at request time or 404; Cache Components doesn't support it.
 - `generateMetadata` is async, gets `params` and `searchParams`, and returns the page's `<head>` metadata as a serializable object.
 - Next.js streams metadata to crawlers that handle it, and blocks on metadata before the body for crawlers that only see static HTML.

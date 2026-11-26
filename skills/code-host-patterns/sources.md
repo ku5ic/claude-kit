@@ -38,8 +38,9 @@ The sources and version notes behind this skill, for `/meta-refresh`. Nothing li
 
 ### Version notes
 
-Checked: 2026-11-16 against the glab docs at https://gitlab.com/gitlab-org/cli/-/raw/main/docs/source and the GitLab docs source at https://gitlab.com/gitlab-org/gitlab/-/raw/master/doc
+Checked: 2026-11-26 against the glab docs at https://gitlab.com/gitlab-org/cli/-/raw/main/docs/source and the GitLab docs source at https://gitlab.com/gitlab-org/gitlab/-/raw/master/doc
 
+- gh 2.106.0, glab 1.133.0 (2026-11-25): a withdrawn Dependabot alert returns 410 Gone. https://github.blog/changelog/2026-10-13-improved-detection-for-withdrawn-dependabot-alerts/
 - glab `mr create` pushes by default with `--fill`; `--push=false` skips it.
 - glab `mr merge` sets `--auto-merge` by default; `--auto-merge=false` turns it off.
 - glab `api graphql --paginate` needs an `$endCursor` variable and `pageInfo { hasNextPage endCursor }`.

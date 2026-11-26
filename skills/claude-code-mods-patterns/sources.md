@@ -19,15 +19,16 @@ LOC below is the plugin-authoring skill bundled with Claude Code 2.1.326, its `r
 
 ### Version notes
 
-Checked: 2026-11-17 against https://registry.npmjs.org/@anthropic-ai/claude-code and https://api.github.com/repos/anthropics/claude-code/releases/tags/v2.1.326
+Checked: 2026-11-26 against https://registry.npmjs.org/@anthropic-ai/claude-code and https://api.github.com/repos/anthropics/claude-code/releases/tags/v2.1.326
 
+- 2.1.332 (2026-11-25), stable 2.1.326: `$` may go to an imported `function` declaration from 2.1.299, and a Button with a label or a single string child needs no key. https://code.claude.com/docs/en/plugins/mods/create, https://code.claude.com/docs/en/plugins/mods/interface
 - 2.1.326 (2026-11-16) latest; stable is 2.1.311 (2026-10-26), per https://api.github.com/repos/anthropics/claude-code/releases/tags/v2.1.311.
 - Mods on by default from CLI 2.1.287 and Desktop 2.1.286: https://code.claude.com/docs/en/plugins/mods/overview
 - 2.1.319: `$.ui.backdrop` removed for `$.theme.set` and `$.theme.clear`: https://code.claude.com/docs/en/plugins/mods/interface
-- 2.1.323: validate type-checks TypeScript modules; `engine.create` hooks on `*`, a namespace, or a negation only observe: https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md
-- 2.1.325: `pluginDigests` deprecated and ignored: https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md
 
 ## reference/hooks.md
+
+Older guidance removed 2026-11-26; see git history.
 
 ### Claims
 

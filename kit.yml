@@ -210,7 +210,8 @@ slop:
       underscores, underscored, vibrant, bolstered, enhance, enhances, enhanced, enhancing, foster, fosters, fostered,
       fostering, highlights, highlighting, showcase, showcases, showcased, showcasing, emphasizes, emphasized,
       emphasizing, align with, aligns with, leverage, leverages, leveraged, leveraging, multifaceted, quietly, robust,
-      comprehensive, dependable, echoed, universally, realm, realms, groundbreaking, commendable, enduring, deep dive]
+      comprehensive, dependable, echoed, universally, realm, realms, groundbreaking, commendable, enduring, deep dive,
+      causal, correlate, correlates, challenge, challenges]
   rules:
     - {id: hope-helps, tier: 1, match: '(?i)\bI hope (this|that|it) helps\b', fix: cut it}
     - id: offer-more

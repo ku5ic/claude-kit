@@ -16,8 +16,9 @@ The sources and version notes behind this skill, for `/meta-refresh`. Nothing li
 
 ### Version notes
 
-Checked: 2026-11-10 against https://react.dev/versions, https://react.dev/blog/2026/09/09/react-19-3 and https://react.dev/blog/2025/10/07/react-compiler-1
+Checked: 2026-11-26 against https://react.dev/versions, https://react.dev/blog/2026/09/09/react-19-3 and https://react.dev/blog/2025/10/07/react-compiler-1
 
+- 19.3.1 (2026-10-14): `use` isn't a Hook, so the conditionals line no longer calls it one. https://react.dev/reference/react/use
 - 19.3 (2026-09-09): a minor release, not a patch. Adds View Transitions, Fragment Refs, `browser()`, and Trusted Types; not yet guidance here. Corrected the compiler advice on removing existing memoization.
 - 19.0 (2024-12-05): Actions, `use`, `useActionState`, `useFormStatus`, `useOptimistic`. Verify against the per-hook page on react.dev, not older blog posts.
 - React Compiler: stable, opt-in, installed per build tool; not present in every project.

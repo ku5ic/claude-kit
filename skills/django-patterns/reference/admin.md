@@ -4,7 +4,7 @@
 
 - Every user-facing model: an explicit `ModelAdmin` via `@admin.register(Product)`. A bare `admin.site.register(Model)` is only acceptable for developer-only debug models.
 - `list_display`: only the columns that are useful in operations.
-- `list_select_related`: a list of the related field names the changelist shows, so it doesn't run N+1 queries. `True` is deprecated since Django 6.1.
+- `list_select_related`: the related field names to join, so the changelist doesn't run N+1 queries. Django 6.1 joins the foreign keys in `list_display` on its own, so list only the ones outside it. `True` is deprecated since 6.1.
 - `search_fields`: the default lookup is `icontains`. On a large table, list only indexed fields.
 - A large table: `show_facets = admin.ShowFacets.NEVER` skips the COUNT query per filter, and `show_full_result_count = False` skips the `COUNT(*)` behind the "X results" indicator.
 - Computed fields, timestamps, and fields admin mustn't change: `readonly_fields`. They also need to appear in `fields` or `fieldsets` to display.

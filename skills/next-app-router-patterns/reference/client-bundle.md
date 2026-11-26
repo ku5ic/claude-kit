@@ -15,7 +15,7 @@ Every Client Component and its transitive imports ship to the browser; Server Co
 ## `next/image`, `next/font`
 
 - Use `next/image` for every raster image, never a raw `<img>`.
-- Set `priority` on above-the-fold images; lazy loading is the default.
+- Set `preload` or `loading="eager"` on above-the-fold images; `priority` is deprecated from Next.js 16. Lazy loading is the default.
 - Give each image `width` and `height`, or `fill`.
 - Load fonts with `next/font/google` or `next/font/local`, never a raw `<link>` to a font CDN. Assign the generated CSS variable to `body` or a class.
 

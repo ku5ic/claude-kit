@@ -30,4 +30,4 @@ Next.js 16 has two caching models; check which one a project uses before reasoni
 - Assuming `fetch()` is cached by default on 15+: `failure`, even when the page looks right in dev.
 - A parent layout with `export const dynamic = "force-static"` over a child page that reads `cookies()`: `failure`. The page errors at build.
 - `force-cache` and `no-store` on different fetches in one route: `warning`. State the intent once with the route segment `revalidate` or `dynamic`.
-- Relying on `unstable_cache` long-term: `warning`. The name marks the API as unstable across releases.
+- Relying on `unstable_cache` for `fetch` data long-term: `warning`. For non-`fetch` data that must persist across deployments it's still the documented tool, Cache Components included.

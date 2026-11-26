@@ -5,9 +5,9 @@ description: Claude Code mod patterns for hooks and next, ui.render drawing, $.s
 
 # Claude Code mods patterns
 
-Default assumption: Claude Code 2.1.326, the latest release. The stable channel is 2.1.311, and mods are on by default from CLI 2.1.287 and Desktop 2.1.286.
+Default assumption: Claude Code 2.1.332, the latest release. The stable channel is 2.1.326, and mods are on by default from CLI 2.1.287 and Desktop 2.1.286.
 
-- An API added after 2.1.311 doesn't exist on the stable channel. Each reference file names the minimum version where one applies.
+- An API added after 2.1.326 doesn't exist on the stable channel. Each reference file names the minimum version where one applies.
 - Adapt advice to the version the project's users run, and to the API types the engine writes into the plugin's `.claude-plugin/types/`.
 
 ## Reference files

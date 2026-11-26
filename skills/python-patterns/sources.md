@@ -18,7 +18,7 @@ The sources and version notes behind this skill, for `/meta-refresh`. Nothing li
 
 ### Version notes
 
-Checked: 2026-11-10 against https://www.python.org/downloads/, https://docs.python.org/3.15/whatsnew/3.15.html and https://docs.python.org/3/library/asyncio-task.html
+Checked: 2026-11-26 against https://www.python.org/downloads/, https://docs.python.org/3.15/whatsnew/3.15.html and https://docs.python.org/3/library/asyncio-task.html
 
 - 3.15 (2026-10-09, latest 3.15.2): typing additions PEP 747 `TypeForm`, PEP 728 `TypedDict(closed=True, extra_items=...)`, PEP 800 disjoint bases; PEP 810 lazy imports; UTF-8 default encoding (PEP 686). Not yet guidance here. Also corrected: `gather` does not cancel siblings, `anyio.move_on_after` is a plain `with`, zero-cost `try` is bpo-40222.
 - 3.14 (2025-10-07, latest 3.14.10): deferred annotation evaluation by default (PEP 649); `from __future__ import annotations` on a deprecation path (PEP 749); free-threaded build officially supported (PEP 779), 5-10% single-threaded penalty, not the default build.

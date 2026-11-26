@@ -67,4 +67,5 @@ gh api "repos/<repo>/dependabot/alerts" --paginate \
 The field paths were checked against a live payload on 2026-07-02. `state` is `open`, `fixed`, `dismissed`, or `auto_dismissed`. Read the status from `--include`'s `HTTP/2 <code>` line:
 
 - 404 on the bare GET: alerts are off for the repo or hidden from the token. Say "unavailable", never "disabled". A 404 only with a filter attached means a malformed request.
+- 410 on one alert's GET: the alert was withdrawn.
 - 403: the token lacks scope. A classic PAT needs `repo` or `security_events`; `gh auth refresh -s security_events` adds it.

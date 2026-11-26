@@ -13,11 +13,13 @@ The sources and version notes behind this skill, for `/meta-refresh`. Nothing li
 
 ### Version notes
 
-Checked: 2026-11-10 against the npm registry and https://storybook.js.org/docs
+Checked: 2026-11-26 against the npm registry and https://storybook.js.org/docs
 
+- 10.6.9 (2026-11-25): no change for 10.6; 11.0, a release candidate due 2026-12-01, drops the test-runner. https://github.com/storybookjs/storybook/releases
 - 10.6.7 (2026-11-10) current; 11.0.0 is in beta (beta.1, 2026-11-09), not covered. No change to the guidance in this pack.
 - 10.6.0 (2026-09-02); 10.0.0 (2025-10-28).
-- 8.0: the `storiesOf` API was removed; stories are CSF.
+
+Older guidance removed 2026-11-26; see git history.
 
 ### Left to linters
 

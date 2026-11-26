@@ -13,11 +13,13 @@ The sources and version notes behind this skill, for `/meta-refresh`. Nothing li
 
 ### Version notes
 
-Checked: 2026-11-10 against https://pypi.org/project/djangorestframework/, https://www.django-rest-framework.org/community/release-notes/ and https://www.django-rest-framework.org/api-guide/permissions/
+Checked: 2026-11-26 against https://pypi.org/project/djangorestframework/, https://www.django-rest-framework.org/community/release-notes/ and https://www.django-rest-framework.org/api-guide/permissions/
 
+- 3.18.3 (2026-10-06): a missing `fields` raises an `AssertionError` on first fields access, and `AcceptHeaderVersioning` answers an unknown version with 406. https://raw.githubusercontent.com/encode/django-rest-framework/3.18.3/rest_framework/serializers.py
 - 3.18.3 (2026-10-06): current. Corrected permission composition (`&`, `|`, `~` are built in) and the simplejwt wording to match the docs.
 - 3.18.1 (2026-09-07): 3.18.0 dropped Django 4.2, 5.0, 5.1. A project pinned to one of those stays on 3.17.
-- 3.14: `NullBooleanField` removed; use `BooleanField(allow_null=True)`.
+
+Older guidance removed 2026-11-26; see git history.
 
 ### Left to linters
 

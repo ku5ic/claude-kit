@@ -8,14 +8,14 @@
 
 ## `routeRules` options
 
-| Option                           | Effect                                                                      |
-| -------------------------------- | --------------------------------------------------------------------------- |
-| `prerender: true`                | Static HTML generated at build time                                         |
-| `ssr: false`                     | The route renders as SPA only                                               |
-| `swr: 60`                        | Stale-while-revalidate caching for that many seconds; `true` caches forever |
-| `isr: 60`                        | Incremental static regeneration on a CDN                                    |
-| `redirect: '/new'`               | Server-side redirect                                                        |
-| `cors: true`, `headers: { ... }` | Response headers                                                            |
+| Option                           | Effect                                                                                        |
+| -------------------------------- | --------------------------------------------------------------------------------------------- |
+| `prerender: true`                | Static HTML generated at build time                                                           |
+| `ssr: false`                     | The route renders as SPA only                                                                 |
+| `swr: 60`                        | Stale-while-revalidate caching for that many seconds; `true` sends the header with no max age |
+| `isr: 60`                        | Incremental static regeneration on a CDN                                                      |
+| `redirect: '/new'`               | Server-side redirect                                                                          |
+| `cors: true`, `headers: { ... }` | Response headers                                                                              |
 
 ## Render-mode mismatches
 

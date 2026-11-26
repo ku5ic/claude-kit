@@ -14,8 +14,9 @@ The sources and version notes behind this skill, for `/meta-refresh`. Nothing li
 
 ### Version notes
 
-Checked: 2026-11-10 against https://www.djangoproject.com/download/, https://docs.djangoproject.com/en/stable/ref/settings/, https://docs.djangoproject.com/en/stable/ref/contrib/admin/, and PyPI
+Checked: 2026-11-26 against https://www.djangoproject.com/download/, https://docs.djangoproject.com/en/stable/ref/settings/, https://docs.djangoproject.com/en/stable/ref/contrib/admin/, and PyPI
 
+- 6.1.3 (2026-11-03): 6.1 joins the `list_display` foreign keys on its own, so `list_select_related` covers only the rest. https://docs.djangoproject.com/en/stable/releases/6.1/
 - Django 6.1.3 current stable; 5.2 LTS (5.2.19) supported to April 2028 (baseline here). 6.1 deprecates `list_select_related = True`.
 - pytest-django 4.14.0 (2026-08-10), django-environ 0.14.0 (2026-06-18), Factory Boy 3.3.3 (2025-02-03): pins in the reference files match these.
 

@@ -10,4 +10,4 @@ Severity levels: the report-format skill.
 - A view past the function-size threshold in `skills/engineering-fundamentals/reference/metric-thresholds.md`: `warning`. Move its business logic to a service, manager method, or form validator.
 - The request or `request.user` passed into a model method: `warning`. Models don't know about HTTP.
 - Auth checks inside a model manager's `get_queryset()`: `warning`. Authorization goes in permissions or explicit queryset filtering in the view.
-- A bare `admin.site.register(Model)` without a `ModelAdmin`: `info`. Add one with `list_display`, `search_fields`, and `list_select_related`.
+- A bare `admin.site.register(Model)` without a `ModelAdmin`: `info`. Add one with `list_display` and `search_fields`, and `list_select_related` for related fields outside `list_display`.

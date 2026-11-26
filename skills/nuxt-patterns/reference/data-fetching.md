@@ -15,7 +15,7 @@
 
 ## Keys
 
-- With no explicit key, both generate one unique to the call site (`useAsyncData`: the file name and line number), so the same `useFetch` URL in two components doesn't share state.
+- With no explicit key, `useFetch` builds one from the URL, its options, and the call site, and `useAsyncData` from the file name and line number. Set a key to share state between components.
 - Give calls that should share data the same explicit key, stable for one logical request and different across different requests.
 - `useAsyncData('user', ...)` on a per-route page: `failure`. Use a parametrized key, `` `user-${id}` ``.
 

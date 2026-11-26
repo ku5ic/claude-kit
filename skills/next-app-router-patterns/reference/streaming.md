@@ -12,7 +12,7 @@
 
 ## Error boundaries
 
-- `error.tsx` is the segment's error boundary and must be a Client Component. It gets `error` and `reset` props, and `reset()` retries rendering the segment.
+- `error.tsx` is the segment's error boundary and must be a Client Component. It gets `error` and `retry` props. `retry()` re-fetches and re-renders the segment (stable from 16.3), and `reset()` only clears the error state.
 - A `global-error.tsx` at the app root replaces the root layout on unhandled errors, so it must include its own `<html>` and `<body>`.
 
 ## Manual `<Suspense>` boundaries
@@ -21,6 +21,6 @@
 
 ## Streaming caveats
 
-- Call `notFound()` and `redirect()` before any `<Suspense>` boundary renders and before any `await` that suspends; once headers are sent, the status can't change.
+- Call `notFound()` and `redirect()` before any `<Suspense>` boundary renders and before any `await` that suspends; once headers are sent, the status can't change. Under Cache Components a request-time `notFound()` inside the page keeps status 200 and adds `noindex`, so a 404 comes from Proxy or a prerender-time check.
 - Streamed responses always return HTTP 200. Detect an SEO-relevant 404 before the body starts, such as in Proxy with a rewrite to a not-found route.
 - Some browsers buffer streamed responses below 1024 bytes, so a small payload shows nothing until it completes.

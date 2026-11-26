@@ -17,7 +17,7 @@
 
 ## Keys
 
-- Every `Input` and `Select` needs a `key`, and so does a `Button` with no label or more than one string child.
+- Every `Input` and `Select` needs a `key`, and so does a `Button` with neither a label nor a single string child.
 - Give each row's Button in a list its own key.
 
 ## Redrawing

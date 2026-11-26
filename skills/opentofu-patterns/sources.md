@@ -12,11 +12,13 @@ The sources and version notes behind this skill, for `/meta-refresh`. Nothing li
 
 ### Version notes
 
-Checked: 2026-11-10 against https://opentofu.org/docs/v1.12/intro/whats-new/ and the GitHub releases of opentofu/opentofu and hashicorp/terraform
+Checked: 2026-11-26 against https://opentofu.org/docs/v1.12/intro/whats-new/ and the GitHub releases of opentofu/opentofu and hashicorp/terraform
 
+- 1.13.10 (2026-11-23), Terraform 1.17.2 (2026-11-11): no guidance change. https://github.com/opentofu/opentofu/releases/tag/v1.13.10
 - OpenTofu 1.13.0 (2026-09-30, latest 1.13.9 on 2026-11-05; 1.12.12 the same day). No pattern here changed. The unversioned what's-new URL now returns 404, so links point at the 1.12 page. Terraform 1.17.1 (2026-10-28), for reference only.
 - OpenTofu 1.12: `lifecycle { destroy = false }`, and `prevent_destroy` may refer to variables.
-- OpenTofu 1.11: the `enabled` meta-argument, ephemeral resources, variables and outputs, and write-only attributes.
+
+Older guidance removed 2026-11-26; see git history.
 
 ### Left to linters
 

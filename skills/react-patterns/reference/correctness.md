@@ -1,6 +1,6 @@
 # Correctness
 
-- `use(promise)` and `use(context)` on 19+: `use()` may be called inside conditionals and loops, unlike every other hook.
+- `use(promise)` and `use(context)` on 19+: `use()` may be called inside conditionals and loops, unlike hooks; `use` isn't one.
 - `use(promise)` suspends until the promise resolves: put a `<Suspense>` boundary above it, and don't branch on the promise's status before the call.
 
 ## Rules of Hooks

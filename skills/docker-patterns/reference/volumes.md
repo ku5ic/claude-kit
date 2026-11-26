@@ -10,7 +10,7 @@
 
 - Declare a named volume under the top-level `volumes:` key and reference it from a service, as in `pgdata:/var/lib/postgresql/data`. A bare `pgdata:` declaration leaves the driver to Docker.
 - A named volume on a chosen host device: `driver: local` with `driver_opts` set to `type: none`, `o: bind`, and `device: <host path>`.
-- `docker compose down` keeps named volumes; `docker compose down -v` removes every volume of the project.
+- `docker compose down` keeps named volumes; `docker compose down -v` also removes the named volumes the Compose file declares and the anonymous ones, never external volumes.
 - `docker volume rm` fails on a volume that's in use.
 
 ## Bind mounts

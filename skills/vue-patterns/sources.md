@@ -16,11 +16,13 @@ The sources and version notes behind this skill, for `/meta-refresh`. Nothing li
 
 ### Version notes
 
-Checked: 2026-11-10 against https://github.com/vuejs/core/releases/latest (3.5.45, 2026-11-05; 3.6 still in release candidates), https://vuejs.org/guide/essentials/watchers.html and https://vuejs.org/api/sfc-script-setup.html
+Checked: 2026-11-26 against https://github.com/vuejs/core/releases/latest (3.5.45, 2026-11-05; 3.6 still in release candidates), https://vuejs.org/guide/essentials/watchers.html and https://vuejs.org/api/sfc-script-setup.html
 
+- 3.5.46 (2026-11-20): bug fixes only. https://github.com/vuejs/core/blob/main/CHANGELOG.md
 - 3.5 (2024-09-01): Reactive Props Destructure is the recommended default-value form over `withDefaults` (which still works); `onWatcherCleanup`.
 - 3.4: `defineModel`; watcher `once: true`.
-- 3.3: `defineSlots`; tuple-style `defineEmits` types.
+
+Older guidance removed 2026-11-26; see git history.
 
 ### Left to linters
 

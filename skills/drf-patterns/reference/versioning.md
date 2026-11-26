@@ -16,4 +16,4 @@
 ## Practical guidance
 
 - Pick `URLPathVersioning` or `NamespaceVersioning`, the most common choices.
-- Set `ALLOWED_VERSIONS` explicitly. DRF returns 404 for a version not in the list.
+- Set `ALLOWED_VERSIONS` explicitly. DRF answers a version not in the list with 404, or 406 under `AcceptHeaderVersioning`.

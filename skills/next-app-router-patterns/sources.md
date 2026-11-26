@@ -19,12 +19,13 @@ The sources and version notes behind this skill, for `/meta-refresh`. Nothing li
 
 ### Version notes
 
-Checked: 2026-11-10 against https://www.npmjs.com/package/next, https://nextjs.org/docs/app/guides/upgrading/version-16, https://nextjs.org/docs/app/guides/package-bundling and https://nextjs.org/docs/app/api-reference/file-conventions/proxy
+Checked: 2026-11-26 against https://www.npmjs.com/package/next, https://nextjs.org/docs/app/guides/upgrading/version-16, https://nextjs.org/docs/app/guides/package-bundling and https://nextjs.org/docs/app/api-reference/file-conventions/proxy
 
+- 16.4.6: `retry` replaces `reset` in `error.tsx` (16.3), `preload` replaces `priority`, Edge is deprecated, and Cache Components rejects `dynamic`, `runtime`, and `dynamicParams`. https://nextjs.org/docs/app/api-reference/file-conventions/error, https://nextjs.org/docs/app/guides/migrating-to-cache-components
 - 2026-11-11: the `"use client"` anti-pattern flagged a deep boundary. The Server and Client Components page ("Reducing JS bundle size") puts the directive on the interactive component, so the anti-pattern now flags a high one.
 - 16.4 (2026-10-06, latest 16.4.6): corrected three 16.0 facts against the upgrade guide. Parallel slots without `default.js` fail the build, synchronous `cookies()`/`headers()` access is removed, and Turbopack's analyzer is `next analyze`.
-- 16.3 (2026-08-03): no guidance change. Proxy runs on Node.js only; a project that needs the Edge runtime keeps `middleware.ts` (proxy docs).
-- 16.0: `middleware` renamed to `proxy` (types `NextMiddleware` -> `NextProxy`, `MiddlewareConfig` -> `ProxyConfig`, `skipMiddlewareUrlNormalize` -> `skipProxyUrlNormalize`); PPR stable and default under Cache Components; one-argument `revalidateTag(tag)` deprecated, pass a `cacheLife` profile (upgrade guide; examples fixed 2026-09-26).
+
+Older guidance removed 2026-11-26; see git history.
 
 ### Left to linters
 

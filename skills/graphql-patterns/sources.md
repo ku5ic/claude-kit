@@ -13,7 +13,7 @@ The sources and version notes behind this skill, for `/meta-refresh`. Nothing li
 
 ### Version notes
 
-Checked: 2026-11-10 against npm registry, Context7 /apollographql/apollo-client, and https://github.com/dotansimha/graphql-code-generator/blob/master/packages/presets/client/CHANGELOG.md
+Checked: 2026-11-26 against npm registry, Context7 /apollographql/apollo-client, and https://github.com/dotansimha/graphql-code-generator/blob/master/packages/presets/client/CHANGELOG.md
 
 - @graphql-codegen/client-preset 7.0.0 and @graphql-codegen/cli 8.0.0 (2026-11-07): drop GraphQL 14 and 15 (peer `^16 || ^17`), need Node 22.18+, remove `emitLegacyCommonJSImports` (use `importExtension`). @apollo/client 4.3.8 (2026-11-09), graphql 17.1.0 (2026-11-04): no guidance change.
 - @apollo/client 4.0.0 (2025-08-21): v4 moved React hooks to `@apollo/client/react`, replaced `ApolloError` with `CombinedGraphQLErrors` and a single `error` property, and moved local resolvers to `LocalState`.
