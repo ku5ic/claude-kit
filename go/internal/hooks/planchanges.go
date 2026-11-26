@@ -13,6 +13,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
+	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/layout"
 	"github.com/ku5ic/claude-kit/go/internal/project"
@@ -88,8 +89,9 @@ func readHeld(file string) heldPlan {
 }
 
 // lastShown is the plan text the user last saw, from file, or on a first
-// submit the plan text's "Replaces" line names, from the repo root or the
-// plan's own folder; false when neither is there.
+// submit the plan text's "Replaces" line names, inside the repo root or the
+// plan's own folder; false when neither is there. Claude writes that line,
+// so a path outside both, or a sensitive one, is never read.
 func lastShown(h *hook.Hook, file, plan, text string) (string, bool) {
 	if data, err := os.ReadFile(file); err == nil {
 		return string(data), true
@@ -98,9 +100,16 @@ func lastShown(h *hook.Hook, file, plan, text string) (string, bool) {
 	if m == nil {
 		return "", false
 	}
-	cwd := h.Payload.Cwd()
+	cwd, cfg := h.Payload.Cwd(), h.Config()
+	if cfg == nil {
+		return "", false
+	}
 	for _, dir := range []string{cmp.Or(git.Toplevel(cwd), cwd), filepath.Dir(fsx.Abs(cwd, plan))} {
-		if data, err := os.ReadFile(fsx.Abs(dir, m[1])); err == nil {
+		path := fsx.Abs(dir, m[1])
+		if !fsx.Within(dir, path) || guard.IsSensitive(cfg, h.Home, path) {
+			continue
+		}
+		if data, err := os.ReadFile(path); err == nil {
 			return string(data), true
 		}
 	}

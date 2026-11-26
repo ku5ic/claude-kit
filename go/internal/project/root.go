@@ -23,8 +23,10 @@ import (
 // The .git walk comes first: hooks call this on every Read and Edit, and an
 // exec costs more than the walk (bashguard/packages.go does the same).
 func Root(cwd string) (root string, anchored bool) {
-	if dotGit := fsx.FindUp(cwd, "/", ".git"); dotGit != "" {
-		return fsx.PhysicalPath(filepath.Dir(dotGit)), true
+	// git walks the physical path: a link partway up may lead into another
+	// repo.
+	if dotGit := fsx.FindUp(fsx.PhysicalPath(cwd), "/", ".git"); dotGit != "" {
+		return filepath.Dir(dotGit), true
 	}
 	if top := git.Toplevel(cwd); top != "" {
 		return top, true

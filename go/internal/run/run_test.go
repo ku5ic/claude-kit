@@ -112,26 +112,34 @@ func TestAGateTheDeadlineStopsIsSkipped(t *testing.T) {
 func TestGatesRunAtOnceAndReportInOrder(t *testing.T) {
 	t.Parallel()
 	r := newRepo(t, "repo")
-	r.write("sub/.keep", "")
-	quick := r.gate("quick", "sleep 0.8")
-	quick.Dir = filepath.Join(r.root, "sub")
+	r.write("a/.keep", "")
+	r.write("b/.keep", "")
+	slow, quick := r.gate("slow", "sleep 1.2"), r.gate("quick", "sleep 0.8")
+	slow.Dir, quick.Dir = filepath.Join(r.root, "a"), filepath.Join(r.root, "b")
 	start := time.Now()
-	out, _ := r.run(r.gate("slow", "sleep 1.2"), quick)
+	out, _ := r.run(slow, quick)
 	if took := time.Since(start); took > 1800*time.Millisecond {
 		t.Errorf("took %s, want the gates at once", took)
 	}
 	has(t, out, "PASS slow\nPASS quick\n")
 }
 
-// One directory's gates run in plan order, so a gate that writes a file
-// finishes before the next one reads it.
+// One directory's gates run in plan order, and so do a directory's and its
+// subdirectories', so a gate that writes a file finishes before the next
+// one reads it.
 func TestOneDirectorysGatesRunInOrder(t *testing.T) {
 	t.Parallel()
 	r := newRepo(t, "repo")
-	out, res := r.run(r.gate("write", "sleep 0.5; echo built > out"), r.gate("read", "grep -q built out"))
-	has(t, out, "PASS write\nPASS read\n")
-	if res != (Result{Pass: 2}) {
-		t.Errorf("result = %+v", res)
+	r.write("sub/.keep", "")
+	read := r.gate("read below", "grep -q built out")
+	read.Dir = filepath.Join(r.root, "sub")
+	for name, gates := range map[string][]enforce.Gate{
+		"one directory":  {r.gate("write", "sleep 0.5; echo built > out"), r.gate("read", "grep -q built out")},
+		"a subdirectory": {r.gate("write", "sleep 0.5; echo built > sub/out"), read},
+	} {
+		if out, res := r.run(gates...); res != (Result{Pass: 2}) {
+			t.Errorf("%s: result = %+v\n%s", name, res, out)
+		}
 	}
 }
 

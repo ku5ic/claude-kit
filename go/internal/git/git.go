@@ -95,17 +95,17 @@ func Ignored(dir string, paths []string) map[string]bool {
 }
 
 // Blobs is the content of each blob spec, "<tree>:<path>" as cat-file names
-// one, read by a single git process; a spec git can't find has no entry,
-// and a failure reads as none found. A spec holding a newline, which the
-// batch protocol can't carry, is read on its own.
+// one, read by a single git process; a spec git can't find has no entry.
+// A spec holding a newline, which the batch protocol can't carry, and every
+// spec past a failed batch read are read on their own.
 func Blobs(dir string, specs []string) map[string]string {
 	blobs := map[string]string{}
 	var batch []string
 	for _, spec := range specs {
 		if !strings.Contains(spec, "\n") {
 			batch = append(batch, spec)
-		} else if out, err := Output(dir, "cat-file", "blob", spec); err == nil {
-			blobs[spec] = out
+		} else {
+			readBlob(dir, spec, blobs)
 		}
 	}
 	if len(batch) == 0 {
@@ -115,35 +115,55 @@ func Blobs(dir string, specs []string) map[string]string {
 	cmd.Stdin = strings.NewReader(strings.Join(batch, "\n") + "\n")
 	out, err := cmd.Output()
 	if err != nil {
-		return blobs
+		out = nil
 	}
 	r := bufio.NewReader(bytes.NewReader(out))
-	for _, spec := range batch {
-		header, err := r.ReadString('\n')
-		if err != nil {
+	for i, spec := range batch {
+		if !readBatched(r, spec, blobs) {
+			for _, rest := range batch[i:] {
+				readBlob(dir, rest, blobs)
+			}
 			break
-		}
-		if strings.HasSuffix(header, " missing\n") || strings.HasSuffix(header, " ambiguous\n") {
-			continue
-		}
-		// "<oid> <type> <size>", then the content and a newline.
-		fields := strings.Fields(header)
-		if len(fields) != 3 {
-			break
-		}
-		size, err := strconv.Atoi(fields[2])
-		if err != nil {
-			break
-		}
-		data := make([]byte, size+1)
-		if _, err := io.ReadFull(r, data); err != nil {
-			break
-		}
-		if fields[1] == "blob" {
-			blobs[spec] = string(data[:size])
 		}
 	}
 	return blobs
+}
+
+// readBlob puts spec's blob in blobs, read by its own git call; a spec git
+// can't find gets no entry.
+func readBlob(dir, spec string, blobs map[string]string) {
+	if out, err := Output(dir, "cat-file", "blob", spec); err == nil {
+		blobs[spec] = out
+	}
+}
+
+// readBatched reads spec's entry from a cat-file --batch output into blobs;
+// false when the output ends or breaks before it.
+func readBatched(r *bufio.Reader, spec string, blobs map[string]string) bool {
+	header, err := r.ReadString('\n')
+	if err != nil {
+		return false
+	}
+	if strings.HasSuffix(header, " missing\n") || strings.HasSuffix(header, " ambiguous\n") {
+		return true
+	}
+	// "<oid> <type> <size>", then the content and a newline.
+	fields := strings.Fields(header)
+	if len(fields) != 3 {
+		return false
+	}
+	size, err := strconv.Atoi(fields[2])
+	if err != nil {
+		return false
+	}
+	data := make([]byte, size+1)
+	if _, err := io.ReadFull(r, data); err != nil {
+		return false
+	}
+	if fields[1] == "blob" {
+		blobs[spec] = string(data[:size])
+	}
+	return true
 }
 
 var toplevels sync.Map // dir -> its work tree's root, "" outside one

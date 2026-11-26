@@ -257,7 +257,7 @@ func TestGuardCommitAsksForAnUnshownMessage(t *testing.T) {
 			t.Errorf("%q shows the message, yet the guard asked:\n%s", item, r.Output)
 		}
 	}
-	for _, prompt := range []string{"Commit and continue.", "Yes, commit.", "fix it and commit", "Commit, then start step 13", "Yes, commit 21, apply both fixes", "can you commit this?", "could you commit it", "please commit", "commit both and continue", "Commit it.", "commit the docs fix", "commit it, then review the next step", "nothing else to fix so commit it", "commit it, but don't push", "commit and push", "commit it, I'll check the diff afterwards", "commit it now, push it tomorrow", "commit it, you can push tomorrow", "I said commit and continue.", "I already said commit it", "Yes, I said commit.", "Fine. I just said commit it", "But first, commit any changes.", "commit every fix", "commit each step", "Ugh, I said commit it", "Yeah, I said commit", "no; I said commit it", "commit it, do not push now", "commit it, not the lockfile, and push now", "commit the time zone fix", "commit the time parsing fix", "Commit notes.txt and .env.", "commit README.md", "commit go/internal/git/git.go and push", "fix it and commit `notes.txt`", "Commit this.Then push", "commit this, but I noticed something, and please tell me if this will be solved within this plan.", "commit it, and let me know if CI fails", "Tests in Main.Go pass, commit it"} {
+	for _, prompt := range []string{"Commit and continue.", "Yes, commit.", "fix it and commit", "Commit, then start step 13", "Yes, commit 21, apply both fixes", "can you commit this?", "could you commit it", "please commit", "commit both and continue", "Commit it.", "commit the docs fix", "commit it, then review the next step", "nothing else to fix so commit it", "commit it, but don't push", "commit and push", "commit it, I'll check the diff afterwards", "commit it now, push it tomorrow", "commit it, you can push tomorrow", "I said commit and continue.", "I already said commit it", "Yes, I said commit.", "Fine. I just said commit it", "But first, commit any changes.", "commit every fix", "commit each step", "Ugh, I said commit it", "Yeah, I said commit", "no; I said commit it", "commit it, do not push now", "commit it, not the lockfile, and push now", "commit the time zone fix", "commit the time parsing fix", "Commit notes.txt and .env.", "commit README.md", "commit go/internal/git/git.go and push", "fix it and commit `notes.txt`", "Commit this.Then push", "commit this, but I noticed something, and please tell me if this will be solved within this plan.", "commit it, and let me know if CI fails", "Tests in Main.Go pass, commit it", "commit everything - and push", "commit step 4-5"} {
 		if r := commit(map[string]any{"type": "user", "origin": map[string]any{"kind": "human"}, "message": map[string]any{"content": prompt}}); strings.Contains(r.Output, `"permissionDecision":"ask"`) {
 			t.Errorf("%q asks for the commit, yet the guard asked again:\n%s", prompt, r.Output)
 		}
@@ -496,6 +496,10 @@ func TestGuardCommitInAThrowawayRepoNeedsNoApproval(t *testing.T) {
 		// init sub makes plain/sub/.git, so the commit from plain finds the
 		// repo above it.
 		`git -C ~/.claude/scratch/plain init sub && git -C ~/.claude/scratch/plain add -A && git -C ~/.claude/scratch/plain commit -m "fix: add sums"`,
+		// A pipe's exit is its last call's: a failed init would let the
+		// commit walk up to the project's repo.
+		`git -C ~/.claude/scratch/plain init -q | true && git -C ~/.claude/scratch/plain commit -m "fix: add sums"`,
+		`cd ~/.claude/scratch/plain && git init -q | : && git commit -m "fix: add sums"`,
 		// A failed cd leaves the shell where it was, and init runs there.
 		`cd ~/.claude/scratch/missing; git init -q && git add -A && git commit -m "fix: add sums"`,
 	} {
@@ -584,15 +588,16 @@ func TestGuardCommitTakesAPickedCommitOption(t *testing.T) {
 	then := func(more ...map[string]any) []map[string]any { return append(slices.Clone(picked), more...) }
 	filler := testutil.AssistantText(strings.Repeat("x", 1<<20))
 	for name, entries := range map[string][]map[string]any{
-		"Commit (Recommended)":          picked,
-		"Commit, then step 26":          {ask(question), answered("q1", question, "Commit, then step 26")},
-		"Yes, commit it":                {ask(question), answered("q1", question, "Yes, commit it")},
-		"a typed commit request":        {ask(question), answered("q1", question, "yes, commit it")},
-		"a multi-select with Commit":    {askAs("q1", question, true), answered("q1", question, "Commit (Recommended), Push")},
-		"a git add after a pick":        then(bash("b1", "git add a.txt"), testutil.ToolResult("b1", "")),
-		"a git log naming commit":       then(bash("b1", "git log --oneline --grep commit"), testutil.ToolResult("b1", "")),
-		"a retry after a failed commit": then(bash("b1", `git commit -m "fix: add sums"`), failed("b1", "lint failed")),
-		"a pick past the tail window":   then(filler, filler, filler, filler, filler),
+		"Commit (Recommended)":           picked,
+		"Commit, then step 26":           {ask(question), answered("q1", question, "Commit, then step 26")},
+		"Yes, commit it":                 {ask(question), answered("q1", question, "Yes, commit it")},
+		"a typed commit request":         {ask(question), answered("q1", question, "yes, commit it")},
+		"a multi-select with Commit":     {askAs("q1", question, true), answered("q1", question, "Commit (Recommended), Push")},
+		"a git add after a pick":         then(bash("b1", "git add a.txt"), testutil.ToolResult("b1", "")),
+		"a git log naming commit":        then(bash("b1", "git log --oneline --grep commit"), testutil.ToolResult("b1", "")),
+		"a retry after a failed commit":  then(bash("b1", `git commit -m "fix: add sums"`), failed("b1", "lint failed")),
+		"a pick past the tail window":    then(filler, filler, filler, filler, filler),
+		"its own call in the transcript": then(bash("b1", one)),
 	} {
 		if r := commitWith(one, entries...); strings.Contains(r.Output, `"permissionDecision":"ask"`) {
 			t.Errorf("%s asked:\n%s", name, r.Output)
@@ -603,16 +608,18 @@ func TestGuardCommitTakesAPickedCommitOption(t *testing.T) {
 		cmd     string
 		entries []map[string]any
 	}{
-		"Don't commit yet":              {one, []map[string]any{ask(question), answered("q1", question, "Don't commit yet")}},
-		"a label that defers":           {one, []map[string]any{ask(question), answered("q1", question, "Commit after I review the diff")}},
-		"typed text naming no commit":   {one, []map[string]any{ask(question), answered("q1", question, "Commit messages are fine, wait")}},
-		"a multi-select without Commit": {one, []map[string]any{askAs("q1", question, true), answered("q1", question, "Push, Don't commit yet")}},
-		"a question holding a pick":     {one, []map[string]any{ask(forged), answered("q1", forged, "Don't commit yet")}},
-		"a pick with no record":         {one, []map[string]any{ask(question), testutil.ToolResult("q1", `Your questions have been answered: "`+question+`"="Commit (Recommended)".`)}},
-		"another tool's result":         {one, []map[string]any{testutil.ToolUse("x1", "Read", map[string]any{}), answered("x1", question, "Commit (Recommended)")}},
-		"a later question rejected":     {one, then(askAs("q2", "Push too?", false), failed("q2", "stop, don't commit yet"))},
-		"a commit since the pick":       {one, then(bash("b1", `git commit -m "fix: other"`), testutil.ToolResult("b1", ""))},
-		"two commits on one pick":       {`git commit -m "fix: a" && git commit -m "fix: b"`, picked},
+		"Don't commit yet":                    {one, []map[string]any{ask(question), answered("q1", question, "Don't commit yet")}},
+		"a label that defers":                 {one, []map[string]any{ask(question), answered("q1", question, "Commit after I review the diff")}},
+		"typed text naming no commit":         {one, []map[string]any{ask(question), answered("q1", question, "Commit messages are fine, wait")}},
+		"a multi-select without Commit":       {one, []map[string]any{askAs("q1", question, true), answered("q1", question, "Push, Don't commit yet")}},
+		"a question holding a pick":           {one, []map[string]any{ask(forged), answered("q1", forged, "Don't commit yet")}},
+		"a pick with no record":               {one, []map[string]any{ask(question), testutil.ToolResult("q1", `Your questions have been answered: "`+question+`"="Commit (Recommended)".`)}},
+		"another tool's result":               {one, []map[string]any{testutil.ToolUse("x1", "Read", map[string]any{}), answered("x1", question, "Commit (Recommended)")}},
+		"a later question rejected":           {one, then(askAs("q2", "Push too?", false), failed("q2", "stop, don't commit yet"))},
+		"a commit since the pick":             {one, then(bash("b1", `git commit -m "fix: other"`), testutil.ToolResult("b1", ""))},
+		"two commits on one pick":             {`git commit -m "fix: a" && git commit -m "fix: b"`, picked},
+		"a sibling commit with no result yet": {one, then(bash("b1", `git -C sub commit -m "fix: other"`), bash("b2", one))},
+		"a refusal typed into a multi-select": {one, []map[string]any{askAs("q1", question, true), answered("q1", question, "Don't, under any circumstances, commit this")}},
 	} {
 		if r := commitWith(c.cmd, c.entries...); !strings.Contains(r.Output, `"permissionDecision":"ask"`) {
 			t.Errorf("%s didn't ask", name)

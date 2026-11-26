@@ -432,6 +432,15 @@ func TestPlanChanges(t *testing.T) {
 		e := planChangesSetup(t)
 		e.submit(strings.Replace(planV2, "Why.", "Replaces `.claude/plans/gone.md`.", 1)).Empty(t)
 	})
+	t.Run("a Replaces file outside the repo and the plan folder is never read", func(t *testing.T) {
+		t.Parallel()
+		outside := filepath.Join(t.TempDir(), "notes.md")
+		testutil.Write(t, outside, planV1)
+		for _, ref := range []string{"Replaces " + outside + ".", "Replaces ../../" + filepath.Base(filepath.Dir(outside)) + "/notes.md."} {
+			e := planChangesSetup(t)
+			e.submit(strings.Replace(planV2, "Why.", ref, 1)).Empty(t)
+		}
+	})
 	t.Run("a first submit that says replaces in passing passes", func(t *testing.T) {
 		t.Parallel()
 		e := planChangesSetup(t)

@@ -173,7 +173,9 @@ func lands(h *hook.Hook, segs []Segment, calls []commit, c commit) bool {
 // under set -e.
 func initFirst(segs []Segment, calls []commit, c commit) (int, bool) {
 	for _, init := range calls {
-		if init.sub != "init" || init.seg < 0 || init.seg >= c.seg || init.elsewhere || !sameDir(init, c) {
+		// A pipeline exits with its last call's status: "git init | true"
+		// hides a failed init.
+		if init.sub != "init" || init.seg < 0 || init.seg >= c.seg || init.elsewhere || !sameDir(init, c) || len(segs[init.seg].Calls) != 1 {
 			continue
 		}
 		if andChain(segs, init.seg, c.seg) || standalone(segs[init.seg]) && errexit(segs[:init.seg]) {

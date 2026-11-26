@@ -2,6 +2,7 @@ package git_test
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -114,6 +115,10 @@ func TestBaseOfAStackedBranch(t *testing.T) {
 			testutil.Git(t, dir, "checkout", "-q", "--detach")
 		}},
 		{"an explicit base wins", "main", "main", func(t *testing.T, dir string) { key(t, dir, "feat/child", "feat/parent") }},
+		{"a parent named like a flag", "", "origin/main", func(t *testing.T, dir string) {
+			testutil.Git(t, dir, "update-ref", "refs/heads/--output=x", "HEAD")
+			key(t, dir, "feat/child", "--output=x")
+		}},
 		{"a parent squash-merged, the child rebased onto main", "", "origin/main", func(t *testing.T, dir string) {
 			key(t, dir, "feat/child", "feat/parent")
 			testutil.Git(t, dir, "checkout", "-q", "main")
@@ -291,5 +296,25 @@ func TestBlobsReadsSeveralInOneCall(t *testing.T) {
 		if got[k] != v {
 			t.Errorf("Blobs[%q] = %q, want %q", k, got[k], v)
 		}
+	}
+}
+
+// A batch read that fails falls back to one read per spec, as before the
+// batch: a lost blob reads as a file HEAD doesn't hold, and a deleted
+// test's assertions would go uncounted.
+func TestBlobsReadsEachWhenTheBatchFails(t *testing.T) {
+	dir := repo(t)
+	real, err := exec.LookPath("git")
+	if err != nil {
+		t.Fatal(err)
+	}
+	bin := t.TempDir()
+	script := "#!/bin/sh\ncase \"$*\" in *--batch*) exit 1;; esac\nexec " + real + " \"$@\"\n"
+	if err := os.WriteFile(filepath.Join(bin, "git"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	if got := git.Blobs(dir, []string{"HEAD:a.txt", "HEAD:nope.txt"}); len(got) != 1 || got["HEAD:a.txt"] != "one\n" {
+		t.Errorf("Blobs = %q, want only HEAD:a.txt", got)
 	}
 }

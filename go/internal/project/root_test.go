@@ -192,6 +192,26 @@ func TestRoot(t *testing.T) {
 			anchored: true,
 		},
 		{
+			// A link inside one repo into another: git walks the physical
+			// path and names the second.
+			name: "a symlink partway up into another repo, as git names it",
+			setup: func(t *testing.T, dir string) (string, string) {
+				outer, other := filepath.Join(dir, "a"), filepath.Join(dir, "b")
+				testutil.Git(t, dir, "init", "-q", "-b", "main", outer)
+				testutil.Git(t, dir, "init", "-q", "-b", "main", other)
+				testutil.Put(t, other, "c/sub/.keep", "")
+				if err := os.Symlink(filepath.Join(other, "c"), filepath.Join(outer, "link")); err != nil {
+					t.Fatal(err)
+				}
+				cwd := filepath.Join(outer, "link", "sub")
+				if top := git.Toplevel(cwd); top != other {
+					t.Fatalf("git names %q, the test expects %q", top, other)
+				}
+				return cwd, other
+			},
+			anchored: true,
+		},
+		{
 			// As in a sandbox where the git binary can't run: rev-parse
 			// fails, and the .git entry still marks the repo.
 			name: "a .git entry git can't read, from a nested subdirectory",

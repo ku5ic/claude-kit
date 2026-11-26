@@ -196,6 +196,13 @@ func TestLookupsMissing(t *testing.T) {
 		if NewLookups(conf(cmd), root, root).Missing("pnpm", "my-app") {
 			t.Error("a workspace package counted as missing")
 		}
+		// An overlay may name the JS ecosystem otherwise.
+		node := config.PackageLookups{Timeout: 2, Ecosystems: map[string]config.PackageLookup{
+			"node": {Managers: []string{"pnpm"}, Name: `^(@[a-z0-9][\w.-]*/)?[a-z0-9][\w.-]*$`, Cmd: cmd, Missing: `\bE404\b`},
+		}}
+		if NewLookups(node, root, root).Missing("pnpm", "my-app") {
+			t.Error("a workspace package counted as missing under another ecosystem key")
+		}
 	})
 	// The shipped private patterns, from the root's file or the command's dir.
 	shipped, _, err := config.Load(config.Paths{Base: "../../../kit.yml", Overlay: filepath.Join(t.TempDir(), "none.yml")})

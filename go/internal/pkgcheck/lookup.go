@@ -107,6 +107,9 @@ func matchPrefix(glob, target string) bool {
 	return ok
 }
 
+// jsManagers read package.json, where a workspace package is named.
+var jsManagers = []string{"npm", "pnpm", "yarn", "bun"}
+
 // workspace is true when a package.json in the repository is named name:
 // a workspace package, or a flag's value like --filter's.
 func (l *Lookups) workspace(name string) bool {
@@ -215,9 +218,9 @@ func (l *Lookups) Missing(manager, operand string) bool {
 			continue
 		}
 		name, missing := bare(operand), compile(e.Missing)
-		// A workspace package is named in a package.json, which only npm's
-		// ecosystem reads.
-		if name == "" || missing == nil || len(e.Cmd) == 0 || !compileOK(e.Name, name) || key == "npm" && l.workspace(name) || l.private(e, name) || l.cached(manager, name) {
+		// A workspace package is named in a package.json, which only the
+		// JS package managers read, whatever key an overlay files them under.
+		if name == "" || missing == nil || len(e.Cmd) == 0 || !compileOK(e.Name, name) || slices.Contains(jsManagers, manager) && l.workspace(name) || l.private(e, name) || l.cached(manager, name) {
 			return false
 		}
 		for p := name; ; p = parent(p) {

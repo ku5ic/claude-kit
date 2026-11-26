@@ -412,9 +412,11 @@ var recommended = regexp.MustCompile(`\s*\(Recommended\)\s*$`)
 // pickedCommit is whether the user, in entries, the turn so far, answered
 // an AskUserQuestion with a commit, and no commit has run since: one
 // answer approves one commit. A question the user rejected withdraws it,
-// and a commit that failed doesn't spend it.
+// and a commit that failed doesn't spend it. The current call's tool_use is
+// in the transcript when its hook runs, so a second commit with no result
+// yet is a sibling sent beside it, and the pick covers neither.
 func pickedCommit(entries []transcript.Entry) bool {
-	asks, commits := map[string]map[string]question{}, map[string]bool{}
+	asks, pending := map[string]map[string]question{}, map[string]bool{}
 	picked := false
 	for _, e := range entries {
 		for _, b := range e.ToolUses() {
@@ -422,7 +424,7 @@ func pickedCommit(entries []transcript.Entry) bool {
 			case b.Name == "AskUserQuestion":
 				asks[b.ID] = offered(b.RawInput)
 			case b.Name == "Bash" && isCommit(b.Input.Command):
-				commits[b.ID] = true
+				pending[b.ID] = true
 			}
 		}
 		for _, b := range e.Blocks {
@@ -430,12 +432,15 @@ func pickedCommit(entries []transcript.Entry) bool {
 			case b.Type != "tool_result":
 			case asks[b.ToolUseID] != nil:
 				picked = !b.IsError && commitAnswer(asks[b.ToolUseID], e.ToolUseResult.Answers)
-			case commits[b.ToolUseID] && !b.IsError:
-				picked = false
+			case pending[b.ToolUseID]:
+				delete(pending, b.ToolUseID)
+				if !b.IsError {
+					picked = false
+				}
 			}
 		}
 	}
-	return picked
+	return picked && len(pending) <= 1
 }
 
 // isCommit is whether cmd runs git commit, as CheckCommit reads it.
@@ -494,17 +499,19 @@ func commitAnswer(asked map[string]question, answers map[string]string) bool {
 
 // picks is answer split into what the user chose: a multi-select's labels,
 // which the harness joins with ", " and quotes when one holds a comma, or
-// the single label or typed text.
+// the single label or typed text. An answer whose parts aren't all labels
+// is typed text, read whole: a comma inside it doesn't end a negation.
 func picks(q question, answer string) []string {
 	if !q.multi || slices.Contains(q.labels, answer) {
 		return []string{answer}
 	}
 	r := csv.NewReader(strings.NewReader(answer))
 	r.TrimLeadingSpace, r.LazyQuotes = true, true
-	if fields, err := r.Read(); err == nil {
-		return fields
+	fields, err := r.Read()
+	if err != nil || slices.ContainsFunc(fields, func(f string) bool { return !slices.Contains(q.labels, f) }) {
+		return []string{answer}
 	}
-	return []string{answer}
+	return fields
 }
 
 // lastReply is the text of the last assistant entry in entries that has
@@ -582,7 +589,7 @@ var (
 	commitObjects  = []string{"it", "them", "everything", "changes", "work", "step"}
 	determiners    = []string{"the", "my", "your", "our", "this", "that", "these", "those", "all", "both", "any", "every", "each"}
 	commitModifier = []string{"now", "please", "first", "too", "again", "also"}
-	stepNumber     = regexp.MustCompile(`^\d{1,3}$`)
+	stepNumber     = regexp.MustCompile(`^\d{1,3}(-\d{1,3})?$`)
 	// timeWords put a commit off even inside its object: "commit the docs
 	// fix later".
 	timeWords = []string{"later", "tomorrow", "tonight", "today", "afterwards", "afterward", "eventually", "soon", "sometime"}
@@ -816,6 +823,8 @@ func objectPhrase(words []string) bool {
 					return false
 				}
 			}
+		// A dash used as punctuation, kept whole by notPathRune.
+		case strings.Trim(w, "./_-") == "":
 		case slices.Contains(commitObjects, w) || slices.Contains(commitModifier, w) || stepNumber.MatchString(w) || fileName(w):
 		default:
 			return false

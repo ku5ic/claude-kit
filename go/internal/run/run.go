@@ -14,11 +14,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/enforce"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/proc"
 )
@@ -82,8 +84,9 @@ type runner struct {
 
 // all runs gates, each reported to a runner of its own, then takes in their
 // reports in order, as if they had run one after another. One directory's
-// gates run in order, so one that writes files can't race one reading them;
-// directories run at once.
+// gates run in order, so one that writes files can't race one reading them.
+// A gate whose directory holds another gate's covers its files too, so
+// those run first, in order; the other directories then run at once.
 func (r *runner) all(gates []enforce.Gate) {
 	runs := make([]*runner, len(gates))
 	outs := make([]strings.Builder, len(gates))
@@ -91,6 +94,10 @@ func (r *runner) all(gates []enforce.Gate) {
 	var dirs []string
 	for i, g := range gates {
 		runs[i] = &runner{reporter: reporter{plan: r.plan, report: &outs[i]}, deadline: r.deadline, ran: map[string]bool{}, base: r.base, changes: r.changes}
+		if holdsAnother(g.Dir, gates) {
+			runs[i].guarded(g)
+			continue
+		}
 		if _, seen := byDir[g.Dir]; !seen {
 			dirs = append(dirs, g.Dir)
 		}
@@ -114,6 +121,11 @@ func (r *runner) all(gates []enforce.Gate) {
 		r.verdicts = append(r.verdicts, run.verdicts...)
 		maps.Copy(r.ran, run.ran)
 	}
+}
+
+// holdsAnother is whether dir holds the directory of another of gates.
+func holdsAnother(dir string, gates []enforce.Gate) bool {
+	return slices.ContainsFunc(gates, func(g enforce.Gate) bool { return g.Dir != dir && fsx.Within(dir, g.Dir) })
 }
 
 // guarded runs g with a recover, so a crash skips it and the gates queued
