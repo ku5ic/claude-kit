@@ -632,6 +632,11 @@ func TestGuardBashParsing(t *testing.T) {
 		probe("allow", `kit git-base --help`)
 		probe("allow", `kit git-base -h`)
 		probe("ask", `kit git-base --diff --output=/tmp/x -- kit.yml`)
+		// --stat=<width>[,<name-width>[,<count>]] only shapes the output.
+		probe("allow", `kit git-base --diff --stat=200`)
+		probe("allow", `kit git-base --diff --stat=200,80,10`)
+		probe("ask", `kit git-base --diff --stat=x`)
+		probe("ask", `kit git-base --diff --stat=200,--output=/tmp/x`)
 		// Claude may run the full gate, as the user can.
 		probe("pass", `kit run-checks`)
 		probe("pass", `KIT_DEV=1 bin/kit run-checks --all 2>&1 | rg '^PASS'`)

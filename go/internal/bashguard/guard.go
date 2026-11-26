@@ -568,6 +568,9 @@ func readonlyCall(cmd, norm string) bool {
 	return words[1] != "git-base" || gitBaseFlagsSafe(words[2:])
 }
 
+// statWidths is --stat with its widths and count, which only shape the output.
+var statWidths = regexp.MustCompile(`^--stat=\d+(,\d+){0,2}$`)
+
 // gitBaseFlagsSafe is false when `kit git-base` would hand git a flag that can
 // write files (--output) or run programs (--ext-diff): only the flags the
 // kit's own skills pass, and help, go through without a prompt. Words after
@@ -583,7 +586,8 @@ func gitBaseFlagsSafe(words []string) bool {
 			return true
 		case !strings.HasPrefix(w, "-"):
 		case len(w) > 1 && w[1] >= '0' && w[1] <= '9':
-		case slices.Contains([]string{"--diff", "--log", "--stat", "--name-only", "--name-status", "--no-merges", "--oneline", "--shortstat", "--help", "-h"}, w):
+		case slices.Contains([]string{"--diff", "--log", "--stat", "--name-only", "--name-status", "--no-merges", "--oneline", "--shortstat", "--help", "-h"}, w),
+			statWidths.MatchString(w):
 		default:
 			return false
 		}
