@@ -1,6 +1,8 @@
 package design
 
 import (
+	"bytes"
+	"encoding/gob"
 	"maps"
 	"os"
 	"path/filepath"
@@ -9,6 +11,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/ku5ic/claude-kit/go/internal/cache"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 )
 
@@ -47,7 +51,8 @@ const maxFiles = 5000
 // --color-* the project sets. A var in a namespace the project never sets
 // is a dependency's, which git doesn't list. nil when path isn't a UI
 // file, isn't in a git repository, or the project is too big to read.
-func UndefinedTokens(path, before, after string) []string {
+// cacheDir holds what each project file defines, "" for none.
+func UndefinedTokens(cacheDir, path, before, after string) []string {
 	if !slices.Contains(uiExts, strings.ToLower(filepath.Ext(path))) {
 		return nil
 	}
@@ -65,7 +70,7 @@ func UndefinedTokens(path, before, after string) []string {
 	if root == "" {
 		return nil
 	}
-	project, ok := readProject(root)
+	project, ok := readProject(root, cacheDir)
 	if !ok {
 		return nil
 	}
@@ -110,17 +115,38 @@ type read struct {
 	ok     bool
 }
 
-// readProject reads every UI file git lists under root, once per process;
-// false when root isn't listable or has more than maxFiles files.
-func readProject(root string) (projectTokens, bool) {
+// readProject is scanProject, once per process.
+func readProject(root, cacheDir string) (projectTokens, bool) {
 	if r, ok := projects.Load(root); ok {
 		return r.(read).tokens, r.(read).ok
 	}
+	p, ok := scanProject(root, cacheDir)
+	projects.Store(root, read{p, ok})
+	return p, ok
+}
+
+// fileTokens is what one UI file defines, and the size and mtime it had.
+type fileTokens struct {
+	Size, MTime int64
+	Defined     []string
+	Tailwind    bool
+}
+
+// scanProject reads every UI file git lists under root, but one whose size
+// and mtime match the index under cacheDir, which answers for it; false
+// when root isn't listable or has more than maxFiles files.
+func scanProject(root, cacheDir string) (projectTokens, bool) {
 	files, err := git.Files(root)
 	if err != nil || len(files) > maxFiles {
-		projects.Store(root, read{})
 		return projectTokens{}, false
 	}
+	index := ""
+	if cacheDir != "" {
+		index = filepath.Join(cacheDir, cache.Tokens, cache.RootKey(root)+".gob")
+	}
+	old := loadIndex(index)
+	now := make(map[string]fileTokens, len(old))
+	changed := false
 	p := projectTokens{defined: map[string]bool{}}
 	for _, f := range files {
 		if strings.HasPrefix(filepath.Base(f), "tailwind.config.") {
@@ -129,17 +155,46 @@ func readProject(root string) (projectTokens, bool) {
 		if !slices.Contains(uiExts, strings.ToLower(filepath.Ext(f))) {
 			continue
 		}
-		data, err := os.ReadFile(filepath.Join(root, f))
+		info, err := os.Stat(filepath.Join(root, f))
 		if err != nil {
 			continue
 		}
-		define(p.defined, string(data))
-		if !p.tailwind && tailwindImport.Match(data) {
-			p.tailwind = true
+		t, ok := old[f]
+		if !ok || t.Size != info.Size() || t.MTime != info.ModTime().UnixNano() {
+			// The stat before the read: a write between them shows as a
+			// newer mtime next time, never as a stale hit.
+			data, err := os.ReadFile(filepath.Join(root, f))
+			if err != nil {
+				continue
+			}
+			defined := map[string]bool{}
+			define(defined, string(data))
+			t = fileTokens{Size: info.Size(), MTime: info.ModTime().UnixNano(), Defined: slices.Sorted(maps.Keys(defined)), Tailwind: tailwindImport.Match(data)}
+			changed = true
+		}
+		now[f] = t
+		for _, v := range t.Defined {
+			p.defined[v] = true
+		}
+		p.tailwind = p.tailwind || t.Tailwind
+	}
+	if index != "" && (changed || len(now) != len(old)) {
+		var buf bytes.Buffer
+		if gob.NewEncoder(&buf).Encode(now) == nil {
+			_ = fsx.WriteAtomic(index, buf.Bytes(), 0o600)
 		}
 	}
-	projects.Store(root, read{p, true})
 	return p, true
+}
+
+// loadIndex is the index at file, by path from the root; empty on any
+// miss, which costs only a full read.
+func loadIndex(file string) map[string]fileTokens {
+	index := map[string]fileTokens{}
+	if data, err := os.ReadFile(file); err == nil && gob.NewDecoder(bytes.NewReader(data)).Decode(&index) != nil {
+		return map[string]fileTokens{}
+	}
+	return index
 }
 
 // define adds each custom property text sets to defined.

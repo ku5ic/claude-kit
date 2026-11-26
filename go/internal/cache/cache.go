@@ -37,6 +37,7 @@ const (
 	StopRead     = "stop-read"
 	ReviewReport = "review-report"
 	TurnTree     = "turn-tree"
+	Tokens       = "tokens"
 	Guard        = "guard"
 	Enforce      = "enforce"
 	FailOpen     = "fail-open"
@@ -69,6 +70,7 @@ var Dirs = []Dir{
 	{Cites, "citation-check marker(s)", 1},
 	{Size, "size-check marker(s)", 1},
 	{Stack, "stack report(s)", 30},
+	{Tokens, "design token index(es)", 30},
 	{StopReports, "stop-checks and per-edit report(s)", 1},
 	{StopRead, "Stop transcript read position(s)", 1},
 	{ReviewReport, "review-report block marker(s)", 1},

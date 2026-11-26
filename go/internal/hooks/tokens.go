@@ -24,7 +24,7 @@ func GuardTokens(h *hook.Hook) error {
 	if !ok {
 		return nil
 	}
-	undefined := design.UndefinedTokens(path, before, after)
+	undefined := design.UndefinedTokens(h.Paths.CacheDir(), path, before, after)
 	if len(undefined) == 0 {
 		return nil
 	}

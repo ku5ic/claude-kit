@@ -81,7 +81,7 @@ func TestUndefinedTokens(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			root := project(t, tc.files)
-			got := UndefinedTokens(filepath.Join(root, "src", "Card.tsx"), tc.before, tc.after)
+			got := UndefinedTokens("", filepath.Join(root, "src", "Card.tsx"), tc.before, tc.after)
 			if !slices.Equal(got, tc.want) {
 				t.Errorf("UndefinedTokens = %q, want %q", got, tc.want)
 			}
@@ -90,7 +90,7 @@ func TestUndefinedTokens(t *testing.T) {
 	t.Run("not a UI file", func(t *testing.T) {
 		t.Parallel()
 		root := project(t, tw)
-		if got := UndefinedTokens(filepath.Join(root, "main.go"), "", `var(--x)`); got != nil {
+		if got := UndefinedTokens("", filepath.Join(root, "main.go"), "", `var(--x)`); got != nil {
 			t.Errorf("UndefinedTokens = %q, want none", got)
 		}
 	})
@@ -103,22 +103,57 @@ func TestReadProjectReadsARootOnce(t *testing.T) {
 	listed := testutil.Physical(t, t.TempDir())
 	testutil.Git(t, listed, "init", "-q")
 	testutil.Write(t, filepath.Join(listed, "app.css"), ":root { --gap: 1rem; }\n")
-	if p, ok := readProject(listed); !ok || !p.defined["--gap"] {
+	if p, ok := readProject(listed, ""); !ok || !p.defined["--gap"] {
 		t.Fatalf("first read = %v, %v; want --gap defined", p.defined, ok)
 	}
 	if err := os.RemoveAll(filepath.Join(listed, ".git")); err != nil {
 		t.Fatal(err)
 	}
-	if p, ok := readProject(listed); !ok || !p.defined["--gap"] {
+	if p, ok := readProject(listed, ""); !ok || !p.defined["--gap"] {
 		t.Errorf("second read = %v, %v; want the memo's --gap", p.defined, ok)
 	}
 
 	unlisted := testutil.Physical(t, t.TempDir())
-	if _, ok := readProject(unlisted); ok {
+	if _, ok := readProject(unlisted, ""); ok {
 		t.Fatal("a root git can't list read ok")
 	}
 	testutil.Git(t, unlisted, "init", "-q")
-	if _, ok := readProject(unlisted); ok {
+	if _, ok := readProject(unlisted, ""); ok {
 		t.Error("a failed read was retried")
+	}
+}
+
+// scanProject reads again only a UI file whose size or mtime changed since
+// the last scan: a changed file redefines its tokens, and an unchanged one
+// keeps what the cache holds, even when its bytes were swapped behind the
+// same size and mtime.
+func TestScanProjectRereadsOnlyChangedFiles(t *testing.T) {
+	t.Parallel()
+	root := testutil.Physical(t, t.TempDir())
+	cacheDir := t.TempDir()
+	testutil.Git(t, root, "init", "-q")
+	testutil.Write(t, filepath.Join(root, "app.css"), "@import \"tailwindcss\";\n")
+	testutil.Write(t, filepath.Join(root, "vars.css"), ":root { --gap: 1rem; }\n")
+	if p, ok := scanProject(root, cacheDir); !ok || !p.tailwind || !p.defined["--gap"] {
+		t.Fatalf("first scan = %+v, %v", p, ok)
+	}
+
+	app := filepath.Join(root, "app.css")
+	info, err := os.Stat(app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	testutil.Write(t, app, "@import \"tailwindxss\";\n")
+	if err := os.Chtimes(app, info.ModTime(), info.ModTime()); err != nil {
+		t.Fatal(err)
+	}
+	testutil.Write(t, filepath.Join(root, "vars.css"), ":root { --pad: 2rem; --x: 0; }\n")
+
+	p, ok := scanProject(root, cacheDir)
+	if !ok || !p.tailwind {
+		t.Errorf("an unchanged Tailwind file lost its flag: %+v, %v", p, ok)
+	}
+	if !p.defined["--pad"] || p.defined["--gap"] {
+		t.Errorf("a changed file kept its old tokens: %v", p.defined)
 	}
 }
