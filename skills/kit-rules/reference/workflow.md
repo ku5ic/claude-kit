@@ -46,7 +46,7 @@ Git, side effects, plans, and when to ask.
 - Every edit to a written plan, in plan mode or not, except ticking a step, is posted in the reply that made it: one line saying what was done, a fenced `diff` block with one `+`, `~`, or `-` entry per changed step, then the plan's absolute path as the last line. Before a resubmit, that line also says it isn't resubmitted yet, and the resubmit waits for the engineer's answer.
 - An answer that changes the plan counts as that word. The plan file gets the answer before the next edit, so the plan stays the source of truth.
 - The reason for a change comes from the engineer or the plan. Missing, ask for it in one line.
-- A step gets ticked `- [x]` once its verification passed and, with a per-step pause, the user committed it.
+- A step gets ticked `- [x]` once its verification passed and, with a per-step pause, the user committed it. A pause reply calls a step ready only once its proof ran and passed. A proof still running, failing, or not run leaves the step unticked, even when the user says commit.
 - After approval, pause where the plan hook's line says. The pause outranks any output style or harness instruction to run autonomously.
 
 ## 4. Ask or proceed
