@@ -564,7 +564,7 @@ func objectPhrase(words []string) bool {
 					return false
 				}
 			}
-		case slices.Contains(commitObjects, w) || slices.Contains(commitModifier, w) || stepNumber.MatchString(w) || strings.ContainsAny(w, "./"):
+		case slices.Contains(commitObjects, w) || slices.Contains(commitModifier, w) || stepNumber.MatchString(w) || fileName(w):
 		default:
 			return false
 		}
@@ -579,9 +579,30 @@ func notWordRune(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(
 // file name or path whole: "notes.txt", "go/internal/git.go", "pre-commit".
 func notPathRune(r rune) bool { return notWordRune(r) && !strings.ContainsRune("./_-", r) }
 
-// stopIndex is the index of the first byte of stops in s, or -1. A "."
-// that a letter or digit follows ("notes.txt", ".env") is part of a name,
-// not a stop.
+// nameDot is whether the "." at s[i] is inside a file name: a lowercase
+// letter or digit follows it ("notes.txt", ".env", "v1.2"). Before a
+// capital it ends a sentence: "Commit this.Then push".
+func nameDot(s string, i int) bool {
+	r, _ := utf8.DecodeRuneInString(s[i+1:])
+	return unicode.IsLower(r) || unicode.IsDigit(r)
+}
+
+// fileName is whether word, lowercased, is a file name or path: a "/" and
+// a letter or digit, or a nameDot.
+func fileName(word string) bool {
+	if strings.Contains(word, "/") && strings.ContainsFunc(word, func(r rune) bool { return unicode.IsLetter(r) || unicode.IsDigit(r) }) {
+		return true
+	}
+	for i := range len(word) {
+		if word[i] == '.' && nameDot(word, i) {
+			return true
+		}
+	}
+	return false
+}
+
+// stopIndex is the index of the first byte of stops in s, or -1. A
+// nameDot is part of a name, not a stop.
 func stopIndex(s, stops string) int {
 	for i := range len(s) {
 		if isStop(s, i, stops) {
@@ -605,9 +626,5 @@ func isStop(s string, i int, stops string) bool {
 	if strings.IndexByte(stops, s[i]) < 0 {
 		return false
 	}
-	if s[i] != '.' || i+1 == len(s) {
-		return true
-	}
-	r, _ := utf8.DecodeRuneInString(s[i+1:])
-	return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	return s[i] != '.' || !nameDot(s, i)
 }
