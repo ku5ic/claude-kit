@@ -24,7 +24,7 @@ Loading this skill isn't enough. Before the step a row names, read its file.
    - Success unstated (how do we know it worked)
    - Constraints missing (stack, style, deadline, performance)
 4. Verify before writing. For any file path, symbol, or API the prompt is about to name:
-   1. Confirm it exists.
+   1. Confirm it exists. A path the ask wants created is named as new instead, and its folder is what gets confirmed.
    2. Read it directly. Delegate to the built-in Explore agent only for a broad sweep (`skills/kit-rules/reference/subagents.md` section 1).
    3. One that can't be verified is cut, or asked about first when the prompt needs it (`skills/kit-rules/reference/evidence.md` section 1).
 5. Write the prompt.
