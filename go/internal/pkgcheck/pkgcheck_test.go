@@ -290,3 +290,13 @@ func TestFirstMissingNamesTheFirstInOrder(t *testing.T) {
 		t.Errorf("FirstMissing = %q, want none", got)
 	}
 }
+
+// A panic in a lookup's goroutine fails open: it names nothing missing,
+// since the hook's own recover can't reach that goroutine.
+func TestFirstMissingFailsOpenOnAPanic(t *testing.T) {
+	t.Parallel()
+	var l *Lookups // Missing dereferences it, inside the goroutine
+	if got := l.FirstMissing("pnpm", []string{"react"}); got != "" {
+		t.Errorf("FirstMissing = %q, want none", got)
+	}
+}

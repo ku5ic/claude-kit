@@ -69,7 +69,17 @@ func CheckCommit(h *hook.Hook) error {
 	if throwaway(h, cmd, commits) {
 		ok <- true
 	} else {
-		go func() { ok <- approved(h.Payload.String(hook.KeyTranscriptPath), subjects) }()
+		go func() {
+			// A panic here would exit 2, which Claude Code reads as a
+			// block; the hook's recover can't reach this goroutine. A
+			// failed read lets the commit through, as the hook would.
+			defer func() {
+				if recover() != nil {
+					ok <- true
+				}
+			}()
+			ok <- approved(h.Payload.String(hook.KeyTranscriptPath), subjects)
+		}()
 	}
 	for i := range commits {
 		repo, msg, unread := repos[i], msgs[i], unreads[i]
