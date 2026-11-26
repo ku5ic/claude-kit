@@ -321,11 +321,11 @@ func approved(path string, subjects []string) bool {
 	// session is needed only to look for an earlier reply showing the
 	// subjects, and only when the file holds every one of them.
 	if tail, err := transcript.Tail(path, math.MaxInt); err == nil {
-		for _, e := range slices.Backward(tail) {
+		for i, e := range slices.Backward(tail) {
 			if !e.StartsTurn() {
 				continue
 			}
-			if e.FromUser() && asksForCommit(e.PromptText()) {
+			if e.FromUser() && requests(e.PromptText(), lastReply(tail[:i])) {
 				return true
 			}
 			if data, err := os.ReadFile(path); err == nil && slices.ContainsFunc(subjects, func(s string) bool { return !mayHold(data, s) }) {
@@ -335,25 +335,60 @@ func approved(path string, subjects []string) bool {
 		}
 	}
 	var earlier, current strings.Builder
-	prompt := ""
+	prompt, reply, before := "", "", ""
 	_ = transcript.Each(path, func(e transcript.Entry) {
 		switch {
 		case e.StartsTurn():
 			earlier.WriteString(current.String())
 			current.Reset()
-			prompt = ""
+			prompt, before = "", reply
 			if e.FromUser() {
 				prompt = e.PromptText()
 			}
 		case e.Type == "assistant":
 			current.WriteString(e.PromptText() + "\n")
+			if text := strings.TrimSpace(e.PromptText()); text != "" {
+				reply = text
+			}
 		}
 	})
-	if asksForCommit(prompt) {
+	if requests(prompt, before) {
 		return true
 	}
 	text := earlier.String()
 	return !slices.ContainsFunc(subjects, func(s string) bool { return !shown(text, s) })
+}
+
+// bareYes is a prompt that only says yes.
+var bareYes = regexp.MustCompile(`(?i)^\s*(yes|y|yep|yeah|yup|sure|ok|okay|go|go ahead|do it|please do)\s*[.!]*\s*$`)
+
+// commitQuestion is a reply's last line when it asks whether to commit
+// and shows no message: "Commit step 16?", "Commit both?". One that shows
+// a message approves only that message, as shown() reads it.
+var commitQuestion = regexp.MustCompile("(?i)^\\W*commit\\b[^?`]*\\?\\s*$")
+
+// requests is whether prompt asks for a commit: in its own words, or as a
+// bare yes to reply, the text before it, when reply's last line asks to
+// commit.
+func requests(prompt, reply string) bool {
+	if asksForCommit(prompt) {
+		return true
+	}
+	lines := strings.Split(strings.TrimSpace(reply), "\n")
+	return bareYes.MatchString(prompt) && commitQuestion.MatchString(lines[len(lines)-1])
+}
+
+// lastReply is the text of the last assistant entry in entries that has
+// any, "" for none.
+func lastReply(entries []transcript.Entry) string {
+	for _, e := range slices.Backward(entries) {
+		if e.Type == "assistant" {
+			if text := strings.TrimSpace(e.PromptText()); text != "" {
+				return text
+			}
+		}
+	}
+	return ""
 }
 
 // mayHold is whether data, a JSONL transcript, could hold subject in some

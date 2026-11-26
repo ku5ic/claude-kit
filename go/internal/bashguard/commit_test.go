@@ -496,3 +496,36 @@ func TestGuardCommitInAThrowawayRepoNeedsNoApproval(t *testing.T) {
 		}
 	}
 }
+
+// A bare yes answers the reply before it: when that reply's last line asks
+// to commit, the yes is the request. A yes to another question, or a no,
+// isn't.
+func TestGuardCommitTakesABareYesToACommitQuestion(t *testing.T) {
+	gitleaksStub(t, 0)
+	k := newSandbox(t)
+	commit := func(reply, prompt string) result {
+		t.Helper()
+		k.transcript = filepath.Join(t.TempDir(), "t.jsonl")
+		testutil.AppendJSONL(t, k.transcript, testutil.UserPrompt("fix it"), testutil.AssistantText(reply), testutil.UserPrompt(prompt))
+		return k.commit("", `git commit -m "fix: add sums"`)
+	}
+	for _, tc := range []struct{ reply, prompt string }{
+		{"Step 16 is done.\n\nCommit step 16?", "yes"},
+		{"Both are ready.\n\nCommit both?", "ok"},
+		{"Commit it?", "Go ahead."},
+	} {
+		if r := commit(tc.reply, tc.prompt); strings.Contains(r.Output, `"permissionDecision":"ask"`) {
+			t.Errorf("%q to %q asked:\n%s", tc.prompt, tc.reply, r.Output)
+		}
+	}
+	for _, tc := range []struct{ reply, prompt string }{
+		{"Step 16 is done.\n\nStart step 17?", "yes"},
+		{"Should a bare yes count as commit approval?", "yes"},
+		{"Commit both?", "no"},
+		{"Commit both?\n\nOr should I wait for the tests?", "yes"},
+	} {
+		if r := commit(tc.reply, tc.prompt); !strings.Contains(r.Output, `"permissionDecision":"ask"`) {
+			t.Errorf("%q to %q didn't ask", tc.prompt, tc.reply)
+		}
+	}
+}
