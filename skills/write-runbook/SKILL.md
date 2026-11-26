@@ -34,7 +34,7 @@ Loading this skill isn't enough. Before the step a row names, read its file.
 <!-- chat: end -->
 
 4. Draft per [reference/runbook-practice.md](reference/runbook-practice.md).
-5. Each command, flag, and link checked against the repo or the connector. One that can't be is marked unverified.
+5. Each command, flag, and link checked against the repo or the connector. One that can't be is cut, and the reply names it with the check that would settle it.
 
 <!-- chat: skip -->
 

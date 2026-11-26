@@ -40,7 +40,7 @@ In claude.ai chat, any other exit, or no way to run it, means the scan didn't ha
 
 ## Output
 
-Per `skills/kit-rules/reference/output.md` section 3: the path of each result, hits before and after per tier, and `git diff --no-index <original> <result>` for a copy. Nothing else.
+Per `skills/kit-rules/reference/output.md` section 3: the path of each result, hits before and after per tier, `git diff --no-index <original> <result>` for a copy, and the line for each hit left on purpose. Nothing else.
 
 Arguments: `$ARGUMENTS`
 

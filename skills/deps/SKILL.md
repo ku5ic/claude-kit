@@ -149,6 +149,6 @@ Stop and hand back to the user, without proceeding further, when:
 - The alerts call says the token lacks scope (Phase 1b).
 - Phase 2's proposal table is presented. Wait for approval before any mutation.
 - A transitive-pin mechanism can't be confirmed for the ecosystem (Phase 5).
-- A merge would land on or push to a protected branch (Rules).
+- A push would land on a protected branch (Rules). The host's merge of a PR into it, as step 2 of the merge does, is allowed.
 
 A failed-checks PR (Phase 4) is not a full stop. Record it as held and continue to the next candidate.

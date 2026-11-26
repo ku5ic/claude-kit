@@ -55,7 +55,7 @@ Loading this skill isn't enough. Before the step a row names, read its file.
 <!-- chat: end -->
 
 - If arguments are provided, use them as the intent hint and shape the subject around them.
-- If the staged diff is empty, say so and stop.
+- With no staged diff and none pasted, say so and stop. A pasted diff stands in for the staged one.
 - If the staged diff mixes unrelated changes: say so, list the clusters, and propose splitting into separate commits.
 
 ## Output

@@ -33,10 +33,10 @@ Loading this skill isn't enough. Before the step a row names, read its file.
 
 Load the report-format skill and use its format, written to the path `kit scratch-dir from-design <design-slug>` prints, with these narrowings:
 
-- The TL;DR's first bullet is the coverage in place of the health word: `<covered> covered, <extend> to extend, <new> new, <omitted> states omitted`.
+- The TL;DR's first bullet is the coverage in place of the health word: `<covered> covered, <extend> to extend, <compose> to compose, <new> new, <omitted> states omitted`.
 - A Mapping table with the design element, its result, the repo component or token, and the files it would touch.
 - A Missing tokens table with the design value and the nearest existing token.
-- The last section lists candidate `/plan` steps, one per `extend` or `new` item.
+- The last section lists candidate `/plan` steps, one per `extend`, `compose`, or `new` item.
 
 ## Reply
 

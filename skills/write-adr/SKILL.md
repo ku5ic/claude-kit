@@ -60,7 +60,7 @@ A linked thread, ticket, or doc is resolved as `skills/investigate` step 0 descr
 ## Output file
 
 - With an `.adr-dir` and `adr` on PATH: `VISUAL=true adr new <title>`, with `-s <n>` for each ADR it supersedes, then fill the file it prints with Edit.
-- Otherwise: the next number in the ADR folder, named the way its files are.
+- Otherwise: the next number in the ADR folder, named the way its files are. With no ADR folder, ask where it goes.
 - The date follows the project's rule, else today.
 
 Reply with the path, and one line per sentence still lacking a source.

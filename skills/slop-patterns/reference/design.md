@@ -1,5 +1,7 @@
 # Design slop
 
+Contents: 1 what design slop is, 2 the brief wins, 3 color, 4 typography, 5 layout, 6 surfaces and effects, 7 motion, 8 icons and imagery, 9 template chrome, 10 copy in the UI, 11 what the scan catches, 12 review, 13 false positives, 14 sources.
+
 Visual and interface output: React and JSX, Vue, HTML, CSS, Tailwind, and the copy inside them. Prose tells are in [content-and-grammar.md](content-and-grammar.md); accessibility is a separate WCAG audit.
 
 <!-- chat: skip -->

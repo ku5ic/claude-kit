@@ -37,6 +37,8 @@ On a schedule:
 - A restic password in the crontab or alongside the repo: `warning`. Keep it in a password or secret manager; in cron, source it from a protected env file, never inline.
 - No retention policy on backups: `info`. Define and automate `forget`/`prune` retention from day one.
 
-### Legacy (restic without --stdin-from-command)
+<details><summary>Legacy (restic without --stdin-from-command)</summary>
 
 Only on a restic build without `--stdin-from-command`, pipe `pg_dump -F c mydb | restic backup --stdin --stdin-filename mydb.dump` under `set -o pipefail`, then check the backup's size or run `pg_restore --list`.
+
+</details>

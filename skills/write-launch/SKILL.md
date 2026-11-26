@@ -43,7 +43,7 @@ Loading this skill isn't enough. Before the step a row names, read its file.
 
 <!-- chat: skip -->
 
-For a release, read the commits since the last tag: `git describe --tags --abbrev=0`, then `git log --oneline --no-merges <tag>..HEAD`.
+For a release, read the commits since the last tag: `git describe --tags --abbrev=0`, then `git log --oneline --no-merges <tag>..HEAD`. With no tag, `git log --oneline --no-merges` over the full history.
 
 <!-- chat: end -->
 

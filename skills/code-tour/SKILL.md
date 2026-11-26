@@ -27,7 +27,7 @@ An onboarding walk through a repo for someone new to it: where it starts, one pa
 
 1. **Entry points.** Whatever starts the code: the entry and script fields of each manifest, the files that start a process or a CLI, route definitions, container commands, and CI's deploy job. Confirm each by reading it.
 2. **One path, end to end.** The focus argument, or the most common entry: one request through its handler to storage and back, or one command from argument parsing to output. Read every file on the way and note `file:line` at each hop.
-3. **Hot spots.** `skills/code-visual/SKILL.md` Collect steps 1 to 3, with a window of `6.months`. The top 5 only.
+3. **Hot spots.** `skills/code-visual/SKILL.md` Collect steps 1 to 3 and 5, with a window of `6.months`. The top 5 only.
 4. **Tests and config.** Where tests live and how they're run (the project's own script or task), the fixtures folder, env files and their example, and the config each tool reads.
 5. **Who to ask.** `skills/code-history/SKILL.md` Digest step 5, run on each top-level module.
 

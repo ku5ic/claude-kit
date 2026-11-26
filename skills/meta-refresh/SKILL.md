@@ -21,7 +21,7 @@ Checked: <YYYY-MM-DD> against <source URL>
 - <older version>: ...
 ```
 
-Retention: at most 3 version entries, newest first. A pattern that changed moves into a `### Legacy (<version>)` block at the end of the reference file it came from, one short paragraph, at most 2 legacy blocks per file. Anything older is deleted with a one-line note "Older guidance removed <date>; see git history." Git holds the rest.
+Retention: at most 3 version entries, newest first. A pattern that changed moves into a collapsed `<details><summary>Legacy (<version>)</summary>` block at the end of the reference file it came from, one short paragraph, at most 2 legacy blocks per file. Anything older is deleted with a one-line note "Older guidance removed <date>; see git history." Git holds the rest.
 
 ## Procedure
 
@@ -47,7 +47,7 @@ Retention: at most 3 version entries, newest first. A pattern that changed moves
    - `could not verify`: researcher had no source. Change nothing; report it.
 5. Apply guidance changes, one reference file at a time:
    - Replace the outdated pattern with the current one where it lives.
-   - Move the old pattern to `### Legacy (<version>)` at the end of that file, one paragraph stating what changed and when it still applies (projects pinned to the old major).
+   - Move the old pattern to a collapsed `<details><summary>Legacy (<version>)</summary>` block at the end of that file, one paragraph stating what changed and when it still applies (projects pinned to the old major).
    - Enforce the caps from "What this maintains". Prune oldest first.
    - Add the Version notes entry naming the source URL from step 3. A changed claim's source goes in its file's Claims list in `sources.md`, never inline.
    - Do not touch guidance the research did not contradict. Do not delete a reference file. Do not reword for style.
