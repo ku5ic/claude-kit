@@ -30,7 +30,7 @@ Loading this skill isn't enough. Before the step a row names, read its file.
 
 ## Report
 
-Load the report-format skill and use its format, written to the path `kit scratch-dir flags <scope-slug>` prints. Findings rank by how far past its lifetime a flag is, then by references touched. Each cites the service's field and value or the `file:line`.
+Load the report-format skill and use its format, written to the path `kit scratch-dir flags <scope-slug>` prints. Findings sort by severity, then by how far past its lifetime a flag is, then by references touched. Each cites the service's field and value or the `file:line`.
 
 ## Reply
 

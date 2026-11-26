@@ -38,7 +38,7 @@ With no target in the arguments, ask for one first, since the auditor can't ask.
 ## Not a finding
 
 - An image the markup marks decorative (`alt=""`, `aria-hidden`) that carries no information.
-- A criterion that needs a running page, such as contrast or reflow, which goes under "Needs a runtime check".
+- A criterion that needs a running page, such as reflow, or contrast for colors set at runtime, which goes under "Needs a runtime check". Two colors the code hard-codes are measured with `kit contrast <fg> <bg>`, and a ratio under the bar is a finding.
 - A AAA criterion, unless the user asked for AAA.
 
 ## Severity

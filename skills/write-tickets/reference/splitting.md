@@ -4,5 +4,5 @@
 - A slice changes what the system does and crosses layers as it needs to.
 - Ways to split are workflow steps, operations (create, read, update, delete), business rule variations, data variations, data entry methods, the simple case first, deferring performance, or a spike.
 - A spike's outcome is an answer. Use one when an unknown blocks the cut.
-- One bug per ticket. A report naming several issues becomes several tickets.
+- One bug per ticket. A report naming several issues becomes several tickets, except findings one change fixes, which become one.
 - Many tickets from one source go under a parent, posted first.

@@ -29,7 +29,7 @@ Stack specifics come from the stack's pattern skill. The commit-message bump rul
 
 ## Procedure
 
-1. Surface. The base is the argument, else `kit git-base`. What's public comes from the project: a package's declared exports, a published schema, its routes, a component library's props. The report names the surface it treated as public. Unclear, ask.
+1. Surface. The base is the argument, else `kit git-base`. A path argument limits the surface to what's under it. What's public comes from the project: a package's declared exports, a published schema, its routes, a component library's props. The report names the surface it treated as public. Unclear, ask.
 2. Base and head, first that applies:
    - A schema file (OpenAPI, GraphQL, protobuf). Its checker runs on the base's copy (`git show <base>:<file>`) and the working tree's, per [reference/schemas.md](reference/schemas.md).
    - The ecosystem's API tool, installed and configured in the project, run per [reference/ecosystem-tools.md](reference/ecosystem-tools.md).
@@ -43,7 +43,7 @@ Load the report-format skill and use its format, written to the path `kit scratc
 
 - The TL;DR's first bullet is the bump in place of the health word: `patch`, `minor`, or `major: <the change that forces it>`. Under `0.y.z`, it says the class is advice.
 - A Changes table with the change, its class, its evidence (the checker's line, or `file:line` on each side), and its consumers.
-- A major change is a `failure` when the project's version or commit doesn't say major, else `info`. A behavioral change is a `warning`.
+- A major change is a `failure` when the project's version or commit doesn't say major, else `info`. A behavioral change is a `warning`. A change that is both takes the higher.
 
 ## Reply
 

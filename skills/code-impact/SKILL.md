@@ -55,7 +55,7 @@ Write to the path `kit scratch-dir impact <target-slug>` prints, raw files in a 
 ```markdown
 # Impact: <target> [<symbol>]
 
-<N> consumers (<source> source, <test> test), <M> after one hop. Window: 6 months.
+<N> consumers and <T> tests, <M> after one hop. Window: 6 months.
 
 ## TL;DR
 

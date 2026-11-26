@@ -34,7 +34,7 @@ A linked ticket or doc is resolved as `skills/investigate` step 0 describes. The
 <!-- chat: end -->
 
 1. Source. The plan's steps, the report's findings, or the description, read whole.
-2. Cut the work per [reference/splitting.md](reference/splitting.md). A report's findings that one change fixes become one ticket.
+2. Cut the work per [reference/splitting.md](reference/splitting.md).
 3. Draft each ticket per [reference/ticket-practice.md](reference/ticket-practice.md), in the tracker's template when it has one. Each carries its source, the plan step or the finding's severity and `file:line`.
 
 <!-- chat: skip -->
