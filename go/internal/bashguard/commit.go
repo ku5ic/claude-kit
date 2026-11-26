@@ -335,7 +335,7 @@ func approved(path string, subjects []string) bool {
 			if !e.StartsTurn() {
 				continue
 			}
-			if e.FromUser() && requests(e.PromptText(), lastReply(tail[:i])) {
+			if e.FromUser() && requests(e.PromptText(), lastReply(tail[:i])) || pickedCommit(tail[i+1:]) {
 				return true
 			}
 			if data, err := os.ReadFile(path); err == nil && slices.ContainsFunc(subjects, func(s string) bool { return !mayHold(data, s) }) {
@@ -391,6 +391,78 @@ func requests(prompt, reply string) bool {
 	lines := strings.Split(strings.TrimSpace(reply), "\n")
 	last := lines[len(lines)-1]
 	return bareYes.MatchString(prompt) && commitQuestion.MatchString(last) && !orWord.MatchString(last)
+}
+
+// commitLabel is an option label that starts with Commit.
+var commitLabel = regexp.MustCompile(`^(?i:commit)\b`)
+
+// pickedCommit is whether the user, in entries, the turn so far, answered
+// an AskUserQuestion with a commit, and no commit has run since: one
+// answer approves one commit.
+func pickedCommit(entries []transcript.Entry) bool {
+	asks, commits := map[string]map[string][]string{}, map[string]bool{}
+	picked := false
+	for _, e := range entries {
+		for _, b := range e.ToolUses() {
+			switch {
+			case b.Name == "AskUserQuestion":
+				asks[b.ID] = offered(b.RawInput)
+			case b.Name == "Bash" && commitLine.MatchString(b.Input.Command):
+				commits[b.ID] = true
+			}
+		}
+		for _, b := range e.Blocks {
+			switch {
+			case b.Type != "tool_result":
+			case asks[b.ToolUseID] != nil && !b.IsError:
+				picked = commitAnswer(asks[b.ToolUseID], e.ToolUseResult.Answers)
+			case commits[b.ToolUseID]:
+				picked = false
+			}
+		}
+	}
+	return picked
+}
+
+// offered is an AskUserQuestion input's questions, each to its option
+// labels.
+func offered(input json.RawMessage) map[string][]string {
+	var in struct {
+		Questions []struct {
+			Question string `json:"question"`
+			Options  []struct {
+				Label string `json:"label"`
+			} `json:"options"`
+		} `json:"questions"`
+	}
+	_ = json.Unmarshal(input, &in)
+	out := map[string][]string{}
+	for _, q := range in.Questions {
+		for _, o := range q.Options {
+			out[q.Question] = append(out[q.Question], o.Label)
+		}
+	}
+	return out
+}
+
+// commitAnswer is whether answers, the structured record the harness keeps,
+// answer one of the questions asked with a commit: an offered label that
+// starts with Commit, or typed text that asks for one as a prompt would.
+// The question text, which Claude wrote, is never matched.
+func commitAnswer(asked map[string][]string, answers map[string]string) bool {
+	for question, answer := range answers {
+		labels, ok := asked[question]
+		switch {
+		case !ok:
+		case slices.Contains(labels, answer):
+			if commitLabel.MatchString(answer) {
+				return true
+			}
+		case asksForCommit(answer):
+			return true
+		}
+	}
+	return false
 }
 
 // lastReply is the text of the last assistant entry in entries that has
@@ -490,6 +562,10 @@ var (
 	// but only after I review". Subordinating conjunctions are a closed
 	// class, so this list doesn't grow with each new phrasing.
 	subordinator = regexp.MustCompile(`(?i)\b(if|unless|once|when|whenever|after|before|until|till|provided|providing|assuming|while|whilst|lest|as soon as|as long as|so long as|in case)\b`)
+	// toldIf is an if or when that opens what the user asks to be told,
+	// "tell me if", "let me know when": it conditions the telling, not the
+	// commit.
+	toldIf = regexp.MustCompile(`(?i)\b(?:tell|let|show)\s+(?:me|us)(?:\s+know)?\s+(?:if|when)\b`)
 )
 
 // asksForCommit is true when prompt uses "commit" as a request: first in
@@ -527,7 +603,7 @@ func asksForCommit(prompt string) bool {
 			}
 			sentence = sentence[:end]
 		}
-		if subordinator.MatchString(sentence) || deferred(strings.FieldsFunc(strings.ToLower(sentence[m[1]-start:]), notWordRune)) {
+		if subordinator.MatchString(toldIf.ReplaceAllString(sentence, "")) || deferred(strings.FieldsFunc(strings.ToLower(sentence[m[1]-start:]), notWordRune)) {
 			continue
 		}
 		if !ownPlan.MatchString(sentence) {

@@ -75,6 +75,28 @@ type Entry struct {
 	// it's a plain string: where forked-skill launches and task
 	// notifications land besides the user's own messages.
 	Notice string `json:"-"`
+	// ToolUseResult is a tool result's structured record, of which only an
+	// AskUserQuestion's answers are kept.
+	ToolUseResult ToolUseResult `json:"toolUseResult"`
+}
+
+// ToolUseResult is the part of a toolUseResult record the kit reads.
+type ToolUseResult struct {
+	// Answers is an AskUserQuestion's, each question to the label the user
+	// picked or the text they typed.
+	Answers map[string]string
+}
+
+// UnmarshalJSON keeps the answers of an AskUserQuestion's record, and
+// nothing of another tool's: a string, or an object of another shape.
+func (r *ToolUseResult) UnmarshalJSON(data []byte) error {
+	var aux struct {
+		Answers map[string]string `json:"answers"`
+	}
+	if json.Unmarshal(data, &aux) == nil {
+		r.Answers = aux.Answers
+	}
+	return nil
 }
 
 // Block is one content block.
