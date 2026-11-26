@@ -2,7 +2,6 @@
 name: code-tour
 description: An onboarding walk through a repo: where it starts, one path end to end, where it changes, who to ask
 argument-hint: "[repo path or subdirectory] [focus: a request, command, or feature to trace]"
-disable-model-invocation: true
 allowed-tools:
   - Bash(gh pr diff *)
   - Bash(gh pr view *)

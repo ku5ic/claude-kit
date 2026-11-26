@@ -2,7 +2,6 @@
 name: audit-readiness
 description: Go or no-go review before a launch, from the repo and the monitoring connector, with gaps filed as tickets and reruns until green
 argument-hint: "<service, path, or plan> | <path to a prior readiness report>"
-disable-model-invocation: true
 allowed-tools:
   - Bash(git log *)
   - Bash(kit detect-stack)

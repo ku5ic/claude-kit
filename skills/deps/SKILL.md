@@ -2,7 +2,6 @@
 name: deps
 description: Merge open Dependabot or Renovate PRs and reconcile the code host's security alerts
 argument-hint: "<optional: ecosystem filter, PR number, or --fix-transitive>"
-disable-model-invocation: true
 allowed-tools:
   - Bash(git status *)
   - Bash(gh auth status *)

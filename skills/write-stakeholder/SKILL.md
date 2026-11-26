@@ -2,7 +2,6 @@
 name: write-stakeholder
 description: Reframe a technical finding or proposal for a non-technical audience
 argument-hint: "<technical content, or path to a file with it>"
-disable-model-invocation: true
 allowed-tools:
   - Bash(git status *)
   - Bash(git diff *)

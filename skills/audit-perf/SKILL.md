@@ -2,7 +2,6 @@
 name: audit-perf
 description: Performance audit of a file, directory, or area, for costs a static read can find
 argument-hint: "<file, directory, area name, or a link to an external tracker/doc>"
-disable-model-invocation: true
 allowed-tools:
   - Bash(git log *)
 ---

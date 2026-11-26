@@ -2,7 +2,6 @@
 name: meta-refresh
 description: Check reference skills against current releases and update their guidance
 argument-hint: "<skill name(s)>, --all, or blank to pick from the stale list"
-disable-model-invocation: true
 ---
 
 # /meta-refresh

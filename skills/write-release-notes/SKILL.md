@@ -2,7 +2,6 @@
 name: write-release-notes
 description: Release notes from a branch's commits since its base
 argument-hint: "<optional: explicit range like main..HEAD, or base branch name>"
-disable-model-invocation: true
 allowed-tools:
   - Bash(git status *)
   - Bash(git diff *)

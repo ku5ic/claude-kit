@@ -2,7 +2,6 @@
 name: pr-publish
 description: Post an approved PR draft: a review, replies, or a description
 argument-hint: "[PR number]"
-disable-model-invocation: true
 allowed-tools:
   - Bash(gh pr view *)
   - Bash(gh pr diff *)

@@ -2,7 +2,6 @@
 name: audit-debt
 description: Technical debt inside a target's modules, ranked by severity, with a remediation path
 argument-hint: "<file, directory, area name, or a link to an external tracker/doc>"
-disable-model-invocation: true
 allowed-tools:
   - Bash(git log *)
 ---

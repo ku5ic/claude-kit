@@ -2,7 +2,6 @@
 name: audit-ci
 description: Hardening review of CI workflow files
 argument-hint: "<workflow file, or none for every file in .github/workflows>"
-disable-model-invocation: true
 allowed-tools:
   - Bash(git log *)
 ---

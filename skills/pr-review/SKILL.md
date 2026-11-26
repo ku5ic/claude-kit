@@ -2,7 +2,6 @@
 name: pr-review
 description: Turn this session's review findings on someone else's PR into a draft review with inline comments
 argument-hint: "<PR number or URL> [report path]"
-disable-model-invocation: true
 allowed-tools:
   - Bash(gh pr view *)
   - Bash(gh pr diff *)

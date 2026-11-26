@@ -2,7 +2,6 @@
 name: audit-verify
 description: Re-check a prior audit report's findings against the repo as it is now
 argument-hint: "<path to an existing audit report>"
-disable-model-invocation: true
 allowed-tools:
   - Bash(git log *)
 ---

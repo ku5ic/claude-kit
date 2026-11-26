@@ -2,7 +2,6 @@
 name: code-migrate
 description: Inventory every use of what a migration replaces, in one repo or across an org, and batch it into plan steps with codemods
 argument-hint: "<target: package@version, API, or pattern> [org:<org or group>]"
-disable-model-invocation: true
 allowed-tools:
   - Bash(gh search code *)
   - Bash(git log *)

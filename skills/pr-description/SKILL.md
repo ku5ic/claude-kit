@@ -2,7 +2,6 @@
 name: pr-description
 description: Draft your PR's title and body from the branch's diff, in the project's template
 argument-hint: "<optional: commit range like main..HEAD>"
-disable-model-invocation: true
 allowed-tools:
   - Bash(gh pr view *)
   - Bash(gh pr diff *)

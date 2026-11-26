@@ -2,7 +2,6 @@
 name: audit-skills
 description: How skills, commands, and agents are written, against Claude Code's own prompt audit and Anthropic's current guidance
 argument-hint: "<skill or agent names, paths, or all>"
-disable-model-invocation: true
 allowed-tools:
   - Bash(git log *)
   - Bash(kit scratch-dir *)

@@ -2,7 +2,6 @@
 name: meta-improve
 description: Turn retro findings into proposed changes to rules, skills, and hooks, each backed by quotes from two sessions
 argument-hint: "[retro report path(s) | <N>d | <N>d all]"
-disable-model-invocation: true
 allowed-tools:
   - Bash(kit scratch-dir *)
   - Bash(kit stats *)

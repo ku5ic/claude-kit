@@ -2,7 +2,6 @@
 name: audit-flags
 description: Feature flag audit, stale flags, flags code and the flag service disagree on, missing owners or expiry, and the dead branches behind them
 argument-hint: "<path, or nothing for the repo>"
-disable-model-invocation: true
 allowed-tools:
   - Bash(git log *)
   - Bash(kit detect-stack)

@@ -2,7 +2,6 @@
 name: pr-reply
 description: Draft replies to the review on your PR, each claim checked against the code
 argument-hint: "[PR number] [reviewer username] [--all]"
-disable-model-invocation: true
 allowed-tools:
   - Bash(gh pr view *)
   - Bash(gh pr diff *)

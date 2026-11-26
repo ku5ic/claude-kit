@@ -2,7 +2,6 @@
 name: write-explainer
 description: Explain a bug, feature, or module to someone new to the codebase, with file:line citations
 argument-hint: "<what to explain: a bug/ticket, a debug report path, a feature or module name, a file/directory, or blank to use what's already been discussed in this conversation>"
-disable-model-invocation: true
 allowed-tools:
   - Bash(git status *)
   - Bash(git diff *)

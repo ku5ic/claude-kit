@@ -2,7 +2,6 @@
 name: audit-tests
 description: Tests that add code and catch no regression, each with the cut, merge, or rewrite that fixes it
 argument-hint: "<optional: a path, or --all for the whole suite>"
-disable-model-invocation: true
 allowed-tools:
   - Bash(git log *)
   - Bash(kit git-base *)

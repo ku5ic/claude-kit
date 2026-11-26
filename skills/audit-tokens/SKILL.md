@@ -2,7 +2,6 @@
 name: audit-tokens
 description: Design token audit, hard-coded values a token covers, unused, undefined, and duplicate tokens, and token color contrast
 argument-hint: "<path, or nothing for the project root>"
-disable-model-invocation: true
 allowed-tools:
   - Bash(git log *)
   - Bash(kit contrast *)

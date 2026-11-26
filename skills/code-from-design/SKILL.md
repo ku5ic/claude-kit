@@ -2,7 +2,6 @@
 name: code-from-design
 description: Map a design to the repo's components and tokens, with what's missing, states the design omits, and accessibility gaps, for /plan
 argument-hint: "<design URL>"
-disable-model-invocation: true
 allowed-tools:
   - Bash(git log *)
   - Bash(kit contrast *)

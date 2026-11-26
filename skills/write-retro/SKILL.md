@@ -2,7 +2,6 @@
 name: write-retro
 description: A structured retrospective for an incident, sprint, or finished feature, its action items filed as tickets
 argument-hint: "<incident timeline path, sprint label, or feature name> | <path to a prior retro>"
-disable-model-invocation: true
 ---
 
 # /write-retro

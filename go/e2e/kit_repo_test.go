@@ -199,10 +199,9 @@ func TestKitRepo(t *testing.T) {
 	t.Run("a reference skill keeps its sources in sources.md and fits its budget", func(t *testing.T) {
 		// The skills that aren't reference skills, so keep no sources.md;
 		// skills/meta-refresh/SKILL.md points here for the list.
-		// A skill only the user invokes (disable-model-invocation) is a
-		// procedure skill. It keeps its sources too (skills/meta-skill/SKILL.md,
-		// Rules), but its description and SKILL.md load only when the user
-		// types it, so no budget holds them.
+		// A procedure skill (isProcedure) keeps its sources too
+		// (skills/meta-skill/SKILL.md, Rules), and its SKILL.md loads only
+		// when it's started, so no size budget holds it.
 		exempt := []string{"investigate", "report-format", "kit-rules", "slop-patterns"}
 		// Reference skills with no version-dependent content: no sources.md,
 		// and /meta-refresh takes them only when named.
@@ -224,7 +223,7 @@ func TestKitRepo(t *testing.T) {
 			dir := filepath.Dir(skill)
 			text := Read(t, skill)
 			front, _ := frontmatter(text)
-			procedure := front["disable-model-invocation"] == "true"
+			procedure := isProcedure(filepath.Base(dir))
 			refs, _ := filepath.Glob(filepath.Join(dir, "reference", "*.md"))
 			if slices.Contains(exempt, filepath.Base(dir)) {
 				continue
@@ -405,9 +404,8 @@ func TestKitRepo(t *testing.T) {
 		dirs, _ := filepath.Glob(filepath.Join(kitRoot, "skills", "*", "SKILL.md"))
 		for _, skill := range dirs {
 			name := filepath.Base(filepath.Dir(skill))
-			front, _ := frontmatter(Read(t, skill))
 			page, row, rel := skills, "`"+name+"`", "docs/skills.md"
-			if front["disable-model-invocation"] == "true" {
+			if isProcedure(name) {
 				page, row, rel = commands, "`/"+name+"`", "docs/commands.md"
 			}
 			if !regexp.MustCompile("(?m)^\\| " + regexp.QuoteMeta(row) + " +\\|").MatchString(page) {
@@ -467,6 +465,21 @@ func TestKitRepo(t *testing.T) {
 			}
 		}
 	})
+}
+
+// isProcedure is true for a procedure skill: one of the names
+// skills/kit-rules/reference/workflow.md section 3 lists, the *-patterns
+// skills aside.
+func isProcedure(name string) bool {
+	if strings.HasSuffix(name, "-patterns") {
+		return false
+	}
+	for _, prefix := range []string{"audit-", "code-", "write-", "pr-", "meta-"} {
+		if strings.HasPrefix(name, prefix) {
+			return true
+		}
+	}
+	return name == "deps" || name == "unslop"
 }
 
 // tableColumn is the cells under column in the first table of the section

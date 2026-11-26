@@ -2,7 +2,6 @@
 name: pr-queue
 description: Your review queue, PRs waiting on your review and your own PRs needing action, ranked
 argument-hint: "[org, group, or repo]"
-disable-model-invocation: true
 allowed-tools:
   - Bash(gh pr checks *)
   - Bash(gh pr list *)

@@ -2,7 +2,6 @@
 name: audit-arch
 description: Judge a codebase's structure against the architecture the project says it has
 argument-hint: "<repo path or subdirectory, or none for the whole repo>"
-disable-model-invocation: true
 allowed-tools:
   - Bash(git log *)
 ---

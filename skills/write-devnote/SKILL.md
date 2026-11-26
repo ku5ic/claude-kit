@@ -2,7 +2,6 @@
 name: write-devnote
 description: A sentence or two on a change's key reasoning, or on what testing someone else's change found
 argument-hint: "<optional: which decision to focus on>"
-disable-model-invocation: true
 allowed-tools:
   - Bash(git status *)
   - Bash(git diff *)

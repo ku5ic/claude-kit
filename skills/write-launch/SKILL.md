@@ -2,7 +2,6 @@
 name: write-launch
 description: Launch copy for a project you built, from its README and code. An announcement post, landing page copy, or the facts for a Show HN you write yourself
 argument-hint: "<post | landing | show-hn> [what's launching: the project, a release, or a feature]"
-disable-model-invocation: true
 allowed-tools:
   - Bash(git status *)
   - Bash(git log *)

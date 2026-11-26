@@ -2,7 +2,6 @@
 name: code-impact
 description: What breaks if a file or symbol changes: its consumers, their tests, and their churn
 argument-hint: "<file path> [symbol]"
-disable-model-invocation: true
 allowed-tools:
   - Bash(gh pr diff *)
   - Bash(gh pr view *)

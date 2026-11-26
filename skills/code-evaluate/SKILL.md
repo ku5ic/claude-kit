@@ -2,7 +2,6 @@
 name: code-evaluate
 description: Whether to adopt a package, or which of several: need, health, security, license, footprint, fit, and exit cost
 argument-hint: "<package[@version]> [vs <package> ...] [ecosystem]"
-disable-model-invocation: true
 allowed-tools:
   - Bash(git log *)
   - Bash(kit detect-stack)

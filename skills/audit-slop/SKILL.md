@@ -2,7 +2,6 @@
 name: audit-slop
 description: Survey a repo's prose for AI tells and filler, worst files first
 argument-hint: "<file, directory, or none for the whole repo>"
-disable-model-invocation: true
 allowed-tools:
   - Bash(git log *)
 ---

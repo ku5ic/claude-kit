@@ -2,7 +2,6 @@
 name: write-runbook
 description: A runbook for an alert or a service, every step checked against the repo
 argument-hint: "<alert name or service>"
-disable-model-invocation: true
 allowed-tools:
   - Bash(git log *)
   - Bash(kit scratch-dir *)

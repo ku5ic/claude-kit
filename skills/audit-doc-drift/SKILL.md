@@ -2,7 +2,6 @@
 name: audit-doc-drift
 description: Where markdown or inline docs no longer match the code
 argument-hint: "<code path to check>"
-disable-model-invocation: true
 allowed-tools:
   - Bash(git log *)
   - Bash(kit adrs *)

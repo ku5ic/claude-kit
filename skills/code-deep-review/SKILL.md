@@ -2,7 +2,6 @@
 name: code-deep-review
 description: A deep review of a path or change: design, precedent, test strength, error paths, and security
 argument-hint: "<path | PR number | branch | nothing for the branch's diff>"
-disable-model-invocation: true
 allowed-tools:
   - Bash(gh pr diff *)
   - Bash(gh pr view *)

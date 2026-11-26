@@ -90,6 +90,8 @@ Every skill with references lists them in a "Before | Read" table: an action, th
 
 **A step states its proof.** In Anthropic's [harness post](https://www.anthropic.com/research/harness-design-long-running-apps), the generator and evaluator agreed on what "done" looked like for each chunk of work before any code was written. A `## Steps` checklist said what to build and not how anyone would know it's right, so plan-critic now judges the proof with the rest of the plan.
 
+**Claude starts procedure skills itself.** They exist to make the work faster, and until 2026-11-26 each could start only from a typed command, so Claude worked an audit or review by hand from its file, or asked the user to type it. A skill that posts, merges, or files still stops for the user's yes.
+
 **Procedure skills assume nothing and do their own prerequisites.** A skill that names one stack, host, or vendor fails silently everywhere else, so it detects them and takes specifics from the pattern skills. A skill that answers "run `/code-visual` first" sends the user off to type a second command for output it could build itself (`/code-tour` did, before 0.12.0). The exception is input the user has to vet, such as a draft to post.
 
 **Questions are batched.** A question in the middle of a step interrupts work the engineer thought was running. Batching at plan time and at pauses, with a recommended option, turns each answer into a quick decision that's recorded and never asked again.

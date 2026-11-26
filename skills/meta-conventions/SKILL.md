@@ -2,7 +2,6 @@
 name: meta-conventions
 description: Write down the conventions a repo follows, as path-scoped rules with a citation for each
 argument-hint: "<optional: areas to cover, comma-separated>"
-disable-model-invocation: true
 ---
 
 # /meta-conventions

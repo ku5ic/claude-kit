@@ -2,7 +2,6 @@
 name: audit-infra
 description: Review a target's infrastructure files against the kit's checklists
 argument-hint: "<file, directory, or none for the whole repo>"
-disable-model-invocation: true
 allowed-tools:
   - Bash(git log *)
 ---

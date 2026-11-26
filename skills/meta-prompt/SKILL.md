@@ -2,7 +2,6 @@
 name: meta-prompt
 description: Turn a fuzzy ask into a prompt with context and acceptance criteria
 argument-hint: "<the fuzzy ask, or a file containing it>"
-disable-model-invocation: true
 ---
 
 # /meta-prompt

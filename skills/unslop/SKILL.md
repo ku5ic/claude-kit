@@ -2,7 +2,6 @@
 name: unslop
 description: Find and rewrite AI tells and filler in a file, a diff, or pasted text, then show what changed. Use when the user asks to unslop, clean up, or de-AI a piece of text.
 argument-hint: <file...|diff|-> [in place]
-disable-model-invocation: true
 allowed-tools:
   - Bash(kit slop *)
   - Bash(kit scratch-dir *)

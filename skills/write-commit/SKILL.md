@@ -2,7 +2,6 @@
 name: write-commit
 description: Draft a commit message from the staged or pasted diff, in the project's style
 argument-hint: "<optional: short hint about the change intent>"
-disable-model-invocation: true
 allowed-tools:
   - Bash(git status *)
   - Bash(git diff *)

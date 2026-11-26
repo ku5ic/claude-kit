@@ -2,7 +2,6 @@
 name: code-history
 description: A file or folder's git and PR history: turning points, recurring bugs, broken promises, who to ask
 argument-hint: "<file or folder path, or a component name>"
-disable-model-invocation: true
 allowed-tools:
   - Bash(gh pr diff *)
   - Bash(gh pr view *)

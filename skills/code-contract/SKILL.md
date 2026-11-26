@@ -2,7 +2,6 @@
 name: code-contract
 description: What a change does to a public surface, each change classed patch, minor, or major, with the consumers it reaches
 argument-hint: "[base ref] [path]"
-disable-model-invocation: true
 allowed-tools:
   - Bash(git diff *)
   - Bash(git log *)

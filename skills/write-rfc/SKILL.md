@@ -2,7 +2,6 @@
 name: write-rfc
 description: A design doc or RFC whose current state, rollout, rollback, and capacity come from the code and real metrics
 argument-hint: "<the proposal, or a thread, ticket, or doc URL>"
-disable-model-invocation: true
 allowed-tools:
   - Bash(git log *)
   - Bash(git show *)

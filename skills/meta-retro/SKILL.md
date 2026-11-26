@@ -2,7 +2,6 @@
 name: meta-retro
 description: Retro on Claude Code sessions, one or many, what went wrong and where, every finding cited to the transcript and pointed at the kit rule or skill involved
 argument-hint: "[session id or path | <N>d | <N>d all | similar] [what went wrong]"
-disable-model-invocation: true
 allowed-tools:
   - Bash(kit scratch-dir *)
   - Bash(kit stats *)

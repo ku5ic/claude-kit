@@ -2,7 +2,6 @@
 name: meta-skill
 description: Draft a pattern skill pack for a stack from current docs and this repo's precedent
 argument-hint: "<stack name, e.g. graphql or opentofu>"
-disable-model-invocation: true
 ---
 
 # /meta-skill

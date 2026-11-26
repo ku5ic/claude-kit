@@ -2,7 +2,6 @@
 name: code-visual
 description: Mermaid diagrams of a codebase from its size, imports, churn, and owners, each with its takeaway
 argument-hint: "[repo path or subdirectory] [focus: an entry point or flow to trace] [since: git date]"
-disable-model-invocation: true
 allowed-tools:
   - Bash(gh pr diff *)
   - Bash(gh pr view *)

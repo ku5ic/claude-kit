@@ -2,7 +2,6 @@
 name: code-challenge
 description: Challenge a planned or finished change's decisions the way a senior reviewer would
 argument-hint: "[plan or report path | ticket or doc URL | PR number | branch | nothing]"
-disable-model-invocation: true
 allowed-tools:
   - Bash(gh pr diff *)
   - Bash(gh pr view *)

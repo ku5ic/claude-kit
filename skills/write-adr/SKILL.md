@@ -2,7 +2,6 @@
 name: write-adr
 description: An architecture decision record in the project's own format, every sentence traced to a source
 argument-hint: "<the decision, or a thread, ticket, or doc URL> [supersedes: <number>]"
-disable-model-invocation: true
 allowed-tools:
   - Bash(git log *)
   - Bash(git show *)

@@ -2,7 +2,6 @@
 name: audit-a11y
 description: WCAG 2.2 AA audit of a component, page, or template, in any frontend stack
 argument-hint: "<file path, component, or a link to an external tracker/doc>"
-disable-model-invocation: true
 allowed-tools:
   - Bash(git log *)
 ---

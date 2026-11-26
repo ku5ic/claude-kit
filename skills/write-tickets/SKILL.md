@@ -2,7 +2,6 @@
 name: write-tickets
 description: Tickets from a plan, a report, or a description, posted to the project's tracker after the user's yes
 argument-hint: "<plan or report path, a description, or a ticket or doc URL>"
-disable-model-invocation: true
 allowed-tools:
   - Bash(git log *)
   - Bash(kit scratch-dir *)

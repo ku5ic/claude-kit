@@ -2,7 +2,6 @@
 name: audit-security
 description: Security review of a tree: the whole repo, a directory, or a file
 argument-hint: "<file, directory, area name, or a link to an external tracker/doc>"
-disable-model-invocation: true
 allowed-tools:
   - Bash(git log *)
 ---
