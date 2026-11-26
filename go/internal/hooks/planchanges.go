@@ -59,7 +59,7 @@ func PlanChanges(h *hook.Hook) error {
 	}
 	held := readHeld(heldFile)
 	answered, ok := lastAnswer(h)
-	shown, seen := lastShown(h, shownFile, text)
+	shown, seen := lastShown(h, shownFile, plan, text)
 	if held.Text != "" && answered > held.Answered {
 		shown = held.Text
 		save(shownFile, shown)
@@ -67,6 +67,9 @@ func PlanChanges(h *hook.Hook) error {
 	changes := sectionChanges(shown, text)
 	if !seen || !ok || len(changes) == 0 || !h.Deny(planReason(h, changes, shown, text), "plan-changes") {
 		save(shownFile, text)
+		if !h.DryRun {
+			_ = os.Remove(heldFile) // the dialog shows text, so nothing is held; none is fine
+		}
 		return nil
 	}
 	if data, err := json.Marshal(heldPlan{text, answered}); err == nil {
@@ -85,8 +88,9 @@ func readHeld(file string) heldPlan {
 }
 
 // lastShown is the plan text the user last saw, from file, or on a first
-// submit the plan text's "Replaces" line names; false when neither is there.
-func lastShown(h *hook.Hook, file, text string) (string, bool) {
+// submit the plan text's "Replaces" line names, from the repo root or the
+// plan's own folder; false when neither is there.
+func lastShown(h *hook.Hook, file, plan, text string) (string, bool) {
 	if data, err := os.ReadFile(file); err == nil {
 		return string(data), true
 	}
@@ -95,8 +99,12 @@ func lastShown(h *hook.Hook, file, text string) (string, bool) {
 		return "", false
 	}
 	cwd := h.Payload.Cwd()
-	data, err := os.ReadFile(fsx.Abs(cmp.Or(git.Toplevel(cwd), cwd), m[1]))
-	return string(data), err == nil
+	for _, dir := range []string{cmp.Or(git.Toplevel(cwd), cwd), filepath.Dir(fsx.Abs(cwd, plan))} {
+		if data, err := os.ReadFile(fsx.Abs(dir, m[1])); err == nil {
+			return string(data), true
+		}
+	}
+	return "", false
 }
 
 // lastAnswer is the transcript line of the user's last answer, a typed

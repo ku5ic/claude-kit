@@ -243,6 +243,25 @@ func TestPickedUpPlan(t *testing.T) {
 		edit(e, e.plan(threeSteps), map[string]any{"session_id": "s2"})
 		prompt(e).Empty(t)
 	})
+	t.Run("a plan the session wrote new isn't picked up, even when edited later", func(t *testing.T) {
+		t.Parallel()
+		e := setup(t)
+		plan := e.plan(threeSteps)
+		e.edit("Write", plan, false)
+		edit(e, plan, map[string]any{"tool_name": "Write", "transcript_path": e.transcript})
+		e.edit("Edit", plan, false)
+		edit(e, plan, map[string]any{"transcript_path": e.transcript})
+		prompt(e).Empty(t)
+	})
+	t.Run("a plan the session read before rewriting it is picked up", func(t *testing.T) {
+		t.Parallel()
+		e := setup(t)
+		plan := e.plan(threeSteps)
+		e.edit("Read", plan, false)
+		e.edit("Write", plan, false)
+		edit(e, plan, map[string]any{"tool_name": "Write", "transcript_path": e.transcript})
+		prompt(e).Has(t, "Plan "+plan+" has open steps")
+	})
 }
 
 // planChangesEnv is one session submitting a plan, with the transcript its
@@ -379,13 +398,33 @@ func TestPlanChanges(t *testing.T) {
 	})
 	t.Run("a first submit that replaces a readable plan is diffed against it", func(t *testing.T) {
 		t.Parallel()
-		for _, ref := range []string{"Replaces `.claude/plans/plan-old.md`. Sources: that plan.", "Replaces .claude/plans/plan-old.md"} {
+		for _, ref := range []string{"Replaces `.claude/plans/plan-old.md`. Sources: that plan.", "Replaces .claude/plans/plan-old.md", "Replaces `plan-old.md`."} {
 			e := planChangesSetup(t)
 			testutil.Write(t, filepath.Join(e.proj, ".claude", "plans", "plan-old.md"), planV1)
 			v2 := strings.Replace(planV2, "Why.", ref, 1)
 			hasLine(t, e.submit(v2).reason(t), `changed  ## Steps  \+2 -1`, `added  ## Rollback  \+2`)
 			e.prompt("go")
 			e.submit(v2).Empty(t)
+		}
+	})
+	t.Run("a held plan that passed is no longer what the next change is diffed against", func(t *testing.T) {
+		t.Parallel()
+		v3 := strings.Replace(planV2, "None.", "One.", 1)
+		v4 := v3 + "\n## Extra\n\nMore.\n"
+		e := planChangesSetup(t)
+		e.submit(planV1)
+		e.submit(planV2).Denied(t)
+		e.prompt("go")
+		e.submit(planV2).Empty(t)
+		readable := e.transcript
+		e.transcript = filepath.Join(t.TempDir(), "gone.jsonl")
+		e.submit(v3).Allowed(t)
+		e.transcript = readable
+		e.prompt("and more")
+		msg := e.submit(v4).reason(t)
+		hasLine(t, msg, `added  ## Extra  \+2`)
+		if strings.Contains(msg, "## Risks") {
+			t.Errorf("diffed against the held plan, not the one last shown:\n%s", msg)
 		}
 	})
 	t.Run("a first submit that replaces no readable file passes", func(t *testing.T) {

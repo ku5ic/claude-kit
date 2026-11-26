@@ -148,12 +148,28 @@ func activatePlan(h *hook.Hook, dir, plan string) {
 
 // pickedUp is true for an edit of a plan the session continues without
 // having approved it, as after /clear: the main session's, outside plan
-// mode, of a plan with an open step. A subagent's, or plan mode's, is a
-// draft.
+// mode, of a plan with an open step that it didn't write new. A
+// subagent's, or plan mode's, is a draft.
 func pickedUp(h *hook.Hook, path string) bool {
 	p := h.Payload
 	return p.String(hook.KeyAgentID) == "" && p.String(hook.KeyPermissionMode) != "plan" &&
-		filepath.Ext(path) == ".md" && fsx.Within(project.PlanDir(h.Paths, p.Cwd()), path) && hasOpenStep(path)
+		filepath.Ext(path) == ".md" && fsx.Within(project.PlanDir(h.Paths, p.Cwd()), path) && hasOpenStep(path) &&
+		!wroteNew(p.String(hook.KeyTranscriptPath), path)
+}
+
+// wroteNew is true when the transcript's first tool call on path is a
+// Write: Claude Code refuses a Write over a file the session never read, so
+// the session created it. False when the transcript can't be read.
+func wroteNew(transcriptPath, path string) bool {
+	entries, _ := transcript.Load(transcriptPath) // unreadable: picked up, as before
+	for _, e := range entries {
+		for _, b := range e.ToolUses() {
+			if b.Path() != "" && filepath.Clean(b.Path()) == filepath.Clean(path) {
+				return b.Name == "Write"
+			}
+		}
+	}
+	return false
 }
 
 // pauseOf is the configured step_pause, step without a config.

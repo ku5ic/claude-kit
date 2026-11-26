@@ -1,6 +1,7 @@
 package hooks
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
+	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
 
@@ -206,7 +208,26 @@ func TestInjectContextPrintsTheCompactionNote(t *testing.T) {
 			t.Errorf("additionalContext is %d bytes, want it filled to just under %d", len(ctx), capped)
 		}
 	})
-	t.Run("no room left for the plan line leaves the note out", func(t *testing.T) {
+	t.Run("a plan line with no room is dropped, and the files that fit stay", func(t *testing.T) {
+		t.Parallel()
+		e := noteSetup(t)
+		plan := e.plan("## Steps\n\n- [ ] 1. next\n")
+		e.edit("a.go")
+		payload, err := json.Marshal(map[string]any{"session_id": "s1", "cwd": e.root, "transcript_path": e.transcript})
+		if err != nil {
+			t.Fatal(err)
+		}
+		h := &hook.Hook{Payload: hook.ParsePayload(payload), Paths: e.paths, Home: e.home}
+		const frame, files = "<compaction-note>\nx\n</compaction-note>\n", "files this session edited:\na.go\n(1 more)\n"
+		room := len(frame) + len(files)
+		if len("plan: "+plan) < room-len(frame) {
+			t.Fatalf("the plan path %s fits the room; the case needs a longer one", plan)
+		}
+		note := compactNote(h, "x", room)
+		testutil.Has(t, note, "<compaction-note>", "a.go")
+		testutil.Lacks(t, note, "plan: ")
+	})
+	t.Run("no room for any line leaves the note out", func(t *testing.T) {
 		t.Parallel()
 		e := noteSetup(t)
 		e.kitYML("skip_dirs: [" + strings.Repeat("a-long-directory-name, ", 430) + "z]\n")

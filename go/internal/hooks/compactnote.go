@@ -35,7 +35,8 @@ func CompactNote(h *hook.Hook) error {
 // compactNote is what a compaction must not lose, opened by intro and cut
 // to room bytes: the active plan and its first open step, the repo's last
 // Stop report, and the files the session edited. The files are cut first,
-// then the report. "" when there's nothing to say or the plan doesn't fit.
+// then the report, and the plan only when it alone doesn't fit. "" when
+// no line fits or there's nothing to say.
 func compactNote(h *hook.Hook, intro string, room int) string {
 	const end = "</compaction-note>\n"
 	cwd := h.Payload.Cwd()
@@ -47,13 +48,17 @@ func compactNote(h *hook.Hook, intro string, room int) string {
 	if plan == "" && report == nil && files == nil {
 		return ""
 	}
-	note := "<compaction-note>\n" + intro + "\n" + plan
+	start := "<compaction-note>\n" + intro + "\n"
 	room -= len(end)
+	note := start + plan
 	if len(note) > room {
-		return ""
+		note = start
 	}
 	note += fitLines(title, report, room-len(note))
 	note += fitLines("files this session edited:", files, room-len(note))
+	if note == start {
+		return ""
+	}
 	return note + end
 }
 

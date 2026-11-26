@@ -27,7 +27,7 @@ For the whole project, `kit run-checks` runs every quality gate, in every subpro
 
 ## Across a compaction
 
-Before Claude Code compacts a session, the `PreCompact` hook asks its summary to keep three things: the active plan's path and its first open step, the last Stop report, and the files the session edited. The session start after it repeats them. A note past Claude Code's 10,000-character limit loses the file list first, then the report.
+Before Claude Code compacts a session, the `PreCompact` hook asks its summary to keep three things: the active plan's path and its first open step, the last Stop report, and the files the session edited. The session start after it repeats them. A note past Claude Code's 10,000-character limit loses the file list first, then the report, and the plan line only when it alone doesn't fit.
 
 ## Project-first tools
 
