@@ -3,10 +3,13 @@
 package git
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -89,6 +92,58 @@ func Ignored(dir string, paths []string) map[string]bool {
 		}
 	}
 	return ignored
+}
+
+// Blobs is the content of each blob spec, "<tree>:<path>" as cat-file names
+// one, read by a single git process; a spec git can't find has no entry,
+// and a failure reads as none found. A spec holding a newline, which the
+// batch protocol can't carry, is read on its own.
+func Blobs(dir string, specs []string) map[string]string {
+	blobs := map[string]string{}
+	var batch []string
+	for _, spec := range specs {
+		if !strings.Contains(spec, "\n") {
+			batch = append(batch, spec)
+		} else if out, err := Output(dir, "cat-file", "blob", spec); err == nil {
+			blobs[spec] = out
+		}
+	}
+	if len(batch) == 0 {
+		return blobs
+	}
+	cmd := Command(dir, "cat-file", "--batch")
+	cmd.Stdin = strings.NewReader(strings.Join(batch, "\n") + "\n")
+	out, err := cmd.Output()
+	if err != nil {
+		return blobs
+	}
+	r := bufio.NewReader(bytes.NewReader(out))
+	for _, spec := range batch {
+		header, err := r.ReadString('\n')
+		if err != nil {
+			break
+		}
+		if strings.HasSuffix(header, " missing\n") || strings.HasSuffix(header, " ambiguous\n") {
+			continue
+		}
+		// "<oid> <type> <size>", then the content and a newline.
+		fields := strings.Fields(header)
+		if len(fields) != 3 {
+			break
+		}
+		size, err := strconv.Atoi(fields[2])
+		if err != nil {
+			break
+		}
+		data := make([]byte, size+1)
+		if _, err := io.ReadFull(r, data); err != nil {
+			break
+		}
+		if fields[1] == "blob" {
+			blobs[spec] = string(data[:size])
+		}
+	}
+	return blobs
 }
 
 var toplevels sync.Map // dir -> its work tree's root, "" outside one

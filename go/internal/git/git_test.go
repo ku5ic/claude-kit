@@ -259,3 +259,24 @@ func TestADeadlineCutsAGitCall(t *testing.T) {
 		t.Errorf("with no deadline: %v", err)
 	}
 }
+
+// One process reads every blob; a missing one has no entry, and an empty
+// file or a name with spaces reads as written.
+func TestBlobsReadsSeveralInOneCall(t *testing.T) {
+	t.Parallel()
+	dir := repo(t)
+	testutil.Put(t, dir, "b c.txt", "two\nlines\n")
+	testutil.Put(t, dir, "empty.txt", "")
+	testutil.Git(t, dir, "add", ".")
+	testutil.Git(t, dir, "-c", "user.email=t@t", "-c", "user.name=t", "-c", "commit.gpgsign=false", "commit", "-q", "-m", "more")
+	got := git.Blobs(dir, []string{"HEAD:a.txt", "HEAD:nope.txt", "HEAD:b c.txt", "HEAD:empty.txt"})
+	want := map[string]string{"HEAD:a.txt": "one\n", "HEAD:b c.txt": "two\nlines\n", "HEAD:empty.txt": ""}
+	if len(got) != len(want) {
+		t.Fatalf("Blobs = %q, want %q", got, want)
+	}
+	for k, v := range want {
+		if got[k] != v {
+			t.Errorf("Blobs[%q] = %q, want %q", k, got[k], v)
+		}
+	}
+}

@@ -67,10 +67,11 @@ func hasGitMove(cmd string) bool {
 // them, or deleted where it has none. Beside a git move they're the move's.
 func fromHead(root string, paths []string) []string {
 	var moved []string
+	heads := blobsAt(root, "HEAD", paths)
 	for _, path := range paths {
-		blob, atHead := blobAt(root, "HEAD", path)
+		blob, atHead := heads[path]
 		data, err := os.ReadFile(path)
-		if err == nil && atHead == nil && blob == string(data) || errors.Is(err, os.ErrNotExist) && atHead != nil {
+		if err == nil && atHead && blob == string(data) || errors.Is(err, os.ErrNotExist) && !atHead {
 			moved = append(moved, path)
 		}
 	}
@@ -184,7 +185,8 @@ func BashEdits(h *hook.Hook, writes []string) error {
 		changed = slices.DeleteFunc(changed, func(path string) bool { return slices.Contains(moved, path) })
 		changes = slices.DeleteFunc(changes, func(c change) bool { return slices.Contains(moved, c.path) })
 	}
-	problems := lostTests(h, root, before, changed)
+	olds := blobsAt(root, before, changed)
+	problems := lostTests(h, root, olds, changed)
 	rewritten := false
 	// Each format may take formatBudget; past this, files are checked but
 	// left unformatted, inside hooks.json's 300s.
@@ -202,7 +204,7 @@ func BashEdits(h *hook.Hook, writes []string) error {
 				continue
 			}
 		} else {
-			old, _ = blobAt(root, before, path)
+			old = olds[path]
 		}
 		problems = append(problems, editChecks(h, path, old, string(after))...)
 		if time.Until(formatUntil) > formatBudget {
@@ -232,16 +234,28 @@ func repoWrites(root string, writes []string) []string {
 	})
 }
 
-// blobAt is path's content in tree, a tree or commit of the repo at root.
-func blobAt(root, tree, path string) (string, error) {
-	rel, _ := filepath.Rel(root, path)
-	return git.Output(root, "cat-file", "blob", tree+":"+filepath.ToSlash(rel))
+// blobsAt is each of paths' content in tree, a tree or commit of the repo
+// at root, read in one git call; a path tree doesn't hold has no entry.
+func blobsAt(root, tree string, paths []string) map[string]string {
+	specs := make([]string, len(paths))
+	for i, path := range paths {
+		rel, _ := filepath.Rel(root, path)
+		specs[i] = tree + ":" + filepath.ToSlash(rel)
+	}
+	blobs := git.Blobs(root, specs)
+	byPath := make(map[string]string, len(blobs))
+	for i, path := range paths {
+		if blob, ok := blobs[specs[i]]; ok {
+			byPath[path] = blob
+		}
+	}
+	return byPath
 }
 
 // lostTests is the send-back for the assertion lines the test files a
 // command deleted, or renamed out of the test glob, took with them: what
 // they held at the baseline less what the test files it added hold.
-func lostTests(h *hook.Hook, root, before string, changed []string) []string {
+func lostTests(h *hook.Hook, root string, olds map[string]string, changed []string) []string {
 	cfg := h.Config()
 	if cfg == nil || h.RuleDisabled("weaken") {
 		return nil
@@ -253,16 +267,16 @@ func lostTests(h *hook.Hook, root, before string, changed []string) []string {
 		if !weaken.IsTest(c, path) {
 			continue
 		}
-		old, err := blobAt(root, before, path)
+		old, atBase := olds[path]
 		now, readErr := os.ReadFile(path)
 		switch {
-		case errors.Is(readErr, os.ErrNotExist) && err == nil:
+		case errors.Is(readErr, os.ErrNotExist) && atBase:
 			if n := weaken.Assertions(c, path, old); n > 0 {
 				lost += n
 				rel, _ := filepath.Rel(root, path)
 				gone = append(gone, rel)
 			}
-		case readErr == nil && err != nil:
+		case readErr == nil && !atBase:
 			lost -= weaken.Assertions(c, path, string(now))
 		}
 	}
