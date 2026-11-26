@@ -56,7 +56,7 @@ Structure:
 
 ## Output
 
-<What to hand back, its format, and its limits.>
+<What to hand back, its format, and its limits. A prompt for an agent names its report's word budget.>
 
 ## Constraints
 
