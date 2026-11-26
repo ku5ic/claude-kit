@@ -309,10 +309,14 @@ func PlanTick(h *hook.Hook) error {
 	if h.Payload.Err != nil {
 		return nil
 	}
-	// The plan's own work tree, or for a plan outside one (~/.claude/plans)
-	// the session's: the one its approval keyed the marker by.
+	// The plan's own work tree, or for a plan outside one the session's: the
+	// one its approval keyed the marker by. ~/.claude/plans counts as
+	// outside even when it's under git, as in a dotfiles repo.
 	path := h.Payload.FilePath()
-	root := git.Toplevel(filepath.Dir(path))
+	root := ""
+	if !fsx.Within(h.Paths.PlansHome(), path) {
+		root = git.Toplevel(filepath.Dir(path))
+	}
 	if root == "" {
 		root = git.Toplevel(h.Payload.Cwd())
 	}

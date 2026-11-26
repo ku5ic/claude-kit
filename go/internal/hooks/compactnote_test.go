@@ -94,6 +94,17 @@ func TestCompactNote(t *testing.T) {
 		r.Has(t, "plan: "+plan+"\n", "next step: 2. **Next up.** More.\n", "PASS lint\nchecks: 1 passed", "\na.go\nb.go\nc.go\n")
 		r.Lacks(t, "3. later", "{")
 	})
+	t.Run("a plan picked up from a global plans folder under git is named for the session's project", func(t *testing.T) {
+		t.Parallel()
+		e := noteSetup(t)
+		plans := e.paths.PlansHome()
+		testutil.Mkdir(t, plans)
+		testutil.Git(t, plans, "init", "-q")
+		plan := filepath.Join(testutil.Physical(t, plans), "plan-x.md")
+		testutil.Write(t, plan, "## Steps\n\n- [x] 1. done\n- [ ] 2. Next up.\n")
+		e.run("plan-tick", map[string]any{"hook_event_name": "PostToolUse", "tool_name": "Edit", "session_id": "s1", "cwd": e.root, "transcript_path": e.transcript, "tool_input": map[string]any{"file_path": plan}}).Want(t, 0)
+		e.compact().Has(t, "plan: "+plan+"\n", "next step: 2. Next up.\n")
+	})
 	t.Run("a file outside the project keeps its whole path", func(t *testing.T) {
 		t.Parallel()
 		e := noteSetup(t)
