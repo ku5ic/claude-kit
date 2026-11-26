@@ -227,7 +227,7 @@ func (r *rotator) prune(dir string, days int, keep func(string) bool) (matched [
 // days old, and reports whether it went (would go, on a dry run). A linked
 // worktree goes through removeWorktree; a repo of its own goes whole.
 func (r *rotator) removeCheckout(path string, days int) bool {
-	if !cache.Older(newest(path), days, r.now) {
+	if changedWithin(path, days, r.now) {
 		return false
 	}
 	if fsx.IsFile(filepath.Join(path, ".git")) {
@@ -240,20 +240,21 @@ func (r *rotator) removeCheckout(path string, days int) bool {
 	return r.dryRun || os.RemoveAll(path) == nil
 }
 
-// newest is the latest modification under dir, dir included, symlinks
-// read as links.
-func newest(dir string) time.Time {
-	var latest time.Time
+// changedWithin is true when anything under dir, dir included, was modified
+// within days of now, symlinks read as links. The walk stops at the first.
+func changedWithin(dir string, days int, now time.Time) bool {
+	changed := false
 	_ = filepath.WalkDir(dir, func(_ string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
-		if info, err := d.Info(); err == nil && info.ModTime().After(latest) {
-			latest = info.ModTime()
+		if info, err := d.Info(); err == nil && !cache.Older(info.ModTime(), days, now) {
+			changed = true
+			return fs.SkipAll
 		}
 		return nil
 	})
-	return latest
+	return changed
 }
 
 // emptyFolders deletes, deepest first, each of folders past days by its

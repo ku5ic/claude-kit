@@ -146,6 +146,20 @@ func activatePlan(h *hook.Hook, dir, plan string) {
 	}
 }
 
+// activePlan is the path and text of the session's active plan in dir's
+// work tree; nil text when there's none or it can't be read.
+func activePlan(h *hook.Hook, dir string) (path string, plan []byte) {
+	marker, err := os.ReadFile(planFile(h, cache.PlanActive, dir))
+	if err != nil {
+		return "", nil
+	}
+	plan, err = os.ReadFile(string(marker))
+	if err != nil {
+		return "", nil
+	}
+	return string(marker), plan
+}
+
 // pickedUp is true for an edit of a plan the session continues without
 // having approved it, as after /clear: the main session's, outside plan
 // mode, of a plan with an open step that it didn't write new. A

@@ -45,9 +45,6 @@ func compactNote(h *hook.Hook, intro string, room int) string {
 	entries, _ := transcript.Load(h.Payload.String(hook.KeyTranscriptPath))
 	plan, files := planLines(h, cwd), editedFiles(h, entries, root)
 	title, report := stopReport(h, entries, root)
-	if plan == "" && report == nil && files == nil {
-		return ""
-	}
 	start := "<compaction-note>\n" + intro + "\n"
 	room -= len(end)
 	note := start + plan
@@ -65,12 +62,8 @@ func compactNote(h *hook.Hook, intro string, room int) string {
 // planLines names the session's active plan and its first open step, ""
 // when there's neither.
 func planLines(h *hook.Hook, cwd string) string {
-	path, err := os.ReadFile(planFile(h, cache.PlanActive, cwd))
-	if err != nil {
-		return ""
-	}
-	plan, err := os.ReadFile(string(path))
-	if err != nil {
+	path, plan := activePlan(h, cwd)
+	if plan == nil {
 		return ""
 	}
 	list := steps(plan)

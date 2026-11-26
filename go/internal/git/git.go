@@ -247,8 +247,8 @@ func Base(dir, explicit string) (string, bool) {
 // is stacked on, local or else on origin. False on a detached HEAD, or when
 // the setting names no other branch.
 func stackParent(dir string) (string, bool) {
-	current, err := Line(dir, "symbolic-ref", "--quiet", "--short", "HEAD")
-	if err != nil {
+	current, err := Branch(dir)
+	if err != nil || current == "" {
 		return "", false
 	}
 	parent, err := Line(dir, "config", "--get", "branch."+current+".gh-merge-base")

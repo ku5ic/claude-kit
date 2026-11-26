@@ -197,12 +197,8 @@ func sheet(cfg *config.Config, root, from, to, plan, title, more string) []strin
 // Otherwise it's each step ticked since the last sheet, between the
 // snapshots planTick took.
 func reviewSheets(h *hook.Hook, cfg *config.Config, cwd, root string) {
-	path, err := os.ReadFile(planFile(h, cache.PlanActive, root))
-	if err != nil {
-		return
-	}
-	plan, err := os.ReadFile(string(path))
-	if err != nil {
+	_, plan := activePlan(h, root)
+	if plan == nil {
 		return
 	}
 	more := func(label string) string {

@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"strings"
 	"text/tabwriter"
@@ -155,19 +154,18 @@ func scratchCheck(paths config.Paths, cwd string) check {
 // aren't read.
 func AttributionOn(paths config.Paths, cwd string) string {
 	for _, file := range settingsFiles(paths, cwd) {
-		var settings struct {
+		attribution := sources.Decode[struct {
 			Attribution json.RawMessage `json:"attribution"`
-		}
-		data, err := os.ReadFile(file)
-		if err != nil || json.Unmarshal(data, &settings) != nil || settings.Attribution == nil {
+		}](file, json.Unmarshal).Attribution
+		if attribution == nil {
 			continue
 		}
 		var parts struct {
 			Commit, PR *string
 			SessionURL *bool `json:"sessionUrl"`
 		}
-		off := string(settings.Attribution) == "false" ||
-			json.Unmarshal(settings.Attribution, &parts) == nil &&
+		off := string(attribution) == "false" ||
+			json.Unmarshal(attribution, &parts) == nil &&
 				parts.Commit != nil && *parts.Commit == "" && parts.PR != nil && *parts.PR == "" && parts.SessionURL != nil && !*parts.SessionURL
 		if off {
 			return ""
