@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/ku5ic/claude-kit/go/internal/classify"
 	"github.com/ku5ic/claude-kit/go/internal/enforce"
@@ -377,22 +378,22 @@ func asksForCommit(prompt string) bool {
 			continue
 		}
 		rest := prompt[m[1]:]
-		if end := strings.IndexAny(rest, ".!?;,\n"); end >= 0 {
+		if end := stopIndex(rest, ".!?;,\n"); end >= 0 {
 			rest = rest[:end]
 		}
-		if !objectPhrase(strings.FieldsFunc(strings.ToLower(rest), notWordRune)) {
+		if !objectPhrase(strings.FieldsFunc(strings.ToLower(rest), notPathRune)) {
 			continue
 		}
-		start := strings.LastIndexAny(prompt[:m[0]], ".!?\n") + 1
-		clause := prompt[strings.LastIndexAny(prompt[:m[0]], ".!?;,\n")+1 : m[0]]
+		start := lastStopIndex(prompt[:m[0]], ".!?\n") + 1
+		clause := prompt[lastStopIndex(prompt[:m[0]], ".!?;,\n")+1 : m[0]]
 		// A negation reaches across commas and line breaks: "Don't, under
 		// any circumstances, commit this." A ; or a sentence end stops it.
-		scope := prompt[strings.LastIndexAny(prompt[:m[0]], ".!?;")+1 : m[0]]
+		scope := prompt[lastStopIndex(prompt[:m[0]], ".!?;")+1 : m[0]]
 		if !leadsRequest(clause, prompt[start:m[0]]) || negated.MatchString(scope) {
 			continue
 		}
 		sentence := prompt[start:]
-		if end := strings.IndexAny(sentence, ".!?\n"); end >= 0 {
+		if end := stopIndex(sentence, ".!?\n"); end >= 0 {
 			if sentence[end] == '?' && !directAsk.MatchString(sentence) {
 				continue
 			}
@@ -563,7 +564,7 @@ func objectPhrase(words []string) bool {
 					return false
 				}
 			}
-		case slices.Contains(commitObjects, w) || slices.Contains(commitModifier, w) || stepNumber.MatchString(w):
+		case slices.Contains(commitObjects, w) || slices.Contains(commitModifier, w) || stepNumber.MatchString(w) || strings.ContainsAny(w, "./"):
 		default:
 			return false
 		}
@@ -573,3 +574,40 @@ func objectPhrase(words []string) bool {
 
 // notWordRune splits a clause into words, dropping punctuation.
 func notWordRune(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '\'' }
+
+// notPathRune splits a clause into words as notWordRune does, but keeps a
+// file name or path whole: "notes.txt", "go/internal/git.go", "pre-commit".
+func notPathRune(r rune) bool { return notWordRune(r) && !strings.ContainsRune("./_-", r) }
+
+// stopIndex is the index of the first byte of stops in s, or -1. A "."
+// that a letter or digit follows ("notes.txt", ".env") is part of a name,
+// not a stop.
+func stopIndex(s, stops string) int {
+	for i := range len(s) {
+		if isStop(s, i, stops) {
+			return i
+		}
+	}
+	return -1
+}
+
+// lastStopIndex is stopIndex from the end.
+func lastStopIndex(s, stops string) int {
+	for i := len(s) - 1; i >= 0; i-- {
+		if isStop(s, i, stops) {
+			return i
+		}
+	}
+	return -1
+}
+
+func isStop(s string, i int, stops string) bool {
+	if strings.IndexByte(stops, s[i]) < 0 {
+		return false
+	}
+	if s[i] != '.' || i+1 == len(s) {
+		return true
+	}
+	r, _ := utf8.DecodeRuneInString(s[i+1:])
+	return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+}
