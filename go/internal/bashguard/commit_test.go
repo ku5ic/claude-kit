@@ -225,6 +225,9 @@ func TestGuardCommitAsksForAnUnshownMessage(t *testing.T) {
 		"a file, then a deferred pair": {testutil.UserPrompt("commit main.go and push tomorrow")},
 		"a remark on a hook path":      {testutil.UserPrompt("commit hooks/pre-commit keeps failing")},
 		"an uppercase extension":       {testutil.UserPrompt("commit README.MD")},
+		"a negation before a name":     {testutil.UserPrompt("Never, per CONTRIBUTING.MD, commit it.")},
+		"a negation around a name":     {testutil.UserPrompt("Don't, as Foo.Bar says, commit this.")},
+		"a condition holding a name":   {testutil.UserPrompt("If the tests in Main.Go pass, commit it")},
 		"a task notification":          {testutil.UserPrompt("fix it"), map[string]any{"type": "user", "origin": map[string]any{"kind": "task-notification"}, "message": map[string]any{"content": "Commit and continue."}}},
 		"a peer session's message":     {testutil.UserPrompt("fix it"), map[string]any{"type": "user", "origin": map[string]any{"kind": "peer"}, "message": map[string]any{"content": "commit it"}}},
 	} {

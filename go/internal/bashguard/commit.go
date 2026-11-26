@@ -582,9 +582,13 @@ func notPathRune(r rune) bool { return notWordRune(r) && !strings.ContainsRune("
 // nameDot is whether the "." at s[i] is inside a file name: a lowercase
 // letter or digit follows it ("notes.txt", ".env", "v1.2"). Before a
 // capital it ends a sentence: "Commit this.Then push".
-func nameDot(s string, i int) bool {
+func nameDot(s string, i int) bool { return letterAfter(s, i, unicode.IsLower) }
+
+// letterAfter is whether s[i+1:] opens with a digit or a rune letter
+// accepts.
+func letterAfter(s string, i int, letter func(rune) bool) bool {
 	r, _ := utf8.DecodeRuneInString(s[i+1:])
-	return unicode.IsLower(r) || unicode.IsDigit(r)
+	return letter(r) || unicode.IsDigit(r)
 }
 
 // fileName is whether word, lowercased, is a file name or path: a "/" and
@@ -605,26 +609,30 @@ func fileName(word string) bool {
 // nameDot is part of a name, not a stop.
 func stopIndex(s, stops string) int {
 	for i := range len(s) {
-		if isStop(s, i, stops) {
+		if isStop(s, i, stops, unicode.IsLower) {
 			return i
 		}
 	}
 	return -1
 }
 
-// lastStopIndex is stopIndex from the end.
+// lastStopIndex is stopIndex from the end, where a "." before any letter
+// is part of a name: a negation or condition before "CONTRIBUTING.MD"
+// keeps its reach, so a doubtful split asks rather than allows.
 func lastStopIndex(s, stops string) int {
 	for i := len(s) - 1; i >= 0; i-- {
-		if isStop(s, i, stops) {
+		if isStop(s, i, stops, unicode.IsLetter) {
 			return i
 		}
 	}
 	return -1
 }
 
-func isStop(s string, i int, stops string) bool {
+// isStop is whether s[i] is one of stops, a "." only when no digit or
+// rune letter accepts follows it.
+func isStop(s string, i int, stops string, letter func(rune) bool) bool {
 	if strings.IndexByte(stops, s[i]) < 0 {
 		return false
 	}
-	return s[i] != '.' || !nameDot(s, i)
+	return s[i] != '.' || !letterAfter(s, i, letter)
 }
