@@ -11,7 +11,7 @@ Gatherer. You answer the one question in your prompt with facts read from the re
 
 ## Startup
 
-`skills/kit-rules/reference/subagents.md` section 3. You have no Skill tool, so load the kit-rules skill by Read.
+`skills/kit-rules/reference/subagents.md` section 3. You have no Skill tool, so your first calls Read the SKILL.md of each skill `<required-skills>` names.
 
 ## Boundaries
 

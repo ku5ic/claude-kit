@@ -24,7 +24,7 @@ func TestSuggestedSkipsGlobalAndDedupes(t *testing.T) {
 // gate's denial only while the gate is on to deny.
 func TestRequiredBlockStatesTheRulesAndTheGate(t *testing.T) {
 	ctx := Context{Required: []string{"kit-rules", "slop-patterns"}}
-	gated := "\n<required-skills>\nThis session's rules are in these skills: kit-rules, slop-patterns. The rules gate denies every other tool call until each loads through the Skill tool.\n" + requiredReferences + "\n</required-skills>\n"
+	gated := "\n<required-skills>\nThis session's rules are in these skills: kit-rules, slop-patterns. The rules gate denies every other tool call until each loads through the Skill tool, or without it a Read of its SKILL.md.\n" + requiredReferences + "\n</required-skills>\n"
 	if got := ctx.RequiredBlock(true); got != gated {
 		t.Errorf("gated:\n%s\nwant\n%s", got, gated)
 	}

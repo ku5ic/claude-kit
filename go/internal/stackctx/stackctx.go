@@ -260,7 +260,7 @@ func (c Context) RequiredBlock(gated bool) string {
 	}
 	how := "Each loads through the Skill tool."
 	if gated {
-		how = "The rules gate denies every other tool call until each loads through the Skill tool."
+		how = "The rules gate denies every other tool call until each loads through the Skill tool, or without it a Read of its SKILL.md."
 	}
 	return "\n<required-skills>\nThis session's rules are in these skills: " + strings.Join(c.Required, ", ") + ". " + how + "\n" +
 		requiredReferences + "\n</required-skills>\n"
