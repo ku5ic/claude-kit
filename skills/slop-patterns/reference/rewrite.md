@@ -20,6 +20,7 @@ Then reread the paragraph. Cutting one sentence often shows the one beside it wa
 | "Refactored the parser to improve readability."                    | What changed                | "Split the parser's 300-line switch into one function per node type." |
 | "Moved the check to bashguard while preserving existing behavior." | Nothing: the tests say that | "Moved the check to bashguard."                                       |
 | "I hope this helps! Let me know if you need anything else."        | None                        | (cut)                                                                 |
+| "The gate is strict: nothing lands unchecked."                     | The consequence             | "The gate is strict. Nothing lands unchecked."                        |
 
 ## When the hit is wrong
 
