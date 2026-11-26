@@ -98,6 +98,10 @@ func TestUndeclaredJS(t *testing.T) {
 		plugin := t.TempDir()
 		testutil.Write(t, filepath.Join(plugin, ".claude-plugin", "plugin.json"), `{"name":"p"}`)
 		testutil.Write(t, filepath.Join(plugin, "mods", "package.json"), `{"private":true}`)
+		testutil.Git(t, plugin, "init", "-q")
+		nested := filepath.Join(plugin, "scratch", "app")
+		testutil.Write(t, filepath.Join(nested, "package.json"), `{"private":true}`)
+		testutil.Git(t, nested, "init", "-q")
 		mod := "import type { On } from 'claude-code'\nimport { test } from 'claude-code/testing'"
 		for _, tc := range []struct {
 			path, src string
@@ -106,6 +110,7 @@ func TestUndeclaredJS(t *testing.T) {
 			{filepath.Join(plugin, "mods", "a", "index.ts"), mod, nil},
 			{filepath.Join(plugin, "mods", "a", "index.ts"), mod + "\nimport x from 'claude-code-extra'", []string{"claude-code-extra"}},
 			{path, mod, []string{"claude-code"}},
+			{filepath.Join(nested, "src", "x.ts"), mod, []string{"claude-code"}},
 		} {
 			if got := Undeclared(nil, tc.path, "", tc.src); !slices.Equal(got, tc.want) {
 				t.Errorf("Undeclared(%s) = %q, want %q", tc.path, got, tc.want)

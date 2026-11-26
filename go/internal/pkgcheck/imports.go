@@ -20,7 +20,9 @@ var (
 		"dgram", "diagnostics_channel", "dns", "domain", "events", "fs", "http", "http2", "https", "inspector", "module", "net",
 		"os", "path", "perf_hooks", "process", "punycode", "querystring", "readline", "repl", "stream", "string_decoder", "sys",
 		"timers", "tls", "trace_events", "tty", "url", "util", "v8", "vm", "wasi", "worker_threads", "zlib"}
-	depFields = []string{"dependencies", "devDependencies", "peerDependencies", "optionalDependencies"}
+	// pluginManifest marks a Claude Code plugin's root.
+	pluginManifest = filepath.Join(".claude-plugin", "plugin.json")
+	depFields      = []string{"dependencies", "devDependencies", "peerDependencies", "optionalDependencies"}
 	// aliasConfigs are the files that map an import prefix to a path.
 	aliasConfigs = []string{"tsconfig*.json", "jsconfig*.json", "vite.config.*", "vitest.config.*", "webpack.config.*",
 		"next.config.*", "nuxt.config.*", "svelte.config.*", "astro.config.*", "babel.config.*", ".babelrc*"}
@@ -160,7 +162,9 @@ func jsUndeclared(path, before, after string) []string {
 		return nil
 	}
 	// Claude Code gives a plugin's hooks module this one, so no manifest does.
-	if fsx.FindUp(filepath.Dir(path), "/", ".claude-plugin/plugin.json") != "" {
+	// A checkout nested in the plugin's tree is its own project: its .git
+	// ends the search.
+	if found := fsx.FindUp(filepath.Dir(path), "/", pluginManifest, ".git"); filepath.Base(found) == filepath.Base(pluginManifest) {
 		declared["claude-code"] = true
 	}
 	var out []string
