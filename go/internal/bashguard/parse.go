@@ -52,7 +52,10 @@ type Call struct {
 	Heredocs []string
 	// Exports are the names an export declares, with a value or without.
 	Exports []string
-	start   int // source offset of the first word
+	// decl is the declaration keyword (export, declare, local, readonly,
+	// typeset) this call came from, "" for a plain command.
+	decl  string
+	start int // source offset of the first word
 }
 
 // Segment is one pipeline: the commands between &&, ||, ;, &, or a newline.
@@ -257,9 +260,10 @@ func (c *collector) stmt(src string, s *syntax.Stmt) {
 			call, ok = &syntax.CallExpr{}, true
 		}
 		var exports []string
+		keyword := ""
 		if decl, isDecl := p.Cmd.(*syntax.DeclClause); isDecl {
 			call, ok = c.declCall(src, decl), true
-			exports = exportNames(decl)
+			exports, keyword = exportNames(decl), decl.Variant.Value
 		}
 		if !ok {
 			// ( ... ) or { ... } inside a pipeline: its statements and its
@@ -271,7 +275,7 @@ func (c *collector) stmt(src string, s *syntax.Stmt) {
 			continue
 		}
 		cl := c.call(src, p, call)
-		cl.Exports = exports
+		cl.Exports, cl.decl = exports, keyword
 		seg.Calls = append(seg.Calls, cl)
 	}
 	if len(seg.Calls) > 0 {

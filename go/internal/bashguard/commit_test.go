@@ -436,20 +436,32 @@ func TestShown(t *testing.T) {
 	}
 }
 
-// A commit in a throwaway repo needs no approval: its -C names scratch, or
-// a mktemp -d dir the command made that can't be empty there, as an empty
-// -C commits in the cwd's repo. One in the project still asks.
+// A commit in a throwaway repo needs no approval: git itself says the
+// repo it commits to is under scratch or the temp dir, or the command
+// git inits it first and only commits once that init worked. A command
+// that could point git elsewhere (a GIT_ name, a wrapper, a redirect, a
+// command beyond git, cd, mkdir, and set) still asks, as does a scratch
+// dir with no repo of its own, where git finds the project's.
 func TestGuardCommitInAThrowawayRepoNeedsNoApproval(t *testing.T) {
 	gitleaksStub(t, 0)
 	k := newSandbox(t)
 	k.transcript = filepath.Join(t.TempDir(), "t.jsonl")
 	testutil.AppendJSONL(t, k.transcript, testutil.UserPrompt("fix it"))
+	scratch := filepath.Join(k.claude, "scratch")
+	testutil.Mkdir(t, filepath.Join(scratch, "r"))
+	testutil.Git(t, filepath.Join(scratch, "r"), "init", "-q")
+	testutil.Mkdir(t, filepath.Join(scratch, "plain"))
+	project := testutil.Physical(t, t.TempDir())
+	testutil.Git(t, project, "init", "-q")
+	testutil.GitID(t, project, "commit", "-q", "--allow-empty", "-m", "x")
+	testutil.Git(t, project, "worktree", "add", "-q", "--detach", filepath.Join(scratch, "wt"))
 	for _, cmd := range []string{
-		`t=$(mktemp -d) && git -C "$t" commit -q --allow-empty -m "fix: add sums"`,
-		`set -e; t=$(mktemp -d); git -C "$t" init -q; git -C "$t" commit -q --allow-empty -m "fix: add sums"`,
-		`git -C "$(kit scratch-dir)/r" commit -m "fix: add sums"`,
 		`git -C ~/.claude/scratch/r commit -m "fix: add sums"`,
 		`cd ~/.claude/scratch/r && git commit -m "fix: add sums"`,
+		`git -C ~/.claude/scratch/r add -A && git -C ~/.claude/scratch/r commit -q -m "fix: add sums" >/dev/null 2>&1`,
+		`t=$(mktemp -d) && git -C "$t" init -q && git -C "$t" commit -q --allow-empty -m "fix: add sums"`,
+		`set -e; t=$(mktemp -d); git -C "$t" init -q; git -C "$t" commit -q --allow-empty -m "fix: add sums"`,
+		`git -C ~/.claude/scratch/new init -q && git -C ~/.claude/scratch/new commit --allow-empty -m "fix: add sums"`,
 	} {
 		if r := k.commit("", cmd); strings.Contains(r.Output, `"permissionDecision":"ask"`) {
 			t.Errorf("%s: asked for approval:\n%s", cmd, r.Output)
@@ -457,15 +469,25 @@ func TestGuardCommitInAThrowawayRepoNeedsNoApproval(t *testing.T) {
 	}
 	for _, cmd := range []string{
 		`git commit -m "fix: add sums"`,
-		`t=$(mktemp -d); git -C "$t" commit -m "fix: add sums"`,
-		`git -C "$(kit scratch-dir)/../.." commit -m "fix: add sums"`,
-		`git -C ~/.claude/scratch/r -C ../.. commit -m "fix: add sums"`,
-		`git -C ~/.claude/scratch/r commit -m "fix: add sums" && git commit -m "fix: add sums"`,
-		`git -C ~/.claude/scratch/r --git-dir=$PWD/.git commit -m "fix: add sums"`,
-		`git -C ~/.claude/scratch/r --work-tree . commit -m "fix: add sums"`,
+		`git -C ~/.claude/scratch/plain commit -m "fix: add sums"`,
+		`git -C ~/.claude/scratch/wt commit -m "fix: add sums"`,
+		`git -C ~/.claude/scratch/wt init -q && git -C ~/.claude/scratch/wt commit -m "fix: add sums"`,
+		`git -C ~/.claude/scratch/new commit -m "fix: add sums"`,
+		`export "GIT"_DIR=` + project + `/.git; git -C ~/.claude/scratch/r commit -m "fix: add sums"`,
+		`GIT_DIR=` + project + `/.git git -C ~/.claude/scratch/r commit -m "fix: add sums"`,
+		`env GIT_DIR=` + project + `/.git git -C ~/.claude/scratch/r commit -m "fix: add sums"`,
+		`git -C ~/.claude/scratch/r --git-dir=` + project + `/.git commit -m "fix: add sums"`,
 		`git -C ~/.claude/scratch/r -c core.worktree=/x commit -m "fix: add sums"`,
-		`GIT_DIR=$PWD/.git git -C ~/.claude/scratch/r commit -m "fix: add sums"`,
-		`export GIT_WORK_TREE=$PWD; cd ~/.claude/scratch/r && git commit -m "fix: add sums"`,
+		`git -C ~/.claude/scratch/r -C ../.. commit -m "fix: add sums"`,
+		`mkdir -p ~/.claude/scratch/n && echo "gitdir: ` + project + `/.git" > ~/.claude/scratch/n/.git && git -C ~/.claude/scratch/n commit -m "fix: add sums"`,
+		`git -C ~/.claude/scratch/new init -q --separate-git-dir=` + project + `/.git && git -C ~/.claude/scratch/new commit -m "fix: add sums"`,
+		`t=$(mktemp -d) && git -C "$t" commit -m "fix: add sums"`,
+		`t=$(mktemp -d); git -C "$t" init -q; git -C "$t" commit -m "fix: add sums"`,
+		`set -e; t=$(mktemp -d); git -C "$t" init -q || true; git -C "$t" commit -m "fix: add sums"`,
+		`git -C "$(kit scratch-dir)/r" commit -m "fix: add sums"`,
+		`sudo git -C ~/.claude/scratch/r commit -m "fix: add sums"`,
+		`eval 'cd /'; git -C ~/.claude/scratch/r commit -m "fix: add sums"`,
+		`git -C ~/.claude/scratch/r commit -m "fix: add sums" && git commit -m "fix: add sums"`,
 	} {
 		if r := k.commit("", cmd); !strings.Contains(r.Output, `"permissionDecision":"ask"`) {
 			t.Errorf("%s: no ask:\n%s", cmd, r.Output)

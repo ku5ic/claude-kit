@@ -27,7 +27,6 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/layout"
 	"github.com/ku5ic/claude-kit/go/internal/md"
 	"github.com/ku5ic/claude-kit/go/internal/proc"
-	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/resolve/kittool"
 	"github.com/ku5ic/claude-kit/go/internal/run"
 	"github.com/ku5ic/claude-kit/go/internal/slop"
@@ -147,6 +146,7 @@ func detector(h *hook.Hook) *slop.Detector {
 // found is false when none commits, unparsed true when part of the command
 // didn't parse.
 type commit struct {
+	sub  string // the git subcommand: commit, or another for gitCalls
 	args []string
 	// repo is the directory it commits in: its git -C directory, against
 	// where the cds before it moved, "" when an expansion names it.
@@ -171,60 +171,33 @@ func (c commit) commits(cmd string) bool {
 	return c.found || c.unparsed && commitLine.MatchString(cmd)
 }
 
-// throwaway is true when every commit runs in a repo under scratch or a
-// fresh mktemp -d dir the command made: its one -C word is a scratch
-// path, or a variable that can't be empty there (an empty -C is the cwd's
-// repo), or with no -C, the cds before it moved there. A GIT_ variable
-// anywhere in cmd can point git at another repo, so none is.
-func throwaway(h *hook.Hook, cmd string, commits []commit) bool {
-	if gitEnv.MatchString(cmd) {
-		return false
-	}
-	segs, _ := parseAll(cmd)
-	for _, c := range commits {
-		if c.seg < 0 || c.elsewhere {
-			return false
-		}
-		if c.dir == nil {
-			if c.repo == "" || !project.IsScratch(h.Paths, c.repo) {
-				return false
-			}
-			continue
-		}
-		st := &state{dirs: dirs{home: h.Home, cwd: c.cwd}, h: h}
-		st.begin(segs)
-		for i, seg := range segs[:c.seg] {
-			st.track(i, seg)
-		}
-		st.at = c.seg
-		if !st.scratchWord(*c.dir, false) {
-			return false
-		}
-	}
-	return true
-}
-
-// gitEnv is a GIT_ variable, which can name another repo, index, or config.
-var gitEnv = regexp.MustCompile(`\bGIT_[A-Z0-9_]+`)
-
 // commitCalls parses cmd, run from cwd, for every git commit call in it;
 // with none, it's one commit that isn't found.
 func commitCalls(cmd, home, cwd string) []commit {
 	segs, unparsed := parseAll(cmd)
+	out := slices.DeleteFunc(gitCalls(segs, home, cwd, unparsed), func(c commit) bool { return c.sub != "commit" })
+	if len(out) == 0 {
+		return []commit{{unparsed: unparsed}}
+	}
+	return out
+}
+
+// gitCalls is every git call of segs, run from cwd, read as a commit is.
+func gitCalls(segs []Segment, home, cwd string, unparsed bool) []commit {
 	var out []commit
 	for w := range walk(segs, home, cwd) {
 		if w.name != "git" {
 			continue
 		}
-		if sub, args, dir := classify.GitSubcommand(values(w.call.Words[w.i+1:])); sub == "commit" {
+		if sub, args, dir := classify.GitSubcommand(values(w.call.Words[w.i+1:])); sub != "" {
 			repo := resolveDir(home, w.cwd, dir)
 			if strings.ContainsAny(repo, "$`") {
 				repo = ""
 			}
-			c := commit{args: args, repo: repo, found: true, unparsed: unparsed, start: w.call.start, cwd: w.cwd}
+			c := commit{sub: sub, args: args, repo: repo, found: true, unparsed: unparsed, start: w.call.start, cwd: w.cwd}
 			// Read before the subcommand, since git commit -C reuses a message.
 			words := w.call.Words[w.i+1:]
-			for i := 0; i < len(words) && words[i].Value != "commit"; i++ {
+			for i := 0; i < len(words) && words[i].Value != sub; i++ {
 				switch v := words[i].Value; {
 				case v == "-C" && i+1 < len(words) && c.dir == nil:
 					c.dir = &words[i+1]
@@ -239,9 +212,6 @@ func commitCalls(cmd, home, cwd string) []commit {
 			})
 			out = append(out, c)
 		}
-	}
-	if len(out) == 0 {
-		return []commit{{unparsed: unparsed}}
 	}
 	return out
 }

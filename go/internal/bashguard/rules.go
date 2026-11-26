@@ -784,9 +784,7 @@ func (st *state) nonEmpty(name string, colonQ bool, use int) bool {
 	if strings.HasPrefix(assign.src[start:], "!") || strings.HasSuffix(strings.TrimRight(assign.src[:start], " \t"), "!") {
 		return false
 	}
-	after := strings.TrimLeft(assign.src[assign.end:], " \t")
-	alone := after == "" || after[0] == ';' && !strings.HasPrefix(after, ";;") || after[0] == '\n'
-	if alone && errexit(st.segs[:set]) {
+	if standalone(assign) && errexit(st.segs[:set]) {
 		return true
 	}
 	next := st.segs[use]
