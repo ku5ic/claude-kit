@@ -462,6 +462,7 @@ func TestGuardCommitInAThrowawayRepoNeedsNoApproval(t *testing.T) {
 		`t=$(mktemp -d) && git -C "$t" init -q && git -C "$t" commit -q --allow-empty -m "fix: add sums"`,
 		`set -e; t=$(mktemp -d); git -C "$t" init -q; git -C "$t" commit -q --allow-empty -m "fix: add sums"`,
 		`git -C ~/.claude/scratch/new init -q && git -C ~/.claude/scratch/new commit --allow-empty -m "fix: add sums"`,
+		`git -C ~/.claude/scratch/plain init -q -b main && git -C ~/.claude/scratch/plain commit --allow-empty -m "fix: add sums"`,
 	} {
 		if r := k.commit("", cmd); strings.Contains(r.Output, `"permissionDecision":"ask"`) {
 			t.Errorf("%s: asked for approval:\n%s", cmd, r.Output)
@@ -490,6 +491,11 @@ func TestGuardCommitInAThrowawayRepoNeedsNoApproval(t *testing.T) {
 		`git -C ~/.claude/scratch/r commit -m "fix: add sums" && git commit -m "fix: add sums"`,
 		`git -C ~/.claude/scratch/r diff --output=x && git -C ~/.claude/scratch/r commit -m "fix: add sums"`,
 		`git -C ~/.claude/scratch/r log --output=x && git -C ~/.claude/scratch/r commit -m "fix: add sums"`,
+		// init sub makes plain/sub/.git, so the commit from plain finds the
+		// repo above it.
+		`git -C ~/.claude/scratch/plain init sub && git -C ~/.claude/scratch/plain add -A && git -C ~/.claude/scratch/plain commit -m "fix: add sums"`,
+		// A failed cd leaves the shell where it was, and init runs there.
+		`cd ~/.claude/scratch/missing; git init -q && git add -A && git commit -m "fix: add sums"`,
 	} {
 		if r := k.commit("", cmd); !strings.Contains(r.Output, `"permissionDecision":"ask"`) {
 			t.Errorf("%s: no ask:\n%s", cmd, r.Output)

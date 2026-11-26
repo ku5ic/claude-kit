@@ -102,8 +102,13 @@ func fixedShape(segs []Segment) bool {
 	return true
 }
 
+// initValue are the git init flags that take the next word as their value.
+var initValue = nameSet("-b", "--initial-branch", "--object-format", "--ref-format")
+
 // plainGit is true for git args with only -C and --no-pager before one
-// of throwawayGit, and no init that puts its git dir or hooks elsewhere.
+// of throwawayGit, and no init that puts its git dir or hooks elsewhere,
+// or names a directory: init sub makes sub/.git, and a commit from the
+// directory above finds whatever repo encloses it.
 func plainGit(args []string) bool {
 	i := 0
 	for i < len(args) && strings.HasPrefix(args[i], "-") {
@@ -119,9 +124,18 @@ func plainGit(args []string) bool {
 	if i >= len(args) || !throwawayGit[args[i]] {
 		return false
 	}
-	return args[i] != "init" || !slices.ContainsFunc(args[i+1:], func(w string) bool {
-		return strings.HasPrefix(w, "--separate-git-dir") || strings.HasPrefix(w, "--template")
-	})
+	if args[i] != "init" {
+		return true
+	}
+	for j := i + 1; j < len(args); j++ {
+		switch w := args[j]; {
+		case strings.HasPrefix(w, "--separate-git-dir"), strings.HasPrefix(w, "--template"), !strings.HasPrefix(w, "-"):
+			return false
+		case initValue[w]:
+			j++
+		}
+	}
+	return true
 }
 
 // lands is true when commit c of segs lands in a throwaway repo: an
@@ -134,9 +148,11 @@ func lands(h *hook.Hook, segs []Segment, calls []commit, c commit) bool {
 	if init, ok := initFirst(segs, calls, c); ok {
 		if literal {
 			// A .git there now may be a worktree's file, whose init
-			// reinitializes the repo it points at.
+			// reinitializes the repo it points at. A cd into a directory
+			// that isn't there fails and leaves the shell where it was;
+			// git -C one fails the init itself.
 			_, err := os.Lstat(filepath.Join(c.repo, ".git"))
-			return project.IsScratch(h.Paths, c.repo) && errors.Is(err, os.ErrNotExist)
+			return project.IsScratch(h.Paths, c.repo) && errors.Is(err, os.ErrNotExist) && (c.dir != nil || fsx.IsDir(c.repo))
 		}
 		return freshTemp(h, segs, c, init)
 	}
