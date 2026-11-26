@@ -15,16 +15,19 @@ import (
 )
 
 // Root resolves the project root for cwd, as `kit project-root`:
-//  1. the git worktree root, or when git can't run, the nearest ancestor
-//     holding a .git directory or file;
+//  1. the nearest ancestor holding a .git directory or file, symlinks
+//     resolved as git resolves them, else the git worktree root;
 //  2. cwd or up to 2 ancestors holding a language manifest;
 //  3. cwd itself, with anchored false.
+//
+// The .git walk comes first: hooks call this on every Read and Edit, and an
+// exec costs more than the walk (bashguard/packages.go does the same).
 func Root(cwd string) (root string, anchored bool) {
+	if dotGit := fsx.FindUp(cwd, "/", ".git"); dotGit != "" {
+		return fsx.PhysicalPath(filepath.Dir(dotGit)), true
+	}
 	if top := git.Toplevel(cwd); top != "" {
 		return top, true
-	}
-	if dotGit := fsx.FindUp(cwd, "/", ".git"); dotGit != "" {
-		return filepath.Dir(dotGit), true
 	}
 	anchors := sources.Anchors()
 	dir := cwd

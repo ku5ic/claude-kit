@@ -28,6 +28,8 @@ func ADRNudge(h *hook.Hook) error {
 	if file == "" || (tool != "Read" && !slices.Contains(filePathTools, tool)) || project.IsScratch(h.Paths, file) {
 		return nil
 	}
+	// Root names the repo with symlinks resolved, so the file is too.
+	file = fsx.PhysicalPath(file)
 	root, anchored := project.Root(filepath.Dir(file))
 	dir := adr.Dir(root)
 	if !anchored || dir == "" || fsx.Within(dir, file) {

@@ -174,6 +174,24 @@ func TestRoot(t *testing.T) {
 			anchored: true,
 		},
 		{
+			// git answers with symlinks resolved, and so must the .git walk.
+			name: "a repo reached through a symlink, as git names it",
+			setup: func(t *testing.T, dir string) (string, string) {
+				real := filepath.Join(dir, "real")
+				testutil.Git(t, dir, "init", "-q", "-b", "main", real)
+				testutil.Put(t, real, "src/.keep", "")
+				if err := os.Symlink(real, filepath.Join(dir, "link")); err != nil {
+					t.Fatal(err)
+				}
+				cwd := filepath.Join(dir, "link", "src")
+				if top := git.Toplevel(cwd); top != real {
+					t.Fatalf("git names %q, the test expects %q", top, real)
+				}
+				return cwd, real
+			},
+			anchored: true,
+		},
+		{
 			// As in a sandbox where the git binary can't run: rev-parse
 			// fails, and the .git entry still marks the repo.
 			name: "a .git entry git can't read, from a nested subdirectory",

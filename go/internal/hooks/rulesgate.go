@@ -48,9 +48,6 @@ func RulesGate(h *hook.Hook) error {
 		return nil
 	}
 	required := requiredSkills(cfg)
-	if tool == "Read" && slices.ContainsFunc(required, func(skill string) bool { return inSkill(h, skill, p.FilePath()) }) {
-		return nil
-	}
 	agent := p.String(hook.KeyAgentID)
 	marker := func(skill string) string { return rulesMarker(h, agent, skill) }
 	if marker(rulesSkill) == "" {
@@ -72,6 +69,11 @@ func RulesGate(h *hook.Hook) error {
 		return true
 	})
 	if len(missing) == 0 {
+		return nil
+	}
+	// Reading a required skill's own files is how it loads. Checked only now:
+	// finding the skill dirs spawns git, which a loaded session never needs.
+	if tool == "Read" && slices.ContainsFunc(required, func(skill string) bool { return inSkill(h, skill, p.FilePath()) }) {
 		return nil
 	}
 	missing, err := notLoadedBy(h, agent, missing)

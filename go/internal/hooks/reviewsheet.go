@@ -309,6 +309,11 @@ func PlanTick(h *hook.Hook) error {
 	// one its approval keyed the marker by. ~/.claude/plans counts as
 	// outside even when it's under git, as in a dotfiles repo.
 	path := h.Payload.FilePath()
+	// Only a .md becomes an active plan (activatePlan's callers), so any
+	// other edit ends here, before git runs.
+	if filepath.Ext(path) != ".md" {
+		return nil
+	}
 	root := ""
 	if !fsx.Within(h.Paths.PlansHome(), path) {
 		root = git.Toplevel(filepath.Dir(path))
