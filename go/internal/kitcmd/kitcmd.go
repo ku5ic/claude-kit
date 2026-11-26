@@ -55,24 +55,41 @@ const descColumn = 29
 func Usage() string {
 	var b strings.Builder
 	b.WriteString("usage: kit <command> [args]\n\n")
-	indent := strings.Repeat(" ", descColumn)
 	for _, c := range Commands {
-		spec := "  " + strings.TrimSpace(c.Name+" "+c.Args)
-		lines := strings.Split(c.Desc, "\n")
-		if c.Desc == "" {
-			lines = nil
-		}
-		if len(spec)+2 <= descColumn && len(lines) > 0 {
-			b.WriteString(spec + strings.Repeat(" ", descColumn-len(spec)) + lines[0] + "\n")
-			lines = lines[1:]
-		} else {
-			b.WriteString(spec + "\n")
-		}
-		for _, l := range lines {
-			b.WriteString(indent + l + "\n")
-		}
+		writeUsage(&b, c)
 	}
 	return b.String()
+}
+
+// UsageOf is name's lines of the usage text, or "" for a name Commands
+// doesn't list.
+func UsageOf(name string) string {
+	for _, c := range Commands {
+		if c.Name == name {
+			var b strings.Builder
+			writeUsage(&b, c)
+			return b.String()
+		}
+	}
+	return ""
+}
+
+func writeUsage(b *strings.Builder, c Command) {
+	indent := strings.Repeat(" ", descColumn)
+	spec := "  " + strings.TrimSpace(c.Name+" "+c.Args)
+	lines := strings.Split(c.Desc, "\n")
+	if c.Desc == "" {
+		lines = nil
+	}
+	if len(spec)+2 <= descColumn && len(lines) > 0 {
+		b.WriteString(spec + strings.Repeat(" ", descColumn-len(spec)) + lines[0] + "\n")
+		lines = lines[1:]
+	} else {
+		b.WriteString(spec + "\n")
+	}
+	for _, l := range lines {
+		b.WriteString(indent + l + "\n")
+	}
 }
 
 // ReadOnly is true for a command a lone call of needs no prompt.

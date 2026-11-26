@@ -8,7 +8,7 @@ Every command hook and helper is one Go binary (`bin/kit-<version>-<os>-<arch>`,
 
 ## The kit CLI
 
-Every command hook runs through one `kit` binary, and the same binary answers the questions the hooks ask, so you can ask them too. `kit help` lists every command with its flags.
+Every command hook runs through one `kit` binary, and the same binary answers the questions the hooks ask, so you can ask them too. `kit help` lists every command with its flags, and `kit <command> --help` prints that command's lines.
 
 | I want to                                                        | Run                                                   |
 | ---------------------------------------------------------------- | ----------------------------------------------------- |

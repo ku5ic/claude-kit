@@ -99,6 +99,12 @@ func run(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "kit: unknown command %q\n%s", name, kitcmd.Usage())
 		return 2
 	}
+	if len(rest) > 0 && (rest[0] == "-h" || rest[0] == "--help") {
+		if usage := kitcmd.UsageOf(name); usage != "" {
+			fmt.Fprint(stdout, usage)
+			return 0
+		}
+	}
 	e := &env{stdout: stdout, stderr: stderr}
 	if cmd.needs >= needsEnv {
 		var err error
@@ -412,6 +418,10 @@ func cmdScratchDir(e *env, args []string) int {
 	if len(args) == 0 {
 		fmt.Fprintln(e.stdout, dir)
 		return 0
+	}
+	if strings.HasPrefix(args[0], "-") {
+		fmt.Fprintf(e.stderr, "kit scratch-dir: kind %q is a flag\n%s", args[0], kitcmd.UsageOf("scratch-dir"))
+		return 2
 	}
 	slug := ""
 	if len(args) > 1 {

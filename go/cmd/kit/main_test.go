@@ -178,6 +178,32 @@ func TestHelpAndVersionNeedNoHome(t *testing.T) {
 	}
 }
 
+// A subcommand's -h or --help prints its own usage line and runs nothing:
+// scratch-dir once printed a report path named --help.md.
+func TestASubcommandsHelpPrintsItsUsageLine(t *testing.T) {
+	sandbox(t)
+	t.Setenv("HOME", "")
+	for _, c := range []struct{ arg, want string }{
+		{"scratch-dir --help", "  scratch-dir [kind [slug]]  scratch directory, or a report path in it\n"},
+		{"stats --help", "  stats [--rule r] [--since days] [--unused]\n"},
+		{"blast-radius -h", "  blast-radius <file> [symbol]\n"},
+	} {
+		code, stdout, stderr := runFrom(t, tmp(t), strings.Fields(c.arg)...)
+		if code != 0 || !strings.HasPrefix(stdout, c.want) || strings.Contains(stdout, "usage: kit <command>") || stderr != "" {
+			t.Errorf("kit %s: exit %d, stdout %q, want it to open with %q; stderr %q", c.arg, code, stdout, c.want, stderr)
+		}
+	}
+}
+
+func TestScratchDirRefusesAKindThatIsAFlag(t *testing.T) {
+	t.Parallel()
+	repo := gitInit(t, filepath.Join(tmp(t), "repo"))
+	code, stdout, stderr := call(t, cmdScratchDir, repo, "-x")
+	if code != 2 || stdout != "" || !strings.Contains(stderr, `"-x"`) {
+		t.Errorf("exit %d, stdout %q, stderr %q; want exit 2, no path, and the flag named", code, stdout, stderr)
+	}
+}
+
 func TestScratchDirFollowsClaudeConfigDir(t *testing.T) {
 	home, configDir := sandbox(t)
 	outside := mkdir(t, filepath.Join(tmp(t), "plain/a/b"))
