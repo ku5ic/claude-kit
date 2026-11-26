@@ -181,6 +181,12 @@ func (e Entry) ToolUses() []Block {
 // Each calls fn for every entry in the transcript at path, in order;
 // unparseable lines are skipped.
 func Each(path string, fn func(Entry)) error {
+	return EachMatching(path, func([]byte) bool { return true }, fn)
+}
+
+// EachMatching is Each over only the lines keep accepts: a byte test that
+// spares parsing the rest, which in a long session is most of it.
+func EachMatching(path string, keep func(line []byte) bool, fn func(Entry)) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return err
@@ -189,6 +195,9 @@ func Each(path string, fn func(Entry)) error {
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 1024*1024), 64*1024*1024)
 	for n := 1; scanner.Scan(); n++ {
+		if !keep(scanner.Bytes()) {
+			continue
+		}
 		if e, ok := parse(scanner.Bytes()); ok {
 			e.Line = n
 			fn(e)

@@ -1,6 +1,7 @@
 package hooks
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"slices"
@@ -42,9 +43,9 @@ func compactNote(h *hook.Hook, intro string, room int) string {
 	cwd := h.Payload.Cwd()
 	root := git.Toplevel(cwd)
 	// A transcript that can't be read leaves the plan and the report.
-	entries, _ := transcript.Load(h.Payload.String(hook.KeyTranscriptPath))
-	plan, files := planLines(h, cwd), editedFiles(h, entries, root)
-	title, report := stopReport(h, entries, root)
+	edits, started := sessionEdits(h.Payload.String(hook.KeyTranscriptPath))
+	plan, files := planLines(h, cwd), editedFiles(h, edits, root)
+	title, report := stopReport(h, started, root)
 	start := "<compaction-note>\n" + intro + "\n"
 	room -= len(end)
 	note := start + plan
@@ -77,10 +78,10 @@ func planLines(h *hook.Hook, cwd string) string {
 
 // stopReport is the lines of root's last Stop report and the title they go
 // under; none when it was written before the session began.
-func stopReport(h *hook.Hook, entries []transcript.Entry, root string) (title string, lines []string) {
+func stopReport(h *hook.Hook, started time.Time, root string) (title string, lines []string) {
 	path := cache.StopReport(h.Paths.CacheDir(), root)
 	info, err := os.Stat(path)
-	if root == "" || err != nil || info.ModTime().Before(startedAt(entries)) {
+	if root == "" || err != nil || info.ModTime().Before(started) {
 		return "", nil
 	}
 	data, err := os.ReadFile(path)
@@ -90,20 +91,25 @@ func stopReport(h *hook.Hook, entries []transcript.Entry, root string) (title st
 	return "last Stop checks, at " + info.ModTime().Format("2006-01-02 15:04") + ":", lines
 }
 
-// startedAt is the first time entries hold, zero when none does.
-func startedAt(entries []transcript.Entry) time.Time {
-	for _, e := range entries {
-		if at, err := time.Parse(time.RFC3339, e.Timestamp); err == nil {
-			return at
+// sessionEdits is the file each write tool call of the transcript at path
+// targets, and the first time it holds, zero when none does. Only lines
+// holding a tool call, and those before the first time, are parsed.
+func sessionEdits(path string) (edits []string, started time.Time) {
+	_ = transcript.EachMatching(path, func(line []byte) bool {
+		return started.IsZero() || bytes.Contains(line, []byte(`"tool_use"`))
+	}, func(e transcript.Entry) {
+		if at, err := time.Parse(time.RFC3339, e.Timestamp); err == nil && started.IsZero() {
+			started = at
 		}
-	}
-	return time.Time{}
+		edits = append(edits, transcript.Edits([]transcript.Entry{e})...)
+	})
+	return edits, started
 }
 
-// editedFiles is every file the session's write tools targeted or its Bash
-// commands changed, sorted, relative to root inside it.
-func editedFiles(h *hook.Hook, entries []transcript.Entry, root string) []string {
-	files := transcript.Edits(entries)
+// editedFiles is every file the session's write tools targeted, edits, or
+// its Bash commands changed, sorted, relative to root inside it.
+func editedFiles(h *hook.Hook, edits []string, root string) []string {
+	files := slices.Clone(edits)
 	for _, changed := range bashEdits(h) {
 		files = append(files, changed...)
 	}

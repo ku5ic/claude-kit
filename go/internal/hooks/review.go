@@ -1,6 +1,7 @@
 package hooks
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -66,7 +67,20 @@ func forkedSkill(agentTranscript, parent string) string {
 		return fork.SkillName
 	}
 	pending := map[string]bool{}
-	_ = transcript.Each(parent, func(e transcript.Entry) {
+	// Only a line naming the skill, or a pending call's id, can change
+	// pending: a result always comes after its call.
+	keep := func(line []byte) bool {
+		if bytes.Contains(line, []byte(reviewSkill)) {
+			return true
+		}
+		for id := range pending {
+			if bytes.Contains(line, []byte(id)) {
+				return true
+			}
+		}
+		return false
+	}
+	_ = transcript.EachMatching(parent, keep, func(e transcript.Entry) {
 		for _, b := range e.Blocks {
 			switch {
 			case b.Type == "tool_use" && b.Name == "Skill" && b.Input.Skill == reviewSkill:

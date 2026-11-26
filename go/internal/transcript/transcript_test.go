@@ -57,6 +57,21 @@ func TestEachReadsAnOversizedLineAndNumbersLines(t *testing.T) {
 	}
 }
 
+func TestEachMatchingParsesOnlyKeptLinesAndNumbersEveryLine(t *testing.T) {
+	path := write(t,
+		`{"type":"user","message":{"content":"first"}}`,
+		`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Edit","input":{"file_path":"/a.go"}}]}}`,
+		`{"type":"user","message":{"content":"last"}}`,
+	)
+	var lines []int
+	err := EachMatching(path, func(line []byte) bool { return strings.Contains(string(line), `"tool_use"`) }, func(e Entry) {
+		lines = append(lines, e.Line)
+	})
+	if err != nil || !slices.Equal(lines, []int{2}) {
+		t.Errorf("err=%v lines=%v, want only line 2", err, lines)
+	}
+}
+
 func TestPromptTextAndTail(t *testing.T) {
 	path := write(t,
 		`{"type":"user","message":{"content":"first"}}`,
