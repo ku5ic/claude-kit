@@ -20,7 +20,7 @@ Resolve a linked ticket or doc as `skills/investigate` step 0 describes, then wo
 
 ## Procedure
 
-1. For each kind present, load its skill and read its `anti-patterns.md` first, then every reference its table names for what the files do:
+1. For each kind present, load its skill and read its `reference/anti-patterns.md` first, or its Anti-patterns section where it has none, then every reference its table names for what the files do:
 
 | Files                                                                                            | Skill               |
 | ------------------------------------------------------------------------------------------------ | ------------------- |
