@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -118,17 +119,21 @@ func TestScratchRotate(t *testing.T) {
 		r.Has(t, "would-delete review worktree older than 1d "+wt)
 		kept(t, filepath.Join(wt, "old.txt"))
 	})
-	t.Run("keeps an old review worktree holding uncommitted work, and dry-run says so", func(t *testing.T) {
+	t.Run("keeps an old worktree holding uncommitted work, review or not, and dry-run says so", func(t *testing.T) {
 		t.Parallel()
-		k, _, registry := setup(t)
-		_, wt := worktree(t, k, registry, "review-pr-7", 3*day)
-		Write(t, filepath.Join(wt, "NOTES.md"), "mine\n")
-		for _, args := range [][]string{{"30", "--dry-run"}, {"30"}} {
-			r := k.Run("", append([]string{"scratch-rotate"}, args...)...)
-			r.Want(t, 0)
-			r.Has(t, "kept review worktree with uncommitted changes "+wt)
+		for _, name := range []string{"review-pr-7", "wt-7"} {
+			k, _, registry := setup(t)
+			_, wt := worktree(t, k, registry, name, 3*day)
+			Write(t, filepath.Join(wt, "NOTES.md"), "mine\n")
+			// All old, so only the uncommitted work keeps a worktree of any name.
+			_ = filepath.WalkDir(wt, func(path string, _ fs.DirEntry, _ error) error { age(t, path, 40*day); return nil })
+			for _, args := range [][]string{{"30", "--dry-run"}, {"30"}} {
+				r := k.Run("", append([]string{"scratch-rotate"}, args...)...)
+				r.Want(t, 0)
+				r.Has(t, "kept worktree with uncommitted changes "+wt)
+			}
+			kept(t, filepath.Join(wt, "NOTES.md"))
 		}
-		kept(t, filepath.Join(wt, "NOTES.md"))
 	})
 	t.Run("keeps a locked review worktree, and dry-run says so", func(t *testing.T) {
 		t.Parallel()
@@ -138,7 +143,7 @@ func TestScratchRotate(t *testing.T) {
 		for _, args := range [][]string{{"30", "--dry-run"}, {"30"}} {
 			r := k.Run("", append([]string{"scratch-rotate"}, args...)...)
 			r.Want(t, 0)
-			r.Has(t, "kept locked review worktree "+wt)
+			r.Has(t, "kept locked worktree "+wt)
 		}
 		kept(t, filepath.Join(wt, ".git"))
 	})

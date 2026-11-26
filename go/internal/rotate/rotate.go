@@ -169,18 +169,19 @@ func (r *rotator) worktrees(dir string, days int, stderr io.Writer) {
 	r.record(removed)
 }
 
-// keepWorktree is why a review worktree must stay, or "": git refuses to
-// remove a locked one, and --force would drop uncommitted work.
+// keepWorktree is why a linked worktree, review or not, must stay, or "":
+// git refuses to remove a locked one, and --force would drop uncommitted
+// work.
 func keepWorktree(wt string) string {
 	gitDir, err := git.Line(wt, "rev-parse", "--absolute-git-dir")
 	changes, statusErr := git.Status(wt, false)
 	switch {
 	case err != nil || statusErr != nil:
-		return "unreadable review worktree"
+		return "unreadable worktree"
 	case fsx.IsFile(filepath.Join(gitDir, "locked")):
-		return "locked review worktree"
+		return "locked worktree"
 	case len(changes) > 0:
-		return "review worktree with uncommitted changes"
+		return "worktree with uncommitted changes"
 	}
 	return ""
 }
