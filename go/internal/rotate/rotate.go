@@ -28,20 +28,20 @@ import (
 // Run is `kit scratch-rotate [days] [--dry-run]`; it returns the exit status.
 // Registry entries must sit under home.
 func Run(paths config.Paths, home string, n int, dryRun bool, stdout, stderr io.Writer) int {
-	r := newRotator(paths, dryRun, stdout)
+	r := newRotator(paths, dryRun, stdout, stderr)
 	r.home(paths.ScratchHome(), n)
 	for _, d := range cache.Dirs {
 		if dir := filepath.Join(paths.CacheDir(), d.Name); fsx.IsDir(dir) {
-			removed, _ := r.prune(dir, d.Days, nil)
-			fmt.Fprintf(stdout, "scratch-rotate: %s %d %s older than %dd from %s\n", r.pruned, len(removed), d.What, d.Days, dir)
+			files, _, _ := r.prune(dir, d.Days, nil)
+			fmt.Fprintf(stdout, "scratch-rotate: %s %d %s older than %dd from %s\n", r.pruned, len(files), d.What, d.Days, dir)
 		}
 	}
-	r.registry(paths.ScratchRegistry(), home, n, stderr)
+	r.registry(paths.ScratchRegistry(), home, n)
 	return 0
 }
 
-func newRotator(paths config.Paths, dryRun bool, stdout io.Writer) *rotator {
-	r := &rotator{now: time.Now(), dryRun: dryRun, log: rotateLog(paths), verb: "deleted", pruned: "pruned", stdout: stdout}
+func newRotator(paths config.Paths, dryRun bool, stdout, stderr io.Writer) *rotator {
+	r := &rotator{now: time.Now(), dryRun: dryRun, log: rotateLog(paths), verb: "deleted", pruned: "pruned", stdout: stdout, stderr: stderr}
 	if dryRun {
 		r.verb, r.pruned = "would-delete", "would prune"
 	}
@@ -52,9 +52,9 @@ func newRotator(paths config.Paths, dryRun bool, stdout io.Writer) *rotator {
 // that leaves empty.
 func (r *rotator) home(scratch string, n int) {
 	if fsx.IsDir(scratch) {
-		removed, folders := r.prune(scratch, n, nil)
-		r.emptyFolders(folders, n, removed)
-		fmt.Fprintf(r.stdout, "scratch-rotate: %s %d artifact(s) older than %dd from %s\n", r.pruned, len(removed), n, scratch)
+		files, checkouts, folders := r.prune(scratch, n, nil)
+		r.emptyFolders(folders, n, slices.Concat(files, checkouts))
+		fmt.Fprintf(r.stdout, "scratch-rotate: %s %d artifact(s) older than %dd from %s\n", r.pruned, len(files), n, scratch)
 	}
 }
 
@@ -78,9 +78,9 @@ func Daily(paths config.Paths, home string, now time.Time) {
 	// Stamped first: a walk the hook's timeout kills waits a day, not a session.
 	_ = os.MkdirAll(paths.CacheDir(), 0o755)
 	_ = os.WriteFile(stamp, []byte(now.UTC().Format(time.RFC3339)+"\n"), 0o644)
-	r := newRotator(paths, false, io.Discard)
+	r := newRotator(paths, false, io.Discard, io.Discard)
 	r.home(paths.ScratchHome(), DefaultDays)
-	r.registry(paths.ScratchRegistry(), home, DefaultDays, io.Discard)
+	r.registry(paths.ScratchRegistry(), home, DefaultDays)
 }
 
 // due is whether the run stamp records is more than a day before now.
@@ -96,7 +96,7 @@ func due(stamp string, now time.Time) bool {
 // registry prunes every project scratch dir the registry lists by age
 // alone (project scratch holds test artifacts and POC files of any
 // extension), dropping entries whose directory is gone.
-func (r *rotator) registry(registry, home string, n int, stderr io.Writer) {
+func (r *rotator) registry(registry, home string, n int) {
 	data, err := os.ReadFile(registry)
 	if err != nil {
 		return
@@ -112,12 +112,12 @@ func (r *rotator) registry(registry, home string, n int, stderr io.Writer) {
 		case !fsx.IsDir(dir):
 			fmt.Fprintf(r.stdout, "scratch-rotate: %s stale registry entry %s (directory no longer exists)\n", dropping, dir)
 		case !validScratchDir(dir, home):
-			fmt.Fprintf(stderr, "scratch-rotate: REFUSING registry entry %s (not a plain scratch/ dir under $HOME)\n", dir)
+			fmt.Fprintf(r.stderr, "scratch-rotate: REFUSING registry entry %s (not a plain scratch/ dir under $HOME)\n", dir)
 			keep = append(keep, dir)
 		default:
-			removed, folders := r.prune(dir, n, nil)
-			r.emptyFolders(folders, n, removed)
-			fmt.Fprintf(r.stdout, "scratch-rotate: %s %d artifact(s) older than %dd from %s\n", r.pruned, len(removed), n, dir)
+			files, checkouts, folders := r.prune(dir, n, nil)
+			r.emptyFolders(folders, n, slices.Concat(files, checkouts))
+			fmt.Fprintf(r.stdout, "scratch-rotate: %s %d artifact(s) older than %dd from %s\n", r.pruned, len(files), n, dir)
 			keep = append(keep, dir)
 		}
 	}
@@ -134,6 +134,7 @@ type rotator struct {
 	pruned string // the output's
 	log    string
 	stdout io.Writer
+	stderr io.Writer
 }
 
 // removeWorktree deletes a linked worktree in scratch whatever it holds:
@@ -161,8 +162,9 @@ type folder struct {
 // old, records each in the rotate log, and returns them with the folders
 // under dir, parents before children. It never deletes part of a nested
 // git checkout, which would corrupt it: with keep nil, removeCheckout
-// takes one whole once its newest entry is past checkoutDays.
-func (r *rotator) prune(dir string, days int, keep func(string) bool) (matched []string, folders []folder) {
+// takes one whole once its newest entry is past checkoutDays, and it's
+// returned in checkouts, not files.
+func (r *rotator) prune(dir string, days int, keep func(string) bool) (files, checkouts []string, folders []folder) {
 	_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil || path == dir {
 			return nil
@@ -170,7 +172,7 @@ func (r *rotator) prune(dir string, days int, keep func(string) bool) (matched [
 		if d.IsDir() {
 			if isCheckout(path) {
 				if keep == nil && r.removeCheckout(path, checkoutDays(dir, path, days)) {
-					matched = append(matched, path)
+					checkouts = append(checkouts, path)
 				}
 				return filepath.SkipDir
 			}
@@ -189,11 +191,11 @@ func (r *rotator) prune(dir string, days int, keep func(string) bool) (matched [
 		if !r.dryRun && os.Remove(path) != nil {
 			return nil
 		}
-		matched = append(matched, path)
+		files = append(files, path)
 		return nil
 	})
-	r.record(matched)
-	return matched, folders
+	r.record(files)
+	return files, checkouts, folders
 }
 
 // reviewDays is the most a review-* checkout directly under a pruned dir
@@ -210,7 +212,8 @@ func checkoutDays(dir, path string, days int) int {
 }
 
 // removeCheckout deletes a nested checkout whose newest entry is more than
-// days old, and reports whether it went (would go, on a dry run). A linked
+// days old, and reports whether it went (would go, on a dry run), with a
+// line of its own naming its window, and in the rotate log. A linked
 // worktree goes through removeWorktree; a repo of its own goes whole.
 func (r *rotator) removeCheckout(path string, days int) bool {
 	if changedWithin(path, days, r.now) {
@@ -218,12 +221,15 @@ func (r *rotator) removeCheckout(path string, days int) bool {
 	}
 	if fsx.IsFile(filepath.Join(path, ".git")) {
 		if err := r.removeWorktree(path); err != nil {
-			fmt.Fprintf(r.stdout, "scratch-rotate: can't remove worktree %s: %v\n", path, err)
+			fmt.Fprintf(r.stderr, "scratch-rotate: can't remove worktree %s: %v\n", path, err)
 			return false
 		}
-		return true
+	} else if !r.dryRun && os.RemoveAll(path) != nil {
+		return false
 	}
-	return r.dryRun || os.RemoveAll(path) == nil
+	fmt.Fprintf(r.stdout, "scratch-rotate: %s checkout older than %dd %s\n", r.verb, days, path)
+	r.record([]string{path})
+	return true
 }
 
 // changedWithin is true when anything under dir, dir included, was modified

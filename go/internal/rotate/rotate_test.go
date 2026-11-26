@@ -296,7 +296,11 @@ func TestRunRemovesAReviewWorktreeUnchangedForADay(t *testing.T) {
 				testutil.Age(t, tt.changed, filepath.Join(wt, "notes.md"))
 			}
 
-			rotate(t, paths, home)
+			stdout := rotate(t, paths, home)
+			if tt.gone {
+				// Its own line with its own window; the 30-day count is files.
+				wantOutput(t, stdout, []string{"deleted checkout older than 1d " + wt, "pruned 0 artifact(s) older than 30d"}, nil)
+			}
 			log, _ := os.ReadFile(rotateLog(paths))
 			if got := exists(wt); got == tt.gone {
 				t.Fatalf("worktree exists %v, want %v", got, !tt.gone)
@@ -309,6 +313,31 @@ func TestRunRemovesAReviewWorktreeUnchangedForADay(t *testing.T) {
 				t.Errorf("git worktree list (%v) has %s: %v, want %v:\n%s", err, wt, listed, !tt.gone, out)
 			}
 		})
+	}
+}
+
+// A worktree that can't be removed is reported on stderr, not as progress.
+func TestRunReportsAWorktreeItCantRemoveOnStderr(t *testing.T) {
+	home := physicalTemp(t)
+	t.Setenv("HOME", home)
+	paths := kitHome(t, home)
+	repo := filepath.Join(home, "proj")
+	testutil.Git(t, home, "init", "-q", "-b", "main", repo)
+	testutil.GitID(t, repo, "commit", "-q", "--allow-empty", "-m", "init")
+	scratch := filepath.Join(repo, ".claude/scratch")
+	testutil.Put(t, paths.LogDir(), "scratch-registry.txt", scratch+"\n")
+	wt := filepath.Join(scratch, "review-pr-7")
+	testutil.Git(t, repo, "worktree", "add", "-q", "--detach", wt)
+	// git and RemoveAll both fail in a read-only scratch dir.
+	if err := os.Chmod(scratch, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(scratch, 0o755) })
+
+	var stdout, stderr strings.Builder
+	Run(paths, home, 0, false, &stdout, &stderr)
+	if want := "can't remove worktree " + wt; !strings.Contains(stderr.String(), want) || strings.Contains(stdout.String(), want) {
+		t.Errorf("want %q on stderr only; stdout:\n%s\nstderr:\n%s", want, stdout.String(), stderr.String())
 	}
 }
 

@@ -114,7 +114,9 @@ func TestScratchRotate(t *testing.T) {
 		k, _, registry := setup(t)
 		_, wt := worktree(t, k, registry, "review-pr-7", 3*day)
 		_ = filepath.WalkDir(wt, func(path string, _ fs.DirEntry, _ error) error { age(t, path, 3*day); return nil })
-		k.Run("", "scratch-rotate", "30", "--dry-run").Want(t, 0)
+		r := k.Run("", "scratch-rotate", "30", "--dry-run")
+		r.Want(t, 0)
+		r.Has(t, "would-delete checkout older than 1d "+wt)
 		if log := Read(t, filepath.Join(k.Claude, "logs/scratch-rotate.log")); !strings.Contains(log, " would-delete "+wt+"\n") {
 			t.Errorf("the rotate log doesn't say %s would go:\n%s", wt, log)
 		}
