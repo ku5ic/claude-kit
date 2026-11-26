@@ -714,10 +714,14 @@ var inertBuiltins = nameSet(":", "[", "break", "cd", "continue", "dirs", "echo",
 // scratchOperand is true for a scratch target, quoted when it expands
 // anything, or a quoted scratch variable, with a path after it with no ..
 // only when it can't be empty there, since an empty S makes "$S/x" /x.
-func (st *state) scratchOperand(w Word) bool {
+func (st *state) scratchOperand(w Word) bool { return st.scratchWord(w, true) }
+
+// scratchWord is scratchOperand, and when bareEmpty is false, a bare "$S"
+// must not be empty either, as an empty git -C is the cwd.
+func (st *state) scratchWord(w Word, bareEmpty bool) bool {
 	quoted := strings.HasPrefix(w.Raw, `"`) && strings.HasSuffix(w.Raw, `"`)
 	if m := quotedVar.FindStringSubmatch(w.Raw); m != nil && !strings.Contains(m[4], "..") && st.scratchVar(m[1]+m[2], 1) &&
-		(m[4] == "" || st.nonEmpty(m[1]+m[2], m[3] != "", st.at)) {
+		(m[4] == "" && bareEmpty || st.nonEmpty(m[1]+m[2], m[3] != "", st.at)) {
 		return true
 	}
 	return !varRef.MatchString(w.Value) && (quoted || !strings.Contains(w.Value, "$")) && st.scratchTarget(w.Value)

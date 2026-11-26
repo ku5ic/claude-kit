@@ -27,6 +27,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/layout"
 	"github.com/ku5ic/claude-kit/go/internal/md"
 	"github.com/ku5ic/claude-kit/go/internal/proc"
+	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/resolve/kittool"
 	"github.com/ku5ic/claude-kit/go/internal/run"
 	"github.com/ku5ic/claude-kit/go/internal/slop"
@@ -64,9 +65,13 @@ func CheckCommit(h *hook.Hook) error {
 		subjects[i] = subject(msgs[i])
 	}
 	// The approval reads the transcript while gitleaks and the commit-msg
-	// checks run: it touches nothing of h.
+	// checks run, and it touches nothing of h. Throwaway repos need none.
 	ok := make(chan bool, 1)
-	go func() { ok <- approved(h.Payload.String(hook.KeyTranscriptPath), subjects) }()
+	if throwaway(h, cmd, commits) {
+		ok <- true
+	} else {
+		go func() { ok <- approved(h.Payload.String(hook.KeyTranscriptPath), subjects) }()
+	}
 	for i := range commits {
 		repo, msg, unread := repos[i], msgs[i], unreads[i]
 
@@ -148,6 +153,14 @@ type commit struct {
 	repo            string
 	found, unparsed bool
 	start           int // source offset of the git call
+	// dir is its one git -C word, nil for none; elsewhere is true when
+	// something else may pick the repo (several or joined -C, --git-dir,
+	// --work-tree, --namespace, -c). seg is the segment it's in, and cwd
+	// where the cds before it moved.
+	dir       *Word
+	elsewhere bool
+	seg       int
+	cwd       string
 }
 
 // commits reports whether cmd, parsed as c, runs git commit: a parsed call
@@ -157,6 +170,42 @@ type commit struct {
 func (c commit) commits(cmd string) bool {
 	return c.found || c.unparsed && commitLine.MatchString(cmd)
 }
+
+// throwaway is true when every commit runs in a repo under scratch or a
+// fresh mktemp -d dir the command made: its one -C word is a scratch
+// path, or a variable that can't be empty there (an empty -C is the cwd's
+// repo), or with no -C, the cds before it moved there. A GIT_ variable
+// anywhere in cmd can point git at another repo, so none is.
+func throwaway(h *hook.Hook, cmd string, commits []commit) bool {
+	if gitEnv.MatchString(cmd) {
+		return false
+	}
+	segs, _ := parseAll(cmd)
+	for _, c := range commits {
+		if c.seg < 0 || c.elsewhere {
+			return false
+		}
+		if c.dir == nil {
+			if c.repo == "" || !project.IsScratch(h.Paths, c.repo) {
+				return false
+			}
+			continue
+		}
+		st := &state{dirs: dirs{home: h.Home, cwd: c.cwd}, h: h}
+		st.begin(segs)
+		for i, seg := range segs[:c.seg] {
+			st.track(i, seg)
+		}
+		st.at = c.seg
+		if !st.scratchWord(*c.dir, false) {
+			return false
+		}
+	}
+	return true
+}
+
+// gitEnv is a GIT_ variable, which can name another repo, index, or config.
+var gitEnv = regexp.MustCompile(`\bGIT_[A-Z0-9_]+`)
 
 // commitCalls parses cmd, run from cwd, for every git commit call in it;
 // with none, it's one commit that isn't found.
@@ -172,7 +221,23 @@ func commitCalls(cmd, home, cwd string) []commit {
 			if strings.ContainsAny(repo, "$`") {
 				repo = ""
 			}
-			out = append(out, commit{args: args, repo: repo, found: true, unparsed: unparsed, start: w.call.start})
+			c := commit{args: args, repo: repo, found: true, unparsed: unparsed, start: w.call.start, cwd: w.cwd}
+			// Read before the subcommand, since git commit -C reuses a message.
+			words := w.call.Words[w.i+1:]
+			for i := 0; i < len(words) && words[i].Value != "commit"; i++ {
+				switch v := words[i].Value; {
+				case v == "-C" && i+1 < len(words) && c.dir == nil:
+					c.dir = &words[i+1]
+					i++
+				case strings.HasPrefix(v, "-C"), v == "-c", strings.HasPrefix(v, "--git-dir"),
+					strings.HasPrefix(v, "--work-tree"), strings.HasPrefix(v, "--namespace"):
+					c.elsewhere = true
+				}
+			}
+			c.seg = slices.IndexFunc(segs, func(s Segment) bool {
+				return slices.ContainsFunc(s.Calls, func(call Call) bool { return call.start == w.call.start })
+			})
+			out = append(out, c)
 		}
 	}
 	if len(out) == 0 {

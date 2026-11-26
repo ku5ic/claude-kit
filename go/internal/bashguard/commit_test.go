@@ -435,3 +435,40 @@ func TestShown(t *testing.T) {
 		}
 	}
 }
+
+// A commit in a throwaway repo needs no approval: its -C names scratch, or
+// a mktemp -d dir the command made that can't be empty there, as an empty
+// -C commits in the cwd's repo. One in the project still asks.
+func TestGuardCommitInAThrowawayRepoNeedsNoApproval(t *testing.T) {
+	gitleaksStub(t, 0)
+	k := newSandbox(t)
+	k.transcript = filepath.Join(t.TempDir(), "t.jsonl")
+	testutil.AppendJSONL(t, k.transcript, testutil.UserPrompt("fix it"))
+	for _, cmd := range []string{
+		`t=$(mktemp -d) && git -C "$t" commit -q --allow-empty -m "fix: add sums"`,
+		`set -e; t=$(mktemp -d); git -C "$t" init -q; git -C "$t" commit -q --allow-empty -m "fix: add sums"`,
+		`git -C "$(kit scratch-dir)/r" commit -m "fix: add sums"`,
+		`git -C ~/.claude/scratch/r commit -m "fix: add sums"`,
+		`cd ~/.claude/scratch/r && git commit -m "fix: add sums"`,
+	} {
+		if r := k.commit("", cmd); strings.Contains(r.Output, `"permissionDecision":"ask"`) {
+			t.Errorf("%s: asked for approval:\n%s", cmd, r.Output)
+		}
+	}
+	for _, cmd := range []string{
+		`git commit -m "fix: add sums"`,
+		`t=$(mktemp -d); git -C "$t" commit -m "fix: add sums"`,
+		`git -C "$(kit scratch-dir)/../.." commit -m "fix: add sums"`,
+		`git -C ~/.claude/scratch/r -C ../.. commit -m "fix: add sums"`,
+		`git -C ~/.claude/scratch/r commit -m "fix: add sums" && git commit -m "fix: add sums"`,
+		`git -C ~/.claude/scratch/r --git-dir=$PWD/.git commit -m "fix: add sums"`,
+		`git -C ~/.claude/scratch/r --work-tree . commit -m "fix: add sums"`,
+		`git -C ~/.claude/scratch/r -c core.worktree=/x commit -m "fix: add sums"`,
+		`GIT_DIR=$PWD/.git git -C ~/.claude/scratch/r commit -m "fix: add sums"`,
+		`export GIT_WORK_TREE=$PWD; cd ~/.claude/scratch/r && git commit -m "fix: add sums"`,
+	} {
+		if r := k.commit("", cmd); !strings.Contains(r.Output, `"permissionDecision":"ask"`) {
+			t.Errorf("%s: no ask:\n%s", cmd, r.Output)
+		}
+	}
+}

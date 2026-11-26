@@ -124,6 +124,25 @@ type state struct {
 	exported map[string]bool
 }
 
+// begin readies st to check segs, one segment at a time.
+func (st *state) begin(segs []Segment) {
+	st.vars, st.sure, st.sureAt, st.loopVars, st.segs = map[string]string{}, map[string]string{}, map[string]int{}, loopAssigned(segs), segs
+	st.exported = exportedNames(segs)
+}
+
+// track records what seg, the i-th segment, assigns, once it's checked.
+func (st *state) track(i int, seg Segment) {
+	vars := assigned(seg)
+	maps.Copy(st.vars, vars)
+	for name, value := range vars {
+		if seg.subshell || seg.conditional || len(seg.Calls) > 1 {
+			delete(st.sure, name)
+		} else {
+			st.sure[name], st.sureAt[name] = value, i
+		}
+	}
+}
+
 // setVars is vars as NAME=value words, in no set order, split into those
 // the command exports and the bare rest, which reach a child process only
 // if the environment already exported them.
@@ -168,22 +187,13 @@ func Check(h *hook.Hook) error {
 	if unparsed {
 		st.ask("guard-bash could not parse part of this command, so it went unchecked; confirm it")
 	}
-	st.vars, st.sure, st.sureAt, st.loopVars, st.segs = map[string]string{}, map[string]string{}, map[string]int{}, loopAssigned(segs), segs
-	st.exported = exportedNames(segs)
+	st.begin(segs)
 	for i, seg := range segs {
 		st.at = i
 		if err := st.segment(seg); err != nil {
 			return err
 		}
-		vars := assigned(seg)
-		maps.Copy(st.vars, vars)
-		for name, value := range vars {
-			if seg.subshell || seg.conditional || len(seg.Calls) > 1 {
-				delete(st.sure, name)
-			} else {
-				st.sure[name], st.sureAt[name] = value, i
-			}
-		}
+		st.track(i, seg)
 	}
 	runs := cmd
 	switch {
