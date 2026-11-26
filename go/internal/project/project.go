@@ -9,7 +9,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/sources"
@@ -18,16 +17,6 @@ import (
 // maxDepth is how deep below the root a manifest still makes its directory
 // a subproject.
 const maxDepth = 4
-
-// IsScratch is true for a path in, or at, a project's .claude/scratch or
-// the home scratch, which $CLAUDE_CONFIG_DIR can move. Any other directory
-// named scratch is project code and gets every check.
-func IsScratch(paths config.Paths, path string) bool {
-	p := filepath.Clean(path)
-	home := paths.ScratchHome()
-	return fsx.Within(home, p) ||
-		strings.HasSuffix(p, "/.claude/scratch") || strings.Contains(p, "/.claude/scratch/")
-}
 
 // SubLabel is the " [sub]" a subproject's label ends with, "" for the
 // root ("." or "").

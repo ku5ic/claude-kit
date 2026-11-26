@@ -18,7 +18,6 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/kitcmd"
 	"github.com/ku5ic/claude-kit/go/internal/layout"
-	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
 // dirs is where a command line's next command runs: cwd, which each cd
@@ -445,7 +444,7 @@ func (st *state) inWorktree() bool { return st.worktreeTop() != "" }
 // worktreeTop is the toplevel of the work tree cwd is in, "" outside one
 // or in scratch.
 func (st *state) worktreeTop() string {
-	if st.cwd == "" || project.IsScratch(st.h.Paths, st.cwd) {
+	if st.cwd == "" || st.h.Paths.IsScratch(st.cwd) {
 		return ""
 	}
 	return git.Toplevel(st.cwd)
@@ -499,7 +498,7 @@ func (st *state) scratchTarget(p string) bool {
 	if strings.ContainsAny(p, "$`") {
 		return false
 	}
-	return project.IsScratch(st.h.Paths, p)
+	return st.h.Paths.IsScratch(p)
 }
 
 // kitScratchSub matches a path that starts with a kit scratch-dir call,

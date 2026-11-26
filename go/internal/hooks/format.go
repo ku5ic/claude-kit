@@ -15,7 +15,6 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/proc"
-	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/resolve/kittool"
 	"github.com/ku5ic/claude-kit/go/internal/run"
 )
@@ -30,7 +29,7 @@ func FormatDispatch(h *hook.Hook) error {
 		return h.Payload.Err
 	}
 	path := h.Payload.FilePath()
-	if path == "" || !fsx.IsFile(path) || project.IsScratch(h.Paths, path) {
+	if path == "" || !fsx.IsFile(path) || h.Paths.IsScratch(path) {
 		return nil
 	}
 	dir, err := filepath.EvalSymlinks(filepath.Dir(path))

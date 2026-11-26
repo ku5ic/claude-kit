@@ -291,7 +291,7 @@ func turnFiles(h *hook.Hook, turn []transcript.Entry, cwd, root string) (edited 
 // codeIn is whether a path is code under root: inside it, outside scratch.
 func codeIn(h *hook.Hook, root string) func(string) bool {
 	return func(path string) bool {
-		return fsx.Within(root, fsx.PhysicalPath(path)) && !project.IsScratch(h.Paths, path)
+		return fsx.Within(root, fsx.PhysicalPath(path)) && !h.Paths.IsScratch(path)
 	}
 }
 

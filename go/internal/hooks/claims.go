@@ -266,7 +266,7 @@ func bashEdits(h *hook.Hook) map[string][]string {
 // isCode is true for a file a claim can be about: outside scratch and the
 // plan dir.
 func isCode(h *hook.Hook, file string) bool {
-	return file != "" && !project.IsScratch(h.Paths, file) && !fsx.Within(project.PlanDir(h.Paths, h.Payload.Cwd()), file)
+	return file != "" && !h.Paths.IsScratch(file) && !fsx.Within(project.PlanDir(h.Paths, h.Payload.Cwd()), file)
 }
 
 // statementKey is a checked statement's line in the session's record.
@@ -409,6 +409,6 @@ func atScratchRoot(h *hook.Hook, path string) bool {
 func scratchReport(h *hook.Hook, path string, kinds ...string) bool {
 	base := filepath.Base(path)
 	name := strings.ToLower(strings.TrimSuffix(base, filepath.Ext(base)))
-	return path != "" && project.IsScratch(h.Paths, path) && strings.EqualFold(filepath.Ext(base), ".md") &&
+	return path != "" && h.Paths.IsScratch(path) && strings.EqualFold(filepath.Ext(base), ".md") &&
 		slices.ContainsFunc(kinds, func(kind string) bool { return name == kind || strings.HasPrefix(name, kind+"-") })
 }

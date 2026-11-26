@@ -11,7 +11,6 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
-	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
 // gitEnv is a GIT_ variable, which can name another repo, index, or config.
@@ -152,7 +151,7 @@ func lands(h *hook.Hook, segs []Segment, calls []commit, c commit) bool {
 			// that isn't there fails and leaves the shell where it was;
 			// git -C one fails the init itself.
 			_, err := os.Lstat(filepath.Join(c.repo, ".git"))
-			return project.IsScratch(h.Paths, c.repo) && errors.Is(err, os.ErrNotExist) && (c.dir != nil || fsx.IsDir(c.repo))
+			return h.Paths.IsScratch(c.repo) && errors.Is(err, os.ErrNotExist) && (c.dir != nil || fsx.IsDir(c.repo))
 		}
 		return freshTemp(h, segs, c, init)
 	}
@@ -166,7 +165,7 @@ func lands(h *hook.Hook, segs []Segment, calls []commit, c commit) bool {
 	if real, err := filepath.EvalSymlinks(gitDir); err == nil {
 		gitDir = real
 	}
-	return project.IsScratch(h.Paths, gitDir)
+	return h.Paths.IsScratch(gitDir)
 }
 
 // initFirst is the segment of a git init of c's repo, named as c names

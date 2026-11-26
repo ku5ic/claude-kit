@@ -25,7 +25,7 @@ func ADRNudge(h *hook.Hook) error {
 	}
 	tool := p.String(hook.KeyToolName)
 	file := p.FilePath()
-	if file == "" || (tool != "Read" && !slices.Contains(filePathTools, tool)) || project.IsScratch(h.Paths, file) {
+	if file == "" || (tool != "Read" && !slices.Contains(filePathTools, tool)) || h.Paths.IsScratch(file) {
 		return nil
 	}
 	// Root names the repo with symlinks resolved, so the file is too.

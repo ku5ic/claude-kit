@@ -15,6 +15,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 )
 
 // Paths are the kit's fixed locations, resolved by ResolvePaths.
@@ -31,6 +32,15 @@ func (p Paths) LogDir() string      { return filepath.Join(p.ClaudeDir, "logs") 
 func (p Paths) CacheDir() string    { return filepath.Join(p.ClaudeDir, "cache") }
 func (p Paths) ScratchHome() string { return filepath.Join(p.ClaudeDir, "scratch") }
 func (p Paths) PlansHome() string   { return filepath.Join(p.ClaudeDir, "plans") }
+
+// IsScratch is true for a path in, or at, a project's .claude/scratch or
+// the home scratch, which $CLAUDE_CONFIG_DIR can move. Any other directory
+// named scratch is project code and gets every check.
+func (p Paths) IsScratch(path string) bool {
+	clean := filepath.Clean(path)
+	return fsx.Within(p.ScratchHome(), clean) ||
+		strings.HasSuffix(clean, "/.claude/scratch") || strings.Contains(clean, "/.claude/scratch/")
+}
 
 // LogFile is the JSONL log called name.
 func (p Paths) LogFile(name string) string { return filepath.Join(p.LogDir(), name+".jsonl") }

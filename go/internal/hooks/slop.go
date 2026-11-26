@@ -12,7 +12,6 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
-	"github.com/ku5ic/claude-kit/go/internal/project"
 	"github.com/ku5ic/claude-kit/go/internal/slop"
 )
 
@@ -31,7 +30,7 @@ func GuardSlop(h *hook.Hook) error {
 		return nil
 	}
 	surface := "file"
-	if project.IsScratch(h.Paths, path) {
+	if h.Paths.IsScratch(path) {
 		if !strings.EqualFold(filepath.Ext(path), ".md") {
 			return nil
 		}

@@ -83,7 +83,7 @@ func guardPath(h *hook.Hook, cfg *config.Config, tool, path string, reading bool
 	if reading {
 		return nil
 	}
-	if guard.IsGuardedLockfile(cfg, path) && !project.IsScratch(h.Paths, path) {
+	if guard.IsGuardedLockfile(cfg, path) && !h.Paths.IsScratch(path) {
 		if err := h.Block("lockfile edit\n"+layout.KV("do", "use the package manager"), "lockfile-edit"); err != nil {
 			return err
 		}
@@ -259,7 +259,7 @@ func unloadedSkills(h *hook.Hook, paths []string, skip func(skill string) bool) 
 	marker := func(skill string) string { return h.Paths.SessionFile(cache.SkillsLoaded, session, skill) }
 	var toCheck []string
 	for _, path := range paths {
-		if path == "" || project.IsScratch(h.Paths, path) {
+		if path == "" || h.Paths.IsScratch(path) {
 			continue
 		}
 		for _, skill := range stackctx.FileMapSkills(cfg.SkillFileMap, path) {
