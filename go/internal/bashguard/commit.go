@@ -377,15 +377,20 @@ var bareYes = regexp.MustCompile(`(?i)^\s*(yes|y|yep|yeah|yup|sure|ok|okay|go|go
 // a message approves only that message, as shown() reads it.
 var commitQuestion = regexp.MustCompile("(?i)^\\W*commit\\b[^?`]*\\?\\s*$")
 
+// orWord is a question's "or": "Commit step 4, or run the gate first?"
+// offers two things, and a yes picks neither.
+var orWord = regexp.MustCompile(`(?i)\bor\b`)
+
 // requests is whether prompt asks for a commit: in its own words, or as a
 // bare yes to reply, the text before it, when reply's last line asks to
-// commit.
+// commit and nothing else.
 func requests(prompt, reply string) bool {
 	if asksForCommit(prompt) {
 		return true
 	}
 	lines := strings.Split(strings.TrimSpace(reply), "\n")
-	return bareYes.MatchString(prompt) && commitQuestion.MatchString(lines[len(lines)-1])
+	last := lines[len(lines)-1]
+	return bareYes.MatchString(prompt) && commitQuestion.MatchString(last) && !orWord.MatchString(last)
 }
 
 // lastReply is the text of the last assistant entry in entries that has

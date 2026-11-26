@@ -809,6 +809,9 @@ func errexit(segs []Segment) bool {
 			}
 			words := values(call.Words[1:])
 			for i, w := range words {
+				if w == "--" {
+					break // the rest are positional parameters: set -- -e sets $1
+				}
 				switch {
 				case (w == "-o" || w == "+o") && i+1 < len(words) && words[i+1] == "errexit":
 					on = w == "-o"

@@ -832,6 +832,7 @@ func TestRmRecursiveOnScratchPasses(t *testing.T) {
 		{`S=$(mktemp -d); set -e; rm -rf "$S/x"`, "ask"},
 		{`set -e; set +e; S=$(mktemp -d); rm -rf "$S/x"`, "ask"},
 		{`true && set -e; S=$(mktemp -d); rm -rf "$S/x"`, "ask"},
+		{`set -- -e; S=$(mktemp -d); rm -rf "$S/x"`, "ask"},
 		{`set -e; export S=$(mktemp -d); rm -rf "$S/x"`, "ask"},
 		{`S=$(mktemp -d) || rm -rf "$S/x"`, "ask"},
 		{`S=$(mktemp -d) && echo hi && rm -rf "$S/x"`, "ask"},

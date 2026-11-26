@@ -529,6 +529,7 @@ func TestGuardCommitTakesABareYesToACommitQuestion(t *testing.T) {
 		{"Should a bare yes count as commit approval?", "yes"},
 		{"Commit both?", "no"},
 		{"Commit both?\n\nOr should I wait for the tests?", "yes"},
+		{"Commit step 4, or run the full gate first?", "yes"},
 	} {
 		if r := commit(tc.reply, tc.prompt); !strings.Contains(r.Output, `"permissionDecision":"ask"`) {
 			t.Errorf("%q to %q didn't ask", tc.prompt, tc.reply)
