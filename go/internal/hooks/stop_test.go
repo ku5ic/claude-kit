@@ -1039,8 +1039,14 @@ func TestReviewPick(t *testing.T) {
 		agent("general-purpose").Denied(t)
 		agent("kit:claim-checker").Allowed(t)
 		agent("Explore").Allowed(t)
+		workflow := func() result {
+			return e.k.run("review-pick", map[string]any{"hook_event_name": "PreToolUse", "session_id": "s1", "cwd": e.repo,
+				"transcript_path": e.transcript, "tool_name": "Workflow", "tool_input": map[string]any{"script": "await agent('fix it')"}})
+		}
+		workflow().Denied(t)
 		typed(e, "fix the first one")
 		agent("kit:tester").Allowed(t)
+		workflow().Allowed(t)
 	})
 	t.Run("a --fix review holds nothing, typed or by the Skill tool", func(t *testing.T) {
 		t.Parallel()

@@ -42,6 +42,7 @@ func TestRulesGate(t *testing.T) {
 		call(k, "Skill", "", map[string]any{"skill": "kit:kit-rules"}).Allowed(t)
 		call(k, "Read", "a1", map[string]any{"file_path": filepath.Join(k.paths.Root, "skills", "kit-rules", "reference", "output.md")}).Allowed(t)
 		call(k, "SubagentHandback", "a1", map[string]any{"message": "done"}).Allowed(t)
+		call(k, "StructuredOutput", "a1", map[string]any{"line": "done"}).Allowed(t)
 		call(k, "Read", "", map[string]any{"file_path": filepath.Join(k.paths.Root, "skills", "go-patterns", "SKILL.md")}).Denied(t)
 	})
 	t.Run("a logged Read of a SKILL.md outside the skills dirs loads nothing", func(t *testing.T) {

@@ -29,7 +29,9 @@ func ReviewPick(h *hook.Hook) error {
 	}
 	tool := p.String(hook.KeyToolName)
 	edit := slices.Contains(transcript.EditTools, tool)
-	if !edit && (tool != "Agent" || slices.Contains(readingAgents, p.String(hook.KeyInputSubagentType))) {
+	// A workflow's agents can edit, whatever its script asks of them.
+	launch := tool == "Workflow" || tool == "Agent" && !slices.Contains(readingAgents, p.String(hook.KeyInputSubagentType))
+	if !edit && !launch {
 		return nil
 	}
 	path, cwd := p.String(hook.KeyTranscriptPath), p.Cwd()

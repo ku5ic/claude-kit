@@ -233,9 +233,10 @@ func inSkill(h *hook.Hook, skill, path string) bool {
 }
 
 // gatePasses is true for a tool rules-gate lets through: the Skill tool is
-// how a skill loads, and a subagent's hand-back is its reply.
+// how a skill loads, and a subagent's hand-back, or a workflow agent's
+// StructuredOutput when its call has a schema, is its reply.
 func gatePasses(tool string) bool {
-	return tool == "Skill" || tool == "SubagentHandback"
+	return tool == "Skill" || tool == "SubagentHandback" || tool == "StructuredOutput"
 }
 
 // subagentStart is how the subagent making a tool call started; zero for
