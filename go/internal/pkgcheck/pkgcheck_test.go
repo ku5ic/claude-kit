@@ -250,3 +250,43 @@ func TestLookupsMissing(t *testing.T) {
 		}
 	})
 }
+
+// A package the registry found is remembered per manager for a day: a
+// second command adding it runs no lookup. A miss is asked again.
+func TestAFoundPackageIsCachedAndAMissIsNot(t *testing.T) {
+	t.Parallel()
+	cmd := registry(t, "react")
+	c := config.PackageLookups{Timeout: 2, Ecosystems: map[string]config.PackageLookup{
+		"npm": {Managers: []string{"pnpm"}, Name: `^[a-z0-9][\w.-]*$`, Cmd: cmd, Missing: `\bE404\b`},
+	}}
+	cacheDir := t.TempDir()
+	for range 2 {
+		l := NewLookups(c, t.TempDir(), t.TempDir())
+		l.CacheDir = cacheDir
+		if l.Missing("pnpm", "react") || !l.Missing("pnpm", "made-up-lib") {
+			t.Fatal("wrong verdicts")
+		}
+	}
+	calls := strings.Count(testutil.Read(t, filepath.Join(filepath.Dir(cmd[0]), "calls")), "\n")
+	if calls != 3 {
+		t.Errorf("%d lookups, want react once and made-up-lib twice", calls)
+	}
+}
+
+// FirstMissing looks every operand up at once and names the first missing
+// one in operand order.
+func TestFirstMissingNamesTheFirstInOrder(t *testing.T) {
+	t.Parallel()
+	cmd := registry(t, "react", "vue")
+	c := config.PackageLookups{Timeout: 2, Ecosystems: map[string]config.PackageLookup{
+		"npm": {Managers: []string{"pnpm"}, Name: `^[a-z0-9][\w.-]*$`, Cmd: cmd, Missing: `\bE404\b`},
+	}}
+	l := NewLookups(c, t.TempDir(), t.TempDir())
+	l.CacheDir = t.TempDir()
+	if got := l.FirstMissing("pnpm", []string{"react", "made-up-a", "vue", "made-up-b"}); got != "made-up-a" {
+		t.Errorf("FirstMissing = %q, want made-up-a", got)
+	}
+	if got := l.FirstMissing("pnpm", []string{"react", "vue"}); got != "" {
+		t.Errorf("FirstMissing = %q, want none", got)
+	}
+}

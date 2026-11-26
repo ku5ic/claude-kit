@@ -127,12 +127,11 @@ func (c *command) dependencyAdd(verbs []string, dir, root string) error {
 			valueFlags, registryFlags := c.st.cfg.PackageLookups.Flags(c.name)
 			if !c.st.h.RuleDisabled("pkg-missing") && !hasFlag(values, registryFlags) {
 				lookups := pkgcheck.NewLookups(c.st.cfg.PackageLookups, dir, root)
+				lookups.CacheDir = c.st.h.Paths.CacheDir()
 				// A flag's value isn't looked up, but still counts above: a
 				// flag listed as taking a value may not take one (pnpm -w).
-				for _, p := range addOperands(values[after:], valueFlags) {
-					if lookups.Missing(c.name, p) {
-						return c.block(p+" isn't on its registry\n"+layout.KV("do", "check the name before adding it"), "pkg-missing")
-					}
+				if p := lookups.FirstMissing(c.name, addOperands(values[after:], valueFlags)); p != "" {
+					return c.block(p+" isn't on its registry\n"+layout.KV("do", "check the name before adding it"), "pkg-missing")
 				}
 			}
 			c.st.ask("this adds a dependency; skills/kit-rules/reference/workflow.md section 2 asks before installing: confirm the package")

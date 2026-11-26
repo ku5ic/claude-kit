@@ -12,8 +12,10 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
@@ -22,14 +24,23 @@ import (
 )
 
 // Lookups checks package names against their registries until deadline.
+// Its methods are safe to call at once.
 type Lookups struct {
 	c        config.PackageLookups
 	deadline time.Time
-	dir      string              // the command's directory, where registry config is read from
-	local    map[string]bool     // names the repo's own package.json files declare, read on first use
-	printed  map[string][]string // each private_cmd's globs, read on first use
+	dir      string // the command's directory, where registry config is read from
 	root     string
+	// CacheDir holds the packages each manager's registry found, "" for none.
+	CacheDir string
+
+	mu      sync.Mutex                      // guards the maps below, each filled on first use
+	local   map[string]bool                 // names the repo's own package.json files declare
+	printed map[string][]string             // each private_cmd's globs
+	found   map[string]map[string]time.Time // by manager, each package its registry found, and when
 }
+
+// foundFor is how long a found package is remembered.
+const foundFor = 24 * time.Hour
 
 // NewLookups starts c's time budget, shared by every lookup it runs for a
 // command in dir, inside the repository at root.
@@ -63,6 +74,8 @@ func (l *Lookups) globs(cmd []string) []string {
 		return nil
 	}
 	key := strings.Join(cmd, "\x00")
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	if globs, ok := l.printed[key]; ok {
 		return globs
 	}
@@ -97,6 +110,8 @@ func matchPrefix(glob, target string) bool {
 // workspace is true when a package.json in the repository is named name:
 // a workspace package, or a flag's value like --filter's.
 func (l *Lookups) workspace(name string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	if l.local == nil {
 		l.local = map[string]bool{}
 		files, _ := git.Files(l.root, ":(glob)**/package.json")
@@ -114,6 +129,73 @@ func (l *Lookups) workspace(name string) bool {
 	return l.local[name]
 }
 
+// FirstMissing is the first of operands, in their order, manager's
+// registry says doesn't exist, "" for none; it looks them up at once.
+func (l *Lookups) FirstMissing(manager string, operands []string) string {
+	missing := make([]bool, len(operands))
+	var wg sync.WaitGroup
+	for i, p := range operands {
+		wg.Go(func() { missing[i] = l.Missing(manager, p) })
+	}
+	wg.Wait()
+	if i := slices.Index(missing, true); i >= 0 {
+		return operands[i]
+	}
+	return ""
+}
+
+// foundFile is where manager's found packages are kept, "" with no
+// CacheDir.
+func (l *Lookups) foundFile(manager string) string {
+	if l.CacheDir == "" {
+		return ""
+	}
+	return filepath.Join(l.CacheDir, cache.Packages, manager+".json")
+}
+
+// foundMap is manager's found packages, read on first use; the caller
+// holds l.mu.
+func (l *Lookups) foundMap(manager string) map[string]time.Time {
+	if l.found == nil {
+		l.found = map[string]map[string]time.Time{}
+	}
+	found, ok := l.found[manager]
+	if !ok {
+		found = map[string]time.Time{}
+		if data, err := os.ReadFile(l.foundFile(manager)); err != nil || json.Unmarshal(data, &found) != nil {
+			found = map[string]time.Time{} // unreadable: everything is asked again
+		}
+		l.found[manager] = found
+	}
+	return found
+}
+
+// cached is true when manager's registry found name within foundFor.
+func (l *Lookups) cached(manager, name string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	at, ok := l.foundMap(manager)[name]
+	return ok && time.Since(at) < foundFor
+}
+
+// remember records that manager's registry found name, dropping entries
+// past foundFor; a failed write only costs a lookup next time.
+func (l *Lookups) remember(manager, name string) {
+	file := l.foundFile(manager)
+	if file == "" {
+		return
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	now := time.Now()
+	found := l.foundMap(manager)
+	found[name] = now
+	maps.DeleteFunc(found, func(_ string, at time.Time) bool { return now.Sub(at) >= foundFor })
+	if data, err := json.Marshal(found); err == nil {
+		_ = fsx.WriteAtomic(file, data, 0o600)
+	}
+}
+
 // Missing is true only when manager's registry says operand doesn't exist.
 // An operand that isn't a plain package name, a manager no ecosystem
 // covers, a timeout, or any other failure is false: this never blocks on
@@ -128,11 +210,17 @@ func (l *Lookups) Missing(manager, operand string) bool {
 			continue
 		}
 		name, missing := bare(operand), compile(e.Missing)
-		if name == "" || missing == nil || len(e.Cmd) == 0 || !compileOK(e.Name, name) || l.workspace(name) || l.private(e, name) {
+		// A workspace package is named in a package.json, which only npm's
+		// ecosystem reads.
+		if name == "" || missing == nil || len(e.Cmd) == 0 || !compileOK(e.Name, name) || key == "npm" && l.workspace(name) || l.private(e, name) || l.cached(manager, name) {
 			return false
 		}
 		for p := name; ; p = parent(p) {
-			if !l.absent(e.Cmd, p, missing) {
+			found, absent := l.lookup(e.Cmd, p, missing)
+			if found && p == name {
+				l.remember(manager, name)
+			}
+			if !absent {
 				return false
 			}
 			if !e.Parents || strings.Count(p, "/") < 2 {
@@ -143,12 +231,13 @@ func (l *Lookups) Missing(manager, operand string) bool {
 	return false
 }
 
-// absent is true only when one lookup of name fails with output matching
-// missing; found, a timeout, and any other failure are false.
-func (l *Lookups) absent(argv []string, name string, missing *regexp.Regexp) bool {
+// lookup runs one lookup of name: found when it succeeds, absent only
+// when it fails with output matching missing. A timeout and any other
+// failure are neither.
+func (l *Lookups) lookup(argv []string, name string, missing *regexp.Regexp) (found, absent bool) {
 	left := time.Until(l.deadline)
 	if left <= 0 {
-		return false
+		return false, false
 	}
 	args := make([]string, len(argv))
 	for i, a := range argv {
@@ -156,12 +245,12 @@ func (l *Lookups) absent(argv []string, name string, missing *regexp.Regexp) boo
 	}
 	bin, err := kittool.Path(args[0])
 	if err != nil {
-		return false
+		return false, false
 	}
 	cmd := proc.Command(left, bin, args[1:]...)
 	cmd.Dir = os.TempDir() // outside the project: its config runs nothing before the add is approved
 	out, err := cmd.CombinedOutput()
-	return err != nil && !cmd.TimedOut() && missing.Match(out)
+	return err == nil, err != nil && !cmd.TimedOut() && missing.Match(out)
 }
 
 // bare is operand without its version, or "" when it's a path, a URL, an
