@@ -23,3 +23,4 @@ A command run under zsh itself, such as a one-off `gh` or `git` call:
 - `$var:` followed by a letter is a modifier (`$head:src/x` fires `:s`). Brace it: `"${head}:src/x"`.
 - `path` is tied to `PATH`. Never name a variable `path`.
 - An unquoted `?` or `*` is a glob, and no match is an error. Quote a URL with a query string.
+- Write it in bash syntax anyway. The bash guard parses bash, and a zsh-only expansion such as `${=x}` or `${(f)x}` doesn't parse, so the call is asked.
