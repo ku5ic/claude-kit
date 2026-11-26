@@ -143,7 +143,12 @@ func agentContext(h *hook.Hook, cfg *config.Config) string {
 			`This overrides the "Scratchpad directory" line in your system prompt: use this path, never the /private/tmp session scratchpad.` + "\n" +
 			"Name structured artifacts with `kit scratch-dir <kind> <scope-slug>`, which prints the full path with a real timestamp.\n")
 		if cfg != nil && cfg.SizeBudgets.Report > 0 {
-			fmt.Fprintf(&b, "Your report is sent back once past %d words, fenced code excluded.\n", cfg.SizeBudgets.Report)
+			budget := cfg.SizeBudgets.Report
+			if limit := cfg.ReplyLimits.Allowance(budget); limit > budget {
+				fmt.Fprintf(&b, "Your report budget is %d words, and it's sent back once past %d, fenced code excluded.\n", budget, limit)
+			} else {
+				fmt.Fprintf(&b, "Your report is sent back once past %d words, fenced code excluded.\n", budget)
+			}
 		}
 		b.WriteString("</scratch>\n")
 	}
