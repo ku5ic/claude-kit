@@ -107,17 +107,32 @@ func TestAGateTheDeadlineStopsIsSkipped(t *testing.T) {
 	}
 }
 
-// The gates run at once, and their lines print in plan order: the slow
-// first gate's line comes before the quick second one's.
+// Gates in different directories run at once, and their lines print in
+// plan order: the slow first gate's line comes before the quick second one's.
 func TestGatesRunAtOnceAndReportInOrder(t *testing.T) {
 	t.Parallel()
 	r := newRepo(t, "repo")
+	r.write("sub/.keep", "")
+	quick := r.gate("quick", "sleep 0.8")
+	quick.Dir = filepath.Join(r.root, "sub")
 	start := time.Now()
-	out, _ := r.run(r.gate("slow", "sleep 1.2"), r.gate("quick", "sleep 0.8"))
+	out, _ := r.run(r.gate("slow", "sleep 1.2"), quick)
 	if took := time.Since(start); took > 1800*time.Millisecond {
 		t.Errorf("took %s, want the gates at once", took)
 	}
 	has(t, out, "PASS slow\nPASS quick\n")
+}
+
+// One directory's gates run in plan order, so a gate that writes a file
+// finishes before the next one reads it.
+func TestOneDirectorysGatesRunInOrder(t *testing.T) {
+	t.Parallel()
+	r := newRepo(t, "repo")
+	out, res := r.run(r.gate("write", "sleep 0.5; echo built > out"), r.gate("read", "grep -q built out"))
+	has(t, out, "PASS write\nPASS read\n")
+	if res != (Result{Pass: 2}) {
+		t.Errorf("result = %+v", res)
+	}
 }
 
 // A covered gate runs when its coverer didn't, and is skipped when it did.

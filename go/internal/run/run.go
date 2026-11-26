@@ -1,5 +1,6 @@
 // Package run executes the gates enforce plans and reports each as PASS,
-// FAIL, or SKIP: the full gate's, all at once, and the Stop hook's checks
+// FAIL, or SKIP: the full gate's, a directory at a time and directories at
+// once, and the Stop hook's checks
 // of a turn's edits, whose snapshot around the batch catches a check that
 // changes files.
 package run
@@ -29,7 +30,8 @@ const gateTimeout = 10 * time.Minute
 // maxOutputLines bounds the output a failing gate shows.
 const maxOutputLines = 30
 
-// Gates runs p's gates at once, covered ones after the rest, and writes a
+// Gates runs p's gates, one directory's in order and directories at once,
+// covered ones after the rest, and writes a
 // PASS, FAIL, or SKIP line for each in that order, then a blank line and
 // the summary. A failure's line has its command, where it
 // ran, and its binaries under it, then the first lines of its output. A
@@ -78,23 +80,28 @@ type runner struct {
 	changes  func() (git.Since, bool)
 }
 
-// all runs gates at once, each reported to a runner of its own, then
-// takes in their reports in order, as if they had run one after another.
+// all runs gates, each reported to a runner of its own, then takes in their
+// reports in order, as if they had run one after another. One directory's
+// gates run in order, so one that writes files can't race one reading them;
+// directories run at once.
 func (r *runner) all(gates []enforce.Gate) {
 	runs := make([]*runner, len(gates))
 	outs := make([]strings.Builder, len(gates))
-	var wg sync.WaitGroup
+	byDir := map[string][]int{}
+	var dirs []string
 	for i, g := range gates {
 		runs[i] = &runner{reporter: reporter{plan: r.plan, report: &outs[i]}, deadline: r.deadline, ran: map[string]bool{}, base: r.base, changes: r.changes}
+		if _, seen := byDir[g.Dir]; !seen {
+			dirs = append(dirs, g.Dir)
+		}
+		byDir[g.Dir] = append(byDir[g.Dir], i)
+	}
+	var wg sync.WaitGroup
+	for _, dir := range dirs {
 		wg.Go(func() {
-			// A panic here would exit 2, which Claude Code reads as a
-			// block; the hook's recover can't reach this goroutine.
-			defer func() {
-				if recover() != nil {
-					runs[i].skip(g.Label, "crashed; failing open")
-				}
-			}()
-			runs[i].gate(g)
+			for _, i := range byDir[dir] {
+				runs[i].guarded(gates[i])
+			}
 		})
 	}
 	wg.Wait()
@@ -107,6 +114,19 @@ func (r *runner) all(gates []enforce.Gate) {
 		r.verdicts = append(r.verdicts, run.verdicts...)
 		maps.Copy(r.ran, run.ran)
 	}
+}
+
+// guarded runs g with a recover, so a crash skips it and the gates queued
+// after it in its directory still run.
+func (r *runner) guarded(g enforce.Gate) {
+	// A panic here would exit 2, which Claude Code reads as a block; the
+	// hook's recover can't reach this goroutine.
+	defer func() {
+		if recover() != nil {
+			r.skip(g.Label, "crashed; failing open")
+		}
+	}()
+	r.gate(g)
 }
 
 // outcome is one gate's run: its combined output, its error, and whether
