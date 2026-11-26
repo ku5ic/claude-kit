@@ -571,7 +571,8 @@ func readonlyCall(cmd, norm string) bool {
 
 // gitBaseFlagsSafe is false when `kit git-base` would hand git a flag that can
 // write files (--output) or run programs (--ext-diff): only the flags the
-// kit's own skills pass go through without a prompt.
+// kit's own skills pass, and help, go through without a prompt. Words after
+// -- are pathspecs git gets after its own -- (gitbase.Run).
 func gitBaseFlagsSafe(words []string) bool {
 	// The shell drops quotes, backslashes, and $'': '--output=x' and
 	// \--output=x reach git as --output=x.
@@ -579,9 +580,11 @@ func gitBaseFlagsSafe(words []string) bool {
 	for _, w := range words {
 		w = unquote.Replace(w)
 		switch {
+		case w == "--":
+			return true
 		case !strings.HasPrefix(w, "-"):
 		case len(w) > 1 && w[1] >= '0' && w[1] <= '9':
-		case slices.Contains([]string{"--diff", "--log", "--stat", "--name-only", "--name-status", "--no-merges", "--oneline", "--shortstat"}, w):
+		case slices.Contains([]string{"--diff", "--log", "--stat", "--name-only", "--name-status", "--no-merges", "--oneline", "--shortstat", "--help", "-h"}, w):
 		default:
 			return false
 		}

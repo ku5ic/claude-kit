@@ -626,6 +626,12 @@ func TestGuardBashParsing(t *testing.T) {
 		probe("ask", `kit git-base --diff '--output=/tmp/x'`)
 		probe("ask", `kit git-base --diff \--output=/tmp/x`)
 		probe("block", `kit git-base --diff --output=/tmp/x; rm -rf ~`)
+		// After --, every word is a pathspec git gets after its own --.
+		probe("allow", `kit git-base --diff -- kit.yml`)
+		probe("allow", `kit git-base --diff -- --output=/tmp/x`)
+		probe("allow", `kit git-base --help`)
+		probe("allow", `kit git-base -h`)
+		probe("ask", `kit git-base --diff --output=/tmp/x -- kit.yml`)
 		// Claude may run the full gate, as the user can.
 		probe("pass", `kit run-checks`)
 		probe("pass", `KIT_DEV=1 bin/kit run-checks --all 2>&1 | rg '^PASS'`)
