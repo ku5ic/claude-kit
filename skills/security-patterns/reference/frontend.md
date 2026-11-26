@@ -28,7 +28,7 @@ next-app-router-patterns owns these: `NEXT_PUBLIC_*` secrets (`reference/runtime
 
 ## Content Security Policy
 
-- Flag `unsafe-inline` in `script-src`, `unsafe-eval`, and a missing CSP header.
+- Flag `unsafe-inline` in a `script-src` with no nonce or hash, `unsafe-eval`, and a missing CSP header.
 - Use a strict CSP built on nonces or hashes. For a Next.js App Router app, follow the pattern in the Next.js docs.
 - Server-rendered apps: nonce-based. Generate a fresh, unpredictable random value per response, and put it in `script-src 'nonce-XXXX'` and on every `<script nonce="XXXX">` tag.
 - Bundler-emitted dynamic loads: pair the nonce or hash with `strict-dynamic`, which lets a trusted script load further scripts that carry no nonce of their own.

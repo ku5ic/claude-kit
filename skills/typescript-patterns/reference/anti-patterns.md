@@ -3,7 +3,7 @@
 - `// @ts-ignore` where `// @ts-expect-error` (3.9+) would work: `warning`. Use `@ts-expect-error`.
 - `any` on a public API surface without an escape-hatch comment: `failure`.
 - `as unknown as X` to silence the compiler: `failure`, unless a comment says why no narrower path exists and which runtime check guards the boundary.
-- Bare `as any` mid-expression: `failure`. At minimum, write `as unknown as X`.
+- Bare `as any` mid-expression: `failure`. At minimum, write `as unknown as X` with the comment the line above asks for.
 - `// @ts-nocheck` at the file head: `failure`. Use targeted `// @ts-expect-error` lines, or fix the cause.
 - `Function`, `Object`, or `{}` as a parameter type: `failure`. `{}` is any non-nullish value, primitives included. Use `Record<string, unknown>` for any object, `unknown` for any value, `Record<string, never>` for an empty object.
 - An `as` cast where a type guard or `satisfies` would work: `warning`.

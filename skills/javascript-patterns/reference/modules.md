@@ -4,7 +4,7 @@
 - `package.json` `"type": "module"`: `.js` parses as ESM. `"commonjs"` or no field: CJS. It applies to subfolders until another `package.json`.
 - One file that needs the other mode: `.mjs` is always ESM, `.cjs` always CJS.
 - Top-level `await`: ESM only, a syntax error in CJS. If it never resolves, Node exits with code 13.
-- CJS loading ESM: `await import("./esm-module.mjs")`. `require()` loads synchronous ESM (no top-level `await`), but `import()` is the safer bridge.
+- CJS loading ESM: `import("./esm-module.mjs")` inside an async function, or with `.then()`. `require()` loads synchronous ESM (no top-level `await`), but `import()` is the safer bridge.
 - ESM loading CJS: `module.createRequire()`.
 - One file: `require` or `import`, never both. Mixing them is `failure`.
 - An import nothing uses still loads its module and runs its top-level code, and keeps it in the bundle unless the bundler proves it side-effect free. Remove it.

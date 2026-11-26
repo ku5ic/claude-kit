@@ -17,4 +17,3 @@
 
 - A test that fakes an HTTP response: mock at the network layer with Mock Service Worker (MSW), not at the request client.
 - MSW intercepts with a Service Worker in the browser and a Node interceptor in tests. The same mock definitions work in unit, integration, and e2e tests, and in the dev server for offline development.
-- More than two test files mocking HTTP: use MSW. A one-off mock in a single test: `vi.fn()` is cheaper.

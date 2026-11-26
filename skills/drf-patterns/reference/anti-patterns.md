@@ -2,7 +2,7 @@
 
 Severity levels: the report-format skill.
 
-- A write endpoint without `permission_classes`: `failure`. See `reference/permissions.md`.
+- A write endpoint without `permission_classes`, and no safe `DEFAULT_PERMISSION_CLASSES`: `failure`. See `reference/permissions.md`.
 - `queryset.filter(**request.query_params.dict())`: `failure`. Use `django-filter` or an explicit `get_queryset()` override.
 - A list endpoint without pagination: `failure`. Set `DEFAULT_PAGINATION_CLASS` and `PAGE_SIZE` in settings.
 - `fields = "__all__"` on a serializer: `warning`. List the fields explicitly.
