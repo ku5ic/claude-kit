@@ -153,15 +153,9 @@ func (r *rotator) worktrees(dir string, days int, stderr io.Writer) {
 		}
 		wt := filepath.Dir(gitFile)
 		r.handled[wt] = true
-		if why := keepWorktree(wt); why != "" {
-			fmt.Fprintf(r.stdout, "scratch-rotate: kept %s %s\n", why, wt)
+		if err := r.removeWorktree(wt); err != nil {
+			fmt.Fprintf(stderr, "scratch-rotate: can't remove review worktree %s: %v\n", wt, err)
 			continue
-		}
-		if !r.dryRun {
-			if out, err := git.Command(wt, "worktree", "remove", "--force", wt).CombinedOutput(); err != nil {
-				fmt.Fprintf(stderr, "scratch-rotate: can't remove review worktree %s: %s\n", wt, strings.TrimSpace(string(out)))
-				continue
-			}
 		}
 		fmt.Fprintf(r.stdout, "scratch-rotate: %s review worktree older than %dd %s\n", r.verb, days, wt)
 		removed = append(removed, wt)
@@ -169,21 +163,17 @@ func (r *rotator) worktrees(dir string, days int, stderr io.Writer) {
 	r.record(removed)
 }
 
-// keepWorktree is why a linked worktree, review or not, must stay, or "":
-// git refuses to remove a locked one, and --force would drop uncommitted
-// work.
-func keepWorktree(wt string) string {
-	gitDir, err := git.Line(wt, "rev-parse", "--absolute-git-dir")
-	changes, statusErr := git.Status(wt, false)
-	switch {
-	case err != nil || statusErr != nil:
-		return "unreadable worktree"
-	case fsx.IsFile(filepath.Join(gitDir, "locked")):
-		return "locked worktree"
-	case len(changes) > 0:
-		return "worktree with uncommitted changes"
+// removeWorktree deletes a linked worktree in scratch whatever it holds:
+// scratch is throwaway. git removes it, a second --force taking a locked
+// one, so its repo forgets it; when git can't, the folder goes anyway.
+func (r *rotator) removeWorktree(wt string) error {
+	if r.dryRun {
+		return nil
 	}
-	return ""
+	if git.Command(wt, "worktree", "remove", "--force", "--force", wt).Run() == nil {
+		return nil
+	}
+	return os.RemoveAll(wt)
 }
 
 // folder is a folder under a pruned dir and its mtime before the prune:
@@ -235,22 +225,15 @@ func (r *rotator) prune(dir string, days int, keep func(string) bool) (matched [
 
 // removeCheckout deletes a nested checkout whose newest entry is more than
 // days old, and reports whether it went (would go, on a dry run). A linked
-// worktree goes through `git worktree remove`, so its repo forgets it, and
-// stays when keepWorktree names a reason. A repo of its own goes whole.
+// worktree goes through removeWorktree; a repo of its own goes whole.
 func (r *rotator) removeCheckout(path string, days int) bool {
 	if !cache.Older(newest(path), days, r.now) {
 		return false
 	}
 	if fsx.IsFile(filepath.Join(path, ".git")) {
-		if why := keepWorktree(path); why != "" {
-			fmt.Fprintf(r.stdout, "scratch-rotate: kept %s %s\n", why, path)
+		if err := r.removeWorktree(path); err != nil {
+			fmt.Fprintf(r.stdout, "scratch-rotate: can't remove worktree %s: %v\n", path, err)
 			return false
-		}
-		if !r.dryRun {
-			if out, err := git.Command(path, "worktree", "remove", "--force", path).CombinedOutput(); err != nil {
-				fmt.Fprintf(r.stdout, "scratch-rotate: can't remove worktree %s: %s\n", path, strings.TrimSpace(string(out)))
-				return false
-			}
 		}
 		return true
 	}

@@ -359,10 +359,10 @@ func TestRunRemovesEmptyProjectFolders(t *testing.T) {
 			files: map[string]time.Duration{"h/.git/HEAD": 40 * day, "h/old.go": 40 * day, "h/new.go": time.Hour},
 			dirs:  map[string]time.Duration{"h": 40 * day, "h/.git": 40 * day},
 			kept:  []string{"h/.git/HEAD", "h/old.go", "h/new.go"}},
-		{name: "a .git file no git can read keeps its folder",
+		{name: "a .git file no git can read goes anyway: scratch is throwaway",
 			files: map[string]time.Duration{"w/.git": 40 * day},
 			dirs:  map[string]time.Duration{"w": 40 * day},
-			kept:  []string{"w/.git"}},
+			gone:  []string{"w"}, logged: []string{"deleted $S/w\n"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

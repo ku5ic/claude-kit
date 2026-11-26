@@ -97,8 +97,6 @@ func TestScratchRotate(t *testing.T) {
 		Write(t, registry, scratch+"\n")
 		wt = filepath.Join(scratch, name)
 		k.Git(repo, "worktree", "add", "-q", "--detach", wt)
-		// Ignored, so it isn't uncommitted work that keeps the worktree.
-		Write(t, filepath.Join(repo, ".git/info/exclude"), "old.txt\n")
 		touch(t, filepath.Join(wt, "old.txt"), 40*day)
 		age(t, filepath.Join(wt, ".git"), secs)
 		return repo, wt
@@ -119,33 +117,26 @@ func TestScratchRotate(t *testing.T) {
 		r.Has(t, "would-delete review worktree older than 1d "+wt)
 		kept(t, filepath.Join(wt, "old.txt"))
 	})
-	t.Run("keeps an old worktree holding uncommitted work, review or not, and dry-run says so", func(t *testing.T) {
+	t.Run("removes an old worktree holding uncommitted work or locked, review or not: scratch is throwaway", func(t *testing.T) {
 		t.Parallel()
 		for _, name := range []string{"review-pr-7", "wt-7"} {
-			k, _, registry := setup(t)
-			_, wt := worktree(t, k, registry, name, 3*day)
-			Write(t, filepath.Join(wt, "NOTES.md"), "mine\n")
-			// All old, so only the uncommitted work keeps a worktree of any name.
-			_ = filepath.WalkDir(wt, func(path string, _ fs.DirEntry, _ error) error { age(t, path, 40*day); return nil })
-			for _, args := range [][]string{{"30", "--dry-run"}, {"30"}} {
-				r := k.Run("", append([]string{"scratch-rotate"}, args...)...)
-				r.Want(t, 0)
-				r.Has(t, "kept worktree with uncommitted changes "+wt)
+			for _, locked := range []bool{false, true} {
+				k, _, registry := setup(t)
+				repo, wt := worktree(t, k, registry, name, 3*day)
+				Write(t, filepath.Join(wt, "NOTES.md"), "mine\n")
+				if locked {
+					k.Git(repo, "worktree", "lock", wt)
+				}
+				_ = filepath.WalkDir(wt, func(path string, _ fs.DirEntry, _ error) error { age(t, path, 40*day); return nil })
+				k.Run("", "scratch-rotate", "30", "--dry-run").Want(t, 0)
+				kept(t, filepath.Join(wt, "NOTES.md"))
+				k.Run("", "scratch-rotate", "30").Want(t, 0)
+				gone(t, wt)
+				if list := k.Git(repo, "worktree", "list", "--porcelain"); strings.Contains(list, wt) {
+					t.Errorf("%s locked=%v: the repo still lists %s", name, locked, wt)
+				}
 			}
-			kept(t, filepath.Join(wt, "NOTES.md"))
 		}
-	})
-	t.Run("keeps a locked review worktree, and dry-run says so", func(t *testing.T) {
-		t.Parallel()
-		k, _, registry := setup(t)
-		repo, wt := worktree(t, k, registry, "review-pr-7", 3*day)
-		k.Git(repo, "worktree", "lock", wt)
-		for _, args := range [][]string{{"30", "--dry-run"}, {"30"}} {
-			r := k.Run("", append([]string{"scratch-rotate"}, args...)...)
-			r.Want(t, 0)
-			r.Has(t, "kept locked worktree "+wt)
-		}
-		kept(t, filepath.Join(wt, ".git"))
 	})
 	t.Run("removes an old worktree that isn't a review one, and its repo forgets it", func(t *testing.T) {
 		t.Parallel()
