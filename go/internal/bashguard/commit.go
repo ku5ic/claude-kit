@@ -1,9 +1,12 @@
 package bashguard
 
 import (
+	"bytes"
 	"cmp"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -52,12 +55,20 @@ func CheckCommit(h *hook.Hook) error {
 		return nil
 	}
 	scanned, d := map[string]bool{}, detector(h)
-	subjects := make([]string, 0, len(commits))
+	// An expansion other than $HOME can't be resolved here; most name the
+	// cwd's repo ("$PWD", "$(git rev-parse --show-toplevel)").
+	repos, msgs, unreads, subjects := make([]string, len(commits)), make([]string, len(commits)), make([]string, len(commits)), make([]string, len(commits))
 	for i, c := range commits {
-		// An expansion other than $HOME can't be resolved here; most name the
-		// cwd's repo ("$PWD", "$(git rev-parse --show-toplevel)").
-		repo := cmp.Or(c.repo, h.Payload.Cwd())
-		msg, unread := message(cmd, c, repo, h.Home)
+		repos[i] = cmp.Or(c.repo, h.Payload.Cwd())
+		msgs[i], unreads[i] = message(cmd, c, repos[i], h.Home)
+		subjects[i] = subject(msgs[i])
+	}
+	// The approval reads the transcript while gitleaks and the commit-msg
+	// checks run: it touches nothing of h.
+	ok := make(chan bool, 1)
+	go func() { ok <- approved(h.Payload.String(hook.KeyTranscriptPath), subjects) }()
+	for i := range commits {
+		repo, msg, unread := repos[i], msgs[i], unreads[i]
 
 		// Before the subject parsing: secret scanning must not depend on
 		// whether -m used a quoted message.
@@ -82,9 +93,8 @@ func CheckCommit(h *hook.Hook) error {
 		if failed := commitMsg(h, msg, repo); failed != "" {
 			return h.Block("the project's commit-msg checks reject this message\n"+failed+"\n"+layout.KV("do", "fix it to their convention"), "commit-msg")
 		}
-		subjects = append(subjects, subject(msg))
 	}
-	if !approved(h.Payload.String(hook.KeyTranscriptPath), subjects) {
+	if !<-ok {
 		h.Decide("ask", "skills/kit-rules/reference/workflow.md section 1: the current prompt doesn't ask for a commit, and no earlier reply showed this message; confirm only if the user asked for it")
 	}
 	return nil
@@ -272,6 +282,23 @@ func approved(path string, subjects []string) bool {
 	if path == "" || slices.Contains(subjects, "") {
 		return false
 	}
+	// The current prompt sits in the transcript's tail; parsing the whole
+	// session is needed only to look for an earlier reply showing the
+	// subjects, and only when the file holds every one of them.
+	if tail, err := transcript.Tail(path, math.MaxInt); err == nil {
+		for _, e := range slices.Backward(tail) {
+			if !e.StartsTurn() {
+				continue
+			}
+			if e.FromUser() && asksForCommit(e.PromptText()) {
+				return true
+			}
+			if data, err := os.ReadFile(path); err == nil && slices.ContainsFunc(subjects, func(s string) bool { return !mayHold(data, s) }) {
+				return false
+			}
+			break
+		}
+	}
 	var earlier, current strings.Builder
 	prompt := ""
 	_ = transcript.Each(path, func(e transcript.Entry) {
@@ -292,6 +319,22 @@ func approved(path string, subjects []string) bool {
 	}
 	text := earlier.String()
 	return !slices.ContainsFunc(subjects, func(s string) bool { return !shown(text, s) })
+}
+
+// mayHold is whether data, a JSONL transcript, could hold subject in some
+// reply: as written, or JSON-escaped ("fix: \"x\"").
+func mayHold(data []byte, subject string) bool {
+	if bytes.Contains(data, []byte(subject)) {
+		return true
+	}
+	var b bytes.Buffer
+	enc := json.NewEncoder(&b)
+	enc.SetEscapeHTML(false)
+	if enc.Encode(subject) != nil {
+		return true
+	}
+	escaped := bytes.TrimSuffix(b.Bytes(), []byte("\n"))
+	return bytes.Contains(data, escaped[1:len(escaped)-1])
 }
 
 // lineMarker is a Markdown marker opening a line: a bullet, a quote, a

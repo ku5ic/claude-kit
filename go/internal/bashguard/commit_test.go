@@ -241,6 +241,14 @@ func TestGuardCommitAsksForAnUnshownMessage(t *testing.T) {
 		}
 	}
 	commit(testutil.UserPrompt("fix it"), testutil.AssistantText("Commit as `fix: add sums`?"), testutil.UserPrompt("go")).Empty(t)
+	// The proposal sits further back than the transcript's last 4 MB.
+	filler := testutil.AssistantText(strings.Repeat("x", 1<<20))
+	commit(testutil.UserPrompt("fix it"), testutil.AssistantText("Commit as `fix: add sums`?"),
+		filler, filler, filler, filler, filler, testutil.UserPrompt("go")).Empty(t)
+	// A subject with quotes sits JSON-escaped in the transcript.
+	k.transcript = filepath.Join(t.TempDir(), "quoted.jsonl")
+	testutil.AppendJSONL(t, k.transcript, testutil.UserPrompt("fix it"), testutil.AssistantText("Commit as `fix: say \"hi\"`?"), testutil.UserPrompt("go"))
+	k.commit("", `git commit -m 'fix: say "hi"'`).Empty(t)
 	commit(testutil.UserPrompt("fix it"), testutil.AssistantText("The message:\n\n```text\nfix: add sums\n```\n\nCommit it?"), testutil.UserPrompt("go")).Empty(t)
 	for _, item := range []string{"1. fix: add sums", "2) fix: add sums", "+ fix: add sums", "> 1. **fix: add sums**"} {
 		if r := commit(testutil.UserPrompt("fix it"), testutil.AssistantText("Proposed:\n\n"+item+"\n\nCommit it?"), testutil.UserPrompt("go")); r.Output != "" {
