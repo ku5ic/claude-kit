@@ -8,6 +8,8 @@ Accepted
 
 Supercedes [3. Release 0.2: ship the rules through hooks](0003-release-0-2-ship-the-rules-through-hooks.md)
 
+Amended by [15. Release 0.14: rules that survive a compaction, and a closed retro loop](0015-release-0-14-rules-that-survive-a-compaction-and-a-closed-retro-loop.md)
+
 ## Context
 
 Release 0.10 (v0.10.0, PR #16) set the kit's scope and changed how the rules and the claim checker reach a session. This record replaces the former ADRs 15 to 21 and 25 to 27, and its sources are theirs. Release 0.11 ([10](0010-release-0-11-no-release-eval.md)) removed the eval suite this release added.
