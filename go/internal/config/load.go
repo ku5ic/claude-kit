@@ -33,14 +33,21 @@ func (p Paths) CacheDir() string    { return filepath.Join(p.ClaudeDir, "cache")
 func (p Paths) ScratchHome() string { return filepath.Join(p.ClaudeDir, "scratch") }
 func (p Paths) PlansHome() string   { return filepath.Join(p.ClaudeDir, "plans") }
 
-// IsScratch is true for a path in, or at, a project's .claude/scratch or
-// the home scratch, which $CLAUDE_CONFIG_DIR can move. Any other directory
-// named scratch is project code and gets every check.
+// IsScratch is true for a path in, or at, a project's .claude/scratch, the
+// home scratch, which $CLAUDE_CONFIG_DIR can move, or this user's Claude
+// Code session scratchpad. Any other directory named scratch is project
+// code and gets every check.
 func (p Paths) IsScratch(path string) bool {
 	clean := filepath.Clean(path)
 	return fsx.Within(p.ScratchHome(), clean) ||
-		strings.HasSuffix(clean, "/.claude/scratch") || strings.Contains(clean, "/.claude/scratch/")
+		strings.HasSuffix(clean, "/.claude/scratch") || strings.Contains(clean, "/.claude/scratch/") ||
+		sessionScratchpad.MatchString(clean)
 }
+
+// sessionScratchpad is the throwaway folder Claude Code gives each session,
+// /tmp/claude-<uid>/<project>/<session>/scratchpad, as macOS's /private/tmp
+// too.
+var sessionScratchpad = regexp.MustCompile(fmt.Sprintf(`^(?:/private)?/tmp/claude-%d/[^/]+/[^/]+/scratchpad(?:/|$)`, os.Getuid()))
 
 // LogFile is the JSONL log called name.
 func (p Paths) LogFile(name string) string { return filepath.Join(p.LogDir(), name+".jsonl") }

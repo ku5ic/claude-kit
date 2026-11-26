@@ -494,6 +494,7 @@ func TestSessionFile(t *testing.T) {
 }
 
 func TestIsScratch(t *testing.T) {
+	pad := fmt.Sprintf("/tmp/claude-%d/-Users-u-repo/1234-session", os.Getuid())
 	for path, want := range map[string]bool{
 		"/repo/.claude/scratch":            true,
 		"/repo/.claude/scratch/":           true,
@@ -507,6 +508,14 @@ func TestIsScratch(t *testing.T) {
 		"/home/u/.config/claude/scratch":   true,
 		"/home/u/.config/claude/scratch/r": true,
 		"/home/u/.config/claude/scratchy":  false,
+		// Claude Code's session scratchpad, for this user only.
+		pad + "/scratchpad":                 true,
+		pad + "/scratchpad/wt1/m":           true,
+		"/private" + pad + "/scratchpad/x":  true,
+		pad + "/tasks/a.output":             false,
+		pad + "/scratchpad/../tasks/x":      false,
+		"/tmp/claude-0/-p/s/scratchpad/x":   os.Getuid() == 0,
+		"/repo/tmp" + pad + "/scratchpad/x": false,
 	} {
 		if got := (Paths{ClaudeDir: "/home/u/.config/claude"}).IsScratch(path); got != want {
 			t.Errorf("IsScratch(%q) = %v, want %v", path, got, want)
