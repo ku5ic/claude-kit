@@ -41,7 +41,7 @@ func Run(paths config.Paths, home string, n int, dryRun bool, stdout, stderr io.
 }
 
 func newRotator(paths config.Paths, dryRun bool, stdout io.Writer) *rotator {
-	r := &rotator{now: time.Now(), dryRun: dryRun, log: rotateLog(paths), verb: "deleted", pruned: "pruned", stdout: stdout, handled: map[string]bool{}}
+	r := &rotator{now: time.Now(), dryRun: dryRun, log: rotateLog(paths), verb: "deleted", pruned: "pruned", stdout: stdout}
 	if dryRun {
 		r.verb, r.pruned = "would-delete", "would prune"
 	}
@@ -115,7 +115,6 @@ func (r *rotator) registry(registry, home string, n int, stderr io.Writer) {
 			fmt.Fprintf(stderr, "scratch-rotate: REFUSING registry entry %s (not a plain scratch/ dir under $HOME)\n", dir)
 			keep = append(keep, dir)
 		default:
-			r.worktrees(dir, min(n, 1), stderr)
 			removed, folders := r.prune(dir, n, nil)
 			r.emptyFolders(folders, n, removed)
 			fmt.Fprintf(r.stdout, "scratch-rotate: %s %d artifact(s) older than %dd from %s\n", r.pruned, len(removed), n, dir)
@@ -135,32 +134,6 @@ type rotator struct {
 	pruned string // the output's
 	log    string
 	stdout io.Writer
-	// handled is each review worktree worktrees decided on, which prune
-	// then leaves alone.
-	handled map[string]bool
-}
-
-// worktrees removes the review-* git worktrees directly under a project
-// scratch dir whose creation (their .git file) is more than days old: a
-// review that ended without cleaning up leaves one behind.
-func (r *rotator) worktrees(dir string, days int, stderr io.Writer) {
-	gitFiles, _ := filepath.Glob(filepath.Join(dir, "review-*", ".git"))
-	var removed []string
-	for _, gitFile := range gitFiles {
-		info, err := os.Lstat(gitFile)
-		if err != nil || !info.Mode().IsRegular() || !cache.Older(info.ModTime(), days, r.now) {
-			continue
-		}
-		wt := filepath.Dir(gitFile)
-		r.handled[wt] = true
-		if err := r.removeWorktree(wt); err != nil {
-			fmt.Fprintf(stderr, "scratch-rotate: can't remove review worktree %s: %v\n", wt, err)
-			continue
-		}
-		fmt.Fprintf(r.stdout, "scratch-rotate: %s review worktree older than %dd %s\n", r.verb, days, wt)
-		removed = append(removed, wt)
-	}
-	r.record(removed)
 }
 
 // removeWorktree deletes a linked worktree in scratch whatever it holds:
@@ -188,7 +161,7 @@ type folder struct {
 // old, records each in the rotate log, and returns them with the folders
 // under dir, parents before children. It never deletes part of a nested
 // git checkout, which would corrupt it: with keep nil, removeCheckout
-// takes one whole once its newest entry is past days.
+// takes one whole once its newest entry is past checkoutDays.
 func (r *rotator) prune(dir string, days int, keep func(string) bool) (matched []string, folders []folder) {
 	_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil || path == dir {
@@ -196,7 +169,7 @@ func (r *rotator) prune(dir string, days int, keep func(string) bool) (matched [
 		}
 		if d.IsDir() {
 			if isCheckout(path) {
-				if keep == nil && !r.handled[path] && r.removeCheckout(path, days) {
+				if keep == nil && r.removeCheckout(path, checkoutDays(dir, path, days)) {
 					matched = append(matched, path)
 				}
 				return filepath.SkipDir
@@ -221,6 +194,19 @@ func (r *rotator) prune(dir string, days int, keep func(string) bool) (matched [
 	})
 	r.record(matched)
 	return matched, folders
+}
+
+// reviewDays is the most a review-* checkout directly under a pruned dir
+// keeps: a review that ended without cleaning up leaves one behind.
+const reviewDays = 1
+
+// checkoutDays is the window for the checkout at path under dir: days, at
+// most reviewDays for a review-* one directly under dir.
+func checkoutDays(dir, path string, days int) int {
+	if filepath.Dir(path) == dir && strings.HasPrefix(filepath.Base(path), "review-") {
+		return min(days, reviewDays)
+	}
+	return days
 }
 
 // removeCheckout deletes a nested checkout whose newest entry is more than

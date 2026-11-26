@@ -2,6 +2,7 @@ package rotate
 
 import (
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -261,10 +262,20 @@ func TestRunPrunesRegisteredProjectDirs(t *testing.T) {
 	}
 }
 
-// A review worktree past a day goes through git worktree remove; age is
-// how long ago its .git file was written.
-func TestRunRemovesAReviewWorktreeOlderThanADay(t *testing.T) {
-	for name, age := range map[string]time.Duration{"3 days": 3 * day, "30 hours": 30 * time.Hour} {
+// A review worktree goes once nothing in it changed for a day, whatever
+// the run's window, through git worktree remove; one with a file changed
+// since stays, however old the worktree.
+func TestRunRemovesAReviewWorktreeUnchangedForADay(t *testing.T) {
+	tests := map[string]struct {
+		age     time.Duration // of every entry
+		changed time.Duration // of notes.md, when set
+		gone    bool
+	}{
+		"unchanged for 3 days":                        {age: 3 * day, gone: true},
+		"unchanged for 30 hours":                      {age: 30 * time.Hour, gone: true},
+		"made 3 days ago, a file changed an hour ago": {age: 3 * day, changed: time.Hour},
+	}
+	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			home := physicalTemp(t)
 			t.Setenv("HOME", home)
@@ -276,15 +287,26 @@ func TestRunRemovesAReviewWorktreeOlderThanADay(t *testing.T) {
 			testutil.Put(t, paths.LogDir(), "scratch-registry.txt", scratch+"\n")
 			wt := filepath.Join(scratch, "review-pr-7")
 			testutil.Git(t, repo, "worktree", "add", "-q", "--detach", wt)
-			testutil.Age(t, age, filepath.Join(wt, ".git"))
+			testutil.Put(t, wt, "notes.md", "")
+			_ = filepath.WalkDir(wt, func(path string, _ fs.DirEntry, _ error) error {
+				testutil.Age(t, tt.age, path)
+				return nil
+			})
+			if tt.changed > 0 {
+				testutil.Age(t, tt.changed, filepath.Join(wt, "notes.md"))
+			}
 
-			wantOutput(t, rotate(t, paths, home), []string{"deleted review worktree older than 1d " + wt}, nil)
-			if exists(wt) {
-				t.Errorf("%s survived", wt)
+			rotate(t, paths, home)
+			log, _ := os.ReadFile(rotateLog(paths))
+			if got := exists(wt); got == tt.gone {
+				t.Fatalf("worktree exists %v, want %v", got, !tt.gone)
+			}
+			if logged := strings.Contains(string(log), "deleted "+wt+"\n"); logged != tt.gone {
+				t.Errorf("rotate log lists %s: %v, want %v:\n%s", wt, logged, tt.gone, log)
 			}
 			out, err := git.Output(repo, "worktree", "list")
-			if err != nil || strings.Contains(out, wt) {
-				t.Errorf("git worktree list (%v) still has %s:\n%s", err, wt, out)
+			if listed := strings.Contains(out, wt); err != nil || listed == tt.gone {
+				t.Errorf("git worktree list (%v) has %s: %v, want %v:\n%s", err, wt, listed, !tt.gone, out)
 			}
 		})
 	}

@@ -113,8 +113,11 @@ func TestScratchRotate(t *testing.T) {
 		t.Parallel()
 		k, _, registry := setup(t)
 		_, wt := worktree(t, k, registry, "review-pr-7", 3*day)
-		r := k.Run("", "scratch-rotate", "30", "--dry-run")
-		r.Has(t, "would-delete review worktree older than 1d "+wt)
+		_ = filepath.WalkDir(wt, func(path string, _ fs.DirEntry, _ error) error { age(t, path, 3*day); return nil })
+		k.Run("", "scratch-rotate", "30", "--dry-run").Want(t, 0)
+		if log := Read(t, filepath.Join(k.Claude, "logs/scratch-rotate.log")); !strings.Contains(log, " would-delete "+wt+"\n") {
+			t.Errorf("the rotate log doesn't say %s would go:\n%s", wt, log)
+		}
 		kept(t, filepath.Join(wt, "old.txt"))
 	})
 	t.Run("removes an old worktree holding uncommitted work or locked, review or not: scratch is throwaway", func(t *testing.T) {
