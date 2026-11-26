@@ -344,6 +344,15 @@ dependency_skills:
 		e.inject("s1", "").Has(t, "skip-dirs: node_modules, .venv\n")
 		e.run("inject-subagent-context", map[string]any{"session_id": "s1", "cwd": e.root}).Has(t, "skip-dirs: node_modules, .venv")
 	})
+	t.Run("a subagent hears its report budget before it writes, and none when there's no budget", func(t *testing.T) {
+		t.Parallel()
+		e := contextSetup(t)
+		e.kitYML("size_budgets: {report: 900}\n")
+		e.run("inject-subagent-context", map[string]any{"session_id": "s1", "cwd": e.root}).Has(t, "Your report is sent back once past 900 words")
+		off := contextSetup(t)
+		off.kitYML("size_budgets: {report: 0}\n")
+		off.run("inject-subagent-context", map[string]any{"session_id": "s1", "cwd": off.root}).Lacks(t, "Your report is sent back")
+	})
 	t.Run("repo-context names the scratch dir without creating it", func(t *testing.T) {
 		t.Parallel()
 		e := contextSetup(t)
