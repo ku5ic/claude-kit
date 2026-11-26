@@ -317,8 +317,9 @@ func TestRunWithZeroDaysEmptiesEveryScratch(t *testing.T) {
 }
 
 // A project scratch dir loses the folders the run left empty, deepest
-// first, when they're past the window by their mtime before the run: never
-// the scratch dir itself, a fresh folder, or a nested checkout.
+// first, when they're past the window by their mtime before the run, and a
+// nested repo whose newest entry is past it, whole: never the scratch dir
+// itself, a fresh folder, or a fresh repo.
 func TestRunRemovesEmptyProjectFolders(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -350,10 +351,18 @@ func TestRunRemovesEmptyProjectFolders(t *testing.T) {
 		{name: "a fresh empty folder stays",
 			dirs: map[string]time.Duration{"f": time.Hour},
 			kept: []string{"f"}},
-		{name: "a nested checkout is never entered or removed",
-			files: map[string]time.Duration{"g/.git": 40 * day},
-			dirs:  map[string]time.Duration{"g": 40 * day},
-			kept:  []string{"g/.git"}},
+		{name: "a nested repo past the window goes whole, and its folder with it",
+			files: map[string]time.Duration{"g/repo/.git/HEAD": 40 * day, "g/repo/main.go": 40 * day},
+			dirs:  map[string]time.Duration{"g": 40 * day, "g/repo": 40 * day, "g/repo/.git": 40 * day},
+			gone:  []string{"g"}, logged: []string{"deleted $S/g/repo\n", "deleted $S/g\n"}},
+		{name: "a nested repo with one fresh file stays whole",
+			files: map[string]time.Duration{"h/.git/HEAD": 40 * day, "h/old.go": 40 * day, "h/new.go": time.Hour},
+			dirs:  map[string]time.Duration{"h": 40 * day, "h/.git": 40 * day},
+			kept:  []string{"h/.git/HEAD", "h/old.go", "h/new.go"}},
+		{name: "a .git file no git can read keeps its folder",
+			files: map[string]time.Duration{"w/.git": 40 * day},
+			dirs:  map[string]time.Duration{"w": 40 * day},
+			kept:  []string{"w/.git"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -381,6 +390,29 @@ func TestRunRemovesEmptyProjectFolders(t *testing.T) {
 			data, _ := os.ReadFile(filepath.Join(paths.LogDir(), "scratch-rotate.log"))
 			testutil.Has(t, strings.ReplaceAll(string(data), scratch, "$S"), tt.logged...)
 		})
+	}
+}
+
+// A symlink is pruned like a file, by its own mtime, and its target stays.
+func TestRunRemovesASymlinkNotItsTarget(t *testing.T) {
+	home := physicalTemp(t)
+	t.Setenv("HOME", home)
+	paths := kitHome(t, home)
+	scratch := filepath.Join(home, "proj", "scratch")
+	testutil.Mkdir(t, filepath.Join(scratch, "s"))
+	target := filepath.Join(home, "target.txt")
+	testutil.Put(t, home, "target.txt", "keep")
+	if err := os.Symlink(target, filepath.Join(scratch, "s", "link")); err != nil {
+		t.Fatal(err)
+	}
+	testutil.Put(t, paths.LogDir(), "scratch-registry.txt", scratch+"\n")
+	var stdout, stderr strings.Builder
+	if code := Run(paths, home, 0, false, &stdout, &stderr); code != 0 || stderr.Len() > 0 {
+		t.Fatalf("exit %d, stderr %q", code, stderr.String())
+	}
+	wantFiles(t, scratch, []string{"s"}, nil)
+	if !exists(target) {
+		t.Error("the symlink's target was deleted")
 	}
 }
 

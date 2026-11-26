@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -140,6 +141,18 @@ func TestScratchRotate(t *testing.T) {
 			r.Has(t, "kept locked review worktree "+wt)
 		}
 		kept(t, filepath.Join(wt, ".git"))
+	})
+	t.Run("removes an old worktree that isn't a review one, and its repo forgets it", func(t *testing.T) {
+		t.Parallel()
+		k, _, registry := setup(t)
+		repo, wt := worktree(t, k, registry, "kit-before", 3*day)
+		k.Run("", "scratch-rotate", "0").Want(t, 0)
+		if _, err := os.Lstat(wt); err == nil {
+			t.Errorf("%s survived", wt)
+		}
+		if list := k.Git(repo, "worktree", "list", "--porcelain"); strings.Contains(list, wt) {
+			t.Errorf("the repo still lists %s:\n%s", wt, list)
+		}
 	})
 	t.Run("--dry-run keeps a stale registry entry and says it would drop it", func(t *testing.T) {
 		t.Parallel()

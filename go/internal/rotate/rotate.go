@@ -41,7 +41,7 @@ func Run(paths config.Paths, home string, n int, dryRun bool, stdout, stderr io.
 }
 
 func newRotator(paths config.Paths, dryRun bool, stdout io.Writer) *rotator {
-	r := &rotator{now: time.Now(), dryRun: dryRun, log: rotateLog(paths), verb: "deleted", pruned: "pruned", stdout: stdout}
+	r := &rotator{now: time.Now(), dryRun: dryRun, log: rotateLog(paths), verb: "deleted", pruned: "pruned", stdout: stdout, handled: map[string]bool{}}
 	if dryRun {
 		r.verb, r.pruned = "would-delete", "would prune"
 	}
@@ -135,6 +135,9 @@ type rotator struct {
 	pruned string // the output's
 	log    string
 	stdout io.Writer
+	// handled is each review worktree worktrees decided on, which prune
+	// then leaves alone.
+	handled map[string]bool
 }
 
 // worktrees removes the review-* git worktrees directly under a project
@@ -149,6 +152,7 @@ func (r *rotator) worktrees(dir string, days int, stderr io.Writer) {
 			continue
 		}
 		wt := filepath.Dir(gitFile)
+		r.handled[wt] = true
 		if why := keepWorktree(wt); why != "" {
 			fmt.Fprintf(r.stdout, "scratch-rotate: kept %s %s\n", why, wt)
 			continue
@@ -188,11 +192,12 @@ type folder struct {
 	mod  time.Time
 }
 
-// prune deletes the regular files under dir matching keep (every one when
-// nil) whose modification is more than days whole days old, records each
-// in the rotate log, and returns them with the folders under dir, parents
-// before children. It never enters a nested git checkout: deleting its old
-// files would corrupt it.
+// prune deletes the regular files and symlinks under dir matching keep
+// (every one when nil) whose modification is more than days whole days
+// old, records each in the rotate log, and returns them with the folders
+// under dir, parents before children. It never deletes part of a nested
+// git checkout, which would corrupt it: with keep nil, removeCheckout
+// takes one whole once its newest entry is past days.
 func (r *rotator) prune(dir string, days int, keep func(string) bool) (matched []string, folders []folder) {
 	_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil || path == dir {
@@ -200,6 +205,9 @@ func (r *rotator) prune(dir string, days int, keep func(string) bool) (matched [
 		}
 		if d.IsDir() {
 			if isCheckout(path) {
+				if keep == nil && !r.handled[path] && r.removeCheckout(path, days) {
+					matched = append(matched, path)
+				}
 				return filepath.SkipDir
 			}
 			if info, err := d.Info(); err == nil {
@@ -207,7 +215,7 @@ func (r *rotator) prune(dir string, days int, keep func(string) bool) (matched [
 			}
 			return nil
 		}
-		if !d.Type().IsRegular() || (keep != nil && !keep(d.Name())) {
+		if !d.Type().IsRegular() && d.Type()&fs.ModeSymlink == 0 || (keep != nil && !keep(d.Name())) {
 			return nil
 		}
 		info, err := d.Info()
@@ -222,6 +230,46 @@ func (r *rotator) prune(dir string, days int, keep func(string) bool) (matched [
 	})
 	r.record(matched)
 	return matched, folders
+}
+
+// removeCheckout deletes a nested checkout whose newest entry is more than
+// days old, and reports whether it went (would go, on a dry run). A linked
+// worktree goes through `git worktree remove`, so its repo forgets it, and
+// stays when keepWorktree names a reason. A repo of its own goes whole.
+func (r *rotator) removeCheckout(path string, days int) bool {
+	if !cache.Older(newest(path), days, r.now) {
+		return false
+	}
+	if fsx.IsFile(filepath.Join(path, ".git")) {
+		if why := keepWorktree(path); why != "" {
+			fmt.Fprintf(r.stdout, "scratch-rotate: kept %s %s\n", why, path)
+			return false
+		}
+		if !r.dryRun {
+			if out, err := git.Command(path, "worktree", "remove", "--force", path).CombinedOutput(); err != nil {
+				fmt.Fprintf(r.stdout, "scratch-rotate: can't remove worktree %s: %s\n", path, strings.TrimSpace(string(out)))
+				return false
+			}
+		}
+		return true
+	}
+	return r.dryRun || os.RemoveAll(path) == nil
+}
+
+// newest is the latest modification under dir, dir included, symlinks
+// read as links.
+func newest(dir string) time.Time {
+	var latest time.Time
+	_ = filepath.WalkDir(dir, func(_ string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info, err := d.Info(); err == nil && info.ModTime().After(latest) {
+			latest = info.ModTime()
+		}
+		return nil
+	})
+	return latest
 }
 
 // emptyFolders deletes, deepest first, each of folders past days by its
