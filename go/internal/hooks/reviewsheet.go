@@ -195,8 +195,9 @@ func sheet(cfg *config.Config, root, from, to, plan, title, more string) []strin
 // finished. Under step_pause step, that's the active plan's first open
 // step, as the tree against HEAD: each step is committed before the next.
 // Otherwise it's each step ticked since the last sheet, between the
-// snapshots planTick took.
-func reviewSheets(h *hook.Hook, cfg *config.Config, cwd, root string) {
+// snapshots planTick took. tree is the work tree's snapshot, "" when git
+// couldn't take one.
+func reviewSheets(h *hook.Hook, cfg *config.Config, cwd, root, tree string) {
 	_, plan := activePlan(h, root)
 	if plan == nil {
 		return
@@ -219,12 +220,11 @@ func reviewSheets(h *hook.Hook, cfg *config.Config, cwd, root string) {
 		if err != nil {
 			from = emptyTree
 		}
-		to, err := git.Snapshot(root)
-		if err != nil {
+		if tree == "" {
 			return
 		}
 		label := fmt.Sprintf("step %d of %d", n, total)
-		if lines := sheet(cfg, root, from, to, string(plan), label, more(label)); lines != nil {
+		if lines := sheet(cfg, root, from, tree, string(plan), label, more(label)); lines != nil {
 			h.Notify(strings.Join(lines, "\n"))
 		}
 		return
