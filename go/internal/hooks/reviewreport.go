@@ -31,7 +31,7 @@ func ReviewReport(h *hook.Hook) error {
 	cwd := h.Payload.Cwd()
 	if root := git.Toplevel(cwd); root != "" {
 		// stop-checks' saved walk, read only past where it stopped.
-		_, walk = readSession(h, path, root, project.PlanDir(h.Paths, cwd), codeIn(h, root))
+		_, walk = readSession(h, path, root, project.PlanDir(h.Paths, cwd), codeIn(h, root), false)
 	} else {
 		walk = newPlanWalk()
 		noCode := func(string) bool { return false }

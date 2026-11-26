@@ -43,7 +43,7 @@ func ReviewPick(h *hook.Hook) error {
 	if target := fsx.Abs(cwd, p.FilePath()); edit && (!isCode(target) || fsx.Within(plans, target)) {
 		return nil
 	}
-	if _, walk := readSession(h, path, root, plans, isCode); walk.HoldFrom > walk.Answered {
+	if _, walk := readSession(h, path, root, plans, isCode, false); walk.HoldFrom > walk.Answered {
 		h.Deny("an edit, or an agent that could make one, before the user picked which /code-review findings to fix\n"+
 			layout.KV("do", "stop at the review's report and ask which findings to fix, per skills/kit-rules/reference/workflow.md section 4"), "review-pick")
 	}

@@ -116,7 +116,7 @@ func lastAnswer(h *hook.Hook) (int, bool) {
 		return 0, false
 	}
 	root := git.Toplevel(cwd)
-	_, walk := readSession(h, path, root, project.PlanDir(h.Paths, cwd), codeIn(h, root))
+	_, walk := readSession(h, path, root, project.PlanDir(h.Paths, cwd), codeIn(h, root), false)
 	return walk.Answered, true
 }
 

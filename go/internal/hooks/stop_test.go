@@ -490,6 +490,18 @@ func TestStopReadsTheTranscriptOnce(t *testing.T) {
 		}
 		e.stop(false).Want(t, 2)
 	})
+	t.Run("a mid-turn read for review-pick leaves Stop the whole turn", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		e.turn("Edit", e.path("a.ts"))
+		e.k.run("review-pick", map[string]any{"hook_event_name": "PreToolUse", "session_id": "s1", "cwd": e.repo,
+			"transcript_path": e.transcript, "tool_name": "Edit", "tool_input": map[string]any{"file_path": e.path("b.ts")}}).Allowed(t)
+		e.edit("Edit", e.path("b.ts"), false)
+		e.stop(false).Want(t, 0)
+		if got := e.checked(); !strings.Contains(got, "a.ts") || !strings.Contains(got, "b.ts") {
+			t.Errorf("Stop checked %q, want both the turn's early a.ts and its later b.ts", got)
+		}
+	})
 	t.Run("a garbled saved read is read whole", func(t *testing.T) {
 		t.Parallel()
 		e := stopSetup(t)
