@@ -15,6 +15,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
+	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
 // ExpandHome turns a leading ~, $HOME, or ${HOME} into home.
@@ -253,7 +254,9 @@ func kitSwitch(paths config.Paths, cwd, p string, norm func(string) string) stri
 	switch {
 	case paths.Overlay != "" && p == norm(paths.Overlay):
 		return "the claude-kit overlay"
-	case (base == "settings.json" || base == "settings.local.json") && (filepath.Base(dir) == ".claude" || dir == norm(paths.ClaudeDir)):
+	case (base == "settings.json" || base == "settings.local.json") && (filepath.Base(dir) == ".claude" || dir == norm(paths.ClaudeDir)) &&
+		!project.IsScratch(paths, p):
+		// One under scratch is a test fixture no session reads.
 		return "a Claude Code settings file"
 	case in(paths.LogDir()):
 		return "the kit's logs"

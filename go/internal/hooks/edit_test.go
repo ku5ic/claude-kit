@@ -114,6 +114,18 @@ func TestGuardEdit(t *testing.T) {
 		r := newSandbox(t).run("guard-edit", editPayload("Write", "/tmp/project/.claude/settings.local.json", "", ""))
 		r.Has(t, "this writes a Claude Code settings file")
 	})
+	t.Run("allow: a settings file a fixture keeps under scratch", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		for _, path := range []string{
+			filepath.Join(k.paths.ClaudeDir, "scratch", "x", ".claude", "settings.json"),
+			"/work/project/.claude/scratch/x/.claude/settings.local.json",
+		} {
+			r := k.run("guard-edit", editPayload("Write", path, "", ""))
+			r.Want(t, 0)
+			r.Lacks(t, "settings file")
+		}
+	})
 	t.Run("allow: a same-named file that is not the overlay", func(t *testing.T) {
 		t.Parallel()
 		k, _ := overlaySandbox(t)
