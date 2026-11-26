@@ -21,8 +21,9 @@ var gitEnv = regexp.MustCompile(`\bGIT_[A-Z0-9_]+`)
 // run: none of them can set what git reads, or write a .git file.
 var throwawayCalls = nameSet("git", "cd", "mkdir", "mktemp", "set", "true", ":")
 
-// throwawayGit are the git subcommands such a command may run.
-var throwawayGit = nameSet("init", "add", "commit", "status", "log", "diff", "rev-parse")
+// throwawayGit are the git subcommands such a command may run; diff and
+// log write files with --output.
+var throwawayGit = nameSet("init", "add", "commit")
 
 // dupTarget is a redirect target that duplicates or closes a descriptor,
 // as the parser writes it (>&2 is "&2").

@@ -488,6 +488,8 @@ func TestGuardCommitInAThrowawayRepoNeedsNoApproval(t *testing.T) {
 		`sudo git -C ~/.claude/scratch/r commit -m "fix: add sums"`,
 		`eval 'cd /'; git -C ~/.claude/scratch/r commit -m "fix: add sums"`,
 		`git -C ~/.claude/scratch/r commit -m "fix: add sums" && git commit -m "fix: add sums"`,
+		`git -C ~/.claude/scratch/r diff --output=x && git -C ~/.claude/scratch/r commit -m "fix: add sums"`,
+		`git -C ~/.claude/scratch/r log --output=x && git -C ~/.claude/scratch/r commit -m "fix: add sums"`,
 	} {
 		if r := k.commit("", cmd); !strings.Contains(r.Output, `"permissionDecision":"ask"`) {
 			t.Errorf("%s: no ask:\n%s", cmd, r.Output)
