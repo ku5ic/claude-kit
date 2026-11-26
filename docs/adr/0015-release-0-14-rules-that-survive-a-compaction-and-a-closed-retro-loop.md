@@ -35,6 +35,7 @@ Sources are the commits on `feat/release-0-14-0-rules-survive-compaction-and-ret
 - The full gate runs each directory's checks in order and directories at once, its lines still in plan order, and no longer fails a check that changes files. The Stop checks still do (`go/internal/run/run.go`, `docs/checks.md`).
 - A commit in a throwaway repo needs no approval. Git's own `rev-parse --absolute-git-dir` must put an existing repo under scratch, or the command must `git init` the repo first and commit only once that worked, and the command may run only git init, add, commit, cd, mkdir, mktemp, and `set` (`43c018d`, `dd321b6`, `b061ad6`, `557d0b2`). This narrows ADR 9's "Claude never commits or pushes unasked".
 - A Claude Code settings file under scratch is written with no ask, since no session reads a fixture there (`6ca1ca4`). This narrows ADR 9's ask on settings files, as ADR 13 did for the plugin root's scratch.
+- The commit guard takes a bare yes to a commit question (`1d8012c`, `d5d96b0`), and an AskUserQuestion answer that asks for a commit, read from the harness's answer record and good for one commit (`648722a`, `bfba80a`), as the request.
 - Fixes that change what a user sees: `kit git-base` reads `branch.<name>.gh-merge-base` (`aa7ceb8`) and skips a parent HEAD left or the default branch holds (`go/internal/git/git.go`), the imports guard allows `claude-code` in a plugin (`7402338`), and `kit scratch-rotate` deletes old checkouts and symlinks (`19502c9`).
 
 ## Consequences
