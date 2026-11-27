@@ -15,6 +15,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
+	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 	"github.com/ku5ic/claude-kit/go/internal/layout"
 	"github.com/ku5ic/claude-kit/go/internal/project"
 )
@@ -54,8 +55,12 @@ func PlanChanges(h *hook.Hook) error {
 		return nil
 	}
 	save := func(file, data string) {
-		if !h.DryRun {
-			_ = fsx.WriteAtomic(file, []byte(data), 0o600)
+		if h.DryRun {
+			return
+		}
+		// Unsaved, the next resubmit shows no diff or a stale one.
+		if err := fsx.WriteAtomic(file, []byte(data), 0o600); err != nil {
+			h.Log(kitlog.Guards, "plan-changes-error", "file", file, "error", err.Error())
 		}
 	}
 	held := readHeld(heldFile)

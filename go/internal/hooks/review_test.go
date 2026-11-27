@@ -175,3 +175,26 @@ func TestReviewChecks(t *testing.T) {
 		quiet(t, e, stop(e, e.project, parent(t, skillCall, done)))
 	})
 }
+
+// With no sidecar, a foreground fork counts as /code-review only while
+// the parent's code-review Skill call has no result, a result line that
+// names the skill or not.
+func TestForkedSkillReadsThePendingReviewCall(t *testing.T) {
+	t.Parallel()
+	agent := filepath.Join(t.TempDir(), "agent.jsonl")
+	call := testutil.ToolUse("toolu_review", "Skill", map[string]any{"skill": "code-review"})
+	for _, tc := range []struct {
+		name  string
+		lines []any
+		want  string
+	}{
+		{"a call with no result is pending", []any{call}, "code-review"},
+		{"a result names the call by id only", []any{call, testutil.ToolResult("toolu_review", "done")}, ""},
+	} {
+		parent := filepath.Join(t.TempDir(), "parent.jsonl")
+		testutil.AppendJSONL(t, parent, tc.lines...)
+		if got := forkedSkill(agent, parent); got != tc.want {
+			t.Errorf("%s: forkedSkill = %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}

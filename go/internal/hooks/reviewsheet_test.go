@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ku5ic/claude-kit/go/internal/cache"
+	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
 
@@ -480,4 +482,17 @@ func TestPlanChanges(t *testing.T) {
 		dispatch(planV1).Allowed(t)
 		dispatch(planV2).Has(t, "plan-changes")
 	})
+}
+
+// A plan text the hook can't keep is logged with why, since the next
+// resubmit then shows no diff or a stale one.
+func TestPlanChangesLogsAFailedSave(t *testing.T) {
+	t.Parallel()
+	e := planChangesSetup(t)
+	dir := filepath.Dir(e.paths.SessionFile(cache.PlanCritic, "s", filepath.Base(e.plan), "text"))
+	testutil.Write(t, dir, "a file where the session dir goes")
+	e.submit(planV1)
+	if log := read(t, e.paths.LogFile(kitlog.Guards)); !strings.Contains(log, "plan-changes-error") {
+		t.Errorf("no plan-changes-error logged:\n%s", log)
+	}
 }

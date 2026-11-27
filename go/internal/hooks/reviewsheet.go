@@ -71,7 +71,7 @@ func treeChanges(root, from, to string) ([]fileChange, error) {
 
 // lookReasons are the facts about c that put it first on a sheet, from git
 // alone: what kind of file it is, and what its diff adds or removes.
-func lookReasons(cfg *config.Config, root, from, to, plan string, c fileChange) []string {
+func lookReasons(cfg *config.Config, blobs map[string]string, from, to, plan string, c fileChange) []string {
 	var why []string
 	base := filepath.Base(c.path)
 	switch {
@@ -85,8 +85,7 @@ func lookReasons(cfg *config.Config, root, from, to, plan string, c fileChange) 
 	if c.deleted {
 		why = append(why, "deleted")
 	}
-	before, _ := git.Output(root, "cat-file", "-p", from+":"+c.path)
-	after, _ := git.Output(root, "cat-file", "-p", to+":"+c.path)
+	before, after := blobs[from+":"+c.path], blobs[to+":"+c.path]
 	if len(allowMarker.FindAllString(after, -1)) > len(allowMarker.FindAllString(before, -1)) {
 		why = append(why, `"kit: allow" marker added`)
 	}
@@ -125,11 +124,16 @@ func lookGroups(cfg *config.Config, root, from, to, plan string, changes []fileC
 	for _, c := range changes {
 		width = max(width, len(c.path))
 	}
+	specs := make([]string, 0, 2*len(changes))
+	for _, c := range changes {
+		specs = append(specs, from+":"+c.path, to+":"+c.path)
+	}
+	blobs := git.Blobs(root, specs)
 	var groups []*sheetGroup
 	byHead := map[string]*sheetGroup{}
 	rest := &sheetGroup{head: "other files"}
 	for _, c := range changes {
-		why := lookReasons(cfg, root, from, to, plan, c)
+		why := lookReasons(cfg, blobs, from, to, plan, c)
 		if len(why) == 0 {
 			rest.files = append(rest.files, fmt.Sprintf("%-*s  +%d -%d", width, c.path, c.add, c.del))
 			continue
