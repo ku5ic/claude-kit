@@ -1098,12 +1098,19 @@ func (st *state) setOnly(name string) bool {
 
 // findsOnlyScratch is true when every place find starts from is scratch, as
 // rm -r's operands must be, and nothing makes it follow a link out (-L,
-// -H, -follow): find -delete removes only what it walks.
+// -H, -follow): find -delete removes only what it walks. It fails closed:
+// a leading option other than -P, -D x, or -O<n> (BSD's -f, -x, -s, -E,
+// -X, -d), a start list read from a file (-files0-from), or no start path
+// at all (BSD needs one, GNU takes the cwd) counts as unknown.
 func (c *command) findsOnlyScratch() bool {
 	args := c.args
-	for len(args) > 0 && strings.HasPrefix(args[0].Value, "-") && len(args[0].Value) > 1 && !findExpression(args[0].Value) {
-		if v := args[0].Value; v == "-D" || strings.HasPrefix(v, "-O") && len(v) == 2 {
-			args = args[1:] // the option's value
+	for len(args) > 0 && strings.HasPrefix(args[0].Value, "-") {
+		switch v := args[0].Value; {
+		case v == "-P", strings.HasPrefix(v, "-O") && len(v) > 2:
+		case v == "-D" && len(args) > 1:
+			args = args[1:] // its debug options
+		default:
+			return false
 		}
 		args = args[1:]
 	}
@@ -1112,16 +1119,15 @@ func (c *command) findsOnlyScratch() bool {
 		starts = len(args)
 	}
 	roots := args[:starts]
-	if len(roots) == 0 {
-		roots = []Word{{Value: ".", Raw: ".", literal: true}}
-	}
-	return !slices.ContainsFunc(c.values(), func(v string) bool { return v == "-L" || v == "-H" || v == "-follow" }) && c.st.allScratch(roots)
+	return len(roots) > 0 && !slices.ContainsFunc(c.values(), func(v string) bool {
+		return v == "-L" || v == "-H" || v == "-follow" || v == "-f" || v == "-files0-from"
+	}) && c.st.allScratch(roots)
 }
 
 // findExpression is whether a find word starts its expression: a test,
 // action, or operator, such as -name, (, or !.
 func findExpression(v string) bool {
-	return v == "(" || v == "!" || v == "," || strings.HasPrefix(v, "-") && v != "-H" && v != "-L" && v != "-P" && v != "-D" && !strings.HasPrefix(v, "-O")
+	return v == "(" || v == "!" || v == "," || strings.HasPrefix(v, "-")
 }
 
 // arithAssign is an assignment operator in an arithmetic expression: =

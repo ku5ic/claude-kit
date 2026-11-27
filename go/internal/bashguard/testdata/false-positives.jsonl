@@ -90,6 +90,10 @@
 {"class":"find-delete","cmd":"find .claude/scratch/x -follow -delete","want":"block"}
 {"class":"find-delete","cmd":"find .claude/scratch/x / -delete","want":"block"}
 {"class":"find-delete","cmd":"find -delete","want":"block"}
+{"class":"find-delete","cmd":"cd .claude/scratch && find -delete","want":"block"}
+{"class":"find-delete","cmd":"cd .claude/scratch && find -f / -delete","want":"block"}
+{"class":"find-delete","cmd":"find -x .claude/scratch/x -f / -delete","want":"block"}
+{"class":"find-delete","cmd":"find .claude/scratch/x -files0-from list -delete","want":"block"}
 {"class":"zsh","step":9,"cmd":"for f in *.md(N); do echo $f; done","now":"ask","want":"pass"}
 {"class":"zsh","step":9,"cmd":"echo ${=c}","now":"ask","want":"pass"}
 {"class":"zsh","cmd":"ls *.md(e:'rm -rf ~':)","want":"ask"}
