@@ -202,7 +202,9 @@ type state struct {
 	// sureAt is the segment each sure value was set in, and at the segment
 	// being checked.
 	sureAt map[string]int
-	at     int
+	// chained is true for a sure value set on the right of && (track).
+	chained map[string]bool
+	at      int
 	// exported is every name an export in the command names.
 	exported map[string]bool
 	// cmd is the whole command, as the Bash call gives it.
@@ -212,21 +214,48 @@ type state struct {
 // begin readies st to check segs, cmd parsed, one segment at a time.
 func (st *state) begin(cmd string, segs []Segment) {
 	st.cmd = cmd
-	st.vars, st.sure, st.sureAt, st.loopVars, st.segs = map[string]string{}, map[string]string{}, map[string]int{}, loopAssigned(segs), segs
+	st.vars, st.sure, st.sureAt, st.chained, st.loopVars, st.segs = map[string]string{}, map[string]string{}, map[string]int{}, map[string]bool{}, loopAssigned(segs), segs
 	st.exported = exportedNames(segs)
 }
 
-// track records what seg, the i-th segment, assigns, once it's checked.
+// track records what seg, the i-th segment, assigns, once it's checked. An
+// assignment on the right of && counts when every pipeline from its list's
+// head to it follows an && (ls && S=x): a use later in that chain runs only
+// if it ran (sureValue). One after || or in a compound doesn't.
 func (st *state) track(i int, seg Segment) {
 	vars := assigned(seg)
 	maps.Copy(st.vars, vars)
+	chained := seg.conditional && st.chainedFromHead(i)
 	for name, value := range vars {
-		if seg.subshell || seg.conditional || len(seg.Calls) > 1 {
+		switch {
+		case seg.subshell || len(seg.Calls) > 1 || seg.conditional && !chained:
 			delete(st.sure, name)
-		} else {
-			st.sure[name], st.sureAt[name] = value, i
+		default:
+			st.sure[name], st.sureAt[name], st.chained[name] = value, i, chained
 		}
 	}
+}
+
+// chainedFromHead is true when segment i runs only if every pipeline
+// before it in its list succeeded: an && joins each pair from the nearest
+// earlier pipeline that always runs.
+func (st *state) chainedFromHead(i int) bool {
+	for head := i - 1; head >= 0; head-- {
+		if seg := st.segs[head]; !seg.subshell && !seg.conditional {
+			return andChain(st.segs, head, i)
+		}
+	}
+	return false
+}
+
+// sureValue is name's sure value at segment use: one set on the right of
+// && counts only where use runs in the same && chain after it.
+func (st *state) sureValue(name string, use int) (string, bool) {
+	value, ok := st.sure[name]
+	if ok && st.chained[name] && !andChain(st.segs, st.sureAt[name], use) {
+		return "", false
+	}
+	return value, ok
 }
 
 // setVars is vars as NAME=value words, in no set order, split into those
@@ -257,7 +286,7 @@ var pinBase = regexp.MustCompile(`^` + nameRef + "([^$`]*)$")
 // set unseen (setOnly), that a for or select sets, or when the command
 // names IFS, which would split it.
 func (st *state) pinned(name string, depth int) (string, bool) {
-	value, ok := st.sure[name]
+	value, ok := st.sureValue(name, st.at)
 	if !ok || st.inLoop(name) || !st.setOnly(name) {
 		return "", false
 	}
@@ -679,18 +708,17 @@ func (st *state) scratchTarget(p string, followLast bool) bool {
 }
 
 // scratchPath is p, unquoted, as an absolute path, with $(kit scratch-dir)
-// read as the directory it prints and $PWD, ~, and $HOME expanded. False
+// read as the directory it prints and $PWD, $(pwd), ~, and $HOME expanded. False
 // with a "..", or any other expansion left in it.
 func (st *state) scratchPath(p string) (string, bool) {
 	if strings.Contains(p, "..") {
 		return "", false
 	}
-	if st.kitScratchDir(p) {
-		rest := p[len(strings.TrimSuffix(kitScratchSub.FindString(p), "/")):]
-		dir, err := project.ScratchDir(st.h.Paths, st.cwd, false)
+	if runsIn, rest, ok := st.kitScratchDir(p); ok {
+		dir, err := project.ScratchDir(st.h.Paths, runsIn, false)
 		return dir + rest, err == nil && !strings.ContainsAny(rest, "$`")
 	}
-	for _, pwd := range []string{"$PWD", "${PWD}"} {
+	for _, pwd := range []string{"$PWD", "${PWD}", "$(pwd)", "`pwd`"} {
 		if st.cwd != "" && (p == pwd || strings.HasPrefix(p, pwd+"/")) {
 			if st.lost {
 				return "", false
@@ -727,19 +755,40 @@ func (st *state) onDisk(p string, followLast bool) bool {
 }
 
 // kitScratchSub matches a path that starts with a kit scratch-dir call,
-// $(K scratch-dir) or `K scratch-dir`, capturing K.
-var kitScratchSub = regexp.MustCompile("^(?:\\$\\(([^\\s$`()]+) scratch-dir\\)|`([^\\s$`()]+) scratch-dir`)(?:/|$)")
+// $(K scratch-dir) or `K scratch-dir`, past a leading `cd DIR &&` and a
+// KIT_DEV=1, which picks how bin/kit builds, not what it prints. Its groups
+// are DIR and K, once per form.
+var kitScratchSub = regexp.MustCompile("^(?:\\$\\((?:cd ([^\\s$`()&;|]+) && )?(?:KIT_DEV=1 )?([^\\s$`()=]+) scratch-dir\\)" +
+	"|`(?:cd ([^\\s$`()&;|]+) && )?(?:KIT_DEV=1 )?([^\\s$`()=]+) scratch-dir`)(?:/|$)")
 
-// kitScratchDir is true when p starts with a scratch-dir call to kit on
-// PATH or to this kit's bin/kit by any path; a kit anywhere else could
-// print any directory.
-func (st *state) kitScratchDir(p string) bool {
+// kitScratchDir reads p's leading scratch-dir call to kit on PATH, or to
+// this kit's bin/kit by any path: the directory the call runs in, past its
+// cd, and the rest of p. ok is false for any other call, since a kit
+// anywhere else could print any directory.
+func (st *state) kitScratchDir(p string) (runsIn, rest string, ok bool) {
 	m := kitScratchSub.FindStringSubmatch(p)
 	if m == nil {
-		return false
+		return "", "", false
 	}
-	kit := m[1] + m[2]
-	return kit == "kit" || st.h.Paths.Root != "" && st.placed(kit) && filepath.Clean(st.abs(kit)) == filepath.Join(st.h.Paths.Root, "bin", "kit")
+	runsIn, kit, cd := st.cwd, m[2]+m[4], m[1]+m[3]
+	if cd != "" {
+		if !st.placed(cd) {
+			return "", "", false
+		}
+		runsIn = resolveDir(st.pinnedHome(), st.cwd, st.expandPins(cd))
+	}
+	rest = p[len(strings.TrimSuffix(m[0], "/")):]
+	if kit == "kit" {
+		return runsIn, rest, true
+	}
+	path := guard.ExpandHome(st.pinnedHome(), st.expandPins(kit))
+	if !filepath.IsAbs(path) {
+		if cd == "" && !st.placed(kit) {
+			return "", "", false
+		}
+		path = filepath.Join(runsIn, path)
+	}
+	return runsIn, rest, st.h.Paths.Root != "" && filepath.Clean(path) == filepath.Join(st.h.Paths.Root, "bin", "kit")
 }
 
 // unquote strips one pair of surrounding quotes, single or double.

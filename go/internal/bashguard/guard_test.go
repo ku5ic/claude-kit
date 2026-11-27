@@ -839,7 +839,10 @@ func TestRmRecursiveOnScratchPasses(t *testing.T) {
 		{`set -- -e; S=$(mktemp -d); rm -rf "$S/x"`, "ask"},
 		{`set -e; export S=$(mktemp -d); rm -rf "$S/x"`, "ask"},
 		{`S=$(mktemp -d) || rm -rf "$S/x"`, "ask"},
-		{`S=$(mktemp -d) && echo hi && rm -rf "$S/x"`, "ask"},
+		{`S=$(mktemp -d) && echo hi && rm -rf "$S/x"`, "pass"},
+		{`S=$(mktemp -d) && echo hi || rm -rf "$S/x"`, "ask"},
+		{`true || S=$(mktemp -d) && rm -rf "$S/x"`, "ask"},
+		{`true || S=$(mktemp -d) && rm -rf "$S"`, "ask"},
 		{`set -e; S=$(mktemp -d) || true; rm -rf "$S/x"`, "ask"},
 		{`set -e; S=$(mktemp -d) && echo hi; rm -rf "$S/x"`, "ask"},
 		{`set -e; ! S=$(mktemp -d); rm -rf "$S/x"`, "ask"},
@@ -888,6 +891,10 @@ func TestRmRecursiveThroughAScratchLinkAsks(t *testing.T) {
 		{`rm -rf "$(kit scratch-dir)/link/x"`, "ask"},
 		{`set -e; S=.claude/scratch; rm -rf "$S/link/x"`, "ask"},
 		{`set -e; S="$(kit scratch-dir)"; H="$S/link"; rm -rf "$H/x"`, "ask"},
+		// pwd -P prints the link's target, outside scratch.
+		{`set -e; T=.claude/scratch/link; D=$(cd "$T" && pwd -P); rm -rf "$D"`, "ask"},
+		{`set -e; T=.claude/scratch/link; D=$(cd "$T" && pwd -P); rm -rf "$D/x"`, "ask"},
+		{`set -e; T=.claude/scratch/real; D=$(cd "$T" && pwd -P); rm -rf "$D/x"`, "pass"},
 		{`ln -s ~ .claude/scratch/h && rm -rf .claude/scratch/h/x`, "ask"},
 		{`set -e; S=$(mktemp -d); ln -s ~ "$S/h"; rm -rf "$S/h/x"`, "ask"},
 		// A loop or a function can run the rm again after a later ln.

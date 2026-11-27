@@ -322,6 +322,9 @@ func (c *command) check() error {
 		return err
 	}
 	for _, d := range destructive {
+		if d.rule == "find-delete" && c.findsOnlyScratch() {
+			continue
+		}
 		if slices.Contains(d.names, c.name) && !slices.ContainsFunc(d.all, func(re *regexp.Regexp) bool { return !re.MatchString(c.text) }) {
 			if err := c.block(strings.ReplaceAll(d.reason, "%s", c.name), d.rule); err != nil {
 				return err
@@ -914,6 +917,11 @@ func (st *state) scratchWord(w Word, bareEmpty bool) bool {
 	return !varRef.MatchString(v) && (quoted || !strings.Contains(v, "$")) && st.scratchTarget(v, false)
 }
 
+// cdPwd is a value that prints a variable's directory with its links
+// resolved, $(cd "$T" && pwd -P), or pwd alone; its groups are the name,
+// once per form.
+var cdPwd = regexp.MustCompile(`^\$\(cd "\$(?:(` + varName + `)|\{(` + varName + `)\})" && pwd(?: -P)?\)$`)
+
 // varPath is the absolute path scratch variable name holds, so the path
 // below it gets the symlink check: its value as scratchPath reads it, or,
 // up to depth levels, an earlier scratch variable's path and what follows
@@ -923,6 +931,17 @@ func (st *state) varPath(name string, depth int) (path string, fresh bool) {
 	value := st.sure[name]
 	if mktempDir(value) {
 		return "", true
+	}
+	if m := cdPwd.FindStringSubmatch(value); m != nil {
+		if depth == 0 {
+			return "", false
+		}
+		// cd follows a final link, so its target must be in scratch too.
+		path, fresh := st.varPath(m[1]+m[2], depth-1)
+		if fresh || path != "" && st.onDisk(path, true) {
+			return path, fresh
+		}
+		return "", false
 	}
 	if m := quotedVar.FindStringSubmatch(`"` + value + `"`); m != nil {
 		if depth == 0 {
@@ -949,12 +968,24 @@ func (st *state) scratchVar(name string, depth int) bool {
 	if st.inLoop(name) {
 		return false
 	}
-	value, ok := st.sure[name]
+	value, ok := st.sureValue(name, st.at)
 	if !ok || !st.setOnly(name) {
 		return false
 	}
 	if mktempDir(value) || st.scratchTarget(value, false) {
 		return true
+	}
+	// D=$(cd "$T" && pwd -P) is T's directory, links resolved, when T can't
+	// be empty there (cd "" stays put, and pwd prints the cwd) and T stays
+	// in scratch with its last link followed, as cd follows it.
+	if m := cdPwd.FindStringSubmatch(value); m != nil {
+		inner := m[1] + m[2]
+		at, set := st.sureAt[inner]
+		if depth == 0 || !set || at >= st.sureAt[name] || !st.scratchVar(inner, depth-1) || !st.nonEmpty(inner, false, st.sureAt[name]) {
+			return false
+		}
+		path, fresh := st.varPath(name, depth)
+		return fresh || path != ""
 	}
 	// value has its quotes removed: H="$S/x", H=$S/x, and H='$S/x' all
 	// read $S/x. An assignment doesn't split its value, so the first two
@@ -972,7 +1003,7 @@ func (st *state) scratchVar(name string, depth int) bool {
 // to another scratch variable (scratchVar checked that one), or set by a
 // bare assignment whose $(...) failing stops the command first, under an
 // earlier set -e when it stands alone (set -e spares a failure left of &&
-// or ||), or by an && straight to use; never after !.
+// or ||), or by an && chain through to use; never after !.
 func (st *state) nonEmpty(name string, colonQ bool, use int) bool {
 	value := st.sure[name]
 	switch {
@@ -991,12 +1022,8 @@ func (st *state) nonEmpty(name string, colonQ bool, use int) bool {
 	if standalone(assign) && errexit(st.segs[:set]) {
 		return true
 	}
-	next := st.segs[use]
-	if len(next.Calls) == 0 {
-		return false
-	}
-	between := assign.src[min(assign.end, next.Calls[0].start):next.Calls[0].start]
-	return strings.TrimSpace(between) == "&&"
+	// A failed $(...) fails the assignment, and every && after it skips.
+	return use > set && andChain(st.segs, set, use)
 }
 
 // errexit is whether segs leave set -e on: the last set that turns it on
@@ -1036,7 +1063,7 @@ func errexit(segs []Segment) bool {
 // inertBuiltins but printf without -v, no declaration that sets a name it
 // doesn't spell, no command word it computes, and no arithmetic.
 func (st *state) setOnly(name string) bool {
-	if strings.Contains(st.cmd, "((") {
+	if arithAssigns(st.cmd) {
 		return false
 	}
 	for _, seg := range st.segs {
@@ -1048,7 +1075,8 @@ func (st *state) setOnly(name string) bool {
 			if i >= len(call.Words) {
 				continue
 			}
-			if !call.Words[i].literal {
+			// A bare [ is the test builtin, though its name reads as a glob.
+			if !call.Words[i].literal && call.Words[i].Raw != "[" {
 				if !st.fixedProgram(call.Words[i]) {
 					return false
 				}
@@ -1066,6 +1094,66 @@ func (st *state) setOnly(name string) bool {
 	count := func(pattern string) int { return len(regexp.MustCompile(pattern).FindAllStringIndex(cmd, -1)) }
 	sets := count(`\b` + q + `=`)
 	return sets == 1 && count(`\b`+q+`\b`) == sets+count(`\$`+q+`\b|\$\{`+q+`(?::\?)?\}`)
+}
+
+// findsOnlyScratch is true when every place find starts from is scratch, as
+// rm -r's operands must be, and nothing makes it follow a link out (-L,
+// -H, -follow): find -delete removes only what it walks.
+func (c *command) findsOnlyScratch() bool {
+	args := c.args
+	for len(args) > 0 && strings.HasPrefix(args[0].Value, "-") && len(args[0].Value) > 1 && !findExpression(args[0].Value) {
+		if v := args[0].Value; v == "-D" || strings.HasPrefix(v, "-O") && len(v) == 2 {
+			args = args[1:] // the option's value
+		}
+		args = args[1:]
+	}
+	starts := slices.IndexFunc(args, func(w Word) bool { return findExpression(w.Value) })
+	if starts < 0 {
+		starts = len(args)
+	}
+	roots := args[:starts]
+	if len(roots) == 0 {
+		roots = []Word{{Value: ".", Raw: ".", literal: true}}
+	}
+	return !slices.ContainsFunc(c.values(), func(v string) bool { return v == "-L" || v == "-H" || v == "-follow" }) && c.st.allScratch(roots)
+}
+
+// findExpression is whether a find word starts its expression: a test,
+// action, or operator, such as -name, (, or !.
+func findExpression(v string) bool {
+	return v == "(" || v == "!" || v == "," || strings.HasPrefix(v, "-") && v != "-H" && v != "-L" && v != "-P" && v != "-D" && !strings.HasPrefix(v, "-O")
+}
+
+// arithAssign is an assignment operator in an arithmetic expression: =
+// alone or after an operator (+=, <<=), ++, or --, but not ==, !=, <=, >=.
+var arithAssign = regexp.MustCompile(`(?:^|[^=!<>])=(?:[^=]|$)|<<=|>>=|\+\+|--`)
+
+// arithAssigns is true when an arithmetic expression in cmd, (( )) or
+// $(( )), can assign a variable, as (( $N = 0 )) does to a name the command
+// never spells; a counter like $((i+1)) assigns nothing. An expression
+// with no closing )) runs to the end of cmd.
+func arithAssigns(cmd string) bool {
+	for i := strings.Index(cmd, "(("); i >= 0; {
+		depth, j := 0, i
+		for ; j < len(cmd); j++ {
+			if cmd[j] == '(' {
+				depth++
+			} else if cmd[j] == ')' {
+				if depth--; depth == 0 {
+					break
+				}
+			}
+		}
+		if arithAssign.MatchString(cmd[i+2 : min(j, len(cmd))]) {
+			return true
+		}
+		next := strings.Index(cmd[i+2:], "((")
+		if next < 0 {
+			break
+		}
+		i += 2 + next
+	}
+	return false
 }
 
 // blankWritten is cmd with spaces over each call word and assigned value

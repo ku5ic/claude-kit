@@ -141,11 +141,32 @@ func wgetTargets(words []string) (targets []string, hasOut bool) {
 	return targets, hasOut
 }
 
+// scratchVarTarget is true for a download target that is one quoted scratch
+// variable and maybe a path ("$S/a"), as rm -r takes it, whose path stays in
+// scratch with its last link followed, since curl writes through it. A
+// fresh mktemp -d dir has no path to follow, and a link the same command
+// makes there can't be checked, so it isn't one.
+func (st *state) scratchVarTarget(w Word) bool {
+	m := quotedVar.FindStringSubmatch(w.Raw)
+	if m == nil || strings.Contains(m[4], "..") || !st.scratchVar(m[1]+m[2], 1) || !st.nonEmpty(m[1]+m[2], m[3] != "", st.at) {
+		return false
+	}
+	path, _ := st.varPath(m[1]+m[2], 1)
+	return path != "" && st.onDisk(path+m[4], true)
+}
+
 // checkTargets blocks every download target, flag value or > redirect,
 // outside scratch, and asks about one behind a variable it can't resolve.
 func (c *command) checkTargets(tool, flag string, targets []string) error {
+	words := map[string]Word{}
+	for _, w := range c.args {
+		words[w.Value] = w
+	}
+	for _, r := range c.redirs {
+		words[r.Target.Value] = r.Target
+	}
 	for _, t := range append(targets, c.redirectTargets()...) {
-		if c.st.scratchTarget(t, true) {
+		if w, ok := words[t]; ok && c.st.scratchVarTarget(w) || c.st.scratchTarget(t, true) {
 			continue
 		}
 		if strings.ContainsAny(t, "$`") && !strings.Contains(t, "..") {

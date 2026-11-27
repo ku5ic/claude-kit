@@ -44,32 +44,52 @@
 {"class":"read-form","step":4,"cmd":"cat docs/adr/*12*","want":"pass"}
 {"class":"read-form","step":4,"cmd":"cat .claude/scratch/fx/.env","want":"pass"}
 {"class":"read-form","cmd":"cat .env","want":"block"}
-{"class":"rm-A","step":5,"cmd":"ls && S=\"$PWD/.claude/scratch/p\" && rm -rf \"$S\"","now":"ask","want":"pass"}
-{"class":"rm-A","step":5,"cmd":"cd {root} && S={root}/.claude/scratch/p && rm -rf \"$S\"","now":"ask","want":"pass"}
+{"class":"rm-A","step":5,"cmd":"ls && S=\"$PWD/.claude/scratch/p\" && rm -rf \"$S\"","want":"pass"}
+{"class":"rm-A","step":5,"cmd":"cd {root} && S={root}/.claude/scratch/p && rm -rf \"$S\"","want":"pass"}
 {"class":"rm-A","cmd":"ls; S=\"$PWD/.claude/scratch/p\" && rm -rf \"$S\"","want":"pass"}
-{"class":"rm-B","step":5,"cmd":"S=\"$(bin/kit scratch-dir)/p\" && mkdir -p \"$S\" && rm -rf \"$S/cfg\"","now":"ask","want":"pass"}
+{"class":"rm-A","cmd":"true || S=\"$PWD/.claude/scratch/p\" && rm -rf \"$S\"","want":"ask"}
+{"class":"rm-A","cmd":"ls && S=\"$PWD/.claude/scratch/p\"; rm -rf \"$S\"","want":"ask"}
+{"class":"rm-A","cmd":"if true; then S=\"$PWD/.claude/scratch/p\" && rm -rf \"$S\"; fi","want":"ask"}
+{"class":"rm-B","step":5,"cmd":"S=\"$(bin/kit scratch-dir)/p\" && mkdir -p \"$S\" && rm -rf \"$S/cfg\"","want":"pass"}
 {"class":"rm-B","cmd":"S=\"$(bin/kit scratch-dir)/p\" && rm -rf \"$S/cfg\"","want":"pass"}
-{"class":"rm-C","step":5,"cmd":"S=\"$PWD/.claude/scratch/x\"; rm -rf \"$S\"; echo $((1+1))","now":"ask","want":"pass"}
+{"class":"rm-B","cmd":"S=\"$(bin/kit scratch-dir)/p\"; mkdir -p \"$S\" && rm -rf \"$S/cfg\"","want":"ask"}
+{"class":"rm-B","cmd":"S=\"$(bin/kit scratch-dir)/p\" && mkdir -p \"$S\" || rm -rf \"$S/cfg\"","want":"ask"}
+{"class":"rm-C","step":5,"cmd":"S=\"$PWD/.claude/scratch/x\"; rm -rf \"$S\"; echo $((1+1))","want":"pass"}
 {"class":"rm-C","cmd":"S=\"$PWD/.claude/scratch/x\"; rm -rf \"$S\"","want":"pass"}
-{"class":"rm-D","step":5,"cmd":"S=\"$(KIT_DEV=1 bin/kit scratch-dir)/x\"; rm -rf \"$S\"","now":"ask","want":"pass"}
-{"class":"rm-D","step":5,"cmd":"S=\"$(cd {root} && bin/kit scratch-dir)/x\"; rm -rf \"$S\"","now":"ask","want":"pass"}
+{"class":"rm-C","cmd":"S=\"$PWD/.claude/scratch/x\"; N=S; (( N2 = 1 )); rm -rf \"$S\"","want":"ask"}
+{"class":"rm-C","cmd":"S=\"$PWD/.claude/scratch/x\"; i=0; echo $((i++)); rm -rf \"$S\"","want":"ask"}
+{"class":"rm-C","cmd":"S=\"$PWD/.claude/scratch/x\"; echo $(( 1 <<= 2 )); rm -rf \"$S\"","want":"ask"}
+{"class":"rm-D","step":5,"cmd":"S=\"$(KIT_DEV=1 bin/kit scratch-dir)/x\"; rm -rf \"$S\"","want":"pass"}
+{"class":"rm-D","step":5,"cmd":"S=\"$(cd {root} && bin/kit scratch-dir)/x\"; rm -rf \"$S\"","want":"pass"}
 {"class":"rm-D","cmd":"S=$(bin/kit scratch-dir); rm -rf \"$S\"","want":"pass"}
 {"class":"rm-D","cmd":"S=$(cd /tmp && bin/kit scratch-dir); rm -rf \"$S\"","want":"ask"}
-{"class":"rm-G","step":5,"cmd":"D=\"$PWD/.claude/scratch/p\"; rm -rf \"$D\"; [ -f a ]","now":"ask","want":"pass"}
+{"class":"rm-D","cmd":"S=\"$(FOO=1 bin/kit scratch-dir)/x\"; rm -rf \"$S\"","want":"ask"}
+{"class":"rm-D","cmd":"S=\"$(cd $X && bin/kit scratch-dir)/x\"; rm -rf \"$S\"","want":"ask"}
+{"class":"rm-G","step":5,"cmd":"D=\"$PWD/.claude/scratch/p\"; rm -rf \"$D\"; [ -f a ]","want":"pass"}
 {"class":"rm-G","cmd":"D=\"$PWD/.claude/scratch/p\"; rm -rf \"$D\"; test -f a","want":"pass"}
-{"class":"rm-I","step":5,"cmd":"S=$(pwd)/.claude/scratch/x; rm -rf \"$S\"","now":"ask","want":"pass"}
-{"class":"rm-K","step":5,"cmd":"T=$(mktemp -d .claude/scratch/rv-XXXX); D=$(cd \"$T\" && pwd -P); rm -rf \"$D\"","now":"ask","want":"pass"}
+{"class":"rm-I","step":5,"cmd":"S=$(pwd)/.claude/scratch/x; rm -rf \"$S\"","want":"pass"}
+{"class":"rm-K","cmd":"T=$(mktemp -d .claude/scratch/rv-XXXX); D=$(cd \"$T\" && pwd -P); rm -rf \"$D\"","want":"ask"}
+{"class":"rm-K","step":5,"cmd":"T=$(mktemp -d .claude/scratch/rv-XXXX) && D=$(cd \"$T\" && pwd -P) && rm -rf \"$D\"","want":"pass"}
+{"class":"rm-K","step":5,"cmd":"set -e; T=$(mktemp -d .claude/scratch/rv-XXXX); D=$(cd \"$T\" && pwd -P); rm -rf \"$D\"","want":"pass"}
+{"class":"rm-K","cmd":"T=$(mktemp -d .claude/scratch/rv-XXXX) && D=$(cd \"$T\" && pwd -P) && rm -rf \"$D/x\"","want":"pass"}
+{"class":"rm-K","cmd":"T=$(mktemp -d .claude/scratch/rv-XXXX); D=$(cd \"$T\" && pwd -P) && rm -rf \"$D/x\"","want":"ask"}
 {"class":"rm-K","cmd":"T=$(mktemp -d .claude/scratch/rv-XXXX); rm -rf \"$T\"","want":"pass"}
 {"class":"rm-E","cmd":"d=$(mktemp -d); rm -rf $d","want":"ask"}
 {"class":"rm-J","cmd":"S=\"$PWD/.claude/scratch/p\"; rm -rf \"$S\"; source a.sh","want":"ask"}
 {"class":"rm-N","cmd":"rm -r {root}/go/internal/hooks/.claude","want":"ask"}
 {"class":"rm-N","cmd":"rm -rf \"$HOME/x\"","want":"ask"}
-{"class":"download","step":5,"cmd":"S=\"$PWD/.claude/scratch/x\"; curl -sL https://example.com/a -o \"$S/a\"","now":"ask","want":"pass"}
-{"class":"download","step":5,"cmd":"D=\"$(bin/kit scratch-dir)/cc\" && curl -sSfL -o \"$D/323.tgz\" https://example.com/a.tgz","now":"ask","want":"pass"}
+{"class":"download","step":5,"cmd":"S=\"$PWD/.claude/scratch/x\"; curl -sL https://example.com/a -o \"$S/a\"","want":"pass"}
+{"class":"download","step":5,"cmd":"D=\"$(bin/kit scratch-dir)/cc\" && curl -sSfL -o \"$D/323.tgz\" https://example.com/a.tgz","want":"pass"}
 {"class":"download","cmd":"curl -sL https://example.com/a -o /tmp/a","want":"block"}
-{"class":"find-delete","step":5,"cmd":"find .claude/scratch/x -delete","now":"block","want":"pass"}
-{"class":"find-delete","step":5,"cmd":"S=.claude/scratch/x; find \"$S\" -name y -delete","now":"block","want":"pass"}
+{"class":"download","cmd":"T=$(mktemp -d) && curl -sL https://example.com/a -o \"$T/a\"","want":"ask"}
+{"class":"download","cmd":"S=\"$PWD/src\"; curl -sL https://example.com/a -o \"$S/a\"","want":"ask"}
+{"class":"find-delete","step":5,"cmd":"find .claude/scratch/x -delete","want":"pass"}
+{"class":"find-delete","step":5,"cmd":"S=.claude/scratch/x; find \"$S\" -name y -delete","want":"pass"}
 {"class":"find-delete","cmd":"find . -name x -delete","want":"block"}
+{"class":"find-delete","cmd":"find -L .claude/scratch/x -delete","want":"block"}
+{"class":"find-delete","cmd":"find .claude/scratch/x -follow -delete","want":"block"}
+{"class":"find-delete","cmd":"find .claude/scratch/x / -delete","want":"block"}
+{"class":"find-delete","cmd":"find -delete","want":"block"}
 {"class":"zsh","step":9,"cmd":"for f in *.md(N); do echo $f; done","now":"ask","want":"pass"}
 {"class":"zsh","step":9,"cmd":"echo ${=c}","now":"ask","want":"pass"}
 {"class":"zsh","cmd":"ls *.md(e:'rm -rf ~':)","want":"ask"}
