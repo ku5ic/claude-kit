@@ -523,21 +523,31 @@ func TestGuardCommitInAThrowawayRepoBesideSetup(t *testing.T) {
 	scratch := filepath.Join(k.claude, "scratch")
 	testutil.Mkdir(t, filepath.Join(scratch, "r"))
 	testutil.Git(t, filepath.Join(scratch, "r"), "init", "-q")
+	// A HOME in scratch with its own ~/.claude/scratch/r repo.
+	testutil.Mkdir(t, filepath.Join(scratch, "home3", ".claude", "scratch", "r"))
+	testutil.Git(t, filepath.Join(scratch, "home3", ".claude", "scratch", "r"), "init", "-q")
+	other := testutil.Physical(t, t.TempDir())
 	for cmd, wantAsk := range map[string]bool{
 		`V=SCR; export HOME="$V/home2"; cd "$V/r" && git add . && git commit -qm "fix: sub" && echo ok`: false,
-		`V=SCR/r; git -C $V add . && git -C $V commit -qm "fix: sub"`:                                   false,
-		`export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t; git -C SCR/r commit -qm "fix: sub"`:             false,
-		`GIT_COMMITTER_NAME=t git -C SCR/r commit -qm "fix: sub"`:                                       false,
-		`printf 'x\n'; git -C SCR/r commit -qm "fix: sub"`:                                              false,
-		`PATH=SCR/bin; cd SCR/r && git add . && git commit -qm "fix: sub"`:                              true,
-		`export PATH=SCR/bin:$PATH; git -C SCR/r commit -qm "fix: sub"`:                                 true,
-		`CDPATH=SCR; cd r && git commit -qm "fix: sub"`:                                                 true,
-		`export LD_PRELOAD=SCR/x.so; git -C SCR/r commit -qm "fix: sub"`:                                true,
-		`export "GIT_DIR=/x/.git"; git -C SCR/r commit -qm "fix: sub"`:                                  true,
-		`printf -vX x; git -C SCR/r commit -qm "fix: sub"`:                                              true,
-		`V=SCR/r; V=/; git -C "$V" commit -qm "fix: sub"`:                                               true,
+		`export HOME=SCR/home3; git -C ~/.claude/scratch/r commit -qm "fix: sub"`:                       false,
+		// Bash expands ~ with the HOME set before it, not the session's.
+		`export HOME=OTHER; git -C ~/.claude/scratch/r commit -qm "fix: sub"`:               true,
+		`HOME=OTHER; cd ~/.claude/scratch/r && git commit -qm "fix: sub"`:                   true,
+		`HOME=$X; git -C ~/.claude/scratch/r commit -qm "fix: sub"`:                         true,
+		`export HOME=OTHER; git -C $HOME/.claude/scratch/r commit -qm "fix: sub"`:           true,
+		`V=SCR/r; git -C $V add . && git -C $V commit -qm "fix: sub"`:                       false,
+		`export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t; git -C SCR/r commit -qm "fix: sub"`: false,
+		`GIT_COMMITTER_NAME=t git -C SCR/r commit -qm "fix: sub"`:                           false,
+		`printf 'x\n'; git -C SCR/r commit -qm "fix: sub"`:                                  false,
+		`PATH=SCR/bin; cd SCR/r && git add . && git commit -qm "fix: sub"`:                  true,
+		`export PATH=SCR/bin:$PATH; git -C SCR/r commit -qm "fix: sub"`:                     true,
+		`CDPATH=SCR; cd r && git commit -qm "fix: sub"`:                                     true,
+		`export LD_PRELOAD=SCR/x.so; git -C SCR/r commit -qm "fix: sub"`:                    true,
+		`export "GIT_DIR=/x/.git"; git -C SCR/r commit -qm "fix: sub"`:                      true,
+		`printf -vX x; git -C SCR/r commit -qm "fix: sub"`:                                  true,
+		`V=SCR/r; V=/; git -C "$V" commit -qm "fix: sub"`:                                   true,
 	} {
-		cmd = strings.ReplaceAll(cmd, "SCR", scratch)
+		cmd = strings.ReplaceAll(strings.ReplaceAll(cmd, "SCR", scratch), "OTHER", other)
 		if r := k.commit("", cmd); strings.Contains(r.Output, `"permissionDecision":"ask"`) != wantAsk {
 			t.Errorf("ask %v, want %v: %s\n%s", !wantAsk, wantAsk, cmd, r.Output)
 		}

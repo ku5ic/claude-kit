@@ -11,6 +11,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
+	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 )
 
@@ -77,8 +78,12 @@ func throwaway(h *hook.Hook, cmd string, commits []commit) bool {
 			st.track(next, segs[next])
 		}
 		st.at = at
-		return st.pinWords(words)
+		return tildeHome(st.pinWords(words), st.pinnedHome())
 	})
+	// An unpinned HOME moves ~ and $HOME somewhere the guard can't follow.
+	if _, ok := st.pinned("HOME", 2); setsHome(segs) && !ok {
+		return false
+	}
 	for _, c := range commits {
 		i := slices.IndexFunc(calls, func(p commit) bool { return p.start == c.start && c.seg >= 0 })
 		if i < 0 || calls[i].elsewhere || !lands(h, segs, calls, calls[i]) {
@@ -86,6 +91,29 @@ func throwaway(h *hook.Hook, cmd string, commits []commit) bool {
 		}
 	}
 	return true
+}
+
+// tildeHome expands each word's leading unquoted ~ with home, the HOME the
+// command has set by then, as bash does; gitCalls would read the session's.
+func tildeHome(words []Word, home string) []Word {
+	for i, w := range words {
+		if strings.HasPrefix(w.Raw, "~") {
+			words[i].Value = guard.ExpandHome(home, w.Value)
+		}
+	}
+	return words
+}
+
+// setsHome is true when a call in segs assigns or exports HOME.
+func setsHome(segs []Segment) bool {
+	for _, seg := range segs {
+		for _, call := range seg.Calls {
+			if slices.Contains(call.Exports, "HOME") || slices.ContainsFunc(call.Assigns, func(a string) bool { return strings.HasPrefix(a, "HOME=") }) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // plainAssigns is true when segs set no name the shell reads itself
