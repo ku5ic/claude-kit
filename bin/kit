@@ -81,7 +81,17 @@ if [[ ${KIT_DEV:-} == 1 ]]; then
   if [[ ! -x $bin || -n $(find "$dir/../go" -type f ! -name '*_test.go' -newer "$bin" -print -quit 2>/dev/null) ]]; then
     # Before the build: a hook's timeout can kill this shell mid-build.
     prune
-    "$dir/../go/build.sh" -o "$tmp" >&2 && mv -f "$tmp" "$bin"
+    # The new build runs once before it replaces the old: one that panics at
+    # start exits 2, Claude Code's block code, so every hook would block
+    # every call, the edit that would fix it included.
+    if "$dir/../go/build.sh" -o "$tmp" >&2; then
+      if "$tmp" version >/dev/null 2>&1; then
+        mv -f "$tmp" "$bin"
+      else
+        rm -f "$tmp"
+        echo "kit: the new build can't start; running the last good one" >&2
+      fi
+    fi
   fi
 # Only the CLI and the inject-context hook, with its 45s timeout, download.
 # A hook with a 5 to 20s timeout would be killed before curl's 25s, and a

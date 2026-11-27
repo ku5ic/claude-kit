@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
@@ -153,6 +154,49 @@ chmod +x "$2"
 		if Exists(filepath.Join(root, "go/bin")) {
 			t.Error("the build wrote under go/bin")
 		}
+	})
+
+	t.Run("KIT_DEV keeps the last good binary when a new build can't start", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		Write(t, filepath.Join(root, "bin/kit"), string(raw))
+		Write(t, filepath.Join(root, ".claude-plugin/plugin.json"), `{"name": "claude-kit", "version": "9.9.9"}`)
+		main := filepath.Join(root, "go/cmd/kit/main.go")
+		Write(t, main, "package main\n")
+		build, err := os.ReadFile(kitFile("go/build.sh"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		Stub(t, filepath.Join(root, "go/build.sh"), string(build))
+		// gostub is a go whose build writes a binary that prints body's
+		// first word, or exits 2 at start, as a Go program that panics in
+		// init does.
+		gostub := func(body string) string {
+			dir := t.TempDir()
+			Stub(t, filepath.Join(dir, "go"), `[ "$1" = env ] && exit 0
+while [ "$1" != -o ]; do shift; done
+mkdir -p "$(dirname "$2")"
+printf '#!/bin/sh\n`+body+`\n' >"$2"
+chmod +x "$2"
+`)
+			return dir
+		}
+		run := func(stubs string) Result {
+			k := New(t)
+			k.Dir = root
+			k.PrependPath(stubs)
+			k.Setenv("KIT_DEV", "1")
+			return k.exec("bash", "", "bin/kit", "x")
+		}
+		run(gostub(`echo good "$@"`)).Has(t, "good x")
+		// The source changes, and the new build panics at start.
+		later := time.Now().Add(time.Minute)
+		if err := os.Chtimes(main, later, later); err != nil {
+			t.Fatal(err)
+		}
+		r := run(gostub(`echo panic: init >&2; exit 2`))
+		r.Want(t, 0)
+		r.Has(t, "good x", "the new build can't start")
 	})
 
 	t.Run("a failed download is not retried within a minute", func(t *testing.T) {
