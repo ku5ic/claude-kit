@@ -241,10 +241,11 @@ func lands(h *hook.Hook, segs []Segment, calls []commit, c commit) bool {
 		if literal {
 			// A .git there now may be a worktree's file, whose init
 			// reinitializes the repo it points at. A cd into a directory
-			// that isn't there fails and leaves the shell where it was;
-			// git -C one fails the init itself.
+			// that isn't there fails and leaves the shell where it was,
+			// so it counts only when that stops the init; git -C one
+			// fails the init itself.
 			_, err := os.Lstat(filepath.Join(c.repo, ".git"))
-			return h.Paths.IsScratch(c.repo) && errors.Is(err, os.ErrNotExist) && (c.dir != nil || fsx.IsDir(c.repo))
+			return h.Paths.IsScratch(c.repo) && errors.Is(err, os.ErrNotExist) && (c.dir != nil || fsx.IsDir(c.repo) || cdsStop(segs, init))
 		}
 		return freshTemp(h, segs, c, init)
 	}
@@ -303,6 +304,27 @@ func freshTemp(h *hook.Hook, segs []Segment, c commit, init int) bool {
 	}
 	st.at = init
 	return mktempDir(st.sure[m[1]+m[2]]) && st.scratchWord(*c.dir, false)
+}
+
+// cdsStop is true when segs hold a cd before segment init, and init runs
+// only once each such cd worked: &&-chained to it, or a pipeline of its
+// own that surely runs under set -e.
+func cdsStop(segs []Segment, init int) bool {
+	found := false
+	for k, seg := range segs[:init] {
+		if seg.subshell || len(seg.Calls) != 1 {
+			continue
+		}
+		words := seg.Calls[0].Words
+		if i := lead(words); i >= len(words) || baseName(words[i].Value) != "cd" {
+			continue
+		}
+		if !andChain(segs, k, init) && (seg.conditional || !standalone(seg) || !errexit(segs[:k])) {
+			return false
+		}
+		found = true
+	}
+	return found
 }
 
 // andChain is true when segment to runs only if segment from succeeded:

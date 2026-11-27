@@ -465,6 +465,9 @@ func TestGuardCommitInAThrowawayRepoNeedsNoApproval(t *testing.T) {
 		`set -e; t=$(mktemp -d); git -C "$t" init -q; git -C "$t" commit -q --allow-empty -m "fix: add sums"`,
 		`git -C ~/.claude/scratch/new init -q && git -C ~/.claude/scratch/new commit --allow-empty -m "fix: add sums"`,
 		`git -C ~/.claude/scratch/plain init -q -b main && git -C ~/.claude/scratch/plain commit --allow-empty -m "fix: add sums"`,
+		// A cd into a dir not there yet stops the init when it fails.
+		`mkdir -p ~/.claude/scratch/fresh && cd ~/.claude/scratch/fresh && git init -q && git commit -q --allow-empty -m "fix: add sums"`,
+		`set -e; cd ~/.claude/scratch/fresh; git init -q; git commit -q --allow-empty -m "fix: add sums"`,
 	} {
 		if r := k.commit("", cmd); strings.Contains(r.Output, `"permissionDecision":"ask"`) {
 			t.Errorf("%s: asked for approval:\n%s", cmd, r.Output)
@@ -505,6 +508,7 @@ func TestGuardCommitInAThrowawayRepoNeedsNoApproval(t *testing.T) {
 		`cd ~/.claude/scratch/plain && ! git init -q && git commit -m "fix: add sums"`,
 		// A failed cd leaves the shell where it was, and init runs there.
 		`cd ~/.claude/scratch/missing; git init -q && git add -A && git commit -m "fix: add sums"`,
+		`cd ~/.claude/scratch/missing; cd sub && git init -q && git commit -m "fix: add sums"`,
 	} {
 		if r := k.commit("", cmd); !strings.Contains(r.Output, `"permissionDecision":"ask"`) {
 			t.Errorf("%s: no ask:\n%s", cmd, r.Output)
