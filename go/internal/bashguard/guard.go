@@ -71,10 +71,22 @@ type walked struct {
 // walk yields each call of segs with a command word, run from cwd, a cd
 // moving the directory for the calls after it.
 func walk(segs []Segment, home, cwd string) iter.Seq[walked] {
+	return walkPinned(segs, home, cwd, nil)
+}
+
+// pinFunc is words, in segment at, with each pinned variable read as its
+// path (state.pinWords).
+type pinFunc func(at int, words []Word) []Word
+
+// walkPinned is walk with each call's words read through pin, when set.
+func walkPinned(segs []Segment, home, cwd string, pin pinFunc) iter.Seq[walked] {
 	return func(yield func(walked) bool) {
 		d := dirs{home: home, cwd: cwd}
-		for _, seg := range segs {
+		for at, seg := range segs {
 			for _, call := range seg.Calls {
+				if pin != nil {
+					call.Words = pin(at, call.Words)
+				}
 				i := lead(call.Words)
 				if i >= len(call.Words) {
 					continue

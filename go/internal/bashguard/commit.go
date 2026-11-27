@@ -186,7 +186,7 @@ func (c commit) commits(cmd string) bool {
 // with none, it's one commit that isn't found.
 func commitCalls(cmd, home, cwd string) []commit {
 	segs, unparsed := parseAll(cmd)
-	out := slices.DeleteFunc(gitCalls(segs, home, cwd, unparsed), func(c commit) bool { return c.sub != "commit" })
+	out := slices.DeleteFunc(gitCalls(segs, home, cwd, unparsed, nil), func(c commit) bool { return c.sub != "commit" })
 	if len(out) == 0 {
 		return []commit{{unparsed: unparsed}}
 	}
@@ -194,9 +194,9 @@ func commitCalls(cmd, home, cwd string) []commit {
 }
 
 // gitCalls is every git call of segs, run from cwd, read as a commit is.
-func gitCalls(segs []Segment, home, cwd string, unparsed bool) []commit {
+func gitCalls(segs []Segment, home, cwd string, unparsed bool, pin pinFunc) []commit {
 	var out []commit
-	for w := range walk(segs, home, cwd) {
+	for w := range walkPinned(segs, home, cwd, pin) {
 		if w.name != "git" {
 			continue
 		}

@@ -509,6 +509,38 @@ func TestGuardCommitInAThrowawayRepoNeedsNoApproval(t *testing.T) {
 	}
 }
 
+// A throwaway commit may sit beside echo, printf, a variable pinned to its
+// repo's path, and exports of HOME and git's identity, but not beside
+// anything that changes which git runs or where a cd lands.
+func TestGuardCommitInAThrowawayRepoBesideSetup(t *testing.T) {
+	gitleaksStub(t, 0)
+	k := newSandbox(t)
+	k.transcript = filepath.Join(t.TempDir(), "t.jsonl")
+	testutil.AppendJSONL(t, k.transcript, testutil.UserPrompt("fix it"))
+	scratch := filepath.Join(k.claude, "scratch")
+	testutil.Mkdir(t, filepath.Join(scratch, "r"))
+	testutil.Git(t, filepath.Join(scratch, "r"), "init", "-q")
+	for cmd, wantAsk := range map[string]bool{
+		`V=SCR; export HOME="$V/home2"; cd "$V/r" && git add . && git commit -qm "fix: sub" && echo ok`: false,
+		`V=SCR/r; git -C $V add . && git -C $V commit -qm "fix: sub"`:                                   false,
+		`export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t; git -C SCR/r commit -qm "fix: sub"`:             false,
+		`GIT_COMMITTER_NAME=t git -C SCR/r commit -qm "fix: sub"`:                                       false,
+		`printf 'x\n'; git -C SCR/r commit -qm "fix: sub"`:                                              false,
+		`PATH=SCR/bin; cd SCR/r && git add . && git commit -qm "fix: sub"`:                              true,
+		`export PATH=SCR/bin:$PATH; git -C SCR/r commit -qm "fix: sub"`:                                 true,
+		`CDPATH=SCR; cd r && git commit -qm "fix: sub"`:                                                 true,
+		`export LD_PRELOAD=SCR/x.so; git -C SCR/r commit -qm "fix: sub"`:                                true,
+		`export "GIT_DIR=/x/.git"; git -C SCR/r commit -qm "fix: sub"`:                                  true,
+		`printf -vX x; git -C SCR/r commit -qm "fix: sub"`:                                              true,
+		`V=SCR/r; V=/; git -C "$V" commit -qm "fix: sub"`:                                               true,
+	} {
+		cmd = strings.ReplaceAll(cmd, "SCR", scratch)
+		if r := k.commit("", cmd); strings.Contains(r.Output, `"permissionDecision":"ask"`) != wantAsk {
+			t.Errorf("ask %v, want %v: %s\n%s", !wantAsk, wantAsk, cmd, r.Output)
+		}
+	}
+}
+
 // A bare yes answers the reply before it: when that reply's last line asks
 // to commit, the yes is the request. A yes to another question, or a no,
 // isn't.

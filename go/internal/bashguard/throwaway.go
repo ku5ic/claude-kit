@@ -13,12 +13,21 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 )
 
-// gitEnv is a GIT_ variable, which can name another repo, index, or config.
-var gitEnv = regexp.MustCompile(`\bGIT_[A-Z0-9_]+`)
+// repoEnv names one of repoVars anywhere in a command, quoted apart or not.
+var repoEnv = regexp.MustCompile(`\b(?:` + strings.Join(repoVars, "|") + `)\b`)
 
 // throwawayCalls are the only commands a throwaway commit's command may
-// run: none of them can set what git reads, or write a .git file.
-var throwawayCalls = nameSet("git", "cd", "mkdir", "mktemp", "set", "true", ":")
+// run: none of them can set what git reads, or write a .git file. printf
+// counts only without -v.
+var throwawayCalls = nameSet("git", "cd", "mkdir", "mktemp", "set", "true", ":", "echo", "printf")
+
+// throwawayExports are the names a throwaway commit's command may export:
+// none moves git, the repo it finds, or which program runs.
+var throwawayExports = regexp.MustCompile(`^(?:HOME|GIT_(?:AUTHOR|COMMITTER)_(?:NAME|EMAIL|DATE))$`)
+
+// shellSpecial are the names the shell itself reads when set, exported or
+// not: which program runs, where a relative cd goes, how words split.
+var shellSpecial = nameSet("PATH", "CDPATH", "IFS", "BASH_ENV", "ENV", "GLOBIGNORE")
 
 // throwawayGit are the git subcommands such a command may run; diff and
 // log write files with --output.
@@ -40,13 +49,48 @@ var setWord = regexp.MustCompile(`^([-+][euxo]+|pipefail|errexit|nounset|xtrace)
 // mktemp -d dir that can't be empty there.
 func throwaway(h *hook.Hook, cmd string, commits []commit) bool {
 	segs, unparsed := parseAll(cmd)
-	if unparsed || gitEnv.MatchString(cmd) || gitEnvSet() || !fixedShape(segs) {
+	if unparsed || repoEnv.MatchString(cmd) || gitEnvSet() || !fixedShape(segs) || !plainAssigns(segs) {
 		return false
 	}
-	calls := gitCalls(segs, h.Home, h.Payload.Cwd(), false)
+	st := &state{dirs: dirs{home: h.Home, cwd: h.Payload.Cwd()}, h: h}
+	st.begin(cmd, segs)
+	next := 0
+	calls := gitCalls(segs, h.Home, h.Payload.Cwd(), false, func(at int, words []Word) []Word {
+		for ; next < at; next++ {
+			st.track(next, segs[next])
+		}
+		st.at = at
+		return st.pinWords(words)
+	})
 	for _, c := range commits {
-		if c.seg < 0 || c.elsewhere || !lands(h, segs, calls, c) {
+		i := slices.IndexFunc(calls, func(p commit) bool { return p.start == c.start && c.seg >= 0 })
+		if i < 0 || calls[i].elsewhere || !lands(h, segs, calls, calls[i]) {
 			return false
+		}
+	}
+	return true
+}
+
+// plainAssigns is true when segs set no name the shell reads itself
+// (shellSpecial), and export only throwawayExports: by export or declare
+// -x, as a command's own prefix, or by a bare assignment to a name the
+// environment already exports.
+func plainAssigns(segs []Segment) bool {
+	for _, seg := range segs {
+		for _, call := range seg.Calls {
+			names := slices.Clone(call.Exports)
+			for _, a := range call.Assigns {
+				name, _, _ := strings.Cut(a, "=")
+				if shellSpecial[name] {
+					return false
+				}
+				if len(call.Words) > 0 || os.Getenv(name) != "" {
+					names = append(names, name)
+				}
+			}
+			if slices.ContainsFunc(names, func(name string) bool { return !throwawayExports.MatchString(name) }) {
+				return false
+			}
 		}
 	}
 	return true
@@ -75,7 +119,7 @@ func fixedShape(segs []Segment) bool {
 					return false
 				}
 			}
-			if call.decl != "" {
+			if call.declOpaque {
 				return false
 			}
 			if len(call.Words) == 0 {
@@ -93,6 +137,10 @@ func fixedShape(segs []Segment) bool {
 				}
 			case "git":
 				if !plainGit(args) {
+					return false
+				}
+			case "printf":
+				if !plainPrintf(name.Value, call.Words[1:]) {
 					return false
 				}
 			}
