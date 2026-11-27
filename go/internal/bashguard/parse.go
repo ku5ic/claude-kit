@@ -138,8 +138,17 @@ func Segments(src string) []Segment {
 // parseAll is Segments, also reporting whether a line failed to parse short
 // of the end of input. mvdan rejects a few constructs bash runs ($((cmd) ),
 // an unquoted associative index), and every statement on that line goes
-// unchecked, so the caller fails closed.
+// unchecked, so the caller fails closed. A trap whose action can't be
+// placed counts too.
 func parseAll(src string) ([]Segment, bool) {
+	segs, unparsed, unplaced := parseFull(src)
+	return segs, unparsed || unplaced
+}
+
+// parseFull is parseAll with its two causes apart: unparsed for a line
+// that failed to parse, unplaced for a trap whose action the guard can't
+// place in the command.
+func parseFull(src string) (segs []Segment, unparsed, unplaced bool) {
 	c := &collector{}
 	c.parse(src, 0)
 	// A trap's action runs when the trap fires, after the command at the
@@ -150,7 +159,7 @@ func parseAll(src string) ([]Segment, bool) {
 		c.traps = c.traps[1:]
 		c.parse(action, 1)
 	}
-	return c.segs, c.unparsed
+	return c.segs, c.unparsed, c.unplaced
 }
 
 type collector struct {
@@ -163,6 +172,7 @@ type collector struct {
 	loop        int // the outermost loop the walk is inside, 0 for none
 	loops       int // loop ids handed out
 	unparsed    bool
+	unplaced    bool     // a trap set whose action can't be placed
 	traps       []string // the actions trap commands set, parsed last
 }
 
@@ -410,7 +420,7 @@ func (c *collector) call(src string, p *syntax.Stmt, call *syntax.CallExpr) Call
 	if action, readable, ok := trapAction(cl.Words); ok {
 		c.traps = append(c.traps, action)
 		// A trap in a subshell or a nested shell fires when that exits.
-		c.unparsed = c.unparsed || !readable || c.depth > 0 || c.subshell > 0
+		c.unplaced = c.unplaced || !readable || c.depth > 0 || c.subshell > 0
 	}
 	for _, cmd := range rebaseExecs(cl.Words) {
 		c.parse(cmd, c.depth+1)

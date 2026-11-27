@@ -664,6 +664,24 @@ func TestGuardBashParsing(t *testing.T) {
 	})
 }
 
+// A trap the guard can't place asks for that reason, not as a parse
+// failure; a line that fails to parse still says so.
+func TestGuardBashTrapAskNamesTheTrap(t *testing.T) {
+	t.Parallel()
+	k := newSandbox(t)
+	cwd := t.TempDir()
+	for _, tc := range []struct{ cmd, want string }{
+		{`trap 'rm -f x' INT`, "can't place this trap"},
+		{`(trap 'echo hi' EXIT)`, "can't place this trap"},
+		{`trap "$X" EXIT`, "can't place this trap"},
+		{`echo $((cmd) ); trap 'rm -f x' INT`, "could not parse"},
+	} {
+		if r := k.hook("", cwd, tc.cmd); !strings.Contains(r.Output, `"ask"`) || !strings.Contains(r.Output, "guard-bash "+tc.want) {
+			t.Errorf("%s: want an ask naming %q, got:\n%s", tc.cmd, tc.want, r.Output)
+		}
+	}
+}
+
 // Work on the kit's own checkout writes inside the plugin root without a
 // prompt; the same write from another project asks.
 func TestGuardBashPluginRootFromInside(t *testing.T) {
