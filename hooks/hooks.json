@@ -57,7 +57,7 @@
       {
         "matcher": "startup|resume|compact|clear",
         "hooks": [
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook inject-context", "timeout": 30 }
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/kit\" hook inject-context", "timeout": 45 }
         ]
       }
     ],
