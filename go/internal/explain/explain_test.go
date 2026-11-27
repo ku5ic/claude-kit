@@ -49,7 +49,7 @@ func TestExplain(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			var stdout, stderr strings.Builder
-			if status := Run(paths, cfg, repo, home, c.args, &stdout, &stderr); status != 0 {
+			if status := Run(paths, cfg, repo, home, "", c.args, &stdout, &stderr); status != 0 {
 				t.Fatalf("status %d, want 0; stderr:\n%s", status, stderr.String())
 			}
 			if !strings.Contains(stdout.String(), c.want) {

@@ -138,8 +138,9 @@ func runsC(name string) bool { return shells[name] || name == "fish" }
 // completed before it are kept, the rest of its line is parsed again from
 // the next separator, and the lines after it are parsed again as a script
 // of their own, so an unterminated heredoc's body is checked as commands.
-func Segments(src string) []Segment {
-	segs, _ := parseAll(src)
+// shell is the one the Bash tool runs src in.
+func Segments(src, shell string) []Segment {
+	segs, _ := parseAll(src, shell)
 	return segs
 }
 
@@ -147,17 +148,23 @@ func Segments(src string) []Segment {
 // of the end of input. mvdan rejects a few constructs bash runs ($((cmd) ),
 // an unquoted associative index), and every statement on that line goes
 // unchecked, so the caller fails closed. A trap whose action can't be
-// placed counts too.
-func parseAll(src string) ([]Segment, bool) {
-	segs, unparsed, unplaced := parseFull(src)
-	return segs, unparsed || unplaced
+// placed counts too, and so does a zsh expansion that runs a command.
+func parseAll(src, shell string) ([]Segment, bool) {
+	p := parseFull(src, shell)
+	return p.segs, p.unparsed || p.unplaced || p.runsCode
 }
 
-// parseFull is parseAll with its two causes apart: unparsed for a line
-// that failed to parse, unplaced for a trap whose action the guard can't
-// place in the command.
-func parseFull(src string) (segs []Segment, unparsed, unplaced bool) {
-	c := &collector{}
+// parsed is parseAll's result with its causes apart.
+type parsed struct {
+	segs     []Segment
+	unparsed bool // a line failed to parse
+	unplaced bool // a trap whose action the guard can't place in the command
+	runsCode bool // a zsh expansion that runs a command, see zshRunsCode
+}
+
+// parseFull is parseAll with its causes apart.
+func parseFull(src, shell string) parsed {
+	c := &collector{lang: shellLang(shell)}
 	c.parse(src, 0)
 	// A trap's action runs when the trap fires, after the command at the
 	// latest, so its segments come last, and may not run.
@@ -167,10 +174,47 @@ func parseFull(src string) (segs []Segment, unparsed, unplaced bool) {
 		c.traps = c.traps[1:]
 		c.parse(action, 1)
 	}
-	return c.segs, c.unparsed, c.unplaced
+	return parsed{c.segs, c.unparsed, c.unplaced, c.runsCode}
+}
+
+// shellLang is the language a shell, a path or a name, parses src in: zsh
+// as zsh, so its glob qualifiers and expansion flags read as written, and
+// every other shell as bash.
+func shellLang(shell string) syntax.LangVariant {
+	if baseName(shell) == "zsh" {
+		return syntax.LangZsh
+	}
+	return syntax.LangBash
+}
+
+// safeQualifier is a zsh glob qualifier whose every flag runs nothing: N,
+// a file type (. / @), - to follow links, an o or O sort key, and [n].
+// Anything else, e:cmd: and +fn among them, may run a command.
+var safeQualifier = regexp.MustCompile(`^\((?:[N./@-]|[oO][nLlamcdN]|\[-?[0-9]+\])+\)$`)
+
+// zshRunsCode is true when a word in f holds a zsh expansion that may run a
+// command as it expands: a glob qualifier safeQualifier doesn't match
+// (mvdan keeps each as a literal opening with "("), a ${(e)x} flag, or
+// ${~x}, whose value may hold such a qualifier.
+func zshRunsCode(f *syntax.File) bool {
+	found := false
+	syntax.Walk(f, func(n syntax.Node) bool {
+		switch v := n.(type) {
+		case *syntax.Word:
+			found = found || slices.ContainsFunc(v.Parts, func(p syntax.WordPart) bool {
+				lit, ok := p.(*syntax.Lit)
+				return ok && strings.HasPrefix(lit.Value, "(") && !safeQualifier.MatchString(lit.Value)
+			})
+		case *syntax.ParamExp:
+			found = found || v.Flags != nil && strings.Contains(v.Flags.Value, "e") || v.GlobSubst != syntax.OptUnset
+		}
+		return !found
+	})
+	return found
 }
 
 type collector struct {
+	lang     syntax.LangVariant // of the parse in progress
 	segs     []Segment
 	depth    int // of the parse in progress: nested heredocs and env -S strings
 	subshell int // how many subshells the walk is inside
@@ -185,7 +229,17 @@ type collector struct {
 	loops       int // loop ids handed out
 	unparsed    bool
 	unplaced    bool     // a trap set whose action can't be placed
+	runsCode    bool     // a zsh expansion that may run a command
 	traps       []string // the actions trap commands set, parsed last
+}
+
+// parseAs is parse in another shell's language: a string or heredoc that
+// shell runs.
+func (c *collector) parseAs(src string, depth int, lang syntax.LangVariant) {
+	saved := c.lang
+	c.lang = lang
+	defer func() { c.lang = saved }()
+	c.parse(src, depth)
 }
 
 func (c *collector) parse(src string, depth int) {
@@ -199,7 +253,10 @@ func (c *collector) parse(src string, depth int) {
 	saved := c.depth
 	c.depth = depth
 	defer func() { c.depth = saved }()
-	file, err := syntax.NewParser().Parse(strings.NewReader(src), "")
+	file, err := syntax.NewParser(syntax.Variant(c.lang)).Parse(strings.NewReader(src), "")
+	if file != nil && c.lang == syntax.LangZsh && zshRunsCode(file) {
+		c.runsCode = true
+	}
 	if err == nil {
 		c.stmts(src, file.Stmts)
 		return
@@ -378,16 +435,23 @@ func shellCString(words []Word) (string, bool) {
 // shellHeredocs parses seg's heredocs as commands when a shell in it reads
 // them (bash <<EOF, cat <<EOF | sh), past any wrapper (sudo bash <<EOF),
 // or a root shell does (sudo -s <<EOF).
+// A body parses in the language of the first shell named, bash for a root
+// shell.
 func (c *collector) shellHeredocs(seg Segment) {
-	if !slices.ContainsFunc(seg.Calls, func(cl Call) bool {
-		i := lead(cl.Words)
-		return i < len(cl.Words) && shells[baseName(cl.Words[i].Value)] || startsRootShell(cl.Words)
-	}) {
+	lang, found := syntax.LangBash, false
+	for _, cl := range seg.Calls {
+		if i := lead(cl.Words); i < len(cl.Words) && shells[baseName(cl.Words[i].Value)] {
+			lang, found = shellLang(cl.Words[i].Value), true
+			break
+		}
+		found = found || startsRootShell(cl.Words)
+	}
+	if !found {
 		return
 	}
 	for _, cl := range seg.Calls {
 		for _, body := range cl.Heredocs {
-			c.parse(body, c.depth+1)
+			c.parseAs(body, c.depth+1, lang)
 		}
 	}
 }
@@ -454,7 +518,7 @@ func (c *collector) call(src string, p *syntax.Stmt, call *syntax.CallExpr) Call
 		// A child shell: a cd in its string moves nothing after the call.
 		cl.shellString = true
 		c.openSubshell()
-		c.parse(cmd, c.depth+1)
+		c.parseAs(cmd, c.depth+1, shellLang(cl.Words[lead(cl.Words)].Value))
 		c.closeSubshell()
 	}
 	if action, readable, ok := trapAction(cl.Words); ok {

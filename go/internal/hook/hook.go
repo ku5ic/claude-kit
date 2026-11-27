@@ -155,6 +155,7 @@ type Hook struct {
 	Stderr  io.Writer
 	Now     func() time.Time
 	Home    string // $HOME, read once by the caller so checks never read it
+	Shell   string // the shell the Bash tool runs in, found once by the caller
 	// DryRun skips every log write: kit explain evaluates without leaving
 	// a trace in guards.jsonl.
 	DryRun bool

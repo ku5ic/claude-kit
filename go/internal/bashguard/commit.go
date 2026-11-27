@@ -46,7 +46,7 @@ func CheckCommit(h *hook.Hook) error {
 		return h.Payload.Err
 	}
 	cmd := h.Payload.String(hook.KeyInputCommand)
-	segs, unparsed := parseAll(cmd)
+	segs, unparsed := parseAll(cmd, h.Shell)
 	commits := commitsIn(segs, unparsed, h.Home, h.Payload.Cwd())
 	if !commits[0].commits(cmd) {
 		return nil
@@ -74,7 +74,7 @@ func CheckCommit(h *hook.Hook) error {
 		go func() {
 			// A failed read lets the commit through, as the hook would.
 			defer proc.Recover(func(any) { ok <- true })
-			ok <- approved(h.Payload.String(hook.KeyTranscriptPath), subjects)
+			ok <- approved(h.Payload.String(hook.KeyTranscriptPath), h.Shell, subjects)
 		}()
 	}
 	for i := range commits {
@@ -180,8 +180,8 @@ func (c commit) commits(cmd string) bool {
 }
 
 // commitCalls parses cmd, run from cwd, for its commitsIn.
-func commitCalls(cmd, home, cwd string) []commit {
-	segs, unparsed := parseAll(cmd)
+func commitCalls(cmd, home, cwd, shell string) []commit {
+	segs, unparsed := parseAll(cmd, shell)
 	return commitsIn(segs, unparsed, home, cwd)
 }
 

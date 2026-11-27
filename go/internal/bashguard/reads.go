@@ -160,8 +160,8 @@ func discards(redirs []Redir) bool {
 // check counts reads: each existing file a command's operands or < redirects
 // name, and each glob a grep or rg is limited to, its {a,b} alternatives
 // expanded and joined to the directory it runs in.
-func ReadTargets(cmd, home, cwd string) []string {
-	segs, _ := parseAll(cmd)
+func ReadTargets(cmd, home, cwd, shell string) []string {
+	segs, _ := parseAll(cmd, shell)
 	var out []string
 	for w := range walk(segs, home, resolveDir(home, "/", cwd)) {
 		args := values(w.call.Words[w.i+1:])
@@ -189,8 +189,8 @@ func ReadTargets(cmd, home, cwd string) []string {
 // or sd edits. A cd moves where the writes after it land; one ending a
 // pipeline moves zsh but not bash, so each write after it counts in both
 // directories.
-func WriteTargets(cmd, home, cwd string) []string {
-	segs, _ := parseAll(cmd)
+func WriteTargets(cmd, home, cwd, shell string) []string {
+	segs, _ := parseAll(cmd, shell)
 	st := &state{dirs: dirs{home: home, cwd: resolveDir(home, "/", cwd)}}
 	st.begin(cmd, segs)
 	// ds are the directories the shell may be in.

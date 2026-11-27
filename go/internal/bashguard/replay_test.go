@@ -15,6 +15,7 @@ import (
 type replayRow struct {
 	Class string `json:"class"`
 	Step  int    `json:"step"`
+	Shell string `json:"shell"`
 	Cwd   string `json:"cwd"`
 	Cmd   string `json:"cmd"`
 	Now   string `json:"now"`
@@ -43,6 +44,7 @@ func TestFalsePositivesReplay(t *testing.T) {
 		if row.Cwd != "" {
 			cwd = fill(row.Cwd)
 		}
+		k.shell = row.Shell
 		if got := k.hook("", cwd, fill(row.Cmd)).verdict(); got != want {
 			t.Errorf("row %d (%s, step %d, %s): got %s want %s: %s", i+1, row.Class, row.Step, why, got, want, row.Cmd)
 		}

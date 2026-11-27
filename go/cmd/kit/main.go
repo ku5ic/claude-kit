@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -55,6 +56,7 @@ type env struct {
 	stderr io.Writer
 	cwd    string
 	home   string // $HOME, read once here
+	shell  string // the Bash tool's shell, bashToolShell, found once here
 	cfg    *config.Config
 	warned bool // config produced warnings
 }
@@ -73,7 +75,27 @@ func newEnv(stdout, stderr io.Writer) (*env, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &env{exe: exe, paths: paths, stdout: stdout, stderr: stderr, cwd: cwd, home: os.Getenv("HOME")}, nil
+	return &env{exe: exe, paths: paths, stdout: stdout, stderr: stderr, cwd: cwd, home: os.Getenv("HOME"), shell: bashToolShell()}, nil
+}
+
+// bashToolShell is the shell Claude Code runs Bash tool commands in, found
+// as it finds it (code.claude.com/docs/en/env-vars.md, CLAUDE_CODE_SHELL):
+// that variable when it's a working bash or zsh, else $SHELL when it is,
+// else the first zsh, then bash, on PATH; "" when there's none.
+func bashToolShell() string {
+	for _, shell := range []string{os.Getenv("CLAUDE_CODE_SHELL"), os.Getenv("SHELL")} {
+		if name := filepath.Base(shell); name == "bash" || name == "zsh" {
+			if _, err := exec.LookPath(shell); err == nil {
+				return shell
+			}
+		}
+	}
+	for _, name := range []string{"zsh", "bash"} {
+		if path, err := exec.LookPath(name); err == nil {
+			return path
+		}
+	}
+	return ""
 }
 
 func (e *env) config() (*config.Config, error) {
@@ -183,7 +205,7 @@ var commands = map[string]command{
 		return slop.Run(cfg, args, os.Stdin, e.stdout, e.stderr)
 	}},
 	"explain": {needsConfig, func(e *env, cfg *config.Config, args []string) int {
-		return explain.Run(e.paths, cfg, e.cwd, e.home, args, e.stdout, e.stderr)
+		return explain.Run(e.paths, cfg, e.cwd, e.home, e.shell, args, e.stdout, e.stderr)
 	}},
 }
 

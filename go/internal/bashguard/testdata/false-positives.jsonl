@@ -94,10 +94,18 @@
 {"class":"find-delete","cmd":"cd .claude/scratch && find -f / -delete","want":"block"}
 {"class":"find-delete","cmd":"find -x .claude/scratch/x -f / -delete","want":"block"}
 {"class":"find-delete","cmd":"find .claude/scratch/x -files0-from list -delete","want":"block"}
-{"class":"zsh","step":9,"cmd":"for f in *.md(N); do echo $f; done","now":"ask","want":"pass"}
-{"class":"zsh","step":9,"cmd":"echo ${=c}","now":"ask","want":"pass"}
-{"class":"zsh","cmd":"ls *.md(e:'rm -rf ~':)","want":"ask"}
-{"class":"zsh","cmd":"rm -rf *(N)","want":"ask"}
+{"class":"zsh","step":9,"shell":"/bin/zsh","cmd":"for f in *.md(N); do echo $f; done","want":"pass"}
+{"class":"zsh","step":9,"shell":"/bin/zsh","cmd":"echo ${=c}","want":"pass"}
+{"class":"zsh","shell":"/bin/zsh","cmd":"ls *.md(e:'rm -rf ~':)","want":"ask"}
+{"class":"zsh","shell":"/bin/zsh","cmd":"rm -rf *(N)","want":"ask"}
+{"class":"zsh","step":9,"shell":"/bin/zsh","cmd":"ls -d *(/) **/*.go(.om[1])","want":"pass"}
+{"class":"zsh","step":9,"cmd":"zsh -c 'for f in *.md(N); do echo $f; done'","want":"pass"}
+{"class":"zsh","shell":"/bin/zsh","cmd":"ls *(+fn)","want":"ask"}
+{"class":"zsh","shell":"/bin/zsh","cmd":"echo ${(e)x}","want":"ask"}
+{"class":"zsh","shell":"/bin/zsh","cmd":"echo ${~x}","want":"ask"}
+{"class":"zsh","shell":"/bin/zsh","cmd":"echo $(ls *(e:x:))","want":"ask"}
+{"class":"zsh","cmd":"zsh -c 'ls *(e:x:)'","want":"ask"}
+{"class":"zsh","cmd":"for f in *.md(N); do echo $f; done","want":"ask"}
 {"class":"kit-switch","step":10,"cwd":"{home}/.claude/logs","cmd":"cd {root} && (cd go && go test ./e2e/)","now":"ask","want":"pass"}
 {"class":"kit-switch","cwd":"{home}/.claude/logs","cmd":"echo x > {home}/.claude/logs/x","want":"ask"}
 {"class":"snapshot","step":13,"cmd":"rg -n 'jest -u' go/internal","now":"ask","want":"pass"}

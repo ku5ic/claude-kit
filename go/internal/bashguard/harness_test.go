@@ -37,6 +37,7 @@ type sandbox struct {
 	home       string // $HOME, and the cwd of a run that names none
 	claude     string // $HOME/.claude
 	transcript string // transcript_path of each run; none when ""
+	shell      string // $SHELL of each run; bash when ""
 }
 
 func newSandbox(t *testing.T) *sandbox {
@@ -108,6 +109,7 @@ func (k *sandbox) run(check hook.NamedCheck, session, cwd, cmd string) result {
 		Stdout: &out,
 		Stderr: &out,
 		Home:   k.home,
+		Shell:  k.shell,
 	}
 	status := hook.Run(h, check)
 	return result{status, out.String()}

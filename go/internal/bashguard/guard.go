@@ -392,12 +392,15 @@ func Check(h *hook.Hook) error {
 	st := &state{dirs: dirs{home: home, cwd: session}, session: session, h: h, cfg: cfg, managers: map[string][]gapfill.Manager{}}
 	// The raw command, not norm: <<- strips tabs only, and norm would turn a
 	// tab-indented terminator into spaces that no longer close the heredoc.
-	segs, unparsed, unplaced := parseFull(cmd)
+	p := parseFull(cmd, h.Shell)
+	segs := p.segs
 	switch {
-	case unparsed:
+	case p.unparsed:
 		st.ask("guard-bash could not parse part of this command, so it went unchecked; confirm it", "unparsed")
-	case unplaced:
+	case p.unplaced:
 		st.ask("guard-bash can't place this trap's action in the command (an expansion, a signal other than EXIT, or a nested scope), so where it runs went unchecked; confirm it", "trap-unplaced")
+	case p.runsCode:
+		st.ask("a zsh glob qualifier or expansion flag here can run a command as it expands (e:, +, ${(e)...}, ${~...}), which guard-bash can't check; confirm it", "zsh-expansion")
 	}
 	st.begin(cmd, segs)
 	for i, seg := range segs {
@@ -421,7 +424,7 @@ func Check(h *hook.Hook) error {
 	}
 	// bash-edits reads the marker of the command that runs, the rewrite
 	// when there is one. A rewrite only reads, rg piped into sort included.
-	if !unparsed && !unplaced && (onlyReads(segs) || runs != cmd) && !h.DryRun {
+	if !p.unparsed && !p.unplaced && !p.runsCode && (onlyReads(segs) || runs != cmd) && !h.DryRun {
 		if marker := cache.ReadOnlyBash(h.Paths.CacheDir(), h.Payload.SessionID(), runs); marker != "" {
 			_ = fsx.WriteAtomic(marker, nil, 0o600)
 		}

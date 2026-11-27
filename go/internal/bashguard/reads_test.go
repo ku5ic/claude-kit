@@ -39,7 +39,7 @@ func TestReadTargets(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			if got := ReadTargets(tc.cmd, "/home/nobody", dir); !slices.Equal(got, tc.want) {
+			if got := ReadTargets(tc.cmd, "/home/nobody", dir, ""); !slices.Equal(got, tc.want) {
 				t.Errorf("ReadTargets(%q) = %q, want %q", tc.cmd, got, tc.want)
 			}
 		})
@@ -78,7 +78,7 @@ func TestOnlyReads(t *testing.T) {
 	} {
 		t.Run(tc.cmd, func(t *testing.T) {
 			t.Parallel()
-			segs, _ := parseAll(tc.cmd)
+			segs, _ := parseAll(tc.cmd, "")
 			if got := onlyReads(segs); got != tc.want {
 				t.Errorf("onlyReads(%q) = %v, want %v", tc.cmd, got, tc.want)
 			}
@@ -130,7 +130,7 @@ func TestWriteTargets(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			if got := WriteTargets(tc.cmd, "/home/nobody", dir); !slices.Equal(got, tc.want) {
+			if got := WriteTargets(tc.cmd, "/home/nobody", dir, ""); !slices.Equal(got, tc.want) {
 				t.Errorf("WriteTargets(%q) = %q, want %q", tc.cmd, got, tc.want)
 			}
 		})

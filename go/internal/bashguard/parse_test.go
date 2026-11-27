@@ -11,7 +11,7 @@ import (
 // pipeline.
 func names(src string) []string {
 	var out []string
-	for _, seg := range Segments(src) {
+	for _, seg := range Segments(src, "") {
 		var calls []string
 		for _, c := range seg.Calls {
 			if i := lead(c.Words); i < len(c.Words) {
@@ -77,7 +77,7 @@ func FuzzSegments(f *testing.F) {
 		f.Add(src)
 	}
 	f.Fuzz(func(t *testing.T, src string) {
-		Segments(src)
+		Segments(src, "")
 	})
 }
 
@@ -99,13 +99,13 @@ func TestParseErrorsDontHideLaterLines(t *testing.T) {
 	for i := 8; i >= 0; i-- {
 		fmt.Fprintf(&nested, "E%d\n", i)
 	}
-	if _, unparsed := parseAll(nested.String()); !unparsed {
+	if _, unparsed := parseAll(nested.String(), ""); !unparsed {
 		t.Error("a heredoc nested 9 deep isn't unparsed")
 	}
 }
 
 func TestWordValues(t *testing.T) {
-	segs := Segments(`rm -rf "${HOME}" '~' $HOME/x "a b" \$y "$(kit scratch-dir)/f"`)
+	segs := Segments(`rm -rf "${HOME}" '~' $HOME/x "a b" \$y "$(kit scratch-dir)/f"`, "")
 	// Inner substitutions come first, as they run first.
 	var got []string
 	for _, w := range segs[len(segs)-1].Calls[0].Words {
@@ -118,7 +118,7 @@ func TestWordValues(t *testing.T) {
 }
 
 func TestRedirectTargets(t *testing.T) {
-	segs := Segments(`ls > out.txt 2>&1 | tee -a log >&2`)
+	segs := Segments(`ls > out.txt 2>&1 | tee -a log >&2`, "")
 	var got []string
 	for _, c := range segs[0].Calls {
 		for _, r := range c.Redirs {

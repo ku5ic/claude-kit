@@ -16,7 +16,7 @@ import (
 // approved reports whether the user approved these commits: the current
 // prompt asks for a commit, or an assistant reply before it showed every
 // subject, so the user answered the messages.
-func approved(path string, subjects []string) bool {
+func approved(path, shell string, subjects []string) bool {
 	if path == "" || slices.Contains(subjects, "") {
 		return false
 	}
@@ -36,7 +36,7 @@ func approved(path string, subjects []string) bool {
 			}
 			turnInTail = true
 			reply := lastReply(tail[:i])
-			if requests(e.PromptText(), reply) || one && pickedCommit(tail[i+1:]) {
+			if requests(e.PromptText(), reply) || one && pickedCommit(tail[i+1:], shell) {
 				return true
 			}
 			// A reply the tail cut off is left to the whole parse below.
@@ -71,7 +71,7 @@ func approved(path string, subjects []string) bool {
 			}
 		}
 	})
-	if requests(prompt, before) || pickedCommit(turn) {
+	if requests(prompt, before) || pickedCommit(turn, shell) {
 		return true
 	}
 	text := earlier.String()
@@ -123,7 +123,7 @@ var recommended = regexp.MustCompile(`\s*\(Recommended\)\s*$`)
 // and a commit that failed doesn't spend it. The current call's tool_use is
 // in the transcript when its hook runs, so a second commit with no result
 // yet is a sibling sent beside it, and the pick covers neither.
-func pickedCommit(entries []transcript.Entry) bool {
+func pickedCommit(entries []transcript.Entry, shell string) bool {
 	asks, pending := map[string]map[string]question{}, map[string]bool{}
 	picked := false
 	for _, e := range entries {
@@ -131,7 +131,7 @@ func pickedCommit(entries []transcript.Entry) bool {
 			switch {
 			case b.Name == "AskUserQuestion":
 				asks[b.ID] = offered(b.RawInput)
-			case b.Name == "Bash" && isCommit(b.Input.Command):
+			case b.Name == "Bash" && isCommit(b.Input.Command, shell):
 				pending[b.ID] = true
 			}
 		}
@@ -152,8 +152,8 @@ func pickedCommit(entries []transcript.Entry) bool {
 }
 
 // isCommit is whether cmd runs git commit, as CheckCommit reads it.
-func isCommit(cmd string) bool {
-	return commitLine.MatchString(cmd) && commitCalls(cmd, "", "")[0].commits(cmd)
+func isCommit(cmd, shell string) bool {
+	return commitLine.MatchString(cmd) && commitCalls(cmd, "", "", shell)[0].commits(cmd)
 }
 
 // question is an AskUserQuestion's options and whether the user may pick

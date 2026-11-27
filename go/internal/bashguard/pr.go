@@ -61,7 +61,7 @@ func CheckPR(h *hook.Hook) error {
 		return h.Payload.Err
 	}
 	var det *slop.Detector
-	for _, t := range hostTexts(h.Payload.String(hook.KeyInputCommand), h.Home, h.Payload.Cwd()) {
+	for _, t := range hostTexts(h.Payload.String(hook.KeyInputCommand), h.Home, h.Payload.Cwd(), h.Shell) {
 		if t.unread != "" {
 			return h.Block("can't read the text of "+t.where+": "+t.unread+"\n"+
 				layout.KV("do", "give it inline, in a \"$(cat <<'EOF' ...)\" heredoc, -F - with a heredoc, or a file written in an earlier call"), "unread-text")
@@ -79,9 +79,9 @@ func CheckPR(h *hook.Hook) error {
 // PostText is the text cmd, run from cwd, posts through gh or glab, its
 // pieces joined by blank lines, and where each comes from. It leaves out a
 // piece it can't read, since guard-pr blocks that command first.
-func PostText(cmd, home, cwd string) (text, where string) {
+func PostText(cmd, home, cwd, shell string) (text, where string) {
 	var texts, wheres []string
-	for _, t := range hostTexts(cmd, home, cwd) {
+	for _, t := range hostTexts(cmd, home, cwd, shell) {
 		if t.unread == "" && t.text != "" {
 			texts, wheres = append(texts, t.text), append(wheres, t.where)
 		}
@@ -90,11 +90,11 @@ func PostText(cmd, home, cwd string) (text, where string) {
 }
 
 // hostTexts is each piece of text cmd posts through gh or glab, in order.
-func hostTexts(cmd, home, cwd string) []prText {
+func hostTexts(cmd, home, cwd, shell string) []prText {
 	if !strings.Contains(cmd, "gh") && !strings.Contains(cmd, "glab") {
 		return nil
 	}
-	segs, _ := parseAll(cmd)
+	segs, _ := parseAll(cmd, shell)
 	var out []prText
 	for w := range walk(segs, home, cwd) {
 		if posts[w.name] == nil {

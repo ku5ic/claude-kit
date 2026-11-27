@@ -172,6 +172,7 @@ func cmdHook(e *env, args []string, stdin io.Reader) (status int) {
 		Stdout:  e.stdout,
 		Stderr:  e.stderr,
 		Home:    e.home,
+		Shell:   e.shell,
 	}
 	if limit := hookTimeout(e.paths.Root, name, h.Payload.String(hook.KeyHookEventName), h.Payload.String(hook.KeyToolName)); limit > 0 {
 		git.SetDeadline(start.Add(limit - hookMargin))
@@ -214,7 +215,7 @@ func bashPost(h *hook.Hook) error {
 	if h.Payload.String(hook.KeyToolName) != "Bash" {
 		return nil
 	}
-	text, where := bashguard.PostText(h.Payload.String(hook.KeyInputCommand), h.Home, h.Payload.Cwd())
+	text, where := bashguard.PostText(h.Payload.String(hook.KeyInputCommand), h.Home, h.Payload.Cwd(), h.Shell)
 	return hooks.CheckPost(h, text, where)
 }
 
@@ -227,7 +228,7 @@ func onBashWrites(check func(*hook.Hook, []string) error) hook.Check {
 		if h.Payload.String(hook.KeyToolName) != "Bash" {
 			return nil
 		}
-		return check(h, bashguard.WriteTargets(h.Payload.String(hook.KeyInputCommand), h.Home, h.Payload.Cwd()))
+		return check(h, bashguard.WriteTargets(h.Payload.String(hook.KeyInputCommand), h.Home, h.Payload.Cwd(), h.Shell))
 	}
 }
 
@@ -244,7 +245,7 @@ func skillsNudge(h *hook.Hook) error {
 	if h.Payload.String(hook.KeyToolName) != "Bash" {
 		return hooks.SkillsNudge(h)
 	}
-	return hooks.NudgeFiles(h, bashguard.ReadTargets(h.Payload.String(hook.KeyInputCommand), h.Home, h.Payload.Cwd()))
+	return hooks.NudgeFiles(h, bashguard.ReadTargets(h.Payload.String(hook.KeyInputCommand), h.Home, h.Payload.Cwd(), h.Shell))
 }
 
 // hookMargin is the time a hook keeps past its last git call to answer.

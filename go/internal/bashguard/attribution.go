@@ -43,7 +43,7 @@ func CheckAttribution(h *hook.Hook) error {
 		return nil
 	}
 	cmd := h.Payload.String(hook.KeyInputCommand)
-	segs, unparsed := parseAll(cmd)
+	segs, unparsed := parseAll(cmd, h.Shell)
 	texts, writes := postedTexts(segs, h.Home, h.Payload.Cwd())
 	if !writes && (!unparsed || !gitOrGh.MatchString(cmd)) {
 		return nil

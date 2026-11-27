@@ -35,7 +35,7 @@ const usage = `usage: kit explain <what> ...
 `
 
 // Run dispatches kit explain.
-func Run(paths config.Paths, cfg *config.Config, cwd, home string, args []string, stdout, stderr io.Writer) int {
+func Run(paths config.Paths, cfg *config.Config, cwd, home, shell string, args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		fmt.Fprint(stderr, usage)
 		return 2
@@ -46,7 +46,7 @@ func Run(paths config.Paths, cfg *config.Config, cwd, home string, args []string
 			fmt.Fprint(stderr, usage)
 			return 2
 		}
-		return bash(paths, cfg, cwd, home, args[1], stdout)
+		return bash(paths, cfg, cwd, home, shell, args[1], stdout)
 	case "edit":
 		if len(args) < 2 || len(args) > 4 || len(args) == 4 && args[2] != "Grep" {
 			fmt.Fprint(stderr, usage)
@@ -100,9 +100,9 @@ func verdict(w io.Writer, name string, err error, h *hook.Hook) {
 	fmt.Fprintf(w, "%s: pass\n", name)
 }
 
-func bash(paths config.Paths, cfg *config.Config, cwd, home, command string, w io.Writer) int {
+func bash(paths config.Paths, cfg *config.Config, cwd, home, shell, command string, w io.Writer) int {
 	fmt.Fprintln(w, "parsed (inner substitutions first, as they run):")
-	for i, seg := range bashguard.Segments(command) {
+	for i, seg := range bashguard.Segments(command, shell) {
 		var calls []string
 		for _, c := range seg.Calls {
 			var words []string
@@ -120,6 +120,7 @@ func bash(paths config.Paths, cfg *config.Config, cwd, home, command string, w i
 		h := dryHook(paths, cfg, home, s.Name, map[string]any{
 			"tool_name": "Bash", "cwd": cwd, "tool_input": map[string]any{"command": command},
 		})
+		h.Shell = shell
 		verdict(w, s.Name, s.Check(h), h)
 	}
 	return 0
