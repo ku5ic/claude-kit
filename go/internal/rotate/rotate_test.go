@@ -618,8 +618,57 @@ func TestRegistryRewriteLeavesTheRegistryAloneWhileAnotherWriterHoldsIt(t *testi
 	gone := filepath.Join(dir, "gone", ".claude", "scratch")
 	testutil.Write(t, paths.ScratchRegistry(), gone+"\n")
 	ctx := holdRegistryLock(t, paths)
-	newRotator(paths, false, io.Discard, io.Discard).registry(ctx, paths.ScratchRegistry(), dir, DefaultDays)
+	var stdout, stderr strings.Builder
+	newRotator(paths, false, &stdout, &stderr).registry(ctx, paths.ScratchRegistry(), dir, DefaultDays)
 	if got := testutil.Read(t, paths.ScratchRegistry()); got != gone+"\n" {
 		t.Errorf("rewrote the registry under another writer's lock: %q", got)
+	}
+	// Nothing was dropped, so nothing says so, and stderr names why.
+	if strings.Contains(stdout.String(), "dropping") || !strings.Contains(stderr.String(), paths.ScratchRegistry()) {
+		t.Errorf("want no drop line and the registry on stderr; stdout:\n%s\nstderr:\n%s", stdout.String(), stderr.String())
+	}
+}
+
+// A checkout RemoveAll can't remove is named on stderr, as a worktree is.
+func TestRemoveCheckoutReportsWhatItCantRemove(t *testing.T) {
+	t.Parallel()
+	dir := physicalTemp(t)
+	paths := kitHome(t, dir)
+	checkout := filepath.Join(dir, "scratch", "repo")
+	testutil.Mkdir(t, filepath.Join(checkout, ".git"))
+	testutil.Write(t, filepath.Join(checkout, "f"), "x")
+	testutil.Age(t, 48*time.Hour, checkout, filepath.Join(checkout, "f"), filepath.Join(checkout, ".git"))
+	if err := os.Chmod(checkout, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(checkout, 0o755) })
+	var stderr strings.Builder
+	if newRotator(paths, false, io.Discard, &stderr).removeCheckout(checkout, 1) {
+		t.Error("removeCheckout reported a checkout it couldn't remove as gone")
+	}
+	if !strings.Contains(stderr.String(), "can't remove checkout "+checkout) {
+		t.Errorf("stderr doesn't name the checkout:\n%s", stderr.String())
+	}
+}
+
+// A registry line under home through a link that leads out of it is
+// refused; home itself behind a link isn't.
+func TestValidScratchDirResolvesLinks(t *testing.T) {
+	t.Parallel()
+	dir := physicalTemp(t)
+	home, outside := filepath.Join(dir, "home"), filepath.Join(dir, "outside")
+	testutil.Mkdir(t, filepath.Join(home, "proj", "scratch"))
+	testutil.Mkdir(t, filepath.Join(outside, "scratch"))
+	if err := os.Symlink(outside, filepath.Join(home, "out")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(home, filepath.Join(dir, "homelink")); err != nil {
+		t.Fatal(err)
+	}
+	if validScratchDir(filepath.Join(home, "out", "scratch"), home) {
+		t.Error("a scratch dir reached through a link out of home passed")
+	}
+	if link := filepath.Join(dir, "homelink"); !validScratchDir(filepath.Join(link, "proj", "scratch"), link) {
+		t.Error("a scratch dir under a linked home was refused")
 	}
 }

@@ -106,12 +106,12 @@ func (r *rotator) registry(ctx context.Context, registry, home string, n int) {
 	if r.dryRun {
 		dropping = "would drop"
 	}
-	var keep []string
+	var keep, stale []string
 	for dir := range strings.SplitSeq(string(data), "\n") {
 		switch {
 		case dir == "":
 		case !fsx.IsDir(dir):
-			fmt.Fprintf(r.stdout, "scratch-rotate: %s stale registry entry %s (directory no longer exists)\n", dropping, dir)
+			stale = append(stale, dir)
 		case !validScratchDir(dir, home):
 			fmt.Fprintf(r.stderr, "scratch-rotate: REFUSING registry entry %s (not a plain scratch/ dir under $HOME)\n", dir)
 			keep = append(keep, dir)
@@ -122,16 +122,30 @@ func (r *rotator) registry(ctx context.Context, registry, home string, n int) {
 			keep = append(keep, dir)
 		}
 	}
+	dropped := func() {
+		for _, dir := range stale {
+			fmt.Fprintf(r.stdout, "scratch-rotate: %s stale registry entry %s (directory no longer exists)\n", dropping, dir)
+		}
+	}
 	if r.dryRun {
+		dropped()
 		return
 	}
 	unlock, err := lockRegistry(ctx, registry)
 	if err != nil {
-		return // another writer holds it; the next run rewrites it
+		fmt.Fprintf(r.stderr, "scratch-rotate: left %s as it was, the next run rewrites it: %v\n", registry, err)
+		return
 	}
 	defer unlock()
-	now, _ := os.ReadFile(registry)
-	writeLines(registry, withAddedSince(string(data), string(now), keep))
+	now, err := os.ReadFile(registry)
+	if err == nil {
+		err = writeLines(registry, withAddedSince(string(data), string(now), keep))
+	}
+	if err != nil {
+		fmt.Fprintf(r.stderr, "scratch-rotate: can't rewrite %s: %v\n", registry, err)
+		return
+	}
+	dropped()
 }
 
 type rotator struct {
@@ -231,8 +245,11 @@ func (r *rotator) removeCheckout(path string, days int) bool {
 			fmt.Fprintf(r.stderr, "scratch-rotate: can't remove worktree %s: %v\n", path, err)
 			return false
 		}
-	} else if !r.dryRun && os.RemoveAll(path) != nil {
-		return false
+	} else if !r.dryRun {
+		if err := os.RemoveAll(path); err != nil {
+			fmt.Fprintf(r.stderr, "scratch-rotate: can't remove checkout %s: %v\n", path, err)
+			return false
+		}
 	}
 	fmt.Fprintf(r.stdout, "scratch-rotate: %s checkout older than %dd %s\n", r.verb, days, path)
 	r.record([]string{path})
@@ -304,9 +321,15 @@ func isCheckout(dir string) bool {
 
 // validScratchDir treats a registry line as untrusted: absolute, no "..",
 // under home, named exactly scratch, a real directory and not a symlink,
-// and not a repository.
+// and not a repository. Under home is judged with links resolved, so a
+// link partway down can't lead out of it.
 func validScratchDir(dir, home string) bool {
 	if !strings.HasPrefix(dir, "/") || strings.Contains(dir, "..") || home == "" || !strings.HasPrefix(dir, home+"/") || filepath.Base(dir) != "scratch" {
+		return false
+	}
+	real, err := filepath.EvalSymlinks(dir)
+	realHome, homeErr := filepath.EvalSymlinks(home)
+	if err != nil || homeErr != nil || !strings.HasPrefix(real, realHome+"/") {
 		return false
 	}
 	info, err := os.Lstat(dir)
@@ -352,13 +375,13 @@ func lockRegistry(ctx context.Context, registry string) (unlock func(), err erro
 func registryLock(registry string) string { return registry + ".lock" }
 
 // writeLines replaces path atomically with lines, one per line.
-func writeLines(path string, lines []string) {
+func writeLines(path string, lines []string) error {
 	var b strings.Builder
 	for _, l := range lines {
 		b.WriteString(l)
 		b.WriteByte('\n')
 	}
-	_ = fsx.WriteAtomic(path, []byte(b.String()), 0o600)
+	return fsx.WriteAtomic(path, []byte(b.String()), 0o600)
 }
 
 // Clean is `kit clean [--yes]`: it removes the kit's own state, for an
