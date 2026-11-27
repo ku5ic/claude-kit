@@ -599,11 +599,32 @@ func holdRegistryLock(t *testing.T, paths config.Paths) context.Context {
 	return ctx
 }
 
+// A scratch dir outside $HOME is one rotate refuses on every run, so it's
+// never registered.
+func TestRegisterSkipsAScratchDirOutsideHome(t *testing.T) {
+	home := physicalTemp(t)
+	t.Setenv("HOME", home)
+	paths := kitHome(t, home)
+	inside := filepath.Join(home, "p", ".claude", "scratch")
+	for _, dir := range []string{filepath.Join(physicalTemp(t), ".claude", "scratch"), inside} {
+		if err := Register(t.Context(), paths, dir); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := testutil.Read(t, paths.ScratchRegistry()); got != inside+"\n" {
+		t.Errorf("registry = %q, want only %q", got, inside)
+	}
+}
+
 func TestRegisterLeavesTheRegistryAloneWhileAnotherWriterHoldsIt(t *testing.T) {
 	t.Parallel()
 	paths := kitHome(t, physicalTemp(t))
 	ctx := holdRegistryLock(t, paths)
-	if err := Register(ctx, paths, "/p/.claude/scratch"); err == nil {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := Register(ctx, paths, filepath.Join(home, "p", ".claude", "scratch")); err == nil {
 		t.Error("Register reported success while another writer held the registry")
 	}
 	if exists(paths.ScratchRegistry()) {

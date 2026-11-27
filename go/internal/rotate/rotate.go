@@ -342,8 +342,12 @@ func validScratchDir(dir, home string) bool {
 
 // Register adds a project scratch dir to the registry, once, so the
 // cwd-less run can prune it. This package owns the registry: Register adds
-// to it and registry rewrites it.
+// to it and registry rewrites it. A dir outside $HOME is skipped:
+// validScratchDir refuses it on every run.
 func Register(ctx context.Context, paths config.Paths, dir string) error {
+	if home, err := os.UserHomeDir(); err != nil || !strings.HasPrefix(dir, home+"/") {
+		return nil
+	}
 	registry := paths.ScratchRegistry()
 	unlock, err := lockRegistry(ctx, registry)
 	if err != nil {

@@ -211,7 +211,7 @@ func TestScratchDirFollowsClaudeConfigDir(t *testing.T) {
 		t.Errorf("fallback %q, want under %s", stdout, configDir)
 	}
 
-	repo := gitInit(t, filepath.Join(tmp(t), "repo"))
+	repo := gitInit(t, filepath.Join(home, "repo")) // only a dir under $HOME registers
 	runFrom(t, repo, "scratch-dir")
 	got, err := os.ReadFile(filepath.Join(configDir, "logs/scratch-registry.txt"))
 	if want := filepath.Join(repo, ".claude/scratch") + "\n"; err != nil || string(got) != want {

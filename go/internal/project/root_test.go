@@ -74,6 +74,7 @@ func TestScratchDirHomeFallbackAndRegistry(t *testing.T) {
 	}
 
 	repo := tmp(t)
+	t.Setenv("HOME", filepath.Dir(repo)) // only a dir under $HOME registers
 	testutil.Git(t, repo, "init", "-q", "-b", "main")
 	for range 2 {
 		if _, err := ScratchDir(paths, repo, true); err != nil {
