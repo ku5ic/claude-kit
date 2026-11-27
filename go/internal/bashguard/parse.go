@@ -63,6 +63,7 @@ type Call struct {
 	// arithmetic, or a word that isn't a plain flag, name, or NAME=value.
 	declOpaque bool
 	start      int // source offset of the first word
+	end        int // source offset where the command and its redirects end
 }
 
 // Segment is one pipeline: the commands between &&, ||, ;, &, or a newline.
@@ -82,9 +83,10 @@ type Segment struct {
 	loop int
 }
 
-// Rest is the normalized source text after call's word, to the end of the
-// pipeline: what the per-command regexes match on. A word index past the
-// end means the text after the whole call.
+// Rest is the normalized source text after call's word, to the end of that
+// call and its redirects: what the per-command regexes match on, so a later
+// command of the pipeline (| grep -- delete) never reads as this one's
+// words. A word index past the end means the text after the whole call.
 func (s Segment) Rest(call, word int) string {
 	c := s.Calls[call]
 	start := c.start
@@ -94,10 +96,10 @@ func (s Segment) Rest(call, word int) string {
 	case len(c.Words) > 0:
 		start = c.Words[len(c.Words)-1].end
 	}
-	if start >= s.end || start > len(s.src) {
+	if start >= c.end || c.end > len(s.src) {
 		return ""
 	}
-	return normalize(s.src[start:s.end])
+	return normalize(s.src[start:c.end])
 }
 
 // normalize turns tabs into spaces and squeezes runs of spaces, so every
@@ -306,7 +308,7 @@ func (c *collector) stmt(src string, s *syntax.Stmt) {
 			continue
 		}
 		cl := c.call(src, p, call)
-		cl.Exports, cl.decl, cl.declOpaque = exports, keyword, opaque
+		cl.Exports, cl.decl, cl.declOpaque, cl.end = exports, keyword, opaque, segmentEnd(p)
 		seg.Calls = append(seg.Calls, cl)
 	}
 	if len(seg.Calls) > 0 {

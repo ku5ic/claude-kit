@@ -19,7 +19,7 @@ type command struct {
 	args   []Word
 	redirs []Redir
 	inputs []string // < redirect sources
-	rest   string   // normalized source after the name, to the pipeline's end
+	rest   string   // normalized source after the name, to the command's end
 	text   string   // name + rest: what the per-command regexes read
 	alone  bool     // the only command of its pipeline, outside a subshell
 	// assigns are the VAR=value words the command runs with: its own, and

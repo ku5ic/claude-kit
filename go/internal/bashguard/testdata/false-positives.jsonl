@@ -1,10 +1,10 @@
-{"class":"pipeline-rest","step":3,"cmd":"bin/kit git-base --diff --name-only | wc -l","now":"ask","want":"pass"}
-{"class":"pipeline-rest","step":3,"cmd":"bin/kit git-base --diff --name-only | sort -u","now":"ask","want":"pass"}
-{"class":"pipeline-rest","step":3,"cmd":"kubectl get pods | grep -- delete","now":"block","want":"pass"}
-{"class":"pipeline-rest","step":3,"cmd":"terraform plan | grep destroy","now":"block","want":"pass"}
-{"class":"pipeline-rest","step":3,"cmd":"redis-cli info | grep FLUSHALL","now":"block","want":"pass"}
-{"class":"pipeline-rest","step":3,"cmd":"chmod +x a.sh | grep /","now":"block","want":"pass"}
-{"class":"pipeline-rest","step":3,"cmd":"find . -name x | grep -- -delete","now":"block","want":"pass"}
+{"class":"pipeline-rest","step":3,"cmd":"bin/kit git-base --diff --name-only | wc -l","want":"pass"}
+{"class":"pipeline-rest","step":3,"cmd":"bin/kit git-base --diff --name-only | sort -u","want":"pass"}
+{"class":"pipeline-rest","step":3,"cmd":"kubectl get pods | grep -- delete","want":"pass"}
+{"class":"pipeline-rest","step":3,"cmd":"terraform plan | grep destroy","want":"pass"}
+{"class":"pipeline-rest","step":3,"cmd":"redis-cli info | grep FLUSHALL","want":"pass"}
+{"class":"pipeline-rest","step":3,"cmd":"chmod +x a.sh | grep /","want":"pass"}
+{"class":"pipeline-rest","step":3,"cmd":"find . -name x | grep -- -delete","want":"pass"}
 {"class":"pipeline-rest","cmd":"kubectl delete pod x | cat","want":"block"}
 {"class":"pipeline-rest","cmd":"bin/kit git-base --output=x","want":"ask"}
 {"class":"read-form","step":4,"cmd":"git config --global --get core.excludesFile","now":"block","want":"pass"}
