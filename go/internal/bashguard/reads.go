@@ -189,10 +189,13 @@ func ReadTargets(cmd, home, cwd string) []string {
 // or sd edits. A cd moves where the writes after it land.
 func WriteTargets(cmd, home, cwd string) []string {
 	segs, _ := parseAll(cmd)
-	d := dirs{home: home, cwd: resolveDir(home, "/", cwd)}
+	st := &state{dirs: dirs{home: home, cwd: resolveDir(home, "/", cwd)}}
+	st.begin(cmd, segs)
+	d := &st.dirs
 	var out []string
-	add := func(p string) { out = append(out, resolveDir(home, d.cwd, unquote(p))) }
-	for _, seg := range segs {
+	add := func(p string) { out = append(out, resolveDir(st.pinnedHome(), d.cwd, st.expandPins(unquote(p)))) }
+	for at, seg := range segs {
+		st.at = at
 		for _, call := range seg.Calls {
 			for _, r := range call.Redirs {
 				if !strings.HasPrefix(r.Target.Value, "&") {
@@ -224,9 +227,10 @@ func WriteTargets(cmd, home, cwd string) []string {
 					add(op)
 				}
 			case name == "cd" && len(seg.Calls) == 1 && !seg.subshell:
-				d.cd(call.Words[i+1:])
+				d.cd(st.pinWords(call.Words[i+1:]))
 			}
 		}
+		st.track(at, seg)
 	}
 	return out
 }

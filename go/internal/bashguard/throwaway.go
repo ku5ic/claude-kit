@@ -203,7 +203,7 @@ func freshTemp(h *hook.Hook, segs []Segment, c commit, init int) bool {
 		return false
 	}
 	st := &state{dirs: dirs{home: h.Home, cwd: c.cwd}, h: h}
-	st.begin(segs)
+	st.begin(h.Payload.String(hook.KeyInputCommand), segs)
 	for i, seg := range segs[:init] {
 		st.track(i, seg)
 	}

@@ -100,6 +100,9 @@ func TestWriteTargets(t *testing.T) {
 	}{
 		{"a > target", "echo K=1 > .env", []string{at(".env")}},
 		{"a >> target, ~ expanded", "echo k >> ~/.ssh/authorized_keys", []string{"/home/nobody/.ssh/authorized_keys"}},
+		{"a pinned HOME moves $HOME", "export HOME=/s/h; printf x > \"$HOME/.k.yml\"", []string{"/s/h/.k.yml"}},
+		{"a pinned variable is its path", "V=/s; cd $V && echo x > $V/a", []string{"/s/a"}},
+		{"a HOME set twice isn't pinned", "HOME=/s/h; HOME=/t; echo x > ~/.k.yml", []string{"/home/nobody/.k.yml"}},
 		{"a redirect alone", "> .env", []string{at(".env")}},
 		{"a compound command's redirect", "{ echo x; } > ci.yml", []string{at("ci.yml")}},
 		{"an fd duplication is no file", "echo x >&2", nil},

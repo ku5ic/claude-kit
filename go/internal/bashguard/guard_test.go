@@ -897,7 +897,60 @@ func TestRmRecursiveThroughAScratchLinkAsks(t *testing.T) {
 	}
 	// A download follows a final link, as any write does.
 	newSandbox(t).hook("", proj, "curl -o .claude/scratch/link https://example.com/f").Want(t, 2)
-	newSandbox(t).hook("", proj, "curl -o .claude/scratch/real/f https://example.com/f").Want(t, 0)
+	if r := newSandbox(t).hook("", proj, "curl -o .claude/scratch/real/f https://example.com/f"); r.Status != 0 || strings.Contains(r.Output, `"ask"`) {
+		t.Errorf("a download into scratch didn't pass: %s", r.Output)
+	}
+}
+
+// A variable the command sets once to a plain scratch path reads as that
+// path, quoted or not, and HOME set so moves ~ and $HOME; anything that
+// could set, split, or glob it unseen keeps the ask. S is the scratch dir.
+func TestPinnedScratchVariableReadsAsItsPath(t *testing.T) {
+	t.Parallel()
+	dir := testutil.Physical(t, t.TempDir())
+	proj := filepath.Join(dir, "proj")
+	testutil.Mkdir(t, filepath.Join(proj, ".git"))
+	scratch := filepath.Join(proj, ".claude", "scratch")
+	testutil.Mkdir(t, scratch)
+	for _, tc := range []struct{ cmd, want string }{
+		{`V=SCR/rc; rm -rf $V`, "pass"},
+		{`V=SCR; rm -rf $V/rc $V/fakebin`, "pass"},
+		{`V="SCR"; mkdir -p "$V/rc"; rm -rf "$V/rc"`, "pass"},
+		{`V=SCR; W=$V/rc; rm -rf $W`, "pass"},
+		{`V=SCR; export HOME=$V/home; rm -rf ~/x`, "pass"},
+		{`V=SCR; cd $V && rm -rf rc`, "pass"},
+		{`V=SCR; printf '%s\n' x; rm -rf $V/rc`, "pass"},
+		{`V=SCR; V=/; rm -rf $V/rc`, "ask"},
+		{`for V in SCR /; do rm -rf $V/rc; done`, "ask"},
+		{`V=SCR; f() { V=/; }; f; rm -rf $V/rc`, "ask"},
+		{`V="SCR/a b"; rm -rf $V`, "ask"},
+		{`V=~/x; rm -rf $V`, "ask"},
+		{`V=/tmp/x; rm -rf $V`, "ask"},
+		{`IFS=/; V=SCR; rm -rf $V`, "ask"},
+		{`V=SCR; source ./env; rm -rf $V/rc`, "ask"},
+		{`V=SCR; . ./env; rm -rf $V/rc`, "ask"},
+		{`V=SCR; declare -n R=V; R=/; rm -rf $V/rc`, "ask"},
+		{`V=SCR; declare -i N=1; rm -rf $V/rc`, "ask"},
+		{`V=SCR; printf -vV /; rm -rf $V/rc`, "ask"},
+		{`V='$X'; rm -rf $V/rc`, "ask"},
+		{`V=SCR; rm -rf $V*`, "ask"},
+		{`export HOME=SCR/home; HOME=/; rm -rf ~/x`, "ask"},
+	} {
+		t.Run(tc.cmd, func(t *testing.T) {
+			t.Parallel()
+			wantRm(t, proj, strings.ReplaceAll(tc.cmd, "SCR", scratch), tc.want)
+		})
+	}
+	k := newSandbox(t)
+	for cmd, want := range map[string]bool{
+		"export HOME=" + scratch + "/home; printf x > \"$HOME/.claude/claude-kit.local.yml\"":             false,
+		"export HOME=" + scratch + "/home; printf x > " + filepath.Join(k.claude, "claude-kit.local.yml"): true,
+		"printf x > \"$HOME/.claude/claude-kit.local.yml\"":                                               true,
+	} {
+		if r := k.hook("", proj, cmd); strings.Contains(r.Output, `"ask"`) != want {
+			t.Errorf("ask %v, want %v: %s\n%s", !want, want, cmd, r.Output)
+		}
+	}
 }
 
 // From the kit's own checkout, as a session there runs: bin/kit is the kit,

@@ -122,10 +122,13 @@ type state struct {
 	at     int
 	// exported is every name an export in the command names.
 	exported map[string]bool
+	// cmd is the whole command, as the Bash call gives it.
+	cmd string
 }
 
-// begin readies st to check segs, one segment at a time.
-func (st *state) begin(segs []Segment) {
+// begin readies st to check segs, cmd parsed, one segment at a time.
+func (st *state) begin(cmd string, segs []Segment) {
+	st.cmd = cmd
 	st.vars, st.sure, st.sureAt, st.loopVars, st.segs = map[string]string{}, map[string]string{}, map[string]int{}, loopAssigned(segs), segs
 	st.exported = exportedNames(segs)
 }
@@ -155,6 +158,94 @@ func (st *state) setVars() (exported, bare []string) {
 		}
 	}
 	return exported, bare
+}
+
+// pinRefs is each $NAME or ${NAME} in a string.
+var pinRefs = regexp.MustCompile(`\$(?:([A-Za-z_][A-Za-z0-9_]*)|\{([A-Za-z_][A-Za-z0-9_]*)\})`)
+
+// pinBase is a value that starts with one $NAME or ${NAME} and has plain
+// text after it: its groups are the name (twice) and the text.
+var pinBase = regexp.MustCompile("^\\$(?:([A-Za-z_][A-Za-z0-9_]*)|\\{([A-Za-z_][A-Za-z0-9_]*)\\})([^$`]*)$")
+
+// pinned is the plain path name surely holds at the segment being checked:
+// set once, outside any loop, to a plainWord (nothing the shell splits,
+// globs, or expands, ~ included), or to an earlier pinned variable with
+// plain text after it, up to depth levels. Nothing is pinned that could be
+// set unseen (setOnly), that a for or select sets, or when the command
+// names IFS, which would split it.
+func (st *state) pinned(name string, depth int) (string, bool) {
+	value, ok := st.sure[name]
+	if !ok || st.inLoop(name) || !st.setOnly(name) {
+		return "", false
+	}
+	cmd := st.cmd
+	q := regexp.QuoteMeta(name)
+	if regexp.MustCompile(`\bIFS\b|\b(?:for|select)\s+` + q + `\b`).MatchString(cmd) {
+		return "", false
+	}
+	if m := pinBase.FindStringSubmatch(value); m != nil {
+		inner := m[1] + m[2]
+		at, set := st.sureAt[inner]
+		if depth == 0 || !set || at >= st.sureAt[name] || !setFrom(cmd, name, inner) {
+			return "", false
+		}
+		base, ok := st.pinned(inner, depth-1)
+		if !ok {
+			return "", false
+		}
+		value = base + m[3]
+	}
+	return value, plainWord.MatchString(value)
+}
+
+// pinnedHome is the HOME the command pinned to an absolute path, else the
+// session's.
+func (st *state) pinnedHome() string {
+	if home, ok := st.pinned("HOME", 2); ok && strings.HasPrefix(home, "/") {
+		return home
+	}
+	return st.home
+}
+
+// setFrom is true when cmd sets name to $inner, bare or in double quotes:
+// '$S' and \$S set the text $S.
+func setFrom(cmd, name, inner string) bool {
+	return regexp.MustCompile(`\b` + regexp.QuoteMeta(name) + `="?\$\{?` + regexp.QuoteMeta(inner) + `\b`).MatchString(cmd)
+}
+
+// inLoop is true when a loop in the command assigns name.
+func (st *state) inLoop(name string) bool {
+	return slices.ContainsFunc(slices.Collect(maps.Values(st.loopVars)), func(loop map[string][]string) bool {
+		_, ok := loop[name]
+		return ok
+	})
+}
+
+// expandPins is s with each reference to a pinned variable replaced by its
+// path; any other reference stays.
+func (st *state) expandPins(s string) string {
+	if !strings.Contains(s, "$") {
+		return s
+	}
+	return pinRefs.ReplaceAllStringFunc(s, func(ref string) string {
+		m := pinRefs.FindStringSubmatch(ref)
+		if path, ok := st.pinned(m[1]+m[2], 2); ok {
+			return path
+		}
+		return ref
+	})
+}
+
+// pinWords is words with expandPins applied to each that has no single
+// quote or backslash, which would keep a $ as text.
+func (st *state) pinWords(words []Word) []Word {
+	out := slices.Clone(words)
+	for i, w := range out {
+		if !strings.ContainsAny(w.Raw, `'\`) {
+			out[i].Value = st.expandPins(w.Value)
+		}
+	}
+	return out
 }
 
 func (st *state) ask(reason string) {
@@ -187,7 +278,7 @@ func Check(h *hook.Hook) error {
 	if unparsed {
 		st.ask("guard-bash could not parse part of this command, so it went unchecked; confirm it")
 	}
-	st.begin(segs)
+	st.begin(cmd, segs)
 	for i, seg := range segs {
 		st.at = i
 		if err := st.segment(seg); err != nil {
@@ -559,9 +650,11 @@ func unquote(p string) string {
 	return strings.TrimSuffix(p, `'`)
 }
 
-// abs is p with ~ or $HOME expanded, joined to the segment's cwd when relative.
+// abs is p with its pinned variables, ~, and $HOME expanded, ~ by a HOME
+// the command pinned to an absolute path, joined to the segment's cwd when
+// relative.
 func (st *state) abs(p string) string {
-	p = guard.ExpandHome(st.home, p)
+	p = guard.ExpandHome(st.pinnedHome(), st.expandPins(p))
 	if !strings.HasPrefix(p, "/") {
 		p = st.cwd + "/" + p
 	}

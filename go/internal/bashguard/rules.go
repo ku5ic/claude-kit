@@ -8,7 +8,6 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/classify"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
-	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/layout"
 	"github.com/ku5ic/claude-kit/go/internal/weaken"
 )
@@ -425,7 +424,7 @@ func sources(values []string) []string {
 // repo; a cd inside a pipeline or a subshell moves nothing after it.
 func (c *command) cd() {
 	if c.alone {
-		c.st.cd(c.args)
+		c.st.cd(c.st.pinWords(c.args))
 	}
 }
 
@@ -736,7 +735,8 @@ func (st *state) scratchWord(w Word, bareEmpty bool) bool {
 		path, fresh := st.varPath(m[1]+m[2], 1)
 		return fresh || path != "" && st.onDisk(path+m[4], false)
 	}
-	return !varRef.MatchString(w.Value) && (quoted || !strings.Contains(w.Value, "$")) && st.scratchTarget(w.Value, false)
+	v := st.pinWords([]Word{w})[0].Value
+	return !varRef.MatchString(v) && (quoted || !strings.Contains(v, "$")) && st.scratchTarget(v, false)
 }
 
 // varPath is the absolute path scratch variable name holds, so the path
@@ -771,10 +771,8 @@ func (st *state) varPath(name string, depth int) (path string, fresh bool) {
 // a fresh mktemp -d dir, or, up to depth levels, a quoted scratch variable
 // set before it, and not empty there, with a path after it (H="$S/x").
 func (st *state) scratchVar(name string, depth int) bool {
-	for _, loop := range st.loopVars {
-		if _, ok := loop[name]; ok {
-			return false
-		}
+	if st.inLoop(name) {
+		return false
 	}
 	value, ok := st.sure[name]
 	if !ok || !st.setOnly(name) {
@@ -791,9 +789,8 @@ func (st *state) scratchVar(name string, depth int) bool {
 		return false
 	}
 	inner := m[1] + m[2]
-	expands := regexp.MustCompile(`\b` + regexp.QuoteMeta(name) + `="?\$\{?` + regexp.QuoteMeta(inner) + `\b`)
 	at, set := st.sureAt[inner]
-	return set && at < st.sureAt[name] && expands.MatchString(st.h.Payload.String(hook.KeyInputCommand)) &&
+	return set && at < st.sureAt[name] && setFrom(st.cmd, name, inner) &&
 		st.scratchVar(inner, depth-1) && st.nonEmpty(inner, m[3] != "", st.sureAt[name])
 }
 
@@ -866,20 +863,31 @@ func errexit(segs []Segment) bool {
 
 // setOnly is true when the command names name only in one assignment and
 // in $name references, and runs nothing that could set it unseen: no
-// builtin outside inertBuiltins, no command word it computes, and no
+// builtin outside inertBuiltins but printf without -v, no declaration
+// that sets a name it doesn't spell, no command word it computes, and no
 // arithmetic.
 func (st *state) setOnly(name string) bool {
-	cmd := st.h.Payload.String(hook.KeyInputCommand)
+	cmd := st.cmd
 	if strings.Contains(cmd, "((") {
 		return false
 	}
 	for _, seg := range st.segs {
 		for _, call := range seg.Calls {
+			if call.declOpaque {
+				return false
+			}
 			i := lead(call.Words)
 			if i >= len(call.Words) {
 				continue
 			}
-			if name := baseName(call.Words[i].Value); !call.Words[i].literal || bashBuiltins[name] && !inertBuiltins[name] {
+			if !call.Words[i].literal {
+				if !st.fixedProgram(call.Words[i]) {
+					return false
+				}
+				continue
+			}
+			name := baseName(call.Words[i].Value)
+			if bashBuiltins[name] && !inertBuiltins[name] && !plainPrintf(name, call.Words[i+1:]) {
 				return false
 			}
 		}
@@ -888,6 +896,33 @@ func (st *state) setOnly(name string) bool {
 	count := func(pattern string) int { return len(regexp.MustCompile(pattern).FindAllStringIndex(cmd, -1)) }
 	sets := count(`\b` + q + `=`)
 	return sets == 1 && count(`\b`+q+`\b`) == sets+count(`\$`+q+`\b|\$\{`+q+`(?::\?)?\}`)
+}
+
+// fixedProgram is true for a command word that is one variable the command
+// sets once, to a plainWord naming no builtin: $KIT run-checks. It runs as
+// a child process, which can't set the shell's variables.
+func (st *state) fixedProgram(w Word) bool {
+	m := varRef.FindStringSubmatch(w.Value)
+	if m == nil {
+		return false
+	}
+	name := m[1] + m[2]
+	var values []string
+	for _, seg := range st.segs {
+		if value, ok := assigned(seg)[name]; ok {
+			values = append(values, value)
+		}
+	}
+	count := len(regexp.MustCompile(`\b`+regexp.QuoteMeta(name)+`=`).FindAllStringIndex(st.cmd, -1))
+	return len(values) == 1 && count == 1 && plainWord.MatchString(values[0]) && !bashBuiltins[baseName(values[0])]
+}
+
+// plainPrintf is true for printf with no -v, attached (-vNAME) or not,
+// which would set a variable, and a first word with no expansion, which
+// could turn into one.
+func plainPrintf(name string, args []Word) bool {
+	return name == "printf" && (len(args) == 0 || !strings.ContainsAny(args[0].Value, "$`")) &&
+		!slices.ContainsFunc(args, func(w Word) bool { return strings.HasPrefix(w.Value, "-v") })
 }
 
 func (c *command) chmod() error {

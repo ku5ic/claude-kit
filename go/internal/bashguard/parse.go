@@ -54,8 +54,12 @@ type Call struct {
 	Exports []string
 	// decl is the declaration keyword (export, declare, local, readonly,
 	// typeset) this call came from, "" for a plain command.
-	decl  string
-	start int // source offset of the first word
+	decl string
+	// declOpaque is true for a declaration that can set a name its words
+	// don't spell: a nameref (-n), an integer (-i), whose value is
+	// arithmetic, or a word that isn't a plain flag, name, or NAME=value.
+	declOpaque bool
+	start      int // source offset of the first word
 }
 
 // Segment is one pipeline: the commands between &&, ||, ;, &, or a newline.
@@ -260,10 +264,10 @@ func (c *collector) stmt(src string, s *syntax.Stmt) {
 			call, ok = &syntax.CallExpr{}, true
 		}
 		var exports []string
-		keyword := ""
+		keyword, opaque := "", false
 		if decl, isDecl := p.Cmd.(*syntax.DeclClause); isDecl {
 			call, ok = c.declCall(src, decl), true
-			exports, keyword = exportNames(decl), decl.Variant.Value
+			exports, keyword, opaque = exportNames(decl), decl.Variant.Value, declOpaque(decl)
 		}
 		if !ok {
 			// ( ... ) or { ... } inside a pipeline: its statements and its
@@ -275,7 +279,7 @@ func (c *collector) stmt(src string, s *syntax.Stmt) {
 			continue
 		}
 		cl := c.call(src, p, call)
-		cl.Exports, cl.decl = exports, keyword
+		cl.Exports, cl.decl, cl.declOpaque = exports, keyword, opaque
 		seg.Calls = append(seg.Calls, cl)
 	}
 	if len(seg.Calls) > 0 {
@@ -727,6 +731,23 @@ func exportedNames(segs []Segment) map[string]bool {
 		}
 	}
 	return names
+}
+
+// declOpaque is Call.declOpaque for decl.
+func declOpaque(decl *syntax.DeclClause) bool {
+	for _, a := range decl.Args {
+		if !a.Naked || a.Name != nil {
+			continue
+		}
+		lit := ""
+		if a.Value != nil {
+			lit = a.Value.Lit()
+		}
+		if !strings.HasPrefix(lit, "-") && !strings.HasPrefix(lit, "+") || strings.ContainsAny(lit[1:], "ni") {
+			return true
+		}
+	}
+	return false
 }
 
 // exportNames is the names decl declares when it's an export, or a
