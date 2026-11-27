@@ -453,6 +453,7 @@ func TestGuardCommitInAThrowawayRepoNeedsNoApproval(t *testing.T) {
 	scratch := filepath.Join(k.claude, "scratch")
 	testutil.Mkdir(t, filepath.Join(scratch, "r"))
 	testutil.Git(t, filepath.Join(scratch, "r"), "init", "-q")
+	testutil.Git(t, filepath.Join(scratch, "r"), "config", "user.name", "t")
 	testutil.Mkdir(t, filepath.Join(scratch, "plain"))
 	project := testutil.Physical(t, t.TempDir())
 	testutil.Git(t, project, "init", "-q")
@@ -462,11 +463,14 @@ func TestGuardCommitInAThrowawayRepoNeedsNoApproval(t *testing.T) {
 	tpl := filepath.Join(scratch, "tpl")
 	testutil.Write(t, filepath.Join(tpl, "hooks", "pre-commit"), "#!/bin/sh\n")
 	testutil.Git(t, scratch, "init", "-q", "--template="+tpl, "templated")
-	for name, key := range map[string]string{"hookspath": "core.hooksPath", "filtered": "filter.x.clean", "included": "include.path"} {
+	for name, key := range map[string]string{"hookspath": "core.hooksPath", "filtered": "filter.x.clean", "included": "include.path", "edited": "core.editor", "trailered": "trailer.x.cmd"} {
 		testutil.Mkdir(t, filepath.Join(scratch, name))
 		testutil.Git(t, filepath.Join(scratch, name), "init", "-q")
 		testutil.Git(t, filepath.Join(scratch, name), "config", key, filepath.Join(scratch, "x"))
 	}
+	testutil.Mkdir(t, filepath.Join(scratch, "worktreed"))
+	testutil.Git(t, filepath.Join(scratch, "worktreed"), "init", "-q")
+	testutil.Git(t, filepath.Join(scratch, "worktreed"), "config", "extensions.worktreeConfig", "true")
 	for _, cmd := range []string{
 		`git -C ~/.claude/scratch/r commit -m "fix: add sums"`,
 		`cd ~/.claude/scratch/r && git commit -m "fix: add sums"`,
@@ -527,6 +531,9 @@ func TestGuardCommitInAThrowawayRepoNeedsNoApproval(t *testing.T) {
 		`git -C ~/.claude/scratch/hookspath commit -m "fix: add sums"`,
 		`git -C ~/.claude/scratch/filtered commit -m "fix: add sums"`,
 		`git -C ~/.claude/scratch/included commit -m "fix: add sums"`,
+		`git -C ~/.claude/scratch/edited commit -m "fix: add sums"`,
+		`git -C ~/.claude/scratch/trailered commit -m "fix: add sums"`,
+		`git -C ~/.claude/scratch/worktreed commit -m "fix: add sums"`,
 	} {
 		if r := k.commit("", cmd); !strings.Contains(r.Output, `"permissionDecision":"ask"`) {
 			t.Errorf("%s: no ask:\n%s", cmd, r.Output)

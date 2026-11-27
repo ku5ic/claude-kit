@@ -277,13 +277,14 @@ func lands(h *hook.Hook, segs []Segment, calls []commit, c commit) bool {
 	return h.Paths.IsScratch(gitDir) && runsNothing(c.repo)
 }
 
-// repoRunners are the repo config keys, lowercased as git lists them,
-// that name a program git runs on add or commit, or pull in a file that
-// can: an alias can't hide init, add, or commit.
-var repoRunners = regexp.MustCompile(`^(core\.hookspath|core\.fsmonitor|filter\..*|gpg\.program|gpg\..*\.program|include\.path|includeif\..*)$`)
+// plainRepoKeys are the repo config keys, lowercased as git lists them,
+// that git init and a commit's identity write and that run no program.
+// Any other key could, so the repo isn't throwaway.
+var plainRepoKeys = regexp.MustCompile(`^(core\.(repositoryformatversion|filemode|bare|logallrefupdates|ignorecase|precomposeunicode|symlinks)|extensions\.(objectformat|refstorage)|user\.(name|email)|init\.defaultbranch|commit\.gpgsign)$`)
 
 // runsNothing is true when repo, made before this command, has no hook a
-// template or a write put there and no repo config that runs a program.
+// template or a write put there, and its own config, worktree's included,
+// holds only plainRepoKeys.
 func runsNothing(repo string) bool {
 	hooks, err := git.Line(repo, "rev-parse", "--path-format=absolute", "--git-path", "hooks")
 	if err != nil {
@@ -296,8 +297,11 @@ func runsNothing(repo string) bool {
 	if slices.ContainsFunc(entries, func(e os.DirEntry) bool { return !strings.HasSuffix(e.Name(), ".sample") }) {
 		return false
 	}
-	keys, err := git.Lines(repo, "config", "--local", "--includes", "--list", "--name-only")
-	return err == nil && !slices.ContainsFunc(keys, repoRunners.MatchString)
+	lines, err := git.Lines(repo, "config", "--includes", "--list", "--name-only", "--show-scope")
+	return err == nil && !slices.ContainsFunc(lines, func(line string) bool {
+		scope, key, _ := strings.Cut(line, "\t")
+		return scope != "system" && scope != "global" && !plainRepoKeys.MatchString(key)
+	})
 }
 
 // initFirst is the segment of a git init of c's repo, named as c names
