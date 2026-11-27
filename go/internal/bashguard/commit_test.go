@@ -613,6 +613,12 @@ func TestGuardCommitInAThrowawayRepoBesideSetup(t *testing.T) {
 		`echo x > SCR/link/hooks/pre-commit; git -C SCR/r commit -qm "fix: sub"`:                 true,
 		`echo x > OTHER/a; git -C SCR/r commit -qm "fix: sub"`:                                   true,
 		`cp -t SCR/r/.git/hooks SCR/hook; git -C SCR/r commit -qm "fix: sub"`:                    true,
+		`cp --targ=SCR/r/.git/hooks SCR/hook SCR/x; git -C SCR/r commit -qm "fix: sub"`:          true,
+		`cp -r SCR/payload/.git SCR/r/; git -C SCR/r commit -qm "fix: sub"`:                      true,
+		`cp -R SCR/payload/.git/hooks SCR/r/.; git -C SCR/r commit -qm "fix: sub"`:               true,
+		`cp -fp SCR/a SCR/r/b && git -C SCR/r add . && git -C SCR/r commit -qm "fix: sub"`:       false,
+		`cp -fR SCR/a SCR/r/b && git -C SCR/r add . && git -C SCR/r commit -qm "fix: sub"`:       true,
+		`cp SCR/payload/.GIT/hooks/pre-commit SCR/r/x && git -C SCR/r commit -qm "fix: sub"`:     true,
 		`> SCR/r/.git/hooks/pre-commit; git -C SCR/r commit -qm "fix: sub"`:                      true,
 	} {
 		cmd = strings.ReplaceAll(strings.ReplaceAll(cmd, "SCR", scratch), "OTHER", other)

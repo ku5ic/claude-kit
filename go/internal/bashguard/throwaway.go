@@ -262,10 +262,11 @@ func scratchWrites(h *hook.Hook, cmd string, segs []Segment) bool {
 		case "rm":
 			targets = append(targets, ops...)
 		case "cp":
-			// -t names the destination first; take only the plain shape.
-			if len(ops) < 2 || slices.ContainsFunc(args, func(a Word) bool {
-				return strings.HasPrefix(a.Value, "--target-directory") || strings.HasPrefix(a.Value, "-") && !strings.HasPrefix(a.Value, "--") && strings.Contains(a.Value, "t")
-			}) {
+			// Only the plain shape, SRC... DEST: a long option can be an
+			// abbreviation (--targ=DIR), and a recursive copy of a tree
+			// (cp -r payload/. r/) can carry a .git into the repo unnamed.
+			if len(ops) < 2 || slices.ContainsFunc(args, func(a Word) bool { return strings.HasPrefix(a.Value, "-") && !plainCpFlag.MatchString(a.Value) }) ||
+				slices.ContainsFunc(ops[:len(ops)-1], func(src Word) bool { return st.inGitDir(src) }) {
 				return false
 			}
 			targets = append(targets, ops[len(ops)-1])
@@ -276,6 +277,10 @@ func scratchWrites(h *hook.Hook, cmd string, segs []Segment) bool {
 	}
 	return true
 }
+
+// plainCpFlag is a cp option that copies files one to one: no recursion,
+// no target directory, no long option, or the -- that ends them.
+var plainCpFlag = regexp.MustCompile(`^(?:--|-[fpvniPHLX]+)$`)
 
 // gitComponent is a path with a .git dir in it, in any case, as macOS's
 // filesystem matches it.
