@@ -661,21 +661,30 @@ func (c *command) rm() error {
 	if force && broad {
 		return c.block("rm with recursive force against root, home, or cwd", "rm-recursive")
 	}
-	if recursive && (c.st.makesLinks() || !c.st.allScratch(nonOptionsOf(c.args, func(w Word) string { return w.Value }))) {
+	if recursive && (c.st.linksBefore(c.st.at) || !c.st.allScratch(nonOptionsOf(c.args, func(w Word) string { return w.Value }))) {
 		c.st.ask("rm -r deletes a directory tree; confirm the path")
 	}
 	return nil
 }
 
-// makesLinks is true when the command runs ln: a link it makes isn't on
-// disk yet for scratchTarget to follow.
-func (st *state) makesLinks() bool {
-	return slices.ContainsFunc(st.segs, func(seg Segment) bool {
-		return slices.ContainsFunc(seg.Calls, func(call Call) bool {
-			i := lead(call.Words)
-			return i < len(call.Words) && baseName(call.Words[i].Value) == "ln"
-		})
-	})
+// linksBefore is true when an ln in the command can run before or beside
+// segment at. A link it makes isn't on disk yet for scratchTarget to
+// follow. A segment in a loop, a function body, a branch that may not run,
+// or a subshell (one backgrounded with & included) can follow any ln.
+func (st *state) linksBefore(at int) bool {
+	anywhere := st.segs[at].loop != 0 || st.segs[at].conditional || st.segs[at].subshell
+	for i, seg := range st.segs {
+		if i > at && !anywhere {
+			break
+		}
+		if slices.ContainsFunc(seg.Calls, func(call Call) bool {
+			j := lead(call.Words)
+			return j < len(call.Words) && baseName(call.Words[j].Value) == "ln"
+		}) {
+			return true
+		}
+	}
+	return false
 }
 
 // plainWord is a word with no shell syntax in it.

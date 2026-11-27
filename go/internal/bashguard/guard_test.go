@@ -869,7 +869,8 @@ func TestRmRecursiveOnScratchPasses(t *testing.T) {
 
 // A symlink in scratch that leads out of it takes rm -r below it out of
 // scratch too, while the link itself is still scratch's to remove. A link
-// the same command makes isn't there to check, so ln beside rm -r asks.
+// the same command makes isn't there to check, so an ln that can run
+// before rm -r asks.
 func TestRmRecursiveThroughAScratchLinkAsks(t *testing.T) {
 	t.Parallel()
 	dir := testutil.Physical(t, t.TempDir())
@@ -889,6 +890,11 @@ func TestRmRecursiveThroughAScratchLinkAsks(t *testing.T) {
 		{`set -e; S="$(kit scratch-dir)"; H="$S/link"; rm -rf "$H/x"`, "ask"},
 		{`ln -s ~ .claude/scratch/h && rm -rf .claude/scratch/h/x`, "ask"},
 		{`set -e; S=$(mktemp -d); ln -s ~ "$S/h"; rm -rf "$S/h/x"`, "ask"},
+		// A loop or a function can run the rm again after a later ln.
+		{`set -e; S=$(mktemp -d); for i in 1 2; do rm -rf "$S/p/x"; ln -s ~ "$S/p"; done`, "ask"},
+		{`set -e; S=$(mktemp -d); f() { rm -rf "$S/p/x"; }; ln -s ~ "$S/p"; f`, "ask"},
+		{`set -e; S=$(mktemp -d); rm -rf "$S/p/x" & ln -s ~ "$S/p"`, "ask"},
+		{`set -e; S=$(mktemp -d); rm -rf "$S/p"; ln -s ~ "$S/p/link"`, "pass"},
 		{`rm -rf .claude/scratch/link`, "pass"},
 		{`rm -rf .claude/scratch/real/x`, "pass"},
 		{`set -e; S="$(kit scratch-dir)"; rm -rf "$S/real/x"`, "pass"},
