@@ -478,7 +478,8 @@ func TestGuardBashParsing(t *testing.T) {
 		probe("ask", `truncate -s 0 ~/.claude/logs/guards.jsonl`)
 		probe("ask", `cp /tmp/x ~/.claude/cache/claims/s-plan`)
 		probe("pass", `cat ~/.claude/logs/guards.jsonl`)
-		probe("ask", fmt.Sprintf("cp /tmp/x %q", filepath.Join(filepath.Dir(kitYML), "kit.yml")))
+		// The checkout is no install, so a write to it passes.
+		probe("pass", fmt.Sprintf("cp /tmp/x %q", filepath.Join(filepath.Dir(kitYML), "kit.yml")))
 		// Downloads: .. never escapes scratch, even behind $(kit scratch-dir).
 		probe("block", `curl -o "$(kit scratch-dir)/../../x" https://x.example/a`)
 		probe("block", `wget -P "$(kit scratch-dir)/.." https://x.example/a`)
@@ -693,27 +694,54 @@ func TestGuardBashTrapAskNamesTheTrap(t *testing.T) {
 	}
 }
 
-// Work on the kit's own checkout writes inside the plugin root without a
-// prompt; the same write from another project asks.
-func TestGuardBashPluginRootFromInside(t *testing.T) {
-	t.Parallel()
-	k := newSandbox(t)
-	root := filepath.Dir(kitYML)
-	if r := k.hook("", root, "cp /tmp/x kit.yml"); strings.Contains(r.Output, `"ask"`) {
-		t.Errorf("a write inside the checkout asked:\n%s", r.Output)
+// installedRoot is a plugin root outside any repository, as an install
+// under ~/.claude/plugins/cache is, holding the files the cases name.
+func installedRoot(t *testing.T) string {
+	t.Helper()
+	return pluginRoot(t, testutil.Physical(t, t.TempDir()))
+}
+
+// pluginRoot fills root with the files the cases name.
+func pluginRoot(t *testing.T, root string) string {
+	t.Helper()
+	for _, f := range []string{"kit.yml", "hooks/hooks.json", ".claude-plugin/plugin.json", "skills/kit-rules/SKILL.md", "go/go.mod"} {
+		testutil.Write(t, filepath.Join(root, f), "x\n")
 	}
-	if r := k.hook("", t.TempDir(), fmt.Sprintf("cp /tmp/x %q", filepath.Join(root, "kit.yml"))); !strings.Contains(r.Output, "the installed claude-kit plugin") {
-		t.Errorf("a write from elsewhere didn't ask:\n%s", r.Output)
+	return root
+}
+
+// A plugin root that's a repository's top is a checkout someone works on,
+// so a write to it passes from any cwd; one to an installed root asks from
+// any cwd, its own included, and so does one inside another repository or
+// under Claude's config dir, where a git init would otherwise exempt it.
+func TestGuardBashPluginRootCheckoutOrInstall(t *testing.T) {
+	t.Parallel()
+	checkout := filepath.Dir(kitYML)
+	k := newSandbox(t)
+	for _, cwd := range []string{checkout, t.TempDir(), filepath.Join(k.claude, "logs")} {
+		if r := k.hook("", cwd, fmt.Sprintf("cp /tmp/x %q", filepath.Join(checkout, "kit.yml"))); strings.Contains(r.Output, `"ask"`) {
+			t.Errorf("a write to the checkout from %s asked:\n%s", cwd, r.Output)
+		}
+	}
+	inRepo := gitRepo(t, testutil.Physical(t, t.TempDir()), "main")
+	underClaude := gitRepo(t, filepath.Join(k.claude, "plugins", "cache", "kit"), "main")
+	for _, root := range []string{installedRoot(t), pluginRoot(t, filepath.Join(inRepo, "kit")), pluginRoot(t, underClaude)} {
+		k.root = root
+		for _, cwd := range []string{root, t.TempDir()} {
+			if r := k.hook("", cwd, fmt.Sprintf("cp /tmp/x %q", filepath.Join(root, "kit.yml"))); !strings.Contains(r.Output, "the installed claude-kit plugin") {
+				t.Errorf("a write to the installed root %s from %s didn't ask:\n%s", root, cwd, r.Output)
+			}
+		}
 	}
 }
 
-// Reading or listing the plugin root from another project needs no prompt;
-// a write there still asks, even after a cd into the root, since the
-// exemption is the session's cwd, not one a command moves to.
+// Reading or listing an installed plugin root needs no prompt; a write
+// there asks, after a cd into the root too.
 func TestGuardBashPluginRootReadsAndWrites(t *testing.T) {
 	t.Parallel()
 	k := newSandbox(t)
-	root := filepath.Dir(kitYML)
+	k.root = installedRoot(t)
+	root := k.root
 	cwd := t.TempDir()
 	asks := func(cmd string) bool {
 		t.Helper()

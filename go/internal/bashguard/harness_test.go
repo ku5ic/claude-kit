@@ -2,6 +2,7 @@ package bashguard
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -38,6 +39,7 @@ type sandbox struct {
 	claude     string // $HOME/.claude
 	transcript string // transcript_path of each run; none when ""
 	shell      string // $SHELL of each run; bash when ""
+	root       string // the plugin root of each run; the checkout when ""
 }
 
 func newSandbox(t *testing.T) *sandbox {
@@ -101,7 +103,7 @@ func (k *sandbox) run(check hook.NamedCheck, session, cwd, cmd string) result {
 		Name:    check.Name,
 		Payload: hook.ParsePayload(raw),
 		Paths: config.Paths{
-			Root:      filepath.Dir(kitYML),
+			Root:      cmp.Or(k.root, filepath.Dir(kitYML)),
 			ClaudeDir: k.claude,
 			Base:      kitYML,
 			Overlay:   filepath.Join(k.claude, "claude-kit.local.yml"),

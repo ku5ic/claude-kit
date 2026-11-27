@@ -179,10 +179,8 @@ func walkPinned(segs []Segment, home, cwd string, pin pinFunc) iter.Seq[walked] 
 // repo.
 type state struct {
 	dirs
-	// session is the hook payload's cwd, which a cd in the command doesn't move.
-	session string
-	h       *hook.Hook
-	cfg     *config.Config
+	h   *hook.Hook
+	cfg *config.Config
 	// pending is the command's first ask reason, and pendingRule its rule.
 	pending, pendingRule string
 	// shadowed is true once the command logged its kit-switch shadow.
@@ -389,7 +387,7 @@ func Check(h *hook.Hook) error {
 		return err
 	}
 	session := resolveDir(home, "/", h.Payload.Cwd())
-	st := &state{dirs: dirs{home: home, cwd: session}, session: session, h: h, cfg: cfg, managers: map[string][]gapfill.Manager{}}
+	st := &state{dirs: dirs{home: home, cwd: session}, h: h, cfg: cfg, managers: map[string][]gapfill.Manager{}}
 	// The raw command, not norm: <<- strips tabs only, and norm would turn a
 	// tab-indented terminator into spaces that no longer close the heredoc.
 	p := parseFull(cmd, h.Shell)
@@ -821,8 +819,6 @@ func (st *state) placed(p string) bool {
 // $HOME-prefixed, or relative to the segment's cwd) names a path
 // guard.KitSwitch protects, through a symlink or not. Only a writer's
 // operands and a redirect's target get here, so resolving each is cheap.
-// The plugin-root exemption takes the session's cwd: a cd into the root
-// within the command isn't work on the kit.
 func (st *state) askKitSwitch(arg string) bool {
 	what := st.kitSwitch(arg)
 	if what != "" {
@@ -834,7 +830,7 @@ func (st *state) askKitSwitch(arg string) bool {
 // kitSwitch is what guard.KitSwitch names for arg, resolved as
 // askKitSwitch resolves it, or "".
 func (st *state) kitSwitch(arg string) string {
-	return guard.KitSwitch(st.h.Paths, st.session, st.abs(unquote(arg)))
+	return guard.KitSwitch(st.h.Paths, st.abs(unquote(arg)))
 }
 
 // readonlyCall is true for a lone `kit <read-only subcommand>` call

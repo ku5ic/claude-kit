@@ -17,6 +17,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
+	"github.com/ku5ic/claude-kit/go/internal/git"
 )
 
 // ExpandHome turns a leading ~, $HOME, or ${HOME} into home.
@@ -277,23 +278,24 @@ func IsGuardedLockfile(cfg *config.Config, path string) bool {
 // KitSwitch names what path is when a write to it can turn the kit off or
 // rewrite its record, so the write gets a prompt: the overlay, a Claude
 // Code settings file, the kit's logs and state, and the installed plugin.
-// "" for any other path. cwd inside the plugin is work on the kit itself.
+// "" for any other path. A plugin root that's a checkout someone works on
+// isn't an install, whatever the cwd.
 //
 // path is judged twice, with symlinks resolved and as written, each against
 // the guarded paths in the same form, so a link in either direction is
 // caught: one into a guarded place, and a guarded name linked out to a
 // dotfiles tree.
-func KitSwitch(paths config.Paths, cwd, path string) string {
+func KitSwitch(paths config.Paths, path string) string {
 	written := filepath.Clean(path)
-	if what := kitSwitch(paths, cwd, fsx.PhysicalPath(written), fsx.PhysicalPath); what != "" {
+	if what := kitSwitch(paths, fsx.PhysicalPath(written), fsx.PhysicalPath); what != "" {
 		return what
 	}
-	return kitSwitch(paths, cwd, written, filepath.Clean)
+	return kitSwitch(paths, written, filepath.Clean)
 }
 
 // kitSwitch is KitSwitch for one form of p, with norm putting a guarded
 // path in that form.
-func kitSwitch(paths config.Paths, cwd, p string, norm func(string) string) string {
+func kitSwitch(paths config.Paths, p string, norm func(string) string) string {
 	dir, base := filepath.Dir(p), filepath.Base(p)
 	in := func(d string) bool { return fsx.Within(norm(d), p) }
 	switch {
@@ -307,10 +309,19 @@ func kitSwitch(paths config.Paths, cwd, p string, norm func(string) string) stri
 		return "the kit's logs"
 	case in(paths.CacheDir()):
 		return "the kit's state"
-	case paths.Root != "" && in(paths.Root) && !fsx.Within(norm(paths.Root), norm(cwd)) && !in(filepath.Join(paths.Root, ".claude", "scratch")):
+	case paths.Root != "" && in(paths.Root) && !in(filepath.Join(paths.Root, ".claude", "scratch")) && !checkout(paths):
 		return "the installed claude-kit plugin"
 	}
 	return ""
+}
+
+// checkout is whether the plugin root is a repository's own top, outside
+// Claude's config dir, where installs live: a git init above an install,
+// or in one under that dir, doesn't turn it into a checkout.
+func checkout(paths config.Paths) bool {
+	root := fsx.PhysicalPath(paths.Root)
+	top := git.Toplevel(paths.Root)
+	return top != "" && fsx.PhysicalPath(top) == root && (paths.ClaudeDir == "" || !fsx.Within(fsx.PhysicalPath(paths.ClaudeDir), root))
 }
 
 // KitSwitchAsk is the prompt for a write to what, as KitSwitch names it.

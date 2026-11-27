@@ -103,7 +103,7 @@ func guardPath(h *hook.Hook, cfg *config.Config, tool, path string, reading bool
 	} else if tasks := gateTasks(h, cfg, path); len(tasks) > 0 {
 		h.Ask("this edit changes what kit's gates run at Stop and in the full gate, with no permission prompt: "+strings.Join(tasks, ", ")+"; confirm the change", "gate-config")
 	}
-	if what := guard.KitSwitch(h.Paths, h.Payload.Cwd(), path); what != "" {
+	if what := guard.KitSwitch(h.Paths, path); what != "" {
 		h.Ask(guard.KitSwitchAsk(what), "kit-switch")
 	}
 	if tool == "Write" && newRootArtifact(cfg, path) {

@@ -74,20 +74,19 @@ func TestKitSwitchThroughSymlinks(t *testing.T) {
 }
 
 // A command the guard doesn't know as a writer passes when it names a kit
-// switch, logged as a kit-switch shadow; a known writer still asks. The
-// plugin root's scratch is no switch.
+// switch, logged as a kit-switch shadow; a known writer still asks. An
+// installed plugin root's scratch is no switch.
 func TestKitSwitchAsksOnlyForWriters(t *testing.T) {
 	t.Parallel()
-	root := filepath.Dir(kitYML)
 	for _, tc := range []struct {
 		name, cwd, cmd, want string
 		shadow               bool
 	}{
 		{"a log read piped through uniq", "logs", "jq -r .rule guards.jsonl | sort | uniq -c", "pass", true},
-		{"a kit call from the logs dir", "logs", root + "/bin/kit scratch-dir prompt x", "pass", true},
-		{"a plugin validate of the root", "", "claude plugin validate " + root, "pass", true},
-		{"a body file in the root's scratch", "", "gh pr create --body-file " + root + "/.claude/scratch/pr-x.md", "pass", false},
-		{"a copy into the root's scratch", "", "cp /tmp/x " + root + "/.claude/scratch/x", "pass", false},
+		{"a kit call from the logs dir", "logs", "{root}/bin/kit scratch-dir prompt x", "pass", true},
+		{"a plugin validate of the root", "", "claude plugin validate {root}", "pass", true},
+		{"a body file in the root's scratch", "", "gh pr create --body-file {root}/.claude/scratch/pr-x.md", "pass", false},
+		{"a copy into the root's scratch", "", "cp /tmp/x {root}/.claude/scratch/x", "pass", false},
 		{"touch in the logs", "", "touch ~/.claude/logs/x", "ask", false},
 		{"mkdir in the state", "", "mkdir ~/.claude/cache/x", "ask", false},
 		{"patch of the overlay", "", "patch ~/.claude/claude-kit.local.yml /tmp/p", "ask", false},
@@ -99,11 +98,12 @@ func TestKitSwitchAsksOnlyForWriters(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			k := newSandbox(t)
+			k.root = installedRoot(t)
 			cwd := ""
 			if tc.cwd != "" {
 				cwd = filepath.Join(k.claude, tc.cwd)
 			}
-			r := k.hook("s1", cwd, tc.cmd)
+			r := k.hook("s1", cwd, strings.ReplaceAll(tc.cmd, "{root}", k.root))
 			got := "pass"
 			if strings.Contains(r.Output, `"ask"`) {
 				got = "ask"
