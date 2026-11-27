@@ -80,8 +80,9 @@ func RulesGate(h *hook.Hook) error {
 	if err != nil {
 		return err
 	}
+	var start transcript.AgentStart
 	if len(missing) > 0 && agent != "" {
-		start := subagentStart(p)
+		start = subagentStart(p)
 		switch {
 		case start.Fork:
 			if missing, err = notLoadedBy(h, "", missing); err != nil {
@@ -103,13 +104,24 @@ func RulesGate(h *hook.Hook) error {
 	files := make([]string, len(missing))
 	for i, skill := range missing {
 		files[i] = h.Paths.Root + "/skills/" + skill + "/SKILL.md"
+		if path, ok := skillFile(h, skill); ok {
+			files[i] = path
+		}
 	}
 	noun := "skill isn't"
 	if len(missing) > 1 {
 		noun = "skills aren't"
 	}
-	h.Deny("the "+strings.Join(missing, " and ")+" "+noun+" loaded yet\n"+
-		layout.KV("do", "call the Skill tool now, or Read "+strings.Join(files, " and ")+" if the Skill tool is unavailable")+"\n"+
+	read := "Read " + strings.Join(files, " and ")
+	// Name only what the agent was given: a gatherer has Read, not Skill.
+	do := "call the Skill tool now, or " + read + " if the Skill tool is unavailable"
+	switch {
+	case withoutTools(start, "Skill"):
+		do = read + " now"
+	case withoutTools(start, "Read"):
+		do = "call the Skill tool now"
+	}
+	h.Deny("the "+strings.Join(missing, " and ")+" "+noun+" loaded yet\n"+layout.KV("do", do)+"\n"+
 		layout.KV("then", "retry this call; every tool call stays blocked until you do, so don't stop to ask"), "rules-gate")
 	return nil
 }
@@ -210,16 +222,26 @@ func notIn(h *hook.Hook, loaded map[string]bool, want []string) []string {
 // skills, or the project's, or names another plugin's skill, which the kit
 // can't look up.
 func skillExists(h *hook.Hook, name string) bool {
-	if plugin, skill, ok := strings.Cut(name, ":"); ok {
-		if plugin != "kit" {
-			return true
+	if plugin, _, ok := strings.Cut(name, ":"); ok && plugin != "kit" {
+		return true
+	}
+	_, ok := skillFile(h, name)
+	return ok
+}
+
+// skillFile is the SKILL.md of name, kit: or bare, in the first skills dir
+// that holds it: the kit's, the user's, then the project's.
+func skillFile(h *hook.Hook, name string) (string, bool) {
+	name = strings.TrimPrefix(name, "kit:")
+	if name == "" || strings.ContainsAny(name, `/\:`) {
+		return "", false
+	}
+	for _, dir := range skillDirs(h) {
+		if path := filepath.Join(dir, name, "SKILL.md"); fsx.IsFile(path) {
+			return path, true
 		}
-		name = skill
 	}
-	if name == "" || strings.ContainsAny(name, `/\`) {
-		return false
-	}
-	return slices.ContainsFunc(skillDirs(h), func(dir string) bool { return fsx.IsFile(filepath.Join(dir, name, "SKILL.md")) })
+	return "", false
 }
 
 // skillDirs are where a skill may live: the kit's, the user's, and the

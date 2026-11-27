@@ -17,7 +17,9 @@ import (
 
 // The kit's logs, the skills log's events that mark a skill as only
 // surfaced, a Read of a skill reference, or a compaction, the guards log's
-// event for a call auto mode denied, and a line's ts layout.
+// event for a call auto mode denied, and a line's ts layout. An
+// injected-skill line is a load: SubagentStart put the SKILL.md in the
+// subagent's context.
 const (
 	Skills              = "skills"
 	Guards              = "guards"
@@ -26,6 +28,7 @@ const (
 	EventSuggestedSkill = "suggested-skill"
 	EventReferenceRead  = "reference-read"
 	EventCompacted      = "compacted"
+	EventInjectedSkill  = "injected-skill"
 	EventAutoDenied     = "auto-denied"
 	TimeLayout          = "2006-01-02T15:04:05Z"
 )

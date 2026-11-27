@@ -134,6 +134,8 @@ func writeContext(h *hook.Hook, cfg *config.Config, out *strings.Builder) {
 // agentContext is the subagent counterpart: the resolved scratch path (which
 // overrides the harness's /tmp scratchpad line), then the same repo context
 // and skill blocks, unlogged. rule is what bashguard lets pass in scratch.
+// While the rules gate is on, the required skills come in whole
+// (injectRequired), so the subagent's first call isn't denied.
 func agentContext(h *hook.Hook, cfg *config.Config, rule string) string {
 	paths, cwd := h.Paths, h.Payload.Cwd()
 	var b strings.Builder
@@ -152,6 +154,7 @@ func agentContext(h *hook.Hook, cfg *config.Config, rule string) string {
 		}
 		b.WriteString(rule + "\n</scratch>\n")
 	}
+	injected := injectRequired(h, cfg, &b)
 	name, root, ok := projectOf(cwd, h.Home)
 	if !ok {
 		return b.String()
@@ -160,9 +163,43 @@ func agentContext(h *hook.Hook, cfg *config.Config, rule string) string {
 	if ctx.Report != "" {
 		fmt.Fprintf(&b, "<repo-context>\n%s%sbranch: %s\ndirty-files: %s\n</repo-context>\n", ctx.Report, skipDirsLine(cfg), branch(root), dirtyCount(root))
 	}
-	b.WriteString(ctx.RequiredBlock(h.RuleEnforced("rules-gate")))
+	if !injected {
+		b.WriteString(ctx.RequiredBlock(h.RuleEnforced("rules-gate")))
+	}
 	b.WriteString(stackctx.SuggestedBlock(cfg, ctx.Suggested))
 	return b.String()
+}
+
+// injectRequired writes each required skill's SKILL.md into b under the
+// base directory line the Skill tool gives it, and logs each as loaded by
+// the subagent's agent_id, which the rules gate reads, so its first call
+// passes. Nothing is injected while the gate is off, or with no agent_id
+// to log the load under. It's true when every required skill went in.
+func injectRequired(h *hook.Hook, cfg *config.Config, b *strings.Builder) bool {
+	if cfg == nil || h.Payload.String(hook.KeyAgentID) == "" || !h.RuleEnforced("rules-gate") {
+		return false
+	}
+	required := requiredSkills(cfg)
+	var bodies strings.Builder
+	for _, skill := range required {
+		path, ok := skillFile(h, skill)
+		if !ok {
+			return false
+		}
+		body, err := os.ReadFile(path)
+		if err != nil {
+			return false
+		}
+		fmt.Fprintf(&bodies, "<required-skill name=%q>\nBase directory for this skill: %s\n\n%s\n</required-skill>\n", skill, filepath.Dir(path), strings.TrimSpace(string(body)))
+	}
+	fmt.Fprintf(b, "\n<required-skills>\nThis subagent's rules are in these skills, loaded below: %s. Read the files each \"Before | Read\" table links before the work they cover.\n</required-skills>\n%s",
+		strings.Join(required, ", "), bodies.String())
+	if !h.DryRun {
+		for _, skill := range required {
+			h.Log(kitlog.Skills, kitlog.EventInjectedSkill, "skill_file", skill)
+		}
+	}
+	return true
 }
 
 // skipDirsLine names kit.yml's skip_dirs, the dirs tooling.md says a search

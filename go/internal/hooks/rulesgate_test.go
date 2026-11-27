@@ -110,6 +110,46 @@ func TestRulesGate(t *testing.T) {
 		inAgent(k, started(t, prompt)).Denied(t)
 		inAgent(k, filepath.Join(t.TempDir(), "none.jsonl")).Denied(t)
 	})
+	t.Run("the deny names only the load the agent was given", func(t *testing.T) {
+		t.Parallel()
+		k := setup(t, "")
+		skill := filepath.Join(k.paths.Root, "skills", "kit-rules", "SKILL.md")
+		r := inAgent(k, started(t, prompt, shape("WebFetch", "Read")))
+		r.Has(t, "Read "+skill+" now")
+		r.Lacks(t, "Skill tool")
+		r = inAgent(k, started(t, prompt, shape("WebFetch", "Skill")))
+		r.Has(t, "call the Skill tool now")
+		r.Lacks(t, "Read "+skill)
+	})
+	t.Run("a subagent the start hook gave the rules passes its first call", func(t *testing.T) {
+		t.Parallel()
+		k := setup(t, "")
+		testutil.Write(t, filepath.Join(k.paths.Root, "skills", "kit-rules", "SKILL.md"), "# Kit rules\n\nRead every file in this table.\n")
+		start := func(agent string) result {
+			p := map[string]any{"hook_event_name": "SubagentStart", "session_id": "s1", "cwd": t.TempDir()}
+			if agent != "" {
+				p["agent_id"] = agent
+			}
+			return k.run("inject-subagent-context", p)
+		}
+		r := start("a1")
+		r.Has(t, `<required-skill name=\"kit-rules\">`, "Base directory for this skill: "+filepath.Join(k.paths.Root, "skills", "kit-rules"), "# Kit rules")
+		call(k, "Bash", "a1", bash).Allowed(t)
+		call(k, "Bash", "a2", bash).Denied(t)
+		call(k, "Bash", "", bash).Denied(t)
+		// With no agent_id there's no one to log the load for.
+		start("").Lacks(t, "<required-skill ")
+	})
+	t.Run("no rules are injected while the gate is off", func(t *testing.T) {
+		t.Parallel()
+		k := setup(t, "")
+		k.kitYML("disabled_rules: [rules-gate]\n")
+		k.run("inject-subagent-context", map[string]any{"hook_event_name": "SubagentStart", "session_id": "s1", "agent_id": "a1", "cwd": t.TempDir()}).
+			Lacks(t, "<required-skill ")
+		if log := testutil.Read(t, k.paths.LogFile(kitlog.Skills)); strings.Contains(log, kitlog.EventInjectedSkill) {
+			t.Errorf("an injection was logged with the gate off:\n%s", log)
+		}
+	})
 	t.Run("a fork counts its parent's load", func(t *testing.T) {
 		t.Parallel()
 		fork := `{"type":"fork-context-ref","agentId":"a1"}`
