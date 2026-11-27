@@ -560,6 +560,22 @@ func TestGuardCommitInAThrowawayRepoBesideSetup(t *testing.T) {
 	}
 }
 
+// The secret scan reads the repo the commit lands in, ~ expanded with the
+// HOME the command sets.
+func TestGuardCommitScansTheRepoUnderTheHomeItSets(t *testing.T) {
+	calls := gitleaksStub(t, 0)
+	k := newSandbox(t)
+	home := filepath.Join(k.claude, "scratch", "home3")
+	repo := filepath.Join(home, ".claude", "scratch", "r")
+	testutil.Mkdir(t, repo)
+	testutil.Git(t, repo, "init", "-q")
+	k.commit("", "export HOME="+home+`; git -C ~/.claude/scratch/r commit -qm "fix: sub"`)
+	got, err := os.ReadFile(calls)
+	if err != nil || !strings.Contains(string(got), " "+repo+"\n") {
+		t.Errorf("gitleaks didn't scan %s: %q %v", repo, got, err)
+	}
+}
+
 // A bare yes answers the reply before it: when that reply's last line asks
 // to commit, the yes is the request. A yes to another question, or a no,
 // isn't.

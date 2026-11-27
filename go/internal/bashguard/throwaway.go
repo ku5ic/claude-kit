@@ -70,18 +70,8 @@ func throwaway(h *hook.Hook, cmd string, commits []commit) bool {
 	if unparsed || repoEnv.MatchString(cmd) || gitEnvSet() || !fixedShape(segs) || !plainAssigns(segs) {
 		return false
 	}
-	st := &state{dirs: dirs{home: h.Home, cwd: h.Payload.Cwd()}, h: h}
-	st.begin(cmd, segs)
-	next := 0
-	calls := gitCalls(segs, h.Home, h.Payload.Cwd(), false, func(at int, words []Word) []Word {
-		for ; next < at; next++ {
-			st.track(next, segs[next])
-		}
-		st.at = at
-		return tildeHome(st.pinWords(words), st.pinnedHome())
-	})
-	// An unpinned HOME moves ~ and $HOME somewhere the guard can't follow.
-	if _, ok := st.pinned("HOME", 2); setsHome(segs) && !ok {
+	calls, ok := pinnedCalls(h, cmd, segs)
+	if !ok {
 		return false
 	}
 	for _, c := range commits {
@@ -91,6 +81,25 @@ func throwaway(h *hook.Hook, cmd string, commits []commit) bool {
 		}
 	}
 	return true
+}
+
+// pinnedCalls is the git calls of cmd, parsed as segs, each word read as
+// the command leaves it there: a pinned variable as its path, ~ with the
+// HOME set before it. ok is false when cmd sets a HOME that isn't pinned,
+// which moves ~ and $HOME somewhere the guard can't follow.
+func pinnedCalls(h *hook.Hook, cmd string, segs []Segment) (calls []commit, ok bool) {
+	st := &state{dirs: dirs{home: h.Home, cwd: h.Payload.Cwd()}, h: h}
+	st.begin(cmd, segs)
+	next := 0
+	calls = gitCalls(segs, h.Home, h.Payload.Cwd(), false, func(at int, words []Word) []Word {
+		for ; next < at; next++ {
+			st.track(next, segs[next])
+		}
+		st.at = at
+		return tildeHome(st.pinWords(words), st.pinnedHome())
+	})
+	_, pinned := st.pinned("HOME", 2)
+	return calls, pinned || !setsHome(segs)
 }
 
 // tildeHome expands each word's leading unquoted ~ with home, the HOME the

@@ -56,11 +56,17 @@ func CheckCommit(h *hook.Hook) error {
 		return nil
 	}
 	scanned, d := map[string]bool{}, detector(h)
-	// An expansion other than $HOME can't be resolved here; most name the
-	// cwd's repo ("$PWD", "$(git rev-parse --show-toplevel)").
+	// An expansion other than $HOME or a pinned variable can't be resolved
+	// here; most name the cwd's repo ("$PWD", "$(git rev-parse
+	// --show-toplevel)").
+	segs, _ := parseAll(cmd)
+	pinned, homeKnown := pinnedCalls(h, cmd, segs)
 	repos, msgs, unreads, subjects := make([]string, len(commits)), make([]string, len(commits)), make([]string, len(commits)), make([]string, len(commits))
 	for i, c := range commits {
 		repos[i] = cmp.Or(c.repo, h.Payload.Cwd())
+		if p := slices.IndexFunc(pinned, func(p commit) bool { return p.start == c.start }); homeKnown && p >= 0 && pinned[p].repo != "" {
+			repos[i] = pinned[p].repo
+		}
 		msgs[i], unreads[i] = message(cmd, c, repos[i], h.Home)
 		subjects[i] = subject(msgs[i])
 	}
