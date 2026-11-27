@@ -60,7 +60,7 @@ func CheckCommit(h *hook.Hook) error {
 	// here; most name the cwd's repo ("$PWD", "$(git rev-parse
 	// --show-toplevel)").
 	segs, _ := parseAll(cmd)
-	pinned, homeKnown := pinnedCalls(h, cmd, segs)
+	pinned, homeKnown, _ := pinnedCalls(h, cmd, segs)
 	repos, msgs, unreads, subjects := make([]string, len(commits)), make([]string, len(commits)), make([]string, len(commits)), make([]string, len(commits))
 	for i, c := range commits {
 		repos[i] = cmp.Or(c.repo, h.Payload.Cwd())

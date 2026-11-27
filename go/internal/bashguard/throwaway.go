@@ -23,8 +23,8 @@ var repoEnv = regexp.MustCompile(`\b(?:` + strings.Join(repoVars, "|") + `)\b`)
 // counts only without -v.
 var throwawayCalls = nameSet("git", "cd", "mkdir", "mktemp", "set", "true", ":", "echo", "printf")
 
-// throwawayExports are the names a throwaway commit's command may export:
-// none moves git, the repo it finds, or which program runs.
+// throwawayExports are the names a throwaway commit's command may export.
+// HOME picks the git config git reads, so throwaway takes it only fresh.
 var throwawayExports = nameSet("HOME", "GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_AUTHOR_DATE",
 	"GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL", "GIT_COMMITTER_DATE")
 
@@ -62,7 +62,7 @@ var setWord = regexp.MustCompile(`^([-+][euxo]+|pipefail|errexit|nounset|xtrace)
 // throwaway is true when every commit in cmd lands in a throwaway repo by
 // git's own answer, and cmd can't point git elsewhere before it runs. A
 // repo that exists now counts when git rev-parse puts its git dir under
-// scratch. One the command makes counts when the commit runs only once
+// scratch and nothing in it runs a program. One the command makes counts when the commit runs only once
 // cmd's git init of it worked: a scratch dir with no .git yet, or a
 // mktemp -d dir that can't be empty there.
 func throwaway(h *hook.Hook, cmd string, commits []commit) bool {
@@ -70,8 +70,8 @@ func throwaway(h *hook.Hook, cmd string, commits []commit) bool {
 	if unparsed || repoEnv.MatchString(cmd) || gitEnvSet() || !fixedShape(segs) || !plainAssigns(segs) {
 		return false
 	}
-	calls, ok := pinnedCalls(h, cmd, segs)
-	if !ok {
+	calls, ok, freshHome := pinnedCalls(h, cmd, segs)
+	if !ok || !freshHome {
 		return false
 	}
 	for _, c := range commits {
@@ -85,21 +85,29 @@ func throwaway(h *hook.Hook, cmd string, commits []commit) bool {
 
 // pinnedCalls is the git calls of cmd, parsed as segs, each word read as
 // the command leaves it there: a pinned variable as its path, ~ with the
-// HOME set before it. ok is false when cmd sets a HOME that isn't pinned,
-// which moves ~ and $HOME somewhere the guard can't follow.
-func pinnedCalls(h *hook.Hook, cmd string, segs []Segment) (calls []commit, ok bool) {
+// HOME set before it. ok is false when cmd sets a HOME the guard can't
+// follow: neither pinned, nor a fresh mktemp -d dir no ~ in a git call
+// reads. freshHome is true when cmd sets no HOME or only such a fresh one,
+// which holds no git config the guard hasn't seen.
+func pinnedCalls(h *hook.Hook, cmd string, segs []Segment) (calls []commit, ok, freshHome bool) {
 	st := &state{dirs: dirs{home: h.Home, cwd: h.Payload.Cwd()}, h: h}
 	st.begin(cmd, segs)
-	next := 0
+	next, tilde := 0, false
 	calls = gitCalls(segs, h.Home, h.Payload.Cwd(), false, func(at int, words []Word) []Word {
 		for ; next < at; next++ {
 			st.track(next, segs[next])
 		}
 		st.at = at
+		tilde = tilde || slices.ContainsFunc(words, func(w Word) bool { return strings.HasPrefix(w.Raw, "~") })
 		return tildeHome(st.pinWords(words), st.pinnedHome())
 	})
+	if !setsHome(segs) {
+		return calls, true, true
+	}
 	_, pinned := st.pinned("HOME", 2)
-	return calls, pinned || !setsHome(segs)
+	_, fresh := st.varPath("HOME", 1)
+	fresh = fresh && st.scratchVar("HOME", 1)
+	return calls, pinned || fresh && !tilde, fresh && !tilde
 }
 
 // tildeHome expands each word's leading unquoted ~ with home, the HOME the
@@ -266,7 +274,30 @@ func lands(h *hook.Hook, segs []Segment, calls []commit, c commit) bool {
 	if real, err := filepath.EvalSymlinks(gitDir); err == nil {
 		gitDir = real
 	}
-	return h.Paths.IsScratch(gitDir)
+	return h.Paths.IsScratch(gitDir) && runsNothing(c.repo)
+}
+
+// repoRunners are the repo config keys, lowercased as git lists them,
+// that name a program git runs on add or commit, or pull in a file that
+// can: an alias can't hide init, add, or commit.
+var repoRunners = regexp.MustCompile(`^(core\.hookspath|core\.fsmonitor|filter\..*|gpg\.program|gpg\..*\.program|include\.path|includeif\..*)$`)
+
+// runsNothing is true when repo, made before this command, has no hook a
+// template or a write put there and no repo config that runs a program.
+func runsNothing(repo string) bool {
+	hooks, err := git.Line(repo, "rev-parse", "--path-format=absolute", "--git-path", "hooks")
+	if err != nil {
+		return false
+	}
+	entries, err := os.ReadDir(hooks)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return false
+	}
+	if slices.ContainsFunc(entries, func(e os.DirEntry) bool { return !strings.HasSuffix(e.Name(), ".sample") }) {
+		return false
+	}
+	keys, err := git.Lines(repo, "config", "--local", "--includes", "--list", "--name-only")
+	return err == nil && !slices.ContainsFunc(keys, repoRunners.MatchString)
 }
 
 // initFirst is the segment of a git init of c's repo, named as c names

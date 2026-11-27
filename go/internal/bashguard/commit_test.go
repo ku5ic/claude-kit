@@ -443,7 +443,8 @@ func TestShown(t *testing.T) {
 // git inits it first and only commits once that init worked. A command
 // that could point git elsewhere (a GIT_ name, a wrapper, a redirect, a
 // command beyond git, cd, mkdir, and set) still asks, as does a scratch
-// dir with no repo of its own, where git finds the project's.
+// dir with no repo of its own, where git finds the project's, and a repo
+// whose hooks or config run a program.
 func TestGuardCommitInAThrowawayRepoNeedsNoApproval(t *testing.T) {
 	gitleaksStub(t, 0)
 	k := newSandbox(t)
@@ -457,6 +458,15 @@ func TestGuardCommitInAThrowawayRepoNeedsNoApproval(t *testing.T) {
 	testutil.Git(t, project, "init", "-q")
 	testutil.GitID(t, project, "commit", "-q", "--allow-empty", "-m", "x")
 	testutil.Git(t, project, "worktree", "add", "-q", "--detach", filepath.Join(scratch, "wt"))
+	// Repos whose own hooks or config run a program on commit.
+	tpl := filepath.Join(scratch, "tpl")
+	testutil.Write(t, filepath.Join(tpl, "hooks", "pre-commit"), "#!/bin/sh\n")
+	testutil.Git(t, scratch, "init", "-q", "--template="+tpl, "templated")
+	for name, key := range map[string]string{"hookspath": "core.hooksPath", "filtered": "filter.x.clean", "included": "include.path"} {
+		testutil.Mkdir(t, filepath.Join(scratch, name))
+		testutil.Git(t, filepath.Join(scratch, name), "init", "-q")
+		testutil.Git(t, filepath.Join(scratch, name), "config", key, filepath.Join(scratch, "x"))
+	}
 	for _, cmd := range []string{
 		`git -C ~/.claude/scratch/r commit -m "fix: add sums"`,
 		`cd ~/.claude/scratch/r && git commit -m "fix: add sums"`,
@@ -513,6 +523,10 @@ func TestGuardCommitInAThrowawayRepoNeedsNoApproval(t *testing.T) {
 		`set -e; if cd /nonexistent; then cd ~/.claude/scratch/plain; fi; git init -q; git commit -m "fix: add sums"`,
 		`set -e; if cd /nonexistent; then cd ~/.claude/scratch/r; fi; git commit -m "fix: add sums"`,
 		`cd /nonexistent || cd ~/.claude/scratch/r; git commit -m "fix: add sums"`,
+		`git -C ~/.claude/scratch/templated commit -m "fix: add sums"`,
+		`git -C ~/.claude/scratch/hookspath commit -m "fix: add sums"`,
+		`git -C ~/.claude/scratch/filtered commit -m "fix: add sums"`,
+		`git -C ~/.claude/scratch/included commit -m "fix: add sums"`,
 	} {
 		if r := k.commit("", cmd); !strings.Contains(r.Output, `"permissionDecision":"ask"`) {
 			t.Errorf("%s: no ask:\n%s", cmd, r.Output)
@@ -521,7 +535,7 @@ func TestGuardCommitInAThrowawayRepoNeedsNoApproval(t *testing.T) {
 }
 
 // A throwaway commit may sit beside echo, printf, a variable pinned to its
-// repo's path, and exports of HOME and git's identity, but not beside
+// repo's path, a fresh mktemp -d HOME, and git's identity, but not beside
 // anything that changes which git runs or where a cd lands.
 func TestGuardCommitInAThrowawayRepoBesideSetup(t *testing.T) {
 	gitleaksStub(t, 0)
@@ -536,8 +550,13 @@ func TestGuardCommitInAThrowawayRepoBesideSetup(t *testing.T) {
 	testutil.Git(t, filepath.Join(scratch, "home3", ".claude", "scratch", "r"), "init", "-q")
 	other := testutil.Physical(t, t.TempDir())
 	for cmd, wantAsk := range map[string]bool{
-		`V=SCR; export HOME="$V/home2"; cd "$V/r" && git add . && git commit -qm "fix: sub" && echo ok`: false,
-		`export HOME=SCR/home3; git -C ~/.claude/scratch/r commit -qm "fix: sub"`:                       false,
+		// Only a fresh mktemp -d HOME holds no git config the guard hasn't seen.
+		`V=SCR; export HOME="$V/home2"; cd "$V/r" && git add . && git commit -qm "fix: sub" && echo ok`: true,
+		`export HOME=SCR/home3; git -C ~/.claude/scratch/r commit -qm "fix: sub"`:                       true,
+		`export HOME=OTHER; git -C SCR/r commit -qm "fix: sub"`:                                         true,
+		`set -e; t=$(mktemp -d); export HOME="$t"; git -C SCR/r commit -qm "fix: sub"`:                  false,
+		`set -e; export HOME=$(mktemp -d); git -C SCR/r commit -qm "fix: sub"`:                          false,
+		`set -e; t=$(mktemp -d); export HOME="$t"; git -C ~/.claude/scratch/r commit -qm "fix: sub"`:    true,
 		// Bash expands ~ with the HOME set before it, not the session's.
 		`export HOME=OTHER; git -C ~/.claude/scratch/r commit -qm "fix: sub"`:               true,
 		`HOME=OTHER; cd ~/.claude/scratch/r && git commit -qm "fix: sub"`:                   true,
