@@ -356,14 +356,11 @@ dependency_skills:
 		off.kitYML("size_budgets: {report: 0}\n")
 		off.run("inject-subagent-context", map[string]any{"session_id": "s1", "cwd": off.root}).Lacks(t, "Your report is sent back")
 	})
-	t.Run("a subagent hears which scratch commands pass unasked, with the allow lists it's given", func(t *testing.T) {
+	t.Run("a subagent hears the scratch rule it's given, inside the scratch block", func(t *testing.T) {
 		t.Parallel()
 		e := contextSetup(t)
 		out := e.run("inject-subagent-context", map[string]any{"session_id": "s1", "cwd": e.root})
-		out.Has(t, "A test repo goes under this path, never $TMPDIR")
-		out.Has(t, "names it with git -C <dir> on every git call, since a cd passes only into a dir that already exists")
-		out.Has(t, "runs only cd, git commit, and exports only HOME.")
-		out.Has(t, "never source an env file")
+		out.Has(t, `SCRATCH-RULE\n</scratch>`)
 	})
 	t.Run("repo-context names the scratch dir without creating it", func(t *testing.T) {
 		t.Parallel()

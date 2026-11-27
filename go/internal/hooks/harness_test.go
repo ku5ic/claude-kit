@@ -89,9 +89,9 @@ var entries = map[string]func(*hook.Hook) int{
 	"edit-seen":      single("edit-seen", MarkEditSeen),
 	"inject-context": single("inject-context", InjectContext),
 	"compact-note":   single("compact-note", CompactNote),
-	// cmd/kit passes bashguard's throwaway allow lists; these stand in.
+	// cmd/kit passes bashguard's ScratchRule; this stands in.
 	"inject-subagent-context": single("inject-subagent-context", func(h *hook.Hook) error {
-		return InjectSubagentContext(h, []string{"cd", "git commit"}, []string{"HOME"})
+		return InjectSubagentContext(h, "SCRATCH-RULE")
 	}),
 	// As cmd/kit's registry composes them.
 	"gate-dispatch": func(h *hook.Hook) int {

@@ -235,8 +235,7 @@ func onBashWrites(check func(*hook.Hook, []string) error) hook.Check {
 // commit's command may run and export. hooks and bashguard share a layer,
 // so the two meet here.
 func injectSubagentContext(h *hook.Hook) error {
-	calls, exports := bashguard.ThrowawayAllowed()
-	return hooks.InjectSubagentContext(h, calls, exports)
+	return hooks.InjectSubagentContext(h, bashguard.ScratchRule())
 }
 
 // skillsNudge is skills-nudge, a Bash command's reads included. hooks and

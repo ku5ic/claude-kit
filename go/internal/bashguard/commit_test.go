@@ -598,6 +598,36 @@ func TestGuardCommitInAThrowawayRepoBesideSetup(t *testing.T) {
 	}
 }
 
+// ScratchRule tells a subagent which calls and exports a throwaway commit
+// may sit beside; each one it names passes, with a fresh mktemp HOME.
+func TestScratchRuleNamesWhatPasses(t *testing.T) {
+	gitleaksStub(t, 0)
+	k := newSandbox(t)
+	k.transcript = filepath.Join(t.TempDir(), "t.jsonl")
+	testutil.AppendJSONL(t, k.transcript, testutil.UserPrompt("fix it"))
+	uses := map[string]string{":": ":", "cd": `cd "$t"`, "echo": "echo hi", "mkdir": `mkdir -p "$t/a"`,
+		"mktemp": "u=$(mktemp -d)", "printf": `printf 'x\n'`, "set": "set -u", "true": "true",
+		"git add": `git -C "$t" add -A`, "git commit": "true", "git init": "true"}
+	calls, exports := ThrowawayAllowed()
+	rule := ScratchRule()
+	for _, name := range append(calls, exports...) {
+		if !strings.Contains(rule, name) {
+			t.Errorf("the rule doesn't name %s: %s", name, rule)
+		}
+		use, ok := uses[name]
+		if !ok {
+			use = "export " + name + "=t"
+			if name == "HOME" {
+				use = `export HOME="$t"`
+			}
+		}
+		cmd := `set -e; t=$(mktemp -d); git -C "$t" init -q; ` + use + `; git -C "$t" commit -q --allow-empty -m "fix: add sums"`
+		if r := k.commit("", cmd); strings.Contains(r.Output, `"permissionDecision":"ask"`) {
+			t.Errorf("%s: the rule says it passes, but it asked:\n%s", cmd, r.Output)
+		}
+	}
+}
+
 // The secret scan reads the repo the commit lands in, ~ expanded with the
 // HOME the command sets, and skips a dir the command has yet to make
 // without a word.

@@ -2,6 +2,7 @@ package bashguard
 
 import (
 	"errors"
+	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
@@ -27,6 +28,16 @@ var throwawayCalls = nameSet("git", "cd", "mkdir", "mktemp", "set", "true", ":",
 // HOME picks the git config git reads, so throwaway takes it only fresh.
 var throwawayExports = nameSet("HOME", "GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_AUTHOR_DATE",
 	"GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL", "GIT_COMMITTER_DATE")
+
+// ScratchRule is what a subagent is told passes unasked in scratch: the
+// rm, download, and throwaway commit rules, and the lists they allow.
+func ScratchRule() string {
+	calls, exports := ThrowawayAllowed()
+	return fmt.Sprintf("An rm -r or download here passes unasked, by a literal path or a variable set once to one. "+
+		"A test repo goes under this path, never $TMPDIR, and its commit passes unasked when the command names it with git -C <dir> on every git call, runs only %s, and exports only %s. "+
+		"A HOME it sets must be a fresh $(mktemp -d), and a repo whose hooks or config run a program still asks. Never source an env file.",
+		strings.Join(calls, ", "), strings.Join(exports, ", "))
+}
 
 // ThrowawayAllowed is what a throwaway commit's command may run, git as
 // each of its subcommands, and the names it may export, each sorted.
