@@ -1,7 +1,10 @@
 package bashguard
 
 import (
+	"errors"
+	"io/fs"
 	"maps"
+	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -74,15 +77,15 @@ func (c *command) globsSensitive(ops []string) error {
 	return nil
 }
 
-// expandGlob is the files glob matches from the cwd, as the shell would
-// expand it. ok is false when the guard can't do that: the cwd is lost or
+// expandGlob is every file glob could match from the cwd, whatever the
+// shell's options: names compare in any case and dotfiles count, so
+// nocaseglob, CASE_GLOB, and dotglob can only shrink what the shell
+// expands. ok is false when the guard can't do that: the cwd is lost or
 // isn't a directory it can read (cd "$X"), the glob holds an expansion, a
-// zsh ** or qualifier, too many {a,b}, or a bracket, which Go reads apart
-// from the shell ([!x] is a class holding !), or the command sets a shell
-// option, which can fold case (shopt -s nocaseglob, unsetopt CASE_GLOB).
+// zsh ** or qualifier, too many {a,b}, a bracket, whose classes differ
+// between shells ([!x], [[:alpha:]]), or a wildcard before its last "/".
 func (st *state) expandGlob(glob string) (hits []string, ok bool) {
-	if st.lost || !fsx.IsDir(st.cwd) || strings.ContainsAny(glob, "$`()~[") || strings.Contains(glob, "**") ||
-		strings.Contains(st.cmd, "shopt") || strings.Contains(st.cmd, "setopt") {
+	if st.lost || !fsx.IsDir(st.cwd) || strings.ContainsAny(glob, "$`()~[") || strings.Contains(glob, "**") {
 		return nil, false
 	}
 	alts, ok := guard.Braces(glob)
@@ -90,11 +93,22 @@ func (st *state) expandGlob(glob string) (hits []string, ok bool) {
 		return nil, false
 	}
 	for _, alt := range alts {
-		matches, err := filepath.Glob(st.abs(alt))
+		dir, base := filepath.Split(st.abs(alt))
+		if strings.ContainsAny(dir, "*?") {
+			return nil, false
+		}
+		entries, err := os.ReadDir(dir)
+		if errors.Is(err, fs.ErrNotExist) {
+			continue // the shell passes the pattern as written, a name no file has
+		}
 		if err != nil {
 			return nil, false
 		}
-		hits = append(hits, matches...)
+		for _, e := range entries {
+			if guard.Glob(strings.ToLower(base), strings.ToLower(e.Name())) {
+				hits = append(hits, filepath.Join(dir, e.Name()))
+			}
+		}
 	}
 	return hits, true
 }

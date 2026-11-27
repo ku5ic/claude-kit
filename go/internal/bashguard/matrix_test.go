@@ -386,6 +386,9 @@ func TestGuardBashParsing(t *testing.T) {
 		// Go's glob reads [!x] as a class holding !, and never folds case.
 		probe("block", `cat g/.[!x]nv`)
 		probe("block", `shopt -s nocaseglob; cat g/.ENV*`)
+		probe("block", `bash -O nocaseglob -c 'cat g/.ENV*'`)
+		probe("block", `cat g/.ENV*`)
+		probe("block", `cat g/*`)
 		// Words after a -c string are its $0, $1: the string alone hides them.
 		probe("block", `bash -c 'kubectl $1 pod x' _ delete`)
 		probe("block", `cat config/*.pem`)
