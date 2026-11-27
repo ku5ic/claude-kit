@@ -863,6 +863,43 @@ func TestRmRecursiveOnScratchPasses(t *testing.T) {
 	}
 }
 
+// A symlink in scratch that leads out of it takes rm -r below it out of
+// scratch too, while the link itself is still scratch's to remove. A link
+// the same command makes isn't there to check, so ln beside rm -r asks.
+func TestRmRecursiveThroughAScratchLinkAsks(t *testing.T) {
+	t.Parallel()
+	dir := testutil.Physical(t, t.TempDir())
+	proj, outside := filepath.Join(dir, "proj"), filepath.Join(dir, "outside")
+	testutil.Mkdir(t, filepath.Join(proj, ".git"))
+	testutil.Mkdir(t, filepath.Join(proj, ".claude", "scratch", "real"))
+	testutil.Mkdir(t, outside)
+	if err := os.Symlink(outside, filepath.Join(proj, ".claude", "scratch", "link")); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct{ cmd, want string }{
+		{`rm -rf .claude/scratch/link/x`, "ask"},
+		{`rm -rf .claude/scratch/link/`, "ask"},
+		{`set -e; S="$(kit scratch-dir)"; rm -rf "$S/link/x"`, "ask"},
+		{`rm -rf "$(kit scratch-dir)/link/x"`, "ask"},
+		{`set -e; S=.claude/scratch; rm -rf "$S/link/x"`, "ask"},
+		{`set -e; S="$(kit scratch-dir)"; H="$S/link"; rm -rf "$H/x"`, "ask"},
+		{`ln -s ~ .claude/scratch/h && rm -rf .claude/scratch/h/x`, "ask"},
+		{`set -e; S=$(mktemp -d); ln -s ~ "$S/h"; rm -rf "$S/h/x"`, "ask"},
+		{`rm -rf .claude/scratch/link`, "pass"},
+		{`rm -rf .claude/scratch/real/x`, "pass"},
+		{`set -e; S="$(kit scratch-dir)"; rm -rf "$S/real/x"`, "pass"},
+		{`set -e; S=$(mktemp -d); rm -rf "$S/x"`, "pass"},
+	} {
+		t.Run(tc.cmd, func(t *testing.T) {
+			t.Parallel()
+			wantRm(t, proj, tc.cmd, tc.want)
+		})
+	}
+	// A download follows a final link, as any write does.
+	newSandbox(t).hook("", proj, "curl -o .claude/scratch/link https://example.com/f").Want(t, 2)
+	newSandbox(t).hook("", proj, "curl -o .claude/scratch/real/f https://example.com/f").Want(t, 0)
+}
+
 // From the kit's own checkout, as a session there runs: bin/kit is the kit,
 // and $PWD is the segment's cwd.
 func TestRmRecursiveOnScratchInTheCheckoutPasses(t *testing.T) {

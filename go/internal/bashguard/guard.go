@@ -18,6 +18,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/kitcmd"
 	"github.com/ku5ic/claude-kit/go/internal/layout"
+	"github.com/ku5ic/claude-kit/go/internal/project"
 )
 
 // dirs is where a command line's next command runs: cwd, which each cd
@@ -478,15 +479,31 @@ func looseWriteTarget(p string) bool {
 // scratchTarget is true when a download target is stdout, /dev/null, an fd,
 // or inside a .claude/scratch directory. $(kit scratch-dir), the kit's own
 // bin/kit by any path included, and $PWD count; any other unexpanded
-// variable, and any "..", doesn't, since it can't be checked.
-func (st *state) scratchTarget(p string) bool {
+// variable, and any "..", doesn't, since it can't be checked. A path whose
+// symlinks lead out of scratch doesn't either; followLast says whether a
+// final link counts, as it does for a write, and not for rm, which removes
+// the link itself.
+func (st *state) scratchTarget(p string, followLast bool) bool {
 	p = unquote(p)
-	if strings.Contains(p, "..") {
-		return false
-	}
 	switch {
-	case p == "-", p == "/dev/null", len(p) == 2 && p[0] == '&' && p[1] >= '0' && p[1] <= '9', st.kitScratchDir(p):
+	case p == "-", p == "/dev/null", len(p) == 2 && p[0] == '&' && p[1] >= '0' && p[1] <= '9':
 		return true
+	}
+	path, ok := st.scratchPath(p)
+	return ok && st.onDisk(path, followLast)
+}
+
+// scratchPath is p, unquoted, as an absolute path, with $(kit scratch-dir)
+// read as the directory it prints and $PWD, ~, and $HOME expanded. False
+// with a "..", or any other expansion left in it.
+func (st *state) scratchPath(p string) (string, bool) {
+	if strings.Contains(p, "..") {
+		return "", false
+	}
+	if st.kitScratchDir(p) {
+		rest := p[len(strings.TrimSuffix(kitScratchSub.FindString(p), "/")):]
+		dir, err := project.ScratchDir(st.h.Paths, st.cwd, false)
+		return dir + rest, err == nil && !strings.ContainsAny(rest, "$`")
 	}
 	for _, pwd := range []string{"$PWD", "${PWD}"} {
 		if st.cwd != "" && (p == pwd || strings.HasPrefix(p, pwd+"/")) {
@@ -495,10 +512,29 @@ func (st *state) scratchTarget(p string) bool {
 		}
 	}
 	p = st.abs(p)
-	if strings.ContainsAny(p, "$`") {
+	return p, !strings.ContainsAny(p, "$`")
+}
+
+// onDisk is true when p, absolute, is in scratch as written and on disk:
+// resolving its symlinks keeps it under its scratch root, resolved too. A
+// trailing slash follows a final link, as rm -r link/ does.
+func (st *state) onDisk(p string, followLast bool) bool {
+	root, ok := st.h.Paths.ScratchRoot(p)
+	if !ok {
 		return false
 	}
-	return st.h.Paths.IsScratch(p)
+	if root == filepath.Clean(p) && !followLast {
+		return true
+	}
+	real, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		// No root, so nothing under it to follow.
+		return true
+	}
+	if followLast || strings.HasSuffix(p, "/") {
+		p = fsx.PhysicalPath(filepath.Clean(p))
+	}
+	return fsx.Within(real, fsx.ResolvedParent(filepath.Clean(p)))
 }
 
 // kitScratchSub matches a path that starts with a kit scratch-dir call,

@@ -38,10 +38,24 @@ func (p Paths) PlansHome() string   { return filepath.Join(p.ClaudeDir, "plans")
 // Code session scratchpad. Any other directory named scratch is project
 // code and gets every check.
 func (p Paths) IsScratch(path string) bool {
+	_, ok := p.ScratchRoot(path)
+	return ok
+}
+
+// ScratchRoot is the scratch directory path is in or at, as IsScratch finds
+// it, written as path writes it.
+func (p Paths) ScratchRoot(path string) (string, bool) {
 	clean := filepath.Clean(path)
-	return fsx.Within(p.ScratchHome(), clean) ||
-		strings.HasSuffix(clean, "/.claude/scratch") || strings.Contains(clean, "/.claude/scratch/") ||
-		sessionScratchpad.MatchString(clean)
+	if fsx.Within(p.ScratchHome(), clean) {
+		return p.ScratchHome(), true
+	}
+	if i := strings.Index(clean+"/", "/.claude/scratch/"); i >= 0 {
+		return clean[:i+len("/.claude/scratch")], true
+	}
+	if m := sessionScratchpad.FindString(clean); m != "" {
+		return strings.TrimSuffix(m, "/"), true
+	}
+	return "", false
 }
 
 // sessionScratchpad is the throwaway folder Claude Code gives each session,

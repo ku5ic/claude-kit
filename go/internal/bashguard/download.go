@@ -145,7 +145,7 @@ func wgetTargets(words []string) (targets []string, hasOut bool) {
 // outside scratch, and asks about one behind a variable it can't resolve.
 func (c *command) checkTargets(tool, flag string, targets []string) error {
 	for _, t := range append(targets, c.redirectTargets()...) {
-		if c.st.scratchTarget(t) {
+		if c.st.scratchTarget(t, true) {
 			continue
 		}
 		if strings.ContainsAny(t, "$`") && !strings.Contains(t, "..") {

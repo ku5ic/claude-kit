@@ -88,6 +88,21 @@ func PhysicalPath(path string) string {
 	return filepath.Join(dir, filepath.Base(path))
 }
 
+// ResolvedParent is path with the deepest existing ancestor of its
+// directory resolved, and path's own last element left as it is, link or
+// not.
+func ResolvedParent(path string) string {
+	dir := filepath.Dir(path)
+	for d := dir; ; d = filepath.Dir(d) {
+		if real, err := filepath.EvalSymlinks(d); err == nil {
+			return filepath.Join(real, Rel(d, dir), filepath.Base(path))
+		}
+		if d == filepath.Dir(d) {
+			return path
+		}
+	}
+}
+
 // Rel is path relative to root, "." for root itself.
 func Rel(root, path string) string {
 	if path == root {

@@ -659,10 +659,21 @@ func (c *command) rm() error {
 	if force && broad {
 		return c.block("rm with recursive force against root, home, or cwd", "rm-recursive")
 	}
-	if recursive && !c.st.allScratch(nonOptionsOf(c.args, func(w Word) string { return w.Value })) {
+	if recursive && (c.st.makesLinks() || !c.st.allScratch(nonOptionsOf(c.args, func(w Word) string { return w.Value }))) {
 		c.st.ask("rm -r deletes a directory tree; confirm the path")
 	}
 	return nil
+}
+
+// makesLinks is true when the command runs ln: a link it makes isn't on
+// disk yet for scratchTarget to follow.
+func (st *state) makesLinks() bool {
+	return slices.ContainsFunc(st.segs, func(seg Segment) bool {
+		return slices.ContainsFunc(seg.Calls, func(call Call) bool {
+			i := lead(call.Words)
+			return i < len(call.Words) && baseName(call.Words[i].Value) == "ln"
+		})
+	})
 }
 
 // plainWord is a word with no shell syntax in it.
@@ -722,9 +733,36 @@ func (st *state) scratchWord(w Word, bareEmpty bool) bool {
 	quoted := strings.HasPrefix(w.Raw, `"`) && strings.HasSuffix(w.Raw, `"`)
 	if m := quotedVar.FindStringSubmatch(w.Raw); m != nil && !strings.Contains(m[4], "..") && st.scratchVar(m[1]+m[2], 1) &&
 		(m[4] == "" && bareEmpty || st.nonEmpty(m[1]+m[2], m[3] != "", st.at)) {
-		return true
+		path, fresh := st.varPath(m[1]+m[2], 1)
+		return fresh || path != "" && st.onDisk(path+m[4], false)
 	}
-	return !varRef.MatchString(w.Value) && (quoted || !strings.Contains(w.Value, "$")) && st.scratchTarget(w.Value)
+	return !varRef.MatchString(w.Value) && (quoted || !strings.Contains(w.Value, "$")) && st.scratchTarget(w.Value, false)
+}
+
+// varPath is the absolute path scratch variable name holds, so the path
+// below it gets the symlink check: its value as scratchPath reads it, or,
+// up to depth levels, an earlier scratch variable's path and what follows
+// it. "" when it can't be read. fresh is true for a mktemp -d dir, which
+// holds no link but one the command makes, and rm asks beside ln.
+func (st *state) varPath(name string, depth int) (path string, fresh bool) {
+	value := st.sure[name]
+	if mktempDir(value) {
+		return "", true
+	}
+	if m := quotedVar.FindStringSubmatch(`"` + value + `"`); m != nil {
+		if depth == 0 {
+			return "", false
+		}
+		base, fresh := st.varPath(m[1]+m[2], depth-1)
+		if fresh || base == "" {
+			return "", fresh
+		}
+		return base + m[4], false
+	}
+	if p, ok := st.scratchPath(value); ok {
+		return p, false
+	}
+	return "", false
 }
 
 // scratchVar is true for a variable the current shell surely sets
@@ -742,7 +780,7 @@ func (st *state) scratchVar(name string, depth int) bool {
 	if !ok || !st.setOnly(name) {
 		return false
 	}
-	if mktempDir(value) || st.scratchTarget(value) {
+	if mktempDir(value) || st.scratchTarget(value, false) {
 		return true
 	}
 	// value has its quotes removed: H="$S/x", H=$S/x, and H='$S/x' all
