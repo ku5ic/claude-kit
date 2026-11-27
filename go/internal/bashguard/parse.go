@@ -409,7 +409,8 @@ func (c *collector) call(src string, p *syntax.Stmt, call *syntax.CallExpr) Call
 	}
 	if action, readable, ok := trapAction(cl.Words); ok {
 		c.traps = append(c.traps, action)
-		c.unparsed = c.unparsed || !readable
+		// A trap in a subshell or a nested shell fires when that exits.
+		c.unparsed = c.unparsed || !readable || c.depth > 0 || c.subshell > 0
 	}
 	for _, cmd := range rebaseExecs(cl.Words) {
 		c.parse(cmd, c.depth+1)

@@ -502,6 +502,12 @@ func TestGuardBashParsing(t *testing.T) {
 		probe("pass", `trap - EXIT`)
 		probe("pass", `trap -p`)
 		probe("ask", `trap 'rm -f x' INT`)
+		// A trap in a nested scope fires when that scope exits, mid-command.
+		probe("pass", `trap 'echo hi' EXIT`)
+		probe("ask", `(trap 'echo hi' EXIT)`)
+		probe("ask", `trap 'echo hi' EXIT &`)
+		probe("ask", "bash <<'EOF'\ntrap 'echo hi' EXIT\nEOF")
+		probe("block", `(trap 'rm -rf ~' EXIT)`)
 		probe("block", `flock -n -c 'rm -rf ~' /tmp/x.lock`)
 		probe("block", `flock -nc 'rm -rf ~' /tmp/x.lock`)
 		probe("block", `flock --command='rm -rf ~' /tmp/x.lock`)
