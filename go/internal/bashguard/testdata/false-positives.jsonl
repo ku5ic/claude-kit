@@ -1,0 +1,63 @@
+{"class":"pipeline-rest","step":3,"cmd":"bin/kit git-base --diff --name-only | wc -l","now":"ask","want":"pass"}
+{"class":"pipeline-rest","step":3,"cmd":"bin/kit git-base --diff --name-only | sort -u","now":"ask","want":"pass"}
+{"class":"pipeline-rest","step":3,"cmd":"kubectl get pods | grep -- delete","now":"block","want":"pass"}
+{"class":"pipeline-rest","step":3,"cmd":"terraform plan | grep destroy","now":"block","want":"pass"}
+{"class":"pipeline-rest","step":3,"cmd":"redis-cli info | grep FLUSHALL","now":"block","want":"pass"}
+{"class":"pipeline-rest","step":3,"cmd":"chmod +x a.sh | grep /","now":"block","want":"pass"}
+{"class":"pipeline-rest","step":3,"cmd":"find . -name x | grep -- -delete","now":"block","want":"pass"}
+{"class":"pipeline-rest","cmd":"kubectl delete pod x | cat","want":"block"}
+{"class":"pipeline-rest","cmd":"bin/kit git-base --output=x","want":"ask"}
+{"class":"read-form","step":4,"cmd":"git config --global --get core.excludesFile","now":"block","want":"pass"}
+{"class":"read-form","step":4,"cmd":"git config --global --list","now":"block","want":"pass"}
+{"class":"read-form","cmd":"git config --global user.name x","want":"block"}
+{"class":"read-form","cmd":"git config --global --unset user.name","want":"block"}
+{"class":"read-form","cmd":"git config --global --add a.b c","want":"block"}
+{"class":"read-form","cmd":"git config --global --replace-all a.b c","want":"block"}
+{"class":"read-form","cmd":"git config --global -e","want":"block"}
+{"class":"read-form","cmd":"git config set --global a.b c","want":"block"}
+{"class":"read-form","step":4,"cmd":"bash -c 'echo hi'","now":"block","want":"pass"}
+{"class":"read-form","step":4,"cmd":"sh -c ls","now":"block","want":"pass"}
+{"class":"read-form","cmd":"bash -c 'rm -rf ~'","want":"block"}
+{"class":"read-form","step":4,"cmd":"dd if=/bin/ls bs=1 count=10 | strings","now":"block","want":"pass"}
+{"class":"read-form","cmd":"dd if=x of=/dev/disk0","want":"block"}
+{"class":"read-form","step":4,"cmd":"cat ~/.ssh/known_hosts","now":"block","want":"pass"}
+{"class":"read-form","step":4,"cmd":"cat ~/.ssh/id_ed25519.pub","now":"block","want":"pass"}
+{"class":"read-form","cmd":"cat ~/.ssh/id_ed25519","want":"block"}
+{"class":"read-form","step":4,"cmd":"cat docs/adr/*12*","now":"block","want":"pass"}
+{"class":"read-form","step":4,"cmd":"cat .claude/scratch/fx/.env","now":"block","want":"pass"}
+{"class":"read-form","cmd":"cat .env","want":"block"}
+{"class":"rm-A","step":5,"cmd":"ls && S=\"$PWD/.claude/scratch/p\" && rm -rf \"$S\"","now":"ask","want":"pass"}
+{"class":"rm-A","step":5,"cmd":"cd {root} && S={root}/.claude/scratch/p && rm -rf \"$S\"","now":"ask","want":"pass"}
+{"class":"rm-A","cmd":"ls; S=\"$PWD/.claude/scratch/p\" && rm -rf \"$S\"","want":"pass"}
+{"class":"rm-B","step":5,"cmd":"S=\"$(bin/kit scratch-dir)/p\" && mkdir -p \"$S\" && rm -rf \"$S/cfg\"","now":"ask","want":"pass"}
+{"class":"rm-B","cmd":"S=\"$(bin/kit scratch-dir)/p\" && rm -rf \"$S/cfg\"","want":"pass"}
+{"class":"rm-C","step":5,"cmd":"S=\"$PWD/.claude/scratch/x\"; rm -rf \"$S\"; echo $((1+1))","now":"ask","want":"pass"}
+{"class":"rm-C","cmd":"S=\"$PWD/.claude/scratch/x\"; rm -rf \"$S\"","want":"pass"}
+{"class":"rm-D","step":5,"cmd":"S=\"$(KIT_DEV=1 bin/kit scratch-dir)/x\"; rm -rf \"$S\"","now":"ask","want":"pass"}
+{"class":"rm-D","step":5,"cmd":"S=\"$(cd {root} && bin/kit scratch-dir)/x\"; rm -rf \"$S\"","now":"ask","want":"pass"}
+{"class":"rm-D","cmd":"S=$(bin/kit scratch-dir); rm -rf \"$S\"","want":"pass"}
+{"class":"rm-D","cmd":"S=$(cd /tmp && bin/kit scratch-dir); rm -rf \"$S\"","want":"ask"}
+{"class":"rm-G","step":5,"cmd":"D=\"$PWD/.claude/scratch/p\"; rm -rf \"$D\"; [ -f a ]","now":"ask","want":"pass"}
+{"class":"rm-G","cmd":"D=\"$PWD/.claude/scratch/p\"; rm -rf \"$D\"; test -f a","want":"pass"}
+{"class":"rm-I","step":5,"cmd":"S=$(pwd)/.claude/scratch/x; rm -rf \"$S\"","now":"ask","want":"pass"}
+{"class":"rm-K","step":5,"cmd":"T=$(mktemp -d .claude/scratch/rv-XXXX); D=$(cd \"$T\" && pwd -P); rm -rf \"$D\"","now":"ask","want":"pass"}
+{"class":"rm-K","cmd":"T=$(mktemp -d .claude/scratch/rv-XXXX); rm -rf \"$T\"","want":"pass"}
+{"class":"rm-E","cmd":"d=$(mktemp -d); rm -rf $d","want":"ask"}
+{"class":"rm-J","cmd":"S=\"$PWD/.claude/scratch/p\"; rm -rf \"$S\"; source a.sh","want":"ask"}
+{"class":"rm-N","cmd":"rm -r {root}/go/internal/hooks/.claude","want":"ask"}
+{"class":"rm-N","cmd":"rm -rf \"$HOME/x\"","want":"ask"}
+{"class":"download","step":5,"cmd":"S=\"$PWD/.claude/scratch/x\"; curl -sL https://example.com/a -o \"$S/a\"","now":"ask","want":"pass"}
+{"class":"download","step":5,"cmd":"D=\"$(bin/kit scratch-dir)/cc\" && curl -sSfL -o \"$D/323.tgz\" https://example.com/a.tgz","now":"ask","want":"pass"}
+{"class":"download","cmd":"curl -sL https://example.com/a -o /tmp/a","want":"block"}
+{"class":"find-delete","step":5,"cmd":"find .claude/scratch/x -delete","now":"block","want":"pass"}
+{"class":"find-delete","step":5,"cmd":"S=.claude/scratch/x; find \"$S\" -name y -delete","now":"block","want":"pass"}
+{"class":"find-delete","cmd":"find . -name x -delete","want":"block"}
+{"class":"zsh","step":9,"cmd":"for f in *.md(N); do echo $f; done","now":"ask","want":"pass"}
+{"class":"zsh","step":9,"cmd":"echo ${=c}","now":"ask","want":"pass"}
+{"class":"zsh","cmd":"ls *.md(e:'rm -rf ~':)","want":"ask"}
+{"class":"zsh","cmd":"rm -rf *(N)","want":"ask"}
+{"class":"kit-switch","step":10,"cwd":"{home}/.claude/logs","cmd":"cd {root} && (cd go && go test ./e2e/)","now":"ask","want":"pass"}
+{"class":"kit-switch","cwd":"{home}/.claude/logs","cmd":"echo x > {home}/.claude/logs/x","want":"ask"}
+{"class":"snapshot","step":13,"cmd":"rg -n 'jest -u' go/internal","now":"ask","want":"pass"}
+{"class":"snapshot","step":13,"cmd":"echo \"run pnpm test -u\"","now":"ask","want":"pass"}
+{"class":"snapshot","cmd":"pnpm test -u","want":"ask"}

@@ -24,19 +24,7 @@ func TestGuardBashParsing(t *testing.T) {
 		// ask, allow, or pass.
 		probe := func(want, cmd string) {
 			t.Helper()
-			r := k.hook("", cwd, cmd)
-			verdict := "pass"
-			switch {
-			case r.Status == 2:
-				verdict = "block"
-			case r.Status != 0:
-				verdict = fmt.Sprintf("error-%d", r.Status)
-			case strings.Contains(r.Output, `"allow"`):
-				verdict = "allow"
-			case strings.Contains(r.Output, `"ask"`):
-				verdict = "ask"
-			}
-			if verdict != want {
+			if verdict := k.hook("", cwd, cmd).verdict(); verdict != want {
 				t.Errorf("got %s want %s: %s", verdict, want, strings.ReplaceAll(cmd, "\n", `\n`))
 			}
 		}

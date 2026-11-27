@@ -3,6 +3,7 @@ package bashguard
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -133,6 +134,21 @@ func (r result) Empty(t *testing.T) {
 	if r.Output != "" {
 		t.Errorf("want no output, got:\n%s", r.Output)
 	}
+}
+
+// verdict is the run's decision: block, ask, allow, pass, or error-N.
+func (r result) verdict() string {
+	switch {
+	case r.Status == 2:
+		return "block"
+	case r.Status != 0:
+		return fmt.Sprintf("error-%d", r.Status)
+	case strings.Contains(r.Output, `"allow"`):
+		return "allow"
+	case strings.Contains(r.Output, `"ask"`):
+		return "ask"
+	}
+	return "pass"
 }
 
 // gitRepo makes dir a repository on branch, with no commits.
