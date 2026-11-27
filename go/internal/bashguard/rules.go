@@ -76,10 +76,13 @@ func (c *command) globsSensitive(ops []string) error {
 
 // expandGlob is the files glob matches from the cwd, as the shell would
 // expand it. ok is false when the guard can't do that: the cwd is lost or
-// isn't a directory it can read (cd "$X"), or the glob holds an expansion,
-// a zsh ** or qualifier, or too many {a,b}.
+// isn't a directory it can read (cd "$X"), the glob holds an expansion, a
+// zsh ** or qualifier, too many {a,b}, or a bracket, which Go reads apart
+// from the shell ([!x] is a class holding !), or the command sets a shell
+// option, which can fold case (shopt -s nocaseglob, unsetopt CASE_GLOB).
 func (st *state) expandGlob(glob string) (hits []string, ok bool) {
-	if st.lost || !fsx.IsDir(st.cwd) || strings.ContainsAny(glob, "$`()~") || strings.Contains(glob, "**") {
+	if st.lost || !fsx.IsDir(st.cwd) || strings.ContainsAny(glob, "$`()~[") || strings.Contains(glob, "**") ||
+		strings.Contains(st.cmd, "shopt") || strings.Contains(st.cmd, "setopt") {
 		return nil, false
 	}
 	alts, ok := guard.Braces(glob)

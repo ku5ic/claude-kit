@@ -349,8 +349,9 @@ func segmentEnd(last *syntax.Stmt) int {
 
 // shellCString returns the string a POSIX shell's -c runs, past any
 // wrapper: bash -c 'echo hi' runs echo hi. Only a literal shell name and a
-// literal string count, so what the parser reads is what the shell runs;
-// fish's strings aren't POSIX, and stay blocked.
+// literal string that ends the call count, so what the parser reads is
+// what the shell runs: words after it are its $0 and $1, which the string
+// alone doesn't show. fish's strings aren't POSIX, and stay blocked.
 func shellCString(words []Word) (string, bool) {
 	i := lead(words)
 	if i >= len(words) || !words[i].literal || !shells[baseName(words[i].Value)] {
@@ -361,7 +362,7 @@ func shellCString(words []Word) (string, bool) {
 		return "", false
 	}
 	at := cString(values(args))
-	if at < 0 || !args[at].literal {
+	if at < 0 || at != len(args)-1 || !args[at].literal {
 		return "", false
 	}
 	return args[at].Value, true
