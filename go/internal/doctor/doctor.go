@@ -100,7 +100,8 @@ func overlayCheck(paths config.Paths) (*config.Config, check) {
 // no problem: the sandbox breaks some tools, so it's the user's call.
 func sandboxCheck(paths config.Paths, cwd string) check {
 	from, value := "default", "off"
-	for _, file := range settingsFiles(paths, cwd) {
+	root, _ := project.Root(cwd)
+	for _, file := range project.SettingsFiles(paths, root) {
 		enabled := sources.Decode[struct {
 			Sandbox struct{ Enabled *bool }
 		}](file, json.Unmarshal).Sandbox.Enabled
@@ -153,7 +154,8 @@ func scratchCheck(paths config.Paths, cwd string) check {
 // whether a file replaces the object or merges into it. Managed settings
 // aren't read.
 func AttributionOn(paths config.Paths, cwd string) string {
-	for _, file := range settingsFiles(paths, cwd) {
+	root, _ := project.Root(cwd)
+	for _, file := range project.SettingsFiles(paths, root) {
 		attribution := sources.Decode[struct {
 			Attribution json.RawMessage `json:"attribution"`
 		}](file, json.Unmarshal).Attribution
@@ -173,16 +175,6 @@ func AttributionOn(paths config.Paths, cwd string) string {
 		return file
 	}
 	return "default"
-}
-
-// settingsFiles are cwd's settings files, highest first: the project's
-// local, then shared, then the user's.
-func settingsFiles(paths config.Paths, cwd string) []string {
-	files := []string{filepath.Join(paths.ClaudeDir, "settings.json")}
-	if root, _ := project.Root(cwd); root != "" {
-		files = append([]string{filepath.Join(root, ".claude", "settings.local.json"), filepath.Join(root, ".claude", "settings.json")}, files...)
-	}
-	return files
 }
 
 // Tools splits tools by whether PATH has them. One found under another name

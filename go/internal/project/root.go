@@ -91,18 +91,24 @@ func ScratchDir(paths config.Paths, cwd string, create bool) (string, error) {
 	return dir, nil
 }
 
+// SettingsFiles are the Claude Code settings files that apply under root,
+// highest first: the project's local, then shared, then the user's; only
+// the user's for no root. Managed settings aren't read.
+func SettingsFiles(paths config.Paths, root string) []string {
+	files := []string{filepath.Join(paths.ClaudeDir, "settings.json")}
+	if root != "" {
+		files = append([]string{filepath.Join(root, ".claude", "settings.local.json"), filepath.Join(root, ".claude", "settings.json")}, files...)
+	}
+	return files
+}
+
 // PlanDir is where plan mode writes cwd's plans: plansDirectory from the
-// first settings file setting it (the project's local, then shared, then the
-// user's), resolved against the project root as Claude Code does, else
-// <root>/.claude/plans when it exists, else Claude Code's default under the
-// config home. Managed settings aren't read.
+// first of SettingsFiles setting it, resolved against the project root as
+// Claude Code does, else <root>/.claude/plans when it exists, else Claude
+// Code's default under the config home.
 func PlanDir(paths config.Paths, cwd string) string {
 	root, _ := Root(cwd)
-	for _, file := range []string{
-		filepath.Join(root, ".claude", "settings.local.json"),
-		filepath.Join(root, ".claude", "settings.json"),
-		filepath.Join(paths.ClaudeDir, "settings.json"),
-	} {
+	for _, file := range SettingsFiles(paths, root) {
 		if dir := sources.JSONValue(file, ".plansDirectory"); dir != "" {
 			return filepath.Join(root, dir)
 		}
