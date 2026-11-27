@@ -32,14 +32,16 @@ type Allow struct {
 	Reason string
 }
 
-// Hit is one tell found: where, which rule, the text it matched, and the
-// rule's rewrite direction.
+// Hit is one tell found: where, which rule, the text it matched, the
+// rule's rewrite direction, and whether the surface it was found on is one
+// of the rule's note_on, where it notes and never blocks.
 type Hit struct {
 	Line  int
 	Tier  int
 	Rule  string
 	Match string
 	Fix   string
+	Note  bool
 }
 
 // Result is a scan's hits, in line order. Tier 3 hits are in Hits only when
@@ -91,8 +93,21 @@ func New(cfg *config.Config) *Detector {
 // Skips reports whether cfg's slop.skip names path.
 func Skips(cfg *config.Config, path string) bool { return guard.GlobAny(cfg.Slop.Skip, path) }
 
-// Blocks reports whether h's tier is one slop.block_tiers blocks.
-func (d *Detector) Blocks(h Hit) bool { return slices.Contains(d.block, h.Tier) }
+// Blocks reports whether h's tier is one slop.block_tiers blocks, on a
+// surface its rule doesn't only note.
+func (d *Detector) Blocks(h Hit) bool { return slices.Contains(d.block, h.Tier) && !h.Note }
+
+// Notes is the hits of r that a blocking tier holds but their surface only
+// notes, for the caller to pass on without blocking.
+func (d *Detector) Notes(r Result) []Hit {
+	var out []Hit
+	for _, h := range r.Hits {
+		if h.Note && slices.Contains(d.block, h.Tier) {
+			out = append(out, h)
+		}
+	}
+	return out
+}
 
 // Blocking is the hits of r that block.
 func (d *Detector) Blocking(r Result) []Hit {
@@ -196,7 +211,7 @@ func (d *Detector) Scan(segs []Segment, surface string) Result {
 				continue
 			}
 			for _, m := range r.re.FindAllString(seg.Text, -1) {
-				h := Hit{seg.Line, r.Tier, r.ID, clip(m), r.Fix}
+				h := Hit{seg.Line, r.Tier, r.ID, clip(m), r.Fix, slices.Contains(r.NoteOn, surface)}
 				if r.Tier == 3 {
 					dense = append(dense, h)
 				} else {
@@ -206,7 +221,7 @@ func (d *Detector) Scan(segs []Segment, surface string) Result {
 		}
 		if d.words != nil && !seg.Raw {
 			for _, m := range d.words.FindAllString(seg.Text, -1) {
-				dense = append(dense, Hit{seg.Line, 3, "vocabulary", clip(m), ""})
+				dense = append(dense, Hit{seg.Line, 3, "vocabulary", clip(m), "", false})
 			}
 		}
 	}
@@ -312,7 +327,9 @@ func finish(lines []string, segs []Segment) ([]Segment, []Allow) {
 }
 
 // stripCode replaces each code span (a backtick run, closed by a run of the
-// same length) with a space. An unclosed run is left as text.
+// same length) with one backtick, so its text goes unscanned and a rule can
+// still tell a span stood there, as joining-colon does. An unclosed run is
+// left as text.
 func stripCode(line string) string {
 	if !strings.Contains(line, "`") {
 		return line
@@ -335,7 +352,7 @@ func stripCode(line string) string {
 			i = run
 			continue
 		}
-		b.WriteByte(' ')
+		b.WriteByte('`')
 		i = end + len(fence)
 	}
 	return b.String()

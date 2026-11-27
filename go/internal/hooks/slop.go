@@ -61,6 +61,9 @@ func GuardSlop(h *hook.Hook) error {
 		slopDeny(h, path, hits)
 		return nil
 	}
+	if notes := d.Notes(res); len(notes) > 0 {
+		h.AddContext("PreToolUse", "Not blocked. "+slop.Message(filepath.Base(path), notes, ""))
+	}
 	if res.Dense {
 		h.AddContext("PreToolUse", d.DensityNote(filepath.Base(path), res))
 	}

@@ -35,11 +35,14 @@ func GuardHandback(h *hook.Hook) error {
 		return nil
 	}
 	text := p.String(hook.KeyInputMessage)
-	hits := reportHits(h, text)
+	hits, notes := reportHits(h, text)
 	if !mayResend(marker, text) {
 		return nil
 	}
 	if len(hits) == 0 {
+		if len(notes) > 0 {
+			h.AddContext("PreToolUse", "Not blocked. "+slop.Message("your report", notes, ""))
+		}
 		// A clean report marks the hand-back without resetting the count.
 		if !h.DryRun && !fsx.IsFile(marker) {
 			_ = fsx.WriteAtomic(marker, []byte(seenMark), 0o644)
@@ -68,7 +71,7 @@ func SubagentSlop(h *hook.Hook) error {
 	if prev, _ := os.ReadFile(marker); marker == "" && p.Bool(hook.KeyStopHookActive) || string(prev) == seenMark || marker != "" && !mayResend(marker, text) {
 		return nil
 	}
-	hits := reportHits(h, text)
+	hits, _ := reportHits(h, text)
 	if len(hits) == 0 {
 		return nil
 	}
@@ -169,15 +172,17 @@ func rewriteOf(marker string) bool {
 // many edits it takes, and an edit the user refused spends nothing.
 func sentBackBefore(marker string) bool { return fsx.IsFile(marker) }
 
-// reportHits scans a subagent report and returns the hits in a block tier,
-// logging every hit. Without kit.yml it finds none.
-func reportHits(h *hook.Hook, text string) []slop.Hit {
+// reportHits scans a subagent report and returns the hits that block and
+// those its surface only notes, logging every hit. Without kit.yml it finds
+// none.
+func reportHits(h *hook.Hook, text string) (blocking, notes []slop.Hit) {
 	cfg := h.Config()
 	if cfg == nil || strings.TrimSpace(text) == "" {
-		return nil
+		return nil, nil
 	}
-	_, blocking := slop.New(cfg).Check(slop.Prose(text), "report", logHit(h, "subagent report"))
-	return blocking
+	d := slop.New(cfg)
+	res, blocking := d.Check(slop.Prose(text), "report", logHit(h, "subagent report"))
+	return blocking, d.Notes(res)
 }
 
 // logHit logs a slop hit in where to the guards log.

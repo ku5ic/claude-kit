@@ -276,9 +276,11 @@ slop:
     # names it; the author's rule (claude-kit investigation, 2026-11-10). The
     # sentence has to end after the colon with no comma, semicolon, code
     # span, or parenthesis, so an inline list ("in this order: a, b, c")
-    # passes.
+    # passes. On a report (a subagent's hand-back, a scratch report) it
+    # notes: those have no reader past the session to rewrite for.
     - id: joining-colon
       tier: 2
+      note_on: [report]
       match: '\b[a-z]+ [a-z]+ [a-z]+: [a-z][^,;:\n`(]*[.!?](\s|$)'
       fix: two sentences, or a comma
     - id: generic-reason

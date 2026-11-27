@@ -65,6 +65,8 @@ func TestTiers(t *testing.T) {
 		{"addressed feedback", "Addressed review feedback.", "commit", []string{"addressed-feedback"}},
 		{"joining colon", "The rule says this: it blocks.", "file", []string{"joining-colon"}},
 		{"an inline list after a colon", "Run them in this order: a, b, c.", "file", nil},
+		{"a code span after a colon", "The set is fixed: use `a` or `b` here.", "file", nil},
+		{"a joining colon in a report notes", "The rule says this: it blocks.", "report", []string{"joining-colon"}},
 		// Tier 3 alone never reports.
 		{"one rather than", "It runs the file form rather than the tree.", "file", nil},
 		{"preserving in a PR", "Split the parser while preserving behavior.", "pr", nil},
@@ -77,6 +79,23 @@ func TestTiers(t *testing.T) {
 				t.Errorf("hits = %v, want %v", got, c.want)
 			}
 		})
+	}
+}
+
+// A rule's note_on surfaces take its hits as notes: they never block there,
+// and still block everywhere else.
+func TestNoteOnNotesWithoutBlocking(t *testing.T) {
+	t.Parallel()
+	d := detector(t)
+	const text = "The rule says this: it blocks."
+	for surface, wantBlock := range map[string]bool{"report": false, "pr": true, "file": true} {
+		res := d.Scan(Prose(text), surface)
+		if blocks := len(d.Blocking(res)) > 0; blocks != wantBlock {
+			t.Errorf("%s: blocks %v, want %v", surface, blocks, wantBlock)
+		}
+		if notes := len(d.Notes(res)) > 0; notes == wantBlock {
+			t.Errorf("%s: notes %v, want %v", surface, notes, !wantBlock)
+		}
 	}
 }
 
@@ -200,10 +219,10 @@ func TestProse(t *testing.T) {
 func TestStripCode(t *testing.T) {
 	t.Parallel()
 	cases := map[string]string{
-		"a `b` c":         "a   c",
-		"a ``b ` c`` d":   "a   d",
+		"a `b` c":         "a ` c",
+		"a ``b ` c`` d":   "a ` d",
 		"unclosed `b c":   "unclosed `b c",
-		"two `a` and `b`": "two   and  ",
+		"two `a` and `b`": "two ` and `",
 	}
 	for in, want := range cases {
 		if got := stripCode(in); got != want {

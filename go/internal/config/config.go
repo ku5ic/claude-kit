@@ -491,13 +491,15 @@ type SlopDensity struct {
 }
 
 // SlopRule is one tell: a regexp, the tier it belongs to, the surfaces it
-// applies to (all when empty), and the rewrite direction a hit reports.
+// applies to (all when empty), the surfaces where a hit only notes though
+// its tier blocks (NoteOn), and the rewrite direction a hit reports.
 type SlopRule struct {
-	ID    string   `yaml:"id"`
-	Tier  int      `yaml:"tier"`
-	On    []string `yaml:"on"`
-	Match string   `yaml:"match"`
-	Fix   string   `yaml:"fix"`
+	ID     string   `yaml:"id"`
+	Tier   int      `yaml:"tier"`
+	On     []string `yaml:"on"`
+	NoteOn []string `yaml:"note_on"`
+	Match  string   `yaml:"match"`
+	Fix    string   `yaml:"fix"`
 }
 
 // problems names each rule that can't work as written: no id or a repeated
@@ -518,7 +520,7 @@ func (s Slop) problems() []error {
 		if r.Tier < 1 || r.Tier > 3 {
 			errs = append(errs, fmt.Errorf("slop.rules %s: tier %d; a tier is 1, 2, or 3", name, r.Tier))
 		}
-		for _, on := range r.On {
+		for _, on := range append(slices.Clone(r.On), r.NoteOn...) {
 			if !slices.Contains(SlopSurfaces, on) {
 				errs = append(errs, fmt.Errorf("slop.rules %s: %q is no surface (%s)", name, on, strings.Join(SlopSurfaces, ", ")))
 			}

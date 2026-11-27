@@ -32,6 +32,14 @@ func TestGuardHandback(t *testing.T) {
 		k.run("guard-handback", handback("a1", "## Findings\n\n"+tell)).Allowed(t)
 		k.run("guard-handback", handback("a2", tell)).Denied(t)
 	})
+	t.Run("a joining colon notes in a report, and another tier 2 tell still sends it back", func(t *testing.T) {
+		t.Parallel()
+		k := newSandbox(t)
+		r := k.run("guard-handback", handback("a1", "## Findings\n\nThe rule says this: it blocks."))
+		r.Allowed(t)
+		r.Has(t, "Not blocked.", "two sentences, or a comma")
+		k.run("guard-handback", handback("a2", "## Findings\n\nThe loader serves as the entry point.")).Denied(t)
+	})
 	for _, tc := range []struct{ name, agent, message string }{
 		{"a clean report goes through", "a1", "## Findings\n\nThe parser drops the last line."},
 		{"a tell quoted in the report goes through", "a1", `Flagged "I hope this helps" in README.md.`},

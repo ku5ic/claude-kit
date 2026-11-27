@@ -46,6 +46,8 @@ func TestGuardSlop(t *testing.T) {
 		{"allow (fails open): Edit whose old_string isn't in the file", "doc.md", "a\n", "Edit", edit("zzz", tell), false, ""},
 		{"deny: Markdown in scratch is a report", ".claude/scratch/report.md", "", "Write", map[string]any{"content": tell + "\n"}, true, ""},
 		{"allow: a log in scratch isn't read", ".claude/scratch/run.log", "", "Write", map[string]any{"content": tell + "\n"}, false, ""},
+		{"allow: a joining colon in a scratch report notes", ".claude/scratch/report.md", "", "Write", map[string]any{"content": "The rule says this: it blocks.\n"}, false, "Not blocked."},
+		{"deny: a joining colon in a PR draft", ".claude/scratch/pr-x.md", "", "Write", map[string]any{"content": "The rule says this: it blocks.\n"}, true, "two sentences, or a comma"},
 		{"allow: a slop.skip path", "pkg/testdata/doc.md", "", "Write", map[string]any{"content": tell + "\n"}, false, ""},
 		{"allow: kit.yml is skipped", "kit.yml", "", "Write", map[string]any{"content": "# " + tell + "\nx: 1\n"}, false, ""},
 		{"deny: a tell in a Go comment", "x.go", "", "Write", map[string]any{"content": "package x\n\n// " + tell + "\nfunc f() {}\n"}, true, ""},
