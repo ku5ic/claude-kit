@@ -26,20 +26,45 @@ import (
 // cd -. maybe are the segments of cds that may not have; lost is true once
 // a segment runs where one of them may not have, so the shell may be
 // anywhere cwd passed through. A check that passes a path by where it
-// lands reads cwd only while lost is false.
+// lands reads cwd only while lost is false. lostIn is the subshell a cd
+// moved, which the walk doesn't follow: the cwd is lost until it ends, then
+// lostBefore again.
 type dirs struct {
 	home, cwd, prev string
 	maybe           []int
 	lost            bool
+	lostIn          int
+	lostBefore      bool
 }
 
-// enter readies d for segment j of segs: one that runs even when a cd in
-// maybe didn't loses the cwd.
+// enter readies d for segment j of segs: one past the subshell a cd moved
+// finds the cwd again, and one that runs even when a cd in maybe didn't
+// loses it.
 func (d *dirs) enter(segs []Segment, j int) {
+	if d.lostIn != 0 && !slices.Contains(segs[j].scopes, d.lostIn) {
+		d.lost, d.lostIn = d.lostBefore, 0
+	}
 	if slices.ContainsFunc(d.maybe, func(k int) bool { return !andChain(segs, k, j) }) {
 		d.maybe, d.lost = nil, true
 	}
 }
+
+// loseIn loses the cwd for the rest of seg's innermost subshell, where a cd
+// in seg moved the shell: (cd /; rm -rf x) runs rm in /. Outside any
+// subshell, it's lost for good.
+func (d *dirs) loseIn(seg Segment) {
+	switch {
+	case len(seg.scopes) == 0:
+		d.maybe, d.lost = nil, true
+	case d.lostIn == 0:
+		d.lostIn, d.lostBefore, d.lost = seg.scopes[len(seg.scopes)-1], d.lost, true
+	}
+}
+
+// movesShell is whether a cd at call ci of seg can move the shell that runs
+// the rest of seg's subshell, or the command line: alone, or last in a
+// pipeline, which zsh runs in the current shell (bash too, with lastpipe).
+func movesShell(seg Segment, ci int) bool { return ci == len(seg.Calls)-1 }
 
 // moveAt moves d as name, a cd, pushd, or popd standing alone in segment k
 // of segs, with args, would. A cd surely moves the shell when it surely
@@ -122,7 +147,7 @@ func walkPinned(segs []Segment, home, cwd string, pin pinFunc) iter.Seq[walked] 
 		d := dirs{home: home, cwd: cwd}
 		for at, seg := range segs {
 			d.enter(segs, at)
-			for _, call := range seg.Calls {
+			for ci, call := range seg.Calls {
 				if pin != nil {
 					call.Words = pin(at, call.Words)
 				}
@@ -131,9 +156,15 @@ func walkPinned(segs []Segment, home, cwd string, pin pinFunc) iter.Seq[walked] 
 					continue
 				}
 				name := baseName(call.Words[i].Value)
-				// In a pipeline or a subshell, cd moves nothing after it.
-				if movesDir(name) && len(seg.Calls) == 1 && !seg.subshell {
+				// A cd before the last command of a pipeline moves nothing; one
+				// that ends a pipeline, or sits in a subshell, moves a shell
+				// the walk doesn't follow, so the cwd is lost.
+				switch {
+				case !movesDir(name) || !movesShell(seg, ci):
+				case len(seg.Calls) == 1 && !seg.subshell:
 					d.moveAt(segs, at, name, call.Words[i+1:])
+				default:
+					d.loseIn(seg)
 				}
 				if !yield(walked{seg, call, i, name, d.cwd, !d.lost}) {
 					return
@@ -533,7 +564,7 @@ func (st *state) segment(seg Segment) error {
 		}
 		plain := command{
 			st: st, name: baseName(call.Words[start].Value), args: call.Words[start+1:], redirs: call.Redirs, inputs: call.Inputs,
-			rest: seg.Rest(ci, start), alone: len(seg.Calls) == 1 && !seg.subshell, shellString: call.shellString,
+			rest: seg.Rest(ci, start), alone: len(seg.Calls) == 1 && !seg.subshell, shellString: call.shellString, movesShell: movesShell(seg, ci),
 			assigns: append(slices.Clone(call.Assigns), slices.DeleteFunc(values(call.Words[:start]), func(w string) bool { return !assignment.MatchString(w) })...),
 		}
 		for _, fields := range expansions {

@@ -33,6 +33,9 @@ type command struct {
 	// shellString is true when the parser read the shell's -c string as
 	// commands (Call.shellString), so its rules already ran on them.
 	shellString bool
+	// movesShell is true when a cd here can move the shell running what
+	// follows (the movesShell func).
+	movesShell bool
 }
 
 func (c *command) block(reason, rule string) error { return c.st.h.Block(reason, rule) }
@@ -512,11 +515,16 @@ func sources(values []string) []string {
 }
 
 // cd tracks the directory a later command runs in, after a cd, pushd, or
-// popd, so it checks the right repo; one inside a pipeline or a subshell
-// moves nothing after it.
+// popd, so it checks the right repo. One before a pipeline's last command
+// moves nothing; one ending a pipeline (zsh runs it in the current shell)
+// or inside a subshell loses the cwd, until the subshell ends.
 func (c *command) cd() {
-	if c.alone {
+	switch {
+	case !c.movesShell:
+	case c.alone:
 		c.st.moveAt(c.st.segs, c.st.at, c.name, c.st.pinWords(c.args))
+	default:
+		c.st.loseIn(c.st.segs[c.st.at])
 	}
 }
 

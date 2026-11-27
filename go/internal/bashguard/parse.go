@@ -74,9 +74,12 @@ type Segment struct {
 	Calls []Call
 	end   int // source offset where the pipeline ends
 	src   string
-	// subshell is a pipeline inside ( ), $( ), backticks, or <( ): a cd
-	// there moves nothing after it.
+	// subshell is a pipeline inside ( ), $( ), backticks, <( ), a
+	// backgrounded statement, or a -c string: a cd there moves nothing after
+	// the subshell. scopes are the ids of the subshells holding it,
+	// outermost first, so a walk can tell where that subshell ends.
 	subshell bool
+	scopes   []int
 	// conditional is a pipeline that may not run: on the right of && or
 	// ||, or inside a compound command.
 	conditional bool
@@ -171,6 +174,10 @@ type collector struct {
 	segs     []Segment
 	depth    int // of the parse in progress: nested heredocs and env -S strings
 	subshell int // how many subshells the walk is inside
+	// scopes are the ids of those subshells, outermost first, and scopeIDs
+	// the ids handed out.
+	scopes   []int
+	scopeIDs int
 	// conditional is how many places the walk is inside that may not run:
 	// the right of && or ||, and any compound (if, case, a function body).
 	conditional int
@@ -266,8 +273,8 @@ func (c *collector) stmt(src string, s *syntax.Stmt) {
 	}
 	if s.Background {
 		// bash runs a statement ending in & in a subshell of its own.
-		c.subshell++
-		defer func() { c.subshell-- }()
+		c.openSubshell()
+		defer c.closeSubshell()
 	}
 	if bin, ok := s.Cmd.(*syntax.BinaryCmd); ok && (bin.Op == syntax.AndStmt || bin.Op == syntax.OrStmt) {
 		c.stmt(src, bin.X)
@@ -287,7 +294,7 @@ func (c *collector) stmt(src string, s *syntax.Stmt) {
 		return
 	}
 
-	seg := Segment{src: src, end: segmentEnd(parts[len(parts)-1]), subshell: c.subshell > 0, conditional: c.conditional > 0, loop: c.loop}
+	seg := Segment{src: src, end: segmentEnd(parts[len(parts)-1]), subshell: c.subshell > 0, scopes: slices.Clone(c.scopes), conditional: c.conditional > 0, loop: c.loop}
 	for _, p := range parts {
 		call, ok := p.Cmd.(*syntax.CallExpr)
 		if p.Cmd == nil {
@@ -327,7 +334,7 @@ func (c *collector) compoundRedirs(src string, s *syntax.Stmt) {
 	if len(s.Redirs) == 0 {
 		return
 	}
-	c.segs = append(c.segs, Segment{src: src, end: segmentEnd(s), subshell: c.subshell > 0, loop: c.loop,
+	c.segs = append(c.segs, Segment{src: src, end: segmentEnd(s), subshell: c.subshell > 0, scopes: slices.Clone(c.scopes), loop: c.loop,
 		Calls: []Call{c.call(src, s, &syntax.CallExpr{})}})
 }
 
@@ -445,18 +452,10 @@ func (c *collector) call(src string, p *syntax.Stmt, call *syntax.CallExpr) Call
 	}
 	if cmd, ok := shellCString(cl.Words); ok {
 		// A child shell: a cd in its string moves nothing after the call.
-		// The cwd walk doesn't follow a cd inside a subshell, so a string
-		// that moves stays blocked, though its rules still run.
-		from := len(c.segs)
-		c.subshell++
+		cl.shellString = true
+		c.openSubshell()
 		c.parse(cmd, c.depth+1)
-		c.subshell--
-		cl.shellString = !slices.ContainsFunc(c.segs[from:], func(s Segment) bool {
-			return slices.ContainsFunc(s.Calls, func(inner Call) bool {
-				i := lead(inner.Words)
-				return i < len(inner.Words) && movesDir(baseName(inner.Words[i].Value))
-			})
-		})
+		c.closeSubshell()
 	}
 	if action, readable, ok := trapAction(cl.Words); ok {
 		c.traps = append(c.traps, action)
@@ -941,11 +940,24 @@ func (c *collector) inner(src string, n syntax.Node) {
 		default:
 			return true
 		}
-		c.subshell++
+		c.openSubshell()
 		c.stmts(src, stmts)
-		c.subshell--
+		c.closeSubshell()
 		return false
 	})
+}
+
+// openSubshell enters a subshell with an id of its own, so a walk over
+// the segments can tell where it ends; closeSubshell leaves it.
+func (c *collector) openSubshell() {
+	c.scopeIDs++
+	c.scopes = append(c.scopes, c.scopeIDs)
+	c.subshell++
+}
+
+func (c *collector) closeSubshell() {
+	c.scopes = c.scopes[:len(c.scopes)-1]
+	c.subshell--
 }
 
 // inLoop collects an outermost for, while, or until loop's parts under a

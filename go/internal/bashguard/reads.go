@@ -186,17 +186,39 @@ func ReadTargets(cmd, home, cwd string) []string {
 // WriteTargets is what cmd, run from cwd, writes, each path absolute: every
 // > and >> target, a redirect alone and a compound command's included,
 // tee's files, the destination of cp, mv, or install, and the files sed -i
-// or sd edits. A cd moves where the writes after it land.
+// or sd edits. A cd moves where the writes after it land; one ending a
+// pipeline moves zsh but not bash, so each write after it counts in both
+// directories.
 func WriteTargets(cmd, home, cwd string) []string {
 	segs, _ := parseAll(cmd)
 	st := &state{dirs: dirs{home: home, cwd: resolveDir(home, "/", cwd)}}
 	st.begin(cmd, segs)
-	d := &st.dirs
+	// ds are the directories the shell may be in.
+	ds := []dirs{st.dirs}
 	var out []string
-	add := func(p string) { out = append(out, resolveDir(st.pinnedHome(), d.cwd, st.expandPins(unquote(p)))) }
+	addIn := func(d dirs, p string) {
+		if p := resolveDir(st.pinnedHome(), d.cwd, st.expandPins(unquote(p))); !slices.Contains(out, p) {
+			out = append(out, p)
+		}
+	}
+	add := func(p string) {
+		for _, d := range ds {
+			addIn(d, p)
+		}
+	}
+	// saved holds the directories from before a cd moved a subshell, for
+	// when it ends.
+	type entry struct {
+		scope int
+		ds    []dirs
+	}
+	var saved []entry
 	for at, seg := range segs {
+		for len(saved) > 0 && !slices.Contains(seg.scopes, saved[len(saved)-1].scope) {
+			ds, saved = saved[len(saved)-1].ds, saved[:len(saved)-1]
+		}
 		st.at = at
-		for _, call := range seg.Calls {
+		for ci, call := range seg.Calls {
 			for _, r := range call.Redirs {
 				if !strings.HasPrefix(r.Target.Value, "&") {
 					add(r.Target.Value)
@@ -214,9 +236,11 @@ func WriteTargets(cmd, home, cwd string) []string {
 					add(op)
 				}
 			case name == "cp" || name == "mv" || name == "install":
-				isDir := func(p string) bool { return fsx.IsDir(resolveDir(home, d.cwd, unquote(p))) }
-				for _, op := range copyTargets(args, isDir) {
-					add(op)
+				for _, d := range ds {
+					isDir := func(p string) bool { return fsx.IsDir(resolveDir(home, d.cwd, unquote(p))) }
+					for _, op := range copyTargets(args, isDir) {
+						addIn(d, op)
+					}
 				}
 			case name == "sd" && len(ops) > 2:
 				for _, op := range ops[2:] {
@@ -226,8 +250,18 @@ func WriteTargets(cmd, home, cwd string) []string {
 				for _, op := range sedFiles(args) {
 					add(op)
 				}
-			case name == "cd" && len(seg.Calls) == 1 && !seg.subshell:
-				d.cd(st.pinWords(call.Words[i+1:]))
+			case name == "cd" && movesShell(seg, ci):
+				if inner := len(seg.scopes) - 1; inner >= 0 && (len(saved) == 0 || saved[len(saved)-1].scope != seg.scopes[inner]) {
+					saved = append(saved, entry{seg.scopes[inner], slices.Clone(ds)})
+				}
+				moved := slices.Clone(ds)
+				for j := range moved {
+					moved[j].cd(st.pinWords(call.Words[i+1:]))
+				}
+				if len(seg.Calls) > 1 {
+					moved = append(slices.Clone(ds), moved...)
+				}
+				ds = moved
 			}
 		}
 		st.track(at, seg)

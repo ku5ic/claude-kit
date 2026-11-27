@@ -121,6 +121,11 @@ func TestWriteTargets(t *testing.T) {
 		{"sed -f's script file is no write", "sed -i -e s/a/b/ -f fix.sed a.txt b.txt", []string{at("a.txt"), at("b.txt")}},
 		{"sed --expression= is no file", "sed -i --expression=s/a/b/ a.txt", []string{at("a.txt")}},
 		{"a write after cd lands in the new directory", "cd / && echo x > /tmp/w", []string{"/tmp/w"}},
+		{"a cd in a subshell moves the rest of it", "(cd wf && echo x > a)", []string{at("wf/a")}},
+		{"a subshell's cd ends with it", "(cd wf); echo x > a", []string{at("a")}},
+		{"a nested subshell's cd ends before its parent's write", "(cd wf; (cd /tmp); echo x > a)", []string{at("wf/a")}},
+		{"a backgrounded cd moves nothing after it", "cd wf & echo x > a", []string{at("a")}},
+		{"a cd ending a pipeline moves zsh, not bash: both count", "echo | cd wf; echo x > a", []string{at("a"), at("wf/a")}},
 		{"a reader writes nothing", "cat .env.example", nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

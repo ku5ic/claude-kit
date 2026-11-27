@@ -24,8 +24,16 @@
 {"class":"read-form","cmd":"bash -oc pipefail 'echo hi'","want":"block"}
 {"class":"read-form","cmd":"fish -c 'echo hi'","want":"block"}
 {"class":"read-form","cmd":"bash -c 'git push --force origin main'","want":"block"}
-{"class":"read-form","cmd":"cd .claude/scratch && bash -c 'cd /; rm -rf x'","want":"block"}
-{"class":"read-form","cmd":"bash -c 'cd .claude/scratch'; rm -rf x","want":"block"}
+{"class":"read-form","cmd":"cd .claude/scratch && bash -c 'cd /; rm -rf x'","want":"ask"}
+{"class":"read-form","cmd":"bash -c 'cd .claude/scratch'; rm -rf x","want":"ask"}
+{"class":"subshell-cd","cmd":"cd .claude/scratch && (cd /; rm -rf x)","want":"ask"}
+{"class":"subshell-cd","cmd":"cd .claude/scratch && (cd /; (echo); rm -rf x)","want":"ask"}
+{"class":"subshell-cd","cmd":"cd .claude/scratch && echo $(cd /; rm -rf x)","want":"ask"}
+{"class":"subshell-cd","cmd":"(cd go && go vet ./...) && rm -rf .claude/scratch/x","want":"pass"}
+{"class":"subshell-cd","cmd":"(cd /tmp); rm -rf .claude/scratch/x","want":"pass"}
+{"class":"subshell-cd","cmd":"cd .claude/scratch && echo | cd /; rm -rf x","want":"ask"}
+{"class":"subshell-cd","cmd":"cd .claude/scratch && (echo | cd /; rm -rf x)","want":"ask"}
+{"class":"subshell-cd","cmd":"cd .claude/scratch && cd / | cat; rm -rf x","want":"pass"}
 {"class":"read-form","step":4,"cmd":"dd if=/bin/ls bs=1 count=10 | strings","want":"pass"}
 {"class":"read-form","cmd":"dd if=x of=/dev/disk0","want":"block"}
 {"class":"read-form","cmd":"dd if=.env","want":"block"}
