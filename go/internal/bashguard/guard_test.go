@@ -940,6 +940,8 @@ func TestPinnedScratchVariableReadsAsItsPath(t *testing.T) {
 		{`V=SCR; V+=/x; rm -rf $V/rc`, "ask"},
 		// A program at a path under it runs as a child, which can't set it.
 		{`V=SCR; rm -rf $V/rc; $V/run.sh x`, "pass"},
+		// A heredoc's commands sit at offsets into its body, not the command.
+		{"V=SCR; sh <<'EOF'\necho hi there\nEOF\nrm -rf $V/rc", "pass"},
 		{`V=SCR; rm -rf "$V/rc"; "$V/run.sh" x`, "pass"},
 		{`V=SCR; rm -rf $V/rc; $W/run.sh`, "ask"},
 		{`V=SCR; rm -rf $V/rc; $V/*.sh`, "ask"},
@@ -998,6 +1000,7 @@ func TestRmFollowsOnlyACdThatSurelyMoved(t *testing.T) {
 		{proj, `cd /nonexistent || cd SCR; rm -rf rc`, "ask"},
 		{proj, `mkdir -p SCR/n && cd SCR/n; rm -rf rc`, "ask"},
 		{proj, `cd SCR & rm -rf rc`, "ask"},
+		{proj, `set -e; ! cd SCR/missing; rm -rf rc`, "ask"},
 		{proj, `cd SCR && echo hi & rm -rf rc`, "ask"},
 		{scratch, `pushd /tmp; rm -rf rc`, "ask"},
 		{scratch, `popd; rm -rf rc`, "ask"},

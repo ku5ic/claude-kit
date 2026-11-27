@@ -482,6 +482,9 @@ func TestGuardCommitInAThrowawayRepoNeedsNoApproval(t *testing.T) {
 		// A cd into a dir not there yet stops the init when it fails.
 		`mkdir -p ~/.claude/scratch/fresh && cd ~/.claude/scratch/fresh && git init -q && git commit -q --allow-empty -m "fix: add sums"`,
 		`set -e; cd ~/.claude/scratch/fresh; git init -q; git commit -q --allow-empty -m "fix: add sums"`,
+		`git --no-pager -C ~/.claude/scratch/r commit -m "fix: add sums"`,
+		// A substitution's own segment between the init and the commit doesn't break the && chain.
+		`git -C ~/.claude/scratch/new init -q && echo "$(echo hi)" && git -C ~/.claude/scratch/new commit --allow-empty -m "fix: add sums"`,
 	} {
 		if r := k.commit("", cmd); strings.Contains(r.Output, `"permissionDecision":"ask"`) {
 			t.Errorf("%s: asked for approval:\n%s", cmd, r.Output)
@@ -534,6 +537,11 @@ func TestGuardCommitInAThrowawayRepoNeedsNoApproval(t *testing.T) {
 		`git -C ~/.claude/scratch/edited commit -m "fix: add sums"`,
 		`git -C ~/.claude/scratch/trailered commit -m "fix: add sums"`,
 		`git -C ~/.claude/scratch/worktreed commit -m "fix: add sums"`,
+		// set +o errexit turns set -e off, so a failed init lets the commit run.
+		`set -e; set +o errexit; git -C ~/.claude/scratch/plain init -q; git -C ~/.claude/scratch/plain commit -m "fix: add sums"`,
+		`set -e; set -a; git -C ~/.claude/scratch/r commit -m "fix: add sums"`,
+		`set -e; ! t=$(mktemp -d); git -C "$t" init -q; git -C "$t" commit -q --allow-empty -m "fix: add sums"`,
+		`set -e; ! git -C ~/.claude/scratch/plain init -q; git -C ~/.claude/scratch/plain commit -m "fix: add sums"`,
 	} {
 		if r := k.commit("", cmd); !strings.Contains(r.Output, `"permissionDecision":"ask"`) {
 			t.Errorf("%s: no ask:\n%s", cmd, r.Output)
