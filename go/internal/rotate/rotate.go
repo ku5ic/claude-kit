@@ -9,6 +9,7 @@
 package rotate
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"io/fs"
@@ -36,7 +37,7 @@ func Run(paths config.Paths, home string, n int, dryRun bool, stdout, stderr io.
 			fmt.Fprintf(stdout, "scratch-rotate: %s %d %s older than %dd from %s\n", r.pruned, len(files), d.What, d.Days, dir)
 		}
 	}
-	r.registry(paths.ScratchRegistry(), home, n)
+	r.registry(context.Background(), paths.ScratchRegistry(), home, n)
 	return 0
 }
 
@@ -80,7 +81,7 @@ func Daily(paths config.Paths, home string, now time.Time) {
 	_ = os.WriteFile(stamp, []byte(now.UTC().Format(time.RFC3339)+"\n"), 0o644)
 	r := newRotator(paths, false, io.Discard, io.Discard)
 	r.home(paths.ScratchHome(), DefaultDays)
-	r.registry(paths.ScratchRegistry(), home, DefaultDays)
+	r.registry(context.Background(), paths.ScratchRegistry(), home, DefaultDays)
 }
 
 // due is whether the run stamp records is more than a day before now.
@@ -96,7 +97,7 @@ func due(stamp string, now time.Time) bool {
 // registry prunes every project scratch dir the registry lists by age
 // alone (project scratch holds test artifacts and POC files of any
 // extension), dropping entries whose directory is gone.
-func (r *rotator) registry(registry, home string, n int) {
+func (r *rotator) registry(ctx context.Context, registry, home string, n int) {
 	data, err := os.ReadFile(registry)
 	if err != nil {
 		return
@@ -121,10 +122,16 @@ func (r *rotator) registry(registry, home string, n int) {
 			keep = append(keep, dir)
 		}
 	}
-	if !r.dryRun {
-		now, _ := os.ReadFile(registry)
-		writeLines(registry, withAddedSince(string(data), string(now), keep))
+	if r.dryRun {
+		return
 	}
+	unlock, err := lockRegistry(ctx, registry)
+	if err != nil {
+		return // another writer holds it; the next run rewrites it
+	}
+	defer unlock()
+	now, _ := os.ReadFile(registry)
+	writeLines(registry, withAddedSince(string(data), string(now), keep))
 }
 
 type rotator struct {
@@ -310,6 +317,40 @@ func validScratchDir(dir, home string) bool {
 	return os.IsNotExist(err)
 }
 
+// Register adds a project scratch dir to the registry, once, so the
+// cwd-less run can prune it. This package owns the registry: Register adds
+// to it and registry rewrites it.
+func Register(ctx context.Context, paths config.Paths, dir string) error {
+	registry := paths.ScratchRegistry()
+	unlock, err := lockRegistry(ctx, registry)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	data, err := os.ReadFile(registry)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	if slices.Contains(strings.Split(string(data), "\n"), dir) {
+		return nil
+	}
+	return fsx.Append(registry, []byte(dir+"\n"))
+}
+
+// registryWait bounds how long a registry writer waits for another.
+const registryWait = 2 * time.Second
+
+// lockRegistry takes the lock every registry writer shares, waiting at
+// most registryWait.
+func lockRegistry(ctx context.Context, registry string) (unlock func(), err error) {
+	ctx, cancel := context.WithTimeout(ctx, registryWait)
+	defer cancel()
+	return cache.Lock(ctx, registryLock(registry))
+}
+
+// registryLock is the lock file beside the registry.
+func registryLock(registry string) string { return registry + ".lock" }
+
 // writeLines replaces path atomically with lines, one per line.
 func writeLines(path string, lines []string) {
 	var b strings.Builder
@@ -326,7 +367,7 @@ func writeLines(path string, lines []string) {
 // Project scratch folders sit in their repos, so they're listed for the
 // user to delete, never removed; --yes drops the registry that names them.
 func Clean(paths config.Paths, yes bool, stdout io.Writer) int {
-	owned := []string{paths.ScratchRegistry(), rotateLog(paths), paths.ConfigCache(), dailyStamp(paths), paths.ScratchHome()}
+	owned := []string{paths.ScratchRegistry(), registryLock(paths.ScratchRegistry()), rotateLog(paths), paths.ConfigCache(), dailyStamp(paths), paths.ScratchHome()}
 	for _, name := range kitlog.Logs {
 		owned = append(owned, paths.LogFile(name))
 	}

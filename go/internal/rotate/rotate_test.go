@@ -1,6 +1,7 @@
 package rotate
 
 import (
+	"context"
 	"io"
 	"io/fs"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/testutil"
@@ -493,7 +495,7 @@ func TestCleanRemovesOnlyTheKitsOwnState(t *testing.T) {
 	dir := physicalTemp(t)
 	paths := kitHome(t, dir)
 	kit := []string{
-		paths.LogFile("guards"), paths.LogFile("claims"), paths.LogFile("skills"), paths.ScratchRegistry(),
+		paths.LogFile("guards"), paths.LogFile("claims"), paths.LogFile("skills"), paths.ScratchRegistry(), paths.ScratchRegistry() + ".lock",
 		rotateLog(paths), filepath.Join(paths.CacheDir(), "stack", "x"),
 		filepath.Join(paths.CacheDir(), "config.gob"), filepath.Join(paths.ScratchHome(), "report.md"),
 	}
@@ -580,5 +582,44 @@ func TestRegistryKeepsAProjectRegisteredDuringTheWalk(t *testing.T) {
 	got := withAddedSince("/a\n/b\n", "/a\n/b\n/c\n", []string{"/a"})
 	if !slices.Equal(got, []string{"/a", "/c"}) {
 		t.Errorf("got %v, want [/a /c]", got)
+	}
+}
+
+// holdRegistryLock takes the registry's lock as another writer would, and
+// a context that gives up on it quickly.
+func holdRegistryLock(t *testing.T, paths config.Paths) context.Context {
+	t.Helper()
+	unlock, err := cache.Lock(t.Context(), paths.ScratchRegistry()+".lock")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(unlock)
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+	t.Cleanup(cancel)
+	return ctx
+}
+
+func TestRegisterLeavesTheRegistryAloneWhileAnotherWriterHoldsIt(t *testing.T) {
+	t.Parallel()
+	paths := kitHome(t, physicalTemp(t))
+	ctx := holdRegistryLock(t, paths)
+	if err := Register(ctx, paths, "/p/.claude/scratch"); err == nil {
+		t.Error("Register reported success while another writer held the registry")
+	}
+	if exists(paths.ScratchRegistry()) {
+		t.Error("Register wrote the registry under another writer's lock")
+	}
+}
+
+func TestRegistryRewriteLeavesTheRegistryAloneWhileAnotherWriterHoldsIt(t *testing.T) {
+	t.Parallel()
+	dir := physicalTemp(t)
+	paths := kitHome(t, dir)
+	gone := filepath.Join(dir, "gone", ".claude", "scratch")
+	testutil.Write(t, paths.ScratchRegistry(), gone+"\n")
+	ctx := holdRegistryLock(t, paths)
+	newRotator(paths, false, io.Discard, io.Discard).registry(ctx, paths.ScratchRegistry(), dir, DefaultDays)
+	if got := testutil.Read(t, paths.ScratchRegistry()); got != gone+"\n" {
+		t.Errorf("rewrote the registry under another writer's lock: %q", got)
 	}
 }

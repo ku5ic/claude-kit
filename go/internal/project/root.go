@@ -1,16 +1,17 @@
 package project
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
+	"github.com/ku5ic/claude-kit/go/internal/rotate"
 	"github.com/ku5ic/claude-kit/go/internal/sources"
 )
 
@@ -79,7 +80,7 @@ func ScratchDir(paths config.Paths, cwd string, create bool) (string, error) {
 	if root, anchored := Root(cwd); anchored {
 		dir = filepath.Join(root, ".claude", "scratch")
 		if create {
-			_ = register(paths, dir)
+			_ = rotate.Register(context.Background(), paths, dir)
 		}
 	}
 	if create {
@@ -110,18 +111,6 @@ func PlanDir(paths config.Paths, cwd string) string {
 		return dir
 	}
 	return paths.PlansHome()
-}
-
-func register(paths config.Paths, dir string) error {
-	registry := paths.ScratchRegistry()
-	data, err := os.ReadFile(registry)
-	if err != nil && !os.IsNotExist(err) {
-		return err
-	}
-	if slices.Contains(strings.Split(string(data), "\n"), dir) {
-		return nil
-	}
-	return fsx.Append(registry, []byte(dir+"\n"))
 }
 
 var unsafeName = regexp.MustCompile(`[^A-Za-z0-9._-]`)
