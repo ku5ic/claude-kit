@@ -137,8 +137,9 @@ func rulesMarker(h *hook.Hook, agent, skill string) string {
 }
 
 // rearmRulesGate makes the gate ask the main session for every required
-// skill again after a compaction, and each pattern skill's nudge show again. The log line goes first: a marker removed
-// before it could be written again from the loads it voids.
+// skill again after a compaction, and each pattern skill's gate and nudge
+// apply again. The log line goes first: a marker removed before it could
+// be written again from the loads it voids.
 func rearmRulesGate(h *hook.Hook, cfg *config.Config) {
 	h.Log(kitlog.Skills, kitlog.EventCompacted, "cwd", h.Payload.String(hook.KeyCwd))
 	if h.DryRun {
@@ -147,10 +148,13 @@ func rearmRulesGate(h *hook.Hook, cfg *config.Config) {
 	for _, skill := range requiredSkills(cfg) {
 		_ = os.Remove(rulesMarker(h, "", skill)) // a missing marker is already rearmed
 	}
-	// The nudges left context too, so each shows again on its next edit.
-	nudged, _ := filepath.Glob(h.Paths.SessionFile(cache.SkillsNudged, h.Payload.SessionID(), "*"))
-	for _, marker := range nudged {
-		_ = os.Remove(marker) // one left only skips its nudge
+	// The nudges and pattern skill loads left context too, so each edit
+	// reads the log again, and the compacted line voids the loads.
+	for _, kind := range []string{cache.SkillsNudged, cache.SkillsLoaded} {
+		markers, _ := filepath.Glob(h.Paths.SessionFile(kind, h.Payload.SessionID(), "*"))
+		for _, marker := range markers {
+			_ = os.Remove(marker) // one left only skips its nudge or gate
+		}
 	}
 }
 

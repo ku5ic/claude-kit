@@ -77,7 +77,7 @@ func Files(p enforce.Plan, base func() *Base, cacheDir string, timeout time.Dura
 			t.record(g, results[i])
 			continue
 		}
-		// As in the full gate: a gate that changed files fails as that.
+		// A gate that changed files fails as that.
 		detail := changedLine(changed, markErr)
 		if results[i].err != nil {
 			detail += tail(results[i].out)

@@ -571,6 +571,13 @@ func TestGuardSkills(t *testing.T) {
 		agent := strings.Replace(compacted, `"session_id":"s1"`, `"session_id":"s1","agent_id":"a1"`, 1)
 		guard(skillsSandbox(t, bashSkillMap, bashSkillLoaded+"\n"+agent+"\n"), "/tmp/project/x.sh", "s1").Allowed(t)
 	})
+	t.Run("a compaction voids a pattern skill an edit already passed the gate with", func(t *testing.T) {
+		t.Parallel()
+		k := skillsSandbox(t, bashSkillMap, bashSkillLoaded+"\n")
+		guard(k, "/tmp/project/x.sh", "s1").Allowed(t)
+		k.run("inject-context", map[string]any{"hook_event_name": "SessionStart", "session_id": "s1", "source": "compact", "cwd": k.home}).Want(t, 0)
+		guard(k, "/tmp/project/y.sh", "s1").Denied(t)
+	})
 	t.Run("only a .claude/scratch file skips the gate, not any dir named scratch", func(t *testing.T) {
 		t.Parallel()
 		k := skillsSandbox(t, bashSkillMap, "")

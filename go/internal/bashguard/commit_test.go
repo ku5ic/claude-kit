@@ -471,6 +471,10 @@ func TestGuardCommitInAThrowawayRepoNeedsNoApproval(t *testing.T) {
 	testutil.Mkdir(t, filepath.Join(scratch, "worktreed"))
 	testutil.Git(t, filepath.Join(scratch, "worktreed"), "init", "-q")
 	testutil.Git(t, filepath.Join(scratch, "worktreed"), "config", "extensions.worktreeConfig", "true")
+	// A scratch entry linked to a dir outside scratch with no repo yet.
+	if err := os.Symlink(testutil.Physical(t, t.TempDir()), filepath.Join(scratch, "linked")); err != nil {
+		t.Fatal(err)
+	}
 	for _, cmd := range []string{
 		`git -C ~/.claude/scratch/r commit -m "fix: add sums"`,
 		`cd ~/.claude/scratch/r && git commit -m "fix: add sums"`,
@@ -542,6 +546,9 @@ func TestGuardCommitInAThrowawayRepoNeedsNoApproval(t *testing.T) {
 		`set -e; set -a; git -C ~/.claude/scratch/r commit -m "fix: add sums"`,
 		`set -e; ! t=$(mktemp -d); git -C "$t" init -q; git -C "$t" commit -q --allow-empty -m "fix: add sums"`,
 		`set -e; ! git -C ~/.claude/scratch/plain init -q; git -C ~/.claude/scratch/plain commit -m "fix: add sums"`,
+		// init and commit land where the link points, outside scratch.
+		`git -C ~/.claude/scratch/linked init -q && git -C ~/.claude/scratch/linked commit -m "fix: add sums"`,
+		`cd ~/.claude/scratch/linked && git init -q && git commit -m "fix: add sums"`,
 	} {
 		if r := k.commit("", cmd); !strings.Contains(r.Output, `"permissionDecision":"ask"`) {
 			t.Errorf("%s: no ask:\n%s", cmd, r.Output)
