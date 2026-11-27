@@ -747,7 +747,7 @@ func (st *state) allScratch(ops []Word) bool {
 // "${S}", or "${S:?}", and maybe a plain path after it, "$S/x": unquoted,
 // IFS could split it into other paths. Its groups are the name (twice),
 // the :?, and the path.
-var quotedVar = regexp.MustCompile(`^"\$(?:([A-Za-z_][A-Za-z0-9_]*)|\{([A-Za-z_][A-Za-z0-9_]*)(:\?)?\})(/[^"$` + "`" + `\\]*)?"$`)
+var quotedVar = regexp.MustCompile(`^"\$(?:(` + varName + `)|\{(` + varName + `)(:\?)?\})(/[^"$` + "`" + `\\]*)?"$`)
 
 // bashBuiltins is every bash builtin. Only a builtin can set a variable of
 // the shell running the command; any other command runs in a child.
@@ -832,9 +832,7 @@ func (st *state) scratchVar(name string, depth int) bool {
 		return false
 	}
 	inner := m[1] + m[2]
-	at, set := st.sureAt[inner]
-	return set && at < st.sureAt[name] && setFrom(st.cmd, name, inner) &&
-		st.scratchVar(inner, depth-1) && st.nonEmpty(inner, m[3] != "", st.sureAt[name])
+	return st.setFromEarlier(name, inner) && st.scratchVar(inner, depth-1) && st.nonEmpty(inner, m[3] != "", st.sureAt[name])
 }
 
 // nonEmpty is true when scratch variable name can't be empty at segment
@@ -854,12 +852,8 @@ func (st *state) nonEmpty(name string, colonQ bool, use int) bool {
 	}
 	set := st.sureAt[name]
 	assign := st.segs[set]
-	if len(assign.Calls) == 0 {
-		return false
-	}
-	start := assign.Calls[0].start
 	// ! turns a failed $(...) into success, for set -e and && alike.
-	if strings.HasPrefix(assign.src[start:], "!") || strings.HasSuffix(strings.TrimRight(assign.src[:start], " \t"), "!") {
+	if len(assign.Calls) == 0 || inverted(assign) {
 		return false
 	}
 	if standalone(assign) && errexit(st.segs[:set]) {
@@ -997,7 +991,7 @@ func (st *state) fixedProgram(w Word) bool {
 
 // programRef is a command word that is one variable, $V or ${V}, alone or
 // followed by a plainWord path.
-var programRef = regexp.MustCompile(`^\$(?:([A-Za-z_][A-Za-z0-9_]*)|\{([A-Za-z_][A-Za-z0-9_]*)\})(/[A-Za-z0-9_./%:=+@,-]*)?$`)
+var programRef = regexp.MustCompile(`^` + nameRef + `(/[A-Za-z0-9_./%:=+@,-]*)?$`)
 
 // plainPrintf is true for printf with no -v, attached (-vNAME) or not,
 // which would set a variable, and a first word with no expansion, which

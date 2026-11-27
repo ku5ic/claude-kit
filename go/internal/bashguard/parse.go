@@ -834,8 +834,14 @@ func loopAssigned(segs []Segment) map[int]map[string][]string {
 	return out
 }
 
+// varName is a shell variable name.
+const varName = `[A-Za-z_][A-Za-z0-9_]*`
+
+// nameRef is $NAME or ${NAME}, its groups the name twice.
+const nameRef = `\$(?:(` + varName + `)|\{(` + varName + `)\})`
+
 // varRef is a word that is one variable and nothing else: $R or ${R}.
-var varRef = regexp.MustCompile(`^\$(?:([A-Za-z_][A-Za-z0-9_]*)|\{([A-Za-z_][A-Za-z0-9_]*)\})$`)
+var varRef = regexp.MustCompile(`^` + nameRef + `$`)
 
 // varFields is the fields w may expand to in seg when it is a variable the
 // command assigned itself: the value set before seg, and in a loop every

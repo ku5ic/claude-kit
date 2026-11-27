@@ -212,11 +212,11 @@ func (st *state) setVars() (exported, bare []string) {
 }
 
 // pinRefs is each $NAME or ${NAME} in a string.
-var pinRefs = regexp.MustCompile(`\$(?:([A-Za-z_][A-Za-z0-9_]*)|\{([A-Za-z_][A-Za-z0-9_]*)\})`)
+var pinRefs = regexp.MustCompile(nameRef)
 
 // pinBase is a value that starts with one $NAME or ${NAME} and has plain
 // text after it: its groups are the name (twice) and the text.
-var pinBase = regexp.MustCompile("^\\$(?:([A-Za-z_][A-Za-z0-9_]*)|\\{([A-Za-z_][A-Za-z0-9_]*)\\})([^$`]*)$")
+var pinBase = regexp.MustCompile(`^` + nameRef + "([^$`]*)$")
 
 // pinned is the plain path name surely holds at the segment being checked:
 // set once, outside any loop, to a plainWord (nothing the shell splits,
@@ -236,8 +236,7 @@ func (st *state) pinned(name string, depth int) (string, bool) {
 	}
 	if m := pinBase.FindStringSubmatch(value); m != nil {
 		inner := m[1] + m[2]
-		at, set := st.sureAt[inner]
-		if depth == 0 || !set || at >= st.sureAt[name] || !setFrom(cmd, name, inner) {
+		if depth == 0 || !st.setFromEarlier(name, inner) {
 			return "", false
 		}
 		base, ok := st.pinned(inner, depth-1)
@@ -256,6 +255,13 @@ func (st *state) pinnedHome() string {
 		return home
 	}
 	return st.home
+}
+
+// setFromEarlier is true when name's sure value was set from $inner, which
+// the command surely set before it.
+func (st *state) setFromEarlier(name, inner string) bool {
+	at, set := st.sureAt[inner]
+	return set && at < st.sureAt[name] && setFrom(st.cmd, name, inner)
 }
 
 // setFrom is true when cmd sets name to $inner, bare or in double quotes:
