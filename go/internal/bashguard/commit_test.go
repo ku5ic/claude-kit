@@ -605,6 +605,7 @@ func TestGuardCommitTakesABareYesToACommitQuestion(t *testing.T) {
 		{"Shall I commit it?", "ok"},
 		{"Can I commit both?", "yes"},
 		{"Want me to commit step 5?", "sure"},
+		{"Fixed.\n\nTests, vet, and lint agree. Should I commit it?", "Yes."},
 		// Longer than the 4 MB tail, so only the whole transcript holds it.
 		{strings.Repeat("x", 5<<20) + "\n\nCommit step 3?", "yes"},
 	} {
@@ -618,6 +619,8 @@ func TestGuardCommitTakesABareYesToACommitQuestion(t *testing.T) {
 		{"Commit both?", "no"},
 		{"Commit both?\n\nOr should I wait for the tests?", "yes"},
 		{"Commit step 4, or run the full gate first?", "yes"},
+		// A yes may answer the question before it on the line.
+		{"Should I wait for CI? Commit it?", "yes"},
 		{"Should I commit step 1, or run the gate first?", "yes"},
 		{"Should I push, then commit?", "yes"},
 	} {

@@ -414,8 +414,20 @@ func requests(prompt, reply string) bool {
 		return true
 	}
 	lines := strings.Split(strings.TrimSpace(reply), "\n")
-	last := lines[len(lines)-1]
+	last := lastQuestion(lines[len(lines)-1])
 	return bareYes.MatchString(prompt) && commitQuestion.MatchString(last) && !orWord.MatchString(last)
+}
+
+// lastQuestion is line's last sentence when a statement ends before it:
+// "Tests pass. Commit it?" is "Commit it?". After another question the
+// line stays whole, since a yes may answer that one.
+func lastQuestion(line string) string {
+	line = strings.TrimSpace(line)
+	body := strings.TrimSuffix(line, "?")
+	if i := lastStopIndex(body, ".!?"); i >= 0 && body[i] != '?' {
+		return line[i+1:]
+	}
+	return line
 }
 
 // recommended is the marker Claude puts on the option it suggests.
