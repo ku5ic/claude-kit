@@ -40,6 +40,7 @@ Each stack skill's guidance comes from primary sources (official docs, changelog
 | `javascript-patterns`       | Modern syntax, async, ESM and CJS, errors                                         | `.js`, `.mjs`, `.cjs`, `.jsx`, `package.json`               |
 | `tailwind-patterns`         | Tailwind v4 `@theme` config, v3-to-v4 changes, variants                           | a class list, a stylesheet, `tailwind.config.*`             |
 | `storybook-patterns`        | CSF 3, args and `fn()` spies, play functions, story ids, the a11y addon           | `*.stories.*`, `.storybook/`                                |
+| `mermaid-patterns`          | Flowchart, sequence, quadrant, xychart, and pie syntax, config, multi-chart files | `.mmd`, a mermaid fence                                     |
 | `graphql-patterns`          | Operations, fragments, the codegen client preset, Apollo Client 4                 | `.graphql`, `.gql`                                          |
 | `python-patterns`           | Typing, project layout, async, errors, packaging                                  | `.py`, `pyproject.toml`                                     |
 | `django-patterns`           | The ORM, views, migrations, settings                                              | a Django app                                                |

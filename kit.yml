@@ -92,6 +92,9 @@ skill_file_map:
   - on: basename
     globs: ["*.tf", "*.tfvars"]
     skills: [opentofu-patterns]
+  - on: basename
+    globs: ["*.mmd"]
+    skills: [mermaid-patterns]
   - on: path
     globs: ["*/hooks/hooks.json", "*/hooks/register.ts", "*/hooks/register.tsx", "*/mods/*.ts", "*/mods/*.tsx"]
     skills: [claude-code-mods-patterns]
@@ -117,6 +120,8 @@ dependency_skills:
     skills: [graphql-patterns]
   - deps: [storybook]
     skills: [storybook-patterns]
+  - deps: [mermaid, "@mermaid-js/mermaid-cli"]
+    skills: [mermaid-patterns]
   - deps: [vitest, jest, "@playwright/test", cypress, pytest]
     skills: [test-patterns]
   - deps: [django]
@@ -142,6 +147,7 @@ skill_triggers:
   tailwind-patterns: "before writing or changing any class list, stylesheet, or Tailwind config"
   graphql-patterns: "before any edit to a .graphql or .gql file, an operation, or codegen config"
   storybook-patterns: "before any edit to a .stories.* file or Storybook config"
+  mermaid-patterns: "before drawing or editing a Mermaid diagram, in a .mmd file or a mermaid fence"
   go-patterns: "before any edit to a .go file or go.mod"
   test-patterns: "before writing or changing any test, test helper, or fixture, in any language"
   engineering-fundamentals: "before planning a change, and before the first edit to any source file"
@@ -438,7 +444,7 @@ size_budgets:
 # the plugin's, 500 characters at most.
 chat_bundle:
   description: The kit's writing and investigation skills for claude.ai chat, working on pasted text and code. Hooks and guards stay in Claude Code.
-  skills: [engineering-fundamentals, investigate, slop-patterns, unslop, write-adr, write-commit, write-devnote, write-explainer, write-launch, write-release-notes, write-rfc, write-retro, write-runbook, write-stakeholder, write-tickets]
+  skills: [engineering-fundamentals, investigate, mermaid-patterns, slop-patterns, unslop, write-adr, write-commit, write-devnote, write-explainer, write-launch, write-release-notes, write-rfc, write-retro, write-runbook, write-stakeholder, write-tickets]
   rules: [skills/kit-rules/reference/output.md, skills/kit-rules/reference/evidence.md, skills/kit-rules/reference/change.md]
 
 # Shell rc files: direct writes are blocked, the dotfiles repo is the source.

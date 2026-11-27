@@ -46,7 +46,7 @@ In claude.ai chat, the facts come from the paste: the code, the diagrams, and th
 
 1. Source: the arguments, and the thread, ticket, or doc they link, read whole.
 2. Current state: the containers, modules, and consumers the proposal touches, and the decisions governing them. Each statement cites a `file:line`, a diagram, or an ADR.
-3. Proposal: what changes, at the level of the current state, with its own diagram when a container or an edge changes.
+3. Proposal: what changes, at the level of the current state, with its own diagram when a container or an edge changes, drawn under the mermaid-patterns skill.
 4. Options: at least two, one of them the cheapest that could work (`skills/kit-rules/reference/change.md` section 7), each with its cost and what it gives.
 5. Rollout: the order of steps, what's behind a flag, how each step is checked, and who's told.
 6. Rollback: for each rollout step, how it's undone and what can't be (a migration, sent data), with the point of no return named.

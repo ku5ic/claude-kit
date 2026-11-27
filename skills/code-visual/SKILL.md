@@ -23,7 +23,7 @@ Loading this skill isn't enough. Before the step a row names, read its file.
 | ------------------------------------------------------- | ---------------------------------------------- |
 | Scoring hotspots or reading churn, Collect steps 1 to 3 | [reference/hotspots.md](reference/hotspots.md) |
 | Drawing or editing a `c4-*.mmd` view                    | [reference/c4.md](reference/c4.md)             |
-| Drawing any diagram, or fixing a Render failure         | [reference/mermaid.md](reference/mermaid.md)   |
+| Drawing any diagram, or fixing a Render failure         | the mermaid-patterns skill                     |
 
 ## Inputs
 
@@ -76,9 +76,9 @@ Directly above every C4 fence from `<arch>`, one provenance line, `Diagram: from
    - It lists problems (stale fingerprint lines, a gone path, an edge no import backs, an undeclared package): edit the files in place for each. Keep everything else, since it may hold hand edits. Then copy the new fingerprint and split dir over, and run the check again until it passes.
    - No `c4-*.mmd` files: start from `kit code-graph c4 <raw> <system name> > <arch>/c4-containers.mmd`. Name, merge, or split its containers the way the project talks about them, keeping each container's `%% path: <path>` comment on its own line (Mermaid rejects a trailing comment), relative to `<root>`. Add the `person`, `ext` and `boundary` classDef lines from Colors. Add what imports can't show (people `:::person`, a SaaS no manifest names, `:::ext`), each with `%% source: judgment` on the line under it. Then draw `c4-context.mmd` the same way, and copy the fingerprint and split dir over.
    - The check lists every `judgment` node. Name them in the report's header line, since a person has to confirm those boxes.
-   - Embed each file under the init line, with its provenance line above the fence.
+   - Embed each file under the config frontmatter, with its provenance line above the fence.
    - Say in the report's header line whether the model was reused, updated (and with what), or created.
-2. **Shape.** A `flowchart TB` of the modules (the split dir's children inside a subgraph, other top-level directories beside it), each labelled with its main language and code lines.
+2. **Shape.** A `flowchart TB` of the modules (the split dir's children inside a subgraph, other top-level directories beside it), each labelled with its main language and code lines. Join them with the edges read in Collect step 8 (what runs, loads, or imports what); with none crossing it, the subgraph goes (Readability).
 3. **Dependencies.** A `flowchart LR` from `deps.tsv`, the edge label being the import count. Externals collapse into one node per package, top 5 only. Upward edges from `upward.tsv` are drawn in terracotta with `linkStyle <indexes> stroke:#c8664a,stroke-width:3px`. Under it, a table of upward edges with production imports: edge, production imports and files, one example file.
 4. **Hotspots.** A `quadrantChart`, x = complexity and y = churn, each scaled 0 to 1 against the max, top 10 files as points. The top-right quadrant is "refactor first". Write the maximum as `1`: the parser rejects `1.00`. Under it, a table: file, complexity, churn, top owner with their share.
 5. **Change coupling.** A `flowchart LR` of the top 8 `no-import` pairs from `coupling.tsv`, nodes named after the file (its folder when the file is `index`), edge label = shared commits, nodes in the `hot` class. Skip it with one line when no pair breaches it.
@@ -89,8 +89,9 @@ Diagrams 2 to 7 are drawn. Keep to these diagram types; Render below checks each
 
 ### Readability
 
-- Every fence starts with the init line from Colors. `useMaxWidth: false` makes a large graph render at full size with a scroll, instead of shrinking to the page width. For a C4 view, that line goes above the file's content, which otherwise stays verbatim.
-- Large C4 views get split, not shrunk. A container view over 12 nodes becomes 2 or 3 files, each one cluster of containers plus the externals that cluster touches. When this run made the split, the `c4-containers.mmd` it split and its `.svg` are deleted, and the report's header line names each file deleted. A node keeps the same id and label in every file it appears in. Each view is embedded under its own provenance line.
+- Every fence starts with the config frontmatter from Colors. `useMaxWidth: false` makes a large graph render at full size with a scroll, instead of shrinking to the page width. For a C4 view, the frontmatter goes above the file's content, which otherwise stays verbatim.
+- Large C4 views get split, not shrunk. A container view over 12 nodes becomes 2 or 3 files, each one cluster of containers plus the externals that cluster touches. When this run made the split, the `c4-containers.mmd` it split and its `.svg` are deleted, and the report's header line names each file deleted. A node keeps the same label in every file it appears in, and its id takes that file's prefix. Each view is embedded under its own provenance line.
+- The report is one file of charts, under the mermaid-patterns skill's `reference/rendering.md`. Each C4 file prefixes its ids with its view (`ctx_`, `<cluster>_`), and each drawn diagram with its own.
 - Node labels run 1 to 4 words. Paths and detail go in the prose, the table, or a C4 file's `%% path:` comment.
 - Edges carry a label only when it adds information: a count, a verb that isn't "uses". A C4 view labels every line ([reference/c4.md](reference/c4.md)).
 
@@ -98,10 +99,40 @@ Diagrams 2 to 7 are drawn. Keep to these diagram types; Render below checks each
 
 One muted palette everywhere: slate blue for the repo's own parts, sage for people, sand for external systems, terracotta for risk.
 
-The init line on every fence. It sets the slate blue every node gets by default, and themes edges, quadrants, pie slices and bars to match:
+The config frontmatter, as the first lines of every fence. It sets the slate blue every node gets by default, and themes edges, quadrants, pie slices and bars to match:
 
-```text
-%%{init: {"theme": "base", "flowchart": {"useMaxWidth": false, "nodeSpacing": 50, "rankSpacing": 70}, "themeVariables": {"fontSize": "18px", "fontFamily": "Inter, system-ui, sans-serif", "primaryColor": "#e8eef6", "primaryTextColor": "#1f3550", "primaryBorderColor": "#4a6fa5", "lineColor": "#7b8794", "secondaryColor": "#e4efe6", "tertiaryColor": "#f4eee5", "quadrant1Fill": "#f6e1d8", "quadrant2Fill": "#f4eee5", "quadrant3Fill": "#eef1f4", "quadrant4Fill": "#e8eef6", "quadrantPointFill": "#c8664a", "pie1": "#4a6fa5", "pie2": "#5b8a6b", "pie3": "#a8875e", "pie4": "#c8664a", "pie5": "#8a7bb0", "pie6": "#5f9ea0", "pie7": "#b0a58f", "xyChart": {"plotColorPalette": "#4a6fa5"}}}}%%
+```yaml
+---
+config:
+  theme: base
+  flowchart:
+    useMaxWidth: false
+    nodeSpacing: 50
+    rankSpacing: 70
+  themeVariables:
+    fontSize: 18px
+    fontFamily: Inter, system-ui, sans-serif
+    primaryColor: "#e8eef6"
+    primaryTextColor: "#1f3550"
+    primaryBorderColor: "#4a6fa5"
+    lineColor: "#7b8794"
+    secondaryColor: "#e4efe6"
+    tertiaryColor: "#f4eee5"
+    quadrant1Fill: "#f6e1d8"
+    quadrant2Fill: "#f4eee5"
+    quadrant3Fill: "#eef1f4"
+    quadrant4Fill: "#e8eef6"
+    quadrantPointFill: "#c8664a"
+    pie1: "#4a6fa5"
+    pie2: "#5b8a6b"
+    pie3: "#a8875e"
+    pie4: "#c8664a"
+    pie5: "#8a7bb0"
+    pie6: "#5f9ea0"
+    pie7: "#b0a58f"
+    xyChart:
+      plotColorPalette: "#4a6fa5"
+---
 ```
 
 In C4 files and drawn flowcharts, mark people with `classDef person fill:#e4efe6,stroke:#5b8a6b,color:#23422d`, external nodes with `classDef ext fill:#f4eee5,stroke:#a8875e,color:#4a3d2c`, C4 system subgraphs with `classDef boundary fill:#ffffff,stroke:#4a6fa5,color:#4a6fa5` (otherwise they take the sand of externals), and hotspot nodes with `classDef hot fill:#f6e1d8,stroke:#c8664a,color:#5a2a1c`.
@@ -176,7 +207,7 @@ Activity takes only a Takeaway. Tricky parts holds 3 to 6 findings from the read
 
 ## Render
 
-Before replying, render every diagram: `mkdir -p <raw>/render`, then `mmdc -i <report>.md -o <raw>/render/out.md`. Each chart prints a check or an error with its line. Fix each failing fence in the report, and a failing C4 fence in its `<arch>` file too, then rerun until all pass. Then refresh each `<arch>` file's preview, since editors show a bare `.mmd` as text: `{ echo '<init line>'; cat <arch>/<file>.mmd; } | mmdc -i - -o <arch>/<file>.svg`. If `mmdc` is missing, say the diagrams weren't rendered.
+Before replying, render every diagram: `mkdir -p <raw>/render`, then `mmdc -i <report>.md -o <raw>/render/out.md`. Each chart prints a check or an error with its line. Fix each failing fence in the report, and a failing C4 fence in its `<arch>` file too, then rerun until all pass. Then refresh each `<arch>` file's preview, since editors show a bare `.mmd` as text: write the frontmatter from Colors to `<raw>/frontmatter.yml`, then `cat <raw>/frontmatter.yml <arch>/<file>.mmd | mmdc -i - -o <arch>/<file>.svg`. If `mmdc` is missing, say the diagrams weren't rendered.
 
 ## Architecture doc
 

@@ -14,22 +14,6 @@ The sources and version notes behind this skill, for `/meta-refresh`. Nothing li
 
 Checked: 2026-11-16 against c4model.com.
 
-## reference/mermaid.md
-
-### References
-
-- Directives, deprecated: https://mermaid.js.org/config/directives.html
-- Config schema, maxEdges and maxTextSize: https://mermaid.js.org/config/schema-docs/config.html
-- Flowchart: https://mermaid.js.org/syntax/flowchart.html
-- quadrantChart: https://mermaid.js.org/syntax/quadrantChart.html
-- xyChart: https://mermaid.js.org/syntax/xyChart.html
-- Pie: https://mermaid.js.org/syntax/pie.html
-- sequenceDiagram: https://mermaid.js.org/syntax/sequenceDiagram.html
-
-### Version notes
-
-Checked: 2026-11-16 against mermaid.js.org. Directives deprecated in 10.5.0.
-
 ## reference/hotspots.md
 
 ### References
