@@ -386,9 +386,9 @@ func approved(path string, subjects []string) bool {
 var bareYes = regexp.MustCompile(`(?i)^\s*(yes|y|yep|yeah|yup|sure|ok|okay|go|go ahead|do it|please do)\s*[.!]*\s*$`)
 
 // commitQuestion is a reply's last line when it asks whether to commit
-// and shows no message: "Commit step 16?", "Commit both?". One that shows
-// a message approves only that message, as shown() reads it.
-var commitQuestion = regexp.MustCompile("(?i)^\\W*commit\\b[^?`]*\\?\\s*$")
+// and shows no message: "Commit step 16?", "Should I commit both?". One
+// that shows a message approves only that message, as shown() reads it.
+var commitQuestion = regexp.MustCompile("(?i)^\\W*(?:(?:should|shall|can) i\\s+|want me to\\s+)?commit\\b[^?`]*\\?\\s*$")
 
 // orWord is a question's "or": "Commit step 4, or run the gate first?"
 // offers two things, and a yes picks neither.

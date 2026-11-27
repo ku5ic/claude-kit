@@ -557,6 +557,10 @@ func TestGuardCommitTakesABareYesToACommitQuestion(t *testing.T) {
 		{"Step 16 is done.\n\nCommit step 16?", "yes"},
 		{"Both are ready.\n\nCommit both?", "ok"},
 		{"Commit it?", "Go ahead."},
+		{"Step 1 is ready.\n\nShould I commit step 1?", "yes"},
+		{"Shall I commit it?", "ok"},
+		{"Can I commit both?", "yes"},
+		{"Want me to commit step 5?", "sure"},
 	} {
 		if r := commit(tc.reply, tc.prompt); strings.Contains(r.Output, `"permissionDecision":"ask"`) {
 			t.Errorf("%q to %q asked:\n%s", tc.prompt, tc.reply, r.Output)
@@ -568,6 +572,8 @@ func TestGuardCommitTakesABareYesToACommitQuestion(t *testing.T) {
 		{"Commit both?", "no"},
 		{"Commit both?\n\nOr should I wait for the tests?", "yes"},
 		{"Commit step 4, or run the full gate first?", "yes"},
+		{"Should I commit step 1, or run the gate first?", "yes"},
+		{"Should I push, then commit?", "yes"},
 	} {
 		if r := commit(tc.reply, tc.prompt); !strings.Contains(r.Output, `"permissionDecision":"ask"`) {
 			t.Errorf("%q to %q didn't ask", tc.prompt, tc.reply)
