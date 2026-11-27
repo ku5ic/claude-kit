@@ -697,10 +697,9 @@ func scanStaged(h *hook.Hook, repo string) error {
 	if err != nil {
 		return nil
 	}
-	// gitleaks exits 1, a leak's code, on a path it can't stat: a missing
-	// git -C directory.
+	// gitleaks exits 1, a leak's code, on a path it can't stat. A missing
+	// repo dir has nothing staged: the command makes it, or git fails.
 	if !fsx.IsDir(repo) {
-		fmt.Fprintf(h.Stderr, "%s: %s is not a directory; skipping scan\n", h.Name, repo)
 		return nil
 	}
 	err = proc.Command(proc.Quick, gitleaks, "git", "--staged", "--no-banner", "--redact", "--log-level", "error", repo).Run()

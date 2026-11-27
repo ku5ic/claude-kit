@@ -370,7 +370,7 @@ func TestGuardCommitScansTheStagedDiff(t *testing.T) {
 		{"block: gitleaks leak is still caught with no -m at all (--allow-empty)", "git commit --allow-empty", 1, 2, ""},
 		{"block: git -C <dir> commit is still caught by the entry guard (gitleaks leak)", "git -C " + t.TempDir() + " commit -m test", 1, 2, "gitleaks flagged a secret"},
 		// gitleaks exits 1 on a path it can't stat, the same code as a leak.
-		{"allow (fail open): git -C names a missing directory", "git -C " + filepath.Join(t.TempDir(), "missing") + " commit -m test", 1, 0, "skipping scan"},
+		{"allow (fail open): git -C names a missing directory", "git -C " + filepath.Join(t.TempDir(), "missing") + " commit -m test", 1, 0, ""},
 		{"block: git -C ~ resolves against home and is scanned", "git -C ~ commit -m test", 1, 2, "gitleaks flagged a secret"},
 		// Most expansions name the cwd's repo: "$PWD", "$(git rev-parse --show-toplevel)".
 		{"block: git -C names an expansion, so the cwd's repo is scanned", `git -C "$PWD" commit -m test`, 1, 2, "gitleaks flagged a secret"},
@@ -561,7 +561,8 @@ func TestGuardCommitInAThrowawayRepoBesideSetup(t *testing.T) {
 }
 
 // The secret scan reads the repo the commit lands in, ~ expanded with the
-// HOME the command sets.
+// HOME the command sets, and skips a dir the command has yet to make
+// without a word.
 func TestGuardCommitScansTheRepoUnderTheHomeItSets(t *testing.T) {
 	calls := gitleaksStub(t, 0)
 	k := newSandbox(t)
@@ -573,6 +574,10 @@ func TestGuardCommitScansTheRepoUnderTheHomeItSets(t *testing.T) {
 	got, err := os.ReadFile(calls)
 	if err != nil || !strings.Contains(string(got), " "+repo+"\n") {
 		t.Errorf("gitleaks didn't scan %s: %q %v", repo, got, err)
+	}
+	cmd := `git -C ~/.claude/scratch/new init -q && git -C ~/.claude/scratch/new commit --allow-empty -m "fix: add sums"`
+	if r := k.commit("", cmd); strings.Contains(r.Output, "skipping scan") {
+		t.Errorf("a dir the command makes printed a notice:\n%s", r.Output)
 	}
 }
 
