@@ -226,10 +226,27 @@ func (c *command) gitDelete(sub string, args []string) error {
 }
 
 func (c *command) gitConfig(args []string, _ string) error {
-	if slices.Contains(args, "--global") {
+	if slices.Contains(args, "--global") && !configReads(args) {
 		return c.block("git config --global from a project session", "git-config-global")
 	}
 	return nil
+}
+
+// configReads is true when a git config call only reads: the get or list
+// subcommand, or a --get or --list flag, with no flag that writes. A bare
+// `git config --global key` reads too, but a stray value makes it a write,
+// so only the explicit forms count.
+func configReads(args []string) bool {
+	reads := len(args) > 0 && (args[0] == "get" || args[0] == "list")
+	for _, a := range args {
+		switch a {
+		case "--get", "--get-all", "--get-regexp", "--get-urlmatch", "--get-color", "--get-colorbool", "--list", "-l":
+			reads = true
+		case "--unset", "--unset-all", "--add", "--replace-all", "--rename-section", "--remove-section", "--edit", "-e":
+			return false
+		}
+	}
+	return reads
 }
 
 // push is git push's arguments as the guard reads them.

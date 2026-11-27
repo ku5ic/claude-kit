@@ -65,11 +65,11 @@ func GuardWrites(h *hook.Hook, paths []string) error {
 }
 
 // guardPath is guard-edit's rules for one path tool reads, or else writes:
-// a credential file blocks either way, and a write to a lockfile, .git, an
+// a credential file outside scratch blocks either way, and a write to a lockfile, .git, an
 // rc file, a CI workflow, or a kit switch blocks or asks.
 func guardPath(h *hook.Hook, cfg *config.Config, tool, path string, reading bool) error {
 	h.SetContext(layout.KV("path", path))
-	if guard.IsSensitive(cfg, h.Home, path) {
+	if guard.SensitiveOutsideScratch(cfg, h.Paths, h.Home, path) {
 		reason, rule := "writing a credential or key file is not permitted", "sensitive-write"
 		if reading {
 			reason, rule = "reading a credential or key file is not permitted", "sensitive-read"
@@ -120,7 +120,7 @@ func guardSearch(h *hook.Hook, cfg *config.Config) error {
 	root := searchRoot(h)
 	glob := h.Payload.String(hook.KeyInputGlob)
 	h.SetContext(layout.KV("path", root) + "\n" + layout.KV("glob", glob))
-	if guard.SearchesSensitive(cfg, h.Home, root, glob, h.Payload.String(hook.KeyInputPath) != "") {
+	if guard.SearchFindsSensitive(cfg, h.Home, root, glob, h.Payload.String(hook.KeyInputPath) != "") {
 		return h.Block("searching a credential or key file is not permitted", "sensitive-read")
 	}
 	// With a glob that matches every basename, a loose .env or *.pem under

@@ -7,24 +7,34 @@
 {"class":"pipeline-rest","step":3,"cmd":"find . -name x | grep -- -delete","want":"pass"}
 {"class":"pipeline-rest","cmd":"kubectl delete pod x | cat","want":"block"}
 {"class":"pipeline-rest","cmd":"bin/kit git-base --output=x","want":"ask"}
-{"class":"read-form","step":4,"cmd":"git config --global --get core.excludesFile","now":"block","want":"pass"}
-{"class":"read-form","step":4,"cmd":"git config --global --list","now":"block","want":"pass"}
+{"class":"read-form","step":4,"cmd":"git config --global --get core.excludesFile","want":"pass"}
+{"class":"read-form","step":4,"cmd":"git config --global --list","want":"pass"}
 {"class":"read-form","cmd":"git config --global user.name x","want":"block"}
 {"class":"read-form","cmd":"git config --global --unset user.name","want":"block"}
 {"class":"read-form","cmd":"git config --global --add a.b c","want":"block"}
 {"class":"read-form","cmd":"git config --global --replace-all a.b c","want":"block"}
 {"class":"read-form","cmd":"git config --global -e","want":"block"}
 {"class":"read-form","cmd":"git config set --global a.b c","want":"block"}
-{"class":"read-form","step":4,"cmd":"bash -c 'echo hi'","now":"block","want":"pass"}
-{"class":"read-form","step":4,"cmd":"sh -c ls","now":"block","want":"pass"}
+{"class":"read-form","step":4,"cmd":"bash -c 'echo hi'","want":"pass"}
+{"class":"read-form","step":4,"cmd":"sh -c ls","want":"pass"}
 {"class":"read-form","cmd":"bash -c 'rm -rf ~'","want":"block"}
-{"class":"read-form","step":4,"cmd":"dd if=/bin/ls bs=1 count=10 | strings","now":"block","want":"pass"}
+{"class":"read-form","cmd":"sudo bash -c 'rm -rf ~'","want":"block"}
+{"class":"read-form","cmd":"bash -c \"$CMD\"","want":"block"}
+{"class":"read-form","cmd":"R=\"bash -c\"; $R 'echo hi'","want":"block"}
+{"class":"read-form","cmd":"bash -oc pipefail 'echo hi'","want":"block"}
+{"class":"read-form","cmd":"fish -c 'echo hi'","want":"block"}
+{"class":"read-form","cmd":"bash -c 'git push --force origin main'","want":"block"}
+{"class":"read-form","cmd":"cd .claude/scratch && bash -c 'cd /; rm -rf x'","want":"block"}
+{"class":"read-form","cmd":"bash -c 'cd .claude/scratch'; rm -rf x","want":"block"}
+{"class":"read-form","step":4,"cmd":"dd if=/bin/ls bs=1 count=10 | strings","want":"pass"}
 {"class":"read-form","cmd":"dd if=x of=/dev/disk0","want":"block"}
-{"class":"read-form","step":4,"cmd":"cat ~/.ssh/known_hosts","now":"block","want":"pass"}
-{"class":"read-form","step":4,"cmd":"cat ~/.ssh/id_ed25519.pub","now":"block","want":"pass"}
+{"class":"read-form","cmd":"dd if=.env","want":"block"}
+{"class":"read-form","cmd":"dd bs=1 if=~/.ssh/id_rsa | cat","want":"block"}
+{"class":"read-form","step":4,"cmd":"cat ~/.ssh/known_hosts","want":"pass"}
+{"class":"read-form","step":4,"cmd":"cat ~/.ssh/id_ed25519.pub","want":"pass"}
 {"class":"read-form","cmd":"cat ~/.ssh/id_ed25519","want":"block"}
-{"class":"read-form","step":4,"cmd":"cat docs/adr/*12*","now":"block","want":"pass"}
-{"class":"read-form","step":4,"cmd":"cat .claude/scratch/fx/.env","now":"block","want":"pass"}
+{"class":"read-form","step":4,"cmd":"cat docs/adr/*12*","want":"pass"}
+{"class":"read-form","step":4,"cmd":"cat .claude/scratch/fx/.env","want":"pass"}
 {"class":"read-form","cmd":"cat .env","want":"block"}
 {"class":"rm-A","step":5,"cmd":"ls && S=\"$PWD/.claude/scratch/p\" && rm -rf \"$S\"","now":"ask","want":"pass"}
 {"class":"rm-A","step":5,"cmd":"cd {root} && S={root}/.claude/scratch/p && rm -rf \"$S\"","now":"ask","want":"pass"}

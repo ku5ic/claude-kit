@@ -533,7 +533,7 @@ func (st *state) segment(seg Segment) error {
 		}
 		plain := command{
 			st: st, name: baseName(call.Words[start].Value), args: call.Words[start+1:], redirs: call.Redirs, inputs: call.Inputs,
-			rest: seg.Rest(ci, start), alone: len(seg.Calls) == 1 && !seg.subshell,
+			rest: seg.Rest(ci, start), alone: len(seg.Calls) == 1 && !seg.subshell, shellString: call.shellString,
 			assigns: append(slices.Clone(call.Assigns), slices.DeleteFunc(values(call.Words[:start]), func(w string) bool { return !assignment.MatchString(w) })...),
 		}
 		for _, fields := range expansions {
@@ -547,7 +547,8 @@ func (st *state) segment(seg Segment) error {
 				if len(lifted) > 0 {
 					c.rest = " " + strings.Join(fields[1:], " ") + c.rest
 				}
-				c.name, c.args = baseName(fields[0]), append(lifted, c.args...)
+				// The parser never saw this name, so it read no -c string.
+				c.name, c.args, c.shellString = baseName(fields[0]), append(lifted, c.args...), false
 			}
 			c.text = c.name + c.rest
 			if err := c.check(); err != nil {

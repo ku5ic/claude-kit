@@ -468,6 +468,8 @@ sensitive_paths:
   - id_ed25519
   - id_ecdsa
   - "~/.ssh/"
+  - "!~/.ssh/known_hosts"
+  - "!*.pub"
   - "~/.gnupg/"
   - "~/Library/Keychains/"
   - "~/.aws/credentials"

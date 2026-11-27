@@ -137,6 +137,72 @@ func TestAnExceptionDoesNotClearALinkToACredentialFile(t *testing.T) {
 	}
 }
 
+// A fixture credential file under scratch holds no secret, but a scratch
+// link to a real one is still that file.
+func TestSensitiveOutsideScratchSkipsFixturesNotLinks(t *testing.T) {
+	t.Parallel()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	home, scratch := filepath.Join(dir, "home"), filepath.Join(dir, "proj", ".claude", "scratch")
+	for _, d := range []string{filepath.Join(home, ".ssh"), scratch} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Symlink(filepath.Join(home, ".ssh", "id_rsa"), filepath.Join(scratch, "k")); err != nil {
+		t.Fatal(err)
+	}
+	cfg := &config.Config{SensitivePaths: []string{".env", "*.pem", "~/.ssh/"}}
+	paths := config.Paths{ClaudeDir: filepath.Join(home, ".claude")}
+	for path, want := range map[string]bool{
+		filepath.Join(scratch, "fx", ".env"):  false,
+		filepath.Join(scratch, "a.pem"):       false,
+		filepath.Join(scratch, "k"):           true,
+		filepath.Join(dir, "proj", ".env"):    true,
+		filepath.Join(home, ".ssh", "id_rsa"): true,
+	} {
+		if got := SensitiveOutsideScratch(cfg, paths, home, path); got != want {
+			t.Errorf("SensitiveOutsideScratch(%q) = %v, want %v", path, got, want)
+		}
+	}
+}
+
+// A glob that names a credential file blocks a search only when a file
+// under root it picks out is one.
+func TestSearchFindsSensitiveReadsWhatTheGlobPicks(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	for _, name := range []string{"docs/adr/0012-x.md", "keys/dev.p12"} {
+		path := filepath.Join(root, name)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cfg := &config.Config{SensitivePaths: []string{"*.p12", "~/.ssh/"}}
+	cases := []struct {
+		root, glob string
+		want       bool
+	}{
+		{filepath.Join(root, "docs"), "*12*", false},
+		{filepath.Join(root, "keys"), "*12*", true},
+		{filepath.Join(root, "docs"), "*.{md,p12}", false},
+		{filepath.Join(root, "docs"), "adr/*12*", true},
+		{filepath.Join(root, "missing"), "*12*", true},
+		{filepath.Join(root, "docs"), "*.md", false},
+		{"", "*12*", true},
+	}
+	for _, tc := range cases {
+		if got := SearchFindsSensitive(cfg, "/h", tc.root, tc.glob, true); got != tc.want {
+			t.Errorf("SearchFindsSensitive(%q, %q) = %v, want %v", tc.root, tc.glob, got, tc.want)
+		}
+	}
+}
+
 // A ~/ entry folds case only where the home filesystem does, as on macOS.
 // Not parallel: it sets foldHome, which the parallel tests read.
 func TestIsSensitiveFoldsHomeOnlyWhereTheFilesystemDoes(t *testing.T) {

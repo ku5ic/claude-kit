@@ -64,6 +64,9 @@ type Call struct {
 	declOpaque bool
 	start      int // source offset of the first word
 	end        int // source offset where the command and its redirects end
+	// shellString is true when a POSIX shell's literal -c string was parsed
+	// as commands (shellCString).
+	shellString bool
 }
 
 // Segment is one pipeline: the commands between &&, ||, ;, &, or a newline.
@@ -344,6 +347,26 @@ func segmentEnd(last *syntax.Stmt) int {
 	return end
 }
 
+// shellCString returns the string a POSIX shell's -c runs, past any
+// wrapper: bash -c 'echo hi' runs echo hi. Only a literal shell name and a
+// literal string count, so what the parser reads is what the shell runs;
+// fish's strings aren't POSIX, and stay blocked.
+func shellCString(words []Word) (string, bool) {
+	i := lead(words)
+	if i >= len(words) || !words[i].literal || !shells[baseName(words[i].Value)] {
+		return "", false
+	}
+	args := words[i+1:]
+	if wrap, _ := shellMode(values(args)); !wrap {
+		return "", false
+	}
+	at := cString(values(args))
+	if at < 0 || !args[at].literal {
+		return "", false
+	}
+	return args[at].Value, true
+}
+
 // shellHeredocs parses seg's heredocs as commands when a shell in it reads
 // them (bash <<EOF, cat <<EOF | sh), past any wrapper (sudo bash <<EOF),
 // or a root shell does (sudo -s <<EOF).
@@ -418,6 +441,21 @@ func (c *collector) call(src string, p *syntax.Stmt, call *syntax.CallExpr) Call
 	}
 	if cmd, ok := flockString(cl.Words); ok {
 		c.parse(cmd, c.depth+1)
+	}
+	if cmd, ok := shellCString(cl.Words); ok {
+		// A child shell: a cd in its string moves nothing after the call.
+		// The cwd walk doesn't follow a cd inside a subshell, so a string
+		// that moves stays blocked, though its rules still run.
+		from := len(c.segs)
+		c.subshell++
+		c.parse(cmd, c.depth+1)
+		c.subshell--
+		cl.shellString = !slices.ContainsFunc(c.segs[from:], func(s Segment) bool {
+			return slices.ContainsFunc(s.Calls, func(inner Call) bool {
+				i := lead(inner.Words)
+				return i < len(inner.Words) && movesDir(baseName(inner.Words[i].Value))
+			})
+		})
 	}
 	if action, readable, ok := trapAction(cl.Words); ok {
 		c.traps = append(c.traps, action)

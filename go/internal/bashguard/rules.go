@@ -2,11 +2,13 @@ package bashguard
 
 import (
 	"maps"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/classify"
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/layout"
 	"github.com/ku5ic/claude-kit/go/internal/weaken"
@@ -25,6 +27,9 @@ type command struct {
 	// assigns are the VAR=value words the command runs with: its own, and
 	// an env wrapper's before its name.
 	assigns []string
+	// shellString is true when the parser read the shell's -c string as
+	// commands (Call.shellString), so its rules already ran on them.
+	shellString bool
 }
 
 func (c *command) block(reason, rule string) error { return c.st.h.Block(reason, rule) }
@@ -36,28 +41,59 @@ func shortCluster(a, letters string) bool {
 }
 
 // readsSensitive blocks when any of paths, resolved against the cwd, is a
-// credential file. nil when none is, or when sensitive-read is disabled, so
-// the caller carries on.
+// credential file outside scratch. nil when none is, or when sensitive-read
+// is disabled, so the caller carries on.
 func (c *command) readsSensitive(paths []string) error {
 	for _, p := range paths {
-		if guard.IsSensitive(c.st.cfg, c.st.home, c.st.abs(unquote(p))) {
+		if guard.SensitiveOutsideScratch(c.st.cfg, c.st.h.Paths, c.st.home, c.st.abs(unquote(p))) {
 			return c.block("reading a sensitive file is not permitted", "sensitive-read")
 		}
 	}
 	return nil
 }
 
-// globsSensitive blocks a read of an unquoted glob that names a credential
-// file by name (cat .e*), whatever the directory holds: the shell expands
-// it into paths the guard never sees.
+// globsSensitive blocks a read of an unquoted glob the shell expands into a
+// credential file. Where the guard knows the cwd and can expand the glob
+// itself, the files it matches now decide (cat docs/adr/*12* reads no
+// *.p12); otherwise a glob that names one blocks (cat .e*).
 func (c *command) globsSensitive(ops []string) error {
 	for _, a := range c.args {
-		if !a.literal && strings.ContainsAny(a.Value, "*?[{") && slices.Contains(ops, a.Value) &&
-			guard.SearchesSensitive(c.st.cfg, c.st.home, "", a.Value, false) {
+		if a.literal || !strings.ContainsAny(a.Value, "*?[{") || !slices.Contains(ops, a.Value) {
+			continue
+		}
+		hits, ok := c.st.expandGlob(a.Value)
+		if ok && !slices.ContainsFunc(hits, func(p string) bool {
+			return guard.SensitiveOutsideScratch(c.st.cfg, c.st.h.Paths, c.st.home, p)
+		}) {
+			continue
+		}
+		if ok || guard.SearchesSensitive(c.st.cfg, c.st.home, "", a.Value, false) {
 			return c.block("reading a sensitive file is not permitted", "sensitive-read")
 		}
 	}
 	return nil
+}
+
+// expandGlob is the files glob matches from the cwd, as the shell would
+// expand it. ok is false when the guard can't do that: the cwd is lost or
+// isn't a directory it can read (cd "$X"), or the glob holds an expansion,
+// a zsh ** or qualifier, or too many {a,b}.
+func (st *state) expandGlob(glob string) (hits []string, ok bool) {
+	if st.lost || !fsx.IsDir(st.cwd) || strings.ContainsAny(glob, "$`()~") || strings.Contains(glob, "**") {
+		return nil, false
+	}
+	alts, ok := guard.Braces(glob)
+	if !ok {
+		return nil, false
+	}
+	for _, alt := range alts {
+		matches, err := filepath.Glob(st.abs(alt))
+		if err != nil {
+			return nil, false
+		}
+		hits = append(hits, matches...)
+	}
+	return hits, true
 }
 
 func (c *command) values() []string {
@@ -274,12 +310,28 @@ func (c *command) check() error {
 // commandChecks are the checks for one command name; any other name gets
 // the shell, mkfs.*, and package-manager checks.
 var commandChecks = map[string]func(*command) error{
-	"cd":     func(c *command) error { c.cd(); return nil },
-	"pushd":  func(c *command) error { c.cd(); return nil },
-	"popd":   func(c *command) error { c.cd(); return nil },
-	"rm":     (*command).rm,
-	"rsync":  (*command).rsync,
-	"dd":     (*command).diskTool,
+	"cd":    func(c *command) error { c.cd(); return nil },
+	"pushd": func(c *command) error { c.cd(); return nil },
+	"popd":  func(c *command) error { c.cd(); return nil },
+	"rm":    (*command).rm,
+	"rsync": (*command).rsync,
+	"dd": func(c *command) error {
+		// dd with no of= writes only to stdout, as in dd if=bin skip=N | strings,
+		// so it's a reader of its if= file.
+		var ins []string
+		for _, v := range c.values() {
+			if in, ok := strings.CutPrefix(v, "if="); ok {
+				ins = append(ins, in)
+			}
+		}
+		if err := c.readsSensitive(ins); err != nil {
+			return err
+		}
+		if slices.ContainsFunc(c.values(), func(v string) bool { return strings.HasPrefix(v, "of=") }) {
+			return c.diskTool()
+		}
+		return nil
+	},
 	"shred":  (*command).diskTool,
 	"wipefs": (*command).diskTool,
 	"mkfs":   (*command).diskTool,
@@ -435,12 +487,48 @@ func (c *command) cd() {
 // interpreterC blocks sh -c and its kin: the command string never surfaces
 // as its own Bash tool call, bypassing the allow list. A -c in any
 // short-option cluster before the script counts, past the values that -o,
-// +O, --rcfile, and their kin take.
+// +O, --rcfile, and their kin take. A POSIX shell's literal string passes:
+// the parser read it as commands, so every rule checked it (shellCString).
 func (c *command) interpreterC() error {
-	if wrap, _ := shellMode(c.values()); wrap {
+	if wrap, _ := shellMode(c.values()); wrap && !c.shellString {
 		return c.block(wrapReason, "interpreter-c-wrap")
 	}
 	return nil
+}
+
+// cString is the index in values of the string a shell's -c runs, or -1:
+// no -c, nothing after it, or a -c clustered with -o or -O (-oc), where
+// which word is the string isn't clear.
+func cString(values []string) int {
+	wrap := false
+	for i := 0; i < len(values); i++ {
+		v := values[i]
+		switch {
+		case v == "--":
+			if wrap && i+1 < len(values) {
+				return i + 1
+			}
+			return -1
+		case v == "-":
+			return -1
+		case !strings.HasPrefix(v, "-") && !strings.HasPrefix(v, "+"):
+			if wrap {
+				return i
+			}
+			return -1
+		case v == "--rcfile" || v == "--init-file":
+			i++ // its file, not an option
+		case strings.HasPrefix(v, "--"):
+		case v[0] == '-' && strings.Contains(v, "c"):
+			if strings.ContainsAny(v, "oO") {
+				return -1
+			}
+			wrap = true
+		case strings.ContainsAny(v[len(v)-1:], "oO"):
+			i++ // -o pipefail, +O extglob: the option's name
+		}
+	}
+	return -1
 }
 
 var wrapReason = "interpreter -c wrapping bypasses the permission allow list\n" + layout.KV("do", "run the command directly as a Bash tool call")

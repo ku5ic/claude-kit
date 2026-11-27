@@ -4,7 +4,9 @@
 package guard
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -91,6 +93,50 @@ func anyCase(glob string) string {
 // grep -r or a chained rg, catching it means walking the tree.
 func SearchesSensitive(cfg *config.Config, home, root, glob string, holds bool) bool {
 	return root != "" && matchSensitive(cfg, home, root, holds) || namesSensitive(cfg, glob)
+}
+
+// SearchFindsSensitive is SearchesSensitive, but a glob that names a
+// credential file counts only when a file under root it picks out is one:
+// a Grep for *12* over docs/ reads no *.p12 when docs/ holds none. A glob
+// holding a "/", which rg matches against the whole path, or a walk past
+// walkLimit entries keeps the name test.
+func SearchFindsSensitive(cfg *config.Config, home, root, glob string, holds bool) bool {
+	if root != "" && matchSensitive(cfg, home, root, holds) {
+		return true
+	}
+	if !namesSensitive(cfg, glob) {
+		return false
+	}
+	alts, ok := Braces(glob)
+	if !ok || root == "" || strings.Contains(glob, "/") {
+		return true
+	}
+	found, seen := false, 0
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if seen++; err != nil || seen > walkLimit {
+			return errWalkLimit
+		}
+		if !d.IsDir() && slices.ContainsFunc(alts, func(alt string) bool { return Glob(alt, d.Name()) }) && IsSensitive(cfg, home, path) {
+			found = true
+			return fs.SkipAll
+		}
+		return nil
+	})
+	return found || err != nil
+}
+
+// walkLimit caps the entries SearchFindsSensitive reads, inside the hook's
+// timeout, which fails open.
+const walkLimit = 20000
+
+var errWalkLimit = errors.New("walk limit")
+
+// SensitiveOutsideScratch is IsSensitive for a path outside every scratch
+// root: a fixture .env or .pem a test wrote under scratch holds no
+// credential. Its symlinks resolve first, so a scratch link to
+// ~/.ssh/id_rsa stays sensitive.
+func SensitiveOutsideScratch(cfg *config.Config, paths config.Paths, home, path string) bool {
+	return IsSensitive(cfg, home, path) && !paths.IsScratch(fsx.PhysicalPath(ExpandHome(home, path)))
 }
 
 // matchSensitive is IsSensitive past the quotes and ~, and with holds, also
