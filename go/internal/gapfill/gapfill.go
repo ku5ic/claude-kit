@@ -25,6 +25,7 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
+	"github.com/ku5ic/claude-kit/go/internal/proc"
 	"github.com/ku5ic/claude-kit/go/internal/sources"
 )
 
@@ -401,13 +402,7 @@ func classifyAll(ctx context.Context, cfg *config.Config, o Options, reqs []requ
 				errs[i] = errNotAsked
 				return
 			}
-			// A panic here would exit 2, which Claude Code reads as a
-			// block; the hook's recover can't reach this goroutine.
-			defer func() {
-				if r := recover(); r != nil {
-					errs[i] = fmt.Errorf("classifier panicked: %v", r)
-				}
-			}()
+			defer proc.Recover(func(v any) { errs[i] = fmt.Errorf("classifier panicked: %v", v) })
 			resps[i], usages[i], errs[i] = classify(ctx, cfg, o, req)
 		})
 	}

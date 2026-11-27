@@ -131,13 +131,7 @@ func holdsAnother(dir string, gates []enforce.Gate) bool {
 // guarded runs g with a recover, so a crash skips it and the gates queued
 // after it in its directory still run.
 func (r *runner) guarded(g enforce.Gate) {
-	// A panic here would exit 2, which Claude Code reads as a block; the
-	// hook's recover can't reach this goroutine.
-	defer func() {
-		if recover() != nil {
-			r.skip(g.Label, "crashed; failing open")
-		}
-	}()
+	defer proc.Recover(func(v any) { r.skip(g.Label, fmt.Sprintf("crashed (%v); failing open", v)) })
 	r.gate(g)
 }
 

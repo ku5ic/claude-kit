@@ -1,14 +1,16 @@
 // Package proc runs subprocesses under a deadline, so a hung tool can't
-// outlast the hook or command that started it. It imports nothing from the
-// kit.
+// outlast the hook or command that started it, and keeps a panic in a
+// hook's goroutine from exiting 2. It imports nothing from the kit.
 package proc
 
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"os/signal"
+	"runtime/debug"
 	"syscall"
 	"time"
 )
@@ -22,6 +24,21 @@ type Cmd struct {
 	ctx           context.Context
 	cancel        context.CancelFunc
 	interruptible bool
+}
+
+// Recover, deferred first in a goroutine a hook starts, keeps a panic there
+// from exiting 2, which Claude Code reads as a block: the hook's own
+// recover can't reach the goroutine. It prints the panic and its stack to
+// stderr, then hands the value to onPanic, the caller's fail-open answer.
+func Recover(onPanic func(any)) {
+	v := recover()
+	if v == nil {
+		return
+	}
+	fmt.Fprintf(os.Stderr, "kit: a goroutine panicked, failing open: %v\n%s", v, debug.Stack())
+	if onPanic != nil {
+		onPanic(v)
+	}
 }
 
 // Command is name with args, killed once timeout passes.

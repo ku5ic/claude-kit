@@ -123,10 +123,7 @@ func settleAll(root string, refs []string, deadline time.Time) map[string]verdic
 		}
 		seen[r] = true
 		wg.Go(func() {
-			// A panic here would exit 2, which Claude Code reads as a
-			// block; the hook's recover can't reach this goroutine. The ref
-			// stays unchecked.
-			defer func() { _ = recover() }()
+			defer proc.Recover(nil) // the ref stays unchecked
 			slots <- struct{}{}
 			defer func() { <-slots }()
 			if time.Now().After(deadline) {

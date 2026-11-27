@@ -139,9 +139,7 @@ func (l *Lookups) FirstMissing(manager string, operands []string) string {
 	var wg sync.WaitGroup
 	for i, p := range operands {
 		wg.Go(func() {
-			// A panic here would exit 2, which Claude Code reads as a
-			// block; the hook's recover can't reach this goroutine.
-			defer func() { _ = recover() }()
+			defer proc.Recover(nil) // the package counts as found
 			missing[i] = l.Missing(manager, p)
 		})
 	}

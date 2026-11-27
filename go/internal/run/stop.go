@@ -10,6 +10,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/enforce"
 	"github.com/ku5ic/claude-kit/go/internal/git"
+	"github.com/ku5ic/claude-kit/go/internal/proc"
 )
 
 // Checked is one Stop run: a line per gate for kit explain stop, the short
@@ -49,13 +50,7 @@ func Files(p enforce.Plan, base func() *Base, cacheDir string, timeout time.Dura
 			wg.Go(func() {
 				slots <- struct{}{}
 				defer func() { <-slots }()
-				// A panic here would exit 2, which Claude Code reads as a
-				// block; the hook's recover can't reach this goroutine.
-				defer func() {
-					if recover() != nil {
-						results[i] = outcome{crashed: true}
-					}
-				}()
+				defer proc.Recover(func(any) { results[i] = outcome{crashed: true} })
 				left, ok := limit(timeout, deadline)
 				if !ok {
 					results[i] = outcome{outOfTime: true}

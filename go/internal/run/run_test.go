@@ -378,3 +378,16 @@ func TestDeadCodeRunsOnlyWithAChange(t *testing.T) {
 		})
 	}
 }
+
+// A gate that panics in its goroutine is skipped with the panic named,
+// not left to exit 2, which Claude Code reads as a block.
+func TestAGateThatPanicsIsSkippedWithItsPanic(t *testing.T) {
+	t.Parallel()
+	var out strings.Builder
+	r := &runner{reporter: reporter{report: &out}} // base is nil, so a {base} body panics
+	r.guarded(enforce.Gate{Label: "boom", Body: "echo {base}"})
+	has(t, out.String(), "SKIP boom (crashed (")
+	if r.res.Unchecked != 1 {
+		t.Errorf("unchecked = %d, want 1", r.res.Unchecked)
+	}
+}

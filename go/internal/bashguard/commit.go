@@ -72,14 +72,8 @@ func CheckCommit(h *hook.Hook) error {
 		ok <- true
 	} else {
 		go func() {
-			// A panic here would exit 2, which Claude Code reads as a
-			// block; the hook's recover can't reach this goroutine. A
-			// failed read lets the commit through, as the hook would.
-			defer func() {
-				if recover() != nil {
-					ok <- true
-				}
-			}()
+			// A failed read lets the commit through, as the hook would.
+			defer proc.Recover(func(any) { ok <- true })
 			ok <- approved(h.Payload.String(hook.KeyTranscriptPath), subjects)
 		}()
 	}

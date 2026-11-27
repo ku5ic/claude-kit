@@ -133,3 +133,22 @@ func TestOutputWithinTheDeadline(t *testing.T) {
 		t.Errorf("out %q, err %v, timed out %v", out, err, cmd.TimedOut())
 	}
 }
+
+// A panic in a goroutine a hook starts reaches the caller's fallback, with
+// its value, instead of exiting 2.
+func TestRecoverHandsAGoroutinesPanicToItsFallback(t *testing.T) {
+	t.Parallel()
+	got := make(chan any, 1)
+	go func() {
+		defer Recover(func(v any) { got <- v })
+		panic("boom")
+	}()
+	select {
+	case v := <-got:
+		if v != "boom" {
+			t.Errorf("fallback got %v, want boom", v)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the fallback never ran")
+	}
+}
