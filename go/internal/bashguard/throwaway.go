@@ -283,7 +283,7 @@ func lands(h *hook.Hook, segs []Segment, calls []commit, c commit) bool {
 	if !literal || !fsx.IsDir(c.repo) {
 		return false
 	}
-	gitDir, err := git.Line(c.repo, "rev-parse", "--absolute-git-dir")
+	gitDir, err := git.GitDir(c.repo)
 	if err != nil {
 		return false
 	}

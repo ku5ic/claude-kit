@@ -44,13 +44,10 @@ func (c *command) packageManager() error {
 	if rest := strings.TrimSpace(c.rest); rest == "--version" || rest == "-v" {
 		return nil
 	}
-	// Found by walking up for .git, not git rev-parse: this runs for every
-	// command the switch doesn't name, and an exec costs more than the check.
-	dotGit := fsx.FindUp(c.st.cwd, "/", ".git")
-	if dotGit == "" {
+	root := repoRoot(c.st.cwd)
+	if root == "" {
 		return nil
 	}
-	root := fsx.PhysicalPath(filepath.Dir(dotGit))
 	facts, ok := c.st.managers[root]
 	if !ok {
 		facts = gapfill.Managers(c.st.cfg, root, c.st.h.Paths.CacheDir())
@@ -183,4 +180,14 @@ func rival(m gapfill.Manager, name string) string {
 		lines = append(lines, layout.KV("dir", strings.Join(m.DirFlags, ", ")))
 	}
 	return strings.Join(lines, "\n")
+}
+
+// repoRoot is the repo holding cwd, found by walking up for .git along the
+// physical path, as git walks it, "" outside one. Not git rev-parse: this
+// runs for every command the switch doesn't name, and an exec costs more.
+func repoRoot(cwd string) string {
+	if dotGit := fsx.FindUp(fsx.PhysicalPath(cwd), "/", ".git"); dotGit != "" {
+		return filepath.Dir(dotGit)
+	}
+	return ""
 }

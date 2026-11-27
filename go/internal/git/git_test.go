@@ -278,17 +278,20 @@ func TestADeadlineCutsAGitCall(t *testing.T) {
 	}
 }
 
-// One process reads every blob; a missing one has no entry, and an empty
-// file or a name with spaces reads as written.
+// One process reads every blob; a missing one and a tree have no entry, an
+// empty file or a name with spaces reads as written, and one with a newline,
+// which the batch can't carry, is read on its own.
 func TestBlobsReadsSeveralInOneCall(t *testing.T) {
 	t.Parallel()
 	dir := repo(t)
 	testutil.Put(t, dir, "b c.txt", "two\nlines\n")
 	testutil.Put(t, dir, "empty.txt", "")
+	testutil.Put(t, dir, "sub/x.txt", "x\n")
+	testutil.Put(t, dir, "n\nl.txt", "nl\n")
 	testutil.Git(t, dir, "add", ".")
 	testutil.Git(t, dir, "-c", "user.email=t@t", "-c", "user.name=t", "-c", "commit.gpgsign=false", "commit", "-q", "-m", "more")
-	got := git.Blobs(dir, []string{"HEAD:a.txt", "HEAD:nope.txt", "HEAD:b c.txt", "HEAD:empty.txt"})
-	want := map[string]string{"HEAD:a.txt": "one\n", "HEAD:b c.txt": "two\nlines\n", "HEAD:empty.txt": ""}
+	got := git.Blobs(dir, []string{"HEAD:a.txt", "HEAD:nope.txt", "HEAD:b c.txt", "HEAD:empty.txt", "HEAD:sub", "HEAD:n\nl.txt"})
+	want := map[string]string{"HEAD:a.txt": "one\n", "HEAD:b c.txt": "two\nlines\n", "HEAD:empty.txt": "", "HEAD:n\nl.txt": "nl\n"}
 	if len(got) != len(want) {
 		t.Fatalf("Blobs = %q, want %q", got, want)
 	}
@@ -316,5 +319,26 @@ func TestBlobsReadsEachWhenTheBatchFails(t *testing.T) {
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	if got := git.Blobs(dir, []string{"HEAD:a.txt", "HEAD:nope.txt"}); len(got) != 1 || got["HEAD:a.txt"] != "one\n" {
 		t.Errorf("Blobs = %q, want only HEAD:a.txt", got)
+	}
+}
+
+// A batch whose output breaks, a header or size git didn't write or a body
+// cut short, falls back to one read per spec from that spec on.
+func TestBlobsReadsEachPastABrokenBatch(t *testing.T) {
+	dir := repo(t)
+	real, err := exec.LookPath("git")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, out := range map[string]string{"bad header": `garbage\n`, "bad size": `0000 blob x\n`, "short body": `0000 blob 100\nshort`} {
+		bin := t.TempDir()
+		script := "#!/bin/sh\ncase \"$*\" in *--batch*) printf '" + out + "'; exit 0;; esac\nexec " + real + " \"$@\"\n"
+		if err := os.WriteFile(filepath.Join(bin, "git"), []byte(script), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+		if got := git.Blobs(dir, []string{"HEAD:a.txt", "HEAD:nope.txt"}); len(got) != 1 || got["HEAD:a.txt"] != "one\n" {
+			t.Errorf("%s: Blobs = %q, want only HEAD:a.txt", name, got)
+		}
 	}
 }

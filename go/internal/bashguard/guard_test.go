@@ -1081,3 +1081,23 @@ func wantRm(t *testing.T, cwd, cmd, want string) {
 		t.Errorf("status %d, got %s want %s: %s\n%s", r.Status, got, want, cmd, r.Output)
 	}
 }
+
+// A package command's repo is the one git finds: the walk up for .git
+// follows the physical path, as git does, not the link's parents.
+func TestRepoRootWalksThePhysicalPath(t *testing.T) {
+	t.Parallel()
+	dir := testutil.Physical(t, t.TempDir())
+	a, b := filepath.Join(dir, "a"), filepath.Join(dir, "b")
+	testutil.Mkdir(t, filepath.Join(a, ".git"))
+	testutil.Mkdir(t, filepath.Join(b, ".git"))
+	testutil.Mkdir(t, filepath.Join(b, "sub"))
+	if err := os.Symlink(filepath.Join(b, "sub"), filepath.Join(a, "link")); err != nil {
+		t.Fatal(err)
+	}
+	if got := repoRoot(filepath.Join(a, "link")); got != b {
+		t.Errorf("repoRoot through the link = %q, want %q", got, b)
+	}
+	if got := repoRoot(dir); got != "" {
+		t.Errorf("repoRoot outside a repo = %q, want none", got)
+	}
+}

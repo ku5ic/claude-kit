@@ -225,13 +225,18 @@ func Status(dir string, allUntracked bool) ([]Change, error) {
 	return changes, nil
 }
 
+// GitDir is the absolute git dir of the repo holding dir, as git finds it.
+func GitDir(dir string) (string, error) {
+	return Line(dir, "rev-parse", "--absolute-git-dir")
+}
+
 // Snapshot is a tree object holding dir's working tree as it is now,
 // tracked and untracked files alike, ignored ones left out: two snapshots
 // are equal only when no such file's content changed. It stages into a temp
 // index seeded from the real one, so only changed files are rehashed, and
 // the real index is never touched.
 func Snapshot(dir string) (string, error) {
-	gitDir, err := Line(dir, "rev-parse", "--absolute-git-dir")
+	gitDir, err := GitDir(dir)
 	if err != nil {
 		return "", err
 	}
