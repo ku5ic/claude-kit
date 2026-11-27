@@ -1,0 +1,281 @@
+package bashguard
+
+import (
+	"bytes"
+	"encoding/csv"
+	"encoding/json"
+	"math"
+	"os"
+	"regexp"
+	"slices"
+	"strings"
+
+	"github.com/ku5ic/claude-kit/go/internal/transcript"
+)
+
+// approved reports whether the user approved these commits: the current
+// prompt asks for a commit, or an assistant reply before it showed every
+// subject, so the user answered the messages.
+func approved(path string, subjects []string) bool {
+	if path == "" || slices.Contains(subjects, "") {
+		return false
+	}
+	// The current prompt sits in the transcript's tail; parsing the whole
+	// session is needed only to look for an earlier reply showing the
+	// subjects, and only when the file holds every one of them.
+	// An AskUserQuestion pick approves one commit; a command running
+	// several asks.
+	one := len(subjects) == 1
+	turnInTail, replied := false, false
+	if tail, err := transcript.Tail(path, math.MaxInt); err == nil {
+		for i, e := range slices.Backward(tail) {
+			if !e.StartsTurn() {
+				continue
+			}
+			turnInTail = true
+			reply := lastReply(tail[:i])
+			if e.FromUser() && requests(e.PromptText(), reply) || one && pickedCommit(tail[i+1:]) {
+				return true
+			}
+			// A reply the tail cut off is left to the whole parse below.
+			replied = reply != ""
+			break
+		}
+	}
+	// One read of the whole file serves the subject test and the parse.
+	data, err := os.ReadFile(path)
+	if err != nil || replied && slices.ContainsFunc(subjects, func(s string) bool { return !mayHold(data, s) }) {
+		return false
+	}
+	var earlier, current strings.Builder
+	prompt, reply, before := "", "", ""
+	// The entries of a turn that started before the tail, for its picks.
+	var turn []transcript.Entry
+	_ = transcript.EachIn(data, func(e transcript.Entry) {
+		if e.StartsTurn() {
+			turn = nil
+		} else if one && !turnInTail {
+			turn = append(turn, e)
+		}
+		switch {
+		case e.StartsTurn():
+			earlier.WriteString(current.String())
+			current.Reset()
+			prompt, before = "", reply
+			if e.FromUser() {
+				prompt = e.PromptText()
+			}
+		case e.Type == "assistant":
+			current.WriteString(e.PromptText() + "\n")
+			if text := strings.TrimSpace(e.PromptText()); text != "" {
+				reply = text
+			}
+		}
+	})
+	if requests(prompt, before) || pickedCommit(turn) {
+		return true
+	}
+	text := earlier.String()
+	return !slices.ContainsFunc(subjects, func(s string) bool { return !shown(text, s) })
+}
+
+// bareYes is a prompt that only says yes.
+var bareYes = regexp.MustCompile(`(?i)^\s*(yes|y|yep|yeah|yup|sure|ok|okay|go|go ahead|do it|please do)\s*[.!]*\s*$`)
+
+// commitQuestion is a reply's last line when it asks whether to commit
+// and shows no message: "Commit step 16?", "Should I commit both?". One
+// that shows a message approves only that message, as shown() reads it.
+var commitQuestion = regexp.MustCompile("(?i)^\\W*(?:(?:should|shall|can) i\\s+|want me to\\s+)?commit\\b[^?`]*\\?\\s*$")
+
+// orWord is a question's "or": "Commit step 4, or run the gate first?"
+// offers two things, and a yes picks neither.
+var orWord = regexp.MustCompile(`(?i)\bor\b`)
+
+// requests is whether prompt asks for a commit: in its own words, or as a
+// bare yes to reply, the text before it, when reply's last line asks to
+// commit and nothing else.
+func requests(prompt, reply string) bool {
+	if asksForCommit(prompt) {
+		return true
+	}
+	lines := strings.Split(strings.TrimSpace(reply), "\n")
+	last := lastQuestion(lines[len(lines)-1])
+	return bareYes.MatchString(prompt) && commitQuestion.MatchString(last) && !orWord.MatchString(last)
+}
+
+// lastQuestion is line's last sentence when a statement ends before it:
+// "Tests pass. Commit it?" is "Commit it?". After another question the
+// line stays whole, since a yes may answer that one.
+func lastQuestion(line string) string {
+	line = strings.TrimSpace(line)
+	body := strings.TrimSuffix(line, "?")
+	if i := lastStopIndex(body, ".!?"); i >= 0 && body[i] != '?' {
+		return line[i+1:]
+	}
+	return line
+}
+
+// recommended is the marker Claude puts on the option it suggests.
+var recommended = regexp.MustCompile(`\s*\(Recommended\)\s*$`)
+
+// pickedCommit is whether the user, in entries, the turn so far, answered
+// an AskUserQuestion with a commit, and no commit has run since: one
+// answer approves one commit. A question the user rejected withdraws it,
+// and a commit that failed doesn't spend it. The current call's tool_use is
+// in the transcript when its hook runs, so a second commit with no result
+// yet is a sibling sent beside it, and the pick covers neither.
+func pickedCommit(entries []transcript.Entry) bool {
+	asks, pending := map[string]map[string]question{}, map[string]bool{}
+	picked := false
+	for _, e := range entries {
+		for _, b := range e.ToolUses() {
+			switch {
+			case b.Name == "AskUserQuestion":
+				asks[b.ID] = offered(b.RawInput)
+			case b.Name == "Bash" && isCommit(b.Input.Command):
+				pending[b.ID] = true
+			}
+		}
+		for _, b := range e.Blocks {
+			switch {
+			case b.Type != "tool_result":
+			case asks[b.ToolUseID] != nil:
+				picked = !b.IsError && commitAnswer(asks[b.ToolUseID], e.ToolUseResult.Answers)
+			case pending[b.ToolUseID]:
+				delete(pending, b.ToolUseID)
+				if !b.IsError {
+					picked = false
+				}
+			}
+		}
+	}
+	return picked && len(pending) <= 1
+}
+
+// isCommit is whether cmd runs git commit, as CheckCommit reads it.
+func isCommit(cmd string) bool {
+	return commitLine.MatchString(cmd) && commitCalls(cmd, "", "")[0].commits(cmd)
+}
+
+// question is an AskUserQuestion's options and whether the user may pick
+// several.
+type question struct {
+	labels []string
+	multi  bool
+}
+
+// offered is an AskUserQuestion input's questions, by their text.
+func offered(input json.RawMessage) map[string]question {
+	var in struct {
+		Questions []struct {
+			Question    string `json:"question"`
+			MultiSelect bool   `json:"multiSelect"`
+			Options     []struct {
+				Label string `json:"label"`
+			} `json:"options"`
+		} `json:"questions"`
+	}
+	// A malformed input leaves no questions, so no pick approves the commit.
+	_ = json.Unmarshal(input, &in)
+	out := map[string]question{}
+	for _, q := range in.Questions {
+		asked := question{multi: q.MultiSelect}
+		for _, o := range q.Options {
+			asked.labels = append(asked.labels, o.Label)
+		}
+		out[q.Question] = asked
+	}
+	return out
+}
+
+// commitAnswer is whether answers, the structured record the harness keeps,
+// answer one of the questions asked with a commit: a picked label or typed
+// text that asks for one now, as a prompt would. The question text, which
+// Claude wrote, is never matched.
+func commitAnswer(asked map[string]question, answers map[string]string) bool {
+	for text, answer := range answers {
+		q, ok := asked[text]
+		if !ok {
+			continue
+		}
+		for _, pick := range picks(q, answer) {
+			if asksForCommit(recommended.ReplaceAllString(pick, "")) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// picks is answer split into what the user chose: a multi-select's labels,
+// which the harness joins with ", " and quotes when one holds a comma, or
+// the single label or typed text. An answer whose parts aren't all labels
+// is typed text, read whole: a comma inside it doesn't end a negation.
+func picks(q question, answer string) []string {
+	if !q.multi || slices.Contains(q.labels, answer) {
+		return []string{answer}
+	}
+	r := csv.NewReader(strings.NewReader(answer))
+	r.TrimLeadingSpace, r.LazyQuotes = true, true
+	fields, err := r.Read()
+	if err != nil || slices.ContainsFunc(fields, func(f string) bool { return !slices.Contains(q.labels, f) }) {
+		return []string{answer}
+	}
+	return fields
+}
+
+// lastReply is the text of the last assistant entry in entries that has
+// any, "" for none.
+func lastReply(entries []transcript.Entry) string {
+	for _, e := range slices.Backward(entries) {
+		if e.Type == "assistant" {
+			if text := strings.TrimSpace(e.PromptText()); text != "" {
+				return text
+			}
+		}
+	}
+	return ""
+}
+
+// mayHold is whether data, a JSONL transcript, could hold subject in some
+// reply: as written, or JSON-escaped ("fix: \"x\"").
+func mayHold(data []byte, subject string) bool {
+	if bytes.Contains(data, []byte(subject)) {
+		return true
+	}
+	var b bytes.Buffer
+	enc := json.NewEncoder(&b)
+	enc.SetEscapeHTML(false)
+	if enc.Encode(subject) != nil {
+		return true
+	}
+	escaped := bytes.TrimSuffix(b.Bytes(), []byte("\n"))
+	return bytes.Contains(data, escaped[1:len(escaped)-1])
+}
+
+// lineMarker is a Markdown marker opening a line: a bullet, a quote, a
+// heading, or a numbered item.
+var lineMarker = regexp.MustCompile(`^(?:[-*+>#]+|\d+[.)])\s*`)
+
+// shown is whether text showed subject as a message: a backticked span, or
+// a line holding only it (in a fence, a list item, a quote, or bold). A
+// subject inside a sentence ("wip" in "wipe") isn't a shown message.
+func shown(text, subject string) bool {
+	if strings.Contains(text, "`"+subject+"`") {
+		return true
+	}
+	for line := range strings.Lines(text) {
+		// Each marker off in turn: a subject may itself open with one ("1.2 notes").
+		for line = strings.TrimSpace(line); ; {
+			if line == subject || strings.Trim(line, "*_\"'") == subject {
+				return true
+			}
+			m := lineMarker.FindString(line)
+			if m == "" {
+				break
+			}
+			line = line[len(m):]
+		}
+	}
+	return false
+}

@@ -219,7 +219,17 @@ func EachMatching(path string, keep func(line []byte) bool, fn func(Entry)) erro
 		return err
 	}
 	defer f.Close()
-	scanner := bufio.NewScanner(f)
+	return eachLine(f, keep, fn)
+}
+
+// EachIn is Each over data, a transcript already read.
+func EachIn(data []byte, fn func(Entry)) error {
+	return eachLine(bytes.NewReader(data), func([]byte) bool { return true }, fn)
+}
+
+// eachLine is EachMatching over r.
+func eachLine(r io.Reader, keep func(line []byte) bool, fn func(Entry)) error {
+	scanner := bufio.NewScanner(r)
 	scanner.Buffer(make([]byte, 1024*1024), 64*1024*1024)
 	for n := 1; scanner.Scan(); n++ {
 		if !keep(scanner.Bytes()) {
