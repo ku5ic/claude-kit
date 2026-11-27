@@ -80,12 +80,15 @@ func (c *command) globsSensitive(ops []string) error {
 // expandGlob is every file glob could match from the cwd, whatever the
 // shell's options: names compare in any case and dotfiles count, so
 // nocaseglob, CASE_GLOB, and dotglob can only shrink what the shell
-// expands. ok is false when the guard can't do that: the cwd is lost or
-// isn't a directory it can read (cd "$X"), the glob holds an expansion, a
-// zsh ** or qualifier, too many {a,b}, a bracket, whose classes differ
-// between shells ([!x], [[:alpha:]]), or a wildcard before its last "/".
+// expands. A name holding a zsh extendedglob operator (# ^ ~, which a
+// .zshrc can turn on) counts as *, any file in its directory, since the
+// guard doesn't read them. ok is false when the guard can't do that: the
+// cwd is lost or isn't a directory it can read (cd "$X"), the glob starts
+// at ~ or holds an expansion, a zsh ** or qualifier, too many {a,b}, a
+// bracket, whose classes differ between shells ([!x], [[:alpha:]]), or a
+// wildcard or extendedglob operator before its last "/".
 func (st *state) expandGlob(glob string) (hits []string, ok bool) {
-	if st.lost || !fsx.IsDir(st.cwd) || strings.ContainsAny(glob, "$`()~[") || strings.Contains(glob, "**") {
+	if st.lost || !fsx.IsDir(st.cwd) || strings.HasPrefix(glob, "~") || strings.ContainsAny(glob, "$`()[") || strings.Contains(glob, "**") {
 		return nil, false
 	}
 	alts, ok := guard.Braces(glob)
@@ -94,8 +97,11 @@ func (st *state) expandGlob(glob string) (hits []string, ok bool) {
 	}
 	for _, alt := range alts {
 		dir, base := filepath.Split(st.abs(alt))
-		if strings.ContainsAny(dir, "*?") {
+		if strings.ContainsAny(dir, "*?#^~") {
 			return nil, false
+		}
+		if strings.ContainsAny(base, "#^~") {
+			base = "*"
 		}
 		entries, err := os.ReadDir(dir)
 		if errors.Is(err, fs.ErrNotExist) {
