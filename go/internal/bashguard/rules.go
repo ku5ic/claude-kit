@@ -62,8 +62,7 @@ func zshOperator(word string) bool {
 	if strings.ContainsAny(word, "#^") {
 		return true
 	}
-	i := strings.LastIndex(word, "~")
-	return i > 0 && i < len(word)-1
+	return len(word) > 2 && strings.Contains(word[1:len(word)-1], "~")
 }
 
 // globsSensitive blocks a read of an unquoted glob the shell expands into a

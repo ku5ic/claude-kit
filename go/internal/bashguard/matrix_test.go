@@ -396,6 +396,7 @@ func TestGuardBashParsing(t *testing.T) {
 		probe("block", `cat g/.e#nv`)
 		probe("block", `cat g/.env~x`)
 		probe("pass", `cat g/notes.txt~`)
+		probe("block", `cat g/.env~x~`)
 		probe("block", `cat g/".e"#nv`)
 		probe("pass", `cat empty/"a#b"`)
 		probe("block", `cat g/*`)
