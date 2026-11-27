@@ -6,7 +6,9 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
@@ -305,5 +307,41 @@ func TestFirstMissingFailsOpenOnAPanic(t *testing.T) {
 	var l *Lookups // Missing dereferences it, inside the goroutine
 	if got := l.FirstMissing("pnpm", []string{"react"}); got != "" {
 		t.Errorf("FirstMissing = %q, want none", got)
+	}
+}
+
+// A lookup runs in an empty dir under the kit's cache, never the shared
+// temp dir, where a go.mod or .npmrc anyone left would be read.
+func TestALookupRunsInADirOfItsOwn(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	stub, where := filepath.Join(dir, "lookup"), filepath.Join(dir, "cwd")
+	testutil.FakeTool(t, stub, filepath.Join(dir, "calls"), "pwd -P > "+where+"; echo found")
+	c := config.PackageLookups{Timeout: 2, Ecosystems: map[string]config.PackageLookup{
+		"npm": {Managers: []string{"pnpm"}, Name: `^[a-z0-9][\w.-]*$`, Cmd: []string{stub, "{pkg}"}, Missing: `\bE404\b`},
+	}}
+	l := NewLookups(c, t.TempDir(), t.TempDir())
+	l.CacheDir = testutil.Physical(t, t.TempDir())
+	l.Missing("pnpm", "react")
+	if got := strings.TrimSpace(testutil.Read(t, where)); !strings.HasPrefix(got, l.CacheDir+string(filepath.Separator)) {
+		t.Errorf("the lookup ran in %s, want a dir under %s", got, l.CacheDir)
+	}
+}
+
+// A found package is looked up again once its day is up.
+func TestAFoundPackageIsLookedUpAgainAfterADay(t *testing.T) {
+	t.Parallel()
+	cmd := registry(t, "react")
+	c := config.PackageLookups{Timeout: 2, Ecosystems: map[string]config.PackageLookup{
+		"npm": {Managers: []string{"pnpm"}, Name: `^[a-z0-9][\w.-]*$`, Cmd: cmd, Missing: `\bE404\b`},
+	}}
+	cacheDir := t.TempDir()
+	stale := time.Now().Add(-25 * time.Hour).Format(time.RFC3339Nano)
+	testutil.Write(t, filepath.Join(cacheDir, cache.Packages, "pnpm.json"), `{"react":"`+stale+`"}`)
+	l := NewLookups(c, t.TempDir(), t.TempDir())
+	l.CacheDir = cacheDir
+	l.Missing("pnpm", "react")
+	if calls := strings.Count(testutil.Read(t, filepath.Join(filepath.Dir(cmd[0]), "calls")), "\n"); calls != 1 {
+		t.Errorf("%d lookups, want the stale entry looked up again", calls)
 	}
 }

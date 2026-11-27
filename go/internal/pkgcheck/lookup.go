@@ -81,9 +81,9 @@ func (l *Lookups) globs(cmd []string) []string {
 	}
 	var globs []string
 	bin, err := kittool.Path(cmd[0])
-	if left := time.Until(l.deadline); left > 0 && err == nil {
+	if left, dir := time.Until(l.deadline), l.workDir(); left > 0 && err == nil && dir != "" {
 		c := proc.Command(left, bin, cmd[1:]...)
-		c.Dir = os.TempDir()
+		c.Dir = dir
 		out, _ := c.Output()
 		globs = strings.FieldsFunc(string(out), func(r rune) bool { return r == ',' || r == '\n' })
 	}
@@ -107,7 +107,9 @@ func matchPrefix(glob, target string) bool {
 	return ok
 }
 
-// jsManagers read package.json, where a workspace package is named.
+// jsManagers read package.json, where a workspace package is named. It
+// isn't read from kit.yml: an overlay may file them under another key or
+// split them (00e529a).
 var jsManagers = []string{"npm", "pnpm", "yarn", "bun"}
 
 // workspace is true when a package.json in the repository is named name:
@@ -148,6 +150,21 @@ func (l *Lookups) FirstMissing(manager string, operands []string) string {
 		return operands[i]
 	}
 	return ""
+}
+
+// workDir is the empty dir a lookup runs in: outside the project, so its
+// config runs nothing before the add is approved, and under the kit's cache,
+// whose parents are the user's, so no go.mod or .npmrc left in the shared
+// temp dir is read. The temp dir with no CacheDir, "" when it can't be made.
+func (l *Lookups) workDir() string {
+	if l.CacheDir == "" {
+		return os.TempDir()
+	}
+	dir := filepath.Join(l.CacheDir, cache.Packages, "cwd")
+	if os.MkdirAll(dir, 0o700) != nil {
+		return ""
+	}
+	return dir
 }
 
 // foundFile is where manager's found packages are kept, "" with no
@@ -241,8 +258,8 @@ func (l *Lookups) Missing(manager, operand string) bool {
 // when it fails with output matching missing. A timeout and any other
 // failure are neither.
 func (l *Lookups) lookup(argv []string, name string, missing *regexp.Regexp) (found, absent bool) {
-	left := time.Until(l.deadline)
-	if left <= 0 {
+	left, dir := time.Until(l.deadline), l.workDir()
+	if left <= 0 || dir == "" {
 		return false, false
 	}
 	args := make([]string, len(argv))
@@ -254,7 +271,7 @@ func (l *Lookups) lookup(argv []string, name string, missing *regexp.Regexp) (fo
 		return false, false
 	}
 	cmd := proc.Command(left, bin, args[1:]...)
-	cmd.Dir = os.TempDir() // outside the project: its config runs nothing before the add is approved
+	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
 	return err == nil, err != nil && !cmd.TimedOut() && missing.Match(out)
 }
