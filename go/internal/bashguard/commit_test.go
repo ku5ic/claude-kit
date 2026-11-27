@@ -500,6 +500,9 @@ func TestGuardCommitInAThrowawayRepoNeedsNoApproval(t *testing.T) {
 		// commit walk up to the project's repo.
 		`git -C ~/.claude/scratch/plain init -q | true && git -C ~/.claude/scratch/plain commit -m "fix: add sums"`,
 		`cd ~/.claude/scratch/plain && git init -q | : && git commit -m "fix: add sums"`,
+		// ! turns a failed init into success, so the && runs the commit.
+		`! git -C ~/.claude/scratch/plain init -q && git -C ~/.claude/scratch/plain commit -m "fix: add sums"`,
+		`cd ~/.claude/scratch/plain && ! git init -q && git commit -m "fix: add sums"`,
 		// A failed cd leaves the shell where it was, and init runs there.
 		`cd ~/.claude/scratch/missing; git init -q && git add -A && git commit -m "fix: add sums"`,
 	} {

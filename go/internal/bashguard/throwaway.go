@@ -240,7 +240,8 @@ func initFirst(segs []Segment, calls []commit, c commit) (int, bool) {
 	for _, init := range calls {
 		// A pipeline exits with its last call's status: "git init | true"
 		// hides a failed init.
-		if init.sub != "init" || init.seg < 0 || init.seg >= c.seg || init.elsewhere || !sameDir(init, c) || len(segs[init.seg].Calls) != 1 {
+		// ! makes a failed init succeed, so the commit runs anyway.
+		if init.sub != "init" || init.seg < 0 || init.seg >= c.seg || init.elsewhere || !sameDir(init, c) || len(segs[init.seg].Calls) != 1 || inverted(segs[init.seg]) {
 			continue
 		}
 		if andChain(segs, init.seg, c.seg) || standalone(segs[init.seg]) && errexit(segs[:init.seg]) {
@@ -295,13 +296,18 @@ func andChain(segs []Segment, from, to int) bool {
 // standalone is true when nothing but ; or a newline follows seg, and no !
 // negates it: set -e stops on its failure there and nowhere else.
 func standalone(seg Segment) bool {
-	if len(seg.Calls) == 0 {
-		return false
-	}
-	start := seg.Calls[0].start
-	if strings.HasPrefix(seg.src[start:], "!") || strings.HasSuffix(strings.TrimRight(seg.src[:start], " \t"), "!") {
+	if len(seg.Calls) == 0 || inverted(seg) {
 		return false
 	}
 	after := strings.TrimLeft(seg.src[seg.end:], " \t")
 	return after == "" || after[0] == ';' && !strings.HasPrefix(after, ";;") || after[0] == '\n'
+}
+
+// inverted is true when a ! opens seg's pipeline, inverting its status.
+func inverted(seg Segment) bool {
+	if len(seg.Calls) == 0 {
+		return false
+	}
+	start := seg.Calls[0].start
+	return strings.HasPrefix(seg.src[start:], "!") || strings.HasSuffix(strings.TrimRight(seg.src[:start], " \t"), "!")
 }
