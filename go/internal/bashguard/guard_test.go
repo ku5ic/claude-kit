@@ -1013,6 +1013,34 @@ func TestRmFollowsOnlyACdThatSurelyMoved(t *testing.T) {
 	}
 }
 
+// rsync deletes like rm -r: --delete in its destination, and
+// --remove-source-files in its sources. Each asks unless that side is
+// scratch, as does an option after an operand, which could hide which
+// word is the destination.
+func TestRsyncDeleteAsksOutsideScratch(t *testing.T) {
+	t.Parallel()
+	dir := testutil.Physical(t, t.TempDir())
+	proj := filepath.Join(dir, "proj")
+	testutil.Mkdir(t, filepath.Join(proj, ".git"))
+	scratch := filepath.Join(proj, ".claude", "scratch")
+	testutil.Mkdir(t, filepath.Join(scratch, "a"))
+	for _, tc := range []struct{ cmd, want string }{
+		{`rsync -a --delete /tmp/e/ go/`, "ask"},
+		{`rsync --del a/ go/`, "ask"},
+		{`rsync -a --delete-after a/ go/`, "ask"},
+		{`rsync --remove-source-files go/ SCR/x`, "ask"},
+		{`rsync -a --delete a/ SCR/x/ --temp-dir SCR`, "ask"},
+		{`rsync -a --delete a/ SCR/x/`, "pass"},
+		{`rsync --remove-source-files SCR/a b`, "pass"},
+		{`rsync -a a b`, "pass"},
+	} {
+		t.Run(tc.cmd, func(t *testing.T) {
+			t.Parallel()
+			wantRm(t, proj, strings.ReplaceAll(tc.cmd, "SCR", scratch), tc.want)
+		})
+	}
+}
+
 // From the kit's own checkout, as a session there runs: bin/kit is the kit,
 // and $PWD is the segment's cwd.
 func TestRmRecursiveOnScratchInTheCheckoutPasses(t *testing.T) {

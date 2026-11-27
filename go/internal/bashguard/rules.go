@@ -278,6 +278,7 @@ var commandChecks = map[string]func(*command) error{
 	"pushd":  func(c *command) error { c.cd(); return nil },
 	"popd":   func(c *command) error { c.cd(); return nil },
 	"rm":     (*command).rm,
+	"rsync":  (*command).rsync,
 	"dd":     (*command).diskTool,
 	"shred":  (*command).diskTool,
 	"wipefs": (*command).diskTool,
@@ -663,6 +664,36 @@ func (c *command) rm() error {
 	}
 	if recursive && (c.st.linksBefore(c.st.at) || !c.st.allScratch(nonOptionsOf(c.args, func(w Word) string { return w.Value }))) {
 		c.st.ask("rm -r deletes a directory tree; confirm the path")
+	}
+	return nil
+}
+
+// rsync asks when it deletes outside scratch: --del and --delete* in its
+// destination, --remove-source-files in its sources. An option after an
+// operand asks too, since its value could pass for the destination.
+func (c *command) rsync() error {
+	deletes, removesSources, late := false, false, false
+	var ops []Word
+	ended := false
+	for _, w := range c.args {
+		switch v := w.Value; {
+		case !ended && v == "--":
+			ended = true
+		case !ended && strings.HasPrefix(v, "-"):
+			late = late || len(ops) > 0
+			deletes = deletes || v == "--del" || strings.HasPrefix(v, "--delete")
+			removesSources = removesSources || v == "--remove-source-files" || v == "--remove-sent-files"
+		default:
+			ops = append(ops, w)
+		}
+	}
+	if !deletes && !removesSources {
+		return nil
+	}
+	if late || len(ops) < 2 ||
+		deletes && !c.st.allScratch(ops[len(ops)-1:]) ||
+		removesSources && !c.st.allScratch(ops[:len(ops)-1]) {
+		c.st.ask("rsync deletes files outside scratch; confirm the path")
 	}
 	return nil
 }
