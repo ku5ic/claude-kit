@@ -35,4 +35,22 @@ func TestInjectSubagentContext(t *testing.T) {
 			t.Errorf("additionalContext lacks the <scratch> block\n%s", r.Stdout)
 		}
 	})
+	t.Run("names bashguard's throwaway-commit allow lists", func(t *testing.T) {
+		t.Parallel()
+		k := New(t)
+		proj := filepath.Join(t.TempDir(), "testproject")
+		Mkdir(t, proj)
+		k.Git(proj, "init", "-q")
+
+		r := k.Hook("inject-subagent-context", map[string]any{"session_id": "s1", "cwd": proj})
+		r.Want(t, 0)
+		for _, want := range []string{
+			"runs only :, cd, echo, git add, git commit, git init, mkdir, mktemp, printf, set, true,",
+			"exports only GIT_AUTHOR_DATE, GIT_AUTHOR_EMAIL, GIT_AUTHOR_NAME, GIT_COMMITTER_DATE, GIT_COMMITTER_EMAIL, GIT_COMMITTER_NAME, HOME.",
+		} {
+			if !strings.Contains(r.Stdout, want) {
+				t.Errorf("stdout lacks %q\n%s", want, r.Stdout)
+			}
+		}
+	})
 }

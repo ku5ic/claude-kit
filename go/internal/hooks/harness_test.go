@@ -85,11 +85,14 @@ var entries = map[string]func(*hook.Hook) int{
 	"bash-edits":    single("bash-edits", func(h *hook.Hook) error { return BashEdits(h, nil) }),
 	"bash-baseline": single("bash-baseline", BashBaseline),
 	// cmd/kit reads the post's text and where from the command; args name them.
-	"check-post":              single("check-post", func(h *hook.Hook) error { return CheckPost(h, h.Args[0], h.Args[1]) }),
-	"edit-seen":               single("edit-seen", MarkEditSeen),
-	"inject-context":          single("inject-context", InjectContext),
-	"compact-note":            single("compact-note", CompactNote),
-	"inject-subagent-context": single("inject-subagent-context", InjectSubagentContext),
+	"check-post":     single("check-post", func(h *hook.Hook) error { return CheckPost(h, h.Args[0], h.Args[1]) }),
+	"edit-seen":      single("edit-seen", MarkEditSeen),
+	"inject-context": single("inject-context", InjectContext),
+	"compact-note":   single("compact-note", CompactNote),
+	// cmd/kit passes bashguard's throwaway allow lists; these stand in.
+	"inject-subagent-context": single("inject-subagent-context", func(h *hook.Hook) error {
+		return InjectSubagentContext(h, []string{"cd", "git commit"}, []string{"HOME"})
+	}),
 	// As cmd/kit's registry composes them.
 	"gate-dispatch": func(h *hook.Hook) int {
 		return hook.Run(h, hook.NamedCheck{Name: "rules-gate", Check: RulesGate})

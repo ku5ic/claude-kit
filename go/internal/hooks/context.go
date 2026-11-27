@@ -11,7 +11,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ku5ic/claude-kit/go/internal/bashguard"
 	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/doctor"
@@ -134,8 +133,9 @@ func writeContext(h *hook.Hook, cfg *config.Config, out *strings.Builder) {
 
 // agentContext is the subagent counterpart: the resolved scratch path (which
 // overrides the harness's /tmp scratchpad line), then the same repo context
-// and skill blocks, unlogged.
-func agentContext(h *hook.Hook, cfg *config.Config) string {
+// and skill blocks, unlogged. calls and exports are what a throwaway
+// commit's command may run and export.
+func agentContext(h *hook.Hook, cfg *config.Config, calls, exports []string) string {
 	paths, cwd := h.Paths, h.Payload.Cwd()
 	var b strings.Builder
 	if scratch, err := project.ScratchDir(paths, cwd, true); err == nil {
@@ -151,7 +151,6 @@ func agentContext(h *hook.Hook, cfg *config.Config) string {
 				fmt.Fprintf(&b, "Your report is sent back once past %d words, fenced code excluded.\n", budget)
 			}
 		}
-		calls, exports := bashguard.ThrowawayAllowed()
 		fmt.Fprintf(&b, "An rm or download here passes unasked, by a literal path or a variable set once to one. "+
 			"A test repo goes under this path, never $TMPDIR, and its commit passes unasked when the command runs only %s, and exports only %s. "+
 			"Set HOME in the command itself; never source an env file.\n",
@@ -182,13 +181,14 @@ func skipDirsLine(cfg *config.Config) string {
 
 // InjectSubagentContext is the SubagentStart hook. SubagentStart ignores
 // plain stdout and a top-level additionalContext: it reads only
-// hookSpecificOutput.additionalContext.
-func InjectSubagentContext(h *hook.Hook) error {
+// hookSpecificOutput.additionalContext. cmd/kit passes bashguard's
+// throwaway-commit allow lists as calls and exports.
+func InjectSubagentContext(h *hook.Hook, calls, exports []string) error {
 	cfg := h.Config()
 	if cfg == nil {
 		return nil
 	}
-	context := strings.TrimRight(agentContext(h, cfg), "\n")
+	context := strings.TrimRight(agentContext(h, cfg, calls, exports), "\n")
 	if context == "" {
 		return nil
 	}

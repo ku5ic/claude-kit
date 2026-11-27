@@ -60,7 +60,7 @@ var hookChecks = map[string]hook.Check{
 	"sanitize-output":         hooks.SanitizeOutput,
 	"inject-context":          hooks.InjectContext,
 	"compact-note":            hooks.CompactNote,
-	"inject-subagent-context": hooks.InjectSubagentContext,
+	"inject-subagent-context": injectSubagentContext,
 	"format-dispatch":         hooks.FormatDispatch,
 	"plan-tick":               hooks.PlanTick,
 	"plan-changes":            hooks.PlanChanges,
@@ -229,6 +229,14 @@ func onBashWrites(check func(*hook.Hook, []string) error) hook.Check {
 		}
 		return check(h, bashguard.WriteTargets(h.Payload.String(hook.KeyInputCommand), h.Home, h.Payload.Cwd()))
 	}
+}
+
+// injectSubagentContext is inject-subagent-context, naming what a throwaway
+// commit's command may run and export. hooks and bashguard share a layer,
+// so the two meet here.
+func injectSubagentContext(h *hook.Hook) error {
+	calls, exports := bashguard.ThrowawayAllowed()
+	return hooks.InjectSubagentContext(h, calls, exports)
 }
 
 // skillsNudge is skills-nudge, a Bash command's reads included. hooks and

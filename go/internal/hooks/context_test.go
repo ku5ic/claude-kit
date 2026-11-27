@@ -356,13 +356,12 @@ dependency_skills:
 		off.kitYML("size_budgets: {report: 0}\n")
 		off.run("inject-subagent-context", map[string]any{"session_id": "s1", "cwd": off.root}).Lacks(t, "Your report is sent back")
 	})
-	t.Run("a subagent hears which scratch commands pass unasked, with the throwaway commit's own allow lists", func(t *testing.T) {
+	t.Run("a subagent hears which scratch commands pass unasked, with the allow lists it's given", func(t *testing.T) {
 		t.Parallel()
 		e := contextSetup(t)
 		out := e.run("inject-subagent-context", map[string]any{"session_id": "s1", "cwd": e.root})
 		out.Has(t, "A test repo goes under this path, never $TMPDIR")
-		out.Has(t, "runs only :, cd, echo, git add, git commit, git init, mkdir, mktemp, printf, set, true,")
-		out.Has(t, "exports only GIT_AUTHOR_DATE, GIT_AUTHOR_EMAIL, GIT_AUTHOR_NAME, GIT_COMMITTER_DATE, GIT_COMMITTER_EMAIL, GIT_COMMITTER_NAME, HOME.")
+		out.Has(t, "runs only cd, git commit, and exports only HOME.")
 		out.Has(t, "never source an env file")
 	})
 	t.Run("repo-context names the scratch dir without creating it", func(t *testing.T) {
