@@ -12,6 +12,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/claims"
+	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
@@ -626,5 +627,25 @@ func TestACachedVerdictIsTheOwnersAlone(t *testing.T) {
 	}
 	if info, err := os.Stat(verdicts[0]); err != nil || info.Mode().Perm() != 0o600 {
 		t.Errorf("mode %v, %v; want 0600", info.Mode(), err)
+	}
+}
+
+// A report sits directly in a scratch dir, the session scratchpad
+// included; a raw file a level down isn't one.
+func TestAtScratchRootTakesEveryScratchDir(t *testing.T) {
+	t.Parallel()
+	paths := config.Paths{ClaudeDir: "/home/u/.claude"}
+	pad := fmt.Sprintf("/tmp/claude-%d/proj/sess/scratchpad", os.Getuid())
+	for path, want := range map[string]bool{
+		"/home/u/.claude/scratch/review-x.md":     true,
+		"/repo/.claude/scratch/review-x.md":       true,
+		pad + "/review-x.md":                      true,
+		"/repo/.claude/scratch/review-x/notes.md": false,
+		pad + "/raw/review-x.md":                  false,
+		"/repo/docs/review-x.md":                  false,
+	} {
+		if got := atScratchRoot(paths, path); got != want {
+			t.Errorf("atScratchRoot(%s) = %v, want %v", path, got, want)
+		}
 	}
 }

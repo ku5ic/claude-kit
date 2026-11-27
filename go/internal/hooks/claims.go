@@ -13,6 +13,7 @@ import (
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/claims"
+	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/connector"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
@@ -98,7 +99,7 @@ func verifyToolInput(h *hook.Hook) error {
 		}
 	case slices.Contains(filePathTools, tool):
 		path := p.FilePath()
-		if !scratchReport(h, path, checkedReports...) || !atScratchRoot(h, path) {
+		if !scratchReport(h, path, checkedReports...) || !atScratchRoot(h.Paths, path) {
 			return nil
 		}
 		_, after, ok := written(p, path)
@@ -158,7 +159,7 @@ func CheckBashReports(h *hook.Hook, written []string) error {
 	var reasons []string
 	seen := map[string]bool{}
 	for _, path := range written {
-		if seen[path] || !scratchReport(h, path, checkedReports...) || !atScratchRoot(h, path) {
+		if seen[path] || !scratchReport(h, path, checkedReports...) || !atScratchRoot(h.Paths, path) {
 			continue
 		}
 		seen[path] = true
@@ -399,9 +400,10 @@ var checkedReports = []string{
 // atScratchRoot is true for a file directly in a scratch dir, where
 // `kit scratch-dir <kind> <slug>` puts a report; a report's raw files sit
 // a level down.
-func atScratchRoot(h *hook.Hook, path string) bool {
+func atScratchRoot(paths config.Paths, path string) bool {
 	dir := filepath.Dir(filepath.Clean(path))
-	return dir == h.Paths.ScratchHome() || strings.HasSuffix(dir, "/.claude/scratch")
+	root, ok := paths.ScratchRoot(dir)
+	return ok && root == dir
 }
 
 // scratchReport is true for a report of one of kinds in scratch, the files
