@@ -929,7 +929,8 @@ func (st *state) setOnly(name string) bool {
 				continue
 			}
 			name := baseName(call.Words[i].Value)
-			if bashBuiltins[name] && !inertBuiltins[name] && !plainPrintf(name, call.Words[i+1:]) {
+			// A trap's action is checked as commands of its own (trapAction).
+			if name != "trap" && bashBuiltins[name] && !inertBuiltins[name] && !plainPrintf(name, call.Words[i+1:]) {
 				return false
 			}
 		}

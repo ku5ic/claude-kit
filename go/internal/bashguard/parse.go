@@ -142,6 +142,14 @@ func Segments(src string) []Segment {
 func parseAll(src string) ([]Segment, bool) {
 	c := &collector{}
 	c.parse(src, 0)
+	// A trap's action runs when the trap fires, after the command at the
+	// latest, so its segments come last, and may not run.
+	c.conditional++
+	for len(c.traps) > 0 {
+		action := c.traps[0]
+		c.traps = c.traps[1:]
+		c.parse(action, 1)
+	}
 	return c.segs, c.unparsed
 }
 
@@ -155,6 +163,7 @@ type collector struct {
 	loop        int // the outermost loop the walk is inside, 0 for none
 	loops       int // loop ids handed out
 	unparsed    bool
+	traps       []string // the actions trap commands set, parsed last
 }
 
 func (c *collector) parse(src string, depth int) {
@@ -397,6 +406,10 @@ func (c *collector) call(src string, p *syntax.Stmt, call *syntax.CallExpr) Call
 	}
 	if cmd, ok := flockString(cl.Words); ok {
 		c.parse(cmd, c.depth+1)
+	}
+	if action, readable, ok := trapAction(cl.Words); ok {
+		c.traps = append(c.traps, action)
+		c.unparsed = c.unparsed || !readable
 	}
 	for _, cmd := range rebaseExecs(cl.Words) {
 		c.parse(cmd, c.depth+1)
@@ -646,6 +659,29 @@ func timeOptions(words []Word, at int) (out []Redir, done bool) {
 		}
 	}
 	return out, false
+}
+
+// trapAction is the command trap [--] action signal... sets. trap -p and
+// -l only print, and one word or a - action resets a trap. readable is
+// false for an action with an expansion in it, or one any signal but EXIT
+// fires, mid-command: the guard can't place it.
+func trapAction(words []Word) (action string, readable, ok bool) {
+	i := lead(words)
+	if i >= len(words) || baseName(words[i].Value) != "trap" {
+		return "", false, false
+	}
+	args := words[i+1:]
+	switch {
+	case len(args) > 0 && args[0].Value == "--":
+		args = args[1:]
+	case len(args) > 0 && strings.HasPrefix(args[0].Value, "-") && args[0].Value != "-":
+		return "", false, false
+	}
+	if len(args) < 2 || args[0].Value == "-" {
+		return "", false, false
+	}
+	readable = args[0].literal && !slices.ContainsFunc(args[1:], func(w Word) bool { return w.Value != "EXIT" && w.Value != "0" })
+	return args[0].Value, readable, true
 }
 
 // envSplitString returns the command env -S/--split-string runs, the string

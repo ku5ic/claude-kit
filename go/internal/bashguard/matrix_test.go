@@ -494,6 +494,14 @@ func TestGuardBashParsing(t *testing.T) {
 		probe("pass", `flock /tmp/x.lock -c 'git status'`)
 		// flock permutes its options: -c before the lock file runs the string too.
 		probe("block", `flock -c 'rm -rf ~' /tmp/x.lock`)
+		// A trap's action runs as a command when the trap fires, at the end at the latest.
+		probe("block", `trap 'rm -rf ~' EXIT`)
+		probe("block", `trap -- "rm -rf ~" INT TERM`)
+		probe("ask", `trap "$X" EXIT`)
+		probe("pass", `t=$(mktemp -d); trap 'rm -rf "$t"' EXIT`)
+		probe("pass", `trap - EXIT`)
+		probe("pass", `trap -p`)
+		probe("ask", `trap 'rm -f x' INT`)
 		probe("block", `flock -n -c 'rm -rf ~' /tmp/x.lock`)
 		probe("block", `flock -nc 'rm -rf ~' /tmp/x.lock`)
 		probe("block", `flock --command='rm -rf ~' /tmp/x.lock`)

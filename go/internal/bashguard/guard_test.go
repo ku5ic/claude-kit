@@ -1001,6 +1001,11 @@ func TestRmFollowsOnlyACdThatSurelyMoved(t *testing.T) {
 		{proj, `mkdir -p SCR/n && cd SCR/n; rm -rf rc`, "ask"},
 		{proj, `cd SCR & rm -rf rc`, "ask"},
 		{proj, `set -e; ! cd SCR/missing; rm -rf rc`, "ask"},
+		{proj, `cd SCR; trap 'rm -rf rc' EXIT`, "pass"},
+		{proj, `cd SCR; trap 'rm -rf rc' EXIT; cd /tmp`, "ask"},
+		{scratch, `trap 'cd /' DEBUG; rm -rf rc`, "ask"},
+		// A later trap on EXIT replaces the earlier one, so its cd never runs.
+		{proj, `trap 'cd SCR' EXIT; trap 'rm -rf rc' EXIT`, "ask"},
 		{proj, `cd SCR && echo hi & rm -rf rc`, "ask"},
 		{scratch, `pushd /tmp; rm -rf rc`, "ask"},
 		{scratch, `popd; rm -rf rc`, "ask"},
