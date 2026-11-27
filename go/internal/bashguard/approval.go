@@ -28,13 +28,15 @@ func approved(path string, subjects []string) bool {
 	one := len(subjects) == 1
 	turnInTail, replied := false, false
 	if tail, err := transcript.Tail(path, math.MaxInt); err == nil {
+		// A notification or a compaction summary after the user's prompt
+		// doesn't replace it.
 		for i, e := range slices.Backward(tail) {
-			if !e.StartsTurn() {
+			if !e.UserTurn() {
 				continue
 			}
 			turnInTail = true
 			reply := lastReply(tail[:i])
-			if e.FromUser() && requests(e.PromptText(), reply) || one && pickedCommit(tail[i+1:]) {
+			if requests(e.PromptText(), reply) || one && pickedCommit(tail[i+1:]) {
 				return true
 			}
 			// A reply the tail cut off is left to the whole parse below.
@@ -52,19 +54,16 @@ func approved(path string, subjects []string) bool {
 	// The entries of a turn that started before the tail, for its picks.
 	var turn []transcript.Entry
 	_ = transcript.EachIn(data, func(e transcript.Entry) {
-		if e.StartsTurn() {
+		if e.UserTurn() {
 			turn = nil
 		} else if one && !turnInTail {
 			turn = append(turn, e)
 		}
 		switch {
-		case e.StartsTurn():
+		case e.UserTurn():
 			earlier.WriteString(current.String())
 			current.Reset()
-			prompt, before = "", reply
-			if e.FromUser() {
-				prompt = e.PromptText()
-			}
+			prompt, before = e.PromptText(), reply
 		case e.Type == "assistant":
 			current.WriteString(e.PromptText() + "\n")
 			if text := strings.TrimSpace(e.PromptText()); text != "" {

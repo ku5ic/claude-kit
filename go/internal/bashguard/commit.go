@@ -324,7 +324,7 @@ func commitMsg(h *hook.Hook, msg, repo string) string {
 }
 
 var (
-	commitWord = regexp.MustCompile(`(?i)\bcommit\b`)
+	commitWord = regexp.MustCompile(`(?i)\bcommit\b|\bship\s+it\b`)
 	// negated is a clause that turns down what follows: "don't", "not",
 	// "aren't", "never", "no", and git status's "nothing to".
 	negated = regexp.MustCompile(`(?i)\b(don['\x{2019}]?t|not|never|no|nothing\s+to)\b|n['\x{2019}]t\b`)
@@ -334,68 +334,44 @@ var (
 	// ownPlan opens a sentence where the user says what they'll do: "let
 	// me review it, then commit".
 	ownPlan = regexp.MustCompile(`(?i)^\s*(let me|i['\x{2019}]ll|i will|i['\x{2019}]m going to|i am going to)\b`)
-	// The words after a requested "commit", up to "and", "then", or the
-	// clause's end, name what to commit and nothing else: an object, a
-	// determiner and up to three words ("the docs fix"), a step number, or
-	// a word that changes nothing about when. Any other word ("commit
-	// hooks", "commit 35c7066", "commit it later") isn't a go-ahead now.
-	commitObjects  = []string{"it", "them", "everything", "changes", "work", "step"}
-	determiners    = []string{"the", "my", "your", "our", "this", "that", "these", "those", "all", "both", "any", "every", "each"}
-	commitModifier = []string{"now", "please", "first", "too", "again", "also"}
-	stepNumber     = regexp.MustCompile(`^\d{1,3}(-\d{1,3})?$`)
-	// timeWords put a commit off even inside its object: "commit the docs
-	// fix later".
-	timeWords = []string{"later", "tomorrow", "tonight", "today", "afterwards", "afterward", "eventually", "soon", "sometime"}
-	// requestLead is a word that can come right before "commit" when it's
-	// asked for: "fix it and commit", "can you commit", "please commit".
-	// Any other ("the last commit", "in commit abc") makes it a noun.
-	requestLead = []string{"and", "then", "now", "please", "pls", "also", "just", "so", "go", "ahead", "can", "could", "yes", "ok", "okay", "sure", "let's", "lets"}
-	// askedYou can come before "you commit" in a request: "can you
-	// commit". Any other ("if you commit this") makes it a remark.
-	askedYou = []string{"can", "could", "would", "will", "please"}
-	// userSaid is a clause that repeats a request: "I said commit", "ugh,
-	// I said commit". Anyone else's ("the reviewer said commit") isn't one,
-	// nor one told as a story: inside a clause ("the bug is that I said
-	// commit"), or after a pastTime word ("earlier, I said commit").
-	userSaid = regexp.MustCompile(`(?i)^\s*i\s+(?:already\s+|just\s+)?said\s*$`)
-	pastTime = regexp.MustCompile(`(?i)\b(earlier|yesterday|previously|ago|originally|initially|last)\b`)
-	// subordinator anywhere in the commit's sentence makes it conditional,
-	// across a comma too: "when the tests pass, commit it", "commit it,
-	// but only after I review". Subordinating conjunctions are a closed
-	// class, so this list doesn't grow with each new phrasing.
-	subordinator = regexp.MustCompile(`(?i)\b(if|unless|once|when|whenever|after|before|until|till|provided|providing|assuming|while|whilst|lest|as soon as|as long as|so long as|in case)\b`)
-	// toldIf is an if or when that opens what the user asks to be told,
-	// "tell me if", "let me know when": it conditions the telling, not the
-	// commit.
-	toldIf = regexp.MustCompile(`(?i)\b(?:tell|let|show)\s+(?:me|us)(?:\s+know)?\s+(?:if|when)\b`)
+	// nounLead before "commit" makes it a noun: a determiner or a
+	// preposition, as in "the last commit", "in commit abc".
+	nounLead = nameSet("a", "an", "the", "my", "your", "our", "their", "his", "her", "its", "this", "that", "these", "those",
+		"last", "first", "next", "previous", "initial", "each", "every", "any", "which", "whose", "in", "of", "from", "on", "at", "since", "per")
+	// nounTail after "commit" makes it a noun too: "commit hooks", "commit
+	// message", or a hash, "commit 35c7066".
+	nounTail = nameSet("hook", "hooks", "message", "messages", "msg", "history", "log", "logs", "id", "hash", "sha", "range",
+		"count", "graph", "time", "date", "author", "title", "body", "subject", "style", "format", "convention", "conventions", "rules")
+	gitHash = regexp.MustCompile(`^[0-9a-f]{7,40}$`)
+	// askWord opens a question about committing, not a request for one:
+	// "how to commit", "when do I commit".
+	askWord = nameSet("how", "when", "where", "why", "whether", "what")
+	// makeVerb before a nounLead asks for the commit it names: "make a
+	// commit".
+	makeVerb = nameSet("make", "do", "create", "add")
+	// notNow after "commit" in its sentence turns it down: "commit it, but
+	// not yet".
+	notNow = regexp.MustCompile(`(?i)\bnot\s+(?:yet|now|right\s+now)\b`)
 )
 
-// asksForCommit is true when prompt uses "commit" as a request: first in
-// its clause, after a requestLead word, an askedYou word and "you", or
-// "I said" (leadsRequest), followed by only an object (objectPhrase),
-// with no negation earlier in its clause and no subordinator in its
-// sentence, in a sentence that isn't the user's own plan, and, when it
-// ends in "?", opens as a direct ask. Wording it can't place reads as no request, so the
-// guard asks.
+// asksForCommit is true when prompt asks for a commit: "commit" as a verb,
+// or "ship it", with no negation earlier in its clause and no "not yet"
+// after it, in a sentence that isn't the user's own plan or a question,
+// one ending in "?" other than a direct ask ("can you commit this?") or
+// one an askWord opens ("how to commit"). A condition or a later time
+// ("commit when the tests pass") is the user's to keep, so it counts.
 func asksForCommit(prompt string) bool {
 	for _, m := range commitWord.FindAllStringSubmatchIndex(prompt, -1) {
-		// commit-msg, commit/push, commit's: part of a compound or a noun.
-		if end := m[0] + len("commit"); end < len(prompt) && strings.ContainsRune("-/:'", rune(prompt[end])) {
-			continue
-		}
-		rest := prompt[m[1]:]
-		if end := stopIndex(rest, ".!?;,\n"); end >= 0 {
-			rest = rest[:end]
-		}
-		if !objectPhrase(strings.FieldsFunc(strings.ToLower(rest), notPathRune)) {
+		// commit-msg, pre-commit, commit/push, commit's: part of a compound
+		// or a noun.
+		if end := m[1]; end < len(prompt) && strings.ContainsRune("-/:'", rune(prompt[end])) || m[0] > 0 && strings.ContainsRune("-/", rune(prompt[m[0]-1])) {
 			continue
 		}
 		start := lastStopIndex(prompt[:m[0]], ".!?\n") + 1
-		clause := prompt[lastStopIndex(prompt[:m[0]], ".!?;,\n")+1 : m[0]]
 		// A negation reaches across commas and line breaks: "Don't, under
 		// any circumstances, commit this." A ; or a sentence end stops it.
 		scope := prompt[lastStopIndex(prompt[:m[0]], ".!?;")+1 : m[0]]
-		if !leadsRequest(clause, prompt[start:m[0]]) || negated.MatchString(scope) {
+		if negated.MatchString(scope) || commitNoun(prompt[start:m[0]], prompt[m[1]:]) {
 			continue
 		}
 		// The sentence ends after the commit word: a "." inside a name
@@ -408,29 +384,31 @@ func asksForCommit(prompt string) bool {
 			}
 			sentence = sentence[:end]
 		}
-		// A told clause after the commit conditions the telling; one before
-		// it ("tell us when the tests pass and commit it") sets its time.
-		before, after := sentence[:m[1]-start], sentence[m[1]-start:]
-		if subordinator.MatchString(before+toldIf.ReplaceAllString(after, "")) || deferred(strings.FieldsFunc(strings.ToLower(after), notWordRune)) {
-			continue
-		}
-		if !ownPlan.MatchString(sentence) {
+		if !ownPlan.MatchString(sentence) && !notNow.MatchString(sentence[m[1]-start:]) {
 			return true
 		}
 	}
 	return false
 }
 
-// leadsRequest is whether clause, the words before "commit" in its
-// clause, puts it as a request: none, a requestLead word, an askedYou word
-// and "you", or "I said" with no pastTime word in before, the words before
-// it in its sentence.
-func leadsRequest(clause, before string) bool {
-	words := strings.Fields(strings.ToLower(clause))
-	n := len(words)
-	return n == 0 || slices.Contains(requestLead, words[n-1]) ||
-		n >= 2 && words[n-1] == "you" && slices.Contains(askedYou, words[n-2]) ||
-		userSaid.MatchString(clause) && !pastTime.MatchString(before)
+// commitNoun is whether "commit" between before and after isn't asked for:
+// a noun, with a nounLead word right before it in its clause or a nounTail
+// word or a hash right after, or the subject of a question an askWord
+// opens ("how to commit", "when do we commit").
+func commitNoun(before, after string) bool {
+	before = before[strings.LastIndexAny(before, ",;:")+1:]
+	prev := strings.FieldsFunc(strings.ToLower(before), notWordRune)
+	next := strings.FieldsFunc(strings.ToLower(after), notWordRune)
+	n := len(prev)
+	switch {
+	// "make a commit", "create the commit": a noun, but asked for.
+	case n > 1 && nounLead[prev[n-1]] && makeVerb[prev[n-2]]:
+	case n > 0 && (nounLead[prev[n-1]] || askWord[prev[n-1]] || askWord[prev[0]]):
+		return true
+	case n > 1 && prev[n-1] == "to" && askWord[prev[n-2]]:
+		return true
+	}
+	return len(next) > 0 && (nounTail[next[0]] || gitHash.MatchString(next[0]))
 }
 
 // scanStaged runs gitleaks on repo's staged diff. Its exit codes: 0 clean, 1 a
@@ -530,67 +508,8 @@ func longestProseRun(text string) int {
 	return best
 }
 
-// subjects open a clause of its own: what follows is someone else's plan
-// ("commit it, I'll push tomorrow").
-var subjects = []string{"i", "i'll", "i'm", "i'd", "i've", "we", "we'll", "we're", "you", "you'll", "you're", "they", "they'll"}
-
-// deferred is whether words, those after "commit" to the end of its
-// sentence, put the commit off: a time word, or "yet", before a "now" or
-// a clause with a subject of its own, or "not now" or "not right now".
-// "commit and push tomorrow", "commit it, but not yet", and "commit it,
-// but not right now" wait; "commit it now, push tomorrow" and "commit it,
-// do not push now" don't.
-func deferred(words []string) bool {
-	for i, w := range words {
-		switch {
-		case w == "now":
-			return i > 0 && words[i-1] == "not" || i > 1 && words[i-1] == "right" && words[i-2] == "not"
-		case slices.Contains(subjects, w):
-			return false
-		case w == "yet" || slices.Contains(timeWords, w):
-			return true
-		}
-	}
-	return false
-}
-
-// objectPhrase is whether words, those after "commit" in its clause, name
-// only what to commit, up to an "and" or "then" that starts the next
-// instruction.
-func objectPhrase(words []string) bool {
-	for i := 0; i < len(words); i++ {
-		switch w := words[i]; {
-		case w == "and" || w == "then":
-			return true
-		case slices.Contains(determiners, w):
-			// "every time", "any time": when, not what.
-			if next := i + 1; next < len(words) && (w == "every" || w == "each" || w == "any") && (words[next] == "time" || words[next] == "times") {
-				return false
-			}
-			// The noun the determiner opens: up to three words, none a
-			// time word.
-			for n := 1; i+1 < len(words) && words[i+1] != "and" && words[i+1] != "then"; n++ {
-				i++
-				if n > 3 || slices.Contains(timeWords, words[i]) {
-					return false
-				}
-			}
-		// A dash used as punctuation, kept whole by notPathRune.
-		case strings.Trim(w, "./_-") == "":
-		case slices.Contains(commitObjects, w) || slices.Contains(commitModifier, w) || stepNumber.MatchString(w) || fileName(w):
-		default:
-			return false
-		}
-	}
-	return true
-}
-
 // notWordRune splits a clause into words, dropping punctuation.
 func notWordRune(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '\'' }
-
-// notPathRune splits a clause into words as notWordRune does, but keeps a
-// file name or path whole: "notes.txt", "go/internal/git.go", "pre-commit".
-func notPathRune(r rune) bool { return notWordRune(r) && !strings.ContainsRune("./_-", r) }
 
 // nameDot is whether the "." at s[i] is inside a file name: a lowercase
 // letter or digit follows it ("notes.txt", ".env", "v1.2"). Before a
@@ -602,20 +521,6 @@ func nameDot(s string, i int) bool { return letterAfter(s, i, unicode.IsLower) }
 func letterAfter(s string, i int, letter func(rune) bool) bool {
 	r, _ := utf8.DecodeRuneInString(s[i+1:])
 	return letter(r) || unicode.IsDigit(r)
-}
-
-// fileName is whether word, lowercased, is a file name or path: a "/" and
-// a letter or digit, or a nameDot.
-func fileName(word string) bool {
-	if strings.Contains(word, "/") && strings.ContainsFunc(word, func(r rune) bool { return unicode.IsLetter(r) || unicode.IsDigit(r) }) {
-		return true
-	}
-	for i := range len(word) {
-		if word[i] == '.' && nameDot(word, i) {
-			return true
-		}
-	}
-	return false
 }
 
 // stopIndex is the index of the first byte of stops in s, or -1. A

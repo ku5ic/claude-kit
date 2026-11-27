@@ -54,7 +54,10 @@ type Entry struct {
 	Origin struct {
 		Kind string `json:"kind"`
 	} `json:"origin"`
-	Timestamp string `json:"timestamp"`
+	// CompactSummary marks the user entry a compaction writes: Claude
+	// Code's summary of the session so far, which no person typed.
+	CompactSummary bool   `json:"isCompactSummary"`
+	Timestamp      string `json:"timestamp"`
 	// Cwd is the session's directory when the entry was written.
 	Cwd string `json:"cwd"`
 	// Content is a system entry's content: raw, since its shape isn't fixed.
@@ -174,6 +177,10 @@ func (e Entry) StartsTurn() bool {
 func (e Entry) FromUser() bool {
 	return e.Origin.Kind == "" || e.Origin.Kind == "human"
 }
+
+// UserTurn is true for a prompt the user wrote: a turn start that no task
+// notification, other session, or compaction summary sent.
+func (e Entry) UserTurn() bool { return e.StartsTurn() && e.FromUser() && !e.CompactSummary }
 
 // PromptText is the entry's text: its string content, or its text blocks joined.
 func (e Entry) PromptText() string {

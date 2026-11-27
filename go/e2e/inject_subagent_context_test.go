@@ -45,7 +45,8 @@ func TestInjectSubagentContext(t *testing.T) {
 		r := k.Hook("inject-subagent-context", map[string]any{"session_id": "s1", "cwd": proj})
 		r.Want(t, 0)
 		for _, want := range []string{
-			"runs only :, cd, echo, git add, git commit, git init, mkdir, mktemp, printf, set, true,",
+			"runs only :, cd, cp, echo, git add, git commit, git init, mkdir, mktemp, printf, rm, set, true,",
+			"Its rm, cp, and > write only inside this path and outside any .git.",
 			"exports only GIT_AUTHOR_DATE, GIT_AUTHOR_EMAIL, GIT_AUTHOR_NAME, GIT_COMMITTER_DATE, GIT_COMMITTER_EMAIL, GIT_COMMITTER_NAME, HOME.",
 		} {
 			if !strings.Contains(r.Stdout, want) {

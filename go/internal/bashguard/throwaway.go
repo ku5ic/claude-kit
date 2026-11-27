@@ -21,8 +21,9 @@ var repoEnv = regexp.MustCompile(`\b(?:` + strings.Join(repoVars, "|") + `)\b`)
 
 // throwawayCalls are the only commands a throwaway commit's command may
 // run: none of them can set what git reads, or write a .git file. printf
-// counts only without -v.
-var throwawayCalls = nameSet("git", "cd", "mkdir", "mktemp", "set", "true", ":", "echo", "printf")
+// counts only without -v; rm, cp's destination, and a > redirect only
+// inside scratch and outside any .git (scratchWrites).
+var throwawayCalls = nameSet("git", "cd", "mkdir", "mktemp", "set", "true", ":", "echo", "printf", "rm", "cp")
 
 // throwawayExports are the names a throwaway commit's command may export.
 // HOME picks the git config git reads, so throwaway takes it only fresh.
@@ -35,6 +36,7 @@ func ScratchRule() string {
 	calls, exports := ThrowawayAllowed()
 	return fmt.Sprintf("An rm -r or download here passes unasked, by a literal path or a variable set once to one. "+
 		"A test repo goes under this path, never $TMPDIR, and its commit passes unasked when the command names it with git -C <dir> on every git call, runs only %s, and exports only %s. "+
+		"Its rm, cp, and > write only inside this path and outside any .git. "+
 		"A HOME it sets must be a fresh $(mktemp -d), and a repo whose hooks or config run a program still asks. Never source an env file.",
 		strings.Join(calls, ", "), strings.Join(exports, ", "))
 }
@@ -77,7 +79,7 @@ var setWord = regexp.MustCompile(`^([-+][euxo]+|pipefail|errexit|nounset|xtrace)
 // when the commit runs only once cmd's git init of it worked: a scratch
 // dir with no .git yet, or a mktemp -d dir that can't be empty there.
 func throwaway(h *hook.Hook, cmd string, segs []Segment, unparsed bool, pin pinnedGit, commits []commit) bool {
-	if unparsed || repoEnv.MatchString(cmd) || gitEnvSet() || !fixedShape(segs) || !plainAssigns(segs) {
+	if unparsed || repoEnv.MatchString(cmd) || gitEnvSet() || !fixedShape(segs) || !plainAssigns(segs) || !scratchWrites(h, cmd, segs) {
 		return false
 	}
 	if !pin.homeKnown || !pin.freshHome {
@@ -188,19 +190,18 @@ func gitEnvSet() bool {
 // fixedShape is true when every call in segs is one of throwawayCalls by
 // its literal name, with no wrapper, set changes no variable, git uses
 // only -C or --no-pager before one of throwawayGit (init without a
-// separate git dir or template), and nothing is written but to /dev/null.
+// separate git dir or template), and a redirect alone writes only
+// /dev/null; scratchWrites judges the rest of what's written.
 func fixedShape(segs []Segment) bool {
 	for _, seg := range segs {
 		for _, call := range seg.Calls {
-			for _, r := range call.Redirs {
-				if strings.Contains(r.Op, ">") && r.Target.Value != "/dev/null" && !dupTarget.MatchString(r.Target.Value) {
-					return false
-				}
-			}
 			if call.declOpaque {
 				return false
 			}
 			if len(call.Words) == 0 {
+				if slices.ContainsFunc(call.Redirs, writesFile) {
+					return false
+				}
 				continue
 			}
 			name := call.Words[0]
@@ -225,6 +226,73 @@ func fixedShape(segs []Segment) bool {
 		}
 	}
 	return true
+}
+
+// writesFile is whether r writes a file: a > redirect to anything but
+// /dev/null or another descriptor.
+func writesFile(r Redir) bool {
+	return strings.Contains(r.Op, ">") && r.Target.Value != "/dev/null" && !dupTarget.MatchString(r.Target.Value)
+}
+
+// scratchWrites is true when everything cmd writes or deletes, by a >
+// redirect, rm, or cp's destination, is a scratch operand, as rm -r's
+// must be, and outside any .git dir, its links resolved: such a write
+// can't change what a throwaway commit's git reads or runs.
+func scratchWrites(h *hook.Hook, cmd string, segs []Segment) bool {
+	st := &state{dirs: dirs{home: h.Home, cwd: h.Payload.Cwd()}, h: h}
+	st.begin(cmd, segs)
+	next, at := 0, 0
+	for w := range walkPinned(segs, h.Home, h.Payload.Cwd(), func(i int, words []Word) []Word {
+		for ; next < i; next++ {
+			st.track(next, segs[next])
+		}
+		at = i
+		return words
+	}) {
+		st.at, st.cwd, st.lost = at, w.cwd, !w.sure
+		var targets []Word
+		for _, r := range w.call.Redirs {
+			if writesFile(r) {
+				targets = append(targets, r.Target)
+			}
+		}
+		args := w.call.Words[w.i+1:]
+		ops := nonOptionsOf(args, func(a Word) string { return a.Value })
+		switch w.name {
+		case "rm":
+			targets = append(targets, ops...)
+		case "cp":
+			// -t names the destination first; take only the plain shape.
+			if len(ops) < 2 || slices.ContainsFunc(args, func(a Word) bool {
+				return strings.HasPrefix(a.Value, "--target-directory") || strings.HasPrefix(a.Value, "-") && !strings.HasPrefix(a.Value, "--") && strings.Contains(a.Value, "t")
+			}) {
+				return false
+			}
+			targets = append(targets, ops[len(ops)-1])
+		}
+		if slices.ContainsFunc(targets, func(t Word) bool { return !st.scratchOperand(t) || st.inGitDir(t) }) {
+			return false
+		}
+	}
+	return true
+}
+
+// gitComponent is a path with a .git dir in it, in any case, as macOS's
+// filesystem matches it.
+var gitComponent = regexp.MustCompile(`(?i)(^|/)\.git(/|$)`)
+
+// inGitDir is whether word, a scratch operand, names a path in a .git dir,
+// as written or with its links resolved: a quoted variable as the path it
+// holds, whose fresh mktemp -d dir has no .git but what follows it.
+func (st *state) inGitDir(w Word) bool {
+	var p string
+	if m := quotedVar.FindStringSubmatch(w.Raw); m != nil {
+		base, _ := st.varPath(m[1]+m[2], 1)
+		p = base + m[4]
+	} else {
+		p = st.abs(unquote(st.pinWords([]Word{w})[0].Value))
+	}
+	return gitComponent.MatchString(p) || filepath.IsAbs(p) && gitComponent.MatchString(fsx.PhysicalPath(filepath.Clean(p)))
 }
 
 // initValue are the git init flags that take the next word as their value.

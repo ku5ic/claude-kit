@@ -189,49 +189,24 @@ func TestGuardCommitAsksForAnUnshownMessage(t *testing.T) {
 		"a remark on commit style":     {testutil.UserPrompt("commit style is wrong here")},
 		"a remark on commit-msg":       {testutil.UserPrompt("commit-msg check keeps failing, look into it")},
 		"commit/push in a remark":      {testutil.UserPrompt("Hmm, commit/push are blocked")},
-		"a conditional":                {testutil.UserPrompt("if you commit this, CI breaks")},
-		"a complaint":                  {testutil.UserPrompt("stop, you commit everything without asking")},
 		"pasted git status":            {testutil.UserPrompt("why?\n\nOn branch feat\nnothing to commit, working tree clean")},
-		"commit after a review":        {testutil.UserPrompt("Commit it after I review the diff")},
-		"commit once CI passes":        {testutil.UserPrompt("commit it once CI is green")},
-		"commit when it's done":        {testutil.UserPrompt("fix the docs and commit it when the tests pass")},
-		"commit until told":            {testutil.UserPrompt("commit them until the release is cut")},
-		"a deferral clause first":      {testutil.UserPrompt("When the tests pass, commit it.")},
-		"a deferral clause after":      {testutil.UserPrompt("Commit it, but only after I review the diff")},
-		"told when, then commit":       {testutil.UserPrompt("Tell us when the tests pass and commit it.")},
-		"commit if":                    {testutil.UserPrompt("commit it if the tests pass")},
-		"commit later":                 {testutil.UserPrompt("commit it later")},
-		"commit as soon as":            {testutil.UserPrompt("commit it as soon as CI is green")},
-		"commit tomorrow":              {testutil.UserPrompt("commit it tomorrow")},
-		"commit unless":                {testutil.UserPrompt("commit it unless the build fails")},
-		"an object, then later":        {testutil.UserPrompt("commit the docs fix later")},
 		"the subject only mid-reply":   {testutil.UserPrompt("fix it"), testutil.AssistantText("Nothing to fix: add sums of the totals first."), testutil.UserPrompt("go")},
-		"commit before a check":        {testutil.UserPrompt("commit it before I review it")},
-		"later, after a comma":         {testutil.UserPrompt("Commit it, but later.")},
-		"tomorrow, after a comma":      {testutil.UserPrompt("commit it, tomorrow")},
 		"not yet, after a comma":       {testutil.UserPrompt("commit it, but not yet")},
-		"a deferred pair":              {testutil.UserPrompt("commit and push tomorrow")},
-		"someone else said it":         {testutil.UserPrompt("the reviewer said commit it")},
+		"no commit yet":                {testutil.UserPrompt("no commit yet")},
 		"I said not to":                {testutil.UserPrompt("I said don't commit")},
 		"not now":                      {testutil.UserPrompt("commit it, but not now")},
 		"not right now":                {testutil.UserPrompt("commit it, but not right now")},
-		"a standing rule":              {testutil.UserPrompt("commit every time tests pass")},
-		"permission for any time":      {testutil.UserPrompt("you can commit any time you want")},
-		"I said, in narration":         {testutil.UserPrompt("Earlier I said commit, now I'm not sure")},
-		"I said, after a comma":        {testutil.UserPrompt("Earlier, I said commit, now I'm not sure")},
-		"I said, mid-sentence":         {testutil.UserPrompt("the bug is that I said commit and it ran")},
 		"how to, as a question":        {testutil.UserPrompt("Explain how to commit")},
+		"when to, as a question":       {testutil.UserPrompt("when do we commit")},
 		"a negation before a comma":    {testutil.UserPrompt("Don't, under any circumstances, commit this.")},
 		"a negation on the line above": {testutil.UserPrompt("Don't\ncommit this")},
-		"a file, after a comma":        {testutil.UserPrompt("commit notes.txt, but only after I review it")},
-		"a file, then a deferred pair": {testutil.UserPrompt("commit main.go and push tomorrow")},
 		"a remark on a hook path":      {testutil.UserPrompt("commit hooks/pre-commit keeps failing")},
-		"an uppercase extension":       {testutil.UserPrompt("commit README.MD")},
+		"pre-commit in a remark":       {testutil.UserPrompt("the pre-commit run is slow")},
 		"a negation before a name":     {testutil.UserPrompt("Never, per CONTRIBUTING.MD, commit it.")},
 		"a negation around a name":     {testutil.UserPrompt("Don't, as Foo.Bar says, commit this.")},
-		"a condition holding a name":   {testutil.UserPrompt("If the tests in Main.Go pass, commit it")},
 		"a task notification":          {testutil.UserPrompt("fix it"), map[string]any{"type": "user", "origin": map[string]any{"kind": "task-notification"}, "message": map[string]any{"content": "Commit and continue."}}},
 		"a peer session's message":     {testutil.UserPrompt("fix it"), map[string]any{"type": "user", "origin": map[string]any{"kind": "peer"}, "message": map[string]any{"content": "commit it"}}},
+		"a compaction summary":         {testutil.UserPrompt("fix it"), map[string]any{"type": "user", "isCompactSummary": true, "message": map[string]any{"content": "The user asked to commit it."}}},
 	} {
 		if transcript[0] == nil {
 			transcript = nil
@@ -255,6 +230,30 @@ func TestGuardCommitAsksForAnUnshownMessage(t *testing.T) {
 	for _, item := range []string{"1. fix: add sums", "2) fix: add sums", "+ fix: add sums", "> 1. **fix: add sums**"} {
 		if r := commit(testutil.UserPrompt("fix it"), testutil.AssistantText("Proposed:\n\n"+item+"\n\nCommit it?"), testutil.UserPrompt("go")); r.Output != "" {
 			t.Errorf("%q shows the message, yet the guard asked:\n%s", item, r.Output)
+		}
+	}
+	// The user's request stands past a notification or a compaction after it.
+	for name, after := range map[string]map[string]any{
+		"a task notification":  {"type": "user", "origin": map[string]any{"kind": "task-notification"}, "message": map[string]any{"content": "Background task finished."}},
+		"a compaction summary": {"type": "user", "isCompactSummary": true, "message": map[string]any{"content": "This session is being continued."}},
+	} {
+		if r := commit(testutil.UserPrompt("commit it"), testutil.AssistantText("Running the gate first."), after); strings.Contains(r.Output, `"permissionDecision":"ask"`) {
+			t.Errorf("a request, then %s: the guard asked again:\n%s", name, r.Output)
+		}
+	}
+	// A condition, a later time, a standing rule, or a remark the user wrote
+	// is still the user's word: whether to hold the commit is theirs.
+	for _, prompt := range []string{"if you commit this, CI breaks", "stop, you commit everything without asking", "Commit it after I review the diff",
+		"commit it once CI is green", "fix the docs and commit it when the tests pass", "commit them until the release is cut", "When the tests pass, commit it.",
+		"Commit it, but only after I review the diff", "Tell us when the tests pass and commit it.", "commit it if the tests pass", "commit it later",
+		"commit it as soon as CI is green", "commit it tomorrow", "commit it unless the build fails", "commit the docs fix later", "commit it before I review it",
+		"Commit it, but later.", "commit it, tomorrow", "commit and push tomorrow", "the reviewer said commit it", "commit every time tests pass",
+		"you can commit any time you want", "Earlier I said commit, now I'm not sure", "Earlier, I said commit, now I'm not sure",
+		"the bug is that I said commit and it ran", "commit notes.txt, but only after I review it", "commit main.go and push tomorrow", "commit README.MD",
+		"If the tests in Main.Go pass, commit it", "commit them here", "ship it", "commit them as five commits", "Commit it with that message",
+		"commit as we go", "make a commit", "do a commit", "create the commit", "git commit", "Yes - commit.", "commit with message fix: x"} {
+		if r := commit(map[string]any{"type": "user", "origin": map[string]any{"kind": "human"}, "message": map[string]any{"content": prompt}}); strings.Contains(r.Output, `"permissionDecision":"ask"`) {
+			t.Errorf("%q is the user's word for the commit, yet the guard asked:\n%s", prompt, r.Output)
 		}
 	}
 	for _, prompt := range []string{"Commit and continue.", "Yes, commit.", "fix it and commit", "Commit, then start step 13", "Yes, commit 21, apply both fixes", "can you commit this?", "could you commit it", "please commit", "commit both and continue", "Commit it.", "commit the docs fix", "commit it, then review the next step", "nothing else to fix so commit it", "commit it, but don't push", "commit and push", "commit it, I'll check the diff afterwards", "commit it now, push it tomorrow", "commit it, you can push tomorrow", "I said commit and continue.", "I already said commit it", "Yes, I said commit.", "Fine. I just said commit it", "But first, commit any changes.", "commit every fix", "commit each step", "Ugh, I said commit it", "Yeah, I said commit", "no; I said commit it", "commit it, do not push now", "commit it, not the lockfile, and push now", "commit the time zone fix", "commit the time parsing fix", "Commit notes.txt and .env.", "commit README.md", "commit go/internal/git/git.go and push", "fix it and commit `notes.txt`", "Commit this.Then push", "commit this, but I noticed something, and please tell me if this will be solved within this plan.", "commit it, and let me know if CI fails", "Tests in Main.Go pass, commit it", "commit everything - and push", "commit step 4-5"} {
@@ -571,6 +570,10 @@ func TestGuardCommitInAThrowawayRepoBesideSetup(t *testing.T) {
 	testutil.Mkdir(t, filepath.Join(scratch, "home3", ".claude", "scratch", "r"))
 	testutil.Git(t, filepath.Join(scratch, "home3", ".claude", "scratch", "r"), "init", "-q")
 	other := testutil.Physical(t, t.TempDir())
+	// A scratch link into the repo's .git dir.
+	if err := os.Symlink(filepath.Join(scratch, "r", ".git"), filepath.Join(scratch, "link")); err != nil {
+		t.Fatal(err)
+	}
 	for cmd, wantAsk := range map[string]bool{
 		// Only a fresh mktemp -d HOME holds no git config the guard hasn't seen.
 		`V=SCR; export HOME="$V/home2"; cd "$V/r" && git add . && git commit -qm "fix: sub" && echo ok`: true,
@@ -597,6 +600,20 @@ func TestGuardCommitInAThrowawayRepoBesideSetup(t *testing.T) {
 		`export "GIT_DIR=/x/.git"; git -C SCR/r commit -qm "fix: sub"`:                      true,
 		`printf -vX x; git -C SCR/r commit -qm "fix: sub"`:                                  true,
 		`V=SCR/r; V=/; git -C "$V" commit -qm "fix: sub"`:                                   true,
+		// rm, cp, and > in scratch pass; any of them on a .git dir asks.
+		`rm -rf SCR/r/x && git -C SCR/r commit -qm "fix: sub"`:                                   false,
+		`cp SCR/a SCR/r/b && git -C SCR/r add . && git -C SCR/r commit -qm "fix: sub"`:           false,
+		`echo x > SCR/r/a.txt && git -C SCR/r add . && git -C SCR/r commit -qm "fix: sub"`:       false,
+		`printf '#!/bin/sh\n' > SCR/r/.git/hooks/pre-commit; git -C SCR/r commit -qm "fix: sub"`: true,
+		`cp SCR/hook SCR/r/.git/hooks/pre-commit && git -C SCR/r commit -qm "fix: sub"`:          true,
+		`cp SCR/cfg SCR/r/.GIT/config && git -C SCR/r commit -qm "fix: sub"`:                     true,
+		`rm SCR/r/.git/index && git -C SCR/r commit -qm "fix: sub"`:                              true,
+		`r=SCR/r; echo x > "$r/.git/hooks/pre-commit"; git -C "$r" commit -qm "fix: sub"`:        true,
+		`cd SCR/r/.git && echo x > hooks/pre-commit; git -C SCR/r commit -qm "fix: sub"`:         true,
+		`echo x > SCR/link/hooks/pre-commit; git -C SCR/r commit -qm "fix: sub"`:                 true,
+		`echo x > OTHER/a; git -C SCR/r commit -qm "fix: sub"`:                                   true,
+		`cp -t SCR/r/.git/hooks SCR/hook; git -C SCR/r commit -qm "fix: sub"`:                    true,
+		`> SCR/r/.git/hooks/pre-commit; git -C SCR/r commit -qm "fix: sub"`:                      true,
 	} {
 		cmd = strings.ReplaceAll(strings.ReplaceAll(cmd, "SCR", scratch), "OTHER", other)
 		if r := k.commit("", cmd); strings.Contains(r.Output, `"permissionDecision":"ask"`) != wantAsk {
@@ -614,6 +631,7 @@ func TestScratchRuleNamesWhatPasses(t *testing.T) {
 	testutil.AppendJSONL(t, k.transcript, testutil.UserPrompt("fix it"))
 	uses := map[string]string{":": ":", "cd": `cd "$t"`, "echo": "echo hi", "mkdir": `mkdir -p "$t/a"`,
 		"mktemp": "u=$(mktemp -d)", "printf": `printf 'x\n'`, "set": "set -u", "true": "true",
+		"rm": `rm -rf "$t/a"`, "cp": `echo x > "$t/a" && cp "$t/a" "$t/b"`,
 		"git add": `git -C "$t" add -A`, "git commit": "true", "git init": "true"}
 	calls, exports := ThrowawayAllowed()
 	rule := ScratchRule()
@@ -756,6 +774,7 @@ func TestGuardCommitTakesAPickedCommitOption(t *testing.T) {
 		"a retry after a failed commit":  then(bash("b1", `git commit -m "fix: add sums"`), failed("b1", "lint failed")),
 		"a pick past the tail window":    then(filler, filler, filler, filler, filler),
 		"its own call in the transcript": then(bash("b1", one)),
+		"a label that defers":            {ask(question), answered("q1", question, "Commit after I review the diff")},
 	} {
 		if r := commitWith(one, entries...); strings.Contains(r.Output, `"permissionDecision":"ask"`) {
 			t.Errorf("%s asked:\n%s", name, r.Output)
@@ -767,7 +786,6 @@ func TestGuardCommitTakesAPickedCommitOption(t *testing.T) {
 		entries []map[string]any
 	}{
 		"Don't commit yet":                    {one, []map[string]any{ask(question), answered("q1", question, "Don't commit yet")}},
-		"a label that defers":                 {one, []map[string]any{ask(question), answered("q1", question, "Commit after I review the diff")}},
 		"typed text naming no commit":         {one, []map[string]any{ask(question), answered("q1", question, "Commit messages are fine, wait")}},
 		"a multi-select without Commit":       {one, []map[string]any{askAs("q1", question, true), answered("q1", question, "Push, Don't commit yet")}},
 		"a question holding a pick":           {one, []map[string]any{ask(forged), answered("q1", forged, "Don't commit yet")}},
