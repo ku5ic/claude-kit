@@ -69,11 +69,12 @@ type line struct {
 	Outcome string `json:"outcome"`
 }
 
-// ruleRow is one rule's counts: a skip is a marker that waived the rule,
-// such as a plan's critic-skip line.
+// ruleRow is one rule's counts: an ask is a permission prompt the user
+// saw, and a skip is a marker that waived the rule, such as a plan's
+// critic-skip line.
 type ruleRow struct {
-	block, shadow, disabled, skipped int
-	sessions                         map[string]bool
+	block, ask, shadow, disabled, skipped int
+	sessions                              map[string]bool
 }
 
 // claimRow is one source and model's flags.
@@ -87,8 +88,9 @@ func Report(guards, claims string, o Options, w io.Writer) error {
 	var hookCost float64
 	err := each(guards, o, func(l line) {
 		switch l.Event {
-		case "block", "shadow", "disabled", "critic-skip":
-			if o.Rule != "" && l.Rule != o.Rule {
+		case "block", "ask", "shadow", "disabled", "critic-skip":
+			// An ask logged before asks carried a rule has none to count under.
+			if o.Rule != "" && l.Rule != o.Rule || l.Event == "ask" && l.Rule == "" {
 				return
 			}
 			r := rules[l.Rule]
@@ -100,6 +102,8 @@ func Report(guards, claims string, o Options, w io.Writer) error {
 			switch l.Event {
 			case "block":
 				r.block++
+			case "ask":
+				r.ask++
 			case "shadow":
 				r.shadow++
 			case "critic-skip":
@@ -136,10 +140,10 @@ func Report(guards, claims string, o Options, w io.Writer) error {
 		return err
 	}
 	tw := tabwriter.NewWriter(w, 0, 2, 2, ' ', 0)
-	fmt.Fprintln(tw, "rule\tblocks\tshadow\tdisabled\tskipped\tsessions")
+	fmt.Fprintln(tw, "rule\tblocks\tasks\tshadow\tdisabled\tskipped\tsessions")
 	for _, name := range slices.Sorted(maps.Keys(rules)) {
 		r := rules[name]
-		fmt.Fprintf(tw, "%s\t%d\t%d\t%d\t%d\t%d\n", name, r.block, r.shadow, r.disabled, r.skipped, len(r.sessions))
+		fmt.Fprintf(tw, "%s\t%d\t%d\t%d\t%d\t%d\t%d\n", name, r.block, r.ask, r.shadow, r.disabled, r.skipped, len(r.sessions))
 	}
 	if o.Rule == "" || o.Rule == "claims" {
 		fmt.Fprintln(tw, "\nclaims\tmodel\tflagged\tdropped\tkept")

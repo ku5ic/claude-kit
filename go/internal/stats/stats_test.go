@@ -38,6 +38,9 @@ func TestReportCountsRulesAndClaimsSinceADate(t *testing.T) {
 		`{"ts":"2026-11-01T00:00:00Z","event":"block","session_id":"old","rule":"weaken"}`,
 		`{"ts":"2026-11-15T00:00:00Z","event":"block","session_id":"a","rule":"sensitive-read"}`,
 		`{"ts":"2026-11-15T00:00:00Z","event":"shadow","session_id":"b","rule":"sensitive-read"}`,
+		`{"ts":"2026-11-15T00:00:00Z","event":"ask","session_id":"a","rule":"rm-recursive"}`,
+		`{"ts":"2026-11-15T00:00:00Z","event":"ask","session_id":"b","rule":"rm-recursive"}`,
+		`{"ts":"2026-11-15T00:00:00Z","event":"ask","session_id":"a"}`,
 		`{"ts":"2026-11-15T00:00:00Z","event":"claims","session_id":"a","cost_usd":"0.0500"}`,
 		`{"ts":"2026-11-15T00:00:00Z","event":"critic-skip","session_id":"c","rule":"plan-critic","reason":"renames one flag"}`,
 		`{"ts":"2026-11-01T00:00:00Z","event":"auto-denied","session_id":"old","tool":"Bash"}`,
@@ -52,13 +55,16 @@ func TestReportCountsRulesAndClaimsSinceADate(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := out.String()
-	for _, want := range []string{"rule            blocks  shadow  disabled  skipped  sessions", "plan-critic     0       0       0         1        1", "sensitive-read  1       1       0         0        2", "agent   sonnet  2        1        1", "hook runs  1  $0.05", "auto-mode denials  2"} {
+	for _, want := range []string{"rule            blocks  asks  shadow  disabled  skipped  sessions", "plan-critic     0       0     0       0         1        1", "rm-recursive    0       2     0       0         0        2", "sensitive-read  1       0     1       0         0        2", "agent   sonnet  2        1        1", "hook runs  1  $0.05", "auto-mode denials  2"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("report lacks %q:\n%s", want, got)
 		}
 	}
 	if strings.Contains(got, "\nBash") {
 		t.Errorf("a denial is counted as a rule:\n%s", got)
+	}
+	if strings.Contains(got, "\n  ") {
+		t.Errorf("an ask with no rule is counted under an empty rule:\n%s", got)
 	}
 	out.Reset()
 	if err := Report(guards, claims, Options{Rule: "weaken"}, &out); err != nil || strings.Contains(out.String(), "denials") {

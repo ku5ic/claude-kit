@@ -105,7 +105,7 @@ func CheckCommit(h *hook.Hook) error {
 		}
 	}
 	if !<-ok {
-		h.Decide("ask", "skills/kit-rules/reference/workflow.md section 1: the current prompt doesn't ask for a commit, and no earlier reply showed this message; confirm only if the user asked for it")
+		h.Ask("skills/kit-rules/reference/workflow.md section 1: the current prompt doesn't ask for a commit, and no earlier reply showed this message; confirm only if the user asked for it", "commit-approval")
 	}
 	return nil
 }

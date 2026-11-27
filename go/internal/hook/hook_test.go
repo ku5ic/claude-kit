@@ -164,15 +164,16 @@ func TestBlockLogsAndHonorsDisabledRules(t *testing.T) {
 	}
 }
 
-// A subagent's block names its agent type, and an ask is logged as one,
-// so kit stats can tell where blocks land and count the prompts a user sees.
-func TestBlocksNameTheAgentTypeAndAsksAreLogged(t *testing.T) {
+// A subagent's block names its agent type, and an ask is logged under its
+// rule, so kit stats can tell where blocks land and count the prompts a
+// user sees by what raised them.
+func TestBlocksNameTheAgentTypeAndAsksAreLoggedByRule(t *testing.T) {
 	h, _, _ := newHook(t, `{"session_id":"s1","cwd":"/nonexistent/proj","agent_id":"a1","agent_type":"kit:gatherer","tool_input":{"command":"rm -rf /"}}`)
 	h.Deny("nope", "some-rule")
-	h.Decide("ask", "confirm it")
+	h.Ask("confirm it", "some-ask")
 	data, _ := os.ReadFile(filepath.Join(h.Paths.LogDir(), "guards.jsonl"))
 	want := `{"ts":"2026-09-28T12:00:00Z","hook":"test.sh","event":"block","session_id":"s1","agent_id":"a1","rule":"some-rule","target":"5c7923bd67b0","agent_type":"kit:gatherer","project":"proj"}` + "\n" +
-		`{"ts":"2026-09-28T12:00:00Z","hook":"test.sh","event":"ask","session_id":"s1","agent_id":"a1","target":"5c7923bd67b0","agent_type":"kit:gatherer","project":"proj"}` + "\n"
+		`{"ts":"2026-09-28T12:00:00Z","hook":"test.sh","event":"ask","session_id":"s1","agent_id":"a1","rule":"some-ask","target":"5c7923bd67b0","agent_type":"kit:gatherer","project":"proj"}` + "\n"
 	if string(data) != want {
 		t.Errorf("guards.jsonl =\n%s\nwant\n%s", data, want)
 	}
@@ -285,7 +286,7 @@ func TestLogEmptyValuesAreNull(t *testing.T) {
 
 func TestDecide(t *testing.T) {
 	decide := func(d, reason string) NamedCheck {
-		return NamedCheck{"c", func(h *Hook) error { h.Decide(d, reason); return nil }}
+		return NamedCheck{"c", func(h *Hook) error { h.decide(d, reason); return nil }}
 	}
 	tests := map[string]struct {
 		checks []NamedCheck

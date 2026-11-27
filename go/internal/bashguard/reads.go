@@ -421,6 +421,6 @@ func (st *state) excludeSensitive(segs []Segment, cmd string) string {
 	input := maps.Clone(st.h.Payload.Object(hook.KeyToolInput))
 	input["command"] = rewritten
 	st.h.UpdateInput(input)
-	st.h.Decide("allow", "kit excluded credential files from an rg inside the project")
+	st.h.Allow("kit excluded credential files from an rg inside the project")
 	return rewritten
 }

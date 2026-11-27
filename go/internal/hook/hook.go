@@ -300,7 +300,7 @@ func (h *Hook) Deny(reason, rule string) bool {
 		return false
 	}
 	h.logBlock("block", rule)
-	h.Decide("deny", h.message(reason, rule))
+	h.decide("deny", h.message(reason, rule))
 	return true
 }
 
@@ -308,7 +308,7 @@ func (h *Hook) Deny(reason, rule string) bool {
 // stopped, so kit stats counts it.
 func (h *Hook) Shadow(rule string) { h.logBlock("shadow", rule) }
 
-// logBlock logs event, a block of rule, its shadow, or an ask (no rule),
+// logBlock logs event, a block of rule, its shadow, or its ask,
 // with what it stopped: a short hash of the command or path, never the
 // text, the subagent type making the call, and the project it ran in.
 func (h *Hook) logBlock(event, rule string) {
@@ -336,15 +336,22 @@ func (h *Hook) logBlock(event, rule string) {
 	h.Log(kitlog.Guards, event, pairs...)
 }
 
-// Decide records a PreToolUse permission decision (allow, ask, or deny).
+// Ask is an ask decision for rule, logged under its rule so kit stats
+// counts it.
+func (h *Hook) Ask(reason, rule string) {
+	h.logBlock("ask", rule)
+	h.decide("ask", reason)
+}
+
+// Allow is an allow decision.
+func (h *Hook) Allow(reason string) { h.decide("allow", reason) }
+
+// decide records a PreToolUse permission decision (allow, ask, or deny).
 // Several checks in one run may decide: deny outranks ask, ask outranks
 // allow, and asks or denies join their reasons, each once, so one round
 // trip names every reason. Run prints the result once, since stdout takes
 // one JSON object.
-func (h *Hook) Decide(decision, reason string) {
-	if decision == "ask" {
-		h.logBlock("ask", "")
-	}
+func (h *Hook) decide(decision, reason string) {
 	switch {
 	case decision == h.decision && decision != "allow":
 		if !slices.Contains(h.reasons, reason) {

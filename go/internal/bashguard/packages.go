@@ -131,7 +131,7 @@ func (c *command) dependencyAdd(verbs []string, dir, root string) error {
 					return c.block(p+" isn't on its registry\n"+layout.KV("do", "check the name before adding it"), "pkg-missing")
 				}
 			}
-			c.st.ask("this adds a dependency; skills/kit-rules/reference/workflow.md section 2 asks before installing: confirm the package")
+			c.st.ask("this adds a dependency; skills/kit-rules/reference/workflow.md section 2 asks before installing: confirm the package", "package-add")
 			return nil
 		}
 	}

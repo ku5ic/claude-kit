@@ -99,15 +99,15 @@ func guardPath(h *hook.Hook, cfg *config.Config, tool, path string, reading bool
 		}
 	}
 	if ciWorkflows.MatchString(path) {
-		h.Decide("ask", "this is a CI workflow, which changes what runs on every push; confirm the change")
+		h.Ask("this is a CI workflow, which changes what runs on every push; confirm the change", "ci-workflow")
 	} else if tasks := gateTasks(h, cfg, path); len(tasks) > 0 {
-		h.Decide("ask", "this edit changes what kit's gates run at Stop and in the full gate, with no permission prompt: "+strings.Join(tasks, ", ")+"; confirm the change")
+		h.Ask("this edit changes what kit's gates run at Stop and in the full gate, with no permission prompt: "+strings.Join(tasks, ", ")+"; confirm the change", "gate-config")
 	}
 	if what := guard.KitSwitch(h.Paths, h.Payload.Cwd(), path); what != "" {
-		h.Decide("ask", guard.KitSwitchAsk(what))
+		h.Ask(guard.KitSwitchAsk(what), "kit-switch")
 	}
 	if tool == "Write" && newRootArtifact(cfg, path) {
-		h.Decide("ask", "a new "+filepath.Base(path)+" at the repo root; skills/kit-rules/reference/output.md section 3 puts reports and logs in `kit scratch-dir`. Confirm only if it belongs in the repo")
+		h.Ask("a new "+filepath.Base(path)+" at the repo root; skills/kit-rules/reference/output.md section 3 puts reports and logs in `kit scratch-dir`. Confirm only if it belongs in the repo", "root-artifact")
 	}
 	return nil
 }
@@ -134,7 +134,7 @@ func guardSearch(h *hook.Hook, cfg *config.Config) error {
 			input = maps.Clone(input)
 			input["glob"] = excluded
 			h.UpdateInput(input)
-			h.Decide("allow", "kit excluded credential files from a Grep inside the project")
+			h.Allow("kit excluded credential files from a Grep inside the project")
 		}
 	}
 	return nil

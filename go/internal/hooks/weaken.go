@@ -47,11 +47,11 @@ func GuardWeaken(h *hook.Hook) error {
 			layout.KV("do", "say why in your reply and put `kit: allow <reason>` on the line or above it, or revert it"), "weaken")
 	}
 	if r.Lost > 0 {
-		h.Decide("ask", fmt.Sprintf("this edit leaves %s with %d fewer assertion line(s). Confirm only if they're redundant or moved", filepath.Base(path), r.Lost))
+		h.Ask(fmt.Sprintf("this edit leaves %s with %d fewer assertion line(s). Confirm only if they're redundant or moved", filepath.Base(path), r.Lost), "lost-assertions")
 		return nil
 	}
 	if weaken.IsSnapshot(cfg.WeakenedChecks, path) && before != "" && !codeChangedThisTurn(h, cfg.WeakenedChecks, path) {
-		h.Decide("ask", fmt.Sprintf("this rewrites the snapshot %s in a turn that changed no code, so the test would accept new output nothing explains. Confirm only if the old snapshot was wrong", filepath.Base(path)))
+		h.Ask(fmt.Sprintf("this rewrites the snapshot %s in a turn that changed no code, so the test would accept new output nothing explains. Confirm only if the old snapshot was wrong", filepath.Base(path)), "snapshot-rewrite")
 	}
 	return nil
 }

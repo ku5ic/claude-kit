@@ -152,7 +152,8 @@ type state struct {
 	session string
 	h       *hook.Hook
 	cfg     *config.Config
-	pending string
+	// pending is the command's first ask reason, and pendingRule its rule.
+	pending, pendingRule string
 	// shadowed is true once the command logged its kit-switch shadow.
 	shadowed bool
 	// segs is the whole command parsed, inner substitutions included.
@@ -305,9 +306,9 @@ func (st *state) pinWords(words []Word) []Word {
 	return out
 }
 
-func (st *state) ask(reason string) {
+func (st *state) ask(reason, rule string) {
 	if st.pending == "" {
-		st.pending = reason
+		st.pending, st.pendingRule = reason, rule
 	}
 }
 
@@ -334,9 +335,9 @@ func Check(h *hook.Hook) error {
 	segs, unparsed, unplaced := parseFull(cmd)
 	switch {
 	case unparsed:
-		st.ask("guard-bash could not parse part of this command, so it went unchecked; confirm it")
+		st.ask("guard-bash could not parse part of this command, so it went unchecked; confirm it", "unparsed")
 	case unplaced:
-		st.ask("guard-bash can't place this trap's action in the command (an expansion, a signal other than EXIT, or a nested scope), so where it runs went unchecked; confirm it")
+		st.ask("guard-bash can't place this trap's action in the command (an expansion, a signal other than EXIT, or a nested scope), so where it runs went unchecked; confirm it", "trap-unplaced")
 	}
 	st.begin(cmd, segs)
 	for i, seg := range segs {
@@ -350,9 +351,9 @@ func Check(h *hook.Hook) error {
 	runs := cmd
 	switch {
 	case st.pending != "":
-		h.Decide("ask", st.pending)
+		h.Ask(st.pending, st.pendingRule)
 	case readonlyCall(cmd, norm):
-		h.Decide("allow", "side-effect-free claude-kit script")
+		h.Allow("side-effect-free claude-kit script")
 	default:
 		if rewritten := st.excludeSensitive(segs, cmd); rewritten != "" {
 			runs = rewritten
@@ -523,7 +524,7 @@ func (st *state) segment(seg Segment) error {
 		// $(echo rm) -rf ~ names its command only at runtime, as does
 		// sh <<< "$(echo rm -rf ~)" once its body is parsed.
 		if raw := call.Words[start].Raw; strings.Contains(raw, "$(") || strings.Contains(raw, "`") {
-			st.ask("the command name comes from a substitution, so guard-bash can't check it; confirm it")
+			st.ask("the command name comes from a substitution, so guard-bash can't check it; confirm it", "computed-command")
 		}
 		// One check per value $R may hold; a plain name is checked once.
 		expansions := st.varFields(seg, call.Words[start])
@@ -585,7 +586,7 @@ func (st *state) redirects(call Call) error {
 // project's already. Where the shell may be elsewhere, it asks.
 func (st *state) looseWrite(op, target string) {
 	if (!strings.Contains(target, "/") || strings.HasPrefix(target, "./")) && looseWriteTarget(target) && (st.lost || st.inWorktree() && !st.tracked(target)) {
-		st.ask("'" + op + " " + target + "' writes into the current directory; skills/kit-rules/reference/tooling.md wants " + op + " \"$(kit scratch-dir)/" + baseName(target) + "\". Confirm only if this file belongs in the project tree.")
+		st.ask("'"+op+" "+target+"' writes into the current directory; skills/kit-rules/reference/tooling.md wants "+op+" \"$(kit scratch-dir)/"+baseName(target)+"\". Confirm only if this file belongs in the project tree.", "loose-write")
 	}
 }
 
@@ -741,7 +742,7 @@ func (st *state) placed(p string) bool {
 func (st *state) askKitSwitch(arg string) bool {
 	what := st.kitSwitch(arg)
 	if what != "" {
-		st.ask(guard.KitSwitchAsk(what))
+		st.ask(guard.KitSwitchAsk(what), "kit-switch")
 	}
 	return what != ""
 }

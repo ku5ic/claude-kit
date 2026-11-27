@@ -34,11 +34,11 @@ func (c *command) git() error {
 				return err
 			}
 		case hooksOffByEnv(bare):
-			c.st.ask("a shell variable sets core.hooksPath, which skips the repo's hooks if the variable is already exported; confirm")
+			c.st.ask("a shell variable sets core.hooksPath, which skips the repo's hooks if the variable is already exported; confirm", "git-no-verify")
 		}
 	}
 	if reason := historyLoss(sub, args); reason != "" {
-		c.st.ask(reason)
+		c.st.ask(reason, "git-history-loss")
 	}
 	if check, ok := gitChecks[sub]; ok {
 		if err := check(c, args, dir); err != nil {
@@ -189,7 +189,7 @@ func (c *command) gitAdd(args []string, _ string) error {
 	if slices.ContainsFunc(nonOptions(args), func(p string) bool {
 		return guard.IsSensitive(c.st.cfg, c.st.home, c.st.abs(unquote(p)))
 	}) {
-		c.st.ask("git add stages a credential file, and a commit would carry it into history; confirm it belongs in the repo")
+		c.st.ask("git add stages a credential file, and a commit would carry it into history; confirm it belongs in the repo", "git-add-credential")
 	}
 	return nil
 }
@@ -205,14 +205,14 @@ func (c *command) gitReset(args []string, _ string) error {
 			}
 		}
 	}
-	c.st.ask("git reset --hard discards uncommitted changes; confirm")
+	c.st.ask("git reset --hard discards uncommitted changes; confirm", "git-reset-hard")
 	return nil
 }
 
 func (c *command) gitClean(args []string, _ string) error {
 	dryRun := slices.Contains(args, "--dry-run") || slices.ContainsFunc(args, func(a string) bool { return shortCluster(a, "n") })
 	if !dryRun {
-		c.st.ask("git clean deletes untracked files; confirm, or run it with -n first")
+		c.st.ask("git clean deletes untracked files; confirm, or run it with -n first", "git-clean")
 	}
 	return nil
 }
@@ -220,7 +220,7 @@ func (c *command) gitClean(args []string, _ string) error {
 // gitDelete asks before git branch or git tag deletes one.
 func (c *command) gitDelete(sub string, args []string) error {
 	if slices.ContainsFunc(args, func(a string) bool { return a == "--delete" || shortCluster(a, "dD") }) {
-		c.st.ask("git " + sub + " deletion; confirm the name")
+		c.st.ask("git "+sub+" deletion; confirm the name", "git-ref-delete")
 	}
 	return nil
 }
@@ -302,7 +302,7 @@ func (c *command) gitPush(args []string, dir string) error {
 			}
 		}
 	}
-	c.st.ask("git push publishes commits to a remote; confirm the destination")
+	c.st.ask("git push publishes commits to a remote; confirm the destination", "git-push")
 	return nil
 }
 

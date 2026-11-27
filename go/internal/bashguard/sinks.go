@@ -44,7 +44,7 @@ func (st *state) dirToNetwork(seg Segment) {
 			dir = st.firstWholeDir(nonOptions(args))
 		}
 		if dir != "" {
-			st.ask(fmt.Sprintf("%s sends %s, the project or a directory holding a credential file, to another host; confirm", name, dir))
+			st.ask(fmt.Sprintf("%s sends %s, the project or a directory holding a credential file, to another host; confirm", name, dir), "network-sink")
 		}
 	}
 }

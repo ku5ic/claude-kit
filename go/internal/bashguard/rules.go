@@ -257,7 +257,7 @@ func (c *command) check() error {
 		return err
 	}
 	if weaken.UpdatesSnapshots(c.st.cfg.WeakenedChecks, strings.Join(append([]string{c.name}, c.values()...), " ")) {
-		c.st.ask("this rewrites every snapshot the run disagrees with, so the tests would accept whatever the code prints now; confirm the new output is what you want")
+		c.st.ask("this rewrites every snapshot the run disagrees with, so the tests would accept whatever the code prints now; confirm the new output is what you want", "snapshot-rewrite")
 	}
 	if check, ok := commandChecks[c.name]; ok {
 		return check(c)
@@ -313,7 +313,7 @@ func (c *command) kit() error {
 	case words[0] == "git-base" && !gitBaseFlagsSafe(words[1:]):
 		// An explicit ask: with no decision, a Bash(kit git-base *) allow
 		// rule would approve --output=<file> silently.
-		c.st.ask("kit git-base passes this flag to git, which can write files or run programs; confirm it")
+		c.st.ask("kit git-base passes this flag to git, which can write files or run programs; confirm it", "kit-git-base")
 	}
 	return nil
 }
@@ -599,7 +599,7 @@ func (c *command) overlayWrite() {
 	case c.name == "cd" || c.name == "pushd":
 		for _, v := range c.values() {
 			if what := c.st.kitSwitch(v); what != "" {
-				c.st.ask("this moves into " + what + " where the guard can't follow later paths, so a write there would go unchecked; confirm the change")
+				c.st.ask("this moves into "+what+" where the guard can't follow later paths, so a write there would go unchecked; confirm the change", "kit-switch")
 				return
 			}
 		}
@@ -663,7 +663,7 @@ func (c *command) rm() error {
 		return c.block("rm with recursive force against root, home, or cwd", "rm-recursive")
 	}
 	if recursive && (c.st.linksBefore(c.st.at) || !c.st.allScratch(nonOptionsOf(c.args, func(w Word) string { return w.Value }))) {
-		c.st.ask("rm -r deletes a directory tree; confirm the path")
+		c.st.ask("rm -r deletes a directory tree; confirm the path", "rm-recursive")
 	}
 	return nil
 }
@@ -693,7 +693,7 @@ func (c *command) rsync() error {
 	if late || len(ops) < 2 ||
 		deletes && !c.st.allScratch(ops[len(ops)-1:]) ||
 		removesSources && !c.st.allScratch(ops[:len(ops)-1]) {
-		c.st.ask("rsync deletes files outside scratch; confirm the path")
+		c.st.ask("rsync deletes files outside scratch; confirm the path", "rsync-delete")
 	}
 	return nil
 }

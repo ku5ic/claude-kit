@@ -149,7 +149,7 @@ func (c *command) checkTargets(tool, flag string, targets []string) error {
 			continue
 		}
 		if strings.ContainsAny(t, "$`") && !strings.Contains(t, "..") {
-			c.st.ask(tool + " writes to '" + t + "', and guard-bash can't tell whether that's in scratch; confirm it is")
+			c.st.ask(tool+" writes to '"+t+"', and guard-bash can't tell whether that's in scratch; confirm it is", "download-target")
 			continue
 		}
 		if err := c.blockDownload(tool, t, flag); err != nil {
