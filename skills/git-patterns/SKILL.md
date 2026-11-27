@@ -26,6 +26,11 @@ Review checklist and the git behaviors that are easy to get wrong. Command synta
 | A file is ignored and you can't see why  | `git check-ignore -v <path>`, which names the rule and its source line                 |
 | Force-pushing your own remote branch     | `git push --force-with-lease --force-if-includes`                                      |
 
+## Reading history
+
+- `git log --follow` follows renames for a single file only, so a folder's history, or a count across a path, stops at a rename. Say so when the folder was renamed in the window.
+- Rename detection defaults to 50% similarity. `-M<n>%` sets it (`-M100%` finds exact renames only), and `--no-renames` turns it off.
+
 ## Anti-patterns
 
 - Force-pushing to a shared branch: `failure`. Follow `skills/kit-rules/reference/workflow.md` section 1.

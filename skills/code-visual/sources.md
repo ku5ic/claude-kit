@@ -19,8 +19,6 @@ Checked: 2026-11-16 against c4model.com.
 ### References
 
 - scc: https://github.com/boyter/scc/blob/master/README.md
-- git log, --follow: https://git-scm.com/docs/git-log
-- diff options, -M: https://git-scm.com/docs/diff-options
 
 ### Version notes
 

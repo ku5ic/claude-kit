@@ -13,6 +13,8 @@ The sources and version notes behind this skill, for `/meta-refresh`. Nothing li
 - https://git-scm.com/docs/git-worktree
 - https://git-scm.com/docs/git-push
 - https://git-scm.com/docs/git-switch
+- https://git-scm.com/docs/git-log
+- https://git-scm.com/docs/diff-options
 
 ### Version notes
 

@@ -52,6 +52,15 @@ What a target leaves out, shown by its own text:
 - A step that needs a fact, a file, or a tool no earlier step provides.
 - A reference file no row links, and a row whose file doesn't hold what the row says.
 
+### Ownership
+
+A rule or fact a target states that another file owns:
+
+- The same rule or fact in a target and in another skill, agent, reference, or rule file, where one doesn't link to the other. The owner is the file the project's CLAUDE.md names for the topic, else the pattern skill for that stack or tool, else the file that cites the rule's primary source.
+- A stack's or tool's own knowledge (a library's syntax, a CLI's flags, a spec's rules) written into a procedure skill or its `reference/`, when a pattern skill holds it, or two or more targets need it.
+
+Its Source is the owner's text, quoted. Its Case is the two texts disagreeing, quoted, or a named change to the owner the copy misses. Its Fix moves the text to the owner, or cuts it, and leaves a link to the owner in each place it was.
+
 ### Guidance
 
 Each rule in `practice.md` and the two files in the table. A page that contradicts one of those two files is one finding against that file, its Fix `/meta-refresh <skill>`, never a finding against each target.
@@ -72,6 +81,7 @@ A finding meets every line, or it's dropped:
 - A rule the project's own instructions set on purpose: a byte budget, a required table, a fixed phrase a test checks. Read the project's CLAUDE.md and its tests for the file first.
 - How well a skill works. Nothing here measures it, so the report has no score and no ranking.
 - Length, word choice, and order alone.
+- A line that names the owner and links it, without restating the rule.
 
 ## Output per finding
 
