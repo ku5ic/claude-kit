@@ -536,6 +536,8 @@ func TestGuardCommitInAThrowawayRepoBesideSetup(t *testing.T) {
 		`HOME=$X; git -C ~/.claude/scratch/r commit -qm "fix: sub"`:                         true,
 		`export HOME=OTHER; git -C $HOME/.claude/scratch/r commit -qm "fix: sub"`:           true,
 		`V=SCR/r; git -C $V add . && git -C $V commit -qm "fix: sub"`:                       false,
+		`V=SCR/r; git -C $V commit -qm "fix: V"`:                                            false,
+		`r=SCR/r; git -C "$r" commit -qm "fix: sub"`:                                        false,
 		`export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t; git -C SCR/r commit -qm "fix: sub"`: false,
 		`GIT_COMMITTER_NAME=t git -C SCR/r commit -qm "fix: sub"`:                           false,
 		`printf 'x\n'; git -C SCR/r commit -qm "fix: sub"`:                                  false,

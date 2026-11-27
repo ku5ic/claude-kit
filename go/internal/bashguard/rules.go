@@ -862,13 +862,12 @@ func errexit(segs []Segment) bool {
 }
 
 // setOnly is true when the command names name only in one assignment and
-// in $name references, and runs nothing that could set it unseen: no
-// builtin outside inertBuiltins but printf without -v, no declaration
-// that sets a name it doesn't spell, no command word it computes, and no
-// arithmetic.
+// in $name references, outside the words and values it passes as written,
+// and runs nothing that could set it unseen: no builtin outside
+// inertBuiltins but printf without -v, no declaration that sets a name it
+// doesn't spell, no command word it computes, and no arithmetic.
 func (st *state) setOnly(name string) bool {
-	cmd := st.cmd
-	if strings.Contains(cmd, "((") {
+	if strings.Contains(st.cmd, "((") {
 		return false
 	}
 	for _, seg := range st.segs {
@@ -892,10 +891,40 @@ func (st *state) setOnly(name string) bool {
 			}
 		}
 	}
+	cmd := blankWritten(st.cmd, st.segs)
 	q := regexp.QuoteMeta(name)
 	count := func(pattern string) int { return len(regexp.MustCompile(pattern).FindAllStringIndex(cmd, -1)) }
 	sets := count(`\b` + q + `=`)
 	return sets == 1 && count(`\b`+q+`\b`) == sets+count(`\$`+q+`\b|\$\{`+q+`(?::\?)?\}`)
+}
+
+// blankWritten is cmd with spaces over each call word and assigned value
+// of segs that the shell passes as written: a name there is text, and no
+// call setOnly allows can make it set a variable.
+func blankWritten(cmd string, segs []Segment) string {
+	b := []byte(cmd)
+	blank := func(from, to int) {
+		for i := from; i < to; i++ {
+			b[i] = ' '
+		}
+	}
+	for _, seg := range segs {
+		// A heredoc's commands sit at offsets into its body.
+		if seg.src != cmd {
+			continue
+		}
+		for _, call := range seg.Calls {
+			for _, w := range call.Words {
+				if w.literal {
+					blank(w.end-len(w.Raw), w.end)
+				}
+			}
+			for _, span := range call.plainValues {
+				blank(span[0], span[1])
+			}
+		}
+	}
+	return string(b)
 }
 
 // fixedProgram is true for a command word that is one variable the command
