@@ -108,19 +108,22 @@ func TestAGateTheDeadlineStopsIsSkipped(t *testing.T) {
 }
 
 // Gates in different directories run at once, and their lines print in
-// plan order: the slow first gate's line comes before the quick second one's.
+// plan order. Each gate marks its start and waits up to 5 s for the other's
+// mark, so run one after another the first fails. The first also waits for
+// the second's done mark, so its line comes first though it ends last.
 func TestGatesRunAtOnceAndReportInOrder(t *testing.T) {
 	t.Parallel()
 	r := newRepo(t, "repo")
 	r.write("a/.keep", "")
 	r.write("b/.keep", "")
-	slow, quick := r.gate("slow", "sleep 1.2"), r.gate("quick", "sleep 0.8")
-	slow.Dir, quick.Dir = filepath.Join(r.root, "a"), filepath.Join(r.root, "b")
-	start := time.Now()
-	out, _ := r.run(slow, quick)
-	if took := time.Since(start); took > 1800*time.Millisecond {
-		t.Errorf("took %s, want the gates at once", took)
+	mark := func(name string) string { return strconv.Quote(filepath.Join(r.root, name)) }
+	await := func(name string) string {
+		return "i=0; until [ -e " + mark(name) + " ]; do i=$((i+1)); [ $i -gt 50 ] && exit 1; sleep 0.1; done"
 	}
+	slow := r.gate("slow", "touch "+mark("a.started")+"; "+await("b.started")+"; "+await("b.done"))
+	quick := r.gate("quick", "touch "+mark("b.started")+"; "+await("a.started")+"; touch "+mark("b.done"))
+	slow.Dir, quick.Dir = filepath.Join(r.root, "a"), filepath.Join(r.root, "b")
+	out, _ := r.run(slow, quick)
 	has(t, out, "PASS slow\nPASS quick\n")
 }
 
