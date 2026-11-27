@@ -306,13 +306,13 @@ func loadedSkills(logPath, session string, byAgent func(string) bool) (map[strin
 	}
 	loaded := map[string]bool{}
 	err := eachSkillEntry(logPath, session, func(entry kitlog.Entry) {
-		if byAgent != nil {
-			if !byAgent(entry.AgentID) {
-				return
-			}
-			if entry.Event == kitlog.EventCompacted {
-				clear(loaded)
-			}
+		if byAgent != nil && !byAgent(entry.AgentID) {
+			return
+		}
+		// A compaction drops what was loaded from context: the main
+		// session's voids every load before it, byAgent's or the session's.
+		if entry.Event == kitlog.EventCompacted && (byAgent != nil || entry.AgentID == "") {
+			clear(loaded)
 		}
 		if entry.SkillFile != nil && entry.Loads() {
 			loaded[*entry.SkillFile] = true

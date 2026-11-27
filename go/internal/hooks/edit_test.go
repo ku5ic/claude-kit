@@ -458,6 +458,9 @@ func TestSkillsNudge(t *testing.T) {
 	if strings.Contains(second.Output, "bash-patterns") {
 		t.Errorf("the second edit in a session nudged again:\n%s", second.Output)
 	}
+	// A compaction drops the nudge from context, so the next edit nudges again.
+	k.run("inject-context", map[string]any{"hook_event_name": "SessionStart", "session_id": "s1", "source": "compact", "cwd": k.home}).Want(t, 0)
+	nudge("s1").Has(t, "bash-patterns covers this file")
 	nudge("s2").Has(t, "bash-patterns covers this file")
 
 	off := newPlugin(t)
@@ -559,6 +562,14 @@ func TestGuardSkills(t *testing.T) {
 		r := guard(skillsSandbox(t, "", ""), "/tmp/project/foo.test.tsx", "s1")
 		r.Denied(t)
 		r.Has(t, "test-patterns", "typescript-patterns", "react-patterns")
+	})
+	t.Run("a compaction voids a pattern skill loaded before it; a subagent's compaction doesn't", func(t *testing.T) {
+		t.Parallel()
+		compacted := `{"ts":"2026-01-01T00:00:01Z","hook":"inject-context","event":"compacted","session_id":"s1","cwd":"/x"}`
+		guard(skillsSandbox(t, bashSkillMap, bashSkillLoaded+"\n"+compacted+"\n"), "/tmp/project/x.sh", "s1").Denied(t)
+		guard(skillsSandbox(t, bashSkillMap, bashSkillLoaded+"\n"+compacted+"\n"+bashSkillLoaded+"\n"), "/tmp/project/x.sh", "s1").Allowed(t)
+		agent := strings.Replace(compacted, `"session_id":"s1"`, `"session_id":"s1","agent_id":"a1"`, 1)
+		guard(skillsSandbox(t, bashSkillMap, bashSkillLoaded+"\n"+agent+"\n"), "/tmp/project/x.sh", "s1").Allowed(t)
 	})
 	t.Run("only a .claude/scratch file skips the gate, not any dir named scratch", func(t *testing.T) {
 		t.Parallel()
