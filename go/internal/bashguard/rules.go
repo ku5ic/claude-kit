@@ -931,14 +931,19 @@ func blankWritten(cmd string, segs []Segment) string {
 }
 
 // fixedProgram is true for a command word that is one variable the command
-// sets once, to a plainWord naming no builtin: $KIT run-checks. It runs as
-// a child process, which can't set the shell's variables.
+// sets once, to a plainWord naming no builtin ($KIT run-checks), or a path
+// under a variable ("$V/x", or $V/x with V set so). It runs as a child
+// process, which can't set the shell's variables.
 func (st *state) fixedProgram(w Word) bool {
-	m := varRef.FindStringSubmatch(w.Value)
+	// A path one word long runs a file, never a builtin.
+	if m := quotedVar.FindStringSubmatch(w.Raw); m != nil && m[4] != "" {
+		return true
+	}
+	m := programRef.FindStringSubmatch(w.Value)
 	if m == nil {
 		return false
 	}
-	name := m[1] + m[2]
+	name, path := m[1]+m[2], m[3] != ""
 	var values []string
 	for _, seg := range st.segs {
 		if value, ok := assigned(seg)[name]; ok {
@@ -946,8 +951,12 @@ func (st *state) fixedProgram(w Word) bool {
 		}
 	}
 	count := len(regexp.MustCompile(`\b`+regexp.QuoteMeta(name)+`=`).FindAllStringIndex(st.cmd, -1))
-	return len(values) == 1 && count == 1 && plainWord.MatchString(values[0]) && !bashBuiltins[baseName(values[0])]
+	return len(values) == 1 && count == 1 && plainWord.MatchString(values[0]) && (path || !bashBuiltins[baseName(values[0])])
 }
+
+// programRef is a command word that is one variable, $V or ${V}, alone or
+// followed by a plainWord path.
+var programRef = regexp.MustCompile(`^\$(?:([A-Za-z_][A-Za-z0-9_]*)|\{([A-Za-z_][A-Za-z0-9_]*)\})(/[A-Za-z0-9_./%:=+@,-]*)?$`)
 
 // plainPrintf is true for printf with no -v, attached (-vNAME) or not,
 // which would set a variable, and a first word with no expansion, which

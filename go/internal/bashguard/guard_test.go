@@ -932,6 +932,11 @@ func TestPinnedScratchVariableReadsAsItsPath(t *testing.T) {
 		{`V=SCR; echo $[V=1]; rm -rf $V/rc`, "ask"},
 		{`V=SCR; [[ 1 -eq V=0 ]]; rm -rf $V/rc`, "ask"},
 		{`V=SCR; V+=/x; rm -rf $V/rc`, "ask"},
+		// A program at a path under it runs as a child, which can't set it.
+		{`V=SCR; rm -rf $V/rc; $V/run.sh x`, "pass"},
+		{`V=SCR; rm -rf "$V/rc"; "$V/run.sh" x`, "pass"},
+		{`V=SCR; rm -rf $V/rc; $W/run.sh`, "ask"},
+		{`V=SCR; rm -rf $V/rc; $V/*.sh`, "ask"},
 		{`V=SCR; V=/; rm -rf $V/rc`, "ask"},
 		{`for V in SCR /; do rm -rf $V/rc; done`, "ask"},
 		{`V=SCR; f() { V=/; }; f; rm -rf $V/rc`, "ask"},
