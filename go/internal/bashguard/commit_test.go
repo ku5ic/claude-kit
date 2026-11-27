@@ -509,6 +509,10 @@ func TestGuardCommitInAThrowawayRepoNeedsNoApproval(t *testing.T) {
 		// A failed cd leaves the shell where it was, and init runs there.
 		`cd ~/.claude/scratch/missing; git init -q && git add -A && git commit -m "fix: add sums"`,
 		`cd ~/.claude/scratch/missing; cd sub && git init -q && git commit -m "fix: add sums"`,
+		// A cd that may not run leaves git in the session's repo.
+		`set -e; if cd /nonexistent; then cd ~/.claude/scratch/plain; fi; git init -q; git commit -m "fix: add sums"`,
+		`set -e; if cd /nonexistent; then cd ~/.claude/scratch/r; fi; git commit -m "fix: add sums"`,
+		`cd /nonexistent || cd ~/.claude/scratch/r; git commit -m "fix: add sums"`,
 	} {
 		if r := k.commit("", cmd); !strings.Contains(r.Output, `"permissionDecision":"ask"`) {
 			t.Errorf("%s: no ask:\n%s", cmd, r.Output)

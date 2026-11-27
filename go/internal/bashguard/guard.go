@@ -22,10 +22,47 @@ import (
 )
 
 // dirs is where a command line's next command runs: cwd, which each cd
-// moves, and prev, the cwd before the last cd, for cd -.
+// moves as if it ran and worked, and prev, the cwd before the last cd, for
+// cd -. maybe are the segments of cds that may not have; lost is true once
+// a segment runs where one of them may not have, so the shell may be
+// anywhere cwd passed through. A check that passes a path by where it
+// lands reads cwd only while lost is false.
 type dirs struct {
 	home, cwd, prev string
+	maybe           []int
+	lost            bool
 }
+
+// enter readies d for segment j of segs: one that runs even when a cd in
+// maybe didn't loses the cwd.
+func (d *dirs) enter(segs []Segment, j int) {
+	if slices.ContainsFunc(d.maybe, func(k int) bool { return !andChain(segs, k, j) }) {
+		d.maybe, d.lost = nil, true
+	}
+}
+
+// moveAt moves d as name, a cd, pushd, or popd standing alone in segment k
+// of segs, with args, would. A cd surely moves the shell when it surely
+// runs and set -e stops on its failure or its directory exists; one to an
+// absolute directory then finds the cwd again. pushd, popd, and a cd the
+// guard can't follow lose it.
+func (d *dirs) moveAt(segs []Segment, k int, name string, args []Word) {
+	if name != "cd" || !d.tracks(args) {
+		d.maybe, d.lost = nil, true
+		return
+	}
+	d.cd(args)
+	seg := segs[k]
+	switch {
+	case seg.conditional || !fsx.IsDir(d.cwd) && (!standalone(seg) || !errexit(segs[:k])):
+		d.maybe = append(d.maybe, k)
+	case len(args) == 0 || filepath.IsAbs(guard.ExpandHome(d.home, args[0].Value)):
+		d.maybe, d.lost = nil, false
+	}
+}
+
+// movesDir is whether a call named name moves the shell's directory.
+func movesDir(name string) bool { return name == "cd" || name == "pushd" || name == "popd" }
 
 // tracks is true when cd with args moves d to a directory d can name: not
 // with an option, nor cd - before any cd.
@@ -58,14 +95,15 @@ func (d *dirs) cd(args []Word) {
 }
 
 // walked is one parsed call as walk yields it: its segment, the call, the
-// index of its real command word, that command's base name, and the
-// directory it runs in.
+// index of its real command word, that command's base name, the directory
+// it runs in, and whether it surely runs there (dirs.lost).
 type walked struct {
 	seg  Segment
 	call Call
 	i    int
 	name string
 	cwd  string
+	sure bool
 }
 
 // walk yields each call of segs with a command word, run from cwd, a cd
@@ -83,6 +121,7 @@ func walkPinned(segs []Segment, home, cwd string, pin pinFunc) iter.Seq[walked] 
 	return func(yield func(walked) bool) {
 		d := dirs{home: home, cwd: cwd}
 		for at, seg := range segs {
+			d.enter(segs, at)
 			for _, call := range seg.Calls {
 				if pin != nil {
 					call.Words = pin(at, call.Words)
@@ -93,10 +132,10 @@ func walkPinned(segs []Segment, home, cwd string, pin pinFunc) iter.Seq[walked] 
 				}
 				name := baseName(call.Words[i].Value)
 				// In a pipeline or a subshell, cd moves nothing after it.
-				if name == "cd" && len(seg.Calls) == 1 && !seg.subshell {
-					d.cd(call.Words[i+1:])
+				if movesDir(name) && len(seg.Calls) == 1 && !seg.subshell {
+					d.moveAt(segs, at, name, call.Words[i+1:])
 				}
-				if !yield(walked{seg, call, i, name, d.cwd}) {
+				if !yield(walked{seg, call, i, name, d.cwd, !d.lost}) {
 					return
 				}
 			}
@@ -293,6 +332,7 @@ func Check(h *hook.Hook) error {
 	st.begin(cmd, segs)
 	for i, seg := range segs {
 		st.at = i
+		st.enter(segs, i)
 		if err := st.segment(seg); err != nil {
 			return err
 		}
@@ -533,9 +573,9 @@ func (st *state) redirects(call Call) error {
 
 // looseWrite asks before a write (op is > or tee) that lands loose in the
 // current directory, unless git tracks the target: that file is the
-// project's already.
+// project's already. Where the shell may be elsewhere, it asks.
 func (st *state) looseWrite(op, target string) {
-	if (!strings.Contains(target, "/") || strings.HasPrefix(target, "./")) && looseWriteTarget(target) && st.inWorktree() && !st.tracked(target) {
+	if (!strings.Contains(target, "/") || strings.HasPrefix(target, "./")) && looseWriteTarget(target) && (st.lost || st.inWorktree() && !st.tracked(target)) {
 		st.ask("'" + op + " " + target + "' writes into the current directory; skills/kit-rules/reference/tooling.md wants " + op + " \"$(kit scratch-dir)/" + baseName(target) + "\". Confirm only if this file belongs in the project tree.")
 	}
 }
@@ -610,12 +650,16 @@ func (st *state) scratchPath(p string) (string, bool) {
 	}
 	for _, pwd := range []string{"$PWD", "${PWD}"} {
 		if st.cwd != "" && (p == pwd || strings.HasPrefix(p, pwd+"/")) {
+			if st.lost {
+				return "", false
+			}
 			p = st.cwd + p[len(pwd):]
 			break
 		}
 	}
+	ok := st.placed(p)
 	p = st.abs(p)
-	return p, !strings.ContainsAny(p, "$`")
+	return p, ok && !strings.ContainsAny(p, "$`")
 }
 
 // onDisk is true when p, absolute, is in scratch as written and on disk:
@@ -653,7 +697,7 @@ func (st *state) kitScratchDir(p string) bool {
 		return false
 	}
 	kit := m[1] + m[2]
-	return kit == "kit" || st.h.Paths.Root != "" && filepath.Clean(st.abs(kit)) == filepath.Join(st.h.Paths.Root, "bin", "kit")
+	return kit == "kit" || st.h.Paths.Root != "" && st.placed(kit) && filepath.Clean(st.abs(kit)) == filepath.Join(st.h.Paths.Root, "bin", "kit")
 }
 
 // unquote strips one pair of surrounding quotes, single or double.
@@ -671,6 +715,12 @@ func (st *state) abs(p string) string {
 		p = st.cwd + "/" + p
 	}
 	return p
+}
+
+// placed is true when p, as abs reads it, lands where abs puts it: it's
+// absolute, or the shell surely runs in the tracked cwd.
+func (st *state) placed(p string) bool {
+	return !st.lost || strings.HasPrefix(guard.ExpandHome(st.pinnedHome(), st.expandPins(p)), "/")
 }
 
 // askKitSwitch asks, and is true, when a word (quoted, ~- or

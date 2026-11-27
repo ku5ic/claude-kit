@@ -172,12 +172,14 @@ type commit struct {
 	start           int // source offset of the git call
 	// dir is its one git -C word, nil for none; elsewhere is true when
 	// something else may pick the repo (several or joined -C, --git-dir,
-	// --work-tree, --namespace, -c). seg is the segment it's in, and cwd
-	// where the cds before it moved.
+	// --work-tree, --namespace, -c). seg is the segment it's in, cwd
+	// where the cds before it moved, and sure whether the shell surely
+	// runs it there (dirs.lost).
 	dir       *Word
 	elsewhere bool
 	seg       int
 	cwd       string
+	sure      bool
 }
 
 // commits reports whether cmd, parsed as c, runs git commit: a parsed call
@@ -211,7 +213,7 @@ func gitCalls(segs []Segment, home, cwd string, unparsed bool, pin pinFunc) []co
 			if strings.ContainsAny(repo, "$`") {
 				repo = ""
 			}
-			c := commit{sub: sub, args: args, repo: repo, found: true, unparsed: unparsed, start: w.call.start, cwd: w.cwd}
+			c := commit{sub: sub, args: args, repo: repo, found: true, unparsed: unparsed, start: w.call.start, cwd: w.cwd, sure: w.sure}
 			// Read before the subcommand, since git commit -C reuses a message.
 			words := w.call.Words[w.i+1:]
 			for i := 0; i < len(words) && words[i].Value != sub; i++ {

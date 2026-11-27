@@ -243,18 +243,16 @@ func plainGit(args []string) bool {
 // existing one git puts under scratch, or one calls git init first.
 func lands(h *hook.Hook, segs []Segment, calls []commit, c commit) bool {
 	literal := c.dir == nil || !strings.ContainsAny(c.dir.Value, "$`")
-	if literal && c.repo == "" {
+	if literal && c.repo == "" || !c.placed() {
 		return false
 	}
 	if init, ok := initFirst(segs, calls, c); ok {
 		if literal {
 			// A .git there now may be a worktree's file, whose init
-			// reinitializes the repo it points at. A cd into a directory
-			// that isn't there fails and leaves the shell where it was,
-			// so it counts only when that stops the init; git -C one
-			// fails the init itself.
+			// reinitializes the repo it points at. git -C a directory
+			// that isn't there fails the init itself.
 			_, err := os.Lstat(filepath.Join(c.repo, ".git"))
-			return h.Paths.IsScratch(c.repo) && errors.Is(err, os.ErrNotExist) && (c.dir != nil || fsx.IsDir(c.repo) || cdsStop(segs, init))
+			return h.Paths.IsScratch(c.repo) && errors.Is(err, os.ErrNotExist)
 		}
 		return freshTemp(h, segs, c, init)
 	}
@@ -279,7 +277,7 @@ func initFirst(segs []Segment, calls []commit, c commit) (int, bool) {
 		// A pipeline exits with its last call's status: "git init | true"
 		// hides a failed init.
 		// ! makes a failed init succeed, so the commit runs anyway.
-		if init.sub != "init" || init.seg < 0 || init.seg >= c.seg || init.elsewhere || !sameDir(init, c) || len(segs[init.seg].Calls) != 1 || inverted(segs[init.seg]) {
+		if init.sub != "init" || init.seg < 0 || init.seg >= c.seg || init.elsewhere || !init.placed() || !sameDir(init, c) || len(segs[init.seg].Calls) != 1 || inverted(segs[init.seg]) {
 			continue
 		}
 		if andChain(segs, init.seg, c.seg) || standalone(segs[init.seg]) && errexit(segs[:init.seg]) {
@@ -287,6 +285,12 @@ func initFirst(segs []Segment, calls []commit, c commit) (int, bool) {
 		}
 	}
 	return 0, false
+}
+
+// placed is true when c runs where its repo says: the shell surely runs
+// it in the cwd it was given, or its -C is absolute.
+func (c commit) placed() bool {
+	return c.sure || c.dir != nil && filepath.IsAbs(c.dir.Value)
 }
 
 // sameDir is true when two git calls name one repo: the same -C word as
@@ -313,27 +317,6 @@ func freshTemp(h *hook.Hook, segs []Segment, c commit, init int) bool {
 	}
 	st.at = init
 	return mktempDir(st.sure[m[1]+m[2]]) && st.scratchWord(*c.dir, false)
-}
-
-// cdsStop is true when segs hold a cd before segment init, and init runs
-// only once each such cd worked: &&-chained to it, or a pipeline of its
-// own that surely runs under set -e.
-func cdsStop(segs []Segment, init int) bool {
-	found := false
-	for k, seg := range segs[:init] {
-		if seg.subshell || len(seg.Calls) != 1 {
-			continue
-		}
-		words := seg.Calls[0].Words
-		if i := lead(words); i >= len(words) || baseName(words[i].Value) != "cd" {
-			continue
-		}
-		if !andChain(segs, k, init) && (seg.conditional || !standalone(seg) || !errexit(segs[:k])) {
-			return false
-		}
-		found = true
-	}
-	return found
 }
 
 // andChain is true when segment to runs only if segment from succeeded:

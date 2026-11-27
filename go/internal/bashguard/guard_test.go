@@ -286,6 +286,9 @@ func TestGuardBash(t *testing.T) {
 			{`echo "$(cd /tmp)" && echo x > out.txt`, `out.txt`},
 			{`(cd .claude/scratch) && echo x > out.txt`, `out.txt`},
 			{`for d in $(cd /tmp); do :; done; echo x > out.txt`, `out.txt`},
+			// A cd that may not run or work leaves the shell in the repo.
+			{`if cd /nonexistent; then cd /tmp; fi; echo x > out.txt`, `out.txt`},
+			{`cd /tmp/kit-no-such-dir; echo x > out.txt`, `out.txt`},
 		} {
 			r := guardIn(k, repo, c.cmd)
 			r.Want(t, 0)
@@ -293,6 +296,7 @@ func TestGuardBash(t *testing.T) {
 		}
 		for _, cmd := range []string{
 			`cd /tmp && echo x > a.log`,
+			`cd /tmp; echo x > a.log`,
 			`cd .claude/scratch && (echo x > www.log &)`,
 		} {
 			r := guardIn(k, repo, cmd)
@@ -958,6 +962,37 @@ func TestPinnedScratchVariableReadsAsItsPath(t *testing.T) {
 		if r := k.hook("", proj, cmd); strings.Contains(r.Output, `"ask"`) != want {
 			t.Errorf("ask %v, want %v: %s\n%s", !want, want, cmd, r.Output)
 		}
+	}
+}
+
+// A relative rm counts as in scratch only where the shell surely is: a cd
+// before it ran and worked, by &&, set -e, or a directory that exists, and
+// no pushd, popd, or cd with an option moved it somewhere else.
+func TestRmFollowsOnlyACdThatSurelyMoved(t *testing.T) {
+	t.Parallel()
+	dir := testutil.Physical(t, t.TempDir())
+	proj := filepath.Join(dir, "proj")
+	testutil.Mkdir(t, filepath.Join(proj, ".git"))
+	scratch := filepath.Join(proj, ".claude", "scratch")
+	testutil.Mkdir(t, scratch)
+	for _, tc := range []struct{ cwd, cmd, want string }{
+		{proj, `cd SCR && rm -rf rc`, "pass"},
+		{proj, `cd SCR; rm -rf rc`, "pass"},
+		{proj, `set -e; cd SCR/missing; rm -rf rc`, "pass"},
+		{proj, `mkdir -p SCR/n && cd SCR/n && rm -rf rc`, "pass"},
+		{proj, `cd /nonexistent; cd SCR; rm -rf rc`, "pass"},
+		{proj, `cd SCR/missing; rm -rf rc`, "ask"},
+		{proj, `if cd /nonexistent; then cd SCR; fi; rm -rf rc`, "ask"},
+		{proj, `cd /nonexistent || cd SCR; rm -rf rc`, "ask"},
+		{proj, `mkdir -p SCR/n && cd SCR/n; rm -rf rc`, "ask"},
+		{scratch, `pushd /tmp; rm -rf rc`, "ask"},
+		{scratch, `popd; rm -rf rc`, "ask"},
+		{scratch, `cd -P /tmp; rm -rf rc`, "ask"},
+	} {
+		t.Run(tc.cmd, func(t *testing.T) {
+			t.Parallel()
+			wantRm(t, tc.cwd, strings.ReplaceAll(tc.cmd, "SCR", scratch), tc.want)
+		})
 	}
 }
 

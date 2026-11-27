@@ -275,6 +275,8 @@ func (c *command) check() error {
 // the shell, mkfs.*, and package-manager checks.
 var commandChecks = map[string]func(*command) error{
 	"cd":     func(c *command) error { c.cd(); return nil },
+	"pushd":  func(c *command) error { c.cd(); return nil },
+	"popd":   func(c *command) error { c.cd(); return nil },
 	"rm":     (*command).rm,
 	"dd":     (*command).diskTool,
 	"shred":  (*command).diskTool,
@@ -420,11 +422,12 @@ func sources(values []string) []string {
 	return ops
 }
 
-// cd tracks the directory a later command runs in, so it checks the right
-// repo; a cd inside a pipeline or a subshell moves nothing after it.
+// cd tracks the directory a later command runs in, after a cd, pushd, or
+// popd, so it checks the right repo; one inside a pipeline or a subshell
+// moves nothing after it.
 func (c *command) cd() {
 	if c.alone {
-		c.st.cd(c.st.pinWords(c.args))
+		c.st.moveAt(c.st.segs, c.st.at, c.name, c.st.pinWords(c.args))
 	}
 }
 
