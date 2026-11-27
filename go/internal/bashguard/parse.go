@@ -240,6 +240,11 @@ func (c *collector) stmt(src string, s *syntax.Stmt) {
 	if s == nil {
 		return
 	}
+	if s.Background {
+		// bash runs a statement ending in & in a subshell of its own.
+		c.subshell++
+		defer func() { c.subshell-- }()
+	}
 	if bin, ok := s.Cmd.(*syntax.BinaryCmd); ok && (bin.Op == syntax.AndStmt || bin.Op == syntax.OrStmt) {
 		c.stmt(src, bin.X)
 		c.conditional++
