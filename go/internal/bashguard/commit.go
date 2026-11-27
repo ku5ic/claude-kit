@@ -51,7 +51,8 @@ func CheckCommit(h *hook.Hook) error {
 		return h.Payload.Err
 	}
 	cmd := h.Payload.String(hook.KeyInputCommand)
-	commits := commitCalls(cmd, h.Home, h.Payload.Cwd())
+	segs, unparsed := parseAll(cmd)
+	commits := commitsIn(segs, unparsed, h.Home, h.Payload.Cwd())
 	if !commits[0].commits(cmd) {
 		return nil
 	}
@@ -59,13 +60,12 @@ func CheckCommit(h *hook.Hook) error {
 	// An expansion other than $HOME or a pinned variable can't be resolved
 	// here; most name the cwd's repo ("$PWD", "$(git rev-parse
 	// --show-toplevel)").
-	segs, _ := parseAll(cmd)
-	pinned, homeKnown, _ := pinnedCalls(h, cmd, segs)
+	pin := pinnedCalls(h, cmd, segs)
 	repos, msgs, unreads, subjects := make([]string, len(commits)), make([]string, len(commits)), make([]string, len(commits)), make([]string, len(commits))
 	for i, c := range commits {
 		repos[i] = cmp.Or(c.repo, h.Payload.Cwd())
-		if p := slices.IndexFunc(pinned, func(p commit) bool { return p.start == c.start }); homeKnown && p >= 0 && pinned[p].repo != "" {
-			repos[i] = pinned[p].repo
+		if p := slices.IndexFunc(pin.calls, func(p commit) bool { return p.start == c.start }); pin.homeKnown && p >= 0 && pin.calls[p].repo != "" {
+			repos[i] = pin.calls[p].repo
 		}
 		msgs[i], unreads[i] = message(cmd, c, repos[i], h.Home)
 		subjects[i] = subject(msgs[i])
@@ -73,7 +73,7 @@ func CheckCommit(h *hook.Hook) error {
 	// The approval reads the transcript while gitleaks and the commit-msg
 	// checks run, and it touches nothing of h. Throwaway repos need none.
 	ok := make(chan bool, 1)
-	if throwaway(h, cmd, commits) {
+	if throwaway(h, cmd, segs, unparsed, pin, commits) {
 		ok <- true
 	} else {
 		go func() {
@@ -190,10 +190,15 @@ func (c commit) commits(cmd string) bool {
 	return c.found || c.unparsed && commitLine.MatchString(cmd)
 }
 
-// commitCalls parses cmd, run from cwd, for every git commit call in it;
-// with none, it's one commit that isn't found.
+// commitCalls parses cmd, run from cwd, for its commitsIn.
 func commitCalls(cmd, home, cwd string) []commit {
 	segs, unparsed := parseAll(cmd)
+	return commitsIn(segs, unparsed, home, cwd)
+}
+
+// commitsIn is every git commit call in segs, run from cwd; with none,
+// it's one commit that isn't found.
+func commitsIn(segs []Segment, unparsed bool, home, cwd string) []commit {
 	out := slices.DeleteFunc(gitCalls(segs, home, cwd, unparsed, nil), func(c commit) bool { return c.sub != "commit" })
 	if len(out) == 0 {
 		return []commit{{unparsed: unparsed}}

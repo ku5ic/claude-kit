@@ -62,18 +62,17 @@ var setWord = regexp.MustCompile(`^([-+][euxo]+|pipefail|errexit|nounset|xtrace)
 // throwaway is true when every commit in cmd lands in a throwaway repo by
 // git's own answer, and cmd can't point git elsewhere before it runs. A
 // repo that exists now counts when git rev-parse puts its git dir under
-// scratch and nothing in it runs a program. One the command makes counts when the commit runs only once
-// cmd's git init of it worked: a scratch dir with no .git yet, or a
-// mktemp -d dir that can't be empty there.
-func throwaway(h *hook.Hook, cmd string, commits []commit) bool {
-	segs, unparsed := parseAll(cmd)
+// scratch and nothing in it runs a program. One the command makes counts
+// when the commit runs only once cmd's git init of it worked: a scratch
+// dir with no .git yet, or a mktemp -d dir that can't be empty there.
+func throwaway(h *hook.Hook, cmd string, segs []Segment, unparsed bool, pin pinnedGit, commits []commit) bool {
 	if unparsed || repoEnv.MatchString(cmd) || gitEnvSet() || !fixedShape(segs) || !plainAssigns(segs) {
 		return false
 	}
-	calls, ok, freshHome := pinnedCalls(h, cmd, segs)
-	if !ok || !freshHome {
+	if !pin.homeKnown || !pin.freshHome {
 		return false
 	}
+	calls := pin.calls
 	for _, c := range commits {
 		i := slices.IndexFunc(calls, func(p commit) bool { return p.start == c.start && c.seg >= 0 })
 		if i < 0 || calls[i].elsewhere || !lands(h, segs, calls, calls[i]) {
@@ -83,17 +82,23 @@ func throwaway(h *hook.Hook, cmd string, commits []commit) bool {
 	return true
 }
 
-// pinnedCalls is the git calls of cmd, parsed as segs, each word read as
-// the command leaves it there: a pinned variable as its path, ~ with the
-// HOME set before it. ok is false when cmd sets a HOME the guard can't
-// follow: neither pinned, nor a fresh mktemp -d dir no ~ in a git call
-// reads. freshHome is true when cmd sets no HOME or only such a fresh one,
-// which holds no git config the guard hasn't seen.
-func pinnedCalls(h *hook.Hook, cmd string, segs []Segment) (calls []commit, ok, freshHome bool) {
+// pinnedGit is a command's git calls, each word read as the command
+// leaves it there: a pinned variable as its path, ~ with the HOME set
+// before it. homeKnown is false when the command sets a HOME the guard
+// can't follow: neither pinned, nor a fresh mktemp -d dir no ~ in a git
+// call reads. freshHome is true when it sets no HOME or only such a fresh
+// one, which holds no git config the guard hasn't seen.
+type pinnedGit struct {
+	calls                []commit
+	homeKnown, freshHome bool
+}
+
+// pinnedCalls is cmd's pinnedGit, cmd parsed as segs.
+func pinnedCalls(h *hook.Hook, cmd string, segs []Segment) pinnedGit {
 	st := &state{dirs: dirs{home: h.Home, cwd: h.Payload.Cwd()}, h: h}
 	st.begin(cmd, segs)
 	next, tilde := 0, false
-	calls = gitCalls(segs, h.Home, h.Payload.Cwd(), false, func(at int, words []Word) []Word {
+	calls := gitCalls(segs, h.Home, h.Payload.Cwd(), false, func(at int, words []Word) []Word {
 		for ; next < at; next++ {
 			st.track(next, segs[next])
 		}
@@ -102,12 +107,12 @@ func pinnedCalls(h *hook.Hook, cmd string, segs []Segment) (calls []commit, ok, 
 		return tildeHome(st.pinWords(words), st.pinnedHome())
 	})
 	if !setsHome(segs) {
-		return calls, true, true
+		return pinnedGit{calls, true, true}
 	}
 	_, pinned := st.pinned("HOME", 2)
 	_, fresh := st.varPath("HOME", 1)
 	fresh = fresh && st.scratchVar("HOME", 1)
-	return calls, pinned || fresh && !tilde, fresh && !tilde
+	return pinnedGit{calls, pinned || fresh && !tilde, fresh && !tilde}
 }
 
 // tildeHome expands each word's leading unquoted ~ with home, the HOME the
