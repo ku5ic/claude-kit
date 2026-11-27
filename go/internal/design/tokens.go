@@ -3,6 +3,7 @@ package design
 import (
 	"bytes"
 	"encoding/gob"
+	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
@@ -142,7 +143,7 @@ func scanProject(root, cacheDir string) (projectTokens, bool) {
 	}
 	index := ""
 	if cacheDir != "" {
-		index = filepath.Join(cacheDir, cache.Tokens, cache.RootKey(root)+".gob")
+		index = indexFile(cacheDir, root)
 	}
 	old := loadIndex(index)
 	now := make(map[string]fileTokens, len(old))
@@ -185,6 +186,15 @@ func scanProject(root, cacheDir string) (projectTokens, bool) {
 		}
 	}
 	return p, true
+}
+
+// indexVersion names the index's shape and how define reads a file: a change
+// to either bumps it, so an index an older kit wrote is never read.
+const indexVersion = 1
+
+// indexFile is root's index under cacheDir, for this indexVersion.
+func indexFile(cacheDir, root string) string {
+	return filepath.Join(cacheDir, cache.Tokens, fmt.Sprintf("%s-v%d.gob", cache.RootKey(root), indexVersion))
 }
 
 // loadIndex is the index at file, by path from the root; empty on any

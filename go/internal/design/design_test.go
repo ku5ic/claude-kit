@@ -2,12 +2,14 @@ package design
 
 import (
 	"bytes"
+	"encoding/gob"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
+	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/testutil"
 )
 
@@ -156,4 +158,61 @@ func TestScanProjectRereadsOnlyChangedFiles(t *testing.T) {
 	if !p.defined["--pad"] || p.defined["--gap"] {
 		t.Errorf("a changed file kept its old tokens: %v", p.defined)
 	}
+}
+
+// An index the scan can't trust costs a full read, never a wrong answer:
+// one that doesn't decode, one an older kit wrote, and a deleted file's
+// entry, which the next write drops.
+func TestScanProjectDistrustsAStaleIndex(t *testing.T) {
+	t.Parallel()
+	setup := func(t *testing.T) (root, cacheDir string) {
+		root, cacheDir = testutil.Physical(t, t.TempDir()), t.TempDir()
+		testutil.Git(t, root, "init", "-q")
+		testutil.Write(t, filepath.Join(root, "vars.css"), ":root { --gap: 1rem; }\n")
+		return root, cacheDir
+	}
+	// stale is an index entry for vars.css that matches its size and mtime
+	// but names a token the file doesn't define.
+	stale := func(t *testing.T, root string) []byte {
+		info, err := os.Stat(filepath.Join(root, "vars.css"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var buf bytes.Buffer
+		if err := gob.NewEncoder(&buf).Encode(map[string]fileTokens{"vars.css": {Size: info.Size(), MTime: info.ModTime().UnixNano(), Defined: []string{"--stale"}}}); err != nil {
+			t.Fatal(err)
+		}
+		return buf.Bytes()
+	}
+	t.Run("an index that doesn't decode", func(t *testing.T) {
+		t.Parallel()
+		root, cacheDir := setup(t)
+		testutil.Write(t, indexFile(cacheDir, root), "not gob")
+		if p, ok := scanProject(root, cacheDir); !ok || !p.defined["--gap"] {
+			t.Errorf("scan = %+v, %v, want --gap from a full read", p, ok)
+		}
+	})
+	t.Run("an index an older kit wrote", func(t *testing.T) {
+		t.Parallel()
+		root, cacheDir := setup(t)
+		testutil.Write(t, filepath.Join(cacheDir, cache.Tokens, cache.RootKey(root)+".gob"), string(stale(t, root)))
+		if p, _ := scanProject(root, cacheDir); p.defined["--stale"] || !p.defined["--gap"] {
+			t.Errorf("an unversioned index answered: %v", p.defined)
+		}
+	})
+	t.Run("a deleted file's entry", func(t *testing.T) {
+		t.Parallel()
+		root, cacheDir := setup(t)
+		testutil.Write(t, filepath.Join(root, "app.css"), "a {}\n")
+		scanProject(root, cacheDir)
+		if err := os.Remove(filepath.Join(root, "vars.css")); err != nil {
+			t.Fatal(err)
+		}
+		if p, _ := scanProject(root, cacheDir); p.defined["--gap"] {
+			t.Errorf("a deleted file's tokens are still defined: %v", p.defined)
+		}
+		if _, kept := loadIndex(indexFile(cacheDir, root))["vars.css"]; kept {
+			t.Error("the index still holds the deleted file")
+		}
+	})
 }
