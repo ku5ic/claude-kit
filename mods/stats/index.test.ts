@@ -3,13 +3,15 @@ import { describe, expect, test, type Engine } from 'claude-code/testing'
 
 const TABLE = 'rule         blocks  shadow  disabled  skipped  sessions\nplan-critic  1       0       0         1        1\n'
 
-// Stands in for the engine: records each command registered and each process run, and
-// answers the run with result.
+// Stands in for the engine: records each command registered, its argument hint, and each
+// process run, and answers the run with result.
 function host(on: On, result: { exitCode: number; stdout: string; stderr: string }) {
   const registered: string[] = []
+  const hints: (string | undefined)[] = []
   const runs: { argv: readonly string[]; env?: Record<string, string> }[] = []
   on('command.register', (_, e) => {
     registered.push(e.name)
+    hints.push(e.argumentHint)
     return { value: { command: e.name } }
   })
   on('session.start', (_, e) => ({ cwd: e.cwd }))
@@ -18,7 +20,7 @@ function host(on: On, result: { exitCode: number; stdout: string; stderr: string
     runs.push({ argv: e.argv, env: e.init?.env })
     return { value: { ...result, isStdoutTruncated: false, isStderrTruncated: false } }
   })
-  return { registered, runs }
+  return { registered, hints, runs }
 }
 
 // A typed /kit-stats, shown in an 80-column main screen.
@@ -31,6 +33,7 @@ describe('kit stats', () => {
     const h = host(on, { exitCode: 0, stdout: TABLE, stderr: '' })
     await start($)
     expect(h.registered).toEqual(['kit-stats'])
+    expect(h.hints[0]).toContain('--unused')
     const out = await $.command.run({ ...typed, command: 'kit-stats', args: '--since 7  --rule plan-critic' })
     expect(out.text).toBe(TABLE.trimEnd())
     expect(h.runs).toEqual([

@@ -94,8 +94,8 @@ elif [[ -n $ver && ((${1:-} != hook && ${1:-} != *statusline) ||
   url="https://github.com/ku5ic/claude-kit/releases/download/v$ver/kit-$ver-$os-$arch"
   # The release's .sha256 must match before the binary runs: a truncated or
   # altered download never gets exec'd.
-  if want=$(curl -fsSL --max-time 5 "$url.sha256") &&
-    curl -fsSL --max-time 20 -o "$tmp" "$url" &&
+  if want=$(curl -fsSL --proto =https --proto-redir =https --max-time 5 "$url.sha256") &&
+    curl -fsSL --proto =https --proto-redir =https --max-time 20 -o "$tmp" "$url" &&
     { got=$(sha256sum "$tmp" 2>/dev/null) || got=$(shasum -a 256 "$tmp"); } &&
     [[ -n ${want%% *} && ${got%% *} == "${want%% *}" ]] &&
     chmod +x "$tmp" && mv -f "$tmp" "$bin"; then

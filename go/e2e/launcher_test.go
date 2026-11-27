@@ -105,6 +105,11 @@ printf "$bin" >"$2"`
 		if len(calls) != 2 {
 			t.Errorf("curl ran %d times, want twice, the .sha256 and the binary:\n%s", len(calls), strings.Join(calls, "\n"))
 		}
+		for _, call := range calls {
+			if !strings.Contains(call, "--proto =https --proto-redir =https ") {
+				t.Errorf("curl call isn't held to HTTPS: %s", call)
+			}
+		}
 		want := "releases/download/v9.9.9/kit-9.9.9-" + runtime.GOOS + "-" + runtime.GOARCH
 		if !strings.Contains(strings.Join(calls, "\n"), want+".sha256") {
 			t.Errorf("curl URL lacks %s.sha256:\n%s", want, strings.Join(calls, "\n"))
