@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ku5ic/claude-kit/go/internal/bashguard"
 	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/doctor"
@@ -150,6 +151,11 @@ func agentContext(h *hook.Hook, cfg *config.Config) string {
 				fmt.Fprintf(&b, "Your report is sent back once past %d words, fenced code excluded.\n", budget)
 			}
 		}
+		calls, exports := bashguard.ThrowawayAllowed()
+		fmt.Fprintf(&b, "An rm or download here passes unasked, by a literal path or a variable set once to one. "+
+			"A test repo goes under this path, never $TMPDIR, and its commit passes unasked when the command runs only %s, and exports only %s. "+
+			"Set HOME in the command itself; never source an env file.\n",
+			strings.Join(calls, ", "), strings.Join(exports, ", "))
 		b.WriteString("</scratch>\n")
 	}
 	name, root, ok := projectOf(cwd, h.Home)

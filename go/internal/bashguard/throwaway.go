@@ -2,6 +2,7 @@ package bashguard
 
 import (
 	"errors"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -23,7 +24,23 @@ var throwawayCalls = nameSet("git", "cd", "mkdir", "mktemp", "set", "true", ":",
 
 // throwawayExports are the names a throwaway commit's command may export:
 // none moves git, the repo it finds, or which program runs.
-var throwawayExports = regexp.MustCompile(`^(?:HOME|GIT_(?:AUTHOR|COMMITTER)_(?:NAME|EMAIL|DATE))$`)
+var throwawayExports = nameSet("HOME", "GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_AUTHOR_DATE",
+	"GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL", "GIT_COMMITTER_DATE")
+
+// ThrowawayAllowed is what a throwaway commit's command may run, git as
+// each of its subcommands, and the names it may export, each sorted.
+func ThrowawayAllowed() (calls, exports []string) {
+	for name := range throwawayCalls {
+		if name != "git" {
+			calls = append(calls, name)
+		}
+	}
+	for sub := range throwawayGit {
+		calls = append(calls, "git "+sub)
+	}
+	slices.Sort(calls)
+	return calls, slices.Sorted(maps.Keys(throwawayExports))
+}
 
 // shellSpecial are the names the shell itself reads when set, exported or
 // not: which program runs, where a relative cd goes, how words split.
@@ -88,7 +105,7 @@ func plainAssigns(segs []Segment) bool {
 					names = append(names, name)
 				}
 			}
-			if slices.ContainsFunc(names, func(name string) bool { return !throwawayExports.MatchString(name) }) {
+			if slices.ContainsFunc(names, func(name string) bool { return !throwawayExports[name] }) {
 				return false
 			}
 		}
