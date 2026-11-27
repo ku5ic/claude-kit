@@ -361,6 +361,7 @@ dependency_skills:
 		e := contextSetup(t)
 		out := e.run("inject-subagent-context", map[string]any{"session_id": "s1", "cwd": e.root})
 		out.Has(t, "A test repo goes under this path, never $TMPDIR")
+		out.Has(t, "names it with git -C <dir> on every git call, since a cd passes only into a dir that already exists")
 		out.Has(t, "runs only cd, git commit, and exports only HOME.")
 		out.Has(t, "never source an env file")
 	})

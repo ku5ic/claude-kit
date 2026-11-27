@@ -152,7 +152,7 @@ func agentContext(h *hook.Hook, cfg *config.Config, calls, exports []string) str
 			}
 		}
 		fmt.Fprintf(&b, "An rm or download here passes unasked, by a literal path or a variable set once to one. "+
-			"A test repo goes under this path, never $TMPDIR, and its commit passes unasked when the command runs only %s, and exports only %s. "+
+			"A test repo goes under this path, never $TMPDIR, and its commit passes unasked when the command names it with git -C <dir> on every git call, since a cd passes only into a dir that already exists, runs only %s, and exports only %s. "+
 			"Set HOME in the command itself; never source an env file.\n",
 			strings.Join(calls, ", "), strings.Join(exports, ", "))
 		b.WriteString("</scratch>\n")
