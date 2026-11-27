@@ -341,11 +341,15 @@ func approved(path string, subjects []string) bool {
 				continue
 			}
 			turnInTail = true
-			if e.FromUser() && requests(e.PromptText(), lastReply(tail[:i])) || one && pickedCommit(tail[i+1:]) {
+			reply := lastReply(tail[:i])
+			if e.FromUser() && requests(e.PromptText(), reply) || one && pickedCommit(tail[i+1:]) {
 				return true
 			}
-			if data, err := os.ReadFile(path); err == nil && slices.ContainsFunc(subjects, func(s string) bool { return !mayHold(data, s) }) {
-				return false
+			// A reply the tail cut off is left to the whole parse below.
+			if reply != "" {
+				if data, err := os.ReadFile(path); err == nil && slices.ContainsFunc(subjects, func(s string) bool { return !mayHold(data, s) }) {
+					return false
+				}
 			}
 			break
 		}

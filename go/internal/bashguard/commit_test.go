@@ -574,6 +574,8 @@ func TestGuardCommitTakesABareYesToACommitQuestion(t *testing.T) {
 		{"Shall I commit it?", "ok"},
 		{"Can I commit both?", "yes"},
 		{"Want me to commit step 5?", "sure"},
+		// Longer than the 4 MB tail, so only the whole transcript holds it.
+		{strings.Repeat("x", 5<<20) + "\n\nCommit step 3?", "yes"},
 	} {
 		if r := commit(tc.reply, tc.prompt); strings.Contains(r.Output, `"permissionDecision":"ask"`) {
 			t.Errorf("%q to %q asked:\n%s", tc.prompt, tc.reply, r.Output)
