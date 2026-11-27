@@ -55,13 +55,27 @@ func (c *command) readsSensitive(paths []string) error {
 	return nil
 }
 
+// zshOperator is true when a word holds a zsh extendedglob operator, which a .zshrc can turn on and bash parses as text: # or ^
+// anywhere, or ~ with a name on both sides (*~x). A trailing ~, an editor
+// backup's name, isn't one.
+func zshOperator(word string) bool {
+	if strings.ContainsAny(word, "#^") {
+		return true
+	}
+	i := strings.LastIndex(word, "~")
+	return i > 0 && i < len(word)-1
+}
+
 // globsSensitive blocks a read of an unquoted glob the shell expands into a
 // credential file. Where the guard knows the cwd and can expand the glob
 // itself, the files it matches now decide (cat docs/adr/*12* reads no
 // *.p12); otherwise a glob that names one blocks (cat .e*).
 func (c *command) globsSensitive(ops []string) error {
 	for _, a := range c.args {
-		if a.literal || !strings.ContainsAny(a.Value, "*?[{") || !slices.Contains(ops, a.Value) {
+		// The parser keeps no record of which bytes were quoted, so a quoted
+		// operator counts too (g/".e"#nv quotes only part of the word).
+		glob := !a.literal && strings.ContainsAny(a.Value, "*?[{") || zshOperator(a.Value)
+		if !glob || !slices.Contains(ops, a.Value) {
 			continue
 		}
 		hits, ok := c.st.expandGlob(a.Value)
@@ -100,7 +114,7 @@ func (st *state) expandGlob(glob string) (hits []string, ok bool) {
 		if strings.ContainsAny(dir, "*?#^~") {
 			return nil, false
 		}
-		if strings.ContainsAny(base, "#^~") {
+		if zshOperator(base) {
 			base = "*"
 		}
 		entries, err := os.ReadDir(dir)

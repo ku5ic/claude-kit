@@ -393,6 +393,11 @@ func TestGuardBashParsing(t *testing.T) {
 		probe("block", `cat g/^x*`)
 		probe("block", `cat g/*~x`)
 		probe("pass", `cat empty/^x*`)
+		probe("block", `cat g/.e#nv`)
+		probe("block", `cat g/.env~x`)
+		probe("pass", `cat g/notes.txt~`)
+		probe("block", `cat g/".e"#nv`)
+		probe("pass", `cat empty/"a#b"`)
 		probe("block", `cat g/*`)
 		// Words after a -c string are its $0, $1: the string alone hides them.
 		probe("block", `bash -c 'kubectl $1 pod x' _ delete`)
