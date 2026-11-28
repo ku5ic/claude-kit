@@ -15,6 +15,21 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/slop"
 )
 
+// slopSurface is what path's text is read as: a file, or in scratch a
+// report, or a PR draft for a pr- file. A scratch file that isn't Markdown
+// isn't read.
+func slopSurface(h *hook.Hook, path string) (string, bool) {
+	switch {
+	case !h.Paths.IsScratch(path):
+		return "file", true
+	case !strings.EqualFold(filepath.Ext(path), ".md"):
+		return "", false
+	case strings.HasPrefix(filepath.Base(path), "pr-"):
+		return "pr", true
+	}
+	return "report", true
+}
+
 // GuardSlop denies a Write, Edit, or MultiEdit that adds AI tells in a
 // slop.block_tiers tier, naming each with its line and fix, and logs every
 // hit. Only the lines the write adds count, less the tells the lines it
@@ -29,15 +44,9 @@ func GuardSlop(h *hook.Hook) error {
 	if path == "" || cfg == nil {
 		return nil
 	}
-	surface := "file"
-	if h.Paths.IsScratch(path) {
-		if !strings.EqualFold(filepath.Ext(path), ".md") {
-			return nil
-		}
-		surface = "report"
-		if strings.HasPrefix(filepath.Base(path), "pr-") {
-			surface = "pr"
-		}
+	surface, ok := slopSurface(h, path)
+	if !ok {
+		return nil
 	}
 	// The path decides these, so a skipped or unread type costs no file
 	// read and no regexp compile.

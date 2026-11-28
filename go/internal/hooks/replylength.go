@@ -78,53 +78,62 @@ func ReplyLength(h *hook.Hook) error {
 	}
 	switch p.String(hook.KeyHookEventName) {
 	case "UserPromptSubmit":
-		last := readTurn(marker, turn{})
-		t := turnLimit(l, p.String(hook.KeyPrompt))
-		writeTurn(marker, t)
-		var lines []string
-		if last.OverWords > 0 {
-			lines = append(lines, fmt.Sprintf("The last reply ran %d words against a %d-word target, past its %d-word allowance (skills/kit-rules/reference/output.md section 0).", last.OverWords, last.OverLimit, last.OverAllow))
-		}
-		// The chat ceiling too, though SessionStart states it: deep in a
-		// session that line is far from the reply.
-		switch {
-		case t.Limit > 0:
-			counted, mode := "fenced code excluded", " ("+l.Mode+")"
-			if t.All {
-				counted, mode = "code included", ""
-			}
-			lines = append(lines, fmt.Sprintf("Reply target this turn: %d words%s, %s. "+passTarget+" (skills/kit-rules/reference/output.md section 0).", t.Limit, mode, counted, l.Allowance(t.Limit)))
-		case l.Chat > 0:
-			lines = append(lines, "No reply target this turn.")
-		}
-		if !h.RuleDisabled("claims") {
-			lines = append(lines, checkClaims)
-		}
-		// Each line is its own context, so each gets the label.
-		for _, line := range lines {
-			h.AddContext("UserPromptSubmit", line)
-		}
+		replyPrompt(h, l, marker)
 	case "Stop":
-		t := readTurn(marker, turn{Limit: l.Chat})
-		active := p.Bool(hook.KeyStopHookActive)
-		switch {
-		case !t.Judged && active:
-			// A continuation before this turn's first Stop belongs to the
-			// turn before a queued prompt: leave the new turn's marker alone.
-			return nil
-		case t.Judged && !active:
-			// A turn with no prompt of its own (a task notification).
-			t.Limit, t.All = l.Chat, false
-		}
-		// Every reply was shown, so any one over counts; the next prompt
-		// reports and clears it.
-		t.Judged = true
-		if n, allow := countWords(p.String(hook.KeyLastAssistantMessage), t.All), l.Allowance(t.Limit); t.Limit > 0 && n > allow {
-			t.OverWords, t.OverLimit, t.OverAllow = n, t.Limit, allow
-		}
-		writeTurn(marker, t)
+		replyStop(h, l, marker)
 	}
 	return nil
+}
+
+// replyPrompt records the turn's target from the prompt, then says it, the
+// last reply's overrun, and checkClaims, each line its own context so each
+// gets the label. The chat ceiling too, though SessionStart states it:
+// deep in a session that line is far from the reply.
+func replyPrompt(h *hook.Hook, l config.ReplyLimits, marker string) {
+	last := readTurn(marker, turn{})
+	t := turnLimit(l, h.Payload.String(hook.KeyPrompt))
+	writeTurn(marker, t)
+	var lines []string
+	if last.OverWords > 0 {
+		lines = append(lines, fmt.Sprintf("The last reply ran %d words against a %d-word target, past its %d-word allowance (skills/kit-rules/reference/output.md section 0).", last.OverWords, last.OverLimit, last.OverAllow))
+	}
+	switch {
+	case t.Limit > 0:
+		counted, mode := "fenced code excluded", " ("+l.Mode+")"
+		if t.All {
+			counted, mode = "code included", ""
+		}
+		lines = append(lines, fmt.Sprintf("Reply target this turn: %d words%s, %s. "+passTarget+" (skills/kit-rules/reference/output.md section 0).", t.Limit, mode, counted, l.Allowance(t.Limit)))
+	case l.Chat > 0:
+		lines = append(lines, "No reply target this turn.")
+	}
+	if !h.RuleDisabled("claims") {
+		lines = append(lines, checkClaims)
+	}
+	for _, line := range lines {
+		h.AddContext("UserPromptSubmit", line)
+	}
+}
+
+// replyStop measures the reply against the turn's target. Every reply was
+// shown, so any one over counts; the next prompt reports and clears it. A
+// continuation before this turn's first Stop belongs to the turn before a
+// queued prompt, which leaves the new turn's marker alone; a turn with no
+// prompt of its own (a task notification) has the chat target.
+func replyStop(h *hook.Hook, l config.ReplyLimits, marker string) {
+	t := readTurn(marker, turn{Limit: l.Chat})
+	active := h.Payload.Bool(hook.KeyStopHookActive)
+	switch {
+	case !t.Judged && active:
+		return
+	case t.Judged && !active:
+		t.Limit, t.All = l.Chat, false
+	}
+	t.Judged = true
+	if n, allow := countWords(h.Payload.String(hook.KeyLastAssistantMessage), t.All), l.Allowance(t.Limit); t.Limit > 0 && n > allow {
+		t.OverWords, t.OverLimit, t.OverAllow = n, t.Limit, allow
+	}
+	writeTurn(marker, t)
 }
 
 // chatCeiling is the target a turn has unless its prompt sets another,

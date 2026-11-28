@@ -39,35 +39,44 @@ func CheckCitations(h *hook.Hook) error {
 	}
 	switch {
 	case p.String(hook.KeyHookEventName) == "SubagentStop":
-		// Sent back by the stop or the hand-back, a revision again, up to
-		// maxSendBacks. A marker, not stop_hook_active: another check may
-		// have blocked the first stop.
-		marker := handbackMarker(h, cache.Cites)
-		text := p.String(hook.KeyLastAssistantMessage)
-		if !isGatherer(p) || marker == "" && p.Bool(hook.KeyStopHookActive) || marker != "" && !mayResend(marker, text) {
-			return nil
-		}
-		if bad := cite.Broken(root, text); len(bad) > 0 {
-			if marker != "" && !markSentBack(h, marker, text, "citations") {
-				return nil
-			}
-			return h.Block(citesMessage("your report", bad, sendBack), "citations")
-		}
+		return stopCitations(h, root)
 	case p.String(hook.KeyToolName) == "SubagentHandback":
-		marker := handbackMarker(h, cache.Cites)
-		text := p.String(hook.KeyInputMessage)
-		if !isGatherer(p) || marker == "" || !mayResend(marker, text) {
-			return nil
-		}
-		if bad := cite.Broken(root, text); len(bad) > 0 {
-			if markSentBack(h, marker, text, "citations") {
-				h.Deny(citesMessage("your report", bad, sendBack), "citations")
-			}
-		}
+		handbackCitations(h, root)
 	case p.String(hook.KeyToolName) == "ExitPlanMode":
 		return planCitations(h, root)
 	}
 	return nil
+}
+
+// stopCitations blocks a gatherer's stop on broken citations: sent back by
+// the stop or the hand-back, a revision again, up to maxSendBacks. A
+// marker, not stop_hook_active: another check may have blocked the first
+// stop.
+func stopCitations(h *hook.Hook, root string) error {
+	p := h.Payload
+	marker := handbackMarker(h, cache.Cites)
+	text := p.String(hook.KeyLastAssistantMessage)
+	if !isGatherer(p) || marker == "" && p.Bool(hook.KeyStopHookActive) || marker != "" && !mayResend(marker, text) {
+		return nil
+	}
+	bad := cite.Broken(root, text)
+	if len(bad) == 0 || marker != "" && !markSentBack(h, marker, text, "citations") {
+		return nil
+	}
+	return h.Block(citesMessage("your report", bad, sendBack), "citations")
+}
+
+// handbackCitations denies a gatherer's hand-back on broken citations.
+func handbackCitations(h *hook.Hook, root string) {
+	p := h.Payload
+	marker := handbackMarker(h, cache.Cites)
+	text := p.String(hook.KeyInputMessage)
+	if !isGatherer(p) || marker == "" || !mayResend(marker, text) {
+		return
+	}
+	if bad := cite.Broken(root, text); len(bad) > 0 && markSentBack(h, marker, text, "citations") {
+		h.Deny(citesMessage("your report", bad, sendBack), "citations")
+	}
 }
 
 // planCitations denies a plan with broken citations once per text.

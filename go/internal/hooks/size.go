@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
+	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/connector"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/layout"
@@ -32,64 +33,86 @@ func CheckSize(h *hook.Hook) error {
 	if earlierDeny(h) {
 		return nil
 	}
-	b := cfg.SizeBudgets
-	tool := p.String(hook.KeyToolName)
-	var text, where, then, marker string
-	var budget int
-	// A plan or scratch report is revised in place, so it goes back once per
-	// session; a post is a new text each time.
-	document := false
+	if p.String(hook.KeyHookEventName) == "SubagentStop" {
+		return sizeStop(h, cfg.SizeBudgets.Report)
+	}
+	t, ok := sizeTargetOf(h, cfg)
 	switch {
-	case p.String(hook.KeyHookEventName) == "SubagentStop":
-		// Sent back once per agent, by the stop or the hand-back. A marker,
-		// not stop_hook_active: another check may have blocked the first stop.
-		m := handbackMarker(h, cache.Size)
-		report := p.String(hook.KeyLastAssistantMessage)
-		if m == "" && p.Bool(hook.KeyStopHookActive) || m != "" && wasSentBack(m) {
-			return nil
+	case !ok:
+	case t.handback:
+		if n := countWords(t.text, false); t.budget > 0 && n > allowance(h, t.budget) && t.marker != "" && !wasSentBack(t.marker) && markSentBack(h, t.marker, t.text, "size") {
+			h.Deny(sizeMessage(t.where, n, allowance(h, t.budget), t.then), "size")
 		}
-		if n := countWords(report, false); b.Report > 0 && n > allowance(h, b.Report) {
-			if m != "" && !markSentBack(h, m, report, "size") {
-				return nil
-			}
-			return h.Block(sizeMessage("your report", n, allowance(h, b.Report), "send the shorter report"), "size")
-		}
+	case t.document && sentBackBefore(t.marker):
+	default:
+		sizeOnce(h, t.text, t.where, t.then, t.budget, t.marker)
+	}
+	return nil
+}
+
+// sizeStop blocks a subagent's stop when its report runs over budget,
+// once per agent, by the stop or the hand-back. A marker, not
+// stop_hook_active: another check may have blocked the first stop.
+func sizeStop(h *hook.Hook, budget int) error {
+	p := h.Payload
+	m := handbackMarker(h, cache.Size)
+	report := p.String(hook.KeyLastAssistantMessage)
+	if m == "" && p.Bool(hook.KeyStopHookActive) || m != "" && wasSentBack(m) {
 		return nil
+	}
+	n := countWords(report, false)
+	if budget <= 0 || n <= allowance(h, budget) || m != "" && !markSentBack(h, m, report, "size") {
+		return nil
+	}
+	return h.Block(sizeMessage("your report", n, allowance(h, budget), "send the shorter report"), "size")
+}
+
+// sizeTarget is a deliverable CheckSize measures: its text, how the
+// message names it and what to do next, its budget, and its send-back
+// marker. A document, a plan or scratch report, is revised in place, so it
+// goes back once per session; a post is a new text each time.
+type sizeTarget struct {
+	text, where, then, marker string
+	budget                    int
+	document, handback        bool
+}
+
+// sizeTargetOf is the deliverable the PreToolUse call sends, if CheckSize
+// measures one.
+func sizeTargetOf(h *hook.Hook, cfg *config.Config) (sizeTarget, bool) {
+	p, b := h.Payload, cfg.SizeBudgets
+	tool := p.String(hook.KeyToolName)
+	switch {
 	case tool == "SubagentHandback":
-		text, where, then, budget = p.String(hook.KeyInputMessage), "your report", "hand back the shorter report", b.Report
-		marker = handbackMarker(h, cache.Size)
+		return sizeTarget{text: p.String(hook.KeyInputMessage), where: "your report", then: "hand back the shorter report", budget: b.Report,
+			marker: handbackMarker(h, cache.Size), handback: true}, true
 	case tool == "ExitPlanMode":
 		plan := filepath.Base(p.String(hook.KeyInputPlanFilePath))
-		text, where, then, budget = p.String(hook.KeyInputPlan), "the plan "+plan, "call ExitPlanMode again", b.Plan
-		marker, document = h.Paths.SessionFile(cache.Size, p.SessionID(), "plan", plan), true
+		return sizeTarget{text: p.String(hook.KeyInputPlan), where: "the plan " + plan, then: "call ExitPlanMode again", budget: b.Plan,
+			marker: h.Paths.SessionFile(cache.Size, p.SessionID(), "plan", plan), document: true}, true
 	case slices.Contains(filePathTools, tool):
-		path := p.FilePath()
-		if !scratchReport(h, path, "explore", "debug") {
-			return nil
-		}
-		_, after, ok := written(p, path)
-		if !ok {
-			return nil
-		}
-		text, where, then, budget = after, filepath.Base(path), "write the report again", b.Scratch
-		marker, document = h.Paths.SessionFile(cache.Size, p.SessionID(), "file", filepath.Base(path)), true
+		return scratchSizeTarget(h, b.Scratch)
 	case connector.IsWrite(cfg.Connectors, tool):
-		text, where, then, budget = strings.Join(p.Strings(hook.KeyToolInput, cfg.Connectors.CodeFields...), "\n\n"), "the "+tool+" input", "send it again", b.Post
-		marker = h.Paths.SessionFile(cache.Size, p.SessionID(), "tool", tool)
-	default:
-		return nil
+		return sizeTarget{text: strings.Join(p.Strings(hook.KeyToolInput, cfg.Connectors.CodeFields...), "\n\n"), where: "the " + tool + " input", then: "send it again", budget: b.Post,
+			marker: h.Paths.SessionFile(cache.Size, p.SessionID(), "tool", tool)}, true
 	}
-	if tool == "SubagentHandback" {
-		if n := countWords(text, false); budget > 0 && n > allowance(h, budget) && marker != "" && !wasSentBack(marker) && markSentBack(h, marker, text, "size") {
-			h.Deny(sizeMessage(where, n, allowance(h, budget), then), "size")
-		}
-		return nil
+	return sizeTarget{}, false
+}
+
+// scratchSizeTarget is an explore or debug report an edit tool writes in
+// scratch.
+func scratchSizeTarget(h *hook.Hook, budget int) (sizeTarget, bool) {
+	p := h.Payload
+	path := p.FilePath()
+	if !scratchReport(h, path, "explore", "debug") {
+		return sizeTarget{}, false
 	}
-	if document && sentBackBefore(marker) {
-		return nil
+	_, after, ok := written(p, path)
+	if !ok {
+		return sizeTarget{}, false
 	}
-	sizeOnce(h, text, where, then, budget, marker)
-	return nil
+	return sizeTarget{text: after, where: filepath.Base(path), then: "write the report again", budget: budget,
+		marker: h.Paths.SessionFile(cache.Size, p.SessionID(), "file", filepath.Base(path)), document: true}, true
 }
 
 // allowance is budget plus reply_slack: how long a text may run before

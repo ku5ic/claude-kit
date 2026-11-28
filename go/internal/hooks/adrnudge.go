@@ -35,10 +35,18 @@ func ADRNudge(h *hook.Hook) error {
 	if !anchored || dir == "" || fsx.Within(dir, file) {
 		return nil
 	}
-	rel := filepath.ToSlash(fsx.Rel(root, file))
+	if named := adrsCiting(h, root, dir, filepath.ToSlash(fsx.Rel(root, file))); named != "" {
+		h.AddContext("PreToolUse", named+"A change that contradicts it needs a new ADR that supersedes it.")
+	}
+	return nil
+}
+
+// adrsCiting is a line for each accepted ADR in dir that cites rel and
+// wasn't named yet this session, marking each named.
+func adrsCiting(h *hook.Hook, root, dir, rel string) string {
 	var b strings.Builder
 	for _, a := range adr.Accepted(dir) {
-		marker := h.Paths.SessionFile(cache.ADRNudged, p.SessionID(), cache.RootKey(a.Path))
+		marker := h.Paths.SessionFile(cache.ADRNudged, h.Payload.SessionID(), cache.RootKey(a.Path))
 		if marker == "" || fsx.IsFile(marker) || !a.Cites(rel) {
 			continue
 		}
@@ -47,8 +55,5 @@ func ADRNudge(h *hook.Hook) error {
 		}
 		b.WriteString("An accepted ADR covers this file, " + fsx.Rel(root, a.Path) + ": " + a.Title + "\nDecision: " + a.Decision + "\n")
 	}
-	if b.Len() > 0 {
-		h.AddContext("PreToolUse", b.String()+"A change that contradicts it needs a new ADR that supersedes it.")
-	}
-	return nil
+	return b.String()
 }

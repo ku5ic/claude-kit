@@ -47,25 +47,32 @@ func VerifyClaims(h *hook.Hook) error {
 	}
 	switch p.String(hook.KeyHookEventName) {
 	case "SubagentStop":
-		// The marker, not stop_hook_active, ends the retry: a stop that
-		// follows subagent-slop's block is this check's first.
-		marker := handbackMarker(h, cache.Claims)
-		if marker == "" && p.Bool(hook.KeyStopHookActive) || marker != "" && fsx.IsFile(marker) {
-			return nil
-		}
-		u := unconfirmed(h, p.String(hook.KeyLastAssistantMessage), agentTranscript(p), "subagent report")
-		if len(u) == 0 {
-			// Best effort: without it, the next stop checks again.
-			if marker != "" && !h.DryRun {
-				_ = fsx.WriteAtomic(marker, []byte(seenMark), 0o644)
-			}
-			return nil
-		}
-		if marker == "" || markOnce(h, marker, []byte(seenMark), "claims") {
-			return h.Block(claimsMessage("your report", u, sendBack), "claims")
-		}
+		return verifyStop(h)
 	case "PreToolUse":
 		return verifyToolInput(h)
+	}
+	return nil
+}
+
+// verifyStop checks a subagent's report at its stop. The marker, not
+// stop_hook_active, ends the retry: a stop that follows subagent-slop's
+// block is this check's first. A clean report's marker is best effort:
+// without it, the next stop checks again.
+func verifyStop(h *hook.Hook) error {
+	p := h.Payload
+	marker := handbackMarker(h, cache.Claims)
+	if marker == "" && p.Bool(hook.KeyStopHookActive) || marker != "" && fsx.IsFile(marker) {
+		return nil
+	}
+	u := unconfirmed(h, p.String(hook.KeyLastAssistantMessage), agentTranscript(p), "subagent report")
+	if len(u) == 0 {
+		if marker != "" && !h.DryRun {
+			_ = fsx.WriteAtomic(marker, []byte(seenMark), 0o644)
+		}
+		return nil
+	}
+	if marker == "" || markOnce(h, marker, []byte(seenMark), "claims") {
+		return h.Block(claimsMessage("your report", u, sendBack), "claims")
 	}
 	return nil
 }

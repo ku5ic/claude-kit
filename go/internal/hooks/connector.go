@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/ku5ic/claude-kit/go/internal/attribution"
+	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/connector"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
@@ -32,18 +33,8 @@ func GuardConnector(h *hook.Hook) error {
 	}
 	tool := p.String(hook.KeyToolName)
 	reading := connector.IsRead(cfg.Connectors, tool)
-	// A remote server's relative path (a repo file on GitHub) is no local
-	// file; one starting with ~, /, or ./ is taken as local on any server.
-	local := connector.TouchesFiles(cfg.Connectors.PathServers, tool)
-	for _, field := range cfg.Connectors.PathFields {
-		for _, v := range p.Strings(hook.KeyToolInput + "." + field) {
-			if !local && !strings.HasPrefix(v, "~") && !strings.HasPrefix(v, "/") && !strings.HasPrefix(v, "./") {
-				continue
-			}
-			if err := guardPath(h, cfg, tool, fsx.Abs(h.Payload.Cwd(), guard.ExpandHome(h.Home, v)), reading); err != nil {
-				return err
-			}
-		}
+	if err := guardConnectorPaths(h, cfg, tool, reading); err != nil {
+		return err
 	}
 	if strings.Contains(strings.ToLower(connector.Server(tool)), "github") && !reading {
 		if line, ok := attribution.New(cfg.Attribution).Find(strings.Join(p.Strings(hook.KeyToolInput), "\n")); ok {
@@ -62,4 +53,23 @@ func GuardConnector(h *hook.Hook) error {
 		return nil
 	}
 	return h.Block(slop.Message("the "+tool+" input", hits, ""), "slop")
+}
+
+// guardConnectorPaths gives each connectors.path_fields value guard-edit's
+// path rules. A remote server's relative path (a repo file on GitHub) is
+// no local file; one starting with ~, /, or ./ is taken as local on any
+// server.
+func guardConnectorPaths(h *hook.Hook, cfg *config.Config, tool string, reading bool) error {
+	local := connector.TouchesFiles(cfg.Connectors.PathServers, tool)
+	for _, field := range cfg.Connectors.PathFields {
+		for _, v := range h.Payload.Strings(hook.KeyToolInput + "." + field) {
+			if !local && !strings.HasPrefix(v, "~") && !strings.HasPrefix(v, "/") && !strings.HasPrefix(v, "./") {
+				continue
+			}
+			if err := guardPath(h, cfg, tool, fsx.Abs(h.Payload.Cwd(), guard.ExpandHome(h.Home, v)), reading); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

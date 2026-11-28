@@ -54,15 +54,7 @@ func PlanChanges(h *hook.Hook) error {
 	if shownFile == "" {
 		return nil
 	}
-	save := func(file, data string) {
-		if h.DryRun {
-			return
-		}
-		// Unsaved, the next resubmit shows no diff or a stale one.
-		if err := fsx.WriteAtomic(file, []byte(data), 0o600); err != nil {
-			h.Log(kitlog.Guards, "plan-changes-error", "file", file, "error", err.Error())
-		}
-	}
+	save := func(file, data string) { savePlanFile(h, file, data) }
 	held := readHeld(heldFile)
 	answered, ok := lastAnswer(h)
 	shown, seen := lastShown(h, shownFile, plan, text)
@@ -82,6 +74,17 @@ func PlanChanges(h *hook.Hook) error {
 		save(heldFile, string(data))
 	}
 	return nil
+}
+
+// savePlanFile writes a plan-changes record, logging a failure: unsaved,
+// the next resubmit shows no diff or a stale one.
+func savePlanFile(h *hook.Hook, file, data string) {
+	if h.DryRun {
+		return
+	}
+	if err := fsx.WriteAtomic(file, []byte(data), 0o600); err != nil {
+		h.Log(kitlog.Guards, "plan-changes-error", "file", file, "error", err.Error())
+	}
 }
 
 // readHeld is the held plan in file, zero when there is none.

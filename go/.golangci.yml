@@ -89,24 +89,6 @@ linters:
         linters: [cyclop, revive]
       - path: ^internal/hook/hook\.go$
         linters: [revive]
-      - path: ^internal/hooks/adrnudge\.go$
-        linters: [cyclop]
-      - path: ^internal/hooks/citations\.go$
-        linters: [cyclop]
-      - path: ^internal/hooks/claims\.go$
-        linters: [cyclop]
-      - path: ^internal/hooks/connector\.go$
-        linters: [cyclop]
-      - path: ^internal/hooks/edit\.go$
-        linters: [cyclop]
-      - path: ^internal/hooks/planchanges\.go$
-        linters: [cyclop]
-      - path: ^internal/hooks/replylength\.go$
-        linters: [cyclop, funlen]
-      - path: ^internal/hooks/size\.go$
-        linters: [cyclop, funlen]
-      - path: ^internal/hooks/slop\.go$
-        linters: [cyclop]
       - path: ^internal/md/md\.go$
         linters: [cyclop]
       - path: ^internal/pkgcheck/lookup\.go$

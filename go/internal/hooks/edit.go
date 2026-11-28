@@ -79,10 +79,16 @@ func guardPath(h *hook.Hook, cfg *config.Config, tool, path string, reading bool
 		}
 	}
 
-	// Everything below guards writes only.
 	if reading {
 		return nil
 	}
+	return guardWrite(h, cfg, tool, path)
+}
+
+// guardWrite is guardPath's rules for a write: a lockfile, .git, or an rc
+// file blocks, and a CI workflow, a gate config, a kit switch, or a new
+// report at the repo root asks.
+func guardWrite(h *hook.Hook, cfg *config.Config, tool, path string) error {
 	if guard.IsGuardedLockfile(cfg, path) && !h.Paths.IsScratch(path) {
 		if err := h.Block("lockfile edit\n"+layout.KV("do", "use the package manager"), "lockfile-edit"); err != nil {
 			return err
@@ -98,6 +104,14 @@ func guardPath(h *hook.Hook, cfg *config.Config, tool, path string, reading bool
 			return err
 		}
 	}
+	askWrite(h, cfg, tool, path)
+	return nil
+}
+
+// askWrite asks before a write that changes what runs (a CI workflow, a
+// gate's config), names a kit switch, or drops a new report at the repo
+// root.
+func askWrite(h *hook.Hook, cfg *config.Config, tool, path string) {
 	if ciWorkflows.MatchString(path) {
 		h.Ask("this is a CI workflow, which changes what runs on every push; confirm the change", "ci-workflow")
 	} else if tasks := gateTasks(h, cfg, path); len(tasks) > 0 {
@@ -109,7 +123,6 @@ func guardPath(h *hook.Hook, cfg *config.Config, tool, path string, reading bool
 	if tool == "Write" && newRootArtifact(cfg, path) {
 		h.Ask("a new "+filepath.Base(path)+" at the repo root; skills/kit-rules/reference/output.md section 3 puts reports and logs in `kit scratch-dir`. Confirm only if it belongs in the repo", "root-artifact")
 	}
-	return nil
 }
 
 // guardSearch blocks a Grep that can read a credential file. Its root is
