@@ -149,23 +149,7 @@ func untar(r *tar.Reader, dir string) error {
 		if err != nil {
 			return err
 		}
-		// IsLocal in place of fsx.Within: CodeQL's Zip Slip query sees it as a guard.
-		if !filepath.IsLocal(hdr.Name) {
-			return errors.New("run: base archive names a path outside its tree: " + hdr.Name)
-		}
-		path := filepath.Join(dir, hdr.Name)
-		switch hdr.Typeflag {
-		case tar.TypeDir:
-			err = os.MkdirAll(path, 0o755)
-		case tar.TypeSymlink:
-			if filepath.IsAbs(hdr.Linkname) || !fsx.Within(dir, filepath.Join(filepath.Dir(path), hdr.Linkname)) {
-				return errors.New("run: base archive links outside its tree: " + hdr.Name)
-			}
-			links[path] = hdr.Linkname
-		case tar.TypeReg:
-			err = writeFile(path, r, hdr.FileInfo().Mode().Perm())
-		}
-		if err != nil {
+		if err := untarEntry(r, hdr, dir, links); err != nil {
 			return err
 		}
 	}
@@ -178,6 +162,28 @@ func untar(r *tar.Reader, dir string) error {
 		if err := os.Symlink(target, path); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// untarEntry writes hdr's directory or file under dir, or records its link
+// in links for untar to write last.
+func untarEntry(r *tar.Reader, hdr *tar.Header, dir string, links map[string]string) error {
+	// IsLocal in place of fsx.Within: CodeQL's Zip Slip query sees it as a guard.
+	if !filepath.IsLocal(hdr.Name) {
+		return errors.New("run: base archive names a path outside its tree: " + hdr.Name)
+	}
+	path := filepath.Join(dir, hdr.Name)
+	switch hdr.Typeflag {
+	case tar.TypeDir:
+		return os.MkdirAll(path, 0o755)
+	case tar.TypeSymlink:
+		if filepath.IsAbs(hdr.Linkname) || !fsx.Within(dir, filepath.Join(filepath.Dir(path), hdr.Linkname)) {
+			return errors.New("run: base archive links outside its tree: " + hdr.Name)
+		}
+		links[path] = hdr.Linkname
+	case tar.TypeReg:
+		return writeFile(path, r, hdr.FileInfo().Mode().Perm())
 	}
 	return nil
 }

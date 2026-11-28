@@ -28,49 +28,66 @@ func Run(cfg *config.Config, args []string, stdin io.Reader, stdout, stderr io.W
 	d := New(cfg)
 	blocked := false
 	for _, path := range paths {
-		var data []byte
-		if path == "-" {
-			data, err = io.ReadAll(stdin)
-		} else if abs, _ := filepath.Abs(path); Skips(cfg, abs) {
-			fmt.Fprintf(stderr, "%s: skipped (slop.skip)\n", path)
-			continue
-		} else {
-			data, err = os.ReadFile(path)
-		}
+		data, skip, err := read(cfg, path, stdin)
 		if err != nil {
 			fmt.Fprintln(stderr, "kit slop:", err)
 			return 2
 		}
-		name, on := path, surface
-		// Stdin has no extension to mark it as UI code, so read it as a UI file.
-		if path == "-" && surface == "ui" {
-			name, on = "-.tsx", "file"
-		}
-		segs, allows, ok := Segments(name, "", string(data))
-		if !ok {
-			fmt.Fprintf(stderr, "%s: not scanned (no reader for this file type)\n", path)
+		if skip {
+			fmt.Fprintf(stderr, "%s: skipped (slop.skip)\n", path)
 			continue
 		}
-		for _, a := range allows {
-			fmt.Fprintf(stdout, "%s:%d: allow %q\n", path, a.Line, a.Reason)
-		}
-		res := d.Scan(segs, on)
-		for _, h := range res.Hits {
-			line := fmt.Sprintf("%s:%d: T%d %s %q", path, h.Line, h.Tier, h.Rule, h.Match)
-			if h.Fix != "" {
-				line += " -> " + h.Fix
-			}
-			fmt.Fprintln(stdout, line)
-			blocked = blocked || d.Blocks(h)
-		}
-		if res.Dense {
-			fmt.Fprintf(stdout, "%s: tier 3 density %.1f per %d words\n", path, res.Score, cfg.Slop.Density.PerWords)
-		}
+		blocked = printHits(d, cfg, path, surface, data, stdout, stderr) || blocked
 	}
 	if blocked {
 		return 1
 	}
 	return 0
+}
+
+// read is path's bytes, stdin's for "-", or skip when slop.skip covers path.
+func read(cfg *config.Config, path string, stdin io.Reader) (data []byte, skip bool, err error) {
+	if path == "-" {
+		data, err = io.ReadAll(stdin)
+		return data, false, err
+	}
+	if abs, _ := filepath.Abs(path); Skips(cfg, abs) {
+		return nil, true, nil
+	}
+	data, err = os.ReadFile(path)
+	return data, false, err
+}
+
+// printHits prints data's allow markers, hits, and density as path's, and
+// reports whether a hit blocks.
+func printHits(d *Detector, cfg *config.Config, path, surface string, data []byte, stdout, stderr io.Writer) bool {
+	name, on := path, surface
+	// Stdin has no extension to mark it as UI code, so read it as a UI file.
+	if path == "-" && surface == "ui" {
+		name, on = "-.tsx", "file"
+	}
+	segs, allows, ok := Segments(name, "", string(data))
+	if !ok {
+		fmt.Fprintf(stderr, "%s: not scanned (no reader for this file type)\n", path)
+		return false
+	}
+	for _, a := range allows {
+		fmt.Fprintf(stdout, "%s:%d: allow %q\n", path, a.Line, a.Reason)
+	}
+	res := d.Scan(segs, on)
+	blocked := false
+	for _, h := range res.Hits {
+		line := fmt.Sprintf("%s:%d: T%d %s %q", path, h.Line, h.Tier, h.Rule, h.Match)
+		if h.Fix != "" {
+			line += " -> " + h.Fix
+		}
+		fmt.Fprintln(stdout, line)
+		blocked = blocked || d.Blocks(h)
+	}
+	if res.Dense {
+		fmt.Fprintf(stdout, "%s: tier 3 density %.1f per %d words\n", path, res.Score, cfg.Slop.Density.PerWords)
+	}
+	return blocked
 }
 
 func parseArgs(args []string) (surface string, paths []string, err error) {

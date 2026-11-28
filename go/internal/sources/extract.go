@@ -156,34 +156,7 @@ func TOMLKeys(file, path string) []string {
 	if err != nil {
 		return nil
 	}
-	children := map[string][]string{}
-	seen := map[string]bool{}
-	record := func(full []string) {
-		for i := range full {
-			parent := strings.Join(full[:i], ".")
-			edge := parent + "\x00" + full[i]
-			if !seen[edge] {
-				seen[edge] = true
-				children[parent] = append(children[parent], full[i])
-			}
-		}
-	}
-	var walkInline func(prefix []string, node *unstable.Node)
-	walkInline = func(prefix []string, node *unstable.Node) {
-		it := node.Children()
-		for it.Next() {
-			kv := it.Node()
-			if kv.Kind != unstable.KeyValue {
-				continue
-			}
-			full := append(append([]string{}, prefix...), keyParts(kv)...)
-			record(full)
-			if kv.Value().Kind == unstable.InlineTable {
-				walkInline(full, kv.Value())
-			}
-		}
-	}
-
+	tree := tomlTree{children: map[string][]string{}, seen: map[string]bool{}}
 	var current []string
 	var p unstable.Parser
 	p.Reset(data)
@@ -192,13 +165,9 @@ func TOMLKeys(file, path string) []string {
 		switch expr.Kind {
 		case unstable.Table, unstable.ArrayTable:
 			current = keyParts(expr)
-			record(current)
+			tree.record(current)
 		case unstable.KeyValue:
-			full := append(append([]string{}, current...), keyParts(expr)...)
-			record(full)
-			if expr.Value().Kind == unstable.InlineTable {
-				walkInline(full, expr.Value())
-			}
+			tree.keyValue(current, expr)
 		}
 	}
 	if p.Error() != nil {
@@ -208,7 +177,41 @@ func TOMLKeys(file, path string) []string {
 	if _, isTable := GetPath(readTOML(file), path).(map[string]any); !isTable {
 		return nil
 	}
-	return children[strings.Join(splitPath(path), ".")]
+	return tree.children[strings.Join(splitPath(path), ".")]
+}
+
+// tomlTree is the child keys under each dotted table path, in file order.
+type tomlTree struct {
+	children map[string][]string
+	seen     map[string]bool
+}
+
+// record adds each key of full under its parent path, once.
+func (t *tomlTree) record(full []string) {
+	for i := range full {
+		parent := strings.Join(full[:i], ".")
+		edge := parent + "\x00" + full[i]
+		if !t.seen[edge] {
+			t.seen[edge] = true
+			t.children[parent] = append(t.children[parent], full[i])
+		}
+	}
+}
+
+// keyValue records kv's key under prefix, and an inline table's keys
+// under it.
+func (t *tomlTree) keyValue(prefix []string, kv *unstable.Node) {
+	full := append(append([]string{}, prefix...), keyParts(kv)...)
+	t.record(full)
+	if kv.Value().Kind != unstable.InlineTable {
+		return
+	}
+	it := kv.Value().Children()
+	for it.Next() {
+		if child := it.Node(); child.Kind == unstable.KeyValue {
+			t.keyValue(full, child)
+		}
+	}
 }
 
 func keyParts(node *unstable.Node) []string {

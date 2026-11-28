@@ -181,34 +181,44 @@ func gitlabSteps(cfg *config.Config, root, file string) []Entry {
 		if job == nil || strings.HasPrefix(name, ".") || slices.Contains(gitlabReserved, name) {
 			continue
 		}
-		job = gitlabExtend(merged, job, 0)
-		inherited := func(key string) any {
-			if v := job[key]; v != nil {
-				return v
-			}
-			if v := def[key]; v != nil {
-				return v
-			}
-			return merged[key]
-		}
-		if inherited("services") != nil || inherited("id_tokens") != nil || job["environment"] != nil || job["secrets"] != nil || job["trigger"] != nil || deniedName(cfg, name) {
-			continue
-		}
-		env, ok := literalEnv(job["variables"])
+		env, body, ok := gitlabJob(cfg, merged, def, name, gitlabExtend(merged, job, 0))
 		if !ok {
 			continue
 		}
 		env = append(slices.Clone(globalEnv), env...)
-		// GitLab runs before_script and script in one shell, so a cd or an
-		// export on one line holds for the next: they're one step.
-		lines, ok := scriptLines(inherited("before_script"))
-		script, ok2 := scriptLines(job["script"])
-		if !ok || !ok2 || len(script) == 0 {
-			continue
-		}
-		out = append(out, Entry{Source: "gitlab-ci", File: rel, Name: name, Dir: ".", Env: env, Body: Body{Text: strings.Join(append(lines, script...), "\n")}})
+		out = append(out, Entry{Source: "gitlab-ci", File: rel, Name: name, Dir: ".", Env: env, Body: Body{Text: body}})
 	}
 	return out
+}
+
+// gitlabJob is job's own variables and script; false when a local run
+// can't reproduce it: it needs services, tokens, an environment, secrets,
+// or a trigger, its name is denied, or a variable or line isn't literal.
+func gitlabJob(cfg *config.Config, merged, def map[string]any, name string, job map[string]any) ([]string, string, bool) {
+	inherited := func(key string) any {
+		if v := job[key]; v != nil {
+			return v
+		}
+		if v := def[key]; v != nil {
+			return v
+		}
+		return merged[key]
+	}
+	if inherited("services") != nil || inherited("id_tokens") != nil || job["environment"] != nil || job["secrets"] != nil || job["trigger"] != nil || deniedName(cfg, name) {
+		return nil, "", false
+	}
+	env, ok := literalEnv(job["variables"])
+	if !ok {
+		return nil, "", false
+	}
+	// GitLab runs before_script and script in one shell, so a cd or an
+	// export on one line holds for the next: they're one step.
+	lines, ok := scriptLines(inherited("before_script"))
+	script, ok2 := scriptLines(job["script"])
+	if !ok || !ok2 || len(script) == 0 {
+		return nil, "", false
+	}
+	return env, strings.Join(append(lines, script...), "\n"), true
 }
 
 // scriptLines is a GitLab script list; ok is false when a line uses a CI

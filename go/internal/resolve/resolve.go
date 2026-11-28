@@ -125,6 +125,12 @@ func (r *Resolver) Bin(dir, name string) Resolution {
 	if manifest := declared(dir, r.root, name); manifest != "" {
 		return Resolution{Skip: name + " declared in " + manifest + " but not installed"}
 	}
+	return r.onPath(dir, name)
+}
+
+// onPath is name from PATH, allowed only when a pin, a toolchain, the
+// manager list, or the system vouches for it.
+func (r *Resolver) onPath(dir, name string) Resolution {
 	path, err := exec.LookPath(name)
 	if err != nil {
 		return Resolution{Skip: name + " not installed"}
@@ -199,21 +205,26 @@ func (r *Resolver) Fetches(dir string, words []string) string {
 		return two
 	case two == "go run" && len(words) > 2 && strings.Contains(words[2], "@"):
 		return "go run " + words[2]
-	case words[0] == "npx" || two == "npm exec":
-		runner, rest := words[0], words[1:]
-		if runner == "npm" {
-			runner, rest = two, words[2:]
+	case words[0] == "npx":
+		return r.fetchesUnlessLocal(dir, words[0], words[1:])
+	case two == "npm exec":
+		return r.fetchesUnlessLocal(dir, two, words[2:])
+	}
+	return ""
+}
+
+// fetchesUnlessLocal is runner and the binary in rest, "" when the project
+// has a local copy of that binary.
+func (r *Resolver) fetchesUnlessLocal(dir, runner string, rest []string) string {
+	bin := ""
+	for _, w := range rest {
+		if !strings.HasPrefix(w, "-") {
+			bin = w
+			break
 		}
-		bin := ""
-		for _, w := range rest {
-			if !strings.HasPrefix(w, "-") {
-				bin = w
-				break
-			}
-		}
-		if _, ok := r.local(dir, bin); bin == "" || !ok {
-			return runner + " " + bin + " with no local copy"
-		}
+	}
+	if _, ok := r.local(dir, bin); bin == "" || !ok {
+		return runner + " " + bin + " with no local copy"
 	}
 	return ""
 }

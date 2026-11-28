@@ -175,39 +175,12 @@ func commentLines(lines []string, syn syntax) []Segment {
 			}
 			continue
 		}
-		var got []string
-		rest, pending := line, "" // pending: a heredoc this line opens
+		rest := line
 		if t := strings.TrimSpace(line); open.kind == 0 && syn.doc && (strings.HasPrefix(t, `"""`) || strings.HasPrefix(t, `'''`)) {
 			open, rest = span{blockComment, t[:3], t[:3]}, t[3:]
 		}
-		for rest != "" {
-			if open.kind != 0 {
-				end := closeAt(rest, open)
-				if open.kind == blockComment {
-					if end < 0 {
-						got = append(got, rest)
-					} else {
-						got = append(got, rest[:end])
-					}
-				}
-				if end < 0 {
-					break
-				}
-				rest, open = rest[end+len(open.close):], span{}
-				continue
-			}
-			at, next := nextSpan(rest, syn)
-			switch {
-			case at < 0:
-				rest = ""
-			case next.kind == lineComment:
-				got, rest = append(got, rest[at+len(next.open):]), ""
-			case next.kind == heredoc:
-				pending, rest = next.close, rest[at+len(next.open):]
-			default:
-				open, rest = next, rest[at+len(next.open):]
-			}
-		}
+		got, ends, pending := lineComments(rest, open, syn) // pending: a heredoc this line opens
+		open = ends
 		if pending != "" && open.kind == 0 {
 			open = span{kind: heredoc, close: pending}
 		}
@@ -216,6 +189,47 @@ func commentLines(lines []string, syn syntax) []Segment {
 		}
 	}
 	return segs
+}
+
+// lineComments is the comment text in rest, a line that starts inside
+// open, with the span the line ends inside and the delimiter of a heredoc
+// it opens.
+func lineComments(rest string, open span, syn syntax) ([]string, span, string) {
+	var got []string
+	pending := ""
+	for rest != "" {
+		if open.kind != 0 {
+			end := closeAt(rest, open)
+			if open.kind == blockComment {
+				got = append(got, upTo(rest, end))
+			}
+			if end < 0 {
+				break
+			}
+			rest, open = rest[end+len(open.close):], span{}
+			continue
+		}
+		at, next := nextSpan(rest, syn)
+		switch {
+		case at < 0:
+			rest = ""
+		case next.kind == lineComment:
+			got, rest = append(got, rest[at+len(next.open):]), ""
+		case next.kind == heredoc:
+			pending, rest = next.close, rest[at+len(next.open):]
+		default:
+			open, rest = next, rest[at+len(next.open):]
+		}
+	}
+	return got, open, pending
+}
+
+// upTo is s before end, all of s when end is -1.
+func upTo(s string, end int) string {
+	if end < 0 {
+		return s
+	}
+	return s[:end]
 }
 
 // closeAt is where open's closer is in s, -1 when it isn't. Inside a string
@@ -304,9 +318,7 @@ func charLiteral(s string) int {
 }
 
 // nextSpan is where the first comment, heredoc, or string the line doesn't
-// close opens in s, and that span; -1 when none does. A "#" opens a comment
-// only at the start or after a blank, a "//" not after a ":", so $#, ${#x},
-// and a URL aren't comments.
+// close opens in s, and that span; -1 when none does.
 func nextSpan(s string, syn syntax) (int, span) {
 	var quote byte
 	for i := 0; i < len(s); i++ {
@@ -320,67 +332,92 @@ func nextSpan(s string, syn syntax) (int, span) {
 			}
 			continue
 		}
-		if syn.doc && (strings.HasPrefix(s[i:], `"""`) || strings.HasPrefix(s[i:], `'''`)) {
-			triple := span{str, s[i : i+3], s[i : i+3]}
-			end := closeAt(s[i+3:], triple)
-			if end < 0 {
-				return i, triple
-			}
-			i += 3 + end + 2
-			continue
-		}
-		if strings.IndexByte(syn.multi, c) >= 0 {
-			multi := span{str, s[i : i+1], s[i : i+1]}
-			end := closeAt(s[i+1:], multi)
-			if end < 0 {
-				return i, multi
-			}
-			i += 1 + end
-			continue
-		}
-		if syn.lifetimes && c == '\'' {
-			if n := charLiteral(s[i:]); n > 0 {
-				i += n - 1
-			}
+		if n, open := literalAt(s[i:], syn); open.kind != 0 {
+			return i, open
+		} else if n > 0 {
+			i += n - 1
 			continue
 		}
 		if strings.IndexByte(syn.quotes, c) >= 0 {
 			quote = c
 			continue
 		}
-		if syn.longBrackets && (c == '[' || c == '-') {
-			if m := longBracket.FindStringSubmatch(s[i:]); m != nil {
-				long := span{str, m[0], "]" + m[2] + "]"}
-				if m[1] != "" {
-					return i, span{blockComment, m[0], long.close}
-				}
-				end := closeAt(s[i+len(m[0]):], long)
-				if end < 0 {
-					return i, long
-				}
-				i += len(m[0]) + end + len(long.close) - 1
-				continue
-			}
-		}
-		for _, open := range syn.line {
-			if !strings.HasPrefix(s[i:], open) {
-				continue
-			}
-			if open == "#" && i > 0 && s[i-1] != ' ' && s[i-1] != '\t' || open == "//" && i > 0 && s[i-1] == ':' {
-				continue
-			}
-			return i, span{kind: lineComment, open: open}
-		}
-		for _, b := range syn.block {
-			if strings.HasPrefix(s[i:], b[0]) {
-				return i, span{blockComment, b[0], b[1]}
-			}
-		}
-		if syn.heredoc && c == '<' && (i == 0 || s[i-1] != '<') {
-			if m := heredocOpener.FindStringSubmatch(s[i:]); m != nil {
-				return i, span{heredoc, m[0], m[1]}
-			}
+		if open := openerAt(s, i, syn); open.kind != 0 {
+			return i, open
 		}
 	}
 	return -1, span{}
+}
+
+// literalAt is the length of the docstring, multi-line string, char
+// literal, or Lua long bracket s starts with, or the span it opens when the
+// line doesn't close it; 0 and no span when s starts with none of them.
+func literalAt(s string, syn syntax) (int, span) {
+	c := s[0]
+	switch {
+	case syn.doc && (strings.HasPrefix(s, `"""`) || strings.HasPrefix(s, `'''`)):
+		return closedAfter(s, 3, span{str, s[:3], s[:3]})
+	case strings.IndexByte(syn.multi, c) >= 0:
+		return closedAfter(s, 1, span{str, s[:1], s[:1]})
+	case syn.lifetimes && c == '\'':
+		return max(charLiteral(s), 1), span{}
+	case syn.longBrackets && (c == '[' || c == '-'):
+		m := longBracket.FindStringSubmatch(s)
+		if m == nil {
+			return 0, span{}
+		}
+		closer := "]" + m[2] + "]"
+		if m[1] != "" {
+			return 0, span{blockComment, m[0], closer}
+		}
+		return closedAfter(s, len(m[0]), span{str, m[0], closer})
+	}
+	return 0, span{}
+}
+
+// closedAfter is the length of open, whose opener is s's first n bytes,
+// through its closer; or open itself when s doesn't close it.
+func closedAfter(s string, n int, open span) (int, span) {
+	end := closeAt(s[n:], open)
+	if end < 0 {
+		return 0, open
+	}
+	return n + end + len(open.close), span{}
+}
+
+// openerAt is the comment or heredoc opening at s[i], or no span. A "#"
+// opens a comment only at the start or after a blank, a "//" not after a
+// ":", so $#, ${#x}, and a URL aren't comments.
+func openerAt(s string, i int, syn syntax) span {
+	for _, open := range syn.line {
+		if strings.HasPrefix(s[i:], open) && opensComment(s, i, open) {
+			return span{kind: lineComment, open: open}
+		}
+	}
+	for _, b := range syn.block {
+		if strings.HasPrefix(s[i:], b[0]) {
+			return span{blockComment, b[0], b[1]}
+		}
+	}
+	if syn.heredoc && s[i] == '<' && (i == 0 || s[i-1] != '<') {
+		if m := heredocOpener.FindStringSubmatch(s[i:]); m != nil {
+			return span{heredoc, m[0], m[1]}
+		}
+	}
+	return span{}
+}
+
+// opensComment is false for a "#" glued to the text before it and a "//"
+// after a ":".
+func opensComment(s string, i int, open string) bool {
+	if i == 0 {
+		return true
+	}
+	switch open {
+	case "#":
+		return s[i-1] == ' ' || s[i-1] == '\t'
+	case "//":
+		return s[i-1] != ':'
+	}
+	return true
 }

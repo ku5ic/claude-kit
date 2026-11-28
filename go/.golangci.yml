@@ -59,27 +59,7 @@ linters:
         linters: [cyclop]
       - path: ^internal/pkgcheck/lookup\.go$
         linters: [cyclop]
-      - path: ^internal/resolve/resolve\.go$
-        linters: [cyclop]
       - path: ^internal/rotate/rotate\.go$
-        linters: [cyclop]
-      - path: ^internal/run/base\.go$
-        linters: [cyclop]
-      - path: ^internal/run/run\.go$
-        linters: [cyclop, funlen]
-      - path: ^internal/slop/run\.go$
-        linters: [cyclop, funlen]
-      - path: ^internal/slop/segments\.go$
-        linters: [cyclop, funlen, revive]
-      - path: ^internal/sources/ci\.go$
-        linters: [cyclop]
-      - path: ^internal/sources/extract\.go$
-        linters: [funlen]
-      - path: ^internal/sources/yamltasks\.go$
-        linters: [cyclop]
-      - path: ^internal/stats/stats\.go$
-        linters: [cyclop, funlen, revive]
-      - path: ^internal/status/statusline\.go$
         linters: [cyclop]
       - path: ^internal/transcript/runs\.go$
         linters: [cyclop]

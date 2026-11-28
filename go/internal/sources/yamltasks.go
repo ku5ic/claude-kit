@@ -82,39 +82,54 @@ func eachTaskfileTask(file string, fn func(string, Body)) {
 		if value(task, "internal") == "true" {
 			continue
 		}
-		var lines []string
-		switch task.Kind {
-		case yaml.ScalarNode:
-			lines = []string{task.Value}
-		case yaml.SequenceNode:
-			for _, cmd := range task.Content {
-				lines = append(lines, cmd.Value)
-			}
-		case yaml.MappingNode:
-			for _, dep := range items(field(task, "deps")) {
-				if dep := cmp.Or(dep.Value, value(dep, "task")); dep != "" {
-					lines = append(lines, "task "+dep)
-				}
-			}
-			if cmd := value(task, "cmd"); cmd != "" {
-				lines = append(lines, cmd)
-			}
-			for _, cmd := range items(field(task, "cmds")) {
-				switch {
-				case cmd.Kind == yaml.ScalarNode:
-					lines = append(lines, cmd.Value)
-				case value(cmd, "cmd") != "":
-					lines = append(lines, value(cmd, "cmd"))
-				case value(cmd, "task") != "":
-					lines = append(lines, "task "+value(cmd, "task"))
-				}
-			}
-		}
+		lines := taskfileLines(task)
 		for j, line := range lines {
 			lines[j] = taskfileVar.ReplaceAllString(line, "$$TASK_VAR")
 		}
 		fn(name, Body{Text: strings.Join(lines, "\n"), PerLine: true})
 	}
+}
+
+// taskfileLines is task's deps and commands, one line each.
+func taskfileLines(task *yaml.Node) []string {
+	switch task.Kind {
+	case yaml.ScalarNode:
+		return []string{task.Value}
+	case yaml.SequenceNode:
+		var lines []string
+		for _, cmd := range task.Content {
+			lines = append(lines, cmd.Value)
+		}
+		return lines
+	case yaml.MappingNode:
+		return taskfileMapLines(task)
+	}
+	return nil
+}
+
+// taskfileMapLines is a task mapping's deps as "task <dep>" lines, then its
+// cmd and cmds.
+func taskfileMapLines(task *yaml.Node) []string {
+	var lines []string
+	for _, dep := range items(field(task, "deps")) {
+		if dep := cmp.Or(dep.Value, value(dep, "task")); dep != "" {
+			lines = append(lines, "task "+dep)
+		}
+	}
+	if cmd := value(task, "cmd"); cmd != "" {
+		lines = append(lines, cmd)
+	}
+	for _, cmd := range items(field(task, "cmds")) {
+		switch {
+		case cmd.Kind == yaml.ScalarNode:
+			lines = append(lines, cmd.Value)
+		case value(cmd, "cmd") != "":
+			lines = append(lines, value(cmd, "cmd"))
+		case value(cmd, "task") != "":
+			lines = append(lines, "task "+value(cmd, "task"))
+		}
+	}
+	return lines
 }
 
 // preCommitConfigs are where pre-commit looks, at the root.

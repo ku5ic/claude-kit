@@ -83,49 +83,12 @@ type claimRow struct{ kept, dropped int }
 // Report writes the rule and claim tables from the guards and claims logs
 // at those paths.
 func Report(guards, claims string, o Options, w io.Writer) error {
-	rules := map[string]*ruleRow{}
-	var hookRuns, denials int
-	var hookCost float64
-	err := each(guards, o, func(l line) {
-		switch l.Event {
-		case "block", "ask", "shadow", "disabled", "critic-skip":
-			// An ask logged before asks carried a rule has none to count under.
-			if o.Rule != "" && l.Rule != o.Rule || l.Event == "ask" && l.Rule == "" {
-				return
-			}
-			r := rules[l.Rule]
-			if r == nil {
-				r = &ruleRow{sessions: map[string]bool{}}
-				rules[l.Rule] = r
-			}
-			r.sessions[l.Session] = true
-			switch l.Event {
-			case "block":
-				r.block++
-			case "ask":
-				r.ask++
-			case "shadow":
-				r.shadow++
-			case "critic-skip":
-				r.skipped++
-			default:
-				r.disabled++
-			}
-		case kitlog.EventAutoDenied:
-			denials++
-		case "claims", "claims-error":
-			var cost float64
-			if _, err := fmt.Sscan(l.Cost, &cost); err == nil {
-				hookRuns++
-				hookCost += cost
-			}
-		}
-	})
-	if err != nil {
+	g := guardTally{rules: map[string]*ruleRow{}}
+	if err := each(guards, o, func(l line) { g.add(l, o.Rule) }); err != nil {
 		return err
 	}
 	flags := map[[2]string]*claimRow{}
-	err = each(claims, o, func(l line) {
+	err := each(claims, o, func(l line) {
 		key := [2]string{l.Source, l.Model}
 		if flags[key] == nil {
 			flags[key] = &claimRow{}
@@ -141,8 +104,8 @@ func Report(guards, claims string, o Options, w io.Writer) error {
 	}
 	tw := tabwriter.NewWriter(w, 0, 2, 2, ' ', 0)
 	fmt.Fprintln(tw, "rule\tblocks\tasks\tshadow\tdisabled\tskipped\tsessions")
-	for _, name := range slices.Sorted(maps.Keys(rules)) {
-		r := rules[name]
+	for _, name := range slices.Sorted(maps.Keys(g.rules)) {
+		r := g.rules[name]
 		fmt.Fprintf(tw, "%s\t%d\t%d\t%d\t%d\t%d\t%d\n", name, r.block, r.ask, r.shadow, r.disabled, r.skipped, len(r.sessions))
 	}
 	if o.Rule == "" || o.Rule == "claims" {
@@ -153,12 +116,67 @@ func Report(guards, claims string, o Options, w io.Writer) error {
 			f := flags[key]
 			fmt.Fprintf(tw, "%s\t%s\t%d\t%d\t%d\n", key[0], key[1], f.kept+f.dropped, f.dropped, f.kept)
 		}
-		fmt.Fprintf(tw, "\nhook runs\t%d\t$%.2f\n", hookRuns, hookCost)
+		fmt.Fprintf(tw, "\nhook runs\t%d\t$%.2f\n", g.hookRuns, g.hookCost)
 	}
 	if o.Rule == "" {
-		fmt.Fprintf(tw, "\nauto-mode denials\t%d\n", denials)
+		fmt.Fprintf(tw, "\nauto-mode denials\t%d\n", g.denials)
 	}
 	return tw.Flush()
+}
+
+// guardTally is the guards log's counts: per rule, auto-mode denials, and
+// the claims hook's runs and cost.
+type guardTally struct {
+	rules             map[string]*ruleRow
+	hookRuns, denials int
+	hookCost          float64
+}
+
+// add counts l, a rule's event only when only is "" or names its rule.
+func (g *guardTally) add(l line, only string) {
+	switch l.Event {
+	case "block", "ask", "shadow", "disabled", "critic-skip":
+		// An ask logged before asks carried a rule has none to count under.
+		if only != "" && l.Rule != only || l.Event == "ask" && l.Rule == "" {
+			return
+		}
+		g.rule(l.Rule).count(l)
+	case kitlog.EventAutoDenied:
+		g.denials++
+	case "claims", "claims-error":
+		var cost float64
+		if _, err := fmt.Sscan(l.Cost, &cost); err == nil {
+			g.hookRuns++
+			g.hookCost += cost
+		}
+	}
+}
+
+// rule is name's row, added on first use.
+func (g *guardTally) rule(name string) *ruleRow {
+	r := g.rules[name]
+	if r == nil {
+		r = &ruleRow{sessions: map[string]bool{}}
+		g.rules[name] = r
+	}
+	return r
+}
+
+// count adds l's event and session to r.
+func (r *ruleRow) count(l line) {
+	r.sessions[l.Session] = true
+	switch l.Event {
+	case "block":
+		r.block++
+	case "ask":
+		r.ask++
+	case "shadow":
+		r.shadow++
+	case "critic-skip":
+		r.skipped++
+	default:
+		r.disabled++
+	}
 }
 
 // Unused writes each of rules with no line in the guards log, as blocked,
@@ -201,16 +219,17 @@ func Run(logDir string, rules []string, now time.Time, args []string, stdout, st
 		switch flag := args[i]; {
 		case flag == "--unused":
 			unused = true
-		case (flag == "--rule" || flag == "--since") && i+1 < len(args):
+		case flag == "--rule" && i+1 < len(args):
 			i++
-			if flag == "--rule" {
-				o.Rule = args[i]
-			} else if n, err := strconv.Atoi(args[i]); err == nil && n > 0 {
-				days = n
-			} else {
+			o.Rule = args[i]
+		case flag == "--since" && i+1 < len(args):
+			i++
+			n, err := strconv.Atoi(args[i])
+			if err != nil || n <= 0 {
 				fmt.Fprintf(stderr, "stats: --since takes a number of days, got %q\n", args[i])
 				return 2
 			}
+			days = n
 		default:
 			fmt.Fprintf(stderr, "stats: unknown argument %q; usage: kit stats [--rule r] [--since days] [--unused]\n", flag)
 			return 2

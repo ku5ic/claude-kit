@@ -170,30 +170,45 @@ func (r *runner) gate(g enforce.Gate) {
 		r.pass(g.Label, "nothing changed since "+g.Unchanged)
 		return
 	}
-	body := g.Command()
-	if strings.Contains(body, "{base}") {
-		if r.base() == "" {
-			r.skip(g.Label, "no git base")
-			return
-		}
-		body = strings.ReplaceAll(body, "{base}", r.base())
-	}
-	if g.Scoped() {
-		switch since, ok := r.changes(); {
-		case !ok:
-			r.skip(g.Label, "no git base")
-			return
-		case len(since.Files) == 0:
-			r.pass(g.Label, "nothing changed since "+since.Base)
-			return
-		}
+	body, ok := r.body(g)
+	if !ok {
+		return
 	}
 	timeout, ok := limit(gateTimeout, r.deadline)
 	if !ok {
 		r.cut(g.Label)
 		return
 	}
-	o := runBody(g, body, timeout)
+	r.record(g, body, runBody(g, body, timeout), timeout)
+}
+
+// body is g's command with {base} filled in, false once g is reported as
+// skipped or passed because it needs a git base or nothing changed.
+func (r *runner) body(g enforce.Gate) (string, bool) {
+	body := g.Command()
+	if strings.Contains(body, "{base}") {
+		if r.base() == "" {
+			r.skip(g.Label, "no git base")
+			return "", false
+		}
+		body = strings.ReplaceAll(body, "{base}", r.base())
+	}
+	if !g.Scoped() {
+		return body, true
+	}
+	switch since, ok := r.changes(); {
+	case !ok:
+		r.skip(g.Label, "no git base")
+		return "", false
+	case len(since.Files) == 0:
+		r.pass(g.Label, "nothing changed since "+since.Base)
+		return "", false
+	}
+	return body, true
+}
+
+// record reports o, the outcome of g's run of body under timeout.
+func (r *runner) record(g enforce.Gate, body string, o outcome, timeout time.Duration) {
 	// Killed for the budget, not its own timeout: it never got to finish.
 	cut := o.timedOut && timeout < gateTimeout
 	// Only a run of its whole or affected body covers another gate.

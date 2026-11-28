@@ -194,23 +194,7 @@ func models(path, modelName string) (actualShort, actualDisplay, sessionShort, d
 		return
 	}
 	entries, _ := transcript.Tail(path, 60)
-	since, actualID := "", ""
-	for _, e := range entries {
-		if e.Type == "user" && !e.IsMeta && e.PromptText() != "" {
-			since = e.Timestamp
-		}
-		if e.Type == "assistant" && !e.IsSidechain && e.Message.Model != "" {
-			actualID = e.Message.Model
-		}
-	}
-	declaredID := ""
-	if since != "" {
-		for _, e := range entries {
-			if e.Type == "attachment" && e.Attachment.Type == "command_permissions" && e.Timestamp >= since && e.Attachment.Model != "" {
-				declaredID = e.Attachment.Model
-			}
-		}
-	}
+	actualID, declaredID := turnModels(entries)
 	if actualID == "" {
 		return
 	}
@@ -222,6 +206,29 @@ func models(path, modelName string) (actualShort, actualDisplay, sessionShort, d
 		declaredShort, declaredDisplay = modelShort(declaredID), modelDisplay(declaredID)
 	}
 	return
+}
+
+// turnModels is the model of entries' last main-thread reply, and the last
+// model a skill declared since the turn's prompt.
+func turnModels(entries []transcript.Entry) (actualID, declaredID string) {
+	since := ""
+	for _, e := range entries {
+		if e.Type == "user" && !e.IsMeta && e.PromptText() != "" {
+			since = e.Timestamp
+		}
+		if e.Type == "assistant" && !e.IsSidechain && e.Message.Model != "" {
+			actualID = e.Message.Model
+		}
+	}
+	if since == "" {
+		return actualID, ""
+	}
+	for _, e := range entries {
+		if e.Type == "attachment" && e.Attachment.Type == "command_permissions" && e.Timestamp >= since && e.Attachment.Model != "" {
+			declaredID = e.Attachment.Model
+		}
+	}
+	return actualID, declaredID
 }
 
 // unsafeSessionChars are what a session id loses to name a cache file.
