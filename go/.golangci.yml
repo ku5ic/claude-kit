@@ -51,10 +51,6 @@ linters:
         linters: [funlen]
       - path: ^internal/adr/adr\.go$
         linters: [cyclop]
-      - path: ^internal/bashguard/approval\.go$
-        linters: [cyclop]
-      - path: ^internal/bashguard/commit\.go$
-        linters: [cyclop, funlen, revive]
       - path: ^internal/bashguard/download\.go$
         linters: [cyclop, revive]
       - path: ^internal/bashguard/git\.go$

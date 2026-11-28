@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
 )
@@ -26,29 +28,45 @@ func approved(path, shell string, subjects []string) bool {
 	// An AskUserQuestion pick approves one commit; a command running
 	// several asks.
 	one := len(subjects) == 1
-	turnInTail, replied := false, false
-	if tail, err := transcript.Tail(path, math.MaxInt); err == nil {
-		// A notification or a compaction summary after the user's prompt
-		// doesn't replace it.
-		for i, e := range slices.Backward(tail) {
-			if !e.UserTurn() {
-				continue
-			}
-			turnInTail = true
-			reply := lastReply(tail[:i])
-			if requests(e.PromptText(), reply) || one && pickedCommit(tail[i+1:], shell) {
-				return true
-			}
-			// A reply the tail cut off is left to the whole parse below.
-			replied = reply != ""
-			break
-		}
+	ok, turnInTail, replied := approvedInTail(path, shell, one)
+	if ok {
+		return true
 	}
 	// One read of the whole file serves the subject test and the parse.
 	data, err := os.ReadFile(path)
 	if err != nil || replied && slices.ContainsFunc(subjects, func(s string) bool { return !mayHold(data, s) }) {
 		return false
 	}
+	return approvedInFile(data, subjects, shell, one && !turnInTail)
+}
+
+// approvedInTail is whether the user's latest turn, found in the
+// transcript's tail, asks for the commit, or with one picks it; whether
+// that turn was in the tail; and whether a reply before it was. A
+// notification or a compaction summary after the user's prompt doesn't
+// replace it, and a reply the tail cut off is left to the whole parse.
+func approvedInTail(path, shell string, one bool) (ok, turnInTail, replied bool) {
+	tail, err := transcript.Tail(path, math.MaxInt)
+	if err != nil {
+		return false, false, false
+	}
+	for i, e := range slices.Backward(tail) {
+		if !e.UserTurn() {
+			continue
+		}
+		reply := lastReply(tail[:i])
+		if requests(e.PromptText(), reply) || one && pickedCommit(tail[i+1:], shell) {
+			return true, true, false
+		}
+		return false, true, reply != ""
+	}
+	return false, false, false
+}
+
+// approvedInFile is approved read from the whole transcript: the last
+// turn asks for the commit or, with picks, picks it, or a reply before
+// that turn showed every subject.
+func approvedInFile(data []byte, subjects []string, shell string, picks bool) bool {
 	var earlier, current strings.Builder
 	prompt, reply, before := "", "", ""
 	// The entries of a turn that started before the tail, for its picks.
@@ -56,7 +74,7 @@ func approved(path, shell string, subjects []string) bool {
 	_ = transcript.EachIn(data, func(e transcript.Entry) {
 		if e.UserTurn() {
 			turn = nil
-		} else if one && !turnInTail {
+		} else if picks {
 			turn = append(turn, e)
 		}
 		switch {
@@ -277,4 +295,135 @@ func shown(text, subject string) bool {
 		}
 	}
 	return false
+}
+
+var (
+	commitWord = regexp.MustCompile(`(?i)\bcommit\b|\bship\s+it\b`)
+	// negated is a clause that turns down what follows: "don't", "not",
+	// "aren't", "never", "no", and git status's "nothing to".
+	negated = regexp.MustCompile(`(?i)\b(don['\x{2019}]?t|not|never|no|nothing\s+to)\b|n['\x{2019}]t\b`)
+	// directAsk opens a question that is a request: "can you commit this?".
+	// Any other question ("is it ok to commit?") asks about one.
+	directAsk = regexp.MustCompile(`(?i)^\s*(can|could|would|will)\s+(you|we)\b`)
+	// ownPlan opens a sentence where the user says what they'll do: "let
+	// me review it, then commit".
+	ownPlan = regexp.MustCompile(`(?i)^\s*(let me|i['\x{2019}]ll|i will|i['\x{2019}]m going to|i am going to)\b`)
+	// nounLead before "commit" makes it a noun: a determiner or a
+	// preposition, as in "the last commit", "in commit abc".
+	nounLead = nameSet("a", "an", "the", "my", "your", "our", "their", "his", "her", "its", "this", "that", "these", "those",
+		"last", "first", "next", "previous", "initial", "each", "every", "any", "which", "whose", "in", "of", "from", "on", "at", "since", "per")
+	// nounTail after "commit" makes it a noun too: "commit hooks", "commit
+	// message", or a hash, "commit 35c7066".
+	nounTail = nameSet("hook", "hooks", "message", "messages", "msg", "history", "log", "logs", "id", "hash", "sha", "range",
+		"count", "graph", "time", "date", "author", "title", "body", "subject", "style", "format", "convention", "conventions", "rules")
+	gitHash = regexp.MustCompile(`^[0-9a-f]{7,40}$`)
+	// askWord opens a question about committing, not a request for one:
+	// "how to commit", "when do I commit".
+	askWord = nameSet("how", "when", "where", "why", "whether", "what")
+	// makeVerb before a nounLead asks for the commit it names: "make a
+	// commit".
+	makeVerb = nameSet("make", "do", "create", "add")
+	// notNow after "commit" in its sentence turns it down: "commit it, but
+	// not yet".
+	notNow = regexp.MustCompile(`(?i)\bnot\s+(?:yet|now|right\s+now)\b`)
+)
+
+// asksForCommit is true when prompt asks for a commit: "commit" as a verb,
+// or "ship it", with no negation earlier in its clause and no "not yet"
+// after it, in a sentence that isn't the user's own plan or a question,
+// one ending in "?" other than a direct ask ("can you commit this?") or
+// one an askWord opens ("how to commit"). A condition or a later time
+// ("commit when the tests pass") is the user's to keep, so it counts.
+func asksForCommit(prompt string) bool {
+	for _, m := range commitWord.FindAllStringSubmatchIndex(prompt, -1) {
+		// commit-msg, pre-commit, commit/push, commit's: part of a compound
+		// or a noun.
+		if end := m[1]; end < len(prompt) && strings.ContainsRune("-/:'", rune(prompt[end])) || m[0] > 0 && strings.ContainsRune("-/", rune(prompt[m[0]-1])) {
+			continue
+		}
+		start := lastStopIndex(prompt[:m[0]], ".!?\n") + 1
+		// A negation reaches across commas and line breaks: "Don't, under
+		// any circumstances, commit this." A ; or a sentence end stops it.
+		scope := prompt[lastStopIndex(prompt[:m[0]], ".!?;")+1 : m[0]]
+		if negated.MatchString(scope) || commitNoun(prompt[start:m[0]], prompt[m[1]:]) {
+			continue
+		}
+		// The sentence ends after the commit word: a "." inside a name
+		// before it ("Main.Go") ends nothing.
+		sentence := prompt[start:]
+		if end := stopIndex(prompt[m[1]:], ".!?\n"); end >= 0 {
+			end += m[1] - start
+			if sentence[end] == '?' && !directAsk.MatchString(sentence) {
+				continue
+			}
+			sentence = sentence[:end]
+		}
+		if !ownPlan.MatchString(sentence) && !notNow.MatchString(sentence[m[1]-start:]) {
+			return true
+		}
+	}
+	return false
+}
+
+// commitNoun is whether "commit" between before and after isn't asked for:
+// a noun, with a nounLead word right before it in its clause or a nounTail
+// word or a hash right after, or the subject of a question an askWord
+// opens ("how to commit", "when do we commit").
+func commitNoun(before, after string) bool {
+	before = before[strings.LastIndexAny(before, ",;:")+1:]
+	prev := strings.FieldsFunc(strings.ToLower(before), notWordRune)
+	next := strings.FieldsFunc(strings.ToLower(after), notWordRune)
+	n := len(prev)
+	switch {
+	// "make a commit", "create the commit": a noun, but asked for.
+	case n > 1 && nounLead[prev[n-1]] && makeVerb[prev[n-2]]:
+	case n > 0 && (nounLead[prev[n-1]] || askWord[prev[n-1]] || askWord[prev[0]]):
+		return true
+	case n > 1 && prev[n-1] == "to" && askWord[prev[n-2]]:
+		return true
+	}
+	return len(next) > 0 && (nounTail[next[0]] || gitHash.MatchString(next[0]))
+}
+
+// notWordRune splits a clause into words, dropping punctuation.
+func notWordRune(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '\'' }
+
+// letterAfter is whether s[i+1:] opens with a digit or a rune letter
+// accepts.
+func letterAfter(s string, i int, letter func(rune) bool) bool {
+	r, _ := utf8.DecodeRuneInString(s[i+1:])
+	return letter(r) || unicode.IsDigit(r)
+}
+
+// stopIndex is the index of the first byte of stops in s, or -1. A "."
+// before a lowercase letter or digit ("notes.txt", "v1.2") is part of a
+// name, not a stop; before a capital it ends a sentence.
+func stopIndex(s, stops string) int {
+	for i := range len(s) {
+		if isStop(s, i, stops, unicode.IsLower) {
+			return i
+		}
+	}
+	return -1
+}
+
+// lastStopIndex is stopIndex from the end, where a "." before any letter
+// is part of a name: a negation or condition before "CONTRIBUTING.MD"
+// keeps its reach, so a doubtful split asks rather than allows.
+func lastStopIndex(s, stops string) int {
+	for i := len(s) - 1; i >= 0; i-- {
+		if isStop(s, i, stops, unicode.IsLetter) {
+			return i
+		}
+	}
+	return -1
+}
+
+// isStop is whether s[i] is one of stops, a "." only when no digit or
+// rune letter accepts follows it.
+func isStop(s string, i int, stops string, letter func(rune) bool) bool {
+	if strings.IndexByte(stops, s[i]) < 0 {
+		return false
+	}
+	return s[i] != '.' || !letterAfter(s, i, letter)
 }
