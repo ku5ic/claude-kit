@@ -327,6 +327,17 @@ func TestStopPlanDone(t *testing.T) {
 		e.turn("Edit", e.plan(done))
 		e.stop(false).Want(t, 2)
 	})
+	t.Run("a stopped review's notice is read when another agent's notice comes first in the same entry", func(t *testing.T) {
+		t.Parallel()
+		e := stopSetup(t)
+		e.turn("Edit", e.path("a.ts"))
+		e.review()
+		e.line(map[string]any{"type": "attachment", "attachment": map[string]any{"type": "queued_command",
+			"prompt": "<task-notification>\n<task-id>b2</task-id>\n<tool-use-id>toolu_other</tool-use-id>\n<status>completed</status>\n</task-notification>\n" +
+				"<task-notification>\n<task-id>a1</task-id>\n<tool-use-id>toolu_r1</tool-use-id>\n<status>killed</status>\n</task-notification>"}})
+		e.turn("Edit", e.plan(done))
+		e.stop(false).Want(t, 2)
+	})
 	t.Run("edits to the files a review's report cites are its fixes; one to another file isn't", func(t *testing.T) {
 		t.Parallel()
 		e := stopSetup(t)

@@ -118,7 +118,7 @@ func (r *Run) finish(b Block) bool {
 
 // noticeStatus is the status e's task notification gives the background
 // Agent call call, "" when e has none for it. Each notice in e is read on
-// its own: one entry can carry several.
+// its own, since one entry can carry several.
 func noticeStatus(e Entry, call string) string {
 	text := e.Notice + e.Text
 	for _, b := range e.Blocks {

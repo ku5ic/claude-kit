@@ -53,20 +53,32 @@ func isNotification(text string) bool {
 	return strings.HasPrefix(strings.TrimSpace(text), "<task-notification>")
 }
 
-// endedReview is the transcript line where the review a task-notification
-// reports was started, its id, and whether it completed, or -1. A killed
-// review, or one cut off at its turn limit, ended but never counts.
-func endedReview(text string, started map[string]int) (int, string, bool) {
+// endedReview is a review a task-notification reports: the transcript line
+// it was started on, its id, and whether it completed. A killed review, or
+// one cut off at its turn limit, ended but never counts.
+type endedReview struct {
+	started   int
+	id        string
+	completed bool
+}
+
+// endedReviews are the reviews text's task-notifications report. Each
+// notice is read on its own, since one entry can carry several.
+func endedReviews(text string, started map[string]int) []endedReview {
 	if !isNotification(text) {
-		return -1, "", false
+		return nil
 	}
-	n := transcript.ParseNotice(text)
-	for _, id := range []string{n.ToolUseID, n.TaskID} {
-		if line, ok := started[id]; ok && id != "" {
-			return line, id, n.Status == "completed"
+	var out []endedReview
+	for _, notice := range strings.Split(text, "<task-notification>")[1:] {
+		n := transcript.ParseNotice(notice)
+		for _, id := range []string{n.ToolUseID, n.TaskID} {
+			if line, ok := started[id]; ok && id != "" {
+				out = append(out, endedReview{line, id, n.Status == "completed"})
+				break
+			}
 		}
 	}
-	return -1, "", false
+	return out
 }
 
 // planWalk is the plan-done state as it walks a transcript, kept between
@@ -167,17 +179,21 @@ func (w *planWalk) notices(e transcript.Entry) {
 		w.start(id, e.Line, w.FixTurn)
 	}
 	for _, text := range []string{e.Text, e.Notice} {
-		started, id, completed := endedReview(text, w.Started)
-		if started >= 0 {
-			delete(w.Running, id)
+		for _, r := range endedReviews(text, w.Started) {
+			w.ended(r, e.Line)
 		}
-		if !completed {
-			continue
-		}
-		w.LastReview, w.ReviewArrived = max(w.LastReview, started), e.Line
-		if !w.Fixes[id] {
-			w.HoldFrom = e.Line
-		}
+	}
+}
+
+// ended takes in review r, whose notice arrived at line.
+func (w *planWalk) ended(r endedReview, line int) {
+	delete(w.Running, r.id)
+	if !r.completed {
+		return
+	}
+	w.LastReview, w.ReviewArrived = max(w.LastReview, r.started), line
+	if !w.Fixes[r.id] {
+		w.HoldFrom = line
 	}
 }
 
