@@ -6,7 +6,7 @@ A framework the kit doesn't know needs a pattern skill. A language needs that, p
 
 ## A framework or library
 
-Run `/meta-skill <name>` in a checkout of the kit. It researches the framework from primary sources, drafts `skills/<name>-patterns/`, and wires it into `kit.yml` (`dependency_skills`, `skill_file_map`, `skill_triggers`). Then add the skill's row to [docs/skills.md](skills.md); `go/e2e/kit_repo_test.go` fails until it's there.
+Run `/meta-skill <name>` in a checkout of the kit. It researches the framework from primary sources, drafts `skills/<name>-patterns/`, and wires it into `kit.d/skills.yml` (`dependency_skills`, `skill_file_map`, `skill_triggers`). Then add the skill's row to [docs/skills.md](skills.md); `go/e2e/kit_repo_test.go` fails until it's there.
 
 ## A language
 

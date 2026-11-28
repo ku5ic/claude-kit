@@ -45,6 +45,7 @@ Sources are the commits on `feat/release-0-14-0-rules-survive-compaction-and-ret
 - Plan-done counts an edit to a file the last review report cites as that review's fix, and a review running since the last edit as covering it (`b67cf6e`).
 - Fixes that change what a user sees: `kit git-base` reads `branch.<name>.gh-merge-base` (`aa7ceb8`) and skips a parent HEAD left or the default branch holds (`go/internal/git/git.go`), the imports guard allows `claude-code` in a plugin (`7402338`), and `kit scratch-rotate` deletes old checkouts and symlinks (`19502c9`).
 - An edit that skips or focuses a test, or silences a linter, asks instead of blocking, so Claude no longer writes a `kit: allow` marker to get past it. `weakened_checks.block`, which `presets/strict.yml` sets, keeps the block (`go/internal/hooks/weaken.go`).
+- The slop lexicon, the skill maps, and the guard lists move from `kit.yml` to `kit.d/slop.yml`, `kit.d/skills.yml`, and `kit.d/guards.yml`, merged into `kit.yml` in name order before a preset or the overlay. A key two base files set is a warning (`e0d37fb`).
 
 ## Consequences
 

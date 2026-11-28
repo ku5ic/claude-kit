@@ -6,7 +6,7 @@ Without these, Claude gives generic advice that ignores your stack and your proj
 
 ## When they load
 
-- **Session start** names the skills your repo needs, from the files it holds (`kit.yml` `skill_file_map`) and the dependencies its manifests declare (`dependency_skills`).
+- **Session start** names the skills your repo needs, from the files it holds (`kit.d/skills.yml` `skill_file_map`) and the dependencies its manifests declare (`dependency_skills`).
 - **The first read or edit** of a file type names its skill again.
 - **`guard_skills: true`** makes a file type's skill required before its first edit ([configuration](configuration.md)).
 - **`kit-rules`** is required: every session and subagent loads it before any other tool call.
