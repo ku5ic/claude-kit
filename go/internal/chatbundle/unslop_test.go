@@ -51,7 +51,7 @@ func scanCheckout(t *testing.T) (string, *config.Config) {
 	cfg.ChatBundle.Skills = []string{"alpha", "unslop"}
 	testutil.Put(t, root, "skills/unslop/SKILL.md", "---\nname: unslop\ndescription: Find tells.\n---\n")
 	testutil.Put(t, root, "templates/chat/scan.sh", "#!/bin/sh\n")
-	testutil.Put(t, root, "kit.yml", "tools: [rg]\n")
+	testutil.Put(t, root, "kit.d/slop.yml", "slop: {block_tiers: [1]}\n")
 	return root, cfg
 }
 
@@ -63,7 +63,7 @@ func TestBundleCarriesTheScan(t *testing.T) {
 	for name, want := range map[string]string{
 		"skills/unslop/scripts/kit-linux-amd64": "the binary",
 		"skills/unslop/scripts/scan.sh":         "#!/bin/sh\n",
-		"skills/unslop/kit.yml":                 "tools: [rg]\n",
+		"skills/unslop/kit.yml":                 "slop: {block_tiers: [1]}\n",
 	} {
 		if files[name] != want {
 			t.Errorf("%s: got %q, want %q", name, files[name], want)
@@ -99,7 +99,7 @@ func TestBundleWithoutUnslopCarriesNoScan(t *testing.T) {
 
 func TestScanProblems(t *testing.T) {
 	t.Parallel()
-	for name, remove := range map[string]string{"no script": "templates/chat/scan.sh", "no kit.yml": "kit.yml"} {
+	for name, remove := range map[string]string{"no script": "templates/chat/scan.sh", "no slop topic file": "kit.d/slop.yml"} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			root, cfg := scanCheckout(t)

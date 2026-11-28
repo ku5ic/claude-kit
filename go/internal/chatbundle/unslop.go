@@ -23,13 +23,13 @@ const (
 )
 
 // addScan gives a bundled unslop skill what it needs to scan in chat: the
-// script, kit.yml for the lexicon it reads, and the lexicon as a reference
-// for when it can't run.
+// script, kit.d/slop.yml as the kit.yml the scan reads its lexicon from,
+// and the lexicon as a reference for when it can't run.
 func (b *bundle) addScan(source fs.FS, cfg *config.Config) error {
 	if !slices.Contains(cfg.ChatBundle.Skills, scanSkill) {
 		return nil
 	}
-	for name, from := range map[string]string{"scripts/scan.sh": "templates/chat/scan.sh", "kit.yml": "kit.yml"} {
+	for name, from := range map[string]string{"scripts/scan.sh": "templates/chat/scan.sh", "kit.yml": "kit.d/slop.yml"} {
 		data, err := fs.ReadFile(source, from)
 		if err != nil {
 			return err

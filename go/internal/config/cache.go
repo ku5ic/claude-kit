@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 )
@@ -31,7 +32,7 @@ func (p Paths) ConfigCache() string {
 }
 
 // cacheKey names the exact files behind Load's result: path, size, and
-// mtime of the base, the overlay, the manifest declaring the /config
+// mtime of kit.yml and each kit.d/ file, the overlay, the manifest declaring the /config
 // options, every preset file, and the running binary, whose Config struct
 // shapes what was stored, then settingsKey. Any edit or rebuild changes it;
 // "" when the base or binary can't be stat'ed, so Load skips the cache.
@@ -42,7 +43,7 @@ func cacheKey(p Paths) string {
 	}
 	presets, _ := filepath.Glob(filepath.Join(p.Root, "presets", "*.yml"))
 	key := ""
-	for _, path := range append([]string{exe, p.Base, p.Overlay, p.Manifest}, presets...) {
+	for _, path := range slices.Concat([]string{exe, p.Overlay, p.Manifest}, p.BaseFiles(), presets) {
 		info, err := os.Stat(path)
 		switch {
 		case err == nil:

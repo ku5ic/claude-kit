@@ -152,11 +152,10 @@ func LoadBase(p Paths) (*Config, []Warning, error) {
 }
 
 func load(p Paths) (*Config, []Warning, error) {
-	base, err := readNode(p.Base)
+	base, _, warnings, err := readBase(p)
 	if err != nil {
-		return nil, nil, err
+		return nil, warnings, err
 	}
-	warnings := validate(p.Base)
 
 	merged := base
 	tag := "base"
@@ -200,13 +199,13 @@ func load(p Paths) (*Config, []Warning, error) {
 	return &cfg, warnings, nil
 }
 
-// decodeBaseOnly is kit.yml decoded alone, when the merged layers don't
-// decode: mergeNode rewrote base in place, so it is read again, since
+// decodeBaseOnly is kit.yml and kit.d/ decoded alone, when the merged
+// layers don't decode: mergeNode rewrote base in place, so it is read again, since
 // losing the overlay beats losing every guard's lists. Each user layer it
 // leaves out gets a warning.
 func decodeBaseOnly(p Paths, layers []layer) (Config, []Warning, error) {
 	var cfg Config
-	base, err := readNode(p.Base)
+	base, _, _, err := readBase(p)
 	if err != nil {
 		return cfg, nil, err
 	}
@@ -323,20 +322,16 @@ func (p Paths) presetFile(name string) string {
 // top-level key carries a line comment naming the files that set it, and a
 // picker key shows the value in force.
 func Merged(p Paths) (*yaml.Node, error) {
-	base, err := readNode(p.Base)
+	base, parts, _, err := readBase(p)
 	if err != nil {
 		return nil, err
 	}
 	layers, _ := overlays(p, base)
 	sources := map[string][]string{}
-	for _, l := range append([]layer{{p.Base, base}}, layers...) {
-		name := filepath.Base(l.path)
-		if filepath.Base(filepath.Dir(l.path)) == "presets" {
-			name = "presets/" + name
-		}
+	for _, l := range append(parts, layers...) {
 		for i := 0; i+1 < len(l.node.Content); i += 2 {
 			key := l.node.Content[i].Value
-			sources[key] = append(sources[key], name)
+			sources[key] = append(sources[key], baseName(l.path))
 		}
 	}
 	for _, l := range layers {

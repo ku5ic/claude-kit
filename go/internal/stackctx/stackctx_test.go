@@ -146,3 +146,32 @@ func TestAGapFillReadRebuildsTheStackReportAtMostDaily(t *testing.T) {
 		})
 	}
 }
+
+// A kit.d/ file edited or removed makes the config newer than a stack
+// cache built before it.
+func TestConfigTimeFollowsKitD(t *testing.T) {
+	t.Parallel()
+	for name, change := range map[string]func(t *testing.T, topic string){
+		"a kit.d file edited": func(t *testing.T, topic string) { testutil.Write(t, topic, "tools: [jq]\n") },
+		"a kit.d file removed": func(t *testing.T, topic string) {
+			if err := os.Remove(topic); err != nil {
+				t.Fatal(err)
+			}
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			paths := config.Paths{Base: filepath.Join(root, "kit.yml")}
+			topic := filepath.Join(paths.BaseDir(), "guards.yml")
+			testutil.Write(t, paths.Base, "protected_branches: [main]\n")
+			testutil.Write(t, topic, "tools: [rg]\n")
+			testutil.Age(t, time.Hour, paths.Base, topic, paths.BaseDir())
+			before := configTime(paths)
+			change(t, topic)
+			if after := configTime(paths); after <= before {
+				t.Errorf("configTime %d, not after %d", after, before)
+			}
+		})
+	}
+}

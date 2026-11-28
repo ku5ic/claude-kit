@@ -32,7 +32,7 @@ const emptyTree = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 
 var (
 	// configFiles are the project configs and manifests a sheet points at
-	// first, by base name.
+	// first, by base name; kit.d/'s files count as kit.yml.
 	configFiles = []string{".env*", "tsconfig*.json", "eslint.config.*", "prettier.config.*", "next.config.*", "vite.config.*", "package.json", "go.mod", "pyproject.toml", "Cargo.toml", "kit.yml"}
 	anyStep     = regexp.MustCompile(`(?m)^\s*[-*] \[[ xX]\]`)
 	allowMarker = regexp.MustCompile(`kit: allow\b`)
@@ -77,7 +77,7 @@ func lookReasons(cfg *config.Config, blobs map[string]string, from, to, plan str
 	switch {
 	case guard.IsGuardedLockfile(cfg, c.path):
 		why = append(why, "lockfile")
-	case guard.GlobAny(configFiles, base):
+	case guard.GlobAny(configFiles, base) || strings.HasPrefix(c.path, "kit.d/"):
 		why = append(why, "config file")
 	case ciWorkflows.MatchString("/"+c.path) || base == ".gitlab-ci.yml":
 		why = append(why, "CI workflow")

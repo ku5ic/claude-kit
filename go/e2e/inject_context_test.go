@@ -94,6 +94,9 @@ func TestInjectContext(t *testing.T) {
 		t.Parallel()
 		e := injectContextSetup(t, tree)
 		e.kitYML(Read(t, filepath.Join(kitRoot, "kit.yml")))
+		if err := os.CopyFS(filepath.Join(e.Claude, "kit.d"), os.DirFS(filepath.Join(kitRoot, "kit.d"))); err != nil {
+			t.Fatal(err)
+		}
 		Write(t, filepath.Join(e.root, "package.json"), `{"name":"x","devDependencies":{"turbo":"2.0.0"}}`+"\n")
 		Write(t, filepath.Join(e.root, "turbo.json"), `{"tasks":{"lint":{}}}`+"\n")
 		Write(t, filepath.Join(e.root, ".gitignore"), "node_modules\n")

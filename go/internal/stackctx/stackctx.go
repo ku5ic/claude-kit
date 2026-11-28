@@ -38,10 +38,18 @@ func rootKey(cfg *config.Config, root string) string {
 	return cache.RootKey(root) + "." + cfg.Tag
 }
 
-// configTime is the newest mtime of kit.yml, the overlay, and settings.json
-// (the /config options): a cache older than it was built from a stale config.
+// configTime is the newest mtime of kit.yml, kit.d/ and each file in it,
+// the overlay, and settings.json (the /config options): a cache older than
+// it was built from a stale config. kit.d/'s own mtime counts a deleted file.
 func configTime(paths config.Paths) int64 {
-	return max(mtime(paths.Base), mtime(paths.Overlay), mtime(paths.Settings))
+	newest := max(mtime(paths.Overlay), mtime(paths.Settings))
+	for _, f := range paths.BaseFiles() {
+		newest = max(newest, mtime(f))
+	}
+	if info, err := os.Stat(paths.BaseDir()); err == nil {
+		newest = max(newest, info.ModTime().Unix())
+	}
+	return newest
 }
 
 // refresh regenerates the cache when it is missing, empty, or older than

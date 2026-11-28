@@ -114,7 +114,13 @@ func (e *contextEnv) writeCache(lines ...string) {
 	testutil.Write(e.t, e.stackCache("testproject", e.root), strings.Join(lines, "\n")+"\n")
 }
 
-func (e *contextEnv) useRealKitYML() { e.kitYML(testutil.Read(e.t, filepath.Join(kitRoot, "kit.yml"))) }
+// useRealKitYML copies the real kit.yml and kit.d/ into the plugin root.
+func (e *contextEnv) useRealKitYML() {
+	e.kitYML(testutil.Read(e.t, filepath.Join(kitRoot, "kit.yml")))
+	if err := os.CopyFS(e.paths.BaseDir(), os.DirFS(filepath.Join(kitRoot, "kit.d"))); err != nil {
+		e.t.Fatal(err)
+	}
+}
 
 // inject runs inject-context; an empty cwd is the project's root.
 func (e *contextEnv) inject(session, cwd string) result {

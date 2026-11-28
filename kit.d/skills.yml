@@ -1,0 +1,137 @@
+# Part of kit.yml, merged in by go/internal/config: kit.yml's header says how.
+
+# File-to-skills map consumed by guard-dispatch's skills gate or skills
+# nudge, and by <suggested-skills> for every file in the repo.
+# The gate checks every Edit/Write/MultiEdit target, the nudge every Read,
+# Grep, and Bash read target too; matching is
+# cumulative (a single file can satisfy multiple entries). Order matters:
+# test entries precede the per-language extension entries so a .test.tsx
+# file picks up test-patterns first.
+#
+# on: basename  -> match against basename only
+# on: path      -> match against the full file path
+# globs: [...]  -> shell-style globs (go/internal/guard Glob)
+skill_file_map:
+  - on: basename
+    globs: ["*.ts", "*.tsx", "*.mts", "*.cts", "*.js", "*.jsx", "*.mjs", "*.cjs", "*.py", "*.rb", "*.go", "*.rs", "*.java", "*.sh", "*.vue", "*.svelte", "*.astro", "*.kt", "*.kts", "*.scala", "*.sc", "*.swift", "*.cs", "*.php", "*.dart", "*.lua", "*.ex", "*.exs",
+      "*.c", "*.h", "*.cc", "*.cpp", "*.cxx", "*.hpp", "*.hh", "*.hxx"]
+    skills: [engineering-fundamentals]
+  - on: basename
+    globs: ["*.test.*", "*.spec.*", "test_*.py", "*_test.py", "*_test.go", "*_spec.rb", "test.sh", "test_*.sh", "*_test.sh", "*.bats",
+      "Test[A-Z]*.java", "*Test.java", "*Tests.java", "*TestCase.java", "*_test.exs", "*Test.php", "*_test.dart", "*_spec.lua"]
+    skills: [test-patterns]
+  - on: basename
+    globs: ["*.tsx"]
+    skills: [typescript-patterns, react-patterns]
+  - on: basename
+    globs: ["*.ts", "*.mts", "*.cts"]
+    skills: [typescript-patterns]
+  - on: basename
+    globs: ["*.jsx"]
+    skills: [javascript-patterns, react-patterns]
+  - on: basename
+    globs: ["*.js", "*.mjs", "*.cjs"]
+    skills: [javascript-patterns]
+  - on: basename
+    globs: ["*.vue"]
+    skills: [vue-patterns]
+  - on: basename
+    globs: ["*.py"]
+    skills: [python-patterns]
+  - on: basename
+    globs: ["*.sh", "*.bash", "*.zsh"]
+    skills: [bash-patterns]
+  - on: basename
+    globs: ["Dockerfile", "docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"]
+    skills: [docker-patterns]
+  - on: basename
+    globs: ["tailwind.config.js", "tailwind.config.ts", "tailwind.config.mjs", "tailwind.config.cjs"]
+    skills: [tailwind-patterns]
+  - on: basename
+    globs: ["next.config.js", "next.config.mjs", "next.config.ts"]
+    skills: [next-app-router-patterns]
+  - on: basename
+    globs: ["nuxt.config.js", "nuxt.config.ts"]
+    skills: [nuxt-patterns]
+  - on: basename
+    globs: ["manage.py"]
+    skills: [django-patterns]
+  - on: basename
+    globs: ["*.graphql", "*.gql", "codegen.ts"]
+    skills: [graphql-patterns]
+  - on: basename
+    globs: ["*.stories.*"]
+    skills: [storybook-patterns]
+  - on: basename
+    globs: ["*.go"]
+    skills: [go-patterns]
+  - on: basename
+    globs: ["*.tf", "*.tfvars"]
+    skills: [opentofu-patterns]
+  - on: basename
+    globs: ["*.mmd"]
+    skills: [mermaid-patterns]
+  - on: path
+    globs: ["*/hooks/hooks.json", "*/hooks/register.ts", "*/hooks/register.tsx", "*/mods/*.ts", "*/mods/*.tsx"]
+    skills: [claude-code-mods-patterns]
+
+# Declared-dependency-to-skills map for <suggested-skills>: a rule any of
+# whose deps a subproject's package.json, Python manifests, or Gemfile
+# declares suggests its skills. Python names match normalized (PEP 503).
+# The stack report lists the deps it finds.
+dependency_skills:
+  - deps: [typescript]
+    skills: [typescript-patterns]
+  - deps: [next]
+    skills: [react-patterns, next-app-router-patterns]
+  - deps: [react]
+    skills: [react-patterns]
+  - deps: [nuxt]
+    skills: [vue-patterns, nuxt-patterns]
+  - deps: [vue]
+    skills: [vue-patterns]
+  - deps: [tailwindcss]
+    skills: [tailwind-patterns]
+  - deps: [graphql, "@apollo/client", urql, graphql-request]
+    skills: [graphql-patterns]
+  - deps: [storybook]
+    skills: [storybook-patterns]
+  - deps: [mermaid, "@mermaid-js/mermaid-cli"]
+    skills: [mermaid-patterns]
+  - deps: [vitest, jest, "@playwright/test", cypress, pytest]
+    skills: [test-patterns]
+  - deps: [django]
+    skills: [django-patterns]
+  - deps: [djangorestframework]
+    skills: [drf-patterns]
+  - deps: [fastapi]
+    skills: [fastapi-patterns]
+
+# Action-conditioned trigger phrases for every skill skill_file_map and
+# dependency_skills suggest.
+# Consumed by the inject-context hook to build the <suggested-skills> block.
+# Phrases name a concrete action, not a topic, so the reader knows when to load.
+# global_skills entries, if any, are excluded; they are required, not
+# suggested.
+skill_triggers:
+  javascript-patterns: "before any edit to a .js, .mjs, .cjs, or .jsx file"
+  typescript-patterns: "before any edit to a .ts or .tsx file or tsconfig"
+  react-patterns: "before any edit to a .jsx or .tsx file"
+  next-app-router-patterns: "before writing or changing any file in a Next.js app"
+  vue-patterns: "before any edit to a .vue file or composable"
+  nuxt-patterns: "before writing or changing any file in a Nuxt app"
+  tailwind-patterns: "before writing or changing any class list, stylesheet, or Tailwind config"
+  graphql-patterns: "before any edit to a .graphql or .gql file, an operation, or codegen config"
+  storybook-patterns: "before any edit to a .stories.* file or Storybook config"
+  mermaid-patterns: "before drawing or editing a Mermaid diagram, in a .mmd file or a mermaid fence"
+  go-patterns: "before any edit to a .go file or go.mod"
+  test-patterns: "before writing or changing any test, test helper, or fixture, in any language"
+  engineering-fundamentals: "before planning a change, and before the first edit to any source file"
+  python-patterns: "before any edit to a .py file or pyproject.toml"
+  django-patterns: "before writing or changing any file in a Django app"
+  drf-patterns: "before writing or changing any Django REST Framework serializer, viewset, or API view"
+  fastapi-patterns: "before writing or changing any FastAPI route, dependency, or Pydantic model"
+  docker-patterns: "before any edit to a Dockerfile or compose file"
+  opentofu-patterns: "before any edit to a .tf or .tfvars file"
+  claude-code-mods-patterns: "before any edit to a Claude Code mod: a plugin's hooks module, hooks.json, or mods/ file"
+  bash-patterns: "before writing or modifying shell scripts (.sh, .bash, .zsh)"
