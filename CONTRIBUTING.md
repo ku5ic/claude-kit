@@ -18,7 +18,7 @@ export KIT_DEV=1     # bin/kit now builds from go/ and rebuilds when it changes
 bin/kit help
 ```
 
-`go/build.sh` builds the release binaries for the `plugin.json` version; the launcher tests need this platform's one. With `KIT_DEV=1`, `bin/kit` runs `bin/kit-dev-<os>-<arch>` instead, and the release binaries stay as `go/build.sh` left them. In this repo, call `bin/kit`, never a `kit` on PATH, which is the installed release.
+`go/build.sh` builds the release binaries for the `plugin.json` version; the launcher tests need this platform's one. With `KIT_DEV=1`, `bin/kit` runs `bin/kit-dev-<os>-<arch>` instead, and the release binaries stay as `go/build.sh` left them. A dev build that fails or can't start leaves the last good one running, and each call says so until a file under `go/` changes. In this repo, call `bin/kit`, never a `kit` on PATH, which is the installed release.
 
 ## Test
 

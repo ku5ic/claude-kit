@@ -124,6 +124,9 @@ type collector struct {
 	unplaced    bool   // a trap set whose action can't be placed
 	runsCode    bool   // a zsh expansion that may run a command
 	traps       []trap // the actions trap commands set, parsed last
+	// exitTraps are, per open subshell, the EXIT trap actions set in it,
+	// parsed as it closes, where they fire.
+	exitTraps [][]string
 }
 
 // trap is an action a trap command sets, and whether a termination signal
@@ -425,9 +428,14 @@ func (c *collector) embedded(cl *Call) {
 		c.closeSubshell()
 	}
 	if action, readable, midway, ok := trapAction(cl.Words); ok {
-		c.traps = append(c.traps, trap{action, midway})
-		// A trap in a subshell or a nested shell fires when that exits.
-		c.unplaced = c.unplaced || !readable || c.depth > 0 || c.subshell > 0
+		// A trap in a subshell or a nested shell fires when that exits:
+		// an EXIT-only one is checked there, as it closes.
+		if top := len(c.exitTraps) - 1; top >= 0 && readable && !midway {
+			c.exitTraps[top] = append(c.exitTraps[top], action)
+		} else {
+			c.traps = append(c.traps, trap{action, midway})
+			c.unplaced = c.unplaced || !readable || c.depth > 0 || c.subshell > 0
+		}
 	}
 	for _, cmd := range rebaseExecs(cl.Words) {
 		c.parse(cmd, c.depth+1)

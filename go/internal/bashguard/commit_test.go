@@ -315,6 +315,11 @@ func TestGuardCommit(t *testing.T) {
 		{"block: wall of text in a heredoc with another delimiter", "git commit -m \"$(cat <<'MSG'\nfeat: x\n\n" + prose(5) + "MSG\n)\"", 2},
 		{"block: wall of text in a <<- heredoc closed by a tab-indented delimiter", "git commit -F - <<-MSG\n\tfeat: x\n\n" + prose(5) + "\tMSG", 2},
 		{"allow: wall of text in a heredoc writing a file", "cat > notes.md <<'EOF'\n" + prose(20) + "EOF\ngit add -A && git commit -qm init", 0},
+		{"allow: wall of text in a heredoc a later command on the commit line opens", "git commit -qm init; cat > notes.md <<'EOF'\n" + prose(9) + "EOF", 0},
+		{"allow: wall of text in a heredoc an && after the commit opens", "git commit -qm init && cat <<'EOF' > notes.md\n" + prose(9) + "EOF", 0},
+		{"allow: wall of text in a heredoc a ; right after commit opens", "git commit --amend --no-edit; cat > notes.md <<'EOF'\n" + prose(9) + "EOF", 0},
+		{"allow: wall of text in a heredoc a ; touching commit opens", "git commit;cat > notes.md <<'EOF'\n" + prose(9) + "EOF", 0},
+		{"block: wall of text in a heredoc piped into commit -F -", "cat <<'EOF' | git commit -F -\nfeat: x\n\n" + prose(5) + "EOF", 2},
 		// subjects: the commit's heredoc is its message, another heredoc writes a file
 		{"block: AI-tell phrasing in a heredoc subject", "git -C . commit -m \"$(cat <<'EOF'\nlet me fix this\nEOF\n)\"", 2},
 		{"block: AI-tell phrasing in a <<- heredoc subject with a spaced opener", "git commit -F - <<- \"MSG\"\n\there is the patch\n\tMSG", 2},

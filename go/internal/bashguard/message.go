@@ -95,18 +95,37 @@ func catHeredoc(value string) (string, bool) {
 // of the heredoc opened on the git commit line (-m "$(cat <<'EOF'", -F -
 // <<'MSG'). A message from elsewhere (a file a heredoc writes for -F, a
 // heredoc opened on a continuation line) isn't read here; the signature
-// scan covers it, the wall-of-text check doesn't. One never
+// scan covers it, the wall-of-text check doesn't. Nor is one a later
+// command on that line opens (git commit -m x; cat > f <<EOF). One never
 // closed runs to the end, as the shell reads it.
 func heredocBody(cmd string) string {
 	for rest := cmd; rest != ""; {
 		line, after, _ := strings.Cut(rest, "\n")
-		if m := heredocOpen.FindStringSubmatch(line); m != nil && commitLine.MatchString(line) {
+		if m := commitsHeredoc(line); m != nil {
 			body, _ := readHeredoc(after, m[2], m[1] == "-")
 			return body
 		}
 		rest = after
 	}
 	return ""
+}
+
+// commitsHeredoc is the heredocOpen match on line that feeds its git
+// commit, or nil: an opener before the commit, or after it with no ;, &,
+// or | between, so still among its arguments.
+func commitsHeredoc(line string) []string {
+	at := commitLine.FindStringIndex(line)
+	if at == nil {
+		return nil
+	}
+	matches := heredocOpen.FindAllStringSubmatch(line, -1)
+	for i, loc := range heredocOpen.FindAllStringIndex(line, -1) {
+		// at[1]-1: commitLine's match ends on the character after commit.
+		if loc[0] < at[0] || !strings.ContainsAny(line[at[1]-1:loc[0]], ";&|") {
+			return matches[i]
+		}
+	}
+	return nil
 }
 
 // readHeredoc is text's lines up to the one closing delim; ok is false when

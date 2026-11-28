@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"go.yaml.in/yaml/v3"
 )
 
 func write(t *testing.T, dir, name, body string) string {
@@ -449,10 +451,46 @@ func TestOverlayThatBreaksTheMergeFallsBackToBase(t *testing.T) {
 	}
 	ignored := false
 	for _, w := range warnings {
-		ignored = ignored || (w.File == overlay && strings.HasPrefix(w.Err.Error(), "ignored"))
+		ignored = ignored || (w.File == overlay && strings.HasPrefix(w.Err.Error(), "ignored: "))
 	}
 	if !ignored {
-		t.Errorf("no ignored-overlay warning in %v", warnings)
+		t.Errorf("no ignored-overlay warning without a preset in %v", warnings)
+	}
+}
+
+// With a preset, the warning says the preset is dropped too.
+func TestOverlayThatBreaksTheMergeNamesItsPreset(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, "presets"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(dir, "presets"), "light.yml", "step_pause: plan\n")
+	base := write(t, dir, "kit.yml", "protected_branches: [main]\n")
+	overlay := write(t, dir, "over.yml", "preset: light\nprotected_branches: main\n")
+	_, warnings, err := Load(Paths{Root: dir, Base: base, Overlay: overlay})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.ContainsFunc(warnings, func(w Warning) bool {
+		return w.File == overlay && strings.HasPrefix(w.Err.Error(), "ignored, with the preset: ")
+	}) {
+		t.Errorf("no ignored-with-the-preset warning in %v", warnings)
+	}
+}
+
+// kit config prints what Load uses: an overlay Load drops for breaking the
+// merge is left out of Merged too.
+func TestMergedLeavesOutAnOverlayThatBreaksTheMerge(t *testing.T) {
+	dir := t.TempDir()
+	base := write(t, dir, "kit.yml", "protected_branches: [main]\n")
+	overlay := write(t, dir, "over.yml", "protected_branches: main\n")
+	doc, err := Merged(Paths{Base: base, Overlay: overlay})
+	if err != nil {
+		t.Fatal(err)
+	}
+	value := mappingValue(doc, "protected_branches")
+	if value == nil || value.Kind != yaml.SequenceNode || value.LineComment != "kit.yml" {
+		t.Errorf("protected_branches = %+v; want kit.yml's list, set by kit.yml alone", value)
 	}
 }
 

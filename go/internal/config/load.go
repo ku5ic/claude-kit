@@ -216,10 +216,15 @@ func decodeBaseOnly(p Paths, layers []layer) (Config, []Warning, error) {
 	if err := base.Decode(&cfg); err != nil {
 		return cfg, nil, fmt.Errorf("decode %s: %w", p.Base, err)
 	}
+	user := func(l layer) bool { return l.path == p.Overlay || l.path == p.Settings }
+	ignored := "ignored"
+	if slices.ContainsFunc(layers, func(l layer) bool { return !user(l) }) {
+		ignored += ", with the preset"
+	}
 	var warnings []Warning
 	for _, l := range layers {
-		if l.path == p.Overlay || l.path == p.Settings {
-			warnings = append(warnings, Warning{l.path, errors.New("ignored, with the preset: the overlay and /config options don't merge with kit.yml, so only kit.yml applies")})
+		if user(l) {
+			warnings = append(warnings, Warning{l.path, errors.New(ignored + ": the overlay and /config options don't merge with kit.yml, so only kit.yml applies")})
 		}
 	}
 	return cfg, warnings, nil
@@ -331,6 +336,19 @@ func Merged(p Paths) (*yaml.Node, error) {
 		return nil, err
 	}
 	layers, _ := overlays(p, base)
+	for _, l := range layers {
+		mergeNode(base, l.node)
+	}
+	var cfg Config
+	decodeErr := base.Decode(&cfg)
+	if decodeErr != nil && len(layers) > 0 {
+		// As in Load: layers that break the merge are dropped, and
+		// mergeNode rewrote base in place.
+		if base, parts, _, err = readBase(p); err != nil {
+			return nil, err
+		}
+		layers, decodeErr = nil, base.Decode(&cfg)
+	}
 	sources := map[string][]string{}
 	for _, l := range append(parts, layers...) {
 		for i := 0; i+1 < len(l.node.Content); i += 2 {
@@ -338,11 +356,7 @@ func Merged(p Paths) (*yaml.Node, error) {
 			sources[key] = append(sources[key], baseName(l.path))
 		}
 	}
-	for _, l := range layers {
-		mergeNode(base, l.node)
-	}
-	var cfg Config
-	if base.Decode(&cfg) == nil {
+	if decodeErr == nil {
 		for _, p := range cfg.pickers() {
 			if value := mappingValue(base, p.key); value != nil && p.value != p.pick() {
 				value.Value = p.pick()

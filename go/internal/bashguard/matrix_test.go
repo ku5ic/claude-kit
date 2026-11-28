@@ -522,10 +522,12 @@ func TestGuardBashParsing(t *testing.T) {
 		probe("ask", `trap 'rm -f x' INT; cd /tmp`)
 		probe("ask", `trap 'rm -f x' DEBUG`)
 		probe("ask", `trap 'rm -f x' ERR`)
-		// A trap in a nested scope fires when that scope exits, mid-command.
+		// A trap in a nested scope fires when that scope exits, mid-command:
+		// an EXIT-only one in a subshell is checked there.
 		probe("pass", `trap 'echo hi' EXIT`)
-		probe("ask", `(trap 'echo hi' EXIT)`)
-		probe("ask", `trap 'echo hi' EXIT &`)
+		probe("pass", `(trap 'echo hi' EXIT)`)
+		probe("pass", `trap 'echo hi' EXIT &`)
+		probe("ask", `(trap 'rm -f x' INT; cd /tmp)`)
 		probe("ask", "bash <<'EOF'\ntrap 'echo hi' EXIT\nEOF")
 		probe("block", `(trap 'rm -rf ~' EXIT)`)
 		probe("block", `flock -n -c 'rm -rf ~' /tmp/x.lock`)
@@ -692,7 +694,7 @@ func TestGuardBashTrapAskNamesTheTrap(t *testing.T) {
 	cwd := t.TempDir()
 	for _, tc := range []struct{ cmd, want string }{
 		{`trap 'rm -f x' DEBUG`, "can't place this trap"},
-		{`(trap 'echo hi' EXIT)`, "can't place this trap"},
+		{`(trap 'echo hi' INT; cd /tmp)`, "can't place this trap"},
 		{`trap "$X" EXIT`, "can't place this trap"},
 		{`echo $((cmd) ); trap 'rm -f x' INT`, "could not parse"},
 	} {

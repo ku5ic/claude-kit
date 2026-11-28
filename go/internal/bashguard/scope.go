@@ -41,9 +41,19 @@ func (c *collector) openSubshell() {
 	c.scopeIDs++
 	c.scopes = append(c.scopes, c.scopeIDs)
 	c.subshell++
+	c.exitTraps = append(c.exitTraps, nil)
 }
 
+// closeSubshell first parses the EXIT traps set in the subshell, which may
+// not run, inside it: they fire as it ends. One may set another, read in turn.
 func (c *collector) closeSubshell() {
+	top := len(c.exitTraps) - 1
+	c.conditional++
+	for i := 0; i < len(c.exitTraps[top]); i++ {
+		c.parse(c.exitTraps[top][i], c.depth+1)
+	}
+	c.conditional--
+	c.exitTraps = c.exitTraps[:top]
 	c.scopes = c.scopes[:len(c.scopes)-1]
 	c.subshell--
 }

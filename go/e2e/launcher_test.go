@@ -199,6 +199,68 @@ chmod +x "$2"
 		r.Has(t, "good x", "the new build can't start")
 	})
 
+	t.Run("KIT_DEV says it runs the last good binary when go/ doesn't build, and rebuilds only once go/ changes", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		Write(t, filepath.Join(root, "bin/kit"), string(raw))
+		Write(t, filepath.Join(root, ".claude-plugin/plugin.json"), `{"name": "claude-kit", "version": "9.9.9"}`)
+		main := filepath.Join(root, "go/cmd/kit/main.go")
+		Write(t, main, "package main\n")
+		build, err := os.ReadFile(kitFile("go/build.sh"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		Stub(t, filepath.Join(root, "go/build.sh"), string(build))
+		good, broken := t.TempDir(), t.TempDir()
+		Stub(t, filepath.Join(good, "go"), `[ "$1" = env ] && exit 0
+while [ "$1" != -o ]; do shift; done
+printf '#!/bin/sh\necho good "$@"\n' >"$2"
+chmod +x "$2"
+`)
+		calls := filepath.Join(t.TempDir(), "go.calls")
+		testutil.FakeTool(t, filepath.Join(broken, "go"), calls, `[ "$1" = env ] && exit 0
+echo "syntax error" >&2
+exit 1`)
+		run := func(stubs string) Result {
+			k := New(t)
+			k.Dir = root
+			k.PrependPath(stubs)
+			k.Setenv("KIT_DEV", "1")
+			return k.exec("bash", "", "bin/kit", "x")
+		}
+		touch := func(path string, at time.Time) {
+			if err := os.Chtimes(path, at, at); err != nil {
+				t.Fatal(err)
+			}
+		}
+		run(good).Has(t, "good x")
+		// The source changes after the good build, and before the broken one.
+		touch(filepath.Join(root, "bin", "kit-dev-"+runtime.GOOS+"-"+runtime.GOARCH), time.Now().Add(-2*time.Minute))
+		touch(main, time.Now().Add(-time.Minute))
+		for range 2 {
+			r := run(broken)
+			r.Want(t, 0)
+			r.Has(t, "good x", "go/ doesn't build; running the last good one")
+		}
+		builds := func() int {
+			n := 0
+			for _, c := range testutil.Calls(t, calls) {
+				if _, args, _ := strings.Cut(c, "|"); strings.HasPrefix(args, "build") {
+					n++
+				}
+			}
+			return n
+		}
+		if n := builds(); n != 1 {
+			t.Errorf("go built %d times for one unchanged source, want once", n)
+		}
+		touch(main, time.Now().Add(time.Minute))
+		run(broken)
+		if n := builds(); n != 2 {
+			t.Errorf("go built %d times after the source changed, want twice", n)
+		}
+	})
+
 	t.Run("a failed download is not retried within a minute", func(t *testing.T) {
 		k, launcher, log := install(t, "exit 22")
 		k.exec("bash", "{}", launcher, "hook", "inject-context").Want(t, 0)

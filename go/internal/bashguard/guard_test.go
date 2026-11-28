@@ -1013,6 +1013,16 @@ func TestRmFollowsOnlyACdThatSurelyMoved(t *testing.T) {
 		{scratch, `trap 'cd /' DEBUG; rm -rf rc`, "ask"},
 		// A later trap on EXIT replaces the earlier one, so its cd never runs.
 		{proj, `trap 'cd SCR' EXIT; trap 'rm -rf rc' EXIT`, "ask"},
+		// A subshell's EXIT trap fires as the subshell ends, where it is then.
+		{proj, `(trap 'echo hi' EXIT)`, "pass"},
+		{scratch, `(trap 'rm -rf rc' EXIT)`, "pass"},
+		{scratch, `(trap 'rm -rf rc' EXIT; cd /tmp)`, "ask"},
+		{scratch, `(trap 'rm -rf rc' EXIT); cd /tmp`, "pass"},
+		{proj, `cd SCR; (trap 'rm -rf rc' EXIT; cd /tmp)`, "ask"},
+		{scratch, `(S=/tmp; trap 'rm -rf "$S"' EXIT)`, "ask"},
+		{scratch, `(trap 'rm -rf rc' INT; cd /tmp; sleep 9)`, "ask"},
+		{scratch, `bash -c "trap 'rm -rf rc' EXIT; cd /tmp"`, "ask"},
+		{scratch, `bash -c "trap 'rm -rf rc' EXIT"`, "pass"},
 		{proj, `cd SCR && echo hi & rm -rf rc`, "ask"},
 		{scratch, `pushd /tmp; rm -rf rc`, "ask"},
 		{scratch, `popd; rm -rf rc`, "ask"},
