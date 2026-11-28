@@ -13,7 +13,7 @@ Two layers, kept apart:
 
 <!-- chat: skip -->
 
-`kit slop` and the guards find AI tells with the lexicon in `kit.yml` `slop:`.
+`kit slop` and the guards find AI tells with the lexicon in `kit.d/slop.yml` `slop:`.
 
 <!-- chat: end -->
 

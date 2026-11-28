@@ -17,7 +17,7 @@ Loading this skill isn't enough. Before the step a row names, read its file.
 
 ## Procedure
 
-1. Scope. The language is: $ARGUMENTS. Blank: ask via AskUserQuestion. Work in the kit's source checkout, as `skills/meta-skill/SKILL.md` step 4 defines it; anywhere else, stop and say so. Find what the kit already has for it, with `rg -n -i '<language>|<its extensions>'` over `go/internal` and `kit.yml`, and keep only the rows of the owners table it lacks.
+1. Scope. The language is: $ARGUMENTS. Blank: ask via AskUserQuestion. Work in the kit's source checkout, as `skills/meta-skill/SKILL.md` step 4 defines it; anywhere else, stop and say so. Find what the kit already has for it, with `rg -n -i '<language>|<its extensions>'` over `go/internal`, `kit.yml`, and `kit.d/`, and keep only the rows of the owners table it lacks.
 2. Research. Dispatch the researcher agent (subagent_type: kit:researcher, foreground) with the questions in [reference/owners.md](reference/owners.md) "What to ask", for this language. One primary source per answer (the language spec, the toolchain's docs, the registry's docs, ast-grep's language list). An answer without a source leaves its row out of the plan, named as skipped.
 3. Plan. Enter plan mode and write one step per owners row kept, in the table's order, each naming its owner, its test, and the probe that shows it working. The last two steps run `skills/meta-skill/SKILL.md`'s procedure for the pattern pack and add the docs rows. Stop for approval.
 4. Each step: the test first, run red, then the change, run green, then the step's probe with the built binary (`KIT_DEV=1 bin/kit ...`). Stop after each step for review, per `skills/kit-rules/reference/workflow.md`.

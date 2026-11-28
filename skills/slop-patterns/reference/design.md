@@ -141,7 +141,7 @@ Interface copy follows [content-and-grammar.md](content-and-grammar.md). The UI-
 
 <!-- chat: skip -->
 
-`kit slop` reads UI files (`.tsx`, `.jsx`, `.vue`, `.svelte`, `.html`, `.css`, `.scss`) line by line with the `on: [ui]` rules in `kit.yml`: `ui-placeholder`, `ui-emoji-label`, `ui-default-gradient`, `ui-gradient-text`, `ui-marketing`, and the tier 3 `ui-glass`, `ui-eyebrow`, `ui-chrome-glyph`.
+`kit slop` reads UI files (`.tsx`, `.jsx`, `.vue`, `.svelte`, `.html`, `.css`, `.scss`) line by line with the `on: [ui]` rules in `kit.d/slop.yml`: `ui-placeholder`, `ui-emoji-label`, `ui-default-gradient`, `ui-gradient-text`, `ui-marketing`, and the tier 3 `ui-glass`, `ui-eyebrow`, `ui-chrome-glyph`.
 
 `guard-tokens` blocks an edit that uses a token the project never defines: a `var(--x)` with no fallback, or a Tailwind v4 color shade outside the default palette and the project's `@theme`. A contrast claim needs a number, and `kit contrast <fg> <bg>` prints the ratio and the WCAG levels it passes. The claim verifier sends back a contrast, "matches the design", or "responsive" claim that no measurement or screenshot backs.
 

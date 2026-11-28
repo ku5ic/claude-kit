@@ -6,7 +6,7 @@ argument-hint: "<stack name, e.g. graphql or opentofu>"
 
 # /meta-skill
 
-Draft a pattern skill pack for a stack from current docs and this repo's precedent, plus its `kit.yml` wiring.
+Draft a pattern skill pack for a stack from current docs and this repo's precedent, plus its `kit.d/skills.yml` wiring.
 
 Loading this skill isn't enough. Before the step a row names, read its file.
 
@@ -32,13 +32,13 @@ Loading this skill isn't enough. Before the step a row names, read its file.
    - `reference/anti-patterns.md`: the mistakes from step 2, each with a severity from the rubric.
    - `sources.md` Version notes: one entry for the current version, with today's date and the step 2 source, in the format `/meta-refresh` maintains.
    - Leave no `<placeholder>` behind. `rg -n '<[a-z]' skills/<name>/` prints nothing when done.
-5. Wire it in `kit.yml`, reading two existing entries of each key first and matching their shape:
+5. Wire it in `kit.d/skills.yml`, reading two existing entries of each key first and matching their shape:
    - Detection: a `dependency_skills` entry whose `deps:` are the packages that signal the stack, as its manifests declare them, and whose `skills:` lists the pack.
    - `skill_file_map`: the file globs that should trigger the pack, if the stack has its own file types.
    - `skill_triggers`: one phrase naming a concrete action ("before writing ..."), like the existing ones.
    - When the stack has its own task runner: a reader in `go/internal/sources` (`TaskProviders`). Its check commands and formatter come from each project's configs and gap-fill, never from `kit.yml`.
-6. Verify. Run `go test ./...` in the checkout's `go/`; it checks the new skill against `kit.yml`. Fix any failure.
-7. Report the path of the new skill directory and the `kit.yml` keys touched.
+6. Verify. Run `go test ./...` in the checkout's `go/`; it checks the new skill against `kit.d/skills.yml`. Fix any failure.
+7. Report the path of the new skill directory and the `kit.d/skills.yml` keys touched.
 
 ## Rules
 

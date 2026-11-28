@@ -36,7 +36,7 @@ Each model generation has its own overused words; a word that marks 2024 output 
 
 <!-- chat: skip -->
 
-Which tiers block, and the density threshold, are `kit.yml` `slop:`.
+Which tiers block, and the density threshold, are `kit.d/slop.yml` `slop:`.
 
 <!-- chat: end -->
 
