@@ -88,7 +88,7 @@ func TestBashDispatchChecksWhatACommandPosts(t *testing.T) {
 	}{
 		{"a claim in a PR body", `gh pr create --title "Rename Foo" --body "` + claim + `"`, "check each claim with a tool yourself"},
 		{"a claim in an API body field", `gh api repos/o/r/issues/1/comments -f body="` + claim + `"`, "check each claim with a tool yourself"},
-		{"a PR body over the post budget", `gh pr create --title "Rename Foo" --body "` + strings.Repeat("Which one? ", 320) + `"`, "over the 300-word budget"},
+		{"a PR body over the post budget", `gh pr create --title "Rename Foo" --body "` + strings.Repeat("Which one? ", 320) + `"`, "over the 450-word allowance"},
 		{"a question in a PR body", `gh pr create --title "Rename Foo" --body "Which branch should I use?"`, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
