@@ -88,22 +88,11 @@ func (g *graph) crateSrc(file string) string {
 func (g *graph) normalize(file, s string) spec {
 	s, _, _ = strings.Cut(s, "?")
 	lang := path.Ext(file)
-	if m := pyRelative.FindStringSubmatch(s); m != nil && !strings.Contains(s, "/") {
-		up := "./"
-		if len(m[1]) > 1 {
-			up = strings.Repeat("../", len(m[1])-1)
-		}
-		return spec{up + strings.ReplaceAll(m[2], ".", "/"), relative}
+	if sp, ok := pyRelativeSpec(s); ok {
+		return sp
 	}
-	// A Go module path, or a workspace package by its package.json name.
-	named := g.goModules
-	if ecosystems[lang] == "npm" {
-		named = g.npmNames
-	}
-	for _, mod := range named {
-		if rest, ok := strings.CutPrefix(s, mod.a); ok && (rest == "" || strings.HasPrefix(rest, "/")) {
-			return spec{path.Join(mod.b, rest), rooted}
-		}
+	if sp, ok := g.namedSpec(lang, s); ok {
+		return sp
 	}
 	if lang == ".ex" || lang == ".exs" {
 		s = snakeCase(s)
@@ -125,6 +114,35 @@ func (g *graph) normalize(file, s string) spec {
 		return spec{strings.ReplaceAll(s, ".", "/"), dotted}
 	}
 	return spec{s, plain}
+}
+
+// pyRelativeSpec is a Python relative import (from ..pkg import x) as a
+// relative path.
+func pyRelativeSpec(s string) (spec, bool) {
+	m := pyRelative.FindStringSubmatch(s)
+	if m == nil || strings.Contains(s, "/") {
+		return spec{}, false
+	}
+	up := "./"
+	if len(m[1]) > 1 {
+		up = strings.Repeat("../", len(m[1])-1)
+	}
+	return spec{up + strings.ReplaceAll(m[2], ".", "/"), relative}, true
+}
+
+// namedSpec is s under a Go module path, or a workspace package by its
+// package.json name for an npm language, as a path from the repo root.
+func (g *graph) namedSpec(lang, s string) (spec, bool) {
+	named := g.goModules
+	if ecosystems[lang] == "npm" {
+		named = g.npmNames
+	}
+	for _, mod := range named {
+		if rest, ok := strings.CutPrefix(s, mod.a); ok && (rest == "" || strings.HasPrefix(rest, "/")) {
+			return spec{path.Join(mod.b, rest), rooted}, true
+		}
+	}
+	return spec{}, false
 }
 
 // rustRelative resolves self:: and super:: from file. From src/net/client.rs,

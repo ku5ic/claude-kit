@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -20,41 +21,64 @@ const usage = `usage: kit code-graph imports <root> > imports.tsv
 // Run is kit code-graph: its first argument names the report. imports and
 // deps leave out a path under any of skipDirs.
 func Run(args, skipDirs []string, stdout, stderr io.Writer) int {
-	var err error
-	switch {
-	case len(args) == 2 && args[0] == "imports":
-		err = Imports(args[1], skipDirs, stdout, stderr)
-	case (len(args) == 4 || len(args) == 5) && args[0] == "deps":
-		split := ""
-		if len(args) == 5 {
-			split = args[4]
-		}
-		err = Deps(args[1], args[2], args[3], split, skipDirs, stdout)
-	case len(args) == 4 && args[0] == "coupling":
-		err = Coupling(args[1], args[2], args[3], skipDirs, stdout)
-	case len(args) == 2 && args[0] == "fingerprint":
-		var lines []string
-		if lines, err = Fingerprint(args[1]); err == nil {
-			for _, l := range lines {
-				fmt.Fprintln(stdout, l)
-			}
-		}
-	case len(args) == 3 && args[0] == "c4":
-		err = C4(args[1], args[2], stdout)
-	case len(args) == 4 && args[0] == "check-c4":
-		var ok bool
-		if ok, err = CheckC4(args[1], args[2], args[3], stdout); err == nil && !ok {
-			return 1
-		}
-	default:
+	var r report
+	if len(args) > 0 {
+		r = reports[args[0]]
+	}
+	if r.run == nil || !slices.Contains(r.arity, len(args)) {
 		fmt.Fprintln(stderr, usage)
 		return 2
 	}
+	status, err := r.run(args, skipDirs, stdout, stderr)
 	if err != nil {
 		fmt.Fprintf(stderr, "code-graph %s: %v\n", args[0], err)
 		return 1
 	}
-	return 0
+	return status
+}
+
+// report is one kit code-graph report: the arg counts it takes, the report
+// name included, and what runs it, giving its exit status.
+type report struct {
+	arity []int
+	run   func(args, skipDirs []string, stdout, stderr io.Writer) (int, error)
+}
+
+// reports are kit code-graph's reports by name.
+var reports = map[string]report{
+	"imports": {[]int{2}, func(args, skipDirs []string, stdout, stderr io.Writer) (int, error) {
+		return 0, Imports(args[1], skipDirs, stdout, stderr)
+	}},
+	"deps": {[]int{4, 5}, func(args, skipDirs []string, stdout, _ io.Writer) (int, error) {
+		split := ""
+		if len(args) == 5 {
+			split = args[4]
+		}
+		return 0, Deps(args[1], args[2], args[3], split, skipDirs, stdout)
+	}},
+	"coupling": {[]int{4}, func(args, skipDirs []string, stdout, _ io.Writer) (int, error) {
+		return 0, Coupling(args[1], args[2], args[3], skipDirs, stdout)
+	}},
+	"fingerprint": {[]int{2}, func(args, _ []string, stdout, _ io.Writer) (int, error) {
+		lines, err := Fingerprint(args[1])
+		if err != nil {
+			return 0, err
+		}
+		for _, l := range lines {
+			fmt.Fprintln(stdout, l)
+		}
+		return 0, nil
+	}},
+	"c4": {[]int{3}, func(args, _ []string, stdout, _ io.Writer) (int, error) {
+		return 0, C4(args[1], args[2], stdout)
+	}},
+	"check-c4": {[]int{4}, func(args, _ []string, stdout, _ io.Writer) (int, error) {
+		ok, err := CheckC4(args[1], args[2], args[3], stdout)
+		if err == nil && !ok {
+			return 1, nil
+		}
+		return 0, err
+	}},
 }
 
 // RunModelDir is kit code-graph model-dir: it prints ModelDir for args[0]

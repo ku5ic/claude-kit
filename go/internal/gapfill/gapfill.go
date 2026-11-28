@@ -328,59 +328,15 @@ func ask(cfg *config.Config, o Options, p view, file string, s store) (_ store, 
 	if !locked.stale(cfg, o.Entries, p.Key) {
 		return locked, "", usage
 	}
-	// The facts get a call of their own: they take the model longest.
-	var reqs []request
-	if locked.Context != p.Key && !locked.held(cfg, factsKey(p.Key), time.Now()) {
-		reqs = append(reqs, request{View: p, Facts: true})
-	}
-	allowed := slices.DeleteFunc(slices.Clone(o.Entries), func(e sources.Entry) bool { return denied(cfg, e) != "" })
-	for batch := range slices.Chunk(locked.missing(cfg, o.Entries), batchSize) {
-		asked, dirs := map[string]bool{}, map[string]bool{}
-		for _, e := range batch {
-			asked[Key(e)], dirs[e.Dir] = true, true
-		}
-		// coverage keeps a coverer only in its claimant's directory.
-		others := slices.DeleteFunc(slices.Clone(allowed), func(e sources.Entry) bool { return asked[Key(e)] || !dirs[e.Dir] })
-		reqs = append(reqs, request{Entries: batch, Others: others, View: p})
-	}
+	reqs := askRequests(cfg, o, p, locked)
 	resps, usages, errs := classifyAll(ctx, cfg, o, reqs)
 	for _, u := range usages {
 		usage = usage.Add(u)
 	}
 	now := time.Now()
-	notAsked := false
-	failed, answered := map[string]string{}, []string{}
-	for i, resp := range resps {
-		if errors.Is(errs[i], errNotAsked) {
-			notAsked = true
-			continue // no cooldown: the next run asks it
-		}
-		if errs[i] != nil {
-			if failure == "" {
-				failure = "classifier: " + errs[i].Error()
-			}
-			for _, e := range reqs[i].Entries {
-				failed[failKey(cfg, Key(e))] = errs[i].Error()
-			}
-			if reqs[i].Facts {
-				failed[failKey(cfg, factsKey(p.Key))] = errs[i].Error()
-			}
-			continue
-		}
-		for _, a := range resp.Entries {
-			locked.Entries[a.ID] = &answer{Verdict: a.Verdict, Seen: now}
-			answered = append(answered, failKey(cfg, a.ID))
-		}
-		if reqs[i].Facts {
-			locked.Context, locked.Managers, locked.Proposals = p.Key, resp.Managers, resp.Proposals
-			answered = append(answered, failKey(cfg, factsKey(p.Key)))
-		}
-	}
+	failure, failed, answered := locked.take(cfg, p.Key, reqs, resps, errs, now)
 	// Best effort: unrecorded, the next run asks again.
 	_ = locked.cool.Record(now, failed, answered)
-	if failure == "" && notAsked {
-		failure = "classifier: " + errNotAsked.Error()
-	}
 	locked.save(file, o.Entries, now)
 	return locked, failure, usage
 }

@@ -55,14 +55,22 @@ func readView(cfg *config.Config, root string, entries []sources.Entry) view {
 		files = topLevel(root)
 	}
 	slices.SortStableFunc(files, func(a, b string) int { return cmp.Compare(strings.Count(a, "/"), strings.Count(b, "/")) })
-	p := view{Files: files[:min(len(files), maxFiles)], Contents: map[string]string{}, LockfileDirs: lockDirs(cfg, root, files)}
+	p := view{Files: files[:min(len(files), maxFiles)], LockfileDirs: lockDirs(cfg, root, files)}
+	p.Contents = readContents(cfg, root, viewCandidates(entries, files, p.LockfileDirs))
+	p.Key = viewKey(entries, p.Contents, p.LockfileDirs)
+	return p
+}
 
+// viewCandidates is the files whose contents the view may hold: the
+// entries' own, then each config-format file and root dotfile at the root
+// or in a lockfile's directory.
+func viewCandidates(entries []sources.Entry, files []string, dirs []lockDir) []string {
 	var candidates []string
 	for _, e := range entries {
 		candidates = append(candidates, e.File)
 	}
 	evidenceDirs := []string{"."}
-	for _, d := range p.LockfileDirs {
+	for _, d := range dirs {
 		evidenceDirs = append(evidenceDirs, d.Dir)
 	}
 	for _, f := range files {
@@ -71,19 +79,30 @@ func readView(cfg *config.Config, root string, entries []sources.Entry) view {
 			candidates = append(candidates, f)
 		}
 	}
-	total := 0
+	return candidates
+}
+
+// readContents is each candidate's text, once, within the size caps; a
+// lockfile, a binary, or an unreadable file is left out.
+func readContents(cfg *config.Config, root string, candidates []string) map[string]string {
+	contents, total := map[string]string{}, 0
 	for _, f := range candidates {
-		if _, seen := p.Contents[f]; seen || f == "" || guard.IsGuardedLockfile(cfg, f) {
+		if _, seen := contents[f]; seen || f == "" || guard.IsGuardedLockfile(cfg, f) {
 			continue
 		}
 		data, err := os.ReadFile(filepath.Join(root, f))
 		if err != nil || len(data) > maxFileBytes || total+len(data) > maxContents || git.IsBinary(data) {
 			continue
 		}
-		p.Contents[f] = string(data)
+		contents[f] = string(data)
 		total += len(data)
 	}
+	return contents
+}
 
+// viewKey is the view's cache key: the prompt version, the entries, the
+// contents, and the lockfile directories.
+func viewKey(entries []sources.Entry, contents map[string]string, dirs []lockDir) string {
 	keys := []string{promptVersion}
 	for _, e := range entries {
 		keys = append(keys, Key(e))
@@ -93,10 +112,9 @@ func readView(cfg *config.Config, root string, entries []sources.Entry) view {
 		Keys     []string
 		Contents map[string]string
 		Dirs     []lockDir
-	}{keys, p.Contents, p.LockfileDirs})
+	}{keys, contents, dirs})
 	sum := sha256.Sum256(facts)
-	p.Key = hex.EncodeToString(sum[:8])
-	return p
+	return hex.EncodeToString(sum[:8])
 }
 
 // topLevel is root's own file names, for a project outside git.

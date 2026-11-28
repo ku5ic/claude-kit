@@ -37,35 +37,11 @@ func Coupling(gitLog, resolved, root string, skipDirs []string, out io.Writer) e
 	if err != nil {
 		return err
 	}
-	files, err := git.Paths(root, "ls-files", "-z")
+	tracked, err := trackedFiles(root, skipDirs)
 	if err != nil {
-		return fmt.Errorf("git ls-files: %w", err)
+		return err
 	}
-	tracked := map[string]bool{}
-	for _, f := range files {
-		if !skipped(f, skipDirs) {
-			tracked[f] = true
-		}
-	}
-	changes, pairs := map[string]int{}, map[pair]int{}
-	for _, c := range commits {
-		if c.size > maxFilesPerCommit {
-			continue
-		}
-		files := slices.DeleteFunc(c.files, func(f string) bool { return !tracked[f] })
-		for _, f := range files {
-			changes[f]++
-		}
-		slices.Sort(files)
-		files = slices.Compact(files)
-		for i, a := range files {
-			for _, b := range files[i+1:] {
-				if dirOf(a) != dirOf(b) {
-					pairs[pair{a, b}]++
-				}
-			}
-		}
-	}
+	changes, pairs := cochanges(commits, tracked)
 	rows, err := readTSV(resolved, 2)
 	if err != nil {
 		return err
@@ -88,6 +64,47 @@ func Coupling(gitLog, resolved, root string, skipDirs []string, out io.Writer) e
 		fmt.Fprintf(out, "%d\t%.2f\t%s\t%s\t%s\n", shared, degree, link, p.a, p.b)
 	}
 	return nil
+}
+
+// trackedFiles is each file root tracks, less those under skipDirs.
+func trackedFiles(root string, skipDirs []string) (map[string]bool, error) {
+	files, err := git.Paths(root, "ls-files", "-z")
+	if err != nil {
+		return nil, fmt.Errorf("git ls-files: %w", err)
+	}
+	tracked := map[string]bool{}
+	for _, f := range files {
+		if !skipped(f, skipDirs) {
+			tracked[f] = true
+		}
+	}
+	return tracked, nil
+}
+
+// cochanges is how many commits changed each tracked file, and each pair
+// of tracked files in different directories, skipping a commit past
+// maxFilesPerCommit.
+func cochanges(commits []commit, tracked map[string]bool) (map[string]int, map[pair]int) {
+	changes, pairs := map[string]int{}, map[pair]int{}
+	for _, c := range commits {
+		if c.size > maxFilesPerCommit {
+			continue
+		}
+		files := slices.DeleteFunc(c.files, func(f string) bool { return !tracked[f] })
+		for _, f := range files {
+			changes[f]++
+		}
+		slices.Sort(files)
+		files = slices.Compact(files)
+		for i, a := range files {
+			for _, b := range files[i+1:] {
+				if dirOf(a) != dirOf(b) {
+					pairs[pair{a, b}]++
+				}
+			}
+		}
+	}
+	return changes, pairs
 }
 
 // importTarget is how imports-resolved.tsv names file as an import's

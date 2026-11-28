@@ -153,18 +153,9 @@ func (t target) match(g *graph, fs fileSpec, tracked map[string]bool, skipDirs [
 	if family(fs.file) != family(t.file) {
 		return "", false
 	}
-	npm := ecosystems[path.Ext(fs.file)] == "npm"
-	if rest, alias := cutAlias(fs.path); npm && alias {
-		if jsEmitted[path.Ext(rest)] || slices.Contains(TSExtensions, strings.TrimPrefix(path.Ext(rest), ".")) {
-			rest = strings.TrimSuffix(rest, path.Ext(rest))
-		}
-		return "alias-match", endsInPath(t.id, rest) || endsInPath(t.stem, rest)
-	}
-	if npm && fs.kind == rooted {
-		for _, dir := range t.workspace {
-			if fs.path == dir || strings.HasPrefix(fs.path, dir+"/") {
-				return "workspace-match", true
-			}
+	if ecosystems[path.Ext(fs.file)] == "npm" {
+		if label, ok, decided := t.npmMatch(fs); decided {
+			return label, ok
 		}
 	}
 	resolved, ok := g.resolve(fs.file, fs.spec)
@@ -179,6 +170,21 @@ func (t target) match(g *graph, fs fileSpec, tracked map[string]bool, skipDirs [
 		return "", true
 	}
 	return "", id == t.id
+}
+
+// npmMatch is match for a JS or TS import by an alias (@/, ~/) or a
+// workspace package's path; decided is false for any other import.
+func (t target) npmMatch(fs fileSpec) (label string, ok, decided bool) {
+	if rest, alias := cutAlias(fs.path); alias {
+		if jsEmitted[path.Ext(rest)] || slices.Contains(TSExtensions, strings.TrimPrefix(path.Ext(rest), ".")) {
+			rest = strings.TrimSuffix(rest, path.Ext(rest))
+		}
+		return "alias-match", endsInPath(t.id, rest) || endsInPath(t.stem, rest), true
+	}
+	if fs.kind == rooted && slices.ContainsFunc(t.workspace, func(dir string) bool { return fs.path == dir || strings.HasPrefix(fs.path, dir+"/") }) {
+		return "workspace-match", true, true
+	}
+	return "", false, false
 }
 
 // cutAlias is p without an "@/" or "~/" prefix, and whether it had one.
