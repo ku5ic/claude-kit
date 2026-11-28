@@ -89,24 +89,31 @@ func AgentRuns(entries []Entry, agentType string) []Run {
 					continue
 				}
 				delete(waiting, b.ToolUseID)
-				text := b.ResultText()
-				if m := agentIDLine.FindStringSubmatch(text); m != nil {
-					runs[r].Agent = m[1]
-				}
-				switch {
-				case b.IsError:
-					runs[r].Status = RunFailed
-				case cutOff.MatchString(text):
-					runs[r].Status = RunFailed
-				case strings.HasPrefix(text, asyncLaunched):
+				if runs[r].finish(b) {
 					background[b.ToolUseID] = r
-				default:
-					runs[r].Status, runs[r].Result = RunDone, text
 				}
 			}
 		}
 	}
 	return runs
+}
+
+// finish records b, the Agent tool's result for r, and reports whether
+// it launched the run in the background, to end in a later notice.
+func (r *Run) finish(b Block) bool {
+	text := b.ResultText()
+	if m := agentIDLine.FindStringSubmatch(text); m != nil {
+		r.Agent = m[1]
+	}
+	switch {
+	case b.IsError, cutOff.MatchString(text):
+		r.Status = RunFailed
+	case strings.HasPrefix(text, asyncLaunched):
+		return true
+	default:
+		r.Status, r.Result = RunDone, text
+	}
+	return false
 }
 
 // noticeStatus is the status e's task notification gives the background

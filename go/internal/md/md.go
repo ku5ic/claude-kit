@@ -44,10 +44,7 @@ func Lines(text string) iter.Seq[Line] {
 		for raw := range strings.Lines(text) {
 			line := strings.TrimRight(raw, "\r\n")
 			trimmed := strings.TrimSpace(line)
-			// The list item, and the fence in it, ended. Its own marker,
-			// even unindented, still closes it: CommonMark would open a new
-			// fence there that runs to the end.
-			if fence != "" && trimmed != "" && !closes(trimmed, fence) && len(line)-len(strings.TrimLeft(line, " \t")) < within {
+			if fence != "" && leftItem(line, trimmed, fence, within) {
 				fence = ""
 			}
 			kind := Prose
@@ -71,6 +68,14 @@ func Lines(text string) iter.Seq[Line] {
 			}
 		}
 	}
+}
+
+// leftItem reports whether line ends the list item fence opened in, whose
+// content starts at column within. Its own marker, even unindented, still
+// closes the fence: CommonMark would open a new one there that runs to the
+// end.
+func leftItem(line, trimmed, fence string, within int) bool {
+	return trimmed != "" && !closes(trimmed, fence) && len(line)-len(strings.TrimLeft(line, " \t")) < within
 }
 
 // listMarker opens a list item, whose line a fence may follow.

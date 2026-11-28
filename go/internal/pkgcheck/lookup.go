@@ -228,30 +228,35 @@ func (l *Lookups) Missing(manager, operand string) bool {
 		return false
 	}
 	for _, key := range slices.Sorted(maps.Keys(l.c.Ecosystems)) {
-		e := l.c.Ecosystems[key]
-		if !slices.Contains(e.Managers, manager) {
-			continue
-		}
-		name, missing := bare(operand), compile(e.Missing)
-		// A workspace package is named in a package.json, which only the
-		// JS package managers read, whatever key an overlay files them under.
-		if name == "" || missing == nil || len(e.Cmd) == 0 || !compileOK(e.Name, name) || slices.Contains(jsManagers, manager) && l.workspace(name) || l.private(e, name) || l.cached(manager, name) {
-			return false
-		}
-		for p := name; ; p = parent(p) {
-			found, absent := l.lookup(e.Cmd, p, missing)
-			if found && p == name {
-				l.remember(manager, name)
-			}
-			if !absent {
-				return false
-			}
-			if !e.Parents || strings.Count(p, "/") < 2 {
-				return true
-			}
+		if e := l.c.Ecosystems[key]; slices.Contains(e.Managers, manager) {
+			return l.missingIn(e, manager, operand)
 		}
 	}
 	return false
+}
+
+// missingIn is Missing for the first ecosystem e that covers manager. With
+// Parents set, a name the registry lacks is missing only when each parent
+// path down to its last two parts is missing too.
+func (l *Lookups) missingIn(e config.PackageLookup, manager, operand string) bool {
+	name, missing := bare(operand), compile(e.Missing)
+	// A workspace package is named in a package.json, which only the
+	// JS package managers read, whatever key an overlay files them under.
+	if name == "" || missing == nil || len(e.Cmd) == 0 || !compileOK(e.Name, name) || slices.Contains(jsManagers, manager) && l.workspace(name) || l.private(e, name) || l.cached(manager, name) {
+		return false
+	}
+	for p := name; ; p = parent(p) {
+		found, absent := l.lookup(e.Cmd, p, missing)
+		if found && p == name {
+			l.remember(manager, name)
+		}
+		if !absent {
+			return false
+		}
+		if !e.Parents || strings.Count(p, "/") < 2 {
+			return true
+		}
+	}
 }
 
 // lookup runs one lookup of name: found when it succeeds, absent only

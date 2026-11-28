@@ -372,26 +372,13 @@ func globRegexp(pattern string) (*regexp.Regexp, error) {
 				b.WriteString(`\\`)
 			}
 		case '[':
-			end := strings.IndexByte(pattern[i+1:], ']')
+			class, end := globClass(pattern[i:])
 			if end < 0 {
 				b.WriteString(`\[`)
 				continue
 			}
-			// A ] right after [ or [! is a literal member, not the close.
-			if end == 0 || (end == 1 && (pattern[i+1] == '!' || pattern[i+1] == '^')) {
-				next := strings.IndexByte(pattern[i+end+2:], ']')
-				if next < 0 {
-					b.WriteString(`\[`)
-					continue
-				}
-				end += next + 1
-			}
-			class := pattern[i+1 : i+1+end]
-			if class[0] == '!' {
-				class = "^" + class[1:]
-			}
-			fmt.Fprintf(&b, "[%s]", strings.ReplaceAll(class, `\`, `\\`))
-			i += end + 1
+			fmt.Fprintf(&b, "[%s]", class)
+			i += end
 		default:
 			b.WriteString(regexp.QuoteMeta(string(c)))
 		}
@@ -402,4 +389,26 @@ func globRegexp(pattern string) (*regexp.Regexp, error) {
 		globCache.Store(pattern, re)
 	}
 	return re, err
+}
+
+// globClass is the regexp class body of the bracket expression s starts
+// with, and the index of its closing ]; -1 when s has no closing ].
+func globClass(s string) (string, int) {
+	end := strings.IndexByte(s[1:], ']')
+	if end < 0 {
+		return "", -1
+	}
+	// A ] right after [ or [! is a literal member, not the close.
+	if end == 0 || (end == 1 && (s[1] == '!' || s[1] == '^')) {
+		next := strings.IndexByte(s[end+2:], ']')
+		if next < 0 {
+			return "", -1
+		}
+		end += next + 1
+	}
+	class := s[1 : 1+end]
+	if class[0] == '!' {
+		class = "^" + class[1:]
+	}
+	return strings.ReplaceAll(class, `\`, `\\`), end + 1
 }

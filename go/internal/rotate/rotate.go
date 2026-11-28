@@ -202,21 +202,27 @@ func (r *rotator) prune(dir string, days int, keep func(string) bool) (files, ch
 			}
 			return nil
 		}
-		if !d.Type().IsRegular() && d.Type()&fs.ModeSymlink == 0 || (keep != nil && !keep(d.Name())) {
-			return nil
+		if r.pruneFile(path, d, days, keep) {
+			files = append(files, path)
 		}
-		info, err := d.Info()
-		if err != nil || !cache.Older(info.ModTime(), days, r.now) {
-			return nil
-		}
-		if !r.dryRun && os.Remove(path) != nil {
-			return nil
-		}
-		files = append(files, path)
 		return nil
 	})
 	r.record(files)
 	return files, checkouts, folders
+}
+
+// pruneFile deletes the regular file or symlink at path when keep matches
+// it and it is more than days whole days old, and reports whether it went
+// (would go, on a dry run).
+func (r *rotator) pruneFile(path string, d fs.DirEntry, days int, keep func(string) bool) bool {
+	if !d.Type().IsRegular() && d.Type()&fs.ModeSymlink == 0 || (keep != nil && !keep(d.Name())) {
+		return false
+	}
+	info, err := d.Info()
+	if err != nil || !cache.Older(info.ModTime(), days, r.now) {
+		return false
+	}
+	return r.dryRun || os.Remove(path) == nil
 }
 
 // reviewDays is the most a review-* checkout directly under a pruned dir

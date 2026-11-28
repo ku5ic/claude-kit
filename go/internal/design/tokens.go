@@ -57,13 +57,7 @@ func UndefinedTokens(cacheDir, path, before, after string) []string {
 	if !slices.Contains(uiExts, strings.ToLower(filepath.Ext(path))) {
 		return nil
 	}
-	vars := added(varUse, before, after)
-	var colors []string
-	for _, c := range added(shadedColor, before, after) {
-		if !slices.Contains(palette, c[:strings.LastIndex(c, "-")]) {
-			colors = append(colors, c)
-		}
-	}
+	vars, colors := added(varUse, before, after), addedColors(before, after)
 	if len(vars) == 0 && len(colors) == 0 {
 		return nil
 	}
@@ -75,9 +69,27 @@ func UndefinedTokens(cacheDir, path, before, after string) []string {
 	if !ok {
 		return nil
 	}
-	defined := maps.Clone(project.defined)
+	return project.undefined(vars, colors, after)
+}
+
+// addedColors is the shaded color utilities after adds to before that
+// aren't default palette colors.
+func addedColors(before, after string) []string {
+	var colors []string
+	for _, c := range added(shadedColor, before, after) {
+		if !slices.Contains(palette, c[:strings.LastIndex(c, "-")]) {
+			colors = append(colors, c)
+		}
+	}
+	return colors
+}
+
+// undefined is each of vars and colors that neither p nor after defines,
+// a var only in a namespace p owns.
+func (p projectTokens) undefined(vars, colors []string, after string) []string {
+	defined := maps.Clone(p.defined)
 	define(defined, after)
-	tailwind, jsConfig := project.tailwind, project.jsConfig
+	tailwind, jsConfig := p.tailwind, p.jsConfig
 	owned := map[string]bool{}
 	for v := range defined {
 		owned[namespace(v)] = true
@@ -156,23 +168,12 @@ func scanProject(root, cacheDir string) (projectTokens, bool) {
 		if !slices.Contains(uiExts, strings.ToLower(filepath.Ext(f))) {
 			continue
 		}
-		info, err := os.Stat(filepath.Join(root, f))
-		if err != nil {
+		cached, hit := old[f]
+		t, fresh, ok := scanFile(filepath.Join(root, f), cached, hit)
+		if !ok {
 			continue
 		}
-		t, ok := old[f]
-		if !ok || t.Size != info.Size() || t.MTime != info.ModTime().UnixNano() {
-			// The stat before the read: a write between them shows as a
-			// newer mtime next time, never as a stale hit.
-			data, err := os.ReadFile(filepath.Join(root, f))
-			if err != nil {
-				continue
-			}
-			defined := map[string]bool{}
-			define(defined, string(data))
-			t = fileTokens{Size: info.Size(), MTime: info.ModTime().UnixNano(), Defined: slices.Sorted(maps.Keys(defined)), Tailwind: tailwindImport.Match(data)}
-			changed = true
-		}
+		changed = changed || fresh
 		now[f] = t
 		for _, v := range t.Defined {
 			p.defined[v] = true
@@ -186,6 +187,28 @@ func scanProject(root, cacheDir string) (projectTokens, bool) {
 		}
 	}
 	return p, true
+}
+
+// scanFile is what the UI file at path defines: cached when hit and its
+// size and mtime match cached's, else read again and fresh. ok is false
+// when path can't be read.
+func scanFile(path string, cached fileTokens, hit bool) (t fileTokens, fresh, ok bool) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return fileTokens{}, false, false
+	}
+	if hit && cached.Size == info.Size() && cached.MTime == info.ModTime().UnixNano() {
+		return cached, false, true
+	}
+	// The stat before the read: a write between them shows as a newer
+	// mtime next time, never as a stale hit.
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fileTokens{}, false, false
+	}
+	defined := map[string]bool{}
+	define(defined, string(data))
+	return fileTokens{Size: info.Size(), MTime: info.ModTime().UnixNano(), Defined: slices.Sorted(maps.Keys(defined)), Tailwind: tailwindImport.Match(data)}, true, true
 }
 
 // indexVersion names the index's shape and how define reads a file: a change

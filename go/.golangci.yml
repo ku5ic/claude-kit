@@ -45,24 +45,6 @@ linters:
       # A test's length is its cases.
       - path: _test\.go
         linters: [funlen, cyclop, revive]
-      # Ratchet: each file below breached a threshold when the linters came
-      # in. A change that brings one under deletes its entry; none is added.
-      - path: ^internal/adr/adr\.go$
-        linters: [cyclop]
-      - path: ^internal/design/tokens\.go$
-        linters: [cyclop]
-      - path: ^internal/explain/explain\.go$
-        linters: [cyclop, funlen]
-      - path: ^internal/guard/paths\.go$
-        linters: [cyclop, revive]
-      - path: ^internal/md/md\.go$
-        linters: [cyclop]
-      - path: ^internal/pkgcheck/lookup\.go$
-        linters: [cyclop]
-      - path: ^internal/rotate/rotate\.go$
-        linters: [cyclop]
-      - path: ^internal/transcript/runs\.go$
-        linters: [cyclop]
 
 issues:
   max-issues-per-linter: 0

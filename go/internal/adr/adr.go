@@ -81,43 +81,71 @@ func Accepted(dir string) []ADR {
 // matter or a Status section, its first H1, and its Decision or Decision
 // Outcome section. ok is false unless the status is accepted.
 func parseADR(text string) (a ADR, ok bool) {
-	var status, section string
-	var decision strings.Builder
-	front := strings.HasPrefix(text, "---\n")
+	p := adrParse{front: strings.HasPrefix(text, "---\n")}
 	for i, line := range strings.Split(text, "\n") {
-		trimmed := strings.TrimSpace(line)
-		switch {
-		case front && i > 0 && trimmed == "---":
-			front = false
-		case front:
-			if v, found := strings.CutPrefix(trimmed, "status:"); found {
-				status = strings.Trim(strings.TrimSpace(v), `"'`)
-			}
-		case strings.HasPrefix(line, "# ") && a.Title == "":
-			a.Title = strings.TrimSpace(line[2:])
-		case strings.HasPrefix(line, "## "):
-			section = strings.ToLower(strings.TrimSpace(line[3:]))
-		case section == "status" && status == "" && trimmed != "":
-			status = trimmed
-		case (section == "decision" || section == "decision outcome") && (trimmed != "" || decision.Len() > 0):
-			decision.WriteString(line + "\n")
-		}
+		p.line(i, line)
 	}
-	if !strings.HasPrefix(strings.ToLower(status), "accepted") {
+	if !strings.HasPrefix(strings.ToLower(p.status), "accepted") {
 		return a, false
 	}
-	a.Decision = strings.TrimSpace(decision.String())
-	if len(a.Decision) > maxDecision {
-		cut := a.Decision[:maxDecision]
-		if i := strings.LastIndexAny(cut, " \n"); i > 0 {
-			cut = cut[:i]
-		}
-		a.Decision = cut + " ..."
-	}
+	a.Title = p.title
+	a.Decision = clip(strings.TrimSpace(p.decision.String()))
 	for _, m := range codeSpan.FindAllStringSubmatch(text, -1) {
 		a.spans = append(a.spans, path.Clean(m[1])+suffixSlash(m[1]))
 	}
 	return a, true
+}
+
+// adrParse is what parseADR has read so far: the status, the first H1,
+// the Decision section's lines, and the H2 section and front matter the
+// next line is in.
+type adrParse struct {
+	status, section, title string
+	decision               strings.Builder
+	front                  bool
+}
+
+// line reads line i of the record.
+func (p *adrParse) line(i int, line string) {
+	trimmed := strings.TrimSpace(line)
+	if p.front {
+		p.frontLine(i, trimmed)
+		return
+	}
+	switch {
+	case strings.HasPrefix(line, "# ") && p.title == "":
+		p.title = strings.TrimSpace(line[2:])
+	case strings.HasPrefix(line, "## "):
+		p.section = strings.ToLower(strings.TrimSpace(line[3:]))
+	case p.section == "status" && p.status == "" && trimmed != "":
+		p.status = trimmed
+	case (p.section == "decision" || p.section == "decision outcome") && (trimmed != "" || p.decision.Len() > 0):
+		p.decision.WriteString(line + "\n")
+	}
+}
+
+// frontLine reads line i, trimmed, of the front matter: its status, or
+// the --- that closes it.
+func (p *adrParse) frontLine(i int, trimmed string) {
+	if i > 0 && trimmed == "---" {
+		p.front = false
+		return
+	}
+	if v, found := strings.CutPrefix(trimmed, "status:"); found {
+		p.status = strings.Trim(strings.TrimSpace(v), `"'`)
+	}
+}
+
+// clip is decision cut at a word to maxDecision bytes, marked with " ...".
+func clip(decision string) string {
+	if len(decision) <= maxDecision {
+		return decision
+	}
+	cut := decision[:maxDecision]
+	if i := strings.LastIndexAny(cut, " \n"); i > 0 {
+		cut = cut[:i]
+	}
+	return cut + " ..."
 }
 
 // suffixSlash keeps the trailing slash path.Clean drops.

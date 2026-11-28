@@ -159,15 +159,7 @@ func stop(paths config.Paths, cfg *config.Config, cwd, home string, files []stri
 		return 1
 	}
 	if len(files) == 0 {
-		// The hook is silent on a pass: its last report says what ran and what was skipped.
-		for _, last := range []struct{ name, path string }{
-			{"stop-checks", cache.StopReport(paths.CacheDir(), root)},
-			{"per-edit", cache.EditReport(paths.CacheDir(), root)},
-		} {
-			if report, err := os.ReadFile(last.path); err == nil {
-				fmt.Fprintf(w, "last %s run:\n%s\n\n", last.name, strings.TrimRight(string(report), "\n"))
-			}
-		}
+		lastReports(w, paths.CacheDir(), root)
 		files = changedFiles(root)
 		if len(files) == 0 {
 			fmt.Fprintln(w, "no changed files; name some: kit explain stop <file>...")
@@ -181,26 +173,7 @@ func stop(paths config.Paths, cfg *config.Config, cwd, home string, files []stri
 	p := enforce.Stop(cfg, enforce.Options{Root: root, CacheDir: paths.CacheDir(), Home: home}, abs)
 	claimed := map[string]bool{}
 	for _, g := range p.Gates {
-		fmt.Fprintln(w, g.Label)
-		if g.Skip != "" {
-			fmt.Fprintf(w, "  skip     %s\n", g.Skip)
-			continue
-		}
-		fmt.Fprintf(w, "  runs in  %s\n", fsx.Rel(root, g.Dir))
-		for _, f := range g.Files {
-			claimed[f] = true
-			fmt.Fprintf(w, "  file     %s\n", fsx.Rel(root, f))
-		}
-		fmt.Fprintf(w, "  command  %s\n", g.Command())
-		for _, bin := range g.Bins {
-			fmt.Fprintf(w, "  source   %s (%s)\n", bin.Path, bin.Source)
-		}
-		blocks := "any failure"
-		if g.LintLike() {
-			blocks = "findings on changed lines"
-		}
-		fmt.Fprintf(w, "  blocks   %s\n", blocks)
-		fmt.Fprintf(w, "  verdict  %s\n", g.Verdict)
+		printGate(w, root, g, claimed)
 	}
 	for i, f := range files {
 		switch {
@@ -212,6 +185,44 @@ func stop(paths config.Paths, cfg *config.Config, cwd, home string, files []stri
 		}
 	}
 	return 0
+}
+
+// lastReports writes the Stop hook's and the per-edit check's last
+// reports: the hook is silent on a pass, so they say what ran and what was
+// skipped.
+func lastReports(w io.Writer, cacheDir, root string) {
+	for _, last := range []struct{ name, path string }{
+		{"stop-checks", cache.StopReport(cacheDir, root)},
+		{"per-edit", cache.EditReport(cacheDir, root)},
+	} {
+		if report, err := os.ReadFile(last.path); err == nil {
+			fmt.Fprintf(w, "last %s run:\n%s\n\n", last.name, strings.TrimRight(string(report), "\n"))
+		}
+	}
+}
+
+// printGate writes how g runs, and marks its files in claimed.
+func printGate(w io.Writer, root string, g enforce.Gate, claimed map[string]bool) {
+	fmt.Fprintln(w, g.Label)
+	if g.Skip != "" {
+		fmt.Fprintf(w, "  skip     %s\n", g.Skip)
+		return
+	}
+	fmt.Fprintf(w, "  runs in  %s\n", fsx.Rel(root, g.Dir))
+	for _, f := range g.Files {
+		claimed[f] = true
+		fmt.Fprintf(w, "  file     %s\n", fsx.Rel(root, f))
+	}
+	fmt.Fprintf(w, "  command  %s\n", g.Command())
+	for _, bin := range g.Bins {
+		fmt.Fprintf(w, "  source   %s (%s)\n", bin.Path, bin.Source)
+	}
+	blocks := "any failure"
+	if g.LintLike() {
+		blocks = "findings on changed lines"
+	}
+	fmt.Fprintf(w, "  blocks   %s\n", blocks)
+	fmt.Fprintf(w, "  verdict  %s\n", g.Verdict)
 }
 
 // changedFiles is every modified or untracked file in the working tree.
