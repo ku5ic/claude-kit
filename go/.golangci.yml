@@ -91,32 +91,22 @@ linters:
         linters: [revive]
       - path: ^internal/hooks/adrnudge\.go$
         linters: [cyclop]
-      - path: ^internal/hooks/bashedits\.go$
-        linters: [cyclop, funlen]
       - path: ^internal/hooks/citations\.go$
         linters: [cyclop]
       - path: ^internal/hooks/claims\.go$
         linters: [cyclop]
       - path: ^internal/hooks/connector\.go$
         linters: [cyclop]
-      - path: ^internal/hooks/context\.go$
-        linters: [funlen]
       - path: ^internal/hooks/edit\.go$
         linters: [cyclop]
       - path: ^internal/hooks/planchanges\.go$
         linters: [cyclop]
-      - path: ^internal/hooks/plandone\.go$
-        linters: [cyclop, funlen]
       - path: ^internal/hooks/replylength\.go$
-        linters: [cyclop, funlen]
-      - path: ^internal/hooks/rulesgate\.go$
         linters: [cyclop, funlen]
       - path: ^internal/hooks/size\.go$
         linters: [cyclop, funlen]
       - path: ^internal/hooks/slop\.go$
         linters: [cyclop]
-      - path: ^internal/hooks/stop\.go$
-        linters: [cyclop, funlen]
       - path: ^internal/md/md\.go$
         linters: [cyclop]
       - path: ^internal/pkgcheck/lookup\.go$

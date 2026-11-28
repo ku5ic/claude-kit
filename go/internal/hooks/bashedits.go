@@ -134,96 +134,132 @@ func BashEdits(h *hook.Hook, writes []string) error {
 	if base == "" || h.Config() == nil {
 		return nil
 	}
-	if _, err := os.Stat(base); errors.Is(err, os.ErrNotExist) {
-		// Until a command runs this turn, the diff starts at the turn's
-		// start. A repo the turn didn't start in got its baseline from
-		// BashBaseline before the command; without one, this command's
-		// changes there go unchecked and the next one's diff starts here.
-		start, err := os.ReadFile(turnTreeFile(h, root))
-		if err != nil {
-			if tree, err := git.Snapshot(root); err == nil {
-				saveTree(h, base, tree)
-			}
-			return nil
-		}
-		saveTree(h, base, string(start))
+	if !hasBaseline(h, root, base) {
+		return nil
 	}
 	changed, before, _, ok := changedSince(h, root, base)
 	if !ok || len(changed) == 0 {
 		return nil
 	}
-	type change struct {
-		path, old string
-		after     []byte
-		edited    bool
-		err       error
-	}
-	changes := make([]change, len(changed))
-	var made []string
-	for i, path := range changed {
-		c := change{path: path}
-		c.after, c.err = os.ReadFile(path)
-		c.old, c.edited = lastEdit(h, path)
-		// A file as the turn's last Edit left it is that Edit's, counted
-		// already.
-		if !c.edited || c.err != nil || c.old != string(c.after) {
-			made = append(made, path)
-		}
-		changes[i] = c
-	}
-	// Whoever wrote the change, a claim checked before it is stale.
-	recordBashEdit(h, made)
+	changes := readChanges(h, changed)
 	cmd := p.String(hook.KeyInputCommand)
 	if gitMove(cmd) && len(repoWrites(root, writes)) == 0 {
 		return nil
 	}
 	if hasGitMove(cmd) {
-		moved := fromHead(root, changed)
-		if record := movedFile(h, root); len(moved) > 0 && record != "" && !h.DryRun {
-			_ = fsx.Append(record, []byte(strings.Join(moved, "\n")+"\n"))
-		}
-		changed = slices.DeleteFunc(changed, func(path string) bool { return slices.Contains(moved, path) })
-		changes = slices.DeleteFunc(changes, func(c change) bool { return slices.Contains(moved, c.path) })
+		changed, changes = dropMoves(h, root, changed, changes)
 	}
 	olds := blobsAt(root, before, changed)
-	problems := lostTests(h, root, olds, changed)
+	problems := append(lostTests(h, root, olds, changed), checkChanges(h, root, base, changes, olds)...)
+	if len(problems) == 0 {
+		return nil
+	}
+	return h.Block("a file this command changed fails the checks an Edit gets\n"+strings.Join(problems, "\n"), "bash-edits")
+}
+
+// hasBaseline is whether root has a tree for this command's diff to start
+// from. Until a command runs this turn, the diff starts at the turn's
+// start. A repo the turn didn't start in got its baseline from
+// BashBaseline before the command; without one, this command's changes
+// there go unchecked and the next one's diff starts here.
+func hasBaseline(h *hook.Hook, root, base string) bool {
+	if _, err := os.Stat(base); !errors.Is(err, os.ErrNotExist) {
+		return true
+	}
+	start, err := os.ReadFile(turnTreeFile(h, root))
+	if err != nil {
+		if tree, err := git.Snapshot(root); err == nil {
+			saveTree(h, base, tree)
+		}
+		return false
+	}
+	saveTree(h, base, string(start))
+	return true
+}
+
+// bashChange is one file a Bash command changed: its content now, and
+// what the turn's last Edit of it left, if one did.
+type bashChange struct {
+	path, old string
+	after     []byte
+	edited    bool
+	err       error
+}
+
+// readChanges reads each changed file and records the ones the command
+// made. A file as the turn's last Edit left it is that Edit's, counted
+// already; whoever wrote the change, a claim checked before it is stale.
+func readChanges(h *hook.Hook, changed []string) []bashChange {
+	changes := make([]bashChange, len(changed))
+	var made []string
+	for i, path := range changed {
+		c := bashChange{path: path}
+		c.after, c.err = os.ReadFile(path)
+		c.old, c.edited = lastEdit(h, path)
+		if !c.edited || c.err != nil || c.old != string(c.after) {
+			made = append(made, path)
+		}
+		changes[i] = c
+	}
+	recordBashEdit(h, made)
+	return changes
+}
+
+// dropMoves records the files a git move brought in from HEAD and leaves
+// them out of the checks.
+func dropMoves(h *hook.Hook, root string, changed []string, changes []bashChange) ([]string, []bashChange) {
+	moved := fromHead(root, changed)
+	if record := movedFile(h, root); len(moved) > 0 && record != "" && !h.DryRun {
+		_ = fsx.Append(record, []byte(strings.Join(moved, "\n")+"\n"))
+	}
+	changed = slices.DeleteFunc(changed, func(path string) bool { return slices.Contains(moved, path) })
+	changes = slices.DeleteFunc(changes, func(c bashChange) bool { return slices.Contains(moved, c.path) })
+	return changed, changes
+}
+
+// checkChanges gives each change the checks an Edit gets, then sanitizes
+// and formats it while time allows: each format may take formatBudget, and
+// past this files are checked but left unformatted, inside hooks.json's
+// 300s. The next command's diff starts from what sanitize and format left.
+func checkChanges(h *hook.Hook, root, base string, changes []bashChange, olds map[string]string) []string {
+	var problems []string
 	rewritten := false
-	// Each format may take formatBudget; past this, files are checked but
-	// left unformatted, inside hooks.json's 300s.
 	formatUntil := time.Now().Add(bashEditsFormatBudget)
 	for _, c := range changes {
-		path, after, old := c.path, c.after, c.old
-		if c.err != nil || git.IsBinary(after) {
+		found, checked := checkChange(h, c, olds)
+		problems = append(problems, found...)
+		if !checked || time.Until(formatUntil) <= formatBudget {
 			continue
 		}
-		// An Edit since the baseline was checked and confirmed then: the
-		// diff starts from what it left, and the baseline now holds it.
-		if c.edited {
-			_ = os.Remove(editedFile(h, path))
-			if old == string(after) {
-				continue
-			}
-		} else {
-			old = olds[path]
-		}
-		problems = append(problems, editChecks(h, path, old, string(after))...)
-		if time.Until(formatUntil) > formatBudget {
-			afterEdit(h, path)
-			if now, err := os.ReadFile(path); err == nil && !bytes.Equal(now, after) {
-				rewritten = true
-			}
+		afterEdit(h, c.path)
+		if now, err := os.ReadFile(c.path); err == nil && !bytes.Equal(now, c.after) {
+			rewritten = true
 		}
 	}
-	// The next command's diff starts from what sanitize and format left.
 	if rewritten {
 		if tree, err := git.Snapshot(root); err == nil {
 			saveTree(h, base, tree)
 		}
 	}
-	if len(problems) == 0 {
-		return nil
+	return problems
+}
+
+// checkChange is the edit checks' problems with c, and whether it was
+// checked. An Edit since the baseline was checked and confirmed then: the
+// diff starts from what it left, and the baseline now holds it.
+func checkChange(h *hook.Hook, c bashChange, olds map[string]string) ([]string, bool) {
+	if c.err != nil || git.IsBinary(c.after) {
+		return nil, false
 	}
-	return h.Block("a file this command changed fails the checks an Edit gets\n"+strings.Join(problems, "\n"), "bash-edits")
+	old := olds[c.path]
+	if c.edited {
+		_ = os.Remove(editedFile(h, c.path))
+		if c.old == string(c.after) {
+			return nil, false
+		}
+		old = c.old
+	}
+	return editChecks(h, c.path, old, string(c.after)), true
 }
 
 // repoWrites is the writes that land in root, its symlinks resolved: a

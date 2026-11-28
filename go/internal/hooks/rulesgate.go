@@ -49,25 +49,10 @@ func RulesGate(h *hook.Hook) error {
 	}
 	required := requiredSkills(cfg)
 	agent := p.String(hook.KeyAgentID)
-	marker := func(skill string) string { return rulesMarker(h, agent, skill) }
-	if marker(rulesSkill) == "" {
+	if rulesMarker(h, agent, rulesSkill) == "" {
 		return errors.New("no session_id, so no skill load can be told apart")
 	}
-	var missing []string
-	for _, skill := range required {
-		if _, err := os.Stat(marker(skill)); err != nil {
-			missing = append(missing, skill)
-		}
-	}
-	// A skill nothing can load (a typo, a removed skill) would deny every
-	// call for good, so it's logged and left out.
-	missing = slices.DeleteFunc(missing, func(skill string) bool {
-		if skill == rulesSkill || skillExists(h, skill) {
-			return false
-		}
-		h.Log(kitlog.Guards, "rules-gate-unknown-skill", "skill", skill)
-		return true
-	})
+	missing := unmarked(h, agent, required)
 	if len(missing) == 0 {
 		return nil
 	}
@@ -76,31 +61,61 @@ func RulesGate(h *hook.Hook) error {
 	if tool == "Read" && slices.ContainsFunc(required, func(skill string) bool { return inSkill(h, skill, p.FilePath()) }) {
 		return nil
 	}
-	missing, err := notLoadedBy(h, agent, missing)
-	if err != nil {
+	missing, start, pass, err := notLoadedByAgent(h, agent, missing)
+	if err != nil || pass {
 		return err
-	}
-	var start transcript.AgentStart
-	if len(missing) > 0 && agent != "" {
-		start = subagentStart(p)
-		switch {
-		case start.Fork:
-			if missing, err = notLoadedBy(h, "", missing); err != nil {
-				return err
-			}
-		case withoutTools(start, "Skill", "Read"):
-			h.Log(kitlog.Guards, "rules-gate-unloadable", "agent_type", p.String(hook.KeyAgentType), "tools", strings.Join(start.Tools, ","))
-			return nil
-		}
 	}
 	for _, skill := range required {
 		if !slices.Contains(missing, skill) && !h.DryRun {
-			_ = fsx.WriteAtomic(marker(skill), nil, 0o600)
+			_ = fsx.WriteAtomic(rulesMarker(h, agent, skill), nil, 0o600)
 		}
 	}
-	if len(missing) == 0 {
-		return nil
+	if len(missing) > 0 {
+		denyUnloaded(h, missing, start)
 	}
+	return nil
+}
+
+// unmarked is each of required with no load marker for agent. A skill
+// nothing can load (a typo, a removed skill) would deny every call for
+// good, so it's logged and left out.
+func unmarked(h *hook.Hook, agent string, required []string) []string {
+	var missing []string
+	for _, skill := range required {
+		if _, err := os.Stat(rulesMarker(h, agent, skill)); err != nil {
+			missing = append(missing, skill)
+		}
+	}
+	return slices.DeleteFunc(missing, func(skill string) bool {
+		if skill == rulesSkill || skillExists(h, skill) {
+			return false
+		}
+		h.Log(kitlog.Guards, "rules-gate-unknown-skill", "skill", skill)
+		return true
+	})
+}
+
+// notLoadedByAgent is missing less what agent's log or transcript shows
+// loaded, and the subagent's start. A fork counts its parent's loads; pass
+// is true for a subagent Claude Code gave neither Skill nor Read, logged.
+func notLoadedByAgent(h *hook.Hook, agent string, missing []string) (_ []string, start transcript.AgentStart, pass bool, err error) {
+	if missing, err = notLoadedBy(h, agent, missing); err != nil || len(missing) == 0 || agent == "" {
+		return missing, start, false, err
+	}
+	start = subagentStart(h.Payload)
+	switch {
+	case start.Fork:
+		missing, err = notLoadedBy(h, "", missing)
+	case withoutTools(start, "Skill", "Read"):
+		h.Log(kitlog.Guards, "rules-gate-unloadable", "agent_type", h.Payload.String(hook.KeyAgentType), "tools", strings.Join(start.Tools, ","))
+		return missing, start, true, nil
+	}
+	return missing, start, false, err
+}
+
+// denyUnloaded denies the call until missing load, naming only the way
+// the agent was given: a gatherer has Read, not Skill.
+func denyUnloaded(h *hook.Hook, missing []string, start transcript.AgentStart) {
 	files := make([]string, len(missing))
 	for i, skill := range missing {
 		files[i] = h.Paths.Root + "/skills/" + skill + "/SKILL.md"
@@ -113,7 +128,6 @@ func RulesGate(h *hook.Hook) error {
 		noun = "skills aren't"
 	}
 	read := "Read " + strings.Join(files, " and ")
-	// Name only what the agent was given: a gatherer has Read, not Skill.
 	do := "call the Skill tool now, or " + read + " if the Skill tool is unavailable"
 	switch {
 	case withoutTools(start, "Skill"):
@@ -123,7 +137,6 @@ func RulesGate(h *hook.Hook) error {
 	}
 	h.Deny("the "+strings.Join(missing, " and ")+" "+noun+" loaded yet\n"+layout.KV("do", do)+"\n"+
 		layout.KV("then", "retry this call; every tool call stays blocked until you do, so don't stop to ask"), "rules-gate")
-	return nil
 }
 
 // requiredSkills is kit-rules and every global_skills skill.

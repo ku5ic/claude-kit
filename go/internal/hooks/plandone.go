@@ -135,22 +135,7 @@ func (w *planWalk) start(id string, line int, fix bool) {
 // step takes in entry e. isCode is false for paths whose edits aren't code
 // (scratch, outside the repo).
 func (w *planWalk) step(h *hook.Hook, e transcript.Entry, plansDir string, isCode func(string) bool) {
-	if id := launchedReview(e.Notice); id != "" {
-		w.start(id, e.Line, w.FixTurn)
-	}
-	// A notification arrives as a user message or a queued command.
-	for _, text := range []string{e.Text, e.Notice} {
-		started, id, completed := endedReview(text, w.Started)
-		if started >= 0 {
-			delete(w.Running, id)
-		}
-		if completed {
-			w.LastReview, w.ReviewArrived = max(w.LastReview, started), e.Line
-			if !w.Fixes[id] {
-				w.HoldFrom = e.Line
-			}
-		}
-	}
+	w.notices(e)
 	if e.StartsTurn() {
 		if e.FromUser() && !isNotification(e.Text) {
 			w.Answered, w.FixTurn = e.Line, fixReview.MatchString(e.Text)
@@ -159,34 +144,8 @@ func (w *planWalk) step(h *hook.Hook, e transcript.Entry, plansDir string, isCod
 		return
 	}
 	for _, b := range e.Blocks {
-		if b.Type != "tool_result" {
-			continue
-		}
-		if w.Asks[b.ToolUseID] {
-			if !b.IsError {
-				w.Answered = e.Line
-			}
-			delete(w.Asks, b.ToolUseID)
-		}
-		if write, ok := w.ReportWrites[b.ToolUseID]; ok {
-			if !b.IsError {
-				w.ReviewReported = max(w.ReviewReported, write.Line)
-				if data, err := os.ReadFile(write.Path); err == nil {
-					w.Cited = cite.Files(w.root, string(data))
-				}
-			}
-			delete(w.ReportWrites, b.ToolUseID)
-		}
-		if w.CodeEdits[b.ToolUseID] {
-			// A denied edit tool wrote nothing: its call's bump comes back
-			// off. A failed Bash command may still have written.
-			if prev, ok := w.EditPrev[b.ToolUseID]; ok && b.IsError {
-				w.LastEdit = prev
-			} else {
-				w.LastEdit = max(w.LastEdit, e.Line)
-			}
-			delete(w.CodeEdits, b.ToolUseID)
-			delete(w.EditPrev, b.ToolUseID)
+		if b.Type == "tool_result" {
+			w.result(e.Line, b)
 		}
 	}
 	if e.Type == "user" && e.IsMeta && strings.Contains(e.Text, planDoneHeld) {
@@ -195,33 +154,116 @@ func (w *planWalk) step(h *hook.Hook, e transcript.Entry, plansDir string, isCod
 	if e.Type != "assistant" {
 		return
 	}
-	if text := strings.TrimSpace(e.PromptText()); w.Held && text != "" {
-		if !strings.Contains(text, "\n") && fixesReply.MatchString(text) && w.LastReview >= 0 {
-			w.LastReview = e.Line
-		}
-		w.Held = false
-	}
+	w.heldReply(e)
 	for _, b := range e.ToolUses() {
-		switch {
-		case b.Name == "Skill" && b.Input.Skill == reviewSkill:
-			w.start(b.ID, e.Line, w.FixTurn || strings.Contains(b.Input.Args, "--fix"))
-		case b.Name == "AskUserQuestion":
-			w.Asks[b.ID] = true
-		case slices.Contains(transcript.EditTools, b.Name) && scratchReport(h, b.Path(), "review"):
-			w.ReportWrites[b.ID] = reportWrite{e.Line, b.Path()}
-		case slices.Contains(transcript.EditTools, b.Name):
-			if p := b.Path(); fsx.Within(plansDir, p) {
-				w.Ticked = append(w.Ticked, p)
-			} else if isCode(p) && !w.fixes(p) {
-				w.EditPrev[b.ID] = w.LastEdit
-				w.LastEdit, w.CodeEdits[b.ID] = e.Line, true
-			}
-		case b.Name == "Bash":
-			if code := slices.DeleteFunc(slices.Clone(w.bashed[b.ID]), func(p string) bool { return !isCode(p) }); len(code) > 0 && !w.fixes(code...) {
-				w.LastEdit, w.CodeEdits[b.ID] = e.Line, true
-			}
-			w.Ticked = append(w.Ticked, w.bashTicked(b.Input.Command, e.Timestamp, plansDir)...)
+		w.toolUse(h, e, b, plansDir, isCode)
+	}
+}
+
+// notices takes in a review e launches, and each review a notification in
+// e ends, which arrives as a user message or a queued command.
+func (w *planWalk) notices(e transcript.Entry) {
+	if id := launchedReview(e.Notice); id != "" {
+		w.start(id, e.Line, w.FixTurn)
+	}
+	for _, text := range []string{e.Text, e.Notice} {
+		started, id, completed := endedReview(text, w.Started)
+		if started >= 0 {
+			delete(w.Running, id)
 		}
+		if !completed {
+			continue
+		}
+		w.LastReview, w.ReviewArrived = max(w.LastReview, started), e.Line
+		if !w.Fixes[id] {
+			w.HoldFrom = e.Line
+		}
+	}
+}
+
+// result takes in tool result b at line: an AskUserQuestion's answer, a
+// review report's write, or a code edit's outcome.
+func (w *planWalk) result(line int, b transcript.Block) {
+	if w.Asks[b.ToolUseID] {
+		if !b.IsError {
+			w.Answered = line
+		}
+		delete(w.Asks, b.ToolUseID)
+	}
+	if write, ok := w.ReportWrites[b.ToolUseID]; ok {
+		if !b.IsError {
+			w.reported(write)
+		}
+		delete(w.ReportWrites, b.ToolUseID)
+	}
+	if w.CodeEdits[b.ToolUseID] {
+		w.edited(line, b)
+	}
+}
+
+// reported takes in a review report written, and the files it cites.
+func (w *planWalk) reported(write reportWrite) {
+	w.ReviewReported = max(w.ReviewReported, write.Line)
+	if data, err := os.ReadFile(write.Path); err == nil {
+		w.Cited = cite.Files(w.root, string(data))
+	}
+}
+
+// edited takes in a code edit's result at line. A denied edit tool wrote
+// nothing: its call's bump comes back off. A failed Bash command may still
+// have written.
+func (w *planWalk) edited(line int, b transcript.Block) {
+	if prev, ok := w.EditPrev[b.ToolUseID]; ok && b.IsError {
+		w.LastEdit = prev
+	} else {
+		w.LastEdit = max(w.LastEdit, line)
+	}
+	delete(w.CodeEdits, b.ToolUseID)
+	delete(w.EditPrev, b.ToolUseID)
+}
+
+// heldReply is Claude's reply to a plan-done block: one line calling the
+// edits review fixes counts as a review up to that line.
+func (w *planWalk) heldReply(e transcript.Entry) {
+	text := strings.TrimSpace(e.PromptText())
+	if !w.Held || text == "" {
+		return
+	}
+	if !strings.Contains(text, "\n") && fixesReply.MatchString(text) && w.LastReview >= 0 {
+		w.LastReview = e.Line
+	}
+	w.Held = false
+}
+
+// toolUse takes in one tool call of e: a review launched, a question
+// asked, a review report written, a plan ticked, or a code edit.
+func (w *planWalk) toolUse(h *hook.Hook, e transcript.Entry, b transcript.Block, plansDir string, isCode func(string) bool) {
+	switch {
+	case b.Name == "Skill" && b.Input.Skill == reviewSkill:
+		w.start(b.ID, e.Line, w.FixTurn || strings.Contains(b.Input.Args, "--fix"))
+	case b.Name == "AskUserQuestion":
+		w.Asks[b.ID] = true
+	case slices.Contains(transcript.EditTools, b.Name) && scratchReport(h, b.Path(), "review"):
+		w.ReportWrites[b.ID] = reportWrite{e.Line, b.Path()}
+	case slices.Contains(transcript.EditTools, b.Name):
+		w.editCall(e.Line, b, plansDir, isCode)
+	case b.Name == "Bash":
+		if code := slices.DeleteFunc(slices.Clone(w.bashed[b.ID]), func(p string) bool { return !isCode(p) }); len(code) > 0 && !w.fixes(code...) {
+			w.LastEdit, w.CodeEdits[b.ID] = e.Line, true
+		}
+		w.Ticked = append(w.Ticked, w.bashTicked(b.Input.Command, e.Timestamp, plansDir)...)
+	}
+}
+
+// editCall takes in an edit tool's call at line: a plan it ticks, or a
+// code edit that isn't a review's fix.
+func (w *planWalk) editCall(line int, b transcript.Block, plansDir string, isCode func(string) bool) {
+	switch p := b.Path(); {
+	case fsx.Within(plansDir, p):
+		w.Ticked = append(w.Ticked, p)
+	case isCode(p) && !w.fixes(p):
+		w.EditPrev[b.ID] = w.LastEdit
+		w.LastEdit, w.CodeEdits[b.ID] = line, true
 	}
 }
 

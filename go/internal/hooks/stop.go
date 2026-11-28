@@ -55,33 +55,46 @@ func StopChecks(h *hook.Hook) error {
 	}
 	turn, walk := readSession(h, path, root, project.PlanDir(h.Paths, cwd), codeIn(h, root), true)
 	// Before the clean-tree return: plans are gitignored, so ticking the
-	// last step leaves the tree clean. A finished plan waits for
-	// /code-review since the last code edit (skills/kit-rules/reference/verify.md).
-	// On a retry it holds only until a review has launched: the edits
-	// since one may be its fixes, which need no second review. A session
-	// that can't launch one stops on the second retry, told so.
-	held := h.Paths.SessionFile(cache.ReviewReport, h.Payload.SessionID(), "plan-done")
-	if plan, reviewed := walk.done(); plan != "" && !reviewed && (!retry || !walk.launched()) {
-		if retry && held != "" && fsx.IsFile(held) {
-			_ = os.Remove(held)
-			h.Notify(fmt.Sprintf("kit plan-done: let through, plan %s is done with no /code-review since the last code edit", fsx.Rel(root, plan)))
-			return nil
-		}
-		if held != "" && !h.DryRun {
-			if retry {
-				_ = fsx.WriteAtomic(held, nil, 0o600)
-			} else {
-				_ = os.Remove(held)
-			}
-		}
-		return h.Block(fmt.Sprintf("plan %s %s\n", fsx.Rel(root, plan), planDoneHeld)+
-			layout.KV("do", "run it now, or wait for the one running")+"\n"+
-			layout.KV("then", "the runtime pass (/verify) when the change has observable behavior")+"\n"+
-			layout.KV("or", "the edits since are only fixes for that review's findings: say so in one line, no second review (skills/kit-rules/reference/verify.md section 5)"), "plan-done")
+	// last step leaves the tree clean.
+	if held, err := planDone(h, walk, root, retry); held || retry {
+		return err
 	}
-	if retry {
-		return nil
+	return stopFiles(h, cfg, turn, cwd, root, deadline)
+}
+
+// planDone holds a stop while a finished plan waits for /code-review since
+// the last code edit (skills/kit-rules/reference/verify.md). On a retry it
+// holds only until a review has launched: the edits since one may be its
+// fixes, which need no second review. A session that can't launch one
+// stops on the second retry, told so. held is whether planDone decided the
+// stop.
+func planDone(h *hook.Hook, walk *planWalk, root string, retry bool) (held bool, err error) {
+	marker := h.Paths.SessionFile(cache.ReviewReport, h.Payload.SessionID(), "plan-done")
+	plan, reviewed := walk.done()
+	if plan == "" || reviewed || retry && walk.launched() {
+		return false, nil
 	}
+	if retry && marker != "" && fsx.IsFile(marker) {
+		_ = os.Remove(marker)
+		h.Notify(fmt.Sprintf("kit plan-done: let through, plan %s is done with no /code-review since the last code edit", fsx.Rel(root, plan)))
+		return true, nil
+	}
+	if marker != "" && !h.DryRun {
+		if retry {
+			_ = fsx.WriteAtomic(marker, nil, 0o600)
+		} else {
+			_ = os.Remove(marker)
+		}
+	}
+	return true, h.Block(fmt.Sprintf("plan %s %s\n", fsx.Rel(root, plan), planDoneHeld)+
+		layout.KV("do", "run it now, or wait for the one running")+"\n"+
+		layout.KV("then", "the runtime pass (/verify) when the change has observable behavior")+"\n"+
+		layout.KV("or", "the edits since are only fixes for that review's findings: say so in one line, no second review (skills/kit-rules/reference/verify.md section 5)"), "plan-done")
+}
+
+// stopFiles runs the project's file-scoped checks on the files the turn
+// changed, unless the full gate already checked this tree.
+func stopFiles(h *hook.Hook, cfg *config.Config, turn []transcript.Entry, cwd, root string, deadline time.Time) error {
 	edited, tree := turnFiles(h, turn, cwd, root)
 	if len(edited) == 0 {
 		return nil

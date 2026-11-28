@@ -53,14 +53,7 @@ func InjectContext(h *hook.Hook) error {
 		return nil
 	}
 	if !h.DryRun {
-		now := time.Now()
-		cache.Prune(h.Paths.CacheDir(), now)
-		if !h.RuleDisabled("scratch-rotate") {
-			rotate.Daily(h.Paths, h.Home, now)
-		}
-		if top := git.Toplevel(h.Payload.Cwd()); top != "" {
-			run.PruneRestorePoints(top, now)
-		}
+		housekeeping(h, time.Now())
 	}
 	var out strings.Builder
 	cfg := h.Config()
@@ -72,6 +65,38 @@ func InjectContext(h *hook.Hook) error {
 		writeContext(h, cfg, &out)
 		out.WriteString(chatCeiling(cfg.ReplyLimits))
 	}
+	notice, text := installNotice(h), out.String()
+	if notice != "" {
+		text = notice + "\n" + text
+	}
+	if compacted {
+		text += compactNote(h, "From before the compaction.", contextRoom-len(text))
+	}
+	if notice == "" {
+		h.Print(text)
+		return nil
+	}
+	h.Notify(notice)
+	h.AddContext("SessionStart", text)
+	return nil
+}
+
+// housekeeping prunes the cache, rotates scratch once a day, and drops
+// old restore points in the cwd's repo.
+func housekeeping(h *hook.Hook, now time.Time) {
+	cache.Prune(h.Paths.CacheDir(), now)
+	if !h.RuleDisabled("scratch-rotate") {
+		rotate.Daily(h.Paths, h.Home, now)
+	}
+	if top := git.Toplevel(h.Payload.Cwd()); top != "" {
+		run.PruneRestorePoints(top, now)
+	}
+}
+
+// installNotice is what the user sees about the install: config warnings,
+// a leftover rules link, and Claude Code's attribution being on; "" for
+// none.
+func installNotice(h *hook.Hook) string {
 	var lines []string
 	for _, w := range h.Warnings() {
 		lines = append(lines, w.String())
@@ -87,20 +112,7 @@ func InjectContext(h *hook.Hook) error {
 		notices = append(notices, "Claude Code's attribution is on ("+file+"): it adds a co-author trailer, a PR footer, and a session link, which the kit's guards then block. "+
 			`Set "attribution": false in your settings, or commit and pr to "" and sessionUrl to false.`)
 	}
-	notice, text := strings.Join(notices, "\n\n"), out.String()
-	if notice != "" {
-		text = notice + "\n" + text
-	}
-	if compacted {
-		text += compactNote(h, "From before the compaction.", contextRoom-len(text))
-	}
-	if notice == "" {
-		h.Print(text)
-		return nil
-	}
-	h.Notify(notice)
-	h.AddContext("SessionStart", text)
-	return nil
+	return strings.Join(notices, "\n\n")
 }
 
 func writeContext(h *hook.Hook, cfg *config.Config, out *strings.Builder) {
@@ -247,85 +259,6 @@ func dirtyCount(root string) string {
 	return strconv.Itoa(len(changes))
 }
 
-// guidance follows the gates when gap-fill has verified a package manager.
-const guidance = "The commands above are the project's own, and each directory's scripts run through the package manager <repo-context> names for it."
-
-// tooling is the <tooling> block: what kit run-checks runs, planned from
-// the gap-fill cache (a session start never waits on the classifier), then
-// kit.yml's tools split by whether PATH has them.
-func tooling(cfg *config.Config, o enforce.Options) string {
-	p := enforce.Build(cfg, o)
-	return toolingBlock(p, p.Managed, cliLines(cfg))
-}
-
-// toolingBlock is p's gates, its unclassified entries or discovery
-// instruction, and cli, with guidance when managed; "" when there's none
-// of it.
-func toolingBlock(p enforce.Plan, managed bool, cli []string) string {
-	body := gateLines(p)
-	if p.Unclassified > 0 {
-		body = append(body, fmt.Sprintf("unclassified: %d (config entries gap-fill hasn't answered; it asks in the background and at Stop, and waits an hour after a failed answer)", p.Unclassified))
-	}
-	if len(body) > 0 {
-		body = append(body, "`kit run-checks --plan` lists them, with where each comes from, without running them")
-	}
-	if p.Discovery != "" {
-		body = append(body, "discovery: "+p.Discovery)
-	}
-	body = append(body, cli...)
-	if len(body) == 0 {
-		return ""
-	}
-	var out strings.Builder
-	out.WriteString("\n<tooling>\n")
-	for _, line := range body {
-		out.WriteString(line + "\n")
-	}
-	if managed {
-		out.WriteString("\nguidance: " + guidance + "\n")
-	}
-	out.WriteString("</tooling>\n")
-	return out.String()
-}
-
-// gateLines are the commands p runs under a header per directory, the
-// root's first, past 20 subprojects capped with a note. A body of several
-// lines shows as its gate's label.
-func gateLines(p enforce.Plan) []string {
-	dirs := []string{"."}
-	byDir := map[string][]string{}
-	for _, g := range p.Gates {
-		if g.Skip != "" {
-			continue
-		}
-		dir := fsx.Rel(p.Root, g.Dir)
-		if !slices.Contains(dirs, dir) {
-			dirs = append(dirs, dir)
-		}
-		cmd := strings.TrimSpace(g.Body)
-		if strings.Contains(cmd, "\n") {
-			cmd = g.Label
-		}
-		byDir[dir] = append(byDir[dir], "  "+cmd)
-	}
-	var out []string
-	shown := 0
-	for _, dir := range dirs {
-		if len(byDir[dir]) == 0 {
-			continue
-		}
-		if dir != "." {
-			if shown == 20 {
-				return append(out, "(subprojects capped at 20; kit run-checks covers all)")
-			}
-			shown++
-		}
-		out = append(out, "run-checks runs"+project.SubLabel(dir)+":")
-		out = append(out, byDir[dir]...)
-	}
-	return out
-}
-
 // classifyInBackground starts `kit enforce classify` at root, detached, so
 // gap-fill answers what its cache lacks before the next checkpoint reads
 // it; the run ends at once when the cache already has it all.
@@ -366,19 +299,6 @@ func unanswered(cfg *config.Config, cacheDir, path string) (string, bool) {
 		return root, false
 	}
 	return root, gapfill.Run(cfg, gapfill.Options{Root: root, CacheDir: cacheDir, Entries: mine}).Unclassified() > 0
-}
-
-// cliLines says which of kit.yml's CLI tools are on PATH.
-func cliLines(cfg *config.Config) []string {
-	available, missing := doctor.Tools(cfg.Tools)
-	var out []string
-	if len(available) > 0 {
-		out = append(out, "available: "+strings.Join(available, ", "))
-	}
-	if len(missing) > 0 {
-		out = append(out, "missing: "+strings.Join(missing, ", "))
-	}
-	return out
 }
 
 // prerequisites names what the install is missing, "" when nothing is: a
