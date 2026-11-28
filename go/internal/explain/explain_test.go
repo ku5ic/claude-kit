@@ -29,6 +29,10 @@ func TestExplain(t *testing.T) {
 		t.Fatal(err)
 	}
 	testutil.Git(t, repo, "init", "-q", "-b", "main")
+	// A Grep for .env* blocks only when the walk finds one.
+	if err := os.WriteFile(filepath.Join(repo, ".env"), []byte("TOKEN=x\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 
 	for _, c := range []struct {
 		name string

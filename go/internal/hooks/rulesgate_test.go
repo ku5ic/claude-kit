@@ -140,6 +140,14 @@ func TestRulesGate(t *testing.T) {
 		// With no agent_id there's no one to log the load for.
 		start("").Lacks(t, "<required-skill ")
 	})
+	t.Run("rules too big for the context aren't injected or logged as loaded", func(t *testing.T) {
+		t.Parallel()
+		k := setup(t, "")
+		testutil.Write(t, filepath.Join(k.paths.Root, "skills", "kit-rules", "SKILL.md"), "# Kit rules\n\n"+strings.Repeat("x", contextRoom)+"\n")
+		k.run("inject-subagent-context", map[string]any{"hook_event_name": "SubagentStart", "session_id": "s1", "agent_id": "a1", "cwd": t.TempDir()}).
+			Lacks(t, "<required-skill ")
+		call(k, "Bash", "a1", bash).Denied(t)
+	})
 	t.Run("no rules are injected while the gate is off", func(t *testing.T) {
 		t.Parallel()
 		k := setup(t, "")

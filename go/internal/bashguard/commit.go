@@ -511,11 +511,6 @@ func longestProseRun(text string) int {
 // notWordRune splits a clause into words, dropping punctuation.
 func notWordRune(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '\'' }
 
-// nameDot is whether the "." at s[i] is inside a file name: a lowercase
-// letter or digit follows it ("notes.txt", ".env", "v1.2"). Before a
-// capital it ends a sentence: "Commit this.Then push".
-func nameDot(s string, i int) bool { return letterAfter(s, i, unicode.IsLower) }
-
 // letterAfter is whether s[i+1:] opens with a digit or a rune letter
 // accepts.
 func letterAfter(s string, i int, letter func(rune) bool) bool {
@@ -523,8 +518,9 @@ func letterAfter(s string, i int, letter func(rune) bool) bool {
 	return letter(r) || unicode.IsDigit(r)
 }
 
-// stopIndex is the index of the first byte of stops in s, or -1. A
-// nameDot is part of a name, not a stop.
+// stopIndex is the index of the first byte of stops in s, or -1. A "."
+// before a lowercase letter or digit ("notes.txt", "v1.2") is part of a
+// name, not a stop; before a capital it ends a sentence.
 func stopIndex(s, stops string) int {
 	for i := range len(s) {
 		if isStop(s, i, stops, unicode.IsLower) {

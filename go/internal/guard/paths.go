@@ -100,8 +100,9 @@ func SearchesSensitive(cfg *config.Config, home, root, glob string, holds bool) 
 // credential file counts only when a file under root it picks out is one:
 // a Grep for *12* over docs/ reads no *.p12 when docs/ holds none. A glob
 // holding a "/", which rg matches against the whole path, or a walk past
-// walkLimit entries keeps the name test.
-func SearchFindsSensitive(cfg *config.Config, home, root, glob string, holds bool) bool {
+// walkLimit entries keeps the name test. A file under scratch counts as
+// SensitiveOutsideScratch says.
+func SearchFindsSensitive(cfg *config.Config, paths config.Paths, home, root, glob string, holds bool) bool {
 	if root != "" && matchSensitive(cfg, home, root, holds) {
 		return true
 	}
@@ -117,7 +118,7 @@ func SearchFindsSensitive(cfg *config.Config, home, root, glob string, holds boo
 		if seen++; err != nil || seen > walkLimit {
 			return errWalkLimit
 		}
-		if !d.IsDir() && slices.ContainsFunc(alts, func(alt string) bool { return Glob(alt, d.Name()) }) && IsSensitive(cfg, home, path) {
+		if !d.IsDir() && slices.ContainsFunc(alts, func(alt string) bool { return Glob(alt, d.Name()) }) && SensitiveOutsideScratch(cfg, paths, home, path) {
 			found = true
 			return fs.SkipAll
 		}

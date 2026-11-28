@@ -54,6 +54,20 @@ func TestFiles(t *testing.T) {
 	}
 }
 
+// A cited path short of a leading directory names the tracked file it ends,
+// though its first segment isn't at root.
+func TestFilesResolvesAShortenedPath(t *testing.T) {
+	t.Parallel()
+	root := testutil.Physical(t, t.TempDir())
+	testutil.Put(t, root, "go/internal/hooks/stop.go", "a\n")
+	testutil.Git(t, root, "init", "-q")
+	testutil.Git(t, root, "add", ".")
+	want := []string{filepath.Join(root, "go/internal/hooks/stop.go")}
+	if got := Files(root, "internal/hooks/stop.go:1, elsewhere/x.go:1"); !slices.Equal(got, want) {
+		t.Errorf("Files = %q, want %q", got, want)
+	}
+}
+
 // A citation on a line naming a commit points at that revision, which the
 // working tree can't check.
 func TestBrokenSkipsAnotherRevision(t *testing.T) {

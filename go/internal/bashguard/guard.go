@@ -396,7 +396,7 @@ func Check(h *hook.Hook) error {
 	case p.unparsed:
 		st.ask("guard-bash could not parse part of this command, so it went unchecked; confirm it", "unparsed")
 	case p.unplaced:
-		st.ask("guard-bash can't place this trap's action in the command (an expansion, a signal other than EXIT, or a nested scope), so where it runs went unchecked; confirm it", "trap-unplaced")
+		st.ask("guard-bash can't place this trap's action in the command (an expansion, a signal like DEBUG or ERR, a directory change with a mid-command signal, or a nested scope), so where it runs went unchecked; confirm it", "trap-unplaced")
 	case p.runsCode:
 		st.ask("a zsh glob qualifier or expansion flag here can run a command as it expands (e:, +, ${(e)...}, ${~...}), which guard-bash can't check; confirm it", "zsh-expansion")
 	}

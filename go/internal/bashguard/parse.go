@@ -170,11 +170,24 @@ func parseFull(src, shell string) parsed {
 	// latest, so its segments come last, and may not run.
 	c.conditional++
 	for len(c.traps) > 0 {
-		action := c.traps[0]
+		t := c.traps[0]
 		c.traps = c.traps[1:]
-		c.parse(action, 1)
+		c.parse(t.action, 1)
+		// Fired mid-command, the action runs where the command is then; with
+		// no directory change in either, that's where it's checked.
+		c.unplaced = c.unplaced || t.midway && changesDir(c.segs)
 	}
 	return parsed{c.segs, c.unparsed, c.unplaced, c.runsCode}
+}
+
+// changesDir is whether any call in segs moves the shell's directory.
+func changesDir(segs []Segment) bool {
+	return slices.ContainsFunc(segs, func(seg Segment) bool {
+		return slices.ContainsFunc(seg.Calls, func(call Call) bool {
+			i := lead(call.Words)
+			return i < len(call.Words) && movesDir(baseName(call.Words[i].Value))
+		})
+	})
 }
 
 // shellLang is the language a shell, a path or a name, parses src in: zsh
@@ -228,9 +241,16 @@ type collector struct {
 	loop        int // the outermost loop the walk is inside, 0 for none
 	loops       int // loop ids handed out
 	unparsed    bool
-	unplaced    bool     // a trap set whose action can't be placed
-	runsCode    bool     // a zsh expansion that may run a command
-	traps       []string // the actions trap commands set, parsed last
+	unplaced    bool   // a trap set whose action can't be placed
+	runsCode    bool   // a zsh expansion that may run a command
+	traps       []trap // the actions trap commands set, parsed last
+}
+
+// trap is an action a trap command sets, and whether a termination signal
+// fires it mid-command.
+type trap struct {
+	action string
+	midway bool
 }
 
 // parseAs is parse in another shell's language: a string or heredoc that
@@ -521,8 +541,8 @@ func (c *collector) call(src string, p *syntax.Stmt, call *syntax.CallExpr) Call
 		c.parseAs(cmd, c.depth+1, shellLang(cl.Words[lead(cl.Words)].Value))
 		c.closeSubshell()
 	}
-	if action, readable, ok := trapAction(cl.Words); ok {
-		c.traps = append(c.traps, action)
+	if action, readable, midway, ok := trapAction(cl.Words); ok {
+		c.traps = append(c.traps, trap{action, midway})
 		// A trap in a subshell or a nested shell fires when that exits.
 		c.unplaced = c.unplaced || !readable || c.depth > 0 || c.subshell > 0
 	}
@@ -778,26 +798,36 @@ func timeOptions(words []Word, at int) (out []Redir, done bool) {
 
 // trapAction is the command trap [--] action signal... sets. trap -p and
 // -l only print, and one word or a - action resets a trap. readable is
-// false for an action with an expansion in it, or one any signal but EXIT
-// fires, mid-command: the guard can't place it.
-func trapAction(words []Word) (action string, readable, ok bool) {
+// false for an action with an expansion in it, or one a signal outside
+// atExit and termination fires, since the guard can't place it. midway is
+// whether a termination signal fires it.
+func trapAction(words []Word) (action string, readable, midway, ok bool) {
 	i := lead(words)
 	if i >= len(words) || baseName(words[i].Value) != "trap" {
-		return "", false, false
+		return "", false, false, false
 	}
 	args := words[i+1:]
 	switch {
 	case len(args) > 0 && args[0].Value == "--":
 		args = args[1:]
 	case len(args) > 0 && strings.HasPrefix(args[0].Value, "-") && args[0].Value != "-":
-		return "", false, false
+		return "", false, false, false
 	}
 	if len(args) < 2 || args[0].Value == "-" {
-		return "", false, false
+		return "", false, false, false
 	}
-	readable = args[0].literal && !slices.ContainsFunc(args[1:], func(w Word) bool { return w.Value != "EXIT" && w.Value != "0" })
-	return args[0].Value, readable, true
+	readable = args[0].literal && !slices.ContainsFunc(args[1:], func(w Word) bool { return !atExit[w.Value] && !termination[w.Value] })
+	midway = slices.ContainsFunc(args[1:], func(w Word) bool { return termination[w.Value] })
+	return args[0].Value, readable, midway, true
 }
+
+// atExit fire a trap when the shell exits; termination fire it on a signal
+// that ends the command by default, mid-command. DEBUG, ERR, and RETURN
+// fire it again and again, so they're in neither.
+var (
+	atExit      = nameSet("EXIT", "0")
+	termination = nameSet("HUP", "INT", "QUIT", "TERM", "SIGHUP", "SIGINT", "SIGQUIT", "SIGTERM")
+)
 
 // envSplitString returns the command env -S/--split-string runs, the string
 // followed by env's remaining words, from a wrapper before the command:

@@ -87,7 +87,7 @@ func throwaway(h *hook.Hook, cmd string, segs []Segment, unparsed bool, pin pinn
 	}
 	calls := pin.calls
 	for _, c := range commits {
-		i := slices.IndexFunc(calls, func(p commit) bool { return p.start == c.start && c.seg >= 0 })
+		i := slices.IndexFunc(calls, func(p commit) bool { return p.start == c.start && p.seg >= 0 })
 		if i < 0 || calls[i].elsewhere || !lands(h, segs, calls, calls[i]) {
 			return false
 		}

@@ -120,7 +120,7 @@ func guardSearch(h *hook.Hook, cfg *config.Config) error {
 	root := searchRoot(h)
 	glob := h.Payload.String(hook.KeyInputGlob)
 	h.SetContext(layout.KV("path", root) + "\n" + layout.KV("glob", glob))
-	if guard.SearchFindsSensitive(cfg, h.Home, root, glob, h.Payload.String(hook.KeyInputPath) != "") {
+	if guard.SearchFindsSensitive(cfg, h.Paths, h.Home, root, glob, h.Payload.String(hook.KeyInputPath) != "") {
 		return h.Block("searching a credential or key file is not permitted", "sensitive-read")
 	}
 	// With a glob that matches every basename, a loose .env or *.pem under

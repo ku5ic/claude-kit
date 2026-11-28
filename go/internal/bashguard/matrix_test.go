@@ -513,7 +513,15 @@ func TestGuardBashParsing(t *testing.T) {
 		probe("pass", `t=$(mktemp -d); trap 'rm -rf "$t"' EXIT`)
 		probe("pass", `trap - EXIT`)
 		probe("pass", `trap -p`)
-		probe("ask", `trap 'rm -f x' INT`)
+		// A termination signal fires it mid-command, where only a directory
+		// change could make it run elsewhere than the end.
+		probe("pass", `trap 'rm -f x' INT`)
+		probe("pass", `t=$(mktemp -d); trap 'rm -rf "$t"' EXIT INT TERM; echo hi`)
+		probe("block", `trap 'rm -rf ~' SIGTERM`)
+		probe("ask", `trap 'cd /; rm -f x' INT`)
+		probe("ask", `trap 'rm -f x' INT; cd /tmp`)
+		probe("ask", `trap 'rm -f x' DEBUG`)
+		probe("ask", `trap 'rm -f x' ERR`)
 		// A trap in a nested scope fires when that scope exits, mid-command.
 		probe("pass", `trap 'echo hi' EXIT`)
 		probe("ask", `(trap 'echo hi' EXIT)`)
@@ -683,7 +691,7 @@ func TestGuardBashTrapAskNamesTheTrap(t *testing.T) {
 	k := newSandbox(t)
 	cwd := t.TempDir()
 	for _, tc := range []struct{ cmd, want string }{
-		{`trap 'rm -f x' INT`, "can't place this trap"},
+		{`trap 'rm -f x' DEBUG`, "can't place this trap"},
 		{`(trap 'echo hi' EXIT)`, "can't place this trap"},
 		{`trap "$X" EXIT`, "can't place this trap"},
 		{`echo $((cmd) ); trap 'rm -f x' INT`, "could not parse"},

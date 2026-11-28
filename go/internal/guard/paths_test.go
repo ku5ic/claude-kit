@@ -174,7 +174,7 @@ func TestSensitiveOutsideScratchSkipsFixturesNotLinks(t *testing.T) {
 func TestSearchFindsSensitiveReadsWhatTheGlobPicks(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	for _, name := range []string{"docs/adr/0012-x.md", "keys/dev.p12"} {
+	for _, name := range []string{"docs/adr/0012-x.md", "keys/dev.p12", ".claude/scratch/fx/key.p12"} {
 		path := filepath.Join(root, name)
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			t.Fatal(err)
@@ -195,9 +195,11 @@ func TestSearchFindsSensitiveReadsWhatTheGlobPicks(t *testing.T) {
 		{filepath.Join(root, "missing"), "*12*", true},
 		{filepath.Join(root, "docs"), "*.md", false},
 		{"", "*12*", true},
+		// A fixture under scratch holds no credential, as a Read of it passes.
+		{filepath.Join(root, ".claude/scratch/fx"), "*12*", false},
 	}
 	for _, tc := range cases {
-		if got := SearchFindsSensitive(cfg, "/h", tc.root, tc.glob, true); got != tc.want {
+		if got := SearchFindsSensitive(cfg, config.Paths{}, "/h", tc.root, tc.glob, true); got != tc.want {
 			t.Errorf("SearchFindsSensitive(%q, %q) = %v, want %v", tc.root, tc.glob, got, tc.want)
 		}
 	}

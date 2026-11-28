@@ -14,8 +14,9 @@ import (
 
 // sourceRules is every slug the kit's code passes as a rule: the last
 // argument of a Block, Deny, block, or RuleDisabled call when it's a string
-// literal, and each string literal in the code, for the reverse check.
-func sourceRules(t *testing.T) (passed []string, literals map[string]bool) {
+// literal, the same of an Ask or ask call, and each string literal in the
+// code, for the reverse check.
+func sourceRules(t *testing.T) (passed, asked []string, literals map[string]bool) {
 	t.Helper()
 	literals = map[string]bool{}
 	fset := token.NewFileSet()
@@ -36,12 +37,19 @@ func sourceRules(t *testing.T) (passed []string, literals map[string]bool) {
 					}
 				case *ast.CallExpr:
 					sel, ok := n.Fun.(*ast.SelectorExpr)
-					if !ok || !slices.Contains([]string{"Block", "Deny", "block", "RuleDisabled"}, sel.Sel.Name) || len(n.Args) == 0 {
+					if !ok || len(n.Args) == 0 {
 						return true
 					}
-					if lit, ok := n.Args[len(n.Args)-1].(*ast.BasicLit); ok && lit.Kind == token.STRING {
-						s, _ := strconv.Unquote(lit.Value)
+					lit, ok := n.Args[len(n.Args)-1].(*ast.BasicLit)
+					if !ok || lit.Kind != token.STRING {
+						return true
+					}
+					s, _ := strconv.Unquote(lit.Value)
+					switch sel.Sel.Name {
+					case "Block", "Deny", "block", "RuleDisabled":
 						passed = append(passed, s)
+					case "Ask", "ask":
+						asked = append(asked, s)
 					}
 				}
 				return true
@@ -52,16 +60,21 @@ func sourceRules(t *testing.T) (passed []string, literals map[string]bool) {
 			t.Fatal(err)
 		}
 	}
-	return passed, literals
+	return passed, asked, literals
 }
 
 // Rules lists every slug the code blocks with, and nothing the code lost.
 func TestRulesMatchTheCode(t *testing.T) {
 	t.Parallel()
-	passed, literals := sourceRules(t)
+	passed, asked, literals := sourceRules(t)
 	for _, slug := range passed {
 		if !slices.Contains(Rules, slug) {
 			t.Errorf("the code blocks with %q, which Rules lacks", slug)
+		}
+	}
+	for _, slug := range asked {
+		if !slices.Contains(Rules, slug) && !slices.Contains(AskRules, slug) {
+			t.Errorf("the code asks with %q, which AskRules lacks", slug)
 		}
 	}
 	for _, slug := range Rules {
@@ -69,8 +82,13 @@ func TestRulesMatchTheCode(t *testing.T) {
 			t.Errorf("Rules has %q, which no code uses", slug)
 		}
 	}
-	if !slices.IsSorted(Rules) {
-		t.Error("Rules isn't sorted")
+	for _, slug := range AskRules {
+		if !slices.Contains(asked, slug) || slices.Contains(Rules, slug) {
+			t.Errorf("AskRules has %q, which no code asks with or Rules already has", slug)
+		}
+	}
+	if !slices.IsSorted(Rules) || !slices.IsSorted(AskRules) {
+		t.Error("Rules or AskRules isn't sorted")
 	}
 }
 

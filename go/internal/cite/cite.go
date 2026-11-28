@@ -78,7 +78,7 @@ func Broken(root, text string) []Problem {
 			continue
 		}
 		seen[cite] = true
-		path, ok := inRoot(root, m[1])
+		path, ok := inRoot(root, m[1], false)
 		if !ok {
 			continue
 		}
@@ -96,8 +96,10 @@ func Broken(root, text string) []Problem {
 
 // inRoot is the file a cited path names under root, and whether the
 // citation is root's to check. A relative path that names no file there
-// is read as a shortened one, naming the one tracked file it ends.
-func inRoot(root, cited string) (string, bool) {
+// is read as a shortened one, naming the one tracked file it ends. One whose
+// first segment isn't at root points at another tree, unless anyFirst and
+// it ends a tracked file.
+func inRoot(root, cited string, anyFirst bool) (string, bool) {
 	path := cited
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(root, cited)
@@ -107,7 +109,8 @@ func inRoot(root, cited string) (string, bool) {
 		return "", false
 	}
 	first, _, _ := strings.Cut(filepath.ToSlash(rel), "/")
-	if _, err := os.Stat(filepath.Join(root, first)); err != nil {
+	_, firstErr := os.Stat(filepath.Join(root, first))
+	if firstErr != nil && !anyFirst {
 		return "", false
 	}
 	if _, err := os.Stat(path); err != nil && !filepath.IsAbs(cited) {
@@ -115,7 +118,7 @@ func inRoot(root, cited string) (string, bool) {
 			return filepath.Join(root, ends[0]), true
 		}
 	}
-	return path, true
+	return path, firstErr == nil
 }
 
 // lineCount is the file's line count, or -1 when it isn't a readable file.
@@ -155,11 +158,11 @@ func check(n int, line, end string) string {
 
 // Files is each file a citation in text names under root, absolute, in
 // the order they appear, each once; citations Broken skips are skipped
-// here too.
+// here too, except a shortened path whose first segment isn't at root.
 func Files(root, text string) []string {
 	var out []string
 	for _, m := range matches(text) {
-		if path, ok := inRoot(root, m[1]); ok && !slices.Contains(out, path) {
+		if path, ok := inRoot(root, m[1], true); ok && !slices.Contains(out, path) {
 			out = append(out, path)
 		}
 	}

@@ -122,6 +122,16 @@ var Rules = []string{
 	"ui-undefined-token", "unread-text", "weaken", "xargs-rm",
 }
 
+// AskRules are the slugs only an ask logs, for `kit stats --unused`. An ask
+// can't be disabled, so disabled_rules can't name them. TestRulesMatchTheCode
+// holds it to the code's asks.
+var AskRules = []string{
+	"ci-workflow", "commit-approval", "computed-command", "download-target", "gate-config",
+	"git-add-credential", "git-clean", "git-history-loss", "git-push", "git-ref-delete",
+	"kit-git-base", "kit-switch", "loose-write", "lost-assertions", "network-sink", "package-add",
+	"root-artifact", "rsync-delete", "snapshot-rewrite", "trap-unplaced", "unparsed", "zsh-expansion",
+}
+
 // unknownDisables names the disabled_checks, disabled_rules, and shadow_rules
 // entries that
 // can name nothing, so a typo doesn't silently disable nothing. A

@@ -154,52 +154,55 @@ func agentContext(h *hook.Hook, cfg *config.Config, rule string) string {
 		}
 		b.WriteString(rule + "\n</scratch>\n")
 	}
-	injected := injectRequired(h, cfg, &b)
-	name, root, ok := projectOf(cwd, h.Home)
-	if !ok {
-		return b.String()
+	injected, required := injectRequired(h, cfg)
+	var repo, fallback, suggested string
+	if name, root, ok := projectOf(cwd, h.Home); ok {
+		ctx := stackctx.Build(paths, cfg, name, root, h.Payload.SessionID())
+		if ctx.Report != "" {
+			repo = fmt.Sprintf("<repo-context>\n%s%sbranch: %s\ndirty-files: %s\n</repo-context>\n", ctx.Report, skipDirsLine(cfg), branch(root), dirtyCount(root))
+		}
+		fallback, suggested = ctx.RequiredBlock(h.RuleEnforced("rules-gate")), stackctx.SuggestedBlock(cfg, ctx.Suggested)
 	}
-	ctx := stackctx.Build(paths, cfg, name, root, h.Payload.SessionID())
-	if ctx.Report != "" {
-		fmt.Fprintf(&b, "<repo-context>\n%s%sbranch: %s\ndirty-files: %s\n</repo-context>\n", ctx.Report, skipDirsLine(cfg), branch(root), dirtyCount(root))
+	// Past contextRoom Claude Code cuts the context, so the rules would be
+	// logged as loaded without reaching the subagent.
+	if injected != "" && b.Len()+len(injected)+len(repo)+len(suggested) > contextRoom {
+		injected = ""
 	}
-	if !injected {
-		b.WriteString(ctx.RequiredBlock(h.RuleEnforced("rules-gate")))
+	if injected == "" {
+		return b.String() + repo + fallback + suggested
 	}
-	b.WriteString(stackctx.SuggestedBlock(cfg, ctx.Suggested))
-	return b.String()
+	if !h.DryRun {
+		for _, skill := range required {
+			h.Log(kitlog.Skills, kitlog.EventInjectedSkill, "skill_file", skill)
+		}
+	}
+	return b.String() + injected + repo + suggested
 }
 
-// injectRequired writes each required skill's SKILL.md into b under the
-// base directory line the Skill tool gives it, and logs each as loaded by
-// the subagent's agent_id, which the rules gate reads, so its first call
-// passes. Nothing is injected while the gate is off, or with no agent_id
-// to log the load under. It's true when every required skill went in.
-func injectRequired(h *hook.Hook, cfg *config.Config, b *strings.Builder) bool {
+// injectRequired is each required skill's SKILL.md under the base directory
+// line the Skill tool gives it, and the skills, for agentContext to log as
+// loaded by the subagent's agent_id, which the rules gate reads, so its
+// first call passes. It's "" while the gate is off, with no agent_id to log
+// the load under, or when a required skill can't be read.
+func injectRequired(h *hook.Hook, cfg *config.Config) (string, []string) {
 	if cfg == nil || h.Payload.String(hook.KeyAgentID) == "" || !h.RuleEnforced("rules-gate") {
-		return false
+		return "", nil
 	}
 	required := requiredSkills(cfg)
 	var bodies strings.Builder
 	for _, skill := range required {
 		path, ok := skillFile(h, skill)
 		if !ok {
-			return false
+			return "", nil
 		}
 		body, err := os.ReadFile(path)
 		if err != nil {
-			return false
+			return "", nil
 		}
 		fmt.Fprintf(&bodies, "<required-skill name=%q>\nBase directory for this skill: %s\n\n%s\n</required-skill>\n", skill, filepath.Dir(path), strings.TrimSpace(string(body)))
 	}
-	fmt.Fprintf(b, "\n<required-skills>\nThis subagent's rules are in these skills, loaded below: %s. Read the files each \"Before | Read\" table links before the work they cover.\n</required-skills>\n%s",
-		strings.Join(required, ", "), bodies.String())
-	if !h.DryRun {
-		for _, skill := range required {
-			h.Log(kitlog.Skills, kitlog.EventInjectedSkill, "skill_file", skill)
-		}
-	}
-	return true
+	return fmt.Sprintf("\n<required-skills>\nThis subagent's rules are in these skills, loaded below: %s. Read the files each \"Before | Read\" table links before the work they cover.\n</required-skills>\n%s",
+		strings.Join(required, ", "), bodies.String()), required
 }
 
 // skipDirsLine names kit.yml's skip_dirs, the dirs tooling.md says a search
