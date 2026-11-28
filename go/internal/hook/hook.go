@@ -16,128 +16,17 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"maps"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"time"
 
-	"github.com/ku5ic/claude-kit/go/internal/cache"
 	"github.com/ku5ic/claude-kit/go/internal/config"
-	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/kitlog"
 	"github.com/ku5ic/claude-kit/go/internal/layout"
 	"github.com/ku5ic/claude-kit/go/internal/sources"
 )
-
-// Payload is the hook's stdin JSON. A payload that doesn't parse is kept as
-// Raw with Err set, so each check can fail open on its own.
-type Payload struct {
-	Raw  []byte
-	Err  error
-	data map[string]any
-}
-
-// ParsePayload decodes stdin; an empty or invalid payload sets Err.
-func ParsePayload(raw []byte) *Payload {
-	p := &Payload{Raw: raw}
-	if err := json.Unmarshal(raw, &p.data); err != nil {
-		p.Err = fmt.Errorf("payload: %w", err)
-	} else if p.data == nil {
-		p.Err = fmt.Errorf("payload: not a JSON object")
-	}
-	return p
-}
-
-// Bool is the boolean at a dotted path, false when absent or not a bool.
-func (p *Payload) Bool(path string) bool {
-	b, _ := sources.GetPath(p.data, path).(bool)
-	return b
-}
-
-// Object is the object at a dotted path, nil when absent or not an object.
-func (p *Payload) Object(path string) map[string]any {
-	m, _ := sources.GetPath(p.data, path).(map[string]any)
-	return m
-}
-
-// String is the string at a dotted path, "" when absent or not a string.
-func (p *Payload) String(path string) string {
-	s, _ := sources.GetPath(p.data, path).(string)
-	return s
-}
-
-// Strings is every string at or under a dotted path, maps in key order,
-// passing over any map key named in skip.
-func (p *Payload) Strings(path string, skip ...string) []string {
-	var out []string
-	var walk func(any)
-	walk = func(v any) {
-		switch v := v.(type) {
-		case string:
-			out = append(out, v)
-		case []any:
-			for _, item := range v {
-				walk(item)
-			}
-		case map[string]any:
-			for _, k := range slices.Sorted(maps.Keys(v)) {
-				if !slices.Contains(skip, k) {
-					walk(v[k])
-				}
-			}
-		}
-	}
-	walk(sources.GetPath(p.data, path))
-	return out
-}
-
-// SessionID is the payload's session_id.
-func (p *Payload) SessionID() string { return p.String(KeySessionID) }
-
-// Cwd is the payload's cwd, else the process's working directory.
-func (p *Payload) Cwd() string {
-	if cwd := p.String(KeyCwd); cwd != "" {
-		return cwd
-	}
-	cwd, _ := os.Getwd()
-	return cwd
-}
-
-// Edit is one replacement an Edit or MultiEdit makes.
-type Edit struct {
-	Old, New   string
-	ReplaceAll bool
-}
-
-// Edits is an Edit's replacement, or a MultiEdit's edits in order; nil for
-// any other tool.
-func (p *Payload) Edits() []Edit {
-	switch p.String(KeyToolName) {
-	case "Edit":
-		return []Edit{{p.String(KeyInputOldString), p.String(KeyInputNewString), p.Bool(KeyInputReplaceAll)}}
-	case "MultiEdit":
-		items, _ := sources.GetPath(p.data, KeyInputEdits).([]any)
-		var edits []Edit
-		for _, item := range items {
-			m, _ := item.(map[string]any)
-			old, _ := m["old_string"].(string)
-			repl, _ := m["new_string"].(string)
-			all, _ := m["replace_all"].(bool)
-			edits = append(edits, Edit{old, repl, all})
-		}
-		return edits
-	}
-	return nil
-}
-
-// FilePath is the tool's target file: file_path from Read, Edit, Write, and
-// MultiEdit, notebook_path from NotebookEdit.
-func (p *Payload) FilePath() string {
-	return cmp.Or(p.String(KeyInputFilePath), p.String(KeyInputNotebookPath))
-}
 
 // Blocked ends a check with exit 2. Returned, not panicked, so a check reads
 // top to bottom. Rule is the slug, for kit explain.
@@ -490,91 +379,4 @@ func (h *Hook) now() time.Time {
 		return h.Now()
 	}
 	return time.Now()
-}
-
-// FailOpen prints the notice for a hook that allows because cause, an
-// error or a panic's value, made it fail.
-func FailOpen(stderr io.Writer, name string, cause any) {
-	fmt.Fprintf(stderr, "%s: unexpected error, failing open: %v\n", name, cause)
-}
-
-// Check is one policy check. It returns *Blocked to block, nil to allow, and
-// any other error to fail open.
-type Check func(*Hook) error
-
-// RunCheck runs check under name, failing open on a panic or error: the
-// notice goes to stderr, which only the debug log sees, so it is also logged
-// to guards.jsonl, and the result is "allow". It returns the check's block,
-// nil when it allowed.
-func RunCheck(h *Hook, name string, check Check) (blocked *Blocked) {
-	saved := h.Name
-	h.Name = name
-	defer func() {
-		if r := recover(); r != nil {
-			h.failedOpen(name, r)
-			blocked = nil
-		}
-		h.Name = saved
-	}()
-	err := check(h)
-	if err == nil {
-		return nil
-	}
-	if b, ok := errors.AsType[*Blocked](err); ok {
-		return b
-	}
-	h.failedOpen(name, err)
-	return nil
-}
-
-// failedOpen reports a check that let the call through because cause made
-// it fail: to stderr and guards.jsonl each time, and to the user once a
-// session, so a guard that stopped working doesn't go unseen. With no
-// session to mark, the user hears of each one.
-func (h *Hook) failedOpen(name string, cause any) {
-	FailOpen(h.Stderr, name, cause)
-	h.Log(kitlog.Guards, "fail-open", "error", fmt.Sprint(cause))
-	var marker string
-	if h.Payload != nil {
-		marker = h.Paths.SessionFile(cache.FailOpen, h.Payload.SessionID())
-	}
-	if marker != "" && fsx.IsFile(marker) {
-		return
-	}
-	notice := fmt.Sprintf("kit %s: FAILED OPEN, the call went through unchecked: %v", name, cause)
-	if marker != "" {
-		notice += "\nlater ones this session go to " + h.Paths.LogFile(kitlog.Guards) + " only"
-		if !h.DryRun {
-			_ = fsx.WriteAtomic(marker, nil, 0o600)
-		}
-	}
-	h.Notify(notice)
-}
-
-// Run executes checks in order against one payload read, the dispatcher
-// contract: each check is isolated (one failing open never skips the next),
-// and the first block ends the run with exit 2. A block after a notice is a
-// JSON decision instead, since exit 2 shows Claude the reason and drops the
-// notice meant for the user.
-func Run(h *Hook, checks ...NamedCheck) int {
-	for _, c := range checks {
-		b := RunCheck(h, c.Name, c.Check)
-		if b == nil {
-			continue
-		}
-		if h.notices == nil {
-			fmt.Fprintln(h.Stderr, b.Reason)
-			return 2
-		}
-		h.flush(b.Reason)
-		return 0
-	}
-	h.flush("")
-	return 0
-}
-
-// NamedCheck pairs a check with the hook name it reports under.
-type NamedCheck struct {
-	Name  string
-	Check Check
 }

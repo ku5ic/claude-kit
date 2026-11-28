@@ -47,8 +47,6 @@ linters:
         linters: [funlen, cyclop, revive]
       # Ratchet: each file below breached a threshold when the linters came
       # in. A change that brings one under deletes its entry; none is added.
-      - path: ^cmd/kit/hook\.go$
-        linters: [funlen]
       - path: ^internal/adr/adr\.go$
         linters: [cyclop]
       - path: ^internal/claims/claims\.go$
@@ -87,8 +85,6 @@ linters:
         linters: [cyclop]
       - path: ^internal/guard/paths\.go$
         linters: [cyclop, revive]
-      - path: ^internal/hook/hook\.go$
-        linters: [revive]
       - path: ^internal/md/md\.go$
         linters: [cyclop]
       - path: ^internal/pkgcheck/lookup\.go$

@@ -180,7 +180,12 @@ func cmdHook(e *env, args []string, stdin io.Reader) (status int) {
 	if def.run != nil {
 		return def.run(h)
 	}
-	steps := def.steps
+	return hook.Run(h, namedChecks(name, def.steps)...)
+}
+
+// namedChecks is each of steps' check by name; with none, the hook name's
+// own.
+func namedChecks(name string, steps []string) []hook.NamedCheck {
 	if steps == nil {
 		steps = []string{name}
 	}
@@ -188,7 +193,7 @@ func cmdHook(e *env, args []string, stdin io.Reader) (status int) {
 	for i, s := range steps {
 		named[i] = hook.NamedCheck{Name: s, Check: hookChecks[s]}
 	}
-	return hook.Run(h, named...)
+	return named
 }
 
 // The bash guards come from bashguard.Steps, which kit explain reads too.
