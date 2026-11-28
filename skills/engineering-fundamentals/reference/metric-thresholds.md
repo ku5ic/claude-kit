@@ -17,3 +17,4 @@ The one set of numbers.
 | Co-change     | two files, neither importing the other, at change-coupling degree 0.5 or more                |
 
 - The project's static analysis already reports a metric (cyclomatic or cognitive complexity): its readings count as input alongside these.
+- Cyclomatic complexity adds one for each `&&` and `||` as well as each branch, so in Go the branch row reads as `cyclop` over 15.

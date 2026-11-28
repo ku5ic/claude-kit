@@ -4,7 +4,10 @@ linters:
   # dupl flags copied blocks before they drift. Threshold is in tokens: the
   # lowest that passes on today's tree; lower it as copies are removed.
   # errorlint: an error type assertion or == misses a wrapped error.
-  enable: [dupl, errorlint]
+  # funlen, cyclop, and revive hold the size, branch, and nesting numbers
+  # skills/engineering-fundamentals/reference/metric-thresholds.md owns;
+  # go/e2e TestLintMatchesTheThresholds keeps them equal.
+  enable: [dupl, errorlint, funlen, cyclop, revive]
   settings:
     dupl:
       threshold: 32
@@ -18,6 +21,19 @@ linters:
         - (*os.File).Close
         - (io.Closer).Close
         - os.Remove
+    funlen:
+      lines: 50
+      statements: -1
+      ignore-comments: true
+    cyclop:
+      max-complexity: 15
+    revive:
+      rules:
+        - name: max-control-nesting
+          arguments: [3]
+        - name: file-length-limit
+          arguments:
+            - max: 500
   exclusions:
     rules:
       # Test setup ignores errors on purpose; a failed step fails the assertion after it.
@@ -26,6 +42,130 @@ linters:
       # Table-driven tests repeat their shape on purpose.
       - path: _test\.go
         linters: [dupl]
+      # A test's length is its cases.
+      - path: _test\.go
+        linters: [funlen, cyclop, revive]
+      # Ratchet: each file below breached a threshold when the linters came
+      # in. A change that brings one under deletes its entry; none is added.
+      - path: ^cmd/kit/hook\.go$
+        linters: [funlen]
+      - path: ^internal/adr/adr\.go$
+        linters: [cyclop]
+      - path: ^internal/bashguard/approval\.go$
+        linters: [cyclop]
+      - path: ^internal/bashguard/commit\.go$
+        linters: [cyclop, funlen, revive]
+      - path: ^internal/bashguard/download\.go$
+        linters: [cyclop, revive]
+      - path: ^internal/bashguard/git\.go$
+        linters: [cyclop, revive]
+      - path: ^internal/bashguard/guard\.go$
+        linters: [cyclop, funlen, revive]
+      - path: ^internal/bashguard/parse\.go$
+        linters: [cyclop, funlen, revive]
+      - path: ^internal/bashguard/reads\.go$
+        linters: [cyclop, funlen, revive]
+      - path: ^internal/bashguard/rules\.go$
+        linters: [cyclop, revive]
+      - path: ^internal/claims/claims\.go$
+        linters: [cyclop, funlen, revive]
+      - path: ^internal/classify/classify\.go$
+        linters: [cyclop, revive]
+      - path: ^internal/codegraph/codegraph\.go$
+        linters: [cyclop]
+      - path: ^internal/codegraph/coupling\.go$
+        linters: [cyclop, funlen]
+      - path: ^internal/codegraph/graph\.go$
+        linters: [cyclop]
+      - path: ^internal/codegraph/importers\.go$
+        linters: [cyclop]
+      - path: ^internal/codegraph/manifests\.go$
+        linters: [cyclop, funlen]
+      - path: ^internal/config/config\.go$
+        linters: [revive]
+      - path: ^internal/config/load\.go$
+        linters: [cyclop, funlen, revive]
+      - path: ^internal/config/options\.go$
+        linters: [cyclop, funlen]
+      - path: ^internal/design/tokens\.go$
+        linters: [cyclop]
+      - path: ^internal/enforce/enforce\.go$
+        linters: [revive]
+      - path: ^internal/enforce/expand\.go$
+        linters: [cyclop]
+      - path: ^internal/explain/explain\.go$
+        linters: [cyclop, funlen]
+      - path: ^internal/gapfill/gapfill\.go$
+        linters: [cyclop, funlen]
+      - path: ^internal/gapfill/verify\.go$
+        linters: [cyclop, funlen, revive]
+      - path: ^internal/gapfill/view\.go$
+        linters: [cyclop]
+      - path: ^internal/guard/paths\.go$
+        linters: [cyclop, revive]
+      - path: ^internal/hook/hook\.go$
+        linters: [revive]
+      - path: ^internal/hooks/adrnudge\.go$
+        linters: [cyclop]
+      - path: ^internal/hooks/bashedits\.go$
+        linters: [cyclop, funlen]
+      - path: ^internal/hooks/citations\.go$
+        linters: [cyclop]
+      - path: ^internal/hooks/claims\.go$
+        linters: [cyclop]
+      - path: ^internal/hooks/connector\.go$
+        linters: [cyclop]
+      - path: ^internal/hooks/context\.go$
+        linters: [funlen]
+      - path: ^internal/hooks/edit\.go$
+        linters: [cyclop]
+      - path: ^internal/hooks/planchanges\.go$
+        linters: [cyclop]
+      - path: ^internal/hooks/plandone\.go$
+        linters: [cyclop, funlen]
+      - path: ^internal/hooks/replylength\.go$
+        linters: [cyclop, funlen]
+      - path: ^internal/hooks/rulesgate\.go$
+        linters: [cyclop, funlen]
+      - path: ^internal/hooks/size\.go$
+        linters: [cyclop, funlen]
+      - path: ^internal/hooks/slop\.go$
+        linters: [cyclop]
+      - path: ^internal/hooks/stop\.go$
+        linters: [cyclop, funlen]
+      - path: ^internal/md/md\.go$
+        linters: [cyclop]
+      - path: ^internal/pkgcheck/lookup\.go$
+        linters: [cyclop]
+      - path: ^internal/resolve/resolve\.go$
+        linters: [cyclop]
+      - path: ^internal/rotate/rotate\.go$
+        linters: [cyclop]
+      - path: ^internal/run/base\.go$
+        linters: [cyclop]
+      - path: ^internal/run/run\.go$
+        linters: [cyclop, funlen]
+      - path: ^internal/slop/run\.go$
+        linters: [cyclop, funlen]
+      - path: ^internal/slop/segments\.go$
+        linters: [cyclop, funlen, revive]
+      - path: ^internal/sources/ci\.go$
+        linters: [cyclop]
+      - path: ^internal/sources/extract\.go$
+        linters: [funlen]
+      - path: ^internal/sources/yamltasks\.go$
+        linters: [cyclop]
+      - path: ^internal/stats/stats\.go$
+        linters: [cyclop, funlen, revive]
+      - path: ^internal/status/statusline\.go$
+        linters: [cyclop]
+      - path: ^internal/transcript/runs\.go$
+        linters: [cyclop]
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  uniq-by-line: false
 
 # golangci-lint run reports gofmt findings too.
 formatters:
