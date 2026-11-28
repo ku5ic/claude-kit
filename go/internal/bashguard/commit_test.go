@@ -816,3 +816,13 @@ func TestAsksForCommitReadsANameBeforeTheCommit(t *testing.T) {
 		t.Error("a request after a dotted name read as none")
 	}
 }
+
+// commitMsgBudget stays inside bash-dispatch's hooks.json timeout, which
+// gitleaks shares.
+func TestCommitMsgBudgetFitsBashDispatch(t *testing.T) {
+	t.Parallel()
+	limit, ok := testutil.HookTimeouts(t, filepath.Join("..", "..", "..", "hooks", "hooks.json"))["bash-dispatch"]
+	if !ok || commitMsgBudget >= limit {
+		t.Errorf("commitMsgBudget %v doesn't fit bash-dispatch's timeout %v", commitMsgBudget, limit)
+	}
+}

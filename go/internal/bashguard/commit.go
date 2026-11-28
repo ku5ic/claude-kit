@@ -259,7 +259,8 @@ func gitCalls(segs []Segment, home, cwd string, unparsed bool, pin pinFunc) []co
 }
 
 // commitMsgBudget bounds the project's commit-msg checks, inside
-// bash-dispatch's timeout in hooks.json, gitleaks' share apart.
+// bash-dispatch's timeout in hooks.json, gitleaks' share apart
+// (TestCommitMsgBudgetFitsBashDispatch).
 const commitMsgBudget = 12 * time.Second
 
 // commitMsg runs the commit-msg enforcement of repo on msg, from a temp

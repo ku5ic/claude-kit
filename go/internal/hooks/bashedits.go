@@ -26,7 +26,8 @@ import (
 // file a command changed, which written reads before and after from.
 const bashEditTool = "kit-bash-edit"
 
-// bashEditsFormatBudget is how long BashEdits spends formatting, all files.
+// bashEditsFormatBudget is how long BashEdits spends formatting, all files,
+// inside bash-edits' timeout in hooks.json (TestBudgetsFitTheirHooks).
 const bashEditsFormatBudget = 90 * time.Second
 
 // gitMoves are the git subcommands that bring in content Claude didn't
@@ -218,9 +219,9 @@ func dropMoves(h *hook.Hook, root string, changed []string, changes []bashChange
 }
 
 // checkChanges gives each change the checks an Edit gets, then sanitizes
-// and formats it while time allows: each format may take formatBudget, and
-// past this files are checked but left unformatted, inside hooks.json's
-// 300s. The next command's diff starts from what sanitize and format left.
+// and formats it while bashEditsFormatBudget allows: each format may take
+// formatBudget, and past that files are checked but left unformatted. The
+// next command's diff starts from what sanitize and format left.
 func checkChanges(h *hook.Hook, root, base string, changes []bashChange, olds map[string]string) []string {
 	var problems []string
 	rewritten := false

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/git"
@@ -170,4 +171,42 @@ func Lacks(t *testing.T, out string, parts ...string) {
 			t.Errorf("output has %q:\n%s", part, out)
 		}
 	}
+}
+
+// HookTimeouts is each kit hook's timeout in the hooks.json at path, by
+// hook name; a hook listed more than once keeps its shortest, the one every
+// budget it runs must fit.
+func HookTimeouts(t *testing.T, path string) map[string]time.Duration {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var file struct {
+		Hooks map[string][]struct {
+			Hooks []struct {
+				Command string `json:"command"`
+				Timeout int    `json:"timeout"`
+			} `json:"hooks"`
+		} `json:"hooks"`
+	}
+	if err := json.Unmarshal(data, &file); err != nil {
+		t.Fatal(err)
+	}
+	out := map[string]time.Duration{}
+	for _, groups := range file.Hooks {
+		for _, g := range groups {
+			for _, h := range g.Hooks {
+				_, name, ok := strings.Cut(h.Command, " hook ")
+				if !ok {
+					continue
+				}
+				d := time.Duration(h.Timeout) * time.Second
+				if prev, seen := out[name]; !seen || d < prev {
+					out[name] = d
+				}
+			}
+		}
+	}
+	return out
 }

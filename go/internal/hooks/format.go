@@ -62,7 +62,8 @@ func FormatDispatch(h *hook.Hook) error {
 }
 
 // formatBudget bounds everything one edit runs, fixers, on_edit, and notes
-// together, inside post-edit-dispatch's 20s in hooks.json.
+// together, inside post-edit-dispatch's timeout in hooks.json
+// (TestBudgetsFitTheirHooks).
 const formatBudget = 15 * time.Second
 
 // onEdit formats path with the first of chain whose binary is on PATH, by

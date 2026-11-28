@@ -24,8 +24,9 @@ import (
 // reviewSkill is the skill whose forks the review hooks track.
 const reviewSkill = "code-review"
 
-// reviewBudget bounds the full gate inside review-checks' 1200s in
-// hooks.json, leaving room for planning and the snapshot: a gate starting
+// reviewBudget bounds the full gate inside review-checks' timeout in
+// hooks.json (TestBudgetsFitTheirHooks), leaving room for planning and the
+// snapshot: a gate starting
 // past it is skipped, so the user always gets the receipt.
 const reviewBudget = 1050 * time.Second
 
