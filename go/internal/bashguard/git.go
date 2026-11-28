@@ -120,7 +120,7 @@ func historyLoss(sub string, args []string) string {
 // the whole tree. restore --staged without --worktree only unstages, which
 // discards nothing.
 func treeDiscard(sub string, args []string) bool {
-	if sub != "restore" && sub != "checkout" {
+	if !slices.Contains([]string{"restore", "checkout"}, sub) {
 		return false
 	}
 	// Git reads options after the pathspec too (restore . --staged), so
@@ -286,12 +286,19 @@ func parsePush(args []string) push {
 			wantValue = strings.HasSuffix(a, "o")
 		}
 	}
-	for _, ref := range p.refspecs {
+	p.forced = append(p.forced, plusRefspecs(p.refspecs)...)
+	return p
+}
+
+// plusRefspecs is a force-push reason for each +refspec in refspecs.
+func plusRefspecs(refspecs []string) []string {
+	var reasons []string
+	for _, ref := range refspecs {
 		if strings.HasPrefix(ref, "+") {
-			p.forced = append(p.forced, "force push via a +refspec"+leaseInstead)
+			reasons = append(reasons, "force push via a +refspec"+leaseInstead)
 		}
 	}
-	return p
+	return reasons
 }
 
 func (c *command) gitPush(args []string, dir string) error {
@@ -358,25 +365,29 @@ func commitOptions(args []string, fn func(opt, value string)) {
 			name, value, _ := strings.Cut(a, "=")
 			fn(name, value)
 		case strings.HasPrefix(a, "-"):
-			for j := 1; j < len(a); j++ {
-				opt := "-" + a[j:j+1]
-				switch a[j] {
-				case 'm', 'F', 'C', 'c', 't':
-					value := a[j+1:]
-					if value == "" {
-						value = next()
-					}
-					fn(opt, value)
-					j = len(a)
-				case 'u', 'S':
-					// Optional values, only ever attached: -uno, -S<keyid>.
-					fn(opt, a[j+1:])
-					j = len(a)
-				default:
-					fn(opt, "")
-				}
-			}
+			commitCluster(a, next, fn)
 		}
+	}
+}
+
+// commitCluster calls fn with each letter of a short cluster, up to the
+// first that takes a value: the rest of the word, or next's word when
+// nothing follows. -u and -S take only an attached value (-uno, -S<keyid>).
+func commitCluster(a string, next func() string, fn func(opt, value string)) {
+	for j := 1; j < len(a); j++ {
+		opt, rest := "-"+a[j:j+1], a[j+1:]
+		switch a[j] {
+		case 'm', 'F', 'C', 'c', 't':
+			if rest == "" {
+				rest = next()
+			}
+			fn(opt, rest)
+			return
+		case 'u', 'S':
+			fn(opt, rest)
+			return
+		}
+		fn(opt, "")
 	}
 }
 

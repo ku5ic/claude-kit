@@ -36,54 +36,91 @@ func (c *command) curl() error {
 // curlTargets reads curl's words for the files it writes: -o and
 // --output-dir values, and whether -O/-J names one after the server.
 func curlTargets(words []string) (targets []string, remote bool, outDir string) {
-	wantTarget := 0
+	want := curlNone
 	for _, w := range words {
-		if wantTarget > 0 {
+		if want != curlNone {
 			targets = append(targets, w)
-			if wantTarget == 2 {
+			if want == curlDir {
 				outDir = w
 			}
-			wantTarget = 0
+			want = curlNone
 			continue
 		}
-		switch {
-		case w == "--":
-			return targets, remote, outDir
-		case w == "--remote-name" || w == "--remote-name-all" || w == "--remote-header-name":
-			remote = true
-		case w == "--output":
-			wantTarget = 1
-		case w == "--output-dir":
-			wantTarget = 2
-		case strings.HasPrefix(w, "--output="):
-			targets = append(targets, strings.TrimPrefix(w, "--output="))
-		case strings.HasPrefix(w, "--output-dir="):
-			outDir = strings.TrimPrefix(w, "--output-dir=")
-			targets = append(targets, outDir)
-		case strings.HasPrefix(w, "--"):
-		case strings.HasPrefix(w, "-"):
-			// A short cluster: O and J are flags, o takes the rest of the
-			// word or the next one, and any other value-taking option
-			// (-XPOST, -Hx) ends the scan: the rest of the word is its value.
-		cluster:
-			for j := 1; j < len(w); j++ {
-				switch f := w[j]; {
-				case f == 'O' || f == 'J':
-					remote = true
-				case f == 'o':
-					if j == len(w)-1 {
-						wantTarget = 1
-					} else {
-						targets = append(targets, w[j+1:])
-					}
-					break cluster
-				case strings.IndexByte("AbcCdDeEFHKmPQrtTuUwxXyYz", f) >= 0:
-					break cluster
-				}
-			}
+		if w == "--" {
+			break
+		}
+		o := curlOption(w)
+		remote, want = remote || o.remote, o.want
+		if o.target != "" {
+			targets = append(targets, o.target)
+		}
+		if o.dir {
+			outDir = o.target
 		}
 	}
 	return targets, remote, outDir
+}
+
+// curlWant is what curl's next word is: nothing it writes, an output file,
+// or the output directory.
+type curlWant int
+
+const (
+	curlNone curlWant = iota
+	curlFile
+	curlDir
+)
+
+// curlWord is what one curl word says about the files it writes: a
+// server-named file, a target given in the word (dir when it's the output
+// directory), or one the next word gives.
+type curlWord struct {
+	remote, dir bool
+	target      string
+	want        curlWant
+}
+
+// curlOption reads one curl word.
+func curlOption(w string) curlWord {
+	switch {
+	case w == "--remote-name" || w == "--remote-name-all" || w == "--remote-header-name":
+		return curlWord{remote: true}
+	case w == "--output":
+		return curlWord{want: curlFile}
+	case w == "--output-dir":
+		return curlWord{want: curlDir}
+	case strings.HasPrefix(w, "--output="):
+		return curlWord{target: strings.TrimPrefix(w, "--output=")}
+	case strings.HasPrefix(w, "--output-dir="):
+		return curlWord{target: strings.TrimPrefix(w, "--output-dir="), dir: true}
+	case strings.HasPrefix(w, "--"):
+		return curlWord{}
+	case strings.HasPrefix(w, "-"):
+		return curlCluster(w)
+	}
+	return curlWord{}
+}
+
+// curlCluster reads a short cluster: O and J are flags, o takes the rest of
+// the word or the next one, and any other value-taking option (-XPOST,
+// -Hx) ends the scan: the rest of the word is its value.
+func curlCluster(w string) curlWord {
+	var o curlWord
+	for j := 1; j < len(w); j++ {
+		switch f := w[j]; {
+		case f == 'O' || f == 'J':
+			o.remote = true
+		case f == 'o' && j == len(w)-1:
+			o.want = curlFile
+			return o
+		case f == 'o':
+			o.target = w[j+1:]
+			return o
+		case strings.IndexByte("AbcCdDeEFHKmPQrtTuUwxXyYz", f) >= 0:
+			return o
+		}
+	}
+	return o
 }
 
 // wget writes into cwd by default, so an output flag is mandatory; -O - is
@@ -120,25 +157,28 @@ func wgetTargets(words []string) (targets []string, hasOut bool) {
 			wantDir = true
 		case strings.HasPrefix(w, "--"):
 		case strings.HasPrefix(w, "-"):
-			// A short cluster like -qO- or -qP dir: O or P takes the rest of
-			// the word as its value, or the next word when nothing follows.
-			for j := 1; j < len(w); j++ {
-				if w[j] != 'O' && w[j] != 'P' {
-					continue
-				}
-				if rest := w[j+1:]; rest != "" {
-					targets = append(targets, rest)
-					hasOut = true
-				} else if w[j] == 'O' {
-					wantDoc = true
-				} else {
-					wantDir = true
-				}
-				break
+			flag, rest := wgetCluster(w)
+			switch {
+			case rest != "":
+				targets, hasOut = append(targets, rest), true
+			case flag == 'O':
+				wantDoc = true
+			case flag == 'P':
+				wantDir = true
 			}
 		}
 	}
 	return targets, hasOut
+}
+
+// wgetCluster reads a short cluster like -qO- or -qP dir: its first O or P
+// flag, 0 for none, and the rest of the word, that flag's value when it
+// isn't empty; empty, the next word is.
+func wgetCluster(w string) (flag byte, rest string) {
+	if j := strings.IndexAny(w[1:], "OP"); j >= 0 {
+		return w[1+j], w[2+j:]
+	}
+	return 0, ""
 }
 
 // scratchVarTarget is true for a download target that is one quoted scratch

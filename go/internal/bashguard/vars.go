@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+
+	"mvdan.cc/sh/v3/syntax"
 )
 
 // shellVars is what a command's own assignments set, as state checks it
@@ -372,3 +374,102 @@ func plainPrintf(name string, args []Word) bool {
 	return name == "printf" && (len(args) == 0 || !strings.ContainsAny(args[0].Value, "$`")) &&
 		!slices.ContainsFunc(args, func(w Word) bool { return strings.HasPrefix(w.Value, "-v") })
 }
+
+// assigned is the value each bare assignment in seg sets (R=rm; $R -rf ~),
+// for the segments after it. A prefix assignment (R=rm $R) is left out:
+// the shell expands $R before it applies.
+func assigned(seg Segment) map[string]string {
+	vars := map[string]string{}
+	for _, call := range seg.Calls {
+		assigns := call.Assigns
+		switch {
+		case len(call.Words) > 0 && call.Words[0].Value == "export":
+			// export NAME=value sets NAME as a bare assignment does.
+			assigns = slices.DeleteFunc(values(call.Words[1:]), func(w string) bool { return !assignment.MatchString(w) })
+		case len(call.Words) > 0:
+			continue
+		}
+		for _, a := range assigns {
+			name, value, _ := strings.Cut(a, "=")
+			vars[name] = value
+		}
+	}
+	return vars
+}
+
+// exportedNames is every name an export in segs declares, with a value or
+// without (export NAME exports an earlier bare assignment).
+func exportedNames(segs []Segment) map[string]bool {
+	names := map[string]bool{}
+	for _, seg := range segs {
+		for _, call := range seg.Calls {
+			for _, name := range call.Exports {
+				names[name] = true
+			}
+		}
+	}
+	return names
+}
+
+// declOpaque is Call.declOpaque for decl.
+func declOpaque(decl *syntax.DeclClause) bool {
+	for _, a := range decl.Args {
+		if !a.Naked || a.Name != nil {
+			continue
+		}
+		lit := ""
+		if a.Value != nil {
+			lit = a.Value.Lit()
+		}
+		if !strings.HasPrefix(lit, "-") && !strings.HasPrefix(lit, "+") || strings.ContainsAny(lit[1:], "ni") {
+			return true
+		}
+	}
+	return false
+}
+
+// exportNames is the names decl declares when it's an export, or a
+// declare -x or typeset -x; nil for any other declaration.
+func exportNames(decl *syntax.DeclClause) []string {
+	export := decl.Variant != nil && decl.Variant.Value == "export"
+	var names []string
+	for _, a := range decl.Args {
+		switch {
+		case a.Naked && a.Name == nil && a.Value != nil && strings.HasPrefix(a.Value.Lit(), "-") && strings.Contains(a.Value.Lit(), "x"):
+			export = true
+		case a.Name != nil:
+			names = append(names, a.Name.Value)
+		}
+	}
+	if !export {
+		return nil
+	}
+	return names
+}
+
+// loopAssigned is every value each loop's bare assignments set, by loop
+// id: a later pass sees what an earlier one assigned.
+func loopAssigned(segs []Segment) map[int]map[string][]string {
+	out := map[int]map[string][]string{}
+	for _, seg := range segs {
+		if seg.loop == 0 {
+			continue
+		}
+		if out[seg.loop] == nil {
+			out[seg.loop] = map[string][]string{}
+		}
+		for name, value := range assigned(seg) {
+			out[seg.loop][name] = append(out[seg.loop][name], value)
+		}
+	}
+	return out
+}
+
+// varName is a shell variable name.
+const varName = `[A-Za-z_][A-Za-z0-9_]*`
+
+// nameRef is $NAME or ${NAME}, its groups the name twice.
+const nameRef = `\$(?:(` + varName + `)|\{(` + varName + `)\})`
+
+// varRef is a word that is one variable and nothing else: $R or ${R}.
+var varRef = regexp.MustCompile(`^` + nameRef + `$`)
