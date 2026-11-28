@@ -49,10 +49,6 @@ linters:
       # in. A change that brings one under deletes its entry; none is added.
       - path: ^internal/adr/adr\.go$
         linters: [cyclop]
-      - path: ^internal/claims/claims\.go$
-        linters: [cyclop, funlen, revive]
-      - path: ^internal/classify/classify\.go$
-        linters: [cyclop, revive]
       - path: ^internal/codegraph/codegraph\.go$
         linters: [cyclop]
       - path: ^internal/codegraph/coupling\.go$
@@ -61,17 +57,7 @@ linters:
         linters: [cyclop]
       - path: ^internal/codegraph/importers\.go$
         linters: [cyclop]
-      - path: ^internal/config/config\.go$
-        linters: [revive]
-      - path: ^internal/config/load\.go$
-        linters: [cyclop, funlen, revive]
-      - path: ^internal/config/options\.go$
-        linters: [cyclop, funlen]
       - path: ^internal/design/tokens\.go$
-        linters: [cyclop]
-      - path: ^internal/enforce/enforce\.go$
-        linters: [revive]
-      - path: ^internal/enforce/expand\.go$
         linters: [cyclop]
       - path: ^internal/explain/explain\.go$
         linters: [cyclop, funlen]

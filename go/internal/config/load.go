@@ -178,43 +178,68 @@ func load(p Paths) (*Config, []Warning, error) {
 		if tag != "merged" {
 			return nil, warnings, fmt.Errorf("decode %s: %w", p.Base, err)
 		}
-		// mergeNode rewrote base in place, so it is read again: losing the
-		// overlay beats losing every guard's lists.
-		if merged, err = readNode(p.Base); err != nil {
+		var ignored []Warning
+		if cfg, ignored, err = decodeBaseOnly(p, layers); err != nil {
 			return nil, warnings, err
 		}
-		tag = "base"
-		cfg = Config{}
-		if err := merged.Decode(&cfg); err != nil {
-			return nil, warnings, fmt.Errorf("decode %s: %w", p.Base, err)
-		}
-		for _, l := range layers {
-			if l.path == p.Overlay || l.path == p.Settings {
-				warnings = append(warnings, Warning{l.path, errors.New("ignored, with the preset: the overlay and /config options don't merge with kit.yml, so only kit.yml applies")})
-			}
-		}
-		from = p.Base
+		warnings, tag, from = append(warnings, ignored...), "base", p.Base
 	}
 	applyDefaults(&cfg)
 	cfg.resolveReply()
 	if tag == "merged" {
-		// mergeNode appends the overlay's list to kit.yml's, after the
-		// preset's; the /config options hold no list.
-		if i := slices.IndexFunc(layers, func(l layer) bool { return l.path == p.Overlay }); i >= 0 {
-			if seq := mappingValue(layers[i].node, "global_installs"); seq != nil && seq.Kind == yaml.SequenceNode {
-				cfg.OverlayInstalls = len(seq.Content)
-			}
-		}
+		cfg.OverlayInstalls = overlayInstalls(p, layers)
 	}
 	patterns, bad := cfg.compileInstalls(p)
 	cfg.installs = &installPatterns{patterns, bad}
-	for _, err := range slices.Concat(cfg.unknownDisables(), cfg.ReplyLimits.negatives(), cfg.Slop.problems(), cfg.Attribution.problems(), cfg.Claims.problems(), cfg.SizeBudgets.problems(), cfg.WeakenedChecks.problems(), cfg.PackageLookups.problems(), cfg.dropEmptyEditCmds(), cfg.pickerProblems()) {
+	for _, err := range cfg.keyProblems() {
 		warnings = append(warnings, Warning{from, err})
 	}
 	warnings = append(warnings, bad...)
 	cfg.Tag = tag
 	cfg.From = from
 	return &cfg, warnings, nil
+}
+
+// decodeBaseOnly is kit.yml decoded alone, when the merged layers don't
+// decode: mergeNode rewrote base in place, so it is read again, since
+// losing the overlay beats losing every guard's lists. Each user layer it
+// leaves out gets a warning.
+func decodeBaseOnly(p Paths, layers []layer) (Config, []Warning, error) {
+	var cfg Config
+	base, err := readNode(p.Base)
+	if err != nil {
+		return cfg, nil, err
+	}
+	if err := base.Decode(&cfg); err != nil {
+		return cfg, nil, fmt.Errorf("decode %s: %w", p.Base, err)
+	}
+	var warnings []Warning
+	for _, l := range layers {
+		if l.path == p.Overlay || l.path == p.Settings {
+			warnings = append(warnings, Warning{l.path, errors.New("ignored, with the preset: the overlay and /config options don't merge with kit.yml, so only kit.yml applies")})
+		}
+	}
+	return cfg, warnings, nil
+}
+
+// overlayInstalls is how many global_installs entries the user's overlay
+// adds: mergeNode appends its list to kit.yml's, after the preset's, and
+// the /config options hold no list.
+func overlayInstalls(p Paths, layers []layer) int {
+	i := slices.IndexFunc(layers, func(l layer) bool { return l.path == p.Overlay })
+	if i < 0 {
+		return 0
+	}
+	if seq := mappingValue(layers[i].node, "global_installs"); seq != nil && seq.Kind == yaml.SequenceNode {
+		return len(seq.Content)
+	}
+	return 0
+}
+
+// keyProblems is every key's own validation problem.
+func (c *Config) keyProblems() []error {
+	return slices.Concat(c.unknownDisables(), c.ReplyLimits.negatives(), c.Slop.problems(), c.Attribution.problems(), c.Claims.problems(),
+		c.SizeBudgets.problems(), c.WeakenedChecks.problems(), c.PackageLookups.problems(), c.dropEmptyEditCmds(), c.pickerProblems())
 }
 
 // userFile is the file a merged config's warnings name: the overlay when
@@ -454,90 +479,4 @@ func validate(path string) []Warning {
 	default:
 		return []Warning{{path, err}}
 	}
-}
-
-// mergeNode merges src into dst in place, as yq's `*+`: mappings merge key by
-// key in dst's order with src's new keys after, sequences append, and any
-// other pairing takes src's value. Three exceptions: a replacedLists key
-// takes src's list, an item with an id (a slop rule) replaces dst's item of
-// that id in place, and a "!x" item removes dst's item x. It returns each
-// "!x" that removed nothing, as "<key>: !x"; in an exceptionLists list, one
-// stays as an exception instead.
-func mergeNode(dst, src *yaml.Node) []string { return merge(dst, src, "") }
-
-func merge(dst, src *yaml.Node, key string) []string {
-	var unmatched []string
-	switch {
-	case dst.Kind == yaml.MappingNode && src.Kind == yaml.MappingNode:
-		for i := 0; i+1 < len(src.Content); i += 2 {
-			key, value := src.Content[i], src.Content[i+1]
-			switch existing := mappingValue(dst, key.Value); {
-			case existing == nil:
-				dst.Content = append(dst.Content, key, value)
-			case replacedLists[key.Value]:
-				*existing = *value
-			default:
-				unmatched = append(unmatched, merge(existing, value, key.Value)...)
-			}
-		}
-	case dst.Kind == yaml.SequenceNode && src.Kind == yaml.SequenceNode:
-		for _, item := range src.Content {
-			if removed, ok := strings.CutPrefix(item.Value, "!"); ok && item.Kind == yaml.ScalarNode {
-				before := len(dst.Content)
-				dst.Content = slices.DeleteFunc(dst.Content, func(n *yaml.Node) bool { return n.Kind == yaml.ScalarNode && n.Value == removed })
-				if len(dst.Content) < before {
-					continue
-				}
-				if !exceptionLists[key] {
-					unmatched = append(unmatched, key+": "+item.Value)
-					continue
-				}
-			}
-			if i := itemWithID(dst, item); i >= 0 {
-				dst.Content[i] = item
-				continue
-			}
-			dst.Content = append(dst.Content, item)
-		}
-	default:
-		*dst = *src
-	}
-	return unmatched
-}
-
-// exceptionLists are the pattern lists where a "!x" that removes no item
-// narrows the patterns before it, as sensitive_paths' !.env.example does.
-var exceptionLists = map[string]bool{"sensitive_paths": true}
-
-// replacedLists are the lists that are a setting, not a set to add to:
-// block_tiers, and the argv lists.
-var replacedLists = map[string]bool{"block_tiers": true, "cmd": true, "private_cmd": true, "command": true}
-
-// itemWithID is the index of seq's mapping with item's id, -1 when item has
-// no id or seq none with it.
-func itemWithID(seq, item *yaml.Node) int {
-	if item.Kind != yaml.MappingNode {
-		return -1
-	}
-	id := mappingValue(item, "id")
-	if id == nil {
-		return -1
-	}
-	for i, existing := range seq.Content {
-		if existing.Kind == yaml.MappingNode {
-			if other := mappingValue(existing, "id"); other != nil && other.Value == id.Value {
-				return i
-			}
-		}
-	}
-	return -1
-}
-
-func mappingValue(m *yaml.Node, key string) *yaml.Node {
-	for i := 0; i+1 < len(m.Content); i += 2 {
-		if m.Content[i].Value == key {
-			return m.Content[i+1]
-		}
-	}
-	return nil
 }

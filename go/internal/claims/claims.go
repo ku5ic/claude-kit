@@ -5,7 +5,6 @@
 package claims
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -350,111 +349,6 @@ const minDenyLiteral = 4
 const schema = `{"type":"object","additionalProperties":false,"required":["ok","unsupported"],"properties":{` +
 	`"ok":{"type":"boolean"},"unsupported":{"type":"array","items":{"type":"object","additionalProperties":false,` +
 	`"required":["claim","check"],"properties":{"claim":{"type":"string"},"check":{"type":"string"}}}}}}`
-
-// evidence is the verifier's input: the session's prompts, tool calls,
-// and results, oldest first, then text. Prompts are always whole. Within
-// evidenceCap, each call and result naming what text names (namedIn) is
-// kept first, newest first, then the rest newest first until one doesn't
-// fit, so every item cut is older than every one kept for its age.
-// A forked skill's task is its first meta prompt, kept when forked.
-func evidence(entries []transcript.Entry, text string, forked bool) string {
-	type item struct {
-		text              string
-		id                string // a tool call's, or the call's a result answers
-		prompt, named, in bool
-	}
-	names := map[string]string{}  // tool_use id -> tool name
-	inputs := map[string]string{} // tool_use id -> its raw input
-	tokens := namedIn(text)
-	namedIDs := map[string]bool{}
-	var items []item
-	for _, e := range entries {
-		if e.IsMeta {
-			if forked && e.Type == "user" {
-				items = append(items, item{text: "### Task (forked skill prompt)\n\n" + e.PromptText(), prompt: true})
-				forked = false
-			}
-			continue
-		}
-		switch {
-		case e.StartsTurn():
-			items = append(items, item{text: "### User prompt\n\n" + e.PromptText(), prompt: true})
-		case e.Type == "user":
-			for _, b := range e.Blocks {
-				if b.Type == "tool_result" {
-					name, out := names[b.ToolUseID], b.ResultText()
-					// A subagent's report is claims of its own, not a read.
-					report := name == "Agent"
-					if report {
-						name += " (not evidence)"
-					}
-					named := !report && slices.ContainsFunc(tokens, func(t string) bool {
-						return strings.Contains(inputs[b.ToolUseID], t) || strings.Contains(out, t)
-					})
-					namedIDs[b.ToolUseID] = namedIDs[b.ToolUseID] || named
-					items = append(items, item{text: fmt.Sprintf("#### Result of %s\n\n%s", name, clip(out, resultCap)), id: b.ToolUseID, named: named})
-				}
-			}
-		case e.Type == "assistant":
-			for _, b := range e.Blocks {
-				switch b.Type {
-				case "text":
-					items = append(items, item{text: "### Assistant text (not evidence)\n\n" + clip(b.Text, assistCap)})
-				case "tool_use":
-					names[b.ID], inputs[b.ID] = b.Name, string(b.RawInput)
-					items = append(items, item{text: fmt.Sprintf("#### Tool %s\n\nInput: %s", b.Name, clip(string(b.RawInput), inputCap)), id: b.ID})
-				}
-			}
-		}
-	}
-	budget := evidenceCap
-	for i, it := range items {
-		items[i].named = it.named || it.id != "" && namedIDs[it.id]
-		items[i].in = it.prompt
-		if it.prompt {
-			budget -= len(it.text) + 2
-		}
-	}
-	fits := func(it item) bool {
-		if size := len(it.text) + 2; size <= budget {
-			budget -= size
-			return true
-		}
-		return false
-	}
-	for i := len(items) - 1; i >= 0; i-- {
-		if items[i].named && !items[i].prompt {
-			items[i].in = fits(items[i])
-		}
-	}
-	for i := len(items) - 1; i >= 0; i-- {
-		if items[i].prompt || items[i].named {
-			continue
-		}
-		if !fits(items[i]) {
-			break
-		}
-		items[i].in = true
-	}
-	cut := 0
-	for _, it := range items {
-		if !it.in {
-			cut++
-		}
-	}
-	var b bytes.Buffer
-	b.WriteString("## Session evidence, oldest first\n\n")
-	if cut > 0 {
-		fmt.Fprintf(&b, "[%d older items cut]\n\n", cut)
-	}
-	for _, it := range items {
-		if it.in {
-			b.WriteString(it.text + "\n\n")
-		}
-	}
-	b.WriteString("## Text to verify\n\n" + clip(text, textCap) + "\n")
-	return b.String()
-}
 
 // manyDigits is a number of two digits or more; a single digit is in
 // nearly every result.

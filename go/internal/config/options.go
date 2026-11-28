@@ -39,25 +39,38 @@ func pluginOptions(p Paths, base *yaml.Node) (*yaml.Node, []Warning) {
 	if err != nil {
 		return nil, []Warning{{p.Settings, fmt.Errorf("ignored: %w", err)}}
 	}
-	var ids []string
-	for id := range settings.PluginConfigs {
-		if strings.HasPrefix(id, name+"@") {
-			ids = append(ids, id)
-		}
+	ids := slices.Collect(maps.Keys(settings.PluginConfigs))
+	id, err := kitEntry(slices.DeleteFunc(ids, func(id string) bool { return !strings.HasPrefix(id, name+"@") }), settings.EnabledPlugins)
+	if err != nil {
+		return nil, []Warning{{p.Settings, err}}
 	}
-	// An entry left by another marketplace or a dev install: the enabled one
-	// is the kit's.
-	if enabled := slices.DeleteFunc(slices.Clone(ids), func(id string) bool { return !settings.EnabledPlugins[id] }); len(ids) > 1 && len(enabled) == 1 {
-		ids = enabled
-	}
-	if len(ids) > 1 {
-		slices.Sort(ids)
-		return nil, []Warning{{p.Settings, fmt.Errorf("pluginConfigs: %s all name this plugin, so none applies", strings.Join(ids, ", "))}}
-	}
-	if len(ids) == 0 {
+	if id == "" {
 		return nil, nil
 	}
-	options := settings.PluginConfigs[ids[0]].Options
+	return optionsNode(p, id, settings.PluginConfigs[id].Options, declared, base)
+}
+
+// kitEntry is the one of ids, the pluginConfigs entries naming the kit,
+// that applies: an entry left by another marketplace or a dev install
+// yields to the enabled one. "" for none, an error for several.
+func kitEntry(ids []string, enabled map[string]bool) (string, error) {
+	if on := slices.DeleteFunc(slices.Clone(ids), func(id string) bool { return !enabled[id] }); len(ids) > 1 && len(on) == 1 {
+		ids = on
+	}
+	switch len(ids) {
+	case 0:
+		return "", nil
+	case 1:
+		return ids[0], nil
+	}
+	slices.Sort(ids)
+	return "", fmt.Errorf("pluginConfigs: %s all name this plugin, so none applies", strings.Join(ids, ", "))
+}
+
+// optionsNode is entry id's options as a layer: each one plugin.json
+// declares that isn't at its default, and is preset or a top-level key of
+// base.
+func optionsNode(p Paths, id string, options, declared map[string]any, base *yaml.Node) (*yaml.Node, []Warning) {
 	node := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
 	for _, key := range slices.Sorted(maps.Keys(options)) {
 		def, ok := declared[key]
@@ -69,7 +82,7 @@ func pluginOptions(p Paths, base *yaml.Node) (*yaml.Node, []Warning) {
 		}
 		var value yaml.Node
 		if err := value.Encode(options[key]); err != nil {
-			return nil, []Warning{{p.Settings, fmt.Errorf("pluginConfigs %s: %s: %w", ids[0], key, err)}}
+			return nil, []Warning{{p.Settings, fmt.Errorf("pluginConfigs %s: %s: %w", id, key, err)}}
 		}
 		node.Content = append(node.Content, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: key}, &value)
 	}

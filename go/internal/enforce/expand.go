@@ -92,11 +92,7 @@ func (b *builder) split(body, dir string, env []string, v gapfill.Verdict, depth
 	ok = true
 	env = slices.Clone(env)
 	for _, stmt := range stmts {
-		r := classify.Body(stmt, b.lookup(dir))
-		var cmd classify.Command
-		if r.Opaque == "" && len(r.Commands) == 1 {
-			cmd = r.Commands[0]
-		}
+		cmd := soleCommand(classify.Body(stmt, b.lookup(dir)))
 		switch {
 		case cmd.Kind == classify.Cd:
 			next, can := b.cd(dir, cmd.Words)
@@ -107,15 +103,12 @@ func (b *builder) split(body, dir string, env []string, v gapfill.Verdict, depth
 		case cmd.Kind == classify.Export:
 			env = append(env, cmd.Env...)
 		case cmd.Kind == classify.Ref && len(cmd.Refs) == 1:
-			ref := cmd.Refs[0]
-			t, found := b.tasks[taskKey{ref.Provider, filepath.Join(dir, ref.Dir), ref.Name}]
+			p, checks, found := b.refPart(stmt, dir, env, cmd, depth)
 			if !found {
 				return nil, false
 			}
-			tv, why := b.verdict(t)
-			kinds := b.taskKinds(t, tv, depth+1)
-			ok = ok && why == "" && len(kinds) > 0
-			parts = append(parts, part{text: stmt, dir: dir, env: append(slices.Clone(env), cmd.Env...), task: &t, kinds: kinds})
+			ok = ok && checks
+			parts = append(parts, p)
 		default:
 			kind, isCheck := segmentKind(v, stmt, len(stmts))
 			ok = ok && isCheck
@@ -123,6 +116,29 @@ func (b *builder) split(body, dir string, env []string, v gapfill.Verdict, depth
 		}
 	}
 	return parts, ok && len(parts) > 0
+}
+
+// soleCommand is r's one command, the zero Command when r is opaque or
+// holds several.
+func soleCommand(r classify.Result) classify.Command {
+	if r.Opaque == "" && len(r.Commands) == 1 {
+		return r.Commands[0]
+	}
+	return classify.Command{}
+}
+
+// refPart is a statement that runs one task, cmd's reference, from dir:
+// the part, whether the task checks something, and whether the kit knows
+// the task.
+func (b *builder) refPart(stmt, dir string, env []string, cmd classify.Command, depth int) (part, bool, bool) {
+	ref := cmd.Refs[0]
+	t, found := b.tasks[taskKey{ref.Provider, filepath.Join(dir, ref.Dir), ref.Name}]
+	if !found {
+		return part{}, false, false
+	}
+	tv, why := b.verdict(t)
+	kinds := b.taskKinds(t, tv, depth+1)
+	return part{text: stmt, dir: dir, env: append(slices.Clone(env), cmd.Env...), task: &t, kinds: kinds}, why == "" && len(kinds) > 0, true
 }
 
 // taskKinds is the kinds task e checks: its verdict's kind, or, for an

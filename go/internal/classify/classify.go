@@ -5,7 +5,6 @@
 package classify
 
 import (
-	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -111,27 +110,32 @@ func (c *classifier) stmt(s *syntax.Stmt) {
 			c.stmt(cmd.Y)
 		}
 	case *syntax.DeclClause:
-		if cmd.Variant.Value != "export" {
-			c.opaque = cmd.Variant.Value
-			return
-		}
-		var env []string
-		for _, a := range cmd.Args {
-			// export FOO re-exports FOO's current value; it sets nothing.
-			if a.Name == nil || a.Naked {
-				continue
-			}
-			kv, ok := assignment(a)
-			if !ok {
-				c.opaque = "export with an expansion"
-				return
-			}
-			env = append(env, kv)
-		}
-		c.out = append(c.out, Command{Kind: Export, Env: env})
+		c.decl(cmd)
 	default:
 		c.opaque = "compound command"
 	}
+}
+
+// decl reads an export as the variables it sets; any other declaration is
+// opaque. export FOO re-exports FOO's current value, so it sets nothing.
+func (c *classifier) decl(cmd *syntax.DeclClause) {
+	if cmd.Variant.Value != "export" {
+		c.opaque = cmd.Variant.Value
+		return
+	}
+	var env []string
+	for _, a := range cmd.Args {
+		if a.Name == nil || a.Naked {
+			continue
+		}
+		kv, ok := assignment(a)
+		if !ok {
+			c.opaque = "export with an expansion"
+			return
+		}
+		env = append(env, kv)
+	}
+	c.out = append(c.out, Command{Kind: Export, Env: env})
 }
 
 // assignment is a as K=V; ok is false when its value holds an expansion.
@@ -286,118 +290,6 @@ func execTarget(words []string) (inner []string) {
 		return words[i:]
 	}
 	return nil
-}
-
-// runnerGrammar is the command line of a runner that takes several task
-// names: flags naming another file, setting the directory (dirGlued when
-// glued to its value), or taking a value (numeric ones only before a
-// number). make runs every target it's given; just (namesLookedUp) runs
-// each word that names a recipe, the rest being arguments to the recipe
-// before it.
-type runnerGrammar struct {
-	file, dir, numeric, valued []string
-	dirGlued                   string
-	namesLookedUp              bool
-}
-
-var runnerFlags = map[string]runnerGrammar{
-	"make": {file: []string{"-f", "--file", "--makefile", "--justfile"}, dir: []string{"-C", "--directory"}, dirGlued: "-C",
-		numeric: []string{"-j", "-l"}, valued: []string{"-o", "-W", "-I"}},
-	"just": {file: []string{"-f", "--file", "--makefile", "--justfile"}, dir: []string{"-d", "--working-directory"}, namesLookedUp: true},
-}
-
-// longestReference is the reference whose words are the longest prefix of
-// words, and that prefix's length in words.
-func longestReference(words []string) (*Reference, int) {
-	var best *Reference
-	bestLen := 0
-	for i, r := range Grammar.References {
-		n := len(strings.Fields(r.Words))
-		if n > bestLen && hasPrefix(words, strings.Fields(r.Words)) {
-			best, bestLen = &Grammar.References[i], n
-		}
-	}
-	return best, bestLen
-}
-
-// refArgs reads the words after a reference prefix into ref: its directory,
-// name, and arguments, plus the further task names of a runner that takes
-// several. kind is Ref, or FanOut or Other when one word makes the whole
-// command that.
-func (c *classifier) refArgs(ref TaskRef, rest []string) (_ TaskRef, more []string, kind Kind) {
-	flags, runner := runnerFlags[ref.Provider]
-	for i := 0; i < len(rest); i++ {
-		w := rest[i]
-		next := i+1 < len(rest)
-		switch {
-		case w == "--":
-			ref.Args = rest[i+1:]
-			i = len(rest)
-		case slices.Contains(Grammar.FanOutFlags, w) || slices.ContainsFunc(Grammar.FanOutFlags, func(f string) bool { return strings.HasPrefix(w, f+"=") }):
-			return ref, nil, FanOut
-		case runner && slices.Contains(flags.file, w):
-			// Another file's targets: the kit can't look them up.
-			return ref, nil, Other
-		case runner && slices.Contains(flags.dir, w) && next:
-			ref.Dir = rest[i+1]
-			i++
-		case runner && flags.dirGlued != "" && strings.HasPrefix(w, flags.dirGlued):
-			ref.Dir = strings.TrimPrefix(w, flags.dirGlued)
-		case runner && slices.Contains(flags.numeric, w) && next && isNumber(rest[i+1]),
-			runner && slices.Contains(flags.valued, w) && next:
-			i++ // a flag's value (make -j 4), not a target
-		case runner && strings.Contains(w, "="):
-			// make GOARCH=arm64 build, just os=linux build: a variable.
-		case strings.HasPrefix(w, "-"):
-		case ref.Name == "":
-			ref.Name = w
-		case runner && (!flags.namesLookedUp || len(ref.Args) == 0 && c.lookup(ref.Provider, ref.Dir, w)):
-			more = append(more, w)
-		default:
-			ref.Args = append(ref.Args, w)
-		}
-	}
-	return ref, more, Ref
-}
-
-// RefName is the task the words after r's prefix name, past option values
-// (make -C web lint names lint), or "" when they name none the kit reads.
-func RefName(r Reference, rest []string) string {
-	c := &classifier{lookup: func(string, string, string) bool { return false }}
-	ref, _, kind := c.refArgs(TaskRef{Provider: r.Provider, Name: r.Task}, rest)
-	if kind != Ref {
-		return ""
-	}
-	return ref.Name
-}
-
-// reference reads words as a task reference, by the longest matching
-// reference prefix.
-func (c *classifier) reference(words, env []string) (Command, bool) {
-	best, bestLen := longestReference(words)
-	if best == nil {
-		return Command{}, false
-	}
-	ref, more, kind := c.refArgs(TaskRef{Provider: best.Provider, Name: best.Task}, words[bestLen:])
-	if kind != Ref {
-		return Command{Kind: kind, Words: words, Env: env}, true
-	}
-	if ref.Name == "" || filepath.IsAbs(ref.Dir) || strings.HasPrefix(ref.Dir, "~") {
-		// make -C /opt/app: outside the repo, so not a task the kit can read.
-		return Command{Kind: Other, Words: words, Env: env}, true
-	}
-	if len(more) > 0 {
-		refs := []TaskRef{ref}
-		for _, name := range more {
-			refs = append(refs, TaskRef{Provider: ref.Provider, Dir: ref.Dir, Name: name})
-		}
-		return Command{Kind: Ref, Words: words, Env: env, Refs: refs}, true
-	}
-	if best.Shorthand && !c.lookup(ref.Provider, ref.Dir, ref.Name) {
-		// pnpm eslint: no such script, so pnpm runs the eslint binary.
-		return Command{Kind: Other, Words: words[bestLen:], Env: env}, true
-	}
-	return Command{Kind: Ref, Words: words, Env: env, Refs: []TaskRef{ref}}, true
 }
 
 // concurrently's arguments are quoted commands, each classified on its own.
