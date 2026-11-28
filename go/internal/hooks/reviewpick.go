@@ -12,9 +12,10 @@ import (
 )
 
 // readingAgents are the agents that only read, which a held review lets
-// the main thread launch: the kit's read-only ones and Claude Code's
-// Explore.
-var readingAgents = []string{"kit:gatherer", "kit:researcher", "kit:claim-checker", "kit:plan-critic", "Explore"}
+// the main thread launch: the kit's read-only ones, every agents/*.md
+// without Edit or Write in its tools (TestReadingAgentsListEveryReadOnlyAgent),
+// and Claude Code's Explore.
+var readingAgents = []string{"kit:auditor", "kit:gatherer", "kit:researcher", "kit:claim-checker", "kit:plan-critic", "Explore"}
 
 // ReviewPick holds the main thread from a finished /code-review until the
 // user answers, in a typed prompt or an AskUserQuestion, so no finding is

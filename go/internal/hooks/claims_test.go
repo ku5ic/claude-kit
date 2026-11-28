@@ -595,13 +595,19 @@ func TestClaimsMessageClipsByCharacter(t *testing.T) {
 	}
 }
 
-// A new skill's report kind would otherwise skip the check. unslop's is
-// the user's own draft, and prompt's a prompt, neither a set of claims.
+// A new skill's or agent's report kind would otherwise skip the check.
+// unslop's is the user's own draft, and prompt's a prompt, neither a set of
+// claims. A kind ends at any character a kind can't hold, a backtick
+// included.
 func TestCheckedReportsCoverEverySkillsReport(t *testing.T) {
-	kind := regexp.MustCompile("kit scratch-dir ([a-z0-9-]+) ")
+	kind := regexp.MustCompile("kit scratch-dir ([a-z0-9-]+)(?:[^a-z0-9-]|$)")
 	skills, _ := filepath.Glob(filepath.Join("..", "..", "..", "skills", "*", "SKILL.md"))
-	for _, skill := range skills {
-		name := filepath.Base(filepath.Dir(skill))
+	agents, _ := filepath.Glob(filepath.Join("..", "..", "..", "agents", "*.md"))
+	for _, skill := range append(skills, agents...) {
+		name := strings.TrimSuffix(filepath.Base(skill), ".md")
+		if name == "SKILL" {
+			name = filepath.Base(filepath.Dir(skill))
+		}
 		text, err := os.ReadFile(skill)
 		if err != nil {
 			t.Fatal(err)
