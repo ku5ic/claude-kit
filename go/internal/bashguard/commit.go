@@ -32,7 +32,7 @@ var (
 
 // CheckCommit is guard-commit: it inspects git commit commands for a staged
 // secret (gitleaks), an unchunked wall of text in the body (skills/kit-rules/reference/output.md
-// section 1), and AI tells in the message (kit.yml slop). AI attribution is
+// section 1), and AI tells in the message (kit.d/slop.yml slop). AI attribution is
 // guard-attribution's.
 func CheckCommit(h *hook.Hook) error {
 	if h.Payload.Err != nil {

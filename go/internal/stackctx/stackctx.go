@@ -53,8 +53,8 @@ func configTime(paths config.Paths) int64 {
 }
 
 // refresh regenerates the cache when it is missing, empty, or older than
-// a language manifest at root, kit.yml itself (its dependency_skills name
-// what the report lists), or the gap-fill cache its package managers come
+// a language manifest at root, the config (kit.d/skills.yml's
+// dependency_skills name what the report lists), or the gap-fill cache its package managers come
 // from. Times compare in whole seconds, as stat(1) did, so a cache written
 // in the same second as kit.yml still counts as fresh; gap-fill's answers,
 // which land in the background moments after a session starts, compare in

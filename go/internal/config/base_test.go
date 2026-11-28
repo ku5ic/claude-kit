@@ -93,3 +93,28 @@ func TestLoadCacheFollowsKitD(t *testing.T) {
 		t.Errorf("after it goes = %s", got)
 	}
 }
+
+// A problem with a key a kit.d/ file holds names that file, not kit.yml.
+func TestAKeyProblemNamesItsKitDFile(t *testing.T) {
+	p := kitDir(t, "tools: [rg]\n", map[string]string{"slop.yml": "slop: {block_tiers: [3]}\n"})
+	_, warnings, err := Load(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(p.BaseDir(), "slop.yml")
+	if len(warnings) != 1 || warnings[0].File != want || !strings.HasPrefix(warnings[0].Err.Error(), "slop.block_tiers") {
+		t.Errorf("warnings %v, want one on %s", warnings, want)
+	}
+}
+
+// A "!x" in a kit.d/ file that removes nothing is a warning, as in an overlay.
+func TestAKitDRemovalOfNothingWarns(t *testing.T) {
+	p := kitDir(t, "protected_branches: [main]\n", map[string]string{"guards.yml": "protected_branches: [\"!dev\"]\n"})
+	_, warnings, err := Load(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.ContainsFunc(warnings, func(w Warning) bool { return strings.Contains(w.Err.Error(), "!dev removes nothing") }) {
+		t.Errorf("warnings %v, want one for !dev", warnings)
+	}
+}

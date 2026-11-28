@@ -20,7 +20,7 @@ import (
 // Each connectors.path_fields value first gets guard-edit's path rules, as
 // a read for a tool that only reads and a write for any other.
 // A GitHub server's tool that doesn't only read blocks next on an AI
-// tool's attribution in any string of its input (kit.yml attribution).
+// tool's attribution in any string of its input (kit.d/guards.yml attribution).
 // PreToolUse for mcp__.*.
 func GuardConnector(h *hook.Hook) error {
 	p := h.Payload

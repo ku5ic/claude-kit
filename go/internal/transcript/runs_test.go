@@ -58,3 +58,27 @@ func TestAgentRuns(t *testing.T) {
 		t.Errorf("AgentRuns =\n%v\nwant\n%v", runs, want)
 	}
 }
+
+// Two notices in one entry each end their own run: the second is found,
+// and only the cut-off one is failed.
+func TestEachNoticeInOneEntryEndsItsOwnRun(t *testing.T) {
+	call := func(id string) string {
+		return `{"type":"assistant","message":{"content":[{"type":"tool_use","id":"` + id + `","name":"Agent","input":{"subagent_type":"kit:x","prompt":"check ` + id + `"}}]}}`
+	}
+	launched := func(id string) string {
+		return `{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"` + id + `","content":"Async agent launched successfully."}]}}`
+	}
+	both := `{"type":"user","message":{"content":"<task-notification>\n<tool-use-id>first</tool-use-id>\n<status>completed</status>\n<result>report</result>\n</task-notification>\n` +
+		`<task-notification>\n<tool-use-id>second</tool-use-id>\n<status>completed</status>\n<result>NOTE: this agent stopped at its 2-turn limit before finishing.\n</result>\n</task-notification>"}}`
+	entries, err := Load(write(t, call("first"), launched("first"), call("second"), launched("second"), both))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []RunStatus
+	for _, r := range AgentRuns(entries, "kit:x") {
+		got = append(got, r.Status)
+	}
+	if want := []RunStatus{RunDone, RunFailed}; !slices.Equal(got, want) {
+		t.Errorf("statuses %v, want %v", got, want)
+	}
+}

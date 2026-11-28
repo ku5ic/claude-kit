@@ -30,7 +30,7 @@ var (
 // CheckAttribution is guard-attribution: it blocks a git command that
 // writes a message (a commit, merge, tag, or note) and a gh or glab
 // command that may post text (a PR or MR, issue, release, or api call) when the text holds
-// an AI tool's attribution (kit.yml attribution). The whole command is
+// an AI tool's attribution (kit.d/guards.yml attribution). The whole command is
 // scanned, since the text can come from anywhere in it, then each file the
 // call reads text from. Where part of the command didn't parse, any git,
 // gh, or glab in it counts.

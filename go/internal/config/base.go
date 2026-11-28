@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"slices"
 
 	"go.yaml.in/yaml/v3"
@@ -45,9 +46,26 @@ func readBase(p Paths) (*yaml.Node, []layer, []Warning, error) {
 			base = node
 			continue
 		}
-		mergeNode(base, node)
+		for _, item := range mergeNode(base, node) {
+			warnings = append(warnings, Warning{path, fmt.Errorf("%s removes nothing: no earlier list holds it", item)})
+		}
 	}
 	return base, parts, warnings, nil
+}
+
+// leadingKey is the top-level key a validation problem's message opens with.
+var leadingKey = regexp.MustCompile(`^[a-z_]+`)
+
+// baseOwner is the base file in parts that sets the key err is about, the
+// last when two do; kit.yml when none does.
+func baseOwner(parts []layer, err error) string {
+	key, owner := leadingKey.FindString(err.Error()), parts[0].path
+	for _, l := range parts {
+		if mappingValue(l.node, key) != nil {
+			owner = l.path
+		}
+	}
+	return owner
 }
 
 // baseName is path as `kit config` names a file: kit.yml, or a kit.d/ or

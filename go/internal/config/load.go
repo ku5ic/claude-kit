@@ -152,7 +152,7 @@ func LoadBase(p Paths) (*Config, []Warning, error) {
 }
 
 func load(p Paths) (*Config, []Warning, error) {
-	base, _, warnings, err := readBase(p)
+	base, parts, warnings, err := readBase(p)
 	if err != nil {
 		return nil, warnings, err
 	}
@@ -191,7 +191,11 @@ func load(p Paths) (*Config, []Warning, error) {
 	patterns, bad := cfg.compileInstalls(p)
 	cfg.installs = &installPatterns{patterns, bad}
 	for _, err := range cfg.keyProblems() {
-		warnings = append(warnings, Warning{from, err})
+		file := from
+		if from == p.Base {
+			file = baseOwner(parts, err)
+		}
+		warnings = append(warnings, Warning{file, err})
 	}
 	warnings = append(warnings, bad...)
 	cfg.Tag = tag

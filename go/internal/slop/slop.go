@@ -1,4 +1,4 @@
-// Package slop finds AI tells in text with kit.yml's slop lexicon. Callers
+// Package slop finds AI tells in text with kit.d/slop.yml's lexicon. Callers
 // pick what's scanned (Prose for Markdown, a commit message, a reply) and
 // the surface it's on; Scan reports each hit with its tier and fix.
 package slop

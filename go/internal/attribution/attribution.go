@@ -1,5 +1,5 @@
 // Package attribution finds an AI tool's attribution in text bound for git
-// or GitHub, by the patterns in kit.yml attribution:.
+// or GitHub, by the patterns in kit.d/guards.yml attribution:.
 package attribution
 
 import (
