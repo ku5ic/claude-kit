@@ -33,7 +33,7 @@ func stringValues(value any) map[string]Body {
 		case string:
 			out[key] = Body{Text: v}
 		case []any:
-			if words := strings_(v); len(words) == len(v) && len(words) > 0 {
+			if words := StringList(v); len(words) == len(v) && len(words) > 0 {
 				out[key] = Body{Text: strings.Join(words, " ")}
 			}
 		case map[string]any:

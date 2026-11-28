@@ -35,7 +35,7 @@ func oneOrMany(v any) []string {
 	if s, ok := v.(string); ok {
 		return []string{s}
 	}
-	return strings_(v)
+	return StringList(v)
 }
 
 // lintStagedConfigs are where lint-staged looks, in its order; package.json

@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
+
+	"github.com/ku5ic/claude-kit/go/internal/sources"
 )
 
 var (
@@ -26,8 +28,32 @@ var (
 // packageKey is a requirement's package name: "PyYAML[ext]>=6" is pyyaml,
 // and serde-json and serde_json compare equal.
 func packageKey(requirement string) string {
-	name := packageKeyCut.Split(strings.TrimSpace(requirement), 2)[0]
-	return strings.ReplaceAll(strings.ToLower(name), "-", "_")
+	return strings.ReplaceAll(strings.ToLower(requirementName(requirement)), "-", "_")
+}
+
+// pythonKey is packageKey by PEP 503, as sources.PyName normalizes: any run
+// of -, _, and . is one separator, so zope.interface and Zope-Interface
+// are one distribution.
+func pythonKey(requirement string) string {
+	return strings.ReplaceAll(sources.PyName(requirementName(requirement)), "-", "_")
+}
+
+// requirementName is a requirement's name, before any extra, version, or
+// marker.
+func requirementName(requirement string) string {
+	return packageKeyCut.Split(strings.TrimSpace(requirement), 2)[0]
+}
+
+// keyOf is name's key in ecosystem: Go matches a module path as a prefix,
+// so its dashes stay.
+func keyOf(ecosystem, name string) string {
+	switch ecosystem {
+	case "go":
+		return strings.ToLower(name)
+	case "python":
+		return pythonKey(name)
+	}
+	return packageKey(name)
 }
 
 // localPrefixes mark a dependency spec that points into the repo.
@@ -54,85 +80,21 @@ func registryNames(deps any) []string {
 	return names
 }
 
-// lookup is m's value at keys, nil when one is missing or not a table.
-func lookup(m map[string]any, keys ...string) any {
-	var v any = m
-	for _, k := range keys {
-		t, ok := v.(map[string]any)
-		if !ok {
-			return nil
-		}
-		v = t[k]
-	}
-	return v
-}
-
-// stringList is v's string items, when v is a list.
-func stringList(v any) []string {
-	items, _ := v.([]any)
-	var out []string
-	for _, item := range items {
-		if s, ok := item.(string); ok {
-			out = append(out, s)
-		}
-	}
-	return out
-}
-
 // readManifest is a manifest's ecosystem and registry dependency names;
 // "" for a file that is no manifest.
 func readManifest(name, file string) (string, []string, error) {
 	switch {
 	case name == "package.json":
-		var m map[string]any
-		if err := readJSON(file, &m); err != nil {
-			return "", nil, err
-		}
-		var names []string
-		for _, field := range []string{"dependencies", "devDependencies", "peerDependencies", "optionalDependencies"} {
-			names = append(names, registryNames(m[field])...)
-		}
-		return "npm", names, nil
+		names, err := npmNames(file)
+		return "npm", names, err
 	case name == "Cargo.toml":
-		m, err := readTOML(file)
-		if err != nil {
-			return "", nil, err
-		}
-		var names []string
-		for _, t := range []any{m["dependencies"], m["dev-dependencies"], m["build-dependencies"], lookup(m, "workspace", "dependencies")} {
-			names = append(names, registryNames(t)...)
-		}
-		return "rust", names, nil
+		names, err := cargoNames(file)
+		return "rust", names, err
 	case name == "pyproject.toml":
-		m, err := readTOML(file)
-		if err != nil {
-			return "", nil, err
-		}
-		requirements := stringList(lookup(m, "project", "dependencies"))
-		optional, _ := lookup(m, "project", "optional-dependencies").(map[string]any)
-		for _, group := range optional {
-			requirements = append(requirements, stringList(group)...)
-		}
-		local := map[string]bool{}
-		sources, _ := lookup(m, "tool", "uv", "sources").(map[string]any)
-		for n := range sources {
-			local[packageKey(n)] = true
-		}
-		var names []string
-		for _, r := range requirements {
-			if !local[packageKey(r)] {
-				names = append(names, r)
-			}
-		}
-		return "python", append(names, registryNames(lookup(m, "tool", "poetry", "dependencies"))...), nil
+		names, err := pyprojectNames(file)
+		return "python", names, err
 	case requirementsFile.MatchString(name):
-		data, err := os.ReadFile(file)
-		var names []string
-		for line := range strings.SplitSeq(string(data), "\n") {
-			if t := strings.TrimSpace(line); t != "" && !strings.ContainsAny(t[:1], "#-./") {
-				names = append(names, t)
-			}
-		}
+		names, err := requirementNames(file)
 		return "python", names, err
 	case name == "Gemfile":
 		return "ruby", submatches(file, gemLine), nil
@@ -142,21 +104,59 @@ func readManifest(name, file string) (string, []string, error) {
 	return "", nil, nil
 }
 
-func readJSON(file string, v any) error {
-	data, err := os.ReadFile(file)
-	if err != nil {
-		return err
+// npmNames is package.json's registry dependencies, every kind.
+func npmNames(file string) ([]string, error) {
+	m, err := sources.DecodeErr[map[string]any](file, json.Unmarshal)
+	var names []string
+	for _, field := range []string{"dependencies", "devDependencies", "peerDependencies", "optionalDependencies"} {
+		names = append(names, registryNames(m[field])...)
 	}
-	return json.Unmarshal(data, v)
+	return names, err
 }
 
-func readTOML(file string) (map[string]any, error) {
-	data, err := os.ReadFile(file)
+// cargoNames is Cargo.toml's registry dependencies, the workspace's too.
+func cargoNames(file string) ([]string, error) {
+	m, err := sources.DecodeErr[map[string]any](file, toml.Unmarshal)
+	var names []string
+	for _, t := range []any{m["dependencies"], m["dev-dependencies"], m["build-dependencies"], sources.GetPath(m, "workspace.dependencies")} {
+		names = append(names, registryNames(t)...)
+	}
+	return names, err
+}
+
+// pyprojectNames is pyproject.toml's requirements, optional groups and
+// Poetry's table included, less what [tool.uv.sources] takes from a local
+// path.
+func pyprojectNames(file string) ([]string, error) {
+	m, err := sources.DecodeErr[map[string]any](file, toml.Unmarshal)
 	if err != nil {
 		return nil, err
 	}
-	var m map[string]any
-	return m, toml.Unmarshal(data, &m)
+	requirements := sources.StringList(sources.GetPath(m, "project.dependencies"))
+	optional, _ := sources.GetPath(m, "project.optional-dependencies").(map[string]any)
+	for _, group := range optional {
+		requirements = append(requirements, sources.StringList(group)...)
+	}
+	local := map[string]bool{}
+	uvSources, _ := sources.GetPath(m, "tool.uv.sources").(map[string]any)
+	for n := range uvSources {
+		local[pythonKey(n)] = true
+	}
+	names := slices.DeleteFunc(requirements, func(r string) bool { return local[pythonKey(r)] })
+	return append(names, registryNames(sources.GetPath(m, "tool.poetry.dependencies"))...), nil
+}
+
+// requirementNames is a requirements file's requirement lines, comments,
+// options, and local paths left out.
+func requirementNames(file string) ([]string, error) {
+	data, err := os.ReadFile(file)
+	var names []string
+	for line := range strings.SplitSeq(string(data), "\n") {
+		if t := strings.TrimSpace(line); t != "" && !strings.ContainsAny(t[:1], "#-./") {
+			names = append(names, t)
+		}
+	}
+	return names, err
 }
 
 // submatches is re's first group at each match in file; none when it
@@ -191,39 +191,13 @@ func readManifests(root string, files []string) manifests {
 		// An unreadable or oddly shaped manifest declares nothing, and is
 		// named, so its packages don't turn undeclared unexplained.
 		ecosystem, names, err := readManifest(name, abs)
-		if err != nil {
+		switch {
+		case err != nil:
 			m.skipped = append(m.skipped, file+": "+err.Error())
+		case ecosystem != "":
+			m.declare(ecosystem, names)
 		}
-		if err == nil && ecosystem != "" {
-			if m.declared[ecosystem] == nil {
-				m.declared[ecosystem] = map[string]bool{}
-			}
-			for _, n := range names {
-				// Go matches a module path as a prefix, so its dashes stay.
-				if ecosystem == "go" {
-					m.declared[ecosystem][strings.ToLower(n)] = true
-				} else {
-					m.declared[ecosystem][packageKey(n)] = true
-				}
-			}
-		}
-		switch name {
-		case "package.json":
-			var pkg struct{ Name string }
-			if readJSON(abs, &pkg) == nil && pkg.Name != "" {
-				m.npmNames = append(m.npmNames, pair{pkg.Name, dirOf(file)})
-			}
-		case "go.mod":
-			if mods := submatches(abs, goModule); len(mods) > 0 {
-				m.goModules = append(m.goModules, pair{mods[0], dirOf(file)})
-			}
-		case "pubspec.yaml":
-			if names := submatches(abs, pubspecName); len(names) > 0 {
-				m.dartLibs[strings.ToLower(names[0])] = path.Join(dirOf(file), "lib")
-			}
-		case "Cargo.toml":
-			m.addRustRoots(abs, dirOf(file), files)
-		}
+		m.addLayout(name, abs, file, files)
 	}
 	longestFirst := func(a, b pair) int { return cmp.Or(cmp.Compare(len(b.a), len(a.a)), strings.Compare(a.a, b.a)) }
 	slices.SortStableFunc(m.goModules, longestFirst)
@@ -231,10 +205,42 @@ func readManifests(root string, files []string) manifests {
 	return m
 }
 
+// declare records names as ecosystem's registry dependencies, by keyOf.
+func (m manifests) declare(ecosystem string, names []string) {
+	if m.declared[ecosystem] == nil {
+		m.declared[ecosystem] = map[string]bool{}
+	}
+	for _, n := range names {
+		m.declared[ecosystem][keyOf(ecosystem, n)] = true
+	}
+}
+
+// addLayout records what the manifest file, abs on disk, says about the
+// repo's layout: an npm package's name, a Go module path, a Dart lib dir,
+// or a crate's target roots.
+func (m *manifests) addLayout(name, abs, file string, files []string) {
+	switch name {
+	case "package.json":
+		if pkg := sources.Decode[struct{ Name string }](abs, json.Unmarshal); pkg.Name != "" {
+			m.npmNames = append(m.npmNames, pair{pkg.Name, dirOf(file)})
+		}
+	case "go.mod":
+		if mods := submatches(abs, goModule); len(mods) > 0 {
+			m.goModules = append(m.goModules, pair{mods[0], dirOf(file)})
+		}
+	case "pubspec.yaml":
+		if names := submatches(abs, pubspecName); len(names) > 0 {
+			m.dartLibs[strings.ToLower(names[0])] = path.Join(dirOf(file), "lib")
+		}
+	case "Cargo.toml":
+		m.addRustRoots(abs, dirOf(file), files)
+	}
+}
+
 // addRustRoots adds a crate's target roots: [lib] and [[bin]]-style paths,
 // and the auto-discovered target files.
 func (m manifests) addRustRoots(manifest, crate string, files []string) {
-	cargo, _ := readTOML(manifest)
+	cargo := sources.Decode[map[string]any](manifest, toml.Unmarshal)
 	targets := []any{cargo["lib"]}
 	for _, kind := range []string{"bin", "example", "test", "bench"} {
 		list, _ := cargo[kind].([]any)
@@ -274,7 +280,7 @@ func (m manifests) isDeclared(spec string, dotted bool, ecosystem string) bool {
 		}
 		return false
 	}
-	key := packageKey(externalName(spec, dotted))
+	key := keyOf(ecosystem, externalName(spec, dotted))
 	if ecosystem == "python" {
 		return m.declared["python"][key] || slices.ContainsFunc(pythonDistributions[key], func(d string) bool { return m.declared["python"][d] })
 	}
@@ -282,7 +288,7 @@ func (m manifests) isDeclared(spec string, dotted bool, ecosystem string) bool {
 }
 
 // pythonDistributions maps an import name to the distributions that
-// install it, both as packageKey writes them. PyYAML installs yaml.
+// install it, both as pythonKey writes them. PyYAML installs yaml.
 var pythonDistributions = map[string][]string{
 	"yaml":     {"pyyaml"},
 	"pil":      {"pillow"},

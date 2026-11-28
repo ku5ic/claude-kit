@@ -45,7 +45,8 @@ func GetPath(value any, path string) any {
 	return value
 }
 
-func strings_(value any) []string {
+// StringList is value's string items, when value is a list.
+func StringList(value any) []string {
 	items, ok := value.([]any)
 	if !ok {
 		return nil
@@ -62,13 +63,22 @@ func strings_(value any) []string {
 // Decode is file unmarshaled into a T, or the zero T when it can't be read
 // or parsed.
 func Decode[T any](file string, unmarshal func([]byte, any) error) T {
+	value, _ := DecodeErr[T](file, unmarshal)
+	return value
+}
+
+// DecodeErr is Decode with the error that made it the zero T.
+func DecodeErr[T any](file string, unmarshal func([]byte, any) error) (T, error) {
 	var value T
 	data, err := os.ReadFile(file)
-	if err != nil || unmarshal(data, &value) != nil {
-		var zero T
-		return zero
+	if err == nil {
+		err = unmarshal(data, &value)
 	}
-	return value
+	if err != nil {
+		var zero T
+		return zero, err
+	}
+	return value, nil
 }
 
 func readJSON(file string) any { return Decode[any](file, json.Unmarshal) }
@@ -125,7 +135,7 @@ func JSONKeys(file, path string) []string {
 
 // JSONArray lists the string items of the array at path.
 func JSONArray(file, path string) []string {
-	return strings_(GetPath(readJSON(file), path))
+	return StringList(GetPath(readJSON(file), path))
 }
 
 // JSONValue is the string or number at path, "" otherwise.
@@ -212,12 +222,12 @@ func keyParts(node *unstable.Node) []string {
 
 // TOMLArray lists the string items of the array at path.
 func TOMLArray(file, path string) []string {
-	return strings_(GetPath(readTOML(file), path))
+	return StringList(GetPath(readTOML(file), path))
 }
 
 // YAMLArray lists the string items of the sequence at path.
 func YAMLArray(file, path string) []string {
-	return strings_(GetPath(Decode[any](file, yaml.Unmarshal), path))
+	return StringList(GetPath(Decode[any](file, yaml.Unmarshal), path))
 }
 
 var (

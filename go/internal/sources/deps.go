@@ -241,7 +241,7 @@ func (d Deps) addReq(req string) {
 
 // addList adds a list of requirement strings.
 func (d Deps) addList(v any) {
-	for _, s := range strings_(v) {
+	for _, s := range StringList(v) {
 		d.addReq(s)
 	}
 }

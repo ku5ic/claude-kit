@@ -560,3 +560,16 @@ func TestRunUsage(t *testing.T) {
 		t.Errorf("a missing file: exit %d", code)
 	}
 }
+
+// Python names compare as PEP 503 has them, as sources.PyName does: a
+// requirement uv sources from a local path under another spelling is
+// local, not a registry dependency.
+func TestReadManifestMatchesPythonNamesByPEP503(t *testing.T) {
+	t.Parallel()
+	file := filepath.Join(t.TempDir(), "pyproject.toml")
+	testutil.Write(t, file, "[project]\ndependencies = [\"zope.interface>=5\", \"PyYAML\"]\n\n[tool.uv.sources]\nZope-Interface = { path = \"vendor/zope\" }\n")
+	ecosystem, names, err := readManifest("pyproject.toml", file)
+	if err != nil || ecosystem != "python" || !slices.Equal(names, []string{"PyYAML"}) {
+		t.Errorf("readManifest = %q, %q, %v; want python, [PyYAML]", ecosystem, names, err)
+	}
+}

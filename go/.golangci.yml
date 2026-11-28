@@ -61,8 +61,6 @@ linters:
         linters: [cyclop]
       - path: ^internal/codegraph/importers\.go$
         linters: [cyclop]
-      - path: ^internal/codegraph/manifests\.go$
-        linters: [cyclop, funlen]
       - path: ^internal/config/config\.go$
         linters: [revive]
       - path: ^internal/config/load\.go$
