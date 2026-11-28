@@ -110,20 +110,37 @@ func AgentRuns(entries []Entry, agentType string) []Run {
 }
 
 // noticeStatus is the status e's task notification gives the background
-// Agent call call, "" when e isn't one for it, and "cut off" for a run that
-// reached its maxTurns.
+// Agent call call, "" when e isn't one for it.
 func noticeStatus(e Entry, call string) string {
 	text := e.Notice + e.Text
 	for _, b := range e.Blocks {
 		text += b.Text
 	}
-	if !strings.Contains(text, "<tool-use-id>"+call+"</tool-use-id>") {
-		return ""
+	if n := ParseNotice(text); n.ToolUseID == call {
+		return n.Status
 	}
+	return ""
+}
+
+// noticeField is one of a task notification's tags.
+var noticeField = regexp.MustCompile(`<(task-id|tool-use-id|status)>([^<]*)</`)
+
+// Notice is a task notification's ids and status.
+type Notice struct{ TaskID, ToolUseID, Status string }
+
+// ParseNotice reads text's task-notification tags, the first of each.
+// Status is "cut off" for a run that reached its maxTurns, whose notice
+// says completed all the same.
+func ParseNotice(text string) Notice {
+	fields := map[string]string{}
+	for _, m := range noticeField.FindAllStringSubmatch(text, -1) {
+		if _, seen := fields[m[1]]; !seen {
+			fields[m[1]] = m[2]
+		}
+	}
+	n := Notice{fields["task-id"], fields["tool-use-id"], fields["status"]}
 	if cutOff.MatchString(text) {
-		return "cut off"
+		n.Status = "cut off"
 	}
-	_, rest, _ := strings.Cut(text, "<status>")
-	status, _, _ := strings.Cut(rest, "</status>")
-	return status
+	return n
 }

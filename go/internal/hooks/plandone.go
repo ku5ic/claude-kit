@@ -20,8 +20,7 @@ var (
 	doneStep = regexp.MustCompile(`(?m)^\s*[-*] \[[xX]\]`)
 	// A typed /code-review forks with this launch record; a Skill call is
 	// known by its tool_use id. Either one's task-notification names it.
-	launchTag   = regexp.MustCompile(`<forked-skill-launch>(.*?)</forked-skill-launch>`)
-	notifyField = regexp.MustCompile(`<(task-id|tool-use-id|status)>([^<]*)</`)
+	launchTag = regexp.MustCompile(`<forked-skill-launch>(.*?)</forked-skill-launch>`)
 	// fixReview is a typed /code-review that asks for its fixes.
 	fixReview = regexp.MustCompile(`(?s)code-review\b.*--fix\b`)
 	// fixesReply is a reply calling the edits since a review its fixes.
@@ -56,20 +55,15 @@ func isNotification(text string) bool {
 
 // endedReview is the transcript line where the review a task-notification
 // reports was started, its id, and whether it completed, or -1. A killed
-// review ended but never counts.
+// review, or one cut off at its turn limit, ended but never counts.
 func endedReview(text string, started map[string]int) (int, string, bool) {
 	if !isNotification(text) {
 		return -1, "", false
 	}
-	fields := map[string]string{}
-	for _, m := range notifyField.FindAllStringSubmatch(text, -1) {
-		if _, seen := fields[m[1]]; !seen {
-			fields[m[1]] = m[2]
-		}
-	}
-	for _, id := range []string{fields["tool-use-id"], fields["task-id"]} {
+	n := transcript.ParseNotice(text)
+	for _, id := range []string{n.ToolUseID, n.TaskID} {
 		if line, ok := started[id]; ok && id != "" {
-			return line, id, fields["status"] == "completed"
+			return line, id, n.Status == "completed"
 		}
 	}
 	return -1, "", false
