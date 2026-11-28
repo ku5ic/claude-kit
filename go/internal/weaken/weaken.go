@@ -59,6 +59,9 @@ func Check(c config.WeakenedChecks, path, before, after string) Result {
 	}
 	newLines := strings.Split(after, "\n")
 	lines := added(before, newLines)
+	if r.Lost > 0 && folded(c, newLines, lines) {
+		r.Lost = 0
+	}
 	if len(lines) == 0 {
 		return r
 	}
@@ -102,6 +105,18 @@ func added(before string, after []string) []int {
 		}
 	}
 	return out
+}
+
+// folded is whether the added lines hold a table loop and an assertion:
+// a refactor that runs one assertion per table row, not a lost check.
+func folded(c config.WeakenedChecks, after []string, added []int) bool {
+	loops, asserts := compile(c.TableLoops), compile(c.Assertions)
+	loop, assert := false, false
+	for _, i := range added {
+		loop = loop || matches(loops, after[i])
+		assert = assert || matches(asserts, after[i])
+	}
+	return loop && assert
 }
 
 func above(lines []string, i int) string {

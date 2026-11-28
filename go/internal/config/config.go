@@ -384,6 +384,9 @@ type WeakenedChecks struct {
 	Skips        []string `yaml:"skips"`
 	Suppressions []string `yaml:"suppressions"`
 	Assertions   []string `yaml:"assertions"`
+	// TableLoops are the lines that run a test body once per table row:
+	// an assertion moved into one isn't lost.
+	TableLoops []string `yaml:"table_loops"`
 	// Snapshots are the snapshot files' globs; SnapshotUpdates, the
 	// commands that rewrite them.
 	Snapshots       []string `yaml:"snapshots"`
@@ -396,7 +399,7 @@ func (w WeakenedChecks) problems() []error {
 	for _, l := range []struct {
 		name     string
 		patterns []string
-	}{{"skips", w.Skips}, {"suppressions", w.Suppressions}, {"assertions", w.Assertions}, {"snapshot_updates", w.SnapshotUpdates}} {
+	}{{"skips", w.Skips}, {"suppressions", w.Suppressions}, {"assertions", w.Assertions}, {"table_loops", w.TableLoops}, {"snapshot_updates", w.SnapshotUpdates}} {
 		for _, p := range l.patterns {
 			if _, err := regexp.Compile(p); err != nil {
 				errs = append(errs, fmt.Errorf("weakened_checks.%s: %q doesn't compile", l.name, p))

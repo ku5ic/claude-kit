@@ -379,6 +379,8 @@ weakened_checks:
   assertions: ['\bt\.(Error|Errorf|Fatal|Fatalf|Fail|FailNow)\(', '\b(assert|require)\.[A-Z]\w*\(', '\bexpect\(',
     '\bassert(\.\w+)?\(', '^\s*assert\b', '\bself\.assert\w+\(', '\bpytest\.raises\(',
     '\bassert[A-Z]\w*\(']
+  table_loops: ['^\s*for\s.*\brange\b', '\b(it|test|describe)\.each\b', '\.forEach\(', '^\s*for\s*\(\s*(const|let)\b.*\bof\b',
+    '@pytest\.mark\.parametrize\b', '^\s*for\s+\w.*\bin\b', '\bself\.subTest\(', '^\s*@ParameterizedTest\b']
   snapshots: ["*.snap", "*/__snapshots__/*"]
   snapshot_updates: ['\b(jest|vitest|playwright\s+test|(npm|pnpm|yarn|bun)\s+(run\s+)?test)\b.*\s(-u|--update(Snapshot|-snapshots?)?)\b', '\bpytest\b.*\s--snapshot-update\b']
 

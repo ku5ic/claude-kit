@@ -334,7 +334,10 @@ func (c *command) check() error {
 	if err := c.globalInstall(); err != nil {
 		return err
 	}
-	if weaken.UpdatesSnapshots(c.st.cfg.WeakenedChecks, strings.Join(append([]string{c.name}, c.values()...), " ")) {
+	// A word holding a space is one argument, a search pattern or a
+	// message, never the runner and its flags.
+	words := slices.DeleteFunc(append([]string{c.name}, c.values()...), func(w string) bool { return strings.ContainsAny(w, " \t\n") })
+	if weaken.UpdatesSnapshots(c.st.cfg.WeakenedChecks, strings.Join(words, " ")) {
 		c.st.ask("this rewrites every snapshot the run disagrees with, so the tests would accept whatever the code prints now; confirm the new output is what you want", "snapshot-rewrite")
 	}
 	if check, ok := commandChecks[c.name]; ok {

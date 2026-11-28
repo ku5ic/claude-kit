@@ -13,6 +13,7 @@ var checks = config.WeakenedChecks{
 	Skips:        []string{`\bt\.Skip(Now|f)?\(`, `\b(it|test|describe)\.(skip|only)\(`, `@pytest\.mark\.(skip|skipif|xfail)\b`, `(?:^|[^.\w$])f(it|describe)\(`},
 	Suppressions: []string{`//\s*nolint\b`, `eslint-disable`, `@ts-(ignore|expect-error)\b`, `#\s*noqa\b`},
 	Assertions:   []string{`\bt\.(Error|Errorf|Fatal|Fatalf)\(`, `\bexpect\(`, `^\s*assert\b`},
+	TableLoops:   []string{`^\s*for\s.*\brange\b`, `\b(it|test)\.each\b`},
 }
 
 func lines(l ...string) string { return strings.Join(l, "\n") }
@@ -67,6 +68,18 @@ func TestCheck(t *testing.T) {
 		{"deleted assertions", "pkg/a_test.go",
 			lines(`if got != 1 {`, `	t.Errorf("got %d", got)`, `}`, `if err != nil {`, `	t.Fatal(err)`, `}`),
 			lines(`_ = got`),
+			nil, 2},
+		{"assertions folded into a table loop are moved, not lost", "pkg/a_test.go",
+			lines(`if add(1) != 2 {`, `	t.Errorf("add(1)")`, `}`, `if add(2) != 3 {`, `	t.Errorf("add(2)")`, `}`, `if add(3) != 4 {`, `	t.Errorf("add(3)")`, `}`),
+			lines(`for _, n := range []int{1, 2, 3} {`, `	if add(n) != n+1 {`, `		t.Errorf("add(%d)", n)`, `	}`, `}`),
+			nil, 0},
+		{"a test.each table folds expects too", "web/a.test.ts",
+			lines("expect(add(1)).toBe(2)", "expect(add(2)).toBe(3)"),
+			lines("test.each([[1, 2], [2, 3]])('add(%i)', (n, want) => {", "  expect(add(n)).toBe(want)", "})"),
+			nil, 0},
+		{"a loop added with no assertion in the edit still loses them", "pkg/a_test.go",
+			lines(`if add(1) != 2 {`, `	t.Errorf("add(1)")`, `}`, `if add(2) != 3 {`, `	t.Errorf("add(2)")`, `}`),
+			lines(`for _, n := range []int{1, 2} {`, `	_ = add(n)`, `}`),
 			nil, 2},
 		{"a rewritten assertion loses nothing", "web/a.test.ts",
 			"expect(a).toBe(1)",

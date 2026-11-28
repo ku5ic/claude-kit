@@ -108,6 +108,6 @@
 {"class":"zsh","cmd":"for f in *.md(N); do echo $f; done","want":"ask"}
 {"class":"kit-switch","step":10,"cwd":"{home}/.claude/logs","cmd":"cd {root} && (cd go && go test ./e2e/)","want":"pass"}
 {"class":"kit-switch","cwd":"{home}/.claude/logs","cmd":"echo x > {home}/.claude/logs/x","want":"ask"}
-{"class":"snapshot","step":13,"cmd":"rg -n 'jest -u' go/internal","now":"ask","want":"pass"}
-{"class":"snapshot","step":13,"cmd":"echo \"run pnpm test -u\"","now":"ask","want":"pass"}
+{"class":"snapshot","step":13,"cmd":"rg -n 'jest -u' go/internal","want":"allow"}
+{"class":"snapshot","step":13,"cmd":"echo \"run pnpm test -u\"","want":"pass"}
 {"class":"snapshot","cmd":"pnpm test -u","want":"ask"}
