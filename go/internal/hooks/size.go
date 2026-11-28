@@ -52,7 +52,7 @@ func CheckSize(h *hook.Hook) error {
 			if m != "" && !markSentBack(h, m, report, "size") {
 				return nil
 			}
-			return h.Block(sizeMessage("your report", n, b.Report, "send the shorter report"), "size")
+			return h.Block(sizeMessage("your report", n, allowance(h, b.Report), "send the shorter report"), "size")
 		}
 		return nil
 	case tool == "SubagentHandback":
@@ -81,7 +81,7 @@ func CheckSize(h *hook.Hook) error {
 	}
 	if tool == "SubagentHandback" {
 		if n := countWords(text, false); budget > 0 && n > allowance(h, budget) && marker != "" && !wasSentBack(marker) && markSentBack(h, marker, text, "size") {
-			h.Deny(sizeMessage(where, n, budget, then), "size")
+			h.Deny(sizeMessage(where, n, allowance(h, budget), then), "size")
 		}
 		return nil
 	}
@@ -113,7 +113,7 @@ func sizeOnce(h *hook.Hook, text, where, then string, budget int, marker string)
 		return
 	}
 	if n > allowance(h, budget) && markOnce(h, marker, []byte(sentBackMark), "size") {
-		h.Deny(sizeMessage(where, n, budget, then), "size")
+		h.Deny(sizeMessage(where, n, allowance(h, budget), then), "size")
 	}
 }
 
@@ -123,10 +123,11 @@ func wasSentBack(marker string) bool {
 	return n > 0
 }
 
-// sizeMessage says how far over its budget a deliverable runs, then what to do.
-func sizeMessage(where string, n, budget int, then string) string {
+// sizeMessage says how far over its allowance, the budget plus
+// reply_slack, a deliverable runs, then what to do.
+func sizeMessage(where string, n, limit int, then string) string {
 	return strings.Join([]string{
-		fmt.Sprintf("%s runs %d words, over the %d-word budget", where, n, budget),
+		fmt.Sprintf("%s runs %d words, over the %d-word allowance", where, n, limit),
 		layout.KV("do", "cut what doesn't serve the problem it answers; fenced code doesn't count"),
 		layout.KV("then", then+", or send it unchanged to keep this length"),
 	}, "\n")

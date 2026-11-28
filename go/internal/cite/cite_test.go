@@ -53,3 +53,55 @@ func TestFiles(t *testing.T) {
 		t.Errorf("Files = %q, want %q", got, want)
 	}
 }
+
+// A citation on a line naming a commit points at that revision, which the
+// working tree can't check.
+func TestBrokenSkipsAnotherRevision(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	testutil.Put(t, root, "go/stop.go", "a\n")
+	for _, text := range []string{
+		"`go/stop.go:9` at 909e23e",
+		"go/stop.go:9 (commit b71e789, new-side lines)",
+		"go/stop.go:9 on HEAD (5bc6e0e)",
+	} {
+		if got := Broken(root, text); got != nil {
+			t.Errorf("Broken(%q) = %v, want none", text, got)
+		}
+	}
+	if got := Broken(root, "go/stop.go:9 in deadbeef and 1234567"); len(got) != 1 {
+		t.Errorf("a hex word or a plain number isn't a commit: got %v", got)
+	}
+}
+
+// A path short of its leading directories resolves to the one tracked file
+// it ends, checked like any other.
+func TestBrokenResolvesAShortenedPath(t *testing.T) {
+	t.Parallel()
+	root := testutil.Physical(t, t.TempDir())
+	testutil.Put(t, root, "hooks/hooks.json", "{}\n")
+	testutil.Put(t, root, "go/internal/hooks/stop.go", "a\nb\nc\n")
+	testutil.Git(t, root, "init", "-q")
+	testutil.Git(t, root, "add", ".")
+	for text, want := range map[string][]Problem{
+		"hooks/stop.go:2":  nil,
+		"hooks/stop.go:9":  {{"hooks/stop.go:9", "the file has 3 lines"}},
+		"hooks/start.go:1": {{"hooks/start.go:1", "no such file"}},
+	} {
+		if got := Broken(root, text); !slices.Equal(got, want) {
+			t.Errorf("Broken(%q) = %v, want %v", text, got, want)
+		}
+	}
+}
+
+// A commit named after one citation leaves the others in its sentence
+// checked.
+func TestBrokenChecksTheCitationsBesideARevision(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	testutil.Put(t, root, "go/stop.go", "a\n")
+	text := "See go/stop.go:9 at 909e23e, and go/stop.go:7."
+	if got := Broken(root, text); !slices.Equal(got, []Problem{{"go/stop.go:7", "the file has 1 lines"}}) {
+		t.Errorf("Broken(%q) = %v", text, got)
+	}
+}

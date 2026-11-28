@@ -291,7 +291,7 @@ func TestPlanDispatchDeniesOnceForEveryReason(t *testing.T) {
 	r := k.run("plan-dispatch", map[string]any{"hook_event_name": "PreToolUse", "session_id": "s", "cwd": dir, "tool_name": "ExitPlanMode",
 		"tool_input": map[string]any{"plan": "# Plan\n\n- src/stop.go:40 returns early, so the gate never runs twice.", "planFilePath": filepath.Join(dir, ".claude/plans/p.md")}})
 	r.Denied(t)
-	r.Has(t, "over the 5-word budget", "citation(s) in the plan p.md that don't resolve")
+	r.Has(t, "over the 5-word allowance", "citation(s) in the plan p.md that don't resolve")
 }
 
 // A plan's claims get the hook's own run, critiqued or not, and the plan

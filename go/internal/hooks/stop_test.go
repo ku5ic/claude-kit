@@ -952,6 +952,14 @@ func TestReviewReport(t *testing.T) {
 		stop(e, false).Want(t, 0)
 		ask(e, "AskUserQuestion").Allowed(t)
 	})
+	t.Run("a report Write sent beside the AskUserQuestion, its result not in yet, lets it through", func(t *testing.T) {
+		t.Parallel()
+		e := finished(t)
+		e.line(testutil.UserPrompt("write it up"))
+		e.line(testutil.ToolUse("toolu_w", "Write", map[string]any{"file_path": report(e)}))
+		e.line(testutil.ToolUse("toolu_q", "AskUserQuestion", map[string]any{}))
+		ask(e, "AskUserQuestion").Allowed(t)
+	})
 	t.Run("a report Write another guard denied doesn't count", func(t *testing.T) {
 		t.Parallel()
 		e := finished(t)

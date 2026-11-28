@@ -1,6 +1,6 @@
 // Package cite finds file:line citations in a text that don't resolve in a
-// project: a file that isn't there, or a line past its end. It reads files
-// only, no model.
+// project: a file that isn't there, or a line past its end. It reads files,
+// and git's file list for a shortened path, no model.
 package cite
 
 import (
@@ -12,6 +12,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/ku5ic/claude-kit/go/internal/git"
 )
 
 // citation is path:line or path:line-line, after a space, quote, bracket,
@@ -23,15 +25,51 @@ type Problem struct {
 	Cite, Reason string
 }
 
+// hexWord is a word that may be a commit hash.
+var hexWord = regexp.MustCompile(`\b[0-9a-f]{7,40}\b`)
+
+// namesRevision is whether text names a commit, a hex word with a digit
+// and a letter.
+func namesRevision(text string) bool {
+	return slices.ContainsFunc(hexWord.FindAllString(text, -1), func(w string) bool {
+		return strings.ContainsAny(w, "0123456789") && strings.ContainsAny(w, "abcdef")
+	})
+}
+
+// matches is every citation match in text but one followed, before the
+// next citation or the sentence's end, by a commit it points at.
+func matches(text string) [][]string {
+	var out [][]string
+	subs, at := citation.FindAllStringSubmatch(text, -1), citation.FindAllStringIndex(text, -1)
+	for i, m := range at {
+		end := len(text)
+		if i+1 < len(at) {
+			end = at[i+1][0]
+		}
+		after := text[m[1]:end]
+		if j := strings.IndexAny(after, "\n;"); j >= 0 {
+			after = after[:j]
+		}
+		if j := strings.Index(after, ". "); j >= 0 {
+			after = after[:j]
+		}
+		if !namesRevision(after) {
+			out = append(out, subs[i])
+		}
+	}
+	return out
+}
+
 // Broken is every citation in text that doesn't resolve under root, in the
 // order they appear, each once. A citation whose first path segment isn't
 // in root points at another tree, and is skipped, as is a bare file name
-// not at root, which could live in any directory.
+// not at root, which could live in any directory, and one that names a
+// commit after it.
 func Broken(root, text string) []Problem {
 	var out []Problem
 	seen := map[string]bool{}
 	lines := map[string]int{}
-	for _, m := range citation.FindAllStringSubmatch(text, -1) {
+	for _, m := range matches(text) {
 		cite := m[1] + ":" + m[2]
 		if m[3] != "" {
 			cite += "-" + m[3]
@@ -57,7 +95,8 @@ func Broken(root, text string) []Problem {
 }
 
 // inRoot is the file a cited path names under root, and whether the
-// citation is root's to check.
+// citation is root's to check. A relative path that names no file there
+// is read as a shortened one, naming the one tracked file it ends.
 func inRoot(root, cited string) (string, bool) {
 	path := cited
 	if !filepath.IsAbs(path) {
@@ -70,6 +109,11 @@ func inRoot(root, cited string) (string, bool) {
 	first, _, _ := strings.Cut(filepath.ToSlash(rel), "/")
 	if _, err := os.Stat(filepath.Join(root, first)); err != nil {
 		return "", false
+	}
+	if _, err := os.Stat(path); err != nil && !filepath.IsAbs(cited) {
+		if ends, _ := git.Lines(root, "ls-files", "--", ":(glob)**/"+filepath.ToSlash(cited)); len(ends) == 1 {
+			return filepath.Join(root, ends[0]), true
+		}
 	}
 	return path, true
 }
@@ -114,7 +158,7 @@ func check(n int, line, end string) string {
 // here too.
 func Files(root, text string) []string {
 	var out []string
-	for _, m := range citation.FindAllStringSubmatch(text, -1) {
+	for _, m := range matches(text) {
 		if path, ok := inRoot(root, m[1]); ok && !slices.Contains(out, path) {
 			out = append(out, path)
 		}

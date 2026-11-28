@@ -1,7 +1,9 @@
 package hooks
 
 import (
+	"maps"
 	"os"
+	"slices"
 	"strconv"
 
 	"github.com/ku5ic/claude-kit/go/internal/cache"
@@ -43,7 +45,10 @@ func ReviewReport(h *hook.Hook) error {
 	// block was shown, so a retried Stop or a later turn can't loop on it.
 	marker := h.Paths.SessionFile(cache.ReviewReport, h.Payload.SessionID())
 	arrived := strconv.Itoa(walk.ReviewArrived)
-	if seen, _ := os.ReadFile(marker); walk.ReviewArrived <= walk.ReviewReported || string(seen) == arrived {
+	// An AskUserQuestion sent beside the report's Write runs before that
+	// Write's result is in, so a pending one counts there.
+	pending := !stop && slices.ContainsFunc(slices.Collect(maps.Values(walk.ReportWrites)), func(w reportWrite) bool { return w.Line > walk.ReviewArrived })
+	if seen, _ := os.ReadFile(marker); walk.ReviewArrived <= walk.ReviewReported || pending || string(seen) == arrived {
 		return nil
 	}
 	if !markOnce(h, marker, []byte(arrived), "review-report") {

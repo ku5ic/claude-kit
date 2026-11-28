@@ -48,7 +48,7 @@ func TestCheckSize(t *testing.T) {
 			k.overlay(budgets)
 			r := k.run("check-size", tc.call(k, long))
 			r.Denied(t)
-			r.Has(t, tc.where+" runs 7 words, over the 5-word budget", tc.then, "or send it unchanged to keep this length", "rule  size")
+			r.Has(t, tc.where+" runs 7 words, over the 5-word allowance", tc.then, "or send it unchanged to keep this length", "rule  size")
 			// A rewrite still over budget is not sent back again.
 			k.run("check-size", tc.call(k, long+" Eight.")).Allowed(t)
 			if third := k.run("check-size", tc.call(k, long)); tc.rearm {
@@ -113,7 +113,7 @@ func TestCheckSize(t *testing.T) {
 		k.run("check-size", plan("One two three four five six.")).Allowed(t)
 		r := k.run("check-size", plan(long))
 		r.Denied(t)
-		r.Has(t, "runs 7 words, over the 4-word budget")
+		r.Has(t, "runs 7 words, over the 6-word allowance")
 	})
 	t.Run("a subagent stop within the slack goes through, and one past it blocks", func(t *testing.T) {
 		t.Parallel()
