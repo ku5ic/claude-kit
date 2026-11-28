@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ku5ic/claude-kit/go/internal/cite"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/transcript"
@@ -53,12 +54,12 @@ func isNotification(text string) bool {
 	return strings.HasPrefix(strings.TrimSpace(text), "<task-notification>")
 }
 
-// finishedReview is the transcript line where the review a completed
-// task-notification reports was started, and its id, or -1. A killed
-// review never counts.
-func finishedReview(text string, started map[string]int) (int, string) {
+// endedReview is the transcript line where the review a task-notification
+// reports was started, its id, and whether it completed, or -1. A killed
+// review ended but never counts.
+func endedReview(text string, started map[string]int) (int, string, bool) {
 	if !isNotification(text) {
-		return -1, ""
+		return -1, "", false
 	}
 	fields := map[string]string{}
 	for _, m := range notifyField.FindAllStringSubmatch(text, -1) {
@@ -66,32 +67,33 @@ func finishedReview(text string, started map[string]int) (int, string) {
 			fields[m[1]] = m[2]
 		}
 	}
-	if fields["status"] != "completed" {
-		return -1, ""
-	}
 	for _, id := range []string{fields["tool-use-id"], fields["task-id"]} {
 		if line, ok := started[id]; ok && id != "" {
-			return line, id
+			return line, id, fields["status"] == "completed"
 		}
 	}
-	return -1, ""
+	return -1, "", false
 }
 
 // planWalk is the plan-done state as it walks a transcript, kept between
 // Stop runs so each one reads only the lines since the last. Lines are
 // transcript line numbers; -1 is never.
 type planWalk struct {
-	LastEdit   int            `json:"last_edit"`
-	LastReview int            `json:"last_review"`
-	Started    map[string]int `json:"started"` // review tool_use or task id -> its start line
-	Ticked     []string       `json:"ticked"`  // plans this turn edited, or changed through Bash
+	LastEdit   int             `json:"last_edit"`
+	LastReview int             `json:"last_review"`
+	Started    map[string]int  `json:"started"` // review tool_use or task id -> its start line
+	Running    map[string]bool `json:"running"` // the started reviews with no notification yet
+	Ticked     []string        `json:"ticked"`  // plans this turn edited, or changed through Bash
 	// ReviewArrived is where a finished review's notification landed, and
 	// ReviewReported where a review scratch report was last written.
 	ReviewArrived  int `json:"review_arrived"`
 	ReviewReported int `json:"review_reported"`
-	// ReportWrites is a report write's tool_use id -> its line, until its
-	// result: a write another guard denied wrote no report.
-	ReportWrites map[string]int `json:"report_writes"`
+	// ReportWrites is a report write's tool_use id -> its line and path,
+	// until its result, since a write another guard denied wrote no report.
+	ReportWrites map[string]reportWrite `json:"report_writes"`
+	// Cited is the files the last review report written cites: an edit to
+	// one of them is a fix for its findings, and needs no second review.
+	Cited []string `json:"cited"`
 	// CodeEdits is the code edits, by an edit tool or a recorded Bash call,
 	// whose result hasn't come: an edit counts from its call, then again
 	// from its result, so a review launched beside it in one message
@@ -116,6 +118,7 @@ type planWalk struct {
 	// bashed is bashEdits, read fresh by each run: a Bash call's record is
 	// written before its result, so it's there by the time the walk reads it.
 	bashed map[string][]string
+	root   string // the repo the walk reads cites under, set like bashed
 	// plans is the plans dir's files, each with the pattern that finds its
 	// name in a command, listed at the walk's first Bash call.
 	plans  []listedPlan
@@ -123,13 +126,13 @@ type planWalk struct {
 }
 
 func newPlanWalk() *planWalk {
-	return &planWalk{LastEdit: -1, LastReview: -1, Started: map[string]int{}, ReviewArrived: -1, ReviewReported: -1, ReportWrites: map[string]int{}, CodeEdits: map[string]bool{}, EditPrev: map[string]int{},
+	return &planWalk{LastEdit: -1, LastReview: -1, Started: map[string]int{}, Running: map[string]bool{}, ReviewArrived: -1, ReviewReported: -1, ReportWrites: map[string]reportWrite{}, CodeEdits: map[string]bool{}, EditPrev: map[string]int{},
 		HoldFrom: -1, Answered: -1, Asks: map[string]bool{}, Fixes: map[string]bool{}}
 }
 
 // start records review id starting at line, as a --fix one when fix.
 func (w *planWalk) start(id string, line int, fix bool) {
-	w.Started[id] = line
+	w.Started[id], w.Running[id] = line, true
 	if fix {
 		w.Fixes[id] = true
 	}
@@ -143,7 +146,11 @@ func (w *planWalk) step(h *hook.Hook, e transcript.Entry, plansDir string, isCod
 	}
 	// A notification arrives as a user message or a queued command.
 	for _, text := range []string{e.Text, e.Notice} {
-		if started, id := finishedReview(text, w.Started); started >= 0 {
+		started, id, completed := endedReview(text, w.Started)
+		if started >= 0 {
+			delete(w.Running, id)
+		}
+		if completed {
 			w.LastReview, w.ReviewArrived = max(w.LastReview, started), e.Line
 			if !w.Fixes[id] {
 				w.HoldFrom = e.Line
@@ -167,9 +174,12 @@ func (w *planWalk) step(h *hook.Hook, e transcript.Entry, plansDir string, isCod
 			}
 			delete(w.Asks, b.ToolUseID)
 		}
-		if line, ok := w.ReportWrites[b.ToolUseID]; ok {
+		if write, ok := w.ReportWrites[b.ToolUseID]; ok {
 			if !b.IsError {
-				w.ReviewReported = max(w.ReviewReported, line)
+				w.ReviewReported = max(w.ReviewReported, write.Line)
+				if data, err := os.ReadFile(write.Path); err == nil {
+					w.Cited = cite.Files(w.root, string(data))
+				}
 			}
 			delete(w.ReportWrites, b.ToolUseID)
 		}
@@ -204,21 +214,35 @@ func (w *planWalk) step(h *hook.Hook, e transcript.Entry, plansDir string, isCod
 		case b.Name == "AskUserQuestion":
 			w.Asks[b.ID] = true
 		case slices.Contains(transcript.EditTools, b.Name) && scratchReport(h, b.Path(), "review"):
-			w.ReportWrites[b.ID] = e.Line
+			w.ReportWrites[b.ID] = reportWrite{e.Line, b.Path()}
 		case slices.Contains(transcript.EditTools, b.Name):
 			if p := b.Path(); fsx.Within(plansDir, p) {
 				w.Ticked = append(w.Ticked, p)
-			} else if isCode(p) {
+			} else if isCode(p) && !w.fixes(p) {
 				w.EditPrev[b.ID] = w.LastEdit
 				w.LastEdit, w.CodeEdits[b.ID] = e.Line, true
 			}
 		case b.Name == "Bash":
-			if slices.ContainsFunc(w.bashed[b.ID], isCode) {
+			if code := slices.DeleteFunc(slices.Clone(w.bashed[b.ID]), func(p string) bool { return !isCode(p) }); len(code) > 0 && !w.fixes(code...) {
 				w.LastEdit, w.CodeEdits[b.ID] = e.Line, true
 			}
 			w.Ticked = append(w.Ticked, w.bashTicked(b.Input.Command, e.Timestamp, plansDir)...)
 		}
 	}
+}
+
+// reportWrite is where a review report write was called, and the report.
+type reportWrite struct {
+	Line int    `json:"line"`
+	Path string `json:"path"`
+}
+
+// fixes is whether an edit to paths fixes the last review report's
+// findings: a review has finished, and the report cites every one.
+func (w *planWalk) fixes(paths ...string) bool {
+	return w.LastReview >= 0 && !slices.ContainsFunc(paths, func(p string) bool {
+		return !slices.Contains(w.Cited, fsx.Abs(w.root, p)) && !slices.Contains(w.Cited, fsx.PhysicalPath(p))
+	})
 }
 
 // bashTicked is each plan in plansDir that command names by its file name,
@@ -252,7 +276,7 @@ func (w *planWalk) bashTicked(command, at, plansDir string) []string {
 // done is the Stop hook's end-of-plan moment (skills/kit-rules/reference/verify.md): plan
 // is the plan whose last open step this turn ticked, else ""; reviewed is
 // whether a /code-review started after the last code edit, anywhere in the
-// transcript, has finished.
+// transcript, has finished or is still running.
 func (w *planWalk) done() (plan string, reviewed bool) {
 	for _, path := range w.Ticked {
 		if data, err := os.ReadFile(path); err == nil {
@@ -261,7 +285,11 @@ func (w *planWalk) done() (plan string, reviewed bool) {
 			}
 		}
 	}
-	return plan, w.LastReview > w.LastEdit
+	running := false
+	for id := range w.Running {
+		running = running || w.Started[id] > w.LastEdit
+	}
+	return plan, w.LastReview > w.LastEdit || running
 }
 
 // launched is true when the transcript shows a /code-review started.

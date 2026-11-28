@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -106,4 +107,17 @@ func check(n int, line, end string) string {
 		return fmt.Sprintf("the file has %d lines", n)
 	}
 	return ""
+}
+
+// Files is each file a citation in text names under root, absolute, in
+// the order they appear, each once; citations Broken skips are skipped
+// here too.
+func Files(root, text string) []string {
+	var out []string
+	for _, m := range citation.FindAllStringSubmatch(text, -1) {
+		if path, ok := inRoot(root, m[1]); ok && !slices.Contains(out, path) {
+			out = append(out, path)
+		}
+	}
+	return out
 }

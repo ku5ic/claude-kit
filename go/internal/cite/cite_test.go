@@ -41,3 +41,15 @@ func TestBroken(t *testing.T) {
 		})
 	}
 }
+
+func TestFiles(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	testutil.Put(t, root, "go/stop.go", "a\n")
+	text := "`go/stop.go:1`, go/stop.go:3-4, README.md:2, vendor/x.go:1, stop.go:9, https://example.com:443/x"
+	want := []string{filepath.Join(root, "go/stop.go"), filepath.Join(root, "README.md")}
+	testutil.Put(t, root, "README.md", "x\n")
+	if got := Files(root, text); !slices.Equal(got, want) {
+		t.Errorf("Files = %q, want %q", got, want)
+	}
+}

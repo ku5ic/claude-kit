@@ -247,7 +247,7 @@ const stopBudget = 240 * time.Second
 // gains or changes a field: a saved read of another version is dropped and
 // the transcript read whole, so no field needs a zero value that suits an
 // old walk.
-const stopReadVersion = 4
+const stopReadVersion = 5
 
 // stopRead is where the last Stop run left the session's transcript: the
 // offset and line past what it read, where the current turn starts, and
@@ -309,7 +309,7 @@ func readSession(h *hook.Hook, path, root, plansDir string, isCode func(string) 
 	if data, err := os.ReadFile(file); err != nil || statErr != nil || json.Unmarshal(data, &st) != nil || st.Version != stopReadVersion || st.Path != path || st.Walk == nil || info.Size() < st.Offset {
 		st = stopRead{Version: stopReadVersion, Path: path, Walk: newPlanWalk()}
 	}
-	st.Walk.bashed = bashEdits(h)
+	st.Walk.bashed, st.Walk.root = bashEdits(h), root
 	var turn []transcript.Entry
 	seen := st.Offset
 	from, fromLine := st.Offset, st.Line
