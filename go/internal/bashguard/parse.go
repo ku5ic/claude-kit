@@ -988,29 +988,6 @@ const nameRef = `\$(?:(` + varName + `)|\{(` + varName + `)\})`
 // varRef is a word that is one variable and nothing else: $R or ${R}.
 var varRef = regexp.MustCompile(`^` + nameRef + `$`)
 
-// varFields is the fields w may expand to in seg when it is a variable the
-// command assigned itself: the value set before seg, and in a loop every
-// value the loop sets. Nil for any other word, $EDITOR included.
-func (st *state) varFields(seg Segment, w Word) [][]string {
-	m := varRef.FindStringSubmatch(w.Value)
-	if w.literal || m == nil {
-		return nil
-	}
-	name := m[1] + m[2]
-	var values []string
-	if value, ok := st.vars[name]; ok {
-		values = append(values, value)
-	}
-	values = append(values, st.loopVars[seg.loop][name]...)
-	var out [][]string
-	for _, v := range values {
-		if fields := strings.Fields(v); len(fields) > 0 {
-			out = append(out, fields)
-		}
-	}
-	return out
-}
-
 // inner collects the statements nested anywhere under n: substitution
 // bodies and compound-command bodies.
 func (c *collector) inner(src string, n syntax.Node) {

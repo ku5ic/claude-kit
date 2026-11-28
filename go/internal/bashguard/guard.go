@@ -179,132 +179,15 @@ func walkPinned(segs []Segment, home, cwd string, pin pinFunc) iter.Seq[walked] 
 // repo.
 type state struct {
 	dirs
+	shellVars
 	h   *hook.Hook
 	cfg *config.Config
 	// pending is the command's first ask reason, and pendingRule its rule.
 	pending, pendingRule string
 	// shadowed is true once the command logged its kit-switch shadow.
 	shadowed bool
-	// segs is the whole command parsed, inner substitutions included.
-	segs []Segment
 	// managers is each repo root's verified manager facts, read once per command.
 	managers map[string][]gapfill.Manager
-	// vars is what the command's own bare assignments set (R=rm; $R -rf ~),
-	// as of the segment being checked.
-	vars map[string]string
-	// loopVars is every value each loop's assignments set, by loop id.
-	loopVars map[int]map[string][]string
-	// sure is vars as the current shell surely has them: set by a lone
-	// command outside any subshell and any part that may not run.
-	sure map[string]string
-	// sureAt is the segment each sure value was set in, and at the segment
-	// being checked.
-	sureAt map[string]int
-	// chained is true for a sure value set on the right of && (track).
-	chained map[string]bool
-	at      int
-	// exported is every name an export in the command names.
-	exported map[string]bool
-	// cmd is the whole command, as the Bash call gives it.
-	cmd string
-}
-
-// begin readies st to check segs, cmd parsed, one segment at a time.
-func (st *state) begin(cmd string, segs []Segment) {
-	st.cmd = cmd
-	st.vars, st.sure, st.sureAt, st.chained, st.loopVars, st.segs = map[string]string{}, map[string]string{}, map[string]int{}, map[string]bool{}, loopAssigned(segs), segs
-	st.exported = exportedNames(segs)
-}
-
-// track records what seg, the i-th segment, assigns, once it's checked. An
-// assignment on the right of && counts when every pipeline from its list's
-// head to it follows an && (ls && S=x): a use later in that chain runs only
-// if it ran (sureValue). One after || or in a compound doesn't.
-func (st *state) track(i int, seg Segment) {
-	vars := assigned(seg)
-	maps.Copy(st.vars, vars)
-	chained := seg.conditional && st.chainedFromHead(i)
-	for name, value := range vars {
-		switch {
-		case seg.subshell || len(seg.Calls) > 1 || seg.conditional && !chained:
-			delete(st.sure, name)
-		default:
-			st.sure[name], st.sureAt[name], st.chained[name] = value, i, chained
-		}
-	}
-}
-
-// chainedFromHead is true when segment i runs only if every pipeline
-// before it in its list succeeded: an && joins each pair from the nearest
-// earlier pipeline that always runs.
-func (st *state) chainedFromHead(i int) bool {
-	for head := i - 1; head >= 0; head-- {
-		if seg := st.segs[head]; !seg.subshell && !seg.conditional {
-			return andChain(st.segs, head, i)
-		}
-	}
-	return false
-}
-
-// sureValue is name's sure value at segment use: one set on the right of
-// && counts only where use runs in the same && chain after it.
-func (st *state) sureValue(name string, use int) (string, bool) {
-	value, ok := st.sure[name]
-	if ok && st.chained[name] && !andChain(st.segs, st.sureAt[name], use) {
-		return "", false
-	}
-	return value, ok
-}
-
-// setVars is vars as NAME=value words, in no set order, split into those
-// the command exports and the bare rest, which reach a child process only
-// if the environment already exported them.
-func (st *state) setVars() (exported, bare []string) {
-	for name, value := range st.vars {
-		if st.exported[name] {
-			exported = append(exported, name+"="+value)
-		} else {
-			bare = append(bare, name+"="+value)
-		}
-	}
-	return exported, bare
-}
-
-// pinRefs is each $NAME or ${NAME} in a string.
-var pinRefs = regexp.MustCompile(nameRef)
-
-// pinBase is a value that starts with one $NAME or ${NAME} and has plain
-// text after it: its groups are the name (twice) and the text.
-var pinBase = regexp.MustCompile(`^` + nameRef + "([^$`]*)$")
-
-// pinned is the plain path name surely holds at the segment being checked:
-// set once, outside any loop, to a plainWord (nothing the shell splits,
-// globs, or expands, ~ included), or to an earlier pinned variable with
-// plain text after it, up to depth levels. Nothing is pinned that could be
-// set unseen (setOnly), that a for or select sets, or when the command
-// names IFS, which would split it.
-func (st *state) pinned(name string, depth int) (string, bool) {
-	value, ok := st.sureValue(name, st.at)
-	if !ok || st.inLoop(name) || !st.setOnly(name) {
-		return "", false
-	}
-	cmd := st.cmd
-	q := regexp.QuoteMeta(name)
-	if regexp.MustCompile(`\bIFS\b|\b(?:for|select)\s+` + q + `\b`).MatchString(cmd) {
-		return "", false
-	}
-	if m := pinBase.FindStringSubmatch(value); m != nil {
-		inner := m[1] + m[2]
-		if depth == 0 || !st.setFromEarlier(name, inner) {
-			return "", false
-		}
-		base, ok := st.pinned(inner, depth-1)
-		if !ok {
-			return "", false
-		}
-		value = base + m[3]
-	}
-	return value, plainWord.MatchString(value)
 }
 
 // pinnedHome is the HOME the command pinned to an absolute path, else the
@@ -314,54 +197,6 @@ func (st *state) pinnedHome() string {
 		return home
 	}
 	return st.home
-}
-
-// setFromEarlier is true when name's sure value was set from $inner, which
-// the command surely set before it.
-func (st *state) setFromEarlier(name, inner string) bool {
-	at, set := st.sureAt[inner]
-	return set && at < st.sureAt[name] && setFrom(st.cmd, name, inner)
-}
-
-// setFrom is true when cmd sets name to $inner, bare or in double quotes:
-// '$S' and \$S set the text $S.
-func setFrom(cmd, name, inner string) bool {
-	return regexp.MustCompile(`\b` + regexp.QuoteMeta(name) + `="?\$\{?` + regexp.QuoteMeta(inner) + `\b`).MatchString(cmd)
-}
-
-// inLoop is true when a loop in the command assigns name.
-func (st *state) inLoop(name string) bool {
-	return slices.ContainsFunc(slices.Collect(maps.Values(st.loopVars)), func(loop map[string][]string) bool {
-		_, ok := loop[name]
-		return ok
-	})
-}
-
-// expandPins is s with each reference to a pinned variable replaced by its
-// path; any other reference stays.
-func (st *state) expandPins(s string) string {
-	if !strings.Contains(s, "$") {
-		return s
-	}
-	return pinRefs.ReplaceAllStringFunc(s, func(ref string) string {
-		m := pinRefs.FindStringSubmatch(ref)
-		if path, ok := st.pinned(m[1]+m[2], 2); ok {
-			return path
-		}
-		return ref
-	})
-}
-
-// pinWords is words with expandPins applied to each that has no single
-// quote or backslash, which would keep a $ as text.
-func (st *state) pinWords(words []Word) []Word {
-	out := slices.Clone(words)
-	for i, w := range out {
-		if !strings.ContainsAny(w.Raw, `'\`) {
-			out[i].Value = st.expandPins(w.Value)
-		}
-	}
-	return out
 }
 
 func (st *state) ask(reason, rule string) {

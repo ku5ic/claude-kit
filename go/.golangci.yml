@@ -61,8 +61,6 @@ linters:
         linters: [cyclop, funlen, revive]
       - path: ^internal/bashguard/reads\.go$
         linters: [cyclop, funlen, revive]
-      - path: ^internal/bashguard/rules\.go$
-        linters: [cyclop, revive]
       - path: ^internal/claims/claims\.go$
         linters: [cyclop, funlen, revive]
       - path: ^internal/classify/classify\.go$
