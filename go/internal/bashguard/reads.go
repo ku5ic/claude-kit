@@ -106,24 +106,33 @@ func knownOptions(flags map[string]bool, negatable bool, args []string) ([]strin
 				i++
 			}
 		case strings.HasPrefix(a, "-") && len(a) > 1:
-			for j, r := range a[1:] {
-				value, ok := flags[string(r)]
-				if !ok {
-					return nil, false
-				}
-				// -A3 or -e x: the value is the rest of the word, or the next.
-				if value {
-					if j == len(a)-2 {
-						i++
-					}
-					break
-				}
+			known, next := clusterOptions(flags, a)
+			if !known {
+				return nil, false
 			}
+			i += boolInt(next)
 		default:
 			operands = append(operands, a)
 		}
 	}
 	return operands, true
+}
+
+// clusterOptions reads a short cluster against flags: whether each letter
+// up to the first that takes a value is known, and whether that value is
+// the next word. -A3 or -e x: the value is the rest of the word, or the
+// next.
+func clusterOptions(flags map[string]bool, a string) (known, next bool) {
+	for j, r := range a[1:] {
+		value, ok := flags[string(r)]
+		if !ok {
+			return false, false
+		}
+		if value {
+			return true, j == len(a)-2
+		}
+	}
+	return true, false
 }
 
 // filtersStdin is whether c reads only its stdin and writes only to
@@ -183,172 +192,6 @@ func ReadTargets(cmd, home, cwd, shell string) []string {
 	return out
 }
 
-// WriteTargets is what cmd, run from cwd, writes, each path absolute: every
-// > and >> target, a redirect alone and a compound command's included,
-// tee's files, the destination of cp, mv, or install, and the files sed -i
-// or sd edits. A cd moves where the writes after it land; one ending a
-// pipeline moves zsh but not bash, so each write after it counts in both
-// directories.
-func WriteTargets(cmd, home, cwd, shell string) []string {
-	segs, _ := parseAll(cmd, shell)
-	st := &state{dirs: dirs{home: home, cwd: resolveDir(home, "/", cwd)}}
-	st.begin(cmd, segs)
-	// ds are the directories the shell may be in.
-	ds := []dirs{st.dirs}
-	var out []string
-	addIn := func(d dirs, p string) {
-		if p := resolveDir(st.pinnedHome(), d.cwd, st.expandPins(unquote(p))); !slices.Contains(out, p) {
-			out = append(out, p)
-		}
-	}
-	add := func(p string) {
-		for _, d := range ds {
-			addIn(d, p)
-		}
-	}
-	// saved holds the directories from before a cd moved a subshell, for
-	// when it ends.
-	type entry struct {
-		scope int
-		ds    []dirs
-	}
-	var saved []entry
-	for at, seg := range segs {
-		for len(saved) > 0 && !slices.Contains(seg.scopes, saved[len(saved)-1].scope) {
-			ds, saved = saved[len(saved)-1].ds, saved[:len(saved)-1]
-		}
-		st.at = at
-		for ci, call := range seg.Calls {
-			for _, r := range call.Redirs {
-				if !strings.HasPrefix(r.Target.Value, "&") {
-					add(r.Target.Value)
-				}
-			}
-			i := lead(call.Words)
-			if i >= len(call.Words) {
-				continue
-			}
-			name, args := baseName(call.Words[i].Value), values(call.Words[i+1:])
-			ops := nonOptions(args)
-			switch {
-			case name == "tee":
-				for _, op := range ops {
-					add(op)
-				}
-			case name == "cp" || name == "mv" || name == "install":
-				for _, d := range ds {
-					isDir := func(p string) bool { return fsx.IsDir(resolveDir(home, d.cwd, unquote(p))) }
-					for _, op := range copyTargets(args, isDir) {
-						addIn(d, op)
-					}
-				}
-			case name == "sd" && len(ops) > 2:
-				for _, op := range ops[2:] {
-					add(op)
-				}
-			case name == "sed" && inPlace(args):
-				for _, op := range sedFiles(args) {
-					add(op)
-				}
-			case name == "cd" && movesShell(seg, ci):
-				if inner := len(seg.scopes) - 1; inner >= 0 && (len(saved) == 0 || saved[len(saved)-1].scope != seg.scopes[inner]) {
-					saved = append(saved, entry{seg.scopes[inner], slices.Clone(ds)})
-				}
-				moved := slices.Clone(ds)
-				for j := range moved {
-					moved[j].cd(st.pinWords(call.Words[i+1:]))
-				}
-				if len(seg.Calls) > 1 {
-					moved = append(slices.Clone(ds), moved...)
-				}
-				ds = moved
-			}
-		}
-		st.track(at, seg)
-	}
-	return out
-}
-
-// copyTargets is what a cp, mv, or install with args writes: each source's
-// name in a -t or --target-directory directory, or in a last operand that
-// is a directory (ending in / or one that exists), else that last operand.
-func copyTargets(args []string, isDir func(string) bool) []string {
-	var dir string
-	for i, a := range args {
-		switch {
-		case (a == "-t" || a == "--target-directory") && i+1 < len(args):
-			dir = args[i+1]
-		case strings.HasPrefix(a, "--target-directory="):
-			dir = strings.TrimPrefix(a, "--target-directory=")
-		}
-	}
-	ops := nonOptions(args)
-	switch {
-	case dir != "":
-		// nonOptions keeps -t's value as an operand.
-		ops = slices.DeleteFunc(ops, func(op string) bool { return op == dir })
-	case len(ops) < 2:
-		return nil
-	default:
-		dir, ops = ops[len(ops)-1], ops[:len(ops)-1]
-		if !strings.HasSuffix(dir, "/") && !isDir(dir) {
-			return []string{dir}
-		}
-	}
-	out := make([]string, 0, len(ops))
-	for _, src := range ops {
-		out = append(out, filepath.Join(dir, filepath.Base(unquote(src))))
-	}
-	return out
-}
-
-// sedFiles is the files sed's args name: not a script given with -e,
-// --expression, -f, or --file, nor BSD's empty suffix after -i,
-// nor, with no script flag, the first operand, which is the script.
-func sedFiles(args []string) []string {
-	var files []string
-	scripted, done := false, false
-	for i := 0; i < len(args); i++ {
-		a := args[i]
-		switch {
-		case done:
-			files = append(files, a)
-		case a == "--":
-			done = true
-		case a == "-e" || a == "--expression" || a == "-f" || a == "--file":
-			scripted = true
-			i++
-		case strings.HasPrefix(a, "--expression=") || strings.HasPrefix(a, "--file=") ||
-			strings.HasPrefix(a, "-e") && len(a) > 2 || strings.HasPrefix(a, "-f") && len(a) > 2:
-			scripted = true
-		case strings.HasPrefix(a, "-") && !strings.HasPrefix(a, "--") && strings.HasSuffix(a, "i") && i+1 < len(args) && args[i+1] == "":
-			// BSD's -i takes the suffix as the next word: -i '', -Ei ''.
-			i++
-		case strings.HasPrefix(a, "-"):
-		default:
-			files = append(files, a)
-		}
-	}
-	if !scripted && len(files) > 0 {
-		files = files[1:]
-	}
-	return files
-}
-
-// inPlace is true when sed's, perl's, or ruby's args edit the file in
-// place: a flag holding i before any --.
-func inPlace(args []string) bool {
-	for _, a := range args {
-		if a == "--" {
-			return false
-		}
-		if strings.HasPrefix(a, "-") && !strings.HasPrefix(a, "--") && strings.Contains(a, "i") || a == "--in-place" || strings.HasPrefix(a, "--in-place=") {
-			return true
-		}
-	}
-	return false
-}
-
 // gitReads are the git subcommands that only read, each true when it
 // prints the files it names: git ls-files .env names the file, show
 // HEAD:.env prints it.
@@ -367,36 +210,41 @@ func isGitRead(sub string) bool {
 // a reading git subcommand, or a read-only kit subcommand, with output
 // redirected nowhere but /dev/null or another descriptor.
 func onlyReads(segs []Segment) bool {
-	for _, seg := range segs {
-		for _, c := range seg.Calls {
-			if len(c.Words) == 0 || len(c.Assigns) > 0 {
-				return false
-			}
-			if !discards(c.Redirs) {
-				return false
-			}
-			// A path is a script of the project's: ./test or scripts/diff
-			// can write whatever it likes.
-			name, args := c.Words[0].Value, c.Words[1:]
-			if strings.Contains(name, "/") {
-				return false
-			}
-			for name == "git" && len(args) > 1 && args[0].Value == "-C" {
-				args = args[2:]
-			}
-			if slices.ContainsFunc(args, func(w Word) bool { return classify.WritingFlag(w.Value) }) {
-				return false
-			}
-			switch {
-			case classify.PureReaders[name]:
-			case name == "git" && len(args) > 0 && isGitRead(args[0].Value):
-			case name == "kit" && len(args) > 0 && kitcmd.ReadOnly(args[0].Value):
-			default:
-				return false
-			}
-		}
+	return !slices.ContainsFunc(segs, func(seg Segment) bool {
+		return slices.ContainsFunc(seg.Calls, func(c Call) bool { return !callOnlyReads(c) })
+	})
+}
+
+// callOnlyReads is onlyReads for one call. A path is a script of the
+// project's: ./test or scripts/diff can write whatever it likes.
+func callOnlyReads(c Call) bool {
+	if len(c.Words) == 0 || len(c.Assigns) > 0 || !discards(c.Redirs) {
+		return false
 	}
-	return true
+	name, args := c.Words[0].Value, c.Words[1:]
+	if strings.Contains(name, "/") {
+		return false
+	}
+	for name == "git" && len(args) > 1 && args[0].Value == "-C" {
+		args = args[2:]
+	}
+	return !slices.ContainsFunc(args, func(w Word) bool { return classify.WritingFlag(w.Value) }) && readsByName(name, args)
+}
+
+// readsByName is whether name with args only reads: a pure reader, a
+// reading git subcommand, or a read-only kit subcommand.
+func readsByName(name string, args []Word) bool {
+	switch {
+	case classify.PureReaders[name]:
+		return true
+	case len(args) == 0:
+		return false
+	case name == "git":
+		return isGitRead(args[0].Value)
+	case name == "kit":
+		return kitcmd.ReadOnly(args[0].Value)
+	}
+	return false
 }
 
 // excludeSensitive gives an rg with only literal words and read-only flags

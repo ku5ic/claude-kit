@@ -2,7 +2,6 @@ package bashguard
 
 import (
 	"cmp"
-	"iter"
 	"maps"
 	"path/filepath"
 	"regexp"
@@ -13,166 +12,11 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/config"
 	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/gapfill"
-	"github.com/ku5ic/claude-kit/go/internal/git"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/hook"
 	"github.com/ku5ic/claude-kit/go/internal/kitcmd"
 	"github.com/ku5ic/claude-kit/go/internal/layout"
-	"github.com/ku5ic/claude-kit/go/internal/project"
 )
-
-// dirs is where a command line's next command runs: cwd, which each cd
-// moves as if it ran and worked, and prev, the cwd before the last cd, for
-// cd -. maybe are the segments of cds that may not have; lost is true once
-// a segment runs where one of them may not have, so the shell may be
-// anywhere cwd passed through. A check that passes a path by where it
-// lands reads cwd only while lost is false. lostIn is the subshell a cd
-// moved, which the walk doesn't follow: the cwd is lost until it ends, then
-// lostBefore again.
-type dirs struct {
-	home, cwd, prev string
-	maybe           []int
-	lost            bool
-	lostIn          int
-	lostBefore      bool
-}
-
-// enter readies d for segment j of segs: one past the subshell a cd moved
-// finds the cwd again, and one that runs even when a cd in maybe didn't
-// loses it.
-func (d *dirs) enter(segs []Segment, j int) {
-	if d.lostIn != 0 && !slices.Contains(segs[j].scopes, d.lostIn) {
-		d.lost, d.lostIn = d.lostBefore, 0
-	}
-	if slices.ContainsFunc(d.maybe, func(k int) bool { return !andChain(segs, k, j) }) {
-		d.maybe, d.lost = nil, true
-	}
-}
-
-// loseIn loses the cwd for the rest of seg's innermost subshell, where a cd
-// in seg moved the shell: (cd /; rm -rf x) runs rm in /. Outside any
-// subshell, it's lost for good.
-func (d *dirs) loseIn(seg Segment) {
-	switch {
-	case len(seg.scopes) == 0:
-		d.maybe, d.lost = nil, true
-	case d.lostIn == 0:
-		d.lostIn, d.lostBefore, d.lost = seg.scopes[len(seg.scopes)-1], d.lost, true
-	}
-}
-
-// movesShell is whether a cd at call ci of seg can move the shell that runs
-// the rest of seg's subshell, or the command line: alone, or last in a
-// pipeline, which zsh runs in the current shell (bash too, with lastpipe).
-func movesShell(seg Segment, ci int) bool { return ci == len(seg.Calls)-1 }
-
-// moveAt moves d as name, a cd, pushd, or popd standing alone in segment k
-// of segs, with args, would. A cd surely moves the shell when it surely
-// runs and set -e stops on its failure or its directory exists; one to an
-// absolute directory then finds the cwd again. pushd, popd, and a cd the
-// guard can't follow lose it.
-func (d *dirs) moveAt(segs []Segment, k int, name string, args []Word) {
-	if name != "cd" || !d.tracks(args) {
-		d.maybe, d.lost = nil, true
-		return
-	}
-	d.cd(args)
-	seg := segs[k]
-	switch {
-	case seg.conditional || !fsx.IsDir(d.cwd) && (!standalone(seg) || !errexit(segs[:k])):
-		d.maybe = append(d.maybe, k)
-	case len(args) == 0 || filepath.IsAbs(guard.ExpandHome(d.home, args[0].Value)):
-		d.maybe, d.lost = nil, false
-	}
-}
-
-// movesDir is whether a call named name moves the shell's directory.
-func movesDir(name string) bool { return name == "cd" || name == "pushd" || name == "popd" }
-
-// tracks is true when cd with args moves d to a directory d can name: not
-// with an option, nor cd - before any cd.
-func (d *dirs) tracks(args []Word) bool {
-	switch {
-	case len(args) == 0:
-		return true
-	case args[0].Value == "-":
-		return d.prev != ""
-	default:
-		return !strings.HasPrefix(args[0].Value, "-")
-	}
-}
-
-// cd moves d as cd with args would.
-func (d *dirs) cd(args []Word) {
-	if !d.tracks(args) {
-		return
-	}
-	prev := d.cwd
-	switch {
-	case len(args) == 0:
-		d.cwd = d.home
-	case args[0].Value == "-":
-		d.cwd = d.prev
-	default:
-		d.cwd = resolveDir(d.home, d.cwd, args[0].Value)
-	}
-	d.prev = prev
-}
-
-// walked is one parsed call as walk yields it: its segment, the call, the
-// index of its real command word, that command's base name, the directory
-// it runs in, and whether it surely runs there (dirs.lost).
-type walked struct {
-	seg  Segment
-	call Call
-	i    int
-	name string
-	cwd  string
-	sure bool
-}
-
-// walk yields each call of segs with a command word, run from cwd, a cd
-// moving the directory for the calls after it.
-func walk(segs []Segment, home, cwd string) iter.Seq[walked] {
-	return walkPinned(segs, home, cwd, nil)
-}
-
-// pinFunc is words, in segment at, with each pinned variable read as its
-// path (state.pinWords).
-type pinFunc func(at int, words []Word) []Word
-
-// walkPinned is walk with each call's words read through pin, when set.
-func walkPinned(segs []Segment, home, cwd string, pin pinFunc) iter.Seq[walked] {
-	return func(yield func(walked) bool) {
-		d := dirs{home: home, cwd: cwd}
-		for at, seg := range segs {
-			d.enter(segs, at)
-			for ci, call := range seg.Calls {
-				if pin != nil {
-					call.Words = pin(at, call.Words)
-				}
-				i := lead(call.Words)
-				if i >= len(call.Words) {
-					continue
-				}
-				name := baseName(call.Words[i].Value)
-				// A cd before the last command of a pipeline moves nothing; one
-				// that ends a pipeline, or sits in a subshell, moves a shell
-				// the walk doesn't follow, so the cwd is lost.
-				switch {
-				case !movesDir(name) || !movesShell(seg, ci):
-				case len(seg.Calls) == 1 && !seg.subshell:
-					d.moveAt(segs, at, name, call.Words[i+1:])
-				default:
-					d.loseIn(seg)
-				}
-				if !yield(walked{seg, call, i, name, d.cwd, !d.lost}) {
-					return
-				}
-			}
-		}
-	}
-}
 
 // state is one command's evaluation: the first ask reason wins, and the
 // directory tracks cd segments so a later push or install checks the right
@@ -226,7 +70,24 @@ func Check(h *hook.Hook) error {
 	// The raw command, not norm: <<- strips tabs only, and norm would turn a
 	// tab-indented terminator into spaces that no longer close the heredoc.
 	p := parseFull(cmd, h.Shell)
-	segs := p.segs
+	st.askUnchecked(p)
+	st.begin(cmd, p.segs)
+	for i, seg := range p.segs {
+		st.at = i
+		st.enter(p.segs, i)
+		if err := st.segment(seg); err != nil {
+			return err
+		}
+		st.track(i, seg)
+	}
+	st.decide(p, cmd, norm)
+	return nil
+}
+
+// askUnchecked asks when part of the command went unchecked: a line that
+// didn't parse, a trap the guard can't place, or a zsh expansion that runs
+// code.
+func (st *state) askUnchecked(p parsed) {
 	switch {
 	case p.unparsed:
 		st.ask("guard-bash could not parse part of this command, so it went unchecked; confirm it", "unparsed")
@@ -235,34 +96,31 @@ func Check(h *hook.Hook) error {
 	case p.runsCode:
 		st.ask("a zsh glob qualifier or expansion flag here can run a command as it expands (e:, +, ${(e)...}, ${~...}), which guard-bash can't check; confirm it", "zsh-expansion")
 	}
-	st.begin(cmd, segs)
-	for i, seg := range segs {
-		st.at = i
-		st.enter(segs, i)
-		if err := st.segment(seg); err != nil {
-			return err
-		}
-		st.track(i, seg)
-	}
-	runs := cmd
+}
+
+// decide gives the command's verdict once every segment passed: the first
+// ask, an allow for a kit script that only reads, or the rewrite that
+// excludes credential files. bash-edits reads the marker of the command
+// that runs, the rewrite when there is one; a rewrite only reads, rg piped
+// into sort included.
+func (st *state) decide(p parsed, cmd, norm string) {
+	h, runs := st.h, cmd
 	switch {
 	case st.pending != "":
 		h.Ask(st.pending, st.pendingRule)
 	case readonlyCall(cmd, norm):
 		h.Allow("side-effect-free claude-kit script")
 	default:
-		if rewritten := st.excludeSensitive(segs, cmd); rewritten != "" {
+		if rewritten := st.excludeSensitive(p.segs, cmd); rewritten != "" {
 			runs = rewritten
 		}
 	}
-	// bash-edits reads the marker of the command that runs, the rewrite
-	// when there is one. A rewrite only reads, rg piped into sort included.
-	if !p.unparsed && !p.unplaced && !p.runsCode && (onlyReads(segs) || runs != cmd) && !h.DryRun {
-		if marker := cache.ReadOnlyBash(h.Paths.CacheDir(), h.Payload.SessionID(), runs); marker != "" {
-			_ = fsx.WriteAtomic(marker, nil, 0o600)
-		}
+	if p.unparsed || p.unplaced || p.runsCode || h.DryRun || !onlyReads(p.segs) && runs == cmd {
+		return
 	}
-	return nil
+	if marker := cache.ReadOnlyBash(h.Paths.CacheDir(), h.Payload.SessionID(), runs); marker != "" {
+		_ = fsx.WriteAtomic(marker, nil, 0o600)
+	}
 }
 
 // wholeString runs the checks on the whole command string, distinctive
@@ -364,23 +222,35 @@ func (st *state) pipeToShell(seg Segment) error {
 			continue
 		}
 		name := baseName(words[0].Value)
-		if fetched && (interpreters[name] || strings.HasPrefix(name, "python") || rootShell(call.Words[:start+1])) {
-			return st.h.Block("piping network content into an interpreter", "pipe-to-shell")
-		}
 		heredoc = heredoc || len(call.Heredocs) > 0
-		if fed && startsRootShell(call.Words) {
-			return st.h.Block(wrapReason, "interpreter-c-wrap")
+		if err := st.pipedInto(call, start, fetched, fed, heredoc); err != nil {
+			return err
 		}
-		if runsC(name) && (fed || name == "fish" && heredoc) {
-			shell := command{args: words[1:]}
-			if wrap, script := shellMode(shell.values()); !wrap && !script {
-				return st.h.Block(wrapReason, "interpreter-c-wrap")
-			}
-		}
-		if name == "curl" || name == "wget" {
-			fetched = true
-		}
+		fetched = fetched || name == "curl" || name == "wget"
 		fed = fed || !catsHeredoc(name, words[1:], call.Heredocs)
+	}
+	return nil
+}
+
+// pipedInto blocks call, its command at start, when what the pipeline
+// before it feeds it runs as code: fetched content into an interpreter,
+// any output into a root shell or a shell reading stdin, or a heredoc into
+// fish.
+func (st *state) pipedInto(call Call, start int, fetched, fed, heredoc bool) error {
+	words := call.Words[start:]
+	name := baseName(words[0].Value)
+	if fetched && (interpreters[name] || strings.HasPrefix(name, "python") || rootShell(call.Words[:start+1])) {
+		return st.h.Block("piping network content into an interpreter", "pipe-to-shell")
+	}
+	if fed && startsRootShell(call.Words) {
+		return st.h.Block(wrapReason, "interpreter-c-wrap")
+	}
+	if !runsC(name) || !fed && (name != "fish" || !heredoc) {
+		return nil
+	}
+	shell := command{args: words[1:]}
+	if wrap, script := shellMode(shell.values()); !wrap && !script {
+		return st.h.Block(wrapReason, "interpreter-c-wrap")
 	}
 	return nil
 }
@@ -409,50 +279,61 @@ func (st *state) segment(seg Segment) error {
 		if runsString(call.Words) {
 			return st.h.Block(wrapReason, "interpreter-c-wrap")
 		}
-		start := lead(call.Words)
-		if start >= len(call.Words) {
-			// A redirect with no command still reads its input: x=$(<.env).
-			if err := (&command{st: st}).readsSensitive(call.Inputs); err != nil {
-				return err
-			}
-			continue
-		}
-		// $(echo rm) -rf ~ names its command only at runtime, as does
-		// sh <<< "$(echo rm -rf ~)" once its body is parsed.
-		if raw := call.Words[start].Raw; strings.Contains(raw, "$(") || strings.Contains(raw, "`") {
-			st.ask("the command name comes from a substitution, so guard-bash can't check it; confirm it", "computed-command")
-		}
-		// One check per value $R may hold; a plain name is checked once.
-		expansions := st.varFields(seg, call.Words[start])
-		if len(expansions) == 0 {
-			expansions = [][]string{nil}
-		}
-		plain := command{
-			st: st, name: baseName(call.Words[start].Value), args: call.Words[start+1:], redirs: call.Redirs, inputs: call.Inputs,
-			rest: seg.Rest(ci, start), alone: len(seg.Calls) == 1 && !seg.subshell, shellString: call.shellString, movesShell: movesShell(seg, ci),
-			assigns: append(slices.Clone(call.Assigns), slices.DeleteFunc(values(call.Words[:start]), func(w string) bool { return !assignment.MatchString(w) })...),
-		}
-		for _, fields := range expansions {
-			c := plain
-			if len(fields) > 0 {
-				// The shell splits an unquoted $R into the name and leading args.
-				lifted := make([]Word, 0, len(fields)-1+len(c.args))
-				for _, f := range fields[1:] {
-					lifted = append(lifted, Word{Value: f, Raw: f, literal: true})
-				}
-				if len(lifted) > 0 {
-					c.rest = " " + strings.Join(fields[1:], " ") + c.rest
-				}
-				// The parser never saw this name, so it read no -c string.
-				c.name, c.args, c.shellString = baseName(fields[0]), append(lifted, c.args...), false
-			}
-			c.text = c.name + c.rest
-			if err := c.check(); err != nil {
-				return err
-			}
+		if err := st.call(seg, ci, call); err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+// call checks one command of seg, the ci-th, once per value its name may
+// expand to; a plain name is checked once.
+func (st *state) call(seg Segment, ci int, call Call) error {
+	start := lead(call.Words)
+	if start >= len(call.Words) {
+		// A redirect with no command still reads its input: x=$(<.env).
+		return (&command{st: st}).readsSensitive(call.Inputs)
+	}
+	// $(echo rm) -rf ~ names its command only at runtime, as does
+	// sh <<< "$(echo rm -rf ~)" once its body is parsed.
+	if raw := call.Words[start].Raw; strings.Contains(raw, "$(") || strings.Contains(raw, "`") {
+		st.ask("the command name comes from a substitution, so guard-bash can't check it; confirm it", "computed-command")
+	}
+	expansions := st.varFields(seg, call.Words[start])
+	if len(expansions) == 0 {
+		expansions = [][]string{nil}
+	}
+	plain := command{
+		st: st, name: baseName(call.Words[start].Value), args: call.Words[start+1:], redirs: call.Redirs, inputs: call.Inputs,
+		rest: seg.Rest(ci, start), alone: len(seg.Calls) == 1 && !seg.subshell, shellString: call.shellString, movesShell: movesShell(seg, ci),
+		assigns: append(slices.Clone(call.Assigns), slices.DeleteFunc(values(call.Words[:start]), func(w string) bool { return !assignment.MatchString(w) })...),
+	}
+	for _, fields := range expansions {
+		c := plain.as(fields)
+		if err := c.check(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// as is c with its name expanded to fields, one value of a variable: the
+// shell splits an unquoted $R into the name and leading args. The parser
+// never saw that name, so it read no -c string. With no fields c keeps its
+// name.
+func (c command) as(fields []string) command {
+	if len(fields) > 0 {
+		lifted := make([]Word, 0, len(fields)-1+len(c.args))
+		for _, f := range fields[1:] {
+			lifted = append(lifted, Word{Value: f, Raw: f, literal: true})
+		}
+		if len(lifted) > 0 {
+			c.rest = " " + strings.Join(fields[1:], " ") + c.rest
+		}
+		c.name, c.args, c.shellString = baseName(fields[0]), append(lifted, c.args...), false
+	}
+	c.text = c.name + c.rest
+	return c
 }
 
 // redirects blocks a write to a shell rc file, and asks before a write to
@@ -476,196 +357,6 @@ func (st *state) redirects(call Call) error {
 		st.looseWrite(">", target)
 	}
 	return nil
-}
-
-// looseWrite asks before a write (op is > or tee) that lands loose in the
-// current directory, unless git tracks the target: that file is the
-// project's already. Where the shell may be elsewhere, it asks.
-func (st *state) looseWrite(op, target string) {
-	if (!strings.Contains(target, "/") || strings.HasPrefix(target, "./")) && looseWriteTarget(target) && (st.lost || st.inWorktree() && !st.tracked(target)) {
-		st.ask("'"+op+" "+target+"' writes into the current directory; skills/kit-rules/reference/tooling.md wants "+op+" \"$(kit scratch-dir)/"+baseName(target)+"\". Confirm only if this file belongs in the project tree.", "loose-write")
-	}
-}
-
-// inWorktree is true when the tracked cwd (after any cd) is in a git work
-// tree and not under a scratch directory: cd /tmp or cd .claude/scratch
-// makes a bare > name harmless.
-func (st *state) inWorktree() bool { return st.worktreeTop() != "" }
-
-// worktreeTop is the toplevel of the work tree cwd is in, "" outside one
-// or in scratch.
-func (st *state) worktreeTop() string {
-	if st.cwd == "" || st.h.Paths.IsScratch(st.cwd) {
-		return ""
-	}
-	return git.Toplevel(st.cwd)
-}
-
-// tracked is true when git tracks target, a path relative to the tracked
-// cwd; a failed lookup reads as untracked, so the ask stays.
-func (st *state) tracked(target string) bool {
-	// literal: a glob in target ('main*') would match other tracked files.
-	paths, err := git.Paths(st.cwd, "ls-files", "-z", "--cached", "--", ":(literal)"+target)
-	return err == nil && len(paths) > 0
-}
-
-// looseWriteTarget is true for a relative target that would land loose in
-// the repo instead of scratch. Unresolvable targets (variables,
-// substitutions, fd duplications) are false: $(kit scratch-dir) is the
-// sanctioned form.
-func looseWriteTarget(p string) bool {
-	switch {
-	case p == "", p == "-", strings.HasPrefix(p, "$"), strings.Contains(p, "$("),
-		strings.HasPrefix(p, `"`), strings.HasPrefix(p, "'"), strings.HasPrefix(p, "&"), strings.HasPrefix(p, "("):
-		return false
-	case p == "scratch", strings.HasPrefix(p, "scratch/"), strings.HasSuffix(p, "/scratch"), strings.Contains(p, "/scratch/"):
-		return false
-	case strings.HasPrefix(p, "/"), strings.HasPrefix(p, "~"):
-		return false
-	}
-	return true
-}
-
-// scratchTarget is true when a download target is stdout, /dev/null, an fd,
-// or inside a .claude/scratch directory. $(kit scratch-dir), the kit's own
-// bin/kit by any path included, and $PWD count; any other unexpanded
-// variable, and any "..", doesn't, since it can't be checked. A path whose
-// symlinks lead out of scratch doesn't either; followLast says whether a
-// final link counts, as it does for a write, and not for rm, which removes
-// the link itself.
-func (st *state) scratchTarget(p string, followLast bool) bool {
-	p = unquote(p)
-	switch {
-	case p == "-", p == "/dev/null", len(p) == 2 && p[0] == '&' && p[1] >= '0' && p[1] <= '9':
-		return true
-	}
-	path, ok := st.scratchPath(p)
-	return ok && st.onDisk(path, followLast)
-}
-
-// scratchPath is p, unquoted, as an absolute path, with $(kit scratch-dir)
-// read as the directory it prints and $PWD, $(pwd), ~, and $HOME expanded. False
-// with a "..", or any other expansion left in it.
-func (st *state) scratchPath(p string) (string, bool) {
-	if strings.Contains(p, "..") {
-		return "", false
-	}
-	if runsIn, rest, ok := st.kitScratchDir(p); ok {
-		dir, err := project.ScratchDir(st.h.Paths, runsIn, false)
-		return dir + rest, err == nil && !strings.ContainsAny(rest, "$`")
-	}
-	for _, pwd := range []string{"$PWD", "${PWD}", "$(pwd)", "`pwd`"} {
-		if st.cwd != "" && (p == pwd || strings.HasPrefix(p, pwd+"/")) {
-			if st.lost {
-				return "", false
-			}
-			p = st.cwd + p[len(pwd):]
-			break
-		}
-	}
-	ok := st.placed(p)
-	p = st.abs(p)
-	return p, ok && !strings.ContainsAny(p, "$`")
-}
-
-// onDisk is true when p, absolute, is in scratch as written and on disk:
-// resolving its symlinks keeps it under its scratch root, resolved too. A
-// trailing slash follows a final link, as rm -r link/ does.
-func (st *state) onDisk(p string, followLast bool) bool {
-	root, ok := st.h.Paths.ScratchRoot(p)
-	if !ok {
-		return false
-	}
-	if root == filepath.Clean(p) && !followLast {
-		return true
-	}
-	real, err := filepath.EvalSymlinks(root)
-	if err != nil {
-		// No root, so nothing under it to follow.
-		return true
-	}
-	if followLast || strings.HasSuffix(p, "/") {
-		p = fsx.PhysicalPath(filepath.Clean(p))
-	}
-	return fsx.Within(real, fsx.ResolvedParent(filepath.Clean(p)))
-}
-
-// kitScratchSub matches a path that starts with a kit scratch-dir call,
-// $(K scratch-dir) or `K scratch-dir`, past a leading `cd DIR &&` and a
-// KIT_DEV=1, which picks how bin/kit builds, not what it prints. Its groups
-// are DIR and K, once per form.
-var kitScratchSub = regexp.MustCompile("^(?:\\$\\((?:cd ([^\\s$`()&;|]+) && )?(?:KIT_DEV=1 )?([^\\s$`()=]+) scratch-dir\\)" +
-	"|`(?:cd ([^\\s$`()&;|]+) && )?(?:KIT_DEV=1 )?([^\\s$`()=]+) scratch-dir`)(?:/|$)")
-
-// kitScratchDir reads p's leading scratch-dir call to kit on PATH, or to
-// this kit's bin/kit by any path: the directory the call runs in, past its
-// cd, and the rest of p. ok is false for any other call, since a kit
-// anywhere else could print any directory.
-func (st *state) kitScratchDir(p string) (runsIn, rest string, ok bool) {
-	m := kitScratchSub.FindStringSubmatch(p)
-	if m == nil {
-		return "", "", false
-	}
-	runsIn, kit, cd := st.cwd, m[2]+m[4], m[1]+m[3]
-	if cd != "" {
-		if !st.placed(cd) {
-			return "", "", false
-		}
-		runsIn = resolveDir(st.pinnedHome(), st.cwd, st.expandPins(cd))
-	}
-	rest = p[len(strings.TrimSuffix(m[0], "/")):]
-	if kit == "kit" {
-		return runsIn, rest, true
-	}
-	path := guard.ExpandHome(st.pinnedHome(), st.expandPins(kit))
-	if !filepath.IsAbs(path) {
-		if cd == "" && !st.placed(kit) {
-			return "", "", false
-		}
-		path = filepath.Join(runsIn, path)
-	}
-	return runsIn, rest, st.h.Paths.Root != "" && filepath.Clean(path) == filepath.Join(st.h.Paths.Root, "bin", "kit")
-}
-
-// unquote strips one pair of surrounding quotes, single or double.
-func unquote(p string) string {
-	p = strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(p, `"`), `'`), `"`)
-	return strings.TrimSuffix(p, `'`)
-}
-
-// abs is p with its pinned variables, ~, and $HOME expanded, ~ by a HOME
-// the command pinned to an absolute path, joined to the segment's cwd when
-// relative.
-func (st *state) abs(p string) string {
-	p = guard.ExpandHome(st.pinnedHome(), st.expandPins(p))
-	if !strings.HasPrefix(p, "/") {
-		p = st.cwd + "/" + p
-	}
-	return p
-}
-
-// placed is true when p, as abs reads it, lands where abs puts it: it's
-// absolute, or the shell surely runs in the tracked cwd.
-func (st *state) placed(p string) bool {
-	return !st.lost || strings.HasPrefix(guard.ExpandHome(st.pinnedHome(), st.expandPins(p)), "/")
-}
-
-// askKitSwitch asks, and is true, when a word (quoted, ~- or
-// $HOME-prefixed, or relative to the segment's cwd) names a path
-// guard.KitSwitch protects, through a symlink or not. Only a writer's
-// operands and a redirect's target get here, so resolving each is cheap.
-func (st *state) askKitSwitch(arg string) bool {
-	what := st.kitSwitch(arg)
-	if what != "" {
-		st.ask(guard.KitSwitchAsk(what), "kit-switch")
-	}
-	return what != ""
-}
-
-// kitSwitch is what guard.KitSwitch names for arg, resolved as
-// askKitSwitch resolves it, or "".
-func (st *state) kitSwitch(arg string) string {
-	return guard.KitSwitch(st.h.Paths, st.abs(unquote(arg)))
 }
 
 // readonlyCall is true for a lone `kit <read-only subcommand>` call

@@ -1,9 +1,11 @@
 package bashguard
 
 import (
+	"path/filepath"
 	"slices"
 	"strings"
 
+	"github.com/ku5ic/claude-kit/go/internal/fsx"
 	"github.com/ku5ic/claude-kit/go/internal/guard"
 	"github.com/ku5ic/claude-kit/go/internal/layout"
 )
@@ -254,6 +256,214 @@ func (st *state) linksBefore(at int) bool {
 			j := lead(call.Words)
 			return j < len(call.Words) && baseName(call.Words[j].Value) == "ln"
 		}) {
+			return true
+		}
+	}
+	return false
+}
+
+// WriteTargets is what cmd, run from cwd, writes, each path absolute: every
+// > and >> target, a redirect alone and a compound command's included,
+// tee's files, the destination of cp, mv, or install, and the files sed -i
+// or sd edits. A cd moves where the writes after it land; one ending a
+// pipeline moves zsh but not bash, so each write after it counts in both
+// directories.
+func WriteTargets(cmd, home, cwd, shell string) []string {
+	segs, _ := parseAll(cmd, shell)
+	st := &state{dirs: dirs{home: home, cwd: resolveDir(home, "/", cwd)}}
+	st.begin(cmd, segs)
+	w := &dirSet{st: st, ds: []dirs{st.dirs}}
+	for at, seg := range segs {
+		w.leave(seg)
+		st.at = at
+		for ci, call := range seg.Calls {
+			w.call(seg, ci, call)
+		}
+		st.track(at, seg)
+	}
+	return w.out
+}
+
+// dirSet is WriteTargets' walk: ds are the directories the shell may be
+// in, saved holds the ones from before a cd moved a subshell, for when it
+// ends, and out is every write target found.
+type dirSet struct {
+	st    *state
+	ds    []dirs
+	saved []scopeDirs
+	out   []string
+}
+
+// scopeDirs is the directories a subshell scope started in.
+type scopeDirs struct {
+	scope int
+	ds    []dirs
+}
+
+// leave restores the directories of every scope seg is no longer in.
+func (w *dirSet) leave(seg Segment) {
+	for len(w.saved) > 0 && !slices.Contains(seg.scopes, w.saved[len(w.saved)-1].scope) {
+		w.ds, w.saved = w.saved[len(w.saved)-1].ds, w.saved[:len(w.saved)-1]
+	}
+}
+
+// addIn adds p, resolved in d, once.
+func (w *dirSet) addIn(d dirs, p string) {
+	if p := resolveDir(w.st.pinnedHome(), d.cwd, w.st.expandPins(unquote(p))); !slices.Contains(w.out, p) {
+		w.out = append(w.out, p)
+	}
+}
+
+// add adds each p in every directory the shell may be in.
+func (w *dirSet) add(ps ...string) {
+	for _, p := range ps {
+		for _, d := range w.ds {
+			w.addIn(d, p)
+		}
+	}
+}
+
+// call adds what one command of seg, the ci-th, writes, or moves the
+// directories for a cd.
+func (w *dirSet) call(seg Segment, ci int, call Call) {
+	w.add(redirectFiles(call.Redirs)...)
+	i := lead(call.Words)
+	if i >= len(call.Words) {
+		return
+	}
+	name, args := baseName(call.Words[i].Value), values(call.Words[i+1:])
+	ops := nonOptions(args)
+	switch {
+	case name == "tee":
+		w.add(ops...)
+	case name == "cp" || name == "mv" || name == "install":
+		for _, d := range w.ds {
+			isDir := func(p string) bool { return fsx.IsDir(resolveDir(w.st.home, d.cwd, unquote(p))) }
+			for _, op := range copyTargets(args, isDir) {
+				w.addIn(d, op)
+			}
+		}
+	case name == "sd" && len(ops) > 2:
+		w.add(ops[2:]...)
+	case name == "sed" && inPlace(args):
+		w.add(sedFiles(args)...)
+	case name == "cd" && movesShell(seg, ci):
+		w.cd(seg, w.st.pinWords(call.Words[i+1:]))
+	}
+}
+
+// redirectFiles is each redirect target that is a file, not a descriptor.
+func redirectFiles(redirs []Redir) []string {
+	var out []string
+	for _, r := range redirs {
+		if !strings.HasPrefix(r.Target.Value, "&") {
+			out = append(out, r.Target.Value)
+		}
+	}
+	return out
+}
+
+// cd moves every directory the shell may be in by a cd to args, saving
+// them first when it opens a subshell's move. One in a pipeline moves zsh
+// but not bash, so both stay.
+func (w *dirSet) cd(seg Segment, args []Word) {
+	if inner := len(seg.scopes) - 1; inner >= 0 && (len(w.saved) == 0 || w.saved[len(w.saved)-1].scope != seg.scopes[inner]) {
+		w.saved = append(w.saved, scopeDirs{seg.scopes[inner], slices.Clone(w.ds)})
+	}
+	moved := slices.Clone(w.ds)
+	for j := range moved {
+		moved[j].cd(args)
+	}
+	if len(seg.Calls) > 1 {
+		moved = append(slices.Clone(w.ds), moved...)
+	}
+	w.ds = moved
+}
+
+// copyTargets is what a cp, mv, or install with args writes: each source's
+// name in a -t or --target-directory directory, or in a last operand that
+// is a directory (ending in / or one that exists), else that last operand.
+func copyTargets(args []string, isDir func(string) bool) []string {
+	var dir string
+	for i, a := range args {
+		switch {
+		case (a == "-t" || a == "--target-directory") && i+1 < len(args):
+			dir = args[i+1]
+		case strings.HasPrefix(a, "--target-directory="):
+			dir = strings.TrimPrefix(a, "--target-directory=")
+		}
+	}
+	ops := nonOptions(args)
+	switch {
+	case dir != "":
+		// nonOptions keeps -t's value as an operand.
+		ops = slices.DeleteFunc(ops, func(op string) bool { return op == dir })
+	case len(ops) < 2:
+		return nil
+	default:
+		dir, ops = ops[len(ops)-1], ops[:len(ops)-1]
+		if !strings.HasSuffix(dir, "/") && !isDir(dir) {
+			return []string{dir}
+		}
+	}
+	out := make([]string, 0, len(ops))
+	for _, src := range ops {
+		out = append(out, filepath.Join(dir, filepath.Base(unquote(src))))
+	}
+	return out
+}
+
+// sedFiles is the files sed's args name: not a script given with -e,
+// --expression, -f, or --file, nor BSD's empty suffix after -i,
+// nor, with no script flag, the first operand, which is the script.
+func sedFiles(args []string) []string {
+	var files []string
+	scripted, done := false, false
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case done:
+			files = append(files, a)
+		case a == "--":
+			done = true
+		case strings.HasPrefix(a, "-"):
+			script, skip := sedOption(a, args[i+1:])
+			scripted, i = scripted || script, i+skip
+		default:
+			files = append(files, a)
+		}
+	}
+	if !scripted && len(files) > 0 {
+		files = files[1:]
+	}
+	return files
+}
+
+// sedOption reads sed's option a, rest the words after it: whether it
+// gives the script, and how many of rest it takes. BSD's -i takes the
+// suffix as the next word: -i ”, -Ei ”.
+func sedOption(a string, rest []string) (script bool, skip int) {
+	switch {
+	case a == "-e" || a == "--expression" || a == "-f" || a == "--file":
+		return true, 1
+	case strings.HasPrefix(a, "--expression=") || strings.HasPrefix(a, "--file="):
+		return true, 0
+	case !strings.HasPrefix(a, "--") && (strings.HasPrefix(a, "-e") || strings.HasPrefix(a, "-f")) && len(a) > 2:
+		return true, 0
+	case !strings.HasPrefix(a, "--") && strings.HasSuffix(a, "i") && len(rest) > 0 && rest[0] == "":
+		return false, 1
+	}
+	return false, 0
+}
+
+// inPlace is true when sed's, perl's, or ruby's args edit the file in
+// place: a flag holding i before any --.
+func inPlace(args []string) bool {
+	for _, a := range args {
+		if a == "--" {
+			return false
+		}
+		if strings.HasPrefix(a, "-") && !strings.HasPrefix(a, "--") && strings.Contains(a, "i") || a == "--in-place" || strings.HasPrefix(a, "--in-place=") {
 			return true
 		}
 	}
