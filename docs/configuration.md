@@ -6,18 +6,18 @@ The common dials are rows in Claude Code's `/config` ([From `/config`](#from-con
 
 ## Common changes
 
-| You want                                                                                           | Set                                                       |
-| -------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| Fewer stops: one review per plan, no plan-critic pass, no skill nudges                             | `preset: light`, or the Kit: preset row                   |
-| The kit as shipped                                                                                 | Nothing, or `preset: standard`                            |
-| Pattern skills required before the first edit of a file type, ASCII typography, and claims checked | `preset: strict`                                          |
-| Claude never to push to a branch                                                                   | `protected_branches: [staging]`                           |
-| One guard rule let through                                                                         | `disabled_rules: [<slug>]`, the slug `kit explain` prints |
-| One review at the end of a plan instead of after each step                                         | `step_pause: plan`, or the Kit: step pause row            |
-| Longer chat replies                                                                                | `reply_length: moderate`, or the Kit: reply length row    |
-| A check gate off                                                                                   | `disabled_checks: [<kind or label>]`                      |
-| A file type formatted that your project's own fixers don't claim                                   | `on_edit`                                                 |
-| More credential files guarded                                                                      | `sensitive_paths`                                         |
+| You want                                                                                                                   | Set                                                       |
+| -------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| Fewer stops: one review per plan, no plan-critic pass, no skill nudges                                                     | `preset: light`, or the Kit: preset row                   |
+| The kit as shipped                                                                                                         | Nothing, or `preset: standard`                            |
+| Pattern skills required before the first edit of a file type, ASCII typography, claims checked, and a skipped test blocked | `preset: strict`                                          |
+| Claude never to push to a branch                                                                                           | `protected_branches: [staging]`                           |
+| One guard rule let through                                                                                                 | `disabled_rules: [<slug>]`, the slug `kit explain` prints |
+| One review at the end of a plan instead of after each step                                                                 | `step_pause: plan`, or the Kit: step pause row            |
+| Longer chat replies                                                                                                        | `reply_length: moderate`, or the Kit: reply length row    |
+| A check gate off                                                                                                           | `disabled_checks: [<kind or label>]`                      |
+| A file type formatted that your project's own fixers don't claim                                                           | `on_edit`                                                 |
+| More credential files guarded                                                                                              | `sensitive_paths`                                         |
 
 ## On by default, and what you switch on
 
@@ -111,11 +111,11 @@ Defaults live in `kit.yml`. Your overrides go in `~/.claude/claude-kit.local.yml
 
 A preset is a set of these keys under a name. Put `preset: <name>` in your overlay, and its file merges between `kit.yml` and your overlay, so your own keys still win. Each file in [`presets/`](../presets) is a few lines:
 
-| Preset     | Sets                                                                                                                       |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `light`    | `step_pause: plan`, `disabled_rules: [plan-critic, skills-nudge]`: one stop per plan, no plan-critic pass, no skill nudges |
-| `standard` | Nothing: `kit.yml` as it is                                                                                                |
-| `strict`   | `guard_skills: true`, `sanitize_typography: true`, `claims.timeout: 240`: both opt-in guards and the claim checker on      |
+| Preset     | Sets                                                                                                                                                                                             |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `light`    | `step_pause: plan`, `disabled_rules: [plan-critic, skills-nudge]`: one stop per plan, no plan-critic pass, no skill nudges                                                                       |
+| `standard` | Nothing: `kit.yml` as it is                                                                                                                                                                      |
+| `strict`   | `guard_skills: true`, `sanitize_typography: true`, `claims.timeout: 240`, `weakened_checks.block: true`: both opt-in guards, the claim checker, and a block on a skipped test or silenced linter |
 
 `CLAUDE_GUARD_SKILLS=1` and `CLAUDE_SANITIZE_TYPOGRAPHY=1` in your settings `env` still turn those two guards on.
 

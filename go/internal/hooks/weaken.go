@@ -17,9 +17,10 @@ import (
 	"github.com/ku5ic/claude-kit/go/internal/weaken"
 )
 
-// GuardWeaken blocks an edit that skips or focuses a test, or silences a
-// linter or type checker, unless the line carries `kit: allow <reason>`,
-// which is logged. A test file left with fewer assertions asks first.
+// GuardWeaken asks before an edit that skips or focuses a test, or
+// silences a linter or type checker, or with weakened_checks.block blocks
+// it, unless the line carries `kit: allow <reason>`, which is logged. A
+// test file left with fewer assertions asks first.
 // PreToolUse for Edit, Write, and MultiEdit, inside guard-dispatch.
 func GuardWeaken(h *hook.Hook) error {
 	if h.Payload.Err != nil {
@@ -42,9 +43,15 @@ func GuardWeaken(h *hook.Hook) error {
 		}
 		fmt.Fprintf(&b, "- L%d %s: %s\n", hit.Line, hit.Kind, hit.Text)
 	}
-	if b.Len() > 0 {
-		return h.Block(fmt.Sprintf("this edit weakens a check in %s\n%s", filepath.Base(path), b.String())+
-			layout.KV("do", "say why in your reply and put `kit: allow <reason>` on the line or above it, or revert it"), "weaken")
+	switch weakens := fmt.Sprintf("this edit weakens a check in %s\n%s", filepath.Base(path), b.String()); {
+	case b.Len() == 0:
+	// Block also carries a disabled or shadowed rule's let-through, which Ask
+	// has none of.
+	case cfg.WeakenedChecks.Block || !h.RuleEnforced("weaken"):
+		return h.Block(weakens+layout.KV("do", "say why in your reply and put `kit: allow <reason>` on the line or above it, or revert it"), "weaken")
+	default:
+		h.Ask(weakens+"Confirm only if the check is meant to be off", "weaken")
+		return nil
 	}
 	if r.Lost > 0 {
 		h.Ask(fmt.Sprintf("this edit leaves %s with %d fewer assertion line(s). Confirm only if they're redundant or moved", filepath.Base(path), r.Lost), "lost-assertions")

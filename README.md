@@ -136,7 +136,7 @@ Eight dials are rows in Claude Code's `/config`, each titled `Kit:`:
 | Kit: /kit-stats command    | on, off                            |
 | Kit: subagent rows         | on, off                            |
 
-`light` means one review per plan, no plan-critic pass, and no skill nudges; `strict` requires pattern skills before the first edit of a file type and checks the claims in plans, reports, and posts. Every other override goes in `~/.claude/claude-kit.local.yml`: [docs/configuration.md](docs/configuration.md).
+`light` means one review per plan, no plan-critic pass, and no skill nudges; `strict` requires pattern skills before the first edit of a file type, checks the claims in plans, reports, and posts, and blocks a skipped test or silenced linter until its line says why. Every other override goes in `~/.claude/claude-kit.local.yml`: [docs/configuration.md](docs/configuration.md).
 
 ## What it costs
 

@@ -389,6 +389,9 @@ func (s SizeBudgets) problems() []error {
 // edit by: the files it skips, the files that are tests, and the lines
 // that skip a test, silence a check, or assert.
 type WeakenedChecks struct {
+	// Block makes a skip, focus, or suppression block until the line carries
+	// `kit: allow <reason>`; else it asks, so no marker gets written.
+	Block        bool     `yaml:"block"`
 	Skip         []string `yaml:"skip"`
 	TestFiles    []string `yaml:"test_files"`
 	Skips        []string `yaml:"skips"`

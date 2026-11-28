@@ -1,7 +1,10 @@
 # strict: the opt-in guards on. The first edit of a file type waits for its
-# pattern skill, written files get ASCII typography, and the claims in plans,
-# reports, and posts are checked before they go out.
+# pattern skill, written files get ASCII typography, the claims in plans,
+# reports, and posts are checked before they go out, and a skipped test or
+# silenced linter blocks until its line says why.
 guard_skills: true
 sanitize_typography: true
 claims:
   timeout: 240
+weakened_checks:
+  block: true
